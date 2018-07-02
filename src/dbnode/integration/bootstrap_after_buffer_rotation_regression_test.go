@@ -182,7 +182,7 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 	// Verify in-memory data match what we expect - both commitlog and memory write
 	// should be present.
 	expectedSeriesMaps := map[xtime.UnixNano]generate.SeriesBlock{
-		xtime.ToUnixNano(commitlogWrite.Timestamp): generate.SeriesBlock{
+		xtime.ToUnixNano(commitlogWrite.Timestamp.Truncate(blockSize)): generate.SeriesBlock{
 			generate.Series{
 				ID:   testID,
 				Data: []ts.Datapoint{commitlogWrite, memoryWrite},
