@@ -809,6 +809,16 @@ func (sid *serviceID) Zone() string                      { return sid.zone }
 func (sid *serviceID) SetName(n string) ServiceID        { sid.name = n; return sid }
 func (sid *serviceID) SetEnvironment(e string) ServiceID { sid.env = e; return sid }
 func (sid *serviceID) SetZone(z string) ServiceID        { sid.zone = z; return sid }
+
+func (sid *serviceID) Equal(other ServiceID) bool {
+	if other == nil {
+		return false
+	}
+	return sid.Name() == other.Name() &&
+		sid.Zone() == other.Zone() &&
+		sid.Environment() == other.Environment()
+}
+
 func (sid *serviceID) String() string {
 	return fmt.Sprintf("[name: %s, env: %s, zone: %s]", sid.name, sid.env, sid.zone)
 }
