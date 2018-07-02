@@ -25,8 +25,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
-	"github.com/m3db/m3ninx/index/segment"
-	"github.com/m3db/m3ninx/index/segment/mem"
+	"github.com/m3db/m3db/src/m3ninx/index/segment"
+	"github.com/m3db/m3db/src/m3ninx/index/segment/mem"
 	xtime "github.com/m3db/m3x/time"
 )
 

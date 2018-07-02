@@ -112,7 +112,7 @@ M3DB calls its cluster topology ‘placement’. Run the command below on any of
 Note: Isolation group specifies how the cluster places shards to avoid more than one replica of a shard appearing in the same replica group. As such you must be using at least as many isolation groups as your replication factor. In this example we use the availibity zones `us-east1-a`, `us-east1-b`, `us-east1-c` as our isolation groups which matches our replication factor of 3.
 
 ```json
-curl -X POST localhost:7201/placement/init -d '{
+curl -X POST localhost:7201/api/v1/placement/init -d '{
     "num_shards": 256,
     "replication_factor": 3,
     "instances": [
@@ -153,7 +153,7 @@ A namespace in M3DB is similar to a table in Cassandra (C*). You can specify ret
 Run the following on any seed node to create a ‘metrics’ namespace with 30 day retention, 12 hour block sizes, ability to write out of order datapoints into past or future by 1 hour:
 
 ```json
-curl -X POST localhost:7201/namespace/add -d '{
+curl -X POST localhost:7201/api/v1/namespace -d '{
   "name": "metrics",
   "options": {
     "bootstrapEnabled": true,
@@ -163,14 +163,16 @@ curl -X POST localhost:7201/namespace/add -d '{
     "snapshotEnabled": false,
     "repairEnabled": false,
     "retentionOptions": {
-      "retentionPeriodNanos": '"$((1000000000*60*60*24*30))"',
-      "blockSizeNanos": '"$((1000000000*60*60*12))"',
-      "bufferFutureNanos": '"$((1000000000*60*60*1))"',
-      "bufferPastNanos": '"$((1000000000*60*60*1))"'
+      "retentionPeriodDuration": "720h",
+      "blockSizeDuration": "12h",
+      "bufferFutureDuration": "1h",
+      "bufferPastDuration": "1h",
+      "blockDataExpiry": true,
+      "blockDataExpiryAfterNotAccessPeriodDuration": "5m"
     },
     "indexOptions": {
       "enabled": true,
-      "blockSizeNanos": '"$((1000000000*60*60*12))"'
+      "blockSizeDuration": "12h"
     }
   }
 }'

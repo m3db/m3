@@ -21,19 +21,81 @@
 package executor
 
 import (
+	"sync"
+
+	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/parser"
-	"github.com/m3db/m3db/src/coordinator/storage"
+
+	"github.com/pkg/errors"
+)
+
+const (
+	// TODO: Get from config
+	channelSize = 100
+)
+
+var (
+	errAborted = errors.New("the query has been aborted")
 )
 
 // Result provides the execution results
 type Result interface {
+	abort(err error)
+	done()
+	ResultChan() chan ResultChan
 }
 
 // ResultNode is used to provide the results to the caller from the query execution
 type ResultNode struct {
+	mu         sync.Mutex
+	resultChan chan ResultChan
+	aborted    bool
+}
+
+// ResultChan has the result from a block
+type ResultChan struct {
+	Block block.Block
+	Err   error
+}
+
+func newResultNode() *ResultNode {
+	blocks := make(chan ResultChan, channelSize)
+	return &ResultNode{resultChan: blocks}
 }
 
 // Process the block
-func (r ResultNode) Process(ID parser.NodeID, block storage.Block) error {
+func (r *ResultNode) Process(ID parser.NodeID, block block.Block) error {
+	if r.aborted {
+		return errAborted
+	}
+
+	r.resultChan <- ResultChan{
+		Block: block,
+	}
+
 	return nil
+}
+
+// ResultChan return a channel to stream back resultChan to the client
+func (r *ResultNode) ResultChan() chan ResultChan {
+	return r.resultChan
+}
+
+// TODO: Signal error downstream
+func (r *ResultNode) abort(err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.aborted {
+		return
+	}
+
+	r.aborted = true
+	r.resultChan <- ResultChan{
+		Err: err,
+	}
+	close(r.resultChan)
+}
+
+func (r *ResultNode) done() {
+	close(r.resultChan)
 }

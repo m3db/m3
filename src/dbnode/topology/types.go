@@ -75,8 +75,8 @@ type Topology interface {
 type DynamicTopology interface {
 	Topology
 
-	// MarkShardAvailable marks a shard with the state of initializing as available
-	MarkShardAvailable(instanceID string, shardID uint32) error
+	// MarkShardsAvailable marks a shard with the state of initializing as available
+	MarkShardsAvailable(instanceID string, shardIDs ...uint32) error
 }
 
 // MapWatch is a watch on a topology map

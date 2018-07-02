@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
+	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -223,7 +224,7 @@ type databaseNamespace interface {
 	GetIndex() (namespaceIndex, error)
 
 	// Tick performs any regular maintenance operations
-	Tick(c context.Cancellable) error
+	Tick(c context.Cancellable, tickStart time.Time) error
 
 	// Write writes a data point
 	Write(
@@ -348,7 +349,7 @@ type databaseShard interface {
 	Close() error
 
 	// Tick performs any updates to ensure series drain their buffers and blocks are flushed, etc
-	Tick(c context.Cancellable) (tickResult, error)
+	Tick(c context.Cancellable, tickStart time.Time) (tickResult, error)
 
 	Write(
 		ctx context.Context,
@@ -466,7 +467,7 @@ type namespaceIndex interface {
 
 	// Tick performs internal house keeping in the index, including block rotation,
 	// data eviction, and so on.
-	Tick(c context.Cancellable) (namespaceIndexTickResult, error)
+	Tick(c context.Cancellable, tickStart time.Time) (namespaceIndexTickResult, error)
 
 	// Flush performs any flushes that the index has outstanding using
 	// the owned shards of the database.
@@ -600,7 +601,7 @@ type databaseTickManager interface {
 	// Tick performs maintenance operations, restarting the current
 	// tick if force is true. It returns nil if a new tick has
 	// completed successfully, and an error otherwise.
-	Tick(forceType forceType) error
+	Tick(forceType forceType, tickStart time.Time) error
 }
 
 // databaseMediator mediates actions among various database managers
@@ -647,64 +648,64 @@ type databaseNamespaceWatch interface {
 
 // Options represents the options for storage
 type Options interface {
-	// Validate validates assumptions baked into the code
+	// Validate validates assumptions baked into the code.
 	Validate() error
 
-	// SetEncodingM3TSZPooled sets m3tsz encoding with pooling
+	// SetEncodingM3TSZPooled sets m3tsz encoding with pooling.
 	SetEncodingM3TSZPooled() Options
 
-	// SetClockOptions sets the clock options
+	// SetClockOptions sets the clock options.
 	SetClockOptions(value clock.Options) Options
 
-	// ClockOptions returns the clock options
+	// ClockOptions returns the clock options.
 	ClockOptions() clock.Options
 
-	// SetInstrumentOptions sets the instrumentation options
+	// SetInstrumentOptions sets the instrumentation options.
 	SetInstrumentOptions(value instrument.Options) Options
 
-	// InstrumentOptions returns the instrumentation options
+	// InstrumentOptions returns the instrumentation options.
 	InstrumentOptions() instrument.Options
 
-	// SetNamespaceInitializer sets the namespace registry initializer
+	// SetNamespaceInitializer sets the namespace registry initializer.
 	SetNamespaceInitializer(value namespace.Initializer) Options
 
-	// NamespaceInitializer returns the namespace registry initializer
+	// NamespaceInitializer returns the namespace registry initializer.
 	NamespaceInitializer() namespace.Initializer
 
-	// SetDatabaseBlockOptions sets the database block options
+	// SetDatabaseBlockOptions sets the database block options.
 	SetDatabaseBlockOptions(value block.Options) Options
 
-	// DatabaseBlockOptions returns the database block options
+	// DatabaseBlockOptions returns the database block options.
 	DatabaseBlockOptions() block.Options
 
-	// SetCommitLogOptions sets the commit log options
+	// SetCommitLogOptions sets the commit log options.
 	SetCommitLogOptions(value commitlog.Options) Options
 
-	// CommitLogOptions returns the commit log options
+	// CommitLogOptions returns the commit log options.
 	CommitLogOptions() commitlog.Options
 
-	// SetRuntimeOptionsManager sets the runtime options manager
+	// SetRuntimeOptionsManager sets the runtime options manager.
 	SetRuntimeOptionsManager(value runtime.OptionsManager) Options
 
-	// RuntimeOptionsManager returns the runtime options manager
+	// RuntimeOptionsManager returns the runtime options manager.
 	RuntimeOptionsManager() runtime.OptionsManager
 
-	// SetErrorCounterOptions sets the error counter options
+	// SetErrorCounterOptions sets the error counter options.
 	SetErrorCounterOptions(value xcounter.Options) Options
 
-	// ErrorCounterOptions returns the error counter options
+	// ErrorCounterOptions returns the error counter options.
 	ErrorCounterOptions() xcounter.Options
 
-	// SetErrorWindowForLoad sets the error window for load
+	// SetErrorWindowForLoad sets the error window for load.
 	SetErrorWindowForLoad(value time.Duration) Options
 
-	// ErrorWindowForLoad returns the error window for load
+	// ErrorWindowForLoad returns the error window for load.
 	ErrorWindowForLoad() time.Duration
 
-	// SetErrorThresholdForLoad sets the error threshold for load
+	// SetErrorThresholdForLoad sets the error threshold for load.
 	SetErrorThresholdForLoad(value int64) Options
 
-	// ErrorThresholdForLoad returns the error threshold for load
+	// ErrorThresholdForLoad returns the error threshold for load.
 	ErrorThresholdForLoad() int64
 
 	// SetIndexOptions set the indexing options.
@@ -713,40 +714,40 @@ type Options interface {
 	// IndexOptions returns the indexing options.
 	IndexOptions() index.Options
 
-	// SetRepairEnabled sets whether or not to enable the repair
+	// SetRepairEnabled sets whether or not to enable the repair.
 	SetRepairEnabled(b bool) Options
 
-	// RepairEnabled returns whether the repair is enabled
+	// RepairEnabled returns whether the repair is enabled.
 	RepairEnabled() bool
 
-	// SetRepairOptions sets the repair options
+	// SetRepairOptions sets the repair options.
 	SetRepairOptions(value repair.Options) Options
 
-	// RepairOptions returns the repair options
+	// RepairOptions returns the repair options.
 	RepairOptions() repair.Options
 
-	// SetBootstrapProcessProvider sets the bootstrap process provider for the database
+	// SetBootstrapProcessProvider sets the bootstrap process provider for the database.
 	SetBootstrapProcessProvider(value bootstrap.ProcessProvider) Options
 
-	// BootstrapProcessProvider returns the bootstrap process provider for the database
+	// BootstrapProcessProvider returns the bootstrap process provider for the database.
 	BootstrapProcessProvider() bootstrap.ProcessProvider
 
-	// SetPersistManager sets the persistence manager
+	// SetPersistManager sets the persistence manager.
 	SetPersistManager(value persist.Manager) Options
 
-	// PersistManager returns the persistence manager
+	// PersistManager returns the persistence manager.
 	PersistManager() persist.Manager
 
-	// SetMaxFlushRetries sets the maximum number of retries when data flushing fails
+	// SetMaxFlushRetries sets the maximum number of retries when data flushing fails.
 	SetMaxFlushRetries(value int) Options
 
-	// MaxFlushRetries returns the maximum number of retries when data flushing fails
+	// MaxFlushRetries returns the maximum number of retries when data flushing fails.
 	MaxFlushRetries() int
 
-	// SetMinimumSnapshotInterval sets the minimum amount of time that must elapse between snapshots
+	// SetMinimumSnapshotInterval sets the minimum amount of time that must elapse between snapshots.
 	SetMinimumSnapshotInterval(value time.Duration) Options
 
-	// MinimumSnapshotInterval returns the minimum amount of time that must elapse between snapshots
+	// MinimumSnapshotInterval returns the minimum amount of time that must elapse between snapshots.
 	MinimumSnapshotInterval() time.Duration
 
 	// SetDatabaseBlockRetrieverManager sets the block retriever manager to
@@ -766,10 +767,10 @@ type Options interface {
 	// containing data.
 	DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager
 
-	// SetContextPool sets the contextPool
+	// SetContextPool sets the contextPool.
 	SetContextPool(value context.Pool) Options
 
-	// ContextPool returns the contextPool
+	// ContextPool returns the contextPool.
 	ContextPool() context.Pool
 
 	// SetSeriesCachePolicy sets the series cache policy.
@@ -778,46 +779,46 @@ type Options interface {
 	// SeriesCachePolicy returns the series cache policy.
 	SeriesCachePolicy() series.CachePolicy
 
-	// SetSeriesOptions sets the series options
+	// SetSeriesOptions sets the series options.
 	SetSeriesOptions(value series.Options) Options
 
-	// SeriesOptions returns the series options
+	// SeriesOptions returns the series options.
 	SeriesOptions() series.Options
 
-	// SetDatabaseSeriesPool sets the database series pool
+	// SetDatabaseSeriesPool sets the database series pool.
 	SetDatabaseSeriesPool(value series.DatabaseSeriesPool) Options
 
-	// DatabaseSeriesPool returns the database series pool
+	// DatabaseSeriesPool returns the database series pool.
 	DatabaseSeriesPool() series.DatabaseSeriesPool
 
-	// SetBytesPool sets the bytesPool
+	// SetBytesPool sets the bytesPool.
 	SetBytesPool(value pool.CheckedBytesPool) Options
 
-	// BytesPool returns the bytesPool
+	// BytesPool returns the bytesPool.
 	BytesPool() pool.CheckedBytesPool
 
-	// SetEncoderPool sets the contextPool
+	// SetEncoderPool sets the contextPool.
 	SetEncoderPool(value encoding.EncoderPool) Options
 
-	// EncoderPool returns the contextPool
+	// EncoderPool returns the contextPool.
 	EncoderPool() encoding.EncoderPool
 
-	// SetSegmentReaderPool sets the contextPool
+	// SetSegmentReaderPool sets the contextPool.
 	SetSegmentReaderPool(value xio.SegmentReaderPool) Options
 
-	// SegmentReaderPool returns the contextPool
+	// SegmentReaderPool returns the contextPool.
 	SegmentReaderPool() xio.SegmentReaderPool
 
-	// SetReaderIteratorPool sets the readerIteratorPool
+	// SetReaderIteratorPool sets the readerIteratorPool.
 	SetReaderIteratorPool(value encoding.ReaderIteratorPool) Options
 
-	// ReaderIteratorPool returns the readerIteratorPool
+	// ReaderIteratorPool returns the readerIteratorPool.
 	ReaderIteratorPool() encoding.ReaderIteratorPool
 
-	// SetMultiReaderIteratorPool sets the multiReaderIteratorPool
+	// SetMultiReaderIteratorPool sets the multiReaderIteratorPool.
 	SetMultiReaderIteratorPool(value encoding.MultiReaderIteratorPool) Options
 
-	// MultiReaderIteratorPool returns the multiReaderIteratorPool
+	// MultiReaderIteratorPool returns the multiReaderIteratorPool.
 	MultiReaderIteratorPool() encoding.MultiReaderIteratorPool
 
 	// SetIDPool sets the ID pool.
@@ -826,17 +827,23 @@ type Options interface {
 	// IDPool returns the ID pool.
 	IdentifierPool() ident.Pool
 
-	// SetFetchBlockMetadataResultsPool sets the fetchBlockMetadataResultsPool
+	// SetFetchBlockMetadataResultsPool sets the fetchBlockMetadataResultsPool.
 	SetFetchBlockMetadataResultsPool(value block.FetchBlockMetadataResultsPool) Options
 
-	// FetchBlockMetadataResultsPool returns the fetchBlockMetadataResultsPool
+	// FetchBlockMetadataResultsPool returns the fetchBlockMetadataResultsPool.
 	FetchBlockMetadataResultsPool() block.FetchBlockMetadataResultsPool
 
-	// SetFetchBlocksMetadataResultsPool sets the fetchBlocksMetadataResultsPool
+	// SetFetchBlocksMetadataResultsPool sets the fetchBlocksMetadataResultsPool.
 	SetFetchBlocksMetadataResultsPool(value block.FetchBlocksMetadataResultsPool) Options
 
-	// FetchBlocksMetadataResultsPool returns the fetchBlocksMetadataResultsPool
+	// FetchBlocksMetadataResultsPool returns the fetchBlocksMetadataResultsPool.
 	FetchBlocksMetadataResultsPool() block.FetchBlocksMetadataResultsPool
+
+	// SetQueryIDsWorkerPool sets the QueryIDs worker pool.
+	SetQueryIDsWorkerPool(value xsync.WorkerPool) Options
+
+	// QueryIDsWorkerPool returns the QueryIDs worker pool.
+	QueryIDsWorkerPool() xsync.WorkerPool
 }
 
 // DatabaseBootstrapState stores a snapshot of the bootstrap state for all shards across all

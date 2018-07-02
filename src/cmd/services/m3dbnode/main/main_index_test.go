@@ -38,7 +38,7 @@ import (
 	"github.com/m3db/m3db/src/dbnode/client"
 	"github.com/m3db/m3db/src/dbnode/kvconfig"
 	"github.com/m3db/m3db/src/dbnode/storage/index"
-	m3ninxidx "github.com/m3db/m3ninx/idx"
+	m3ninxidx "github.com/m3db/m3db/src/m3ninx/idx"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -184,8 +184,18 @@ func TestIndexEnabledServer(t *testing.T) {
 	cli, err := cfg.DB.Client.NewClient(client.ConfigurationParameters{})
 	require.NoError(t, err)
 
-	session, err := cli.DefaultSession()
+	adminCli := cli.(client.AdminClient)
+	adminSession, err := adminCli.DefaultAdminSession()
 	require.NoError(t, err)
+	defer adminSession.Close()
+
+	// Propagation of shard state from Initializing --> Available post-bootstrap is eventually
+	// consistent, so we must wait.
+	waitUntilAllShardsAreAvailable(t, adminSession)
+
+	// Cast to narrower-interface instead of grabbing DefaultSession to make sure
+	// we use the same topology.Map that we validated in waitUntilAllShardsAreAvailable.
+	session := adminSession.(client.Session)
 
 	defer session.Close()
 

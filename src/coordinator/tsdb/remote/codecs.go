@@ -40,6 +40,17 @@ func toTime(t int64) time.Time {
 	return storage.TimestampToTime(t)
 }
 
+func encodeTags(tagMap map[string]string) []*rpc.Tag {
+	tags := make([]*rpc.Tag, 0, len(tagMap))
+	for name, value := range tagMap {
+		tags = append(tags, &rpc.Tag{
+			Name:  []byte(name),
+			Value: []byte(value),
+		})
+	}
+	return tags
+}
+
 // EncodeFetchResult encodes fetch result to rpc result
 func EncodeFetchResult(sResult *storage.FetchResult) *rpc.FetchResult {
 	series := make([]*rpc.Series, len(sResult.SeriesList))
@@ -56,12 +67,12 @@ func EncodeFetchResult(sResult *storage.FetchResult) *rpc.FetchResult {
 		}
 
 		series[i] = &rpc.Series{
-			Name: result.Name(),
+			Id: []byte(result.Name()),
 			Values: &rpc.Datapoints{
 				Datapoints:      datapoints,
 				FixedResolution: fixedRes,
 			},
-			Tags: result.Tags,
+			Tags: encodeTags(result.Tags),
 		}
 	}
 	return &rpc.FetchResult{Series: series}
@@ -80,6 +91,15 @@ func DecodeFetchResult(_ context.Context, rpcSeries []*rpc.Series) ([]*ts.Series
 	return tsSeries, nil
 }
 
+func decodeTags(tags []*rpc.Tag) models.Tags {
+	modelTags := make(models.Tags)
+	for _, t := range tags {
+		name, value := string(t.GetName()), string(t.GetValue())
+		modelTags[name] = value
+	}
+	return modelTags
+}
+
 func decodeTs(r *rpc.Series) (*ts.Series, error) {
 	fixedRes := r.Values.FixedResolution
 	var (
@@ -96,8 +116,8 @@ func decodeTs(r *rpc.Series) (*ts.Series, error) {
 		values = decodeRawTs(r)
 	}
 
-	tags := models.Tags(r.GetTags())
-	series := ts.NewSeries(r.GetName(), values, tags)
+	tags := decodeTags(r.GetTags())
+	series := ts.NewSeries(string(r.GetId()), values, tags)
 	return series, nil
 }
 

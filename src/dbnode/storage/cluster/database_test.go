@@ -139,18 +139,35 @@ func TestDatabaseMarksShardAsAvailableOnReshard(t *testing.T) {
 	expectNamespaces := []storage.Namespace{mockNamespace}
 	mockStorageDB.EXPECT().Namespaces().Return(expectNamespaces)
 
+	needsMarkAvailable := struct {
+		sync.Mutex
+		shards map[uint32]struct{}
+	}{
+		shards: map[uint32]struct{}{
+			2: struct{}{},
+			3: struct{}{},
+		},
+	}
+
 	var wg sync.WaitGroup
-	wg.Add(2)
-	props.topology.EXPECT().
-		MarkShardAvailable("testhost0", uint32(2)).
-		Do(func(hostID string, shardID uint32) {
+	wg.Add(1)
+	onMarkShardsAvailable := func(hostID string, shardIDs ...uint32) {
+		needsMarkAvailable.Lock()
+		defer needsMarkAvailable.Unlock()
+
+		for _, shardID := range shardIDs {
+			delete(needsMarkAvailable.shards, shardID)
+		}
+		if len(needsMarkAvailable.shards) == 0 {
 			wg.Done()
-		})
+		}
+	}
+
+	// Could be batched together, or could be called one by one
 	props.topology.EXPECT().
-		MarkShardAvailable("testhost0", uint32(3)).
-		Do(func(hostID string, shardID uint32) {
-			wg.Done()
-		})
+		MarkShardsAvailable("testhost0", gomock.Any()).
+		Do(onMarkShardsAvailable).
+		AnyTimes()
 
 	// Enqueue the update
 	viewsCh <- testutil.NewTopologyView(1, updatedView)

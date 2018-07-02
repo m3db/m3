@@ -13,9 +13,9 @@ import (
 
 	"github.com/m3db/m3db/src/dbnode/persist"
 	"github.com/m3db/m3db/src/dbnode/persist/fs"
-	"github.com/m3db/m3ninx/doc"
-	m3ninxfs "github.com/m3db/m3ninx/index/segment/fs"
-	m3ninxpersist "github.com/m3db/m3ninx/persist"
+	"github.com/m3db/m3db/src/m3ninx/doc"
+	m3ninxfs "github.com/m3db/m3db/src/m3ninx/index/segment/fs"
+	m3ninxpersist "github.com/m3db/m3db/src/m3ninx/persist"
 	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
 
@@ -169,7 +169,7 @@ func (vals ints) summary() summaryStats {
 
 func formatCommas(num int) string {
 	str := strconv.Itoa(num)
-	re := regexp.MustCompile("(\\d+)(\\d{3})")
+	re := regexp.MustCompile(`(\d+)(\d{3})`)
 	for i := 0; i < (len(str)-1)/3; i++ {
 		str = re.ReplaceAllString(str, "$1,$2")
 	}

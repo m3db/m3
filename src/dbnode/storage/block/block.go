@@ -117,7 +117,7 @@ func NewRetrievableDatabaseBlock(
 
 func (b *dbBlock) StartTime() time.Time {
 	b.RLock()
-	start := b.startWithLock()
+	start := b.startWithRLock()
 	b.RUnlock()
 	return start
 }
@@ -129,7 +129,7 @@ func (b *dbBlock) BlockSize() time.Duration {
 	return size
 }
 
-func (b *dbBlock) startWithLock() time.Time {
+func (b *dbBlock) startWithRLock() time.Time {
 	return time.Unix(0, b.startUnixNanos)
 }
 
@@ -171,14 +171,14 @@ func (b *dbBlock) Checksum() (uint32, error) {
 
 	tempCtx := b.opts.ContextPool().Get()
 
-	stream, err := b.stream(tempCtx)
+	stream, err := b.streamWithRLock(tempCtx)
 	if err != nil {
 		return 0, err
 	}
 
 	// This will merge the existing stream with the merge target's stream,
 	// as well as recalculate and store the new checksum.
-	_, err = b.forceMergeWithLock(tempCtx, stream)
+	err = b.forceMergeWithLock(tempCtx, stream)
 	if err != nil {
 		return 0, err
 	}
@@ -197,7 +197,7 @@ func (b *dbBlock) OnRetrieveBlock(
 
 	if b.closed ||
 		!id.Equal(b.retrieveID) ||
-		!startTime.Equal(b.startWithLock()) {
+		!startTime.Equal(b.startWithRLock()) {
 		return
 	}
 
@@ -207,14 +207,35 @@ func (b *dbBlock) OnRetrieveBlock(
 }
 
 func (b *dbBlock) Stream(blocker context.Context) (xio.BlockReader, error) {
+	lockUpgraded := false
+
 	b.RLock()
-	defer b.RUnlock()
+	defer func() {
+		if lockUpgraded {
+			b.Unlock()
+		} else {
+			b.RUnlock()
+		}
+	}()
 
 	if b.closed {
 		return xio.EmptyBlockReader, errReadFromClosedBlock
 	}
 
-	stream, err := b.stream(blocker)
+	if b.mergeTarget == nil {
+		return b.streamWithRLock(blocker)
+	}
+
+	b.RUnlock()
+	lockUpgraded = true
+	b.Lock()
+
+	// Need to re-check everything since we upgraded the lock.
+	if b.closed {
+		return xio.EmptyBlockReader, errReadFromClosedBlock
+	}
+
+	stream, err := b.streamWithRLock(blocker)
 	if err != nil {
 		return xio.EmptyBlockReader, err
 	}
@@ -225,7 +246,21 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.BlockReader, error) {
 
 	// This will merge the existing stream with the merge target's stream,
 	// as well as recalculate and store the new checksum.
-	return b.forceMergeWithLock(blocker, stream)
+	err = b.forceMergeWithLock(blocker, stream)
+	if err != nil {
+		return xio.EmptyBlockReader, err
+	}
+
+	// This will return a copy of the data so that it is still safe to
+	// close the block after calling this method.
+	return b.streamWithRLock(blocker)
+}
+
+func (b *dbBlock) HasMergeTarget() bool {
+	b.RLock()
+	hasMergeTarget := b.mergeTarget != nil
+	b.RUnlock()
+	return hasMergeTarget
 }
 
 func (b *dbBlock) IsRetrieved() bool {
@@ -289,8 +324,8 @@ func (b *dbBlock) ResetRetrievable(
 	b.resetRetrievableWithLock(retriever, metadata)
 }
 
-func (b *dbBlock) stream(ctx context.Context) (xio.BlockReader, error) {
-	start := b.startWithLock()
+func (b *dbBlock) streamWithRLock(ctx context.Context) (xio.BlockReader, error) {
+	start := b.startWithRLock()
 
 	// If the block retrieve ID is set then it must be retrieved
 	var (
@@ -327,27 +362,24 @@ func (b *dbBlock) stream(ctx context.Context) (xio.BlockReader, error) {
 	return blockReader, nil
 }
 
-// TODO(rartoul): The existing ctx is still holding a reference to the old segment so that will hang around
-// and waste memory until the block is closed. We could improve this by swapping out the underlying ctx with
-// a new one, allowing us to close the old one and release the old segment, freeing memory.
-func (b *dbBlock) forceMergeWithLock(ctx context.Context, stream xio.SegmentReader) (xio.BlockReader, error) {
+func (b *dbBlock) forceMergeWithLock(ctx context.Context, stream xio.SegmentReader) error {
 	targetStream, err := b.mergeTarget.Stream(ctx)
 	if err != nil {
-		return xio.EmptyBlockReader, err
+		return err
 	}
-	start := b.startWithLock()
+	start := b.startWithRLock()
 	mergedBlockReader := newDatabaseMergedBlockReader(start, b.blockSize,
 		mergeableStream{stream: stream, finalize: false},       // Should have been marked for finalization by the caller
 		mergeableStream{stream: targetStream, finalize: false}, // Already marked for finalization by the Stream() call above
 		b.opts)
 	mergedSegment, err := mergedBlockReader.Segment()
 	if err != nil {
-		return xio.EmptyBlockReader, err
+		return err
 	}
 
 	b.resetMergeTargetWithLock()
 	b.resetSegmentWithLock(mergedSegment)
-	return mergedBlockReader, nil
+	return nil
 }
 
 func (b *dbBlock) resetNewBlockStartWithLock(start time.Time, blockSize time.Duration) {
@@ -452,7 +484,7 @@ func (b *dbBlock) wiredListEntry() wiredListEntry {
 		closed:               b.closed,
 		retrieveID:           b.retrieveID,
 		wasRetrievedFromDisk: b.wasRetrievedFromDisk,
-		startTime:            b.startWithLock(),
+		startTime:            b.startWithRLock(),
 	}
 	b.RUnlock()
 	return result

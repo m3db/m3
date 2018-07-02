@@ -29,15 +29,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos/etcd/embed"
-	"github.com/coreos/etcd/pkg/transport"
-	"github.com/coreos/etcd/pkg/types"
 	coordinatorcfg "github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
 	"github.com/m3db/m3db/src/dbnode/client"
 	"github.com/m3db/m3db/src/dbnode/environment"
 	"github.com/m3db/m3x/config/hostid"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
+
+	"github.com/coreos/etcd/embed"
+	"github.com/coreos/etcd/pkg/transport"
+	"github.com/coreos/etcd/pkg/types"
 )
 
 const (
@@ -59,6 +60,9 @@ type Configuration struct {
 
 // DBConfiguration is the configuration for a DB node.
 type DBConfiguration struct {
+	// Index configuration.
+	Index IndexConfiguration `yaml:"index"`
+
 	// Logging configuration.
 	Logging xlog.Configuration `yaml:"logging"`
 
@@ -127,6 +131,15 @@ type DBConfiguration struct {
 
 	// Write new series asynchronously for fast ingestion of new ID bursts.
 	WriteNewSeriesAsync bool `yaml:"writeNewSeriesAsync"`
+}
+
+// IndexConfiguration contains index-specific configuration.
+type IndexConfiguration struct {
+	// MaxQueryIDsConcurrency controls the maximum number of outstanding QueryID
+	// requests that can be serviced concurrently. Limiting the concurrency is
+	// important to prevent index queries from overloading the database entirely
+	// as they are very CPU-intensive (regex and FST matching.)
+	MaxQueryIDsConcurrency int `yaml:"maxQueryIDsConcurrency" validate:"min=0"`
 }
 
 // TickConfiguration is the tick configuration for background processing of

@@ -18,6 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-//go:generate sh -c "thrift-gen --generateThrift --inputFile $GOPATH/src/$PACKAGE/src/dbnode/generated/thrift/rpc.thrift -outputDir $GOPATH/src/$PACKAGE/src/dbnode/generated/thrift/"
+//go:generate sh -c "$GOPATH/src/$PACKAGE/src/dbnode/generated/thrift/generate.sh"
 
 package thrift

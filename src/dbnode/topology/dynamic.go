@@ -173,16 +173,16 @@ func (t *dynamicTopology) Close() {
 	t.watchable.Close()
 }
 
-func (t *dynamicTopology) MarkShardAvailable(
+func (t *dynamicTopology) MarkShardsAvailable(
 	instanceID string,
-	shardID uint32,
+	shardIDs ...uint32,
 ) error {
 	opts := placement.NewOptions()
 	ps, err := t.services.PlacementService(t.opts.ServiceID(), opts)
 	if err != nil {
 		return err
 	}
-	return ps.MarkShardAvailable(instanceID, shardID)
+	return ps.MarkShardsAvailable(instanceID, shardIDs...)
 }
 
 func waitOnInit(w services.Watch, d time.Duration) error {

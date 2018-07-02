@@ -23,6 +23,7 @@ package fanout
 import (
 	"context"
 
+	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/errors"
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/policy/filter"
@@ -40,7 +41,7 @@ type fanoutStorage struct {
 	writeFilter filter.Storage
 }
 
-// NewStorage creates a new remote Storage instance.
+// NewStorage creates a new fanout Storage instance.
 func NewStorage(stores []storage.Storage, fetchFilter filter.Storage, writeFilter filter.Storage) storage.Storage {
 	return &fanoutStorage{stores: stores, fetchFilter: fetchFilter, writeFilter: writeFilter}
 }
@@ -115,8 +116,19 @@ func (s *fanoutStorage) Type() storage.Type {
 }
 
 func (s *fanoutStorage) FetchBlocks(
-	ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (storage.BlockResult, error) {
-	return storage.BlockResult{}, errors.ErrNotImplemented
+	ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (block.Result, error) {
+	stores := filterStores(s.stores, s.writeFilter, query)
+	blockResult := block.Result{}
+	for _, store := range stores {
+		result, err := store.FetchBlocks(ctx, query, options)
+		if err != nil {
+			return block.Result{}, err
+		}
+
+		blockResult.Blocks = append(blockResult.Blocks, result.Blocks...)
+	}
+
+	return blockResult, nil
 }
 
 func (s *fanoutStorage) Close() error {

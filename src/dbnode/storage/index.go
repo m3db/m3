@@ -38,11 +38,11 @@ import (
 	"github.com/m3db/m3db/src/dbnode/storage/index"
 	"github.com/m3db/m3db/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
-	"github.com/m3db/m3ninx/doc"
-	m3ninxindex "github.com/m3db/m3ninx/index"
-	"github.com/m3db/m3ninx/index/segment"
-	"github.com/m3db/m3ninx/index/segment/mem"
-	"github.com/m3db/m3ninx/postings"
+	"github.com/m3db/m3db/src/m3ninx/doc"
+	m3ninxindex "github.com/m3db/m3db/src/m3ninx/index"
+	"github.com/m3db/m3db/src/m3ninx/index/segment"
+	"github.com/m3db/m3db/src/m3ninx/index/segment/mem"
+	"github.com/m3db/m3db/src/m3ninx/postings"
 	xclose "github.com/m3db/m3x/close"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
@@ -450,12 +450,11 @@ func (i *nsIndex) Bootstrap(
 	return multiErr.FinalError()
 }
 
-func (i *nsIndex) Tick(c context.Cancellable) (namespaceIndexTickResult, error) {
+func (i *nsIndex) Tick(c context.Cancellable, tickStart time.Time) (namespaceIndexTickResult, error) {
 	var (
 		result                     = namespaceIndexTickResult{}
-		now                        = i.nowFn()
-		earliestBlockStartToRetain = retention.FlushTimeStartForRetentionPeriod(i.retentionPeriod, i.blockSize, now)
-		lastSealableBlockStart     = retention.FlushTimeEndForBlockSize(i.blockSize, now.Add(-i.bufferPast))
+		earliestBlockStartToRetain = retention.FlushTimeStartForRetentionPeriod(i.retentionPeriod, i.blockSize, tickStart)
+		lastSealableBlockStart     = retention.FlushTimeEndForBlockSize(i.blockSize, tickStart.Add(-i.bufferPast))
 	)
 
 	i.state.Lock()
@@ -483,7 +482,7 @@ func (i *nsIndex) Tick(c context.Cancellable) (namespaceIndexTickResult, error) 
 		}
 
 		// tick any blocks we're going to retain
-		blockTickResult, tickErr := block.Tick(c)
+		blockTickResult, tickErr := block.Tick(c, tickStart)
 		multiErr = multiErr.Add(tickErr)
 		result.NumSegments += blockTickResult.NumSegments
 		result.NumTotalDocs += blockTickResult.NumDocs

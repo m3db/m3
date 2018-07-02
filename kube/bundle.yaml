@@ -1,0 +1,458 @@
+# AUTOMATICALLY GENERATED (build_bundle.sh) - DO NOT EDIT
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: m3db
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: etcd
+  labels:
+    app: etcd
+  namespace: m3db
+spec:
+  ports:
+  - port: 2379
+    name: client
+  - port: 2380
+    name: peer
+  clusterIP: None
+  selector:
+    app: etcd
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: etcd-cluster
+  labels:
+    app: etcd
+  namespace: m3db
+spec:
+  selector:
+    app: etcd
+  ports:
+  - port: 2379
+    protocol: TCP
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: etcd
+  labels:
+    app: etcd
+  namespace: m3db
+spec:
+  serviceName: "etcd"
+  replicas: 3
+  selector:
+    matchLabels:
+      app: etcd
+  template:
+    metadata:
+      labels:
+        app: etcd
+    spec:
+      containers:
+      - name: etcd
+        image: quay.io/coreos/etcd:v3.3.3
+        command:
+        - "etcd"
+        - "--name"
+        - "$(MY_POD_NAME)"
+        - "--listen-peer-urls"
+        - "http://$(MY_IP):2380"
+        - "--listen-client-urls"
+        - "http://$(MY_IP):2379,http://127.0.0.1:2379"
+        - "--advertise-client-urls"
+        - "http://$(MY_POD_NAME).etcd:2379"
+        - "--initial-cluster-token"
+        - "etcd-cluster-1"
+        - "--initial-advertise-peer-urls"
+        - "http://$(MY_POD_NAME).etcd:2380"
+        - "--initial-cluster"
+        - "etcd-0=http://etcd-0.etcd:2380,etcd-1=http://etcd-1.etcd:2380,etcd-2=http://etcd-2.etcd:2380"
+        - "--initial-cluster-state"
+        - "new"
+        - "--data-dir"
+        - "/var/lib/etcd"
+        ports:
+        - containerPort: 2379
+          name: client
+        - containerPort: 2380
+          name: peer
+        volumeMounts:
+        - name: etcd-data
+          mountPath: /var/lib/etcd
+        env:
+        - name: MY_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: MY_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+  volumeClaimTemplates:
+    - metadata:
+        name: etcd-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: fast
+        resources:
+          requests:
+            storage: 50Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: m3dbnode-config
+  namespace: m3db
+data:
+  m3dbnode.yml: |+
+    coordinator:
+      listenAddress: 0.0.0.0:7201
+      metrics:
+        scope:
+          prefix: "coordinator"
+        prometheus:
+          handlerPath: /metrics
+          listenAddress: 0.0.0.0:7203
+        sanitization: prometheus
+        samplingRate: 1.0
+        extended: none
+
+    db:
+      logging:
+        level: info
+
+      metrics:
+        prometheus:
+          handlerPath: /metrics
+        sanitization: prometheus
+        samplingRate: 1.0
+        extended: detailed
+
+      listenAddress: 0.0.0.0:9000
+      clusterListenAddress: 0.0.0.0:9001
+      httpNodeListenAddress: 0.0.0.0:9002
+      httpClusterListenAddress: 0.0.0.0:9003
+      debugListenAddress: 0.0.0.0:9004
+
+      hostID:
+        resolver: hostname
+
+      client:
+        writeConsistencyLevel: majority
+        readConsistencyLevel: unstrict_majority
+        writeTimeout: 10s
+        fetchTimeout: 15s
+        connectTimeout: 20s
+        writeRetry:
+            initialBackoff: 500ms
+            backoffFactor: 3
+            maxRetries: 2
+            jitter: true
+        fetchRetry:
+            initialBackoff: 500ms
+            backoffFactor: 2
+            maxRetries: 3
+            jitter: true
+        backgroundHealthCheckFailLimit: 4
+        backgroundHealthCheckFailThrottleFactor: 0.5
+
+      gcPercentage: 100
+
+      writeNewSeriesAsync: true
+      writeNewSeriesLimitPerSecond: 1048576
+      writeNewSeriesBackoffDuration: 2ms
+
+      bootstrap:
+        bootstrappers:
+            - filesystem
+            - commitlog
+        fs:
+            numProcessorsPerCPU: 0.125
+
+      commitlog:
+        flushMaxBytes: 524288
+        flushEvery: 1s
+        queue:
+            calculationType: fixed
+            size: 2097152
+        retentionPeriod: 24h
+        blockSize: 10m
+
+      fs:
+        filePathPrefix: /var/lib/m3db
+        writeBufferSize: 65536
+        dataReadBufferSize: 65536
+        infoReadBufferSize: 128
+        seekReadBufferSize: 4096
+        throughputLimitMbps: 100.0
+        throughputCheckEvery: 128
+
+      repair:
+        enabled: false
+        interval: 2h
+        offset: 30m
+        jitter: 1h
+        throttle: 2m
+        checkInterval: 1m
+
+      pooling:
+        blockAllocSize: 16
+        type: simple
+        seriesPool:
+            size: 262144
+            lowWatermark: 0.7
+            highWatermark: 1.0
+        blockPool:
+            size: 262144
+            lowWatermark: 0.7
+            highWatermark: 1.0
+        encoderPool:
+            size: 262144
+            lowWatermark: 0.7
+            highWatermark: 1.0
+        closersPool:
+            size: 104857
+            lowWatermark: 0.7
+            highWatermark: 1.0
+        contextPool:
+            size: 262144
+            lowWatermark: 0.7
+            highWatermark: 1.0
+        segmentReaderPool:
+            size: 16384
+            lowWatermark: 0.7
+            highWatermark: 1.0
+        iteratorPool:
+            size: 2048
+            lowWatermark: 0.7
+            highWatermark: 1.0
+        fetchBlockMetadataResultsPool:
+            size: 65536
+            capacity: 32
+            lowWatermark: 0.7
+            highWatermark: 1.0
+        fetchBlocksMetadataResultsPool:
+            size: 32
+            capacity: 4096
+            lowWatermark: 0.7
+            highWatermark: 1.0
+        hostBlockMetadataSlicePool:
+            size: 131072
+            capacity: 3
+            lowWatermark: 0.7
+            highWatermark: 1.0
+        blockMetadataPool:
+            size: 65536
+            lowWatermark: 0.7
+            highWatermark: 1.0
+        blockMetadataSlicePool:
+            size: 65536
+            capacity: 32
+            lowWatermark: 0.7
+            highWatermark: 1.0
+        blocksMetadataPool:
+            size: 65536
+            lowWatermark: 0.7
+            highWatermark: 1.0
+        blocksMetadataSlicePool:
+            size: 32
+            capacity: 4096
+            lowWatermark: 0.7
+            highWatermark: 1.0
+        identifierPool:
+            size: 262144
+            lowWatermark: 0.7
+            highWatermark: 1.0
+        bytesPool:
+            buckets:
+                - capacity: 16
+                  size: 524288
+                  lowWatermark: 0.7
+                  highWatermark: 1.0
+                - capacity: 32
+                  size: 262144
+                  lowWatermark: 0.7
+                  highWatermark: 1.0
+                - capacity: 64
+                  size: 131072
+                  lowWatermark: 0.7
+                  highWatermark: 1.0
+                - capacity: 128
+                  size: 65536
+                  lowWatermark: 0.7
+                  highWatermark: 1.0
+                - capacity: 256
+                  size: 65536
+                  lowWatermark: 0.7
+                  highWatermark: 1.0
+                - capacity: 1440
+                  size: 16384
+                  lowWatermark: 0.7
+                  highWatermark: 1.0
+                - capacity: 4096
+                  size: 8192
+                  lowWatermark: 0.7
+                  highWatermark: 1.0
+      config:
+        service:
+            env: default_env
+            zone: embedded
+            service: m3db
+            cacheDir: /var/lib/m3kv
+            etcdClusters:
+            - zone: embedded
+              endpoints:
+              - http://etcd-0.etcd:2379
+              - http://etcd-1.etcd:2379
+              - http://etcd-2.etcd:2379
+---
+# Headless service for the statefulset
+apiVersion: v1
+kind: Service
+metadata:
+  name: m3dbnode
+  labels:
+    app: m3dbnode
+  namespace: m3db
+spec:
+  ports:
+  - port: 9000
+    name: client
+  - port: 9001
+    name: cluster
+  - port: 9002
+    name: http-node
+  - port: 9003
+    name: http-cluster
+  - port: 9004
+    name: debug
+  - port: 7201
+    name: coordinator
+  - port: 7203
+    name: coordinator-metrics
+  # NOTE: There MUST be a headless (clusterIP == None) service with name equal
+  # to the `spec.serviceName` field of the stateful set. Search "headless" on
+  # https://v1-10.docs.kubernetes.io/docs/concepts/workloads/controllers/statefulset/
+  # for more info
+  clusterIP: None
+  selector:
+    app: m3dbnode
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: m3coordinator
+  labels:
+    app: m3dbnode
+  namespace: m3db
+spec:
+  selector:
+    app: m3dbnode
+  ports:
+  - port: 7201
+    name: coordinator
+  - port: 7203
+    name: coordinator-metrics
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app: m3dbnode
+  name: m3dbnode
+  namespace: m3db
+spec:
+  serviceName: m3dbnode
+  replicas: 3
+  selector:
+    matchLabels:
+      app: m3dbnode
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: m3dbnode
+    spec:
+      tolerations:
+        - key: "dedicated-m3db"
+          effect: NoSchedule
+          operator: Exists
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - preference:
+              matchExpressions:
+              - key: m3db.io/dedicated-m3db
+                operator: In
+                values:
+                  - "true"
+            weight: 10
+      containers:
+      - name: m3db
+        image: quay.io/m3db/m3db:latest
+        imagePullPolicy: Always
+        # resources:
+        #   limits:
+        #     memory: 15Gi
+        #   requests:
+        #     memory: 10Gi
+        args:
+          - "-f"
+          - "/etc/m3db/m3dbnode.yml"
+        volumeMounts:
+        - name: config-vol
+          mountPath: /etc/m3db/
+        - name: m3db-db
+          mountPath: /var/lib/m3db
+        ports:
+        - containerPort: 9000
+          name: client
+          protocol: TCP
+        - containerPort: 9001
+          name: cluster
+          protocol: TCP
+        - containerPort: 9002
+          name: http-node
+          protocol: TCP
+        - containerPort: 9003
+          name: http-cluster
+          protocol: TCP
+        - containerPort: 9004
+          name: debug
+          protocol: TCP
+        - containerPort: 7201
+          name: coordinator
+          protocol: TCP
+        - containerPort: 7203
+          # max name length == 15 chars
+          name: coord-metrics
+          protocol: TCP
+      volumes:
+      - name: config-vol
+        configMap:
+          name: m3dbnode-config
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+  volumeClaimTemplates:
+    - metadata:
+        name: m3db-db
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: fast
+        resources:
+          requests:
+            storage: 200Gi
+---

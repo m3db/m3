@@ -4,7 +4,7 @@
 
 ## Overview
 
-M3DB is written entirely in Go and has a single dependency of etcd which is used for cluster membership and topology definition. In the near future we plan to also support the concept of seed nodes that will run an embedded etcd server, as etcd can be run in an embedded fashion reasonably simply and statically compiled into the M3DB binary itself.
+M3DB is written entirely in Go and does not have any required dependencies. For larger deployments, one may use an etcd cluster to manage M3DB cluster membership and topology definition.
 
 ## High Level Goals
 
@@ -14,4 +14,4 @@ Some of the high level goals for the project are defined as:
 
 * **Highly configurable:** Provide a high level of configuration to support a wide set of use cases and runtime environments.
 
-* **Variable durability:** Providing variable durability guarentees for the write and read side of storing time series data enables a wider variety of applications to use M3DB. This is why replication is primarily synchronous and is provided with configurable consistency levels, to enable consistent writes and reads. It must be possible to use M3DB with strong guarentees that data was replicated to a quorum of nodes and that the data was durable if desired.
+* **Variable durability:** Providing variable durability guarantees for the write and read side of storing time series data enables a wider variety of applications to use M3DB. This is why replication is primarily synchronous and is provided with configurable consistency levels, to enable consistent writes and reads. It must be possible to use M3DB with strong guarantees that data was replicated to a quorum of nodes and that the data was durable if desired.

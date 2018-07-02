@@ -31,7 +31,7 @@ import (
 	"github.com/m3db/m3db/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3db/src/dbnode/storage/index"
 	"github.com/m3db/m3db/src/dbnode/topology"
-	"github.com/m3db/m3ninx/idx"
+	"github.com/m3db/m3db/src/m3ninx/idx"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 	xretry "github.com/m3db/m3x/retry"

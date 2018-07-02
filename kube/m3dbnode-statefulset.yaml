@@ -1,0 +1,141 @@
+# Headless service for the statefulset
+apiVersion: v1
+kind: Service
+metadata:
+  name: m3dbnode
+  labels:
+    app: m3dbnode
+  namespace: m3db
+spec:
+  ports:
+  - port: 9000
+    name: client
+  - port: 9001
+    name: cluster
+  - port: 9002
+    name: http-node
+  - port: 9003
+    name: http-cluster
+  - port: 9004
+    name: debug
+  - port: 7201
+    name: coordinator
+  - port: 7203
+    name: coordinator-metrics
+  # NOTE: There MUST be a headless (clusterIP == None) service with name equal
+  # to the `spec.serviceName` field of the stateful set. Search "headless" on
+  # https://v1-10.docs.kubernetes.io/docs/concepts/workloads/controllers/statefulset/
+  # for more info
+  clusterIP: None
+  selector:
+    app: m3dbnode
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: m3coordinator
+  labels:
+    app: m3dbnode
+  namespace: m3db
+spec:
+  selector:
+    app: m3dbnode
+  ports:
+  - port: 7201
+    name: coordinator
+  - port: 7203
+    name: coordinator-metrics
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app: m3dbnode
+  name: m3dbnode
+  namespace: m3db
+spec:
+  serviceName: m3dbnode
+  replicas: 3
+  selector:
+    matchLabels:
+      app: m3dbnode
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: m3dbnode
+    spec:
+      tolerations:
+        - key: "dedicated-m3db"
+          effect: NoSchedule
+          operator: Exists
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - preference:
+              matchExpressions:
+              - key: m3db.io/dedicated-m3db
+                operator: In
+                values:
+                  - "true"
+            weight: 10
+      containers:
+      - name: m3db
+        image: quay.io/m3db/m3db:latest
+        imagePullPolicy: Always
+        # resources:
+        #   limits:
+        #     memory: 15Gi
+        #   requests:
+        #     memory: 10Gi
+        args:
+          - "-f"
+          - "/etc/m3db/m3dbnode.yml"
+        volumeMounts:
+        - name: config-vol
+          mountPath: /etc/m3db/
+        - name: m3db-db
+          mountPath: /var/lib/m3db
+        ports:
+        - containerPort: 9000
+          name: client
+          protocol: TCP
+        - containerPort: 9001
+          name: cluster
+          protocol: TCP
+        - containerPort: 9002
+          name: http-node
+          protocol: TCP
+        - containerPort: 9003
+          name: http-cluster
+          protocol: TCP
+        - containerPort: 9004
+          name: debug
+          protocol: TCP
+        - containerPort: 7201
+          name: coordinator
+          protocol: TCP
+        - containerPort: 7203
+          # max name length == 15 chars
+          name: coord-metrics
+          protocol: TCP
+      volumes:
+      - name: config-vol
+        configMap:
+          name: m3dbnode-config
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+  volumeClaimTemplates:
+    - metadata:
+        name: m3db-db
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: fast
+        resources:
+          requests:
+            storage: 200Gi

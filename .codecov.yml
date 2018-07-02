@@ -10,6 +10,8 @@ coverage:
         flags: coordinator
       dbnode:
         flags: dbnode
+      m3ninx:
+        flags: m3ninx
     patch:
       default: on
     changes:
@@ -24,6 +26,9 @@ coverage:
       paths:
         - src/dbnode/
         - src/cmd/services/m3dbnode/
+    m3ninx:
+      paths:
+        - src/m3ninx/
 
 comment:
   layout: "header, reach, diff, flags, footer"

@@ -33,7 +33,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/src/dbnode/persist"
-	idxpersist "github.com/m3db/m3ninx/persist"
+	idxpersist "github.com/m3db/m3db/src/m3ninx/persist"
 	"github.com/m3db/m3x/ident"
 
 	"github.com/golang/mock/gomock"

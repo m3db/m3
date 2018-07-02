@@ -96,25 +96,25 @@ In addition, with large volumes of data it becomes prohibitively expensive to ke
 
 Like most other databases, M3DB takes a two-pronged approach to persistant storage that involves combining a commitlog (for disaster recovery) with periodic snapshotting (for efficient retrieval):
 
-1) All writes are persisted to a [commitlog](commitlogs.md) (the commitlog can be configured to fsync every write, or optionally batch writes together which is much faster but leaves open the possibility of small amounts of data loss in the case of a catastrophic failure). The commitlog is completely uncompressed and exists only to recover "unflushed" data in the case of a database shutdown (intentional or not) and is never used to satisfy a read request.
-2) Periodically (based on the configured blocksize) all "active" blocks are "sealed" (marked as immutable) and flushed to disk as ["fileset" files](storage.md). These files are highly compressed and can be indexed into via their complementary index files. Check out the [flushing section](engine.md#flushing) to learn more about the background flushing process.
+1. All writes are persisted to a [commitlog](commitlogs.md) (the commitlog can be configured to fsync every write, or optionally batch writes together which is much faster but leaves open the possibility of small amounts of data loss in the case of a catastrophic failure). The commitlog is completely uncompressed and exists only to recover "unflushed" data in the case of a database shutdown (intentional or not) and is never used to satisfy a read request.
+2. Periodically (based on the configured blocksize) all "active" blocks are "sealed" (marked as immutable) and flushed to disk as ["fileset" files](storage.md). These files are highly compressed and can be indexed into via their complementary index files. Check out the [flushing section](engine.md#flushing) to learn more about the background flushing process.
 
-The blocksize parameter is the most important variable that needs to be turned for your particular workload. A small blocksize will mean more frequent flushing and a smaller memory footprint for the data that is being actively compressed, but it will also reduce the compression ratio and your data will take up more space on disk.
+The blocksize parameter is the most important variable that needs to be tuned for your particular workload. A small blocksize will mean more frequent flushing and a smaller memory footprint for the data that is being actively compressed, but it will also reduce the compression ratio and your data will take up more space on disk.
 
-If the database is stopped for any reason in-between "flushes" (writing fileset files out to disk), then when the node is started back up those writes will need to be recovered by reading the commitlog or streaming in the data from a peer responsible for the same shard (if the replication factor is larger than 1.)
+If the database is stopped for any reason in-between "flushes" (writing fileset files out to disk), then when the node is started back up those writes will need to be recovered by reading the commitlog or streaming in the data from a peer responsible for the same shard (if the replication factor is larger than 1).
 
 While the [fileset files](storage.md) are designed to support efficient data retrieval via the series primary key (the ID), there is still a heavy cost associated with any query that has to retrieve data from disk because going to disk is always much slower than accessing main memory. To compensate for that, M3DB support various [caching policies](caching.md) which can significantly improve the performance of reads by caching data in memory.
 
 ## Write Path
 
-We now have enough context of M3DB's architecture to discuss the lifecycle of a write. A write begins when an M3DB client calls the [`writeBatchRaw`](https://github.com/m3db/m3db/blob/master/generated/thrift/rpc.thrift) endpoint on M3DB's embedded thrift server. The write itself will contain the following information:
+We now have enough context of M3DB's architecture to discuss the lifecycle of a write. A write begins when an M3DB client calls the [`writeBatchRaw`](https://github.com/m3db/m3db/blob/06d3ecc94d13cff67b82a791271816caa338dcab/src/dbnode/generated/thrift/rpc.thrift#L59) endpoint on M3DB's embedded thrift server. The write itself will contain the following information:
 
 1. The namespace
 2. The series ID (byte blob)
 3. The timestamp
 4. The value itself
 
-M3DB will consult the database object to check if the namespace exists, and if it does,then it will hash the series ID to determine which shard it belongs to. If the node receiving the write owns that shard, then it will lookup the series in the shard object. If the series exists, then it will lookup the series corresponding encoder and encode the datapoint into the compressed stream. If the encoder doesn't exist (no writes for this series have occurred yet as part of this block) then a new encoder will be allocated and it will begin a compressed M3TSZ stream with that datapoint. There is also some special logic for handling out-of-order writes which is discussed in the [merging all encoders section](engine.md#merging-all-enoders).
+M3DB will consult the database object to check if the namespace exists, and if it does,then it will hash the series ID to determine which shard it belongs to. If the node receiving the write owns that shard, then it will lookup the series in the shard object. If the series exists, then it will lookup the series' corresponding encoder and encode the datapoint into the compressed stream. If the encoder doesn't exist (no writes for this series have occurred yet as part of this block) then a new encoder will be allocated and it will begin a compressed M3TSZ stream with that datapoint. There is also some special logic for handling out-of-order writes which is discussed in the [merging all encoders section](engine.md#merging-all-enoders).
 
 At the same time, the write will be appended to the commitlog queue (and depending on the commitlog configuration immediately fsync'd to disk or batched together with other writes and flushed out all at once).
 
@@ -144,16 +144,16 @@ Lets imagine a read for a given series that requests the last 6 hours worth of d
 If the current time is 8PM, then the location of the requested blocks might be as follows:
 
 ```
-[2PM - 4PM (FileSet file)] - Sealed and flushed block that isn't cached
+[2PM - 4PM (FileSet file)]    - Sealed and flushed block that isn't cached
 [4PM - 6PM (In-memory cache)] - Sealed and flush block that is cached
-[6PM - 8PM (active buffer)] - Hasn't been sealed or flushed yet
+[6PM - 8PM (active buffer)]   - Hasn't been sealed or flushed yet
 ```
 
 Then M3DB will need to consolidate:
 
-1) The not-yet-sealed block from the active buffers / encoders (located inside an internal lookup in the Series object) **[6PM - 8PM]**
-2) The in-memory cached block (also located inside an internal lookup in the Series object) **[4PM - 6PM]**
-3) The block from disk (the block retrieve from disk will then be cached according to the current [caching policy](caching.md) **[2PM - 4PM]**
+1. The not-yet-sealed block from the active buffers / encoders (located inside an internal lookup in the Series object) **[6PM - 8PM]**
+2. The in-memory cached block (also located inside an internal lookup in the Series object) **[4PM - 6PM]**
+3. The block from disk (the block retrieve from disk will then be cached according to the current [caching policy](caching.md) **[2PM - 4PM]**
 
 Retrieving blocks from the active buffers and in-memory cache is simple, the data is already present in memory and easily accessible via hashmaps keyed by series ID. Retrieving a block from disk is more complicated. The flow for retrieving a block from disk is as follows:
 
@@ -162,9 +162,9 @@ Retrieving blocks from the active buffers and in-memory cache is simple, the dat
 3. Jump to the offset in the index file that we obtained from the binary search in the previous step, and begin scanning forward until we identify the index entry for the series ID we're looking for *or* we get far enough in the index file that it becomes clear that the ID we're looking for doesn't exist (this is possible because the index file is sorted by ID)
 4. Jump to the offset in the data file that we obtained from scanning the index file in the previous step, and begin streaming data.
 
-Once M3DB has retrieved the three blocks from their respective locations in memory / on-disk, it will transmit all of the data back to the client. Whether or the client returns a success to the caller for the read is dependent on the configured [consistency level](consistencylevels.md).
+Once M3DB has retrieved the three blocks from their respective locations in memory / on-disk, it will transmit all of the data back to the client. Whether or not the client returns a success to the caller for the read is dependent on the configured [consistency level](consistencylevels.md).
 
-**Note:** Since M3DB nodes return compressed blocks (the M3DB client decompresses them) its not possible to return "partial results" for a given block. If any portion of a read requests spans a given block, then that block in its entirety must be transmitted back to the client. In practice, this ends up being not much of an issue because of the high compression ratio that M3DB is able to achieve.
+**Note:** Since M3DB nodes return compressed blocks (the M3DB client decompresses them), it's not possible to return "partial results" for a given block. If any portion of a read request spans a given block, then that block in its entirety must be transmitted back to the client. In practice, this ends up being not much of an issue because of the high compression ratio that M3DB is able to achieve.
 
 ## Background processes
 

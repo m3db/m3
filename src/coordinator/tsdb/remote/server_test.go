@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/src/coordinator/block"
 	m3err "github.com/m3db/m3db/src/coordinator/errors"
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/storage"
@@ -116,8 +117,8 @@ func (s *mockStorage) Type() storage.Type {
 }
 
 func (s *mockStorage) FetchBlocks(
-	ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (storage.BlockResult, error) {
-	return storage.BlockResult{}, fmt.Errorf("not implemented")
+	ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (block.Result, error) {
+	return block.Result{}, fmt.Errorf("not implemented")
 }
 
 func (s *mockStorage) Close() error {
@@ -315,8 +316,8 @@ func (s *errStorage) Write(ctx context.Context, query *storage.WriteQuery) error
 }
 
 func (s *errStorage) FetchBlocks(
-	ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (storage.BlockResult, error) {
-	return storage.BlockResult{}, fmt.Errorf("not implemented")
+	ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (block.Result, error) {
+	return block.Result{}, fmt.Errorf("not implemented")
 }
 
 func (s *errStorage) Type() storage.Type {

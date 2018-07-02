@@ -48,7 +48,7 @@ import (
 	"github.com/m3db/m3db/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3db/src/dbnode/ts"
 	"github.com/m3db/m3db/src/dbnode/x/xio"
-	"github.com/m3db/m3ninx/doc"
+	"github.com/m3db/m3db/src/m3ninx/doc"
 	xclose "github.com/m3db/m3x/close"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
@@ -538,8 +538,8 @@ func (s *dbShard) isClosingWithLock() bool {
 	return s.state == dbShardStateClosing
 }
 
-func (s *dbShard) Tick(c context.Cancellable) (tickResult, error) {
-	s.removeAnyFlushStatesTooEarly()
+func (s *dbShard) Tick(c context.Cancellable, tickStart time.Time) (tickResult, error) {
+	s.removeAnyFlushStatesTooEarly(tickStart)
 	return s.tickAndExpire(c, tickPolicyRegular)
 }
 
@@ -638,6 +638,7 @@ func (s *dbShard) tickAndExpire(
 			r.openBlocks += result.OpenBlocks
 			r.wiredBlocks += result.WiredBlocks
 			r.unwiredBlocks += result.UnwiredBlocks
+			r.pendingMergeBlocks += result.PendingMergeBlocks
 			r.madeExpiredBlocks += result.MadeExpiredBlocks
 			r.madeUnwiredBlocks += result.MadeUnwiredBlocks
 			r.mergedOutOfOrderBlocks += result.MergedOutOfOrderBlocks
@@ -800,7 +801,6 @@ func (s *dbShard) writeAndIndex(
 			if entry.NeedsIndexUpdate(s.reverseIndex.BlockStartForWriteTime(timestamp)) {
 				err = s.insertSeriesForIndexingAsyncBatched(entry, timestamp,
 					opts.writeNewSeriesAsync)
-			} else {
 			}
 		}
 		// release the reference we got on entry from `writableSeries`
@@ -1954,10 +1954,9 @@ func (s *dbShard) markFlushStateFail(blockStart time.Time) {
 	s.flushState.Unlock()
 }
 
-func (s *dbShard) removeAnyFlushStatesTooEarly() {
+func (s *dbShard) removeAnyFlushStatesTooEarly(tickStart time.Time) {
 	s.flushState.Lock()
-	now := s.nowFn()
-	earliestFlush := retention.FlushTimeStart(s.namespace.Options().RetentionOptions(), now)
+	earliestFlush := retention.FlushTimeStart(s.namespace.Options().RetentionOptions(), tickStart)
 	for t := range s.flushState.statesByTime {
 		if t.ToTime().Before(earliestFlush) {
 			delete(s.flushState.statesByTime, t)

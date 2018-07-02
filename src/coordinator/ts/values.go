@@ -21,14 +21,18 @@
 package ts
 
 import (
+	"fmt"
+	"math"
 	"time"
+
+	"github.com/m3db/m3db/src/coordinator/errors"
 )
 
 // Values holds the values for a timeseries.  It provides a minimal interface
 // for storing and retrieving values in the series, with Series providing a
 // more convenient interface for applications to build on top of.  Values
 // objects are not specific to a given time, allowing them to be
-// pre-allocated, pooled, and re-used across multiple Series.  There are
+// pre-allocated, pooled, and re-used across multiple series.  There are
 // multiple implementations of Values so that we can optimize storage based on
 // the density of the series.
 type Values interface {
@@ -123,6 +127,10 @@ func (b *fixedResolutionValues) SetValueAt(n int, v float64) {
 
 // NewFixedStepValues returns mutable values with fixed resolution
 func NewFixedStepValues(millisPerStep time.Duration, numSteps int, initialValue float64, startTime time.Time) FixedResolutionMutableValues {
+	return newFixedStepValues(millisPerStep, numSteps, initialValue, startTime)
+}
+
+func newFixedStepValues(millisPerStep time.Duration, numSteps int, initialValue float64, startTime time.Time) *fixedResolutionValues {
 	values := make([]float64, numSteps)
 	// Faster way to initialize an array instead of a loop
 	Memset(values, initialValue)
@@ -132,4 +140,51 @@ func NewFixedStepValues(millisPerStep time.Duration, numSteps int, initialValue 
 		startTime:     startTime,
 		values:        values,
 	}
+}
+
+// RawPointsToFixedStep converts raw datapoints into the interval required within the bounds specified. For every time step, it finds the closest point.
+func RawPointsToFixedStep(datapoints Datapoints, start time.Time, end time.Time, interval time.Duration) (FixedResolutionMutableValues, error) {
+	if end.Before(start) {
+		return nil, fmt.Errorf("start cannot be after end, start: %v, end: %v", start, end)
+	}
+
+	if interval == 0 {
+		return nil, errors.ErrZeroInterval
+	}
+
+	var numSteps int
+	if end.Equal(start) {
+		numSteps = 1
+	} else {
+		numSteps = int(end.Sub(start) / interval)
+	}
+
+	fixStepValues := newFixedStepValues(interval, numSteps, math.NaN(), start)
+	fixedResIdx := 0
+	dpIdx := 0
+	numPoints := len(datapoints)
+	for t := start; !t.After(end) && fixedResIdx < numSteps; t = t.Add(interval) {
+		// Find first datapoint not before time t
+		for ; dpIdx < numPoints; dpIdx++ {
+			if !datapoints.DatapointAt(dpIdx).Timestamp.Before(t) {
+				break
+			}
+		}
+
+		// fixStepValues is initialized with NaNs so we can prematurely exit here
+		if dpIdx >= numPoints {
+			break
+		}
+
+		// If datapoint aligns to the time or its the first datapoint then take that
+		if datapoints.DatapointAt(dpIdx).Timestamp == t || dpIdx == 0 {
+			fixStepValues.values[fixedResIdx] = datapoints.ValueAt(dpIdx)
+		} else {
+			fixStepValues.values[fixedResIdx] = datapoints.ValueAt(dpIdx - 1)
+		}
+
+		fixedResIdx++
+	}
+
+	return fixStepValues, nil
 }

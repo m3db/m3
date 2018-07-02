@@ -1,0 +1,7 @@
+_mock.go
+_gen.go
+generated/
+vendor/
+tools/
+integration/
+testgen/

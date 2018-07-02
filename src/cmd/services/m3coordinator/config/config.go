@@ -38,6 +38,15 @@ type Configuration struct {
 
 	// RPC is the RPC configuration.
 	RPC *RPCConfiguration `yaml:"rpc"`
+
+	// DBNamespace is the namespace string to use for reads and writes
+	DBNamespace string `yaml:"dbNamespace"`
+
+	// DecompressWorkerPoolCount is the number of decompression worker pools
+	DecompressWorkerPoolCount int `yaml:"workerPoolCount"`
+
+	// DecompressWorkerPoolSize is the size of the worker pool given to each fetch request
+	DecompressWorkerPoolSize int `yaml:"workerPoolSize"`
 }
 
 // RPCConfiguration is the RPC configuration for the coordinator for

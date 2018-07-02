@@ -116,33 +116,8 @@ func ToProto(m Map) *nsproto.Registry {
 		Namespaces: make(map[string]*nsproto.NamespaceOptions, len(m.Metadatas())),
 	}
 
-	toNanos := func(t time.Duration) int64 {
-		return xtime.ToNormalizedDuration(t, time.Nanosecond)
-	}
-
 	for _, md := range m.Metadatas() {
-		ropts := md.Options().RetentionOptions()
-		iopts := md.Options().IndexOptions()
-		reg.Namespaces[md.ID().String()] = &nsproto.NamespaceOptions{
-			BootstrapEnabled:  md.Options().BootstrapEnabled(),
-			FlushEnabled:      md.Options().FlushEnabled(),
-			CleanupEnabled:    md.Options().CleanupEnabled(),
-			SnapshotEnabled:   md.Options().SnapshotEnabled(),
-			RepairEnabled:     md.Options().RepairEnabled(),
-			WritesToCommitLog: md.Options().WritesToCommitLog(),
-			RetentionOptions: &nsproto.RetentionOptions{
-				BlockSizeNanos:                           toNanos(ropts.BlockSize()),
-				RetentionPeriodNanos:                     toNanos(ropts.RetentionPeriod()),
-				BufferFutureNanos:                        toNanos(ropts.BufferFuture()),
-				BufferPastNanos:                          toNanos(ropts.BufferPast()),
-				BlockDataExpiry:                          ropts.BlockDataExpiry(),
-				BlockDataExpiryAfterNotAccessPeriodNanos: toNanos(ropts.BlockDataExpiryAfterNotAccessedPeriod()),
-			},
-			IndexOptions: &nsproto.IndexOptions{
-				Enabled:        iopts.Enabled(),
-				BlockSizeNanos: toNanos(iopts.BlockSize()),
-			},
-		}
+		reg.Namespaces[md.ID().String()] = OptionsToProto(md.Options())
 	}
 
 	return &reg
@@ -159,4 +134,31 @@ func FromProto(protoRegistry nsproto.Registry) (Map, error) {
 		metadatas = append(metadatas, md)
 	}
 	return NewMap(metadatas)
+}
+
+// OptionsToProto converts Options -> nsproto.NamespaceOptions
+func OptionsToProto(opts Options) *nsproto.NamespaceOptions {
+	ropts := opts.RetentionOptions()
+	iopts := opts.IndexOptions()
+
+	return &nsproto.NamespaceOptions{
+		BootstrapEnabled:  opts.BootstrapEnabled(),
+		FlushEnabled:      opts.FlushEnabled(),
+		CleanupEnabled:    opts.CleanupEnabled(),
+		SnapshotEnabled:   opts.SnapshotEnabled(),
+		RepairEnabled:     opts.RepairEnabled(),
+		WritesToCommitLog: opts.WritesToCommitLog(),
+		RetentionOptions: &nsproto.RetentionOptions{
+			BlockSizeNanos:                           ropts.BlockSize().Nanoseconds(),
+			RetentionPeriodNanos:                     ropts.RetentionPeriod().Nanoseconds(),
+			BufferFutureNanos:                        ropts.BufferFuture().Nanoseconds(),
+			BufferPastNanos:                          ropts.BufferPast().Nanoseconds(),
+			BlockDataExpiry:                          ropts.BlockDataExpiry(),
+			BlockDataExpiryAfterNotAccessPeriodNanos: ropts.BlockDataExpiryAfterNotAccessedPeriod().Nanoseconds(),
+		},
+		IndexOptions: &nsproto.IndexOptions{
+			Enabled:        iopts.Enabled(),
+			BlockSizeNanos: iopts.BlockSize().Nanoseconds(),
+		},
+	}
 }

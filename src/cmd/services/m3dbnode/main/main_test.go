@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3cluster/integration/etcd"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3db/src/cmd/services/m3dbnode/server"
 	"github.com/m3db/m3db/src/dbnode/client"
@@ -178,10 +179,18 @@ func TestConfig(t *testing.T) {
 	cli, err := cfg.DB.Client.NewClient(client.ConfigurationParameters{})
 	require.NoError(t, err)
 
-	session, err := cli.DefaultSession()
+	adminCli := cli.(client.AdminClient)
+	adminSession, err := adminCli.DefaultAdminSession()
 	require.NoError(t, err)
+	defer adminSession.Close()
 
-	defer session.Close()
+	// Propagation of shard state from Initializing --> Available post-bootstrap is eventually
+	// consistent, so we must wait.
+	waitUntilAllShardsAreAvailable(t, adminSession)
+
+	// Cast to narrower-interface instead of grabbing DefaultSession to make sure
+	// we use the same topology.Map that we validated in waitUntilAllShardsAreAvailable.
+	session := adminSession.(client.Session)
 
 	start := time.Now().Add(-time.Minute)
 	values := []struct {
@@ -301,7 +310,7 @@ func TestEmbeddedConfig(t *testing.T) {
 		serverWg.Done()
 	}()
 
-	// Wait for embedded KV to be up
+	// Wait for embedded KV to be up.
 	<-embeddedKVCh
 
 	// Setup the placement
@@ -369,10 +378,18 @@ func TestEmbeddedConfig(t *testing.T) {
 	cli, err := cfg.DB.Client.NewClient(client.ConfigurationParameters{})
 	require.NoError(t, err)
 
-	session, err := cli.DefaultSession()
+	adminCli := cli.(client.AdminClient)
+	adminSession, err := adminCli.DefaultAdminSession()
 	require.NoError(t, err)
+	defer adminSession.Close()
 
-	defer session.Close()
+	// Propagation of shard state from Initializing --> Available post-bootstrap is eventually
+	// consistent, so we must wait.
+	waitUntilAllShardsAreAvailable(t, adminSession)
+
+	// Cast to narrower-interface instead of grabbing DefaultSession to make sure
+	// we use the same topology.Map that we validated in waitUntilAllShardsAreAvailable.
+	session := adminSession.(client.Session)
 
 	start := time.Now().Add(-time.Minute)
 	values := []struct {
@@ -616,3 +633,35 @@ db:
                   endpoint: {{.InitialClusterEndpoint}}
 `
 )
+
+// waitUntilAllShardsAreAvailable continually polls the session checking to see if the topology.Map
+// that the session is currently storing contains a non-zero number of host shard sets, and if so,
+// makes sure that all their shard states are Available.
+func waitUntilAllShardsAreAvailable(t *testing.T, session client.AdminSession) {
+outer:
+	for {
+		time.Sleep(10 * time.Millisecond)
+
+		topoMap, err := session.TopologyMap()
+		require.NoError(t, err)
+
+		var (
+			hostShardSets = topoMap.HostShardSets()
+		)
+
+		if len(hostShardSets) == 0 {
+			// We haven't received an actual topology yet.
+			continue
+		}
+
+		for _, hostShardSet := range hostShardSets {
+			for _, hostShard := range hostShardSet.ShardSet().All() {
+				if hostShard.State() != shard.Available {
+					continue outer
+				}
+			}
+		}
+
+		break
+	}
+}

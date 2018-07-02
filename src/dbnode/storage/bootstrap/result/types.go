@@ -26,7 +26,7 @@ import (
 	"github.com/m3db/m3db/src/dbnode/clock"
 	"github.com/m3db/m3db/src/dbnode/storage/block"
 	"github.com/m3db/m3db/src/dbnode/storage/series"
-	"github.com/m3db/m3ninx/index/segment"
+	"github.com/m3db/m3db/src/m3ninx/index/segment"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	xtime "github.com/m3db/m3x/time"

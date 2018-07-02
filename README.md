@@ -1,6 +1,6 @@
 ## WARNING: This is pre-release software, and is not intended for use until a stable release.
 
-# M3DB [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fm3db%2Fm3db.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fm3db%2Fm3db?ref=badge_shield) [![Coverage Status](https://codecov.io/gh/m3db/m3db/branch/master/graph/badge.svg)](https://codecov.io/gh/m3db/m3db)
+# M3DB [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fm3db%2Fm3db.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fm3db%2Fm3db?ref=badge_shield) [![Coverage Status](https://codecov.io/gh/m3db/m3db/branch/master/graph/badge.svg)](https://codecov.io/gh/m3db/m3db) [![Gitter chat][gitter-img]](https://gitter.im/m3db/Lobby)
 
 A time series database.
 
@@ -28,7 +28,7 @@ To cross-compile and build for Linux AMD64 build with `make m3dbnode-linux-amd64
 
 ### Test RPC
 
-To test out some of the functionality of M3DB there are some user friendly HTTP JSON APIs that you can use.  These use the DB node cluster service endpoints.  
+To test out some of the functionality of M3DB there are some user friendly HTTP JSON APIs that you can use.  These use the DB node cluster service endpoints.
 
 Note: performance sensitive users are expected to use the more performant endpoints via either the Go `src/dbnode/client/Session` API, or the GRPC endpoints exposed via `src/coordinator`.
 
@@ -100,6 +100,23 @@ provide your own and mount it into the container:
 docker run --name m3dbnode -v /host/config.yml:/etc/m3dbnode/myconfig.yml m3dbnode:tag -f /etc/m3dbnode/myconfig.yml
 ```
 
+## Building the Docs
+
+The `docs` folder contains our documentation in Markdown files. These Markdown files are built into a static site using
+[`mkdocs`](https://www.mkdocs.org/) with the [`mkdocs-material`](https://squidfunk.github.io/mkdocs-material/) theme.
+Building the docs using our predefined `make` targets requires a working Docker installation:
+
+```
+# generate the docs in the `site/` directory
+make docs-build
+
+# build docs and serve on localhost:8000 (with live reload)
+make docs-serve
+
+# build the docs and auto-push to the `gh-pages` branch
+make docs-deploy
+```
+
 <hr>
 
 This project is released under the [Apache License, Version 2.0](LICENSE).
@@ -108,3 +125,4 @@ This project is released under the [Apache License, Version 2.0](LICENSE).
 [doc]: https://godoc.org/github.com/m3db/m3db
 [ci-img]: https://semaphoreci.com/api/v1/m3db/m3db/branches/master/shields_badge.svg
 [ci]: https://semaphoreci.com/m3db/m3db
+[gitter-img]: https://badges.gitter.im/m3db.png

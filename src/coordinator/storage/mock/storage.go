@@ -23,6 +23,7 @@ package mock
 import (
 	"context"
 
+	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/storage"
 )
 
@@ -61,6 +62,6 @@ func (s *mockStorage) Close() error {
 }
 
 func (s *mockStorage) FetchBlocks(
-	ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (storage.BlockResult, error) {
-	return storage.BlockResult{}, nil
+	ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (block.Result, error) {
+	return block.Result{}, nil
 }

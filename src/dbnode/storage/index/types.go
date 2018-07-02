@@ -27,9 +27,9 @@ import (
 
 	"github.com/m3db/m3db/src/dbnode/clock"
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3ninx/doc"
-	"github.com/m3db/m3ninx/idx"
-	"github.com/m3db/m3ninx/index/segment/mem"
+	"github.com/m3db/m3db/src/m3ninx/doc"
+	"github.com/m3db/m3db/src/m3ninx/idx"
+	"github.com/m3db/m3db/src/m3ninx/index/segment/mem"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -149,7 +149,7 @@ type Block interface {
 	AddResults(results result.IndexBlock) error
 
 	// Tick does internal house keeping operations.
-	Tick(c context.Cancellable) (BlockTickResult, error)
+	Tick(c context.Cancellable, tickStart time.Time) (BlockTickResult, error)
 
 	// Seal prevents the block from taking any more writes, but, it still permits
 	// addition of segments via Bootstrap().

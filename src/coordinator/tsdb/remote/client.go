@@ -24,6 +24,7 @@ import (
 	"context"
 	"io"
 
+	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/errors"
 	"github.com/m3db/m3db/src/coordinator/generated/proto/rpc"
 	"github.com/m3db/m3db/src/coordinator/storage"
@@ -133,8 +134,8 @@ func (c *grpcClient) Write(ctx context.Context, query *storage.WriteQuery) error
 }
 
 func (c *grpcClient) FetchBlocks(
-	ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (storage.BlockResult, error) {
-	return storage.BlockResult{}, errors.ErrNotImplemented
+	ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (block.Result, error) {
+	return block.Result{}, errors.ErrNotImplemented
 }
 
 // Close closes the underlying connection

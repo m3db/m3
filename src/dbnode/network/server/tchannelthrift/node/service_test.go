@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3db/src/dbnode/network/server/tchannelthrift"
 	"github.com/m3db/m3db/src/dbnode/network/server/tchannelthrift/convert"
+	tterrors "github.com/m3db/m3db/src/dbnode/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3db/src/dbnode/runtime"
 	"github.com/m3db/m3db/src/dbnode/serialize"
 	"github.com/m3db/m3db/src/dbnode/storage"
@@ -39,7 +40,7 @@ import (
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	"github.com/m3db/m3db/src/dbnode/ts"
 	"github.com/m3db/m3db/src/dbnode/x/xio"
-	"github.com/m3db/m3ninx/idx"
+	"github.com/m3db/m3db/src/m3ninx/idx"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
@@ -100,6 +101,7 @@ func TestServiceQuery(t *testing.T) {
 
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+	mockDB.EXPECT().IsOverloaded().Return(false)
 
 	service := NewService(mockDB, nil).(*service)
 
@@ -227,12 +229,53 @@ func TestServiceQuery(t *testing.T) {
 	}
 }
 
+func TestServiceQueryOverloaded(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+	mockDB.EXPECT().IsOverloaded().Return(true)
+
+	var (
+		service = NewService(mockDB, nil).(*service)
+		tctx, _ = tchannelthrift.NewContext(time.Minute)
+		ctx     = tchannelthrift.Context(tctx)
+		start   = time.Now().Add(-2 * time.Hour)
+		end     = start.Add(2 * time.Hour)
+		enc     = testStorageOpts.EncoderPool().Get()
+		nsID    = "metrics"
+		limit   = int64(100)
+	)
+
+	defer ctx.Close()
+	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
+	enc.Reset(start, 0)
+
+	_, err := service.Query(tctx, &rpc.QueryRequest{
+		Query: &rpc.Query{
+			Regexp: &rpc.RegexpQuery{
+				Field:  "foo",
+				Regexp: "b.*",
+			},
+		},
+		RangeStart:     start.Unix(),
+		RangeEnd:       end.Unix(),
+		RangeType:      rpc.TimeType_UNIX_SECONDS,
+		NameSpace:      nsID,
+		Limit:          &limit,
+		ResultTimeType: rpc.TimeType_UNIX_SECONDS,
+	})
+	require.Equal(t, tterrors.NewInternalError(errServerIsOverloaded), err)
+}
+
 func TestServiceFetch(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+	mockDB.EXPECT().IsOverloaded().Return(false)
 
 	service := NewService(mockDB, nil).(*service)
 
@@ -292,12 +335,46 @@ func TestServiceFetch(t *testing.T) {
 	}
 }
 
+func TestServiceFetchIsOverloaded(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+	mockDB.EXPECT().IsOverloaded().Return(true)
+
+	var (
+		service = NewService(mockDB, nil).(*service)
+		tctx, _ = tchannelthrift.NewContext(time.Minute)
+		ctx     = tchannelthrift.Context(tctx)
+		start   = time.Now().Add(-2 * time.Hour)
+		end     = start.Add(2 * time.Hour)
+		enc     = testStorageOpts.EncoderPool().Get()
+		nsID    = "metrics"
+	)
+
+	defer ctx.Close()
+	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
+	enc.Reset(start, 0)
+
+	_, err := service.Fetch(tctx, &rpc.FetchRequest{
+		RangeStart:     start.Unix(),
+		RangeEnd:       end.Unix(),
+		RangeType:      rpc.TimeType_UNIX_SECONDS,
+		NameSpace:      nsID,
+		ID:             "foo",
+		ResultTimeType: rpc.TimeType_UNIX_SECONDS,
+	})
+	require.Equal(t, tterrors.NewInternalError(errServerIsOverloaded), err)
+}
+
 func TestServiceFetchBatchRaw(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+	mockDB.EXPECT().IsOverloaded().Return(false)
 
 	service := NewService(mockDB, nil).(*service)
 
@@ -386,6 +463,39 @@ func TestServiceFetchBatchRaw(t *testing.T) {
 		assert.Equal(t, expectHead, seg.Merged.Head)
 		assert.Equal(t, expectTail, seg.Merged.Tail)
 	}
+}
+
+func TestServiceFetchBatchRawIsOverloaded(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+	mockDB.EXPECT().IsOverloaded().Return(true)
+
+	var (
+		service = NewService(mockDB, nil).(*service)
+		tctx, _ = tchannelthrift.NewContext(time.Minute)
+		ctx     = tchannelthrift.Context(tctx)
+		start   = time.Now().Add(-2 * time.Hour)
+		end     = start.Add(2 * time.Hour)
+		enc     = testStorageOpts.EncoderPool().Get()
+		nsID    = "metrics"
+		ids     = [][]byte{[]byte("foo"), []byte("bar")}
+	)
+
+	defer ctx.Close()
+	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
+	enc.Reset(start, 0)
+
+	_, err := service.FetchBatchRaw(tctx, &rpc.FetchBatchRawRequest{
+		RangeStart:    start.Unix(),
+		RangeEnd:      end.Unix(),
+		RangeTimeType: rpc.TimeType_UNIX_SECONDS,
+		NameSpace:     []byte(nsID),
+		Ids:           ids,
+	})
+	require.Equal(t, tterrors.NewInternalError(errServerIsOverloaded), err)
 }
 
 func TestServiceFetchBlocksRaw(t *testing.T) {
@@ -504,6 +614,49 @@ func TestServiceFetchBlocksRaw(t *testing.T) {
 	}
 }
 
+func TestServiceFetchBlocksRawIsOverloaded(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	nsID := "metrics"
+	mockNs := storage.NewMockNamespace(ctrl)
+	mockNs.EXPECT().Options().Return(namespace.NewOptions()).AnyTimes()
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Namespace(ident.NewIDMatcher(nsID)).Return(mockNs, true).AnyTimes()
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+	mockDB.EXPECT().IsOverloaded().Return(true)
+
+	var (
+		service = NewService(mockDB, nil).(*service)
+		tctx, _ = tchannelthrift.NewContext(time.Minute)
+		ctx     = tchannelthrift.Context(tctx)
+		start   = time.Now().Add(-2 * time.Hour)
+		end     = start.Add(2 * time.Hour)
+		enc     = testStorageOpts.EncoderPool().Get()
+		ids     = [][]byte{[]byte("foo"), []byte("bar")}
+	)
+
+	defer ctx.Close()
+	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
+	enc.Reset(start, 0)
+
+	_, err := service.FetchBlocksRaw(tctx, &rpc.FetchBlocksRawRequest{
+		NameSpace: []byte(nsID),
+		Shard:     0,
+		Elements: []*rpc.FetchBlocksRawRequestElement{
+			&rpc.FetchBlocksRawRequestElement{
+				ID:     ids[0],
+				Starts: []int64{start.UnixNano()},
+			},
+			&rpc.FetchBlocksRawRequestElement{
+				ID:     ids[1],
+				Starts: []int64{start.UnixNano()},
+			},
+		},
+	})
+	require.Equal(t, tterrors.NewInternalError(errServerIsOverloaded), err)
+}
+
 func TestServiceFetchBlocksMetadataRaw(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -608,6 +761,45 @@ func TestServiceFetchBlocksMetadataRaw(t *testing.T) {
 			require.NotNil(t, block.LastRead)
 		}
 	}
+}
+
+func TestServiceFetchBlocksMetadataRawIsOverloaded(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+	mockDB.EXPECT().IsOverloaded().Return(true)
+
+	var (
+		service          = NewService(mockDB, nil).(*service)
+		tctx, _          = tchannelthrift.NewContext(time.Minute)
+		ctx              = tchannelthrift.Context(tctx)
+		start            = time.Now().Add(-4 * time.Hour)
+		end              = start.Add(4 * time.Hour)
+		limit            = int64(2)
+		pageToken        = int64(0)
+		includeSizes     = true
+		includeChecksums = true
+		includeLastRead  = true
+		nsID             = "metrics"
+	)
+
+	defer ctx.Close()
+	start, end = start.Truncate(time.Hour), end.Truncate(time.Hour)
+
+	_, err := service.FetchBlocksMetadataRaw(tctx, &rpc.FetchBlocksMetadataRawRequest{
+		NameSpace:        []byte(nsID),
+		Shard:            0,
+		RangeStart:       start.UnixNano(),
+		RangeEnd:         end.UnixNano(),
+		Limit:            limit,
+		PageToken:        &pageToken,
+		IncludeSizes:     &includeSizes,
+		IncludeChecksums: &includeChecksums,
+		IncludeLastRead:  &includeLastRead,
+	})
+	require.Equal(t, tterrors.NewInternalError(errServerIsOverloaded), err)
 }
 
 func TestServiceFetchBlocksMetadataEndpointV2Raw(t *testing.T) {
@@ -751,12 +943,54 @@ func TestServiceFetchBlocksMetadataEndpointV2Raw(t *testing.T) {
 	}
 }
 
+func TestServiceFetchBlocksMetadataEndpointV2RawIsOverloaded(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Setup mock db / service / context
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+	mockDB.EXPECT().IsOverloaded().Return(true)
+
+	// Configure constants / options
+	var (
+		service          = NewService(mockDB, nil).(*service)
+		tctx, _          = tchannelthrift.NewContext(time.Minute)
+		ctx              = tchannelthrift.Context(tctx)
+		now              = time.Now()
+		start            = now.Truncate(time.Hour)
+		end              = now.Add(4 * time.Hour).Truncate(time.Hour)
+		limit            = int64(2)
+		includeSizes     = true
+		includeChecksums = true
+		includeLastRead  = true
+		nsID             = "metrics"
+	)
+
+	defer ctx.Close()
+
+	// Run RPC method
+	_, err := service.FetchBlocksMetadataRawV2(tctx, &rpc.FetchBlocksMetadataRawV2Request{
+		NameSpace:        []byte(nsID),
+		Shard:            0,
+		RangeStart:       start.UnixNano(),
+		RangeEnd:         end.UnixNano(),
+		Limit:            limit,
+		PageToken:        nil,
+		IncludeSizes:     &includeSizes,
+		IncludeChecksums: &includeChecksums,
+		IncludeLastRead:  &includeLastRead,
+	})
+	require.Equal(t, tterrors.NewInternalError(errServerIsOverloaded), err)
+}
+
 func TestServiceFetchTagged(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+	mockDB.EXPECT().IsOverloaded().Return(false)
 
 	service := NewService(mockDB, nil).(*service)
 
@@ -881,12 +1115,68 @@ func TestServiceFetchTagged(t *testing.T) {
 	}
 }
 
+func TestServiceFetchTaggedIsOverloaded(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+	mockDB.EXPECT().IsOverloaded().Return(true)
+
+	var (
+		service = NewService(mockDB, nil).(*service)
+
+		tctx, _ = tchannelthrift.NewContext(time.Minute)
+		ctx     = tchannelthrift.Context(tctx)
+
+		start = time.Now().Add(-2 * time.Hour)
+		end   = start.Add(2 * time.Hour)
+
+		nsID = "metrics"
+	)
+
+	defer ctx.Close()
+	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
+
+	req, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
+	require.NoError(t, err)
+
+	resMap := index.NewResults(index.NewOptions())
+	resMap.Reset(ident.StringID(nsID))
+	resMap.Map().Set(ident.StringID("foo"), ident.NewTags(
+		ident.StringTag("foo", "bar"),
+		ident.StringTag("baz", "dxk"),
+	))
+	resMap.Map().Set(ident.StringID("bar"), ident.NewTags(
+		ident.StringTag("foo", "bar"),
+		ident.StringTag("dzk", "baz"),
+	))
+
+	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
+	require.NoError(t, err)
+	endNanos, err := convert.ToValue(end, rpc.TimeType_UNIX_NANOSECONDS)
+	require.NoError(t, err)
+	var limit int64 = 10
+	data, err := idx.Marshal(req)
+	require.NoError(t, err)
+	_, err = service.FetchTagged(tctx, &rpc.FetchTaggedRequest{
+		NameSpace:  []byte(nsID),
+		Query:      data,
+		RangeStart: startNanos,
+		RangeEnd:   endNanos,
+		FetchData:  true,
+		Limit:      &limit,
+	})
+	require.Equal(t, tterrors.NewInternalError(errServerIsOverloaded), err)
+}
+
 func TestServiceFetchTaggedNoData(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+	mockDB.EXPECT().IsOverloaded().Return(false)
 
 	service := NewService(mockDB, nil).(*service)
 
@@ -955,6 +1245,7 @@ func TestServiceFetchTaggedErrs(t *testing.T) {
 
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+	mockDB.EXPECT().IsOverloaded().Return(false)
 
 	service := NewService(mockDB, nil).(*service)
 

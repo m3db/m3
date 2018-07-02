@@ -30,8 +30,8 @@ import (
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3db/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
-	"github.com/m3db/m3ninx/index/segment"
-	"github.com/m3db/m3ninx/index/segment/mem"
+	"github.com/m3db/m3db/src/m3ninx/index/segment"
+	"github.com/m3db/m3db/src/m3ninx/index/segment/mem"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 

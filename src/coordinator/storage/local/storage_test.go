@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3db/src/coordinator/errors"
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/storage"
-	"github.com/m3db/m3db/src/coordinator/test"
+	"github.com/m3db/m3db/src/coordinator/test/seriesiter"
 	"github.com/m3db/m3db/src/coordinator/ts"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 	"github.com/m3db/m3db/src/dbnode/client"
@@ -36,6 +36,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func setup(ctrl *gomock.Controller) (storage.Storage, *client.MockSession) {
@@ -43,7 +44,7 @@ func setup(ctrl *gomock.Controller) (storage.Storage, *client.MockSession) {
 	logger := logging.WithContext(context.TODO())
 	defer logger.Sync()
 	session := client.NewMockSession(ctrl)
-	storage := NewStorage(session, "metrics")
+	storage := NewStorage(session, "metrics", nil)
 	return storage, session
 }
 
@@ -108,13 +109,17 @@ func TestLocalWriteSuccess(t *testing.T) {
 func TestLocalRead(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	store, session := setup(ctrl)
-	testTags := test.GenerateTag()
-	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(test.NewMockSeriesIters(ctrl, testTags), true, nil)
+	testTags := seriesiter.GenerateTag()
+	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(seriesiter.NewMockSeriesIters(ctrl, testTags, 1, 2), true, nil)
 	searchReq := newFetchReq()
 	results, err := store.Fetch(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
 	assert.NoError(t, err)
 	tags := make(models.Tags, 1)
 	tags[testTags.Name.String()] = testTags.Value.String()
+	require.NotNil(t, results)
+	require.NotNil(t, results.SeriesList)
+	require.Len(t, results.SeriesList, 1)
+	require.NotNil(t, results.SeriesList[0])
 	assert.Equal(t, tags, results.SeriesList[0].Tags)
 }
 

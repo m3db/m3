@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3db/src/dbnode/runtime"
 	"github.com/m3db/m3db/src/dbnode/storage/index"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
-	"github.com/m3db/m3ninx/doc"
+	"github.com/m3db/m3db/src/m3ninx/doc"
 	xclock "github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"

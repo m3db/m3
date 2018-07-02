@@ -34,7 +34,8 @@ import (
 	"github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/downsample"
-	"github.com/m3db/m3db/src/cmd/services/m3coordinator/httpd"
+	dbconfig "github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
+	"github.com/m3db/m3db/src/coordinator/api/v1/httpd"
 	m3dbcluster "github.com/m3db/m3db/src/coordinator/cluster/m3db"
 	"github.com/m3db/m3db/src/coordinator/executor"
 	"github.com/m3db/m3db/src/coordinator/policy/filter"
@@ -47,13 +48,17 @@ import (
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 	"github.com/m3db/m3db/src/dbnode/client"
 	xconfig "github.com/m3db/m3x/config"
+	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/pool"
+	xsync "github.com/m3db/m3x/sync"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
 
-var (
-	namespace = "metrics"
+const (
+	defaultWorkerPoolCount = 4096
+	defaultWorkerPoolSize  = 20
 )
 
 // RunOptions provides options for running the server
@@ -65,6 +70,9 @@ type RunOptions struct {
 	// Config is an alternate way to provide configuration and will be used
 	// instead of parsing ConfigFile if ConfigFile is not specified.
 	Config config.Configuration
+
+	// DBConfig is the M3DB config, which is used to
+	DBConfig dbconfig.DBConfiguration
 
 	// DBClient is the M3DB client to use instead of instantiating a new one
 	// from client config.
@@ -142,10 +150,35 @@ func Run(runOpts RunOptions) {
 		return <-dbClientCh, nil
 	}, nil)
 
+	workerPoolCount := cfg.DecompressWorkerPoolCount
+	if workerPoolCount == 0 {
+		workerPoolCount = defaultWorkerPoolCount
+	}
+
+	workerPoolSize := cfg.DecompressWorkerPoolSize
+	if workerPoolSize == 0 {
+		workerPoolSize = defaultWorkerPoolSize
+	}
+
+	instrumentOptions := instrument.NewOptions().
+		SetZapLogger(logger).
+		SetMetricsScope(scope.SubScope("series-decompression-pool"))
+
+	poolOptions := pool.NewObjectPoolOptions().
+		SetSize(workerPoolCount).
+		SetInstrumentOptions(instrumentOptions)
+
+	objectPool := pool.NewObjectPool(poolOptions)
+	objectPool.Init(func() interface{} {
+		workerPool := xsync.NewWorkerPool(workerPoolSize)
+		workerPool.Init()
+		return workerPool
+	})
+
 	// TODO(r): clusters
 	var clusters local.Clusters
 
-	fanoutStorage, storageCleanup := setupStorages(logger, clusters, cfg)
+	fanoutStorage, storageCleanup := setupStorages(logger, clusters, cfg, objectPool)
 	defer storageCleanup()
 
 	clusterClient := m3dbcluster.NewAsyncClient(func() (clusterclient.Client, error) {
@@ -160,7 +193,7 @@ func Run(runOpts RunOptions) {
 	}
 
 	handler, err := httpd.NewHandler(fanoutStorage, executor.NewEngine(fanoutStorage),
-		downsampler, clusterClient, cfg, scope)
+		downsampler, clusterClient, cfg, runOpts.DBConfig, scope)
 	if err != nil {
 		logger.Fatal("unable to set up handlers", zap.Any("error", err))
 	}
@@ -183,9 +216,10 @@ func Run(runOpts RunOptions) {
 	}
 }
 
-func setupStorages(logger *zap.Logger, clusters local.Clusters, cfg config.Configuration) (storage.Storage, func()) {
+func setupStorages(logger *zap.Logger, clusters local.Clusters, cfg config.Configuration, workerPool pool.ObjectPool) (storage.Storage, func()) {
 	cleanup := func() {}
-	localStorage := local.NewStorage(clusters)
+
+	localStorage := local.NewStorage(clusters, workerPool)
 	stores := []storage.Storage{localStorage}
 	remoteEnabled := false
 	if cfg.RPC != nil && cfg.RPC.Enabled {

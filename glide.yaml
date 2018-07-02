@@ -16,7 +16,7 @@ import:
   - ident
 
 - package: github.com/m3db/m3cluster
-  version: 2096f1ed16154b3ce05c9b596c5fd1a8fa485c1b
+  version: b4935c48a00f47c6f16f71d15d94e1c24785297d
   subpackages:
   - client
   - services
@@ -59,9 +59,11 @@ import:
   - gomock
 
 - package: github.com/golang/protobuf
-  version: 3a3da3a4e26776cc22a79ef46d5d58477532dede
+  version: ^1.1.0
+
   subpackages:
   - proto
+  - ptypes/timestamp
 
 - package: github.com/gogo/protobuf
   version: 0.4
@@ -94,6 +96,9 @@ import:
 - package: google.golang.org/appengine/datastore
   version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
 
+- package: github.com/pborman/getopt
+  version: ec82d864f599c39673eef89f91b93fa5576567a1
+
 - package: github.com/spf13/cobra
   version: 7c674d9e72017ed25f6d2b5e497a1368086b6a6f
   subpackages:
@@ -101,6 +106,28 @@ import:
 
 - package: github.com/spf13/pflag
   version: 4f9190456aed1c2113ca51ea9b89219747458dc1
+
+- package: github.com/spf13/viper
+  version: ^1.0.0
+
+- package: github.com/RoaringBitmap/roaring
+  version: ^0.4
+
+- package: github.com/uber-go/atomic
+  version: ^1.2.0
+
+- package: github.com/satori/go.uuid
+  version: ^1.2.0
+
+- package: github.com/couchbase/vellum
+  repo:    https://github.com/m3db/vellum
+  version: 1782e2d46ce2a9f28bd1ac1b46cd141c0d887c9b
+
+- package: github.com/edsrzf/mmap-go # un-used but required for a compile time dep from vellum
+  version: 0bce6a6887123b67a60366d2c9fe2dfb74289d2e
+
+- package: github.com/pilosa/pilosa/roaring
+  version: ^0.9 # FOLLOWUP: should move to 1.0 once that's released
 
 # NB(prateek): ideally, the following dependencies would be under testImport, but
 # Glide doesn't like that. https://github.com/Masterminds/glide/issues/564
@@ -164,12 +191,16 @@ import:
 
 # To avoid conflicting packages not resolving the latest GRPC
 - package: google.golang.org/grpc
-  version: 41344da2231b913fa3d983840a57a6b1b7b631a1
+  version: ~1.7.3
+  subpackages:
+  - codes
+
+- package: gopkg.in/validator.v2
+  version: 3e4f037f12a1221a0864cf0dd2e81c452ab22448
 
 testImport:
 - package: github.com/fortytw2/leaktest
   version: 3677f62bb30dbf3b042c4c211245d072aa9ee075
 
 - package: github.com/leanovate/gopter
-  version: 9e6101e5a87586b269acf3d0d61f363e4317309f
-
+  version: ^0.2

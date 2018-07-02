@@ -23,8 +23,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	// pprof: for debug listen server if configured
-	_ "net/http/pprof"
+	_ "net/http/pprof" // pprof: for debug listen server if configured
 	"os"
 
 	clusterclient "github.com/m3db/m3cluster/client"
@@ -69,6 +68,7 @@ func main() {
 		go func() {
 			coordinatorserver.Run(coordinatorserver.RunOptions{
 				Config:        *cfg.Coordinator,
+				DBConfig:      *cfg.DB,
 				DBClient:      dbClientCh,
 				ClusterClient: clusterClientCh,
 			})

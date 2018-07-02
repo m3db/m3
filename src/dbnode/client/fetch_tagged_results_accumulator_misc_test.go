@@ -214,8 +214,54 @@ func genFetchTaggedIDResult() gopter.Gen {
 	})
 }
 
+var (
+	_testFetchTaggedPools  *testFetchTaggedPools
+	_testFetchTaggedHelper *testFetchTaggedHelper
+)
+
+func init() {
+	_testFetchTaggedPools = initTestFetchTaggedPools()
+	_testFetchTaggedHelper = initTestFetchTaggedHelper()
+}
+
+type testFetchTaggedHelper struct {
+	t          *testing.T
+	pools      fetchTaggedPools
+	tagEncPool serialize.TagEncoderPool
+	encPool    encoding.EncoderPool
+}
+
+func initTestFetchTaggedHelper() *testFetchTaggedHelper {
+	opts := serialize.NewTagEncoderOptions()
+	popts := pool.NewObjectPoolOptions().SetSize(1)
+	encPool := serialize.NewTagEncoderPool(opts, popts)
+	encPool.Init()
+
+	encoderPool := encoding.NewEncoderPool(nil)
+	encodingOpts := encoding.NewOptions().SetEncoderPool(encoderPool)
+	encoderPool.Init(func() encoding.Encoder {
+		return m3tsz.NewEncoder(time.Time{}, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
+	})
+
+	return &testFetchTaggedHelper{
+		pools:      newTestFetchTaggedPools(),
+		tagEncPool: encPool,
+		encPool:    encoderPool,
+	}
+}
+
+func newTestFetchTaggedHelper(t *testing.T) testFetchTaggedHelper {
+	result := *_testFetchTaggedHelper
+	result.t = t
+	return result
+}
+
 func newTestFetchTaggedPools() testFetchTaggedPools {
-	pools := testFetchTaggedPools{}
+	return *_testFetchTaggedPools
+}
+
+func initTestFetchTaggedPools() *testFetchTaggedPools {
+	pools := &testFetchTaggedPools{}
 	opts := pool.NewObjectPoolOptions().SetSize(1)
 
 	pools.readerSlices = newReaderSliceOfSlicesIteratorPool(opts)

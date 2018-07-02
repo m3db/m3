@@ -18,6 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-//go:generate sh -c "$GOPATH/src/$PACKAGE/.ci/proto-gen.sh $GOPATH/src/$PACKAGE/src/coordinator/generated/proto $GOPATH/src/$PACKAGE/src/coordinator/generated/proto"
+//go:generate sh -c "$GOPATH/src/$PACKAGE/scripts/proto-gen.sh $PACKAGE/src/coordinator/generated/proto"
 
 package prompb

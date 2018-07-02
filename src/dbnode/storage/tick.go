@@ -123,7 +123,7 @@ func (mgr *tickManager) SetRuntimeOptions(opts runtime.Options) {
 	})
 }
 
-func (mgr *tickManager) Tick(forceType forceType) error {
+func (mgr *tickManager) Tick(forceType forceType, tickStart time.Time) error {
 	if forceType == force {
 		acquired := false
 		waiter := time.NewTicker(tokenCheckInterval)
@@ -165,7 +165,7 @@ func (mgr *tickManager) Tick(forceType forceType) error {
 		multiErr xerrors.MultiError
 	)
 	for _, n := range namespaces {
-		multiErr = multiErr.Add(n.Tick(mgr.c))
+		multiErr = multiErr.Add(n.Tick(mgr.c, tickStart))
 	}
 
 	// NB(r): Always sleep for some constant period since ticking

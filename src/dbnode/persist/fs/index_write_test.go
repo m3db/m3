@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/src/dbnode/persist"
-	idxpersist "github.com/m3db/m3ninx/persist"
+	idxpersist "github.com/m3db/m3db/src/m3ninx/persist"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"

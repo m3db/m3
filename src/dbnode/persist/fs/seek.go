@@ -56,7 +56,7 @@ var (
 )
 
 type seeker struct {
-	opts           Options
+	opts           seekerOpts
 	filePathPrefix string
 
 	// Data read from the indexInfo file
@@ -65,13 +65,6 @@ type seeker struct {
 	entries         int
 	bloomFilterInfo schema.IndexBloomFilterInfo
 	summariesInfo   schema.IndexSummariesInfo
-
-	// Readers for each file that will also verify the digest
-	infoFdWithDigest           digest.FdWithDigestReader
-	indexFdWithDigest          digest.FdWithDigestReader
-	bloomFilterFdWithDigest    digest.FdWithDigestReader
-	summariesFdWithDigest      digest.FdWithDigestReader
-	digestFdWithDigestContents digest.FdWithDigestContentsReader
 
 	dataMmap  []byte
 	indexMmap []byte
@@ -86,12 +79,6 @@ type seeker struct {
 	// for. Needs to be closed when done.
 	bloomFilter *ManagedConcurrentBloomFilter
 	indexLookup *nearestIndexOffsetLookup
-
-	// Expected digests for each file read from the digests file
-	expectedInfoDigest        uint32
-	expectedIndexDigest       uint32
-	expectedBloomFilterDigest uint32
-	expectedSummariesDigest   uint32
 
 	keepUnreadBuf bool
 
@@ -156,17 +143,12 @@ type fileSetSeeker interface {
 
 func newSeeker(opts seekerOpts) fileSetSeeker {
 	return &seeker{
-		filePathPrefix:             opts.filePathPrefix,
-		infoFdWithDigest:           digest.NewFdWithDigestReader(opts.infoBufferSize),
-		indexFdWithDigest:          digest.NewFdWithDigestReader(opts.dataBufferSize),
-		bloomFilterFdWithDigest:    digest.NewFdWithDigestReader(opts.dataBufferSize),
-		summariesFdWithDigest:      digest.NewFdWithDigestReader(opts.dataBufferSize),
-		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(opts.infoBufferSize),
-		keepUnreadBuf:              opts.keepUnreadBuf,
-		bytesPool:                  opts.bytesPool,
-		decoder:                    msgpack.NewDecoder(opts.decodingOpts),
-		decodingOpts:               opts.decodingOpts,
-		opts:                       opts.opts,
+		filePathPrefix: opts.filePathPrefix,
+		keepUnreadBuf:  opts.keepUnreadBuf,
+		bytesPool:      opts.bytesPool,
+		decoder:        msgpack.NewDecoder(opts.decodingOpts),
+		decodingOpts:   opts.decodingOpts,
+		opts:           opts,
 	}
 }
 
@@ -195,26 +177,34 @@ func (s *seeker) Open(namespace ident.ID, shard uint32, blockStart time.Time) er
 	}
 
 	// Setup digest readers
-	s.infoFdWithDigest.Reset(infoFd)
-	s.indexFdWithDigest.Reset(indexFd)
-	s.summariesFdWithDigest.Reset(summariesFd)
-	s.digestFdWithDigestContents.Reset(digestFd)
-
+	var (
+		infoFdWithDigest           = digest.NewFdWithDigestReader(s.opts.infoBufferSize)
+		indexFdWithDigest          = digest.NewFdWithDigestReader(s.opts.dataBufferSize)
+		bloomFilterFdWithDigest    = digest.NewFdWithDigestReader(s.opts.dataBufferSize)
+		summariesFdWithDigest      = digest.NewFdWithDigestReader(s.opts.dataBufferSize)
+		digestFdWithDigestContents = digest.NewFdWithDigestContentsReader(s.opts.infoBufferSize)
+	)
 	defer func() {
-		// NB(r): We don't need to keep these FDs open as we use these up front
-		s.infoFdWithDigest.Close()
-		s.indexFdWithDigest.Close()
-		s.bloomFilterFdWithDigest.Close()
-		s.digestFdWithDigestContents.Close()
+		// NB(rartoul): We don't need to keep these FDs open as we use these up front
+		infoFdWithDigest.Close()
+		indexFdWithDigest.Close()
+		bloomFilterFdWithDigest.Close()
+		summariesFdWithDigest.Close()
+		digestFdWithDigestContents.Close()
 		dataFd.Close()
 	}()
+
+	infoFdWithDigest.Reset(infoFd)
+	indexFdWithDigest.Reset(indexFd)
+	summariesFdWithDigest.Reset(summariesFd)
+	digestFdWithDigestContents.Reset(digestFd)
 
 	// Mmap necessary files
 	mmapOptions := mmap.Options{
 		Read: true,
 		HugeTLB: mmap.HugeTLBOptions{
-			Enabled:   s.opts.MmapEnableHugeTLB(),
-			Threshold: s.opts.MmapHugeTLBThreshold(),
+			Enabled:   s.opts.opts.MmapEnableHugeTLB(),
+			Threshold: s.opts.opts.MmapHugeTLBThreshold(),
 		},
 	}
 	mmapResult, err := mmap.Files(os.Open, map[string]mmap.FileDesc{
@@ -234,27 +224,29 @@ func (s *seeker) Open(namespace ident.ID, shard uint32, blockStart time.Time) er
 		return err
 	}
 	if warning := mmapResult.Warning; warning != nil {
-		logger := s.opts.InstrumentOptions().Logger()
+		logger := s.opts.opts.InstrumentOptions().Logger()
 		logger.Warnf("warning while mmaping files in seeker: %s",
 			warning.Error())
 	}
 
-	if err := s.readDigest(); err != nil {
+	expectedDigests, err := readFileSetDigests(digestFdWithDigestContents)
+	if err != nil {
 		// Try to close if failed to read
 		s.Close()
 		return err
 	}
+
 	infoStat, err := infoFd.Stat()
 	if err != nil {
 		s.Close()
 		return err
 	}
-	if err := s.readInfo(int(infoStat.Size())); err != nil {
+	if err := s.readInfo(int(infoStat.Size()), infoFdWithDigest, expectedDigests.infoDigest); err != nil {
 		s.Close()
 		return err
 	}
 
-	if digest.Checksum(s.indexMmap) != s.expectedIndexDigest {
+	if digest.Checksum(s.indexMmap) != expectedDigests.indexDigest {
 		s.Close()
 		return fmt.Errorf(
 			"index file digest for file: %s does not match the expected digest",
@@ -264,8 +256,8 @@ func (s *seeker) Open(namespace ident.ID, shard uint32, blockStart time.Time) er
 
 	s.bloomFilter, err = newManagedConcurrentBloomFilterFromFile(
 		bloomFilterFd,
-		s.bloomFilterFdWithDigest,
-		s.expectedBloomFilterDigest,
+		bloomFilterFdWithDigest,
+		expectedDigests.bloomFilterDigest,
 		uint(s.bloomFilterInfo.NumElementsM),
 		uint(s.bloomFilterInfo.NumHashesK),
 	)
@@ -274,10 +266,10 @@ func (s *seeker) Open(namespace ident.ID, shard uint32, blockStart time.Time) er
 		return err
 	}
 
-	s.summariesFdWithDigest.Reset(summariesFd)
+	summariesFdWithDigest.Reset(summariesFd)
 	s.indexLookup, err = newNearestIndexOffsetLookupFromSummariesFile(
-		s.summariesFdWithDigest,
-		s.expectedSummariesDigest,
+		summariesFdWithDigest,
+		expectedDigests.summariesDigest,
 		s.decoder,
 		int(s.summariesInfo.Summaries),
 	)
@@ -311,23 +303,9 @@ func (s *seeker) setUnreadBuffer(buf []byte) {
 	s.unreadBuf = buf
 }
 
-func (s *seeker) readDigest() error {
-	fsDigests, err := readFileSetDigests(s.digestFdWithDigestContents)
-	if err != nil {
-		return err
-	}
-
-	s.expectedInfoDigest = fsDigests.infoDigest
-	s.expectedIndexDigest = fsDigests.indexDigest
-	s.expectedBloomFilterDigest = fsDigests.bloomFilterDigest
-	s.expectedSummariesDigest = fsDigests.summariesDigest
-
-	return nil
-}
-
-func (s *seeker) readInfo(size int) error {
+func (s *seeker) readInfo(size int, infoDigestReader digest.FdWithDigestReader, expectedInfoDigest uint32) error {
 	s.prepareUnreadBuf(size)
-	n, err := s.infoFdWithDigest.ReadAllAndValidate(s.unreadBuf[:size], s.expectedInfoDigest)
+	n, err := infoDigestReader.ReadAllAndValidate(s.unreadBuf[:size], expectedInfoDigest)
 	if err != nil {
 		return err
 	}

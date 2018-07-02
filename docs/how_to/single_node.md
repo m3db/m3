@@ -29,7 +29,7 @@ Next, create an initial namespace for your metrics:
 <!-- TODO: link to config reference docs once available -->
 
 ```json
-curl -X POST localhost:7201/namespace/add -d '{
+curl -X POST localhost:7201/api/v1/namespace -d '{
   "name": "default",
   "options": {
     "bootstrapEnabled": true,
@@ -39,16 +39,16 @@ curl -X POST localhost:7201/namespace/add -d '{
     "snapshotEnabled": false,
     "repairEnabled": false,
     "retentionOptions": {
-      "retentionPeriodNanos": 172800000000000,
-      "blockSizeNanos": 7200000000000,
-      "bufferFutureNanos": 600000000000,
-      "bufferPastNanos": 600000000000,
+      "retentionPeriodDuration": "720h",
+      "blockSizeDuration": "12h",
+      "bufferFutureDuration": "1h",
+      "bufferPastDuration": "1h",
       "blockDataExpiry": true,
-      "blockDataExpiryAfterNotAccessPeriodNanos": 300000000000
+      "blockDataExpiryAfterNotAccessPeriodDuration": "5m"
     },
     "indexOptions": {
       "enabled": true,
-      "blockSizeNanos": 7200000000000
+      "blockSizeDuration": "12h"
     }
   }
 }'
@@ -57,7 +57,7 @@ curl -X POST localhost:7201/namespace/add -d '{
 With a namespace to hold your metrics created, you can initialize your first placement:
 
 ```json
-curl -X POST localhost:7201/placement/init -d '{
+curl -X POST localhost:7201/api/v1/placement/init -d '{
     "num_shards": 64,
     "replication_factor": 1,
     "instances": [
@@ -91,6 +91,11 @@ warn-level errors (prefixed with `[W]`) should not block bootstrapping.
 20:10:13.758001[I] bootstrapped
 20:10:14.764771[I] successfully updated topology to 1 hosts
 ```
+
+The node also self-hosts its OpenAPI docs, outlining available endpoints. You can access this by
+going to `localhost:7201/api/v1/docs` in your browser.
+
+![OpenAPI Doc](redoc_screenshot.png)
 
 Now you can experiment with writing tagged metrics:
 ```json

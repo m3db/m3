@@ -29,6 +29,9 @@ import (
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/parser"
 	"github.com/m3db/m3db/src/coordinator/storage"
+	"github.com/m3db/m3db/src/coordinator/util/logging"
+
+	"go.uber.org/zap"
 )
 
 // FetchType gets the series from storage
@@ -47,7 +50,8 @@ type FetchNode struct {
 	op         FetchOp
 	controller *transform.Controller
 	storage    storage.Storage
-	now        time.Time
+	timespec   transform.TimeSpec
+	debug      bool
 }
 
 // OpType for the operator
@@ -62,27 +66,35 @@ func (o FetchOp) String() string {
 
 // Node creates an execution node
 func (o FetchOp) Node(controller *transform.Controller, storage storage.Storage, options transform.Options) parser.Source {
-	return &FetchNode{op: o, controller: controller, storage: storage, now: options.Now}
+	return &FetchNode{op: o, controller: controller, storage: storage, timespec: options.TimeSpec, debug: options.Debug}
 }
 
 // Execute runs the fetch node operation
 func (n *FetchNode) Execute(ctx context.Context) error {
-	startTime := n.now.Add(-1 * n.op.Offset)
-	endTime := startTime.Add(n.op.Range)
+	timeSpec := n.timespec
+	startTime := timeSpec.Start.Add(-1 * n.op.Offset)
+	endTime := timeSpec.End
 	blockResult, err := n.storage.FetchBlocks(ctx, &storage.FetchQuery{
 		Start:       startTime,
 		End:         endTime,
 		TagMatchers: n.op.Matchers,
+		Interval:    timeSpec.Step,
 	}, &storage.FetchOptions{})
 	if err != nil {
 		return err
 	}
 
 	for _, block := range blockResult.Blocks {
+		if n.debug {
+			logging.WithContext(ctx).Info("fetch block", zap.String("meta", block.Meta().String()))
+		}
 		if err := n.controller.Process(block); err != nil {
+			block.Close()
 			// Fail on first error
 			return err
 		}
+
+		block.Close()
 	}
 
 	return nil

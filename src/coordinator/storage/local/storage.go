@@ -27,14 +27,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/errors"
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/storage"
-	"github.com/m3db/m3db/src/coordinator/ts"
 	"github.com/m3db/m3db/src/coordinator/util/execution"
 	"github.com/m3db/m3db/src/dbnode/storage/index"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -47,12 +48,13 @@ var (
 )
 
 type localStorage struct {
-	clusters Clusters
+	clusters   Clusters
+	workerPool pool.ObjectPool
 }
 
 // NewStorage creates a new local Storage instance.
-func NewStorage(clusters Clusters) storage.Storage {
-	return &localStorage{clusters: clusters}
+func NewStorage(clusters Clusters, workerPool pool.ObjectPool) storage.Storage {
+	return &localStorage{clusters: clusters, workerPool: workerPool}
 }
 
 func (s *localStorage) Fetch(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (*storage.FetchResult, error) {
@@ -136,30 +138,7 @@ func (s *localStorage) fetch(
 		return nil, err
 	}
 
-	defer iters.Close()
-
-	// NB(r): Decompressing values should really happen concurrently instead of
-	// sequentially like below.
-	seriesList := make([]*ts.Series, iters.Len())
-	for i, iter := range iters.Iters() {
-		metric, err := storage.FromM3IdentToMetric(namespaceID, iter.ID(), iter.Tags())
-		if err != nil {
-			return nil, err
-		}
-
-		datapoints := make(ts.Datapoints, 0, initRawFetchAllocSize)
-		for iter.Next() {
-			dp, _, _ := iter.Current()
-			datapoints = append(datapoints, ts.Datapoint{Timestamp: dp.Timestamp, Value: dp.Value})
-		}
-
-		series := ts.NewSeries(metric.ID, datapoints, metric.Tags)
-		seriesList[i] = series
-	}
-
-	return &storage.FetchResult{
-		SeriesList: seriesList,
-	}, nil
+	return storage.SeriesIteratorsToFetchResult(iters, namespaceID, s.workerPool)
 }
 
 func (s *localStorage) FetchTags(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (*storage.SearchResults, error) {
@@ -287,8 +266,20 @@ func (s *localStorage) Type() storage.Type {
 }
 
 func (s *localStorage) FetchBlocks(
-	ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (storage.BlockResult, error) {
-	return storage.BlockResult{}, errors.ErrNotImplemented
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions) (block.Result, error) {
+	fetchResult, err := s.Fetch(ctx, query, options)
+	if err != nil {
+		return block.Result{}, err
+	}
+
+	res, err := storage.FetchResultToBlockResult(fetchResult, query)
+	if err != nil {
+		return block.Result{}, err
+	}
+
+	return res, nil
 }
 
 func (s *localStorage) Close() error {

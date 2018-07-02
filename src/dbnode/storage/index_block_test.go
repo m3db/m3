@@ -30,8 +30,8 @@ import (
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3db/src/dbnode/storage/index"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
-	"github.com/m3db/m3ninx/doc"
-	"github.com/m3db/m3ninx/index/segment"
+	"github.com/m3db/m3db/src/m3ninx/doc"
+	"github.com/m3db/m3db/src/m3ninx/index/segment"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	xtest "github.com/m3db/m3x/test"
@@ -346,7 +346,7 @@ func TestNamespaceIndexTickExpire(t *testing.T) {
 
 	c := context.NewCancellable()
 	b0.EXPECT().Close().Return(nil)
-	result, err := idx.Tick(c)
+	result, err := idx.Tick(c, nowFn())
 	require.NoError(t, err)
 	require.Equal(t, namespaceIndexTickResult{
 		NumBlocksEvicted: 1,
@@ -383,11 +383,11 @@ func TestNamespaceIndexTick(t *testing.T) {
 	require.NoError(t, err)
 
 	c := context.NewCancellable()
-	b0.EXPECT().Tick(c).Return(index.BlockTickResult{
+	b0.EXPECT().Tick(c, nowFn()).Return(index.BlockTickResult{
 		NumDocs:     10,
 		NumSegments: 2,
 	}, nil)
-	result, err := idx.Tick(c)
+	result, err := idx.Tick(c, nowFn())
 	require.NoError(t, err)
 	require.Equal(t, namespaceIndexTickResult{
 		NumBlocks:    1,
@@ -399,13 +399,13 @@ func TestNamespaceIndexTick(t *testing.T) {
 	now = now.Add(2 * blockSize)
 	nowLock.Unlock()
 
-	b0.EXPECT().Tick(c).Return(index.BlockTickResult{
+	b0.EXPECT().Tick(c, nowFn()).Return(index.BlockTickResult{
 		NumDocs:     10,
 		NumSegments: 2,
 	}, nil)
 	b0.EXPECT().IsSealed().Return(false)
 	b0.EXPECT().Seal().Return(nil)
-	result, err = idx.Tick(c)
+	result, err = idx.Tick(c, nowFn())
 	require.NoError(t, err)
 	require.Equal(t, namespaceIndexTickResult{
 		NumBlocks:       1,
@@ -414,12 +414,12 @@ func TestNamespaceIndexTick(t *testing.T) {
 		NumTotalDocs:    10,
 	}, result)
 
-	b0.EXPECT().Tick(c).Return(index.BlockTickResult{
+	b0.EXPECT().Tick(c, nowFn()).Return(index.BlockTickResult{
 		NumDocs:     10,
 		NumSegments: 2,
 	}, nil)
 	b0.EXPECT().IsSealed().Return(true)
-	result, err = idx.Tick(c)
+	result, err = idx.Tick(c, nowFn())
 	require.NoError(t, err)
 	require.Equal(t, namespaceIndexTickResult{
 		NumBlocks:    1,
