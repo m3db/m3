@@ -110,7 +110,7 @@ func TestLocalRead(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	store, session := setup(ctrl)
 	testTags := seriesiter.GenerateTag()
-	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(seriesiter.NewMockSeriesIters(ctrl, testTags, 1), true, nil)
+	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(seriesiter.NewMockSeriesIters(ctrl, testTags, 1, 2), true, nil)
 	searchReq := newFetchReq()
 	results, err := store.Fetch(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
 	assert.NoError(t, err)

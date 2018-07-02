@@ -97,7 +97,7 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	namespaceRequest, placementRequest, rErr := h.parseRequest(r)
 	if rErr != nil {
 		logger.Error("unable to parse request", zap.Any("error", rErr))
-		handler.Error(w, rErr.Error(), rErr.Code())
+		handler.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 

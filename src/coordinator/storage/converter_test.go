@@ -38,7 +38,7 @@ import (
 
 func verifyExpandSeries(t *testing.T, ctrl *gomock.Controller, num int, pools pool.ObjectPool) {
 	testTags := seriesiter.GenerateTag()
-	iters := seriesiter.NewMockSeriesIters(ctrl, testTags, num)
+	iters := seriesiter.NewMockSeriesIters(ctrl, testTags, num, 2)
 
 	results, err := SeriesIteratorsToFetchResult(iters, ident.StringID("strID"), pools)
 	assert.NoError(t, err)
@@ -108,7 +108,7 @@ func TestFailingExpandSeriesValidPools(t *testing.T) {
 	validTagGenerator := func() ident.TagIterator {
 		return seriesiter.GenerateSingleSampleTagIterator(ctrl, testTags)
 	}
-	iters := seriesiter.NewMockSeriesIterSlice(ctrl, validTagGenerator, 4)
+	iters := seriesiter.NewMockSeriesIterSlice(ctrl, validTagGenerator, 4, 2)
 	invalidIters := make([]encoding.SeriesIterator, 2)
 	for i := 0; i < 2; i++ {
 		invalidIter := encoding.NewMockSeriesIterator(ctrl)

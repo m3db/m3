@@ -20,20 +20,15 @@
 
 package block
 
-import (
-	"fmt"
-	"time"
-)
-
 // Series is a single series within a block
 type Series struct {
 	values []float64
-	bounds Bounds
+	Meta   SeriesMeta
 }
 
 // NewSeries creates a new series
-func NewSeries(values []float64, bounds Bounds) Series {
-	return Series{values: values, bounds: bounds}
+func NewSeries(values []float64, meta SeriesMeta) Series {
+	return Series{values: values, Meta: meta}
 }
 
 // ValueAtStep returns the datapoint value at a step index
@@ -41,17 +36,7 @@ func (s Series) ValueAtStep(idx int) float64 {
 	return s.values[idx]
 }
 
-// ValueAtTime returns the datapoint value at a given time
-func (s Series) ValueAtTime(t time.Time) (float64, error) {
-	bounds := s.bounds
-	if t.Before(bounds.Start) || t.After(bounds.End) {
-		return 0, fmt.Errorf(errBounds, t, bounds)
-	}
-
-	step := int(t.Sub(bounds.Start) / bounds.StepSize)
-	if step >= len(s.values) {
-		return 0, fmt.Errorf(errBounds, t, bounds)
-	}
-
-	return s.ValueAtStep(step), nil
+// Len returns the number of datapoints in the series
+func (s Series) Len() int {
+	return len(s.values)
 }

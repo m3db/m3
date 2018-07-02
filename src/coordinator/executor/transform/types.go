@@ -18,37 +18,31 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package plan
+package transform
 
 import (
-	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/coordinator/functions"
-	"github.com/m3db/m3db/src/coordinator/models"
+	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/parser"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-func TestResultNode(t *testing.T) {
-	fetchTransform := parser.NewTransformFromOperation(functions.FetchOp{}, 1)
-	countTransform := parser.NewTransformFromOperation(functions.CountOp{}, 2)
-	transforms := parser.Nodes{fetchTransform, countTransform}
-	edges := parser.Edges{
-		parser.Edge{
-			ParentID: fetchTransform.ID,
-			ChildID:  countTransform.ID,
-		},
-	}
+// Options to create transform nodes
+type Options struct {
+	TimeSpec TimeSpec
+	Debug    bool
+}
 
-	lp, err := NewLogicalPlan(transforms, edges)
-	require.NoError(t, err)
-	p, err := NewPhysicalPlan(lp, nil, models.RequestParams{Now:time.Now()})
-	require.NoError(t, err)
-	node, err := p.leafNode()
-	require.NoError(t, err)
-	assert.Equal(t, node.ID(), countTransform.ID)
-	assert.Equal(t, p.ResultStep.Parent, countTransform.ID)
+// OpNode represents the execution node
+type OpNode interface {
+	Process(ID parser.NodeID, block block.Block) error
+}
+
+// TimeSpec defines the time bounds for the query execution
+type TimeSpec struct {
+	Start time.Time
+	End   time.Time
+	// Now captures the current time and fixes it throughout the request, we may let people override it in the future
+	Now  time.Time
+	Step time.Duration
 }

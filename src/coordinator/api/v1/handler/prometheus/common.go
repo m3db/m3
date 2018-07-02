@@ -32,14 +32,10 @@ import (
 )
 
 const (
+	// TODO: get timeouts from configs
 	maxTimeout     = time.Minute
 	defaultTimeout = time.Second * 15
 )
-
-// RequestParams are the arguments to a call
-type RequestParams struct {
-	Timeout time.Duration
-}
 
 // ParsePromCompressedRequest parses a snappy compressed request from Prometheus
 func ParsePromCompressedRequest(r *http.Request) ([]byte, *handler.ParseError) {
@@ -67,24 +63,21 @@ func ParsePromCompressedRequest(r *http.Request) ([]byte, *handler.ParseError) {
 	return reqBuf, nil
 }
 
-// ParseRequestParams parses the input request parameters and provides useful defaults
-func ParseRequestParams(r *http.Request) (*RequestParams, error) {
-	var params RequestParams
+// ParseRequestTimeout parses the input request timeout with a default
+func ParseRequestTimeout(r *http.Request) (time.Duration, error) {
 	timeout := r.Header.Get("timeout")
-	if timeout != "" {
-		duration, err := time.ParseDuration(timeout)
-		if err != nil {
-			return nil, fmt.Errorf("%s: invalid 'timeout': %v", handler.ErrInvalidParams, err)
-		}
-
-		if duration > maxTimeout {
-			return nil, fmt.Errorf("%s: invalid 'timeout': greater than %v", handler.ErrInvalidParams, maxTimeout)
-		}
-
-		params.Timeout = duration
-	} else {
-		params.Timeout = defaultTimeout
+	if timeout == "" {
+		return defaultTimeout, nil
 	}
 
-	return &params, nil
+	duration, err := time.ParseDuration(timeout)
+	if err != nil {
+		return 0, fmt.Errorf("%s: invalid 'timeout': %v", handler.ErrInvalidParams, err)
+	}
+
+	if duration > maxTimeout {
+		return 0, fmt.Errorf("%s: invalid 'timeout': greater than %v", handler.ErrInvalidParams, maxTimeout)
+	}
+
+	return duration, nil
 }

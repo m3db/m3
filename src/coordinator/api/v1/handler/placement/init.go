@@ -56,7 +56,7 @@ func (h *InitHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	req, rErr := h.parseRequest(r)
 	if rErr != nil {
-		handler.Error(w, rErr.Error(), rErr.Code())
+		handler.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 

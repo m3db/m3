@@ -31,7 +31,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/coordinator/api/v1/handler/prometheus"
 	"github.com/m3db/m3db/src/coordinator/executor"
 	"github.com/m3db/m3db/src/coordinator/generated/proto/prompb"
 	"github.com/m3db/m3db/src/coordinator/storage"
@@ -122,7 +121,7 @@ func TestPromReadStorageWithFetchError(t *testing.T) {
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, true, fmt.Errorf("unable to get data"))
 	promRead := &PromReadHandler{engine: executor.NewEngine(storage), promReadMetrics: promReadTestMetrics}
 	req := generatePromReadRequest()
-	_, err := promRead.read(context.TODO(), httptest.NewRecorder(), req, &prometheus.RequestParams{Timeout: time.Hour})
+	_, err := promRead.read(context.TODO(), httptest.NewRecorder(), req, time.Hour)
 	require.NotNil(t, err, "unable to read from storage")
 }
 

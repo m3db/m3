@@ -18,21 +18,20 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package transform
+package models
 
 import (
 	"time"
-
-	"github.com/m3db/m3db/src/coordinator/block"
-	"github.com/m3db/m3db/src/coordinator/parser"
 )
 
-// Options to create transform nodes
-type Options struct {
-	Now time.Time
-}
-
-// OpNode represents the execution node
-type OpNode interface {
-	Process(ID parser.NodeID, block block.Block) error
+// RequestParams represents the params from the request
+type RequestParams struct {
+	Start time.Time
+	End   time.Time
+	// Now captures the current time and fixes it throughout the request, we may let people override it in the future
+	Now     time.Time
+	Timeout time.Duration
+	Step    time.Duration
+	Target  string
+	Debug   bool
 }

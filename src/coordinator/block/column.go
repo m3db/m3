@@ -31,8 +31,9 @@ type ColumnBlockBuilder struct {
 }
 
 type columnBlock struct {
-	columns [] column
-	meta    Metadata
+	columns    []column
+	meta       Metadata
+	seriesMeta []SeriesMeta
 }
 
 // Meta returns the metadata for the block
@@ -52,13 +53,23 @@ func (c *columnBlock) StepIter() StepIter {
 // TODO: allow series iteration
 // SeriesIter returns a SeriesIterator
 func (c *columnBlock) SeriesIter() SeriesIter {
-	return nil
+	return newColumnBlockSeriesIter(c.columns, c.meta, c.seriesMeta)
 }
 
 // TODO: allow series iteration
 // SeriesMeta returns the metadata for each series in the block
 func (c *columnBlock) SeriesMeta() []SeriesMeta {
-	return nil
+	return c.seriesMeta
+}
+
+// StepCount returns the total steps
+func (c *columnBlock) StepCount() int {
+	return len(c.columns)
+}
+
+// SeriesCount returns the number of series in the block
+func (c *columnBlock) SeriesCount() int {
+	return len(c.seriesMeta)
 }
 
 // Close frees up any resources
@@ -94,11 +105,6 @@ func (c *colBlockIter) Current() Step {
 	}
 }
 
-// Steps returns the total steps
-func (c *colBlockIter) Steps() int {
-	return len(c.columns)
-}
-
 // Close frees up resources
 func (c *colBlockIter) Close() {
 }
@@ -125,10 +131,11 @@ func NewColStep(t time.Time, values []float64) Step {
 }
 
 // NewColumnBlockBuilder creates a new column block builder
-func NewColumnBlockBuilder(meta Metadata) Builder {
+func NewColumnBlockBuilder(meta Metadata, seriesMeta []SeriesMeta) Builder {
 	return ColumnBlockBuilder{
 		block: &columnBlock{
-			meta: meta,
+			meta:       meta,
+			seriesMeta: seriesMeta,
 		},
 	}
 }
@@ -159,4 +166,36 @@ func (cb ColumnBlockBuilder) Build() Block {
 
 type column struct {
 	Values []float64
+}
+
+// columnBlockSeriesIter is used to iterate over a column. Assumes that all columns have the same length
+type columnBlockSeriesIter struct {
+	columns    []column
+	idx        int
+	blockMeta  Metadata
+	seriesMeta []SeriesMeta
+}
+
+func newColumnBlockSeriesIter(columns []column, blockMeta Metadata, seriesMeta []SeriesMeta) SeriesIter {
+	return &columnBlockSeriesIter{columns: columns, blockMeta: blockMeta, seriesMeta: seriesMeta, idx: -1}
+}
+
+func (m *columnBlockSeriesIter) Next() bool {
+	m.idx++
+	cols := m.columns
+	return len(cols) > 0 && m.idx < len(cols[0].Values)
+}
+
+func (m *columnBlockSeriesIter) Current() Series {
+	cols := m.columns
+	values := make([]float64, len(cols))
+	for i := 0; i < len(cols); i++ {
+		values[i] = cols[i].Values[m.idx]
+	}
+
+	return NewSeries(values, m.seriesMeta[m.idx])
+}
+
+// TODO: Actually free resources once we do pooling
+func (m *columnBlockSeriesIter) Close() {
 }

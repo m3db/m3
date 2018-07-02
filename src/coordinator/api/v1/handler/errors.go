@@ -23,6 +23,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 )
@@ -53,12 +54,17 @@ func NewParseError(inner error, code int) *ParseError {
 	return &ParseError{inner, code}
 }
 
-// Errors returns the error object
-func (e *ParseError) Error() error {
+// Error returns the error string
+func (e *ParseError) Error() string {
+	return fmt.Sprintf("err: %s, code: %d", e.inner.Error(), e.code)
+}
+
+// Inner returns the error object
+func (e *ParseError) Inner() error {
 	return e.inner
 }
 
-// Code returns the error code
+// Code returns the parse error type
 func (e *ParseError) Code() int {
 	return e.code
 }

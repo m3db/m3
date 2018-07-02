@@ -27,23 +27,28 @@ import (
 	"github.com/m3db/m3db/src/coordinator/models"
 )
 
-const (
-	// errBounds is returned when time requested is outside the block bounds
-	errBounds = "out of bounds, time: %v, bounds: %v"
-)
-
 // Block represents a group of series across a time bound
 type Block interface {
+	// Meta returns the metadata for the block
 	Meta() Metadata
+	// StepIter returns a StepIterator
 	StepIter() StepIter
+	// SeriesIter returns a SeriesIterator
 	SeriesIter() SeriesIter
+	// SeriesMeta returns the metadata for each series in the block
 	SeriesMeta() []SeriesMeta
+	// StepCount returns the total steps/columns
+	StepCount() int
+	// SeriesCount returns the number of series in the block
+	SeriesCount() int
+	// Close frees up any resources
 	Close() error
 }
 
 // SeriesMeta is metadata data for the series
 type SeriesMeta struct {
 	Tags models.Tags
+	Name string
 }
 
 // Bounds are the time bounds
@@ -64,6 +69,20 @@ func (b Bounds) TimeForIndex(idx int) (time.Time, error) {
 	return t, nil
 }
 
+// Steps calculates the number of steps for the bounds
+func (b Bounds) Steps() int {
+	if b.Start.After(b.End) || b.StepSize <= 0 {
+		return 0
+	}
+
+	return int(b.End.Sub(b.Start)/b.StepSize) + 1
+}
+
+// String representation of the bounds
+func (b Bounds) String() string {
+	return fmt.Sprintf("start: %v, end: %v, stepSize: %v, steps: %d", b.Start, b.End, b.StepSize, b.Steps())
+}
+
 // Iterator is the base iterator
 type Iterator interface {
 	Next() bool
@@ -80,7 +99,6 @@ type SeriesIter interface {
 type StepIter interface {
 	Iterator
 	Current() Step
-	Steps() int
 }
 
 // Step is a single time step within a block
@@ -93,6 +111,11 @@ type Step interface {
 type Metadata struct {
 	Bounds Bounds
 	Tags   models.Tags // Common tags across different series
+}
+
+// String returns a string representation of metadata
+func (m Metadata) String() string {
+	return fmt.Sprintf("Bounds: %v, Tags: %v", m.Bounds, m.Tags)
 }
 
 // Builder builds a new block

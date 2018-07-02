@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"math"
 	"time"
 
 	"github.com/m3db/m3db/src/coordinator/block"
@@ -69,8 +70,18 @@ func (m multiSeriesBlock) Meta() block.Metadata {
 	return m.meta
 }
 
+func (m multiSeriesBlock) StepCount() int {
+	// If series has fewer points then it should return NaNs
+	return m.meta.Bounds.Steps()
+}
+
+// SeriesCount returns the number of series in the block
+func (m multiSeriesBlock) SeriesCount() int {
+	return len(m.seriesList)
+}
+
 func (m multiSeriesBlock) StepIter() block.StepIter {
-	return &multiSeriesBlockStepIter{block: m}
+	return &multiSeriesBlockStepIter{block: m, index: -1}
 }
 
 func (m multiSeriesBlock) SeriesIter() block.SeriesIter {
@@ -81,6 +92,7 @@ func (m multiSeriesBlock) SeriesMeta() []block.SeriesMeta {
 	metas := make([]block.SeriesMeta, len(m.seriesList))
 	for i, s := range m.seriesList {
 		metas[i].Tags = s.Tags
+		metas[i].Name = s.Name()
 	}
 
 	return metas
@@ -102,26 +114,23 @@ func (m *multiSeriesBlockStepIter) Next() bool {
 	}
 
 	m.index++
-	return m.index < m.block.seriesList[0].Values().Len()
+	return m.index < m.block.StepCount()
 }
 
 func (m *multiSeriesBlockStepIter) Current() block.Step {
 	values := make([]float64, len(m.block.seriesList))
+	seriesLen := m.block.seriesList[0].Len()
 	for i, s := range m.block.seriesList {
-		values[i] = s.Values().ValueAt(i)
+		if m.index < seriesLen {
+			values[i] = s.Values().ValueAt(m.index)
+		} else {
+			values[i] = math.NaN()
+		}
 	}
 
 	bounds := m.block.meta.Bounds
 	t := bounds.Start.Add(time.Duration(m.index) * bounds.StepSize)
 	return block.NewColStep(t, values)
-}
-
-func (m *multiSeriesBlockStepIter) Steps() int {
-	if len(m.block.seriesList) == 0 {
-		return 0
-	}
-
-	return m.block.seriesList[0].Values().Len()
 }
 
 // TODO: Actually free up resources
@@ -133,7 +142,7 @@ type multiSeriesBlockSeriesIter struct {
 	index int
 }
 
-func newMultiSeriesBlockSeriesIter(block multiSeriesBlock) *multiSeriesBlockSeriesIter {
+func newMultiSeriesBlockSeriesIter(block multiSeriesBlock) block.SeriesIter {
 	return &multiSeriesBlockSeriesIter{block: block, index: -1}
 }
 
@@ -144,12 +153,22 @@ func (m *multiSeriesBlockSeriesIter) Next() bool {
 
 func (m *multiSeriesBlockSeriesIter) Current() block.Series {
 	s := m.block.seriesList[m.index]
-	values := make([]float64, s.Len())
-	for i := 0; i < s.Len(); i++ {
-		values[i] = s.Values().ValueAt(i)
+	seriesLen := s.Values().Len()
+	values := make([]float64, m.block.StepCount())
+	seriesValues := s.Values()
+	for i := 0; i < m.block.StepCount(); i++ {
+		if i < seriesLen {
+			values[i] = seriesValues.ValueAt(i)
+		} else {
+			values[i] = math.NaN()
+		}
 	}
-	return block.NewSeries(values, m.block.meta.Bounds)
+
+	return block.NewSeries(values, block.SeriesMeta{
+		Tags: s.Tags,
+		Name: s.Name(),
+	})
 }
 
-func (m *multiSeriesBlockSeriesIter) Close()  {
+func (m *multiSeriesBlockSeriesIter) Close() {
 }

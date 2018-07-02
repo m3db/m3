@@ -59,7 +59,7 @@ func (h *SearchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	query, rErr := h.parseBody(r)
 	if rErr != nil {
 		logger.Error("unable to parse request", zap.Any("error", rErr))
-		Error(w, rErr.Error(), rErr.Code())
+		Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 	opts := h.parseURLParams(r)

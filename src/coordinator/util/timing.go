@@ -18,37 +18,30 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package plan
+package util
 
 import (
-	"testing"
+	"fmt"
+	"math"
+	"strconv"
 	"time"
-
-	"github.com/m3db/m3db/src/coordinator/functions"
-	"github.com/m3db/m3db/src/coordinator/models"
-	"github.com/m3db/m3db/src/coordinator/parser"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-func TestResultNode(t *testing.T) {
-	fetchTransform := parser.NewTransformFromOperation(functions.FetchOp{}, 1)
-	countTransform := parser.NewTransformFromOperation(functions.CountOp{}, 2)
-	transforms := parser.Nodes{fetchTransform, countTransform}
-	edges := parser.Edges{
-		parser.Edge{
-			ParentID: fetchTransform.ID,
-			ChildID:  countTransform.ID,
-		},
+// ParseTimeString parses a time string into time.Time
+func ParseTimeString(s string) (time.Time, error) {
+	if t, err := strconv.ParseFloat(s, 64); err == nil {
+		s, ns := math.Modf(t)
+		return time.Unix(int64(s), int64(ns*float64(time.Second))), nil
 	}
 
-	lp, err := NewLogicalPlan(transforms, edges)
-	require.NoError(t, err)
-	p, err := NewPhysicalPlan(lp, nil, models.RequestParams{Now:time.Now()})
-	require.NoError(t, err)
-	node, err := p.leafNode()
-	require.NoError(t, err)
-	assert.Equal(t, node.ID(), countTransform.ID)
-	assert.Equal(t, p.ResultStep.Parent, countTransform.ID)
+	if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
+		return t, nil
+	}
+
+	return time.Time{}, fmt.Errorf("invalid timestamp for %s", s)
+}
+
+// DurationToMS converts a duration into milliseconds
+func DurationToMS(duration time.Duration) int64 {
+	return duration.Nanoseconds() / int64(time.Millisecond)
 }

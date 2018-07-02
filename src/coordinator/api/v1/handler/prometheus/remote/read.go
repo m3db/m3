@@ -24,6 +24,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler"
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler/prometheus"
@@ -81,18 +82,18 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	req, rErr := h.parseRequest(r)
 
 	if rErr != nil {
-		handler.Error(w, rErr.Error(), rErr.Code())
+		handler.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 
-	params, err := prometheus.ParseRequestParams(r)
+	timeout, err := prometheus.ParseRequestTimeout(r)
 	if err != nil {
 		h.promReadMetrics.fetchErrorsClient.Inc(1)
 		handler.Error(w, err, http.StatusBadRequest)
 		return
 	}
 
-	result, err := h.read(ctx, w, req, params)
+	result, err := h.read(ctx, w, req, timeout)
 	if err != nil {
 		h.promReadMetrics.fetchErrorsServer.Inc(1)
 		logger.Error("unable to fetch data", zap.Any("error", err))
@@ -140,13 +141,13 @@ func (h *PromReadHandler) parseRequest(r *http.Request) (*prompb.ReadRequest, *h
 	return &req, nil
 }
 
-func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, r *prompb.ReadRequest, params *prometheus.RequestParams) ([]*prompb.QueryResult, error) {
+func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, r *prompb.ReadRequest, timeout time.Duration) ([]*prompb.QueryResult, error) {
 	// TODO: Handle multi query use case
 	if len(r.Queries) != 1 {
 		return nil, fmt.Errorf("prometheus read endpoint currently only supports one query at a time")
 	}
 
-	ctx, cancel := context.WithTimeout(reqCtx, params.Timeout)
+	ctx, cancel := context.WithTimeout(reqCtx, timeout)
 	defer cancel()
 	promQuery := r.Queries[0]
 	query, err := storage.PromReadQueryToM3(promQuery)

@@ -29,42 +29,37 @@ import (
 	"github.com/m3db/m3db/src/coordinator/parser"
 )
 
-// CountType counts all non nan elements in a list of series
-const CountType = "count"
+// AbsType takes absolute value of each datapoint in the series
+const AbsType = "abs"
 
-// CountOp stores required properties for count
-type CountOp struct {
+// AbsOp stores required properties for abs
+type AbsOp struct {
 }
 
 // OpType for the operator
-func (o CountOp) OpType() string {
-	return CountType
+func (o AbsOp) OpType() string {
+	return AbsType
 }
 
 // String representation
-func (o CountOp) String() string {
+func (o AbsOp) String() string {
 	return fmt.Sprintf("type: %s", o.OpType())
 }
 
 // Node creates an execution node
-func (o CountOp) Node(controller *transform.Controller) transform.OpNode {
-	return &CountNode{op: o, controller: controller}
+func (o AbsOp) Node(controller *transform.Controller) transform.OpNode {
+	return &AbsNode{op: o, controller: controller}
 }
 
-// CountNode is an execution node
-type CountNode struct {
-	op         CountOp
+// AbsNode is an execution node
+type AbsNode struct {
+	op         AbsOp
 	controller *transform.Controller
 }
 
 // Process the block
-func (c *CountNode) Process(ID parser.NodeID, b block.Block) error {
-	// TODO: Figure out a good name and tags after an aggregation operation
-	meta := block.SeriesMeta{
-		Name: CountType,
-	}
-
-	builder, err := c.controller.BlockBuilder(b.Meta(), []block.SeriesMeta{meta})
+func (c *AbsNode) Process(ID parser.NodeID, b block.Block) error {
+	builder, err := c.controller.BlockBuilder(b.Meta(), b.SeriesMeta())
 	if err != nil {
 		return err
 	}
@@ -77,14 +72,9 @@ func (c *CountNode) Process(ID parser.NodeID, b block.Block) error {
 	for index := 0; stepIter.Next(); index++ {
 		step := stepIter.Current()
 		values := step.Values()
-		count := 0.0
 		for _, value := range values {
-			if !math.IsNaN(value) {
-				count++
-			}
+			builder.AppendValue(index, math.Abs(value))
 		}
-
-		builder.AppendValue(index, count)
 	}
 
 	nextBlock := builder.Build()
