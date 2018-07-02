@@ -52,6 +52,7 @@ env: env1
 zone: z1
 service: service1
 cacheDir: /tmp/cache.json
+watchWithRevision: 1
 etcdClusters:
   - zone: z1
     endpoints:
@@ -88,6 +89,7 @@ m3sd:
 	require.Equal(t, "z1", cfg.Zone)
 	require.Equal(t, "service1", cfg.Service)
 	require.Equal(t, "/tmp/cache.json", cfg.CacheDir)
+	require.Equal(t, int64(1), cfg.WatchWithRevision)
 	require.Equal(t, []ClusterConfig{
 		ClusterConfig{
 			Zone:      "z1",

@@ -99,13 +99,15 @@ func TestOptions(t *testing.T) {
 		SetCacheDir("/dir").
 		SetService("app").
 		SetClusters([]Cluster{c1, c2}).
-		SetInstrumentOptions(iopts)
+		SetInstrumentOptions(iopts).
+		SetWatchWithRevision(1)
 	assert.Equal(t, "env", opts.Env())
 	assert.Equal(t, "zone", opts.Zone())
 	assert.Equal(t, sdOpts, opts.ServicesOptions())
 	assert.Equal(t, "/dir", opts.CacheDir())
 	assert.Equal(t, "app", opts.Service())
 	assert.Equal(t, 2, len(opts.Clusters()))
+	assert.Equal(t, int64(1), opts.WatchWithRevision())
 	c, ok := opts.ClusterForZone("z1")
 	assert.True(t, ok)
 	assert.Equal(t, c, c1)

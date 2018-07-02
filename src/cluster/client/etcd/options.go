@@ -179,14 +179,15 @@ func NewOptions() Options {
 }
 
 type options struct {
-	env       string
-	zone      string
-	service   string
-	cacheDir  string
-	sdOpts    services.Options
-	clusters  map[string]Cluster
-	iopts     instrument.Options
-	retryOpts retry.Options
+	env               string
+	zone              string
+	service           string
+	cacheDir          string
+	watchWithRevision int64
+	sdOpts            services.Options
+	clusters          map[string]Cluster
+	iopts             instrument.Options
+	retryOpts         retry.Options
 }
 
 func (o options) Validate() error {
@@ -286,6 +287,15 @@ func (o options) RetryOptions() retry.Options {
 
 func (o options) SetRetryOptions(retryOpts retry.Options) Options {
 	o.retryOpts = retryOpts
+	return o
+}
+
+func (o options) WatchWithRevision() int64 {
+	return o.watchWithRevision
+}
+
+func (o options) SetWatchWithRevision(rev int64) Options {
+	o.watchWithRevision = rev
 	return o
 }
 

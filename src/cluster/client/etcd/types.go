@@ -56,6 +56,9 @@ type Options interface {
 	RetryOptions() retry.Options
 	SetRetryOptions(retryOpts retry.Options) Options
 
+	WatchWithRevision() int64
+	SetWatchWithRevision(rev int64) Options
+
 	Validate() error
 }
 
