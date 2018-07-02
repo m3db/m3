@@ -71,7 +71,7 @@ func (g *generator) Generate(namespace ident.ID, shard uint32) error {
 	g.logger.Debug("created fake data")
 
 	writer := generate.NewWriter(gOpts)
-	err := writer.Write(namespace, shardSet, data)
+	err := writer.WriteData(namespace, shardSet, data)
 	if err != nil {
 		return fmt.Errorf("unable to write data: %v", err)
 	}
