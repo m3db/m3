@@ -382,33 +382,8 @@ func (s *commitLogSource) ReadData(
 	wg.Wait()
 	s.logEncodingOutcome(workerErrs, iter)
 
-	var (
-		bootstrapResult = s.mergeShards(
-			int(numShards), bOpts, blockSize, blOpts, encoderPool, snapshotShardResults, shardDataByShard)
-		// shardResults = bootstrapResult.ShardResults()
-	)
-
-	// TODO: Helper?
-	// for shard, shardResult := range snapshotShardResults {
-	// 	existingShardResult, ok := shardResults[shard]
-	// 	if !ok {
-	// 		bootstrapResult.Add(shard, shardResult, xtime.Ranges{})
-	// 		continue
-	// 	}
-
-	// 	for _, mapEntry := range shardResult.AllSeries().Iter() {
-	// 		series := mapEntry.Value()
-	// 		for blockStart, dbBlock := range series.Blocks.AllBlocks() {
-	// 			existingBlock, ok := existingShardResult.BlockAt(series.ID, blockStart.ToTime())
-	// 			if !ok {
-	// 				existingShardResult.AddBlock(series.ID, series.Tags, dbBlock)
-	// 				continue
-	// 			}
-
-	// 			existingBlock.Merge(dbBlock)
-	// 		}
-	// 	}
-	// }
+	bootstrapResult := s.mergeShards(
+		int(numShards), bOpts, blockSize, blOpts, encoderPool, snapshotShardResults, shardDataByShard)
 
 	// TODO: Need to fix caching logic to handle the snapshot files
 	// After merging shards, its safe to cache the shardData (which involves some mutation).
@@ -953,7 +928,6 @@ func (s *commitLogSource) mergeSeries(
 			}
 			readers = append(readers, snapshotReader)
 		}
-		// tmpCtx.BlockingClose()
 
 		iter := multiReaderIteratorPool.Get()
 		iter.Reset(readers, time.Time{}, 0)
@@ -987,6 +961,7 @@ func (s *commitLogSource) mergeSeries(
 		iter.Close()
 		encoders.close()
 		readers.close()
+		tmpCtx.BlockingClose()
 
 		if err != nil {
 			panic(err)
