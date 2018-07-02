@@ -154,10 +154,25 @@ func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, pa
 	}()
 
 	if processErr != nil {
+		// Drain anything remaining
+		drainResultChan(results)
 		return nil, err
 	}
 
 	return sortedBlocksToSeriesList(sortedBlockList)
+}
+
+func drainResultChan(resultsChan chan executor.Query) {
+	for result := range resultsChan {
+		// Ignore errors during drain
+		if result.Err != nil {
+			continue
+		}
+
+		for range result.Result.ResultChan() {
+			// drain out
+		}
+	}
 }
 
 func sortedBlocksToSeriesList(blockList []block.Block) ([]*ts.Series, error) {
