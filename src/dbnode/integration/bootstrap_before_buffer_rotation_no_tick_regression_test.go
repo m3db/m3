@@ -113,7 +113,7 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 			},
 		},
 	}
-	writeCommitLogData(t, setup, commitLogOpts, seriesMaps, ns1.ID())
+	writeCommitLogData(t, setup, commitLogOpts, seriesMaps, ns1, false)
 
 	// Setup bootstrappers - We order them such that the custom test bootstrapper runs first
 	// which does not bootstrap any data, but simply waits until it is signaled, allowing us

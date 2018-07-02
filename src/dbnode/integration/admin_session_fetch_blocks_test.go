@@ -167,6 +167,7 @@ func testSetupToSeriesMaps(
 	nsMetadata namespace.Metadata,
 	metadatasByShard map[uint32][]block.ReplicaMetadata,
 ) map[xtime.UnixNano]generate.SeriesBlock {
+	blockSize := nsMetadata.Options().RetentionOptions().BlockSize()
 	seriesMap := make(map[xtime.UnixNano]generate.SeriesBlock)
 	resultOpts := newDefaulTestResultOptions(testSetup.storageOpts)
 	consistencyLevel := testSetup.storageOpts.RepairOptions().RepairConsistencyLevel()
@@ -178,6 +179,9 @@ func testSetupToSeriesMaps(
 	for shardID, metadatas := range metadatasByShard {
 		blocksIter, err := session.FetchBlocksFromPeers(nsMetadata, shardID,
 			consistencyLevel, metadatas, resultOpts)
+		if err != nil {
+			panic(err)
+		}
 		require.NoError(t, err)
 		require.NotNil(t, blocksIter)
 
@@ -201,12 +205,12 @@ func testSetupToSeriesMaps(
 			ctx.Close()
 
 			firstTs := datapoints[0].Timestamp
-			seriesMapList := seriesMap[xtime.ToUnixNano(firstTs)]
+			seriesMapList := seriesMap[xtime.ToUnixNano(firstTs.Truncate(blockSize))]
 			seriesMapList = append(seriesMapList, generate.Series{
 				ID:   id,
 				Data: datapoints,
 			})
-			seriesMap[xtime.ToUnixNano(firstTs)] = seriesMapList
+			seriesMap[xtime.ToUnixNano(firstTs.Truncate(blockSize))] = seriesMapList
 		}
 		require.NoError(t, blocksIter.Err())
 	}

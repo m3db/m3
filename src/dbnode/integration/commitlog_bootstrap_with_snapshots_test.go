@@ -31,11 +31,12 @@ import (
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/bootstrapper"
 	bcl "github.com/m3db/m3db/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
+	"github.com/m3db/m3db/src/dbnode/ts"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestCommitLogBootstrapOnlyReadsRequiredFiles(t *testing.T) {
+func TestCommitLogBootstrapWithSnapshots(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
@@ -47,10 +48,12 @@ func TestCommitLogBootstrapOnlyReadsRequiredFiles(t *testing.T) {
 	)
 	ns1, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ropts))
 	require.NoError(t, err)
+	ns2, err := namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().SetRetentionOptions(ropts))
+	require.NoError(t, err)
 	opts := newTestOptions(t).
 		SetCommitLogRetentionPeriod(ropts.RetentionPeriod()).
 		SetCommitLogBlockSize(blockSize).
-		SetNamespaces([]namespace.Metadata{ns1})
+		SetNamespaces([]namespace.Metadata{ns1, ns2})
 
 	setup, err := newTestSetup(t, opts, nil)
 	require.NoError(t, err)
@@ -68,27 +71,38 @@ func TestCommitLogBootstrapOnlyReadsRequiredFiles(t *testing.T) {
 	now := setup.getNowFn()
 	seriesMaps := generateSeriesMaps(30, now.Add(-2*blockSize), now.Add(-blockSize))
 	log.Info("writing data")
-	writeCommitLogData(t, setup, commitLogOpts, seriesMaps, ns1, false)
-	log.Info("finished writing data")
+	// TODO: Set the snapshot time
+	numDatapointsNotInSnapshots := 0
+	writeSnapshotsWithPredicate(t, setup, commitLogOpts, seriesMaps, ns1, nil, func(dp ts.Datapoint) bool {
+		blockStart := dp.Timestamp.Truncate(blockSize)
+		// TODO: Make this less ghetto
+		if dp.Timestamp.Before(blockStart.Add(10 * time.Second)) {
+			// TODO: Update this comment
+			// Snapshot files will only contain writes from the first minute of the block
+			return true
+		}
 
-	// The datapoints in this generated data are within the retention period and
-	// would ordinarily be bootstrapped, however, we intentionally write them to a
-	// commitlog file that has a timestamp outside of the retention period. This
-	// allows us to verify the commitlog bootstrapping logic will not waste time
-	// reading commitlog files that are outside of the retention period.
-	log.Info("generating data")
-	seriesMapsExpiredCommitlog := generateSeriesMaps(30, now.Add(-2*blockSize), now.Add(-blockSize))
-	log.Info("writing data to commitlog file with out of range timestamp")
-	writeCommitLogDataSpecifiedTS(
-		t,
-		setup,
-		commitLogOpts,
-		seriesMapsExpiredCommitlog,
-		ns1,
-		now.Add(-2*ropts.RetentionPeriod()),
-		false,
-	)
-	log.Info("finished writing data to commitlog file with out of range timestamp")
+		numDatapointsNotInSnapshots++
+		return false
+	})
+
+	numDatapointsNotInCommitLogs := 0
+	writeCommitLogDataWithPredicate(t, setup, commitLogOpts, seriesMaps, ns1, func(dp ts.Datapoint) bool {
+		blockStart := dp.Timestamp.Truncate(blockSize)
+		// TODO: Make this less ghetto
+		if dp.Timestamp.Equal(blockStart.Add(10*time.Second)) || dp.Timestamp.After(blockStart.Add(10*time.Second)) {
+			return true
+		}
+
+		numDatapointsNotInCommitLogs++
+		return false
+	})
+
+	// Make sure we actually excluded some datapoints from the snapshot and commitlog files
+	require.True(t, numDatapointsNotInSnapshots > 0)
+	require.True(t, numDatapointsNotInCommitLogs > 0)
+
+	log.Info("finished writing data")
 
 	// Setup bootstrapper after writing data so filesystem inspection can find it.
 	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
@@ -116,9 +130,16 @@ func TestCommitLogBootstrapOnlyReadsRequiredFiles(t *testing.T) {
 	}()
 
 	// Verify in-memory data match what we expect - all writes from seriesMaps
-	// should be present, and none of the writes from seriesMapsExpiredCommitlog
-	// should be present.
+	// should be present
 	metadatasByShard := testSetupMetadatas(t, setup, testNamespaces[0], now.Add(-2*blockSize), now)
 	observedSeriesMaps := testSetupToSeriesMaps(t, setup, ns1, metadatasByShard)
 	verifySeriesMapsEqual(t, seriesMaps, observedSeriesMaps)
+
+	// Verify in-memory data match what we expect - no writes should be present
+	// because we didn't issue any writes for this namespaces
+	// emptySeriesMaps := make(generate.SeriesBlocksByStart)
+	// metadatasByShard2 := testSetupMetadatas(t, setup, testNamespaces[1], now.Add(-2*blockSize), now)
+	// observedSeriesMaps2 := testSetupToSeriesMaps(t, setup, ns2, metadatasByShard2)
+	// verifySeriesMapsEqual(t, emptySeriesMaps, observedSeriesMaps2)
+
 }

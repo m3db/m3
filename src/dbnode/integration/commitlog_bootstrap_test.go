@@ -71,7 +71,7 @@ func TestCommitLogBootstrap(t *testing.T) {
 	now := setup.getNowFn()
 	seriesMaps := generateSeriesMaps(30, now.Add(-2*blockSize), now.Add(-blockSize))
 	log.Info("writing data")
-	writeCommitLogData(t, setup, commitLogOpts, seriesMaps, testNamespaces[0])
+	writeCommitLogData(t, setup, commitLogOpts, seriesMaps, ns1, false)
 	log.Info("finished writing data")
 
 	// Setup bootstrapper after writing data so filesystem inspection can find it.
@@ -106,7 +106,7 @@ func TestCommitLogBootstrap(t *testing.T) {
 	verifySeriesMapsEqual(t, seriesMaps, observedSeriesMaps)
 
 	// Verify in-memory data match what we expect - no writes should be present
-	// because we didn't issue any writes for this namespaces
+	// because we didn't issue any writes for this namespace.
 	emptySeriesMaps := make(generate.SeriesBlocksByStart)
 	metadatasByShard2 := testSetupMetadatas(t, setup, testNamespaces[1], now.Add(-2*blockSize), now)
 	observedSeriesMaps2 := testSetupToSeriesMaps(t, setup, ns2, metadatasByShard2)

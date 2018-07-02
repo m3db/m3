@@ -390,6 +390,7 @@ func (s *commitLogSource) ReadData(
 	if s.shouldCacheSeriesMetadata(runOpts, ns) {
 		s.cacheShardData(ns, shardDataByShard)
 	}
+
 	return bootstrapResult, nil
 }
 
@@ -903,21 +904,6 @@ func (s *commitLogSource) mergeSeries(
 	for startNano, encoders := range unmergedCommitlogBlocks.encoders {
 		start := startNano.ToTime()
 
-		// if len(encoders) == 0 {
-		// 	numEmptyErrs++
-		// 	continue
-		// }
-
-		// if len(encoders) == 1 {
-		// 	pooledBlock := blocksPool.Get()
-		// 	pooledBlock.Reset(start, blockSize, encoders[0].enc.Discard())
-		// 	if seriesBlocks == nil {
-		// 		seriesBlocks = block.NewDatabaseSeriesBlocks(len(unmergedCommitlogBlocks.encoders))
-		// 	}
-		// 	seriesBlocks.AddBlock(pooledBlock)
-		// 	continue
-		// }
-
 		var (
 			snapshotBlock    block.DatabaseBlock
 			hasSnapshotBlock bool
@@ -948,7 +934,6 @@ func (s *commitLogSource) mergeSeries(
 		enc.Reset(start, blopts.DatabaseBlockAllocSize())
 		for iter.Next() {
 			dp, unit, annotation := iter.Current()
-			fmt.Printf("decoded: %s\n", dp.Timestamp)
 			encodeErr := enc.Encode(dp, unit, annotation)
 			if encodeErr != nil {
 				if err != nil {
