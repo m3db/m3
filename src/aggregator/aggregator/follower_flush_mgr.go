@@ -33,34 +33,38 @@ import (
 	"github.com/uber-go/tally"
 )
 
-type standardFlusherMetrics struct {
+type standardFollowerFlusherMetrics struct {
 	shardNotFound        tally.Counter
 	resolutionNotFound   tally.Counter
+	kvUpdates            tally.Counter
 	flushWindowsNotEnded tally.Counter
 }
 
-func newStandardFlusherMetrics(scope tally.Scope) standardFlusherMetrics {
-	return standardFlusherMetrics{
+func newStandardFlusherMetrics(scope tally.Scope) standardFollowerFlusherMetrics {
+	return standardFollowerFlusherMetrics{
 		shardNotFound:        scope.Counter("shard-not-found"),
 		resolutionNotFound:   scope.Counter("resolution-not-found"),
+		kvUpdates:            scope.Counter("kv-updates"),
 		flushWindowsNotEnded: scope.Counter("flush-windows-not-ended"),
 	}
 }
 
-type forwardedFlusherMetrics struct {
+type forwardedFollowerFlusherMetrics struct {
 	shardNotFound             tally.Counter
 	resolutionNotFound        tally.Counter
 	nilForwardedTimes         tally.Counter
 	numForwardedTimesNotFound tally.Counter
+	kvUpdates                 tally.Counter
 	flushWindowsNotEnded      tally.Counter
 }
 
-func newForwardedFlusherMetrics(scope tally.Scope) forwardedFlusherMetrics {
-	return forwardedFlusherMetrics{
+func newForwardedFlusherMetrics(scope tally.Scope) forwardedFollowerFlusherMetrics {
+	return forwardedFollowerFlusherMetrics{
 		shardNotFound:             scope.Counter("shard-not-found"),
 		resolutionNotFound:        scope.Counter("resolution-not-found"),
 		nilForwardedTimes:         scope.Counter("nil-forwarded-times"),
 		numForwardedTimesNotFound: scope.Counter("num-forwarded-times-not-found"),
+		kvUpdates:                 scope.Counter("kv-updates"),
 		flushWindowsNotEnded:      scope.Counter("flush-windows-not-ended"),
 	}
 }
@@ -70,8 +74,8 @@ type followerFlushManagerMetrics struct {
 	kvUpdateFlush     tally.Counter
 	forcedFlush       tally.Counter
 	notCampaigning    tally.Counter
-	standard          standardFlusherMetrics
-	forwarded         forwardedFlusherMetrics
+	standard          standardFollowerFlusherMetrics
+	forwarded         forwardedFollowerFlusherMetrics
 }
 
 func newFollowerFlushManagerMetrics(scope tally.Scope) followerFlushManagerMetrics {
@@ -320,6 +324,7 @@ func (mgr *followerFlushManager) standardFlushersFromKVUpdateWithLock(
 			flushBeforeNanos: lastFlushedAtNanos,
 		}
 		flushersWithTime = append(flushersWithTime, newFlushTarget)
+		mgr.metrics.standard.kvUpdates.Inc(1)
 	}
 	return flushersWithTime
 }
@@ -375,6 +380,7 @@ func (mgr *followerFlushManager) forwardedFlushersFromKVUpdateWithLock(
 			flushBeforeNanos: lastFlushedAtNanos,
 		}
 		flushersWithTime = append(flushersWithTime, newFlushTarget)
+		mgr.metrics.forwarded.kvUpdates.Inc(1)
 	}
 	return flushersWithTime
 }
