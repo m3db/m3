@@ -272,7 +272,7 @@ func (s *commitLogSource) ReadData(
 	s.logEncodingOutcome(workerErrs, iter)
 
 	bootstrapResult := s.mergeShards(
-		int(numShards), bOpts, blockSize, blOpts, encoderPool, snapshotShardResults, shardDataByShard)
+		int(numShards), blockSize, snapshotShardResults, shardDataByShard)
 
 	// TODO: Need to fix caching logic to handle the snapshot files
 	// After merging shards, its safe to cache the shardData (which involves some mutation).
@@ -820,10 +820,7 @@ func (s *commitLogSource) shouldIncludeInIndex(
 
 func (s *commitLogSource) mergeShards(
 	numShards int,
-	bopts result.Options,
 	blockSize time.Duration,
-	blopts block.Options,
-	encoderPool encoding.EncoderPool,
 	snapshotShardResults map[uint32]result.ShardResult,
 	unmerged []shardData,
 ) result.DataBootstrapResult {
@@ -831,9 +828,6 @@ func (s *commitLogSource) mergeShards(
 		shardErrs       = make([]int, numShards)
 		shardEmptyErrs  = make([]int, numShards)
 		bootstrapResult = result.NewDataBootstrapResult()
-		// blocksPool              = bopts.DatabaseBlockOptions().DatabaseBlockPool()
-		// multiReaderIteratorPool = blopts.MultiReaderIteratorPool()
-		// segmentReaderPool       = blopts.SegmentReaderPool()
 		// Controls how many shards can be merged in parallel
 		workerPool          = xsync.NewWorkerPool(s.opts.MergeShardsConcurrency())
 		bootstrapResultLock sync.Mutex
