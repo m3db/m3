@@ -1199,23 +1199,6 @@ func (s *commitLogSource) ReadIndex(
 		return nil, err
 	}
 
-	// Setup predicates for skipping files / series at iterator and reader level.
-	readCommitLogPredicate, err := s.newReadCommitLogPredBasedOnAvailableSnapshotFiles(
-		ns, shardsTimeRanges, snapshotFilesByShard)
-	readSeriesPredicate := newReadSeriesPredicate(ns)
-	iterOpts := commitlog.IteratorOpts{
-		CommitLogOptions:      s.opts.CommitLogOptions(),
-		FileFilterPredicate:   readCommitLogPredicate,
-		SeriesFilterPredicate: readSeriesPredicate,
-	}
-
-	// Create the commitlog iterator
-	iter, err := s.newIteratorFn(iterOpts)
-	if err != nil {
-		return nil, fmt.Errorf("unable to create commit log iterator: %v", err)
-	}
-	defer iter.Close()
-
 	highestShard := s.findHighestShard(shardsTimeRanges)
 	// +1 so we can use the shard number as an index throughout without constantly
 	// remembering to subtract 1 to convert to zero-based indexing.
@@ -1238,6 +1221,9 @@ func (s *commitLogSource) ReadIndex(
 		blockSize      = ns.Options().RetentionOptions().BlockSize()
 	)
 
+	// TODO: Can optimize this to not read data, and just return the
+	// IDs / tags.
+	// Start by bootstrapping any available snapshot files.
 	snapshotShardResults, err := s.bootstrapAvailableSnapshotFiles(
 		ns.ID(), shardsTimeRanges, blockSize, snapshotFilesByShard,
 		fsOpts, bytesPool, blocksPool)
@@ -1245,6 +1231,7 @@ func (s *commitLogSource) ReadIndex(
 		return nil, err
 	}
 
+	// Bootstrap any series we got from the snapshot files into the index.
 	for shard, result := range snapshotShardResults {
 		for _, val := range result.AllSeries().Iter() {
 			id := val.Key()
@@ -1257,8 +1244,23 @@ func (s *commitLogSource) ReadIndex(
 		}
 	}
 
-	// Start by reading all the commit log files that we couldn't eliminate due to the
-	// cached metadata.
+	// Next, we need to read all data out of the commit log that wasn't covered by the
+	// snapshot files or cached metadata (previously read commit logs).
+	readCommitLogPredicate, err := s.newReadCommitLogPredBasedOnAvailableSnapshotFiles(
+		ns, shardsTimeRanges, snapshotFilesByShard)
+	readSeriesPredicate := newReadSeriesPredicate(ns)
+	iterOpts := commitlog.IteratorOpts{
+		CommitLogOptions:      s.opts.CommitLogOptions(),
+		FileFilterPredicate:   readCommitLogPredicate,
+		SeriesFilterPredicate: readSeriesPredicate,
+	}
+
+	iter, err := s.newIteratorFn(iterOpts)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create commit log iterator: %v", err)
+	}
+	defer iter.Close()
+
 	for iter.Next() {
 		series, dp, _, _ := iter.Current()
 
@@ -1267,7 +1269,7 @@ func (s *commitLogSource) ReadIndex(
 			indexResults, indexOptions, indexBlockSize, resultOptions)
 	}
 
-	// Add in all the data that was cached by a previous run of ReadData() (if any).
+	// Finally, add in all the data that was cached by a previous run of ReadData() (if any).
 	if nsCache != nil {
 		for shard, shardData := range nsCache.shardData {
 			for _, series := range shardData.series {
