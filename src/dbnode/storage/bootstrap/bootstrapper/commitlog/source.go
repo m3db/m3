@@ -1008,7 +1008,7 @@ func (s *commitLogSource) mergeSeries(
 		// Don't close the context because readers.close() will
 		// take care of closing the streams.
 		tmpCtx := context.NewContext()
-		// Closes encoders by calling Discard()
+		// Closes encoders and snapshotBlock by calling Discard() on each.
 		readers, err := newIOReadersFromEncodersAndBlock(
 			tmpCtx, segmentReaderPool, encoders, snapshotBlock)
 		if err != nil {
@@ -1045,8 +1045,7 @@ func (s *commitLogSource) mergeSeries(
 		iter.Close()
 		readers.close()
 		if hasSnapshotBlock {
-			// Safe to close this now since we merged it.
-			snapshotBlock.Close()
+			// Block is already closed.
 			snapshotData.Blocks.RemoveBlockAt(start)
 		}
 
