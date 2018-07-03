@@ -28,11 +28,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/pool"
-
-	"github.com/golang/mock/gomock"
-
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3db/src/dbnode/persist"
@@ -44,9 +39,12 @@ import (
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	"github.com/m3db/m3db/src/dbnode/ts"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 

@@ -30,8 +30,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3x/checked"
-
 	"github.com/m3db/m3db/src/dbnode/digest"
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/dbnode/encoding/m3tsz"
@@ -41,6 +39,7 @@ import (
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	"github.com/m3db/m3db/src/dbnode/ts"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
