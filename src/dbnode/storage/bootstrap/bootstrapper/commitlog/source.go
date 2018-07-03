@@ -1397,46 +1397,6 @@ func (s commitLogSource) tagsFromTagsIter(
 	return tags, iter.Err()
 }
 
-func newReadCommitLogPredicate(
-	ns namespace.Metadata,
-	shardsTimeRanges result.ShardTimeRanges,
-	opts Options,
-	inspection fs.Inspection,
-) commitlog.FileFilterPredicate {
-	// Minimum and maximum times for which we want to bootstrap
-	shardMin, shardMax := shardsTimeRanges.MinMax()
-	shardRange := xtime.Range{
-		Start: shardMin,
-		End:   shardMax,
-	}
-
-	// How far into the past or future a commitlog might contain a write for a
-	// previous or future block
-	bufferPast := ns.Options().RetentionOptions().BufferPast()
-	bufferFuture := ns.Options().RetentionOptions().BufferFuture()
-
-	// commitlogFilesPresentBeforeStart is a set of all the commitlog files that were
-	// on disk before the node started.
-	commitlogFilesPresentBeforeStart := inspection.CommitLogFilesSet()
-
-	return func(name string, entryTime time.Time, entryDuration time.Duration) bool {
-		_, ok := commitlogFilesPresentBeforeStart[name]
-		if !ok {
-			// If the file wasn't on disk before the node started then it only contains
-			// writes that are already in memory (and in-fact the file may be actively
-			// being written to.)
-			return false
-		}
-
-		// If there is any amount of overlap between the commitlog range and the
-		// shardRange then we need to read the commitlog file
-		return xtime.Range{
-			Start: entryTime.Add(-bufferPast),
-			End:   entryTime.Add(entryDuration).Add(bufferFuture),
-		}.Overlaps(shardRange)
-	}
-}
-
 func newReadSeriesPredicate(ns namespace.Metadata) commitlog.SeriesFilterPredicate {
 	nsID := ns.ID()
 	return func(id ident.ID, namespace ident.ID) bool {

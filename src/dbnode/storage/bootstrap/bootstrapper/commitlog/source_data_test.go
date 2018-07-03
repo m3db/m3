@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/src/dbnode/digest"
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3db/src/dbnode/persist"
@@ -350,8 +351,7 @@ func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
 		foo.ID,
 		ident.EmptyTagIterator,
 		checked.NewBytes(bytes, nil),
-		// TODO: Calculate correct checksum
-		uint32(0),
+		digest.Checksum(bytes),
 		nil,
 	)
 	mockReader.EXPECT().Read().Return(nil, nil, nil, uint32(0), io.EOF)
@@ -377,137 +377,6 @@ func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
 type predCommitlogFile struct {
 	name  string
 	start time.Time
-}
-
-func TestNewReadCommitLogPredicate(t *testing.T) {
-	testFilename := "test-file"
-	testCommitlogFile := predCommitlogFile{
-		name:  testFilename,
-		start: time.Time{},
-	}
-	testCommitlogFiles := []predCommitlogFile{testCommitlogFile}
-	testInspection := fs.Inspection{
-		SortedCommitLogFiles: []string{testFilename},
-	}
-
-	testCases := []struct {
-		title                    string
-		commitlogFiles           []predCommitlogFile
-		shardTimeRanges          []xtime.Range
-		bufferPast               time.Duration
-		bufferFuture             time.Duration
-		blockSize                time.Duration
-		inspection               fs.Inspection
-		expectedPredicateResults []bool
-	}{
-		{
-			title:          "Test no overlap",
-			commitlogFiles: testCommitlogFiles,
-			shardTimeRanges: []xtime.Range{
-				xtime.Range{
-					Start: time.Time{}.Add(2 * time.Hour),
-					End:   time.Time{}.Add(3 * time.Hour),
-				},
-			},
-			bufferPast:               5 * time.Minute,
-			bufferFuture:             10 * time.Minute,
-			blockSize:                time.Hour,
-			inspection:               testInspection,
-			expectedPredicateResults: []bool{false},
-		},
-		{
-			title:          "Test overlap",
-			commitlogFiles: testCommitlogFiles,
-			shardTimeRanges: []xtime.Range{
-				xtime.Range{
-					Start: time.Time{},
-					End:   time.Time{}.Add(time.Hour),
-				},
-			},
-			bufferPast:               5 * time.Minute,
-			bufferFuture:             10 * time.Minute,
-			blockSize:                time.Hour,
-			inspection:               testInspection,
-			expectedPredicateResults: []bool{true},
-		},
-		{
-			title:          "Test overlap bufferFuture",
-			commitlogFiles: testCommitlogFiles,
-			shardTimeRanges: []xtime.Range{
-				xtime.Range{
-					Start: time.Time{}.Add(1*time.Hour + 1*time.Minute),
-					End:   time.Time{}.Add(2 * time.Hour),
-				},
-			},
-			bufferPast:               5 * time.Minute,
-			bufferFuture:             10 * time.Minute,
-			blockSize:                time.Hour,
-			inspection:               testInspection,
-			expectedPredicateResults: []bool{true},
-		},
-		{
-			title:          "Test overlap bufferPast",
-			commitlogFiles: testCommitlogFiles,
-			shardTimeRanges: []xtime.Range{
-				xtime.Range{
-					Start: time.Time{}.Add(-1 * time.Hour),
-					End:   time.Time{}.Add(-1 * time.Minute),
-				},
-			},
-			bufferPast:               5 * time.Minute,
-			bufferFuture:             10 * time.Minute,
-			blockSize:                time.Hour,
-			inspection:               testInspection,
-			expectedPredicateResults: []bool{true},
-		},
-		{
-			title:          "Test file not in inspection",
-			commitlogFiles: testCommitlogFiles,
-			shardTimeRanges: []xtime.Range{
-				xtime.Range{
-					Start: time.Time{},
-					End:   time.Time{}.Add(time.Hour),
-				},
-			},
-			bufferPast:               5 * time.Minute,
-			bufferFuture:             10 * time.Minute,
-			blockSize:                time.Hour,
-			inspection:               fs.Inspection{},
-			expectedPredicateResults: []bool{false},
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.title, func(t *testing.T) {
-			// Setup opts with specified blocksize
-			opts := testOptions()
-			commitLogOptions := opts.CommitLogOptions().SetBlockSize(tc.blockSize)
-			opts = opts.SetCommitLogOptions(commitLogOptions)
-
-			// Setup namespace with specified bufferPast / bufferFuture
-			nsOptions := namespace.NewOptions()
-			retentionOptions := nsOptions.RetentionOptions().
-				SetBufferPast(tc.bufferPast).
-				SetBufferFuture(tc.bufferFuture)
-			nsOptions = nsOptions.SetRetentionOptions(retentionOptions)
-			ns, err := namespace.NewMetadata(testNamespaceID, nsOptions)
-			require.NoError(t, err)
-
-			// Set up shardTimeRanges with specified ranges
-			shardTimeRanges := result.ShardTimeRanges{}
-			for i, xrange := range tc.shardTimeRanges {
-				ranges := xtime.NewRanges(xrange)
-				shardTimeRanges[uint32(i)] = ranges
-			}
-
-			// Instantiate and test predicate
-			predicate := newReadCommitLogPredicate(ns, shardTimeRanges, opts, tc.inspection)
-			for i, cl := range tc.commitlogFiles {
-				predicateResult := predicate(cl.name, cl.start, tc.blockSize)
-				require.Equal(t, tc.expectedPredicateResults[i], predicateResult)
-			}
-		})
-	}
 }
 
 type testValue struct {
