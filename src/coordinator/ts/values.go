@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/src/coordinator/errors"
-	"github.com/m3db/m3db/src/coordinator/util"
 )
 
 // Values holds the values for a timeseries.  It provides a minimal interface
@@ -134,7 +133,7 @@ func NewFixedStepValues(millisPerStep time.Duration, numSteps int, initialValue 
 func newFixedStepValues(millisPerStep time.Duration, numSteps int, initialValue float64, startTime time.Time) *fixedResolutionValues {
 	values := make([]float64, numSteps)
 	// Faster way to initialize an array instead of a loop
-	util.Memset(values, initialValue)
+	Memset(values, initialValue)
 	return &fixedResolutionValues{
 		millisPerStep: millisPerStep,
 		numSteps:      numSteps,

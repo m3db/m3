@@ -18,11 +18,26 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package util
+package ts
 
 import (
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
 )
+
+func TestMemsetValues(t *testing.T) {
+	values := NewFixedStepValues(1000, 10000, 1, time.Now())
+	for i := 0; i < values.Len(); i++ {
+		assert.InDelta(t, values.ValueAt(i), 1, 0.00000001)
+	}
+}
+
+func TestMemsetZeroValues(t *testing.T) {
+	values := NewFixedStepValues(1000, 10000, 0, time.Now())
+	assert.InDelta(t, values.ValueAt(0), 0, 0.00000001)
+}
 
 func setValues(values []float64, initialValue float64) {
 	for i := 0; i < len(values); i++ {
