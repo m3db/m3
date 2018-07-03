@@ -509,7 +509,6 @@ func (s *commitLogSource) bootstrapAvailableSnapshotFiles(
 					"Reading snapshot for shard: %d and blockStart: %d and volume: %d",
 					shard, blockStart.Unix(), latestSnapshot.ID.VolumeIndex)
 				for {
-					// TODO: Verify checksum
 					id, tagsIter, data, expectedChecksum, err := reader.Read()
 					if err != nil && err != io.EOF {
 						return nil, err
