@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/src/dbnode/integration/generate"
 	"github.com/m3db/m3db/src/dbnode/retention"
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/bootstrapper"
@@ -137,9 +138,9 @@ func TestCommitLogBootstrapWithSnapshots(t *testing.T) {
 
 	// Verify in-memory data match what we expect - no writes should be present
 	// because we didn't issue any writes for this namespaces
-	// emptySeriesMaps := make(generate.SeriesBlocksByStart)
-	// metadatasByShard2 := testSetupMetadatas(t, setup, testNamespaces[1], now.Add(-2*blockSize), now)
-	// observedSeriesMaps2 := testSetupToSeriesMaps(t, setup, ns2, metadatasByShard2)
-	// verifySeriesMapsEqual(t, emptySeriesMaps, observedSeriesMaps2)
+	emptySeriesMaps := make(generate.SeriesBlocksByStart)
+	metadatasByShard2 := testSetupMetadatas(t, setup, testNamespaces[1], now.Add(-2*blockSize), now)
+	observedSeriesMaps2 := testSetupToSeriesMaps(t, setup, ns2, metadatasByShard2)
+	verifySeriesMapsEqual(t, emptySeriesMaps, observedSeriesMaps2)
 
 }
