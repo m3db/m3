@@ -31,8 +31,11 @@ import (
 
 func TestTypesConfiguration(t *testing.T) {
 	str := `
-defaultGaugeAggregationTypes: Max
-defaultTimerAggregationTypes: P50,P99,P9999
+defaultGaugeAggregationTypes: [Max]
+defaultTimerAggregationTypes:
+  - P50
+  - P99
+  - P9999
 counterTransformFnType: empty
 timerTransformFnType: suffix
 gaugeTransformFnType: empty
@@ -56,8 +59,11 @@ gaugeTransformFnType: empty
 
 func TestTypesConfigurationNoTransformFnType(t *testing.T) {
 	str := `
-defaultGaugeAggregationTypes: Max
-defaultTimerAggregationTypes: P50,P99,P9999
+defaultGaugeAggregationTypes: [Max]
+defaultTimerAggregationTypes:
+  - P50
+  - P99
+  - P9999
 `
 
 	var cfg TypesConfiguration
@@ -75,8 +81,11 @@ defaultTimerAggregationTypes: P50,P99,P9999
 
 func TestTypesConfigurationError(t *testing.T) {
 	str := `
-defaultGaugeAggregationTypes: Max
-defaultTimerAggregationTypes: P50,P99,P9999
+defaultGaugeAggregationTypes: [Max]
+defaultTimerAggregationTypes:
+  - P50
+  - P99
+  - P9999
 timerTransformFnType: bla
 `
 

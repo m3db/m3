@@ -277,6 +277,7 @@ func TestOpUnionMarshalJSONError(t *testing.T) {
 	_, err := json.Marshal(op)
 	require.Error(t, err)
 }
+
 func TestOpUnionMarshalJSONRoundtrip(t *testing.T) {
 	ops := []OpUnion{
 		{
@@ -394,7 +395,9 @@ func TestPipelineUnmarshalYAML(t *testing.T) {
     tags:
       - tag1
       - tag2
-    aggregation: Min,Max
+    aggregation:
+      - Min
+      - Max
 - rollup:
     newName: testRollup2
     tags:

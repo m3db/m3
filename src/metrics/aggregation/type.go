@@ -272,22 +272,6 @@ func NewTypesFromProto(input []aggregationpb.AggregationType) (Types, error) {
 	return res, nil
 }
 
-// UnmarshalYAML unmarshals aggregation types from a string.
-// TODO(xichen): look into whether it's possible to unmarshal it as an array to be more consistent.
-func (aggTypes *Types) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var str string
-	if err := unmarshal(&str); err != nil {
-		return err
-	}
-
-	parsed, err := ParseTypes(str)
-	if err != nil {
-		return err
-	}
-	*aggTypes = parsed
-	return nil
-}
-
 // Contains checks if the given type is contained in the aggregation types.
 func (aggTypes Types) Contains(aggType Type) bool {
 	for _, at := range aggTypes {

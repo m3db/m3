@@ -21,6 +21,7 @@
 package aggregation
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/m3db/m3x/pool"
@@ -79,6 +80,91 @@ func TestTypesIsDefault(t *testing.T) {
 	require.False(t, Types{Max}.IsDefault())
 }
 
+func TestTypesMarshalJSON(t *testing.T) {
+	inputs := []struct {
+		types       Types
+		expected    string
+		expectedErr bool
+	}{
+		{
+			types:    Types{},
+			expected: `[]`,
+		},
+		{
+			types:    Types{Min},
+			expected: `["Min"]`,
+		},
+		{
+			types:    Types{Mean, Max, P99, P9999},
+			expected: `["Mean","Max","P99","P9999"]`,
+		},
+		{
+			types:       Types{Type(1000)},
+			expectedErr: true,
+		},
+	}
+	for _, input := range inputs {
+		b, err := json.Marshal(input.types)
+		if input.expectedErr {
+			require.Error(t, err)
+			continue
+		}
+		require.NoError(t, err)
+		require.Equal(t, input.expected, string(b))
+	}
+}
+
+func TestTypesUnMarshalJSON(t *testing.T) {
+	inputs := []struct {
+		str         string
+		expected    Types
+		expectedErr bool
+	}{
+		{
+			str:      `[]`,
+			expected: Types{},
+		},
+		{
+			str:      `["Min"]`,
+			expected: Types{Min},
+		},
+		{
+			str:      `["Mean","Max","P99","P9999"]`,
+			expected: Types{Mean, Max, P99, P9999},
+		},
+		{
+			str:         `[P100]`,
+			expectedErr: true,
+		},
+	}
+	for _, input := range inputs {
+		var aggTypes Types
+		err := json.Unmarshal([]byte(input.str), &aggTypes)
+		if input.expectedErr {
+			require.Error(t, err)
+			continue
+		}
+		require.NoError(t, err)
+		require.Equal(t, input.expected, aggTypes)
+	}
+}
+
+func TestTypesMarshalJSONRoundTrip(t *testing.T) {
+	inputs := []Types{
+		{},
+		{Min},
+		{Mean, Max, P99, P9999},
+	}
+
+	for _, input := range inputs {
+		b, err := json.Marshal(input)
+		require.NoError(t, err)
+		var aggTypes Types
+		require.NoError(t, json.Unmarshal(b, &aggTypes))
+		require.Equal(t, input, aggTypes)
+	}
+}
+
 func TestTypesUnmarshalYAML(t *testing.T) {
 	inputs := []struct {
 		str         string
@@ -86,19 +172,23 @@ func TestTypesUnmarshalYAML(t *testing.T) {
 		expectedErr bool
 	}{
 		{
-			str:      "Min",
+			str:      "",
+			expected: Types(nil),
+		},
+		{
+			str:      "[Min]",
 			expected: Types{Min},
 		},
 		{
-			str:      "Mean,Max,P99,P9999",
+			str:      "[Mean,Max,P99,P9999]",
 			expected: Types{Mean, Max, P99, P9999},
 		},
 		{
-			str:         "Min,Max,P99,P9999,P100",
+			str:         "[Min,Max,P99,P9999,P100]",
 			expectedErr: true,
 		},
 		{
-			str:         "Min,Max,P99,P9999,P100",
+			str:         "[Min,Max,P99,P9999,P100]",
 			expectedErr: true,
 		},
 		{
