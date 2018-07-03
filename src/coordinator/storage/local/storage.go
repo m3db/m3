@@ -254,7 +254,7 @@ func (s *localStorage) Type() storage.Type {
 func (s *localStorage) fetchRaw(
 	query index.Query,
 	opts index.QueryOptions,
-) (encoding.SeriesIterators, bool, error) {
+) (encoding.SeriesIterators, bool, error) { // nolint: unparam
 	iters, exhaustive, err := s.session.FetchTagged(s.namespace, query, opts)
 	if err != nil {
 		return nil, false, err
