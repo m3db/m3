@@ -719,7 +719,7 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 			unmergedSeries = metadataAndEncodersByTime{
 				id:       series.ID,
 				tags:     series.Tags,
-				encoders: make(map[xtime.UnixNano]encoders)}
+				encoders: make(map[xtime.UnixNano][]encoder)}
 			unmergedShard[series.UniqueIndex] = unmergedSeries
 		}
 
@@ -972,6 +972,7 @@ func (s *commitLogSource) mergeSeries(
 
 		// TODO: Don't allocate each time
 		tmpCtx := context.NewContext()
+		// Closes encoders by calling Discard()
 		readers, err := newIOReadersFromEncodersAndBlock(
 			tmpCtx, segmentReaderPool, encoders, snapshotBlock)
 		if err != nil {
@@ -1006,7 +1007,6 @@ func (s *commitLogSource) mergeSeries(
 
 		// Automatically returns iter to the pool
 		iter.Close()
-		encoders.close()
 		readers.close()
 
 		if err != nil {
@@ -1424,7 +1424,7 @@ type metadataAndEncodersByTime struct {
 	tags ident.Tags
 	// int64 instead of time.Time because there is an optimized map access pattern
 	// for i64's
-	encoders map[xtime.UnixNano]encoders
+	encoders map[xtime.UnixNano][]encoder
 }
 
 // encoderArg contains all the information a worker go-routine needs to encode
@@ -1437,39 +1437,36 @@ type encoderArg struct {
 	blockStart time.Time
 }
 
-type encoders []encoder
-
 type ioReaders []xio.SegmentReader
 
-func newIOReadersFromEncodersAndBlock(ctx context.Context, segmentReaderPool xio.SegmentReaderPool, e encoders, b block.DatabaseBlock) (ioReaders, error) {
-	numReaders := len(e)
-	if b != nil {
+func newIOReadersFromEncodersAndBlock(
+	ctx context.Context,
+	segmentReaderPool xio.SegmentReaderPool,
+	encoders []encoder,
+	dbBlock block.DatabaseBlock,
+) (ioReaders, error) {
+	numReaders := len(encoders)
+	if dbBlock != nil {
 		numReaders++
 	}
 
 	readers := make(ioReaders, 0, numReaders)
-	if b != nil {
+	if dbBlock != nil {
 		// TODO: Implement block.Discard()
-		blockReader, err := b.Stream(ctx)
+		blockReader, err := dbBlock.Stream(ctx)
 		if err != nil {
 			return nil, err
 		}
 		readers = append(readers, blockReader)
 	}
 
-	for _, encoder := range e {
+	for _, encoder := range encoders {
 		segmentReader := segmentReaderPool.Get()
 		segmentReader.Reset(encoder.enc.Discard())
 		readers = append(readers, segmentReader)
 	}
 
 	return readers, nil
-}
-
-func (e encoders) close() {
-	for i := range e {
-		e[i].enc.Close()
-	}
 }
 
 func (ir ioReaders) close() {
