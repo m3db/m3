@@ -1495,11 +1495,9 @@ func newIOReadersFromEncodersAndBlock(
 
 	readers := make(ioReaders, 0, numReaders)
 	if dbBlock != nil {
-		// TODO: Implement block.Discard()
-		blockReader, err := dbBlock.Stream(ctx)
-		if err != nil {
-			return nil, err
-		}
+		blockSegment := dbBlock.Discard()
+		blockReader := segmentReaderPool.Get()
+		blockReader.Reset(blockSegment)
 		readers = append(readers, blockReader)
 	}
 
