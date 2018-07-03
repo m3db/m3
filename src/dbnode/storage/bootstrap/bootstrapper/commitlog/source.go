@@ -271,8 +271,11 @@ func (s *commitLogSource) ReadData(
 	wg.Wait()
 	s.logEncodingOutcome(workerErrs, iter)
 
+	mergeStart := time.Now()
+	s.log.Infof("Starting merge...")
 	bootstrapResult := s.mergeShards(
 		int(numShards), blockSize, snapshotShardResults, shardDataByShard)
+	s.log.Infof("Done merging..., took: %s", time.Now().Sub(mergeStart).String())
 
 	// After merging shards, its safe to cache the shardData (which involves some mutation).
 	if s.shouldCacheSeriesMetadata(runOpts, ns) {
