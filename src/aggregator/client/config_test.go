@@ -73,6 +73,11 @@ connection:
   maxReconnectThreshold: 5000
   reconnectThresholdMultiplier: 2
   maxReconnectDuration: 1m
+  writeRetries:
+    initialBackoff: 100ms
+    maxBackoff: 1s
+    maxRetries: 2
+    jitter: true
 `
 )
 
@@ -107,6 +112,12 @@ func TestConfigUnmarshal(t *testing.T) {
 	require.Equal(t, 5000, cfg.Connection.MaxReconnectThreshold)
 	require.Equal(t, 2, cfg.Connection.ReconnectThresholdMultiplier)
 	require.Equal(t, time.Minute, *cfg.Connection.MaxReconnectDuration)
+	require.NotNil(t, cfg.Connection.WriteRetries)
+	require.Equal(t, 100*time.Millisecond, cfg.Connection.WriteRetries.InitialBackoff)
+	require.Equal(t, time.Second, cfg.Connection.WriteRetries.MaxBackoff)
+	require.Equal(t, 2, cfg.Connection.WriteRetries.MaxRetries)
+	require.Equal(t, true, *cfg.Connection.WriteRetries.Jitter)
+	require.Nil(t, cfg.Connection.WriteRetries.Forever)
 }
 
 func TestNewClientOptions(t *testing.T) {
@@ -149,4 +160,10 @@ func TestNewClientOptions(t *testing.T) {
 	require.Equal(t, 5000, opts.ConnectionOptions().MaxReconnectThreshold())
 	require.Equal(t, 2, opts.ConnectionOptions().ReconnectThresholdMultiplier())
 	require.Equal(t, time.Minute, opts.ConnectionOptions().MaxReconnectDuration())
+	require.Equal(t, 100*time.Millisecond, opts.ConnectionOptions().WriteRetryOptions().InitialBackoff())
+	require.Equal(t, 2.0, opts.ConnectionOptions().WriteRetryOptions().BackoffFactor())
+	require.Equal(t, time.Second, opts.ConnectionOptions().WriteRetryOptions().MaxBackoff())
+	require.Equal(t, 2, opts.ConnectionOptions().WriteRetryOptions().MaxRetries())
+	require.Equal(t, true, opts.ConnectionOptions().WriteRetryOptions().Jitter())
+	require.Equal(t, false, opts.ConnectionOptions().WriteRetryOptions().Forever())
 }

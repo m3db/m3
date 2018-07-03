@@ -22,11 +22,13 @@ package client
 
 import (
 	"errors"
+	"math/rand"
 	"net"
 	"sync"
 	"time"
 
 	"github.com/m3db/m3x/clock"
+	"github.com/m3db/m3x/retry"
 
 	"github.com/uber-go/tally"
 )
@@ -39,6 +41,7 @@ var (
 	errNoActiveConnection = errors.New("no active connection")
 )
 
+type sleepFn func(time.Duration)
 type connectWithLockFn func() error
 type writeWithLockFn func([]byte) error
 
@@ -47,14 +50,16 @@ type writeWithLockFn func([]byte) error
 type connection struct {
 	sync.Mutex
 
-	addr          string
-	connTimeout   time.Duration
-	writeTimeout  time.Duration
-	keepAlive     bool
-	initThreshold int
-	multiplier    int
-	maxThreshold  int
-	maxDuration   time.Duration
+	addr           string
+	connTimeout    time.Duration
+	writeTimeout   time.Duration
+	keepAlive      bool
+	initThreshold  int
+	multiplier     int
+	maxThreshold   int
+	maxDuration    time.Duration
+	writeRetryOpts retry.Options
+	rngFn          retry.RngFn
 
 	conn                    *net.TCPConn
 	numFailures             int
@@ -64,6 +69,7 @@ type connection struct {
 
 	// These are for testing purposes.
 	nowFn             clock.NowFn
+	sleepFn           sleepFn
 	connectWithLockFn connectWithLockFn
 	writeWithLockFn   writeWithLockFn
 }
@@ -71,17 +77,20 @@ type connection struct {
 // newConnection creates a new connection.
 func newConnection(addr string, opts ConnectionOptions) *connection {
 	c := &connection{
-		addr:          addr,
-		connTimeout:   opts.ConnectionTimeout(),
-		writeTimeout:  opts.WriteTimeout(),
-		keepAlive:     opts.ConnectionKeepAlive(),
-		initThreshold: opts.InitReconnectThreshold(),
-		multiplier:    opts.ReconnectThresholdMultiplier(),
-		maxThreshold:  opts.MaxReconnectThreshold(),
-		maxDuration:   opts.MaxReconnectDuration(),
-		nowFn:         opts.ClockOptions().NowFn(),
-		threshold:     opts.InitReconnectThreshold(),
-		metrics:       newConnectionMetrics(opts.InstrumentOptions().MetricsScope()),
+		addr:           addr,
+		connTimeout:    opts.ConnectionTimeout(),
+		writeTimeout:   opts.WriteTimeout(),
+		keepAlive:      opts.ConnectionKeepAlive(),
+		initThreshold:  opts.InitReconnectThreshold(),
+		multiplier:     opts.ReconnectThresholdMultiplier(),
+		maxThreshold:   opts.MaxReconnectThreshold(),
+		maxDuration:    opts.MaxReconnectDuration(),
+		writeRetryOpts: opts.WriteRetryOptions(),
+		rngFn:          rand.New(rand.NewSource(time.Now().UnixNano())).Int63n,
+		nowFn:          opts.ClockOptions().NowFn(),
+		sleepFn:        time.Sleep,
+		threshold:      opts.InitReconnectThreshold(),
+		metrics:        newConnectionMetrics(opts.InstrumentOptions().MetricsScope()),
 	}
 	c.connectWithLockFn = c.connectWithLock
 	c.writeWithLockFn = c.writeWithLock
@@ -98,38 +107,62 @@ func newConnection(addr string, opts ConnectionOptions) *connection {
 // Write sends data onto the connection, and attempts to re-establish
 // connection if the connection is down.
 func (c *connection) Write(data []byte) error {
+	var err error
 	c.Lock()
 	if c.conn == nil {
-		if err := c.checkReconnectWithLock(); err != nil {
+		if err = c.checkReconnectWithLock(); err != nil {
 			c.numFailures++
 			c.Unlock()
 			return err
 		}
 	}
-
-	writeErr := c.writeWithLockFn(data)
-	if writeErr == nil {
+	if err = c.writeAttemptWithLock(data); err == nil {
 		c.Unlock()
 		return nil
 	}
-
-	if err := c.connectWithLockFn(); err == nil {
-		if writeErr = c.writeWithLockFn(data); writeErr == nil {
+	for i := 1; i <= c.writeRetryOpts.MaxRetries(); i++ {
+		if backoffDur := time.Duration(retry.BackoffNanos(
+			i,
+			c.writeRetryOpts.Jitter(),
+			c.writeRetryOpts.BackoffFactor(),
+			c.writeRetryOpts.InitialBackoff(),
+			c.writeRetryOpts.MaxBackoff(),
+			c.rngFn,
+		)); backoffDur > 0 {
+			c.sleepFn(backoffDur)
+		}
+		c.metrics.writeRetries.Inc(1)
+		if err = c.writeAttemptWithLock(data); err == nil {
 			c.Unlock()
 			return nil
 		}
 	}
-
 	c.numFailures++
-	c.closeWithLock()
 	c.Unlock()
-	return writeErr
+	return err
 }
 
 func (c *connection) Close() {
 	c.Lock()
 	c.closeWithLock()
 	c.Unlock()
+}
+
+// writeAttemptWithLock attempts to establish a new connection and writes raw bytes
+// to the connection while holding the write lock.
+// If the write succeeds, c.conn is guaranteed to be a valid connection on return.
+// If the write fails, c.conn is guaranteed to be nil on return.
+func (c *connection) writeAttemptWithLock(data []byte) error {
+	if c.conn == nil {
+		if err := c.connectWithLockFn(); err != nil {
+			return err
+		}
+	}
+	if err := c.writeWithLockFn(data); err != nil {
+		c.closeWithLock()
+		return err
+	}
+	return nil
 }
 
 func (c *connection) connectWithLock() error {
@@ -209,6 +242,7 @@ const (
 type connectionMetrics struct {
 	connectError          tally.Counter
 	writeError            tally.Counter
+	writeRetries          tally.Counter
 	setKeepAliveError     tally.Counter
 	setWriteDeadlineError tally.Counter
 }
@@ -219,6 +253,7 @@ func newConnectionMetrics(scope tally.Scope) connectionMetrics {
 			Counter(errorMetric),
 		writeError: scope.Tagged(map[string]string{errorMetricType: "write"}).
 			Counter(errorMetric),
+		writeRetries: scope.Tagged(map[string]string{"action": "write"}).Counter("retries"),
 		setKeepAliveError: scope.Tagged(map[string]string{errorMetricType: "tcp-keep-alive"}).
 			Counter(errorMetric),
 		setWriteDeadlineError: scope.Tagged(map[string]string{errorMetricType: "set-write-deadline"}).
