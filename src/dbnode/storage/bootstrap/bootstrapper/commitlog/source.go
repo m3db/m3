@@ -960,7 +960,7 @@ func (s *commitLogSource) mergeSeries(
 		}
 
 		if !hasSnapshotBlock {
-			// Make sure snapshotBlocjk is nil if it does not exist.
+			// Make sure snapshotBlock is nil if it does not exist.
 			snapshotBlock = nil
 		}
 
