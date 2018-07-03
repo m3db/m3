@@ -1189,9 +1189,19 @@ func (s *commitLogSource) ReadIndex(
 		shardsTimeRangesToReadFromDisk.Subtract(cachedShardsTimeRanges)
 	}
 
+	var (
+		fsOpts         = s.opts.CommitLogOptions().FilesystemOptions()
+		filePathPrefix = fsOpts.FilePathPrefix()
+	)
+	snapshotFilesByShard, err := s.snapshotFilesByShard(
+		ns.ID(), filePathPrefix, shardsTimeRanges)
+	if err != nil {
+		return nil, err
+	}
+
 	// Setup predicates for skipping files / series at iterator and reader level.
-	readCommitLogPredicate := newReadCommitLogPredicate(
-		ns, shardsTimeRangesToReadFromDisk, s.opts, s.inspection)
+	readCommitLogPredicate, err := s.newReadCommitLogPredBasedOnAvailableSnapshotFiles(
+		ns, shardsTimeRanges, snapshotFilesByShard)
 	readSeriesPredicate := newReadSeriesPredicate(ns)
 	iterOpts := commitlog.IteratorOpts{
 		CommitLogOptions:      s.opts.CommitLogOptions(),
@@ -1226,15 +1236,7 @@ func (s *commitLogSource) ReadIndex(
 		bytesPool      = blOpts.BytesPool()
 		blocksPool     = blOpts.DatabaseBlockPool()
 		blockSize      = ns.Options().RetentionOptions().BlockSize()
-		fsOpts         = s.opts.CommitLogOptions().FilesystemOptions()
-		filePathPrefix = fsOpts.FilePathPrefix()
 	)
-
-	snapshotFilesByShard, err := s.snapshotFilesByShard(
-		ns.ID(), filePathPrefix, shardsTimeRanges)
-	if err != nil {
-		return nil, err
-	}
 
 	snapshotShardResults, err := s.bootstrapAvailableSnapshotFiles(
 		ns.ID(), shardsTimeRanges, blockSize, snapshotFilesByShard,
