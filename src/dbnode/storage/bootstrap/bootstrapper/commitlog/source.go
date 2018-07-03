@@ -150,21 +150,10 @@ func (s *commitLogSource) ReadData(
 	}
 
 	var (
-		bOpts                = s.opts.ResultOptions()
-		blOpts               = bOpts.DatabaseBlockOptions()
-		bytesPool            = blOpts.BytesPool()
-		blocksPool           = blOpts.DatabaseBlockPool()
-		blockSize            = ns.Options().RetentionOptions().BlockSize()
-		snapshotShardResults map[uint32]result.ShardResult
+		bOpts     = s.opts.ResultOptions()
+		blOpts    = bOpts.DatabaseBlockOptions()
+		blockSize = ns.Options().RetentionOptions().BlockSize()
 	)
-
-	// Start off by bootstrapping the most recent and complete snapshot file for each
-	// shard/blockStart combination.
-	snapshotShardResults, err = s.bootstrapAvailableSnapshotFiles(
-		ns.ID(), shardsTimeRanges, blockSize, snapshotFilesByShard, fsOpts, bytesPool, blocksPool)
-	if err != nil {
-		return nil, err
-	}
 
 	// Next, we need to determine the minimum number of commit logs files that we
 	// must read
@@ -274,7 +263,13 @@ func (s *commitLogSource) ReadData(
 	mergeStart := time.Now()
 	s.log.Infof("Starting merge...")
 	bootstrapResult := s.mergeShards(
-		int(numShards), blockSize, snapshotShardResults, shardDataByShard)
+		ns,
+		shardsTimeRanges,
+		snapshotFilesByShard,
+		int(numShards),
+		blockSize,
+		shardDataByShard,
+	)
 	s.log.Infof("Done merging..., took: %s", time.Now().Sub(mergeStart).String())
 
 	// After merging shards, its safe to cache the shardData (which involves some mutation).
@@ -840,9 +835,11 @@ func (s *commitLogSource) shouldIncludeInIndex(
 }
 
 func (s *commitLogSource) mergeShards(
+	ns namespace.Metadata,
+	shardsTimeRanges result.ShardTimeRanges,
+	snapshotFiles map[uint32]fs.FileSetFilesSlice,
 	numShards int,
 	blockSize time.Duration,
-	snapshotShardResults map[uint32]result.ShardResult,
 	unmerged []shardData,
 ) result.DataBootstrapResult {
 	var (
@@ -853,15 +850,32 @@ func (s *commitLogSource) mergeShards(
 		workerPool          = xsync.NewWorkerPool(s.opts.MergeShardsConcurrency())
 		bootstrapResultLock sync.Mutex
 		wg                  sync.WaitGroup
-	)
 
+		bOpts      = s.opts.ResultOptions()
+		blOpts     = bOpts.DatabaseBlockOptions()
+		blocksPool = blOpts.DatabaseBlockPool()
+		bytesPool  = blOpts.BytesPool()
+		fsOpts     = s.opts.CommitLogOptions().FilesystemOptions()
+	)
 	workerPool.Init()
 
 	for shard, unmergedShard := range unmerged {
-		snapshotData, hasSnapshotData := snapshotShardResults[uint32(shard)]
+		snapshotData, err := s.bootstrapShardSnapshots(
+			ns.ID(),
+			uint32(shard),
+			shardsTimeRanges[uint32(shard)],
+			blockSize,
+			snapshotFiles[uint32(shard)],
+			fsOpts,
+			bytesPool,
+			blocksPool,
+		)
+		if err != nil {
+			panic(err)
+		}
 
 		if unmergedShard.series == nil {
-			if !hasSnapshotData {
+			if !snapshotData.IsEmpty() {
 				// No snapshot or commit log data, skip.
 				continue
 			}
