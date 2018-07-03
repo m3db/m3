@@ -21,7 +21,6 @@
 package rules
 
 import (
-	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/metric/id"
 )
@@ -45,26 +44,17 @@ type Options interface {
 
 	// IsRollupIDFn returns the function that determines whether an id is a rollup id.
 	IsRollupIDFn() id.MatchIDFn
-
-	// SetAggregationTypesOptions sets the aggregation types options.
-	SetAggregationTypesOptions(v aggregation.TypesOptions) Options
-
-	// PolicyOptions returns the aggregation types options.
-	AggregationTypesOptions() aggregation.TypesOptions
 }
 
 type options struct {
 	tagsFilterOpts filters.TagsFilterOptions
 	newRollupIDFn  id.NewIDFn
 	isRollupIDFn   id.MatchIDFn
-	aggTypesOpts   aggregation.TypesOptions
 }
 
 // NewOptions creates a new set of options.
 func NewOptions() Options {
-	return &options{
-		aggTypesOpts: aggregation.NewTypesOptions(),
-	}
+	return &options{}
 }
 
 func (o *options) SetTagsFilterOptions(value filters.TagsFilterOptions) Options {
@@ -95,14 +85,4 @@ func (o *options) SetIsRollupIDFn(value id.MatchIDFn) Options {
 
 func (o *options) IsRollupIDFn() id.MatchIDFn {
 	return o.isRollupIDFn
-}
-
-func (o *options) SetAggregationTypesOptions(value aggregation.TypesOptions) Options {
-	opts := *o
-	opts.aggTypesOpts = value
-	return &opts
-}
-
-func (o *options) AggregationTypesOptions() aggregation.TypesOptions {
-	return o.aggTypesOpts
 }

@@ -72,6 +72,9 @@ func (c Configuration) newValidatorOptions(
 		SetMetricTypesFn(c.MetricTypes.NewMetricTypesFn()).
 		SetTagNameInvalidChars(toRunes(c.TagNameInvalidChars)).
 		SetMetricNameInvalidChars(toRunes(c.MetricNameInvalidChars))
+	if c.MetricTypes.MultiAggregationTypesEnabledFor != nil {
+		opts = opts.SetMultiAggregationTypesEnabledFor(*c.MetricTypes.MultiAggregationTypesEnabledFor)
+	}
 	if c.Policies.DefaultAllowed.StoragePolicies != nil {
 		opts = opts.SetDefaultAllowedStoragePolicies(*c.Policies.DefaultAllowed.StoragePolicies)
 	}
@@ -128,6 +131,9 @@ type metricTypesValidationConfiguration struct {
 
 	// Allowed metric types.
 	Allowed []metric.Type `yaml:"allowed"`
+
+	// Metric types that support multiple aggregation types.
+	MultiAggregationTypesEnabledFor *[]metric.Type `yaml:"multiAggregationTypesEnabledFor"`
 }
 
 // NewMetricTypesFn creates a new metric types fn from the given configuration.
@@ -171,8 +177,8 @@ type policiesOverrideConfiguration struct {
 // policiesConfiguration is the configuration for storage policies and aggregation types.
 type policiesConfiguration struct {
 	StoragePolicies               *[]policy.StoragePolicy `yaml:"storagePolicies"`
-	FirstLevelAggregationTypes    *[]aggregation.Type     `yaml:"firstLevelAggregationTypes"`
-	NonFirstLevelAggregationTypes *[]aggregation.Type     `yaml:"nonFirstLevelAggregationTypes"`
+	FirstLevelAggregationTypes    *aggregation.Types      `yaml:"firstLevelAggregationTypes"`
+	NonFirstLevelAggregationTypes *aggregation.Types      `yaml:"nonFirstLevelAggregationTypes"`
 }
 
 func toRunes(s string) []rune {

@@ -33,9 +33,9 @@ import (
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/pipeline"
 	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3metrics/rules/view"
 	"github.com/m3db/m3metrics/rules/validator/namespace"
 	"github.com/m3db/m3metrics/rules/validator/namespace/kv"
+	"github.com/m3db/m3metrics/rules/view"
 	"github.com/m3db/m3metrics/transformation"
 
 	"github.com/fortytw2/leaktest"
@@ -185,6 +185,44 @@ func TestValidatorValidateMappingRuleInvalidAggregationType(t *testing.T) {
 
 	validator := NewValidator(testValidatorOptions())
 	require.Error(t, validator.ValidateSnapshot(view))
+}
+
+func TestValidatorValidateMappingRuleMultipleAggregationTypes(t *testing.T) {
+	testAggregationTypes := []aggregation.Type{aggregation.Count, aggregation.Max}
+	view := view.RuleSet{
+		MappingRules: []view.MappingRule{
+			{
+				Name:            "snapshot1",
+				Filter:          testTypeTag + ":" + testTimerType,
+				AggregationID:   aggregation.MustCompressTypes(aggregation.Count, aggregation.Max),
+				StoragePolicies: testStoragePolicies(),
+			},
+		},
+	}
+	inputs := []struct {
+		opts      Options
+		expectErr bool
+	}{
+		{
+			// By default multiple aggregation types are allowed for timers.
+			opts:      testValidatorOptions().SetAllowedFirstLevelAggregationTypesFor(metric.TimerType, testAggregationTypes),
+			expectErr: false,
+		},
+		{
+			// Explicitly disallow multiple aggregation types for timers.
+			opts:      testValidatorOptions().SetAllowedFirstLevelAggregationTypesFor(metric.TimerType, testAggregationTypes).SetMultiAggregationTypesEnabledFor(nil),
+			expectErr: true,
+		},
+	}
+
+	for _, input := range inputs {
+		validator := NewValidator(input.opts)
+		if input.expectErr {
+			require.Error(t, validator.ValidateSnapshot(view))
+		} else {
+			require.NoError(t, validator.ValidateSnapshot(view))
+		}
+	}
 }
 
 func TestValidatorValidateMappingRuleFirstLevelAggregationType(t *testing.T) {
@@ -1076,6 +1114,59 @@ func TestValidatorValidateRollupRuleRollupOpWithValidTagName(t *testing.T) {
 	require.NoError(t, validator.ValidateSnapshot(view))
 }
 
+func TestValidatorValidateRollupRuleRollupOpMultipleAggregationTypes(t *testing.T) {
+	testAggregationTypes := []aggregation.Type{aggregation.Count, aggregation.Max}
+	view := view.RuleSet{
+		RollupRules: []view.RollupRule{
+			{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":" + testTimerType,
+				Targets: []view.RollupTarget{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("rName1"),
+									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
+									AggregationID: aggregation.MustCompressTypes(aggregation.Count, aggregation.Max),
+								},
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.MustParseStoragePolicy("10s:6h"),
+						},
+					},
+				},
+			},
+		},
+	}
+	inputs := []struct {
+		opts      Options
+		expectErr bool
+	}{
+		{
+			// By default multiple aggregation types are allowed for timers.
+			opts:      testValidatorOptions().SetDefaultAllowedFirstLevelAggregationTypes(testAggregationTypes),
+			expectErr: false,
+		},
+		{
+			// Explicitly disallow multiple aggregation types for timers.
+			opts:      testValidatorOptions().SetDefaultAllowedFirstLevelAggregationTypes(testAggregationTypes).SetMultiAggregationTypesEnabledFor(nil),
+			expectErr: true,
+		},
+	}
+
+	for _, input := range inputs {
+		validator := NewValidator(input.opts)
+		if input.expectErr {
+			require.Error(t, validator.ValidateSnapshot(view))
+		} else {
+			require.NoError(t, validator.ValidateSnapshot(view))
+		}
+	}
+}
+
 func TestValidatorValidateRollupRuleRollupOpFirstLevelAggregationTypes(t *testing.T) {
 	testAggregationTypes := []aggregation.Type{aggregation.Count, aggregation.Max}
 	view := view.RuleSet{
@@ -1495,5 +1586,6 @@ func testValidatorOptions() Options {
 	return NewOptions().
 		SetDefaultAllowedStoragePolicies(testStoragePolicies()).
 		SetDefaultAllowedFirstLevelAggregationTypes(nil).
-		SetMetricTypesFn(testMetricTypesFn())
+		SetMetricTypesFn(testMetricTypesFn()).
+		SetMultiAggregationTypesEnabledFor([]metric.Type{metric.TimerType})
 }

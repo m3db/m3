@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3metrics/aggregation"
 	merrors "github.com/m3db/m3metrics/errors"
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/generated/proto/rulepb"
@@ -146,7 +145,6 @@ type ruleSet struct {
 	tagsFilterOpts     filters.TagsFilterOptions
 	newRollupIDFn      metricID.NewIDFn
 	isRollupIDFn       metricID.MatchIDFn
-	aggTypesOpts       aggregation.TypesOptions
 }
 
 // NewRuleSetFromProto creates a new RuleSet from a proto object.
@@ -185,7 +183,6 @@ func NewRuleSetFromProto(version int, rs *rulepb.RuleSet, opts Options) (RuleSet
 		tagsFilterOpts:     tagsFilterOpts,
 		newRollupIDFn:      opts.NewRollupIDFn(),
 		isRollupIDFn:       opts.IsRollupIDFn(),
-		aggTypesOpts:       opts.AggregationTypesOptions(),
 	}, nil
 }
 
@@ -198,7 +195,6 @@ func NewEmptyRuleSet(namespaceName string, meta UpdateMetadata) MutableRuleSet {
 		tombstoned:   false,
 		mappingRules: make([]*mappingRule, 0),
 		rollupRules:  make([]*rollupRule, 0),
-		aggTypesOpts: aggregation.NewTypesOptions(),
 	}
 	rs.updateMetadata(meta)
 	return rs
@@ -230,7 +226,6 @@ func (rs *ruleSet) ActiveSet(timeNanos int64) Matcher {
 		rs.tagsFilterOpts,
 		rs.newRollupIDFn,
 		rs.isRollupIDFn,
-		rs.aggTypesOpts,
 	)
 }
 
@@ -343,7 +338,6 @@ func (rs *ruleSet) Clone() MutableRuleSet {
 		tagsFilterOpts:     rs.tagsFilterOpts,
 		newRollupIDFn:      rs.newRollupIDFn,
 		isRollupIDFn:       rs.isRollupIDFn,
-		aggTypesOpts:       rs.aggTypesOpts,
 	}
 }
 

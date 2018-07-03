@@ -87,17 +87,21 @@ func TestRuleSetReverseMatchWithMatcher(t *testing.T) {
 	rs.matcher = mockMatcher
 
 	var (
-		now       = rs.nowFn()
-		fromNanos = now.Add(-time.Second).UnixNano()
-		toNanos   = now.Add(time.Second).UnixNano()
+		now                            = rs.nowFn()
+		fromNanos                      = now.Add(-time.Second).UnixNano()
+		toNanos                        = now.Add(time.Second).UnixNano()
+		isMultiAggregationTypesAllowed = true
+		aggTypesOpts                   = aggregation.NewTypesOptions()
 	)
 
-	require.Equal(t, mockMatcher.res, rs.ReverseMatch([]byte("foo"), fromNanos, toNanos, metric.CounterType, aggregation.Sum))
+	require.Equal(t, mockMatcher.res, rs.ReverseMatch([]byte("foo"), fromNanos, toNanos, metric.CounterType, aggregation.Sum, isMultiAggregationTypesAllowed, aggTypesOpts))
 	require.Equal(t, []byte("foo"), mockMatcher.id)
 	require.Equal(t, fromNanos, mockMatcher.fromNanos)
 	require.Equal(t, toNanos, mockMatcher.toNanos)
 	require.Equal(t, metric.CounterType, mockMatcher.metricType)
 	require.Equal(t, aggregation.Sum, mockMatcher.aggregationType)
+	require.Equal(t, isMultiAggregationTypesAllowed, mockMatcher.isMultiAggregationTypesAllowed)
+	require.Equal(t, aggTypesOpts, mockMatcher.aggTypesOpts)
 }
 
 func TestToRuleSetNilValue(t *testing.T) {
@@ -217,12 +221,14 @@ func TestRuleSetProcessSuccess(t *testing.T) {
 }
 
 type mockMatcher struct {
-	id              []byte
-	fromNanos       int64
-	toNanos         int64
-	res             rules.MatchResult
-	metricType      metric.Type
-	aggregationType aggregation.Type
+	id                             []byte
+	fromNanos                      int64
+	toNanos                        int64
+	res                            rules.MatchResult
+	metricType                     metric.Type
+	aggregationType                aggregation.Type
+	isMultiAggregationTypesAllowed bool
+	aggTypesOpts                   aggregation.TypesOptions
 }
 
 func (mm *mockMatcher) ForwardMatch(
@@ -240,12 +246,16 @@ func (mm *mockMatcher) ReverseMatch(
 	fromNanos, toNanos int64,
 	mt metric.Type,
 	at aggregation.Type,
+	isMultiAggregationTypesAllowed bool,
+	aggTypesOpts aggregation.TypesOptions,
 ) rules.MatchResult {
 	mm.id = id
 	mm.fromNanos = fromNanos
 	mm.toNanos = toNanos
 	mm.metricType = mt
 	mm.aggregationType = at
+	mm.isMultiAggregationTypesAllowed = isMultiAggregationTypesAllowed
+	mm.aggTypesOpts = aggTypesOpts
 	return mm.res
 }
 
@@ -257,15 +267,15 @@ type mockRuleSet struct {
 	matcher      *mockMatcher
 }
 
-func (r *mockRuleSet) Namespace() []byte                          { return []byte(r.namespace) }
-func (r *mockRuleSet) Version() int                               { return r.version }
-func (r *mockRuleSet) CutoverNanos() int64                        { return r.cutoverNanos }
-func (r *mockRuleSet) LastUpdatedAtNanos() int64                  { return 0 }
-func (r *mockRuleSet) CreatedAtNanos() int64                      { return 0 }
-func (r *mockRuleSet) Tombstoned() bool                           { return r.tombstoned }
-func (r *mockRuleSet) Proto() (*rulepb.RuleSet, error)            { return nil, nil }
-func (r *mockRuleSet) ActiveSet(timeNanos int64) rules.Matcher    { return r.matcher }
-func (r *mockRuleSet) ToMutableRuleSet() rules.MutableRuleSet     { return nil }
+func (r *mockRuleSet) Namespace() []byte                        { return []byte(r.namespace) }
+func (r *mockRuleSet) Version() int                             { return r.version }
+func (r *mockRuleSet) CutoverNanos() int64                      { return r.cutoverNanos }
+func (r *mockRuleSet) LastUpdatedAtNanos() int64                { return 0 }
+func (r *mockRuleSet) CreatedAtNanos() int64                    { return 0 }
+func (r *mockRuleSet) Tombstoned() bool                         { return r.tombstoned }
+func (r *mockRuleSet) Proto() (*rulepb.RuleSet, error)          { return nil, nil }
+func (r *mockRuleSet) ActiveSet(timeNanos int64) rules.Matcher  { return r.matcher }
+func (r *mockRuleSet) ToMutableRuleSet() rules.MutableRuleSet   { return nil }
 func (r *mockRuleSet) MappingRules() (view.MappingRules, error) { return nil, nil }
 func (r *mockRuleSet) RollupRules() (view.RollupRules, error)   { return nil, nil }
 func (r *mockRuleSet) Latest() (view.RuleSet, error)            { return view.RuleSet{}, nil }

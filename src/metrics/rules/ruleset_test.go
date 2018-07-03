@@ -200,7 +200,6 @@ func TestRuleSetActiveSet(t *testing.T) {
 			rs.tagsFilterOpts,
 			rs.newRollupIDFn,
 			rs.isRollupIDFn,
-			rs.aggTypesOpts,
 		)
 		require.True(t, cmp.Equal(expected, as, testActiveRuleSetCmpOpts...))
 	}
