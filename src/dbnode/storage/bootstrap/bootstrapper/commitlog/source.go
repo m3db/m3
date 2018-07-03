@@ -40,7 +40,6 @@ import (
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	"github.com/m3db/m3db/src/dbnode/ts"
 	"github.com/m3db/m3db/src/dbnode/x/xio"
-	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
@@ -1003,14 +1002,9 @@ func (s *commitLogSource) mergeSeries(
 			snapshotBlock = nil
 		}
 
-		// TODO: Don't allocate each time, or even better, just
-		// implement block.Discard().
-		// Don't close the context because readers.close() will
-		// take care of closing the streams.
-		tmpCtx := context.NewContext()
 		// Closes encoders and snapshotBlock by calling Discard() on each.
 		readers, err := newIOReadersFromEncodersAndBlock(
-			tmpCtx, segmentReaderPool, encoders, snapshotBlock)
+			segmentReaderPool, encoders, snapshotBlock)
 		if err != nil {
 			panic(err)
 		}
@@ -1482,7 +1476,6 @@ type encoderArg struct {
 type ioReaders []xio.SegmentReader
 
 func newIOReadersFromEncodersAndBlock(
-	ctx context.Context,
 	segmentReaderPool xio.SegmentReaderPool,
 	encoders []encoder,
 	dbBlock block.DatabaseBlock,
