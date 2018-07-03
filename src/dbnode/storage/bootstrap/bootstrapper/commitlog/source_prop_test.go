@@ -43,12 +43,12 @@ import (
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
-	"github.com/stretchr/testify/require"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
 	"github.com/spaolacci/murmur3"
+	"github.com/stretchr/testify/require"
 )
 
 const maxShards = 8192
