@@ -230,6 +230,7 @@ func TestWriterRegisterFilter(t *testing.T) {
 	w.RegisterFilter(sid1, filter)
 
 	csw1.EXPECT().RegisterFilter(gomock.Any())
+	csw1.EXPECT().SetMessageTTLNanos(int64(0))
 	testTopic := topic.NewTopic().
 		SetName(opts.TopicName()).
 		SetNumberOfShards(6).
@@ -372,7 +373,7 @@ func TestTopicUpdateWithSameConsumerServicesButDifferentOrder(t *testing.T) {
 	sid1 := services.NewServiceID().SetName("s1")
 	cs1 := topic.NewConsumerService().SetConsumptionType(topic.Replicated).SetServiceID(sid1)
 	sid2 := services.NewServiceID().SetName("s2")
-	cs2 := topic.NewConsumerService().SetConsumptionType(topic.Shared).SetServiceID(sid2)
+	cs2 := topic.NewConsumerService().SetConsumptionType(topic.Shared).SetServiceID(sid2).SetMessageTTLNanos(500)
 	testTopic := topic.NewTopic().
 		SetName(opts.TopicName()).
 		SetNumberOfShards(1).
@@ -437,6 +438,8 @@ func TestTopicUpdateWithSameConsumerServicesButDifferentOrder(t *testing.T) {
 	w.consumerServiceWriters[cs2.ServiceID().String()] = cswMock2
 	defer csw.Close()
 
+	cswMock1.EXPECT().SetMessageTTLNanos(int64(0))
+	cswMock2.EXPECT().SetMessageTTLNanos(int64(500))
 	testTopic = testTopic.
 		SetConsumerServices([]topic.ConsumerService{cs2, cs1}).
 		SetVersion(1)
@@ -644,4 +647,154 @@ func TestWriterCloseBlocking(t *testing.T) {
 
 	rm.Drop()
 	<-doneCh
+}
+
+func TestWriterSetMessageTTLNanosDropMetric(t *testing.T) {
+	defer leaktest.Check(t)()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := mem.NewStore()
+	cs := client.NewMockClient(ctrl)
+	cs.EXPECT().Store(gomock.Any()).Return(store, nil)
+
+	ts, err := topic.NewService(topic.NewServiceOptions().SetConfigService(cs))
+	require.NoError(t, err)
+
+	opts := testOptions().SetTopicService(ts)
+
+	sid1 := services.NewServiceID().SetName("s1")
+	cs1 := topic.NewConsumerService().SetConsumptionType(topic.Replicated).SetServiceID(sid1)
+	sid2 := services.NewServiceID().SetName("s2")
+	cs2 := topic.NewConsumerService().SetConsumptionType(topic.Shared).SetServiceID(sid2)
+	testTopic := topic.NewTopic().
+		SetName(opts.TopicName()).
+		SetNumberOfShards(1).
+		SetConsumerServices([]topic.ConsumerService{cs1, cs2})
+	_, err = ts.CheckAndSet(testTopic, kv.UninitializedVersion)
+	require.NoError(t, err)
+
+	sd := services.NewMockServices(ctrl)
+	opts = opts.SetServiceDiscovery(sd)
+	ps1 := testPlacementService(store, sid1)
+	sd.EXPECT().PlacementService(sid1, gomock.Any()).Return(ps1, nil)
+	ps2 := testPlacementService(store, sid2)
+	sd.EXPECT().PlacementService(sid2, gomock.Any()).Return(ps2, nil)
+
+	lis1, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer lis1.Close()
+
+	p1 := placement.NewPlacement().
+		SetInstances([]placement.Instance{
+			placement.NewInstance().
+				SetID("i1").
+				SetEndpoint(lis1.Addr().String()).
+				SetShards(shard.NewShards([]shard.Shard{
+					shard.NewShard(0).SetState(shard.Available),
+				})),
+		}).
+		SetShards([]uint32{0}).
+		SetReplicaFactor(1).
+		SetIsSharded(true)
+	require.NoError(t, ps1.Set(p1))
+
+	p2 := placement.NewPlacement().
+		SetInstances([]placement.Instance{
+			placement.NewInstance().
+				SetID("i2").
+				SetEndpoint("i2").
+				SetShards(shard.NewShards([]shard.Shard{
+					shard.NewShard(0).SetState(shard.Available),
+				})),
+		}).
+		SetShards([]uint32{0}).
+		SetReplicaFactor(1).
+		SetIsSharded(true)
+	require.NoError(t, ps2.Set(p2))
+
+	w := NewWriter(opts).(*writer)
+	require.NoError(t, w.Init())
+	defer w.Close()
+
+	require.Equal(t, 2, len(w.consumerServiceWriters))
+
+	var called int
+	var wg sync.WaitGroup
+	mm := producer.NewMockMessage(ctrl)
+	mm.EXPECT().Shard().Return(uint32(0)).AnyTimes()
+	mm.EXPECT().Size().Return(3).AnyTimes()
+	mm.EXPECT().Bytes().Return([]byte("foo")).AnyTimes()
+	mm.EXPECT().Finalize(producer.Consumed).Do(func(interface{}) { called++; wg.Done() })
+	require.NoError(t, w.Write(producer.NewRefCountedMessage(mm, nil)))
+
+	wg.Add(1)
+	go func() {
+		testConsumeAndAckOnConnectionListener(t, lis1, opts.EncodeDecoderOptions())
+		wg.Done()
+	}()
+	wg.Wait()
+	require.Equal(t, 0, called)
+
+	// Wait for the message ttl update to trigger finalize.
+	wg.Add(1)
+	testTopic = topic.NewTopic().
+		SetName(opts.TopicName()).
+		SetNumberOfShards(1).
+		SetConsumerServices([]topic.ConsumerService{cs1, cs2.SetMessageTTLNanos(int64(50 * time.Millisecond))})
+	_, err = ts.CheckAndSet(testTopic, 1)
+	require.NoError(t, err)
+	wg.Wait()
+	require.Equal(t, 1, called)
+
+	lis2, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer lis2.Close()
+
+	p2 = placement.NewPlacement().
+		SetInstances([]placement.Instance{
+			placement.NewInstance().
+				SetID("i2").
+				SetEndpoint(lis2.Addr().String()).
+				SetShards(shard.NewShards([]shard.Shard{
+					shard.NewShard(0).SetState(shard.Available),
+				})),
+		}).
+		SetShards([]uint32{0}).
+		SetReplicaFactor(1).
+		SetIsSharded(true)
+	require.NoError(t, ps2.Set(p2))
+
+	testTopic = topic.NewTopic().
+		SetName(opts.TopicName()).
+		SetNumberOfShards(1).
+		SetConsumerServices([]topic.ConsumerService{cs1, cs2.SetMessageTTLNanos(0)})
+	_, err = ts.CheckAndSet(testTopic, 2)
+	require.NoError(t, err)
+
+	require.NoError(t, w.Write(producer.NewRefCountedMessage(mm, nil)))
+
+	called = 0
+	mm.EXPECT().Finalize(producer.Consumed).Do(func(interface{}) { called++; wg.Done() })
+	wg.Add(1)
+	go func() {
+		testConsumeAndAckOnConnectionListener(t, lis1, opts.EncodeDecoderOptions())
+		wg.Done()
+	}()
+	wg.Wait()
+	require.Equal(t, 0, called)
+
+	time.Sleep(200 * time.Millisecond)
+	require.Equal(t, 0, called)
+
+	// Wait for the consumer to trigger finalize because there is no more message ttl.
+	wg.Add(1)
+	go func() {
+		testConsumeAndAckOnConnectionListener(t, lis2, opts.EncodeDecoderOptions())
+	}()
+	wg.Wait()
+	require.Equal(t, 1, called)
+
+	w.Close()
 }

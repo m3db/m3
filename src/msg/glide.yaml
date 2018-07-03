@@ -3,7 +3,7 @@ import:
 - package: github.com/m3db/m3x
   version: 647a4a05078f018242070cbd71bea6ecba964199
 - package: github.com/m3db/m3cluster
-  version: 932643c994584dc8830cdc6434fd5545768d9f29
+  version: d971450316604c151719f53afbb95539e6dbafbb
 - package: github.com/golang/protobuf
   version: v1.0.0
 - package: github.com/gogo/protobuf

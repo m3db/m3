@@ -69,6 +69,9 @@ type consumerServiceWriter interface {
 	// Close closes the writer and the background watch thread.
 	Close()
 
+	// SetMessageTTLNanos sets the message ttl nanoseconds.
+	SetMessageTTLNanos(value int64)
+
 	// RegisterFilter registers a filter for the consumer service.
 	RegisterFilter(fn producer.FilterFunc)
 
@@ -315,6 +318,12 @@ func (w *consumerServiceWriterImpl) Close() {
 	}
 	w.wg.Wait()
 	w.logger.Infof("closed consumer service writer %s", w.cs.String())
+}
+
+func (w *consumerServiceWriterImpl) SetMessageTTLNanos(value int64) {
+	for _, sw := range w.shardWriters {
+		sw.SetMessageTTLNanos(value)
+	}
 }
 
 func (w *consumerServiceWriterImpl) RegisterFilter(filter producer.FilterFunc) {

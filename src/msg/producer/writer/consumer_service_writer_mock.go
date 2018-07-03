@@ -76,6 +76,14 @@ func (_mr *_MockconsumerServiceWriterRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
+func (_m *MockconsumerServiceWriter) SetMessageTTLNanos(value int64) {
+	_m.ctrl.Call(_m, "SetMessageTTLNanos", value)
+}
+
+func (_mr *_MockconsumerServiceWriterRecorder) SetMessageTTLNanos(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetMessageTTLNanos", arg0)
+}
+
 func (_m *MockconsumerServiceWriter) RegisterFilter(fn producer.FilterFunc) {
 	_m.ctrl.Call(_m, "RegisterFilter", fn)
 }

@@ -165,6 +165,7 @@ func (w *writer) process(update interface{}) error {
 		key := cs.ServiceID().String()
 		csw, ok := w.consumerServiceWriters[key]
 		if ok {
+			csw.SetMessageTTLNanos(cs.MessageTTLNanos())
 			newConsumerServiceWriters[key] = csw
 			continue
 		}
@@ -187,6 +188,7 @@ func (w *writer) process(update interface{}) error {
 			csw.Close()
 			continue
 		}
+		csw.SetMessageTTLNanos(cs.MessageTTLNanos())
 		newConsumerServiceWriters[key] = csw
 		w.logger.Infof("initialized consumer service writer for %s", cs.String())
 	}
