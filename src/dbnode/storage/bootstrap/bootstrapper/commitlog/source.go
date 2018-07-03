@@ -968,8 +968,13 @@ func (s *commitLogSource) mergeShard(
 		blocks := val.Value()
 
 		if allShardResultSeries.Contains(id) {
-			// Already merged
-			// TODO: Can finalize ID / tags here?
+			// Already merged so we know the ID and tags from the snapshot
+			// won't be used and can be closed. We can't close the blocks
+			// though because we may have loaded some of the blocks into
+			// the shard result and we don't want to close them.
+			// TODO: Is this 100% correct?
+			id.Finalize()
+			blocks.Tags.Finalize()
 			continue
 		}
 
@@ -1046,7 +1051,8 @@ func (s *commitLogSource) mergeSeries(
 		iter.Close()
 		readers.close()
 		if hasSnapshotBlock {
-			// Block is already closed.
+			// Block is already closed, but we need to remove from the Blocks
+			// to prevent a double free when we call Blocks.Close() later.
 			snapshotData.Blocks.RemoveBlockAt(start)
 		}
 
@@ -1071,14 +1077,13 @@ func (s *commitLogSource) mergeSeries(
 			}
 			_, ok := seriesBlocks.BlockAt(startNano.ToTime())
 			if ok {
+				// Shouldnt happen?
 				// Already merged
 				continue
 			}
 
 			seriesBlocks.AddBlock(snapshotBlock)
 		}
-
-		// TODO: Cleanup snapshot blocks better.
 	}
 	return seriesBlocks, numEmptyErrs, numErrs
 }
