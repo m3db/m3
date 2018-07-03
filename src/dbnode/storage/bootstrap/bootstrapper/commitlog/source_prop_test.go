@@ -180,7 +180,6 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 						// properly bootstrap from both snapshot files and commit logs and merge them together.
 						if value.arrivedAt.Before(input.snapshotTime) ||
 							value.arrivedAt.Equal(input.snapshotTime) {
-							fmt.Printf("encoding: %s for %s\n", value.datapoint.Timestamp, seriesID)
 							err := encoder.Encode(value.datapoint, value.unit, value.annotation)
 							if err != nil {
 								return false, err
@@ -263,7 +262,6 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 				currentTime = write.arrivedAt
 				lock.Unlock()
 
-				fmt.Printf("writing to commitlog: %s for %s\n", write.datapoint.Timestamp, write.series.ID.String())
 				err := log.Write(context.NewContext(), write.series, write.datapoint, write.unit, write.annotation)
 				if err != nil {
 					return false, err
