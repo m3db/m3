@@ -1175,12 +1175,45 @@ func (s *commitLogSource) ReadIndex(
 	}
 
 	var (
-		indexResult    = result.NewIndexBootstrapResult()
-		indexResults   = indexResult.IndexResults()
-		indexOptions   = ns.Options().IndexOptions()
-		indexBlockSize = indexOptions.BlockSize()
-		resultOptions  = s.opts.ResultOptions()
+		indexResult          = result.NewIndexBootstrapResult()
+		indexResults         = indexResult.IndexResults()
+		indexOptions         = ns.Options().IndexOptions()
+		indexBlockSize       = indexOptions.BlockSize()
+		resultOptions        = s.opts.ResultOptions()
+		blOpts               = resultOptions.DatabaseBlockOptions()
+		bytesPool            = blOpts.BytesPool()
+		blocksPool           = blOpts.DatabaseBlockPool()
+		blockSize            = ns.Options().RetentionOptions().BlockSize()
+		snapshotFilesByShard = map[uint32]fs.FileSetFilesSlice{}
+		fsOpts               = s.opts.CommitLogOptions().FilesystemOptions()
+		filePathPrefix       = fsOpts.FilePathPrefix()
 	)
+
+	// TODO: Share with other code
+	for shard := range shardsTimeRanges {
+		snapshotFiles, err := s.snapshotFilesFn(filePathPrefix, ns.ID(), shard)
+		if err != nil {
+			return nil, err
+		}
+		snapshotFilesByShard[shard] = snapshotFiles
+	}
+
+	snapshotShardResults, err := s.bootstrapAvailableSnapshotFiles(ns.ID(), shardsTimeRanges, blockSize, snapshotFilesByShard, fsOpts, bytesPool, blocksPool)
+	if err != nil {
+		return nil, err
+	}
+
+	for shard, result := range snapshotShardResults {
+		for _, val := range result.AllSeries().Iter() {
+			id := val.Key()
+			val := val.Value()
+			for block := range val.Blocks.AllBlocks() {
+				s.maybeAddToIndex(
+					id, val.Tags, shard, highestShard, block.ToTime(), bootstrapRangesByShard,
+					indexResults, indexOptions, indexBlockSize, resultOptions)
+			}
+		}
+	}
 
 	// Start by reading all the commit log files that we couldn't eliminate due to the
 	// cached metadata.

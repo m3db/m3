@@ -1,5 +1,3 @@
-// +build big
-//
 // Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -324,17 +322,17 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 				return false, err
 			}
 
-			// indexResult, err := source.BootstrapIndex(nsMeta, shardTimeRanges, testDefaultRunOpts)
-			// if err != nil {
-			// 	return false, err
-			// }
+			indexResult, err := source.BootstrapIndex(nsMeta, shardTimeRanges, testDefaultRunOpts)
+			if err != nil {
+				return false, err
+			}
 
-			// indexBlockSize := nsMeta.Options().IndexOptions().BlockSize()
-			// err = verifyIndexResultsAreCorrect(
-			// 	values, map[string]struct{}{}, indexResult.IndexResults(), indexBlockSize)
-			// if err != nil {
-			// 	return false, err
-			// }
+			indexBlockSize := nsMeta.Options().IndexOptions().BlockSize()
+			err = verifyIndexResultsAreCorrect(
+				values, map[string]struct{}{}, indexResult.IndexResults(), indexBlockSize)
+			if err != nil {
+				return false, err
+			}
 
 			return true, nil
 		},
