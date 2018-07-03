@@ -52,11 +52,19 @@ func TestStepIteration(t *testing.T) {
 	seriesOne, seriesTwo := newMultiNamespaceSeries(ctrl, now, t)
 
 	multiNamespaceSeriesList := []MultiNamespaceSeries{seriesOne, seriesTwo}
-	m3CoordBlocks, err := SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList, nil)
+	m3CoordBlocks, err := SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList, nil, time.Minute)
 	require.NoError(t, err)
 
 	expectedResults := makeResults()
 	var actualResults [][]float64
+
+	seriesMeta := m3CoordBlocks[0].SeriesMeta()
+	tags := []map[string]string{{"foo": "bar"}, {"biz": "baz"}}
+	for i, tag := range tags {
+		for k, v := range tag {
+			require.Equal(t, v, seriesMeta[i].Tags[k])
+		}
+	}
 
 	for _, seriesBlock := range m3CoordBlocks {
 		stepIter := seriesBlock.StepIter()

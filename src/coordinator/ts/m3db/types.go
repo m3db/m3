@@ -121,6 +121,12 @@ type MultiSeriesBlock struct {
 // todo(braskin): add close method on this to close each SeriesIterator
 type MultiSeriesBlocks []MultiSeriesBlock
 
+type multiSeriesBlockStepIter struct {
+	seriesIters consolidatedSeriesBlockIters
+	index       int
+	meta        block.Metadata
+}
+
 // Close closes the series iterator in a SeriesBlock
 func (s SeriesBlock) Close() {
 	s.seriesIterator.Close()

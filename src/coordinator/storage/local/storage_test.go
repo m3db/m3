@@ -228,7 +228,6 @@ func TestLocalRead(t *testing.T) {
 func TestLocalFetchBlocks(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	store, session := setup(ctrl)
-	testTags := seriesiter.GenerateTag()
 
 	iter, err := test.BuildTestSeriesIterator()
 	require.NoError(t, err)
@@ -238,8 +237,6 @@ func TestLocalFetchBlocks(t *testing.T) {
 	searchReq := newFetchReq()
 	results, err := store.FetchBlocks(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
 	assert.NoError(t, err)
-	tags := make(models.Tags, 1)
-	tags[testTags.Name.String()] = testTags.Value.String()
 	require.NotNil(t, results)
 	require.Len(t, results.Blocks, 2)
 	require.Equal(t, models.Tags{"foo": "bar", "baz": "qux"}, results.Blocks[0].Meta().Tags)

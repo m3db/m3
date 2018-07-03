@@ -110,7 +110,7 @@ func TestConvertM3Blocks(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	seriesOne, seriesTwo := newMultiNamespaceSeries(ctrl, now, t)
 	multiNamespaceSeriesList := []MultiNamespaceSeries{seriesOne, seriesTwo}
-	m3CoordBlocks, err := SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList, nil)
+	m3CoordBlocks, err := SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList, nil, time.Minute)
 	require.NoError(t, err)
 
 	assert.Equal(t, "test_one", m3CoordBlocks[0].Blocks[0].ConsolidatedNSBlocks[0].SeriesIterators.Iters()[0].ID().String())
@@ -135,7 +135,7 @@ func TestMultipleNamespacesSuccess(t *testing.T) {
 	seriesOne, seriesTwo := newMultiNamespaceSeries(ctrl, now, t)
 	seriesOne = append(seriesOne, seriesOne...)
 	multiNamespaceSeriesList := []MultiNamespaceSeries{seriesOne, seriesTwo}
-	m3CoordBlocks, err := SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList, nil)
+	m3CoordBlocks, err := SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList, nil, time.Minute)
 	require.NoError(t, err)
 
 	assert.Equal(t, "test_one", m3CoordBlocks[0].Blocks[0].ConsolidatedNSBlocks[0].SeriesIterators.Iters()[0].ID().String())
@@ -163,6 +163,6 @@ func TestBlockMisalignment(t *testing.T) {
 	seriesOne, seriesTwo := newMultiNamespaceSeries(ctrl, now, t)
 	seriesOne[0].Blocks[0].end = now.Add(100 * time.Minute)
 	multiNamespaceSeriesList := []MultiNamespaceSeries{seriesOne, seriesTwo}
-	_, err := SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList, nil)
+	_, err := SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList, nil, time.Minute)
 	require.Error(t, err)
 }

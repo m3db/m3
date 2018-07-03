@@ -34,7 +34,7 @@ var (
 )
 
 // SeriesBlockToMultiSeriesBlocks converts M3DB blocks to multi series blocks
-func SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList []MultiNamespaceSeries, seriesIteratorsPool encoding.MutableSeriesIteratorsPool) (MultiSeriesBlocks, error) {
+func SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList []MultiNamespaceSeries, seriesIteratorsPool encoding.MutableSeriesIteratorsPool, stepSize time.Duration) (MultiSeriesBlocks, error) {
 	// todo(braskin): validate blocks size and aligment per namespace before creating []MultiNamespaceSeries
 	var (
 		multiSeriesBlocks MultiSeriesBlocks
@@ -44,7 +44,7 @@ func SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList []MultiNamespaceSer
 	)
 
 	for multiNamespaceSeriesIdx, multiNamespaceSeries := range multiNamespaceSeriesList {
-		consolidatedSeriesBlocks, err := newConsolidatedSeriesBlocks(multiNamespaceSeries, seriesIteratorsPool)
+		consolidatedSeriesBlocks, err := newConsolidatedSeriesBlocks(multiNamespaceSeries, seriesIteratorsPool, stepSize)
 		if err != nil {
 			return nil, err
 		}
@@ -104,11 +104,11 @@ func (m MultiSeriesBlocks) setCommonTags(commonTags map[string]string) {
 }
 
 // newConsolidatedSeriesBlocks creates consolidated blocks by timeseries across namespaces
-func newConsolidatedSeriesBlocks(multiNamespaceSeries MultiNamespaceSeries, seriesIteratorsPool encoding.MutableSeriesIteratorsPool) (ConsolidatedSeriesBlocks, error) {
+func newConsolidatedSeriesBlocks(multiNamespaceSeries MultiNamespaceSeries, seriesIteratorsPool encoding.MutableSeriesIteratorsPool, stepSize time.Duration) (ConsolidatedSeriesBlocks, error) {
 	var consolidatedSeriesBlocks ConsolidatedSeriesBlocks
 
 	for seriesBlocksIdx, seriesBlocks := range multiNamespaceSeries {
-		consolidatedNSBlocks := newConsolidatedNSBlocks(seriesBlocks, seriesIteratorsPool)
+		consolidatedNSBlocks := newConsolidatedNSBlocks(seriesBlocks, seriesIteratorsPool, stepSize)
 		// once we get the length of consolidatedNSBlocks, we can create a
 		// ConsolidatedSeriesBlocks list with the proper size
 		if seriesBlocksIdx == 0 {
@@ -136,7 +136,7 @@ func newConsolidatedSeriesBlocks(multiNamespaceSeries MultiNamespaceSeries, seri
 
 // newConsolidatedNSBlocks creates a slice of consolidated blocks per namespace for a single timeseries
 // nolint: unparam
-func newConsolidatedNSBlocks(seriesBlocks SeriesBlocks, seriesIteratorsPool encoding.MutableSeriesIteratorsPool) []ConsolidatedNSBlock {
+func newConsolidatedNSBlocks(seriesBlocks SeriesBlocks, seriesIteratorsPool encoding.MutableSeriesIteratorsPool, stepSize time.Duration) []ConsolidatedNSBlock {
 	consolidatedNSBlocks := make([]ConsolidatedNSBlock, 0, len(seriesBlocks.Blocks))
 	namespace := seriesBlocks.Namespace
 	id := seriesBlocks.ID
@@ -147,7 +147,7 @@ func newConsolidatedNSBlocks(seriesBlocks SeriesBlocks, seriesIteratorsPool enco
 			Bounds: block.Bounds{
 				Start:    seriesBlock.start,
 				End:      seriesBlock.end,
-				StepSize: time.Minute, // get actual step size!!
+				StepSize: stepSize,
 			},
 		}
 		s := []encoding.SeriesIterator{seriesBlock.seriesIterator}

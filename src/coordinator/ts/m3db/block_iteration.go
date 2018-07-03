@@ -34,8 +34,9 @@ func (m MultiSeriesBlock) Meta() block.Metadata {
 
 // StepIter creates a new step iterator for a given MultiSeriesBlock
 func (m MultiSeriesBlock) StepIter() block.StepIter {
-	return &multiSeriesBlockStepIter{seriesIters: newConsolidatedSeriesBlockIters(m.Blocks),
-		index: -1,
+	return &multiSeriesBlockStepIter{
+		seriesIters: newConsolidatedSeriesBlockIters(m.Blocks),
+		index:       -1,
 	}
 }
 
@@ -72,14 +73,13 @@ func (m MultiSeriesBlock) SeriesCount() int {
 
 func newConsolidatedSeriesBlockIters(blocks ConsolidatedSeriesBlocks) consolidatedSeriesBlockIters {
 	consolidatedSeriesBlockIters := make([]*consolidatedSeriesBlockIter, len(blocks))
-	for i, block := range blocks {
+	for i, seriesBlock := range blocks {
 		consolidatedNSBlockIters := make([]*consolidatedNSBlockIter, len(blocks[0].ConsolidatedNSBlocks))
-		for j, jblock := range block.ConsolidatedNSBlocks {
-
+		for j, nsBlock := range seriesBlock.ConsolidatedNSBlocks {
 			nsBlockIter := &consolidatedNSBlockIter{
-				consolidatesNSBlockSeriesIters: jblock.SeriesIterators.Iters(),
-				bounds:      jblock.Bounds,
-				currentTime: jblock.Bounds.Start,
+				consolidatesNSBlockSeriesIters: nsBlock.SeriesIterators.Iters(),
+				bounds:      nsBlock.Bounds,
+				currentTime: nsBlock.Bounds.Start,
 			}
 			consolidatedNSBlockIters[j] = nsBlockIter
 		}
@@ -90,12 +90,6 @@ func newConsolidatedSeriesBlockIters(blocks ConsolidatedSeriesBlocks) consolidat
 	}
 
 	return consolidatedSeriesBlockIters
-}
-
-type multiSeriesBlockStepIter struct {
-	seriesIters consolidatedSeriesBlockIters
-	index       int
-	meta        block.Metadata
 }
 
 func (m *multiSeriesBlockStepIter) Next() bool {
@@ -117,7 +111,6 @@ func (m *multiSeriesBlockStepIter) Current() block.Step {
 	values := make([]float64, len(m.seriesIters))
 	for i, s := range m.seriesIters {
 		values[i] = s.Current()
-		// s.index++
 	}
 
 	bounds := m.meta.Bounds
@@ -144,12 +137,17 @@ func (c *consolidatedSeriesBlockIter) Current() float64 {
 }
 
 func (c *consolidatedSeriesBlockIter) Next() bool {
+	if len(c.consolidatedNSBlockIters) == 0 {
+		return false
+	}
+
 	for _, nsBlock := range c.consolidatedNSBlockIters {
 		if !nsBlock.Next() {
 			return false
 		}
 		c.index++
 	}
+
 	return true
 }
 

@@ -289,7 +289,7 @@ func (s *localStorage) FetchBlocks(ctx context.Context, query *storage.FetchQuer
 	// a multiNamespaceList with one element. However, once we support querying multiple namespaces,
 	// we will need to append each namespace sliceOfSeriesBlocks to the multiNamespaceList
 	multiNamespaceSeriesList := []m3db.MultiNamespaceSeries{sliceOfSeriesBlocks}
-	multiSeriesBlocks, err := m3db.SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList, nil)
+	multiSeriesBlocks, err := m3db.SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList, nil, query.Interval)
 	if err != nil {
 		return block.Result{}, err
 	}
