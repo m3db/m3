@@ -575,6 +575,8 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 					id = existing.ID
 					tags = existing.Tags
 				}
+				// TODO: In the exists case we can probably optimize this to add
+				// directly to existing to avoid an extra map lookup.
 				shardResult.AddBlock(id, tags, dbBlock)
 			}
 		}
