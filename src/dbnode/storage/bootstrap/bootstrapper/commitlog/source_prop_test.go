@@ -367,11 +367,6 @@ type generatedWrite struct {
 	annotation ts.Annotation
 }
 
-type generatedWriteTimes struct {
-	arrivedAt time.Time
-	timestamp time.Time
-}
-
 func (w generatedWrite) String() string {
 	return fmt.Sprintf("ID = %v, Datapoint = %+v", w.series.ID.String(), w.datapoint)
 }

@@ -305,28 +305,6 @@ func writeTestDataToDisk(
 	return writer.WriteData(metadata.ID(), setup.shardSet, seriesMaps)
 }
 
-func writeTestDataToDiskWithPredicate(
-	metadata namespace.Metadata,
-	setup *testSetup,
-	seriesMaps generate.SeriesBlocksByStart,
-	pred generate.WriteDatapointPredicate,
-) error {
-	ropts := metadata.Options().RetentionOptions()
-	writer := generate.NewWriter(setup.generatorOptions(ropts))
-	return writer.WriteDataWithPredicate(
-		metadata.ID(), setup.shardSet, seriesMaps, pred)
-}
-
-func writeTestSnapshotsToDisk(
-	metadata namespace.Metadata,
-	setup *testSetup,
-	seriesMaps generate.SeriesBlocksByStart,
-) error {
-	ropts := metadata.Options().RetentionOptions()
-	writer := generate.NewWriter(setup.generatorOptions(ropts))
-	return writer.WriteSnapshot(metadata.ID(), setup.shardSet, seriesMaps)
-}
-
 func writeTestSnapshotsToDiskWithPredicate(
 	metadata namespace.Metadata,
 	setup *testSetup,

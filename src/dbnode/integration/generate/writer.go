@@ -141,29 +141,6 @@ func (w *writer) writeWithPredicate(
 	return nil
 }
 
-func writeToDisk(
-	writer fs.DataFileSetWriter,
-	shardSet sharding.ShardSet,
-	encoder encoding.Encoder,
-	start time.Time,
-	namespace ident.ID,
-	blockSize time.Duration,
-	seriesList SeriesBlock,
-	fileSetType persist.FileSetType,
-) error {
-	return writeToDiskWithPredicate(
-		writer,
-		shardSet,
-		encoder,
-		start,
-		namespace,
-		blockSize,
-		seriesList,
-		WriteAllPredicate,
-		fileSetType,
-	)
-}
-
 func writeToDiskWithPredicate(
 	writer fs.DataFileSetWriter,
 	shardSet sharding.ShardSet,

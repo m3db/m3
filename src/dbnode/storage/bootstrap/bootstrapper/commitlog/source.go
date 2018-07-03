@@ -158,7 +158,7 @@ func (s *commitLogSource) ReadData(
 		bytesPool            = blOpts.BytesPool()
 		blocksPool           = blOpts.DatabaseBlockPool()
 		blockSize            = ns.Options().RetentionOptions().BlockSize()
-		snapshotShardResults = make(map[uint32]result.ShardResult)
+		snapshotShardResults map[uint32]result.ShardResult
 		err                  error
 	)
 
@@ -189,11 +189,11 @@ func (s *commitLogSource) ReadData(
 	}
 
 	// Once we have the desired data structure, we next need to figure out the minimum most recent
-	// snapshot for that block accross all shards. This will help us determine how much of the commit
+	// snapshot for that block across all shards. This will help us determine how much of the commit
 	// log we need to read. The new data structure we're trying to generate looks like:
-	// 		map[blockStart]minimumMostRecentSnapshotTime (accross all shards)
+	// 		map[blockStart]minimumMostRecentSnapshotTime (across all shards)
 	// This structure is important because it tells us how much of the commit log we need to read for
-	// each block that we're trying to bootstrap (because the commit log is shared accross all shards.)
+	// each block that we're trying to bootstrap (because the commit log is shared across all shards.)
 	minimumMostRecentSnapshotTimeByBlock := s.minimumMostRecentSnapshotTimeByBlock(
 		shardsTimeRanges, blockSize, mostRecentCompleteSnapshotTimeByBlockShard)
 	for block, minSnapshotTime := range minimumMostRecentSnapshotTimeByBlock {
