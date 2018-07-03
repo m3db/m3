@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package ts
+package util
 
 // Memset is a faster way to initialize a float64 array.
 /** Inspired from https://github.com/tmthrgd/go-memset. Can't use that library here directly since the library works on byte interface.

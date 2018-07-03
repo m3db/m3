@@ -22,6 +22,7 @@ package native
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -150,11 +151,11 @@ func TestPromReadWithFetchAndLogicalAnd(t *testing.T) {
 	assert.Equal(t, 361, s.Values().Len(), "10 second resolution for 1 hour including start time")
 	assert.Equal(t, float64(0), s.Values().ValueAt(0), "first value is zero since db returns values starting from start + 10ms")
 	assert.Equal(t, float64(0), s.Values().ValueAt(1))
-	for i := 2; i < 10; i++ {
-		assert.Equal(t, float64(i-1), s.Values().ValueAt(i))
+	for i := 2; i < 5; i++ {
+		assert.Equal(t, float64(i-1), s.Values().ValueAt(i), fmt.Sprintf("mismatch at %d", i))
 	}
 
-	for i := 11; i < s.Values().Len(); i++ {
+	for i := 5; i < s.Values().Len(); i++ {
 		require.True(t, math.IsNaN(s.Values().ValueAt(i)), "all remaining are nans")
 	}
 }

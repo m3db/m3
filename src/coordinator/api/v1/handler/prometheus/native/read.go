@@ -156,7 +156,7 @@ func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, pa
 	if processErr != nil {
 		// Drain anything remaining
 		drainResultChan(results)
-		return nil, err
+		return nil, processErr
 	}
 
 	return sortedBlocksToSeriesList(sortedBlockList)

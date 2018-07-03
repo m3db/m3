@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3db/src/coordinator/functions"
+	"github.com/m3db/m3db/src/coordinator/functions/logical"
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/parser"
 	"github.com/m3db/m3db/src/coordinator/parser/common"
@@ -70,13 +71,8 @@ func NewOperator(opType promql.ItemType) (parser.Params, error) {
 // NewBinaryOperator creates a new binary operator based on the type
 func NewBinaryOperator(expr *promql.BinaryExpr, lhs parser.NodeID, rhs parser.NodeID) (parser.Params, error) {
 	switch getOpType(expr.Op) {
-	case functions.AndType:
-		return functions.LogicalOp{OperatorType: functions.AndType, LNode: lhs, RNode: rhs, Matching: &functions.VectorMatching{
-			Card: promVectorCardinalityToM3(expr.VectorMatching.Card),
-			MatchingLabels: expr.VectorMatching.MatchingLabels,
-			On: expr.VectorMatching.On,
-			Include: expr.VectorMatching.Include,
-		}, ReturnBool: expr.ReturnBool}, nil
+	case logical.AndType:
+		return logical.NewAndOp(lhs, rhs, promMatchingToM3(expr.VectorMatching)), nil
 	default:
 		// TODO: handle other types
 		return nil, fmt.Errorf("operator not supported: %s", expr.Op)
@@ -99,7 +95,7 @@ func getOpType(opType promql.ItemType) string {
 	case promql.ItemType(itemCount):
 		return functions.CountType
 	case promql.ItemType(itemLAND):
-		return functions.AndType
+		return logical.AndType
 	default:
 		return common.UnknownOpType
 	}
@@ -142,17 +138,26 @@ func promTypeToM3(labelType labels.MatchType) (models.MatchType, error) {
 	}
 }
 
-func promVectorCardinalityToM3(card promql.VectorMatchCardinality) functions.VectorMatchCardinality {
+func promVectorCardinalityToM3(card promql.VectorMatchCardinality) logical.VectorMatchCardinality {
 	switch card {
 	case promql.CardOneToOne:
-		return functions.CardOneToOne
+		return logical.CardOneToOne
 	case promql.CardManyToMany:
-		return functions.CardManyToMany
+		return logical.CardManyToMany
 	case promql.CardManyToOne:
-		return functions.CardManyToOne
+		return logical.CardManyToOne
 	case promql.CardOneToMany:
-		return functions.CardOneToMany
+		return logical.CardOneToMany
 	}
 
 	panic(fmt.Sprintf("unknown prom cardinality %d", card))
+}
+
+func promMatchingToM3(vectorMatching *promql.VectorMatching) *logical.VectorMatching {
+	return &logical.VectorMatching{
+		Card:           promVectorCardinalityToM3(vectorMatching.Card),
+		MatchingLabels: vectorMatching.MatchingLabels,
+		On:             vectorMatching.On,
+		Include:        vectorMatching.Include,
+	}
 }

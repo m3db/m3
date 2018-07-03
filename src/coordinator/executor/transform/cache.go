@@ -21,29 +21,43 @@
 package transform
 
 import (
+	"sync"
+
 	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/parser"
 )
 
+// BlockCache is used to cache blocks
 type BlockCache struct {
 	blocks map[parser.NodeID]block.Block
+	mu     sync.Mutex
 }
 
+// NewBlockCache creates a new BlockCache
 func NewBlockCache() *BlockCache {
 	return &BlockCache{
 		blocks: make(map[parser.NodeID]block.Block),
 	}
 }
 
+// Add the block to the cache
 func (c *BlockCache) Add(key parser.NodeID, b block.Block) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.blocks[key] = b
 }
 
-func (c *BlockCache) Remove(key parser.NodeID, b block.Block) {
+// Remove the block from the cache
+func (c *BlockCache) Remove(key parser.NodeID) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	delete(c.blocks, key)
 }
 
+// Get the block from the cache
 func (c *BlockCache) Get(key parser.NodeID) (block.Block, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	b, ok := c.blocks[key]
 	return b, ok
 }
