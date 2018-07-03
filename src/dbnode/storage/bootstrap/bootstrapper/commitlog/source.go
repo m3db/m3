@@ -862,8 +862,14 @@ func (s *commitLogSource) mergeShards(
 	)
 	workerPool.Init()
 
+	var (
+		// Declare vars outside of loop to make sure we're not
+		// keep references around in-between loop iterations.
+		snapshotData result.ShardResult
+		err          error
+	)
 	for shard, unmergedShard := range unmerged {
-		snapshotData, err := s.bootstrapShardSnapshots(
+		snapshotData, err = s.bootstrapShardSnapshots(
 			ns.ID(),
 			uint32(shard),
 			shardsTimeRanges[uint32(shard)],
@@ -963,6 +969,7 @@ func (s *commitLogSource) mergeShard(
 
 		if allShardResultSeries.Contains(id) {
 			// Already merged
+			// TODO: Can finalize ID / tags here?
 			continue
 		}
 
