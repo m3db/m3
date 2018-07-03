@@ -487,6 +487,8 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 			)
 		}
 
+		// Reset this after we bootstrap each block to make sure its up to date.
+		allSeriesSoFar := shardResult.AllSeries()
 		// TODO: Make function for this iteration?
 		for blockStart := currRange.Start.Truncate(blockSize); blockStart.Before(currRange.End); blockStart = blockStart.Add(blockSize) {
 			// TODO: Already called this FN, maybe should just re-use the results somehow
@@ -563,6 +565,16 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 					return nil, fmt.Errorf("checksum for series: %s was %d but expected %d", id, checksum, expectedChecksum)
 				}
 
+				existing, ok := allSeriesSoFar.Get(id)
+				if ok {
+					// If we've already bootstrapped this series for a different block, we don't need
+					// another copy of the IDs and tags.
+					// TODO: Make sure this is right.
+					id.Finalize()
+					tags.Finalize()
+					id = existing.ID
+					tags = existing.Tags
+				}
 				shardResult.AddBlock(id, tags, dbBlock)
 			}
 		}
