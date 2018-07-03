@@ -36,6 +36,7 @@ const (
 // NewAndOp creates a new And operation
 func NewAndOp(LNode parser.NodeID, RNode parser.NodeID, Matching *VectorMatching) BaseOp {
 	return BaseOp{
+		OperatorType: AndType,
 		LNode:       LNode,
 		RNode:       RNode,
 		Matching:    Matching,
@@ -66,17 +67,21 @@ func (c *AndNode) Process(lhs block.Block, rhs block.Block) (block.Block, error)
 	}
 
 	lIter := lhs.StepIter()
+	rIter := rhs.StepIter()
 	if err := builder.AddCols(lhs.StepCount()); err != nil {
 		return nil, err
 	}
 
-	for index := 0; lIter.Next(); index++ {
+	for index := 0; lIter.Next() && rIter.Next(); index++ {
 		lStep := lIter.Current()
 		lValues := lStep.Values()
 
+		rStep := rIter.Current()
+		rValues := rStep.Values()
+
 		for idx, value := range lValues {
 			rIdx := intersection[idx]
-			if rIdx < 0 {
+			if rIdx < 0 || math.IsNaN(rValues[rIdx]) {
 				builder.AppendValue(index, math.NaN())
 				continue
 			}

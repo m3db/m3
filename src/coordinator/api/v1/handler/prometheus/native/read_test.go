@@ -22,7 +22,6 @@ package native
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -124,38 +123,6 @@ func TestPromReadWithFetchAndAbs(t *testing.T) {
 	}
 
 	for i := 11; i < s.Values().Len(); i++ {
-		require.True(t, math.IsNaN(s.Values().ValueAt(i)), "all remaining are nans")
-	}
-}
-
-func TestPromReadWithFetchAndLogicalAnd(t *testing.T) {
-	logging.InitWithCores(nil)
-	ctrl := gomock.NewController(t)
-	storage, mockSession := local.NewStorageAndSession(ctrl)
-	testTags := seriesiter.GenerateTag()
-	mockSession.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(seriesiter.NewMockSeriesIters(ctrl, testTags, 1, 10), true, nil)
-	mockSession.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(seriesiter.NewMockSeriesIters(ctrl, testTags, 1, 5), true, nil)
-
-	promRead := &PromReadHandler{engine: executor.NewEngine(storage)}
-	req, _ := http.NewRequest("GET", PromReadURL, nil)
-	params := defaultParams()
-	params.Set(targetParam, `http_requests_total{job="prometheus",group="canary"} and http_requests_total{job="prometheus",group="canary"}`)
-	req.URL.RawQuery = params.Encode()
-
-	r, parseErr := parseParams(req)
-	require.NoError(t, parseErr)
-	seriesList, err := promRead.read(context.TODO(), httptest.NewRecorder(), r)
-	require.NoError(t, err)
-	require.Len(t, seriesList, 1)
-	s := seriesList[0]
-	assert.Equal(t, 361, s.Values().Len(), "10 second resolution for 1 hour including start time")
-	assert.Equal(t, float64(0), s.Values().ValueAt(0), "first value is zero since db returns values starting from start + 10ms")
-	assert.Equal(t, float64(0), s.Values().ValueAt(1))
-	for i := 2; i < 5; i++ {
-		assert.Equal(t, float64(i-1), s.Values().ValueAt(i), fmt.Sprintf("mismatch at %d", i))
-	}
-
-	for i := 5; i < s.Values().Len(); i++ {
 		require.True(t, math.IsNaN(s.Values().ValueAt(i)), "all remaining are nans")
 	}
 }
