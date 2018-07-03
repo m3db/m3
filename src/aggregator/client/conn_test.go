@@ -206,7 +206,7 @@ func TestConnectionWriteFailsOnSecondAttempt(t *testing.T) {
 		return errTestConnect
 	}
 
-	require.Equal(t, errTestWrite, conn.Write(nil))
+	require.Equal(t, errTestConnect, conn.Write(nil))
 	require.Equal(t, 1, conn.numFailures)
 	require.Equal(t, 2, conn.threshold)
 }
@@ -250,6 +250,7 @@ func TestConnectWriteToServer(t *testing.T) {
 	conn := newConnection(serverAddr, opts)
 	require.NoError(t, conn.Write(data))
 	require.Equal(t, 0, conn.numFailures)
+	require.NotNil(t, conn.conn)
 
 	// Stop the server.
 	l.Close() // nolint: errcheck

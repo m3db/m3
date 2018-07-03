@@ -31,6 +31,9 @@ import (
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3x/retry"
+
+	"github.com/uber-go/tally"
 )
 
 // Configuration contains client configuration.
@@ -80,7 +83,7 @@ func (c *Configuration) newClientOptions(
 	instrumentOpts instrument.Options,
 ) (Options, error) {
 	scope := instrumentOpts.MetricsScope()
-	connectionOpts := c.Connection.NewConnectionOptions()
+	connectionOpts := c.Connection.NewConnectionOptions(scope.SubScope("connection"))
 	kvOpts, err := c.PlacementKV.NewOverrideOptions()
 	if err != nil {
 		return nil, err
@@ -138,17 +141,18 @@ func (c *Configuration) newClientOptions(
 
 // ConnectionConfiguration contains the connection configuration.
 type ConnectionConfiguration struct {
-	ConnectionTimeout            time.Duration  `yaml:"connectionTimeout"`
-	ConnectionKeepAlive          *bool          `yaml:"connectionKeepAlive"`
-	WriteTimeout                 time.Duration  `yaml:"writeTimeout"`
-	InitReconnectThreshold       int            `yaml:"initReconnectThreshold"`
-	MaxReconnectThreshold        int            `yaml:"maxReconnectThreshold"`
-	ReconnectThresholdMultiplier int            `yaml:"reconnectThresholdMultiplier"`
-	MaxReconnectDuration         *time.Duration `yaml:"maxReconnectDuration"`
+	ConnectionTimeout            time.Duration        `yaml:"connectionTimeout"`
+	ConnectionKeepAlive          *bool                `yaml:"connectionKeepAlive"`
+	WriteTimeout                 time.Duration        `yaml:"writeTimeout"`
+	InitReconnectThreshold       int                  `yaml:"initReconnectThreshold"`
+	MaxReconnectThreshold        int                  `yaml:"maxReconnectThreshold"`
+	ReconnectThresholdMultiplier int                  `yaml:"reconnectThresholdMultiplier"`
+	MaxReconnectDuration         *time.Duration       `yaml:"maxReconnectDuration"`
+	WriteRetries                 *retry.Configuration `yaml:"writeRetries"`
 }
 
 // NewConnectionOptions creates new connection options.
-func (c *ConnectionConfiguration) NewConnectionOptions() ConnectionOptions {
+func (c *ConnectionConfiguration) NewConnectionOptions(scope tally.Scope) ConnectionOptions {
 	opts := NewConnectionOptions()
 	if c.ConnectionTimeout != 0 {
 		opts = opts.SetConnectionTimeout(c.ConnectionTimeout)
@@ -170,6 +174,10 @@ func (c *ConnectionConfiguration) NewConnectionOptions() ConnectionOptions {
 	}
 	if c.MaxReconnectDuration != nil {
 		opts = opts.SetMaxReconnectDuration(*c.MaxReconnectDuration)
+	}
+	if c.WriteRetries != nil {
+		retryOpts := c.WriteRetries.NewOptions(scope)
+		opts = opts.SetWriteRetryOptions(retryOpts)
 	}
 	return opts
 }

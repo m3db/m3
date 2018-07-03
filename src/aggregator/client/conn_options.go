@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/retry"
 )
 
 const (
@@ -36,6 +37,11 @@ const (
 	defaultMaxReconnectThreshold        = 5000
 	defaultReconnectThresholdMultiplier = 2
 	defaultMaxReconnectDuration         = math.MaxInt64
+	defaultWriteRetryInitialBackoff     = 0
+	defaultWriteRetryBackoffFactor      = 2
+	defaultWriteRetryMaxBackoff         = time.Second
+	defaultWriteRetryMaxRetries         = 1
+	defaultWriteRetryJitterEnabled      = true
 )
 
 // ConnectionOptions provides a set of options for tcp connections.
@@ -93,6 +99,12 @@ type ConnectionOptions interface {
 
 	// MaxReconnectDuration returns the max duration between attempts to re-establish connections.
 	MaxReconnectDuration() time.Duration
+
+	// SetWriteRetryOptions sets the retry options for retrying failed writes.
+	SetWriteRetryOptions(value retry.Options) ConnectionOptions
+
+	// WriteRetryOptions returns the retry options for retrying failed writes.
+	WriteRetryOptions() retry.Options
 }
 
 type connectionOptions struct {
@@ -105,10 +117,17 @@ type connectionOptions struct {
 	maxThreshold   int
 	multiplier     int
 	maxDuration    time.Duration
+	writeRetryOpts retry.Options
 }
 
 // NewConnectionOptions create a new set of connection options.
 func NewConnectionOptions() ConnectionOptions {
+	defaultWriteRetryOpts := retry.NewOptions().
+		SetInitialBackoff(defaultWriteRetryInitialBackoff).
+		SetBackoffFactor(defaultWriteRetryBackoffFactor).
+		SetMaxBackoff(defaultWriteRetryMaxBackoff).
+		SetMaxRetries(defaultWriteRetryMaxRetries).
+		SetJitter(defaultWriteRetryJitterEnabled)
 	return &connectionOptions{
 		clockOpts:      clock.NewOptions(),
 		instrumentOpts: instrument.NewOptions(),
@@ -119,6 +138,7 @@ func NewConnectionOptions() ConnectionOptions {
 		maxThreshold:   defaultMaxReconnectThreshold,
 		multiplier:     defaultReconnectThresholdMultiplier,
 		maxDuration:    defaultMaxReconnectDuration,
+		writeRetryOpts: defaultWriteRetryOpts,
 	}
 }
 
@@ -210,4 +230,14 @@ func (o *connectionOptions) SetMaxReconnectDuration(value time.Duration) Connect
 
 func (o *connectionOptions) MaxReconnectDuration() time.Duration {
 	return o.maxDuration
+}
+
+func (o *connectionOptions) SetWriteRetryOptions(value retry.Options) ConnectionOptions {
+	opts := *o
+	opts.writeRetryOpts = value
+	return &opts
+}
+
+func (o *connectionOptions) WriteRetryOptions() retry.Options {
+	return o.writeRetryOpts
 }
