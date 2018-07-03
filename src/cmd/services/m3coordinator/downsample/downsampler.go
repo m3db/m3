@@ -177,7 +177,7 @@ func (o DownsamplerOptions) newAggregator() (newAggregatorResult, error) {
 		instrumentOpts          = o.InstrumentOptions
 	)
 	if o.StorageFlushConcurrency > 0 {
-		storageFlushConcurrency = storageFlushConcurrency
+		storageFlushConcurrency = o.StorageFlushConcurrency
 	}
 
 	// Configure rules options.
@@ -372,11 +372,6 @@ func (o DownsamplerOptions) newAggregator() (newAggregatorResult, error) {
 		tagDecoderPool:          tagDecoderPool,
 		encodedTagsIteratorPool: sortedTagIteratorPool,
 	}, nil
-}
-
-type retentionResolution struct {
-	retention  time.Duration
-	resolution time.Duration
 }
 
 type downsamplerFlushHandler struct {

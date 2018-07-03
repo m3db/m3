@@ -164,7 +164,9 @@ func (h *PromWriteHandler) write(ctx context.Context, r *prompb.WriteRequest) er
 		requests := make([]execution.Request, 0, len(r.Timeseries))
 		for _, t := range r.Timeseries {
 			write := storage.PromWriteTSToM3(t)
-			write.Attributes.MetricsType = storage.UnaggregatedMetricsType
+			write.Attributes = storage.Attributes{
+				MetricsType: storage.UnaggregatedMetricsType,
+			}
 			request := newLocalWriteRequest(write, h.store)
 			requests = append(requests, request)
 		}
