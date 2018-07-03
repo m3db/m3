@@ -166,6 +166,8 @@ func (s *commitLogSource) ReadData(
 		return nil, err
 	}
 
+	// Next, we need to determine the minimum number of commit logs files that we
+	// must read
 	readCommitLogPred, err := s.newReadCommitLogPredBasedOnAvailableSnapshotFiles(
 		ns, shardsTimeRanges, snapshotFilesByShard)
 	if err != nil {
@@ -956,23 +958,21 @@ func (s *commitLogSource) mergeSeries(
 			snapshotBlock, hasSnapshotBlock = snapshotData.Blocks.BlockAt(start)
 		}
 
-		// Convert encoders to readers so we can use iteration helpers
-		readers := encoders.newReaders()
+		if !hasSnapshotBlock {
+			// Make sure snapshotBlocjk is nil if it does not exist.
+			snapshotBlock = nil
+		}
 
 		// TODO: Don't allocate each time
 		tmpCtx := context.NewContext()
-		if hasSnapshotBlock {
-			snapshotReader, err := snapshotBlock.Stream(tmpCtx)
-			if err != nil {
-				panic(err)
-			}
-			readers = append(readers, snapshotReader)
+		readers, err := newIOReadersFromEncodersAndBlock(tmpCtx, encoders, snapshotBlock)
+		if err != nil {
+			panic(err)
 		}
 
 		iter := multiReaderIteratorPool.Get()
 		iter.Reset(readers, time.Time{}, 0)
 
-		var err error
 		enc := encoderPool.Get()
 		enc.Reset(start, blopts.DatabaseBlockAllocSize())
 		for iter.Next() {
@@ -1433,12 +1433,27 @@ type encoders []encoder
 
 type ioReaders []xio.SegmentReader
 
-func (e encoders) newReaders() ioReaders {
-	readers := make(ioReaders, len(e))
-	for i := range e {
-		readers[i] = e[i].enc.Stream()
+func newIOReadersFromEncodersAndBlock(ctx context.Context, e encoders, b block.DatabaseBlock) (ioReaders, error) {
+	numReaders := len(e)
+	if b != nil {
+		numReaders++
 	}
-	return readers
+
+	readers := make(ioReaders, 0, numReaders)
+	if b != nil {
+		blockReader, err := b.Stream(ctx)
+		if err != nil {
+			return nil, err
+		}
+		readers = append(readers, blockReader)
+	}
+
+	for _, encoder := range e {
+		// TODO: Switch to discard to avoid a copy, and then don't close encoders.
+		readers = append(readers, encoder.enc.Stream())
+	}
+
+	return readers, nil
 }
 
 func (e encoders) close() {
