@@ -199,81 +199,12 @@ func (s *commitLogSource) ReadData(
 			block.ToTime().Unix(), minSnapshotTime.Unix())
 	}
 
-	// TODO: Move this all into a helper?
 	// Now that we have the minimum most recent snapshot time for each block, we can use that data to
 	// decide how much of the commit log we need to read for each block that we're bootstrapping. We'll
 	// construct a new predicate based on the data structure we constructed earlier where the new
 	// predicate will check if there is any overlap between a commit log file and a temporary range
 	// we construct that begins with the minimum snapshot time and ends with the end of that block + bufferPast.
-	var (
-		bufferPast    = ns.Options().RetentionOptions().BufferPast()
-		bufferFuture  = ns.Options().RetentionOptions().BufferFuture()
-		rangesToCheck = []xtime.Range{}
-	)
-
-	for blockStart, minimumMostRecentSnapshotTime := range minimumMostRecentSnapshotTimeByBlock {
-		// blockStart.Add(blockSize) represents the logical range that we're trying to bootstrap, but
-		// commitlog and snapshot timestamps are system timestamps so we need to create a system
-		// time range against which we can compare our commit log ranges.
-		//
-		// In this case, the snapshot will contain all datapoints for a given block that were received/written
-		// (system time) before the snapshot time, so we use that as the start of our range.
-		//
-		// The end of our range is the end of the block + the bufferPast window. This is because its
-		// still possible for writes for the block that we're trying to bootstrap to arrive up until
-		// blockStart.Add(blockSize).Add(bufferPast).
-		//
-		// Note that in the general case (snapshot files are present) we don't need to check bufferFuture
-		// at all, because the snapshot is guaranteed to have all writes that were written before the
-		// snapshot time, which includes any datapoints written during the bufferFuture range, by definition.
-		// However, if there is no snapshot (minimumMostRecentSnapshotTime.Equal(blockStart)), then we DO
-		// have to take bufferFuture into account because commit logs with system timestamps in the previous
-		// block may contain writes for the block that we're trying to bootstrap, and we can't rely upon the
-		// fact that they are already included in our (non-existent) snapshot.
-		if minimumMostRecentSnapshotTime.Equal(blockStart.ToTime()) {
-			minimumMostRecentSnapshotTime = minimumMostRecentSnapshotTime.Add(-bufferFuture)
-		}
-		rangesToCheck = append(rangesToCheck, xtime.Range{
-			Start: minimumMostRecentSnapshotTime,
-			End:   blockStart.ToTime().Add(blockSize).Add(bufferPast),
-		})
-	}
-
-	// TODO: We have to rely on the global minimum across shards to determine which commit log files
-	// we need to read, but we can still skip datapoints from the commitlog itself that belong to a shard
-	// that has a snapshot more recent than the global minimum. If we use an array for fast-access this could
-	// be a net win.
-	commitlogFilesPresentBeforeStart := s.inspection.CommitLogFilesSet()
-	readCommitLogPred := func(fileName string, fileStart time.Time, fileBlockSize time.Duration) bool {
-		_, ok := commitlogFilesPresentBeforeStart[fileName]
-		if !ok {
-			// If the file wasn't on disk before the node started then it only contains
-			// writes that are already in memory (and in-fact the file may be actively
-			// being written to.)
-			return false
-		}
-
-		for _, rangeToCheck := range rangesToCheck {
-			commitLogEntryRange := xtime.Range{
-				Start: fileStart,
-				End:   fileStart.Add(fileBlockSize),
-			}
-
-			if commitLogEntryRange.Overlaps(rangeToCheck) {
-				s.log.
-					Infof(
-						"Opting to read commit log: %s with start: %d and duration: %s",
-						fileName, fileStart.Unix(), fileBlockSize.String())
-				return true
-			}
-		}
-
-		s.log.
-			Infof(
-				"Opting to skip commit log: %s with start: %d and duration: %s",
-				fileName, fileStart.Unix(), fileBlockSize.String())
-		return false
-	}
+	readCommitLogPred := s.newReadCommitLogPred(ns, minimumMostRecentSnapshotTimeByBlock)
 
 	var (
 		nsID              = ns.ID()
@@ -653,6 +584,83 @@ func (s *commitLogSource) bootstrapAvailableSnapshotFiles(
 	return snapshotShardResults, nil
 }
 
+func (s *commitLogSource) newReadCommitLogPred(
+	ns namespace.Metadata,
+	minimumMostRecentSnapshotTimeByBlock map[xtime.UnixNano]time.Time,
+) func(fileName string, fileStart time.Time, fileBlockSize time.Duration) bool {
+	var (
+		rOpts                            = ns.Options().RetentionOptions()
+		blockSize                        = rOpts.BlockSize()
+		bufferPast                       = rOpts.BufferPast()
+		bufferFuture                     = rOpts.BufferFuture()
+		rangesToCheck                    = []xtime.Range{}
+		commitlogFilesPresentBeforeStart = s.inspection.CommitLogFilesSet()
+	)
+
+	for blockStart, minimumMostRecentSnapshotTime := range minimumMostRecentSnapshotTimeByBlock {
+		// blockStart.Add(blockSize) represents the logical range that we're trying to bootstrap, but
+		// commitlog and snapshot timestamps are system timestamps so we need to create a system
+		// time range against which we can compare our commit log ranges.
+		//
+		// In this case, the snapshot will contain all datapoints for a given block that were received/written
+		// (system time) before the snapshot time, so we use that as the start of our range.
+		//
+		// The end of our range is the end of the block + the bufferPast window. This is because its
+		// still possible for writes for the block that we're trying to bootstrap to arrive up until
+		// blockStart.Add(blockSize).Add(bufferPast).
+		//
+		// Note that in the general case (snapshot files are present) we don't need to check bufferFuture
+		// at all, because the snapshot is guaranteed to have all writes that were written before the
+		// snapshot time, which includes any datapoints written during the bufferFuture range, by definition.
+		// However, if there is no snapshot (minimumMostRecentSnapshotTime.Equal(blockStart)), then we DO
+		// have to take bufferFuture into account because commit logs with system timestamps in the previous
+		// block may contain writes for the block that we're trying to bootstrap, and we can't rely upon the
+		// fact that they are already included in our (non-existent) snapshot.
+		if minimumMostRecentSnapshotTime.Equal(blockStart.ToTime()) {
+			minimumMostRecentSnapshotTime = minimumMostRecentSnapshotTime.Add(-bufferFuture)
+		}
+		rangesToCheck = append(rangesToCheck, xtime.Range{
+			Start: minimumMostRecentSnapshotTime,
+			End:   blockStart.ToTime().Add(blockSize).Add(bufferPast),
+		})
+	}
+
+	// TODO: We have to rely on the global minimum across shards to determine which commit log files
+	// we need to read, but we can still skip datapoints from the commitlog itself that belong to a shard
+	// that has a snapshot more recent than the global minimum. If we use an array for fast-access this could
+	// be a net win.
+	return func(fileName string, fileStart time.Time, fileBlockSize time.Duration) bool {
+		_, ok := commitlogFilesPresentBeforeStart[fileName]
+		if !ok {
+			// If the file wasn't on disk before the node started then it only contains
+			// writes that are already in memory (and in-fact the file may be actively
+			// being written to.)
+			return false
+		}
+
+		for _, rangeToCheck := range rangesToCheck {
+			commitLogEntryRange := xtime.Range{
+				Start: fileStart,
+				End:   fileStart.Add(fileBlockSize),
+			}
+
+			if commitLogEntryRange.Overlaps(rangeToCheck) {
+				s.log.
+					Infof(
+						"Opting to read commit log: %s with start: %d and duration: %s",
+						fileName, fileStart.Unix(), fileBlockSize.String())
+				return true
+			}
+		}
+
+		s.log.
+			Infof(
+				"Opting to skip commit log: %s with start: %d and duration: %s",
+				fileName, fileStart.Unix(), fileBlockSize.String())
+		return false
+	}
+}
+
 func (s *commitLogSource) startM3TSZEncodingWorker(
 	ns namespace.Metadata,
 	runOpts bootstrap.RunOptions,
@@ -979,7 +987,6 @@ func (s *commitLogSource) mergeSeries(
 		iter.Close()
 		encoders.close()
 		readers.close()
-		tmpCtx.BlockingClose()
 
 		if err != nil {
 			panic(err)
