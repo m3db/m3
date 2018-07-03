@@ -828,11 +828,12 @@ func (s *commitLogSource) mergeShards(
 	unmerged []shardData,
 ) result.DataBootstrapResult {
 	var (
-		shardErrs               = make([]int, numShards)
-		shardEmptyErrs          = make([]int, numShards)
-		bootstrapResult         = result.NewDataBootstrapResult()
-		blocksPool              = bopts.DatabaseBlockOptions().DatabaseBlockPool()
-		multiReaderIteratorPool = blopts.MultiReaderIteratorPool()
+		shardErrs       = make([]int, numShards)
+		shardEmptyErrs  = make([]int, numShards)
+		bootstrapResult = result.NewDataBootstrapResult()
+		// blocksPool              = bopts.DatabaseBlockOptions().DatabaseBlockPool()
+		// multiReaderIteratorPool = blopts.MultiReaderIteratorPool()
+		// segmentReaderPool       = blopts.SegmentReaderPool()
 		// Controls how many shards can be merged in parallel
 		workerPool          = xsync.NewWorkerPool(s.opts.MergeShardsConcurrency())
 		bootstrapResultLock sync.Mutex
@@ -862,7 +863,7 @@ func (s *commitLogSource) mergeShards(
 		mergeShardFunc := func() {
 			var shardResult result.ShardResult
 			shardResult, shardEmptyErrs[shard], shardErrs[shard] = s.mergeShard(
-				shard, snapshotData, unmergedShard, blocksPool, multiReaderIteratorPool, encoderPool, blockSize, blopts)
+				shard, snapshotData, unmergedShard, blockSize)
 
 			if shardResult != nil && shardResult.NumSeries() > 0 {
 				// Prevent race conditions while updating bootstrapResult from multiple go-routines
@@ -886,13 +887,17 @@ func (s *commitLogSource) mergeShard(
 	shard int,
 	snapshotData result.ShardResult,
 	unmergedShard shardData,
-	blocksPool block.DatabaseBlockPool,
-	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
-	encoderPool encoding.EncoderPool,
 	blockSize time.Duration,
-	blopts block.Options,
 ) (result.ShardResult, int, int) {
-	// TODO: Estimate better
+	var (
+		bOpts                   = s.opts.ResultOptions()
+		blOpts                  = bOpts.DatabaseBlockOptions()
+		blocksPool              = blOpts.DatabaseBlockPool()
+		multiReaderIteratorPool = blOpts.MultiReaderIteratorPool()
+		segmentReaderPool       = blOpts.SegmentReaderPool()
+		encoderPool             = blOpts.EncoderPool()
+	)
+
 	var shardResult = result.NewShardResult(len(unmergedShard.series), s.opts.ResultOptions())
 	var numShardEmptyErrs int
 	var numErrs int
@@ -905,9 +910,10 @@ func (s *commitLogSource) mergeShard(
 			unmergedBlocks,
 			blocksPool,
 			multiReaderIteratorPool,
+			segmentReaderPool,
 			encoderPool,
 			blockSize,
-			blopts,
+			blOpts,
 		)
 
 		if seriesBlocks != nil && seriesBlocks.Len() > 0 {
@@ -938,6 +944,7 @@ func (s *commitLogSource) mergeSeries(
 	unmergedCommitlogBlocks metadataAndEncodersByTime,
 	blocksPool block.DatabaseBlockPool,
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
+	segmentReaderPool xio.SegmentReaderPool,
 	encoderPool encoding.EncoderPool,
 	blockSize time.Duration,
 	blopts block.Options,
@@ -965,7 +972,8 @@ func (s *commitLogSource) mergeSeries(
 
 		// TODO: Don't allocate each time
 		tmpCtx := context.NewContext()
-		readers, err := newIOReadersFromEncodersAndBlock(tmpCtx, encoders, snapshotBlock)
+		readers, err := newIOReadersFromEncodersAndBlock(
+			tmpCtx, segmentReaderPool, encoders, snapshotBlock)
 		if err != nil {
 			panic(err)
 		}
@@ -1433,7 +1441,7 @@ type encoders []encoder
 
 type ioReaders []xio.SegmentReader
 
-func newIOReadersFromEncodersAndBlock(ctx context.Context, e encoders, b block.DatabaseBlock) (ioReaders, error) {
+func newIOReadersFromEncodersAndBlock(ctx context.Context, segmentReaderPool xio.SegmentReaderPool, e encoders, b block.DatabaseBlock) (ioReaders, error) {
 	numReaders := len(e)
 	if b != nil {
 		numReaders++
@@ -1441,6 +1449,7 @@ func newIOReadersFromEncodersAndBlock(ctx context.Context, e encoders, b block.D
 
 	readers := make(ioReaders, 0, numReaders)
 	if b != nil {
+		// TODO: Implement block.Discard()
 		blockReader, err := b.Stream(ctx)
 		if err != nil {
 			return nil, err
@@ -1449,8 +1458,9 @@ func newIOReadersFromEncodersAndBlock(ctx context.Context, e encoders, b block.D
 	}
 
 	for _, encoder := range e {
-		// TODO: Switch to discard to avoid a copy, and then don't close encoders.
-		readers = append(readers, encoder.enc.Stream())
+		segmentReader := segmentReaderPool.Get()
+		segmentReader.Reset(encoder.enc.Discard())
+		readers = append(readers, segmentReader)
 	}
 
 	return readers, nil
