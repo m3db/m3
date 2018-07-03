@@ -58,7 +58,14 @@ type Namespaces interface {
 
 	// ReverseMatch reverse matches the matching policies for a given id in a given namespace
 	// between [fromNanos, toNanos), taking into account the metric type and aggregation type for the given id.
-	ReverseMatch(namespace, id []byte, fromNanos, toNanos int64, mt metric.Type, at aggregation.Type) rules.MatchResult
+	ReverseMatch(
+		namespace, id []byte,
+		fromNanos, toNanos int64,
+		mt metric.Type,
+		at aggregation.Type,
+		isMultiAggregationTypesAllowed bool,
+		aggTypesOpts aggregation.TypesOptions,
+	) rules.MatchResult
 
 	// Close closes the namespaces.
 	Close()
@@ -183,12 +190,14 @@ func (n *namespaces) ReverseMatch(
 	fromNanos, toNanos int64,
 	mt metric.Type,
 	at aggregation.Type,
+	isMultiAggregationTypesAllowed bool,
+	aggTypesOpts aggregation.TypesOptions,
 ) rules.MatchResult {
 	ruleSet, exists := n.ruleSet(namespace)
 	if !exists {
 		return rules.EmptyMatchResult
 	}
-	return ruleSet.ReverseMatch(id, fromNanos, toNanos, mt, at)
+	return ruleSet.ReverseMatch(id, fromNanos, toNanos, mt, at, isMultiAggregationTypesAllowed, aggTypesOpts)
 }
 
 func (n *namespaces) ruleSet(namespace []byte) (RuleSet, bool) {

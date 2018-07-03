@@ -80,6 +80,10 @@ type Options interface {
 	// MetricTypesFn returns the metric types function.
 	MetricTypesFn() MetricTypesFn
 
+	// SetMultiAggregationTypesEnabledFor sets the list of metric types that support
+	// multiple aggregation types.
+	SetMultiAggregationTypesEnabledFor(value []metric.Type) Options
+
 	// SetRequiredRollupTags sets the list of required rollup tags.
 	SetRequiredRollupTags(value []string) Options
 
@@ -118,6 +122,9 @@ type Options interface {
 	// given metric type.
 	IsAllowedStoragePolicyFor(t metric.Type, p policy.StoragePolicy) bool
 
+	// IsMultiAggregationTypesEnabledFor checks if a metric type supports multiple aggregation types.
+	IsMultiAggregationTypesEnabledFor(t metric.Type) bool
+
 	// IsAllowedFirstLevelAggregationTypeFor determines whether a given aggregation type is allowed
 	// as the first-level aggregation for the given metric type.
 	IsAllowedFirstLevelAggregationTypeFor(t metric.Type, aggType aggregation.Type) bool
@@ -139,6 +146,7 @@ type options struct {
 	defaultAllowedFirstLevelAggregationTypes    map[aggregation.Type]struct{}
 	defaultAllowedNonFirstLevelAggregationTypes map[aggregation.Type]struct{}
 	metricTypesFn                               MetricTypesFn
+	multiAggregationTypesEnableFor              map[metric.Type]struct{}
 	requiredRollupTags                          []string
 	maxTransformationDerivativeOrder            int
 	maxRollupLevels                             int
@@ -150,6 +158,7 @@ type options struct {
 // NewOptions create a new set of validator options.
 func NewOptions() Options {
 	return &options{
+		multiAggregationTypesEnableFor:   map[metric.Type]struct{}{metric.TimerType: struct{}{}},
 		maxTransformationDerivativeOrder: defaultMaxTransformationDerivativeOrder,
 		maxRollupLevels:                  defaultMaxRollupLevels,
 		namespaceValidator:               static.NewNamespaceValidator(static.Valid),
@@ -209,6 +218,11 @@ func (o *options) SetMetricTypesFn(value MetricTypesFn) Options {
 
 func (o *options) MetricTypesFn() MetricTypesFn {
 	return o.metricTypesFn
+}
+
+func (o *options) SetMultiAggregationTypesEnabledFor(value []metric.Type) Options {
+	o.multiAggregationTypesEnableFor = toMetricTypeSet(value)
+	return o
 }
 
 func (o *options) SetRequiredRollupTags(value []string) Options {
@@ -275,6 +289,11 @@ func (o *options) IsAllowedStoragePolicyFor(t metric.Type, p policy.StoragePolic
 	return found
 }
 
+func (o *options) IsMultiAggregationTypesEnabledFor(t metric.Type) bool {
+	_, exists := o.multiAggregationTypesEnableFor[t]
+	return exists
+}
+
 func (o *options) IsAllowedFirstLevelAggregationTypeFor(t metric.Type, aggType aggregation.Type) bool {
 	if metadata, exists := o.metadatasByType[t]; exists {
 		_, found := metadata.allowedFirstLevelAggTypes[aggType]
@@ -316,6 +335,14 @@ func toAggregationTypeSet(aggTypes aggregation.Types) map[aggregation.Type]struc
 	m := make(map[aggregation.Type]struct{}, len(aggTypes))
 	for _, t := range aggTypes {
 		m[t] = struct{}{}
+	}
+	return m
+}
+
+func toMetricTypeSet(metricTypes []metric.Type) map[metric.Type]struct{} {
+	m := make(map[metric.Type]struct{}, len(metricTypes))
+	for _, mt := range metricTypes {
+		m[mt] = struct{}{}
 	}
 	return m
 }

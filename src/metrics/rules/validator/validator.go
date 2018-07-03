@@ -31,8 +31,8 @@ import (
 	mpipeline "github.com/m3db/m3metrics/pipeline"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules"
-	"github.com/m3db/m3metrics/rules/view"
 	"github.com/m3db/m3metrics/rules/validator/namespace"
+	"github.com/m3db/m3metrics/rules/view"
 )
 
 var (
@@ -206,13 +206,20 @@ func (v *validator) validateAggregationID(
 	if err != nil {
 		return err
 	}
-	isAllowedFn := v.opts.IsAllowedFirstLevelAggregationTypeFor
+	if len(aggTypes) > 1 {
+		for _, t := range types {
+			if !v.opts.IsMultiAggregationTypesEnabledFor(t) {
+				return fmt.Errorf("metric type %v does not support multiple aggregation types %v", t, aggTypes)
+			}
+		}
+	}
+	isAllowedAggregationTypeForFn := v.opts.IsAllowedFirstLevelAggregationTypeFor
 	if aggregationType == nonFirstLevelAggregationType {
-		isAllowedFn = v.opts.IsAllowedNonFirstLevelAggregationTypeFor
+		isAllowedAggregationTypeForFn = v.opts.IsAllowedNonFirstLevelAggregationTypeFor
 	}
 	for _, t := range types {
 		for _, aggType := range aggTypes {
-			if !isAllowedFn(t, aggType) {
+			if !isAllowedAggregationTypeForFn(t, aggType) {
 				return fmt.Errorf("aggregation type %v is not allowed for metric type %v", aggType, t)
 			}
 		}

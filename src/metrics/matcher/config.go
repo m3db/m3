@@ -26,7 +26,6 @@ import (
 
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/matcher/cache"
 	"github.com/m3db/m3metrics/metric/id"
@@ -39,16 +38,15 @@ import (
 
 // Configuration is config used to create a Matcher.
 type Configuration struct {
-	InitWatchTimeout      time.Duration                  `yaml:"initWatchTimeout"`
-	RulesKVConfig         kv.OverrideConfiguration       `yaml:"rulesKVConfig"`
-	NamespacesKey         string                         `yaml:"namespacesKey" validate:"nonzero"`
-	RuleSetKeyFmt         string                         `yaml:"ruleSetKeyFmt" validate:"nonzero"`
-	NamespaceTag          string                         `yaml:"namespaceTag" validate:"nonzero"`
-	DefaultNamespace      string                         `yaml:"defaultNamespace" validate:"nonzero"`
-	NameTagKey            string                         `yaml:"nameTagKey" validate:"nonzero"`
-	MatchRangePast        *time.Duration                 `yaml:"matchRangePast"`
-	SortedTagIteratorPool pool.ObjectPoolConfiguration   `yaml:"sortedTagIteratorPool"`
-	AggregationTypes      aggregation.TypesConfiguration `yaml:"aggregationTypes"`
+	InitWatchTimeout      time.Duration                `yaml:"initWatchTimeout"`
+	RulesKVConfig         kv.OverrideConfiguration     `yaml:"rulesKVConfig"`
+	NamespacesKey         string                       `yaml:"namespacesKey" validate:"nonzero"`
+	RuleSetKeyFmt         string                       `yaml:"ruleSetKeyFmt" validate:"nonzero"`
+	NamespaceTag          string                       `yaml:"namespaceTag" validate:"nonzero"`
+	DefaultNamespace      string                       `yaml:"defaultNamespace" validate:"nonzero"`
+	NameTagKey            string                       `yaml:"nameTagKey" validate:"nonzero"`
+	MatchRangePast        *time.Duration               `yaml:"matchRangePast"`
+	SortedTagIteratorPool pool.ObjectPoolConfiguration `yaml:"sortedTagIteratorPool"`
 }
 
 // NewNamespaces creates a matcher.Namespaces.
@@ -120,15 +118,10 @@ func (cfg *Configuration) NewOptions(
 		return m3.IsRollupID(name, tags, sortedTagIteratorPool)
 	}
 
-	aggTypeOpts, err := cfg.AggregationTypes.NewOptions(instrumentOpts)
-	if err != nil {
-		return nil, err
-	}
 	ruleSetOpts := rules.NewOptions().
 		SetTagsFilterOptions(tagsFilterOptions).
 		SetNewRollupIDFn(m3.NewRollupID).
-		SetIsRollupIDFn(isRollupIDFn).
-		SetAggregationTypesOptions(aggTypeOpts)
+		SetIsRollupIDFn(isRollupIDFn)
 
 	// Configure ruleset key function.
 	ruleSetKeyFn := func(namespace []byte) string {

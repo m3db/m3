@@ -57,7 +57,6 @@ func TestActiveRuleSetCutoverTimesWithMappingRules(t *testing.T) {
 		testTagsFilterOptions(),
 		mockNewID,
 		nil,
-		aggregation.NewTypesOptions(),
 	)
 	expectedCutovers := []int64{5000, 8000, 10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 100000}
 	require.Equal(t, expectedCutovers, as.cutoverTimesAsc)
@@ -71,7 +70,6 @@ func TestActiveRuleSetCutoverTimesWithRollupRules(t *testing.T) {
 		testTagsFilterOptions(),
 		mockNewID,
 		nil,
-		aggregation.NewTypesOptions(),
 	)
 	expectedCutovers := []int64{10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 38000, 90000, 100000, 120000}
 	require.Equal(t, expectedCutovers, as.cutoverTimesAsc)
@@ -85,7 +83,6 @@ func TestActiveRuleSetCutoverTimesWithMappingRulesAndRollupRules(t *testing.T) {
 		testTagsFilterOptions(),
 		mockNewID,
 		nil,
-		aggregation.NewTypesOptions(),
 	)
 	expectedCutovers := []int64{5000, 8000, 10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 38000, 90000, 100000, 120000}
 	require.Equal(t, expectedCutovers, as.cutoverTimesAsc)
@@ -496,7 +493,6 @@ func TestActiveRuleSetForwardMatchWithMappingRules(t *testing.T) {
 		testTagsFilterOptions(),
 		mockNewID,
 		nil,
-		aggregation.NewTypesOptions(),
 	)
 	for _, input := range inputs {
 		res := as.ForwardMatch(b(input.id), input.matchFrom, input.matchTo)
@@ -1265,7 +1261,6 @@ func TestActiveRuleSetForwardMatchWithRollupRules(t *testing.T) {
 		testTagsFilterOptions(),
 		mockNewID,
 		nil,
-		aggregation.NewTypesOptions(),
 	)
 	for _, input := range inputs {
 		res := as.ForwardMatch(b(input.id), input.matchFrom, input.matchTo)
@@ -2332,7 +2327,6 @@ func TestActiveRuleSetForwardMatchWithMappingRulesAndRollupRules(t *testing.T) {
 		testTagsFilterOptions(),
 		mockNewID,
 		nil,
-		aggregation.NewTypesOptions(),
 	)
 	for _, input := range inputs {
 		res := as.ForwardMatch(b(input.id), input.matchFrom, input.matchTo)
@@ -2746,6 +2740,8 @@ func TestActiveRuleSetReverseMatchWithMappingRulesForNonRollupID(t *testing.T) {
 		},
 	}
 
+	isMultiAggregationTypesAllowed := true
+	aggTypesOpts := aggregation.NewTypesOptions()
 	as := newActiveRuleSet(
 		0,
 		testMappingRules(t),
@@ -2753,10 +2749,9 @@ func TestActiveRuleSetReverseMatchWithMappingRulesForNonRollupID(t *testing.T) {
 		testTagsFilterOptions(),
 		mockNewID,
 		func([]byte, []byte) bool { return false },
-		aggregation.NewTypesOptions(),
 	)
 	for _, input := range inputs {
-		res := as.ReverseMatch(b(input.id), input.matchFrom, input.matchTo, input.metricType, input.aggregationType)
+		res := as.ReverseMatch(b(input.id), input.matchFrom, input.matchTo, input.metricType, input.aggregationType, isMultiAggregationTypesAllowed, aggTypesOpts)
 		require.Equal(t, input.expireAtNanos, res.expireAtNanos)
 		require.True(t, cmp.Equal(input.forExistingIDResult, res.ForExistingIDAt(0), testStagedMetadatasCmptOpts...))
 	}
@@ -2946,6 +2941,8 @@ func TestActiveRuleSetReverseMatchWithRollupRulesForRollupID(t *testing.T) {
 		},
 	}
 
+	isMultiAggregationTypesAllowed := true
+	aggTypesOpts := aggregation.NewTypesOptions()
 	as := newActiveRuleSet(
 		0,
 		nil,
@@ -2953,10 +2950,9 @@ func TestActiveRuleSetReverseMatchWithRollupRulesForRollupID(t *testing.T) {
 		testTagsFilterOptions(),
 		mockNewID,
 		func([]byte, []byte) bool { return true },
-		aggregation.NewTypesOptions(),
 	)
 	for _, input := range inputs {
-		res := as.ReverseMatch(b(input.id), input.matchFrom, input.matchTo, input.metricType, input.aggregationType)
+		res := as.ReverseMatch(b(input.id), input.matchFrom, input.matchTo, input.metricType, input.aggregationType, isMultiAggregationTypesAllowed, aggTypesOpts)
 		require.Equal(t, input.expireAtNanos, res.expireAtNanos)
 		require.Equal(t, input.forExistingIDResult, res.ForExistingIDAt(0))
 		require.Equal(t, 0, res.NumNewRollupIDs())

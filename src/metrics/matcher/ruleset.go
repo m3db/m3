@@ -167,6 +167,8 @@ func (r *ruleSet) ReverseMatch(
 	fromNanos, toNanos int64,
 	mt metric.Type,
 	at aggregation.Type,
+	isMultiAggregationTypesAllowed bool,
+	aggTypesOpts aggregation.TypesOptions,
 ) rules.MatchResult {
 	callStart := r.nowFn()
 	r.RLock()
@@ -175,7 +177,7 @@ func (r *ruleSet) ReverseMatch(
 		r.metrics.nilMatcher.Inc(1)
 		return rules.EmptyMatchResult
 	}
-	res := r.matcher.ReverseMatch(id, fromNanos, toNanos, mt, at)
+	res := r.matcher.ReverseMatch(id, fromNanos, toNanos, mt, at, isMultiAggregationTypesAllowed, aggTypesOpts)
 	r.RUnlock()
 	r.metrics.match.ReportSuccess(r.nowFn().Sub(callStart))
 	return res
