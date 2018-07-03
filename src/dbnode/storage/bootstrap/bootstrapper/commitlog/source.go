@@ -274,7 +274,6 @@ func (s *commitLogSource) ReadData(
 	bootstrapResult := s.mergeShards(
 		int(numShards), blockSize, snapshotShardResults, shardDataByShard)
 
-	// TODO: Need to fix caching logic to handle the snapshot files
 	// After merging shards, its safe to cache the shardData (which involves some mutation).
 	if s.shouldCacheSeriesMetadata(runOpts, ns) {
 		s.cacheShardData(ns, shardDataByShard)
