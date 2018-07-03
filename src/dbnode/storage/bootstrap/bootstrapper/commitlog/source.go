@@ -144,12 +144,10 @@ func (s *commitLogSource) ReadData(
 		filePathPrefix       = fsOpts.FilePathPrefix()
 	)
 
-	for shard := range shardsTimeRanges {
-		snapshotFiles, err := s.snapshotFilesFn(filePathPrefix, ns.ID(), shard)
-		if err != nil {
-			return nil, err
-		}
-		snapshotFilesByShard[shard] = snapshotFiles
+	snapshotFilesByShard, err := s.snapshotFilesByShard(
+		ns.ID(), filePathPrefix, shardsTimeRanges)
+	if err != nil {
+		return nil, err
 	}
 
 	var (
@@ -159,7 +157,6 @@ func (s *commitLogSource) ReadData(
 		blocksPool           = blOpts.DatabaseBlockPool()
 		blockSize            = ns.Options().RetentionOptions().BlockSize()
 		snapshotShardResults map[uint32]result.ShardResult
-		err                  error
 	)
 
 	// Start off by bootstrapping the most recent and complete snapshot file for each
@@ -319,19 +316,12 @@ func (s *commitLogSource) ReadData(
 	var (
 		// +1 so we can use the shard number as an index throughout without constantly
 		// remembering to subtract 1 to convert to zero-based indexing
-		numShards   = s.findHighestShard(shardsTimeRanges) + 1
-		numConc     = s.opts.EncodingConcurrency()
-		encoderPool = blOpts.EncoderPool()
-		workerErrs  = make([]int, numConc)
+		numShards        = s.findHighestShard(shardsTimeRanges) + 1
+		numConc          = s.opts.EncodingConcurrency()
+		encoderPool      = blOpts.EncoderPool()
+		workerErrs       = make([]int, numConc)
+		shardDataByShard = s.newShardDataByShard(shardsTimeRanges, numShards)
 	)
-
-	shardDataByShard := make([]shardData, numShards)
-	for shard := range shardsTimeRanges {
-		shardDataByShard[shard] = shardData{
-			series: make(map[uint64]metadataAndEncodersByTime),
-			ranges: shardsTimeRanges[shard],
-		}
-	}
 
 	encoderChans := make([]chan encoderArg, numConc)
 	for i := 0; i < numConc; i++ {
@@ -392,6 +382,38 @@ func (s *commitLogSource) ReadData(
 	}
 
 	return bootstrapResult, nil
+}
+
+func (s *commitLogSource) snapshotFilesByShard(
+	nsID ident.ID,
+	filePathPrefix string,
+	shardsTimeRanges result.ShardTimeRanges,
+) (map[uint32]fs.FileSetFilesSlice, error) {
+	snapshotFilesByShard := map[uint32]fs.FileSetFilesSlice{}
+	for shard := range shardsTimeRanges {
+		snapshotFiles, err := s.snapshotFilesFn(filePathPrefix, nsID, shard)
+		if err != nil {
+			return nil, err
+		}
+		snapshotFilesByShard[shard] = snapshotFiles
+	}
+
+	return snapshotFilesByShard, nil
+}
+
+func (s *commitLogSource) newShardDataByShard(
+	shardsTimeRanges result.ShardTimeRanges,
+	numShards uint32,
+) []shardData {
+	shardDataByShard := make([]shardData, numShards)
+	for shard := range shardsTimeRanges {
+		shardDataByShard[shard] = shardData{
+			series: make(map[uint64]metadataAndEncodersByTime),
+			ranges: shardsTimeRanges[shard],
+		}
+	}
+
+	return shardDataByShard
 }
 
 func (s *commitLogSource) mostRecentCompleteSnapshotTimeByBlockShard(
@@ -1175,30 +1197,28 @@ func (s *commitLogSource) ReadIndex(
 	}
 
 	var (
-		indexResult          = result.NewIndexBootstrapResult()
-		indexResults         = indexResult.IndexResults()
-		indexOptions         = ns.Options().IndexOptions()
-		indexBlockSize       = indexOptions.BlockSize()
-		resultOptions        = s.opts.ResultOptions()
-		blOpts               = resultOptions.DatabaseBlockOptions()
-		bytesPool            = blOpts.BytesPool()
-		blocksPool           = blOpts.DatabaseBlockPool()
-		blockSize            = ns.Options().RetentionOptions().BlockSize()
-		snapshotFilesByShard = map[uint32]fs.FileSetFilesSlice{}
-		fsOpts               = s.opts.CommitLogOptions().FilesystemOptions()
-		filePathPrefix       = fsOpts.FilePathPrefix()
+		indexResult    = result.NewIndexBootstrapResult()
+		indexResults   = indexResult.IndexResults()
+		indexOptions   = ns.Options().IndexOptions()
+		indexBlockSize = indexOptions.BlockSize()
+		resultOptions  = s.opts.ResultOptions()
+		blOpts         = resultOptions.DatabaseBlockOptions()
+		bytesPool      = blOpts.BytesPool()
+		blocksPool     = blOpts.DatabaseBlockPool()
+		blockSize      = ns.Options().RetentionOptions().BlockSize()
+		fsOpts         = s.opts.CommitLogOptions().FilesystemOptions()
+		filePathPrefix = fsOpts.FilePathPrefix()
 	)
 
-	// TODO: Share with other code
-	for shard := range shardsTimeRanges {
-		snapshotFiles, err := s.snapshotFilesFn(filePathPrefix, ns.ID(), shard)
-		if err != nil {
-			return nil, err
-		}
-		snapshotFilesByShard[shard] = snapshotFiles
+	snapshotFilesByShard, err := s.snapshotFilesByShard(
+		ns.ID(), filePathPrefix, shardsTimeRanges)
+	if err != nil {
+		return nil, err
 	}
 
-	snapshotShardResults, err := s.bootstrapAvailableSnapshotFiles(ns.ID(), shardsTimeRanges, blockSize, snapshotFilesByShard, fsOpts, bytesPool, blocksPool)
+	snapshotShardResults, err := s.bootstrapAvailableSnapshotFiles(
+		ns.ID(), shardsTimeRanges, blockSize, snapshotFilesByShard,
+		fsOpts, bytesPool, blocksPool)
 	if err != nil {
 		return nil, err
 	}
