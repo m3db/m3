@@ -10,6 +10,7 @@ message Topic {
 message ConsumerService {
   ServiceID service_id = 1;
   ConsumptionType consumption_type = 2;
+  int64 message_ttl_nanos = 3;
 }
 
 message ServiceID {

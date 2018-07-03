@@ -32,18 +32,19 @@ import (
 )
 
 const (
-	defaultDialTimeout                       = 10 * time.Second
-	defaultWriteTimeout                      = 5 * time.Second
-	defaultKeepAlivePeriod                   = time.Minute
 	defaultPlacementWatchInitTimeout         = 2 * time.Second
 	defaultTopicWatchInitTimeout             = 2 * time.Second
 	defaultCloseCheckInterval                = time.Second
-	defaultConnectionResetDelay              = 2 * time.Second
 	defaultMessageQueueNewWritesScanInterval = 200 * time.Millisecond
 	defaultMessageQueueFullScanInterval      = 5 * time.Second
 	defaultMessageQueueScanBatchSize         = 16
 	defaultInitialAckMapSize                 = 1024
-	defaultConnectionFlushInterval           = time.Second
+
+	defaultConnectionDialTimeout     = 10 * time.Second
+	defaultConnectionWriteTimeout    = time.Second
+	defaultConnectionKeepAlivePeriod = time.Minute
+	defaultConnectionResetDelay      = 2 * time.Second
+	defaultConnectionFlushInterval   = time.Second
 	// Using 16K which provides much better performance comparing
 	// to lower values like 1k ~ 8k.
 	defaultConnectionBufferSize = 16384
@@ -121,9 +122,9 @@ type connectionOptions struct {
 // NewConnectionOptions creates ConnectionOptions.
 func NewConnectionOptions() ConnectionOptions {
 	return &connectionOptions{
-		dialTimeout:     defaultDialTimeout,
-		writeTimeout:    defaultWriteTimeout,
-		keepAlivePeriod: defaultKeepAlivePeriod,
+		dialTimeout:     defaultConnectionDialTimeout,
+		writeTimeout:    defaultConnectionWriteTimeout,
+		keepAlivePeriod: defaultConnectionKeepAlivePeriod,
 		resetDelay:      defaultConnectionResetDelay,
 		rOpts:           retry.NewOptions(),
 		flushInterval:   defaultConnectionFlushInterval,

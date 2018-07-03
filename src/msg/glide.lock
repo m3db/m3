@@ -1,5 +1,5 @@
-hash: ad49256c7523c990892d0deeffafdad7340d6537973410a37b8840fea8d2d519
-updated: 2018-06-19T10:38:09.058936-04:00
+hash: 162187b91d0d35f8e950cff7bc8fb398d6d77f5231a82fbd6cdbd2ad55da1156
+updated: 2018-07-02T16:55:32.346834-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -37,7 +37,7 @@ imports:
   - cmp/internal/function
   - cmp/internal/value
 - name: github.com/m3db/m3cluster
-  version: 932643c994584dc8830cdc6434fd5545768d9f29
+  version: d971450316604c151719f53afbb95539e6dbafbb
   subpackages:
   - client
   - generated/proto/metadatapb

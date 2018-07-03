@@ -67,6 +67,14 @@ func (_mr *_MockshardWriterRecorder) UpdateInstances(arg0, arg1 interface{}) *go
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "UpdateInstances", arg0, arg1)
 }
 
+func (_m *MockshardWriter) SetMessageTTLNanos(value int64) {
+	_m.ctrl.Call(_m, "SetMessageTTLNanos", value)
+}
+
+func (_mr *_MockshardWriterRecorder) SetMessageTTLNanos(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetMessageTTLNanos", arg0)
+}
+
 func (_m *MockshardWriter) Close() {
 	_m.ctrl.Call(_m, "Close")
 }

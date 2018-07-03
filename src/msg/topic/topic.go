@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/services"
@@ -117,7 +118,7 @@ func (t *topic) SetVersion(value int) Topic {
 func (t *topic) AddConsumerService(value ConsumerService) (Topic, error) {
 	cur := t.ConsumerServices()
 	for _, cs := range cur {
-		if cs.ServiceID().String() == value.ServiceID().String() {
+		if cs.ServiceID().Equal(value.ServiceID()) {
 			return nil, fmt.Errorf("service %s is already consuming the topic", value.ServiceID().String())
 		}
 	}
@@ -128,12 +129,27 @@ func (t *topic) AddConsumerService(value ConsumerService) (Topic, error) {
 func (t *topic) RemoveConsumerService(value services.ServiceID) (Topic, error) {
 	cur := t.ConsumerServices()
 	for i, cs := range cur {
-		if cs.ServiceID().String() == value.String() {
+		if cs.ServiceID().Equal(value) {
 			cur = append(cur[:i], cur[i+1:]...)
 			return t.SetConsumerServices(cur), nil
 		}
 	}
 
+	return nil, fmt.Errorf("could not find consumer service %s in the topic", value.String())
+}
+
+func (t *topic) UpdateConsumerService(value ConsumerService) (Topic, error) {
+	css := t.ConsumerServices()
+	for i, cs := range css {
+		if !cs.ServiceID().Equal(value.ServiceID()) {
+			continue
+		}
+		if value.ConsumptionType() != cs.ConsumptionType() {
+			return nil, fmt.Errorf("could not change consumption type for consumer service %s", value.ServiceID().String())
+		}
+		css[i] = value
+		return t.SetConsumerServices(css), nil
+	}
 	return nil, fmt.Errorf("could not find consumer service %s in the topic", value.String())
 }
 
@@ -193,8 +209,9 @@ func ToProto(t Topic) (*topicpb.Topic, error) {
 }
 
 type consumerService struct {
-	sid services.ServiceID
-	ct  ConsumptionType
+	sid      services.ServiceID
+	ct       ConsumptionType
+	ttlNanos int64
 }
 
 // NewConsumerService creates a ConsumerService.
@@ -210,7 +227,8 @@ func NewConsumerServiceFromProto(cs *topicpb.ConsumerService) (ConsumerService, 
 	}
 	return NewConsumerService().
 		SetServiceID(NewServiceIDFromProto(cs.ServiceId)).
-		SetConsumptionType(ct), nil
+		SetConsumptionType(ct).
+		SetMessageTTLNanos(cs.MessageTtlNanos), nil
 }
 
 // ConsumerServiceToProto creates proto from a ConsumerService.
@@ -222,6 +240,7 @@ func ConsumerServiceToProto(cs ConsumerService) (*topicpb.ConsumerService, error
 	return &topicpb.ConsumerService{
 		ConsumptionType: ct,
 		ServiceId:       ServiceIDToProto(cs.ServiceID()),
+		MessageTtlNanos: cs.MessageTTLNanos(),
 	}, nil
 }
 
@@ -245,8 +264,25 @@ func (cs *consumerService) SetConsumptionType(value ConsumptionType) ConsumerSer
 	return &newcs
 }
 
+func (cs *consumerService) MessageTTLNanos() int64 {
+	return cs.ttlNanos
+}
+
+func (cs *consumerService) SetMessageTTLNanos(value int64) ConsumerService {
+	newcs := *cs
+	newcs.ttlNanos = value
+	return &newcs
+}
+
 func (cs *consumerService) String() string {
-	return fmt.Sprintf("{service: %s, consumption type: %s}", cs.sid.String(), cs.ct.String())
+	var buf bytes.Buffer
+	buf.WriteString("{")
+	buf.WriteString(fmt.Sprintf("service: %s, consumption type: %s", cs.sid.String(), cs.ct.String()))
+	if cs.ttlNanos != 0 {
+		buf.WriteString(fmt.Sprintf(", ttl: %v", time.Duration(cs.ttlNanos)))
+	}
+	buf.WriteString("}")
+	return buf.String()
 }
 
 // NewServiceIDFromProto creates service id from a proto.

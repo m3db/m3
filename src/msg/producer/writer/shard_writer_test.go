@@ -377,6 +377,10 @@ func TestReplicatedShardWriterUpdate(t *testing.T) {
 	require.Equal(t, 801, int(mw1.CutoffNanos()))
 	require.Equal(t, 401, int(mw1.CutoverNanos()))
 	require.NotNil(t, sw.messageWriters[i2.Endpoint()])
+	require.Equal(t, 0, int(mw1.MessageTTLNanos()))
+
+	sw.SetMessageTTLNanos(500)
+	require.Equal(t, 500, int(mw1.MessageTTLNanos()))
 
 	sw.UpdateInstances([]placement.Instance{i2, i3}, cws)
 	require.Equal(t, 2, int(sw.replicaID))
@@ -392,11 +396,14 @@ func TestReplicatedShardWriterUpdate(t *testing.T) {
 	m[mw2.ReplicatedShardID()] = 1
 	m[mw3.ReplicatedShardID()] = 1
 	require.Equal(t, map[uint64]int{1: 1, 201: 1}, m)
+	require.Equal(t, 500, int(mw2.MessageTTLNanos()))
+	require.Equal(t, 500, int(mw3.MessageTTLNanos()))
 
 	sw.UpdateInstances([]placement.Instance{i3}, cws)
 	require.Equal(t, 2, int(sw.replicaID))
 	require.Equal(t, 1, len(sw.messageWriters))
 	require.NotNil(t, sw.messageWriters[i3.Endpoint()])
+	require.Equal(t, 500, int(mw3.MessageTTLNanos()))
 	for {
 		mw2.(*messageWriterImpl).RLock()
 		isClosed := mw2.(*messageWriterImpl).isClosed
@@ -407,6 +414,8 @@ func TestReplicatedShardWriterUpdate(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
+	sw.SetMessageTTLNanos(800)
+	require.Equal(t, 800, int(mw3.MessageTTLNanos()))
 	sw.UpdateInstances([]placement.Instance{i1, i2, i3}, cws)
 	require.Equal(t, 4, int(sw.replicaID))
 	require.Equal(t, 3, len(sw.messageWriters))
@@ -424,6 +433,9 @@ func TestReplicatedShardWriterUpdate(t *testing.T) {
 	m[newmw2.ReplicatedShardID()] = 1
 	m[newmw3.ReplicatedShardID()] = 1
 	require.Equal(t, map[uint64]int{601: 1, 401: 1, mw3.ReplicatedShardID(): 1}, m)
+	require.Equal(t, 800, int(newmw1.MessageTTLNanos()))
+	require.Equal(t, 800, int(newmw2.MessageTTLNanos()))
+	require.Equal(t, 800, int(newmw3.MessageTTLNanos()))
 
 	sw.UpdateInstances([]placement.Instance{i2, i4}, cws)
 	require.Equal(t, 4, int(sw.replicaID))

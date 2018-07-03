@@ -62,10 +62,10 @@ func TestOptions(t *testing.T) {
 func TestConnectionOptions(t *testing.T) {
 	opts := NewConnectionOptions()
 
-	require.Equal(t, defaultDialTimeout, opts.DialTimeout())
+	require.Equal(t, defaultConnectionDialTimeout, opts.DialTimeout())
 	require.Equal(t, time.Second, opts.SetDialTimeout(time.Second).DialTimeout())
 
-	require.Equal(t, defaultWriteTimeout, opts.WriteTimeout())
+	require.Equal(t, defaultConnectionWriteTimeout, opts.WriteTimeout())
 	require.Equal(t, time.Second, opts.SetWriteTimeout(time.Second).WriteTimeout())
 
 	require.Equal(t, defaultConnectionResetDelay, opts.ResetDelay())

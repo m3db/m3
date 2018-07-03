@@ -45,7 +45,7 @@ type messageWriter interface {
 	Write(rm *producer.RefCountedMessage)
 
 	// Ack acknowledges the metadata.
-	Ack(meta metadata)
+	Ack(meta metadata) bool
 
 	// Init initialize the message writer.
 	Init()
@@ -75,25 +75,32 @@ type messageWriter interface {
 	// SetCutoffNanos sets the cutoff nanoseconds.
 	SetCutoffNanos(nanos int64)
 
+	// MessageTTLNanos returns the message ttl nanoseconds.
+	MessageTTLNanos() int64
+
+	// SetMessageTTLNanos sets the message ttl nanoseconds.
+	SetMessageTTLNanos(nanos int64)
+
 	// QueueSize returns the number of messages queued in the writer.
 	QueueSize() int
 }
 
 type messageWriterMetrics struct {
-	writeSuccess           tally.Counter
-	oneConsumerWriteError  tally.Counter
-	allConsumersWriteError tally.Counter
-	noWritersError         tally.Counter
-	writeAfterCutoff       tally.Counter
-	writeBeforeCutover     tally.Counter
-	messageAcked           tally.Counter
-	messageClosed          tally.Counter
-	messageDropped         tally.Counter
-	messageRetry           tally.Counter
-	messageConsumeLatency  tally.Timer
-	messageWriteDelay      tally.Timer
-	scanBatchLatency       tally.Timer
-	scanTotalLatency       tally.Timer
+	writeSuccess             tally.Counter
+	oneConsumerWriteError    tally.Counter
+	allConsumersWriteError   tally.Counter
+	noWritersError           tally.Counter
+	writeAfterCutoff         tally.Counter
+	writeBeforeCutover       tally.Counter
+	messageAcked             tally.Counter
+	messageClosed            tally.Counter
+	messageDroppedBufferFull tally.Counter
+	messageDroppedTTLExpire  tally.Counter
+	messageRetry             tally.Counter
+	messageConsumeLatency    tally.Timer
+	messageWriteDelay        tally.Timer
+	scanBatchLatency         tally.Timer
+	scanTotalLatency         tally.Timer
 }
 
 func newMessageWriterMetrics(
@@ -115,9 +122,14 @@ func newMessageWriterMetrics(
 		writeBeforeCutover: scope.
 			Tagged(map[string]string{"reason": "before-cutover"}).
 			Counter("invalid-write"),
-		messageAcked:          scope.Counter("message-acked"),
-		messageClosed:         scope.Counter("message-closed"),
-		messageDropped:        scope.Counter("message-dropped"),
+		messageAcked:  scope.Counter("message-acked"),
+		messageClosed: scope.Counter("message-closed"),
+		messageDroppedBufferFull: scope.Tagged(
+			map[string]string{"reason": "buffer-full"},
+		).Counter("message-dropped"),
+		messageDroppedTTLExpire: scope.Tagged(
+			map[string]string{"reason": "ttl-expire"},
+		).Counter("message-dropped"),
 		messageRetry:          scope.Counter("message-retry"),
 		messageConsumeLatency: instrument.MustCreateSampledTimer(scope.Timer("message-consume-latency"), samplingRate),
 		messageWriteDelay:     instrument.MustCreateSampledTimer(scope.Timer("message-write-delay"), samplingRate),
@@ -142,6 +154,7 @@ type messageWriterImpl struct {
 	acks             *acks
 	cutOffNanos      int64
 	cutOverNanos     int64
+	messageTTLNanos  int64
 	msgsToWrite      []*message
 	isClosed         bool
 	doneCh           chan struct{}
@@ -170,7 +183,7 @@ func newMessageWriter(
 		r:                 rand.New(rand.NewSource(nowFn().UnixNano())),
 		msgID:             0,
 		queue:             list.New(),
-		acks:              newAckHelper(opts.InitialAckMapSize(), m, nowFn),
+		acks:              newAckHelper(opts.InitialAckMapSize()),
 		cutOffNanos:       0,
 		cutOverNanos:      0,
 		msgsToWrite:       make([]*message, 0, opts.MessageQueueScanBatchSize()),
@@ -268,8 +281,14 @@ func (w *messageWriterImpl) nextRetryNanos(writeTimes int, nowNanos int64) int64
 	return nowNanos + backoff
 }
 
-func (w *messageWriterImpl) Ack(meta metadata) {
-	w.acks.ack(meta)
+func (w *messageWriterImpl) Ack(meta metadata) bool {
+	acked, initNanos := w.acks.ack(meta)
+	if acked {
+		w.m.messageConsumeLatency.Record(time.Duration(w.nowFn().UnixNano() - initNanos))
+		w.m.messageAcked.Inc(1)
+		return true
+	}
+	return false
 }
 
 func (w *messageWriterImpl) Init() {
@@ -313,6 +332,7 @@ func (w *messageWriterImpl) scanMessageQueue() {
 		consumerWriters  []consumerWriter
 		iterationIndexes []int
 		fullScan         = isClosed || beforeScan.After(w.nextFullScan)
+		skipWrites       bool
 	)
 	for e != nil {
 		beforeBatch := w.nowFn()
@@ -322,18 +342,22 @@ func (w *messageWriterImpl) scanMessageQueue() {
 		consumerWriters = w.consumerWriters
 		iterationIndexes = w.iterationIndexes
 		w.Unlock()
-		err := w.writeBatch(iterationIndexes, consumerWriters, msgsToWrite)
-		w.m.scanBatchLatency.Record(w.nowFn().Sub(beforeBatch))
-		if err != nil {
-			// When we can't write to any consumer writer, skip the tick
-			// to avoid meaningless attempts, wait for next tick to retry.
-			break
-		}
 		if !fullScan && len(msgsToWrite) == 0 {
+			w.m.scanBatchLatency.Record(w.nowFn().Sub(beforeBatch))
 			// If this is not a full scan, abort after the iteration batch
 			// that no new messages were found.
 			break
 		}
+		if skipWrites {
+			w.m.scanBatchLatency.Record(w.nowFn().Sub(beforeBatch))
+			continue
+		}
+		if err := w.writeBatch(iterationIndexes, consumerWriters, msgsToWrite); err != nil {
+			// When we can't write to any consumer writer, skip the writes in this scan
+			// to avoid meaningless attempts but continue to clean up the queue.
+			skipWrites = true
+		}
+		w.m.scanBatchLatency.Record(w.nowFn().Sub(beforeBatch))
 	}
 	afterScan := w.nowFn()
 	w.m.scanTotalLatency.Record(afterScan.Sub(beforeScan))
@@ -389,7 +413,7 @@ func (w *messageWriterImpl) scanBatchWithLock(
 			// So that the unacked messages for the unhealthy consumer services
 			// do not stay in memory forever.
 			// NB: The message must be added to the ack map to be acked here.
-			w.Ack(m.Metadata())
+			w.acks.ack(m.Metadata())
 			w.removeFromQueueWithLock(e, m)
 			w.m.messageClosed.Inc(1)
 			continue
@@ -402,9 +426,19 @@ func (w *messageWriterImpl) scanBatchWithLock(
 			}
 			continue
 		}
+		// If the message exceeded its allowed ttl of the consumer service,
+		// remove it from the buffer.
+		if w.messageTTLNanos > 0 && m.InitNanos()+w.messageTTLNanos <= nowNanos {
+			// There is a chance the message was acked right before the ack is
+			// called, in which case just remove it from the queue.
+			if acked, _ := w.acks.ack(m.Metadata()); acked {
+				w.m.messageDroppedTTLExpire.Inc(1)
+			}
+			w.removeFromQueueWithLock(e, m)
+			continue
+		}
 		if m.IsAcked() {
 			w.removeFromQueueWithLock(e, m)
-			w.m.messageAcked.Inc(1)
 			continue
 		}
 		if m.IsDroppedOrConsumed() {
@@ -417,7 +451,7 @@ func (w *messageWriterImpl) scanBatchWithLock(
 			}
 			w.acks.remove(m.Metadata())
 			w.removeFromQueueWithLock(e, m)
-			w.m.messageDropped.Inc(1)
+			w.m.messageDroppedBufferFull.Inc(1)
 			continue
 		}
 		m.IncWriteTimes()
@@ -498,6 +532,19 @@ func (w *messageWriterImpl) SetCutoverNanos(nanos int64) {
 	w.Unlock()
 }
 
+func (w *messageWriterImpl) MessageTTLNanos() int64 {
+	w.RLock()
+	res := w.messageTTLNanos
+	w.RUnlock()
+	return res
+}
+
+func (w *messageWriterImpl) SetMessageTTLNanos(nanos int64) {
+	w.Lock()
+	w.messageTTLNanos = nanos
+	w.Unlock()
+}
+
 func (w *messageWriterImpl) AddConsumerWriter(cw consumerWriter) {
 	w.Lock()
 	newConsumerWriters := make([]consumerWriter, 0, len(w.consumerWriters)+1)
@@ -557,17 +604,12 @@ type acks struct {
 	sync.Mutex
 
 	ackMap map[metadata]*message
-	m      messageWriterMetrics
-
-	nowFn clock.NowFn
 }
 
 // nolint: unparam
-func newAckHelper(size int, m messageWriterMetrics, nowFn clock.NowFn) *acks {
+func newAckHelper(size int) *acks {
 	return &acks{
 		ackMap: make(map[metadata]*message, size),
-		m:      m,
-		nowFn:  nowFn,
 	}
 }
 
@@ -583,18 +625,19 @@ func (a *acks) remove(meta metadata) {
 	a.Unlock()
 }
 
-func (a *acks) ack(meta metadata) {
+func (a *acks) ack(meta metadata) (bool, int64) {
 	a.Lock()
 	m, ok := a.ackMap[meta]
 	if !ok {
 		a.Unlock()
 		// Acking a message that is already acked, which is ok.
-		return
+		return false, 0
 	}
 	delete(a.ackMap, meta)
 	a.Unlock()
-	a.m.messageConsumeLatency.Record(time.Duration(a.nowFn().UnixNano() - m.InitNanos()))
+	initNanos := m.InitNanos()
 	m.Ack()
+	return true, initNanos
 }
 
 func (a *acks) size() int {
