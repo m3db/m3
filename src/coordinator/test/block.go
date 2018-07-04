@@ -25,6 +25,7 @@ import (
 	"github.com/m3db/m3db/src/coordinator/executor/transform"
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/parser"
+	"time"
 )
 
 // NewBlockFromValues creates a new block using the provide values
@@ -82,3 +83,29 @@ func (s *SinkNode) Process(ID parser.NodeID, block block.Block) error {
 
 	return nil
 }
+
+// GenerateValuesAndBounds generates a list of sample values and bounds while allowing overrides
+func GenerateValuesAndBounds(vals [][]float64, b *block.Bounds) ([][]float64, block.Bounds) {
+	values := vals
+	if values == nil {
+		values = [][]float64{
+			{0, 1, 2, 3, 4},
+			{5, 6, 7, 8, 9},
+		}
+	}
+
+	var bounds block.Bounds
+	if b == nil {
+		now := time.Now()
+		bounds = block.Bounds{
+			Start: now,
+			End: now.Add(time.Minute * 5),
+			StepSize: time.Minute,
+		}
+	} else {
+		bounds = *b
+	}
+
+	return values, bounds
+}
+

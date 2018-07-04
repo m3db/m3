@@ -18,10 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package logical
+package functions
 
 import (
-	"math"
 	"testing"
 
 	"github.com/m3db/m3db/src/coordinator/parser"
@@ -29,47 +28,21 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3db/src/coordinator/storage/mock"
+	"github.com/m3db/m3db/src/coordinator/block"
+	"github.com/m3db/m3db/src/coordinator/executor/transform"
+	"context"
 )
 
-func TestAndWithExactValues(t *testing.T) {
+func TestFetch(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	block1 := test.NewBlockFromValues(bounds, values)
-	block2 := test.NewBlockFromValues(bounds, values)
-
-	op := NewAndOp(parser.NodeID(0), parser.NodeID(1), &VectorMatching{})
-	c, sink := test.NewControllerWithSink(parser.NodeID(2))
-	node := op.Node(c)
-
-	err := node.Process(parser.NodeID(1), block2)
+	b := test.NewBlockFromValues(bounds, values)
+	c, sink := test.NewControllerWithSink(parser.NodeID(1))
+	mockStorage := mock.NewMockStorageWithBlocks([]block.Block{b})
+	source := (&FetchOp{}).Node(c, mockStorage, transform.Options{})
+	err := source.Execute(context.TODO())
 	require.NoError(t, err)
-	err = node.Process(parser.NodeID(0), block1)
-	require.NoError(t, err)
-	assert.Equal(t, values, sink.Values)
-}
-
-func TestAndWithSomeValues(t *testing.T) {
-	values1, bounds1 := test.GenerateValuesAndBounds(nil, nil)
-	block1 := test.NewBlockFromValues(bounds1, values1)
-
-	v := [][]float64{
-		{0, math.NaN(), 2, 3, 4},
-		{math.NaN(), 6, 7, 8, 9},
-	}
-
-	values2, bounds2 := test.GenerateValuesAndBounds(v, nil)
-	block2 := test.NewBlockFromValues(bounds2, values2)
-
-	op := NewAndOp(parser.NodeID(0), parser.NodeID(1), &VectorMatching{})
-	c, sink := test.NewControllerWithSink(parser.NodeID(2))
-	node := op.Node(c)
-
-	err := node.Process(parser.NodeID(1), block2)
-	require.NoError(t, err)
-	err = node.Process(parser.NodeID(0), block1)
-	require.NoError(t, err)
-	// Most values same as lhs
-	expected := values1
-	expected[0][1] = math.NaN()
-	expected[1][0] = math.NaN()
-	test.EqualsWithNans(t, expected, sink.Values)
+	expected := values
+	assert.Len(t, sink.Values, 2)
+	assert.Equal(t, expected, sink.Values)
 }

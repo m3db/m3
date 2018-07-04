@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package logical
+package functions
 
 import (
 	"math"
@@ -31,45 +31,40 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAndWithExactValues(t *testing.T) {
+func TestCountWithAllValues(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	block1 := test.NewBlockFromValues(bounds, values)
-	block2 := test.NewBlockFromValues(bounds, values)
-
-	op := NewAndOp(parser.NodeID(0), parser.NodeID(1), &VectorMatching{})
-	c, sink := test.NewControllerWithSink(parser.NodeID(2))
-	node := op.Node(c)
-
-	err := node.Process(parser.NodeID(1), block2)
+	block := test.NewBlockFromValues(bounds, values)
+	c, sink := test.NewControllerWithSink(parser.NodeID(1))
+	countNode := (&CountOp{}).Node(c)
+	err := countNode.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
-	err = node.Process(parser.NodeID(0), block1)
-	require.NoError(t, err)
-	assert.Equal(t, values, sink.Values)
+	expected := make([]float64, len(values[0]))
+	for i := range expected {
+		expected[i] = 2
+	}
+	assert.Len(t, sink.Values, 1 )
+	assert.Equal(t, expected, sink.Values[0])
 }
 
-func TestAndWithSomeValues(t *testing.T) {
-	values1, bounds1 := test.GenerateValuesAndBounds(nil, nil)
-	block1 := test.NewBlockFromValues(bounds1, values1)
-
+func TestCountWithSomeValues(t *testing.T) {
 	v := [][]float64{
 		{0, math.NaN(), 2, 3, 4},
 		{math.NaN(), 6, 7, 8, 9},
 	}
 
-	values2, bounds2 := test.GenerateValuesAndBounds(v, nil)
-	block2 := test.NewBlockFromValues(bounds2, values2)
-
-	op := NewAndOp(parser.NodeID(0), parser.NodeID(1), &VectorMatching{})
-	c, sink := test.NewControllerWithSink(parser.NodeID(2))
-	node := op.Node(c)
-
-	err := node.Process(parser.NodeID(1), block2)
+	values, bounds := test.GenerateValuesAndBounds(v, nil)
+	block := test.NewBlockFromValues(bounds, values)
+	c, sink := test.NewControllerWithSink(parser.NodeID(1))
+	countNode := (&CountOp{}).Node(c)
+	err := countNode.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
-	err = node.Process(parser.NodeID(0), block1)
-	require.NoError(t, err)
-	// Most values same as lhs
-	expected := values1
-	expected[0][1] = math.NaN()
-	expected[1][0] = math.NaN()
-	test.EqualsWithNans(t, expected, sink.Values)
+	expected := make([]float64, len(values[0]))
+	for i := range expected {
+		expected[i] = 2
+	}
+
+	expected[0] = 1
+	expected[1] = 1
+	assert.Len(t, sink.Values, 1 )
+	assert.Equal(t, expected, sink.Values[0])
 }
