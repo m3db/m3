@@ -21,17 +21,17 @@
 package functions
 
 import (
+	"context"
 	"testing"
 
+	"github.com/m3db/m3db/src/coordinator/block"
+	"github.com/m3db/m3db/src/coordinator/executor/transform"
 	"github.com/m3db/m3db/src/coordinator/parser"
+	"github.com/m3db/m3db/src/coordinator/storage/mock"
 	"github.com/m3db/m3db/src/coordinator/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/m3db/m3db/src/coordinator/storage/mock"
-	"github.com/m3db/m3db/src/coordinator/block"
-	"github.com/m3db/m3db/src/coordinator/executor/transform"
-	"context"
 )
 
 func TestFetch(t *testing.T) {

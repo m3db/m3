@@ -37,7 +37,7 @@ func NewMockStorage() storage.Storage {
 	return &mockStorage{sType: storage.Type(0)}
 }
 
-// NewMockStorage creates a new mock Storage instance.
+// NewMockStorageWithBlocks creates a new mock Storage instance with blocks.
 func NewMockStorageWithBlocks(blocks []block.Block) storage.Storage {
 	return &mockStorage{sType: storage.Type(0), blocks: blocks}
 }

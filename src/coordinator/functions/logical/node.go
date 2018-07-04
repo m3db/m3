@@ -51,9 +51,10 @@ func (o BaseOp) String() string {
 // Node creates an execution node
 func (o BaseOp) Node(controller *transform.Controller) transform.OpNode {
 	return &BaseNode{
-		op:        o, controller: controller,
-		cache:     transform.NewBlockCache(),
-		processor: o.ProcessorFn(o, controller),
+		controller: controller,
+		cache:      transform.NewBlockCache(),
+		op:         o,
+		processor:  o.ProcessorFn(o, controller),
 	}
 }
 

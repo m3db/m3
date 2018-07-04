@@ -21,11 +21,12 @@
 package test
 
 import (
+	"time"
+
 	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/executor/transform"
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/parser"
-	"time"
 )
 
 // NewBlockFromValues creates a new block using the provide values

@@ -26,14 +26,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/executor"
+	"github.com/m3db/m3db/src/coordinator/storage/mock"
+	"github.com/m3db/m3db/src/coordinator/test"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/m3db/m3db/src/coordinator/test"
-	"github.com/m3db/m3db/src/coordinator/storage/mock"
-	"github.com/m3db/m3db/src/coordinator/block"
 )
 
 func TestPromRead(t *testing.T) {
