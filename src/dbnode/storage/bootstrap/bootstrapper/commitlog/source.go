@@ -116,18 +116,18 @@ func (s *commitLogSource) AvailableData(
 // restore as much unflushed data from disk as possible. The logic for performing this
 // correctly is as follows:
 //
-// 		1. 	For every shard/blockStart combination, find the most recently written and complete
-// 		   	(has a checkpoint file) snapshot. Bootstrap that file.
-// 		2. 	For every shard/blockStart combination, determine the SnapshotTime for the snapshot file.
-// 		   	This value corresponds to the (local) moment in time right before the snapshotting process
-// 		   	began.
-// 		3. 	Find the minimum SnapshotTime for all of the shards and block starts (call it t0), and
-// 		   	replay all commit log entries whose system timestamps overlap the range
-// 			[minimumSnapshotTimeAcrossShards, blockStart.Add(blockSize).Add(bufferPast)]. This logic
-// 			has one exception which is in the case where there is no minimimum snapshot time across
-// 			shards (the code treats this case as minimum snapshot time across shards == blockStart).
-// 			In that case, we replay all commit log entries whose system timestamps overlap the range
-// 			[blockStart.Add(-bufferFuture), blockStart.Add(blockSize).Add(bufferPast)]
+//    1. 	For every shard/blockStart combination, find the most recently written and complete
+//        (has a checkpoint file) snapshot. Bootstrap that file.
+//    2. 	For every shard/blockStart combination, determine the SnapshotTime for the snapshot file.
+//        This value corresponds to the (local) moment in time right before the snapshotting process
+//        began.
+//    3. 	Find the minimum SnapshotTime for all of the shards and block starts (call it t0), and
+//        replay all commit log entries whose system timestamps overlap the range
+//        [minimumSnapshotTimeAcrossShards, blockStart.Add(blockSize).Add(bufferPast)]. This logic
+//        has one exception which is in the case where there is no minimimum snapshot time across
+//        shards (the code treats this case as minimum snapshot time across shards == blockStart).
+//        In that case, we replay all commit log entries whose system timestamps overlap the range
+//        [blockStart.Add(-bufferFuture), blockStart.Add(blockSize).Add(bufferPast)]
 func (s *commitLogSource) ReadData(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
