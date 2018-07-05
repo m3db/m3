@@ -21,6 +21,8 @@
 package config
 
 import (
+	"time"
+
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3db/src/coordinator/storage/local"
 	"github.com/m3db/m3x/instrument"
@@ -34,6 +36,10 @@ type Configuration struct {
 	// Clusters is the DB cluster configurations for read, write and
 	// query endpoints.
 	Clusters local.ClustersStaticConfiguration `yaml:"clusters"`
+
+	// LocalConfiguration is the local embedded configuration if running
+	// coordinator embedded in the DB.
+	Local *LocalConfiguration `yaml:"local"`
 
 	// ClusterManagement for placemement, namespaces and database management
 	// endpoints (optional).
@@ -51,6 +57,16 @@ type Configuration struct {
 	// DecompressWorkerPoolSize is the size of the worker pool given to each
 	// fetch request.
 	DecompressWorkerPoolSize int `yaml:"workerPoolSize"`
+}
+
+// LocalConfiguration is the local embedded configuration if running
+// coordinator embedded in the DB.
+type LocalConfiguration struct {
+	// Namespace is the name of the local namespace to write/read from.
+	Namespace string `yaml:"namespace" validate:"nonzero"`
+
+	// Retention is the retention of the local namespace to write/read from.
+	Retention time.Duration `yaml:"retention" validate:"nonzero"`
 }
 
 // ClusterManagementConfiguration is configuration for the placemement,

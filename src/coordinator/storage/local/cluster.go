@@ -74,6 +74,7 @@ type ClusterNamespace interface {
 type UnaggregatedClusterNamespaceDefinition struct {
 	NamespaceID ident.ID
 	Session     client.Session
+	Retention   time.Duration
 }
 
 // Validate will validate the cluster namespace definition.
@@ -83,6 +84,9 @@ func (def UnaggregatedClusterNamespaceDefinition) Validate() error {
 	}
 	if def.Session == nil {
 		return errSessionNotSet
+	}
+	if def.Retention <= 0 {
+		return errRetentionNotSet
 	}
 	return nil
 }

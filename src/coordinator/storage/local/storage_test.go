@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3db/src/coordinator/ts"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 	"github.com/m3db/m3db/src/dbnode/client"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -39,12 +40,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setup(ctrl *gomock.Controller) (storage.Storage, *client.MockSession) {
+func setup(t *testing.T, ctrl *gomock.Controller) (storage.Storage, *client.MockSession) {
 	logging.InitWithCores(nil)
 	logger := logging.WithContext(context.TODO())
 	defer logger.Sync()
 	session := client.NewMockSession(ctrl)
-	storage := NewStorage(session, "metrics", nil)
+	clusters, err := NewClusters(UnaggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("metrics"),
+		Session:     session,
+		Retention:   30 * 24 * time.Hour,
+	}, nil)
+	require.NoError(t, err)
+	storage := NewStorage(clusters, nil)
 	return storage, session
 }
 
@@ -87,7 +94,8 @@ func newWriteQuery() *storage.WriteQuery {
 
 func setupLocalWrite(t *testing.T) storage.Storage {
 	ctrl := gomock.NewController(t)
-	store, session := setup(ctrl)
+	defer ctrl.Finish()
+	store, session := setup(t, ctrl)
 	session.EXPECT().WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 	return store
 }
@@ -108,7 +116,8 @@ func TestLocalWriteSuccess(t *testing.T) {
 
 func TestLocalRead(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	store, session := setup(ctrl)
+	defer ctrl.Finish()
+	store, session := setup(t, ctrl)
 	testTags := seriesiter.GenerateTag()
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(seriesiter.NewMockSeriesIters(ctrl, testTags, 1, 2), true, nil)
 	searchReq := newFetchReq()
@@ -125,7 +134,8 @@ func TestLocalRead(t *testing.T) {
 
 func setupLocalSearch(t *testing.T) storage.Storage {
 	ctrl := gomock.NewController(t)
-	store, session := setup(ctrl)
+	defer ctrl.Finish()
+	store, session := setup(t, ctrl)
 	session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, false, errors.ErrNotImplemented)
 	return store
 }

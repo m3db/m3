@@ -30,8 +30,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/m3db/m3x/ident"
-
 	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
@@ -49,6 +47,7 @@ import (
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 	"github.com/m3db/m3db/src/dbnode/client"
 	xconfig "github.com/m3db/m3x/config"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
@@ -58,7 +57,6 @@ import (
 )
 
 const (
-	defaultNamespace       = "metrics"
 	defaultWorkerPoolCount = 4096
 	defaultWorkerPoolSize  = 20
 )
@@ -133,16 +131,18 @@ func Run(runOpts RunOptions) {
 			logger.Fatal("unable to connect to clusters", zap.Any("error", err))
 		}
 	} else {
+		localCfg := cfg.Local
 		dbClientCh := runOpts.DBClient
-		if dbClientCh == nil {
-			logger.Fatal("no local clusters specified and not running embedded")
+		if localCfg == nil || dbClientCh == nil {
+			logger.Fatal("no local clusters specified and not running local embedded")
 		}
 		session := m3db.NewAsyncSession(func() (client.Client, error) {
 			return <-dbClientCh, nil
 		}, nil)
 		clusters, err = local.NewClusters(local.UnaggregatedClusterNamespaceDefinition{
-			NamespaceID: ident.StringID(defaultNamespace),
+			NamespaceID: ident.StringID(localCfg.Namespace),
 			Session:     session,
+			Retention:   localCfg.Retention,
 		}, nil)
 		if err != nil {
 			logger.Fatal("unable to connect to clusters", zap.Any("error", err))

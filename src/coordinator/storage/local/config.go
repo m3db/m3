@@ -39,8 +39,8 @@ type ClusterStaticConfiguration struct {
 	Namespaces []ClusterStaticNamespacesConfiguration `yaml:"namespaces"`
 }
 
-// ClusterStaticNamespacesConfiguration describes the namespaces in a static
-// cluster.
+// ClusterStaticNamespacesConfiguration describes the namespaces in a
+// static cluster.
 type ClusterStaticNamespacesConfiguration struct {
 	Namespace          string              `yaml:"namespace"`
 	StorageMetricsType storage.MetricsType `yaml:"storageMetricsType"`
@@ -148,6 +148,7 @@ func (c ClustersStaticConfiguration) NewClusters() (Clusters, error) {
 	unaggregatedClusterNamespace = UnaggregatedClusterNamespaceDefinition{
 		NamespaceID: ident.StringID(unaggregatedClusterNamespaceCfg.namespace.Namespace),
 		Session:     unaggregatedClusterNamespaceCfg.result.session,
+		Retention:   unaggregatedClusterNamespaceCfg.namespace.Retention,
 	}
 
 	for i, cfg := range aggregatedClusterNamespacesCfgs {
