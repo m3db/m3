@@ -142,6 +142,7 @@ func (s *commitLogSource) ReadData(
 		filePathPrefix = fsOpts.FilePathPrefix()
 	)
 
+	// Determine which snapshot files are available.
 	snapshotFilesByShard, err := s.snapshotFilesByShard(
 		ns.ID(), filePathPrefix, shardsTimeRanges)
 	if err != nil {
@@ -154,8 +155,8 @@ func (s *commitLogSource) ReadData(
 		blockSize = ns.Options().RetentionOptions().BlockSize()
 	)
 
-	// Next, we need to determine the minimum number of commit logs files that we
-	// must read
+	// Determine the minimum number of commit logs files that we
+	// must read based on the available snapshot files.
 	readCommitLogPred, err := s.newReadCommitLogPredBasedOnAvailableSnapshotFiles(
 		ns, shardsTimeRanges, snapshotFilesByShard)
 	if err != nil {
