@@ -27,7 +27,7 @@ func main() {
 		optNamespace  = getopt.StringLong("namespace", 'n', "", "Namespace [e.g. metrics]")
 		optShard      = getopt.Uint32Long("shard", 's', 0, "Shard [expected format uint32]")
 		optBlockstart = getopt.Int64Long("block-start", 'b', 0, "Block Start Time [in nsec]")
-		volume        = getopt.Int64Long("volume", 'v', -1, "Volume number")
+		volume        = getopt.Int64Long("volume", 'v', 0, "Volume number")
 		fileSetType   = getopt.StringLong("fileset-type", 't', "", "snapshot|flush")
 		idFilter      = getopt.StringLong("id-filter", 'f', "", "ID Contains Filter (optional)")
 		log           = xlog.NewLogger(os.Stderr)
