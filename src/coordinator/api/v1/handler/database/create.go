@@ -65,10 +65,12 @@ const (
 )
 
 var (
-	errMultipleHostTypes    = errors.New("must only specify one type of host")
-	errMissingRequiredField = errors.New("missing required field")
-	errInvalidDBType        = errors.New("invalid database type")
-	errMissingPort          = errors.New("unable to get port from address")
+	errMultipleHostTypes       = errors.New("must only specify one type of host")
+	errMissingRequiredField    = errors.New("missing required field")
+	errInvalidDBType           = errors.New("invalid database type")
+	errMissingEmbeddedDBPort   = errors.New("unable to get port from embedded database listen address")
+	errMissingEmbeddedDBConfig = errors.New("unable to find local embedded database config")
+	errMissingHostID           = errors.New("missing host ID")
 )
 
 type dbType string
@@ -77,16 +79,20 @@ type createHandler struct {
 	placementInitHandler   *placement.InitHandler
 	namespaceAddHandler    *namespace.AddHandler
 	namespaceDeleteHandler *namespace.DeleteHandler
-	dbCfg                  dbconfig.DBConfiguration
+	embeddedDbCfg          *dbconfig.DBConfiguration
 }
 
 // NewCreateHandler returns a new instance of a database create handler.
-func NewCreateHandler(client clusterclient.Client, cfg config.Configuration, dbCfg dbconfig.DBConfiguration) http.Handler {
+func NewCreateHandler(
+	client clusterclient.Client,
+	cfg config.Configuration,
+	embeddedDbCfg *dbconfig.DBConfiguration,
+) http.Handler {
 	return &createHandler{
 		placementInitHandler:   placement.NewInitHandler(client, cfg),
 		namespaceAddHandler:    namespace.NewAddHandler(client),
 		namespaceDeleteHandler: namespace.NewDeleteHandler(client),
-		dbCfg: dbCfg,
+		embeddedDbCfg:          embeddedDbCfg,
 	}
 }
 
@@ -108,7 +114,7 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	initPlacement, err := h.placementInitHandler.Init(placementRequest)
+	initPlacement, err := h.placementInitHandler.Init(r, placementRequest)
 	if err != nil {
 		// Attempt to delete the namespace that was just created to maintain idempotency
 		err = h.namespaceDeleteHandler.Delete(namespaceRequest.Name)
@@ -159,22 +165,15 @@ func (h *createHandler) parseRequest(r *http.Request) (*admin.NamespaceAddReques
 		return nil, nil, handler.NewParseError(errMissingRequiredField, http.StatusBadRequest)
 	}
 
-	if dbType(dbCreateReq.Type) == dbTypeCluster {
-		// One (and only one) hostname type required
-		if len(dbCreateReq.Hostnames) == 0 && len(dbCreateReq.HostnameGroups) == 0 {
-			return nil, nil, handler.NewParseError(errMissingRequiredField, http.StatusBadRequest)
-		}
-
-		if len(dbCreateReq.Hostnames) > 0 && len(dbCreateReq.HostnameGroups) > 0 {
-			return nil, nil, handler.NewParseError(errMultipleHostTypes, http.StatusBadRequest)
-		}
+	if dbType(dbCreateReq.Type) == dbTypeCluster && len(dbCreateReq.Hosts) == 0 {
+		return nil, nil, handler.NewParseError(errMissingRequiredField, http.StatusBadRequest)
 	}
 
 	namespaceAddRequest, err := defaultedNamespaceAddRequest(dbCreateReq)
 	if err != nil {
 		return nil, nil, handler.NewParseError(err, http.StatusBadRequest)
 	}
-	placementInitRequest, err := defaultedPlacementInitRequest(dbCreateReq, h.dbCfg)
+	placementInitRequest, err := defaultedPlacementInitRequest(dbCreateReq, h.embeddedDbCfg)
 	if err != nil {
 		return nil, nil, handler.NewParseError(err, http.StatusBadRequest)
 	}
@@ -183,19 +182,20 @@ func (h *createHandler) parseRequest(r *http.Request) (*admin.NamespaceAddReques
 }
 
 func defaultedNamespaceAddRequest(r *admin.DatabaseCreateRequest) (*admin.NamespaceAddRequest, error) {
-	options := dbnamespace.NewOptions()
+	opts := dbnamespace.NewOptions()
 
 	switch dbType(r.Type) {
 	case dbTypeLocal, dbTypeCluster:
-		options.SetRepairEnabled(false)
+		opts = opts.SetRepairEnabled(false)
+		retentionOpts := opts.RetentionOptions()
 
 		if r.RetentionPeriodNanos <= 0 {
-			options.RetentionOptions().SetRetentionPeriod(defaultLocalRetentionPeriod)
+			retentionOpts = retentionOpts.SetRetentionPeriod(defaultLocalRetentionPeriod)
 		} else {
-			options.RetentionOptions().SetRetentionPeriod(time.Duration(r.RetentionPeriodNanos))
+			retentionOpts = retentionOpts.SetRetentionPeriod(time.Duration(r.RetentionPeriodNanos))
 		}
 
-		retentionPeriod := options.RetentionOptions().RetentionPeriod()
+		retentionPeriod := retentionOpts.RetentionPeriod()
 		if r.ExpectedSeriesDatapointsPerHour > 0 {
 			blockSize := time.Duration(blockSizeFromExpectedSeriesScalar / r.ExpectedSeriesDatapointsPerHour)
 			if blockSize < minBlockSize {
@@ -203,41 +203,52 @@ func defaultedNamespaceAddRequest(r *admin.DatabaseCreateRequest) (*admin.Namesp
 			} else if blockSize > maxBlockSize {
 				blockSize = maxBlockSize
 			}
-			options.RetentionOptions().SetBlockSize(blockSize)
+			retentionOpts = retentionOpts.SetBlockSize(blockSize)
 		} else if retentionPeriod <= 12*time.Hour {
-			options.RetentionOptions().SetBlockSize(30 * time.Minute)
+			retentionOpts = retentionOpts.SetBlockSize(30 * time.Minute)
 		} else if retentionPeriod <= 24*time.Hour {
-			options.RetentionOptions().SetBlockSize(1 * time.Hour)
+			retentionOpts = retentionOpts.SetBlockSize(1 * time.Hour)
 		} else {
-			options.RetentionOptions().SetBlockSize(2 * time.Hour)
+			retentionOpts = retentionOpts.SetBlockSize(2 * time.Hour)
 		}
 
-		options.IndexOptions().SetEnabled(true)
-		options.IndexOptions().SetBlockSize(options.RetentionOptions().BlockSize())
+		indexOpts := opts.IndexOptions().
+			SetEnabled(true).
+			SetBlockSize(retentionOpts.BlockSize())
+
+		opts = opts.SetRetentionOptions(retentionOpts).
+			SetIndexOptions(indexOpts)
 	default:
 		return nil, errInvalidDBType
 	}
 
 	return &admin.NamespaceAddRequest{
 		Name:    r.NamespaceName,
-		Options: dbnamespace.OptionsToProto(options),
+		Options: dbnamespace.OptionsToProto(opts),
 	}, nil
 }
 
-func defaultedPlacementInitRequest(r *admin.DatabaseCreateRequest, dbCfg dbconfig.DBConfiguration) (*admin.PlacementInitRequest, error) {
+func defaultedPlacementInitRequest(
+	r *admin.DatabaseCreateRequest,
+	embeddedDbCfg *dbconfig.DBConfiguration,
+) (*admin.PlacementInitRequest, error) {
 	var (
 		numShards         int32
 		replicationFactor int32
 		instances         []*placementpb.Instance
 	)
-
-	port, err := portFromAddress(dbCfg.ListenAddress)
-	if err != nil {
-		return nil, err
-	}
-
 	switch dbType(r.Type) {
 	case dbTypeLocal:
+		if embeddedDbCfg == nil {
+			return nil, errMissingEmbeddedDBConfig
+		}
+
+		addr := embeddedDbCfg.ListenAddress
+		port, err := portFromEmbeddedDBConfigListenAddress(addr)
+		if err != nil {
+			return nil, err
+		}
+
 		numShards = shardMultiplier
 		replicationFactor = 1
 		instances = []*placementpb.Instance{
@@ -246,42 +257,50 @@ func defaultedPlacementInitRequest(r *admin.DatabaseCreateRequest, dbCfg dbconfi
 				IsolationGroup: "local",
 				Zone:           "embedded",
 				Weight:         1,
-				Endpoint:       fmt.Sprintf("http://localhost:%d", port),
+				Endpoint:       fmt.Sprintf("127.0.0.1:%d", port),
 				Hostname:       "localhost",
 				Port:           uint32(port),
 			},
 		}
 	case dbTypeCluster:
-		// This function assumes only one of Hostnames/HostnameGroups have been set
-		numHosts := len(r.Hostnames) + len(r.HostnameGroups)
+
+		numHosts := len(r.Hosts)
 		numShards = int32(math.Min(math.MaxInt32, powerOfTwoAtLeast(float64(numHosts*shardMultiplier))))
 		replicationFactor = r.ReplicationFactor
 		if replicationFactor == 0 {
 			replicationFactor = 3
 		}
+
 		instances = make([]*placementpb.Instance, 0, numHosts)
 
-		for _, hostname := range r.Hostnames {
-			instances = append(instances, &placementpb.Instance{
-				Id:             hostname,
-				IsolationGroup: "cluster",
-				Zone:           "embedded",
-				Weight:         1,
-				Endpoint:       fmt.Sprintf("http://%s:%d", hostname, port),
-				Hostname:       hostname,
-				Port:           uint32(port),
-			})
-		}
+		for _, host := range r.Hosts {
+			id := strings.TrimSpace(host.Id)
+			if id == "" {
+				return nil, errMissingHostID
+			}
 
-		for _, hostnameGroup := range r.HostnameGroups {
+			isolationGroup := strings.TrimSpace(host.IsolationGroup)
+			if isolationGroup == "" {
+				isolationGroup = "local"
+			}
+
+			zone := strings.TrimSpace(host.Zone)
+			if zone == "" {
+				zone = "local"
+			}
+
+			weight := host.Weight
+			if weight == 0 {
+				weight = 1
+			}
+
 			instances = append(instances, &placementpb.Instance{
-				Id:             hostnameGroup.Hostname,
-				IsolationGroup: hostnameGroup.IsolationGroup,
-				Zone:           "embedded",
-				Weight:         1,
-				Endpoint:       fmt.Sprintf("http://%s:%d", hostnameGroup.Hostname, port),
-				Hostname:       hostnameGroup.Hostname,
-				Port:           uint32(port),
+				Id:             id,
+				IsolationGroup: host.IsolationGroup,
+				Zone:           zone,
+				Weight:         weight,
+				Endpoint:       fmt.Sprintf("%s:%d", host.Address, host.Port),
+				Port:           host.Port,
 			})
 		}
 	default:
@@ -295,10 +314,10 @@ func defaultedPlacementInitRequest(r *admin.DatabaseCreateRequest, dbCfg dbconfi
 	}, nil
 }
 
-func portFromAddress(address string) (int, error) {
+func portFromEmbeddedDBConfigListenAddress(address string) (int, error) {
 	colonIdx := strings.LastIndex(address, ":")
 	if colonIdx == -1 || colonIdx == len(address)-1 {
-		return 0, errMissingPort
+		return 0, errMissingEmbeddedDBPort
 	}
 
 	return strconv.Atoi(address[colonIdx+1:])

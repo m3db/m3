@@ -21,17 +21,23 @@
 package config
 
 import (
-	"github.com/m3db/m3db/src/dbnode/client"
+	etcdclient "github.com/m3db/m3cluster/client/etcd"
+	"github.com/m3db/m3db/src/coordinator/storage/local"
 	"github.com/m3db/m3x/instrument"
 )
 
 // Configuration is the configuration for the coordinator.
 type Configuration struct {
-	// DBClient is the DB client configuration.
-	DBClient *client.Configuration `yaml:"dbClient"`
-
 	// Metrics configuration.
 	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
+
+	// Clusters is the DB cluster configurations for read, write and
+	// query endpoints.
+	Clusters local.ClustersStaticConfiguration `yaml:"clusters"`
+
+	// ClusterManagement for placemement, namespaces and database management
+	// endpoints (optional).
+	ClusterManagement *ClusterManagementConfiguration `yaml:"clusterManagement"`
 
 	// ListenAddress is the server listen address.
 	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`
@@ -39,14 +45,19 @@ type Configuration struct {
 	// RPC is the RPC configuration.
 	RPC *RPCConfiguration `yaml:"rpc"`
 
-	// DBNamespace is the namespace string to use for reads and writes
-	DBNamespace string `yaml:"dbNamespace"`
-
-	// DecompressWorkerPoolCount is the number of decompression worker pools
+	// DecompressWorkerPoolCount is the number of decompression worker pools.
 	DecompressWorkerPoolCount int `yaml:"workerPoolCount"`
 
-	// DecompressWorkerPoolSize is the size of the worker pool given to each fetch request
+	// DecompressWorkerPoolSize is the size of the worker pool given to each
+	// fetch request.
 	DecompressWorkerPoolSize int `yaml:"workerPoolSize"`
+}
+
+// ClusterManagementConfiguration is configuration for the placemement,
+// namespaces and database management endpoints (optional).
+type ClusterManagementConfiguration struct {
+	// Etcd is the client configuration for etcd.
+	Etcd etcdclient.Configuration `yaml:"etcd"`
 }
 
 // RPCConfiguration is the RPC configuration for the coordinator for

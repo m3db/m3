@@ -21,6 +21,9 @@
 package placement
 
 import (
+	"net/http"
+	"strings"
+
 	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/generated/proto/placementpb"
 	"github.com/m3db/m3cluster/placement"
@@ -35,12 +38,16 @@ import (
 const (
 	// DefaultServiceName is the default service ID name
 	DefaultServiceName = "m3db"
-
 	// DefaultServiceEnvironment is the default service ID environment
 	DefaultServiceEnvironment = "default_env"
-
 	// DefaultServiceZone is the default service ID zone
 	DefaultServiceZone = "embedded"
+	// HeaderClusterServiceName is the header used to specify the service name.
+	HeaderClusterServiceName = "Cluster-Service-Name"
+	// HeaderClusterEnvironmentName is the header used to specify the environment name.
+	HeaderClusterEnvironmentName = "Cluster-Environment-Name"
+	// HeaderClusterZoneName is the header used to specify the zone name.
+	HeaderClusterZoneName = "Cluster-Zone-Name"
 )
 
 // Handler represents a generic handler for placement endpoints.
@@ -52,22 +59,25 @@ type Handler struct {
 }
 
 // Service gets a placement service from m3cluster client
-func Service(clusterClient clusterclient.Client, cfg config.Configuration) (placement.Service, error) {
+func Service(clusterClient clusterclient.Client, headers http.Header) (placement.Service, error) {
 	cs, err := clusterClient.Services(services.NewOverrideOptions())
 	if err != nil {
 		return nil, err
 	}
 
 	serviceName := DefaultServiceName
-	serviceEnvironment := DefaultServiceEnvironment
-	serviceZone := DefaultServiceZone
+	if v := strings.TrimSpace(headers.Get(HeaderClusterServiceName)); v != "" {
+		serviceName = v
+	}
 
-	if dbClientCfg := cfg.DBClient; dbClientCfg != nil {
-		if service := dbClientCfg.EnvironmentConfig.Service; service != nil {
-			serviceName = service.Service
-			serviceEnvironment = service.Env
-			serviceZone = service.Zone
-		}
+	serviceEnvironment := DefaultServiceEnvironment
+	if v := strings.TrimSpace(headers.Get(HeaderClusterEnvironmentName)); v != "" {
+		serviceEnvironment = v
+	}
+
+	serviceZone := DefaultServiceZone
+	if v := strings.TrimSpace(headers.Get(HeaderClusterZoneName)); v != "" {
+		serviceZone = v
 	}
 
 	sid := services.NewServiceID().

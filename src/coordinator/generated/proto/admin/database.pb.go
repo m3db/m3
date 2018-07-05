@@ -31,7 +31,7 @@
 
 	It has these top-level messages:
 		DatabaseCreateRequest
-		HostnameGroup
+		Host
 		DatabaseCreateResponse
 		NamespaceGetResponse
 		NamespaceAddRequest
@@ -68,11 +68,8 @@ type DatabaseCreateRequest struct {
 	// The below two options are used to default retention options
 	RetentionPeriodNanos            int64 `protobuf:"varint,5,opt,name=retention_period_nanos,json=retentionPeriodNanos,proto3" json:"retention_period_nanos,omitempty"`
 	ExpectedSeriesDatapointsPerHour int64 `protobuf:"varint,6,opt,name=expected_series_datapoints_per_hour,json=expectedSeriesDatapointsPerHour,proto3" json:"expected_series_datapoints_per_hour,omitempty"`
-	// Only one of the two below hostname types should be taken. This is enforced
-	// in application code instead of via protobuf oneof to reduce the amount of
-	// JSON nested structures required for input.
-	Hostnames      []string         `protobuf:"bytes,7,rep,name=hostnames" json:"hostnames,omitempty"`
-	HostnameGroups []*HostnameGroup `protobuf:"bytes,8,rep,name=hostname_groups,json=hostnameGroups" json:"hostname_groups,omitempty"`
+	// Required if not using local database type
+	Hosts []*Host `protobuf:"bytes,7,rep,name=hosts" json:"hosts,omitempty"`
 }
 
 func (m *DatabaseCreateRequest) Reset()                    { *m = DatabaseCreateRequest{} }
@@ -122,42 +119,76 @@ func (m *DatabaseCreateRequest) GetExpectedSeriesDatapointsPerHour() int64 {
 	return 0
 }
 
-func (m *DatabaseCreateRequest) GetHostnames() []string {
+func (m *DatabaseCreateRequest) GetHosts() []*Host {
 	if m != nil {
-		return m.Hostnames
+		return m.Hosts
 	}
 	return nil
 }
 
-func (m *DatabaseCreateRequest) GetHostnameGroups() []*HostnameGroup {
-	if m != nil {
-		return m.HostnameGroups
-	}
-	return nil
+type Host struct {
+	// Name (must be unique) of the host for logging/display purposes, can be hostname if desired,
+	// or UUID or any other string ID as used in third party inventory system
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// Address can be IP address or hostname, this is used to connect to the host
+	Address string `protobuf:"bytes,2,opt,name=address,proto3" json:"address,omitempty"`
+	// Port running the Node RPC listen address (currently TChannel/Thrift Node service)
+	Port uint32 `protobuf:"varint,3,opt,name=port,proto3" json:"port,omitempty"`
+	// (Optional) Isolation group is an optional grouping, for instance to isolate replicas by
+	// zones use zone here, or to isolate by host racks use racks here
+	IsolationGroup string `protobuf:"bytes,4,opt,name=isolation_group,json=isolationGroup,proto3" json:"isolation_group,omitempty"`
+	// (Optional) Zone specifies the zone the host resides in, this is optional.
+	Zone string `protobuf:"bytes,5,opt,name=zone,proto3" json:"zone,omitempty"`
+	// (Optional) Weight specifies when considering how many shards to take how to weight
+	// this instance, do not specify to default to a weight of 1.
+	Weight uint32 `protobuf:"varint,6,opt,name=weight,proto3" json:"weight,omitempty"`
 }
 
-type HostnameGroup struct {
-	Hostname       string `protobuf:"bytes,1,opt,name=hostname,proto3" json:"hostname,omitempty"`
-	IsolationGroup string `protobuf:"bytes,2,opt,name=isolation_group,json=isolationGroup,proto3" json:"isolation_group,omitempty"`
-}
+func (m *Host) Reset()                    { *m = Host{} }
+func (m *Host) String() string            { return proto.CompactTextString(m) }
+func (*Host) ProtoMessage()               {}
+func (*Host) Descriptor() ([]byte, []int) { return fileDescriptorDatabase, []int{1} }
 
-func (m *HostnameGroup) Reset()                    { *m = HostnameGroup{} }
-func (m *HostnameGroup) String() string            { return proto.CompactTextString(m) }
-func (*HostnameGroup) ProtoMessage()               {}
-func (*HostnameGroup) Descriptor() ([]byte, []int) { return fileDescriptorDatabase, []int{1} }
-
-func (m *HostnameGroup) GetHostname() string {
+func (m *Host) GetId() string {
 	if m != nil {
-		return m.Hostname
+		return m.Id
 	}
 	return ""
 }
 
-func (m *HostnameGroup) GetIsolationGroup() string {
+func (m *Host) GetAddress() string {
+	if m != nil {
+		return m.Address
+	}
+	return ""
+}
+
+func (m *Host) GetPort() uint32 {
+	if m != nil {
+		return m.Port
+	}
+	return 0
+}
+
+func (m *Host) GetIsolationGroup() string {
 	if m != nil {
 		return m.IsolationGroup
 	}
 	return ""
+}
+
+func (m *Host) GetZone() string {
+	if m != nil {
+		return m.Zone
+	}
+	return ""
+}
+
+func (m *Host) GetWeight() uint32 {
+	if m != nil {
+		return m.Weight
+	}
+	return 0
 }
 
 type DatabaseCreateResponse struct {
@@ -186,7 +217,7 @@ func (m *DatabaseCreateResponse) GetPlacement() *PlacementGetResponse {
 
 func init() {
 	proto.RegisterType((*DatabaseCreateRequest)(nil), "admin.DatabaseCreateRequest")
-	proto.RegisterType((*HostnameGroup)(nil), "admin.HostnameGroup")
+	proto.RegisterType((*Host)(nil), "admin.Host")
 	proto.RegisterType((*DatabaseCreateResponse)(nil), "admin.DatabaseCreateResponse")
 }
 func (m *DatabaseCreateRequest) Marshal() (dAtA []byte, err error) {
@@ -236,24 +267,9 @@ func (m *DatabaseCreateRequest) MarshalTo(dAtA []byte) (int, error) {
 		i++
 		i = encodeVarintDatabase(dAtA, i, uint64(m.ExpectedSeriesDatapointsPerHour))
 	}
-	if len(m.Hostnames) > 0 {
-		for _, s := range m.Hostnames {
+	if len(m.Hosts) > 0 {
+		for _, msg := range m.Hosts {
 			dAtA[i] = 0x3a
-			i++
-			l = len(s)
-			for l >= 1<<7 {
-				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
-				l >>= 7
-				i++
-			}
-			dAtA[i] = uint8(l)
-			i++
-			i += copy(dAtA[i:], s)
-		}
-	}
-	if len(m.HostnameGroups) > 0 {
-		for _, msg := range m.HostnameGroups {
-			dAtA[i] = 0x42
 			i++
 			i = encodeVarintDatabase(dAtA, i, uint64(msg.Size()))
 			n, err := msg.MarshalTo(dAtA[i:])
@@ -266,7 +282,7 @@ func (m *DatabaseCreateRequest) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
-func (m *HostnameGroup) Marshal() (dAtA []byte, err error) {
+func (m *Host) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalTo(dAtA)
@@ -276,22 +292,44 @@ func (m *HostnameGroup) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *HostnameGroup) MarshalTo(dAtA []byte) (int, error) {
+func (m *Host) MarshalTo(dAtA []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
 	_ = l
-	if len(m.Hostname) > 0 {
+	if len(m.Id) > 0 {
 		dAtA[i] = 0xa
 		i++
-		i = encodeVarintDatabase(dAtA, i, uint64(len(m.Hostname)))
-		i += copy(dAtA[i:], m.Hostname)
+		i = encodeVarintDatabase(dAtA, i, uint64(len(m.Id)))
+		i += copy(dAtA[i:], m.Id)
+	}
+	if len(m.Address) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintDatabase(dAtA, i, uint64(len(m.Address)))
+		i += copy(dAtA[i:], m.Address)
+	}
+	if m.Port != 0 {
+		dAtA[i] = 0x18
+		i++
+		i = encodeVarintDatabase(dAtA, i, uint64(m.Port))
 	}
 	if len(m.IsolationGroup) > 0 {
-		dAtA[i] = 0x12
+		dAtA[i] = 0x22
 		i++
 		i = encodeVarintDatabase(dAtA, i, uint64(len(m.IsolationGroup)))
 		i += copy(dAtA[i:], m.IsolationGroup)
+	}
+	if len(m.Zone) > 0 {
+		dAtA[i] = 0x2a
+		i++
+		i = encodeVarintDatabase(dAtA, i, uint64(len(m.Zone)))
+		i += copy(dAtA[i:], m.Zone)
+	}
+	if m.Weight != 0 {
+		dAtA[i] = 0x30
+		i++
+		i = encodeVarintDatabase(dAtA, i, uint64(m.Weight))
 	}
 	return i, nil
 }
@@ -366,14 +404,8 @@ func (m *DatabaseCreateRequest) Size() (n int) {
 	if m.ExpectedSeriesDatapointsPerHour != 0 {
 		n += 1 + sovDatabase(uint64(m.ExpectedSeriesDatapointsPerHour))
 	}
-	if len(m.Hostnames) > 0 {
-		for _, s := range m.Hostnames {
-			l = len(s)
-			n += 1 + l + sovDatabase(uint64(l))
-		}
-	}
-	if len(m.HostnameGroups) > 0 {
-		for _, e := range m.HostnameGroups {
+	if len(m.Hosts) > 0 {
+		for _, e := range m.Hosts {
 			l = e.Size()
 			n += 1 + l + sovDatabase(uint64(l))
 		}
@@ -381,16 +413,30 @@ func (m *DatabaseCreateRequest) Size() (n int) {
 	return n
 }
 
-func (m *HostnameGroup) Size() (n int) {
+func (m *Host) Size() (n int) {
 	var l int
 	_ = l
-	l = len(m.Hostname)
+	l = len(m.Id)
 	if l > 0 {
 		n += 1 + l + sovDatabase(uint64(l))
+	}
+	l = len(m.Address)
+	if l > 0 {
+		n += 1 + l + sovDatabase(uint64(l))
+	}
+	if m.Port != 0 {
+		n += 1 + sovDatabase(uint64(m.Port))
 	}
 	l = len(m.IsolationGroup)
 	if l > 0 {
 		n += 1 + l + sovDatabase(uint64(l))
+	}
+	l = len(m.Zone)
+	if l > 0 {
+		n += 1 + l + sovDatabase(uint64(l))
+	}
+	if m.Weight != 0 {
+		n += 1 + sovDatabase(uint64(m.Weight))
 	}
 	return n
 }
@@ -587,36 +633,7 @@ func (m *DatabaseCreateRequest) Unmarshal(dAtA []byte) error {
 			}
 		case 7:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Hostnames", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowDatabase
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthDatabase
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Hostnames = append(m.Hostnames, string(dAtA[iNdEx:postIndex]))
-			iNdEx = postIndex
-		case 8:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field HostnameGroups", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Hosts", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -640,8 +657,8 @@ func (m *DatabaseCreateRequest) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.HostnameGroups = append(m.HostnameGroups, &HostnameGroup{})
-			if err := m.HostnameGroups[len(m.HostnameGroups)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			m.Hosts = append(m.Hosts, &Host{})
+			if err := m.Hosts[len(m.Hosts)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -666,7 +683,7 @@ func (m *DatabaseCreateRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *HostnameGroup) Unmarshal(dAtA []byte) error {
+func (m *Host) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -689,15 +706,15 @@ func (m *HostnameGroup) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: HostnameGroup: wiretype end group for non-group")
+			return fmt.Errorf("proto: Host: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: HostnameGroup: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: Host: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Hostname", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Id", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -722,9 +739,57 @@ func (m *HostnameGroup) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Hostname = string(dAtA[iNdEx:postIndex])
+			m.Id = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Address", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowDatabase
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthDatabase
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Address = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Port", wireType)
+			}
+			m.Port = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowDatabase
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Port |= (uint32(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 4:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field IsolationGroup", wireType)
 			}
@@ -753,6 +818,54 @@ func (m *HostnameGroup) Unmarshal(dAtA []byte) error {
 			}
 			m.IsolationGroup = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Zone", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowDatabase
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthDatabase
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Zone = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Weight", wireType)
+			}
+			m.Weight = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowDatabase
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Weight |= (uint32(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skipDatabase(dAtA[iNdEx:])
@@ -1000,35 +1113,36 @@ func init() {
 }
 
 var fileDescriptorDatabase = []byte{
-	// 465 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x92, 0x41, 0x6f, 0xd3, 0x30,
-	0x14, 0xc7, 0x09, 0x59, 0xc7, 0xe2, 0x69, 0x1d, 0x58, 0x63, 0x8a, 0x06, 0x94, 0xa8, 0x08, 0x91,
-	0x0b, 0x8d, 0xb4, 0x71, 0xe1, 0xc0, 0x05, 0x26, 0x36, 0x10, 0xaa, 0xaa, 0x8c, 0x7b, 0xe4, 0x26,
-	0x8f, 0x26, 0x52, 0xe3, 0x67, 0x6c, 0x47, 0x82, 0x23, 0x5f, 0x00, 0xf1, 0xb1, 0x38, 0xf2, 0x11,
-	0x50, 0xf9, 0x22, 0x28, 0xaf, 0x89, 0xbb, 0xed, 0xda, 0x4b, 0x64, 0xff, 0xff, 0x3f, 0xff, 0x9f,
-	0xf3, 0x9e, 0xd9, 0x87, 0x45, 0x65, 0xcb, 0x66, 0x3e, 0xc9, 0xb1, 0x4e, 0xea, 0xb3, 0x62, 0xbe,
-	0xfe, 0x18, 0x9d, 0x27, 0x39, 0xa2, 0x2e, 0x2a, 0x29, 0x2c, 0xea, 0x64, 0x01, 0x12, 0xb4, 0xb0,
-	0x50, 0x24, 0x4a, 0xa3, 0xc5, 0x44, 0x14, 0x75, 0x25, 0x93, 0x42, 0x58, 0x31, 0x17, 0x06, 0x26,
-	0x24, 0xf2, 0x01, 0xa9, 0x27, 0x1f, 0xb7, 0x48, 0x94, 0xa2, 0x06, 0xa3, 0x44, 0xde, 0x45, 0x6e,
-	0x95, 0xa5, 0x96, 0x22, 0x87, 0x1a, 0xa4, 0x5d, 0x67, 0x8d, 0x7f, 0xf8, 0xec, 0xe1, 0x79, 0x77,
-	0xe3, 0x77, 0x1a, 0x84, 0x85, 0x14, 0xbe, 0x36, 0x60, 0x2c, 0x7f, 0xce, 0x86, 0xae, 0x70, 0xd6,
-	0xae, 0x42, 0x2f, 0xf2, 0xe2, 0x20, 0x3d, 0x70, 0xea, 0x54, 0xd4, 0xc0, 0x39, 0xdb, 0xb1, 0xdf,
-	0x15, 0x84, 0x77, 0xc9, 0xa4, 0x35, 0x7f, 0xc2, 0x98, 0x6c, 0xea, 0xcc, 0x94, 0x42, 0x17, 0x26,
-	0xf4, 0x23, 0x2f, 0x1e, 0xa4, 0x81, 0x6c, 0xea, 0x2b, 0x12, 0xf8, 0x4b, 0xc6, 0x35, 0xa8, 0x65,
-	0x95, 0x0b, 0x5b, 0xa1, 0xcc, 0xbe, 0x88, 0xdc, 0xa2, 0x0e, 0x77, 0x08, 0x7b, 0x70, 0xcd, 0x79,
-	0x4f, 0x06, 0x7f, 0xc5, 0x8e, 0x35, 0x58, 0x90, 0x04, 0x2b, 0xd0, 0x15, 0x16, 0x99, 0x14, 0x12,
-	0x4d, 0x38, 0x88, 0xbc, 0xd8, 0x4f, 0x8f, 0x9c, 0x3b, 0x23, 0x73, 0xda, 0x7a, 0xfc, 0x13, 0x7b,
-	0x06, 0xdf, 0x14, 0xe4, 0x16, 0x8a, 0xcc, 0x80, 0xae, 0xc0, 0x64, 0xed, 0x64, 0x14, 0x56, 0xd2,
-	0x9a, 0x36, 0x26, 0x2b, 0xb1, 0xd1, 0xe1, 0x2e, 0x45, 0x3c, 0xed, 0xd1, 0x2b, 0x22, 0xcf, 0x1d,
-	0x38, 0x03, 0x7d, 0x89, 0x8d, 0xe6, 0x8f, 0x59, 0x50, 0xa2, 0xb1, 0xf4, 0xeb, 0xe1, 0xbd, 0xc8,
-	0x8f, 0x83, 0x74, 0x23, 0xf0, 0x37, 0xec, 0xb0, 0xdf, 0x64, 0x0b, 0x8d, 0x8d, 0x32, 0xe1, 0x5e,
-	0xe4, 0xc7, 0xfb, 0xa7, 0x47, 0x13, 0xea, 0xfa, 0xe4, 0xb2, 0x73, 0x2f, 0x5a, 0x33, 0x1d, 0x96,
-	0xd7, 0xb7, 0x66, 0xfc, 0x99, 0x1d, 0xdc, 0x00, 0xf8, 0x09, 0xdb, 0xeb, 0x91, 0xae, 0xe9, 0x6e,
-	0xcf, 0x5f, 0xb0, 0xc3, 0xca, 0xe0, 0x72, 0xdd, 0x3a, 0x2a, 0xd6, 0xb5, 0x7e, 0xe8, 0x64, 0x0a,
-	0x19, 0xff, 0xf4, 0xd8, 0xf1, 0xed, 0xc9, 0x1a, 0x85, 0xd2, 0x00, 0x7f, 0xcd, 0x02, 0x37, 0x44,
-	0x2a, 0xb0, 0x7f, 0xfa, 0xa8, 0xbb, 0xe9, 0xb4, 0xd7, 0x2f, 0xc0, 0xf6, 0x7c, 0xba, 0xa1, 0xdb,
-	0xa3, 0xee, 0x09, 0x51, 0xe1, 0xcd, 0xd1, 0x59, 0xaf, 0xdf, 0x38, 0xea, 0xe8, 0xb7, 0xf7, 0x7f,
-	0xaf, 0x46, 0xde, 0x9f, 0xd5, 0xc8, 0xfb, 0xbb, 0x1a, 0x79, 0xbf, 0xfe, 0x8d, 0xee, 0xcc, 0x77,
-	0xe9, 0x0d, 0x9e, 0xfd, 0x0f, 0x00, 0x00, 0xff, 0xff, 0xdd, 0xdd, 0x93, 0x44, 0x6f, 0x03, 0x00,
-	0x00,
+	// 487 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x52, 0xcd, 0x8e, 0xd3, 0x30,
+	0x10, 0x26, 0xfd, 0x5b, 0xd5, 0x55, 0x0b, 0x58, 0x50, 0x45, 0x20, 0x4a, 0x29, 0x42, 0xf4, 0x42,
+	0x23, 0xed, 0x72, 0xe1, 0x0a, 0x2b, 0x76, 0x41, 0xa8, 0xaa, 0xbc, 0x0f, 0x10, 0xb9, 0xf1, 0xd0,
+	0x5a, 0x6a, 0x3c, 0xc6, 0x76, 0xc4, 0xcf, 0x43, 0x20, 0xae, 0x3c, 0x11, 0x1c, 0x79, 0x04, 0x54,
+	0x5e, 0x04, 0x65, 0x9a, 0x64, 0x61, 0xaf, 0x7b, 0x89, 0xc6, 0xdf, 0xf7, 0xcd, 0x17, 0xcf, 0x37,
+	0x66, 0x6f, 0x36, 0x3a, 0x6c, 0x8b, 0xf5, 0x22, 0xc3, 0x3c, 0xc9, 0x4f, 0xd4, 0xfa, 0xf0, 0xf1,
+	0x2e, 0x4b, 0x32, 0x44, 0xa7, 0xb4, 0x91, 0x01, 0x5d, 0xb2, 0x01, 0x03, 0x4e, 0x06, 0x50, 0x89,
+	0x75, 0x18, 0x30, 0x91, 0x2a, 0xd7, 0x26, 0x51, 0x32, 0xc8, 0xb5, 0xf4, 0xb0, 0x20, 0x90, 0x77,
+	0x09, 0xbd, 0xf7, 0xf6, 0x1a, 0x8e, 0x46, 0xe6, 0xe0, 0xad, 0xcc, 0x2a, 0xcb, 0x6b, 0x79, 0xd9,
+	0x9d, 0xcc, 0x20, 0x07, 0x13, 0x0e, 0x5e, 0xb3, 0x1f, 0x2d, 0x76, 0xf7, 0xb4, 0xba, 0xf1, 0x2b,
+	0x07, 0x32, 0x80, 0x80, 0x0f, 0x05, 0xf8, 0xc0, 0x9f, 0xb0, 0x51, 0xf3, 0xe3, 0xb4, 0xac, 0xe2,
+	0x68, 0x1a, 0xcd, 0xfb, 0x62, 0xd8, 0xa0, 0x4b, 0x99, 0x03, 0xe7, 0xac, 0x13, 0x3e, 0x5b, 0x88,
+	0x5b, 0x44, 0x52, 0xcd, 0x1f, 0x30, 0x66, 0x8a, 0x3c, 0xf5, 0x5b, 0xe9, 0x94, 0x8f, 0xdb, 0xd3,
+	0x68, 0xde, 0x15, 0x7d, 0x53, 0xe4, 0x17, 0x04, 0xf0, 0x67, 0x8c, 0x3b, 0xb0, 0x3b, 0x9d, 0xc9,
+	0xa0, 0xd1, 0xa4, 0xef, 0x65, 0x16, 0xd0, 0xc5, 0x1d, 0x92, 0xdd, 0xfe, 0x87, 0x79, 0x4d, 0x04,
+	0x7f, 0xce, 0xc6, 0x0e, 0x02, 0x18, 0x12, 0x5b, 0x70, 0x1a, 0x55, 0x6a, 0xa4, 0x41, 0x1f, 0x77,
+	0xa7, 0xd1, 0xbc, 0x2d, 0xee, 0x34, 0xec, 0x8a, 0xc8, 0x65, 0xc9, 0xf1, 0x77, 0xec, 0x31, 0x7c,
+	0xb2, 0x90, 0x05, 0x50, 0xa9, 0x07, 0xa7, 0xc1, 0xa7, 0xe5, 0x66, 0x2c, 0x6a, 0x13, 0x7c, 0x69,
+	0x93, 0x6e, 0xb1, 0x70, 0x71, 0x8f, 0x2c, 0x1e, 0xd6, 0xd2, 0x0b, 0x52, 0x9e, 0x36, 0xc2, 0x15,
+	0xb8, 0x73, 0x2c, 0x1c, 0x7f, 0xc4, 0xba, 0x5b, 0xf4, 0xc1, 0xc7, 0x47, 0xd3, 0xf6, 0x7c, 0x70,
+	0x3c, 0x58, 0x50, 0x9a, 0x8b, 0x73, 0xf4, 0x41, 0x1c, 0x98, 0xd9, 0xf7, 0x88, 0x75, 0xca, 0x33,
+	0x1f, 0xb1, 0x96, 0x56, 0x55, 0x58, 0x2d, 0xad, 0x78, 0xcc, 0x8e, 0xa4, 0x52, 0x0e, 0xbc, 0xaf,
+	0x42, 0xaa, 0x8f, 0x65, 0x76, 0x16, 0x5d, 0xa0, 0x84, 0x86, 0x82, 0x6a, 0xfe, 0x94, 0xdd, 0xd4,
+	0x1e, 0x77, 0x87, 0x68, 0x36, 0x0e, 0x0b, 0x4b, 0xc9, 0xf4, 0xc5, 0xa8, 0x81, 0xcf, 0x4a, 0xb4,
+	0x6c, 0xfe, 0x82, 0x06, 0x28, 0x84, 0xbe, 0xa0, 0x9a, 0x8f, 0x59, 0xef, 0x23, 0xe8, 0xcd, 0x36,
+	0xd0, 0x5c, 0x43, 0x51, 0x9d, 0x66, 0x5f, 0x23, 0x36, 0xbe, 0xba, 0x65, 0x6f, 0xd1, 0x78, 0xe0,
+	0x2f, 0x58, 0xbf, 0x59, 0x28, 0x5d, 0x7a, 0x70, 0x7c, 0xbf, 0x9a, 0x6e, 0x59, 0xe3, 0x67, 0x10,
+	0x6a, 0xbd, 0xb8, 0x54, 0x97, 0xad, 0xcd, 0x73, 0xa2, 0xd1, 0x2e, 0x5b, 0x57, 0x35, 0xfe, 0x5f,
+	0x6b, 0xa3, 0x7e, 0x79, 0xeb, 0xe7, 0x7e, 0x12, 0xfd, 0xda, 0x4f, 0xa2, 0xdf, 0xfb, 0x49, 0xf4,
+	0xed, 0xcf, 0xe4, 0xc6, 0xba, 0x47, 0xef, 0xf1, 0xe4, 0x6f, 0x00, 0x00, 0x00, 0xff, 0xff, 0x5a,
+	0xe1, 0xa5, 0x66, 0x7b, 0x03, 0x00, 0x00,
 }

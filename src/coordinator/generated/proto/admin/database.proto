@@ -13,19 +13,31 @@ message DatabaseCreateRequest {
   // Optional fields that may be inferred depending on database type
   int32 num_shards = 3;
   int32 replication_factor = 4;
+
   // The below two options are used to default retention options
   int64 retention_period_nanos = 5;
   int64 expected_series_datapoints_per_hour = 6;
-  // Only one of the two below hostname types should be taken. This is enforced
-  // in application code instead of via protobuf oneof to reduce the amount of
-  // JSON nested structures required for input.
-  repeated string hostnames = 7;
-  repeated HostnameGroup hostname_groups = 8;
+
+  // Required if not using local database type
+  repeated Host hosts = 7;
 }
 
-message HostnameGroup {
-  string hostname = 1;
-  string isolation_group = 2;
+message Host {
+  // Name (must be unique) of the host for logging/display purposes, can be hostname if desired,
+  // or UUID or any other string ID as used in third party inventory system
+  string id = 1;
+  // Address can be IP address or hostname, this is used to connect to the host
+  string address = 2;
+  // Port running the Node RPC listen address (currently TChannel/Thrift Node service)
+  uint32 port = 3;
+  // (Optional) Isolation group is an optional grouping, for instance to isolate replicas by
+  // zones use zone here, or to isolate by host racks use racks here
+  string isolation_group = 4;
+  // (Optional) Zone specifies the zone the host resides in, this is optional.
+  string zone = 5;
+  // (Optional) Weight specifies when considering how many shards to take how to weight
+  // this instance, do not specify to default to a weight of 1.
+  uint32 weight = 6;
 }
 
 message DatabaseCreateResponse {

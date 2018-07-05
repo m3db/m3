@@ -30,6 +30,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/m3db/m3x/ident"
+
 	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
@@ -71,15 +73,13 @@ type RunOptions struct {
 	// instead of parsing ConfigFile if ConfigFile is not specified.
 	Config config.Configuration
 
-	// DBConfig is the M3DB config, which is used to
-	DBConfig dbconfig.DBConfiguration
+	// DBConfig is the local M3DB config when running embedded.
+	DBConfig *dbconfig.DBConfiguration
 
-	// DBClient is the M3DB client to use instead of instantiating a new one
-	// from client config.
+	// DBClient is the local M3DB client when running embedded.
 	DBClient <-chan client.Client
 
-	// ClusterClient is the M3DB cluster client to use instead of instantiating
-	// one from the client config.
+	// ClusterClient is the local M3DB cluster client when running embedded.
 	ClusterClient <-chan clusterclient.Client
 }
 
@@ -112,11 +112,13 @@ func Run(runOpts RunOptions) {
 		clusterClientCh = runOpts.ClusterClient
 	}
 
-	if clusterClientCh == nil && cfg.DBClient != nil && cfg.DBClient.EnvironmentConfig.Service != nil {
-		clusterSvcClientOpts := cfg.DBClient.EnvironmentConfig.Service.NewOptions()
+	if clusterClientCh == nil && cfg.ClusterManagement != nil {
+		// We resolved an etcd configuration for cluster management endpoints
+		etcdCfg := cfg.ClusterManagement.Etcd
+		clusterSvcClientOpts := etcdCfg.NewOptions()
 		clusterClient, err := etcd.NewConfigServiceClient(clusterSvcClientOpts)
 		if err != nil {
-			logger.Fatal("unable to create etcd client", zap.Any("error", err))
+			logger.Fatal("unable to create cluster management etcd client", zap.Any("error", err))
 		}
 
 		clusterClientSendableCh := make(chan clusterclient.Client, 1)
@@ -124,31 +126,28 @@ func Run(runOpts RunOptions) {
 		clusterClientCh = clusterClientSendableCh
 	}
 
-	var dbClientCh <-chan client.Client
-	if runOpts.DBClient != nil {
-		dbClientCh = runOpts.DBClient
-	}
-
-	if dbClientCh == nil {
-		// If not provided create cluster client and DB client
-		clientCfg := cfg.DBClient
-		if clientCfg == nil {
-			logger.Fatal("missing coordinator m3db client configuration")
-		}
-
-		dbClient, err := clientCfg.NewClient(client.ConfigurationParameters{})
+	var clusters local.Clusters
+	if len(cfg.Clusters) > 0 {
+		clusters, err = cfg.Clusters.NewClusters()
 		if err != nil {
-			logger.Fatal("unable to create m3db client", zap.Any("error", err))
+			logger.Fatal("unable to connect to clusters", zap.Any("error", err))
 		}
-
-		dbClientSendableCh := make(chan client.Client, 1)
-		dbClientSendableCh <- dbClient
-		dbClientCh = dbClientSendableCh
+	} else {
+		dbClientCh := runOpts.DBClient
+		if dbClientCh == nil {
+			logger.Fatal("no local clusters specified and not running embedded")
+		}
+		session := m3db.NewAsyncSession(func() (client.Client, error) {
+			return <-dbClientCh, nil
+		}, nil)
+		clusters, err = local.NewClusters(local.UnaggregatedClusterNamespaceDefinition{
+			NamespaceID: ident.StringID(defaultNamespace),
+			Session:     session,
+		}, nil)
+		if err != nil {
+			logger.Fatal("unable to connect to clusters", zap.Any("error", err))
+		}
 	}
-
-	session := m3db.NewAsyncSession(func() (client.Client, error) {
-		return <-dbClientCh, nil
-	}, nil)
 
 	workerPoolCount := cfg.DecompressWorkerPoolCount
 	if workerPoolCount == 0 {
@@ -175,12 +174,17 @@ func Run(runOpts RunOptions) {
 		return workerPool
 	})
 
-	fanoutStorage, storageCleanup := setupStorages(logger, session, cfg, objectPool)
+	fanoutStorage, storageCleanup := setupStorages(logger, clusters, cfg, objectPool)
 	defer storageCleanup()
 
-	clusterClient := m3dbcluster.NewAsyncClient(func() (clusterclient.Client, error) {
-		return <-clusterClientCh, nil
-	}, nil)
+	var clusterClient clusterclient.Client
+	if clusterClientCh != nil {
+		// Only use a cluster client if we are going to receive one, that
+		// way passing nil to httpd NewHandler disables the endpoints entirely
+		clusterClient = m3dbcluster.NewAsyncClient(func() (clusterclient.Client, error) {
+			return <-clusterClientCh, nil
+		}, nil)
+	}
 
 	handler, err := httpd.NewHandler(fanoutStorage, executor.NewEngine(fanoutStorage),
 		clusterClient, cfg, runOpts.DBConfig, scope)
@@ -201,19 +205,15 @@ func Run(runOpts RunOptions) {
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
 	<-sigChan
-	if err := session.Close(); err != nil {
-		logger.Fatal("unable to close m3db client session", zap.Any("error", err))
+	if err := clusters.Close(); err != nil {
+		logger.Fatal("unable to close M3DB cluster sessions", zap.Any("error", err))
 	}
 }
 
-func setupStorages(logger *zap.Logger, session client.Session, cfg config.Configuration, workerPool pool.ObjectPool) (storage.Storage, func()) {
+func setupStorages(logger *zap.Logger, clusters local.Clusters, cfg config.Configuration, workerPool pool.ObjectPool) (storage.Storage, func()) {
 	cleanup := func() {}
-	namespace := defaultNamespace
-	if cfg.DBNamespace != "" {
-		namespace = cfg.DBNamespace
-	}
 
-	localStorage := local.NewStorage(session, namespace, workerPool)
+	localStorage := local.NewStorage(clusters, workerPool)
 	stores := []storage.Storage{localStorage}
 	remoteEnabled := false
 	if cfg.RPC != nil && cfg.RPC.Enabled {

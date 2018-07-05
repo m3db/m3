@@ -25,7 +25,7 @@ import (
 	"net/http/pprof"
 	"os"
 
-	m3clusterClient "github.com/m3db/m3cluster/client"
+	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
 	dbconfig "github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler"
@@ -58,15 +58,21 @@ type Handler struct {
 	CLFLogger     *log.Logger
 	storage       storage.Storage
 	engine        *executor.Engine
-	clusterClient m3clusterClient.Client
+	clusterClient clusterclient.Client
 	config        config.Configuration
-	dbConfig      dbconfig.DBConfiguration
+	embeddedDbCfg *dbconfig.DBConfiguration
 	scope         tally.Scope
 }
 
 // NewHandler returns a new instance of handler with routes.
-func NewHandler(storage storage.Storage, engine *executor.Engine, clusterClient m3clusterClient.Client,
-	cfg config.Configuration, dbCfg dbconfig.DBConfiguration, scope tally.Scope) (*Handler, error) {
+func NewHandler(
+	storage storage.Storage,
+	engine *executor.Engine,
+	clusterClient clusterclient.Client,
+	cfg config.Configuration,
+	embeddedDbCfg *dbconfig.DBConfiguration,
+	scope tally.Scope,
+) (*Handler, error) {
 	r := mux.NewRouter()
 	logger, err := zap.NewProduction()
 	if err != nil {
@@ -81,7 +87,6 @@ func NewHandler(storage storage.Storage, engine *executor.Engine, clusterClient 
 		engine:        engine,
 		clusterClient: clusterClient,
 		config:        cfg,
-		dbConfig:      dbCfg,
 		scope:         scope,
 	}
 	return h, nil
@@ -104,7 +109,7 @@ func (h *Handler) RegisterRoutes() error {
 	if h.clusterClient != nil {
 		placement.RegisterRoutes(h.Router, h.clusterClient, h.config)
 		namespace.RegisterRoutes(h.Router, h.clusterClient)
-		database.RegisterRoutes(h.Router, h.clusterClient, h.config, h.dbConfig)
+		database.RegisterRoutes(h.Router, h.clusterClient, h.config, h.embeddedDbCfg)
 	}
 
 	return nil

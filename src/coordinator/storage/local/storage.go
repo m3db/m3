@@ -22,6 +22,9 @@ package local
 
 import (
 	"context"
+	goerrors "errors"
+	"fmt"
+	"sync"
 	"time"
 
 	"github.com/m3db/m3db/src/coordinator/block"
@@ -29,25 +32,29 @@ import (
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/storage"
 	"github.com/m3db/m3db/src/coordinator/util/execution"
-	"github.com/m3db/m3db/src/dbnode/client"
+	"github.com/m3db/m3db/src/dbnode/storage/index"
+	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 )
 
+const (
+	initRawFetchAllocSize = 32
+)
+
+var (
+	errNoLocalClustersFulfillsQuery = goerrors.New("no clusters can fulfill query")
+)
+
 type localStorage struct {
-	session    client.Session
-	namespace  ident.ID
+	clusters   Clusters
 	workerPool pool.ObjectPool
 }
 
 // NewStorage creates a new local Storage instance.
-func NewStorage(session client.Session, namespace string, workerPool pool.ObjectPool) storage.Storage {
-	return &localStorage{
-		session:    session,
-		namespace:  ident.StringID(namespace),
-		workerPool: workerPool,
-	}
+func NewStorage(clusters Clusters, workerPool pool.ObjectPool) storage.Storage {
+	return &localStorage{clusters: clusters, workerPool: workerPool}
 }
 
 func (s *localStorage) Fetch(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (*storage.FetchResult, error) {
@@ -65,14 +72,64 @@ func (s *localStorage) Fetch(ctx context.Context, query *storage.FetchQuery, opt
 		return nil, err
 	}
 
-	opts := storage.FetchOptionsToM3Options(options, query)
+	// NB(r): Since we don't use a single index we fan out to each
+	// cluster that can completely fulfill this range and then prefer the
+	// highest resolution (most fine grained) results.
+	// This needs to be optimized, however this is a start.
+	var (
+		opts       = storage.FetchOptionsToM3Options(options, query)
+		namespaces = s.clusters.ClusterNamespaces()
+		now        = time.Now()
+		fetches    = 0
+		result     multiFetchResult
+		wg         sync.WaitGroup
+	)
+	for _, namespace := range namespaces {
+		namespace := namespace // Capture var
+
+		clusterStart := now.Add(-1 * namespace.Attributes().Retention)
+
+		// Only include if cluster can completely fulfill the range
+		if clusterStart.After(query.Start) {
+			continue
+		}
+
+		fetches++
+
+		wg.Add(1)
+		go func() {
+			r, err := s.fetch(namespace, m3query, opts)
+			result.add(namespace.Attributes(), r, err)
+			wg.Done()
+		}()
+	}
+
+	if fetches == 0 {
+		return nil, errNoLocalClustersFulfillsQuery
+	}
+
+	wg.Wait()
+	if err := result.err.FinalError(); err != nil {
+		return nil, err
+	}
+	return result.result, nil
+}
+
+func (s *localStorage) fetch(
+	namespace ClusterNamespace,
+	query index.Query,
+	opts index.QueryOptions,
+) (*storage.FetchResult, error) {
+	namespaceID := namespace.NamespaceID()
+	session := namespace.Session()
+
 	// TODO (nikunj): Handle second return param
-	iters, _, err := s.session.FetchTagged(s.namespace, m3query, opts)
+	iters, _, err := session.FetchTagged(namespaceID, query, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	return storage.SeriesIteratorsToFetchResult(iters, s.namespace, s.workerPool)
+	return storage.SeriesIteratorsToFetchResult(iters, namespaceID, s.workerPool)
 }
 
 func (s *localStorage) FetchTags(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (*storage.SearchResults, error) {
@@ -90,9 +147,54 @@ func (s *localStorage) FetchTags(ctx context.Context, query *storage.FetchQuery,
 		return nil, err
 	}
 
-	opts := storage.FetchOptionsToM3Options(options, query)
+	var (
+		opts       = storage.FetchOptionsToM3Options(options, query)
+		namespaces = s.clusters.ClusterNamespaces()
+		now        = time.Now()
+		fetches    = 0
+		result     multiFetchTagsResult
+		wg         sync.WaitGroup
+	)
+	for _, namespace := range namespaces {
+		namespace := namespace // Capture var
+
+		clusterStart := now.Add(-1 * namespace.Attributes().Retention)
+
+		// Only include if cluster can completely fulfill the range
+		if clusterStart.After(query.Start) {
+			continue
+		}
+
+		fetches++
+
+		wg.Add(1)
+		go func() {
+			result.add(s.fetchTags(namespace, m3query, opts))
+			wg.Done()
+		}()
+	}
+
+	if fetches == 0 {
+		return nil, errNoLocalClustersFulfillsQuery
+	}
+
+	wg.Wait()
+	if err := result.err.FinalError(); err != nil {
+		return nil, err
+	}
+	return result.result, nil
+}
+
+func (s *localStorage) fetchTags(
+	namespace ClusterNamespace,
+	query index.Query,
+	opts index.QueryOptions,
+) (*storage.SearchResults, error) {
+	namespaceID := namespace.NamespaceID()
+	session := namespace.Session()
+
 	// TODO (juchan): Handle second return param
-	iter, _, err := s.session.FetchTaggedIDs(s.namespace, m3query, opts)
+	iter, _, err := session.FetchTaggedIDs(namespaceID, query, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -131,6 +233,7 @@ func (s *localStorage) Write(ctx context.Context, query *storage.WriteQuery) err
 		unit:        query.Unit,
 		id:          id,
 		tagIterator: storage.TagsToIdentTagIterator(query.Tags),
+		attributes:  query.Attributes,
 	}
 
 	requests := make([]execution.Request, len(query.Datapoints))
@@ -161,11 +264,46 @@ func (s *localStorage) FetchBlocks(
 	return res, nil
 }
 
+func (s *localStorage) Close() error {
+	return nil
+}
+
 func (w *writeRequest) Process(ctx context.Context) error {
 	common := w.writeRequestCommon
 	store := common.store
 	id := ident.StringID(common.id)
-	return store.session.WriteTagged(store.namespace, id, common.tagIterator, w.timestamp, w.value, common.unit, common.annotation)
+
+	var (
+		namespace ClusterNamespace
+		err       error
+	)
+	switch common.attributes.MetricsType {
+	case storage.UnaggregatedMetricsType:
+		namespace = store.clusters.UnaggregatedClusterNamespace()
+	case storage.AggregatedMetricsType:
+		attrs := RetentionResolution{
+			Retention:  common.attributes.Retention,
+			Resolution: common.attributes.Resolution,
+		}
+		var exists bool
+		namespace, exists = store.clusters.AggregatedClusterNamespace(attrs)
+		if !exists {
+			err = fmt.Errorf("no configured cluster namespace for: retention=%s, resolution=%s",
+				attrs.Retention.String(), attrs.Resolution.String())
+		}
+	default:
+		metricsType := common.attributes.MetricsType
+		err = fmt.Errorf("invalid write request metrics type: %s (%d)",
+			metricsType.String(), uint(metricsType))
+	}
+	if err != nil {
+		return err
+	}
+
+	namespaceID := namespace.NamespaceID()
+	session := namespace.Session()
+	return session.WriteTagged(namespaceID, id, common.tagIterator,
+		w.timestamp, w.value, common.unit, common.annotation)
 }
 
 type writeRequestCommon struct {
@@ -174,6 +312,7 @@ type writeRequestCommon struct {
 	unit        xtime.Unit
 	id          string
 	tagIterator ident.TagIterator
+	attributes  storage.Attributes
 }
 
 type writeRequest struct {
@@ -190,7 +329,119 @@ func newWriteRequest(writeRequestCommon *writeRequestCommon, timestamp time.Time
 	}
 }
 
-func (s *localStorage) Close() error {
-	s.namespace.Finalize()
-	return nil
+type multiFetchResult struct {
+	sync.Mutex
+	result           *storage.FetchResult
+	err              xerrors.MultiError
+	dedupeFirstAttrs storage.Attributes
+	dedupeMap        map[string]multiFetchResultSeries
+}
+
+type multiFetchResultSeries struct {
+	idx   int
+	attrs storage.Attributes
+}
+
+func (r *multiFetchResult) add(
+	attrs storage.Attributes,
+	result *storage.FetchResult,
+	err error,
+) {
+	r.Lock()
+	defer r.Unlock()
+
+	if err != nil {
+		r.err = r.err.Add(err)
+		return
+	}
+
+	if r.result == nil {
+		r.result = result
+		r.dedupeFirstAttrs = attrs
+		return
+	}
+
+	r.result.HasNext = r.result.HasNext && result.HasNext
+	r.result.LocalOnly = r.result.LocalOnly && result.LocalOnly
+
+	// Need to dedupe
+	if r.dedupeMap == nil {
+		r.dedupeMap = make(map[string]multiFetchResultSeries, len(r.result.SeriesList))
+		for idx, s := range r.result.SeriesList {
+			r.dedupeMap[s.Name()] = multiFetchResultSeries{
+				idx:   idx,
+				attrs: r.dedupeFirstAttrs,
+			}
+		}
+	}
+
+	for _, s := range result.SeriesList {
+		id := s.Name()
+		existing, exists := r.dedupeMap[id]
+		if exists && existing.attrs.Resolution < attrs.Resolution {
+			// Already exists and resolution is already more finer grained
+			continue
+		}
+
+		// Does not exist already or more finer grained, add result
+		var idx int
+		if !exists {
+			idx = len(r.result.SeriesList)
+			r.result.SeriesList = append(r.result.SeriesList, s)
+		} else {
+			idx = existing.idx
+			r.result.SeriesList[idx] = s
+		}
+
+		r.dedupeMap[id] = multiFetchResultSeries{
+			idx:   idx,
+			attrs: attrs,
+		}
+	}
+}
+
+type multiFetchTagsResult struct {
+	sync.Mutex
+	result    *storage.SearchResults
+	err       xerrors.MultiError
+	dedupeMap map[string]struct{}
+}
+
+func (r *multiFetchTagsResult) add(
+	result *storage.SearchResults,
+	err error,
+) {
+	r.Lock()
+	defer r.Unlock()
+
+	if err != nil {
+		r.err = r.err.Add(err)
+		return
+	}
+
+	if r.result == nil {
+		r.result = result
+		return
+	}
+
+	// Need to dedupe
+	if r.dedupeMap == nil {
+		r.dedupeMap = make(map[string]struct{}, len(r.result.Metrics))
+		for _, s := range r.result.Metrics {
+			r.dedupeMap[s.ID] = struct{}{}
+		}
+	}
+
+	for _, s := range result.Metrics {
+		id := s.ID
+		_, exists := r.dedupeMap[id]
+		if exists {
+			// Already exists
+			continue
+		}
+
+		// Does not exist already, add result
+		r.result.Metrics = append(r.result.Metrics, s)
+		r.dedupeMap[id] = struct{}{}
+	}
 }

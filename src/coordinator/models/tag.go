@@ -125,25 +125,28 @@ func (m Matchers) ToTags() (Tags, error) {
 	return tags, nil
 }
 
+var (
+	sep = []byte(",")
+	eq  = []byte("=")
+)
+
 // ID returns a string representation of the tags
 func (t Tags) ID() string {
-	sep := ","
-	eq := "="
-
-	var b string
-	var keys []string
-
+	length := 0
+	keys := make([]string, 0, len(t))
 	for k := range t {
+		length += len(k) + len(t[k]) + len(eq) + len(sep)
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 
+	b := make([]byte, 0, length)
 	for _, k := range keys {
-		b += k
-		b += eq
-		b += t[k]
-		b += sep
+		b = append(b, k...)
+		b = append(b, eq...)
+		b = append(b, t[k]...)
+		b = append(b, sep...)
 	}
 
-	return b
+	return string(b)
 }
