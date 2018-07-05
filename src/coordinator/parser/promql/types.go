@@ -80,10 +80,15 @@ func NewBinaryOperator(expr *promql.BinaryExpr, lhs, rhs parser.NodeID) (parser.
 }
 
 // NewFunctionExpr creates a new function expr based on the type
-func NewFunctionExpr(name string) (parser.Params, error) {
+func NewFunctionExpr(name string, argValues []interface{}) (parser.Params, error) {
 	switch name {
 	case functions.AbsType:
 		return functions.AbsOp{}, nil
+	case functions.ClampMinType:
+		return functions.NewClampOp(argValues, functions.ClampMinType)
+	case functions.ClampMaxType:
+		return functions.NewClampOp(argValues, functions.ClampMaxType)
+
 	default:
 		// TODO: handle other types
 		return nil, fmt.Errorf("function not supported: %s", name)
