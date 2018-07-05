@@ -85,7 +85,9 @@ func NewFunctionExpr(name string, argValues []interface{}) (parser.Params, error
 	case functions.AbsType:
 		return functions.AbsOp{}, nil
 	case functions.ClampMinType:
-		return functions.NewMinClamp(argValues)
+		return functions.NewClampOp(argValues, functions.ClampMinType)
+	case functions.ClampMaxType:
+		return functions.NewClampOp(argValues, functions.ClampMaxType)
 
 	default:
 		// TODO: handle other types

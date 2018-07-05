@@ -29,18 +29,26 @@ import (
 	"github.com/m3db/m3db/src/coordinator/parser"
 )
 
-// ClampMinType
+// ClampMinType ensures all values except NaNs are greater than or equal to the provided argument
 const ClampMinType = "clamp_min"
 
-// AbsOp stores required properties for abs
+// ClampMaxType ensures all values except NaNs are lesser than or equal to provided argument
+const ClampMaxType = "clamp_max"
+
+// ClampOp stores required properties for clamp
 type ClampOp struct {
 	optype string
 	scalar float64
 }
 
-func NewMinClamp(args []interface{}) (ClampOp, error) {
+// NewClampOp creates a new clamp op based on the type and arguments
+func NewClampOp(args []interface{}, optype string) (ClampOp, error) {
 	if len(args) != 1 {
 		return ClampOp{}, fmt.Errorf("invalid number of args for clamp: %d", len(args))
+	}
+
+	if optype != ClampMinType && optype != ClampMaxType {
+		return ClampOp{}, fmt.Errorf("unknown clamp type: %s", optype)
 	}
 
 	scalar, ok := args[0].(float64)
@@ -49,7 +57,7 @@ func NewMinClamp(args []interface{}) (ClampOp, error) {
 	}
 
 	return ClampOp{
-		optype: ClampMinType,
+		optype: optype,
 		scalar: scalar,
 	}, nil
 }
@@ -69,7 +77,7 @@ func (o ClampOp) Node(controller *transform.Controller) transform.OpNode {
 	return &ClampNode{op: o, controller: controller}
 }
 
-// AbsNode is an execution node
+// ClampNode is an execution node
 type ClampNode struct {
 	op         ClampOp
 	controller *transform.Controller

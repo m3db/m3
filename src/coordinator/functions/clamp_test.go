@@ -30,12 +30,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-func expectedClampVals(values [][]float64, num float64) [][]float64 {
+func expectedClampVals(values [][]float64, num float64, fn func(x, y float64) float64) [][]float64 {
 	expected := make([][]float64, 0, len(values))
 	for _, val := range values {
 		v := make([]float64, len(val))
 		for i, ev := range val {
-			v[i] = math.Max(ev, num)
+			v[i] = fn(ev, num)
 		}
 
 		expected = append(expected, v)
@@ -49,13 +49,30 @@ func TestClampMin(t *testing.T) {
 
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := test.NewControllerWithSink(parser.NodeID(1))
-	op, err := NewMinClamp([]interface{}{3.0})
+	op, err := NewClampOp([]interface{}{3.0}, ClampMinType)
 	require.NoError(t, err)
 	node := op.Node(c)
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
-	expected := expectedClampVals(values, 3.0)
+	expected := expectedClampVals(values, 3.0, math.Max)
 	assert.Len(t, sink.Values, 2)
 	test.EqualsWithNans(t, expected, sink.Values)
 }
+
+func TestClampMax(t *testing.T) {
+	values, bounds := test.GenerateValuesAndBounds(nil, nil)
+	values[0][0] = math.NaN()
+
+	block := test.NewBlockFromValues(bounds, values)
+	c, sink := test.NewControllerWithSink(parser.NodeID(1))
+	op, err := NewClampOp([]interface{}{3.0}, ClampMaxType)
+	require.NoError(t, err)
+	node := op.Node(c)
+	err = node.Process(parser.NodeID(0), block)
+	require.NoError(t, err)
+	expected := expectedClampVals(values, 3.0, math.Min)
+	assert.Len(t, sink.Values, 2)
+	test.EqualsWithNans(t, expected, sink.Values)
+}
+
 
