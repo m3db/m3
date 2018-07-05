@@ -471,9 +471,7 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 	var (
 		shardResult    result.ShardResult
 		allSeriesSoFar *result.Map
-		// TODO: Estimate capacity better
-		// shardResult = result.NewShardResult(0, s.opts.ResultOptions())
-		rangeIter = shardTimeRanges.Iter()
+		rangeIter      = shardTimeRanges.Iter()
 	)
 
 	for hasMore := rangeIter.Next(); hasMore; hasMore = rangeIter.Next() {
