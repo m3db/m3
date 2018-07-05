@@ -157,7 +157,7 @@ func (s *commitLogSource) ReadData(
 
 	// Determine the minimum number of commit logs files that we
 	// must read based on the available snapshot files.
-	readCommitLogPred, err := s.newReadCommitLogPredBasedOnAvailableSnapshotFiles(
+	readCommitLogPred, mostRecentCompleteSnapshotByBlockShard, err := s.newReadCommitLogPredBasedOnAvailableSnapshotFiles(
 		ns, shardsTimeRanges, snapshotFilesByShard)
 	if err != nil {
 		return nil, err
@@ -270,6 +270,7 @@ func (s *commitLogSource) ReadData(
 		ns,
 		shardsTimeRanges,
 		snapshotFilesByShard,
+		mostRecentCompleteSnapshotByBlockShard,
 		int(numShards),
 		blockSize,
 		shardDataByShard,
@@ -316,16 +317,16 @@ func (s *commitLogSource) newShardDataByShard(
 	return shardDataByShard
 }
 
-func (s *commitLogSource) mostRecentCompleteSnapshotTimeByBlockShard(
+func (s *commitLogSource) mostRecentCompleteSnapshotByBlockShard(
 	shardsTimeRanges result.ShardTimeRanges,
 	blockSize time.Duration,
 	snapshotFilesByShard map[uint32]fs.FileSetFilesSlice,
 	fsOpts fs.Options,
-) map[xtime.UnixNano]map[uint32]time.Time {
+) map[xtime.UnixNano]map[uint32]snapshotMetadata {
 	var (
 		minBlock, maxBlock              = shardsTimeRanges.MinMax()
 		decoder                         = msgpack.NewDecoder(nil)
-		mostRecentSnapshotsByBlockShard = map[xtime.UnixNano]map[uint32]time.Time{}
+		mostRecentSnapshotsByBlockShard = map[xtime.UnixNano]map[uint32]snapshotMetadata{}
 	)
 
 	for currBlockStart := minBlock.Truncate(blockSize); currBlockStart.Before(maxBlock); currBlockStart = currBlockStart.Add(blockSize) {
@@ -333,25 +334,24 @@ func (s *commitLogSource) mostRecentCompleteSnapshotTimeByBlockShard(
 			// Anonymous func for easier clean up using defer.
 			func() {
 				var (
-					currBlockUnixNanos     = xtime.ToUnixNano(currBlockStart)
-					mostRecentSnapshotTime time.Time
-					mostRecentSnapshot     fs.FileSetFile
-					err                    error
+					currBlockUnixNanos = xtime.ToUnixNano(currBlockStart)
+					mostRecentSnapshot snapshotMetadata
+					err                error
 				)
 
 				defer func() {
 					existing := mostRecentSnapshotsByBlockShard[currBlockUnixNanos]
 					if existing == nil {
-						existing = map[uint32]time.Time{}
+						existing = map[uint32]snapshotMetadata{}
 					}
 
-					if mostRecentSnapshotTime.IsZero() {
+					if mostRecentSnapshot.isZero() {
 						// If we were unable to determine the most recent snapshot time for a given
 						// shard/blockStart combination, then just fall back to using the blockStart
 						// time as that will force us to read the entire commit log for that duration.
-						mostRecentSnapshotTime = currBlockStart
+						mostRecentSnapshot.snapshotTime = currBlockStart
 					}
-					existing[shard] = mostRecentSnapshotTime
+					existing[shard] = mostRecentSnapshot
 					mostRecentSnapshotsByBlockShard[currBlockUnixNanos] = existing
 				}()
 
@@ -362,12 +362,13 @@ func (s *commitLogSource) mostRecentCompleteSnapshotTimeByBlockShard(
 					return
 				}
 
-				mostRecentSnapshot, ok = snapshotFiles.LatestVolumeForBlock(currBlockStart)
+				mostRecentSnapshotVolume, ok := snapshotFiles.LatestVolumeForBlock(currBlockStart)
 				if !ok {
 					// If there are no complete snapshot files for this block, then rely on
 					// the defer to fallback to using the block start time.
 					return
 				}
+				mostRecentSnapshot.FileSetFile = mostRecentSnapshotVolume
 
 				var (
 					filePathPrefix       = s.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
@@ -375,7 +376,7 @@ func (s *commitLogSource) mostRecentCompleteSnapshotTimeByBlockShard(
 				)
 
 				// Performs I/O.
-				mostRecentSnapshotTime, err = s.snapshotTimeFn(
+				mostRecentSnapshotTime, err := s.snapshotTimeFn(
 					filePathPrefix, mostRecentSnapshot.ID, infoReaderBufferSize, decoder)
 				if err != nil {
 					s.log.
@@ -392,7 +393,7 @@ func (s *commitLogSource) mostRecentCompleteSnapshotTimeByBlockShard(
 					// the defer to fallback to using the block start time.
 					return
 				}
-
+				mostRecentSnapshot.snapshotTime = mostRecentSnapshotTime
 			}()
 		}
 	}
@@ -403,7 +404,7 @@ func (s *commitLogSource) mostRecentCompleteSnapshotTimeByBlockShard(
 func (s *commitLogSource) minimumMostRecentSnapshotTimeByBlock(
 	shardsTimeRanges result.ShardTimeRanges,
 	blockSize time.Duration,
-	mostRecentSnapshotByBlockShard map[xtime.UnixNano]map[uint32]time.Time,
+	mostRecentSnapshotByBlockShard map[xtime.UnixNano]map[uint32]snapshotMetadata,
 ) map[xtime.UnixNano]time.Time {
 	minimumMostRecentSnapshotTimeByBlock := map[xtime.UnixNano]time.Time{}
 	for blockStart, mostRecentSnapshotsByShard := range mostRecentSnapshotByBlockShard {
@@ -418,8 +419,8 @@ func (s *commitLogSource) minimumMostRecentSnapshotTimeByBlock(
 				continue
 			}
 
-			if mostRecentSnapshotForShard.Before(minMostRecentSnapshot) || minMostRecentSnapshot.IsZero() {
-				minMostRecentSnapshot = mostRecentSnapshotForShard
+			if mostRecentSnapshotForShard.snapshotTime.Before(minMostRecentSnapshot) || minMostRecentSnapshot.IsZero() {
+				minMostRecentSnapshot = mostRecentSnapshotForShard.snapshotTime
 			}
 		}
 
@@ -440,12 +441,14 @@ func (s *commitLogSource) bootstrapAvailableSnapshotFiles(
 	shardsTimeRanges result.ShardTimeRanges,
 	blockSize time.Duration,
 	snapshotFilesByShard map[uint32]fs.FileSetFilesSlice,
+	mostRecentCompleteSnapshotByBlockShard map[xtime.UnixNano]map[uint32]snapshotMetadata,
 ) (map[uint32]result.ShardResult, error) {
 	snapshotShardResults := make(map[uint32]result.ShardResult)
 
 	for shard, tr := range shardsTimeRanges {
 		shardResult, err := s.bootstrapShardSnapshots(
-			nsID, shard, tr, blockSize, snapshotFilesByShard[shard])
+			nsID, shard, tr, blockSize, snapshotFilesByShard[shard],
+			mostRecentCompleteSnapshotByBlockShard)
 		if err != nil {
 			return nil, err
 		}
@@ -461,6 +464,7 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 	shardTimeRanges xtime.Ranges,
 	blockSize time.Duration,
 	snapshotFiles fs.FileSetFilesSlice,
+	mostRecentCompleteSnapshotByBlockShard map[xtime.UnixNano]map[uint32]snapshotMetadata,
 ) (result.ShardResult, error) {
 	var (
 		shardResult    result.ShardResult
@@ -490,7 +494,7 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 
 		for blockStart := currRange.Start.Truncate(blockSize); blockStart.Before(currRange.End); blockStart = blockStart.Add(blockSize) {
 			shardResult, err = s.bootstrapShardBlockSnapshot(
-				nsID, shard, blockStart, shardResult, allSeriesSoFar, blockSize, snapshotFiles)
+				nsID, shard, blockStart, 0, shardResult, allSeriesSoFar, blockSize, snapshotFiles)
 			if err != nil {
 				return shardResult, err
 			}
@@ -507,6 +511,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 	nsID ident.ID,
 	shard uint32,
 	blockStart time.Time,
+	volume int,
 	shardResult result.ShardResult,
 	allSeriesSoFar *result.Map,
 	blockSize time.Duration,
@@ -622,7 +627,11 @@ func (s *commitLogSource) newReadCommitLogPredBasedOnAvailableSnapshotFiles(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	snapshotFilesByShard map[uint32]fs.FileSetFilesSlice,
-) (func(fileName string, fileStart time.Time, fileBlockSize time.Duration) bool, error) {
+) (
+	func(fileName string, fileStart time.Time, fileBlockSize time.Duration) bool,
+	map[xtime.UnixNano]map[uint32]snapshotMetadata,
+	error,
+) {
 	blockSize := ns.Options().RetentionOptions().BlockSize()
 
 	// At this point we've bootstrapped all the snapshot files that we can, and we need to
@@ -633,13 +642,13 @@ func (s *commitLogSource) newReadCommitLogPredBasedOnAvailableSnapshotFiles(
 	// snapshot that was taken for each shard. I.E we want to create a datastructure that looks
 	// like this:
 	// 		map[blockStart]map[shard]mostRecentSnapshotTime
-	mostRecentCompleteSnapshotTimeByBlockShard := s.mostRecentCompleteSnapshotTimeByBlockShard(
+	mostRecentCompleteSnapshotByBlockShard := s.mostRecentCompleteSnapshotByBlockShard(
 		shardsTimeRanges, blockSize, snapshotFilesByShard, s.opts.CommitLogOptions().FilesystemOptions())
-	for block, mostRecentByShard := range mostRecentCompleteSnapshotTimeByBlockShard {
+	for block, mostRecentByShard := range mostRecentCompleteSnapshotByBlockShard {
 		for shard, mostRecent := range mostRecentByShard {
 			s.log.Infof(
 				"Most recent snapshot for block: %d and shard: %d is %d",
-				block.ToTime().Unix(), shard, mostRecent.Unix())
+				block.ToTime().Unix(), shard, mostRecent.snapshotTime.Unix())
 		}
 	}
 
@@ -650,7 +659,7 @@ func (s *commitLogSource) newReadCommitLogPredBasedOnAvailableSnapshotFiles(
 	// This structure is important because it tells us how much of the commit log we need to read for
 	// each block that we're trying to bootstrap (because the commit log is shared across all shards.)
 	minimumMostRecentSnapshotTimeByBlock := s.minimumMostRecentSnapshotTimeByBlock(
-		shardsTimeRanges, blockSize, mostRecentCompleteSnapshotTimeByBlockShard)
+		shardsTimeRanges, blockSize, mostRecentCompleteSnapshotByBlockShard)
 	for block, minSnapshotTime := range minimumMostRecentSnapshotTimeByBlock {
 		s.log.Infof(
 			"Min snapshot time for block: %d is: %d",
@@ -662,7 +671,7 @@ func (s *commitLogSource) newReadCommitLogPredBasedOnAvailableSnapshotFiles(
 	// construct a new predicate based on the data structure we constructed earlier where the new
 	// predicate will check if there is any overlap between a commit log file and a temporary range
 	// we construct that begins with the minimum snapshot time and ends with the end of that block + bufferPast.
-	return s.newReadCommitLogPred(ns, minimumMostRecentSnapshotTimeByBlock), nil
+	return s.newReadCommitLogPred(ns, minimumMostRecentSnapshotTimeByBlock), mostRecentCompleteSnapshotByBlockShard, nil
 }
 
 func (s *commitLogSource) newReadCommitLogPred(
@@ -888,6 +897,7 @@ func (s *commitLogSource) mergeShards(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	snapshotFiles map[uint32]fs.FileSetFilesSlice,
+	mostRecentCompleteSnapshotByBlockShard map[xtime.UnixNano]map[uint32]snapshotMetadata,
 	numShards int,
 	blockSize time.Duration,
 	unmerged []shardData,
@@ -910,6 +920,7 @@ func (s *commitLogSource) mergeShards(
 			shardsTimeRanges[uint32(shard)],
 			blockSize,
 			snapshotFiles[uint32(shard)],
+			mostRecentCompleteSnapshotByBlockShard,
 		)
 		if err != nil {
 			panic(err)
@@ -1306,11 +1317,27 @@ func (s *commitLogSource) ReadIndex(
 		blockSize      = ns.Options().RetentionOptions().BlockSize()
 	)
 
+	// Next, we need to read all data out of the commit log that wasn't covered by the
+	// snapshot files or cached metadata (previously read commit logs).
+	readCommitLogPredicate, mostRecentCompleteSnapshotByBlockShard, err := s.newReadCommitLogPredBasedOnAvailableSnapshotFiles(
+		ns, shardsTimeRanges, snapshotFilesByShard)
+	readSeriesPredicate := newReadSeriesPredicate(ns)
+	iterOpts := commitlog.IteratorOpts{
+		CommitLogOptions:      s.opts.CommitLogOptions(),
+		FileFilterPredicate:   readCommitLogPredicate,
+		SeriesFilterPredicate: readSeriesPredicate,
+	}
+
 	// TODO: Can optimize this to not read data, and just return the
 	// IDs / tags.
 	// Start by bootstrapping any available snapshot files.
 	snapshotShardResults, err := s.bootstrapAvailableSnapshotFiles(
-		ns.ID(), shardsTimeRanges, blockSize, snapshotFilesByShard)
+		ns.ID(),
+		shardsTimeRanges,
+		blockSize,
+		snapshotFilesByShard,
+		mostRecentCompleteSnapshotByBlockShard,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1326,17 +1353,6 @@ func (s *commitLogSource) ReadIndex(
 					indexResults, indexOptions, indexBlockSize, resultOptions)
 			}
 		}
-	}
-
-	// Next, we need to read all data out of the commit log that wasn't covered by the
-	// snapshot files or cached metadata (previously read commit logs).
-	readCommitLogPredicate, err := s.newReadCommitLogPredBasedOnAvailableSnapshotFiles(
-		ns, shardsTimeRanges, snapshotFilesByShard)
-	readSeriesPredicate := newReadSeriesPredicate(ns)
-	iterOpts := commitlog.IteratorOpts{
-		CommitLogOptions:      s.opts.CommitLogOptions(),
-		FileFilterPredicate:   readCommitLogPredicate,
-		SeriesFilterPredicate: readSeriesPredicate,
 	}
 
 	iter, err := s.newIteratorFn(iterOpts)
@@ -1550,4 +1566,13 @@ func (ir ioReaders) close() {
 
 type cachedShardData struct {
 	shardData []shardData
+}
+
+type snapshotMetadata struct {
+	fs.FileSetFile
+	snapshotTime time.Time
+}
+
+func (s snapshotMetadata) isZero() bool {
+	return s.snapshotTime.IsZero()
 }
