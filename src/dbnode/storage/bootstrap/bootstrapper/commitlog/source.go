@@ -374,7 +374,7 @@ func (s *commitLogSource) mostRecentCompleteSnapshotTimeByBlockShard(
 					infoReaderBufferSize = s.opts.CommitLogOptions().FilesystemOptions().InfoReaderBufferSize()
 				)
 
-				// Performs I/O
+				// Performs I/O.
 				mostRecentSnapshotTime, err = s.snapshotTimeFn(
 					filePathPrefix, mostRecentSnapshot.ID, infoReaderBufferSize, decoder)
 				if err != nil {
