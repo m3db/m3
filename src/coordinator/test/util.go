@@ -33,19 +33,29 @@ func EqualsWithNans(t *testing.T, expected interface{}, actual interface{}) {
 	debugMsg := fmt.Sprintf("expected: %v, actual: %v", expected, actual)
 	switch v := expected.(type) {
 	case [][]float64:
-		actualV := actual.([][]float64)
+		actualV, ok := actual.([][]float64)
+		if !ok {
+			require.Fail(t, "actual should be of type [][]float64, found: %T", actual)
+		}
+
 		for i, vals := range v {
 			equalsWithNans(t, vals, actualV[i], debugMsg)
 		}
 
 	case []float64:
-		equalsWithNans(t, v, actual.([]float64), debugMsg)
+		actualV, ok := actual.([]float64)
+		if !ok {
+			require.Fail(t, "actual should be of type []float64, found: %T", actual)
+		}
+		equalsWithNans(t, v, actualV, debugMsg)
+
 	default:
 		require.Fail(t, "unknown type: %T", v)
 	}
 }
 
 func equalsWithNans(t *testing.T, expected []float64, actual []float64, debugMsg string) {
+	require.Equal(t, len(expected), len(actual))
 	for i, v := range expected {
 		if math.IsNaN(v) {
 			require.True(t, math.IsNaN(actual[i]), debugMsg)

@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3db/src/coordinator/parser"
 )
 
-// NewBlockFromValues creates a new block using the provide values
+// NewBlockFromValues creates a new block using the provided values
 func NewBlockFromValues(bounds block.Bounds, seriesValues [][]float64) block.Block {
 	blockMeta := block.Metadata{Bounds: bounds}
 	seriesMeta := make([]block.SeriesMeta, len(seriesValues))

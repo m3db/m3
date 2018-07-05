@@ -69,7 +69,7 @@ func NewOperator(opType promql.ItemType) (parser.Params, error) {
 }
 
 // NewBinaryOperator creates a new binary operator based on the type
-func NewBinaryOperator(expr *promql.BinaryExpr, lhs parser.NodeID, rhs parser.NodeID) (parser.Params, error) {
+func NewBinaryOperator(expr *promql.BinaryExpr, lhs, rhs parser.NodeID) (parser.Params, error) {
 	switch getOpType(expr.Op) {
 	case logical.AndType:
 		return logical.NewAndOp(lhs, rhs, promMatchingToM3(expr.VectorMatching)), nil

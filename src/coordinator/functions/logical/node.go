@@ -73,8 +73,7 @@ func (c *BaseNode) Process(ID parser.NodeID, b block.Block) error {
 	if c.op.LNode == ID {
 		rBlock, ok := c.cache.Get(c.op.RNode)
 		if !ok {
-			c.cache.Add(ID, b)
-			return nil
+			return c.cache.Add(ID, b)
 		}
 
 		rhs = rBlock
@@ -82,8 +81,7 @@ func (c *BaseNode) Process(ID parser.NodeID, b block.Block) error {
 	} else if c.op.RNode == ID {
 		lBlock, ok := c.cache.Get(c.op.LNode)
 		if !ok {
-			c.cache.Add(ID, b)
-			return nil
+			return c.cache.Add(ID, b)
 		}
 
 		lhs = lBlock

@@ -48,6 +48,12 @@ func TestDAGWithCountOp(t *testing.T) {
 
 }
 
+func TestDAGWithEmptyExpression(t *testing.T) {
+	q := ""
+	_, err := Parse(q)
+	require.Error(t, err)
+}
+
 func TestDAGWithUnknownOp(t *testing.T) {
 	q := "sum(http_requests_total{method=\"GET\"})"
 	p, err := Parse(q)

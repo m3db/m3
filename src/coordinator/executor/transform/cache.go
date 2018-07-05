@@ -25,6 +25,8 @@ import (
 
 	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/parser"
+
+	"github.com/pkg/errors"
 )
 
 // BlockCache is used to cache blocks
@@ -40,11 +42,17 @@ func NewBlockCache() *BlockCache {
 	}
 }
 
-// Add the block to the cache
-func (c *BlockCache) Add(key parser.NodeID, b block.Block) {
+// Add the block to the cache, errors out if block already exists
+func (c *BlockCache) Add(key parser.NodeID, b block.Block) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	_, ok := c.blocks[key]
+	if ok {
+		return errors.New("block already exists")
+	}
+
 	c.blocks[key] = b
+	return nil
 }
 
 // Remove the block from the cache
@@ -55,6 +63,7 @@ func (c *BlockCache) Remove(key parser.NodeID) {
 }
 
 // Get the block from the cache
+// TODO: Evaluate only a single process getting a block at a time
 func (c *BlockCache) Get(key parser.NodeID) (block.Block, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

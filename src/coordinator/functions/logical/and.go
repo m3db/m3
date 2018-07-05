@@ -34,13 +34,13 @@ const (
 )
 
 // NewAndOp creates a new And operation
-func NewAndOp(LNode parser.NodeID, RNode parser.NodeID, Matching *VectorMatching) BaseOp {
+func NewAndOp(lNode parser.NodeID, rNode parser.NodeID, matching *VectorMatching) BaseOp {
 	return BaseOp{
 		OperatorType: AndType,
-		LNode:       LNode,
-		RNode:       RNode,
-		Matching:    Matching,
-		ProcessorFn: NewAndNode,
+		LNode:        lNode,
+		RNode:        rNode,
+		Matching:     matching,
+		ProcessorFn:  NewAndNode,
 	}
 }
 
@@ -59,15 +59,14 @@ func NewAndNode(op BaseOp, controller *transform.Controller) Processor {
 }
 
 // Process processes two logical blocks, performing And operation on them
-func (c *AndNode) Process(lhs block.Block, rhs block.Block) (block.Block, error) {
+func (c *AndNode) Process(lhs, rhs block.Block) (block.Block, error) {
 	intersection := c.intersect(lhs.SeriesMeta(), rhs.SeriesMeta())
 	builder, err := c.controller.BlockBuilder(lhs.Meta(), lhs.SeriesMeta())
 	if err != nil {
 		return nil, err
 	}
 
-	lIter := lhs.StepIter()
-	rIter := rhs.StepIter()
+	lIter, rIter := lhs.StepIter(), rhs.StepIter()
 	if err := builder.AddCols(lhs.StepCount()); err != nil {
 		return nil, err
 	}
@@ -93,25 +92,22 @@ func (c *AndNode) Process(lhs block.Block, rhs block.Block) (block.Block, error)
 	return builder.Build(), nil
 }
 
-// intersect returns the slice of rhs indices if there is a match with corresponding lhs indice. If no match is found, it returns -1
+// intersect returns the slice of rhs indices if there is a match with a corresponding lhs index. If no match is found, it returns -1
 func (c *AndNode) intersect(lhs []block.SeriesMeta, rhs []block.SeriesMeta, ) []int {
-	sigf := hashFunc(c.op.Matching.On, c.op.Matching.MatchingLabels...)
+	idFunction := hashFunc(c.op.Matching.On, c.op.Matching.MatchingLabels...)
 	// The set of signatures for the right-hand side.
 	rightSigs := make(map[uint64]int, len(rhs))
 	for idx, meta := range rhs {
-		rightSigs[sigf(meta.Tags)] = idx
+		rightSigs[idFunction(meta.Tags)] = idx
 	}
 
 	matches := make([]int, len(lhs))
-	// Initialize to -1
-	for i := range matches {
-		matches[i] = -1
-	}
-
 	for i, ls := range lhs {
 		// If there's a matching entry in the right-hand side Vector, add the sample.
-		if idx, ok := rightSigs[sigf(ls.Tags)]; ok {
+		if idx, ok := rightSigs[idFunction(ls.Tags)]; ok {
 			matches[i] = idx
+		} else {
+			matches[i] = -1
 		}
 	}
 

@@ -27,10 +27,15 @@ import (
 	"sort"
 )
 
-// Well-known label names used by components.
-// TODO: Get these from the storage
 const (
+	// Well-known label names used by components.
+	// TODO: Get these from the storage
 	MetricName = "__name__"
+
+	// Separators for tags
+	sep = byte(',')
+	eq  = byte('=')
+
 )
 
 // Tags is a key/value map of metric tags.
@@ -132,20 +137,15 @@ func (m Matchers) ToTags() (Tags, error) {
 	return tags, nil
 }
 
-var (
-	sep = []byte(",")
-	eq  = []byte("=")
-)
-
 // ID returns a string representation of the tags
 func (t Tags) ID() string {
 	sortedKeys, bufLength := t.sortKeys()
 	b := make([]byte, 0, bufLength)
 	for _, k := range sortedKeys {
 		b = append(b, k...)
-		b = append(b, eq...)
+		b = append(b, eq)
 		b = append(b, t[k]...)
-		b = append(b, sep...)
+		b = append(b, sep)
 	}
 
 	return string(b)
@@ -175,9 +175,9 @@ func (t Tags) IDWithExcludes(excludeKeys ...string) uint64 {
 		}
 
 		b = append(b, k...)
-		b = append(b, eq...)
+		b = append(b, eq)
 		b = append(b, t[k]...)
-		b = append(b, sep...)
+		b = append(b, sep)
 	}
 
 	h := fnv.New64a()
@@ -195,9 +195,9 @@ func (t Tags) IDWithKeys(includeKeys ...string) uint64 {
 		}
 
 		b = append(b, k...)
-		b = append(b, eq...)
+		b = append(b, eq)
 		b = append(b, v...)
-		b = append(b, sep...)
+		b = append(b, sep)
 	}
 
 	h := fnv.New64a()
@@ -209,7 +209,7 @@ func (t Tags) sortKeys() ([]string, int) {
 	length := 0
 	keys := make([]string, 0, len(t))
 	for k := range t {
-		length += len(k) + len(t[k]) + len(eq) + len(sep)
+		length += len(k) + len(t[k]) + 2
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)

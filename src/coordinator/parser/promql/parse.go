@@ -62,12 +62,12 @@ type parseState struct {
 	edges  parser.Edges
 }
 
-func (p *parseState) lastTransform() parser.Node {
+func (p *parseState) lastTransformID() parser.NodeID {
 	if len(p.transforms) == 0 {
-		return parser.Node{}
+		return parser.NodeID(-1)
 	}
 
-	return p.transforms[len(p.transforms)-1]
+	return p.transforms[len(p.transforms)-1].ID
 }
 
 func (p *parseState) transformLen() int {
@@ -93,7 +93,7 @@ func (p *parseState) walk(node pql.Node) error {
 
 		opTransform := parser.NewTransformFromOperation(op, p.transformLen())
 		p.edges = append(p.edges, parser.Edge{
-			ParentID: p.lastTransform().ID,
+			ParentID: p.lastTransformID(),
 			ChildID:  opTransform.ID,
 		})
 		p.transforms = append(p.transforms, opTransform)
@@ -133,7 +133,7 @@ func (p *parseState) walk(node pql.Node) error {
 
 		opTransform := parser.NewTransformFromOperation(op, p.transformLen())
 		p.edges = append(p.edges, parser.Edge{
-			ParentID: p.lastTransform().ID,
+			ParentID: p.lastTransformID(),
 			ChildID:  opTransform.ID,
 		})
 		p.transforms = append(p.transforms, opTransform)
@@ -141,7 +141,7 @@ func (p *parseState) walk(node pql.Node) error {
 
 	case *pql.BinaryExpr:
 		err := p.walk(n.LHS)
-		lhsID := p.lastTransform().ID
+		lhsID := p.lastTransformID()
 		if err != nil {
 			return err
 		}
@@ -151,7 +151,7 @@ func (p *parseState) walk(node pql.Node) error {
 			return err
 		}
 
-		rhsID := p.lastTransform().ID
+		rhsID := p.lastTransformID()
 		op, err := NewBinaryOperator(n, lhsID, rhsID)
 		if err != nil {
 			return err
