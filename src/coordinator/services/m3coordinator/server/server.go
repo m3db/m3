@@ -33,6 +33,7 @@ import (
 	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
+	"github.com/m3db/m3db/src/cmd/services/m3coordinator/downsample"
 	dbconfig "github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3db/src/coordinator/api/v1/httpd"
 	m3dbcluster "github.com/m3db/m3db/src/coordinator/cluster/m3db"
@@ -56,7 +57,6 @@ import (
 )
 
 const (
-	defaultNamespace       = "metrics"
 	defaultWorkerPoolCount = 4096
 	defaultWorkerPoolSize  = 20
 )
@@ -175,15 +175,25 @@ func Run(runOpts RunOptions) {
 		return workerPool
 	})
 
-	fanoutStorage, storageCleanup := setupStorages(logger, session, cfg, objectPool)
+	// TODO(r): clusters
+	var clusters local.Clusters
+
+	fanoutStorage, storageCleanup := setupStorages(logger, clusters, cfg, objectPool)
 	defer storageCleanup()
 
 	clusterClient := m3dbcluster.NewAsyncClient(func() (clusterclient.Client, error) {
 		return <-clusterClientCh, nil
 	}, nil)
 
+	// TODO(r): config and options
+	downsampler, err := downsample.NewDownsampler(downsample.DownsamplingConfiguration{},
+		downsample.DownsamplerOptions{})
+	if err != nil {
+		logger.Fatal("unable to create downsampler", zap.Any("error", err))
+	}
+
 	handler, err := httpd.NewHandler(fanoutStorage, executor.NewEngine(fanoutStorage),
-		clusterClient, cfg, runOpts.DBConfig, scope)
+		downsampler, clusterClient, cfg, runOpts.DBConfig, scope)
 	if err != nil {
 		logger.Fatal("unable to set up handlers", zap.Any("error", err))
 	}
@@ -206,14 +216,10 @@ func Run(runOpts RunOptions) {
 	}
 }
 
-func setupStorages(logger *zap.Logger, session client.Session, cfg config.Configuration, workerPool pool.ObjectPool) (storage.Storage, func()) {
+func setupStorages(logger *zap.Logger, clusters local.Clusters, cfg config.Configuration, workerPool pool.ObjectPool) (storage.Storage, func()) {
 	cleanup := func() {}
-	namespace := defaultNamespace
-	if cfg.DBNamespace != "" {
-		namespace = cfg.DBNamespace
-	}
 
-	localStorage := local.NewStorage(session, namespace, workerPool)
+	localStorage := local.NewStorage(clusters, workerPool)
 	stores := []storage.Storage{localStorage}
 	remoteEnabled := false
 	if cfg.RPC != nil && cfg.RPC.Enabled {

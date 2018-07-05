@@ -27,6 +27,7 @@ import (
 
 	m3clusterClient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
+	"github.com/m3db/m3db/src/cmd/services/m3coordinator/downsample"
 	dbconfig "github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler"
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler/database"
@@ -57,6 +58,7 @@ type Handler struct {
 	Router        *mux.Router
 	CLFLogger     *log.Logger
 	storage       storage.Storage
+	downsampler   downsample.Downsampler
 	engine        *executor.Engine
 	clusterClient m3clusterClient.Client
 	config        config.Configuration
@@ -65,8 +67,15 @@ type Handler struct {
 }
 
 // NewHandler returns a new instance of handler with routes.
-func NewHandler(storage storage.Storage, engine *executor.Engine, clusterClient m3clusterClient.Client,
-	cfg config.Configuration, dbCfg dbconfig.DBConfiguration, scope tally.Scope) (*Handler, error) {
+func NewHandler(
+	storage storage.Storage,
+	engine *executor.Engine,
+	downsampler downsample.Downsampler,
+	clusterClient m3clusterClient.Client,
+	cfg config.Configuration,
+	dbCfg dbconfig.DBConfiguration,
+	scope tally.Scope,
+) (*Handler, error) {
 	r := mux.NewRouter()
 	logger, err := zap.NewProduction()
 	if err != nil {
@@ -79,6 +88,7 @@ func NewHandler(storage storage.Storage, engine *executor.Engine, clusterClient 
 		Router:        r,
 		storage:       storage,
 		engine:        engine,
+		downsampler:   downsampler,
 		clusterClient: clusterClient,
 		config:        cfg,
 		dbConfig:      dbCfg,
@@ -95,7 +105,7 @@ func (h *Handler) RegisterRoutes() error {
 	h.Router.PathPrefix(openapi.StaticURLPrefix).Handler(logged(openapi.StaticHandler()))
 
 	h.Router.HandleFunc(remote.PromReadURL, logged(remote.NewPromReadHandler(h.engine, h.scope.Tagged(remoteSource))).ServeHTTP).Methods(remote.PromReadHTTPMethod)
-	h.Router.HandleFunc(remote.PromWriteURL, logged(remote.NewPromWriteHandler(h.storage, h.scope.Tagged(remoteSource))).ServeHTTP).Methods(remote.PromWriteHTTPMethod)
+	h.Router.HandleFunc(remote.PromWriteURL, logged(remote.NewPromWriteHandler(h.storage, h.downsampler, h.scope.Tagged(remoteSource))).ServeHTTP).Methods(remote.PromWriteHTTPMethod)
 	h.Router.HandleFunc(native.PromReadURL, logged(native.NewPromReadHandler(h.engine)).ServeHTTP).Methods(native.PromReadHTTPMethod)
 	h.Router.HandleFunc(handler.SearchURL, logged(handler.NewSearchHandler(h.storage)).ServeHTTP).Methods(handler.SearchHTTPMethod)
 
