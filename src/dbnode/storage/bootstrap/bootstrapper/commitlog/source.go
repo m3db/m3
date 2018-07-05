@@ -469,9 +469,11 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 	blocksPool block.DatabaseBlockPool,
 ) (result.ShardResult, error) {
 	var (
+		shardResult    result.ShardResult
+		allSeriesSoFar *result.Map
 		// TODO: Estimate capacity better
-		shardResult = result.NewShardResult(0, s.opts.ResultOptions())
-		rangeIter   = shardTimeRanges.Iter()
+		// shardResult = result.NewShardResult(0, s.opts.ResultOptions())
+		rangeIter = shardTimeRanges.Iter()
 	)
 
 	for hasMore := rangeIter.Next(); hasMore; hasMore = rangeIter.Next() {
@@ -489,7 +491,10 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 		}
 
 		// Reset this after we bootstrap each block to make sure its up to date.
-		allSeriesSoFar := shardResult.AllSeries()
+		if shardResult != nil {
+			allSeriesSoFar = shardResult.AllSeries()
+		}
+
 		// TODO: Make function for this iteration?
 		for blockStart := currRange.Start.Truncate(blockSize); blockStart.Before(currRange.End); blockStart = blockStart.Add(blockSize) {
 			// TODO: Already called this FN, maybe should just re-use the results somehow
@@ -566,23 +571,33 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 					return nil, fmt.Errorf("checksum for series: %s was %d but expected %d", id, checksum, expectedChecksum)
 				}
 
-				existing, ok := allSeriesSoFar.Get(id)
-				if ok {
-					// If we've already bootstrapped this series for a different block, we don't need
-					// another copy of the IDs and tags.
-					// TODO: Make sure this is right.
-					id.Finalize()
-					tags.Finalize()
-					id = existing.ID
-					tags = existing.Tags
+				if allSeriesSoFar != nil {
+					existing, ok := allSeriesSoFar.Get(id)
+					if ok {
+						// If we've already bootstrapped this series for a different block, we don't need
+						// another copy of the IDs and tags.
+						// TODO: Make sure this is right.
+						id.Finalize()
+						tags.Finalize()
+						id = existing.ID
+						tags = existing.Tags
+					}
 				}
+
 				// TODO: In the exists case we can probably optimize this to add
 				// directly to existing to avoid an extra map lookup.
+				if shardResult == nil {
+					// Delay initialization so we can estimate size.
+					shardResult = result.NewShardResult(reader.Entries(), s.opts.ResultOptions())
+				}
 				shardResult.AddBlock(id, tags, dbBlock)
 			}
 		}
 	}
 
+	if shardResult == nil {
+		shardResult = result.NewShardResult(0, s.opts.ResultOptions())
+	}
 	return shardResult, nil
 }
 
