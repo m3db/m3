@@ -440,15 +440,12 @@ func (s *commitLogSource) bootstrapAvailableSnapshotFiles(
 	shardsTimeRanges result.ShardTimeRanges,
 	blockSize time.Duration,
 	snapshotFilesByShard map[uint32]fs.FileSetFilesSlice,
-	fsOpts fs.Options,
-	bytesPool pool.CheckedBytesPool,
-	blocksPool block.DatabaseBlockPool,
 ) (map[uint32]result.ShardResult, error) {
 	snapshotShardResults := make(map[uint32]result.ShardResult)
 
 	for shard, tr := range shardsTimeRanges {
 		shardResult, err := s.bootstrapShardSnapshots(
-			nsID, shard, tr, blockSize, snapshotFilesByShard[shard], fsOpts, bytesPool, blocksPool)
+			nsID, shard, tr, blockSize, snapshotFilesByShard[shard])
 		if err != nil {
 			return nil, err
 		}
@@ -464,14 +461,12 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 	shardTimeRanges xtime.Ranges,
 	blockSize time.Duration,
 	snapshotFiles fs.FileSetFilesSlice,
-	fsOpts fs.Options,
-	bytesPool pool.CheckedBytesPool,
-	blocksPool block.DatabaseBlockPool,
 ) (result.ShardResult, error) {
 	var (
 		shardResult    result.ShardResult
 		allSeriesSoFar *result.Map
 		rangeIter      = shardTimeRanges.Iter()
+		err            error
 	)
 
 	for hasMore := rangeIter.Next(); hasMore; hasMore = rangeIter.Next() {
@@ -493,102 +488,11 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 			allSeriesSoFar = shardResult.AllSeries()
 		}
 
-		// TODO: Make function for this iteration?
 		for blockStart := currRange.Start.Truncate(blockSize); blockStart.Before(currRange.End); blockStart = blockStart.Add(blockSize) {
-			// TODO: Already called this FN, maybe should just re-use the results somehow
-			latestSnapshot, ok := snapshotFiles.LatestVolumeForBlock(blockStart)
-			if !ok {
-				s.log.Infof(
-					"No snapshots for shard: %d and blockStart: %d",
-					shard, blockStart.Unix())
-				// There are no snapshot files for this shard / block combination
-				// TODO: This is sketch, it should just try and read the exact same ones
-				// we determined in earlier steps and error out if it cant read them because
-				// then the commit log logic we chose is wrong.
-				continue
-			}
-
-			// Bootstrap the snapshot file
-			reader, err := s.newReaderFn(bytesPool, fsOpts)
+			shardResult, err = s.bootstrapShardBlockSnapshot(
+				nsID, shard, blockStart, shardResult, allSeriesSoFar, blockSize, snapshotFiles)
 			if err != nil {
-				// TODO: In this case, we want to emit an error log, and somehow propagate that
-				// we were unable to read this snapshot file to the subsequent code which determines
-				// how much commitlog to read. We might even want to try and read the next earlier file
-				// if it exists.
-				// Actually, since the commit log file no longer exists, we might just want to mark this
-				// as unfulfilled somehow and get on with it.
-				return nil, err
-			}
-
-			err = reader.Open(fs.DataReaderOpenOptions{
-				Identifier: fs.FileSetFileIdentifier{
-					Namespace:   nsID,
-					BlockStart:  blockStart,
-					Shard:       shard,
-					VolumeIndex: latestSnapshot.ID.VolumeIndex,
-				},
-				FileSetType: persist.FileSetSnapshotType,
-			})
-			if err != nil {
-				// TODO: Same comment as above
-				return nil, err
-			}
-
-			s.log.Infof(
-				"Reading snapshot for shard: %d and blockStart: %d and volume: %d",
-				shard, blockStart.Unix(), latestSnapshot.ID.VolumeIndex)
-			for {
-				id, tagsIter, data, expectedChecksum, err := reader.Read()
-				if err != nil && err != io.EOF {
-					return nil, err
-				}
-
-				if err == io.EOF {
-					break
-				}
-
-				// TODO: Optimize this so we don't waste a bunch of time here
-				// even when the index is disabled
-				tags, err := s.tagsFromTagsIter(id, tagsIter)
-				if err != nil {
-					return nil, fmt.Errorf("unable to decode tags: %v", err)
-				}
-				tagsIter.Close()
-
-				dbBlock := blocksPool.Get()
-				dbBlock.Reset(blockStart, blockSize, ts.NewSegment(data, nil, ts.FinalizeHead))
-				// Resetting the block will trigger a checksum calculation, so use that instead
-				// of calculating it twice.
-				checksum, err := dbBlock.Checksum()
-				if err != nil {
-					return nil, err
-				}
-
-				if checksum != expectedChecksum {
-					// TODO: Need to propagate back better
-					return nil, fmt.Errorf("checksum for series: %s was %d but expected %d", id, checksum, expectedChecksum)
-				}
-
-				if allSeriesSoFar != nil {
-					existing, ok := allSeriesSoFar.Get(id)
-					if ok {
-						// If we've already bootstrapped this series for a different block, we don't need
-						// another copy of the IDs and tags.
-						// TODO: Make sure this is right.
-						id.Finalize()
-						tags.Finalize()
-						id = existing.ID
-						tags = existing.Tags
-					}
-				}
-
-				// TODO: In the exists case we can probably optimize this to add
-				// directly to existing to avoid an extra map lookup.
-				if shardResult == nil {
-					// Delay initialization so we can estimate size.
-					shardResult = result.NewShardResult(reader.Entries(), s.opts.ResultOptions())
-				}
-				shardResult.AddBlock(id, tags, dbBlock)
+				return shardResult, err
 			}
 		}
 	}
@@ -596,6 +500,122 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 	if shardResult == nil {
 		shardResult = result.NewShardResult(0, s.opts.ResultOptions())
 	}
+	return shardResult, nil
+}
+
+func (s *commitLogSource) bootstrapShardBlockSnapshot(
+	nsID ident.ID,
+	shard uint32,
+	blockStart time.Time,
+	shardResult result.ShardResult,
+	allSeriesSoFar *result.Map,
+	blockSize time.Duration,
+	snapshotFiles fs.FileSetFilesSlice,
+) (result.ShardResult, error) {
+	var (
+		bOpts      = s.opts.ResultOptions()
+		blOpts     = bOpts.DatabaseBlockOptions()
+		blocksPool = blOpts.DatabaseBlockPool()
+		bytesPool  = blOpts.BytesPool()
+		fsOpts     = s.opts.CommitLogOptions().FilesystemOptions()
+	)
+
+	// TODO: Already called this FN, maybe should just re-use the results somehow
+	latestSnapshot, ok := snapshotFiles.LatestVolumeForBlock(blockStart)
+	if !ok {
+		s.log.Infof(
+			"No snapshots for shard: %d and blockStart: %d",
+			shard, blockStart.Unix())
+		// There are no snapshot files for this shard / block combination
+		// TODO: This is sketch, it should just try and read the exact same ones
+		// we determined in earlier steps and error out if it cant read them because
+		// then the commit log logic we chose is wrong.
+		return shardResult, nil
+	}
+
+	// Bootstrap the snapshot file
+	reader, err := s.newReaderFn(bytesPool, fsOpts)
+	if err != nil {
+		// TODO: In this case, we want to emit an error log, and somehow propagate that
+		// we were unable to read this snapshot file to the subsequent code which determines
+		// how much commitlog to read. We might even want to try and read the next earlier file
+		// if it exists.
+		// Actually, since the commit log file no longer exists, we might just want to mark this
+		// as unfulfilled somehow and get on with it.
+		return shardResult, err
+	}
+
+	err = reader.Open(fs.DataReaderOpenOptions{
+		Identifier: fs.FileSetFileIdentifier{
+			Namespace:   nsID,
+			BlockStart:  blockStart,
+			Shard:       shard,
+			VolumeIndex: latestSnapshot.ID.VolumeIndex,
+		},
+		FileSetType: persist.FileSetSnapshotType,
+	})
+	if err != nil {
+		// TODO: Same comment as above
+		return shardResult, err
+	}
+
+	s.log.Infof(
+		"Reading snapshot for shard: %d and blockStart: %d and volume: %d",
+		shard, blockStart.Unix(), latestSnapshot.ID.VolumeIndex)
+	for {
+		id, tagsIter, data, expectedChecksum, err := reader.Read()
+		if err != nil && err != io.EOF {
+			return shardResult, err
+		}
+
+		if err == io.EOF {
+			break
+		}
+
+		// TODO: Optimize this so we don't waste a bunch of time here
+		// even when the index is disabled
+		tags, err := s.tagsFromTagsIter(id, tagsIter)
+		if err != nil {
+			return shardResult, fmt.Errorf("unable to decode tags: %v", err)
+		}
+		tagsIter.Close()
+
+		dbBlock := blocksPool.Get()
+		dbBlock.Reset(blockStart, blockSize, ts.NewSegment(data, nil, ts.FinalizeHead))
+		// Resetting the block will trigger a checksum calculation, so use that instead
+		// of calculating it twice.
+		checksum, err := dbBlock.Checksum()
+		if err != nil {
+			return shardResult, err
+		}
+
+		if checksum != expectedChecksum {
+			// TODO: Need to propagate back better
+			return shardResult, fmt.Errorf("checksum for series: %s was %d but expected %d", id, checksum, expectedChecksum)
+		}
+
+		if allSeriesSoFar != nil {
+			existing, ok := allSeriesSoFar.Get(id)
+			if ok {
+				// If we've already bootstrapped this series for a different block, we don't need
+				// another copy of the IDs and tags.
+				// TODO: Make sure this is right.
+				id.Finalize()
+				tags.Finalize()
+				id = existing.ID
+				tags = existing.Tags
+			}
+		}
+
+		// TODO: In the exists case we can probably optimize this to add
+		// directly to existing to avoid an extra map lookup.
+		if shardResult == nil {
+			// Delay initialization so we can estimate size.
+			shardResult = result.NewShardResult(reader.Entries(), s.opts.ResultOptions())
+		}
+		shardResult.AddBlock(id, tags, dbBlock)
+	}
+
 	return shardResult, nil
 }
 
@@ -881,12 +901,6 @@ func (s *commitLogSource) mergeShards(
 		workerPool          = xsync.NewWorkerPool(s.opts.MergeShardsConcurrency())
 		bootstrapResultLock sync.Mutex
 		wg                  sync.WaitGroup
-
-		bOpts      = s.opts.ResultOptions()
-		blOpts     = bOpts.DatabaseBlockOptions()
-		blocksPool = blOpts.DatabaseBlockPool()
-		bytesPool  = blOpts.BytesPool()
-		fsOpts     = s.opts.CommitLogOptions().FilesystemOptions()
 	)
 	workerPool.Init()
 
@@ -897,9 +911,6 @@ func (s *commitLogSource) mergeShards(
 			shardsTimeRanges[uint32(shard)],
 			blockSize,
 			snapshotFiles[uint32(shard)],
-			fsOpts,
-			bytesPool,
-			blocksPool,
 		)
 		if err != nil {
 			panic(err)
@@ -1293,9 +1304,6 @@ func (s *commitLogSource) ReadIndex(
 		indexOptions   = ns.Options().IndexOptions()
 		indexBlockSize = indexOptions.BlockSize()
 		resultOptions  = s.opts.ResultOptions()
-		blOpts         = resultOptions.DatabaseBlockOptions()
-		bytesPool      = blOpts.BytesPool()
-		blocksPool     = blOpts.DatabaseBlockPool()
 		blockSize      = ns.Options().RetentionOptions().BlockSize()
 	)
 
@@ -1303,8 +1311,7 @@ func (s *commitLogSource) ReadIndex(
 	// IDs / tags.
 	// Start by bootstrapping any available snapshot files.
 	snapshotShardResults, err := s.bootstrapAvailableSnapshotFiles(
-		ns.ID(), shardsTimeRanges, blockSize, snapshotFilesByShard,
-		fsOpts, bytesPool, blocksPool)
+		ns.ID(), shardsTimeRanges, blockSize, snapshotFilesByShard)
 	if err != nil {
 		return nil, err
 	}
