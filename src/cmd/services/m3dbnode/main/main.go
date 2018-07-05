@@ -68,7 +68,7 @@ func main() {
 		go func() {
 			coordinatorserver.Run(coordinatorserver.RunOptions{
 				Config:        *cfg.Coordinator,
-				DBConfig:      *cfg.DB,
+				DBConfig:      cfg.DB,
 				DBClient:      dbClientCh,
 				ClusterClient: clusterClientCh,
 			})
