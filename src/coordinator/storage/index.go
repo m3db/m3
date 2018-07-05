@@ -59,6 +59,7 @@ func FromIdentTagIteratorToTags(identTags ident.TagIterator) (models.Tags, error
 		return nil, err
 	}
 
+	identTags.Close()
 	return tags, nil
 }
 

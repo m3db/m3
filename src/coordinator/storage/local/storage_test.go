@@ -40,7 +40,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setup(t *testing.T, ctrl *gomock.Controller) (storage.Storage, *client.MockSession) {
+func setup(
+	t *testing.T,
+	ctrl *gomock.Controller,
+) (storage.Storage, *client.MockSession) {
 	logging.InitWithCores(nil)
 	logger := logging.WithContext(context.TODO())
 	defer logger.Sync()
@@ -96,7 +99,8 @@ func setupLocalWrite(t *testing.T) storage.Storage {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	store, session := setup(t, ctrl)
-	session.EXPECT().WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
+	session.EXPECT().WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(),
+		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 	return store
 }
 
@@ -132,16 +136,19 @@ func TestLocalRead(t *testing.T) {
 	assert.Equal(t, tags, results.SeriesList[0].Tags)
 }
 
-func setupLocalSearch(t *testing.T) storage.Storage {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+func setupLocalSearch(
+	t *testing.T,
+	ctrl *gomock.Controller,
+) storage.Storage {
 	store, session := setup(t, ctrl)
 	session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, false, errors.ErrNotImplemented)
 	return store
 }
 
 func TestLocalSearchExpectedFail(t *testing.T) {
-	store := setupLocalSearch(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	store := setupLocalSearch(t, ctrl)
 	searchReq := newFetchReq()
 	_, err := store.FetchTags(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
 	assert.Error(t, err)

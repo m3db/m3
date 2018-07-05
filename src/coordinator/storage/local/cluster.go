@@ -251,6 +251,7 @@ func newUnaggregatedClusterNamespace(
 		namespaceID: def.NamespaceID,
 		attributes: storage.Attributes{
 			MetricsType: storage.UnaggregatedMetricsType,
+			Retention:   def.Retention,
 		},
 		session: def.Session,
 	}, nil
