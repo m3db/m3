@@ -323,7 +323,6 @@ func (s *commitLogSource) mostRecentCompleteSnapshotTimeByBlockShard(
 	fsOpts fs.Options,
 ) map[xtime.UnixNano]map[uint32]time.Time {
 	var (
-		// TODO: Maybe add a IterateOverBlocks method to this data structure?
 		minBlock, maxBlock              = shardsTimeRanges.MinMax()
 		decoder                         = msgpack.NewDecoder(nil)
 		mostRecentSnapshotsByBlockShard = map[xtime.UnixNano]map[uint32]time.Time{}
@@ -331,6 +330,7 @@ func (s *commitLogSource) mostRecentCompleteSnapshotTimeByBlockShard(
 
 	for currBlockStart := minBlock.Truncate(blockSize); currBlockStart.Before(maxBlock); currBlockStart = currBlockStart.Add(blockSize) {
 		for shard := range shardsTimeRanges {
+			// Anonymous func for easier clean up using defer.
 			func() {
 				var (
 					currBlockUnixNanos     = xtime.ToUnixNano(currBlockStart)
