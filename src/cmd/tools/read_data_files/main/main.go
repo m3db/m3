@@ -11,6 +11,7 @@ import (
 	"github.com/m3db/m3db/src/cmd/tools"
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3db/src/dbnode/persist"
 	"github.com/m3db/m3db/src/dbnode/persist/fs"
 	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
@@ -23,14 +24,14 @@ const flushType = "flush"
 
 func main() {
 	var (
-		optPathPrefix = getopt.StringLong("path-prefix", 'p', "", "Path prefix [e.g. /var/lib/m3db]")
-		optNamespace  = getopt.StringLong("namespace", 'n', "", "Namespace [e.g. metrics]")
-		optShard      = getopt.Uint32Long("shard", 's', 0, "Shard [expected format uint32]")
-		optBlockstart = getopt.Int64Long("block-start", 'b', 0, "Block Start Time [in nsec]")
-		volume        = getopt.Int64Long("volume", 'v', 0, "Volume number")
-		fileSetType   = getopt.StringLong("fileset-type", 't', "", "snapshot|flush")
-		idFilter      = getopt.StringLong("id-filter", 'f', "", "ID Contains Filter (optional)")
-		log           = xlog.NewLogger(os.Stderr)
+		optPathPrefix  = getopt.StringLong("path-prefix", 'p', "", "Path prefix [e.g. /var/lib/m3db]")
+		optNamespace   = getopt.StringLong("namespace", 'n', "", "Namespace [e.g. metrics]")
+		optShard       = getopt.Uint32Long("shard", 's', 0, "Shard [expected format uint32]")
+		optBlockstart  = getopt.Int64Long("block-start", 'b', 0, "Block Start Time [in nsec]")
+		volume         = getopt.Int64Long("volume", 'v', 0, "Volume number")
+		fileSetTypeArg = getopt.StringLong("fileset-type", 't', "", "snapshot|flush")
+		idFilter       = getopt.StringLong("id-filter", 'f', "", "ID Contains Filter (optional)")
+		log            = xlog.NewLogger(os.Stderr)
 	)
 	getopt.Parse()
 
@@ -39,9 +40,19 @@ func main() {
 		*optShard < 0 ||
 		*optBlockstart <= 0 ||
 		*volume < 0 ||
-		(*fileSetType != snapshotType && *fileSetType != flushType) {
+		(*fileSetTypeArg != snapshotType && *fileSetTypeArg != flushType) {
 		getopt.Usage()
 		os.Exit(1)
+	}
+
+	var fileSetType persist.FileSetType
+	switch *fileSetTypeArg {
+	case flushType:
+		fileSetType = persist.FileSetFlushType
+	case snapshotType:
+		fileSetType = persist.FileSetSnapshotType
+	default:
+		log.Fatalf("unknown fileset type: %s", *fileSetTypeArg)
 	}
 
 	bytesPool := tools.NewCheckedBytesPool()
@@ -62,7 +73,7 @@ func main() {
 			BlockStart:  time.Unix(0, *optBlockstart),
 			VolumeIndex: int(*volume),
 		},
-		// FileSetType: persist.File
+		FileSetType: fileSetType,
 	}
 
 	err = reader.Open(openOpts)
