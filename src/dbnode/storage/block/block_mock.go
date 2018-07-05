@@ -439,6 +439,18 @@ func (mr *MockDatabaseBlockMockRecorder) ResetRetrievable(startTime, blockSize, 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetRetrievable", reflect.TypeOf((*MockDatabaseBlock)(nil).ResetRetrievable), startTime, blockSize, retriever, metadata)
 }
 
+// Discard mocks base method
+func (m *MockDatabaseBlock) Discard() ts.Segment {
+	ret := m.ctrl.Call(m, "Discard")
+	ret0, _ := ret[0].(ts.Segment)
+	return ret0
+}
+
+// Discard indicates an expected call of Discard
+func (mr *MockDatabaseBlockMockRecorder) Discard() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Discard", reflect.TypeOf((*MockDatabaseBlock)(nil).Discard))
+}
+
 // Close mocks base method
 func (m *MockDatabaseBlock) Close() {
 	m.ctrl.Call(m, "Close")
