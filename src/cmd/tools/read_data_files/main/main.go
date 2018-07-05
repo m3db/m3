@@ -18,13 +18,18 @@ import (
 	"github.com/pborman/getopt"
 )
 
+const snapshotType = "snapshot"
+const flushType = "flush"
+
 func main() {
 	var (
 		optPathPrefix = getopt.StringLong("path-prefix", 'p', "", "Path prefix [e.g. /var/lib/m3db]")
 		optNamespace  = getopt.StringLong("namespace", 'n', "", "Namespace [e.g. metrics]")
 		optShard      = getopt.Uint32Long("shard", 's', 0, "Shard [expected format uint32]")
 		optBlockstart = getopt.Int64Long("block-start", 'b', 0, "Block Start Time [in nsec]")
-		idFilter      = getopt.StringLong("id-filter", 'f', "", "ID Contains Filter")
+		volume        = getopt.Int64Long("volume", 'v', -1, "Volume number")
+		fileSetType   = getopt.StringLong("fileset-type", 't', "", "snapshot|flush")
+		idFilter      = getopt.StringLong("id-filter", 'f', "", "ID Contains Filter (optional)")
 		log           = xlog.NewLogger(os.Stderr)
 	)
 	getopt.Parse()
@@ -32,7 +37,9 @@ func main() {
 	if *optPathPrefix == "" ||
 		*optNamespace == "" ||
 		*optShard < 0 ||
-		*optBlockstart <= 0 {
+		*optBlockstart <= 0 ||
+		*volume < 0 ||
+		(*fileSetType != snapshotType && *fileSetType != flushType) {
 		getopt.Usage()
 		os.Exit(1)
 	}
@@ -50,10 +57,12 @@ func main() {
 
 	openOpts := fs.DataReaderOpenOptions{
 		Identifier: fs.FileSetFileIdentifier{
-			Namespace:  ident.StringID(*optNamespace),
-			Shard:      *optShard,
-			BlockStart: time.Unix(0, *optBlockstart),
+			Namespace:   ident.StringID(*optNamespace),
+			Shard:       *optShard,
+			BlockStart:  time.Unix(0, *optBlockstart),
+			VolumeIndex: int(*volume),
 		},
+		// FileSetType: persist.File
 	}
 
 	err = reader.Open(openOpts)
@@ -70,7 +79,7 @@ func main() {
 			log.Fatalf("err reading metadata: %v", err)
 		}
 
-		if !strings.Contains(id.String(), *idFilter) {
+		if *idFilter != "" && !strings.Contains(id.String(), *idFilter) {
 			continue
 		}
 
