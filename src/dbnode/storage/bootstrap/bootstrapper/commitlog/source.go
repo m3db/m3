@@ -520,7 +520,6 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		fsOpts     = s.opts.CommitLogOptions().FilesystemOptions()
 	)
 
-	// TODO: Already called this FN, maybe should just re-use the results somehow
 	latestSnapshot, ok := snapshotFiles.LatestVolumeForBlock(blockStart)
 	if !ok {
 		s.log.Infof(
