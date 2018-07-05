@@ -413,8 +413,8 @@ func (s *commitLogSource) minimumMostRecentSnapshotTimeByBlock(
 			blockRange := xtime.Range{Start: blockStart.ToTime(), End: blockStart.ToTime().Add(blockSize)}
 			if !shardsTimeRanges[shard].Overlaps(blockRange) {
 				// In order for a minimum most recent snapshot to be valid, it needs to be for a block that
-				// we actually need to bootstrap for that. This check ensures that our algorithm doesn't do any
-				// extra work, even if we're bootstrapping different blocks for various shards.
+				// we actually need to bootstrap for that shard. This check ensures that our algorithm doesn't
+				// do any extra work, even if we're bootstrapping different blocks for various shards.
 				continue
 			}
 
