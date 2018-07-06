@@ -518,6 +518,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		blocksPool = blOpts.DatabaseBlockPool()
 		bytesPool  = blOpts.BytesPool()
 		fsOpts     = s.opts.CommitLogOptions().FilesystemOptions()
+		idPool     = s.opts.CommitLogOptions().IdentifierPool()
 	)
 
 	// Bootstrap the snapshot file
@@ -564,14 +565,16 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 
 		// TODO: Optimize this so we don't waste a bunch of time here
 		// even when the index is disabled
-		tags, err := s.tagsFromTagsIter(id, tagsIter)
-		if err != nil {
-			return shardResult, fmt.Errorf("unable to decode tags: %v", err)
+		var tags ident.Tags
+		if tagsIter.Remaining() > 0 {
+			tags, err = s.tagsFromTagsIter(id, tagsIter, idPool)
+			if err != nil {
+				return shardResult, fmt.Errorf("unable to decode tags: %v", err)
+			}
 		}
 		tagsIter.Close()
 
 		dbBlock := blocksPool.Get()
-
 		dbBlock.Reset(blockStart, blockSize, ts.NewSegment(data, nil, ts.FinalizeHead))
 
 		if !metadataOnly {
@@ -1316,12 +1319,11 @@ func (s commitLogSource) maybeAddToIndex(
 func (s commitLogSource) tagsFromTagsIter(
 	seriesID ident.ID,
 	iter ident.TagIterator,
+	idPool ident.Pool,
 ) (ident.Tags, error) {
 	var (
 		seriesIDBytes = ident.BytesID(seriesID.Bytes())
-		// TODO: Don't call all these functions here
-		idPool = s.opts.CommitLogOptions().IdentifierPool()
-		tags   = idPool.Tags()
+		tags          = idPool.Tags()
 	)
 
 	for iter.Next() {
