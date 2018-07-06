@@ -29,10 +29,19 @@ const (
 	nanosPerSecond = time.Second / time.Nanosecond
 )
 
+// perSecond computes the derivative between consecutive datapoints, taking into
+// account the time interval between the values.
+// * It skips NaN values.
+// * It assumes the timestamps are monotonically increasing, and values are non-decreasing.
+//   If either of the two conditions is not met, an empty datapoint is returned.
 func perSecond(prev, curr Datapoint) Datapoint {
 	if prev.TimeNanos >= curr.TimeNanos || math.IsNaN(prev.Value) || math.IsNaN(curr.Value) {
 		return emptyDatapoint
 	}
-	rate := (curr.Value - prev.Value) * float64(nanosPerSecond) / float64(curr.TimeNanos-prev.TimeNanos)
+	diff := curr.Value - prev.Value
+	if diff < 0 {
+		return emptyDatapoint
+	}
+	rate := diff * float64(nanosPerSecond) / float64(curr.TimeNanos-prev.TimeNanos)
 	return Datapoint{TimeNanos: curr.TimeNanos, Value: rate}
 }
