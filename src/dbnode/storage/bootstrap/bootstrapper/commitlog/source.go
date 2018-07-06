@@ -593,7 +593,6 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 			if ok {
 				// If we've already bootstrapped this series for a different block, we don't need
 				// another copy of the IDs and tags.
-				// TODO: Make sure this is right.
 				id.Finalize()
 				tags.Finalize()
 				id = existing.ID
@@ -607,6 +606,10 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 			// Delay initialization so we can estimate size.
 			shardResult = result.NewShardResult(reader.Entries(), s.opts.ResultOptions())
 		}
+
+		// Mark the ID and Tags as no finalize because we're sharing them accross blocks.
+		id.NoFinalize()
+		tags.NoFinalize()
 		shardResult.AddBlock(id, tags, dbBlock)
 	}
 
