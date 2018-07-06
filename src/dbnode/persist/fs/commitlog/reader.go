@@ -27,7 +27,6 @@ import (
 	"io"
 	"os"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3db/src/dbnode/persist/fs/msgpack"
@@ -112,7 +111,6 @@ type reader struct {
 	shutdownCh           chan error
 	metadata             readerMetadata
 	nextIndex            int64
-	hasBeenOpened        bool
 	bgWorkersInitialized int64
 	seriesPredicate      SeriesFilterPredicate
 }
@@ -153,16 +151,13 @@ func newCommitLogReader(opts Options, seriesPredicate SeriesFilterPredicate) com
 		nextIndex:         0,
 		seriesPredicate:   seriesPredicate,
 	}
+
+	reader.startBackgroundWorkers()
+
 	return reader
 }
 
 func (r *reader) Open(filePath string) (time.Time, time.Duration, int, error) {
-	// Commitlog reader does not currently support being reused
-	if r.hasBeenOpened {
-		return timeZero, 0, 0, errCommitLogReaderIsNotReusable
-	}
-	r.hasBeenOpened = true
-
 	fd, err := os.Open(filePath)
 	if err != nil {
 		return timeZero, 0, 0, err
@@ -194,12 +189,6 @@ func (r *reader) Read() (
 	annotation ts.Annotation,
 	resultErr error,
 ) {
-	if r.nextIndex == 0 {
-		err := r.startBackgroundWorkers()
-		if err != nil {
-			return Series{}, ts.Datapoint{}, xtime.Unit(0), ts.Annotation(nil), err
-		}
-	}
 	rr, ok := <-r.outChan
 	if !ok {
 		return Series{}, ts.Datapoint{}, xtime.Unit(0), ts.Annotation(nil), io.EOF
@@ -209,12 +198,6 @@ func (r *reader) Read() (
 }
 
 func (r *reader) startBackgroundWorkers() error {
-	// Make sure background workers are never setup more than once
-	set := atomic.CompareAndSwapInt64(&r.bgWorkersInitialized, 0, 1)
-	if !set {
-		return errCommitLogReaderMultipleReadloops
-	}
-
 	// Start background worker goroutines
 	go r.readLoop()
 	for _, decoderQueue := range r.decoderQueues {
@@ -491,6 +474,15 @@ func (r *reader) readInfo() (schema.LogInfo, error) {
 	r.infoDecoder.Reset(r.infoDecoderStream)
 	logInfo, err := r.infoDecoder.DecodeLogInfo()
 	return logInfo, err
+}
+
+func (r *reader) reset() {
+	r.chunkReader.reset(nil)
+	r.infoDecoder.Reset(nil)
+	r.infoDecoderStream.Reset(nil)
+	r.infoDecoder.Reset(nil)
+	r.infoDecoderStream.Reset(nil)
+	r.nextIndex = 0
 }
 
 func (r *reader) Close() error {
