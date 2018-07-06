@@ -1035,8 +1035,6 @@ func (s *commitLogSource) mergeShardCommitLogEncodersAndSnapshots(
 	return shardResult, numShardEmptyErrs, numErrs
 }
 
-// TODO: Should this just fail and return early whenever it
-// encounters an error?
 func (s *commitLogSource) mergeSeries(
 	snapshotData result.DatabaseSeriesBlocks,
 	unmergedCommitlogBlocks metadataAndEncodersByTime,
