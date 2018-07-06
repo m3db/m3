@@ -112,12 +112,12 @@ func (s *commitLogSource) AvailableData(
 // restore as much unflushed data from disk as possible. The logic for performing this
 // correctly is as follows:
 //
-//    1. 	For every shard/blockStart combination, find the most recently written and complete
+//    1.  For every shard/blockStart combination, find the most recently written and complete
 //        (has a checkpoint file) snapshot.
-//    2. 	For every shard/blockStart combination, determine the most recent complete SnapshotTime.
+//    2.  For every shard/blockStart combination, determine the most recent complete SnapshotTime.
 //        This value corresponds to the (local) moment in time right before the snapshotting process
 //        began.
-//    3. 	Find the minimum SnapshotTime for all of the shards and block starts (call it t0), and
+//    3.  Find the minimum SnapshotTime for all of the shards and block starts (call it t0), and
 //        replay (M3TSZ encode) all commit log entries whose system timestamps overlap the range
 //        [minimumSnapshotTimeAcrossShards, blockStart.Add(blockSize).Add(bufferPast)]. This logic
 //        has one exception which is in the case where there is no minimimum snapshot time across
