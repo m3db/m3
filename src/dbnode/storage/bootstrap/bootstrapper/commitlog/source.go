@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	"github.com/m3db/m3db/src/dbnode/ts"
 	"github.com/m3db/m3db/src/dbnode/x/xio"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
@@ -438,6 +439,7 @@ func (s *commitLogSource) minimumMostRecentSnapshotTimeByBlock(
 func (s *commitLogSource) bootstrapShardSnapshots(
 	nsID ident.ID,
 	shard uint32,
+	metadataOnly bool,
 	shardTimeRanges xtime.Ranges,
 	blockSize time.Duration,
 	snapshotFiles fs.FileSetFilesSlice,
@@ -485,7 +487,7 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 			}
 
 			shardResult, err = s.bootstrapShardBlockSnapshot(
-				nsID, shard, blockStart, 0, shardResult, allSeriesSoFar, blockSize,
+				nsID, shard, blockStart, metadataOnly, shardResult, allSeriesSoFar, blockSize,
 				snapshotFiles, mostRecentCompleteSnapshotForShardBlock)
 			if err != nil {
 				return shardResult, err
@@ -503,7 +505,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 	nsID ident.ID,
 	shard uint32,
 	blockStart time.Time,
-	volume int,
+	metadataOnly bool,
 	shardResult result.ShardResult,
 	allSeriesSoFar *result.Map,
 	blockSize time.Duration,
@@ -541,7 +543,17 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		"Reading snapshot for shard: %d and blockStart: %d and volume: %d",
 		shard, blockStart.Unix(), mostRecentCompleteSnapshot.ID.VolumeIndex)
 	for {
-		id, tagsIter, data, expectedChecksum, err := reader.Read()
+		var (
+			id               ident.ID
+			tagsIter         ident.TagIterator
+			data             checked.Bytes
+			expectedChecksum uint32
+		)
+		if metadataOnly {
+			id, tagsIter, _, _, err = reader.ReadMetadata()
+		} else {
+			id, tagsIter, data, expectedChecksum, err = reader.Read()
+		}
 		if err != nil && err != io.EOF {
 			return shardResult, err
 		}
@@ -559,16 +571,20 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		tagsIter.Close()
 
 		dbBlock := blocksPool.Get()
-		dbBlock.Reset(blockStart, blockSize, ts.NewSegment(data, nil, ts.FinalizeHead))
-		// Resetting the block will trigger a checksum calculation, so use that instead
-		// of calculating it twice.
-		checksum, err := dbBlock.Checksum()
-		if err != nil {
-			return shardResult, err
-		}
 
-		if checksum != expectedChecksum {
-			return shardResult, fmt.Errorf("checksum for series: %s was %d but expected %d", id, checksum, expectedChecksum)
+		dbBlock.Reset(blockStart, blockSize, ts.NewSegment(data, nil, ts.FinalizeHead))
+
+		if !metadataOnly {
+			// Resetting the block will trigger a checksum calculation, so use that instead
+			// of calculating it twice.
+			checksum, err := dbBlock.Checksum()
+			if err != nil {
+				return shardResult, err
+			}
+
+			if checksum != expectedChecksum {
+				return shardResult, fmt.Errorf("checksum for series: %s was %d but expected %d", id, checksum, expectedChecksum)
+			}
 		}
 
 		if allSeriesSoFar != nil {
@@ -873,6 +889,7 @@ func (s *commitLogSource) mergeShardCommitLogEncodersAndSnapshots(
 		snapshotData, err := s.bootstrapShardSnapshots(
 			ns.ID(),
 			uint32(shard),
+			false,
 			shardsTimeRanges[uint32(shard)],
 			blockSize,
 			snapshotFiles[uint32(shard)],
@@ -1191,12 +1208,10 @@ func (s *commitLogSource) ReadIndex(
 		SeriesFilterPredicate: readSeriesPredicate,
 	}
 
-	// TODO: Can optimize this to not read data, and just return the
-	// IDs / tags.
 	// Start by bootstrapping any available snapshot files.
 	for shard, tr := range shardsTimeRanges {
 		shardResult, err := s.bootstrapShardSnapshots(
-			ns.ID(), shard, tr, blockSize, snapshotFilesByShard[shard],
+			ns.ID(), shard, true, tr, blockSize, snapshotFilesByShard[shard],
 			mostRecentCompleteSnapshotByBlockShard)
 		if err != nil {
 			return nil, err
