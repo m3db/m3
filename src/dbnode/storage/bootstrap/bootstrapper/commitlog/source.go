@@ -778,9 +778,11 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 				id:       series.ID,
 				tags:     series.Tags,
 				encoders: make(map[xtime.UnixNano][]encoder)}
-			// Have to use unsafe because we don't want to copy or finalize the
-			// IDs we put into this map as we're going to use them for the
-			// bootstrap result.
+			// Have to use unsafe because we don't want to copy the IDs we put
+			// into this map because its lifecycle is much shorter than that of
+			// the IDs we're putting into it so copying would waste too much
+			// memory unnecessarily, and we don't want to finalize the IDs for the
+			// same reason.
 			unmergedShard.SetUnsafe(
 				series.ID, unmergedSeries,
 				SetUnsafeOptions{NoCopyKey: true, NoFinalizeKey: true})
