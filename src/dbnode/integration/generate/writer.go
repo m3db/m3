@@ -123,17 +123,8 @@ func (w *writer) writeWithPredicate(
 	encoder := gOpts.EncoderPool().Get()
 	for start, data := range seriesMaps {
 		err := writeToDiskWithPredicate(
-			writer,
-			shardSet,
-			encoder,
-			start.ToTime(),
-			namespace,
-			blockSize,
-			data,
-			pred,
-			fileSetType,
-			snapshotInterval,
-		)
+			writer, shardSet, encoder, start.ToTime(), namespace, blockSize,
+			data, pred, fileSetType, snapshotInterval)
 		if err != nil {
 			return err
 		}
@@ -144,17 +135,8 @@ func (w *writer) writeWithPredicate(
 	if w.opts.WriteEmptyShards() {
 		for start := range starts {
 			err := writeToDiskWithPredicate(
-				writer,
-				shardSet,
-				encoder,
-				start.ToTime(),
-				namespace,
-				blockSize,
-				nil,
-				pred,
-				fileSetType,
-				snapshotInterval,
-			)
+				writer, shardSet, encoder, start.ToTime(), namespace, blockSize,
+				nil, pred, fileSetType, snapshotInterval)
 			if err != nil {
 				return err
 			}
