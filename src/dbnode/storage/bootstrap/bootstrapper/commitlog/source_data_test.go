@@ -293,10 +293,9 @@ func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
 		return fs.FileSetFilesSlice{
 			fs.FileSetFile{
 				ID: fs.FileSetFileIdentifier{
-					Namespace:  namespace,
-					BlockStart: start,
-					Shard:      shard,
-					// TODO: Maker sure to test multiple indices
+					Namespace:   namespace,
+					BlockStart:  start,
+					Shard:       shard,
 					VolumeIndex: 0,
 				},
 				AbsoluteFilepaths: []string{"checkpoint"},
