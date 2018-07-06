@@ -271,7 +271,7 @@ func (s *commitLogSource) ReadData(
 	// the data that is available in the snapshot files.
 	mergeStart := time.Now()
 	s.log.Infof("Starting merge...")
-	bootstrapResult, err := s.mergeShardCommitLogEncodersAndSnapshots(
+	bootstrapResult, err := s.mergeAllShardsCommitLogEncodersAndSnapshots(
 		ns,
 		shardsTimeRanges,
 		snapshotFilesByShard,
@@ -871,7 +871,7 @@ func (s *commitLogSource) shouldIncludeInIndex(
 	return rangesToBootstrap.Overlaps(indexBlockRange)
 }
 
-func (s *commitLogSource) mergeShardCommitLogEncodersAndSnapshots(
+func (s *commitLogSource) mergeAllShardsCommitLogEncodersAndSnapshots(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	snapshotFiles map[uint32]fs.FileSetFilesSlice,
