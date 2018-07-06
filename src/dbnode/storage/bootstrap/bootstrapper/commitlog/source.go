@@ -909,12 +909,23 @@ func (s *commitLogSource) mergeAllShardsCommitLogEncodersAndSnapshots(
 			mostRecentCompleteSnapshotByBlockShard,
 		)
 		if err != nil {
+			bootstrapResultLock.Lock()
+			// Mark the shard time ranges as unfulfilled so a subsequent bootstrapper
+			// has the chance to fulfill it.
+			bootstrapResult.Add(
+				uint32(shard),
+				result.NewShardResult(0, s.opts.ResultOptions()),
+				shardsTimeRanges[uint32(shard)],
+			)
+			bootstrapResultLock.Unlock()
 			return nil, err
 		}
 
 		if unmergedShard.series == nil {
 			if !snapshotData.IsEmpty() {
 				// No snapshot or commit log data, skip.
+				// TODO: When we start allowing peer bootstrapping after commit log bootstrapping,
+				// then we will need to change this to mark the shard time ranges as unfulfilled.
 				continue
 			}
 
@@ -935,8 +946,13 @@ func (s *commitLogSource) mergeAllShardsCommitLogEncodersAndSnapshots(
 			if shardResult != nil && shardResult.NumSeries() > 0 {
 				// Prevent race conditions while updating bootstrapResult from multiple go-routines
 				bootstrapResultLock.Lock()
-				// Shard is a slice index so conversion to uint32 is safe
-				bootstrapResult.Add(uint32(shard), shardResult, xtime.Ranges{})
+				if shardEmptyErrs[shard] != 0 || shardErrs[shard] != 0 {
+					// If there were any errors, keep the data but mark the shard time ranges as
+					// unfulfilled so a subsequent bootstrapper has the chance to fulfill it.
+					bootstrapResult.Add(uint32(shard), shardResult, shardsTimeRanges[uint32(shard)])
+				} else {
+					bootstrapResult.Add(uint32(shard), shardResult, xtime.Ranges{})
+				}
 				bootstrapResultLock.Unlock()
 			}
 			wg.Done()
@@ -1056,7 +1072,8 @@ func (s *commitLogSource) mergeSeries(
 		readers, err := newIOReadersFromEncodersAndBlock(
 			segmentReaderPool, encoders, snapshotBlock)
 		if err != nil {
-			panic(err)
+			numErrs++
+			continue
 		}
 
 		iter := multiReaderIteratorPool.Get()
@@ -1068,9 +1085,6 @@ func (s *commitLogSource) mergeSeries(
 			dp, unit, annotation := iter.Current()
 			encodeErr := enc.Encode(dp, unit, annotation)
 			if encodeErr != nil {
-				if err != nil {
-					panic(err)
-				}
 				err = encodeErr
 				numErrs++
 				break
