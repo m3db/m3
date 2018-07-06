@@ -710,7 +710,7 @@ func (s *commitLogSource) newReadCommitLogPred(
 	// TODO: We have to rely on the global minimum across shards to determine which commit log files
 	// we need to read, but we can still skip datapoints from the commitlog itself that belong to a shard
 	// that has a snapshot more recent than the global minimum. If we use an array for fast-access this could
-	// be a net win.
+	// be a small win in terms of memory utilization.
 	return func(fileName string, fileStart time.Time, fileBlockSize time.Duration) bool {
 		_, ok := commitlogFilesPresentBeforeStart[fileName]
 		if !ok {
