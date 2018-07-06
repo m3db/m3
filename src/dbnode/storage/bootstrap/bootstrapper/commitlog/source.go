@@ -1077,7 +1077,6 @@ func (s *commitLogSource) mergeSeries(
 		}
 
 		if err != nil {
-			panic(err)
 			continue
 		}
 
