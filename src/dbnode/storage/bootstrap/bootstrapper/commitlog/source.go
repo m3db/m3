@@ -493,8 +493,23 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 		}
 
 		for blockStart := currRange.Start.Truncate(blockSize); blockStart.Before(currRange.End); blockStart = blockStart.Add(blockSize) {
+			snapshotsForBlock := mostRecentCompleteSnapshotByBlockShard[xtime.ToUnixNano(blockStart)]
+			mostRecentCompleteSnapshotForShardBlock := snapshotsForBlock[shard]
+
+			if mostRecentCompleteSnapshotForShardBlock.snapshotTime.Equal(blockStart) ||
+				// Should never happen
+				mostRecentCompleteSnapshotForShardBlock.isZero() {
+				// There is no snapshot file for this time, and even if there was, there would
+				// be no point in reading it.
+				s.log.Infof(
+					"No snapshots for shard: %d and blockStart: %d",
+					shard, blockStart.Unix())
+				continue
+			}
+
 			shardResult, err = s.bootstrapShardBlockSnapshot(
-				nsID, shard, blockStart, 0, shardResult, allSeriesSoFar, blockSize, snapshotFiles)
+				nsID, shard, blockStart, 0, shardResult, allSeriesSoFar, blockSize,
+				snapshotFiles, mostRecentCompleteSnapshotForShardBlock)
 			if err != nil {
 				return shardResult, err
 			}
@@ -516,6 +531,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 	allSeriesSoFar *result.Map,
 	blockSize time.Duration,
 	snapshotFiles fs.FileSetFilesSlice,
+	mostRecentCompleteSnapshot snapshotMetadata,
 ) (result.ShardResult, error) {
 	var (
 		bOpts      = s.opts.ResultOptions()
@@ -524,18 +540,6 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		bytesPool  = blOpts.BytesPool()
 		fsOpts     = s.opts.CommitLogOptions().FilesystemOptions()
 	)
-
-	latestSnapshot, ok := snapshotFiles.LatestVolumeForBlock(blockStart)
-	if !ok {
-		s.log.Infof(
-			"No snapshots for shard: %d and blockStart: %d",
-			shard, blockStart.Unix())
-		// There are no snapshot files for this shard / block combination
-		// TODO: This is sketch, it should just try and read the exact same ones
-		// we determined in earlier steps and error out if it cant read them because
-		// then the commit log logic we chose is wrong.
-		return shardResult, nil
-	}
 
 	// Bootstrap the snapshot file
 	reader, err := s.newReaderFn(bytesPool, fsOpts)
@@ -554,7 +558,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 			Namespace:   nsID,
 			BlockStart:  blockStart,
 			Shard:       shard,
-			VolumeIndex: latestSnapshot.ID.VolumeIndex,
+			VolumeIndex: mostRecentCompleteSnapshot.ID.VolumeIndex,
 		},
 		FileSetType: persist.FileSetSnapshotType,
 	})
@@ -565,7 +569,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 
 	s.log.Infof(
 		"Reading snapshot for shard: %d and blockStart: %d and volume: %d",
-		shard, blockStart.Unix(), latestSnapshot.ID.VolumeIndex)
+		shard, blockStart.Unix(), mostRecentCompleteSnapshot.ID.VolumeIndex)
 	for {
 		id, tagsIter, data, expectedChecksum, err := reader.Read()
 		if err != nil && err != io.EOF {
