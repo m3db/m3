@@ -204,9 +204,11 @@ func writeSnapshotsWithPredicate(
 	namespace namespace.Metadata,
 	specifiedTS *time.Time,
 	pred generate.WriteDatapointPredicate,
+	snapshotInterval time.Duration,
 ) {
 	// Write out snapshots
-	err := writeTestSnapshotsToDiskWithPredicate(namespace, s, data, pred)
+	err := writeTestSnapshotsToDiskWithPredicate(
+		namespace, s, data, pred, snapshotInterval)
 	require.NoError(t, err)
 }
 

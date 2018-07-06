@@ -21,7 +21,6 @@
 package generate
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/m3db/m3db/src/dbnode/digest"
@@ -63,8 +62,10 @@ func (w *writer) WriteSnapshot(
 	namespace ident.ID,
 	shardSet sharding.ShardSet,
 	seriesMaps SeriesBlocksByStart,
+	snapshotInterval time.Duration,
 ) error {
-	return w.WriteSnapshotWithPredicate(namespace, shardSet, seriesMaps, WriteAllPredicate)
+	return w.WriteSnapshotWithPredicate(
+		namespace, shardSet, seriesMaps, WriteAllPredicate, snapshotInterval)
 }
 
 func (w *writer) WriteDataWithPredicate(
@@ -74,7 +75,7 @@ func (w *writer) WriteDataWithPredicate(
 	pred WriteDatapointPredicate,
 ) error {
 	return w.writeWithPredicate(
-		namespace, shardSet, seriesMaps, pred, persist.FileSetFlushType)
+		namespace, shardSet, seriesMaps, pred, persist.FileSetFlushType, 0)
 }
 
 func (w *writer) WriteSnapshotWithPredicate(
@@ -82,9 +83,10 @@ func (w *writer) WriteSnapshotWithPredicate(
 	shardSet sharding.ShardSet,
 	seriesMaps SeriesBlocksByStart,
 	pred WriteDatapointPredicate,
+	snapshotInterval time.Duration,
 ) error {
 	return w.writeWithPredicate(
-		namespace, shardSet, seriesMaps, pred, persist.FileSetSnapshotType)
+		namespace, shardSet, seriesMaps, pred, persist.FileSetSnapshotType, snapshotInterval)
 }
 
 func (w *writer) writeWithPredicate(
@@ -93,6 +95,7 @@ func (w *writer) writeWithPredicate(
 	seriesMaps SeriesBlocksByStart,
 	pred WriteDatapointPredicate,
 	fileSetType persist.FileSetType,
+	snapshotInterval time.Duration,
 ) error {
 	var (
 		gOpts          = w.opts
@@ -120,7 +123,17 @@ func (w *writer) writeWithPredicate(
 	encoder := gOpts.EncoderPool().Get()
 	for start, data := range seriesMaps {
 		err := writeToDiskWithPredicate(
-			writer, shardSet, encoder, start.ToTime(), namespace, blockSize, data, pred, fileSetType)
+			writer,
+			shardSet,
+			encoder,
+			start.ToTime(),
+			namespace,
+			blockSize,
+			data,
+			pred,
+			fileSetType,
+			snapshotInterval,
+		)
 		if err != nil {
 			return err
 		}
@@ -131,7 +144,17 @@ func (w *writer) writeWithPredicate(
 	if w.opts.WriteEmptyShards() {
 		for start := range starts {
 			err := writeToDiskWithPredicate(
-				writer, shardSet, encoder, start.ToTime(), namespace, blockSize, nil, pred, fileSetType)
+				writer,
+				shardSet,
+				encoder,
+				start.ToTime(),
+				namespace,
+				blockSize,
+				nil,
+				pred,
+				fileSetType,
+				snapshotInterval,
+			)
 			if err != nil {
 				return err
 			}
@@ -151,6 +174,7 @@ func writeToDiskWithPredicate(
 	seriesList SeriesBlock,
 	pred WriteDatapointPredicate,
 	fileSetType persist.FileSetType,
+	snapshotInterval time.Duration,
 ) error {
 	seriesPerShard := make(map[uint32][]Series)
 	for _, shard := range shardSet.AllIDs() {
@@ -172,8 +196,7 @@ func writeToDiskWithPredicate(
 			},
 			FileSetType: fileSetType,
 			Snapshot: fs.DataWriterSnapshotOptions{
-				// TODO: Fix this
-				SnapshotTime: start,
+				SnapshotTime: start.Add(snapshotInterval),
 			},
 		}
 		if err := writer.Open(writerOpts); err != nil {
@@ -188,9 +211,11 @@ func writeToDiskWithPredicate(
 					}
 				}
 			}
+
 			stream := encoder.Stream()
 			if stream == nil {
-				return fmt.Errorf("nil stream")
+				// None of the datapoints passed the predicate.
+				continue
 			}
 			segment, err := stream.Segment()
 			if err != nil {

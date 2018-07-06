@@ -70,7 +70,11 @@ type Writer interface {
 
 	// WriteSnapshot writes the data as snapshot files.
 	WriteSnapshot(
-		ns ident.ID, shards sharding.ShardSet, data SeriesBlocksByStart) error
+		ns ident.ID,
+		shards sharding.ShardSet,
+		data SeriesBlocksByStart,
+		snapshotInterval time.Duration,
+	) error
 
 	// WriteDataWithPredicate writes all data that passes the predicate test as data files.
 	WriteDataWithPredicate(
@@ -86,6 +90,7 @@ type Writer interface {
 		shards sharding.ShardSet,
 		data SeriesBlocksByStart,
 		pred WriteDatapointPredicate,
+		snapshotInterval time.Duration,
 	) error
 }
 

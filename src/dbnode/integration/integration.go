@@ -310,11 +310,12 @@ func writeTestSnapshotsToDiskWithPredicate(
 	setup *testSetup,
 	seriesMaps generate.SeriesBlocksByStart,
 	pred generate.WriteDatapointPredicate,
+	snapshotInterval time.Duration,
 ) error {
 	ropts := metadata.Options().RetentionOptions()
 	writer := generate.NewWriter(setup.generatorOptions(ropts))
 	return writer.WriteSnapshotWithPredicate(
-		metadata.ID(), setup.shardSet, seriesMaps, pred)
+		metadata.ID(), setup.shardSet, seriesMaps, pred, snapshotInterval)
 }
 
 func concatShards(a, b shard.Shards) shard.Shards {

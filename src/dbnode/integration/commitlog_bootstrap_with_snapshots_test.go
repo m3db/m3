@@ -69,29 +69,34 @@ func TestCommitLogBootstrapWithSnapshots(t *testing.T) {
 
 	// Write test data
 	log.Info("generating data")
-	now := setup.getNowFn()
-	seriesMaps := generateSeriesMaps(30, now.Add(-2*blockSize), now.Add(-blockSize))
+	var (
+		now        = setup.getNowFn().Truncate(blockSize)
+		seriesMaps = generateSeriesMaps(30, now.Add(-2*blockSize), now.Add(-blockSize))
+	)
 	log.Info("writing data")
-	// TODO: Set the snapshot time
-	numDatapointsNotInSnapshots := 0
-	writeSnapshotsWithPredicate(t, setup, commitLogOpts, seriesMaps, ns1, nil, func(dp ts.Datapoint) bool {
-		blockStart := dp.Timestamp.Truncate(blockSize)
-		// TODO: Make this less ghetto
-		if dp.Timestamp.Before(blockStart.Add(10 * time.Second)) {
-			// TODO: Update this comment
-			// Snapshot files will only contain writes from the first minute of the block
-			return true
-		}
 
-		numDatapointsNotInSnapshots++
-		return false
-	})
+	var (
+		snapshotInterval            = 10 * time.Second
+		numDatapointsNotInSnapshots = 0
+		pred                        = func(dp ts.Datapoint) bool {
+			blockStart := dp.Timestamp.Truncate(blockSize)
+			if dp.Timestamp.Before(blockStart.Add(snapshotInterval)) {
+				return true
+			}
+
+			numDatapointsNotInSnapshots++
+			return false
+		}
+	)
+
+	writeSnapshotsWithPredicate(
+		t, setup, commitLogOpts, seriesMaps, ns1, nil, pred, snapshotInterval)
 
 	numDatapointsNotInCommitLogs := 0
 	writeCommitLogDataWithPredicate(t, setup, commitLogOpts, seriesMaps, ns1, func(dp ts.Datapoint) bool {
 		blockStart := dp.Timestamp.Truncate(blockSize)
 		// TODO: Make this less ghetto
-		if dp.Timestamp.Equal(blockStart.Add(10*time.Second)) || dp.Timestamp.After(blockStart.Add(10*time.Second)) {
+		if dp.Timestamp.Equal(blockStart.Add(snapshotInterval)) || dp.Timestamp.After(blockStart.Add(snapshotInterval)) {
 			return true
 		}
 
