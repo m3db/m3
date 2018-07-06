@@ -42,6 +42,7 @@ import (
 	"github.com/m3db/m3db/src/dbnode/x/xio"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
@@ -1125,9 +1126,12 @@ func (s *commitLogSource) mergeSeries(
 			}
 			_, ok := seriesBlocks.BlockAt(startNano.ToTime())
 			if ok {
-				// TODO: Invariant violated logger.
 				// Should never happen because we would have called
 				// Blocks.RemoveBlockAt() above.
+				iOpts := s.opts.CommitLogOptions().InstrumentOptions()
+				invariantLogger := instrument.EmitInvariantViolationAndGetLogger(iOpts)
+				invariantLogger.Errorf(
+					"Tried to merge block that should have been removed, blockStart: %d", startNano)
 				continue
 			}
 
