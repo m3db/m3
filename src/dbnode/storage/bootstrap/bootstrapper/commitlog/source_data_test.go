@@ -308,7 +308,6 @@ func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
 
 	mockReader := fs.NewMockDataFileSetReader(ctrl)
 	mockReader.EXPECT().Open(fs.ReaderOpenOptionsMatcher{
-		// TODO: Share with the above
 		ID: fs.FileSetFileIdentifier{
 			Namespace:   testNamespaceID,
 			BlockStart:  start,
@@ -317,16 +316,7 @@ func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
 		},
 		FileSetType: persist.FileSetSnapshotType,
 	}).Return(nil).AnyTimes()
-	// mockReader.EXPECT().Open(fs.ReaderOpenOptionsMatcher{
-	// 	// TODO: Share with the above
-	// 	ID: fs.FileSetFileIdentifier{
-	// 		Namespace:   testNamespaceID,
-	// 		BlockStart:  start,
-	// 		Shard:       1,
-	// 		VolumeIndex: 0,
-	// 	},
-	// 	FileSetType: persist.FileSetSnapshotType,
-	// }).Return(nil).AnyTimes()
+	mockReader.EXPECT().Entries().Return(1).AnyTimes()
 
 	snapshotValues := []testValue{
 		{foo, start.Add(1 * time.Minute), 1.0, xtime.Nanosecond, nil},
