@@ -605,7 +605,8 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 			shardResult = result.NewShardResult(reader.Entries(), s.opts.ResultOptions())
 		}
 
-		// Mark the ID and Tags as no finalize because we're sharing them accross blocks.
+		// Mark the ID and Tags as no finalize because we're sharing them across blocks.
+		// TODO: Not sure this is necessary...
 		id.NoFinalize()
 		tags.NoFinalize()
 		shardResult.AddBlock(id, tags, dbBlock)
