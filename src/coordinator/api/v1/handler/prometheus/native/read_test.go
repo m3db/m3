@@ -40,7 +40,7 @@ import (
 func TestPromReadWithFetchOnly(t *testing.T) {
 	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
-	storage, mockSession := local.NewStorageAndSession(ctrl)
+	storage, mockSession := local.NewStorageAndSession(t, ctrl)
 	testTags := seriesiter.GenerateTag()
 	mockSession.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(seriesiter.NewMockSeriesIters(ctrl, testTags, 1, 10), true, nil)
 
@@ -69,7 +69,7 @@ func TestPromReadWithFetchOnly(t *testing.T) {
 func TestPromReadWithFetchAndCount(t *testing.T) {
 	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
-	storage, mockSession := local.NewStorageAndSession(ctrl)
+	storage, mockSession := local.NewStorageAndSession(t, ctrl)
 	testTags := seriesiter.GenerateTag()
 	numSeries := 2
 	mockSession.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(seriesiter.NewMockSeriesIters(ctrl, testTags, numSeries, 10), true, nil)
@@ -99,7 +99,7 @@ func TestPromReadWithFetchAndCount(t *testing.T) {
 func TestPromReadWithFetchAndAbs(t *testing.T) {
 	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
-	storage, mockSession := local.NewStorageAndSession(ctrl)
+	storage, mockSession := local.NewStorageAndSession(t, ctrl)
 	testTags := seriesiter.GenerateTag()
 	mockSession.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(seriesiter.NewMockSeriesIters(ctrl, testTags, 1, 10), true, nil)
 

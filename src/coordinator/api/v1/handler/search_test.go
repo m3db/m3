@@ -93,7 +93,7 @@ func searchServer(t *testing.T) *SearchHandler {
 
 	mockTaggedIDsIter := generateTagIters(ctrl)
 
-	storage, session := local.NewStorageAndSession(ctrl)
+	storage, session := local.NewStorageAndSession(t, ctrl)
 	session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(mockTaggedIDsIter, false, nil)
 	search := &SearchHandler{store: storage}
 

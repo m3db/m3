@@ -22,13 +22,13 @@ package placement
 
 import (
 	"errors"
+	"net/http"
 	"testing"
 
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/generated/proto/placementpb"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -48,20 +48,20 @@ func TestPlacementService(t *testing.T) {
 	mockClient.EXPECT().Services(gomock.Not(nil)).Return(mockServices, nil)
 	mockServices.EXPECT().PlacementService(gomock.Not(nil), gomock.Not(nil)).Return(mockPlacementService, nil)
 
-	placementService, err := Service(mockClient, config.Configuration{})
+	placementService, err := Service(mockClient, http.Header{})
 	assert.NoError(t, err)
 	assert.NotNil(t, placementService)
 
 	// Test Services returns error
 	mockClient.EXPECT().Services(gomock.Not(nil)).Return(nil, errors.New("dummy service error"))
-	placementService, err = Service(mockClient, config.Configuration{})
+	placementService, err = Service(mockClient, http.Header{})
 	assert.Nil(t, placementService)
 	assert.EqualError(t, err, "dummy service error")
 
 	// Test PlacementService returns error
 	mockClient.EXPECT().Services(gomock.Not(nil)).Return(mockServices, nil)
 	mockServices.EXPECT().PlacementService(gomock.Not(nil), gomock.Not(nil)).Return(nil, errors.New("dummy placement error"))
-	placementService, err = Service(mockClient, config.Configuration{})
+	placementService, err = Service(mockClient, http.Header{})
 	assert.Nil(t, placementService)
 	assert.EqualError(t, err, "dummy placement error")
 }

@@ -21,11 +21,13 @@
 package database
 
 import (
+	"encoding/json"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"unicode"
 
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/generated/proto/placementpb"
@@ -36,6 +38,7 @@ import (
 	dbconfig "github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler/namespace"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
+	xtest "github.com/m3db/m3db/src/dbnode/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -43,7 +46,7 @@ import (
 )
 
 var (
-	testDBCfg = dbconfig.DBConfiguration{
+	testDBCfg = &dbconfig.DBConfiguration{
 		ListenAddress: "0.0.0.0:9000",
 	}
 )
@@ -111,10 +114,66 @@ func TestLocalType(t *testing.T) {
 	body, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "{\"namespace\":{\"registry\":{\"namespaces\":{\"testNamespace\":{\"bootstrapEnabled\":true,\"flushEnabled\":true,\"writesToCommitLog\":true,\"cleanupEnabled\":true,\"repairEnabled\":false,\"retentionOptions\":{\"retentionPeriodNanos\":\"172800000000000\",\"blockSizeNanos\":\"7200000000000\",\"bufferFutureNanos\":\"120000000000\",\"bufferPastNanos\":\"600000000000\",\"blockDataExpiry\":true,\"blockDataExpiryAfterNotAccessPeriodNanos\":\"300000000000\"},\"snapshotEnabled\":false,\"indexOptions\":{\"enabled\":false,\"blockSizeNanos\":\"7200000000000\"}}}}},\"placement\":{\"placement\":{\"instances\":{\"localhost\":{\"id\":\"localhost\",\"isolationGroup\":\"local\",\"zone\":\"embedded\",\"weight\":1,\"endpoint\":\"http://localhost:9000\",\"shards\":[],\"shardSetId\":0,\"hostname\":\"localhost\",\"port\":9000}},\"replicaFactor\":0,\"numShards\":0,\"isSharded\":false,\"cutoverTime\":\"0\",\"isMirrored\":false,\"maxShardSetId\":0},\"version\":0}}", string(body))
+
+	expectedResponse := `
+	{
+		"namespace": {
+			"registry": {
+				"namespaces": {
+					"testNamespace": {
+						"bootstrapEnabled": true,
+						"flushEnabled": true,
+						"writesToCommitLog": true,
+						"cleanupEnabled": true,
+						"repairEnabled": false,
+						"retentionOptions": {
+							"retentionPeriodNanos": "86400000000000",
+							"blockSizeNanos": "3600000000000",
+							"bufferFutureNanos": "120000000000",
+							"bufferPastNanos": "600000000000",
+							"blockDataExpiry": true,
+							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
+						},
+						"snapshotEnabled": false,
+						"indexOptions": {
+							"enabled": true,
+							"blockSizeNanos": "3600000000000"
+						}
+					}
+				}
+			}
+		},
+		"placement": {
+			"placement": {
+				"instances": {
+					"localhost": {
+						"id": "localhost",
+						"isolationGroup": "local",
+						"zone": "embedded",
+						"weight": 1,
+						"endpoint": "http://localhost:9000",
+						"shards": [],
+						"shardSetId": 0,
+						"hostname": "localhost",
+						"port": 9000
+					}
+				},
+				"replicaFactor": 0,
+				"numShards": 0,
+				"isSharded": false,
+				"cutoverTime": "0",
+				"isMirrored": false,
+				"maxShardSetId": 0
+			},
+			"version": 0
+		}
+	}
+	`
+	assert.Equal(t, stripAllWhitespace(expectedResponse), string(body),
+		xtest.Diff(mustPrettyJSON(t, expectedResponse), mustPrettyJSON(t, string(body))))
 }
 
-func TestClusterTypeHostnames(t *testing.T) {
+func TestClusterTypeHosts(t *testing.T) {
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t)
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
@@ -123,7 +182,7 @@ func TestClusterTypeHostnames(t *testing.T) {
 		{
 			"namespaceName": "testNamespace",
 			"type": "cluster",
-			"hostnames": ["host1", "host2"]
+			"hosts": [{"id": "host1"}, {"id": "host2"}]
 		}
 	`
 
@@ -165,10 +224,77 @@ func TestClusterTypeHostnames(t *testing.T) {
 	body, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "{\"namespace\":{\"registry\":{\"namespaces\":{\"testNamespace\":{\"bootstrapEnabled\":true,\"flushEnabled\":true,\"writesToCommitLog\":true,\"cleanupEnabled\":true,\"repairEnabled\":false,\"retentionOptions\":{\"retentionPeriodNanos\":\"172800000000000\",\"blockSizeNanos\":\"7200000000000\",\"bufferFutureNanos\":\"120000000000\",\"bufferPastNanos\":\"600000000000\",\"blockDataExpiry\":true,\"blockDataExpiryAfterNotAccessPeriodNanos\":\"300000000000\"},\"snapshotEnabled\":false,\"indexOptions\":{\"enabled\":false,\"blockSizeNanos\":\"7200000000000\"}}}}},\"placement\":{\"placement\":{\"instances\":{\"host1\":{\"id\":\"host1\",\"isolationGroup\":\"cluster\",\"zone\":\"embedded\",\"weight\":1,\"endpoint\":\"http://host1:9000\",\"shards\":[],\"shardSetId\":0,\"hostname\":\"host1\",\"port\":9000},\"host2\":{\"id\":\"host2\",\"isolationGroup\":\"cluster\",\"zone\":\"embedded\",\"weight\":1,\"endpoint\":\"http://host2:9000\",\"shards\":[],\"shardSetId\":0,\"hostname\":\"host2\",\"port\":9000}},\"replicaFactor\":0,\"numShards\":0,\"isSharded\":false,\"cutoverTime\":\"0\",\"isMirrored\":false,\"maxShardSetId\":0},\"version\":0}}", string(body))
+
+	expectedResponse := `
+	{
+		"namespace": {
+			"registry": {
+				"namespaces": {
+					"testNamespace": {
+						"bootstrapEnabled": true,
+						"flushEnabled": true,
+						"writesToCommitLog": true,
+						"cleanupEnabled": true,
+						"repairEnabled": false,
+						"retentionOptions": {
+							"retentionPeriodNanos": "86400000000000",
+							"blockSizeNanos": "3600000000000",
+							"bufferFutureNanos": "120000000000",
+							"bufferPastNanos": "600000000000",
+							"blockDataExpiry": true,
+							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
+						},
+						"snapshotEnabled": false,
+						"indexOptions": {
+							"enabled": true,
+							"blockSizeNanos": "3600000000000"
+						}
+					}
+				}
+			}
+		},
+		"placement": {
+			"placement": {
+				"instances": {
+					"host1": {
+						"id": "host1",
+						"isolationGroup": "cluster",
+						"zone": "embedded",
+						"weight": 1,
+						"endpoint": "http://host1:9000",
+						"shards": [],
+						"shardSetId": 0,
+						"hostname": "host1",
+						"port": 9000
+					},
+					"host2": {
+						"id": "host2",
+						"isolationGroup": "cluster",
+						"zone": "embedded",
+						"weight": 1,
+						"endpoint": "http://host2:9000",
+						"shards": [],
+						"shardSetId": 0,
+						"hostname": "host2",
+						"port": 9000
+					}
+				},
+				"replicaFactor": 0,
+				"numShards": 0,
+				"isSharded": false,
+				"cutoverTime": "0",
+				"isMirrored": false,
+				"maxShardSetId": 0
+			},
+			"version": 0
+		}
+	}
+	`
+	assert.Equal(t, stripAllWhitespace(expectedResponse), string(body),
+		xtest.Diff(mustPrettyJSON(t, expectedResponse), mustPrettyJSON(t, string(body))))
 }
 
-func TestClusterTypeHostnameGroups(t *testing.T) {
+func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t)
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
@@ -177,7 +303,7 @@ func TestClusterTypeHostnameGroups(t *testing.T) {
 		{
 			"namespaceName": "testNamespace",
 			"type": "cluster",
-			"hostnameGroups": [{"hostname":"host1", "isolationGroup":"group1"}, {"hostname":"host2", "isolationGroup":"group2"}]
+			"hosts": [{"id":"host1", "isolationGroup":"group1"}, {"id":"host2", "isolationGroup":"group2"}]
 		}
 	`
 
@@ -219,35 +345,75 @@ func TestClusterTypeHostnameGroups(t *testing.T) {
 	body, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "{\"namespace\":{\"registry\":{\"namespaces\":{\"testNamespace\":{\"bootstrapEnabled\":true,\"flushEnabled\":true,\"writesToCommitLog\":true,\"cleanupEnabled\":true,\"repairEnabled\":false,\"retentionOptions\":{\"retentionPeriodNanos\":\"172800000000000\",\"blockSizeNanos\":\"7200000000000\",\"bufferFutureNanos\":\"120000000000\",\"bufferPastNanos\":\"600000000000\",\"blockDataExpiry\":true,\"blockDataExpiryAfterNotAccessPeriodNanos\":\"300000000000\"},\"snapshotEnabled\":false,\"indexOptions\":{\"enabled\":false,\"blockSizeNanos\":\"7200000000000\"}}}}},\"placement\":{\"placement\":{\"instances\":{\"host1\":{\"id\":\"host1\",\"isolationGroup\":\"group1\",\"zone\":\"embedded\",\"weight\":1,\"endpoint\":\"http://host1:9000\",\"shards\":[],\"shardSetId\":0,\"hostname\":\"host1\",\"port\":9000},\"host2\":{\"id\":\"host2\",\"isolationGroup\":\"group2\",\"zone\":\"embedded\",\"weight\":1,\"endpoint\":\"http://host2:9000\",\"shards\":[],\"shardSetId\":0,\"hostname\":\"host2\",\"port\":9000}},\"replicaFactor\":0,\"numShards\":0,\"isSharded\":false,\"cutoverTime\":\"0\",\"isMirrored\":false,\"maxShardSetId\":0},\"version\":0}}", string(body))
-}
 
-func TestClusterTypeMultipleHostnameTypes(t *testing.T) {
-	mockClient, _, _ := SetupDatabaseTest(t)
-	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
-	w := httptest.NewRecorder()
-
-	jsonInput := `
-		{
-			"namespaceName": "testNamespace",
-			"type": "cluster",
-			"hostnameGroups": [{"hostname":"host1", "isolationGroup":"group1"}, {"hostname":"host2", "isolationGroup":"group2"}],
-			"hostnames": ["other_host1"]
+	expectedResponse := `
+	{
+		"namespace": {
+			"registry": {
+				"namespaces": {
+					"testNamespace": {
+						"bootstrapEnabled": true,
+						"flushEnabled": true,
+						"writesToCommitLog": true,
+						"cleanupEnabled": true,
+						"repairEnabled": false,
+						"retentionOptions": {
+							"retentionPeriodNanos": "86400000000000",
+							"blockSizeNanos": "3600000000000",
+							"bufferFutureNanos": "120000000000",
+							"bufferPastNanos": "600000000000",
+							"blockDataExpiry": true,
+							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
+						},
+						"snapshotEnabled": false,
+						"indexOptions": {
+							"enabled": true,
+							"blockSizeNanos": "3600000000000"
+						}
+					}
+				}
+			}
+		},
+		"placement": {
+			"placement": {
+				"instances": {
+					"host1": {
+						"id": "host1",
+						"isolationGroup": "group1",
+						"zone": "embedded",
+						"weight": 1,
+						"endpoint": "http://host1:9000",
+						"shards": [],
+						"shardSetId": 0,
+						"hostname": "host1",
+						"port": 9000
+					},
+					"host2": {
+						"id": "host2",
+						"isolationGroup": "group2",
+						"zone": "embedded",
+						"weight": 1,
+						"endpoint": "http://host2:9000",
+						"shards": [],
+						"shardSetId": 0,
+						"hostname": "host2",
+						"port": 9000
+					}
+				},
+				"replicaFactor": 0,
+				"numShards": 0,
+				"isSharded": false,
+				"cutoverTime": "0",
+				"isMirrored": false,
+				"maxShardSetId": 0
+			},
+			"version": 0
 		}
+	}
 	`
-
-	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
-	require.NotNil(t, req)
-
-	createHandler.ServeHTTP(w, req)
-
-	resp := w.Result()
-	body, err := ioutil.ReadAll(resp.Body)
-	assert.NoError(t, err)
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	assert.Equal(t, "{\"error\":\"must only specify one type of host\"}\n", string(body))
+	assert.Equal(t, stripAllWhitespace(expectedResponse), string(body),
+		xtest.Diff(mustPrettyJSON(t, expectedResponse), mustPrettyJSON(t, string(body))))
 }
-
 func TestClusterTypeMissingHostnames(t *testing.T) {
 	mockClient, _, _ := SetupDatabaseTest(t)
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
@@ -269,12 +435,12 @@ func TestClusterTypeMissingHostnames(t *testing.T) {
 	body, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	assert.Equal(t, "{\"error\":\"missing required field\"}\n", string(body))
+	assert.Equal(t, withEndline(`{"error":"missing required field"}`), string(body))
 }
 
 func TestBadType(t *testing.T) {
 	mockClient, _, _ := SetupDatabaseTest(t)
-	createHandler := NewCreateHandler(mockClient, config.Configuration{}, dbconfig.DBConfiguration{})
+	createHandler := NewCreateHandler(mockClient, config.Configuration{}, nil)
 	w := httptest.NewRecorder()
 
 	jsonInput := `
@@ -291,5 +457,27 @@ func TestBadType(t *testing.T) {
 	body, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	assert.Equal(t, "{\"error\":\"invalid database type\"}\n", string(body))
+	assert.Equal(t, withEndline(`{"error":"invalid database type"}`), string(body))
+}
+
+func stripAllWhitespace(str string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsSpace(r) {
+			return -1
+		}
+		return r
+	}, str)
+}
+
+func mustPrettyJSON(t *testing.T, str string) string {
+	var unmarshalled map[string]interface{}
+	err := json.Unmarshal([]byte(str), &unmarshalled)
+	require.NoError(t, err)
+	pretty, err := json.MarshalIndent(unmarshalled, "", "  ")
+	require.NoError(t, err)
+	return string(pretty)
+}
+
+func withEndline(str string) string {
+	return str + "\n"
 }
