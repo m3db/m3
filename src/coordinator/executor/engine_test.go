@@ -36,7 +36,7 @@ import (
 func TestExecute(t *testing.T) {
 	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
-	store, session := local.NewStorageAndSession(ctrl)
+	store, session := local.NewStorageAndSession(t, ctrl)
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, false, fmt.Errorf("dummy"))
 
 	// Results is closed by execute

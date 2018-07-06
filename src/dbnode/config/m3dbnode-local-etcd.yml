@@ -1,6 +1,10 @@
 coordinator:
   listenAddress: 0.0.0.0:7201
 
+  local:
+    namespace: default
+    retention: 48h
+
   metrics:
     scope:
       prefix: "coordinator"

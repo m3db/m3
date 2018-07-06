@@ -65,7 +65,6 @@ const (
 )
 
 var (
-	errMultipleHostTypes       = errors.New("must only specify one type of host")
 	errMissingRequiredField    = errors.New("missing required field")
 	errInvalidDBType           = errors.New("invalid database type")
 	errMissingEmbeddedDBPort   = errors.New("unable to get port from embedded database listen address")
@@ -296,7 +295,7 @@ func defaultedPlacementInitRequest(
 
 			instances = append(instances, &placementpb.Instance{
 				Id:             id,
-				IsolationGroup: host.IsolationGroup,
+				IsolationGroup: isolationGroup,
 				Zone:           zone,
 				Weight:         weight,
 				Endpoint:       fmt.Sprintf("%s:%d", host.Address, host.Port),

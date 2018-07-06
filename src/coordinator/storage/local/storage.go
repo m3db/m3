@@ -39,10 +39,6 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
-const (
-	initRawFetchAllocSize = 32
-)
-
 var (
 	errNoLocalClustersFulfillsQuery = goerrors.New("no clusters can fulfill query")
 )
