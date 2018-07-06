@@ -21,7 +21,6 @@
 package commitlog
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -569,7 +568,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 
 		var tags ident.Tags
 		if tagsIter.Remaining() > 0 {
-			tags, err = s.tagsFromTagsIter(id, tagsIter, idPool)
+			tags, err = convert.TagsFromTagsIter(id, tagsIter, idPool)
 			if err != nil {
 				return shardResult, fmt.Errorf("unable to decode tags: %v", err)
 			}
@@ -1351,47 +1350,6 @@ func (s commitLogSource) maybeAddToIndex(
 
 	_, err = segment.Insert(d)
 	return err
-}
-
-// TODO: Share this with the fs source somehow
-func (s commitLogSource) tagsFromTagsIter(
-	seriesID ident.ID,
-	iter ident.TagIterator,
-	idPool ident.Pool,
-) (ident.Tags, error) {
-	var (
-		seriesIDBytes = ident.BytesID(seriesID.Bytes())
-		tags          = idPool.Tags()
-	)
-
-	for iter.Next() {
-		curr := iter.Current()
-
-		var (
-			nameBytes, valueBytes = curr.Name.Bytes(), curr.Value.Bytes()
-			tag                   ident.Tag
-			idRef                 bool
-		)
-		if idx := bytes.Index(seriesIDBytes, nameBytes); idx != -1 {
-			tag.Name = seriesIDBytes[idx : idx+len(nameBytes)]
-			idRef = true
-		} else {
-			tag.Name = idPool.Clone(curr.Name)
-		}
-		if idx := bytes.Index(seriesIDBytes, valueBytes); idx != -1 {
-			tag.Value = seriesIDBytes[idx : idx+len(valueBytes)]
-			idRef = true
-		} else {
-			tag.Value = idPool.Clone(curr.Value)
-		}
-
-		if idRef {
-			tag.NoFinalize() // Taken ref, cannot finalize this
-		}
-
-		tags.Append(tag)
-	}
-	return tags, iter.Err()
 }
 
 func newReadSeriesPredicate(ns namespace.Metadata) commitlog.SeriesFilterPredicate {
