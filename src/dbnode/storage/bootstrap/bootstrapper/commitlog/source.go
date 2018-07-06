@@ -69,8 +69,6 @@ type commitLogSource struct {
 	snapshotFilesFn snapshotFilesFn
 	snapshotTimeFn  snapshotTimeFn
 	newReaderFn     newReaderFn
-
-	cachedShardDataByNS map[string]*cachedShardData
 }
 
 type encoder struct {
@@ -89,8 +87,6 @@ func newCommitLogSource(opts Options, inspection fs.Inspection) bootstrap.Source
 		snapshotFilesFn: fs.SnapshotFiles,
 		snapshotTimeFn:  fs.SnapshotTime,
 		newReaderFn:     fs.NewReader,
-
-		cachedShardDataByNS: map[string]*cachedShardData{},
 	}
 }
 
@@ -284,11 +280,6 @@ func (s *commitLogSource) ReadData(
 		shardDataByShard,
 	)
 	s.log.Infof("Done merging..., took: %s", time.Now().Sub(mergeStart).String())
-
-	// After merging shards, its safe to cache the shardData (which involves some mutation).
-	if s.shouldCacheSeriesMetadata(runOpts, ns) {
-		s.cacheShardData(ns, shardDataByShard)
-	}
 
 	return bootstrapResult, nil
 }
@@ -766,7 +757,6 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 	blopts block.Options,
 	wg *sync.WaitGroup,
 ) {
-	shouldCacheSeriesMetadata := s.shouldCacheSeriesMetadata(runOpts, ns)
 	for arg := range ec {
 		var (
 			series     = arg.series
@@ -779,22 +769,6 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 		unmergedShard := unmerged[series.Shard].series
 		unmergedSeries, ok := unmergedShard[series.UniqueIndex]
 		if !ok {
-			if shouldCacheSeriesMetadata {
-				// If we're going to cache the IDs and Tags on the commitlog source, then
-				// we need to make sure that they won't get finalized by anything else in
-				// the code base. Specifically, since series.Tags is a struct (not a pointer
-				// to a struct), we need to call NoFinalize() on it as early in the code-path
-				// as possible so that the NoFinalize() state is propagated everywhere (since
-				// the struct will get copied repeatedly.)
-				//
-				// This is also the "ideal" spot to mark the IDs as NoFinalize(), because it
-				// only occurs once per series per run. So if we end up allocating the IDs/Tags
-				// multiple times during the bootstrap, we'll only mark the first appearance as
-				// NoFinalize, and all subsequent occurrences can be finalized per usual.
-				series.ID.NoFinalize()
-				series.Tags.NoFinalize()
-			}
-
 			unmergedSeries = metadataAndEncodersByTime{
 				id:       series.ID,
 				tags:     series.Tags,
@@ -1176,87 +1150,6 @@ func (s *commitLogSource) logMergeShardsOutcome(shardErrs []int, shardEmptyErrs 
 	}
 }
 
-// cacheShardData caches the shardData from a call to ReadData() on the source so that subsequent calls
-// to ReadIndex() for the same time period don't have to read the commit log files again.
-//
-// In order for the subsequent call to ReadIndex() to avoid reading the same commit log files, we need
-// to cache three pieces of information for every series:
-// 		1) The ID (so it can be indexed)
-// 		2) The tags (so they can be indexed)
-// 		3) The block starts for which the series had a datapoint (so that we know which index blocks
-//         / segments the series needs to be included in)
-//
-// In addition, for each shard we will need to store the ranges which we have already read commit log
-// files for, so that the ReadIndex() call can easily filter commit log files down to those which
-// have not already been read by a previous call to ReadData().
-//
-// Its safe to cache the series IDs and Tags because we mark them both as NoFinalize() if the caching
-// path is enabled.
-func (s *commitLogSource) cacheShardData(ns namespace.Metadata, allShardData []shardData) {
-	nsString := ns.ID().String()
-	nsCache, ok := s.cachedShardDataByNS[nsString]
-	if !ok {
-		nsShardData := &cachedShardData{
-			shardData: make([]shardData, len(allShardData)),
-		}
-		s.cachedShardDataByNS[nsString] = nsShardData
-		nsCache = nsShardData
-	}
-
-	for shard, currShardData := range allShardData {
-		for _, seriesData := range currShardData.series {
-			for blockStart := range seriesData.encoders {
-				// Nil out any references to the encoders (which should be closed already anyways),
-				// so that they can be GC'd.
-				seriesData.encoders[blockStart] = nil
-			}
-		}
-
-		for shard >= len(nsCache.shardData) {
-			// Extend the slice if necessary (could happen if different calls to
-			// ReadData() bootstrap different shards.)
-			nsCache.shardData = append(nsCache.shardData, shardData{})
-		}
-
-		nsCache.shardData[shard].ranges = nsCache.shardData[shard].ranges.AddRanges(currShardData.ranges)
-
-		currSeries := currShardData.series
-		cachedSeries := nsCache.shardData[shard].series
-
-		// If there are no existing series, just set what we have.
-		if len(cachedSeries) == 0 {
-			if currSeries != nil {
-				nsCache.shardData[shard].series = currSeries
-			} else {
-				nsCache.shardData[shard].series = make(map[uint64]metadataAndEncodersByTime)
-			}
-			continue
-		}
-
-		// If there are existing series, then add any new series that we have, and merge block starts.
-		for uniqueIdx, seriesData := range currSeries {
-			// If its not already there, just add it
-			cachedSeriesData, ok := cachedSeries[uniqueIdx]
-			if ok {
-			}
-			if !ok {
-				cachedSeries[uniqueIdx] = seriesData
-				continue
-			}
-
-			// If it is there, merge blockStart times
-			for blockStart := range seriesData.encoders {
-				// The existence of a key in the map is indicative of its presence in this case,
-				// so assigning nil is equivalent to adding an item to a set. This is counter-intuitive,
-				// but we do it so that we can re-use the existing datastructures that have already been
-				// allocated by the bootstrapping process, otherwise we'd have to perform millions of
-				// additional allocations.
-				cachedSeriesData.encoders[blockStart] = nil
-			}
-		}
-	}
-}
-
 func (s *commitLogSource) AvailableIndex(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
@@ -1278,18 +1171,6 @@ func (s *commitLogSource) ReadIndex(
 
 	if shardsTimeRanges.IsEmpty() {
 		return result.NewIndexBootstrapResult(), nil
-	}
-
-	var (
-		nsCache                        = s.cachedShardDataByNS[ns.ID().String()]
-		shardsTimeRangesToReadFromDisk = shardsTimeRanges.Copy()
-	)
-	if nsCache != nil {
-		cachedShardsTimeRanges := result.ShardTimeRanges{}
-		for shard, shardData := range nsCache.shardData {
-			cachedShardsTimeRanges[uint32(shard)] = shardData.ranges
-		}
-		shardsTimeRangesToReadFromDisk.Subtract(cachedShardsTimeRanges)
 	}
 
 	var (
@@ -1322,7 +1203,7 @@ func (s *commitLogSource) ReadIndex(
 	)
 
 	// Next, we need to read all data out of the commit log that wasn't covered by the
-	// snapshot files or cached metadata (previously read commit logs).
+	// snapshot files.
 	readCommitLogPredicate, mostRecentCompleteSnapshotByBlockShard, err := s.newReadCommitLogPredBasedOnAvailableSnapshotFiles(
 		ns, shardsTimeRanges, snapshotFilesByShard)
 	readSeriesPredicate := newReadSeriesPredicate(ns)
@@ -1371,19 +1252,6 @@ func (s *commitLogSource) ReadIndex(
 		s.maybeAddToIndex(
 			series.ID, series.Tags, series.Shard, highestShard, dp.Timestamp, bootstrapRangesByShard,
 			indexResults, indexOptions, indexBlockSize, resultOptions)
-	}
-
-	// Finally, add in all the data that was cached by a previous run of ReadData() (if any).
-	if nsCache != nil {
-		for shard, shardData := range nsCache.shardData {
-			for _, series := range shardData.series {
-				for dataBlockStart := range series.encoders {
-					s.maybeAddToIndex(
-						series.id, series.tags, uint32(shard), highestShard, dataBlockStart.ToTime(), bootstrapRangesByShard,
-						indexResults, indexOptions, indexBlockSize, resultOptions)
-				}
-			}
-		}
 	}
 
 	// If all successful then we mark each index block as fulfilled
@@ -1444,10 +1312,8 @@ func (s commitLogSource) maybeAddToIndex(
 		return nil
 	}
 
-	// We can use the NoClone variant here because the cached IDs/Tags are marked NoFinalize
-	// by the ReadData() path when it reads from the commitlog files, and the IDs/Tags read
-	// from the commit log files by the ReadIndex() method won't be finalized because this
-	// code path doesn't finalize them.
+	// We can use the NoClone variant here because the IDs/Tags read from the commit log files
+	// by the ReadIndex() method won't be finalized because this code path doesn't finalize them.
 	d, err := convert.FromMetricNoClone(id, tags)
 	if err != nil {
 		return err
@@ -1455,10 +1321,6 @@ func (s commitLogSource) maybeAddToIndex(
 
 	_, err = segment.Insert(d)
 	return err
-}
-
-func (s commitLogSource) shouldCacheSeriesMetadata(runOpts bootstrap.RunOptions, nsMeta namespace.Metadata) bool {
-	return runOpts.CacheSeriesMetadata() && nsMeta.Options().IndexOptions().Enabled()
 }
 
 // TODO: Share this with the fs source somehow
@@ -1566,10 +1428,6 @@ func (ir ioReaders) close() {
 	for _, r := range ir {
 		r.(xio.SegmentReader).Finalize()
 	}
-}
-
-type cachedShardData struct {
-	shardData []shardData
 }
 
 type snapshotMetadata struct {

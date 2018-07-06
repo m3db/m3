@@ -304,7 +304,6 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			}
 
 			// Perform the bootstrap
-			// runOpts := testDefaultRunOpts.SetCacheSeriesMetadata(input.shouldCacheSeriesMetadata)
 			runOpts := testDefaultRunOpts
 			dataResult, err := source.BootstrapData(nsMeta, shardTimeRanges, runOpts)
 			if err != nil {
@@ -345,13 +344,12 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 }
 
 type propTestInput struct {
-	currentTime               time.Time
-	snapshotTime              time.Time
-	snapshotExists            bool
-	bufferPast                time.Duration
-	bufferFuture              time.Duration
-	writes                    []generatedWrite
-	shouldCacheSeriesMetadata bool
+	currentTime    time.Time
+	snapshotTime   time.Time
+	snapshotExists bool
+	bufferPast     time.Duration
+	bufferFuture   time.Duration
+	writes         []generatedWrite
 }
 
 type generatedWrite struct {
@@ -371,17 +369,16 @@ func (w generatedWrite) String() string {
 func genPropTestInputs(nsMeta namespace.Metadata, blockStart time.Time) gopter.Gen {
 	curriedGenPropTestInput := func(input interface{}) gopter.Gen {
 		var (
-			inputs                    = input.([]interface{})
-			snapshotTime              = inputs[0].(time.Time)
-			snapshotExists            = inputs[1].(bool)
-			bufferPast                = time.Duration(inputs[2].(int64))
-			bufferFuture              = time.Duration(inputs[3].(int64))
-			numDatapoints             = inputs[4].(int)
-			shouldCacheSeriesMetadata = inputs[5].(bool)
+			inputs         = input.([]interface{})
+			snapshotTime   = inputs[0].(time.Time)
+			snapshotExists = inputs[1].(bool)
+			bufferPast     = time.Duration(inputs[2].(int64))
+			bufferFuture   = time.Duration(inputs[3].(int64))
+			numDatapoints  = inputs[4].(int)
 		)
 
 		return genPropTestInput(
-			blockStart, bufferPast, bufferFuture, snapshotTime, snapshotExists, numDatapoints, shouldCacheSeriesMetadata, nsMeta.ID().String())
+			blockStart, bufferPast, bufferFuture, snapshotTime, snapshotExists, numDatapoints, nsMeta.ID().String())
 	}
 
 	return gopter.CombineGens(
@@ -396,8 +393,6 @@ func genPropTestInputs(nsMeta namespace.Metadata, blockStart time.Time) gopter.G
 		gen.Int64Range(0, int64(blockSize)),
 		// Run iterations of the test with between 0 and 100 datapoints
 		gen.IntRange(0, 100),
-		// ShouldCacheSeriesMetadata
-		gen.Bool(),
 	).FlatMap(curriedGenPropTestInput, reflect.TypeOf(propTestInput{}))
 }
 
@@ -408,7 +403,6 @@ func genPropTestInput(
 	snapshotTime time.Time,
 	snapshotExists bool,
 	numDatapoints int,
-	shouldCacheSeriesMetadata bool,
 	ns string,
 ) gopter.Gen {
 	return gen.SliceOfN(numDatapoints, genWrite(start, bufferPast, bufferFuture, ns)).
@@ -420,7 +414,6 @@ func genPropTestInput(
 				snapshotTime:   snapshotTime,
 				snapshotExists: snapshotExists,
 				writes:         val.([]generatedWrite),
-				shouldCacheSeriesMetadata: shouldCacheSeriesMetadata,
 			}
 		})
 }
