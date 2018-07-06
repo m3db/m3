@@ -34,7 +34,8 @@ genny-map-all:                         \
 	genny-map-storage                    \
 	genny-map-storage-namespace-metadata \
 	genny-map-storage-repair             \
-	genny-map-storage-index-results
+	genny-map-storage-index-results			 \
+	genny-map-storage-bootstrap-bootstrapper-commitlog
 
 # Map generation rule for client/receivedBlocksMap
 .PHONY: genny-map-client-received-blocks
@@ -126,6 +127,19 @@ genny-map-storage-repair: install-m3x-repo
 		pkg=repair                                    \
 		value_type=ReplicaSeriesBlocksMetadata        \
 		target_package=$(m3db_package)/src/dbnode/storage/repair
+
+# Map generation rule for storage/bootstrap/bootstrapper/commitlog
+.PHONY: genny-map-storage-bootstrap-bootstrapper-commitlog
+genny-map-storage-bootstrap-bootstrapper-commitlog: install-m3x-repo
+	cd $(m3x_package_path) && make idhashmap-gen    \
+		pkg=commitlog                                    \
+		value_type=metadataAndEncodersByTime        \
+		target_package=$(m3db_package)/src/dbnode/storage/bootstrap/bootstrapper/commitlog \
+		rename_constructor=newMetadataAndEncodersByTimeMap \
+		rename_constructor_options=newMetadataAndEncodersByTimeMapOptions
+	# Rename both generated map and constructor files
+	mv -f $(m3db_package_path)/src/dbnode/storage/bootstrap/bootstrapper/commitlog/map_gen.go $(m3db_package_path)/src/dbnode/storage/bootstrap/bootstrapper/commitlog/metadata_and_encoders_by_time_map_gen.go
+	mv -f $(m3db_package_path)/src/dbnode/storage/bootstrap/bootstrapper/commitlog/new_map_gen.go $(m3db_package_path)/src/dbnode/storage/bootstrap/bootstrapper/commitlog/metadata_and_encoders_by_time_new_map_gen.go
 
 # Map generation rule for storage/index/ResultsMap
 .PHONY: genny-map-storage-index-results

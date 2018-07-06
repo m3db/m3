@@ -312,7 +312,7 @@ func (s *commitLogSource) newShardDataByShard(
 	shardDataByShard := make([]shardData, numShards)
 	for shard := range shardsTimeRanges {
 		shardDataByShard[shard] = shardData{
-			series: make(map[uint64]metadataAndEncodersByTime),
+			series: NewMap(MapOptions{}),
 			ranges: shardsTimeRanges[shard],
 		}
 	}
@@ -766,14 +766,21 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 			blockStart = arg.blockStart
 		)
 
-		unmergedShard := unmerged[series.Shard].series
-		unmergedSeries, ok := unmergedShard[series.UniqueIndex]
+		var (
+			unmergedShard      = unmerged[series.Shard].series
+			unmergedSeries, ok = unmergedShard.Get(series.ID)
+		)
 		if !ok {
 			unmergedSeries = metadataAndEncodersByTime{
 				id:       series.ID,
 				tags:     series.Tags,
 				encoders: make(map[xtime.UnixNano][]encoder)}
-			unmergedShard[series.UniqueIndex] = unmergedSeries
+			// Have to use unsafe because we don't want to copy or finalize the
+			// IDs we put into this map as we're going to use them for the
+			// bootstrap result.
+			unmergedShard.SetUnsafe(
+				series.ID, unmergedSeries,
+				SetUnsafeOptions{NoCopyKey: true, NoFinalizeKey: true})
 		}
 
 		var (
@@ -958,30 +965,38 @@ func (s *commitLogSource) mergeShardCommitLogEncodersAndSnapshots(
 		encoderPool             = blOpts.EncoderPool()
 	)
 
-	var shardResult = result.NewShardResult(len(unmergedShard.series), s.opts.ResultOptions())
+	numSeries := 0
+	if unmergedShard.series != nil {
+		numSeries = unmergedShard.series.Len()
+	}
+	var shardResult = result.NewShardResult(numSeries, s.opts.ResultOptions())
 	var numShardEmptyErrs int
 	var numErrs int
 
 	allSnapshotSeries := snapshotData.AllSeries()
-	for _, unmergedBlocks := range unmergedShard.series {
-		snapshotSeriesData, _ := allSnapshotSeries.Get(unmergedBlocks.id)
-		seriesBlocks, numSeriesEmptyErrs, numSeriesErrs := s.mergeSeries(
-			snapshotSeriesData,
-			unmergedBlocks,
-			blocksPool,
-			multiReaderIteratorPool,
-			segmentReaderPool,
-			encoderPool,
-			blockSize,
-			blOpts,
-		)
 
-		if seriesBlocks != nil && seriesBlocks.Len() > 0 {
-			shardResult.AddSeries(unmergedBlocks.id, unmergedBlocks.tags, seriesBlocks)
+	if unmergedShard.series != nil {
+		for _, unmergedBlocks := range unmergedShard.series.Iter() {
+			val := unmergedBlocks.Value()
+			snapshotSeriesData, _ := allSnapshotSeries.Get(val.id)
+			seriesBlocks, numSeriesEmptyErrs, numSeriesErrs := s.mergeSeries(
+				snapshotSeriesData,
+				val,
+				blocksPool,
+				multiReaderIteratorPool,
+				segmentReaderPool,
+				encoderPool,
+				blockSize,
+				blOpts,
+			)
+
+			if seriesBlocks != nil && seriesBlocks.Len() > 0 {
+				shardResult.AddSeries(val.id, val.tags, seriesBlocks)
+			}
+
+			numShardEmptyErrs += numSeriesEmptyErrs
+			numErrs += numSeriesErrs
 		}
-
-		numShardEmptyErrs += numSeriesEmptyErrs
-		numErrs += numSeriesErrs
 	}
 
 	allShardResultSeries := shardResult.AllSeries()
@@ -1371,7 +1386,7 @@ func newReadSeriesPredicate(ns namespace.Metadata) commitlog.SeriesFilterPredica
 }
 
 type shardData struct {
-	series map[uint64]metadataAndEncodersByTime
+	series *Map
 	ranges xtime.Ranges
 }
 
