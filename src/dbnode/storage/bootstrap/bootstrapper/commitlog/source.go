@@ -435,28 +435,6 @@ func (s *commitLogSource) minimumMostRecentSnapshotTimeByBlock(
 	return minimumMostRecentSnapshotTimeByBlock
 }
 
-func (s *commitLogSource) bootstrapAvailableSnapshotFiles(
-	nsID ident.ID,
-	shardsTimeRanges result.ShardTimeRanges,
-	blockSize time.Duration,
-	snapshotFilesByShard map[uint32]fs.FileSetFilesSlice,
-	mostRecentCompleteSnapshotByBlockShard map[xtime.UnixNano]map[uint32]snapshotMetadata,
-) (map[uint32]result.ShardResult, error) {
-	snapshotShardResults := make(map[uint32]result.ShardResult)
-
-	for shard, tr := range shardsTimeRanges {
-		shardResult, err := s.bootstrapShardSnapshots(
-			nsID, shard, tr, blockSize, snapshotFilesByShard[shard],
-			mostRecentCompleteSnapshotByBlockShard)
-		if err != nil {
-			return nil, err
-		}
-		snapshotShardResults[shard] = shardResult
-	}
-
-	return snapshotShardResults, nil
-}
-
 func (s *commitLogSource) bootstrapShardSnapshots(
 	nsID ident.ID,
 	shard uint32,
@@ -1216,20 +1194,16 @@ func (s *commitLogSource) ReadIndex(
 	// TODO: Can optimize this to not read data, and just return the
 	// IDs / tags.
 	// Start by bootstrapping any available snapshot files.
-	snapshotShardResults, err := s.bootstrapAvailableSnapshotFiles(
-		ns.ID(),
-		shardsTimeRanges,
-		blockSize,
-		snapshotFilesByShard,
-		mostRecentCompleteSnapshotByBlockShard,
-	)
-	if err != nil {
-		return nil, err
-	}
+	for shard, tr := range shardsTimeRanges {
+		shardResult, err := s.bootstrapShardSnapshots(
+			ns.ID(), shard, tr, blockSize, snapshotFilesByShard[shard],
+			mostRecentCompleteSnapshotByBlockShard)
+		if err != nil {
+			return nil, err
+		}
 
-	// Bootstrap any series we got from the snapshot files into the index.
-	for shard, result := range snapshotShardResults {
-		for _, val := range result.AllSeries().Iter() {
+		// Bootstrap any series we got from the snapshot files into the index.
+		for _, val := range shardResult.AllSeries().Iter() {
 			id := val.Key()
 			val := val.Value()
 			for block := range val.Blocks.AllBlocks() {
