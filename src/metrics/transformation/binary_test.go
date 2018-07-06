@@ -42,8 +42,8 @@ func TestPerSecond(t *testing.T) {
 		},
 		{
 			prev:     Datapoint{TimeNanos: time.Unix(1230, 0).UnixNano(), Value: 25},
-			curr:     Datapoint{TimeNanos: time.Unix(1240, 0).UnixNano(), Value: 20},
-			expected: Datapoint{TimeNanos: time.Unix(1240, 0).UnixNano(), Value: -0.5},
+			curr:     Datapoint{TimeNanos: time.Unix(1240, 0).UnixNano(), Value: 30},
+			expected: Datapoint{TimeNanos: time.Unix(1240, 0).UnixNano(), Value: 0.5},
 		},
 		{
 			prev:        Datapoint{TimeNanos: time.Unix(1230, 0).UnixNano(), Value: 25},
@@ -60,6 +60,12 @@ func TestPerSecond(t *testing.T) {
 		{
 			prev:        Datapoint{TimeNanos: time.Unix(1230, 0).UnixNano(), Value: 20},
 			curr:        Datapoint{TimeNanos: time.Unix(1240, 0).UnixNano(), Value: math.NaN()},
+			expectedNaN: true,
+			expected:    emptyDatapoint,
+		},
+		{
+			prev:        Datapoint{TimeNanos: time.Unix(1230, 0).UnixNano(), Value: 30},
+			curr:        Datapoint{TimeNanos: time.Unix(1240, 0).UnixNano(), Value: 20},
 			expectedNaN: true,
 			expected:    emptyDatapoint,
 		},
