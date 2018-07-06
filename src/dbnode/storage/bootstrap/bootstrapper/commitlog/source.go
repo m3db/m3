@@ -117,17 +117,19 @@ func (s *commitLogSource) AvailableData(
 // correctly is as follows:
 //
 //    1. 	For every shard/blockStart combination, find the most recently written and complete
-//        (has a checkpoint file) snapshot. Bootstrap that file.
-//    2. 	For every shard/blockStart combination, determine the SnapshotTime for the snapshot file.
+//        (has a checkpoint file) snapshot.
+//    2. 	For every shard/blockStart combination, determine the most recent complete SnapshotTime.
 //        This value corresponds to the (local) moment in time right before the snapshotting process
 //        began.
 //    3. 	Find the minimum SnapshotTime for all of the shards and block starts (call it t0), and
-//        replay all commit log entries whose system timestamps overlap the range
+//        replay (M3TSZ encode) all commit log entries whose system timestamps overlap the range
 //        [minimumSnapshotTimeAcrossShards, blockStart.Add(blockSize).Add(bufferPast)]. This logic
 //        has one exception which is in the case where there is no minimimum snapshot time across
 //        shards (the code treats this case as minimum snapshot time across shards == blockStart).
 //        In that case, we replay all commit log entries whose system timestamps overlap the range
-//        [blockStart.Add(-bufferFuture), blockStart.Add(blockSize).Add(bufferPast)]
+//        [blockStart.Add(-bufferFuture), blockStart.Add(blockSize).Add(bufferPast)].
+//    4.  For each shard/blockStart combination, merge all of the M3TSZ encoders that we created from
+//        reading the commit log along with the data available in the corresponding snapshot file.
 func (s *commitLogSource) ReadData(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
@@ -163,6 +165,7 @@ func (s *commitLogSource) ReadData(
 		return nil, err
 	}
 
+	// Setup the commit log iterator.
 	var (
 		nsID              = ns.ID()
 		seriesSkipped     int
@@ -201,6 +204,7 @@ func (s *commitLogSource) ReadData(
 
 	defer iter.Close()
 
+	// Setup the M3TSZ encoding pipeline
 	var (
 		// +1 so we can use the shard number as an index throughout without constantly
 		// remembering to subtract 1 to convert to zero-based indexing
@@ -226,6 +230,7 @@ func (s *commitLogSource) ReadData(
 			ns, runOpts, workerNum, encoderChan, shardDataByShard, encoderPool, workerErrs, blOpts, wg)
 	}
 
+	// Read / M3TSZ encode all the datapoints in the commit log that we need to read.
 	for iter.Next() {
 		series, dp, unit, annotation := iter.Current()
 		if !s.shouldEncodeForData(shardDataByShard, blockSize, series, dp.Timestamp) {
@@ -260,10 +265,13 @@ func (s *commitLogSource) ReadData(
 		close(encoderChan)
 	}
 
-	// Block until all data has been read and encoded by the worker goroutines
+	// Block until all required data from the commit log has been read and
+	// encoded by the worker goroutines
 	wg.Wait()
 	s.logEncodingOutcome(workerErrs, iter)
 
+	// Merge all the different encoders from the commit log that we created with
+	// the data that is available in the snapshot files.
 	mergeStart := time.Now()
 	s.log.Infof("Starting merge...")
 	bootstrapResult := s.mergeShards(
