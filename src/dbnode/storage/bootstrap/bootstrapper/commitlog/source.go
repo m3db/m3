@@ -922,7 +922,7 @@ func (s *commitLogSource) mergeAllShardsCommitLogEncodersAndSnapshots(
 		shard, unmergedShard := shard, unmergedShard
 		mergeShardFunc := func() {
 			var shardResult result.ShardResult
-			shardResult, shardEmptyErrs[shard], shardErrs[shard] = s.mergeShard(
+			shardResult, shardEmptyErrs[shard], shardErrs[shard] = s.mergeShardCommitLogEncodersAndSnapshots(
 				shard, snapshotData, unmergedShard, blockSize)
 
 			if shardResult != nil && shardResult.NumSeries() > 0 {
@@ -943,7 +943,7 @@ func (s *commitLogSource) mergeAllShardsCommitLogEncodersAndSnapshots(
 	return bootstrapResult, nil
 }
 
-func (s *commitLogSource) mergeShard(
+func (s *commitLogSource) mergeShardCommitLogEncodersAndSnapshots(
 	shard int,
 	snapshotData result.ShardResult,
 	unmergedShard shardData,
