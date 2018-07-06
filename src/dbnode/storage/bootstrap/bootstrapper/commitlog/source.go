@@ -1221,12 +1221,15 @@ func (s *commitLogSource) ReadIndex(
 		return nil, err
 	}
 
-	highestShard := s.findHighestShard(shardsTimeRanges)
-	// +1 so we can use the shard number as an index throughout without constantly
-	// remembering to subtract 1 to convert to zero-based indexing.
-	numShards := highestShard + 1
-	// Convert the map to a slice for faster lookups
-	bootstrapRangesByShard := make([]xtime.Ranges, numShards)
+	var (
+		highestShard = s.findHighestShard(shardsTimeRanges)
+		// +1 so we can use the shard number as an index throughout without constantly
+		// remembering to subtract 1 to convert to zero-based indexing.
+		numShards = highestShard + 1
+		// Convert the map to a slice for faster lookups
+		bootstrapRangesByShard = make([]xtime.Ranges, numShards)
+	)
+
 	for shard, ranges := range shardsTimeRanges {
 		bootstrapRangesByShard[shard] = ranges
 	}
@@ -1244,12 +1247,18 @@ func (s *commitLogSource) ReadIndex(
 	// snapshot files are available.
 	readCommitLogPredicate, mostRecentCompleteSnapshotByBlockShard, err := s.newReadCommitLogPredBasedOnAvailableSnapshotFiles(
 		ns, shardsTimeRanges, snapshotFilesByShard)
-	readSeriesPredicate := newReadSeriesPredicate(ns)
-	iterOpts := commitlog.IteratorOpts{
-		CommitLogOptions:      s.opts.CommitLogOptions(),
-		FileFilterPredicate:   readCommitLogPredicate,
-		SeriesFilterPredicate: readSeriesPredicate,
+	if err != nil {
+		return nil, err
 	}
+
+	var (
+		readSeriesPredicate = newReadSeriesPredicate(ns)
+		iterOpts            = commitlog.IteratorOpts{
+			CommitLogOptions:      s.opts.CommitLogOptions(),
+			FileFilterPredicate:   readCommitLogPredicate,
+			SeriesFilterPredicate: readSeriesPredicate,
+		}
+	)
 
 	// Start by reading any available snapshot files.
 	for shard, tr := range shardsTimeRanges {
