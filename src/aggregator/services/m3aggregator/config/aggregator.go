@@ -125,6 +125,9 @@ type AggregatorConfiguration struct {
 	// Maximum number of cached source sets.
 	MaxNumCachedSourceSets *int `yaml:"maxNumCachedSourceSets"`
 
+	// Whether to discard NaN aggregated values.
+	DiscardNaNAggregatedValues *bool `yaml:"discardNaNAggregatedValues"`
+
 	// Pool of counter elements.
 	CounterElemPool pool.ObjectPoolConfiguration `yaml:"counterElemPool"`
 
@@ -295,6 +298,11 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	// Set cached source sets options.
 	if c.MaxNumCachedSourceSets != nil {
 		opts = opts.SetMaxNumCachedSourceSets(*c.MaxNumCachedSourceSets)
+	}
+
+	// Set whether to discard NaN aggregated values.
+	if c.DiscardNaNAggregatedValues != nil {
+		opts = opts.SetDiscardNaNAggregatedValues(*c.DiscardNaNAggregatedValues)
 	}
 
 	// Set counter elem pool.

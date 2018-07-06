@@ -27,6 +27,8 @@ package aggregator
 import (
 	"fmt"
 
+	"math"
+
 	"sync"
 
 	"time"
@@ -393,8 +395,9 @@ func (e *CounterElem) processValueWithAggregationLock(
 	flushForwardedFn flushForwardedMetricFn,
 ) {
 	var (
-		fullPrefix      = e.FullPrefix(e.opts)
-		transformations = e.parsedPipeline.Transformations
+		fullPrefix       = e.FullPrefix(e.opts)
+		transformations  = e.parsedPipeline.Transformations
+		discardNaNValues = e.opts.DiscardNaNAggregatedValues()
 	)
 	for aggTypeIdx, aggType := range e.aggTypes {
 		value := lockedAgg.aggregation.ValueOf(aggType)
@@ -417,7 +420,9 @@ func (e *CounterElem) processValueWithAggregationLock(
 				value = res.Value
 			}
 		}
-		// Do we need to flush or forward NaNs?
+		if discardNaNValues && math.IsNaN(value) {
+			continue
+		}
 		if !e.parsedPipeline.HasRollup {
 			flushLocalFn(fullPrefix, e.id, e.TypeStringFor(e.aggTypesOpts, aggType), timeNanos, value, e.sp)
 		} else {

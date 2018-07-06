@@ -247,6 +247,7 @@ aggregator:
     - 10s:2d
     - 1m:40d
   maxNumCachedSourceSets: 2
+  discardNaNAggregatedValues: true
   entryPool:
     size: 4096
   counterElemPool:

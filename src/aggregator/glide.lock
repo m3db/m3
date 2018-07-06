@@ -1,5 +1,5 @@
-hash: d7a40ef10ed1524bd5e532436af5cb0d365491524d812e52a999b5aeff6a84de
-updated: 2018-07-03T09:21:58.509716-04:00
+hash: 5b4baf063ec3de2ee38af1a947cbe58da95c8b6b4a10403d808c41e5b397195a
+updated: 2018-07-05T22:36:18.471062-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -186,7 +186,7 @@ imports:
   - services/leader/election
   - shard
 - name: github.com/m3db/m3metrics
-  version: e39b708273b5091efe546d871e983fb456ad5ee7
+  version: d92603d5788a2012ecfc3f0161deab37462928f8
   subpackages:
   - aggregation
   - encoding
@@ -323,7 +323,7 @@ imports:
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
-  version: eeedf312bc6c57391d84767a4cd413f02a917974
+  version: 7e7e266a8dbce911a49554b945538c5b950196b8
   subpackages:
   - buffer
   - internal/bufferpool
@@ -408,7 +408,7 @@ imports:
   version: 5420a8b6744d3b0345ab293f6fcba19c978f1183
 testImports:
 - name: github.com/leanovate/gopter
-  version: 7464b68a2409c0e6c6986805c808ca767f3c0054
+  version: 648a4745d07aa9babe7f460c0a0fc09e70562ca4
   subpackages:
   - gen
   - prop

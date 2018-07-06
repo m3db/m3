@@ -47,6 +47,7 @@ const (
 	defaultElectionStateChangeTimeout = 10 * time.Second
 	defaultEntryCheckInterval         = time.Second
 	defaultJitterEnabled              = true
+	defaultDiscardNaNAggregatedValues = true
 )
 
 type testServerOptions interface {
@@ -181,6 +182,12 @@ type testServerOptions interface {
 
 	// MaxAllowedForwardingDelayFn returns the maximum allowed forwarding delay function.
 	MaxAllowedForwardingDelayFn() aggregator.MaxAllowedForwardingDelayFn
+
+	// SetDiscardNaNAggregatedValues determines whether NaN aggregated values are discarded.
+	SetDiscardNaNAggregatedValues(value bool) testServerOptions
+
+	// DiscardNaNAggregatedValues determines whether NaN aggregated values are discarded.
+	DiscardNaNAggregatedValues() bool
 }
 
 type serverOptions struct {
@@ -206,6 +213,7 @@ type serverOptions struct {
 	jitterEnabled               bool
 	maxJitterFn                 aggregator.FlushJitterFn
 	maxAllowedForwardingDelayFn aggregator.MaxAllowedForwardingDelayFn
+	discardNaNAggregatedValues  bool
 }
 
 func newTestServerOptions() testServerOptions {
@@ -235,6 +243,7 @@ func newTestServerOptions() testServerOptions {
 		entryCheckInterval:          defaultEntryCheckInterval,
 		maxJitterFn:                 defaultMaxJitterFn,
 		maxAllowedForwardingDelayFn: defaultMaxAllowedForwardingDelayFn,
+		discardNaNAggregatedValues:  defaultDiscardNaNAggregatedValues,
 	}
 }
 
@@ -456,6 +465,16 @@ func (o *serverOptions) SetMaxAllowedForwardingDelayFn(value aggregator.MaxAllow
 
 func (o *serverOptions) MaxAllowedForwardingDelayFn() aggregator.MaxAllowedForwardingDelayFn {
 	return o.maxAllowedForwardingDelayFn
+}
+
+func (o *serverOptions) SetDiscardNaNAggregatedValues(value bool) testServerOptions {
+	opts := *o
+	opts.discardNaNAggregatedValues = value
+	return &opts
+}
+
+func (o *serverOptions) DiscardNaNAggregatedValues() bool {
+	return o.discardNaNAggregatedValues
 }
 
 func defaultMaxJitterFn(interval time.Duration) time.Duration {
