@@ -355,7 +355,6 @@ func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res.ShardResults()))
 	require.Equal(t, 0, len(res.Unfulfilled()))
-	// TODO: Move higher?
 	expectedValues := append([]testValue{}, commitLogValues[0:3]...)
 	expectedValues = append(expectedValues, snapshotValues...)
 
