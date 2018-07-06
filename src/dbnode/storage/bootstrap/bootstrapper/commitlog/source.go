@@ -1061,7 +1061,6 @@ func (s *commitLogSource) mergeSeries(
 		}
 
 		if iterErr := iter.Err(); iterErr != nil {
-			panic(iterErr)
 			if err == nil {
 				err = iter.Err()
 			}
