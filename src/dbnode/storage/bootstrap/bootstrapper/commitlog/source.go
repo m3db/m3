@@ -563,8 +563,6 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 			break
 		}
 
-		// TODO: Optimize this so we don't waste a bunch of time here
-		// even when the index is disabled
 		var tags ident.Tags
 		if tagsIter.Remaining() > 0 {
 			tags, err = s.tagsFromTagsIter(id, tagsIter, idPool)
