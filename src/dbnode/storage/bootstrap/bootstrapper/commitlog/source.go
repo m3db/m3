@@ -544,12 +544,6 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 	// Bootstrap the snapshot file
 	reader, err := s.newReaderFn(bytesPool, fsOpts)
 	if err != nil {
-		// TODO: In this case, we want to emit an error log, and somehow propagate that
-		// we were unable to read this snapshot file to the subsequent code which determines
-		// how much commitlog to read. We might even want to try and read the next earlier file
-		// if it exists.
-		// Actually, since the commit log file no longer exists, we might just want to mark this
-		// as unfulfilled somehow and get on with it.
 		return shardResult, err
 	}
 
@@ -563,7 +557,6 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		FileSetType: persist.FileSetSnapshotType,
 	})
 	if err != nil {
-		// TODO: Same comment as above
 		return shardResult, err
 	}
 
@@ -598,7 +591,6 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		}
 
 		if checksum != expectedChecksum {
-			// TODO: Need to propagate back better
 			return shardResult, fmt.Errorf("checksum for series: %s was %d but expected %d", id, checksum, expectedChecksum)
 		}
 
