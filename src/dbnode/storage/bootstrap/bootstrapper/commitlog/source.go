@@ -1178,6 +1178,8 @@ func (s *commitLogSource) ReadIndex(
 		fsOpts         = s.opts.CommitLogOptions().FilesystemOptions()
 		filePathPrefix = fsOpts.FilePathPrefix()
 	)
+
+	// Determine which snapshot files are available.
 	snapshotFilesByShard, err := s.snapshotFilesByShard(
 		ns.ID(), filePathPrefix, shardsTimeRanges)
 	if err != nil {
@@ -1203,8 +1205,8 @@ func (s *commitLogSource) ReadIndex(
 		blockSize      = ns.Options().RetentionOptions().BlockSize()
 	)
 
-	// Next, we need to read all data out of the commit log that wasn't covered by the
-	// snapshot files.
+	// Determine which commit log files we need to read based on which snapshot
+	// snapshot files are available.
 	readCommitLogPredicate, mostRecentCompleteSnapshotByBlockShard, err := s.newReadCommitLogPredBasedOnAvailableSnapshotFiles(
 		ns, shardsTimeRanges, snapshotFilesByShard)
 	readSeriesPredicate := newReadSeriesPredicate(ns)
@@ -1214,7 +1216,7 @@ func (s *commitLogSource) ReadIndex(
 		SeriesFilterPredicate: readSeriesPredicate,
 	}
 
-	// Start by bootstrapping any available snapshot files.
+	// Start by reading any available snapshot files.
 	for shard, tr := range shardsTimeRanges {
 		shardResult, err := s.bootstrapShardSnapshots(
 			ns.ID(), shard, true, tr, blockSize, snapshotFilesByShard[shard],
@@ -1235,6 +1237,8 @@ func (s *commitLogSource) ReadIndex(
 		}
 	}
 
+	// Next, read all of the data from the commit log files that wasn't covered
+	// by the snapshot files.
 	iter, err := s.newIteratorFn(iterOpts)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create commit log iterator: %v", err)
