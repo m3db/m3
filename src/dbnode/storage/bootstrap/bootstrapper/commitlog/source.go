@@ -600,8 +600,6 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 			}
 		}
 
-		// TODO: In the exists case we can probably optimize this to add
-		// directly to existing to avoid an extra map lookup.
 		if shardResult == nil {
 			// Delay initialization so we can estimate size.
 			shardResult = result.NewShardResult(reader.Entries(), s.opts.ResultOptions())
