@@ -994,7 +994,6 @@ func (s *commitLogSource) mergeShardCommitLogEncodersAndSnapshots(
 			// won't be used and can be closed. We can't close the blocks
 			// though because we may have loaded some of the blocks into
 			// the shard result and we don't want to close them.
-			// TODO: Is this 100% correct?
 			id.Finalize()
 			blocks.Tags.Finalize()
 			continue
