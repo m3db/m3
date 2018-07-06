@@ -95,7 +95,6 @@ func TestCommitLogBootstrapWithSnapshots(t *testing.T) {
 	numDatapointsNotInCommitLogs := 0
 	writeCommitLogDataWithPredicate(t, setup, commitLogOpts, seriesMaps, ns1, func(dp ts.Datapoint) bool {
 		blockStart := dp.Timestamp.Truncate(blockSize)
-		// TODO: Make this less ghetto
 		if dp.Timestamp.Equal(blockStart.Add(snapshotInterval)) || dp.Timestamp.After(blockStart.Add(snapshotInterval)) {
 			return true
 		}
