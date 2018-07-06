@@ -271,7 +271,7 @@ func (s *commitLogSource) ReadData(
 	// the data that is available in the snapshot files.
 	mergeStart := time.Now()
 	s.log.Infof("Starting merge...")
-	bootstrapResult := s.mergeShardCommitLogEncodersAndSnapshots(
+	bootstrapResult, err := s.mergeShardCommitLogEncodersAndSnapshots(
 		ns,
 		shardsTimeRanges,
 		snapshotFilesByShard,
@@ -280,6 +280,9 @@ func (s *commitLogSource) ReadData(
 		blockSize,
 		shardDataByShard,
 	)
+	if err != nil {
+		return nil, err
+	}
 	s.log.Infof("Done merging..., took: %s", time.Now().Sub(mergeStart).String())
 
 	return bootstrapResult, nil
@@ -876,7 +879,7 @@ func (s *commitLogSource) mergeShardCommitLogEncodersAndSnapshots(
 	numShards int,
 	blockSize time.Duration,
 	unmerged []shardData,
-) result.DataBootstrapResult {
+) (result.DataBootstrapResult, error) {
 	var (
 		shardErrs       = make([]int, numShards)
 		shardEmptyErrs  = make([]int, numShards)
@@ -899,7 +902,7 @@ func (s *commitLogSource) mergeShardCommitLogEncodersAndSnapshots(
 			mostRecentCompleteSnapshotByBlockShard,
 		)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 
 		if unmergedShard.series == nil {
@@ -937,7 +940,7 @@ func (s *commitLogSource) mergeShardCommitLogEncodersAndSnapshots(
 	// Wait for all merge goroutines to complete
 	wg.Wait()
 	s.logMergeShardsOutcome(shardErrs, shardEmptyErrs)
-	return bootstrapResult
+	return bootstrapResult, nil
 }
 
 func (s *commitLogSource) mergeShard(
