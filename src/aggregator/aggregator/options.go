@@ -38,17 +38,18 @@ import (
 )
 
 var (
-	defaultMetricPrefix              = []byte("stats.")
-	defaultCounterPrefix             = []byte("counts.")
-	defaultTimerPrefix               = []byte("timers.")
-	defaultGaugePrefix               = []byte("gauges.")
-	defaultEntryTTL                  = 24 * time.Hour
-	defaultEntryCheckInterval        = time.Hour
-	defaultEntryCheckBatchPercent    = 0.01
-	defaultMaxTimerBatchSizePerWrite = 0
-	defaultMaxNumCachedSourceSets    = 2
-	defaultResignTimeout             = 5 * time.Minute
-	defaultDefaultStoragePolicies    = []policy.StoragePolicy{
+	defaultMetricPrefix               = []byte("stats.")
+	defaultCounterPrefix              = []byte("counts.")
+	defaultTimerPrefix                = []byte("timers.")
+	defaultGaugePrefix                = []byte("gauges.")
+	defaultEntryTTL                   = 24 * time.Hour
+	defaultEntryCheckInterval         = time.Hour
+	defaultEntryCheckBatchPercent     = 0.01
+	defaultMaxTimerBatchSizePerWrite  = 0
+	defaultMaxNumCachedSourceSets     = 2
+	defaultDiscardNaNAggregatedValues = true
+	defaultResignTimeout              = 5 * time.Minute
+	defaultDefaultStoragePolicies     = []policy.StoragePolicy{
 		policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*24*time.Hour),
 		policy.NewStoragePolicy(time.Minute, xtime.Minute, 40*24*time.Hour),
 	}
@@ -242,6 +243,12 @@ type Options interface {
 	// MaxNumCachedSourceSets returns the maximum number of cached source sets.
 	MaxNumCachedSourceSets() int
 
+	// SetDiscardNaNAggregatedValues determines whether NaN aggregated values are discarded.
+	SetDiscardNaNAggregatedValues(value bool) Options
+
+	// DiscardNaNAggregatedValues determines whether NaN aggregated values are discarded.
+	DiscardNaNAggregatedValues() bool
+
 	// SetEntryPool sets the entry pool.
 	SetEntryPool(value EntryPool) Options
 
@@ -307,6 +314,7 @@ type options struct {
 	resignTimeout                    time.Duration
 	maxAllowedForwardingDelayFn      MaxAllowedForwardingDelayFn
 	maxNumCachedSourceSets           int
+	discardNaNAggregatedValues       bool
 	entryPool                        EntryPool
 	counterElemPool                  CounterElemPool
 	timerElemPool                    TimerElemPool
@@ -347,6 +355,7 @@ func NewOptions() Options {
 		resignTimeout:                    defaultResignTimeout,
 		maxAllowedForwardingDelayFn:      defaultMaxAllowedForwardingDelayFn,
 		maxNumCachedSourceSets:           defaultMaxNumCachedSourceSets,
+		discardNaNAggregatedValues:       defaultDiscardNaNAggregatedValues,
 	}
 
 	// Initialize pools.
@@ -630,6 +639,16 @@ func (o *options) SetMaxNumCachedSourceSets(value int) Options {
 
 func (o *options) MaxNumCachedSourceSets() int {
 	return o.maxNumCachedSourceSets
+}
+
+func (o *options) SetDiscardNaNAggregatedValues(value bool) Options {
+	opts := *o
+	opts.discardNaNAggregatedValues = value
+	return &opts
+}
+
+func (o *options) DiscardNaNAggregatedValues() bool {
+	return o.discardNaNAggregatedValues
 }
 
 func (o *options) SetEntryPool(value EntryPool) Options {

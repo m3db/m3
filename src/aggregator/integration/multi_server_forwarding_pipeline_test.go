@@ -51,7 +51,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMultiServerForwardingPipeline(t *testing.T) {
+func TestMultiServerForwardingPipelineKeepNaNAggregatedValues(t *testing.T) {
+	testMultiServerForwardingPipeline(t, false)
+}
+
+func TestMultiServerForwardingPipelineDiscardNaNAggregatedValues(t *testing.T) {
+	testMultiServerForwardingPipeline(t, true)
+}
+
+func testMultiServerForwardingPipeline(t *testing.T, discardNaNAggregatedValues bool) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -169,7 +177,8 @@ func TestMultiServerForwardingPipeline(t *testing.T) {
 			SetRawTCPAddr(mss.rawTCPAddr).
 			SetShardFn(shardFn).
 			SetShardSetID(mss.instanceConfig.shardSetID).
-			SetClientConnectionOptions(connectionOpts)
+			SetClientConnectionOptions(connectionOpts).
+			SetDiscardNaNAggregatedValues(discardNaNAggregatedValues)
 		server := newTestServerSetup(t, serverOpts)
 		servers = append(servers, server)
 	}
@@ -383,6 +392,9 @@ func TestMultiServerForwardingPipeline(t *testing.T) {
 	for spIdx := 0; spIdx < len(storagePolicies); spIdx++ {
 		storagePolicy := storagePolicies[spIdx]
 		for i := 0; i < len(expectedValuesList[spIdx]); i++ {
+			if discardNaNAggregatedValues && math.IsNaN(expectedValuesList[spIdx][i]) {
+				continue
+			}
 			currTime := start.Add(time.Duration(i+1) * storagePolicy.Resolution().Window)
 			agg := aggregation.NewGauge(aggregation.NewOptions())
 			agg.Update(expectedValuesList[spIdx][i])

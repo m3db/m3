@@ -11,7 +11,7 @@ import:
   version: 746eac23a65f8901c29910d74f1644f2be89dae3
 
 - package: github.com/m3db/m3metrics
-  version: e39b708273b5091efe546d871e983fb456ad5ee7
+  version: d92603d5788a2012ecfc3f0161deab37462928f8
 
 - package: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a

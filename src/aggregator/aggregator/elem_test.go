@@ -485,7 +485,7 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	aggregationTypes := maggregation.Types{maggregation.Sum}
 	isEarlierThanFn := isStandardMetricEarlierThan
 	timestampNanosFn := standardMetricTimestampNanos
-	opts := NewOptions()
+	opts := NewOptions().SetDiscardNaNAggregatedValues(false)
 	e := testCounterElem(alignedstartAtNanos[:3], counterVals, aggregationTypes, testPipeline, opts)
 
 	aggKey := aggregationKey{
@@ -983,7 +983,7 @@ func TestTimerElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	aggregationTypes := maggregation.Types{maggregation.Min}
 	isEarlierThanFn := isStandardMetricEarlierThan
 	timestampNanosFn := standardMetricTimestampNanos
-	opts := NewOptions()
+	opts := NewOptions().SetDiscardNaNAggregatedValues(false)
 	e := testTimerElem(alignedstartAtNanos[:3], timerVals, aggregationTypes, testPipeline, opts)
 
 	aggKey := aggregationKey{
@@ -1526,7 +1526,7 @@ func TestGaugeElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	aggregationTypes := maggregation.Types{maggregation.Last}
 	isEarlierThanFn := isStandardMetricEarlierThan
 	timestampNanosFn := standardMetricTimestampNanos
-	opts := NewOptions()
+	opts := NewOptions().SetDiscardNaNAggregatedValues(false)
 	e := testGaugeElem(alignedstartAtNanos[:3], gaugeVals, aggregationTypes, testPipeline, opts)
 
 	aggKey := aggregationKey{
