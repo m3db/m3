@@ -1096,8 +1096,9 @@ func (s *commitLogSource) mergeSeries(
 			}
 			_, ok := seriesBlocks.BlockAt(startNano.ToTime())
 			if ok {
-				// Shouldnt happen?
-				// Already merged
+				// TODO: Invariant violated logger.
+				// Should never happen because we would have called
+				// Blocks.RemoveBlockAt() above.
 				continue
 			}
 
