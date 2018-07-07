@@ -87,6 +87,7 @@ func NewHandler(
 		engine:        engine,
 		clusterClient: clusterClient,
 		config:        cfg,
+		embeddedDbCfg: embeddedDbCfg,
 		scope:         scope,
 	}
 	return h, nil
