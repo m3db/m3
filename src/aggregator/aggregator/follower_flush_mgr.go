@@ -202,9 +202,18 @@ func (mgr *followerFlushManager) Prepare(buckets []*flushBucket) (flushTask, tim
 	return mgr.flushTask, 0
 }
 
-// NB(xichen): the follower flush manager flushes data based on the flush times
+// NB(xichen): The follower flush manager flushes data based on the flush times
 // stored in kv and does not need to take extra actions when a new bucket is added.
 func (mgr *followerFlushManager) OnBucketAdded(int, *flushBucket) {}
+
+// NB(xichen): The follower flush manager flushes data based on the flush times
+// stored in kv and does not need to take extra actions when a new flusher is added.
+func (mgr *followerFlushManager) OnFlusherAdded(
+	bucketIdx int,
+	bucket *flushBucket,
+	flusher flushingMetricList,
+) {
+}
 
 // The follower flush manager may only lead if and only if all the following conditions
 // are met:

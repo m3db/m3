@@ -195,6 +195,14 @@ func (_mr *_MockroleBasedFlushManagerRecorder) OnBucketAdded(arg0, arg1 interfac
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "OnBucketAdded", arg0, arg1)
 }
 
+func (_m *MockroleBasedFlushManager) OnFlusherAdded(bucketIdx int, bucket *flushBucket, flusher flushingMetricList) {
+	_m.ctrl.Call(_m, "OnFlusherAdded", bucketIdx, bucket, flusher)
+}
+
+func (_mr *_MockroleBasedFlushManagerRecorder) OnFlusherAdded(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "OnFlusherAdded", arg0, arg1, arg2)
+}
+
 func (_m *MockroleBasedFlushManager) CanLead() bool {
 	ret := _m.ctrl.Call(_m, "CanLead")
 	ret0, _ := ret[0].(bool)
