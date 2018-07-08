@@ -161,6 +161,65 @@ func TestLeaderFlushManagerInit(t *testing.T) {
 	validateFlushMetadataHeap(t, expectedFlushTimes, mgr.flushTimes)
 }
 
+func TestLeaderFlushManagerOnFlusherAdded(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	now := time.Unix(1234, 0)
+	nowFn := func() time.Time { return now }
+	doneCh := make(chan struct{})
+	opts := NewFlushManagerOptions()
+	mgr := newLeaderFlushManager(doneCh, opts).(*leaderFlushManager)
+	mgr.nowFn = nowFn
+
+	buckets := testFlushBuckets(ctrl)
+	mgr.Init(buckets)
+
+	expectedFlushTimes := []flushMetadata{
+		{timeNanos: 60000000000, bucketIdx: 2},
+		{timeNanos: 1200000000000, bucketIdx: 5},
+		{timeNanos: 1201000000000, bucketIdx: 4},
+		{timeNanos: 1212000000000, bucketIdx: 1},
+		{timeNanos: 1234100000000, bucketIdx: 3},
+		{timeNanos: 1234250000000, bucketIdx: 0},
+	}
+	validateFlushMetadataHeap(t, expectedFlushTimes, mgr.flushTimes)
+
+	// Add a new flusher to bucket 1 without moving time forward
+	// and expect no change to the flush times.
+	mgr.OnFlusherAdded(1, buckets[1], nil)
+	validateFlushMetadataHeap(t, expectedFlushTimes, mgr.flushTimes)
+
+	// Pop the flush metadata, update its next flush times, and push it back to the heap
+	// to simulate the next flush.
+	metadata := mgr.flushTimes.Pop()
+	metadata.timeNanos = metadata.timeNanos + buckets[metadata.bucketIdx].interval.Nanoseconds()
+	mgr.flushTimes.Push(metadata)
+	expectedFlushTimes = []flushMetadata{
+		{timeNanos: 1200000000000, bucketIdx: 5},
+		{timeNanos: 1201000000000, bucketIdx: 4},
+		{timeNanos: 1212000000000, bucketIdx: 1},
+		{timeNanos: 1234100000000, bucketIdx: 3},
+		{timeNanos: 1234250000000, bucketIdx: 0},
+		{timeNanos: 3660000000000, bucketIdx: 2},
+	}
+	validateFlushMetadataHeap(t, expectedFlushTimes, mgr.flushTimes)
+
+	// Move time forward slightly and add a new flusher to bucket 2 and expect bucket 2
+	// to have an updated next flush time.
+	now = now.Add(time.Minute)
+	mgr.OnFlusherAdded(2, buckets[2], nil)
+	expectedFlushTimes = []flushMetadata{
+		{timeNanos: 60000000000, bucketIdx: 2},
+		{timeNanos: 1200000000000, bucketIdx: 5},
+		{timeNanos: 1201000000000, bucketIdx: 4},
+		{timeNanos: 1212000000000, bucketIdx: 1},
+		{timeNanos: 1234100000000, bucketIdx: 3},
+		{timeNanos: 1234250000000, bucketIdx: 0},
+	}
+	validateFlushMetadataHeap(t, expectedFlushTimes, mgr.flushTimes)
+}
+
 func TestLeaderFlushManagerPrepareNoFlushNoPersist(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

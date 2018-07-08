@@ -85,6 +85,9 @@ type roleBasedFlushManager interface {
 	// OnBucketAdded is called when a new bucket is added.
 	OnBucketAdded(bucketIdx int, bucket *flushBucket)
 
+	// OnFlusherAdded is called when a new flusher is added to an existing bucket.
+	OnFlusherAdded(bucketIdx int, bucket *flushBucket, flusher flushingMetricList)
+
 	// CanLead returns true if the manager can take over the leader role.
 	CanLead() bool
 
@@ -203,11 +206,12 @@ func (mgr *flushManager) Register(flusher flushingMetricList) error {
 	mgr.Lock()
 	defer mgr.Unlock()
 
-	bucket, err := mgr.findOrCreateBucketWithLock(flusher)
+	bucket, bucketIdx, err := mgr.findOrCreateBucketWithLock(flusher)
 	if err != nil {
 		return err
 	}
 	bucket.Add(flusher)
+	mgr.flushManagerWithLock().OnFlusherAdded(bucketIdx, bucket, flusher)
 	return nil
 }
 
@@ -216,7 +220,7 @@ func (mgr *flushManager) Unregister(flusher flushingMetricList) error {
 	defer mgr.Unlock()
 
 	bucketID := flusher.ID()
-	bucket, err := mgr.buckets.FindBucket(bucketID)
+	bucket, _, err := mgr.buckets.FindBucket(bucketID)
 	if err != nil {
 		return err
 	}
@@ -261,14 +265,14 @@ func (mgr *flushManager) resetWithLock() {
 	mgr.followerMgr.Init(mgr.buckets)
 }
 
-func (mgr *flushManager) findOrCreateBucketWithLock(l flushingMetricList) (*flushBucket, error) {
+func (mgr *flushManager) findOrCreateBucketWithLock(l flushingMetricList) (*flushBucket, int, error) {
 	bucketID := l.ID()
-	bucket, err := mgr.buckets.FindBucket(bucketID)
+	bucket, bucketIdx, err := mgr.buckets.FindBucket(bucketID)
 	if err == nil {
-		return bucket, nil
+		return bucket, bucketIdx, nil
 	}
 	if err != errBucketNotFound {
-		return nil, err
+		return nil, 0, err
 	}
 	// Forwarded metric list has a fixed flush offset to ensure forwarded metrics are flushed
 	// immediately after we have waited long enough, whereas a standard metric list has a flexible
@@ -289,7 +293,7 @@ func (mgr *flushManager) findOrCreateBucketWithLock(l flushingMetricList) (*flus
 	bucket = newBucket(bucketID, flushInterval, flushOffset, scope)
 	mgr.buckets = append(mgr.buckets, bucket)
 	mgr.flushManagerWithLock().OnBucketAdded(len(mgr.buckets)-1, bucket)
-	return bucket, nil
+	return bucket, len(mgr.buckets) - 1, nil
 }
 
 func (mgr *flushManager) computeFlushIntervalOffset(flushInterval time.Duration) time.Duration {
@@ -407,11 +411,11 @@ func (b *flushBucket) Remove(flusher flushingMetricList) error {
 
 type flushBuckets []*flushBucket
 
-func (buckets flushBuckets) FindBucket(bucketID metricListID) (*flushBucket, error) {
-	for _, bucket := range buckets {
+func (buckets flushBuckets) FindBucket(bucketID metricListID) (*flushBucket, int, error) {
+	for bucketIdx, bucket := range buckets {
 		if bucket.bucketID == bucketID {
-			return bucket, nil
+			return bucket, bucketIdx, nil
 		}
 	}
-	return nil, errBucketNotFound
+	return nil, 0, errBucketNotFound
 }

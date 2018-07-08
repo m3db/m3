@@ -192,6 +192,32 @@ func (mgr *leaderFlushManager) OnBucketAdded(
 	mgr.Unlock()
 }
 
+// Reset the next flush timestamp of the bucket to be t0 = truncate(now, flushInterval)
+// + flushOffset. As such, the newly added flusher will be flushed at t0 (or immediately
+// if t0 < now) at the latest, at which point its last flushed time will be properly
+// initialized. This helps to speed up deployment in certain cases and allow the follower
+// to properly discard metrics, both of which rely on the last flushed times of the flushers.
+func (mgr *leaderFlushManager) OnFlusherAdded(
+	bucketIdx int,
+	bucket *flushBucket,
+	flusher flushingMetricList,
+) {
+	mgr.Lock()
+	defer mgr.Unlock()
+
+	for i := 0; i < len(mgr.flushTimes); i++ {
+		if mgr.flushTimes[i].bucketIdx == bucketIdx {
+			nextFlushNanos := mgr.computeNextFlushNanos(bucket.interval, bucket.offset)
+			if nextFlushNanos == mgr.flushTimes[i].timeNanos {
+				return
+			}
+			mgr.flushTimes[i].timeNanos = nextFlushNanos
+			mgr.flushTimes.Fix(i)
+			return
+		}
+	}
+}
+
 // NB(xichen): leader flush manager can always lead.
 func (mgr *leaderFlushManager) CanLead() bool { return true }
 
@@ -420,7 +446,7 @@ func (h *flushMetadataHeap) Reset() { *h = (*h)[:0] }
 // Push pushes a flush metadata onto the heap.
 func (h *flushMetadataHeap) Push(value flushMetadata) {
 	*h = append(*h, value)
-	h.shiftUp(h.Len() - 1)
+	h.up(h.Len() - 1)
 }
 
 // Pop pops the metadata with the earliest flush time from the heap.
@@ -432,12 +458,20 @@ func (h *flushMetadataHeap) Pop() flushMetadata {
 	)
 
 	old[0], old[n-1] = old[n-1], old[0]
-	h.heapify(0, n-1)
+	h.down(0, n-1)
 	*h = (*h)[0 : n-1]
 	return val
 }
 
-func (h flushMetadataHeap) shiftUp(i int) {
+// Fix re-establishes the ordering after the element at index i has
+// changed its value.
+func (h *flushMetadataHeap) Fix(i int) {
+	if !h.down(i, h.Len()) {
+		h.up(i)
+	}
+}
+
+func (h flushMetadataHeap) up(i int) {
 	for {
 		parent := (i - 1) / 2
 		if parent == i || h[parent].timeNanos <= h[i].timeNanos {
@@ -448,7 +482,10 @@ func (h flushMetadataHeap) shiftUp(i int) {
 	}
 }
 
-func (h flushMetadataHeap) heapify(i, n int) {
+// down heapifies the element at index i0 by attempting to shift it downwards, returning
+// true if the element has been successfully moved downwards, and false otherwise.
+func (h flushMetadataHeap) down(i0, n int) bool {
+	i := i0
 	for {
 		left := i*2 + 1
 		right := left + 1
@@ -460,9 +497,10 @@ func (h flushMetadataHeap) heapify(i, n int) {
 			smallest = right
 		}
 		if smallest == i {
-			return
+			break
 		}
 		h[i], h[smallest] = h[smallest], h[i]
 		i = smallest
 	}
+	return i > i0
 }

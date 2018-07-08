@@ -92,9 +92,12 @@ func TestFlushManagerRegisterStandardFlushingMetricList(t *testing.T) {
 	*now = time.Unix(1234, 0)
 
 	var (
-		bucketIndices []int
-		buckets       []*flushBucket
-		flushers      []flushingMetricList
+		flushers                []flushingMetricList
+		newBucketIndices        []int
+		newBuckets              []*flushBucket
+		newFlusherBucketIndices []int
+		newFlusherBuckets       []*flushBucket
+		newFlushers             []flushingMetricList
 	)
 	for _, intv := range []time.Duration{
 		time.Second,
@@ -115,10 +118,18 @@ func TestFlushManagerRegisterStandardFlushingMetricList(t *testing.T) {
 	followerMgr.EXPECT().
 		OnBucketAdded(gomock.Any(), gomock.Any()).
 		Do(func(bucketIdx int, bucket *flushBucket) {
-			bucketIndices = append(bucketIndices, bucketIdx)
-			buckets = append(buckets, bucket)
+			newBucketIndices = append(newBucketIndices, bucketIdx)
+			newBuckets = append(newBuckets, bucket)
 		}).
-		AnyTimes()
+		Times(3)
+	followerMgr.EXPECT().
+		OnFlusherAdded(gomock.Any(), gomock.Any(), gomock.Any()).
+		Do(func(bucketIdx int, bucket *flushBucket, flusher flushingMetricList) {
+			newFlusherBucketIndices = append(newFlusherBucketIndices, bucketIdx)
+			newFlusherBuckets = append(newFlusherBuckets, bucket)
+			newFlushers = append(newFlushers, flusher)
+		}).
+		Times(4)
 	mgr.leaderMgr = leaderMgr
 	mgr.followerMgr = followerMgr
 	require.NoError(t, mgr.Open())
@@ -126,7 +137,7 @@ func TestFlushManagerRegisterStandardFlushingMetricList(t *testing.T) {
 		require.NoError(t, mgr.Register(flusher))
 	}
 
-	expectedBuckets := []*flushBucket{
+	expectedNewBuckets := []*flushBucket{
 		&flushBucket{
 			bucketID: standardMetricListID{resolution: time.Second}.toMetricListID(),
 			interval: time.Second,
@@ -146,20 +157,36 @@ func TestFlushManagerRegisterStandardFlushingMetricList(t *testing.T) {
 			flushers: []flushingMetricList{flushers[3]},
 		},
 	}
-	require.Equal(t, len(expectedBuckets), len(mgr.buckets))
-	for i := 0; i < len(expectedBuckets); i++ {
-		require.Equal(t, expectedBuckets[i].bucketID, mgr.buckets[i].bucketID)
-		require.Equal(t, expectedBuckets[i].interval, mgr.buckets[i].interval)
-		require.Equal(t, expectedBuckets[i].offset, mgr.buckets[i].offset)
-		require.Equal(t, expectedBuckets[i].flushers, mgr.buckets[i].flushers)
+	require.Equal(t, len(expectedNewBuckets), len(mgr.buckets))
+	for i := 0; i < len(expectedNewBuckets); i++ {
+		require.Equal(t, expectedNewBuckets[i].bucketID, mgr.buckets[i].bucketID)
+		require.Equal(t, expectedNewBuckets[i].interval, mgr.buckets[i].interval)
+		require.Equal(t, expectedNewBuckets[i].offset, mgr.buckets[i].offset)
+		require.Equal(t, expectedNewBuckets[i].flushers, mgr.buckets[i].flushers)
 	}
-	for i := 0; i < len(expectedBuckets); i++ {
-		require.Equal(t, i, bucketIndices[i])
-		require.Equal(t, expectedBuckets[i].bucketID, buckets[i].bucketID)
-		require.Equal(t, expectedBuckets[i].interval, buckets[i].interval)
-		require.Equal(t, expectedBuckets[i].offset, buckets[i].offset)
-		require.Equal(t, expectedBuckets[i].flushers, buckets[i].flushers)
+	for i := 0; i < len(expectedNewBuckets); i++ {
+		require.Equal(t, i, newBucketIndices[i])
+		require.Equal(t, expectedNewBuckets[i].bucketID, newBuckets[i].bucketID)
+		require.Equal(t, expectedNewBuckets[i].interval, newBuckets[i].interval)
+		require.Equal(t, expectedNewBuckets[i].offset, newBuckets[i].offset)
+		require.Equal(t, expectedNewBuckets[i].flushers, newBuckets[i].flushers)
 	}
+
+	expectedNewFlusherBuckets := []*flushBucket{
+		expectedNewBuckets[0],
+		expectedNewBuckets[1],
+		expectedNewBuckets[0],
+		expectedNewBuckets[2],
+	}
+	require.Equal(t, len(expectedNewFlusherBuckets), len(newFlusherBuckets))
+	for i := 0; i < len(expectedNewFlusherBuckets); i++ {
+		require.Equal(t, expectedNewFlusherBuckets[i].bucketID, newFlusherBuckets[i].bucketID)
+		require.Equal(t, expectedNewFlusherBuckets[i].interval, newFlusherBuckets[i].interval)
+		require.Equal(t, expectedNewFlusherBuckets[i].offset, newFlusherBuckets[i].offset)
+		require.Equal(t, expectedNewFlusherBuckets[i].flushers, newFlusherBuckets[i].flushers)
+	}
+	require.Equal(t, []int{0, 1, 0, 2}, newFlusherBucketIndices)
+	require.Equal(t, flushers, newFlushers)
 }
 
 func TestFlushManagerRegisterForwardedFlushingMetricList(t *testing.T) {
@@ -170,9 +197,12 @@ func TestFlushManagerRegisterForwardedFlushingMetricList(t *testing.T) {
 	*now = time.Unix(1234, 0)
 
 	var (
-		bucketIndices []int
-		buckets       []*flushBucket
-		flushers      []flushingMetricList
+		flushers                []flushingMetricList
+		newBucketIndices        []int
+		newBuckets              []*flushBucket
+		newFlusherBucketIndices []int
+		newFlusherBuckets       []*flushBucket
+		newFlushers             []flushingMetricList
 	)
 	for _, intv := range []struct {
 		resolution        time.Duration
@@ -201,10 +231,18 @@ func TestFlushManagerRegisterForwardedFlushingMetricList(t *testing.T) {
 	followerMgr.EXPECT().
 		OnBucketAdded(gomock.Any(), gomock.Any()).
 		Do(func(bucketIdx int, bucket *flushBucket) {
-			bucketIndices = append(bucketIndices, bucketIdx)
-			buckets = append(buckets, bucket)
+			newBucketIndices = append(newBucketIndices, bucketIdx)
+			newBuckets = append(newBuckets, bucket)
 		}).
-		AnyTimes()
+		Times(3)
+	followerMgr.EXPECT().
+		OnFlusherAdded(gomock.Any(), gomock.Any(), gomock.Any()).
+		Do(func(bucketIdx int, bucket *flushBucket, flusher flushingMetricList) {
+			newFlusherBucketIndices = append(newFlusherBucketIndices, bucketIdx)
+			newFlusherBuckets = append(newFlusherBuckets, bucket)
+			newFlushers = append(newFlushers, flusher)
+		}).
+		Times(4)
 	mgr.leaderMgr = leaderMgr
 	mgr.followerMgr = followerMgr
 	require.NoError(t, mgr.Open())
@@ -212,7 +250,7 @@ func TestFlushManagerRegisterForwardedFlushingMetricList(t *testing.T) {
 		require.NoError(t, mgr.Register(flusher))
 	}
 
-	expectedBuckets := []*flushBucket{
+	expectedNewBuckets := []*flushBucket{
 		&flushBucket{
 			bucketID: forwardedMetricListID{
 				resolution:        time.Second,
@@ -241,20 +279,36 @@ func TestFlushManagerRegisterForwardedFlushingMetricList(t *testing.T) {
 			flushers: []flushingMetricList{flushers[2]},
 		},
 	}
-	require.Equal(t, len(expectedBuckets), len(mgr.buckets))
-	for i := 0; i < len(expectedBuckets); i++ {
-		require.Equal(t, expectedBuckets[i].bucketID, mgr.buckets[i].bucketID)
-		require.Equal(t, expectedBuckets[i].interval, mgr.buckets[i].interval)
-		require.Equal(t, expectedBuckets[i].offset, mgr.buckets[i].offset)
-		require.Equal(t, expectedBuckets[i].flushers, mgr.buckets[i].flushers)
+	require.Equal(t, len(expectedNewBuckets), len(mgr.buckets))
+	for i := 0; i < len(expectedNewBuckets); i++ {
+		require.Equal(t, expectedNewBuckets[i].bucketID, mgr.buckets[i].bucketID)
+		require.Equal(t, expectedNewBuckets[i].interval, mgr.buckets[i].interval)
+		require.Equal(t, expectedNewBuckets[i].offset, mgr.buckets[i].offset)
+		require.Equal(t, expectedNewBuckets[i].flushers, mgr.buckets[i].flushers)
 	}
-	for i := 0; i < len(expectedBuckets); i++ {
-		require.Equal(t, i, bucketIndices[i])
-		require.Equal(t, expectedBuckets[i].bucketID, buckets[i].bucketID)
-		require.Equal(t, expectedBuckets[i].interval, buckets[i].interval)
-		require.Equal(t, expectedBuckets[i].offset, buckets[i].offset)
-		require.Equal(t, expectedBuckets[i].flushers, buckets[i].flushers)
+	for i := 0; i < len(expectedNewBuckets); i++ {
+		require.Equal(t, i, newBucketIndices[i])
+		require.Equal(t, expectedNewBuckets[i].bucketID, newBuckets[i].bucketID)
+		require.Equal(t, expectedNewBuckets[i].interval, newBuckets[i].interval)
+		require.Equal(t, expectedNewBuckets[i].offset, newBuckets[i].offset)
+		require.Equal(t, expectedNewBuckets[i].flushers, newBuckets[i].flushers)
 	}
+
+	expectedNewFlusherBuckets := []*flushBucket{
+		expectedNewBuckets[0],
+		expectedNewBuckets[1],
+		expectedNewBuckets[2],
+		expectedNewBuckets[1],
+	}
+	require.Equal(t, len(expectedNewFlusherBuckets), len(newFlusherBuckets))
+	for i := 0; i < len(expectedNewFlusherBuckets); i++ {
+		require.Equal(t, expectedNewFlusherBuckets[i].bucketID, newFlusherBuckets[i].bucketID)
+		require.Equal(t, expectedNewFlusherBuckets[i].interval, newFlusherBuckets[i].interval)
+		require.Equal(t, expectedNewFlusherBuckets[i].offset, newFlusherBuckets[i].offset)
+		require.Equal(t, expectedNewFlusherBuckets[i].flushers, newFlusherBuckets[i].flushers)
+	}
+	require.Equal(t, []int{0, 1, 2, 1}, newFlusherBucketIndices)
+	require.Equal(t, flushers, newFlushers)
 }
 
 func TestFlushManagerUnregisterBucketNotFound(t *testing.T) {
@@ -473,6 +527,7 @@ func TestFlushManagerFlush(t *testing.T) {
 		}).
 		AnyTimes()
 	followerMgr.EXPECT().OnBucketAdded(gomock.Any(), gomock.Any()).AnyTimes()
+	followerMgr.EXPECT().OnFlusherAdded(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 	mgr.leaderMgr = leaderMgr
 	mgr.followerMgr = followerMgr
 
