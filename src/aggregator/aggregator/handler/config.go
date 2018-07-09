@@ -29,9 +29,11 @@ import (
 	"github.com/m3db/m3aggregator/aggregator/handler/common"
 	"github.com/m3db/m3aggregator/aggregator/handler/filter"
 	"github.com/m3db/m3aggregator/aggregator/handler/router"
+	"github.com/m3db/m3aggregator/aggregator/handler/router/trafficcontrol"
 	"github.com/m3db/m3aggregator/aggregator/handler/writer"
 	"github.com/m3db/m3aggregator/sharding"
 	"github.com/m3db/m3cluster/client"
+	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3metrics/encoding/msgpack"
 	"github.com/m3db/m3msg/producer"
@@ -56,8 +58,9 @@ var (
 
 // FlushHandlerConfiguration configures flush handlers.
 type FlushHandlerConfiguration struct {
-	Handlers []flushHandlerConfiguration `yaml:"handlers" validate:"nonzero"`
-	Writer   *writerConfiguration        `yaml:"writer"`
+	Handlers                 []flushHandlerConfiguration `yaml:"handlers" validate:"nonzero"`
+	Writer                   *writerConfiguration        `yaml:"writer"`
+	TrafficControlKVOverride *kv.OverrideConfiguration   `yaml:"trafficControlKVOverride"`
 }
 
 // NewHandler creates a new flush handler based on the configuration.
@@ -71,7 +74,18 @@ func (c FlushHandlerConfiguration) NewHandler(
 	var (
 		handlers       = make([]Handler, 0, len(c.Handlers))
 		sharderRouters = make([]SharderRouter, 0, len(c.Handlers))
+		store          kv.Store
 	)
+	if c.TrafficControlKVOverride != nil {
+		kvOpts, err := c.TrafficControlKVOverride.NewOverrideOptions()
+		if err != nil {
+			return nil, err
+		}
+		store, err = cs.Store(kvOpts)
+		if err != nil {
+			return nil, err
+		}
+	}
 	for _, hc := range c.Handlers {
 		if err := hc.Validate(); err != nil {
 			return nil, err
@@ -79,6 +93,7 @@ func (c FlushHandlerConfiguration) NewHandler(
 		if hc.DynamicBackend != nil {
 			sharderRouter, err := hc.DynamicBackend.NewSharderRouter(
 				cs,
+				store,
 				instrumentOpts,
 			)
 			if err != nil {
@@ -93,7 +108,7 @@ func (c FlushHandlerConfiguration) NewHandler(
 		case loggingType:
 			handlers = append(handlers, NewLoggingHandler(instrumentOpts.Logger()))
 		case forwardType:
-			sharderRouter, err := hc.StaticBackend.NewSharderRouter(instrumentOpts)
+			sharderRouter, err := hc.StaticBackend.NewSharderRouter(store, instrumentOpts)
 			if err != nil {
 				return nil, err
 			}
@@ -186,10 +201,14 @@ type dynamicBackendConfiguration struct {
 
 	// Filters configs the filter for consumer services.
 	Filters []consumerServiceFilterConfiguration `yaml:"filters"`
+
+	// TrafficControl configs the traffic controller.
+	TrafficControl *trafficcontrol.Configuration `yaml:"trafficControl"`
 }
 
 func (c *dynamicBackendConfiguration) NewSharderRouter(
 	cs client.Client,
+	store kv.Store,
 	instrumentOpts instrument.Options,
 ) (SharderRouter, error) {
 	scope := instrumentOpts.MetricsScope().Tagged(map[string]string{
@@ -209,9 +228,17 @@ func (c *dynamicBackendConfiguration) NewSharderRouter(
 		p.RegisterFilter(sid, f)
 		logger.Infof("registered filter for consumer service: %s", sid.String())
 	}
+	r := router.NewWithAckRouter(p)
+	if c.TrafficControl != nil {
+		tc, err := c.TrafficControl.NewTrafficController(store, instrumentOpts)
+		if err != nil {
+			return SharderRouter{}, err
+		}
+		r = trafficcontrol.NewRouter(tc, r, scope)
+	}
 	return SharderRouter{
 		SharderID: sharding.NewSharderID(c.HashType, c.TotalShards),
-		Router:    router.NewWithAckRouter(p),
+		Router:    r,
 	}, nil
 }
 
@@ -245,6 +272,9 @@ type staticBackendConfiguration struct {
 
 	// Disable validation (dangerous but useful for testing and staging environments).
 	DisableValidation bool `yaml:"disableValidation"`
+
+	// TrafficControl configs the traffic controller.
+	TrafficControl *trafficcontrol.Configuration `yaml:"trafficControl"`
 }
 
 func (c *staticBackendConfiguration) Validate() error {
@@ -278,6 +308,7 @@ func (c *staticBackendConfiguration) validateNonSharded() error {
 }
 
 func (c *staticBackendConfiguration) NewSharderRouter(
+	store kv.Store,
 	instrumentOpts instrument.Options,
 ) (SharderRouter, error) {
 	if err := c.Validate(); err != nil {
@@ -294,20 +325,41 @@ func (c *staticBackendConfiguration) NewSharderRouter(
 	if c.QueueSize > 0 {
 		queueOpts = queueOpts.SetQueueSize(c.QueueSize)
 	}
-
+	var (
+		tc  trafficcontrol.Controller
+		err error
+	)
+	if c.TrafficControl != nil {
+		if tc, err = c.TrafficControl.NewTrafficController(
+			store,
+			instrumentOpts.SetMetricsScope(backendScope),
+		); err != nil {
+			return SharderRouter{}, err
+		}
+	}
 	if len(c.Servers) > 0 {
 		// This is a non-sharded backend.
 		queue, err := common.NewQueue(c.Servers, queueOpts)
 		if err != nil {
 			return SharderRouter{}, err
 		}
-		router := router.NewAllowAllRouter(queue)
-		return SharderRouter{SharderID: sharding.NoShardingSharderID, Router: router}, nil
+		r := router.NewAllowAllRouter(queue)
+		if tc != nil {
+			r = trafficcontrol.NewRouter(tc, r, backendScope)
+		}
+		return SharderRouter{SharderID: sharding.NoShardingSharderID, Router: r}, nil
 	}
 
 	// Sharded backend.
 	routerScope := backendScope.SubScope("router")
-	return c.Sharded.NewSharderRouter(routerScope, queueOpts)
+	sr, err := c.Sharded.NewSharderRouter(routerScope, queueOpts)
+	if err != nil {
+		return SharderRouter{}, err
+	}
+	if tc != nil {
+		sr.Router = trafficcontrol.NewRouter(tc, sr.Router, backendScope)
+	}
+	return sr, nil
 }
 
 type shardedConfiguration struct {

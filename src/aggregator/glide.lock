@@ -1,5 +1,5 @@
-hash: 5b4baf063ec3de2ee38af1a947cbe58da95c8b6b4a10403d808c41e5b397195a
-updated: 2018-07-05T22:36:18.471062-04:00
+hash: 60f1802adc203321e158a5ee22c03bf159770d5e1d28dbf87157573dfdc75845
+updated: 2018-07-06T13:30:25.625789-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -109,6 +109,8 @@ imports:
   - spew
 - name: github.com/dgrijalva/jwt-go
   version: d2709f9f1f31ebcda9651b03077758c1f3a0018c
+- name: github.com/fortytw2/leaktest
+  version: a5ef70473c97b71626b9abeda80ee92ba2a7de9e
 - name: github.com/ghodss/yaml
   version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
 - name: github.com/go-ole/go-ole
@@ -323,7 +325,7 @@ imports:
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
-  version: 7e7e266a8dbce911a49554b945538c5b950196b8
+  version: eeedf312bc6c57391d84767a4cd413f02a917974
   subpackages:
   - buffer
   - internal/bufferpool
@@ -349,8 +351,6 @@ imports:
   - trace
 - name: golang.org/x/sys
   version: d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03
-  subpackages:
-  - unix
 - name: golang.org/x/text
   version: 4ee4af566555f5fbe026368b75596286a312663a
   subpackages:
@@ -408,7 +408,7 @@ imports:
   version: 5420a8b6744d3b0345ab293f6fcba19c978f1183
 testImports:
 - name: github.com/leanovate/gopter
-  version: 648a4745d07aa9babe7f460c0a0fc09e70562ca4
+  version: 7464b68a2409c0e6c6986805c808ca767f3c0054
   subpackages:
   - gen
   - prop
