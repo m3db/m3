@@ -127,6 +127,53 @@ func (s *commitLogSource) AvailableData(
 //        [blockStart.Add(-bufferFuture), blockStart.Add(blockSize).Add(bufferPast)].
 //    4.  For each shard/blockStart combination, merge all of the M3TSZ encoders that we created from
 //        reading the commit log along with the data available in the corresponding snapshot file.
+//
+// Example #1:
+//
+// 		BlockSize: 2hr
+// 		BufferPast: 10m
+// 		BufferFuture: 5m
+// 		CommitLogBlockSize: 10m
+// 		BlockToBootstrap: 12PM->2PM
+// 		SnapshotTime: 12:30PM
+//
+// 		W1 comes in at 11:57AM
+//		W2 comes in at 12:29PM
+// 		W3 comes in at 12:31PM
+// 		W4 comes in at 2:04PM
+//
+// 		1) W1 captured by snapshot (hence why we don't need to worry about buffer future
+// 				with regards to commit logs when a snapshot file is present.)
+//    2) W2 captured by snapshot file
+// 		3) W3 not captured by snapshot file (present in commit log with start time 12:30PM)
+// 		4) W4 not captured by snapshot file (present in commit log with start time 2:00PM)
+//
+// 		Need to read all commit logs that contain writes with system times spanning from
+// 		12:30PM -> 2:10PM which will bootstrap all of the data points above. I.E:
+// 		[minimumMostRecentSnapshotTimeAcrossShards, blockStart.Add(blockSize).Add(bufferPast)]
+//
+// Example #2:
+//
+// 		BlockSize: 2hr
+// 		BufferPast: 10m
+// 		BufferFuture: 5m
+// 		CommitLogBlockSize: 10m
+// 		BlockToBootstrap: 12PM->2PM
+// 		SnapshotTime: 12:00PM (snapshot does not exist)
+//
+// 		W1 comes in at 11:57AM
+//		W2 comes in at 12:29PM
+// 		W3 comes in at 12:31PM
+// 		W4 comes in at 2:04PM
+//
+// 		1) W1 only present in commit log with start time 11:50PM
+//    2) W2 only present in commit log with start time 12:20PM
+// 		3) W3 only present in commit log with start time 12:30PM
+// 		4) W4 only present in commit log with start time 2:00PM
+//
+// 		Need to read all commit logs that contain writes with system times spanning from
+// 		11:55PM -> 2:10PM which will bootstrap all of the data points above. I.E:
+// 		[blockStart.Add(-bufferFuture), blockStart.Add(blockSize).Add(bufferPast)]
 func (s *commitLogSource) ReadData(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
