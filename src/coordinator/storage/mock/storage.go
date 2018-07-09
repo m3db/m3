@@ -28,12 +28,18 @@ import (
 )
 
 type mockStorage struct {
-	sType storage.Type
+	sType  storage.Type
+	blocks []block.Block
 }
 
 // NewMockStorage creates a new mock Storage instance.
 func NewMockStorage() storage.Storage {
 	return &mockStorage{sType: storage.Type(0)}
+}
+
+// NewMockStorageWithBlocks creates a new mock Storage instance with blocks.
+func NewMockStorageWithBlocks(blocks []block.Block) storage.Storage {
+	return &mockStorage{sType: storage.Type(0), blocks: blocks}
 }
 
 // NewMockStorageWithType creates a new mock Storage instance.
@@ -63,5 +69,7 @@ func (s *mockStorage) Close() error {
 
 func (s *mockStorage) FetchBlocks(
 	ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (block.Result, error) {
-	return block.Result{}, nil
+	return block.Result{
+		Blocks: s.blocks,
+	}, nil
 }

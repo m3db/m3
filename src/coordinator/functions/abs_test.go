@@ -18,44 +18,60 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package native
+package functions
 
 import (
-	"context"
-	"net/http"
-	"net/http/httptest"
+	"math"
 	"testing"
 
-	"github.com/m3db/m3db/src/coordinator/block"
-	"github.com/m3db/m3db/src/coordinator/executor"
-	"github.com/m3db/m3db/src/coordinator/storage/mock"
+	"github.com/m3db/m3db/src/coordinator/parser"
 	"github.com/m3db/m3db/src/coordinator/test"
-	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestPromRead(t *testing.T) {
-	logging.InitWithCores(nil)
+func expectedValues(values [][]float64) [][]float64 {
+	expected := make([][]float64, 0, len(values))
+	for _, val := range values {
+		v := make([]float64, len(val))
+		for i, ev := range val {
+			v[i] = math.Abs(ev)
+		}
 
-	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	b := test.NewBlockFromValues(bounds, values)
-	mockStorage := mock.NewMockStorageWithBlocks([]block.Block{b})
-
-	promRead := &PromReadHandler{engine: executor.NewEngine(mockStorage)}
-	req, _ := http.NewRequest("GET", PromReadURL, nil)
-	req.URL.RawQuery = defaultParams().Encode()
-
-	r, parseErr := parseParams(req)
-	require.Nil(t, parseErr)
-	seriesList, err := promRead.read(context.TODO(), httptest.NewRecorder(), r)
-	require.NoError(t, err)
-	require.Len(t, seriesList, 2)
-	s := seriesList[0]
-
-	assert.Equal(t, 5, s.Values().Len())
-	for i := 0; i < s.Values().Len(); i++ {
-		assert.Equal(t, float64(i), s.Values().ValueAt(i))
+		expected = append(expected, v)
 	}
+	return expected
+}
+
+func TestAbsWithAllValues(t *testing.T) {
+	values, bounds := test.GenerateValuesAndBounds(nil, nil)
+	values[0][0] = -values[0][0]
+	values[1][1] = -values[1][1]
+
+	block := test.NewBlockFromValues(bounds, values)
+	c, sink := test.NewControllerWithSink(parser.NodeID(1))
+	node := (&AbsOp{}).Node(c)
+	err := node.Process(parser.NodeID(0), block)
+	require.NoError(t, err)
+	expected := expectedValues(values)
+	assert.Len(t, sink.Values, 2)
+	assert.Equal(t, expected, sink.Values)
+}
+
+func TestAbsWithSomeValues(t *testing.T) {
+	v := [][]float64{
+		{0, math.NaN(), 2, 3, 4},
+		{math.NaN(), 6, 7, 8, 9},
+	}
+
+	values, bounds := test.GenerateValuesAndBounds(v, nil)
+	block := test.NewBlockFromValues(bounds, values)
+	c, sink := test.NewControllerWithSink(parser.NodeID(1))
+	node := (&AbsOp{}).Node(c)
+	err := node.Process(parser.NodeID(0), block)
+	require.NoError(t, err)
+	expected := expectedValues(values)
+	assert.Len(t, sink.Values, 2)
+	test.EqualsWithNans(t, expected, sink.Values)
 }

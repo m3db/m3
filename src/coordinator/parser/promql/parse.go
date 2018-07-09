@@ -44,85 +44,135 @@ func Parse(q string) (parser.Parser, error) {
 }
 
 func (p *promParser) DAG() (parser.Nodes, parser.Edges, error) {
-	return walk(p.expr)
+	state := &parseState{}
+	err := state.walk(p.expr)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return state.transforms, state.edges, nil
 }
 
 func (p *promParser) String() string {
 	return p.expr.String()
 }
 
-func walk(node pql.Node) (parser.Nodes, parser.Edges, error) {
+type parseState struct {
+	transforms  parser.Nodes
+	edges  parser.Edges
+}
+
+func (p *parseState) lastTransformID() parser.NodeID {
+	if len(p.transforms) == 0 {
+		return parser.NodeID(-1)
+	}
+
+	return p.transforms[len(p.transforms)-1].ID
+}
+
+func (p *parseState) transformLen() int {
+	return len(p.transforms)
+}
+
+func (p *parseState) walk(node pql.Node) error {
 	if node == nil {
-		return nil, nil, nil
+		return nil
 	}
 
 	switch n := node.(type) {
 	case *pql.AggregateExpr:
-		transforms, edges, err := walk(n.Expr)
+		err := p.walk(n.Expr)
 		if err != nil {
-			return nil, nil, err
+			return err
 		}
 
 		op, err := NewOperator(n.Op)
 		if err != nil {
-			return nil, nil, err
+			return err
 		}
 
-		opTransform := parser.NewTransformFromOperation(op, len(transforms))
-		edges = append(edges, parser.Edge{
-			ParentID: transforms[len(transforms)-1].ID,
+		opTransform := parser.NewTransformFromOperation(op, p.transformLen())
+		p.edges = append(p.edges, parser.Edge{
+			ParentID: p.lastTransformID(),
 			ChildID:  opTransform.ID,
 		})
-		transforms = append(transforms, opTransform)
+		p.transforms = append(p.transforms, opTransform)
 		// TODO: handle labels, params
-		return transforms, edges, nil
+		return nil
 	case *pql.MatrixSelector:
 		operation, err := NewSelectorFromMatrix(n)
 		if err != nil {
-			return nil, nil, err
+			return err
 		}
 
-		return []parser.Node{parser.NewTransformFromOperation(operation, 0)}, nil, nil
+		p.transforms = append(p.transforms, parser.NewTransformFromOperation(operation, p.transformLen()))
+		return nil
 
 	case *pql.VectorSelector:
 		operation, err := NewSelectorFromVector(n)
 		if err != nil {
-			return nil, nil, err
+			return err
 		}
 
-		return []parser.Node{parser.NewTransformFromOperation(operation, 0)}, nil, nil
+		p.transforms = append(p.transforms, parser.NewTransformFromOperation(operation, p.transformLen()))
+		return nil
 
 	case *pql.Call:
 		op, err := NewFunctionExpr(n.Func.Name)
 		if err != nil {
-			return nil, nil, err
+			return err
 		}
 
 		expressions := n.Args
-		edges := make(parser.Edges, 0, 1)
-		transforms := make(parser.Nodes, 0, 1)
 		for _, expr := range expressions {
-			t, e, err := walk(expr)
+			err := p.walk(expr)
 			if err != nil {
-				return nil, nil, err
+				return err
 			}
-
-			transforms = append(transforms, t...)
-			edges = append(edges, e...)
 		}
 
-		opTransform := parser.NewTransformFromOperation(op, len(transforms))
-		edges = append(edges, parser.Edge{
-			ParentID: transforms[len(transforms)-1].ID,
+		opTransform := parser.NewTransformFromOperation(op, p.transformLen())
+		p.edges = append(p.edges, parser.Edge{
+			ParentID: p.lastTransformID(),
 			ChildID:  opTransform.ID,
 		})
-		transforms = append(transforms, opTransform)
-		return transforms, edges, nil
+		p.transforms = append(p.transforms, opTransform)
+		return nil
+
+	case *pql.BinaryExpr:
+		err := p.walk(n.LHS)
+		lhsID := p.lastTransformID()
+		if err != nil {
+			return err
+		}
+
+		err = p.walk(n.RHS)
+		if err != nil {
+			return err
+		}
+
+		rhsID := p.lastTransformID()
+		op, err := NewBinaryOperator(n, lhsID, rhsID)
+		if err != nil {
+			return err
+		}
+
+		opTransform := parser.NewTransformFromOperation(op, p.transformLen())
+		p.edges = append(p.edges, parser.Edge{
+			ParentID: lhsID,
+			ChildID:  opTransform.ID,
+		})
+		p.edges = append(p.edges, parser.Edge{
+			ParentID: rhsID,
+			ChildID:  opTransform.ID,
+		})
+		p.transforms = append(p.transforms, opTransform)
+		return nil
 
 	default:
-		return nil, nil, fmt.Errorf("promql.Walk: unhandled node type %T, %v", node, node)
+		return fmt.Errorf("promql.Walk: unhandled node type %T, %v", node, node)
 	}
 
 	// TODO: This should go away once all cases have been implemented
-	return nil, nil, errors.ErrNotImplemented
+	return errors.ErrNotImplemented
 }

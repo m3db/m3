@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3db/src/coordinator/functions"
+	"github.com/m3db/m3db/src/coordinator/functions/logical"
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/parser"
 	"github.com/m3db/m3db/src/coordinator/parser/common"
@@ -67,6 +68,17 @@ func NewOperator(opType promql.ItemType) (parser.Params, error) {
 	}
 }
 
+// NewBinaryOperator creates a new binary operator based on the type
+func NewBinaryOperator(expr *promql.BinaryExpr, lhs, rhs parser.NodeID) (parser.Params, error) {
+	switch getOpType(expr.Op) {
+	case logical.AndType:
+		return logical.NewAndOp(lhs, rhs, promMatchingToM3(expr.VectorMatching)), nil
+	default:
+		// TODO: handle other types
+		return nil, fmt.Errorf("operator not supported: %s", expr.Op)
+	}
+}
+
 // NewFunctionExpr creates a new function expr based on the type
 func NewFunctionExpr(name string) (parser.Params, error) {
 	switch name {
@@ -82,6 +94,8 @@ func getOpType(opType promql.ItemType) string {
 	switch opType {
 	case promql.ItemType(itemCount):
 		return functions.CountType
+	case promql.ItemType(itemLAND):
+		return logical.AndType
 	default:
 		return common.UnknownOpType
 	}
@@ -121,5 +135,29 @@ func promTypeToM3(labelType labels.MatchType) (models.MatchType, error) {
 
 	default:
 		return 0, fmt.Errorf("unknown match type %v", labelType)
+	}
+}
+
+func promVectorCardinalityToM3(card promql.VectorMatchCardinality) logical.VectorMatchCardinality {
+	switch card {
+	case promql.CardOneToOne:
+		return logical.CardOneToOne
+	case promql.CardManyToMany:
+		return logical.CardManyToMany
+	case promql.CardManyToOne:
+		return logical.CardManyToOne
+	case promql.CardOneToMany:
+		return logical.CardOneToMany
+	}
+
+	panic(fmt.Sprintf("unknown prom cardinality %d", card))
+}
+
+func promMatchingToM3(vectorMatching *promql.VectorMatching) *logical.VectorMatching {
+	return &logical.VectorMatching{
+		Card:           promVectorCardinalityToM3(vectorMatching.Card),
+		MatchingLabels: vectorMatching.MatchingLabels,
+		On:             vectorMatching.On,
+		Include:        vectorMatching.Include,
 	}
 }

@@ -24,13 +24,14 @@ import (
 	"testing"
 
 	"github.com/m3db/m3db/src/coordinator/functions"
+	"github.com/m3db/m3db/src/coordinator/functions/logical"
 	"github.com/m3db/m3db/src/coordinator/parser"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestDAG(t *testing.T) {
+func TestDAGWithCountOp(t *testing.T) {
 	q := "count(http_requests_total{method=\"GET\"} offset 5m) by (service)"
 	p, err := Parse(q)
 	require.NoError(t, err)
@@ -40,10 +41,17 @@ func TestDAG(t *testing.T) {
 	assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
 	assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
 	assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
+	assert.Equal(t, transforms[1].Op.OpType(), functions.CountType)
 	assert.Len(t, edges, 1)
 	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"), "fetch should be the parent")
 	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"), "aggregation should be the child")
 
+}
+
+func TestDAGWithEmptyExpression(t *testing.T) {
+	q := ""
+	_, err := Parse(q)
+	require.Error(t, err)
 }
 
 func TestDAGWithUnknownOp(t *testing.T) {
@@ -68,4 +76,24 @@ func TestDAGWithFunctionCall(t *testing.T) {
 	assert.Len(t, edges, 1)
 	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"), "fetch should be the parent")
 	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"), "function expr should be the child")
+}
+
+func TestDAGWithAndOp(t *testing.T) {
+	q := "up and up"
+	p, err := Parse(q)
+	require.NoError(t, err)
+	transforms, edges, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 3)
+	assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
+	assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
+	assert.Equal(t, transforms[1].Op.OpType(), functions.FetchType)
+	assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
+	assert.Equal(t, transforms[2].Op.OpType(), logical.AndType)
+	assert.Equal(t, transforms[2].ID, parser.NodeID("2"))
+	assert.Len(t, edges, 2)
+	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"), "fetch should be the parent")
+	assert.Equal(t, edges[0].ChildID, parser.NodeID("2"), "and op should be child")
+	assert.Equal(t, edges[1].ParentID, parser.NodeID("1"), "second fetch should be the parent")
+	assert.Equal(t, edges[1].ChildID, parser.NodeID("2"), "and op should be child")
 }

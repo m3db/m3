@@ -22,8 +22,19 @@ package models
 
 import (
 	"fmt"
+	"hash/fnv"
 	"regexp"
 	"sort"
+)
+
+const (
+	// MetricName is an internal name used to denote the name of the metric.
+	// TODO: Get these from the storage
+	MetricName = "__name__"
+
+	// Separators for tags
+	sep = byte(',')
+	eq  = byte('=')
 )
 
 // Tags is a key/value map of metric tags.
@@ -125,31 +136,81 @@ func (m Matchers) ToTags() (Tags, error) {
 	return tags, nil
 }
 
-var (
-	sep = []byte(",")
-	eq  = []byte("=")
-)
-
 // ID returns a string representation of the tags
 func (t Tags) ID() string {
-	length := 0
-	num := len(t)
-	keys := make([]string, 0, num)
-	for k, v := range t {
-		length += len(k) + len(v) + len(eq) + len(sep)
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	b := make([]byte, 0, length)
-	for i, k := range keys {
+	sortedKeys, bufLength := t.sortKeys()
+	b := make([]byte, 0, bufLength)
+	for _, k := range sortedKeys {
 		b = append(b, k...)
-		b = append(b, eq...)
+		b = append(b, eq)
 		b = append(b, t[k]...)
-		if i != num-1 {
-			b = append(b, sep...)
-		}
+		b = append(b, sep)
 	}
 
 	return string(b)
+}
+
+// IDWithExcludes returns a string representation of the tags excluding some tag keys
+func (t Tags) IDWithExcludes(excludeKeys ...string) uint64 {
+	sortedKeys, bufLength := t.sortKeys()
+	b := make([]byte, 0, bufLength)
+	for _, k := range sortedKeys {
+		// Always exclude the metric name by default
+		if k == MetricName {
+			continue
+		}
+
+		found := false
+		for _, n := range excludeKeys {
+			if n == k {
+				found = true
+				break
+			}
+		}
+
+		// Skip the key
+		if found {
+			continue
+		}
+
+		b = append(b, k...)
+		b = append(b, eq)
+		b = append(b, t[k]...)
+		b = append(b, sep)
+	}
+
+	h := fnv.New64a()
+	h.Write(b)
+	return h.Sum64()
+}
+
+// IDWithKeys returns a string representation of the tags only including the given keys
+func (t Tags) IDWithKeys(includeKeys ...string) uint64 {
+	b := make([]byte, 0, len(t))
+	for _, k := range includeKeys {
+		v, ok := t[k]
+		if !ok {
+			continue
+		}
+
+		b = append(b, k...)
+		b = append(b, eq)
+		b = append(b, v...)
+		b = append(b, sep)
+	}
+
+	h := fnv.New64a()
+	h.Write(b)
+	return h.Sum64()
+}
+
+func (t Tags) sortKeys() ([]string, int) {
+	length := 0
+	keys := make([]string, 0, len(t))
+	for k := range t {
+		length += len(k) + len(t[k]) + 2
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys, length
 }

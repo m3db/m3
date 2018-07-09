@@ -18,44 +18,44 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package native
+package test
 
 import (
-	"context"
-	"net/http"
-	"net/http/httptest"
+	"fmt"
+	"math"
 	"testing"
 
-	"github.com/m3db/m3db/src/coordinator/block"
-	"github.com/m3db/m3db/src/coordinator/executor"
-	"github.com/m3db/m3db/src/coordinator/storage/mock"
-	"github.com/m3db/m3db/src/coordinator/test"
-	"github.com/m3db/m3db/src/coordinator/util/logging"
-
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestPromRead(t *testing.T) {
-	logging.InitWithCores(nil)
+// EqualsWithNans helps compare float slices which have NaNs in them
+func EqualsWithNans(t *testing.T, expected interface{}, actual interface{}) {
+	debugMsg := fmt.Sprintf("expected: %v, actual: %v", expected, actual)
+	switch v := expected.(type) {
+	case [][]float64:
+		actualV, ok := actual.([][]float64)
+		require.True(t, ok, "actual should be of type [][]float64, found: %T", actual)
+		for i, vals := range v {
+			equalsWithNans(t, vals, actualV[i], debugMsg)
+		}
 
-	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	b := test.NewBlockFromValues(bounds, values)
-	mockStorage := mock.NewMockStorageWithBlocks([]block.Block{b})
+	case []float64:
+		actualV, ok := actual.([]float64)
+		require.True(t, ok, "actual should be of type []float64, found: %T", actual)
+		equalsWithNans(t, v, actualV, debugMsg)
 
-	promRead := &PromReadHandler{engine: executor.NewEngine(mockStorage)}
-	req, _ := http.NewRequest("GET", PromReadURL, nil)
-	req.URL.RawQuery = defaultParams().Encode()
+	default:
+		require.Fail(t, "unknown type: %T", v)
+	}
+}
 
-	r, parseErr := parseParams(req)
-	require.Nil(t, parseErr)
-	seriesList, err := promRead.read(context.TODO(), httptest.NewRecorder(), r)
-	require.NoError(t, err)
-	require.Len(t, seriesList, 2)
-	s := seriesList[0]
-
-	assert.Equal(t, 5, s.Values().Len())
-	for i := 0; i < s.Values().Len(); i++ {
-		assert.Equal(t, float64(i), s.Values().ValueAt(i))
+func equalsWithNans(t *testing.T, expected []float64, actual []float64, debugMsg string) {
+	require.Equal(t, len(expected), len(actual))
+	for i, v := range expected {
+		if math.IsNaN(v) {
+			require.True(t, math.IsNaN(actual[i]), debugMsg)
+		} else {
+			require.Equal(t, v, actual[i], debugMsg)
+		}
 	}
 }

@@ -18,44 +18,47 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package native
+package functions
 
 import (
-	"context"
-	"net/http"
-	"net/http/httptest"
+	"math"
 	"testing"
 
-	"github.com/m3db/m3db/src/coordinator/block"
-	"github.com/m3db/m3db/src/coordinator/executor"
-	"github.com/m3db/m3db/src/coordinator/storage/mock"
+	"github.com/m3db/m3db/src/coordinator/parser"
 	"github.com/m3db/m3db/src/coordinator/test"
-	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestPromRead(t *testing.T) {
-	logging.InitWithCores(nil)
-
+func TestCountWithAllValues(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	b := test.NewBlockFromValues(bounds, values)
-	mockStorage := mock.NewMockStorageWithBlocks([]block.Block{b})
-
-	promRead := &PromReadHandler{engine: executor.NewEngine(mockStorage)}
-	req, _ := http.NewRequest("GET", PromReadURL, nil)
-	req.URL.RawQuery = defaultParams().Encode()
-
-	r, parseErr := parseParams(req)
-	require.Nil(t, parseErr)
-	seriesList, err := promRead.read(context.TODO(), httptest.NewRecorder(), r)
+	block := test.NewBlockFromValues(bounds, values)
+	c, sink := test.NewControllerWithSink(parser.NodeID(1))
+	countNode := (&CountOp{}).Node(c)
+	err := countNode.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
-	require.Len(t, seriesList, 2)
-	s := seriesList[0]
-
-	assert.Equal(t, 5, s.Values().Len())
-	for i := 0; i < s.Values().Len(); i++ {
-		assert.Equal(t, float64(i), s.Values().ValueAt(i))
+	expected := make([]float64, len(values[0]))
+	for i := range expected {
+		expected[i] = 2
 	}
+	assert.Len(t, sink.Values, 1)
+	assert.Equal(t, expected, sink.Values[0])
+}
+
+func TestCountWithSomeValues(t *testing.T) {
+	v := [][]float64{
+		{0, math.NaN(), 2, 3, 4},
+		{math.NaN(), 6, 7, 8, 9},
+	}
+
+	values, bounds := test.GenerateValuesAndBounds(v, nil)
+	block := test.NewBlockFromValues(bounds, values)
+	c, sink := test.NewControllerWithSink(parser.NodeID(1))
+	countNode := (&CountOp{}).Node(c)
+	err := countNode.Process(parser.NodeID(0), block)
+	require.NoError(t, err)
+	expected := []float64{1, 1, 2, 2, 2}
+	assert.Len(t, sink.Values, 1)
+	assert.Equal(t, expected, sink.Values[0])
 }
