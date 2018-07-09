@@ -211,6 +211,52 @@ func TestReadUnorderedValues(t *testing.T) {
 		values, blockSize, res.ShardResults(), opts))
 }
 
+// TestReadHandlesDifferentSeriesWithIdenticalUniqueIndex was added as a regression test to make
+// sure that the commit log bootstrapper does not make any assumptions about series having a unique
+// unique index because that only holds for the duration that an M3DB node is on, but commit log
+// files can span multiple M3DB processes which means that unique indexes could be re-used for multiple
+// different series.
+func TestReadHandlesDifferentSeriesWithIdenticalUniqueIndex(t *testing.T) {
+	opts := testOptions()
+	md := testNsMetadata(t)
+	src := newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
+
+	blockSize := md.Options().RetentionOptions().BlockSize()
+	now := time.Now()
+	start := now.Truncate(blockSize).Add(-blockSize)
+	end := now
+
+	require.True(t, blockSize >= minCommitLogRetention)
+	ranges := xtime.Ranges{}
+	ranges = ranges.AddRange(xtime.Range{
+		Start: start,
+		End:   end,
+	})
+
+	// All series need to be in the same shard to exercise the regression.
+	foo := commitlog.Series{
+		Namespace: testNamespaceID, Shard: 0, ID: ident.StringID("foo"), UniqueIndex: 0}
+	bar := commitlog.Series{
+		Namespace: testNamespaceID, Shard: 0, ID: ident.StringID("bar"), UniqueIndex: 0}
+
+	values := []testValue{
+		{foo, start, 1.0, xtime.Second, nil},
+		{bar, start, 2.0, xtime.Second, nil},
+	}
+	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, error) {
+		return newTestCommitLogIterator(values, nil), nil
+	}
+
+	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
+	res, err := src.ReadData(md, targetRanges, testDefaultRunOpts)
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	require.Equal(t, 1, len(res.ShardResults()))
+	require.Equal(t, 0, len(res.Unfulfilled()))
+	require.NoError(t, verifyShardResultsAreCorrect(
+		values, blockSize, res.ShardResults(), opts))
+}
+
 func TestReadTrimsToRanges(t *testing.T) {
 	opts := testOptions()
 	md := testNsMetadata(t)
