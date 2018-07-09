@@ -52,6 +52,18 @@ type localStorage struct {
 	workerPool pool.ObjectPool
 }
 
+var (
+	iterAlloc encoding.ReaderIteratorAllocate
+
+	emptyBlock = block.Result{}
+)
+
+func init() {
+	iterAlloc = func(r io.Reader) encoding.ReaderIterator {
+		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
+	}
+}
+
 // NewStorage creates a new local Storage instance.
 func NewStorage(clusters Clusters, workerPool pool.ObjectPool) storage.Storage {
 	return &localStorage{clusters: clusters, workerPool: workerPool}
@@ -266,7 +278,7 @@ func (s *localStorage) fetchRaw(
 func (s *localStorage) FetchBlocks(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (block.Result, error) {
 	m3query, err := storage.FetchQueryToM3Query(query)
 	if err != nil {
-		return block.Result{}, err
+		return emptyBlock, err
 	}
 
 	opts := storage.FetchOptionsToM3Options(options, query)
@@ -274,36 +286,30 @@ func (s *localStorage) FetchBlocks(ctx context.Context, query *storage.FetchQuer
 	// todo(braskin): figure out what to do with second return argument
 	seriesIters, _, err := s.fetchRaw(m3query, opts)
 	if err != nil {
-		return block.Result{}, err
+		return emptyBlock, err
 	}
 
-	iterAlloc := func(r io.Reader) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
-	}
-	sliceOfSeriesBlocks, err := m3db.ConvertM3DBSeriesIterators(seriesIters, iterAlloc)
+	seriesBlockList, err := m3db.IteratorsToSeriesBlocks(seriesIters, iterAlloc)
 	if err != nil {
-		return block.Result{}, err
+		return emptyBlock, err
 	}
 
 	// NB/todo(braskin): because we are only support querying one namespace now, we can just create
 	// a multiNamespaceList with one element. However, once we support querying multiple namespaces,
 	// we will need to append each namespace sliceOfSeriesBlocks to the multiNamespaceList
-	multiNamespaceSeriesList := []m3db.MultiNamespaceSeries{sliceOfSeriesBlocks}
+	multiNamespaceSeriesList := []m3db.MultiNamespaceSeries{seriesBlockList}
 	multiSeriesBlocks, err := m3db.SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList, nil, query.Interval)
 	if err != nil {
-		return block.Result{}, err
+		return emptyBlock, err
 	}
 
-	var (
-		res block.Result
-
-		blocks = make([]block.Block, len(multiSeriesBlocks))
-	)
+	res := block.Result{
+		Blocks: make([]block.Block, len(multiSeriesBlocks)),
+	}
 
 	for i, block := range multiSeriesBlocks {
-		blocks[i] = block
+		res.Blocks[i] = block
 	}
-	res.Blocks = blocks
 
 	return res, nil
 }

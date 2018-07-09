@@ -21,10 +21,12 @@
 package m3db
 
 import (
+	"fmt"
 	"math"
 	"time"
 
 	"github.com/m3db/m3db/src/coordinator/block"
+	"github.com/m3db/m3db/src/dbnode/ts"
 )
 
 // Meta returns the metadata for the block
@@ -76,20 +78,23 @@ func newConsolidatedSeriesBlockIters(blocks ConsolidatedSeriesBlocks) consolidat
 	for i, seriesBlock := range blocks {
 		consolidatedNSBlockIters := make([]*consolidatedNSBlockIter, len(blocks[0].ConsolidatedNSBlocks))
 		for j, nsBlock := range seriesBlock.ConsolidatedNSBlocks {
-			nsBlockIter := &consolidatedNSBlockIter{
-				consolidatesNSBlockSeriesIters: nsBlock.SeriesIterators.Iters(),
-				bounds:      nsBlock.Bounds,
-				currentTime: nsBlock.Bounds.Start,
-			}
+			nsBlockIter := newConsolidatedNSBlockIter(nsBlock)
 			consolidatedNSBlockIters[j] = nsBlockIter
 		}
-		blockIter := &consolidatedSeriesBlockIter{
+		consolidatedSeriesBlockIters[i] = &consolidatedSeriesBlockIter{
 			consolidatedNSBlockIters: consolidatedNSBlockIters,
 		}
-		consolidatedSeriesBlockIters[i] = blockIter
 	}
 
 	return consolidatedSeriesBlockIters
+}
+
+func newConsolidatedNSBlockIter(nsBlock ConsolidatedNSBlock) *consolidatedNSBlockIter {
+	return &consolidatedNSBlockIter{
+		consolidatedNSBlockSeriesIters: nsBlock.SeriesIterators.Iters(),
+		bounds:    nsBlock.Bounds,
+		indexTime: nsBlock.Bounds.Start.Add(-1 * nsBlock.Bounds.StepSize),
+	}
 }
 
 func (m *multiSeriesBlockStepIter) Next() bool {
@@ -132,7 +137,7 @@ func (c *consolidatedSeriesBlockIter) Current() float64 {
 		values = append(values, dp)
 	}
 
-	// until we have consolidation
+	// todo(braskin): until we have consolidation
 	return values[0]
 }
 
@@ -145,48 +150,89 @@ func (c *consolidatedSeriesBlockIter) Next() bool {
 		if !nsBlock.Next() {
 			return false
 		}
-		c.index++
 	}
 
 	return true
 }
 
-func (c *consolidatedNSBlockIter) Next() bool {
-	if len(c.consolidatesNSBlockSeriesIters) == 0 {
+func (c *consolidatedNSBlockIter) BadNext() bool {
+	// lastDP, _, _ := c.consolidatedNSBlockSeriesIters[c.seriesIndex].Current()
+	lastDP := c.lastDP
+	// c.lastDP = ts.Datapoint{Value: math.NaN()}
+	c.indexTime = c.indexTime.Add(c.bounds.StepSize)
+
+	fmt.Println("index time: ", c.indexTime)
+
+	if c.indexTime.After(c.bounds.End) {
 		return false
 	}
 
-	c.currentTime = c.currentTime.Add(c.bounds.StepSize)
-	return !c.currentTime.After(c.bounds.End)
+	for c.indexTime.After(lastDP.Timestamp) && c.next() {
+		lastDP, _, _ = c.consolidatedNSBlockSeriesIters[c.seriesIndex].Current()
+		// c.indexTime = c.indexTime.Add(c.bounds.StepSize)
+		c.lastDP = lastDP
+		// return true
+	}
+
+	if c.indexTime.After(lastDP.Timestamp) {
+		fmt.Println("AFTER")
+		// c.indexTime = c.indexTime.Add(c.bounds.StepSize)
+		c.lastDP = ts.Datapoint{Value: math.NaN(), Timestamp: c.indexTime}
+		// return true
+	}
+	c.indexTime = c.indexTime.Add(c.bounds.StepSize)
+
+	fmt.Println("last dp: ", lastDP)
+
+	return true
+}
+
+func (c *consolidatedNSBlockIter) Next() bool {
+	c.indexTime = c.indexTime.Add(c.bounds.StepSize)
+	fmt.Println("index time: ", c.indexTime)
+	lastDP := c.lastDP
+
+	if !c.indexTime.Before(c.bounds.End) {
+		return false
+	}
+
+	for c.indexTime.After(lastDP.Timestamp) && c.next() {
+		lastDP, _, _ = c.consolidatedNSBlockSeriesIters[c.seriesIndex].Current()
+		c.lastDP = lastDP
+	}
+	// if c.indexTime.Add(c.bounds.StepSize).Before(lastDP.Timestamp) {
+	// 	c.lastDP = ts.Datapoint{Value: math.NaN(), Timestamp: c.indexTime}
+	// }
+
+	return true
 }
 
 func (c *consolidatedNSBlockIter) next() bool {
 	// todo(braskin): check bounds as well
-	if len(c.consolidatesNSBlockSeriesIters) == 0 {
+	if len(c.consolidatedNSBlockSeriesIters) == 0 {
 		return false
 	}
 
-	for c.seriesIndex < len(c.consolidatesNSBlockSeriesIters) {
-		if c.consolidatesNSBlockSeriesIters[c.seriesIndex].Next() {
+	for c.seriesIndex < len(c.consolidatedNSBlockSeriesIters) {
+		if c.consolidatedNSBlockSeriesIters[c.seriesIndex].Next() {
 			return true
 		}
+		fmt.Println("seriesIndex: ", c.seriesIndex, "indexTime: ", c.indexTime, "bounds: ", c.bounds)
+		// curr, _, _ := c.consolidatedNSBlockSeriesIters[c.seriesIndex].Current()
+		// fmt.Println("current: ", curr)
 		c.seriesIndex++
 	}
-	c.lastVal = true
+	// c.lastVal = true
 
 	return false
 }
 
 func (c *consolidatedNSBlockIter) Current() float64 {
-	lastDP := c.lastDP
+	if !c.indexTime.After(c.lastDP.Timestamp) && c.indexTime.Add(c.bounds.StepSize).After(c.lastDP.Timestamp) {
 
-	for c.currentTime.After(lastDP.Timestamp) && c.next() {
-		lastDP, _, _ = c.consolidatesNSBlockSeriesIters[c.seriesIndex].Current()
-		c.lastDP = lastDP
-	}
-	if c.currentTime.Add(c.bounds.StepSize).Before(lastDP.Timestamp) || c.lastVal {
-		return math.NaN()
+		fmt.Println("last dp current: ", c.lastDP)
+		return c.lastDP.Value
 	}
 
-	return lastDP.Value
+	return math.NaN()
 }

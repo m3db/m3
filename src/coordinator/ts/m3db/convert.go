@@ -54,9 +54,9 @@ func (b blockReplicas) Less(i, j int) bool {
 	return b[i].start.Before(b[j].start)
 }
 
-// ConvertM3DBSeriesIterators converts m3db SeriesIterators to SeriesBlocks
+// IteratorsToSeriesBlocks converts m3db SeriesIterators to SeriesBlocks
 // which are used to construct Blocks for query processing.
-func ConvertM3DBSeriesIterators(iterators encoding.SeriesIterators, iterAlloc encoding.ReaderIteratorAllocate) ([]SeriesBlocks, error) {
+func IteratorsToSeriesBlocks(iterators encoding.SeriesIterators, iterAlloc encoding.ReaderIteratorAllocate) ([]SeriesBlocks, error) {
 	defer iterators.Close()
 	multiSeriesBlocks := make([]SeriesBlocks, iterators.Len())
 

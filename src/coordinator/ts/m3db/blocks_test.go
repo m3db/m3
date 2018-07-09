@@ -83,13 +83,13 @@ func newM3SeriesBlock(id string, ctrl *gomock.Controller, now time.Time, tags []
 	seriesIterTwo.EXPECT().Next().Return(true).Times(3)
 	seriesIterTwo.EXPECT().Next().Return(false)
 
-	seriesIterOne.EXPECT().Current().Return(ts.Datapoint{Timestamp: time.Now().Add(1 * time.Minute), Value: 1}, xtime.Millisecond, nil).Times(1)
-	seriesIterOne.EXPECT().Current().Return(ts.Datapoint{Timestamp: time.Now().Add(30 * time.Second), Value: 2}, xtime.Millisecond, nil).Times(1)
-	seriesIterOne.EXPECT().Current().Return(ts.Datapoint{Timestamp: time.Now().Add(5 * time.Minute), Value: 3}, xtime.Millisecond, nil).Times(1)
+	seriesIterOne.EXPECT().Current().Return(ts.Datapoint{Timestamp: now.Add(1 * time.Minute), Value: 1}, xtime.Millisecond, nil).Times(1)
+	seriesIterOne.EXPECT().Current().Return(ts.Datapoint{Timestamp: now.Add(90 * time.Second), Value: 2}, xtime.Millisecond, nil).Times(1)
+	seriesIterOne.EXPECT().Current().Return(ts.Datapoint{Timestamp: now.Add(5 * time.Minute), Value: 3}, xtime.Millisecond, nil).Times(1)
 
 	seriesIterTwo.EXPECT().Current().Return(ts.Datapoint{}, xtime.Millisecond, nil).Times(1)
-	seriesIterTwo.EXPECT().Current().Return(ts.Datapoint{Timestamp: time.Now().Add(17 * time.Minute), Value: 5}, xtime.Millisecond, nil).Times(1)
-	seriesIterTwo.EXPECT().Current().Return(ts.Datapoint{Timestamp: time.Now().Add(19 * time.Minute), Value: 6}, xtime.Millisecond, nil).Times(1)
+	seriesIterTwo.EXPECT().Current().Return(ts.Datapoint{Timestamp: now.Add(17 * time.Minute), Value: 5}, xtime.Millisecond, nil).Times(1)
+	seriesIterTwo.EXPECT().Current().Return(ts.Datapoint{Timestamp: now.Add(19 * time.Minute), Value: 6}, xtime.Millisecond, nil).Times(1)
 
 	sOne := SeriesBlock{
 		start:          now,

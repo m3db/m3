@@ -21,11 +21,13 @@
 package m3db
 
 import (
+	"fmt"
 	"math"
 	"testing"
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -62,25 +64,26 @@ func TestStepIteration(t *testing.T) {
 	tags := []map[string]string{{"foo": "bar"}, {"biz": "baz"}}
 	for i, tag := range tags {
 		for k, v := range tag {
-			require.Equal(t, v, seriesMeta[i].Tags[k])
+			assert.Equal(t, v, seriesMeta[i].Tags[k])
 		}
 	}
 
 	for _, seriesBlock := range m3CoordBlocks {
 		stepIter := seriesBlock.StepIter()
 		for stepIter.Next() {
+			fmt.Println(stepIter.Current().Values())
 			actualResults = append(actualResults, stepIter.Current().Values())
 		}
 	}
 
-	require.Equal(t, len(expectedResults), len(actualResults))
+	assert.Equal(t, len(expectedResults), len(actualResults))
 
 	for i, expectedSlice := range expectedResults {
 		for j, exp := range expectedSlice {
 			if math.IsNaN(exp) {
-				require.True(t, math.IsNaN(actualResults[i][j]))
+				assert.True(t, math.IsNaN(actualResults[i][j]))
 			} else {
-				require.Equal(t, exp, actualResults[i][j])
+				assert.Equal(t, exp, actualResults[i][j])
 			}
 		}
 	}

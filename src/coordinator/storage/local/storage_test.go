@@ -229,9 +229,11 @@ func TestLocalFetchBlocks(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	store, session := setup(ctrl)
 
-	iter, err := test.BuildTestSeriesIterator()
+	iterOne, err := test.BuildTestSeriesIterator()
 	require.NoError(t, err)
-	iterators := encoding.NewSeriesIterators([]encoding.SeriesIterator{iter}, nil)
+	iterTwo, err := test.BuildTestSeriesIterator()
+	require.NoError(t, err)
+	iterators := encoding.NewSeriesIterators([]encoding.SeriesIterator{iterOne, iterTwo}, nil)
 
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(iterators, true, nil)
 	searchReq := newFetchReq()

@@ -22,6 +22,7 @@ package m3db
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3db/src/coordinator/block"
@@ -43,7 +44,7 @@ func SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList []MultiNamespaceSer
 		firstSeriesTags = make(map[string]string)
 	)
 
-	for multiNamespaceSeriesIdx, multiNamespaceSeries := range multiNamespaceSeriesList {
+	for seriesIdx, multiNamespaceSeries := range multiNamespaceSeriesList {
 		consolidatedSeriesBlocks, err := newConsolidatedSeriesBlocks(multiNamespaceSeries, seriesIteratorsPool, stepSize)
 		if err != nil {
 			return nil, err
@@ -51,9 +52,11 @@ func SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList []MultiNamespaceSer
 
 		// once we get the length of consolidatedSeriesBlocks, we can create a
 		// MultiSeriesBlocks list with the proper size
-		if multiNamespaceSeriesIdx == 0 {
+		if seriesIdx == 0 {
 			multiSeriesBlocks = make(MultiSeriesBlocks, len(consolidatedSeriesBlocks))
-			commonTags, err = storage.FromIdentTagIteratorToTags(consolidatedSeriesBlocks[0].ConsolidatedNSBlocks[0].SeriesIterators.Iters()[0].Tags())
+			commonTags, err = storage.FromIdentTagIteratorToTags(multiNamespaceSeries[0].Tags)
+			// commonTags, err = storage.FromIdentTagIteratorToTags(consolidatedSeriesBlocks[0].ConsolidatedNSBlocks[0].SeriesIterators.Iters()[0].Tags())
+			fmt.Println("tags: ", commonTags)
 			if err != nil {
 				return nil, err
 			}
@@ -61,7 +64,7 @@ func SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList []MultiNamespaceSer
 
 		for consolidatedSeriesBlockIdx, consolidatedSeriesBlock := range consolidatedSeriesBlocks {
 			// we only want to set the start and end times once
-			if multiNamespaceSeriesIdx == 0 {
+			if seriesIdx == 0 {
 				multiSeriesBlocks[consolidatedSeriesBlockIdx].Metadata.Bounds.StepSize = consolidatedSeriesBlock.Metadata.Bounds.StepSize
 				multiSeriesBlocks[consolidatedSeriesBlockIdx].Metadata.Bounds.Start = consolidatedSeriesBlock.Metadata.Bounds.Start
 				multiSeriesBlocks[consolidatedSeriesBlockIdx].Metadata.Bounds.End = consolidatedSeriesBlock.Metadata.Bounds.End
@@ -83,7 +86,7 @@ func SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList []MultiNamespaceSer
 				consolidatedSeriesBlock.Metadata.Tags = seriesTags
 			}
 
-			if !consolidatedSeriesBlock.beyondBounds(multiSeriesBlocks[consolidatedSeriesBlockIdx]) {
+			if !equalBounds(consolidatedSeriesBlock.Metadata.Bounds, multiSeriesBlocks[consolidatedSeriesBlockIdx].Metadata.Bounds) {
 				return nil, errBlocksMisaligned
 			}
 
@@ -123,7 +126,7 @@ func newConsolidatedSeriesBlocks(multiNamespaceSeries MultiNamespaceSeries, seri
 				consolidatedSeriesBlocks[consolidatedNSBlockIdx].Metadata.Bounds.End = consolidatedNSBlock.Bounds.End
 			}
 
-			if !consolidatedNSBlock.beyondBounds(consolidatedSeriesBlocks[consolidatedNSBlockIdx]) {
+			if !equalBounds(consolidatedNSBlock.Bounds, consolidatedSeriesBlocks[consolidatedNSBlockIdx].Metadata.Bounds) {
 				return nil, errBlocksMisaligned
 			}
 

@@ -62,18 +62,18 @@ type ConsolidatedNSBlock struct {
 	SeriesIterators encoding.SeriesIterators
 }
 
-func (c ConsolidatedNSBlock) beyondBounds(consolidatedSeriesBlock ConsolidatedSeriesBlock) bool {
-	if c.Bounds.Start != consolidatedSeriesBlock.Metadata.Bounds.Start || c.Bounds.End != consolidatedSeriesBlock.Metadata.Bounds.End {
-		return false
-	}
-	return true
-}
+// func (c ConsolidatedNSBlock) beyondBounds(consolidatedSeriesBlock ConsolidatedSeriesBlock) bool {
+// 	if c.Bounds.Start != consolidatedSeriesBlock.Metadata.Bounds.Start || c.Bounds.End != consolidatedSeriesBlock.Metadata.Bounds.End {
+// 		return false
+// 	}
+// 	return true
+// }
 
 type consolidatedNSBlockIter struct {
-	consolidatesNSBlockSeriesIters []encoding.SeriesIterator
+	consolidatedNSBlockSeriesIters []encoding.SeriesIterator
 	bounds                         block.Bounds
 	seriesIndex                    int
-	currentTime                    time.Time
+	indexTime                      time.Time
 	lastDP                         ts.Datapoint
 	lastVal                        bool
 }
@@ -88,8 +88,15 @@ type ConsolidatedSeriesBlock struct {
 	consolidationFunc    ConsolidationFunc // nolint
 }
 
-func (c ConsolidatedSeriesBlock) beyondBounds(multiSeriesBlock MultiSeriesBlock) bool {
-	if c.Metadata.Bounds.Start != multiSeriesBlock.Metadata.Bounds.Start || c.Metadata.Bounds.End != multiSeriesBlock.Metadata.Bounds.End {
+// func (c ConsolidatedSeriesBlock) equalBounds(multiSeriesBlock MultiSeriesBlock) bool {
+// 	if c.Metadata.Bounds.Start != multiSeriesBlock.Metadata.Bounds.Start || c.Metadata.Bounds.End != multiSeriesBlock.Metadata.Bounds.End {
+// 		return false
+// 	}
+// 	return true
+// }
+
+func equalBounds(boundOne, boundTwo block.Bounds) bool {
+	if boundOne.Start != boundTwo.Start || boundOne.End != boundTwo.End {
 		return false
 	}
 	return true
@@ -97,10 +104,8 @@ func (c ConsolidatedSeriesBlock) beyondBounds(multiSeriesBlock MultiSeriesBlock)
 
 type consolidatedSeriesBlockIter struct {
 	consolidatedNSBlockIters consolidatedNSBlockIters
-	index                    int
 }
 
-// ConsolidatedSeriesBlockIters is a slice of ConsolidatedSeriesBlockIter
 type consolidatedSeriesBlockIters []*consolidatedSeriesBlockIter
 
 // ConsolidationFunc determines how to consolidate across namespaces
