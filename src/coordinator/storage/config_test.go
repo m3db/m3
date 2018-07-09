@@ -25,10 +25,9 @@ import (
 	"math"
 	"testing"
 
-	yaml "gopkg.in/yaml.v2"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v2"
 )
 
 func TestIsValidMetricsType(t *testing.T) {

@@ -247,7 +247,6 @@ func TestLocalSearchSuccess(t *testing.T) {
 		namespace string
 		tagName   string
 		tagValue  string
-		checked   bool
 	}
 
 	fetches := []testFetchTaggedID{

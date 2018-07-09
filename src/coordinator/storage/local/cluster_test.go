@@ -32,9 +32,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newTestClientFromConfig(t *testing.T, ctrl *gomock.Controller) (
+func newTestClientFromConfig(ctrl *gomock.Controller) (
 	newClientFromConfig,
-	*client.MockClient,
 	*client.MockSession,
 ) {
 	mockSession := client.NewMockSession(ctrl)
@@ -50,15 +49,15 @@ func newTestClientFromConfig(t *testing.T, ctrl *gomock.Controller) (
 		return mockClient, nil
 	}
 
-	return newClientFn, mockClient, mockSession
+	return newClientFn, mockSession
 }
 
 func TestNewClustersFromConfig(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	newClient1, _, mockSession1 := newTestClientFromConfig(t, ctrl)
-	newClient2, _, mockSession2 := newTestClientFromConfig(t, ctrl)
+	newClient1, mockSession1 := newTestClientFromConfig(ctrl)
+	newClient2, mockSession2 := newTestClientFromConfig(ctrl)
 	cfg := ClustersStaticConfiguration{
 		ClusterStaticConfiguration{
 			newClientFromConfig: newClient1,
