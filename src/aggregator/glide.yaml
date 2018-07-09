@@ -143,3 +143,6 @@ import:
 
 - package: golang.org/x/time
   version: a4bde12657593d5e90d0533a3e4fd95e635124cb
+
+- package: github.com/fortytw2/leaktest
+  version: ^1.2.0
