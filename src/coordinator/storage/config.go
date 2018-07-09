@@ -22,8 +22,8 @@ package storage
 
 import "fmt"
 
-// IsValidMetricsType validates a stored metrics type.
-func IsValidMetricsType(v MetricsType) error {
+// ValidateMetricsType validates a stored metrics type.
+func ValidateMetricsType(v MetricsType) error {
 	for _, valid := range validMetricsTypes {
 		if valid == v {
 			return nil

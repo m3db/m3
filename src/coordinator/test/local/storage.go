@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -33,6 +33,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	// TestNamespaceID is the namespace of the test unaggregated namespace
+	// used by local storage.
+	TestNamespaceID = "metrics"
+	// TestRetention is the retention of the test unaggregated namespace
+	// used by local storage.
+	TestRetention = 30 * 24 * time.Hour
+)
+
 // NewStorageAndSession generates a new local storage and mock session
 func NewStorageAndSession(
 	t *testing.T,
@@ -40,10 +49,10 @@ func NewStorageAndSession(
 ) (storage.Storage, *client.MockSession) {
 	session := client.NewMockSession(ctrl)
 	clusters, err := local.NewClusters(local.UnaggregatedClusterNamespaceDefinition{
-		NamespaceID: ident.StringID("metrics"),
+		NamespaceID: ident.StringID(TestNamespaceID),
 		Session:     session,
-		Retention:   30 * 24 * time.Hour,
-	}, nil)
+		Retention:   TestRetention,
+	})
 	require.NoError(t, err)
 	storage := local.NewStorage(clusters, nil)
 	return storage, session

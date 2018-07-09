@@ -21,35 +21,44 @@
 package local
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3db/src/coordinator/storage"
 	"github.com/m3db/m3db/src/dbnode/client"
+	"github.com/m3db/m3x/ident"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func newTestClientFromConfig(ctrl *gomock.Controller) (
-	newClientFromConfig,
-	*client.MockSession,
-) {
-	mockSession := client.NewMockSession(ctrl)
+func TestNewClustersWithDuplicateAggregatedClusterNamespace(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	mockClient := client.NewMockClient(ctrl)
-	mockClient.EXPECT().DefaultSession().Return(mockSession, nil).AnyTimes()
+	_, err := NewClusters(UnaggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("metrics_unagg"),
+		Session:     client.NewMockSession(ctrl),
+		Retention:   2 * 24 * time.Hour,
+	}, AggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("metrics_agg0"),
+		Session:     client.NewMockSession(ctrl),
+		Retention:   7 * 24 * time.Hour,
+		Resolution:  time.Minute,
+	}, AggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("metrics_agg1"),
+		Session:     client.NewMockSession(ctrl),
+		Retention:   7 * 24 * time.Hour,
+		Resolution:  time.Minute,
+	})
+	require.Error(t, err)
 
-	newClientFn := func(
-		cfg client.Configuration,
-		params client.ConfigurationParameters,
-		custom ...client.CustomOption,
-	) (client.Client, error) {
-		return mockClient, nil
-	}
-
-	return newClientFn, mockSession
+	str := err.Error()
+	assert.True(t, strings.Contains(str, "duplicate aggregated namespace"),
+		fmt.Sprintf("unexpected error: %s", err.Error()))
 }
 
 func TestNewClustersFromConfig(t *testing.T) {
@@ -91,7 +100,7 @@ func TestNewClustersFromConfig(t *testing.T) {
 	clusters, err := cfg.NewClusters()
 	require.NoError(t, err)
 
-	// Resolve clusters and check attributes
+	// Resolve expected clusters and check attributes
 	unaggregatedNs := clusters.UnaggregatedClusterNamespace()
 	assert.Equal(t, "unaggregated", unaggregatedNs.NamespaceID().String())
 	assert.Equal(t, storage.Attributes{
@@ -126,10 +135,37 @@ func TestNewClustersFromConfig(t *testing.T) {
 	}, aggregated1Year10Minute.Attributes())
 	assert.True(t, mockSession2 == aggregated1Year10Minute.Session())
 
+	// Ensure cannot resolve unexpected clusters
+	_, ok = clusters.AggregatedClusterNamespace(RetentionResolution{
+		Retention:  time.Hour,
+		Resolution: time.Minute,
+	})
+	require.False(t, ok)
+
 	// Close sessions at most once each
 	mockSession1.EXPECT().Close().Return(nil).Times(1)
 	mockSession2.EXPECT().Close().Return(nil).Times(1)
 
 	err = clusters.Close()
 	require.NoError(t, err)
+}
+
+func newTestClientFromConfig(ctrl *gomock.Controller) (
+	newClientFromConfig,
+	*client.MockSession,
+) {
+	mockSession := client.NewMockSession(ctrl)
+
+	mockClient := client.NewMockClient(ctrl)
+	mockClient.EXPECT().DefaultSession().Return(mockSession, nil).AnyTimes()
+
+	newClientFn := func(
+		_ client.Configuration,
+		_ client.ConfigurationParameters,
+		_ ...client.CustomOption,
+	) (client.Client, error) {
+		return mockClient, nil
+	}
+
+	return newClientFn, mockSession
 }

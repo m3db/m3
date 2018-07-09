@@ -30,9 +30,9 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
-func TestIsValidMetricsType(t *testing.T) {
-	assert.NoError(t, IsValidMetricsType(UnaggregatedMetricsType))
-	assert.Error(t, IsValidMetricsType(MetricsType(math.MaxUint64)))
+func TestValidateMetricsType(t *testing.T) {
+	assert.NoError(t, ValidateMetricsType(UnaggregatedMetricsType))
+	assert.Error(t, ValidateMetricsType(MetricsType(math.MaxUint64)))
 }
 
 func TestMetricsTypeUnmarshalYAML(t *testing.T) {

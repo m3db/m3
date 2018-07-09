@@ -22,6 +22,7 @@ package local
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"sync"
 	"time"
@@ -69,7 +70,7 @@ type ClusterNamespace interface {
 	Session() client.Session
 }
 
-// UnaggregatedClusterNamespaceDefinition is a definition for an
+// UnaggregatedClusterNamespaceDefinition is the definition for the
 // cluster namespace that holds unaggregated metrics data.
 type UnaggregatedClusterNamespaceDefinition struct {
 	NamespaceID ident.ID
@@ -91,7 +92,7 @@ func (def UnaggregatedClusterNamespaceDefinition) Validate() error {
 	return nil
 }
 
-// AggregatedClusterNamespaceDefinition is a definition for an
+// AggregatedClusterNamespaceDefinition is a definition for a
 // cluster namespace that holds aggregated metrics data at a
 // specific retention and resolution.
 type AggregatedClusterNamespaceDefinition struct {
@@ -101,7 +102,7 @@ type AggregatedClusterNamespaceDefinition struct {
 	Resolution  time.Duration
 }
 
-// Validate will validate the cluster namespace definition.
+// Validate validates the cluster namespace definition.
 func (def AggregatedClusterNamespaceDefinition) Validate() error {
 	if def.NamespaceID == nil || len(def.NamespaceID.String()) == 0 {
 		return errNamespaceIDNotSet
@@ -127,7 +128,7 @@ type clusters struct {
 // NewClusters instantiates a new Clusters instance.
 func NewClusters(
 	unaggregatedClusterNamespace UnaggregatedClusterNamespaceDefinition,
-	aggregatedClusterNamespaces []AggregatedClusterNamespaceDefinition,
+	aggregatedClusterNamespaces ...AggregatedClusterNamespaceDefinition,
 ) (Clusters, error) {
 	expectedAggregated := len(aggregatedClusterNamespaces)
 	expectedAll := 1 + expectedAggregated
@@ -142,7 +143,6 @@ func NewClusters(
 	}
 
 	namespaces = append(namespaces, unaggregatedNamespace)
-
 	for _, def := range aggregatedClusterNamespaces {
 		namespace, err := newAggregatedClusterNamespace(def)
 		if err != nil {
@@ -154,6 +154,14 @@ func NewClusters(
 			Retention:  namespace.Attributes().Retention,
 			Resolution: namespace.Attributes().Resolution,
 		}
+
+		_, exists := aggregatedNamespaces[key]
+		if exists {
+			return nil, fmt.Errorf("duplicate aggregated namespace exists for: "+
+				"retention=%s, resolution=%s",
+				key.Retention.String(), key.Resolution.String())
+		}
+
 		aggregatedNamespaces[key] = namespace
 	}
 
@@ -177,23 +185,6 @@ func (c *clusters) AggregatedClusterNamespace(
 ) (ClusterNamespace, bool) {
 	namespace, ok := c.aggregatedNamespaces[attrs]
 	return namespace, ok
-}
-
-type syncMultiErrs struct {
-	sync.Mutex
-	multiErr xerrors.MultiError
-}
-
-func (errs *syncMultiErrs) add(err error) {
-	errs.Lock()
-	errs.multiErr = errs.multiErr.Add(err)
-	errs.Unlock()
-}
-
-func (errs *syncMultiErrs) finalError() error {
-	errs.Lock()
-	defer errs.Unlock()
-	return errs.multiErr.FinalError()
 }
 
 func (c *clusters) Close() error {
@@ -282,4 +273,21 @@ func (n *clusterNamespace) Attributes() storage.Attributes {
 
 func (n *clusterNamespace) Session() client.Session {
 	return n.session
+}
+
+type syncMultiErrs struct {
+	sync.Mutex
+	multiErr xerrors.MultiError
+}
+
+func (errs *syncMultiErrs) add(err error) {
+	errs.Lock()
+	errs.multiErr = errs.multiErr.Add(err)
+	errs.Unlock()
+}
+
+func (errs *syncMultiErrs) finalError() error {
+	errs.Lock()
+	defer errs.Unlock()
+	return errs.multiErr.FinalError()
 }

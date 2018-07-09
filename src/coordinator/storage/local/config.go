@@ -30,6 +30,10 @@ import (
 	"github.com/m3db/m3x/ident"
 )
 
+var (
+	defaultNewClientConfigurationParams = client.ConfigurationParameters{}
+)
+
 // ClustersStaticConfiguration is a set of static cluster configurations.
 type ClustersStaticConfiguration []ClusterStaticConfiguration
 
@@ -93,7 +97,7 @@ func (c ClustersStaticConfiguration) NewClusters() (Clusters, error) {
 		aggregatedClusterNamespaces      []AggregatedClusterNamespaceDefinition
 	)
 	for _, clusterCfg := range c {
-		client, err := clusterCfg.newClient(client.ConfigurationParameters{})
+		client, err := clusterCfg.newClient(defaultNewClientConfigurationParams)
 		if err != nil {
 			return nil, err
 		}
@@ -186,5 +190,5 @@ func (c ClustersStaticConfiguration) NewClusters() (Clusters, error) {
 	}
 
 	return NewClusters(unaggregatedClusterNamespace,
-		aggregatedClusterNamespaces)
+		aggregatedClusterNamespaces...)
 }

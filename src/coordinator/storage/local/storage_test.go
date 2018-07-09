@@ -42,6 +42,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var testRetention = 30 * 24 * time.Hour
+
 type testSessions struct {
 	unaggregated1MonthRetention                *client.MockSession
 	aggregated1MonthRetention1MinuteResolution *client.MockSession
@@ -68,14 +70,12 @@ func setup(
 	clusters, err := NewClusters(UnaggregatedClusterNamespaceDefinition{
 		NamespaceID: ident.StringID("metrics_unaggregated"),
 		Session:     unaggregated1MonthRetention,
-		Retention:   30 * 24 * time.Hour,
-	}, []AggregatedClusterNamespaceDefinition{
-		AggregatedClusterNamespaceDefinition{
-			NamespaceID: ident.StringID("metrics_aggregated"),
-			Session:     aggregated1MonthRetention1MinuteResolution,
-			Retention:   30 * 24 * time.Hour,
-			Resolution:  time.Minute,
-		},
+		Retention:   testRetention,
+	}, AggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("metrics_aggregated"),
+		Session:     aggregated1MonthRetention1MinuteResolution,
+		Retention:   testRetention,
+		Resolution:  time.Minute,
 	})
 	require.NoError(t, err)
 	storage := NewStorage(clusters, nil)
@@ -223,6 +223,18 @@ func TestLocalRead(t *testing.T) {
 	assert.Equal(t, tags, results.SeriesList[0].Tags)
 }
 
+func TestLocalReadNoClustersForTimeRangeError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	store, _ := setup(t, ctrl)
+	searchReq := newFetchReq()
+	searchReq.Start = time.Now().Add(-2 * testRetention)
+	searchReq.End = time.Now()
+	_, err := store.Fetch(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
+	require.Error(t, err)
+	assert.Equal(t, errNoLocalClustersFulfillsQuery, err)
+}
+
 func TestLocalSearchError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -272,7 +284,7 @@ func TestLocalSearchSuccess(t *testing.T) {
 		case session == sessions.aggregated1MonthRetention1MinuteResolution:
 			f = fetches[1]
 		default:
-			panic("unexpected session")
+			require.FailNow(t, "unexpected session")
 		}
 		iter := client.NewMockTaggedIDsIterator(ctrl)
 		gomock.InOrder(

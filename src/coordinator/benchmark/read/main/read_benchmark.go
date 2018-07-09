@@ -138,7 +138,7 @@ func benchmarkM3DB(start, end time.Time) {
 	}
 
 	if len(cfg.Clusters) != 1 {
-		log.Fatal("invalid config, expected singler cluster definition")
+		log.Fatal("invalid config, expected single cluster definition")
 	}
 
 	m3dbClient, err := cfg.Clusters[0].Client.NewClient(client.ConfigurationParameters{}, func(v client.Options) client.Options {

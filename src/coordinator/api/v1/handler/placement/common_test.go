@@ -38,6 +38,7 @@ import (
 func TestPlacementService(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+
 	mockClient := client.NewMockClient(ctrl)
 	require.NotNil(t, mockClient)
 	mockServices := services.NewMockServices(ctrl)
@@ -64,6 +65,49 @@ func TestPlacementService(t *testing.T) {
 	placementService, err = Service(mockClient, http.Header{})
 	assert.Nil(t, placementService)
 	assert.EqualError(t, err, "dummy placement error")
+}
+
+func TestPlacementServiceWithClusterHeaders(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient := client.NewMockClient(ctrl)
+	require.NotNil(t, mockClient)
+	mockServices := services.NewMockServices(ctrl)
+	require.NotNil(t, mockServices)
+	mockPlacementService := placement.NewMockService(ctrl)
+	require.NotNil(t, mockPlacementService)
+
+	mockClient.EXPECT().Services(gomock.Not(nil)).Return(mockServices, nil)
+
+	var actual services.ServiceID
+	mockServices.EXPECT().PlacementService(gomock.Not(nil), gomock.Not(nil)).
+		DoAndReturn(func(
+			serviceID services.ServiceID,
+			opts placement.Options,
+		) (placement.Service, error) {
+			actual = serviceID
+			return mockPlacementService, nil
+		})
+
+	var (
+		serviceValue     = "foo_svc"
+		environmentValue = "bar_env"
+		zoneValue        = "baz_zone"
+		headers          = http.Header{}
+	)
+	headers.Add(HeaderClusterServiceName, serviceValue)
+	headers.Add(HeaderClusterEnvironmentName, environmentValue)
+	headers.Add(HeaderClusterZoneName, zoneValue)
+
+	placementService, err := Service(mockClient, headers)
+	assert.NoError(t, err)
+	assert.NotNil(t, placementService)
+
+	require.NotNil(t, actual)
+	assert.Equal(t, serviceValue, actual.Name())
+	assert.Equal(t, environmentValue, actual.Environment())
+	assert.Equal(t, zoneValue, actual.Zone())
 }
 
 func TestConvertInstancesProto(t *testing.T) {

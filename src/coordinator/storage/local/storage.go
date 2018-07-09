@@ -379,11 +379,11 @@ func (r *multiFetchResult) add(
 		id := s.Name()
 		existing, exists := r.dedupeMap[id]
 		if exists && existing.attrs.Resolution <= attrs.Resolution {
-			// Already exists and resolution is already more finer grained
+			// Already exists and resolution of result we are adding is not as precise
 			continue
 		}
 
-		// Does not exist already or more finer grained, add result
+		// Does not exist already or more precise, add result
 		var idx int
 		if !exists {
 			idx = len(r.result.SeriesList)

@@ -143,8 +143,8 @@ func Run(runOpts RunOptions) {
 			localCfg = defaultLocalConfiguration
 		}
 		dbClientCh := runOpts.DBClient
-		if localCfg == nil || dbClientCh == nil {
-			logger.Fatal("not running local embedded")
+		if dbClientCh == nil {
+			logger.Fatal("no clusters configured and not running local embedded cluster")
 		}
 		session := m3db.NewAsyncSession(func() (client.Client, error) {
 			return <-dbClientCh, nil
