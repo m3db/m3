@@ -61,6 +61,13 @@ const (
 	defaultWorkerPoolSize  = 20
 )
 
+var (
+	defaultLocalConfiguration = &config.LocalConfiguration{
+		Namespace: "default",
+		Retention: 2 * 24 * time.Hour,
+	}
+)
+
 // RunOptions provides options for running the server
 // with backwards compatibility if only solely adding fields.
 type RunOptions struct {
@@ -132,9 +139,12 @@ func Run(runOpts RunOptions) {
 		}
 	} else {
 		localCfg := cfg.Local
+		if localCfg == nil {
+			localCfg = defaultLocalConfiguration
+		}
 		dbClientCh := runOpts.DBClient
 		if localCfg == nil || dbClientCh == nil {
-			logger.Fatal("no local clusters specified and not running local embedded")
+			logger.Fatal("not running local embedded")
 		}
 		session := m3db.NewAsyncSession(func() (client.Client, error) {
 			return <-dbClientCh, nil
