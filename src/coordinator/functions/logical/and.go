@@ -30,7 +30,7 @@ import (
 
 const (
 	// AndType uses values from left hand side for which there is a value in right hand side with exactly matching label sets.
-	// Other elements are dropped. The metric name and values are carried over from the left-hand side.
+	// Other elements are replaced by NaNs. The metric name and values are carried over from the left-hand side.
 	AndType = "and"
 )
 

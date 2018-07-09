@@ -82,7 +82,7 @@ func (c *BaseNode) Process(ID parser.NodeID, b block.Block) error {
 		return nil
 	}
 
-	defer c.cleanup()
+	c.cleanup()
 	nextBlock, err := c.processor.Process(lhs, rhs)
 	if err != nil {
 		return err
@@ -92,7 +92,7 @@ func (c *BaseNode) Process(ID parser.NodeID, b block.Block) error {
 	return c.controller.Process(nextBlock)
 }
 
-// computeOrCache figures out if both lhs and rhs are available, if not then it caches the new block
+// computeOrCache figures out if both lhs and rhs are available, if not then it caches the incoming block
 func (c *BaseNode) computeOrCache(ID parser.NodeID, b block.Block) (block.Block, block.Block, error) {
 	var lhs, rhs block.Block
 	c.mu.Lock()
