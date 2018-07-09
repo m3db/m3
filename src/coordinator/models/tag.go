@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	// Well-known label names used by components.
+	// MetricName is an internal name used to denote the name of the metric.
 	// TODO: Get these from the storage
 	MetricName = "__name__"
 
