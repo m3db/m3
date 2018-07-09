@@ -330,7 +330,7 @@ func (s *commitLogSource) ReadData(
 	if err != nil {
 		return nil, err
 	}
-	s.log.Infof("Done merging..., took: %s", time.Now().Sub(mergeStart).String())
+	s.log.Infof("Done merging..., took: %s", time.Since(mergeStart).String())
 
 	return bootstrapResult, nil
 }

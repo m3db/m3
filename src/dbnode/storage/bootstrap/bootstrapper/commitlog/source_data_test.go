@@ -362,11 +362,6 @@ func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
 		expectedValues, blockSize, res.ShardResults(), opts))
 }
 
-type predCommitlogFile struct {
-	name  string
-	start time.Time
-}
-
 type testValue struct {
 	s commitlog.Series
 	t time.Time
