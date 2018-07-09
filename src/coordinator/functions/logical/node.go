@@ -22,6 +22,7 @@ package logical
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/executor/transform"
@@ -64,16 +65,42 @@ type BaseNode struct {
 	controller *transform.Controller
 	cache      *transform.BlockCache
 	processor  Processor
+	mu         sync.Mutex
 }
 
 // Process processes a block
 func (c *BaseNode) Process(ID parser.NodeID, b block.Block) error {
-	var lhs block.Block
-	var rhs block.Block
+	lhs, rhs, err := c.computeOrCache(ID, b)
+	if err != nil {
+		// Clean up any blocks from cache
+		c.cleanup()
+		return err
+	}
+
+	// Both blocks are not ready
+	if lhs == nil || rhs == nil {
+		return nil
+	}
+
+	defer c.cleanup()
+	nextBlock, err := c.processor.Process(lhs, rhs)
+	if err != nil {
+		return err
+	}
+
+	defer nextBlock.Close()
+	return c.controller.Process(nextBlock)
+}
+
+// computeOrCache figures out if both lhs and rhs are available, if not then it caches the new block
+func (c *BaseNode) computeOrCache(ID parser.NodeID, b block.Block) (block.Block, block.Block, error) {
+	var lhs, rhs block.Block
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.op.LNode == ID {
 		rBlock, ok := c.cache.Get(c.op.RNode)
 		if !ok {
-			return c.cache.Add(ID, b)
+			return lhs, rhs, c.cache.Add(ID, b)
 		}
 
 		rhs = rBlock
@@ -81,20 +108,19 @@ func (c *BaseNode) Process(ID parser.NodeID, b block.Block) error {
 	} else if c.op.RNode == ID {
 		lBlock, ok := c.cache.Get(c.op.LNode)
 		if !ok {
-			return c.cache.Add(ID, b)
+			return lhs, rhs, c.cache.Add(ID, b)
 		}
 
 		lhs = lBlock
 		rhs = b
 	}
 
-	nextBlock, err := c.processor.Process(lhs, rhs)
+	return lhs, rhs, nil
+}
+
+func (c *BaseNode) cleanup() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.cache.Remove(c.op.LNode)
 	c.cache.Remove(c.op.RNode)
-	if err != nil {
-		return err
-	}
-
-	defer nextBlock.Close()
-	return c.controller.Process(nextBlock)
 }

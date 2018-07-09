@@ -35,7 +35,6 @@ const (
 	// Separators for tags
 	sep = byte(',')
 	eq  = byte('=')
-
 )
 
 // Tags is a key/value map of metric tags.

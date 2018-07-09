@@ -29,7 +29,8 @@ import (
 )
 
 const (
-	// AndType uses values from lhs for which there is a value in rhs
+	// AndType uses values from left hand side for which there is a value in right hand side with exactly matching label sets.
+	// Other elements are dropped. The metric name and values are carried over from the left-hand side.
 	AndType = "and"
 )
 
@@ -93,7 +94,7 @@ func (c *AndNode) Process(lhs, rhs block.Block) (block.Block, error) {
 }
 
 // intersect returns the slice of rhs indices if there is a match with a corresponding lhs index. If no match is found, it returns -1
-func (c *AndNode) intersect(lhs []block.SeriesMeta, rhs []block.SeriesMeta, ) []int {
+func (c *AndNode) intersect(lhs, rhs []block.SeriesMeta, ) []int {
 	idFunction := hashFunc(c.op.Matching.On, c.op.Matching.MatchingLabels...)
 	// The set of signatures for the right-hand side.
 	rightSigs := make(map[uint64]int, len(rhs))

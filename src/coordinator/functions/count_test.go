@@ -42,7 +42,7 @@ func TestCountWithAllValues(t *testing.T) {
 	for i := range expected {
 		expected[i] = 2
 	}
-	assert.Len(t, sink.Values, 1 )
+	assert.Len(t, sink.Values, 1)
 	assert.Equal(t, expected, sink.Values[0])
 }
 
@@ -58,13 +58,7 @@ func TestCountWithSomeValues(t *testing.T) {
 	countNode := (&CountOp{}).Node(c)
 	err := countNode.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
-	expected := make([]float64, len(values[0]))
-	for i := range expected {
-		expected[i] = 2
-	}
-
-	expected[0] = 1
-	expected[1] = 1
-	assert.Len(t, sink.Values, 1 )
+	expected := []float64{1, 1, 2, 2, 2}
+	assert.Len(t, sink.Values, 1)
 	assert.Equal(t, expected, sink.Values[0])
 }
