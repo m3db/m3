@@ -18,42 +18,55 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package native
+package transform
 
 import (
-	"context"
-	"net/http"
-	"net/http/httptest"
-	"testing"
+	"sync"
 
 	"github.com/m3db/m3db/src/coordinator/block"
-	"github.com/m3db/m3db/src/coordinator/executor"
-	"github.com/m3db/m3db/src/coordinator/storage/mock"
-	"github.com/m3db/m3db/src/coordinator/test"
-	"github.com/m3db/m3db/src/coordinator/util/logging"
+	"github.com/m3db/m3db/src/coordinator/parser"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/pkg/errors"
 )
 
-func TestPromRead(t *testing.T) {
-	logging.InitWithCores(nil)
-	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	b := test.NewBlockFromValues(bounds, values)
-	mockStorage := mock.NewMockStorageWithBlocks([]block.Block{b})
+// BlockCache is used to cache blocks
+type BlockCache struct {
+	blocks map[parser.NodeID]block.Block
+	mu     sync.Mutex
+}
 
-	promRead := &PromReadHandler{engine: executor.NewEngine(mockStorage)}
-	req, _ := http.NewRequest("GET", PromReadURL, nil)
-	req.URL.RawQuery = defaultParams().Encode()
-
-	r, parseErr := parseParams(req)
-	require.Nil(t, parseErr)
-	seriesList, err := promRead.read(context.TODO(), httptest.NewRecorder(), r)
-	require.NoError(t, err)
-	require.Len(t, seriesList, 2)
-	s := seriesList[0]
-	assert.Equal(t, 5, s.Values().Len())
-	for i := 0; i < s.Values().Len(); i++ {
-		assert.Equal(t, float64(i), s.Values().ValueAt(i))
+// NewBlockCache creates a new BlockCache
+func NewBlockCache() *BlockCache {
+	return &BlockCache{
+		blocks: make(map[parser.NodeID]block.Block),
 	}
+}
+
+// Add the block to the cache, errors out if block already exists
+func (c *BlockCache) Add(key parser.NodeID, b block.Block) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	_, ok := c.blocks[key]
+	if ok {
+		return errors.New("block already exists")
+	}
+
+	c.blocks[key] = b
+	return nil
+}
+
+// Remove the block from the cache
+func (c *BlockCache) Remove(key parser.NodeID) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.blocks, key)
+}
+
+// Get the block from the cache
+// TODO: Evaluate only a single process getting a block at a time
+func (c *BlockCache) Get(key parser.NodeID) (block.Block, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	b, ok := c.blocks[key]
+	return b, ok
 }

@@ -18,42 +18,58 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package native
+package logical
 
 import (
-	"context"
-	"net/http"
-	"net/http/httptest"
+	"math"
 	"testing"
 
-	"github.com/m3db/m3db/src/coordinator/block"
-	"github.com/m3db/m3db/src/coordinator/executor"
-	"github.com/m3db/m3db/src/coordinator/storage/mock"
+	"github.com/m3db/m3db/src/coordinator/parser"
 	"github.com/m3db/m3db/src/coordinator/test"
-	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestPromRead(t *testing.T) {
-	logging.InitWithCores(nil)
+func TestAndWithExactValues(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	b := test.NewBlockFromValues(bounds, values)
-	mockStorage := mock.NewMockStorageWithBlocks([]block.Block{b})
+	block1 := test.NewBlockFromValues(bounds, values)
+	block2 := test.NewBlockFromValues(bounds, values)
 
-	promRead := &PromReadHandler{engine: executor.NewEngine(mockStorage)}
-	req, _ := http.NewRequest("GET", PromReadURL, nil)
-	req.URL.RawQuery = defaultParams().Encode()
+	op := NewAndOp(parser.NodeID(0), parser.NodeID(1), &VectorMatching{})
+	c, sink := test.NewControllerWithSink(parser.NodeID(2))
+	node := op.Node(c)
 
-	r, parseErr := parseParams(req)
-	require.Nil(t, parseErr)
-	seriesList, err := promRead.read(context.TODO(), httptest.NewRecorder(), r)
+	err := node.Process(parser.NodeID(1), block2)
 	require.NoError(t, err)
-	require.Len(t, seriesList, 2)
-	s := seriesList[0]
-	assert.Equal(t, 5, s.Values().Len())
-	for i := 0; i < s.Values().Len(); i++ {
-		assert.Equal(t, float64(i), s.Values().ValueAt(i))
+	err = node.Process(parser.NodeID(0), block1)
+	require.NoError(t, err)
+	assert.Equal(t, values, sink.Values)
+}
+
+func TestAndWithSomeValues(t *testing.T) {
+	values1, bounds1 := test.GenerateValuesAndBounds(nil, nil)
+	block1 := test.NewBlockFromValues(bounds1, values1)
+
+	v := [][]float64{
+		{0, math.NaN(), 2, 3, 4},
+		{math.NaN(), 6, 7, 8, 9},
 	}
+
+	values2, bounds2 := test.GenerateValuesAndBounds(v, nil)
+	block2 := test.NewBlockFromValues(bounds2, values2)
+
+	op := NewAndOp(parser.NodeID(0), parser.NodeID(1), &VectorMatching{})
+	c, sink := test.NewControllerWithSink(parser.NodeID(2))
+	node := op.Node(c)
+
+	err := node.Process(parser.NodeID(1), block2)
+	require.NoError(t, err)
+	err = node.Process(parser.NodeID(0), block1)
+	require.NoError(t, err)
+	// Most values same as lhs
+	expected := values1
+	expected[0][1] = math.NaN()
+	expected[1][0] = math.NaN()
+	test.EqualsWithNans(t, expected, sink.Values)
 }
