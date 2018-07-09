@@ -83,6 +83,8 @@ func generateTagIters(ctrl *gomock.Controller) *client.MockTaggedIDsIterator {
 	mockTaggedIDsIter.EXPECT().Next().Return(false)
 	mockTaggedIDsIter.EXPECT().Current().Return(ident.StringID(testNamespace),
 		ident.StringID(testID), seriesiter.GenerateSingleSampleTagIterator(ctrl, seriesiter.GenerateTag()))
+	mockTaggedIDsIter.EXPECT().Err().Return(nil)
+	mockTaggedIDsIter.EXPECT().Finalize()
 
 	return mockTaggedIDsIter
 }
@@ -94,9 +96,10 @@ func searchServer(t *testing.T) *SearchHandler {
 	mockTaggedIDsIter := generateTagIters(ctrl)
 
 	storage, session := local.NewStorageAndSession(t, ctrl)
-	session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(mockTaggedIDsIter, false, nil)
-	search := &SearchHandler{store: storage}
+	session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(mockTaggedIDsIter, false, nil)
 
+	search := &SearchHandler{store: storage}
 	return search
 }
 
