@@ -71,13 +71,29 @@ func (c *AbsNode) Process(ID parser.NodeID, b block.Block) error {
 
 	for index := 0; stepIter.Next(); index++ {
 		step := stepIter.Current()
-		values := step.Values()
+		values := c.process(step.Values())
 		for _, value := range values {
-			builder.AppendValue(index, math.Abs(value))
+			builder.AppendValue(index, value)
 		}
 	}
 
 	nextBlock := builder.Build()
 	defer nextBlock.Close()
 	return c.controller.Process(nextBlock)
+}
+
+func (c *AbsNode) ProcessStep(step block.Step) (block.Step, error) {
+	return block.NewColStep(step.Time(), c.process(step.Values())), nil
+}
+
+func (c *AbsNode) ProcessSeries(series block.Series) (block.Series, error) {
+	return block.NewSeries(c.process(series.Values()), series.Meta), nil
+}
+
+func (c *AbsNode) process(values []float64) []float64 {
+	for i := range values {
+		values[i] = math.Abs(values[i])
+	}
+
+	return values
 }
