@@ -153,7 +153,7 @@ func Run(runOpts RunOptions) {
 			NamespaceID: ident.StringID(localCfg.Namespace),
 			Session:     session,
 			Retention:   localCfg.Retention,
-		}, nil)
+		})
 		if err != nil {
 			logger.Fatal("unable to connect to clusters", zap.Any("error", err))
 		}
