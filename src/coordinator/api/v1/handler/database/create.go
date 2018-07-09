@@ -337,6 +337,7 @@ func defaultedPlacementInitRequest(
 				Zone:           zone,
 				Weight:         weight,
 				Endpoint:       fmt.Sprintf("%s:%d", host.Address, host.Port),
+				Hostname:       host.Address,
 				Port:           host.Port,
 			})
 		}
