@@ -5,11 +5,11 @@ set -xe
 rm -rf /tmp/m3dbdata/
 mkdir -p /tmp/m3dbdata/
 
-echo "Build M3DB docker image" 
+echo "Build M3DB docker image"
 
 docker-compose -f docker-compose.yml build
 
-echo "Run M3DB docker container" 
+echo "Run M3DB docker container"
 
 docker-compose -f docker-compose.yml up -d dbnode01
 
@@ -43,13 +43,13 @@ curl -vvvsSf -X POST localhost:7201/api/v1/namespace -d '{
   }
 }'
 
-echo "Sleep while namespace is init'd" 
+echo "Sleep while namespace is init'd"
 
 sleep 10 # TODO Replace sleeps with logic to determine when to proceed
 
 [ "$(curl -sSf localhost:7201/api/v1/namespace | jq .registry.namespaces.prometheus_metrics.indexOptions.enabled)" == true ]
 
-echo "Initialization placement" 
+echo "Initialization placement"
 
 curl -vvvsSf -X POST localhost:7201/api/v1/placement/init -d '{
     "num_shards": 64,
@@ -69,17 +69,17 @@ curl -vvvsSf -X POST localhost:7201/api/v1/placement/init -d '{
 
 [ "$(curl -sSf localhost:7201/api/v1/placement | jq .placement.instances.m3db_local.id)" == '"m3db_local"' ]
 
-echo "Wait for placement to fully initialize" 
+echo "Wait for placement to fully initialize"
 
 sleep 60 # TODO Replace sleeps with logic to determine when to proceed
 
-echo "Start Prometheus container" 
+echo "Start Prometheus container"
 
 docker-compose -f docker-compose.yml up -d prometheus01
 
 sleep 10
 
-echo "Write data" 
+echo "Write data"
 
 curl -vvvsSf -X POST localhost:9003/writetagged -d '{
   "namespace": "prometheus_metrics",
@@ -112,12 +112,12 @@ queryResult=$(curl -sSf -X POST localhost:9003/query -d '{
   },
   "rangeStart": 0,
   "rangeEnd":'"$(date +"%s")"'
-}' | jq '.results | length') 
+}' | jq '.results | length')
 
-if [ "$queryResult" -lt 1 ]; then 
-  echo "Result not found" 
+if [ "$queryResult" -lt 1 ]; then
+  echo "Result not found"
   exit 1
-else 
+else
   echo "Result found"
 fi
 
