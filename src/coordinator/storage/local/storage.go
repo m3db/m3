@@ -204,6 +204,10 @@ func (s *localStorage) fetchTags(
 
 		metrics = append(metrics, m)
 	}
+	if err := iter.Err(); err != nil {
+		return nil, err
+	}
+	iter.Finalize()
 
 	return &storage.SearchResults{
 		Metrics: metrics,
@@ -374,7 +378,7 @@ func (r *multiFetchResult) add(
 	for _, s := range result.SeriesList {
 		id := s.Name()
 		existing, exists := r.dedupeMap[id]
-		if exists && existing.attrs.Resolution < attrs.Resolution {
+		if exists && existing.attrs.Resolution <= attrs.Resolution {
 			// Already exists and resolution is already more finer grained
 			continue
 		}

@@ -224,9 +224,7 @@ func (c *clusters) Close() error {
 		go func() {
 			defer wg.Done()
 			err := session.Close()
-			if err != nil {
-				syncMultiErrs.add(err)
-			}
+			syncMultiErrs.add(err)
 		}()
 	}
 

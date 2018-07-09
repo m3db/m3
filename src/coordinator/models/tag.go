@@ -133,19 +133,22 @@ var (
 // ID returns a string representation of the tags
 func (t Tags) ID() string {
 	length := 0
-	keys := make([]string, 0, len(t))
-	for k := range t {
-		length += len(k) + len(t[k]) + len(eq) + len(sep)
+	num := len(t)
+	keys := make([]string, 0, num)
+	for k, v := range t {
+		length += len(k) + len(v) + len(eq) + len(sep)
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 
 	b := make([]byte, 0, length)
-	for _, k := range keys {
+	for i, k := range keys {
 		b = append(b, k...)
 		b = append(b, eq...)
 		b = append(b, t[k]...)
-		b = append(b, sep...)
+		if i != num-1 {
+			b = append(b, sep...)
+		}
 	}
 
 	return string(b)

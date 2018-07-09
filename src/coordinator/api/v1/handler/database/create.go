@@ -57,12 +57,45 @@ const (
 	blockSizeFromExpectedSeriesScalar = idealDatapointsPerBlock * int64(time.Hour)
 	shardMultiplier                   = 64
 
-	dbTypeLocal                 dbType = "local"
-	dbTypeCluster               dbType = "cluster"
-	defaultLocalRetentionPeriod        = 24 * time.Hour
-	minBlockSize                       = 30 * time.Minute
-	maxBlockSize                       = 2 * time.Hour
+	dbTypeLocal   dbType = "local"
+	dbTypeCluster dbType = "cluster"
+
+	defaultIsolationGroup = "local"
+	defaultZone           = "local"
+
+	defaultLocalRetentionPeriod = 24 * time.Hour
+
+	minRecommendCalculateBlockSize = 30 * time.Minute
+	maxRecommendCalculateBlockSize = 24 * time.Hour
 )
+
+type recommendedBlockSize struct {
+	forRetentionLessThanOrEqual time.Duration
+	blockSize                   time.Duration
+}
+
+var recommendedBlockSizesByRetentionAsc = []recommendedBlockSize{
+	{
+		forRetentionLessThanOrEqual: 12 * time.Hour,
+		blockSize:                   30 * time.Minute,
+	},
+	{
+		forRetentionLessThanOrEqual: 24 * time.Hour,
+		blockSize:                   time.Hour,
+	},
+	{
+		forRetentionLessThanOrEqual: 7 * 24 * time.Hour,
+		blockSize:                   2 * time.Hour,
+	},
+	{
+		forRetentionLessThanOrEqual: 30 * 24 * time.Hour,
+		blockSize:                   12 * time.Hour,
+	},
+	{
+		forRetentionLessThanOrEqual: 365 * 24 * time.Hour,
+		blockSize:                   24 * time.Hour,
+	},
+}
 
 var (
 	errMissingRequiredField    = errors.New("missing required field")
@@ -197,18 +230,23 @@ func defaultedNamespaceAddRequest(r *admin.DatabaseCreateRequest) (*admin.Namesp
 		retentionPeriod := retentionOpts.RetentionPeriod()
 		if r.ExpectedSeriesDatapointsPerHour > 0 {
 			blockSize := time.Duration(blockSizeFromExpectedSeriesScalar / r.ExpectedSeriesDatapointsPerHour)
-			if blockSize < minBlockSize {
-				blockSize = minBlockSize
-			} else if blockSize > maxBlockSize {
-				blockSize = maxBlockSize
+			if blockSize < minRecommendCalculateBlockSize {
+				blockSize = minRecommendCalculateBlockSize
+			} else if blockSize > maxRecommendCalculateBlockSize {
+				blockSize = maxRecommendCalculateBlockSize
 			}
 			retentionOpts = retentionOpts.SetBlockSize(blockSize)
-		} else if retentionPeriod <= 12*time.Hour {
-			retentionOpts = retentionOpts.SetBlockSize(30 * time.Minute)
-		} else if retentionPeriod <= 24*time.Hour {
-			retentionOpts = retentionOpts.SetBlockSize(1 * time.Hour)
 		} else {
-			retentionOpts = retentionOpts.SetBlockSize(2 * time.Hour)
+			// Use the maximum block size if we don't find a recommended one based on retention
+			max := recommendedBlockSizesByRetentionAsc[len(recommendedBlockSizesByRetentionAsc)-1]
+			blockSize := max.blockSize
+			for _, elem := range recommendedBlockSizesByRetentionAsc {
+				if retentionPeriod <= elem.forRetentionLessThanOrEqual {
+					blockSize = elem.blockSize
+					break
+				}
+			}
+			retentionOpts = retentionOpts.SetBlockSize(blockSize)
 		}
 
 		indexOpts := opts.IndexOptions().
@@ -280,12 +318,12 @@ func defaultedPlacementInitRequest(
 
 			isolationGroup := strings.TrimSpace(host.IsolationGroup)
 			if isolationGroup == "" {
-				isolationGroup = "local"
+				isolationGroup = defaultIsolationGroup
 			}
 
 			zone := strings.TrimSpace(host.Zone)
 			if zone == "" {
-				zone = "local"
+				zone = defaultZone
 			}
 
 			weight := host.Weight

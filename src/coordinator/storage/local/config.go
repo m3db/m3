@@ -33,15 +33,32 @@ import (
 // ClustersStaticConfiguration is a set of static cluster configurations.
 type ClustersStaticConfiguration []ClusterStaticConfiguration
 
+type newClientFromConfig func(
+	cfg client.Configuration,
+	params client.ConfigurationParameters,
+	custom ...client.CustomOption,
+) (client.Client, error)
+
 // ClusterStaticConfiguration is a static cluster configuration.
 type ClusterStaticConfiguration struct {
-	Client     client.Configuration                   `yaml:"client"`
-	Namespaces []ClusterStaticNamespacesConfiguration `yaml:"namespaces"`
+	newClientFromConfig newClientFromConfig
+	Client              client.Configuration                  `yaml:"client"`
+	Namespaces          []ClusterStaticNamespaceConfiguration `yaml:"namespaces"`
 }
 
-// ClusterStaticNamespacesConfiguration describes the namespaces in a
+func (c ClusterStaticConfiguration) newClient(
+	params client.ConfigurationParameters,
+	custom ...client.CustomOption,
+) (client.Client, error) {
+	if c.newClientFromConfig != nil {
+		return c.newClientFromConfig(c.Client, params, custom...)
+	}
+	return c.Client.NewClient(params, custom...)
+}
+
+// ClusterStaticNamespaceConfiguration describes the namespaces in a
 // static cluster.
-type ClusterStaticNamespacesConfiguration struct {
+type ClusterStaticNamespaceConfiguration struct {
 	Namespace          string              `yaml:"namespace"`
 	StorageMetricsType storage.MetricsType `yaml:"storageMetricsType"`
 	Retention          time.Duration       `yaml:"retention" validate:"nonzero"`
@@ -50,13 +67,13 @@ type ClusterStaticNamespacesConfiguration struct {
 
 type unaggregatedClusterNamespaceConfiguration struct {
 	client    client.Client
-	namespace ClusterStaticNamespacesConfiguration
+	namespace ClusterStaticNamespaceConfiguration
 	result    clusterConnectResult
 }
 
 type aggregatedClusterNamespacesConfiguration struct {
 	client     client.Client
-	namespaces []ClusterStaticNamespacesConfiguration
+	namespaces []ClusterStaticNamespaceConfiguration
 	result     clusterConnectResult
 }
 
@@ -75,8 +92,8 @@ func (c ClustersStaticConfiguration) NewClusters() (Clusters, error) {
 		unaggregatedClusterNamespace     UnaggregatedClusterNamespaceDefinition
 		aggregatedClusterNamespaces      []AggregatedClusterNamespaceDefinition
 	)
-	for _, cluster := range c {
-		client, err := cluster.Client.NewClient(client.ConfigurationParameters{})
+	for _, clusterCfg := range c {
+		client, err := clusterCfg.newClient(client.ConfigurationParameters{})
 		if err != nil {
 			return nil, err
 		}
@@ -85,7 +102,7 @@ func (c ClustersStaticConfiguration) NewClusters() (Clusters, error) {
 			client: client,
 		}
 
-		for _, n := range cluster.Namespaces {
+		for _, n := range clusterCfg.Namespaces {
 			switch n.StorageMetricsType {
 			case storage.UnaggregatedMetricsType:
 				numUnaggregatedClusterNamespaces++
