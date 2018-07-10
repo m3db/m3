@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package m3db
+package block
 
 import (
 	"time"
@@ -62,13 +62,6 @@ type ConsolidatedNSBlock struct {
 	SeriesIterators encoding.SeriesIterators
 }
 
-// func (c ConsolidatedNSBlock) beyondBounds(consolidatedSeriesBlock ConsolidatedSeriesBlock) bool {
-// 	if c.Bounds.Start != consolidatedSeriesBlock.Metadata.Bounds.Start || c.Bounds.End != consolidatedSeriesBlock.Metadata.Bounds.End {
-// 		return false
-// 	}
-// 	return true
-// }
-
 type consolidatedNSBlockIter struct {
 	consolidatedNSBlockSeriesIters []encoding.SeriesIterator
 	bounds                         block.Bounds
@@ -87,13 +80,6 @@ type ConsolidatedSeriesBlock struct {
 	ConsolidatedNSBlocks []ConsolidatedNSBlock
 	consolidationFunc    ConsolidationFunc // nolint
 }
-
-// func (c ConsolidatedSeriesBlock) equalBounds(multiSeriesBlock MultiSeriesBlock) bool {
-// 	if c.Metadata.Bounds.Start != multiSeriesBlock.Metadata.Bounds.Start || c.Metadata.Bounds.End != multiSeriesBlock.Metadata.Bounds.End {
-// 		return false
-// 	}
-// 	return true
-// }
 
 func equalBounds(boundOne, boundTwo block.Bounds) bool {
 	if boundOne.Start != boundTwo.Start || boundOne.End != boundTwo.End {

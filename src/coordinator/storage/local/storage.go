@@ -32,7 +32,7 @@ import (
 	"github.com/m3db/m3db/src/coordinator/errors"
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/storage"
-	"github.com/m3db/m3db/src/coordinator/ts/m3db"
+	m3block "github.com/m3db/m3db/src/coordinator/ts/m3db/block"
 	"github.com/m3db/m3db/src/coordinator/util/execution"
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/dbnode/encoding/m3tsz"
@@ -289,7 +289,7 @@ func (s *localStorage) FetchBlocks(ctx context.Context, query *storage.FetchQuer
 		return emptyBlock, err
 	}
 
-	seriesBlockList, err := m3db.IteratorsToSeriesBlocks(seriesIters, iterAlloc)
+	seriesBlockList, err := m3block.IteratorsToSeriesBlocks(seriesIters, iterAlloc)
 	if err != nil {
 		return emptyBlock, err
 	}
@@ -297,8 +297,8 @@ func (s *localStorage) FetchBlocks(ctx context.Context, query *storage.FetchQuer
 	// NB/todo(braskin): because we are only support querying one namespace now, we can just create
 	// a multiNamespaceList with one element. However, once we support querying multiple namespaces,
 	// we will need to append each namespace sliceOfSeriesBlocks to the multiNamespaceList
-	multiNamespaceSeriesList := []m3db.MultiNamespaceSeries{seriesBlockList}
-	multiSeriesBlocks, err := m3db.SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList, nil, query.Interval)
+	multiNamespaceSeriesList := []m3block.MultiNamespaceSeries{seriesBlockList}
+	multiSeriesBlocks, err := m3block.SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList, nil, query.Interval)
 	if err != nil {
 		return emptyBlock, err
 	}

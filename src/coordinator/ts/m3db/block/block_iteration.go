@@ -18,10 +18,9 @@
 // // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // // THE SOFTWARE.
 
-package m3db
+package block
 
 import (
-	"fmt"
 	"math"
 	"time"
 
@@ -156,12 +155,8 @@ func (c *consolidatedSeriesBlockIter) Next() bool {
 }
 
 func (c *consolidatedNSBlockIter) BadNext() bool {
-	// lastDP, _, _ := c.consolidatedNSBlockSeriesIters[c.seriesIndex].Current()
 	lastDP := c.lastDP
-	// c.lastDP = ts.Datapoint{Value: math.NaN()}
 	c.indexTime = c.indexTime.Add(c.bounds.StepSize)
-
-	fmt.Println("index time: ", c.indexTime)
 
 	if c.indexTime.After(c.bounds.End) {
 		return false
@@ -169,27 +164,19 @@ func (c *consolidatedNSBlockIter) BadNext() bool {
 
 	for c.indexTime.After(lastDP.Timestamp) && c.next() {
 		lastDP, _, _ = c.consolidatedNSBlockSeriesIters[c.seriesIndex].Current()
-		// c.indexTime = c.indexTime.Add(c.bounds.StepSize)
 		c.lastDP = lastDP
-		// return true
 	}
 
 	if c.indexTime.After(lastDP.Timestamp) {
-		fmt.Println("AFTER")
-		// c.indexTime = c.indexTime.Add(c.bounds.StepSize)
 		c.lastDP = ts.Datapoint{Value: math.NaN(), Timestamp: c.indexTime}
-		// return true
 	}
 	c.indexTime = c.indexTime.Add(c.bounds.StepSize)
-
-	fmt.Println("last dp: ", lastDP)
 
 	return true
 }
 
 func (c *consolidatedNSBlockIter) Next() bool {
 	c.indexTime = c.indexTime.Add(c.bounds.StepSize)
-	fmt.Println("index time: ", c.indexTime)
 	lastDP := c.lastDP
 
 	if !c.indexTime.Before(c.bounds.End) {
@@ -200,9 +187,6 @@ func (c *consolidatedNSBlockIter) Next() bool {
 		lastDP, _, _ = c.consolidatedNSBlockSeriesIters[c.seriesIndex].Current()
 		c.lastDP = lastDP
 	}
-	// if c.indexTime.Add(c.bounds.StepSize).Before(lastDP.Timestamp) {
-	// 	c.lastDP = ts.Datapoint{Value: math.NaN(), Timestamp: c.indexTime}
-	// }
 
 	return true
 }
@@ -217,20 +201,14 @@ func (c *consolidatedNSBlockIter) next() bool {
 		if c.consolidatedNSBlockSeriesIters[c.seriesIndex].Next() {
 			return true
 		}
-		fmt.Println("seriesIndex: ", c.seriesIndex, "indexTime: ", c.indexTime, "bounds: ", c.bounds)
-		// curr, _, _ := c.consolidatedNSBlockSeriesIters[c.seriesIndex].Current()
-		// fmt.Println("current: ", curr)
 		c.seriesIndex++
 	}
-	// c.lastVal = true
 
 	return false
 }
 
 func (c *consolidatedNSBlockIter) Current() float64 {
 	if !c.indexTime.After(c.lastDP.Timestamp) && c.indexTime.Add(c.bounds.StepSize).After(c.lastDP.Timestamp) {
-
-		fmt.Println("last dp current: ", c.lastDP)
 		return c.lastDP.Value
 	}
 

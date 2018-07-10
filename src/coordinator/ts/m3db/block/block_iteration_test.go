@@ -18,10 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package m3db
+package block
 
 import (
-	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -34,6 +33,7 @@ import (
 func makeResults() [][]float64 {
 	var results [][]float64
 	sliceOfNaNs := []float64{math.NaN(), math.NaN()}
+	results = append(results, sliceOfNaNs)
 	results = append(results, []float64{1, 1})
 	results = append(results, sliceOfNaNs, sliceOfNaNs, sliceOfNaNs)
 	results = append(results, []float64{3, 3})
@@ -43,7 +43,6 @@ func makeResults() [][]float64 {
 	results = append(results, []float64{5, 5})
 	results = append(results, sliceOfNaNs)
 	results = append(results, []float64{6, 6})
-	results = append(results, sliceOfNaNs)
 
 	return results
 }
@@ -71,7 +70,6 @@ func TestStepIteration(t *testing.T) {
 	for _, seriesBlock := range m3CoordBlocks {
 		stepIter := seriesBlock.StepIter()
 		for stepIter.Next() {
-			fmt.Println(stepIter.Current().Values())
 			actualResults = append(actualResults, stepIter.Current().Values())
 		}
 	}

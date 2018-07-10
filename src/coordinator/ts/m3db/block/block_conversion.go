@@ -18,11 +18,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package m3db
+package block
 
 import (
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/m3db/m3db/src/coordinator/block"
@@ -55,8 +54,6 @@ func SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList []MultiNamespaceSer
 		if seriesIdx == 0 {
 			multiSeriesBlocks = make(MultiSeriesBlocks, len(consolidatedSeriesBlocks))
 			commonTags, err = storage.FromIdentTagIteratorToTags(multiNamespaceSeries[0].Tags)
-			// commonTags, err = storage.FromIdentTagIteratorToTags(consolidatedSeriesBlocks[0].ConsolidatedNSBlocks[0].SeriesIterators.Iters()[0].Tags())
-			fmt.Println("tags: ", commonTags)
 			if err != nil {
 				return nil, err
 			}
