@@ -58,8 +58,8 @@ func (p *promParser) String() string {
 }
 
 type parseState struct {
-	transforms parser.Nodes
 	edges      parser.Edges
+	transforms parser.Nodes
 }
 
 func (p *parseState) lastTransformID() parser.NodeID {
