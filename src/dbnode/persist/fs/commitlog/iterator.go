@@ -182,7 +182,6 @@ func (i *iterator) nextReader() bool {
 	if i.reader == nil {
 		i.reader = newCommitLogReader(i.opts, i.seriesPred)
 	}
-	// reader := newCommitLogReader(i.opts, i.seriesPred)
 	start, duration, index, err := i.reader.Open(file)
 	if err != nil {
 		i.err = err
