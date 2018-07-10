@@ -113,7 +113,7 @@ type reader struct {
 	infoDecoderStream    msgpack.DecoderStream
 	outBuf               chan readResponse
 	doneCh               chan struct{}
-	decodersMeta         decodersMetadata
+	completedDecoders    decodersMetadata
 	decodersWg           *sync.WaitGroup
 	nextIndex            int64
 	bgWorkersInitialized bool
@@ -134,7 +134,7 @@ func newCommitLogReader(opts Options, seriesPredicate SeriesFilterPredicate) com
 		chunkReader:       newChunkReader(opts.FlushSize()),
 		infoDecoder:       msgpack.NewDecoder(decodingOpts),
 		infoDecoderStream: msgpack.NewDecoderStream(nil),
-		decodersMeta:      decodersMetadata{},
+		completedDecoders: decodersMetadata{},
 		decodersWg:        &sync.WaitGroup{},
 		nextIndex:         0,
 		seriesPredicate:   seriesPredicate,
@@ -376,15 +376,15 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg) {
 		r.handleDecoderLoopIterationEnd(arg, true, response, nil)
 	}
 
-	r.decodersMeta.Lock()
-	r.decodersMeta.numFinishedDecoders++
+	r.completedDecoders.Lock()
+	r.completedDecoders.numFinishedDecoders++
 	// Once all the decoder are done, we need to close the outBuf so that
 	// the final call to Read() won't block forever trying to read out of
 	// outBuf.
-	if r.decodersMeta.numFinishedDecoders >= r.numConc {
+	if r.completedDecoders.numFinishedDecoders >= r.numConc {
 		close(r.outBuf)
 	}
-	r.decodersMeta.Unlock()
+	r.completedDecoders.Unlock()
 	r.decodersWg.Done()
 }
 
@@ -506,7 +506,13 @@ func (r *reader) reset() {
 	r.infoDecoderStream.Reset(nil)
 	r.infoDecoder.Reset(nil)
 	r.infoDecoderStream.Reset(nil)
-	r.decodersMeta.numFinishedDecoders = 0
+
+	// Shouldn't need the lock here at all, but take it
+	// just to be safe.
+	r.completedDecoders.Lock()
+	r.completedDecoders.numFinishedDecoders = 0
+	r.completedDecoders.Unlock()
+
 	r.nextIndex = 0
 	r.doneCh = make(chan struct{})
 	r.outBuf = make(chan readResponse, decoderOutBufChanSize*r.opts.ReadConcurrency())
