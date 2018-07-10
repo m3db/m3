@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/src/coordinator/block"
-	"github.com/m3db/m3db/src/dbnode/ts"
 )
 
 // Meta returns the metadata for the block
@@ -150,27 +149,6 @@ func (c *consolidatedSeriesBlockIter) Next() bool {
 			return false
 		}
 	}
-
-	return true
-}
-
-func (c *consolidatedNSBlockIter) BadNext() bool {
-	lastDP := c.lastDP
-	c.indexTime = c.indexTime.Add(c.bounds.StepSize)
-
-	if c.indexTime.After(c.bounds.End) {
-		return false
-	}
-
-	for c.indexTime.After(lastDP.Timestamp) && c.next() {
-		lastDP, _, _ = c.consolidatedNSBlockSeriesIters[c.seriesIndex].Current()
-		c.lastDP = lastDP
-	}
-
-	if c.indexTime.After(lastDP.Timestamp) {
-		c.lastDP = ts.Datapoint{Value: math.NaN(), Timestamp: c.indexTime}
-	}
-	c.indexTime = c.indexTime.Add(c.bounds.StepSize)
 
 	return true
 }

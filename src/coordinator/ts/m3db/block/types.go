@@ -81,7 +81,7 @@ type ConsolidatedSeriesBlock struct {
 }
 
 func equalBounds(boundOne, boundTwo block.Bounds) bool {
-	if boundOne.Start != boundTwo.Start || boundOne.End != boundTwo.End {
+	if !boundOne.Start.Equal(boundTwo.Start) || !boundOne.End.Equal(boundTwo.End) {
 		return false
 	}
 	return true
