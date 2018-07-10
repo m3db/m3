@@ -47,7 +47,9 @@ var (
 
 	errCommitLogReaderChunkSizeChecksumMismatch = errors.New("commit log reader encountered chunk size checksum mismatch")
 	errCommitLogReaderMissingMetadata           = errors.New("commit log reader encountered a datapoint without corresponding metadata")
-	errCommitLogReadIsAlreadyClosed             = errors.New("commit log reader is already closed")
+	errCommitLogReaderIsAlreadyClosed           = errors.New("commit log reader is already closed")
+	errCommitLogReaderIsAlreadyOpen             = errors.New("commit log reader is already open")
+	errBackgroundWorkersAlreadyInitialized      = errors.New("commit log reader background workers already initialized")
 )
 
 // ReadAllSeriesPredicate can be passed as the seriesPredicate for callers
@@ -95,6 +97,11 @@ type decodersMetadata struct {
 }
 
 type reader struct {
+	// The commit log reader is not goroutine safe, but we use an embedded
+	// mutex to defensively protect the Open/Close methods against misuse.
+	// We don't protect the Read() method with the mutex because it would
+	// be too expensive.
+	sync.Mutex
 	opts                 Options
 	numConc              int64
 	checkedBytesPool     pool.CheckedBytesPool
@@ -106,7 +113,7 @@ type reader struct {
 	decodersMeta         decodersMetadata
 	wg                   *sync.WaitGroup
 	nextIndex            int64
-	bgWorkersInitialized int64
+	bgWorkersInitialized bool
 	seriesPredicate      SeriesFilterPredicate
 	isOpen               bool
 }
@@ -135,6 +142,12 @@ func newCommitLogReader(opts Options, seriesPredicate SeriesFilterPredicate) com
 }
 
 func (r *reader) Open(filePath string) (time.Time, time.Duration, int, error) {
+	r.Lock()
+	defer r.Unlock()
+	if r.isOpen {
+		return timeZero, 0, 0, errCommitLogReaderIsAlreadyOpen
+	}
+
 	r.reset()
 	fd, err := os.Open(filePath)
 	if err != nil {
@@ -180,6 +193,10 @@ func (r *reader) Read() (
 }
 
 func (r *reader) startBackgroundWorkers() error {
+	if r.bgWorkersInitialized {
+		return errBackgroundWorkersAlreadyInitialized
+	}
+
 	var (
 		numConc       = r.opts.ReadConcurrency()
 		decoderQueues = make([]chan decoderArg, 0, numConc)
@@ -210,7 +227,6 @@ func (r *reader) readLoop(decoderQueues []chan decoderArg) {
 		decoder         = msgpack.NewDecoder(decodingOpts)
 		decoderStream   = msgpack.NewDecoderStream(nil)
 		reusedBytes     = make([]byte, 0, r.opts.FlushSize())
-		chunkReader     = newChunkReader(r.opts.FlushSize())
 		numConc         = r.opts.ReadConcurrency()
 		decoderBufPools = make([]chan []byte, 0, numConc)
 	)
@@ -229,7 +245,7 @@ func (r *reader) readLoop(decoderQueues []chan decoderArg) {
 		case <-r.doneCh:
 			return
 		default:
-			data, err := r.readChunk(chunkReader, reusedBytes)
+			data, err := r.readChunk(reusedBytes)
 			if err != nil {
 				if err == io.EOF {
 					return
@@ -443,7 +459,7 @@ func (r *reader) decodeAndHandleMetadata(
 	return nil
 }
 
-func (r *reader) readChunk(chunkReader *chunkReader, buf []byte) ([]byte, error) {
+func (r *reader) readChunk(buf []byte) ([]byte, error) {
 	// Read size of message
 	size, err := binary.ReadUvarint(r.chunkReader)
 	if err != nil {
@@ -470,7 +486,7 @@ func (r *reader) readChunk(chunkReader *chunkReader, buf []byte) ([]byte, error)
 }
 
 func (r *reader) readInfo() (schema.LogInfo, error) {
-	data, err := r.readChunk(r.chunkReader, []byte{})
+	data, err := r.readChunk([]byte{})
 	if err != nil {
 		return emptyLogInfo, err
 	}
@@ -493,8 +509,11 @@ func (r *reader) reset() {
 }
 
 func (r *reader) Close() error {
+	r.Lock()
+	defer r.Unlock()
+
 	if !r.isOpen {
-		return errCommitLogReadIsAlreadyClosed
+		return errCommitLogReaderIsAlreadyClosed
 	}
 
 	// Shutdown the readLoop goroutine which will shut down the decoderLoops
