@@ -215,18 +215,23 @@ func (r *reader) readLoop() {
 		}
 	}()
 
-	decodingOpts := r.opts.FilesystemOptions().DecodingOptions()
-	decoder := msgpack.NewDecoder(decodingOpts)
-	decoderStream := msgpack.NewDecoderStream(nil)
-
-	reusedBytes := make([]byte, 0, r.opts.FlushSize())
+	var (
+		decodingOpts  = r.opts.FilesystemOptions().DecodingOptions()
+		decoder       = msgpack.NewDecoder(decodingOpts)
+		decoderStream = msgpack.NewDecoderStream(nil)
+		reusedBytes   = make([]byte, 0, r.opts.FlushSize())
+		// Instantiate a chunk reader per read-loop to prevent races
+		// when the reader is re-used where the chunk reader gets
+		// reset, but the read loop hasn't shutdown yet.
+		chunkReader = newChunkReader(r.opts.FlushSize())
+	)
 
 	for {
 		select {
 		case <-r.cancelCtx.Done():
 			return
 		default:
-			data, err := r.readChunk(reusedBytes)
+			data, err := r.readChunk(chunkReader, reusedBytes)
 			if err != nil {
 				if err == io.EOF {
 					return
@@ -439,7 +444,7 @@ func (r *reader) decodeAndHandleMetadata(
 	return nil
 }
 
-func (r *reader) readChunk(buf []byte) ([]byte, error) {
+func (r *reader) readChunk(chunkReader *chunkReader, buf []byte) ([]byte, error) {
 	// Read size of message
 	size, err := binary.ReadUvarint(r.chunkReader)
 	if err != nil {
@@ -466,7 +471,7 @@ func (r *reader) readChunk(buf []byte) ([]byte, error) {
 }
 
 func (r *reader) readInfo() (schema.LogInfo, error) {
-	data, err := r.readChunk([]byte{})
+	data, err := r.readChunk(r.chunkReader, []byte{})
 	if err != nil {
 		return emptyLogInfo, err
 	}
