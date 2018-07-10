@@ -58,8 +58,8 @@ func (p *promParser) String() string {
 }
 
 type parseState struct {
-	transforms  parser.Nodes
-	edges  parser.Edges
+	edges      parser.Edges
+	transforms parser.Nodes
 }
 
 func (p *parseState) lastTransformID() parser.NodeID {
@@ -118,17 +118,24 @@ func (p *parseState) walk(node pql.Node) error {
 		return nil
 
 	case *pql.Call:
-		op, err := NewFunctionExpr(n.Func.Name)
-		if err != nil {
-			return err
-		}
-
 		expressions := n.Args
+		argValues := make([]interface{}, 0, len(expressions))
 		for _, expr := range expressions {
+			switch e := expr.(type) {
+			case *pql.NumberLiteral:
+				argValues = append(argValues, e.Val)
+				continue
+			}
+
 			err := p.walk(expr)
 			if err != nil {
 				return err
 			}
+		}
+
+		op, err := NewFunctionExpr(n.Func.Name, argValues)
+		if err != nil {
+			return err
 		}
 
 		opTransform := parser.NewTransformFromOperation(op, p.transformLen())
