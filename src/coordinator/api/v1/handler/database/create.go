@@ -228,30 +228,49 @@ func defaultedNamespaceAddRequest(r *admin.DatabaseCreateRequest) (*admin.Namesp
 		}
 
 		retentionPeriod := retentionOpts.RetentionPeriod()
-		if r.ExpectedSeriesDatapointsPerHour > 0 {
-			blockSize := time.Duration(blockSizeFromExpectedSeriesScalar / r.ExpectedSeriesDatapointsPerHour)
+
+		var blockSize time.Duration
+		switch {
+		case r.BlockSize != nil && r.BlockSize.Nanos > 0:
+			blockSize = time.Duration(r.BlockSize.Nanos)
+		case r.BlockSize != nil && r.BlockSize.ExpectedSeriesDatapointsPerHour > 0:
+			value := r.BlockSize.ExpectedSeriesDatapointsPerHour
+			blockSize = time.Duration(blockSizeFromExpectedSeriesScalar / value)
+			// Snap to the nearest 5mins
+			blockSizeCeil := blockSize.Truncate(5*time.Minute) + 5*time.Minute
+			blockSizeFloor := blockSize.Truncate(5 * time.Minute)
+			if blockSizeFloor%time.Hour == 0 ||
+				blockSizeFloor%30*time.Minute == 0 ||
+				blockSizeFloor%15*time.Minute == 0 ||
+				blockSizeFloor%10*time.Minute == 0 {
+				// Try snap to hour or 30min or 15min or 10min boundary if possible
+				blockSize = blockSizeFloor
+			} else {
+				blockSize = blockSizeCeil
+			}
+
 			if blockSize < minRecommendCalculateBlockSize {
 				blockSize = minRecommendCalculateBlockSize
 			} else if blockSize > maxRecommendCalculateBlockSize {
 				blockSize = maxRecommendCalculateBlockSize
 			}
-			retentionOpts = retentionOpts.SetBlockSize(blockSize)
-		} else {
-			// Use the maximum block size if we don't find a recommended one based on retention
+		default:
+			// Use the maximum block size if we no fields set to recommend block size from
 			max := recommendedBlockSizesByRetentionAsc[len(recommendedBlockSizesByRetentionAsc)-1]
-			blockSize := max.blockSize
+			blockSize = max.blockSize
 			for _, elem := range recommendedBlockSizesByRetentionAsc {
 				if retentionPeriod <= elem.forRetentionLessThanOrEqual {
 					blockSize = elem.blockSize
 					break
 				}
 			}
-			retentionOpts = retentionOpts.SetBlockSize(blockSize)
 		}
+
+		retentionOpts = retentionOpts.SetBlockSize(blockSize)
 
 		indexOpts := opts.IndexOptions().
 			SetEnabled(true).
-			SetBlockSize(retentionOpts.BlockSize())
+			SetBlockSize(blockSize)
 
 		opts = opts.SetRetentionOptions(retentionOpts).
 			SetIndexOptions(indexOpts)

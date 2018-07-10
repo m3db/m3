@@ -16,10 +16,20 @@ message DatabaseCreateRequest {
 
   // The below two options are used to default retention options
   int64 retention_period_nanos = 5;
-  int64 expected_series_datapoints_per_hour = 6;
+
+  // If no block size fields are set then the block size is
+  // derived from the length of the retention period
+  BlockSize block_size = 6;
 
   // Required if not using local database type
   repeated Host hosts = 7;
+}
+
+message BlockSize {
+  // Explicit block size nanoseconds
+  int64 nanos = 1;
+  // With the expected series datapoints per hour, use a recommended block size
+  int64 expected_series_datapoints_per_hour = 2;
 }
 
 message Host {
