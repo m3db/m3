@@ -144,6 +144,7 @@ func newCommitLogReader(opts Options, seriesPredicate SeriesFilterPredicate) com
 func (r *reader) Open(filePath string) (time.Time, time.Duration, int, error) {
 	r.Lock()
 	defer r.Unlock()
+
 	if r.isOpen {
 		return timeZero, 0, 0, errCommitLogReaderIsAlreadyOpen
 	}
@@ -373,10 +374,9 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg) {
 
 	r.decodersMeta.Lock()
 	r.decodersMeta.numFinishedDecoders++
-	// If all of the decoders are either finished or blocked then we need to free
-	// any pending waiters. This also guarantees that the last decoderLoop to
-	// finish will free up any pending waiters (and by then any still-pending
-	// metadata is definitely missing from the commitlog)
+	// Once all the decoder are done, we need to close the outBuf so that
+	// the final call to Read() won't block forever trying to read out of
+	// outBuf.
 	if r.decodersMeta.numFinishedDecoders >= r.numConc {
 		close(r.outBuf)
 	}
