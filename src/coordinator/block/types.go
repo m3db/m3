@@ -92,13 +92,13 @@ type Iterator interface {
 // SeriesIter iterates through a block horizontally
 type SeriesIter interface {
 	Iterator
-	Current() Series
+	Current() (Series, error)
 }
 
 // StepIter iterates through a block vertically
 type StepIter interface {
 	Iterator
-	Current() Step
+	Current() (Step, error)
 }
 
 // Step is a single time step within a block

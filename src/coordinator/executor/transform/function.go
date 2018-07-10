@@ -18,6 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// Node -> Sum -> Sink
+// (Step, Series, Meta) -> Function -> (Step', Series', Meta')
+
 package transform
 
 import (
@@ -30,11 +33,19 @@ type FunctionOp struct {
 	params executor.TransformParams
 }
 
-type SinkNode struct {
+type sinkNode struct {
 	block block.Block
 }
 
-func (s *SinkNode) Process(ID parser.NodeID, block block.Block) error {
+type seriesNode interface {
+	ProcessSeries(series block.Series) (block.Series, error)
+}
+
+type stepNode interface {
+	ProcessStep(step block.Step) (block.Step, error)
+}
+
+func (s *sinkNode) Process(ID parser.NodeID, block block.Block) error {
 	s.block = block
 	return nil
 }
@@ -44,7 +55,7 @@ func (f *FunctionOp) Node(controller *Controller) OpNode {
 		ID: controller.ID,
 	}
 
-	sink := &SinkNode{}
+	sink := &sinkNode{}
 	c.AddTransform(sink)
 
 	return &FunctionNode{
@@ -57,7 +68,7 @@ func (f *FunctionOp) Node(controller *Controller) OpNode {
 type FunctionNode struct {
 	node       OpNode
 	controller *Controller
-	sink       *SinkNode
+	sink       *sinkNode
 }
 
 func (f *FunctionNode) Process(ID parser.NodeID, block block.Block) error {
@@ -68,6 +79,50 @@ func (f *FunctionNode) Process(ID parser.NodeID, block block.Block) error {
 	}
 
 	return f.controller.Process(b)
+}
+
+type stepIter struct {
+	node stepNode
+	iter block.StepIter
+}
+
+func (s *stepIter) Next() bool {
+	return s.iter.Next()
+}
+
+func (s *stepIter) Close() {
+	s.iter.Close()
+}
+
+func (s *stepIter) Current() (block.Step, error) {
+	bStep, err := s.iter.Current()
+	if err != nil {
+		return nil, err
+	}
+
+	return s.node.ProcessStep(bStep)
+}
+
+type seriesIter struct {
+	node seriesNode
+	iter block.SeriesIter
+}
+
+func (s *seriesIter) Close() {
+	s.iter.Close()
+}
+
+func (s *seriesIter) Current() (block.Series, error) {
+	bSeries, err := s.iter.Current()
+	if err != nil {
+		return block.Series{}, err
+	}
+
+	return s.node.ProcessSeries(bSeries)
+}
+
+func (s *seriesIter) Next() bool {
+	return s.iter.Next()
 }
 
 type FunctionBlock struct {
@@ -81,12 +136,46 @@ func (f *FunctionBlock) Meta() block.Metadata {
 	return f.processedBlock.Meta()
 }
 
-func (f *FunctionBlock) StepIter() block.StepIter {
-	return f.processedBlock.StepIter()
+func (f *FunctionBlock) StepIter() (block.StepIter, error) {
+	if f.processedBlock != nil {
+		return f.processedBlock.StepIter(), nil
+	}
+
+	node, ok := f.node.node.(stepNode)
+	if ok {
+		return &stepIter{
+			node: node,
+			iter: f.rawBlock.StepIter(),
+		}, nil
+	}
+
+	err := f.process()
+	if err != nil {
+		return nil, err
+	}
+
+	return f.processedBlock.StepIter(), nil
 }
 
-func (f *FunctionBlock) SeriesIter() block.SeriesIter {
-	return f.processedBlock.SeriesIter()
+func (f *FunctionBlock) SeriesIter() (block.SeriesIter, error) {
+	if f.processedBlock != nil {
+		return f.processedBlock.SeriesIter(), nil
+	}
+
+	node, ok := f.node.node.(seriesNode)
+	if ok {
+		return &stepIter{
+			node: node,
+			iter: f.rawBlock.StepIter(),
+		}, nil
+	}
+
+	err := f.process()
+	if err != nil {
+		return nil, err
+	}
+
+	return f.processedBlock.StepIter(), nil
 }
 
 func (f *FunctionBlock) SeriesMeta() []block.SeriesMeta {
@@ -105,7 +194,7 @@ func (f *FunctionBlock) Close() error {
 	return f.processedBlock.Close()
 }
 
-func (f *FunctionBlock) Prepare() error {
+func (f *FunctionBlock) process() error {
 	err := f.node.node.Process(f.ID, f.rawBlock)
 	if err != nil {
 		return err
