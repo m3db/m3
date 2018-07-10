@@ -22,7 +22,6 @@ package commitlog
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"time"
 
@@ -187,7 +186,6 @@ func (i *iterator) nextReader() bool {
 	if i.reader == nil {
 		i.reader = newCommitLogReader(i.opts, i.seriesPred)
 	}
-	fmt.Println("in iter: ", file)
 	start, duration, index, err := i.reader.Open(file)
 	if err != nil {
 		i.err = err
