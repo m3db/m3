@@ -178,6 +178,10 @@ func (s *commitLogSource) ReadData(
 		}
 	}
 
+	if err := iter.Err(); err != nil {
+		return nil, err
+	}
+
 	for _, encoderChan := range encoderChans {
 		close(encoderChan)
 	}

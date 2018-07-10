@@ -125,7 +125,7 @@ func TestCommitLogPropTest(t *testing.T) {
 	defer os.RemoveAll(basePath)
 
 	parameters := gopter.DefaultTestParameters()
-	parameters.MinSuccessfulTests = 8
+	parameters.MinSuccessfulTests = 2
 	properties := gopter.NewProperties(parameters)
 
 	comms := clCommandFunctor(basePath, t)
@@ -308,6 +308,7 @@ func (s *clState) writesArePresent(writes ...generatedWrite) error {
 		FileFilterPredicate:   ReadAllPredicate(),
 		SeriesFilterPredicate: ReadAllSeriesPredicate(),
 	}
+	fmt.Println("NEW ITERATOR")
 	iter, err := NewIterator(iterOpts)
 	if err != nil {
 		return err
@@ -316,6 +317,7 @@ func (s *clState) writesArePresent(writes ...generatedWrite) error {
 	defer iter.Close()
 	for iter.Next() {
 		series, datapoint, unit, annotation := iter.Current()
+		fmt.Println("in iter read: ", datapoint)
 		idString := series.ID.String()
 		seriesMap, ok := writesOnDisk[idString]
 		if !ok {
@@ -330,6 +332,7 @@ func (s *clState) writesArePresent(writes ...generatedWrite) error {
 		}
 	}
 	if err := iter.Err(); err != nil {
+		panic(err)
 		return err
 	}
 

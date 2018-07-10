@@ -22,6 +22,7 @@ package commitlog
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"time"
 
@@ -45,17 +46,18 @@ type iteratorMetrics struct {
 }
 
 type iterator struct {
-	opts       Options
-	scope      tally.Scope
-	metrics    iteratorMetrics
-	log        xlog.Logger
-	files      []string
-	reader     commitLogReader
-	read       iteratorRead
-	err        error
-	seriesPred SeriesFilterPredicate
-	setRead    bool
-	closed     bool
+	opts           Options
+	scope          tally.Scope
+	metrics        iteratorMetrics
+	log            xlog.Logger
+	files          []string
+	reader         commitLogReader
+	readerIsClosed bool
+	read           iteratorRead
+	err            error
+	seriesPred     SeriesFilterPredicate
+	setRead        bool
+	closed         bool
 }
 
 type iteratorRead struct {
@@ -89,8 +91,9 @@ func NewIterator(iterOpts IteratorOpts) (Iterator, error) {
 
 	scope := iops.MetricsScope()
 	return &iterator{
-		opts:  opts,
-		scope: scope,
+		opts:           opts,
+		scope:          scope,
+		readerIsClosed: true,
 		metrics: iteratorMetrics{
 			readsErrors: scope.Counter("reads.errors"),
 		},
@@ -104,11 +107,13 @@ func (i *iterator) Next() bool {
 	if i.hasError() || i.closed {
 		return false
 	}
-	if i.reader == nil {
+
+	if i.readerIsClosed {
 		if !i.nextReader() {
 			return false
 		}
 	}
+
 	var err error
 	i.read.series, i.read.datapoint, i.read.unit, i.read.annotation, err = i.reader.Read()
 	if err == io.EOF {
@@ -182,6 +187,7 @@ func (i *iterator) nextReader() bool {
 	if i.reader == nil {
 		i.reader = newCommitLogReader(i.opts, i.seriesPred)
 	}
+	fmt.Println("in iter: ", file)
 	start, duration, index, err := i.reader.Open(file)
 	if err != nil {
 		i.err = err
@@ -200,6 +206,7 @@ func (i *iterator) nextReader() bool {
 		return false
 	}
 
+	i.readerIsClosed = false
 	return true
 }
 
@@ -223,5 +230,10 @@ func (i *iterator) closeAndResetReader() error {
 	if i.reader == nil {
 		return nil
 	}
+	if i.readerIsClosed {
+		return nil
+	}
+
+	i.readerIsClosed = true
 	return i.reader.Close()
 }

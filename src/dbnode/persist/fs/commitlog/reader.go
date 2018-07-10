@@ -24,6 +24,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -106,11 +107,12 @@ type reader struct {
 	outChan              chan readResponse
 	cancelCtx            context.Context
 	cancelFunc           context.CancelFunc
-	shutdownCh           chan error
 	metadata             readerMetadata
+	wg                   *sync.WaitGroup
 	nextIndex            int64
 	bgWorkersInitialized int64
 	seriesPredicate      SeriesFilterPredicate
+	isOpen               bool
 }
 
 func newCommitLogReader(opts Options, seriesPredicate SeriesFilterPredicate) commitLogReader {
@@ -118,7 +120,7 @@ func newCommitLogReader(opts Options, seriesPredicate SeriesFilterPredicate) com
 	cancelCtx, cancelFunc := context.WithCancel(context.Background())
 
 	numConc := opts.ReadConcurrency()
-	outBuf := make(chan readResponse, decoderOutBufChanSize*numConc)
+	// outBuf := make(chan readResponse, decoderOutBufChanSize*numConc)
 
 	reader := &reader{
 		opts:              opts,
@@ -127,21 +129,21 @@ func newCommitLogReader(opts Options, seriesPredicate SeriesFilterPredicate) com
 		chunkReader:       newChunkReader(opts.FlushSize()),
 		infoDecoder:       msgpack.NewDecoder(decodingOpts),
 		infoDecoderStream: msgpack.NewDecoderStream(nil),
-		outChan:           outBuf,
-		cancelCtx:         cancelCtx,
-		cancelFunc:        cancelFunc,
-		shutdownCh:        make(chan error),
-		metadata:          readerMetadata{},
-		nextIndex:         0,
-		seriesPredicate:   seriesPredicate,
+		// outChan:           outBuf,
+		cancelCtx:       cancelCtx,
+		cancelFunc:      cancelFunc,
+		metadata:        readerMetadata{},
+		wg:              &sync.WaitGroup{},
+		nextIndex:       0,
+		seriesPredicate: seriesPredicate,
 	}
-
-	reader.startBackgroundWorkers()
 
 	return reader
 }
 
 func (r *reader) Open(filePath string) (time.Time, time.Duration, int, error) {
+	fmt.Println("opening: ", filePath)
+	r.reset()
 	fd, err := os.Open(filePath)
 	if err != nil {
 		return timeZero, 0, 0, err
@@ -156,6 +158,10 @@ func (r *reader) Open(filePath string) (time.Time, time.Duration, int, error) {
 	start := time.Unix(0, info.Start)
 	duration := time.Duration(info.Duration)
 	index := int(info.Index)
+
+	r.isOpen = true
+	r.outChan = make(chan readResponse, decoderOutBufChanSize*r.opts.ReadConcurrency())
+	r.startBackgroundWorkers()
 
 	return start, duration, index, nil
 }
@@ -175,9 +181,11 @@ func (r *reader) Read() (
 ) {
 	rr, ok := <-r.outChan
 	if !ok {
+		fmt.Println("no datapoiints")
 		return Series{}, ts.Datapoint{}, xtime.Unit(0), ts.Annotation(nil), io.EOF
 	}
 	r.nextIndex++
+	fmt.Println("Reading from commit log: ", rr.datapoint)
 	return rr.series, rr.datapoint, rr.unit, rr.annotation, rr.resultErr
 }
 
@@ -193,6 +201,7 @@ func (r *reader) startBackgroundWorkers() error {
 	go r.readLoop(decoderQueues)
 	for _, decoderQueue := range decoderQueues {
 		localDecoderQueue := decoderQueue
+		r.wg.Add(1)
 		go r.decoderLoop(localDecoderQueue, r.outChan)
 	}
 
@@ -358,6 +367,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		r.handleDecoderLoopIterationEnd(arg, outBuf, response, nil)
 	}
 
+	// r.wg.Wait()
 	r.metadata.Lock()
 	r.metadata.numBlockedOrFinishedDecoders++
 	// If all of the decoders are either finished or blocked then we need to free
@@ -368,6 +378,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		close(outBuf)
 	}
 	r.metadata.Unlock()
+	r.wg.Done()
 }
 
 func (r *reader) handleDecoderLoopIterationEnd(arg decoderArg, outBuf chan<- readResponse, response readResponse, err error) {
@@ -488,14 +499,19 @@ func (r *reader) reset() {
 	r.infoDecoderStream.Reset(nil)
 	r.infoDecoder.Reset(nil)
 	r.infoDecoderStream.Reset(nil)
+	r.metadata.numBlockedOrFinishedDecoders = 0
 	r.nextIndex = 0
+	r.cancelCtx, r.cancelFunc = context.WithCancel(context.Background())
 }
 
 func (r *reader) Close() error {
-	// Background goroutines were never started, safe to close immediately.
-	if r.nextIndex == 0 {
-		return r.close()
+	if !r.isOpen {
+		panic("wtf")
 	}
+	// Background goroutines were never started, safe to close immediately.
+	// if r.nextIndex == 0 {
+	// 	return r.close()
+	// }
 
 	// Shutdown the readLoop goroutine which will shut down the decoderLoops
 	// and close the fd
@@ -510,6 +526,7 @@ func (r *reader) Close() error {
 		}
 	}
 
+	r.wg.Wait()
 	return r.close()
 }
 
@@ -518,5 +535,7 @@ func (r *reader) close() error {
 		return nil
 	}
 
+	r.isOpen = false
+	fmt.Println("closing:")
 	return r.chunkReader.fd.Close()
 }
