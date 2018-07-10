@@ -68,7 +68,6 @@ type consolidatedNSBlockIter struct {
 	seriesIndex                    int
 	indexTime                      time.Time
 	lastDP                         ts.Datapoint
-	lastVal                        bool
 }
 
 type consolidatedNSBlockIters []*consolidatedNSBlockIter
