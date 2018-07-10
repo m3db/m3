@@ -49,11 +49,11 @@ func TestNoFinalize(t *testing.T) {
 		assert.True(t, v.Equal(StringID("abc")))
 	}
 	checkValid()
-	assert.False(t, v.noFinalize)
+	assert.False(t, v.IsNoFinalize())
 
 	v.NoFinalize()
 	checkValid()
-	assert.True(t, v.noFinalize)
+	assert.True(t, v.IsNoFinalize())
 
 	for i := 0; i < 2; i++ {
 		v.Finalize()

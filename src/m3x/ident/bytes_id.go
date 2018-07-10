@@ -50,6 +50,11 @@ func (v BytesID) Equal(value ID) bool {
 func (v BytesID) NoFinalize() {
 }
 
+// IsNoFinalize is always true since BytesID is not pooled.
+func (v BytesID) IsNoFinalize() bool {
+	return true
+}
+
 // Finalize is a no-op for a bytes ID as it has no associated pool.
 func (v BytesID) Finalize() {
 }
