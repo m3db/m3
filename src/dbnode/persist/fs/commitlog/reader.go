@@ -94,9 +94,10 @@ type decoderArg struct {
 	bufPool              chan []byte
 }
 
-type decodersMetadata struct {
+type completedDecoders struct {
 	sync.RWMutex
-	numFinishedDecoders int64
+	numCompletedDecoders int64
+	wg                   *sync.WaitGroup
 }
 
 type reader struct {
@@ -113,8 +114,7 @@ type reader struct {
 	infoDecoderStream    msgpack.DecoderStream
 	outBuf               chan readResponse
 	doneCh               chan struct{}
-	completedDecoders    decodersMetadata
-	decodersWg           *sync.WaitGroup
+	completedDecoders    completedDecoders
 	nextIndex            int64
 	bgWorkersInitialized bool
 	seriesPredicate      SeriesFilterPredicate
@@ -134,8 +134,7 @@ func newCommitLogReader(opts Options, seriesPredicate SeriesFilterPredicate) com
 		chunkReader:       newChunkReader(opts.FlushSize()),
 		infoDecoder:       msgpack.NewDecoder(decodingOpts),
 		infoDecoderStream: msgpack.NewDecoderStream(nil),
-		completedDecoders: decodersMetadata{},
-		decodersWg:        &sync.WaitGroup{},
+		completedDecoders: completedDecoders{wg: &sync.WaitGroup{}},
 		nextIndex:         0,
 		seriesPredicate:   seriesPredicate,
 	}
@@ -213,7 +212,7 @@ func (r *reader) startBackgroundWorkers() error {
 	go r.readLoop(decoderQueues)
 	for _, decoderQueue := range decoderQueues {
 		localDecoderQueue := decoderQueue
-		r.decodersWg.Add(1)
+		r.completedDecoders.wg.Add(1)
 		go r.decoderLoop(localDecoderQueue)
 	}
 
@@ -377,15 +376,15 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg) {
 	}
 
 	r.completedDecoders.Lock()
-	r.completedDecoders.numFinishedDecoders++
+	r.completedDecoders.numCompletedDecoders++
 	// Once all the decoder are done, we need to close the outBuf so that
 	// the final call to Read() won't block forever trying to read out of
 	// outBuf.
-	if r.completedDecoders.numFinishedDecoders >= r.numConc {
+	if r.completedDecoders.numCompletedDecoders >= r.numConc {
 		close(r.outBuf)
 	}
 	r.completedDecoders.Unlock()
-	r.decodersWg.Done()
+	r.completedDecoders.wg.Done()
 }
 
 func (r *reader) handleDecoderLoopIterationEnd(arg decoderArg, shouldSend bool, response readResponse, err error) {
@@ -510,7 +509,7 @@ func (r *reader) reset() {
 	// Shouldn't need the lock here at all, but take it
 	// just to be safe.
 	r.completedDecoders.Lock()
-	r.completedDecoders.numFinishedDecoders = 0
+	r.completedDecoders.numCompletedDecoders = 0
 	r.completedDecoders.Unlock()
 
 	r.nextIndex = 0
