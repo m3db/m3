@@ -63,6 +63,10 @@ func (v *id) NoFinalize() {
 	v.noFinalize = true
 }
 
+func (v *id) IsNoFinalize() bool {
+	return v.noFinalize
+}
+
 func (v *id) Finalize() {
 	if v.noFinalize {
 		return

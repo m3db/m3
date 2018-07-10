@@ -47,6 +47,10 @@ type ID interface {
 	// until garbage collected (i.e. longly lived).
 	NoFinalize()
 
+	// IsNoFinalize returns whether finalize is a no-op or not, this is useful
+	// when you know you can use an ID without having to worry to take a copy.
+	IsNoFinalize() bool
+
 	// Finalize releases all resources held by the ID, unless NoFinalize has
 	// been called previously in which case this is a no-op.
 	Finalize()
