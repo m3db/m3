@@ -114,7 +114,7 @@ type reader struct {
 	outBuf               chan readResponse
 	doneCh               chan struct{}
 	decodersMeta         decodersMetadata
-	wg                   *sync.WaitGroup
+	decodersWg           *sync.WaitGroup
 	nextIndex            int64
 	bgWorkersInitialized bool
 	seriesPredicate      SeriesFilterPredicate
@@ -135,7 +135,7 @@ func newCommitLogReader(opts Options, seriesPredicate SeriesFilterPredicate) com
 		infoDecoder:       msgpack.NewDecoder(decodingOpts),
 		infoDecoderStream: msgpack.NewDecoderStream(nil),
 		decodersMeta:      decodersMetadata{},
-		wg:                &sync.WaitGroup{},
+		decodersWg:        &sync.WaitGroup{},
 		nextIndex:         0,
 		seriesPredicate:   seriesPredicate,
 	}
@@ -213,7 +213,7 @@ func (r *reader) startBackgroundWorkers() error {
 	go r.readLoop(decoderQueues)
 	for _, decoderQueue := range decoderQueues {
 		localDecoderQueue := decoderQueue
-		r.wg.Add(1)
+		r.decodersWg.Add(1)
 		go r.decoderLoop(localDecoderQueue)
 	}
 
@@ -385,7 +385,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg) {
 		close(r.outBuf)
 	}
 	r.decodersMeta.Unlock()
-	r.wg.Done()
+	r.decodersWg.Done()
 }
 
 func (r *reader) handleDecoderLoopIterationEnd(arg decoderArg, shouldSend bool, response readResponse, err error) {
@@ -534,7 +534,7 @@ func (r *reader) Close() error {
 	}
 
 	// Wait for all the decoder loops to shutdown.
-	r.wg.Wait()
+	r.decodersWg.Wait()
 	return r.close()
 }
 
