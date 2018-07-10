@@ -23,6 +23,7 @@ package commitlog
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -34,6 +35,7 @@ import (
 	"github.com/m3db/m3db/src/dbnode/ts"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -49,7 +51,8 @@ var (
 	errCommitLogReaderMissingMetadata           = errors.New("commit log reader encountered a datapoint without corresponding metadata")
 	errCommitLogReaderIsAlreadyClosed           = errors.New("commit log reader is already closed")
 	errCommitLogReaderIsAlreadyOpen             = errors.New("commit log reader is already open")
-	errBackgroundWorkersAlreadyInitialized      = errors.New("commit log reader background workers already initialized")
+	errBackgroundWorkersAlreadyInitialized      = fmt.Errorf(
+		"%s commit log reader background workers already initialized", instrument.InvariantViolatedMetricName)
 )
 
 // ReadAllSeriesPredicate can be passed as the seriesPredicate for callers
