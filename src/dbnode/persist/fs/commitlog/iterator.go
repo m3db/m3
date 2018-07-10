@@ -179,8 +179,11 @@ func (i *iterator) nextReader() bool {
 		return false
 	}
 
-	reader := newCommitLogReader(i.opts, i.seriesPred)
-	start, duration, index, err := reader.Open(file)
+	if i.reader == nil {
+		i.reader = newCommitLogReader(i.opts, i.seriesPred)
+	}
+	// reader := newCommitLogReader(i.opts, i.seriesPred)
+	start, duration, index, err := i.reader.Open(file)
 	if err != nil {
 		i.err = err
 		return false
@@ -198,7 +201,6 @@ func (i *iterator) nextReader() bool {
 		return false
 	}
 
-	i.reader = reader
 	return true
 }
 
@@ -222,7 +224,5 @@ func (i *iterator) closeAndResetReader() error {
 	if i.reader == nil {
 		return nil
 	}
-	reader := i.reader
-	i.reader = nil
-	return reader.Close()
+	return i.reader.Close()
 }
