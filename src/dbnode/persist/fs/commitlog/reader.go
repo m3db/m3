@@ -21,10 +21,8 @@
 package commitlog
 
 import (
-	"context"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -48,9 +46,8 @@ var (
 	emptyLogInfo schema.LogInfo
 
 	errCommitLogReaderChunkSizeChecksumMismatch = errors.New("commit log reader encountered chunk size checksum mismatch")
-	errCommitLogReaderIsNotReusable             = errors.New("commit log reader is not reusable")
-	errCommitLogReaderMultipleReadloops         = errors.New("commit log reader tried to open multiple readLoops, do not call Read() concurrently")
 	errCommitLogReaderMissingMetadata           = errors.New("commit log reader encountered a datapoint without corresponding metadata")
+	errCommitLogReadIsAlreadyClosed             = errors.New("commit log reader is already closed")
 )
 
 // ReadAllSeriesPredicate can be passed as the seriesPredicate for callers
@@ -92,9 +89,9 @@ type decoderArg struct {
 	bufPool              chan []byte
 }
 
-type readerMetadata struct {
+type decodersMetadata struct {
 	sync.RWMutex
-	numBlockedOrFinishedDecoders int64
+	numFinishedDecoders int64
 }
 
 type reader struct {
@@ -104,10 +101,9 @@ type reader struct {
 	chunkReader          *chunkReader
 	infoDecoder          *msgpack.Decoder
 	infoDecoderStream    msgpack.DecoderStream
-	outChan              chan readResponse
-	cancelCtx            context.Context
-	cancelFunc           context.CancelFunc
-	metadata             readerMetadata
+	outBuf               chan readResponse
+	doneCh               chan struct{}
+	decodersMeta         decodersMetadata
 	wg                   *sync.WaitGroup
 	nextIndex            int64
 	bgWorkersInitialized int64
@@ -116,11 +112,10 @@ type reader struct {
 }
 
 func newCommitLogReader(opts Options, seriesPredicate SeriesFilterPredicate) commitLogReader {
-	decodingOpts := opts.FilesystemOptions().DecodingOptions()
-	cancelCtx, cancelFunc := context.WithCancel(context.Background())
-
-	numConc := opts.ReadConcurrency()
-	// outBuf := make(chan readResponse, decoderOutBufChanSize*numConc)
+	var (
+		decodingOpts = opts.FilesystemOptions().DecodingOptions()
+		numConc      = opts.ReadConcurrency()
+	)
 
 	reader := &reader{
 		opts:              opts,
@@ -129,20 +124,17 @@ func newCommitLogReader(opts Options, seriesPredicate SeriesFilterPredicate) com
 		chunkReader:       newChunkReader(opts.FlushSize()),
 		infoDecoder:       msgpack.NewDecoder(decodingOpts),
 		infoDecoderStream: msgpack.NewDecoderStream(nil),
-		// outChan:           outBuf,
-		cancelCtx:       cancelCtx,
-		cancelFunc:      cancelFunc,
-		metadata:        readerMetadata{},
-		wg:              &sync.WaitGroup{},
-		nextIndex:       0,
-		seriesPredicate: seriesPredicate,
+		decodersMeta:      decodersMetadata{},
+		wg:                &sync.WaitGroup{},
+		nextIndex:         0,
+		seriesPredicate:   seriesPredicate,
 	}
+	reader.reset()
 
 	return reader
 }
 
 func (r *reader) Open(filePath string) (time.Time, time.Duration, int, error) {
-	fmt.Println("opening: ", filePath)
 	r.reset()
 	fd, err := os.Open(filePath)
 	if err != nil {
@@ -160,9 +152,6 @@ func (r *reader) Open(filePath string) (time.Time, time.Duration, int, error) {
 	index := int(info.Index)
 
 	r.isOpen = true
-	r.outChan = make(chan readResponse, decoderOutBufChanSize*r.opts.ReadConcurrency())
-	r.startBackgroundWorkers()
-
 	return start, duration, index, nil
 }
 
@@ -179,13 +168,14 @@ func (r *reader) Read() (
 	annotation ts.Annotation,
 	resultErr error,
 ) {
-	rr, ok := <-r.outChan
+	if r.nextIndex == 0 {
+		r.startBackgroundWorkers()
+	}
+	rr, ok := <-r.outBuf
 	if !ok {
-		fmt.Println("no datapoiints")
 		return Series{}, ts.Datapoint{}, xtime.Unit(0), ts.Annotation(nil), io.EOF
 	}
 	r.nextIndex++
-	fmt.Println("Reading from commit log: ", rr.datapoint)
 	return rr.series, rr.datapoint, rr.unit, rr.annotation, rr.resultErr
 }
 
@@ -202,7 +192,7 @@ func (r *reader) startBackgroundWorkers() error {
 	for _, decoderQueue := range decoderQueues {
 		localDecoderQueue := decoderQueue
 		r.wg.Add(1)
-		go r.decoderLoop(localDecoderQueue, r.outChan)
+		go r.decoderLoop(localDecoderQueue)
 	}
 
 	return nil
@@ -216,12 +206,10 @@ func (r *reader) readLoop(decoderQueues []chan decoderArg) {
 	}()
 
 	var (
-		decodingOpts  = r.opts.FilesystemOptions().DecodingOptions()
-		decoder       = msgpack.NewDecoder(decodingOpts)
-		decoderStream = msgpack.NewDecoderStream(nil)
-		reusedBytes   = make([]byte, 0, r.opts.FlushSize())
-		// Create chunk reader and decoder bufs per read-loop to prevent races
-		// to make reader re-use easier (less resource sharing).
+		decodingOpts    = r.opts.FilesystemOptions().DecodingOptions()
+		decoder         = msgpack.NewDecoder(decodingOpts)
+		decoderStream   = msgpack.NewDecoderStream(nil)
+		reusedBytes     = make([]byte, 0, r.opts.FlushSize())
 		chunkReader     = newChunkReader(r.opts.FlushSize())
 		numConc         = r.opts.ReadConcurrency()
 		decoderBufPools = make([]chan []byte, 0, numConc)
@@ -238,7 +226,7 @@ func (r *reader) readLoop(decoderQueues []chan decoderArg) {
 
 	for {
 		select {
-		case <-r.cancelCtx.Done():
+		case <-r.doneCh:
 			return
 		default:
 			data, err := r.readChunk(chunkReader, reusedBytes)
@@ -290,7 +278,7 @@ func (r *reader) readLoop(decoderQueues []chan decoderArg) {
 	}
 }
 
-func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse) {
+func (r *reader) decoderLoop(inBuf <-chan decoderArg) {
 	var (
 		decodingOpts           = r.opts.FilesystemOptions().DecodingOptions()
 		decoder                = msgpack.NewDecoder(decodingOpts)
@@ -312,7 +300,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		response := readResponse{}
 		// If there is a pre-existing error, just pipe it through
 		if arg.err != nil {
-			r.handleDecoderLoopIterationEnd(arg, outBuf, response, arg.err)
+			r.handleDecoderLoopIterationEnd(arg, true, response, arg.err)
 			continue
 		}
 
@@ -321,7 +309,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		decoder.Reset(decoderStream)
 		entry, err := decoder.DecodeLogEntryRemaining(arg.decodeRemainingToken, arg.uniqueIndex)
 		if err != nil {
-			r.handleDecoderLoopIterationEnd(arg, outBuf, response, err)
+			r.handleDecoderLoopIterationEnd(arg, true, response, err)
 			continue
 		}
 
@@ -330,7 +318,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 			err := r.decodeAndHandleMetadata(metadataLookup, metadataDecoder, metadataDecoderStream,
 				tagDecoder, tagDecoderCheckedBytes, entry)
 			if err != nil {
-				r.handleDecoderLoopIterationEnd(arg, outBuf, response, err)
+				r.handleDecoderLoopIterationEnd(arg, true, response, err)
 				continue
 			}
 		}
@@ -342,14 +330,14 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 			// even though we are performing parallel decoding, the work is distributed to the workers
 			// based on the series unique index which means that all commit log entries for a given
 			// series are decoded in-order by a single decoder loop.
-			r.handleDecoderLoopIterationEnd(arg, outBuf, response, errCommitLogReaderMissingMetadata)
+			r.handleDecoderLoopIterationEnd(arg, true, response, errCommitLogReaderMissingMetadata)
 			continue
 		}
 
 		if !metadata.passedPredicate {
 			// Pass nil for outBuf because we don't want to send a readResponse along since this
 			// was just a series that the caller didn't want us to read.
-			r.handleDecoderLoopIterationEnd(arg, nil, readResponse{}, nil)
+			r.handleDecoderLoopIterationEnd(arg, false, readResponse{}, nil)
 			continue
 		}
 
@@ -364,28 +352,27 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		if len(entry.Annotation) > 0 {
 			response.annotation = append([]byte(nil), entry.Annotation...)
 		}
-		r.handleDecoderLoopIterationEnd(arg, outBuf, response, nil)
+		r.handleDecoderLoopIterationEnd(arg, true, response, nil)
 	}
 
-	// r.wg.Wait()
-	r.metadata.Lock()
-	r.metadata.numBlockedOrFinishedDecoders++
+	r.decodersMeta.Lock()
+	r.decodersMeta.numFinishedDecoders++
 	// If all of the decoders are either finished or blocked then we need to free
 	// any pending waiters. This also guarantees that the last decoderLoop to
 	// finish will free up any pending waiters (and by then any still-pending
 	// metadata is definitely missing from the commitlog)
-	if r.metadata.numBlockedOrFinishedDecoders >= r.numConc {
-		close(outBuf)
+	if r.decodersMeta.numFinishedDecoders >= r.numConc {
+		close(r.outBuf)
 	}
-	r.metadata.Unlock()
+	r.decodersMeta.Unlock()
 	r.wg.Done()
 }
 
-func (r *reader) handleDecoderLoopIterationEnd(arg decoderArg, outBuf chan<- readResponse, response readResponse, err error) {
+func (r *reader) handleDecoderLoopIterationEnd(arg decoderArg, shouldSend bool, response readResponse, err error) {
 	arg.bufPool <- arg.bytes
-	if outBuf != nil {
+	if shouldSend {
 		response.resultErr = err
-		outBuf <- response
+		r.outBuf <- response
 	}
 }
 
@@ -499,33 +486,31 @@ func (r *reader) reset() {
 	r.infoDecoderStream.Reset(nil)
 	r.infoDecoder.Reset(nil)
 	r.infoDecoderStream.Reset(nil)
-	r.metadata.numBlockedOrFinishedDecoders = 0
+	r.decodersMeta.numFinishedDecoders = 0
 	r.nextIndex = 0
-	r.cancelCtx, r.cancelFunc = context.WithCancel(context.Background())
+	r.doneCh = make(chan struct{})
+	r.outBuf = make(chan readResponse, decoderOutBufChanSize*r.opts.ReadConcurrency())
 }
 
 func (r *reader) Close() error {
 	if !r.isOpen {
-		panic("wtf")
+		return errCommitLogReadIsAlreadyClosed
 	}
-	// Background goroutines were never started, safe to close immediately.
-	// if r.nextIndex == 0 {
-	// 	return r.close()
-	// }
 
 	// Shutdown the readLoop goroutine which will shut down the decoderLoops
-	// and close the fd
-	r.cancelFunc()
+	close(r.doneCh)
+
 	// Drain any unread data from the outBuffers to free any decoderLoops curently
 	// in a blocking write
 	for {
-		_, ok := <-r.outChan
+		_, ok := <-r.outBuf
 		r.nextIndex++
 		if !ok {
 			break
 		}
 	}
 
+	// Wait for all the decoder loops to shutdown.
 	r.wg.Wait()
 	return r.close()
 }
@@ -536,6 +521,5 @@ func (r *reader) close() error {
 	}
 
 	r.isOpen = false
-	fmt.Println("closing:")
 	return r.chunkReader.fd.Close()
 }
