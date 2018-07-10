@@ -22,6 +22,7 @@ package commitlog
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -306,18 +307,7 @@ func assertCommitLogWritesByIterating(t *testing.T, l *commitLog, writes []testW
 	require.NoError(t, err)
 	defer iter.Close()
 
-	// Convert the writes to be in-order, but keyed by series ID because the
-	// commitlog reader only guarantees the same order on disk within a
-	// given series
-	writesBySeries := map[string]seriesTestWritesAndReadPosition{}
-	for _, write := range writes {
-		seriesWrites := writesBySeries[write.series.ID.String()]
-		if seriesWrites.writes == nil {
-			seriesWrites.writes = []testWrite{}
-		}
-		seriesWrites.writes = append(seriesWrites.writes, write)
-		writesBySeries[write.series.ID.String()] = seriesWrites
-	}
+	writesBySeries := writesBySeries(writes)
 
 	for iter.Next() {
 		series, datapoint, unit, annotation := iter.Current()
@@ -332,6 +322,43 @@ func assertCommitLogWritesByIterating(t *testing.T, l *commitLog, writes []testW
 	}
 
 	require.NoError(t, iter.Err())
+}
+
+func assertCommitLogWritesByReading(t *testing.T, writes []testWrite, reader commitLogReader) {
+	writesBySeries := writesBySeries(writes)
+	for i := 0; ; i++ {
+		series, dp, unit, annotation, err := reader.Read()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			require.NoError(t, err)
+		}
+
+		seriesWrites := writesBySeries[series.ID.String()]
+		write := seriesWrites.writes[seriesWrites.readPosition]
+
+		write.assert(t, series, dp, unit, annotation)
+
+		seriesWrites.readPosition++
+		writesBySeries[series.ID.String()] = seriesWrites
+	}
+}
+
+// Convert the writes to be in-order, but keyed by series ID because the
+// commitlog reader only guarantees the same order on disk within a
+// given series
+func writesBySeries(writes []testWrite) map[string]seriesTestWritesAndReadPosition {
+	writesBySeries := map[string]seriesTestWritesAndReadPosition{}
+	for _, write := range writes {
+		seriesWrites := writesBySeries[write.series.ID.String()]
+		if seriesWrites.writes == nil {
+			seriesWrites.writes = []testWrite{}
+		}
+		seriesWrites.writes = append(seriesWrites.writes, write)
+		writesBySeries[write.series.ID.String()] = seriesWrites
+	}
+	return writesBySeries
 }
 
 func setupCloseOnFail(t *testing.T, l *commitLog) *sync.WaitGroup {
@@ -435,7 +462,7 @@ func TestReadCommitLogMissingMetadata(t *testing.T) {
 	require.NoError(t, commitLog.Close())
 }
 
-func TestCommitLogReaderIsNotReusable(t *testing.T) {
+func TestCommitLogReaderIsReusable(t *testing.T) {
 	// Make sure we're not leaking goroutines
 	defer leaktest.CheckTimeout(t, time.Second)()
 
@@ -466,13 +493,14 @@ func TestCommitLogReaderIsNotReusable(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, len(files))
 
-	// Assert commitlog cannot be opened more than once
 	reader := newCommitLogReader(opts, ReadAllSeriesPredicate())
-	_, _, _, err = reader.Open(files[0])
-	require.NoError(t, err)
-	reader.Close()
-	_, _, _, err = reader.Open(files[0])
-	require.Equal(t, errCommitLogReaderIsNotReusable, err)
+
+	for i := 0; i < 100; i++ {
+		_, _, _, err = reader.Open(files[0])
+		require.NoError(t, err)
+		assertCommitLogWritesByReading(t, writes, reader)
+		reader.Close()
+	}
 }
 
 func TestCommitLogIteratorUsesPredicateFilter(t *testing.T) {

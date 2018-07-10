@@ -118,15 +118,6 @@ func newCommitLogReader(opts Options, seriesPredicate SeriesFilterPredicate) com
 	cancelCtx, cancelFunc := context.WithCancel(context.Background())
 
 	numConc := opts.ReadConcurrency()
-	decoderBufs := make([]chan []byte, 0, numConc)
-	for i := 0; i < numConc; i++ {
-		chanBufs := make(chan []byte, decoderInBufChanSize+1)
-		for i := 0; i < decoderInBufChanSize+1; i++ {
-			// Bufs will be resized as needed, so its ok if our default isn't big enough
-			chanBufs <- make([]byte, defaultDecodeEntryBufSize)
-		}
-		decoderBufs = append(decoderBufs, chanBufs)
-	}
 	outBuf := make(chan readResponse, decoderOutBufChanSize*numConc)
 
 	reader := &reader{
