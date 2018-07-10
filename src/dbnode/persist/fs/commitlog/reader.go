@@ -539,7 +539,7 @@ func (r *reader) Close() error {
 	}
 
 	// Wait for all the decoder loops to shutdown.
-	r.decodersWg.Wait()
+	r.completedDecoders.wg.Wait()
 	return r.close()
 }
 
