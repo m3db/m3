@@ -35,36 +35,38 @@ const ClampMinType = "clamp_min"
 // ClampMaxType ensures all values except NaNs are lesser than or equal to provided argument
 const ClampMaxType = "clamp_max"
 
+var emptyClamp = ClampOp{}
+
 // ClampOp stores required properties for clamp
 type ClampOp struct {
-	optype string
+	opType string
 	scalar float64
 }
 
 // NewClampOp creates a new clamp op based on the type and arguments
 func NewClampOp(args []interface{}, optype string) (ClampOp, error) {
 	if len(args) != 1 {
-		return ClampOp{}, fmt.Errorf("invalid number of args for clamp: %d", len(args))
+		return emptyClamp, fmt.Errorf("invalid number of args for clamp: %d", len(args))
 	}
 
 	if optype != ClampMinType && optype != ClampMaxType {
-		return ClampOp{}, fmt.Errorf("unknown clamp type: %s", optype)
+		return emptyClamp, fmt.Errorf("unknown clamp type: %s", optype)
 	}
 
 	scalar, ok := args[0].(float64)
 	if !ok {
-		return ClampOp{}, fmt.Errorf("unable to cast argument: %v", args[0])
+		return emptyClamp, fmt.Errorf("unable to cast to scalar argument: %v", args[0])
 	}
 
 	return ClampOp{
-		optype: optype,
+		opType: optype,
 		scalar: scalar,
 	}, nil
 }
 
 // OpType for the operator
 func (o ClampOp) OpType() string {
-	return o.optype
+	return o.opType
 }
 
 // String representation
@@ -74,12 +76,18 @@ func (o ClampOp) String() string {
 
 // Node creates an execution node
 func (o ClampOp) Node(controller *transform.Controller) transform.OpNode {
-	return &ClampNode{op: o, controller: controller}
+	fn := math.Min
+	if o.opType == ClampMinType {
+		fn = math.Max
+	}
+
+	return &ClampNode{op: o, controller: controller, clampFn: fn}
 }
 
 // ClampNode is an execution node
 type ClampNode struct {
 	op         ClampOp
+	clampFn    func(x, y float64) float64
 	controller *transform.Controller
 }
 
@@ -95,16 +103,12 @@ func (c *ClampNode) Process(ID parser.NodeID, b block.Block) error {
 		return err
 	}
 
-	fn := math.Min
-	if c.op.optype == ClampMinType {
-		fn = math.Max
-	}
-
+	scalar := c.op.scalar
 	for index := 0; stepIter.Next(); index++ {
 		step := stepIter.Current()
 		values := step.Values()
 		for _, value := range values {
-			builder.AppendValue(index, fn(value, c.op.scalar))
+			builder.AppendValue(index, c.clampFn(value, scalar))
 		}
 	}
 
