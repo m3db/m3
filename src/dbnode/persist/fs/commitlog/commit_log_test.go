@@ -503,6 +503,88 @@ func TestCommitLogReaderIsReusable(t *testing.T) {
 	}
 }
 
+func TestCommitLogReaderPreventsDoubleOpen(t *testing.T) {
+	// Make sure we're not leaking goroutines
+	defer leaktest.CheckTimeout(t, time.Second)()
+
+	opts, scope := newTestOptions(t, overrides{
+		strategy: StrategyWriteWait,
+	})
+	defer cleanup(t, opts)
+
+	commitLog := newTestCommitLog(t, opts)
+
+	writes := []testWrite{
+		{testSeries(0, "foo.bar", testTags1, 127), time.Now(), 123.456, xtime.Second, []byte{1, 2, 3}, nil},
+		{testSeries(1, "foo.baz", testTags2, 150), time.Now(), 456.789, xtime.Second, nil, nil},
+	}
+
+	// Call write sync
+	writeCommitLogs(t, scope, commitLog, writes).Wait()
+
+	// Close the commit log and consequently flush
+	require.NoError(t, commitLog.Close())
+
+	// Assert writes occurred by reading the commit log
+	assertCommitLogWritesByIterating(t, commitLog, writes)
+
+	// Assert commitlog file exists and retrieve path
+	fsopts := opts.FilesystemOptions()
+	files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
+	require.NoError(t, err)
+	require.Equal(t, 1, len(files))
+
+	reader := newCommitLogReader(opts, ReadAllSeriesPredicate())
+	_, _, _, err = reader.Open(files[0])
+	require.NoError(t, err)
+
+	_, _, _, err = reader.Open(files[0])
+	require.Error(t, err)
+
+	assertCommitLogWritesByReading(t, writes, reader)
+	require.NoError(t, reader.Close())
+}
+
+func TestCommitLogReaderPreventsDoubleClose(t *testing.T) {
+	// Make sure we're not leaking goroutines
+	defer leaktest.CheckTimeout(t, time.Second)()
+
+	opts, scope := newTestOptions(t, overrides{
+		strategy: StrategyWriteWait,
+	})
+	defer cleanup(t, opts)
+
+	commitLog := newTestCommitLog(t, opts)
+
+	writes := []testWrite{
+		{testSeries(0, "foo.bar", testTags1, 127), time.Now(), 123.456, xtime.Second, []byte{1, 2, 3}, nil},
+		{testSeries(1, "foo.baz", testTags2, 150), time.Now(), 456.789, xtime.Second, nil, nil},
+	}
+
+	// Call write sync
+	writeCommitLogs(t, scope, commitLog, writes).Wait()
+
+	// Close the commit log and consequently flush
+	require.NoError(t, commitLog.Close())
+
+	// Assert writes occurred by reading the commit log
+	assertCommitLogWritesByIterating(t, commitLog, writes)
+
+	// Assert commitlog file exists and retrieve path
+	fsopts := opts.FilesystemOptions()
+	files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
+	require.NoError(t, err)
+	require.Equal(t, 1, len(files))
+
+	reader := newCommitLogReader(opts, ReadAllSeriesPredicate())
+	_, _, _, err = reader.Open(files[0])
+	require.NoError(t, err)
+
+	assertCommitLogWritesByReading(t, writes, reader)
+	require.NoError(t, reader.Close())
+	require.Error(t, reader.Close())
+}
+
 func TestCommitLogIteratorUsesPredicateFilter(t *testing.T) {
 	clock := mclock.NewMock()
 	opts, scope := newTestOptions(t, overrides{

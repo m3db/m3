@@ -30,6 +30,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fortytw2/leaktest"
 	"github.com/m3db/m3db/src/dbnode/ts"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
@@ -51,6 +52,9 @@ type seriesWritesAndReadPosition struct {
 }
 
 func TestCommitLogReadWrite(t *testing.T) {
+	// Make sure we're not leaking goroutines
+	defer leaktest.CheckTimeout(t, time.Second)()
+
 	baseTestPath, err := ioutil.TempDir("", "commit-log-test-base-dir")
 	require.NoError(t, err)
 	defer os.RemoveAll(baseTestPath)
@@ -120,6 +124,9 @@ func TestCommitLogReadWrite(t *testing.T) {
 }
 
 func TestCommitLogPropTest(t *testing.T) {
+	// Make sure we're not leaking goroutines
+	defer leaktest.CheckTimeout(t, 10*time.Second)()
+
 	basePath, err := ioutil.TempDir("", "commit-log-tests")
 	require.NoError(t, err)
 	defer os.RemoveAll(basePath)
