@@ -103,8 +103,6 @@ type reader struct {
 	chunkReader          *chunkReader
 	infoDecoder          *msgpack.Decoder
 	infoDecoderStream    msgpack.DecoderStream
-	decoderQueues        []chan decoderArg
-	decoderBufPools      []chan []byte
 	outChan              chan readResponse
 	cancelCtx            context.Context
 	cancelFunc           context.CancelFunc
@@ -120,11 +118,8 @@ func newCommitLogReader(opts Options, seriesPredicate SeriesFilterPredicate) com
 	cancelCtx, cancelFunc := context.WithCancel(context.Background())
 
 	numConc := opts.ReadConcurrency()
-	decoderQueues := make([]chan decoderArg, 0, numConc)
 	decoderBufs := make([]chan []byte, 0, numConc)
 	for i := 0; i < numConc; i++ {
-		decoderQueues = append(decoderQueues, make(chan decoderArg, decoderInBufChanSize))
-
 		chanBufs := make(chan []byte, decoderInBufChanSize+1)
 		for i := 0; i < decoderInBufChanSize+1; i++ {
 			// Bufs will be resized as needed, so its ok if our default isn't big enough
@@ -141,8 +136,6 @@ func newCommitLogReader(opts Options, seriesPredicate SeriesFilterPredicate) com
 		chunkReader:       newChunkReader(opts.FlushSize()),
 		infoDecoder:       msgpack.NewDecoder(decodingOpts),
 		infoDecoderStream: msgpack.NewDecoderStream(nil),
-		decoderQueues:     decoderQueues,
-		decoderBufPools:   decoderBufs,
 		outChan:           outBuf,
 		cancelCtx:         cancelCtx,
 		cancelFunc:        cancelFunc,
@@ -198,9 +191,16 @@ func (r *reader) Read() (
 }
 
 func (r *reader) startBackgroundWorkers() error {
-	// Start background worker goroutines
-	go r.readLoop()
-	for _, decoderQueue := range r.decoderQueues {
+	var (
+		numConc       = r.opts.ReadConcurrency()
+		decoderQueues = make([]chan decoderArg, 0, numConc)
+	)
+	for i := 0; i < numConc; i++ {
+		decoderQueues = append(decoderQueues, make(chan decoderArg, decoderInBufChanSize))
+	}
+
+	go r.readLoop(decoderQueues)
+	for _, decoderQueue := range decoderQueues {
 		localDecoderQueue := decoderQueue
 		go r.decoderLoop(localDecoderQueue, r.outChan)
 	}
@@ -208,9 +208,9 @@ func (r *reader) startBackgroundWorkers() error {
 	return nil
 }
 
-func (r *reader) readLoop() {
+func (r *reader) readLoop(decoderQueues []chan decoderArg) {
 	defer func() {
-		for _, decoderQueue := range r.decoderQueues {
+		for _, decoderQueue := range decoderQueues {
 			close(decoderQueue)
 		}
 	}()
@@ -220,11 +220,21 @@ func (r *reader) readLoop() {
 		decoder       = msgpack.NewDecoder(decodingOpts)
 		decoderStream = msgpack.NewDecoderStream(nil)
 		reusedBytes   = make([]byte, 0, r.opts.FlushSize())
-		// Instantiate a chunk reader per read-loop to prevent races
-		// when the reader is re-used where the chunk reader gets
-		// reset, but the read loop hasn't shutdown yet.
-		chunkReader = newChunkReader(r.opts.FlushSize())
+		// Create chunk reader and decoder bufs per read-loop to prevent races
+		// to make reader re-use easier (less resource sharing).
+		chunkReader     = newChunkReader(r.opts.FlushSize())
+		numConc         = r.opts.ReadConcurrency()
+		decoderBufPools = make([]chan []byte, 0, numConc)
 	)
+
+	for i := 0; i < numConc; i++ {
+		chanBufs := make(chan []byte, decoderInBufChanSize+1)
+		for i := 0; i < decoderInBufChanSize+1; i++ {
+			// Bufs will be resized as needed, so its ok if our default isn't big enough
+			chanBufs <- make([]byte, defaultDecodeEntryBufSize)
+		}
+		decoderBufPools = append(decoderBufPools, chanBufs)
+	}
 
 	for {
 		select {
@@ -236,7 +246,7 @@ func (r *reader) readLoop() {
 				if err == io.EOF {
 					return
 				}
-				r.decoderQueues[0] <- decoderArg{
+				decoderQueues[0] <- decoderArg{
 					bytes: data,
 					err:   err,
 				}
@@ -249,7 +259,7 @@ func (r *reader) readLoop() {
 
 			// Grab a buffer from a pool specific to the decoder loop we're gonna send it to
 			shardedIdx := uniqueIndex % uint64(r.numConc)
-			bufPool := r.decoderBufPools[shardedIdx]
+			bufPool := decoderBufPools[shardedIdx]
 			buf := <-bufPool
 
 			// Resize the buffer as necessary
@@ -268,7 +278,7 @@ func (r *reader) readLoop() {
 
 			// Distribute work by the uniqueIndex so that each decoder loop is receiving
 			// all datapoints for a given series within relative order.
-			r.decoderQueues[shardedIdx] <- decoderArg{
+			decoderQueues[shardedIdx] <- decoderArg{
 				bytes:                buf,
 				err:                  err,
 				decodeRemainingToken: decodeRemainingToken,
