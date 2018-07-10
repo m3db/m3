@@ -255,7 +255,8 @@ func defaultedNamespaceAddRequest(r *admin.DatabaseCreateRequest) (*admin.Namesp
 				blockSize = maxRecommendCalculateBlockSize
 			}
 		default:
-			// Use the maximum block size if we no fields set to recommend block size from
+			// Use the maximum block size if we don't find a way to
+			// recommended one based on request parameters
 			max := recommendedBlockSizesByRetentionAsc[len(recommendedBlockSizesByRetentionAsc)-1]
 			blockSize = max.blockSize
 			for _, elem := range recommendedBlockSizesByRetentionAsc {
