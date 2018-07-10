@@ -195,6 +195,7 @@ func (r *reader) Read() (
 
 func (r *reader) startBackgroundWorkers() error {
 	if r.bgWorkersInitialized {
+		// Should never happen
 		return errBackgroundWorkersAlreadyInitialized
 	}
 
