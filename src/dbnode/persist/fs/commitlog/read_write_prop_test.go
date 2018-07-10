@@ -331,7 +331,6 @@ func (s *clState) writesArePresent(writes ...generatedWrite) error {
 		}
 	}
 	if err := iter.Err(); err != nil {
-		panic(err)
 		return err
 	}
 
