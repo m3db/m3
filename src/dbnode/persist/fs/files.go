@@ -51,6 +51,11 @@ const (
 
 	commitLogComponentPosition    = 2
 	indexFileSetComponentPosition = 2
+
+	// This is the default size that the standard library uses. We've
+	// redefined it here to make some of public APIs nicer and not
+	// require the user to specify this value.
+	defaultBufioReaderSize = 4096
 )
 
 type fileOpener func(filePath string) (*os.File, error)
@@ -303,8 +308,14 @@ func timeAndIndexFromFileName(fname string, componentPosition int) (time.Time, i
 
 // SnapshotTime returns the time at which the snapshot was taken.
 func SnapshotTime(
-	filePathPrefix string, id FileSetFileIdentifier, readerBufferSize int, decoder *msgpack.Decoder) (time.Time, error) {
-	infoBytes, err := readSnapshotInfoFile(filePathPrefix, id, readerBufferSize)
+	filePathPrefix string, id FileSetFileIdentifier) (time.Time, error) {
+	decoder := msgpack.NewDecoder(nil)
+	return snapshotTime(filePathPrefix, id, decoder)
+}
+
+func snapshotTime(
+	filePathPrefix string, id FileSetFileIdentifier, decoder *msgpack.Decoder) (time.Time, error) {
+	infoBytes, err := readSnapshotInfoFile(filePathPrefix, id, defaultBufioReaderSize)
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -592,8 +603,8 @@ func SnapshotFiles(filePathPrefix string, namespace ident.ID, shard uint32) (Fil
 
 	decoder := msgpack.NewDecoder(nil)
 	for i := range snapshotFiles {
-		snapshotTime, err := SnapshotTime(
-			filePathPrefix, snapshotFiles[i].ID, 16, decoder)
+		snapshotTime, err := snapshotTime(
+			filePathPrefix, snapshotFiles[i].ID, decoder)
 		if err != nil {
 			return nil, err
 		}

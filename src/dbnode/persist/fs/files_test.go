@@ -35,7 +35,6 @@ import (
 
 	"github.com/m3db/m3db/src/dbnode/digest"
 	"github.com/m3db/m3db/src/dbnode/persist"
-	"github.com/m3db/m3db/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3db/src/dbnode/retention"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	"github.com/m3db/m3x/ident"
@@ -842,9 +841,7 @@ func TestSnapshotFileSnapshotTime(t *testing.T) {
 	require.Equal(t, 1, len(snapshotFiles))
 
 	// Verify SnapshotTime() returns the expected time
-	decoder := msgpack.NewDecoder(nil)
-	snapshotTime, err := SnapshotTime(
-		filePathPrefix, snapshotFiles[0].ID, 16, decoder)
+	snapshotTime, err := SnapshotTime(filePathPrefix, snapshotFiles[0].ID)
 	require.NoError(t, err)
 	require.Equal(t, true, testWriterStart.Equal(snapshotTime))
 }
