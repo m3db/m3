@@ -368,10 +368,12 @@ func readSnapshotInfoFile(filePathPrefix string, id FileSetFileIdentifier, reade
 	// Read digest of digests from the checkpoint file
 	digestBuf := digest.NewBuffer()
 	expectedDigestOfDigest, err := digestBuf.ReadDigestFromFile(checkpointFd)
-	// TODO: Multierr
-	checkpointFd.Close()
+	closeErr := checkpointFd.Close()
 	if err != nil {
 		return nil, err
+	}
+	if closeErr != nil {
+		return nil, closeErr
 	}
 
 	// Read and validate the digest file
