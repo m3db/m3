@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3db/src/dbnode/persist"
 	"github.com/m3db/m3db/src/dbnode/persist/fs"
 	"github.com/m3db/m3db/src/dbnode/persist/fs/commitlog"
-	"github.com/m3db/m3db/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3db/src/dbnode/storage/block"
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
@@ -56,7 +55,6 @@ const encoderChanBufSize = 1000
 
 type newIteratorFn func(opts commitlog.IteratorOpts) (commitlog.Iterator, error)
 type snapshotFilesFn func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error)
-type snapshotTimeFn func(filePathPrefix string, id fs.FileSetFileIdentifier, readerBufferSize int, decoder *msgpack.Decoder) (time.Time, error)
 type newReaderFn func(bytesPool pool.CheckedBytesPool, opts fs.Options) (fs.DataFileSetReader, error)
 
 type commitLogSource struct {
@@ -68,7 +66,6 @@ type commitLogSource struct {
 
 	newIteratorFn   newIteratorFn
 	snapshotFilesFn snapshotFilesFn
-	snapshotTimeFn  snapshotTimeFn
 	newReaderFn     newReaderFn
 }
 

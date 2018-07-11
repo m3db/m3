@@ -34,7 +34,6 @@ import (
 	"github.com/m3db/m3db/src/dbnode/persist"
 	"github.com/m3db/m3db/src/dbnode/persist/fs"
 	"github.com/m3db/m3db/src/dbnode/persist/fs/commitlog"
-	"github.com/m3db/m3db/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3db/src/dbnode/storage/block"
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
@@ -132,14 +131,14 @@ func TestReadOrderedValues(t *testing.T) {
 	blockSize := md.Options().RetentionOptions().BlockSize()
 	now := time.Now()
 	start := now.Truncate(blockSize).Add(-blockSize)
-	end := now
+	end := now.Truncate(blockSize)
 
 	// Request a little after the start of data, because always reading full blocks
 	// it should return the entire block beginning from "start"
 	require.True(t, blockSize >= minCommitLogRetention)
 	ranges := xtime.Ranges{}
 	ranges = ranges.AddRange(xtime.Range{
-		Start: start.Add(time.Minute),
+		Start: start,
 		End:   end,
 	})
 
@@ -177,14 +176,14 @@ func TestReadUnorderedValues(t *testing.T) {
 	blockSize := md.Options().RetentionOptions().BlockSize()
 	now := time.Now()
 	start := now.Truncate(blockSize).Add(-blockSize)
-	end := now
+	end := now.Truncate(blockSize)
 
 	// Request a little after the start of data, because always reading full blocks
 	// it should return the entire block beginning from "start"
 	require.True(t, blockSize >= minCommitLogRetention)
 	ranges := xtime.Ranges{}
 	ranges = ranges.AddRange(xtime.Range{
-		Start: start.Add(time.Minute),
+		Start: start,
 		End:   end,
 	})
 
@@ -224,7 +223,7 @@ func TestReadHandlesDifferentSeriesWithIdenticalUniqueIndex(t *testing.T) {
 	blockSize := md.Options().RetentionOptions().BlockSize()
 	now := time.Now()
 	start := now.Truncate(blockSize).Add(-blockSize)
-	end := now
+	end := now.Truncate(blockSize)
 
 	require.True(t, blockSize >= minCommitLogRetention)
 	ranges := xtime.Ranges{}
@@ -265,14 +264,14 @@ func TestReadTrimsToRanges(t *testing.T) {
 	blockSize := md.Options().RetentionOptions().BlockSize()
 	now := time.Now()
 	start := now.Truncate(blockSize).Add(-blockSize)
-	end := now
+	end := now.Truncate(blockSize)
 
 	// Request a little after the start of data, because always reading full blocks
 	// it should return the entire block beginning from "start"
 	require.True(t, blockSize >= minCommitLogRetention)
 	ranges := xtime.Ranges{}
 	ranges = ranges.AddRange(xtime.Range{
-		Start: start.Add(time.Minute),
+		Start: start,
 		End:   end,
 	})
 
@@ -309,7 +308,7 @@ func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
 		blockSize = md.Options().RetentionOptions().BlockSize()
 		now       = time.Now()
 		start     = now.Truncate(blockSize).Add(-blockSize)
-		end       = now
+		end       = now.Truncate(blockSize)
 		ranges    = xtime.Ranges{}
 
 		foo             = commitlog.Series{Namespace: testNamespaceID, Shard: 0, ID: ident.StringID("foo")}
@@ -328,7 +327,7 @@ func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
 	require.True(t, blockSize >= minCommitLogRetention)
 
 	ranges = ranges.AddRange(xtime.Range{
-		Start: start.Add(time.Minute),
+		Start: start,
 		End:   end,
 	})
 
@@ -344,12 +343,10 @@ func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
 					Shard:       shard,
 					VolumeIndex: 0,
 				},
-				AbsoluteFilepaths: []string{"checkpoint"},
+				AbsoluteFilepaths:  []string{"checkpoint"},
+				CachedSnapshotTime: start.Add(time.Minute),
 			},
 		}, nil
-	}
-	src.snapshotTimeFn = func(filePathPrefix string, id fs.FileSetFileIdentifier, bufferSize int, decoder *msgpack.Decoder) (time.Time, error) {
-		return start.Add(time.Minute), nil
 	}
 
 	mockReader := fs.NewMockDataFileSetReader(ctrl)
@@ -401,8 +398,8 @@ func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res.ShardResults()))
 	require.Equal(t, 0, len(res.Unfulfilled()))
-	expectedValues := append([]testValue{}, commitLogValues[0:3]...)
-	expectedValues = append(expectedValues, snapshotValues...)
+	expectedValues := append([]testValue{}, snapshotValues...)
+	expectedValues = append(expectedValues, commitLogValues[0:3]...)
 
 	require.NoError(t, verifyShardResultsAreCorrect(
 		expectedValues, blockSize, res.ShardResults(), opts))
