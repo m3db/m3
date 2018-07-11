@@ -80,7 +80,11 @@ type encoder struct {
 func newCommitLogSource(opts Options, inspection fs.Inspection) bootstrap.Source {
 	return &commitLogSource{
 		opts: opts,
-		log:  opts.ResultOptions().InstrumentOptions().Logger(),
+		log: opts.
+			ResultOptions().
+			InstrumentOptions().
+			Logger().
+			WithFields(xlog.NewField("bootstrapper", "commitlog")),
 
 		inspection: inspection,
 
@@ -172,7 +176,7 @@ func (s *commitLogSource) AvailableData(
 //    4) W4 only present in commit log with start time 2:00PM
 //
 //    Need to read all commit logs that contain writes with system times spanning from
-//    11:55PM -> 2:10PM which will bootstrap all of the data points above. I.E:
+//    11:55AM -> 2:10PM which will bootstrap all of the data points above. I.E:
 //    [blockStart.Add(-bufferFuture), blockStart.Add(blockSize).Add(bufferPast)]
 func (s *commitLogSource) ReadData(
 	ns namespace.Metadata,
@@ -317,7 +321,7 @@ func (s *commitLogSource) ReadData(
 	// Merge all the different encoders from the commit log that we created with
 	// the data that is available in the snapshot files.
 	mergeStart := time.Now()
-	s.log.Infof("Starting merge...")
+	s.log.Infof("starting merge...")
 	bootstrapResult, err := s.mergeAllShardsCommitLogEncodersAndSnapshots(
 		ns,
 		shardsTimeRanges,
@@ -330,7 +334,7 @@ func (s *commitLogSource) ReadData(
 	if err != nil {
 		return nil, err
 	}
-	s.log.Infof("Done merging..., took: %s", time.Since(mergeStart).String())
+	s.log.Infof("done merging..., took: %s", time.Since(mergeStart).String())
 
 	return bootstrapResult, nil
 }
@@ -502,11 +506,12 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 		err            error
 	)
 
-	for hasMore := rangeIter.Next(); hasMore; hasMore = rangeIter.Next() {
+	for rangeIter.Next() {
+
 		var (
 			currRange             = rangeIter.Value()
-			currRangeDuration     = currRange.End.Unix() - currRange.Start.Unix()
-			isMultipleOfBlockSize = currRangeDuration/int64(blockSize) == 0
+			currRangeDuration     = currRange.End.Sub(currRange.Start)
+			isMultipleOfBlockSize = currRangeDuration%blockSize == 0
 		)
 
 		if !isMultipleOfBlockSize {
@@ -534,7 +539,7 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 				// for the fact that this snapshot did not exist when we were deciding which
 				// commit logs to read.
 				s.log.Infof(
-					"No snapshots for shard: %d and blockStart: %d",
+					"no snapshots for shard: %d and blockStart: %d",
 					shard, blockStart.Unix())
 				continue
 			}
@@ -594,7 +599,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 	}
 
 	s.log.Infof(
-		"Reading snapshot for shard: %d and blockStart: %d and volume: %d",
+		"reading snapshot for shard: %d and blockStart: %d and volume: %d",
 		shard, blockStart.Unix(), mostRecentCompleteSnapshot.ID.VolumeIndex)
 	for {
 		var (
@@ -692,7 +697,7 @@ func (s *commitLogSource) newReadCommitLogPredBasedOnAvailableSnapshotFiles(
 	for block, mostRecentByShard := range mostRecentCompleteSnapshotByBlockShard {
 		for shard, mostRecent := range mostRecentByShard {
 			s.log.Infof(
-				"Most recent snapshot for block: %d and shard: %d is %d",
+				"most recent snapshot for block: %d and shard: %d is %d",
 				block.ToTime().Unix(), shard, mostRecent.snapshotTime.Unix())
 		}
 	}
@@ -707,7 +712,7 @@ func (s *commitLogSource) newReadCommitLogPredBasedOnAvailableSnapshotFiles(
 		shardsTimeRanges, blockSize, mostRecentCompleteSnapshotByBlockShard)
 	for block, minSnapshotTime := range minimumMostRecentSnapshotTimeByBlock {
 		s.log.Infof(
-			"Min snapshot time for block: %d is: %d",
+			"min snapshot time for block: %d is: %d",
 			block.ToTime().Unix(), minSnapshotTime.Unix())
 	}
 
@@ -782,7 +787,7 @@ func (s *commitLogSource) newReadCommitLogPred(
 			if commitLogEntryRange.Overlaps(rangeToCheck) {
 				s.log.
 					Infof(
-						"Opting to read commit log: %s with start: %d and duration: %s",
+						"opting to read commit log: %s with start: %d and duration: %s",
 						fileName, fileStart.Unix(), fileBlockSize.String())
 				return true
 			}
@@ -790,7 +795,7 @@ func (s *commitLogSource) newReadCommitLogPred(
 
 		s.log.
 			Infof(
-				"Opting to skip commit log: %s with start: %d and duration: %s",
+				"opting to skip commit log: %s with start: %d and duration: %s",
 				fileName, fileStart.Unix(), fileBlockSize.String())
 		return false
 	}
@@ -1037,9 +1042,12 @@ func (s *commitLogSource) mergeShardCommitLogEncodersAndSnapshots(
 	if unmergedShard.series != nil {
 		numSeries = unmergedShard.series.Len()
 	}
-	var shardResult = result.NewShardResult(numSeries, s.opts.ResultOptions())
-	var numShardEmptyErrs int
-	var numErrs int
+
+	var (
+		shardResult       = result.NewShardResult(numSeries, s.opts.ResultOptions())
+		numShardEmptyErrs int
+		numErrs           int
+	)
 
 	allSnapshotSeries := snapshotData.AllSeries()
 
@@ -1102,9 +1110,8 @@ func (s *commitLogSource) mergeSeries(
 	var numErrs int
 
 	for startNano, encoders := range unmergedCommitlogBlocks.encoders {
-		start := startNano.ToTime()
-
 		var (
+			start            = startNano.ToTime()
 			snapshotBlock    block.DatabaseBlock
 			hasSnapshotBlock bool
 		)
@@ -1182,7 +1189,7 @@ func (s *commitLogSource) mergeSeries(
 				iOpts := s.opts.CommitLogOptions().InstrumentOptions()
 				invariantLogger := instrument.EmitInvariantViolationAndGetLogger(iOpts)
 				invariantLogger.Errorf(
-					"Tried to merge block that should have been removed, blockStart: %d", startNano)
+					"tried to merge block that should have been removed, blockStart: %d", startNano)
 				continue
 			}
 

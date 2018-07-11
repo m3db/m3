@@ -48,7 +48,7 @@ func (m ReaderOpenOptionsMatcher) Matches(x interface{}) bool {
 	if !m.ID.BlockStart.Equal(readerOpenOptions.Identifier.BlockStart) {
 		return false
 	}
-	if m.ID.VolumeIndex != (readerOpenOptions.Identifier.VolumeIndex) {
+	if m.ID.VolumeIndex != readerOpenOptions.Identifier.VolumeIndex {
 		return false
 	}
 	if m.FileSetType != readerOpenOptions.FileSetType {

@@ -95,8 +95,10 @@ func (f FileSetFilesSlice) LatestVolumeForBlock(blockStart time.Time) (FileSetFi
 
 	for i, curr := range f {
 		if curr.ID.BlockStart.Equal(blockStart) {
-			var bestSoFar FileSetFile
-			var bestSoFarExists bool
+			var (
+				bestSoFar       FileSetFile
+				bestSoFarExists bool
+			)
 
 			for j := i; j < len(f); j++ {
 				curr = f[j]

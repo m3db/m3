@@ -187,10 +187,12 @@ func writeToDiskWithPredicate(
 		for _, series := range seriesList {
 			encoder.Reset(start, 0)
 			for _, dp := range series.Data {
-				if pred(dp) {
-					if err := encoder.Encode(dp, xtime.Second, nil); err != nil {
-						return err
-					}
+				if !pred(dp) {
+					continue
+				}
+
+				if err := encoder.Encode(dp, xtime.Second, nil); err != nil {
+					return err
 				}
 			}
 

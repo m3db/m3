@@ -179,9 +179,6 @@ func testSetupToSeriesMaps(
 	for shardID, metadatas := range metadatasByShard {
 		blocksIter, err := session.FetchBlocksFromPeers(nsMetadata, shardID,
 			consistencyLevel, metadatas, resultOpts)
-		if err != nil {
-			panic(err)
-		}
 		require.NoError(t, err)
 		require.NotNil(t, blocksIter)
 

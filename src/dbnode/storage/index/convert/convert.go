@@ -175,7 +175,9 @@ func FromMetricIterNoClone(id ident.ID, tags ident.TagIterator) (doc.Document, e
 
 // TagsFromTagsIter returns an ident.Tags from a TagIterator. It also tries
 // to re-use bytes from the seriesID if they're also present in the tags
-// instead of re-allocating them.
+// instead of re-allocating them. This requires that the ident.Tags that is
+// returned will have the same (or shorter) life time as the seriesID,
+// otherwise the operation is unsafe.
 func TagsFromTagsIter(
 	seriesID ident.ID,
 	iter ident.TagIterator,
@@ -213,7 +215,11 @@ func TagsFromTagsIter(
 
 		tags.Append(tag)
 	}
-	return tags, iter.Err()
+
+	if err := iter.Err(); err != nil {
+		return ident.Tags{}, err
+	}
+	return tags, nil
 }
 
 // NB(prateek): we take an independent copy of the bytes underlying
