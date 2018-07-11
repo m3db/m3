@@ -86,11 +86,25 @@ func writeTestData(
 	entries []testEntry,
 	fileSetType persist.FileSetType,
 ) {
+	writeTestDataWithVolume(
+		t, w, shard, timestamp, 0, entries, fileSetType)
+}
+
+func writeTestDataWithVolume(
+	t *testing.T,
+	w DataFileSetWriter,
+	shard uint32,
+	timestamp time.Time,
+	volume int,
+	entries []testEntry,
+	fileSetType persist.FileSetType,
+) {
 	writerOpts := DataWriterOpenOptions{
 		Identifier: FileSetFileIdentifier{
-			Namespace:  testNs1ID,
-			Shard:      shard,
-			BlockStart: timestamp,
+			Namespace:   testNs1ID,
+			Shard:       shard,
+			BlockStart:  timestamp,
+			VolumeIndex: volume,
 		},
 		BlockSize:   testBlockSize,
 		FileSetType: fileSetType,

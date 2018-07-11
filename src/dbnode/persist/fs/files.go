@@ -59,6 +59,7 @@ type fileOpener func(filePath string) (*os.File, error)
 type FileSetFile struct {
 	ID                FileSetFileIdentifier
 	AbsoluteFilepaths []string
+	SnapshotTime      time.Time
 }
 
 // HasCheckpointFile returns a bool indicating whether the given set of
@@ -577,7 +578,7 @@ func ReadIndexInfoFiles(
 // SnapshotFiles returns a slice of all the names for all the fileset files
 // for a given namespace and shard combination.
 func SnapshotFiles(filePathPrefix string, namespace ident.ID, shard uint32) (FileSetFilesSlice, error) {
-	return filesetFiles(filesetFilesSelector{
+	snapshotFiles, err := filesetFiles(filesetFilesSelector{
 		fileSetType:    persist.FileSetSnapshotType,
 		contentType:    persist.FileSetDataContentType,
 		filePathPrefix: filePathPrefix,
@@ -585,6 +586,21 @@ func SnapshotFiles(filePathPrefix string, namespace ident.ID, shard uint32) (Fil
 		shard:          shard,
 		pattern:        filesetFilePattern,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	decoder := msgpack.NewDecoder(nil)
+	for i := range snapshotFiles {
+		snapshotTime, err := SnapshotTime(
+			filePathPrefix, snapshotFiles[i].ID, 16, decoder)
+		if err != nil {
+			return nil, err
+		}
+		snapshotFiles[i].SnapshotTime = snapshotTime
+	}
+
+	return snapshotFiles, nil
 }
 
 // IndexSnapshotFiles returns a slice of all the names for all the index fileset files
