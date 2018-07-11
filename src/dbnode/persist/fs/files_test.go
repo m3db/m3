@@ -875,10 +875,6 @@ func createDataFlushInfoFilesDir(t *testing.T, namespace ident.ID, shard uint32,
 	return createDataInfoFiles(t, dataDirName, namespace, shard, iter, false)
 }
 
-func createDataSnapshotInfoFilesDir(t *testing.T, namespace ident.ID, shard uint32, iter int) string {
-	return createDataInfoFiles(t, snapshotDirName, namespace, shard, iter, true)
-}
-
 func createDataCheckpointFilesDir(t *testing.T, namespace ident.ID, shard uint32, iter int) string {
 	return createDataCheckpointFiles(t, dataDirName, namespace, shard, iter, false)
 }
