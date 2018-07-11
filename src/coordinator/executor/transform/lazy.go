@@ -76,6 +76,14 @@ type stepIter struct {
 	iter block.StepIter
 }
 
+func (s *stepIter) SeriesMeta() []block.SeriesMeta {
+	return s.iter.SeriesMeta()
+}
+
+func (s *stepIter) Meta() block.Metadata {
+	return s.iter.Meta()
+}
+
 func (s *stepIter) StepCount() int {
 	return s.iter.StepCount()
 }
@@ -100,6 +108,14 @@ func (s *stepIter) Current() (block.Step, error) {
 type seriesIter struct {
 	node SeriesNode
 	iter block.SeriesIter
+}
+
+func (s *seriesIter) Meta() block.Metadata {
+	return s.iter.Meta()
+}
+
+func (s *seriesIter) SeriesMeta() []block.SeriesMeta {
+	return s.iter.SeriesMeta()
 }
 
 func (s *seriesIter) SeriesCount() int {
@@ -130,11 +146,6 @@ type lazyBlock struct {
 	lazyNode       *lazyNode
 	ID             parser.NodeID
 	processedBlock block.Block
-}
-
-// TODO: Fix this by moving Meta outside the block
-func (f *lazyBlock) Meta() block.Metadata {
-	return f.rawBlock.Meta()
 }
 
 func (f *lazyBlock) StepIter() (block.StepIter, error) {
@@ -193,11 +204,6 @@ func (f *lazyBlock) SeriesIter() (block.SeriesIter, error) {
 	}
 
 	return f.processedBlock.SeriesIter()
-}
-
-// TODO: Fix this by moving SeriesMeta outside the block
-func (f *lazyBlock) SeriesMeta() []block.SeriesMeta {
-	return f.rawBlock.SeriesMeta()
 }
 
 func (f *lazyBlock) Close() error {

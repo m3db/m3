@@ -61,12 +61,6 @@ func NewAndNode(op BaseOp, controller *transform.Controller) Processor {
 
 // Process processes two logical blocks, performing And operation on them
 func (c *AndNode) Process(lhs, rhs block.Block) (block.Block, error) {
-	intersection := c.intersect(lhs.SeriesMeta(), rhs.SeriesMeta())
-	builder, err := c.controller.BlockBuilder(lhs.Meta(), lhs.SeriesMeta())
-	if err != nil {
-		return nil, err
-	}
-
 	lIter, err := lhs.StepIter()
 	if err != nil {
 		return nil, err
@@ -76,6 +70,13 @@ func (c *AndNode) Process(lhs, rhs block.Block) (block.Block, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	intersection := c.intersect(lIter.SeriesMeta(), rIter.SeriesMeta())
+	builder, err := c.controller.BlockBuilder(lIter.Meta(), rIter.SeriesMeta())
+	if err != nil {
+		return nil, err
+	}
+
 
 	if err := builder.AddCols(lIter.StepCount()); err != nil {
 		return nil, err

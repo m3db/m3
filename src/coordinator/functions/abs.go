@@ -59,12 +59,12 @@ type AbsNode struct {
 
 // Process the block
 func (c *AbsNode) Process(ID parser.NodeID, b block.Block) error {
-	builder, err := c.controller.BlockBuilder(b.Meta(), b.SeriesMeta())
+	stepIter, err := b.StepIter()
 	if err != nil {
 		return err
 	}
 
-	stepIter, err := b.StepIter()
+	builder, err := c.controller.BlockBuilder(stepIter.Meta(), stepIter.SeriesMeta())
 	if err != nil {
 		return err
 	}

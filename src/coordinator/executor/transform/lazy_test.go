@@ -55,8 +55,6 @@ func TestLazyState(t *testing.T) {
 	assert.NotNil(t, sNode.block, "downstream process called with a block")
 	assert.IsType(t, sNode.block, &lazyBlock{})
 	assert.False(t, fNode.processed, "function block is still not processed")
-	assert.NotNil(t, sNode.block.Meta(), "lazy block provides meta")
-	assert.False(t, fNode.processed, "function block not processed on meta")
 	iter, err := sNode.block.StepIter()
 	assert.NoError(t, err)
 	assert.NotNil(t, iter)

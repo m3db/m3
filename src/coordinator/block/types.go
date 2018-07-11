@@ -29,14 +29,10 @@ import (
 
 // Block represents a group of series across a time bound
 type Block interface {
-	// Meta returns the metadata for the block
-	Meta() Metadata
 	// StepIter returns a StepIterator
 	StepIter() (StepIter, error)
 	// SeriesIter returns a SeriesIterator
 	SeriesIter() (SeriesIter, error)
-	// SeriesMeta returns the metadata for each series in the block
-	SeriesMeta() []SeriesMeta
 	// Close frees up any resources
 	Close() error
 }
@@ -91,6 +87,10 @@ type SeriesIter interface {
 	Current() (Series, error)
 	// SeriesCount returns the number of series
 	SeriesCount() int
+	// SeriesMeta returns the metadata for each series in the block
+	SeriesMeta() []SeriesMeta
+	// Meta returns the metadata for the block
+	Meta() Metadata
 }
 
 // StepIter iterates through a block vertically
@@ -98,6 +98,10 @@ type StepIter interface {
 	Iterator
 	Current() (Step, error)
 	StepCount() int
+	// SeriesMeta returns the metadata for each series in the block
+	SeriesMeta() []SeriesMeta
+	// Meta returns the metadata for the block
+	Meta() Metadata
 }
 
 // Step is a single time step within a block

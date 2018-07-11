@@ -44,9 +44,10 @@ func (c *columnBlock) Meta() Metadata {
 // StepIter returns a StepIterator
 func (c *columnBlock) StepIter() (StepIter, error) {
 	return &colBlockIter{
-		columns: c.columns,
-		meta:    c.meta,
-		idx:     -1,
+		columns:    c.columns,
+		seriesMeta: c.seriesMeta,
+		meta:       c.meta,
+		idx:        -1,
 	}, nil
 }
 
@@ -74,9 +75,18 @@ func (c *columnBlock) Close() error {
 }
 
 type colBlockIter struct {
-	columns []column
-	meta    Metadata
-	idx     int
+	columns    []column
+	seriesMeta []SeriesMeta
+	meta       Metadata
+	idx        int
+}
+
+func (c *colBlockIter) SeriesMeta() []SeriesMeta {
+	return c.seriesMeta
+}
+
+func (c *colBlockIter) Meta() Metadata {
+	return c.meta
 }
 
 func (c *colBlockIter) StepCount() int {
@@ -175,8 +185,16 @@ type columnBlockSeriesIter struct {
 	seriesMeta []SeriesMeta
 }
 
+func (m *columnBlockSeriesIter) Meta() Metadata {
+	return m.blockMeta
+}
+
 func newColumnBlockSeriesIter(columns []column, blockMeta Metadata, seriesMeta []SeriesMeta) SeriesIter {
 	return &columnBlockSeriesIter{columns: columns, blockMeta: blockMeta, seriesMeta: seriesMeta, idx: -1}
+}
+
+func (m *columnBlockSeriesIter) SeriesMeta() []SeriesMeta {
+	return m.seriesMeta
 }
 
 func (m *columnBlockSeriesIter) SeriesCount() int {

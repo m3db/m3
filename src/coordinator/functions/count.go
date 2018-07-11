@@ -64,15 +64,16 @@ func (c *CountNode) Process(ID parser.NodeID, b block.Block) error {
 		Name: CountType,
 	}
 
-	builder, err := c.controller.BlockBuilder(b.Meta(), []block.SeriesMeta{meta})
-	if err != nil {
-		return err
-	}
-
 	stepIter, err := b.StepIter()
 	if err != nil {
 		return err
 	}
+
+	builder, err := c.controller.BlockBuilder(stepIter.Meta(), []block.SeriesMeta{meta})
+	if err != nil {
+		return err
+	}
+
 
 	if err := builder.AddCols(stepIter.StepCount()); err != nil {
 		return err

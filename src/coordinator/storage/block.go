@@ -103,6 +103,14 @@ type multiSeriesBlockStepIter struct {
 	index int
 }
 
+func (m *multiSeriesBlockStepIter) SeriesMeta() []block.SeriesMeta {
+	return m.block.SeriesMeta()
+}
+
+func (m *multiSeriesBlockStepIter) Meta() block.Metadata {
+	return m.block.Meta()
+}
+
 func (m *multiSeriesBlockStepIter) Next() bool {
 	if len(m.block.seriesList) == 0 {
 		return false
@@ -140,6 +148,14 @@ func (m *multiSeriesBlockStepIter) Close() {
 type multiSeriesBlockSeriesIter struct {
 	block multiSeriesBlock
 	index int
+}
+
+func (m *multiSeriesBlockSeriesIter) Meta() block.Metadata {
+	return m.block.Meta()
+}
+
+func (m *multiSeriesBlockSeriesIter) SeriesMeta() []block.SeriesMeta {
+	return m.block.SeriesMeta()
 }
 
 func newMultiSeriesBlockSeriesIter(block multiSeriesBlock) block.SeriesIter {
