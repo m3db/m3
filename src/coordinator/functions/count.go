@@ -69,13 +69,21 @@ func (c *CountNode) Process(ID parser.NodeID, b block.Block) error {
 		return err
 	}
 
-	stepIter := b.StepIter()
-	if err := builder.AddCols(b.StepCount()); err != nil {
+	stepIter, err := b.StepIter()
+	if err != nil {
+		return err
+	}
+
+	if err := builder.AddCols(stepIter.StepCount()); err != nil {
 		return err
 	}
 
 	for index := 0; stepIter.Next(); index++ {
-		step := stepIter.Current()
+		step, err := stepIter.Current()
+		if err != nil {
+			return err
+		}
+
 		values := step.Values()
 		count := 0.0
 		for _, value := range values {

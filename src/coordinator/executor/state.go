@@ -48,15 +48,19 @@ func CreateSource(ID parser.NodeID, params SourceParams, storage storage.Storage
 }
 
 // CreateTransform creates a transform node which works on functions and contains state
-func CreateTransform(ID parser.NodeID, params TransformParams) (transform.OpNode, *transform.Controller) {
+func CreateTransform(ID parser.NodeID, params transform.Params) (transform.OpNode, *transform.Controller) {
 	controller := &transform.Controller{ID: ID}
-	return params.Node(controller), controller
-}
+	node := params.Node(controller)
 
-// TransformParams are defined by transforms
-type TransformParams interface {
-	parser.Params
-	Node(controller *transform.Controller) transform.OpNode
+	if _, ok := node.(transform.SeriesNode); ok {
+		return transform.NewLazyNode(node, controller)
+	}
+
+	if _, ok := node.(transform.StepNode); ok {
+		return transform.NewLazyNode(node, controller)
+	}
+
+	return node, controller
 }
 
 // SourceParams are defined by sources
@@ -109,7 +113,7 @@ func (s *ExecutionState) createNode(step plan.LogicalStep, options transform.Opt
 		return controller, nil
 	}
 
-	transformParams, ok := step.Transform.Op.(TransformParams)
+	transformParams, ok := step.Transform.Op.(transform.Params)
 	if !ok {
 		return nil, fmt.Errorf("invalid transform step, %s", step)
 	}

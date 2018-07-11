@@ -24,25 +24,14 @@
 package transform
 
 import (
+	"sync"
+
 	"github.com/m3db/m3db/src/coordinator/block"
-	"github.com/m3db/m3db/src/coordinator/executor"
 	"github.com/m3db/m3db/src/coordinator/parser"
 )
 
-type FunctionOp struct {
-	params executor.TransformParams
-}
-
 type sinkNode struct {
 	block block.Block
-}
-
-type seriesNode interface {
-	ProcessSeries(series block.Series) (block.Series, error)
-}
-
-type stepNode interface {
-	ProcessStep(step block.Step) (block.Step, error)
 }
 
 func (s *sinkNode) Process(ID parser.NodeID, block block.Block) error {
@@ -50,31 +39,32 @@ func (s *sinkNode) Process(ID parser.NodeID, block block.Block) error {
 	return nil
 }
 
-func (f *FunctionOp) Node(controller *Controller) OpNode {
+type lazyNode struct {
+	fNode      OpNode
+	controller *Controller
+	sink       *sinkNode
+}
+
+// NewLazyNode creates a new wrapper around a function fNode to make it support lazy initialization
+func NewLazyNode(node OpNode, controller *Controller) (OpNode, *Controller) {
 	c := &Controller{
 		ID: controller.ID,
 	}
 
 	sink := &sinkNode{}
-	c.AddTransform(sink)
+	controller.AddTransform(sink)
 
-	return &FunctionNode{
-		node:       f.params.Node(c),
-		controller: controller,
+	return &lazyNode{
+		fNode:      node,
+		controller: c,
 		sink:       sink,
-	}
+	}, c
 }
 
-type FunctionNode struct {
-	node       OpNode
-	controller *Controller
-	sink       *sinkNode
-}
-
-func (f *FunctionNode) Process(ID parser.NodeID, block block.Block) error {
-	b := &FunctionBlock{
+func (f *lazyNode) Process(ID parser.NodeID, block block.Block) error {
+	b := &lazyBlock{
 		rawBlock: block,
-		node:     f,
+		lazyNode: f,
 		ID:       ID,
 	}
 
@@ -82,8 +72,12 @@ func (f *FunctionNode) Process(ID parser.NodeID, block block.Block) error {
 }
 
 type stepIter struct {
-	node stepNode
+	node StepNode
 	iter block.StepIter
+}
+
+func (s *stepIter) StepCount() int {
+	return s.iter.StepCount()
 }
 
 func (s *stepIter) Next() bool {
@@ -104,8 +98,12 @@ func (s *stepIter) Current() (block.Step, error) {
 }
 
 type seriesIter struct {
-	node seriesNode
+	node SeriesNode
 	iter block.SeriesIter
+}
+
+func (s *seriesIter) SeriesCount() int {
+	return s.iter.SeriesCount()
 }
 
 func (s *seriesIter) Close() {
@@ -125,27 +123,38 @@ func (s *seriesIter) Next() bool {
 	return s.iter.Next()
 }
 
-type FunctionBlock struct {
+type lazyBlock struct {
+	mu sync.Mutex
+
 	rawBlock       block.Block
-	node           *FunctionNode
+	lazyNode       *lazyNode
 	ID             parser.NodeID
 	processedBlock block.Block
 }
 
-func (f *FunctionBlock) Meta() block.Metadata {
-	return f.processedBlock.Meta()
+// TODO: Fix this by moving Meta outside the block
+func (f *lazyBlock) Meta() block.Metadata {
+	return f.rawBlock.Meta()
 }
 
-func (f *FunctionBlock) StepIter() (block.StepIter, error) {
+func (f *lazyBlock) StepIter() (block.StepIter, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	if f.processedBlock != nil {
-		return f.processedBlock.StepIter(), nil
+		return f.processedBlock.StepIter()
 	}
 
-	node, ok := f.node.node.(stepNode)
+	node, ok := f.lazyNode.fNode.(StepNode)
 	if ok {
+		iter, err := f.rawBlock.StepIter()
+		if err != nil {
+			return nil, err
+		}
+
 		return &stepIter{
 			node: node,
-			iter: f.rawBlock.StepIter(),
+			iter: iter,
 		}, nil
 	}
 
@@ -154,19 +163,27 @@ func (f *FunctionBlock) StepIter() (block.StepIter, error) {
 		return nil, err
 	}
 
-	return f.processedBlock.StepIter(), nil
+	return f.processedBlock.StepIter()
 }
 
-func (f *FunctionBlock) SeriesIter() (block.SeriesIter, error) {
+func (f *lazyBlock) SeriesIter() (block.SeriesIter, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	if f.processedBlock != nil {
-		return f.processedBlock.SeriesIter(), nil
+		return f.processedBlock.SeriesIter()
 	}
 
-	node, ok := f.node.node.(seriesNode)
+	node, ok := f.lazyNode.fNode.(SeriesNode)
 	if ok {
-		return &stepIter{
+		iter, err := f.rawBlock.SeriesIter()
+		if err != nil {
+			return nil, err
+		}
+
+		return &seriesIter{
 			node: node,
-			iter: f.rawBlock.StepIter(),
+			iter: iter,
 		}, nil
 	}
 
@@ -175,31 +192,24 @@ func (f *FunctionBlock) SeriesIter() (block.SeriesIter, error) {
 		return nil, err
 	}
 
-	return f.processedBlock.StepIter(), nil
+	return f.processedBlock.SeriesIter()
 }
 
-func (f *FunctionBlock) SeriesMeta() []block.SeriesMeta {
-	return f.processedBlock.SeriesMeta()
+// TODO: Fix this by moving SeriesMeta outside the block
+func (f *lazyBlock) SeriesMeta() []block.SeriesMeta {
+	return f.rawBlock.SeriesMeta()
 }
 
-func (f *FunctionBlock) StepCount() int {
-	return f.processedBlock.StepCount()
+func (f *lazyBlock) Close() error {
+	return f.rawBlock.Close()
 }
 
-func (f *FunctionBlock) SeriesCount() int {
-	return f.processedBlock.SeriesCount()
-}
-
-func (f *FunctionBlock) Close() error {
-	return f.processedBlock.Close()
-}
-
-func (f *FunctionBlock) process() error {
-	err := f.node.node.Process(f.ID, f.rawBlock)
+func (f *lazyBlock) process() error {
+	err := f.lazyNode.fNode.Process(f.ID, f.rawBlock)
 	if err != nil {
 		return err
 	}
 
-	f.processedBlock = f.node.sink.block
+	f.processedBlock = f.lazyNode.sink.block
 	return nil
 }

@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3db/src/coordinator/parser"
 	"github.com/m3db/m3db/src/coordinator/test"
+	"github.com/m3db/m3db/src/coordinator/test/executor"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -48,7 +49,7 @@ func TestClampMin(t *testing.T) {
 	values[0][0] = math.NaN()
 
 	block := test.NewBlockFromValues(bounds, values)
-	c, sink := test.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	op, err := NewClampOp([]interface{}{3.0}, ClampMinType)
 	require.NoError(t, err)
 	node := op.Node(c)
@@ -64,7 +65,7 @@ func TestClampMax(t *testing.T) {
 	values[0][0] = math.NaN()
 
 	block := test.NewBlockFromValues(bounds, values)
-	c, sink := test.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	op, err := NewClampOp([]interface{}{3.0}, ClampMaxType)
 	require.NoError(t, err)
 	node := op.Node(c)

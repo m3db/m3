@@ -49,7 +49,7 @@ func TestValidState(t *testing.T) {
 	lp, err := plan.NewLogicalPlan(transforms, edges)
 	require.NoError(t, err)
 	store := mock.NewMockStorage()
-	p, err := plan.NewPhysicalPlan(lp, store, models.RequestParams{Now:time.Now()})
+	p, err := plan.NewPhysicalPlan(lp, store, models.RequestParams{Now: time.Now()})
 	require.NoError(t, err)
 	state, err := GenerateExecutionState(p, store)
 	require.NoError(t, err)
@@ -64,7 +64,7 @@ func TestWithoutSources(t *testing.T) {
 	edges := parser.Edges{}
 	lp, err := plan.NewLogicalPlan(transforms, edges)
 	require.NoError(t, err)
-	p, err := plan.NewPhysicalPlan(lp, nil, models.RequestParams{Now:time.Now()})
+	p, err := plan.NewPhysicalPlan(lp, nil, models.RequestParams{Now: time.Now()})
 	require.NoError(t, err)
 	_, err = GenerateExecutionState(p, nil)
 	assert.Error(t, err)
@@ -76,7 +76,7 @@ func TestOnlySources(t *testing.T) {
 	edges := parser.Edges{}
 	lp, err := plan.NewLogicalPlan(transforms, edges)
 	require.NoError(t, err)
-	p, err := plan.NewPhysicalPlan(lp, nil, models.RequestParams{Now:time.Now()})
+	p, err := plan.NewPhysicalPlan(lp, nil, models.RequestParams{Now: time.Now()})
 	require.NoError(t, err)
 	state, err := GenerateExecutionState(p, nil)
 	assert.NoError(t, err)
@@ -101,7 +101,7 @@ func TestMultipleSources(t *testing.T) {
 
 	lp, err := plan.NewLogicalPlan(transforms, edges)
 	require.NoError(t, err)
-	p, err := plan.NewPhysicalPlan(lp, nil, models.RequestParams{Now:time.Now()})
+	p, err := plan.NewPhysicalPlan(lp, nil, models.RequestParams{Now: time.Now()})
 	require.NoError(t, err)
 	state, err := GenerateExecutionState(p, nil)
 	assert.NoError(t, err)

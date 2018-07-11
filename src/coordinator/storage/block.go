@@ -75,17 +75,12 @@ func (m multiSeriesBlock) StepCount() int {
 	return m.meta.Bounds.Steps()
 }
 
-// SeriesCount returns the number of series in the block
-func (m multiSeriesBlock) SeriesCount() int {
-	return len(m.seriesList)
+func (m multiSeriesBlock) StepIter() (block.StepIter, error) {
+	return &multiSeriesBlockStepIter{block: m, index: -1}, nil
 }
 
-func (m multiSeriesBlock) StepIter() block.StepIter {
-	return &multiSeriesBlockStepIter{block: m, index: -1}
-}
-
-func (m multiSeriesBlock) SeriesIter() block.SeriesIter {
-	return newMultiSeriesBlockSeriesIter(m)
+func (m multiSeriesBlock) SeriesIter() (block.SeriesIter, error) {
+	return newMultiSeriesBlockSeriesIter(m), nil
 }
 
 func (m multiSeriesBlock) SeriesMeta() []block.SeriesMeta {
@@ -117,7 +112,7 @@ func (m *multiSeriesBlockStepIter) Next() bool {
 	return m.index < m.block.StepCount()
 }
 
-func (m *multiSeriesBlockStepIter) Current() block.Step {
+func (m *multiSeriesBlockStepIter) Current() (block.Step, error) {
 	values := make([]float64, len(m.block.seriesList))
 	seriesLen := m.block.seriesList[0].Len()
 	for i, s := range m.block.seriesList {
@@ -130,7 +125,12 @@ func (m *multiSeriesBlockStepIter) Current() block.Step {
 
 	bounds := m.block.meta.Bounds
 	t := bounds.Start.Add(time.Duration(m.index) * bounds.StepSize)
-	return block.NewColStep(t, values)
+	return block.NewColStep(t, values), nil
+}
+
+func (m *multiSeriesBlockStepIter) StepCount() int {
+	// If series has fewer points then it should return NaNs
+	return m.block.StepCount()
 }
 
 // TODO: Actually free up resources
@@ -146,12 +146,17 @@ func newMultiSeriesBlockSeriesIter(block multiSeriesBlock) block.SeriesIter {
 	return &multiSeriesBlockSeriesIter{block: block, index: -1}
 }
 
-func (m *multiSeriesBlockSeriesIter) Next() bool {
-	m.index++
-	return m.index < len(m.block.seriesList)
+
+func (m *multiSeriesBlockSeriesIter) SeriesCount() int {
+	return len(m.block.seriesList)
 }
 
-func (m *multiSeriesBlockSeriesIter) Current() block.Series {
+func (m *multiSeriesBlockSeriesIter) Next() bool {
+	m.index++
+	return m.index < m.SeriesCount()
+}
+
+func (m *multiSeriesBlockSeriesIter) Current() (block.Series, error) {
 	s := m.block.seriesList[m.index]
 	seriesLen := s.Values().Len()
 	values := make([]float64, m.block.StepCount())
@@ -167,7 +172,7 @@ func (m *multiSeriesBlockSeriesIter) Current() block.Series {
 	return block.NewSeries(values, block.SeriesMeta{
 		Tags: s.Tags,
 		Name: s.Name(),
-	})
+	}), nil
 }
 
 func (m *multiSeriesBlockSeriesIter) Close() {

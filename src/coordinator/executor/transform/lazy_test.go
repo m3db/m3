@@ -21,45 +21,44 @@
 package transform
 
 import (
-	"time"
+	"testing"
 
 	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/parser"
+	"github.com/m3db/m3db/src/coordinator/test"
+
+	"github.com/stretchr/testify/assert"
 )
 
-// Options to create transform nodes
-type Options struct {
-	TimeSpec TimeSpec
-	Debug    bool
+type dummyFunc struct {
+	processed  bool
+	controller *Controller
 }
 
-// OpNode represents the execution fNode
-type OpNode interface {
-	Process(ID parser.NodeID, block block.Block) error
+func (f *dummyFunc) Process(ID parser.NodeID, block block.Block) error {
+	f.processed = true
+	f.controller.Process(block)
+	return nil
 }
 
-// TimeSpec defines the time bounds for the query execution
-type TimeSpec struct {
-	Start time.Time
-	End   time.Time
-	// Now captures the current time and fixes it throughout the request, we may let people override it in the future
-	Now  time.Time
-	Step time.Duration
-}
+func TestLazyState(t *testing.T) {
+	sNode := &sinkNode{}
+	controller := &Controller{}
+	fNode := &dummyFunc{controller: controller}
 
-// Params are defined by transforms
-type Params interface {
-	parser.Params
-	Node(controller *Controller) OpNode
+	node, downStreamController := NewLazyNode(fNode, controller)
+	downStreamController.AddTransform(sNode)
+	values, bounds := test.GenerateValuesAndBounds(nil, nil)
+	b := test.NewBlockFromValues(bounds, values)
+	err := node.Process(parser.NodeID(1), b)
+	assert.NoError(t, err)
+	assert.NotNil(t, sNode.block, "downstream process called with a block")
+	assert.IsType(t, sNode.block, &lazyBlock{})
+	assert.False(t, fNode.processed, "function block is still not processed")
+	assert.NotNil(t, sNode.block.Meta(), "lazy block provides meta")
+	assert.False(t, fNode.processed, "function block not processed on meta")
+	iter, err := sNode.block.StepIter()
+	assert.NoError(t, err)
+	assert.NotNil(t, iter)
+	assert.True(t, fNode.processed, "function block processed on step iter")
 }
-
-// SeriesNode is implemented by function nodes which can support series iteration
-type SeriesNode interface {
-	ProcessSeries(series block.Series) (block.Series, error)
-}
-
-// StepNode is implemented by function nodes which can support step iteration
-type StepNode interface {
-	ProcessStep(step block.Step) (block.Step, error)
-}
-

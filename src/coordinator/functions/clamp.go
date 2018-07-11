@@ -98,14 +98,22 @@ func (c *ClampNode) Process(ID parser.NodeID, b block.Block) error {
 		return err
 	}
 
-	stepIter := b.StepIter()
-	if err := builder.AddCols(b.StepCount()); err != nil {
+	stepIter, err := b.StepIter()
+	if err != nil {
+		return err
+	}
+
+	if err := builder.AddCols(stepIter.StepCount()); err != nil {
 		return err
 	}
 
 	scalar := c.op.scalar
 	for index := 0; stepIter.Next(); index++ {
-		step := stepIter.Current()
+		step, err := stepIter.Current()
+		if err != nil {
+			return err
+		}
+
 		values := step.Values()
 		for _, value := range values {
 			builder.AppendValue(index, c.clampFn(value, scalar))

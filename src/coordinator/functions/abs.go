@@ -64,13 +64,21 @@ func (c *AbsNode) Process(ID parser.NodeID, b block.Block) error {
 		return err
 	}
 
-	stepIter := b.StepIter()
-	if err := builder.AddCols(b.StepCount()); err != nil {
+	stepIter, err := b.StepIter()
+	if err != nil {
+		return err
+	}
+
+	if err := builder.AddCols(stepIter.StepCount()); err != nil {
 		return err
 	}
 
 	for index := 0; stepIter.Next(); index++ {
-		step := stepIter.Current()
+		step, err := stepIter.Current()
+		if err != nil {
+			return err
+		}
+
 		values := c.process(step.Values())
 		for _, value := range values {
 			builder.AppendValue(index, value)
@@ -82,10 +90,12 @@ func (c *AbsNode) Process(ID parser.NodeID, b block.Block) error {
 	return c.controller.Process(nextBlock)
 }
 
+// ProcessStep allows step iteration
 func (c *AbsNode) ProcessStep(step block.Step) (block.Step, error) {
 	return block.NewColStep(step.Time(), c.process(step.Values())), nil
 }
 
+// ProcessSeries allows series iteration
 func (c *AbsNode) ProcessSeries(series block.Series) (block.Series, error) {
 	return block.NewSeries(c.process(series.Values()), series.Meta), nil
 }

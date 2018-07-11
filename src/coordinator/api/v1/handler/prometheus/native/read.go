@@ -130,6 +130,8 @@ func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, pa
 		}
 
 		resultChan := result.Result.ResultChan()
+		firstElement := false
+		var numSteps, numSeries int
 		// TODO(nikunj): Stream blocks to client
 		for blkResult := range resultChan {
 			if blkResult.Err != nil {
@@ -137,8 +139,25 @@ func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, pa
 				break
 			}
 
+			b := blkResult.Block
+			if !firstElement {
+				firstElement = true
+				firstStepIter, err := b.StepIter()
+				if err != nil {
+					return nil, err
+				}
+
+				firstSeriesIter, err := b.SeriesIter()
+				if err != nil {
+					return nil, err
+				}
+
+				numSteps = firstStepIter.StepCount()
+				numSeries = firstSeriesIter.SeriesCount()
+			}
+
 			// Insert blocks sorted by start time
-			sortedBlockList, err = insertSortedBlock(blkResult.Block, sortedBlockList)
+			sortedBlockList, err = insertSortedBlock(b, sortedBlockList, numSteps, numSeries)
 			if err != nil {
 				processErr = err
 				break
@@ -180,19 +199,34 @@ func sortedBlocksToSeriesList(blockList []block.Block) ([]*ts.Series, error) {
 		return emptySeriesList, nil
 	}
 
+	var err error
+
 	firstBlock := blockList[0]
-	numSeries := firstBlock.SeriesCount()
+	firstStepIter, err := firstBlock.StepIter()
+	if err != nil {
+		return nil, err
+	}
+
+	firstSeriesIter, err := firstBlock.SeriesIter()
+	if err != nil {
+		return nil, err
+	}
+
+	numSeries := firstSeriesIter.SeriesCount()
 	seriesList := make([]*ts.Series, numSeries)
 	seriesIters := make([]block.SeriesIter, len(blockList))
 	// To create individual series, we iterate over seriesIterators for each block in the block list.
 	// For each iterator, the nth current() will be combined to give the nth series
 	for i, b := range blockList {
-		seriesIters[i] = b.SeriesIter()
+		seriesIters[i], err = b.SeriesIter()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	seriesMeta := firstBlock.SeriesMeta()
 	bounds := firstBlock.Meta().Bounds
-	numValues := firstBlock.StepCount() * len(blockList)
+	numValues := firstStepIter.StepCount() * len(blockList)
 	for i := 0; i < numSeries; i++ {
 		values := ts.NewFixedStepValues(bounds.StepSize, numValues, math.NaN(), bounds.Start)
 		valIdx := 0
@@ -201,7 +235,11 @@ func sortedBlocksToSeriesList(blockList []block.Block) ([]*ts.Series, error) {
 				return nil, fmt.Errorf("invalid number of datapoints for series: %d, block: %d", i, idx)
 			}
 
-			blockSeries := iter.Current()
+			blockSeries, err := iter.Current()
+			if err != nil {
+				return nil, err
+			}
+
 			for i := 0; i < blockSeries.Len(); i++ {
 				values.SetValueAt(valIdx, blockSeries.ValueAtStep(i))
 				valIdx++
@@ -214,19 +252,31 @@ func sortedBlocksToSeriesList(blockList []block.Block) ([]*ts.Series, error) {
 	return seriesList, nil
 }
 
-func insertSortedBlock(b block.Block, blockList []block.Block) ([]block.Block, error) {
+func insertSortedBlock(b block.Block, blockList []block.Block, stepCount, seriesCount int) ([]block.Block, error) {
 	if len(blockList) == 0 {
 		blockList = append(blockList, b)
 		return blockList, nil
 	}
 
-	firstBlock := blockList[0]
-	if firstBlock.SeriesCount() != b.SeriesCount() {
-		return nil, fmt.Errorf("mismatch in number of series for the block, wanted: %d, found: %d", firstBlock.SeriesCount(), b.SeriesCount())
+	blockSeriesIter, err := b.SeriesIter()
+	if err != nil {
+		return nil, err
 	}
 
-	if firstBlock.StepCount() != b.StepCount() {
-		return nil, fmt.Errorf("mismatch in number of steps for the block, wanted: %d, found: %d", firstBlock.StepCount(), b.StepCount())
+	blockSeriesCount := blockSeriesIter.SeriesCount()
+	if seriesCount != blockSeriesCount {
+		return nil, fmt.Errorf("mismatch in number of series for the block, wanted: %d, found: %d", seriesCount, blockSeriesCount)
+	}
+
+	blockStepIter, err := b.StepIter()
+	if err != nil {
+		return nil, err
+	}
+
+	blockStepCount := blockStepIter.StepCount()
+
+	if stepCount != blockStepCount {
+		return nil, fmt.Errorf("mismatch in number of steps for the block, wanted: %d, found: %d", stepCount, blockStepCount)
 	}
 
 	index := sort.Search(len(blockList), func(i int) bool { return blockList[i].Meta().Bounds.Start.Before(b.Meta().Bounds.Start) })

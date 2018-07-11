@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3db/src/coordinator/parser"
 	"github.com/m3db/m3db/src/coordinator/test"
+	"github.com/m3db/m3db/src/coordinator/test/executor"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -50,7 +51,7 @@ func TestAbsWithAllValues(t *testing.T) {
 	values[1][1] = -values[1][1]
 
 	block := test.NewBlockFromValues(bounds, values)
-	c, sink := test.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	node := (&AbsOp{}).Node(c)
 	err := node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
@@ -67,7 +68,7 @@ func TestAbsWithSomeValues(t *testing.T) {
 
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
 	block := test.NewBlockFromValues(bounds, values)
-	c, sink := test.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	node := (&AbsOp{}).Node(c)
 	err := node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)

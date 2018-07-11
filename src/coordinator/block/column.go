@@ -42,18 +42,18 @@ func (c *columnBlock) Meta() Metadata {
 }
 
 // StepIter returns a StepIterator
-func (c *columnBlock) StepIter() StepIter {
+func (c *columnBlock) StepIter() (StepIter, error) {
 	return &colBlockIter{
 		columns: c.columns,
 		meta:    c.meta,
 		idx:     -1,
-	}
+	}, nil
 }
 
 // TODO: allow series iteration
 // SeriesIter returns a SeriesIterator
-func (c *columnBlock) SeriesIter() SeriesIter {
-	return newColumnBlockSeriesIter(c.columns, c.meta, c.seriesMeta)
+func (c *columnBlock) SeriesIter() (SeriesIter, error) {
+	return newColumnBlockSeriesIter(c.columns, c.meta, c.seriesMeta), nil
 }
 
 // TODO: allow series iteration
@@ -65,11 +65,6 @@ func (c *columnBlock) SeriesMeta() []SeriesMeta {
 // StepCount returns the total steps
 func (c *columnBlock) StepCount() int {
 	return len(c.columns)
-}
-
-// SeriesCount returns the number of series in the block
-func (c *columnBlock) SeriesCount() int {
-	return len(c.seriesMeta)
 }
 
 // Close frees up any resources
@@ -84,6 +79,10 @@ type colBlockIter struct {
 	idx     int
 }
 
+func (c *colBlockIter) StepCount() int {
+	return len(c.columns)
+}
+
 // Next returns true if iterator has more values remaining
 func (c *colBlockIter) Next() bool {
 	c.idx++
@@ -91,7 +90,7 @@ func (c *colBlockIter) Next() bool {
 }
 
 // Current returns the current step
-func (c *colBlockIter) Current() Step {
+func (c *colBlockIter) Current() (Step, error) {
 	col := c.columns[c.idx]
 	t, err := c.meta.Bounds.TimeForIndex(c.idx)
 	// TODO: Test panic case
@@ -102,7 +101,7 @@ func (c *colBlockIter) Current() Step {
 	return ColStep{
 		time:   t,
 		values: col.Values,
-	}
+	}, nil
 }
 
 // Close frees up resources
@@ -180,20 +179,28 @@ func newColumnBlockSeriesIter(columns []column, blockMeta Metadata, seriesMeta [
 	return &columnBlockSeriesIter{columns: columns, blockMeta: blockMeta, seriesMeta: seriesMeta, idx: -1}
 }
 
-func (m *columnBlockSeriesIter) Next() bool {
-	m.idx++
+func (m *columnBlockSeriesIter) SeriesCount() int {
 	cols := m.columns
-	return len(cols) > 0 && m.idx < len(cols[0].Values)
+	if len(cols) == 0 {
+		return 0
+	}
+
+	return len(cols[0].Values)
 }
 
-func (m *columnBlockSeriesIter) Current() Series {
+func (m *columnBlockSeriesIter) Next() bool {
+	m.idx++
+	return m.idx < m.SeriesCount()
+}
+
+func (m *columnBlockSeriesIter) Current() (Series, error) {
 	cols := m.columns
 	values := make([]float64, len(cols))
 	for i := 0; i < len(cols); i++ {
 		values[i] = cols[i].Values[m.idx]
 	}
 
-	return NewSeries(values, m.seriesMeta[m.idx])
+	return NewSeries(values, m.seriesMeta[m.idx]), nil
 }
 
 // TODO: Actually free resources once we do pooling

@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/src/coordinator/parser"
 	"github.com/m3db/m3db/src/coordinator/storage/mock"
 	"github.com/m3db/m3db/src/coordinator/test"
+	"github.com/m3db/m3db/src/coordinator/test/executor"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,7 +38,7 @@ import (
 func TestFetch(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 	b := test.NewBlockFromValues(bounds, values)
-	c, sink := test.NewControllerWithSink(parser.NodeID(1))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	mockStorage := mock.NewMockStorageWithBlocks([]block.Block{b})
 	source := (&FetchOp{}).Node(c, mockStorage, transform.Options{})
 	err := source.Execute(context.TODO())

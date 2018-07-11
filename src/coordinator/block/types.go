@@ -32,15 +32,11 @@ type Block interface {
 	// Meta returns the metadata for the block
 	Meta() Metadata
 	// StepIter returns a StepIterator
-	StepIter() StepIter
+	StepIter() (StepIter, error)
 	// SeriesIter returns a SeriesIterator
-	SeriesIter() SeriesIter
+	SeriesIter() (SeriesIter, error)
 	// SeriesMeta returns the metadata for each series in the block
 	SeriesMeta() []SeriesMeta
-	// StepCount returns the total steps/columns
-	StepCount() int
-	// SeriesCount returns the number of series in the block
-	SeriesCount() int
 	// Close frees up any resources
 	Close() error
 }
@@ -93,12 +89,15 @@ type Iterator interface {
 type SeriesIter interface {
 	Iterator
 	Current() (Series, error)
+	// SeriesCount returns the number of series
+	SeriesCount() int
 }
 
 // StepIter iterates through a block vertically
 type StepIter interface {
 	Iterator
 	Current() (Step, error)
+	StepCount() int
 }
 
 // Step is a single time step within a block

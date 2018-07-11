@@ -18,48 +18,49 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package transform
+package executor
 
 import (
-	"time"
-
 	"github.com/m3db/m3db/src/coordinator/block"
+	"github.com/m3db/m3db/src/coordinator/executor/transform"
 	"github.com/m3db/m3db/src/coordinator/parser"
 )
 
-// Options to create transform nodes
-type Options struct {
-	TimeSpec TimeSpec
-	Debug    bool
+// NewControllerWithSink creates a new controller which has a sink useful for comparison
+func NewControllerWithSink(ID parser.NodeID) (*transform.Controller, *SinkNode) {
+	c := &transform.Controller{
+		ID: ID,
+	}
+
+	node := &SinkNode{}
+	c.AddTransform(node)
+	return c, node
 }
 
-// OpNode represents the execution fNode
-type OpNode interface {
-	Process(ID parser.NodeID, block block.Block) error
+// SinkNode is a test node useful for comparisons
+type SinkNode struct {
+	Values   [][]float64
 }
 
-// TimeSpec defines the time bounds for the query execution
-type TimeSpec struct {
-	Start time.Time
-	End   time.Time
-	// Now captures the current time and fixes it throughout the request, we may let people override it in the future
-	Now  time.Time
-	Step time.Duration
-}
+// Process processes and stores the last block output in the sink node
+func (s *SinkNode) Process(ID parser.NodeID, block block.Block) error {
+	iter, err := block.SeriesIter()
+	if err != nil {
+		return err
+	}
 
-// Params are defined by transforms
-type Params interface {
-	parser.Params
-	Node(controller *Controller) OpNode
-}
+	for iter.Next() {
+		val, err := iter.Current()
+		if err != nil {
+			return err
+		}
 
-// SeriesNode is implemented by function nodes which can support series iteration
-type SeriesNode interface {
-	ProcessSeries(series block.Series) (block.Series, error)
-}
+		values := make([]float64, val.Len())
+		for i := 0; i < val.Len(); i++ {
+			values[i] = val.ValueAtStep(i)
+		}
+		s.Values = append(s.Values, values)
+	}
 
-// StepNode is implemented by function nodes which can support step iteration
-type StepNode interface {
-	ProcessStep(step block.Step) (block.Step, error)
+	return nil
 }
-
