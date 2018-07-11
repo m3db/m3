@@ -51,12 +51,12 @@ type iterator struct {
 	log            xlog.Logger
 	files          []string
 	reader         commitLogReader
-	readerIsClosed bool
 	read           iteratorRead
 	err            error
 	seriesPred     SeriesFilterPredicate
 	setRead        bool
 	closed         bool
+	readerIsClosed bool
 }
 
 type iteratorRead struct {

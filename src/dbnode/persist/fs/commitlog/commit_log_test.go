@@ -464,7 +464,7 @@ func TestReadCommitLogMissingMetadata(t *testing.T) {
 
 func TestCommitLogReaderIsReusable(t *testing.T) {
 	// Make sure we're not leaking goroutines
-	defer leaktest.CheckTimeout(t, time.Second)()
+	defer leaktest.CheckTimeout(t, 30*time.Second)()
 
 	opts, scope := newTestOptions(t, overrides{
 		strategy: StrategyWriteWait,

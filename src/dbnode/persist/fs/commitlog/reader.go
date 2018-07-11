@@ -116,8 +116,8 @@ type reader struct {
 	doneCh               chan struct{}
 	completedDecoders    completedDecoders
 	nextIndex            int64
-	bgWorkersInitialized bool
 	seriesPredicate      SeriesFilterPredicate
+	bgWorkersInitialized bool
 	isOpen               bool
 }
 

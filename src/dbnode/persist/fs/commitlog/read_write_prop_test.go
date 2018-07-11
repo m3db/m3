@@ -30,12 +30,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fortytw2/leaktest"
 	"github.com/m3db/m3db/src/dbnode/ts"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
+	"github.com/fortytw2/leaktest"
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/commands"
 	"github.com/leanovate/gopter/gen"
@@ -125,7 +125,7 @@ func TestCommitLogReadWrite(t *testing.T) {
 
 func TestCommitLogPropTest(t *testing.T) {
 	// Make sure we're not leaking goroutines
-	defer leaktest.CheckTimeout(t, 10*time.Second)()
+	defer leaktest.CheckTimeout(t, 30*time.Second)()
 
 	basePath, err := ioutil.TempDir("", "commit-log-tests")
 	require.NoError(t, err)
