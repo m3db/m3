@@ -35,25 +35,60 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func newSeriesBlock(seriesIterator encoding.SeriesIterator, start, end time.Time) SeriesBlock {
+	return SeriesBlock{
+		start:          start,
+		end:            end,
+		seriesIterator: seriesIterator,
+	}
+}
+
 func newMultiNamespaceSeries(ctrl *gomock.Controller, now time.Time, t *testing.T) ([]SeriesBlocks, []SeriesBlocks) {
 	rawTagsOne := []string{"foo", "bar", "same", "tag"}
-	seriesBlocksOne := newM3SeriesBlock("test_one", ctrl, now, rawTagsOne, t)
+	seriesOneIterators := []encoding.SeriesIterator{
+		newMockIterator(t, "test_one", rawTagsOne, ctrl, []ts.Datapoint{
+			{Timestamp: now, Value: 1},
+			{Timestamp: now.Add(90 * time.Second), Value: 2},
+			{Timestamp: now.Add(5 * time.Minute), Value: 3},
+		}),
+		newMockIterator(t, "test_one", rawTagsOne, ctrl, []ts.Datapoint{
+			{},
+			{Timestamp: now.Add(17 * time.Minute), Value: 5},
+			{Timestamp: now.Add(19 * time.Minute), Value: 6},
+		}),
+	}
+	seriesOneBlockOne := newSeriesBlock(seriesOneIterators[0], now, now.Add(10*time.Minute))
+	seriesOneBlockTwo := newSeriesBlock(seriesOneIterators[1], now.Add(10*time.Minute), now.Add(20*time.Minute))
 	tagsOne, err := ident.NewTagStringsIterator(rawTagsOne...)
 	require.NoError(t, err)
 
 	seriesOne := SeriesBlocks{
-		Blocks: seriesBlocksOne,
+		Blocks: []SeriesBlock{seriesOneBlockOne, seriesOneBlockTwo},
 		ID:     ident.StringID("test_one"),
 		Tags:   tagsOne,
 	}
 
 	rawTagsTwo := []string{"biz", "baz", "same", "tag"}
-	seriesBlocksTwo := newM3SeriesBlock("test_two", ctrl, now, rawTagsTwo, t)
+	seriesIteratorsTwo := []encoding.SeriesIterator{
+		newMockIterator(t, "test_two", rawTagsTwo, ctrl, []ts.Datapoint{
+			{Timestamp: now, Value: 1},
+			{Timestamp: now.Add(90 * time.Second), Value: 2},
+			{Timestamp: now.Add(5 * time.Minute), Value: 3},
+		}),
+		newMockIterator(t, "test_two", rawTagsTwo, ctrl, []ts.Datapoint{
+			{},
+			{Timestamp: now.Add(17 * time.Minute), Value: 5},
+			{Timestamp: now.Add(19 * time.Minute), Value: 6},
+		}),
+	}
+
+	seriesTwoBlockOne := newSeriesBlock(seriesIteratorsTwo[0], now, now.Add(10*time.Minute))
+	seriesTwoBlockTwo := newSeriesBlock(seriesIteratorsTwo[1], now.Add(10*time.Minute), now.Add(20*time.Minute))
 	tagsTwo, err := ident.NewTagStringsIterator(rawTagsTwo...)
 	require.NoError(t, err)
 
 	seriesTwo := SeriesBlocks{
-		Blocks: seriesBlocksTwo,
+		Blocks: []SeriesBlock{seriesTwoBlockOne, seriesTwoBlockTwo},
 		ID:     ident.StringID("test_two"),
 		Tags:   tagsTwo,
 	}
@@ -61,48 +96,23 @@ func newMultiNamespaceSeries(ctrl *gomock.Controller, now time.Time, t *testing.
 	return []SeriesBlocks{seriesOne}, []SeriesBlocks{seriesTwo}
 }
 
-func newM3SeriesBlock(id string, ctrl *gomock.Controller, now time.Time, tags []string, t *testing.T) []SeriesBlock {
-	seriesIterOne := encoding.NewMockSeriesIterator(ctrl)
-	seriesIterTwo := encoding.NewMockSeriesIterator(ctrl)
+func newMockIterator(t *testing.T, id string, tags []string, ctrl *gomock.Controller, dps []ts.Datapoint) encoding.SeriesIterator {
+	seriesIterator := encoding.NewMockSeriesIterator(ctrl)
 
-	seriesIterOne.EXPECT().ID().Return(ident.StringID(id))
-	seriesIterTwo.EXPECT().ID().Return(ident.StringID(id))
+	seriesIterator.EXPECT().ID().Return(ident.StringID(id))
 
 	tagIter, err := ident.NewTagStringsIterator(tags...)
 	require.NoError(t, err)
+	seriesIterator.EXPECT().Tags().Return(tagIter)
 
-	seriesIterOne.EXPECT().Tags().Return(tagIter)
-	seriesIterTwo.EXPECT().Tags().Return(tagIter)
+	seriesIterator.EXPECT().Next().Return(true).Times(len(dps))
+	seriesIterator.EXPECT().Next().Return(false)
 
-	seriesIterOne.EXPECT().Tags().Return(tagIter)
-	seriesIterTwo.EXPECT().Tags().Return(tagIter)
-
-	seriesIterOne.EXPECT().Next().Return(true).Times(3)
-	seriesIterOne.EXPECT().Next().Return(false)
-
-	seriesIterTwo.EXPECT().Next().Return(true).Times(3)
-	seriesIterTwo.EXPECT().Next().Return(false)
-
-	seriesIterOne.EXPECT().Current().Return(ts.Datapoint{Timestamp: now.Add(1 * time.Minute), Value: 1}, xtime.Millisecond, nil).Times(1)
-	seriesIterOne.EXPECT().Current().Return(ts.Datapoint{Timestamp: now.Add(90 * time.Second), Value: 2}, xtime.Millisecond, nil).Times(1)
-	seriesIterOne.EXPECT().Current().Return(ts.Datapoint{Timestamp: now.Add(5 * time.Minute), Value: 3}, xtime.Millisecond, nil).Times(1)
-
-	seriesIterTwo.EXPECT().Current().Return(ts.Datapoint{}, xtime.Millisecond, nil).Times(1)
-	seriesIterTwo.EXPECT().Current().Return(ts.Datapoint{Timestamp: now.Add(17 * time.Minute), Value: 5}, xtime.Millisecond, nil).Times(1)
-	seriesIterTwo.EXPECT().Current().Return(ts.Datapoint{Timestamp: now.Add(19 * time.Minute), Value: 6}, xtime.Millisecond, nil).Times(1)
-
-	sOne := SeriesBlock{
-		start:          now,
-		end:            now.Add(10 * time.Minute),
-		seriesIterator: seriesIterOne,
-	}
-	sTwo := SeriesBlock{
-		start:          now.Add(10 * time.Minute),
-		end:            now.Add(20 * time.Minute),
-		seriesIterator: seriesIterTwo,
+	for _, dp := range dps {
+		seriesIterator.EXPECT().Current().Return(ts.Datapoint{Timestamp: dp.Timestamp, Value: dp.Value}, xtime.Millisecond, nil).Times(1)
 	}
 
-	return []SeriesBlock{sOne, sTwo}
+	return seriesIterator
 }
 
 func TestConvertM3Blocks(t *testing.T) {
@@ -114,9 +124,9 @@ func TestConvertM3Blocks(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "test_one", m3CoordBlocks[0].Blocks[0].ConsolidatedNSBlocks[0].SeriesIterators.Iters()[0].ID().String())
-	assert.Equal(t, models.Tags{"foo": "bar"}, m3CoordBlocks[0].Blocks[0].Metadata.Tags)
+	assert.Equal(t, models.Tags{"foo": "bar", "same": "tag"}, m3CoordBlocks[0].Blocks[0].Metadata.Tags)
 	assert.Equal(t, "test_two", m3CoordBlocks[0].Blocks[1].ConsolidatedNSBlocks[0].SeriesIterators.Iters()[0].ID().String())
-	assert.Equal(t, models.Tags{"biz": "baz"}, m3CoordBlocks[0].Blocks[1].Metadata.Tags)
+	assert.Equal(t, models.Tags{"biz": "baz", "same": "tag"}, m3CoordBlocks[0].Blocks[1].Metadata.Tags)
 	assert.Equal(t, now, m3CoordBlocks[0].Metadata.Bounds.Start)
 	assert.Equal(t, now.Add(10*time.Minute), m3CoordBlocks[0].Metadata.Bounds.End)
 
@@ -139,9 +149,9 @@ func TestMultipleNamespacesSuccess(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "test_one", m3CoordBlocks[0].Blocks[0].ConsolidatedNSBlocks[0].SeriesIterators.Iters()[0].ID().String())
-	assert.Equal(t, models.Tags{"foo": "bar"}, m3CoordBlocks[0].Blocks[0].Metadata.Tags)
+	assert.Equal(t, models.Tags{"foo": "bar", "same": "tag"}, m3CoordBlocks[0].Blocks[0].Metadata.Tags)
 	assert.Equal(t, "test_two", m3CoordBlocks[0].Blocks[1].ConsolidatedNSBlocks[0].SeriesIterators.Iters()[0].ID().String())
-	assert.Equal(t, models.Tags{"biz": "baz"}, m3CoordBlocks[0].Blocks[1].Metadata.Tags)
+	assert.Equal(t, models.Tags{"biz": "baz", "same": "tag"}, m3CoordBlocks[0].Blocks[1].Metadata.Tags)
 	assert.Equal(t, now, m3CoordBlocks[0].Metadata.Bounds.Start)
 	assert.Equal(t, now.Add(10*time.Minute), m3CoordBlocks[0].Metadata.Bounds.End)
 	// NB(braskin): once consolidating multiple namespaces is supported, the length will always be 1

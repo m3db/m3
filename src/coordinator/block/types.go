@@ -107,6 +107,12 @@ type StepIter interface {
 	Meta() Metadata
 }
 
+// ValueIterator iterates through a generic iterator
+type ValueIterator interface {
+	Iterator
+	Current() float64
+}
+
 // Step is a single time step within a block
 type Step interface {
 	Time() time.Time

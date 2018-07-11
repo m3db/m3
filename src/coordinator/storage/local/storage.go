@@ -263,16 +263,12 @@ func (s *localStorage) Type() storage.Type {
 	return storage.TypeLocalDC
 }
 
+// nolint: unparam
 func (s *localStorage) fetchRaw(
 	query index.Query,
 	opts index.QueryOptions,
-) (encoding.SeriesIterators, bool, error) { // nolint: unparam
-	iters, exhaustive, err := s.session.FetchTagged(s.namespace, query, opts)
-	if err != nil {
-		return nil, false, err
-	}
-
-	return iters, exhaustive, nil
+) (encoding.SeriesIterators, bool, error) {
+	return s.session.FetchTagged(s.namespace, query, opts)
 }
 
 func (s *localStorage) FetchBlocks(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (block.Result, error) {
@@ -295,8 +291,8 @@ func (s *localStorage) FetchBlocks(ctx context.Context, query *storage.FetchQuer
 	}
 
 	// NB/todo(braskin): because we are only support querying one namespace now, we can just create
-	// a multiNamespaceList with one element. However, once we support querying multiple namespaces,
-	// we will need to append each namespace sliceOfSeriesBlocks to the multiNamespaceList
+	// a multiNamespaceSeriesList with one element. However, once we support querying multiple namespaces,
+	// we will need to append each namespace seriesBlockList to the multiNamespaceSeriesList
 	multiNamespaceSeriesList := []m3block.MultiNamespaceSeries{seriesBlockList}
 	multiSeriesBlocks, err := m3block.SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList, nil, query.Interval)
 	if err != nil {

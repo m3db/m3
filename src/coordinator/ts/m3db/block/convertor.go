@@ -38,9 +38,6 @@ func SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList []MultiNamespaceSer
 	// todo(braskin): validate blocks size and aligment per namespace before creating []MultiNamespaceSeries
 	var (
 		multiSeriesBlocks MultiSeriesBlocks
-
-		commonTags      = make(map[string]string)
-		firstSeriesTags = make(map[string]string)
 	)
 
 	for seriesIdx, multiNamespaceSeries := range multiNamespaceSeriesList {
@@ -53,10 +50,6 @@ func SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList []MultiNamespaceSer
 		// MultiSeriesBlocks list with the proper size
 		if seriesIdx == 0 {
 			multiSeriesBlocks = make(MultiSeriesBlocks, len(consolidatedSeriesBlocks))
-			commonTags, err = storage.FromIdentTagIteratorToTags(multiNamespaceSeries[0].Tags)
-			if err != nil {
-				return nil, err
-			}
 		}
 
 		for consolidatedSeriesBlockIdx, consolidatedSeriesBlock := range consolidatedSeriesBlocks {
@@ -65,23 +58,14 @@ func SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList []MultiNamespaceSer
 				multiSeriesBlocks[consolidatedSeriesBlockIdx].Metadata.Bounds.StepSize = consolidatedSeriesBlock.Metadata.Bounds.StepSize
 				multiSeriesBlocks[consolidatedSeriesBlockIdx].Metadata.Bounds.Start = consolidatedSeriesBlock.Metadata.Bounds.Start
 				multiSeriesBlocks[consolidatedSeriesBlockIdx].Metadata.Bounds.End = consolidatedSeriesBlock.Metadata.Bounds.End
-			} else {
-				dupedTags := consolidatedSeriesBlock.ConsolidatedNSBlocks[0].SeriesIterators.Iters()[0].Tags().Duplicate()
-				seriesTags, err := storage.FromIdentTagIteratorToTags(dupedTags)
-				if err != nil {
-					return nil, err
-				}
-
-				for tag, val := range commonTags {
-					if seriesTags[tag] != val {
-						delete(commonTags, tag)
-						firstSeriesTags[tag] = val
-					} else {
-						delete(seriesTags, tag)
-					}
-				}
-				consolidatedSeriesBlock.Metadata.Tags = seriesTags
 			}
+
+			dupedTags := consolidatedSeriesBlock.ConsolidatedNSBlocks[0].SeriesIterators.Iters()[0].Tags().Duplicate()
+			seriesTags, err := storage.FromIdentTagIteratorToTags(dupedTags)
+			if err != nil {
+				return nil, err
+			}
+			consolidatedSeriesBlock.Metadata.Tags = seriesTags
 
 			if !equalBounds(consolidatedSeriesBlock.Metadata.Bounds, multiSeriesBlocks[consolidatedSeriesBlockIdx].Metadata.Bounds) {
 				return nil, errBlocksMisaligned
@@ -91,7 +75,7 @@ func SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList []MultiNamespaceSer
 		}
 	}
 
-	multiSeriesBlocks[0].Blocks[0].Metadata.Tags = firstSeriesTags
+	commonTags := multiSeriesBlocks.commonTags()
 	multiSeriesBlocks.setCommonTags(commonTags)
 
 	return multiSeriesBlocks, nil
@@ -101,6 +85,25 @@ func (m MultiSeriesBlocks) setCommonTags(commonTags map[string]string) {
 	for i := range m {
 		m[i].Metadata.Tags = commonTags
 	}
+}
+
+func (m MultiSeriesBlocks) commonTags() map[string]string {
+	commonTags := make(map[string]string)
+	for tag, val := range m[0].Blocks[0].Metadata.Tags {
+		commonTags[tag] = val
+	}
+
+	// NB(braskin): all series are the same across MultiSeriesBlocks so only need
+	// to look at one
+	for _, series := range m[0].Blocks {
+		seriesTags := series.Metadata.Tags
+		for tag, val := range commonTags {
+			if seriesTags[tag] != val {
+				delete(commonTags, tag)
+			}
+		}
+	}
+	return commonTags
 }
 
 // newConsolidatedSeriesBlocks creates consolidated blocks by timeseries across namespaces

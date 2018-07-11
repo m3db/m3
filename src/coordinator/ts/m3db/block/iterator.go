@@ -57,6 +57,9 @@ func (m MultiSeriesBlock) SeriesMeta() []block.SeriesMeta {
 
 // StepCount returns the total steps/columns
 func (m MultiSeriesBlock) StepCount() int {
+	if len(m.Blocks) == 0 {
+		return 0
+	}
 	return m.Blocks[0].Metadata.Bounds.Steps()
 }
 
@@ -71,10 +74,14 @@ func (m MultiSeriesBlock) SeriesCount() int {
 	return len(m.Blocks)
 }
 
-func newConsolidatedSeriesBlockIters(blocks ConsolidatedSeriesBlocks) consolidatedSeriesBlockIters {
-	consolidatedSeriesBlockIters := make([]*consolidatedSeriesBlockIter, len(blocks))
+func newConsolidatedSeriesBlockIters(blocks ConsolidatedSeriesBlocks) []block.ValueIterator {
+	consolidatedSeriesBlockIters := make([]block.ValueIterator, len(blocks))
+	if len(blocks) == 0 {
+		return consolidatedSeriesBlockIters
+	}
+
 	for i, seriesBlock := range blocks {
-		consolidatedNSBlockIters := make([]*consolidatedNSBlockIter, len(blocks[0].ConsolidatedNSBlocks))
+		consolidatedNSBlockIters := make([]block.ValueIterator, len(blocks[0].ConsolidatedNSBlocks))
 		for j, nsBlock := range seriesBlock.ConsolidatedNSBlocks {
 			nsBlockIter := newConsolidatedNSBlockIter(nsBlock)
 			consolidatedNSBlockIters[j] = nsBlockIter
@@ -95,6 +102,7 @@ func newConsolidatedNSBlockIter(nsBlock ConsolidatedNSBlock) *consolidatedNSBloc
 	}
 }
 
+// Next moves to the next item
 func (m *multiSeriesBlockStepIter) Next() bool {
 	if len(m.seriesIters) == 0 {
 		return false
@@ -110,6 +118,7 @@ func (m *multiSeriesBlockStepIter) Next() bool {
 	return true
 }
 
+// Current returns the slice of vals and timestamps for that step
 func (m *multiSeriesBlockStepIter) Current() block.Step {
 	values := make([]float64, len(m.seriesIters))
 	for i, s := range m.seriesIters {
@@ -121,8 +130,9 @@ func (m *multiSeriesBlockStepIter) Current() block.Step {
 	return block.NewColStep(t, values)
 }
 
+// Steps returns the number of steps in the multiSeriesBlockStepIter
 func (m *multiSeriesBlockStepIter) Steps() int {
-	return len(m.seriesIters)
+	return m.meta.Bounds.Steps()
 }
 
 // TODO: Actually free up resources
@@ -139,6 +149,7 @@ func (c *consolidatedSeriesBlockIter) Current() float64 {
 	return values[0]
 }
 
+// Next moves to the next item
 func (c *consolidatedSeriesBlockIter) Next() bool {
 	if len(c.consolidatedNSBlockIters) == 0 {
 		return false
@@ -153,15 +164,21 @@ func (c *consolidatedSeriesBlockIter) Next() bool {
 	return true
 }
 
+// Close closes the underlaying iterators
+func (c *consolidatedSeriesBlockIter) Close() {
+	// todo(braskin): implement this function
+}
+
+// Next moves to the next item
 func (c *consolidatedNSBlockIter) Next() bool {
 	c.indexTime = c.indexTime.Add(c.bounds.StepSize)
-	lastDP := c.lastDP
 
 	if !c.indexTime.Before(c.bounds.End) {
 		return false
 	}
 
-	for c.indexTime.After(lastDP.Timestamp) && c.next() {
+	lastDP := c.lastDP
+	for c.indexTime.After(lastDP.Timestamp) && c.nextIterator() {
 		lastDP, _, _ = c.consolidatedNSBlockSeriesIters[c.seriesIndex].Current()
 		c.lastDP = lastDP
 	}
@@ -169,7 +186,7 @@ func (c *consolidatedNSBlockIter) Next() bool {
 	return true
 }
 
-func (c *consolidatedNSBlockIter) next() bool {
+func (c *consolidatedNSBlockIter) nextIterator() bool {
 	// todo(braskin): check bounds as well
 	if len(c.consolidatedNSBlockSeriesIters) == 0 {
 		return false
@@ -185,10 +202,19 @@ func (c *consolidatedNSBlockIter) next() bool {
 	return false
 }
 
+// Current returns the float64 value for that step
 func (c *consolidatedNSBlockIter) Current() float64 {
-	if !c.indexTime.After(c.lastDP.Timestamp) && c.indexTime.Add(c.bounds.StepSize).After(c.lastDP.Timestamp) {
-		return c.lastDP.Value
+	lastDP := c.lastDP
+	// NB(braskin): if the last datapoint is after the current step, but before the (current step+1),
+	// return that datapoint, otherwise return NaN
+	if !c.indexTime.After(lastDP.Timestamp) && c.indexTime.Add(c.bounds.StepSize).After(lastDP.Timestamp) {
+		return lastDP.Value
 	}
 
 	return math.NaN()
+}
+
+// Close closes the underlaying iterators
+func (c *consolidatedNSBlockIter) Close() {
+	// todo(braskin): implement this function
 }

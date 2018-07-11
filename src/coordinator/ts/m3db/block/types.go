@@ -88,7 +88,7 @@ func equalBounds(boundOne, boundTwo block.Bounds) bool {
 }
 
 type consolidatedSeriesBlockIter struct {
-	consolidatedNSBlockIters consolidatedNSBlockIters
+	consolidatedNSBlockIters []block.ValueIterator
 }
 
 type consolidatedSeriesBlockIters []*consolidatedSeriesBlockIter
@@ -112,7 +112,7 @@ type MultiSeriesBlock struct {
 type MultiSeriesBlocks []MultiSeriesBlock
 
 type multiSeriesBlockStepIter struct {
-	seriesIters consolidatedSeriesBlockIters
+	seriesIters []block.ValueIterator
 	index       int
 	meta        block.Metadata
 }
