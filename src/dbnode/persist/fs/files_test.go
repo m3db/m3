@@ -445,7 +445,9 @@ func TestSnapshotFiles(t *testing.T) {
 	snapshotFiles, err := SnapshotFiles(filePathPrefix, testNs1ID, shard)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(snapshotFiles))
-	require.True(t, testWriterStart.Equal(snapshotFiles[0].SnapshotTime))
+	snapshotTime, err := snapshotFiles[0].SnapshotTime()
+	require.NoError(t, err)
+	require.True(t, testWriterStart.Equal(snapshotTime))
 	require.False(t, testWriterStart.IsZero())
 }
 

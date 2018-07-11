@@ -90,7 +90,6 @@ func newCommitLogSource(opts Options, inspection fs.Inspection) bootstrap.Source
 
 		newIteratorFn:   commitlog.NewIterator,
 		snapshotFilesFn: fs.SnapshotFiles,
-		snapshotTimeFn:  fs.SnapshotTime,
 		newReaderFn:     fs.NewReader,
 	}
 }
@@ -371,16 +370,20 @@ func (s *commitLogSource) newShardDataByShard(
 	return shardDataByShard
 }
 
+// mostRecentCompleteSnapshotByBlockShard returns a
+// map[xtime.UnixNano]map[uint32]fs.FileSetFile with the contract that
+// for each shard/block combination in shardsTimeRanges, an entry will
+// exist in the map such that FileSetFile.CachedSnapshotTime is the
+// actual cached snapshot time, or the blockStart.
 func (s *commitLogSource) mostRecentCompleteSnapshotByBlockShard(
 	shardsTimeRanges result.ShardTimeRanges,
 	blockSize time.Duration,
 	snapshotFilesByShard map[uint32]fs.FileSetFilesSlice,
 	fsOpts fs.Options,
-) map[xtime.UnixNano]map[uint32]snapshotMetadata {
+) map[xtime.UnixNano]map[uint32]fs.FileSetFile {
 	var (
 		minBlock, maxBlock              = shardsTimeRanges.MinMax()
-		decoder                         = msgpack.NewDecoder(nil)
-		mostRecentSnapshotsByBlockShard = map[xtime.UnixNano]map[uint32]snapshotMetadata{}
+		mostRecentSnapshotsByBlockShard = map[xtime.UnixNano]map[uint32]fs.FileSetFile{}
 	)
 
 	for currBlockStart := minBlock.Truncate(blockSize); currBlockStart.Before(maxBlock); currBlockStart = currBlockStart.Add(blockSize) {
@@ -389,21 +392,20 @@ func (s *commitLogSource) mostRecentCompleteSnapshotByBlockShard(
 			func() {
 				var (
 					currBlockUnixNanos = xtime.ToUnixNano(currBlockStart)
-					mostRecentSnapshot snapshotMetadata
-					err                error
+					mostRecentSnapshot fs.FileSetFile
 				)
 
 				defer func() {
 					existing := mostRecentSnapshotsByBlockShard[currBlockUnixNanos]
 					if existing == nil {
-						existing = map[uint32]snapshotMetadata{}
+						existing = map[uint32]fs.FileSetFile{}
 					}
 
-					if mostRecentSnapshot.isZero() {
+					if mostRecentSnapshot.IsZero() {
 						// If we were unable to determine the most recent snapshot time for a given
 						// shard/blockStart combination, then just fall back to using the blockStart
 						// time as that will force us to read the entire commit log for that duration.
-						mostRecentSnapshot.snapshotTime = currBlockStart
+						mostRecentSnapshot.CachedSnapshotTime = currBlockStart
 					}
 					existing[shard] = mostRecentSnapshot
 					mostRecentSnapshotsByBlockShard[currBlockUnixNanos] = existing
@@ -422,32 +424,7 @@ func (s *commitLogSource) mostRecentCompleteSnapshotByBlockShard(
 					// the defer to fallback to using the block start time.
 					return
 				}
-				mostRecentSnapshot.FileSetFile = mostRecentSnapshotVolume
-
-				var (
-					filePathPrefix       = s.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
-					infoReaderBufferSize = s.opts.CommitLogOptions().FilesystemOptions().InfoReaderBufferSize()
-				)
-
-				// Performs I/O.
-				mostRecentSnapshotTime, err := s.snapshotTimeFn(
-					filePathPrefix, mostRecentSnapshot.ID, infoReaderBufferSize, decoder)
-				if err != nil {
-					s.log.
-						WithFields(
-							xlog.NewField("namespace", mostRecentSnapshot.ID.Namespace),
-							xlog.NewField("blockStart", mostRecentSnapshot.ID.BlockStart),
-							xlog.NewField("shard", mostRecentSnapshot.ID.Shard),
-							xlog.NewField("index", mostRecentSnapshot.ID.VolumeIndex),
-							xlog.NewField("filepaths", mostRecentSnapshot.AbsoluteFilepaths),
-						).
-						Error("error resolving snapshot time for snapshot file")
-
-					// If we couldn't determine the snapshot time for the snapshot file, then rely on
-					// the defer to fallback to using the block start time.
-					return
-				}
-				mostRecentSnapshot.snapshotTime = mostRecentSnapshotTime
+				mostRecentSnapshot = mostRecentSnapshotVolume
 			}()
 		}
 	}
@@ -458,7 +435,7 @@ func (s *commitLogSource) mostRecentCompleteSnapshotByBlockShard(
 func (s *commitLogSource) minimumMostRecentSnapshotTimeByBlock(
 	shardsTimeRanges result.ShardTimeRanges,
 	blockSize time.Duration,
-	mostRecentSnapshotByBlockShard map[xtime.UnixNano]map[uint32]snapshotMetadata,
+	mostRecentSnapshotByBlockShard map[xtime.UnixNano]map[uint32]fs.FileSetFile,
 ) map[xtime.UnixNano]time.Time {
 	minimumMostRecentSnapshotTimeByBlock := map[xtime.UnixNano]time.Time{}
 	for blockStart, mostRecentSnapshotsByShard := range mostRecentSnapshotByBlockShard {
@@ -473,8 +450,8 @@ func (s *commitLogSource) minimumMostRecentSnapshotTimeByBlock(
 				continue
 			}
 
-			if mostRecentSnapshotForShard.snapshotTime.Before(minMostRecentSnapshot) || minMostRecentSnapshot.IsZero() {
-				minMostRecentSnapshot = mostRecentSnapshotForShard.snapshotTime
+			if mostRecentSnapshotForShard.CachedSnapshotTime.Before(minMostRecentSnapshot) || minMostRecentSnapshot.IsZero() {
+				minMostRecentSnapshot = mostRecentSnapshotForShard.CachedSnapshotTime
 			}
 		}
 
@@ -497,7 +474,7 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 	shardTimeRanges xtime.Ranges,
 	blockSize time.Duration,
 	snapshotFiles fs.FileSetFilesSlice,
-	mostRecentCompleteSnapshotByBlockShard map[xtime.UnixNano]map[uint32]snapshotMetadata,
+	mostRecentCompleteSnapshotByBlockShard map[xtime.UnixNano]map[uint32]fs.FileSetFile,
 ) (result.ShardResult, error) {
 	var (
 		shardResult    result.ShardResult
@@ -530,9 +507,9 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 			snapshotsForBlock := mostRecentCompleteSnapshotByBlockShard[xtime.ToUnixNano(blockStart)]
 			mostRecentCompleteSnapshotForShardBlock := snapshotsForBlock[shard]
 
-			if mostRecentCompleteSnapshotForShardBlock.snapshotTime.Equal(blockStart) ||
+			if mostRecentCompleteSnapshotForShardBlock.CachedSnapshotTime.Equal(blockStart) ||
 				// Should never happen
-				mostRecentCompleteSnapshotForShardBlock.isZero() {
+				mostRecentCompleteSnapshotForShardBlock.IsZero() {
 				// There is no snapshot file for this time, and even if there was, there would
 				// be no point in reading it. In this specific case its not an error scenario
 				// because the fact that snapshotTime == blockStart means we already accounted
@@ -568,7 +545,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 	allSeriesSoFar *result.Map,
 	blockSize time.Duration,
 	snapshotFiles fs.FileSetFilesSlice,
-	mostRecentCompleteSnapshot snapshotMetadata,
+	mostRecentCompleteSnapshot fs.FileSetFile,
 ) (result.ShardResult, error) {
 	var (
 		bOpts      = s.opts.ResultOptions()
@@ -679,7 +656,7 @@ func (s *commitLogSource) newReadCommitLogPredBasedOnAvailableSnapshotFiles(
 	snapshotFilesByShard map[uint32]fs.FileSetFilesSlice,
 ) (
 	func(fileName string, fileStart time.Time, fileBlockSize time.Duration) bool,
-	map[xtime.UnixNano]map[uint32]snapshotMetadata,
+	map[xtime.UnixNano]map[uint32]fs.FileSetFile,
 	error,
 ) {
 	blockSize := ns.Options().RetentionOptions().BlockSize()
@@ -698,7 +675,7 @@ func (s *commitLogSource) newReadCommitLogPredBasedOnAvailableSnapshotFiles(
 		for shard, mostRecent := range mostRecentByShard {
 			s.log.Infof(
 				"most recent snapshot for block: %d and shard: %d is %d",
-				block.ToTime().Unix(), shard, mostRecent.snapshotTime.Unix())
+				block.ToTime().Unix(), shard, mostRecent.CachedSnapshotTime.Unix())
 		}
 	}
 
@@ -939,7 +916,7 @@ func (s *commitLogSource) mergeAllShardsCommitLogEncodersAndSnapshots(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	snapshotFiles map[uint32]fs.FileSetFilesSlice,
-	mostRecentCompleteSnapshotByBlockShard map[xtime.UnixNano]map[uint32]snapshotMetadata,
+	mostRecentCompleteSnapshotByBlockShard map[xtime.UnixNano]map[uint32]fs.FileSetFile,
 	numShards int,
 	blockSize time.Duration,
 	unmerged []shardData,
@@ -1483,13 +1460,4 @@ func (ir ioReaders) close() {
 	for _, r := range ir {
 		r.(xio.SegmentReader).Finalize()
 	}
-}
-
-type snapshotMetadata struct {
-	fs.FileSetFile
-	snapshotTime time.Time
-}
-
-func (s snapshotMetadata) isZero() bool {
-	return s.snapshotTime.IsZero()
 }

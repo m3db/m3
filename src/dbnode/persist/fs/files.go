@@ -64,7 +64,32 @@ type fileOpener func(filePath string) (*os.File, error)
 type FileSetFile struct {
 	ID                FileSetFileIdentifier
 	AbsoluteFilepaths []string
-	SnapshotTime      time.Time
+
+	CachedSnapshotTime time.Time
+	filePathPrefix     string
+}
+
+// SnapshotTime returns the SnapshotTime for the given FileSetFile. Value is meaningless
+// if the the FileSetFile is a flush instead of a snapshot.
+func (f *FileSetFile) SnapshotTime() (time.Time, error) {
+	if !f.CachedSnapshotTime.IsZero() {
+		// Return immediately if we've already cached it.
+		return f.CachedSnapshotTime, nil
+	}
+
+	snapshotTime, err := SnapshotTime(f.filePathPrefix, f.ID)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	// Cache for future use and return.
+	f.CachedSnapshotTime = snapshotTime
+	return f.CachedSnapshotTime, nil
+}
+
+// IsZero returns whether the FileSetFile is a zero value.
+func (f FileSetFile) IsZero() bool {
+	return len(f.AbsoluteFilepaths) == 0
 }
 
 // HasCheckpointFile returns a bool indicating whether the given set of
@@ -146,10 +171,11 @@ func (f FileSetFilesSlice) sortByTimeAndVolumeIndexAscending() {
 }
 
 // NewFileSetFile creates a new FileSet file
-func NewFileSetFile(id FileSetFileIdentifier) FileSetFile {
+func NewFileSetFile(id FileSetFileIdentifier, filePathPrefix string) FileSetFile {
 	return FileSetFile{
 		ID:                id,
 		AbsoluteFilepaths: []string{},
+		filePathPrefix:    filePathPrefix,
 	}
 }
 
@@ -589,7 +615,7 @@ func ReadIndexInfoFiles(
 // SnapshotFiles returns a slice of all the names for all the fileset files
 // for a given namespace and shard combination.
 func SnapshotFiles(filePathPrefix string, namespace ident.ID, shard uint32) (FileSetFilesSlice, error) {
-	snapshotFiles, err := filesetFiles(filesetFilesSelector{
+	return filesetFiles(filesetFilesSelector{
 		fileSetType:    persist.FileSetSnapshotType,
 		contentType:    persist.FileSetDataContentType,
 		filePathPrefix: filePathPrefix,
@@ -597,21 +623,6 @@ func SnapshotFiles(filePathPrefix string, namespace ident.ID, shard uint32) (Fil
 		shard:          shard,
 		pattern:        filesetFilePattern,
 	})
-	if err != nil {
-		return nil, err
-	}
-
-	decoder := msgpack.NewDecoder(nil)
-	for i := range snapshotFiles {
-		snapshotTime, err := snapshotTime(
-			filePathPrefix, snapshotFiles[i].ID, decoder)
-		if err != nil {
-			return nil, err
-		}
-		snapshotFiles[i].SnapshotTime = snapshotTime
-	}
-
-	return snapshotFiles, nil
 }
 
 // IndexSnapshotFiles returns a slice of all the names for all the index fileset files
@@ -905,7 +916,7 @@ func filesetFiles(args filesetFilesSelector) (FileSetFilesSlice, error) {
 				BlockStart:  currentFileBlockStart,
 				Shard:       args.shard,
 				VolumeIndex: volumeIndex,
-			})
+			}, args.filePathPrefix)
 		} else if !currentFileBlockStart.Equal(latestBlockStart) || latestVolumeIndex != volumeIndex {
 			filesetFiles = append(filesetFiles, latestFileSetFile)
 			latestFileSetFile = NewFileSetFile(FileSetFileIdentifier{
@@ -913,7 +924,7 @@ func filesetFiles(args filesetFilesSelector) (FileSetFilesSlice, error) {
 				BlockStart:  currentFileBlockStart,
 				Shard:       args.shard,
 				VolumeIndex: volumeIndex,
-			})
+			}, args.filePathPrefix)
 		}
 		latestBlockStart = currentFileBlockStart
 		latestVolumeIndex = volumeIndex
