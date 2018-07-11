@@ -424,6 +424,26 @@ func (s *commitLogSource) mostRecentCompleteSnapshotByBlockShard(
 					// the defer to fallback to using the block start time.
 					return
 				}
+
+				// Make sure we're able to read the snapshot time. This will also set the
+				// CachedSnapshotTime field so that we can rely upon it from here on out.
+				_, err := mostRecentSnapshotVolume.SnapshotTime()
+				if err != nil {
+					s.log.
+						WithFields(
+							xlog.NewField("namespace", mostRecentSnapshot.ID.Namespace),
+							xlog.NewField("blockStart", mostRecentSnapshot.ID.BlockStart),
+							xlog.NewField("shard", mostRecentSnapshot.ID.Shard),
+							xlog.NewField("index", mostRecentSnapshot.ID.VolumeIndex),
+							xlog.NewField("filepaths", mostRecentSnapshot.AbsoluteFilepaths),
+						).
+						Error("error resolving snapshot time for snapshot file")
+
+					// If we couldn't determine the snapshot time for the snapshot file, then rely
+					// on the defer to fallback to using the block start time.
+					return
+				}
+
 				mostRecentSnapshot = mostRecentSnapshotVolume
 			}()
 		}
@@ -673,6 +693,14 @@ func (s *commitLogSource) newReadCommitLogPredBasedOnAvailableSnapshotFiles(
 		shardsTimeRanges, blockSize, snapshotFilesByShard, s.opts.CommitLogOptions().FilesystemOptions())
 	for block, mostRecentByShard := range mostRecentCompleteSnapshotByBlockShard {
 		for shard, mostRecent := range mostRecentByShard {
+
+			if mostRecent.CachedSnapshotTime.IsZero() {
+				// Should never happen.
+				return nil, nil, fmt.Errorf(
+					"%s shard: %d and block: %d had zero value for most recent snapshot time",
+					instrument.InvariantViolatedMetricName, shard, block.ToTime().Unix())
+			}
+
 			s.log.Infof(
 				"most recent snapshot for block: %d and shard: %d is %d",
 				block.ToTime().Unix(), shard, mostRecent.CachedSnapshotTime.Unix())
