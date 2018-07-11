@@ -618,15 +618,6 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 			break
 		}
 
-		var tags ident.Tags
-		if tagsIter.Remaining() > 0 {
-			tags, err = convert.TagsFromTagsIter(id, tagsIter, idPool)
-			if err != nil {
-				return shardResult, fmt.Errorf("unable to decode tags: %v", err)
-			}
-		}
-		tagsIter.Close()
-
 		dbBlock := blocksPool.Get()
 		dbBlock.Reset(blockStart, blockSize, ts.NewSegment(data, nil, ts.FinalizeHead))
 
@@ -643,15 +634,24 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 			}
 		}
 
+		var tags ident.Tags
 		if allSeriesSoFar != nil {
 			existing, ok := allSeriesSoFar.Get(id)
 			if ok {
 				// If we've already bootstrapped this series for a different block, we don't need
 				// another copy of the IDs and tags.
 				id.Finalize()
-				tags.Finalize()
 				id = existing.ID
 				tags = existing.Tags
+			} else {
+				// Only spend cycles decoding the tags if we've never seen them before.
+				if tagsIter.Remaining() > 0 {
+					tags, err = convert.TagsFromTagsIter(id, tagsIter, idPool)
+					if err != nil {
+						return shardResult, fmt.Errorf("unable to decode tags: %v", err)
+					}
+				}
+				tagsIter.Close()
 			}
 		}
 
