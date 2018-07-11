@@ -72,6 +72,7 @@ type metrics struct {
 	messageDecodeError tally.Counter
 	ackSent            tally.Counter
 	ackEncodeError     tally.Counter
+	ackWriteError      tally.Counter
 }
 
 func newConsumerMetrics(scope tally.Scope) metrics {
@@ -80,17 +81,19 @@ func newConsumerMetrics(scope tally.Scope) metrics {
 		messageDecodeError: scope.Counter("message-decode-error"),
 		ackSent:            scope.Counter("ack-sent"),
 		ackEncodeError:     scope.Counter("ack-encode-error"),
+		ackWriteError:      scope.Counter("ack-write-error"),
 	}
 }
 
 type consumer struct {
 	sync.Mutex
 
-	opts   Options
-	mPool  *messagePool
-	encdec proto.EncodeDecoder
-	rw     *bufio.ReadWriter
-	conn   net.Conn
+	opts    Options
+	mPool   *messagePool
+	encoder proto.Encoder
+	decoder proto.Decoder
+	w       *bufio.Writer
+	conn    net.Conn
 
 	ackPb  msgpb.Ack
 	closed bool
@@ -105,14 +108,15 @@ func newConsumer(
 	opts Options,
 	m metrics,
 ) *consumer {
-	r := bufio.NewReaderSize(conn, opts.ConnectionReadBufferSize())
-	w := bufio.NewWriterSize(conn, opts.ConnectionWriteBufferSize())
-	rw := bufio.NewReadWriter(r, w)
 	return &consumer{
-		opts:   opts,
-		mPool:  mPool,
-		encdec: proto.NewEncodeDecoder(rw, opts.EncodeDecoderOptions()),
-		rw:     rw,
+		opts:    opts,
+		mPool:   mPool,
+		encoder: proto.NewEncoder(opts.EncodeDecoderOptions().EncoderOptions()),
+		decoder: proto.NewDecoder(
+			bufio.NewReaderSize(conn, opts.ConnectionReadBufferSize()),
+			opts.EncodeDecoderOptions().DecoderOptions(),
+		),
+		w:      bufio.NewWriterSize(conn, opts.ConnectionWriteBufferSize()),
 		conn:   conn,
 		closed: false,
 		doneCh: make(chan struct{}),
@@ -131,7 +135,7 @@ func (c *consumer) Init() {
 func (c *consumer) Message() (Message, error) {
 	m := c.mPool.Get()
 	m.reset(c)
-	if err := c.encdec.Decode(m); err != nil {
+	if err := c.decoder.Decode(m); err != nil {
 		c.mPool.Put(m)
 		c.m.messageDecodeError.Inc(1)
 		return nil, err
@@ -180,15 +184,20 @@ func (c *consumer) tryAckAndFlush() {
 	if ackLen := len(c.ackPb.Metadata); ackLen > 0 {
 		c.encodeAckWithLock(ackLen)
 	}
-	c.rw.Flush()
+	c.w.Flush()
 	c.Unlock()
 }
 
 func (c *consumer) encodeAckWithLock(ackLen int) error {
-	err := c.encdec.Encode(&c.ackPb)
+	err := c.encoder.Encode(&c.ackPb)
 	c.ackPb.Metadata = c.ackPb.Metadata[:0]
 	if err != nil {
 		c.m.ackEncodeError.Inc(1)
+		return err
+	}
+	_, err = c.w.Write(c.encoder.Bytes())
+	if err != nil {
+		c.m.ackWriteError.Inc(1)
 		return err
 	}
 	c.m.ackSent.Inc(int64(ackLen))

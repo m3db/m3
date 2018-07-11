@@ -68,17 +68,16 @@ func TestConsumerServer(t *testing.T) {
 	conn, err := net.Dial("tcp", l.Addr().String())
 	require.NoError(t, err)
 
-	producer := proto.NewEncodeDecoder(conn, opts.ConsumerOptions().EncodeDecoderOptions())
-
 	wg.Add(1)
-	err = producer.Encode(&testMsg1)
+	err = produce(conn, &testMsg1)
 	require.NoError(t, err)
 
 	wg.Wait()
 	require.Equal(t, testMsg1.Value, bytes)
 
 	var ack msgpb.Ack
-	err = producer.Decode(&ack)
+	testDecoder := proto.NewDecoder(conn, opts.ConsumerOptions().EncodeDecoderOptions().DecoderOptions())
+	err = testDecoder.Decode(&ack)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(ack.Metadata))
 	require.Equal(t, testMsg1.Metadata, ack.Metadata[0])

@@ -25,36 +25,27 @@ import (
 )
 
 type encdec struct {
-	rw       io.ReadWriter
-	enc      *encoder
-	dec      *decoder
+	Encoder
+	Decoder
+
 	isClosed bool
 	pool     EncodeDecoderPool
 }
 
 // NewEncodeDecoder creates an EncodeDecoder, the implementation is not thread safe.
 func NewEncodeDecoder(
-	rw io.ReadWriter,
+	r io.Reader,
 	opts EncodeDecoderOptions,
 ) EncodeDecoder {
 	if opts == nil {
 		opts = NewEncodeDecoderOptions()
 	}
 	return &encdec{
-		rw:       rw,
-		enc:      newEncoder(rw, opts.EncoderOptions()),
-		dec:      newDecoder(rw, opts.DecoderOptions()),
+		Encoder:  NewEncoder(opts.EncoderOptions()),
+		Decoder:  NewDecoder(r, opts.DecoderOptions()),
 		isClosed: false,
 		pool:     opts.EncodeDecoderPool(),
 	}
-}
-
-func (c *encdec) Encode(msg Marshaler) error {
-	return c.enc.Encode(msg)
-}
-
-func (c *encdec) Decode(acks Unmarshaler) error {
-	return c.dec.Decode(acks)
 }
 
 func (c *encdec) Close() {
@@ -67,9 +58,7 @@ func (c *encdec) Close() {
 	}
 }
 
-func (c *encdec) Reset(rw io.ReadWriter) {
-	c.enc.resetWriter(rw)
-	c.dec.resetReader(rw)
-	c.rw = rw
+func (c *encdec) ResetReader(r io.Reader) {
+	c.Decoder.ResetReader(r)
 	c.isClosed = false
 }

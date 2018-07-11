@@ -39,13 +39,17 @@ import (
 	"github.com/uber-go/tally"
 )
 
-var testMsg = msgpb.Message{
-	Metadata: msgpb.Metadata{
-		Shard: 100,
-		Id:    200,
-	},
-	Value: []byte("foooooooo"),
-}
+var (
+	testMsg = msgpb.Message{
+		Metadata: msgpb.Metadata{
+			Shard: 100,
+			Id:    200,
+		},
+		Value: []byte("foooooooo"),
+	}
+
+	testEncoder = proto.NewEncoder(nil)
+)
 
 func TestNewConsumerWriter(t *testing.T) {
 	defer leaktest.Check(t)()
@@ -70,7 +74,7 @@ func TestNewConsumerWriter(t *testing.T) {
 		wg.Done()
 	}()
 
-	require.NoError(t, w.Write(&testMsg))
+	require.NoError(t, write(w, &testMsg))
 
 	wg.Add(1)
 	mockRouter.EXPECT().
@@ -82,6 +86,10 @@ func TestNewConsumerWriter(t *testing.T) {
 	wg.Wait()
 
 	w.Close()
+	// Make sure the connection is closed after closing the consumer writer.
+	_, err = w.conn.Read([]byte{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "closed network connection")
 }
 
 func TestConsumerWriterSignalResetConnection(t *testing.T) {
@@ -122,7 +130,7 @@ func TestConsumerWriterSignalResetConnection(t *testing.T) {
 func TestConsumerWriterResetConnection(t *testing.T) {
 	w := newConsumerWriter("badAddress", nil, testOptions(), testConsumerWriterMetrics()).(*consumerWriterImpl)
 	require.Equal(t, 1, len(w.resetCh))
-	err := w.Write(&testMsg)
+	err := write(w, &testMsg)
 	require.Error(t, err)
 	require.Equal(t, errInvalidConnection, err)
 
@@ -177,17 +185,17 @@ func TestConsumerWriterWriteErrorTriggerReset(t *testing.T) {
 	), testConsumerWriterMetrics()).(*consumerWriterImpl)
 	<-w.resetCh
 	require.Equal(t, 0, len(w.resetCh))
-	err := w.Write(&testMsg)
+	err := write(w, &testMsg)
 	require.Error(t, err)
 	require.Equal(t, errInvalidConnection, err)
 	require.Equal(t, 0, len(w.resetCh))
 	w.validConn.Store(true)
-	err = w.Write(&testMsg)
+	err = write(w, &testMsg)
 	require.NoError(t, err)
 	for {
 		// The writer will need to wait until buffered size to try the flush
 		// and then realize the connection is broken.
-		err = w.Write(&testMsg)
+		err = write(w, &testMsg)
 		if err != nil {
 			break
 		}
@@ -206,7 +214,7 @@ func TestConsumerWriterFlushWriteAfterFlushErrorTriggerReset(t *testing.T) {
 	), testConsumerWriterMetrics()).(*consumerWriterImpl)
 	<-w.resetCh
 	require.Equal(t, 0, len(w.resetCh))
-	err := w.Write(&testMsg)
+	err := write(w, &testMsg)
 	require.Error(t, err)
 	require.Equal(t, errInvalidConnection, err)
 	require.Equal(t, 0, len(w.resetCh))
@@ -214,13 +222,13 @@ func TestConsumerWriterFlushWriteAfterFlushErrorTriggerReset(t *testing.T) {
 
 	// The write will be buffered in the bufio.Writer, and will
 	// not return err because it has not tried to flush yet.
-	require.NoError(t, w.Write(&testMsg))
+	require.NoError(t, write(w, &testMsg))
 
 	require.Error(t, w.rw.Flush())
 
 	// Flush err will be stored in bufio.Writer, the next time
 	// Write is called, the err will be returned.
-	err = w.Write(&testMsg)
+	err = write(w, &testMsg)
 	require.Error(t, err)
 	require.Equal(t, errInvalidConnection, err)
 	require.Equal(t, 1, len(w.resetCh))
@@ -256,7 +264,7 @@ func TestAutoReset(t *testing.T) {
 		testConsumerWriterMetrics(),
 	).(*consumerWriterImpl)
 	require.Equal(t, 1, len(w.resetCh))
-	require.Error(t, w.Write(&testMsg))
+	require.Error(t, write(w, &testMsg))
 
 	clientConn, serverConn := net.Pipe()
 	defer clientConn.Close()
@@ -281,15 +289,15 @@ func TestAutoReset(t *testing.T) {
 
 	var u uninitializedReadWriter
 	for {
-		w.encodeLock.Lock()
+		w.writeLock.Lock()
 		c := w.conn
-		w.encodeLock.Unlock()
+		w.writeLock.Unlock()
 		if c != u {
 			break
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	require.NoError(t, w.Write(&testMsg))
+	require.NoError(t, write(w, &testMsg))
 	wg.Wait()
 
 	w.Close()
@@ -322,7 +330,7 @@ func TestConsumerWriterCloseWhileDecoding(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		wg.Done()
-		require.Error(t, w.encdec.Decode(&testMsg))
+		require.Error(t, w.decoder.Decode(&testMsg))
 	}()
 	wg.Wait()
 	time.Sleep(time.Second)
@@ -343,7 +351,7 @@ func TestConsumerWriterResetWhileDecoding(t *testing.T) {
 	go func() {
 		wg.Done()
 		w.decodeLock.Lock()
-		require.Error(t, w.encdec.Decode(&testMsg))
+		require.Error(t, w.decoder.Decode(&testMsg))
 		w.decodeLock.Unlock()
 	}()
 	wg.Wait()
@@ -384,11 +392,14 @@ func testConsumeAndAckOnConnection(
 	var msg msgpb.Message
 	assert.NoError(t, server.Decode(&msg))
 
-	assert.NoError(t, server.Encode(&msgpb.Ack{
+	err := server.Encode(&msgpb.Ack{
 		Metadata: []msgpb.Metadata{
 			msg.Metadata,
 		},
-	}))
+	})
+	assert.NoError(t, err)
+	_, err = conn.Write(server.Bytes())
+	assert.NoError(t, err)
 }
 
 func testConsumeAndAckOnConnectionListener(
@@ -405,4 +416,12 @@ func testConsumeAndAckOnConnectionListener(
 
 func testConsumerWriterMetrics() consumerWriterMetrics {
 	return newConsumerWriterMetrics(tally.NoopScope)
+}
+
+func write(w consumerWriter, m proto.Marshaler) error {
+	err := testEncoder.Encode(m)
+	if err != nil {
+		return err
+	}
+	return w.Write(testEncoder.Bytes())
 }

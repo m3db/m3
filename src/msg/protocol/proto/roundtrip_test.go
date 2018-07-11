@@ -31,11 +31,12 @@ import (
 )
 
 func TestBaseEncodeDecodeRoundTripWithoutPool(t *testing.T) {
-	mimicTCP := bytes.NewBuffer(nil)
-	enc := newEncoder(mimicTCP, NewBaseOptions().SetBytesPool(nil))
+	enc := NewEncoder(NewBaseOptions().SetBytesPool(nil)).(*encoder)
 	require.Equal(t, 4, len(enc.buffer))
 	require.Equal(t, 4, cap(enc.buffer))
-	dec := newDecoder(mimicTCP, NewBaseOptions().SetBytesPool(nil))
+	require.Empty(t, enc.Bytes())
+	r := bytes.NewReader(nil)
+	dec := NewDecoder(r, NewBaseOptions().SetBytesPool(nil)).(*decoder)
 	require.Equal(t, 4, len(dec.buffer))
 	require.Equal(t, 4, cap(dec.buffer))
 	encodeMsg := msgpb.Message{
@@ -47,22 +48,27 @@ func TestBaseEncodeDecodeRoundTripWithoutPool(t *testing.T) {
 	}
 	decodeMsg := msgpb.Message{}
 
-	require.NoError(t, enc.Encode(&encodeMsg))
-	require.Equal(t, encodeMsg.Size(), len(enc.buffer))
-	require.Equal(t, encodeMsg.Size(), cap(enc.buffer))
+	err := enc.Encode(&encodeMsg)
+	require.NoError(t, err)
+	require.Equal(t, sizeEncodingLength+encodeMsg.Size(), len(enc.buffer))
+	require.Equal(t, sizeEncodingLength+encodeMsg.Size(), cap(enc.buffer))
+
+	r.Reset(enc.Bytes())
 	require.NoError(t, dec.Decode(&decodeMsg))
-	require.Equal(t, decodeMsg.Size(), len(dec.buffer))
-	require.Equal(t, encodeMsg.Size(), cap(dec.buffer))
+	require.Equal(t, sizeEncodingLength+decodeMsg.Size(), len(dec.buffer))
+	require.Equal(t, sizeEncodingLength+encodeMsg.Size(), cap(dec.buffer))
 }
 
 func TestBaseEncodeDecodeRoundTripWithPool(t *testing.T) {
 	p := getBytesPool(2, []int{2, 8, 100})
 	p.Init()
-	mimicTCP := bytes.NewBuffer(nil)
-	enc := newEncoder(mimicTCP, NewBaseOptions().SetBytesPool(p))
+
+	enc := NewEncoder(NewBaseOptions().SetBytesPool(p)).(*encoder)
 	require.Equal(t, 8, len(enc.buffer))
 	require.Equal(t, 8, cap(enc.buffer))
-	dec := newDecoder(mimicTCP, NewBaseOptions().SetBytesPool(p))
+
+	r := bytes.NewReader(nil)
+	dec := NewDecoder(r, NewBaseOptions().SetBytesPool(p)).(*decoder)
 	require.Equal(t, 8, len(dec.buffer))
 	require.Equal(t, 8, cap(dec.buffer))
 	encodeMsg := msgpb.Message{
@@ -74,19 +80,20 @@ func TestBaseEncodeDecodeRoundTripWithPool(t *testing.T) {
 	}
 	decodeMsg := msgpb.Message{}
 
-	require.NoError(t, enc.Encode(&encodeMsg))
+	err := enc.Encode(&encodeMsg)
+	require.NoError(t, err)
 	require.Equal(t, 100, len(enc.buffer))
 	require.Equal(t, 100, cap(enc.buffer))
+
+	r.Reset(enc.Bytes())
 	require.NoError(t, dec.Decode(&decodeMsg))
 	require.Equal(t, 100, len(dec.buffer))
 	require.Equal(t, 100, cap(dec.buffer))
 }
 
 func TestResetReader(t *testing.T) {
-	mimicTCP1 := bytes.NewBuffer(nil)
-	mimicTCP2 := bytes.NewBuffer(nil)
-	enc := NewEncoder(mimicTCP1, nil)
-	dec := NewDecoder(mimicTCP2, nil)
+	enc := NewEncoder(nil)
+	dec := NewDecoder(bytes.NewReader(nil), nil)
 	encodeMsg := msgpb.Message{
 		Metadata: msgpb.Metadata{
 			Shard: 1,
@@ -96,36 +103,18 @@ func TestResetReader(t *testing.T) {
 	}
 	decodeMsg := msgpb.Message{}
 
-	require.NoError(t, enc.Encode(&encodeMsg))
+	err := enc.Encode(&encodeMsg)
+	require.NoError(t, err)
 	require.Error(t, dec.Decode(&decodeMsg))
-	dec.(*decoder).resetReader(mimicTCP1)
-	require.NoError(t, dec.Decode(&decodeMsg))
-}
 
-func TestResetWriter(t *testing.T) {
-	mimicTCP1 := bytes.NewBuffer(nil)
-	mimicTCP2 := bytes.NewBuffer(nil)
-	enc := NewEncoder(mimicTCP1, nil)
-	dec := NewDecoder(mimicTCP2, nil)
-	encodeMsg := msgpb.Message{
-		Metadata: msgpb.Metadata{
-			Shard: 1,
-			Id:    2,
-		},
-		Value: make([]byte, 200),
-	}
-	decodeMsg := msgpb.Message{}
-
-	require.NoError(t, enc.Encode(&encodeMsg))
-	require.Error(t, dec.Decode(&decodeMsg))
-	enc.(*encoder).resetWriter(mimicTCP2)
-	require.NoError(t, enc.Encode(&encodeMsg))
+	r2 := bytes.NewReader(enc.Bytes())
+	dec.(*decoder).ResetReader(r2)
 	require.NoError(t, dec.Decode(&decodeMsg))
 }
 
 func TestEncodeMessageLargerThanMaxSize(t *testing.T) {
 	opts := NewBaseOptions().SetMaxMessageSize(4)
-	enc := NewEncoder(nil, opts)
+	enc := NewEncoder(opts)
 	encodeMsg := msgpb.Message{
 		Metadata: msgpb.Metadata{
 			Shard: 1,
@@ -140,8 +129,7 @@ func TestEncodeMessageLargerThanMaxSize(t *testing.T) {
 }
 
 func TestDecodeMessageLargerThanMaxSize(t *testing.T) {
-	mimicTCP := bytes.NewBuffer(nil)
-	enc := NewEncoder(mimicTCP, nil)
+	enc := NewEncoder(nil)
 	encodeMsg := msgpb.Message{
 		Metadata: msgpb.Metadata{
 			Shard: 1,
@@ -150,12 +138,13 @@ func TestDecodeMessageLargerThanMaxSize(t *testing.T) {
 		Value: make([]byte, 10),
 	}
 
-	require.NoError(t, enc.Encode(&encodeMsg))
+	err := enc.Encode(&encodeMsg)
+	require.NoError(t, err)
 
 	decodeMsg := msgpb.Message{}
 	opts := NewBaseOptions().SetMaxMessageSize(4)
-	dec := NewDecoder(mimicTCP, opts)
-	err := dec.Decode(&decodeMsg)
+	dec := NewDecoder(bytes.NewReader(enc.Bytes()), opts)
+	err = dec.Decode(&decodeMsg)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "larger than maximum supported size")
 }
