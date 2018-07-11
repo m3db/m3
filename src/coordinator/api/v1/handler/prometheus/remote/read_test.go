@@ -21,10 +21,8 @@
 package remote
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -32,7 +30,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/src/coordinator/executor"
-	"github.com/m3db/m3db/src/coordinator/generated/proto/prompb"
 	"github.com/m3db/m3db/src/coordinator/storage"
 	"github.com/m3db/m3db/src/coordinator/test"
 	"github.com/m3db/m3db/src/coordinator/test/local"
@@ -41,8 +38,6 @@ import (
 	xclock "github.com/m3db/m3x/clock"
 
 	"github.com/golang/mock/gomock"
-	"github.com/golang/protobuf/proto"
-	"github.com/golang/snappy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
@@ -51,33 +46,6 @@ import (
 var (
 	promReadTestMetrics = newPromReadMetrics(tally.NewTestScope("", nil))
 )
-
-func generatePromReadRequest() *prompb.ReadRequest {
-	req := &prompb.ReadRequest{
-		Queries: []*prompb.Query{{
-			Matchers: []*prompb.LabelMatcher{
-				{Type: prompb.LabelMatcher_EQ, Name: "eq", Value: "a"},
-			},
-			StartTimestampMs: time.Now().Add(-1*time.Hour*24).UnixNano() / int64(time.Millisecond),
-			EndTimestampMs:   time.Now().UnixNano() / int64(time.Millisecond),
-		}},
-	}
-	return req
-}
-
-func generatePromReadBody(t *testing.T) io.Reader {
-	req := generatePromReadRequest()
-	data, err := proto.Marshal(req)
-	if err != nil {
-		t.Fatal("couldn't marshal prometheus request")
-	}
-
-	compressed := snappy.Encode(nil, data)
-	// Uncomment the line below to write the data into a file useful for integration testing
-	//ioutil.WriteFile("/tmp/dat1", compressed, 0644)
-	b := bytes.NewReader(compressed)
-	return b
-}
 
 func setupServer(t *testing.T) *httptest.Server {
 	logging.InitWithCores(nil)
@@ -97,7 +65,7 @@ func TestPromReadParsing(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	storage, _ := local.NewStorageAndSession(t, ctrl)
 	promRead := &PromReadHandler{engine: executor.NewEngine(storage), promReadMetrics: promReadTestMetrics}
-	req, _ := http.NewRequest("POST", PromReadURL, generatePromReadBody(t))
+	req, _ := http.NewRequest("POST", PromReadURL, test.GeneratePromReadBody(t))
 
 	r, err := promRead.parseRequest(req)
 	require.Nil(t, err, "unable to parse request")
@@ -120,7 +88,7 @@ func TestPromReadStorageWithFetchError(t *testing.T) {
 	storage, session := local.NewStorageAndSession(t, ctrl)
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, true, fmt.Errorf("unable to get data"))
 	promRead := &PromReadHandler{engine: executor.NewEngine(storage), promReadMetrics: promReadTestMetrics}
-	req := generatePromReadRequest()
+	req := test.GeneratePromReadRequest()
 	_, err := promRead.read(context.TODO(), httptest.NewRecorder(), req, time.Hour)
 	require.NotNil(t, err, "unable to read from storage")
 }
@@ -128,7 +96,7 @@ func TestPromReadStorageWithFetchError(t *testing.T) {
 func TestQueryMatchMustBeEqual(t *testing.T) {
 	logging.InitWithCores(nil)
 
-	req := generatePromReadRequest()
+	req := test.GeneratePromReadRequest()
 	matchers, err := storage.PromMatchersToM3(req.Queries[0].Matchers)
 	require.NoError(t, err)
 
@@ -144,7 +112,7 @@ func TestQueryKillOnClientDisconnect(t *testing.T) {
 		Timeout: 1 * time.Millisecond,
 	}
 
-	_, err := c.Post(server.URL, "application/x-protobuf", generatePromReadBody(t))
+	_, err := c.Post(server.URL, "application/x-protobuf", test.GeneratePromReadBody(t))
 	assert.Error(t, err)
 }
 
@@ -152,7 +120,7 @@ func TestQueryKillOnTimeout(t *testing.T) {
 	server := setupServer(t)
 	defer server.Close()
 
-	req, _ := http.NewRequest("POST", server.URL, generatePromReadBody(t))
+	req, _ := http.NewRequest("POST", server.URL, test.GeneratePromReadBody(t))
 	req.Header.Add("Content-Type", "application/x-protobuf")
 	req.Header.Add("timeout", "1ms")
 	resp, err := http.DefaultClient.Do(req)
@@ -174,7 +142,7 @@ func TestReadErrorMetricsCount(t *testing.T) {
 	readMetrics := newPromReadMetrics(scope)
 
 	promRead := &PromReadHandler{engine: executor.NewEngine(storage), promReadMetrics: readMetrics}
-	req, _ := http.NewRequest("POST", PromReadURL, generatePromReadBody(t))
+	req, _ := http.NewRequest("POST", PromReadURL, test.GeneratePromReadBody(t))
 	promRead.ServeHTTP(httptest.NewRecorder(), req)
 
 	foundMetric := xclock.WaitUntil(func() bool {
