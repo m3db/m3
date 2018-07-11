@@ -75,10 +75,10 @@ func init() {
 
 func main() {
 	if coordinator {
-		log.Println("Benchmarking writes on m3coordinator over http endpoint...")
+		log.Println("benchmarking writes on m3coordinator over http endpoint...")
 		benchmarkCoordinator()
 	} else {
-		log.Println("Benchmarking writes on m3db...")
+		log.Println("benchmarking writes on m3db...")
 		benchmarkM3DB()
 	}
 }
@@ -96,20 +96,23 @@ func benchmarkM3DB() {
 
 	var cfg config.Configuration
 	if err := xconfig.LoadFile(&cfg, m3dbClientCfg, configLoadOpts); err != nil {
-		log.Fatalf("Unable to load %s: %v", m3dbClientCfg, err)
+		log.Fatalf("unable to load %s: %v", m3dbClientCfg, err)
 	}
 
-	m3dbClientOpts := cfg.DBClient
-	m3dbClient, err := m3dbClientOpts.NewClient(client.ConfigurationParameters{}, func(v client.Options) client.Options {
+	if len(cfg.Clusters) != 1 {
+		log.Fatal("invalid config, expected single cluster definition")
+	}
+
+	m3dbClient, err := cfg.Clusters[0].Client.NewClient(client.ConfigurationParameters{}, func(v client.Options) client.Options {
 		return v.SetWriteBatchSize(batch).SetWriteOpPoolSize(batch * 2)
 	})
 	if err != nil {
-		log.Fatalf("Unable to create m3db client, got error %v\n", err)
+		log.Fatalf("unable to create m3db client, got error %v\n", err)
 	}
 
 	session, err := m3dbClient.NewSession()
 	if err != nil {
-		log.Fatalf("Unable to create m3db client session, got error %v\n", err)
+		log.Fatalf("unable to create m3db client session, got error %v\n", err)
 	}
 
 	workerFunction := func() {
@@ -133,7 +136,7 @@ func benchmarkM3DB() {
 		close(ch)
 		wg.Wait()
 		if err := session.Close(); err != nil {
-			log.Fatalf("Unable to close m3db client session, got error %v\n", err)
+			log.Fatalf("unable to close m3db client session, got error %v\n", err)
 		}
 	}
 
@@ -210,7 +213,7 @@ func genericBenchmarker(workerFunction func(), appendReadCount func() int, clean
 		itemsRead      = appendReadCount()
 		endNanosAtomic int64
 	)
-	log.Println("Started benchmark at:", start.Format(time.StampMilli))
+	log.Println("started benchmark at:", start.Format(time.StampMilli))
 	go func() {
 		for {
 			time.Sleep(time.Second)
@@ -225,7 +228,7 @@ func genericBenchmarker(workerFunction func(), appendReadCount func() int, clean
 	cleanup()
 
 	end := time.Now()
-	log.Println("Finished benchmark at:", start.Format(time.StampMilli))
+	log.Println("finished benchmark at:", start.Format(time.StampMilli))
 	took := end.Sub(start)
 	atomic.StoreInt64(&endNanosAtomic, end.UnixNano())
 	rate := float64(itemsRead) / took.Seconds()

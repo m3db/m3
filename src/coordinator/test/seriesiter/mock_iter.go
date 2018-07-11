@@ -61,10 +61,16 @@ func NewMockSeriesIterSlice(ctrl *gomock.Controller, tagGenerator func() ident.T
 		mockIter.EXPECT().Next().Return(false).Times(1)
 		now := time.Now()
 		for i := 0; i < numValues; i++ {
-			mockIter.EXPECT().Current().Return(m3ts.Datapoint{Timestamp: now.Add(time.Duration(i * 10) * time.Second), Value: float64(i)}, xtime.Millisecond, nil).Times(1)
+			mockIter.EXPECT().Current().Return(m3ts.Datapoint{Timestamp: now.Add(time.Duration(i*10) * time.Second), Value: float64(i)}, xtime.Millisecond, nil).Times(1)
 		}
+
+		tags := tagGenerator()
 		mockIter.EXPECT().ID().Return(ident.StringID("foo")).Times(1)
-		mockIter.EXPECT().Tags().Return(tagGenerator()).Times(1)
+		mockIter.EXPECT().Tags().Return(tags).Times(1)
+		mockIter.EXPECT().Close().Do(func() {
+			// Make sure to close the tags generated when closing the iter
+			tags.Close()
+		})
 
 		iteratorList = append(iteratorList, mockIter)
 	}
@@ -81,7 +87,12 @@ func NewMockSeriesIters(ctrl *gomock.Controller, tags ident.Tag, len int, numVal
 	mockIters := encoding.NewMockSeriesIterators(ctrl)
 	mockIters.EXPECT().Iters().Return(iteratorList)
 	mockIters.EXPECT().Len().Return(len)
-	mockIters.EXPECT().Close()
+	mockIters.EXPECT().Close().Do(func() {
+		// Make sure to close the iterators
+		for _, iter := range iteratorList {
+			iter.Close()
+		}
+	})
 
 	return mockIters
 }

@@ -38,6 +38,7 @@ import (
 
 func TestPromRead(t *testing.T) {
 	logging.InitWithCores(nil)
+
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 	b := test.NewBlockFromValues(bounds, values)
 	mockStorage := mock.NewMockStorageWithBlocks([]block.Block{b})
@@ -52,6 +53,7 @@ func TestPromRead(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, seriesList, 2)
 	s := seriesList[0]
+
 	assert.Equal(t, 5, s.Values().Len())
 	for i := 0; i < s.Values().Len(); i++ {
 		assert.Equal(t, float64(i), s.Values().ValueAt(i))

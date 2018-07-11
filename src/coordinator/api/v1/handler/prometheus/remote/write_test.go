@@ -83,7 +83,7 @@ func generatePromWriteBody(t *testing.T) io.Reader {
 func TestPromWriteParsing(t *testing.T) {
 	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
-	storage, _ := local.NewStorageAndSession(ctrl)
+	storage, _ := local.NewStorageAndSession(t, ctrl)
 
 	promWrite := &PromWriteHandler{store: storage}
 
@@ -98,7 +98,7 @@ func TestPromWrite(t *testing.T) {
 	logging.InitWithCores(nil)
 
 	ctrl := gomock.NewController(t)
-	storage, session := local.NewStorageAndSession(ctrl)
+	storage, session := local.NewStorageAndSession(t, ctrl)
 	session.EXPECT().WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 
 	promWrite := &PromWriteHandler{store: storage}
@@ -116,7 +116,7 @@ func TestWriteErrorMetricCount(t *testing.T) {
 	logging.InitWithCores(nil)
 
 	ctrl := gomock.NewController(t)
-	storage, session := local.NewStorageAndSession(ctrl)
+	storage, session := local.NewStorageAndSession(t, ctrl)
 	session.EXPECT().WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 
 	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())

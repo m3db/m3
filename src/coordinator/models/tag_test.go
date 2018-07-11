@@ -107,5 +107,6 @@ func TestMatchType(t *testing.T) {
 func TestTagID(t *testing.T) {
 	tags := make(Tags)
 	tags["t1"] = "v1"
-	assert.Equal(t, tags.ID(), "t1=v1,")
+	tags["t2"] = "v2"
+	assert.Equal(t, tags.ID(), "t1=v1,t2=v2,")
 }

@@ -18,32 +18,33 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package database
+package storage
 
-import (
-	clusterclient "github.com/m3db/m3cluster/client"
-	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
-	dbconfig "github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
-	"github.com/m3db/m3db/src/coordinator/util/logging"
+import "fmt"
 
-	"github.com/gorilla/mux"
-)
-
-// Handler represents a generic handler for namespace endpoints.
-type Handler struct {
-	// This is used by other namespace Handlers
-	// nolint: structcheck, megacheck
-	client clusterclient.Client
+// ValidateMetricsType validates a stored metrics type.
+func ValidateMetricsType(v MetricsType) error {
+	for _, valid := range validMetricsTypes {
+		if valid == v {
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid stored metrics type '%v': should be one of %v",
+		v, validMetricsTypes)
 }
 
-// RegisterRoutes registers the namespace routes
-func RegisterRoutes(
-	r *mux.Router,
-	client clusterclient.Client,
-	cfg config.Configuration,
-	embeddedDbCfg *dbconfig.DBConfiguration,
-) {
-	logged := logging.WithResponseTimeLogging
-
-	r.HandleFunc(CreateURL, logged(NewCreateHandler(client, cfg, embeddedDbCfg)).ServeHTTP).Methods(CreateHTTPMethod)
+// UnmarshalYAML unmarshals a stored merics type.
+func (v *MetricsType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+	for _, valid := range validMetricsTypes {
+		if str == valid.String() {
+			*v = valid
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid MetricsType '%s' valid types are: %v",
+		str, validMetricsTypes)
 }

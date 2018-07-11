@@ -18,32 +18,37 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package database
+package storage
 
 import (
-	clusterclient "github.com/m3db/m3cluster/client"
-	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
-	dbconfig "github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
-	"github.com/m3db/m3db/src/coordinator/util/logging"
+	"fmt"
+	"math"
+	"testing"
 
-	"github.com/gorilla/mux"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v2"
 )
 
-// Handler represents a generic handler for namespace endpoints.
-type Handler struct {
-	// This is used by other namespace Handlers
-	// nolint: structcheck, megacheck
-	client clusterclient.Client
+func TestValidateMetricsType(t *testing.T) {
+	assert.NoError(t, ValidateMetricsType(UnaggregatedMetricsType))
+	assert.Error(t, ValidateMetricsType(MetricsType(math.MaxUint64)))
 }
 
-// RegisterRoutes registers the namespace routes
-func RegisterRoutes(
-	r *mux.Router,
-	client clusterclient.Client,
-	cfg config.Configuration,
-	embeddedDbCfg *dbconfig.DBConfiguration,
-) {
-	logged := logging.WithResponseTimeLogging
+func TestMetricsTypeUnmarshalYAML(t *testing.T) {
+	type config struct {
+		Type MetricsType `yaml:"type"`
+	}
 
-	r.HandleFunc(CreateURL, logged(NewCreateHandler(client, cfg, embeddedDbCfg)).ServeHTTP).Methods(CreateHTTPMethod)
+	for _, value := range validMetricsTypes {
+		str := fmt.Sprintf("type: %s\n", value.String())
+
+		var cfg config
+		require.NoError(t, yaml.Unmarshal([]byte(str), &cfg))
+
+		assert.Equal(t, value, cfg.Type)
+	}
+
+	var cfg config
+	require.Error(t, yaml.Unmarshal([]byte("type: not_a_known_type\n"), &cfg))
 }

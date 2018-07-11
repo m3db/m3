@@ -31,7 +31,8 @@
 
 	It has these top-level messages:
 		DatabaseCreateRequest
-		HostnameGroup
+		BlockSize
+		Host
 		DatabaseCreateResponse
 		NamespaceGetResponse
 		NamespaceAddRequest
@@ -66,13 +67,12 @@ type DatabaseCreateRequest struct {
 	NumShards         int32 `protobuf:"varint,3,opt,name=num_shards,json=numShards,proto3" json:"num_shards,omitempty"`
 	ReplicationFactor int32 `protobuf:"varint,4,opt,name=replication_factor,json=replicationFactor,proto3" json:"replication_factor,omitempty"`
 	// The below two options are used to default retention options
-	RetentionPeriodNanos            int64 `protobuf:"varint,5,opt,name=retention_period_nanos,json=retentionPeriodNanos,proto3" json:"retention_period_nanos,omitempty"`
-	ExpectedSeriesDatapointsPerHour int64 `protobuf:"varint,6,opt,name=expected_series_datapoints_per_hour,json=expectedSeriesDatapointsPerHour,proto3" json:"expected_series_datapoints_per_hour,omitempty"`
-	// Only one of the two below hostname types should be taken. This is enforced
-	// in application code instead of via protobuf oneof to reduce the amount of
-	// JSON nested structures required for input.
-	Hostnames      []string         `protobuf:"bytes,7,rep,name=hostnames" json:"hostnames,omitempty"`
-	HostnameGroups []*HostnameGroup `protobuf:"bytes,8,rep,name=hostname_groups,json=hostnameGroups" json:"hostname_groups,omitempty"`
+	RetentionPeriodNanos int64 `protobuf:"varint,5,opt,name=retention_period_nanos,json=retentionPeriodNanos,proto3" json:"retention_period_nanos,omitempty"`
+	// If no block size fields are set then the block size is
+	// derived from the length of the retention period
+	BlockSize *BlockSize `protobuf:"bytes,6,opt,name=block_size,json=blockSize" json:"block_size,omitempty"`
+	// Required if not using local database type
+	Hosts []*Host `protobuf:"bytes,7,rep,name=hosts" json:"hosts,omitempty"`
 }
 
 func (m *DatabaseCreateRequest) Reset()                    { *m = DatabaseCreateRequest{} }
@@ -115,49 +115,109 @@ func (m *DatabaseCreateRequest) GetRetentionPeriodNanos() int64 {
 	return 0
 }
 
-func (m *DatabaseCreateRequest) GetExpectedSeriesDatapointsPerHour() int64 {
+func (m *DatabaseCreateRequest) GetBlockSize() *BlockSize {
+	if m != nil {
+		return m.BlockSize
+	}
+	return nil
+}
+
+func (m *DatabaseCreateRequest) GetHosts() []*Host {
+	if m != nil {
+		return m.Hosts
+	}
+	return nil
+}
+
+type BlockSize struct {
+	// Explicit block size nanoseconds
+	Nanos int64 `protobuf:"varint,1,opt,name=nanos,proto3" json:"nanos,omitempty"`
+	// With the expected series datapoints per hour, use a recommended block size
+	ExpectedSeriesDatapointsPerHour int64 `protobuf:"varint,2,opt,name=expected_series_datapoints_per_hour,json=expectedSeriesDatapointsPerHour,proto3" json:"expected_series_datapoints_per_hour,omitempty"`
+}
+
+func (m *BlockSize) Reset()                    { *m = BlockSize{} }
+func (m *BlockSize) String() string            { return proto.CompactTextString(m) }
+func (*BlockSize) ProtoMessage()               {}
+func (*BlockSize) Descriptor() ([]byte, []int) { return fileDescriptorDatabase, []int{1} }
+
+func (m *BlockSize) GetNanos() int64 {
+	if m != nil {
+		return m.Nanos
+	}
+	return 0
+}
+
+func (m *BlockSize) GetExpectedSeriesDatapointsPerHour() int64 {
 	if m != nil {
 		return m.ExpectedSeriesDatapointsPerHour
 	}
 	return 0
 }
 
-func (m *DatabaseCreateRequest) GetHostnames() []string {
-	if m != nil {
-		return m.Hostnames
-	}
-	return nil
+type Host struct {
+	// Name (must be unique) of the host for logging/display purposes, can be hostname if desired,
+	// or UUID or any other string ID as used in third party inventory system
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// Address can be IP address or hostname, this is used to connect to the host
+	Address string `protobuf:"bytes,2,opt,name=address,proto3" json:"address,omitempty"`
+	// Port running the Node RPC listen address (currently TChannel/Thrift Node service)
+	Port uint32 `protobuf:"varint,3,opt,name=port,proto3" json:"port,omitempty"`
+	// (Optional) Isolation group is an optional grouping, for instance to isolate replicas by
+	// zones use zone here, or to isolate by host racks use racks here
+	IsolationGroup string `protobuf:"bytes,4,opt,name=isolation_group,json=isolationGroup,proto3" json:"isolation_group,omitempty"`
+	// (Optional) Zone specifies the zone the host resides in, this is optional.
+	Zone string `protobuf:"bytes,5,opt,name=zone,proto3" json:"zone,omitempty"`
+	// (Optional) Weight specifies when considering how many shards to take how to weight
+	// this instance, do not specify to default to a weight of 1.
+	Weight uint32 `protobuf:"varint,6,opt,name=weight,proto3" json:"weight,omitempty"`
 }
 
-func (m *DatabaseCreateRequest) GetHostnameGroups() []*HostnameGroup {
+func (m *Host) Reset()                    { *m = Host{} }
+func (m *Host) String() string            { return proto.CompactTextString(m) }
+func (*Host) ProtoMessage()               {}
+func (*Host) Descriptor() ([]byte, []int) { return fileDescriptorDatabase, []int{2} }
+
+func (m *Host) GetId() string {
 	if m != nil {
-		return m.HostnameGroups
-	}
-	return nil
-}
-
-type HostnameGroup struct {
-	Hostname       string `protobuf:"bytes,1,opt,name=hostname,proto3" json:"hostname,omitempty"`
-	IsolationGroup string `protobuf:"bytes,2,opt,name=isolation_group,json=isolationGroup,proto3" json:"isolation_group,omitempty"`
-}
-
-func (m *HostnameGroup) Reset()                    { *m = HostnameGroup{} }
-func (m *HostnameGroup) String() string            { return proto.CompactTextString(m) }
-func (*HostnameGroup) ProtoMessage()               {}
-func (*HostnameGroup) Descriptor() ([]byte, []int) { return fileDescriptorDatabase, []int{1} }
-
-func (m *HostnameGroup) GetHostname() string {
-	if m != nil {
-		return m.Hostname
+		return m.Id
 	}
 	return ""
 }
 
-func (m *HostnameGroup) GetIsolationGroup() string {
+func (m *Host) GetAddress() string {
+	if m != nil {
+		return m.Address
+	}
+	return ""
+}
+
+func (m *Host) GetPort() uint32 {
+	if m != nil {
+		return m.Port
+	}
+	return 0
+}
+
+func (m *Host) GetIsolationGroup() string {
 	if m != nil {
 		return m.IsolationGroup
 	}
 	return ""
+}
+
+func (m *Host) GetZone() string {
+	if m != nil {
+		return m.Zone
+	}
+	return ""
+}
+
+func (m *Host) GetWeight() uint32 {
+	if m != nil {
+		return m.Weight
+	}
+	return 0
 }
 
 type DatabaseCreateResponse struct {
@@ -168,7 +228,7 @@ type DatabaseCreateResponse struct {
 func (m *DatabaseCreateResponse) Reset()                    { *m = DatabaseCreateResponse{} }
 func (m *DatabaseCreateResponse) String() string            { return proto.CompactTextString(m) }
 func (*DatabaseCreateResponse) ProtoMessage()               {}
-func (*DatabaseCreateResponse) Descriptor() ([]byte, []int) { return fileDescriptorDatabase, []int{2} }
+func (*DatabaseCreateResponse) Descriptor() ([]byte, []int) { return fileDescriptorDatabase, []int{3} }
 
 func (m *DatabaseCreateResponse) GetNamespace() *NamespaceGetResponse {
 	if m != nil {
@@ -186,7 +246,8 @@ func (m *DatabaseCreateResponse) GetPlacement() *PlacementGetResponse {
 
 func init() {
 	proto.RegisterType((*DatabaseCreateRequest)(nil), "admin.DatabaseCreateRequest")
-	proto.RegisterType((*HostnameGroup)(nil), "admin.HostnameGroup")
+	proto.RegisterType((*BlockSize)(nil), "admin.BlockSize")
+	proto.RegisterType((*Host)(nil), "admin.Host")
 	proto.RegisterType((*DatabaseCreateResponse)(nil), "admin.DatabaseCreateResponse")
 }
 func (m *DatabaseCreateRequest) Marshal() (dAtA []byte, err error) {
@@ -231,29 +292,19 @@ func (m *DatabaseCreateRequest) MarshalTo(dAtA []byte) (int, error) {
 		i++
 		i = encodeVarintDatabase(dAtA, i, uint64(m.RetentionPeriodNanos))
 	}
-	if m.ExpectedSeriesDatapointsPerHour != 0 {
-		dAtA[i] = 0x30
+	if m.BlockSize != nil {
+		dAtA[i] = 0x32
 		i++
-		i = encodeVarintDatabase(dAtA, i, uint64(m.ExpectedSeriesDatapointsPerHour))
-	}
-	if len(m.Hostnames) > 0 {
-		for _, s := range m.Hostnames {
-			dAtA[i] = 0x3a
-			i++
-			l = len(s)
-			for l >= 1<<7 {
-				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
-				l >>= 7
-				i++
-			}
-			dAtA[i] = uint8(l)
-			i++
-			i += copy(dAtA[i:], s)
+		i = encodeVarintDatabase(dAtA, i, uint64(m.BlockSize.Size()))
+		n1, err := m.BlockSize.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
 		}
+		i += n1
 	}
-	if len(m.HostnameGroups) > 0 {
-		for _, msg := range m.HostnameGroups {
-			dAtA[i] = 0x42
+	if len(m.Hosts) > 0 {
+		for _, msg := range m.Hosts {
+			dAtA[i] = 0x3a
 			i++
 			i = encodeVarintDatabase(dAtA, i, uint64(msg.Size()))
 			n, err := msg.MarshalTo(dAtA[i:])
@@ -266,7 +317,7 @@ func (m *DatabaseCreateRequest) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
-func (m *HostnameGroup) Marshal() (dAtA []byte, err error) {
+func (m *BlockSize) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalTo(dAtA)
@@ -276,22 +327,72 @@ func (m *HostnameGroup) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *HostnameGroup) MarshalTo(dAtA []byte) (int, error) {
+func (m *BlockSize) MarshalTo(dAtA []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
 	_ = l
-	if len(m.Hostname) > 0 {
+	if m.Nanos != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintDatabase(dAtA, i, uint64(m.Nanos))
+	}
+	if m.ExpectedSeriesDatapointsPerHour != 0 {
+		dAtA[i] = 0x10
+		i++
+		i = encodeVarintDatabase(dAtA, i, uint64(m.ExpectedSeriesDatapointsPerHour))
+	}
+	return i, nil
+}
+
+func (m *Host) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *Host) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Id) > 0 {
 		dAtA[i] = 0xa
 		i++
-		i = encodeVarintDatabase(dAtA, i, uint64(len(m.Hostname)))
-		i += copy(dAtA[i:], m.Hostname)
+		i = encodeVarintDatabase(dAtA, i, uint64(len(m.Id)))
+		i += copy(dAtA[i:], m.Id)
+	}
+	if len(m.Address) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintDatabase(dAtA, i, uint64(len(m.Address)))
+		i += copy(dAtA[i:], m.Address)
+	}
+	if m.Port != 0 {
+		dAtA[i] = 0x18
+		i++
+		i = encodeVarintDatabase(dAtA, i, uint64(m.Port))
 	}
 	if len(m.IsolationGroup) > 0 {
-		dAtA[i] = 0x12
+		dAtA[i] = 0x22
 		i++
 		i = encodeVarintDatabase(dAtA, i, uint64(len(m.IsolationGroup)))
 		i += copy(dAtA[i:], m.IsolationGroup)
+	}
+	if len(m.Zone) > 0 {
+		dAtA[i] = 0x2a
+		i++
+		i = encodeVarintDatabase(dAtA, i, uint64(len(m.Zone)))
+		i += copy(dAtA[i:], m.Zone)
+	}
+	if m.Weight != 0 {
+		dAtA[i] = 0x30
+		i++
+		i = encodeVarintDatabase(dAtA, i, uint64(m.Weight))
 	}
 	return i, nil
 }
@@ -315,21 +416,21 @@ func (m *DatabaseCreateResponse) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0xa
 		i++
 		i = encodeVarintDatabase(dAtA, i, uint64(m.Namespace.Size()))
-		n1, err := m.Namespace.MarshalTo(dAtA[i:])
+		n2, err := m.Namespace.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n1
+		i += n2
 	}
 	if m.Placement != nil {
 		dAtA[i] = 0x12
 		i++
 		i = encodeVarintDatabase(dAtA, i, uint64(m.Placement.Size()))
-		n2, err := m.Placement.MarshalTo(dAtA[i:])
+		n3, err := m.Placement.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n2
+		i += n3
 	}
 	return i, nil
 }
@@ -363,17 +464,12 @@ func (m *DatabaseCreateRequest) Size() (n int) {
 	if m.RetentionPeriodNanos != 0 {
 		n += 1 + sovDatabase(uint64(m.RetentionPeriodNanos))
 	}
-	if m.ExpectedSeriesDatapointsPerHour != 0 {
-		n += 1 + sovDatabase(uint64(m.ExpectedSeriesDatapointsPerHour))
+	if m.BlockSize != nil {
+		l = m.BlockSize.Size()
+		n += 1 + l + sovDatabase(uint64(l))
 	}
-	if len(m.Hostnames) > 0 {
-		for _, s := range m.Hostnames {
-			l = len(s)
-			n += 1 + l + sovDatabase(uint64(l))
-		}
-	}
-	if len(m.HostnameGroups) > 0 {
-		for _, e := range m.HostnameGroups {
+	if len(m.Hosts) > 0 {
+		for _, e := range m.Hosts {
 			l = e.Size()
 			n += 1 + l + sovDatabase(uint64(l))
 		}
@@ -381,16 +477,42 @@ func (m *DatabaseCreateRequest) Size() (n int) {
 	return n
 }
 
-func (m *HostnameGroup) Size() (n int) {
+func (m *BlockSize) Size() (n int) {
 	var l int
 	_ = l
-	l = len(m.Hostname)
+	if m.Nanos != 0 {
+		n += 1 + sovDatabase(uint64(m.Nanos))
+	}
+	if m.ExpectedSeriesDatapointsPerHour != 0 {
+		n += 1 + sovDatabase(uint64(m.ExpectedSeriesDatapointsPerHour))
+	}
+	return n
+}
+
+func (m *Host) Size() (n int) {
+	var l int
+	_ = l
+	l = len(m.Id)
 	if l > 0 {
 		n += 1 + l + sovDatabase(uint64(l))
+	}
+	l = len(m.Address)
+	if l > 0 {
+		n += 1 + l + sovDatabase(uint64(l))
+	}
+	if m.Port != 0 {
+		n += 1 + sovDatabase(uint64(m.Port))
 	}
 	l = len(m.IsolationGroup)
 	if l > 0 {
 		n += 1 + l + sovDatabase(uint64(l))
+	}
+	l = len(m.Zone)
+	if l > 0 {
+		n += 1 + l + sovDatabase(uint64(l))
+	}
+	if m.Weight != 0 {
+		n += 1 + sovDatabase(uint64(m.Weight))
 	}
 	return n
 }
@@ -567,56 +689,8 @@ func (m *DatabaseCreateRequest) Unmarshal(dAtA []byte) error {
 				}
 			}
 		case 6:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ExpectedSeriesDatapointsPerHour", wireType)
-			}
-			m.ExpectedSeriesDatapointsPerHour = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowDatabase
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.ExpectedSeriesDatapointsPerHour |= (int64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 7:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Hostnames", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowDatabase
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthDatabase
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Hostnames = append(m.Hostnames, string(dAtA[iNdEx:postIndex]))
-			iNdEx = postIndex
-		case 8:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field HostnameGroups", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field BlockSize", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -640,8 +714,41 @@ func (m *DatabaseCreateRequest) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.HostnameGroups = append(m.HostnameGroups, &HostnameGroup{})
-			if err := m.HostnameGroups[len(m.HostnameGroups)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			if m.BlockSize == nil {
+				m.BlockSize = &BlockSize{}
+			}
+			if err := m.BlockSize.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 7:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Hosts", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowDatabase
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthDatabase
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Hosts = append(m.Hosts, &Host{})
+			if err := m.Hosts[len(m.Hosts)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -666,7 +773,7 @@ func (m *DatabaseCreateRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *HostnameGroup) Unmarshal(dAtA []byte) error {
+func (m *BlockSize) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -689,15 +796,103 @@ func (m *HostnameGroup) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: HostnameGroup: wiretype end group for non-group")
+			return fmt.Errorf("proto: BlockSize: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: HostnameGroup: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: BlockSize: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Nanos", wireType)
+			}
+			m.Nanos = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowDatabase
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Nanos |= (int64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ExpectedSeriesDatapointsPerHour", wireType)
+			}
+			m.ExpectedSeriesDatapointsPerHour = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowDatabase
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ExpectedSeriesDatapointsPerHour |= (int64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipDatabase(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthDatabase
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *Host) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowDatabase
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Host: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Host: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Hostname", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Id", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -722,9 +917,57 @@ func (m *HostnameGroup) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Hostname = string(dAtA[iNdEx:postIndex])
+			m.Id = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Address", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowDatabase
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthDatabase
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Address = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Port", wireType)
+			}
+			m.Port = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowDatabase
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Port |= (uint32(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 4:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field IsolationGroup", wireType)
 			}
@@ -753,6 +996,54 @@ func (m *HostnameGroup) Unmarshal(dAtA []byte) error {
 			}
 			m.IsolationGroup = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Zone", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowDatabase
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthDatabase
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Zone = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Weight", wireType)
+			}
+			m.Weight = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowDatabase
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Weight |= (uint32(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skipDatabase(dAtA[iNdEx:])
@@ -1000,35 +1291,39 @@ func init() {
 }
 
 var fileDescriptorDatabase = []byte{
-	// 465 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x92, 0x41, 0x6f, 0xd3, 0x30,
-	0x14, 0xc7, 0x09, 0x59, 0xc7, 0xe2, 0x69, 0x1d, 0x58, 0x63, 0x8a, 0x06, 0x94, 0xa8, 0x08, 0x91,
-	0x0b, 0x8d, 0xb4, 0x71, 0xe1, 0xc0, 0x05, 0x26, 0x36, 0x10, 0xaa, 0xaa, 0x8c, 0x7b, 0xe4, 0x26,
-	0x8f, 0x26, 0x52, 0xe3, 0x67, 0x6c, 0x47, 0x82, 0x23, 0x5f, 0x00, 0xf1, 0xb1, 0x38, 0xf2, 0x11,
-	0x50, 0xf9, 0x22, 0x28, 0xaf, 0x89, 0xbb, 0xed, 0xda, 0x4b, 0x64, 0xff, 0xff, 0x3f, 0xff, 0x9f,
-	0xf3, 0x9e, 0xd9, 0x87, 0x45, 0x65, 0xcb, 0x66, 0x3e, 0xc9, 0xb1, 0x4e, 0xea, 0xb3, 0x62, 0xbe,
-	0xfe, 0x18, 0x9d, 0x27, 0x39, 0xa2, 0x2e, 0x2a, 0x29, 0x2c, 0xea, 0x64, 0x01, 0x12, 0xb4, 0xb0,
-	0x50, 0x24, 0x4a, 0xa3, 0xc5, 0x44, 0x14, 0x75, 0x25, 0x93, 0x42, 0x58, 0x31, 0x17, 0x06, 0x26,
-	0x24, 0xf2, 0x01, 0xa9, 0x27, 0x1f, 0xb7, 0x48, 0x94, 0xa2, 0x06, 0xa3, 0x44, 0xde, 0x45, 0x6e,
-	0x95, 0xa5, 0x96, 0x22, 0x87, 0x1a, 0xa4, 0x5d, 0x67, 0x8d, 0x7f, 0xf8, 0xec, 0xe1, 0x79, 0x77,
-	0xe3, 0x77, 0x1a, 0x84, 0x85, 0x14, 0xbe, 0x36, 0x60, 0x2c, 0x7f, 0xce, 0x86, 0xae, 0x70, 0xd6,
-	0xae, 0x42, 0x2f, 0xf2, 0xe2, 0x20, 0x3d, 0x70, 0xea, 0x54, 0xd4, 0xc0, 0x39, 0xdb, 0xb1, 0xdf,
-	0x15, 0x84, 0x77, 0xc9, 0xa4, 0x35, 0x7f, 0xc2, 0x98, 0x6c, 0xea, 0xcc, 0x94, 0x42, 0x17, 0x26,
-	0xf4, 0x23, 0x2f, 0x1e, 0xa4, 0x81, 0x6c, 0xea, 0x2b, 0x12, 0xf8, 0x4b, 0xc6, 0x35, 0xa8, 0x65,
-	0x95, 0x0b, 0x5b, 0xa1, 0xcc, 0xbe, 0x88, 0xdc, 0xa2, 0x0e, 0x77, 0x08, 0x7b, 0x70, 0xcd, 0x79,
-	0x4f, 0x06, 0x7f, 0xc5, 0x8e, 0x35, 0x58, 0x90, 0x04, 0x2b, 0xd0, 0x15, 0x16, 0x99, 0x14, 0x12,
-	0x4d, 0x38, 0x88, 0xbc, 0xd8, 0x4f, 0x8f, 0x9c, 0x3b, 0x23, 0x73, 0xda, 0x7a, 0xfc, 0x13, 0x7b,
-	0x06, 0xdf, 0x14, 0xe4, 0x16, 0x8a, 0xcc, 0x80, 0xae, 0xc0, 0x64, 0xed, 0x64, 0x14, 0x56, 0xd2,
-	0x9a, 0x36, 0x26, 0x2b, 0xb1, 0xd1, 0xe1, 0x2e, 0x45, 0x3c, 0xed, 0xd1, 0x2b, 0x22, 0xcf, 0x1d,
-	0x38, 0x03, 0x7d, 0x89, 0x8d, 0xe6, 0x8f, 0x59, 0x50, 0xa2, 0xb1, 0xf4, 0xeb, 0xe1, 0xbd, 0xc8,
-	0x8f, 0x83, 0x74, 0x23, 0xf0, 0x37, 0xec, 0xb0, 0xdf, 0x64, 0x0b, 0x8d, 0x8d, 0x32, 0xe1, 0x5e,
-	0xe4, 0xc7, 0xfb, 0xa7, 0x47, 0x13, 0xea, 0xfa, 0xe4, 0xb2, 0x73, 0x2f, 0x5a, 0x33, 0x1d, 0x96,
-	0xd7, 0xb7, 0x66, 0xfc, 0x99, 0x1d, 0xdc, 0x00, 0xf8, 0x09, 0xdb, 0xeb, 0x91, 0xae, 0xe9, 0x6e,
-	0xcf, 0x5f, 0xb0, 0xc3, 0xca, 0xe0, 0x72, 0xdd, 0x3a, 0x2a, 0xd6, 0xb5, 0x7e, 0xe8, 0x64, 0x0a,
-	0x19, 0xff, 0xf4, 0xd8, 0xf1, 0xed, 0xc9, 0x1a, 0x85, 0xd2, 0x00, 0x7f, 0xcd, 0x02, 0x37, 0x44,
-	0x2a, 0xb0, 0x7f, 0xfa, 0xa8, 0xbb, 0xe9, 0xb4, 0xd7, 0x2f, 0xc0, 0xf6, 0x7c, 0xba, 0xa1, 0xdb,
-	0xa3, 0xee, 0x09, 0x51, 0xe1, 0xcd, 0xd1, 0x59, 0xaf, 0xdf, 0x38, 0xea, 0xe8, 0xb7, 0xf7, 0x7f,
-	0xaf, 0x46, 0xde, 0x9f, 0xd5, 0xc8, 0xfb, 0xbb, 0x1a, 0x79, 0xbf, 0xfe, 0x8d, 0xee, 0xcc, 0x77,
-	0xe9, 0x0d, 0x9e, 0xfd, 0x0f, 0x00, 0x00, 0xff, 0xff, 0xdd, 0xdd, 0x93, 0x44, 0x6f, 0x03, 0x00,
-	0x00,
+	// 532 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x52, 0xcd, 0x6e, 0x13, 0x31,
+	0x10, 0x66, 0x93, 0xa6, 0xd5, 0x3a, 0x6a, 0x28, 0x56, 0x89, 0x56, 0x20, 0x42, 0x08, 0x42, 0xe4,
+	0x42, 0x56, 0x4a, 0xb9, 0x70, 0x2d, 0x15, 0x2d, 0x08, 0x45, 0x91, 0xf3, 0x00, 0x2b, 0xef, 0x7a,
+	0x48, 0x2c, 0xb2, 0xb6, 0xb1, 0xbd, 0x02, 0xf2, 0x10, 0x88, 0x2b, 0xaf, 0xc0, 0x93, 0x70, 0xe4,
+	0x11, 0x50, 0x78, 0x11, 0xb4, 0xb3, 0x3f, 0x05, 0xae, 0xbd, 0x44, 0x33, 0xdf, 0xf7, 0xcd, 0xe4,
+	0xdb, 0xcf, 0x43, 0x5e, 0xaf, 0xa5, 0xdf, 0x14, 0xe9, 0x2c, 0xd3, 0x79, 0x9c, 0x9f, 0x89, 0xb4,
+	0xfa, 0x71, 0x36, 0x8b, 0x33, 0xad, 0xad, 0x90, 0x8a, 0x7b, 0x6d, 0xe3, 0x35, 0x28, 0xb0, 0xdc,
+	0x83, 0x88, 0x8d, 0xd5, 0x5e, 0xc7, 0x5c, 0xe4, 0x52, 0xc5, 0x82, 0x7b, 0x9e, 0x72, 0x07, 0x33,
+	0x04, 0x69, 0x0f, 0xd1, 0x7b, 0x6f, 0x6e, 0xb0, 0x51, 0xf1, 0x1c, 0x9c, 0xe1, 0x59, 0xbd, 0xf2,
+	0x46, 0xbb, 0xcc, 0x96, 0x67, 0x90, 0x83, 0xf2, 0xd5, 0xae, 0xc9, 0xf7, 0x0e, 0xb9, 0x7b, 0x51,
+	0x3b, 0x7e, 0x69, 0x81, 0x7b, 0x60, 0xf0, 0xa1, 0x00, 0xe7, 0xe9, 0x13, 0x32, 0x68, 0xff, 0x38,
+	0x29, 0xab, 0x28, 0x18, 0x07, 0xd3, 0x90, 0x1d, 0xb7, 0xe8, 0x82, 0xe7, 0x40, 0x29, 0x39, 0xf0,
+	0x9f, 0x0d, 0x44, 0x1d, 0x24, 0xb1, 0xa6, 0x0f, 0x08, 0x51, 0x45, 0x9e, 0xb8, 0x0d, 0xb7, 0xc2,
+	0x45, 0xdd, 0x71, 0x30, 0xed, 0xb1, 0x50, 0x15, 0xf9, 0x0a, 0x01, 0xfa, 0x8c, 0x50, 0x0b, 0x66,
+	0x2b, 0x33, 0xee, 0xa5, 0x56, 0xc9, 0x3b, 0x9e, 0x79, 0x6d, 0xa3, 0x03, 0x94, 0xdd, 0xf9, 0x8b,
+	0x79, 0x85, 0x04, 0x7d, 0x4e, 0x86, 0x16, 0x3c, 0x28, 0x14, 0x1b, 0xb0, 0x52, 0x8b, 0x44, 0x71,
+	0xa5, 0x5d, 0xd4, 0x1b, 0x07, 0xd3, 0x2e, 0x3b, 0x6d, 0xd9, 0x25, 0x92, 0x8b, 0x92, 0xa3, 0x31,
+	0x21, 0xe9, 0x56, 0x67, 0xef, 0x13, 0x27, 0x77, 0x10, 0x1d, 0x8e, 0x83, 0x69, 0x7f, 0x7e, 0x32,
+	0xc3, 0x10, 0x66, 0xe7, 0x25, 0xb1, 0x92, 0x3b, 0x60, 0x61, 0xda, 0x94, 0xf4, 0x11, 0xe9, 0x6d,
+	0xb4, 0xf3, 0x2e, 0x3a, 0x1a, 0x77, 0xa7, 0xfd, 0x79, 0xbf, 0xd6, 0x5e, 0x69, 0xe7, 0x59, 0xc5,
+	0x4c, 0x34, 0x09, 0xdb, 0x51, 0x7a, 0x4a, 0x7a, 0x95, 0x8b, 0x00, 0x5d, 0x54, 0x0d, 0x7d, 0x4b,
+	0x1e, 0xc3, 0x27, 0x03, 0x99, 0x07, 0x91, 0x38, 0xb0, 0x12, 0x5c, 0x52, 0x1e, 0x84, 0xd1, 0x52,
+	0x79, 0x57, 0xba, 0x4f, 0x36, 0xba, 0xb0, 0x98, 0x56, 0x97, 0x3d, 0x6c, 0xa4, 0x2b, 0x54, 0x5e,
+	0xb4, 0xc2, 0x25, 0xd8, 0x2b, 0x5d, 0xd8, 0xc9, 0xb7, 0x80, 0x1c, 0x94, 0x06, 0xe8, 0x80, 0x74,
+	0xa4, 0xa8, 0x1f, 0xa0, 0x23, 0x05, 0x8d, 0xc8, 0x11, 0x17, 0xc2, 0x82, 0x73, 0x75, 0xf0, 0x4d,
+	0x5b, 0xbe, 0x87, 0xd1, 0xd6, 0x63, 0xea, 0xc7, 0x0c, 0x6b, 0xfa, 0x94, 0xdc, 0x96, 0x4e, 0x6f,
+	0xab, 0xb8, 0xd7, 0x56, 0x17, 0x06, 0xd3, 0x0e, 0xd9, 0xa0, 0x85, 0x2f, 0x4b, 0xb4, 0x1c, 0xde,
+	0x69, 0x05, 0x18, 0x6c, 0xc8, 0xb0, 0xa6, 0x43, 0x72, 0xf8, 0x11, 0xe4, 0x7a, 0xe3, 0x31, 0xc4,
+	0x63, 0x56, 0x77, 0x93, 0x2f, 0x01, 0x19, 0xfe, 0x7f, 0x39, 0xce, 0x68, 0xe5, 0x80, 0xbe, 0x20,
+	0x61, 0x7b, 0x24, 0x68, 0xba, 0x3f, 0xbf, 0x5f, 0xc7, 0xb9, 0x68, 0xf0, 0x4b, 0xf0, 0x8d, 0x9e,
+	0x5d, 0xab, 0xcb, 0xd1, 0xf6, 0x44, 0xf1, 0xd3, 0xae, 0x47, 0x97, 0x0d, 0xfe, 0xcf, 0x68, 0xab,
+	0x3e, 0x3f, 0xf9, 0xb1, 0x1f, 0x05, 0x3f, 0xf7, 0xa3, 0xe0, 0xd7, 0x7e, 0x14, 0x7c, 0xfd, 0x3d,
+	0xba, 0x95, 0x1e, 0xe2, 0x8d, 0x9f, 0xfd, 0x09, 0x00, 0x00, 0xff, 0xff, 0xa8, 0x52, 0x89, 0xf4,
+	0xcf, 0x03, 0x00, 0x00,
 }

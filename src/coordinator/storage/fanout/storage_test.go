@@ -73,8 +73,8 @@ func setupFanoutRead(t *testing.T, output bool, response ...*fetchResponse) stor
 	}
 
 	ctrl := gomock.NewController(t)
-	store1, session1 := local.NewStorageAndSession(ctrl)
-	store2, session2 := local.NewStorageAndSession(ctrl)
+	store1, session1 := local.NewStorageAndSession(t, ctrl)
+	store2, session2 := local.NewStorageAndSession(t, ctrl)
 
 	session1.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(response[0].result, true, response[0].err)
 	session2.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(response[len(response)-1].result, true, response[len(response)-1].err)
@@ -91,8 +91,8 @@ func setupFanoutRead(t *testing.T, output bool, response ...*fetchResponse) stor
 func setupFanoutWrite(t *testing.T, output bool, errs ...error) storage.Storage {
 	setup()
 	ctrl := gomock.NewController(t)
-	store1, session1 := local.NewStorageAndSession(ctrl)
-	store2, session2 := local.NewStorageAndSession(ctrl)
+	store1, session1 := local.NewStorageAndSession(t, ctrl)
+	store2, session2 := local.NewStorageAndSession(t, ctrl)
 	session1.EXPECT().WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(errs[0])
 	session2.EXPECT().WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(errs[len(errs)-1])
 	stores := []storage.Storage{
@@ -118,7 +118,10 @@ func TestFanoutReadError(t *testing.T) {
 
 func TestFanoutReadSuccess(t *testing.T) {
 	store := setupFanoutRead(t, true, &fetchResponse{result: fakeIterator(t)}, &fetchResponse{result: fakeIterator(t)})
-	res, err := store.Fetch(context.TODO(), &storage.FetchQuery{}, &storage.FetchOptions{})
+	res, err := store.Fetch(context.TODO(), &storage.FetchQuery{
+		Start: time.Now().Add(-time.Hour),
+		End:   time.Now(),
+	}, &storage.FetchOptions{})
 	require.NoError(t, err, "no error on read")
 	assert.NotNil(t, res)
 	assert.NoError(t, store.Close())

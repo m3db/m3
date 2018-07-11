@@ -1,6 +1,10 @@
 coordinator:
   listenAddress: 0.0.0.0:7201
 
+  local:
+    namespace: prometheus_metrics
+    retention: 48h
+
   metrics:
     scope:
       prefix: "coordinator"
@@ -10,7 +14,6 @@ coordinator:
     sanitization: prometheus
     samplingRate: 1.0
     extended: none
-  dbNamespace: prometheus_metrics
 
 db:
   logging:

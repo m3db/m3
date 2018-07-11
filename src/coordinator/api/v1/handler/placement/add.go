@@ -60,7 +60,7 @@ func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	placement, err := h.Add(req)
+	placement, err := h.Add(r, req)
 	if err != nil {
 		logger.Error("unable to add placement", zap.Any("error", err))
 		handler.Error(w, err, http.StatusInternalServerError)
@@ -92,13 +92,16 @@ func (h *AddHandler) parseRequest(r *http.Request) (*admin.PlacementAddRequest, 
 }
 
 // Add adds a placement.
-func (h *AddHandler) Add(r *admin.PlacementAddRequest) (placement.Placement, error) {
-	instances, err := ConvertInstancesProto(r.Instances)
+func (h *AddHandler) Add(
+	httpReq *http.Request,
+	req *admin.PlacementAddRequest,
+) (placement.Placement, error) {
+	instances, err := ConvertInstancesProto(req.Instances)
 	if err != nil {
 		return nil, err
 	}
 
-	service, err := Service(h.client, h.cfg)
+	service, err := Service(h.client, httpReq.Header)
 	if err != nil {
 		return nil, err
 	}

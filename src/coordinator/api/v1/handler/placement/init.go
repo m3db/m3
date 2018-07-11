@@ -60,7 +60,7 @@ func (h *InitHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	placement, err := h.Init(req)
+	placement, err := h.Init(r, req)
 	if err != nil {
 		logger.Error("unable to initialize placement", zap.Any("error", err))
 		handler.Error(w, err, http.StatusInternalServerError)
@@ -92,18 +92,22 @@ func (h *InitHandler) parseRequest(r *http.Request) (*admin.PlacementInitRequest
 }
 
 // Init initializes a placement.
-func (h *InitHandler) Init(r *admin.PlacementInitRequest) (placement.Placement, error) {
-	instances, err := ConvertInstancesProto(r.Instances)
+func (h *InitHandler) Init(
+	httpReq *http.Request,
+	req *admin.PlacementInitRequest,
+) (placement.Placement, error) {
+	instances, err := ConvertInstancesProto(req.Instances)
 	if err != nil {
 		return nil, err
 	}
 
-	service, err := Service(h.client, h.cfg)
+	service, err := Service(h.client, httpReq.Header)
 	if err != nil {
 		return nil, err
 	}
 
-	placement, err := service.BuildInitialPlacement(instances, int(r.NumShards), int(r.ReplicationFactor))
+	placement, err := service.BuildInitialPlacement(instances,
+		int(req.NumShards), int(req.ReplicationFactor))
 	if err != nil {
 		return nil, err
 	}

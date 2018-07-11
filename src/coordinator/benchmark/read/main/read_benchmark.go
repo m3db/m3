@@ -89,10 +89,10 @@ func main() {
 	// Split on coord vs m3db
 
 	if coordinator {
-		log.Println("Benchmarking reads over http endpoint m3coordinator...")
+		log.Println("benchmarking reads over http endpoint m3coordinator...")
 		benchmarkCoordinator(start, end)
 	} else {
-		log.Println("Benchmarking reads on m3db...")
+		log.Println("benchmarking reads on m3db...")
 		benchmarkM3DB(start, end)
 	}
 }
@@ -106,24 +106,24 @@ func benchmarkCoordinator(start, end time.Time) {
 	fetch := func() {
 		r, err := common.PostEncodedSnappy(readEndpoint, promRead)
 		if err != nil {
-			log.Fatalf("Unable to fetch metrics from m3coordinator, got error %v\n", err)
+			log.Fatalf("unable to fetch metrics from m3coordinator, got error %v\n", err)
 		}
 		readResponse = make([]byte, r.ContentLength)
 		r.Body.Read(readResponse)
 		r.Body.Close()
 		if r.StatusCode != 200 {
-			log.Fatalf("HTTP read failed with code %d, error: %s", r.StatusCode, string(readResponse))
+			log.Fatalf("http read failed with code %d, error: %s", r.StatusCode, string(readResponse))
 		}
 	}
 
 	count := func() int {
 		reqBuf, err := snappy.Decode(nil, readResponse)
 		if err != nil {
-			log.Fatalf("Unable to decode response, got error %v\n", err)
+			log.Fatalf("unable to decode response, got error %v\n", err)
 		}
 		var req prompb.ReadResponse
 		if err := proto.Unmarshal(reqBuf, &req); err != nil {
-			log.Fatalf("Unable to unmarshal prompb response, got error %v\n", err)
+			log.Fatalf("unable to unmarshal prompb response, got error %v\n", err)
 		}
 		return req.Size()
 	}
@@ -134,10 +134,14 @@ func benchmarkCoordinator(start, end time.Time) {
 func benchmarkM3DB(start, end time.Time) {
 	var cfg config.Configuration
 	if err := xconfig.LoadFile(&cfg, m3dbClientCfg, configLoadOpts); err != nil {
-		log.Fatalf("Unable to load %s: %v", m3dbClientCfg, err)
+		log.Fatalf("unable to load %s: %v", m3dbClientCfg, err)
 	}
-	m3dbClientOpts := cfg.DBClient
-	m3dbClient, err := m3dbClientOpts.NewClient(client.ConfigurationParameters{}, func(v client.Options) client.Options {
+
+	if len(cfg.Clusters) != 1 {
+		log.Fatal("invalid config, expected single cluster definition")
+	}
+
+	m3dbClient, err := cfg.Clusters[0].Client.NewClient(client.ConfigurationParameters{}, func(v client.Options) client.Options {
 		return v.SetWriteBatchSize(batch).SetWriteOpPoolSize(batch * 2)
 	})
 	if err != nil {
@@ -146,7 +150,7 @@ func benchmarkM3DB(start, end time.Time) {
 
 	session, err := m3dbClient.NewSession()
 	if err != nil {
-		log.Fatalf("Unable to create m3db client session, got error %v\n", err)
+		log.Fatalf("unable to create m3db client session, got error %v\n", err)
 	}
 	ids := getUniqueIds()
 	var rawResults encoding.SeriesIterators
@@ -156,7 +160,7 @@ func benchmarkM3DB(start, end time.Time) {
 		rawResults, err = session.FetchIDs(namespaceID, ident.NewStringIDsSliceIterator(ids), start, end)
 		namespaceID.Finalize()
 		if err != nil {
-			log.Fatalf("Unable to fetch metrics from m3db, got error %v\n", err)
+			log.Fatalf("unable to fetch metrics from m3db, got error %v\n", err)
 		}
 	}
 
@@ -183,16 +187,16 @@ func getUniqueIds() []string {
 
 func genericBenchmarker(fetch func(), count countFunc) {
 	start := time.Now()
-	log.Println("Started benchmark at:", start.Format(time.StampMilli))
+	log.Println("started benchmark at:", start.Format(time.StampMilli))
 	fetch()
 	end := time.Now()
-	log.Println("Finished benchmark at:", start.Format(time.StampMilli))
+	log.Println("finished benchmark at:", start.Format(time.StampMilli))
 	took := end.Sub(start)
 	// Counting should be done after timer has stopped in case any transforms are required
 	results := count()
 	rate := float64(results) / took.Seconds()
 
-	log.Printf("Returned %d timeseries in %fsec (mean values rate %f/sec)\n", results, took.Seconds(), rate)
+	log.Printf("returned %d timeseries in %fsec (mean values rate %f/sec)\n", results, took.Seconds(), rate)
 }
 
 func generateMatchers() []*prompb.LabelMatcher {
@@ -223,7 +227,7 @@ func generatePromReadBody(start, end time.Time) io.Reader {
 	req := generatePromReadRequest(start, end)
 	data, err := proto.Marshal(req)
 	if err != nil {
-		log.Fatalf("Unable to marshal request, got error %v\n", err)
+		log.Fatalf("unable to marshal request, got error %v\n", err)
 	}
 	compressed := snappy.Encode(nil, data)
 	b := bytes.NewReader(compressed)
