@@ -140,13 +140,6 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 				return false, err
 			}
 
-			// Determine which shards we need to bootstrap (based on the randomly
-			// generated data) (TODO move?)
-			allShards := map[uint32]bool{}
-			for _, write := range input.writes {
-				allShards[write.series.Shard] = true
-			}
-
 			orderedWritesBySeries := map[string][]generatedWrite{}
 			for _, write := range input.writes {
 				id := write.series.ID
@@ -155,7 +148,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 					writesForSeries = []generatedWrite{}
 				}
 				writesForSeries = append(writesForSeries, write)
-				orderedWritesBySeries[id.String()] = writesForSeries // TODO: Need this?
+				orderedWritesBySeries[id.String()] = writesForSeries
 			}
 
 			for _, writesForSeries := range orderedWritesBySeries {
@@ -297,6 +290,13 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 				End:   end,
 			})
 
+			// Determine which shards we need to bootstrap (based on the randomly
+			// generated data)
+			allShards := map[uint32]bool{}
+			for _, write := range input.writes {
+				allShards[write.series.Shard] = true
+			}
+
 			// Assign the previously-determined bootstrap range to each known shard
 			shardTimeRanges := result.ShardTimeRanges{}
 			for shard := range allShards {
@@ -419,15 +419,15 @@ func genPropTestInput(
 }
 
 func genWrite(start time.Time, bufferPast, bufferFuture time.Duration, ns string) gopter.Gen {
-	latestDatapointTime := time.Duration(start.Truncate(blockSize).Add(blockSize).UnixNano() - start.UnixNano())
+	latestDatapointTime := start.Truncate(blockSize).Add(blockSize).Sub(start)
 
 	return gopter.CombineGens(
 		// Identifier
 		gen.Identifier(),
 		// Only generate writes within the current block period
-		// TODO: Simplify this
 		gen.TimeRange(start, latestDatapointTime),
-		// TODO: Explain with comment
+		// Boolean indicating whether we should move offset the datapoint by
+		// the maximum of eithe bufferPast or bufferFuture.
 		gen.Bool(),
 		// Tag key/val
 		gen.Identifier(),
