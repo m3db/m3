@@ -321,6 +321,8 @@ func TestReplicatedShardWriterRemoveMessageWriter(t *testing.T) {
 
 	mm.EXPECT().Finalize(producer.Consumed)
 	require.NoError(t, server.Encode(&msgpb.Ack{Metadata: []msgpb.Metadata{msg.Metadata}}))
+	_, err = conn.Write(server.Bytes())
+	require.NoError(t, err)
 	// Make sure mw2 is closed and removed from router.
 	for {
 		router.RLock()

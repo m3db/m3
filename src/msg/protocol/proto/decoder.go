@@ -36,10 +36,6 @@ type decoder struct {
 
 // NewDecoder decodes a new decoder, the implementation is not thread safe.
 func NewDecoder(r io.Reader, opts BaseOptions) Decoder {
-	return newDecoder(r, opts)
-}
-
-func newDecoder(r io.Reader, opts BaseOptions) *decoder {
 	if opts == nil {
 		opts = NewBaseOptions()
 	}
@@ -57,10 +53,11 @@ func (d *decoder) Decode(m Unmarshaler) error {
 	if err != nil {
 		return err
 	}
+	d.buffer = growDataBufferIfNeeded(d.buffer, sizeEncodingLength+size, d.bytesPool)
 	if size > d.maxMessageSize {
 		return fmt.Errorf("decoded message size %d is larger than maximum supported size %d", size, d.maxMessageSize)
 	}
-	return d.decodeData(m, size)
+	return d.decodeData(d.buffer[sizeEncodingLength:sizeEncodingLength+size], m)
 }
 
 func (d *decoder) decodeSize() (int, error) {
@@ -71,14 +68,13 @@ func (d *decoder) decodeSize() (int, error) {
 	return int(size), nil
 }
 
-func (d *decoder) decodeData(m Unmarshaler, size int) error {
-	d.buffer = growDataBufferIfNeeded(d.buffer, size, d.bytesPool)
-	if _, err := io.ReadFull(d.r, d.buffer[:size]); err != nil {
+func (d *decoder) decodeData(buffer []byte, m Unmarshaler) error {
+	if _, err := io.ReadFull(d.r, buffer); err != nil {
 		return err
 	}
-	return m.Unmarshal(d.buffer[:size])
+	return m.Unmarshal(buffer)
 }
 
-func (d *decoder) resetReader(r io.Reader) {
+func (d *decoder) ResetReader(r io.Reader) {
 	d.r = r
 }

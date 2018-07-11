@@ -36,7 +36,7 @@ func TestEncodeDecoderPool(t *testing.T) {
 	})
 
 	c := p.Get()
-	c.Reset(nil)
+	c.ResetReader(nil)
 
 	c.Close()
 	require.True(t, c.(*encdec).isClosed)
@@ -44,6 +44,6 @@ func TestEncodeDecoderPool(t *testing.T) {
 	c = p.Get()
 	require.True(t, c.(*encdec).isClosed)
 
-	c.Reset(nil)
+	c.ResetReader(nil)
 	require.False(t, c.(*encdec).isClosed)
 }

@@ -31,29 +31,23 @@ import (
 
 func TestEncodeDecoderReset(t *testing.T) {
 	c := NewEncodeDecoder(nil, nil).(*encdec)
-	require.Nil(t, c.enc.w)
-	require.Nil(t, c.dec.r)
+	require.Nil(t, c.Decoder.(*decoder).r)
 	c.Close()
 	// Safe to close again.
 	c.Close()
 	require.True(t, c.isClosed)
 
 	conn := new(net.TCPConn)
-	c.Reset(conn)
+	c.ResetReader(conn)
 	require.False(t, c.isClosed)
-	require.Equal(t, conn, c.enc.w)
-	require.Equal(t, conn, c.dec.r)
+	require.Equal(t, conn, c.Decoder.(*decoder).r)
 }
 
 func TestEncodeDecodeRoundTrip(t *testing.T) {
-	c := NewEncodeDecoder(
-		nil,
-		NewEncodeDecoderOptions(),
-	).(*encdec)
+	c := NewEncodeDecoder(nil, nil).(*encdec)
 
 	clientConn, serverConn := net.Pipe()
-	c.enc.resetWriter(clientConn)
-	c.dec.resetReader(serverConn)
+	c.ResetReader(serverConn)
 
 	testMsg := msgpb.Message{
 		Metadata: msgpb.Metadata{
@@ -64,6 +58,8 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 	}
 	go func() {
 		require.NoError(t, c.Encode(&testMsg))
+		_, err := clientConn.Write(c.Bytes())
+		require.NoError(t, err)
 	}()
 	var msg msgpb.Message
 	require.NoError(t, c.Decode(&msg))

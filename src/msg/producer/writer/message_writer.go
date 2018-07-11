@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3msg/producer"
+	"github.com/m3db/m3msg/protocol/proto"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/retry"
@@ -146,6 +147,7 @@ type messageWriterImpl struct {
 	opts              Options
 	retryOpts         retry.Options
 	r                 *rand.Rand
+	encoder           proto.Encoder
 
 	msgID            uint64
 	queue            *list.List
@@ -181,6 +183,7 @@ func newMessageWriter(
 		opts:              opts,
 		retryOpts:         opts.MessageRetryOptions(),
 		r:                 rand.New(rand.NewSource(nowFn().UnixNano())),
+		encoder:           proto.NewEncoder(opts.EncodeDecoderOptions().EncoderOptions()),
 		msgID:             0,
 		queue:             list.New(),
 		acks:              newAckHelper(opts.InitialAckMapSize()),
@@ -240,11 +243,18 @@ func (w *messageWriterImpl) write(
 		m.DecReads()
 		return nil
 	}
+	// The write function is accessed through only one thread,
+	// so no lock is required for encoding.
+	err := w.encoder.Encode(msg)
+	m.DecReads()
+	if err != nil {
+		return err
+	}
 	var (
 		written = false
 	)
 	for i := len(iterationIndexes) - 1; i >= 0; i-- {
-		if err := consumerWriters[randIndex(iterationIndexes, i)].Write(msg); err != nil {
+		if err := consumerWriters[randIndex(iterationIndexes, i)].Write(w.encoder.Bytes()); err != nil {
 			w.m.oneConsumerWriteError.Inc(1)
 			continue
 		}
@@ -252,7 +262,6 @@ func (w *messageWriterImpl) write(
 		w.m.writeSuccess.Inc(1)
 		break
 	}
-	m.DecReads()
 	if written {
 		return nil
 	}

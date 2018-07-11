@@ -28,10 +28,8 @@ import (
 )
 
 func BenchmarkEncodeDecoderRoundTrip(b *testing.B) {
-	c := NewEncodeDecoder(nil, NewEncodeDecoderOptions()).(*encdec)
-	mimicTCP := bytes.NewBuffer(nil)
-	c.enc.resetWriter(mimicTCP)
-	c.dec.resetReader(mimicTCP)
+	r := bytes.NewReader(nil)
+	c := NewEncodeDecoder(r, NewEncodeDecoderOptions()).(*encdec)
 	encodeMsg := msgpb.Message{
 		Metadata: msgpb.Metadata{},
 		Value:    make([]byte, 200),
@@ -41,9 +39,11 @@ func BenchmarkEncodeDecoderRoundTrip(b *testing.B) {
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		encodeMsg.Metadata.Id = uint64(n)
-		if err := c.Encode(&encodeMsg); err != nil {
+		err := c.Encode(&encodeMsg)
+		if err != nil {
 			b.FailNow()
 		}
+		r.Reset(c.Bytes())
 		if err := c.Decode(&decodeMsg); err != nil {
 			b.FailNow()
 		}
@@ -54,9 +54,9 @@ func BenchmarkEncodeDecoderRoundTrip(b *testing.B) {
 }
 
 func BenchmarkBaseEncodeDecodeRoundTrip(b *testing.B) {
-	mimicTCP := bytes.NewBuffer(nil)
-	encoder := NewEncoder(mimicTCP, NewBaseOptions())
-	decoder := NewDecoder(mimicTCP, NewBaseOptions())
+	r := bytes.NewReader(nil)
+	encoder := NewEncoder(NewBaseOptions())
+	decoder := NewDecoder(r, NewBaseOptions())
 	encodeMsg := msgpb.Message{
 		Metadata: msgpb.Metadata{},
 		Value:    make([]byte, 200),
@@ -66,9 +66,11 @@ func BenchmarkBaseEncodeDecodeRoundTrip(b *testing.B) {
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		encodeMsg.Metadata.Id = uint64(n)
-		if err := encoder.Encode(&encodeMsg); err != nil {
+		err := encoder.Encode(&encodeMsg)
+		if err != nil {
 			b.FailNow()
 		}
+		r.Reset(encoder.Bytes())
 		if err := decoder.Decode(&decodeMsg); err != nil {
 			b.FailNow()
 		}

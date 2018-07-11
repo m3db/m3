@@ -22,6 +22,7 @@ package consumer
 
 import (
 	"errors"
+	"io"
 	"net"
 	"testing"
 	"time"
@@ -35,21 +36,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var testMsg1 = msgpb.Message{
-	Metadata: msgpb.Metadata{
-		Shard: 100,
-		Id:    200,
-	},
-	Value: []byte("foooooooo"),
-}
+var (
+	testMsg1 = msgpb.Message{
+		Metadata: msgpb.Metadata{
+			Shard: 100,
+			Id:    200,
+		},
+		Value: []byte("foooooooo"),
+	}
 
-var testMsg2 = msgpb.Message{
-	Metadata: msgpb.Metadata{
-		Shard: 0,
-		Id:    45678,
-	},
-	Value: []byte("barrrrrrr"),
-}
+	testMsg2 = msgpb.Message{
+		Metadata: msgpb.Metadata{
+			Shard: 0,
+			Id:    45678,
+		},
+		Value: []byte("barrrrrrr"),
+	}
+
+	testEncoder = proto.NewEncoder(nil)
+)
 
 func TestConsumerWithMessagePool(t *testing.T) {
 	defer leaktest.Check(t)()
@@ -61,12 +66,11 @@ func TestConsumerWithMessagePool(t *testing.T) {
 
 	conn, err := net.Dial("tcp", l.Addr().String())
 	require.NoError(t, err)
-	producer := proto.NewEncodeDecoder(conn, opts.EncodeDecoderOptions())
 
 	c, err := l.Accept()
 	require.NoError(t, err)
 
-	err = producer.Encode(&testMsg1)
+	err = produce(conn, &testMsg1)
 	require.NoError(t, err)
 
 	m1, err := c.Message()
@@ -76,7 +80,7 @@ func TestConsumerWithMessagePool(t *testing.T) {
 	// Acking m1 making it available for reuse.
 	m1.Ack()
 
-	err = producer.Encode(&testMsg2)
+	err = produce(conn, &testMsg2)
 	require.NoError(t, err)
 
 	m2, err := c.Message()
@@ -86,7 +90,7 @@ func TestConsumerWithMessagePool(t *testing.T) {
 
 	require.Equal(t, m1, m2)
 
-	err = producer.Encode(&testMsg1)
+	err = produce(conn, &testMsg1)
 	require.NoError(t, err)
 
 	m3, err := c.Message()
@@ -108,12 +112,11 @@ func TestConsumerAckReusedMessage(t *testing.T) {
 
 	conn, err := net.Dial("tcp", l.Addr().String())
 	require.NoError(t, err)
-	producer := proto.NewEncodeDecoder(conn, opts.EncodeDecoderOptions())
 
 	c, err := l.Accept()
 	require.NoError(t, err)
 
-	err = producer.Encode(&testMsg1)
+	err = produce(conn, &testMsg1)
 	require.NoError(t, err)
 
 	m1, err := c.Message()
@@ -123,7 +126,7 @@ func TestConsumerAckReusedMessage(t *testing.T) {
 	// Acking m1 making it available for reuse.
 	m1.Ack()
 
-	err = producer.Encode(&testMsg2)
+	err = produce(conn, &testMsg2)
 	require.NoError(t, err)
 
 	m2, err := c.Message()
@@ -153,30 +156,22 @@ func TestConsumerAckError(t *testing.T) {
 
 	conn, err := net.Dial("tcp", l.Addr().String())
 	require.NoError(t, err)
-	producer := proto.NewEncodeDecoder(conn, opts.EncodeDecoderOptions())
 
 	c, err := l.Accept()
 	require.NoError(t, err)
 
-	mockEncdec := proto.NewMockEncodeDecoder(ctrl)
+	mockEncoder := proto.NewMockEncoder(ctrl)
 	cc := c.(*consumer)
-	encdec := cc.encdec
-	cc.encdec = mockEncdec
+	cc.encoder = mockEncoder
 
-	err = producer.Encode(&testMsg1)
+	err = produce(conn, &testMsg1)
 	require.NoError(t, err)
-
-	mockEncdec.EXPECT().Decode(gomock.Any()).DoAndReturn(
-		func(m proto.Unmarshaler) error {
-			return encdec.Decode(m)
-		},
-	).Times(2)
 
 	m, err := cc.Message()
 	require.NoError(t, err)
 	require.Equal(t, testMsg1.Value, m.Bytes())
 
-	mockEncdec.EXPECT().Encode(gomock.Any()).Return(errors.New("mock encode err"))
+	mockEncoder.EXPECT().Encode(gomock.Any()).Return(errors.New("mock encode err"))
 	m.Ack()
 
 	_, err = cc.Message()
@@ -196,20 +191,18 @@ func TestConsumerMessageError(t *testing.T) {
 
 	conn, err := net.Dial("tcp", l.Addr().String())
 	require.NoError(t, err)
-	producer := proto.NewEncodeDecoder(conn, opts.EncodeDecoderOptions())
 
 	c, err := l.Accept()
 	require.NoError(t, err)
 
-	mockEncdec := proto.NewMockEncodeDecoder(ctrl)
-
+	mockDecoder := proto.NewMockDecoder(ctrl)
 	cc := c.(*consumer)
-	cc.encdec = mockEncdec
+	cc.decoder = mockDecoder
 
-	err = producer.Encode(&testMsg1)
+	err = produce(conn, &testMsg1)
 	require.NoError(t, err)
 
-	mockEncdec.EXPECT().Decode(gomock.Any()).Return(errors.New("mock encode err"))
+	mockDecoder.EXPECT().Decode(gomock.Any()).Return(errors.New("mock encode err"))
 
 	_, err = cc.Message()
 	require.Error(t, err)
@@ -228,28 +221,19 @@ func TestConsumerAckBuffer(t *testing.T) {
 
 	conn, err := net.Dial("tcp", l.Addr().String())
 	require.NoError(t, err)
-	producer := proto.NewEncodeDecoder(conn, opts.EncodeDecoderOptions())
 
 	c, err := l.Accept()
 	require.NoError(t, err)
 
-	mockEncdec := proto.NewMockEncodeDecoder(ctrl)
-
+	mockEncoder := proto.NewMockEncoder(ctrl)
 	cc := c.(*consumer)
-	encdec := cc.encdec
-	cc.encdec = mockEncdec
+	cc.encoder = mockEncoder
 
-	err = producer.Encode(&testMsg1)
+	err = produce(conn, &testMsg1)
 	require.NoError(t, err)
 
-	err = producer.Encode(&testMsg2)
+	err = produce(conn, &testMsg2)
 	require.NoError(t, err)
-
-	mockEncdec.EXPECT().Decode(gomock.Any()).DoAndReturn(
-		func(m proto.Unmarshaler) error {
-			return encdec.Decode(m)
-		},
-	).Times(2)
 
 	m1, err := cc.Message()
 	require.NoError(t, err)
@@ -263,7 +247,8 @@ func TestConsumerAckBuffer(t *testing.T) {
 	m1.Ack()
 
 	// Second ack will trigger encode.
-	mockEncdec.EXPECT().Encode(gomock.Any()).Return(nil)
+	mockEncoder.EXPECT().Encode(gomock.Any())
+	mockEncoder.EXPECT().Bytes()
 	m2.Ack()
 }
 
@@ -280,28 +265,19 @@ func TestConsumerAckAfterClosed(t *testing.T) {
 
 	conn, err := net.Dial("tcp", l.Addr().String())
 	require.NoError(t, err)
-	producer := proto.NewEncodeDecoder(conn, opts.EncodeDecoderOptions())
 
 	c, err := l.Accept()
 	require.NoError(t, err)
 
-	mockEncdec := proto.NewMockEncodeDecoder(ctrl)
-
+	mockEncoder := proto.NewMockEncoder(ctrl)
 	cc := c.(*consumer)
-	encdec := cc.encdec
-	cc.encdec = mockEncdec
+	cc.encoder = mockEncoder
 
-	err = producer.Encode(&testMsg1)
+	err = produce(conn, &testMsg1)
 	require.NoError(t, err)
 
-	err = producer.Encode(&testMsg2)
+	err = produce(conn, &testMsg2)
 	require.NoError(t, err)
-
-	mockEncdec.EXPECT().Decode(gomock.Any()).DoAndReturn(
-		func(m proto.Unmarshaler) error {
-			return encdec.Decode(m)
-		},
-	).Times(2)
 
 	m1, err := cc.Message()
 	require.NoError(t, err)
@@ -311,7 +287,8 @@ func TestConsumerAckAfterClosed(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, testMsg2.Value, m2.Bytes())
 
-	mockEncdec.EXPECT().Encode(gomock.Any()).Return(nil)
+	mockEncoder.EXPECT().Encode(gomock.Any())
+	mockEncoder.EXPECT().Bytes()
 	m1.Ack()
 
 	cc.Close()
@@ -332,28 +309,19 @@ func TestConsumerTimeBasedFlush(t *testing.T) {
 
 	conn, err := net.Dial("tcp", l.Addr().String())
 	require.NoError(t, err)
-	producer := proto.NewEncodeDecoder(conn, opts.EncodeDecoderOptions())
 
 	c, err := l.Accept()
 	require.NoError(t, err)
 
-	mockEncdec := proto.NewMockEncodeDecoder(ctrl)
-
+	mockEncoder := proto.NewMockEncoder(ctrl)
 	cc := c.(*consumer)
-	encdec := cc.encdec
-	cc.encdec = mockEncdec
+	cc.encoder = mockEncoder
 
-	err = producer.Encode(&testMsg1)
+	err = produce(conn, &testMsg1)
 	require.NoError(t, err)
 
-	err = producer.Encode(&testMsg2)
+	err = produce(conn, &testMsg2)
 	require.NoError(t, err)
-
-	mockEncdec.EXPECT().Decode(gomock.Any()).DoAndReturn(
-		func(m proto.Unmarshaler) error {
-			return encdec.Decode(m)
-		},
-	)
 
 	m1, err := cc.Message()
 	require.NoError(t, err)
@@ -362,7 +330,8 @@ func TestConsumerTimeBasedFlush(t *testing.T) {
 	m1.Ack()
 	require.Equal(t, 1, len(cc.ackPb.Metadata))
 
-	mockEncdec.EXPECT().Encode(gomock.Any()).Return(nil)
+	mockEncoder.EXPECT().Encode(gomock.Any())
+	mockEncoder.EXPECT().Bytes()
 	cc.Init()
 	cc.Close()
 }
@@ -380,29 +349,20 @@ func TestConsumerFlushAcksOnClose(t *testing.T) {
 
 	conn, err := net.Dial("tcp", l.Addr().String())
 	require.NoError(t, err)
-	producer := proto.NewEncodeDecoder(conn, opts.EncodeDecoderOptions())
 
 	c, err := l.Accept()
 	require.NoError(t, err)
 	c.Init()
 
-	mockEncdec := proto.NewMockEncodeDecoder(ctrl)
-
+	mockEncoder := proto.NewMockEncoder(ctrl)
 	cc := c.(*consumer)
-	encdec := cc.encdec
-	cc.encdec = mockEncdec
+	cc.encoder = mockEncoder
 
-	err = producer.Encode(&testMsg1)
+	err = produce(conn, &testMsg1)
 	require.NoError(t, err)
 
-	err = producer.Encode(&testMsg2)
+	err = produce(conn, &testMsg2)
 	require.NoError(t, err)
-
-	mockEncdec.EXPECT().Decode(gomock.Any()).DoAndReturn(
-		func(m proto.Unmarshaler) error {
-			return encdec.Decode(m)
-		},
-	)
 
 	m1, err := cc.Message()
 	require.NoError(t, err)
@@ -410,7 +370,9 @@ func TestConsumerFlushAcksOnClose(t *testing.T) {
 
 	m1.Ack()
 	require.Equal(t, 1, len(cc.ackPb.Metadata))
-	mockEncdec.EXPECT().Encode(gomock.Any()).Return(nil)
+
+	mockEncoder.EXPECT().Encode(gomock.Any()).Return(nil)
+	mockEncoder.EXPECT().Bytes()
 	cc.Close()
 }
 
@@ -430,9 +392,7 @@ func TestListenerMultipleConnection(t *testing.T) {
 func testProduceAndReceiveAck(t *testing.T, testMsg msgpb.Message, l Listener, opts Options) {
 	conn, err := net.Dial("tcp", l.Addr().String())
 	require.NoError(t, err)
-	encdec := proto.NewEncodeDecoder(conn, opts.EncodeDecoderOptions())
-
-	err = encdec.Encode(&testMsg)
+	produce(conn, &testMsg)
 	require.NoError(t, err)
 
 	c, err := l.Accept()
@@ -445,7 +405,7 @@ func testProduceAndReceiveAck(t *testing.T, testMsg msgpb.Message, l Listener, o
 
 	m.Ack()
 	var ack msgpb.Ack
-	err = encdec.Decode(&ack)
+	err = proto.NewDecoder(conn, opts.EncodeDecoderOptions().DecoderOptions()).Decode(&ack)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(ack.Metadata))
 	require.Equal(t, testMsg.Metadata, ack.Metadata[0])
@@ -458,4 +418,13 @@ func testOptions() Options {
 		SetAckFlushInterval(50 * time.Millisecond).
 		SetMessagePoolOptions(pool.NewObjectPoolOptions().SetSize(1)).
 		SetConnectionWriteBufferSize(1)
+}
+
+func produce(w io.Writer, m proto.Marshaler) error {
+	err := testEncoder.Encode(m)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(testEncoder.Bytes())
+	return err
 }

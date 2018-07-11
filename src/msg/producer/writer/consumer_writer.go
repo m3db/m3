@@ -52,8 +52,8 @@ type consumerWriter interface {
 	// Address returns the consumer address.
 	Address() string
 
-	// Write writes the marshaler, it should be thread safe.
-	Write(m proto.Marshaler) error
+	// Write writes the bytes, it is thread safe.
+	Write(b []byte) error
 
 	// Init initializes the consumer writer.
 	Init()
@@ -95,9 +95,9 @@ func newConsumerWriterMetrics(scope tally.Scope) consumerWriterMetrics {
 type connectFn func(addr string) (io.ReadWriteCloser, error)
 
 type consumerWriterImpl struct {
-	encodeLock  sync.Mutex
+	writeLock   sync.Mutex
 	decodeLock  sync.Mutex
-	encdec      proto.EncodeDecoder
+	decoder     proto.Decoder
 	addr        string
 	router      ackRouter
 	opts        Options
@@ -139,7 +139,7 @@ func newConsumerWriter(
 		)
 	)
 	w := &consumerWriterImpl{
-		encdec:         proto.NewEncodeDecoder(rw, opts.EncodeDecoderOptions()),
+		decoder:        proto.NewDecoder(rw, opts.EncodeDecoderOptions().DecoderOptions()),
 		addr:           addr,
 		router:         router,
 		opts:           opts,
@@ -171,14 +171,14 @@ func (w *consumerWriterImpl) Address() string {
 
 // Write should fail fast so that the write could be tried on other
 // consumer writers that are sharing the message queue.
-func (w *consumerWriterImpl) Write(m proto.Marshaler) error {
+func (w *consumerWriterImpl) Write(b []byte) error {
 	if !w.validConn.Load() {
 		w.m.writeInvalidConn.Inc(1)
 		return errInvalidConnection
 	}
-	w.encodeLock.Lock()
-	err := w.encdec.Encode(m)
-	w.encodeLock.Unlock()
+	w.writeLock.Lock()
+	_, err := w.rw.Write(b)
+	w.writeLock.Unlock()
 	if err != nil {
 		w.notifyReset()
 		w.m.encodeError.Inc(1)
@@ -213,9 +213,9 @@ func (w *consumerWriterImpl) flushUntilClose() {
 	for {
 		select {
 		case <-flushTicker.C:
-			w.encodeLock.Lock()
+			w.writeLock.Lock()
 			w.rw.Flush()
-			w.encodeLock.Unlock()
+			w.writeLock.Unlock()
 		case <-w.doneCh:
 			return
 		}
@@ -287,7 +287,7 @@ func (w *consumerWriterImpl) readAcks() error {
 	// unmarshalling will append to the underlying slice.
 	w.ack.Metadata = w.ack.Metadata[:0]
 	w.decodeLock.Lock()
-	err := w.encdec.Decode(&w.ack)
+	err := w.decoder.Decode(&w.ack)
 	w.decodeLock.Unlock()
 	if err != nil {
 		w.notifyReset()
@@ -310,7 +310,6 @@ func (w *consumerWriterImpl) Close() {
 	}
 	close(w.doneCh)
 	w.wg.Wait()
-	w.encdec.Close()
 }
 
 func (w *consumerWriterImpl) notifyReset() {
@@ -332,8 +331,8 @@ func (w *consumerWriterImpl) reset(conn io.ReadWriteCloser) {
 	w.decodeLock.Lock()
 	defer w.decodeLock.Unlock()
 
-	w.encodeLock.Lock()
-	defer w.encodeLock.Unlock()
+	w.writeLock.Lock()
+	defer w.writeLock.Unlock()
 
 	w.conn = conn
 	w.rw.Reader.Reset(conn)
