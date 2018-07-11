@@ -634,7 +634,10 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 			}
 		}
 
-		var tags ident.Tags
+		var (
+			tags             ident.Tags
+			shouldDecodeTags = true
+		)
 		if allSeriesSoFar != nil {
 			existing, ok := allSeriesSoFar.Get(id)
 			if ok {
@@ -643,16 +646,19 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 				id.Finalize()
 				id = existing.ID
 				tags = existing.Tags
-			} else {
-				// Only spend cycles decoding the tags if we've never seen them before.
-				if tagsIter.Remaining() > 0 {
-					tags, err = convert.TagsFromTagsIter(id, tagsIter, idPool)
-					if err != nil {
-						return shardResult, fmt.Errorf("unable to decode tags: %v", err)
-					}
-				}
-				tagsIter.Close()
+				shouldDecodeTags = false
 			}
+		}
+
+		if shouldDecodeTags {
+			// Only spend cycles decoding the tags if we've never seen them before.
+			if tagsIter.Remaining() > 0 {
+				tags, err = convert.TagsFromTagsIter(id, tagsIter, idPool)
+				if err != nil {
+					return shardResult, fmt.Errorf("unable to decode tags: %v", err)
+				}
+			}
+			tagsIter.Close()
 		}
 
 		if shardResult == nil {
