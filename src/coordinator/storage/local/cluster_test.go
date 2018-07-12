@@ -97,7 +97,7 @@ func TestNewClustersFromConfig(t *testing.T) {
 		},
 	}
 
-	clusters, err := cfg.NewClusters()
+	clusters, err := cfg.NewClusters(ClustersStaticConfigurationOptions{})
 	require.NoError(t, err)
 
 	// Resolve expected clusters and check attributes

@@ -7,8 +7,7 @@ mkdir -p /tmp/m3dbdata/
 
 echo "Build docker images"
 
-# docker-compose -f docker-compose.yml build
-docker-compose -f docker-compose.yml build coordinator01
+docker-compose -f docker-compose.yml build
 
 echo "Run m3dbnode and m3coordinator containers"
 
