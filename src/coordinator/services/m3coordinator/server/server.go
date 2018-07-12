@@ -174,8 +174,10 @@ func Run(runOpts RunOptions) {
 		}
 	}
 
-	namespaces := clusters.ClusterNamespaces()
-	logger.Info("resolved cluster namespaces", zap.Int("namespaces", len(namespaces)))
+	for _, namespace := range clusters.ClusterNamespaces() {
+		logger.Info("resolved cluster namespace",
+			zap.String("namespace", namespace.NamespaceID().String()))
+	}
 
 	workerPoolCount := cfg.DecompressWorkerPoolCount
 	if workerPoolCount == 0 {

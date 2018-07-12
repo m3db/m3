@@ -101,7 +101,7 @@ func TestPromNativeReadPost(t *testing.T) {
 	require.Equal(t, res.Code, http.StatusMethodNotAllowed, "POST method not defined")
 }
 
-func TestRooutesGet(t *testing.T) {
+func TestRoutesGet(t *testing.T) {
 	logging.InitWithCores(nil)
 
 	req, _ := http.NewRequest("GET", routesURL, nil)
