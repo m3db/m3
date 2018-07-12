@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/src/coordinator/generated/proto/prompb"
+
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/snappy"
 )
@@ -29,6 +30,7 @@ func (h *SlowHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.handler.ServeHTTP(w, r)
 }
 
+// GeneratePromReadRequest generates a sample prometheus remote read request
 func GeneratePromReadRequest() *prompb.ReadRequest {
 	req := &prompb.ReadRequest{
 		Queries: []*prompb.Query{{
@@ -42,6 +44,7 @@ func GeneratePromReadRequest() *prompb.ReadRequest {
 	return req
 }
 
+// GeneratePromReadBody generates a sample snappy encoded prometheus remote read request body
 func GeneratePromReadBody(t *testing.T) io.Reader {
 	req := GeneratePromReadRequest()
 	data, err := proto.Marshal(req)

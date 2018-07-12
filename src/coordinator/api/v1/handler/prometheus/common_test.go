@@ -72,6 +72,6 @@ func TestTimeoutParse(t *testing.T) {
 	assert.Equal(t, timeout, defaultTimeout)
 
 	req.Header.Add("timeout", "invalid")
-	timeout, err = ParseRequestTimeout(req)
+	_, err = ParseRequestTimeout(req)
 	assert.Error(t, err)
 }

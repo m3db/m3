@@ -77,11 +77,11 @@ type stepIter struct {
 }
 
 func (s *stepIter) SeriesMeta() []block.SeriesMeta {
-	return s.iter.SeriesMeta()
+	return s.node.SeriesMeta(s.iter.SeriesMeta())
 }
 
 func (s *stepIter) Meta() block.Metadata {
-	return s.iter.Meta()
+	return s.node.Meta(s.iter.Meta())
 }
 
 func (s *stepIter) StepCount() int {
@@ -111,11 +111,11 @@ type seriesIter struct {
 }
 
 func (s *seriesIter) Meta() block.Metadata {
-	return s.iter.Meta()
+	return s.node.Meta(s.iter.Meta())
 }
 
 func (s *seriesIter) SeriesMeta() []block.SeriesMeta {
-	return s.iter.SeriesMeta()
+	return s.node.SeriesMeta(s.iter.SeriesMeta())
 }
 
 func (s *seriesIter) SeriesCount() int {

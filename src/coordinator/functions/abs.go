@@ -90,6 +90,10 @@ func (c *AbsNode) Process(ID parser.NodeID, b block.Block) error {
 	return c.controller.Process(nextBlock)
 }
 
+// Ensure AbsNode implements the types
+var _ transform.StepNode = &AbsNode{}
+var _ transform.SeriesNode = &AbsNode{}
+
 // ProcessStep allows step iteration
 func (c *AbsNode) ProcessStep(step block.Step) (block.Step, error) {
 	return block.NewColStep(step.Time(), c.process(step.Values())), nil
@@ -106,4 +110,14 @@ func (c *AbsNode) process(values []float64) []float64 {
 	}
 
 	return values
+}
+
+// Meta returns the metadata for the block
+func (c *AbsNode) Meta(meta block.Metadata) block.Metadata {
+	return meta
+}
+
+// SeriesMeta returns the metadata for each series in the block
+func (c *AbsNode) SeriesMeta(metas []block.SeriesMeta) []block.SeriesMeta {
+	return metas
 }

@@ -56,10 +56,13 @@ type Params interface {
 // SeriesNode is implemented by function nodes which can support series iteration
 type SeriesNode interface {
 	ProcessSeries(series block.Series) (block.Series, error)
+	Meta(meta block.Metadata) block.Metadata
+	SeriesMeta(metas []block.SeriesMeta) []block.SeriesMeta
 }
 
 // StepNode is implemented by function nodes which can support step iteration
 type StepNode interface {
 	ProcessStep(step block.Step) (block.Step, error)
+	Meta(meta block.Metadata) block.Metadata
+	SeriesMeta(metas []block.SeriesMeta) []block.SeriesMeta
 }
-
