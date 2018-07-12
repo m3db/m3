@@ -21,7 +21,9 @@
 package httpd
 
 import (
+	"encoding/json"
 	"log"
+	"net/http"
 	"net/http/pprof"
 	"os"
 
@@ -45,7 +47,8 @@ import (
 )
 
 const (
-	pprofURL = "/debug/pprof/profile"
+	pprofURL  = "/debug/pprof/profile"
+	routesURL = "/routes"
 )
 
 var (
@@ -105,13 +108,14 @@ func (h *Handler) RegisterRoutes() error {
 	h.Router.HandleFunc(native.PromReadURL, logged(native.NewPromReadHandler(h.engine)).ServeHTTP).Methods(native.PromReadHTTPMethod)
 	h.Router.HandleFunc(handler.SearchURL, logged(handler.NewSearchHandler(h.storage)).ServeHTTP).Methods(handler.SearchHTTPMethod)
 
-	h.registerProfileEndpoints()
-
 	if h.clusterClient != nil {
 		placement.RegisterRoutes(h.Router, h.clusterClient, h.config)
 		namespace.RegisterRoutes(h.Router, h.clusterClient)
 		database.RegisterRoutes(h.Router, h.clusterClient, h.config, h.embeddedDbCfg)
 	}
+
+	h.registerProfileEndpoints()
+	h.registerRoutesEndpoint()
 
 	return nil
 }
@@ -119,4 +123,29 @@ func (h *Handler) RegisterRoutes() error {
 // Endpoints useful for profiling the service
 func (h *Handler) registerProfileEndpoints() {
 	h.Router.HandleFunc(pprofURL, pprof.Profile)
+}
+
+// Endpoints useful for viewing routes directory
+func (h *Handler) registerRoutesEndpoint() {
+	h.Router.HandleFunc(routesURL, func(w http.ResponseWriter, r *http.Request) {
+		var routes []string
+		err := h.Router.Walk(
+			func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
+				str, err := route.GetPathTemplate()
+				if err != nil {
+					return err
+				}
+				routes = append(routes, str)
+				return nil
+			})
+		if err != nil {
+			handler.Error(w, err, http.StatusInternalServerError)
+			return
+		}
+		json.NewEncoder(w).Encode(struct {
+			Routes []string `json:"routes"`
+		}{
+			Routes: routes,
+		})
+	})
 }

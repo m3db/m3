@@ -4,7 +4,7 @@ set -xe
 
 echo "Build docker image" 
 
-docker build -t "m3dbnode:$(git rev-parse HEAD)" -f Dockerfile .
+docker build -t "m3dbnode:$(git rev-parse HEAD)" -f ./docker/m3dbnode/Dockerfile .
 
 echo "Run docker container" 
 

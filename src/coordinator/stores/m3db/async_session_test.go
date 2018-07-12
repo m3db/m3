@@ -60,7 +60,7 @@ func TestAsyncSessionError(t *testing.T) {
 	customErr := errors.New("some error")
 	expectedErrStr := fmt.Sprintf(errNewSessionFailFmt, customErr)
 
-	mockClient.EXPECT().NewSession().Return(nil, customErr)
+	mockClient.EXPECT().DefaultSession().Return(nil, customErr)
 	done := make(chan struct{}, 1)
 	asyncSession := NewAsyncSession(func() (client.Client, error) {
 		return mockClient, nil
@@ -92,7 +92,7 @@ func TestAsyncSessionUninitialized(t *testing.T) {
 	mockClient, _ := SetupAsyncSessionTest(t)
 
 	// Sleep one minute after a NewSession call to ensure we get an "uninitialized" error
-	mockClient.EXPECT().NewSession().Do(func() { time.Sleep(time.Minute) }).Return(nil, errors.New("some error"))
+	mockClient.EXPECT().DefaultSession().Do(func() { time.Sleep(time.Minute) }).Return(nil, errors.New("some error"))
 	asyncSession := NewAsyncSession(func() (client.Client, error) {
 		return mockClient, nil
 	}, nil)
@@ -121,7 +121,7 @@ func TestAsyncSessionUninitialized(t *testing.T) {
 func TestAsyncSessionInitialized(t *testing.T) {
 	mockClient, mockSession := SetupAsyncSessionTest(t)
 
-	mockClient.EXPECT().NewSession().Return(mockSession, nil)
+	mockClient.EXPECT().DefaultSession().Return(mockSession, nil)
 	done := make(chan struct{}, 1)
 	asyncSession := NewAsyncSession(func() (client.Client, error) {
 		return mockClient, nil

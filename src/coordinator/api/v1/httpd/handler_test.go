@@ -21,6 +21,7 @@
 package httpd
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -33,6 +34,7 @@ import (
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
@@ -97,4 +99,36 @@ func TestPromNativeReadPost(t *testing.T) {
 	h.RegisterRoutes()
 	h.Router.ServeHTTP(res, req)
 	require.Equal(t, res.Code, http.StatusMethodNotAllowed, "POST method not defined")
+}
+
+func TestRoutesGet(t *testing.T) {
+	logging.InitWithCores(nil)
+
+	req, _ := http.NewRequest("GET", routesURL, nil)
+	res := httptest.NewRecorder()
+	ctrl := gomock.NewController(t)
+	storage, _ := local.NewStorageAndSession(t, ctrl)
+
+	h, err := NewHandler(storage, executor.NewEngine(storage), nil, config.Configuration{}, nil, tally.NewTestScope("", nil))
+	require.NoError(t, err, "unable to setup handler")
+	h.RegisterRoutes()
+	h.Router.ServeHTTP(res, req)
+
+	require.Equal(t, res.Code, http.StatusOK)
+
+	response := &struct {
+		Routes []string `json:"routes"`
+	}{}
+
+	err = json.NewDecoder(res.Body).Decode(response)
+	require.NoError(t, err)
+
+	foundRoutesURL := false
+	for _, route := range response.Routes {
+		if route == routesURL {
+			foundRoutesURL = true
+			break
+		}
+	}
+	assert.True(t, foundRoutesURL, "routes URL not served by routes endpoint")
 }

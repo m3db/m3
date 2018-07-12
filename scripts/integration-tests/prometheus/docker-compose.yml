@@ -3,23 +3,33 @@ services:
   dbnode01:
     expose:
       - "9000-9004"
-      - "7201"
-      - "7203"
       - "2379-2380"
     ports:
       - "0.0.0.0:9000-9004:9000-9004"
-      - "0.0.0.0:7201:7201"
-      - "0.0.0.0:7203:7203"
       - "0.0.0.0:2379-2380:2379-2380"
     networks:
       - backend
     build:
       context: ../../../
-      dockerfile: Dockerfile
-    image: m3db_dbnode01:latest
+      dockerfile: ./docker/m3dbnode/Dockerfile
+    image: m3dbnode01:latest
     volumes:
-      - "./:/etc/m3dbnode/"
       - "/tmp/m3dbdata:/var/lib/m3db"
+  coordinator01:
+    expose:
+      - "7201"
+      - "7203"
+    ports:
+      - "0.0.0.0:7201:7201"
+      - "0.0.0.0:7203:7203"
+    networks:
+      - backend
+    build:
+      context: ../../../
+      dockerfile: ./docker/m3coordinator/Dockerfile
+    image: m3coordinator01:latest
+    volumes:
+      - "./:/etc/m3coordinator/"
   prometheus01:
     expose:
       - "9090"
