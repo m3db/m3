@@ -32,6 +32,7 @@ import (
 
 	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/client/etcd"
+	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
 	dbconfig "github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3db/src/coordinator/api/v1/httpd"
@@ -117,23 +118,37 @@ func Run(runOpts RunOptions) {
 		clusterClientCh = runOpts.ClusterClient
 	}
 
-	if clusterClientCh == nil && cfg.ClusterManagement != nil {
-		// We resolved an etcd configuration for cluster management endpoints
-		etcdCfg := cfg.ClusterManagement.Etcd
-		clusterSvcClientOpts := etcdCfg.NewOptions()
-		clusterClient, err := etcd.NewConfigServiceClient(clusterSvcClientOpts)
-		if err != nil {
-			logger.Fatal("unable to create cluster management etcd client", zap.Any("error", err))
+	if clusterClientCh == nil {
+		var etcdCfg *etcdclient.Configuration
+		switch {
+		case cfg.ClusterManagement != nil:
+			etcdCfg = &cfg.ClusterManagement.Etcd
+
+		case len(cfg.Clusters) == 1 &&
+			cfg.Clusters[0].Client.EnvironmentConfig.Service != nil:
+			etcdCfg = cfg.Clusters[0].Client.EnvironmentConfig.Service
 		}
 
-		clusterClientSendableCh := make(chan clusterclient.Client, 1)
-		clusterClientSendableCh <- clusterClient
-		clusterClientCh = clusterClientSendableCh
+		if etcdCfg != nil {
+			// We resolved an etcd configuration for cluster management endpoints
+			clusterSvcClientOpts := etcdCfg.NewOptions()
+			clusterClient, err := etcd.NewConfigServiceClient(clusterSvcClientOpts)
+			if err != nil {
+				logger.Fatal("unable to create cluster management etcd client", zap.Any("error", err))
+			}
+
+			clusterClientSendableCh := make(chan clusterclient.Client, 1)
+			clusterClientSendableCh <- clusterClient
+			clusterClientCh = clusterClientSendableCh
+		}
 	}
 
 	var clusters local.Clusters
 	if len(cfg.Clusters) > 0 {
-		clusters, err = cfg.Clusters.NewClusters()
+		opts := local.ClustersStaticConfigurationOptions{
+			AsyncSessions: true,
+		}
+		clusters, err = cfg.Clusters.NewClusters(opts)
 		if err != nil {
 			logger.Fatal("unable to connect to clusters", zap.Any("error", err))
 		}
@@ -144,7 +159,7 @@ func Run(runOpts RunOptions) {
 		}
 		dbClientCh := runOpts.DBClient
 		if dbClientCh == nil {
-			logger.Fatal("no clusters configured and not running local embedded cluster")
+			logger.Fatal("no clusters configured and not running local cluster")
 		}
 		session := m3db.NewAsyncSession(func() (client.Client, error) {
 			return <-dbClientCh, nil
@@ -158,6 +173,9 @@ func Run(runOpts RunOptions) {
 			logger.Fatal("unable to connect to clusters", zap.Any("error", err))
 		}
 	}
+
+	namespaces := clusters.ClusterNamespaces()
+	logger.Info("resolved cluster namespaces", zap.Int("namespaces", len(namespaces)))
 
 	workerPoolCount := cfg.DecompressWorkerPoolCount
 	if workerPoolCount == 0 {

@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/src/coordinator/storage"
+	"github.com/m3db/m3db/src/coordinator/stores/m3db"
 	"github.com/m3db/m3db/src/dbnode/client"
 	"github.com/m3db/m3x/ident"
 )
@@ -46,8 +47,8 @@ type newClientFromConfig func(
 // ClusterStaticConfiguration is a static cluster configuration.
 type ClusterStaticConfiguration struct {
 	newClientFromConfig newClientFromConfig
-	Client              client.Configuration                  `yaml:"client"`
 	Namespaces          []ClusterStaticNamespaceConfiguration `yaml:"namespaces"`
+	Client              client.Configuration                  `yaml:"client"`
 }
 
 func (c ClusterStaticConfiguration) newClient(
@@ -86,8 +87,16 @@ type clusterConnectResult struct {
 	err     error
 }
 
+// ClustersStaticConfigurationOptions are options to use when
+// constructing clusters from config.
+type ClustersStaticConfigurationOptions struct {
+	AsyncSessions bool
+}
+
 // NewClusters instantiates a new Clusters instance.
-func (c ClustersStaticConfiguration) NewClusters() (Clusters, error) {
+func (c ClustersStaticConfiguration) NewClusters(
+	opts ClustersStaticConfigurationOptions,
+) (Clusters, error) {
 	var (
 		numUnaggregatedClusterNamespaces int
 		numAggregatedClusterNamespaces   int
@@ -147,14 +156,26 @@ func (c ClustersStaticConfiguration) NewClusters() (Clusters, error) {
 	go func() {
 		defer wg.Done()
 		cfg := unaggregatedClusterNamespaceCfg
-		cfg.result.session, cfg.result.err = cfg.client.DefaultSession()
+		if !opts.AsyncSessions {
+			cfg.result.session, cfg.result.err = cfg.client.DefaultSession()
+		} else {
+			cfg.result.session = m3db.NewAsyncSession(func() (client.Client, error) {
+				return cfg.client, nil
+			}, nil)
+		}
 	}()
 	for _, cfg := range aggregatedClusterNamespacesCfgs {
 		cfg := cfg // Capture var
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			cfg.result.session, cfg.result.err = cfg.client.DefaultSession()
+			if !opts.AsyncSessions {
+				cfg.result.session, cfg.result.err = cfg.client.DefaultSession()
+			} else {
+				cfg.result.session = m3db.NewAsyncSession(func() (client.Client, error) {
+					return cfg.client, nil
+				}, nil)
+			}
 		}()
 	}
 

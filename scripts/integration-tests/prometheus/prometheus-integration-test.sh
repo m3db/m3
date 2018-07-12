@@ -5,15 +5,17 @@ set -xe
 rm -rf /tmp/m3dbdata/
 mkdir -p /tmp/m3dbdata/
 
-echo "Build M3DB docker image"
+echo "Build docker images"
 
-docker-compose -f docker-compose.yml build
+# docker-compose -f docker-compose.yml build
+docker-compose -f docker-compose.yml build coordinator01
 
-echo "Run M3DB docker container"
+echo "Run m3dbnode and m3coordinator containers"
 
 docker-compose -f docker-compose.yml up -d dbnode01
+docker-compose -f docker-compose.yml up -d coordinator01
 
-echo "Sleeping for a bit to ensure db"
+echo "Sleeping for a bit to ensure db up"
 
 sleep 10 # TODO Replace sleeps with logic to determine when to proceed
 

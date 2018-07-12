@@ -76,7 +76,7 @@ func NewAsyncSession(fn NewClientFn, done chan<- struct{}) *AsyncSession {
 			return
 		}
 
-		session, err := c.NewSession()
+		session, err := c.DefaultSession()
 
 		asyncSession.Lock()
 		defer asyncSession.Unlock()
