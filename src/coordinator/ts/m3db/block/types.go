@@ -115,6 +115,7 @@ type multiSeriesBlockStepIter struct {
 	seriesIters []block.ValueIterator
 	index       int
 	meta        block.Metadata
+	blocks      ConsolidatedSeriesBlocks
 }
 
 // Close closes the series iterator in a SeriesBlock

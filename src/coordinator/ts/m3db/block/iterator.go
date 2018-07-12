@@ -21,57 +21,33 @@
 package block
 
 import (
+	"errors"
 	"math"
 	"time"
 
 	"github.com/m3db/m3db/src/coordinator/block"
 )
 
-// Meta returns the metadata for the block
-func (m MultiSeriesBlock) Meta() block.Metadata {
-	return m.Metadata
-}
-
 // StepIter creates a new step iterator for a given MultiSeriesBlock
-func (m MultiSeriesBlock) StepIter() block.StepIter {
+func (m MultiSeriesBlock) StepIter() (block.StepIter, error) {
 	return &multiSeriesBlockStepIter{
 		seriesIters: newConsolidatedSeriesBlockIters(m.Blocks),
 		index:       -1,
-	}
+		meta:        m.Metadata,
+		blocks:      m.Blocks,
+	}, nil
 }
 
 // SeriesIter creates a new series iterator for a given MultiSeriesBlock
-func (m MultiSeriesBlock) SeriesIter() block.SeriesIter {
+func (m MultiSeriesBlock) SeriesIter() (block.SeriesIter, error) {
 	// todo(braskin): implement SeriesIter()
-	return nil
-}
-
-// SeriesMeta returns metadata for the individual timeseries
-func (m MultiSeriesBlock) SeriesMeta() []block.SeriesMeta {
-	metas := make([]block.SeriesMeta, len(m.Blocks))
-	for i, s := range m.Blocks {
-		metas[i].Tags = s.Metadata.Tags
-	}
-	return metas
-}
-
-// StepCount returns the total steps/columns
-func (m MultiSeriesBlock) StepCount() int {
-	if len(m.Blocks) == 0 {
-		return 0
-	}
-	return m.Blocks[0].Metadata.Bounds.Steps()
+	return nil, errors.New("SeriesIter not implemented")
 }
 
 // Close frees up resources
 func (m MultiSeriesBlock) Close() error {
 	// todo(braskin): Actually free up resources
 	return nil
-}
-
-// SeriesCount returns the number of time series in a MultiSeriesBlock
-func (m MultiSeriesBlock) SeriesCount() int {
-	return len(m.Blocks)
 }
 
 func newConsolidatedSeriesBlockIters(blocks ConsolidatedSeriesBlocks) []block.ValueIterator {
@@ -102,6 +78,29 @@ func newConsolidatedNSBlockIter(nsBlock ConsolidatedNSBlock) *consolidatedNSBloc
 	}
 }
 
+// Meta returns the metadata for the step iter
+func (m *multiSeriesBlockStepIter) Meta() block.Metadata {
+	return m.meta
+}
+
+// SeriesMeta returns metadata for the individual timeseries
+func (m *multiSeriesBlockStepIter) SeriesMeta() []block.SeriesMeta {
+	metas := make([]block.SeriesMeta, len(m.blocks))
+	for i, s := range m.blocks {
+		// todo(braskin): add name
+		metas[i].Tags = s.Metadata.Tags
+	}
+	return metas
+}
+
+// StepCount returns the total steps/columns
+func (m *multiSeriesBlockStepIter) StepCount() int {
+	if len(m.blocks) == 0 {
+		return 0
+	}
+	return m.blocks[0].Metadata.Bounds.Steps()
+}
+
 // Next moves to the next item
 func (m *multiSeriesBlockStepIter) Next() bool {
 	if len(m.seriesIters) == 0 {
@@ -119,7 +118,7 @@ func (m *multiSeriesBlockStepIter) Next() bool {
 }
 
 // Current returns the slice of vals and timestamps for that step
-func (m *multiSeriesBlockStepIter) Current() block.Step {
+func (m *multiSeriesBlockStepIter) Current() (block.Step, error) {
 	values := make([]float64, len(m.seriesIters))
 	for i, s := range m.seriesIters {
 		values[i] = s.Current()
@@ -127,12 +126,7 @@ func (m *multiSeriesBlockStepIter) Current() block.Step {
 
 	bounds := m.meta.Bounds
 	t := bounds.Start.Add(time.Duration(m.index) * bounds.StepSize)
-	return block.NewColStep(t, values)
-}
-
-// Steps returns the number of steps in the multiSeriesBlockStepIter
-func (m *multiSeriesBlockStepIter) Steps() int {
-	return m.meta.Bounds.Steps()
+	return block.NewColStep(t, values), nil
 }
 
 // TODO: Actually free up resources

@@ -25,77 +25,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3db/src/coordinator/block"
 	coordtest "github.com/m3db/m3db/src/coordinator/test"
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/dbnode/ts"
+
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var (
 	now = time.Now()
 	nan = math.NaN()
 )
-
-// todo(braskin): Remove this stuff
-
-// func makeResults() [][]float64 {
-// 	var results [][]float64
-// 	sliceOfNaNs := []float64{math.NaN(), math.NaN()}
-// 	results = append(results, sliceOfNaNs)
-// 	results = append(results, []float64{1, 1})
-// 	results = append(results, sliceOfNaNs, sliceOfNaNs, sliceOfNaNs)
-// 	results = append(results, []float64{3, 3})
-// 	for i := 0; i < 11; i++ {
-// 		results = append(results, sliceOfNaNs)
-// 	}
-// 	results = append(results, []float64{5, 5})
-// 	results = append(results, sliceOfNaNs)
-// 	results = append(results, []float64{6, 6})
-
-// 	return results
-// }
-
-// func TestStepIteration(t *testing.T) {
-// 	now := time.Now()
-// 	ctrl := gomock.NewController(t)
-// 	seriesOne, seriesTwo := newMultiNamespaceSeries(ctrl, now, t)
-
-// 	multiNamespaceSeriesList := []MultiNamespaceSeries{seriesOne, seriesTwo}
-// 	m3CoordBlocks, err := SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList, nil, time.Minute)
-// 	require.NoError(t, err)
-
-// 	expectedResults := makeResults()
-// 	var actualResults [][]float64
-
-// 	seriesMeta := m3CoordBlocks[0].SeriesMeta()
-// 	tags := []map[string]string{{"foo": "bar"}, {"biz": "baz"}}
-// 	for i, tag := range tags {
-// 		for k, v := range tag {
-// 			assert.Equal(t, v, seriesMeta[i].Tags[k])
-// 		}
-// 	}
-
-// 	for _, seriesBlock := range m3CoordBlocks {
-// 		stepIter := seriesBlock.StepIter()
-// 		for stepIter.Next() {
-// 			actualResults = append(actualResults, stepIter.Current().Values())
-// 		}
-// 	}
-
-// 	assert.Equal(t, len(expectedResults), len(actualResults))
-
-// 	for i, expectedSlice := range expectedResults {
-// 		for j, exp := range expectedSlice {
-// 			if math.IsNaN(exp) {
-// 				assert.True(t, math.IsNaN(actualResults[i][j]))
-// 			} else {
-// 				assert.Equal(t, exp, actualResults[i][j])
-// 			}
-// 		}
-// 	}
-// }
 
 func createDatapoints(t *testing.T, timeInSeconds []int, vals []float64, now time.Time) []ts.Datapoint {
 	if len(timeInSeconds) != len(vals) {
@@ -309,8 +252,86 @@ func TestMultiSeriesBlockStepIter(t *testing.T) {
 		consolidatedSeriesBlock := createMultiSeriesBlockStepIter(mockNSBlockIters)
 
 		for consolidatedSeriesBlock.Next() {
-			test.actualResults = append(test.actualResults, consolidatedSeriesBlock.Current().Values())
+			step, err := consolidatedSeriesBlock.Current()
+			require.NoError(t, err)
+			test.actualResults = append(test.actualResults, step.Values())
 		}
 		coordtest.EqualsWithNans(t, test.expectedResults, test.actualResults)
+	}
+}
+
+type mockBlockStepIter struct {
+	seriesIters []block.ValueIterator
+	index       int
+	meta        block.Metadata
+	blocks      ConsolidatedSeriesBlocks
+}
+
+type mockBlockStepIterTestCase struct {
+	dps                            [][]float64
+	actualResults, expectedResults [][]float64
+	seriesMeta                     []block.Metadata
+	blockMeta                      block.Metadata
+	description                    string
+}
+
+func newMockBlockStepIter(valIter []block.ValueIterator, blocks ConsolidatedSeriesBlocks, meta block.Metadata) *multiSeriesBlockStepIter {
+	// var valueIters []block.StepIter
+	return &multiSeriesBlockStepIter{
+		seriesIters: valIter,
+		index:       -1,
+		blocks:      blocks,
+		meta:        meta,
+	}
+}
+
+func newConsolidateSeriesBlock(metas []block.Metadata) ConsolidatedSeriesBlocks {
+	csBlocks := make([]ConsolidatedSeriesBlock, len(metas))
+	for i, meta := range metas {
+		csBlocks[i] = ConsolidatedSeriesBlock{
+			Metadata: meta,
+		}
+	}
+	return csBlocks
+}
+
+func TestMultiSeriesBlock(t *testing.T) {
+	testCases := []mockBlockStepIterTestCase{
+		{
+			dps:             [][]float64{{1, 2, 3, 4, 5}, {6, 7, 8, 9, 10}},
+			expectedResults: [][]float64{{1, 6}, {2, 7}, {3, 8}, {4, 9}, {5, 10}},
+			description:     "return values from multiple blocks and test metadata",
+			seriesMeta: []block.Metadata{
+				{
+					Tags: map[string]string{"my": "tag", "same": "tag"},
+				},
+				{
+					Tags: map[string]string{"my": "other_tag", "same": "tag"},
+				},
+			},
+			blockMeta: block.Metadata{
+				Tags: map[string]string{"same": "tag"},
+			},
+		},
+	}
+
+	for _, test := range testCases {
+		csBlocks := newConsolidateSeriesBlock(test.seriesMeta)
+		mockNSBlockIters := newMockSeriesBlockIter(test.dps)
+		stepIter := newMockBlockStepIter(mockNSBlockIters, csBlocks, test.blockMeta)
+
+		for stepIter.Next() {
+			step, err := stepIter.Current()
+			require.NoError(t, err)
+			test.actualResults = append(test.actualResults, step.Values())
+		}
+		coordtest.EqualsWithNans(t, test.expectedResults, test.actualResults)
+
+		assert.Equal(t, test.blockMeta.Tags, stepIter.Meta().Tags)
+
+		seriesMeta := stepIter.SeriesMeta()
+		for i, series := range test.seriesMeta {
+			assert.Equal(t, series.Tags, seriesMeta[i].Tags)
+		}
 	}
 }
