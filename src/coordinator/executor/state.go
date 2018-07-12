@@ -52,15 +52,16 @@ func CreateTransform(ID parser.NodeID, params transform.Params) (transform.OpNod
 	controller := &transform.Controller{ID: ID}
 	node := params.Node(controller)
 
-	if _, ok := node.(transform.SeriesNode); ok {
+	switch node.(type) {
+	case transform.SeriesNode:
 		return transform.NewLazyNode(node, controller)
-	}
 
-	if _, ok := node.(transform.StepNode); ok {
+	case transform.StepNode:
 		return transform.NewLazyNode(node, controller)
-	}
 
-	return node, controller
+	default:
+		return node, controller
+	}
 }
 
 // SourceParams are defined by sources

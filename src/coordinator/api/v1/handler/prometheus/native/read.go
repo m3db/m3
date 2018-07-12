@@ -200,8 +200,6 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 		return emptySeriesList, nil
 	}
 
-	var err error
-
 	firstBlock := blockList[0].block
 	firstStepIter, err := firstBlock.StepIter()
 	if err != nil {
@@ -222,10 +220,12 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 	// To create individual series, we iterate over seriesIterators for each block in the block list.
 	// For each iterator, the nth current() will be combined to give the nth series
 	for i, b := range blockList {
-		seriesIters[i], err = b.block.SeriesIter()
+		seriesIter, err := b.block.SeriesIter()
 		if err != nil {
 			return nil, err
 		}
+
+		seriesIters[i] = seriesIter
 	}
 
 	numValues := firstStepIter.StepCount() * len(blockList)
@@ -261,7 +261,6 @@ func insertSortedBlock(b block.Block, blockList []blockWithMeta, stepCount, seri
 	}
 
 	blockMeta := blockSeriesIter.Meta()
-
 	if len(blockList) == 0 {
 		blockList = append(blockList, blockWithMeta{
 			block: b,
@@ -281,11 +280,11 @@ func insertSortedBlock(b block.Block, blockList []blockWithMeta, stepCount, seri
 	}
 
 	blockStepCount := blockStepIter.StepCount()
-
 	if stepCount != blockStepCount {
 		return nil, fmt.Errorf("mismatch in number of steps for the block, wanted: %d, found: %d", stepCount, blockStepCount)
 	}
 
+	// Binary search to keep the start times sorted
 	index := sort.Search(len(blockList), func(i int) bool { return blockList[i].meta.Bounds.Start.Before(blockMeta.Bounds.Start) })
 	// Append here ensures enough size in the slice
 	blockList = append(blockList, blockWithMeta{})

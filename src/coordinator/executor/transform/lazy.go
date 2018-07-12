@@ -18,9 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Node -> Sum -> Sink
-// (Step, Series, Meta) -> Function -> (Step', Series', Meta')
-
 package transform
 
 import (

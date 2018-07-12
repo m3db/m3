@@ -38,6 +38,7 @@ const ClampMaxType = "clamp_max"
 var emptyClamp = ClampOp{}
 
 // ClampOp stores required properties for clamp
+// TODO(nikunj): Make clamp a lazy function
 type ClampOp struct {
 	opType string
 	scalar float64

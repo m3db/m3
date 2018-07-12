@@ -96,12 +96,14 @@ var _ transform.SeriesNode = &AbsNode{}
 
 // ProcessStep allows step iteration
 func (c *AbsNode) ProcessStep(step block.Step) (block.Step, error) {
-	return block.NewColStep(step.Time(), c.process(step.Values())), nil
+	processedValue := c.process(step.Values())
+	return block.NewColStep(step.Time(), processedValue), nil
 }
 
 // ProcessSeries allows series iteration
 func (c *AbsNode) ProcessSeries(series block.Series) (block.Series, error) {
-	return block.NewSeries(c.process(series.Values()), series.Meta), nil
+	processedValue := c.process(series.Values())
+	return block.NewSeries(processedValue, series.Meta), nil
 }
 
 func (c *AbsNode) process(values []float64) []float64 {

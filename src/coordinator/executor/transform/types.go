@@ -33,7 +33,7 @@ type Options struct {
 	Debug    bool
 }
 
-// OpNode represents the execution fNode
+// OpNode represents the execution node
 type OpNode interface {
 	Process(ID parser.NodeID, block block.Block) error
 }
@@ -53,16 +53,20 @@ type Params interface {
 	Node(controller *Controller) OpNode
 }
 
-// SeriesNode is implemented by function nodes which can support series iteration
-type SeriesNode interface {
-	ProcessSeries(series block.Series) (block.Series, error)
+// MetaNode is implemented by function nodes which can alter metadata for a block
+type MetaNode interface {
 	Meta(meta block.Metadata) block.Metadata
 	SeriesMeta(metas []block.SeriesMeta) []block.SeriesMeta
 }
 
+// SeriesNode is implemented by function nodes which can support series iteration
+type SeriesNode interface {
+	MetaNode
+	ProcessSeries(series block.Series) (block.Series, error)
+}
+
 // StepNode is implemented by function nodes which can support step iteration
 type StepNode interface {
+	MetaNode
 	ProcessStep(step block.Step) (block.Step, error)
-	Meta(meta block.Metadata) block.Metadata
-	SeriesMeta(metas []block.SeriesMeta) []block.SeriesMeta
 }

@@ -26,7 +26,7 @@ import (
 	"github.com/m3db/m3db/src/coordinator/parser"
 )
 
-// NewControllerWithSink creates a new controller which has a sink useful for comparison
+// NewControllerWithSink creates a new controller which has a sink useful for comparison in tests
 func NewControllerWithSink(ID parser.NodeID) (*transform.Controller, *SinkNode) {
 	c := &transform.Controller{
 		ID: ID,
