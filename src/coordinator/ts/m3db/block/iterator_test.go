@@ -275,8 +275,7 @@ type mockBlockStepIterTestCase struct {
 	description                    string
 }
 
-func newMockBlockStepIter(valIter []block.ValueIterator, blocks ConsolidatedSeriesBlocks, meta block.Metadata) *multiSeriesBlockStepIter {
-	// var valueIters []block.StepIter
+func newMockMultiSeriesBlockStepIter(valIter []block.ValueIterator, blocks ConsolidatedSeriesBlocks, meta block.Metadata) *multiSeriesBlockStepIter {
 	return &multiSeriesBlockStepIter{
 		seriesIters: valIter,
 		index:       -1,
@@ -317,8 +316,8 @@ func TestMultiSeriesBlock(t *testing.T) {
 
 	for _, test := range testCases {
 		csBlocks := newConsolidateSeriesBlock(test.seriesMeta)
-		mockNSBlockIters := newMockSeriesBlockIter(test.dps)
-		stepIter := newMockBlockStepIter(mockNSBlockIters, csBlocks, test.blockMeta)
+		mockSeriesBlockIters := newMockSeriesBlockIter(test.dps)
+		stepIter := newMockMultiSeriesBlockStepIter(mockSeriesBlockIters, csBlocks, test.blockMeta)
 
 		for stepIter.Next() {
 			step, err := stepIter.Current()
