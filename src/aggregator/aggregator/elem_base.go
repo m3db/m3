@@ -130,6 +130,7 @@ type metricElem interface {
 	// the element can be collected after the consumption is completed.
 	Consume(
 		targetNanos int64,
+		eagerForwardingMode eagerForwardingMode,
 		isEarlierThanFn isEarlierThanFn,
 		timestampNanosFn timestampNanosFn,
 		flushLocalFn flushLocalMetricFn,
