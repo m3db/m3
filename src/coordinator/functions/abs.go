@@ -59,25 +59,67 @@ type AbsNode struct {
 
 // Process the block
 func (c *AbsNode) Process(ID parser.NodeID, b block.Block) error {
-	builder, err := c.controller.BlockBuilder(b.Meta(), b.SeriesMeta())
+	stepIter, err := b.StepIter()
 	if err != nil {
 		return err
 	}
 
-	stepIter := b.StepIter()
-	if err := builder.AddCols(b.StepCount()); err != nil {
+	builder, err := c.controller.BlockBuilder(stepIter.Meta(), stepIter.SeriesMeta())
+	if err != nil {
+		return err
+	}
+
+	if err := builder.AddCols(stepIter.StepCount()); err != nil {
 		return err
 	}
 
 	for index := 0; stepIter.Next(); index++ {
-		step := stepIter.Current()
-		values := step.Values()
+		step, err := stepIter.Current()
+		if err != nil {
+			return err
+		}
+
+		values := c.process(step.Values())
 		for _, value := range values {
-			builder.AppendValue(index, math.Abs(value))
+			builder.AppendValue(index, value)
 		}
 	}
 
 	nextBlock := builder.Build()
 	defer nextBlock.Close()
 	return c.controller.Process(nextBlock)
+}
+
+// Ensure AbsNode implements the types
+var _ transform.StepNode = &AbsNode{}
+var _ transform.SeriesNode = &AbsNode{}
+
+// ProcessStep allows step iteration
+func (c *AbsNode) ProcessStep(step block.Step) (block.Step, error) {
+	processedValue := c.process(step.Values())
+	return block.NewColStep(step.Time(), processedValue), nil
+}
+
+// ProcessSeries allows series iteration
+func (c *AbsNode) ProcessSeries(series block.Series) (block.Series, error) {
+	processedValue := c.process(series.Values())
+	return block.NewSeries(processedValue, series.Meta), nil
+}
+
+func (c *AbsNode) process(values []float64) []float64 {
+	for i := range values {
+		values[i] = math.Abs(values[i])
+	}
+
+	return values
+}
+
+// Meta returns the metadata for the block
+func (c *AbsNode) Meta(meta block.Metadata) block.Metadata {
+	return meta
+}
+
+// SeriesMeta returns the metadata for each series in the block
+func (c *AbsNode) SeriesMeta(metas []block.SeriesMeta) []block.SeriesMeta {
+	return metas
 }

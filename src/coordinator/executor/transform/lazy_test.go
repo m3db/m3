@@ -18,48 +18,45 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package functions
+package transform
 
 import (
-	"math"
 	"testing"
 
+	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/parser"
 	"github.com/m3db/m3db/src/coordinator/test"
-	"github.com/m3db/m3db/src/coordinator/test/executor"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-func TestCountWithAllValues(t *testing.T) {
-	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	block := test.NewBlockFromValues(bounds, values)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	countNode := (&CountOp{}).Node(c)
-	err := countNode.Process(parser.NodeID(0), block)
-	require.NoError(t, err)
-	expected := make([]float64, len(values[0]))
-	for i := range expected {
-		expected[i] = 2
-	}
-	assert.Len(t, sink.Values, 1)
-	assert.Equal(t, expected, sink.Values[0])
+type dummyFunc struct {
+	processed  bool
+	controller *Controller
 }
 
-func TestCountWithSomeValues(t *testing.T) {
-	v := [][]float64{
-		{0, math.NaN(), 2, 3, 4},
-		{math.NaN(), 6, 7, 8, 9},
-	}
+func (f *dummyFunc) Process(ID parser.NodeID, block block.Block) error {
+	f.processed = true
+	f.controller.Process(block)
+	return nil
+}
 
-	values, bounds := test.GenerateValuesAndBounds(v, nil)
-	block := test.NewBlockFromValues(bounds, values)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	countNode := (&CountOp{}).Node(c)
-	err := countNode.Process(parser.NodeID(0), block)
-	require.NoError(t, err)
-	expected := []float64{1, 1, 2, 2, 2}
-	assert.Len(t, sink.Values, 1)
-	assert.Equal(t, expected, sink.Values[0])
+func TestLazyState(t *testing.T) {
+	sNode := &sinkNode{}
+	controller := &Controller{}
+	fNode := &dummyFunc{controller: controller}
+
+	node, downStreamController := NewLazyNode(fNode, controller)
+	downStreamController.AddTransform(sNode)
+	values, bounds := test.GenerateValuesAndBounds(nil, nil)
+	b := test.NewBlockFromValues(bounds, values)
+	err := node.Process(parser.NodeID(1), b)
+	assert.NoError(t, err)
+	assert.NotNil(t, sNode.block, "downstream process called with a block")
+	assert.IsType(t, sNode.block, &lazyBlock{})
+	assert.False(t, fNode.processed, "function block is still not processed")
+	iter, err := sNode.block.StepIter()
+	assert.NoError(t, err)
+	assert.NotNil(t, iter)
+	assert.True(t, fNode.processed, "function block processed on step iter")
 }

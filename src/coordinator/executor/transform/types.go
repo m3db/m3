@@ -46,3 +46,29 @@ type TimeSpec struct {
 	Now  time.Time
 	Step time.Duration
 }
+
+// Params are defined by transforms
+type Params interface {
+	parser.Params
+	Node(controller *Controller) OpNode
+}
+
+// MetaNode is implemented by function nodes which can alter metadata for a block
+type MetaNode interface {
+	// Meta provides the block metadata for the block using the input blocks' metadata as input
+	Meta(meta block.Metadata) block.Metadata
+	// SeriesMeta provides the series metadata for the block using the previous blocks' series metadata as input
+	SeriesMeta(metas []block.SeriesMeta) []block.SeriesMeta
+}
+
+// SeriesNode is implemented by function nodes which can support series iteration
+type SeriesNode interface {
+	MetaNode
+	ProcessSeries(series block.Series) (block.Series, error)
+}
+
+// StepNode is implemented by function nodes which can support step iteration
+type StepNode interface {
+	MetaNode
+	ProcessStep(step block.Step) (block.Step, error)
+}

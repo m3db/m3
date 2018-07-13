@@ -38,6 +38,7 @@ const ClampMaxType = "clamp_max"
 var emptyClamp = ClampOp{}
 
 // ClampOp stores required properties for clamp
+// TODO(nikunj): Make clamp a lazy function
 type ClampOp struct {
 	opType string
 	scalar float64
@@ -93,19 +94,27 @@ type ClampNode struct {
 
 // Process the block
 func (c *ClampNode) Process(ID parser.NodeID, b block.Block) error {
-	builder, err := c.controller.BlockBuilder(b.Meta(), b.SeriesMeta())
+	stepIter, err := b.StepIter()
 	if err != nil {
 		return err
 	}
 
-	stepIter := b.StepIter()
-	if err := builder.AddCols(b.StepCount()); err != nil {
+	builder, err := c.controller.BlockBuilder(stepIter.Meta(), stepIter.SeriesMeta())
+	if err != nil {
+		return err
+	}
+
+	if err := builder.AddCols(stepIter.StepCount()); err != nil {
 		return err
 	}
 
 	scalar := c.op.scalar
 	for index := 0; stepIter.Next(); index++ {
-		step := stepIter.Current()
+		step, err := stepIter.Current()
+		if err != nil {
+			return err
+		}
+
 		values := step.Values()
 		for _, value := range values {
 			builder.AppendValue(index, c.clampFn(value, scalar))

@@ -63,6 +63,11 @@ type ReadResponse struct {
 	Results []ts.Series `json:"results,omitempty"`
 }
 
+type blockWithMeta struct {
+	block block.Block
+	meta  block.Metadata
+}
+
 // NewPromReadHandler returns a new instance of handler.
 func NewPromReadHandler(engine *executor.Engine) http.Handler {
 	return &PromReadHandler{engine: engine}
@@ -115,13 +120,7 @@ func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, pa
 
 	// Block slices are sorted by start time
 	// TODO: Pooling
-	sortedBlockList := make([]block.Block, 0, initialBlockAlloc)
-	defer func() {
-		for _, b := range sortedBlockList {
-			b.Close()
-		}
-	}()
-
+	sortedBlockList := make([]blockWithMeta, 0, initialBlockAlloc)
 	var processErr error
 	for result := range results {
 		if result.Err != nil {
@@ -130,6 +129,8 @@ func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, pa
 		}
 
 		resultChan := result.Result.ResultChan()
+		firstElement := false
+		var numSteps, numSeries int
 		// TODO(nikunj): Stream blocks to client
 		for blkResult := range resultChan {
 			if blkResult.Err != nil {
@@ -137,8 +138,27 @@ func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, pa
 				break
 			}
 
+			b := blkResult.Block
+			if !firstElement {
+				firstElement = true
+				firstStepIter, err := b.StepIter()
+				if err != nil {
+					processErr = err
+					break
+				}
+
+				firstSeriesIter, err := b.SeriesIter()
+				if err != nil {
+					processErr = err
+					break
+				}
+
+				numSteps = firstStepIter.StepCount()
+				numSeries = firstSeriesIter.SeriesCount()
+			}
+
 			// Insert blocks sorted by start time
-			sortedBlockList, err = insertSortedBlock(blkResult.Block, sortedBlockList)
+			sortedBlockList, err = insertSortedBlock(b, sortedBlockList, numSteps, numSeries)
 			if err != nil {
 				processErr = err
 				break
@@ -149,7 +169,7 @@ func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, pa
 	// Ensure that the blocks are closed. Can't do this above since sortedBlockList might change
 	defer func() {
 		for _, b := range sortedBlockList {
-			b.Close()
+			b.block.Close()
 		}
 	}()
 
@@ -175,24 +195,40 @@ func drainResultChan(resultsChan chan executor.Query) {
 	}
 }
 
-func sortedBlocksToSeriesList(blockList []block.Block) ([]*ts.Series, error) {
+func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 	if len(blockList) == 0 {
 		return emptySeriesList, nil
 	}
 
-	firstBlock := blockList[0]
-	numSeries := firstBlock.SeriesCount()
+	firstBlock := blockList[0].block
+	firstStepIter, err := firstBlock.StepIter()
+	if err != nil {
+		return nil, err
+	}
+
+	firstSeriesIter, err := firstBlock.SeriesIter()
+	if err != nil {
+		return nil, err
+	}
+
+	numSeries := firstSeriesIter.SeriesCount()
+	seriesMeta := firstSeriesIter.SeriesMeta()
+	bounds := firstSeriesIter.Meta().Bounds
+
 	seriesList := make([]*ts.Series, numSeries)
 	seriesIters := make([]block.SeriesIter, len(blockList))
 	// To create individual series, we iterate over seriesIterators for each block in the block list.
 	// For each iterator, the nth current() will be combined to give the nth series
 	for i, b := range blockList {
-		seriesIters[i] = b.SeriesIter()
+		seriesIter, err := b.block.SeriesIter()
+		if err != nil {
+			return nil, err
+		}
+
+		seriesIters[i] = seriesIter
 	}
 
-	seriesMeta := firstBlock.SeriesMeta()
-	bounds := firstBlock.Meta().Bounds
-	numValues := firstBlock.StepCount() * len(blockList)
+	numValues := firstStepIter.StepCount() * len(blockList)
 	for i := 0; i < numSeries; i++ {
 		values := ts.NewFixedStepValues(bounds.StepSize, numValues, math.NaN(), bounds.Start)
 		valIdx := 0
@@ -201,7 +237,11 @@ func sortedBlocksToSeriesList(blockList []block.Block) ([]*ts.Series, error) {
 				return nil, fmt.Errorf("invalid number of datapoints for series: %d, block: %d", i, idx)
 			}
 
-			blockSeries := iter.Current()
+			blockSeries, err := iter.Current()
+			if err != nil {
+				return nil, err
+			}
+
 			for i := 0; i < blockSeries.Len(); i++ {
 				values.SetValueAt(valIdx, blockSeries.ValueAtStep(i))
 				valIdx++
@@ -214,24 +254,44 @@ func sortedBlocksToSeriesList(blockList []block.Block) ([]*ts.Series, error) {
 	return seriesList, nil
 }
 
-func insertSortedBlock(b block.Block, blockList []block.Block) ([]block.Block, error) {
+func insertSortedBlock(b block.Block, blockList []blockWithMeta, stepCount, seriesCount int) ([]blockWithMeta, error) {
+	blockSeriesIter, err := b.SeriesIter()
+	if err != nil {
+		return nil, err
+	}
+
+	blockMeta := blockSeriesIter.Meta()
 	if len(blockList) == 0 {
-		blockList = append(blockList, b)
+		blockList = append(blockList, blockWithMeta{
+			block: b,
+			meta:  blockMeta,
+		})
 		return blockList, nil
 	}
 
-	firstBlock := blockList[0]
-	if firstBlock.SeriesCount() != b.SeriesCount() {
-		return nil, fmt.Errorf("mismatch in number of series for the block, wanted: %d, found: %d", firstBlock.SeriesCount(), b.SeriesCount())
+	blockSeriesCount := blockSeriesIter.SeriesCount()
+	if seriesCount != blockSeriesCount {
+		return nil, fmt.Errorf("mismatch in number of series for the block, wanted: %d, found: %d", seriesCount, blockSeriesCount)
 	}
 
-	if firstBlock.StepCount() != b.StepCount() {
-		return nil, fmt.Errorf("mismatch in number of steps for the block, wanted: %d, found: %d", firstBlock.StepCount(), b.StepCount())
+	blockStepIter, err := b.StepIter()
+	if err != nil {
+		return nil, err
 	}
 
-	index := sort.Search(len(blockList), func(i int) bool { return blockList[i].Meta().Bounds.Start.Before(b.Meta().Bounds.Start) })
-	blockList = append(blockList, b)
+	blockStepCount := blockStepIter.StepCount()
+	if stepCount != blockStepCount {
+		return nil, fmt.Errorf("mismatch in number of steps for the block, wanted: %d, found: %d", stepCount, blockStepCount)
+	}
+
+	// Binary search to keep the start times sorted
+	index := sort.Search(len(blockList), func(i int) bool { return blockList[i].meta.Bounds.Start.Before(blockMeta.Bounds.Start) })
+	// Append here ensures enough size in the slice
+	blockList = append(blockList, blockWithMeta{})
 	copy(blockList[index+1:], blockList[index:])
-	blockList[index] = b
+	blockList[index] = blockWithMeta{
+		block: b,
+		meta:  blockMeta,
+	}
 	return blockList, nil
 }

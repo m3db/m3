@@ -24,9 +24,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/src/coordinator/block"
-	"github.com/m3db/m3db/src/coordinator/executor/transform"
 	"github.com/m3db/m3db/src/coordinator/models"
-	"github.com/m3db/m3db/src/coordinator/parser"
 )
 
 // NewBlockFromValues creates a new block using the provided values
@@ -52,37 +50,6 @@ func NewBlockFromValues(bounds block.Bounds, seriesValues [][]float64) block.Blo
 	}
 
 	return columnBuilder.Build()
-}
-
-// NewControllerWithSink creates a new controller which has a sink useful for comparison
-func NewControllerWithSink(ID parser.NodeID) (*transform.Controller, *SinkNode) {
-	c := &transform.Controller{
-		ID: ID,
-	}
-
-	node := &SinkNode{}
-	c.AddTransform(node)
-	return c, node
-}
-
-// SinkNode is a test node useful for comparisons
-type SinkNode struct {
-	Values   [][]float64
-}
-
-// Process processes and stores the last block output in the sink node
-func (s *SinkNode) Process(ID parser.NodeID, block block.Block) error {
-	iter := block.SeriesIter()
-	for iter.Next() {
-		val := iter.Current()
-		values := make([]float64, val.Len())
-		for i := 0; i < val.Len(); i++ {
-			values[i] = val.ValueAtStep(i)
-		}
-		s.Values = append(s.Values, values)
-	}
-
-	return nil
 }
 
 // GenerateValuesAndBounds generates a list of sample values and bounds while allowing overrides

@@ -36,6 +36,11 @@ func (s Series) ValueAtStep(idx int) float64 {
 	return s.values[idx]
 }
 
+// Values returns the internal values slice
+func (s Series) Values() []float64 {
+	return s.values
+}
+
 // Len returns the number of datapoints in the series
 func (s Series) Len() int {
 	return len(s.values)

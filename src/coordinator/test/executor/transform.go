@@ -18,32 +18,49 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package functions
+package executor
 
 import (
-	"context"
-	"testing"
-
 	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/executor/transform"
 	"github.com/m3db/m3db/src/coordinator/parser"
-	"github.com/m3db/m3db/src/coordinator/storage/mock"
-	"github.com/m3db/m3db/src/coordinator/test"
-	"github.com/m3db/m3db/src/coordinator/test/executor"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-func TestFetch(t *testing.T) {
-	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	b := test.NewBlockFromValues(bounds, values)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	mockStorage := mock.NewMockStorageWithBlocks([]block.Block{b})
-	source := (&FetchOp{}).Node(c, mockStorage, transform.Options{})
-	err := source.Execute(context.TODO())
-	require.NoError(t, err)
-	expected := values
-	assert.Len(t, sink.Values, 2)
-	assert.Equal(t, expected, sink.Values)
+// NewControllerWithSink creates a new controller which has a sink useful for comparison in tests
+func NewControllerWithSink(ID parser.NodeID) (*transform.Controller, *SinkNode) {
+	c := &transform.Controller{
+		ID: ID,
+	}
+
+	node := &SinkNode{}
+	c.AddTransform(node)
+	return c, node
+}
+
+// SinkNode is a test node useful for comparisons
+type SinkNode struct {
+	Values   [][]float64
+}
+
+// Process processes and stores the last block output in the sink node
+func (s *SinkNode) Process(ID parser.NodeID, block block.Block) error {
+	iter, err := block.SeriesIter()
+	if err != nil {
+		return err
+	}
+
+	for iter.Next() {
+		val, err := iter.Current()
+		if err != nil {
+			return err
+		}
+
+		values := make([]float64, val.Len())
+		for i := 0; i < val.Len(); i++ {
+			values[i] = val.ValueAtStep(i)
+		}
+		s.Values = append(s.Values, values)
+	}
+
+	return nil
 }

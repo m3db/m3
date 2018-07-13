@@ -61,22 +61,40 @@ func NewAndNode(op BaseOp, controller *transform.Controller) Processor {
 
 // Process processes two logical blocks, performing And operation on them
 func (c *AndNode) Process(lhs, rhs block.Block) (block.Block, error) {
-	intersection := c.intersect(lhs.SeriesMeta(), rhs.SeriesMeta())
-	builder, err := c.controller.BlockBuilder(lhs.Meta(), lhs.SeriesMeta())
+	lIter, err := lhs.StepIter()
 	if err != nil {
 		return nil, err
 	}
 
-	lIter, rIter := lhs.StepIter(), rhs.StepIter()
-	if err := builder.AddCols(lhs.StepCount()); err != nil {
+	rIter, err := rhs.StepIter()
+	if err != nil {
+		return nil, err
+	}
+
+	intersection := c.intersect(lIter.SeriesMeta(), rIter.SeriesMeta())
+	builder, err := c.controller.BlockBuilder(lIter.Meta(), rIter.SeriesMeta())
+	if err != nil {
+		return nil, err
+	}
+
+
+	if err := builder.AddCols(lIter.StepCount()); err != nil {
 		return nil, err
 	}
 
 	for index := 0; lIter.Next() && rIter.Next(); index++ {
-		lStep := lIter.Current()
+		lStep, err := lIter.Current()
+		if err != nil {
+			return nil, err
+		}
+
 		lValues := lStep.Values()
 
-		rStep := rIter.Current()
+		rStep, err := rIter.Current()
+		if err != nil {
+			return nil, err
+		}
+
 		rValues := rStep.Values()
 
 		for idx, value := range lValues {
