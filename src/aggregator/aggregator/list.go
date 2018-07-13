@@ -162,6 +162,7 @@ type baseMetricList struct {
 	localWriter      writer.Writer
 	forwardedWriter  forwardedMetricWriter
 	resolution       time.Duration
+	flushInterval    time.Duration
 	targetNanosFn    targetNanosFn
 	isEarlierThanFn  isEarlierThanFn
 	timestampNanosFn timestampNanosFn
@@ -184,6 +185,7 @@ type baseMetricList struct {
 func newBaseMetricList(
 	shard uint32,
 	resolution time.Duration,
+	flushInterval time.Duration,
 	targetNanosFn targetNanosFn,
 	isEarlierThanFn isEarlierThanFn,
 	timestampNanosFn timestampNanosFn,
@@ -199,7 +201,12 @@ func newBaseMetricList(
 		return nil, err
 	}
 	forwardedWriterScope := scope.Tagged(map[string]string{"writer-type": "forwarded"}).SubScope("writer")
-	forwardedWriter := newForwardedWriter(shard, opts.AdminClient(), forwardedWriterScope)
+	maxForwardingWindows := opts.MaxAggregationWindowsForEagerForwarding()
+	nowFn := opts.ClockOptions().NowFn()
+	forwardedWriter := newForwardedWriter(
+		shard, opts.AdminClient(), opts.EnableEagerForwarding(),
+		maxForwardingWindows, isEarlierThanFn, nowFn, forwardedWriterScope,
+	)
 	l := &baseMetricList{
 		shard:            shard,
 		opts:             opts,
@@ -209,6 +216,7 @@ func newBaseMetricList(
 		localWriter:      localWriter,
 		forwardedWriter:  forwardedWriter,
 		resolution:       resolution,
+		flushInterval:    flushInterval,
 		targetNanosFn:    targetNanosFn,
 		isEarlierThanFn:  isEarlierThanFn,
 		timestampNanosFn: timestampNanosFn,
@@ -228,7 +236,7 @@ func newBaseMetricList(
 
 func (l *baseMetricList) Shard() uint32                { return l.shard }
 func (l *baseMetricList) Resolution() time.Duration    { return l.resolution }
-func (l *baseMetricList) FlushInterval() time.Duration { return l.resolution }
+func (l *baseMetricList) FlushInterval() time.Duration { return l.flushInterval }
 func (l *baseMetricList) LastFlushedNanos() int64      { return atomic.LoadInt64(&l.lastFlushedNanos) }
 
 // Len returns the number of elements in the list.
@@ -371,7 +379,7 @@ func (l *baseMetricList) flushBefore(beforeNanos int64, flushType flushType) {
 	// NB: Ensure the elements are consumed within a read lock so that the
 	// refcounts of forwarded metrics tracked in the forwarded writer do not
 	// change so no elements may be added or removed while holding the lock.
-	l.forwardedWriter.Prepare()
+	l.forwardedWriter.Prepare(beforeNanos)
 	for e := l.aggregations.Front(); e != nil; e = e.Next() {
 		// If the element is eligible for collection after the values are
 		// processed, add it to the list of elements to collect.
@@ -512,15 +520,13 @@ func (l *baseMetricList) onForwardingElemDiscarded(
 // Standard metrics whose timestamps are earlier than current time can be flushed.
 func standardMetricTargetNanos(nowNanos int64) int64 { return nowNanos }
 
-// The timestamp of a standard metric is the end time boundary of the aggregation
-// window when the metric is flushed. As such, only the aggregation windows whose
-// end time boundaries are no later than the target time can be flushed.
+// Only the aggregation windows whose timestamps are no later than the target time
+// can be flushed.
 func isStandardMetricEarlierThan(
-	windowStartNanos int64,
-	resolution time.Duration,
+	timestampNanos int64,
 	targetNanos int64,
 ) bool {
-	return windowStartNanos+resolution.Nanoseconds() <= targetNanos
+	return timestampNanos <= targetNanos
 }
 
 // The timestamp of a standard metric is set to the end time boundary of the aggregation
@@ -535,7 +541,10 @@ type standardMetricListID struct {
 }
 
 func (id standardMetricListID) toMetricListID() metricListID {
-	return metricListID{listType: standardMetricListType, standard: id}
+	return metricListID{
+		incomingMetricType: StandardIncomingMetric,
+		standard:           id,
+	}
 }
 
 // standardMetricList is a list storing aggregations of incoming standard metrics
@@ -554,9 +563,11 @@ func newStandardMetricList(
 ) (*standardMetricList, error) {
 	iOpts := opts.InstrumentOptions()
 	listScope := iOpts.MetricsScope().Tagged(map[string]string{"list-type": "standard"})
+	flushInterval := opts.FlushIntervalFn()(StandardIncomingMetric, id.resolution)
 	l, err := newBaseMetricList(
 		shard,
 		id.resolution,
+		flushInterval,
 		standardMetricTargetNanos,
 		isStandardMetricEarlierThan,
 		standardMetricTimestampNanos,
@@ -590,11 +601,10 @@ func (l *standardMetricList) Close() {
 // NB: the targetNanos for forwarded metrics has already taken into account the maximum
 // amount of lateness that is tolerated.
 func isForwardedMetricEarlierThan(
-	windowStartNanos int64,
-	_ time.Duration,
+	timestampNanos int64,
 	targetNanos int64,
 ) bool {
-	return windowStartNanos < targetNanos
+	return timestampNanos < targetNanos
 }
 
 // The timestamp of a forwarded metric is set to the start time boundary of the aggregation
@@ -612,7 +622,10 @@ type forwardedMetricListID struct {
 }
 
 func (id forwardedMetricListID) toMetricListID() metricListID {
-	return metricListID{listType: forwardedMetricListType, forwarded: id}
+	return metricListID{
+		incomingMetricType: ForwardedIncomingMetric,
+		forwarded:          id,
+	}
 }
 
 // forwardedMetricList is a list storing aggregations of incoming forwarded metrics
@@ -633,6 +646,7 @@ func newForwardedMetricList(
 ) (*forwardedMetricList, error) {
 	var (
 		resolution           = id.resolution
+		flushInterval        = opts.FlushIntervalFn()(ForwardedIncomingMetric, resolution)
 		numForwardedTimes    = id.numForwardedTimes
 		maxLatenessAllowedFn = opts.MaxAllowedForwardingDelayFn()
 		maxLatenessAllowed   = maxLatenessAllowedFn(resolution, numForwardedTimes)
@@ -647,6 +661,7 @@ func newForwardedMetricList(
 	l, err := newBaseMetricList(
 		shard,
 		resolution,
+		flushInterval,
 		targetNanosFn,
 		isForwardedMetricEarlierThan,
 		forwardedMetricTimestampNanos,
@@ -688,39 +703,20 @@ func (l *forwardedMetricList) Close() {
 	}
 }
 
-type metricListType int
-
-const (
-	standardMetricListType metricListType = iota
-	forwardedMetricListType
-)
-
-func (t metricListType) String() string {
-	switch t {
-	case standardMetricListType:
-		return "standard"
-	case forwardedMetricListType:
-		return "forwarded"
-	default:
-		// Should never get here.
-		return "unknown"
-	}
-}
-
 type metricListID struct {
-	listType  metricListType
-	standard  standardMetricListID
-	forwarded forwardedMetricListID
+	incomingMetricType IncomingMetricType
+	standard           standardMetricListID
+	forwarded          forwardedMetricListID
 }
 
 func newMetricList(shard uint32, id metricListID, opts Options) (metricList, error) {
-	switch id.listType {
-	case standardMetricListType:
+	switch id.incomingMetricType {
+	case StandardIncomingMetric:
 		return newStandardMetricList(shard, id.standard, opts)
-	case forwardedMetricListType:
+	case ForwardedIncomingMetric:
 		return newForwardedMetricList(shard, id.forwarded, opts)
 	default:
-		return nil, fmt.Errorf("unknown list type: %v", id.listType)
+		return nil, fmt.Errorf("unknown incoming metric type for list: %v", id.incomingMetricType)
 	}
 }
 
@@ -801,10 +797,10 @@ func (l *metricLists) Tick() listsTickResult {
 	for id, list := range l.lists {
 		resolution := list.Resolution()
 		numElems := list.Len()
-		switch id.listType {
-		case standardMetricListType:
+		switch id.incomingMetricType {
+		case StandardIncomingMetric:
 			res.standard[resolution] += numElems
-		case forwardedMetricListType:
+		case ForwardedIncomingMetric:
 			res.forwarded[resolution] += numElems
 		}
 	}

@@ -505,7 +505,7 @@ func (e *Entry) addNewAggregationKey(
 	}
 	// NB: The pipeline may not be owned by us and as such we need to make a copy here.
 	key.pipeline = key.pipeline.Clone()
-	if err = newElem.ResetSetData(metricID, key.storagePolicy, aggTypes, key.pipeline, key.numForwardedTimes); err != nil {
+	if err = newElem.ResetSetData(listID.incomingMetricType, metricID, key.storagePolicy, aggTypes, key.pipeline, key.numForwardedTimes); err != nil {
 		return nil, err
 	}
 	list, err := e.lists.FindOrCreate(listID)
