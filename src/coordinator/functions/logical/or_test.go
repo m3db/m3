@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3db/src/coordinator/parser"
 	"github.com/m3db/m3db/src/coordinator/test"
+	"github.com/m3db/m3db/src/coordinator/test/executor"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,7 +39,7 @@ func TestOrWithExactValues(t *testing.T) {
 	block2 := test.NewBlockFromValues(bounds, values)
 
 	op := NewOrOp(parser.NodeID(0), parser.NodeID(1), &VectorMatching{})
-	c, sink := test.NewControllerWithSink(parser.NodeID(2))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
 	node := op.Node(c)
 
 	err := node.Process(parser.NodeID(1), block2)
@@ -61,7 +62,7 @@ func TestOrWithSomeValues(t *testing.T) {
 	block2 := test.NewBlockFromValues(bounds2, values2)
 
 	op := NewOrOp(parser.NodeID(0), parser.NodeID(1), &VectorMatching{})
-	c, sink := test.NewControllerWithSink(parser.NodeID(2))
+	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
 	node := op.Node(c)
 
 	err := node.Process(parser.NodeID(1), block2)

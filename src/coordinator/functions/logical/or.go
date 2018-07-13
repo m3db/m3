@@ -62,20 +62,34 @@ func NewOrNode(op BaseOp, controller *transform.Controller) Processor {
 
 // Process processes two logical blocks, performing Or operation on them
 func (c *OrNode) Process(lhs, rhs block.Block) (block.Block, error) {
-	builder, err := c.controller.BlockBuilder(lhs.Meta(), lhs.SeriesMeta())
+	lIter, err := lhs.StepIter()
 	if err != nil {
 		return nil, err
 	}
-	missingIndices := c.missing(lhs.SeriesMeta(), rhs.SeriesMeta())
+
+	rIter, err := rhs.StepIter()
+	if err != nil {
+		return nil, err
+	}
+
+	builder, err := c.controller.BlockBuilder(lIter.Meta(), lIter.SeriesMeta())
+	if err != nil {
+		return nil, err
+	}
+	missingIndices := c.missing(lIter.SeriesMeta(), rIter.SeriesMeta())
 	numMissing := len(missingIndices)
-	stepCount := numMissing + lhs.StepCount()
-	lIter, rIter := lhs.StepIter(), rhs.StepIter()
+	stepCount := numMissing + lIter.StepCount()
+
 	if err := builder.AddCols(stepCount); err != nil {
 		return nil, err
 	}
 
 	for index := 0; lIter.Next(); index++ {
-		lStep := lIter.Current()
+		lStep, err := lIter.Current()
+		if err != nil {
+			return nil, err
+		}
+
 		lValues := lStep.Values()
 		for _, value := range lValues {
 			builder.AppendValue(index, value)
@@ -90,9 +104,12 @@ func (c *OrNode) Process(lhs, rhs block.Block) (block.Block, error) {
 			}
 		}
 
-		rStep := rIter.Current()
-		rValues := rStep.Values()
+		rStep, err := rIter.Current()
+		if err != nil {
+			return nil, err
+		}
 
+		rValues := rStep.Values()
 		for _, value := range rValues {
 			builder.AppendValue(index, value)
 		}
