@@ -50,7 +50,7 @@ func TestForwardingLatencyHistogramsRecordDuration(t *testing.T) {
 		expectedDurations map[time.Duration]int64
 	}{
 		{
-			id:           "testScope.forwarding-latency+bucket-version=4,num-forwarded-times=1,resolution=10s",
+			id:           "testScope.forwarding-latency+bucket-version=5,num-forwarded-times=1,resolution=10s",
 			expectedName: "testScope.forwarding-latency",
 			expectedDurations: map[time.Duration]int64{
 				2 * time.Second: 2,
@@ -58,14 +58,14 @@ func TestForwardingLatencyHistogramsRecordDuration(t *testing.T) {
 			},
 		},
 		{
-			id:           "testScope.forwarding-latency+bucket-version=4,num-forwarded-times=2,resolution=10s",
+			id:           "testScope.forwarding-latency+bucket-version=5,num-forwarded-times=2,resolution=10s",
 			expectedName: "testScope.forwarding-latency",
 			expectedDurations: map[time.Duration]int64{
 				2 * time.Second: 1,
 			},
 		},
 		{
-			id:           "testScope.forwarding-latency+bucket-version=4,num-forwarded-times=2,resolution=1m0s",
+			id:           "testScope.forwarding-latency+bucket-version=5,num-forwarded-times=2,resolution=1m0s",
 			expectedName: "testScope.forwarding-latency",
 			expectedDurations: map[time.Duration]int64{
 				21 * time.Second: 1,
