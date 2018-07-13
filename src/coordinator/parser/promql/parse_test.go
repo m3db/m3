@@ -99,7 +99,7 @@ func TestDAGWithAndOp(t *testing.T) {
 }
 
 func TestDAGWithOrOp(t *testing.T) {
-	q := "up and up"
+	q := "up or up"
 	p, err := Parse(q)
 	require.NoError(t, err)
 	transforms, edges, err := p.DAG()
