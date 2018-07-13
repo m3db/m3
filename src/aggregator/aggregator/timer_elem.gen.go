@@ -51,9 +51,39 @@ import (
 type lockedTimerAggregation struct {
 	sync.Mutex
 
-	closed      bool
-	sourcesSeen *bitset.BitSet
-	aggregation timerAggregation
+	closed bool
+
+	// sourcesReady is only used for elements receiving forwarded metrics.
+	// It determines whether the current aggregation can use its source set
+	// to determine whether it has received data from all forwarding sources
+	// to perform eager forwarding if enabled.
+	sourcesReady bool
+
+	// expectedSources is only used for elements receiving forwarded metrics.
+	// It keeps track of all the sources the current aggregation expect to receive
+	// data from.
+	expectedSources *bitset.BitSet
+
+	// seenSources keeps track of all the sources the current aggregation has
+	// seen so far.
+	seenSources *bitset.BitSet
+
+	// consumeState is only used for elements receiving forwarded metrics. It
+	// describes whether the current aggregation is ready to be consumed or has
+	// been consumed. This in turn determines whether the aggregation can be
+	// eagerly consumed, or should be skipped during consumption.
+	consumeState consumeState
+	aggregation  timerAggregation
+}
+
+func (lockedAgg *lockedTimerAggregation) close() {
+	if lockedAgg.closed {
+		return
+	}
+	lockedAgg.closed = true
+	lockedAgg.expectedSources = nil
+	lockedAgg.seenSources = nil
+	lockedAgg.aggregation.Close()
 }
 
 type timedTimer struct {
@@ -79,6 +109,7 @@ type TimerElem struct {
 
 // NewTimerElem creates a new element for the given metric type.
 func NewTimerElem(
+	incomingMetricType IncomingMetricType,
 	id id.RawID,
 	sp policy.StoragePolicy,
 	aggTypes maggregation.Types,
@@ -90,7 +121,7 @@ func NewTimerElem(
 		elemBase: newElemBase(opts),
 		values:   make([]timedTimer, 0, defaultNumAggregations), // in most cases values will have two entries
 	}
-	if err := e.ResetSetData(id, sp, aggTypes, pipeline, numForwardedTimes); err != nil {
+	if err := e.ResetSetData(incomingMetricType, id, sp, aggTypes, pipeline, numForwardedTimes); err != nil {
 		return nil, err
 	}
 	return e, nil
@@ -98,6 +129,7 @@ func NewTimerElem(
 
 // MustNewTimerElem creates a new element, or panics if the input is invalid.
 func MustNewTimerElem(
+	incomingMetricType IncomingMetricType,
 	id id.RawID,
 	sp policy.StoragePolicy,
 	aggTypes maggregation.Types,
@@ -105,7 +137,7 @@ func MustNewTimerElem(
 	numForwardedTimes int,
 	opts Options,
 ) *TimerElem {
-	elem, err := NewTimerElem(id, sp, aggTypes, pipeline, numForwardedTimes, opts)
+	elem, err := NewTimerElem(incomingMetricType, id, sp, aggTypes, pipeline, numForwardedTimes, opts)
 	if err != nil {
 		panic(fmt.Errorf("unable to create element: %v", err))
 	}
@@ -114,6 +146,7 @@ func MustNewTimerElem(
 
 // ResetSetData resets the element and sets data.
 func (e *TimerElem) ResetSetData(
+	incomingMetricType IncomingMetricType,
 	id id.RawID,
 	sp policy.StoragePolicy,
 	aggTypes maggregation.Types,
@@ -124,7 +157,7 @@ func (e *TimerElem) ResetSetData(
 	if useDefaultAggregation {
 		aggTypes = e.DefaultAggregationTypes(e.aggTypesOpts)
 	}
-	if err := e.elemBase.resetSetData(id, sp, aggTypes, useDefaultAggregation, pipeline, numForwardedTimes); err != nil {
+	if err := e.elemBase.resetSetData(incomingMetricType, id, sp, aggTypes, useDefaultAggregation, pipeline, numForwardedTimes); err != nil {
 		return err
 	}
 	if err := e.timerElemBase.ResetSetData(e.aggTypesOpts, aggTypes, useDefaultAggregation); err != nil {
@@ -149,7 +182,7 @@ func (e *TimerElem) ResetSetData(
 // AddUnion adds a metric value union at a given timestamp.
 func (e *TimerElem) AddUnion(timestamp time.Time, mu unaggregated.MetricUnion) error {
 	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
-	lockedAgg, err := e.findOrCreate(alignedStart, createAggregationOptions{})
+	lockedAgg, err := e.findOrCreate(alignedStart, sourcesOptions{})
 	if err != nil {
 		return err
 	}
@@ -168,7 +201,7 @@ func (e *TimerElem) AddUnion(timestamp time.Time, mu unaggregated.MetricUnion) e
 // same aggregation, the incoming value is discarded.
 func (e *TimerElem) AddUnique(timestamp time.Time, values []float64, sourceID uint32) error {
 	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
-	lockedAgg, err := e.findOrCreate(alignedStart, createAggregationOptions{initSourceSet: true})
+	lockedAgg, err := e.findOrCreate(alignedStart, sourcesOptions{updateSources: true, source: sourceID})
 	if err != nil {
 		return err
 	}
@@ -178,11 +211,26 @@ func (e *TimerElem) AddUnique(timestamp time.Time, values []float64, sourceID ui
 		return errAggregationClosed
 	}
 	source := uint(sourceID)
-	if lockedAgg.sourcesSeen.Test(source) {
+	if lockedAgg.seenSources.Test(source) {
 		lockedAgg.Unlock()
 		return errDuplicateForwardingSource
 	}
-	lockedAgg.sourcesSeen.Set(source)
+	lockedAgg.seenSources.Set(source)
+	if lockedAgg.sourcesReady {
+		// If the sources are ready, the expected sources will be a pre-filled
+		// bitset populated with sources the aggregation is expected to see data from.
+		// As such, we need to clear the source bit in the expected sources.
+		if lockedAgg.expectedSources.Test(source) {
+			// This source is never seen before and is in the expected source list,
+			// as a result, we need to clear the source bit.
+			lockedAgg.expectedSources.Clear(source)
+			if lockedAgg.expectedSources.None() {
+				lockedAgg.consumeState = readyToConsume
+			}
+		}
+		// New sources that are not in the expected source list are still allowed
+		// to go through.
+	}
 	for _, v := range values {
 		lockedAgg.aggregation.Add(v)
 	}
@@ -212,7 +260,8 @@ func (e *TimerElem) Consume(
 	idx := 0
 	for range e.values {
 		// Bail as soon as the timestamp is no later than the target time.
-		if !isEarlierThanFn(e.values[idx].startAtNanos, resolution, targetNanos) {
+		timeNanos := timestampNanosFn(e.values[idx].startAtNanos, resolution)
+		if !isEarlierThanFn(timeNanos, targetNanos) {
 			break
 		}
 		idx++
@@ -230,31 +279,66 @@ func (e *TimerElem) Consume(
 		e.values = e.values[:n]
 	}
 	canCollect := len(e.values) == 0 && e.tombstoned
+
+	// Additionally for elements receiving forwarded metrics and sending aggregated metrics
+	// to local backends, we also check if any aggregations are ready to be consumed. We however
+	// do not remove the aggregations as we do for aggregations whose timestamps are old enough,
+	// since for aggregations receiving forwarded metrics that are marked "consume ready", it is
+	// possible that metrics still go to the such aggregation bucket after they are marked "consume
+	// ready" due to delayed source re-delivery or new sources showing up, and removing such
+	// aggregation prematurely would mean the values from the delayed sources and/or new sources
+	// would be considered as the aggregated value for such aggregation bucket, which is incorrect.
+	// By keeping such aggregation buckets and only removing them when they are considered old enough
+	// (i.e., when their timestmaps are earlier than the target timestamp), we ensure no metrics may
+	// go to such aggregation buckets after they are consumed and therefore avoid the aformentioned
+	// problem.
+	aggregationIdxToCloseUntil := len(e.toConsume)
+	if e.incomingMetricType == ForwardedIncomingMetric && e.isSourcesSetReadyWithElemLock() {
+		e.maybeRefreshSourcesSetWithElemLock()
+		// We only attempt to consume if the outgoing metrics type is local instead of forwarded.
+		// This is because forwarded metrics are sent in batches and can only be sent when all sources
+		// in the same shard have been consumed, and as such is not well suited for pre-emptive consumption.
+		if e.outgoingMetricType() == localOutgoingMetric {
+			for i := 0; i < len(e.values); i++ {
+				// NB: This makes the logic easier to understand but it would be more efficient to use
+				// an atomic here to avoid locking aggregations.
+				e.values[i].lockedAgg.Lock()
+				if e.values[i].lockedAgg.consumeState == readyToConsume {
+					e.toConsume = append(e.toConsume, e.values[i])
+					e.values[i].lockedAgg.consumeState = consuming
+				}
+				e.values[i].lockedAgg.Unlock()
+			}
+		}
+	}
 	e.Unlock()
 
 	// Process the aggregations that are ready for consumption.
 	for i := range e.toConsume {
 		timeNanos := timestampNanosFn(e.toConsume[i].startAtNanos, resolution)
 		e.toConsume[i].lockedAgg.Lock()
-		e.processValueWithAggregationLock(timeNanos, e.toConsume[i].lockedAgg, flushLocalFn, flushForwardedFn)
-		// Closes the aggregation object after it's processed.
-		e.toConsume[i].lockedAgg.closed = true
-		e.toConsume[i].lockedAgg.aggregation.Close()
-		if e.toConsume[i].lockedAgg.sourcesSeen != nil {
-			e.cachedSourceSetsLock.Lock()
-			// This is to make sure there aren't too many cached source sets taking up
-			// too much space.
-			if len(e.cachedSourceSets) < e.opts.MaxNumCachedSourceSets() {
-				e.cachedSourceSets = append(e.cachedSourceSets, e.toConsume[i].lockedAgg.sourcesSeen)
+		if e.toConsume[i].lockedAgg.consumeState != consumed {
+			e.processValueWithAggregationLock(timeNanos, e.toConsume[i].lockedAgg, flushLocalFn, flushForwardedFn)
+		}
+		e.toConsume[i].lockedAgg.consumeState = consumed
+		if i < aggregationIdxToCloseUntil {
+			if e.toConsume[i].lockedAgg.seenSources != nil {
+				e.sourcesLock.Lock()
+				// This is to make sure there aren't too many cached source sets taking up
+				// too much space.
+				if len(e.cachedSourceSets) < e.opts.MaxNumCachedSourceSets() {
+					e.cachedSourceSets = append(e.cachedSourceSets, e.toConsume[i].lockedAgg.seenSources)
+					e.toConsume[i].lockedAgg.seenSources = nil
+				}
+				e.sourcesLock.Unlock()
 			}
-			e.cachedSourceSetsLock.Unlock()
-			e.toConsume[i].lockedAgg.sourcesSeen = nil
+			e.toConsume[i].lockedAgg.close()
 		}
 		e.toConsume[i].lockedAgg.Unlock()
 		e.toConsume[i].Reset()
 	}
 
-	if e.parsedPipeline.HasRollup {
+	if e.outgoingMetricType() == forwardedOutgoingMetric {
 		forwardedAggregationKey, _ := e.ForwardedAggregationKey()
 		onForwardedFlushedFn(e.onForwardedAggregationWrittenFn, forwardedAggregationKey)
 	}
@@ -274,14 +358,15 @@ func (e *TimerElem) Close() {
 	e.parsedPipeline = parsedPipeline{}
 	e.writeForwardedMetricFn = nil
 	e.onForwardedAggregationWrittenFn = nil
+	e.sourcesHeartbeat = nil
+	e.sourcesSet = nil
 	for idx := range e.cachedSourceSets {
 		e.cachedSourceSets[idx] = nil
 	}
 	e.cachedSourceSets = nil
 	for idx := range e.values {
 		// Close the underlying aggregation objects.
-		e.values[idx].lockedAgg.sourcesSeen = nil
-		e.values[idx].lockedAgg.aggregation.Close()
+		e.values[idx].lockedAgg.close()
 		e.values[idx].Reset()
 	}
 	e.values = e.values[:0]
@@ -302,12 +387,15 @@ func (e *TimerElem) Close() {
 // if it doesn't exist.
 func (e *TimerElem) findOrCreate(
 	alignedStart int64,
-	createOpts createAggregationOptions,
+	sourcesOpts sourcesOptions,
 ) (*lockedTimerAggregation, error) {
 	e.RLock()
 	if e.closed {
 		e.RUnlock()
 		return nil, errElemClosed
+	}
+	if sourcesOpts.updateSources {
+		e.updateSources(sourcesOpts.source)
 	}
 	idx, found := e.indexOfWithLock(alignedStart)
 	if found {
@@ -334,24 +422,36 @@ func (e *TimerElem) findOrCreate(
 	e.values = append(e.values, timedTimer{})
 	copy(e.values[idx+1:numValues+1], e.values[idx:numValues])
 
-	var sourcesSeen *bitset.BitSet
-	if createOpts.initSourceSet {
-		e.cachedSourceSetsLock.Lock()
+	var (
+		sourcesReady    = e.isSourcesSetReadyWithElemLock()
+		expectedSources *bitset.BitSet
+		seenSources     *bitset.BitSet
+	)
+	if sourcesOpts.updateSources {
+		e.sourcesLock.Lock()
+		// If the sources set is ready, we clone it ane use the clone to
+		// determine when we have received from all the expected sources.
+		if sourcesReady {
+			expectedSources = e.sourcesSet.Clone()
+		}
 		if numCachedSourceSets := len(e.cachedSourceSets); numCachedSourceSets > 0 {
-			sourcesSeen = e.cachedSourceSets[numCachedSourceSets-1]
+			seenSources = e.cachedSourceSets[numCachedSourceSets-1]
 			e.cachedSourceSets[numCachedSourceSets-1] = nil
 			e.cachedSourceSets = e.cachedSourceSets[:numCachedSourceSets-1]
-			sourcesSeen.ClearAll()
+			seenSources.ClearAll()
 		} else {
-			sourcesSeen = bitset.New(defaultNumSources)
+			seenSources = bitset.New(defaultNumSources)
 		}
-		e.cachedSourceSetsLock.Unlock()
+		e.sourcesLock.Unlock()
 	}
+
 	e.values[idx] = timedTimer{
 		startAtNanos: alignedStart,
 		lockedAgg: &lockedTimerAggregation{
-			sourcesSeen: sourcesSeen,
-			aggregation: e.NewAggregation(e.opts, e.aggOpts),
+			sourcesReady:    sourcesReady,
+			expectedSources: expectedSources,
+			seenSources:     seenSources,
+			aggregation:     e.NewAggregation(e.opts, e.aggOpts),
 		},
 	}
 	agg := e.values[idx].lockedAgg
@@ -394,6 +494,9 @@ func (e *TimerElem) processValueWithAggregationLock(
 	flushLocalFn flushLocalMetricFn,
 	flushForwardedFn flushForwardedMetricFn,
 ) {
+	if lockedAgg.aggregation.Count() == 0 {
+		return
+	}
 	var (
 		fullPrefix       = e.FullPrefix(e.opts)
 		transformations  = e.parsedPipeline.Transformations
@@ -423,7 +526,7 @@ func (e *TimerElem) processValueWithAggregationLock(
 		if discardNaNValues && math.IsNaN(value) {
 			continue
 		}
-		if !e.parsedPipeline.HasRollup {
+		if e.outgoingMetricType() == localOutgoingMetric {
 			flushLocalFn(fullPrefix, e.id, e.TypeStringFor(e.aggTypesOpts, aggType), timeNanos, value, e.sp)
 		} else {
 			forwardedAggregationKey, _ := e.ForwardedAggregationKey()
@@ -431,4 +534,70 @@ func (e *TimerElem) processValueWithAggregationLock(
 		}
 	}
 	e.lastConsumedAtNanos = timeNanos
+
+	// Emit latency metrics for forwarded metrics.
+	if e.outgoingMetricType() == localOutgoingMetric && e.incomingMetricType == ForwardedIncomingMetric {
+		e.opts.FullForwardingLatencyHistograms().RecordDuration(
+			e.sp.Resolution().Window,
+			e.numForwardedTimes,
+			time.Duration(e.nowFn().UnixNano()-timeNanos),
+		)
+	}
+}
+
+func (e *TimerElem) outgoingMetricType() outgoingMetricType {
+	if !e.parsedPipeline.HasRollup {
+		return localOutgoingMetric
+	}
+	return forwardedOutgoingMetric
+}
+
+func (e *TimerElem) isSourcesSetReadyWithElemLock() bool {
+	if !e.opts.EnableEagerForwarding() {
+		return false
+	}
+	if e.buildingSourcesAtNanos == 0 {
+		return false
+	}
+	// NB: Allow TTL for the source set to build up.
+	return e.nowFn().UnixNano() >= e.buildingSourcesAtNanos+e.sourcesTTLNanos
+}
+
+func (e *TimerElem) maybeRefreshSourcesSetWithElemLock() {
+	if !e.opts.EnableEagerForwarding() {
+		return
+	}
+	nowNanos := e.nowFn().UnixNano()
+	if nowNanos-e.lastSourcesRefreshNanos < e.sourcesTTLNanos {
+		return
+	}
+	e.sourcesLock.Lock()
+	for sourceID, lastHeartbeatNanos := range e.sourcesHeartbeat {
+		if nowNanos-lastHeartbeatNanos >= e.sourcesTTLNanos {
+			delete(e.sourcesHeartbeat, sourceID)
+			e.sourcesSet.Clear(uint(sourceID))
+		}
+	}
+	e.lastSourcesRefreshNanos = nowNanos
+	e.sourcesLock.Unlock()
+}
+
+func (e *TimerElem) updateSources(source uint32) {
+	if !e.opts.EnableEagerForwarding() {
+		return
+	}
+	nowNanos := e.nowFn().UnixNano()
+	e.sourcesLock.Lock()
+	// First time a source is received.
+	if e.sourcesHeartbeat == nil {
+		e.sourcesHeartbeat = make(map[uint32]int64, defaultNumSources)
+		e.sourcesSet = bitset.New(defaultNumSources)
+		e.buildingSourcesAtNanos = nowNanos
+		e.lastSourcesRefreshNanos = nowNanos
+	}
+	if v, exists := e.sourcesHeartbeat[source]; !exists || v < nowNanos {
+		e.sourcesHeartbeat[source] = nowNanos
+	}
+	e.sourcesSet.Set(uint(source))
+	e.sourcesLock.Unlock()
 }

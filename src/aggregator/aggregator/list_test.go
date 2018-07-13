@@ -49,9 +49,9 @@ func TestBaseMetricListPushBackElemWithDefaultPipeline(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	l, err := newBaseMetricList(testShard, time.Second, nil, nil, nil, testOptions(ctrl))
+	l, err := newBaseMetricList(testShard, time.Second, time.Second, nil, nil, nil, testOptions(ctrl))
 	require.NoError(t, err)
-	elem, err := NewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, l.opts)
+	elem, err := NewCounterElem(StandardIncomingMetric, nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, l.opts)
 	require.NoError(t, err)
 
 	// Push a counter to the list.
@@ -75,9 +75,9 @@ func TestBaseMetricListPushBackElemWithForwardingPipeline(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	l, err := newBaseMetricList(testShard, time.Second, nil, nil, nil, testOptions(ctrl))
+	l, err := newBaseMetricList(testShard, time.Second, time.Second, nil, nil, nil, testOptions(ctrl))
 	require.NoError(t, err)
-	elem, err := NewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, testPipeline, 0, l.opts)
+	elem, err := NewCounterElem(StandardIncomingMetric, nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, testPipeline, 0, l.opts)
 	require.NoError(t, err)
 
 	// Push a counter to the list.
@@ -94,7 +94,7 @@ func TestBaseMetricListClose(t *testing.T) {
 	defer ctrl.Finish()
 
 	opts := testOptions(ctrl)
-	l, err := newBaseMetricList(testShard, time.Second, nil, nil, nil, opts)
+	l, err := newBaseMetricList(testShard, time.Second, time.Second, nil, nil, nil, opts)
 	require.NoError(t, err)
 
 	l.RLock()
@@ -122,7 +122,7 @@ func TestBaseMetricListFlushWithRequests(t *testing.T) {
 		results          []flushBeforeResult
 	)
 	opts := testOptions(ctrl).SetClockOptions(clock.NewOptions().SetNowFn(nowFn))
-	l, err := newBaseMetricList(testShard, time.Second, targetNanosFn, isEarlierThanFn, timestampNanosFn, opts)
+	l, err := newBaseMetricList(testShard, time.Second, time.Second, targetNanosFn, isEarlierThanFn, timestampNanosFn, opts)
 	require.NoError(t, err)
 	l.flushBeforeFn = func(beforeNanos int64, flushType flushType) {
 		results = append(results, flushBeforeResult{
@@ -234,7 +234,7 @@ func TestBaseMetricListFlushBeforeStale(t *testing.T) {
 		timestampNanosFn = standardMetricTimestampNanos
 		opts             = testOptions(ctrl)
 	)
-	l, err := newBaseMetricList(testShard, 0, targetNanosFn, isEarlierThanFn, timestampNanosFn, opts)
+	l, err := newBaseMetricList(testShard, 0, 0, targetNanosFn, isEarlierThanFn, timestampNanosFn, opts)
 	require.NoError(t, err)
 	l.lastFlushedNanos = 1234
 	l.flushBefore(1000, discardType)
@@ -252,8 +252,8 @@ func TestStandardMetricListID(t *testing.T) {
 	require.NoError(t, err)
 
 	expectedListID := metricListID{
-		listType: standardMetricListType,
-		standard: listID,
+		incomingMetricType: StandardIncomingMetric,
+		standard:           listID,
 	}
 	require.Equal(t, expectedListID, l.ID())
 }
@@ -311,15 +311,15 @@ func TestStandardMetricListFlushConsumingAndCollectingLocalMetrics(t *testing.T)
 		metric unaggregated.MetricUnion
 	}{
 		{
-			elem:   MustNewCounterElem(testCounterID, testStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, opts),
+			elem:   MustNewCounterElem(StandardIncomingMetric, testCounterID, testStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, opts),
 			metric: testCounter,
 		},
 		{
-			elem:   MustNewTimerElem(testBatchTimerID, testStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, opts),
+			elem:   MustNewTimerElem(StandardIncomingMetric, testBatchTimerID, testStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, opts),
 			metric: testBatchTimer,
 		},
 		{
-			elem:   MustNewGaugeElem(testGaugeID, testStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, opts),
+			elem:   MustNewGaugeElem(StandardIncomingMetric, testGaugeID, testStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, opts),
 			metric: testGauge,
 		},
 	}
@@ -462,8 +462,8 @@ func TestForwardedMetricListID(t *testing.T) {
 	require.NoError(t, err)
 
 	expectedListID := metricListID{
-		listType:  forwardedMetricListType,
-		forwarded: listID,
+		incomingMetricType: ForwardedIncomingMetric,
+		forwarded:          listID,
 	}
 	require.Equal(t, expectedListID, l.ID())
 }
@@ -531,7 +531,8 @@ func TestForwardedMetricListFlushConsumingAndCollectingForwardedMetrics(t *testi
 	opts := testOptions(ctrl).
 		SetClockOptions(clockOpts).
 		SetAdminClient(client).
-		SetMaxAllowedForwardingDelayFn(maxForwardingDelayFn)
+		SetMaxAllowedForwardingDelayFn(maxForwardingDelayFn).
+		SetEnableEagerForwarding(false)
 
 	listID := forwardedMetricListID{
 		resolution:        resolution,
@@ -555,7 +556,7 @@ func TestForwardedMetricListFlushConsumingAndCollectingForwardedMetrics(t *testi
 		metric aggregated.ForwardedMetric
 	}{
 		{
-			elem: MustNewCounterElem([]byte("testForwardedCounter"), testStoragePolicy, aggregation.DefaultTypes, pipeline, testNumForwardedTimes, opts),
+			elem: MustNewCounterElem(ForwardedIncomingMetric, []byte("testForwardedCounter"), testStoragePolicy, aggregation.DefaultTypes, pipeline, testNumForwardedTimes, opts),
 			metric: aggregated.ForwardedMetric{
 				Type:      metric.CounterType,
 				ID:        []byte("testForwardedCounter"),
@@ -564,7 +565,7 @@ func TestForwardedMetricListFlushConsumingAndCollectingForwardedMetrics(t *testi
 			},
 		},
 		{
-			elem: MustNewGaugeElem([]byte("testForwardedGauge"), testStoragePolicy, aggregation.DefaultTypes, pipeline, testNumForwardedTimes, opts),
+			elem: MustNewGaugeElem(ForwardedIncomingMetric, []byte("testForwardedGauge"), testStoragePolicy, aggregation.DefaultTypes, pipeline, testNumForwardedTimes, opts),
 			metric: aggregated.ForwardedMetric{
 				Type:      metric.GaugeType,
 				ID:        []byte("testForwardedGauge"),

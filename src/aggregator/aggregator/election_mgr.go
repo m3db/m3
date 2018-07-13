@@ -125,6 +125,7 @@ func (state ElectionState) String() string {
 	case LeaderState:
 		return "leader"
 	default:
+		// nolint: goconst
 		return "unknown"
 	}
 }

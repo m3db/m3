@@ -34,6 +34,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 func validateDerivedPrefix(
@@ -174,6 +175,42 @@ func TestSetEntryCheckBatchPercent(t *testing.T) {
 	value := 0.05
 	o := NewOptions().SetEntryCheckBatchPercent(value)
 	require.Equal(t, value, o.EntryCheckBatchPercent())
+}
+
+func TestSetFlushIntervalFn(t *testing.T) {
+	value := func(metricType IncomingMetricType, resolution time.Duration) time.Duration {
+		if metricType == StandardIncomingMetric {
+			return time.Second
+		}
+		return time.Minute
+	}
+	o := NewOptions().SetFlushIntervalFn(value)
+	require.Equal(t, time.Second, o.FlushIntervalFn()(StandardIncomingMetric, time.Second))
+	require.Equal(t, time.Minute, o.FlushIntervalFn()(ForwardedIncomingMetric, time.Second))
+}
+
+func TestSetEnableEagerForwarding(t *testing.T) {
+	o := NewOptions().SetEnableEagerForwarding(false)
+	require.Equal(t, false, o.EnableEagerForwarding())
+}
+
+func TestSetMaxAggregationWindowsForEagerForwarding(t *testing.T) {
+	o := NewOptions().SetMaxAggregationWindowsForEagerForwarding(5)
+	require.Equal(t, 5, o.MaxAggregationWindowsForEagerForwarding())
+}
+
+func TestSetForwardingSourcesTTLFn(t *testing.T) {
+	value := func(resolution time.Duration) time.Duration {
+		return resolution + time.Second
+	}
+	o := NewOptions().SetForwardingSourcesTTLFn(value)
+	require.Equal(t, 2*time.Second, o.ForwardingSourcesTTLFn()(time.Second))
+}
+
+func TestSetFullForwardingLatencyHistograms(t *testing.T) {
+	value := NewForwardingLatencyHistograms(tally.NoopScope, nil)
+	o := NewOptions().SetFullForwardingLatencyHistograms(value)
+	require.NotNil(t, o.FullForwardingLatencyHistograms())
 }
 
 func TestSetEntryPool(t *testing.T) {

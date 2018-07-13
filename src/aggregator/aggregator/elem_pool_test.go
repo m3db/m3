@@ -34,12 +34,12 @@ import (
 func TestCounterElemPool(t *testing.T) {
 	p := NewCounterElemPool(pool.NewObjectPoolOptions().SetSize(1))
 	p.Init(func() *CounterElem {
-		return MustNewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, NewOptions())
+		return MustNewCounterElem(UnknownIncomingMetric, nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, NewOptions())
 	})
 
 	// Retrieve an element from the pool.
 	element := p.Get()
-	require.NoError(t, element.ResetSetData(testCounterID, testStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0))
+	require.NoError(t, element.ResetSetData(StandardIncomingMetric, testCounterID, testStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0))
 	require.Equal(t, testCounterID, element.id)
 	require.Equal(t, testStoragePolicy, element.sp)
 
@@ -55,12 +55,12 @@ func TestCounterElemPool(t *testing.T) {
 func TestTimerElemPool(t *testing.T) {
 	p := NewTimerElemPool(pool.NewObjectPoolOptions().SetSize(1))
 	p.Init(func() *TimerElem {
-		return MustNewTimerElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, NewOptions())
+		return MustNewTimerElem(UnknownIncomingMetric, nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, NewOptions())
 	})
 
 	// Retrieve an element from the pool.
 	element := p.Get()
-	require.NoError(t, element.ResetSetData(testBatchTimerID, testStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0))
+	require.NoError(t, element.ResetSetData(StandardIncomingMetric, testBatchTimerID, testStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0))
 	require.Equal(t, testBatchTimerID, element.id)
 	require.Equal(t, testStoragePolicy, element.sp)
 
@@ -76,12 +76,12 @@ func TestTimerElemPool(t *testing.T) {
 func TestGaugeElemPool(t *testing.T) {
 	p := NewGaugeElemPool(pool.NewObjectPoolOptions().SetSize(1))
 	p.Init(func() *GaugeElem {
-		return MustNewGaugeElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, NewOptions())
+		return MustNewGaugeElem(UnknownIncomingMetric, nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, NewOptions())
 	})
 
 	// Retrieve an element from the pool.
 	element := p.Get()
-	require.NoError(t, element.ResetSetData(testGaugeID, testStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0))
+	require.NoError(t, element.ResetSetData(StandardIncomingMetric, testGaugeID, testStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0))
 	require.Equal(t, testGaugeID, element.id)
 	require.Equal(t, testStoragePolicy, element.sp)
 
