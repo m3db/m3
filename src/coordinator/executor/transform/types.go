@@ -55,7 +55,9 @@ type Params interface {
 
 // MetaNode is implemented by function nodes which can alter metadata for a block
 type MetaNode interface {
+	// Meta provides the block metadata for the block using the input blocks' metadata as input
 	Meta(meta block.Metadata) block.Metadata
+	// SeriesMeta provides the series metadata for the block using the previous blocks' series metadata as input
 	SeriesMeta(metas []block.SeriesMeta) []block.SeriesMeta
 }
 

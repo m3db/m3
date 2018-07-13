@@ -84,6 +84,7 @@ type Iterator interface {
 // SeriesIter iterates through a block horizontally
 type SeriesIter interface {
 	Iterator
+	// Current returns the current series for the block
 	Current() (Series, error)
 	// SeriesCount returns the number of series
 	SeriesCount() int
@@ -96,7 +97,9 @@ type SeriesIter interface {
 // StepIter iterates through a block vertically
 type StepIter interface {
 	Iterator
+	// Current returns the current step for the block
 	Current() (Step, error)
+	// StepCount returns the number of steps
 	StepCount() int
 	// SeriesMeta returns the metadata for each series in the block
 	SeriesMeta() []SeriesMeta
