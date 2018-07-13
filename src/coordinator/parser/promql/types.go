@@ -103,6 +103,8 @@ func getOpType(opType promql.ItemType) string {
 		return functions.CountType
 	case promql.ItemType(itemLAND):
 		return logical.AndType
+	case promql.ItemType(itemLOR):
+		return logical.OrType
 	default:
 		return common.UnknownOpType
 	}
