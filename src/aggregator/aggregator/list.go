@@ -147,7 +147,11 @@ func newMetricListMetrics(scope tally.Scope) baseMetricListMetrics {
 // of aggregation windows that are eligible for flushing.
 type targetNanosFn func(nowNanos int64) int64
 
-type flushBeforeFn func(beforeNanos int64, flushType flushType)
+type flushBeforeFn func(
+	beforeNanos int64,
+	flushType flushType,
+	eagerForwardingMode eagerForwardingMode,
+)
 
 // baseMetricList is a metric list storing aggregations at a given resolution and
 // flushing them periodically.
@@ -300,7 +304,7 @@ func (l *baseMetricList) Close() bool {
 	return true
 }
 
-func (l *baseMetricList) Flush(req flushRequest) {
+func (l *baseMetricList) Flush(req flushRequest, eagerForwardingMode eagerForwardingMode) {
 	start := l.nowFn()
 
 	defer func() {
@@ -318,23 +322,23 @@ func (l *baseMetricList) Flush(req flushRequest) {
 
 	// Metrics before shard cutover are discarded.
 	if targetNanos <= req.CutoverNanos {
-		l.flushBeforeFn(targetNanos, discardType)
+		l.flushBeforeFn(targetNanos, discardType, eagerForwardingMode)
 		l.metrics.flushBeforeCutover.Inc(1)
 		return
 	}
 
 	// Metrics between shard cutover and shard cutoff are consumed.
 	if req.CutoverNanos > 0 {
-		l.flushBeforeFn(req.CutoverNanos, discardType)
+		l.flushBeforeFn(req.CutoverNanos, discardType, eagerForwardingMode)
 	}
 	if targetNanos <= req.CutoffNanos {
-		l.flushBeforeFn(targetNanos, consumeType)
+		l.flushBeforeFn(targetNanos, consumeType, eagerForwardingMode)
 		l.metrics.flushBetweenCutoverCutoff.Inc(1)
 		return
 	}
 
 	// Metrics after now-keepAfterCutoff are retained.
-	l.flushBeforeFn(req.CutoffNanos, consumeType)
+	l.flushBeforeFn(req.CutoffNanos, consumeType, eagerForwardingMode)
 	bufferEndNanos := targetNanos - int64(req.BufferAfterCutoff)
 	if bufferEndNanos <= req.CutoffNanos {
 		l.metrics.flushBetweenCutoffBufferEnd.Inc(1)
@@ -342,18 +346,22 @@ func (l *baseMetricList) Flush(req flushRequest) {
 	}
 
 	// Metrics between cutoff and now-bufferAfterCutoff are discarded.
-	l.flushBeforeFn(bufferEndNanos, discardType)
+	l.flushBeforeFn(bufferEndNanos, discardType, eagerForwardingMode)
 	l.metrics.flushAfterBufferEnd.Inc(1)
 }
 
-func (l *baseMetricList) DiscardBefore(beforeNanos int64) {
-	l.flushBeforeFn(beforeNanos, discardType)
+func (l *baseMetricList) DiscardBefore(beforeNanos int64, eagerForwardingMode eagerForwardingMode) {
+	l.flushBeforeFn(beforeNanos, discardType, eagerForwardingMode)
 	l.metrics.discardBefore.Inc(1)
 }
 
 // flushBefore flushes or discards data before a given time based on the flush type.
 // It is not thread-safe.
-func (l *baseMetricList) flushBefore(beforeNanos int64, flushType flushType) {
+func (l *baseMetricList) flushBefore(
+	beforeNanos int64,
+	flushType flushType,
+	eagerForwardingMode eagerForwardingMode,
+) {
 	if l.LastFlushedNanos() >= beforeNanos {
 		l.metrics.flushBeforeStale.Inc(1)
 		return
@@ -386,6 +394,7 @@ func (l *baseMetricList) flushBefore(beforeNanos int64, flushType flushType) {
 		elem := e.Value.(metricElem)
 		if elem.Consume(
 			beforeNanos,
+			eagerForwardingMode,
 			l.isEarlierThanFn,
 			l.timestampNanosFn,
 			flushLocalFn,

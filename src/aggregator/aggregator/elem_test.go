@@ -449,7 +449,7 @@ func TestCounterElemConsumeDefaultAggregationDefaultPipeline(t *testing.T) {
 	localFn, localRes := testFlushLocalMetricFn()
 	forwardFn, forwardRes := testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes := testOnForwardedFlushedFn()
-	require.False(t, e.Consume(0, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(0, allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -459,7 +459,7 @@ func TestCounterElemConsumeDefaultAggregationDefaultPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(testAlignedStarts[1], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(testAlignedStarts[1], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, expectedLocalMetricsForCounter(testAlignedStarts[1], testStoragePolicy, maggregation.DefaultTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -469,7 +469,7 @@ func TestCounterElemConsumeDefaultAggregationDefaultPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(testAlignedStarts[2], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(testAlignedStarts[2], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, expectedLocalMetricsForCounter(testAlignedStarts[2], testStoragePolicy, maggregation.DefaultTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -480,7 +480,7 @@ func TestCounterElemConsumeDefaultAggregationDefaultPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.True(t, e.Consume(testAlignedStarts[2], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.True(t, e.Consume(testAlignedStarts[2], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -491,7 +491,7 @@ func TestCounterElemConsumeDefaultAggregationDefaultPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(testAlignedStarts[2], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(testAlignedStarts[2], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -508,7 +508,7 @@ func TestCounterElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	localFn, localRes := testFlushLocalMetricFn()
 	forwardFn, forwardRes := testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes := testOnForwardedFlushedFn()
-	require.False(t, e.Consume(0, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(0, allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -518,7 +518,7 @@ func TestCounterElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(testAlignedStarts[1], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(testAlignedStarts[1], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, expectedLocalMetricsForCounter(testAlignedStarts[1], testStoragePolicy, testAggregationTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -528,7 +528,7 @@ func TestCounterElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(testAlignedStarts[2], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(testAlignedStarts[2], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, expectedLocalMetricsForCounter(testAlignedStarts[2], testStoragePolicy, testAggregationTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -539,7 +539,7 @@ func TestCounterElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.True(t, e.Consume(testAlignedStarts[2], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.True(t, e.Consume(testAlignedStarts[2], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -550,7 +550,7 @@ func TestCounterElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(testAlignedStarts[2], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(testAlignedStarts[2], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -595,7 +595,7 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	localFn, localRes := testFlushLocalMetricFn()
 	forwardFn, forwardRes := testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes := testOnForwardedFlushedFn()
-	require.False(t, e.Consume(0, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(0, allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
@@ -612,7 +612,7 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(alignedstartAtNanos[1], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(alignedstartAtNanos[1], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	verifyForwardedMetrics(t, expectedForwardedRes, *forwardRes)
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
@@ -636,7 +636,7 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(alignedstartAtNanos[3], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(alignedstartAtNanos[3], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	verifyForwardedMetrics(t, expectedForwardedRes, *forwardRes)
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
@@ -649,7 +649,7 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.True(t, e.Consume(alignedstartAtNanos[3], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.True(t, e.Consume(alignedstartAtNanos[3], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
@@ -660,14 +660,14 @@ func TestCounterElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(alignedstartAtNanos[3], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(alignedstartAtNanos[3], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
 	require.Equal(t, 0, len(e.values))
 }
 
-func TestCounterElemConsumeDefaultAggregationDefaultPipelineSourcesReady(t *testing.T) {
+func TestCounterElemConsumeSourcesReadyAllowEagerForwarding(t *testing.T) {
 	alignedstartAtNanos := []int64{
 		time.Unix(210, 0).UnixNano(),
 		time.Unix(220, 0).UnixNano(),
@@ -705,7 +705,7 @@ func TestCounterElemConsumeDefaultAggregationDefaultPipelineSourcesReady(t *test
 	localFn, localRes := testFlushLocalMetricFn()
 	forwardFn, forwardRes := testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes := testOnForwardedFlushedFn()
-	require.False(t, e.Consume(alignedstartAtNanos[1], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(alignedstartAtNanos[1], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 
 	var expectedMetrics []testLocalMetricWithMetadata
 	expectedMetrics = append(expectedMetrics, expectedLocalMetricsForCounter(alignedstartAtNanos[1], testStoragePolicy, maggregation.DefaultTypes)...)
@@ -740,7 +740,7 @@ func TestCounterElemConsumeDefaultAggregationDefaultPipelineSourcesReady(t *test
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(alignedstartAtNanos[3], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(alignedstartAtNanos[3], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, expectedLocalMetricsForCounter(alignedstartAtNanos[3], testStoragePolicy, maggregation.DefaultTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -755,7 +755,7 @@ func TestCounterElemConsumeDefaultAggregationDefaultPipelineSourcesReady(t *test
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(alignedstartAtNanos[2], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(alignedstartAtNanos[2], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, expectedLocalMetricsForCounter(alignedstartAtNanos[4], testStoragePolicy, maggregation.DefaultTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -770,8 +770,125 @@ func TestCounterElemConsumeDefaultAggregationDefaultPipelineSourcesReady(t *test
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.True(t, e.Consume(alignedstartAtNanos[4], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.True(t, e.Consume(alignedstartAtNanos[4], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, 0, len(*localRes))
+	require.Equal(t, 0, len(*forwardRes))
+	require.Equal(t, 0, len(*onForwardedFlushedRes))
+	require.Equal(t, 0, len(e.values))
+	require.Equal(t, 2, len(e.cachedSourceSets))
+	for _, v := range e.cachedSourceSets {
+		require.NotNil(t, v)
+	}
+}
+
+func TestCounterElemConsumeSourcesReadyDisallowEagerForwarding(t *testing.T) {
+	alignedstartAtNanos := []int64{
+		time.Unix(210, 0).UnixNano(),
+		time.Unix(220, 0).UnixNano(),
+		time.Unix(230, 0).UnixNano(),
+		time.Unix(240, 0).UnixNano(),
+		time.Unix(250, 0).UnixNano(),
+	}
+	counterVal := testCounter.CounterVal
+	counterVals := []int64{counterVal, counterVal, counterVal, counterVal}
+	isEarlierThanFn := isStandardMetricEarlierThan
+	timestampNanosFn := standardMetricTimestampNanos
+	nowFn := func() time.Time { return time.Unix(200, 0) }
+	clockOpts := clock.NewOptions().SetNowFn(nowFn)
+	opts := NewOptions().
+		SetClockOptions(clockOpts).
+		SetDiscardNaNAggregatedValues(false).
+		SetEnableEagerForwarding(true).
+		SetForwardingSourcesTTLFn(func(time.Duration) time.Duration { return time.Minute }).
+		SetMaxNumCachedSourceSets(2)
+	e := testCounterElem(alignedstartAtNanos[:len(alignedstartAtNanos)-1], counterVals, maggregation.DefaultTypes, applied.DefaultPipeline, opts)
+	e.incomingMetricType = ForwardedIncomingMetric
+	e.buildingSourcesAtNanos = time.Unix(10, 0).UnixNano()
+	e.values[1].lockedAgg.consumeState = readyToConsume
+	e.sourcesHeartbeat = map[uint32]int64{
+		1: time.Unix(200, 0).UnixNano(), // still live
+		2: time.Unix(100, 0).UnixNano(), // stale
+		3: time.Unix(150, 0).UnixNano(), // still live
+	}
+	e.sourcesSet = bitset.New(10)
+	for k := range e.sourcesHeartbeat {
+		e.sourcesSet.Set(uint(k))
+	}
+
+	// Consume one value.
+	localFn, localRes := testFlushLocalMetricFn()
+	forwardFn, forwardRes := testFlushForwardedMetricFn()
+	onForwardedFlushedFn, onForwardedFlushedRes := testOnForwardedFlushedFn()
+	require.False(t, e.Consume(alignedstartAtNanos[1], disAllowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+
+	var expectedMetrics []testLocalMetricWithMetadata
+	expectedMetrics = append(expectedMetrics, expectedLocalMetricsForCounter(alignedstartAtNanos[1], testStoragePolicy, maggregation.DefaultTypes)...)
+	expectedHeartbeat := map[uint32]int64{
+		1: time.Unix(200, 0).UnixNano(), // still live
+		3: time.Unix(150, 0).UnixNano(), // still live
+	}
+	expectedSourceSet := bitset.New(e.sourcesSet.Len())
+	expectedSourceSet.Set(1)
+	expectedSourceSet.Set(3)
+	require.Equal(t, expectedMetrics, *localRes)
+	require.Equal(t, 0, len(*forwardRes))
+	require.Equal(t, 0, len(*onForwardedFlushedRes))
+	require.Equal(t, 3, len(e.values))
+	require.Equal(t, expectedHeartbeat, e.sourcesHeartbeat)
+	require.True(t, expectedSourceSet.Equal(e.sourcesSet))
+	require.Equal(t, nowFn().UnixNano(), e.lastSourcesRefreshNanos)
+	require.Equal(t, readyToConsume, e.values[0].lockedAgg.consumeState)
+	for _, v := range e.values {
+		require.NotNil(t, v.lockedAgg)
+	}
+	require.Equal(t, 1, len(e.cachedSourceSets))
+	for _, v := range e.cachedSourceSets {
+		require.NotNil(t, v)
+	}
+
+	// Disable eager forwarding and consume another value and expect that
+	// the aggregations are not eagerly consumed.
+	e.opts = e.opts.SetEnableEagerForwarding(false)
+	e.values[2].lockedAgg.consumeState = readyToConsume
+	localFn, localRes = testFlushLocalMetricFn()
+	forwardFn, forwardRes = testFlushForwardedMetricFn()
+	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
+	require.False(t, e.Consume(alignedstartAtNanos[3], disAllowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+
+	expectedMetrics = nil
+	expectedMetrics = append(expectedMetrics, expectedLocalMetricsForCounter(alignedstartAtNanos[2], testStoragePolicy, maggregation.DefaultTypes)...)
+	expectedMetrics = append(expectedMetrics, expectedLocalMetricsForCounter(alignedstartAtNanos[3], testStoragePolicy, maggregation.DefaultTypes)...)
+	require.Equal(t, expectedMetrics, *localRes)
+	require.Equal(t, 0, len(*forwardRes))
+	require.Equal(t, 0, len(*onForwardedFlushedRes))
+	require.Equal(t, 1, len(e.values))
+	require.Equal(t, 2, len(e.cachedSourceSets))
+	for _, v := range e.cachedSourceSets {
+		require.NotNil(t, v)
+	}
+
+	// Now enable eager forwarding and consume another value.
+	e.opts = e.opts.SetEnableEagerForwarding(true)
+	localFn, localRes = testFlushLocalMetricFn()
+	forwardFn, forwardRes = testFlushForwardedMetricFn()
+	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
+	require.False(t, e.Consume(alignedstartAtNanos[2], disAllowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.Nil(t, *localRes)
+	require.Equal(t, 0, len(*forwardRes))
+	require.Equal(t, 0, len(*onForwardedFlushedRes))
+	require.Equal(t, 1, len(e.values))
+	require.Equal(t, 2, len(e.cachedSourceSets))
+	for _, v := range e.cachedSourceSets {
+		require.NotNil(t, v)
+	}
+
+	// Tombstone the element and discard all values.
+	e.tombstoned = true
+	localFn, localRes = testFlushLocalMetricFn()
+	forwardFn, forwardRes = testFlushForwardedMetricFn()
+	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
+	require.True(t, e.Consume(alignedstartAtNanos[4], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.Equal(t, expectedLocalMetricsForCounter(alignedstartAtNanos[4], testStoragePolicy, maggregation.DefaultTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
 	require.Equal(t, 0, len(e.values))
@@ -1200,7 +1317,7 @@ func TestTimerElemConsumeDefaultAggregationDefaultPipeline(t *testing.T) {
 	localFn, localRes := testFlushLocalMetricFn()
 	forwardFn, forwardRes := testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes := testOnForwardedFlushedFn()
-	require.False(t, e.Consume(0, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(0, allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -1210,7 +1327,7 @@ func TestTimerElemConsumeDefaultAggregationDefaultPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(testAlignedStarts[1], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(testAlignedStarts[1], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, expectedLocalMetricsForTimer(testAlignedStarts[1], testStoragePolicy, maggregation.DefaultTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -1220,7 +1337,7 @@ func TestTimerElemConsumeDefaultAggregationDefaultPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(testAlignedStarts[2], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(testAlignedStarts[2], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, expectedLocalMetricsForTimer(testAlignedStarts[2], testStoragePolicy, maggregation.DefaultTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -1231,7 +1348,7 @@ func TestTimerElemConsumeDefaultAggregationDefaultPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.True(t, e.Consume(testAlignedStarts[2], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.True(t, e.Consume(testAlignedStarts[2], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -1242,7 +1359,7 @@ func TestTimerElemConsumeDefaultAggregationDefaultPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(testAlignedStarts[2], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(testAlignedStarts[2], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -1267,7 +1384,7 @@ func TestTimerElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	localFn, localRes := testFlushLocalMetricFn()
 	forwardFn, forwardRes := testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes := testOnForwardedFlushedFn()
-	require.False(t, e.Consume(0, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(0, allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -1277,7 +1394,7 @@ func TestTimerElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(testAlignedStarts[1], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(testAlignedStarts[1], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, expectedLocalMetricsForTimer(testAlignedStarts[1], testStoragePolicy, testTimerAggregationTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -1287,7 +1404,7 @@ func TestTimerElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(testAlignedStarts[2], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(testAlignedStarts[2], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, expectedLocalMetricsForTimer(testAlignedStarts[2], testStoragePolicy, testTimerAggregationTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -1298,7 +1415,7 @@ func TestTimerElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.True(t, e.Consume(testAlignedStarts[2], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.True(t, e.Consume(testAlignedStarts[2], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -1309,7 +1426,7 @@ func TestTimerElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(testAlignedStarts[2], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(testAlignedStarts[2], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -1361,7 +1478,7 @@ func TestTimerElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	localFn, localRes := testFlushLocalMetricFn()
 	forwardFn, forwardRes := testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes := testOnForwardedFlushedFn()
-	require.False(t, e.Consume(0, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(0, allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
@@ -1378,7 +1495,7 @@ func TestTimerElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(alignedstartAtNanos[1], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(alignedstartAtNanos[1], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	verifyForwardedMetrics(t, expectedForwardedRes, *forwardRes)
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
@@ -1402,7 +1519,7 @@ func TestTimerElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(alignedstartAtNanos[3], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(alignedstartAtNanos[3], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	verifyForwardedMetrics(t, expectedForwardedRes, *forwardRes)
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
@@ -1415,7 +1532,7 @@ func TestTimerElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.True(t, e.Consume(alignedstartAtNanos[3], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.True(t, e.Consume(alignedstartAtNanos[3], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
@@ -1426,14 +1543,14 @@ func TestTimerElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(alignedstartAtNanos[3], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(alignedstartAtNanos[3], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
 	require.Equal(t, 0, len(e.values))
 }
 
-func TestTimerElemConsumeDefaultAggregationDefaultPipelineSourcesReady(t *testing.T) {
+func TestTimerElemConsumeSourcesReadyAllowEagerForwarding(t *testing.T) {
 	alignedstartAtNanos := []int64{
 		time.Unix(210, 0).UnixNano(),
 		time.Unix(220, 0).UnixNano(),
@@ -1471,7 +1588,7 @@ func TestTimerElemConsumeDefaultAggregationDefaultPipelineSourcesReady(t *testin
 	localFn, localRes := testFlushLocalMetricFn()
 	forwardFn, forwardRes := testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes := testOnForwardedFlushedFn()
-	require.False(t, e.Consume(alignedstartAtNanos[1], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(alignedstartAtNanos[1], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 
 	var expectedMetrics []testLocalMetricWithMetadata
 	expectedMetrics = append(expectedMetrics, expectedLocalMetricsForTimer(alignedstartAtNanos[1], testStoragePolicy, maggregation.DefaultTypes)...)
@@ -1506,7 +1623,7 @@ func TestTimerElemConsumeDefaultAggregationDefaultPipelineSourcesReady(t *testin
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(alignedstartAtNanos[3], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(alignedstartAtNanos[3], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, expectedLocalMetricsForTimer(alignedstartAtNanos[3], testStoragePolicy, maggregation.DefaultTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -1521,7 +1638,7 @@ func TestTimerElemConsumeDefaultAggregationDefaultPipelineSourcesReady(t *testin
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(alignedstartAtNanos[2], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(alignedstartAtNanos[2], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, expectedLocalMetricsForTimer(alignedstartAtNanos[4], testStoragePolicy, maggregation.DefaultTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -1536,8 +1653,125 @@ func TestTimerElemConsumeDefaultAggregationDefaultPipelineSourcesReady(t *testin
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.True(t, e.Consume(alignedstartAtNanos[4], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.True(t, e.Consume(alignedstartAtNanos[4], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, 0, len(*localRes))
+	require.Equal(t, 0, len(*forwardRes))
+	require.Equal(t, 0, len(*onForwardedFlushedRes))
+	require.Equal(t, 0, len(e.values))
+	require.Equal(t, 2, len(e.cachedSourceSets))
+	for _, v := range e.cachedSourceSets {
+		require.NotNil(t, v)
+	}
+}
+
+func TestTimerElemConsumeSourcesReadyDisallowEagerForwarding(t *testing.T) {
+	alignedstartAtNanos := []int64{
+		time.Unix(210, 0).UnixNano(),
+		time.Unix(220, 0).UnixNano(),
+		time.Unix(230, 0).UnixNano(),
+		time.Unix(240, 0).UnixNano(),
+		time.Unix(250, 0).UnixNano(),
+	}
+	timerVal := testBatchTimer.BatchTimerVal
+	timerVals := [][]float64{timerVal, timerVal, timerVal, timerVal}
+	isEarlierThanFn := isStandardMetricEarlierThan
+	timestampNanosFn := standardMetricTimestampNanos
+	nowFn := func() time.Time { return time.Unix(200, 0) }
+	clockOpts := clock.NewOptions().SetNowFn(nowFn)
+	opts := NewOptions().
+		SetClockOptions(clockOpts).
+		SetDiscardNaNAggregatedValues(false).
+		SetEnableEagerForwarding(true).
+		SetForwardingSourcesTTLFn(func(time.Duration) time.Duration { return time.Minute }).
+		SetMaxNumCachedSourceSets(2)
+	e := testTimerElem(alignedstartAtNanos[:len(alignedstartAtNanos)-1], timerVals, maggregation.DefaultTypes, applied.DefaultPipeline, opts)
+	e.incomingMetricType = ForwardedIncomingMetric
+	e.buildingSourcesAtNanos = time.Unix(10, 0).UnixNano()
+	e.values[1].lockedAgg.consumeState = readyToConsume
+	e.sourcesHeartbeat = map[uint32]int64{
+		1: time.Unix(200, 0).UnixNano(), // still live
+		2: time.Unix(100, 0).UnixNano(), // stale
+		3: time.Unix(150, 0).UnixNano(), // still live
+	}
+	e.sourcesSet = bitset.New(10)
+	for k := range e.sourcesHeartbeat {
+		e.sourcesSet.Set(uint(k))
+	}
+
+	// Consume one value.
+	localFn, localRes := testFlushLocalMetricFn()
+	forwardFn, forwardRes := testFlushForwardedMetricFn()
+	onForwardedFlushedFn, onForwardedFlushedRes := testOnForwardedFlushedFn()
+	require.False(t, e.Consume(alignedstartAtNanos[1], disAllowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+
+	var expectedMetrics []testLocalMetricWithMetadata
+	expectedMetrics = append(expectedMetrics, expectedLocalMetricsForTimer(alignedstartAtNanos[1], testStoragePolicy, maggregation.DefaultTypes)...)
+	expectedHeartbeat := map[uint32]int64{
+		1: time.Unix(200, 0).UnixNano(), // still live
+		3: time.Unix(150, 0).UnixNano(), // still live
+	}
+	expectedSourceSet := bitset.New(e.sourcesSet.Len())
+	expectedSourceSet.Set(1)
+	expectedSourceSet.Set(3)
+	require.Equal(t, expectedMetrics, *localRes)
+	require.Equal(t, 0, len(*forwardRes))
+	require.Equal(t, 0, len(*onForwardedFlushedRes))
+	require.Equal(t, 3, len(e.values))
+	require.Equal(t, expectedHeartbeat, e.sourcesHeartbeat)
+	require.True(t, expectedSourceSet.Equal(e.sourcesSet))
+	require.Equal(t, nowFn().UnixNano(), e.lastSourcesRefreshNanos)
+	require.Equal(t, readyToConsume, e.values[0].lockedAgg.consumeState)
+	for _, v := range e.values {
+		require.NotNil(t, v.lockedAgg)
+	}
+	require.Equal(t, 1, len(e.cachedSourceSets))
+	for _, v := range e.cachedSourceSets {
+		require.NotNil(t, v)
+	}
+
+	// Disable eager forwarding and consume another value and expect that
+	// the aggregations are not eagerly consumed.
+	e.opts = e.opts.SetEnableEagerForwarding(false)
+	e.values[2].lockedAgg.consumeState = readyToConsume
+	localFn, localRes = testFlushLocalMetricFn()
+	forwardFn, forwardRes = testFlushForwardedMetricFn()
+	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
+	require.False(t, e.Consume(alignedstartAtNanos[3], disAllowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+
+	expectedMetrics = nil
+	expectedMetrics = append(expectedMetrics, expectedLocalMetricsForTimer(alignedstartAtNanos[2], testStoragePolicy, maggregation.DefaultTypes)...)
+	expectedMetrics = append(expectedMetrics, expectedLocalMetricsForTimer(alignedstartAtNanos[3], testStoragePolicy, maggregation.DefaultTypes)...)
+	require.Equal(t, expectedMetrics, *localRes)
+	require.Equal(t, 0, len(*forwardRes))
+	require.Equal(t, 0, len(*onForwardedFlushedRes))
+	require.Equal(t, 1, len(e.values))
+	require.Equal(t, 2, len(e.cachedSourceSets))
+	for _, v := range e.cachedSourceSets {
+		require.NotNil(t, v)
+	}
+
+	// Now enable eager forwarding and consume another value.
+	e.opts = e.opts.SetEnableEagerForwarding(true)
+	localFn, localRes = testFlushLocalMetricFn()
+	forwardFn, forwardRes = testFlushForwardedMetricFn()
+	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
+	require.False(t, e.Consume(alignedstartAtNanos[2], disAllowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.Nil(t, *localRes)
+	require.Equal(t, 0, len(*forwardRes))
+	require.Equal(t, 0, len(*onForwardedFlushedRes))
+	require.Equal(t, 1, len(e.values))
+	require.Equal(t, 2, len(e.cachedSourceSets))
+	for _, v := range e.cachedSourceSets {
+		require.NotNil(t, v)
+	}
+
+	// Tombstone the element and discard all values.
+	e.tombstoned = true
+	localFn, localRes = testFlushLocalMetricFn()
+	forwardFn, forwardRes = testFlushForwardedMetricFn()
+	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
+	require.True(t, e.Consume(alignedstartAtNanos[4], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.Equal(t, expectedLocalMetricsForTimer(alignedstartAtNanos[4], testStoragePolicy, maggregation.DefaultTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
 	require.Equal(t, 0, len(e.values))
@@ -2027,7 +2261,7 @@ func TestGaugeElemConsumeDefaultAggregationDefaultPipeline(t *testing.T) {
 	localFn, localRes := testFlushLocalMetricFn()
 	forwardFn, forwardRes := testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes := testOnForwardedFlushedFn()
-	require.False(t, e.Consume(0, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(0, allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -2037,7 +2271,7 @@ func TestGaugeElemConsumeDefaultAggregationDefaultPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(testAlignedStarts[1], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(testAlignedStarts[1], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, expectedLocalMetricsForGauge(testAlignedStarts[1], testStoragePolicy, maggregation.DefaultTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -2047,7 +2281,7 @@ func TestGaugeElemConsumeDefaultAggregationDefaultPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(testAlignedStarts[2], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(testAlignedStarts[2], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, expectedLocalMetricsForGauge(testAlignedStarts[2], testStoragePolicy, maggregation.DefaultTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -2058,7 +2292,7 @@ func TestGaugeElemConsumeDefaultAggregationDefaultPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.True(t, e.Consume(testAlignedStarts[2], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.True(t, e.Consume(testAlignedStarts[2], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -2069,7 +2303,7 @@ func TestGaugeElemConsumeDefaultAggregationDefaultPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(testAlignedStarts[2], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(testAlignedStarts[2], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -2086,7 +2320,7 @@ func TestGaugeElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	localFn, localRes := testFlushLocalMetricFn()
 	forwardFn, forwardRes := testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes := testOnForwardedFlushedFn()
-	require.False(t, e.Consume(0, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(0, allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -2096,7 +2330,7 @@ func TestGaugeElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(testAlignedStarts[1], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(testAlignedStarts[1], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, expectedLocalMetricsForGauge(testAlignedStarts[1], testStoragePolicy, testAggregationTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -2106,7 +2340,7 @@ func TestGaugeElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(testAlignedStarts[2], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(testAlignedStarts[2], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, expectedLocalMetricsForGauge(testAlignedStarts[2], testStoragePolicy, testAggregationTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -2117,7 +2351,7 @@ func TestGaugeElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.True(t, e.Consume(testAlignedStarts[2], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.True(t, e.Consume(testAlignedStarts[2], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -2128,7 +2362,7 @@ func TestGaugeElemConsumeCustomAggregationDefaultPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(testAlignedStarts[2], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(testAlignedStarts[2], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -2173,7 +2407,7 @@ func TestGaugeElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	localFn, localRes := testFlushLocalMetricFn()
 	forwardFn, forwardRes := testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes := testOnForwardedFlushedFn()
-	require.False(t, e.Consume(0, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(0, allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
@@ -2190,7 +2424,7 @@ func TestGaugeElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(alignedstartAtNanos[1], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(alignedstartAtNanos[1], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	verifyForwardedMetrics(t, expectedForwardedRes, *forwardRes)
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
@@ -2214,7 +2448,7 @@ func TestGaugeElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(alignedstartAtNanos[3], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(alignedstartAtNanos[3], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	verifyForwardedMetrics(t, expectedForwardedRes, *forwardRes)
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
@@ -2227,7 +2461,7 @@ func TestGaugeElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.True(t, e.Consume(alignedstartAtNanos[3], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.True(t, e.Consume(alignedstartAtNanos[3], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	verifyOnForwardedFlushResult(t, expectedOnFlushedRes, *onForwardedFlushedRes)
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
@@ -2238,14 +2472,14 @@ func TestGaugeElemConsumeCustomAggregationCustomPipeline(t *testing.T) {
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(alignedstartAtNanos[3], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(alignedstartAtNanos[3], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, 0, len(*localRes))
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
 	require.Equal(t, 0, len(e.values))
 }
 
-func TestGaugeElemConsumeDefaultAggregationDefaultPipelineSourcesReady(t *testing.T) {
+func TestGaugeElemConsumeSourcesReadyAllowEagerForwarding(t *testing.T) {
 	alignedstartAtNanos := []int64{
 		time.Unix(210, 0).UnixNano(),
 		time.Unix(220, 0).UnixNano(),
@@ -2283,7 +2517,7 @@ func TestGaugeElemConsumeDefaultAggregationDefaultPipelineSourcesReady(t *testin
 	localFn, localRes := testFlushLocalMetricFn()
 	forwardFn, forwardRes := testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes := testOnForwardedFlushedFn()
-	require.False(t, e.Consume(alignedstartAtNanos[1], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(alignedstartAtNanos[1], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 
 	var expectedMetrics []testLocalMetricWithMetadata
 	expectedMetrics = append(expectedMetrics, expectedLocalMetricsForGauge(alignedstartAtNanos[1], testStoragePolicy, maggregation.DefaultTypes)...)
@@ -2318,7 +2552,7 @@ func TestGaugeElemConsumeDefaultAggregationDefaultPipelineSourcesReady(t *testin
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(alignedstartAtNanos[3], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(alignedstartAtNanos[3], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, expectedLocalMetricsForGauge(alignedstartAtNanos[3], testStoragePolicy, maggregation.DefaultTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -2333,7 +2567,7 @@ func TestGaugeElemConsumeDefaultAggregationDefaultPipelineSourcesReady(t *testin
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.False(t, e.Consume(alignedstartAtNanos[2], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.False(t, e.Consume(alignedstartAtNanos[2], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, expectedLocalMetricsForGauge(alignedstartAtNanos[4], testStoragePolicy, maggregation.DefaultTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
@@ -2348,8 +2582,125 @@ func TestGaugeElemConsumeDefaultAggregationDefaultPipelineSourcesReady(t *testin
 	localFn, localRes = testFlushLocalMetricFn()
 	forwardFn, forwardRes = testFlushForwardedMetricFn()
 	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
-	require.True(t, e.Consume(alignedstartAtNanos[4], isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.True(t, e.Consume(alignedstartAtNanos[4], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
 	require.Equal(t, 0, len(*localRes))
+	require.Equal(t, 0, len(*forwardRes))
+	require.Equal(t, 0, len(*onForwardedFlushedRes))
+	require.Equal(t, 0, len(e.values))
+	require.Equal(t, 2, len(e.cachedSourceSets))
+	for _, v := range e.cachedSourceSets {
+		require.NotNil(t, v)
+	}
+}
+
+func TestGaugeElemConsumeSourcesReadyDisallowEagerForwarding(t *testing.T) {
+	alignedstartAtNanos := []int64{
+		time.Unix(210, 0).UnixNano(),
+		time.Unix(220, 0).UnixNano(),
+		time.Unix(230, 0).UnixNano(),
+		time.Unix(240, 0).UnixNano(),
+		time.Unix(250, 0).UnixNano(),
+	}
+	gaugeVal := testGauge.GaugeVal
+	gaugeVals := []float64{gaugeVal, gaugeVal, gaugeVal, gaugeVal}
+	isEarlierThanFn := isStandardMetricEarlierThan
+	timestampNanosFn := standardMetricTimestampNanos
+	nowFn := func() time.Time { return time.Unix(200, 0) }
+	clockOpts := clock.NewOptions().SetNowFn(nowFn)
+	opts := NewOptions().
+		SetClockOptions(clockOpts).
+		SetDiscardNaNAggregatedValues(false).
+		SetEnableEagerForwarding(true).
+		SetForwardingSourcesTTLFn(func(time.Duration) time.Duration { return time.Minute }).
+		SetMaxNumCachedSourceSets(2)
+	e := testGaugeElem(alignedstartAtNanos[:len(alignedstartAtNanos)-1], gaugeVals, maggregation.DefaultTypes, applied.DefaultPipeline, opts)
+	e.incomingMetricType = ForwardedIncomingMetric
+	e.buildingSourcesAtNanos = time.Unix(10, 0).UnixNano()
+	e.values[1].lockedAgg.consumeState = readyToConsume
+	e.sourcesHeartbeat = map[uint32]int64{
+		1: time.Unix(200, 0).UnixNano(), // still live
+		2: time.Unix(100, 0).UnixNano(), // stale
+		3: time.Unix(150, 0).UnixNano(), // still live
+	}
+	e.sourcesSet = bitset.New(10)
+	for k := range e.sourcesHeartbeat {
+		e.sourcesSet.Set(uint(k))
+	}
+
+	// Consume one value.
+	localFn, localRes := testFlushLocalMetricFn()
+	forwardFn, forwardRes := testFlushForwardedMetricFn()
+	onForwardedFlushedFn, onForwardedFlushedRes := testOnForwardedFlushedFn()
+	require.False(t, e.Consume(alignedstartAtNanos[1], disAllowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+
+	var expectedMetrics []testLocalMetricWithMetadata
+	expectedMetrics = append(expectedMetrics, expectedLocalMetricsForGauge(alignedstartAtNanos[1], testStoragePolicy, maggregation.DefaultTypes)...)
+	expectedHeartbeat := map[uint32]int64{
+		1: time.Unix(200, 0).UnixNano(), // still live
+		3: time.Unix(150, 0).UnixNano(), // still live
+	}
+	expectedSourceSet := bitset.New(e.sourcesSet.Len())
+	expectedSourceSet.Set(1)
+	expectedSourceSet.Set(3)
+	require.Equal(t, expectedMetrics, *localRes)
+	require.Equal(t, 0, len(*forwardRes))
+	require.Equal(t, 0, len(*onForwardedFlushedRes))
+	require.Equal(t, 3, len(e.values))
+	require.Equal(t, expectedHeartbeat, e.sourcesHeartbeat)
+	require.True(t, expectedSourceSet.Equal(e.sourcesSet))
+	require.Equal(t, nowFn().UnixNano(), e.lastSourcesRefreshNanos)
+	require.Equal(t, readyToConsume, e.values[0].lockedAgg.consumeState)
+	for _, v := range e.values {
+		require.NotNil(t, v.lockedAgg)
+	}
+	require.Equal(t, 1, len(e.cachedSourceSets))
+	for _, v := range e.cachedSourceSets {
+		require.NotNil(t, v)
+	}
+
+	// Disable eager forwarding and consume another value and expect that
+	// the aggregations are not eagerly consumed.
+	e.opts = e.opts.SetEnableEagerForwarding(false)
+	e.values[2].lockedAgg.consumeState = readyToConsume
+	localFn, localRes = testFlushLocalMetricFn()
+	forwardFn, forwardRes = testFlushForwardedMetricFn()
+	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
+	require.False(t, e.Consume(alignedstartAtNanos[3], disAllowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+
+	expectedMetrics = nil
+	expectedMetrics = append(expectedMetrics, expectedLocalMetricsForGauge(alignedstartAtNanos[2], testStoragePolicy, maggregation.DefaultTypes)...)
+	expectedMetrics = append(expectedMetrics, expectedLocalMetricsForGauge(alignedstartAtNanos[3], testStoragePolicy, maggregation.DefaultTypes)...)
+	require.Equal(t, expectedMetrics, *localRes)
+	require.Equal(t, 0, len(*forwardRes))
+	require.Equal(t, 0, len(*onForwardedFlushedRes))
+	require.Equal(t, 1, len(e.values))
+	require.Equal(t, 2, len(e.cachedSourceSets))
+	for _, v := range e.cachedSourceSets {
+		require.NotNil(t, v)
+	}
+
+	// Now enable eager forwarding and consume another value.
+	e.opts = e.opts.SetEnableEagerForwarding(true)
+	localFn, localRes = testFlushLocalMetricFn()
+	forwardFn, forwardRes = testFlushForwardedMetricFn()
+	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
+	require.False(t, e.Consume(alignedstartAtNanos[2], disAllowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.Nil(t, *localRes)
+	require.Equal(t, 0, len(*forwardRes))
+	require.Equal(t, 0, len(*onForwardedFlushedRes))
+	require.Equal(t, 1, len(e.values))
+	require.Equal(t, 2, len(e.cachedSourceSets))
+	for _, v := range e.cachedSourceSets {
+		require.NotNil(t, v)
+	}
+
+	// Tombstone the element and discard all values.
+	e.tombstoned = true
+	localFn, localRes = testFlushLocalMetricFn()
+	forwardFn, forwardRes = testFlushForwardedMetricFn()
+	onForwardedFlushedFn, onForwardedFlushedRes = testOnForwardedFlushedFn()
+	require.True(t, e.Consume(alignedstartAtNanos[4], allowEagerForwarding, isEarlierThanFn, timestampNanosFn, localFn, forwardFn, onForwardedFlushedFn))
+	require.Equal(t, expectedLocalMetricsForGauge(alignedstartAtNanos[4], testStoragePolicy, maggregation.DefaultTypes), *localRes)
 	require.Equal(t, 0, len(*forwardRes))
 	require.Equal(t, 0, len(*onForwardedFlushedRes))
 	require.Equal(t, 0, len(e.values))

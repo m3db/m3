@@ -294,6 +294,7 @@ func (e *GenericElem) AddUnique(timestamp time.Time, values []float64, sourceID 
 // to avoid race conditions.
 func (e *GenericElem) Consume(
 	targetNanos int64,
+	eagerForwardingMode eagerForwardingMode,
 	isEarlierThanFn isEarlierThanFn,
 	timestampNanosFn timestampNanosFn,
 	flushLocalFn flushLocalMetricFn,
@@ -344,10 +345,12 @@ func (e *GenericElem) Consume(
 	aggregationIdxToCloseUntil := len(e.toConsume)
 	if e.incomingMetricType == ForwardedIncomingMetric && e.isSourcesSetReadyWithElemLock() {
 		e.maybeRefreshSourcesSetWithElemLock()
-		// We only attempt to consume if the outgoing metrics type is local instead of forwarded.
-		// This is because forwarded metrics are sent in batches and can only be sent when all sources
-		// in the same shard have been consumed, and as such is not well suited for pre-emptive consumption.
-		if e.outgoingMetricType() == localOutgoingMetric {
+		// We only attempt to consume if the outgoing metrics type is local instead of forwarded
+		// and eager forwarding is allowed (eager forwarding may be enabled and disallowed when
+		// the node is a follower and allowed when the node is a leader. This is because forwarded
+		// metrics are sent in batches and can only be sent when all sources in the same shard have
+		// been consumed, and as such is not well suited for pre-emptive consumption.
+		if e.outgoingMetricType() == localOutgoingMetric && eagerForwardingMode == allowEagerForwarding {
 			for i := 0; i < len(e.values); i++ {
 				// NB: This makes the logic easier to understand but it would be more efficient to use
 				// an atomic here to avoid locking aggregations.

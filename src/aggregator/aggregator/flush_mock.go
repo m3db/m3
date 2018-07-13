@@ -90,20 +90,20 @@ func (_mr *_MockflushingMetricListRecorder) LastFlushedNanos() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "LastFlushedNanos")
 }
 
-func (_m *MockflushingMetricList) Flush(req flushRequest) {
-	_m.ctrl.Call(_m, "Flush", req)
+func (_m *MockflushingMetricList) Flush(req flushRequest, eagerForwardingMode eagerForwardingMode) {
+	_m.ctrl.Call(_m, "Flush", req, eagerForwardingMode)
 }
 
-func (_mr *_MockflushingMetricListRecorder) Flush(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Flush", arg0)
+func (_mr *_MockflushingMetricListRecorder) Flush(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Flush", arg0, arg1)
 }
 
-func (_m *MockflushingMetricList) DiscardBefore(beforeNanos int64) {
-	_m.ctrl.Call(_m, "DiscardBefore", beforeNanos)
+func (_m *MockflushingMetricList) DiscardBefore(beforeNanos int64, eagerForwardingMode eagerForwardingMode) {
+	_m.ctrl.Call(_m, "DiscardBefore", beforeNanos, eagerForwardingMode)
 }
 
-func (_mr *_MockflushingMetricListRecorder) DiscardBefore(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "DiscardBefore", arg0)
+func (_mr *_MockflushingMetricListRecorder) DiscardBefore(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "DiscardBefore", arg0, arg1)
 }
 
 // Mock of fixedOffsetFlushingMetricList interface
@@ -167,20 +167,20 @@ func (_mr *_MockfixedOffsetFlushingMetricListRecorder) LastFlushedNanos() *gomoc
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "LastFlushedNanos")
 }
 
-func (_m *MockfixedOffsetFlushingMetricList) Flush(req flushRequest) {
-	_m.ctrl.Call(_m, "Flush", req)
+func (_m *MockfixedOffsetFlushingMetricList) Flush(req flushRequest, eagerForwardingMode eagerForwardingMode) {
+	_m.ctrl.Call(_m, "Flush", req, eagerForwardingMode)
 }
 
-func (_mr *_MockfixedOffsetFlushingMetricListRecorder) Flush(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Flush", arg0)
+func (_mr *_MockfixedOffsetFlushingMetricListRecorder) Flush(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Flush", arg0, arg1)
 }
 
-func (_m *MockfixedOffsetFlushingMetricList) DiscardBefore(beforeNanos int64) {
-	_m.ctrl.Call(_m, "DiscardBefore", beforeNanos)
+func (_m *MockfixedOffsetFlushingMetricList) DiscardBefore(beforeNanos int64, eagerForwardingMode eagerForwardingMode) {
+	_m.ctrl.Call(_m, "DiscardBefore", beforeNanos, eagerForwardingMode)
 }
 
-func (_mr *_MockfixedOffsetFlushingMetricListRecorder) DiscardBefore(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "DiscardBefore", arg0)
+func (_mr *_MockfixedOffsetFlushingMetricListRecorder) DiscardBefore(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "DiscardBefore", arg0, arg1)
 }
 
 func (_m *MockfixedOffsetFlushingMetricList) FlushOffset() time.Duration {

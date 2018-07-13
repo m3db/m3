@@ -42,10 +42,10 @@ type flushingMetricList interface {
 	LastFlushedNanos() int64
 
 	// Flush performs a flush for a given request.
-	Flush(req flushRequest)
+	Flush(req flushRequest, eagerForwardingMode eagerForwardingMode)
 
 	// DiscardBefore discards all metrics before a given timestamp.
-	DiscardBefore(beforeNanos int64)
+	DiscardBefore(beforeNanos int64, eagerForwardingMode eagerForwardingMode)
 }
 
 // fixedOffsetFlushingMetricList is a flushing metric list that flushes at fixed offset
@@ -69,6 +69,13 @@ type flushRequest struct {
 	// If nonzero, data between [now - bufferAfterCutoff, now) are buffered.
 	BufferAfterCutoff time.Duration
 }
+
+type eagerForwardingMode int
+
+const (
+	allowEagerForwarding eagerForwardingMode = iota
+	disAllowEagerForwarding
+)
 
 type flushType int
 
