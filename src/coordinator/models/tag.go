@@ -214,3 +214,13 @@ func (t Tags) sortKeys() ([]string, int) {
 	sort.Strings(keys)
 	return keys, length
 }
+
+// Clone returns a clone of the Tags
+func (t Tags) Clone() Tags {
+	tags := make(Tags)
+
+	for tag, val := range t {
+		tags[tag] = val
+	}
+	return tags
+}

@@ -42,7 +42,7 @@ var (
 
 func createDatapoints(t *testing.T, timeInSeconds []int, vals []float64, now time.Time) []ts.Datapoint {
 	if len(timeInSeconds) != len(vals) {
-		t.Fatal("length of values must equal length of timestamps")
+		require.Equal(t, len(timeInSeconds), len(vals))
 	}
 
 	dps := make([]ts.Datapoint, len(vals))
@@ -58,22 +58,22 @@ func createDatapoints(t *testing.T, timeInSeconds []int, vals []float64, now tim
 
 func createNSBlockIter(iters []encoding.SeriesIterator, start, end time.Time, stepSize time.Duration) consolidatedNSBlockIter {
 	return consolidatedNSBlockIter{
-		consolidatedNSBlockSeriesIters: iters,
+		m3dbIters: iters,
 		bounds: block.Bounds{
 			Start:    start,
 			End:      end,
 			StepSize: stepSize,
 		},
-		indexTime: start.Add(-1 * stepSize),
+		idx: -1,
 	}
 }
 
 type testCase struct {
-	start, end                     time.Time
-	stepSize                       time.Duration
-	dps                            [][]ts.Datapoint
-	expectedResults, actualResults []float64
-	description                    string
+	start, end      time.Time
+	stepSize        time.Duration
+	dps             [][]ts.Datapoint
+	expectedResults []float64
+	description     string
 }
 
 func TestConsolidatedNSBlockIter(t *testing.T) {
@@ -85,7 +85,7 @@ func TestConsolidatedNSBlockIter(t *testing.T) {
 			start:           now,
 			end:             now.Add(600 * time.Second),
 			stepSize:        60 * time.Second,
-			expectedResults: []float64{1, 2, nan, nan, nan, 3, nan, nan, nan, nan},
+			expectedResults: []float64{1, 2, nan, nan, nan, 3, nan, nan, nan, nan, nan},
 			description:     "testing single iterator with two values in one block (step size)",
 		},
 		{
@@ -96,7 +96,7 @@ func TestConsolidatedNSBlockIter(t *testing.T) {
 			end:      now.Add(1200 * time.Second),
 			stepSize: 60 * time.Second,
 			expectedResults: []float64{1, 2, nan, nan, nan, 3, nan, nan, nan, nan,
-				nan, nan, nan, nan, nan, nan, nan, 5, nan, 6},
+				nan, nan, nan, nan, nan, nan, nan, 5, nan, 6, nan},
 			description: "testing multiple iterators",
 		},
 	}
@@ -111,12 +111,13 @@ func TestConsolidatedNSBlockIter(t *testing.T) {
 
 		nsBlockIter := createNSBlockIter(iters, test.start, test.end, test.stepSize)
 
+		var actualResults []float64
 		for nsBlockIter.Next() {
-			test.actualResults = append(test.actualResults, nsBlockIter.Current())
+			actualResults = append(actualResults, nsBlockIter.Current())
 		}
 
-		assert.Len(t, test.actualResults, len(test.expectedResults))
-		coordtest.EqualsWithNans(t, test.expectedResults, test.actualResults)
+		assert.Len(t, actualResults, len(test.expectedResults))
+		coordtest.EqualsWithNans(t, test.expectedResults, actualResults)
 	}
 }
 
@@ -160,7 +161,6 @@ func createConsolidatedSeriesBlockIter(nsBlockIters []block.ValueIterator) conso
 type consolidatedSeriesTestCase struct {
 	dps             [][]float64
 	expectedResults []float64
-	actualResults   []float64
 	description     string
 }
 
@@ -182,10 +182,11 @@ func TestConsolidatedSeriesBlockIter(t *testing.T) {
 		mockNSBlockIters := newMockNSBlockIter(test.dps)
 		consolidatedSeriesBlock := createConsolidatedSeriesBlockIter(mockNSBlockIters)
 
+		var actualResults []float64
 		for consolidatedSeriesBlock.Next() {
-			test.actualResults = append(test.actualResults, consolidatedSeriesBlock.Current())
+			actualResults = append(actualResults, consolidatedSeriesBlock.Current())
 		}
-		coordtest.EqualsWithNans(t, test.expectedResults, test.actualResults)
+		coordtest.EqualsWithNans(t, test.expectedResults, actualResults)
 	}
 }
 
@@ -229,7 +230,6 @@ func createMultiSeriesBlockStepIter(seriesBlockIters []block.ValueIterator) mult
 type multiSeriesBlockStepIterTestCase struct {
 	dps             [][]float64
 	expectedResults [][]float64
-	actualResults   [][]float64
 	description     string
 }
 
@@ -251,12 +251,13 @@ func TestMultiSeriesBlockStepIter(t *testing.T) {
 		mockNSBlockIters := newMockSeriesBlockIter(test.dps)
 		consolidatedSeriesBlock := createMultiSeriesBlockStepIter(mockNSBlockIters)
 
+		var actualResults [][]float64
 		for consolidatedSeriesBlock.Next() {
 			step, err := consolidatedSeriesBlock.Current()
 			require.NoError(t, err)
-			test.actualResults = append(test.actualResults, step.Values())
+			actualResults = append(actualResults, step.Values())
 		}
-		coordtest.EqualsWithNans(t, test.expectedResults, test.actualResults)
+		coordtest.EqualsWithNans(t, test.expectedResults, actualResults)
 	}
 }
 
@@ -268,11 +269,11 @@ type mockBlockStepIter struct {
 }
 
 type mockBlockStepIterTestCase struct {
-	dps                            [][]float64
-	actualResults, expectedResults [][]float64
-	seriesMeta                     []block.Metadata
-	blockMeta                      block.Metadata
-	description                    string
+	dps             [][]float64
+	expectedResults [][]float64
+	seriesMeta      []block.Metadata
+	blockMeta       block.Metadata
+	description     string
 }
 
 func newMockMultiSeriesBlockStepIter(valIter []block.ValueIterator, blocks ConsolidatedSeriesBlocks, meta block.Metadata) *multiSeriesBlockStepIter {
@@ -319,12 +320,13 @@ func TestMultiSeriesBlock(t *testing.T) {
 		mockSeriesBlockIters := newMockSeriesBlockIter(test.dps)
 		stepIter := newMockMultiSeriesBlockStepIter(mockSeriesBlockIters, csBlocks, test.blockMeta)
 
+		var actualResults [][]float64
 		for stepIter.Next() {
 			step, err := stepIter.Current()
 			require.NoError(t, err)
-			test.actualResults = append(test.actualResults, step.Values())
+			actualResults = append(actualResults, step.Values())
 		}
-		coordtest.EqualsWithNans(t, test.expectedResults, test.actualResults)
+		coordtest.EqualsWithNans(t, test.expectedResults, actualResults)
 
 		assert.Equal(t, test.blockMeta.Tags, stepIter.Meta().Tags)
 

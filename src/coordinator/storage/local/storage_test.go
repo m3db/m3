@@ -241,7 +241,14 @@ func TestLocalFetchBlocks(t *testing.T) {
 	assert.NoError(t, err)
 	require.NotNil(t, results)
 	require.Len(t, results.Blocks, 2)
-	require.Equal(t, models.Tags{"foo": "bar", "baz": "qux"}, results.Blocks[0].Meta().Tags)
+
+	stepIterOne, err := results.Blocks[0].StepIter()
+	require.NoError(t, err)
+	require.Equal(t, models.Tags{"foo": "bar", "baz": "qux"}, stepIterOne.Meta().Tags)
+
+	stepIterTwo, err := results.Blocks[1].StepIter()
+	require.NoError(t, err)
+	require.Equal(t, models.Tags{"foo": "bar", "baz": "qux"}, stepIterTwo.Meta().Tags)
 }
 
 func setupLocalSearch(t *testing.T) storage.Storage {

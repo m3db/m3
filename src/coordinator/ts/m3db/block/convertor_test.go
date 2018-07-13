@@ -46,16 +46,8 @@ func newSeriesBlock(seriesIterator encoding.SeriesIterator, start, end time.Time
 func newMultiNamespaceSeries(ctrl *gomock.Controller, now time.Time, t *testing.T) ([]SeriesBlocks, []SeriesBlocks) {
 	rawTagsOne := []string{"foo", "bar", "same", "tag"}
 	seriesOneIterators := []encoding.SeriesIterator{
-		newMockIterator(t, "test_one", rawTagsOne, ctrl, []ts.Datapoint{
-			{Timestamp: now, Value: 1},
-			{Timestamp: now.Add(90 * time.Second), Value: 2},
-			{Timestamp: now.Add(5 * time.Minute), Value: 3},
-		}),
-		newMockIterator(t, "test_one", rawTagsOne, ctrl, []ts.Datapoint{
-			{},
-			{Timestamp: now.Add(17 * time.Minute), Value: 5},
-			{Timestamp: now.Add(19 * time.Minute), Value: 6},
-		}),
+		newMockIterator(t, "test_one", rawTagsOne, ctrl, []ts.Datapoint{}),
+		newMockIterator(t, "test_one", rawTagsOne, ctrl, []ts.Datapoint{}),
 	}
 	seriesOneBlockOne := newSeriesBlock(seriesOneIterators[0], now, now.Add(10*time.Minute))
 	seriesOneBlockTwo := newSeriesBlock(seriesOneIterators[1], now.Add(10*time.Minute), now.Add(20*time.Minute))
@@ -69,21 +61,13 @@ func newMultiNamespaceSeries(ctrl *gomock.Controller, now time.Time, t *testing.
 	}
 
 	rawTagsTwo := []string{"biz", "baz", "same", "tag"}
-	seriesIteratorsTwo := []encoding.SeriesIterator{
-		newMockIterator(t, "test_two", rawTagsTwo, ctrl, []ts.Datapoint{
-			{Timestamp: now, Value: 1},
-			{Timestamp: now.Add(90 * time.Second), Value: 2},
-			{Timestamp: now.Add(5 * time.Minute), Value: 3},
-		}),
-		newMockIterator(t, "test_two", rawTagsTwo, ctrl, []ts.Datapoint{
-			{},
-			{Timestamp: now.Add(17 * time.Minute), Value: 5},
-			{Timestamp: now.Add(19 * time.Minute), Value: 6},
-		}),
+	seriesTwoIterators := []encoding.SeriesIterator{
+		newMockIterator(t, "test_two", rawTagsTwo, ctrl, []ts.Datapoint{}),
+		newMockIterator(t, "test_two", rawTagsTwo, ctrl, []ts.Datapoint{}),
 	}
 
-	seriesTwoBlockOne := newSeriesBlock(seriesIteratorsTwo[0], now, now.Add(10*time.Minute))
-	seriesTwoBlockTwo := newSeriesBlock(seriesIteratorsTwo[1], now.Add(10*time.Minute), now.Add(20*time.Minute))
+	seriesTwoBlockOne := newSeriesBlock(seriesTwoIterators[0], now, now.Add(10*time.Minute))
+	seriesTwoBlockTwo := newSeriesBlock(seriesTwoIterators[1], now.Add(10*time.Minute), now.Add(20*time.Minute))
 	tagsTwo, err := ident.NewTagStringsIterator(rawTagsTwo...)
 	require.NoError(t, err)
 
@@ -123,6 +107,10 @@ func TestConvertM3Blocks(t *testing.T) {
 	m3CoordBlocks, err := SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList, nil, time.Minute)
 	require.NoError(t, err)
 
+	require.Len(t, m3CoordBlocks, 2)
+	require.Len(t, m3CoordBlocks[0].Blocks, 2)
+	require.Len(t, m3CoordBlocks[1].Blocks, 2)
+
 	assert.Equal(t, "test_one", m3CoordBlocks[0].Blocks[0].ConsolidatedNSBlocks[0].SeriesIterators.Iters()[0].ID().String())
 	assert.Equal(t, models.Tags{"foo": "bar", "same": "tag"}, m3CoordBlocks[0].Blocks[0].Metadata.Tags)
 	assert.Equal(t, "test_two", m3CoordBlocks[0].Blocks[1].ConsolidatedNSBlocks[0].SeriesIterators.Iters()[0].ID().String())
@@ -147,6 +135,10 @@ func TestMultipleNamespacesSuccess(t *testing.T) {
 	multiNamespaceSeriesList := []MultiNamespaceSeries{seriesOne, seriesTwo}
 	m3CoordBlocks, err := SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList, nil, time.Minute)
 	require.NoError(t, err)
+
+	require.Len(t, m3CoordBlocks, 2)
+	require.Len(t, m3CoordBlocks[0].Blocks, 2)
+	require.Len(t, m3CoordBlocks[1].Blocks, 2)
 
 	assert.Equal(t, "test_one", m3CoordBlocks[0].Blocks[0].ConsolidatedNSBlocks[0].SeriesIterators.Iters()[0].ID().String())
 	assert.Equal(t, models.Tags{"foo": "bar", "same": "tag"}, m3CoordBlocks[0].Blocks[0].Metadata.Tags)

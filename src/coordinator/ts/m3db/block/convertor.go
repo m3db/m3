@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/src/coordinator/block"
+	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/storage"
 	"github.com/m3db/m3db/src/dbnode/encoding"
 )
@@ -67,7 +68,7 @@ func SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList []MultiNamespaceSer
 			}
 			consolidatedSeriesBlock.Metadata.Tags = seriesTags
 
-			if !equalBounds(consolidatedSeriesBlock.Metadata.Bounds, multiSeriesBlocks[consolidatedSeriesBlockIdx].Metadata.Bounds) {
+			if !consolidatedSeriesBlock.Metadata.Bounds.Equals(multiSeriesBlocks[consolidatedSeriesBlockIdx].Metadata.Bounds) {
 				return nil, errBlocksMisaligned
 			}
 
@@ -81,21 +82,22 @@ func SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList []MultiNamespaceSer
 	return multiSeriesBlocks, nil
 }
 
-func (m MultiSeriesBlocks) setCommonTags(commonTags map[string]string) {
+func (m MultiSeriesBlocks) setCommonTags(commonTags models.Tags) {
 	for i := range m {
 		m[i].Metadata.Tags = commonTags
 	}
 }
 
-func (m MultiSeriesBlocks) commonTags() map[string]string {
-	commonTags := make(map[string]string)
-	for tag, val := range m[0].Blocks[0].Metadata.Tags {
-		commonTags[tag] = val
+func (m MultiSeriesBlocks) commonTags() models.Tags {
+	if len(m) == 0 || len(m[0].Blocks) == 0 {
+		return models.Tags{}
 	}
+
+	commonTags := m[0].Blocks[0].Metadata.Tags.Clone()
 
 	// NB(braskin): all series are the same across MultiSeriesBlocks so only need
 	// to look at one
-	for _, series := range m[0].Blocks {
+	for _, series := range m[0].Blocks[1:] {
 		seriesTags := series.Metadata.Tags
 		for tag, val := range commonTags {
 			if seriesTags[tag] != val {
@@ -126,7 +128,7 @@ func newConsolidatedSeriesBlocks(multiNamespaceSeries MultiNamespaceSeries, seri
 				consolidatedSeriesBlocks[consolidatedNSBlockIdx].Metadata.Bounds.End = consolidatedNSBlock.Bounds.End
 			}
 
-			if !equalBounds(consolidatedNSBlock.Bounds, consolidatedSeriesBlocks[consolidatedNSBlockIdx].Metadata.Bounds) {
+			if !consolidatedNSBlock.Bounds.Equals(consolidatedSeriesBlocks[consolidatedNSBlockIdx].Metadata.Bounds) {
 				return nil, errBlocksMisaligned
 			}
 

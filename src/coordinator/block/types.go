@@ -50,6 +50,14 @@ type Bounds struct {
 	StepSize time.Duration
 }
 
+// Equals determines whether two bounds (start and end) are equal
+func (b Bounds) Equals(compareBound Bounds) bool {
+	if !b.Start.Equal(compareBound.Start) || !b.End.Equal(compareBound.End) {
+		return false
+	}
+	return true
+}
+
 // TimeForIndex returns the start time for a given index assuming a uniform step size
 func (b Bounds) TimeForIndex(idx int) (time.Time, error) {
 	step := b.StepSize
@@ -107,7 +115,7 @@ type StepIter interface {
 	Meta() Metadata
 }
 
-// ValueIterator iterates through a generic iterator
+// ValueIterator is a generic float value iterator
 type ValueIterator interface {
 	Iterator
 	Current() float64

@@ -63,11 +63,10 @@ type ConsolidatedNSBlock struct {
 }
 
 type consolidatedNSBlockIter struct {
-	consolidatedNSBlockSeriesIters []encoding.SeriesIterator
-	bounds                         block.Bounds
-	seriesIndex                    int
-	indexTime                      time.Time
-	lastDP                         ts.Datapoint
+	m3dbIters        []encoding.SeriesIterator
+	bounds           block.Bounds
+	seriesIndex, idx int
+	lastDP           ts.Datapoint
 }
 
 type consolidatedNSBlockIters []*consolidatedNSBlockIter
@@ -78,13 +77,6 @@ type ConsolidatedSeriesBlock struct {
 	Metadata             block.Metadata
 	ConsolidatedNSBlocks []ConsolidatedNSBlock
 	consolidationFunc    ConsolidationFunc // nolint
-}
-
-func equalBounds(boundOne, boundTwo block.Bounds) bool {
-	if !boundOne.Start.Equal(boundTwo.Start) || !boundOne.End.Equal(boundTwo.End) {
-		return false
-	}
-	return true
 }
 
 type consolidatedSeriesBlockIter struct {
