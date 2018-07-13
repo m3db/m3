@@ -321,7 +321,10 @@ func (e *CounterElem) Consume(
 		timeNanos := timestampNanosFn(e.toConsume[i].startAtNanos, resolution)
 		e.toConsume[i].lockedAgg.Lock()
 		if e.toConsume[i].lockedAgg.consumeState != consumed {
-			e.processValueWithAggregationLock(timeNanos, e.toConsume[i].lockedAgg, flushLocalFn, flushForwardedFn)
+			e.processValueWithAggregationLock(
+				timeNanos, eagerForwardingMode, e.toConsume[i].lockedAgg,
+				flushLocalFn, flushForwardedFn,
+			)
 		}
 		e.toConsume[i].lockedAgg.consumeState = consumed
 		if i < aggregationIdxToCloseUntil {
@@ -493,6 +496,7 @@ func (e *CounterElem) indexOfWithLock(alignedStart int64) (int, bool) {
 
 func (e *CounterElem) processValueWithAggregationLock(
 	timeNanos int64,
+	eagerForwardingMode eagerForwardingMode,
 	lockedAgg *lockedCounterAggregation,
 	flushLocalFn flushLocalMetricFn,
 	flushForwardedFn flushForwardedMetricFn,
@@ -538,8 +542,11 @@ func (e *CounterElem) processValueWithAggregationLock(
 	}
 	e.lastConsumedAtNanos = timeNanos
 
-	// Emit latency metrics for forwarded metrics.
-	if e.outgoingMetricType() == localOutgoingMetric && e.incomingMetricType == ForwardedIncomingMetric {
+	// Emit latency metrics for forwarded metrics going to local backends
+	// when eager forwarding is allowed.
+	if eagerForwardingMode == allowEagerForwarding &&
+		e.incomingMetricType == ForwardedIncomingMetric &&
+		e.outgoingMetricType() == localOutgoingMetric {
 		e.opts.FullForwardingLatencyHistograms().RecordDuration(
 			e.sp.Resolution().Window,
 			e.numForwardedTimes,

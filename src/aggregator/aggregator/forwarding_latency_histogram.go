@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	forwardingLatencyBucketVersion = 4
+	forwardingLatencyBucketVersion = 5
 	numForwardingLatencyBuckets    = 40
 )
 
