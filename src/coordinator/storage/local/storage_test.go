@@ -227,7 +227,7 @@ func TestLocalRead(t *testing.T) {
 
 func TestLocalFetchBlocks(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	store, session := setup(ctrl)
+	store, sessions := setup(t, ctrl)
 
 	iterOne, err := test.BuildTestSeriesIterator()
 	require.NoError(t, err)
@@ -235,7 +235,9 @@ func TestLocalFetchBlocks(t *testing.T) {
 	require.NoError(t, err)
 	iterators := encoding.NewSeriesIterators([]encoding.SeriesIterator{iterOne, iterTwo}, nil)
 
-	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(iterators, true, nil)
+	sessions.forEach(func(session *client.MockSession) {
+		session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(iterators, true, nil)
+	})
 	searchReq := newFetchReq()
 	results, err := store.FetchBlocks(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
 	assert.NoError(t, err)
@@ -251,7 +253,7 @@ func TestLocalFetchBlocks(t *testing.T) {
 	require.Equal(t, models.Tags{"foo": "bar", "baz": "qux"}, stepIterTwo.Meta().Tags)
 }
 
-func setupLocalSearch(t *testing.T) storage.Storage {
+func TestLocalReadNoClustersForTimeRangeError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	store, _ := setup(t, ctrl)

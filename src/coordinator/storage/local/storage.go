@@ -265,10 +265,13 @@ func (s *localStorage) Type() storage.Type {
 
 // nolint: unparam
 func (s *localStorage) fetchRaw(
+	namespace ClusterNamespace,
 	query index.Query,
 	opts index.QueryOptions,
 ) (encoding.SeriesIterators, bool, error) {
-	return s.session.FetchTagged(s.namespace, query, opts)
+	namespaceID := namespace.NamespaceID()
+	session := namespace.Session()
+	return session.FetchTagged(namespaceID, query, opts)
 }
 
 func (s *localStorage) FetchBlocks(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (block.Result, error) {
@@ -279,8 +282,10 @@ func (s *localStorage) FetchBlocks(ctx context.Context, query *storage.FetchQuer
 
 	opts := storage.FetchOptionsToM3Options(options, query)
 
+	// todo(braskin): figure out how to deal with multiple namespaces
+	namespaces := s.clusters.ClusterNamespaces()
 	// todo(braskin): figure out what to do with second return argument
-	seriesIters, _, err := s.fetchRaw(m3query, opts)
+	seriesIters, _, err := s.fetchRaw(namespaces[0], m3query, opts)
 	if err != nil {
 		return emptyBlock, err
 	}
