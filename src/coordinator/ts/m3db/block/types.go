@@ -23,9 +23,7 @@ package block
 import (
 	"time"
 
-	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/dbnode/encoding"
-	"github.com/m3db/m3db/src/dbnode/ts"
 	"github.com/m3db/m3x/ident"
 )
 
@@ -46,70 +44,6 @@ type SeriesBlocks struct {
 	Blocks    []SeriesBlock
 }
 
-// MultiNamespaceSeries is a single timeseries for multiple namespaces
-type MultiNamespaceSeries []SeriesBlocks
-
-// ID enforces the same ID across namespaces
-func (n MultiNamespaceSeries) ID() ident.ID { return n[0].ID }
-
-// ConsolidatedNSBlock is a single block for a given timeseries and namespace
-// which contains all of the necessary SeriesIterators so that consolidation can
-// happen across namespaces
-type ConsolidatedNSBlock struct {
-	ID              ident.ID
-	Namespace       ident.ID
-	Bounds          block.Bounds
-	SeriesIterators encoding.SeriesIterators
-}
-
-type consolidatedNSBlockIter struct {
-	m3dbIters        []encoding.SeriesIterator
-	bounds           block.Bounds
-	seriesIndex, idx int
-	lastDP           ts.Datapoint
-}
-
-type consolidatedNSBlockIters []*consolidatedNSBlockIter
-
-// ConsolidatedSeriesBlock is a single series consolidated across different namespaces
-// for a single block
-type ConsolidatedSeriesBlock struct {
-	Metadata             block.Metadata
-	ConsolidatedNSBlocks []ConsolidatedNSBlock
-	consolidationFunc    ConsolidationFunc // nolint
-}
-
-type consolidatedSeriesBlockIter struct {
-	consolidatedNSBlockIters []block.ValueIterator
-}
-
-type consolidatedSeriesBlockIters []*consolidatedSeriesBlockIter
-
-// ConsolidationFunc determines how to consolidate across namespaces
-type ConsolidationFunc func(existing, toAdd float64, count int) float64
-
-// ConsolidatedSeriesBlocks contain all of the consolidated blocks for
-// a single timeseries across namespaces.
-// Each ConsolidatedBlockIterator will have the same size
-type ConsolidatedSeriesBlocks []ConsolidatedSeriesBlock
-
-// MultiSeriesBlock represents a vertically oriented block
-type MultiSeriesBlock struct {
-	Blocks   ConsolidatedSeriesBlocks
-	Metadata block.Metadata
-}
-
-// MultiSeriesBlocks is a slice of MultiSeriesBlock
-// todo(braskin): add close method on this to close each SeriesIterator
-type MultiSeriesBlocks []MultiSeriesBlock
-
-type multiSeriesBlockStepIter struct {
-	seriesIters []block.ValueIterator
-	index       int
-	meta        block.Metadata
-	blocks      ConsolidatedSeriesBlocks
-}
-
 // Close closes the series iterator in a SeriesBlock
 func (s SeriesBlock) Close() {
 	s.seriesIterator.Close()
@@ -126,3 +60,9 @@ func (s SeriesBlocks) Close() {
 	s.Namespace.Finalize()
 	s.ID.Finalize()
 }
+
+// MultiNamespaceSeries is a single timeseries for multiple namespaces
+type MultiNamespaceSeries []SeriesBlocks
+
+// ID enforces the same ID across namespaces
+func (n MultiNamespaceSeries) ID() ident.ID { return n[0].ID }

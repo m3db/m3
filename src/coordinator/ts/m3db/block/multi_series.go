@@ -22,11 +22,27 @@ package block
 
 import (
 	"errors"
-	"math"
 
 	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/models"
 )
+
+// MultiSeriesBlock represents a vertically oriented block
+type MultiSeriesBlock struct {
+	Blocks   ConsolidatedSeriesBlocks
+	Metadata block.Metadata
+}
+
+// MultiSeriesBlocks is a slice of MultiSeriesBlock
+// todo(braskin): add close method on this to close each SeriesIterator
+type MultiSeriesBlocks []MultiSeriesBlock
+
+type multiSeriesBlockStepIter struct {
+	seriesIters []block.ValueIterator
+	index       int
+	meta        block.Metadata
+	blocks      ConsolidatedSeriesBlocks
+}
 
 // StepIter creates a new step iterator for a given MultiSeriesBlock
 func (m MultiSeriesBlock) StepIter() (block.StepIter, error) {
@@ -137,91 +153,3 @@ func (m *multiSeriesBlockStepIter) Current() (block.Step, error) {
 
 // TODO: Actually free up resources
 func (m *multiSeriesBlockStepIter) Close() {}
-
-func (c *consolidatedSeriesBlockIter) Current() float64 {
-	values := make([]float64, 0, 1)
-	for _, iter := range c.consolidatedNSBlockIters {
-		dp := iter.Current()
-		values = append(values, dp)
-	}
-
-	// todo(braskin): until we have consolidation
-	return values[0]
-}
-
-// Next moves to the next item
-func (c *consolidatedSeriesBlockIter) Next() bool {
-	if len(c.consolidatedNSBlockIters) == 0 {
-		return false
-	}
-
-	for _, nsBlock := range c.consolidatedNSBlockIters {
-		if !nsBlock.Next() {
-			return false
-		}
-	}
-
-	return true
-}
-
-// Close closes the underlaying iterators
-func (c *consolidatedSeriesBlockIter) Close() {
-	// todo(braskin): implement this function
-}
-
-// Next moves to the next item
-func (c *consolidatedNSBlockIter) Next() bool {
-	c.idx++
-	// NB(braskin): this is inclusive of the last step in the iterator
-	indexTime, err := c.bounds.TimeForIndex(c.idx)
-	if err != nil {
-		return false
-	}
-
-	lastDP := c.lastDP
-	// NB(braskin): check to make sure that the current index time is after the last
-	// seen datapoint and Next() on the underlaying m3db iterator returns true
-	for indexTime.After(lastDP.Timestamp) && c.nextIterator() {
-		lastDP, _, _ = c.m3dbIters[c.seriesIndex].Current()
-		c.lastDP = lastDP
-	}
-
-	return true
-}
-
-func (c *consolidatedNSBlockIter) nextIterator() bool {
-	// todo(braskin): check bounds as well
-	if len(c.m3dbIters) == 0 {
-		return false
-	}
-
-	for c.seriesIndex < len(c.m3dbIters) {
-		if c.m3dbIters[c.seriesIndex].Next() {
-			return true
-		}
-		c.seriesIndex++
-	}
-
-	return false
-}
-
-// Current returns the float64 value for that step
-func (c *consolidatedNSBlockIter) Current() float64 {
-	lastDP := c.lastDP
-	// NB(braskin): if the last datapoint is after the current step, but before the (current step+1),
-	// return that datapoint, otherwise return NaN
-	indexTime, err := c.bounds.TimeForIndex(c.idx)
-	if err != nil {
-		return math.NaN()
-	}
-	if !indexTime.After(lastDP.Timestamp) && indexTime.Add(c.bounds.StepSize).After(lastDP.Timestamp) {
-		return lastDP.Value
-	}
-
-	return math.NaN()
-}
-
-// Close closes the underlaying iterators
-func (c *consolidatedNSBlockIter) Close() {
-	// todo(braskin): implement this function
-}
