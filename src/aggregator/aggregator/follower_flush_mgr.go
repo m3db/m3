@@ -289,10 +289,10 @@ func (mgr *followerFlushManager) flushersFromKVUpdateWithLock(buckets []*flushBu
 		bucketID := bucket.bucketID
 		flushersByInterval[i].interval = bucket.interval
 		flushersByInterval[i].duration = bucket.duration
-		switch bucketID.incomingMetricType {
-		case StandardIncomingMetric:
+		switch bucketID.listType {
+		case standardMetricListType:
 			flushersByInterval[i].flushers = mgr.standardFlushersFromKVUpdateWithLock(bucketID.standard, bucket.flushers)
-		case ForwardedIncomingMetric:
+		case forwardedMetricListType:
 			flushersByInterval[i].flushers = mgr.forwardedFlushersFromKVUpdateWithLock(bucketID.forwarded, bucket.flushers)
 		default:
 			panic("should never get here")
@@ -461,13 +461,7 @@ func (t *followerFlushTask) Run() {
 			flusherWithTime := flusherWithTime
 			wgWorkers.Add(1)
 			mgr.workers.Go(func() {
-				// Eager forwarding is not allowed as the follower should be flushing
-				// aggregated metrics based on timestamps persisted in KV indicating
-				// what have been flushed to downstream by the leader peer and should
-				// not eagerly consume forwarded metrics on its own pace, or otherwise
-				// the follower may discard data prematurely and cause metrics loss
-				// during a leader re-election.
-				flusherWithTime.flusher.DiscardBefore(flusherWithTime.flushBeforeNanos, disAllowEagerForwarding)
+				flusherWithTime.flusher.DiscardBefore(flusherWithTime.flushBeforeNanos)
 				wgWorkers.Done()
 			})
 		}

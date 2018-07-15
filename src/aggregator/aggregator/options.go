@@ -35,27 +35,21 @@ import (
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	xtime "github.com/m3db/m3x/time"
-
-	"github.com/uber-go/tally"
 )
 
 var (
-	defaultMetricPrefix                     = []byte("stats.")
-	defaultCounterPrefix                    = []byte("counts.")
-	defaultTimerPrefix                      = []byte("timers.")
-	defaultGaugePrefix                      = []byte("gauges.")
-	defaultEntryTTL                         = 24 * time.Hour
-	defaultEntryCheckInterval               = time.Hour
-	defaultEntryCheckBatchPercent           = 0.01
-	defaultMaxTimerBatchSizePerWrite        = 0
-	defaultEnableEagerForwarding            = true
-	defaultMaxForwardingWindows             = 10
-	defaultForwardingSourcesTTLByResolution = 10
-	defaultForwardingSourcesTTLByDuration   = 5 * time.Minute
-	defaultMaxNumCachedSourceSets           = 2
-	defaultDiscardNaNAggregatedValues       = true
-	defaultResignTimeout                    = 5 * time.Minute
-	defaultDefaultStoragePolicies           = []policy.StoragePolicy{
+	defaultMetricPrefix               = []byte("stats.")
+	defaultCounterPrefix              = []byte("counts.")
+	defaultTimerPrefix                = []byte("timers.")
+	defaultGaugePrefix                = []byte("gauges.")
+	defaultEntryTTL                   = 24 * time.Hour
+	defaultEntryCheckInterval         = time.Hour
+	defaultEntryCheckBatchPercent     = 0.01
+	defaultMaxTimerBatchSizePerWrite  = 0
+	defaultMaxNumCachedSourceSets     = 2
+	defaultDiscardNaNAggregatedValues = true
+	defaultResignTimeout              = 5 * time.Minute
+	defaultDefaultStoragePolicies     = []policy.StoragePolicy{
 		policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*24*time.Hour),
 		policy.NewStoragePolicy(time.Minute, xtime.Minute, 40*24*time.Hour),
 	}
@@ -70,10 +64,6 @@ var (
 	defaultBufferDurationAfterShardCutoff = time.Hour
 )
 
-// FlushIntervalFn determines the flush interval for lists containing metrics of
-// the given type associated with the given resolution.
-type FlushIntervalFn func(metricType IncomingMetricType, resolution time.Duration) time.Duration
-
 // MaxAllowedForwardingDelayFn returns the maximum allowed forwarding delay given
 // the metric resolution and number of times the metric has been forwarded. The forwarding
 // delay refers to the maximum tolerated delay between when a metric is ready to be
@@ -84,9 +74,6 @@ type FlushIntervalFn func(metricType IncomingMetricType, resolution time.Duratio
 // if any, flushing delay, queuing delay, encoding delay, network delay, decoding delay at
 // destination server, and ingestion delay at the destination server.
 type MaxAllowedForwardingDelayFn func(resolution time.Duration, numForwardedTimes int) time.Duration
-
-// ForwardingSourcesTTLFn returns the ttl for forwarding sources given a resolution.
-type ForwardingSourcesTTLFn func(resolution time.Duration) time.Duration
 
 // Options provide a set of base and derived options for the aggregator.
 type Options interface {
@@ -242,12 +229,6 @@ type Options interface {
 	// ResignTimeout returns the resign timeout.
 	ResignTimeout() time.Duration
 
-	// SetFlushIntervalFn sets the flush interval function.
-	SetFlushIntervalFn(value FlushIntervalFn) Options
-
-	// FlushIntervalFn returns the flush interval function.
-	FlushIntervalFn() FlushIntervalFn
-
 	// SetMaxAllowedForwardingDelayFn sets the function that determines the maximum forwarding
 	// delay for given metric resolution and number of times the metric has been forwarded.
 	SetMaxAllowedForwardingDelayFn(value MaxAllowedForwardingDelayFn) Options
@@ -261,42 +242,6 @@ type Options interface {
 
 	// MaxNumCachedSourceSets returns the maximum number of cached source sets.
 	MaxNumCachedSourceSets() int
-
-	// SetEnableEagerForwarding determines whether eager forwarding is enabled.
-	SetEnableEagerForwarding(value bool) Options
-
-	// EnableEagerForwarding return whether eager forwarding is enabled.
-	EnableEagerForwarding() bool
-
-	// SetMaxAggregationWindowsForEagerForwarding sets the maximum aggregation windows
-	// for which we always forward metrics to notify the destination server where the forwarded
-	// metrics are stored of the liveliness of the source for the purpose of eager flushing.
-	// This is so that when the destination server has received results from all expected sources,
-	// it can flush the forwarded metric as soon as possible.
-	SetMaxAggregationWindowsForEagerForwarding(value int) Options
-
-	// MaxAggregationWindowsForEagerForwarding returns the maximum aggregation windows
-	// for which we always forward metrics to notify the destination server where the forwarded
-	// metrics are stored of the liveliness of the source for the purpose of eager flushing.
-	// This is so that when the destination server has received results from all expected sources
-	// for an aggregation window, it can flush the forwarded metric as soon as possible.
-	MaxAggregationWindowsForEagerForwarding() int
-
-	// SetForwardingSourcesTTLFn sets the ttl function for forwarding sources.
-	SetForwardingSourcesTTLFn(value ForwardingSourcesTTLFn) Options
-
-	// ForwardingSourcesTTLFn returns the ttl function for forwarding sources.
-	ForwardingSourcesTTLFn() ForwardingSourcesTTLFn
-
-	// SetFullForwardingLatencyHistograms sets the histograms for recording the full
-	// latency of forwarded metrics between when the metric is timestamped and when
-	// the metric is flushed to backends.
-	SetFullForwardingLatencyHistograms(value *ForwardingLatencyHistograms) Options
-
-	// FullForwardingLatencyHistograms returns the histograms for recording the full
-	// latency of forwarded metrics between when the metric is timestamped and when
-	// the metric is flushed to backends.
-	FullForwardingLatencyHistograms() *ForwardingLatencyHistograms
 
 	// SetDiscardNaNAggregatedValues determines whether NaN aggregated values are discarded.
 	SetDiscardNaNAggregatedValues(value bool) Options
@@ -367,14 +312,9 @@ type options struct {
 	flushTimesManager                FlushTimesManager
 	electionManager                  ElectionManager
 	resignTimeout                    time.Duration
-	flushIntervalFn                  FlushIntervalFn
 	maxAllowedForwardingDelayFn      MaxAllowedForwardingDelayFn
 	maxNumCachedSourceSets           int
-	enableEagerForwarding            bool
-	maxForwardingWindows             int
-	forwardingSourcesTTLFn           ForwardingSourcesTTLFn
 	discardNaNAggregatedValues       bool
-	forwardingLatencyHistograms      *ForwardingLatencyHistograms
 	entryPool                        EntryPool
 	counterElemPool                  CounterElemPool
 	timerElemPool                    TimerElemPool
@@ -413,14 +353,9 @@ func NewOptions() Options {
 		maxTimerBatchSizePerWrite:        defaultMaxTimerBatchSizePerWrite,
 		defaultStoragePolicies:           defaultDefaultStoragePolicies,
 		resignTimeout:                    defaultResignTimeout,
-		flushIntervalFn:                  defaultFlushIntervalFn,
 		maxAllowedForwardingDelayFn:      defaultMaxAllowedForwardingDelayFn,
 		maxNumCachedSourceSets:           defaultMaxNumCachedSourceSets,
-		enableEagerForwarding:            defaultEnableEagerForwarding,
-		maxForwardingWindows:             defaultMaxForwardingWindows,
-		forwardingSourcesTTLFn:           defaultForwardingSourcesTTLFn,
 		discardNaNAggregatedValues:       defaultDiscardNaNAggregatedValues,
-		forwardingLatencyHistograms:      NewForwardingLatencyHistograms(tally.NoopScope, defaultForwardingLatencyBucketsFn),
 	}
 
 	// Initialize pools.
@@ -686,16 +621,6 @@ func (o *options) ResignTimeout() time.Duration {
 	return o.resignTimeout
 }
 
-func (o *options) SetFlushIntervalFn(value FlushIntervalFn) Options {
-	opts := *o
-	opts.flushIntervalFn = value
-	return &opts
-}
-
-func (o *options) FlushIntervalFn() FlushIntervalFn {
-	return o.flushIntervalFn
-}
-
 func (o *options) SetMaxAllowedForwardingDelayFn(value MaxAllowedForwardingDelayFn) Options {
 	opts := *o
 	opts.maxAllowedForwardingDelayFn = value
@@ -714,46 +639,6 @@ func (o *options) SetMaxNumCachedSourceSets(value int) Options {
 
 func (o *options) MaxNumCachedSourceSets() int {
 	return o.maxNumCachedSourceSets
-}
-
-func (o *options) SetEnableEagerForwarding(value bool) Options {
-	opts := *o
-	opts.enableEagerForwarding = value
-	return &opts
-}
-
-func (o *options) EnableEagerForwarding() bool {
-	return o.enableEagerForwarding
-}
-
-func (o *options) SetMaxAggregationWindowsForEagerForwarding(value int) Options {
-	opts := *o
-	opts.maxForwardingWindows = value
-	return &opts
-}
-
-func (o *options) MaxAggregationWindowsForEagerForwarding() int {
-	return o.maxForwardingWindows
-}
-
-func (o *options) SetForwardingSourcesTTLFn(value ForwardingSourcesTTLFn) Options {
-	opts := *o
-	opts.forwardingSourcesTTLFn = value
-	return &opts
-}
-
-func (o *options) ForwardingSourcesTTLFn() ForwardingSourcesTTLFn {
-	return o.forwardingSourcesTTLFn
-}
-
-func (o *options) SetFullForwardingLatencyHistograms(value *ForwardingLatencyHistograms) Options {
-	opts := *o
-	opts.forwardingLatencyHistograms = value
-	return &opts
-}
-
-func (o *options) FullForwardingLatencyHistograms() *ForwardingLatencyHistograms {
-	return o.forwardingLatencyHistograms
 }
 
 func (o *options) SetDiscardNaNAggregatedValues(value bool) Options {
@@ -831,17 +716,17 @@ func (o *options) initPools() {
 
 	o.counterElemPool = NewCounterElemPool(nil)
 	o.counterElemPool.Init(func() *CounterElem {
-		return MustNewCounterElem(UnknownIncomingMetric, nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, o)
+		return MustNewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, o)
 	})
 
 	o.timerElemPool = NewTimerElemPool(nil)
 	o.timerElemPool.Init(func() *TimerElem {
-		return MustNewTimerElem(UnknownIncomingMetric, nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, o)
+		return MustNewTimerElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, o)
 	})
 
 	o.gaugeElemPool = NewGaugeElemPool(nil)
 	o.gaugeElemPool.Init(func() *GaugeElem {
-		return MustNewGaugeElem(UnknownIncomingMetric, nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, o)
+		return MustNewGaugeElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, o)
 	})
 }
 
@@ -876,29 +761,9 @@ func (o *options) computeFullGaugePrefix() {
 	o.fullGaugePrefix = fullGaugePrefix
 }
 
-func defaultFlushIntervalFn(_ IncomingMetricType, resolution time.Duration) time.Duration {
-	return resolution
-}
-
 func defaultMaxAllowedForwardingDelayFn(
 	resolution time.Duration,
 	numForwardedTimes int,
 ) time.Duration {
 	return resolution * time.Duration(numForwardedTimes)
-}
-
-func defaultForwardingSourcesTTLFn(resolution time.Duration) time.Duration {
-	dur := time.Duration(defaultForwardingSourcesTTLByResolution) * resolution
-	if dur >= defaultForwardingSourcesTTLByDuration {
-		return dur
-	}
-	return defaultForwardingSourcesTTLByDuration
-}
-
-func defaultForwardingLatencyBucketsFn(
-	key ForwardingLatencyBucketKey,
-	numLatencyBuckets int,
-) tally.Buckets {
-	bucketWidth := 2 * key.Resolution / time.Duration(numLatencyBuckets)
-	return tally.MustMakeLinearDurationBuckets(0, bucketWidth, numLatencyBuckets)
 }

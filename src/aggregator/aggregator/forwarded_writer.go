@@ -30,7 +30,6 @@ import (
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/id"
-	"github.com/m3db/m3x/clock"
 	xerrors "github.com/m3db/m3x/errors"
 
 	"github.com/uber-go/tally"
@@ -73,8 +72,8 @@ type forwardedMetricWriter interface {
 		aggKey aggregationKey,
 	) error
 
-	// Prepare prepares the writer for a new write cycle flushing for given timestamp.
-	Prepare(targetNanos int64)
+	// Prepare prepares the writer for a new write cycle.
+	Prepare()
 
 	// Flush flushes any data buffered in the writer.
 	Flush() error
@@ -132,12 +131,8 @@ func newForwardedWriterMetrics(scope tally.Scope) forwardedWriterMetrics {
 // associated with the (shard, listID) combination, which is used for value
 // deduplication during leadership re-elections on the destination server.
 type forwardedWriter struct {
-	shard                  uint32
-	client                 client.AdminClient
-	eagerForwardingEnabled bool
-	maxForwardingWindows   int
-	isEarlierThanFn        isEarlierThanFn
-	nowFn                  clock.NowFn
+	shard  uint32
+	client client.AdminClient
 
 	closed             bool
 	aggregations       map[idKey]*forwardedAggregation // Aggregations for each forward metric id
@@ -148,22 +143,14 @@ type forwardedWriter struct {
 func newForwardedWriter(
 	shard uint32,
 	client client.AdminClient,
-	eagerForwardingEnabled bool,
-	maxForwardingWindows int,
-	isEarlierThanFn isEarlierThanFn,
-	nowFn clock.NowFn,
 	scope tally.Scope,
 ) forwardedMetricWriter {
 	return &forwardedWriter{
-		shard:                  shard,
-		client:                 client,
-		eagerForwardingEnabled: eagerForwardingEnabled,
-		maxForwardingWindows:   maxForwardingWindows,
-		isEarlierThanFn:        isEarlierThanFn,
-		nowFn:                  nowFn,
-		aggregations:           make(map[idKey]*forwardedAggregation),
-		metrics:                newForwardedWriterMetrics(scope),
-		aggregationMetrics:     newForwardedAggregationMetrics(scope.SubScope("aggregations")),
+		shard:              shard,
+		client:             client,
+		aggregations:       make(map[idKey]*forwardedAggregation),
+		metrics:            newForwardedWriterMetrics(scope),
+		aggregationMetrics: newForwardedAggregationMetrics(scope.SubScope("aggregations")),
 	}
 }
 
@@ -181,10 +168,7 @@ func (w *forwardedWriter) Register(
 	key := newIDKey(metricType, metricID)
 	fa, exists := w.aggregations[key]
 	if !exists {
-		fa = newForwardedAggregation(
-			metricType, metricID, w.shard, w.client, w.eagerForwardingEnabled,
-			w.maxForwardingWindows, w.isEarlierThanFn, w.nowFn, w.aggregationMetrics,
-		)
+		fa = newForwardedAggregation(metricType, metricID, w.shard, w.client, w.aggregationMetrics)
 		w.aggregations[key] = fa
 	}
 	fa.add(aggKey)
@@ -220,9 +204,9 @@ func (w *forwardedWriter) Unregister(
 	return nil
 }
 
-func (w *forwardedWriter) Prepare(targetFlushNanos int64) {
+func (w *forwardedWriter) Prepare() {
 	for _, agg := range w.aggregations {
-		agg.reset(targetFlushNanos)
+		agg.reset()
 	}
 	w.metrics.prepare.Inc(1)
 }
@@ -286,40 +270,26 @@ type forwardedAggregationWithKey struct {
 	// is called.
 	currRefCnt        int
 	cachedValueArrays [][]float64
-	bucketsByTimeAsc  forwardedAggregationBuckets
-	// lastWriteNanos is the last timestamp of the aggregation written to the destination server.
-	lastWriteNanos int64
+	buckets           forwardedAggregationBuckets
 }
 
-// NB: Intetionally do not reset last write nanos so we can use it to figure out the last written
-// timestamp and determine when we start writing forwarded metrics.
 func (agg *forwardedAggregationWithKey) reset() {
 	agg.currRefCnt = 0
-	for i := 0; i < len(agg.bucketsByTimeAsc); i++ {
-		agg.bucketsByTimeAsc[i].values = agg.bucketsByTimeAsc[i].values[:0]
-		agg.cachedValueArrays = append(agg.cachedValueArrays, agg.bucketsByTimeAsc[i].values)
-		agg.bucketsByTimeAsc[i].values = nil
+	for i := 0; i < len(agg.buckets); i++ {
+		agg.buckets[i].values = agg.buckets[i].values[:0]
+		agg.cachedValueArrays = append(agg.cachedValueArrays, agg.buckets[i].values)
+		agg.buckets[i].values = nil
 	}
-	agg.bucketsByTimeAsc = agg.bucketsByTimeAsc[:0]
+	agg.buckets = agg.buckets[:0]
 }
 
 func (agg *forwardedAggregationWithKey) add(timeNanos int64, value float64) {
-	var idx int
-	for idx = 0; idx < len(agg.bucketsByTimeAsc); idx++ {
-		if agg.bucketsByTimeAsc[idx].timeNanos == timeNanos {
-			agg.bucketsByTimeAsc[idx].values = append(agg.bucketsByTimeAsc[idx].values, value)
+	for i := 0; i < len(agg.buckets); i++ {
+		if agg.buckets[i].timeNanos == timeNanos {
+			agg.buckets[i].values = append(agg.buckets[i].values, value)
 			return
 		}
-		if agg.bucketsByTimeAsc[idx].timeNanos > timeNanos {
-			break
-		}
 	}
-
-	// Bucket not found.
-	numBuckets := len(agg.bucketsByTimeAsc)
-	agg.bucketsByTimeAsc = append(agg.bucketsByTimeAsc, forwardedAggregationBucket{})
-	copy(agg.bucketsByTimeAsc[idx+1:numBuckets+1], agg.bucketsByTimeAsc[idx:numBuckets])
-
 	var values []float64
 	if numCachedValueArrays := len(agg.cachedValueArrays); numCachedValueArrays > 0 {
 		values = agg.cachedValueArrays[numCachedValueArrays-1]
@@ -329,10 +299,11 @@ func (agg *forwardedAggregationWithKey) add(timeNanos int64, value float64) {
 		values = make([]float64, 0, initialValueArrayCapacity)
 	}
 	values = append(values, value)
-	agg.bucketsByTimeAsc[idx] = forwardedAggregationBucket{
+	bucket := forwardedAggregationBucket{
 		timeNanos: timeNanos,
 		values:    values,
 	}
+	agg.buckets = append(agg.buckets, bucket)
 }
 
 type forwardedAggregationMetrics struct {
@@ -342,8 +313,6 @@ type forwardedAggregationMetrics struct {
 	onDoneNoWrite          tally.Counter
 	onDoneWriteSuccess     tally.Counter
 	onDoneWriteErrors      tally.Counter
-	onDoneHeartbeatSuccess tally.Counter
-	onDoneHeartbeatErrors  tally.Counter
 	onDoneUnexpectedRefCnt tally.Counter
 }
 
@@ -355,27 +324,20 @@ func newForwardedAggregationMetrics(scope tally.Scope) *forwardedAggregationMetr
 		onDoneNoWrite:          scope.Counter("on-done-not-write"),
 		onDoneWriteSuccess:     scope.Counter("on-done-write-success"),
 		onDoneWriteErrors:      scope.Counter("on-done-write-errors"),
-		onDoneHeartbeatSuccess: scope.Counter("on-done-heartbeat-success"),
-		onDoneHeartbeatErrors:  scope.Counter("on-done-heartbeat-errors"),
 		onDoneUnexpectedRefCnt: scope.Counter("on-done-unexpected-refcnt"),
 	}
 }
 
 type forwardedAggregation struct {
-	metricType             metric.Type
-	metricID               id.RawID
-	shard                  uint32
-	client                 client.AdminClient
-	eagerForwardingEnabled bool
-	maxForwardingWindows   int
-	isEarlierThanFn        isEarlierThanFn
-	nowFn                  clock.NowFn
+	metricType metric.Type
+	metricID   id.RawID
+	shard      uint32
+	client     client.AdminClient
 
-	targetFlushNanos int64
-	byKey            []forwardedAggregationWithKey
-	metrics          *forwardedAggregationMetrics
-	writeFn          writeForwardedMetricFn
-	onDoneFn         onForwardedAggregationDoneFn
+	byKey    []forwardedAggregationWithKey
+	metrics  *forwardedAggregationMetrics
+	writeFn  writeForwardedMetricFn
+	onDoneFn onForwardedAggregationDoneFn
 }
 
 func newForwardedAggregation(
@@ -383,23 +345,15 @@ func newForwardedAggregation(
 	metricID id.RawID,
 	shard uint32,
 	client client.AdminClient,
-	eagerForwardingEnabled bool,
-	maxForwardingWindows int,
-	isEarlierThanFn isEarlierThanFn,
-	nowFn clock.NowFn,
 	fm *forwardedAggregationMetrics,
 ) *forwardedAggregation {
 	agg := &forwardedAggregation{
-		metricType:             metricType,
-		metricID:               metricID,
-		shard:                  shard,
-		client:                 client,
-		eagerForwardingEnabled: eagerForwardingEnabled,
-		maxForwardingWindows:   maxForwardingWindows,
-		isEarlierThanFn:        isEarlierThanFn,
-		nowFn:                  nowFn,
-		byKey:                  make([]forwardedAggregationWithKey, 0, 2),
-		metrics:                fm,
+		metricType: metricType,
+		metricID:   metricID,
+		shard:      shard,
+		client:     client,
+		byKey:      make([]forwardedAggregationWithKey, 0, 2),
+		metrics:    fm,
 	}
 	agg.writeFn = agg.write
 	agg.onDoneFn = agg.onDone
@@ -416,8 +370,7 @@ func (agg *forwardedAggregation) onAggregationKeyDoneFn() onForwardedAggregation
 
 func (agg *forwardedAggregation) clear() { *agg = forwardedAggregation{} }
 
-func (agg *forwardedAggregation) reset(targetFlushNanos int64) {
-	agg.targetFlushNanos = targetFlushNanos
+func (agg *forwardedAggregation) reset() {
 	for i := 0; i < len(agg.byKey); i++ {
 		agg.byKey[i].reset()
 	}
@@ -432,10 +385,10 @@ func (agg *forwardedAggregation) add(key aggregationKey) {
 		return
 	}
 	aggregation := forwardedAggregationWithKey{
-		key:              key,
-		totalRefCnt:      1,
-		currRefCnt:       0,
-		bucketsByTimeAsc: make(forwardedAggregationBuckets, 0, 2),
+		key:         key,
+		totalRefCnt: 1,
+		currRefCnt:  0,
+		buckets:     make(forwardedAggregationBuckets, 0, 2),
 	}
 	agg.byKey = append(agg.byKey, aggregation)
 	agg.metrics.added.Inc(1)
@@ -443,8 +396,6 @@ func (agg *forwardedAggregation) add(key aggregationKey) {
 
 // remove removes the aggregation key from the set of aggregations, returning
 // the remaining number of aggregations, and whether the removal is successful.
-// NB: could unregister metric on destination server when key is removed to
-// facilitate faster flushing for forwarded metric.
 func (agg *forwardedAggregation) remove(key aggregationKey) (int, bool) {
 	idx := agg.index(key)
 	if idx < 0 {
@@ -478,31 +429,21 @@ func (agg *forwardedAggregation) onDone(key aggregationKey) error {
 		agg.metrics.onDoneNoWrite.Inc(1)
 		return nil
 	}
-	if agg.byKey[idx].currRefCnt > agg.byKey[idx].totalRefCnt {
-		// If the current ref count is higher than total, this is likely a logical error.
-		agg.metrics.onDoneUnexpectedRefCnt.Inc(1)
-		return fmt.Errorf("unexpected refcount: current=%d, total=%d", agg.byKey[idx].currRefCnt, agg.byKey[idx].totalRefCnt)
-	}
-	var (
-		multiErr = xerrors.NewMultiError()
-		meta     = metadata.ForwardMetadata{
-			AggregationID:     key.aggregationID,
-			StoragePolicy:     key.storagePolicy,
-			Pipeline:          key.pipeline,
-			SourceID:          agg.shard,
-			NumForwardedTimes: key.numForwardedTimes,
-		}
-		resolutionNanos       = key.storagePolicy.Resolution().Window.Nanoseconds()
-		numAggregationWindows = int((agg.targetFlushNanos - agg.byKey[idx].lastWriteNanos) / resolutionNanos)
-		lastWriteNanos        int64
-	)
-	if !agg.eagerForwardingEnabled || agg.byKey[idx].lastWriteNanos == 0 || numAggregationWindows > agg.maxForwardingWindows {
-		// If this is first time this aggregation key is flushed or the number of aggregation windows
-		// that we need to send empty batches for exceeds the threshold, we only send what are stored
-		// in the aggregation buckets to initialize lastWriteNanos and rely on the maxForwardingDelay
-		// on the destination server to flush the forward metric for aggregation windows where no
-		// batch is sent.
-		for _, b := range agg.byKey[idx].bucketsByTimeAsc {
+	if agg.byKey[idx].currRefCnt == agg.byKey[idx].totalRefCnt {
+		var (
+			multiErr = xerrors.NewMultiError()
+			meta     = metadata.ForwardMetadata{
+				AggregationID:     key.aggregationID,
+				StoragePolicy:     key.storagePolicy,
+				Pipeline:          key.pipeline,
+				SourceID:          agg.shard,
+				NumForwardedTimes: key.numForwardedTimes,
+			}
+		)
+		for _, b := range agg.byKey[idx].buckets {
+			if len(b.values) == 0 {
+				continue
+			}
 			metric := aggregated.ForwardedMetric{
 				Type:      agg.metricType,
 				ID:        agg.metricID,
@@ -515,86 +456,12 @@ func (agg *forwardedAggregation) onDone(key aggregationKey) error {
 			} else {
 				agg.metrics.onDoneWriteSuccess.Inc(1)
 			}
-			lastWriteNanos = b.timeNanos
 		}
-	} else {
-		// We have flushed before, so we ensure we send a batch for every aggregation
-		// in between so the destination server knows when it has received from all
-		// sources and can perform its flush as soon as possible.
-		var (
-			currWriteNanos = agg.byKey[idx].lastWriteNanos + resolutionNanos
-			bucketIdx      = 0
-		)
-		lastWriteNanos = agg.byKey[idx].lastWriteNanos
-		for agg.isEarlierThanFn(currWriteNanos, agg.targetFlushNanos) || bucketIdx < len(agg.byKey[idx].bucketsByTimeAsc) {
-			compareResult := agg.compareTimes(currWriteNanos, idx, bucketIdx)
-
-			var metric aggregated.ForwardedMetric
-			if compareResult == 0 {
-				metric = aggregated.ForwardedMetric{
-					Type:      agg.metricType,
-					ID:        agg.metricID,
-					TimeNanos: agg.byKey[idx].bucketsByTimeAsc[bucketIdx].timeNanos,
-					Values:    agg.byKey[idx].bucketsByTimeAsc[bucketIdx].values,
-				}
-				currWriteNanos += resolutionNanos
-				bucketIdx++
-			} else if compareResult < 0 {
-				metric = aggregated.ForwardedMetric{
-					Type:      agg.metricType,
-					ID:        agg.metricID,
-					TimeNanos: currWriteNanos,
-				}
-				currWriteNanos += resolutionNanos
-			} else {
-				metric = aggregated.ForwardedMetric{
-					Type:      agg.metricType,
-					ID:        agg.metricID,
-					TimeNanos: agg.byKey[idx].bucketsByTimeAsc[bucketIdx].timeNanos,
-					Values:    agg.byKey[idx].bucketsByTimeAsc[bucketIdx].values,
-				}
-				bucketIdx++
-			}
-			if err := agg.client.WriteForwarded(metric, meta); err != nil {
-				multiErr = multiErr.Add(err)
-				agg.metrics.onDoneWriteErrors.Inc(1)
-			} else {
-				agg.metrics.onDoneWriteSuccess.Inc(1)
-			}
-			lastWriteNanos = metric.TimeNanos
-		}
+		return multiErr.FinalError()
 	}
-	agg.byKey[idx].lastWriteNanos = lastWriteNanos
-	return multiErr.FinalError()
-}
-
-// compare compares the current timestamp derived from the last written timestamp
-// with the timestamp from the buckets populated in the current flush cycle, and
-// determines which timestamp should be chosen in the current iteration.
-// * If all buckets have been exhausted, return -1.
-// * If the current timestamp exceeds the flush target time, return 1.
-// * Otherwise
-//   * If the current write timestamp is the same as the bucket timestamp, return 0.
-//   * If the current write timestamp is earlier than the bucket timestamp, return -1.
-//   * If the current write timestamp is later than the bucket timestamp, return 1.
-func (agg *forwardedAggregation) compareTimes(
-	currWriteNanos int64,
-	aggKeyIdx int,
-	bucketIdx int,
-) int {
-	if bucketIdx >= len(agg.byKey[aggKeyIdx].bucketsByTimeAsc) {
-		return -1
-	}
-	if !agg.isEarlierThanFn(currWriteNanos, agg.targetFlushNanos) {
-		return 1
-	}
-	if currWriteNanos == agg.byKey[aggKeyIdx].bucketsByTimeAsc[bucketIdx].timeNanos {
-		return 0
-	}
-	if currWriteNanos < agg.byKey[aggKeyIdx].bucketsByTimeAsc[bucketIdx].timeNanos {
-		return -1
-	}
-	return 1
+	// If the current ref count is higher than total, this is likely a logical error.
+	agg.metrics.onDoneUnexpectedRefCnt.Inc(1)
+	return fmt.Errorf("unexpected refcount: current=%d, total=%d", agg.byKey[idx].currRefCnt, agg.byKey[idx].totalRefCnt)
 }
 
 func (agg *forwardedAggregation) index(key aggregationKey) int {

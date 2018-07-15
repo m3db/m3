@@ -49,9 +49,9 @@ func TestBaseMetricListPushBackElemWithDefaultPipeline(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	l, err := newBaseMetricList(testShard, time.Second, time.Second, nil, nil, nil, testOptions(ctrl))
+	l, err := newBaseMetricList(testShard, time.Second, nil, nil, nil, testOptions(ctrl))
 	require.NoError(t, err)
-	elem, err := NewCounterElem(StandardIncomingMetric, nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, l.opts)
+	elem, err := NewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, l.opts)
 	require.NoError(t, err)
 
 	// Push a counter to the list.
@@ -75,9 +75,9 @@ func TestBaseMetricListPushBackElemWithForwardingPipeline(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	l, err := newBaseMetricList(testShard, time.Second, time.Second, nil, nil, nil, testOptions(ctrl))
+	l, err := newBaseMetricList(testShard, time.Second, nil, nil, nil, testOptions(ctrl))
 	require.NoError(t, err)
-	elem, err := NewCounterElem(StandardIncomingMetric, nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, testPipeline, 0, l.opts)
+	elem, err := NewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, testPipeline, 0, l.opts)
 	require.NoError(t, err)
 
 	// Push a counter to the list.
@@ -94,7 +94,7 @@ func TestBaseMetricListClose(t *testing.T) {
 	defer ctrl.Finish()
 
 	opts := testOptions(ctrl)
-	l, err := newBaseMetricList(testShard, time.Second, time.Second, nil, nil, nil, opts)
+	l, err := newBaseMetricList(testShard, time.Second, nil, nil, nil, opts)
 	require.NoError(t, err)
 
 	l.RLock()
@@ -122,24 +122,18 @@ func TestBaseMetricListFlushWithRequests(t *testing.T) {
 		results          []flushBeforeResult
 	)
 	opts := testOptions(ctrl).SetClockOptions(clock.NewOptions().SetNowFn(nowFn))
-	l, err := newBaseMetricList(testShard, time.Second, time.Second, targetNanosFn, isEarlierThanFn, timestampNanosFn, opts)
+	l, err := newBaseMetricList(testShard, time.Second, targetNanosFn, isEarlierThanFn, timestampNanosFn, opts)
 	require.NoError(t, err)
-	l.flushBeforeFn = func(
-		beforeNanos int64,
-		flushType flushType,
-		eagerForwardingMode eagerForwardingMode,
-	) {
+	l.flushBeforeFn = func(beforeNanos int64, flushType flushType) {
 		results = append(results, flushBeforeResult{
-			beforeNanos:         beforeNanos,
-			flushType:           flushType,
-			eagerForwardingMode: eagerForwardingMode,
+			beforeNanos: beforeNanos,
+			flushType:   flushType,
 		})
 	}
 
 	inputs := []struct {
-		request             flushRequest
-		eagerForwardingMode eagerForwardingMode
-		expected            []flushBeforeResult
+		request  flushRequest
+		expected []flushBeforeResult
 	}{
 		{
 			request: flushRequest{
@@ -147,7 +141,6 @@ func TestBaseMetricListFlushWithRequests(t *testing.T) {
 				CutoffNanos:       30000 * int64(time.Second),
 				BufferAfterCutoff: time.Second,
 			},
-			eagerForwardingMode: allowEagerForwarding,
 			expected: []flushBeforeResult{
 				{
 					beforeNanos: 12345 * int64(time.Second),
@@ -161,7 +154,6 @@ func TestBaseMetricListFlushWithRequests(t *testing.T) {
 				CutoffNanos:       30000 * int64(time.Second),
 				BufferAfterCutoff: time.Second,
 			},
-			eagerForwardingMode: allowEagerForwarding,
 			expected: []flushBeforeResult{
 				{
 					beforeNanos: 10000 * int64(time.Second),
@@ -179,7 +171,6 @@ func TestBaseMetricListFlushWithRequests(t *testing.T) {
 				CutoffNanos:       12300 * int64(time.Second),
 				BufferAfterCutoff: time.Minute,
 			},
-			eagerForwardingMode: allowEagerForwarding,
 			expected: []flushBeforeResult{
 				{
 					beforeNanos: 10000 * int64(time.Second),
@@ -197,7 +188,6 @@ func TestBaseMetricListFlushWithRequests(t *testing.T) {
 				CutoffNanos:       12300 * int64(time.Second),
 				BufferAfterCutoff: 10 * time.Second,
 			},
-			eagerForwardingMode: allowEagerForwarding,
 			expected: []flushBeforeResult{
 				{
 					beforeNanos: 10000 * int64(time.Second),
@@ -219,7 +209,6 @@ func TestBaseMetricListFlushWithRequests(t *testing.T) {
 				CutoffNanos:       30000 * int64(time.Second),
 				BufferAfterCutoff: time.Second,
 			},
-			eagerForwardingMode: allowEagerForwarding,
 			expected: []flushBeforeResult{
 				{
 					beforeNanos: 12345 * int64(time.Second),
@@ -230,7 +219,7 @@ func TestBaseMetricListFlushWithRequests(t *testing.T) {
 	}
 	for _, input := range inputs {
 		results = results[:0]
-		l.Flush(input.request, input.eagerForwardingMode)
+		l.Flush(input.request)
 		require.Equal(t, input.expected, results)
 	}
 }
@@ -245,10 +234,10 @@ func TestBaseMetricListFlushBeforeStale(t *testing.T) {
 		timestampNanosFn = standardMetricTimestampNanos
 		opts             = testOptions(ctrl)
 	)
-	l, err := newBaseMetricList(testShard, 0, 0, targetNanosFn, isEarlierThanFn, timestampNanosFn, opts)
+	l, err := newBaseMetricList(testShard, 0, targetNanosFn, isEarlierThanFn, timestampNanosFn, opts)
 	require.NoError(t, err)
 	l.lastFlushedNanos = 1234
-	l.flushBefore(1000, discardType, allowEagerForwarding)
+	l.flushBefore(1000, discardType)
 	require.Equal(t, int64(1234), l.LastFlushedNanos())
 }
 
@@ -263,8 +252,8 @@ func TestStandardMetricListID(t *testing.T) {
 	require.NoError(t, err)
 
 	expectedListID := metricListID{
-		incomingMetricType: StandardIncomingMetric,
-		standard:           listID,
+		listType: standardMetricListType,
+		standard: listID,
 	}
 	require.Equal(t, expectedListID, l.ID())
 }
@@ -322,15 +311,15 @@ func TestStandardMetricListFlushConsumingAndCollectingLocalMetrics(t *testing.T)
 		metric unaggregated.MetricUnion
 	}{
 		{
-			elem:   MustNewCounterElem(StandardIncomingMetric, testCounterID, testStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, opts),
+			elem:   MustNewCounterElem(testCounterID, testStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, opts),
 			metric: testCounter,
 		},
 		{
-			elem:   MustNewTimerElem(StandardIncomingMetric, testBatchTimerID, testStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, opts),
+			elem:   MustNewTimerElem(testBatchTimerID, testStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, opts),
 			metric: testBatchTimer,
 		},
 		{
-			elem:   MustNewGaugeElem(StandardIncomingMetric, testGaugeID, testStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, opts),
+			elem:   MustNewGaugeElem(testGaugeID, testStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, opts),
 			metric: testGauge,
 		},
 	}
@@ -346,7 +335,7 @@ func TestStandardMetricListFlushConsumingAndCollectingLocalMetrics(t *testing.T)
 	l.Flush(flushRequest{
 		CutoverNanos: cutoverNanos,
 		CutoffNanos:  cutoffNanos,
-	}, allowEagerForwarding)
+	})
 
 	// Assert nothing has been flushed.
 	flushLock.Lock()
@@ -362,7 +351,7 @@ func TestStandardMetricListFlushConsumingAndCollectingLocalMetrics(t *testing.T)
 		l.Flush(flushRequest{
 			CutoverNanos: cutoverNanos,
 			CutoffNanos:  cutoffNanos,
-		}, allowEagerForwarding)
+		})
 
 		var expected []testLocalMetricWithMetadata
 		alignedStart := nowTs.Truncate(l.resolution).UnixNano()
@@ -391,7 +380,7 @@ func TestStandardMetricListFlushConsumingAndCollectingLocalMetrics(t *testing.T)
 	l.Flush(flushRequest{
 		CutoverNanos: cutoverNanos,
 		CutoffNanos:  cutoffNanos,
-	}, allowEagerForwarding)
+	})
 
 	// Assert nothing has been flushed.
 	flushLock.Lock()
@@ -410,7 +399,7 @@ func TestStandardMetricListFlushConsumingAndCollectingLocalMetrics(t *testing.T)
 	l.Flush(flushRequest{
 		CutoverNanos: cutoverNanos,
 		CutoffNanos:  cutoffNanos,
-	}, allowEagerForwarding)
+	})
 
 	// Assert all elements have been collected.
 	require.Equal(t, 0, l.aggregations.Len())
@@ -473,8 +462,8 @@ func TestForwardedMetricListID(t *testing.T) {
 	require.NoError(t, err)
 
 	expectedListID := metricListID{
-		incomingMetricType: ForwardedIncomingMetric,
-		forwarded:          listID,
+		listType:  forwardedMetricListType,
+		forwarded: listID,
 	}
 	require.Equal(t, expectedListID, l.ID())
 }
@@ -542,8 +531,7 @@ func TestForwardedMetricListFlushConsumingAndCollectingForwardedMetrics(t *testi
 	opts := testOptions(ctrl).
 		SetClockOptions(clockOpts).
 		SetAdminClient(client).
-		SetMaxAllowedForwardingDelayFn(maxForwardingDelayFn).
-		SetEnableEagerForwarding(false)
+		SetMaxAllowedForwardingDelayFn(maxForwardingDelayFn)
 
 	listID := forwardedMetricListID{
 		resolution:        resolution,
@@ -567,7 +555,7 @@ func TestForwardedMetricListFlushConsumingAndCollectingForwardedMetrics(t *testi
 		metric aggregated.ForwardedMetric
 	}{
 		{
-			elem: MustNewCounterElem(ForwardedIncomingMetric, []byte("testForwardedCounter"), testStoragePolicy, aggregation.DefaultTypes, pipeline, testNumForwardedTimes, opts),
+			elem: MustNewCounterElem([]byte("testForwardedCounter"), testStoragePolicy, aggregation.DefaultTypes, pipeline, testNumForwardedTimes, opts),
 			metric: aggregated.ForwardedMetric{
 				Type:      metric.CounterType,
 				ID:        []byte("testForwardedCounter"),
@@ -576,7 +564,7 @@ func TestForwardedMetricListFlushConsumingAndCollectingForwardedMetrics(t *testi
 			},
 		},
 		{
-			elem: MustNewGaugeElem(ForwardedIncomingMetric, []byte("testForwardedGauge"), testStoragePolicy, aggregation.DefaultTypes, pipeline, testNumForwardedTimes, opts),
+			elem: MustNewGaugeElem([]byte("testForwardedGauge"), testStoragePolicy, aggregation.DefaultTypes, pipeline, testNumForwardedTimes, opts),
 			metric: aggregated.ForwardedMetric{
 				Type:      metric.GaugeType,
 				ID:        []byte("testForwardedGauge"),
@@ -599,7 +587,7 @@ func TestForwardedMetricListFlushConsumingAndCollectingForwardedMetrics(t *testi
 	l.Flush(flushRequest{
 		CutoverNanos: cutoverNanos,
 		CutoffNanos:  cutoffNanos,
-	}, allowEagerForwarding)
+	})
 
 	// Assert nothing has been flushed.
 	flushLock.Lock()
@@ -615,7 +603,7 @@ func TestForwardedMetricListFlushConsumingAndCollectingForwardedMetrics(t *testi
 		l.Flush(flushRequest{
 			CutoverNanos: cutoverNanos,
 			CutoffNanos:  cutoffNanos,
-		}, allowEagerForwarding)
+		})
 
 		var expected []aggregated.ForwardedMetricWithMetadata
 		alignedStart := (nowTs.Add(-maxLatenessAllowed)).Truncate(l.resolution).UnixNano()
@@ -660,7 +648,7 @@ func TestForwardedMetricListFlushConsumingAndCollectingForwardedMetrics(t *testi
 	l.Flush(flushRequest{
 		CutoverNanos: cutoverNanos,
 		CutoffNanos:  cutoffNanos,
-	}, allowEagerForwarding)
+	})
 
 	// Assert nothing has been flushed.
 	flushLock.Lock()
@@ -679,7 +667,7 @@ func TestForwardedMetricListFlushConsumingAndCollectingForwardedMetrics(t *testi
 	l.Flush(flushRequest{
 		CutoverNanos: cutoverNanos,
 		CutoffNanos:  cutoffNanos,
-	}, allowEagerForwarding)
+	})
 
 	// Assert all elements have been collected.
 	require.Equal(t, 0, l.aggregations.Len())
@@ -811,7 +799,6 @@ func validateLocalFlushed(
 }
 
 type flushBeforeResult struct {
-	beforeNanos         int64
-	flushType           flushType
-	eagerForwardingMode eagerForwardingMode
+	beforeNanos int64
+	flushType   flushType
 }

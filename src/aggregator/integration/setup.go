@@ -183,19 +183,19 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	counterElemPool := aggregator.NewCounterElemPool(nil)
 	aggregatorOpts = aggregatorOpts.SetCounterElemPool(counterElemPool)
 	counterElemPool.Init(func() *aggregator.CounterElem {
-		return aggregator.MustNewCounterElem(aggregator.UnknownIncomingMetric, nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, aggregatorOpts)
+		return aggregator.MustNewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, aggregatorOpts)
 	})
 
 	timerElemPool := aggregator.NewTimerElemPool(nil)
 	aggregatorOpts = aggregatorOpts.SetTimerElemPool(timerElemPool)
 	timerElemPool.Init(func() *aggregator.TimerElem {
-		return aggregator.MustNewTimerElem(aggregator.UnknownIncomingMetric, nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, aggregatorOpts)
+		return aggregator.MustNewTimerElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, aggregatorOpts)
 	})
 
 	gaugeElemPool := aggregator.NewGaugeElemPool(nil)
 	aggregatorOpts = aggregatorOpts.SetGaugeElemPool(gaugeElemPool)
 	gaugeElemPool.Init(func() *aggregator.GaugeElem {
-		return aggregator.MustNewGaugeElem(aggregator.UnknownIncomingMetric, nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, aggregatorOpts)
+		return aggregator.MustNewGaugeElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, aggregatorOpts)
 	})
 
 	return &testServerSetup{

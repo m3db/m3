@@ -478,8 +478,8 @@ func TestLeaderFlushTaskRunShardNotFound(t *testing.T) {
 	flusher := NewMockflushingMetricList(ctrl)
 	flusher.EXPECT().Shard().Return(uint32(2)).AnyTimes()
 	flusher.EXPECT().
-		Flush(gomock.Any(), allowEagerForwarding).
-		Do(func(req flushRequest, _ eagerForwardingMode) {
+		Flush(gomock.Any()).
+		Do(func(req flushRequest) {
 			request = &req
 		})
 
@@ -514,15 +514,15 @@ func TestLeaderFlushTaskRunWithFlushes(t *testing.T) {
 	flusher1 := NewMockflushingMetricList(ctrl)
 	flusher1.EXPECT().Shard().Return(uint32(0)).AnyTimes()
 	flusher1.EXPECT().
-		Flush(gomock.Any(), allowEagerForwarding).
-		Do(func(req flushRequest, _ eagerForwardingMode) {
+		Flush(gomock.Any()).
+		Do(func(req flushRequest) {
 			requests[0] = req
 		})
 	flusher2 := NewMockflushingMetricList(ctrl)
 	flusher2.EXPECT().Shard().Return(uint32(1)).AnyTimes()
 	flusher2.EXPECT().
-		Flush(gomock.Any(), allowEagerForwarding).
-		Do(func(req flushRequest, _ eagerForwardingMode) {
+		Flush(gomock.Any()).
+		Do(func(req flushRequest) {
 			requests[1] = req
 		})
 

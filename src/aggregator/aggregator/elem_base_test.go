@@ -23,12 +23,12 @@ package aggregator
 import (
 	"strings"
 	"testing"
-	"time"
+
+	"github.com/m3db/m3metrics/metric/id"
 
 	raggregation "github.com/m3db/m3aggregator/aggregation"
 	maggregation "github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metric"
-	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/pipeline"
 	"github.com/m3db/m3metrics/pipeline/applied"
@@ -38,8 +38,8 @@ import (
 )
 
 func TestElemBaseID(t *testing.T) {
-	e := newElemBase(NewOptions())
-	e.resetSetData(StandardIncomingMetric, testCounterID, testStoragePolicy, maggregation.DefaultTypes, true, applied.DefaultPipeline, 0)
+	e := &elemBase{}
+	e.resetSetData(testCounterID, testStoragePolicy, maggregation.DefaultTypes, true, applied.DefaultPipeline, 0)
 	require.Equal(t, testCounterID, e.ID())
 }
 
@@ -71,12 +71,8 @@ func TestElemBaseResetSetData(t *testing.T) {
 			},
 		}),
 	}
-	opts := NewOptions().SetForwardingSourcesTTLFn(func(resolution time.Duration) time.Duration {
-		return 2 * resolution
-	})
-	e := newElemBase(opts)
-	e.resetSetData(ForwardedIncomingMetric, testCounterID, testStoragePolicy, testAggregationTypesExpensive, false, testPipeline, 3)
-	require.Equal(t, ForwardedIncomingMetric, e.incomingMetricType)
+	e := &elemBase{}
+	e.resetSetData(testCounterID, testStoragePolicy, testAggregationTypesExpensive, false, testPipeline, 3)
 	require.Equal(t, testCounterID, e.id)
 	require.Equal(t, testStoragePolicy, e.sp)
 	require.Equal(t, testAggregationTypesExpensive, e.aggTypes)
@@ -86,11 +82,6 @@ func TestElemBaseResetSetData(t *testing.T) {
 	require.Equal(t, 3, e.numForwardedTimes)
 	require.False(t, e.tombstoned)
 	require.False(t, e.closed)
-	require.Nil(t, e.sourcesHeartbeat)
-	require.Nil(t, e.sourcesSet)
-	require.Equal(t, 20*time.Second.Nanoseconds(), e.sourcesTTLNanos)
-	require.Equal(t, int64(0), e.buildingSourcesAtNanos)
-	require.Equal(t, int64(0), e.lastSourcesRefreshNanos)
 }
 
 func TestElemBaseResetSetDataInvalidPipeline(t *testing.T) {
@@ -100,8 +91,8 @@ func TestElemBaseResetSetDataInvalidPipeline(t *testing.T) {
 			Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
 		},
 	})
-	e := newElemBase(NewOptions())
-	err := e.resetSetData(StandardIncomingMetric, testCounterID, testStoragePolicy, testAggregationTypes, false, invalidPipeline, 0)
+	e := &elemBase{}
+	err := e.resetSetData(testCounterID, testStoragePolicy, testAggregationTypes, false, invalidPipeline, 0)
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "has no rollup operations"))
 }
@@ -113,8 +104,8 @@ func TestElemBaseForwardedIDWithDefaultPipeline(t *testing.T) {
 }
 
 func TestElemBaseForwardedIDWithCustomPipeline(t *testing.T) {
-	e := newElemBase(NewOptions())
-	e.resetSetData(StandardIncomingMetric, testCounterID, testStoragePolicy, testAggregationTypesExpensive, false, testPipeline, 3)
+	e := &elemBase{}
+	e.resetSetData(testCounterID, testStoragePolicy, testAggregationTypesExpensive, false, testPipeline, 3)
 	fid, ok := e.ForwardedID()
 	require.True(t, ok)
 	require.Equal(t, id.RawID("foo.bar"), fid)
@@ -127,8 +118,8 @@ func TestElemBaseForwardedAggregationKeyWithDefaultPipeline(t *testing.T) {
 }
 
 func TestElemBaseForwardedAggregationKeyWithCustomPipeline(t *testing.T) {
-	e := newElemBase(NewOptions())
-	e.resetSetData(StandardIncomingMetric, testCounterID, testStoragePolicy, testAggregationTypesExpensive, false, testPipeline, 3)
+	e := &elemBase{}
+	e.resetSetData(testCounterID, testStoragePolicy, testAggregationTypesExpensive, false, testPipeline, 3)
 	aggKey, ok := e.ForwardedAggregationKey()
 	require.True(t, ok)
 	expected := aggregationKey{

@@ -278,23 +278,16 @@ func (mgr *flushManager) findOrCreateBucketWithLock(l flushingMetricList) (*flus
 	// immediately after we have waited long enough, whereas a standard metric list has a flexible
 	// flush offset to more evenly spread out the load during flushing.
 	var (
-		resolution    time.Duration
-		flushOffset   time.Duration
 		flushInterval = l.FlushInterval()
+		flushOffset   time.Duration
 	)
-	if bucketID.incomingMetricType == StandardIncomingMetric {
-		resolution = bucketID.standard.resolution
-	} else {
-		resolution = bucketID.forwarded.resolution
-	}
 	if fl, ok := l.(fixedOffsetFlushingMetricList); ok {
 		flushOffset = fl.FlushOffset()
 	} else {
 		flushOffset = mgr.computeFlushIntervalOffset(flushInterval)
 	}
 	scope := mgr.scope.SubScope("bucket").Tagged(map[string]string{
-		"bucket-type": bucketID.incomingMetricType.String(),
-		"resolution":  resolution.String(),
+		"bucket-type": bucketID.listType.String(),
 		"interval":    flushInterval.String(),
 	})
 	bucket = newBucket(bucketID, flushInterval, flushOffset, scope)

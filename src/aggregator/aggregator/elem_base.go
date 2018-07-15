@@ -35,7 +35,6 @@ import (
 	mpipeline "github.com/m3db/m3metrics/pipeline"
 	"github.com/m3db/m3metrics/pipeline/applied"
 	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/pool"
 
 	"github.com/willf/bitset"
@@ -64,28 +63,16 @@ var (
 
 // isEarlierThanFn determines whether the timestamps of the metrics in a given
 // aggregation window are earlier than the given target time.
-type isEarlierThanFn func(sourceNanos int64, targetNanos int64) bool
+type isEarlierThanFn func(windowStartNanos int64, resolution time.Duration, targetNanos int64) bool
 
 // timestampNanosFn determines the final timestamps of metrics in a given aggregation
 // window with a given resolution.
 type timestampNanosFn func(windowStartNanos int64, resolution time.Duration) int64
 
-type sourcesOptions struct {
-	// updateSource determines whether to update the source set.
-	updateSources bool
-	// source is the source of the metric.
-	source uint32
+type createAggregationOptions struct {
+	// initSourceSet determines whether to initialize the source set.
+	initSourceSet bool
 }
-
-type consumeState int
-
-const (
-	// nolint: megacheck
-	notReadyToConsume consumeState = iota
-	readyToConsume
-	consuming
-	consumed
-)
 
 // metricElem is the common interface for metric elements.
 type metricElem interface {
@@ -103,7 +90,6 @@ type metricElem interface {
 
 	// ResetSetData resets the element and sets data.
 	ResetSetData(
-		incomingMetricType IncomingMetricType,
 		id id.RawID,
 		sp policy.StoragePolicy,
 		aggTypes maggregation.Types,
@@ -130,7 +116,6 @@ type metricElem interface {
 	// the element can be collected after the consumption is completed.
 	Consume(
 		targetNanos int64,
-		eagerForwardingMode eagerForwardingMode,
 		isEarlierThanFn isEarlierThanFn,
 		timestampNanosFn timestampNanosFn,
 		flushLocalFn flushLocalMetricFn,
@@ -151,9 +136,7 @@ type elemBase struct {
 
 	// Immutable states.
 	opts                            Options
-	nowFn                           clock.NowFn
 	aggTypesOpts                    maggregation.TypesOptions
-	incomingMetricType              IncomingMetricType
 	id                              id.RawID
 	sp                              policy.StoragePolicy
 	useDefaultAggregation           bool
@@ -165,21 +148,15 @@ type elemBase struct {
 	onForwardedAggregationWrittenFn onForwardedAggregationDoneFn
 
 	// Mutable states.
-	tombstoned              bool
-	closed                  bool
-	sourcesLock             sync.Mutex       // nolint: structcheck
-	cachedSourceSets        []*bitset.BitSet // nolint: structcheck
-	sourcesHeartbeat        map[uint32]int64
-	sourcesSet              *bitset.BitSet
-	sourcesTTLNanos         int64
-	buildingSourcesAtNanos  int64
-	lastSourcesRefreshNanos int64
+	tombstoned           bool
+	closed               bool
+	cachedSourceSetsLock sync.Mutex       // nolint: structcheck
+	cachedSourceSets     []*bitset.BitSet // nolint: structcheck
 }
 
 func newElemBase(opts Options) elemBase {
 	return elemBase{
 		opts:         opts,
-		nowFn:        opts.ClockOptions().NowFn(),
 		aggTypesOpts: opts.AggregationTypesOptions(),
 		aggOpts:      raggregation.NewOptions(),
 	}
@@ -187,7 +164,6 @@ func newElemBase(opts Options) elemBase {
 
 // resetSetData resets the element base and sets data.
 func (e *elemBase) resetSetData(
-	incomingMetricType IncomingMetricType,
 	id id.RawID,
 	sp policy.StoragePolicy,
 	aggTypes maggregation.Types,
@@ -199,7 +175,6 @@ func (e *elemBase) resetSetData(
 	if err != nil {
 		return err
 	}
-	e.incomingMetricType = incomingMetricType
 	e.id = id
 	e.sp = sp
 	e.aggTypes = aggTypes
@@ -209,11 +184,6 @@ func (e *elemBase) resetSetData(
 	e.numForwardedTimes = numForwardedTimes
 	e.tombstoned = false
 	e.closed = false
-	e.sourcesHeartbeat = nil
-	e.sourcesSet = nil
-	e.sourcesTTLNanos = e.opts.ForwardingSourcesTTLFn()(sp.Resolution().Window).Nanoseconds()
-	e.buildingSourcesAtNanos = 0
-	e.lastSourcesRefreshNanos = 0
 	return nil
 }
 
