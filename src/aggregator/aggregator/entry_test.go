@@ -1589,7 +1589,7 @@ func populateTestUntimedAggregations(
 			require.Fail(t, fmt.Sprintf("unrecognized metric type: %v", typ))
 		}
 		aggTypes := e.decompressor.MustDecompress(aggKey.aggregationID)
-		newElem.ResetSetData(StandardIncomingMetric, testID, aggKey.storagePolicy, aggTypes, aggKey.pipeline, 0)
+		newElem.ResetSetData(testID, aggKey.storagePolicy, aggTypes, aggKey.pipeline, 0)
 		listID := standardMetricListID{
 			resolution: aggKey.storagePolicy.Resolution().Window,
 		}.toMetricListID()

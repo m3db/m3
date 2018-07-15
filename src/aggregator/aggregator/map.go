@@ -51,10 +51,19 @@ var (
 	errWriteNewMetricRateLimitExceeded = errors.New("write new metric rate limit is exceeded")
 )
 
+type metricCategory int
+
+const (
+	// nolint: megacheck
+	unknownMetricCategory metricCategory = iota
+	untimedMetric
+	forwardedMetric
+)
+
 type entryKey struct {
-	incomingMetricType IncomingMetricType
-	metricType         metric.Type
-	idHash             hash.Hash128
+	metricCategory metricCategory
+	metricType     metric.Type
+	idHash         hash.Hash128
 }
 
 type hashedEntry struct {
@@ -136,9 +145,9 @@ func (m *metricMap) AddUntimed(
 	metadatas metadata.StagedMetadatas,
 ) error {
 	key := entryKey{
-		incomingMetricType: StandardIncomingMetric,
-		metricType:         metric.Type,
-		idHash:             hash.Murmur3Hash128(metric.ID),
+		metricCategory: untimedMetric,
+		metricType:     metric.Type,
+		idHash:         hash.Murmur3Hash128(metric.ID),
 	}
 	entry, err := m.findOrCreate(key)
 	if err != nil {
@@ -154,9 +163,9 @@ func (m *metricMap) AddForwarded(
 	metadata metadata.ForwardMetadata,
 ) error {
 	key := entryKey{
-		incomingMetricType: ForwardedIncomingMetric,
-		metricType:         metric.Type,
-		idHash:             hash.Murmur3Hash128(metric.ID),
+		metricCategory: forwardedMetric,
+		metricType:     metric.Type,
+		idHash:         hash.Murmur3Hash128(metric.ID),
 	}
 	entry, err := m.findOrCreate(key)
 	if err != nil {
@@ -295,10 +304,10 @@ func (m *metricMap) tick(target time.Duration) tickResult {
 				m.sleepFn(targetDeadline.Sub(now))
 			}
 		}
-		switch entry.key.incomingMetricType {
-		case StandardIncomingMetric:
+		switch entry.key.metricCategory {
+		case untimedMetric:
 			numStandardActive++
-		case ForwardedIncomingMetric:
+		case forwardedMetric:
 			numForwardedActive++
 		}
 		if entry.entry.ShouldExpire(now) {
@@ -324,11 +333,11 @@ func (m *metricMap) tick(target time.Duration) tickResult {
 	numStandardExpired += standardExpired
 	numForwardedExpired += forwardedExpired
 	return tickResult{
-		standard: tickResultForIncomingMetricType{
+		standard: tickResultForMetricCategory{
 			activeEntries:  numStandardActive - numStandardExpired,
 			expiredEntries: numStandardExpired,
 		},
-		forwarded: tickResultForIncomingMetricType{
+		forwarded: tickResultForMetricCategory{
 			activeEntries:  numForwardedActive - numForwardedExpired,
 			expiredEntries: numForwardedExpired,
 		},
@@ -347,10 +356,10 @@ func (m *metricMap) purgeExpired(
 	for i := range entries {
 		if entries[i].entry.TryExpire(now) {
 			key := entries[i].key
-			switch key.incomingMetricType {
-			case StandardIncomingMetric:
+			switch key.metricCategory {
+			case untimedMetric:
 				numStandardExpired++
-			case ForwardedIncomingMetric:
+			case forwardedMetric:
 				numForwardedExpired++
 			}
 			elem := m.entries[key]

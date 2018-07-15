@@ -404,19 +404,15 @@ func TestFollowerFlushTaskRun(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	var (
-		flushedBefore        = make([]int64, 3)
-		eagerForwardingModes = make([]eagerForwardingMode, 3)
-	)
+	flushedBefore := make([]int64, 3)
 	flushers := make([]flushingMetricList, 3)
 	for i := 0; i < 3; i++ {
 		i := i
 		flusher := NewMockflushingMetricList(ctrl)
 		flusher.EXPECT().
-			DiscardBefore(gomock.Any(), disAllowEagerForwarding).
-			Do(func(beforeNanos int64, eagerForwardingMode eagerForwardingMode) {
+			DiscardBefore(gomock.Any()).
+			Do(func(beforeNanos int64) {
 				flushedBefore[i] = beforeNanos
-				eagerForwardingModes[i] = eagerForwardingMode
 			})
 		flushers[i] = flusher
 	}
@@ -454,11 +450,4 @@ func TestFollowerFlushTaskRun(t *testing.T) {
 	}
 	flushTask.Run()
 	require.Equal(t, []int64{1234, 2345, 3456}, flushedBefore)
-
-	expectedEagerForwardingModes := []eagerForwardingMode{
-		disAllowEagerForwarding,
-		disAllowEagerForwarding,
-		disAllowEagerForwarding,
-	}
-	require.Equal(t, expectedEagerForwardingModes, eagerForwardingModes)
 }

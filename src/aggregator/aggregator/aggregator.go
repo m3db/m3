@@ -24,6 +24,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -200,7 +201,7 @@ func (agg *aggregator) AddForwarded(
 	callEnd := agg.nowFn()
 	agg.metrics.addForwarded.ReportSuccess(callEnd.Sub(callStart))
 	forwardingDelay := time.Duration(callEnd.UnixNano() - metric.TimeNanos)
-	agg.metrics.addForwarded.latencies.RecordDuration(
+	agg.metrics.addForwarded.ReportForwardingLatency(
 		metadata.StoragePolicy.Resolution().Window,
 		metadata.NumForwardedTimes,
 		forwardingDelay,
@@ -661,10 +662,18 @@ func (m *aggregatorAddUntimedMetrics) ReportError(err error) {
 	m.aggregatorAddMetricMetrics.ReportError(err)
 }
 
+type latencyBucketKey struct {
+	resolution        time.Duration
+	numForwardedTimes int
+}
+
 type aggregatorAddForwardedMetrics struct {
+	sync.RWMutex
 	aggregatorAddMetricMetrics
 
-	latencies *ForwardingLatencyHistograms
+	scope                       tally.Scope
+	maxAllowedForwardingDelayFn MaxAllowedForwardingDelayFn
+	forwardingLatency           map[latencyBucketKey]tally.Histogram
 }
 
 func newAggregatorAddForwardedMetrics(
@@ -672,27 +681,60 @@ func newAggregatorAddForwardedMetrics(
 	samplingRate float64,
 	maxAllowedForwardingDelayFn MaxAllowedForwardingDelayFn,
 ) aggregatorAddForwardedMetrics {
-	latencyScope := scope.Tagged(map[string]string{"latency-type": "current"})
-	bucketsFn := func(key ForwardingLatencyBucketKey, numLatencyBuckets int) tally.Buckets {
-		maxForwardingDelayAllowed := maxAllowedForwardingDelayFn(key.Resolution, key.NumForwardedTimes)
-		latencyBucketSize := maxForwardingDelayAllowed * 2 / time.Duration(numLatencyBuckets)
-		return tally.MustMakeLinearDurationBuckets(0, latencyBucketSize, numLatencyBuckets)
-	}
 	return aggregatorAddForwardedMetrics{
 		aggregatorAddMetricMetrics: newAggregatorAddMetricMetrics(scope, samplingRate),
-		latencies:                  NewForwardingLatencyHistograms(latencyScope, bucketsFn),
+		scope: scope,
+		maxAllowedForwardingDelayFn: maxAllowedForwardingDelayFn,
+		forwardingLatency:           make(map[latencyBucketKey]tally.Histogram),
 	}
 }
 
-type tickMetricsForIncomingMetricType struct {
+func (m *aggregatorAddForwardedMetrics) ReportForwardingLatency(
+	resolution time.Duration,
+	numForwardedTimes int,
+	duration time.Duration,
+) {
+	key := latencyBucketKey{
+		resolution:        resolution,
+		numForwardedTimes: numForwardedTimes,
+	}
+	m.RLock()
+	histogram, exists := m.forwardingLatency[key]
+	m.RUnlock()
+	if exists {
+		histogram.RecordDuration(duration)
+		return
+	}
+	m.Lock()
+	histogram, exists = m.forwardingLatency[key]
+	if exists {
+		m.Unlock()
+		histogram.RecordDuration(duration)
+		return
+	}
+	maxForwardingDelayAllowed := m.maxAllowedForwardingDelayFn(resolution, numForwardedTimes)
+	maxLatencyBucketLimit := maxForwardingDelayAllowed * maxLatencyBucketLimitScaleFactor
+	latencyBucketSize := maxLatencyBucketLimit / time.Duration(numLatencyBuckets)
+	latencyBuckets := tally.MustMakeLinearDurationBuckets(0, latencyBucketSize, numLatencyBuckets)
+	histogram = m.scope.Tagged(map[string]string{
+		"bucket-version":      strconv.Itoa(latencyBucketVersion),
+		"resolution":          resolution.String(),
+		"num-forwarded-times": strconv.Itoa(numForwardedTimes),
+	}).Histogram("forwarding-latency", latencyBuckets)
+	m.forwardingLatency[key] = histogram
+	m.Unlock()
+	histogram.RecordDuration(duration)
+}
+
+type tickMetricsForMetricCategory struct {
 	scope          tally.Scope
 	activeEntries  tally.Gauge
 	expiredEntries tally.Counter
 	activeElems    map[time.Duration]tally.Gauge
 }
 
-func newTickMetricsForIncomingMetricType(scope tally.Scope) tickMetricsForIncomingMetricType {
-	return tickMetricsForIncomingMetricType{
+func newTickMetricsForMetricCategory(scope tally.Scope) tickMetricsForMetricCategory {
+	return tickMetricsForMetricCategory{
 		scope:          scope,
 		activeEntries:  scope.Gauge("active-entries"),
 		expiredEntries: scope.Counter("expired-entries"),
@@ -700,7 +742,7 @@ func newTickMetricsForIncomingMetricType(scope tally.Scope) tickMetricsForIncomi
 	}
 }
 
-func (m tickMetricsForIncomingMetricType) Report(tickResult tickResultForIncomingMetricType) {
+func (m tickMetricsForMetricCategory) Report(tickResult tickResultForMetricCategory) {
 	m.activeEntries.Update(float64(tickResult.activeEntries))
 	m.expiredEntries.Inc(int64(tickResult.expiredEntries))
 	for dur, val := range tickResult.activeElems {
@@ -718,8 +760,8 @@ func (m tickMetricsForIncomingMetricType) Report(tickResult tickResultForIncomin
 type aggregatorTickMetrics struct {
 	flushTimesErrors tally.Counter
 	duration         tally.Timer
-	standard         tickMetricsForIncomingMetricType
-	forwarded        tickMetricsForIncomingMetricType
+	standard         tickMetricsForMetricCategory
+	forwarded        tickMetricsForMetricCategory
 }
 
 func newAggregatorTickMetrics(scope tally.Scope) aggregatorTickMetrics {
@@ -728,8 +770,8 @@ func newAggregatorTickMetrics(scope tally.Scope) aggregatorTickMetrics {
 	return aggregatorTickMetrics{
 		flushTimesErrors: scope.Counter("flush-times-errors"),
 		duration:         scope.Timer("duration"),
-		standard:         newTickMetricsForIncomingMetricType(standardScope),
-		forwarded:        newTickMetricsForIncomingMetricType(forwardedScope),
+		standard:         newTickMetricsForMetricCategory(standardScope),
+		forwarded:        newTickMetricsForMetricCategory(forwardedScope),
 	}
 }
 
@@ -850,3 +892,9 @@ const (
 )
 
 type sleepFn func(d time.Duration)
+
+const (
+	latencyBucketVersion             = 2
+	numLatencyBuckets                = 40
+	maxLatencyBucketLimitScaleFactor = 2
+)

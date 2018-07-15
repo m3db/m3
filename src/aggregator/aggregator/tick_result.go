@@ -22,16 +22,16 @@ package aggregator
 
 import "time"
 
-type tickResultForIncomingMetricType struct {
+type tickResultForMetricCategory struct {
 	activeEntries  int
 	expiredEntries int
 	activeElems    map[time.Duration]int
 }
 
-func (r *tickResultForIncomingMetricType) merge(
-	other tickResultForIncomingMetricType,
-) tickResultForIncomingMetricType {
-	res := tickResultForIncomingMetricType{
+func (r *tickResultForMetricCategory) merge(
+	other tickResultForMetricCategory,
+) tickResultForMetricCategory {
+	res := tickResultForMetricCategory{
 		activeEntries:  r.activeEntries + other.activeEntries,
 		expiredEntries: r.expiredEntries + other.expiredEntries,
 	}
@@ -51,8 +51,8 @@ func (r *tickResultForIncomingMetricType) merge(
 }
 
 type tickResult struct {
-	standard  tickResultForIncomingMetricType
-	forwarded tickResultForIncomingMetricType
+	standard  tickResultForMetricCategory
+	forwarded tickResultForMetricCategory
 }
 
 // merge merges two results. Both input results may become invalid after merge is called.

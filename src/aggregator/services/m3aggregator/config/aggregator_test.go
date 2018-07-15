@@ -24,8 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3aggregator/aggregator"
-
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
 )
@@ -118,69 +116,5 @@ func TestMaxAllowedForwardingDelayFnJitterDisabled(t *testing.T) {
 	}
 	for _, input := range inputs {
 		require.Equal(t, input.expected, fn(input.resolution, input.numForwardedTimes))
-	}
-}
-
-func TestFlushIntervalFn(t *testing.T) {
-	overrides := map[time.Duration]time.Duration{
-		10 * time.Second: 5 * time.Second,
-		time.Minute:      20 * time.Second,
-	}
-	c := forwardingConfiguration{FlushIntervalOverrides: overrides}
-	flushIntervalFn := c.FlushIntervalFn()
-	inputs := []struct {
-		metricType aggregator.IncomingMetricType
-		resolution time.Duration
-		expected   time.Duration
-	}{
-		{
-			metricType: aggregator.StandardIncomingMetric,
-			resolution: 10 * time.Second,
-			expected:   10 * time.Second,
-		},
-		{
-			metricType: aggregator.ForwardedIncomingMetric,
-			resolution: 10 * time.Second,
-			expected:   5 * time.Second,
-		},
-		{
-			metricType: aggregator.ForwardedIncomingMetric,
-			resolution: time.Minute,
-			expected:   20 * time.Second,
-		},
-		{
-			metricType: aggregator.ForwardedIncomingMetric,
-			resolution: 10 * time.Minute,
-			expected:   10 * time.Minute,
-		},
-	}
-
-	for _, input := range inputs {
-		require.Equal(t, input.expected, flushIntervalFn(input.metricType, input.resolution))
-	}
-}
-
-func TestForwardingSourcesTTLFn(t *testing.T) {
-	c := forwardingSourcesTTLConfiguration{
-		ByResolution: 10,
-		ByDuration:   5 * time.Minute,
-	}
-	ttlFn := c.ForwardingSourcesTTLFn()
-	inputs := []struct {
-		resolution time.Duration
-		expected   time.Duration
-	}{
-		{
-			resolution: 10 * time.Second,
-			expected:   5 * time.Minute,
-		},
-		{
-			resolution: time.Minute,
-			expected:   10 * time.Minute,
-		},
-	}
-
-	for _, input := range inputs {
-		require.Equal(t, input.expected, ttlFn(input.resolution))
 	}
 }
