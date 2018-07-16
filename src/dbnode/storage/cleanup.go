@@ -306,13 +306,42 @@ func (m *cleanupManager) commitLogTimes(t time.Time) (time.Time, []time.Time, er
 	if err != nil {
 		return time.Time{}, nil, err
 	}
+
+	// TODO: This should pass in the commit log duration as well isntead of just
+	// relying on the value in the configuration.
 	cleanupTimes := filterTimes(candidateTimes, func(t time.Time) bool {
 		for _, ns := range namespaces {
-			ropts := ns.Options().RetentionOptions()
-			start, end := commitLogNamespaceBlockTimes(t, blockSize, ropts)
-			if ns.NeedsFlush(start, end) {
+			var (
+				ropts      = ns.Options().RetentionOptions()
+				start, end = commitLogNamespaceBlockTimes(t, blockSize, ropts)
+				needsFlush = ns.NeedsFlush(start, end)
+			)
+
+			if !needsFlush {
+				// Data has been flushed to disk so the commit log file is
+				// safe to clean up.
+				continue
+			}
+
+			// Add commit log blockSize to the startTime because that is the latest
+			// system time that the commit log file could contain data for. Note that
+			// this is different than the latest datapoint timestamp that the commit
+			// log file could contain data for (because of bufferPast/bufferFuture),
+			// but the commit log files and snapshot files both deal with system time.
+			isCapturedBySnapshot, err := ns.IsCapturedBySnapshot(t.Add(blockSize))
+			if err != nil {
+				// TODO: Handle err
+				panic(err)
+			}
+
+			if !isCapturedBySnapshot {
+				// The data has not been flushed and has also not been captured by
+				// a snapshot, so it is not safe to clean up the commit log file.
 				return false
 			}
+
+			// All the data in the commit log file is captured by the snapshot files
+			// so its safe to clean up.
 		}
 		return true
 	})
@@ -320,7 +349,7 @@ func (m *cleanupManager) commitLogTimes(t time.Time) (time.Time, []time.Time, er
 	return earliest, cleanupTimes, nil
 }
 
-// commitLogNamespaceBlockTimes returns the range of namespace block starts which for which the
+// commitLogNamespaceBlockTimes returns the range of namespace block starts for which the
 // given commit log block may contain data for.
 //
 // consider the situation where we have a single namespace, and a commit log with the following
