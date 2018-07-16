@@ -120,6 +120,6 @@ curl -sSf -X POST http://localhost:9003/query -d '{
 }
 ```
 
-## Use integrations
+## Integrations
 
-Checkout the integrations documentation to integrate with our software, such as [Prometheus as a long term storage remote read/write endpoint](../integrations/prometheus.md).
+[Prometheus as a long term storage remote read/write endpoint](../integrations/prometheus.md).

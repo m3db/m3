@@ -197,7 +197,7 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 	placementProto := &placementpb.Placement{
 		Instances: map[string]*placementpb.Instance{
 			"localhost": &placementpb.Instance{
-				Id:             "m3db_local",
+				Id:             DefaultLocalHostID,
 				IsolationGroup: "local",
 				Zone:           "embedded",
 				Weight:         1,
@@ -301,7 +301,7 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 	placementProto := &placementpb.Placement{
 		Instances: map[string]*placementpb.Instance{
 			"localhost": &placementpb.Instance{
-				Id:             "m3db_local",
+				Id:             DefaultLocalHostID,
 				IsolationGroup: "local",
 				Zone:           "embedded",
 				Weight:         1,

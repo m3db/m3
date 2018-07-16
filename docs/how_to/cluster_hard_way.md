@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This document lists the manual steps involved in deploying a M3DB cluster. In practice, you wouldn’t be doing this by hand, you’d be automating it using Terraform or Kubernetes. If you’re interested in how you could do so, we have some other guides you might be interested under the How-To section.
+This document lists the manual steps involved in deploying a M3DB cluster. In practice, you'd be automating this using Terraform or using Kubernetes rather than doing this by hand; guides for doing so are available under the How-To section.
 
 ## Primer Architecture
 A quick primer on M3DB architecture. Here’s what a typical deployment looks like:
@@ -237,6 +237,6 @@ curl -sSf -X POST http://localhost:9003/query -d '{
 }' | jq .
 ```
 
-## Use integrations
+## Integrations
 
-Checkout the integrations documentation to integrate with our software, such as [Prometheus as a long term storage remote read/write endpoint](../integrations/prometheus.md).
+[Prometheus as a long term storage remote read/write endpoint](../integrations/prometheus.md).

@@ -53,6 +53,9 @@ const (
 	// CreateHTTPMethod is the HTTP method used with this resource.
 	CreateHTTPMethod = http.MethodPost
 
+	// DefaultLocalHostID is the default local host ID when creating a database.
+	DefaultLocalHostID = "m3db_local"
+
 	idealDatapointsPerBlock           = 720
 	blockSizeFromExpectedSeriesScalar = idealDatapointsPerBlock * int64(time.Hour)
 	shardMultiplier                   = 64
@@ -321,7 +324,7 @@ func defaultedPlacementInitRequest(
 		replicationFactor = 1
 		instances = []*placementpb.Instance{
 			&placementpb.Instance{
-				Id:             "m3db_local",
+				Id:             DefaultLocalHostID,
 				IsolationGroup: "local",
 				Zone:           "embedded",
 				Weight:         1,
