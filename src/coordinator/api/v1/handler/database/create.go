@@ -53,6 +53,9 @@ const (
 	// CreateHTTPMethod is the HTTP method used with this resource.
 	CreateHTTPMethod = http.MethodPost
 
+	// DefaultLocalHostID is the default local host ID when creating a database.
+	DefaultLocalHostID = "m3db_local"
+
 	idealDatapointsPerBlock           = 720
 	blockSizeFromExpectedSeriesScalar = idealDatapointsPerBlock * int64(time.Hour)
 	shardMultiplier                   = 64
@@ -221,18 +224,27 @@ func defaultedNamespaceAddRequest(r *admin.DatabaseCreateRequest) (*admin.Namesp
 		opts = opts.SetRepairEnabled(false)
 		retentionOpts := opts.RetentionOptions()
 
-		if r.RetentionPeriodNanos <= 0 {
+		if r.RetentionTime == "" {
 			retentionOpts = retentionOpts.SetRetentionPeriod(defaultLocalRetentionPeriod)
 		} else {
-			retentionOpts = retentionOpts.SetRetentionPeriod(time.Duration(r.RetentionPeriodNanos))
+			value, err := time.ParseDuration(r.RetentionTime)
+			if err != nil {
+				return nil, fmt.Errorf("invalid retention time: %v", err)
+			}
+			retentionOpts = retentionOpts.SetRetentionPeriod(value)
 		}
 
 		retentionPeriod := retentionOpts.RetentionPeriod()
 
 		var blockSize time.Duration
 		switch {
-		case r.BlockSize != nil && r.BlockSize.Nanos > 0:
-			blockSize = time.Duration(r.BlockSize.Nanos)
+		case r.BlockSize != nil && r.BlockSize.Time != "":
+			value, err := time.ParseDuration(r.BlockSize.Time)
+			if err != nil {
+				return nil, fmt.Errorf("invalid block size time: %v", err)
+			}
+			blockSize = value
+
 		case r.BlockSize != nil && r.BlockSize.ExpectedSeriesDatapointsPerHour > 0:
 			value := r.BlockSize.ExpectedSeriesDatapointsPerHour
 			blockSize = time.Duration(blockSizeFromExpectedSeriesScalar / value)
@@ -254,6 +266,7 @@ func defaultedNamespaceAddRequest(r *admin.DatabaseCreateRequest) (*admin.Namesp
 			} else if blockSize > maxRecommendCalculateBlockSize {
 				blockSize = maxRecommendCalculateBlockSize
 			}
+
 		default:
 			// Use the maximum block size if we don't find a way to
 			// recommended one based on request parameters
@@ -265,6 +278,7 @@ func defaultedNamespaceAddRequest(r *admin.DatabaseCreateRequest) (*admin.Namesp
 					break
 				}
 			}
+
 		}
 
 		retentionOpts = retentionOpts.SetBlockSize(blockSize)
@@ -310,7 +324,7 @@ func defaultedPlacementInitRequest(
 		replicationFactor = 1
 		instances = []*placementpb.Instance{
 			&placementpb.Instance{
-				Id:             "localhost",
+				Id:             DefaultLocalHostID,
 				IsolationGroup: "local",
 				Zone:           "embedded",
 				Weight:         1,

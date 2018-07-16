@@ -14,8 +14,8 @@ message DatabaseCreateRequest {
   int32 num_shards = 3;
   int32 replication_factor = 4;
 
-  // The below two options are used to default retention options
-  int64 retention_period_nanos = 5;
+  // Explicit retention time using time shorthand, e.g. "48h"
+  string retention_time = 5;
 
   // If no block size fields are set then the block size is
   // derived from the length of the retention period
@@ -26,8 +26,8 @@ message DatabaseCreateRequest {
 }
 
 message BlockSize {
-  // Explicit block size nanoseconds
-  int64 nanos = 1;
+  // Explicit block size using time shorthand, e.g. "2h"
+  string time = 1;
   // With the expected series datapoints per hour, use a recommended block size
   int64 expected_series_datapoints_per_hour = 2;
 }
