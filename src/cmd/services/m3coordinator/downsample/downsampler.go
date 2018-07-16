@@ -23,10 +23,8 @@ package downsample
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math"
 	"runtime"
-	"sort"
 	"sync"
 	"time"
 
@@ -49,12 +47,8 @@ import (
 	"github.com/m3db/m3metrics/matcher/cache"
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/id"
-	"github.com/m3db/m3metrics/metric/unaggregated"
-	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/clock"
-	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
@@ -75,7 +69,7 @@ const (
 var (
 	numShards = runtime.NumCPU()
 
-	errNoStorage               = errors.New("dynamic downsampling enabled with storage set")
+	errNoStorage               = errors.New("dynamic downsampling enabled with storage not set")
 	errNoRulesStore            = errors.New("dynamic downsampling enabled with rules store not set")
 	errNoClockOptions          = errors.New("dynamic downsampling enabled with clock options not set")
 	errNoInstrumentOptions     = errors.New("dynamic downsampling enabled with instrument options not set")
@@ -87,7 +81,7 @@ var (
 
 // Downsampler is a downsampler.
 type Downsampler interface {
-	MetricsAppender() MetricsAppender
+	NewMetricsAppender() MetricsAppender
 }
 
 // MetricsAppender is a metrics appender that can
@@ -120,7 +114,7 @@ type DownsamplerOptions struct {
 	TagDecoderPoolOptions   pool.ObjectPoolOptions
 }
 
-// Validate will validate the dynamic downsampling options.
+// Validate validates the dynamic downsampling options.
 func (o DownsamplerOptions) Validate() error {
 	if o.Storage == nil {
 		return errNoStorage
@@ -487,11 +481,14 @@ func (w *downsamplerFlushHandlerWriter) Write(
 }
 
 func (w *downsamplerFlushHandlerWriter) Flush() error {
+	// TODO: This is a just simply waiting for inflight requests
+	// to complete since this flush handler isn't connection based.
 	w.wg.Wait()
 	return nil
 }
 
 func (w *downsamplerFlushHandlerWriter) Close() error {
+	// TODO: This is a no-op since this flush handler isn't connection based.
 	return nil
 }
 
@@ -513,7 +510,7 @@ func NewDownsampler(
 	}, nil
 }
 
-func (d *downsampler) MetricsAppender() MetricsAppender {
+func (d *downsampler) NewMetricsAppender() MetricsAppender {
 	return newMetricsAppender(metricsAppenderOptions{
 		agg:                     d.aggregator.aggregator,
 		clockOpts:               d.aggregator.clockOpts,
@@ -529,212 +526,4 @@ func newMetricsAppender(opts metricsAppenderOptions) *metricsAppender {
 		tags:                 newTags(),
 		multiSamplesAppender: newMultiSamplesAppender(),
 	}
-}
-
-type metricsAppender struct {
-	metricsAppenderOptions
-
-	tags                 *tags
-	multiSamplesAppender *multiSamplesAppender
-}
-
-type metricsAppenderOptions struct {
-	agg                     aggregator.Aggregator
-	clockOpts               clock.Options
-	tagEncoder              serialize.TagEncoder
-	matcher                 matcher.Matcher
-	encodedTagsIteratorPool *encodedTagsIteratorPool
-}
-
-func (a *metricsAppender) AddTag(name, value string) {
-	a.tags.names = append(a.tags.names, name)
-	a.tags.values = append(a.tags.values, name)
-}
-
-func (a *metricsAppender) SamplesAppender() (SamplesAppender, error) {
-	// Sort tags
-	sort.Sort(a.tags)
-
-	// Encode tags and compute a temporary (unowned) ID
-	a.tagEncoder.Reset()
-	if err := a.tagEncoder.Encode(a.tags); err != nil {
-		return nil, err
-	}
-	data, ok := a.tagEncoder.Data()
-	if !ok {
-		return nil, fmt.Errorf("unable to encode tags: names=%v, values=%v",
-			a.tags.names, a.tags.values)
-	}
-
-	unownedID := data.Bytes()
-
-	// Match policies and rollups and build samples appender
-	id := a.encodedTagsIteratorPool.Get()
-	id.Reset(unownedID)
-	now := time.Now()
-	fromNanos, toNanos := now.Add(-1*a.clockOpts.MaxNegativeSkew()).UnixNano(),
-		now.Add(1*a.clockOpts.MaxPositiveSkew()).UnixNano()
-	matchResult := a.matcher.ForwardMatch(id, fromNanos, toNanos)
-	id.Close()
-
-	policies := matchResult.MappingsAt(now.UnixNano())
-
-	a.multiSamplesAppender.reset()
-	a.multiSamplesAppender.addSamplesAppender(samplesAppender{
-		agg:       a.agg,
-		unownedID: unownedID,
-		policies:  policies,
-	})
-
-	numRollups := matchResult.NumRollups()
-	for i := 0; i < numRollups; i++ {
-		rollup, ok := matchResult.RollupsAt(i, now.UnixNano())
-		if !ok {
-			continue
-		}
-
-		a.multiSamplesAppender.addSamplesAppender(samplesAppender{
-			agg:       a.agg,
-			unownedID: rollup.ID,
-			policies:  rollup.PoliciesList,
-		})
-	}
-
-	return a.multiSamplesAppender, nil
-}
-
-func (a *metricsAppender) Reset() {
-	a.tags.names = a.tags.names[:0]
-	a.tags.values = a.tags.values[:0]
-}
-
-func (a *metricsAppender) Finalize() {
-	a.tagEncoder.Finalize()
-	a.tagEncoder = nil
-}
-
-type samplesAppender struct {
-	agg       aggregator.Aggregator
-	unownedID []byte
-	policies  policy.PoliciesList
-}
-
-func (a samplesAppender) AppendCounterSample(value int64) error {
-	sample := unaggregated.MetricUnion{
-		Type:       unaggregated.CounterType,
-		OwnsID:     false,
-		ID:         a.unownedID,
-		CounterVal: value,
-	}
-	return a.agg.AddMetricWithPoliciesList(sample, a.policies)
-}
-
-func (a samplesAppender) AppendGaugeSample(value float64) error {
-	sample := unaggregated.MetricUnion{
-		Type:     unaggregated.GaugeType,
-		OwnsID:   false,
-		ID:       a.unownedID,
-		GaugeVal: value,
-	}
-	return a.agg.AddMetricWithPoliciesList(sample, a.policies)
-}
-
-// Ensure multiSamplesAppender implements SamplesAppender
-var _ SamplesAppender = (*multiSamplesAppender)(nil)
-
-type multiSamplesAppender struct {
-	appenders []samplesAppender
-}
-
-func newMultiSamplesAppender() *multiSamplesAppender {
-	return &multiSamplesAppender{}
-}
-
-func (a *multiSamplesAppender) reset() {
-	var zeroedSamplesAppender samplesAppender
-	for i := range a.appenders {
-		a.appenders[i] = zeroedSamplesAppender
-	}
-	a.appenders = a.appenders[:0]
-}
-
-func (a *multiSamplesAppender) addSamplesAppender(v samplesAppender) {
-	a.appenders = append(a.appenders, v)
-}
-
-func (a *multiSamplesAppender) AppendCounterSample(value int64) error {
-	var multiErr xerrors.MultiError
-	for _, appender := range a.appenders {
-		multiErr = multiErr.Add(appender.AppendCounterSample(value))
-	}
-	return multiErr.FinalError()
-}
-
-func (a *multiSamplesAppender) AppendGaugeSample(value float64) error {
-	var multiErr xerrors.MultiError
-	for _, appender := range a.appenders {
-		multiErr = multiErr.Add(appender.AppendGaugeSample(value))
-	}
-	return multiErr.FinalError()
-}
-
-type tags struct {
-	names    []string
-	values   []string
-	idx      int
-	nameBuf  []byte
-	valueBuf []byte
-}
-
-var _ ident.TagIterator = &tags{}
-var _ sort.Interface = &tags{}
-
-func newTags() *tags {
-	return &tags{
-		names:  make([]string, 0, initAllocTagsSliceCapacity),
-		values: make([]string, 0, initAllocTagsSliceCapacity),
-		idx:    -1,
-	}
-}
-
-func (t *tags) Len() int {
-	return len(t.names)
-}
-
-func (t *tags) Swap(i, j int) {
-	t.names[i], t.names[j] = t.names[j], t.names[i]
-	t.values[i], t.values[j] = t.values[j], t.values[i]
-}
-
-func (t *tags) Less(i, j int) bool {
-	return t.names[i] < t.names[j]
-}
-
-func (t *tags) Next() bool {
-	return t.idx+1 < len(t.names)
-}
-
-func (t *tags) Current() ident.Tag {
-	t.nameBuf = append(t.nameBuf[:0], t.names[t.idx]...)
-	t.valueBuf = append(t.valueBuf[:0], t.values[t.idx]...)
-	return ident.Tag{
-		Name:  ident.BytesID(t.nameBuf),
-		Value: ident.BytesID(t.valueBuf),
-	}
-}
-
-func (t *tags) Err() error {
-	return nil
-}
-
-func (t *tags) Close() {
-
-}
-
-func (t *tags) Remaining() int {
-	return t.idx + 1 - (len(t.names) - 1)
-}
-
-func (t *tags) Duplicate() ident.TagIterator {
-	return &tags{idx: -1, names: t.names, values: t.values}
 }

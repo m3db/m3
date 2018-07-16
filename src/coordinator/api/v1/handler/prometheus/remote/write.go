@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3db/src/coordinator/storage"
 	"github.com/m3db/m3db/src/coordinator/util/execution"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
-
 	xerrors "github.com/m3db/m3x/errors"
 
 	"github.com/golang/protobuf/proto"
@@ -134,7 +133,7 @@ func (h *PromWriteHandler) write(ctx context.Context, r *prompb.WriteRequest) er
 			defer wg.Done()
 
 			var (
-				metricsAppender = h.downsampler.MetricsAppender()
+				metricsAppender = h.downsampler.NewMetricsAppender()
 				multiErr        xerrors.MultiError
 			)
 			for _, ts := range r.Timeseries {
@@ -148,6 +147,7 @@ func (h *PromWriteHandler) write(ctx context.Context, r *prompb.WriteRequest) er
 					multiErr = multiErr.Add(err)
 					continue
 				}
+
 				for _, elem := range ts.Samples {
 					err := samplesAppender.AppendGaugeSample(elem.Value)
 					if err != nil {
