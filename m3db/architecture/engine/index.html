@@ -19,10 +19,6 @@
       
         <meta name="lang:search.language" content="en">
       
-        <meta name="lang:search.pipeline.stopwords" content="True">
-      
-        <meta name="lang:search.pipeline.trimmer" content="True">
-      
         <meta name="lang:search.result.none" content="No matching documents">
       
         <meta name="lang:search.result.one" content="1 matching document">
@@ -32,7 +28,7 @@
         <meta name="lang:search.tokenizer" content="[\s\-]+">
       
       <link rel="shortcut icon" href="../../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-0.17.3, mkdocs-material-2.7.3">
+      <meta name="generator" content="mkdocs-0.17.3, mkdocs-material-2.0.4">
     
     
       
@@ -40,14 +36,15 @@
       
     
     
-      <link rel="stylesheet" href="../../../assets/stylesheets/application.8d40d89b.css">
+      <link rel="stylesheet" href="../../../assets/stylesheets/application-709eec9410.css">
+      
+        <link rel="stylesheet" href="../../../assets/stylesheets/application-23f75ab9c7.palette.css">
       
     
     
-      <script src="../../../assets/javascripts/modernizr.1aa3b519.js"></script>
+      <script src="../../../assets/javascripts/modernizr-e826f8942a.js"></script>
     
     
-      <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
       
         <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700|Roboto+Mono">
         <style>body,input{font-family:"Roboto","Helvetica Neue",Helvetica,Arial,sans-serif}code,kbd,pre{font-family:"Roboto Mono","Courier New",Courier,monospace}</style>
@@ -58,41 +55,23 @@
     
   </head>
   
-    <body dir="ltr">
+    
+    
+    
+      <body data-md-color-primary="indigo" data-md-color-accent="indigo">
+    
   
     <svg class="md-svg">
       <defs>
         
         
-          <svg xmlns="http://www.w3.org/2000/svg" width="416" height="448"
-    viewBox="0 0 416 448" id="github">
-  <path fill="currentColor" d="M160 304q0 10-3.125 20.5t-10.75 19-18.125
-        8.5-18.125-8.5-10.75-19-3.125-20.5 3.125-20.5 10.75-19 18.125-8.5
-        18.125 8.5 10.75 19 3.125 20.5zM320 304q0 10-3.125 20.5t-10.75
-        19-18.125 8.5-18.125-8.5-10.75-19-3.125-20.5 3.125-20.5 10.75-19
-        18.125-8.5 18.125 8.5 10.75 19 3.125 20.5zM360
-        304q0-30-17.25-51t-46.75-21q-10.25 0-48.75 5.25-17.75 2.75-39.25
-        2.75t-39.25-2.75q-38-5.25-48.75-5.25-29.5 0-46.75 21t-17.25 51q0 22 8
-        38.375t20.25 25.75 30.5 15 35 7.375 37.25 1.75h42q20.5 0
-        37.25-1.75t35-7.375 30.5-15 20.25-25.75 8-38.375zM416 260q0 51.75-15.25
-        82.75-9.5 19.25-26.375 33.25t-35.25 21.5-42.5 11.875-42.875 5.5-41.75
-        1.125q-19.5 0-35.5-0.75t-36.875-3.125-38.125-7.5-34.25-12.875-30.25-20.25-21.5-28.75q-15.5-30.75-15.5-82.75
-        0-59.25 34-99-6.75-20.5-6.75-42.5 0-29 12.75-54.5 27 0 47.5 9.875t47.25
-        30.875q36.75-8.75 77.25-8.75 37 0 70 8 26.25-20.5
-        46.75-30.25t47.25-9.75q12.75 25.5 12.75 54.5 0 21.75-6.75 42 34 40 34
-        99.5z" />
-</svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="416" height="448" viewBox="0 0 416 448" id="github"><path fill="currentColor" d="M160 304q0 10-3.125 20.5t-10.75 19T128 352t-18.125-8.5-10.75-19T96 304t3.125-20.5 10.75-19T128 256t18.125 8.5 10.75 19T160 304zm160 0q0 10-3.125 20.5t-10.75 19T288 352t-18.125-8.5-10.75-19T256 304t3.125-20.5 10.75-19T288 256t18.125 8.5 10.75 19T320 304zm40 0q0-30-17.25-51T296 232q-10.25 0-48.75 5.25Q229.5 240 208 240t-39.25-2.75Q130.75 232 120 232q-29.5 0-46.75 21T56 304q0 22 8 38.375t20.25 25.75 30.5 15 35 7.375 37.25 1.75h42q20.5 0 37.25-1.75t35-7.375 30.5-15 20.25-25.75T360 304zm56-44q0 51.75-15.25 82.75-9.5 19.25-26.375 33.25t-35.25 21.5-42.5 11.875-42.875 5.5T212 416q-19.5 0-35.5-.75t-36.875-3.125-38.125-7.5-34.25-12.875T37 371.5t-21.5-28.75Q0 312 0 260q0-59.25 34-99-6.75-20.5-6.75-42.5 0-29 12.75-54.5 27 0 47.5 9.875t47.25 30.875Q171.5 96 212 96q37 0 70 8 26.25-20.5 46.75-30.25T376 64q12.75 25.5 12.75 54.5 0 21.75-6.75 42 34 40 34 99.5z"/></svg>
         
       </defs>
     </svg>
-    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="drawer" autocomplete="off">
-    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="search" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="drawer">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="search">
     <label class="md-overlay" data-md-component="overlay" for="drawer"></label>
-    
-      <a href="#storage-engine-overview" tabindex="1" class="md-skip">
-        Skip to content
-      </a>
-    
     
       <header class="md-header" data-md-component="header">
   <nav class="md-header-nav md-grid">
@@ -108,18 +87,22 @@
         <label class="md-icon md-icon--menu md-header-nav__button" for="drawer"></label>
       </div>
       <div class="md-flex__cell md-flex__cell--stretch">
-        <div class="md-flex__ellipsis md-header-nav__title" data-md-component="title">
+        <span class="md-flex__ellipsis md-header-nav__title">
           
             
-              <span class="md-header-nav__topic">
-                M3 Documentation
-              </span>
-              <span class="md-header-nav__topic">
-                Storage Engine
-              </span>
+              
+                <span class="md-header-nav__parent">
+                  M3DB
+                </span>
+              
+                <span class="md-header-nav__parent">
+                  Architecture
+                </span>
+              
             
+            Storage Engine
           
-        </div>
+        </span>
       </div>
       <div class="md-flex__cell md-flex__cell--shrink">
         
@@ -128,13 +111,11 @@
             
 <div class="md-search" data-md-component="search" role="dialog">
   <label class="md-search__overlay" for="search"></label>
-  <div class="md-search__inner" role="search">
+  <div class="md-search__inner">
     <form class="md-search__form" name="search">
-      <input type="text" class="md-search__input" name="query" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="query" data-md-state="active">
+      <input type="text" class="md-search__input" name="query" required placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="query">
       <label class="md-icon md-search__icon" for="search"></label>
-      <button type="reset" class="md-icon md-search__icon" data-md-component="reset" tabindex="-1">
-        &#xE5CD;
-      </button>
+      <button type="reset" class="md-icon md-search__icon" data-md-component="reset">&#xE5CD;</button>
     </form>
     <div class="md-search__output">
       <div class="md-search__scrollwrap" data-md-scrollfix>
@@ -181,9 +162,6 @@
 </header>
     
     <div class="md-container">
-      
-        
-      
       
       <main class="md-main">
         <div class="md-main__inner md-grid" data-md-component="container">
@@ -488,8 +466,6 @@
       
       
       
-      
-      
     </ul>
   
 </nav>
@@ -589,10 +565,118 @@
       <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4">
     
     <label class="md-nav__link" for="nav-4">
-      How-To's
+      Query Engine/Coordinator
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
       <label class="md-nav__title" for="nav-4">
+        Query Engine/Coordinator
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../query_engine/" title="Introduction" class="md-nav__link">
+      Introduction
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../query_engine/roadmap/" title="Roadmap" class="md-nav__link">
+      Roadmap
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-3" type="checkbox" id="nav-4-3">
+    
+    <label class="md-nav__link" for="nav-4-3">
+      Architecture
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-4-3">
+        Architecture
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../query_engine/architecture/" title="Overview" class="md-nav__link">
+      Overview
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../query_engine/architecture/blocks/" title="Blocks" class="md-nav__link">
+      Blocks
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../query_engine/architecture/functions/" title="Function Processing" class="md-nav__link">
+      Function Processing
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5">
+    
+    <label class="md-nav__link" for="nav-5">
+      How-To's
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-5">
         How-To's
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
@@ -646,13 +730,13 @@
 
   <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-6" type="checkbox" id="nav-6">
     
-    <label class="md-nav__link" for="nav-5">
+    <label class="md-nav__link" for="nav-6">
       Integrations
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
-      <label class="md-nav__title" for="nav-5">
+      <label class="md-nav__title" for="nav-6">
         Integrations
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
@@ -823,8 +907,6 @@
       
       
       
-      
-      
     </ul>
   
 </nav>
@@ -929,20 +1011,22 @@ series_object       =&gt; map<block_start_time, active_buffers(encoders)> (This 
 <p>While in-memory databases can be useful (and M3DB supports operating in a memory-only mode), some form of persistence is required for durability. In other words, without a persistence strategy then it would be impossible for M3DB to restart (or recover from a crash) without losing all of its data.</p>
 <p>In addition, with large volumes of data it becomes prohibitively expensive to keep all of the data in memory. This is especially true for monitoring workloads which often follow a "write-once, read-never" pattern where less than a few percent of all the data that's stored is ever read. With that type of workload, its wasteful to keep all of that data in memory when it could be persisted on disk and retrieved when required.</p>
 <p>Like most other databases, M3DB takes a two-pronged approach to persistant storage that involves combining a commitlog (for disaster recovery) with periodic snapshotting (for efficient retrieval):</p>
-<p>1) All writes are persisted to a <a href="../commitlogs/">commitlog</a> (the commitlog can be configured to fsync every write, or optionally batch writes together which is much faster but leaves open the possibility of small amounts of data loss in the case of a catastrophic failure). The commitlog is completely uncompressed and exists only to recover "unflushed" data in the case of a database shutdown (intentional or not) and is never used to satisfy a read request.
-2) Periodically (based on the configured blocksize) all "active" blocks are "sealed" (marked as immutable) and flushed to disk as <a href="../storage/">"fileset" files</a>. These files are highly compressed and can be indexed into via their complementary index files. Check out the <a href="./#flushing">flushing section</a> to learn more about the background flushing process.</p>
-<p>The blocksize parameter is the most important variable that needs to be turned for your particular workload. A small blocksize will mean more frequent flushing and a smaller memory footprint for the data that is being actively compressed, but it will also reduce the compression ratio and your data will take up more space on disk.</p>
-<p>If the database is stopped for any reason in-between "flushes" (writing fileset files out to disk), then when the node is started back up those writes will need to be recovered by reading the commitlog or streaming in the data from a peer responsible for the same shard (if the replication factor is larger than 1.)</p>
+<ol>
+<li>All writes are persisted to a <a href="../commitlogs/">commitlog</a> (the commitlog can be configured to fsync every write, or optionally batch writes together which is much faster but leaves open the possibility of small amounts of data loss in the case of a catastrophic failure). The commitlog is completely uncompressed and exists only to recover "unflushed" data in the case of a database shutdown (intentional or not) and is never used to satisfy a read request.</li>
+<li>Periodically (based on the configured blocksize) all "active" blocks are "sealed" (marked as immutable) and flushed to disk as <a href="../storage/">"fileset" files</a>. These files are highly compressed and can be indexed into via their complementary index files. Check out the <a href="./#flushing">flushing section</a> to learn more about the background flushing process.</li>
+</ol>
+<p>The blocksize parameter is the most important variable that needs to be tuned for your particular workload. A small blocksize will mean more frequent flushing and a smaller memory footprint for the data that is being actively compressed, but it will also reduce the compression ratio and your data will take up more space on disk.</p>
+<p>If the database is stopped for any reason in-between "flushes" (writing fileset files out to disk), then when the node is started back up those writes will need to be recovered by reading the commitlog or streaming in the data from a peer responsible for the same shard (if the replication factor is larger than 1).</p>
 <p>While the <a href="../storage/">fileset files</a> are designed to support efficient data retrieval via the series primary key (the ID), there is still a heavy cost associated with any query that has to retrieve data from disk because going to disk is always much slower than accessing main memory. To compensate for that, M3DB support various <a href="../caching/">caching policies</a> which can significantly improve the performance of reads by caching data in memory.</p>
 <h2 id="write-path">Write Path</h2>
-<p>We now have enough context of M3DB's architecture to discuss the lifecycle of a write. A write begins when an M3DB client calls the <a href="https://github.com/m3db/m3db/blob/master/generated/thrift/rpc.thrift"><code>writeBatchRaw</code></a> endpoint on M3DB's embedded thrift server. The write itself will contain the following information:</p>
+<p>We now have enough context of M3DB's architecture to discuss the lifecycle of a write. A write begins when an M3DB client calls the <a href="https://github.com/m3db/m3db/blob/06d3ecc94d13cff67b82a791271816caa338dcab/src/dbnode/generated/thrift/rpc.thrift#L59"><code>writeBatchRaw</code></a> endpoint on M3DB's embedded thrift server. The write itself will contain the following information:</p>
 <ol>
 <li>The namespace</li>
 <li>The series ID (byte blob)</li>
 <li>The timestamp</li>
 <li>The value itself</li>
 </ol>
-<p>M3DB will consult the database object to check if the namespace exists, and if it does,then it will hash the series ID to determine which shard it belongs to. If the node receiving the write owns that shard, then it will lookup the series in the shard object. If the series exists, then it will lookup the series corresponding encoder and encode the datapoint into the compressed stream. If the encoder doesn't exist (no writes for this series have occurred yet as part of this block) then a new encoder will be allocated and it will begin a compressed M3TSZ stream with that datapoint. There is also some special logic for handling out-of-order writes which is discussed in the <a href="./#merging-all-enoders">merging all encoders section</a>.</p>
+<p>M3DB will consult the database object to check if the namespace exists, and if it does,then it will hash the series ID to determine which shard it belongs to. If the node receiving the write owns that shard, then it will lookup the series in the shard object. If the series exists, then it will lookup the series' corresponding encoder and encode the datapoint into the compressed stream. If the encoder doesn't exist (no writes for this series have occurred yet as part of this block) then a new encoder will be allocated and it will begin a compressed M3TSZ stream with that datapoint. There is also some special logic for handling out-of-order writes which is discussed in the <a href="./#merging-all-enoders">merging all encoders section</a>.</p>
 <p>At the same time, the write will be appended to the commitlog queue (and depending on the commitlog configuration immediately fsync'd to disk or batched together with other writes and flushed out all at once).</p>
 <p>The write will exist only in this "active buffer" and the commitlog until the block ends and is flushed to disk, at which point the write will exist in a fileset file for efficient storage and retrieval later and the commitlog entry can be garbage collected.</p>
 <p><strong>Note:</strong> Regardless of the success or failure of the write in a single node, the client will return a success or failure to the caller for the write based on the configured <a href="../consistencylevels/">consistency level</a>.</p>
@@ -962,15 +1046,17 @@ series_object       =&gt; map<block_start_time, active_buffers(encoders)> (This 
 <p>If the series exists, then for every block that the request spans, M3DB needs to consolidate data from the active buffers, in-memory cache, and fileset files (disk).</p>
 <p>Lets imagine a read for a given series that requests the last 6 hours worth of data, and an M3DB namespace that is configured with a blocksize of 2 hours (i.e we need to find 3 different blocks.)</p>
 <p>If the current time is 8PM, then the location of the requested blocks might be as follows:</p>
-<pre><code>[2PM - 4PM (FileSet file)] - Sealed and flushed block that isn't cached
+<pre><code>[2PM - 4PM (FileSet file)]    - Sealed and flushed block that isn't cached
 [4PM - 6PM (In-memory cache)] - Sealed and flush block that is cached
-[6PM - 8PM (active buffer)] - Hasn't been sealed or flushed yet
+[6PM - 8PM (active buffer)]   - Hasn't been sealed or flushed yet
 </code></pre>
 
 <p>Then M3DB will need to consolidate:</p>
-<p>1) The not-yet-sealed block from the active buffers / encoders (located inside an internal lookup in the Series object) <strong>[6PM - 8PM]</strong>
-2) The in-memory cached block (also located inside an internal lookup in the Series object) <strong>[4PM - 6PM]</strong>
-3) The block from disk (the block retrieve from disk will then be cached according to the current <a href="../caching/">caching policy</a> <strong>[2PM - 4PM]</strong></p>
+<ol>
+<li>The not-yet-sealed block from the active buffers / encoders (located inside an internal lookup in the Series object) <strong>[6PM - 8PM]</strong></li>
+<li>The in-memory cached block (also located inside an internal lookup in the Series object) <strong>[4PM - 6PM]</strong></li>
+<li>The block from disk (the block retrieve from disk will then be cached according to the current <a href="../caching/">caching policy</a> <strong>[2PM - 4PM]</strong></li>
+</ol>
 <p>Retrieving blocks from the active buffers and in-memory cache is simple, the data is already present in memory and easily accessible via hashmaps keyed by series ID. Retrieving a block from disk is more complicated. The flow for retrieving a block from disk is as follows:</p>
 <ol>
 <li>Consult the in-memory bloom filter to determine if its possible the series exists on disk.</li>
@@ -978,8 +1064,8 @@ series_object       =&gt; map<block_start_time, active_buffers(encoders)> (This 
 <li>Jump to the offset in the index file that we obtained from the binary search in the previous step, and begin scanning forward until we identify the index entry for the series ID we're looking for <em>or</em> we get far enough in the index file that it becomes clear that the ID we're looking for doesn't exist (this is possible because the index file is sorted by ID)</li>
 <li>Jump to the offset in the data file that we obtained from scanning the index file in the previous step, and begin streaming data.</li>
 </ol>
-<p>Once M3DB has retrieved the three blocks from their respective locations in memory / on-disk, it will transmit all of the data back to the client. Whether or the client returns a success to the caller for the read is dependent on the configured <a href="../consistencylevels/">consistency level</a>.</p>
-<p><strong>Note:</strong> Since M3DB nodes return compressed blocks (the M3DB client decompresses them) its not possible to return "partial results" for a given block. If any portion of a read requests spans a given block, then that block in its entirety must be transmitted back to the client. In practice, this ends up being not much of an issue because of the high compression ratio that M3DB is able to achieve.</p>
+<p>Once M3DB has retrieved the three blocks from their respective locations in memory / on-disk, it will transmit all of the data back to the client. Whether or not the client returns a success to the caller for the read is dependent on the configured <a href="../consistencylevels/">consistency level</a>.</p>
+<p><strong>Note:</strong> Since M3DB nodes return compressed blocks (the M3DB client decompresses them), it's not possible to return "partial results" for a given block. If any portion of a read request spans a given block, then that block in its entirety must be transmitted back to the client. In practice, this ends up being not much of an issue because of the high compression ratio that M3DB is able to achieve.</p>
 <h2 id="background-processes">Background processes</h2>
 <p>M3DB has a variety of processes that run in the background during normal operation.</p>
 <h3 id="ticking">Ticking</h3>
@@ -1012,8 +1098,6 @@ series_object       =&gt; map<block_start_time, active_buffers(encoders)> (This 
               
               
                 
-
-
               
             </article>
           </div>
@@ -1063,9 +1147,9 @@ series_object       =&gt; map<block_start_time, active_buffers(encoders)> (This 
       <div class="md-footer-copyright">
         
         powered by
-        <a href="http://www.mkdocs.org">MkDocs</a>
+        <a href="http://www.mkdocs.org" title="MkDocs">MkDocs</a>
         and
-        <a href="https://squidfunk.github.io/mkdocs-material/">
+        <a href="http://squidfunk.github.io/mkdocs-material/" title="Material for MkDocs">
           Material for MkDocs</a>
       </div>
       
@@ -1077,7 +1161,7 @@ series_object       =&gt; map<block_start_time, active_buffers(encoders)> (This 
       
     </div>
     
-      <script src="../../../assets/javascripts/application.b438e6c5.js"></script>
+      <script src="../../../assets/javascripts/application-8e4952e681.js"></script>
       
       <script>app.initialize({version:"0.17.3",url:{base:"../../.."}})</script>
       

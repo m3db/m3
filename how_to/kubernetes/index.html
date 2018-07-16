@@ -19,10 +19,6 @@
       
         <meta name="lang:search.language" content="en">
       
-        <meta name="lang:search.pipeline.stopwords" content="True">
-      
-        <meta name="lang:search.pipeline.trimmer" content="True">
-      
         <meta name="lang:search.result.none" content="No matching documents">
       
         <meta name="lang:search.result.one" content="1 matching document">
@@ -32,7 +28,7 @@
         <meta name="lang:search.tokenizer" content="[\s\-]+">
       
       <link rel="shortcut icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-0.17.3, mkdocs-material-2.7.3">
+      <meta name="generator" content="mkdocs-0.17.3, mkdocs-material-2.0.4">
     
     
       
@@ -40,14 +36,15 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/application.8d40d89b.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/application-709eec9410.css">
+      
+        <link rel="stylesheet" href="../../assets/stylesheets/application-23f75ab9c7.palette.css">
       
     
     
-      <script src="../../assets/javascripts/modernizr.1aa3b519.js"></script>
+      <script src="../../assets/javascripts/modernizr-e826f8942a.js"></script>
     
     
-      <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
       
         <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700|Roboto+Mono">
         <style>body,input{font-family:"Roboto","Helvetica Neue",Helvetica,Arial,sans-serif}code,kbd,pre{font-family:"Roboto Mono","Courier New",Courier,monospace}</style>
@@ -58,41 +55,23 @@
     
   </head>
   
-    <body dir="ltr">
+    
+    
+    
+      <body data-md-color-primary="indigo" data-md-color-accent="indigo">
+    
   
     <svg class="md-svg">
       <defs>
         
         
-          <svg xmlns="http://www.w3.org/2000/svg" width="416" height="448"
-    viewBox="0 0 416 448" id="github">
-  <path fill="currentColor" d="M160 304q0 10-3.125 20.5t-10.75 19-18.125
-        8.5-18.125-8.5-10.75-19-3.125-20.5 3.125-20.5 10.75-19 18.125-8.5
-        18.125 8.5 10.75 19 3.125 20.5zM320 304q0 10-3.125 20.5t-10.75
-        19-18.125 8.5-18.125-8.5-10.75-19-3.125-20.5 3.125-20.5 10.75-19
-        18.125-8.5 18.125 8.5 10.75 19 3.125 20.5zM360
-        304q0-30-17.25-51t-46.75-21q-10.25 0-48.75 5.25-17.75 2.75-39.25
-        2.75t-39.25-2.75q-38-5.25-48.75-5.25-29.5 0-46.75 21t-17.25 51q0 22 8
-        38.375t20.25 25.75 30.5 15 35 7.375 37.25 1.75h42q20.5 0
-        37.25-1.75t35-7.375 30.5-15 20.25-25.75 8-38.375zM416 260q0 51.75-15.25
-        82.75-9.5 19.25-26.375 33.25t-35.25 21.5-42.5 11.875-42.875 5.5-41.75
-        1.125q-19.5 0-35.5-0.75t-36.875-3.125-38.125-7.5-34.25-12.875-30.25-20.25-21.5-28.75q-15.5-30.75-15.5-82.75
-        0-59.25 34-99-6.75-20.5-6.75-42.5 0-29 12.75-54.5 27 0 47.5 9.875t47.25
-        30.875q36.75-8.75 77.25-8.75 37 0 70 8 26.25-20.5
-        46.75-30.25t47.25-9.75q12.75 25.5 12.75 54.5 0 21.75-6.75 42 34 40 34
-        99.5z" />
-</svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="416" height="448" viewBox="0 0 416 448" id="github"><path fill="currentColor" d="M160 304q0 10-3.125 20.5t-10.75 19T128 352t-18.125-8.5-10.75-19T96 304t3.125-20.5 10.75-19T128 256t18.125 8.5 10.75 19T160 304zm160 0q0 10-3.125 20.5t-10.75 19T288 352t-18.125-8.5-10.75-19T256 304t3.125-20.5 10.75-19T288 256t18.125 8.5 10.75 19T320 304zm40 0q0-30-17.25-51T296 232q-10.25 0-48.75 5.25Q229.5 240 208 240t-39.25-2.75Q130.75 232 120 232q-29.5 0-46.75 21T56 304q0 22 8 38.375t20.25 25.75 30.5 15 35 7.375 37.25 1.75h42q20.5 0 37.25-1.75t35-7.375 30.5-15 20.25-25.75T360 304zm56-44q0 51.75-15.25 82.75-9.5 19.25-26.375 33.25t-35.25 21.5-42.5 11.875-42.875 5.5T212 416q-19.5 0-35.5-.75t-36.875-3.125-38.125-7.5-34.25-12.875T37 371.5t-21.5-28.75Q0 312 0 260q0-59.25 34-99-6.75-20.5-6.75-42.5 0-29 12.75-54.5 27 0 47.5 9.875t47.25 30.875Q171.5 96 212 96q37 0 70 8 26.25-20.5 46.75-30.25T376 64q12.75 25.5 12.75 54.5 0 21.75-6.75 42 34 40 34 99.5z"/></svg>
         
       </defs>
     </svg>
-    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="drawer" autocomplete="off">
-    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="search" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="drawer">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="search">
     <label class="md-overlay" data-md-component="overlay" for="drawer"></label>
-    
-      <a href="#m3db-on-kubernetes" tabindex="1" class="md-skip">
-        Skip to content
-      </a>
-    
     
       <header class="md-header" data-md-component="header">
   <nav class="md-header-nav md-grid">
@@ -108,18 +87,18 @@
         <label class="md-icon md-icon--menu md-header-nav__button" for="drawer"></label>
       </div>
       <div class="md-flex__cell md-flex__cell--stretch">
-        <div class="md-flex__ellipsis md-header-nav__title" data-md-component="title">
+        <span class="md-flex__ellipsis md-header-nav__title">
           
             
-              <span class="md-header-nav__topic">
-                M3 Documentation
-              </span>
-              <span class="md-header-nav__topic">
-                M3DB on Kubernetes
-              </span>
+              
+                <span class="md-header-nav__parent">
+                  How-To's
+                </span>
+              
             
+            M3DB on Kubernetes
           
-        </div>
+        </span>
       </div>
       <div class="md-flex__cell md-flex__cell--shrink">
         
@@ -128,13 +107,11 @@
             
 <div class="md-search" data-md-component="search" role="dialog">
   <label class="md-search__overlay" for="search"></label>
-  <div class="md-search__inner" role="search">
+  <div class="md-search__inner">
     <form class="md-search__form" name="search">
-      <input type="text" class="md-search__input" name="query" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="query" data-md-state="active">
+      <input type="text" class="md-search__input" name="query" required placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="query">
       <label class="md-icon md-search__icon" for="search"></label>
-      <button type="reset" class="md-icon md-search__icon" data-md-component="reset" tabindex="-1">
-        &#xE5CD;
-      </button>
+      <button type="reset" class="md-icon md-search__icon" data-md-component="reset">&#xE5CD;</button>
     </form>
     <div class="md-search__output">
       <div class="md-search__scrollwrap" data-md-scrollfix>
@@ -181,9 +158,6 @@
 </header>
     
     <div class="md-container">
-      
-        
-      
       
       <main class="md-main">
         <div class="md-main__inner md-grid" data-md-component="container">
@@ -446,18 +420,126 @@
       
       
 
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4">
+    
+    <label class="md-nav__link" for="nav-4">
+      Query Engine/Coordinator
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-4">
+        Query Engine/Coordinator
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../query_engine/" title="Introduction" class="md-nav__link">
+      Introduction
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../query_engine/roadmap/" title="Roadmap" class="md-nav__link">
+      Roadmap
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-3" type="checkbox" id="nav-4-3">
+    
+    <label class="md-nav__link" for="nav-4-3">
+      Architecture
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-4-3">
+        Architecture
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../query_engine/architecture/" title="Overview" class="md-nav__link">
+      Overview
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../query_engine/architecture/blocks/" title="Blocks" class="md-nav__link">
+      Blocks
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../query_engine/architecture/functions/" title="Function Processing" class="md-nav__link">
+      Function Processing
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
   
 
 
   <li class="md-nav__item md-nav__item--active md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4" checked>
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5" checked>
     
-    <label class="md-nav__link" for="nav-4">
+    <label class="md-nav__link" for="nav-5">
       How-To's
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
-      <label class="md-nav__title" for="nav-4">
+      <label class="md-nav__title" for="nav-5">
         How-To's
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
@@ -575,8 +657,6 @@
       
       
       
-      
-      
     </ul>
   
 </nav>
@@ -596,13 +676,13 @@
 
   <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-6" type="checkbox" id="nav-6">
     
-    <label class="md-nav__link" for="nav-5">
+    <label class="md-nav__link" for="nav-6">
       Integrations
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
-      <label class="md-nav__title" for="nav-5">
+      <label class="md-nav__title" for="nav-6">
         Integrations
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
@@ -725,8 +805,6 @@
       
       
       
-      
-      
     </ul>
   
 </nav>
@@ -803,8 +881,8 @@ Forwarding from [::1]:7201 -&gt; 7201
 </code></pre>
 
 <pre><code class="json"># Create an initial cluster topology
-curl -sSf -X POST localhost:7201/placement/init -d '{
-    &quot;num_shards&quot;: 256,
+curl -sSf -X POST localhost:7201/api/v1/placement/init -d '{
+    &quot;num_shards&quot;: 1024,
     &quot;replication_factor&quot;: 3,
     &quot;instances&quot;: [
         {
@@ -839,8 +917,8 @@ curl -sSf -X POST localhost:7201/placement/init -d '{
 </code></pre>
 
 <pre><code class="json"># Create a namespace to hold your metrics
-curl -X POST localhost:7201/namespace/add -d '{
-  &quot;name&quot;: &quot;metrics&quot;,
+curl -X POST localhost:7201/api/v1/namespace -d '{
+  &quot;name&quot;: &quot;default&quot;,
   &quot;options&quot;: {
     &quot;bootstrapEnabled&quot;: true,
     &quot;flushEnabled&quot;: true,
@@ -849,14 +927,16 @@ curl -X POST localhost:7201/namespace/add -d '{
     &quot;snapshotEnabled&quot;: false,
     &quot;repairEnabled&quot;: false,
     &quot;retentionOptions&quot;: {
-      &quot;retentionPeriodNanos&quot;: '&quot;$((1000000000*60*60*24*30))&quot;',
-      &quot;blockSizeNanos&quot;: '&quot;$((1000000000*60*60*12))&quot;',
-      &quot;bufferFutureNanos&quot;: '&quot;$((1000000000*60*60*1))&quot;',
-      &quot;bufferPastNanos&quot;: '&quot;$((1000000000*60*60*1))&quot;'
+      &quot;retentionPeriodDuration&quot;: &quot;720h&quot;,
+      &quot;blockSizeDuration&quot;: &quot;12h&quot;,
+      &quot;bufferFutureDuration&quot;: &quot;1h&quot;,
+      &quot;bufferPastDuration&quot;: &quot;1h&quot;,
+      &quot;blockDataExpiry&quot;: true,
+      &quot;blockDataExpiryAfterNotAccessPeriodDuration&quot;: &quot;5m&quot;
     },
     &quot;indexOptions&quot;: {
       &quot;enabled&quot;: true,
-      &quot;blockSizeNanos&quot;: '&quot;$((1000000000*60*60*12))&quot;'
+      &quot;blockSizeDuration&quot;: &quot;12h&quot;
     }
   }
 }'
@@ -887,7 +967,7 @@ Forwarding from [::1]:9003 -&gt; 9003
 </code></pre>
 
 <pre><code class="json">curl -sSf -X POST localhost:9003/writetagged -d '{
-  &quot;namespace&quot;: &quot;metrics&quot;,
+  &quot;namespace&quot;: &quot;default&quot;,
   &quot;id&quot;: &quot;foo&quot;,
   &quot;tags&quot;: [
     {
@@ -907,7 +987,7 @@ Forwarding from [::1]:9003 -&gt; 9003
 </code></pre>
 
 <pre><code class="json">$ curl -sSf -X POST http://localhost:9003/query -d '{
-  &quot;namespace&quot;: &quot;metrics&quot;,
+  &quot;namespace&quot;: &quot;default&quot;,
   &quot;query&quot;: {
     &quot;regexp&quot;: {
       &quot;field&quot;: &quot;city&quot;,
@@ -955,7 +1035,7 @@ Forwarding from 127.0.0.1:7201 -&gt; 7201
 Forwarding from [::1]:7201 -&gt; 7201
 </code></pre>
 
-<pre><code class="json">curl -sSf -X POST localhost:7201/placement/add -d '{
+<pre><code class="json">curl -sSf -X POST localhost:7201/api/v1/placement/add -d '{
     &quot;instances&quot;: [
         {
             &quot;id&quot;: &quot;m3dbnode-3&quot;,
@@ -973,8 +1053,8 @@ Forwarding from [::1]:7201 -&gt; 7201
 <h2 id="integrations">Integrations</h2>
 <h3 id="prometheus">Prometheus</h3>
 <p>As mentioned in our integrations <a href="../../integrations/prometheus/">guide</a>, M3DB can be used as a <a href="https://prometheus.io/docs/prometheus/latest/configuration/configuration/#%3Cremote_write%3E">remote read/write
-endpoint</a> for Prometheus.
-If you run Prometheus on your Kubernetes cluster you can easily point it at M3DB in your Prometheus server config:</p>
+endpoint</a> for Prometheus.</p>
+<p>If you run Prometheus on your Kubernetes cluster you can easily point it at M3DB in your Prometheus server config:</p>
 <pre><code>remote_read:
   - url: &quot;http://m3coordinator.m3db.svc.cluster.local:7201/api/v1/prom/remote/read&quot;
     # To test reading even when local Prometheus has the data
@@ -1006,8 +1086,6 @@ certain nodes. Specifically:</p>
               
               
                 
-
-
               
             </article>
           </div>
@@ -1057,9 +1135,9 @@ certain nodes. Specifically:</p>
       <div class="md-footer-copyright">
         
         powered by
-        <a href="http://www.mkdocs.org">MkDocs</a>
+        <a href="http://www.mkdocs.org" title="MkDocs">MkDocs</a>
         and
-        <a href="https://squidfunk.github.io/mkdocs-material/">
+        <a href="http://squidfunk.github.io/mkdocs-material/" title="Material for MkDocs">
           Material for MkDocs</a>
       </div>
       
@@ -1071,7 +1149,7 @@ certain nodes. Specifically:</p>
       
     </div>
     
-      <script src="../../assets/javascripts/application.b438e6c5.js"></script>
+      <script src="../../assets/javascripts/application-8e4952e681.js"></script>
       
       <script>app.initialize({version:"0.17.3",url:{base:"../.."}})</script>
       

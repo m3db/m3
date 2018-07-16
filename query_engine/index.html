@@ -32,7 +32,7 @@
     
     
       
-        <title>FAQs - M3 Documentation</title>
+        <title>Introduction - M3 Documentation</title>
       
     
     
@@ -91,8 +91,12 @@
           
             
               
+                <span class="md-header-nav__parent">
+                  Query Engine/Coordinator
+                </span>
+              
             
-            FAQs
+            Introduction
           
         </span>
       </div>
@@ -416,10 +420,12 @@
       
       
 
+  
 
-  <li class="md-nav__item md-nav__item--nested">
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4" checked>
     
     <label class="md-nav__link" for="nav-4">
       Query Engine/Coordinator
@@ -435,11 +441,20 @@
           
           
 
+  
 
-  <li class="md-nav__item">
-    <a href="../query_engine/" title="Introduction" class="md-nav__link">
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="toc">
+    
+      
+    
+    
+    <a href="./" title="Introduction" class="md-nav__link md-nav__link--active">
       Introduction
     </a>
+    
   </li>
 
         
@@ -449,7 +464,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../query_engine/roadmap/" title="Roadmap" class="md-nav__link">
+    <a href="roadmap/" title="Roadmap" class="md-nav__link">
       Roadmap
     </a>
   </li>
@@ -480,7 +495,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../query_engine/architecture/" title="Overview" class="md-nav__link">
+    <a href="architecture/" title="Overview" class="md-nav__link">
       Overview
     </a>
   </li>
@@ -492,7 +507,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../query_engine/architecture/blocks/" title="Blocks" class="md-nav__link">
+    <a href="architecture/blocks/" title="Blocks" class="md-nav__link">
       Blocks
     </a>
   </li>
@@ -504,7 +519,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../query_engine/architecture/functions/" title="Function Processing" class="md-nav__link">
+    <a href="architecture/functions/" title="Function Processing" class="md-nav__link">
       Function Processing
     </a>
   </li>
@@ -632,20 +647,11 @@
       
       
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active">
-    
-    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="toc">
-    
-      
-    
-    
-    <a href="./" title="FAQs" class="md-nav__link md-nav__link--active">
+  <li class="md-nav__item">
+    <a href="../faqs/" title="FAQs" class="md-nav__link">
       FAQs
     </a>
-    
   </li>
 
     
@@ -676,10 +682,11 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/m3db/m3db/edit/master/docs/faqs/index.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                  <a href="https://github.com/m3db/m3db/edit/master/docs/query_engine/index.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
                 
                 
-                <h1 id="faqs">FAQs</h1>
+                <h1 id="m3coordinator-a-distributed-query-engine-for-m3db-and-prometheus">M3Coordinator, a distributed query engine for M3DB and Prometheus</h1>
+<p><strong>Please note:</strong> This documentation is a work in progress and more detail is required.</p>
                 
                   
                 
@@ -698,7 +705,7 @@
     <div class="md-footer-nav">
       <nav class="md-footer-nav__inner md-grid">
         
-          <a href="../troubleshooting/" title="Troubleshooting" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+          <a href="../m3db/architecture/caching/" title="Caching" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
             <div class="md-flex__cell md-flex__cell--shrink">
               <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
             </div>
@@ -707,11 +714,25 @@
                 <span class="md-footer-nav__direction">
                   Previous
                 </span>
-                Troubleshooting
+                Caching
               </span>
             </div>
           </a>
         
+        
+          <a href="roadmap/" title="Roadmap" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+            <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
+              <span class="md-flex__ellipsis">
+                <span class="md-footer-nav__direction">
+                  Next
+                </span>
+                Roadmap
+              </span>
+            </div>
+            <div class="md-flex__cell md-flex__cell--shrink">
+              <i class="md-icon md-icon--arrow-forward md-footer-nav__button"></i>
+            </div>
+          </a>
         
       </nav>
     </div>
