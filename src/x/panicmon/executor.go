@@ -22,6 +22,7 @@ package panicmon
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -173,13 +174,20 @@ func (ex *executor) execCmd(args []string) (StatusCode, error) {
 	defer ex.close()
 
 	// if cmd.Wait returns a nil error it means the process exited with 0
-	if err := cmd.Wait(); err == nil {
+	err := cmd.Wait()
+	if err == nil {
+		return 0, nil
+	}
+
+	status := cmd.ProcessState.Sys().(syscall.WaitStatus)
+	if status.ExitStatus() == 0 {
 		return 0, nil
 	}
 
 	// if exited uncleanly, capture status code to report
-	status := cmd.ProcessState.Sys().(syscall.WaitStatus)
-	return StatusCode(status.ExitStatus()), nil
+	statusCode := StatusCode(status.ExitStatus())
+	wrappedErr := fmt.Errorf("[ exit-status = %s, err = %v ]", statusCode, err)
+	return statusCode, wrappedErr
 }
 
 func (ex *executor) close() {
