@@ -92,6 +92,7 @@ func (c *consolidatedNSBlockIter) Current() float64 {
 	if err != nil {
 		return math.NaN()
 	}
+
 	// NB(braskin): if the last datapoint is after the current step, but before the (current step+1),
 	// return that datapoint, otherwise return NaN
 	if !indexTime.After(lastDP.Timestamp) && indexTime.Add(c.bounds.StepSize).After(lastDP.Timestamp) {

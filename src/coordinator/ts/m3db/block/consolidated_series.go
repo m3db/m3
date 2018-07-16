@@ -20,7 +20,11 @@
 
 package block
 
-import "github.com/m3db/m3db/src/coordinator/block"
+import (
+	"math"
+
+	"github.com/m3db/m3db/src/coordinator/block"
+)
 
 // ConsolidatedSeriesBlock is a single series consolidated across different namespaces
 // for a single block
@@ -39,7 +43,6 @@ type ConsolidationFunc func(existing, toAdd float64, count int) float64
 
 // ConsolidatedSeriesBlocks contain all of the consolidated blocks for
 // a single timeseries across namespaces.
-// Each ConsolidatedBlockIterator will have the same size
 type ConsolidatedSeriesBlocks []ConsolidatedSeriesBlock
 
 func (c *consolidatedSeriesBlockIter) Current() float64 {
@@ -49,8 +52,11 @@ func (c *consolidatedSeriesBlockIter) Current() float64 {
 		values = append(values, dp)
 	}
 
-	// todo(braskin): until we have consolidation
-	return values[0]
+	if len(values) > 0 {
+		// todo(braskin): until we have consolidation
+		return values[0]
+	}
+	return math.NaN()
 }
 
 // Next moves to the next item
