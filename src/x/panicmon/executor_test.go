@@ -147,10 +147,17 @@ func TestExecutorRun_Exited_Success_Signals(t *testing.T) {
 
 	proc := &mockProcessHandler{}
 	proc.On("ProcessStarted", ProcessStartEvent{Args: args}).Return()
-	proc.On("ProcessExited", ProcessExitedEvent{
-		Args: args,
-		Code: StatusCode(-1),
-	}).Return()
+	proc.On("ProcessFailed", mock.MatchedBy(func(e ProcessFailedEvent) bool {
+		if len(e.Args) != len(args) {
+			return false
+		}
+		for i := range e.Args {
+			if e.Args[i] != args[i] {
+				return false
+			}
+		}
+		return true
+	})).Return()
 
 	sig := &mockSignalHandler{}
 
@@ -188,7 +195,7 @@ func TestExecutorRun_Exited_Success_Signals(t *testing.T) {
 	}()
 
 	assert.Equal(t, StatusCode(-1), <-codeC)
-	assert.NoError(t, <-errC)
+	assert.Error(t, <-errC)
 
 	proc.Lock()
 	proc.AssertExpectations(t)
@@ -235,8 +242,8 @@ func TestExecutorRun_Exited_Error(t *testing.T) {
 
 	proc := &mockProcessHandler{}
 	proc.On("ProcessStarted", ProcessStartEvent{Args: args}).Return()
-	proc.On("ProcessExited", mock.MatchedBy(func(e ProcessExitedEvent) bool {
-		return reflect.DeepEqual(args, e.Args) && e.Code != 0
+	proc.On("ProcessFailed", mock.MatchedBy(func(e ProcessFailedEvent) bool {
+		return reflect.DeepEqual(args, e.Args) && e.Err != nil
 	})).Return()
 
 	sig := &mockSignalHandler{}
@@ -252,7 +259,7 @@ func TestExecutorRun_Exited_Error(t *testing.T) {
 
 	code, err := ex.Run(args)
 	assert.NotEqual(t, StatusCode(0), code)
-	assert.NoError(t, err)
+	assert.Error(t, err)
 
 	proc.AssertExpectations(t)
 	sig.AssertExpectations(t)
