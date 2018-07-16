@@ -15,6 +15,7 @@ and port `9003` (used to read and write metrics) exposed. We recommend you creat
 directory on your host for durability:
 
 ```
+docker pull quay.io/m3db/m3db:latest
 docker run -p 7201:7201 -p 9003:9003 --name m3db -v $(pwd)/m3db_data:/var/lib/m3db quay.io/m3db/m3db:latest
 ```
 
@@ -24,53 +25,15 @@ placements, etc. are -->
 <!-- TODO: add something about how this is in no way a recommended production deployment guide,
 and write a guide for what is considered a production-ready deployment (this is in the works) -->
 
-Next, create an initial namespace for your metrics:
+Next, create an initial namespace for your metrics in the database:
 
 <!-- TODO: link to config reference docs once available -->
 
 ```json
-curl -X POST localhost:7201/api/v1/namespace -d '{
-  "name": "default",
-  "options": {
-    "bootstrapEnabled": true,
-    "flushEnabled": true,
-    "writesToCommitLog": true,
-    "cleanupEnabled": true,
-    "snapshotEnabled": false,
-    "repairEnabled": false,
-    "retentionOptions": {
-      "retentionPeriodDuration": "720h",
-      "blockSizeDuration": "12h",
-      "bufferFutureDuration": "1h",
-      "bufferPastDuration": "1h",
-      "blockDataExpiry": true,
-      "blockDataExpiryAfterNotAccessPeriodDuration": "5m"
-    },
-    "indexOptions": {
-      "enabled": true,
-      "blockSizeDuration": "12h"
-    }
-  }
-}'
-```
-
-With a namespace to hold your metrics created, you can initialize your first placement:
-
-```json
-curl -X POST localhost:7201/api/v1/placement/init -d '{
-    "num_shards": 64,
-    "replication_factor": 1,
-    "instances": [
-        {
-            "id": "m3db_local",
-            "isolation_group": "rack-a",
-            "zone": "embedded",
-            "weight": 1024,
-            "endpoint": "127.0.0.1:9000",
-            "hostname": "127.0.0.1",
-            "port": 9000
-        }
-    ]
+curl -X POST http://localhost:7201/api/v1/database/create -d '{
+  "type": "local",
+  "namespaceName": "default",
+  "retentionTime": "48h"
 }'
 ```
 
@@ -80,16 +43,13 @@ errors related to a local cache file, such as `[W] could not load cache from fil
 warn-level errors (prefixed with `[W]`) should not block bootstrapping.
 
 ```
-20:10:12.911218[I] updating database namespaces [{adds [default]} {updates []} {removals []}]
-20:10:13.462798[I] node tchannelthrift: listening on 0.0.0.0:9000
-20:10:13.463107[I] cluster tchannelthrift: listening on 0.0.0.0:9001
-20:10:13.747173[I] node httpjson: listening on 0.0.0.0:9002
-20:10:13.747506[I] cluster httpjson: listening on 0.0.0.0:9003
-20:10:13.747763[I] bootstrapping shards for range starting ...
-...
-20:10:13.757834[I] bootstrap finished [{namespace default} {duration 10.1261ms}]
-20:10:13.758001[I] bootstrapped
-20:10:14.764771[I] successfully updated topology to 1 hosts
+02:28:30.008072[I] updating database namespaces [{adds [default]} {updates []} {removals []}]
+02:28:30.270681[I] node tchannelthrift: listening on 0.0.0.0:9000
+02:28:30.271909[I] cluster tchannelthrift: listening on 0.0.0.0:9001
+02:28:30.519468[I] node httpjson: listening on 0.0.0.0:9002
+02:28:30.520061[I] cluster httpjson: listening on 0.0.0.0:9003
+02:28:30.520652[I] bootstrap finished [{namespace metrics} {duration 55.4µs}]
+02:28:30.520909[I] bootstrapped
 ```
 
 The node also self-hosts its OpenAPI docs, outlining available endpoints. You can access this by
@@ -159,3 +119,7 @@ curl -sSf -X POST http://localhost:9003/query -d '{
   "exhaustive": true
 }
 ```
+
+## Use integrations
+
+Checkout the integrations documentation to integrate with our software, such as [Prometheus as a long term storage remote read/write endpoint](../integrations/prometheus.md).

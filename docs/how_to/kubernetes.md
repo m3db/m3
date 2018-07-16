@@ -72,7 +72,7 @@ Forwarding from [::1]:7201 -> 7201
 ```json
 # Create an initial cluster topology
 curl -sSf -X POST localhost:7201/api/v1/placement/init -d '{
-    "num_shards": 256,
+    "num_shards": 1024,
     "replication_factor": 3,
     "instances": [
         {
@@ -109,7 +109,7 @@ curl -sSf -X POST localhost:7201/api/v1/placement/init -d '{
 ```json
 # Create a namespace to hold your metrics
 curl -X POST localhost:7201/api/v1/namespace -d '{
-  "name": "metrics",
+  "name": "default",
   "options": {
     "bootstrapEnabled": true,
     "flushEnabled": true,
@@ -161,7 +161,7 @@ Forwarding from [::1]:9003 -> 9003
 
 ```json
 curl -sSf -X POST localhost:9003/writetagged -d '{
-  "namespace": "metrics",
+  "namespace": "default",
   "id": "foo",
   "tags": [
     {
@@ -182,7 +182,7 @@ curl -sSf -X POST localhost:9003/writetagged -d '{
 
 ```json
 $ curl -sSf -X POST http://localhost:9003/query -d '{
-  "namespace": "metrics",
+  "namespace": "default",
   "query": {
     "regexp": {
       "field": "city",
@@ -255,6 +255,7 @@ curl -sSf -X POST localhost:7201/api/v1/placement/add -d '{
 
 As mentioned in our integrations [guide](../integrations/prometheus.md), M3DB can be used as a [remote read/write
 endpoint](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#%3Cremote_write%3E) for Prometheus.
+
 If you run Prometheus on your Kubernetes cluster you can easily point it at M3DB in your Prometheus server config:
 
 ```

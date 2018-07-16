@@ -1,7 +1,8 @@
 # M3DB Cluster Deployment, Manually (The Hard Way)
 
 ## Introduction
-This document lists the manual steps involved in deploying a M3DB cluster. In practice, you wouldn’t be doing this by hand, you’d be automating it using Terraform or Kubernetes. If you’re interested in how you could do so, we have some other guides you might be interested under the How-To section on https://m3db.github.io/m3db/.
+
+This document lists the manual steps involved in deploying a M3DB cluster. In practice, you wouldn’t be doing this by hand, you’d be automating it using Terraform or Kubernetes. If you’re interested in how you could do so, we have some other guides you might be interested under the How-To section.
 
 ## Primer Architecture
 A quick primer on M3DB architecture. Here’s what a typical deployment looks like:
@@ -14,7 +15,7 @@ A few different things to highlight about the diagram:
 
 There are three ‘role types’ for a m3db deployment -
 
-- m3coordinator: m3coordinator serves to coordinate reads and writes across all hosts in the cluster. It’s a lightweight process, and does not store any data. This role would typically be run alongside a Prometheus instance, or be baked into a collector agent.
+- Coordinator: `m3coordinator` serves to coordinate reads and writes across all hosts in the cluster. It’s a lightweight process, and does not store any data. This role would typically be run alongside a Prometheus instance, or be baked into a collector agent.
 
 - Storage Node: `m3dbnode` processes running on these hosts are the workhorses of the database, they store data; and serve reads and writes.
 
@@ -113,7 +114,7 @@ Note: Isolation group specifies how the cluster places shards to avoid more than
 
 ```json
 curl -X POST localhost:7201/api/v1/placement/init -d '{
-    "num_shards": 256,
+    "num_shards": 1024,
     "replication_factor": 3,
     "instances": [
         {
@@ -238,4 +239,4 @@ curl -sSf -X POST http://localhost:9003/query -d '{
 
 ## Use integrations
 
-Checkout the integrations documentation to integrate with our software, such as Prometheus as a long term storage remote read/write endpoint.
+Checkout the integrations documentation to integrate with our software, such as [Prometheus as a long term storage remote read/write endpoint](../integrations/prometheus.md).

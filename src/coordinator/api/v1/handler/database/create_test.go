@@ -96,7 +96,7 @@ func TestLocalType(t *testing.T) {
 	placementProto := &placementpb.Placement{
 		Instances: map[string]*placementpb.Instance{
 			"localhost": &placementpb.Instance{
-				Id:             "localhost",
+				Id:             "m3db_local",
 				IsolationGroup: "local",
 				Zone:           "embedded",
 				Weight:         1,
@@ -148,8 +148,8 @@ func TestLocalType(t *testing.T) {
 		"placement": {
 			"placement": {
 				"instances": {
-					"localhost": {
-						"id": "localhost",
+					"m3db_local": {
+						"id": "m3db_local",
 						"isolationGroup": "local",
 						"zone": "embedded",
 						"weight": 1,
@@ -180,13 +180,13 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
-	jsonInput := fmt.Sprintf(`
+	jsonInput := `
 		{
 			"namespaceName": "testNamespace",
 			"type": "local",
-			"blockSize": {"nanos": %d}
+			"blockSize": {"time": "3h"}
 		}
-	`, int64(3*time.Hour))
+	`
 
 	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
 	require.NotNil(t, req)
@@ -197,7 +197,7 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 	placementProto := &placementpb.Placement{
 		Instances: map[string]*placementpb.Instance{
 			"localhost": &placementpb.Instance{
-				Id:             "localhost",
+				Id:             "m3db_local",
 				IsolationGroup: "local",
 				Zone:           "embedded",
 				Weight:         1,
@@ -249,8 +249,8 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 		"placement": {
 			"placement": {
 				"instances": {
-					"localhost": {
-						"id": "localhost",
+					"m3db_local": {
+						"id": "m3db_local",
 						"isolationGroup": "local",
 						"zone": "embedded",
 						"weight": 1,
@@ -301,7 +301,7 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 	placementProto := &placementpb.Placement{
 		Instances: map[string]*placementpb.Instance{
 			"localhost": &placementpb.Instance{
-				Id:             "localhost",
+				Id:             "m3db_local",
 				IsolationGroup: "local",
 				Zone:           "embedded",
 				Weight:         1,
@@ -353,8 +353,8 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 		"placement": {
 			"placement": {
 				"instances": {
-					"localhost": {
-						"id": "localhost",
+					"m3db_local": {
+						"id": "m3db_local",
 						"isolationGroup": "local",
 						"zone": "embedded",
 						"weight": 1,
