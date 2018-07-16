@@ -32,14 +32,16 @@ func NewControllerWithSink(ID parser.NodeID) (*transform.Controller, *SinkNode) 
 		ID: ID,
 	}
 
-	node := &SinkNode{}
+	node := &SinkNode{
+		Values: make([][]float64, 0),
+	}
 	c.AddTransform(node)
 	return c, node
 }
 
 // SinkNode is a test node useful for comparisons
 type SinkNode struct {
-	Values   [][]float64
+	Values [][]float64
 }
 
 // Process processes and stores the last block output in the sink node

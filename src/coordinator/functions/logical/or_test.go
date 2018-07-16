@@ -25,6 +25,8 @@ import (
 	"math"
 	"testing"
 
+	"github.com/m3db/m3db/src/coordinator/block"
+	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/parser"
 	"github.com/m3db/m3db/src/coordinator/test"
 	"github.com/m3db/m3db/src/coordinator/test/executor"
@@ -54,8 +56,8 @@ func TestOrWithSomeValues(t *testing.T) {
 	block1 := test.NewBlockFromValues(bounds1, values1)
 
 	v := [][]float64{
-		{0, math.NaN(), 2, 3, 4},
-		{math.NaN(), 6, 7, 8, 4, 9},
+		{0, math.NaN(), 2, 3, 4, 5},
+		{math.NaN(), 6, 7, 8, 4, 9, 10, 11},
 	}
 
 	values2, bounds2 := test.GenerateValuesAndBounds(v, nil)
@@ -74,4 +76,47 @@ func TestOrWithSomeValues(t *testing.T) {
 
 	fmt.Println(sink.Values)
 	test.EqualsWithNans(t, expected, sink.Values)
+}
+
+func generateMetaDataWithTagsInRange(fromRange, toRange int) []block.SeriesMeta {
+	length := toRange - fromRange
+	meta := make([]block.SeriesMeta, length)
+	for i := 0; i < length; i++ {
+		strIdx := fmt.Sprint(fromRange + i)
+		tags := make(models.Tags)
+		tags[strIdx] = strIdx
+		meta[i] = block.SeriesMeta{
+			Tags: tags,
+			Name: strIdx,
+		}
+	}
+	return meta
+}
+
+var missingTests = []struct {
+	name     string
+	lhs      []block.SeriesMeta
+	rhs      []block.SeriesMeta
+	expected []int
+}{
+	{"equal tags", generateMetaDataWithTagsInRange(0, 5), generateMetaDataWithTagsInRange(0, 5), []int{}},
+	{"empty rhs", generateMetaDataWithTagsInRange(0, 5), []block.SeriesMeta{}, []int{}},
+	{"empty lhs", []block.SeriesMeta{}, generateMetaDataWithTagsInRange(0, 5), []int{0, 1, 2, 3, 4}},
+	{"longer rhs", generateMetaDataWithTagsInRange(0, 5), generateMetaDataWithTagsInRange(-1, 6), []int{0, 6}},
+	{"no overlap", generateMetaDataWithTagsInRange(0, 5), generateMetaDataWithTagsInRange(6, 9), []int{0, 1, 2}},
+}
+
+func TestMissing(t *testing.T) {
+	orNode := OrNode{
+		op: BaseOp{
+			Matching: &VectorMatching{},
+		},
+	}
+
+	for _, tt := range missingTests {
+		t.Run(tt.name, func(t *testing.T) {
+			missing := orNode.missing(tt.lhs, tt.rhs)
+			assert.Equal(t, tt.expected, missing)
+		})
+	}
 }

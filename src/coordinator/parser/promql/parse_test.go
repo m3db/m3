@@ -118,6 +118,26 @@ func TestDAGWithOrOp(t *testing.T) {
 	assert.Equal(t, edges[1].ChildID, parser.NodeID("2"), "or op should be child")
 }
 
+func TestDAGWithUnlessOp(t *testing.T) {
+	q := "up unless up"
+	p, err := Parse(q)
+	require.NoError(t, err)
+	transforms, edges, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 3)
+	assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
+	assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
+	assert.Equal(t, transforms[1].Op.OpType(), functions.FetchType)
+	assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
+	assert.Equal(t, transforms[2].Op.OpType(), logical.UnlessType)
+	assert.Equal(t, transforms[2].ID, parser.NodeID("2"))
+	assert.Len(t, edges, 2)
+	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"), "fetch should be the parent")
+	assert.Equal(t, edges[0].ChildID, parser.NodeID("2"), "or op should be child")
+	assert.Equal(t, edges[1].ParentID, parser.NodeID("1"), "second fetch should be the parent")
+	assert.Equal(t, edges[1].ChildID, parser.NodeID("2"), "or op should be child")
+}
+
 func TestDAGWithClampOp(t *testing.T) {
 	q := "clamp_min(up, 1)"
 	p, err := Parse(q)
