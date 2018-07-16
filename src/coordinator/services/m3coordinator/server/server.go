@@ -33,6 +33,7 @@ import (
 	clusterclient "github.com/m3db/m3cluster/client"
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
+	"github.com/m3db/m3db/src/cmd/services/m3coordinator/downsample"
 	dbconfig "github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3db/src/coordinator/api/v1/httpd"
 	m3dbcluster "github.com/m3db/m3db/src/coordinator/cluster/m3db"
@@ -46,6 +47,8 @@ import (
 	tsdbRemote "github.com/m3db/m3db/src/coordinator/tsdb/remote"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 	"github.com/m3db/m3db/src/dbnode/client"
+	"github.com/m3db/m3db/src/dbnode/serialize"
+	"github.com/m3db/m3x/clock"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -117,6 +120,7 @@ func Run(runOpts RunOptions) {
 		clusterClientCh = runOpts.ClusterClient
 	}
 
+	var clusterManagementClient clusterclient.Client
 	if clusterClientCh == nil {
 		var etcdCfg *etcdclient.Configuration
 		switch {
@@ -131,13 +135,13 @@ func Run(runOpts RunOptions) {
 		if etcdCfg != nil {
 			// We resolved an etcd configuration for cluster management endpoints
 			clusterSvcClientOpts := etcdCfg.NewOptions()
-			clusterClient, err := etcdclient.NewConfigServiceClient(clusterSvcClientOpts)
+			clusterManagementClient, err = etcdclient.NewConfigServiceClient(clusterSvcClientOpts)
 			if err != nil {
 				logger.Fatal("unable to create cluster management etcd client", zap.Any("error", err))
 			}
 
 			clusterClientSendableCh := make(chan clusterclient.Client, 1)
-			clusterClientSendableCh <- clusterClient
+			clusterClientSendableCh <- clusterManagementClient
 			clusterClientCh = clusterClientSendableCh
 		}
 	}
@@ -215,7 +219,53 @@ func Run(runOpts RunOptions) {
 		}, nil)
 	}
 
-	handler, err := httpd.NewHandler(fanoutStorage, executor.NewEngine(fanoutStorage),
+	var (
+		namespaces  = clusters.ClusterNamespaces()
+		downsampler downsample.Downsampler
+	)
+	if n := namespaces.NumAggregatedClusterNamespaces(); n > 0 {
+		logger.Info("configuring downsampler to use with aggregated cluster namespaces",
+			zap.Int("numAggregatedClusterNamespaces", n))
+		if clusterManagementClient == nil {
+			logger.Fatal("no configured cluster management config, must set this " +
+				"config for downsampler")
+		}
+
+		kvStore, err := clusterManagementClient.KV()
+		if err != nil {
+			logger.Fatal("unable to create KV store from the cluster management "+
+				"config client", zap.Any("error", err))
+		}
+
+		tagEncoderOptions := serialize.NewTagEncoderOptions()
+		tagDecoderOptions := serialize.NewTagDecoderOptions()
+		tagEncoderPoolOptions := pool.NewObjectPoolOptions().
+			SetInstrumentOptions(instrumentOptions.
+				SetMetricsScope(instrumentOptions.MetricsScope().
+					SubScope("tag-encoder-pool")))
+		tagDecoderPoolOptions := pool.NewObjectPoolOptions().
+			SetInstrumentOptions(instrumentOptions.
+				SetMetricsScope(instrumentOptions.MetricsScope().
+					SubScope("tag-decoder-pool")))
+
+		downsampler, err = downsample.NewDownsampler(downsample.DownsamplerOptions{
+			Storage:               fanoutStorage,
+			RulesKVStore:          kvStore,
+			ClockOptions:          clock.NewOptions(),
+			InstrumentOptions:     instrumentOptions,
+			TagEncoderOptions:     tagEncoderOptions,
+			TagDecoderOptions:     tagDecoderOptions,
+			TagEncoderPoolOptions: tagEncoderPoolOptions,
+			TagDecoderPoolOptions: tagDecoderPoolOptions,
+		})
+		if err != nil {
+			logger.Fatal("unable to create downsampler", zap.Any("error", err))
+		}
+	}
+
+	engine := executor.NewEngine(fanoutStorage)
+
+	handler, err := httpd.NewHandler(fanoutStorage, downsampler, engine,
 		clusterClient, cfg, runOpts.DBConfig, scope)
 	if err != nil {
 		logger.Fatal("unable to set up handlers", zap.Any("error", err))

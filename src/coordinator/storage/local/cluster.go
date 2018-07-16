@@ -45,7 +45,7 @@ type Clusters interface {
 	io.Closer
 
 	// ClusterNamespaces returns all known cluster namespaces.
-	ClusterNamespaces() []ClusterNamespace
+	ClusterNamespaces() ClusterNamespaces
 
 	// UnaggregatedClusterNamespace returns the valid unaggregated
 	// cluster namespace.
@@ -68,6 +68,21 @@ type ClusterNamespace interface {
 	NamespaceID() ident.ID
 	Attributes() storage.Attributes
 	Session() client.Session
+}
+
+// ClusterNamespaces is a slice of ClusterNamespace instances.
+type ClusterNamespaces []ClusterNamespace
+
+// NumAggregatedClusterNamespaces returns the number of aggregated
+// cluster namespaces.
+func (n ClusterNamespaces) NumAggregatedClusterNamespaces() int {
+	count := 0
+	for _, namespace := range n {
+		if namespace.Attributes().MetricsType == storage.AggregatedMetricsType {
+			count++
+		}
+	}
+	return count
 }
 
 // UnaggregatedClusterNamespaceDefinition is the definition for the
@@ -132,7 +147,7 @@ func NewClusters(
 ) (Clusters, error) {
 	expectedAggregated := len(aggregatedClusterNamespaces)
 	expectedAll := 1 + expectedAggregated
-	namespaces := make([]ClusterNamespace, 0, expectedAll)
+	namespaces := make(ClusterNamespaces, 0, expectedAll)
 	aggregatedNamespaces := make(map[RetentionResolution]ClusterNamespace,
 		expectedAggregated)
 
@@ -172,7 +187,7 @@ func NewClusters(
 	}, nil
 }
 
-func (c *clusters) ClusterNamespaces() []ClusterNamespace {
+func (c *clusters) ClusterNamespaces() ClusterNamespaces {
 	return c.namespaces
 }
 
