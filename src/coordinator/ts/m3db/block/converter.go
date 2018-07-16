@@ -53,11 +53,14 @@ func SeriesBlockToMultiSeriesBlocks(
 		}
 
 		for consolidatedSeriesBlockIdx, consolidatedSeriesBlock := range consolidatedSeriesBlocks {
+
 			// we only want to set the start and end times once
 			if seriesIdx == 0 {
-				multiSeriesBlocks[consolidatedSeriesBlockIdx].Metadata.Bounds.StepSize = consolidatedSeriesBlock.Metadata.Bounds.StepSize
-				multiSeriesBlocks[consolidatedSeriesBlockIdx].Metadata.Bounds.Start = consolidatedSeriesBlock.Metadata.Bounds.Start
-				multiSeriesBlocks[consolidatedSeriesBlockIdx].Metadata.Bounds.End = consolidatedSeriesBlock.Metadata.Bounds.End
+				blockBounds := multiSeriesBlocks[consolidatedSeriesBlockIdx].Metadata.Bounds
+				blockBounds.StepSize = consolidatedSeriesBlock.Metadata.Bounds.StepSize
+				blockBounds.Start = consolidatedSeriesBlock.Metadata.Bounds.Start
+				blockBounds.End = consolidatedSeriesBlock.Metadata.Bounds.End
+				multiSeriesBlocks[consolidatedSeriesBlockIdx].Metadata.Bounds = blockBounds
 			}
 
 			dupedTags := consolidatedSeriesBlock.ConsolidatedNSBlocks[0].SeriesIterators.Iters()[0].Tags().Duplicate()
@@ -123,9 +126,11 @@ func newConsolidatedSeriesBlocks(
 		for consolidatedNSBlockIdx, consolidatedNSBlock := range consolidatedNSBlocks {
 			// we only want to set the start and end times once
 			if seriesBlocksIdx == 0 {
-				consolidatedSeriesBlocks[consolidatedNSBlockIdx].Metadata.Bounds.StepSize = consolidatedNSBlock.Bounds.StepSize
-				consolidatedSeriesBlocks[consolidatedNSBlockIdx].Metadata.Bounds.Start = consolidatedNSBlock.Bounds.Start
-				consolidatedSeriesBlocks[consolidatedNSBlockIdx].Metadata.Bounds.End = consolidatedNSBlock.Bounds.End
+				blockBounds := consolidatedSeriesBlocks[consolidatedNSBlockIdx].Metadata.Bounds
+				blockBounds.StepSize = consolidatedNSBlock.Bounds.StepSize
+				blockBounds.Start = consolidatedNSBlock.Bounds.Start
+				blockBounds.End = consolidatedNSBlock.Bounds.End
+				consolidatedSeriesBlocks[consolidatedNSBlockIdx].Metadata.Bounds = blockBounds
 			}
 
 			if !consolidatedNSBlock.Bounds.Equals(consolidatedSeriesBlocks[consolidatedNSBlockIdx].Metadata.Bounds) {

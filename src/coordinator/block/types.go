@@ -50,7 +50,7 @@ type Bounds struct {
 	StepSize time.Duration
 }
 
-// Equals determines whether two bounds (start and end) are equal
+// Equals determines whether the bound (start and end) are equal
 func (b Bounds) Equals(compareBound Bounds) bool {
 	if !b.Start.Equal(compareBound.Start) || !b.End.Equal(compareBound.End) {
 		return false

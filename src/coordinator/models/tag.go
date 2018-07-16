@@ -218,7 +218,6 @@ func (t Tags) sortKeys() ([]string, int) {
 // Clone returns a clone of the Tags
 func (t Tags) Clone() Tags {
 	tags := make(Tags)
-
 	for tag, val := range t {
 		tags[tag] = val
 	}

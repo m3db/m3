@@ -137,15 +137,15 @@ func (m *multiSeriesBlockStepIter) Next() bool {
 
 // Current returns the slice of vals and timestamps for that step
 func (m *multiSeriesBlockStepIter) Current() (block.Step, error) {
-	values := make([]float64, len(m.seriesIters))
-	for i, s := range m.seriesIters {
-		values[i] = s.Current()
-	}
-
 	bounds := m.meta.Bounds
 	t, err := bounds.TimeForIndex(m.index)
 	if err != nil {
 		return nil, err
+	}
+
+	values := make([]float64, len(m.seriesIters))
+	for i, s := range m.seriesIters {
+		values[i] = s.Current()
 	}
 
 	return block.NewColStep(t, values), nil
