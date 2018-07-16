@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package functions
+package linear
 
 import (
 	"math"
@@ -52,7 +52,7 @@ func TestAbsWithAllValues(t *testing.T) {
 
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	node := (&AbsOp{}).Node(c)
+	node := NewAbsOp(nil).Node(c)
 	err := node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedValues(values)
@@ -69,7 +69,7 @@ func TestAbsWithSomeValues(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	node := (&AbsOp{}).Node(c)
+	node := NewAbsOp(nil).Node(c)
 	err := node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedValues(values)

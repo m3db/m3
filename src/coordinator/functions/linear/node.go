@@ -18,47 +18,70 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package functions
+package linear
 
 import (
 	"fmt"
-	"math"
 
 	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/executor/transform"
 	"github.com/m3db/m3db/src/coordinator/parser"
 )
 
-// AbsType takes absolute value of each datapoint in the series
-const AbsType = "abs"
+var emptyOp = BaseOp{}
 
-// AbsOp stores required properties for abs
-type AbsOp struct {
+// BaseOp stores required properties for logical operations
+type BaseOp struct {
+	operatorType string
+	processorFn  MakeProcessor
 }
 
 // OpType for the operator
-func (o AbsOp) OpType() string {
-	return AbsType
+func (o BaseOp) OpType() string {
+	return o.operatorType
 }
 
 // String representation
-func (o AbsOp) String() string {
+func (o BaseOp) String() string {
 	return fmt.Sprintf("type: %s", o.OpType())
 }
 
 // Node creates an execution node
-func (o AbsOp) Node(controller *transform.Controller) transform.OpNode {
-	return &AbsNode{op: o, controller: controller}
+func (o BaseOp) Node(controller *transform.Controller) transform.OpNode {
+	return &BaseNode{
+		controller: controller,
+		cache:      transform.NewBlockCache(),
+		op:         o,
+		processor:  o.processorFn(o, controller),
+	}
 }
 
-// AbsNode is an execution node
-type AbsNode struct {
-	op         AbsOp
+// BaseNode is an execution node
+type BaseNode struct {
+	op         BaseOp
 	controller *transform.Controller
+	cache      *transform.BlockCache
+	processor  Processor
+}
+
+// Ensure BaseNode implements the types for lazy evaluation
+var _ transform.StepNode = &BaseNode{}
+var _ transform.SeriesNode = &BaseNode{}
+
+// ProcessStep allows step iteration
+func (c *BaseNode) ProcessStep(step block.Step) (block.Step, error) {
+	processedValue := c.processor.Process(step.Values())
+	return block.NewColStep(step.Time(), processedValue), nil
+}
+
+// ProcessSeries allows series iteration
+func (c *BaseNode) ProcessSeries(series block.Series) (block.Series, error) {
+	processedValue := c.processor.Process(series.Values())
+	return block.NewSeries(processedValue, series.Meta), nil
 }
 
 // Process the block
-func (c *AbsNode) Process(ID parser.NodeID, b block.Block) error {
+func (c *BaseNode) Process(ID parser.NodeID, b block.Block) error {
 	stepIter, err := b.StepIter()
 	if err != nil {
 		return err
@@ -79,7 +102,7 @@ func (c *AbsNode) Process(ID parser.NodeID, b block.Block) error {
 			return err
 		}
 
-		values := c.process(step.Values())
+		values := c.processor.Process(step.Values())
 		for _, value := range values {
 			builder.AppendValue(index, value)
 		}
@@ -90,36 +113,20 @@ func (c *AbsNode) Process(ID parser.NodeID, b block.Block) error {
 	return c.controller.Process(nextBlock)
 }
 
-// Ensure AbsNode implements the types
-var _ transform.StepNode = &AbsNode{}
-var _ transform.SeriesNode = &AbsNode{}
-
-// ProcessStep allows step iteration
-func (c *AbsNode) ProcessStep(step block.Step) (block.Step, error) {
-	processedValue := c.process(step.Values())
-	return block.NewColStep(step.Time(), processedValue), nil
-}
-
-// ProcessSeries allows series iteration
-func (c *AbsNode) ProcessSeries(series block.Series) (block.Series, error) {
-	processedValue := c.process(series.Values())
-	return block.NewSeries(processedValue, series.Meta), nil
-}
-
-func (c *AbsNode) process(values []float64) []float64 {
-	for i := range values {
-		values[i] = math.Abs(values[i])
-	}
-
-	return values
-}
-
 // Meta returns the metadata for the block
-func (c *AbsNode) Meta(meta block.Metadata) block.Metadata {
+func (c *BaseNode) Meta(meta block.Metadata) block.Metadata {
 	return meta
 }
 
 // SeriesMeta returns the metadata for each series in the block
-func (c *AbsNode) SeriesMeta(metas []block.SeriesMeta) []block.SeriesMeta {
+func (c *BaseNode) SeriesMeta(metas []block.SeriesMeta) []block.SeriesMeta {
 	return metas
+}
+
+// MakeProcessor is a way to create a transform
+type MakeProcessor func(op BaseOp, controller *transform.Controller) Processor
+
+// Processor is implemented by the underlying transforms
+type Processor interface {
+	Process(values []float64) []float64
 }
