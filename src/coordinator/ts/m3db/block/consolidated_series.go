@@ -34,8 +34,6 @@ type consolidatedSeriesBlockIter struct {
 	consolidatedNSBlockIters []block.ValueIterator
 }
 
-type consolidatedSeriesBlockIters []*consolidatedSeriesBlockIter
-
 // ConsolidationFunc determines how to consolidate across namespaces
 type ConsolidationFunc func(existing, toAdd float64, count int) float64
 
