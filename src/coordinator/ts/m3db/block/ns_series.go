@@ -53,7 +53,7 @@ func (c *consolidatedNSBlockIter) Next() bool {
 	c.idx++
 	// NB(braskin): this is inclusive of the last step in the iterator
 	indexTime, err := c.bounds.TimeForIndex(c.idx)
-	if err != nil {
+	if err != nil { // index is out of bounds
 		return false
 	}
 

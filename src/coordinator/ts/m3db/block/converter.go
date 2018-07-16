@@ -36,7 +36,10 @@ var (
 
 // SeriesBlockToMultiSeriesBlocks converts M3DB blocks to multi series blocks
 func SeriesBlockToMultiSeriesBlocks(
-	multiNamespaceSeriesList []MultiNamespaceSeries, seriesIteratorsPool encoding.MutableSeriesIteratorsPool, stepSize time.Duration) (MultiSeriesBlocks, error) {
+	multiNamespaceSeriesList []MultiNamespaceSeries,
+	seriesIteratorsPool encoding.MutableSeriesIteratorsPool,
+	stepSize time.Duration,
+) (MultiSeriesBlocks, error) {
 	// todo(braskin): validate blocks size and aligment per namespace before creating []MultiNamespaceSeries
 	var multiSeriesBlocks MultiSeriesBlocks
 
@@ -63,6 +66,7 @@ func SeriesBlockToMultiSeriesBlocks(
 				multiSeriesBlocks[consolidatedSeriesBlockIdx].Metadata.Bounds = blockBounds
 			}
 
+			// take the tags from the first iterator and set that as the tags for the series block
 			dupedTags := consolidatedSeriesBlock.ConsolidatedNSBlocks[0].SeriesIterators.Iters()[0].Tags().Duplicate()
 			seriesTags, err := storage.FromIdentTagIteratorToTags(dupedTags)
 			if err != nil {
@@ -112,7 +116,10 @@ func (m MultiSeriesBlocks) commonTags() models.Tags {
 
 // newConsolidatedSeriesBlocks creates consolidated blocks by timeseries across namespaces
 func newConsolidatedSeriesBlocks(
-	multiNamespaceSeries MultiNamespaceSeries, seriesIteratorsPool encoding.MutableSeriesIteratorsPool, stepSize time.Duration) (ConsolidatedSeriesBlocks, error) {
+	multiNamespaceSeries MultiNamespaceSeries,
+	seriesIteratorsPool encoding.MutableSeriesIteratorsPool,
+	stepSize time.Duration,
+) (ConsolidatedSeriesBlocks, error) {
 	var consolidatedSeriesBlocks ConsolidatedSeriesBlocks
 
 	for seriesBlocksIdx, seriesBlocks := range multiNamespaceSeries {
@@ -147,7 +154,10 @@ func newConsolidatedSeriesBlocks(
 // newConsolidatedNSBlocks creates a slice of consolidated blocks per namespace for a single timeseries
 // nolint: unparam
 func newConsolidatedNSBlocks(
-	seriesBlocks SeriesBlocks, seriesIteratorsPool encoding.MutableSeriesIteratorsPool, stepSize time.Duration) []ConsolidatedNSBlock {
+	seriesBlocks SeriesBlocks,
+	seriesIteratorsPool encoding.MutableSeriesIteratorsPool,
+	stepSize time.Duration,
+) []ConsolidatedNSBlock {
 	consolidatedNSBlocks := make([]ConsolidatedNSBlock, 0, len(seriesBlocks.Blocks))
 	namespace := seriesBlocks.Namespace
 	id := seriesBlocks.ID

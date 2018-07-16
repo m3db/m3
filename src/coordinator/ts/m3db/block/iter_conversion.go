@@ -57,7 +57,9 @@ func (b blockReplicas) Less(i, j int) bool {
 // IteratorsToSeriesBlocks converts m3db SeriesIterators to SeriesBlocks
 // which are used to construct Blocks for query processing.
 func IteratorsToSeriesBlocks(
-	iterators encoding.SeriesIterators, iterAlloc encoding.ReaderIteratorAllocate) ([]SeriesBlocks, error) {
+	iterators encoding.SeriesIterators,
+	iterAlloc encoding.ReaderIteratorAllocate,
+) ([]SeriesBlocks, error) {
 	defer iterators.Close()
 	multiSeriesBlocks := make([]SeriesBlocks, iterators.Len())
 
@@ -79,7 +81,9 @@ func IteratorsToSeriesBlocks(
 }
 
 func blockReplicasFromSeriesIterator(
-	seriesIterator encoding.SeriesIterator, iterAlloc encoding.ReaderIteratorAllocate) ([]blockReplica, error) {
+	seriesIterator encoding.SeriesIterator,
+	iterAlloc encoding.ReaderIteratorAllocate,
+) ([]blockReplica, error) {
 	blockReplicas := make(blockReplicas, 0, initBlockReplicaLength)
 	for _, replica := range seriesIterator.Replicas() {
 		perBlockSliceReaders := replica.Readers()
@@ -125,7 +129,9 @@ func blockReplicasFromSeriesIterator(
 }
 
 func seriesBlocksFromBlockReplicas(
-	blockReplicas []blockReplica, seriesIterator encoding.SeriesIterator) (SeriesBlocks, error) {
+	blockReplicas []blockReplica,
+	seriesIterator encoding.SeriesIterator,
+) (SeriesBlocks, error) {
 	// NB(braskin): we need to clone the ID, namespace, and tags since we close the series iterator
 	var (
 		// todo(braskin): use ident pool

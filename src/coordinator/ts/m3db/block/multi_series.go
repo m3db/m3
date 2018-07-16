@@ -34,8 +34,10 @@ type MultiSeriesBlock struct {
 }
 
 // MultiSeriesBlocks is a slice of MultiSeriesBlock
-// todo(braskin): add close method on this to close each SeriesIterator
 type MultiSeriesBlocks []MultiSeriesBlock
+
+// Close closes each SeriesIterator
+func (m MultiSeriesBlocks) Close() {}
 
 type multiSeriesBlockStepIter struct {
 	seriesIters []block.ValueIterator
@@ -79,6 +81,7 @@ func newConsolidatedSeriesBlockIters(blocks ConsolidatedSeriesBlocks) []block.Va
 			nsBlockIter := newConsolidatedNSBlockIter(nsBlock)
 			consolidatedNSBlockIters[j] = nsBlockIter
 		}
+
 		seriesBlockIters[i] = &consolidatedSeriesBlockIter{
 			consolidatedNSBlockIters: consolidatedNSBlockIters,
 		}

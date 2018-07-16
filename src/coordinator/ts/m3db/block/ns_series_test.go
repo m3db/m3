@@ -32,7 +32,6 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -41,10 +40,6 @@ var (
 )
 
 func createDatapoints(t *testing.T, timeInSeconds []int, vals []float64, now time.Time) []ts.Datapoint {
-	if len(timeInSeconds) != len(vals) {
-		require.Equal(t, len(timeInSeconds), len(vals))
-	}
-
 	dps := make([]ts.Datapoint, len(vals))
 	for i, val := range vals {
 		dps[i] = ts.Datapoint{

@@ -93,7 +93,8 @@ func newMockIterator(t *testing.T, id string, tags []string, ctrl *gomock.Contro
 	seriesIterator.EXPECT().Next().Return(false)
 
 	for _, dp := range dps {
-		seriesIterator.EXPECT().Current().Return(ts.Datapoint{Timestamp: dp.Timestamp, Value: dp.Value}, xtime.Millisecond, nil).Times(1)
+		dp := ts.Datapoint{Timestamp: dp.Timestamp, Value: dp.Value}
+		seriesIterator.EXPECT().Current().Return(dp, xtime.Millisecond, nil).Times(1)
 	}
 
 	return seriesIterator

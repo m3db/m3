@@ -65,4 +65,9 @@ func (s SeriesBlocks) Close() {
 type MultiNamespaceSeries []SeriesBlocks
 
 // ID enforces the same ID across namespaces
-func (n MultiNamespaceSeries) ID() ident.ID { return n[0].ID }
+func (n MultiNamespaceSeries) ID() ident.ID {
+	if len(n) > 0 {
+		return n[0].ID
+	}
+	return ident.StringID("")
+}
