@@ -23,13 +23,16 @@
 package integration
 
 import (
+	"fmt"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/src/dbnode/integration/generate"
 	"github.com/m3db/m3db/src/dbnode/retention"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/leanovate/gopter"
@@ -50,20 +53,21 @@ func testMixedModeReadWriteProp(t *testing.T, snapshotEnabled bool) {
 	}
 	var (
 		parameters = gopter.DefaultTestParameters()
-		seed       = time.Now().UnixNano()
-		props      = gopter.NewProperties(parameters)
-		reporter   = gopter.NewFormatedReporter(true, 160, os.Stdout)
-		fakeStart  = time.Date(2017, time.February, 13, 15, 30, 10, 0, time.Local)
+		// seed       = time.Now().UnixNano()
+		seed      = int64(1)
+		props     = gopter.NewProperties(parameters)
+		reporter  = gopter.NewFormatedReporter(true, 160, os.Stdout)
+		fakeStart = time.Date(2017, time.February, 13, 15, 30, 10, 0, time.Local)
 	)
 
-	parameters.MinSuccessfulTests = 10
+	parameters.MinSuccessfulTests = 30
 	parameters.Rng.Seed(seed)
 
 	props.Property("Blah", prop.ForAll(
 		func(input propTestInput) (bool, error) {
 			// Test setup
 			var (
-				ns1BlockSize = input.blockSize
+				ns1BlockSize = input.blockSize.Round(time.Second)
 				// setting time to 2017/02/13 15:30:10
 				blkStart15         = fakeStart.Truncate(ns1BlockSize)
 				blkStart16         = blkStart15.Add(ns1BlockSize)
@@ -91,11 +95,20 @@ func testMixedModeReadWriteProp(t *testing.T, snapshotEnabled bool) {
 				ns1ROpts = ns1ROpts.SetBufferFuture(ns1BlockSize - 1)
 			}
 
+			if err := ns1ROpts.Validate(); err != nil {
+				return false, err
+			}
+			fmt.Printf("blockSize: %s\n", ns1ROpts.BlockSize().String())
+			fmt.Printf("bufferPast: %s\n", ns1ROpts.BufferPast().String())
+			fmt.Printf("bufferFuture: %s\n", ns1ROpts.BufferFuture().String())
+
 			ns1Opts := namespace.NewOptions().
 				SetRetentionOptions(ns1ROpts).
 				SetSnapshotEnabled(snapshotEnabled)
 			ns1, err := namespace.NewMetadata(nsID, ns1Opts)
-			require.NoError(t, err)
+			if err != nil {
+				return false, err
+			}
 			opts := newTestOptions(t).
 				SetCommitLogRetentionPeriod(retentionPeriod).
 				SetCommitLogBlockSize(commitLogBlockSize).
@@ -134,13 +147,34 @@ func testMixedModeReadWriteProp(t *testing.T, snapshotEnabled bool) {
 					}
 
 					setup.setNowFn(ts)
-					require.NoError(t, setup.db.Write(ctx, nsID, dp.series, ts, dp.value, xtime.Second, nil))
+
+					fmt.Printf("Writing %f at %s\n", dp.value, ts.String())
+					err := setup.db.Write(ctx, nsID, dp.series, ts, dp.value, xtime.Second, nil)
+					if err != nil {
+						return false, err
+					}
 				}
 				log.Infof("wrote datapoints")
 
 				expectedSeriesMap := datapoints[:lastIdx].toSeriesMap(ns1BlockSize)
 				log.Infof("verifying data in database equals expected data")
-				verifySeriesMaps(t, setup, nsID, expectedSeriesMap)
+				fmt.Println("len(datapoints): ", len(datapoints))
+				fmt.Println("len(datapoints[:lastIDx]): ", len(datapoints[:lastIdx]))
+				fmt.Println("time: ", timesToCheck)
+				fmt.Println("lastIDx: ", lastIdx)
+				for block, vals := range expectedSeriesMap {
+					fmt.Println("expected for block: ", block.ToTime().String())
+					for _, series := range vals {
+						fmt.Println("expected for series: ", series.ID)
+						for _, dp := range series.Data {
+							fmt.Println(dp)
+						}
+					}
+				}
+				err := verifySeriesMapsReturnError(t, setup, nsID, expectedSeriesMap)
+				if err != nil {
+					return false, err
+				}
 				log.Infof("verified data in database equals expected data")
 				require.NoError(t, setup.stopServer())
 			}
@@ -174,4 +208,20 @@ type propTestInput struct {
 	blockSize    time.Duration
 	bufferPast   time.Duration
 	bufferFuture time.Duration
+}
+
+func verifySeriesMapsReturnError(
+	t *testing.T,
+	ts *testSetup,
+	namespace ident.ID,
+	seriesMaps map[xtime.UnixNano]generate.SeriesBlock,
+) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%v", r)
+		}
+	}()
+
+	verifySeriesMaps(t, ts, namespace, seriesMaps)
+	return nil
 }

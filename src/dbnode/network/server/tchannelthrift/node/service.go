@@ -312,6 +312,8 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 
 	start, rangeStartErr := convert.ToTime(req.RangeStart, req.RangeType)
 	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeType)
+	fmt.Println("server fetching from start: ", start.String())
+	fmt.Println("server fetching to end: ", end.String())
 
 	if rangeStartErr != nil || rangeEndErr != nil {
 		s.metrics.fetch.ReportError(s.nowFn().Sub(callStart))
@@ -339,6 +341,8 @@ func (s *service) readDatapoints(
 	start, end time.Time,
 	timeType rpc.TimeType,
 ) ([]*rpc.Datapoint, error) {
+	fmt.Println("server reading: ", tsID)
+
 	encoded, err := s.db.ReadEncoded(ctx, nsID, tsID, start, end)
 	if err != nil {
 		return nil, err
@@ -353,11 +357,13 @@ func (s *service) readDatapoints(
 
 	for multiIt.Next() {
 		dp, _, annotation := multiIt.Current()
+		fmt.Println("server fetched with ts: ", dp.Timestamp, " and value: ", dp.Value)
 
 		timestamp, timestampErr := convert.ToValue(dp.Timestamp, timeType)
 		if timestampErr != nil {
 			return nil, xerrors.NewInvalidParamsError(timestampErr)
 		}
+		fmt.Println(timestamp)
 
 		datapoint := rpc.NewDatapoint()
 		datapoint.Timestamp = timestamp
@@ -512,6 +518,7 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 }
 
 func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawRequest) (*rpc.FetchBlocksRawResult_, error) {
+	panic("yolo")
 	if s.isOverloaded() {
 		s.metrics.overloadRejected.Inc(1)
 		return nil, tterrors.NewInternalError(errServerIsOverloaded)
@@ -585,6 +592,7 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 }
 
 func (s *service) FetchBlocksMetadataRaw(tctx thrift.Context, req *rpc.FetchBlocksMetadataRawRequest) (*rpc.FetchBlocksMetadataRawResult_, error) {
+	panic("grr")
 	if s.db.IsOverloaded() {
 		s.metrics.overloadRejected.Inc(1)
 		return nil, tterrors.NewInternalError(errServerIsOverloaded)

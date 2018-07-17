@@ -282,6 +282,8 @@ func (s *commitLogSource) ReadData(
 			continue
 		}
 
+		fmt.Printf("cl read %f at %s for %s\n", dp.Value, dp.Timestamp, series.ID)
+
 		datapointsRead++
 
 		// Distribute work such that each encoder goroutine is responsible for

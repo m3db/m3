@@ -115,6 +115,12 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 		alignedEnd = latest
 	}
 
+	fmt.Println("in read encoded")
+	fmt.Println("start: ", start)
+	fmt.Println("end: ", end)
+	fmt.Println("blockSize: ", size)
+	fmt.Println("alignedStart: ", alignedStart)
+	fmt.Println("alignedEnd: ", alignedEnd)
 	first, last := alignedStart, alignedEnd
 	for blockAt := first; !blockAt.After(last); blockAt = blockAt.Add(size) {
 		if seriesBlocks != nil {

@@ -82,6 +82,8 @@ func verifySeriesMapForRange(
 
 	expectedMetadata := map[string]generate.Series{}
 	req := rpc.NewFetchRequest()
+	fmt.Println("fetching from: ", start.String())
+	fmt.Println("fetching to: ", end.String())
 	for i := range input {
 		idString := input[i].ID.String()
 		req.NameSpace = namespace.String()
@@ -112,6 +114,12 @@ func verifySeriesMapForRange(
 		writeVerifyDebugOutput(t, actualDebugFilePath, start, end, actual)
 	}
 
+	for i, series := range actual {
+		fmt.Println("comparing: ", series.ID)
+		fmt.Println("first expected: ", expected[i].Data[0])
+		fmt.Println("first actual: ", series.Data[0])
+		require.Equal(t, expected[i], series)
+	}
 	require.Equal(t, expected, actual)
 
 	// Now check the metadata of all the series match
