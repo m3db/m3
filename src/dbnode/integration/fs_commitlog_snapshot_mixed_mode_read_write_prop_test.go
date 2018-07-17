@@ -45,6 +45,7 @@ import (
 const maxBlockSize = 12 * time.Hour
 const maxPoints = 1000
 const minSuccessfulTests = 8
+const maxFlushWaitTime = time.Minute
 
 // This integration test uses property testing to make sure that the node
 // can properly bootstrap all the data from a combination of fileset files,
@@ -199,7 +200,7 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 						latestFlushTime := now.Truncate(ns1BlockSize).Add(-ns1BlockSize)
 						expectedFlushedData := datapoints.before(latestFlushTime.Add(-bufferPast)).toSeriesMap(ns1BlockSize)
 						err := waitUntilDataFilesFlushed(
-							filePathPrefix, setup.shardSet, nsID, expectedFlushedData, 10*time.Second)
+							filePathPrefix, setup.shardSet, nsID, expectedFlushedData, maxFlushWaitTime)
 						if err != nil {
 							return false, err
 						}
@@ -214,7 +215,7 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 								filePathPrefix,
 								setup.shardSet,
 								nsID,
-								[]time.Time{snapshotBlock}, 10*time.Second))
+								[]time.Time{snapshotBlock}, maxFlushWaitTime))
 					}
 
 					require.NoError(t, setup.stopServer())
