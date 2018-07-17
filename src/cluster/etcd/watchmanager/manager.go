@@ -155,6 +155,10 @@ func (w *manager) Watch(key string) {
 				}
 			}
 
+			if r.IsProgressNotify() {
+				// Do not call updateFn on ProgressNotify as it happens periodically with no update events
+				continue
+			}
 			if err = w.updateFn(key, r.Events); err != nil {
 				w.logger.Errorf("received notification for key %s, but failed to get value: %v", key, err)
 			}
