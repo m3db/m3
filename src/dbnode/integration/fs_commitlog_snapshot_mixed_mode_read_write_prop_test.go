@@ -202,7 +202,7 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 						err := waitUntilDataFilesFlushed(
 							filePathPrefix, setup.shardSet, nsID, expectedFlushedData, maxFlushWaitTime)
 						if err != nil {
-							return false, err
+							return false, fmt.Errorf("error waiting for data files to flush: %s", err)
 						}
 					}
 
@@ -210,12 +210,14 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 						log.Infof("Waiting for snapshot files to be written")
 						now := setup.getNowFn()
 						snapshotBlock := now.Add(-bufferPast).Truncate(ns1BlockSize)
-						require.NoError(t,
-							waitUntilSnapshotFilesFlushed(
-								filePathPrefix,
-								setup.shardSet,
-								nsID,
-								[]time.Time{snapshotBlock}, maxFlushWaitTime))
+						err := waitUntilSnapshotFilesFlushed(
+							filePathPrefix,
+							setup.shardSet,
+							nsID,
+							[]time.Time{snapshotBlock}, maxFlushWaitTime)
+						if err != nil {
+							return false, fmt.Errorf("error waiting for snapshot files: %s", err.Error())
+						}
 					}
 
 					require.NoError(t, setup.stopServer())
