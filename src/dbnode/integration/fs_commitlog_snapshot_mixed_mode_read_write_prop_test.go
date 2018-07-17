@@ -69,13 +69,7 @@ func testMixedModeReadWriteProp(t *testing.T, snapshotEnabled bool) {
 		func(input propTestInput) (bool, error) {
 			// Test setup
 			var (
-				ns1BlockSize = input.blockSize.Round(time.Second)
-				// setting time to 2017/02/13 15:30:10
-				// blkStart15 = fakeStart.Truncate(ns1BlockSize)
-				// blkStart16 = blkStart15.Add(ns1BlockSize)
-				// blkStart17 = blkStart16.Add(ns1BlockSize)
-				// blkStart18 = blkStart17.Add(ns1BlockSize)
-				// timesToCheck       = []time.Time{blkStart15, blkStart16, blkStart17, blkStart18}
+				ns1BlockSize       = input.blockSize.Round(time.Second)
 				commitLogBlockSize = 15 * time.Minute
 				// TODO: Vary this?
 				retentionPeriod = maxBlockSize * 5
