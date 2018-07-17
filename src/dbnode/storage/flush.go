@@ -114,7 +114,10 @@ func (m *flushManager) Flush(
 				"tried to flush ns: %s, but did not have shard bootstrap times", ns.ID().String()))
 			continue
 		}
+		fmt.Println("FLUSHING NAMESPACES")
+		fmt.Println(flushTimes)
 		multiErr = multiErr.Add(m.flushNamespaceWithTimes(ns, shardBootstrapTimes, flushTimes, flush))
+		fmt.Println("DONE FLUSHING NAMESPACES")
 	}
 
 	// Perform two separate loops through all the namespaces so that we can emit better
@@ -132,6 +135,8 @@ func (m *flushManager) Flush(
 		// Only perform snapshots if the previous block (I.E the block directly before
 		// the block that we would snapshot) has been flushed.
 		if !ns.NeedsFlush(prevBlockStart, prevBlockStart) {
+			fmt.Println("snapshotting: ", snapshotBlockStart)
+			fmt.Println("tickStart: ", tickStart)
 			if err := ns.Snapshot(snapshotBlockStart, tickStart, flush); err != nil {
 				detailedErr := fmt.Errorf("namespace %s failed to snapshot data: %v",
 					ns.ID().String(), err)
@@ -213,6 +218,8 @@ func (m *flushManager) snapshotBlockStart(ns databaseNamespace, curr time.Time) 
 	// 		   "buffer past" writes) and 2:09.Add(-10min).Truncate(2hours) = 12PM
 	// 		4) 2:10PM we want to snapshot with a 2PM block start (because the 12PM block can no long receive
 	// 		   "buffer past" writes) and 2:10.Add(-10min).Truncate(2hours) = 2PM
+	fmt.Println("blockSize: ", blockSize)
+	fmt.Println("bufferPast: ", bufferPast)
 	return curr.Add(-bufferPast).Truncate(blockSize)
 }
 

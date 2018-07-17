@@ -317,6 +317,17 @@ func (d dataPointsInTimeOrder) toSeriesMap(blockSize time.Duration) generate.Ser
 	return nil
 }
 
+func (d dataPointsInTimeOrder) before(t time.Time) dataPointsInTimeOrder {
+	var i int
+	for i = range d {
+		if !d[i].time.Before(t) {
+			break
+		}
+	}
+
+	return d[:i]
+}
+
 type idGen struct {
 	baseID string
 }

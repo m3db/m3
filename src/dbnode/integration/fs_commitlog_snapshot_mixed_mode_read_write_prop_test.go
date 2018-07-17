@@ -43,9 +43,10 @@ import (
 )
 
 const maxBlockSize = 12 * time.Hour
+const maxPoints = 1000
 
 func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
-	testMixedModeReadWriteProp(t, false)
+	testMixedModeReadWriteProp(t, true)
 }
 
 func testMixedModeReadWriteProp(t *testing.T, snapshotEnabled bool) {
@@ -54,12 +55,11 @@ func testMixedModeReadWriteProp(t *testing.T, snapshotEnabled bool) {
 	}
 	var (
 		parameters = gopter.DefaultTestParameters()
-		// seed       = time.Now().UnixNano()
-		seed      = int64(1)
-		props     = gopter.NewProperties(parameters)
-		reporter  = gopter.NewFormatedReporter(true, 160, os.Stdout)
-		fakeStart = time.Date(2017, time.February, 13, 15, 30, 10, 0, time.Local)
-		rng       = rand.New(rand.NewSource(seed))
+		seed       = time.Now().UnixNano()
+		props      = gopter.NewProperties(parameters)
+		reporter   = gopter.NewFormatedReporter(true, 160, os.Stdout)
+		fakeStart  = time.Date(2017, time.February, 13, 15, 30, 10, 0, time.Local)
+		rng        = rand.New(rand.NewSource(seed))
 	)
 
 	parameters.MinSuccessfulTests = 30
@@ -80,15 +80,17 @@ func testMixedModeReadWriteProp(t *testing.T, snapshotEnabled bool) {
 						SetBlockSize(ns1BlockSize).
 						SetBufferPast(bufferPast).
 						SetBufferFuture(bufferFuture)
-				nsID       = testNamespaces[0]
-				numMinutes = 200
+				nsID      = testNamespaces[0]
+				numPoints = input.numPoints
 			)
 
 			if bufferPast > ns1BlockSize {
-				ns1ROpts = ns1ROpts.SetBufferPast(ns1BlockSize - 1)
+				bufferPast = ns1BlockSize - 1
+				ns1ROpts = ns1ROpts.SetBufferPast(bufferPast)
 			}
 			if bufferFuture > ns1BlockSize {
-				ns1ROpts = ns1ROpts.SetBufferFuture(ns1BlockSize - 1)
+				bufferFuture = ns1BlockSize - 1
+				ns1ROpts = ns1ROpts.SetBufferFuture(bufferFuture)
 			}
 
 			if err := ns1ROpts.Validate(); err != nil {
@@ -121,12 +123,13 @@ func testMixedModeReadWriteProp(t *testing.T, snapshotEnabled bool) {
 
 			var (
 				ids             = &idGen{longTestID}
-				datapoints      = generateDatapoints(fakeStart, numMinutes, ids)
+				datapoints      = generateDatapoints(fakeStart, numPoints, ids)
 				lastIdx         = 0
 				earliestToCheck = datapoints[0].time.Truncate(ns1BlockSize)
 				latestToCheck   = datapoints[len(datapoints)-1].time.Add(ns1BlockSize)
 				timesToCheck    = []time.Time{}
 				start           = earliestToCheck
+				filePathPrefix  = setup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 			)
 
 			for {
@@ -189,7 +192,38 @@ func testMixedModeReadWriteProp(t *testing.T, snapshotEnabled bool) {
 					return false, err
 				}
 				log.Infof("verified data in database equals expected data")
+				if input.waitForFlushFiles {
+					now := setup.getNowFn()
+					latestFlushTime := now.Truncate(ns1BlockSize).Add(-ns1BlockSize)
+					expectedFlushedData := datapoints.before(latestFlushTime.Add(-bufferPast)).toSeriesMap(ns1BlockSize)
+					fmt.Println("waiting for data flush up to: ", latestFlushTime)
+					fmt.Println("current time: ", now)
+					err := waitUntilDataFilesFlushed(
+						filePathPrefix, setup.shardSet, nsID, expectedFlushedData, 10*time.Second)
+					if err != nil {
+						return false, err
+					}
+				}
+
+				if input.waitForSnapshotFiles {
+					now := setup.getNowFn()
+					snapshotBlock := now.Add(-bufferPast).Truncate(ns1BlockSize)
+					fmt.Println("waiting for snapshot: ", snapshotBlock)
+					fmt.Println("now: ", now)
+					fmt.Println("bufferPast: ", bufferPast)
+					fmt.Println("ns1BlockSize: ", ns1BlockSize)
+					require.NoError(t,
+						waitUntilSnapshotFilesFlushed(
+							filePathPrefix,
+							setup.shardSet,
+							nsID,
+							[]time.Time{snapshotBlock}, 10*time.Second))
+				}
 				require.NoError(t, setup.stopServer())
+				oldNow := setup.getNowFn()
+				setup = newTestSetupWithCommitLogAndFilesystemBootstrapper(
+					t, opts.SetFilePathPrefix(filePathPrefix))
+				setup.setNowFn(oldNow)
 			}
 			if lastIdx != len(datapoints) {
 				return false, fmt.Errorf(
@@ -211,21 +245,29 @@ func genPropTestInputs(blockStart time.Time) gopter.Gen {
 		gen.Int64Range(1, int64(maxBlockSize/2)*2),
 		gen.Int64Range(1, int64(maxBlockSize/2)*2),
 		gen.Int64Range(1, int64(maxBlockSize/2)*2),
+		gen.IntRange(0, maxPoints),
+		gen.Bool(),
+		gen.Bool(),
 	).Map(func(val interface{}) propTestInput {
 		inputs := val.([]interface{})
 		return propTestInput{
-			blockSize:    time.Duration(inputs[0].(int64)),
-			bufferPast:   time.Duration(inputs[1].(int64)),
-			bufferFuture: time.Duration(inputs[2].(int64)),
+			blockSize:            time.Duration(inputs[0].(int64)),
+			bufferPast:           time.Duration(inputs[1].(int64)),
+			bufferFuture:         time.Duration(inputs[2].(int64)),
+			numPoints:            inputs[3].(int),
+			waitForFlushFiles:    inputs[4].(bool),
+			waitForSnapshotFiles: inputs[5].(bool),
 		}
 	})
 }
 
 type propTestInput struct {
-	blockSize    time.Duration
-	bufferPast   time.Duration
-	bufferFuture time.Duration
-	numPoints    int
+	blockSize            time.Duration
+	bufferPast           time.Duration
+	bufferFuture         time.Duration
+	numPoints            int
+	waitForFlushFiles    bool
+	waitForSnapshotFiles bool
 }
 
 func verifySeriesMapsReturnError(
