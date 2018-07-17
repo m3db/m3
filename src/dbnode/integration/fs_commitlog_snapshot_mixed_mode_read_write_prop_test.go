@@ -96,9 +96,9 @@ func testMixedModeReadWriteProp(t *testing.T, snapshotEnabled bool) {
 			if err := ns1ROpts.Validate(); err != nil {
 				return false, err
 			}
-			fmt.Printf("blockSize: %s\n", ns1ROpts.BlockSize().String())
-			fmt.Printf("bufferPast: %s\n", ns1ROpts.BufferPast().String())
-			fmt.Printf("bufferFuture: %s\n", ns1ROpts.BufferFuture().String())
+			s.log.Infof("blockSize: %s\n", ns1ROpts.BlockSize().String())
+			s.log.Infof("bufferPast: %s\n", ns1ROpts.BufferPast().String())
+			s.log.Infof("bufferFuture: %s\n", ns1ROpts.BufferFuture().String())
 
 			ns1Opts := namespace.NewOptions().
 				SetRetentionOptions(ns1ROpts).
@@ -142,7 +142,6 @@ func testMixedModeReadWriteProp(t *testing.T, snapshotEnabled bool) {
 			}
 			timesToCheck = append(timesToCheck, latestToCheck)
 
-			fmt.Println("timesToCheck: ", timesToCheck)
 			for _, timeToCheck := range timesToCheck {
 				startServerWithNewInspection(t, opts, setup)
 				var (
@@ -174,19 +173,6 @@ func testMixedModeReadWriteProp(t *testing.T, snapshotEnabled bool) {
 
 				expectedSeriesMap := datapoints[:lastIdx].toSeriesMap(ns1BlockSize)
 				log.Infof("verifying data in database equals expected data")
-				fmt.Println("len(datapoints): ", len(datapoints))
-				fmt.Println("len(datapoints[:lastIDx]): ", len(datapoints[:lastIdx]))
-				fmt.Println("time: ", timesToCheck)
-				fmt.Println("lastIDx: ", lastIdx)
-				for block, vals := range expectedSeriesMap {
-					fmt.Println("expected for block: ", block.ToTime().String())
-					for _, series := range vals {
-						fmt.Println("expected for series: ", series.ID)
-						for _, dp := range series.Data {
-							fmt.Println(dp)
-						}
-					}
-				}
 				err := verifySeriesMapsReturnError(t, setup, nsID, expectedSeriesMap)
 				if err != nil {
 					return false, err
@@ -196,8 +182,6 @@ func testMixedModeReadWriteProp(t *testing.T, snapshotEnabled bool) {
 					now := setup.getNowFn()
 					latestFlushTime := now.Truncate(ns1BlockSize).Add(-ns1BlockSize)
 					expectedFlushedData := datapoints.before(latestFlushTime.Add(-bufferPast)).toSeriesMap(ns1BlockSize)
-					fmt.Println("waiting for data flush up to: ", latestFlushTime)
-					fmt.Println("current time: ", now)
 					err := waitUntilDataFilesFlushed(
 						filePathPrefix, setup.shardSet, nsID, expectedFlushedData, 10*time.Second)
 					if err != nil {
@@ -208,10 +192,6 @@ func testMixedModeReadWriteProp(t *testing.T, snapshotEnabled bool) {
 				if input.waitForSnapshotFiles {
 					now := setup.getNowFn()
 					snapshotBlock := now.Add(-bufferPast).Truncate(ns1BlockSize)
-					fmt.Println("waiting for snapshot: ", snapshotBlock)
-					fmt.Println("now: ", now)
-					fmt.Println("bufferPast: ", bufferPast)
-					fmt.Println("ns1BlockSize: ", ns1BlockSize)
 					require.NoError(t,
 						waitUntilSnapshotFilesFlushed(
 							filePathPrefix,
