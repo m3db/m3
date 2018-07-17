@@ -45,14 +45,25 @@ import (
 const maxBlockSize = 12 * time.Hour
 const maxPoints = 1000
 
+// This integration test uses property testing to make sure that the node
+// can properly bootstrap all the data from a combination of fileset files,
+// snapshotfiles, and commit log files. It varies the following inputs to
+// the system:
+// 		1) block size
+// 		2) buffer past
+// 		3) buffer future
+// 		4) number of datapoints
+// 		5) whether it waits for data files to be flushed before shutting down
+// 		6) whether it waits for snapshot files to be written before shutting down
+//
+// It works by generating random datapoints, and then writing those data points
+// to the node in order. At randomly selected times during the write process, the
+// node will turn itself off and then bootstrap itself before resuming.
 func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
-	testMixedModeReadWriteProp(t, true)
-}
-
-func testMixedModeReadWriteProp(t *testing.T, snapshotEnabled bool) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
+
 	var (
 		parameters = gopter.DefaultTestParameters()
 		seed       = time.Now().UnixNano()
@@ -65,153 +76,159 @@ func testMixedModeReadWriteProp(t *testing.T, snapshotEnabled bool) {
 	parameters.MinSuccessfulTests = 30
 	parameters.Rng.Seed(seed)
 
-	props.Property("Blah", prop.ForAll(
-		func(input propTestInput) (bool, error) {
-			// Test setup
-			var (
-				ns1BlockSize       = input.blockSize.Round(time.Second)
-				commitLogBlockSize = 15 * time.Minute
-				// TODO: Vary this?
-				retentionPeriod = maxBlockSize * 5
-				bufferPast      = input.bufferPast
-				bufferFuture    = input.bufferFuture
-				ns1ROpts        = retention.NewOptions().
-						SetRetentionPeriod(retentionPeriod).
-						SetBlockSize(ns1BlockSize).
-						SetBufferPast(bufferPast).
-						SetBufferFuture(bufferFuture)
-				nsID      = testNamespaces[0]
-				numPoints = input.numPoints
-			)
-
-			if bufferPast > ns1BlockSize {
-				bufferPast = ns1BlockSize - 1
-				ns1ROpts = ns1ROpts.SetBufferPast(bufferPast)
-			}
-			if bufferFuture > ns1BlockSize {
-				bufferFuture = ns1BlockSize - 1
-				ns1ROpts = ns1ROpts.SetBufferFuture(bufferFuture)
-			}
-
-			if err := ns1ROpts.Validate(); err != nil {
-				return false, err
-			}
-			s.log.Infof("blockSize: %s\n", ns1ROpts.BlockSize().String())
-			s.log.Infof("bufferPast: %s\n", ns1ROpts.BufferPast().String())
-			s.log.Infof("bufferFuture: %s\n", ns1ROpts.BufferFuture().String())
-
-			ns1Opts := namespace.NewOptions().
-				SetRetentionOptions(ns1ROpts).
-				SetSnapshotEnabled(snapshotEnabled)
-			ns1, err := namespace.NewMetadata(nsID, ns1Opts)
-			if err != nil {
-				return false, err
-			}
-			opts := newTestOptions(t).
-				SetCommitLogRetentionPeriod(retentionPeriod).
-				SetCommitLogBlockSize(commitLogBlockSize).
-				SetNamespaces([]namespace.Metadata{ns1})
-
-			// Test setup
-			setup := newTestSetupWithCommitLogAndFilesystemBootstrapper(t, opts)
-			defer setup.close()
-
-			log := setup.storageOpts.InstrumentOptions().Logger()
-			log.Info("commit log & fileset files, write, read, and merge bootstrap test")
-
-			setup.setNowFn(fakeStart)
-
-			var (
-				ids             = &idGen{longTestID}
-				datapoints      = generateDatapoints(fakeStart, numPoints, ids)
-				lastIdx         = 0
-				earliestToCheck = datapoints[0].time.Truncate(ns1BlockSize)
-				latestToCheck   = datapoints[len(datapoints)-1].time.Add(ns1BlockSize)
-				timesToCheck    = []time.Time{}
-				start           = earliestToCheck
-				filePathPrefix  = setup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
-			)
-
-			for {
-				if start.After(latestToCheck) || start.Equal(latestToCheck) {
-					break
-				}
-
-				timesToCheck = append(timesToCheck, start)
-				start = start.Add(time.Duration(rng.Intn(int(maxBlockSize))))
-			}
-			timesToCheck = append(timesToCheck, latestToCheck)
-
-			for _, timeToCheck := range timesToCheck {
-				startServerWithNewInspection(t, opts, setup)
+	props.Property(
+		"Node can bootstrap all data from filesetfiles, snapshotfiles, and commit log files", prop.ForAll(
+			func(input propTestInput) (bool, error) {
+				// Test setup
 				var (
-					ctx = context.NewContext()
+					// Round to a second to prevent interactions between the RPC client
+					// and the node itself when blocksize is not rounded down to a second.
+					ns1BlockSize       = input.blockSize.Round(time.Second)
+					commitLogBlockSize = 15 * time.Minute
+					// Make sure randomly generated data never falls out of retention
+					// during the course of a test.
+					retentionPeriod = maxBlockSize * 5
+					bufferPast      = input.bufferPast
+					bufferFuture    = input.bufferFuture
+					ns1ROpts        = retention.NewOptions().
+							SetRetentionPeriod(retentionPeriod).
+							SetBlockSize(ns1BlockSize).
+							SetBufferPast(bufferPast).
+							SetBufferFuture(bufferFuture)
+					nsID      = testNamespaces[0]
+					numPoints = input.numPoints
 				)
-				defer ctx.Close()
 
-				log.Infof("writing datapoints")
-				var i int
-				for i = lastIdx; i < len(datapoints); i++ {
-					var (
-						dp = datapoints[i]
-						ts = dp.time
-					)
-					if !ts.Before(timeToCheck) {
-						break
-					}
-
-					setup.setNowFn(ts)
-
-					fmt.Printf("Writing %f at %s\n", dp.value, ts.String())
-					err := setup.db.Write(ctx, nsID, dp.series, ts, dp.value, xtime.Second, nil)
-					if err != nil {
-						return false, err
-					}
+				if bufferPast > ns1BlockSize {
+					bufferPast = ns1BlockSize - 1
+					ns1ROpts = ns1ROpts.SetBufferPast(bufferPast)
 				}
-				lastIdx = i
-				log.Infof("wrote datapoints")
+				if bufferFuture > ns1BlockSize {
+					bufferFuture = ns1BlockSize - 1
+					ns1ROpts = ns1ROpts.SetBufferFuture(bufferFuture)
+				}
 
-				expectedSeriesMap := datapoints[:lastIdx].toSeriesMap(ns1BlockSize)
-				log.Infof("verifying data in database equals expected data")
-				err := verifySeriesMapsReturnError(t, setup, nsID, expectedSeriesMap)
+				if err := ns1ROpts.Validate(); err != nil {
+					return false, err
+				}
+
+				s.log.Infof("blockSize: %s\n", ns1ROpts.BlockSize().String())
+				s.log.Infof("bufferPast: %s\n", ns1ROpts.BufferPast().String())
+				s.log.Infof("bufferFuture: %s\n", ns1ROpts.BufferFuture().String())
+
+				ns1Opts := namespace.NewOptions().
+					SetRetentionOptions(ns1ROpts).
+					SetSnapshotEnabled(true)
+				ns1, err := namespace.NewMetadata(nsID, ns1Opts)
 				if err != nil {
 					return false, err
 				}
-				log.Infof("verified data in database equals expected data")
-				if input.waitForFlushFiles {
-					now := setup.getNowFn()
-					latestFlushTime := now.Truncate(ns1BlockSize).Add(-ns1BlockSize)
-					expectedFlushedData := datapoints.before(latestFlushTime.Add(-bufferPast)).toSeriesMap(ns1BlockSize)
-					err := waitUntilDataFilesFlushed(
-						filePathPrefix, setup.shardSet, nsID, expectedFlushedData, 10*time.Second)
+				opts := newTestOptions(t).
+					SetCommitLogRetentionPeriod(retentionPeriod).
+					SetCommitLogBlockSize(commitLogBlockSize).
+					SetNamespaces([]namespace.Metadata{ns1})
+
+				// Test setup
+				setup := newTestSetupWithCommitLogAndFilesystemBootstrapper(t, opts)
+				defer setup.close()
+
+				log := setup.storageOpts.InstrumentOptions().Logger()
+				log.Info("commit log & fileset files, write, read, and merge bootstrap test")
+
+				setup.setNowFn(fakeStart)
+
+				var (
+					ids        = &idGen{longTestID}
+					datapoints = generateDatapoints(fakeStart, numPoints, ids)
+					// Used to keep track of which datapoints have been written already.
+					lastDatapointsIdx = 0
+					earliestToCheck   = datapoints[0].time.Truncate(ns1BlockSize)
+					latestToCheck     = datapoints[len(datapoints)-1].time.Add(ns1BlockSize)
+					timesToCheck      = []time.Time{}
+					start             = earliestToCheck
+					filePathPrefix    = setup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
+				)
+
+				for {
+					if start.After(latestToCheck) || start.Equal(latestToCheck) {
+						break
+					}
+
+					timesToCheck = append(timesToCheck, start)
+					start = start.Add(time.Duration(rng.Intn(int(maxBlockSize))))
+				}
+				timesToCheck = append(timesToCheck, latestToCheck)
+
+				for _, timeToCheck := range timesToCheck {
+					startServerWithNewInspection(t, opts, setup)
+					var (
+						ctx = context.NewContext()
+					)
+					defer ctx.Close()
+
+					log.Infof("writing datapoints")
+					var i int
+					for i = lastDatapointsIdx; i < len(datapoints); i++ {
+						var (
+							dp = datapoints[i]
+							ts = dp.time
+						)
+						if !ts.Before(timeToCheck) {
+							break
+						}
+
+						setup.setNowFn(ts)
+
+						fmt.Printf("Writing %f at %s\n", dp.value, ts.String())
+						err := setup.db.Write(ctx, nsID, dp.series, ts, dp.value, xtime.Second, nil)
+						if err != nil {
+							return false, err
+						}
+					}
+					lastDatapointsIdx = i
+					log.Infof("wrote datapoints")
+
+					expectedSeriesMap := datapoints[:lastDatapointsIdx].toSeriesMap(ns1BlockSize)
+					log.Infof("verifying data in database equals expected data")
+					err := verifySeriesMapsReturnError(t, setup, nsID, expectedSeriesMap)
 					if err != nil {
 						return false, err
 					}
-				}
+					log.Infof("verified data in database equals expected data")
+					if input.waitForFlushFiles {
+						now := setup.getNowFn()
+						latestFlushTime := now.Truncate(ns1BlockSize).Add(-ns1BlockSize)
+						expectedFlushedData := datapoints.before(latestFlushTime.Add(-bufferPast)).toSeriesMap(ns1BlockSize)
+						err := waitUntilDataFilesFlushed(
+							filePathPrefix, setup.shardSet, nsID, expectedFlushedData, 10*time.Second)
+						if err != nil {
+							return false, err
+						}
+					}
 
-				if input.waitForSnapshotFiles {
-					now := setup.getNowFn()
-					snapshotBlock := now.Add(-bufferPast).Truncate(ns1BlockSize)
-					require.NoError(t,
-						waitUntilSnapshotFilesFlushed(
-							filePathPrefix,
-							setup.shardSet,
-							nsID,
-							[]time.Time{snapshotBlock}, 10*time.Second))
+					if input.waitForSnapshotFiles {
+						now := setup.getNowFn()
+						snapshotBlock := now.Add(-bufferPast).Truncate(ns1BlockSize)
+						require.NoError(t,
+							waitUntilSnapshotFilesFlushed(
+								filePathPrefix,
+								setup.shardSet,
+								nsID,
+								[]time.Time{snapshotBlock}, 10*time.Second))
+					}
+					require.NoError(t, setup.stopServer())
+					oldNow := setup.getNowFn()
+					setup = newTestSetupWithCommitLogAndFilesystemBootstrapper(
+						t, opts.SetFilePathPrefix(filePathPrefix))
+					setup.setNowFn(oldNow)
 				}
-				require.NoError(t, setup.stopServer())
-				oldNow := setup.getNowFn()
-				setup = newTestSetupWithCommitLogAndFilesystemBootstrapper(
-					t, opts.SetFilePathPrefix(filePathPrefix))
-				setup.setNowFn(oldNow)
-			}
-			if lastIdx != len(datapoints) {
-				return false, fmt.Errorf(
-					"expected lastIdx to be: %d but was: %d", len(datapoints), lastIdx)
-			}
-			return true, nil
-		}, genPropTestInputs(fakeStart),
-	))
+				if lastDatapointsIdx != len(datapoints) {
+					return false, fmt.Errorf(
+						"expected lastDatapointsIdx to be: %d but was: %d", len(datapoints), lastDatapointsIdx)
+				}
+				return true, nil
+			}, genPropTestInputs(fakeStart),
+		))
 
 	if !props.Run(reporter) {
 		t.Errorf(
