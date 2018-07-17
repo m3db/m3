@@ -38,7 +38,7 @@ import (
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 )
 
 type readableSeries struct {
@@ -91,7 +91,7 @@ func verifySeriesMapForRange(
 		req.ResultTimeType = rpc.TimeType_UNIX_SECONDS
 		fetched, err := ts.fetch(req)
 
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		expected[i] = generate.Series{
 			ID:   input[i].ID,
 			Data: input[i].Data,
@@ -113,9 +113,9 @@ func verifySeriesMapForRange(
 	}
 
 	for i, series := range actual {
-		require.Equal(t, expected[i], series)
+		assert.Equal(t, expected[i], series)
 	}
-	require.Equal(t, expected, actual)
+	assert.Equal(t, expected, actual)
 
 	// Now check the metadata of all the series match
 	ctx := context.NewContext()
@@ -136,7 +136,7 @@ func verifySeriesMapForRange(
 
 			results, nextPageToken, err := ts.db.FetchBlocksMetadataV2(ctx,
 				namespace, shard, start, end, 4096, pageToken, opts)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 
 			// Use the next one for the next iteration
 			pageToken = nextPageToken
@@ -144,7 +144,7 @@ func verifySeriesMapForRange(
 			for _, actual := range results.Results() {
 				id := actual.ID.String()
 				expected, ok := expectedMetadata[id]
-				require.True(t, ok, fmt.Sprintf("unexpected ID: %s", id))
+				assert.True(t, ok, fmt.Sprintf("unexpected ID: %s", id))
 
 				expectedTagsIter := ident.NewTagsIterator(expected.Tags)
 				actualTagsIter := actual.Tags.Duplicate()
@@ -179,7 +179,7 @@ func verifySeriesMapForRange(
 					).Error("series does not match expected tags")
 				}
 
-				require.True(t, tagMatcher.Matches(actualTagsIter))
+				assert.True(t, tagMatcher.Matches(actualTagsIter))
 			}
 		}
 	}
@@ -187,7 +187,7 @@ func verifySeriesMapForRange(
 
 func writeVerifyDebugOutput(t *testing.T, filePath string, start, end time.Time, series generate.SeriesBlock) {
 	w, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY, os.ModeAppend)
-	require.NoError(t, err)
+	assert.NoError(t, err)
 
 	list := make(readableSeriesList, 0, len(series))
 	for i := range series {
@@ -214,11 +214,11 @@ func writeVerifyDebugOutput(t *testing.T, filePath string, start, end time.Time,
 		End:    end,
 		Series: list,
 	}, "", "    ")
-	require.NoError(t, err)
+	assert.NoError(t, err)
 
 	_, err = w.Write(data)
-	require.NoError(t, err)
-	require.NoError(t, w.Close())
+	assert.NoError(t, err)
+	assert.NoError(t, w.Close())
 }
 
 func verifySeriesMaps(
@@ -232,7 +232,7 @@ func verifySeriesMaps(
 	actualDebugFilePath := createFileIfPrefixSet(t, debugFilePathPrefix, fmt.Sprintf("%s-actual.log", namespace.String()))
 
 	nsMetadata, ok := ts.db.Namespace(namespace)
-	require.True(t, ok)
+	assert.True(t, ok)
 	nsOpts := nsMetadata.Options()
 
 	for timestamp, sm := range seriesMaps {
@@ -250,8 +250,8 @@ func createFileIfPrefixSet(t *testing.T, prefix, suffix string) string {
 	}
 	filePath := prefix + "_" + suffix
 	w, err := os.Create(filePath)
-	require.NoError(t, err)
-	require.NoError(t, w.Close())
+	assert.NoError(t, err)
+	assert.NoError(t, w.Close())
 	return filePath
 }
 
@@ -263,10 +263,10 @@ func compareSeriesList(
 	sort.Sort(expected)
 	sort.Sort(actual)
 
-	require.Equal(t, len(expected), len(actual))
+	assert.Equal(t, len(expected), len(actual))
 
 	for i := range expected {
-		require.Equal(t, expected[i].ID.Bytes(), actual[i].ID.Bytes())
-		require.Equal(t, expected[i].Data, expected[i].Data)
+		assert.Equal(t, expected[i].ID.Bytes(), actual[i].ID.Bytes())
+		assert.Equal(t, expected[i].Data, expected[i].Data)
 	}
 }

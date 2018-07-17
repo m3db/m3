@@ -144,26 +144,26 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 					lastDatapointsIdx = 0
 					earliestToCheck   = datapoints[0].time.Truncate(ns1BlockSize)
 					latestToCheck     = datapoints[len(datapoints)-1].time.Add(ns1BlockSize)
-					timesToCheck      = []time.Time{}
+					timesToRestart    = []time.Time{}
 					start             = earliestToCheck
 					filePathPrefix    = setup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 				)
 
+				// Generate randomly selected times during which the node will restart
+				// and bootstrap before continuing to write data.
 				for {
 					if start.After(latestToCheck) || start.Equal(latestToCheck) {
 						break
 					}
 
-					timesToCheck = append(timesToCheck, start)
+					timesToRestart = append(timesToRestart, start)
 					start = start.Add(time.Duration(rng.Intn(int(maxBlockSize))))
 				}
-				timesToCheck = append(timesToCheck, latestToCheck)
+				timesToRestart = append(timesToRestart, latestToCheck)
 
-				for _, timeToCheck := range timesToCheck {
+				for _, timeToCheck := range timesToRestart {
 					startServerWithNewInspection(t, opts, setup)
-					var (
-						ctx = context.NewContext()
-					)
+					ctx := context.NewContext()
 					defer ctx.Close()
 
 					log.Infof("writing datapoints")
@@ -179,7 +179,6 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 
 						setup.setNowFn(ts)
 
-						fmt.Printf("Writing %f at %s\n", dp.value, ts.String())
 						err := setup.db.Write(ctx, nsID, dp.series, ts, dp.value, xtime.Second, nil)
 						if err != nil {
 							return false, err
@@ -196,6 +195,7 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 					}
 					log.Infof("verified data in database equals expected data")
 					if input.waitForFlushFiles {
+						log.Infof("Waiting for data files to be flushed")
 						now := setup.getNowFn()
 						latestFlushTime := now.Truncate(ns1BlockSize).Add(-ns1BlockSize)
 						expectedFlushedData := datapoints.before(latestFlushTime.Add(-bufferPast)).toSeriesMap(ns1BlockSize)
@@ -207,6 +207,7 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 					}
 
 					if input.waitForSnapshotFiles {
+						log.Infof("Waiting for snapshot files to be written")
 						now := setup.getNowFn()
 						snapshotBlock := now.Add(-bufferPast).Truncate(ns1BlockSize)
 						require.NoError(t,
@@ -216,16 +217,27 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 								nsID,
 								[]time.Time{snapshotBlock}, 10*time.Second))
 					}
+
 					require.NoError(t, setup.stopServer())
+					// Create a new test setup because databases do not have a completely
+					// clean shutdown, so they can end up in a bad state where the persist
+					// manager is not idle and thus no more flushes can be done, even if
+					// there are no other in-progress flushes.
 					oldNow := setup.getNowFn()
 					setup = newTestSetupWithCommitLogAndFilesystemBootstrapper(
+						// FilePathPrefix is randomly generated if not provided, so we need
+						// to make sure all our test setups have the same prefix so that
+						// they can find each others files.
 						t, opts.SetFilePathPrefix(filePathPrefix))
+					// Make sure the new setup has the same system time as the previous one.
 					setup.setNowFn(oldNow)
 				}
+
 				if lastDatapointsIdx != len(datapoints) {
 					return false, fmt.Errorf(
 						"expected lastDatapointsIdx to be: %d but was: %d", len(datapoints), lastDatapointsIdx)
 				}
+
 				return true, nil
 			}, genPropTestInputs(fakeStart),
 		))
