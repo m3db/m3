@@ -84,18 +84,6 @@ func testMixedModeReadWriteProp(t *testing.T, snapshotEnabled bool) {
 
 	setup.setNowFn(fakeStart)
 
-	// // startup server
-	// log.Debug("starting server")
-	// startServerWithNewInspection(t, opts, setup)
-	// log.Debug("server is now up")
-
-	// // Stop the server
-	// defer func() {
-	// 	log.Debug("stopping server")
-	// 	require.NoError(t, setup.stopServer())
-	// 	log.Debug("server is now down")
-	// }()
-
 	var (
 		ids        = &idGen{longTestID}
 		datapoints = generateDatapoints(fakeStart, numMinutes, ids)
