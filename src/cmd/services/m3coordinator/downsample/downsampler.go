@@ -23,7 +23,6 @@ package downsample
 import (
 	"context"
 	"errors"
-	"math"
 	"runtime"
 	"sync"
 	"time"
@@ -84,9 +83,8 @@ type Downsampler interface {
 	NewMetricsAppender() MetricsAppender
 }
 
-// MetricsAppender is a metrics appender that can
-// build a samples appender, only valid to use
-// with a single caller at a time.
+// MetricsAppender is a metrics appender that can build a samples
+// appender, only valid to use with a single caller at a time.
 type MetricsAppender interface {
 	AddTag(name, value string)
 	SamplesAppender() (SamplesAppender, error)
@@ -115,7 +113,7 @@ type DownsamplerOptions struct {
 }
 
 // Validate validates the dynamic downsampling options.
-func (o DownsamplerOptions) Validate() error {
+func (o DownsamplerOptions) validate() error {
 	if o.Storage == nil {
 		return errNoStorage
 	}
@@ -144,21 +142,17 @@ func (o DownsamplerOptions) Validate() error {
 }
 
 type newAggregatorResult struct {
-	aggregator aggregator.Aggregator
-
-	clockOpts clock.Options
-
-	matcher matcher.Matcher
-
-	tagEncoderPool serialize.TagEncoderPool
-	tagDecoderPool serialize.TagDecoderPool
-
+	aggregator              aggregator.Aggregator
+	clockOpts               clock.Options
+	matcher                 matcher.Matcher
+	tagEncoderPool          serialize.TagEncoderPool
+	tagDecoderPool          serialize.TagDecoderPool
 	encodedTagsIteratorPool *encodedTagsIteratorPool
 }
 
 func (o DownsamplerOptions) newAggregator() (newAggregatorResult, error) {
 	// Validate options first.
-	if err := o.Validate(); err != nil {
+	if err := o.validate(); err != nil {
 		return newAggregatorResult{}, err
 	}
 
@@ -266,9 +260,7 @@ func (o DownsamplerOptions) newAggregator() (newAggregatorResult, error) {
 	shardSet := make([]shard.Shard, numShards)
 	for i := 0; i < numShards; i++ {
 		shardSet[i] = shard.NewShard(uint32(i)).
-			SetState(shard.Initializing).
-			SetCutoverNanos(0).
-			SetCutoffNanos(math.MaxInt64)
+			SetState(shard.Initializing)
 	}
 	shards := shard.NewShards(shardSet)
 	instance := placement.NewInstance().

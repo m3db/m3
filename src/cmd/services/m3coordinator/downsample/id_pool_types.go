@@ -38,6 +38,10 @@ var (
 	metricNameTagName = []byte(model.MetricNameLabel)
 	rollupTagName     = []byte("m3_rollup")
 	rollupTagValue    = []byte("true")
+	rollupTag         = ident.Tag{
+		Name:  ident.BytesID(rollupTagName),
+		Value: ident.BytesID(rollupTagValue),
+	}
 
 	errNoMetricNameTag = errors.New("no metric name tag found")
 )
@@ -78,11 +82,13 @@ func (it *encodedTagsIterator) Bytes() []byte {
 
 // TagValue returns the value for a tag value.
 func (it *encodedTagsIterator) TagValue(tagName []byte) ([]byte, bool) {
-	it.tagDecoder.Reset(it.bytes)
-	for it.Next() {
-		name, value := it.Current()
-		if bytes.Equal(tagName, name) {
-			return value, true
+	iter := it.tagDecoder.Duplicate()
+	defer iter.Close()
+
+	for iter.Next() {
+		tag := iter.Current()
+		if bytes.Equal(tagName, tag.Name.Bytes()) {
+			return tag.Value.Bytes(), true
 		}
 	}
 	return nil, false
@@ -130,7 +136,6 @@ func newEncodedTagsIteratorPool(
 }
 
 func (p *encodedTagsIteratorPool) Init() {
-	p.tagDecoderPool.Init()
 	p.pool.Init(func() interface{} {
 		return newEncodedTagsIterator(p.tagDecoderPool.Get(), p)
 	})
@@ -145,21 +150,16 @@ func (p *encodedTagsIteratorPool) Put(v *encodedTagsIterator) {
 }
 
 func isRollupID(
-	tags []byte,
+	sortedTagPairs []byte,
 	iteratorPool *encodedTagsIteratorPool,
 ) bool {
 	iter := iteratorPool.Get()
-	iter.Reset(tags)
+	iter.Reset(sortedTagPairs)
 
-	for iter.Next() {
-		name, value := iter.Current()
-		if bytes.Equal(name, rollupTagName) && bytes.Equal(value, rollupTagValue) {
-			return true
-		}
-	}
+	tagValue, ok := iter.TagValue(rollupTagName)
 	iter.Close()
 
-	return false
+	return ok && bytes.Equal(tagValue, rollupTagValue)
 }
 
 // rollupIDProvider is a constructor for rollup IDs, it can be pooled to avoid
@@ -199,7 +199,10 @@ func (p *rollupIDProvider) provide(
 		return nil, fmt.Errorf("unable to access encoded tags: ok=%v", ok)
 	}
 	// Need to return a copy
-	return append([]byte(nil), data.Bytes()...), nil
+	id := append([]byte(nil), data.Bytes()...)
+	// Reset after computing
+	p.reset(nil)
+	return id, nil
 }
 
 func (p *rollupIDProvider) reset(
@@ -237,10 +240,7 @@ func (p *rollupIDProvider) Next() bool {
 func (p *rollupIDProvider) Current() ident.Tag {
 	idx := p.index
 	if idx == p.rollupTagIndex {
-		return ident.Tag{
-			Name:  ident.BytesID(rollupTagName),
-			Value: ident.BytesID(rollupTagValue),
-		}
+		return rollupTag
 	}
 
 	if idx > p.rollupTagIndex {
