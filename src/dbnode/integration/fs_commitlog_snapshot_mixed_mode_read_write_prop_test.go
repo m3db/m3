@@ -44,6 +44,7 @@ import (
 
 const maxBlockSize = 12 * time.Hour
 const maxPoints = 1000
+const minSuccessfulTests = 8
 
 // This integration test uses property testing to make sure that the node
 // can properly bootstrap all the data from a combination of fileset files,
@@ -73,7 +74,7 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 		rng        = rand.New(rand.NewSource(seed))
 	)
 
-	parameters.MinSuccessfulTests = 30
+	parameters.MinSuccessfulTests = minSuccessfulTests
 	parameters.Rng.Seed(seed)
 
 	props.Property(
@@ -112,10 +113,6 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 					return false, err
 				}
 
-				s.log.Infof("blockSize: %s\n", ns1ROpts.BlockSize().String())
-				s.log.Infof("bufferPast: %s\n", ns1ROpts.BufferPast().String())
-				s.log.Infof("bufferFuture: %s\n", ns1ROpts.BufferFuture().String())
-
 				ns1Opts := namespace.NewOptions().
 					SetRetentionOptions(ns1ROpts).
 					SetSnapshotEnabled(true)
@@ -133,7 +130,9 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 				defer setup.close()
 
 				log := setup.storageOpts.InstrumentOptions().Logger()
-				log.Info("commit log & fileset files, write, read, and merge bootstrap test")
+				log.Infof("blockSize: %s\n", ns1ROpts.BlockSize().String())
+				log.Infof("bufferPast: %s\n", ns1ROpts.BufferPast().String())
+				log.Infof("bufferFuture: %s\n", ns1ROpts.BufferFuture().String())
 
 				setup.setNowFn(fakeStart)
 
