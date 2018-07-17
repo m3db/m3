@@ -24,6 +24,7 @@ package integration
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"testing"
 	"time"
@@ -58,6 +59,7 @@ func testMixedModeReadWriteProp(t *testing.T, snapshotEnabled bool) {
 		props     = gopter.NewProperties(parameters)
 		reporter  = gopter.NewFormatedReporter(true, 160, os.Stdout)
 		fakeStart = time.Date(2017, time.February, 13, 15, 30, 10, 0, time.Local)
+		rng       = rand.New(rand.NewSource(seed))
 	)
 
 	parameters.MinSuccessfulTests = 30
@@ -69,11 +71,11 @@ func testMixedModeReadWriteProp(t *testing.T, snapshotEnabled bool) {
 			var (
 				ns1BlockSize = input.blockSize.Round(time.Second)
 				// setting time to 2017/02/13 15:30:10
-				blkStart15         = fakeStart.Truncate(ns1BlockSize)
-				blkStart16         = blkStart15.Add(ns1BlockSize)
-				blkStart17         = blkStart16.Add(ns1BlockSize)
-				blkStart18         = blkStart17.Add(ns1BlockSize)
-				timesToCheck       = []time.Time{blkStart15, blkStart16, blkStart17, blkStart18}
+				// blkStart15 = fakeStart.Truncate(ns1BlockSize)
+				// blkStart16 = blkStart15.Add(ns1BlockSize)
+				// blkStart17 = blkStart16.Add(ns1BlockSize)
+				// blkStart18 = blkStart17.Add(ns1BlockSize)
+				// timesToCheck       = []time.Time{blkStart15, blkStart16, blkStart17, blkStart18}
 				commitLogBlockSize = 15 * time.Minute
 				// TODO: Vary this?
 				retentionPeriod = maxBlockSize * 5
@@ -124,10 +126,26 @@ func testMixedModeReadWriteProp(t *testing.T, snapshotEnabled bool) {
 			setup.setNowFn(fakeStart)
 
 			var (
-				ids        = &idGen{longTestID}
-				datapoints = generateDatapoints(fakeStart, numMinutes, ids)
-				lastIdx    = 0
+				ids             = &idGen{longTestID}
+				datapoints      = generateDatapoints(fakeStart, numMinutes, ids)
+				lastIdx         = 0
+				earliestToCheck = datapoints[0].time.Truncate(ns1BlockSize)
+				latestToCheck   = datapoints[len(datapoints)-1].time.Add(ns1BlockSize)
+				timesToCheck    = []time.Time{}
+				start           = earliestToCheck
 			)
+
+			for {
+				if start.After(latestToCheck) || start.Equal(latestToCheck) {
+					break
+				}
+
+				timesToCheck = append(timesToCheck, start)
+				start = start.Add(time.Duration(rng.Intn(int(maxBlockSize))))
+			}
+			timesToCheck = append(timesToCheck, latestToCheck)
+
+			fmt.Println("timesToCheck: ", timesToCheck)
 			for _, timeToCheck := range timesToCheck {
 				startServerWithNewInspection(t, opts, setup)
 				var (
@@ -136,13 +154,13 @@ func testMixedModeReadWriteProp(t *testing.T, snapshotEnabled bool) {
 				defer ctx.Close()
 
 				log.Infof("writing datapoints")
-				for i := lastIdx; i < len(datapoints); i++ {
+				var i int
+				for i = lastIdx; i < len(datapoints); i++ {
 					var (
 						dp = datapoints[i]
 						ts = dp.time
 					)
 					if !ts.Before(timeToCheck) {
-						lastIdx = i
 						break
 					}
 
@@ -154,6 +172,7 @@ func testMixedModeReadWriteProp(t *testing.T, snapshotEnabled bool) {
 						return false, err
 					}
 				}
+				lastIdx = i
 				log.Infof("wrote datapoints")
 
 				expectedSeriesMap := datapoints[:lastIdx].toSeriesMap(ns1BlockSize)
@@ -177,6 +196,10 @@ func testMixedModeReadWriteProp(t *testing.T, snapshotEnabled bool) {
 				}
 				log.Infof("verified data in database equals expected data")
 				require.NoError(t, setup.stopServer())
+			}
+			if lastIdx != len(datapoints) {
+				return false, fmt.Errorf(
+					"expected lastIdx to be: %d but was: %d", len(datapoints), lastIdx)
 			}
 			return true, nil
 		}, genPropTestInputs(fakeStart),
@@ -208,6 +231,7 @@ type propTestInput struct {
 	blockSize    time.Duration
 	bufferPast   time.Duration
 	bufferFuture time.Duration
+	numPoints    int
 }
 
 func verifySeriesMapsReturnError(
