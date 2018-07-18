@@ -21,6 +21,7 @@
 package fs
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path"
@@ -51,11 +52,10 @@ const (
 
 	commitLogComponentPosition    = 2
 	indexFileSetComponentPosition = 2
+)
 
-	// This is the default size that the standard library uses. We've
-	// redefined it here to make some of public APIs nicer and not
-	// require the user to specify this value.
-	defaultBufioReaderSize = 4096
+var (
+	defaultBufioReaderSize = bufio.NewReader(nil).Size()
 )
 
 type fileOpener func(filePath string) (*os.File, error)
