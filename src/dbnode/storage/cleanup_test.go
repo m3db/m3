@@ -475,6 +475,36 @@ func newCleanupManagerCommitLogTimesTest(t *testing.T, ctrl *gomock.Controller) 
 	return ns, mgr
 }
 
+func newCleanupManagerCommitLogTimesTestMultiNS(
+	t *testing.T,
+	ctrl *gomock.Controller,
+) (*MockdatabaseNamespace, *MockdatabaseNamespace, *cleanupManager) {
+	var (
+		rOpts = retention.NewOptions().
+			SetRetentionPeriod(30 * time.Second).
+			SetBufferPast(0 * time.Second).
+			SetBufferFuture(0 * time.Second).
+			SetBlockSize(10 * time.Second)
+	)
+	no := namespace.NewMockOptions(ctrl)
+	no.EXPECT().RetentionOptions().Return(rOpts).AnyTimes()
+
+	ns1 := NewMockdatabaseNamespace(ctrl)
+	ns1.EXPECT().Options().Return(no).AnyTimes()
+
+	ns2 := NewMockdatabaseNamespace(ctrl)
+	ns2.EXPECT().Options().Return(no).AnyTimes()
+
+	db := newMockdatabase(ctrl, ns1, ns2)
+	mgr := newCleanupManager(db, tally.NoopScope).(*cleanupManager)
+
+	mgr.opts = mgr.opts.SetCommitLogOptions(
+		mgr.opts.CommitLogOptions().
+			SetRetentionPeriod(rOpts.RetentionPeriod()).
+			SetBlockSize(rOpts.BlockSize()))
+	return ns1, ns2, mgr
+}
+
 func TestCleanupManagerCommitLogTimesAllFlushed(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -609,5 +639,71 @@ func TestCleanupManagerCommitLogTimesAllPendingFlushButHaveSnapshot(t *testing.T
 	// Only commit log files with starts time10 and time20 were
 	// captured by snapshot files, so those are the only ones
 	// we can delete.
+	require.Equal(t, []time.Time{time20, time10}, times)
+}
+
+func TestCleanupManagerCommitLogTimesHandlesIsCapturedBySnapshotError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		ns, mgr     = newCleanupManagerCommitLogTimesTest(t, ctrl)
+		currentTime = timeFor(50)
+		time30      = timeFor(30)
+		time40      = timeFor(40)
+	)
+
+	gomock.InOrder(
+		ns.EXPECT().NeedsFlush(time30, time40).Return(true),
+		ns.EXPECT().IsCapturedBySnapshot(time40).Return(false, errors.New("err")),
+	)
+
+	_, _, err := mgr.commitLogTimes(currentTime)
+	require.Error(t, err)
+}
+
+func TestCleanupManagerCommitLogTimesMultiNS(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		ns1, ns2, mgr = newCleanupManagerCommitLogTimesTestMultiNS(t, ctrl)
+		currentTime   = timeFor(50)
+		time10        = timeFor(10)
+		time20        = timeFor(20)
+		time30        = timeFor(30)
+		time40        = timeFor(40)
+	)
+
+	// ns1 is flushed for time10->time20 and time20->time30.
+	// It is not flushed for time30->time40, but it doe have
+	// a snapshot that covers that range.
+	//
+	// ns2 is flushed for time10->time20. It is not flushed for
+	// time20->time30 but it does have a snapshot that covers
+	// that range. It does not have a flush or snapshot for
+	// time30->time40.
+	gomock.InOrder(
+		ns1.EXPECT().NeedsFlush(time30, time40).Return(true),
+		ns1.EXPECT().IsCapturedBySnapshot(time40).Return(true, nil),
+		ns2.EXPECT().NeedsFlush(time30, time40).Return(true),
+		ns2.EXPECT().IsCapturedBySnapshot(time40).Return(false, nil),
+
+		ns1.EXPECT().NeedsFlush(time20, time30).Return(false),
+		ns2.EXPECT().NeedsFlush(time20, time30).Return(true),
+		ns2.EXPECT().IsCapturedBySnapshot(time30).Return(true, nil),
+
+		ns1.EXPECT().NeedsFlush(time10, time20).Return(false),
+		ns2.EXPECT().NeedsFlush(time10, time20).Return(false),
+	)
+
+	earliest, times, err := mgr.commitLogTimes(currentTime)
+	require.NoError(t, err)
+
+	require.Equal(t, time10, earliest)
+	// time10 and time20 were covered by either a flush or snapshot
+	// for both namespaces, but time30 was only covered for ns1 by
+	// a snapshot, and ns2 didn't have a snapshot or flush for that
+	// time so the file needs to be retained.
 	require.Equal(t, []time.Time{time20, time10}, times)
 }

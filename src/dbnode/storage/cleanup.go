@@ -307,9 +307,14 @@ func (m *cleanupManager) commitLogTimes(t time.Time) (time.Time, []time.Time, er
 		return time.Time{}, nil, err
 	}
 
-	// TODO: This should pass in the commit log duration as well isntead of just
+	var outerErr error
+	// TODO: This should pass in the commit log duration as well instead of just
 	// relying on the value in the configuration.
 	cleanupTimes := filterTimes(candidateTimes, func(t time.Time) bool {
+		if outerErr != nil {
+			return false
+		}
+
 		for _, ns := range namespaces {
 			var (
 				ropts      = ns.Options().RetentionOptions()
@@ -330,8 +335,8 @@ func (m *cleanupManager) commitLogTimes(t time.Time) (time.Time, []time.Time, er
 			// but the commit log files and snapshot files both deal with system time.
 			isCapturedBySnapshot, err := ns.IsCapturedBySnapshot(t.Add(blockSize))
 			if err != nil {
-				// TODO: Handle err
-				panic(err)
+				outerErr = err
+				return false
 			}
 
 			if !isCapturedBySnapshot {
@@ -345,6 +350,10 @@ func (m *cleanupManager) commitLogTimes(t time.Time) (time.Time, []time.Time, er
 		}
 		return true
 	})
+
+	if outerErr != nil {
+		return time.Time{}, nil, outerErr
+	}
 
 	return earliest, cleanupTimes, nil
 }
