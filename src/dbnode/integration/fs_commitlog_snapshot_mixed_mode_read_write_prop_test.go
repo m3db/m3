@@ -44,7 +44,7 @@ import (
 
 const maxBlockSize = 12 * time.Hour
 const maxPoints = 1000
-const minSuccessfulTests = 8
+const minSuccessfulTests = 30
 const maxFlushWaitTime = time.Minute
 
 // This integration test uses property testing to make sure that the node

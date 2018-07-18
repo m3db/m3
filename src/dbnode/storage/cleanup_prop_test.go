@@ -43,6 +43,8 @@ const (
 	commitLogTestMinSuccessfulTests       = 10000
 )
 
+var opts = NewOptions()
+
 func newPropTestCleanupMgr(ctrl *gomock.Controller, ropts retention.Options, ns ...databaseNamespace) *cleanupManager {
 	db := NewMockdatabase(ctrl)
 	opts := testDatabaseOptions()
@@ -201,24 +203,29 @@ func (ns *generatedNamespace) NeedsFlush(start, end time.Time) bool {
 	return false
 }
 
+func (ns *generatedNamespace) IsCapturedBySnapshot(t time.Time) (bool, error) {
+	return false, nil
+}
+
 // generator for generatedNamespace
 func genNamespace(t time.Time) gopter.Gen {
 	return func(genParams *gopter.GenParameters) *gopter.GenResult {
-		rng := genParams.Rng
-		ropts := newRandomRetention(rng)
-		oldest := retention.FlushTimeStart(ropts, t)
-		newest := retention.FlushTimeEnd(ropts, t)
+		var (
+			rng         = genParams.Rng
+			ropts       = newRandomRetention(rng)
+			oldest      = retention.FlushTimeStart(ropts, t)
+			newest      = retention.FlushTimeEnd(ropts, t)
+			n           = numIntervals(oldest, newest, ropts.BlockSize())
+			flushStates = make([]bool, n)
+			nopts       = namespace.NewOptions().SetRetentionOptions(ropts)
+		)
 
-		n := numIntervals(oldest, newest, ropts.BlockSize())
-		flushStates := make([]bool, n)
 		for i := range flushStates {
 			flushStates[i] = rng.Float32() > 0.6 // flip a coin to get a bool
 		}
 
-		opts := namespace.NewOptions().SetRetentionOptions(ropts)
-
 		ns := &generatedNamespace{
-			opts:              opts,
+			opts:              nopts,
 			ropts:             ropts,
 			blockSize:         ropts.BlockSize(),
 			oldestBlock:       oldest,

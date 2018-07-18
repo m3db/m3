@@ -967,6 +967,10 @@ func (n *dbNamespace) IsCapturedBySnapshot(t time.Time) (bool, error) {
 			return false, err
 		}
 
+		if snapshotFiles == nil {
+			return false, nil
+		}
+
 		snapshot, ok := snapshotFiles.LatestVolumeForBlock(blockStart)
 		if !ok {
 			// If a single shard is missing a snapshot for the blockStart then

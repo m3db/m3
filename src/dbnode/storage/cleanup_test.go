@@ -504,6 +504,7 @@ func TestCleanupManagerCommitLogTimesMiddlePendingFlush(t *testing.T) {
 	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
 	currentTime := timeFor(50)
 
+	ns.EXPECT().IsCapturedBySnapshot(gomock.Any()).Return(false, nil).AnyTimes()
 	gomock.InOrder(
 		ns.EXPECT().NeedsFlush(timeFor(30), timeFor(40)).Return(false),
 		ns.EXPECT().NeedsFlush(timeFor(20), timeFor(30)).Return(true),
@@ -525,6 +526,7 @@ func TestCleanupManagerCommitLogTimesStartPendingFlush(t *testing.T) {
 	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
 	currentTime := timeFor(50)
 
+	ns.EXPECT().IsCapturedBySnapshot(gomock.Any()).Return(false, nil).AnyTimes()
 	gomock.InOrder(
 		ns.EXPECT().NeedsFlush(timeFor(30), timeFor(40)).Return(true),
 		ns.EXPECT().NeedsFlush(timeFor(20), timeFor(30)).Return(false),
@@ -546,6 +548,7 @@ func TestCleanupManagerCommitLogTimesAllPendingFlush(t *testing.T) {
 	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
 	currentTime := timeFor(50)
 
+	ns.EXPECT().IsCapturedBySnapshot(gomock.Any()).Return(false, nil).AnyTimes()
 	gomock.InOrder(
 		ns.EXPECT().NeedsFlush(timeFor(30), timeFor(40)).Return(true),
 		ns.EXPECT().NeedsFlush(timeFor(20), timeFor(30)).Return(true),
