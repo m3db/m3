@@ -23,6 +23,7 @@ package commitlog
 import (
 	"io/ioutil"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -45,6 +46,20 @@ func TestFiles(t *testing.T) {
 	files, err := Files(dir, NewOptions())
 	require.NoError(t, err)
 	require.Equal(t, 5, len(files))
+
+	// Make sure its sorted
+	var lastFileStart time.Time
+	for _, file := range files {
+		require.Equal(t, 10*time.Minute, file.Duration)
+		require.Equal(t, int64(0), file.Index)
+		require.True(t, strings.Contains(file.FilePath, dir))
+		if lastFileStart.IsZero() {
+			lastFileStart = file.Start
+			continue
+		}
+
+		require.True(t, file.Start.After(lastFileStart))
+	}
 }
 
 // createTestCommitLogFiles creates the specified number of commit log files
