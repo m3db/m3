@@ -308,8 +308,6 @@ func (m *cleanupManager) commitLogTimes(t time.Time) (time.Time, []time.Time, er
 	}
 
 	var outerErr error
-	// TODO: This should pass in the commit log duration as well instead of just
-	// relying on the value in the configuration.
 	cleanupTimes := filterTimes(candidateTimes, func(t time.Time) bool {
 		if outerErr != nil {
 			return false
