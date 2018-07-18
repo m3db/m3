@@ -985,6 +985,25 @@ func createCommitLogFiles(t *testing.T, iter, perSlot int) string {
 	return dir
 }
 
+// func createCommitLogFilesV2(
+// 	t *testingT, filePathPrefix string, blockSize time.Duration, numBlocks int) {
+// 	// opts := commitlog.NewOptions().
+// 	// 	SetBlockSize(blockSize).
+// 	// 	SetFilesystemOptions(NewOptions().SetFilePathPrefix(filePathPrefix))
+
+// 	commitLog, err := NewCommitLog(opts)
+// 	require.NoError(t, err)
+// 	// require.NoError(commitLog.Open())
+
+// 	// Ensure files present
+// 	// fsopts := opts.FilesystemOptions()
+// 	// files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
+// 	// require.NoError(t, err)
+// 	// require.True(t, len(files) == 1)
+
+// 	return commitLog
+// }
+
 func validateCommitLogFiles(t *testing.T, slot, index, perSlot, resIdx int, dir string, files []string) {
 	entry := fmt.Sprintf("%d%s%d", slot, separator, index)
 	fileName := fmt.Sprintf("%s%s%s%s", commitLogFilePrefix, separator, entry, fileSuffix)

@@ -23,10 +23,20 @@ package commitlog
 import (
 	"encoding/binary"
 	"os"
+	"sort"
 	"time"
 
+	"github.com/m3db/m3db/src/dbnode/persist/fs"
 	"github.com/m3db/m3db/src/dbnode/persist/fs/msgpack"
 )
+
+// File represents a commit log file and its associated metadata.
+type File struct {
+	FilePath string
+	Start    time.Time
+	Duration time.Duration
+	Index    int64
+}
 
 // ReadLogInfo reads the commit log info out of a commitlog file
 func ReadLogInfo(filePath string, opts Options) (time.Time, time.Duration, int64, error) {
@@ -66,4 +76,35 @@ func ReadLogInfo(filePath string, opts Options) (time.Time, time.Duration, int64
 	}
 
 	return time.Unix(0, logInfo.Start), time.Duration(logInfo.Duration), logInfo.Index, decoderErr
+}
+
+// Files returns a slice of all available commit log files on disk along with
+// their associated metadata.
+func Files(filePathPrefix string, opts Options) ([]File, error) {
+	commitLogsDir := fs.CommitLogsDirPath(filePathPrefix)
+	filePaths, err := fs.SortedCommitLogFiles(commitLogsDir)
+	if err != nil {
+		return nil, err
+	}
+
+	commitLogFiles := make([]File, 0, len(filePaths))
+	for _, filePath := range filePaths {
+		start, duration, index, err := ReadLogInfo(filePath, opts)
+		if err != nil {
+			return nil, err
+		}
+
+		commitLogFiles = append(commitLogFiles, File{
+			FilePath: filePath,
+			Start:    start,
+			Duration: duration,
+			Index:    index,
+		})
+	}
+
+	sort.Slice(commitLogFiles, func(i, j int) bool {
+		return commitLogFiles[i].Start.Before(commitLogFiles[j].Start)
+	})
+
+	return commitLogFiles, nil
 }
