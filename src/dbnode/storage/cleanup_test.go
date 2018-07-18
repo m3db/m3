@@ -573,3 +573,41 @@ func contains(arr []time.Time, t time.Time) bool {
 	}
 	return false
 }
+
+func TestCleanupManagerCommitLogTimesAllPendingFlushButHaveSnapshot(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		ns, mgr     = newCleanupManagerCommitLogTimesTest(t, ctrl)
+		currentTime = timeFor(50)
+		time10      = timeFor(10)
+		time20      = timeFor(20)
+		time30      = timeFor(30)
+		time40      = timeFor(40)
+	)
+
+	gomock.InOrder(
+		// Commit log with start time30 not captured by snapshot,
+		// will need to retain.
+		ns.EXPECT().NeedsFlush(time30, time40).Return(true),
+		ns.EXPECT().IsCapturedBySnapshot(time40).Return(false, nil),
+		// Commit log with start time20 captured by snapshot,
+		// should be able to delete.
+		ns.EXPECT().NeedsFlush(time20, time30).Return(true),
+		ns.EXPECT().IsCapturedBySnapshot(time30).Return(true, nil),
+		// Commit log with start time10 captured by snapshot,
+		// should be able to delete.
+		ns.EXPECT().NeedsFlush(time10, time20).Return(true),
+		ns.EXPECT().IsCapturedBySnapshot(time20).Return(true, nil),
+	)
+
+	earliest, times, err := mgr.commitLogTimes(currentTime)
+	require.NoError(t, err)
+
+	require.Equal(t, time10, earliest)
+	// Only commit log files with starts time10 and time20 were
+	// captured by snapshot files, so those are the only ones
+	// we can delete.
+	require.Equal(t, []time.Time{time20, time10}, times)
+}
