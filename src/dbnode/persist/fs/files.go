@@ -776,21 +776,6 @@ func SortedCommitLogFiles(commitLogsDir string) ([]string, error) {
 	return sortedCommitlogFiles(commitLogsDir, commitLogFilePattern)
 }
 
-// CommitLogFilesForTime returns all the commit log files for a given time.
-func CommitLogFilesForTime(commitLogsDir string, t time.Time) ([]string, error) {
-	commitLogFileForTimePattern := fmt.Sprintf(commitLogFileForTimeTemplate, t.UnixNano())
-	return sortedCommitlogFiles(commitLogsDir, commitLogFileForTimePattern)
-}
-
-// SortedCommitLogFilesBefore returns all the commit log files whose timestamps are earlier than a given time.
-func SortedCommitLogFilesBefore(commitLogsDir string, t time.Time) ([]string, error) {
-	commitLogs, err := SortedCommitLogFiles(commitLogsDir)
-	if err != nil {
-		return nil, err
-	}
-	return FilesBefore(commitLogs, t)
-}
-
 type toSortableFn func(files []string) sort.Interface
 
 func findFiles(fileDir string, pattern string, fn toSortableFn) ([]string, error) {
