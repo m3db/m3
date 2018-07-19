@@ -58,6 +58,19 @@ func NewOrNode(op BaseOp, controller *transform.Controller) Processor {
 	}
 }
 
+func combineMetadata(l, r block.Metadata) (block.Metadata, error) {
+	if !l.Bounds.Equals(r.Bounds) {
+		return block.Metadata{}, errMismatchedBounds
+	}
+	for k, v := range r.Tags {
+		if _, ok := l.Tags[k]; ok {
+			return block.Metadata{}, errConflictingTags
+		}
+		l.Tags[k] = v
+	}
+	return l, nil
+}
+
 // Process processes two logical blocks, performing Or operation on them
 func (c *OrNode) Process(lhs, rhs block.Block) (block.Block, error) {
 	lIter, err := lhs.StepIter()
@@ -70,28 +83,32 @@ func (c *OrNode) Process(lhs, rhs block.Block) (block.Block, error) {
 		return nil, err
 	}
 
-	builder, err := c.controller.BlockBuilder(lIter.Meta(), lIter.SeriesMeta())
+	if lIter.StepCount() != rIter.StepCount() {
+		return nil, errMismatchedStepCounts
+	}
+	meta, err := combineMetadata(lIter.Meta(), rIter.Meta())
+
+	missingIndices, combinedSeriesMeta := c.missing(lIter.SeriesMeta(), rIter.SeriesMeta())
 	if err != nil {
 		return nil, err
 	}
-	missingIndices := c.missing(lIter.SeriesMeta(), rIter.SeriesMeta())
-	numMissing := len(missingIndices)
-	stepCount := numMissing + lIter.StepCount()
 
-	if err := builder.AddCols(stepCount); err != nil {
+	builder, err := c.controller.BlockBuilder(meta, combinedSeriesMeta)
+	if err != nil {
+		return nil, err
+	}
+	if err := builder.AddCols(lIter.StepCount()); err != nil {
 		return nil, err
 	}
 
-	for index := 0; lIter.Next(); index++ {
+	index := 0
+	for ; lIter.Next(); index++ {
 		lStep, err := lIter.Current()
 		if err != nil {
 			return nil, err
 		}
-
 		lValues := lStep.Values()
-		for _, value := range lValues {
-			builder.AppendValue(index, value)
-		}
+		builder.AppendValues(index, lValues)
 	}
 
 	if err := addValuesAtIndeces(missingIndices, rIter, builder); err != nil {
@@ -103,12 +120,12 @@ func (c *OrNode) Process(lhs, rhs block.Block) (block.Block, error) {
 
 // missing returns the slice of rhs indices for which there are no corresponding
 // indices on the lhs
-func (c *OrNode) missing(lhs, rhs []block.SeriesMeta) []int {
+func (c *OrNode) missing(lhs, rhs []block.SeriesMeta) ([]int, []block.SeriesMeta) {
 	idFunction := hashFunc(c.op.Matching.On, c.op.Matching.MatchingLabels...)
 	// The set of signatures for the left-hand side.
-	leftSigs := make(map[uint64]int, len(lhs))
-	for idx, meta := range lhs {
-		leftSigs[idFunction(meta.Tags)] = idx
+	leftSigs := make(map[uint64]struct{}, len(lhs))
+	for _, meta := range lhs {
+		leftSigs[idFunction(meta.Tags)] = struct{}{}
 	}
 
 	missing := make([]int, 0, initIndexSliceLength)
@@ -116,7 +133,8 @@ func (c *OrNode) missing(lhs, rhs []block.SeriesMeta) []int {
 		// If there's no matching entry in the left-hand side Vector, add the sample.
 		if _, ok := leftSigs[idFunction(rs.Tags)]; !ok {
 			missing = append(missing, i)
+			lhs = append(lhs, rs)
 		}
 	}
-	return missing
+	return missing, lhs
 }

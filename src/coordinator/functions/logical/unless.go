@@ -31,14 +31,15 @@ import (
 
 //TODO: generalize logical functions?
 const (
-	// UnlessType uses all values from left hand side, and appends values from the right hand side which do
-	// not have corresponding tags on the right
+	// UnlessType uses all values from lhs which do not exist in rhs
 	UnlessType           = "unless"
 	initIndexSliceLength = 10
 )
 
 var (
-	errNoIndexInIterator = fmt.Errorf("index not found in iterator")
+	errMismatchedBounds     = fmt.Errorf("block bounds are mismatched")
+	errMismatchedStepCounts = fmt.Errorf("block step counts are mismatched")
+	errConflictingTags      = fmt.Errorf("block tags conflict")
 )
 
 // NewUnlessOp creates a new Unless operation
@@ -67,24 +68,17 @@ func NewUnlessNode(op BaseOp, controller *transform.Controller) Processor {
 }
 
 func addValuesAtIndeces(idxArray []int, iter block.StepIter, builder block.Builder) error {
-	iteratorIndex := 0
-	for i, id := range idxArray {
-		for ; iteratorIndex != id; iteratorIndex++ {
-			if !iter.Next() {
-				return errNoIndexInIterator
-			}
-		}
+	index := 0
+	for ; iter.Next(); index++ {
 		step, err := iter.Current()
 		if err != nil {
 			return err
 		}
-
 		values := step.Values()
-		for _, value := range values {
-			builder.AppendValue(i, value)
+		for _, idx := range idxArray {
+			builder.AppendValue(index, values[idx])
 		}
 	}
-
 	return nil
 }
 
@@ -100,29 +94,36 @@ func (c *UnlessNode) Process(lhs, rhs block.Block) (block.Block, error) {
 		return nil, err
 	}
 
-	builder, err := c.controller.BlockBuilder(lIter.Meta(), lIter.SeriesMeta())
+	if lIter.StepCount() != rIter.StepCount() {
+		return nil, errMismatchedStepCounts
+	}
+
+	lSeriesMeta, rSeriesMeta := lIter.SeriesMeta(), rIter.SeriesMeta()
+	lIds := c.exclusion(lSeriesMeta, rSeriesMeta)
+	stepCount := len(lIds)
+	takenMeta := make([]block.SeriesMeta, 0, stepCount)
+	for _, idx := range lIds {
+		takenMeta = append(takenMeta, lSeriesMeta[idx])
+	}
+
+	builder, err := c.controller.BlockBuilder(lIter.Meta(), takenMeta)
 	if err != nil {
 		return nil, err
 	}
 
-	lIds, rIds := c.exclusion(lIter.SeriesMeta(), rIter.SeriesMeta())
-	stepCount := len(lIds) + len(rIds)
-	if err := builder.AddCols(stepCount); err != nil {
+	if err := builder.AddCols(lIter.StepCount()); err != nil {
 		return nil, err
 	}
 
 	if err := addValuesAtIndeces(lIds, lIter, builder); err != nil {
 		return nil, err
 	}
-	if err := addValuesAtIndeces(rIds, rIter, builder); err != nil {
-		return nil, err
-	}
 
 	return builder.Build(), nil
 }
 
-// exclusion returns slices for unique indices on the lhs and the rhs
-func (c *UnlessNode) exclusion(lhs, rhs []block.SeriesMeta) ([]int, []int) {
+// exclusion returns slices for unique indices on the lhs which do not exist in rhs
+func (c *UnlessNode) exclusion(lhs, rhs []block.SeriesMeta) []int {
 	idFunction := hashFunc(c.op.Matching.On, c.op.Matching.MatchingLabels...)
 	// The set of signatures for the left-hand side.
 	leftSigs := make(map[uint64]int, len(lhs))
@@ -130,15 +131,12 @@ func (c *UnlessNode) exclusion(lhs, rhs []block.SeriesMeta) ([]int, []int) {
 		leftSigs[idFunction(meta.Tags)] = idx
 	}
 
-	uniqueRight := make([]int, 0, initIndexSliceLength)
-	for i, rs := range rhs {
+	for _, rs := range rhs {
 		// If there's no matching entry in the left-hand side Vector, add the sample.
 		id := idFunction(rs.Tags)
 		if _, ok := leftSigs[id]; ok {
 			// Set left index to -1 as it should be excluded from the output
 			leftSigs[id] = -1
-		} else {
-			uniqueRight = append(uniqueRight, i)
 		}
 	}
 
@@ -152,5 +150,5 @@ func (c *UnlessNode) exclusion(lhs, rhs []block.SeriesMeta) ([]int, []int) {
 	// are not in order
 	// TODO (arnikola): if this ends up being slow, insert in a sorted fashion.
 	sort.Ints(uniqueLeft)
-	return uniqueLeft, uniqueRight
+	return uniqueLeft
 }

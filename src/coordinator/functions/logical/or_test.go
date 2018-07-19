@@ -52,16 +52,15 @@ func TestOrWithExactValues(t *testing.T) {
 }
 
 func TestOrWithSomeValues(t *testing.T) {
-	values1, bounds1 := test.GenerateValuesAndBounds(nil, nil)
-	block1 := test.NewBlockFromValues(bounds1, values1)
+	values1, bounds := test.GenerateValuesAndBounds(nil, nil)
+	block1 := test.NewBlockFromValues(bounds, values1)
 
 	v := [][]float64{
-		{0, math.NaN(), 2, 3, 4, 5},
-		{math.NaN(), 6, 7, 8, 4, 9, 10, 11},
+		{0, math.NaN(), 2, 3, 4},
+		{math.NaN(), 6, 7, 8, 9},
 	}
 
-	values2, bounds2 := test.GenerateValuesAndBounds(v, nil)
-	block2 := test.NewBlockFromValues(bounds2, values2)
+	block2 := test.NewBlockFromValues(bounds, v)
 
 	op := NewOrOp(parser.NodeID(0), parser.NodeID(1), &VectorMatching{})
 	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
@@ -74,7 +73,6 @@ func TestOrWithSomeValues(t *testing.T) {
 	// NAN values should be filled
 	expected := values1
 
-	fmt.Println(sink.Values)
 	test.EqualsWithNans(t, expected, sink.Values)
 }
 
@@ -115,8 +113,129 @@ func TestMissing(t *testing.T) {
 
 	for _, tt := range missingTests {
 		t.Run(tt.name, func(t *testing.T) {
-			missing := orNode.missing(tt.lhs, tt.rhs)
+			missing, _ := orNode.missing(tt.lhs, tt.rhs)
 			assert.Equal(t, tt.expected, missing)
 		})
 	}
+}
+
+var orTests = []struct {
+	name          string
+	lhsMeta       []block.SeriesMeta
+	lhs           [][]float64
+	rhsMeta       []block.SeriesMeta
+	rhs           [][]float64
+	expectedMetas []block.SeriesMeta
+	expected      [][]float64
+	err           error
+}{
+	{
+		"valid, equal tags",
+		test.NewSeriesMeta("a", 2),
+		[][]float64{{1, 2}, {10, 20}},
+		test.NewSeriesMeta("a", 2),
+		[][]float64{{3, 4}, {30, 40}},
+		test.NewSeriesMeta("a", 2),
+		[][]float64{{1, 2}, {10, 20}},
+		nil,
+	},
+	{
+		"valid, some overlap",
+		test.NewSeriesMeta("a", 2),
+		[][]float64{{1, 2}, {10, 20}},
+		test.NewSeriesMeta("a", 3),
+		[][]float64{{3, 4}, {30, 40}, {50, 60}},
+		test.NewSeriesMeta("a", 3),
+		[][]float64{{1, 2}, {10, 20}, {50, 60}},
+		nil,
+	},
+	{
+		"valid, equal size",
+		test.NewSeriesMeta("a", 2),
+		[][]float64{{1, 2}, {10, 20}},
+		test.NewSeriesMeta("b", 2),
+		[][]float64{{3, 4}, {30, 40}},
+		append(test.NewSeriesMeta("a", 2), test.NewSeriesMeta("b", 2)...),
+		[][]float64{{1, 2}, {10, 20}, {3, 4}, {30, 40}},
+		nil,
+	},
+	{
+		"valid, longer rhs",
+		test.NewSeriesMeta("a", 2),
+		[][]float64{{1, 2}, {10, 20}},
+		test.NewSeriesMeta("b", 3),
+		[][]float64{{3, 4}, {30, 40}, {300, 400}},
+		append(test.NewSeriesMeta("a", 2), test.NewSeriesMeta("b", 3)...),
+		[][]float64{{1, 2}, {10, 20}, {3, 4}, {30, 40}, {300, 400}},
+		nil,
+	},
+	{
+		"valid, longer lhs",
+		test.NewSeriesMeta("a", 3),
+		[][]float64{{1, 2}, {10, 20}, {100, 200}},
+		test.NewSeriesMeta("b", 2),
+		[][]float64{{3, 4}, {30, 40}},
+		append(test.NewSeriesMeta("a", 3), test.NewSeriesMeta("b", 2)...),
+		[][]float64{{1, 2}, {10, 20}, {100, 200}, {3, 4}, {30, 40}},
+		nil,
+	},
+	{
+		"mismatched step counts",
+		test.NewSeriesMeta("a", 2),
+		[][]float64{{1, 2, 3}, {10, 20, 30}},
+		test.NewSeriesMeta("b", 2),
+		[][]float64{{3, 4}, {30, 40}},
+		append(test.NewSeriesMeta("a", 2), test.NewSeriesMeta("b", 2)...),
+		[][]float64{{1, 2}, {10, 20}, {3, 4}, {30, 40}},
+		errMismatchedStepCounts,
+	},
+}
+
+func TestOrs(t *testing.T) {
+	for _, tt := range orTests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, bounds := test.GenerateValuesAndBounds(nil, nil)
+
+			op := NewOrOp(parser.NodeID(0), parser.NodeID(1), &VectorMatching{})
+			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
+			node := op.Node(c)
+
+			lhs := test.NewBlockFromValuesWithMeta(bounds, tt.lhsMeta, tt.lhs)
+			err := node.Process(parser.NodeID(0), lhs)
+			require.NoError(t, err)
+
+			rhs := test.NewBlockFromValuesWithMeta(bounds, tt.rhsMeta, tt.rhs)
+			err = node.Process(parser.NodeID(1), rhs)
+			if tt.err != nil {
+				require.EqualError(t, err, tt.err.Error())
+				return
+			}
+
+			require.NoError(t, err)
+			test.EqualsWithNans(t, tt.expected, sink.Values)
+			assert.Equal(t, tt.expectedMetas, sink.Metas)
+		})
+	}
+}
+
+func TestOrsBoundsError(t *testing.T) {
+	tt := orTests[0]
+	_, bounds := test.GenerateValuesAndBounds(nil, nil)
+
+	op := NewOrOp(parser.NodeID(0), parser.NodeID(1), &VectorMatching{})
+	c, _ := executor.NewControllerWithSink(parser.NodeID(2))
+	node := op.Node(c)
+
+	lhs := test.NewBlockFromValuesWithMeta(bounds, tt.lhsMeta, tt.lhs)
+	err := node.Process(parser.NodeID(0), lhs)
+	require.NoError(t, err)
+
+	differentBounds := block.Bounds{
+		Start:    bounds.Start.Add(1),
+		End:      bounds.End,
+		StepSize: bounds.StepSize,
+	}
+	rhs := test.NewBlockFromValuesWithMeta(differentBounds, tt.rhsMeta, tt.rhs)
+	err = node.Process(parser.NodeID(1), rhs)
+	require.EqualError(t, err, errMismatchedBounds.Error())
 }

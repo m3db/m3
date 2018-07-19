@@ -21,6 +21,7 @@
 package test
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3db/src/coordinator/block"
@@ -29,17 +30,29 @@ import (
 
 // NewBlockFromValues creates a new block using the provided values
 func NewBlockFromValues(bounds block.Bounds, seriesValues [][]float64) block.Block {
-	blockMeta := block.Metadata{Bounds: bounds}
-	seriesMeta := make([]block.SeriesMeta, len(seriesValues))
+	meta := NewSeriesMeta("dummy", len(seriesValues))
+	return NewBlockFromValuesWithMeta(bounds, meta, seriesValues)
+}
+
+// NewSeriesMeta creates new metadata tags in the format [tagPrefix:i] for the number of series
+func NewSeriesMeta(tagPrefix string, count int) []block.SeriesMeta {
+	seriesMeta := make([]block.SeriesMeta, count)
 	for i := range seriesMeta {
 		tags := make(models.Tags)
-		tags[models.MetricName] = string(i)
-		tags["dummy"] = string(i)
+		t := fmt.Sprintf("%s%d", tagPrefix, i)
+		tags[models.MetricName] = t
+		tags[t] = t
 		seriesMeta[i] = block.SeriesMeta{
-			Name: string(i),
+			Name: t,
 			Tags: tags,
 		}
 	}
+	return seriesMeta
+}
+
+// NewBlockFromValuesWithMeta creates a new block using the provided values
+func NewBlockFromValuesWithMeta(bounds block.Bounds, seriesMeta []block.SeriesMeta, seriesValues [][]float64) block.Block {
+	blockMeta := block.Metadata{Bounds: bounds}
 
 	columnBuilder := block.NewColumnBlockBuilder(blockMeta, seriesMeta)
 	columnBuilder.AddCols(len(seriesValues[0]))
@@ -66,8 +79,8 @@ func GenerateValuesAndBounds(vals [][]float64, b *block.Bounds) ([][]float64, bl
 	if b == nil {
 		now := time.Now()
 		bounds = block.Bounds{
-			Start: now,
-			End: now.Add(time.Minute * 5),
+			Start:    now,
+			End:      now.Add(time.Minute * 5),
 			StepSize: time.Minute,
 		}
 	} else {
@@ -76,4 +89,3 @@ func GenerateValuesAndBounds(vals [][]float64, b *block.Bounds) ([][]float64, bl
 
 	return values, bounds
 }
-

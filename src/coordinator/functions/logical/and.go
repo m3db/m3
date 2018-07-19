@@ -77,7 +77,6 @@ func (c *AndNode) Process(lhs, rhs block.Block) (block.Block, error) {
 		return nil, err
 	}
 
-
 	if err := builder.AddCols(lIter.StepCount()); err != nil {
 		return nil, err
 	}
@@ -112,7 +111,7 @@ func (c *AndNode) Process(lhs, rhs block.Block) (block.Block, error) {
 }
 
 // intersect returns the slice of rhs indices if there is a match with a corresponding lhs index. If no match is found, it returns -1
-func (c *AndNode) intersect(lhs, rhs []block.SeriesMeta, ) []int {
+func (c *AndNode) intersect(lhs, rhs []block.SeriesMeta) []int {
 	idFunction := hashFunc(c.op.Matching.On, c.op.Matching.MatchingLabels...)
 	// The set of signatures for the right-hand side.
 	rightSigs := make(map[uint64]int, len(rhs))

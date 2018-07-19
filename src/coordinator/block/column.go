@@ -160,6 +160,17 @@ func (cb ColumnBlockBuilder) AppendValue(idx int, value float64) error {
 	return nil
 }
 
+// AppendValues adds a slice of values to a column at index
+func (cb ColumnBlockBuilder) AppendValues(idx int, values []float64) error {
+	columns := cb.block.columns
+	if len(columns) <= idx {
+		return fmt.Errorf("idx out of range for append: %d", idx)
+	}
+
+	columns[idx].Values = append(columns[idx].Values, values...)
+	return nil
+}
+
 // AddCols adds new columns
 func (cb ColumnBlockBuilder) AddCols(num int) error {
 	newCols := make([]column, num)

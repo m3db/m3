@@ -22,7 +22,6 @@ package logical
 
 import (
 	"fmt"
-	"math"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -36,97 +35,55 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestUnlessWithExactValues(t *testing.T) {
-	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	block1 := test.NewBlockFromValues(bounds, values)
-	block2 := test.NewBlockFromValues(bounds, values)
-
-	op := NewUnlessOp(parser.NodeID(0), parser.NodeID(1), &VectorMatching{})
-	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
-	node := op.Node(c)
-
-	err := node.Process(parser.NodeID(1), block2)
-	require.NoError(t, err)
-	err = node.Process(parser.NodeID(0), block1)
-	require.NoError(t, err)
-	assert.Equal(t, [][]float64{}, sink.Values)
-}
-
-func TestUnlessWithSomeValues(t *testing.T) {
-	values1, bounds1 := test.GenerateValuesAndBounds(nil, nil)
-	block1 := test.NewBlockFromValues(bounds1, values1)
-
-	v := [][]float64{
-		{0, math.NaN(), 2, 3, 4},
-		{math.NaN(), 6, 7, 8, 4, 9},
-	}
-
-	values2, bounds2 := test.GenerateValuesAndBounds(v, nil)
-	block2 := test.NewBlockFromValues(bounds2, values2)
-
-	op := NewOrOp(parser.NodeID(0), parser.NodeID(1), &VectorMatching{})
-	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
-	node := op.Node(c)
-
-	err := node.Process(parser.NodeID(1), block2)
-	require.NoError(t, err)
-	err = node.Process(parser.NodeID(0), block1)
-	require.NoError(t, err)
-	// NAN values should be filled
-
-	fmt.Println(sink.Values)
-	test.EqualsWithNans(t, [][]float64{}, sink.Values)
-}
-
-var unlessTests = []struct {
-	name                 string
-	lhs, rhs             []block.SeriesMeta
-	expectedL, expectedR []int
+var exclusionTests = []struct {
+	name      string
+	lhs, rhs  []block.SeriesMeta
+	expectedL []int
 }{
 	{
 		"equal tags",
 		generateMetaDataWithTagsInRange(0, 5), generateMetaDataWithTagsInRange(0, 5),
-		[]int{}, []int{},
+		[]int{},
 	},
 	{
 		"empty rhs",
 		generateMetaDataWithTagsInRange(0, 5), []block.SeriesMeta{},
-		[]int{0, 1, 2, 3, 4}, []int{},
+		[]int{0, 1, 2, 3, 4},
 	},
 	{
 		"empty lhs",
 		[]block.SeriesMeta{}, generateMetaDataWithTagsInRange(0, 5),
-		[]int{}, []int{0, 1, 2, 3, 4},
+		[]int{},
 	},
 	{
 		"longer lhs",
 		generateMetaDataWithTagsInRange(-1, 6), generateMetaDataWithTagsInRange(0, 5),
-		[]int{0, 6}, []int{},
+		[]int{0, 6},
 	},
 	{
 		"longer rhs",
 		generateMetaDataWithTagsInRange(0, 5), generateMetaDataWithTagsInRange(-1, 6),
-		[]int{}, []int{0, 6},
+		[]int{},
 	},
 	{
 		"shorter lhs",
 		generateMetaDataWithTagsInRange(1, 4), generateMetaDataWithTagsInRange(0, 5),
-		[]int{}, []int{0, 4},
+		[]int{},
 	},
 	{
 		"shorter rhs",
 		generateMetaDataWithTagsInRange(0, 5), generateMetaDataWithTagsInRange(1, 4),
-		[]int{0, 4}, []int{},
+		[]int{0, 4},
 	},
 	{
 		"partial overlap",
 		generateMetaDataWithTagsInRange(0, 5), generateMetaDataWithTagsInRange(1, 6),
-		[]int{0}, []int{4},
+		[]int{0},
 	},
 	{
 		"no overlap",
 		generateMetaDataWithTagsInRange(0, 5), generateMetaDataWithTagsInRange(6, 9),
-		[]int{0, 1, 2, 3, 4}, []int{0, 1, 2},
+		[]int{0, 1, 2, 3, 4},
 	},
 }
 
@@ -137,20 +94,19 @@ func TestIntersect(t *testing.T) {
 		},
 	}
 
-	for _, tt := range unlessTests {
+	for _, tt := range exclusionTests {
 		t.Run(tt.name, func(t *testing.T) {
-			xorLeft, xorRight := unlessNode.exclusion(tt.lhs, tt.rhs)
-			assert.Equal(t, tt.expectedL, xorLeft)
-			assert.Equal(t, tt.expectedR, xorRight)
+			excluded := unlessNode.exclusion(tt.lhs, tt.rhs)
+			assert.Equal(t, tt.expectedL, excluded)
 		})
 	}
 }
 
 func builderMockWithExpectedValues(ctrl *gomock.Controller, indeces []int, values [][]float64) block.Builder {
 	builder := block.NewMockBuilder(ctrl)
-	for i, idx := range indeces {
-		for _, val := range values[idx] {
-			builder.EXPECT().AppendValue(i, val)
+	for i, val := range values {
+		for _, idx := range indeces {
+			builder.EXPECT().AppendValue(i, val[idx])
 		}
 	}
 
@@ -159,14 +115,13 @@ func builderMockWithExpectedValues(ctrl *gomock.Controller, indeces []int, value
 
 func stepIterWithExpectedValues(ctrl *gomock.Controller, indeces []int, values [][]float64) block.StepIter {
 	stepIter := block.NewMockStepIter(ctrl)
-	for _, idx := range indeces {
-		if idx > 0 {
-			stepIter.EXPECT().Next().Return(true)
-		}
+	for _, val := range values {
+		stepIter.EXPECT().Next().Return(true)
 		bl := block.NewMockStep(ctrl)
-		bl.EXPECT().Values().Return(values[idx])
+		bl.EXPECT().Values().Return(val)
 		stepIter.EXPECT().Current().Return(bl, nil)
 	}
+	stepIter.EXPECT().Next().Return(false)
 
 	return stepIter
 }
@@ -203,14 +158,129 @@ func TestAddAtIndicesErrors(t *testing.T) {
 
 	builder := block.NewMockBuilder(ctrl)
 	stepIter := block.NewMockStepIter(ctrl)
-	stepIter.EXPECT().Next().Return(false)
-
-	err := addValuesAtIndeces([]int{1}, stepIter, builder)
-	assert.EqualError(t, err, errNoIndexInIterator.Error())
 
 	msg := "err"
 	stepIter.EXPECT().Next().Return(true)
 	stepIter.EXPECT().Current().Return(nil, fmt.Errorf(msg))
-	err = addValuesAtIndeces([]int{1}, stepIter, builder)
+	err := addValuesAtIndeces([]int{1}, stepIter, builder)
 	assert.EqualError(t, err, msg)
+}
+
+var unlessTests = []struct {
+	name          string
+	lhsMeta       []block.SeriesMeta
+	lhs           [][]float64
+	rhsMeta       []block.SeriesMeta
+	rhs           [][]float64
+	expectedMetas []block.SeriesMeta
+	expected      [][]float64
+	err           error
+}{
+	{
+		"valid, equal tags",
+		test.NewSeriesMeta("a", 2),
+		[][]float64{{1, 2}, {10, 20}},
+		test.NewSeriesMeta("a", 2),
+		[][]float64{{3, 4}, {30, 40}},
+		[]block.SeriesMeta{},
+		[][]float64{},
+		nil,
+	},
+	{
+		"valid, some overlap right",
+		test.NewSeriesMeta("a", 2),
+		[][]float64{{1, 2}, {10, 20}},
+		test.NewSeriesMeta("a", 3),
+		[][]float64{{3, 4}, {30, 40}, {50, 60}},
+		[]block.SeriesMeta{},
+		[][]float64{},
+		nil,
+	},
+	{
+		"valid, some overlap left",
+		test.NewSeriesMeta("a", 3),
+		[][]float64{{1, 2}, {10, 20}, {100, 200}},
+		test.NewSeriesMeta("a", 3)[1:],
+		[][]float64{{3, 4}, {30, 40}},
+		test.NewSeriesMeta("a", 1),
+		[][]float64{{1, 2}},
+		nil,
+	},
+	{
+		"valid, some overlap both",
+		test.NewSeriesMeta("a", 3),
+		[][]float64{{1, 2}, {10, 20}, {100, 200}},
+		test.NewSeriesMeta("a", 4)[1:],
+		[][]float64{{3, 4}, {30, 40}, {300, 400}},
+		test.NewSeriesMeta("a", 1),
+		[][]float64{{1, 2}},
+		nil,
+	},
+	{
+		"valid, equal size",
+		test.NewSeriesMeta("a", 2),
+		[][]float64{{1, 2}, {10, 20}},
+		test.NewSeriesMeta("b", 2),
+		[][]float64{{3, 4}, {30, 40}},
+		test.NewSeriesMeta("a", 2),
+		[][]float64{{1, 2}, {10, 20}},
+		nil,
+	},
+	{
+		"valid, longer rhs",
+		test.NewSeriesMeta("a", 2),
+		[][]float64{{1, 2}, {10, 20}},
+		test.NewSeriesMeta("b", 3),
+		[][]float64{{3, 4}, {30, 40}, {300, 400}},
+		test.NewSeriesMeta("a", 2),
+		[][]float64{{1, 2}, {10, 20}},
+		nil,
+	},
+	{
+		"valid, longer lhs",
+		test.NewSeriesMeta("a", 3),
+		[][]float64{{1, 2}, {10, 20}, {100, 200}},
+		test.NewSeriesMeta("b", 2),
+		[][]float64{{3, 4}, {30, 40}},
+		test.NewSeriesMeta("a", 3),
+		[][]float64{{1, 2}, {10, 20}, {100, 200}},
+		nil,
+	},
+	{
+		"mismatched step counts",
+		test.NewSeriesMeta("a", 2),
+		[][]float64{{1, 2, 3}, {10, 20, 30}},
+		test.NewSeriesMeta("b", 2),
+		[][]float64{{3, 4}, {30, 40}},
+		[]block.SeriesMeta{},
+		[][]float64{},
+		errMismatchedStepCounts,
+	},
+}
+
+func TestUnless(t *testing.T) {
+	for _, tt := range unlessTests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, bounds := test.GenerateValuesAndBounds(nil, nil)
+
+			op := NewUnlessOp(parser.NodeID(0), parser.NodeID(1), &VectorMatching{})
+			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
+			node := op.Node(c)
+
+			lhs := test.NewBlockFromValuesWithMeta(bounds, tt.lhsMeta, tt.lhs)
+			err := node.Process(parser.NodeID(0), lhs)
+			require.NoError(t, err)
+
+			rhs := test.NewBlockFromValuesWithMeta(bounds, tt.rhsMeta, tt.rhs)
+			err = node.Process(parser.NodeID(1), rhs)
+			if tt.err != nil {
+				require.EqualError(t, err, tt.err.Error())
+				return
+			}
+
+			require.NoError(t, err)
+			test.EqualsWithNans(t, tt.expected, sink.Values)
+			assert.Equal(t, tt.expectedMetas, sink.Metas)
+		})
+	}
 }

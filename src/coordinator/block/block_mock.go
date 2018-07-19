@@ -327,6 +327,18 @@ func (mr *MockBuilderMockRecorder) AppendValue(arg0, arg1 interface{}) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendValue", reflect.TypeOf((*MockBuilder)(nil).AppendValue), arg0, arg1)
 }
 
+// AppendValues mocks base method
+func (m *MockBuilder) AppendValues(arg0 int, arg1 []float64) error {
+	ret := m.ctrl.Call(m, "AppendValues", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// AppendValues indicates an expected call of AppendValues
+func (mr *MockBuilderMockRecorder) AppendValues(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendValues", reflect.TypeOf((*MockBuilder)(nil).AppendValues), arg0, arg1)
+}
+
 // Build mocks base method
 func (m *MockBuilder) Build() Block {
 	ret := m.ctrl.Call(m, "Build")

@@ -75,6 +75,14 @@ func (b Bounds) String() string {
 	return fmt.Sprintf("start: %v, end: %v, stepSize: %v, steps: %d", b.Start, b.End, b.StepSize, b.Steps())
 }
 
+// Equals is true if two bounds are equal, including stepsize
+func (b Bounds) Equals(other Bounds) bool {
+	if b.StepSize != other.StepSize {
+		return false
+	}
+	return b.Start.Equal(other.Start) && b.End.Equal(other.End)
+}
+
 // Iterator is the base iterator
 type Iterator interface {
 	Next() bool
@@ -127,6 +135,7 @@ func (m Metadata) String() string {
 // Builder builds a new block
 type Builder interface {
 	AppendValue(idx int, value float64) error
+	AppendValues(idx int, values []float64) error
 	Build() Block
 	AddCols(num int) error
 }
