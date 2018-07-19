@@ -319,9 +319,9 @@ func (m *cleanupManager) commitLogTimes(t time.Time) ([]commitlog.File, error) {
 
 		for _, ns := range namespaces {
 			var (
-				ropts      = ns.Options().RetentionOptions()
-				start, end = commitLogNamespaceBlockTimes(start, duration, ropts)
-				needsFlush = ns.NeedsFlush(start, end)
+				ropts                      = ns.Options().RetentionOptions()
+				nsBlocksStart, nsBlocksEnd = commitLogNamespaceBlockTimes(start, duration, ropts)
+				needsFlush                 = ns.NeedsFlush(nsBlocksStart, nsBlocksEnd)
 			)
 
 			if !needsFlush {
@@ -335,7 +335,7 @@ func (m *cleanupManager) commitLogTimes(t time.Time) ([]commitlog.File, error) {
 			// this is different than the latest datapoint timestamp that the commit
 			// log file could contain data for (because of bufferPast/bufferFuture),
 			// but the commit log files and snapshot files both deal with system time.
-			isCapturedBySnapshot, err := ns.IsCapturedBySnapshot(start.Add(duration))
+			isCapturedBySnapshot, err := ns.IsCapturedBySnapshot(nsBlocksEnd)
 			if err != nil {
 				outerErr = err
 				return false

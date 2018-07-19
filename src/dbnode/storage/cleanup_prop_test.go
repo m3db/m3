@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3db/src/dbnode/retention"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
+	"github.com/stretchr/testify/require"
 
 	"github.com/golang/mock/gomock"
 	"github.com/leanovate/gopter"
@@ -75,15 +76,19 @@ func TestPropertyCommitLogNotCleanedForUnflushedData(t *testing.T) {
 	timeWindow := time.Hour * 24 * 15
 
 	properties.Property("Commit log is retained if one namespace needs to flush", prop.ForAll(
-		func(t time.Time, cRopts retention.Options, ns *generatedNamespace) (bool, error) {
+		func(cleanupTime time.Time, cRopts retention.Options, ns *generatedNamespace) (bool, error) {
 			cm := newPropTestCleanupMgr(ctrl, cRopts, ns)
-			filesToCleanup, err := cm.commitLogTimes(t)
+			filesToCleanup, err := cm.commitLogTimes(cleanupTime)
 			if err != nil {
 				return false, err
 			}
 			for _, f := range filesToCleanup {
 				s, e := commitLogNamespaceBlockTimes(f.Start, f.Duration, ns.ropts)
-				if ns.NeedsFlush(s, e) {
+				earliest, _ := cm.commitLogTimeRange(cleanupTime)
+				needsFlush := ns.NeedsFlush(s, e)
+				isCapturedBySnapshot, err := ns.IsCapturedBySnapshot(e)
+				require.NoError(t, err)
+				if needsFlush && !isCapturedBySnapshot && !f.Start.Before(earliest) {
 					return false, fmt.Errorf("trying to cleanup commit log at %v, but ns needsFlush; (range: %v, %v)",
 						f.Start.String(), s.String(), e.String())
 				}
