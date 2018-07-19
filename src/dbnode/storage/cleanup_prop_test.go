@@ -77,7 +77,7 @@ func TestPropertyCommitLogNotCleanedForUnflushedData(t *testing.T) {
 	properties.Property("Commit log is retained if one namespace needs to flush", prop.ForAll(
 		func(t time.Time, cRopts retention.Options, ns *generatedNamespace) (bool, error) {
 			cm := newPropTestCleanupMgr(ctrl, cRopts, ns)
-			_, filesToCleanup, err := cm.commitLogTimes(t)
+			filesToCleanup, err := cm.commitLogTimes(t)
 			if err != nil {
 				return false, err
 			}
@@ -110,7 +110,7 @@ func TestPropertyCommitLogNotCleanedForUnflushedDataMultipleNs(t *testing.T) {
 		func(t time.Time, cRopts retention.Options, nses []*generatedNamespace) (bool, error) {
 			dbNses := generatedNamespaces(nses).asDatabaseNamespace()
 			cm := newPropTestCleanupMgr(ctrl, cRopts, dbNses...)
-			_, filesToCleanup, err := cm.commitLogTimes(t)
+			filesToCleanup, err := cm.commitLogTimes(t)
 			if err != nil {
 				return false, err
 			}

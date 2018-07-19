@@ -35,10 +35,6 @@ import (
 	"github.com/uber-go/tally"
 )
 
-type commitLogFilesBeforeFn func(commitLogsDir string, t time.Time) ([]string, error)
-
-type commitLogFilesForTimeFn func(commitLogsDir string, t time.Time) ([]string, error)
-
 type commitLogFilesFn func(commitlog.Options) ([]commitlog.File, error)
 
 type deleteFilesFn func(files []string) error
@@ -53,8 +49,6 @@ type cleanupManager struct {
 	nowFn                       clock.NowFn
 	filePathPrefix              string
 	commitLogsDir               string
-	commitLogFilesBeforeFn      commitLogFilesBeforeFn
-	commitLogFilesForTimeFn     commitLogFilesForTimeFn
 	commitLogFilesFn            commitLogFilesFn
 	deleteFilesFn               deleteFilesFn
 	deleteInactiveDirectoriesFn deleteInactiveDirectoriesFn
@@ -73,8 +67,6 @@ func newCleanupManager(database database, scope tally.Scope) databaseCleanupMana
 		nowFn:                       opts.ClockOptions().NowFn(),
 		filePathPrefix:              filePathPrefix,
 		commitLogsDir:               commitLogsDir,
-		commitLogFilesBeforeFn:      fs.SortedCommitLogFilesBefore,
-		commitLogFilesForTimeFn:     fs.CommitLogFilesForTime,
 		commitLogFilesFn:            commitlog.Files,
 		deleteFilesFn:               fs.DeleteFiles,
 		deleteInactiveDirectoriesFn: fs.DeleteInactiveDirectories,
@@ -124,17 +116,17 @@ func (m *cleanupManager) Cleanup(t time.Time) error {
 			"encountered errors when deleting inactive namespace files for %v: %v", t, err))
 	}
 
-	commitLogStart, filesToCleanup, err := m.commitLogTimes(t)
+	filesToCleanup, err := m.commitLogTimes(t)
 	if err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
 			"encountered errors when cleaning up commit logs: %v", err))
 		return multiErr.FinalError()
 	}
 
-	if err := m.cleanupCommitLogs(commitLogStart, filesToCleanup); err != nil {
+	if err := m.cleanupCommitLogs(filesToCleanup); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
-			"encountered errors when cleaning up commit logs for commitLogStart %v commitLogFiles %v: %v",
-			commitLogStart, filesToCleanup, err))
+			"encountered errors when cleaning up commit logs for commitLogFiles %v: %v",
+			filesToCleanup, err))
 	}
 
 	return multiErr.FinalError()
@@ -291,7 +283,7 @@ func (m *cleanupManager) commitLogTimeRange(t time.Time) (time.Time, time.Time) 
 
 // commitLogTimes returns the earliest time before which the commit logs are expired,
 // as well as a list of times we need to clean up commit log files for.
-func (m *cleanupManager) commitLogTimes(t time.Time) (time.Time, []commitlog.File, error) {
+func (m *cleanupManager) commitLogTimes(t time.Time) ([]commitlog.File, error) {
 	var (
 		earliest, _ = m.commitLogTimeRange(t)
 	)
@@ -307,17 +299,22 @@ func (m *cleanupManager) commitLogTimes(t time.Time) (time.Time, []commitlog.Fil
 
 	files, err := m.commitLogFilesFn(m.opts.CommitLogOptions())
 	if err != nil {
-		return time.Time{}, nil, err
+		return nil, err
 	}
 	namespaces, err := m.database.GetOwnedNamespaces()
 	if err != nil {
-		return time.Time{}, nil, err
+		return nil, err
 	}
 
 	var outerErr error
 	filesToCleanup := filterCommitLogFiles(files, func(start time.Time, duration time.Duration) bool {
 		if outerErr != nil {
 			return false
+		}
+
+		if start.Before(earliest) {
+			// Safe to clean up expired files.
+			return true
 		}
 
 		for _, ns := range namespaces {
@@ -353,14 +350,15 @@ func (m *cleanupManager) commitLogTimes(t time.Time) (time.Time, []commitlog.Fil
 			// All the data in the commit log file is captured by the snapshot files
 			// so its safe to clean up.
 		}
+
 		return true
 	})
 
 	if outerErr != nil {
-		return time.Time{}, nil, outerErr
+		return nil, outerErr
 	}
 
-	return earliest, filesToCleanup, nil
+	return filesToCleanup, nil
 }
 
 // commitLogNamespaceBlockTimes returns the range of namespace block starts for which the
@@ -393,27 +391,10 @@ func commitLogNamespaceBlockTimes(
 	return earliest, latest
 }
 
-func (m *cleanupManager) cleanupCommitLogs(
-	earliestToRetain time.Time,
-	filesToCleanup []commitlog.File,
-) error {
-	multiErr := xerrors.NewMultiError()
-	toCleanup, err := m.commitLogFilesBeforeFn(m.commitLogsDir, earliestToRetain)
-	if err != nil {
-		multiErr = multiErr.Add(err)
-	}
-
+func (m *cleanupManager) cleanupCommitLogs(filesToCleanup []commitlog.File) error {
+	filesToDelete := make([]string, 0, len(filesToCleanup))
 	for _, f := range filesToCleanup {
-		files, err := m.commitLogFilesForTimeFn(m.commitLogsDir, f.Start)
-		if err != nil {
-			multiErr = multiErr.Add(err)
-		}
-		toCleanup = append(toCleanup, files...)
+		filesToDelete = append(filesToDelete, f.FilePath)
 	}
-
-	if err := m.deleteFilesFn(toCleanup); err != nil {
-		multiErr = multiErr.Add(err)
-	}
-
-	return multiErr.FinalError()
+	return m.deleteFilesFn(filesToDelete)
 }

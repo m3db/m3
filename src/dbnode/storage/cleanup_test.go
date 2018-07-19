@@ -23,7 +23,6 @@ package storage
 import (
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -80,18 +79,9 @@ func TestCleanupManagerCleanup(t *testing.T) {
 			SetRetentionPeriod(rOpts.RetentionPeriod()).
 			SetBlockSize(rOpts.BlockSize()))
 
-	mgr.commitLogFilesBeforeFn = func(_ string, t time.Time) ([]string, error) {
-		return []string{"foo", "bar"}, errors.New("error1")
-	}
-	mgr.commitLogFilesForTimeFn = func(_ string, t time.Time) ([]string, error) {
-		if t.Equal(timeFor(14400)) {
-			return []string{"baz"}, nil
-		}
-		return nil, errors.New("error" + strconv.Itoa(int(t.Unix())))
-	}
 	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
 		return []commitlog.File{
-			commitlog.File{Start: timeFor(14400)},
+			commitlog.File{FilePath: "foo", Start: timeFor(14400)},
 		}, nil
 	}
 	var deletedFiles []string
@@ -100,8 +90,8 @@ func TestCleanupManagerCleanup(t *testing.T) {
 		return nil
 	}
 
-	require.Error(t, mgr.Cleanup(ts))
-	require.Equal(t, []string{"foo", "bar", "baz"}, deletedFiles)
+	require.NoError(t, mgr.Cleanup(ts))
+	require.Equal(t, []string{"foo"}, deletedFiles)
 }
 
 func TestCleanupManagerNamespaceCleanup(t *testing.T) {
@@ -162,12 +152,6 @@ func TestCleanupManagerDoesntNeedCleanup(t *testing.T) {
 			SetRetentionPeriod(rOpts.RetentionPeriod()).
 			SetBlockSize(rOpts.BlockSize()))
 
-	mgr.commitLogFilesBeforeFn = func(_ string, t time.Time) ([]string, error) {
-		return []string{"foo", "bar"}, nil
-	}
-	mgr.commitLogFilesForTimeFn = func(_ string, t time.Time) ([]string, error) {
-		return nil, nil
-	}
 	var deletedFiles []string
 	mgr.deleteFilesFn = func(files []string) error {
 		deletedFiles = append(deletedFiles, files...)
@@ -539,13 +523,12 @@ func TestCleanupManagerCommitLogTimesAllFlushed(t *testing.T) {
 		ns.EXPECT().NeedsFlush(time30, time40).Return(false),
 	)
 
-	earliest, times, err := mgr.commitLogTimes(currentTime)
+	filesToCleanup, err := mgr.commitLogTimes(currentTime)
 	require.NoError(t, err)
-	require.Equal(t, time10, earliest)
-	require.Equal(t, 3, len(times))
-	require.True(t, contains(times, time10))
-	require.True(t, contains(times, time20))
-	require.True(t, contains(times, time30))
+	require.Equal(t, 3, len(filesToCleanup))
+	require.True(t, contains(filesToCleanup, time10))
+	require.True(t, contains(filesToCleanup, time20))
+	require.True(t, contains(filesToCleanup, time30))
 }
 
 func TestCleanupManagerCommitLogTimesMiddlePendingFlush(t *testing.T) {
@@ -568,12 +551,11 @@ func TestCleanupManagerCommitLogTimesMiddlePendingFlush(t *testing.T) {
 		ns.EXPECT().NeedsFlush(time30, time40).Return(false),
 	)
 
-	earliest, times, err := mgr.commitLogTimes(currentTime)
+	filesToCleanup, err := mgr.commitLogTimes(currentTime)
 	require.NoError(t, err)
-	require.Equal(t, time10, earliest)
-	require.Equal(t, 2, len(times))
-	require.True(t, contains(times, time10))
-	require.True(t, contains(times, time30))
+	require.Equal(t, 2, len(filesToCleanup))
+	require.True(t, contains(filesToCleanup, time10))
+	require.True(t, contains(filesToCleanup, time30))
 }
 
 func TestCleanupManagerCommitLogTimesStartPendingFlush(t *testing.T) {
@@ -596,12 +578,11 @@ func TestCleanupManagerCommitLogTimesStartPendingFlush(t *testing.T) {
 		ns.EXPECT().NeedsFlush(time30, time40).Return(true),
 	)
 
-	earliest, times, err := mgr.commitLogTimes(currentTime)
+	filesToCleanup, err := mgr.commitLogTimes(currentTime)
 	require.NoError(t, err)
-	require.Equal(t, time10, earliest)
-	require.Equal(t, 2, len(times))
-	require.True(t, contains(times, time20))
-	require.True(t, contains(times, time10))
+	require.Equal(t, 2, len(filesToCleanup))
+	require.True(t, contains(filesToCleanup, time20))
+	require.True(t, contains(filesToCleanup, time10))
 }
 
 func TestCleanupManagerCommitLogTimesAllPendingFlush(t *testing.T) {
@@ -624,10 +605,9 @@ func TestCleanupManagerCommitLogTimesAllPendingFlush(t *testing.T) {
 		ns.EXPECT().NeedsFlush(time30, time40).Return(true),
 	)
 
-	earliest, times, err := mgr.commitLogTimes(currentTime)
+	filesToCleanup, err := mgr.commitLogTimes(currentTime)
 	require.NoError(t, err)
-	require.Equal(t, time10, earliest)
-	require.Equal(t, 0, len(times))
+	require.Equal(t, 0, len(filesToCleanup))
 }
 
 func timeFor(s int64) time.Time {
@@ -675,15 +655,14 @@ func TestCleanupManagerCommitLogTimesAllPendingFlushButHaveSnapshot(t *testing.T
 		ns.EXPECT().IsCapturedBySnapshot(time40).Return(false, nil),
 	)
 
-	earliest, times, err := mgr.commitLogTimes(currentTime)
+	filesToCleanup, err := mgr.commitLogTimes(currentTime)
 	require.NoError(t, err)
 
-	require.Equal(t, time10, earliest)
 	// Only commit log files with starts time10 and time20 were
 	// captured by snapshot files, so those are the only ones
 	// we can delete.
-	require.True(t, contains(times, time10))
-	require.True(t, contains(times, time20))
+	require.True(t, contains(filesToCleanup, time10))
+	require.True(t, contains(filesToCleanup, time20))
 }
 
 func TestCleanupManagerCommitLogTimesHandlesIsCapturedBySnapshotError(t *testing.T) {
@@ -702,7 +681,7 @@ func TestCleanupManagerCommitLogTimesHandlesIsCapturedBySnapshotError(t *testing
 		ns.EXPECT().IsCapturedBySnapshot(time40).Return(false, errors.New("err")),
 	)
 
-	_, _, err := mgr.commitLogTimes(currentTime)
+	_, err := mgr.commitLogTimes(currentTime)
 	require.Error(t, err)
 }
 
@@ -741,14 +720,13 @@ func TestCleanupManagerCommitLogTimesMultiNS(t *testing.T) {
 		ns2.EXPECT().IsCapturedBySnapshot(time40).Return(false, nil),
 	)
 
-	earliest, times, err := mgr.commitLogTimes(currentTime)
+	filesToCleanup, err := mgr.commitLogTimes(currentTime)
 	require.NoError(t, err)
 
-	require.Equal(t, time10, earliest)
 	// time10 and time20 were covered by either a flush or snapshot
 	// for both namespaces, but time30 was only covered for ns1 by
 	// a snapshot, and ns2 didn't have a snapshot or flush for that
 	// time so the file needs to be retained.
-	require.True(t, contains(times, time10))
-	require.True(t, contains(times, time20))
+	require.True(t, contains(filesToCleanup, time10))
+	require.True(t, contains(filesToCleanup, time20))
 }
