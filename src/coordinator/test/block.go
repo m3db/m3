@@ -66,8 +66,8 @@ func GenerateValuesAndBounds(vals [][]float64, b *block.Bounds) ([][]float64, bl
 	if b == nil {
 		now := time.Now()
 		bounds = block.Bounds{
-			Start: now,
-			End: now.Add(time.Minute * 5),
+			Start:    now,
+			End:      now.Add(time.Minute * 5),
 			StepSize: time.Minute,
 		}
 	} else {
@@ -76,4 +76,3 @@ func GenerateValuesAndBounds(vals [][]float64, b *block.Bounds) ([][]float64, bl
 
 	return values, bounds
 }
-

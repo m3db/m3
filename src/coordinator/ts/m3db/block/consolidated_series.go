@@ -26,28 +26,32 @@ import (
 	"github.com/m3db/m3db/src/coordinator/block"
 )
 
-// ConsolidatedSeriesBlock is a single series consolidated across different namespaces
+// ConsolidatedBlock is a single series consolidated across different namespaces
 // for a single block
-type ConsolidatedSeriesBlock struct {
-	Metadata             block.Metadata
-	ConsolidatedNSBlocks []ConsolidatedNSBlock
-	consolidationFunc    ConsolidationFunc // nolint
+type ConsolidatedBlock struct {
+	Metadata          block.Metadata
+	NSBlocks          []NSBlock
+	consolidationFunc ConsolidationFunc // nolint
 }
 
-type consolidatedSeriesBlockIter struct {
-	consolidatedNSBlockIters []block.ValueIterator
+type consolidatedBlockStepIter struct {
+	nsBlockStepIters []block.ValueStepIterator
+}
+
+type consolidatedBlockSeriesIter struct {
+	nsBlockSeriesIters []block.ValueSeriesIterator
 }
 
 // ConsolidationFunc determines how to consolidate across namespaces
 type ConsolidationFunc func(existing, toAdd float64, count int) float64
 
-// ConsolidatedSeriesBlocks contain all of the consolidated blocks for
+// ConsolidatedBlocks contain all of the consolidated blocks for
 // a single timeseries across namespaces.
-type ConsolidatedSeriesBlocks []ConsolidatedSeriesBlock
+type ConsolidatedBlocks []ConsolidatedBlock
 
-func (c *consolidatedSeriesBlockIter) Current() float64 {
+func (c *consolidatedBlockStepIter) Current() float64 {
 	values := make([]float64, 0, 1)
-	for _, iter := range c.consolidatedNSBlockIters {
+	for _, iter := range c.nsBlockStepIters {
 		dp := iter.Current()
 		values = append(values, dp)
 	}
@@ -60,12 +64,12 @@ func (c *consolidatedSeriesBlockIter) Current() float64 {
 }
 
 // Next moves to the next item
-func (c *consolidatedSeriesBlockIter) Next() bool {
-	if len(c.consolidatedNSBlockIters) == 0 {
+func (c *consolidatedBlockStepIter) Next() bool {
+	if len(c.nsBlockStepIters) == 0 {
 		return false
 	}
 
-	for _, nsBlock := range c.consolidatedNSBlockIters {
+	for _, nsBlock := range c.nsBlockStepIters {
 		if !nsBlock.Next() {
 			return false
 		}
@@ -75,6 +79,41 @@ func (c *consolidatedSeriesBlockIter) Next() bool {
 }
 
 // Close closes the underlaying iterators
-func (c *consolidatedSeriesBlockIter) Close() {
+func (c *consolidatedBlockStepIter) Close() {
+	// todo(braskin): implement this function
+}
+
+// Current returns a slice of values for the current series
+func (c *consolidatedBlockSeriesIter) Current() []float64 {
+	values := make([][]float64, 0, 1)
+	for _, iter := range c.nsBlockSeriesIters {
+		dp := iter.Current()
+		values = append(values, dp)
+	}
+
+	if len(values) > 0 {
+		// todo(braskin): until we have consolidation
+		return values[0]
+	}
+	return []float64{math.NaN()}
+}
+
+// Next moves to the next item
+func (c *consolidatedBlockSeriesIter) Next() bool {
+	if len(c.nsBlockSeriesIters) == 0 {
+		return false
+	}
+
+	for _, nsBlock := range c.nsBlockSeriesIters {
+		if !nsBlock.Next() {
+			return false
+		}
+	}
+
+	return true
+}
+
+// Close closes the underlaying iterators
+func (c *consolidatedBlockSeriesIter) Close() {
 	// todo(braskin): implement this function
 }

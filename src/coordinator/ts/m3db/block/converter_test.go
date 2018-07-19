@@ -112,15 +112,15 @@ func TestConvertM3Blocks(t *testing.T) {
 	require.Len(t, m3CoordBlocks[0].Blocks, 2)
 	require.Len(t, m3CoordBlocks[1].Blocks, 2)
 
-	assert.Equal(t, "test_one", m3CoordBlocks[0].Blocks[0].ConsolidatedNSBlocks[0].SeriesIterators.Iters()[0].ID().String())
+	assert.Equal(t, "test_one", m3CoordBlocks[0].Blocks[0].NSBlocks[0].SeriesIterators.Iters()[0].ID().String())
 	assert.Equal(t, models.Tags{"foo": "bar", "same": "tag"}, m3CoordBlocks[0].Blocks[0].Metadata.Tags)
-	assert.Equal(t, "test_two", m3CoordBlocks[0].Blocks[1].ConsolidatedNSBlocks[0].SeriesIterators.Iters()[0].ID().String())
+	assert.Equal(t, "test_two", m3CoordBlocks[0].Blocks[1].NSBlocks[0].SeriesIterators.Iters()[0].ID().String())
 	assert.Equal(t, models.Tags{"biz": "baz", "same": "tag"}, m3CoordBlocks[0].Blocks[1].Metadata.Tags)
 	assert.Equal(t, now, m3CoordBlocks[0].Metadata.Bounds.Start)
 	assert.Equal(t, now.Add(10*time.Minute), m3CoordBlocks[0].Metadata.Bounds.End)
 
-	assert.Equal(t, "test_one", m3CoordBlocks[1].Blocks[0].ConsolidatedNSBlocks[0].SeriesIterators.Iters()[0].ID().String())
-	assert.Equal(t, "test_two", m3CoordBlocks[1].Blocks[1].ConsolidatedNSBlocks[0].SeriesIterators.Iters()[0].ID().String())
+	assert.Equal(t, "test_one", m3CoordBlocks[1].Blocks[0].NSBlocks[0].SeriesIterators.Iters()[0].ID().String())
+	assert.Equal(t, "test_two", m3CoordBlocks[1].Blocks[1].NSBlocks[0].SeriesIterators.Iters()[0].ID().String())
 	assert.Equal(t, now.Add(10*time.Minute), m3CoordBlocks[1].Metadata.Bounds.Start)
 	assert.Equal(t, now.Add(20*time.Minute), m3CoordBlocks[1].Metadata.Bounds.End)
 
@@ -141,20 +141,20 @@ func TestMultipleNamespacesSuccess(t *testing.T) {
 	require.Len(t, m3CoordBlocks[0].Blocks, 2)
 	require.Len(t, m3CoordBlocks[1].Blocks, 2)
 
-	assert.Equal(t, "test_one", m3CoordBlocks[0].Blocks[0].ConsolidatedNSBlocks[0].SeriesIterators.Iters()[0].ID().String())
+	assert.Equal(t, "test_one", m3CoordBlocks[0].Blocks[0].NSBlocks[0].SeriesIterators.Iters()[0].ID().String())
 	assert.Equal(t, models.Tags{"foo": "bar", "same": "tag"}, m3CoordBlocks[0].Blocks[0].Metadata.Tags)
-	assert.Equal(t, "test_two", m3CoordBlocks[0].Blocks[1].ConsolidatedNSBlocks[0].SeriesIterators.Iters()[0].ID().String())
+	assert.Equal(t, "test_two", m3CoordBlocks[0].Blocks[1].NSBlocks[0].SeriesIterators.Iters()[0].ID().String())
 	assert.Equal(t, models.Tags{"biz": "baz", "same": "tag"}, m3CoordBlocks[0].Blocks[1].Metadata.Tags)
 	assert.Equal(t, now, m3CoordBlocks[0].Metadata.Bounds.Start)
 	assert.Equal(t, now.Add(10*time.Minute), m3CoordBlocks[0].Metadata.Bounds.End)
 	// NB(braskin): once consolidating multiple namespaces is supported, the length will always be 1
-	assert.Equal(t, 2, len(m3CoordBlocks[0].Blocks[0].ConsolidatedNSBlocks))
+	assert.Equal(t, 2, len(m3CoordBlocks[0].Blocks[0].NSBlocks))
 
-	assert.Equal(t, "test_one", m3CoordBlocks[1].Blocks[0].ConsolidatedNSBlocks[0].SeriesIterators.Iters()[0].ID().String())
-	assert.Equal(t, "test_two", m3CoordBlocks[1].Blocks[1].ConsolidatedNSBlocks[0].SeriesIterators.Iters()[0].ID().String())
+	assert.Equal(t, "test_one", m3CoordBlocks[1].Blocks[0].NSBlocks[0].SeriesIterators.Iters()[0].ID().String())
+	assert.Equal(t, "test_two", m3CoordBlocks[1].Blocks[1].NSBlocks[0].SeriesIterators.Iters()[0].ID().String())
 	assert.Equal(t, now.Add(10*time.Minute), m3CoordBlocks[1].Metadata.Bounds.Start)
 	assert.Equal(t, now.Add(20*time.Minute), m3CoordBlocks[1].Metadata.Bounds.End)
-	assert.Equal(t, 2, len(m3CoordBlocks[1].Blocks[0].ConsolidatedNSBlocks))
+	assert.Equal(t, 2, len(m3CoordBlocks[1].Blocks[0].NSBlocks))
 
 	assert.Equal(t, models.Tags{"same": "tag"}, m3CoordBlocks[0].Metadata.Tags)
 	assert.Equal(t, models.Tags{"same": "tag"}, m3CoordBlocks[1].Metadata.Tags)

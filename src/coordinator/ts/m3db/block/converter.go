@@ -67,7 +67,7 @@ func SeriesBlockToMultiSeriesBlocks(
 			}
 
 			// take the tags from the first iterator and set that as the tags for the series block
-			dupedTags := consolidatedSeriesBlock.ConsolidatedNSBlocks[0].SeriesIterators.Iters()[0].Tags().Duplicate()
+			dupedTags := consolidatedSeriesBlock.NSBlocks[0].SeriesIterators.Iters()[0].Tags().Duplicate()
 			seriesTags, err := storage.FromIdentTagIteratorToTags(dupedTags)
 			if err != nil {
 				return nil, err
@@ -119,50 +119,50 @@ func newConsolidatedSeriesBlocks(
 	multiNamespaceSeries MultiNamespaceSeries,
 	seriesIteratorsPool encoding.MutableSeriesIteratorsPool,
 	stepSize time.Duration,
-) (ConsolidatedSeriesBlocks, error) {
-	var consolidatedSeriesBlocks ConsolidatedSeriesBlocks
+) (ConsolidatedBlocks, error) {
+	var consolidatedBlocks ConsolidatedBlocks
 
 	for seriesBlocksIdx, seriesBlocks := range multiNamespaceSeries {
-		consolidatedNSBlocks := newConsolidatedNSBlocks(seriesBlocks, seriesIteratorsPool, stepSize)
+		nsBlocks := newNSBlocks(seriesBlocks, seriesIteratorsPool, stepSize)
 		// once we get the length of consolidatedNSBlocks, we can create a
 		// ConsolidatedSeriesBlocks list with the proper size
 		if seriesBlocksIdx == 0 {
-			consolidatedSeriesBlocks = make(ConsolidatedSeriesBlocks, len(consolidatedNSBlocks))
+			consolidatedBlocks = make(ConsolidatedBlocks, len(nsBlocks))
 		}
 
-		for consolidatedNSBlockIdx, consolidatedNSBlock := range consolidatedNSBlocks {
+		for nsBlockIdx, nsBlock := range nsBlocks {
 			// we only want to set the start and end times once
 			if seriesBlocksIdx == 0 {
-				blockBounds := consolidatedSeriesBlocks[consolidatedNSBlockIdx].Metadata.Bounds
-				blockBounds.StepSize = consolidatedNSBlock.Bounds.StepSize
-				blockBounds.Start = consolidatedNSBlock.Bounds.Start
-				blockBounds.End = consolidatedNSBlock.Bounds.End
-				consolidatedSeriesBlocks[consolidatedNSBlockIdx].Metadata.Bounds = blockBounds
+				blockBounds := consolidatedBlocks[nsBlockIdx].Metadata.Bounds
+				blockBounds.StepSize = nsBlock.Bounds.StepSize
+				blockBounds.Start = nsBlock.Bounds.Start
+				blockBounds.End = nsBlock.Bounds.End
+				consolidatedBlocks[nsBlockIdx].Metadata.Bounds = blockBounds
 			}
 
-			if !consolidatedNSBlock.Bounds.Equals(consolidatedSeriesBlocks[consolidatedNSBlockIdx].Metadata.Bounds) {
+			if !nsBlock.Bounds.Equals(consolidatedBlocks[nsBlockIdx].Metadata.Bounds) {
 				return nil, errBlocksMisaligned
 			}
 
-			consolidatedSeriesBlocks[consolidatedNSBlockIdx].ConsolidatedNSBlocks = append(consolidatedSeriesBlocks[consolidatedNSBlockIdx].ConsolidatedNSBlocks, consolidatedNSBlock)
+			consolidatedBlocks[nsBlockIdx].NSBlocks = append(consolidatedBlocks[nsBlockIdx].NSBlocks, nsBlock)
 		}
 	}
 
-	return consolidatedSeriesBlocks, nil
+	return consolidatedBlocks, nil
 }
 
-// newConsolidatedNSBlocks creates a slice of consolidated blocks per namespace for a single timeseries
+// newNSBlocks creates a slice of consolidated blocks per namespace for a single timeseries
 // nolint: unparam
-func newConsolidatedNSBlocks(
+func newNSBlocks(
 	seriesBlocks SeriesBlocks,
 	seriesIteratorsPool encoding.MutableSeriesIteratorsPool,
 	stepSize time.Duration,
-) []ConsolidatedNSBlock {
-	consolidatedNSBlocks := make([]ConsolidatedNSBlock, 0, len(seriesBlocks.Blocks))
+) []NSBlock {
+	nsBlocks := make([]NSBlock, 0, len(seriesBlocks.Blocks))
 	namespace := seriesBlocks.Namespace
 	id := seriesBlocks.ID
 	for _, seriesBlock := range seriesBlocks.Blocks {
-		consolidatedNSBlock := ConsolidatedNSBlock{
+		nsBlock := NSBlock{
 			Namespace: namespace,
 			ID:        id,
 			Bounds: block.Bounds{
@@ -174,9 +174,9 @@ func newConsolidatedNSBlocks(
 		s := []encoding.SeriesIterator{seriesBlock.seriesIterator}
 		// todo(braskin): figure out how many series iterators we need based on largest step size (i.e. namespace)
 		// and in future copy SeriesIterators using the seriesIteratorsPool
-		consolidatedNSBlock.SeriesIterators = encoding.NewSeriesIterators(s, nil)
-		consolidatedNSBlocks = append(consolidatedNSBlocks, consolidatedNSBlock)
+		nsBlock.SeriesIterators = encoding.NewSeriesIterators(s, nil)
+		nsBlocks = append(nsBlocks, nsBlock)
 	}
 
-	return consolidatedNSBlocks
+	return nsBlocks
 }
