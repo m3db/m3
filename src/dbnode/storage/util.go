@@ -22,6 +22,8 @@ package storage
 
 import (
 	"time"
+
+	"github.com/m3db/m3db/src/dbnode/persist/fs/commitlog"
 )
 
 // numIntervals returns the number of intervals between [start, end] for a given
@@ -53,13 +55,30 @@ func timesInRange(startInclusive, endInclusive time.Time, windowSize time.Durati
 	return times
 }
 
-// filterTimes returns the values in the slice `times` which satisfy the provided predicate
-func filterTimes(times []time.Time, predicate func(t time.Time) bool) []time.Time {
-	retTimes := make([]time.Time, 0, len(times))
-	for _, t := range times {
-		if predicate(t) {
-			retTimes = append(retTimes, t)
+// filterCommitLogFiles returns the values in the slice `files` which
+// satisfy the provided predicate.
+func filterCommitLogFiles(
+	files []commitlog.File,
+	predicate func(start time.Time, duration time.Duration) bool,
+) []commitlog.File {
+	filtered := make([]commitlog.File, 0, len(files))
+	for _, f := range files {
+		if predicate(f.Start, f.Duration) {
+			filtered = append(filtered, f)
 		}
 	}
-	return retTimes
+	return filtered
+}
+
+// filterTimes returns the values in the slice `times` which satisfy
+// the provided predicate.
+func filterTimes(times []time.Time, predicate func(t time.Time) bool) []time.Time {
+	filtered := make([]time.Time, 0, len(times))
+	for _, t := range times {
+		if predicate(t) {
+			filtered = append(filtered, t)
+		}
+	}
+
+	return filtered
 }

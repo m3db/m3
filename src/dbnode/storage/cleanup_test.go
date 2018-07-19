@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3db/src/dbnode/retention"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	"github.com/m3db/m3x/ident"
@@ -36,6 +37,15 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+)
+
+var (
+	currentTime        = timeFor(50)
+	time10             = timeFor(10)
+	time20             = timeFor(20)
+	time30             = timeFor(30)
+	time40             = timeFor(40)
+	commitLogBlockSize = 10 * time.Second
 )
 
 func testCleanupManager(ctrl *gomock.Controller) (*Mockdatabase, *cleanupManager) {
@@ -78,6 +88,11 @@ func TestCleanupManagerCleanup(t *testing.T) {
 			return []string{"baz"}, nil
 		}
 		return nil, errors.New("error" + strconv.Itoa(int(t.Unix())))
+	}
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
+		return []commitlog.File{
+			commitlog.File{Start: timeFor(14400)},
+		}, nil
 	}
 	var deletedFiles []string
 	mgr.deleteFilesFn = func(files []string) error {
@@ -510,21 +525,27 @@ func TestCleanupManagerCommitLogTimesAllFlushed(t *testing.T) {
 	defer ctrl.Finish()
 
 	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
-	currentTime := timeFor(50)
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
+		return []commitlog.File{
+			commitlog.File{Start: time10, Duration: commitLogBlockSize},
+			commitlog.File{Start: time20, Duration: commitLogBlockSize},
+			commitlog.File{Start: time30, Duration: commitLogBlockSize},
+		}, nil
+	}
 
 	gomock.InOrder(
-		ns.EXPECT().NeedsFlush(timeFor(30), timeFor(40)).Return(false),
-		ns.EXPECT().NeedsFlush(timeFor(20), timeFor(30)).Return(false),
-		ns.EXPECT().NeedsFlush(timeFor(10), timeFor(20)).Return(false),
+		ns.EXPECT().NeedsFlush(time10, time20).Return(false),
+		ns.EXPECT().NeedsFlush(time20, time30).Return(false),
+		ns.EXPECT().NeedsFlush(time30, time40).Return(false),
 	)
 
 	earliest, times, err := mgr.commitLogTimes(currentTime)
 	require.NoError(t, err)
-	require.Equal(t, timeFor(10), earliest)
+	require.Equal(t, time10, earliest)
 	require.Equal(t, 3, len(times))
-	require.True(t, contains(times, timeFor(10)))
-	require.True(t, contains(times, timeFor(20)))
-	require.True(t, contains(times, timeFor(30)))
+	require.True(t, contains(times, time10))
+	require.True(t, contains(times, time20))
+	require.True(t, contains(times, time30))
 }
 
 func TestCleanupManagerCommitLogTimesMiddlePendingFlush(t *testing.T) {
@@ -532,21 +553,27 @@ func TestCleanupManagerCommitLogTimesMiddlePendingFlush(t *testing.T) {
 	defer ctrl.Finish()
 
 	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
-	currentTime := timeFor(50)
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
+		return []commitlog.File{
+			commitlog.File{Start: time10, Duration: commitLogBlockSize},
+			commitlog.File{Start: time20, Duration: commitLogBlockSize},
+			commitlog.File{Start: time30, Duration: commitLogBlockSize},
+		}, nil
+	}
 
 	ns.EXPECT().IsCapturedBySnapshot(gomock.Any()).Return(false, nil).AnyTimes()
 	gomock.InOrder(
-		ns.EXPECT().NeedsFlush(timeFor(30), timeFor(40)).Return(false),
-		ns.EXPECT().NeedsFlush(timeFor(20), timeFor(30)).Return(true),
-		ns.EXPECT().NeedsFlush(timeFor(10), timeFor(20)).Return(false),
+		ns.EXPECT().NeedsFlush(time10, time20).Return(false),
+		ns.EXPECT().NeedsFlush(time20, time30).Return(true),
+		ns.EXPECT().NeedsFlush(time30, time40).Return(false),
 	)
 
 	earliest, times, err := mgr.commitLogTimes(currentTime)
 	require.NoError(t, err)
-	require.Equal(t, timeFor(10), earliest)
+	require.Equal(t, time10, earliest)
 	require.Equal(t, 2, len(times))
-	require.True(t, contains(times, timeFor(10)))
-	require.True(t, contains(times, timeFor(30)))
+	require.True(t, contains(times, time10))
+	require.True(t, contains(times, time30))
 }
 
 func TestCleanupManagerCommitLogTimesStartPendingFlush(t *testing.T) {
@@ -554,21 +581,27 @@ func TestCleanupManagerCommitLogTimesStartPendingFlush(t *testing.T) {
 	defer ctrl.Finish()
 
 	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
-	currentTime := timeFor(50)
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
+		return []commitlog.File{
+			commitlog.File{Start: time10, Duration: commitLogBlockSize},
+			commitlog.File{Start: time20, Duration: commitLogBlockSize},
+			commitlog.File{Start: time30, Duration: commitLogBlockSize},
+		}, nil
+	}
 
 	ns.EXPECT().IsCapturedBySnapshot(gomock.Any()).Return(false, nil).AnyTimes()
 	gomock.InOrder(
-		ns.EXPECT().NeedsFlush(timeFor(30), timeFor(40)).Return(true),
-		ns.EXPECT().NeedsFlush(timeFor(20), timeFor(30)).Return(false),
-		ns.EXPECT().NeedsFlush(timeFor(10), timeFor(20)).Return(false),
+		ns.EXPECT().NeedsFlush(time10, time20).Return(false),
+		ns.EXPECT().NeedsFlush(time20, time30).Return(false),
+		ns.EXPECT().NeedsFlush(time30, time40).Return(true),
 	)
 
 	earliest, times, err := mgr.commitLogTimes(currentTime)
 	require.NoError(t, err)
-	require.Equal(t, timeFor(10), earliest)
+	require.Equal(t, time10, earliest)
 	require.Equal(t, 2, len(times))
-	require.True(t, contains(times, timeFor(20)))
-	require.True(t, contains(times, timeFor(10)))
+	require.True(t, contains(times, time20))
+	require.True(t, contains(times, time10))
 }
 
 func TestCleanupManagerCommitLogTimesAllPendingFlush(t *testing.T) {
@@ -576,18 +609,24 @@ func TestCleanupManagerCommitLogTimesAllPendingFlush(t *testing.T) {
 	defer ctrl.Finish()
 
 	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
-	currentTime := timeFor(50)
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
+		return []commitlog.File{
+			commitlog.File{Start: time10, Duration: commitLogBlockSize},
+			commitlog.File{Start: time20, Duration: commitLogBlockSize},
+			commitlog.File{Start: time30, Duration: commitLogBlockSize},
+		}, nil
+	}
 
 	ns.EXPECT().IsCapturedBySnapshot(gomock.Any()).Return(false, nil).AnyTimes()
 	gomock.InOrder(
-		ns.EXPECT().NeedsFlush(timeFor(30), timeFor(40)).Return(true),
-		ns.EXPECT().NeedsFlush(timeFor(20), timeFor(30)).Return(true),
-		ns.EXPECT().NeedsFlush(timeFor(10), timeFor(20)).Return(true),
+		ns.EXPECT().NeedsFlush(time10, time20).Return(true),
+		ns.EXPECT().NeedsFlush(time20, time30).Return(true),
+		ns.EXPECT().NeedsFlush(time30, time40).Return(true),
 	)
 
 	earliest, times, err := mgr.commitLogTimes(currentTime)
 	require.NoError(t, err)
-	require.Equal(t, timeFor(10), earliest)
+	require.Equal(t, time10, earliest)
 	require.Equal(t, 0, len(times))
 }
 
@@ -595,9 +634,9 @@ func timeFor(s int64) time.Time {
 	return time.Unix(s, 0)
 }
 
-func contains(arr []time.Time, t time.Time) bool {
+func contains(arr []commitlog.File, t time.Time) bool {
 	for _, at := range arr {
-		if at.Equal(t) {
+		if at.Start.Equal(t) {
 			return true
 		}
 	}
@@ -609,27 +648,31 @@ func TestCleanupManagerCommitLogTimesAllPendingFlushButHaveSnapshot(t *testing.T
 	defer ctrl.Finish()
 
 	var (
-		ns, mgr     = newCleanupManagerCommitLogTimesTest(t, ctrl)
-		currentTime = timeFor(50)
-		time10      = timeFor(10)
-		time20      = timeFor(20)
-		time30      = timeFor(30)
-		time40      = timeFor(40)
+		ns, mgr            = newCleanupManagerCommitLogTimesTest(t, ctrl)
+		currentTime        = timeFor(50)
+		commitLogBlockSize = 10 * time.Second
 	)
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
+		return []commitlog.File{
+			commitlog.File{Start: time10, Duration: commitLogBlockSize},
+			commitlog.File{Start: time20, Duration: commitLogBlockSize},
+			commitlog.File{Start: time30, Duration: commitLogBlockSize},
+		}, nil
+	}
 
 	gomock.InOrder(
-		// Commit log with start time30 not captured by snapshot,
-		// will need to retain.
-		ns.EXPECT().NeedsFlush(time30, time40).Return(true),
-		ns.EXPECT().IsCapturedBySnapshot(time40).Return(false, nil),
-		// Commit log with start time20 captured by snapshot,
-		// should be able to delete.
-		ns.EXPECT().NeedsFlush(time20, time30).Return(true),
-		ns.EXPECT().IsCapturedBySnapshot(time30).Return(true, nil),
 		// Commit log with start time10 captured by snapshot,
 		// should be able to delete.
 		ns.EXPECT().NeedsFlush(time10, time20).Return(true),
 		ns.EXPECT().IsCapturedBySnapshot(time20).Return(true, nil),
+		// Commit log with start time20 captured by snapshot,
+		// should be able to delete.
+		ns.EXPECT().NeedsFlush(time20, time30).Return(true),
+		ns.EXPECT().IsCapturedBySnapshot(time30).Return(true, nil),
+		// Commit log with start time30 not captured by snapshot,
+		// will need to retain.
+		ns.EXPECT().NeedsFlush(time30, time40).Return(true),
+		ns.EXPECT().IsCapturedBySnapshot(time40).Return(false, nil),
 	)
 
 	earliest, times, err := mgr.commitLogTimes(currentTime)
@@ -639,19 +682,20 @@ func TestCleanupManagerCommitLogTimesAllPendingFlushButHaveSnapshot(t *testing.T
 	// Only commit log files with starts time10 and time20 were
 	// captured by snapshot files, so those are the only ones
 	// we can delete.
-	require.Equal(t, []time.Time{time20, time10}, times)
+	require.True(t, contains(times, time10))
+	require.True(t, contains(times, time20))
 }
 
 func TestCleanupManagerCommitLogTimesHandlesIsCapturedBySnapshotError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	var (
-		ns, mgr     = newCleanupManagerCommitLogTimesTest(t, ctrl)
-		currentTime = timeFor(50)
-		time30      = timeFor(30)
-		time40      = timeFor(40)
-	)
+	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
+		return []commitlog.File{
+			commitlog.File{Start: time30, Duration: commitLogBlockSize},
+		}, nil
+	}
 
 	gomock.InOrder(
 		ns.EXPECT().NeedsFlush(time30, time40).Return(true),
@@ -666,14 +710,14 @@ func TestCleanupManagerCommitLogTimesMultiNS(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	var (
-		ns1, ns2, mgr = newCleanupManagerCommitLogTimesTestMultiNS(t, ctrl)
-		currentTime   = timeFor(50)
-		time10        = timeFor(10)
-		time20        = timeFor(20)
-		time30        = timeFor(30)
-		time40        = timeFor(40)
-	)
+	ns1, ns2, mgr := newCleanupManagerCommitLogTimesTestMultiNS(t, ctrl)
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
+		return []commitlog.File{
+			commitlog.File{Start: time10, Duration: commitLogBlockSize},
+			commitlog.File{Start: time20, Duration: commitLogBlockSize},
+			commitlog.File{Start: time30, Duration: commitLogBlockSize},
+		}, nil
+	}
 
 	// ns1 is flushed for time10->time20 and time20->time30.
 	// It is not flushed for time30->time40, but it doe have
@@ -684,17 +728,17 @@ func TestCleanupManagerCommitLogTimesMultiNS(t *testing.T) {
 	// that range. It does not have a flush or snapshot for
 	// time30->time40.
 	gomock.InOrder(
-		ns1.EXPECT().NeedsFlush(time30, time40).Return(true),
-		ns1.EXPECT().IsCapturedBySnapshot(time40).Return(true, nil),
-		ns2.EXPECT().NeedsFlush(time30, time40).Return(true),
-		ns2.EXPECT().IsCapturedBySnapshot(time40).Return(false, nil),
+		ns1.EXPECT().NeedsFlush(time10, time20).Return(false),
+		ns2.EXPECT().NeedsFlush(time10, time20).Return(false),
 
 		ns1.EXPECT().NeedsFlush(time20, time30).Return(false),
 		ns2.EXPECT().NeedsFlush(time20, time30).Return(true),
 		ns2.EXPECT().IsCapturedBySnapshot(time30).Return(true, nil),
 
-		ns1.EXPECT().NeedsFlush(time10, time20).Return(false),
-		ns2.EXPECT().NeedsFlush(time10, time20).Return(false),
+		ns1.EXPECT().NeedsFlush(time30, time40).Return(true),
+		ns1.EXPECT().IsCapturedBySnapshot(time40).Return(true, nil),
+		ns2.EXPECT().NeedsFlush(time30, time40).Return(true),
+		ns2.EXPECT().IsCapturedBySnapshot(time40).Return(false, nil),
 	)
 
 	earliest, times, err := mgr.commitLogTimes(currentTime)
@@ -705,5 +749,6 @@ func TestCleanupManagerCommitLogTimesMultiNS(t *testing.T) {
 	// for both namespaces, but time30 was only covered for ns1 by
 	// a snapshot, and ns2 didn't have a snapshot or flush for that
 	// time so the file needs to be retained.
-	require.Equal(t, []time.Time{time20, time10}, times)
+	require.True(t, contains(times, time10))
+	require.True(t, contains(times, time20))
 }

@@ -77,15 +77,15 @@ func TestPropertyCommitLogNotCleanedForUnflushedData(t *testing.T) {
 	properties.Property("Commit log is retained if one namespace needs to flush", prop.ForAll(
 		func(t time.Time, cRopts retention.Options, ns *generatedNamespace) (bool, error) {
 			cm := newPropTestCleanupMgr(ctrl, cRopts, ns)
-			_, cleanupTimes, err := cm.commitLogTimes(t)
+			_, filesToCleanup, err := cm.commitLogTimes(t)
 			if err != nil {
 				return false, err
 			}
-			for _, ct := range cleanupTimes {
-				s, e := commitLogNamespaceBlockTimes(ct, cRopts.BlockSize(), ns.ropts)
+			for _, f := range filesToCleanup {
+				s, e := commitLogNamespaceBlockTimes(f.Start, f.Duration, ns.ropts)
 				if ns.NeedsFlush(s, e) {
 					return false, fmt.Errorf("trying to cleanup commit log at %v, but ns needsFlush; (range: %v, %v)",
-						ct.String(), s.String(), e.String())
+						f.Start.String(), s.String(), e.String())
 				}
 			}
 			return true, nil
@@ -110,16 +110,16 @@ func TestPropertyCommitLogNotCleanedForUnflushedDataMultipleNs(t *testing.T) {
 		func(t time.Time, cRopts retention.Options, nses []*generatedNamespace) (bool, error) {
 			dbNses := generatedNamespaces(nses).asDatabaseNamespace()
 			cm := newPropTestCleanupMgr(ctrl, cRopts, dbNses...)
-			_, cleanupTimes, err := cm.commitLogTimes(t)
+			_, filesToCleanup, err := cm.commitLogTimes(t)
 			if err != nil {
 				return false, err
 			}
-			for _, ct := range cleanupTimes {
+			for _, f := range filesToCleanup {
 				for _, ns := range nses {
-					s, e := commitLogNamespaceBlockTimes(ct, cRopts.BlockSize(), ns.Options().RetentionOptions())
+					s, e := commitLogNamespaceBlockTimes(f.Start, cRopts.BlockSize(), ns.Options().RetentionOptions())
 					if ns.NeedsFlush(s, e) {
 						return false, fmt.Errorf("trying to cleanup commit log at %v, but ns needsFlush; (range: %v, %v)",
-							ct.String(), s.String(), e.String())
+							f.Start.String(), s.String(), e.String())
 					}
 				}
 			}
