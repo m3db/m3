@@ -33,7 +33,7 @@ var emptyOp = BaseOp{}
 // BaseOp stores required properties for logical operations
 type BaseOp struct {
 	operatorType string
-	processorFn  MakeProcessor
+	processorFn  makeProcessor
 }
 
 // OpType for the operator
@@ -48,7 +48,7 @@ func (o BaseOp) String() string {
 
 // Node creates an execution node
 func (o BaseOp) Node(controller *transform.Controller) transform.OpNode {
-	return &BaseNode{
+	return &baseNode{
 		controller: controller,
 		cache:      transform.NewBlockCache(),
 		op:         o,
@@ -56,32 +56,31 @@ func (o BaseOp) Node(controller *transform.Controller) transform.OpNode {
 	}
 }
 
-// BaseNode is an execution node
-type BaseNode struct {
+type baseNode struct {
 	op         BaseOp
 	controller *transform.Controller
 	cache      *transform.BlockCache
 	processor  Processor
 }
 
-// Ensure BaseNode implements the types for lazy evaluation
-var _ transform.StepNode = &BaseNode{}
-var _ transform.SeriesNode = &BaseNode{}
+// Ensure baseNode implements the types for lazy evaluation
+var _ transform.StepNode = (*baseNode)(nil)
+var _ transform.SeriesNode = (*baseNode)(nil)
 
 // ProcessStep allows step iteration
-func (c *BaseNode) ProcessStep(step block.Step) (block.Step, error) {
+func (c *baseNode) ProcessStep(step block.Step) (block.Step, error) {
 	processedValue := c.processor.Process(step.Values())
 	return block.NewColStep(step.Time(), processedValue), nil
 }
 
 // ProcessSeries allows series iteration
-func (c *BaseNode) ProcessSeries(series block.Series) (block.Series, error) {
+func (c *baseNode) ProcessSeries(series block.Series) (block.Series, error) {
 	processedValue := c.processor.Process(series.Values())
 	return block.NewSeries(processedValue, series.Meta), nil
 }
 
 // Process the block
-func (c *BaseNode) Process(ID parser.NodeID, b block.Block) error {
+func (c *baseNode) Process(ID parser.NodeID, b block.Block) error {
 	stepIter, err := b.StepIter()
 	if err != nil {
 		return err
@@ -114,17 +113,17 @@ func (c *BaseNode) Process(ID parser.NodeID, b block.Block) error {
 }
 
 // Meta returns the metadata for the block
-func (c *BaseNode) Meta(meta block.Metadata) block.Metadata {
+func (c *baseNode) Meta(meta block.Metadata) block.Metadata {
 	return meta
 }
 
 // SeriesMeta returns the metadata for each series in the block
-func (c *BaseNode) SeriesMeta(metas []block.SeriesMeta) []block.SeriesMeta {
+func (c *baseNode) SeriesMeta(metas []block.SeriesMeta) []block.SeriesMeta {
 	return metas
 }
 
-// MakeProcessor is a way to create a transform
-type MakeProcessor func(op BaseOp, controller *transform.Controller) Processor
+// makeProcessor is a way to create a transform
+type makeProcessor func(op BaseOp, controller *transform.Controller) Processor
 
 // Processor is implemented by the underlying transforms
 type Processor interface {

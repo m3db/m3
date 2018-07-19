@@ -30,7 +30,7 @@ import (
 const AbsType = "abs"
 
 // NewAbsOp creates a new base linear transform with an abs node
-func NewAbsOp(_ []interface{}) BaseOp {
+func NewAbsOp() BaseOp {
 	return BaseOp{
 		operatorType: AbsType,
 		processorFn:  newAbsNode,

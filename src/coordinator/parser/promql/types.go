@@ -84,7 +84,7 @@ func NewBinaryOperator(expr *promql.BinaryExpr, lhs, rhs parser.NodeID) (parser.
 func NewFunctionExpr(name string, argValues []interface{}) (parser.Params, error) {
 	switch name {
 	case linear.AbsType:
-		return linear.NewAbsOp(argValues), nil
+		return linear.NewAbsOp(), nil
 	case linear.ClampMinType:
 		return linear.NewClampOp(argValues, linear.ClampMinType)
 	case linear.ClampMaxType:

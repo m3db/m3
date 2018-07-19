@@ -64,7 +64,7 @@ func NewClampOp(args []interface{}, optype string) (BaseOp, error) {
 	}, nil
 }
 
-func makeClampProcessor(spec clampOp) MakeProcessor {
+func makeClampProcessor(spec clampOp) makeProcessor {
 	clampOp := spec
 	return func(op BaseOp, controller *transform.Controller) Processor {
 		fn := math.Min
