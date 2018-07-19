@@ -980,6 +980,7 @@ func (n *dbNamespace) IsCapturedBySnapshot(t time.Time) (bool, error) {
 
 		snapshotTime, err := snapshot.SnapshotTime()
 		if err != nil {
+			fmt.Println(6)
 			return false, err
 		}
 

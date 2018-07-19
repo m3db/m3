@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3db/src/dbnode/persist/fs"
 	"github.com/m3db/m3db/src/dbnode/retention"
 	"github.com/m3db/m3db/src/dbnode/runtime"
 	"github.com/m3db/m3db/src/dbnode/sharding"
@@ -1176,6 +1177,121 @@ func TestNamespaceBootstrapState(t *testing.T) {
 		0: Bootstrapped,
 		1: Bootstrapping,
 	}, ns.BootstrapState())
+}
+
+func TestNamespaceIsCapturedBySnapshot(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ns, closer := newTestNamespace(t)
+	defer closer()
+
+	var (
+		testTime  = time.Now()
+		blockSize = ns.nopts.RetentionOptions().BlockSize()
+		testCases = []struct {
+			title                string
+			shards               []uint32
+			snapshotFilesByShard map[uint32][]fs.FileSetFile
+			expectedResult       bool
+			expectedErr          error
+		}{
+			{
+				title:                "Returns true if no shards",
+				shards:               nil,
+				snapshotFilesByShard: nil,
+				expectedResult:       true,
+				expectedErr:          nil,
+			},
+			{
+				title:  "Handles nil files",
+				shards: []uint32{0},
+				snapshotFilesByShard: map[uint32][]fs.FileSetFile{
+					0: nil,
+				},
+				expectedResult: false,
+				expectedErr:    nil,
+			},
+			{
+				title:  "Handles no latest volume for block",
+				shards: []uint32{0},
+				snapshotFilesByShard: map[uint32][]fs.FileSetFile{
+					0: nil,
+				},
+				expectedResult: false,
+				expectedErr:    nil,
+			},
+			{
+				title:  "Handles latest snapshot time before",
+				shards: []uint32{0},
+				snapshotFilesByShard: map[uint32][]fs.FileSetFile{
+					0: []fs.FileSetFile{
+						fs.FileSetFile{
+							ID: fs.FileSetFileIdentifier{
+								BlockStart: testTime.Truncate(blockSize),
+							},
+							// Must contain checkpoint file to be "valid".
+							AbsoluteFilepaths:  []string{"checkpoint"},
+							CachedSnapshotTime: testTime.Add(-1 * time.Second),
+						},
+					},
+				},
+				expectedResult: false,
+				expectedErr:    nil,
+			},
+			{
+				title:  "Handles latest snapshot time after",
+				shards: []uint32{0},
+				snapshotFilesByShard: map[uint32][]fs.FileSetFile{
+					0: []fs.FileSetFile{
+						fs.FileSetFile{
+							ID: fs.FileSetFileIdentifier{
+								BlockStart: testTime.Truncate(blockSize),
+							},
+							// Must contain checkpoint file to be "valid".
+							AbsoluteFilepaths:  []string{"checkpoint"},
+							CachedSnapshotTime: testTime.Add(1 * time.Second),
+						},
+					},
+				},
+				expectedResult: true,
+				expectedErr:    nil,
+			},
+		}
+	)
+
+	for _, tc := range testCases {
+		t.Run(tc.title, func(t *testing.T) {
+			ns, closer := newTestNamespace(t)
+			defer closer()
+
+			ns.snapshotFilesFn = func(_ string, _ ident.ID, shard uint32) (fs.FileSetFilesSlice, error) {
+				files, ok := tc.snapshotFilesByShard[shard]
+				if !ok {
+					return nil, nil
+				}
+				return files, nil
+			}
+			// Make sure to nil out all other shards before hand.
+			for i := range ns.shards {
+				ns.shards[i] = nil
+			}
+			for _, shard := range tc.shards {
+				mockShard := NewMockdatabaseShard(ctrl)
+				mockShard.EXPECT().ID().Return(shard).AnyTimes()
+				ns.shards[shard] = mockShard
+				result, err := ns.IsCapturedBySnapshot(testTime)
+				require.Equal(t, tc.expectedErr, err)
+				require.Equal(t, tc.expectedResult, result)
+			}
+		})
+	}
+
+	// res, err := ns.Truncate()
+	// require.NoError(t, err)
+	// require.Equal(t, int64(1), res)
+	// require.NotNil(t, ns.shards[testShardIDs[0].ID()])
+	// require.True(t, ns.shards[testShardIDs[0].ID()].IsBootstrapped())
 }
 
 func waitForStats(
