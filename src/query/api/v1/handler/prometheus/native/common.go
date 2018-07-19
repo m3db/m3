@@ -45,6 +45,7 @@ const (
 	targetParam = "target"
 	stepParam   = "step"
 	debugParam  = "debug"
+	endInclusiveParam = "end-inclusive"
 
 	formatErrStr = "error parsing param: %s, error: %v"
 )
@@ -112,6 +113,18 @@ func parseParams(r *http.Request) (models.RequestParams, *handler.ParseError) {
 		params.Debug = debug
 	}
 
+	// Default to including end if unable to parse the flag
+	endInclusiveVal := r.FormValue(endInclusiveParam)
+	params.IncludeEnd = true
+	if endInclusiveVal != "" {
+		includeEnd, err := strconv.ParseBool(endInclusiveVal)
+		if err != nil {
+			logging.WithContext(r.Context()).Warn("unable to parse end inclusive flag", zap.Any("error", err))
+		}
+
+		params.IncludeEnd = includeEnd
+	}
+
 	return params, nil
 }
 
@@ -129,7 +142,7 @@ func parseTarget(r *http.Request) (string, error) {
 	return targetQueries[0], nil
 }
 
-func renderResultsJSON(w io.Writer, series []*ts.Series) {
+func renderResultsJSON(w io.Writer, series []*ts.Series, params models.RequestParams) {
 	jw := json.NewWriter(w)
 	jw.BeginArray()
 	for _, s := range series {
@@ -150,6 +163,12 @@ func renderResultsJSON(w io.Writer, series []*ts.Series) {
 		vals := s.Values()
 		for i := 0; i < s.Len(); i++ {
 			dp := vals.DatapointAt(i)
+			// Skip points before the query boundary. Ideal place to adjust these would be at the result node but that would make it inefficient
+			// since we would need to create another block just for the sake of restricting the bounds
+			if dp.Timestamp.Before(params.Start) {
+				continue
+			}
+
 			jw.BeginArray()
 			jw.WriteFloat64(dp.Value)
 			jw.WriteInt(int(dp.Timestamp.Unix()))

@@ -24,6 +24,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
@@ -40,7 +41,7 @@ func TestAbsentWithValues(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	node := NewAbsentOp().Node(c)
+	node := NewAbsentOp().Node(c, transform.Options{})
 	err := node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
 	assert.Len(t, sink.Values, 2)
@@ -60,7 +61,7 @@ func TestAbsentWithNoValues(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	node := NewAbsentOp().Node(c)
+	node := NewAbsentOp().Node(c, transform.Options{})
 	err := node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
 	assert.Len(t, sink.Values, 2)

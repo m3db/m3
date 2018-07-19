@@ -96,7 +96,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// TODO: Support multiple result types
 	w.Header().Set("Content-Type", "application/json")
-	renderResultsJSON(w, result)
+	renderResultsJSON(w, result, params)
 }
 
 func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, params models.RequestParams) ([]*ts.Series, error) {

@@ -65,9 +65,10 @@ func CreateScalarSource(
 func CreateTransform(
 	ID parser.NodeID,
 	params transform.Params,
+	options transform.Options,
 ) (transform.OpNode, *transform.Controller) {
 	controller := &transform.Controller{ID: ID}
-	node := params.Node(controller)
+	node := params.Node(controller, options)
 
 	switch node.(type) {
 	case transform.SeriesNode:
@@ -162,7 +163,7 @@ func (s *ExecutionState) createNode(
 		return nil, fmt.Errorf("invalid transform step, %s", step)
 	}
 
-	transformNode, controller := CreateTransform(step.ID(), transformParams)
+	transformNode, controller := CreateTransform(step.ID(), transformParams, options)
 	for _, parentID := range step.Parents {
 		parentStep, ok := s.plan.Step(parentID)
 		if !ok {

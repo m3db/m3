@@ -22,6 +22,7 @@ package transform
 
 import (
 	"sync"
+	"time"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/parser"
@@ -69,4 +70,96 @@ func (c *BlockCache) Get(key parser.NodeID) (block.Block, bool) {
 	defer c.mu.Unlock()
 	b, ok := c.blocks[key]
 	return b, ok
+}
+
+type cacheTime int64
+
+func fromTime(t time.Time) cacheTime {
+	return cacheTime(t.UnixNano())
+}
+
+func (c cacheTime) toTime() time.Time {
+	return time.Unix(0, int64(c))
+}
+
+// TimeCache is used to cache blocks over time. It also keeps track of blocks which have been processed
+type TimeCache struct {
+	blocks          map[cacheTime]block.Block
+	processedBlocks map[cacheTime]bool
+	mu              sync.Mutex
+	initialized     bool
+	blockList       []block.Block
+}
+
+// NewTimeCache creates a new TimeCache
+func NewTimeCache() *TimeCache {
+	return &TimeCache{
+		blocks:          make(map[cacheTime]block.Block),
+		processedBlocks: make(map[cacheTime]bool),
+	}
+}
+
+
+// Add the block to the cache, errors out if block already exists
+func (c *TimeCache) Add(key time.Time, b block.Block) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	_, ok := c.blocks[fromTime(key)]
+	if ok {
+		return errors.New("block already exists")
+	}
+
+	c.blocks[fromTime(key)] = b
+	return nil
+}
+
+// Remove the block from the cache
+func (c *TimeCache) Remove(key time.Time) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.blocks, fromTime(key))
+}
+
+// Get the block from the cache
+func (c *TimeCache) Get(key time.Time) (block.Block, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	b, ok := c.blocks[fromTime(key)]
+	return b, ok
+}
+
+// MultiGet retrieves multiple blocks from the cache at once
+func (c *TimeCache) MultiGet(keys []time.Time) []block.Block {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	blks := make([]block.Block, len(keys))
+	for i, key := range keys {
+		b, ok := c.blocks[fromTime(key)]
+		if ok {
+			blks[i] = b
+		}
+	}
+
+	return blks
+}
+
+// MarkProcessed is used to mark a block as processed
+func (c *TimeCache) MarkProcessed(keys []time.Time) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, key := range keys {
+		c.processedBlocks[fromTime(key)] = true
+	}
+}
+
+// Processed returns all processed block times from the cache
+func (c *TimeCache) Processed() map[time.Time]bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	removed := make(map[time.Time]bool)
+	for k, v := range c.processedBlocks {
+		removed[k.toTime()] = v
+	}
+
+	return removed
 }

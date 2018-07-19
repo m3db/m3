@@ -18,29 +18,41 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package models
+package temporal
 
 import (
-	"time"
+	"math"
+
+	"github.com/m3db/m3db/src/coordinator/executor/transform"
 )
 
-// RequestParams represents the params from the request
-type RequestParams struct {
-	Start time.Time
-	End   time.Time
-	// Now captures the current time and fixes it throughout the request, we may let people override it in the future
-	Now        time.Time
-	Timeout    time.Duration
-	Step       time.Duration
-	Target     string
-	Debug      bool
-	IncludeEnd bool
+// CountTemporalType generates count of all values in the specified interval
+const CountTemporalType = "count_over_time"
+
+// NewCountOp creates a new base linear transform with a count node
+func NewCountOp(args []interface{}) (transform.Params, error) {
+	return newBaseOp(args, CountTemporalType, newCountNode)
 }
 
-func (r RequestParams) ExclusiveEnd() time.Time {
-	if r.IncludeEnd {
-		return r.End.Add(r.Step)
+func newCountNode(op baseOp, controller *transform.Controller) Processor {
+	return &countNode{
+		op:         op,
+		controller: controller,
+	}
+}
+
+type countNode struct {
+	op         baseOp
+	controller *transform.Controller
+}
+
+func (c *countNode) Process(values []float64) float64 {
+	var count float64
+	for _, v := range values {
+		if !math.IsNaN(v) {
+			count++
+		}
 	}
 
-	return r.End
+	return count
 }
