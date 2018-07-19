@@ -112,17 +112,21 @@ func TestPropertyCommitLogNotCleanedForUnflushedDataMultipleNs(t *testing.T) {
 	timeWindow := time.Hour * 24 * 15
 
 	properties.Property("Commit log is retained if any namespace needs to flush", prop.ForAll(
-		func(t time.Time, cRopts retention.Options, nses []*generatedNamespace) (bool, error) {
+		func(cleanupTime time.Time, cRopts retention.Options, nses []*generatedNamespace) (bool, error) {
 			dbNses := generatedNamespaces(nses).asDatabaseNamespace()
 			cm := newPropTestCleanupMgr(ctrl, cRopts, dbNses...)
-			filesToCleanup, err := cm.commitLogTimes(t)
+			filesToCleanup, err := cm.commitLogTimes(cleanupTime)
 			if err != nil {
 				return false, err
 			}
 			for _, f := range filesToCleanup {
 				for _, ns := range nses {
-					s, e := commitLogNamespaceBlockTimes(f.Start, cRopts.BlockSize(), ns.Options().RetentionOptions())
-					if ns.NeedsFlush(s, e) {
+					s, e := commitLogNamespaceBlockTimes(f.Start, f.Duration, ns.ropts)
+					earliest, _ := cm.commitLogTimeRange(cleanupTime)
+					needsFlush := ns.NeedsFlush(s, e)
+					isCapturedBySnapshot, err := ns.IsCapturedBySnapshot(e)
+					require.NoError(t, err)
+					if needsFlush && !isCapturedBySnapshot && !f.Start.Before(earliest) {
 						return false, fmt.Errorf("trying to cleanup commit log at %v, but ns needsFlush; (range: %v, %v)",
 							f.Start.String(), s.String(), e.String())
 					}
