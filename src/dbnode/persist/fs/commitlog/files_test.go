@@ -43,7 +43,12 @@ func TestFiles(t *testing.T) {
 
 	createTestCommitLogFiles(t, dir, 10*time.Minute, 5)
 
-	files, err := Files(dir, NewOptions())
+	opts := NewOptions()
+	opts = opts.SetFilesystemOptions(
+		opts.FilesystemOptions().
+			SetFilePathPrefix(dir),
+	)
+	files, err := Files(opts)
 	require.NoError(t, err)
 	require.Equal(t, 5, len(files))
 

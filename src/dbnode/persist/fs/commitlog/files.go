@@ -80,8 +80,9 @@ func ReadLogInfo(filePath string, opts Options) (time.Time, time.Duration, int64
 
 // Files returns a slice of all available commit log files on disk along with
 // their associated metadata.
-func Files(filePathPrefix string, opts Options) ([]File, error) {
-	commitLogsDir := fs.CommitLogsDirPath(filePathPrefix)
+func Files(opts Options) ([]File, error) {
+	commitLogsDir := fs.CommitLogsDirPath(
+		opts.FilesystemOptions().FilePathPrefix())
 	filePaths, err := fs.SortedCommitLogFiles(commitLogsDir)
 	if err != nil {
 		return nil, err
