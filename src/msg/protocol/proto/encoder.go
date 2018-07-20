@@ -34,9 +34,9 @@ type encoder struct {
 }
 
 // NewEncoder creates a new encoder, the implementation is not thread safe.
-func NewEncoder(opts BaseOptions) Encoder {
+func NewEncoder(opts Options) Encoder {
 	if opts == nil {
-		opts = NewBaseOptions()
+		opts = NewOptions()
 	}
 	pool := opts.BytesPool()
 	return &encoder{

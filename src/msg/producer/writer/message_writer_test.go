@@ -105,7 +105,7 @@ func TestMessageWriterWithPooling(t *testing.T) {
 
 	wg.Add(1)
 	go func() {
-		testConsumeAndAckOnConnectionListener(t, lis, opts.EncodeDecoderOptions())
+		testConsumeAndAckOnConnectionListener(t, lis, opts.EncoderOptions(), opts.DecoderOptions())
 		wg.Done()
 	}()
 
@@ -188,7 +188,7 @@ func TestMessageWriterWithoutPooling(t *testing.T) {
 
 	wg.Add(1)
 	go func() {
-		testConsumeAndAckOnConnectionListener(t, lis, opts.EncodeDecoderOptions())
+		testConsumeAndAckOnConnectionListener(t, lis, opts.EncoderOptions(), opts.DecoderOptions())
 		wg.Done()
 	}()
 
@@ -302,7 +302,7 @@ func TestMessageWriterRetryWithoutPooling(t *testing.T) {
 
 	w.AddConsumerWriter(cw)
 	go func() {
-		testConsumeAndAckOnConnectionListener(t, lis, opts.EncodeDecoderOptions())
+		testConsumeAndAckOnConnectionListener(t, lis, opts.EncoderOptions(), opts.DecoderOptions())
 	}()
 
 	for {
@@ -362,7 +362,7 @@ func TestMessageWriterRetryWithPooling(t *testing.T) {
 
 	w.AddConsumerWriter(cw)
 	go func() {
-		testConsumeAndAckOnConnectionListener(t, lis, opts.EncodeDecoderOptions())
+		testConsumeAndAckOnConnectionListener(t, lis, opts.EncoderOptions(), opts.DecoderOptions())
 	}()
 
 	for {

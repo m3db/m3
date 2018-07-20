@@ -22,6 +22,7 @@ package proto
 
 import (
 	"bytes"
+	"net"
 	"testing"
 
 	"github.com/m3db/m3msg/generated/proto/msgpb"
@@ -31,12 +32,12 @@ import (
 )
 
 func TestBaseEncodeDecodeRoundTripWithoutPool(t *testing.T) {
-	enc := NewEncoder(NewBaseOptions().SetBytesPool(nil)).(*encoder)
+	enc := NewEncoder(NewOptions().SetBytesPool(nil)).(*encoder)
 	require.Equal(t, 4, len(enc.buffer))
 	require.Equal(t, 4, cap(enc.buffer))
 	require.Empty(t, enc.Bytes())
 	r := bytes.NewReader(nil)
-	dec := NewDecoder(r, NewBaseOptions().SetBytesPool(nil)).(*decoder)
+	dec := NewDecoder(r, NewOptions().SetBytesPool(nil)).(*decoder)
 	require.Equal(t, 4, len(dec.buffer))
 	require.Equal(t, 4, cap(dec.buffer))
 	encodeMsg := msgpb.Message{
@@ -63,12 +64,12 @@ func TestBaseEncodeDecodeRoundTripWithPool(t *testing.T) {
 	p := getBytesPool(2, []int{2, 8, 100})
 	p.Init()
 
-	enc := NewEncoder(NewBaseOptions().SetBytesPool(p)).(*encoder)
+	enc := NewEncoder(NewOptions().SetBytesPool(p)).(*encoder)
 	require.Equal(t, 8, len(enc.buffer))
 	require.Equal(t, 8, cap(enc.buffer))
 
 	r := bytes.NewReader(nil)
-	dec := NewDecoder(r, NewBaseOptions().SetBytesPool(p)).(*decoder)
+	dec := NewDecoder(r, NewOptions().SetBytesPool(p)).(*decoder)
 	require.Equal(t, 8, len(dec.buffer))
 	require.Equal(t, 8, cap(dec.buffer))
 	encodeMsg := msgpb.Message{
@@ -113,7 +114,7 @@ func TestResetReader(t *testing.T) {
 }
 
 func TestEncodeMessageLargerThanMaxSize(t *testing.T) {
-	opts := NewBaseOptions().SetMaxMessageSize(4)
+	opts := NewOptions().SetMaxMessageSize(4)
 	enc := NewEncoder(opts)
 	encodeMsg := msgpb.Message{
 		Metadata: msgpb.Metadata{
@@ -142,11 +143,35 @@ func TestDecodeMessageLargerThanMaxSize(t *testing.T) {
 	require.NoError(t, err)
 
 	decodeMsg := msgpb.Message{}
-	opts := NewBaseOptions().SetMaxMessageSize(4)
+	opts := NewOptions().SetMaxMessageSize(4)
 	dec := NewDecoder(bytes.NewReader(enc.Bytes()), opts)
 	err = dec.Decode(&decodeMsg)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "larger than maximum supported size")
+}
+
+func TestEncodeDecodeRoundTrip(t *testing.T) {
+	enc := NewEncoder(nil)
+	dec := NewDecoder(nil, nil)
+
+	clientConn, serverConn := net.Pipe()
+	dec.ResetReader(serverConn)
+
+	testMsg := msgpb.Message{
+		Metadata: msgpb.Metadata{
+			Shard: 1,
+			Id:    2,
+		},
+		Value: make([]byte, 10),
+	}
+	go func() {
+		require.NoError(t, enc.Encode(&testMsg))
+		_, err := clientConn.Write(enc.Bytes())
+		require.NoError(t, err)
+	}()
+	var msg msgpb.Message
+	require.NoError(t, dec.Decode(&msg))
+	require.Equal(t, testMsg, msg)
 }
 
 // nolint: unparam

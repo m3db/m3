@@ -30,19 +30,23 @@ import (
 
 // Configuration configs the consumer options.
 type Configuration struct {
-	EncodeDecoder             *proto.EncodeDecoderConfiguration `yaml:"encodeDecoder"`
-	MessagePool               *pool.ObjectPoolConfiguration     `yaml:"messagePool"`
-	AckFlushInterval          *time.Duration                    `yaml:"ackFlushInterval"`
-	AckBufferSize             *int                              `yaml:"ackBufferSize"`
-	ConnectionWriteBufferSize *int                              `yaml:"connectionWriteBufferSize"`
-	ConnectionReadBufferSize  *int                              `yaml:"connectionReadBufferSize"`
+	Encoder                   *proto.Configuration          `yaml:"encoder"`
+	Decoder                   *proto.Configuration          `yaml:"decoder"`
+	MessagePool               *pool.ObjectPoolConfiguration `yaml:"messagePool"`
+	AckFlushInterval          *time.Duration                `yaml:"ackFlushInterval"`
+	AckBufferSize             *int                          `yaml:"ackBufferSize"`
+	ConnectionWriteBufferSize *int                          `yaml:"connectionWriteBufferSize"`
+	ConnectionReadBufferSize  *int                          `yaml:"connectionReadBufferSize"`
 }
 
 // NewOptions creates consumer options.
 func (c *Configuration) NewOptions(iOpts instrument.Options) Options {
 	opts := NewOptions().SetInstrumentOptions(iOpts)
-	if c.EncodeDecoder != nil {
-		opts = opts.SetEncodeDecoderOptions(c.EncodeDecoder.NewEncodeDecoderOptions(iOpts))
+	if c.Encoder != nil {
+		opts = opts.SetEncoderOptions(c.Encoder.NewOptions(iOpts))
+	}
+	if c.Decoder != nil {
+		opts = opts.SetDecoderOptions(c.Decoder.NewOptions(iOpts))
 	}
 	if c.MessagePool != nil {
 		opts = opts.SetMessagePoolOptions(c.MessagePool.NewObjectPoolOptions(iOpts))

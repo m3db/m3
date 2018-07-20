@@ -36,6 +36,10 @@ ackFlushInterval: 100ms
 ackBufferSize: 100
 connectionWriteBufferSize: 200
 connectionReadBufferSize: 300
+encoder:
+  maxMessageSize: 100
+decoder:
+  maxMessageSize: 200
 `
 
 	var cfg Configuration
@@ -47,5 +51,9 @@ connectionReadBufferSize: 300
 	require.Equal(t, 100, opts.AckBufferSize())
 	require.Equal(t, 200, opts.ConnectionWriteBufferSize())
 	require.Equal(t, 300, opts.ConnectionReadBufferSize())
+	require.Equal(t, 100, opts.EncoderOptions().MaxMessageSize())
+	require.NotNil(t, opts.EncoderOptions().BytesPool())
+	require.Equal(t, 200, opts.DecoderOptions().MaxMessageSize())
+	require.NotNil(t, opts.EncoderOptions().BytesPool())
 	require.Nil(t, opts.InstrumentOptions())
 }

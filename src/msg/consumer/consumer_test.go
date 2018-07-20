@@ -405,7 +405,7 @@ func testProduceAndReceiveAck(t *testing.T, testMsg msgpb.Message, l Listener, o
 
 	m.Ack()
 	var ack msgpb.Ack
-	err = proto.NewDecoder(conn, opts.EncodeDecoderOptions().DecoderOptions()).Decode(&ack)
+	err = proto.NewDecoder(conn, opts.DecoderOptions()).Decode(&ack)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(ack.Metadata))
 	require.Equal(t, testMsg.Metadata, ack.Metadata[0])

@@ -25,24 +25,21 @@ import (
 	"github.com/m3db/m3x/pool"
 )
 
-// EncodeDecoderConfiguration configures an EncodeDecoder.
-type EncodeDecoderConfiguration struct {
-	MaxMessageSize    *int                              `yaml:"maxMessageSize"`
-	BytesPool         *pool.BucketizedPoolConfiguration `yaml:"bytesPool"`
-	EncodeDecoderPool *pool.ObjectPoolConfiguration     `yaml:"encodeDecoderPool"`
+// Configuration configures an Encoder or a Decoder.
+type Configuration struct {
+	MaxMessageSize *int                              `yaml:"maxMessageSize"`
+	BytesPool      *pool.BucketizedPoolConfiguration `yaml:"bytesPool"`
 }
 
-// NewEncodeDecoderOptions creates a new EncodeDecoderOptions.
-func (c *EncodeDecoderConfiguration) NewEncodeDecoderOptions(
+// NewOptions creates a new Options.
+func (c *Configuration) NewOptions(
 	iOpts instrument.Options,
-) EncodeDecoderOptions {
+) Options {
 	var (
-		encodeOpts = NewBaseOptions()
-		decodeOpts = NewBaseOptions()
+		opts = NewOptions()
 	)
 	if c.MaxMessageSize != nil {
-		encodeOpts = encodeOpts.SetMaxMessageSize(*c.MaxMessageSize)
-		decodeOpts = decodeOpts.SetMaxMessageSize(*c.MaxMessageSize)
+		opts = opts.SetMaxMessageSize(*c.MaxMessageSize)
 	}
 	if c.BytesPool != nil {
 		scope := iOpts.MetricsScope()
@@ -53,13 +50,7 @@ func (c *EncodeDecoderConfiguration) NewEncodeDecoderOptions(
 			))),
 		)
 		p.Init()
-		encodeOpts = encodeOpts.SetBytesPool(p)
-		decodeOpts = decodeOpts.SetBytesPool(p)
+		opts = opts.SetBytesPool(p)
 	}
-	opts := NewEncodeDecoderOptions()
-	if c.EncodeDecoderPool != nil {
-		encodeDecoderPool := c.EncodeDecoderPool.NewObjectPoolOptions(iOpts)
-		opts = opts.SetEncodeDecoderPool(NewEncodeDecoderPool(encodeDecoderPool))
-	}
-	return opts.SetEncoderOptions(encodeOpts).SetDecoderOptions(decodeOpts)
+	return opts
 }

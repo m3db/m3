@@ -558,19 +558,19 @@ func TestWriterWrite(t *testing.T) {
 
 	wg.Add(1)
 	go func() {
-		testConsumeAndAckOnConnectionListener(t, lis1, opts.EncodeDecoderOptions())
+		testConsumeAndAckOnConnectionListener(t, lis1, opts.EncoderOptions(), opts.DecoderOptions())
 		wg.Done()
 	}()
 
 	wg.Add(1)
 	go func() {
-		testConsumeAndAckOnConnectionListener(t, lis2, opts.EncodeDecoderOptions())
+		testConsumeAndAckOnConnectionListener(t, lis2, opts.EncoderOptions(), opts.DecoderOptions())
 		wg.Done()
 	}()
 
 	wg.Add(1)
 	go func() {
-		testConsumeAndAckOnConnectionListener(t, lis3, opts.EncodeDecoderOptions())
+		testConsumeAndAckOnConnectionListener(t, lis3, opts.EncoderOptions(), opts.DecoderOptions())
 		wg.Done()
 	}()
 
@@ -731,7 +731,7 @@ func TestWriterSetMessageTTLNanosDropMetric(t *testing.T) {
 
 	wg.Add(1)
 	go func() {
-		testConsumeAndAckOnConnectionListener(t, lis1, opts.EncodeDecoderOptions())
+		testConsumeAndAckOnConnectionListener(t, lis1, opts.EncoderOptions(), opts.DecoderOptions())
 		wg.Done()
 	}()
 	wg.Wait()
@@ -779,7 +779,7 @@ func TestWriterSetMessageTTLNanosDropMetric(t *testing.T) {
 	mm.EXPECT().Finalize(producer.Consumed).Do(func(interface{}) { called++; wg.Done() })
 	wg.Add(1)
 	go func() {
-		testConsumeAndAckOnConnectionListener(t, lis1, opts.EncodeDecoderOptions())
+		testConsumeAndAckOnConnectionListener(t, lis1, opts.EncoderOptions(), opts.DecoderOptions())
 		wg.Done()
 	}()
 	wg.Wait()
@@ -791,7 +791,7 @@ func TestWriterSetMessageTTLNanosDropMetric(t *testing.T) {
 	// Wait for the consumer to trigger finalize because there is no more message ttl.
 	wg.Add(1)
 	go func() {
-		testConsumeAndAckOnConnectionListener(t, lis2, opts.EncodeDecoderOptions())
+		testConsumeAndAckOnConnectionListener(t, lis2, opts.EncoderOptions(), opts.DecoderOptions())
 	}()
 	wg.Wait()
 	require.Equal(t, 1, called)
