@@ -183,7 +183,7 @@ func newMessageWriter(
 		opts:              opts,
 		retryOpts:         opts.MessageRetryOptions(),
 		r:                 rand.New(rand.NewSource(nowFn().UnixNano())),
-		encoder:           proto.NewEncoder(opts.EncodeDecoderOptions().EncoderOptions()),
+		encoder:           proto.NewEncoder(opts.EncoderOptions()),
 		msgID:             0,
 		queue:             list.New(),
 		acks:              newAckHelper(opts.InitialAckMapSize()),

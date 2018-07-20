@@ -70,7 +70,7 @@ func TestNewConsumerWriter(t *testing.T) {
 
 	wg.Add(1)
 	go func() {
-		testConsumeAndAckOnConnectionListener(t, lis, opts.EncodeDecoderOptions())
+		testConsumeAndAckOnConnectionListener(t, lis, opts.EncoderOptions(), opts.DecoderOptions())
 		wg.Done()
 	}()
 
@@ -271,7 +271,7 @@ func TestAutoReset(t *testing.T) {
 	defer serverConn.Close()
 
 	go func() {
-		testConsumeAndAckOnConnection(t, serverConn, opts.EncodeDecoderOptions())
+		testConsumeAndAckOnConnection(t, serverConn, opts.EncoderOptions(), opts.DecoderOptions())
 	}()
 
 	w.connectFn = func(addr string) (io.ReadWriteCloser, error) {
@@ -382,36 +382,35 @@ func testConnectionOptions() ConnectionOptions {
 func testConsumeAndAckOnConnection(
 	t *testing.T,
 	conn net.Conn,
-	opts proto.EncodeDecoderOptions,
+	encOpts proto.Options,
+	decOpts proto.Options,
 ) {
-	server := proto.NewEncodeDecoder(
-		conn,
-		opts,
-	)
-
+	serverEncoder := proto.NewEncoder(encOpts)
+	serverDecoder := proto.NewDecoder(conn, decOpts)
 	var msg msgpb.Message
-	assert.NoError(t, server.Decode(&msg))
+	assert.NoError(t, serverDecoder.Decode(&msg))
 
-	err := server.Encode(&msgpb.Ack{
+	err := serverEncoder.Encode(&msgpb.Ack{
 		Metadata: []msgpb.Metadata{
 			msg.Metadata,
 		},
 	})
 	assert.NoError(t, err)
-	_, err = conn.Write(server.Bytes())
+	_, err = conn.Write(serverEncoder.Bytes())
 	assert.NoError(t, err)
 }
 
 func testConsumeAndAckOnConnectionListener(
 	t *testing.T,
 	lis net.Listener,
-	opts proto.EncodeDecoderOptions,
+	encOpts proto.Options,
+	decOpts proto.Options,
 ) {
 	conn, err := lis.Accept()
 	require.NoError(t, err)
 	defer conn.Close()
 
-	testConsumeAndAckOnConnection(t, conn, opts)
+	testConsumeAndAckOnConnection(t, conn, encOpts, decOpts)
 }
 
 func testConsumerWriterMetrics() consumerWriterMetrics {

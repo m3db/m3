@@ -29,7 +29,7 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
-func TestEncodeDecoderConfig(t *testing.T) {
+func TestConfiguration(t *testing.T) {
 	str := `
 maxMessageSize: 1024
 bytesPool:
@@ -41,22 +41,17 @@ bytesPool:
     watermark:
         lowWatermark: 0.01
         highWatermark: 0.02
-encodeDecoderPool:
-    size: 30000
 `
 
-	var cfg EncodeDecoderConfiguration
+	var cfg Configuration
 	require.NoError(t, yaml.Unmarshal([]byte(str), &cfg))
-	opts := cfg.NewEncodeDecoderOptions(instrument.NewOptions())
-	require.Equal(t, 1024, opts.EncoderOptions().MaxMessageSize())
-	require.Equal(t, 1024, opts.DecoderOptions().MaxMessageSize())
-	require.Equal(t, opts.EncoderOptions().BytesPool(), opts.DecoderOptions().BytesPool())
-	require.NotNil(t, opts.DecoderOptions().BytesPool())
-	require.NotNil(t, opts.EncodeDecoderPool())
-	b := opts.EncoderOptions().BytesPool().Get(2)
+	opts := cfg.NewOptions(instrument.NewOptions())
+	require.Equal(t, 1024, opts.MaxMessageSize())
+	require.NotNil(t, opts.BytesPool())
+	b := opts.BytesPool().Get(2)
 	require.Equal(t, 0, len(b))
 	require.Equal(t, 4, cap(b))
-	b = opts.DecoderOptions().BytesPool().Get(200)
+	b = opts.BytesPool().Get(200)
 	require.Equal(t, 0, len(b))
 	require.Equal(t, 1024, cap(b))
 }

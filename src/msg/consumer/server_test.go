@@ -76,7 +76,7 @@ func TestConsumerServer(t *testing.T) {
 	require.Equal(t, testMsg1.Value, bytes)
 
 	var ack msgpb.Ack
-	testDecoder := proto.NewDecoder(conn, opts.ConsumerOptions().EncodeDecoderOptions().DecoderOptions())
+	testDecoder := proto.NewDecoder(conn, opts.ConsumerOptions().DecoderOptions())
 	err = testDecoder.Decode(&ack)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(ack.Metadata))

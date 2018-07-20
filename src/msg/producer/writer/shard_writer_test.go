@@ -70,7 +70,7 @@ func TestSharedShardWriter(t *testing.T) {
 
 	wg.Add(1)
 	go func() {
-		testConsumeAndAckOnConnectionListener(t, lis, opts.EncodeDecoderOptions())
+		testConsumeAndAckOnConnectionListener(t, lis, opts.EncoderOptions(), opts.DecoderOptions())
 		wg.Done()
 	}()
 
@@ -182,7 +182,7 @@ func TestReplicatedShardWriter(t *testing.T) {
 
 	wg.Add(1)
 	go func() {
-		testConsumeAndAckOnConnectionListener(t, lis1, opts.EncodeDecoderOptions())
+		testConsumeAndAckOnConnectionListener(t, lis1, opts.EncoderOptions(), opts.DecoderOptions())
 		wg.Done()
 	}()
 
@@ -205,7 +205,7 @@ func TestReplicatedShardWriter(t *testing.T) {
 
 	wg.Add(1)
 	go func() {
-		testConsumeAndAckOnConnectionListener(t, lis2, opts.EncodeDecoderOptions())
+		testConsumeAndAckOnConnectionListener(t, lis2, opts.EncoderOptions(), opts.DecoderOptions())
 		wg.Done()
 	}()
 
@@ -288,7 +288,7 @@ func TestReplicatedShardWriterRemoveMessageWriter(t *testing.T) {
 
 	wg.Add(1)
 	go func() {
-		testConsumeAndAckOnConnectionListener(t, lis1, opts.EncodeDecoderOptions())
+		testConsumeAndAckOnConnectionListener(t, lis1, opts.EncoderOptions(), opts.DecoderOptions())
 		wg.Done()
 	}()
 
@@ -308,10 +308,11 @@ func TestReplicatedShardWriterRemoveMessageWriter(t *testing.T) {
 	require.NoError(t, err)
 	defer conn.Close()
 
-	server := proto.NewEncodeDecoder(conn, opts.EncodeDecoderOptions())
+	serverEncoder := proto.NewEncoder(opts.EncoderOptions())
+	serverDecoder := proto.NewDecoder(conn, opts.DecoderOptions())
 
 	var msg msgpb.Message
-	require.NoError(t, server.Decode(&msg))
+	require.NoError(t, serverDecoder.Decode(&msg))
 	sw.UpdateInstances(
 		[]placement.Instance{i1},
 		cws,
@@ -320,8 +321,8 @@ func TestReplicatedShardWriterRemoveMessageWriter(t *testing.T) {
 	require.Equal(t, 1, len(sw.messageWriters))
 
 	mm.EXPECT().Finalize(producer.Consumed)
-	require.NoError(t, server.Encode(&msgpb.Ack{Metadata: []msgpb.Metadata{msg.Metadata}}))
-	_, err = conn.Write(server.Bytes())
+	require.NoError(t, serverEncoder.Encode(&msgpb.Ack{Metadata: []msgpb.Metadata{msg.Metadata}}))
+	_, err = conn.Write(serverEncoder.Bytes())
 	require.NoError(t, err)
 	// Make sure mw2 is closed and removed from router.
 	for {

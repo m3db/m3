@@ -87,6 +87,10 @@ ackErrorRetry:
   initialBackoff: 2ms
 connection:
   dialTimeout: 5s
+encoder:
+  maxMessageSize: 100
+decoder:
+  maxMessageSize: 200
 `
 	var cfg WriterConfiguration
 	require.NoError(t, yaml.Unmarshal([]byte(str), &cfg))
@@ -116,4 +120,8 @@ connection:
 	require.Equal(t, 2*time.Second, wOpts.CloseCheckInterval())
 	require.Equal(t, 2*time.Millisecond, wOpts.AckErrorRetryOptions().InitialBackoff())
 	require.Equal(t, 5*time.Second, wOpts.ConnectionOptions().DialTimeout())
+	require.Equal(t, 100, wOpts.EncoderOptions().MaxMessageSize())
+	require.NotNil(t, wOpts.EncoderOptions().BytesPool())
+	require.Equal(t, 200, wOpts.DecoderOptions().MaxMessageSize())
+	require.NotNil(t, wOpts.DecoderOptions().BytesPool())
 }

@@ -139,7 +139,7 @@ func newConsumerWriter(
 		)
 	)
 	w := &consumerWriterImpl{
-		decoder:        proto.NewDecoder(rw, opts.EncodeDecoderOptions().DecoderOptions()),
+		decoder:        proto.NewDecoder(rw, opts.DecoderOptions()),
 		addr:           addr,
 		router:         router,
 		opts:           opts,

@@ -35,9 +35,9 @@ type decoder struct {
 }
 
 // NewDecoder decodes a new decoder, the implementation is not thread safe.
-func NewDecoder(r io.Reader, opts BaseOptions) Decoder {
+func NewDecoder(r io.Reader, opts Options) Decoder {
 	if opts == nil {
-		opts = NewBaseOptions()
+		opts = NewOptions()
 	}
 	pool := opts.BytesPool()
 	return &decoder{

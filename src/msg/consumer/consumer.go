@@ -111,10 +111,10 @@ func newConsumer(
 	return &consumer{
 		opts:    opts,
 		mPool:   mPool,
-		encoder: proto.NewEncoder(opts.EncodeDecoderOptions().EncoderOptions()),
+		encoder: proto.NewEncoder(opts.EncoderOptions()),
 		decoder: proto.NewDecoder(
 			bufio.NewReaderSize(conn, opts.ConnectionReadBufferSize()),
-			opts.EncodeDecoderOptions().DecoderOptions(),
+			opts.DecoderOptions(),
 		),
 		w:      bufio.NewWriterSize(conn, opts.ConnectionWriteBufferSize()),
 		conn:   conn,
