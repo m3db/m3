@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3db/src/coordinator/functions"
+	"github.com/m3db/m3db/src/coordinator/functions/linear"
 	"github.com/m3db/m3db/src/coordinator/functions/logical"
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/parser"
@@ -82,12 +83,12 @@ func NewBinaryOperator(expr *promql.BinaryExpr, lhs, rhs parser.NodeID) (parser.
 // NewFunctionExpr creates a new function expr based on the type
 func NewFunctionExpr(name string, argValues []interface{}) (parser.Params, error) {
 	switch name {
-	case functions.AbsType:
-		return functions.AbsOp{}, nil
-	case functions.ClampMinType:
-		return functions.NewClampOp(argValues, functions.ClampMinType)
-	case functions.ClampMaxType:
-		return functions.NewClampOp(argValues, functions.ClampMaxType)
+	case linear.AbsType:
+		return linear.NewAbsOp(), nil
+	case linear.ClampMinType:
+		return linear.NewClampOp(argValues, linear.ClampMinType)
+	case linear.ClampMaxType:
+		return linear.NewClampOp(argValues, linear.ClampMaxType)
 
 	default:
 		// TODO: handle other types

@@ -18,15 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package functions
+package linear
 
 import (
 	"fmt"
 	"math"
 
-	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/executor/transform"
-	"github.com/m3db/m3db/src/coordinator/parser"
 )
 
 // ClampMinType ensures all values except NaNs are greater than or equal to the provided argument
@@ -35,93 +33,60 @@ const ClampMinType = "clamp_min"
 // ClampMaxType ensures all values except NaNs are lesser than or equal to provided argument
 const ClampMaxType = "clamp_max"
 
-var emptyClamp = ClampOp{}
-
-// ClampOp stores required properties for clamp
-// TODO(nikunj): Make clamp a lazy function
-type ClampOp struct {
+type clampOp struct {
 	opType string
 	scalar float64
 }
 
 // NewClampOp creates a new clamp op based on the type and arguments
-func NewClampOp(args []interface{}, optype string) (ClampOp, error) {
+func NewClampOp(args []interface{}, optype string) (BaseOp, error) {
 	if len(args) != 1 {
-		return emptyClamp, fmt.Errorf("invalid number of args for clamp: %d", len(args))
+		return emptyOp, fmt.Errorf("invalid number of args for clamp: %d", len(args))
 	}
 
 	if optype != ClampMinType && optype != ClampMaxType {
-		return emptyClamp, fmt.Errorf("unknown clamp type: %s", optype)
+		return emptyOp, fmt.Errorf("unknown clamp type: %s", optype)
 	}
 
 	scalar, ok := args[0].(float64)
 	if !ok {
-		return emptyClamp, fmt.Errorf("unable to cast to scalar argument: %v", args[0])
+		return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v", args[0])
 	}
 
-	return ClampOp{
+	spec := clampOp{
 		opType: optype,
 		scalar: scalar,
+	}
+
+	return BaseOp{
+		operatorType: optype,
+		processorFn:  makeClampProcessor(spec),
 	}, nil
 }
 
-// OpType for the operator
-func (o ClampOp) OpType() string {
-	return o.opType
-}
+func makeClampProcessor(spec clampOp) makeProcessor {
+	clampOp := spec
+	return func(op BaseOp, controller *transform.Controller) Processor {
+		fn := math.Min
+		if op.operatorType == ClampMinType {
+			fn = math.Max
+		}
 
-// String representation
-func (o ClampOp) String() string {
-	return fmt.Sprintf("type: %s", o.OpType())
-}
-
-// Node creates an execution node
-func (o ClampOp) Node(controller *transform.Controller) transform.OpNode {
-	fn := math.Min
-	if o.opType == ClampMinType {
-		fn = math.Max
+		return &clampNode{op: clampOp, controller: controller, clampFn: fn}
 	}
-
-	return &ClampNode{op: o, controller: controller, clampFn: fn}
 }
 
-// ClampNode is an execution node
-type ClampNode struct {
-	op         ClampOp
+type clampNode struct {
+	op         clampOp
 	clampFn    func(x, y float64) float64
 	controller *transform.Controller
 }
 
-// Process the block
-func (c *ClampNode) Process(ID parser.NodeID, b block.Block) error {
-	stepIter, err := b.StepIter()
-	if err != nil {
-		return err
-	}
-
-	builder, err := c.controller.BlockBuilder(stepIter.Meta(), stepIter.SeriesMeta())
-	if err != nil {
-		return err
-	}
-
-	if err := builder.AddCols(stepIter.StepCount()); err != nil {
-		return err
-	}
-
+func (c *clampNode) Process(values []float64) []float64 {
 	scalar := c.op.scalar
-	for index := 0; stepIter.Next(); index++ {
-		step, err := stepIter.Current()
-		if err != nil {
-			return err
-		}
-
-		values := step.Values()
-		for _, value := range values {
-			builder.AppendValue(index, c.clampFn(value, scalar))
-		}
+	for i := range values {
+		values[i] = c.clampFn(values[i], scalar)
 	}
 
-	nextBlock := builder.Build()
-	defer nextBlock.Close()
-	return c.controller.Process(nextBlock)
+	return values
 }
