@@ -21,6 +21,7 @@
 package block
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/m3db/m3db/src/coordinator/block"
@@ -32,12 +33,14 @@ import (
 )
 
 type mockMultiBlockStepIter struct {
-	dps []float64
-	idx int
+	dps       []float64
+	idx       int
+	numSeries int
 }
 
 func (m *mockMultiBlockStepIter) Next() bool {
 	m.idx++
+	fmt.Println("idx next: ", m.idx, len(m.dps))
 	if m.idx < len(m.dps) {
 		return true
 	}
@@ -45,6 +48,7 @@ func (m *mockMultiBlockStepIter) Next() bool {
 }
 
 func (m *mockMultiBlockStepIter) Current() float64 {
+	fmt.Println("idx: ", m.idx)
 	return m.dps[m.idx]
 }
 
@@ -62,9 +66,11 @@ func newMockValueStepIter(dps [][]float64) []block.ValueStepIterator {
 	return valueIters
 }
 
-func createMultiBlockStepIter(seriesBlockIters []block.ValueStepIterator) multiBlockStepIter {
+func createMultiBlockStepIter(seriesBlockIters []block.ValueStepIterator, csBlocks ConsolidatedBlocks) multiBlockStepIter {
 	return multiBlockStepIter{
 		seriesIters: seriesBlockIters,
+		blocks:      csBlocks,
+		index:       -1,
 	}
 }
 
@@ -90,7 +96,7 @@ func TestMultiBlockStepIter(t *testing.T) {
 
 	for _, test := range testCases {
 		mockNSBlockIters := newMockValueStepIter(test.dps)
-		consolidatedSeriesBlock := createMultiBlockStepIter(mockNSBlockIters)
+		consolidatedSeriesBlock := createMultiBlockStepIter(mockNSBlockIters, nil)
 
 		var actualResults [][]float64
 		for consolidatedSeriesBlock.Next() {
@@ -135,7 +141,7 @@ func newMockValueSeriesIter(dps [][]float64, numSeries int) []block.ValueSeriesI
 	return valueIters
 }
 
-func createMultiBlockSeriesIter(seriesBlockIters []block.ValueSeriesIterator, csBlocks ConsolidatedBlocks) multiBlockSeriesIter {
+func createMultiBlockSeriesIter(seriesBlockIters []block.ValueStepIterator, csBlocks ConsolidatedBlocks) multiBlockSeriesIter {
 	return multiBlockSeriesIter{
 		seriesIters: seriesBlockIters,
 		index:       -1,
@@ -172,7 +178,7 @@ func TestMultiBlockSeriesIter(t *testing.T) {
 	}
 
 	for _, test := range testCases {
-		mockNSBlockIters := newMockValueSeriesIter(test.dps, len(test.blocksMeta))
+		mockNSBlockIters := newMockValueStepIter(test.dps)
 		csBlocks := createBlocksWithTagsOnly(test.blocksMeta)
 		multiBlockSeriesIter := createMultiBlockSeriesIter(mockNSBlockIters, csBlocks)
 
@@ -216,14 +222,14 @@ func newMockMultiBlockStepIter(valIter []block.ValueStepIterator, blocks Consoli
 	}
 }
 
-func newMockMultiBlockSeriesIter(valIter []block.ValueSeriesIterator, blocks ConsolidatedBlocks, meta block.Metadata) *multiBlockSeriesIter {
-	return &multiBlockSeriesIter{
-		seriesIters: valIter,
-		index:       -1,
-		blocks:      blocks,
-		meta:        meta,
-	}
-}
+// func newMockMultiBlockSeriesIter(valIter []block.ValueSeriesIterator, blocks ConsolidatedBlocks, meta block.Metadata) *multiBlockSeriesIter {
+// 	return &multiBlockSeriesIter{
+// 		seriesIters: valIter,
+// 		index:       -1,
+// 		blocks:      blocks,
+// 		meta:        meta,
+// 	}
+// }
 
 func newConsolidateBlocks(metas []block.Metadata) ConsolidatedBlocks {
 	csBlocks := make([]ConsolidatedBlock, len(metas))
@@ -276,8 +282,8 @@ func TestMultiSeriesBlock(t *testing.T) {
 			assert.Equal(t, series.Tags, seriesMeta[i].Tags)
 		}
 
-		mockBlockSeriesIters := newMockValueSeriesIter(test.dps, len(test.seriesMeta))
-		seriesIter := newMockMultiBlockSeriesIter(mockBlockSeriesIters, csBlocks, test.blockMeta)
+		mockBlockSeriesIters := newMockValueStepIter(test.dps)
+		seriesIter := newMockMultiBlockStepIter(mockBlockSeriesIters, csBlocks, test.blockMeta)
 
 		var actualSeriesResults [][]float64
 		for seriesIter.Next() {

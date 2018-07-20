@@ -38,9 +38,9 @@ type consolidatedBlockStepIter struct {
 	nsBlockStepIters []block.ValueStepIterator
 }
 
-type consolidatedBlockSeriesIter struct {
-	nsBlockSeriesIters []block.ValueSeriesIterator
-}
+// type consolidatedBlockSeriesIter struct {
+// 	nsBlockSeriesIters []block.ValueSeriesIterator
+// }
 
 // ConsolidationFunc determines how to consolidate across namespaces
 type ConsolidationFunc func(existing, toAdd float64, count int) float64
@@ -83,37 +83,37 @@ func (c *consolidatedBlockStepIter) Close() {
 	// todo(braskin): implement this function
 }
 
-// Current returns a slice of values for the current series
-func (c *consolidatedBlockSeriesIter) Current() []float64 {
-	values := make([][]float64, 0, 1)
-	for _, iter := range c.nsBlockSeriesIters {
-		dp := iter.Current()
-		values = append(values, dp)
-	}
+// // Current returns a slice of values for the current series
+// func (c *consolidatedBlockSeriesIter) Current() []float64 {
+// 	values := make([][]float64, 0, 1)
+// 	for _, iter := range c.nsBlockSeriesIters {
+// 		dp := iter.Current()
+// 		values = append(values, dp)
+// 	}
 
-	if len(values) > 0 {
-		// todo(braskin): until we have consolidation
-		return values[0]
-	}
-	return []float64{math.NaN()}
-}
+// 	if len(values) > 0 {
+// 		// todo(braskin): until we have consolidation
+// 		return values[0]
+// 	}
+// 	return []float64{math.NaN()}
+// }
 
-// Next moves to the next item
-func (c *consolidatedBlockSeriesIter) Next() bool {
-	if len(c.nsBlockSeriesIters) == 0 {
-		return false
-	}
+// // Next moves to the next item
+// func (c *consolidatedBlockSeriesIter) Next() bool {
+// 	if len(c.nsBlockSeriesIters) == 0 {
+// 		return false
+// 	}
 
-	for _, nsBlock := range c.nsBlockSeriesIters {
-		if !nsBlock.Next() {
-			return false
-		}
-	}
+// 	for _, nsBlock := range c.nsBlockSeriesIters {
+// 		if !nsBlock.Next() {
+// 			return false
+// 		}
+// 	}
 
-	return true
-}
+// 	return true
+// }
 
-// Close closes the underlaying iterators
-func (c *consolidatedBlockSeriesIter) Close() {
-	// todo(braskin): implement this function
-}
+// // Close closes the underlaying iterators
+// func (c *consolidatedBlockSeriesIter) Close() {
+// 	// todo(braskin): implement this function
+// }

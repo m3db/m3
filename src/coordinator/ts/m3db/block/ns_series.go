@@ -22,7 +22,6 @@ package block
 
 import (
 	"math"
-	"time"
 
 	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/dbnode/encoding"
@@ -106,74 +105,74 @@ func (c *nsBlockStepIter) Close() {
 	// todo(braskin): implement this function
 }
 
-type nsBlockSeriesIter struct {
-	m3dbIters        []encoding.SeriesIterator
-	bounds           block.Bounds
-	seriesIndex, idx int
-	lastDP           ts.Datapoint
-}
+// type nsBlockSeriesIter struct {
+// 	m3dbIters        []encoding.SeriesIterator
+// 	bounds           block.Bounds
+// 	seriesIndex, idx int
+// 	lastDP           ts.Datapoint
+// }
 
-// Next moves to the next item and returns when it is out of bounds
-func (c *nsBlockSeriesIter) Next() bool {
-	_, err := c.bounds.TimeForIndex(c.idx)
-	return err == nil
-}
+// // Next moves to the next item and returns when it is out of bounds
+// func (c *nsBlockSeriesIter) Next() bool {
+// 	_, err := c.bounds.TimeForIndex(c.idx)
+// 	return err == nil
+// }
 
-// Current returns the slice of values for the current series
-func (c *nsBlockSeriesIter) Current() []float64 {
-	var (
-		vals        []float64
-		indexTime   time.Time
-		err         error
-		outOfBounds bool
-	)
+// // Current returns the slice of values for the current series
+// func (c *nsBlockSeriesIter) Current() []float64 {
+// 	var (
+// 		vals        []float64
+// 		indexTime   time.Time
+// 		err         error
+// 		outOfBounds bool
+// 	)
 
-	for _, iter := range c.m3dbIters {
-		for iter.Next() {
-			indexTime, err = c.bounds.TimeForIndex(c.idx)
-			if err != nil {
-				break
-			}
+// 	for _, iter := range c.m3dbIters {
+// 		for iter.Next() {
+// 			indexTime, err = c.bounds.TimeForIndex(c.idx)
+// 			if err != nil {
+// 				break
+// 			}
 
-			curr, _, _ := iter.Current()
-			c.lastDP = curr
+// 			curr, _, _ := iter.Current()
+// 			c.lastDP = curr
 
-			// Keep adding NaNs while we reach the next datapoint
-			if indexTime.After(c.lastDP.Timestamp) {
-				continue
-			}
-			for indexTime.Before(c.lastDP.Timestamp) && !indexTime.Add(c.bounds.StepSize).After(c.lastDP.Timestamp) {
-				indexTime, err = c.bounds.TimeForIndex(c.idx)
-				if err != nil {
-					outOfBounds = true
-					break
-				}
-				if indexTime.Add(c.bounds.StepSize).After(c.lastDP.Timestamp) {
-					break
-				}
-				vals = append(vals, math.NaN())
-				c.idx++
-			}
-			if outOfBounds {
-				break
-			}
-			vals = append(vals, c.lastDP.Value)
-			c.idx++
-		}
-	}
+// 			// Keep adding NaNs while we reach the next datapoint
+// 			if indexTime.After(c.lastDP.Timestamp) {
+// 				continue
+// 			}
+// 			for indexTime.Before(c.lastDP.Timestamp) && !indexTime.Add(c.bounds.StepSize).After(c.lastDP.Timestamp) {
+// 				indexTime, err = c.bounds.TimeForIndex(c.idx)
+// 				if err != nil {
+// 					outOfBounds = true
+// 					break
+// 				}
+// 				if indexTime.Add(c.bounds.StepSize).After(c.lastDP.Timestamp) {
+// 					break
+// 				}
+// 				vals = append(vals, math.NaN())
+// 				c.idx++
+// 			}
+// 			if outOfBounds {
+// 				break
+// 			}
+// 			vals = append(vals, c.lastDP.Value)
+// 			c.idx++
+// 		}
+// 	}
 
-	// once we have gone through all of the iterators, check to see if we need to add more NaNs
-	for indexTime, err = c.bounds.TimeForIndex(c.idx); err == nil; indexTime, err = c.bounds.TimeForIndex(c.idx) {
-		if indexTime.Equal(c.bounds.End.Add(c.bounds.StepSize)) {
-			break
-		}
-		vals = append(vals, math.NaN())
-		c.idx++
-	}
-	return vals
-}
+// 	// once we have gone through all of the iterators, check to see if we need to add more NaNs
+// 	for indexTime, err = c.bounds.TimeForIndex(c.idx); err == nil; indexTime, err = c.bounds.TimeForIndex(c.idx) {
+// 		if indexTime.Equal(c.bounds.End.Add(c.bounds.StepSize)) {
+// 			break
+// 		}
+// 		vals = append(vals, math.NaN())
+// 		c.idx++
+// 	}
+// 	return vals
+// }
 
-// Close closes the underlaying iterators
-func (c *nsBlockSeriesIter) Close() {
-	// todo(braskin): implement this function
-}
+// // Close closes the underlaying iterators
+// func (c *nsBlockSeriesIter) Close() {
+// 	// todo(braskin): implement this function
+// }
