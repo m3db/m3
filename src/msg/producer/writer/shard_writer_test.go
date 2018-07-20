@@ -423,13 +423,13 @@ func TestReplicatedShardWriterUpdate(t *testing.T) {
 	require.Equal(t, 3, len(sw.messageWriters))
 	newmw1 := sw.messageWriters[i1.Endpoint()]
 	require.NotNil(t, newmw1)
-	require.NotEqual(t, mw1, newmw1)
+	require.NotEqual(t, &mw1, &newmw1)
 	newmw2 := sw.messageWriters[i2.Endpoint()]
 	require.NotNil(t, newmw2)
-	require.NotEqual(t, mw2, newmw2)
+	require.NotEqual(t, &mw2, &newmw2)
 	newmw3 := sw.messageWriters[i3.Endpoint()]
 	require.NotNil(t, newmw3)
-	require.Equal(t, mw3, newmw3)
+	require.Equal(t, &mw3, &newmw3)
 	m = make(map[uint64]int, 3)
 	m[newmw1.ReplicatedShardID()] = 1
 	m[newmw2.ReplicatedShardID()] = 1
