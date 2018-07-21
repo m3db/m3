@@ -274,7 +274,12 @@ func (s *localStorage) fetchRaw(
 	return session.FetchTagged(namespaceID, query, opts)
 }
 
-func (s *localStorage) FetchBlocks(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (block.Result, error) {
+// todo(braskin): merge this with Fetch()
+func (s *localStorage) FetchBlocks(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (block.Result, error) {
 	m3query, err := storage.FetchQueryToM3Query(query)
 	if err != nil {
 		return emptyBlock, err
@@ -287,18 +292,13 @@ func (s *localStorage) FetchBlocks(ctx context.Context, query *storage.FetchQuer
 	// todo(braskin): figure out what to do with second return argument
 	seriesIters, _, err := s.fetchRaw(namespaces[0], m3query, opts)
 	if err != nil {
-		fmt.Println("error getting series iters")
 		return emptyBlock, err
 	}
-
-	fmt.Println("series iters: ", seriesIters)
 
 	seriesBlockList, err := m3block.IteratorsToSeriesBlocks(seriesIters, iterAlloc)
 	if err != nil {
 		return emptyBlock, err
 	}
-
-	// fmt.Println("series blocks: ", seriesBlockList[0].Tags, seriesBlockList[0].Blocks)
 
 	// NB/todo(braskin): because we are only support querying one namespace now, we can just create
 	// a multiNamespaceSeriesList with one element. However, once we support querying multiple namespaces,
@@ -308,13 +308,6 @@ func (s *localStorage) FetchBlocks(ctx context.Context, query *storage.FetchQuer
 	if err != nil {
 		return emptyBlock, err
 	}
-
-	// fmt.Println("len iter: ", multiSeriesBlocks[0].Blocks[0].NSBlocks[0].SeriesIterators.Len())
-	// iters := multiSeriesBlocks[0].Blocks[0].NSBlocks[0].SeriesIterators.Iters()
-	// for iters[0].Next() {
-	// 	curr, _, _ := iters[0].Current()
-	// 	fmt.Println("Current value: ", curr)
-	// }
 
 	res := block.Result{
 		Blocks: make([]block.Block, len(multiSeriesBlocks)),
