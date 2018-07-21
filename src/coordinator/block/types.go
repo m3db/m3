@@ -53,12 +53,11 @@ type Bounds struct {
 // Equals determines whether the bound (start and end) are equal
 func (b Bounds) Equals(compareBound Bounds) bool {
 	equalTimes := b.Start.Equal(compareBound.Start) && b.End.Equal(compareBound.End)
-
-	var equalStepSize bool
-	if b.StepSize == compareBound.StepSize {
-		equalStepSize = true
+	if !equalTimes {
+		return false
 	}
-	return equalTimes && equalStepSize
+
+	return b.StepSize == compareBound.StepSize
 }
 
 // TimeForIndex returns the start time for a given index assuming a uniform step size
