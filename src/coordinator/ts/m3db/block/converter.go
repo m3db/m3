@@ -22,7 +22,6 @@ package block
 
 import (
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/m3db/m3db/src/coordinator/block"
@@ -45,7 +44,6 @@ func SeriesBlockToMultiSeriesBlocks(
 	var multiSeriesBlocks MultiSeriesBlocks
 
 	for seriesIdx, multiNamespaceSeries := range multiNamespaceSeriesList {
-		fmt.Println("in here")
 		consolidatedSeriesBlocks, err := newConsolidatedSeriesBlocks(multiNamespaceSeries, seriesIteratorsPool, stepSize)
 		if err != nil {
 			return nil, err
@@ -61,9 +59,7 @@ func SeriesBlockToMultiSeriesBlocks(
 
 			// we only want to set the start and end times once
 			if seriesIdx == 0 {
-
 				blockBounds := multiSeriesBlocks[consolidatedSeriesBlockIdx].Metadata.Bounds
-				fmt.Println("block bounds: ", blockBounds)
 				blockBounds.StepSize = consolidatedSeriesBlock.Metadata.Bounds.StepSize
 				blockBounds.Start = consolidatedSeriesBlock.Metadata.Bounds.Start
 				blockBounds.End = consolidatedSeriesBlock.Metadata.Bounds.End
@@ -88,7 +84,7 @@ func SeriesBlockToMultiSeriesBlocks(
 
 	commonTags := multiSeriesBlocks.commonTags()
 	multiSeriesBlocks.setCommonTags(commonTags)
-	fmt.Println("multi blocks: ", multiSeriesBlocks)
+
 	return multiSeriesBlocks, nil
 }
 
@@ -131,7 +127,6 @@ func newConsolidatedSeriesBlocks(
 		// once we get the length of consolidatedNSBlocks, we can create a
 		// ConsolidatedSeriesBlocks list with the proper size
 		if seriesBlocksIdx == 0 {
-			fmt.Println("nsBlock len!: ", len(nsBlocks))
 			consolidatedBlocks = make(ConsolidatedBlocks, len(nsBlocks))
 		}
 
@@ -145,8 +140,6 @@ func newConsolidatedSeriesBlocks(
 				consolidatedBlocks[nsBlockIdx].Metadata.Bounds = blockBounds
 			}
 
-			fmt.Println("nsBlock idx: ", nsBlockIdx)
-			// fmt.Println("nsBlock idx: ", len())
 			if !nsBlock.Bounds.Equals(consolidatedBlocks[nsBlockIdx].Metadata.Bounds) {
 				return nil, errBlocksMisaligned
 			}

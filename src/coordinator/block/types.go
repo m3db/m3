@@ -118,16 +118,10 @@ type StepIter interface {
 	Meta() Metadata
 }
 
-// ValueStepIterator is a generic float value iterator for Steps
-type ValueStepIterator interface {
+// ValueIterator is a generic float value iterator
+type ValueIterator interface {
 	Iterator
 	Current() float64
-}
-
-// ValueSeriesIterator is a generic float value iterator for Series
-type ValueSeriesIterator interface {
-	Iterator
-	Current() []float64
 }
 
 // Step is a single time step within a block

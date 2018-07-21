@@ -21,9 +21,6 @@
 package block
 
 import (
-	"errors"
-	"fmt"
-
 	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/models"
 )
@@ -40,128 +37,102 @@ type MultiSeriesBlocks []MultiSeriesBlock
 // Close closes each SeriesIterator
 func (m MultiSeriesBlocks) Close() {}
 
-type multiBlockStepIter struct {
-	seriesIters []block.ValueStepIterator
-	index       int
-	meta        block.Metadata
-	blocks      ConsolidatedBlocks
-}
-
 // StepIter creates a new step iterator for a given MultiSeriesBlock
 func (m MultiSeriesBlock) StepIter() (block.StepIter, error) {
-	fmt.Println("multiBlockStepIter being created")
 	return &multiBlockStepIter{
-		seriesIters: newConsolidatedBlockStepIters(m.Blocks),
+		seriesIters: newConsolidatedBlockIters(m.Blocks),
 		index:       -1,
-		meta:        m.Metadata,
-		blocks:      m.Blocks,
+		m:           m,
 	}, nil
 }
 
 // SeriesIter creates a new series iterator for a given MultiSeriesBlock
 func (m MultiSeriesBlock) SeriesIter() (block.SeriesIter, error) {
 	return &multiBlockSeriesIter{
-		seriesIters: newConsolidatedBlockStepIters(m.Blocks),
+		seriesIters: newConsolidatedBlockIters(m.Blocks),
 		index:       -1,
-		meta:        m.Metadata,
-		blocks:      m.Blocks,
+		m:           m,
 	}, nil
+}
+
+// Meta returns the Meta data for the block
+func (m MultiSeriesBlock) Meta() block.Metadata {
+	return m.Metadata
+}
+
+// SeriesMeta returns the metadata for the underlaying series
+func (m MultiSeriesBlock) SeriesMeta() []block.SeriesMeta {
+	metas := make([]block.SeriesMeta, len(m.Blocks))
+	for i, s := range m.Blocks {
+		metas[i].Name = s.Metadata.Tags[models.MetricName]
+		metas[i].Tags = s.Metadata.Tags
+	}
+
+	return metas
 }
 
 // Close frees up resources
 func (m MultiSeriesBlock) Close() error {
-	// todo(braskin): Actually free up resources
-	return errors.New("Close not implemented")
+	return nil
 }
 
-func newConsolidatedBlockStepIters(blocks ConsolidatedBlocks) []block.ValueStepIterator {
-	fmt.Println("step iters being created")
-	seriesBlockIters := make([]block.ValueStepIterator, len(blocks))
+func newConsolidatedBlockIters(blocks ConsolidatedBlocks) []block.ValueIterator {
+	seriesBlockIters := make([]block.ValueIterator, len(blocks))
 	if len(blocks) == 0 {
 		return seriesBlockIters
 	}
 
 	nsBlocksLen := len(blocks[0].NSBlocks)
 	for i, seriesBlock := range blocks {
-		nsBlockStepIters := make([]block.ValueStepIterator, nsBlocksLen)
+		nsBlockIters := make([]block.ValueIterator, nsBlocksLen)
 		for j, nsBlock := range seriesBlock.NSBlocks {
-			nsBlockStepIter := newNSBlockStepIter(nsBlock)
-			nsBlockStepIters[j] = nsBlockStepIter
+			nsBlockIter := newNSBlockIter(nsBlock)
+			nsBlockIters[j] = nsBlockIter
 		}
 
-		seriesBlockIters[i] = &consolidatedBlockStepIter{
-			nsBlockStepIters: nsBlockStepIters,
+		seriesBlockIters[i] = &consolidatedBlockIter{
+			nsBlockIters: nsBlockIters,
 		}
 	}
 
 	return seriesBlockIters
 }
 
-func newNSBlockStepIter(nsBlock NSBlock) *nsBlockStepIter {
-	return &nsBlockStepIter{
+func newNSBlockIter(nsBlock NSBlock) *nsBlockIter {
+	return &nsBlockIter{
 		m3dbIters: nsBlock.SeriesIterators.Iters(),
 		bounds:    nsBlock.Bounds,
 		idx:       -1,
 	}
 }
 
-// func newConsolidatedBlockSeriesIters(blocks ConsolidatedBlocks) []block.ValueSeriesIterator {
-// 	seriesBlockIters := make([]block.ValueSeriesIterator, len(blocks))
-// 	if len(blocks) == 0 {
-// 		return seriesBlockIters
-// 	}
-
-// 	nsBlocksLen := len(blocks[0].NSBlocks)
-// 	for i, seriesBlock := range blocks {
-// 		nsBlockSeriesIters := make([]block.ValueSeriesIterator, nsBlocksLen)
-// 		for j, nsBlock := range seriesBlock.NSBlocks {
-// 			nsBlockSeriesIter := newNSBlockSeriesIter(nsBlock)
-// 			nsBlockSeriesIters[j] = nsBlockSeriesIter
-// 		}
-
-// 		seriesBlockIters[i] = &consolidatedBlockSeriesIter{
-// 			nsBlockSeriesIters: nsBlockSeriesIters,
-// 		}
-// 	}
-
-// 	return seriesBlockIters
-// }
-
-// func newNSBlockSeriesIter(nsBlock NSBlock) *nsBlockSeriesIter {
-// 	return &nsBlockSeriesIter{
-// 		m3dbIters: nsBlock.SeriesIterators.Iters(),
-// 		bounds:    nsBlock.Bounds,
-// 		idx:       -1,
-// 	}
-// }
+type multiBlockStepIter struct {
+	seriesIters []block.ValueIterator
+	index       int
+	m           MultiSeriesBlock
+}
 
 // Meta returns the metadata for the step iter
 func (m *multiBlockStepIter) Meta() block.Metadata {
-	return m.meta
+	return m.m.Meta()
 }
 
 // SeriesMeta returns metadata for the individual timeseries
 func (m *multiBlockStepIter) SeriesMeta() []block.SeriesMeta {
-	metas := make([]block.SeriesMeta, len(m.blocks))
-	for i, s := range m.blocks {
-		metas[i].Name = s.Metadata.Tags[models.MetricName]
-		metas[i].Tags = s.Metadata.Tags
-	}
-	return metas
+	return m.m.SeriesMeta()
 }
 
 // StepCount returns the total steps/columns
 func (m *multiBlockStepIter) StepCount() int {
-	if len(m.blocks) == 0 {
+	if len(m.m.Blocks) == 0 {
 		return 0
 	}
 	//NB(braskin): inclusive of the end
-	return m.blocks[0].Metadata.Bounds.Steps()
+	return m.m.Blocks[0].Metadata.Bounds.Steps()
 }
 
 // Next moves to the next item
 func (m *multiBlockStepIter) Next() bool {
-	fmt.Println("step value next called")
 	if len(m.seriesIters) == 0 {
 		return false
 	}
@@ -178,19 +149,13 @@ func (m *multiBlockStepIter) Next() bool {
 
 // Current returns the slice of vals and timestamps for that step
 func (m *multiBlockStepIter) Current() (block.Step, error) {
-	fmt.Println("step value current called")
-	bounds := m.meta.Bounds
+	bounds := m.m.Meta().Bounds
 	t, _ := bounds.TimeForIndex(m.index)
-	// if err != nil {
-	// 	return nil, err
-	// }
 
 	values := make([]float64, len(m.seriesIters))
 	for i, s := range m.seriesIters {
 		values[i] = s.Current()
 	}
-
-	fmt.Println("step values: ", values)
 
 	return block.NewColStep(t, values), nil
 }
@@ -199,20 +164,19 @@ func (m *multiBlockStepIter) Current() (block.Step, error) {
 func (m *multiBlockStepIter) Close() {}
 
 type multiBlockSeriesIter struct {
-	seriesIters []block.ValueStepIterator
+	seriesIters []block.ValueIterator
 	index       int
-	meta        block.Metadata
-	blocks      ConsolidatedBlocks
+	m           MultiSeriesBlock
 }
 
 // Meta returns the metadata for the block
 func (m *multiBlockSeriesIter) Meta() block.Metadata {
-	return m.meta
+	return m.m.Meta()
 }
 
 // Current returns the slice of vals and timestamps for that series
 func (m *multiBlockSeriesIter) Current() (block.Series, error) {
-	meta := m.blocks[m.index].Metadata
+	meta := m.m.Blocks[m.index].Metadata
 	seriesMeta := block.SeriesMeta{
 		Tags: meta.Tags,
 		Name: meta.Tags[models.MetricName],
@@ -222,48 +186,26 @@ func (m *multiBlockSeriesIter) Current() (block.Series, error) {
 	values := make([]float64, 0)
 	seriesIter := m.seriesIters[m.index]
 	for seriesIter.Next() {
-		fmt.Println("called next")
-		curr := seriesIter.Current()
-		fmt.Println(curr)
-		values = append(values, curr)
+		values = append(values, seriesIter.Current())
 	}
-	fmt.Println("series values: ", values)
+
 	return block.NewSeries(values, seriesMeta), nil
 }
 
 // Next moves to the next item
 func (m *multiBlockSeriesIter) Next() bool {
-	if len(m.seriesIters) == 0 {
-		return false
-	}
-
-	for _, s := range m.seriesIters {
-		fmt.Println("calling next in multi")
-		if !s.Next() {
-			return false
-		}
-	}
-
 	m.index++
-	return true
+	return m.index < len(m.seriesIters)
 }
 
 // SeriesMeta returns the metadata for each series in the block
 func (m *multiBlockSeriesIter) SeriesMeta() []block.SeriesMeta {
-	metas := make([]block.SeriesMeta, len(m.seriesIters))
-	for i, s := range m.blocks {
-		metas[i] = block.SeriesMeta{
-			Tags: s.Metadata.Tags,
-			Name: s.Metadata.Tags[models.MetricName],
-		}
-	}
-
-	return metas
+	return m.m.SeriesMeta()
 }
 
 // SeriesCount returns the number of series
 func (m *multiBlockSeriesIter) SeriesCount() int {
-	return len(m.blocks)
+	return len(m.m.Blocks)
 }
 
 // TODO: Actually free up resources

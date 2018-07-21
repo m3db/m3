@@ -46,8 +46,8 @@ func (m *mockNSBlockIter) Current() float64 {
 
 func (m *mockNSBlockIter) Close() {}
 
-func newMockNSBlockIter(dps [][]float64) []block.ValueStepIterator {
-	var valueIters []block.ValueStepIterator
+func newMockNSBlockIter(dps [][]float64) []block.ValueIterator {
+	var valueIters []block.ValueIterator
 	for _, dp := range dps {
 		valueIters = append(valueIters, &mockNSBlockIter{
 			dps: dp,
@@ -58,9 +58,9 @@ func newMockNSBlockIter(dps [][]float64) []block.ValueStepIterator {
 	return valueIters
 }
 
-func createConsolidatedBlockStepIter(nsBlockIters []block.ValueStepIterator) consolidatedBlockStepIter {
-	return consolidatedBlockStepIter{
-		nsBlockStepIters: nsBlockIters,
+func createConsolidatedBlockIter(nsBlockIters []block.ValueIterator) consolidatedBlockIter {
+	return consolidatedBlockIter{
+		nsBlockIters: nsBlockIters,
 	}
 }
 
@@ -86,7 +86,7 @@ func TestConsolidatedSeriesBlockIter(t *testing.T) {
 
 	for _, test := range testCases {
 		mockNSBlockIters := newMockNSBlockIter(test.dps)
-		consolidatedSeriesBlock := createConsolidatedBlockStepIter(mockNSBlockIters)
+		consolidatedSeriesBlock := createConsolidatedBlockIter(mockNSBlockIters)
 
 		var actualResults []float64
 		for consolidatedSeriesBlock.Next() {
@@ -95,63 +95,3 @@ func TestConsolidatedSeriesBlockIter(t *testing.T) {
 		coordtest.EqualsWithNans(t, test.expectedResults, actualResults)
 	}
 }
-
-// type mockNSBlockSeriesIter struct {
-// 	dps []float64
-// 	idx int
-// }
-
-// func (m *mockNSBlockSeriesIter) Next() bool {
-// 	m.idx++
-// 	return m.idx == 0
-// }
-
-// func (m *mockNSBlockSeriesIter) Current() []float64 {
-// 	return m.dps
-// }
-
-// func (m *mockNSBlockSeriesIter) Close() {}
-
-// func newMockNSBlockSeriesIter(dps [][]float64) []block.ValueSeriesIterator {
-// 	var valueIters []block.ValueSeriesIterator
-// 	for _, dp := range dps {
-// 		valueIters = append(valueIters, &mockNSBlockSeriesIter{
-// 			dps: dp,
-// 			idx: -1,
-// 		})
-// 	}
-
-// 	return valueIters
-// }
-
-// func createConsolidatedBlockSeriesIter(nsBlockIters []block.ValueSeriesIterator) consolidatedBlockSeriesIter {
-// 	return consolidatedBlockSeriesIter{
-// 		nsBlockSeriesIters: nsBlockIters,
-// 	}
-// }
-
-// func TestConsolidatedSeriesBlockSeriesIter(t *testing.T) {
-// 	testCases := []consolidatedSeriesTestCase{
-// 		{
-// 			dps:             [][]float64{{1, 2, 3, 4, 5}},
-// 			expectedResults: []float64{1, 2, 3, 4, 5},
-// 			description:     "only return one set of datapoints",
-// 		},
-// 		{
-// 			dps:             [][]float64{{6, 7, 8, 9, 10}, {1, 2, 3, 4, 5}},
-// 			expectedResults: []float64{6, 7, 8, 9, 10},
-// 			description:     "return only the first set of datapoints (consolidation)",
-// 		},
-// 	}
-
-// 	for _, test := range testCases {
-// 		mockNSBlockIters := newMockNSBlockSeriesIter(test.dps)
-// 		consolidatedSeriesBlock := createConsolidatedBlockSeriesIter(mockNSBlockIters)
-
-// 		var actualResults []float64
-// 		for consolidatedSeriesBlock.Next() {
-// 			actualResults = consolidatedSeriesBlock.Current()
-// 		}
-// 		coordtest.EqualsWithNans(t, test.expectedResults, actualResults)
-// 	}
-// }
