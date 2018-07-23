@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3db/src/dbnode/clock"
 	"github.com/m3db/m3db/src/dbnode/persist"
+	"github.com/m3db/m3db/src/dbnode/persist/fs"
 	"github.com/m3db/m3db/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3db/src/dbnode/sharding"
 	"github.com/m3db/m3db/src/dbnode/storage/block"
@@ -108,8 +109,10 @@ type dbNamespace struct {
 	nopts              namespace.Options
 	seriesOpts         series.Options
 	nowFn              clock.NowFn
-	log                xlog.Logger
-	bootstrapState     BootstrapState
+	// TODO: Just rely on shard?
+	snapshotFilesFn snapshotFilesFn
+	log             xlog.Logger
+	bootstrapState  BootstrapState
 
 	// Contains an entry to all shards for fast shard lookup, an
 	// entry will be nil when this shard does not belong to current database
@@ -320,6 +323,7 @@ func newDatabaseNamespace(
 		nopts:                  nopts,
 		seriesOpts:             seriesOpts,
 		nowFn:                  opts.ClockOptions().NowFn(),
+		snapshotFilesFn:        fs.SnapshotFiles,
 		log:                    logger,
 		increasingIndex:        increasingIndex,
 		commitLogWriter:        commitLogWriter,
@@ -934,21 +938,72 @@ func (n *dbNamespace) Snapshot(blockStart, snapshotTime time.Time, flush persist
 }
 
 func (n *dbNamespace) NeedsFlush(alignedInclusiveStart time.Time, alignedInclusiveEnd time.Time) bool {
-	var (
-		blockSize   = n.nopts.RetentionOptions().BlockSize()
-		blockStarts = timesInRange(alignedInclusiveStart, alignedInclusiveEnd, blockSize)
-	)
-
 	// NB(r): Essentially if all are success, we don't need to flush, if any
 	// are failed with the minimum num failures less than max retries then
 	// we need to flush - otherwise if any in progress we can't flush and if
 	// any not started then we need to flush.
 	n.RLock()
 	defer n.RUnlock()
+	return n.needsFlushWithLock(alignedInclusiveStart, alignedInclusiveEnd)
+}
+
+func (n *dbNamespace) IsCapturedBySnapshot(t time.Time) (bool, error) {
+	var (
+		blockSize      = n.nopts.RetentionOptions().BlockSize()
+		blockStart     = t.Truncate(blockSize)
+		filePathPrefix = n.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
+	)
+
+	n.RLock()
+	defer n.RUnlock()
+
+	for _, shard := range n.shards {
+		if shard == nil {
+			continue
+		}
+
+		snapshotFiles, err := n.snapshotFilesFn(filePathPrefix, n.ID(), shard.ID())
+		if err != nil {
+			return false, err
+		}
+
+		if snapshotFiles == nil {
+			return false, nil
+		}
+
+		snapshot, ok := snapshotFiles.LatestVolumeForBlock(blockStart)
+		if !ok {
+			// If a single shard is missing a snapshot for the blockStart then
+			// the entire namespace is not covered by snapshots up to time t.
+			return false, nil
+		}
+
+		snapshotTime, err := snapshot.SnapshotTime()
+		if err != nil {
+			fmt.Println(6)
+			return false, err
+		}
+
+		if snapshotTime.Before(t) {
+			// If a single shard's most recent snapshot has a snapshot time before
+			// t then the entire namespace is not covered by snapshots up to time t
+			// because the snapshot could be missing data in-between snapshotTime and
+			// t.
+			return false, nil
+		}
+	}
+
+	return true, nil
+}
+
+func (n *dbNamespace) needsFlushWithLock(alignedInclusiveStart time.Time, alignedInclusiveEnd time.Time) bool {
+	var (
+		blockSize   = n.nopts.RetentionOptions().BlockSize()
+		blockStarts = timesInRange(alignedInclusiveStart, alignedInclusiveEnd, blockSize)
+	)
 
 	// NB(prateek): we do not check if any other flush is in progress in this method,
 	// instead relying on the databaseFlushManager to ensure atomicity of flushes.
-
 	maxRetries := n.opts.MaxFlushRetries()
 	// Check for not started or failed that might need a flush
 	for _, shard := range n.shards {

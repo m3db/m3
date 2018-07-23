@@ -132,8 +132,8 @@ func TestCommitLogIndexBootstrap(t *testing.T) {
 	})
 
 	log.Info("writing data")
-	writeCommitLogData(t, setup, commitLogOpts, seriesMaps, testNamespaces[0])
-	writeCommitLogData(t, setup, commitLogOpts, seriesMaps, testNamespaces[1])
+	writeCommitLogData(t, setup, commitLogOpts, seriesMaps, ns1, false)
+	writeCommitLogData(t, setup, commitLogOpts, seriesMaps, ns2, false)
 	log.Info("finished writing data")
 
 	// Setup bootstrapper after writing data so filesystem inspection can find it.

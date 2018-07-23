@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -430,18 +431,24 @@ func TestFileSetFilesNoFiles(t *testing.T) {
 }
 
 func TestSnapshotFiles(t *testing.T) {
-	shard := uint32(0)
-	dir := createDataSnapshotInfoFilesDir(t, testNs1ID, shard, 20)
+	var (
+		shard          = uint32(0)
+		dir            = createTempDir(t)
+		filePathPrefix = filepath.Join(dir, "")
+	)
 	defer os.RemoveAll(dir)
 
-	files, err := SnapshotFiles(dir, testNs1ID, shard)
-	require.NoError(t, err)
-	require.Equal(t, 20, len(files))
-	for i, snapshotFile := range files {
-		require.Equal(t, int64(i), snapshotFile.ID.BlockStart.UnixNano())
-	}
+	// Write out snapshot file
+	writeOutTestSnapshot(t, filePathPrefix, shard, testWriterStart, 0)
 
-	require.Equal(t, 20, len(files.Filepaths()))
+	// Load snapshot files
+	snapshotFiles, err := SnapshotFiles(filePathPrefix, testNs1ID, shard)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(snapshotFiles))
+	snapshotTime, err := snapshotFiles[0].SnapshotTime()
+	require.NoError(t, err)
+	require.True(t, testWriterStart.Equal(snapshotTime))
+	require.False(t, testWriterStart.IsZero())
 }
 
 func TestSnapshotFilesNoFiles(t *testing.T) {
@@ -463,14 +470,14 @@ func TestSnapshotFilesNoFiles(t *testing.T) {
 }
 
 func TestNextSnapshotFileSetVolumeIndex(t *testing.T) {
-	// Make empty directory
-	shard := uint32(0)
-	dir := createTempDir(t)
-	shardDir := ShardSnapshotsDirPath(dir, testNs1ID, shard)
+	var (
+		shard      = uint32(0)
+		dir        = createTempDir(t)
+		shardDir   = ShardSnapshotsDirPath(dir, testNs1ID, shard)
+		blockStart = time.Now().Truncate(time.Hour)
+	)
 	require.NoError(t, os.MkdirAll(shardDir, 0755))
 	defer os.RemoveAll(shardDir)
-
-	blockStart := time.Now().Truncate(time.Hour)
 
 	// Check increments properly
 	curr := -1
@@ -481,9 +488,7 @@ func TestNextSnapshotFileSetVolumeIndex(t *testing.T) {
 		require.Equal(t, curr+1, index)
 		curr = index
 
-		p := filesetPathFromTimeAndIndex(shardDir, blockStart, index, "foo")
-		err = ioutil.WriteFile(p, []byte("bar"), defaultNewFileMode)
-		require.NoError(t, err)
+		writeOutTestSnapshot(t, dir, shard, blockStart, index)
 	}
 }
 
@@ -504,7 +509,7 @@ func TestNextIndexFileSetVolumeIndex(t *testing.T) {
 		require.Equal(t, curr+1, index)
 		curr = index
 
-		p := filesetPathFromTimeAndIndex(dataDir, blockStart, index, "foo")
+		p := filesetPathFromTimeAndIndex(dataDir, blockStart, index, checkpointFileSuffix)
 		err = ioutil.WriteFile(p, []byte("bar"), defaultNewFileMode)
 		require.NoError(t, err)
 	}
@@ -522,19 +527,19 @@ func TestMultipleForBlockStart(t *testing.T) {
 	// Write out many files with the same blockStart, but different indices
 	ts := time.Unix(0, 0)
 	for i := 0; i < numSnapshots; i++ {
+		volume := i % numSnapshotsPerBlock
 		// Periodically update the blockStart
-		if i%numSnapshotsPerBlock == 0 {
+		if volume == 0 {
 			ts = time.Unix(0, int64(i))
 		}
-		filePath := filesetPathFromTimeAndIndex(shardDir, ts,
-			i%numSnapshotsPerBlock, infoFileSuffix)
-		createFile(t, filePath, nil)
+
+		writeOutTestSnapshot(t, dir, shard, ts, volume)
 	}
 
 	files, err := SnapshotFiles(dir, testNs1ID, shard)
 	require.NoError(t, err)
 	require.Equal(t, 20, len(files))
-	require.Equal(t, 20, len(files.Filepaths()))
+	require.Equal(t, 20*7, len(files.Filepaths()))
 
 	// Make sure LatestForBlock works even if the input list is not sorted properly
 	for i := range files {
@@ -575,54 +580,19 @@ func TestShardSnapshotsDirPath(t *testing.T) {
 }
 
 func TestSnapshotFileSetExistsAt(t *testing.T) {
-	shard := uint32(0)
-	ts := time.Unix(0, 0)
-	dir := createTempDir(t)
-	shardPath := ShardSnapshotsDirPath(dir, testNs1ID, 0)
+	var (
+		shard     = uint32(0)
+		ts        = time.Unix(0, 0)
+		dir       = createTempDir(t)
+		shardPath = ShardSnapshotsDirPath(dir, testNs1ID, 0)
+	)
 	require.NoError(t, os.MkdirAll(shardPath, 0755))
 
-	filePath := filesetPathFromTimeAndIndex(shardPath, ts, 0, checkpointFileSuffix)
-	createFile(t, filePath, []byte{})
+	writeOutTestSnapshot(t, dir, shard, ts, 0)
 
 	exists, err := SnapshotFileSetExistsAt(dir, testNs1ID, shard, ts)
 	require.NoError(t, err)
 	require.True(t, exists)
-}
-
-func TestSortedCommitLogFilesBefore(t *testing.T) {
-	iter := 20
-	perSlot := 3
-	dir := createCommitLogFiles(t, iter, perSlot)
-	defer os.RemoveAll(dir)
-
-	cutoffIter := 8
-	cutoff := time.Unix(0, int64(cutoffIter))
-	commitLogsDir := CommitLogsDirPath(dir)
-	files, err := SortedCommitLogFilesBefore(commitLogsDir, cutoff)
-	require.NoError(t, err)
-	require.Equal(t, cutoffIter*perSlot, len(files))
-	for i := 0; i < cutoffIter; i++ {
-		for j := 0; j < perSlot; j++ {
-			validateCommitLogFiles(t, i, j, perSlot, i, dir, files)
-		}
-	}
-}
-
-func TestCommitLogFilesForTime(t *testing.T) {
-	iter := 20
-	perSlot := 3
-	dir := createCommitLogFiles(t, iter, perSlot)
-	defer os.RemoveAll(dir)
-
-	cutoffIter := 8
-	cutoff := time.Unix(0, int64(cutoffIter))
-	commitLogsDir := CommitLogsDirPath(dir)
-	files, err := CommitLogFilesForTime(commitLogsDir, cutoff)
-	require.NoError(t, err)
-
-	for j := 0; j < perSlot; j++ {
-		validateCommitLogFiles(t, cutoffIter, j, perSlot, 0, dir, files)
-	}
 }
 
 func TestSortedCommitLogFiles(t *testing.T) {
@@ -821,6 +791,27 @@ func TestIndexFileSetsBefore(t *testing.T) {
 	}
 }
 
+func TestSnapshotFileSnapshotTime(t *testing.T) {
+	var (
+		dir            = createTempDir(t)
+		filePathPrefix = filepath.Join(dir, "")
+	)
+	defer os.RemoveAll(dir)
+
+	// Write out snapshot file
+	writeOutTestSnapshot(t, filePathPrefix, 0, testWriterStart, 0)
+
+	// Load snapshot files
+	snapshotFiles, err := SnapshotFiles(filePathPrefix, testNs1ID, 0)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(snapshotFiles))
+
+	// Verify SnapshotTime() returns the expected time
+	snapshotTime, err := SnapshotTime(filePathPrefix, snapshotFiles[0].ID)
+	require.NoError(t, err)
+	require.Equal(t, true, testWriterStart.Equal(snapshotTime))
+}
+
 func createTempFile(t *testing.T) *os.File {
 	fd, err := ioutil.TempFile("", "testfile")
 	require.NoError(t, err)
@@ -846,10 +837,6 @@ func createFile(t *testing.T, filePath string, b []byte) {
 
 func createDataFlushInfoFilesDir(t *testing.T, namespace ident.ID, shard uint32, iter int) string {
 	return createDataInfoFiles(t, dataDirName, namespace, shard, iter, false)
-}
-
-func createDataSnapshotInfoFilesDir(t *testing.T, namespace ident.ID, shard uint32, iter int) string {
-	return createDataInfoFiles(t, snapshotDirName, namespace, shard, iter, true)
 }
 
 func createDataCheckpointFilesDir(t *testing.T, namespace ident.ID, shard uint32, iter int) string {
@@ -962,10 +949,48 @@ func createCommitLogFiles(t *testing.T, iter, perSlot int) string {
 	return dir
 }
 
+// func createCommitLogFilesV2(
+// 	t *testingT, filePathPrefix string, blockSize time.Duration, numBlocks int) {
+// 	// opts := commitlog.NewOptions().
+// 	// 	SetBlockSize(blockSize).
+// 	// 	SetFilesystemOptions(NewOptions().SetFilePathPrefix(filePathPrefix))
+
+// 	commitLog, err := NewCommitLog(opts)
+// 	require.NoError(t, err)
+// 	// require.NoError(commitLog.Open())
+
+// 	// Ensure files present
+// 	// fsopts := opts.FilesystemOptions()
+// 	// files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
+// 	// require.NoError(t, err)
+// 	// require.True(t, len(files) == 1)
+
+// 	return commitLog
+// }
+
 func validateCommitLogFiles(t *testing.T, slot, index, perSlot, resIdx int, dir string, files []string) {
 	entry := fmt.Sprintf("%d%s%d", slot, separator, index)
 	fileName := fmt.Sprintf("%s%s%s%s", commitLogFilePrefix, separator, entry, fileSuffix)
 
 	x := (resIdx * perSlot) + index
 	require.Equal(t, path.Join(dir, commitLogsDirName, fileName), files[x])
+}
+
+func writeOutTestSnapshot(
+	t *testing.T, filePathPrefix string,
+	shard uint32, blockStart time.Time, volume int) {
+	var (
+		entries = []testEntry{
+			{"foo", nil, []byte{1, 2, 3}},
+			{"bar", nil, []byte{4, 5, 6}},
+			{"baz", nil, make([]byte, 65536)},
+			{"cat", nil, make([]byte, 100000)},
+			{"echo", nil, []byte{7, 8, 9}},
+		}
+		w = newTestWriter(t, filePathPrefix)
+	)
+	defer w.Close()
+
+	writeTestDataWithVolume(
+		t, w, shard, blockStart, volume, entries, persist.FileSetSnapshotType)
 }

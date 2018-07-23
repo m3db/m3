@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3db/src/dbnode/clock"
 	"github.com/m3db/m3db/src/dbnode/persist/fs"
+	"github.com/m3db/m3db/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3db/src/dbnode/retention"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
@@ -34,9 +35,7 @@ import (
 	"github.com/uber-go/tally"
 )
 
-type commitLogFilesBeforeFn func(commitLogsDir string, t time.Time) ([]string, error)
-
-type commitLogFilesForTimeFn func(commitLogsDir string, t time.Time) ([]string, error)
+type commitLogFilesFn func(commitlog.Options) ([]commitlog.File, error)
 
 type deleteFilesFn func(files []string) error
 
@@ -50,8 +49,7 @@ type cleanupManager struct {
 	nowFn                       clock.NowFn
 	filePathPrefix              string
 	commitLogsDir               string
-	commitLogFilesBeforeFn      commitLogFilesBeforeFn
-	commitLogFilesForTimeFn     commitLogFilesForTimeFn
+	commitLogFilesFn            commitLogFilesFn
 	deleteFilesFn               deleteFilesFn
 	deleteInactiveDirectoriesFn deleteInactiveDirectoriesFn
 	cleanupInProgress           bool
@@ -69,8 +67,7 @@ func newCleanupManager(database database, scope tally.Scope) databaseCleanupMana
 		nowFn:                       opts.ClockOptions().NowFn(),
 		filePathPrefix:              filePathPrefix,
 		commitLogsDir:               commitLogsDir,
-		commitLogFilesBeforeFn:      fs.SortedCommitLogFilesBefore,
-		commitLogFilesForTimeFn:     fs.CommitLogFilesForTime,
+		commitLogFilesFn:            commitlog.Files,
 		deleteFilesFn:               fs.DeleteFiles,
 		deleteInactiveDirectoriesFn: fs.DeleteInactiveDirectories,
 		status: scope.Gauge("cleanup"),
@@ -119,17 +116,17 @@ func (m *cleanupManager) Cleanup(t time.Time) error {
 			"encountered errors when deleting inactive namespace files for %v: %v", t, err))
 	}
 
-	commitLogStart, commitLogTimes, err := m.commitLogTimes(t)
+	filesToCleanup, err := m.commitLogTimes(t)
 	if err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
 			"encountered errors when cleaning up commit logs: %v", err))
 		return multiErr.FinalError()
 	}
 
-	if err := m.cleanupCommitLogs(commitLogStart, commitLogTimes); err != nil {
+	if err := m.cleanupCommitLogs(filesToCleanup); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
-			"encountered errors when cleaning up commit logs for commitLogStart %v commitLogTimes %v: %v",
-			commitLogStart, commitLogTimes, err))
+			"encountered errors when cleaning up commit logs for commitLogFiles %v: %v",
+			filesToCleanup, err))
 	}
 
 	return multiErr.FinalError()
@@ -286,10 +283,9 @@ func (m *cleanupManager) commitLogTimeRange(t time.Time) (time.Time, time.Time) 
 
 // commitLogTimes returns the earliest time before which the commit logs are expired,
 // as well as a list of times we need to clean up commit log files for.
-func (m *cleanupManager) commitLogTimes(t time.Time) (time.Time, []time.Time, error) {
+func (m *cleanupManager) commitLogTimes(t time.Time) ([]commitlog.File, error) {
 	var (
-		blockSize        = m.opts.CommitLogOptions().BlockSize()
-		earliest, latest = m.commitLogTimeRange(t)
+		earliest, _ = m.commitLogTimeRange(t)
 	)
 	// NB(prateek): this logic of polling the namespaces across the commit log's entire
 	// retention history could get expensive if commit logs are retained for long periods.
@@ -301,26 +297,71 @@ func (m *cleanupManager) commitLogTimes(t time.Time) (time.Time, []time.Time, er
 	// are only retained for a period of 1-2 days (at most), after we which we'd live we with the
 	// data loss.
 
-	candidateTimes := timesInRange(earliest, latest, blockSize)
+	files, err := m.commitLogFilesFn(m.opts.CommitLogOptions())
+	if err != nil {
+		return nil, err
+	}
 	namespaces, err := m.database.GetOwnedNamespaces()
 	if err != nil {
-		return time.Time{}, nil, err
+		return nil, err
 	}
-	cleanupTimes := filterTimes(candidateTimes, func(t time.Time) bool {
+
+	var outerErr error
+	filesToCleanup := filterCommitLogFiles(files, func(start time.Time, duration time.Duration) bool {
+		if outerErr != nil {
+			return false
+		}
+
+		if start.Before(earliest) {
+			// Safe to clean up expired files.
+			return true
+		}
+
 		for _, ns := range namespaces {
-			ropts := ns.Options().RetentionOptions()
-			start, end := commitLogNamespaceBlockTimes(t, blockSize, ropts)
-			if ns.NeedsFlush(start, end) {
+			var (
+				ropts                      = ns.Options().RetentionOptions()
+				nsBlocksStart, nsBlocksEnd = commitLogNamespaceBlockTimes(start, duration, ropts)
+				needsFlush                 = ns.NeedsFlush(nsBlocksStart, nsBlocksEnd)
+			)
+
+			if !needsFlush {
+				// Data has been flushed to disk so the commit log file is
+				// safe to clean up.
+				continue
+			}
+
+			// Add commit log blockSize to the startTime because that is the latest
+			// system time that the commit log file could contain data for. Note that
+			// this is different than the latest datapoint timestamp that the commit
+			// log file could contain data for (because of bufferPast/bufferFuture),
+			// but the commit log files and snapshot files both deal with system time.
+			isCapturedBySnapshot, err := ns.IsCapturedBySnapshot(nsBlocksEnd)
+			if err != nil {
+				outerErr = err
 				return false
 			}
+
+			if !isCapturedBySnapshot {
+				// The data has not been flushed and has also not been captured by
+				// a snapshot, so it is not safe to clean up the commit log file.
+				return false
+			}
+
+			// All the data in the commit log file is captured by the snapshot files
+			// so its safe to clean up.
 		}
+
 		return true
 	})
 
-	return earliest, cleanupTimes, nil
+	if outerErr != nil {
+		return nil, outerErr
+	}
+
+	return filesToCleanup, nil
 }
 
-// commitLogNamespaceBlockTimes returns the range of namespace block starts which for which the
+// commitLogNamespaceBlockTimes returns the range of namespace block starts for which the
 // given commit log block may contain data for.
 //
 // consider the situation where we have a single namespace, and a commit log with the following
@@ -350,24 +391,10 @@ func commitLogNamespaceBlockTimes(
 	return earliest, latest
 }
 
-func (m *cleanupManager) cleanupCommitLogs(earliestToRetain time.Time, cleanupTimes []time.Time) error {
-	multiErr := xerrors.NewMultiError()
-	toCleanup, err := m.commitLogFilesBeforeFn(m.commitLogsDir, earliestToRetain)
-	if err != nil {
-		multiErr = multiErr.Add(err)
+func (m *cleanupManager) cleanupCommitLogs(filesToCleanup []commitlog.File) error {
+	filesToDelete := make([]string, 0, len(filesToCleanup))
+	for _, f := range filesToCleanup {
+		filesToDelete = append(filesToDelete, f.FilePath)
 	}
-
-	for _, t := range cleanupTimes {
-		files, err := m.commitLogFilesForTimeFn(m.commitLogsDir, t)
-		if err != nil {
-			multiErr = multiErr.Add(err)
-		}
-		toCleanup = append(toCleanup, files...)
-	}
-
-	if err := m.deleteFilesFn(toCleanup); err != nil {
-		multiErr = multiErr.Add(err)
-	}
-
-	return multiErr.FinalError()
+	return m.deleteFilesFn(filesToDelete)
 }

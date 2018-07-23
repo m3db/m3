@@ -28,8 +28,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/src/dbnode/digest"
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3db/src/dbnode/persist"
 	"github.com/m3db/m3db/src/dbnode/persist/fs"
 	"github.com/m3db/m3db/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3db/src/dbnode/storage/block"
@@ -37,9 +39,12 @@ import (
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	"github.com/m3db/m3db/src/dbnode/ts"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -126,14 +131,14 @@ func TestReadOrderedValues(t *testing.T) {
 	blockSize := md.Options().RetentionOptions().BlockSize()
 	now := time.Now()
 	start := now.Truncate(blockSize).Add(-blockSize)
-	end := now
+	end := now.Truncate(blockSize)
 
 	// Request a little after the start of data, because always reading full blocks
 	// it should return the entire block beginning from "start"
 	require.True(t, blockSize >= minCommitLogRetention)
 	ranges := xtime.Ranges{}
 	ranges = ranges.AddRange(xtime.Range{
-		Start: start.Add(time.Minute),
+		Start: start,
 		End:   end,
 	})
 
@@ -159,7 +164,8 @@ func TestReadOrderedValues(t *testing.T) {
 	require.NotNil(t, res)
 	require.Equal(t, 2, len(res.ShardResults()))
 	require.Equal(t, 0, len(res.Unfulfilled()))
-	require.NoError(t, verifyShardResultsAreCorrect(values[:4], res.ShardResults(), opts))
+	require.NoError(t, verifyShardResultsAreCorrect(
+		values[:4], blockSize, res.ShardResults(), opts))
 }
 
 func TestReadUnorderedValues(t *testing.T) {
@@ -170,14 +176,14 @@ func TestReadUnorderedValues(t *testing.T) {
 	blockSize := md.Options().RetentionOptions().BlockSize()
 	now := time.Now()
 	start := now.Truncate(blockSize).Add(-blockSize)
-	end := now
+	end := now.Truncate(blockSize)
 
 	// Request a little after the start of data, because always reading full blocks
 	// it should return the entire block beginning from "start"
 	require.True(t, blockSize >= minCommitLogRetention)
 	ranges := xtime.Ranges{}
 	ranges = ranges.AddRange(xtime.Range{
-		Start: start.Add(time.Minute),
+		Start: start,
 		End:   end,
 	})
 
@@ -200,7 +206,54 @@ func TestReadUnorderedValues(t *testing.T) {
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res.ShardResults()))
 	require.Equal(t, 0, len(res.Unfulfilled()))
-	require.NoError(t, verifyShardResultsAreCorrect(values, res.ShardResults(), opts))
+	require.NoError(t, verifyShardResultsAreCorrect(
+		values, blockSize, res.ShardResults(), opts))
+}
+
+// TestReadHandlesDifferentSeriesWithIdenticalUniqueIndex was added as a regression test to make
+// sure that the commit log bootstrapper does not make any assumptions about series having a unique
+// unique index because that only holds for the duration that an M3DB node is on, but commit log
+// files can span multiple M3DB processes which means that unique indexes could be re-used for multiple
+// different series.
+func TestReadHandlesDifferentSeriesWithIdenticalUniqueIndex(t *testing.T) {
+	opts := testOptions()
+	md := testNsMetadata(t)
+	src := newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
+
+	blockSize := md.Options().RetentionOptions().BlockSize()
+	now := time.Now()
+	start := now.Truncate(blockSize).Add(-blockSize)
+	end := now.Truncate(blockSize)
+
+	require.True(t, blockSize >= minCommitLogRetention)
+	ranges := xtime.Ranges{}
+	ranges = ranges.AddRange(xtime.Range{
+		Start: start,
+		End:   end,
+	})
+
+	// All series need to be in the same shard to exercise the regression.
+	foo := commitlog.Series{
+		Namespace: testNamespaceID, Shard: 0, ID: ident.StringID("foo"), UniqueIndex: 0}
+	bar := commitlog.Series{
+		Namespace: testNamespaceID, Shard: 0, ID: ident.StringID("bar"), UniqueIndex: 0}
+
+	values := []testValue{
+		{foo, start, 1.0, xtime.Second, nil},
+		{bar, start, 2.0, xtime.Second, nil},
+	}
+	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, error) {
+		return newTestCommitLogIterator(values, nil), nil
+	}
+
+	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
+	res, err := src.ReadData(md, targetRanges, testDefaultRunOpts)
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	require.Equal(t, 1, len(res.ShardResults()))
+	require.Equal(t, 0, len(res.Unfulfilled()))
+	require.NoError(t, verifyShardResultsAreCorrect(
+		values, blockSize, res.ShardResults(), opts))
 }
 
 func TestReadTrimsToRanges(t *testing.T) {
@@ -211,14 +264,14 @@ func TestReadTrimsToRanges(t *testing.T) {
 	blockSize := md.Options().RetentionOptions().BlockSize()
 	now := time.Now()
 	start := now.Truncate(blockSize).Add(-blockSize)
-	end := now
+	end := now.Truncate(blockSize)
 
 	// Request a little after the start of data, because always reading full blocks
 	// it should return the entire block beginning from "start"
 	require.True(t, blockSize >= minCommitLogRetention)
 	ranges := xtime.Ranges{}
 	ranges = ranges.AddRange(xtime.Range{
-		Start: start.Add(time.Minute),
+		Start: start,
 		End:   end,
 	})
 
@@ -240,143 +293,116 @@ func TestReadTrimsToRanges(t *testing.T) {
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res.ShardResults()))
 	require.Equal(t, 0, len(res.Unfulfilled()))
-	require.NoError(t, verifyShardResultsAreCorrect(values[1:3], res.ShardResults(), opts))
+	require.NoError(t, verifyShardResultsAreCorrect(
+		values[1:3], blockSize, res.ShardResults(), opts))
 }
 
-type predCommitlogFile struct {
-	name  string
-	start time.Time
-}
+func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-func TestNewReadCommitLogPredicate(t *testing.T) {
-	testFilename := "test-file"
-	testCommitlogFile := predCommitlogFile{
-		name:  testFilename,
-		start: time.Time{},
-	}
-	testCommitlogFiles := []predCommitlogFile{testCommitlogFile}
-	testInspection := fs.Inspection{
-		SortedCommitLogFiles: []string{testFilename},
-	}
+	var (
+		opts      = testOptions()
+		md        = testNsMetadata(t)
+		src       = newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
+		blockSize = md.Options().RetentionOptions().BlockSize()
+		now       = time.Now()
+		start     = now.Truncate(blockSize).Add(-blockSize)
+		end       = now.Truncate(blockSize)
+		ranges    = xtime.Ranges{}
 
-	testCases := []struct {
-		title                    string
-		commitlogFiles           []predCommitlogFile
-		shardTimeRanges          []xtime.Range
-		bufferPast               time.Duration
-		bufferFuture             time.Duration
-		blockSize                time.Duration
-		inspection               fs.Inspection
-		expectedPredicateResults []bool
-	}{
-		{
-			title:          "Test no overlap",
-			commitlogFiles: testCommitlogFiles,
-			shardTimeRanges: []xtime.Range{
-				xtime.Range{
-					Start: time.Time{}.Add(2 * time.Hour),
-					End:   time.Time{}.Add(3 * time.Hour),
+		foo             = commitlog.Series{Namespace: testNamespaceID, Shard: 0, ID: ident.StringID("foo")}
+		commitLogValues = []testValue{
+			{foo, start.Add(2 * time.Minute), 1.0, xtime.Nanosecond, nil},
+			{foo, start.Add(3 * time.Minute), 2.0, xtime.Nanosecond, nil},
+			{foo, start.Add(4 * time.Minute), 3.0, xtime.Nanosecond, nil},
+
+			// Should not be present
+			{foo, end.Truncate(blockSize).Add(blockSize).Add(time.Nanosecond), 4.0, xtime.Nanosecond, nil},
+		}
+	)
+
+	// Request a little after the start of data, because always reading full blocks it
+	// should return the entire block beginning from "start".
+	require.True(t, blockSize >= minCommitLogRetention)
+
+	ranges = ranges.AddRange(xtime.Range{
+		Start: start,
+		End:   end,
+	})
+
+	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, error) {
+		return newTestCommitLogIterator(commitLogValues, nil), nil
+	}
+	src.snapshotFilesFn = func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error) {
+		return fs.FileSetFilesSlice{
+			fs.FileSetFile{
+				ID: fs.FileSetFileIdentifier{
+					Namespace:   namespace,
+					BlockStart:  start,
+					Shard:       shard,
+					VolumeIndex: 0,
 				},
+				AbsoluteFilepaths:  []string{"checkpoint"},
+				CachedSnapshotTime: start.Add(time.Minute),
 			},
-			bufferPast:               5 * time.Minute,
-			bufferFuture:             10 * time.Minute,
-			blockSize:                time.Hour,
-			inspection:               testInspection,
-			expectedPredicateResults: []bool{false},
-		},
-		{
-			title:          "Test overlap",
-			commitlogFiles: testCommitlogFiles,
-			shardTimeRanges: []xtime.Range{
-				xtime.Range{
-					Start: time.Time{},
-					End:   time.Time{}.Add(time.Hour),
-				},
-			},
-			bufferPast:               5 * time.Minute,
-			bufferFuture:             10 * time.Minute,
-			blockSize:                time.Hour,
-			inspection:               testInspection,
-			expectedPredicateResults: []bool{true},
-		},
-		{
-			title:          "Test overlap bufferFuture",
-			commitlogFiles: testCommitlogFiles,
-			shardTimeRanges: []xtime.Range{
-				xtime.Range{
-					Start: time.Time{}.Add(1*time.Hour + 1*time.Minute),
-					End:   time.Time{}.Add(2 * time.Hour),
-				},
-			},
-			bufferPast:               5 * time.Minute,
-			bufferFuture:             10 * time.Minute,
-			blockSize:                time.Hour,
-			inspection:               testInspection,
-			expectedPredicateResults: []bool{true},
-		},
-		{
-			title:          "Test overlap bufferPast",
-			commitlogFiles: testCommitlogFiles,
-			shardTimeRanges: []xtime.Range{
-				xtime.Range{
-					Start: time.Time{}.Add(-1 * time.Hour),
-					End:   time.Time{}.Add(-1 * time.Minute),
-				},
-			},
-			bufferPast:               5 * time.Minute,
-			bufferFuture:             10 * time.Minute,
-			blockSize:                time.Hour,
-			inspection:               testInspection,
-			expectedPredicateResults: []bool{true},
-		},
-		{
-			title:          "Test file not in inspection",
-			commitlogFiles: testCommitlogFiles,
-			shardTimeRanges: []xtime.Range{
-				xtime.Range{
-					Start: time.Time{},
-					End:   time.Time{}.Add(time.Hour),
-				},
-			},
-			bufferPast:               5 * time.Minute,
-			bufferFuture:             10 * time.Minute,
-			blockSize:                time.Hour,
-			inspection:               fs.Inspection{},
-			expectedPredicateResults: []bool{false},
-		},
+		}, nil
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.title, func(t *testing.T) {
-			// Setup opts with specified blocksize
-			opts := testOptions()
-			commitLogOptions := opts.CommitLogOptions().SetBlockSize(tc.blockSize)
-			opts = opts.SetCommitLogOptions(commitLogOptions)
+	mockReader := fs.NewMockDataFileSetReader(ctrl)
+	mockReader.EXPECT().Open(fs.ReaderOpenOptionsMatcher{
+		ID: fs.FileSetFileIdentifier{
+			Namespace:   testNamespaceID,
+			BlockStart:  start,
+			Shard:       0,
+			VolumeIndex: 0,
+		},
+		FileSetType: persist.FileSetSnapshotType,
+	}).Return(nil).AnyTimes()
+	mockReader.EXPECT().Entries().Return(1).AnyTimes()
 
-			// Setup namespace with specified bufferPast / bufferFuture
-			nsOptions := namespace.NewOptions()
-			retentionOptions := nsOptions.RetentionOptions().
-				SetBufferPast(tc.bufferPast).
-				SetBufferFuture(tc.bufferFuture)
-			nsOptions = nsOptions.SetRetentionOptions(retentionOptions)
-			ns, err := namespace.NewMetadata(testNamespaceID, nsOptions)
-			require.NoError(t, err)
-
-			// Set up shardTimeRanges with specified ranges
-			shardTimeRanges := result.ShardTimeRanges{}
-			for i, xrange := range tc.shardTimeRanges {
-				ranges := xtime.NewRanges(xrange)
-				shardTimeRanges[uint32(i)] = ranges
-			}
-
-			// Instantiate and test predicate
-			predicate := newReadCommitLogPredicate(ns, shardTimeRanges, opts, tc.inspection)
-			for i, cl := range tc.commitlogFiles {
-				predicateResult := predicate(cl.name, cl.start, tc.blockSize)
-				require.Equal(t, tc.expectedPredicateResults[i], predicateResult)
-			}
-		})
+	snapshotValues := []testValue{
+		{foo, start.Add(1 * time.Minute), 1.0, xtime.Nanosecond, nil},
 	}
+
+	encoder := m3tsz.NewEncoder(snapshotValues[0].t, nil, true, nil)
+	for _, value := range snapshotValues {
+		dp := ts.Datapoint{
+			Timestamp: value.t,
+			Value:     value.v,
+		}
+		encoder.Encode(dp, value.u, value.a)
+	}
+	reader := encoder.Stream()
+	seg, err := reader.Segment()
+	require.NoError(t, err)
+	bytes := make([]byte, seg.Len())
+	_, err = reader.Read(bytes)
+	require.NoError(t, err)
+	mockReader.EXPECT().Read().Return(
+		foo.ID,
+		ident.EmptyTagIterator,
+		checked.NewBytes(bytes, nil),
+		digest.Checksum(bytes),
+		nil,
+	)
+	mockReader.EXPECT().Read().Return(nil, nil, nil, uint32(0), io.EOF)
+
+	src.newReaderFn = func(bytesPool pool.CheckedBytesPool, opts fs.Options) (fs.DataFileSetReader, error) {
+		return mockReader, nil
+	}
+
+	targetRanges := result.ShardTimeRanges{0: ranges}
+	res, err := src.ReadData(md, targetRanges, testDefaultRunOpts)
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	require.Equal(t, 1, len(res.ShardResults()))
+	require.Equal(t, 0, len(res.Unfulfilled()))
+	expectedValues := append([]testValue{}, snapshotValues...)
+	expectedValues = append(expectedValues, commitLogValues[0:3]...)
+
+	require.NoError(t, verifyShardResultsAreCorrect(
+		expectedValues, blockSize, res.ShardResults(), opts))
 }
 
 type testValue struct {
@@ -398,6 +424,7 @@ type seriesShardResult struct {
 
 func verifyShardResultsAreCorrect(
 	values []testValue,
+	blockSize time.Duration,
 	actual result.ShardResults,
 	opts Options,
 ) error {
@@ -410,7 +437,7 @@ func verifyShardResultsAreCorrect(
 			"shard result is nil, but expected: %d values", len(values))
 	}
 	// First create what result should be constructed for test values
-	expected, err := createExpectedShardResult(values, actual, opts)
+	expected, err := createExpectedShardResult(values, blockSize, actual, opts)
 	if err != nil {
 		return err
 	}
@@ -439,11 +466,11 @@ func verifyShardResultsAreCorrect(
 
 func createExpectedShardResult(
 	values []testValue,
+	blockSize time.Duration,
 	actual result.ShardResults,
 	opts Options,
 ) (result.ShardResults, error) {
 	bopts := opts.ResultOptions()
-	blockSize := opts.CommitLogOptions().BlockSize()
 	blopts := bopts.DatabaseBlockOptions()
 
 	expected := result.ShardResults{}
@@ -556,8 +583,8 @@ func verifyShardResultsAreEqual(opts Options, shard uint32, actualResult, expect
 
 func verifyBlocksAreEqual(opts Options, expectedAllBlocks, actualAllBlocks map[xtime.UnixNano]block.DatabaseBlock) error {
 	blopts := opts.ResultOptions().DatabaseBlockOptions()
-	for start, actualBlock := range actualAllBlocks {
-		expectedBlock, ok := expectedAllBlocks[start]
+	for start, expectedBlock := range expectedAllBlocks {
+		actualBlock, ok := actualAllBlocks[start]
 		if !ok {
 			return fmt.Errorf("Expected block for start time: %v", start)
 		}

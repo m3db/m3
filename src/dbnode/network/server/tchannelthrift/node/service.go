@@ -353,7 +353,6 @@ func (s *service) readDatapoints(
 
 	for multiIt.Next() {
 		dp, _, annotation := multiIt.Current()
-
 		timestamp, timestampErr := convert.ToValue(dp.Timestamp, timeType)
 		if timestampErr != nil {
 			return nil, xerrors.NewInvalidParamsError(timestampErr)

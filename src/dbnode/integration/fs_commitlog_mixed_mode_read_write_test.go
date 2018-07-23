@@ -43,7 +43,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMixedModeReadWrite(t *testing.T) {
+func TestFsCommitLogMixedModeReadWrite(t *testing.T) {
+	testMixedModeReadWrite(t, false)
+}
+
+func testMixedModeReadWrite(t *testing.T, snapshotEnabled bool) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
@@ -55,7 +59,11 @@ func TestMixedModeReadWrite(t *testing.T) {
 		ns1ROpts           = retention.NewOptions().SetRetentionPeriod(3 * time.Hour).SetBlockSize(ns1BlockSize)
 		nsID               = testNamespaces[0]
 	)
-	ns1, err := namespace.NewMetadata(nsID, namespace.NewOptions().SetRetentionOptions(ns1ROpts))
+
+	ns1Opts := namespace.NewOptions().
+		SetRetentionOptions(ns1ROpts).
+		SetSnapshotEnabled(snapshotEnabled)
+	ns1, err := namespace.NewMetadata(nsID, ns1Opts)
 	require.NoError(t, err)
 	opts := newTestOptions(t).
 		SetCommitLogRetentionPeriod(commitLogRetetion).
@@ -307,6 +315,17 @@ func (d dataPointsInTimeOrder) toSeriesMap(blockSize time.Duration) generate.Ser
 	return seriesMap
 
 	return nil
+}
+
+func (d dataPointsInTimeOrder) before(t time.Time) dataPointsInTimeOrder {
+	var i int
+	for i = range d {
+		if !d[i].time.Before(t) {
+			break
+		}
+	}
+
+	return d[:i]
 }
 
 type idGen struct {

@@ -66,7 +66,7 @@ type seriesMetadata struct {
 
 type commitLogReader interface {
 	// Open opens the commit log for reading
-	Open(filePath string) (time.Time, time.Duration, int, error)
+	Open(filePath string) (time.Time, time.Duration, int64, error)
 
 	// Read returns the next id and data pair or error, will return io.EOF at end of volume
 	Read() (Series, ts.Datapoint, xtime.Unit, ts.Annotation, error)
@@ -156,7 +156,7 @@ func newCommitLogReader(opts Options, seriesPredicate SeriesFilterPredicate) com
 	return reader
 }
 
-func (r *reader) Open(filePath string) (time.Time, time.Duration, int, error) {
+func (r *reader) Open(filePath string) (time.Time, time.Duration, int64, error) {
 	// Commitlog reader does not currently support being reused
 	if r.hasBeenOpened {
 		return timeZero, 0, 0, errCommitLogReaderIsNotReusable
@@ -176,7 +176,7 @@ func (r *reader) Open(filePath string) (time.Time, time.Duration, int, error) {
 	}
 	start := time.Unix(0, info.Start)
 	duration := time.Duration(info.Duration)
-	index := int(info.Index)
+	index := info.Index
 
 	return start, duration, index, nil
 }
@@ -248,6 +248,7 @@ func (r *reader) readLoop() {
 				if err == io.EOF {
 					return
 				}
+
 				r.decoderQueues[0] <- decoderArg{
 					bytes: data,
 					err:   err,

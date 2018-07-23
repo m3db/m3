@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3db/src/dbnode/retention"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
+	"github.com/stretchr/testify/require"
 
 	"github.com/golang/mock/gomock"
 	"github.com/leanovate/gopter"
@@ -42,6 +43,8 @@ const (
 	commitLogTestRandomSeeed        int64 = 7823434
 	commitLogTestMinSuccessfulTests       = 10000
 )
+
+var opts = NewOptions()
 
 func newPropTestCleanupMgr(ctrl *gomock.Controller, ropts retention.Options, ns ...databaseNamespace) *cleanupManager {
 	db := NewMockdatabase(ctrl)
@@ -73,17 +76,21 @@ func TestPropertyCommitLogNotCleanedForUnflushedData(t *testing.T) {
 	timeWindow := time.Hour * 24 * 15
 
 	properties.Property("Commit log is retained if one namespace needs to flush", prop.ForAll(
-		func(t time.Time, cRopts retention.Options, ns *generatedNamespace) (bool, error) {
+		func(cleanupTime time.Time, cRopts retention.Options, ns *generatedNamespace) (bool, error) {
 			cm := newPropTestCleanupMgr(ctrl, cRopts, ns)
-			_, cleanupTimes, err := cm.commitLogTimes(t)
+			filesToCleanup, err := cm.commitLogTimes(cleanupTime)
 			if err != nil {
 				return false, err
 			}
-			for _, ct := range cleanupTimes {
-				s, e := commitLogNamespaceBlockTimes(ct, cRopts.BlockSize(), ns.ropts)
-				if ns.NeedsFlush(s, e) {
+			for _, f := range filesToCleanup {
+				s, e := commitLogNamespaceBlockTimes(f.Start, f.Duration, ns.ropts)
+				earliest, _ := cm.commitLogTimeRange(cleanupTime)
+				needsFlush := ns.NeedsFlush(s, e)
+				isCapturedBySnapshot, err := ns.IsCapturedBySnapshot(e)
+				require.NoError(t, err)
+				if needsFlush && !isCapturedBySnapshot && !f.Start.Before(earliest) {
 					return false, fmt.Errorf("trying to cleanup commit log at %v, but ns needsFlush; (range: %v, %v)",
-						ct.String(), s.String(), e.String())
+						f.Start.String(), s.String(), e.String())
 				}
 			}
 			return true, nil
@@ -105,19 +112,23 @@ func TestPropertyCommitLogNotCleanedForUnflushedDataMultipleNs(t *testing.T) {
 	timeWindow := time.Hour * 24 * 15
 
 	properties.Property("Commit log is retained if any namespace needs to flush", prop.ForAll(
-		func(t time.Time, cRopts retention.Options, nses []*generatedNamespace) (bool, error) {
+		func(cleanupTime time.Time, cRopts retention.Options, nses []*generatedNamespace) (bool, error) {
 			dbNses := generatedNamespaces(nses).asDatabaseNamespace()
 			cm := newPropTestCleanupMgr(ctrl, cRopts, dbNses...)
-			_, cleanupTimes, err := cm.commitLogTimes(t)
+			filesToCleanup, err := cm.commitLogTimes(cleanupTime)
 			if err != nil {
 				return false, err
 			}
-			for _, ct := range cleanupTimes {
+			for _, f := range filesToCleanup {
 				for _, ns := range nses {
-					s, e := commitLogNamespaceBlockTimes(ct, cRopts.BlockSize(), ns.Options().RetentionOptions())
-					if ns.NeedsFlush(s, e) {
+					s, e := commitLogNamespaceBlockTimes(f.Start, f.Duration, ns.ropts)
+					earliest, _ := cm.commitLogTimeRange(cleanupTime)
+					needsFlush := ns.NeedsFlush(s, e)
+					isCapturedBySnapshot, err := ns.IsCapturedBySnapshot(e)
+					require.NoError(t, err)
+					if needsFlush && !isCapturedBySnapshot && !f.Start.Before(earliest) {
 						return false, fmt.Errorf("trying to cleanup commit log at %v, but ns needsFlush; (range: %v, %v)",
-							ct.String(), s.String(), e.String())
+							f.Start.String(), s.String(), e.String())
 					}
 				}
 			}
@@ -201,24 +212,29 @@ func (ns *generatedNamespace) NeedsFlush(start, end time.Time) bool {
 	return false
 }
 
+func (ns *generatedNamespace) IsCapturedBySnapshot(t time.Time) (bool, error) {
+	return false, nil
+}
+
 // generator for generatedNamespace
 func genNamespace(t time.Time) gopter.Gen {
 	return func(genParams *gopter.GenParameters) *gopter.GenResult {
-		rng := genParams.Rng
-		ropts := newRandomRetention(rng)
-		oldest := retention.FlushTimeStart(ropts, t)
-		newest := retention.FlushTimeEnd(ropts, t)
+		var (
+			rng         = genParams.Rng
+			ropts       = newRandomRetention(rng)
+			oldest      = retention.FlushTimeStart(ropts, t)
+			newest      = retention.FlushTimeEnd(ropts, t)
+			n           = numIntervals(oldest, newest, ropts.BlockSize())
+			flushStates = make([]bool, n)
+			nopts       = namespace.NewOptions().SetRetentionOptions(ropts)
+		)
 
-		n := numIntervals(oldest, newest, ropts.BlockSize())
-		flushStates := make([]bool, n)
 		for i := range flushStates {
 			flushStates[i] = rng.Float32() > 0.6 // flip a coin to get a bool
 		}
 
-		opts := namespace.NewOptions().SetRetentionOptions(ropts)
-
 		ns := &generatedNamespace{
-			opts:              opts,
+			opts:              nopts,
 			ropts:             ropts,
 			blockSize:         ropts.BlockSize(),
 			oldestBlock:       oldest,

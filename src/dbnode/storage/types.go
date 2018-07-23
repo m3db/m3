@@ -312,6 +312,14 @@ type databaseNamespace interface {
 	// NB: The start/end times are assumed to be aligned to block size boundary.
 	NeedsFlush(alignedInclusiveStart time.Time, alignedInclusiveEnd time.Time) bool
 
+	// IsCapturedBySnapshot accepts a time t (system time, not datapoint timestamp time)
+	// and determines if all of the data for all of its shards up to time t is captured
+	// by snapshot files. This function will not take into account whether or not the
+	// data has been flushed already. I.E even if the data has been flushed succesfully
+	// to disk, this function will return false if the data is not also present in a
+	// snapshot file.
+	IsCapturedBySnapshot(t time.Time) (bool, error)
+
 	// Truncate truncates the in-memory data for this namespace
 	Truncate() (int64, error)
 

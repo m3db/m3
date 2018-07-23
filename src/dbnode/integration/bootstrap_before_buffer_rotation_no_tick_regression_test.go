@@ -113,7 +113,7 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 			},
 		},
 	}
-	writeCommitLogData(t, setup, commitLogOpts, seriesMaps, ns1.ID())
+	writeCommitLogData(t, setup, commitLogOpts, seriesMaps, ns1, false)
 
 	// Setup bootstrappers - We order them such that the custom test bootstrapper runs first
 	// which does not bootstrap any data, but simply waits until it is signaled, allowing us
@@ -202,7 +202,7 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 
 	// Verify in-memory data match what we expect - commitlog write should not be lost
 	expectedSeriesMaps := map[xtime.UnixNano]generate.SeriesBlock{
-		xtime.ToUnixNano(commitlogWrite.Timestamp): generate.SeriesBlock{
+		xtime.ToUnixNano(commitlogWrite.Timestamp.Truncate(blockSize)): generate.SeriesBlock{
 			generate.Series{
 				ID:   testID,
 				Data: []ts.Datapoint{commitlogWrite},

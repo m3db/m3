@@ -21,7 +21,6 @@
 package storage
 
 import (
-	"bytes"
 	"container/list"
 	"errors"
 	"fmt"
@@ -967,41 +966,13 @@ func (s *dbShard) newShardEntry(
 	clonedID := ident.BytesID(append([]byte(nil), id.Bytes()...))
 	clonedID.NoFinalize()
 
-	var clonedTags ident.Tags
+	var (
+		clonedTags ident.Tags
+		err        error
+	)
 	if tags.Remaining() > 0 {
-		// Inlining tag creation here so its obvious why we can safely index
-		// into clonedID below
-		clonedTags = s.identifierPool.Tags()
-		tags = tags.Duplicate()
-
-		// Avoid finalizing the tags since series will let them be garbage collected
-		clonedTags.NoFinalize()
-
-		for tags.Next() {
-			t := tags.Current()
-
-			// NB(r): Optimization for workloads that embed the tags in the ID is to
-			// just take a ref to them directly, the cloned ID is frozen by casting to
-			// a BytesID in newShardEntry
-			var tag ident.Tag
-
-			nameBytes := t.Name.Bytes()
-			if idx := bytes.Index(clonedID, nameBytes); idx != -1 {
-				tag.Name = clonedID[idx : idx+len(nameBytes)]
-			} else {
-				tag.Name = s.identifierPool.Clone(t.Name)
-			}
-
-			valueBytes := t.Value.Bytes()
-			if idx := bytes.Index(clonedID, valueBytes); idx != -1 {
-				tag.Value = clonedID[idx : idx+len(valueBytes)]
-			} else {
-				tag.Value = s.identifierPool.Clone(t.Value)
-			}
-
-			clonedTags.Append(tag)
-		}
-		err := tags.Err()
+		clonedTags, err = convert.TagsFromTagsIter(
+			clonedID, tags.Duplicate(), s.identifierPool)
 		tags.Close()
 		if err != nil {
 			return nil, err
