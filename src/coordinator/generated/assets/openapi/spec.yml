@@ -17,6 +17,8 @@ tags:
   description: "Configuring M3DB namespaces"
 - name: "placement"
   description: "Configuring M3DB placement"
+- name: "database"
+  description: "Database-wide functions"
 schemes:
 - "http"
 paths:
@@ -218,6 +220,34 @@ paths:
           description: ""
           schema:
             $ref: "#/definitions/GenericError"
+  /database/create:
+    post:
+      tags:
+      - "database"
+      summary: "Configures M3DB with most options defaulted"
+      operationId: "databaseCreate"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "body"
+        in: "body"
+        schema:
+          $ref: "#/definitions/DatabaseCreateRequest"
+      responses:
+        200:
+          description: ""
+          schema:
+            $ref: "#/definitions/DatabaseCreateResponse"
+        400:
+          description: ""
+          schema:
+            $ref: "#/definitions/GenericError"
+        500:
+          description: ""
+          schema:
+            $ref: "#/definitions/GenericError"
 definitions:
   NamespaceAddRequest:
     type: "object"
@@ -387,3 +417,60 @@ definitions:
     properties:
       error:
         type: "string"
+  DatabaseCreateRequest:
+    type: "object"
+    properties:
+      namespaceName:
+        type: "string"
+      type:
+        type: "string"
+        enum:
+        - "local"
+        - "cluster"
+      numShards:
+        type: "integer"
+        format: "int32"
+      replicationFactor:
+        type: "integer"
+        format: "int32"
+      retentionTime:
+        type: "string"
+      blockSize:
+        $ref: "#/definitions/BlockSize"
+      hosts:
+        type: "array"
+        items:
+          $ref: "#/definitions/Host"
+  BlockSize:
+    type: "object"
+    properties:
+      time:
+        type: "string"
+      expectedSeriesDatapointsPerHour:
+        type: "integer"
+        format: "int64"
+  Host:
+    type: "object"
+    properties:
+      id:
+        type: "string"
+      address:
+        type: "string"
+      port:
+        type: "integer"
+      isolationGroup:
+        type: "string"
+      zone:
+        type: "string"
+      weight:
+        type: "integer"
+      expectedSeriesDatapointsPerHour:
+        type: "integer"
+        format: "int64"
+  DatabaseCreateResponse:
+    type: "object"
+    properties:
+      namespace:
+        $ref: "#/definitions/NamespaceGetResponse"
+      placement:
+        $ref: "#/definitions/PlacementGetResponse"
