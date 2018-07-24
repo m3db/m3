@@ -109,10 +109,9 @@ type dbNamespace struct {
 	nopts              namespace.Options
 	seriesOpts         series.Options
 	nowFn              clock.NowFn
-	// TODO: Just rely on shard?
-	snapshotFilesFn snapshotFilesFn
-	log             xlog.Logger
-	bootstrapState  BootstrapState
+	snapshotFilesFn    snapshotFilesFn
+	log                xlog.Logger
+	bootstrapState     BootstrapState
 
 	// Contains an entry to all shards for fast shard lookup, an
 	// entry will be nil when this shard does not belong to current database
