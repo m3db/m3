@@ -1,5 +1,3 @@
-// +build big
-//
 // Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -75,6 +73,12 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 
 	props.Property("Commitlog bootstrapping properly bootstraps the entire commitlog", prop.ForAll(
 		func(input propTestInput) (bool, error) {
+			if !input.commitLogExists {
+				// If there is no commit log then we need to make sure
+				// snapshot exists, regardless of what the prop test generated.
+				input.snapshotExists = true
+			}
+
 			var (
 				retentionOpts = nsOpts.RetentionOptions().
 						SetBufferPast(input.bufferPast).
@@ -101,7 +105,6 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 				// continue to increment the current time.
 				currentTime = startTime.Add(-input.bufferFuture)
 				lock        = sync.RWMutex{}
-				writesCh    = make(chan struct{}, 5)
 
 				nowFn = func() time.Time {
 					lock.RLock()
@@ -110,14 +113,6 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 					return curr
 				}
 			)
-
-			go func() {
-				for range writesCh {
-					lock.Lock()
-					currentTime = currentTime.Add(time.Millisecond)
-					lock.Unlock()
-				}
-			}()
 
 			commitLogBlockSize := 1 * time.Minute
 			require.True(t, commitLogBlockSize < blockSize)
@@ -173,7 +168,10 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 					for _, value := range writesForSeries {
 						// Only include datapoints that are before or during the snapshot time to ensure that we
 						// properly bootstrap from both snapshot files and commit logs and merge them together.
-						if value.arrivedAt.Before(input.snapshotTime) ||
+						// Note that if the commit log does not exist we ignore the snapshot time because we need
+						// the snapshot to include all the data.
+						if !input.commitLogExists ||
+							value.arrivedAt.Before(input.snapshotTime) ||
 							value.arrivedAt.Equal(input.snapshotTime) {
 							err := encoder.Encode(value.datapoint, value.unit, value.annotation)
 							if err != nil {
@@ -232,42 +230,54 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 				}
 			}
 
-			// Instantiate commitlog
-			log, err := commitlog.NewCommitLog(commitLogOpts)
-			if err != nil {
-				return false, err
-			}
-			err = log.Open()
-			if err != nil {
-				return false, err
-			}
+			if input.commitLogExists {
+				writesCh := make(chan struct{}, 5)
+				go func() {
+					for range writesCh {
+						lock.Lock()
+						currentTime = currentTime.Add(time.Millisecond)
+						lock.Unlock()
+					}
+				}()
 
-			sort.Slice(input.writes, func(i, j int) bool {
-				return input.writes[i].arrivedAt.Before(input.writes[j].arrivedAt)
-			})
-
-			// Write all the datapoints to the commitlog
-			for _, write := range input.writes {
-				// Only write datapoints that are not in the snapshots.
-				if input.snapshotExists && !write.arrivedAt.After(input.snapshotTime) {
-					continue
-				}
-
-				lock.Lock()
-				currentTime = write.arrivedAt
-				lock.Unlock()
-
-				err := log.Write(context.NewContext(), write.series, write.datapoint, write.unit, write.annotation)
+				// Instantiate commitlog
+				log, err := commitlog.NewCommitLog(commitLogOpts)
 				if err != nil {
 					return false, err
 				}
-				writesCh <- struct{}{}
-			}
-			close(writesCh)
+				err = log.Open()
+				if err != nil {
+					return false, err
+				}
 
-			err = log.Close()
-			if err != nil {
-				return false, err
+				sort.Slice(input.writes, func(i, j int) bool {
+					return input.writes[i].arrivedAt.Before(input.writes[j].arrivedAt)
+				})
+
+				// Write all the datapoints to the commitlog
+				for _, write := range input.writes {
+					// Only write datapoints that are not in the snapshots.
+					if input.snapshotExists &&
+						!write.arrivedAt.After(input.snapshotTime) {
+						continue
+					}
+
+					lock.Lock()
+					currentTime = write.arrivedAt
+					lock.Unlock()
+
+					err := log.Write(context.NewContext(), write.series, write.datapoint, write.unit, write.annotation)
+					if err != nil {
+						return false, err
+					}
+					writesCh <- struct{}{}
+				}
+				close(writesCh)
+
+				err = log.Close()
+				if err != nil {
+					return false, err
+				}
 			}
 
 			// Instantiate a commitlog source
@@ -318,6 +328,12 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 				values = append(values, testValue{write.series, write.datapoint.Timestamp, write.datapoint.Value, write.unit, write.annotation})
 			}
 
+			if !dataResult.Unfulfilled().IsEmpty() {
+				return false, fmt.Errorf(
+					"data result unfulfilled should be empty but was: %s",
+					dataResult.Unfulfilled().String(),
+				)
+			}
 			err = verifyShardResultsAreCorrect(values, blockSize, dataResult.ShardResults(), bootstrapOpts)
 			if err != nil {
 				return false, err
@@ -335,6 +351,13 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 				return false, err
 			}
 
+			if !indexResult.Unfulfilled().IsEmpty() {
+				return false, fmt.Errorf(
+					"index result unfulfilled should be empty but was: %s",
+					indexResult.Unfulfilled().String(),
+				)
+			}
+
 			return true, nil
 		},
 		genPropTestInputs(nsMeta, startTime),
@@ -346,12 +369,13 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 }
 
 type propTestInput struct {
-	currentTime    time.Time
-	snapshotTime   time.Time
-	snapshotExists bool
-	bufferPast     time.Duration
-	bufferFuture   time.Duration
-	writes         []generatedWrite
+	currentTime     time.Time
+	snapshotTime    time.Time
+	snapshotExists  bool
+	commitLogExists bool
+	bufferPast      time.Duration
+	bufferFuture    time.Duration
+	writes          []generatedWrite
 }
 
 type generatedWrite struct {
@@ -371,16 +395,19 @@ func (w generatedWrite) String() string {
 func genPropTestInputs(nsMeta namespace.Metadata, blockStart time.Time) gopter.Gen {
 	curriedGenPropTestInput := func(input interface{}) gopter.Gen {
 		var (
-			inputs         = input.([]interface{})
-			snapshotTime   = inputs[0].(time.Time)
-			snapshotExists = inputs[1].(bool)
-			bufferPast     = time.Duration(inputs[2].(int64))
-			bufferFuture   = time.Duration(inputs[3].(int64))
-			numDatapoints  = inputs[4].(int)
+			inputs          = input.([]interface{})
+			snapshotTime    = inputs[0].(time.Time)
+			snapshotExists  = inputs[1].(bool)
+			commitLogExists = inputs[2].(bool)
+			bufferPast      = time.Duration(inputs[3].(int64))
+			bufferFuture    = time.Duration(inputs[4].(int64))
+			numDatapoints   = inputs[5].(int)
 		)
 
 		return genPropTestInput(
-			blockStart, bufferPast, bufferFuture, snapshotTime, snapshotExists, numDatapoints, nsMeta.ID().String())
+			blockStart, bufferPast, bufferFuture,
+			snapshotTime, snapshotExists, commitLogExists,
+			numDatapoints, nsMeta.ID().String())
 	}
 
 	return gopter.CombineGens(
@@ -388,6 +415,8 @@ func genPropTestInputs(nsMeta namespace.Metadata, blockStart time.Time) gopter.G
 		// between the beginning and end of the block.
 		gen.TimeRange(blockStart, blockSize),
 		// SnapshotExists
+		gen.Bool(),
+		// CommitLogExists
 		gen.Bool(),
 		// Run iterations with any bufferPast/bufferFuture between zero and
 		// the namespace blockSize (distinct from the commitLog blockSize).
@@ -404,18 +433,20 @@ func genPropTestInput(
 	bufferFuture time.Duration,
 	snapshotTime time.Time,
 	snapshotExists bool,
+	commitLogExists bool,
 	numDatapoints int,
 	ns string,
 ) gopter.Gen {
 	return gen.SliceOfN(numDatapoints, genWrite(start, bufferPast, bufferFuture, ns)).
 		Map(func(val interface{}) propTestInput {
 			return propTestInput{
-				currentTime:    start,
-				bufferFuture:   bufferFuture,
-				bufferPast:     bufferPast,
-				snapshotTime:   snapshotTime,
-				snapshotExists: snapshotExists,
-				writes:         val.([]generatedWrite),
+				currentTime:     start,
+				bufferFuture:    bufferFuture,
+				bufferPast:      bufferPast,
+				snapshotTime:    snapshotTime,
+				snapshotExists:  snapshotExists,
+				commitLogExists: commitLogExists,
+				writes:          val.([]generatedWrite),
 			}
 		})
 }

@@ -967,6 +967,11 @@ func (s *commitLogSource) mergeAllShardsCommitLogEncodersAndSnapshots(
 	workerPool.Init()
 
 	for shard, unmergedShard := range unmerged {
+		if unmergedShard.series == nil {
+			// Not bootstrapping this shard
+			continue
+		}
+
 		snapshotData, err := s.bootstrapShardSnapshots(
 			ns.ID(),
 			uint32(shard),
@@ -989,21 +994,7 @@ func (s *commitLogSource) mergeAllShardsCommitLogEncodersAndSnapshots(
 			return nil, err
 		}
 
-		if unmergedShard.series == nil {
-			if !snapshotData.IsEmpty() {
-				// No snapshot or commit log data, skip.
-				// TODO: When we start allowing peer bootstrapping after commit log bootstrapping,
-				// then we will need to change this to mark the shard time ranges as unfulfilled.
-				continue
-			}
-
-			// No commit log data, but we do have snapshot data, so just use that.
-			bootstrapResultLock.Lock()
-			bootstrapResult.Add(uint32(shard), snapshotData, xtime.Ranges{})
-			bootstrapResultLock.Unlock()
-		}
-
-		// Have snapshot and commit log data, so we need to merge.
+		// Merge snapshot and commit log data
 		wg.Add(1)
 		shard, unmergedShard := shard, unmergedShard
 		mergeShardFunc := func() {
