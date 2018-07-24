@@ -26,8 +26,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/src/dbnode/integration/generate"
 	"github.com/m3db/m3db/src/dbnode/retention"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -133,7 +135,20 @@ func TestDiskCleanupMultipleNamespace(t *testing.T) {
 
 	log.Infof("creating commit log and fileset files")
 	shard := uint32(0)
-	writeCommitLogs(t, filePathPrefix, commitLogTimes)
+	for _, clTime := range commitLogTimes {
+		// Need to generate valid commit log files otherwise cleanup will fail.
+		data := map[xtime.UnixNano]generate.SeriesBlock{
+			xtime.ToUnixNano(clTime): nil,
+		}
+		writeCommitLogDataSpecifiedTS(
+			t,
+			testSetup,
+			testSetup.storageOpts.CommitLogOptions().SetFlushInterval(defaultIntegrationTestFlushInterval),
+			data,
+			ns1.ID(),
+			clTime,
+		)
+	}
 	writeDataFileSetFiles(t, testSetup.storageOpts, ns1, shard, ns1Times)
 	writeDataFileSetFiles(t, testSetup.storageOpts, ns2, shard, ns2Times)
 

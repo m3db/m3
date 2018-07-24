@@ -26,6 +26,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/src/dbnode/integration/generate"
+	"github.com/m3db/m3x/ident"
+	xtime "github.com/m3db/m3x/time"
 	"github.com/stretchr/testify/require"
 )
 
@@ -65,7 +68,20 @@ func TestDiskCleanup(t *testing.T) {
 		fileTimes[i] = now.Add(time.Duration(i) * blockSize)
 	}
 	writeDataFileSetFiles(t, testSetup.storageOpts, md, shard, fileTimes)
-	writeCommitLogs(t, filePathPrefix, fileTimes)
+	for _, clTime := range fileTimes {
+		// Need to generate valid commit log files otherwise cleanup will fail.
+		data := map[xtime.UnixNano]generate.SeriesBlock{
+			xtime.ToUnixNano(clTime): nil,
+		}
+		writeCommitLogDataSpecifiedTS(
+			t,
+			testSetup,
+			testSetup.storageOpts.CommitLogOptions().SetFlushInterval(defaultIntegrationTestFlushInterval),
+			data,
+			ident.StringID("some-ns"),
+			clTime,
+		)
+	}
 
 	// Move now forward by retentionPeriod + 2 * blockSize so fileset files
 	// and commit logs at now will be deleted

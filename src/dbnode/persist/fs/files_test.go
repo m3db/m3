@@ -595,42 +595,6 @@ func TestSnapshotFileSetExistsAt(t *testing.T) {
 	require.True(t, exists)
 }
 
-func TestSortedCommitLogFilesBefore(t *testing.T) {
-	iter := 20
-	perSlot := 3
-	dir := createCommitLogFiles(t, iter, perSlot)
-	defer os.RemoveAll(dir)
-
-	cutoffIter := 8
-	cutoff := time.Unix(0, int64(cutoffIter))
-	commitLogsDir := CommitLogsDirPath(dir)
-	files, err := SortedCommitLogFilesBefore(commitLogsDir, cutoff)
-	require.NoError(t, err)
-	require.Equal(t, cutoffIter*perSlot, len(files))
-	for i := 0; i < cutoffIter; i++ {
-		for j := 0; j < perSlot; j++ {
-			validateCommitLogFiles(t, i, j, perSlot, i, dir, files)
-		}
-	}
-}
-
-func TestCommitLogFilesForTime(t *testing.T) {
-	iter := 20
-	perSlot := 3
-	dir := createCommitLogFiles(t, iter, perSlot)
-	defer os.RemoveAll(dir)
-
-	cutoffIter := 8
-	cutoff := time.Unix(0, int64(cutoffIter))
-	commitLogsDir := CommitLogsDirPath(dir)
-	files, err := CommitLogFilesForTime(commitLogsDir, cutoff)
-	require.NoError(t, err)
-
-	for j := 0; j < perSlot; j++ {
-		validateCommitLogFiles(t, cutoffIter, j, perSlot, 0, dir, files)
-	}
-}
-
 func TestSortedCommitLogFiles(t *testing.T) {
 	iter := 20
 	perSlot := 3

@@ -144,7 +144,8 @@ func writeCommitLogDataBase(
 	}
 
 	// ensure commit log is flushing frequently
-	require.Equal(t, defaultIntegrationTestFlushInterval, opts.FlushInterval())
+	require.Equal(
+		t, defaultIntegrationTestFlushInterval, opts.FlushInterval())
 
 	var (
 		seriesLookup = newCommitLogSeriesStates(data)
