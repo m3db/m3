@@ -955,7 +955,7 @@ func (s *dbShard) tryRetrieveWritableSeries(id ident.ID) (
 
 func (s *dbShard) newShardEntry(
 	id ident.ID,
-	tags ident.TagIterator,
+	tagsIter ident.TagIterator,
 ) (*lookup.Entry, error) {
 	series := s.seriesPool.Get()
 	// NB(r): As documented in storage/series.DatabaseSeries the series IDs
@@ -967,26 +967,27 @@ func (s *dbShard) newShardEntry(
 	clonedID.NoFinalize()
 
 	var (
-		clonedTags ident.Tags
-		err        error
+		tags ident.Tags
+		err  error
 	)
 
-	dupTags := tags.Duplicate()
-	tags = nil // Original tags should not be closed
-	if tags.Remaining() > 0 {
-		clonedTags, err = convert.TagsFromTagsIter(
-			clonedID, dupTags, s.identifierPool)
-		dupTags.Close()
+	if tagsIter.Remaining() > 0 {
+		dupTagsIter := tagsIter.Duplicate()
+		tagsIter = nil // Original tagsIter should not be closed
+
+		tags, err = convert.TagsFromTagsIter(
+			clonedID, dupTagsIter, s.identifierPool)
+		dupTagsIter.Close()
 		if err != nil {
 			return nil, err
 		}
 
-		if err := convert.ValidateMetric(clonedID, clonedTags); err != nil {
+		if err := convert.ValidateMetric(clonedID, tags); err != nil {
 			return nil, err
 		}
 	}
 
-	series.Reset(clonedID, clonedTags, s.seriesBlockRetriever,
+	series.Reset(clonedID, tags, s.seriesBlockRetriever,
 		s.seriesOnRetrieveBlock, s, s.seriesOpts)
 	uniqueIndex := s.increasingIndex.nextIndex()
 	return lookup.NewEntry(series, uniqueIndex), nil
