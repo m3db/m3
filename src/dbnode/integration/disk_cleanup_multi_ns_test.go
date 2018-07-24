@@ -147,6 +147,7 @@ func TestDiskCleanupMultipleNamespace(t *testing.T) {
 			data,
 			ns1.ID(),
 			clTime,
+			false,
 		)
 	}
 	writeDataFileSetFiles(t, testSetup.storageOpts, ns1, shard, ns1Times)

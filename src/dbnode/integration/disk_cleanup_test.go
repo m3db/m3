@@ -80,6 +80,7 @@ func TestDiskCleanup(t *testing.T) {
 			data,
 			ident.StringID("some-ns"),
 			clTime,
+			false,
 		)
 	}
 
