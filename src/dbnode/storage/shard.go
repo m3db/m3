@@ -971,10 +971,9 @@ func (s *dbShard) newShardEntry(
 		err  error
 	)
 
-	if tagsIter.Remaining() > 0 {
-		dupTagsIter := tagsIter.Duplicate()
-		tagsIter = nil // Original tagsIter should not be closed
-
+	dupTagsIter := tagsIter.Duplicate()
+	tagsIter = nil // Original tagsIter should not be closed
+	if dupTagsIter.Remaining() > 0 {
 		tags, err = convert.TagsFromTagsIter(
 			clonedID, dupTagsIter, s.identifierPool)
 		dupTagsIter.Close()
