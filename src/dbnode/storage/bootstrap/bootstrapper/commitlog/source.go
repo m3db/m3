@@ -510,8 +510,8 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 
 		if !isMultipleOfBlockSize {
 			return nil, fmt.Errorf(
-				"received bootstrap range that is not multiple of blockSize, blockSize: %d, start: %d, end: %d",
-				blockSize, currRange.End.Unix(), currRange.Start.Unix(),
+				"received bootstrap range that is not multiple of blockSize, blockSize: %d, start: %s, end: %s",
+				blockSize, currRange.End.String(), currRange.Start.String(),
 			)
 		}
 
@@ -533,8 +533,8 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 				// for the fact that this snapshot did not exist when we were deciding which
 				// commit logs to read.
 				s.log.Infof(
-					"no snapshots for shard: %d and blockStart: %d",
-					shard, blockStart.Unix())
+					"no snapshots for shard: %d and blockStart: %s",
+					shard, blockStart.String())
 				continue
 			}
 
@@ -593,8 +593,8 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 	}
 
 	s.log.Infof(
-		"reading snapshot for shard: %d and blockStart: %d and volume: %d",
-		shard, blockStart.Unix(), mostRecentCompleteSnapshot.ID.VolumeIndex)
+		"reading snapshot for shard: %d and blockStart: %s and volume: %d",
+		shard, blockStart.String(), mostRecentCompleteSnapshot.ID.VolumeIndex)
 	for {
 		var (
 			id               ident.ID
@@ -703,13 +703,13 @@ func (s *commitLogSource) newReadCommitLogPredBasedOnAvailableSnapshotFiles(
 			if mostRecent.CachedSnapshotTime.IsZero() {
 				// Should never happen.
 				return nil, nil, fmt.Errorf(
-					"%s shard: %d and block: %d had zero value for most recent snapshot time",
-					instrument.InvariantViolatedMetricName, shard, block.ToTime().Unix())
+					"%s shard: %d and block: %s had zero value for most recent snapshot time",
+					instrument.InvariantViolatedMetricName, shard, block.ToTime().String())
 			}
 
 			s.log.Infof(
-				"most recent snapshot for block: %d and shard: %d is %d",
-				block.ToTime().Unix(), shard, mostRecent.CachedSnapshotTime.Unix())
+				"most recent snapshot for block: %s and shard: %d is %s",
+				block.ToTime().String(), shard, mostRecent.CachedSnapshotTime.String())
 		}
 	}
 
@@ -723,8 +723,8 @@ func (s *commitLogSource) newReadCommitLogPredBasedOnAvailableSnapshotFiles(
 		shardsTimeRanges, blockSize, mostRecentCompleteSnapshotByBlockShard)
 	for block, minSnapshotTime := range minimumMostRecentSnapshotTimeByBlock {
 		s.log.Infof(
-			"min snapshot time for block: %d is: %d",
-			block.ToTime().Unix(), minSnapshotTime.Unix())
+			"min snapshot time for block: %s is: %s",
+			block.ToTime().String(), minSnapshotTime.String())
 	}
 
 	// Now that we have the minimum most recent snapshot time for each block, we can use that data to
@@ -798,16 +798,16 @@ func (s *commitLogSource) newReadCommitLogPred(
 			if commitLogEntryRange.Overlaps(rangeToCheck) {
 				s.log.
 					Infof(
-						"opting to read commit log: %s with start: %d and duration: %s",
-						fileName, fileStart.Unix(), fileBlockSize.String())
+						"opting to read commit log: %s with start: %s and duration: %s",
+						fileName, fileStart.String(), fileBlockSize.String())
 				return true
 			}
 		}
 
 		s.log.
 			Infof(
-				"opting to skip commit log: %s with start: %d and duration: %s",
-				fileName, fileStart.Unix(), fileBlockSize.String())
+				"opting to skip commit log: %s with start: %s and duration: %s",
+				fileName, fileStart.String(), fileBlockSize.String())
 		return false
 	}
 }
