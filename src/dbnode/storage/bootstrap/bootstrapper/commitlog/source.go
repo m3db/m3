@@ -655,8 +655,9 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 					return shardResult, fmt.Errorf("unable to decode tags: %v", err)
 				}
 			}
-			tagsIter.Close()
 		}
+		// Always close even if we didn't use it.
+		tagsIter.Close()
 
 		if shardResult == nil {
 			// Delay initialization so we can estimate size.
