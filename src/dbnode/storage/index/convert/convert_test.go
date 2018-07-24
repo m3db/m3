@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3x/pool"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -125,6 +126,21 @@ func TestToMetricValid(t *testing.T) {
 	assert.Equal(t, "foo", id.String())
 	assert.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz", "some", "others")).Matches(tags))
+}
+
+func TestTagsFromTagsIter(t *testing.T) {
+	var (
+		id           = ident.StringID("foo")
+		expectedTags = ident.NewTags(
+			ident.StringTag("bar", "baz"),
+			ident.StringTag("foo", "m3"),
+		)
+		tagsIter = ident.NewTagsIterator(expectedTags)
+	)
+
+	tags, err := convert.TagsFromTagsIter(id, tagsIter, testOpts.IdentPool)
+	require.NoError(t, err)
+	require.True(t, true, expectedTags.Equal(tags))
 }
 
 func TestToMetricInvalidID(t *testing.T) {

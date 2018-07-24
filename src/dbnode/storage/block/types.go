@@ -191,6 +191,9 @@ type DatabaseBlock interface {
 		metadata RetrievableBlockMetadata,
 	)
 
+	// Discard closes the block, but returns the (unfinalized) segment.
+	Discard() ts.Segment
+
 	// Close closes the block.
 	Close()
 

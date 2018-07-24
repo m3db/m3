@@ -248,6 +248,7 @@ func (r *reader) readLoop() {
 				if err == io.EOF {
 					return
 				}
+
 				r.decoderQueues[0] <- decoderArg{
 					bytes: data,
 					err:   err,

@@ -21,7 +21,6 @@
 package storage
 
 import (
-	"bytes"
 	"container/list"
 	"errors"
 	"fmt"
@@ -956,7 +955,7 @@ func (s *dbShard) tryRetrieveWritableSeries(id ident.ID) (
 
 func (s *dbShard) newShardEntry(
 	id ident.ID,
-	tags ident.TagIterator,
+	tagsIter ident.TagIterator,
 ) (*lookup.Entry, error) {
 	series := s.seriesPool.Get()
 	// NB(r): As documented in storage/series.DatabaseSeries the series IDs
@@ -967,52 +966,27 @@ func (s *dbShard) newShardEntry(
 	clonedID := ident.BytesID(append([]byte(nil), id.Bytes()...))
 	clonedID.NoFinalize()
 
-	var clonedTags ident.Tags
-	if tags.Remaining() > 0 {
-		// Inlining tag creation here so its obvious why we can safely index
-		// into clonedID below
-		clonedTags = s.identifierPool.Tags()
-		tags = tags.Duplicate()
+	var (
+		tags ident.Tags
+		err  error
+	)
 
-		// Avoid finalizing the tags since series will let them be garbage collected
-		clonedTags.NoFinalize()
-
-		for tags.Next() {
-			t := tags.Current()
-
-			// NB(r): Optimization for workloads that embed the tags in the ID is to
-			// just take a ref to them directly, the cloned ID is frozen by casting to
-			// a BytesID in newShardEntry
-			var tag ident.Tag
-
-			nameBytes := t.Name.Bytes()
-			if idx := bytes.Index(clonedID, nameBytes); idx != -1 {
-				tag.Name = clonedID[idx : idx+len(nameBytes)]
-			} else {
-				tag.Name = s.identifierPool.Clone(t.Name)
-			}
-
-			valueBytes := t.Value.Bytes()
-			if idx := bytes.Index(clonedID, valueBytes); idx != -1 {
-				tag.Value = clonedID[idx : idx+len(valueBytes)]
-			} else {
-				tag.Value = s.identifierPool.Clone(t.Value)
-			}
-
-			clonedTags.Append(tag)
-		}
-		err := tags.Err()
-		tags.Close()
+	dupTagsIter := tagsIter.Duplicate()
+	tagsIter = nil // Original tagsIter should not be closed
+	if dupTagsIter.Remaining() > 0 {
+		tags, err = convert.TagsFromTagsIter(
+			clonedID, dupTagsIter, s.identifierPool)
+		dupTagsIter.Close()
 		if err != nil {
 			return nil, err
 		}
 
-		if err := convert.ValidateMetric(clonedID, clonedTags); err != nil {
+		if err := convert.ValidateMetric(clonedID, tags); err != nil {
 			return nil, err
 		}
 	}
 
-	series.Reset(clonedID, clonedTags, s.seriesBlockRetriever,
+	series.Reset(clonedID, tags, s.seriesBlockRetriever,
 		s.seriesOnRetrieveBlock, s, s.seriesOpts)
 	uniqueIndex := s.increasingIndex.nextIndex()
 	return lookup.NewEntry(series, uniqueIndex), nil

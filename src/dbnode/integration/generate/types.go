@@ -64,8 +64,34 @@ type SeriesBlocksByStart map[xtime.UnixNano]SeriesBlock
 
 // Writer writes generated data to disk
 type Writer interface {
-	// Write writes the data
-	Write(ns ident.ID, shards sharding.ShardSet, data SeriesBlocksByStart) error
+	// WriteData writes the data as data files.
+	WriteData(
+		ns ident.ID, shards sharding.ShardSet, data SeriesBlocksByStart) error
+
+	// WriteSnapshot writes the data as snapshot files.
+	WriteSnapshot(
+		ns ident.ID,
+		shards sharding.ShardSet,
+		data SeriesBlocksByStart,
+		snapshotInterval time.Duration,
+	) error
+
+	// WriteDataWithPredicate writes all data that passes the predicate test as data files.
+	WriteDataWithPredicate(
+		ns ident.ID,
+		shards sharding.ShardSet,
+		data SeriesBlocksByStart,
+		pred WriteDatapointPredicate,
+	) error
+
+	// WriteSnapshotWithPredicate writes all data that passes the predicate test as snapshot files.
+	WriteSnapshotWithPredicate(
+		ns ident.ID,
+		shards sharding.ShardSet,
+		data SeriesBlocksByStart,
+		pred WriteDatapointPredicate,
+		snapshotInterval time.Duration,
+	) error
 }
 
 // Options represent the parameters needed for the Writer
@@ -118,9 +144,18 @@ type Options interface {
 	// WriteEmptyShards returns whether writes are done even for empty start periods
 	WriteEmptyShards() bool
 
+	// SetWriteSnapshot sets whether writes are written as snapshot files
+	SetWriteSnapshot(bool) Options
+
+	// WriteSnapshots returns whether writes are written as snapshot files
+	WriteSnapshot() bool
+
 	// SetEncoderPool sets the contextPool
 	SetEncoderPool(value encoding.EncoderPool) Options
 
 	// EncoderPool returns the contextPool
 	EncoderPool() encoding.EncoderPool
 }
+
+// WriteDatapointPredicate returns a boolean indicating whether a datapoint should be written.
+type WriteDatapointPredicate func(dp ts.Datapoint) bool

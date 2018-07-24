@@ -660,7 +660,22 @@ func (s *dbSeries) Snapshot(
 		return errSeriesNotBootstrapped
 	}
 
-	stream, err := s.buffer.Snapshot(ctx, blockStart)
+	var (
+		stream xio.SegmentReader
+		err    error
+	)
+	block, ok := s.blocks.BlockAt(blockStart)
+	if ok {
+		// First check if the data has already been rotated out of the buffer
+		// into an immutable block. If it has, there is no need to check the
+		// series buffer as the data can't be in both locations.
+		stream, err = block.Stream(ctx)
+	} else {
+		// If the data hasn't been rotated into an immutable block yet,
+		// then it may be in the series buffer (because its still mutable).
+		stream, err = s.buffer.Snapshot(ctx, blockStart)
+	}
+
 	if err != nil {
 		return err
 	}

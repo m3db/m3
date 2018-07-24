@@ -45,7 +45,6 @@ import (
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 	xretry "github.com/m3db/m3x/retry"
-	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
@@ -299,11 +298,24 @@ func newDefaultBootstrappableTestSetups(
 func writeTestDataToDisk(
 	metadata namespace.Metadata,
 	setup *testSetup,
-	seriesMaps map[xtime.UnixNano]generate.SeriesBlock,
+	seriesMaps generate.SeriesBlocksByStart,
 ) error {
 	ropts := metadata.Options().RetentionOptions()
 	writer := generate.NewWriter(setup.generatorOptions(ropts))
-	return writer.Write(metadata.ID(), setup.shardSet, seriesMaps)
+	return writer.WriteData(metadata.ID(), setup.shardSet, seriesMaps)
+}
+
+func writeTestSnapshotsToDiskWithPredicate(
+	metadata namespace.Metadata,
+	setup *testSetup,
+	seriesMaps generate.SeriesBlocksByStart,
+	pred generate.WriteDatapointPredicate,
+	snapshotInterval time.Duration,
+) error {
+	ropts := metadata.Options().RetentionOptions()
+	writer := generate.NewWriter(setup.generatorOptions(ropts))
+	return writer.WriteSnapshotWithPredicate(
+		metadata.ID(), setup.shardSet, seriesMaps, pred, snapshotInterval)
 }
 
 func concatShards(a, b shard.Shards) shard.Shards {
