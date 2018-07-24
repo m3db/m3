@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/src/dbnode/integration/generate"
-	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	xtime "github.com/m3db/m3x/time"
 	"github.com/stretchr/testify/require"
 )
@@ -64,6 +64,8 @@ func TestDiskCleanup(t *testing.T) {
 	numTimes := 10
 	fileTimes := make([]time.Time, numTimes)
 	now := testSetup.getNowFn()
+	ns1, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
+	require.NoError(t, err)
 	for i := 0; i < numTimes; i++ {
 		fileTimes[i] = now.Add(time.Duration(i) * blockSize)
 	}
@@ -78,7 +80,7 @@ func TestDiskCleanup(t *testing.T) {
 			testSetup,
 			testSetup.storageOpts.CommitLogOptions().SetFlushInterval(defaultIntegrationTestFlushInterval),
 			data,
-			ident.StringID("some-ns"),
+			ns1,
 			clTime,
 			false,
 		)

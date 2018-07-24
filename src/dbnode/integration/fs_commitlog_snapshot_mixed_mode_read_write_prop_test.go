@@ -41,7 +41,7 @@ import (
 )
 
 const maxBlockSize = 12 * time.Hour
-const maxPoints = 1000
+const maxPoints = 100
 const minSuccessfulTests = 8
 const maxFlushWaitTime = time.Minute
 

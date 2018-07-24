@@ -145,7 +145,7 @@ func TestDiskCleanupMultipleNamespace(t *testing.T) {
 			testSetup,
 			testSetup.storageOpts.CommitLogOptions().SetFlushInterval(defaultIntegrationTestFlushInterval),
 			data,
-			ns1.ID(),
+			ns1,
 			clTime,
 			false,
 		)
