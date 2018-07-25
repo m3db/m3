@@ -21,6 +21,8 @@
 package block
 
 import (
+	"fmt"
+
 	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/models"
 )
@@ -39,6 +41,7 @@ func (m MultiSeriesBlocks) Close() {}
 
 // StepIter creates a new step iterator for a given MultiSeriesBlock
 func (m MultiSeriesBlock) StepIter() (block.StepIter, error) {
+	fmt.Println("step iter being created")
 	return &multiBlockStepIter{
 		seriesIters: newConsolidatedBlockIters(m.Blocks),
 		index:       -1,
@@ -133,6 +136,7 @@ func (m *multiBlockStepIter) StepCount() int {
 
 // Next moves to the next item
 func (m *multiBlockStepIter) Next() bool {
+	fmt.Println("step next being called")
 	if len(m.seriesIters) == 0 {
 		return false
 	}
@@ -156,6 +160,8 @@ func (m *multiBlockStepIter) Current() (block.Step, error) {
 	for i, s := range m.seriesIters {
 		values[i] = s.Current()
 	}
+
+	fmt.Println("step values: ", values)
 
 	return block.NewColStep(t, values), nil
 }
@@ -188,6 +194,8 @@ func (m *multiBlockSeriesIter) Current() (block.Series, error) {
 	for seriesIter.Next() {
 		values = append(values, seriesIter.Current())
 	}
+
+	fmt.Println("series values: ", values)
 
 	return block.NewSeries(values, seriesMeta), nil
 }

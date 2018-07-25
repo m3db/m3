@@ -22,7 +22,10 @@ package block
 
 import (
 	"errors"
+	"fmt"
 	"time"
+
+	"github.com/m3db/m3x/ident"
 
 	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/models"
@@ -36,55 +39,101 @@ var (
 
 // SeriesBlockToMultiSeriesBlocks converts M3DB blocks to multi series blocks
 func SeriesBlockToMultiSeriesBlocks(
-	multiNamespaceSeriesList []MultiNamespaceSeries,
+	multiNSSeries map[ident.ID][]SeriesBlocks,
+	multiNamespaceSeriesList []NamespaceSeriesList,
 	seriesIteratorsPool encoding.MutableSeriesIteratorsPool,
 	stepSize time.Duration,
 ) (MultiSeriesBlocks, error) {
 	// todo(braskin): validate blocks size and aligment per namespace before creating []MultiNamespaceSeries
 	var multiSeriesBlocks MultiSeriesBlocks
+	// consolidatedSeriesBlocks := make(ConsolidatedBlocks, len())
+	var consolidatedSeriesBlocks []ConsolidatedBlocks
+	var err error
 
-	for seriesIdx, multiNamespaceSeries := range multiNamespaceSeriesList {
-		consolidatedSeriesBlocks, err := newConsolidatedSeriesBlocks(multiNamespaceSeries, seriesIteratorsPool, stepSize)
+	for id, blocks := range multiNSSeries {
+		consolidatedBlocks := newCSBlocks(blocks)
+	}
+
+	for nsIdx, nsSeriesList := range multiNamespaceSeriesList {
+		fmt.Println("multi namespace series")
+		for _, e := range nsSeriesList.SeriesList {
+			fmt.Println(e)
+		}
+		consolidatedSeriesBlocks, err = newConsolidatedSeriesBlocks(nsSeriesList, seriesIteratorsPool, stepSize)
 		if err != nil {
 			return nil, err
 		}
 
-		// once we get the length of consolidatedSeriesBlocks, we can create a
-		// MultiSeriesBlocks list with the proper size
-		if seriesIdx == 0 {
-			multiSeriesBlocks = make(MultiSeriesBlocks, len(consolidatedSeriesBlocks))
+		fmt.Println("\n", "cs blocks: ")
+		for _, c := range consolidatedSeriesBlocks {
+			fmt.Println("***")
+			fmt.Println(c)
+			fmt.Println("***")
 		}
 
-		for consolidatedSeriesBlockIdx, consolidatedSeriesBlock := range consolidatedSeriesBlocks {
+		// // once we get the length of consolidatedSeriesBlocks, we can create a
+		// // MultiSeriesBlocks list with the proper size
+		// **this is wrong, we need to get number of blocks based on bounds
+		if nsIdx == 0 {
+			multiSeriesBlocks = make(MultiSeriesBlocks, len(consolidatedSeriesBlocks[0]))
+		}
 
-			// we only want to set the start and end times once
-			if seriesIdx == 0 {
-				blockBounds := multiSeriesBlocks[consolidatedSeriesBlockIdx].Metadata.Bounds
-				blockBounds.StepSize = consolidatedSeriesBlock.Metadata.Bounds.StepSize
-				blockBounds.Start = consolidatedSeriesBlock.Metadata.Bounds.Start
-				blockBounds.End = consolidatedSeriesBlock.Metadata.Bounds.End
-				multiSeriesBlocks[consolidatedSeriesBlockIdx].Metadata.Bounds = blockBounds
-			}
+		groupedCSBlocks := make([]ConsolidatedBlocks, len(consolidatedSeriesBlocks[0]))
+		// var groupedCSBlocks []ConsolidatedBlocks
+		// var timeSet bool
 
-			// take the tags from the first iterator and set that as the tags for the series block
-			dupedTags := consolidatedSeriesBlock.NSBlocks[0].SeriesIterators.Iters()[0].Tags().Duplicate()
+		for _, consolidatedSeriesBlock := range consolidatedSeriesBlocks {
+			// if len(consolidatedSeriesBlock[0].NSBlocks) == 0 {
+			// 	continue
+			// }
+			dupedTags := consolidatedSeriesBlock[0].NSBlocks[0].SeriesIterators.Iters()[0].Tags().Duplicate()
 			seriesTags, err := storage.FromIdentTagIteratorToTags(dupedTags)
 			if err != nil {
 				return nil, err
 			}
-			consolidatedSeriesBlock.Metadata.Tags = seriesTags
 
-			if !consolidatedSeriesBlock.Metadata.Bounds.Equals(multiSeriesBlocks[consolidatedSeriesBlockIdx].Metadata.Bounds) {
-				return nil, errBlocksMisaligned
+			for idx, csBlock := range consolidatedSeriesBlock {
+				csBlock.Metadata.Tags = seriesTags
+
+				if nsIdx == 0 {
+					blockBounds := multiSeriesBlocks[idx].Metadata.Bounds
+					blockBounds.StepSize = csBlock.Metadata.Bounds.StepSize
+					blockBounds.Start = csBlock.Metadata.Bounds.Start
+					blockBounds.End = csBlock.Metadata.Bounds.End
+					multiSeriesBlocks[idx].Metadata.Bounds = blockBounds
+				}
+
+				groupedCSBlocks[idx] = append(groupedCSBlocks[idx], csBlock)
+
+			}
+		}
+
+		fmt.Println("\n", "grouped cs blocks: ")
+		for _, j := range groupedCSBlocks {
+			fmt.Println(j)
+		}
+
+		// multiSeriesBlocks[seriesIdx].Blocks = groupedCSBlocks
+		for i := 0; i < len(consolidatedSeriesBlocks[0]); i++ {
+			for _, csBlocks := range groupedCSBlocks[i] {
+				if !csBlocks.Metadata.Bounds.Equals(multiSeriesBlocks[i].Metadata.Bounds) {
+					return nil, errBlocksMisaligned
+				}
 			}
 
-			multiSeriesBlocks[consolidatedSeriesBlockIdx].Blocks = append(multiSeriesBlocks[consolidatedSeriesBlockIdx].Blocks, consolidatedSeriesBlock)
+			multiSeriesBlocks[i].Blocks = groupedCSBlocks[i]
+		}
+
+		fmt.Println("\n", "multi series blocks: ")
+		for _, m := range multiSeriesBlocks {
+			fmt.Println(m)
 		}
 	}
 
 	commonTags := multiSeriesBlocks.commonTags()
 	multiSeriesBlocks.setCommonTags(commonTags)
 
+	// fmt.Println("****", multiSeriesBlocks[0].Metadata, multiSeriesBlocks[1].Metadata)
 	return multiSeriesBlocks, nil
 }
 
@@ -116,29 +165,26 @@ func (m MultiSeriesBlocks) commonTags() models.Tags {
 
 // newConsolidatedSeriesBlocks creates consolidated blocks by timeseries across namespaces
 func newConsolidatedSeriesBlocks(
-	multiNamespaceSeries MultiNamespaceSeries,
+	nsSeriesList NamespaceSeriesList,
 	seriesIteratorsPool encoding.MutableSeriesIteratorsPool,
 	stepSize time.Duration,
-) (ConsolidatedBlocks, error) {
-	var consolidatedBlocks ConsolidatedBlocks
+) ([]ConsolidatedBlocks, error) {
+	fmt.Println("number series: ", len(nsSeriesList.SeriesList))
+	sliceOfCSBlocks := make([]ConsolidatedBlocks, len(nsSeriesList.SeriesList))
 
-	for seriesBlocksIdx, seriesBlocks := range multiNamespaceSeries {
-		nsBlocks := newNSBlocks(seriesBlocks, seriesIteratorsPool, stepSize)
-		// once we get the length of consolidatedNSBlocks, we can create a
-		// ConsolidatedSeriesBlocks list with the proper size
-		if seriesBlocksIdx == 0 {
-			consolidatedBlocks = make(ConsolidatedBlocks, len(nsBlocks))
-		}
+	var nsBlocks []NSBlock
+
+	for seriesBlocksIdx, seriesBlocks := range nsSeriesList.SeriesList {
+		var consolidatedBlocks ConsolidatedBlocks
+		nsBlocks = newNSBlocks(seriesBlocks, seriesIteratorsPool, stepSize, nsSeriesList.Namespace)
+		consolidatedBlocks = make(ConsolidatedBlocks, len(nsBlocks))
 
 		for nsBlockIdx, nsBlock := range nsBlocks {
-			// we only want to set the start and end times once
-			if seriesBlocksIdx == 0 {
-				blockBounds := consolidatedBlocks[nsBlockIdx].Metadata.Bounds
-				blockBounds.StepSize = nsBlock.Bounds.StepSize
-				blockBounds.Start = nsBlock.Bounds.Start
-				blockBounds.End = nsBlock.Bounds.End
-				consolidatedBlocks[nsBlockIdx].Metadata.Bounds = blockBounds
-			}
+			blockBounds := consolidatedBlocks[nsBlockIdx].Metadata.Bounds
+			blockBounds.StepSize = nsBlock.Bounds.StepSize
+			blockBounds.Start = nsBlock.Bounds.Start
+			blockBounds.End = nsBlock.Bounds.End
+			consolidatedBlocks[nsBlockIdx].Metadata.Bounds = blockBounds
 
 			if !nsBlock.Bounds.Equals(consolidatedBlocks[nsBlockIdx].Metadata.Bounds) {
 				return nil, errBlocksMisaligned
@@ -146,9 +192,12 @@ func newConsolidatedSeriesBlocks(
 
 			consolidatedBlocks[nsBlockIdx].NSBlocks = append(consolidatedBlocks[nsBlockIdx].NSBlocks, nsBlock)
 		}
+		// consolidatedBlocks[seriesBlocksIdx].NSBlocks = nsBlocks
+		sliceOfCSBlocks[seriesBlocksIdx] = consolidatedBlocks
 	}
 
-	return consolidatedBlocks, nil
+	// fmt.Println("len consolidated blocks: ", len(consolidatedBlocks))
+	return sliceOfCSBlocks, nil
 }
 
 // newNSBlocks creates a slice of consolidated blocks per namespace for a single timeseries
@@ -157,13 +206,14 @@ func newNSBlocks(
 	seriesBlocks SeriesBlocks,
 	seriesIteratorsPool encoding.MutableSeriesIteratorsPool,
 	stepSize time.Duration,
+	ns string,
 ) []NSBlock {
 	nsBlocks := make([]NSBlock, 0, len(seriesBlocks.Blocks))
-	namespace := seriesBlocks.Namespace
+	// namespace := seriesBlocks.Namespace
 	id := seriesBlocks.ID
 	for _, seriesBlock := range seriesBlocks.Blocks {
 		nsBlock := NSBlock{
-			Namespace: namespace,
+			Namespace: ident.StringID(ns),
 			ID:        id,
 			Bounds: block.Bounds{
 				Start:    seriesBlock.start,

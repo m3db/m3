@@ -145,10 +145,10 @@ func seriesBlocksFromBlockReplicas(
 	}
 
 	series := SeriesBlocks{
-		ID:        clonedID,
-		Namespace: clonedNamespace,
-		Tags:      clonedTags,
-		Blocks:    make([]SeriesBlock, len(blockReplicas)),
+		ID: clonedID,
+		// Namespace: clonedNamespace,
+		Tags:   clonedTags,
+		Blocks: make([]SeriesBlock, len(blockReplicas)),
 	}
 
 	for i, block := range blockReplicas {

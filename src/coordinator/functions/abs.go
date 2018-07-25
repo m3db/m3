@@ -59,11 +59,13 @@ type AbsNode struct {
 
 // Process the block
 func (c *AbsNode) Process(ID parser.NodeID, b block.Block) error {
+	fmt.Println("abs process being called")
 	stepIter, err := b.StepIter()
 	if err != nil {
 		return err
 	}
 
+	fmt.Println("series meta: ", stepIter.SeriesMeta())
 	builder, err := c.controller.BlockBuilder(stepIter.Meta(), stepIter.SeriesMeta())
 	if err != nil {
 		return err
@@ -96,12 +98,14 @@ var _ transform.SeriesNode = &AbsNode{}
 
 // ProcessStep allows step iteration
 func (c *AbsNode) ProcessStep(step block.Step) (block.Step, error) {
+	fmt.Println("process step called")
 	processedValue := c.process(step.Values())
 	return block.NewColStep(step.Time(), processedValue), nil
 }
 
 // ProcessSeries allows series iteration
 func (c *AbsNode) ProcessSeries(series block.Series) (block.Series, error) {
+	fmt.Println("process series called")
 	processedValue := c.process(series.Values())
 	return block.NewSeries(processedValue, series.Meta), nil
 }

@@ -81,7 +81,9 @@ func (n *FetchNode) Execute(ctx context.Context) error {
 		return err
 	}
 
+	fmt.Println("len of blocks: ", len(blockResult.Blocks))
 	for _, block := range blockResult.Blocks {
+		fmt.Println("fetch block: ", block)
 		if err := n.controller.Process(block); err != nil {
 			block.Close()
 			// Fail on first error

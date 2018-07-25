@@ -21,6 +21,7 @@
 package block
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/m3db/m3db/src/coordinator/block"
@@ -50,6 +51,7 @@ type nsBlockIter struct {
 func (c *nsBlockIter) Next() bool {
 	c.idx++
 	// NB(braskin): this is inclusive of the last step in the iterator
+	fmt.Println("nsIter bounds: ", c.bounds)
 	indexTime, err := c.bounds.TimeForIndex(c.idx)
 	if err != nil { // index is out of bounds
 		return false
@@ -58,9 +60,11 @@ func (c *nsBlockIter) Next() bool {
 	lastDP := c.lastDP
 	// NB(braskin): check to make sure that the current index time is after the last
 	// seen datapoint and Next() on the underlaying m3db iterator returns true
+	// fmt.Println("NEXT: ", "idx time: ", indexTime, "last time: ", lastDP.Timestamp)
 	for indexTime.After(lastDP.Timestamp) && c.nextIterator() {
 		lastDP, _, _ = c.m3dbIters[c.seriesIndex].Current()
 		c.lastDP = lastDP
+		fmt.Println("updating current to: ", lastDP)
 	}
 
 	return true
@@ -93,6 +97,7 @@ func (c *nsBlockIter) Current() float64 {
 
 	// NB(braskin): if the last datapoint is after the current step, but before the (current step+1),
 	// return that datapoint, otherwise return NaN
+	// fmt.Println("CURRENT: ", lastDP.Value, "last time: ", lastDP.Timestamp, "idx time: ", indexTime, "idx + 1: ", indexTime.Add(c.bounds.StepSize))
 	if !indexTime.After(lastDP.Timestamp) && indexTime.Add(c.bounds.StepSize).After(lastDP.Timestamp) {
 		return lastDP.Value
 	}

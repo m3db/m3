@@ -303,17 +303,24 @@ func (s *localStorage) FetchBlocks(
 	// NB/todo(braskin): because we are only support querying one namespace now, we can just create
 	// a multiNamespaceSeriesList with one element. However, once we support querying multiple namespaces,
 	// we will need to append each namespace seriesBlockList to the multiNamespaceSeriesList
-	multiNamespaceSeriesList := []m3block.MultiNamespaceSeries{seriesBlockList}
+	namespaceSeriesList := m3block.NamespaceSeriesList{
+		Namespace:  namespaces[0].NamespaceID().String(),
+		SeriesList: seriesBlockList,
+	}
+
+	multiNamespaceSeriesList := []m3block.NamespaceSeriesList{namespaceSeriesList}
 	multiSeriesBlocks, err := m3block.SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList, nil, query.Interval)
 	if err != nil {
 		return emptyBlock, err
 	}
 
+	fmt.Println("len of series: ", len(multiSeriesBlocks))
 	res := block.Result{
 		Blocks: make([]block.Block, len(multiSeriesBlocks)),
 	}
 
 	for i, block := range multiSeriesBlocks {
+		fmt.Println("bounds: ", block.Metadata)
 		res.Blocks[i] = block
 	}
 

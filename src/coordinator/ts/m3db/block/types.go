@@ -38,10 +38,10 @@ type SeriesBlock struct {
 // This includes meta data such as the ID, namespace and tags as well as the actual
 // series iterators that contain the datapoints.
 type SeriesBlocks struct {
-	ID        ident.ID
-	Namespace ident.ID
-	Tags      ident.TagIterator
-	Blocks    []SeriesBlock
+	ID ident.ID
+	// Namespace ident.ID
+	Tags   ident.TagIterator
+	Blocks []SeriesBlock
 }
 
 // Close closes the series iterator in a SeriesBlock
@@ -57,12 +57,17 @@ func (s SeriesBlocks) Close() {
 	}
 
 	s.Tags.Close()
-	s.Namespace.Finalize()
+	// s.Namespace.Finalize()
 	s.ID.Finalize()
 }
 
 // MultiNamespaceSeries is a single timeseries for multiple namespaces
 type MultiNamespaceSeries []SeriesBlocks
+
+type NamespaceSeriesList struct {
+	Namespace  string
+	SeriesList []SeriesBlocks
+}
 
 // ID enforces the same ID across namespaces
 func (n MultiNamespaceSeries) ID() ident.ID {

@@ -73,75 +73,85 @@ type nsBlockTestCase struct {
 
 func TestConsolidatedNSBlockIter(t *testing.T) {
 	testCases := []nsBlockTestCase{
+		// {
+		// 	dps: [][]ts.Datapoint{
+		// 		createDatapoints(t, []int{5, 90, 100, 120, 300}, []float64{1, 2, 3, 4, 5}, now),
+		// 	},
+		// 	start:           now,
+		// 	end:             now.Add(600 * time.Second),
+		// 	stepSize:        60 * time.Second,
+		// 	expectedResults: []float64{1, 2, 4, nan, nan, 5, nan, nan, nan, nan, nan},
+		// 	description:     "testing single iterator with two values in one block (step size)",
+		// },
+		// {
+		// 	dps: [][]ts.Datapoint{
+		// 		createDatapoints(t, []int{90, 100, 120, 300}, []float64{2, 3, 4, 5}, now),
+		// 	},
+		// 	start:           now,
+		// 	end:             now.Add(600 * time.Second),
+		// 	stepSize:        60 * time.Second,
+		// 	expectedResults: []float64{nan, 2, 4, nan, nan, 5, nan, nan, nan, nan, nan},
+		// 	description:     "testing single iterator with no value in first step",
+		// },
+		// {
+		// 	dps: [][]ts.Datapoint{
+		// 		createDatapoints(t, []int{0, 90, 300}, []float64{1, 2, 3}, now),
+		// 		createDatapoints(t, []int{1020, 1145}, []float64{4, 5}, now)},
+		// 	start:    now,
+		// 	end:      now.Add(1200 * time.Second),
+		// 	stepSize: 60 * time.Second,
+		// 	expectedResults: []float64{1, 2, nan, nan, nan, 3, nan, nan, nan, nan,
+		// 		nan, nan, nan, nan, nan, nan, nan, 4, nan, 5, nan},
+		// 	description: "testing multiple iterators",
+		// },
+		// {
+		// 	dps: [][]ts.Datapoint{
+		// 		createDatapoints(t, []int{0, 90, 300, 1020, 1140}, []float64{1, 2, 3, 4, 5}, now)},
+		// 	start:    now,
+		// 	end:      now.Add(1200 * time.Second),
+		// 	stepSize: 60 * time.Second,
+		// 	expectedResults: []float64{1, 2, nan, nan, nan, 3, nan, nan, nan, nan,
+		// 		nan, nan, nan, nan, nan, nan, nan, 4, nan, 5, nan},
+		// 	description: "same test as above, but with one iterator",
+		// },
+		// {
+		// 	dps: [][]ts.Datapoint{
+		// 		createDatapoints(t, []int{0, 90, 300}, []float64{1, 2, 3}, now),
+		// 		createDatapoints(t, []int{1020, 1140, 5000}, []float64{4, 5, 6}, now)},
+		// 	start:    now,
+		// 	end:      now.Add(1200 * time.Second),
+		// 	stepSize: 60 * time.Second,
+		// 	expectedResults: []float64{1, 2, nan, nan, nan, 3, nan, nan, nan, nan,
+		// 		nan, nan, nan, nan, nan, nan, nan, 4, nan, 5, nan},
+		// 	description: "testing multiple iterators with one exceeding the step bound",
+		// },
+		// {
+		// 	dps: [][]ts.Datapoint{
+		// 		createDatapoints(t, []int{0, 10, 30, 50}, []float64{1, 2, 3, 4}, now)},
+		// 	start:           now,
+		// 	end:             now.Add(600 * time.Second),
+		// 	stepSize:        60 * time.Second,
+		// 	expectedResults: []float64{1, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan},
+		// 	description:     "testing multiple values within one step in beginning",
+		// },
+		// {
+		// 	dps: [][]ts.Datapoint{
+		// 		createDatapoints(t, []int{130, 140, 150, 160}, []float64{1, 2, 3, 4}, now)},
+		// 	start:           now,
+		// 	end:             now.Add(600 * time.Second),
+		// 	stepSize:        60 * time.Second,
+		// 	expectedResults: []float64{nan, nan, 1, nan, nan, nan, nan, nan, nan, nan, nan},
+		// 	description:     "testing multiple values within one step in middle",
+		// },
 		{
 			dps: [][]ts.Datapoint{
-				createDatapoints(t, []int{5, 90, 100, 120, 300}, []float64{1, 2, 3, 4, 5}, now),
+				createDatapoints(t, []int{0, 61, 121, 181}, []float64{4, 5, 6, 7}, now),
 			},
 			start:           now,
-			end:             now.Add(600 * time.Second),
+			end:             now.Add(200 * time.Second),
 			stepSize:        60 * time.Second,
-			expectedResults: []float64{1, 2, 4, nan, nan, 5, nan, nan, nan, nan, nan},
+			expectedResults: []float64{1, 2, 4, nan},
 			description:     "testing single iterator with two values in one block (step size)",
-		},
-		{
-			dps: [][]ts.Datapoint{
-				createDatapoints(t, []int{90, 100, 120, 300}, []float64{2, 3, 4, 5}, now),
-			},
-			start:           now,
-			end:             now.Add(600 * time.Second),
-			stepSize:        60 * time.Second,
-			expectedResults: []float64{nan, 2, 4, nan, nan, 5, nan, nan, nan, nan, nan},
-			description:     "testing single iterator with no value in first step",
-		},
-		{
-			dps: [][]ts.Datapoint{
-				createDatapoints(t, []int{0, 90, 300}, []float64{1, 2, 3}, now),
-				createDatapoints(t, []int{1020, 1145}, []float64{4, 5}, now)},
-			start:    now,
-			end:      now.Add(1200 * time.Second),
-			stepSize: 60 * time.Second,
-			expectedResults: []float64{1, 2, nan, nan, nan, 3, nan, nan, nan, nan,
-				nan, nan, nan, nan, nan, nan, nan, 4, nan, 5, nan},
-			description: "testing multiple iterators",
-		},
-		{
-			dps: [][]ts.Datapoint{
-				createDatapoints(t, []int{0, 90, 300, 1020, 1140}, []float64{1, 2, 3, 4, 5}, now)},
-			start:    now,
-			end:      now.Add(1200 * time.Second),
-			stepSize: 60 * time.Second,
-			expectedResults: []float64{1, 2, nan, nan, nan, 3, nan, nan, nan, nan,
-				nan, nan, nan, nan, nan, nan, nan, 4, nan, 5, nan},
-			description: "same test as above, but with one iterator",
-		},
-		{
-			dps: [][]ts.Datapoint{
-				createDatapoints(t, []int{0, 90, 300}, []float64{1, 2, 3}, now),
-				createDatapoints(t, []int{1020, 1140, 5000}, []float64{4, 5, 6}, now)},
-			start:    now,
-			end:      now.Add(1200 * time.Second),
-			stepSize: 60 * time.Second,
-			expectedResults: []float64{1, 2, nan, nan, nan, 3, nan, nan, nan, nan,
-				nan, nan, nan, nan, nan, nan, nan, 4, nan, 5, nan},
-			description: "testing multiple iterators with one exceeding the step bound",
-		},
-		{
-			dps: [][]ts.Datapoint{
-				createDatapoints(t, []int{0, 10, 30, 50}, []float64{1, 2, 3, 4}, now)},
-			start:           now,
-			end:             now.Add(600 * time.Second),
-			stepSize:        60 * time.Second,
-			expectedResults: []float64{1, nan, nan, nan, nan, nan, nan, nan, nan, nan, nan},
-			description:     "testing multiple values within one step in beginning",
-		},
-		{
-			dps: [][]ts.Datapoint{
-				createDatapoints(t, []int{130, 140, 150, 160}, []float64{1, 2, 3, 4}, now)},
-			start:           now,
-			end:             now.Add(600 * time.Second),
-			stepSize:        60 * time.Second,
-			expectedResults: []float64{nan, nan, 1, nan, nan, nan, nan, nan, nan, nan, nan},
-			description:     "testing multiple values within one step in middle",
 		},
 	}
 
