@@ -54,6 +54,13 @@ func (i *idSliceIter) Current() ID {
 	return i.currentID
 }
 
+func (i *idSliceIter) CurrentIndex() int {
+	if i.currentIdx >= 0 {
+		return i.currentIdx
+	}
+	return 0
+}
+
 func (i *idSliceIter) Err() error {
 	return nil
 }
@@ -62,6 +69,10 @@ func (i *idSliceIter) Close() {
 	i.backingSlice = nil
 	i.currentIdx = 0
 	i.currentID = nil
+}
+
+func (i *idSliceIter) Len() int {
+	return len(i.backingSlice)
 }
 
 func (i *idSliceIter) Remaining() int {
@@ -113,6 +124,13 @@ func (i *stringSliceIter) Current() ID {
 	return i.currentID
 }
 
+func (i *stringSliceIter) CurrentIndex() int {
+	if i.currentIdx >= 0 {
+		return i.currentIdx
+	}
+	return 0
+}
+
 func (i *stringSliceIter) Err() error {
 	return nil
 }
@@ -121,6 +139,10 @@ func (i *stringSliceIter) Close() {
 	i.backingSlice = nil
 	i.currentIdx = 0
 	i.currentID = nil
+}
+
+func (i *stringSliceIter) Len() int {
+	return len(i.backingSlice)
 }
 
 func (i *stringSliceIter) Remaining() int {

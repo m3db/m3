@@ -174,11 +174,17 @@ type Iterator interface {
 	// Current returns the current ID instance.
 	Current() ID
 
+	// CurrentIndex returns the current index at.
+	CurrentIndex() int
+
 	// Close releases any resources held by the iterator.
 	Close()
 
 	// Err returns any errors encountered during iteration.
 	Err() error
+
+	// Len returns the number of elements.
+	Len() int
 
 	// Remaining returns the number of elements remaining to be iterated over.
 	Remaining() int
@@ -195,11 +201,17 @@ type TagIterator interface {
 	// Current returns the current Tag instance.
 	Current() Tag
 
+	// CurrentIndex returns the current index at.
+	CurrentIndex() int
+
 	// Err returns any errors encountered during iteration.
 	Err() error
 
 	// Close releases any resources held by the iterator.
 	Close()
+
+	// Len returns the number of elements.
+	Len() int
 
 	// Remaining returns the number of elements remaining to be iterated over.
 	Remaining() int

@@ -20,7 +20,9 @@
 
 package ident
 
-import "errors"
+import (
+	"errors"
+)
 
 var (
 	errInvalidNumberInputsToIteratorMatcher = errors.New("inputs must be specified in name-value pairs (i.e. divisible by 2)")
@@ -83,6 +85,13 @@ func (i *tagSliceIter) Current() Tag {
 	return i.currentTag
 }
 
+func (i *tagSliceIter) CurrentIndex() int {
+	if i.currentIdx >= 0 {
+		return i.currentIdx
+	}
+	return 0
+}
+
 func (i *tagSliceIter) Err() error {
 	return nil
 }
@@ -97,6 +106,10 @@ func (i *tagSliceIter) Close() {
 	}
 
 	i.pool.PutTagsIterator(i)
+}
+
+func (i *tagSliceIter) Len() int {
+	return len(i.backingSlice)
 }
 
 func (i *tagSliceIter) Remaining() int {
@@ -135,7 +148,9 @@ type emptyTagIterator struct{}
 
 func (e emptyTagIterator) Next() bool             { return false }
 func (e emptyTagIterator) Current() Tag           { return Tag{} }
+func (e emptyTagIterator) CurrentIndex() int      { return 0 }
 func (e emptyTagIterator) Err() error             { return nil }
 func (e emptyTagIterator) Close()                 {}
+func (e emptyTagIterator) Len() int               { return 0 }
 func (e emptyTagIterator) Remaining() int         { return 0 }
 func (e emptyTagIterator) Duplicate() TagIterator { return e }
