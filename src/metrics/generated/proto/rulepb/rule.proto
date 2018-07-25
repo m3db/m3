@@ -39,6 +39,7 @@ message MappingRuleSnapshot {
   string last_updated_by = 7;
   repeated aggregationpb.AggregationType aggregation_types = 8;
   repeated policypb.StoragePolicy storage_policies = 9;
+  policypb.DropPolicy drop_policy = 10;
 }
 
 message MappingRule {
