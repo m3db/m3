@@ -330,6 +330,13 @@ func (t *tagIter) Current() ident.Tag {
 	return t.currentTag
 }
 
+func (t *tagIter) CurrentIndex() int {
+	if t.currentIdx >= 0 {
+		return t.currentIdx
+	}
+	return 0
+}
+
 func (t *tagIter) Err() error {
 	return t.err
 }
@@ -337,6 +344,10 @@ func (t *tagIter) Err() error {
 func (t *tagIter) Close() {
 	t.releaseCurrent()
 	t.done = true
+}
+
+func (t *tagIter) Len() int {
+	return len(t.docFields)
 }
 
 func (t *tagIter) Remaining() int {

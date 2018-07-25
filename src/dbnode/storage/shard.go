@@ -65,11 +65,13 @@ const (
 )
 
 var (
-	errShardEntryNotFound         = errors.New("shard entry not found")
-	errShardNotOpen               = errors.New("shard is not open")
-	errShardAlreadyTicking        = errors.New("shard is already ticking")
-	errShardClosingTickTerminated = errors.New("shard is closing, terminating tick")
-	errShardInvalidPageToken      = errors.New("shard could not unmarshal page token")
+	errShardEntryNotFound                  = errors.New("shard entry not found")
+	errShardNotOpen                        = errors.New("shard is not open")
+	errShardAlreadyTicking                 = errors.New("shard is already ticking")
+	errShardClosingTickTerminated          = errors.New("shard is closing, terminating tick")
+	errShardInvalidPageToken               = errors.New("shard could not unmarshal page token")
+	errNewShardEntryTagsTypeInvalid        = errors.New("new shard entry options error: tags type invalid")
+	errNewShardEntryTagsIterNotAtIndexZero = errors.New("new shard entry options error: tags iter not at index zero")
 )
 
 type filesetBeforeFn func(
@@ -94,6 +96,38 @@ const (
 	dbShardStateOpen dbShardState = iota
 	dbShardStateClosing
 )
+
+type tagsArgType uint
+
+const (
+	tagsInvalidArg tagsArgType = iota
+	tagsIterArg
+	tagsArg
+)
+
+type tagsArgOptions struct {
+	arg      tagsArgType
+	tagsIter ident.TagIterator
+	tags     ident.Tags
+}
+
+func newTagsIterArg(
+	tagsIter ident.TagIterator,
+) tagsArgOptions {
+	return tagsArgOptions{
+		arg:      tagsIterArg,
+		tagsIter: tagsIter,
+	}
+}
+
+func newTagsArg(
+	tags ident.Tags,
+) tagsArgOptions {
+	return tagsArgOptions{
+		arg:  tagsArg,
+		tags: tags,
+	}
+}
 
 type dbShard struct {
 	sync.RWMutex
@@ -157,7 +191,6 @@ type dbShardMetrics struct {
 
 func newDatabaseShardMetrics(scope tally.Scope) dbShardMetrics {
 	seriesBootstrapScope := scope.SubScope("series-bootstrap")
-
 	return dbShardMetrics{
 		create:       scope.Counter("create"),
 		close:        scope.Counter("close"),
@@ -344,7 +377,7 @@ func (s *dbShard) OnRetrieveBlock(
 		return
 	}
 
-	entry, err = s.newShardEntry(id, tags)
+	entry, err = s.newShardEntry(id, newTagsIterArg(tags))
 	if err != nil {
 		// should never happen
 		s.logger.WithFields(
@@ -955,38 +988,57 @@ func (s *dbShard) tryRetrieveWritableSeries(id ident.ID) (
 
 func (s *dbShard) newShardEntry(
 	id ident.ID,
-	tagsIter ident.TagIterator,
+	tagsArgOpts tagsArgOptions,
 ) (*lookup.Entry, error) {
-	series := s.seriesPool.Get()
 	// NB(r): As documented in storage/series.DatabaseSeries the series IDs
 	// are garbage collected, hence we cast the ID to a BytesID that can't be
 	// finalized.
 	// Since series are purged so infrequently the overhead of not releasing
 	// back an ID to a pool is amortized over a long period of time.
-	clonedID := ident.BytesID(append([]byte(nil), id.Bytes()...))
-	clonedID.NoFinalize()
+	var newID ident.BytesID
+	if id.IsNoFinalize() {
+		// If the ID is already marked as NoFinalize, meaning it won't be returned
+		// to any pools, then we can directly take reference to it.
+		// We make sure to use ident.BytesID for this ID to avoid inc/decref when
+		newID = ident.BytesID(id.Bytes())
+	} else {
+		newID = ident.BytesID(append([]byte(nil), id.Bytes()...))
+		newID.NoFinalize()
+	}
 
 	var (
 		tags ident.Tags
 		err  error
 	)
+	switch tagsArgOpts.arg {
+	case tagsIterArg:
+		tagsIter := tagsArgOpts.tagsIter
 
-	dupTagsIter := tagsIter.Duplicate()
-	tagsIter = nil // Original tagsIter should not be closed
-	if dupTagsIter.Remaining() > 0 {
+		// Ensure tag iterator at start
+		if tagsIter.CurrentIndex() != 0 {
+			return nil, errNewShardEntryTagsIterNotAtIndexZero
+		}
 		tags, err = convert.TagsFromTagsIter(
-			clonedID, dupTagsIter, s.identifierPool)
-		dupTagsIter.Close()
+			newID, tagsIter, s.identifierPool)
+		tagsIter.Close()
 		if err != nil {
 			return nil, err
 		}
 
-		if err := convert.ValidateMetric(clonedID, tags); err != nil {
+		if err := convert.ValidateMetric(newID, tags); err != nil {
 			return nil, err
 		}
+
+	case tagsArg:
+		tags = tagsArgOpts.tags
+
+	default:
+		return nil, errNewShardEntryTagsTypeInvalid
+
 	}
 
-	series.Reset(clonedID, tags, s.seriesBlockRetriever,
+	series := s.seriesPool.Get()
+	series.Reset(newID, tags, s.seriesBlockRetriever,
 		s.seriesOnRetrieveBlock, s, s.seriesOpts)
 	uniqueIndex := s.increasingIndex.nextIndex()
 	return lookup.NewEntry(series, uniqueIndex), nil
@@ -1050,7 +1102,7 @@ func (s *dbShard) insertSeriesAsyncBatched(
 	tags ident.TagIterator,
 	opts dbShardInsertAsyncOptions,
 ) (insertAsyncResult, error) {
-	entry, err := s.newShardEntry(id, tags)
+	entry, err := s.newShardEntry(id, newTagsIterArg(tags))
 	if err != nil {
 		return insertAsyncResult{}, err
 	}
@@ -1078,7 +1130,7 @@ const (
 
 func (s *dbShard) insertSeriesSync(
 	id ident.ID,
-	tags ident.TagIterator,
+	tagsArgOpts tagsArgOptions,
 	insertType insertSyncType,
 ) (*lookup.Entry, error) {
 	var (
@@ -1107,7 +1159,7 @@ func (s *dbShard) insertSeriesSync(
 		return entry, nil
 	}
 
-	entry, err = s.newShardEntry(id, tags)
+	entry, err = s.newShardEntry(id, tagsArgOpts)
 	if err != nil {
 		// should never happen
 		s.logger.WithFields(
@@ -1675,30 +1727,22 @@ func (s *dbShard) Bootstrap(
 		if entry == nil {
 			// Synchronously insert to avoid waiting for
 			// the insert queue potential delayed insert
-			// FOLLOWUP(r/prateek): Avoid having to pass tag iter
-			// to insertSeriesSync just because newShardEntry
-			// takes a tags iter instead of tags (which it will
-			// create from this tags iter which is created from
-			// tags).
-			tagsIter := s.identifierPool.TagsIterator()
-			tagsIter.Reset(dbBlocks.Tags)
-			entry, err = s.insertSeriesSync(dbBlocks.ID, tagsIter,
+			entry, err = s.insertSeriesSync(dbBlocks.ID, newTagsArg(dbBlocks.Tags),
 				insertSyncIncReaderWriterCount)
 			if err != nil {
 				multiErr = multiErr.Add(err)
 				continue
 			}
+		} else {
+			// No longer as we found the series and we don't require
+			// them for insertion
+			// FOLLOWUP(r): Audit places that keep refs to the ID from a
+			// bootstrap result, newShardEntry copies it but some of the
+			// bootstrapped blocks when using all_metadata and perhaps
+			// another series cache policy keeps refs to the ID with
+			// retrieveID, so for now these IDs will be garbage collected)
+			dbBlocks.Tags.Finalize()
 		}
-
-		// No longer require tags as we copy them in insert series sync
-		// or if we found the series then we don't require them for insertion
-		// at all
-		// FOLLOWUP(r): Audit places that keep refs to the ID from a
-		// bootstrap result, newShardEntry copies it but some of the
-		// bootstrapped blocks when using all_metadata and perhaps
-		// another series cache policy keeps refs to the ID with
-		// retrieveID, so for now these IDs will be garbage collected)
-		dbBlocks.Tags.Finalize()
 
 		// Cannot close blocks once done as series takes ref to these
 		bsResult, err := entry.Series.Bootstrap(dbBlocks.Blocks)
