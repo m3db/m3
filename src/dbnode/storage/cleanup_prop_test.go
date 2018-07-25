@@ -28,6 +28,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/m3db/m3db/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3db/src/dbnode/retention"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 
@@ -44,18 +45,43 @@ const (
 	commitLogTestMinSuccessfulTests       = 10000
 )
 
-func newPropTestCleanupMgr(ctrl *gomock.Controller, ropts retention.Options, ns ...databaseNamespace) *cleanupManager {
-	db := NewMockdatabase(ctrl)
-	opts := testDatabaseOptions()
+func newPropTestCleanupMgr(
+	ctrl *gomock.Controller, ropts retention.Options, t time.Time, ns ...databaseNamespace) *cleanupManager {
+	var (
+		blockSize          = ropts.BlockSize()
+		commitLogBlockSize = blockSize
+		db                 = NewMockdatabase(ctrl)
+		opts               = testDatabaseOptions()
+	)
 	opts = opts.SetCommitLogOptions(
 		opts.CommitLogOptions().
 			SetRetentionPeriod(ropts.RetentionPeriod()).
-			SetBlockSize(ropts.BlockSize()))
+			SetBlockSize(commitLogBlockSize))
+
 	db.EXPECT().Options().Return(opts).AnyTimes()
 	db.EXPECT().GetOwnedNamespaces().Return(ns, nil).AnyTimes()
 	scope := tally.NoopScope
-	cm := newCleanupManager(db, scope)
-	return cm.(*cleanupManager)
+	cmIface := newCleanupManager(db, scope)
+	cm := cmIface.(*cleanupManager)
+
+	var (
+		oldest    = retention.FlushTimeStart(ropts, t)
+		newest    = retention.FlushTimeEnd(ropts, t)
+		n         = numIntervals(oldest, newest, blockSize)
+		currStart = oldest
+	)
+	cm.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
+		files := make([]commitlog.File, 0, n)
+		for i := 0; i < n; i++ {
+			files = append(files, commitlog.File{
+				Start:    currStart,
+				Duration: blockSize,
+			})
+		}
+		return files, nil
+	}
+
+	return cm
 }
 
 func newCleanupMgrTestProperties() *gopter.Properties {
@@ -75,7 +101,7 @@ func TestPropertyCommitLogNotCleanedForUnflushedData(t *testing.T) {
 
 	properties.Property("Commit log is retained if one namespace needs to flush", prop.ForAll(
 		func(cleanupTime time.Time, cRopts retention.Options, ns *generatedNamespace) (bool, error) {
-			cm := newPropTestCleanupMgr(ctrl, cRopts, ns)
+			cm := newPropTestCleanupMgr(ctrl, cRopts, now, ns)
 			filesToCleanup, err := cm.commitLogTimes(cleanupTime)
 			if err != nil {
 				return false, err
@@ -112,7 +138,7 @@ func TestPropertyCommitLogNotCleanedForUnflushedDataMultipleNs(t *testing.T) {
 	properties.Property("Commit log is retained if any namespace needs to flush", prop.ForAll(
 		func(cleanupTime time.Time, cRopts retention.Options, nses []*generatedNamespace) (bool, error) {
 			dbNses := generatedNamespaces(nses).asDatabaseNamespace()
-			cm := newPropTestCleanupMgr(ctrl, cRopts, dbNses...)
+			cm := newPropTestCleanupMgr(ctrl, cRopts, now, dbNses...)
 			filesToCleanup, err := cm.commitLogTimes(cleanupTime)
 			if err != nil {
 				return false, err
