@@ -263,7 +263,13 @@ func generateDatapoints(start time.Time, numPoints int, ig *idGen) dataPointsInT
 				series: ig.base(),
 				time:   t,
 				value:  float64(i),
-			})
+			},
+			seriesDatapoint{
+				series: ig.nth(i),
+				time:   t,
+				value:  float64(i),
+			},
+		)
 	}
 	return points
 }
