@@ -266,6 +266,12 @@ type testOptions interface {
 
 	// FilePathPrefix returns the file path prefix.
 	FilePathPrefix() string
+
+	// SetMinimumSnapshotInterval sets the minimum interval between snapshots.
+	SetMinimumSnapshotInterval(value time.Duration) testOptions
+
+	// MinimumSnapshotInterval returns the minimum interval between snapshots
+	MinimumSnapshotInterval() time.Duration
 }
 
 type options struct {
@@ -293,6 +299,7 @@ type options struct {
 	writeConsistencyLevel              topology.ConsistencyLevel
 	numShards                          int
 	maxWiredBlocks                     uint
+	minimumSnapshotInterval            time.Duration
 	useTChannelClientForReading        bool
 	useTChannelClientForWriting        bool
 	useTChannelClientForTruncation     bool
@@ -613,4 +620,14 @@ func (o *options) SetFilePathPrefix(value string) testOptions {
 
 func (o *options) FilePathPrefix() string {
 	return o.filePathPrefix
+}
+
+func (o *options) SetMinimumSnapshotInterval(value time.Duration) testOptions {
+	opts := *o
+	opts.minimumSnapshotInterval = value
+	return &opts
+}
+
+func (o *options) MinimumSnapshotInterval() time.Duration {
+	return o.minimumSnapshotInterval
 }

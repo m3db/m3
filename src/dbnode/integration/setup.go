@@ -119,7 +119,8 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	}
 
 	storageOpts := storage.NewOptions().
-		SetNamespaceInitializer(nsInit)
+		SetNamespaceInitializer(nsInit).
+		SetMinimumSnapshotInterval(opts.MinimumSnapshotInterval())
 
 	fields := []xlog.Field{
 		xlog.NewField("cache-policy", storageOpts.SeriesCachePolicy().String()),

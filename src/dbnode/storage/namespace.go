@@ -1009,6 +1009,7 @@ func (n *dbNamespace) needsFlushWithLock(alignedInclusiveStart time.Time, aligne
 			continue
 		}
 		for _, blockStart := range blockStarts {
+
 			state := shard.FlushState(blockStart)
 			if state.Status == fileOpNotStarted {
 				return true

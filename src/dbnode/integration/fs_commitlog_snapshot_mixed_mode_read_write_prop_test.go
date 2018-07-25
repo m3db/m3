@@ -40,6 +40,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Really small block sizes make certain operations take too long
+// (I.E) with 50 hours of retention and a 10 second block size the
+// node will try to flush 10 * 6 * 60 * 50 files.
+const minBlockSize = 15 * time.Minute
 const maxBlockSize = 12 * time.Hour
 const maxPoints = 100
 const minSuccessfulTests = 8
@@ -91,8 +95,8 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 					bufferPast      = input.bufferPast
 					bufferFuture    = input.bufferFuture
 					ns1ROpts        = retention.NewOptions().
-							SetRetentionPeriod(retentionPeriod).
 							SetBlockSize(ns1BlockSize).
+							SetRetentionPeriod(retentionPeriod).
 							SetBufferPast(bufferPast).
 							SetBufferFuture(bufferFuture)
 					nsID      = testNamespaces[0]
@@ -120,9 +124,13 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 					return false, err
 				}
 				opts := newTestOptions(t).
-					SetCommitLogRetentionPeriod(retentionPeriod).
+					// Make sure commit logs never expire during the course of a test
+					SetCommitLogRetentionPeriod(maxBlockSize * 5).
 					SetCommitLogBlockSize(commitLogBlockSize).
-					SetNamespaces([]namespace.Metadata{ns1})
+					SetNamespaces([]namespace.Metadata{ns1}).
+					// Make sure that we're never waiting for a snapshot that doesn't occur
+					// because we haven't updated the clock.
+					SetMinimumSnapshotInterval(0)
 
 				// Test setup
 				setup := newTestSetupWithCommitLogAndFilesystemBootstrapper(t, opts)
@@ -210,7 +218,12 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 					if input.waitForSnapshotFiles {
 						log.Infof("Waiting for snapshot files to be written")
 						now := setup.getNowFn()
-						snapshotBlock := now.Add(-bufferPast).Truncate(ns1BlockSize)
+						var snapshotBlock time.Time
+						if now.Add(-bufferPast).Truncate(ns1BlockSize).Equal(now.Truncate(ns1BlockSize)) {
+							snapshotBlock = now.Truncate(ns1BlockSize)
+						} else {
+							snapshotBlock = now.Truncate(ns1BlockSize).Add(-ns1BlockSize)
+						}
 						err := waitUntilSnapshotFilesFlushed(
 							filePathPrefix,
 							setup.shardSet,
@@ -254,9 +267,9 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 
 func genPropTestInputs(blockStart time.Time) gopter.Gen {
 	return gopter.CombineGens(
-		gen.Int64Range(1, int64(maxBlockSize/2)*2),
-		gen.Int64Range(1, int64(maxBlockSize/2)*2),
-		gen.Int64Range(1, int64(maxBlockSize/2)*2),
+		gen.Int64Range(eventInt64(minBlockSize), eventInt64(maxBlockSize)),
+		gen.Int64Range(eventInt64(minBlockSize), eventInt64(maxBlockSize)),
+		gen.Int64Range(eventInt64(minBlockSize), eventInt64(maxBlockSize)),
 		gen.IntRange(1, maxPoints),
 		gen.Bool(),
 		gen.Bool(),
@@ -280,4 +293,8 @@ type propTestInput struct {
 	numPoints            int
 	waitForFlushFiles    bool
 	waitForSnapshotFiles bool
+}
+
+func evenInt64(v int64) int64 {
+	return (v / 2) * 2
 }

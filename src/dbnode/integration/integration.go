@@ -64,7 +64,7 @@ func waitUntil(fn conditionFn, timeout time.Duration) bool {
 		if fn() {
 			return true
 		}
-		time.Sleep(time.Second)
+		time.Sleep(100 * time.Millisecond)
 	}
 	return false
 }
