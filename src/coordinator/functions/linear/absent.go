@@ -26,33 +26,47 @@ import (
 	"github.com/m3db/m3db/src/coordinator/executor/transform"
 )
 
-// AbsType takes absolute value of each datapoint in the series
-const AbsType = "abs"
+// AbsentType returns an empty timeseries if the timeseries passed in has any elements,
+// and returns a timeseries with the value 1 if the timeseries passed in has no elements
+const AbsentType = "absent"
 
-// NewAbsOp creates a new base linear transform with an abs node
-func NewAbsOp() BaseOp {
+// NewAbsentOp creates a new base linear transform with an absent node
+func NewAbsentOp() BaseOp {
 	return BaseOp{
-		operatorType: AbsType,
-		processorFn:  newAbsNode,
+		operatorType: AbsentType,
+		processorFn:  newAbsentNode,
 	}
 }
 
-func newAbsNode(op BaseOp, controller *transform.Controller) Processor {
-	return &absNode{
+func newAbsentNode(op BaseOp, controller *transform.Controller) Processor {
+	return &absentNode{
 		op:         op,
 		controller: controller,
 	}
 }
 
-type absNode struct {
+type absentNode struct {
 	op         BaseOp
 	controller *transform.Controller
 }
 
-func (c *absNode) Process(values []float64) []float64 {
-	for i := range values {
-		values[i] = math.Abs(values[i])
+func (c *absentNode) Process(values []float64) []float64 {
+	num := 1.0
+	if !isNull(values) {
+		num = math.NaN()
 	}
 
+	for i := range values {
+		values[i] = num
+	}
 	return values
+}
+
+func isNull(vals []float64) bool {
+	for _, i := range vals {
+		if !math.IsNaN(i) {
+			return false
+		}
+	}
+	return true
 }
