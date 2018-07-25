@@ -107,6 +107,26 @@ func TestMappingRuleNotEqual(t *testing.T) {
 				policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
 			},
 		},
+		{
+			ID:            "mr",
+			Name:          "foo",
+			Filter:        "filter",
+			AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+			StoragePolicies: policy.StoragePolicies{
+				policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour),
+			},
+			DropPolicy: policy.DropMust,
+		},
+		{
+			ID:            "mr",
+			Name:          "foo",
+			Filter:        "filter",
+			AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+			StoragePolicies: policy.StoragePolicies{
+				policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour),
+			},
+			DropPolicy: policy.DropIfOnlyMatch,
+		},
 	}
 	for i := 0; i < len(rules); i++ {
 		for j := i + 1; j < len(rules); j++ {

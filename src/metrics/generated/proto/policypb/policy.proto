@@ -44,3 +44,9 @@ message Policy {
   StoragePolicy storage_policy = 1;
   repeated aggregationpb.AggregationType aggregation_types = 2;
 }
+
+enum DropPolicy {
+  NONE = 0;
+  DROP_MUST = 1;
+  DROP_IF_ONLY_MATCH = 2;
+}

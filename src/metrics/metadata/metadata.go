@@ -43,6 +43,21 @@ var (
 
 	// DefaultStagedMetadatas represents default staged metadatas.
 	DefaultStagedMetadatas = StagedMetadatas{DefaultStagedMetadata}
+
+	// DropPipelineMetadata is the drop policy pipeline metadata.
+	DropPipelineMetadata = PipelineMetadata{DropPolicy: policy.DropMust}
+
+	// DropPipelineMetadatas is the drop policy list of pipeline metadatas.
+	DropPipelineMetadatas = []PipelineMetadata{DropPipelineMetadata}
+
+	// DropMetadata is the drop policy metadata.
+	DropMetadata = Metadata{Pipelines: DropPipelineMetadatas}
+
+	// DropStagedMetadata is the drop policy staged metadata.
+	DropStagedMetadata = StagedMetadata{Metadata: DropMetadata}
+
+	// DropStagedMetadatas is the drop policy staged metadatas.
+	DropStagedMetadatas = StagedMetadatas{DropStagedMetadata}
 )
 
 // PipelineMetadata contains pipeline metadata.
@@ -55,20 +70,34 @@ type PipelineMetadata struct {
 
 	// Pipeline operations.
 	Pipeline applied.Pipeline `json:"-"` // NB: not needed for JSON marshaling for now.
+
+	// Drop policy.
+	DropPolicy policy.DropPolicy `json:"dropPolicy"`
 }
 
 // Equal returns true if two pipeline metadata are considered equal.
 func (m PipelineMetadata) Equal(other PipelineMetadata) bool {
 	return m.AggregationID.Equal(other.AggregationID) &&
 		m.StoragePolicies.Equal(other.StoragePolicies) &&
-		m.Pipeline.Equal(other.Pipeline)
+		m.Pipeline.Equal(other.Pipeline) &&
+		m.DropPolicy == other.DropPolicy
 }
 
 // IsDefault returns whether this is the default standard pipeline metadata.
 func (m PipelineMetadata) IsDefault() bool {
 	return m.AggregationID.IsDefault() &&
 		m.StoragePolicies.IsDefault() &&
-		m.Pipeline.IsEmpty()
+		m.Pipeline.IsEmpty() &&
+		m.DropPolicy.IsDefault()
+}
+
+// IsDropPolicyApplied returns whether this is the default standard pipeline
+// but with the drop policy applied.
+func (m PipelineMetadata) IsDropPolicyApplied() bool {
+	return m.AggregationID.IsDefault() &&
+		m.StoragePolicies.IsDefault() &&
+		m.Pipeline.IsEmpty() &&
+		!m.DropPolicy.IsDefault()
 }
 
 // Clone clones the pipeline metadata.
@@ -99,6 +128,7 @@ func (m PipelineMetadata) ToProto(pb *metricpb.PipelineMetadata) error {
 			return err
 		}
 	}
+	pb.DropPolicy = policypb.DropPolicy(m.DropPolicy)
 	return nil
 }
 
@@ -121,6 +151,7 @@ func (m *PipelineMetadata) FromProto(pb metricpb.PipelineMetadata) error {
 			return err
 		}
 	}
+	m.DropPolicy = policy.DropPolicy(pb.DropPolicy)
 	return nil
 }
 
@@ -149,6 +180,68 @@ func (metadatas PipelineMetadatas) Clone() PipelineMetadatas {
 	return cloned
 }
 
+// ApplyOrRemoveDropPoliciesResult is the result of applying or removing
+// the drop policies for pipelines.
+type ApplyOrRemoveDropPoliciesResult uint
+
+const (
+	// AppliedEffectiveDropPolicyResult is the result of applying the drop
+	// policy and returning just the single drop policy pipeline.
+	AppliedEffectiveDropPolicyResult ApplyOrRemoveDropPoliciesResult = iota
+	// RemovedIneffectiveDropPoliciesResult is the result of no drop policies
+	// being effective and returning the pipelines without any drop policies.
+	RemovedIneffectiveDropPoliciesResult
+)
+
+// ApplyOrRemoveDropPolicies applies or removes any drop policies, if
+// effective then just the drop pipeline is returned otherwise if not
+// effective it returns the drop policy pipelines that were not effective.
+func (metadatas PipelineMetadatas) ApplyOrRemoveDropPolicies() (
+	PipelineMetadatas,
+	ApplyOrRemoveDropPoliciesResult,
+) {
+	// Check drop policies
+	dropIfOnlyMatchPipelines := 0
+	nonDropPipelines := 0
+	for i := range metadatas {
+		switch metadatas[i].DropPolicy {
+		case policy.DropMust:
+			// Immediately return, result is a drop
+			return DropPipelineMetadatas, AppliedEffectiveDropPolicyResult
+		case policy.DropIfOnlyMatch:
+			dropIfOnlyMatchPipelines++
+			continue
+		}
+		nonDropPipelines++
+	}
+
+	if dropIfOnlyMatchPipelines == 0 {
+		// No drop if only match pipelines, no need to remove anything
+		return metadatas, RemovedIneffectiveDropPoliciesResult
+	}
+
+	if nonDropPipelines == 0 {
+		// Drop is effective as no other non drop pipelines, result is a drop
+		return DropPipelineMetadatas, AppliedEffectiveDropPolicyResult
+	}
+
+	// Remove all non-default drop policies as they must not be effective
+	result := metadatas
+	for i := len(result) - 1; i >= 0; i-- {
+		if !result[i].DropPolicy.IsDefault() {
+			// Remove by moving to tail and decrementing length so we can do in
+			// place to avoid allocations of a new slice
+			if lastElem := i == len(result)-1; lastElem {
+				result = result[0:i]
+			} else {
+				result = append(result[0:i], result[i+1:]...)
+			}
+		}
+	}
+
+	return result, RemovedIneffectiveDropPoliciesResult
+}
+
 // Metadata represents the metadata associated with a metric.
 type Metadata struct {
 	Pipelines PipelineMetadatas `json:"pipelines"`
@@ -157,6 +250,12 @@ type Metadata struct {
 // IsDefault returns whether this is the default metadata.
 func (m Metadata) IsDefault() bool {
 	return len(m.Pipelines) == 1 && m.Pipelines[0].IsDefault()
+}
+
+// IsDropPolicyApplied returns whether this is the default metadata
+// but with the drop policy applied.
+func (m Metadata) IsDropPolicyApplied() bool {
+	return len(m.Pipelines) == 1 && m.Pipelines[0].IsDropPolicyApplied()
 }
 
 // ToProto converts the metadata to a protobuf message in place.
@@ -257,6 +356,12 @@ func (sm StagedMetadata) IsDefault() bool {
 	return sm.CutoverNanos == 0 && !sm.Tombstoned && sm.Metadata.IsDefault()
 }
 
+// IsDropPolicyApplied returns whether this is the default staged metadata
+// but with the drop policy applied.
+func (sm StagedMetadata) IsDropPolicyApplied() bool {
+	return !sm.Tombstoned && sm.Metadata.IsDropPolicyApplied()
+}
+
 // ToProto converts the staged metadata to a protobuf message in place.
 func (sm StagedMetadata) ToProto(pb *metricpb.StagedMetadata) error {
 	if err := sm.Metadata.ToProto(&pb.Metadata); err != nil {
@@ -283,6 +388,12 @@ type StagedMetadatas []StagedMetadata
 // IsDefault determines whether the list of staged metadata is a default list.
 func (sms StagedMetadatas) IsDefault() bool {
 	return len(sms) == 1 && sms[0].IsDefault()
+}
+
+// IsDropPolicyApplied returns whether the list of staged metadata is the
+// default list but with the drop policy applied.
+func (sms StagedMetadatas) IsDropPolicyApplied() bool {
+	return len(sms) == 1 && sms[0].IsDropPolicyApplied()
 }
 
 // ToProto converts the staged metadatas to a protobuf message in place.

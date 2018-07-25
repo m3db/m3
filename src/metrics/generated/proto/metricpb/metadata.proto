@@ -33,6 +33,7 @@ message PipelineMetadata {
   aggregationpb.AggregationID aggregation_id = 1 [(gogoproto.nullable) = false];
   repeated policypb.StoragePolicy storage_policies = 2 [(gogoproto.nullable) = false];
   pipelinepb.AppliedPipeline pipeline = 3 [(gogoproto.nullable) = false];
+  policypb.DropPolicy drop_policy = 4;
 }
 
 message Metadata {

@@ -34,6 +34,7 @@ type MappingRule struct {
 	Filter              string                 `json:"filter" validate:"required"`
 	AggregationID       aggregation.ID         `json:"aggregation"`
 	StoragePolicies     policy.StoragePolicies `json:"storagePolicies"`
+	DropPolicy          policy.DropPolicy      `json:"dropPolicy"`
 	LastUpdatedBy       string                 `json:"lastUpdatedBy"`
 	LastUpdatedAtMillis int64                  `json:"lastUpdatedAtMillis"`
 }
@@ -50,7 +51,8 @@ func (m *MappingRule) Equal(other *MappingRule) bool {
 		m.Name == other.Name &&
 		m.Filter == other.Filter &&
 		m.AggregationID.Equal(other.AggregationID) &&
-		m.StoragePolicies.Equal(other.StoragePolicies)
+		m.StoragePolicies.Equal(other.StoragePolicies) &&
+		m.DropPolicy == other.DropPolicy
 }
 
 // MappingRules belonging to a ruleset indexed by uuid.
