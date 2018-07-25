@@ -267,9 +267,9 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 
 func genPropTestInputs(blockStart time.Time) gopter.Gen {
 	return gopter.CombineGens(
-		gen.Int64Range(eventInt64(minBlockSize), eventInt64(maxBlockSize)),
-		gen.Int64Range(eventInt64(minBlockSize), eventInt64(maxBlockSize)),
-		gen.Int64Range(eventInt64(minBlockSize), eventInt64(maxBlockSize)),
+		gen.Int64Range(evenInt64(minBlockSize), evenInt64(maxBlockSize)),
+		gen.Int64Range(evenInt64(minBlockSize), evenInt64(maxBlockSize)),
+		gen.Int64Range(evenInt64(minBlockSize), evenInt64(maxBlockSize)),
 		gen.IntRange(1, maxPoints),
 		gen.Bool(),
 		gen.Bool(),
