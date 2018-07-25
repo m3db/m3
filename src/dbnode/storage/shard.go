@@ -105,6 +105,9 @@ const (
 	tagsArg
 )
 
+// tagsArgOptions is a union type that allows
+// callers to pass either an ident.TagIterator or
+// ident.Tags based on what access they have to
 type tagsArgOptions struct {
 	arg      tagsArgType
 	tagsIter ident.TagIterator
@@ -995,21 +998,23 @@ func (s *dbShard) newShardEntry(
 	// finalized.
 	// Since series are purged so infrequently the overhead of not releasing
 	// back an ID to a pool is amortized over a long period of time.
-	var newID ident.BytesID
+	var (
+		seriesID   ident.BytesID
+		seriesTags ident.Tags
+		err        error
+	)
 	if id.IsNoFinalize() {
 		// If the ID is already marked as NoFinalize, meaning it won't be returned
 		// to any pools, then we can directly take reference to it.
 		// We make sure to use ident.BytesID for this ID to avoid inc/decref when
-		newID = ident.BytesID(id.Bytes())
+		// accessing the ID since it's not pooled and therefore the safety is not
+		// required.
+		seriesID = ident.BytesID(id.Bytes())
 	} else {
-		newID = ident.BytesID(append([]byte(nil), id.Bytes()...))
-		newID.NoFinalize()
+		seriesID = ident.BytesID(append([]byte(nil), id.Bytes()...))
+		seriesID.NoFinalize()
 	}
 
-	var (
-		tags ident.Tags
-		err  error
-	)
 	switch tagsArgOpts.arg {
 	case tagsIterArg:
 		tagsIter := tagsArgOpts.tagsIter
@@ -1018,19 +1023,19 @@ func (s *dbShard) newShardEntry(
 		if tagsIter.CurrentIndex() != 0 {
 			return nil, errNewShardEntryTagsIterNotAtIndexZero
 		}
-		tags, err = convert.TagsFromTagsIter(
-			newID, tagsIter, s.identifierPool)
+		seriesTags, err = convert.TagsFromTagsIter(
+			seriesID, tagsIter, s.identifierPool)
 		tagsIter.Close()
 		if err != nil {
 			return nil, err
 		}
 
-		if err := convert.ValidateMetric(newID, tags); err != nil {
+		if err := convert.ValidateMetric(seriesID, seriesTags); err != nil {
 			return nil, err
 		}
 
 	case tagsArg:
-		tags = tagsArgOpts.tags
+		seriesTags = tagsArgOpts.tags
 
 	default:
 		return nil, errNewShardEntryTagsTypeInvalid
@@ -1038,7 +1043,7 @@ func (s *dbShard) newShardEntry(
 	}
 
 	series := s.seriesPool.Get()
-	series.Reset(newID, tags, s.seriesBlockRetriever,
+	series.Reset(seriesID, seriesTags, s.seriesBlockRetriever,
 		s.seriesOnRetrieveBlock, s, s.seriesOpts)
 	uniqueIndex := s.increasingIndex.nextIndex()
 	return lookup.NewEntry(series, uniqueIndex), nil
@@ -1734,8 +1739,8 @@ func (s *dbShard) Bootstrap(
 				continue
 			}
 		} else {
-			// No longer as we found the series and we don't require
-			// them for insertion
+			// No longer needed as we found the series and we don't require
+			// them for insertion.
 			// FOLLOWUP(r): Audit places that keep refs to the ID from a
 			// bootstrap result, newShardEntry copies it but some of the
 			// bootstrapped blocks when using all_metadata and perhaps

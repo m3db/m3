@@ -43,6 +43,7 @@ import (
 	"github.com/m3db/m3db/src/dbnode/storage/block"
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3db/src/dbnode/storage/index"
+	idxconvert "github.com/m3db/m3db/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	"github.com/m3db/m3db/src/dbnode/topology"
 	"github.com/m3db/m3db/src/dbnode/ts"
@@ -3905,42 +3906,9 @@ func newTagsFromEncodedTags(
 	encodedTags.IncRef()
 	tagDecoder.Reset(encodedTags)
 
-	seriesIDBytes := ident.BytesID(seriesID.Bytes())
-
-	tags := idPool.Tags()
-	for tagDecoder.Next() {
-		curr := tagDecoder.Current()
-
-		var (
-			nameBytes, valueBytes = curr.Name.Bytes(), curr.Value.Bytes()
-			tag                   ident.Tag
-			idRef                 bool
-		)
-		if idx := bytes.Index(seriesIDBytes, nameBytes); idx != -1 {
-			tag.Name = seriesIDBytes[idx : idx+len(nameBytes)]
-			idRef = true
-		} else {
-			tag.Name = idPool.Clone(curr.Name)
-		}
-		if idx := bytes.Index(seriesIDBytes, valueBytes); idx != -1 {
-			tag.Value = seriesIDBytes[idx : idx+len(valueBytes)]
-			idRef = true
-		} else {
-			tag.Value = idPool.Clone(curr.Value)
-		}
-
-		if idRef {
-			tag.NoFinalize() // Taken ref, cannot finalize this
-		}
-
-		tags.Append(tag)
-	}
+	tags, err := idxconvert.TagsFromTagsIter(seriesID, tagDecoder, idPool)
 
 	encodedTags.DecRef()
 
-	if err := tagDecoder.Err(); err != nil {
-		return ident.Tags{}, err
-	}
-
-	return tags, nil
+	return tags, err
 }

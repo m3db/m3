@@ -706,7 +706,7 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 		id = entry.ID
 		tags = entry.Tags
 	} else {
-		tags, err = s.tagsFromTagsIter(id, tagsIter)
+		tags, err = convert.TagsFromTagsIter(id, tagsIter, s.idPool)
 		if err != nil {
 			return fmt.Errorf("unable to decode tags: %v", err)
 		}
