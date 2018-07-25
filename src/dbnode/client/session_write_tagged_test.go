@@ -536,7 +536,9 @@ type erroredTagIter struct{}
 
 func (e *erroredTagIter) Next() bool                   { return false }
 func (e *erroredTagIter) Current() ident.Tag           { return ident.Tag{} }
+func (e *erroredTagIter) CurrentIndex() int            { return 0 }
 func (e *erroredTagIter) Err() error                   { return fmt.Errorf("err") }
 func (e *erroredTagIter) Close()                       {}
+func (e *erroredTagIter) Len() int                     { return 0 }
 func (e *erroredTagIter) Remaining() int               { return 0 }
 func (e *erroredTagIter) Duplicate() ident.TagIterator { return e }

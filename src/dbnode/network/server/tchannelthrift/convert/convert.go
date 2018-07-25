@@ -323,6 +323,13 @@ func (w *writeTaggedIter) Current() ident.Tag {
 	return w.currentTag
 }
 
+func (w *writeTaggedIter) CurrentIndex() int {
+	if w.currentIdx >= 0 {
+		return w.currentIdx
+	}
+	return 0
+}
+
 func (w *writeTaggedIter) Err() error {
 	return nil
 }
@@ -330,6 +337,10 @@ func (w *writeTaggedIter) Err() error {
 func (w *writeTaggedIter) Close() {
 	w.release()
 	w.currentIdx = -1
+}
+
+func (w *writeTaggedIter) Len() int {
+	return len(w.rawRequest.Tags)
 }
 
 func (w *writeTaggedIter) Remaining() int {

@@ -636,8 +636,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 			shouldDecodeTags = true
 		)
 		if allSeriesSoFar != nil {
-			existing, ok := allSeriesSoFar.Get(id)
-			if ok {
+			if existing, ok := allSeriesSoFar.Get(id); ok {
 				// If we've already bootstrapped this series for a different block, we don't need
 				// another copy of the IDs and tags.
 				id.Finalize()
@@ -656,13 +655,9 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 				}
 			}
 		}
+
 		// Always close even if we didn't use it.
 		tagsIter.Close()
-
-		if shardResult == nil {
-			// Delay initialization so we can estimate size.
-			shardResult = result.NewShardResult(reader.Entries(), s.opts.ResultOptions())
-		}
 
 		// Mark the ID and Tags as no finalize to enable no-copy optimization later
 		// in the bootstrap process (when they're being loaded into the shard). Also,
@@ -671,6 +666,11 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		// operation and there is no concurrency here.
 		id.NoFinalize()
 		tags.NoFinalize()
+
+		if shardResult == nil {
+			// Delay initialization so we can estimate size.
+			shardResult = result.NewShardResult(reader.Entries(), s.opts.ResultOptions())
+		}
 		shardResult.AddBlock(id, tags, dbBlock)
 	}
 
