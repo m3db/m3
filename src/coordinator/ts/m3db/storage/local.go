@@ -24,14 +24,13 @@ import (
 	"context"
 	"io"
 
-	"github.com/m3db/m3x/ident"
-
 	"github.com/m3db/m3db/src/coordinator/storage"
 	"github.com/m3db/m3db/src/coordinator/storage/local"
 	m3block "github.com/m3db/m3db/src/coordinator/ts/m3db"
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3db/src/dbnode/storage/index"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 )
 

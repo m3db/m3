@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3db/src/coordinator/storage"
 	"github.com/m3db/m3db/src/coordinator/storage/local"
 	"github.com/m3db/m3db/src/coordinator/test"
-	"github.com/m3db/m3db/src/coordinator/test/seriesiter"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 	"github.com/m3db/m3db/src/dbnode/client"
 	"github.com/m3db/m3db/src/dbnode/encoding"
@@ -98,19 +97,14 @@ func TestLocalRead(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	store, sessions := setup(t, ctrl)
-	testTags := seriesiter.GenerateTag()
 	iter, err := test.BuildTestSeriesIterator()
 	require.NoError(t, err)
 	iterators := encoding.NewSeriesIterators([]encoding.SeriesIterator{iter}, nil)
 	sessions.unaggregated1MonthRetention.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(iterators, true, nil)
-
 	searchReq := newFetchReq()
 	results, err := store.fetchBlocks(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
 	assert.NoError(t, err)
-	tags := make(models.Tags, 1)
-	tags[testTags.Name.String()] = testTags.Value.String()
-	require.NotNil(t, results)
 
 	for id, seriesBlocks := range results {
 		assert.Equal(t, "id", id.String())
@@ -119,6 +113,7 @@ func TestLocalRead(t *testing.T) {
 			blockTags, err := storage.FromIdentTagIteratorToTags(blocks.Tags)
 			require.NoError(t, err)
 			assert.Equal(t, "bar", blockTags["foo"])
+			assert.Equal(t, "qux", blockTags["baz"])
 		}
 	}
 }
