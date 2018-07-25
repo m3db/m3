@@ -308,10 +308,6 @@ func (m *cleanupManager) commitLogTimes(t time.Time) ([]commitlog.File, error) {
 
 	var outerErr error
 	filesToCleanup := filterCommitLogFiles(files, func(start time.Time, duration time.Duration) bool {
-		if outerErr != nil {
-			return false
-		}
-
 		if start.Before(earliest) {
 			// Safe to clean up expired files.
 			// TODO(rartoul): Now that we have commit log compaction via snapshot files we would like

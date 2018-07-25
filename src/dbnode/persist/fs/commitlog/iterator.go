@@ -23,7 +23,6 @@ package commitlog
 import (
 	"errors"
 	"io"
-	"time"
 
 	"github.com/m3db/m3db/src/dbnode/ts"
 	xlog "github.com/m3db/m3x/log"
@@ -66,7 +65,7 @@ type iteratorRead struct {
 // ReadAllPredicate can be passed as the ReadCommitLogPredicate for callers
 // that want a convenient way to read all the commitlogs
 func ReadAllPredicate() FileFilterPredicate {
-	return func(_ string, _ time.Time, _ time.Duration) bool { return true }
+	return func(_ File) bool { return true }
 }
 
 // NewIterator creates a new commit log iterator
@@ -193,9 +192,9 @@ func (i *iterator) nextReader() bool {
 
 func filterFiles(opts Options, files []File, predicate FileFilterPredicate) []File {
 	filteredFiles := make([]File, 0, len(files))
-	for _, file := range files {
-		if predicate(file.FilePath, file.Start, file.Duration) {
-			filteredFiles = append(filteredFiles, file)
+	for _, f := range files {
+		if predicate(f) {
+			filteredFiles = append(filteredFiles, f)
 		}
 	}
 	return filteredFiles

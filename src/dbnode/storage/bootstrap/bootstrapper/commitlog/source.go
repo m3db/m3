@@ -682,7 +682,7 @@ func (s *commitLogSource) newReadCommitLogPredBasedOnAvailableSnapshotFiles(
 	shardsTimeRanges result.ShardTimeRanges,
 	snapshotFilesByShard map[uint32]fs.FileSetFilesSlice,
 ) (
-	func(fileName string, fileStart time.Time, fileBlockSize time.Duration) bool,
+	func(f commitlog.File) bool,
 	map[xtime.UnixNano]map[uint32]fs.FileSetFile,
 	error,
 ) {
@@ -739,7 +739,7 @@ func (s *commitLogSource) newReadCommitLogPredBasedOnAvailableSnapshotFiles(
 func (s *commitLogSource) newReadCommitLogPred(
 	ns namespace.Metadata,
 	minimumMostRecentSnapshotTimeByBlock map[xtime.UnixNano]time.Time,
-) func(fileName string, fileStart time.Time, fileBlockSize time.Duration) bool {
+) func(f commitlog.File) bool {
 	var (
 		rOpts                            = ns.Options().RetentionOptions()
 		blockSize                        = rOpts.BlockSize()
@@ -781,8 +781,8 @@ func (s *commitLogSource) newReadCommitLogPred(
 	// we need to read, but we can still skip datapoints from the commitlog itself that belong to a shard
 	// that has a snapshot more recent than the global minimum. If we use an array for fast-access this could
 	// be a small win in terms of memory utilization.
-	return func(fileName string, fileStart time.Time, fileBlockSize time.Duration) bool {
-		_, ok := commitlogFilesPresentBeforeStart[fileName]
+	return func(f commitlog.File) bool {
+		_, ok := commitlogFilesPresentBeforeStart[f.FilePath]
 		if !ok {
 			// If the file wasn't on disk before the node started then it only contains
 			// writes that are already in memory (and in-fact the file may be actively
@@ -792,15 +792,15 @@ func (s *commitLogSource) newReadCommitLogPred(
 
 		for _, rangeToCheck := range rangesToCheck {
 			commitLogEntryRange := xtime.Range{
-				Start: fileStart,
-				End:   fileStart.Add(fileBlockSize),
+				Start: f.Start,
+				End:   f.Start.Add(f.Duration),
 			}
 
 			if commitLogEntryRange.Overlaps(rangeToCheck) {
 				s.log.
 					Infof(
 						"opting to read commit log: %s with start: %s and duration: %s",
-						fileName, fileStart.String(), fileBlockSize.String())
+						f.FilePath, f.Start.String(), f.Duration.String())
 				return true
 			}
 		}
@@ -808,7 +808,7 @@ func (s *commitLogSource) newReadCommitLogPred(
 		s.log.
 			Infof(
 				"opting to skip commit log: %s with start: %s and duration: %s",
-				fileName, fileStart.String(), fileBlockSize.String())
+				f.FilePath, f.Start.String(), f.Duration.String())
 		return false
 	}
 }

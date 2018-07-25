@@ -43,11 +43,13 @@ import (
 // Really small block sizes make certain operations take too long
 // (I.E) with 50 hours of retention and a 10 second block size the
 // node will try to flush 10 * 6 * 60 * 50 files.
-const minBlockSize = 15 * time.Minute
-const maxBlockSize = 12 * time.Hour
-const maxPoints = 100
-const minSuccessfulTests = 8
-const maxFlushWaitTime = time.Minute
+const (
+	minBlockSize       = 15 * time.Minute
+	maxBlockSize       = 12 * time.Hour
+	maxPoints          = 100
+	minSuccessfulTests = 8
+	maxFlushWaitTime   = time.Minute
+)
 
 // This integration test uses property testing to make sure that the node
 // can properly bootstrap all the data from a combination of fileset files,
