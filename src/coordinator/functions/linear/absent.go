@@ -26,7 +26,7 @@ import (
 	"github.com/m3db/m3db/src/coordinator/executor/transform"
 )
 
-// AbsentType returns an empty timeseries if the timeseries passed in has any elements,
+// AbsentType returns a timeseries with all NaNs if the timeseries passed in has any non NaNs,
 // and returns a timeseries with the value 1 if the timeseries passed in has no elements
 const AbsentType = "absent"
 
@@ -52,7 +52,7 @@ type absentNode struct {
 
 func (c *absentNode) Process(values []float64) []float64 {
 	num := 1.0
-	if !isNull(values) {
+	if !allNaNs(values) {
 		num = math.NaN()
 	}
 
@@ -62,7 +62,7 @@ func (c *absentNode) Process(values []float64) []float64 {
 	return values
 }
 
-func isNull(vals []float64) bool {
+func allNaNs(vals []float64) bool {
 	for _, i := range vals {
 		if !math.IsNaN(i) {
 			return false

@@ -85,6 +85,8 @@ func NewFunctionExpr(name string, argValues []interface{}) (parser.Params, error
 	switch name {
 	case linear.AbsType:
 		return linear.NewAbsOp(), nil
+	case linear.AbsentType:
+		return linear.NewAbsentOp(), nil
 	case linear.ClampMinType:
 		return linear.NewClampOp(argValues, linear.ClampMinType)
 	case linear.ClampMaxType:
