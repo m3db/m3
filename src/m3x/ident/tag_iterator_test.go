@@ -87,8 +87,13 @@ func testTagIteratorValues(
 	expected map[string]string,
 	iter TagIterator,
 ) {
+	require.Equal(t, 0, iter.CurrentIndex())
+	require.Equal(t, len(expected), iter.Len())
 	require.Equal(t, len(expected), iter.Remaining())
+	i := 0
 	for iter.Next() {
+		require.Equal(t, i, iter.CurrentIndex())
+		i++
 		c := iter.Current()
 		if c.Value.String() == expected[c.Name.String()] {
 			delete(expected, c.Name.String())
@@ -108,8 +113,13 @@ func TestTagIterator(t *testing.T) {
 	iter := NewTagsIterator(NewTags(
 		StringTag("hello", "there"), StringTag("foo", "bar"),
 	))
+	require.Equal(t, 0, iter.CurrentIndex())
+	require.Equal(t, len(expected), iter.Len())
 	require.Equal(t, len(expected), iter.Remaining())
+	i := 0
 	for iter.Next() {
+		require.Equal(t, i, iter.CurrentIndex())
+		i++
 		c := iter.Current()
 		if c.Value.String() == expected[c.Name.String()] {
 			delete(expected, c.Name.String())
@@ -131,8 +141,13 @@ func TestTagIteratorDuplicate(t *testing.T) {
 	))
 	clone := iter.Duplicate()
 	expectedLen := len(expected)
+	require.Equal(t, 0, iter.CurrentIndex())
+	require.Equal(t, len(expected), iter.Len())
 	require.Equal(t, expectedLen, iter.Remaining())
+	i := 0
 	for iter.Next() {
+		require.Equal(t, i, iter.CurrentIndex())
+		i++
 		c := iter.Current()
 		if c.Value.String() == expected[c.Name.String()] {
 			delete(expected, c.Name.String())
@@ -150,19 +165,25 @@ func TestTagIteratorDuplicateFromPool(t *testing.T) {
 		"foo": "bar",
 		"baz": "buz",
 	}
-	iter := newTestSimplePool().TagsIterator()
-	iter.Reset(NewTags(
+	initialValues := []Tag{
 		StringTag("hello", "there"),
 		StringTag("foo", "bar"),
 		StringTag("baz", "buz"),
-	))
+	}
+	iter := newTestSimplePool().TagsIterator()
+	iter.Reset(NewTags(initialValues...))
 	// First proceed by one
 	require.True(t, iter.Next())
 	// Now duplicate and test equal
 	clone := iter.Duplicate()
 	expectedLen := len(expected)
+	require.Equal(t, 0, iter.CurrentIndex())
+	require.Equal(t, len(initialValues), iter.Len())
 	require.Equal(t, expectedLen, iter.Remaining())
+	i := 1 // Start at index one as we've already progressed by one
 	for iter.Next() {
+		require.Equal(t, i, iter.CurrentIndex())
+		i++
 		c := iter.Current()
 		if c.Value.String() == expected[c.Name.String()] {
 			delete(expected, c.Name.String())
