@@ -100,6 +100,7 @@ const (
 type tagsArgType uint
 
 const (
+	// nolint: varcheck, unused
 	tagsInvalidArg tagsArgType = iota
 	tagsIterArg
 	tagsArg
