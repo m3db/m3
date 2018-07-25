@@ -1,5 +1,5 @@
-hash: 96c0ee7e20b860f486c8af4208cf953e8b3b4ec996c484c85c4683bd41834c54
-updated: 2018-07-12T12:54:43.803188-04:00
+hash: fa2a416219edee84a66219c434cc3f437cf3fcc16f509d94487799b40ef4c745
+updated: 2018-07-25T13:07:14.221024-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -211,7 +211,7 @@ imports:
   - transformation
   - x/bytes
 - name: github.com/m3db/m3msg
-  version: e42382613b42e19e825289c3f8ef5f7335e0c5d2
+  version: 4680d9b45286826f87b134a4559b11d795786eaf
   subpackages:
   - generated/proto/msgpb
   - generated/proto/topicpb
@@ -304,7 +304,7 @@ imports:
 - name: github.com/uber-go/atomic
   version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
 - name: github.com/uber-go/tally
-  version: 79f2a33b0e55b1255ffbbaf824dcafb09ff34dda
+  version: ff17f3c43c065c3c2991f571e740eee43ea3a14a
   subpackages:
   - m3
   - m3/customtransports
