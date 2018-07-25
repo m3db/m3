@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package m3db
+package block
 
 import (
 	"time"
@@ -44,65 +44,6 @@ type SeriesBlocks struct {
 	Blocks    []SeriesBlock
 }
 
-// MultiNamespaceSeries is a single timeseries for multiple namespaces
-type MultiNamespaceSeries []SeriesBlocks
-
-// ID enforces the same ID across namespaces
-func (n MultiNamespaceSeries) ID() ident.ID { return n[0].ID }
-
-// ConsolidatedNSBlock is a single block for a given timeseries and namespace
-// which contains all of the necessary SeriesIterators so that consolidation can
-// happen across namespaces
-type ConsolidatedNSBlock struct {
-	ID              ident.ID
-	Namespace       ident.ID
-	Start           time.Time
-	End             time.Time
-	SeriesIterators encoding.SeriesIterators
-}
-
-func (c ConsolidatedNSBlock) beyondBounds(consolidatedSeriesBlock ConsolidatedSeriesBlock) bool {
-	if c.Start != consolidatedSeriesBlock.Start || c.End != consolidatedSeriesBlock.End {
-		return false
-	}
-	return true
-}
-
-// ConsolidatedSeriesBlock is a single series consolidated across different namespaces
-// for a single block
-type ConsolidatedSeriesBlock struct {
-	Start                time.Time
-	End                  time.Time
-	ConsolidatedNSBlocks []ConsolidatedNSBlock
-	consolidationFunc    ConsolidationFunc // nolint
-}
-
-func (c ConsolidatedSeriesBlock) beyondBounds(multiSeriesBlock MultiSeriesBlock) bool {
-	if c.Start != multiSeriesBlock.Start || c.End != multiSeriesBlock.End {
-		return false
-	}
-	return true
-}
-
-// ConsolidationFunc determines how to consolidate across namespaces
-type ConsolidationFunc func(existing, toAdd float64, count int) float64
-
-// ConsolidatedSeriesBlocks contain all of the consolidated blocks for
-// a single timeseries across namespaces.
-// Each ConsolidatedBlockIterator will have the same size
-type ConsolidatedSeriesBlocks []ConsolidatedSeriesBlock
-
-// MultiSeriesBlock represents a vertically oriented block
-type MultiSeriesBlock struct {
-	Start  time.Time
-	End    time.Time
-	Blocks ConsolidatedSeriesBlocks
-}
-
-// MultiSeriesBlocks is a slice of MultiSeriesBlock
-// todo(braskin): add close method on this to close each SeriesIterator
-type MultiSeriesBlocks []MultiSeriesBlock
-
 // Close closes the series iterator in a SeriesBlock
 func (s SeriesBlock) Close() {
 	s.seriesIterator.Close()
@@ -118,4 +59,15 @@ func (s SeriesBlocks) Close() {
 	s.Tags.Close()
 	s.Namespace.Finalize()
 	s.ID.Finalize()
+}
+
+// MultiNamespaceSeries is a single timeseries for multiple namespaces
+type MultiNamespaceSeries []SeriesBlocks
+
+// ID enforces the same ID across namespaces
+func (n MultiNamespaceSeries) ID() ident.ID {
+	if len(n) > 0 {
+		return n[0].ID
+	}
+	return ident.StringID("")
 }

@@ -30,10 +30,12 @@ import (
 
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/storage"
+	"github.com/m3db/m3db/src/coordinator/test"
 	"github.com/m3db/m3db/src/coordinator/test/seriesiter"
 	"github.com/m3db/m3db/src/coordinator/ts"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 	"github.com/m3db/m3db/src/dbnode/client"
+	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
@@ -221,6 +223,34 @@ func TestLocalRead(t *testing.T) {
 	require.Len(t, results.SeriesList, 1)
 	require.NotNil(t, results.SeriesList[0])
 	assert.Equal(t, tags, results.SeriesList[0].Tags)
+}
+
+func TestLocalFetchBlocks(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	store, sessions := setup(t, ctrl)
+
+	iterOne, err := test.BuildTestSeriesIterator()
+	require.NoError(t, err)
+	iterTwo, err := test.BuildTestSeriesIterator()
+	require.NoError(t, err)
+	iterators := encoding.NewSeriesIterators([]encoding.SeriesIterator{iterOne, iterTwo}, nil)
+
+	sessions.forEach(func(session *client.MockSession) {
+		session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(iterators, true, nil)
+	})
+	searchReq := newFetchReq()
+	results, err := store.FetchBlocks(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
+	assert.NoError(t, err)
+	require.NotNil(t, results)
+	require.Len(t, results.Blocks, 2)
+
+	stepIterOne, err := results.Blocks[0].StepIter()
+	require.NoError(t, err)
+	require.Equal(t, models.Tags{"foo": "bar", "baz": "qux"}, stepIterOne.Meta().Tags)
+
+	stepIterTwo, err := results.Blocks[1].StepIter()
+	require.NoError(t, err)
+	require.Equal(t, models.Tags{"foo": "bar", "baz": "qux"}, stepIterTwo.Meta().Tags)
 }
 
 func TestLocalReadNoClustersForTimeRangeError(t *testing.T) {

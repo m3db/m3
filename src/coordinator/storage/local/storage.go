@@ -24,6 +24,7 @@ import (
 	"context"
 	goerrors "errors"
 	"fmt"
+	"io"
 	"sync"
 	"time"
 
@@ -31,7 +32,10 @@ import (
 	"github.com/m3db/m3db/src/coordinator/errors"
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/storage"
+	m3block "github.com/m3db/m3db/src/coordinator/ts/m3db/block"
 	"github.com/m3db/m3db/src/coordinator/util/execution"
+	"github.com/m3db/m3db/src/dbnode/encoding"
+	"github.com/m3db/m3db/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3db/src/dbnode/storage/index"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
@@ -46,6 +50,18 @@ var (
 type localStorage struct {
 	clusters   Clusters
 	workerPool pool.ObjectPool
+}
+
+var (
+	iterAlloc encoding.ReaderIteratorAllocate
+
+	emptyBlock = block.Result{}
+)
+
+func init() {
+	iterAlloc = func(r io.Reader) encoding.ReaderIterator {
+		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
+	}
 }
 
 // NewStorage creates a new local Storage instance.
@@ -247,18 +263,58 @@ func (s *localStorage) Type() storage.Type {
 	return storage.TypeLocalDC
 }
 
+// nolint: unparam
+func (s *localStorage) fetchRaw(
+	namespace ClusterNamespace,
+	query index.Query,
+	opts index.QueryOptions,
+) (encoding.SeriesIterators, bool, error) {
+	namespaceID := namespace.NamespaceID()
+	session := namespace.Session()
+	return session.FetchTagged(namespaceID, query, opts)
+}
+
+// todo(braskin): merge this with Fetch()
 func (s *localStorage) FetchBlocks(
 	ctx context.Context,
 	query *storage.FetchQuery,
-	options *storage.FetchOptions) (block.Result, error) {
-	fetchResult, err := s.Fetch(ctx, query, options)
+	options *storage.FetchOptions,
+) (block.Result, error) {
+	m3query, err := storage.FetchQueryToM3Query(query)
 	if err != nil {
-		return block.Result{}, err
+		return emptyBlock, err
 	}
 
-	res, err := storage.FetchResultToBlockResult(fetchResult, query)
+	opts := storage.FetchOptionsToM3Options(options, query)
+
+	// todo(braskin): figure out how to deal with multiple namespaces
+	namespaces := s.clusters.ClusterNamespaces()
+	// todo(braskin): figure out what to do with second return argument
+	seriesIters, _, err := s.fetchRaw(namespaces[0], m3query, opts)
 	if err != nil {
-		return block.Result{}, err
+		return emptyBlock, err
+	}
+
+	seriesBlockList, err := m3block.IteratorsToSeriesBlocks(seriesIters, iterAlloc)
+	if err != nil {
+		return emptyBlock, err
+	}
+
+	// NB/todo(braskin): because we are only support querying one namespace now, we can just create
+	// a multiNamespaceSeriesList with one element. However, once we support querying multiple namespaces,
+	// we will need to append each namespace seriesBlockList to the multiNamespaceSeriesList
+	multiNamespaceSeriesList := []m3block.MultiNamespaceSeries{seriesBlockList}
+	multiSeriesBlocks, err := m3block.SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList, nil, query.Interval)
+	if err != nil {
+		return emptyBlock, err
+	}
+
+	res := block.Result{
+		Blocks: make([]block.Block, len(multiSeriesBlocks)),
+	}
+
+	for i, block := range multiSeriesBlocks {
+		res.Blocks[i] = block
 	}
 
 	return res, nil

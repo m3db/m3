@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package m3db
+package block
 
 import (
 	"sort"
@@ -54,9 +54,12 @@ func (b blockReplicas) Less(i, j int) bool {
 	return b[i].start.Before(b[j].start)
 }
 
-// ConvertM3DBSeriesIterators converts m3db SeriesIterators to SeriesBlocks
+// IteratorsToSeriesBlocks converts m3db SeriesIterators to SeriesBlocks
 // which are used to construct Blocks for query processing.
-func ConvertM3DBSeriesIterators(iterators encoding.SeriesIterators, iterAlloc encoding.ReaderIteratorAllocate) ([]SeriesBlocks, error) {
+func IteratorsToSeriesBlocks(
+	iterators encoding.SeriesIterators,
+	iterAlloc encoding.ReaderIteratorAllocate,
+) ([]SeriesBlocks, error) {
 	defer iterators.Close()
 	multiSeriesBlocks := make([]SeriesBlocks, iterators.Len())
 
@@ -77,7 +80,10 @@ func ConvertM3DBSeriesIterators(iterators encoding.SeriesIterators, iterAlloc en
 	return multiSeriesBlocks, nil
 }
 
-func blockReplicasFromSeriesIterator(seriesIterator encoding.SeriesIterator, iterAlloc encoding.ReaderIteratorAllocate) ([]blockReplica, error) {
+func blockReplicasFromSeriesIterator(
+	seriesIterator encoding.SeriesIterator,
+	iterAlloc encoding.ReaderIteratorAllocate,
+) ([]blockReplica, error) {
 	blockReplicas := make(blockReplicas, 0, initBlockReplicaLength)
 	for _, replica := range seriesIterator.Replicas() {
 		perBlockSliceReaders := replica.Readers()
@@ -122,7 +128,10 @@ func blockReplicasFromSeriesIterator(seriesIterator encoding.SeriesIterator, ite
 	return blockReplicas, nil
 }
 
-func seriesBlocksFromBlockReplicas(blockReplicas []blockReplica, seriesIterator encoding.SeriesIterator) (SeriesBlocks, error) {
+func seriesBlocksFromBlockReplicas(
+	blockReplicas []blockReplica,
+	seriesIterator encoding.SeriesIterator,
+) (SeriesBlocks, error) {
 	// NB(braskin): we need to clone the ID, namespace, and tags since we close the series iterator
 	var (
 		// todo(braskin): use ident pool

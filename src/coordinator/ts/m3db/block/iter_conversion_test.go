@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package m3db
+package block
 
 import (
 	"io"
@@ -55,7 +55,7 @@ func TestConversion(t *testing.T) {
 	require.NoError(t, err)
 	iterators := encoding.NewSeriesIterators([]encoding.SeriesIterator{iter}, nil)
 
-	blocks, err := ConvertM3DBSeriesIterators(iterators, testIterAlloc)
+	blocks, err := IteratorsToSeriesBlocks(iterators, testIterAlloc)
 	require.NoError(t, err)
 
 	for _, block := range blocks {
