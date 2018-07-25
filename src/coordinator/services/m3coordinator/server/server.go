@@ -207,7 +207,7 @@ func Run(runOpts RunOptions) {
 		return workerPool
 	})
 
-	fanoutStorage, storageCleanup := setupStorages(logger, clusters, cfg, objectPool)
+	fanoutStorage, storageCleanup := newStorages(logger, clusters, cfg, objectPool)
 	defer storageCleanup()
 
 	var clusterClient clusterclient.Client
@@ -226,41 +226,8 @@ func Run(runOpts RunOptions) {
 	if n := namespaces.NumAggregatedClusterNamespaces(); n > 0 {
 		logger.Info("configuring downsampler to use with aggregated cluster namespaces",
 			zap.Int("numAggregatedClusterNamespaces", n))
-		if clusterManagementClient == nil {
-			logger.Fatal("no configured cluster management config, must set this " +
-				"config for downsampler")
-		}
-
-		kvStore, err := clusterManagementClient.KV()
-		if err != nil {
-			logger.Fatal("unable to create KV store from the cluster management "+
-				"config client", zap.Any("error", err))
-		}
-
-		tagEncoderOptions := serialize.NewTagEncoderOptions()
-		tagDecoderOptions := serialize.NewTagDecoderOptions()
-		tagEncoderPoolOptions := pool.NewObjectPoolOptions().
-			SetInstrumentOptions(instrumentOptions.
-				SetMetricsScope(instrumentOptions.MetricsScope().
-					SubScope("tag-encoder-pool")))
-		tagDecoderPoolOptions := pool.NewObjectPoolOptions().
-			SetInstrumentOptions(instrumentOptions.
-				SetMetricsScope(instrumentOptions.MetricsScope().
-					SubScope("tag-decoder-pool")))
-
-		downsampler, err = downsample.NewDownsampler(downsample.DownsamplerOptions{
-			Storage:               fanoutStorage,
-			RulesKVStore:          kvStore,
-			ClockOptions:          clock.NewOptions(),
-			InstrumentOptions:     instrumentOptions,
-			TagEncoderOptions:     tagEncoderOptions,
-			TagDecoderOptions:     tagDecoderOptions,
-			TagEncoderPoolOptions: tagEncoderPoolOptions,
-			TagDecoderPoolOptions: tagDecoderPoolOptions,
-		})
-		if err != nil {
-			logger.Fatal("unable to create downsampler", zap.Any("error", err))
-		}
+		downsampler = newDownsampler(logger, clusterManagementClient,
+			fanoutStorage, instrumentOptions)
 	}
 
 	engine := executor.NewEngine(fanoutStorage)
@@ -289,7 +256,57 @@ func Run(runOpts RunOptions) {
 	}
 }
 
-func setupStorages(logger *zap.Logger, clusters local.Clusters, cfg config.Configuration, workerPool pool.ObjectPool) (storage.Storage, func()) {
+func newDownsampler(
+	logger *zap.Logger,
+	clusterManagementClient clusterclient.Client,
+	storage storage.Storage,
+	instrumentOptions instrument.Options,
+) downsample.Downsampler {
+	if clusterManagementClient == nil {
+		logger.Fatal("no configured cluster management config, must set this " +
+			"config for downsampler")
+	}
+
+	kvStore, err := clusterManagementClient.KV()
+	if err != nil {
+		logger.Fatal("unable to create KV store from the cluster management "+
+			"config client", zap.Any("error", err))
+	}
+
+	tagEncoderOptions := serialize.NewTagEncoderOptions()
+	tagDecoderOptions := serialize.NewTagDecoderOptions()
+	tagEncoderPoolOptions := pool.NewObjectPoolOptions().
+		SetInstrumentOptions(instrumentOptions.
+			SetMetricsScope(instrumentOptions.MetricsScope().
+				SubScope("tag-encoder-pool")))
+	tagDecoderPoolOptions := pool.NewObjectPoolOptions().
+		SetInstrumentOptions(instrumentOptions.
+			SetMetricsScope(instrumentOptions.MetricsScope().
+				SubScope("tag-decoder-pool")))
+
+	downsampler, err := downsample.NewDownsampler(downsample.DownsamplerOptions{
+		Storage:               storage,
+		RulesKVStore:          kvStore,
+		ClockOptions:          clock.NewOptions(),
+		InstrumentOptions:     instrumentOptions,
+		TagEncoderOptions:     tagEncoderOptions,
+		TagDecoderOptions:     tagDecoderOptions,
+		TagEncoderPoolOptions: tagEncoderPoolOptions,
+		TagDecoderPoolOptions: tagDecoderPoolOptions,
+	})
+	if err != nil {
+		logger.Fatal("unable to create downsampler", zap.Any("error", err))
+	}
+
+	return downsampler
+}
+
+func newStorages(
+	logger *zap.Logger,
+	clusters local.Clusters,
+	cfg config.Configuration,
+	workerPool pool.ObjectPool,
+) (storage.Storage, func()) {
 	cleanup := func() {}
 
 	localStorage := local.NewStorage(clusters, workerPool)
