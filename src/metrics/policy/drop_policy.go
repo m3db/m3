@@ -47,7 +47,7 @@ var validDropPolicies = []DropPolicy{
 
 // IsDefault returns whether the drop policy is the default drop none policy.
 func (p DropPolicy) IsDefault() bool {
-	return p == DropNone
+	return p == DefaultDropPolicy
 }
 
 func (p DropPolicy) String() string {
@@ -57,7 +57,7 @@ func (p DropPolicy) String() string {
 	case DropMust:
 		return "drop_must"
 	case DropIfOnlyMatch:
-		return "drop_except_if_other_match"
+		return "drop_if_only_match"
 	}
 	return DropNone.String()
 }
