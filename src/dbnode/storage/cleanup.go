@@ -306,14 +306,13 @@ func (m *cleanupManager) commitLogTimes(t time.Time) ([]commitlog.File, error) {
 		return nil, err
 	}
 
-	var outerErr error
-	filesToCleanup := filterCommitLogFiles(files, func(start time.Time, duration time.Duration) bool {
+	shouldCleanupFile := func(start time.Time, duration time.Duration) (bool, error) {
 		if start.Before(earliest) {
 			// Safe to clean up expired files.
 			// TODO(rartoul): Now that we have commit log compaction via snapshot files we would like
 			// to remove the concept of commit log retention so that users cannot accidentally
 			// configure M3DB in such a way that it loses data (commit log retention < block size).
-			return true
+			return false, nil
 		}
 
 		for _, ns := range namespaces {
@@ -337,28 +336,23 @@ func (m *cleanupManager) commitLogTimes(t time.Time) ([]commitlog.File, error) {
 			isCapturedBySnapshot, err := ns.IsCapturedBySnapshot(
 				nsBlocksStart, nsBlocksEnd, start.Add(duration))
 			if err != nil {
-				outerErr = err
-				return false
+				return false, err
 			}
 
 			if !isCapturedBySnapshot {
 				// The data has not been flushed and has also not been captured by
 				// a snapshot, so it is not safe to clean up the commit log file.
-				return false
+				return false, nil
 			}
 
 			// All the data in the commit log file is captured by the snapshot files
 			// so its safe to clean up.
 		}
 
-		return true
-	})
-
-	if outerErr != nil {
-		return nil, outerErr
+		return true, nil
 	}
 
-	return filesToCleanup, nil
+	return filterCommitLogFiles(files, shouldCleanupFile)
 }
 
 // commitLogNamespaceBlockTimes returns the range of namespace block starts for which the

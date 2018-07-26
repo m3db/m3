@@ -59,15 +59,19 @@ func timesInRange(startInclusive, endInclusive time.Time, windowSize time.Durati
 // satisfy the provided predicate.
 func filterCommitLogFiles(
 	files []commitlog.File,
-	predicate func(start time.Time, duration time.Duration) bool,
-) []commitlog.File {
+	predicate func(start time.Time, duration time.Duration) (bool, error),
+) ([]commitlog.File, error) {
 	filtered := make([]commitlog.File, 0, len(files))
 	for _, f := range files {
-		if predicate(f.Start, f.Duration) {
+		passed, err := predicate(f.Start, f.Duration)
+		if err != nil {
+			return nil, err
+		}
+		if passed {
 			filtered = append(filtered, f)
 		}
 	}
-	return filtered
+	return filtered, nil
 }
 
 // filterTimes returns the values in the slice `times` which satisfy
