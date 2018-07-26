@@ -41,7 +41,7 @@ const (
 
 var (
 	defaultNamespaceTag     = []byte("namespace")
-	defaultDefaultNamespace = []byte("defaultNamespace")
+	defaultDefaultNamespace = []byte("default")
 )
 
 // RuleSetKeyFn generates the ruleset key for a given namespace.

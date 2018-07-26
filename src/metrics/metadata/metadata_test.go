@@ -1164,8 +1164,7 @@ func TestApplyOrRemoveDropPoliciesDropMust(t *testing.T) {
 	}
 	output, result := input.ApplyOrRemoveDropPolicies()
 	require.Equal(t, AppliedEffectiveDropPolicyResult, result)
-	require.Equal(t, 1, len(output))
-	require.True(t, output[0].Equal(DropPipelineMetadata))
+	require.True(t, output.Equal(DropPipelineMetadatas))
 }
 
 func TestApplyOrRemoveDropPoliciesDropIfOnlyMatchEffective(t *testing.T) {
@@ -1178,8 +1177,7 @@ func TestApplyOrRemoveDropPoliciesDropIfOnlyMatchEffective(t *testing.T) {
 	}
 	output, result := input.ApplyOrRemoveDropPolicies()
 	require.Equal(t, AppliedEffectiveDropPolicyResult, result)
-	require.Equal(t, 1, len(output))
-	require.True(t, output[0].Equal(DropPipelineMetadata))
+	require.True(t, output.Equal(DropPipelineMetadatas))
 }
 
 func TestApplyOrRemoveDropPoliciesDropIfOnlyMatchMiddleIneffective(t *testing.T) {
@@ -1226,9 +1224,7 @@ func TestApplyOrRemoveDropPoliciesDropIfOnlyMatchMiddleIneffective(t *testing.T)
 
 				output, result := input.ApplyOrRemoveDropPolicies()
 				require.Equal(t, RemovedIneffectiveDropPoliciesResult, result)
-				require.Equal(t, 2, len(output))
-				require.True(t, output[0].Equal(validRules[0]))
-				require.True(t, output[1].Equal(validRules[1]))
+				require.True(t, output.Equal(validRules))
 			})
 	}
 }
@@ -1254,7 +1250,87 @@ func TestApplyOrRemoveDropPoliciesDropIfOnlyMatchNone(t *testing.T) {
 	}
 	output, result := input.ApplyOrRemoveDropPolicies()
 	require.Equal(t, RemovedIneffectiveDropPoliciesResult, result)
-	require.Equal(t, 2, len(output))
-	require.True(t, output[0].Equal(input[0]))
-	require.True(t, output[1].Equal(input[1]))
+	require.True(t, output.Equal(input))
+}
+
+func TestStagedMetadatasApplyOrRemoveDropPoliciesRemovingAnyDropStagedMetadata(t *testing.T) {
+	validStagedMetadatas := StagedMetadatas{
+		StagedMetadata{
+			Metadata: Metadata{Pipelines: PipelineMetadatas{
+				{
+					AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+					StoragePolicies: []policy.StoragePolicy{
+						policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+						policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour),
+					},
+					DropPolicy: policy.DropNone,
+				},
+			}},
+		},
+		StagedMetadata{
+			Metadata: Metadata{Pipelines: PipelineMetadatas{
+				{
+					AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+					StoragePolicies: []policy.StoragePolicy{
+						policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour),
+						policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 24*time.Hour),
+					},
+					DropPolicy: policy.DropNone,
+				},
+			}},
+		},
+	}
+
+	// Run test for every single insertion point
+	for i := 0; i < len(validStagedMetadatas)+1; i++ {
+		t.Run(fmt.Sprintf("test insert drop if only rule at %d", i),
+			func(t *testing.T) {
+				var (
+					copy  = append(StagedMetadatas(nil), validStagedMetadatas...)
+					input StagedMetadatas
+				)
+				for j := 0; j < len(validStagedMetadatas)+1; j++ {
+					if j == i {
+						// Insert the drop if only match rule at this position
+						input = append(input, DropStagedMetadata)
+					} else {
+						input = append(input, copy[0])
+						copy = copy[1:]
+					}
+				}
+
+				output, result := input.ApplyOrRemoveDropPolicies()
+				require.Equal(t, RemovedIneffectiveDropPoliciesResult, result)
+				require.True(t, output.Equal(validStagedMetadatas))
+			})
+	}
+}
+
+func TestStagedMetadatasApplyOrRemoveDropPoliciesApplyingDropStagedMetadata(t *testing.T) {
+	// Check compacts together
+	metadatas, result := StagedMetadatas{
+		DropStagedMetadata,
+		DropStagedMetadata,
+	}.ApplyOrRemoveDropPolicies()
+
+	require.True(t, metadatas.Equal(DropStagedMetadatas))
+	require.Equal(t, AppliedEffectiveDropPolicyResult, result)
+
+	// Check single also returns as expected
+	metadatas, result = StagedMetadatas{
+		DropStagedMetadata,
+	}.ApplyOrRemoveDropPolicies()
+
+	require.True(t, metadatas.Equal(DropStagedMetadatas))
+	require.Equal(t, AppliedEffectiveDropPolicyResult, result)
+}
+
+func TestStagedMetadatasApplyOrRemoveDropPoliciesWithNoStagedMetadatasIsNoOp(t *testing.T) {
+	metadatas, result := StagedMetadatas{}.ApplyOrRemoveDropPolicies()
+	require.Equal(t, 0, len(metadatas))
+	require.Equal(t, RemovedIneffectiveDropPoliciesResult, result)
+}
+
+func TestDropStagedMetadatasReturnsIsDropPolicyAppliedTrue(t *testing.T) {
+	require.True(t, DropStagedMetadatas.IsDropPolicyApplied())
 }
