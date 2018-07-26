@@ -153,6 +153,62 @@ func TestFloorWithSomeValues(t *testing.T) {
 	test.EqualsWithNans(t, expected, sink.Values)
 }
 
+func TestCeilWithSomeValues(t *testing.T) {
+	v := [][]float64{
+		{0, math.NaN(), 2.2, 3.3, 4},
+		{math.NaN(), 6, 7.77, 8, 9.9},
+	}
+
+	values, bounds := test.GenerateValuesAndBounds(v, nil)
+	block := test.NewBlockFromValues(bounds, values)
+	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	op, err := NewMathOp(CeilType)
+	require.NoError(t, err)
+	node := op.Node(c)
+	err = node.Process(parser.NodeID(0), block)
+	require.NoError(t, err)
+	expected := expectedMathVals(values, math.Ceil)
+	assert.Len(t, sink.Values, 2)
+	test.EqualsWithNans(t, expected, sink.Values)
+}
+func TestExpWithSomeValues(t *testing.T) {
+	v := [][]float64{
+		{0, math.NaN(), 2, 3, 4},
+		{math.NaN(), 6, 7, 8, 9},
+	}
+
+	values, bounds := test.GenerateValuesAndBounds(v, nil)
+	block := test.NewBlockFromValues(bounds, values)
+	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	op, err := NewMathOp(ExpType)
+	require.NoError(t, err)
+	node := op.Node(c)
+	err = node.Process(parser.NodeID(0), block)
+	require.NoError(t, err)
+	expected := expectedMathVals(values, math.Exp)
+	assert.Len(t, sink.Values, 2)
+	test.EqualsWithNans(t, expected, sink.Values)
+}
+
+func TestSqrtWithSomeValues(t *testing.T) {
+	v := [][]float64{
+		{0, math.NaN(), 2, 3, 4},
+		{math.NaN(), 6, 7, 8, 9},
+	}
+
+	values, bounds := test.GenerateValuesAndBounds(v, nil)
+	block := test.NewBlockFromValues(bounds, values)
+	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	op, err := NewMathOp(SqrtType)
+	require.NoError(t, err)
+	node := op.Node(c)
+	err = node.Process(parser.NodeID(0), block)
+	require.NoError(t, err)
+	expected := expectedMathVals(values, math.Sqrt)
+	assert.Len(t, sink.Values, 2)
+	test.EqualsWithNans(t, expected, sink.Values)
+}
+
 func TestNonExistentFunc(t *testing.T) {
 	_, err := NewMathOp("nonexistent_func")
 	require.Error(t, err)

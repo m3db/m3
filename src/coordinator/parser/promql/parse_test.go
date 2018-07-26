@@ -145,3 +145,63 @@ func TestDAGWithLogOp(t *testing.T) {
 	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"), "fetch should be the parent")
 	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"), "log op should be child")
 }
+
+func TestDAGWithCeilOp(t *testing.T) {
+	q := "ceil(up)"
+	p, err := Parse(q)
+	require.NoError(t, err)
+	transforms, _, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 2)
+	assert.Equal(t, transforms[1].Op.OpType(), linear.CeilType)
+}
+
+func TestDAGWithFloorOp(t *testing.T) {
+	q := "floor(up)"
+	p, err := Parse(q)
+	require.NoError(t, err)
+	transforms, _, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 2)
+	assert.Equal(t, transforms[1].Op.OpType(), linear.FloorType)
+}
+
+func TestDAGWithExpOp(t *testing.T) {
+	q := "exp(up)"
+	p, err := Parse(q)
+	require.NoError(t, err)
+	transforms, _, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 2)
+	assert.Equal(t, transforms[1].Op.OpType(), linear.ExpType)
+}
+
+func TestDAGWithSqrtOp(t *testing.T) {
+	q := "sqrt(up)"
+	p, err := Parse(q)
+	require.NoError(t, err)
+	transforms, _, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 2)
+	assert.Equal(t, transforms[1].Op.OpType(), linear.SqrtType)
+}
+
+func TestDAGWithLog2Op(t *testing.T) {
+	q := "log2(up)"
+	p, err := Parse(q)
+	require.NoError(t, err)
+	transforms, _, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 2)
+	assert.Equal(t, transforms[1].Op.OpType(), linear.Log2Type)
+}
+
+func TestDAGWithLog10Op(t *testing.T) {
+	q := "log10(up)"
+	p, err := Parse(q)
+	require.NoError(t, err)
+	transforms, _, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 2)
+	assert.Equal(t, transforms[1].Op.OpType(), linear.Log10Type)
+}

@@ -73,10 +73,6 @@ var (
 	}
 )
 
-type mathOp struct {
-	opType string
-}
-
 // NewMathOp creates a new math op based on the type
 func NewMathOp(optype string) (BaseOp, error) {
 	if _, ok := mathFuncs[optype]; !ok {
