@@ -312,7 +312,7 @@ func (m *cleanupManager) commitLogTimes(t time.Time) ([]commitlog.File, error) {
 			// TODO(rartoul): Now that we have commit log compaction via snapshot files we would like
 			// to remove the concept of commit log retention so that users cannot accidentally
 			// configure M3DB in such a way that it loses data (commit log retention < block size).
-			return false, nil
+			return true, nil
 		}
 
 		for _, ns := range namespaces {
