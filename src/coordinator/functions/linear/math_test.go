@@ -32,12 +32,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func expectedValues(values [][]float64) [][]float64 {
+func expectedMathVals(values [][]float64, fn func(x float64) float64) [][]float64 {
 	expected := make([][]float64, 0, len(values))
 	for _, val := range values {
 		v := make([]float64, len(val))
 		for i, ev := range val {
-			v[i] = math.Abs(ev)
+			v[i] = fn(ev)
 		}
 
 		expected = append(expected, v)
@@ -52,10 +52,12 @@ func TestAbsWithAllValues(t *testing.T) {
 
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	node := NewAbsOp().Node(c)
-	err := node.Process(parser.NodeID(0), block)
+	op, err := NewMathOp(AbsType)
 	require.NoError(t, err)
-	expected := expectedValues(values)
+	node := op.Node(c)
+	err = node.Process(parser.NodeID(0), block)
+	require.NoError(t, err)
+	expected := expectedMathVals(values, math.Abs)
 	assert.Len(t, sink.Values, 2)
 	assert.Equal(t, expected, sink.Values)
 }
@@ -69,10 +71,65 @@ func TestAbsWithSomeValues(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	node := NewAbsOp().Node(c)
-	err := node.Process(parser.NodeID(0), block)
+	op, err := NewMathOp(AbsType)
 	require.NoError(t, err)
-	expected := expectedValues(values)
+	node := op.Node(c)
+	err = node.Process(parser.NodeID(0), block)
+	require.NoError(t, err)
+	expected := expectedMathVals(values, math.Abs)
+	assert.Len(t, sink.Values, 2)
+	test.EqualsWithNans(t, expected, sink.Values)
+}
+
+func TestLn(t *testing.T) {
+	values, bounds := test.GenerateValuesAndBounds(nil, nil)
+
+	block := test.NewBlockFromValues(bounds, values)
+	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	op, err := NewMathOp(LnType)
+	require.NoError(t, err)
+	node := op.Node(c)
+	err = node.Process(parser.NodeID(0), block)
+	require.NoError(t, err)
+	expected := expectedMathVals(values, math.Log)
+	assert.Len(t, sink.Values, 2)
+	test.EqualsWithNans(t, expected, sink.Values)
+}
+
+func TestLog10WithNoValues(t *testing.T) {
+	v := [][]float64{
+		{nan, nan, nan, nan},
+		{nan, nan, nan, nan},
+	}
+
+	values, bounds := test.GenerateValuesAndBounds(v, nil)
+	block := test.NewBlockFromValues(bounds, values)
+	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	op, err := NewMathOp(Log10Type)
+	require.NoError(t, err)
+	node := op.Node(c)
+	err = node.Process(parser.NodeID(0), block)
+	require.NoError(t, err)
+	expected := expectedMathVals(values, math.Log10)
+	assert.Len(t, sink.Values, 2)
+	test.EqualsWithNans(t, expected, sink.Values)
+}
+
+func TestLog2WithSomeValues(t *testing.T) {
+	v := [][]float64{
+		{nan, 1, 2, 3},
+		{nan, 4, 5, 6},
+	}
+
+	values, bounds := test.GenerateValuesAndBounds(v, nil)
+	block := test.NewBlockFromValues(bounds, values)
+	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	op, err := NewMathOp(Log2Type)
+	require.NoError(t, err)
+	node := op.Node(c)
+	err = node.Process(parser.NodeID(0), block)
+	require.NoError(t, err)
+	expected := expectedMathVals(values, math.Log2)
 	assert.Len(t, sink.Values, 2)
 	test.EqualsWithNans(t, expected, sink.Values)
 }
