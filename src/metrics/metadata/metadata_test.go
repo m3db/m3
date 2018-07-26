@@ -1307,21 +1307,25 @@ func TestStagedMetadatasApplyOrRemoveDropPoliciesRemovingAnyDropStagedMetadata(t
 }
 
 func TestStagedMetadatasApplyOrRemoveDropPoliciesApplyingDropStagedMetadata(t *testing.T) {
-	// Check compacts together
+	// Check compacts together and chooses earliest staged metadata
 	metadatas, result := StagedMetadatas{
-		DropStagedMetadata,
-		DropStagedMetadata,
+		StagedMetadata{Metadata: DropMetadata, CutoverNanos: 456},
+		StagedMetadata{Metadata: DropMetadata, CutoverNanos: 123},
 	}.ApplyOrRemoveDropPolicies()
 
-	require.True(t, metadatas.Equal(DropStagedMetadatas))
+	require.True(t, metadatas.Equal(StagedMetadatas{StagedMetadata{
+		Metadata: DropMetadata, CutoverNanos: 123},
+	}))
 	require.Equal(t, AppliedEffectiveDropPolicyResult, result)
 
 	// Check single also returns as expected
 	metadatas, result = StagedMetadatas{
-		DropStagedMetadata,
+		StagedMetadata{Metadata: DropMetadata, CutoverNanos: 123},
 	}.ApplyOrRemoveDropPolicies()
 
-	require.True(t, metadatas.Equal(DropStagedMetadatas))
+	require.True(t, metadatas.Equal(StagedMetadatas{StagedMetadata{
+		Metadata: DropMetadata, CutoverNanos: 123},
+	}))
 	require.Equal(t, AppliedEffectiveDropPolicyResult, result)
 }
 
@@ -1331,6 +1335,8 @@ func TestStagedMetadatasApplyOrRemoveDropPoliciesWithNoStagedMetadatasIsNoOp(t *
 	require.Equal(t, RemovedIneffectiveDropPoliciesResult, result)
 }
 
-func TestDropStagedMetadatasReturnsIsDropPolicyAppliedTrue(t *testing.T) {
-	require.True(t, DropStagedMetadatas.IsDropPolicyApplied())
+func TestStagedMetadatasDropReturnsIsDropPolicyAppliedTrue(t *testing.T) {
+	require.True(t, StagedMetadatas{
+		StagedMetadata{Metadata: DropMetadata, CutoverNanos: 123},
+	}.IsDropPolicyApplied())
 }

@@ -434,14 +434,27 @@ func (sms StagedMetadatas) ApplyOrRemoveDropPolicies() (
 		return sms, RemovedIneffectiveDropPoliciesResult
 	}
 
-	nonDropStagedMetadatas := 0
-	result := sms
+	var (
+		dropStagedMetadatas        = 0
+		nonDropStagedMetadatas     = 0
+		result                     = sms
+		earliestDropStagedMetadata StagedMetadata
+	)
+
 	for i := len(result) - 1; i >= 0; i-- {
 		var applyOrRemoveResult ApplyOrRemoveDropPoliciesResult
 		sms[i].Pipelines, applyOrRemoveResult = sms[i].Pipelines.ApplyOrRemoveDropPolicies()
 
 		switch applyOrRemoveResult {
 		case AppliedEffectiveDropPolicyResult:
+			dropStagedMetadatas++
+
+			// Track the drop staged metadata so we can return it if we need to
+			if dropStagedMetadatas == 1 ||
+				sms[i].CutoverNanos < earliestDropStagedMetadata.CutoverNanos {
+				earliestDropStagedMetadata = sms[i]
+			}
+
 			// Remove by moving to tail and decrementing length so we can do in
 			// place to avoid allocations of a new slice
 			if lastElem := i == len(result)-1; lastElem {
@@ -458,7 +471,7 @@ func (sms StagedMetadatas) ApplyOrRemoveDropPolicies() (
 	if nonDropStagedMetadatas == 0 {
 		// If there were no non-drop staged metadatas, then just return the
 		// canonical drop staged metadatas
-		return DropStagedMetadatas, AppliedEffectiveDropPolicyResult
+		return StagedMetadatas{earliestDropStagedMetadata}, AppliedEffectiveDropPolicyResult
 	}
 
 	return result, RemovedIneffectiveDropPoliciesResult
