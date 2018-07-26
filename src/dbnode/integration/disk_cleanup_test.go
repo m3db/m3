@@ -60,11 +60,15 @@ func TestDiskCleanup(t *testing.T) {
 	}()
 
 	// Now create some fileset files and commit logs
-	shard := uint32(0)
-	numTimes := 10
-	fileTimes := make([]time.Time, numTimes)
-	now := testSetup.getNowFn()
-	ns1, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
+	var (
+		shard         = uint32(0)
+		numTimes      = 10
+		fileTimes     = make([]time.Time, numTimes)
+		now           = testSetup.getNowFn()
+		ns1, err      = namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
+		commitLogOpts = testSetup.storageOpts.CommitLogOptions().
+				SetFlushInterval(defaultIntegrationTestFlushInterval)
+	)
 	require.NoError(t, err)
 	for i := 0; i < numTimes; i++ {
 		fileTimes[i] = now.Add(time.Duration(i) * blockSize)
@@ -76,14 +80,8 @@ func TestDiskCleanup(t *testing.T) {
 			xtime.ToUnixNano(clTime): nil,
 		}
 		writeCommitLogDataSpecifiedTS(
-			t,
-			testSetup,
-			testSetup.storageOpts.CommitLogOptions().SetFlushInterval(defaultIntegrationTestFlushInterval),
-			data,
-			ns1,
-			clTime,
-			false,
-		)
+			t, testSetup, commitLogOpts,
+			data, ns1, clTime, false)
 	}
 
 	// Move now forward by retentionPeriod + 2 * blockSize so fileset files
