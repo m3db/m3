@@ -103,6 +103,8 @@ func NewFunctionExpr(name string, argValues []interface{}) (parser.Params, error
 		return linear.NewMathOp(linear.Log10Type)
 	case linear.Log2Type:
 		return linear.NewMathOp(linear.Log2Type)
+	case linear.RoundType:
+		return linear.NewRoundOp(argValues)
 	case linear.SqrtType:
 		return linear.NewMathOp(linear.SqrtType)
 

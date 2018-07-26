@@ -27,11 +27,13 @@ import (
 	"github.com/m3db/m3db/src/coordinator/executor/transform"
 )
 
-// ClampMinType ensures all values except NaNs are greater than or equal to the provided argument
-const ClampMinType = "clamp_min"
+const (
+	// ClampMinType ensures all values except NaNs are greater than or equal to the provided argument
+	ClampMinType = "clamp_min"
 
-// ClampMaxType ensures all values except NaNs are lesser than or equal to provided argument
-const ClampMaxType = "clamp_max"
+	// ClampMaxType ensures all values except NaNs are lesser than or equal to provided argument
+	ClampMaxType = "clamp_max"
+)
 
 type clampOp struct {
 	opType string
