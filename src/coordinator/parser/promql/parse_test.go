@@ -130,3 +130,18 @@ func TestDAGWithClampOp(t *testing.T) {
 	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"), "fetch should be the parent")
 	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"), "clamp op should be child")
 }
+func TestDAGWithLogOp(t *testing.T) {
+	q := "ln(up)"
+	p, err := Parse(q)
+	require.NoError(t, err)
+	transforms, edges, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 2)
+	assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
+	assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
+	assert.Equal(t, transforms[1].Op.OpType(), linear.LnType)
+	assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
+	assert.Len(t, edges, 1)
+	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"), "fetch should be the parent")
+	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"), "log op should be child")
+}

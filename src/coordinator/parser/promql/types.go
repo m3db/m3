@@ -91,6 +91,12 @@ func NewFunctionExpr(name string, argValues []interface{}) (parser.Params, error
 		return linear.NewClampOp(argValues, linear.ClampMinType)
 	case linear.ClampMaxType:
 		return linear.NewClampOp(argValues, linear.ClampMaxType)
+	case linear.LnType:
+		return linear.NewLogOp(linear.LnType)
+	case linear.Log10Type:
+		return linear.NewLogOp(linear.Log10Type)
+	case linear.Log2Type:
+		return linear.NewLogOp(linear.Log2Type)
 
 	default:
 		// TODO: handle other types
