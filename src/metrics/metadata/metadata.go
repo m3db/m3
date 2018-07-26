@@ -72,7 +72,7 @@ type PipelineMetadata struct {
 	Pipeline applied.Pipeline `json:"-"` // NB: not needed for JSON marshaling for now.
 
 	// Drop policy.
-	DropPolicy policy.DropPolicy `json:"dropPolicy"`
+	DropPolicy policy.DropPolicy `json:"dropPolicy,omitempty"`
 }
 
 // Equal returns true if two pipeline metadata are considered equal.

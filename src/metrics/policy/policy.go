@@ -37,8 +37,9 @@ var (
 	// DefaultPolicy represents a default policy.
 	DefaultPolicy Policy
 
-	errNilPolicyProto      = errors.New("nil policy proto")
-	errInvalidPolicyString = errors.New("invalid policy string")
+	errNilPolicyProto          = errors.New("nil policy proto")
+	errInvalidPolicyString     = errors.New("invalid policy string")
+	errInvalidDropPolicyString = errors.New("invalid drop policy string")
 )
 
 // Policy contains a storage policy and a list of custom aggregation types.
@@ -201,4 +202,37 @@ func (p Policies) Equals(other Policies) bool {
 		}
 	}
 	return true
+}
+
+// UnmarshalYAML unmarshals a drop policy value from a string.
+func (p *DropPolicy) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+
+	// Allow default string value (not specified) to mean default
+	if str == "" {
+		*p = DefaultDropPolicy
+		return nil
+	}
+
+	parsed, err := ParseDropPolicy(str)
+	if err != nil {
+		return err
+	}
+
+	*p = parsed
+	return nil
+}
+
+// ParseDropPolicy parses a drop policy.
+func ParseDropPolicy(str string) (DropPolicy, error) {
+	for _, valid := range validDropPolicies {
+		if valid.String() == str {
+			return valid, nil
+		}
+	}
+
+	return DefaultDropPolicy, errInvalidDropPolicyString
 }

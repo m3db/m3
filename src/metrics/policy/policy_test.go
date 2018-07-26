@@ -229,3 +229,43 @@ func TestParsePolicyIntoProto(t *testing.T) {
 		require.Equal(t, input.expected, sp, input.str)
 	}
 }
+
+func TestDropPolicyUnmarshalYAML(t *testing.T) {
+	inputs := []struct {
+		str      string
+		expected DropPolicy
+	}{
+		{
+			str:      "",
+			expected: DropNone,
+		},
+		{
+			str:      DropNone.String(),
+			expected: DropNone,
+		},
+		{
+			str:      DropMust.String(),
+			expected: DropMust,
+		},
+		{
+			str:      DropIfOnlyMatch.String(),
+			expected: DropIfOnlyMatch,
+		},
+	}
+	for _, input := range inputs {
+		var p DropPolicy
+		require.NoError(t, yaml.Unmarshal([]byte(input.str), &p))
+		require.Equal(t, input.expected, p)
+	}
+}
+
+func TestDropPolicyUnmarshalYAMLErrors(t *testing.T) {
+	inputs := []string{
+		"drop_musty",
+		"drop_unknown",
+	}
+	for _, input := range inputs {
+		var p DropPolicy
+		require.Error(t, yaml.Unmarshal([]byte(input), &p))
+	}
+}
