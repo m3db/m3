@@ -152,3 +152,8 @@ func TestFloorWithSomeValues(t *testing.T) {
 	assert.Len(t, sink.Values, 2)
 	test.EqualsWithNans(t, expected, sink.Values)
 }
+
+func TestNonExistentFunc(t *testing.T) {
+	_, err := NewMathOp("nonexistent_func")
+	require.Error(t, err)
+}
