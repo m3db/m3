@@ -119,16 +119,19 @@ func (r *reporter) ReportCounter(id id.ID, value int64) error {
 	)
 	r.incrementReportPending()
 	counter := unaggregated.Counter{ID: id.Bytes(), Value: value}
-	matchRes := r.matcher.ForwardMatch(id, fromNanos, toNanos)
-	if err := r.client.WriteUntimedCounter(
-		counter,
-		matchRes.ForExistingIDAt(fromNanos),
-	); err != nil {
-		multiErr = multiErr.Add(err)
+	matchResult := r.matcher.ForwardMatch(id, fromNanos, toNanos)
+
+	matchExisting, _ := matchResult.ForExistingIDAt(fromNanos).ApplyOrRemoveDropPolicies()
+	if !matchExisting.IsDropPolicyApplied() {
+		err := r.client.WriteUntimedCounter(counter, matchExisting)
+		if err != nil {
+			multiErr = multiErr.Add(err)
+		}
 	}
-	for idx := 0; idx < matchRes.NumNewRollupIDs(); idx++ {
+
+	for idx := 0; idx < matchResult.NumNewRollupIDs(); idx++ {
 		var (
-			rollupIDWithMetadatas = matchRes.ForNewRollupIDsAt(idx, fromNanos)
+			rollupIDWithMetadatas = matchResult.ForNewRollupIDsAt(idx, fromNanos)
 			rollupID              = rollupIDWithMetadatas.ID
 			metadatas             = rollupIDWithMetadatas.Metadatas
 		)
@@ -140,6 +143,7 @@ func (r *reporter) ReportCounter(id id.ID, value int64) error {
 			multiErr = multiErr.Add(err)
 		}
 	}
+
 	err := multiErr.FinalError()
 	r.metrics.reportCounter.ReportSuccessOrError(err, r.nowFn().Sub(reportAt))
 	r.decrementReportPending()
@@ -155,16 +159,19 @@ func (r *reporter) ReportBatchTimer(id id.ID, value []float64) error {
 	)
 	r.incrementReportPending()
 	batchTimer := unaggregated.BatchTimer{ID: id.Bytes(), Values: value}
-	matchRes := r.matcher.ForwardMatch(id, fromNanos, toNanos)
-	if err := r.client.WriteUntimedBatchTimer(
-		batchTimer,
-		matchRes.ForExistingIDAt(fromNanos),
-	); err != nil {
-		multiErr = multiErr.Add(err)
+	matchResult := r.matcher.ForwardMatch(id, fromNanos, toNanos)
+
+	matchExisting, _ := matchResult.ForExistingIDAt(fromNanos).ApplyOrRemoveDropPolicies()
+	if !matchExisting.IsDropPolicyApplied() {
+		err := r.client.WriteUntimedBatchTimer(batchTimer, matchExisting)
+		if err != nil {
+			multiErr = multiErr.Add(err)
+		}
 	}
-	for idx := 0; idx < matchRes.NumNewRollupIDs(); idx++ {
+
+	for idx := 0; idx < matchResult.NumNewRollupIDs(); idx++ {
 		var (
-			rollupIDWithMetadatas = matchRes.ForNewRollupIDsAt(idx, fromNanos)
+			rollupIDWithMetadatas = matchResult.ForNewRollupIDsAt(idx, fromNanos)
 			rollupID              = rollupIDWithMetadatas.ID
 			metadatas             = rollupIDWithMetadatas.Metadatas
 		)
@@ -191,16 +198,19 @@ func (r *reporter) ReportGauge(id id.ID, value float64) error {
 	)
 	r.incrementReportPending()
 	gauge := unaggregated.Gauge{ID: id.Bytes(), Value: value}
-	matchRes := r.matcher.ForwardMatch(id, fromNanos, toNanos)
-	if err := r.client.WriteUntimedGauge(
-		gauge,
-		matchRes.ForExistingIDAt(fromNanos),
-	); err != nil {
-		multiErr = multiErr.Add(err)
+	matchResult := r.matcher.ForwardMatch(id, fromNanos, toNanos)
+
+	matchExisting, _ := matchResult.ForExistingIDAt(fromNanos).ApplyOrRemoveDropPolicies()
+	if !matchExisting.IsDropPolicyApplied() {
+		err := r.client.WriteUntimedGauge(gauge, matchExisting)
+		if err != nil {
+			multiErr = multiErr.Add(err)
+		}
 	}
-	for idx := 0; idx < matchRes.NumNewRollupIDs(); idx++ {
+
+	for idx := 0; idx < matchResult.NumNewRollupIDs(); idx++ {
 		var (
-			rollupIDWithMetadatas = matchRes.ForNewRollupIDsAt(idx, fromNanos)
+			rollupIDWithMetadatas = matchResult.ForNewRollupIDsAt(idx, fromNanos)
 			rollupID              = rollupIDWithMetadatas.ID
 			metadatas             = rollupIDWithMetadatas.Metadatas
 		)

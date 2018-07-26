@@ -12,7 +12,7 @@ import:
   version: 829d4ae9ed79c90f32122cb32464312aed39686d
 
 - package: github.com/m3db/m3metrics
-  version: 2ccc6ebcb5ead5170b4a5b6f13c1fdfdd19c0897
+  version: c952a65015f603f3eeab65422049a9ff18999283
 
 - package: github.com/m3db/m3aggregator
   version: 6d537300ac6dec79e5ab2eb6d30cb007f8d9a2c6

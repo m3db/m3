@@ -44,123 +44,144 @@ import (
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
 
 var (
-	testMatchResult = rules.NewMatchResult(
-		0,
-		math.MaxInt64,
-		metadata.StagedMetadatas{
-			{
-				CutoverNanos: 0,
-				Tombstoned:   false,
-				Metadata: metadata.Metadata{
-					Pipelines: []metadata.PipelineMetadata{
-						{
-							AggregationID: aggregation.DefaultID,
-							StoragePolicies: policy.StoragePolicies{
-								policy.NewStoragePolicy(20*time.Second, xtime.Second, 6*time.Hour),
-								policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 25*24*time.Hour),
-							},
+	testNow          = time.Unix(1234, 0)
+	testNowFn        = func() time.Time { return testNow }
+	testPositiveSkew = 10 * time.Second
+	testNegativeSkew = 10 * time.Second
+	testFromNanos    = testNow.Add(-testNegativeSkew).UnixNano()
+	testToNanos      = testNow.Add(testPositiveSkew).UnixNano()
+	testClockOpts    = clock.NewOptions().
+				SetNowFn(testNowFn).
+				SetMaxPositiveSkew(testPositiveSkew).
+				SetMaxNegativeSkew(testNegativeSkew)
+	testReporterOptions = NewReporterOptions().
+				SetClockOptions(testClockOpts)
+
+	testMatchForExistingID = metadata.StagedMetadatas{
+		{
+			CutoverNanos: 0,
+			Tombstoned:   false,
+			Metadata: metadata.Metadata{
+				Pipelines: []metadata.PipelineMetadata{
+					{
+						AggregationID: aggregation.DefaultID,
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(20*time.Second, xtime.Second, 6*time.Hour),
+							policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 25*24*time.Hour),
 						},
-						{
-							AggregationID: aggregation.MustCompressTypes(aggregation.Max),
-							StoragePolicies: policy.StoragePolicies{
-								policy.NewStoragePolicy(time.Minute, xtime.Minute, 2*24*time.Hour),
-							},
+					},
+					{
+						AggregationID: aggregation.MustCompressTypes(aggregation.Max),
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(time.Minute, xtime.Minute, 2*24*time.Hour),
 						},
 					},
 				},
 			},
-			{
-				CutoverNanos: math.MaxInt64,
-				Tombstoned:   false,
-				Metadata: metadata.Metadata{
-					Pipelines: []metadata.PipelineMetadata{
-						{
-							AggregationID: aggregation.MustCompressTypes(aggregation.Max, aggregation.P9999),
-							StoragePolicies: policy.StoragePolicies{
-								policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+		},
+		{
+			CutoverNanos: math.MaxInt64,
+			Tombstoned:   false,
+			Metadata: metadata.Metadata{
+				Pipelines: []metadata.PipelineMetadata{
+					{
+						AggregationID: aggregation.MustCompressTypes(aggregation.Max, aggregation.P9999),
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	testMatchForNewRollupIDs = []rules.IDWithMetadatas{
+		{
+			ID:        []byte("foo"),
+			Metadatas: metadata.DefaultStagedMetadatas,
+		},
+		{
+			ID: []byte("bar"),
+			Metadatas: metadata.StagedMetadatas{
+				{
+					CutoverNanos: 100,
+					Tombstoned:   false,
+					Metadata: metadata.Metadata{
+						Pipelines: []metadata.PipelineMetadata{
+							{
+								AggregationID: aggregation.DefaultID,
+								StoragePolicies: policy.StoragePolicies{
+									policy.NewStoragePolicy(time.Minute, xtime.Minute, 2*24*time.Hour),
+									policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 25*24*time.Hour),
+								},
+							},
+							{
+								AggregationID: aggregation.MustCompressTypes(aggregation.Max, aggregation.P9999),
+								StoragePolicies: policy.StoragePolicies{
+									policy.NewStoragePolicy(20*time.Second, xtime.Second, 6*time.Hour),
+								},
+							},
+						},
+					},
+				},
+				{
+					CutoverNanos: 200,
+					Tombstoned:   true,
+					Metadata: metadata.Metadata{
+						Pipelines: []metadata.PipelineMetadata{
+							{
+								AggregationID: aggregation.MustCompressTypes(aggregation.P9999),
+								StoragePolicies: policy.StoragePolicies{
+									policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+								},
 							},
 						},
 					},
 				},
 			},
 		},
-		[]rules.IDWithMetadatas{
-			{
-				ID:        []byte("foo"),
-				Metadatas: metadata.DefaultStagedMetadatas,
-			},
-			{
-				ID: []byte("bar"),
-				Metadatas: metadata.StagedMetadatas{
-					{
-						CutoverNanos: 100,
-						Tombstoned:   false,
-						Metadata: metadata.Metadata{
-							Pipelines: []metadata.PipelineMetadata{
-								{
-									AggregationID: aggregation.DefaultID,
-									StoragePolicies: policy.StoragePolicies{
-										policy.NewStoragePolicy(time.Minute, xtime.Minute, 2*24*time.Hour),
-										policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 25*24*time.Hour),
-									},
-								},
-								{
-									AggregationID: aggregation.MustCompressTypes(aggregation.Max, aggregation.P9999),
-									StoragePolicies: policy.StoragePolicies{
-										policy.NewStoragePolicy(20*time.Second, xtime.Second, 6*time.Hour),
-									},
-								},
-							},
-						},
-					},
-					{
-						CutoverNanos: 200,
-						Tombstoned:   true,
-						Metadata: metadata.Metadata{
-							Pipelines: []metadata.PipelineMetadata{
-								{
-									AggregationID: aggregation.MustCompressTypes(aggregation.P9999),
-									StoragePolicies: policy.StoragePolicies{
-										policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		})
+	}
+
+	testMatchResult = rules.NewMatchResult(0, math.MaxInt64,
+		testMatchForExistingID,
+		testMatchForNewRollupIDs)
+
+	testMatchDropPolicyAppliedResult = rules.NewMatchResult(0, math.MaxInt64,
+		metadata.StagedMetadatas{metadata.StagedMetadata{
+			Metadata:     metadata.DropMetadata,
+			CutoverNanos: testNow.UnixNano() / 2,
+		}},
+		testMatchForNewRollupIDs)
+
+	testMatchDropPolicyNotYetEffectiveResult = rules.NewMatchResult(0, math.MaxInt64,
+		append(testMatchForExistingID, metadata.StagedMetadata{
+			Metadata:     metadata.DropMetadata,
+			CutoverNanos: testNow.Add(-1 * (testNegativeSkew / 2)).UnixNano(),
+		}),
+		testMatchForNewRollupIDs)
 )
 
 func TestReporterReportCounter(t *testing.T) {
-	defer leaktest.Check(t)()
+	leakCheck := leaktest.Check(t)
+	defer leakCheck()
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	var (
-		now              = time.Unix(1234, 0)
-		nowFn            = func() time.Time { return now }
-		positiveSkew     = 10 * time.Second
-		negativeSkew     = 10 * time.Second
-		fromNanos        = now.Add(-negativeSkew).UnixNano()
-		toNanos          = now.Add(positiveSkew).UnixNano()
 		errReportCounter = errors.New("test report counter error")
 		actual           []unaggregated.CounterWithMetadatas
 	)
-	clockOpts := clock.NewOptions().
-		SetNowFn(nowFn).
-		SetMaxPositiveSkew(positiveSkew).
-		SetMaxNegativeSkew(negativeSkew)
 	mockID := id.NewMockID(ctrl)
 	mockID.EXPECT().Bytes().Return([]byte("testCounter"))
 	mockMatcher := matcher.NewMockMatcher(ctrl)
-	mockMatcher.EXPECT().ForwardMatch(mockID, fromNanos, toNanos).Return(testMatchResult)
+	mockMatcher.EXPECT().ForwardMatch(mockID, testFromNanos, testToNanos).Return(testMatchResult)
 	mockMatcher.EXPECT().Close().Return(nil).AnyTimes()
 	mockClient := client.NewMockClient(ctrl)
 	mockClient.EXPECT().
@@ -173,7 +194,7 @@ func TestReporterReportCounter(t *testing.T) {
 			return errReportCounter
 		}).MinTimes(1)
 	mockClient.EXPECT().Close().Return(nil).AnyTimes()
-	reporter := NewReporter(mockMatcher, mockClient, NewReporterOptions().SetClockOptions(clockOpts))
+	reporter := NewReporter(mockMatcher, mockClient, testReporterOptions)
 	defer reporter.Close()
 	err := reporter.ReportCounter(mockID, 1234)
 	require.Error(t, err)
@@ -235,29 +256,20 @@ func TestReporterReportCounter(t *testing.T) {
 }
 
 func TestReporterReportBatchTimer(t *testing.T) {
-	defer leaktest.Check(t)()
+	leakCheck := leaktest.Check(t)
+	defer leakCheck()
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	var (
-		now                 = time.Unix(1234, 0)
-		nowFn               = func() time.Time { return now }
-		positiveSkew        = 10 * time.Second
-		negativeSkew        = 10 * time.Second
-		fromNanos           = now.Add(-negativeSkew).UnixNano()
-		toNanos             = now.Add(positiveSkew).UnixNano()
 		errReportBatchTimer = errors.New("test report batch timer error")
 		actual              []unaggregated.BatchTimerWithMetadatas
 	)
-	clockOpts := clock.NewOptions().
-		SetNowFn(nowFn).
-		SetMaxPositiveSkew(positiveSkew).
-		SetMaxNegativeSkew(negativeSkew)
 	mockID := id.NewMockID(ctrl)
 	mockID.EXPECT().Bytes().Return([]byte("testBatchTimer"))
 	mockMatcher := matcher.NewMockMatcher(ctrl)
-	mockMatcher.EXPECT().ForwardMatch(mockID, fromNanos, toNanos).Return(testMatchResult)
+	mockMatcher.EXPECT().ForwardMatch(mockID, testFromNanos, testToNanos).Return(testMatchResult)
 	mockMatcher.EXPECT().Close().Return(nil).AnyTimes()
 	mockClient := client.NewMockClient(ctrl)
 	mockClient.EXPECT().
@@ -275,7 +287,7 @@ func TestReporterReportBatchTimer(t *testing.T) {
 			}).
 		MinTimes(1)
 	mockClient.EXPECT().Close().Return(nil).AnyTimes()
-	reporter := NewReporter(mockMatcher, mockClient, NewReporterOptions().SetClockOptions(clockOpts))
+	reporter := NewReporter(mockMatcher, mockClient, testReporterOptions)
 	defer reporter.Close()
 	err := reporter.ReportBatchTimer(mockID, []float64{1.3, 2.4})
 	require.Error(t, err)
@@ -337,29 +349,20 @@ func TestReporterReportBatchTimer(t *testing.T) {
 }
 
 func TestReporterReportGauge(t *testing.T) {
-	defer leaktest.Check(t)()
+	leakCheck := leaktest.Check(t)
+	defer leakCheck()
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	var (
-		now              = time.Unix(1234, 0)
-		nowFn            = func() time.Time { return now }
-		positiveSkew     = 10 * time.Second
-		negativeSkew     = 10 * time.Second
-		fromNanos        = now.Add(-negativeSkew).UnixNano()
-		toNanos          = now.Add(positiveSkew).UnixNano()
 		errReportCounter = errors.New("test report gauge error")
 		actual           []unaggregated.GaugeWithMetadatas
 	)
-	clockOpts := clock.NewOptions().
-		SetNowFn(nowFn).
-		SetMaxPositiveSkew(positiveSkew).
-		SetMaxNegativeSkew(negativeSkew)
 	mockID := id.NewMockID(ctrl)
 	mockID.EXPECT().Bytes().Return([]byte("testCounter"))
 	mockMatcher := matcher.NewMockMatcher(ctrl)
-	mockMatcher.EXPECT().ForwardMatch(mockID, fromNanos, toNanos).Return(testMatchResult)
+	mockMatcher.EXPECT().ForwardMatch(mockID, testFromNanos, testToNanos).Return(testMatchResult)
 	mockMatcher.EXPECT().Close().Return(nil).AnyTimes()
 	mockClient := client.NewMockClient(ctrl)
 	mockClient.EXPECT().
@@ -372,7 +375,7 @@ func TestReporterReportGauge(t *testing.T) {
 			return errReportCounter
 		}).MinTimes(1)
 	mockClient.EXPECT().Close().Return(nil).AnyTimes()
-	reporter := NewReporter(mockMatcher, mockClient, NewReporterOptions().SetClockOptions(clockOpts))
+	reporter := NewReporter(mockMatcher, mockClient, testReporterOptions)
 	defer reporter.Close()
 	err := reporter.ReportGauge(mockID, 1.8)
 	require.Error(t, err)
@@ -434,7 +437,8 @@ func TestReporterReportGauge(t *testing.T) {
 }
 
 func TestReporterFlush(t *testing.T) {
-	defer leaktest.Check(t)()
+	leakCheck := leaktest.Check(t)
+	defer leakCheck()
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -458,7 +462,8 @@ func TestReporterFlush(t *testing.T) {
 }
 
 func TestReporterClose(t *testing.T) {
-	defer leaktest.Check(t)()
+	leakCheck := leaktest.Check(t)
+	defer leakCheck()
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -500,7 +505,8 @@ func TestReporterMultipleCloses(t *testing.T) {
 }
 
 func TestReporterReportPending(t *testing.T) {
-	defer leaktest.Check(t)()
+	leakCheck := leaktest.Check(t)
+	defer leakCheck()
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -548,4 +554,212 @@ func TestReporterReportPending(t *testing.T) {
 	res, exists = gauges[expectedID]
 	require.True(t, exists)
 	require.Equal(t, 0.0, res.Value())
+}
+
+func TestReporterReportCounterWithDropPolicyApplied(t *testing.T) {
+	leakCheck := leaktest.Check(t)
+	defer leakCheck()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var actual []unaggregated.CounterWithMetadatas
+	mockID := id.NewMockID(ctrl)
+	mockID.EXPECT().Bytes().Return([]byte("testCounter"))
+	mockMatcher := matcher.NewMockMatcher(ctrl)
+	mockMatcher.EXPECT().
+		ForwardMatch(mockID, testFromNanos, testToNanos).
+		Return(testMatchDropPolicyAppliedResult)
+	mockMatcher.EXPECT().Close().Return(nil).AnyTimes()
+	mockClient := client.NewMockClient(ctrl)
+	mockClient.EXPECT().
+		WriteUntimedCounter(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(counter unaggregated.Counter, metadatas metadata.StagedMetadatas) error {
+			actual = append(actual, unaggregated.CounterWithMetadatas{
+				Counter:         counter,
+				StagedMetadatas: metadatas,
+			})
+			return nil
+		}).MinTimes(1)
+	mockClient.EXPECT().Close().Return(nil).AnyTimes()
+	reporter := NewReporter(mockMatcher, mockClient, testReporterOptions)
+	defer reporter.Close()
+	err := reporter.ReportCounter(mockID, 1234)
+	require.NoError(t, err)
+
+	// Ensure just the single non-tombstoned rollup ID is emitted and not the raw ID
+	require.Equal(t, 1, len(actual))
+
+	metric := actual[0]
+	assert.Equal(t, "foo", string(metric.ID))
+	assert.Equal(t, 1234, int(metric.Value))
+	assert.True(t, metric.StagedMetadatas.IsDefault())
+}
+
+func TestReporterReportGaugeWithDropPolicyApplied(t *testing.T) {
+	leakCheck := leaktest.Check(t)
+	defer leakCheck()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var actual []unaggregated.GaugeWithMetadatas
+	mockID := id.NewMockID(ctrl)
+	mockID.EXPECT().Bytes().Return([]byte("testGauge"))
+	mockMatcher := matcher.NewMockMatcher(ctrl)
+	mockMatcher.EXPECT().
+		ForwardMatch(mockID, testFromNanos, testToNanos).
+		Return(testMatchDropPolicyAppliedResult)
+	mockMatcher.EXPECT().Close().Return(nil).AnyTimes()
+	mockClient := client.NewMockClient(ctrl)
+	mockClient.EXPECT().
+		WriteUntimedGauge(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(gauge unaggregated.Gauge, metadatas metadata.StagedMetadatas) error {
+			actual = append(actual, unaggregated.GaugeWithMetadatas{
+				Gauge:           gauge,
+				StagedMetadatas: metadatas,
+			})
+			return nil
+		}).MinTimes(1)
+	mockClient.EXPECT().Close().Return(nil).AnyTimes()
+	reporter := NewReporter(mockMatcher, mockClient, testReporterOptions)
+	defer reporter.Close()
+	err := reporter.ReportGauge(mockID, 1234.5678)
+	require.NoError(t, err)
+
+	// Ensure just the single non-tombstoned rollup ID is emitted and not the raw ID
+	require.Equal(t, 1, len(actual))
+
+	metric := actual[0]
+	assert.Equal(t, "foo", string(metric.ID))
+	assert.Equal(t, 1234.5678, metric.Value)
+	assert.True(t, metric.StagedMetadatas.IsDefault())
+}
+
+func TestReporterReportBatchTimerWithDropPolicyApplied(t *testing.T) {
+	leakCheck := leaktest.Check(t)
+	defer leakCheck()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var actual []unaggregated.BatchTimerWithMetadatas
+	mockID := id.NewMockID(ctrl)
+	mockID.EXPECT().Bytes().Return([]byte("testTimer"))
+	mockMatcher := matcher.NewMockMatcher(ctrl)
+	mockMatcher.EXPECT().
+		ForwardMatch(mockID, testFromNanos, testToNanos).
+		Return(testMatchDropPolicyAppliedResult)
+	mockMatcher.EXPECT().Close().Return(nil).AnyTimes()
+	mockClient := client.NewMockClient(ctrl)
+	mockClient.EXPECT().
+		WriteUntimedBatchTimer(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(batchTimer unaggregated.BatchTimer, metadatas metadata.StagedMetadatas) error {
+			actual = append(actual, unaggregated.BatchTimerWithMetadatas{
+				BatchTimer:      batchTimer,
+				StagedMetadatas: metadatas,
+			})
+			return nil
+		}).MinTimes(1)
+	mockClient.EXPECT().Close().Return(nil).AnyTimes()
+	reporter := NewReporter(mockMatcher, mockClient, testReporterOptions)
+	defer reporter.Close()
+	err := reporter.ReportBatchTimer(mockID, []float64{12.34, 56.78})
+	require.NoError(t, err)
+
+	// Ensure just the single non-tombstoned rollup ID is emitted and not the raw ID
+	require.Equal(t, 1, len(actual))
+
+	metric := actual[0]
+	assert.Equal(t, "foo", string(metric.ID))
+	assert.Equal(t, []float64{12.34, 56.78}, metric.Values)
+	assert.True(t, metric.StagedMetadatas.IsDefault())
+}
+
+func TestReporterReportCounterWithDropPolicyNotEffective(t *testing.T) {
+	leakCheck := leaktest.Check(t)
+	defer leakCheck()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var actual []unaggregated.CounterWithMetadatas
+	mockID := id.NewMockID(ctrl)
+	mockID.EXPECT().Bytes().Return([]byte("testCounter"))
+	mockMatcher := matcher.NewMockMatcher(ctrl)
+	mockMatcher.EXPECT().
+		ForwardMatch(mockID, testFromNanos, testToNanos).
+		Return(testMatchDropPolicyNotYetEffectiveResult)
+	mockMatcher.EXPECT().Close().Return(nil).AnyTimes()
+	mockClient := client.NewMockClient(ctrl)
+	mockClient.EXPECT().
+		WriteUntimedCounter(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(counter unaggregated.Counter, metadatas metadata.StagedMetadatas) error {
+			actual = append(actual, unaggregated.CounterWithMetadatas{
+				Counter:         counter,
+				StagedMetadatas: metadatas,
+			})
+			return nil
+		}).MinTimes(1)
+	mockClient.EXPECT().Close().Return(nil).AnyTimes()
+	reporter := NewReporter(mockMatcher, mockClient, testReporterOptions)
+	defer reporter.Close()
+	err := reporter.ReportCounter(mockID, 1234)
+	require.NoError(t, err)
+
+	// Ensure just the default and staged policies are sent, stripping the staged
+	// metadatas with the drop policy
+	expected := []unaggregated.CounterWithMetadatas{
+		{
+			Counter: unaggregated.Counter{
+				ID:    []byte("testCounter"),
+				Value: 1234,
+			},
+			StagedMetadatas: metadata.StagedMetadatas{
+				{
+					CutoverNanos: 0,
+					Tombstoned:   false,
+					Metadata: metadata.Metadata{
+						Pipelines: []metadata.PipelineMetadata{
+							{
+								AggregationID: aggregation.DefaultID,
+								StoragePolicies: policy.StoragePolicies{
+									policy.NewStoragePolicy(20*time.Second, xtime.Second, 6*time.Hour),
+									policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 25*24*time.Hour),
+								},
+							},
+							{
+								AggregationID: aggregation.MustCompressTypes(aggregation.Max),
+								StoragePolicies: policy.StoragePolicies{
+									policy.NewStoragePolicy(time.Minute, xtime.Minute, 2*24*time.Hour),
+								},
+							},
+						},
+					},
+				},
+				{
+					CutoverNanos: math.MaxInt64,
+					Tombstoned:   false,
+					Metadata: metadata.Metadata{
+						Pipelines: []metadata.PipelineMetadata{
+							{
+								AggregationID: aggregation.MustCompressTypes(aggregation.Max, aggregation.P9999),
+								StoragePolicies: policy.StoragePolicies{
+									policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			Counter: unaggregated.Counter{
+				ID:    []byte("foo"),
+				Value: 1234,
+			},
+			StagedMetadatas: metadata.DefaultStagedMetadatas,
+		},
+	}
+	require.Equal(t, expected, actual)
 }
