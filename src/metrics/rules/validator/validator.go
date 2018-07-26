@@ -121,12 +121,29 @@ func (v *validator) validateMappingRules(mrv []view.MappingRule) error {
 
 		// Validate the aggregation ID.
 		if err := v.validateAggregationID(rule.AggregationID, firstLevelAggregationType, types); err != nil {
-			return fmt.Errorf("mapping rule '%s' has invalid aggregation id %v: %v", rule.Name, rule.AggregationID, err)
+			return fmt.Errorf("mapping rule '%s' has invalid aggregation ID %v: %v", rule.Name, rule.AggregationID, err)
 		}
 
-		// Validate that the storage policies are valid.
-		if err := v.validateStoragePolicies(rule.StoragePolicies, types); err != nil {
-			return fmt.Errorf("mapping rule '%s' has invalid storage policies in %v: %v", rule.Name, rule.StoragePolicies, err)
+		// Validate the drop policy is valid.
+		if !rule.DropPolicy.IsValid() {
+			return fmt.Errorf("mapping rule '%s' has an invalid drop policy: value=%d, string=%s, valid_values=%v",
+				rule.Name, int(rule.DropPolicy), rule.DropPolicy.String(), policy.ValidDropPolicies())
+		}
+
+		// Validate the storage policies if drop policy not active, otherwise ensure none.
+		if rule.DropPolicy.IsDefault() {
+			// Drop policy not set, validate that the storage policies are valid.
+			if err := v.validateStoragePolicies(rule.StoragePolicies, types); err != nil {
+				return fmt.Errorf("mapping rule '%s' has invalid storage policies in %v: %v", rule.Name, rule.StoragePolicies, err)
+			}
+		} else {
+			// Drop policy is set, ensure default aggregation ID and no storage policies set.
+			if !rule.AggregationID.IsDefault() {
+				return fmt.Errorf("mapping rule '%s' has a drop policy error: must use default aggregation ID", rule.Name)
+			}
+			if len(rule.StoragePolicies) != 0 {
+				return fmt.Errorf("mapping rule '%s' has a drop policy error: cannot specify storage policies", rule.Name)
+			}
 		}
 	}
 	return nil

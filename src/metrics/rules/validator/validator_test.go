@@ -22,6 +22,7 @@ package validator
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 
@@ -1542,6 +1543,87 @@ func TestValidatorValidateRollupRuleDuplicateRollupIDs(t *testing.T) {
 	require.True(t, strings.Contains(err.Error(), "more than one rollup operations with name 'rName1' and tags '[rtagName1 rtagName2]' exist"))
 	_, ok := err.(errors.InvalidInputError)
 	require.True(t, ok)
+}
+
+func TestValidatorValidateMappingRuleValidDropPolicy(t *testing.T) {
+	view := view.RuleSet{
+		MappingRules: []view.MappingRule{
+			{
+				Name:       "snapshot1",
+				Filter:     "tag1:value1",
+				DropPolicy: policy.DropMust,
+			},
+		},
+	}
+	validator := NewValidator(testValidatorOptions())
+	require.NoError(t, validator.ValidateSnapshot(view))
+}
+
+func TestValidatorValidateMappingRuleInvalidDropPolicy(t *testing.T) {
+	type invalidDropPolicyTest struct {
+		name string
+		view view.RuleSet
+	}
+
+	tests := []invalidDropPolicyTest{
+		{
+			name: "invalid drop policy",
+			view: view.RuleSet{
+				MappingRules: []view.MappingRule{
+					{
+						Name:       "snapshot1",
+						Filter:     "tag1:value1",
+						DropPolicy: policy.DropPolicy(math.MaxUint32),
+					},
+				},
+			},
+		},
+	}
+
+	for _, dropPolicy := range policy.ValidDropPolicies() {
+		if dropPolicy == policy.DropNone {
+			continue // The drop none policy is always valid, since its not active
+		}
+
+		tests = append(tests, []invalidDropPolicyTest{
+			{
+				name: dropPolicy.String() + " policy with storage policies",
+				view: view.RuleSet{
+					MappingRules: []view.MappingRule{
+						{
+							Name:            "snapshot1",
+							Filter:          "tag1:value1",
+							DropPolicy:      policy.DropMust,
+							StoragePolicies: testStoragePolicies(),
+						},
+					},
+				},
+			},
+			{
+				name: dropPolicy.String() + " policy with non-default aggregation ID",
+				view: view.RuleSet{
+					MappingRules: []view.MappingRule{
+						{
+							Name:       "snapshot1",
+							Filter:     "tag1:value1",
+							DropPolicy: policy.DropMust,
+							AggregationID: aggregation.NewIDCompressor().MustCompress(
+								aggregation.Types{aggregation.Last},
+							),
+						},
+					},
+				},
+			},
+		}...)
+	}
+
+	validator := NewValidator(testValidatorOptions())
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Error(t, validator.ValidateSnapshot(test.view))
+		})
+	}
 }
 
 func testKVNamespaceValidator(t *testing.T) namespace.Validator {
