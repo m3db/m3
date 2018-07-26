@@ -68,7 +68,7 @@ func TestDiskCleanup(t *testing.T) {
 		commitLogOpts = testSetup.storageOpts.CommitLogOptions().
 				SetFlushInterval(defaultIntegrationTestFlushInterval)
 	)
-	ns1, err = namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
+	ns1, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
 	require.NoError(t, err)
 	for i := 0; i < numTimes; i++ {
 		fileTimes[i] = now.Add(time.Duration(i) * blockSize)
