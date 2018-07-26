@@ -37,9 +37,8 @@ const (
 	anyNumbersPattern               = "[0-9]*"
 	anyLowerCaseCharsNumbersPattern = "[a-z0-9]*"
 
-	separator                    = "-"
-	infoFilePattern              = filesetFilePrefix + separator + anyNumbersPattern + separator + infoFileSuffix + fileSuffix
-	filesetFilePattern           = filesetFilePrefix + separator + anyNumbersPattern + separator + anyLowerCaseCharsPattern + fileSuffix
-	commitLogFilePattern         = commitLogFilePrefix + separator + anyNumbersPattern + separator + anyNumbersPattern + fileSuffix
-	commitLogFileForTimeTemplate = commitLogFilePrefix + separator + "%d" + separator + anyNumbersPattern + fileSuffix
+	separator            = "-"
+	infoFilePattern      = filesetFilePrefix + separator + anyNumbersPattern + separator + infoFileSuffix + fileSuffix
+	filesetFilePattern   = filesetFilePrefix + separator + anyNumbersPattern + separator + anyLowerCaseCharsPattern + fileSuffix
+	commitLogFilePattern = commitLogFilePrefix + separator + anyNumbersPattern + separator + anyNumbersPattern + fileSuffix
 )

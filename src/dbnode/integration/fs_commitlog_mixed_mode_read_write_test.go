@@ -317,6 +317,19 @@ func (d dataPointsInTimeOrder) toSeriesMap(blockSize time.Duration) generate.Ser
 	return nil
 }
 
+// before returns a slice of the dataPointsInTimeOrder that are before the
+// specified time t.
+func (d dataPointsInTimeOrder) before(t time.Time) dataPointsInTimeOrder {
+	var i int
+	for i = range d {
+		if !d[i].time.Before(t) {
+			break
+		}
+	}
+
+	return d[:i]
+}
+
 type idGen struct {
 	baseID string
 }

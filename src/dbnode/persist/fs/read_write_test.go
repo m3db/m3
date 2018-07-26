@@ -358,7 +358,8 @@ func TestReusingReaderWriter(t *testing.T) {
 	}
 	w := newTestWriter(t, filePathPrefix)
 	for i := range allEntries {
-		writeTestData(t, w, 0, testWriterStart.Add(time.Duration(i)*time.Hour), allEntries[i], persist.FileSetFlushType)
+		writeTestData(
+			t, w, 0, testWriterStart.Add(time.Duration(i)*time.Hour), allEntries[i], persist.FileSetFlushType)
 	}
 
 	r := newTestReader(t, filePathPrefix)
