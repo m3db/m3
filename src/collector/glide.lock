@@ -1,5 +1,5 @@
-hash: ed82bbd09eac876dadc52e2c61b348fa24cb30d181d523be35ea1619a8e12f2f
-updated: 2018-07-02T18:22:41.303066-04:00
+hash: b706caa3a8f6f9d9bd8bb9107464e45a0c59a3346c6fddb737776b62070c9f7c
+updated: 2018-06-29T15:07:10.018623-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -52,7 +52,7 @@ imports:
   - services/leader/campaign
   - shard
 - name: github.com/m3db/m3metrics
-  version: 2ccc6ebcb5ead5170b4a5b6f13c1fdfdd19c0897
+  version: c952a65015f603f3eeab65422049a9ff18999283
   subpackages:
   - aggregation
   - encoding
