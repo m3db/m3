@@ -1025,6 +1025,9 @@
                 "storagePolicies": {
                     "$ref": "#/definitions/StoragePolicies"
                 },
+                "dropPolicy": {
+                    "type": "integer"
+                },
                 "cutoverMillis": {
                     "type": "integer"
                 },
