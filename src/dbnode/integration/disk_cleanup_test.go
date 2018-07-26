@@ -65,10 +65,10 @@ func TestDiskCleanup(t *testing.T) {
 		numTimes      = 10
 		fileTimes     = make([]time.Time, numTimes)
 		now           = testSetup.getNowFn()
-		ns1, err      = namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
 		commitLogOpts = testSetup.storageOpts.CommitLogOptions().
 				SetFlushInterval(defaultIntegrationTestFlushInterval)
 	)
+	ns1, err = namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
 	require.NoError(t, err)
 	for i := 0; i < numTimes; i++ {
 		fileTimes[i] = now.Add(time.Duration(i) * blockSize)
