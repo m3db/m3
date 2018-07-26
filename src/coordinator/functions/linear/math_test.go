@@ -93,7 +93,7 @@ func TestLn(t *testing.T) {
 	require.NoError(t, err)
 	expected := expectedMathVals(values, math.Log)
 	assert.Len(t, sink.Values, 2)
-	test.EqualsWithNans(t, expected, sink.Values)
+	assert.Equal(t, expected, sink.Values)
 }
 
 func TestLog10WithNoValues(t *testing.T) {
@@ -130,6 +130,25 @@ func TestLog2WithSomeValues(t *testing.T) {
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedMathVals(values, math.Log2)
+	assert.Len(t, sink.Values, 2)
+	test.EqualsWithNans(t, expected, sink.Values)
+}
+
+func TestFloorWithSomeValues(t *testing.T) {
+	v := [][]float64{
+		{0, math.NaN(), 2.2, 3.3, 4},
+		{math.NaN(), 6, 7.77, 8, 9.9},
+	}
+
+	values, bounds := test.GenerateValuesAndBounds(v, nil)
+	block := test.NewBlockFromValues(bounds, values)
+	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	op, err := NewMathOp(FloorType)
+	require.NoError(t, err)
+	node := op.Node(c)
+	err = node.Process(parser.NodeID(0), block)
+	require.NoError(t, err)
+	expected := expectedMathVals(values, math.Floor)
 	assert.Len(t, sink.Values, 2)
 	test.EqualsWithNans(t, expected, sink.Values)
 }
