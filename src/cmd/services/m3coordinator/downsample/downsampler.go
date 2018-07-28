@@ -426,7 +426,7 @@ func (w *downsamplerFlushHandlerWriter) Write(
 
 		iter := w.handler.encodedTagsIteratorPool.Get()
 		iter.Reset(mp.ChunkedID.Data)
-		expected := iter.TagsRemaining()
+		expected := iter.NumTags()
 		if len(mp.ChunkedID.Suffix) > 0 {
 			expected++
 		}

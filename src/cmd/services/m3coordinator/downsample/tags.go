@@ -66,6 +66,13 @@ func (t *tags) Next() bool {
 	return hasNext
 }
 
+func (t *tags) CurrentIndex() int {
+	if t.idx >= 0 {
+		return t.idx
+	}
+	return 0
+}
+
 func (t *tags) Current() ident.Tag {
 	t.nameBuf = append(t.nameBuf[:0], t.names[t.idx]...)
 	t.valueBuf = append(t.valueBuf[:0], t.values[t.idx]...)
@@ -80,7 +87,7 @@ func (t *tags) Err() error {
 }
 
 func (t *tags) Close() {
-
+	// No-op
 }
 
 func (t *tags) Remaining() int {

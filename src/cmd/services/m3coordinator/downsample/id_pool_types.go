@@ -49,7 +49,7 @@ var (
 type encodedTagsIterator interface {
 	id.ID
 	id.SortedTagIterator
-	TagsRemaining() int
+	NumTags() int
 }
 
 type encodedTagsIter struct {
@@ -80,8 +80,8 @@ func (it *encodedTagsIter) Bytes() []byte {
 	return it.bytes.Bytes()
 }
 
-func (it *encodedTagsIter) TagsRemaining() int {
-	return it.tagDecoder.Remaining()
+func (it *encodedTagsIter) NumTags() int {
+	return it.tagDecoder.Len()
 }
 
 // TagValue returns the value for a tag value.
@@ -226,10 +226,6 @@ func (p *rollupIDProvider) reset(
 	}
 }
 
-func (p *rollupIDProvider) length() int {
-	return len(p.tagPairs) + 1
-}
-
 func (p *rollupIDProvider) finalize() {
 	if p.pool != nil {
 		p.pool.Put(p)
@@ -238,7 +234,14 @@ func (p *rollupIDProvider) finalize() {
 
 func (p *rollupIDProvider) Next() bool {
 	p.index++
-	return p.index < p.length()
+	return p.index < p.Len()
+}
+
+func (p *rollupIDProvider) CurrentIndex() int {
+	if p.index >= 0 {
+		return p.index
+	}
+	return 0
 }
 
 func (p *rollupIDProvider) Current() ident.Tag {
@@ -266,8 +269,12 @@ func (p *rollupIDProvider) Close() {
 	// No-op
 }
 
+func (p *rollupIDProvider) Len() int {
+	return len(p.tagPairs) + 1
+}
+
 func (p *rollupIDProvider) Remaining() int {
-	return p.length() - p.index - 1
+	return p.Len() - p.index - 1
 }
 
 func (p *rollupIDProvider) Duplicate() ident.TagIterator {
