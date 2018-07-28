@@ -1094,14 +1094,13 @@ func TestShardNewInvalidShardEntry(t *testing.T) {
 
 	iter := ident.NewMockTagIterator(ctrl)
 	gomock.InOrder(
-		iter.EXPECT().Remaining().Return(2),
-		iter.EXPECT().Duplicate().Return(iter),
+		iter.EXPECT().CurrentIndex().Return(0),
 		iter.EXPECT().Next().Return(false),
 		iter.EXPECT().Err().Return(fmt.Errorf("random err")),
 		iter.EXPECT().Close(),
 	)
 
-	_, err := shard.newShardEntry(ident.StringID("abc"), iter)
+	_, err := shard.newShardEntry(ident.StringID("abc"), newTagsIterArg(iter))
 	require.Error(t, err)
 }
 
@@ -1112,7 +1111,7 @@ func TestShardNewValidShardEntry(t *testing.T) {
 	shard := testDatabaseShard(t, testDatabaseOptions())
 	defer shard.Close()
 
-	_, err := shard.newShardEntry(ident.StringID("abc"), ident.EmptyTagIterator)
+	_, err := shard.newShardEntry(ident.StringID("abc"), newTagsIterArg(ident.EmptyTagIterator))
 	require.NoError(t, err)
 }
 

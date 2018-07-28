@@ -23,11 +23,11 @@ package storage
 import (
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3db/src/dbnode/retention"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	"github.com/m3db/m3x/ident"
@@ -36,6 +36,15 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+)
+
+var (
+	currentTime        = timeFor(50)
+	time10             = timeFor(10)
+	time20             = timeFor(20)
+	time30             = timeFor(30)
+	time40             = timeFor(40)
+	commitLogBlockSize = 10 * time.Second
 )
 
 func testCleanupManager(ctrl *gomock.Controller) (*Mockdatabase, *cleanupManager) {
@@ -70,14 +79,10 @@ func TestCleanupManagerCleanup(t *testing.T) {
 			SetRetentionPeriod(rOpts.RetentionPeriod()).
 			SetBlockSize(rOpts.BlockSize()))
 
-	mgr.commitLogFilesBeforeFn = func(_ string, t time.Time) ([]string, error) {
-		return []string{"foo", "bar"}, errors.New("error1")
-	}
-	mgr.commitLogFilesForTimeFn = func(_ string, t time.Time) ([]string, error) {
-		if t.Equal(timeFor(14400)) {
-			return []string{"baz"}, nil
-		}
-		return nil, errors.New("error" + strconv.Itoa(int(t.Unix())))
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
+		return []commitlog.File{
+			commitlog.File{FilePath: "foo", Start: timeFor(14400)},
+		}, nil
 	}
 	var deletedFiles []string
 	mgr.deleteFilesFn = func(files []string) error {
@@ -85,8 +90,8 @@ func TestCleanupManagerCleanup(t *testing.T) {
 		return nil
 	}
 
-	require.Error(t, mgr.Cleanup(ts))
-	require.Equal(t, []string{"foo", "bar", "baz"}, deletedFiles)
+	require.NoError(t, mgr.Cleanup(ts))
+	require.Equal(t, []string{"foo"}, deletedFiles)
 }
 
 func TestCleanupManagerNamespaceCleanup(t *testing.T) {
@@ -147,12 +152,6 @@ func TestCleanupManagerDoesntNeedCleanup(t *testing.T) {
 			SetRetentionPeriod(rOpts.RetentionPeriod()).
 			SetBlockSize(rOpts.BlockSize()))
 
-	mgr.commitLogFilesBeforeFn = func(_ string, t time.Time) ([]string, error) {
-		return []string{"foo", "bar"}, nil
-	}
-	mgr.commitLogFilesForTimeFn = func(_ string, t time.Time) ([]string, error) {
-		return nil, nil
-	}
 	var deletedFiles []string
 	mgr.deleteFilesFn = func(files []string) error {
 		deletedFiles = append(deletedFiles, files...)
@@ -475,26 +474,61 @@ func newCleanupManagerCommitLogTimesTest(t *testing.T, ctrl *gomock.Controller) 
 	return ns, mgr
 }
 
+func newCleanupManagerCommitLogTimesTestMultiNS(
+	t *testing.T,
+	ctrl *gomock.Controller,
+) (*MockdatabaseNamespace, *MockdatabaseNamespace, *cleanupManager) {
+	var (
+		rOpts = retention.NewOptions().
+			SetRetentionPeriod(30 * time.Second).
+			SetBufferPast(0 * time.Second).
+			SetBufferFuture(0 * time.Second).
+			SetBlockSize(10 * time.Second)
+	)
+	no := namespace.NewMockOptions(ctrl)
+	no.EXPECT().RetentionOptions().Return(rOpts).AnyTimes()
+
+	ns1 := NewMockdatabaseNamespace(ctrl)
+	ns1.EXPECT().Options().Return(no).AnyTimes()
+
+	ns2 := NewMockdatabaseNamespace(ctrl)
+	ns2.EXPECT().Options().Return(no).AnyTimes()
+
+	db := newMockdatabase(ctrl, ns1, ns2)
+	mgr := newCleanupManager(db, tally.NoopScope).(*cleanupManager)
+
+	mgr.opts = mgr.opts.SetCommitLogOptions(
+		mgr.opts.CommitLogOptions().
+			SetRetentionPeriod(rOpts.RetentionPeriod()).
+			SetBlockSize(rOpts.BlockSize()))
+	return ns1, ns2, mgr
+}
+
 func TestCleanupManagerCommitLogTimesAllFlushed(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
-	currentTime := timeFor(50)
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
+		return []commitlog.File{
+			commitlog.File{Start: time10, Duration: commitLogBlockSize},
+			commitlog.File{Start: time20, Duration: commitLogBlockSize},
+			commitlog.File{Start: time30, Duration: commitLogBlockSize},
+		}, nil
+	}
 
 	gomock.InOrder(
-		ns.EXPECT().NeedsFlush(timeFor(30), timeFor(40)).Return(false),
-		ns.EXPECT().NeedsFlush(timeFor(20), timeFor(30)).Return(false),
-		ns.EXPECT().NeedsFlush(timeFor(10), timeFor(20)).Return(false),
+		ns.EXPECT().NeedsFlush(time10, time20).Return(false),
+		ns.EXPECT().NeedsFlush(time20, time30).Return(false),
+		ns.EXPECT().NeedsFlush(time30, time40).Return(false),
 	)
 
-	earliest, times, err := mgr.commitLogTimes(currentTime)
+	filesToCleanup, err := mgr.commitLogTimes(currentTime)
 	require.NoError(t, err)
-	require.Equal(t, timeFor(10), earliest)
-	require.Equal(t, 3, len(times))
-	require.True(t, contains(times, timeFor(10)))
-	require.True(t, contains(times, timeFor(20)))
-	require.True(t, contains(times, timeFor(30)))
+	require.Equal(t, 3, len(filesToCleanup))
+	require.True(t, contains(filesToCleanup, time10))
+	require.True(t, contains(filesToCleanup, time20))
+	require.True(t, contains(filesToCleanup, time30))
 }
 
 func TestCleanupManagerCommitLogTimesMiddlePendingFlush(t *testing.T) {
@@ -502,20 +536,27 @@ func TestCleanupManagerCommitLogTimesMiddlePendingFlush(t *testing.T) {
 	defer ctrl.Finish()
 
 	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
-	currentTime := timeFor(50)
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
+		return []commitlog.File{
+			commitlog.File{Start: time10, Duration: commitLogBlockSize},
+			commitlog.File{Start: time20, Duration: commitLogBlockSize},
+			commitlog.File{Start: time30, Duration: commitLogBlockSize},
+		}, nil
+	}
 
+	ns.EXPECT().IsCapturedBySnapshot(
+		gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
 	gomock.InOrder(
-		ns.EXPECT().NeedsFlush(timeFor(30), timeFor(40)).Return(false),
-		ns.EXPECT().NeedsFlush(timeFor(20), timeFor(30)).Return(true),
-		ns.EXPECT().NeedsFlush(timeFor(10), timeFor(20)).Return(false),
+		ns.EXPECT().NeedsFlush(time10, time20).Return(false),
+		ns.EXPECT().NeedsFlush(time20, time30).Return(true),
+		ns.EXPECT().NeedsFlush(time30, time40).Return(false),
 	)
 
-	earliest, times, err := mgr.commitLogTimes(currentTime)
+	filesToCleanup, err := mgr.commitLogTimes(currentTime)
 	require.NoError(t, err)
-	require.Equal(t, timeFor(10), earliest)
-	require.Equal(t, 2, len(times))
-	require.True(t, contains(times, timeFor(10)))
-	require.True(t, contains(times, timeFor(30)))
+	require.Equal(t, 2, len(filesToCleanup))
+	require.True(t, contains(filesToCleanup, time10))
+	require.True(t, contains(filesToCleanup, time30))
 }
 
 func TestCleanupManagerCommitLogTimesStartPendingFlush(t *testing.T) {
@@ -523,20 +564,28 @@ func TestCleanupManagerCommitLogTimesStartPendingFlush(t *testing.T) {
 	defer ctrl.Finish()
 
 	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
-	currentTime := timeFor(50)
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
+		return []commitlog.File{
+			commitlog.File{Start: time10, Duration: commitLogBlockSize},
+			commitlog.File{Start: time20, Duration: commitLogBlockSize},
+			commitlog.File{Start: time30, Duration: commitLogBlockSize},
+		}, nil
+	}
 
+	ns.EXPECT().IsCapturedBySnapshot(
+		gomock.Any(), gomock.Any(), gomock.Any(),
+	).Return(false, nil).AnyTimes()
 	gomock.InOrder(
-		ns.EXPECT().NeedsFlush(timeFor(30), timeFor(40)).Return(true),
-		ns.EXPECT().NeedsFlush(timeFor(20), timeFor(30)).Return(false),
-		ns.EXPECT().NeedsFlush(timeFor(10), timeFor(20)).Return(false),
+		ns.EXPECT().NeedsFlush(time10, time20).Return(false),
+		ns.EXPECT().NeedsFlush(time20, time30).Return(false),
+		ns.EXPECT().NeedsFlush(time30, time40).Return(true),
 	)
 
-	earliest, times, err := mgr.commitLogTimes(currentTime)
+	filesToCleanup, err := mgr.commitLogTimes(currentTime)
 	require.NoError(t, err)
-	require.Equal(t, timeFor(10), earliest)
-	require.Equal(t, 2, len(times))
-	require.True(t, contains(times, timeFor(20)))
-	require.True(t, contains(times, timeFor(10)))
+	require.Equal(t, 2, len(filesToCleanup))
+	require.True(t, contains(filesToCleanup, time20))
+	require.True(t, contains(filesToCleanup, time10))
 }
 
 func TestCleanupManagerCommitLogTimesAllPendingFlush(t *testing.T) {
@@ -544,29 +593,151 @@ func TestCleanupManagerCommitLogTimesAllPendingFlush(t *testing.T) {
 	defer ctrl.Finish()
 
 	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
-	currentTime := timeFor(50)
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
+		return []commitlog.File{
+			commitlog.File{Start: time10, Duration: commitLogBlockSize},
+			commitlog.File{Start: time20, Duration: commitLogBlockSize},
+			commitlog.File{Start: time30, Duration: commitLogBlockSize},
+		}, nil
+	}
 
+	ns.EXPECT().IsCapturedBySnapshot(
+		gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
 	gomock.InOrder(
-		ns.EXPECT().NeedsFlush(timeFor(30), timeFor(40)).Return(true),
-		ns.EXPECT().NeedsFlush(timeFor(20), timeFor(30)).Return(true),
-		ns.EXPECT().NeedsFlush(timeFor(10), timeFor(20)).Return(true),
+		ns.EXPECT().NeedsFlush(time10, time20).Return(true),
+		ns.EXPECT().NeedsFlush(time20, time30).Return(true),
+		ns.EXPECT().NeedsFlush(time30, time40).Return(true),
 	)
 
-	earliest, times, err := mgr.commitLogTimes(currentTime)
+	filesToCleanup, err := mgr.commitLogTimes(currentTime)
 	require.NoError(t, err)
-	require.Equal(t, timeFor(10), earliest)
-	require.Equal(t, 0, len(times))
+	require.Equal(t, 0, len(filesToCleanup))
 }
 
 func timeFor(s int64) time.Time {
 	return time.Unix(s, 0)
 }
 
-func contains(arr []time.Time, t time.Time) bool {
+func contains(arr []commitlog.File, t time.Time) bool {
 	for _, at := range arr {
-		if at.Equal(t) {
+		if at.Start.Equal(t) {
 			return true
 		}
 	}
 	return false
+}
+
+func TestCleanupManagerCommitLogTimesAllPendingFlushButHaveSnapshot(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		ns, mgr            = newCleanupManagerCommitLogTimesTest(t, ctrl)
+		currentTime        = timeFor(50)
+		commitLogBlockSize = 10 * time.Second
+	)
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
+		return []commitlog.File{
+			commitlog.File{Start: time10, Duration: commitLogBlockSize},
+			commitlog.File{Start: time20, Duration: commitLogBlockSize},
+			commitlog.File{Start: time30, Duration: commitLogBlockSize},
+		}, nil
+	}
+
+	gomock.InOrder(
+		// Commit log with start time10 captured by snapshot,
+		// should be able to delete.
+		ns.EXPECT().NeedsFlush(time10, time20).Return(true),
+		ns.EXPECT().IsCapturedBySnapshot(
+			gomock.Any(), gomock.Any(), time20).Return(true, nil),
+		// Commit log with start time20 captured by snapshot,
+		// should be able to delete.
+		ns.EXPECT().NeedsFlush(time20, time30).Return(true),
+		ns.EXPECT().IsCapturedBySnapshot(
+			gomock.Any(), gomock.Any(), time30).Return(true, nil),
+		// Commit log with start time30 not captured by snapshot,
+		// will need to retain.
+		ns.EXPECT().NeedsFlush(time30, time40).Return(true),
+		ns.EXPECT().IsCapturedBySnapshot(
+			gomock.Any(), gomock.Any(), time40).Return(false, nil),
+	)
+
+	filesToCleanup, err := mgr.commitLogTimes(currentTime)
+	require.NoError(t, err)
+
+	// Only commit log files with starts time10 and time20 were
+	// captured by snapshot files, so those are the only ones
+	// we can delete.
+	require.True(t, contains(filesToCleanup, time10))
+	require.True(t, contains(filesToCleanup, time20))
+}
+
+func TestCleanupManagerCommitLogTimesHandlesIsCapturedBySnapshotError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
+		return []commitlog.File{
+			commitlog.File{Start: time30, Duration: commitLogBlockSize},
+		}, nil
+	}
+
+	gomock.InOrder(
+		ns.EXPECT().NeedsFlush(time30, time40).Return(true),
+		ns.EXPECT().IsCapturedBySnapshot(
+			gomock.Any(), gomock.Any(), time40).Return(false, errors.New("err")),
+	)
+
+	_, err := mgr.commitLogTimes(currentTime)
+	require.Error(t, err)
+}
+
+func TestCleanupManagerCommitLogTimesMultiNS(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ns1, ns2, mgr := newCleanupManagerCommitLogTimesTestMultiNS(t, ctrl)
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
+		return []commitlog.File{
+			commitlog.File{Start: time10, Duration: commitLogBlockSize},
+			commitlog.File{Start: time20, Duration: commitLogBlockSize},
+			commitlog.File{Start: time30, Duration: commitLogBlockSize},
+		}, nil
+	}
+
+	// ns1 is flushed for time10->time20 and time20->time30.
+	// It is not flushed for time30->time40, but it doe have
+	// a snapshot that covers that range.
+	//
+	// ns2 is flushed for time10->time20. It is not flushed for
+	// time20->time30 but it does have a snapshot that covers
+	// that range. It does not have a flush or snapshot for
+	// time30->time40.
+	gomock.InOrder(
+		ns1.EXPECT().NeedsFlush(time10, time20).Return(false),
+		ns2.EXPECT().NeedsFlush(time10, time20).Return(false),
+
+		ns1.EXPECT().NeedsFlush(time20, time30).Return(false),
+		ns2.EXPECT().NeedsFlush(time20, time30).Return(true),
+		ns2.EXPECT().IsCapturedBySnapshot(
+			gomock.Any(), gomock.Any(), time30).Return(true, nil),
+
+		ns1.EXPECT().NeedsFlush(time30, time40).Return(true),
+		ns1.EXPECT().IsCapturedBySnapshot(
+			gomock.Any(), gomock.Any(), time40).Return(true, nil),
+		ns2.EXPECT().NeedsFlush(time30, time40).Return(true),
+		ns2.EXPECT().IsCapturedBySnapshot(
+			gomock.Any(), gomock.Any(), time40).Return(false, nil),
+	)
+
+	filesToCleanup, err := mgr.commitLogTimes(currentTime)
+	require.NoError(t, err)
+
+	// time10 and time20 were covered by either a flush or snapshot
+	// for both namespaces, but time30 was only covered for ns1 by
+	// a snapshot, and ns2 didn't have a snapshot or flush for that
+	// time so the file needs to be retained.
+	require.True(t, contains(filesToCleanup, time10))
+	require.True(t, contains(filesToCleanup, time20))
 }

@@ -24,7 +24,6 @@ package integration
 
 import (
 	"errors"
-	"os"
 	"testing"
 	"time"
 
@@ -80,14 +79,6 @@ func writeIndexFileSetFiles(t *testing.T, storageOpts storage.Options, md namesp
 		}
 		require.NoError(t, writer.Open(writerOpts))
 		require.NoError(t, writer.Close())
-	}
-}
-
-func writeCommitLogs(t *testing.T, filePathPrefix string, fileTimes []time.Time) {
-	for _, start := range fileTimes {
-		commitLogFile, _ := fs.NextCommitLogsFile(filePathPrefix, start)
-		_, err := os.Create(commitLogFile)
-		require.NoError(t, err)
 	}
 }
 

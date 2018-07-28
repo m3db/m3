@@ -413,21 +413,33 @@ func (b *dbBlock) resetRetrievableWithLock(
 	b.wasRetrievedFromDisk = false
 }
 
-func (b *dbBlock) Close() {
-	b.Lock()
-	defer b.Unlock()
+func (b *dbBlock) Discard() ts.Segment {
+	return b.closeAndDiscard()
+}
 
+func (b *dbBlock) Close() {
+	segment := b.closeAndDiscard()
+	segment.Finalize()
+}
+
+func (b *dbBlock) closeAndDiscard() ts.Segment {
+	b.Lock()
 	if b.closed {
-		return
+		b.Unlock()
+		return ts.Segment{}
 	}
 
+	segment := b.segment
 	b.closed = true
-	b.segment.Finalize()
 
 	b.resetMergeTargetWithLock()
+	b.Unlock()
+
 	if pool := b.opts.DatabaseBlockPool(); pool != nil {
 		pool.Put(b)
 	}
+
+	return segment
 }
 
 func (b *dbBlock) resetMergeTargetWithLock() {

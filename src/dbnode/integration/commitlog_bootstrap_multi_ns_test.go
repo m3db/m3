@@ -83,7 +83,7 @@ func TestCommitLogBootstrapMultipleNamespaces(t *testing.T) {
 
 	setup.namespaceMetadataOrFail(testNamespaces[0])
 	log.Info("writing data - ns1")
-	writeCommitLogData(t, setup, commitLogOpts, ns1SeriesMap, testNamespaces[0])
+	writeCommitLogData(t, setup, commitLogOpts, ns1SeriesMap, ns1, false)
 	log.Info("written data - ns1")
 
 	// Write test data for ns2
@@ -96,7 +96,7 @@ func TestCommitLogBootstrapMultipleNamespaces(t *testing.T) {
 	})
 	setup.namespaceMetadataOrFail(testNamespaces[1])
 	log.Info("writing data - ns2")
-	writeCommitLogData(t, setup, commitLogOpts, ns2SeriesMap, testNamespaces[1])
+	writeCommitLogData(t, setup, commitLogOpts, ns2SeriesMap, ns2, false)
 	log.Info("written data - ns2")
 
 	// Setup bootstrapper after writing data so filesystem inspection can find it

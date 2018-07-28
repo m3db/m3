@@ -201,6 +201,18 @@ func (mr *MockTagDecoderMockRecorder) Current() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockTagDecoder)(nil).Current))
 }
 
+// CurrentIndex mocks base method
+func (m *MockTagDecoder) CurrentIndex() int {
+	ret := m.ctrl.Call(m, "CurrentIndex")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// CurrentIndex indicates an expected call of CurrentIndex
+func (mr *MockTagDecoderMockRecorder) CurrentIndex() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CurrentIndex", reflect.TypeOf((*MockTagDecoder)(nil).CurrentIndex))
+}
+
 // Duplicate mocks base method
 func (m *MockTagDecoder) Duplicate() ident.TagIterator {
 	ret := m.ctrl.Call(m, "Duplicate")
@@ -223,6 +235,18 @@ func (m *MockTagDecoder) Err() error {
 // Err indicates an expected call of Err
 func (mr *MockTagDecoderMockRecorder) Err() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockTagDecoder)(nil).Err))
+}
+
+// Len mocks base method
+func (m *MockTagDecoder) Len() int {
+	ret := m.ctrl.Call(m, "Len")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// Len indicates an expected call of Len
+func (mr *MockTagDecoderMockRecorder) Len() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Len", reflect.TypeOf((*MockTagDecoder)(nil).Len))
 }
 
 // Next mocks base method

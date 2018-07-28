@@ -21,7 +21,6 @@
 package fs
 
 import (
-	"bytes"
 	"fmt"
 	"math"
 	"sync"
@@ -474,43 +473,6 @@ func (s *fileSystemSource) markRunResultErrorsAndUnfulfilled(
 	}
 }
 
-func (s *fileSystemSource) tagsFromTagsIter(
-	seriesID ident.ID,
-	iter ident.TagIterator,
-) (ident.Tags, error) {
-	seriesIDBytes := ident.BytesID(seriesID.Bytes())
-
-	tags := s.idPool.Tags()
-	for iter.Next() {
-		curr := iter.Current()
-
-		var (
-			nameBytes, valueBytes = curr.Name.Bytes(), curr.Value.Bytes()
-			tag                   ident.Tag
-			idRef                 bool
-		)
-		if idx := bytes.Index(seriesIDBytes, nameBytes); idx != -1 {
-			tag.Name = seriesIDBytes[idx : idx+len(nameBytes)]
-			idRef = true
-		} else {
-			tag.Name = s.idPool.Clone(curr.Name)
-		}
-		if idx := bytes.Index(seriesIDBytes, valueBytes); idx != -1 {
-			tag.Value = seriesIDBytes[idx : idx+len(valueBytes)]
-			idRef = true
-		} else {
-			tag.Value = s.idPool.Clone(curr.Value)
-		}
-
-		if idRef {
-			tag.NoFinalize() // Taken ref, cannot finalize this
-		}
-
-		tags.Append(tag)
-	}
-	return tags, iter.Err()
-}
-
 func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	ns namespace.Metadata,
 	run runType,
@@ -706,7 +668,7 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 		id = entry.ID
 		tags = entry.Tags
 	} else {
-		tags, err = s.tagsFromTagsIter(id, tagsIter)
+		tags, err = convert.TagsFromTagsIter(id, tagsIter, s.idPool)
 		if err != nil {
 			return fmt.Errorf("unable to decode tags: %v", err)
 		}

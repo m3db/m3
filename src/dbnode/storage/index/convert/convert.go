@@ -173,6 +173,55 @@ func FromMetricIterNoClone(id ident.ID, tags ident.TagIterator) (doc.Document, e
 	}, nil
 }
 
+// TagsFromTagsIter returns an ident.Tags from a TagIterator. It also tries
+// to re-use bytes from the seriesID if they're also present in the tags
+// instead of re-allocating them. This requires that the ident.Tags that is
+// returned will have the same (or shorter) life time as the seriesID,
+// otherwise the operation is unsafe.
+func TagsFromTagsIter(
+	seriesID ident.ID,
+	iter ident.TagIterator,
+	idPool ident.Pool,
+) (ident.Tags, error) {
+	var (
+		seriesIDBytes = ident.BytesID(seriesID.Bytes())
+		tags          = idPool.Tags()
+	)
+
+	for iter.Next() {
+		curr := iter.Current()
+
+		var (
+			nameBytes, valueBytes = curr.Name.Bytes(), curr.Value.Bytes()
+			tag                   ident.Tag
+			idRef                 bool
+		)
+		if idx := bytes.Index(seriesIDBytes, nameBytes); idx != -1 {
+			tag.Name = seriesIDBytes[idx : idx+len(nameBytes)]
+			idRef = true
+		} else {
+			tag.Name = idPool.Clone(curr.Name)
+		}
+		if idx := bytes.Index(seriesIDBytes, valueBytes); idx != -1 {
+			tag.Value = seriesIDBytes[idx : idx+len(valueBytes)]
+			idRef = true
+		} else {
+			tag.Value = idPool.Clone(curr.Value)
+		}
+
+		if idRef {
+			tag.NoFinalize() // Taken ref, cannot finalize this
+		}
+
+		tags.Append(tag)
+	}
+
+	if err := iter.Err(); err != nil {
+		return ident.Tags{}, err
+	}
+	return tags, nil
+}
+
 // NB(prateek): we take an independent copy of the bytes underlying
 // any ids provided, as we need to maintain the lifecycle of the indexed
 // bytes separately from the rest of the storage subsystem.
@@ -281,6 +330,13 @@ func (t *tagIter) Current() ident.Tag {
 	return t.currentTag
 }
 
+func (t *tagIter) CurrentIndex() int {
+	if t.currentIdx >= 0 {
+		return t.currentIdx
+	}
+	return 0
+}
+
 func (t *tagIter) Err() error {
 	return t.err
 }
@@ -288,6 +344,10 @@ func (t *tagIter) Err() error {
 func (t *tagIter) Close() {
 	t.releaseCurrent()
 	t.done = true
+}
+
+func (t *tagIter) Len() int {
+	return len(t.docFields)
 }
 
 func (t *tagIter) Remaining() int {

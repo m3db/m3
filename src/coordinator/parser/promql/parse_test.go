@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3db/src/coordinator/functions"
+	"github.com/m3db/m3db/src/coordinator/functions/linear"
 	"github.com/m3db/m3db/src/coordinator/functions/logical"
 	"github.com/m3db/m3db/src/coordinator/parser"
 
@@ -62,7 +63,7 @@ func TestDAGWithUnknownOp(t *testing.T) {
 	require.Error(t, err, "unsupported operation fails parsing")
 }
 
-func TestDAGWithFunctionCall(t *testing.T) {
+func TestDAGWithAbsOp(t *testing.T) {
 	q := "abs(http_requests_total{method=\"GET\"})"
 	p, err := Parse(q)
 	require.NoError(t, err)
@@ -71,7 +72,23 @@ func TestDAGWithFunctionCall(t *testing.T) {
 	assert.Len(t, transforms, 2)
 	assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
 	assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
-	assert.Equal(t, transforms[1].Op.OpType(), functions.AbsType)
+	assert.Equal(t, transforms[1].Op.OpType(), linear.AbsType)
+	assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
+	assert.Len(t, edges, 1)
+	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"), "fetch should be the parent")
+	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"), "function expr should be the child")
+}
+
+func TestDAGWithAbsentOp(t *testing.T) {
+	q := "absent(http_requests_total{method=\"GET\"})"
+	p, err := Parse(q)
+	require.NoError(t, err)
+	transforms, edges, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 2)
+	assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
+	assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
+	assert.Equal(t, transforms[1].Op.OpType(), linear.AbsentType)
 	assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
 	assert.Len(t, edges, 1)
 	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"), "fetch should be the parent")
@@ -107,9 +124,84 @@ func TestDAGWithClampOp(t *testing.T) {
 	assert.Len(t, transforms, 2)
 	assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
 	assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
-	assert.Equal(t, transforms[1].Op.OpType(), functions.ClampMinType)
+	assert.Equal(t, transforms[1].Op.OpType(), linear.ClampMinType)
 	assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
 	assert.Len(t, edges, 1)
 	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"), "fetch should be the parent")
 	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"), "clamp op should be child")
+}
+func TestDAGWithLogOp(t *testing.T) {
+	q := "ln(up)"
+	p, err := Parse(q)
+	require.NoError(t, err)
+	transforms, edges, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 2)
+	assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
+	assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
+	assert.Equal(t, transforms[1].Op.OpType(), linear.LnType)
+	assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
+	assert.Len(t, edges, 1)
+	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"), "fetch should be the parent")
+	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"), "log op should be child")
+}
+
+func TestDAGWithCeilOp(t *testing.T) {
+	q := "ceil(up)"
+	p, err := Parse(q)
+	require.NoError(t, err)
+	transforms, _, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 2)
+	assert.Equal(t, transforms[1].Op.OpType(), linear.CeilType)
+}
+
+func TestDAGWithFloorOp(t *testing.T) {
+	q := "floor(up)"
+	p, err := Parse(q)
+	require.NoError(t, err)
+	transforms, _, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 2)
+	assert.Equal(t, transforms[1].Op.OpType(), linear.FloorType)
+}
+
+func TestDAGWithExpOp(t *testing.T) {
+	q := "exp(up)"
+	p, err := Parse(q)
+	require.NoError(t, err)
+	transforms, _, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 2)
+	assert.Equal(t, transforms[1].Op.OpType(), linear.ExpType)
+}
+
+func TestDAGWithSqrtOp(t *testing.T) {
+	q := "sqrt(up)"
+	p, err := Parse(q)
+	require.NoError(t, err)
+	transforms, _, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 2)
+	assert.Equal(t, transforms[1].Op.OpType(), linear.SqrtType)
+}
+
+func TestDAGWithLog2Op(t *testing.T) {
+	q := "log2(up)"
+	p, err := Parse(q)
+	require.NoError(t, err)
+	transforms, _, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 2)
+	assert.Equal(t, transforms[1].Op.OpType(), linear.Log2Type)
+}
+
+func TestDAGWithLog10Op(t *testing.T) {
+	q := "log10(up)"
+	p, err := Parse(q)
+	require.NoError(t, err)
+	transforms, _, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 2)
+	assert.Equal(t, transforms[1].Op.OpType(), linear.Log10Type)
 }

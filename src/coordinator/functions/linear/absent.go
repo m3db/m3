@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,27 +18,55 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package fs
+package linear
 
-const (
-	infoFileSuffix           = "info"
-	indexFileSuffix          = "index"
-	summariesFileSuffix      = "summaries"
-	bloomFilterFileSuffix    = "bloomfilter"
-	dataFileSuffix           = "data"
-	digestFileSuffix         = "digest"
-	checkpointFileSuffix     = "checkpoint"
-	filesetFilePrefix        = "fileset"
-	commitLogFilePrefix      = "commitlog"
-	segmentFileSetFilePrefix = "segment"
-	fileSuffix               = ".db"
+import (
+	"math"
 
-	anyLowerCaseCharsPattern        = "[a-z]*"
-	anyNumbersPattern               = "[0-9]*"
-	anyLowerCaseCharsNumbersPattern = "[a-z0-9]*"
-
-	separator            = "-"
-	infoFilePattern      = filesetFilePrefix + separator + anyNumbersPattern + separator + infoFileSuffix + fileSuffix
-	filesetFilePattern   = filesetFilePrefix + separator + anyNumbersPattern + separator + anyLowerCaseCharsPattern + fileSuffix
-	commitLogFilePattern = commitLogFilePrefix + separator + anyNumbersPattern + separator + anyNumbersPattern + fileSuffix
+	"github.com/m3db/m3db/src/coordinator/executor/transform"
 )
+
+// AbsentType returns a timeseries with all NaNs if the timeseries passed in has any non NaNs,
+// and returns a timeseries with the value 1 if the timeseries passed in has no elements
+const AbsentType = "absent"
+
+// NewAbsentOp creates a new base linear transform with an absent node
+func NewAbsentOp() BaseOp {
+	return BaseOp{
+		operatorType: AbsentType,
+		processorFn:  newAbsentNode,
+	}
+}
+
+func newAbsentNode(op BaseOp, controller *transform.Controller) Processor {
+	return &absentNode{
+		op:         op,
+		controller: controller,
+	}
+}
+
+type absentNode struct {
+	op         BaseOp
+	controller *transform.Controller
+}
+
+func (c *absentNode) Process(values []float64) []float64 {
+	num := 1.0
+	if !allNaNs(values) {
+		num = math.NaN()
+	}
+
+	for i := range values {
+		values[i] = num
+	}
+	return values
+}
+
+func allNaNs(vals []float64) bool {
+	for _, i := range vals {
+		if !math.IsNaN(i) {
+			return false
+		}
+	}
+	return true
+}

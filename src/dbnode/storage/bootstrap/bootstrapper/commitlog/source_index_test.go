@@ -111,7 +111,7 @@ func testBootstrapIndex(t *testing.T, bootstrapDataFirst bool) {
 		{baz, start.Add(2 * dataBlockSize), 1.0, xtime.Second, nil},
 		{baz, start.Add(2 * dataBlockSize), 2.0, xtime.Second, nil},
 		{untagged, start.Add(2 * dataBlockSize), 1.0, xtime.Second, nil},
-		{outOfRange, start.Add(-blockSize), 1.0, xtime.Second, nil},
+		{outOfRange, start.Add(-dataBlockSize), 1.0, xtime.Second, nil},
 		{shardTooHigh, start.Add(dataBlockSize), 1.0, xtime.Second, nil},
 		{noShardBootstrapRange, start.Add(dataBlockSize), 1.0, xtime.Second, nil},
 		{someOtherNamespace, start.Add(dataBlockSize), 1.0, xtime.Second, nil},
