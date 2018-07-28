@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler/prometheus"
 	"github.com/m3db/m3db/src/coordinator/generated/proto/prompb"
 	"github.com/m3db/m3db/src/coordinator/storage"
-	"github.com/m3db/m3db/src/coordinator/util/execution"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 	xerrors "github.com/m3db/m3x/errors"
 
@@ -122,59 +121,23 @@ func (h *PromWriteHandler) parseRequest(r *http.Request) (*prompb.WriteRequest, 
 
 func (h *PromWriteHandler) write(ctx context.Context, r *prompb.WriteRequest) error {
 	var (
-		wg                   sync.WaitGroup
-		writeUnaggregatedErr error
-		writeAggregatedErr   error
+		wg            sync.WaitGroup
+		writeUnaggErr error
+		writeAggErr   error
 	)
 	if h.downsampler != nil {
 		// If writing downsampled aggregations, write them async
 		wg.Add(1)
 		go func() {
-			defer wg.Done()
-
-			var (
-				metricsAppender = h.downsampler.NewMetricsAppender()
-				multiErr        xerrors.MultiError
-			)
-			for _, ts := range r.Timeseries {
-				metricsAppender.Reset()
-				for _, label := range ts.Labels {
-					metricsAppender.AddTag(label.Name, label.Value)
-				}
-
-				samplesAppender, err := metricsAppender.SamplesAppender()
-				if err != nil {
-					multiErr = multiErr.Add(err)
-					continue
-				}
-
-				for _, elem := range ts.Samples {
-					err := samplesAppender.AppendGaugeSample(elem.Value)
-					if err != nil {
-						multiErr = multiErr.Add(err)
-					}
-				}
-			}
-
-			metricsAppender.Finalize()
-
-			writeAggregatedErr = multiErr.FinalError()
+			writeAggErr = h.writeAggregated(ctx, r)
+			wg.Done()
 		}()
 	}
 
 	if h.store != nil {
 		// Write the unaggregated points out, don't spawn goroutine
 		// so we reduce number of goroutines just a fraction
-		requests := make([]execution.Request, 0, len(r.Timeseries))
-		for _, t := range r.Timeseries {
-			write := storage.PromWriteTSToM3(t)
-			write.Attributes = storage.Attributes{
-				MetricsType: storage.UnaggregatedMetricsType,
-			}
-			request := newLocalWriteRequest(write, h.store)
-			requests = append(requests, request)
-		}
-		writeUnaggregatedErr = execution.ExecuteParallel(ctx, requests)
+		writeUnaggErr = h.writeUnaggregated(ctx, r)
 	}
 
 	if h.downsampler != nil {
@@ -187,18 +150,70 @@ func (h *PromWriteHandler) write(ctx context.Context, r *prompb.WriteRequest) er
 		writeAggregatedErr)
 }
 
-func (w *localWriteRequest) Process(ctx context.Context) error {
-	return w.store.Write(ctx, w.writeQuery)
-}
+func (h *PromWriteHandler) writeUnaggregated(
+	ctx context.Context,
+	r *prompb.WriteRequest,
+) error {
+	var (
+		wg       sync.WaitGroup
+		errLock  sync.Mutex
+		multiErr xerrors.MultiError
+	)
+	for _, t := range r.Timeseries {
+		t := t // Capture for goroutine
 
-type localWriteRequest struct {
-	store      storage.Storage
-	writeQuery *storage.WriteQuery
-}
+		// TODO(r): Consider adding a worker pool to limit write
+		// request concurrency, instead of using the batch size
+		// of incoming request to determine concurrency (some level of control).
+		wg.Add(1)
+		go func() {
+			write := storage.PromWriteTSToM3(t)
+			write.Attributes = storage.Attributes{
+				MetricsType: storage.UnaggregatedMetricsType,
+			}
 
-func newLocalWriteRequest(writeQuery *storage.WriteQuery, store storage.Storage) execution.Request {
-	return &localWriteRequest{
-		store:      store,
-		writeQuery: writeQuery,
+			err := h.store.Write(ctx)
+			if err != nil {
+				errLock.Lock()
+				multiErr = multiErr.Add(err)
+				errLock.Unlock()
+			}
+
+			wg.Done()
+		}()
 	}
+	return multiErr.FinalError()
+}
+
+func (h *PromWriteHandler) writeAggregated(
+	ctx context.Context,
+	r *prompb.WriteRequest,
+) error {
+	var (
+		metricsAppender = h.downsampler.NewMetricsAppender()
+		multiErr        xerrors.MultiError
+	)
+	for _, ts := range r.Timeseries {
+		metricsAppender.Reset()
+		for _, label := range ts.Labels {
+			metricsAppender.AddTag(label.Name, label.Value)
+		}
+
+		samplesAppender, err := metricsAppender.SamplesAppender()
+		if err != nil {
+			multiErr = multiErr.Add(err)
+			continue
+		}
+
+		for _, elem := range ts.Samples {
+			err := samplesAppender.AppendGaugeSample(elem.Value)
+			if err != nil {
+				multiErr = multiErr.Add(err)
+			}
+		}
+	}
+
+	metricsAppender.Finalize()
+
+	return multiErr.FinalError()
 }
