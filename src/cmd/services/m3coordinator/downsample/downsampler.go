@@ -426,7 +426,7 @@ func (w *downsamplerFlushHandlerWriter) Write(
 
 		iter := w.handler.encodedTagsIteratorPool.Get()
 		iter.Reset(mp.ChunkedID.Data)
-		expected := iter.tagDecoder.Remaining()
+		expected := iter.TagsRemaining()
 		if len(mp.ChunkedID.Suffix) > 0 {
 			expected++
 		}
@@ -442,7 +442,7 @@ func (w *downsamplerFlushHandlerWriter) Write(
 		err := iter.Err()
 		iter.Close()
 		if err != nil {
-			logger.Debugf("downsampler flush error preparing write: %v", err)
+			logger.Errorf("downsampler flush error preparing write: %v", err)
 			w.handler.metrics.flushErrors.Inc(1)
 			return
 		}
@@ -461,7 +461,7 @@ func (w *downsamplerFlushHandlerWriter) Write(
 			},
 		})
 		if err != nil {
-			logger.Debugf("downsampler flush error failed write: %v", err)
+			logger.Errorf("downsampler flush error failed write: %v", err)
 			w.handler.metrics.flushErrors.Inc(1)
 			return
 		}

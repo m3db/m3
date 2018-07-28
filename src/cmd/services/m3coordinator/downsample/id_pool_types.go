@@ -46,13 +46,13 @@ var (
 	errNoMetricNameTag = errors.New("no metric name tag found")
 )
 
-// Ensure encodedTagsIterator implements id.SortedTagIterator
-var _ id.SortedTagIterator = &encodedTagsIterator{}
+type encodedTagsIterator interface {
+	id.ID
+	id.SortedTagIterator
+	TagsRemaining() int
+}
 
-// Ensure encodedTagsIterator implements id.ID
-var _ id.ID = &encodedTagsIterator{}
-
-type encodedTagsIterator struct {
+type encodedTagsIter struct {
 	tagDecoder serialize.TagDecoder
 	bytes      checked.Bytes
 	pool       *encodedTagsIteratorPool
@@ -61,8 +61,8 @@ type encodedTagsIterator struct {
 func newEncodedTagsIterator(
 	tagDecoder serialize.TagDecoder,
 	pool *encodedTagsIteratorPool,
-) *encodedTagsIterator {
-	return &encodedTagsIterator{
+) encodedTagsIterator {
+	return &encodedTagsIter{
 		tagDecoder: tagDecoder,
 		bytes:      checked.NewBytes(nil, nil),
 		pool:       pool,
@@ -70,18 +70,22 @@ func newEncodedTagsIterator(
 }
 
 // Reset resets the iterator.
-func (it *encodedTagsIterator) Reset(sortedTagPairs []byte) {
+func (it *encodedTagsIter) Reset(sortedTagPairs []byte) {
 	it.bytes.Reset(sortedTagPairs)
 	it.tagDecoder.Reset(it.bytes)
 }
 
 // Bytes returns the underlying bytes.
-func (it *encodedTagsIterator) Bytes() []byte {
+func (it *encodedTagsIter) Bytes() []byte {
 	return it.bytes.Bytes()
 }
 
+func (it *encodedTagsIter) TagsRemaining() int {
+	return it.tagDecoder.Remaining()
+}
+
 // TagValue returns the value for a tag value.
-func (it *encodedTagsIterator) TagValue(tagName []byte) ([]byte, bool) {
+func (it *encodedTagsIter) TagValue(tagName []byte) ([]byte, bool) {
 	iter := it.tagDecoder.Duplicate()
 	defer iter.Close()
 
@@ -95,23 +99,23 @@ func (it *encodedTagsIterator) TagValue(tagName []byte) ([]byte, bool) {
 }
 
 // Next returns true if there are more tag names and values.
-func (it *encodedTagsIterator) Next() bool {
+func (it *encodedTagsIter) Next() bool {
 	return it.tagDecoder.Next()
 }
 
 // Current returns the current tag name and value.
-func (it *encodedTagsIterator) Current() ([]byte, []byte) {
+func (it *encodedTagsIter) Current() ([]byte, []byte) {
 	tag := it.tagDecoder.Current()
 	return tag.Name.Bytes(), tag.Value.Bytes()
 }
 
 // Err returns any errors encountered.
-func (it *encodedTagsIterator) Err() error {
+func (it *encodedTagsIter) Err() error {
 	return it.tagDecoder.Err()
 }
 
 // Close closes the iterator.
-func (it *encodedTagsIterator) Close() {
+func (it *encodedTagsIter) Close() {
 	it.bytes.Reset(nil)
 	it.tagDecoder.Reset(it.bytes)
 
@@ -141,11 +145,11 @@ func (p *encodedTagsIteratorPool) Init() {
 	})
 }
 
-func (p *encodedTagsIteratorPool) Get() *encodedTagsIterator {
-	return p.pool.Get().(*encodedTagsIterator)
+func (p *encodedTagsIteratorPool) Get() encodedTagsIterator {
+	return p.pool.Get().(*encodedTagsIter)
 }
 
-func (p *encodedTagsIteratorPool) Put(v *encodedTagsIterator) {
+func (p *encodedTagsIteratorPool) Put(v encodedTagsIterator) {
 	p.pool.Put(v)
 }
 

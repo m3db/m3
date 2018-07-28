@@ -146,8 +146,10 @@ func (h *PromWriteHandler) write(ctx context.Context, r *prompb.WriteRequest) er
 		wg.Wait()
 	}
 
-	return xerrors.FirstError(writeUnaggregatedErr,
-		writeAggregatedErr)
+	var multiErr xerrors.MultiError
+	multiErr = multiErr.Add(writeUnaggErr)
+	multiErr = multiErr.Add(writeAggErr)
+	return multiErr.FinalError()
 }
 
 func (h *PromWriteHandler) writeUnaggregated(
@@ -172,8 +174,7 @@ func (h *PromWriteHandler) writeUnaggregated(
 				MetricsType: storage.UnaggregatedMetricsType,
 			}
 
-			err := h.store.Write(ctx)
-			if err != nil {
+			if err := h.store.Write(ctx, write); err != nil {
 				errLock.Lock()
 				multiErr = multiErr.Add(err)
 				errLock.Unlock()
@@ -182,6 +183,7 @@ func (h *PromWriteHandler) writeUnaggregated(
 			wg.Done()
 		}()
 	}
+
 	return multiErr.FinalError()
 }
 
