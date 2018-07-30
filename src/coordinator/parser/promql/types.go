@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3db/src/coordinator/functions"
+	"github.com/m3db/m3db/src/coordinator/functions/linear"
 	"github.com/m3db/m3db/src/coordinator/functions/logical"
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/parser"
@@ -86,12 +87,28 @@ func NewBinaryOperator(expr *promql.BinaryExpr, lhs, rhs parser.NodeID) (parser.
 // NewFunctionExpr creates a new function expr based on the type
 func NewFunctionExpr(name string, argValues []interface{}) (parser.Params, error) {
 	switch name {
-	case functions.AbsType:
-		return functions.AbsOp{}, nil
-	case functions.ClampMinType:
-		return functions.NewClampOp(argValues, functions.ClampMinType)
-	case functions.ClampMaxType:
-		return functions.NewClampOp(argValues, functions.ClampMaxType)
+	case linear.AbsType:
+		return linear.NewMathOp(linear.AbsType)
+	case linear.AbsentType:
+		return linear.NewAbsentOp(), nil
+	case linear.CeilType:
+		return linear.NewMathOp(linear.CeilType)
+	case linear.ClampMinType:
+		return linear.NewClampOp(argValues, linear.ClampMinType)
+	case linear.ClampMaxType:
+		return linear.NewClampOp(argValues, linear.ClampMaxType)
+	case linear.ExpType:
+		return linear.NewMathOp(linear.ExpType)
+	case linear.FloorType:
+		return linear.NewMathOp(linear.FloorType)
+	case linear.LnType:
+		return linear.NewMathOp(linear.LnType)
+	case linear.Log10Type:
+		return linear.NewMathOp(linear.Log10Type)
+	case linear.Log2Type:
+		return linear.NewMathOp(linear.Log2Type)
+	case linear.SqrtType:
+		return linear.NewMathOp(linear.SqrtType)
 
 	default:
 		// TODO: handle other types

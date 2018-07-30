@@ -1,4 +1,6 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// +build integration
+
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,27 +20,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package fs
+package integration
 
-const (
-	infoFileSuffix           = "info"
-	indexFileSuffix          = "index"
-	summariesFileSuffix      = "summaries"
-	bloomFilterFileSuffix    = "bloomfilter"
-	dataFileSuffix           = "data"
-	digestFileSuffix         = "digest"
-	checkpointFileSuffix     = "checkpoint"
-	filesetFilePrefix        = "fileset"
-	commitLogFilePrefix      = "commitlog"
-	segmentFileSetFilePrefix = "segment"
-	fileSuffix               = ".db"
+import "testing"
 
-	anyLowerCaseCharsPattern        = "[a-z]*"
-	anyNumbersPattern               = "[0-9]*"
-	anyLowerCaseCharsNumbersPattern = "[a-z0-9]*"
-
-	separator            = "-"
-	infoFilePattern      = filesetFilePrefix + separator + anyNumbersPattern + separator + infoFileSuffix + fileSuffix
-	filesetFilePattern   = filesetFilePrefix + separator + anyNumbersPattern + separator + anyLowerCaseCharsPattern + fileSuffix
-	commitLogFilePattern = commitLogFilePrefix + separator + anyNumbersPattern + separator + anyNumbersPattern + fileSuffix
-)
+func TestFsCommitLogSnapshotsMixedModeReadWrite(t *testing.T) {
+	testMixedModeReadWrite(t, true)
+}

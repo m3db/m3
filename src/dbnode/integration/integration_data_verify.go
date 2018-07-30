@@ -38,6 +38,7 @@ import (
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -73,7 +74,7 @@ func verifySeriesMapForRange(
 	input generate.SeriesBlock,
 	expectedDebugFilePath string,
 	actualDebugFilePath string,
-) {
+) bool {
 	// Construct a copy of the input that we will use to compare
 	// with only the fields we need to compare against (fetch doesn't
 	// return the tags for a series ID)
@@ -91,7 +92,9 @@ func verifySeriesMapForRange(
 		req.ResultTimeType = rpc.TimeType_UNIX_SECONDS
 		fetched, err := ts.fetch(req)
 
-		require.NoError(t, err)
+		if !assert.NoError(t, err) {
+			return false
+		}
 		expected[i] = generate.Series{
 			ID:   input[i].ID,
 			Data: input[i].Data,
@@ -106,13 +109,24 @@ func verifySeriesMapForRange(
 	}
 
 	if len(expectedDebugFilePath) > 0 {
-		writeVerifyDebugOutput(t, expectedDebugFilePath, start, end, expected)
+		if !writeVerifyDebugOutput(t, expectedDebugFilePath, start, end, expected) {
+			return false
+		}
 	}
 	if len(actualDebugFilePath) > 0 {
-		writeVerifyDebugOutput(t, actualDebugFilePath, start, end, actual)
+		if !writeVerifyDebugOutput(t, actualDebugFilePath, start, end, actual) {
+			return false
+		}
 	}
 
-	require.Equal(t, expected, actual)
+	for i, series := range actual {
+		if !assert.Equal(t, expected[i], series) {
+			return false
+		}
+	}
+	if !assert.Equal(t, expected, actual) {
+		return false
+	}
 
 	// Now check the metadata of all the series match
 	ctx := context.NewContext()
@@ -133,7 +147,7 @@ func verifySeriesMapForRange(
 
 			results, nextPageToken, err := ts.db.FetchBlocksMetadataV2(ctx,
 				namespace, shard, start, end, 4096, pageToken, opts)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 
 			// Use the next one for the next iteration
 			pageToken = nextPageToken
@@ -141,7 +155,9 @@ func verifySeriesMapForRange(
 			for _, actual := range results.Results() {
 				id := actual.ID.String()
 				expected, ok := expectedMetadata[id]
-				require.True(t, ok, fmt.Sprintf("unexpected ID: %s", id))
+				if !assert.True(t, ok, fmt.Sprintf("unexpected ID: %s", id)) {
+					return false
+				}
 
 				expectedTagsIter := ident.NewTagsIterator(expected.Tags)
 				actualTagsIter := actual.Tags.Duplicate()
@@ -176,15 +192,22 @@ func verifySeriesMapForRange(
 					).Error("series does not match expected tags")
 				}
 
-				require.True(t, tagMatcher.Matches(actualTagsIter))
+				if !assert.True(t, tagMatcher.Matches(actualTagsIter)) {
+					return false
+				}
 			}
 		}
 	}
+
+	return true
 }
 
-func writeVerifyDebugOutput(t *testing.T, filePath string, start, end time.Time, series generate.SeriesBlock) {
+func writeVerifyDebugOutput(
+	t *testing.T, filePath string, start, end time.Time, series generate.SeriesBlock) bool {
 	w, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY, os.ModeAppend)
-	require.NoError(t, err)
+	if !assert.NoError(t, err) {
+		return false
+	}
 
 	list := make(readableSeriesList, 0, len(series))
 	for i := range series {
@@ -211,11 +234,15 @@ func writeVerifyDebugOutput(t *testing.T, filePath string, start, end time.Time,
 		End:    end,
 		Series: list,
 	}, "", "    ")
-	require.NoError(t, err)
+	if !assert.NoError(t, err) {
+		return false
+	}
 
 	_, err = w.Write(data)
-	require.NoError(t, err)
-	require.NoError(t, w.Close())
+	if !assert.NoError(t, err) {
+		return false
+	}
+	return assert.NoError(t, w.Close())
 }
 
 func verifySeriesMaps(
@@ -223,33 +250,50 @@ func verifySeriesMaps(
 	ts *testSetup,
 	namespace ident.ID,
 	seriesMaps map[xtime.UnixNano]generate.SeriesBlock,
-) {
+) bool {
 	debugFilePathPrefix := ts.opts.VerifySeriesDebugFilePathPrefix()
-	expectedDebugFilePath := createFileIfPrefixSet(t, debugFilePathPrefix, fmt.Sprintf("%s-expected.log", namespace.String()))
-	actualDebugFilePath := createFileIfPrefixSet(t, debugFilePathPrefix, fmt.Sprintf("%s-actual.log", namespace.String()))
+	expectedDebugFilePath, ok := createFileIfPrefixSet(t, debugFilePathPrefix, fmt.Sprintf("%s-expected.log", namespace.String()))
+	if !ok {
+		return false
+	}
+	actualDebugFilePath, ok := createFileIfPrefixSet(t, debugFilePathPrefix, fmt.Sprintf("%s-actual.log", namespace.String()))
+	if !ok {
+		return false
+	}
 
 	nsMetadata, ok := ts.db.Namespace(namespace)
-	require.True(t, ok)
+	if !assert.True(t, ok) {
+		return false
+	}
 	nsOpts := nsMetadata.Options()
 
 	for timestamp, sm := range seriesMaps {
 		start := timestamp.ToTime()
 		end := start.Add(nsOpts.RetentionOptions().BlockSize())
-		verifySeriesMapForRange(
+		matches := verifySeriesMapForRange(
 			t, ts, start, end, namespace, sm,
 			expectedDebugFilePath, actualDebugFilePath)
+		if !matches {
+			return false
+		}
 	}
+
+	return true
 }
 
-func createFileIfPrefixSet(t *testing.T, prefix, suffix string) string {
+func createFileIfPrefixSet(t *testing.T, prefix, suffix string) (string, bool) {
 	if len(prefix) == 0 {
-		return ""
+		return "", true
 	}
 	filePath := prefix + "_" + suffix
 	w, err := os.Create(filePath)
-	require.NoError(t, err)
-	require.NoError(t, w.Close())
-	return filePath
+	if !assert.NoError(t, err) {
+		return "", false
+	}
+	if !assert.NoError(t, w.Close()) {
+		return "", false
+	}
+	return filePath, true
 }
 
 func compareSeriesList(

@@ -48,6 +48,9 @@ func (m ReaderOpenOptionsMatcher) Matches(x interface{}) bool {
 	if !m.ID.BlockStart.Equal(readerOpenOptions.Identifier.BlockStart) {
 		return false
 	}
+	if m.ID.VolumeIndex != readerOpenOptions.Identifier.VolumeIndex {
+		return false
+	}
 	if m.FileSetType != readerOpenOptions.FileSetType {
 		return false
 	}
@@ -57,7 +60,7 @@ func (m ReaderOpenOptionsMatcher) Matches(x interface{}) bool {
 
 func (m ReaderOpenOptionsMatcher) String() string {
 	return fmt.Sprintf(
-		"namespace: %s, shard: %d, blockstart: %d, filesetType: %s",
-		m.ID.Namespace.String(), m.ID.Shard, m.ID.BlockStart.Unix(), m.FileSetType,
+		"namespace: %s, shard: %d, blockstart: %d, volumeIndex: %d, filesetType: %s",
+		m.ID.Namespace.String(), m.ID.Shard, m.ID.BlockStart.Unix(), m.ID.VolumeIndex, m.FileSetType,
 	)
 }

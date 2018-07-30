@@ -118,7 +118,7 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 		t1Nano: seriesMaps[t1Nano],
 		t2Nano: seriesMaps[t2Nano],
 	}
-	writeCommitLogData(t, setup, commitLogOpts, commitlogSeriesMaps, ns1.ID())
+	writeCommitLogData(t, setup, commitLogOpts, commitlogSeriesMaps, ns1, false)
 
 	// commit log bootstrapper (must be after writing out commitlog files so inspection finds files)
 	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()

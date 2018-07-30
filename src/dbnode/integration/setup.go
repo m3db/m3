@@ -119,7 +119,8 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	}
 
 	storageOpts := storage.NewOptions().
-		SetNamespaceInitializer(nsInit)
+		SetNamespaceInitializer(nsInit).
+		SetMinimumSnapshotInterval(opts.MinimumSnapshotInterval())
 
 	fields := []xlog.Field{
 		xlog.NewField("cache-policy", storageOpts.SeriesCachePolicy().String()),
@@ -233,9 +234,13 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 
 	// Set up file path prefix
 	idx := atomic.AddUint64(&created, 1) - 1
-	filePathPrefix, err := ioutil.TempDir("", fmt.Sprintf("integration-test-%d", idx))
-	if err != nil {
-		return nil, err
+	filePathPrefix := opts.FilePathPrefix()
+	if filePathPrefix == "" {
+		var err error
+		filePathPrefix, err = ioutil.TempDir("", fmt.Sprintf("integration-test-%d", idx))
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if fsOpts == nil {

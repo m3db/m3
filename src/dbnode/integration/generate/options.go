@@ -47,6 +47,10 @@ const (
 
 	// defaultWriteEmptyShards is the writeEmptyShards value by default
 	defaultWriteEmptyShards = true
+
+	// defaultWriteSnapshot determines whether the writer writes snapshots instead
+	// of data files.
+	defaultWriteSnapshot = false
 )
 
 var (
@@ -62,6 +66,7 @@ type options struct {
 	newDirectoryMode os.FileMode
 	writerBufferSize int
 	writeEmptyShards bool
+	writeSnapshot    bool
 	encoderPool      encoding.EncoderPool
 }
 
@@ -82,6 +87,7 @@ func NewOptions() Options {
 		newDirectoryMode: defaultNewDirectoryMode,
 		writerBufferSize: defaultWriterBufferSize,
 		writeEmptyShards: defaultWriteEmptyShards,
+		writeSnapshot:    defaultWriteSnapshot,
 		encoderPool:      encoderPool,
 	}
 }
@@ -164,6 +170,16 @@ func (o *options) SetWriteEmptyShards(value bool) Options {
 
 func (o *options) WriteEmptyShards() bool {
 	return o.writeEmptyShards
+}
+
+func (o *options) SetWriteSnapshot(value bool) Options {
+	opts := *o
+	opts.writeSnapshot = value
+	return &opts
+}
+
+func (o *options) WriteSnapshot() bool {
+	return o.writeSnapshot
 }
 
 func (o *options) SetEncoderPool(value encoding.EncoderPool) Options {

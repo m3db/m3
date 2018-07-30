@@ -37,6 +37,7 @@ var (
 type decoder struct {
 	checkedData checked.Bytes
 	data        []byte
+	length      int
 	remaining   int
 	err         error
 	hasCurrent  bool
@@ -70,18 +71,19 @@ func (d *decoder) Reset(b checked.Bytes) {
 		return
 	}
 
-	remain, err := d.decodeUInt16()
+	length, err := d.decodeUInt16()
 	if err != nil {
 		d.err = err
 		return
 	}
 
-	if limit := d.opts.TagSerializationLimits().MaxNumberTags(); remain > limit {
-		d.err = fmt.Errorf("too many tags [ limit = %d, observed = %d ]", limit, remain)
+	if limit := d.opts.TagSerializationLimits().MaxNumberTags(); length > limit {
+		d.err = fmt.Errorf("too many tags [ limit = %d, observed = %d ]", limit, length)
 		return
 	}
 
-	d.remaining = int(remain)
+	d.length = int(length)
+	d.remaining = int(length)
 }
 
 func (d *decoder) Next() bool {
@@ -104,6 +106,10 @@ func (d *decoder) Next() bool {
 
 func (d *decoder) Current() ident.Tag {
 	return d.current
+}
+
+func (d *decoder) CurrentIndex() int {
+	return d.Len() - d.Remaining()
 }
 
 func (d *decoder) decodeTag() (ident.Tag, error) {
@@ -176,6 +182,10 @@ func (d *decoder) releaseCurrent() {
 		d.current.Value = nil
 	}
 	d.hasCurrent = false
+}
+
+func (d *decoder) Len() int {
+	return d.length
 }
 
 func (d *decoder) Remaining() int {

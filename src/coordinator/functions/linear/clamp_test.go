@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package functions
+package linear
 
 import (
 	"math"
@@ -31,13 +31,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func expectedValues(values [][]float64) [][]float64 {
+func expectedClampVals(values [][]float64, num float64, fn func(x, y float64) float64) [][]float64 {
 	expected := make([][]float64, 0, len(values))
 	for _, val := range values {
 		v := make([]float64, len(val))
 		for i, ev := range val {
-			v[i] = math.Abs(ev)
+			v[i] = fn(ev, num)
 		}
 
 		expected = append(expected, v)
@@ -45,34 +44,36 @@ func expectedValues(values [][]float64) [][]float64 {
 	return expected
 }
 
-func TestAbsWithAllValues(t *testing.T) {
+func TestClampMin(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	values[0][0] = -values[0][0]
-	values[1][1] = -values[1][1]
+	values[0][0] = math.NaN()
 
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	node := (&AbsOp{}).Node(c)
-	err := node.Process(parser.NodeID(0), block)
+	op, err := NewClampOp([]interface{}{3.0}, ClampMinType)
 	require.NoError(t, err)
-	expected := expectedValues(values)
-	assert.Len(t, sink.Values, 2)
-	assert.Equal(t, expected, sink.Values)
-}
-
-func TestAbsWithSomeValues(t *testing.T) {
-	v := [][]float64{
-		{0, math.NaN(), 2, 3, 4},
-		{math.NaN(), 6, 7, 8, 9},
-	}
-
-	values, bounds := test.GenerateValuesAndBounds(v, nil)
-	block := test.NewBlockFromValues(bounds, values)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	node := (&AbsOp{}).Node(c)
-	err := node.Process(parser.NodeID(0), block)
+	node := op.Node(c)
+	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
-	expected := expectedValues(values)
+	expected := expectedClampVals(values, 3.0, math.Max)
 	assert.Len(t, sink.Values, 2)
 	test.EqualsWithNans(t, expected, sink.Values)
 }
+
+func TestClampMax(t *testing.T) {
+	values, bounds := test.GenerateValuesAndBounds(nil, nil)
+	values[0][0] = math.NaN()
+
+	block := test.NewBlockFromValues(bounds, values)
+	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	op, err := NewClampOp([]interface{}{3.0}, ClampMaxType)
+	require.NoError(t, err)
+	node := op.Node(c)
+	err = node.Process(parser.NodeID(0), block)
+	require.NoError(t, err)
+	expected := expectedClampVals(values, 3.0, math.Min)
+	assert.Len(t, sink.Values, 2)
+	test.EqualsWithNans(t, expected, sink.Values)
+}
+
+

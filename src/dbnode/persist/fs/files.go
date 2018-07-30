@@ -21,6 +21,7 @@
 package fs
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path"
@@ -53,12 +54,42 @@ const (
 	indexFileSetComponentPosition = 2
 )
 
+var (
+	defaultBufioReaderSize = bufio.NewReader(nil).Size()
+)
+
 type fileOpener func(filePath string) (*os.File, error)
 
 // FileSetFile represents a set of FileSet files for a given block start
 type FileSetFile struct {
 	ID                FileSetFileIdentifier
 	AbsoluteFilepaths []string
+
+	CachedSnapshotTime time.Time
+	filePathPrefix     string
+}
+
+// SnapshotTime returns the SnapshotTime for the given FileSetFile. Value is meaningless
+// if the the FileSetFile is a flush instead of a snapshot.
+func (f *FileSetFile) SnapshotTime() (time.Time, error) {
+	if !f.CachedSnapshotTime.IsZero() {
+		// Return immediately if we've already cached it.
+		return f.CachedSnapshotTime, nil
+	}
+
+	snapshotTime, err := SnapshotTime(f.filePathPrefix, f.ID)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	// Cache for future use and return.
+	f.CachedSnapshotTime = snapshotTime
+	return f.CachedSnapshotTime, nil
+}
+
+// IsZero returns whether the FileSetFile is a zero value.
+func (f FileSetFile) IsZero() bool {
+	return len(f.AbsoluteFilepaths) == 0
 }
 
 // HasCheckpointFile returns a bool indicating whether the given set of
@@ -88,25 +119,33 @@ func (f FileSetFilesSlice) Filepaths() []string {
 }
 
 // LatestVolumeForBlock returns the latest (highest index) FileSetFile in the
-// slice for a given block start, only applicable for index file set files.
+// slice for a given block start, only applicable for index and snapshot file set files.
 func (f FileSetFilesSlice) LatestVolumeForBlock(blockStart time.Time) (FileSetFile, bool) {
 	// Make sure we're already sorted
 	f.sortByTimeAndVolumeIndexAscending()
 
 	for i, curr := range f {
 		if curr.ID.BlockStart.Equal(blockStart) {
-			isEnd := i == len(f)-1
-			isHighestIdx := true
-			if !isEnd {
-				next := f[i+1]
-				if next.ID.BlockStart.Equal(blockStart) && next.ID.VolumeIndex > curr.ID.VolumeIndex {
-					isHighestIdx = false
+			var (
+				bestSoFar       FileSetFile
+				bestSoFarExists bool
+			)
+
+			for j := i; j < len(f); j++ {
+				curr = f[j]
+
+				if !curr.ID.BlockStart.Equal(blockStart) {
+					break
 				}
+
+				if curr.HasCheckpointFile() && curr.ID.VolumeIndex >= bestSoFar.ID.VolumeIndex {
+					bestSoFar = curr
+					bestSoFarExists = true
+				}
+
 			}
 
-			if isEnd || isHighestIdx {
-				return curr, true
-			}
+			return bestSoFar, bestSoFarExists
 		}
 	}
 
@@ -132,10 +171,11 @@ func (f FileSetFilesSlice) sortByTimeAndVolumeIndexAscending() {
 }
 
 // NewFileSetFile creates a new FileSet file
-func NewFileSetFile(id FileSetFileIdentifier) FileSetFile {
+func NewFileSetFile(id FileSetFileIdentifier, filePathPrefix string) FileSetFile {
 	return FileSetFile{
 		ID:                id,
 		AbsoluteFilepaths: []string{},
+		filePathPrefix:    filePathPrefix,
 	}
 }
 
@@ -290,6 +330,63 @@ func timeAndIndexFromFileName(fname string, componentPosition int) (time.Time, i
 		return timeZero, 0, err
 	}
 	return t, int(index), nil
+}
+
+// SnapshotTime returns the time at which the snapshot was taken.
+func SnapshotTime(
+	filePathPrefix string, id FileSetFileIdentifier) (time.Time, error) {
+	decoder := msgpack.NewDecoder(nil)
+	return snapshotTime(filePathPrefix, id, decoder)
+}
+
+func snapshotTime(
+	filePathPrefix string, id FileSetFileIdentifier, decoder *msgpack.Decoder) (time.Time, error) {
+	infoBytes, err := readSnapshotInfoFile(filePathPrefix, id, defaultBufioReaderSize)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	decoder.Reset(msgpack.NewDecoderStream(infoBytes))
+	info, err := decoder.DecodeIndexInfo()
+	return time.Unix(0, info.SnapshotTime), err
+}
+
+func readSnapshotInfoFile(filePathPrefix string, id FileSetFileIdentifier, readerBufferSize int) ([]byte, error) {
+	var (
+		shardDir           = ShardSnapshotsDirPath(filePathPrefix, id.Namespace, id.Shard)
+		checkpointFilePath = filesetPathFromTimeAndIndex(shardDir, id.BlockStart, id.VolumeIndex, checkpointFileSuffix)
+
+		digestFilePath = filesetPathFromTimeAndIndex(shardDir, id.BlockStart, id.VolumeIndex, digestFileSuffix)
+		infoFilePath   = filesetPathFromTimeAndIndex(shardDir, id.BlockStart, id.VolumeIndex, infoFileSuffix)
+	)
+
+	checkpointFd, err := os.Open(checkpointFilePath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Read digest of digests from the checkpoint file
+	digestBuf := digest.NewBuffer()
+	expectedDigestOfDigest, err := digestBuf.ReadDigestFromFile(checkpointFd)
+	closeErr := checkpointFd.Close()
+	if err != nil {
+		return nil, err
+	}
+	if closeErr != nil {
+		return nil, closeErr
+	}
+
+	// Read and validate the digest file
+	digestData, err := readAndValidate(
+		digestFilePath, readerBufferSize, expectedDigestOfDigest)
+	if err != nil {
+		return nil, err
+	}
+
+	// Read and validate the info file
+	expectedInfoDigest := digest.ToBuffer(digestData).ReadDigest()
+	return readAndValidate(
+		infoFilePath, readerBufferSize, expectedInfoDigest)
 }
 
 type forEachInfoFileSelector struct {
@@ -679,21 +776,6 @@ func SortedCommitLogFiles(commitLogsDir string) ([]string, error) {
 	return sortedCommitlogFiles(commitLogsDir, commitLogFilePattern)
 }
 
-// CommitLogFilesForTime returns all the commit log files for a given time.
-func CommitLogFilesForTime(commitLogsDir string, t time.Time) ([]string, error) {
-	commitLogFileForTimePattern := fmt.Sprintf(commitLogFileForTimeTemplate, t.UnixNano())
-	return sortedCommitlogFiles(commitLogsDir, commitLogFileForTimePattern)
-}
-
-// SortedCommitLogFilesBefore returns all the commit log files whose timestamps are earlier than a given time.
-func SortedCommitLogFilesBefore(commitLogsDir string, t time.Time) ([]string, error) {
-	commitLogs, err := SortedCommitLogFiles(commitLogsDir)
-	if err != nil {
-		return nil, err
-	}
-	return FilesBefore(commitLogs, t)
-}
-
 type toSortableFn func(files []string) sort.Interface
 
 func findFiles(fileDir string, pattern string, fn toSortableFn) ([]string, error) {
@@ -821,7 +903,7 @@ func filesetFiles(args filesetFilesSelector) (FileSetFilesSlice, error) {
 				BlockStart:  currentFileBlockStart,
 				Shard:       args.shard,
 				VolumeIndex: volumeIndex,
-			})
+			}, args.filePathPrefix)
 		} else if !currentFileBlockStart.Equal(latestBlockStart) || latestVolumeIndex != volumeIndex {
 			filesetFiles = append(filesetFiles, latestFileSetFile)
 			latestFileSetFile = NewFileSetFile(FileSetFileIdentifier{
@@ -829,7 +911,7 @@ func filesetFiles(args filesetFilesSelector) (FileSetFilesSlice, error) {
 				BlockStart:  currentFileBlockStart,
 				Shard:       args.shard,
 				VolumeIndex: volumeIndex,
-			})
+			}, args.filePathPrefix)
 		}
 		latestBlockStart = currentFileBlockStart
 		latestVolumeIndex = volumeIndex

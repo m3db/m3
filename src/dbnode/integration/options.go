@@ -260,6 +260,18 @@ type testOptions interface {
 
 	// WriteNewSeriesAsync returns whether we insert/index asynchronously.
 	WriteNewSeriesAsync() bool
+
+	// SetFilePathPrefix sets the file path prefix.
+	SetFilePathPrefix(value string) testOptions
+
+	// FilePathPrefix returns the file path prefix.
+	FilePathPrefix() string
+
+	// SetMinimumSnapshotInterval sets the minimum interval between snapshots.
+	SetMinimumSnapshotInterval(value time.Duration) testOptions
+
+	// MinimumSnapshotInterval returns the minimum interval between snapshots
+	MinimumSnapshotInterval() time.Duration
 }
 
 type options struct {
@@ -274,6 +286,7 @@ type options struct {
 	httpNodeAddr                       string
 	tchannelNodeAddr                   string
 	httpDebugAddr                      string
+	filePathPrefix                     string
 	serverStateChangeTimeout           time.Duration
 	clusterConnectionTimeout           time.Duration
 	readRequestTimeout                 time.Duration
@@ -286,6 +299,7 @@ type options struct {
 	writeConsistencyLevel              topology.ConsistencyLevel
 	numShards                          int
 	maxWiredBlocks                     uint
+	minimumSnapshotInterval            time.Duration
 	useTChannelClientForReading        bool
 	useTChannelClientForWriting        bool
 	useTChannelClientForTruncation     bool
@@ -596,4 +610,24 @@ func (o *options) SetWriteNewSeriesAsync(value bool) testOptions {
 
 func (o *options) WriteNewSeriesAsync() bool {
 	return o.writeNewSeriesAsync
+}
+
+func (o *options) SetFilePathPrefix(value string) testOptions {
+	opts := *o
+	opts.filePathPrefix = value
+	return &opts
+}
+
+func (o *options) FilePathPrefix() string {
+	return o.filePathPrefix
+}
+
+func (o *options) SetMinimumSnapshotInterval(value time.Duration) testOptions {
+	opts := *o
+	opts.minimumSnapshotInterval = value
+	return &opts
+}
+
+func (o *options) MinimumSnapshotInterval() time.Duration {
+	return o.minimumSnapshotInterval
 }

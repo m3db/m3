@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package functions
+package linear
 
 import (
 	"math"
@@ -31,49 +31,38 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-func expectedClampVals(values [][]float64, num float64, fn func(x, y float64) float64) [][]float64 {
-	expected := make([][]float64, 0, len(values))
-	for _, val := range values {
-		v := make([]float64, len(val))
-		for i, ev := range val {
-			v[i] = fn(ev, num)
-		}
 
-		expected = append(expected, v)
+var (
+	nan = math.NaN()
+)
+
+func TestAbsentWithValues(t *testing.T) {
+	values, bounds := test.GenerateValuesAndBounds(nil, nil)
+	block := test.NewBlockFromValues(bounds, values)
+	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	node := NewAbsentOp().Node(c)
+	err := node.Process(parser.NodeID(0), block)
+	require.NoError(t, err)
+	assert.Len(t, sink.Values, 2)
+	expected := [][]float64{
+		{nan, nan, nan, nan, nan},
+		{nan, nan, nan, nan, nan},
 	}
-	return expected
-}
-
-func TestClampMin(t *testing.T) {
-	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	values[0][0] = math.NaN()
-
-	block := test.NewBlockFromValues(bounds, values)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	op, err := NewClampOp([]interface{}{3.0}, ClampMinType)
-	require.NoError(t, err)
-	node := op.Node(c)
-	err = node.Process(parser.NodeID(0), block)
-	require.NoError(t, err)
-	expected := expectedClampVals(values, 3.0, math.Max)
-	assert.Len(t, sink.Values, 2)
 	test.EqualsWithNans(t, expected, sink.Values)
 }
 
-func TestClampMax(t *testing.T) {
-	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	values[0][0] = math.NaN()
+func TestAbsentWithNoValues(t *testing.T) {
+	v := [][]float64{
+		{nan, nan, nan, nan},
+		{nan, nan, nan, nan},
+	}
 
+	values, bounds := test.GenerateValuesAndBounds(v, nil)
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	op, err := NewClampOp([]interface{}{3.0}, ClampMaxType)
+	node := NewAbsentOp().Node(c)
+	err := node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
-	node := op.Node(c)
-	err = node.Process(parser.NodeID(0), block)
-	require.NoError(t, err)
-	expected := expectedClampVals(values, 3.0, math.Min)
 	assert.Len(t, sink.Values, 2)
-	test.EqualsWithNans(t, expected, sink.Values)
+	assert.Equal(t, [][]float64{{1, 1, 1, 1}, {1, 1, 1, 1}}, sink.Values)
 }
-
-
