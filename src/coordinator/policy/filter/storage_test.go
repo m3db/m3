@@ -30,12 +30,21 @@ import (
 )
 
 var (
-	local  = mock.NewMockStorageWithType(storage.TypeLocalDC)
-	remote = mock.NewMockStorageWithType(storage.TypeRemoteDC)
-	multi  = mock.NewMockStorageWithType(storage.TypeMultiDC)
+	local  mock.Storage
+	remote mock.Storage
+	multi  mock.Storage
 
 	q = &storage.FetchQuery{}
 )
+
+func init() {
+	local = mock.NewMockStorage()
+	local.SetTypeResult(storage.TypeLocalDC)
+	remote = mock.NewMockStorage()
+	remote.SetTypeResult(storage.TypeRemoteDC)
+	multi = mock.NewMockStorage()
+	multi.SetTypeResult(storage.TypeMultiDC)
+}
 
 func TestLocalOnly(t *testing.T) {
 	assert.True(t, LocalOnly(q, local))

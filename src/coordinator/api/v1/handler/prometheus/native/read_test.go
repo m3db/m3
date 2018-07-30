@@ -41,7 +41,9 @@ func TestPromRead(t *testing.T) {
 
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 	b := test.NewBlockFromValues(bounds, values)
-	mockStorage := mock.NewMockStorageWithBlocks([]block.Block{b})
+
+	mockStorage := mock.NewMockStorage()
+	mockStorage.SetFetchBlocksResult(block.Result{Blocks: []block.Block{b}}, nil)
 
 	promRead := &PromReadHandler{engine: executor.NewEngine(mockStorage)}
 	req, _ := http.NewRequest("GET", PromReadURL, nil)

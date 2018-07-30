@@ -328,6 +328,8 @@ func (o DownsamplerOptions) newAggregator() (agg, error) {
 	}
 
 	campaignOpts = campaignOpts.SetLeaderValue(leaderValue)
+
+	// TODO: implement a mock leader service to avoid needing to use embedded KV here
 	electionCluster := integration.NewClusterV3(nil, &integration.ClusterConfig{
 		Size: 1,
 	})
@@ -343,6 +345,7 @@ func (o DownsamplerOptions) newAggregator() (agg, error) {
 		SetServiceID(sid).
 		SetElectionOpts(eopts)
 
+	// TODO: create a fake leader service
 	leaderService, err := leader.NewService(electionCluster.RandClient(), leaderOpts)
 	if err != nil {
 		return agg{}, err
@@ -467,7 +470,6 @@ type downsamplerFlushHandlerWriter struct {
 func (w *downsamplerFlushHandlerWriter) Write(
 	mp aggregated.ChunkedMetricWithStoragePolicy,
 ) error {
-	fmt.Printf("try to write: id=%s, value=%f\n", string(mp.ChunkedID.Data), mp.Value)
 	w.wg.Add(1)
 	w.handler.workerPool.Go(func() {
 		defer w.wg.Done()

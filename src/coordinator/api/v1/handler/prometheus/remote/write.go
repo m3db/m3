@@ -184,6 +184,8 @@ func (h *PromWriteHandler) writeUnaggregated(
 		}()
 	}
 
+	wg.Wait()
+
 	return multiErr.FinalError()
 }
 
