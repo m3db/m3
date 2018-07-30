@@ -205,3 +205,13 @@ func TestDAGWithLog10Op(t *testing.T) {
 	assert.Len(t, transforms, 2)
 	assert.Equal(t, transforms[1].Op.OpType(), linear.Log10Type)
 }
+
+func TestDAGWithRoundOp(t *testing.T) {
+	q := "round(up, 10)"
+	p, err := Parse(q)
+	require.NoError(t, err)
+	transforms, _, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 2)
+	assert.Equal(t, transforms[1].Op.OpType(), linear.RoundType)
+}

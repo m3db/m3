@@ -27,68 +27,64 @@ import (
 	"github.com/m3db/m3db/src/coordinator/executor/transform"
 )
 
-const (
-	// ClampMinType ensures all values except NaNs are greater than or equal to the provided argument
-	ClampMinType = "clamp_min"
+// RoundType rounds each value in the timeseries to the nearest integer.
+// Ties are resolved by rounding up. The optional to_nearest argument allows
+// specifying the nearest multiple to which the timeseries values should be rounded (default=1).
+// This multiple may also be a fraction.
+const RoundType = "round"
 
-	// ClampMaxType ensures all values except NaNs are lesser than or equal to provided argument
-	ClampMaxType = "clamp_max"
-)
-
-type clampOp struct {
-	opType string
-	scalar float64
+type roundOp struct {
+	toNearest float64
 }
 
-// NewClampOp creates a new clamp op based on the type and arguments
-func NewClampOp(args []interface{}, optype string) (BaseOp, error) {
-	if len(args) != 1 {
-		return emptyOp, fmt.Errorf("invalid number of args for clamp: %d", len(args))
+// NewRoundOp creates a new round op based on the type and arguments
+func NewRoundOp(args []interface{}) (BaseOp, error) {
+	if len(args) > 1 {
+		return emptyOp, fmt.Errorf("invalid number of args for round: %d", len(args))
 	}
 
-	if optype != ClampMinType && optype != ClampMaxType {
-		return emptyOp, fmt.Errorf("unknown clamp type: %s", optype)
+	var (
+		toNearest = 1.0
+		ok        bool
+	)
+	if len(args) > 0 {
+		toNearest, ok = args[0].(float64)
+		if !ok {
+			return emptyOp, fmt.Errorf("unable to cast to to_nearest argument: %v", args[0])
+		}
 	}
 
-	scalar, ok := args[0].(float64)
-	if !ok {
-		return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v", args[0])
-	}
-
-	spec := clampOp{
-		opType: optype,
-		scalar: scalar,
+	spec := roundOp{
+		toNearest: toNearest,
 	}
 
 	return BaseOp{
-		operatorType: optype,
-		processorFn:  makeClampProcessor(spec),
+		operatorType: RoundType,
+		processorFn:  makeRoundProcessor(spec),
 	}, nil
+
 }
 
-func makeClampProcessor(spec clampOp) makeProcessor {
-	clampOp := spec
+func makeRoundProcessor(spec roundOp) makeProcessor {
+	roundOp := spec
 	return func(op BaseOp, controller *transform.Controller) Processor {
-		fn := math.Min
-		if op.operatorType == ClampMinType {
-			fn = math.Max
-		}
-
-		return &clampNode{op: clampOp, controller: controller, clampFn: fn}
+		return &roundNode{op: roundOp, controller: controller, toNearest: roundOp.toNearest}
 	}
 }
 
-type clampNode struct {
-	op         clampOp
-	clampFn    func(x, y float64) float64
+type roundNode struct {
+	op         roundOp
+	toNearest  float64
 	controller *transform.Controller
 }
 
-func (c *clampNode) Process(values []float64) []float64 {
-	scalar := c.op.scalar
-	for i := range values {
-		values[i] = c.clampFn(values[i], scalar)
-	}
+func (r *roundNode) Process(values []float64) []float64 {
+	// Invert as it seems to cause fewer floating point accuracy issues.
+	toNearestInverse := 1.0 / r.toNearest
 
+	for i := range values {
+		v := math.Floor(values[i]*toNearestInverse+0.5) / toNearestInverse
+		values[i] = v
+	}
 	return values
 }
