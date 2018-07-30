@@ -50,6 +50,12 @@ type MultiNamespaceSeries []SeriesBlocks
 // ID enforces the same ID across namespaces
 func (n MultiNamespaceSeries) ID() ident.ID { return n[0].ID }
 
+// NamespaceSeriesList represents a single namespace with multiple series
+type NamespaceSeriesList struct {
+	Namespace  string
+	SeriesList []SeriesBlocks
+}
+
 // ConsolidatedNSBlock is a single block for a given timeseries and namespace
 // which contains all of the necessary SeriesIterators so that consolidation can
 // happen across namespaces
