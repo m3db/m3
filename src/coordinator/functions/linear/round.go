@@ -28,7 +28,9 @@ import (
 )
 
 // RoundType rounds each value in the timeseries to the nearest integer.
-// Ties are resolved by rounding up.
+// Ties are resolved by rounding up. The optional to_nearest argument allows
+// specifying the nearest multiple to which the timeseries values should be rounded (default=1).
+// This multiple may also be a fraction.
 const RoundType = "round"
 
 type roundOp struct {
@@ -48,7 +50,7 @@ func NewRoundOp(args []interface{}) (BaseOp, error) {
 	if len(args) > 0 {
 		toNearest, ok = args[0].(float64)
 		if !ok {
-			return emptyOp, fmt.Errorf("unable to cast to toNearest argument: %v", args[0])
+			return emptyOp, fmt.Errorf("unable to cast to to_nearest argument: %v", args[0])
 		}
 	}
 
