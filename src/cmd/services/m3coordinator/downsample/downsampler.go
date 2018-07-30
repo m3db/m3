@@ -23,6 +23,8 @@ package downsample
 import (
 	"context"
 	"errors"
+	"fmt"
+	"reflect"
 	"runtime"
 	"sync"
 	"time"
@@ -30,6 +32,7 @@ import (
 	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3aggregator/aggregator/handler"
 	"github.com/m3db/m3aggregator/aggregator/handler/writer"
+	"github.com/m3db/m3aggregator/client"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3cluster/placement"
@@ -63,6 +66,7 @@ const (
 	placementKVKey                 = "/placement"
 	aggregationSuffixTag           = "aggregation"
 	defaultStorageFlushConcurrency = 20000
+	defaultOpenTimeout             = 10 * time.Second
 )
 
 var (
@@ -104,12 +108,14 @@ type DownsamplerOptions struct {
 	Storage                 storage.Storage
 	StorageFlushConcurrency int
 	RulesKVStore            kv.Store
+	NameTag                 string
 	ClockOptions            clock.Options
 	InstrumentOptions       instrument.Options
 	TagEncoderOptions       serialize.TagEncoderOptions
 	TagDecoderOptions       serialize.TagDecoderOptions
 	TagEncoderPoolOptions   pool.ObjectPoolOptions
 	TagDecoderPoolOptions   pool.ObjectPoolOptions
+	OpenTimeout             time.Duration
 }
 
 // Validate validates the dynamic downsampling options.
@@ -141,7 +147,7 @@ func (o DownsamplerOptions) validate() error {
 	return nil
 }
 
-type newAggregatorResult struct {
+type agg struct {
 	aggregator              aggregator.Aggregator
 	clockOpts               clock.Options
 	matcher                 matcher.Matcher
@@ -150,20 +156,28 @@ type newAggregatorResult struct {
 	encodedTagsIteratorPool *encodedTagsIteratorPool
 }
 
-func (o DownsamplerOptions) newAggregator() (newAggregatorResult, error) {
+func (o DownsamplerOptions) newAggregator() (agg, error) {
 	// Validate options first.
 	if err := o.validate(); err != nil {
-		return newAggregatorResult{}, err
+		return agg{}, err
 	}
 
 	var (
 		storageFlushConcurrency = defaultStorageFlushConcurrency
 		rulesStore              = o.RulesKVStore
+		nameTag                 = defaultMetricNameTagName
 		clockOpts               = o.ClockOptions
 		instrumentOpts          = o.InstrumentOptions
+		openTimeout             = defaultOpenTimeout
 	)
 	if o.StorageFlushConcurrency > 0 {
 		storageFlushConcurrency = o.StorageFlushConcurrency
+	}
+	if o.NameTag != "" {
+		nameTag = []byte(o.NameTag)
+	}
+	if o.OpenTimeout > 0 {
+		openTimeout = o.OpenTimeout
 	}
 
 	// Configure rules options.
@@ -186,9 +200,9 @@ func (o DownsamplerOptions) newAggregator() (newAggregatorResult, error) {
 	}
 
 	tagsFilterOptions := filters.TagsFilterOptions{
-		NameTagKey: metricNameTagName,
+		NameTagKey: nameTag,
 		NameAndTagsFn: func(id []byte) ([]byte, []byte, error) {
-			name, err := resolveEncodedTagsNameTag(id, sortedTagIteratorPool)
+			name, err := resolveEncodedTagsNameTag(id, sortedTagIteratorPool, nameTag)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -221,14 +235,13 @@ func (o DownsamplerOptions) newAggregator() (newAggregatorResult, error) {
 	var defaultAggregationTypes aggregation.TypesConfiguration
 	aggTypeOpts, err := defaultAggregationTypes.NewOptions(instrumentOpts)
 	if err != nil {
-		return newAggregatorResult{}, err
+		return agg{}, err
 	}
 
 	ruleSetOpts := rules.NewOptions().
 		SetTagsFilterOptions(tagsFilterOptions).
 		SetNewRollupIDFn(newRollupIDFn).
-		SetIsRollupIDFn(isRollupIDFn).
-		SetAggregationTypesOptions(aggTypeOpts)
+		SetIsRollupIDFn(isRollupIDFn)
 
 	opts := matcher.NewOptions().
 		SetClockOptions(clockOpts).
@@ -245,7 +258,14 @@ func (o DownsamplerOptions) newAggregator() (newAggregatorResult, error) {
 
 	matcher, err := matcher.NewMatcher(cache, opts)
 	if err != nil {
-		return newAggregatorResult{}, err
+		return agg{}, err
+	}
+
+	aggClient := client.NewClient(client.NewOptions())
+	adminAggClient, ok := aggClient.(client.AdminClient)
+	if !ok {
+		return agg{}, fmt.Errorf(
+			"unable to cast %v to AdminClient", reflect.TypeOf(aggClient))
 	}
 
 	aggregatorOpts := aggregator.NewOptions().
@@ -255,7 +275,8 @@ func (o DownsamplerOptions) newAggregator() (newAggregatorResult, error) {
 		SetMetricPrefix(nil).
 		SetCounterPrefix(nil).
 		SetGaugePrefix(nil).
-		SetTimerPrefix(nil)
+		SetTimerPrefix(nil).
+		SetAdminClient(adminAggClient)
 
 	shardSet := make([]shard.Shard, numShards)
 	for i := 0; i < numShards; i++ {
@@ -274,13 +295,13 @@ func (o DownsamplerOptions) newAggregator() (newAggregatorResult, error) {
 		SetPlacements([]placement.Placement{localPlacement})
 	stagedPlacementProto, err := stagedPlacement.Proto()
 	if err != nil {
-		return newAggregatorResult{}, err
+		return agg{}, err
 	}
 
 	placementStore := mem.NewStore()
 	_, err = placementStore.SetIfNotExists(placementKVKey, stagedPlacementProto)
 	if err != nil {
-		return newAggregatorResult{}, err
+		return agg{}, err
 	}
 
 	placementWatcherOpts := placement.NewStagedPlacementWatcherOptions().
@@ -303,7 +324,7 @@ func (o DownsamplerOptions) newAggregator() (newAggregatorResult, error) {
 	leaderValue := instanceID
 	campaignOpts, err := services.NewCampaignOptions()
 	if err != nil {
-		return newAggregatorResult{}, err
+		return agg{}, err
 	}
 
 	campaignOpts = campaignOpts.SetLeaderValue(leaderValue)
@@ -324,7 +345,7 @@ func (o DownsamplerOptions) newAggregator() (newAggregatorResult, error) {
 
 	leaderService, err := leader.NewService(electionCluster.RandClient(), leaderOpts)
 	if err != nil {
-		return newAggregatorResult{}, err
+		return agg{}, err
 	}
 
 	electionManagerOpts := aggregator.NewElectionManagerOptions().
@@ -333,13 +354,15 @@ func (o DownsamplerOptions) newAggregator() (newAggregatorResult, error) {
 		SetPlacementManager(placementManager).
 		SetFlushTimesManager(flushTimesManager)
 	electionManager := aggregator.NewElectionManager(electionManagerOpts)
+
 	aggregatorOpts = aggregatorOpts.SetElectionManager(electionManager)
 
 	// Set up flush manager.
 	flushManagerOpts := aggregator.NewFlushManagerOptions().
 		SetPlacementManager(placementManager).
 		SetFlushTimesManager(flushTimesManager).
-		SetElectionManager(electionManager)
+		SetElectionManager(electionManager).
+		SetJitterEnabled(false)
 	flushManager := aggregator.NewFlushManager(flushManagerOpts)
 	aggregatorOpts = aggregatorOpts.SetFlushManager(flushManager)
 
@@ -349,8 +372,34 @@ func (o DownsamplerOptions) newAggregator() (newAggregatorResult, error) {
 		flushWorkers, instrumentOpts)
 	aggregatorOpts = aggregatorOpts.SetFlushHandler(handler)
 
-	return newAggregatorResult{
-		aggregator:              aggregator.NewAggregator(aggregatorOpts),
+	aggregatorInstance := aggregator.NewAggregator(aggregatorOpts)
+	if err := aggregatorInstance.Open(); err != nil {
+		return agg{}, err
+	}
+
+	// Wait until the aggregator becomes leader so we don't miss datapoints
+	leaderCh := make(chan struct{}, 1)
+	go func() {
+		defer func() { leaderCh <- struct{}{} }()
+		for {
+			if electionManager.ElectionState() == aggregator.LeaderState {
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+
+	select {
+	case <-leaderCh:
+		// Now can return
+	case <-time.After(openTimeout):
+		return agg{}, fmt.Errorf(
+			"aggregator not promoted to leader after: %s",
+			openTimeout.String())
+	}
+
+	return agg{
+		aggregator:              aggregatorInstance,
 		matcher:                 matcher,
 		tagEncoderPool:          tagEncoderPool,
 		tagDecoderPool:          tagDecoderPool,
@@ -418,6 +467,7 @@ type downsamplerFlushHandlerWriter struct {
 func (w *downsamplerFlushHandlerWriter) Write(
 	mp aggregated.ChunkedMetricWithStoragePolicy,
 ) error {
+	fmt.Printf("try to write: id=%s, value=%f\n", string(mp.ChunkedID.Data), mp.Value)
 	w.wg.Add(1)
 	w.handler.workerPool.Go(func() {
 		defer w.wg.Done()
@@ -426,8 +476,9 @@ func (w *downsamplerFlushHandlerWriter) Write(
 
 		iter := w.handler.encodedTagsIteratorPool.Get()
 		iter.Reset(mp.ChunkedID.Data)
+
 		expected := iter.NumTags()
-		if len(mp.ChunkedID.Suffix) > 0 {
+		if len(mp.ChunkedID.Suffix) != 0 {
 			expected++
 		}
 		tags := make(models.Tags, expected)
@@ -435,7 +486,7 @@ func (w *downsamplerFlushHandlerWriter) Write(
 			name, value := iter.Current()
 			tags[string(name)] = string(value)
 		}
-		if len(mp.ChunkedID.Suffix) > 0 {
+		if len(mp.ChunkedID.Suffix) != 0 {
 			tags[aggregationSuffixTag] = string(mp.ChunkedID.Suffix)
 		}
 
@@ -485,30 +536,32 @@ func (w *downsamplerFlushHandlerWriter) Close() error {
 }
 
 type downsampler struct {
-	aggregator newAggregatorResult
+	opts DownsamplerOptions
+	agg  agg
 }
 
 // NewDownsampler returns a new downsampler.
 func NewDownsampler(
 	opts DownsamplerOptions,
 ) (Downsampler, error) {
-	aggregator, err := opts.newAggregator()
+	agg, err := opts.newAggregator()
 	if err != nil {
 		return nil, err
 	}
 
 	return &downsampler{
-		aggregator: aggregator,
+		opts: opts,
+		agg:  agg,
 	}, nil
 }
 
 func (d *downsampler) NewMetricsAppender() MetricsAppender {
 	return newMetricsAppender(metricsAppenderOptions{
-		agg:                     d.aggregator.aggregator,
-		clockOpts:               d.aggregator.clockOpts,
-		tagEncoder:              d.aggregator.tagEncoderPool.Get(),
-		matcher:                 d.aggregator.matcher,
-		encodedTagsIteratorPool: d.aggregator.encodedTagsIteratorPool,
+		agg:                     d.agg.aggregator,
+		clockOpts:               d.agg.clockOpts,
+		tagEncoder:              d.agg.tagEncoderPool.Get(),
+		matcher:                 d.agg.matcher,
+		encodedTagsIteratorPool: d.agg.encodedTagsIteratorPool,
 	})
 }
 

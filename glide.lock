@@ -1,5 +1,5 @@
-hash: 3a53f2c08d71320ccc49b0078a702b0eee06f316cab7a68135c8cbc74d44983c
-updated: 2018-07-28T18:42:11.877634-04:00
+hash: e705a45eee71bea9a22036a204f4c7d1b70de8ce049d41f5ae6239a5157d24b5
+updated: 2018-07-28T20:03:02.374102-04:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -210,21 +210,26 @@ imports:
 - name: github.com/m3db/bloom
   version: 47fe1193cdb900de7193d1f3d26ea9b2cbf6fb31
 - name: github.com/m3db/m3aggregator
-  version: fd38c07d1a94b8598b6839a9c471e0a6feacfafb
+  version: 6f59918fe3791a3df0dc146ea492593925809c3e
   subpackages:
   - aggregation
   - aggregation/quantile/cm
   - aggregator
   - aggregator/handler
   - aggregator/handler/common
+  - aggregator/handler/filter
+  - aggregator/handler/router
+  - aggregator/handler/router/trafficcontrol
   - aggregator/handler/writer
+  - bitset
+  - client
   - generated/proto/flush
   - hash
   - rate
   - runtime
   - sharding
 - name: github.com/m3db/m3cluster
-  version: b4935c48a00f47c6f16f71d15d94e1c24785297d
+  version: 313c27d715da9c0993bdc640b758d93d1392438a
   subpackages:
   - client
   - client/etcd
@@ -249,6 +254,14 @@ imports:
   - services/leader/campaign
   - services/leader/election
   - shard
+- name: github.com/m3db/m3ctl
+  version: acc762bfdd42ecb192d34e48fa7ca1fd7ee088ac
+  subpackages:
+  - auth
+  - service
+  - service/r2
+  - service/r2/store
+  - service/r2/store/kv
 - name: github.com/m3db/m3em
   version: ed532baee45a440f0b08b6893c816634c6978d4d
   subpackages:
@@ -262,24 +275,52 @@ imports:
   - os/fs
   - x/grpc
 - name: github.com/m3db/m3metrics
-  version: f22d8684fa8b42ff30f1d68f6f2be5e465db9a9d
+  version: b400256bc6da4c10bad5a5f0a11e91bfa095e2e6
   subpackages:
   - aggregation
+  - encoding
+  - encoding/msgpack
+  - encoding/protobuf
   - errors
   - filters
-  - generated/proto/schema
+  - generated/proto/aggregationpb
+  - generated/proto/metricpb
+  - generated/proto/pipelinepb
+  - generated/proto/policypb
+  - generated/proto/rulepb
+  - generated/proto/transformationpb
   - matcher
   - matcher/cache
+  - metadata
   - metric
   - metric/aggregated
   - metric/id
   - metric/id/m3
   - metric/unaggregated
+  - pipeline
+  - pipeline/applied
   - policy
-  - protocol/msgpack
   - rules
-  - rules/models
-  - rules/models/changes
+  - rules/store/kv
+  - rules/validator
+  - rules/validator/namespace
+  - rules/validator/namespace/kv
+  - rules/validator/namespace/static
+  - rules/view
+  - rules/view/changes
+  - transformation
+  - x/bytes
+- name: github.com/m3db/m3msg
+  version: 4680d9b45286826f87b134a4559b11d795786eaf
+  subpackages:
+  - generated/proto/msgpb
+  - generated/proto/topicpb
+  - producer
+  - producer/buffer
+  - producer/config
+  - producer/writer
+  - protocol/proto
+  - topic
 - name: github.com/m3db/m3ninx
   version: 7556fa8339674f1d9f559486d1feca18c17d1190
 - name: github.com/m3db/m3x
@@ -333,6 +374,10 @@ imports:
   version: c12348ce28de40eed0136aa2b644d0ee0650e56c
   subpackages:
   - pbutil
+- name: github.com/mauricelam/genny
+  version: 9d8700bcc567cd22ea2ef42ce5835a9c80296c4a
+  subpackages:
+  - generic
 - name: github.com/mitchellh/mapstructure
   version: bb74f1db0675b241733089d5a1faa5dd8b0ef57b
 - name: github.com/mschoch/smat
@@ -582,9 +627,17 @@ testImports:
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/fortytw2/leaktest
   version: 3677f62bb30dbf3b042c4c211245d072aa9ee075
+- name: github.com/go-playground/locales
+  version: 1e5f1161c6416a5ff48840eb8724a394e48cc534
+  subpackages:
+  - currency
+- name: github.com/go-playground/universal-translator
+  version: 71201497bace774495daed26a3874fd339e0b538
 - name: github.com/leanovate/gopter
   version: f778776473e0ef7764e1434dd01a61cc1ec574b4
   subpackages:
   - commands
   - gen
   - prop
+- name: gopkg.in/go-playground/validator.v9
+  version: a021b2ec9a8a8bb970f3f15bc42617cb520e8a64

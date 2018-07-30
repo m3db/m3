@@ -47,8 +47,7 @@ type metricsAppenderOptions struct {
 }
 
 func (a *metricsAppender) AddTag(name, value string) {
-	a.tags.names = append(a.tags.names, name)
-	a.tags.values = append(a.tags.values, name)
+	a.tags.append(name, value)
 }
 
 func (a *metricsAppender) SamplesAppender() (SamplesAppender, error) {
@@ -66,35 +65,37 @@ func (a *metricsAppender) SamplesAppender() (SamplesAppender, error) {
 			a.tags.names, a.tags.values)
 	}
 
+	a.multiSamplesAppender.reset()
 	unownedID := data.Bytes()
 
 	// Match policies and rollups and build samples appender
 	id := a.encodedTagsIteratorPool.Get()
 	id.Reset(unownedID)
 	now := time.Now()
-	fromNanos := now.Add(-1 * a.clockOpts.MaxNegativeSkew()).UnixNano()
-	toNanos := now.Add(1 * a.clockOpts.MaxPositiveSkew()).UnixNano()
+	nowNanos := now.UnixNano()
+	fromNanos := nowNanos
+	toNanos := nowNanos + 1
 	matchResult := a.matcher.ForwardMatch(id, fromNanos, toNanos)
 	id.Close()
 
-	policies := matchResult.MappingsAt(now.UnixNano())
+	stagedMetadatas := matchResult.ForExistingIDAt(nowNanos)
+	if !stagedMetadatas.IsDefault() && len(stagedMetadatas) != 0 {
+		// Only sample if going to actually aggregate
+		a.multiSamplesAppender.addSamplesAppender(samplesAppender{
+			agg:             a.agg,
+			unownedID:       unownedID,
+			stagedMetadatas: stagedMetadatas,
+		})
+	}
 
-	a.multiSamplesAppender.reset()
-	a.multiSamplesAppender.addSamplesAppender(samplesAppender{
-		agg:       a.agg,
-		unownedID: unownedID,
-		policies:  policies,
-	})
-
-	numRollups := matchResult.NumRollups()
+	numRollups := matchResult.NumNewRollupIDs()
 	for i := 0; i < numRollups; i++ {
-		if rollup, ok := matchResult.RollupsAt(i, now.UnixNano()); ok {
-			a.multiSamplesAppender.addSamplesAppender(samplesAppender{
-				agg:       a.agg,
-				unownedID: rollup.ID,
-				policies:  rollup.PoliciesList,
-			})
-		}
+		rollup := matchResult.ForNewRollupIDsAt(i, nowNanos)
+		a.multiSamplesAppender.addSamplesAppender(samplesAppender{
+			agg:             a.agg,
+			unownedID:       rollup.ID,
+			stagedMetadatas: rollup.Metadatas,
+		})
 	}
 
 	return a.multiSamplesAppender, nil

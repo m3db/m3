@@ -35,10 +35,10 @@ import (
 )
 
 var (
-	metricNameTagName = []byte(model.MetricNameLabel)
-	rollupTagName     = []byte("m3_rollup")
-	rollupTagValue    = []byte("true")
-	rollupTag         = ident.Tag{
+	defaultMetricNameTagName = []byte(model.MetricNameLabel)
+	rollupTagName            = []byte("m3_rollup")
+	rollupTagValue           = []byte("true")
+	rollupTag                = ident.Tag{
 		Name:  ident.BytesID(rollupTagName),
 		Value: ident.BytesID(rollupTagValue),
 	}
@@ -71,6 +71,7 @@ func newEncodedTagsIterator(
 
 // Reset resets the iterator.
 func (it *encodedTagsIter) Reset(sortedTagPairs []byte) {
+	it.bytes.IncRef()
 	it.bytes.Reset(sortedTagPairs)
 	it.tagDecoder.Reset(it.bytes)
 }
@@ -117,6 +118,7 @@ func (it *encodedTagsIter) Err() error {
 // Close closes the iterator.
 func (it *encodedTagsIter) Close() {
 	it.bytes.Reset(nil)
+	it.bytes.DecRef()
 	it.tagDecoder.Reset(it.bytes)
 
 	if it.pool != nil {
@@ -161,9 +163,10 @@ func isRollupID(
 	iter.Reset(sortedTagPairs)
 
 	tagValue, ok := iter.TagValue(rollupTagName)
+	isRollupID := ok && bytes.Equal(tagValue, rollupTagValue)
 	iter.Close()
 
-	return ok && bytes.Equal(tagValue, rollupTagValue)
+	return isRollupID
 }
 
 // rollupIDProvider is a constructor for rollup IDs, it can be pooled to avoid
@@ -315,13 +318,14 @@ func (p *rollupIDProviderPool) Put(v *rollupIDProvider) {
 func resolveEncodedTagsNameTag(
 	id []byte,
 	iterPool *encodedTagsIteratorPool,
+	nameTag []byte,
 ) ([]byte, error) {
 	// ID is always the encoded tags for downsampling IDs
 	iter := iterPool.Get()
 	iter.Reset(id)
 	defer iter.Close()
 
-	value, ok := iter.TagValue(metricNameTagName)
+	value, ok := iter.TagValue(nameTag)
 	if !ok {
 		// No name was found in encoded tags
 		return nil, errNoMetricNameTag

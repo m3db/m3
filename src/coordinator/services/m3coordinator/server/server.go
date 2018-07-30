@@ -260,7 +260,7 @@ func newDownsampler(
 	logger *zap.Logger,
 	clusterManagementClient clusterclient.Client,
 	storage storage.Storage,
-	instrumentOptions instrument.Options,
+	instrumentOpts instrument.Options,
 ) downsample.Downsampler {
 	if clusterManagementClient == nil {
 		logger.Fatal("no configured cluster management config, must set this " +
@@ -276,19 +276,19 @@ func newDownsampler(
 	tagEncoderOptions := serialize.NewTagEncoderOptions()
 	tagDecoderOptions := serialize.NewTagDecoderOptions()
 	tagEncoderPoolOptions := pool.NewObjectPoolOptions().
-		SetInstrumentOptions(instrumentOptions.
-			SetMetricsScope(instrumentOptions.MetricsScope().
+		SetInstrumentOptions(instrumentOpts.
+			SetMetricsScope(instrumentOpts.MetricsScope().
 				SubScope("tag-encoder-pool")))
 	tagDecoderPoolOptions := pool.NewObjectPoolOptions().
-		SetInstrumentOptions(instrumentOptions.
-			SetMetricsScope(instrumentOptions.MetricsScope().
+		SetInstrumentOptions(instrumentOpts.
+			SetMetricsScope(instrumentOpts.MetricsScope().
 				SubScope("tag-decoder-pool")))
 
 	downsampler, err := downsample.NewDownsampler(downsample.DownsamplerOptions{
 		Storage:               storage,
 		RulesKVStore:          kvStore,
 		ClockOptions:          clock.NewOptions(),
-		InstrumentOptions:     instrumentOptions,
+		InstrumentOptions:     instrumentOpts,
 		TagEncoderOptions:     tagEncoderOptions,
 		TagDecoderOptions:     tagDecoderOptions,
 		TagEncoderPoolOptions: tagEncoderPoolOptions,

@@ -16,7 +16,7 @@ import:
   - ident
 
 - package: github.com/m3db/m3cluster
-  version: b4935c48a00f47c6f16f71d15d94e1c24785297d
+  version: 313c27d715da9c0993bdc640b758d93d1392438a
   subpackages:
   - client
   - services
@@ -26,7 +26,10 @@ import:
   version: ed532baee45a440f0b08b6893c816634c6978d4d
 
 - package: github.com/m3db/m3aggregator
-  version: fd38c07d1a94b8598b6839a9c471e0a6feacfafb
+  version: 6f59918fe3791a3df0dc146ea492593925809c3e
+
+- package: github.com/m3db/m3ctl
+  version: acc762bfdd42ecb192d34e48fa7ca1fd7ee088ac
 
 - package: github.com/m3db/m3ninx
   version: 7556fa8339674f1d9f559486d1feca18c17d1190
@@ -152,7 +155,7 @@ import:
   version: ^2.2.6
 
 - package: github.com/m3db/m3metrics
-  version: f22d8684fa8b42ff30f1d68f6f2be5e465db9a9d
+  version: b400256bc6da4c10bad5a5f0a11e91bfa095e2e6
   subpackages:
   - policy
 

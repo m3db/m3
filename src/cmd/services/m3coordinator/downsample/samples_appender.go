@@ -22,35 +22,34 @@ package downsample
 
 import (
 	"github.com/m3db/m3aggregator/aggregator"
+	"github.com/m3db/m3metrics/metadata"
+	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/unaggregated"
-	"github.com/m3db/m3metrics/policy"
 	xerrors "github.com/m3db/m3x/errors"
 )
 
 type samplesAppender struct {
-	agg       aggregator.Aggregator
-	unownedID []byte
-	policies  policy.PoliciesList
+	agg             aggregator.Aggregator
+	unownedID       []byte
+	stagedMetadatas metadata.StagedMetadatas
 }
 
 func (a samplesAppender) AppendCounterSample(value int64) error {
 	sample := unaggregated.MetricUnion{
-		Type:       unaggregated.CounterType,
-		OwnsID:     false,
+		Type:       metric.CounterType,
 		ID:         a.unownedID,
 		CounterVal: value,
 	}
-	return a.agg.AddMetricWithPoliciesList(sample, a.policies)
+	return a.agg.AddUntimed(sample, a.stagedMetadatas)
 }
 
 func (a samplesAppender) AppendGaugeSample(value float64) error {
 	sample := unaggregated.MetricUnion{
-		Type:     unaggregated.GaugeType,
-		OwnsID:   false,
+		Type:     metric.GaugeType,
 		ID:       a.unownedID,
 		GaugeVal: value,
 	}
-	return a.agg.AddMetricWithPoliciesList(sample, a.policies)
+	return a.agg.AddUntimed(sample, a.stagedMetadatas)
 }
 
 // Ensure multiSamplesAppender implements SamplesAppender

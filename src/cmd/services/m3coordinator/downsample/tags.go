@@ -45,6 +45,11 @@ func newTags() *tags {
 	}
 }
 
+func (t *tags) append(name, value string) {
+	t.names = append(t.names, name)
+	t.values = append(t.values, value)
+}
+
 func (t *tags) Len() int {
 	return len(t.names)
 }
@@ -91,7 +96,10 @@ func (t *tags) Close() {
 }
 
 func (t *tags) Remaining() int {
-	return t.idx + 1 - (len(t.names) - 1)
+	if t.idx < 0 {
+		return t.Len()
+	}
+	return t.Len() - t.idx
 }
 
 func (t *tags) Duplicate() ident.TagIterator {

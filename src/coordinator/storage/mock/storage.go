@@ -22,54 +22,150 @@ package mock
 
 import (
 	"context"
+	"sync"
 
 	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/storage"
 )
 
+// Storage implements storage.Storage and provides methods to help
+// read what was written and set what to retrieve.
+type Storage interface {
+	storage.Storage
+
+	SetTypeResult(storage.Type)
+	SetFetchResult(*storage.FetchResult, error)
+	SetFetchTagsResult(*storage.SearchResults, error)
+	SetWriteResult(error)
+	SetFetchBlocksResult(block.Result, error)
+	SetCloseResult(error)
+	Writes() []*storage.WriteQuery
+}
+
 type mockStorage struct {
-	sType  storage.Type
-	blocks []block.Block
+	sync.RWMutex
+	typeResult struct {
+		result storage.Type
+	}
+	fetchResult struct {
+		result *storage.FetchResult
+		err    error
+	}
+	fetchTagsResult struct {
+		result *storage.SearchResults
+		err    error
+	}
+	writeResult struct {
+		err error
+	}
+	fetchBlocksResult struct {
+		result block.Result
+		err    error
+	}
+	closeResult struct {
+		err error
+	}
+	writes []*storage.WriteQuery
 }
 
 // NewMockStorage creates a new mock Storage instance.
-func NewMockStorage() storage.Storage {
-	return &mockStorage{sType: storage.Type(0)}
+func NewMockStorage() Storage {
+	return &mockStorage{}
 }
 
-// NewMockStorageWithBlocks creates a new mock Storage instance with blocks.
-func NewMockStorageWithBlocks(blocks []block.Block) storage.Storage {
-	return &mockStorage{sType: storage.Type(0), blocks: blocks}
+func (s *mockStorage) SetTypeResult(result storage.Type) {
+	s.Lock()
+	defer s.Unlock()
+	s.typeResult.result = result
 }
 
-// NewMockStorageWithType creates a new mock Storage instance.
-func NewMockStorageWithType(sType storage.Type) storage.Storage {
-	return &mockStorage{sType: sType}
+func (s *mockStorage) SetFetchResult(result *storage.FetchResult, err error) {
+	s.Lock()
+	defer s.Unlock()
+	s.fetchResult.result = result
+	s.fetchResult.err = err
 }
 
-func (s *mockStorage) Fetch(ctx context.Context, query *storage.FetchQuery, _ *storage.FetchOptions) (*storage.FetchResult, error) {
-	return nil, nil
+func (s *mockStorage) SetFetchTagsResult(result *storage.SearchResults, err error) {
+	s.Lock()
+	defer s.Unlock()
+	s.fetchTagsResult.result = result
+	s.fetchTagsResult.err = err
 }
 
-func (s *mockStorage) FetchTags(ctx context.Context, query *storage.FetchQuery, _ *storage.FetchOptions) (*storage.SearchResults, error) {
-	return nil, nil
+func (s *mockStorage) SetWriteResult(err error) {
+	s.Lock()
+	defer s.Unlock()
+	s.writeResult.err = err
 }
 
-func (s *mockStorage) Write(ctx context.Context, query *storage.WriteQuery) error {
-	return nil
+func (s *mockStorage) SetFetchBlocksResult(result block.Result, err error) {
+	s.Lock()
+	defer s.Unlock()
+	s.fetchBlocksResult.result = result
+	s.fetchBlocksResult.err = err
+}
+
+func (s *mockStorage) SetCloseResult(err error) {
+	s.Lock()
+	defer s.Unlock()
+	s.closeResult.err = err
+}
+
+func (s *mockStorage) Writes() []*storage.WriteQuery {
+	s.RLock()
+	defer s.RUnlock()
+	return s.writes
+}
+
+func (s *mockStorage) Fetch(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	_ *storage.FetchOptions,
+) (*storage.FetchResult, error) {
+	s.RLock()
+	defer s.RUnlock()
+	return s.fetchResult.result, s.fetchResult.err
+}
+
+func (s *mockStorage) FetchTags(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	_ *storage.FetchOptions,
+) (*storage.SearchResults, error) {
+	s.RLock()
+	defer s.RUnlock()
+	return s.fetchTagsResult.result, s.fetchTagsResult.err
+}
+
+func (s *mockStorage) Write(
+	ctx context.Context,
+	query *storage.WriteQuery,
+) error {
+	s.Lock()
+	defer s.Unlock()
+	s.writes = append(s.writes, query)
+	return s.writeResult.err
 }
 
 func (s *mockStorage) Type() storage.Type {
-	return s.sType
+	s.RLock()
+	defer s.RUnlock()
+	return s.typeResult.result
 }
 
 func (s *mockStorage) Close() error {
-	return nil
+	s.RLock()
+	defer s.RUnlock()
+	return s.closeResult.err
 }
 
 func (s *mockStorage) FetchBlocks(
-	ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (block.Result, error) {
-	return block.Result{
-		Blocks: s.blocks,
-	}, nil
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (block.Result, error) {
+	s.RLock()
+	defer s.RUnlock()
+	return s.fetchBlocksResult.result, s.fetchBlocksResult.err
 }
