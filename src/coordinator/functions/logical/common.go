@@ -94,8 +94,10 @@ func combineMetadata(l, r block.Metadata) (block.Metadata, error) {
 	}
 
 	for k, v := range r.Tags {
-		if _, ok := l.Tags[k]; ok {
-			return block.Metadata{}, errConflictingTags
+		if lVal, ok := l.Tags[k]; ok {
+			if lVal != v {
+				return block.Metadata{}, errConflictingTags
+			}
 		}
 		l.Tags[k] = v
 	}

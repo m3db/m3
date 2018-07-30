@@ -21,7 +21,6 @@
 package logical
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/m3db/m3db/src/coordinator/block"
@@ -29,7 +28,6 @@ import (
 	"github.com/m3db/m3db/src/coordinator/test"
 	"github.com/m3db/m3db/src/coordinator/test/executor"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -95,70 +93,6 @@ func TestIntersect(t *testing.T) {
 			assert.Equal(t, tt.expectedL, excluded)
 		})
 	}
-}
-
-func builderMockWithExpectedValues(ctrl *gomock.Controller, indeces []int, values [][]float64) block.Builder {
-	builder := block.NewMockBuilder(ctrl)
-	for i, val := range values {
-		for _, idx := range indeces {
-			builder.EXPECT().AppendValue(i, val[idx])
-		}
-	}
-
-	return builder
-}
-
-func stepIterWithExpectedValues(ctrl *gomock.Controller, indeces []int, values [][]float64) block.StepIter {
-	stepIter := block.NewMockStepIter(ctrl)
-	for _, val := range values {
-		stepIter.EXPECT().Next().Return(true)
-		bl := block.NewMockStep(ctrl)
-		bl.EXPECT().Values().Return(val)
-		stepIter.EXPECT().Current().Return(bl, nil)
-	}
-	stepIter.EXPECT().Next().Return(false)
-
-	return stepIter
-}
-
-var addAtIndicesTests = []struct {
-	name          string
-	indeces       []int
-	builderValues [][]float64
-}{
-	{"no indeces", []int{}, [][]float64{[]float64{1, 2}, []float64{3, 4}}},
-	{"take first", []int{0}, [][]float64{[]float64{1, 2}, []float64{3, 4}}},
-	{"take second", []int{1}, [][]float64{[]float64{1, 2}, []float64{3, 4}}},
-	{"take both", []int{0, 1}, [][]float64{[]float64{1, 2}, []float64{3, 4}}},
-}
-
-func TestAddAtIndices(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	for _, tt := range addAtIndicesTests {
-		t.Run(tt.name, func(t *testing.T) {
-			builder := builderMockWithExpectedValues(ctrl, tt.indeces, tt.builderValues)
-			stepIter := stepIterWithExpectedValues(ctrl, tt.indeces, tt.builderValues)
-
-			err := addValuesAtIndeces(tt.indeces, stepIter, builder)
-			assert.NoError(t, err)
-		})
-	}
-}
-
-func TestAddAtIndicesErrors(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	builder := block.NewMockBuilder(ctrl)
-	stepIter := block.NewMockStepIter(ctrl)
-
-	msg := "err"
-	stepIter.EXPECT().Next().Return(true)
-	stepIter.EXPECT().Current().Return(nil, fmt.Errorf(msg))
-	err := addValuesAtIndeces([]int{1}, stepIter, builder)
-	assert.EqualError(t, err, msg)
 }
 
 var unlessTests = []struct {
