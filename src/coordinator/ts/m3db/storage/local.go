@@ -44,7 +44,7 @@ var (
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
 	}
 
-	emptySeriesList map[ident.ID][]m3block.SeriesBlocks
+	emptySeriesMap map[ident.ID][]m3block.SeriesBlocks
 )
 
 // newStorage creates a new local Storage instance.
@@ -72,7 +72,7 @@ func (s *localStorage) fetchBlocks(
 
 	m3query, err := storage.FetchQueryToM3Query(query)
 	if err != nil {
-		return emptySeriesList, err
+		return emptySeriesMap, err
 	}
 
 	opts := storage.FetchOptionsToM3Options(options, query)
@@ -82,12 +82,12 @@ func (s *localStorage) fetchBlocks(
 	// todo(braskin): figure out what to do with second return argument
 	seriesIters, _, err := s.fetchRaw(namespaces[0], m3query, opts)
 	if err != nil {
-		return emptySeriesList, err
+		return emptySeriesMap, err
 	}
 
 	seriesBlockList, err := m3block.ConvertM3DBSeriesIterators(seriesIters, iterAlloc)
 	if err != nil {
-		return emptySeriesList, err
+		return emptySeriesMap, err
 	}
 
 	// NB/todo(braskin): because we are only support querying one namespace now, we can just create
