@@ -31,21 +31,23 @@ LINUX_AMD64_ENV := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
 
 .PHONY: setup
 setup:
+	@echo "+ $@"
 	mkdir -p $(BUILD)
 
 .PHONY: metalint
 metalint: install-metalinter install-linter-badtime
+	@echo "+ $@"
 	@($(metalint_check) $(metalint_config) $(metalint_exclude) && echo "metalinted successfully!") || (echo "metalinter failed" && exit 1)
 
 .PHONY: install-licence-bin
 install-license-bin: install-vendor
-	@echo Installing node modules
+	@echo "+ $@ : Installing node modules"
 	git submodule update --init --recursive
 	[ -d $(license_node_modules) ] || (cd $(license_dir) && npm install)
 
 .PHONY: install-mockgen
 install-mockgen: install-vendor
-	@echo Installing mockgen
+	@echo "+ $@"
 	glide install
 
 .PHONY: mock-gen
@@ -55,20 +57,23 @@ mock-gen: install-mockgen install-license-bin install-util-mockclean
 
 .PHONY: mock-gen-no-deps
 mock-gen-no-deps:
-	@echo Generating mocks
+	@echo "+ $@ : Generating mocks"
 	PACKAGE=$(package_root) $(auto_gen) $(mocks_output_dir) $(mocks_rules_dir)
 
 .PHONY: test-internal
 test-internal:
+	@echo "+ $@"
 	@which go-junit-report > /dev/null || go get -u github.com/sectioneight/go-junit-report
 	$(test) $(coverfile) | tee $(test_log)
 
 .PHONY: test-integration
 test-integration:
+	@echo "+ $@"
 	go test -v -tags=integration ./integration
 
 .PHONY: test-xml
 test-xml: test-internal
+	@echo "+ $@"
 	go-junit-report < $(test_log) > $(junit_xml)
 	gocov convert $(coverfile) | gocov-xml > $(coverage_xml)
 	@$(convert-test-data) $(coverage_xml)
@@ -76,28 +81,34 @@ test-xml: test-internal
 
 .PHONY: test
 test: test-internal
+	@echo "+ $@"
 	gocov convert $(coverfile) | gocov report
 
 .PHONY: testhtml
 testhtml: test-internal
+	@echo "+ $@"
 	gocov convert $(coverfile) | gocov-html > $(html_report) && open $(html_report)
 	@rm -f $(test_log) &> /dev/null
 
 .PHONY: test-ci-unit
 test-ci-unit: test-internal
+	@echo "+ $@"
 	@which goveralls > /dev/null || go get -u -f github.com/mattn/goveralls
 	goveralls -coverprofile=$(coverfile) -service=travis-ci || echo -e "\x1b[31mCoveralls failed\x1b[m"
 
 .PHONY: test-ci-integration
 test-ci-integration:
+	@echo "+ $@"
 	$(test_ci_integration)
 
 .PHONY: clean
 clean:
-	@rm -f *.html *.xml *.out *.test
+	@echo "+ $@"
+	rm -f *.html *.xml *.out *.test
+	go clean .
 
 .PHONY: all
-all: metalint test-ci-unit test-ci-integration
+all: clean metalint test-ci-unit test-ci-integration
 	@echo Made all successfully
 
 .DEFAULT_GOAL := all
