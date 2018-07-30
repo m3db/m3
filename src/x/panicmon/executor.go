@@ -22,7 +22,6 @@ package panicmon
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -122,32 +121,39 @@ func NewExecutor(opts ExecutorOptions) Executor {
 	return ex
 }
 
-func (ex *executor) Run(args []string) (code StatusCode, err error) {
+func (ex *executor) Run(args []string) (StatusCode, error) {
 	ex.handler.ProcessStarted(ProcessStartEvent{Args: args})
 
-	code, err = ex.execCmd(args)
-	if err != nil {
+	result, err := ex.execCmd(args)
+	if result.failedAtStartup && err != nil {
 		ex.handler.ProcessFailed(ProcessFailedEvent{
 			Args: args,
 			Err:  err,
 		})
-		return
+		return result.statusCode, err
 	}
 
 	ex.handler.ProcessExited(ProcessExitedEvent{
 		Args: args,
-		Code: code,
+		Code: result.statusCode,
+		Err:  err,
 	})
-	return
+	return result.statusCode, err
+}
+
+type execResult struct {
+	failedAtStartup bool
+	statusCode      StatusCode
 }
 
 // execCmd spawns a command according to args and passes any signals received
-// by the parent process to the spawned process. It returns an error only if
-// the command was unable to be started. Once the command has been started it
-// returns astruct containing the exit status.
-func (ex *executor) execCmd(args []string) (StatusCode, error) {
+// by the parent process to the spawned process. It returns a bool indicating
+// whether the process failed at startup or after starting, the status code of
+// the failed process, and an error capturing further information.
+func (ex *executor) execCmd(args []string) (execResult, error) {
+	result := execResult{true, StatusCode(0)}
 	if len(args) == 0 {
-		return 0, errors.New("args cannot be empty")
+		return result, errors.New("args cannot be empty")
 	}
 
 	cmd := exec.Command(args[0], args[1:]...)
@@ -167,8 +173,11 @@ func (ex *executor) execCmd(args []string) (StatusCode, error) {
 	cmd.SysProcAttr = execSyscallAttr
 
 	if err := cmd.Start(); err != nil {
-		return 0, err
+		return result, err
 	}
+
+	// i.e. indicate we made it past process startup
+	result.failedAtStartup = false
 
 	go ex.passSignals(cmd.Process)
 	defer ex.close()
@@ -176,18 +185,13 @@ func (ex *executor) execCmd(args []string) (StatusCode, error) {
 	// if cmd.Wait returns a nil error it means the process exited with 0
 	err := cmd.Wait()
 	if err == nil {
-		return 0, nil
-	}
-
-	status := cmd.ProcessState.Sys().(syscall.WaitStatus)
-	if status.ExitStatus() == 0 {
-		return 0, nil
+		return result, nil
 	}
 
 	// if exited uncleanly, capture status code to report
-	statusCode := StatusCode(status.ExitStatus())
-	wrappedErr := fmt.Errorf("[ exit-status = %s, err = %v ]", statusCode, err)
-	return statusCode, wrappedErr
+	status := cmd.ProcessState.Sys().(syscall.WaitStatus)
+	result.statusCode = StatusCode(status.ExitStatus())
+	return result, err
 }
 
 func (ex *executor) close() {
