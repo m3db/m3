@@ -1095,6 +1095,7 @@ func TestShardNewInvalidShardEntry(t *testing.T) {
 
 	iter := ident.NewMockTagIterator(ctrl)
 	gomock.InOrder(
+		iter.EXPECT().Duplicate().Return(iter),
 		iter.EXPECT().CurrentIndex().Return(0),
 		iter.EXPECT().Next().Return(false),
 		iter.EXPECT().Err().Return(fmt.Errorf("random err")),
@@ -1157,8 +1158,26 @@ func TestShardNewEntryDoesNotAlterIDOrTags(t *testing.T) {
 	entry, _, err = shard.tryRetrieveWritableSeries(seriesID)
 	require.NoError(t, err)
 
+	entryIDBytes := entry.Series.ID().Bytes()
+	seriesIDBytes := seriesID.Bytes()
+
+	// Ensure ID equal and not same ref
 	assert.True(t, entry.Series.ID().Equal(seriesID))
+	// NB(r): Use &slice[0] to get a pointer to the very first byte, i.e. data section
+	assert.False(t, unsafe.Pointer(&entryIDBytes[0]) == unsafe.Pointer(&seriesIDBytes[0]))
+
+	// Ensure Tags equal and NOT same ref for tags
 	assert.True(t, entry.Series.Tags().Equal(seriesTags))
+	require.Equal(t, 1, len(entry.Series.Tags().Values()))
+
+	entryTagNameBytes := entry.Series.Tags().Values()[0].Name.Bytes()
+	entryTagValueBytes := entry.Series.Tags().Values()[0].Value.Bytes()
+	seriesTagNameBytes := seriesTags.Values()[0].Name.Bytes()
+	seriesTagValueBytes := seriesTags.Values()[0].Value.Bytes()
+
+	// NB(r): Use &slice[0] to get a pointer to the very first byte, i.e. data section
+	assert.False(t, unsafe.Pointer(&entryTagNameBytes[0]) == unsafe.Pointer(&seriesTagNameBytes[0]))
+	assert.False(t, unsafe.Pointer(&entryTagValueBytes[0]) == unsafe.Pointer(&seriesTagValueBytes[0]))
 }
 
 // TestShardNewEntryTakesRefToNoFinalizeID ensures that when an ID is
