@@ -1018,7 +1018,9 @@ func (s *dbShard) newShardEntry(
 
 	switch tagsArgOpts.arg {
 	case tagsIterArg:
-		tagsIter := tagsArgOpts.tagsIter
+		// NB(r): Take a duplicate so that we don't double close the tag iterator
+		// passed to this method
+		tagsIter := tagsArgOpts.tagsIter.Duplicate()
 
 		// Ensure tag iterator at start
 		if tagsIter.CurrentIndex() != 0 {
