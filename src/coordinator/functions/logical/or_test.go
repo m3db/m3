@@ -40,11 +40,18 @@ func TestOrWithExactValues(t *testing.T) {
 	block1 := test.NewBlockFromValues(bounds, values)
 	block2 := test.NewBlockFromValues(bounds, values)
 
-	op := NewOrOp(parser.NodeID(0), parser.NodeID(1), &VectorMatching{})
+	op, err := NewLogicalOp(
+		OrType,
+		parser.NodeID(0),
+		parser.NodeID(1),
+		&VectorMatching{},
+	)
+	require.NoError(t, err)
+
 	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
 	node := op.Node(c)
 
-	err := node.Process(parser.NodeID(1), block2)
+	err = node.Process(parser.NodeID(1), block2)
 	require.NoError(t, err)
 	err = node.Process(parser.NodeID(0), block1)
 	require.NoError(t, err)
@@ -62,11 +69,18 @@ func TestOrWithSomeValues(t *testing.T) {
 
 	block2 := test.NewBlockFromValues(bounds, v)
 
-	op := NewOrOp(parser.NodeID(0), parser.NodeID(1), &VectorMatching{})
+	op, err := NewLogicalOp(
+		OrType,
+		parser.NodeID(0),
+		parser.NodeID(1),
+		&VectorMatching{},
+	)
+	require.NoError(t, err)
+
 	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
 	node := op.Node(c)
 
-	err := node.Process(parser.NodeID(1), block2)
+	err = node.Process(parser.NodeID(1), block2)
 	require.NoError(t, err)
 	err = node.Process(parser.NodeID(0), block1)
 	require.NoError(t, err)
@@ -105,15 +119,11 @@ var missingTests = []struct {
 }
 
 func TestMissing(t *testing.T) {
-	orNode := OrNode{
-		op: BaseOp{
-			Matching: &VectorMatching{},
-		},
-	}
+	matching := &VectorMatching{}
 
 	for _, tt := range missingTests {
 		t.Run(tt.name, func(t *testing.T) {
-			missing, _ := orNode.missing(tt.lhs, tt.rhs)
+			missing, _ := missing(matching, tt.lhs, tt.rhs)
 			assert.Equal(t, tt.expected, missing)
 		})
 	}
@@ -196,12 +206,19 @@ func TestOrs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, bounds := test.GenerateValuesAndBounds(nil, nil)
 
-			op := NewOrOp(parser.NodeID(0), parser.NodeID(1), &VectorMatching{})
+			op, err := NewLogicalOp(
+				OrType,
+				parser.NodeID(0),
+				parser.NodeID(1),
+				&VectorMatching{},
+			)
+			require.NoError(t, err)
+
 			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
 			node := op.Node(c)
 
 			lhs := test.NewBlockFromValuesWithMeta(bounds, tt.lhsMeta, tt.lhs)
-			err := node.Process(parser.NodeID(0), lhs)
+			err = node.Process(parser.NodeID(0), lhs)
 			require.NoError(t, err)
 
 			rhs := test.NewBlockFromValuesWithMeta(bounds, tt.rhsMeta, tt.rhs)
@@ -222,12 +239,19 @@ func TestOrsBoundsError(t *testing.T) {
 	tt := orTests[0]
 	_, bounds := test.GenerateValuesAndBounds(nil, nil)
 
-	op := NewOrOp(parser.NodeID(0), parser.NodeID(1), &VectorMatching{})
+	op, err := NewLogicalOp(
+		OrType,
+		parser.NodeID(0),
+		parser.NodeID(1),
+		&VectorMatching{},
+	)
+	require.NoError(t, err)
+
 	c, _ := executor.NewControllerWithSink(parser.NodeID(2))
 	node := op.Node(c)
 
 	lhs := test.NewBlockFromValuesWithMeta(bounds, tt.lhsMeta, tt.lhs)
-	err := node.Process(parser.NodeID(0), lhs)
+	err = node.Process(parser.NodeID(0), lhs)
 	require.NoError(t, err)
 
 	differentBounds := block.Bounds{

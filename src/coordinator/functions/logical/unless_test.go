@@ -87,15 +87,11 @@ var exclusionTests = []struct {
 }
 
 func TestIntersect(t *testing.T) {
-	unlessNode := UnlessNode{
-		op: BaseOp{
-			Matching: &VectorMatching{},
-		},
-	}
+	matching := &VectorMatching{}
 
 	for _, tt := range exclusionTests {
 		t.Run(tt.name, func(t *testing.T) {
-			excluded := unlessNode.exclusion(tt.lhs, tt.rhs)
+			excluded := exclusion(matching, tt.lhs, tt.rhs)
 			assert.Equal(t, tt.expectedL, excluded)
 		})
 	}
@@ -262,12 +258,19 @@ func TestUnless(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, bounds := test.GenerateValuesAndBounds(nil, nil)
 
-			op := NewUnlessOp(parser.NodeID(0), parser.NodeID(1), &VectorMatching{})
+			op, err := NewLogicalOp(
+				UnlessType,
+				parser.NodeID(0),
+				parser.NodeID(1),
+				&VectorMatching{},
+			)
+			require.NoError(t, err)
+
 			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
 			node := op.Node(c)
 
 			lhs := test.NewBlockFromValuesWithMeta(bounds, tt.lhsMeta, tt.lhs)
-			err := node.Process(parser.NodeID(0), lhs)
+			err = node.Process(parser.NodeID(0), lhs)
 			require.NoError(t, err)
 
 			rhs := test.NewBlockFromValuesWithMeta(bounds, tt.rhsMeta, tt.rhs)
