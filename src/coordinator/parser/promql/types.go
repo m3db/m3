@@ -71,13 +71,16 @@ func NewOperator(opType promql.ItemType) (parser.Params, error) {
 
 // NewBinaryOperator creates a new binary operator based on the type
 func NewBinaryOperator(expr *promql.BinaryExpr, lhs, rhs parser.NodeID) (parser.Params, error) {
-	switch getOpType(expr.Op) {
+	matching := promMatchingToM3(expr.VectorMatching)
+
+	op := getOpType(expr.Op)
+	switch op {
 	case logical.AndType:
-		return logical.NewAndOp(lhs, rhs, promMatchingToM3(expr.VectorMatching)), nil
+		return logical.NewLogicalOp(op, lhs, rhs, matching)
 	case logical.OrType:
-		return logical.NewOrOp(lhs, rhs, promMatchingToM3(expr.VectorMatching)), nil
+		return logical.NewLogicalOp(op, lhs, rhs, matching)
 	case logical.UnlessType:
-		return logical.NewUnlessOp(lhs, rhs, promMatchingToM3(expr.VectorMatching)), nil
+		return logical.NewLogicalOp(op, lhs, rhs, matching)
 	default:
 		// TODO: handle other types
 		return nil, fmt.Errorf("operator not supported: %s", expr.Op)

@@ -24,55 +24,15 @@ import (
 	"math"
 
 	"github.com/m3db/m3db/src/coordinator/block"
-	"github.com/m3db/m3db/src/coordinator/executor/transform"
-	"github.com/m3db/m3db/src/coordinator/parser"
 )
 
-const (
-	// AndType uses values from left hand side for which there is a value in right hand side with exactly matching label sets.
-	// Other elements are replaced by NaNs. The metric name and values are carried over from the left-hand side.
-	AndType = "and"
-)
+func makeAndBuilder(
+	logicalNode *BaseNode,
+	lIter, rIter block.StepIter,
+) (block.Block, error) {
+	lMeta, rSeriesMeta := lIter.Meta(), rIter.SeriesMeta()
 
-// NewAndOp creates a new And operation
-func NewAndOp(lNode parser.NodeID, rNode parser.NodeID, matching *VectorMatching) BaseOp {
-	return BaseOp{
-		OperatorType: AndType,
-		LNode:        lNode,
-		RNode:        rNode,
-		Matching:     matching,
-		ProcessorFn:  NewAndNode,
-	}
-}
-
-// AndNode is a node for And operation
-type AndNode struct {
-	op         BaseOp
-	controller *transform.Controller
-}
-
-// NewAndNode creates a new AndNode
-func NewAndNode(op BaseOp, controller *transform.Controller) Processor {
-	return &AndNode{
-		op:         op,
-		controller: controller,
-	}
-}
-
-// Process processes two logical blocks, performing And operation on them
-func (c *AndNode) Process(lhs, rhs block.Block) (block.Block, error) {
-	lIter, err := lhs.StepIter()
-	if err != nil {
-		return nil, err
-	}
-
-	rIter, err := rhs.StepIter()
-	if err != nil {
-		return nil, err
-	}
-
-	intersection := c.intersect(lIter.SeriesMeta(), rIter.SeriesMeta())
-	builder, err := c.controller.BlockBuilder(lIter.Meta(), rIter.SeriesMeta())
+	builder, err := logicalNode.controller.BlockBuilder(lMeta, rSeriesMeta)
 	if err != nil {
 		return nil, err
 	}
@@ -81,19 +41,18 @@ func (c *AndNode) Process(lhs, rhs block.Block) (block.Block, error) {
 		return nil, err
 	}
 
+	intersection := intersect(logicalNode.op.Matching, lIter.SeriesMeta(), rIter.SeriesMeta())
 	for index := 0; lIter.Next() && rIter.Next(); index++ {
 		lStep, err := lIter.Current()
 		if err != nil {
 			return nil, err
 		}
-
 		lValues := lStep.Values()
 
 		rStep, err := rIter.Current()
 		if err != nil {
 			return nil, err
 		}
-
 		rValues := rStep.Values()
 
 		for idx, value := range lValues {
@@ -110,9 +69,13 @@ func (c *AndNode) Process(lhs, rhs block.Block) (block.Block, error) {
 	return builder.Build(), nil
 }
 
-// intersect returns the slice of rhs indices if there is a match with a corresponding lhs index. If no match is found, it returns -1
-func (c *AndNode) intersect(lhs, rhs []block.SeriesMeta) []int {
-	idFunction := hashFunc(c.op.Matching.On, c.op.Matching.MatchingLabels...)
+// intersect returns the slice of rhs indices if there is a match with
+// a corresponding lhs index. If no match is found, it returns -1
+func intersect(
+	matching *VectorMatching,
+	lhs, rhs []block.SeriesMeta,
+) []int {
+	idFunction := hashFunc(matching.On, matching.MatchingLabels...)
 	// The set of signatures for the right-hand side.
 	rightSigs := make(map[uint64]int, len(rhs))
 	for idx, meta := range rhs {

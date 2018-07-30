@@ -29,14 +29,19 @@ import (
 	"github.com/m3db/m3db/src/coordinator/parser"
 )
 
+type makeBlockFn func(
+	logicalNode *BaseNode,
+	lIter, rIter block.StepIter,
+) (block.Block, error)
+
 // BaseOp stores required properties for logical operations
 type BaseOp struct {
 	OperatorType string
 	LNode        parser.NodeID
 	RNode        parser.NodeID
+	makeBlock    makeBlockFn
 	Matching     *VectorMatching
 	ReturnBool   bool
-	ProcessorFn  MakeProcessor
 }
 
 // OpType for the operator
@@ -55,7 +60,6 @@ func (o BaseOp) Node(controller *transform.Controller) transform.OpNode {
 		controller: controller,
 		cache:      transform.NewBlockCache(),
 		op:         o,
-		processor:  o.ProcessorFn(o, controller),
 	}
 }
 
@@ -64,8 +68,35 @@ type BaseNode struct {
 	op         BaseOp
 	controller *transform.Controller
 	cache      *transform.BlockCache
-	processor  Processor
 	mu         sync.Mutex
+}
+
+// NewLogicalOp creates a new logical operation
+func NewLogicalOp(
+	opType string,
+	lNode parser.NodeID,
+	rNode parser.NodeID,
+	matching *VectorMatching,
+) (BaseOp, error) {
+	var makeBlock makeBlockFn
+	switch opType {
+	case AndType:
+		makeBlock = makeAndBuilder
+	case OrType:
+		makeBlock = makeOrBuilder
+	case UnlessType:
+		makeBlock = makeUnlessBuilder
+	default:
+		return BaseOp{}, fmt.Errorf("operator not supported: %s", opType)
+	}
+
+	return BaseOp{
+		OperatorType: opType,
+		LNode:        lNode,
+		RNode:        rNode,
+		Matching:     matching,
+		makeBlock:    makeBlock,
+	}, nil
 }
 
 // Process processes a block
@@ -83,13 +114,33 @@ func (c *BaseNode) Process(ID parser.NodeID, b block.Block) error {
 	}
 
 	c.cleanup()
-	nextBlock, err := c.processor.Process(lhs, rhs)
+
+	nextBlock, err := c.process(lhs, rhs)
 	if err != nil {
 		return err
 	}
 
 	defer nextBlock.Close()
 	return c.controller.Process(nextBlock)
+}
+
+// processes two logical blocks, performing a logical operation on them
+func (c *BaseNode) process(lhs, rhs block.Block) (block.Block, error) {
+	lIter, err := lhs.StepIter()
+	if err != nil {
+		return nil, err
+	}
+
+	rIter, err := rhs.StepIter()
+	if err != nil {
+		return nil, err
+	}
+
+	if lIter.StepCount() != rIter.StepCount() {
+		return nil, errMismatchedStepCounts
+	}
+
+	return c.op.makeBlock(c, lIter, rIter)
 }
 
 // computeOrCache figures out if both lhs and rhs are available, if not then it caches the incoming block

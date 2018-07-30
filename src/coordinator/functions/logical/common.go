@@ -21,8 +21,9 @@
 package logical
 
 import (
+	"fmt"
+
 	"github.com/m3db/m3db/src/coordinator/block"
-	"github.com/m3db/m3db/src/coordinator/executor/transform"
 	"github.com/m3db/m3db/src/coordinator/models"
 )
 
@@ -32,7 +33,7 @@ type VectorMatchCardinality int
 
 const (
 	// CardOneToOne is used for one-one relationship
-	CardOneToOne   VectorMatchCardinality = iota
+	CardOneToOne VectorMatchCardinality = iota
 	// CardManyToOne is used for many-one relationship
 	CardManyToOne
 	// CardOneToMany is used for one-many relationship
@@ -66,10 +67,53 @@ func hashFunc(on bool, names ...string) func(models.Tags) uint64 {
 	return func(tags models.Tags) uint64 { return tags.IDWithExcludes(names...) }
 }
 
-// Processor is implemented by each logical transform
-type Processor interface {
-	Process(lhs block.Block, rhs block.Block) (block.Block, error)
+const (
+	// AndType uses values from left hand side for which there is a value in right hand side with exactly matching label sets.
+	// Other elements are replaced by NaNs. The metric name and values are carried over from the left-hand side.
+	AndType = "and"
+
+	// OrType uses all values from left hand side, and appends values from the right hand side which do
+	// not have corresponding tags on the right
+	OrType = "or"
+
+	// UnlessType uses all values from lhs which do not exist in rhs
+	UnlessType = "unless"
+
+	initIndexSliceLength = 10
+)
+
+var (
+	errMismatchedBounds     = fmt.Errorf("block bounds are mismatched")
+	errMismatchedStepCounts = fmt.Errorf("block step counts are mismatched")
+	errConflictingTags      = fmt.Errorf("block tags conflict")
+)
+
+func combineMetadata(l, r block.Metadata) (block.Metadata, error) {
+	if !l.Bounds.Equals(r.Bounds) {
+		return block.Metadata{}, errMismatchedBounds
+	}
+
+	for k, v := range r.Tags {
+		if _, ok := l.Tags[k]; ok {
+			return block.Metadata{}, errConflictingTags
+		}
+		l.Tags[k] = v
+	}
+
+	return l, nil
 }
 
-// MakeProcessor is a way to create a logical transform
-type MakeProcessor func (op BaseOp, controller *transform.Controller) Processor
+func addValuesAtIndeces(idxArray []int, iter block.StepIter, builder block.Builder) error {
+	index := 0
+	for ; iter.Next(); index++ {
+		step, err := iter.Current()
+		if err != nil {
+			return err
+		}
+		values := step.Values()
+		for _, idx := range idxArray {
+			builder.AppendValue(index, values[idx])
+		}
+	}
+	return nil
+}

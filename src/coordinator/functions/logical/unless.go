@@ -21,92 +21,24 @@
 package logical
 
 import (
-	"fmt"
 	"sort"
 
 	"github.com/m3db/m3db/src/coordinator/block"
-	"github.com/m3db/m3db/src/coordinator/executor/transform"
-	"github.com/m3db/m3db/src/coordinator/parser"
 )
 
-//TODO: generalize logical functions?
-const (
-	// UnlessType uses all values from lhs which do not exist in rhs
-	UnlessType           = "unless"
-	initIndexSliceLength = 10
-)
-
-var (
-	errMismatchedBounds     = fmt.Errorf("block bounds are mismatched")
-	errMismatchedStepCounts = fmt.Errorf("block step counts are mismatched")
-	errConflictingTags      = fmt.Errorf("block tags conflict")
-)
-
-// NewUnlessOp creates a new Unless operation
-func NewUnlessOp(lNode parser.NodeID, rNode parser.NodeID, matching *VectorMatching) BaseOp {
-	return BaseOp{
-		OperatorType: UnlessType,
-		LNode:        lNode,
-		RNode:        rNode,
-		Matching:     matching,
-		ProcessorFn:  NewUnlessNode,
-	}
-}
-
-// UnlessNode is a node for Unless operation
-type UnlessNode struct {
-	op         BaseOp
-	controller *transform.Controller
-}
-
-// NewUnlessNode creates a new UnlessNode
-func NewUnlessNode(op BaseOp, controller *transform.Controller) Processor {
-	return &UnlessNode{
-		op:         op,
-		controller: controller,
-	}
-}
-
-func addValuesAtIndeces(idxArray []int, iter block.StepIter, builder block.Builder) error {
-	index := 0
-	for ; iter.Next(); index++ {
-		step, err := iter.Current()
-		if err != nil {
-			return err
-		}
-		values := step.Values()
-		for _, idx := range idxArray {
-			builder.AppendValue(index, values[idx])
-		}
-	}
-	return nil
-}
-
-// Process processes two logical blocks, performing Unless operation on them
-func (c *UnlessNode) Process(lhs, rhs block.Block) (block.Block, error) {
-	lIter, err := lhs.StepIter()
-	if err != nil {
-		return nil, err
-	}
-
-	rIter, err := rhs.StepIter()
-	if err != nil {
-		return nil, err
-	}
-
-	if lIter.StepCount() != rIter.StepCount() {
-		return nil, errMismatchedStepCounts
-	}
-
+func makeUnlessBuilder(
+	logicalNode *BaseNode,
+	lIter, rIter block.StepIter,
+) (block.Block, error) {
 	lSeriesMeta, rSeriesMeta := lIter.SeriesMeta(), rIter.SeriesMeta()
-	lIds := c.exclusion(lSeriesMeta, rSeriesMeta)
+	lIds := exclusion(logicalNode.op.Matching, lSeriesMeta, rSeriesMeta)
 	stepCount := len(lIds)
 	takenMeta := make([]block.SeriesMeta, 0, stepCount)
 	for _, idx := range lIds {
 		takenMeta = append(takenMeta, lSeriesMeta[idx])
 	}
 
-	builder, err := c.controller.BlockBuilder(lIter.Meta(), takenMeta)
+	builder, err := logicalNode.controller.BlockBuilder(lIter.Meta(), takenMeta)
 	if err != nil {
 		return nil, err
 	}
@@ -123,8 +55,11 @@ func (c *UnlessNode) Process(lhs, rhs block.Block) (block.Block, error) {
 }
 
 // exclusion returns slices for unique indices on the lhs which do not exist in rhs
-func (c *UnlessNode) exclusion(lhs, rhs []block.SeriesMeta) []int {
-	idFunction := hashFunc(c.op.Matching.On, c.op.Matching.MatchingLabels...)
+func exclusion(
+	matching *VectorMatching,
+	lhs, rhs []block.SeriesMeta,
+) []int {
+	idFunction := hashFunc(matching.On, matching.MatchingLabels...)
 	// The set of signatures for the left-hand side.
 	leftSigs := make(map[uint64]int, len(lhs))
 	for idx, meta := range lhs {

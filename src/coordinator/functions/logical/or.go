@@ -22,78 +22,23 @@ package logical
 
 import (
 	"github.com/m3db/m3db/src/coordinator/block"
-	"github.com/m3db/m3db/src/coordinator/executor/transform"
-	"github.com/m3db/m3db/src/coordinator/parser"
 )
 
-//TODO: generalize logical functions?
-const (
-	// OrType uses all values from left hand side, and appends values from the right hand side which do
-	// not have corresponding tags on the right
-	OrType = "or"
-)
-
-// NewOrOp creates a new Or operation
-func NewOrOp(lNode parser.NodeID, rNode parser.NodeID, matching *VectorMatching) BaseOp {
-	return BaseOp{
-		OperatorType: OrType,
-		LNode:        lNode,
-		RNode:        rNode,
-		Matching:     matching,
-		ProcessorFn:  NewOrNode,
-	}
-}
-
-// OrNode is a node for Or operation
-type OrNode struct {
-	op         BaseOp
-	controller *transform.Controller
-}
-
-// NewOrNode creates a new OrNode
-func NewOrNode(op BaseOp, controller *transform.Controller) Processor {
-	return &OrNode{
-		op:         op,
-		controller: controller,
-	}
-}
-
-func combineMetadata(l, r block.Metadata) (block.Metadata, error) {
-	if !l.Bounds.Equals(r.Bounds) {
-		return block.Metadata{}, errMismatchedBounds
-	}
-	for k, v := range r.Tags {
-		if _, ok := l.Tags[k]; ok {
-			return block.Metadata{}, errConflictingTags
-		}
-		l.Tags[k] = v
-	}
-	return l, nil
-}
-
-// Process processes two logical blocks, performing Or operation on them
-func (c *OrNode) Process(lhs, rhs block.Block) (block.Block, error) {
-	lIter, err := lhs.StepIter()
-	if err != nil {
-		return nil, err
-	}
-
-	rIter, err := rhs.StepIter()
-	if err != nil {
-		return nil, err
-	}
-
-	if lIter.StepCount() != rIter.StepCount() {
-		return nil, errMismatchedStepCounts
-	}
+func makeOrBuilder(
+	logicalNode *BaseNode,
+	lIter, rIter block.StepIter,
+) (block.Block, error) {
 	meta, err := combineMetadata(lIter.Meta(), rIter.Meta())
-
-	missingIndices, combinedSeriesMeta := c.missing(lIter.SeriesMeta(), rIter.SeriesMeta())
 	if err != nil {
 		return nil, err
 	}
+	missingIndices, combinedSeriesMeta := missing(
+		logicalNode.op.Matching,
+		lIter.SeriesMeta(),
+		rIter.SeriesMeta(),
+	)
 
-	builder, err := c.controller.BlockBuilder(meta, combinedSeriesMeta)
+	builder, err := logicalNode.controller.BlockBuilder(meta, combinedSeriesMeta)
 	if err != nil {
 		return nil, err
 	}
@@ -120,8 +65,11 @@ func (c *OrNode) Process(lhs, rhs block.Block) (block.Block, error) {
 
 // missing returns the slice of rhs indices for which there are no corresponding
 // indices on the lhs
-func (c *OrNode) missing(lhs, rhs []block.SeriesMeta) ([]int, []block.SeriesMeta) {
-	idFunction := hashFunc(c.op.Matching.On, c.op.Matching.MatchingLabels...)
+func missing(
+	matching *VectorMatching,
+	lhs, rhs []block.SeriesMeta,
+) ([]int, []block.SeriesMeta) {
+	idFunction := hashFunc(matching.On, matching.MatchingLabels...)
 	// The set of signatures for the left-hand side.
 	leftSigs := make(map[uint64]struct{}, len(lhs))
 	for _, meta := range lhs {
