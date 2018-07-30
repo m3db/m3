@@ -47,8 +47,7 @@ var (
 	emptySeriesMap map[ident.ID][]m3block.SeriesBlocks
 )
 
-// nolint: unparam
-// newStorage creates a new local Storage instance.
+// nolint: deadcode
 func newStorage(clusters local.Clusters, workerPool pool.ObjectPool) *localStorage {
 	return &localStorage{clusters: clusters, workerPool: workerPool}
 }
