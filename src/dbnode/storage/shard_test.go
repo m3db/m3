@@ -28,6 +28,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/m3db/m3db/src/dbnode/persist"
 	"github.com/m3db/m3db/src/dbnode/persist/fs"
@@ -1113,6 +1114,114 @@ func TestShardNewValidShardEntry(t *testing.T) {
 
 	_, err := shard.newShardEntry(ident.StringID("abc"), newTagsIterArg(ident.EmptyTagIterator))
 	require.NoError(t, err)
+}
+
+// TestShardNewEntryDoesNotAlterTags tests that the ID and Tags passed
+// to newShardEntry is not altered. There are multiple callers that
+// reuse the tag iterator passed all the way through to newShardEntry
+// either to retry inserting a series or to finalize the tags at the
+// end of a request/response cycle or from a disk retrieve cycle.
+func TestShardNewEntryDoesNotAlterIDOrTags(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	shard := testDatabaseShard(t, testDatabaseOptions())
+	defer shard.Close()
+
+	seriesID := ident.StringID("foo+bar=baz")
+	seriesTags := ident.NewTags(ident.Tag{
+		Name:  ident.StringID("bar"),
+		Value: ident.StringID("baz"),
+	})
+
+	// Ensure copied with call to bytes but no close call, etc
+	id := ident.NewMockID(ctrl)
+	id.EXPECT().IsNoFinalize().Times(1).Return(false)
+	id.EXPECT().Bytes().Times(1).Return(seriesID.Bytes())
+
+	iter := ident.NewMockTagIterator(ctrl)
+
+	// Ensure duplicate called but no close, etc
+	iter.EXPECT().
+		Duplicate().
+		Times(1).
+		Return(ident.NewTagsIterator(seriesTags))
+
+	entry, err := shard.newShardEntry(id, newTagsIterArg(iter))
+	require.NoError(t, err)
+
+	shard.Lock()
+	shard.insertNewShardEntryWithLock(entry)
+	shard.Unlock()
+
+	entry, _, err = shard.tryRetrieveWritableSeries(seriesID)
+	require.NoError(t, err)
+
+	assert.True(t, entry.Series.ID().Equal(seriesID))
+	assert.True(t, entry.Series.Tags().Equal(seriesTags))
+}
+
+// TestShardNewEntryTakesRefToNoFinalizeID ensures that when an ID is
+// marked as NoFinalize that newShardEntry simply takes a ref as it can
+// safely be assured the ID is not pooled.
+func TestShardNewEntryTakesRefToNoFinalizeID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	shard := testDatabaseShard(t, testDatabaseOptions())
+	defer shard.Close()
+
+	seriesID := ident.BytesID([]byte("foo+bar=baz"))
+	seriesTags := ident.NewTags(ident.Tag{
+		Name:  ident.StringID("bar"),
+		Value: ident.StringID("baz"),
+	})
+
+	// Ensure copied with call to bytes but no close call, etc
+	id := ident.NewMockID(ctrl)
+	id.EXPECT().IsNoFinalize().Times(1).Return(true)
+	id.EXPECT().Bytes().Times(1).Return(seriesID.Bytes())
+
+	iter := ident.NewMockTagIterator(ctrl)
+
+	// Ensure duplicate called but no close, etc
+	iter.EXPECT().
+		Duplicate().
+		Times(1).
+		Return(ident.NewTagsIterator(seriesTags))
+
+	entry, err := shard.newShardEntry(id, newTagsIterArg(iter))
+	require.NoError(t, err)
+
+	shard.Lock()
+	shard.insertNewShardEntryWithLock(entry)
+	shard.Unlock()
+
+	entry, _, err = shard.tryRetrieveWritableSeries(seriesID)
+	require.NoError(t, err)
+
+	assert.True(t, entry.Series.ID().Equal(seriesID))
+
+	entryIDBytes := entry.Series.ID().Bytes()
+	seriesIDBytes := seriesID.Bytes()
+
+	// Ensure ID equal and same ref
+	assert.True(t, entry.Series.ID().Equal(seriesID))
+	// NB(r): Use &slice[0] to get a pointer to the very first byte, i.e. data section
+	assert.True(t, unsafe.Pointer(&entryIDBytes[0]) == unsafe.Pointer(&seriesIDBytes[0]))
+
+	// Ensure Tags equal and NOT same ref for tags
+	assert.True(t, entry.Series.Tags().Equal(seriesTags))
+	require.Equal(t, 1, len(entry.Series.Tags().Values()))
+
+	entryTagNameBytes := entry.Series.Tags().Values()[0].Name.Bytes()
+	entryTagValueBytes := entry.Series.Tags().Values()[0].Value.Bytes()
+	seriesTagNameBytes := seriesTags.Values()[0].Name.Bytes()
+	seriesTagValueBytes := seriesTags.Values()[0].Value.Bytes()
+
+	// NB(r): Use &slice[0] to get a pointer to the very first byte, i.e. data section
+	assert.False(t, unsafe.Pointer(&entryTagNameBytes[0]) == unsafe.Pointer(&seriesTagNameBytes[0]))
+	assert.False(t, unsafe.Pointer(&entryTagValueBytes[0]) == unsafe.Pointer(&seriesTagValueBytes[0]))
 }
 
 func TestShardIterateBatchSize(t *testing.T) {
