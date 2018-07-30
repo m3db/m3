@@ -37,6 +37,7 @@ type ProcessFailedEvent struct {
 type ProcessExitedEvent struct {
 	Args []string
 	Code StatusCode
+	Err  error
 }
 
 // SignalReceivedEvent is passed to a SignalReceived handler.

@@ -1,5 +1,5 @@
 BENCH_FLAGS ?= -cpuprofile=cpu.pprof -memprofile=mem.pprof -benchmem
-PKGS ?= $(shell $(GLIDE) novendor)
+PKGS        ?= $(shell $(GLIDE) novendor)
 # Many Go tools take file globs or directories as arguments instead of packages.
 PKG_FILES ?= *.go
 
@@ -12,8 +12,11 @@ ifneq ($(filter $(LINTABLE_MINOR_VERSIONS),$(GO_MINOR_VERSION)),)
 SHOULD_LINT := true
 endif
 
-GLIDEPATH 	:= $(shell which glide)
-GOPATH 		:= $(shell go env GOPATH)
+CWD          := $(shell pwd)
+PACKAGE_ROOT := github.com/uber-go
+PACKAGE      := $(PACKAGE_ROOT)/panicmon
+GLIDEPATH    := $(shell which glide)
+GOPATH 		   := $(shell go env GOPATH)
 ifeq (, $(GLIDEPATH))
 GLIDE := $(GOPATH)/bin/glide
 else
@@ -26,8 +29,19 @@ all: lint test
 # Screw this, getting Jenkins working without internal test dependencies isn't
 # worth it if we're moving to Github anyway.
 .PHONY: jenkins
-jenkins:
+jenkins: setup-jenkins
+	$(GOPATH)/bin/gocov test $(PACKAGE) | $(GOPATH)/bin/gocov-xml > coverage.xml
 	touch junit.xml
+
+.PHONY: setup-jenkins
+setup-jenkins:
+	rm -rf $(GOPATH)/src/$(PACKAGE)
+	go get -u github.com/stretchr/testify/...
+	go get github.com/axw/gocov
+	go get github.com/AlekSi/gocov-xml
+	# symlink `pwd` -> correct directory
+	mkdir -p $(GOPATH)/src/$(PACKAGE_ROOT)
+	ln -sf $(CWD) $(GOPATH)/src/$(PACKAGE)
 
 .PHONY: dependencies
 dependencies:
