@@ -157,11 +157,7 @@ func (r *blockRetriever) CacheShardIndices(shards []uint32) error {
 	if r.status != blockRetrieverOpen {
 		return errBlockRetrieverNotOpen
 	}
-
-	if err := r.seekerMgr.CacheShardIndices(shards); err != nil {
-		return err
-	}
-	return nil
+	return r.seekerMgr.CacheShardIndices(shards)
 }
 
 func (r *blockRetriever) fetchLoop(seekerMgr DataFileSetSeekerManager) {
