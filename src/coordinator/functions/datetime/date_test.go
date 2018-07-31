@@ -41,9 +41,9 @@ func expectedDateVals(values [][]time.Time, opType string) [][]float64 {
 		for i, t := range val {
 			v[i] = datetimeFuncs[opType](t)
 		}
-
 		expected = append(expected, v)
 	}
+
 	return expected
 }
 
@@ -56,6 +56,7 @@ func getTimes(values [][]float64, bounds block.Bounds) [][]time.Time {
 		}
 		times = append(times, v)
 	}
+
 	return times
 }
 
