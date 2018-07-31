@@ -24,13 +24,12 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
-	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/models"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func builderMockWithExpectedValues(ctrl *gomock.Controller, indeces []int, values [][]float64) block.Builder {
