@@ -21,7 +21,7 @@
 package logical
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/models"
@@ -70,26 +70,9 @@ func hashFunc(on bool, names ...string) func(models.Tags) uint64 {
 const initIndexSliceLength = 10
 
 var (
-	errMismatchedBounds     = fmt.Errorf("block bounds are mismatched")
-	errMismatchedStepCounts = fmt.Errorf("block step counts are mismatched")
+	errMismatchedBounds     = errors.New("block bounds are mismatched")
+	errMismatchedStepCounts = errors.New("block step counts are mismatched")
 )
-
-func combineMetadata(l, r block.Metadata) (block.Metadata, error) {
-	if !l.Bounds.Equals(r.Bounds) {
-		return block.Metadata{}, errMismatchedBounds
-	}
-
-	for k, v := range r.Tags {
-		if lVal, ok := l.Tags[k]; ok {
-			if lVal != v {
-				return block.Metadata{}, nil
-			}
-		}
-		l.Tags[k] = v
-	}
-
-	return l, nil
-}
 
 func combineMetaAndSeriesMeta(
 	meta, otherMeta block.Metadata,

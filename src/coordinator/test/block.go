@@ -31,7 +31,7 @@ import (
 // NewBlockFromValues creates a new block using the provided values
 func NewBlockFromValues(bounds block.Bounds, seriesValues [][]float64) block.Block {
 	meta := NewSeriesMeta("dummy", len(seriesValues))
-	return NewBlockFromValuesWithMeta(bounds, meta, seriesValues)
+	return NewBlockFromValuesWithSeriesMeta(bounds, meta, seriesValues)
 }
 
 // NewSeriesMeta creates new metadata tags in the format [tagPrefix:i] for the number of series
@@ -50,11 +50,25 @@ func NewSeriesMeta(tagPrefix string, count int) []block.SeriesMeta {
 	return seriesMeta
 }
 
-// NewBlockFromValuesWithMeta creates a new block using the provided values
-func NewBlockFromValuesWithMeta(bounds block.Bounds, seriesMeta []block.SeriesMeta, seriesValues [][]float64) block.Block {
+// NewBlockFromValuesWithSeriesMeta creates a new block using the provided values
+func NewBlockFromValuesWithSeriesMeta(
+	bounds block.Bounds,
+	seriesMeta []block.SeriesMeta,
+	seriesValues [][]float64,
+) block.Block {
 	blockMeta := block.Metadata{Bounds: bounds}
 
-	columnBuilder := block.NewColumnBlockBuilder(blockMeta, seriesMeta)
+	return NewBlockFromValuesWithMetaAndSeriesMeta(bounds, blockMeta, seriesMeta, seriesValues)
+}
+
+// NewBlockFromValuesWithMetaAndSeriesMeta creates a new block using the provided values
+func NewBlockFromValuesWithMetaAndSeriesMeta(
+	bounds block.Bounds,
+	meta block.Metadata,
+	seriesMeta []block.SeriesMeta,
+	seriesValues [][]float64,
+) block.Block {
+	columnBuilder := block.NewColumnBlockBuilder(meta, seriesMeta)
 	columnBuilder.AddCols(len(seriesValues[0]))
 	for _, seriesVal := range seriesValues {
 		for idx, val := range seriesVal {

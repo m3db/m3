@@ -46,7 +46,7 @@ func TestAndWithExactValues(t *testing.T) {
 	require.NoError(t, err)
 
 	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
-	node := op.Node(c)
+	node := op.(logicalOp).Node(c)
 
 	err = node.Process(parser.NodeID(1), block2)
 	require.NoError(t, err)
@@ -76,7 +76,7 @@ func TestAndWithSomeValues(t *testing.T) {
 	require.NoError(t, err)
 
 	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
-	node := op.Node(c)
+	node := op.(logicalOp).Node(c)
 
 	err = node.Process(parser.NodeID(1), block2)
 	require.NoError(t, err)

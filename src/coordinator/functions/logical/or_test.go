@@ -49,7 +49,7 @@ func TestOrWithExactValues(t *testing.T) {
 	require.NoError(t, err)
 
 	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
-	node := op.Node(c)
+	node := op.(logicalOp).Node(c)
 
 	err = node.Process(parser.NodeID(1), block2)
 	require.NoError(t, err)
@@ -78,7 +78,7 @@ func TestOrWithSomeValues(t *testing.T) {
 	require.NoError(t, err)
 
 	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
-	node := op.Node(c)
+	node := op.(logicalOp).Node(c)
 
 	err = node.Process(parser.NodeID(1), block2)
 	require.NoError(t, err)
@@ -215,13 +215,13 @@ func TestOrs(t *testing.T) {
 			require.NoError(t, err)
 
 			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
-			node := op.Node(c)
+			node := op.(logicalOp).Node(c)
 
-			lhs := test.NewBlockFromValuesWithMeta(bounds, tt.lhsMeta, tt.lhs)
+			lhs := test.NewBlockFromValuesWithSeriesMeta(bounds, tt.lhsMeta, tt.lhs)
 			err = node.Process(parser.NodeID(0), lhs)
 			require.NoError(t, err)
 
-			rhs := test.NewBlockFromValuesWithMeta(bounds, tt.rhsMeta, tt.rhs)
+			rhs := test.NewBlockFromValuesWithSeriesMeta(bounds, tt.rhsMeta, tt.rhs)
 			err = node.Process(parser.NodeID(1), rhs)
 			if tt.err != nil {
 				require.EqualError(t, err, tt.err.Error())
@@ -248,9 +248,9 @@ func TestOrsBoundsError(t *testing.T) {
 	require.NoError(t, err)
 
 	c, _ := executor.NewControllerWithSink(parser.NodeID(2))
-	node := op.Node(c)
+	node := op.(logicalOp).Node(c)
 
-	lhs := test.NewBlockFromValuesWithMeta(bounds, tt.lhsMeta, tt.lhs)
+	lhs := test.NewBlockFromValuesWithSeriesMeta(bounds, tt.lhsMeta, tt.lhs)
 	err = node.Process(parser.NodeID(0), lhs)
 	require.NoError(t, err)
 
@@ -259,7 +259,69 @@ func TestOrsBoundsError(t *testing.T) {
 		End:      bounds.End,
 		StepSize: bounds.StepSize,
 	}
-	rhs := test.NewBlockFromValuesWithMeta(differentBounds, tt.rhsMeta, tt.rhs)
+	rhs := test.NewBlockFromValuesWithSeriesMeta(differentBounds, tt.rhsMeta, tt.rhs)
 	err = node.Process(parser.NodeID(1), rhs)
 	require.EqualError(t, err, errMismatchedBounds.Error())
+}
+
+func TestOrCombinedMetadata(t *testing.T) {
+	_, bounds := test.GenerateValuesAndBounds(nil, nil)
+
+	op, err := NewLogicalOp(
+		OrType,
+		parser.NodeID(0),
+		parser.NodeID(1),
+		&VectorMatching{},
+	)
+	require.NoError(t, err)
+
+	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
+	node := op.(logicalOp).Node(c)
+
+	lhsMeta := block.Metadata{
+		Bounds: bounds,
+		Tags:   models.Tags{"a": "b", "c": "d", "e": "f"},
+	}
+	lSeriesMeta := []block.SeriesMeta{
+		{Tags: models.Tags{"foo": "bar"}},
+		{Tags: models.Tags{"baz": "qux"}},
+	}
+	lhs := test.NewBlockFromValuesWithMetaAndSeriesMeta(
+		bounds,
+		lhsMeta,
+		lSeriesMeta,
+		[][]float64{{1, 2}, {10, 20}})
+
+	err = node.Process(parser.NodeID(0), lhs)
+	require.NoError(t, err)
+
+	rhsMeta := block.Metadata{
+		Bounds: bounds,
+		Tags:   models.Tags{"a": "b", "c": "*d", "g": "h"},
+	}
+	rSeriesMeta := []block.SeriesMeta{
+		{Tags: models.Tags{"foo*": "bar"}},
+		{Tags: models.Tags{"baz": "qux*"}},
+	}
+	rhs := test.NewBlockFromValuesWithMetaAndSeriesMeta(
+		bounds,
+		rhsMeta,
+		rSeriesMeta,
+		[][]float64{{3, 4}, {30, 40}})
+
+	err = node.Process(parser.NodeID(1), rhs)
+	require.NoError(t, err)
+
+	test.EqualsWithNans(t, [][]float64{{1, 2}, {10, 20}, {3, 4}, {30, 40}}, sink.Values)
+
+	assert.Equal(t, sink.Meta.Bounds, bounds)
+	assert.Equal(t, sink.Meta.Tags, models.Tags{"a": "b"})
+
+	expectedMetas := []block.SeriesMeta{
+		{Tags: models.Tags{"foo": "bar", "c": "d", "e": "f"}},
+		{Tags: models.Tags{"baz": "qux", "c": "d", "e": "f"}},
+		{Tags: models.Tags{"foo*": "bar", "c": "*d", "g": "h"}},
+		{Tags: models.Tags{"baz": "qux*", "c": "*d", "g": "h"}},
+	}
+	assert.Equal(t, expectedMetas, sink.Metas)
 }

@@ -35,6 +35,7 @@ func EqualsWithNans(t *testing.T, expected interface{}, actual interface{}) {
 	case [][]float64:
 		actualV, ok := actual.([][]float64)
 		require.True(t, ok, "actual should be of type [][]float64, found: %T", actual)
+		require.Equal(t, len(v), len(actualV))
 		for i, vals := range v {
 			equalsWithNans(t, vals, actualV[i], debugMsg)
 		}
@@ -42,6 +43,7 @@ func EqualsWithNans(t *testing.T, expected interface{}, actual interface{}) {
 	case []float64:
 		actualV, ok := actual.([]float64)
 		require.True(t, ok, "actual should be of type []float64, found: %T", actual)
+		require.Equal(t, len(v), len(actualV))
 		equalsWithNans(t, v, actualV, debugMsg)
 
 	default:

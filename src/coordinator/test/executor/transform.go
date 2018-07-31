@@ -43,6 +43,7 @@ func NewControllerWithSink(ID parser.NodeID) (*transform.Controller, *SinkNode) 
 // SinkNode is a test node useful for comparisons
 type SinkNode struct {
 	Values [][]float64
+	Meta   block.Metadata
 	Metas  []block.SeriesMeta
 }
 
@@ -66,6 +67,8 @@ func (s *SinkNode) Process(ID parser.NodeID, block block.Block) error {
 		s.Values = append(s.Values, values)
 		s.Metas = append(s.Metas, val.Meta)
 	}
+
+	s.Meta = iter.Meta()
 
 	return nil
 }

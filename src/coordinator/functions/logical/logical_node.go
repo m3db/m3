@@ -29,8 +29,7 @@ import (
 	"github.com/m3db/m3db/src/coordinator/parser"
 )
 
-// BaseOp stores required properties for logical operations
-type BaseOp struct {
+type logicalOp struct {
 	OperatorType string
 	LNode        parser.NodeID
 	RNode        parser.NodeID
@@ -40,17 +39,17 @@ type BaseOp struct {
 }
 
 // OpType for the operator
-func (o BaseOp) OpType() string {
+func (o logicalOp) OpType() string {
 	return o.OperatorType
 }
 
 // String representation
-func (o BaseOp) String() string {
+func (o logicalOp) String() string {
 	return fmt.Sprintf("type: %s, lnode: %s, rnode: %s", o.OpType(), o.LNode, o.RNode)
 }
 
 // Node creates an execution node
-func (o BaseOp) Node(controller *transform.Controller) transform.OpNode {
+func (o logicalOp) Node(controller *transform.Controller) transform.OpNode {
 	return &logicalNode{
 		controller: controller,
 		cache:      transform.NewBlockCache(),
@@ -59,7 +58,7 @@ func (o BaseOp) Node(controller *transform.Controller) transform.OpNode {
 }
 
 type logicalNode struct {
-	op         BaseOp
+	op         logicalOp
 	controller *transform.Controller
 	cache      *transform.BlockCache
 	mu         sync.Mutex
@@ -76,7 +75,7 @@ func NewLogicalOp(
 	lNode parser.NodeID,
 	rNode parser.NodeID,
 	matching *VectorMatching,
-) (BaseOp, error) {
+) (parser.Params, error) {
 	var makeBlock makeBlockFn
 	switch opType {
 	case AndType:
@@ -86,10 +85,10 @@ func NewLogicalOp(
 	case UnlessType:
 		makeBlock = makeUnlessBlock
 	default:
-		return BaseOp{}, fmt.Errorf("operator not supported: %s", opType)
+		return logicalOp{}, fmt.Errorf("operator not supported: %s", opType)
 	}
 
-	return BaseOp{
+	return logicalOp{
 		OperatorType: opType,
 		LNode:        lNode,
 		RNode:        rNode,

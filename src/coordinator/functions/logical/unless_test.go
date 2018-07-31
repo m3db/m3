@@ -201,13 +201,13 @@ func TestUnless(t *testing.T) {
 			require.NoError(t, err)
 
 			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
-			node := op.Node(c)
+			node := op.(logicalOp).Node(c)
 
-			lhs := test.NewBlockFromValuesWithMeta(bounds, tt.lhsMeta, tt.lhs)
+			lhs := test.NewBlockFromValuesWithSeriesMeta(bounds, tt.lhsMeta, tt.lhs)
 			err = node.Process(parser.NodeID(0), lhs)
 			require.NoError(t, err)
 
-			rhs := test.NewBlockFromValuesWithMeta(bounds, tt.rhsMeta, tt.rhs)
+			rhs := test.NewBlockFromValuesWithSeriesMeta(bounds, tt.rhsMeta, tt.rhs)
 			err = node.Process(parser.NodeID(1), rhs)
 			if tt.err != nil {
 				require.EqualError(t, err, tt.err.Error())

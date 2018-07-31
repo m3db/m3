@@ -32,15 +32,20 @@ func makeOrBlock(
 	node *logicalNode,
 	lIter, rIter block.StepIter,
 ) (block.Block, error) {
-	meta, err := combineMetadata(lIter.Meta(), rIter.Meta())
+	meta, lSeriesMetas, rSeriesMetas, err := combineMetaAndSeriesMeta(
+		lIter.Meta(),
+		rIter.Meta(),
+		lIter.SeriesMeta(),
+		rIter.SeriesMeta(),
+	)
 	if err != nil {
 		return nil, err
 	}
 
 	missingIndices, combinedSeriesMeta := missing(
 		node.op.Matching,
-		lIter.SeriesMeta(),
-		rIter.SeriesMeta(),
+		lSeriesMetas,
+		rSeriesMetas,
 	)
 
 	builder, err := node.controller.BlockBuilder(meta, combinedSeriesMeta)

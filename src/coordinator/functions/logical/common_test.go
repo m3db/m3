@@ -23,6 +23,7 @@ package logical
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/models"
@@ -32,10 +33,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func builderMockWithExpectedValues(ctrl *gomock.Controller, indeces []int, values [][]float64) block.Builder {
+func builderMockWithExpectedValues(ctrl *gomock.Controller, indices []int, values [][]float64) block.Builder {
 	builder := block.NewMockBuilder(ctrl)
 	for i, val := range values {
-		for _, idx := range indeces {
+		for _, idx := range indices {
 			builder.EXPECT().AppendValue(i, val[idx])
 		}
 	}
@@ -43,7 +44,7 @@ func builderMockWithExpectedValues(ctrl *gomock.Controller, indeces []int, value
 	return builder
 }
 
-func stepIterWithExpectedValues(ctrl *gomock.Controller, indeces []int, values [][]float64) block.StepIter {
+func stepIterWithExpectedValues(ctrl *gomock.Controller, indices []int, values [][]float64) block.StepIter {
 	stepIter := block.NewMockStepIter(ctrl)
 	for _, val := range values {
 		stepIter.EXPECT().Next().Return(true)
@@ -58,11 +59,11 @@ func stepIterWithExpectedValues(ctrl *gomock.Controller, indeces []int, values [
 
 var appendAtIndicesTests = []struct {
 	name                          string
-	indeces, expectedIndeces      []int
+	indices, expectedIndices      []int
 	builderValues, expectedValues [][]float64
 }{
 	{
-		"no indeces",
+		"no indecis",
 		[]int{},
 		[]int{},
 		[][]float64{[]float64{1, 2}, []float64{3, 4}},
@@ -97,10 +98,10 @@ func TestAppendAtIndices(t *testing.T) {
 
 	for _, tt := range appendAtIndicesTests {
 		t.Run(tt.name, func(t *testing.T) {
-			builder := builderMockWithExpectedValues(ctrl, tt.expectedIndeces, tt.expectedValues)
-			stepIter := stepIterWithExpectedValues(ctrl, tt.expectedIndeces, tt.expectedValues)
+			builder := builderMockWithExpectedValues(ctrl, tt.expectedIndices, tt.expectedValues)
+			stepIter := stepIterWithExpectedValues(ctrl, tt.expectedIndices, tt.expectedValues)
 
-			err := appendValuesAtIndeces(tt.indeces, stepIter, builder)
+			err := appendValuesAtIndeces(tt.indices, stepIter, builder)
 			assert.NoError(t, err)
 		})
 	}
@@ -118,57 +119,6 @@ func TestAddAtIndicesErrors(t *testing.T) {
 	stepIter.EXPECT().Current().Return(nil, fmt.Errorf(msg))
 	err := appendValuesAtIndeces([]int{1}, stepIter, builder)
 	assert.EqualError(t, err, msg)
-}
-
-var combineMetadataTests = []struct {
-	name                       string
-	lTags, rTags, expectedTags models.Tags
-	expectedErr                error
-}{
-	{
-		"no right tags",
-		models.Tags{"a": "b"},
-		models.Tags{},
-		models.Tags{"a": "b"},
-		nil,
-	},
-	{
-		"no left tags",
-		models.Tags{},
-		models.Tags{"a": "b"},
-		models.Tags{"a": "b"},
-		nil,
-	},
-	{
-		"same tags",
-		models.Tags{"a": "b"},
-		models.Tags{"a": "b"},
-		models.Tags{"a": "b"},
-		nil,
-	},
-	{
-		"different tags",
-		models.Tags{"a": "b"},
-		models.Tags{"c": "d"},
-		models.Tags{"a": "b", "c": "d"},
-		nil,
-	},
-}
-
-func TestCombineMetadata(t *testing.T) {
-	for _, tt := range combineMetadataTests {
-		t.Run(tt.name, func(t *testing.T) {
-			l, r := block.Metadata{Tags: tt.lTags}, block.Metadata{Tags: tt.rTags}
-			meta, err := combineMetadata(l, r)
-			if tt.expectedErr != nil {
-				require.EqualError(t, err, tt.expectedErr.Error())
-				require.Equal(t, block.Metadata{}, meta)
-			} else {
-				require.NoError(t, err)
-				assert.Equal(t, tt.expectedTags, meta.Tags)
-			}
-		})
-	}
 }
 
 var combineMetaAndSeriesMetaTests = []struct {
@@ -221,6 +171,28 @@ var combineMetaAndSeriesMetaTests = []struct {
 		models.Tags{"a": "b", "1": "2"},
 		models.Tags{"c": "d", "3": "4"},
 	},
+	{
+		"conflicting tags",
+		models.Tags{"a": "b"},
+		models.Tags{"a": "*b"},
+		models.Tags{},
+
+		models.Tags{"1": "2"},
+		models.Tags{"3": "4"},
+		models.Tags{"a": "b", "1": "2"},
+		models.Tags{"a": "*b", "3": "4"},
+	},
+	{
+		"mixed tags",
+		models.Tags{"a": "b", "c": "d", "e": "f"},
+		models.Tags{"a": "b", "c": "*d", "g": "h"},
+		models.Tags{"a": "b"},
+
+		models.Tags{"1": "2"},
+		models.Tags{"3": "4"},
+		models.Tags{"c": "d", "e": "f", "1": "2"},
+		models.Tags{"c": "*d", "g": "h", "3": "4"},
+	},
 }
 
 func TestCombineMetaAndSeriesMeta(t *testing.T) {
@@ -246,4 +218,15 @@ func TestCombineMetaAndSeriesMeta(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCombineMetaAndSeriesMetaError(t *testing.T) {
+	now := time.Now()
+	meta, otherMeta :=
+		block.Metadata{Bounds: block.Bounds{Start: now}},
+		block.Metadata{Bounds: block.Bounds{Start: now.Add(2)}}
+
+	metas, otherMetas := []block.SeriesMeta{}, []block.SeriesMeta{}
+	_, _, _, err := combineMetaAndSeriesMeta(meta, otherMeta, metas, otherMetas)
+	assert.Error(t, err, errMismatchedBounds.Error())
 }
