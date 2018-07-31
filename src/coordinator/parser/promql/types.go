@@ -126,7 +126,9 @@ func NewFunctionExpr(name string, argValues []interface{}) (parser.Params, error
 	case datetime.MonthType:
 		return datetime.NewDateOp(datetime.MonthType)
 	case datetime.TimeType:
-		return datetime.NewDateOp(datetime.TimeType)
+		// todo(braskin): make time() work. Currently get error:
+		// "invalid DAG found, parent � not found for child 0"
+		return nil, fmt.Errorf("function not supported currently: %s", name)
 	case datetime.TimestampType:
 		return datetime.NewDateOp(datetime.TimestampType)
 	case datetime.YearType:
