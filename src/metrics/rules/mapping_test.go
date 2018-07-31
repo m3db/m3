@@ -651,6 +651,7 @@ func TestMappingRuleMappingRuleView(t *testing.T) {
 		},
 		LastUpdatedAtMillis: 67890,
 		LastUpdatedBy:       "someone-else",
+		DropPolicy:          res.DropPolicy,
 	}
 	require.Equal(t, expected, res)
 }
