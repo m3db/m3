@@ -925,13 +925,13 @@ func TestNamespaceNeedsFlushAllSuccess(t *testing.T) {
 	assert.False(t, ns.NeedsFlush(blockStart, blockStart))
 }
 
-func TestNamespaceNeedsFlushCountsLeastNumFailures(t *testing.T) {
+func TestNamespaceNeedsFlushAnyFailed(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	var (
 		shards = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
-		dopts  = testDatabaseOptions().SetMaxFlushRetries(2)
+		dopts  = testDatabaseOptions()
 	)
 	testNs, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
@@ -943,7 +943,6 @@ func TestNamespaceNeedsFlushCountsLeastNumFailures(t *testing.T) {
 	shardSet, err := sharding.NewShardSet(shards, hashFn)
 	require.NoError(t, err)
 
-	maxRetries := 2
 	at := time.Unix(0, 0).Add(2 * ropts.RetentionPeriod())
 	dopts = dopts.SetClockOptions(dopts.ClockOptions().SetNowFn(func() time.Time {
 		return at
@@ -964,13 +963,12 @@ func TestNamespaceNeedsFlushCountsLeastNumFailures(t *testing.T) {
 			}).AnyTimes()
 		case shards[1].ID():
 			shard.EXPECT().FlushState(blockStart).Return(fileOpState{
-				Status:      fileOpFailed,
-				NumFailures: maxRetries,
+				Status: fileOpSuccess,
 			}).AnyTimes()
 		case shards[2].ID():
 			shard.EXPECT().FlushState(blockStart).Return(fileOpState{
 				Status:      fileOpFailed,
-				NumFailures: maxRetries - 1,
+				NumFailures: 999,
 			}).AnyTimes()
 		}
 		ns.shards[s.ID()] = shard
