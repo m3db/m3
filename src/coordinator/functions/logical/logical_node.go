@@ -29,11 +29,6 @@ import (
 	"github.com/m3db/m3db/src/coordinator/parser"
 )
 
-type makeBlockFn func(
-	logicalNode *BaseNode,
-	lIter, rIter block.StepIter,
-) (block.Block, error)
-
 // BaseOp stores required properties for logical operations
 type BaseOp struct {
 	OperatorType string
@@ -56,20 +51,24 @@ func (o BaseOp) String() string {
 
 // Node creates an execution node
 func (o BaseOp) Node(controller *transform.Controller) transform.OpNode {
-	return &BaseNode{
+	return &logicalNode{
 		controller: controller,
 		cache:      transform.NewBlockCache(),
 		op:         o,
 	}
 }
 
-// BaseNode is an execution node
-type BaseNode struct {
+type logicalNode struct {
 	op         BaseOp
 	controller *transform.Controller
 	cache      *transform.BlockCache
 	mu         sync.Mutex
 }
+
+type makeBlockFn func(
+	logicalNode *logicalNode,
+	lIter, rIter block.StepIter,
+) (block.Block, error)
 
 // NewLogicalOp creates a new logical operation
 func NewLogicalOp(
@@ -81,11 +80,11 @@ func NewLogicalOp(
 	var makeBlock makeBlockFn
 	switch opType {
 	case AndType:
-		makeBlock = makeAndBuilder
+		makeBlock = makeAndBlock
 	case OrType:
-		makeBlock = makeOrBuilder
+		makeBlock = makeOrBlock
 	case UnlessType:
-		makeBlock = makeUnlessBuilder
+		makeBlock = makeUnlessBlock
 	default:
 		return BaseOp{}, fmt.Errorf("operator not supported: %s", opType)
 	}
@@ -100,11 +99,11 @@ func NewLogicalOp(
 }
 
 // Process processes a block
-func (c *BaseNode) Process(ID parser.NodeID, b block.Block) error {
-	lhs, rhs, err := c.computeOrCache(ID, b)
+func (n *logicalNode) Process(ID parser.NodeID, b block.Block) error {
+	lhs, rhs, err := n.computeOrCache(ID, b)
 	if err != nil {
 		// Clean up any blocks from cache
-		c.cleanup()
+		n.cleanup()
 		return err
 	}
 
@@ -113,19 +112,19 @@ func (c *BaseNode) Process(ID parser.NodeID, b block.Block) error {
 		return nil
 	}
 
-	c.cleanup()
+	n.cleanup()
 
-	nextBlock, err := c.process(lhs, rhs)
+	nextBlock, err := n.process(lhs, rhs)
 	if err != nil {
 		return err
 	}
 
 	defer nextBlock.Close()
-	return c.controller.Process(nextBlock)
+	return n.controller.Process(nextBlock)
 }
 
 // processes two logical blocks, performing a logical operation on them
-func (c *BaseNode) process(lhs, rhs block.Block) (block.Block, error) {
+func (n *logicalNode) process(lhs, rhs block.Block) (block.Block, error) {
 	lIter, err := lhs.StepIter()
 	if err != nil {
 		return nil, err
@@ -140,26 +139,27 @@ func (c *BaseNode) process(lhs, rhs block.Block) (block.Block, error) {
 		return nil, errMismatchedStepCounts
 	}
 
-	return c.op.makeBlock(c, lIter, rIter)
+	return n.op.makeBlock(n, lIter, rIter)
 }
 
 // computeOrCache figures out if both lhs and rhs are available, if not then it caches the incoming block
-func (c *BaseNode) computeOrCache(ID parser.NodeID, b block.Block) (block.Block, block.Block, error) {
+func (n *logicalNode) computeOrCache(ID parser.NodeID, b block.Block) (block.Block, block.Block, error) {
 	var lhs, rhs block.Block
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.op.LNode == ID {
-		rBlock, ok := c.cache.Get(c.op.RNode)
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	op := n.op
+	if op.LNode == ID {
+		rBlock, ok := n.cache.Get(op.RNode)
 		if !ok {
-			return lhs, rhs, c.cache.Add(ID, b)
+			return lhs, rhs, n.cache.Add(ID, b)
 		}
 
 		rhs = rBlock
 		lhs = b
-	} else if c.op.RNode == ID {
-		lBlock, ok := c.cache.Get(c.op.LNode)
+	} else if op.RNode == ID {
+		lBlock, ok := n.cache.Get(op.LNode)
 		if !ok {
-			return lhs, rhs, c.cache.Add(ID, b)
+			return lhs, rhs, n.cache.Add(ID, b)
 		}
 
 		lhs = lBlock
@@ -169,9 +169,9 @@ func (c *BaseNode) computeOrCache(ID parser.NodeID, b block.Block) (block.Block,
 	return lhs, rhs, nil
 }
 
-func (c *BaseNode) cleanup() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.cache.Remove(c.op.LNode)
-	c.cache.Remove(c.op.RNode)
+func (n *logicalNode) cleanup() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.cache.Remove(n.op.LNode)
+	n.cache.Remove(n.op.RNode)
 }

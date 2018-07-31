@@ -75,11 +75,7 @@ func NewBinaryOperator(expr *promql.BinaryExpr, lhs, rhs parser.NodeID) (parser.
 
 	op := getOpType(expr.Op)
 	switch op {
-	case logical.AndType:
-		return logical.NewLogicalOp(op, lhs, rhs, matching)
-	case logical.OrType:
-		return logical.NewLogicalOp(op, lhs, rhs, matching)
-	case logical.UnlessType:
+	case logical.AndType, logical.OrType, logical.UnlessType:
 		return logical.NewLogicalOp(op, lhs, rhs, matching)
 	default:
 		// TODO: handle other types

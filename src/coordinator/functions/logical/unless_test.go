@@ -32,7 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var exclusionTests = []struct {
+var distinctLeftTests = []struct {
 	name      string
 	lhs, rhs  []block.SeriesMeta
 	expectedL []int
@@ -84,12 +84,12 @@ var exclusionTests = []struct {
 	},
 }
 
-func TestIntersect(t *testing.T) {
+func TestDistinctLeft(t *testing.T) {
 	matching := &VectorMatching{}
 
-	for _, tt := range exclusionTests {
+	for _, tt := range distinctLeftTests {
 		t.Run(tt.name, func(t *testing.T) {
-			excluded := exclusion(matching, tt.lhs, tt.rhs)
+			excluded := distinctLeft(matching, tt.lhs, tt.rhs)
 			assert.Equal(t, tt.expectedL, excluded)
 		})
 	}

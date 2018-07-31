@@ -26,13 +26,17 @@ import (
 	"github.com/m3db/m3db/src/coordinator/block"
 )
 
-func makeAndBuilder(
-	logicalNode *BaseNode,
+// AndType uses values from left hand side for which there is a value in right hand side with exactly matching label sets.
+// Other elements are replaced by NaNs. The metric name and values are carried over from the left-hand side.
+const AndType = "and"
+
+func makeAndBlock(
+	node *logicalNode,
 	lIter, rIter block.StepIter,
 ) (block.Block, error) {
 	lMeta, rSeriesMeta := lIter.Meta(), rIter.SeriesMeta()
 
-	builder, err := logicalNode.controller.BlockBuilder(lMeta, rSeriesMeta)
+	builder, err := node.controller.BlockBuilder(lMeta, rSeriesMeta)
 	if err != nil {
 		return nil, err
 	}
@@ -41,18 +45,19 @@ func makeAndBuilder(
 		return nil, err
 	}
 
-	intersection := intersect(logicalNode.op.Matching, lIter.SeriesMeta(), rIter.SeriesMeta())
+	intersection := intersect(node.op.Matching, lIter.SeriesMeta(), rIter.SeriesMeta())
 	for index := 0; lIter.Next() && rIter.Next(); index++ {
 		lStep, err := lIter.Current()
 		if err != nil {
 			return nil, err
 		}
-		lValues := lStep.Values()
 
+		lValues := lStep.Values()
 		rStep, err := rIter.Current()
 		if err != nil {
 			return nil, err
 		}
+
 		rValues := rStep.Values()
 
 		for idx, value := range lValues {

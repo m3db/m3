@@ -24,24 +24,30 @@ import (
 	"github.com/m3db/m3db/src/coordinator/block"
 )
 
-func makeOrBuilder(
-	logicalNode *BaseNode,
+// OrType uses all values from left hand side, and appends values from the right hand side which do
+// not have corresponding tags on the right
+const OrType = "or"
+
+func makeOrBlock(
+	node *logicalNode,
 	lIter, rIter block.StepIter,
 ) (block.Block, error) {
 	meta, err := combineMetadata(lIter.Meta(), rIter.Meta())
 	if err != nil {
 		return nil, err
 	}
+
 	missingIndices, combinedSeriesMeta := missing(
-		logicalNode.op.Matching,
+		node.op.Matching,
 		lIter.SeriesMeta(),
 		rIter.SeriesMeta(),
 	)
 
-	builder, err := logicalNode.controller.BlockBuilder(meta, combinedSeriesMeta)
+	builder, err := node.controller.BlockBuilder(meta, combinedSeriesMeta)
 	if err != nil {
 		return nil, err
 	}
+
 	if err := builder.AddCols(lIter.StepCount()); err != nil {
 		return nil, err
 	}
@@ -52,11 +58,12 @@ func makeOrBuilder(
 		if err != nil {
 			return nil, err
 		}
+
 		lValues := lStep.Values()
 		builder.AppendValues(index, lValues)
 	}
 
-	if err := addValuesAtIndeces(missingIndices, rIter, builder); err != nil {
+	if err := appendValuesAtIndeces(missingIndices, rIter, builder); err != nil {
 		return nil, err
 	}
 
@@ -64,7 +71,8 @@ func makeOrBuilder(
 }
 
 // missing returns the slice of rhs indices for which there are no corresponding
-// indices on the lhs
+// indices on the lhs. It also returns the metadatas for the series at these
+// indices to avoid having to calculate this separately
 func missing(
 	matching *VectorMatching,
 	lhs, rhs []block.SeriesMeta,

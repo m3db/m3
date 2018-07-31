@@ -26,19 +26,22 @@ import (
 	"github.com/m3db/m3db/src/coordinator/block"
 )
 
-func makeUnlessBuilder(
-	logicalNode *BaseNode,
+// UnlessType uses all values from lhs which do not exist in rhs
+const UnlessType = "unless"
+
+func makeUnlessBlock(
+	node *logicalNode,
 	lIter, rIter block.StepIter,
 ) (block.Block, error) {
 	lSeriesMeta, rSeriesMeta := lIter.SeriesMeta(), rIter.SeriesMeta()
-	lIds := exclusion(logicalNode.op.Matching, lSeriesMeta, rSeriesMeta)
+	lIds := distinctLeft(node.op.Matching, lSeriesMeta, rSeriesMeta)
 	stepCount := len(lIds)
-	takenMeta := make([]block.SeriesMeta, 0, stepCount)
+	distinctSeriesMeta := make([]block.SeriesMeta, 0, stepCount)
 	for _, idx := range lIds {
-		takenMeta = append(takenMeta, lSeriesMeta[idx])
+		distinctSeriesMeta = append(distinctSeriesMeta, lSeriesMeta[idx])
 	}
 
-	builder, err := logicalNode.controller.BlockBuilder(lIter.Meta(), takenMeta)
+	builder, err := node.controller.BlockBuilder(lIter.Meta(), distinctSeriesMeta)
 	if err != nil {
 		return nil, err
 	}
@@ -47,15 +50,15 @@ func makeUnlessBuilder(
 		return nil, err
 	}
 
-	if err := addValuesAtIndeces(lIds, lIter, builder); err != nil {
+	if err := appendValuesAtIndeces(lIds, lIter, builder); err != nil {
 		return nil, err
 	}
 
 	return builder.Build(), nil
 }
 
-// exclusion returns slices for unique indices on the lhs which do not exist in rhs
-func exclusion(
+// distinctLeft returns slices for unique indices on the lhs which do not exist in rhs
+func distinctLeft(
 	matching *VectorMatching,
 	lhs, rhs []block.SeriesMeta,
 ) []int {

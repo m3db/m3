@@ -67,20 +67,7 @@ func hashFunc(on bool, names ...string) func(models.Tags) uint64 {
 	return func(tags models.Tags) uint64 { return tags.IDWithExcludes(names...) }
 }
 
-const (
-	// AndType uses values from left hand side for which there is a value in right hand side with exactly matching label sets.
-	// Other elements are replaced by NaNs. The metric name and values are carried over from the left-hand side.
-	AndType = "and"
-
-	// OrType uses all values from left hand side, and appends values from the right hand side which do
-	// not have corresponding tags on the right
-	OrType = "or"
-
-	// UnlessType uses all values from lhs which do not exist in rhs
-	UnlessType = "unless"
-
-	initIndexSliceLength = 10
-)
+const initIndexSliceLength = 10
 
 var (
 	errMismatchedBounds     = fmt.Errorf("block bounds are mismatched")
@@ -105,17 +92,38 @@ func combineMetadata(l, r block.Metadata) (block.Metadata, error) {
 	return l, nil
 }
 
-func addValuesAtIndeces(idxArray []int, iter block.StepIter, builder block.Builder) error {
+func combineMetaAndSeriesMeta(
+	lMeta, rMeta block.Metadata,
+	lSeriesMeta, rSeriesMeta []block.SeriesMeta,
+	) (block.Metadata, []block.SeriesMeta,[]block.SeriesMeta,error) {
+	if !lMeta.Bounds.Equals(rMeta.Bounds) {
+		return block.Metadata{}, []block.SeriesMeta{}, []block.SeriesMeta{}, errMismatchedBounds
+	}
+
+	for k, v := range r.Tags {
+		if lVal, ok := l.Tags[k]; ok {
+			if lVal != v {
+				return block.Metadata{}, errConflictingTags
+			}
+		}
+		l.Tags[k] = v
+	}
+
+	return l, nil
+}
+func appendValuesAtIndeces(idxArray []int, iter block.StepIter, builder block.Builder) error {
 	index := 0
 	for ; iter.Next(); index++ {
 		step, err := iter.Current()
 		if err != nil {
 			return err
 		}
+
 		values := step.Values()
 		for _, idx := range idxArray {
 			builder.AppendValue(index, values[idx])
 		}
 	}
+
 	return nil
 }

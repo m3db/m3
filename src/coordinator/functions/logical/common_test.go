@@ -56,7 +56,7 @@ func stepIterWithExpectedValues(ctrl *gomock.Controller, indeces []int, values [
 	return stepIter
 }
 
-var addAtIndicesTests = []struct {
+var appendAtIndicesTests = []struct {
 	name                          string
 	indeces, expectedIndeces      []int
 	builderValues, expectedValues [][]float64
@@ -91,16 +91,16 @@ var addAtIndicesTests = []struct {
 	},
 }
 
-func TestAddAtIndices(t *testing.T) {
+func TestAppendAtIndices(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	for _, tt := range addAtIndicesTests {
+	for _, tt := range appendAtIndicesTests {
 		t.Run(tt.name, func(t *testing.T) {
 			builder := builderMockWithExpectedValues(ctrl, tt.expectedIndeces, tt.expectedValues)
 			stepIter := stepIterWithExpectedValues(ctrl, tt.expectedIndeces, tt.expectedValues)
 
-			err := addValuesAtIndeces(tt.indeces, stepIter, builder)
+			err := appendValuesAtIndeces(tt.indeces, stepIter, builder)
 			assert.NoError(t, err)
 		})
 	}
@@ -116,7 +116,7 @@ func TestAddAtIndicesErrors(t *testing.T) {
 	msg := "err"
 	stepIter.EXPECT().Next().Return(true)
 	stepIter.EXPECT().Current().Return(nil, fmt.Errorf(msg))
-	err := addValuesAtIndeces([]int{1}, stepIter, builder)
+	err := appendValuesAtIndeces([]int{1}, stepIter, builder)
 	assert.EqualError(t, err, msg)
 }
 
