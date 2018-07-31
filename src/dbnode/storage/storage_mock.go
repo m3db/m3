@@ -2546,18 +2546,6 @@ func (mr *MockOptionsMockRecorder) PersistManager() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PersistManager", reflect.TypeOf((*MockOptions)(nil).PersistManager))
 }
 
-// SetMaxFlushRetries mocks base method
-func (m *MockOptions) SetMaxFlushRetries(value int) Options {
-	ret := m.ctrl.Call(m, "SetMaxFlushRetries", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetMaxFlushRetries indicates an expected call of SetMaxFlushRetries
-func (mr *MockOptionsMockRecorder) SetMaxFlushRetries(value interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMaxFlushRetries", reflect.TypeOf((*MockOptions)(nil).SetMaxFlushRetries), value)
-}
-
 // SetMinimumSnapshotInterval mocks base method
 func (m *MockOptions) SetMinimumSnapshotInterval(value time.Duration) Options {
 	ret := m.ctrl.Call(m, "SetMinimumSnapshotInterval", value)
