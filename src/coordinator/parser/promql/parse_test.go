@@ -23,9 +23,8 @@ package promql
 import (
 	"testing"
 
-	"github.com/m3db/m3db/src/coordinator/functions/datetime"
-
 	"github.com/m3db/m3db/src/coordinator/functions"
+	"github.com/m3db/m3db/src/coordinator/functions/datetime"
 	"github.com/m3db/m3db/src/coordinator/functions/linear"
 	"github.com/m3db/m3db/src/coordinator/functions/logical"
 	"github.com/m3db/m3db/src/coordinator/parser"
