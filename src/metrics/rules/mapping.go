@@ -439,6 +439,7 @@ func (mc *mappingRule) mappingRuleView(snapshotIdx int) (view.MappingRule, error
 		Name:                mrs.name,
 		Tombstoned:          mrs.tombstoned,
 		CutoverMillis:       mrs.cutoverNanos / nanosPerMilli,
+		DropPolicy:          mrs.dropPolicy,
 		Filter:              mrs.rawFilter,
 		AggregationID:       mrs.aggregationID,
 		StoragePolicies:     mrs.storagePolicies,
