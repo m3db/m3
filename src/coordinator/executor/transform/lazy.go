@@ -129,7 +129,7 @@ func (s *seriesIter) Current() (block.Series, error) {
 		return block.Series{}, err
 	}
 
-	return s.node.ProcessSeries(bSeries)
+	return s.node.ProcessSeries(bSeries, s.Meta().Bounds)
 }
 
 func (s *seriesIter) Next() bool {

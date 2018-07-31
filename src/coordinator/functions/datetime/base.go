@@ -18,10 +18,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package linear
+package datetime
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/executor/transform"
@@ -69,13 +70,13 @@ var _ transform.SeriesNode = (*baseNode)(nil)
 
 // ProcessStep allows step iteration
 func (c *baseNode) ProcessStep(step block.Step) (block.Step, error) {
-	processedValue := c.processor.Process(step.Values())
+	processedValue := c.processor.ProcessStep(step.Values(), step.Time())
 	return block.NewColStep(step.Time(), processedValue), nil
 }
 
 // ProcessSeries allows series iteration
-func (c *baseNode) ProcessSeries(series block.Series, _ block.Bounds) (block.Series, error) {
-	processedValue := c.processor.Process(series.Values())
+func (c *baseNode) ProcessSeries(series block.Series, bounds block.Bounds) (block.Series, error) {
+	processedValue := c.processor.ProcessSeries(series.Values(), bounds)
 	return block.NewSeries(processedValue, series.Meta), nil
 }
 
@@ -101,7 +102,7 @@ func (c *baseNode) Process(ID parser.NodeID, b block.Block) error {
 			return err
 		}
 
-		values := c.processor.Process(step.Values())
+		values := c.processor.ProcessStep(step.Values(), step.Time())
 		for _, value := range values {
 			builder.AppendValue(index, value)
 		}
@@ -127,5 +128,6 @@ type makeProcessor func(op BaseOp, controller *transform.Controller) Processor
 
 // Processor is implemented by the underlying transforms
 type Processor interface {
-	Process(values []float64) []float64
+	ProcessStep(values []float64, t time.Time) []float64
+	ProcessSeries(values []float64, bounds block.Bounds) []float64
 }

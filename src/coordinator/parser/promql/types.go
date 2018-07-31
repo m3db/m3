@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3db/src/coordinator/functions"
+	"github.com/m3db/m3db/src/coordinator/functions/datetime"
 	"github.com/m3db/m3db/src/coordinator/functions/linear"
 	"github.com/m3db/m3db/src/coordinator/functions/logical"
 	"github.com/m3db/m3db/src/coordinator/models"
@@ -83,16 +84,11 @@ func NewBinaryOperator(expr *promql.BinaryExpr, lhs, rhs parser.NodeID) (parser.
 // NewFunctionExpr creates a new function expr based on the type
 func NewFunctionExpr(name string, argValues []interface{}) (parser.Params, error) {
 	switch name {
+
 	case linear.AbsType:
 		return linear.NewMathOp(linear.AbsType)
-	case linear.AbsentType:
-		return linear.NewAbsentOp(), nil
 	case linear.CeilType:
 		return linear.NewMathOp(linear.CeilType)
-	case linear.ClampMinType:
-		return linear.NewClampOp(argValues, linear.ClampMinType)
-	case linear.ClampMaxType:
-		return linear.NewClampOp(argValues, linear.ClampMaxType)
 	case linear.ExpType:
 		return linear.NewMathOp(linear.ExpType)
 	case linear.FloorType:
@@ -103,10 +99,38 @@ func NewFunctionExpr(name string, argValues []interface{}) (parser.Params, error
 		return linear.NewMathOp(linear.Log10Type)
 	case linear.Log2Type:
 		return linear.NewMathOp(linear.Log2Type)
-	case linear.RoundType:
-		return linear.NewRoundOp(argValues)
 	case linear.SqrtType:
 		return linear.NewMathOp(linear.SqrtType)
+
+	case linear.AbsentType:
+		return linear.NewAbsentOp(), nil
+
+	case linear.ClampMinType:
+		return linear.NewClampOp(argValues, linear.ClampMinType)
+	case linear.ClampMaxType:
+		return linear.NewClampOp(argValues, linear.ClampMaxType)
+
+	case linear.RoundType:
+		return linear.NewRoundOp(argValues)
+
+	case datetime.DayOfMonthType:
+		return datetime.NewDateOp(datetime.DayOfMonthType)
+	case datetime.DayOfWeekType:
+		return datetime.NewDateOp(datetime.DayOfWeekType)
+	case datetime.DaysInMonthType:
+		return datetime.NewDateOp(datetime.DaysInMonthType)
+	case datetime.HourType:
+		return datetime.NewDateOp(datetime.HourType)
+	case datetime.MinuteType:
+		return datetime.NewDateOp(datetime.MinuteType)
+	case datetime.MonthType:
+		return datetime.NewDateOp(datetime.MonthType)
+	case datetime.TimeType:
+		return datetime.NewDateOp(datetime.TimeType)
+	case datetime.TimestampType:
+		return datetime.NewDateOp(datetime.TimestampType)
+	case datetime.YearType:
+		return datetime.NewDateOp(datetime.YearType)
 
 	default:
 		// TODO: handle other types

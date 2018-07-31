@@ -64,7 +64,7 @@ type MetaNode interface {
 // SeriesNode is implemented by function nodes which can support series iteration
 type SeriesNode interface {
 	MetaNode
-	ProcessSeries(series block.Series) (block.Series, error)
+	ProcessSeries(series block.Series, bounds block.Bounds) (block.Series, error)
 }
 
 // StepNode is implemented by function nodes which can support step iteration
