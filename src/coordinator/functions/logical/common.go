@@ -72,7 +72,6 @@ const initIndexSliceLength = 10
 var (
 	errMismatchedBounds     = fmt.Errorf("block bounds are mismatched")
 	errMismatchedStepCounts = fmt.Errorf("block step counts are mismatched")
-	errConflictingTags      = fmt.Errorf("block tags conflict")
 )
 
 func combineMetadata(l, r block.Metadata) (block.Metadata, error) {
@@ -83,7 +82,7 @@ func combineMetadata(l, r block.Metadata) (block.Metadata, error) {
 	for k, v := range r.Tags {
 		if lVal, ok := l.Tags[k]; ok {
 			if lVal != v {
-				return block.Metadata{}, errConflictingTags
+				return block.Metadata{}, nil
 			}
 		}
 		l.Tags[k] = v
@@ -93,24 +92,61 @@ func combineMetadata(l, r block.Metadata) (block.Metadata, error) {
 }
 
 func combineMetaAndSeriesMeta(
-	lMeta, rMeta block.Metadata,
-	lSeriesMeta, rSeriesMeta []block.SeriesMeta,
-	) (block.Metadata, []block.SeriesMeta,[]block.SeriesMeta,error) {
-	if !lMeta.Bounds.Equals(rMeta.Bounds) {
-		return block.Metadata{}, []block.SeriesMeta{}, []block.SeriesMeta{}, errMismatchedBounds
+	meta, otherMeta block.Metadata,
+	seriesMeta, otherSeriesMeta []block.SeriesMeta,
+) (block.Metadata, []block.SeriesMeta, []block.SeriesMeta, error) {
+	if !meta.Bounds.Equals(otherMeta.Bounds) {
+		return block.Metadata{},
+			[]block.SeriesMeta{},
+			[]block.SeriesMeta{},
+			errMismatchedBounds
 	}
 
-	for k, v := range r.Tags {
-		if lVal, ok := l.Tags[k]; ok {
-			if lVal != v {
-				return block.Metadata{}, errConflictingTags
+	// NB (arnikola): mutating tags in `meta` to avoid allocations
+	commonTags := meta.Tags
+	otherTags := otherMeta.Tags
+	for k, v := range commonTags {
+		if otherVal, ok := otherTags[k]; ok {
+			if v != otherVal {
+				// If both metas have the same common tag  with different
+				// values, remove it from common tag list and explicitly
+				// add it to each seriesMeta.
+				delete(commonTags, k)
+				for _, metas := range seriesMeta {
+					metas.Tags[k] = v
+				}
+				for _, otherMetas := range otherSeriesMeta {
+					otherMetas.Tags[k] = otherVal
+				}
+			}
+
+			// NB(arnikola): delete common tag from otherTags as it
+			// has already been handled
+			delete(otherTags, k)
+		} else {
+			// Tag does not exist on otherMeta; remove it
+			// from common tags and explicitly add it to each seriesMeta
+			delete(commonTags, k)
+			for _, metas := range seriesMeta {
+				metas.Tags[k] = v
 			}
 		}
-		l.Tags[k] = v
 	}
 
-	return l, nil
+	// Iterate over otherMeta common tags and explicitly add
+	// remaining tags to otherSeriesMeta
+	for otherK, otherV := range otherTags {
+		for _, otherMetas := range otherSeriesMeta {
+			otherMetas.Tags[otherK] = otherV
+		}
+	}
+
+	return meta,
+		seriesMeta,
+		otherSeriesMeta,
+		nil
 }
+
 func appendValuesAtIndeces(idxArray []int, iter block.StepIter, builder block.Builder) error {
 	index := 0
 	for ; iter.Next(); index++ {

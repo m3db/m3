@@ -153,19 +153,11 @@ var combineMetadataTests = []struct {
 		models.Tags{"a": "b", "c": "d"},
 		nil,
 	},
-	{
-		"conflicting tags",
-		models.Tags{"a": "b"},
-		models.Tags{"a": "c"},
-		models.Tags{},
-		errConflictingTags,
-	},
 }
 
-func TestCombineMetadataFail(t *testing.T) {
+func TestCombineMetadata(t *testing.T) {
 	for _, tt := range combineMetadataTests {
 		t.Run(tt.name, func(t *testing.T) {
-			// lTags, rTags := models.Tags{"a": "b"}, models.Tags{"c": "d"}
 			l, r := block.Metadata{Tags: tt.lTags}, block.Metadata{Tags: tt.rTags}
 			meta, err := combineMetadata(l, r)
 			if tt.expectedErr != nil {
@@ -174,6 +166,83 @@ func TestCombineMetadataFail(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				assert.Equal(t, tt.expectedTags, meta.Tags)
+			}
+		})
+	}
+}
+
+var combineMetaAndSeriesMetaTests = []struct {
+	name                                        string
+	tags, otherTags, expectedTags               models.Tags
+	seriesTags, otherSeriesTags                 models.Tags
+	expectedSeriesTags, expectedOtherSeriesTags models.Tags
+}{
+	{
+		"no right tags",
+		models.Tags{"a": "b"},
+		models.Tags{},
+		models.Tags{},
+
+		models.Tags{"c": "d"},
+		models.Tags{"1": "2"},
+		models.Tags{"a": "b", "c": "d"},
+		models.Tags{"1": "2"},
+	},
+	{
+		"no left tags",
+		models.Tags{},
+		models.Tags{"a": "b"},
+		models.Tags{},
+
+		models.Tags{},
+		models.Tags{},
+		models.Tags{},
+		models.Tags{"a": "b"},
+	},
+	{
+		"same tags",
+		models.Tags{"a": "b"},
+		models.Tags{"a": "b"},
+		models.Tags{"a": "b"},
+
+		models.Tags{"a": "b", "c": "d"},
+		models.Tags{},
+		models.Tags{"a": "b", "c": "d"},
+		models.Tags{},
+	},
+	{
+		"different tags",
+		models.Tags{"a": "b"},
+		models.Tags{"c": "d"},
+		models.Tags{},
+
+		models.Tags{"1": "2"},
+		models.Tags{"3": "4"},
+		models.Tags{"a": "b", "1": "2"},
+		models.Tags{"c": "d", "3": "4"},
+	},
+}
+
+func TestCombineMetaAndSeriesMeta(t *testing.T) {
+	for _, tt := range combineMetaAndSeriesMetaTests {
+		t.Run(tt.name, func(t *testing.T) {
+			meta, otherMeta := block.Metadata{Tags: tt.tags}, block.Metadata{Tags: tt.otherTags}
+
+			metas := []block.SeriesMeta{{Tags: tt.seriesTags}, {Tags: tt.seriesTags}}
+			otherMetas := []block.SeriesMeta{{Tags: tt.expectedOtherSeriesTags}}
+
+			meta, seriesMeta, otherSeriesMeta, err := combineMetaAndSeriesMeta(meta, otherMeta, metas, otherMetas)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedTags, meta.Tags)
+
+			require.Equal(t, 2, len(seriesMeta))
+			for _, meta := range seriesMeta {
+				assert.Equal(t, tt.expectedSeriesTags, meta.Tags)
+			}
+
+			require.Equal(t, 1, len(otherSeriesMeta))
+			for _, otherMeta := range otherSeriesMeta {
+				assert.Equal(t, tt.expectedOtherSeriesTags, otherMeta.Tags)
 			}
 		})
 	}
