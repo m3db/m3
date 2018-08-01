@@ -1,4 +1,9 @@
 SELF_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
+
+# Grab necessary submodules, in case the repo was cloned without --recursive
+$(SELF_DIR)/.ci/common.mk:
+	git submodule update --init --recursive
+
 include $(SELF_DIR)/.ci/common.mk
 
 SHELL=/bin/bash -o pipefail
