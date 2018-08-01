@@ -37,7 +37,6 @@ import (
 	"github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/services/leader"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/storage"
@@ -55,7 +54,6 @@ import (
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
 
-	"github.com/coreos/etcd/integration"
 	"github.com/uber-go/tally"
 )
 
@@ -329,27 +327,12 @@ func (o DownsamplerOptions) newAggregator() (agg, error) {
 
 	campaignOpts = campaignOpts.SetLeaderValue(leaderValue)
 
-	// TODO: implement a mock leader service to avoid needing to use embedded KV here
-	electionCluster := integration.NewClusterV3(nil, &integration.ClusterConfig{
-		Size: 1,
-	})
-
 	sid := services.NewServiceID().
 		SetEnvironment("production").
 		SetName("downsampler").
 		SetZone("embedded")
 
-	eopts := services.NewElectionOptions()
-
-	leaderOpts := leader.NewOptions().
-		SetServiceID(sid).
-		SetElectionOpts(eopts)
-
-	// TODO: create a fake leader service
-	leaderService, err := leader.NewService(electionCluster.RandClient(), leaderOpts)
-	if err != nil {
-		return agg{}, err
-	}
+	leaderService := newLocalLeaderService(sid)
 
 	electionManagerOpts := aggregator.NewElectionManagerOptions().
 		SetCampaignOptions(campaignOpts).
@@ -381,24 +364,16 @@ func (o DownsamplerOptions) newAggregator() (agg, error) {
 	}
 
 	// Wait until the aggregator becomes leader so we don't miss datapoints
-	leaderCh := make(chan struct{}, 1)
-	go func() {
-		defer func() { leaderCh <- struct{}{} }()
-		for {
-			if electionManager.ElectionState() == aggregator.LeaderState {
-				return
-			}
-			time.Sleep(10 * time.Millisecond)
+	deadline := time.Now().Add(openTimeout)
+	for {
+		if !time.Now().Before(deadline) {
+			return agg{}, fmt.Errorf("aggregator not promoted to leader after: %s",
+				openTimeout.String())
 		}
-	}()
-
-	select {
-	case <-leaderCh:
-		// Now can return
-	case <-time.After(openTimeout):
-		return agg{}, fmt.Errorf(
-			"aggregator not promoted to leader after: %s",
-			openTimeout.String())
+		if electionManager.ElectionState() == aggregator.LeaderState {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	return agg{
@@ -526,14 +501,14 @@ func (w *downsamplerFlushHandlerWriter) Write(
 }
 
 func (w *downsamplerFlushHandlerWriter) Flush() error {
-	// TODO: This is a just simply waiting for inflight requests
+	// NB(r): This is a just simply waiting for inflight requests
 	// to complete since this flush handler isn't connection based.
 	w.wg.Wait()
 	return nil
 }
 
 func (w *downsamplerFlushHandlerWriter) Close() error {
-	// TODO: This is a no-op since this flush handler isn't connection based.
+	// NB(r): This is a no-op since this flush handler isn't connection based.
 	return nil
 }
 
