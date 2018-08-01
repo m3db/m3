@@ -36,11 +36,11 @@ import (
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
 	dbconfig "github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
+	"github.com/m3db/m3db/src/cmd/services/m3query/config"
+	xtest "github.com/m3db/m3db/src/dbnode/x/test"
 	"github.com/m3db/m3db/src/query/api/v1/handler/namespace"
 	"github.com/m3db/m3db/src/query/util/logging"
-	xtest "github.com/m3db/m3db/src/dbnode/x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"

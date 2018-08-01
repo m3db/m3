@@ -32,8 +32,9 @@ import (
 
 	clusterclient "github.com/m3db/m3cluster/client"
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
-	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
 	dbconfig "github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
+	"github.com/m3db/m3db/src/cmd/services/m3query/config"
+	"github.com/m3db/m3db/src/dbnode/client"
 	"github.com/m3db/m3db/src/query/api/v1/httpd"
 	m3dbcluster "github.com/m3db/m3db/src/query/cluster/m3db"
 	"github.com/m3db/m3db/src/query/executor"
@@ -45,7 +46,6 @@ import (
 	"github.com/m3db/m3db/src/query/stores/m3db"
 	tsdbRemote "github.com/m3db/m3db/src/query/tsdb/remote"
 	"github.com/m3db/m3db/src/query/util/logging"
-	"github.com/m3db/m3db/src/dbnode/client"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"

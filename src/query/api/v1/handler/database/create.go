@@ -32,15 +32,15 @@ import (
 
 	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/generated/proto/placementpb"
-	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
 	dbconfig "github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
+	"github.com/m3db/m3db/src/cmd/services/m3query/config"
+	dbnamespace "github.com/m3db/m3db/src/dbnode/storage/namespace"
 	"github.com/m3db/m3db/src/query/api/v1/handler"
 	"github.com/m3db/m3db/src/query/api/v1/handler/namespace"
 	"github.com/m3db/m3db/src/query/api/v1/handler/placement"
 	"github.com/m3db/m3db/src/query/generated/proto/admin"
 	"github.com/m3db/m3db/src/query/util"
 	"github.com/m3db/m3db/src/query/util/logging"
-	dbnamespace "github.com/m3db/m3db/src/dbnode/storage/namespace"
 
 	"github.com/golang/protobuf/jsonpb"
 	"go.uber.org/zap"

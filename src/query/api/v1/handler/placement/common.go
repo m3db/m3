@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
-	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
+	"github.com/m3db/m3db/src/cmd/services/m3query/config"
 	"github.com/m3db/m3db/src/query/util/logging"
 
 	"github.com/gorilla/mux"

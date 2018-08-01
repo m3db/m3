@@ -36,11 +36,12 @@ SERVICES :=     \
 	m3coordinator \
 	m3nsch_server \
 	m3nsch_client \
+	m3query       \
 
 SUBDIRS :=    \
 	cmd         \
 	dbnode      \
-	coordinator \
+	query       \
 	m3nsch      \
 	m3ninx      \
 

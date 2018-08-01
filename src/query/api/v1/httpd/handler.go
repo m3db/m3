@@ -28,8 +28,8 @@ import (
 	"os"
 
 	clusterclient "github.com/m3db/m3cluster/client"
-	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
 	dbconfig "github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
+	"github.com/m3db/m3db/src/cmd/services/m3query/config"
 	"github.com/m3db/m3db/src/query/api/v1/handler"
 	"github.com/m3db/m3db/src/query/api/v1/handler/database"
 	"github.com/m3db/m3db/src/query/api/v1/handler/namespace"

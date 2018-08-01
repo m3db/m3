@@ -26,7 +26,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
+	"github.com/m3db/m3db/src/cmd/services/m3query/config"
 	"github.com/m3db/m3db/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3db/src/query/api/v1/handler/prometheus/remote"
 	"github.com/m3db/m3db/src/query/executor"
