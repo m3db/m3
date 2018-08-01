@@ -36,8 +36,9 @@ import (
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3cluster/placement"
+	placementservice "github.com/m3db/m3cluster/placement/service"
+	placementstorage "github.com/m3db/m3cluster/placement/storage"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/storage"
 	"github.com/m3db/m3db/src/coordinator/ts"
@@ -63,6 +64,7 @@ const (
 	instanceID                     = "downsampler_local"
 	placementKVKey                 = "/placement"
 	aggregationSuffixTag           = "aggregation"
+	replicationFactor              = 1
 	defaultStorageFlushConcurrency = 20000
 	defaultOpenTimeout             = 10 * time.Second
 )
@@ -150,6 +152,117 @@ type agg struct {
 	clockOpts  clock.Options
 	matcher    matcher.Matcher
 	pools      aggPools
+}
+
+func (o DownsamplerOptions) newAggregator() (agg, error) {
+	// Validate options first.
+	if err := o.validate(); err != nil {
+		return agg{}, err
+	}
+
+	var (
+		storageFlushConcurrency = defaultStorageFlushConcurrency
+		rulesStore              = o.RulesKVStore
+		clockOpts               = o.ClockOptions
+		instrumentOpts          = o.InstrumentOptions
+		openTimeout             = defaultOpenTimeout
+	)
+	if o.StorageFlushConcurrency > 0 {
+		storageFlushConcurrency = o.StorageFlushConcurrency
+	}
+	if o.OpenTimeout > 0 {
+		openTimeout = o.OpenTimeout
+	}
+
+	pools := o.newAggregatorPools()
+	ruleSetOpts := o.newAggregatorRulesOptions(pools)
+
+	// Use default aggregation types, in future we can provide more configurability
+	var defaultAggregationTypes aggregation.TypesConfiguration
+	aggTypeOpts, err := defaultAggregationTypes.NewOptions(instrumentOpts)
+	if err != nil {
+		return agg{}, err
+	}
+
+	matcher, err := o.newAggregatorMatcher(clockOpts, instrumentOpts,
+		ruleSetOpts, rulesStore)
+	if err != nil {
+		return agg{}, err
+	}
+
+	aggClient := client.NewClient(client.NewOptions())
+	adminAggClient, ok := aggClient.(client.AdminClient)
+	if !ok {
+		return agg{}, fmt.Errorf(
+			"unable to cast %v to AdminClient", reflect.TypeOf(aggClient))
+	}
+
+	serviceID := services.NewServiceID().
+		SetEnvironment("production").
+		SetName("downsampler").
+		SetZone("embedded")
+
+	localKVStore := mem.NewStore()
+
+	placementManager, err := o.newAggregatorPlacementManager(serviceID,
+		localKVStore)
+	if err != nil {
+		return agg{}, err
+	}
+
+	flushTimesManager := aggregator.NewFlushTimesManager(
+		aggregator.NewFlushTimesManagerOptions().
+			SetFlushTimesStore(localKVStore))
+
+	electionManager, err := o.newAggregatorElectionManager(serviceID,
+		placementManager, flushTimesManager)
+	if err != nil {
+		return agg{}, err
+	}
+
+	flushManager, flushHandler := o.newAggregatorFlushManagerAndHandler(serviceID,
+		placementManager, flushTimesManager, electionManager, instrumentOpts,
+		storageFlushConcurrency, pools)
+
+	// Finally construct all options
+	aggregatorOpts := aggregator.NewOptions().
+		SetClockOptions(clockOpts).
+		SetInstrumentOptions(instrumentOpts).
+		SetAggregationTypesOptions(aggTypeOpts).
+		SetMetricPrefix(nil).
+		SetCounterPrefix(nil).
+		SetGaugePrefix(nil).
+		SetTimerPrefix(nil).
+		SetAdminClient(adminAggClient).
+		SetPlacementManager(placementManager).
+		SetFlushTimesManager(flushTimesManager).
+		SetElectionManager(electionManager).
+		SetFlushManager(flushManager).
+		SetFlushHandler(flushHandler)
+
+	aggregatorInstance := aggregator.NewAggregator(aggregatorOpts)
+	if err := aggregatorInstance.Open(); err != nil {
+		return agg{}, err
+	}
+
+	// Wait until the aggregator becomes leader so we don't miss datapoints
+	deadline := time.Now().Add(openTimeout)
+	for {
+		if !time.Now().Before(deadline) {
+			return agg{}, fmt.Errorf("aggregator not promoted to leader after: %s",
+				openTimeout.String())
+		}
+		if electionManager.ElectionState() == aggregator.LeaderState {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	return agg{
+		aggregator: aggregatorInstance,
+		matcher:    matcher,
+		pools:      pools,
+	}, nil
 }
 
 type aggPools struct {
@@ -251,164 +364,86 @@ func (o DownsamplerOptions) newAggregatorMatcher(
 	return matcher.NewMatcher(cache, opts)
 }
 
-func (o DownsamplerOptions) newAggregator() (agg, error) {
-	// Validate options first.
-	if err := o.validate(); err != nil {
-		return agg{}, err
-	}
-
-	var (
-		storageFlushConcurrency = defaultStorageFlushConcurrency
-		rulesStore              = o.RulesKVStore
-		clockOpts               = o.ClockOptions
-		instrumentOpts          = o.InstrumentOptions
-		openTimeout             = defaultOpenTimeout
-	)
-	if o.StorageFlushConcurrency > 0 {
-		storageFlushConcurrency = o.StorageFlushConcurrency
-	}
-	if o.OpenTimeout > 0 {
-		openTimeout = o.OpenTimeout
-	}
-
-	pools := o.newAggregatorPools()
-	ruleSetOpts := o.newAggregatorRulesOptions(pools)
-
-	// Use default aggregation types, in future we can provide more configurability
-	var defaultAggregationTypes aggregation.TypesConfiguration
-	aggTypeOpts, err := defaultAggregationTypes.NewOptions(instrumentOpts)
-	if err != nil {
-		return agg{}, err
-	}
-
-	matcher, err := o.newAggregatorMatcher(clockOpts, instrumentOpts,
-		ruleSetOpts, rulesStore)
-	if err != nil {
-		return agg{}, err
-	}
-
-	aggClient := client.NewClient(client.NewOptions())
-	adminAggClient, ok := aggClient.(client.AdminClient)
-	if !ok {
-		return agg{}, fmt.Errorf(
-			"unable to cast %v to AdminClient", reflect.TypeOf(aggClient))
-	}
-
-	aggregatorOpts := aggregator.NewOptions().
-		SetClockOptions(clockOpts).
-		SetInstrumentOptions(instrumentOpts).
-		SetAggregationTypesOptions(aggTypeOpts).
-		SetMetricPrefix(nil).
-		SetCounterPrefix(nil).
-		SetGaugePrefix(nil).
-		SetTimerPrefix(nil).
-		SetAdminClient(adminAggClient)
-
-	shardSet := make([]shard.Shard, numShards)
-	for i := 0; i < numShards; i++ {
-		shardSet[i] = shard.NewShard(uint32(i)).
-			SetState(shard.Initializing)
-	}
-	shards := shard.NewShards(shardSet)
+func (o DownsamplerOptions) newAggregatorPlacementManager(
+	serviceID services.ServiceID,
+	localKVStore kv.Store,
+) (aggregator.PlacementManager, error) {
 	instance := placement.NewInstance().
 		SetID(instanceID).
-		SetShards(shards).
-		SetShardSetID(shardSetID)
-	localPlacement := placement.NewPlacement().
-		SetInstances([]placement.Instance{instance}).
-		SetShards(shards.AllIDs())
-	stagedPlacement := placement.NewStagedPlacement().
-		SetPlacements([]placement.Placement{localPlacement})
-	stagedPlacementProto, err := stagedPlacement.Proto()
-	if err != nil {
-		return agg{}, err
-	}
+		SetWeight(1).
+		SetEndpoint(instanceID)
 
-	placementStore := mem.NewStore()
-	_, err = placementStore.SetIfNotExists(placementKVKey, stagedPlacementProto)
+	placementOpts := placement.NewOptions().
+		SetIsStaged(true).
+		SetShardStateMode(placement.StableShardStateOnly)
+
+	placementSvc := placementservice.NewPlacementService(
+		placementstorage.NewPlacementStorage(localKVStore, placementKVKey, placementOpts),
+		placementOpts)
+
+	_, err := placementSvc.BuildInitialPlacement([]placement.Instance{instance}, numShards,
+		replicationFactor)
 	if err != nil {
-		return agg{}, err
+		return nil, err
 	}
 
 	placementWatcherOpts := placement.NewStagedPlacementWatcherOptions().
 		SetStagedPlacementKey(placementKVKey).
-		SetStagedPlacementStore(placementStore)
+		SetStagedPlacementStore(localKVStore)
 	placementWatcher := placement.NewStagedPlacementWatcher(placementWatcherOpts)
 	placementManagerOpts := aggregator.NewPlacementManagerOptions().
 		SetInstanceID(instanceID).
 		SetStagedPlacementWatcher(placementWatcher)
-	placementManager := aggregator.NewPlacementManager(placementManagerOpts)
-	aggregatorOpts = aggregatorOpts.SetPlacementManager(placementManager)
 
-	// Set up flush times manager.
-	flushTimesManagerOpts := aggregator.NewFlushTimesManagerOptions().
-		SetFlushTimesStore(placementStore)
-	flushTimesManager := aggregator.NewFlushTimesManager(flushTimesManagerOpts)
-	aggregatorOpts = aggregatorOpts.SetFlushTimesManager(flushTimesManager)
+	return aggregator.NewPlacementManager(placementManagerOpts), nil
+}
 
-	// Set up election manager.
+func (o DownsamplerOptions) newAggregatorElectionManager(
+	serviceID services.ServiceID,
+	placementManager aggregator.PlacementManager,
+	flushTimesManager aggregator.FlushTimesManager,
+) (aggregator.ElectionManager, error) {
 	leaderValue := instanceID
 	campaignOpts, err := services.NewCampaignOptions()
 	if err != nil {
-		return agg{}, err
+		return nil, err
 	}
 
 	campaignOpts = campaignOpts.SetLeaderValue(leaderValue)
 
-	sid := services.NewServiceID().
-		SetEnvironment("production").
-		SetName("downsampler").
-		SetZone("embedded")
-
-	leaderService := newLocalLeaderService(sid)
+	leaderService := newLocalLeaderService(serviceID)
 
 	electionManagerOpts := aggregator.NewElectionManagerOptions().
 		SetCampaignOptions(campaignOpts).
 		SetLeaderService(leaderService).
 		SetPlacementManager(placementManager).
 		SetFlushTimesManager(flushTimesManager)
-	electionManager := aggregator.NewElectionManager(electionManagerOpts)
 
-	aggregatorOpts = aggregatorOpts.SetElectionManager(electionManager)
+	return aggregator.NewElectionManager(electionManagerOpts), nil
+}
 
-	// Set up flush manager.
+func (o DownsamplerOptions) newAggregatorFlushManagerAndHandler(
+	serviceID services.ServiceID,
+	placementManager aggregator.PlacementManager,
+	flushTimesManager aggregator.FlushTimesManager,
+	electionManager aggregator.ElectionManager,
+	instrumentOpts instrument.Options,
+	storageFlushConcurrency int,
+	pools aggPools,
+) (aggregator.FlushManager, handler.Handler) {
 	flushManagerOpts := aggregator.NewFlushManagerOptions().
 		SetPlacementManager(placementManager).
 		SetFlushTimesManager(flushTimesManager).
 		SetElectionManager(electionManager).
 		SetJitterEnabled(false)
 	flushManager := aggregator.NewFlushManager(flushManagerOpts)
-	aggregatorOpts = aggregatorOpts.SetFlushManager(flushManager)
 
 	flushWorkers := xsync.NewWorkerPool(storageFlushConcurrency)
 	flushWorkers.Init()
 	handler := newDownsamplerFlushHandler(o.Storage, pools.encodedTagsIteratorPool,
 		flushWorkers, instrumentOpts)
-	aggregatorOpts = aggregatorOpts.SetFlushHandler(handler)
 
-	aggregatorInstance := aggregator.NewAggregator(aggregatorOpts)
-	if err := aggregatorInstance.Open(); err != nil {
-		return agg{}, err
-	}
-
-	// Wait until the aggregator becomes leader so we don't miss datapoints
-	deadline := time.Now().Add(openTimeout)
-	for {
-		if !time.Now().Before(deadline) {
-			return agg{}, fmt.Errorf("aggregator not promoted to leader after: %s",
-				openTimeout.String())
-		}
-		if electionManager.ElectionState() == aggregator.LeaderState {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-
-	return agg{
-		aggregator: aggregatorInstance,
-		matcher:    matcher,
-		pools:      pools,
-	}, nil
+	return flushManager, handler
 }
 
 type downsamplerFlushHandler struct {
