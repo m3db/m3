@@ -26,6 +26,10 @@ import (
 	"github.com/m3db/m3x/ident"
 )
 
+const (
+	initAllocTagsSliceCapacity = 32
+)
+
 type tags struct {
 	names    []string
 	values   []string
