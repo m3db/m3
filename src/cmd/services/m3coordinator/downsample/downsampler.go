@@ -60,7 +60,6 @@ import (
 
 const (
 	initAllocTagsSliceCapacity     = 32
-	shardSetID                     = uint32(0)
 	instanceID                     = "downsampler_local"
 	placementKVKey                 = "/placement"
 	aggregationSuffixTag           = "aggregation"
