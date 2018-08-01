@@ -295,8 +295,6 @@ func TestDAGWithTimeOp(t *testing.T) {
 	q := "time()"
 	p, err := Parse(q)
 	require.NoError(t, err)
-	transforms, _, err := p.DAG()
-	require.NoError(t, err)
-	assert.Len(t, transforms, 1)
-	assert.Equal(t, transforms[0].Op.OpType(), datetime.TimeType)
+	_, _, err = p.DAG()
+	require.Error(t, err)
 }
