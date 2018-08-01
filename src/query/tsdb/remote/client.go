@@ -26,7 +26,7 @@ import (
 
 	"github.com/m3db/m3db/src/query/block"
 	"github.com/m3db/m3db/src/query/errors"
-	"github.com/m3db/m3db/src/query/generated/proto/rpc"
+	"github.com/m3db/m3db/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3db/src/query/storage"
 	"github.com/m3db/m3db/src/query/ts"
 	"github.com/m3db/m3db/src/query/util/logging"

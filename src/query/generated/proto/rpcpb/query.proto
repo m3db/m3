@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package rpc;
+package rpcpb;
 
 service Query {
 	rpc Fetch(FetchMessage) returns (stream FetchResult);

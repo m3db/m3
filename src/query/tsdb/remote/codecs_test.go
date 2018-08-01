@@ -25,7 +25,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/query/generated/proto/rpc"
+	"github.com/m3db/m3db/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3db/src/query/models"
 	"github.com/m3db/m3db/src/query/storage"
 	"github.com/m3db/m3db/src/query/ts"
