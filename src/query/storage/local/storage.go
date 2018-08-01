@@ -27,12 +27,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3db/src/dbnode/storage/index"
 	"github.com/m3db/m3db/src/query/block"
 	"github.com/m3db/m3db/src/query/errors"
 	"github.com/m3db/m3db/src/query/models"
 	"github.com/m3db/m3db/src/query/storage"
 	"github.com/m3db/m3db/src/query/util/execution"
-	"github.com/m3db/m3db/src/dbnode/storage/index"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"

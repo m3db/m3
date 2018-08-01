@@ -24,9 +24,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/src/dbnode/client"
 	"github.com/m3db/m3db/src/query/storage"
 	"github.com/m3db/m3db/src/query/storage/local"
-	"github.com/m3db/m3db/src/dbnode/client"
 	"github.com/m3db/m3x/ident"
 
 	"github.com/golang/mock/gomock"

@@ -27,11 +27,11 @@ import (
 	"log"
 	"time"
 
-	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
-	"github.com/m3db/m3db/src/query/benchmark/common"
-	"github.com/m3db/m3db/src/query/generated/proto/prompb"
+	"github.com/m3db/m3db/src/cmd/services/m3query/config"
 	"github.com/m3db/m3db/src/dbnode/client"
 	"github.com/m3db/m3db/src/dbnode/encoding"
+	"github.com/m3db/m3db/src/query/benchmark/common"
+	"github.com/m3db/m3db/src/query/generated/proto/prompb"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/ident"
 

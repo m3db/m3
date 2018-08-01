@@ -25,10 +25,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/query/storage"
-	"github.com/m3db/m3db/src/query/test"
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3db/src/query/storage"
+	"github.com/m3db/m3db/src/query/test"
 	"github.com/m3db/m3x/ident"
 
 	"github.com/stretchr/testify/assert"

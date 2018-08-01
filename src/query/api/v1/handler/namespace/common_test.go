@@ -25,8 +25,8 @@ import (
 	"testing"
 
 	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3db/src/query/util/logging"
 	nsproto "github.com/m3db/m3db/src/dbnode/generated/proto/namespace"
+	"github.com/m3db/m3db/src/query/util/logging"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"

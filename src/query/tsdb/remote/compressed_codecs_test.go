@@ -25,13 +25,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/query/errors"
-	"github.com/m3db/m3db/src/query/generated/proto/rpc"
-	"github.com/m3db/m3db/src/query/test"
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3db/src/dbnode/serialize"
 	"github.com/m3db/m3db/src/dbnode/x/xpool"
+	"github.com/m3db/m3db/src/query/errors"
+	"github.com/m3db/m3db/src/query/generated/proto/rpc"
+	"github.com/m3db/m3db/src/query/test"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 

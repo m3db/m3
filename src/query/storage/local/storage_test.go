@@ -28,12 +28,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/src/dbnode/client"
 	"github.com/m3db/m3db/src/query/models"
 	"github.com/m3db/m3db/src/query/storage"
 	"github.com/m3db/m3db/src/query/test/seriesiter"
 	"github.com/m3db/m3db/src/query/ts"
 	"github.com/m3db/m3db/src/query/util/logging"
-	"github.com/m3db/m3db/src/dbnode/client"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 

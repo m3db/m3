@@ -23,9 +23,9 @@ package storage
 import (
 	"fmt"
 
-	"github.com/m3db/m3db/src/query/models"
 	"github.com/m3db/m3db/src/dbnode/storage/index"
 	"github.com/m3db/m3db/src/m3ninx/idx"
+	"github.com/m3db/m3db/src/query/models"
 	"github.com/m3db/m3x/ident"
 )
 

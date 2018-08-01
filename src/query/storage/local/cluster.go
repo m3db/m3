@@ -27,8 +27,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3db/src/query/storage"
 	"github.com/m3db/m3db/src/dbnode/client"
+	"github.com/m3db/m3db/src/query/storage"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 )

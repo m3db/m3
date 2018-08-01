@@ -29,12 +29,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/src/dbnode/x/metrics"
 	"github.com/m3db/m3db/src/query/executor"
 	"github.com/m3db/m3db/src/query/storage"
 	"github.com/m3db/m3db/src/query/test"
 	"github.com/m3db/m3db/src/query/test/local"
 	"github.com/m3db/m3db/src/query/util/logging"
-	"github.com/m3db/m3db/src/dbnode/x/metrics"
 	xclock "github.com/m3db/m3x/clock"
 
 	"github.com/golang/mock/gomock"

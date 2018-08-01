@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/query/errors"
 	"github.com/m3db/m3db/src/query/policy/filter"
 	"github.com/m3db/m3db/src/query/storage"
@@ -33,7 +34,6 @@ import (
 	"github.com/m3db/m3db/src/query/test/seriesiter"
 	"github.com/m3db/m3db/src/query/ts"
 	"github.com/m3db/m3db/src/query/util/logging"
-	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3x/ident"
 
 	"github.com/golang/mock/gomock"

@@ -24,9 +24,9 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/query/models"
 	"github.com/m3db/m3db/src/query/test/seriesiter"
-	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"

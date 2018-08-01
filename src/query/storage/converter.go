@@ -25,10 +25,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/query/generated/proto/prompb"
 	"github.com/m3db/m3db/src/query/models"
 	"github.com/m3db/m3db/src/query/ts"
-	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"

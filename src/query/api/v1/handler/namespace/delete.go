@@ -28,9 +28,9 @@ import (
 	"strings"
 
 	clusterclient "github.com/m3db/m3cluster/client"
+	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	"github.com/m3db/m3db/src/query/api/v1/handler"
 	"github.com/m3db/m3db/src/query/util/logging"
-	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
