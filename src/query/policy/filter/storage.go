@@ -18,29 +18,24 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package filter
 
-import (
-	"flag"
-	_ "net/http/pprof" // pprof: for debug listen server if configured
-	"os"
+import "github.com/m3db/m3db/src/query/storage"
 
-	"github.com/m3db/m3db/src/query/services/m3coordinator/server"
-)
+// Storage determines whether storage can fulfil the read query
+type Storage func(query storage.Query, store storage.Storage) bool
 
-var (
-	configFile = flag.String("f", "", "configuration file")
-)
+// LocalOnly filters out all remote storages
+func LocalOnly(query storage.Query, store storage.Storage) bool {
+	return store.Type() == storage.TypeLocalDC
+}
 
-func main() {
-	flag.Parse()
+// AllowAll does not filter any storages
+func AllowAll(_ storage.Query, _ storage.Storage) bool {
+	return true
+}
 
-	if len(*configFile) == 0 {
-		flag.Usage()
-		os.Exit(1)
-	}
-
-	server.Run(server.RunOptions{
-		ConfigFile: *configFile,
-	})
+// AllowNone filters all storages
+func AllowNone(_ storage.Query, _ storage.Storage) bool {
+	return false
 }

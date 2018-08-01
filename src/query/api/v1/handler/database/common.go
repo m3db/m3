@@ -18,29 +18,32 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package database
 
 import (
-	"flag"
-	_ "net/http/pprof" // pprof: for debug listen server if configured
-	"os"
+	clusterclient "github.com/m3db/m3cluster/client"
+	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
+	dbconfig "github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
+	"github.com/m3db/m3db/src/query/util/logging"
 
-	"github.com/m3db/m3db/src/query/services/m3coordinator/server"
+	"github.com/gorilla/mux"
 )
 
-var (
-	configFile = flag.String("f", "", "configuration file")
-)
+// Handler represents a generic handler for namespace endpoints.
+type Handler struct {
+	// This is used by other namespace Handlers
+	// nolint: structcheck, megacheck
+	client clusterclient.Client
+}
 
-func main() {
-	flag.Parse()
+// RegisterRoutes registers the namespace routes
+func RegisterRoutes(
+	r *mux.Router,
+	client clusterclient.Client,
+	cfg config.Configuration,
+	embeddedDbCfg *dbconfig.DBConfiguration,
+) {
+	logged := logging.WithResponseTimeLogging
 
-	if len(*configFile) == 0 {
-		flag.Usage()
-		os.Exit(1)
-	}
-
-	server.Run(server.RunOptions{
-		ConfigFile: *configFile,
-	})
+	r.HandleFunc(CreateURL, logged(NewCreateHandler(client, cfg, embeddedDbCfg)).ServeHTTP).Methods(CreateHTTPMethod)
 }

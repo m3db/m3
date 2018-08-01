@@ -18,29 +18,33 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package executor
 
 import (
-	"flag"
-	_ "net/http/pprof" // pprof: for debug listen server if configured
-	"os"
+	"context"
+	"fmt"
+	"testing"
 
-	"github.com/m3db/m3db/src/query/services/m3coordinator/server"
+	"github.com/m3db/m3db/src/query/storage"
+	"github.com/m3db/m3db/src/query/test/local"
+	"github.com/m3db/m3db/src/query/util/logging"
+
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 )
 
-var (
-	configFile = flag.String("f", "", "configuration file")
-)
+func TestExecute(t *testing.T) {
+	logging.InitWithCores(nil)
+	ctrl := gomock.NewController(t)
+	store, session := local.NewStorageAndSession(t, ctrl)
+	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, false, fmt.Errorf("dummy"))
 
-func main() {
-	flag.Parse()
+	// Results is closed by execute
+	results := make(chan *storage.QueryResult)
+	closing := make(chan bool)
 
-	if len(*configFile) == 0 {
-		flag.Usage()
-		os.Exit(1)
-	}
-
-	server.Run(server.RunOptions{
-		ConfigFile: *configFile,
-	})
+	engine := NewEngine(store)
+	go engine.Execute(context.TODO(), &storage.FetchQuery{}, &EngineOptions{}, closing, results)
+	<-results
+	assert.Equal(t, len(engine.tracker.queries), 1)
 }

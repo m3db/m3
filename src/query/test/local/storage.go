@@ -18,29 +18,42 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package local
 
 import (
-	"flag"
-	_ "net/http/pprof" // pprof: for debug listen server if configured
-	"os"
+	"testing"
+	"time"
 
-	"github.com/m3db/m3db/src/query/services/m3coordinator/server"
+	"github.com/m3db/m3db/src/query/storage"
+	"github.com/m3db/m3db/src/query/storage/local"
+	"github.com/m3db/m3db/src/dbnode/client"
+	"github.com/m3db/m3x/ident"
+
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
 )
 
-var (
-	configFile = flag.String("f", "", "configuration file")
+const (
+	// TestNamespaceID is the namespace of the test unaggregated namespace
+	// used by local storage.
+	TestNamespaceID = "metrics"
+	// TestRetention is the retention of the test unaggregated namespace
+	// used by local storage.
+	TestRetention = 30 * 24 * time.Hour
 )
 
-func main() {
-	flag.Parse()
-
-	if len(*configFile) == 0 {
-		flag.Usage()
-		os.Exit(1)
-	}
-
-	server.Run(server.RunOptions{
-		ConfigFile: *configFile,
+// NewStorageAndSession generates a new local storage and mock session
+func NewStorageAndSession(
+	t *testing.T,
+	ctrl *gomock.Controller,
+) (storage.Storage, *client.MockSession) {
+	session := client.NewMockSession(ctrl)
+	clusters, err := local.NewClusters(local.UnaggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID(TestNamespaceID),
+		Session:     session,
+		Retention:   TestRetention,
 	})
+	require.NoError(t, err)
+	storage := local.NewStorage(clusters, nil)
+	return storage, session
 }

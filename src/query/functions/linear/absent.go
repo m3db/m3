@@ -18,29 +18,55 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package linear
 
 import (
-	"flag"
-	_ "net/http/pprof" // pprof: for debug listen server if configured
-	"os"
+	"math"
 
-	"github.com/m3db/m3db/src/query/services/m3coordinator/server"
+	"github.com/m3db/m3db/src/query/executor/transform"
 )
 
-var (
-	configFile = flag.String("f", "", "configuration file")
-)
+// AbsentType returns a timeseries with all NaNs if the timeseries passed in has any non NaNs,
+// and returns a timeseries with the value 1 if the timeseries passed in has no elements
+const AbsentType = "absent"
 
-func main() {
-	flag.Parse()
+// NewAbsentOp creates a new base linear transform with an absent node
+func NewAbsentOp() BaseOp {
+	return BaseOp{
+		operatorType: AbsentType,
+		processorFn:  newAbsentNode,
+	}
+}
 
-	if len(*configFile) == 0 {
-		flag.Usage()
-		os.Exit(1)
+func newAbsentNode(op BaseOp, controller *transform.Controller) Processor {
+	return &absentNode{
+		op:         op,
+		controller: controller,
+	}
+}
+
+type absentNode struct {
+	op         BaseOp
+	controller *transform.Controller
+}
+
+func (c *absentNode) Process(values []float64) []float64 {
+	num := 1.0
+	if !allNaNs(values) {
+		num = math.NaN()
 	}
 
-	server.Run(server.RunOptions{
-		ConfigFile: *configFile,
-	})
+	for i := range values {
+		values[i] = num
+	}
+	return values
+}
+
+func allNaNs(vals []float64) bool {
+	for _, i := range vals {
+		if !math.IsNaN(i) {
+			return false
+		}
+	}
+	return true
 }

@@ -18,29 +18,37 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package transform
 
 import (
-	"flag"
-	_ "net/http/pprof" // pprof: for debug listen server if configured
-	"os"
-
-	"github.com/m3db/m3db/src/query/services/m3coordinator/server"
+	"github.com/m3db/m3db/src/query/block"
+	"github.com/m3db/m3db/src/query/parser"
 )
 
-var (
-	configFile = flag.String("f", "", "configuration file")
-)
+// Controller controls the caching and forwarding the request to downstream.
+type Controller struct {
+	ID         parser.NodeID
+	transforms []OpNode
+}
 
-func main() {
-	flag.Parse()
+// AddTransform adds a dependent transformation to the controller
+func (t *Controller) AddTransform(node OpNode) {
+	t.transforms = append(t.transforms, node)
+}
 
-	if len(*configFile) == 0 {
-		flag.Usage()
-		os.Exit(1)
+// Process performs processing on the underlying transforms
+func (t *Controller) Process(block block.Block) error {
+	for _, ts := range t.transforms {
+		err := ts.Process(t.ID, block)
+		if err != nil {
+			return err
+		}
 	}
 
-	server.Run(server.RunOptions{
-		ConfigFile: *configFile,
-	})
+	return nil
+}
+
+// BlockBuilder returns a BlockBuilder instance with associated metadata
+func (t *Controller) BlockBuilder(blockMeta block.Metadata, seriesMeta []block.SeriesMeta) (block.Builder, error) {
+	return block.NewColumnBlockBuilder(blockMeta, seriesMeta), nil
 }

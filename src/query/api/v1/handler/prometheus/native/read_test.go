@@ -18,29 +18,44 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package native
 
 import (
-	"flag"
-	_ "net/http/pprof" // pprof: for debug listen server if configured
-	"os"
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"testing"
 
-	"github.com/m3db/m3db/src/query/services/m3coordinator/server"
+	"github.com/m3db/m3db/src/query/block"
+	"github.com/m3db/m3db/src/query/executor"
+	"github.com/m3db/m3db/src/query/storage/mock"
+	"github.com/m3db/m3db/src/query/test"
+	"github.com/m3db/m3db/src/query/util/logging"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-var (
-	configFile = flag.String("f", "", "configuration file")
-)
+func TestPromRead(t *testing.T) {
+	logging.InitWithCores(nil)
 
-func main() {
-	flag.Parse()
+	values, bounds := test.GenerateValuesAndBounds(nil, nil)
+	b := test.NewBlockFromValues(bounds, values)
+	mockStorage := mock.NewMockStorageWithBlocks([]block.Block{b})
 
-	if len(*configFile) == 0 {
-		flag.Usage()
-		os.Exit(1)
+	promRead := &PromReadHandler{engine: executor.NewEngine(mockStorage)}
+	req, _ := http.NewRequest("GET", PromReadURL, nil)
+	req.URL.RawQuery = defaultParams().Encode()
+
+	r, parseErr := parseParams(req)
+	require.Nil(t, parseErr)
+	seriesList, err := promRead.read(context.TODO(), httptest.NewRecorder(), r)
+	require.NoError(t, err)
+	require.Len(t, seriesList, 2)
+	s := seriesList[0]
+
+	assert.Equal(t, 5, s.Values().Len())
+	for i := 0; i < s.Values().Len(); i++ {
+		assert.Equal(t, float64(i), s.Values().ValueAt(i))
 	}
-
-	server.Run(server.RunOptions{
-		ConfigFile: *configFile,
-	})
 }

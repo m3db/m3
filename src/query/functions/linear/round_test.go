@@ -18,29 +18,38 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package linear
 
 import (
-	"flag"
-	_ "net/http/pprof" // pprof: for debug listen server if configured
-	"os"
+	"testing"
 
-	"github.com/m3db/m3db/src/query/services/m3coordinator/server"
+	"github.com/m3db/m3db/src/query/parser"
+	"github.com/m3db/m3db/src/query/test"
+	"github.com/m3db/m3db/src/query/test/executor"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-var (
-	configFile = flag.String("f", "", "configuration file")
-)
-
-func main() {
-	flag.Parse()
-
-	if len(*configFile) == 0 {
-		flag.Usage()
-		os.Exit(1)
+func TestRoundWithSomeValues(t *testing.T) {
+	v := [][]float64{
+		{0, nan, 2, 16, 25},
+		{nan, 6, 15, 14, 9},
 	}
+	values, bounds := test.GenerateValuesAndBounds(v, nil)
 
-	server.Run(server.RunOptions{
-		ConfigFile: *configFile,
-	})
+	block := test.NewBlockFromValues(bounds, values)
+	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	op, err := NewRoundOp([]interface{}{10.0})
+	require.NoError(t, err)
+	node := op.Node(c)
+	err = node.Process(parser.NodeID(0), block)
+	require.NoError(t, err)
+
+	expected := [][]float64{
+		{0, nan, 0, 20, 30},
+		{nan, 10, 20, 10, 10},
+	}
+	assert.Len(t, sink.Values, 2)
+	test.EqualsWithNans(t, expected, sink.Values)
 }

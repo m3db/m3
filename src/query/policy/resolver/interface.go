@@ -18,29 +18,25 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package resolver
 
 import (
-	"flag"
-	_ "net/http/pprof" // pprof: for debug listen server if configured
-	"os"
+	"context"
+	"time"
 
-	"github.com/m3db/m3db/src/query/services/m3coordinator/server"
+	"github.com/m3db/m3db/src/query/models"
+	"github.com/m3db/m3db/src/query/tsdb"
 )
 
-var (
-	configFile = flag.String("f", "", "configuration file")
-)
-
-func main() {
-	flag.Parse()
-
-	if len(*configFile) == 0 {
-		flag.Usage()
-		os.Exit(1)
-	}
-
-	server.Run(server.RunOptions{
-		ConfigFile: *configFile,
-	})
+// PolicyResolver resolves policy for a query.
+type PolicyResolver interface {
+	// Resolve will resolve each metric ID to a FetchRequest with a list of FetchRanges.
+	// The list of ranges is guaranteed to cover the full [startTime, endTime). The best
+	// storage policy will be picked for the range with configured strategy, but there
+	// may still be no data retained for the range in the given storage policy.
+	Resolve(
+		ctx context.Context,
+		tagMatchers models.Matchers,
+		startTime, endTime time.Time,
+	) ([]tsdb.FetchRequest, error)
 }

@@ -18,29 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+//go:generate sh -c "$GOPATH/src/$PACKAGE/scripts/proto-gen.sh $PACKAGE/src/query/generated/proto"
 
-import (
-	"flag"
-	_ "net/http/pprof" // pprof: for debug listen server if configured
-	"os"
-
-	"github.com/m3db/m3db/src/query/services/m3coordinator/server"
-)
-
-var (
-	configFile = flag.String("f", "", "configuration file")
-)
-
-func main() {
-	flag.Parse()
-
-	if len(*configFile) == 0 {
-		flag.Usage()
-		os.Exit(1)
-	}
-
-	server.Run(server.RunOptions{
-		ConfigFile: *configFile,
-	})
-}
+package prompb

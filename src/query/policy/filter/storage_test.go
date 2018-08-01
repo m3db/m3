@@ -18,29 +18,39 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package filter
 
 import (
-	"flag"
-	_ "net/http/pprof" // pprof: for debug listen server if configured
-	"os"
+	"testing"
 
-	"github.com/m3db/m3db/src/query/services/m3coordinator/server"
+	"github.com/m3db/m3db/src/query/storage"
+	"github.com/m3db/m3db/src/query/storage/mock"
+
+	"github.com/stretchr/testify/assert"
 )
 
 var (
-	configFile = flag.String("f", "", "configuration file")
+	local  = mock.NewMockStorageWithType(storage.TypeLocalDC)
+	remote = mock.NewMockStorageWithType(storage.TypeRemoteDC)
+	multi  = mock.NewMockStorageWithType(storage.TypeMultiDC)
+
+	q = &storage.FetchQuery{}
 )
 
-func main() {
-	flag.Parse()
+func TestLocalOnly(t *testing.T) {
+	assert.True(t, LocalOnly(q, local))
+	assert.False(t, LocalOnly(q, remote))
+	assert.False(t, LocalOnly(q, multi))
+}
 
-	if len(*configFile) == 0 {
-		flag.Usage()
-		os.Exit(1)
-	}
+func TestAllowAll(t *testing.T) {
+	assert.True(t, AllowAll(q, local))
+	assert.True(t, AllowAll(q, remote))
+	assert.True(t, AllowAll(q, multi))
+}
 
-	server.Run(server.RunOptions{
-		ConfigFile: *configFile,
-	})
+func TestAllowNone(t *testing.T) {
+	assert.False(t, AllowNone(q, local))
+	assert.False(t, AllowNone(q, remote))
+	assert.False(t, AllowNone(q, multi))
 }

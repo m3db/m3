@@ -24,7 +24,7 @@ import (
 	"time"
 
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
-	"github.com/m3db/m3db/src/coordinator/storage/local"
+	"github.com/m3db/m3db/src/query/storage/local"
 	"github.com/m3db/m3x/instrument"
 )
 

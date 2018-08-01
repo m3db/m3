@@ -18,29 +18,23 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package ts
 
 import (
-	"flag"
-	_ "net/http/pprof" // pprof: for debug listen server if configured
-	"os"
+	"testing"
+	"time"
 
-	"github.com/m3db/m3db/src/query/services/m3coordinator/server"
+	"github.com/m3db/m3db/src/query/models"
+
+	"github.com/stretchr/testify/assert"
 )
 
-var (
-	configFile = flag.String("f", "", "configuration file")
-)
+func TestCreateNewSeries(t *testing.T) {
+	tags := models.Tags{"foo": "bar", "biz": "baz"}
+	values := NewFixedStepValues(1000, 10000, 1, time.Now())
+	series := NewSeries("metrics", values, tags)
 
-func main() {
-	flag.Parse()
-
-	if len(*configFile) == 0 {
-		flag.Usage()
-		os.Exit(1)
-	}
-
-	server.Run(server.RunOptions{
-		ConfigFile: *configFile,
-	})
+	assert.Equal(t, "metrics", series.Name())
+	assert.Equal(t, 10000, series.Len())
+	assert.Equal(t, 1.0, series.Values().ValueAt(0))
 }

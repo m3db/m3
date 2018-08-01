@@ -18,29 +18,42 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package resolver
 
 import (
-	"flag"
-	_ "net/http/pprof" // pprof: for debug listen server if configured
-	"os"
+	"context"
+	"time"
 
-	"github.com/m3db/m3db/src/query/services/m3coordinator/server"
+	"github.com/m3db/m3db/src/query/models"
+	"github.com/m3db/m3db/src/query/tsdb"
+	"github.com/m3db/m3metrics/policy"
 )
 
-var (
-	configFile = flag.String("f", "", "configuration file")
-)
+type staticResolver struct {
+	sp policy.StoragePolicy
+}
 
-func main() {
-	flag.Parse()
+// NewStaticResolver creates a static policy resolver.
+func NewStaticResolver(sp policy.StoragePolicy) PolicyResolver {
+	return &staticResolver{sp: sp}
+}
 
-	if len(*configFile) == 0 {
-		flag.Usage()
-		os.Exit(1)
+func (r *staticResolver) Resolve(
+	// Context needed here to satisfy PolicyResolver interface
+	ctx context.Context, // nolint: unparam
+	tagMatchers models.Matchers,
+	startTime, endTime time.Time,
+) ([]tsdb.FetchRequest, error) {
+	ranges := tsdb.NewSingleRangeRequest("", startTime, endTime, r.sp).Ranges
+	requests := make([]tsdb.FetchRequest, 1)
+	tags, err := tagMatchers.ToTags()
+	if err != nil {
+		return nil, err
+	}
+	requests[0] = tsdb.FetchRequest{
+		ID:     tags.ID(),
+		Ranges: ranges,
 	}
 
-	server.Run(server.RunOptions{
-		ConfigFile: *configFile,
-	})
+	return requests, nil
 }

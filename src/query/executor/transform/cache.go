@@ -18,29 +18,55 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package transform
 
 import (
-	"flag"
-	_ "net/http/pprof" // pprof: for debug listen server if configured
-	"os"
+	"sync"
 
-	"github.com/m3db/m3db/src/query/services/m3coordinator/server"
+	"github.com/m3db/m3db/src/query/block"
+	"github.com/m3db/m3db/src/query/parser"
+
+	"github.com/pkg/errors"
 )
 
-var (
-	configFile = flag.String("f", "", "configuration file")
-)
+// BlockCache is used to cache blocks
+type BlockCache struct {
+	blocks map[parser.NodeID]block.Block
+	mu     sync.Mutex
+}
 
-func main() {
-	flag.Parse()
+// NewBlockCache creates a new BlockCache
+func NewBlockCache() *BlockCache {
+	return &BlockCache{
+		blocks: make(map[parser.NodeID]block.Block),
+	}
+}
 
-	if len(*configFile) == 0 {
-		flag.Usage()
-		os.Exit(1)
+// Add the block to the cache, errors out if block already exists
+func (c *BlockCache) Add(key parser.NodeID, b block.Block) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	_, ok := c.blocks[key]
+	if ok {
+		return errors.New("block already exists")
 	}
 
-	server.Run(server.RunOptions{
-		ConfigFile: *configFile,
-	})
+	c.blocks[key] = b
+	return nil
+}
+
+// Remove the block from the cache
+func (c *BlockCache) Remove(key parser.NodeID) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.blocks, key)
+}
+
+// Get the block from the cache
+// TODO: Evaluate only a single process getting a block at a time
+func (c *BlockCache) Get(key parser.NodeID) (block.Block, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	b, ok := c.blocks[key]
+	return b, ok
 }

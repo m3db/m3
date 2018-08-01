@@ -18,29 +18,32 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package functions
 
 import (
-	"flag"
-	_ "net/http/pprof" // pprof: for debug listen server if configured
-	"os"
+	"context"
+	"testing"
 
-	"github.com/m3db/m3db/src/query/services/m3coordinator/server"
+	"github.com/m3db/m3db/src/query/block"
+	"github.com/m3db/m3db/src/query/executor/transform"
+	"github.com/m3db/m3db/src/query/parser"
+	"github.com/m3db/m3db/src/query/storage/mock"
+	"github.com/m3db/m3db/src/query/test"
+	"github.com/m3db/m3db/src/query/test/executor"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-var (
-	configFile = flag.String("f", "", "configuration file")
-)
-
-func main() {
-	flag.Parse()
-
-	if len(*configFile) == 0 {
-		flag.Usage()
-		os.Exit(1)
-	}
-
-	server.Run(server.RunOptions{
-		ConfigFile: *configFile,
-	})
+func TestFetch(t *testing.T) {
+	values, bounds := test.GenerateValuesAndBounds(nil, nil)
+	b := test.NewBlockFromValues(bounds, values)
+	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	mockStorage := mock.NewMockStorageWithBlocks([]block.Block{b})
+	source := (&FetchOp{}).Node(c, mockStorage, transform.Options{})
+	err := source.Execute(context.TODO())
+	require.NoError(t, err)
+	expected := values
+	assert.Len(t, sink.Values, 2)
+	assert.Equal(t, expected, sink.Values)
 }

@@ -18,29 +18,37 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package plan
 
 import (
-	"flag"
-	_ "net/http/pprof" // pprof: for debug listen server if configured
-	"os"
+	"testing"
+	"time"
 
-	"github.com/m3db/m3db/src/query/services/m3coordinator/server"
+	"github.com/m3db/m3db/src/query/functions"
+	"github.com/m3db/m3db/src/query/models"
+	"github.com/m3db/m3db/src/query/parser"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-var (
-	configFile = flag.String("f", "", "configuration file")
-)
-
-func main() {
-	flag.Parse()
-
-	if len(*configFile) == 0 {
-		flag.Usage()
-		os.Exit(1)
+func TestResultNode(t *testing.T) {
+	fetchTransform := parser.NewTransformFromOperation(functions.FetchOp{}, 1)
+	countTransform := parser.NewTransformFromOperation(functions.CountOp{}, 2)
+	transforms := parser.Nodes{fetchTransform, countTransform}
+	edges := parser.Edges{
+		parser.Edge{
+			ParentID: fetchTransform.ID,
+			ChildID:  countTransform.ID,
+		},
 	}
 
-	server.Run(server.RunOptions{
-		ConfigFile: *configFile,
-	})
+	lp, err := NewLogicalPlan(transforms, edges)
+	require.NoError(t, err)
+	p, err := NewPhysicalPlan(lp, nil, models.RequestParams{Now:time.Now()})
+	require.NoError(t, err)
+	node, err := p.leafNode()
+	require.NoError(t, err)
+	assert.Equal(t, node.ID(), countTransform.ID)
+	assert.Equal(t, p.ResultStep.Parent, countTransform.ID)
 }

@@ -18,29 +18,49 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package executor
 
 import (
-	"flag"
-	_ "net/http/pprof" // pprof: for debug listen server if configured
-	"os"
-
-	"github.com/m3db/m3db/src/query/services/m3coordinator/server"
+	"github.com/m3db/m3db/src/query/block"
+	"github.com/m3db/m3db/src/query/executor/transform"
+	"github.com/m3db/m3db/src/query/parser"
 )
 
-var (
-	configFile = flag.String("f", "", "configuration file")
-)
-
-func main() {
-	flag.Parse()
-
-	if len(*configFile) == 0 {
-		flag.Usage()
-		os.Exit(1)
+// NewControllerWithSink creates a new controller which has a sink useful for comparison in tests
+func NewControllerWithSink(ID parser.NodeID) (*transform.Controller, *SinkNode) {
+	c := &transform.Controller{
+		ID: ID,
 	}
 
-	server.Run(server.RunOptions{
-		ConfigFile: *configFile,
-	})
+	node := &SinkNode{}
+	c.AddTransform(node)
+	return c, node
+}
+
+// SinkNode is a test node useful for comparisons
+type SinkNode struct {
+	Values   [][]float64
+}
+
+// Process processes and stores the last block output in the sink node
+func (s *SinkNode) Process(ID parser.NodeID, block block.Block) error {
+	iter, err := block.SeriesIter()
+	if err != nil {
+		return err
+	}
+
+	for iter.Next() {
+		val, err := iter.Current()
+		if err != nil {
+			return err
+		}
+
+		values := make([]float64, val.Len())
+		for i := 0; i < val.Len(); i++ {
+			values[i] = val.ValueAtStep(i)
+		}
+		s.Values = append(s.Values, values)
+	}
+
+	return nil
 }
