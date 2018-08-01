@@ -12,7 +12,7 @@ TARGETS=("dbnode" "coordinator" "m3ninx")
 target_patterns() {
     case $1 in
         'dbnode') echo "^mode|github.com/m3db/m3db/src/dbnode|github.com/m3db/m3db/src/cmd/services/m3dbnode";;
-        'coordinator') echo "^mode|github.com/m3db/m3db/src/coordinator|github.com/m3db/m3db/src/cmd/services/m3coordinator";;
+        'coordinator') echo "^mode|github.com/m3db/m3db/src/query|github.com/m3db/m3db/src/cmd/services/m3coordinator";;
         'm3ninx') echo "^mode|github.com/m3db/m3db/src/m3ninx";;
         *)   echo "unknown key: $1"; exit 1;;
     esac
