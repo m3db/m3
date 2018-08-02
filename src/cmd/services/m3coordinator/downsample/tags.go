@@ -38,8 +38,11 @@ type tags struct {
 	valueBuf []byte
 }
 
-var _ ident.TagIterator = &tags{}
-var _ sort.Interface = &tags{}
+// Ensure tags implements TagIterator and sort Interface
+var (
+	_ ident.TagIterator = (*tags)(nil)
+	_ sort.Interface    = (*tags)(nil)
+)
 
 func newTags() *tags {
 	return &tags{

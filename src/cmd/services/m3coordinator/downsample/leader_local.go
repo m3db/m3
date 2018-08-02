@@ -28,6 +28,12 @@ import (
 	"github.com/m3db/m3cluster/services/leader/campaign"
 )
 
+// localLeaderService provides a mocked out local leader service so that
+// we do not need to rely on using an etcd cluster just to elect a leader
+// for aggregation in-process (which doesn't need leader election at all,
+// however it is simpler to keep the current aggregator code structured the
+// way it is which is most natural for accomodating the distributed and
+// non-in-process aggregation use case).
 type localLeaderService struct {
 	sync.Mutex
 	id        services.ServiceID
