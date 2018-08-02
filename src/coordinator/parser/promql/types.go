@@ -85,54 +85,26 @@ func NewBinaryOperator(expr *promql.BinaryExpr, lhs, rhs parser.NodeID) (parser.
 func NewFunctionExpr(name string, argValues []interface{}) (parser.Params, error) {
 	switch name {
 
-	case linear.AbsType:
-		return linear.NewMathOp(linear.AbsType)
-	case linear.CeilType:
-		return linear.NewMathOp(linear.CeilType)
-	case linear.ExpType:
-		return linear.NewMathOp(linear.ExpType)
-	case linear.FloorType:
-		return linear.NewMathOp(linear.FloorType)
-	case linear.LnType:
-		return linear.NewMathOp(linear.LnType)
-	case linear.Log10Type:
-		return linear.NewMathOp(linear.Log10Type)
-	case linear.Log2Type:
-		return linear.NewMathOp(linear.Log2Type)
-	case linear.SqrtType:
-		return linear.NewMathOp(linear.SqrtType)
+	case linear.AbsType, linear.CeilType, linear.ExpType, linear.FloorType, linear.LnType,
+		linear.Log10Type, linear.Log2Type, linear.SqrtType:
+		return linear.NewMathOp(name)
 
 	case linear.AbsentType:
 		return linear.NewAbsentOp(), nil
 
-	case linear.ClampMinType:
-		return linear.NewClampOp(argValues, linear.ClampMinType)
-	case linear.ClampMaxType:
-		return linear.NewClampOp(argValues, linear.ClampMaxType)
+	case linear.ClampMinType, linear.ClampMaxType:
+		return linear.NewClampOp(argValues, name)
 
 	case linear.RoundType:
 		return linear.NewRoundOp(argValues)
 
-	case datetime.DayOfMonthType:
-		return datetime.NewDateOp(datetime.DayOfMonthType)
-	case datetime.DayOfWeekType:
-		return datetime.NewDateOp(datetime.DayOfWeekType)
-	case datetime.DaysInMonthType:
-		return datetime.NewDateOp(datetime.DaysInMonthType)
-	case datetime.HourType:
-		return datetime.NewDateOp(datetime.HourType)
-	case datetime.MinuteType:
-		return datetime.NewDateOp(datetime.MinuteType)
-	case datetime.MonthType:
-		return datetime.NewDateOp(datetime.MonthType)
+	case datetime.DayOfMonthType, datetime.DayOfWeekType, datetime.DaysInMonthType, datetime.HourType,
+		datetime.MinuteType, datetime.MonthType, datetime.TimestampType, datetime.YearType:
+		return datetime.NewDateOp(name)
 	case datetime.TimeType:
 		// todo(braskin): make time() work. Currently get error:
 		// "invalid DAG found, parent � not found for child 0"
 		return nil, fmt.Errorf("function not supported currently: %s", name)
-	case datetime.TimestampType:
-		return datetime.NewDateOp(datetime.TimestampType)
-	case datetime.YearType:
-		return datetime.NewDateOp(datetime.YearType)
 
 	default:
 		// TODO: handle other types

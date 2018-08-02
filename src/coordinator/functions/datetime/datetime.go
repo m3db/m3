@@ -22,7 +22,6 @@ package datetime
 
 import (
 	"fmt"
-	"math"
 	"time"
 
 	"github.com/m3db/m3db/src/coordinator/block"
@@ -61,10 +60,6 @@ const (
 	// Note that this does not actually return the current time,
 	// but the time at which the expression is to be evaluated.
 	TimeType = "time"
-
-	// TimestampType returns the timestamp of each of the values
-	// as the number of seconds since January 1, 1970 UTC.
-	TimestampType = "timestamp"
 )
 
 var (
@@ -74,28 +69,27 @@ var (
 		DaysInMonthType: func(t time.Time) float64 {
 			return float64(32 - time.Date(t.Year(), t.Month(), 32, 0, 0, 0, 0, time.UTC).Day())
 		},
-		HourType:      func(t time.Time) float64 { return float64(t.Hour()) },
-		MinuteType:    func(t time.Time) float64 { return float64(t.Minute()) },
-		MonthType:     func(t time.Time) float64 { return float64(t.Month()) },
-		YearType:      func(t time.Time) float64 { return float64(t.Year()) },
-		TimeType:      func(t time.Time) float64 { return float64(t.Unix()) / 1000 },
-		TimestampType: func(t time.Time) float64 { return float64(t.Unix()) / 1000 },
+		HourType:   func(t time.Time) float64 { return float64(t.Hour()) },
+		MinuteType: func(t time.Time) float64 { return float64(t.Minute()) },
+		MonthType:  func(t time.Time) float64 { return float64(t.Month()) },
+		YearType:   func(t time.Time) float64 { return float64(t.Year()) },
+		TimeType:   func(t time.Time) float64 { return float64(t.Unix()) / 1000 },
 	}
 )
 
 // NewDateOp creates a new date op based on the type
-func NewDateOp(optype string) (BaseOp, error) {
+func NewDateOp(optype string) (baseOp, error) {
 	if _, ok := datetimeFuncs[optype]; !ok {
 		return emptyOp, fmt.Errorf("unknown date type: %s", optype)
 	}
 
-	return BaseOp{
+	return baseOp{
 		operatorType: optype,
 		processorFn:  newDateNode,
 	}, nil
 }
 
-func newDateNode(op BaseOp, controller *transform.Controller) Processor {
+func newDateNode(op baseOp, controller *transform.Controller) Processor {
 	return &dateNode{
 		op:         op,
 		controller: controller,
@@ -104,19 +98,13 @@ func newDateNode(op BaseOp, controller *transform.Controller) Processor {
 }
 
 type dateNode struct {
-	op         BaseOp
+	op         baseOp
 	controller *transform.Controller
 	dateFn     func(time.Time) float64
 }
 
 func (c *dateNode) ProcessStep(values []float64, t time.Time) []float64 {
 	for i := range values {
-		if c.op.operatorType == TimestampType {
-			if math.IsNaN(values[i]) {
-				values[i] = math.NaN()
-				continue
-			}
-		}
 		values[i] = c.dateFn(t)
 	}
 
@@ -127,12 +115,6 @@ func (c *dateNode) ProcessSeries(values []float64, bounds block.Bounds) []float6
 	var t time.Time
 	for i := range values {
 		t, _ = bounds.TimeForIndex(i)
-		if c.op.operatorType == TimestampType {
-			if math.IsNaN(values[i]) {
-				values[i] = math.NaN()
-				continue
-			}
-		}
 		values[i] = c.dateFn(t)
 	}
 

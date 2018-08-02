@@ -29,38 +29,35 @@ import (
 	"github.com/m3db/m3db/src/coordinator/parser"
 )
 
-var emptyOp = BaseOp{}
+var emptyOp = baseOp{}
 
-// BaseOp stores required properties for logical operations
-type BaseOp struct {
+type baseOp struct {
 	operatorType string
 	processorFn  makeProcessor
 }
 
 // OpType for the operator
-func (o BaseOp) OpType() string {
+func (o baseOp) OpType() string {
 	return o.operatorType
 }
 
 // String representation
-func (o BaseOp) String() string {
+func (o baseOp) String() string {
 	return fmt.Sprintf("type: %s", o.OpType())
 }
 
 // Node creates an execution node
-func (o BaseOp) Node(controller *transform.Controller) transform.OpNode {
+func (o baseOp) Node(controller *transform.Controller) transform.OpNode {
 	return &baseNode{
 		controller: controller,
-		cache:      transform.NewBlockCache(),
 		op:         o,
 		processor:  o.processorFn(o, controller),
 	}
 }
 
 type baseNode struct {
-	op         BaseOp
+	op         baseOp
 	controller *transform.Controller
-	cache      *transform.BlockCache
 	processor  Processor
 }
 
@@ -124,7 +121,7 @@ func (c *baseNode) SeriesMeta(metas []block.SeriesMeta) []block.SeriesMeta {
 }
 
 // makeProcessor is a way to create a transform
-type makeProcessor func(op BaseOp, controller *transform.Controller) Processor
+type makeProcessor func(op baseOp, controller *transform.Controller) Processor
 
 // Processor is implemented by the underlying transforms
 type Processor interface {

@@ -198,33 +198,6 @@ func TestYearType(t *testing.T) {
 	test.EqualsWithNans(t, expected, sink.Values)
 }
 
-func TestTimestampType(t *testing.T) {
-	v := [][]float64{
-		{0, math.NaN(), 2, 3, 4},
-		{math.NaN(), 6, 7, 8, 9},
-	}
-
-	values, bounds := test.GenerateValuesAndBounds(v, nil)
-	times := getTimes(values, bounds)
-	block := test.NewBlockFromValues(bounds, values)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	op, err := NewDateOp(TimestampType)
-	require.NoError(t, err)
-	node := op.Node(c)
-	err = node.Process(parser.NodeID(0), block)
-	require.NoError(t, err)
-	expected := expectedDateVals(times, op.operatorType)
-	for i, vals := range values {
-		for j := range vals {
-			if math.IsNaN(vals[j]) {
-				expected[i][j] = math.NaN()
-			}
-		}
-	}
-	assert.Len(t, sink.Values, 2)
-	test.EqualsWithNans(t, expected, sink.Values)
-}
-
 func TestTimeType(t *testing.T) {
 	v := [][]float64{
 		{0, math.NaN(), 2, 3, 4},
