@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3x/instrument"
 )
 
-// Configuration is the configuration for the coordinator.
+// Configuration is the configuration for the query service.
 type Configuration struct {
 	// Metrics configuration.
 	Metrics instrument.MetricsConfiguration `yaml:"metrics"`

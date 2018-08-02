@@ -21,7 +21,7 @@ coverage:
     query:
       paths:
         - src/query/
-        - src/cmd/services/m3coordinator/
+        - src/cmd/services/m3query/
     dbnode:
       paths:
         - src/dbnode/

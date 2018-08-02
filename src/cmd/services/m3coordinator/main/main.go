@@ -25,7 +25,7 @@ import (
 	_ "net/http/pprof" // pprof: for debug listen server if configured
 	"os"
 
-	"github.com/m3db/m3db/src/query/services/m3coordinator/server"
+	"github.com/m3db/m3db/src/query/server"
 )
 
 var (
