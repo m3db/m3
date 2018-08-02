@@ -55,11 +55,6 @@ const (
 
 	// YearType returns the year for each of the given times in UTC.
 	YearType = "year"
-
-	// TimeType returns the number of seconds since January 1, 1970 UTC.
-	// Note that this does not actually return the current time,
-	// but the time at which the expression is to be evaluated.
-	TimeType = "time"
 )
 
 var (
@@ -73,7 +68,6 @@ var (
 		MinuteType: func(t time.Time) float64 { return float64(t.Minute()) },
 		MonthType:  func(t time.Time) float64 { return float64(t.Month()) },
 		YearType:   func(t time.Time) float64 { return float64(t.Year()) },
-		TimeType:   func(t time.Time) float64 { return float64(t.Unix()) / 1000 },
 	}
 )
 

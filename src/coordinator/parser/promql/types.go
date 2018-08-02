@@ -99,8 +99,11 @@ func NewFunctionExpr(name string, argValues []interface{}) (parser.Params, error
 		return linear.NewRoundOp(argValues)
 
 	case datetime.DayOfMonthType, datetime.DayOfWeekType, datetime.DaysInMonthType, datetime.HourType,
-		datetime.MinuteType, datetime.MonthType, datetime.TimestampType, datetime.YearType:
+		datetime.MinuteType, datetime.MonthType, datetime.YearType:
 		return datetime.NewDateOp(name)
+
+	case datetime.TimestampType:
+		return datetime.NewTimestampOp(name)
 
 	default:
 		// TODO: handle other types
