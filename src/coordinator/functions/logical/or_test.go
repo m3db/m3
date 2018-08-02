@@ -264,6 +264,13 @@ func TestOrsBoundsError(t *testing.T) {
 	require.EqualError(t, err, errMismatchedBounds.Error())
 }
 
+func createSeriesMeta() []block.SeriesMeta {
+	return []block.SeriesMeta{
+		{Tags: models.Tags{"foo": "bar"}},
+		{Tags: models.Tags{"baz": "qux"}},
+	}
+}
+
 func TestOrCombinedMetadata(t *testing.T) {
 	_, bounds := test.GenerateValuesAndBounds(nil, nil)
 
@@ -282,10 +289,8 @@ func TestOrCombinedMetadata(t *testing.T) {
 		Bounds: bounds,
 		Tags:   models.Tags{"a": "b", "c": "d", "e": "f"},
 	}
-	lSeriesMeta := []block.SeriesMeta{
-		{Tags: models.Tags{"foo": "bar"}},
-		{Tags: models.Tags{"baz": "qux"}},
-	}
+
+	lSeriesMeta := createSeriesMeta()
 	lhs := test.NewBlockFromValuesWithMetaAndSeriesMeta(
 		bounds,
 		lhsMeta,
@@ -299,10 +304,11 @@ func TestOrCombinedMetadata(t *testing.T) {
 		Bounds: bounds,
 		Tags:   models.Tags{"a": "b", "c": "*d", "g": "h"},
 	}
-	rSeriesMeta := []block.SeriesMeta{
-		{Tags: models.Tags{"foo*": "bar"}},
-		{Tags: models.Tags{"baz": "qux*"}},
-	}
+
+	// NB (arnikola): since common tags for the series differ,
+	// all four series should be included in the combined
+	// block despite the individual seriesMeta tags being the same.
+	rSeriesMeta := createSeriesMeta()
 	rhs := test.NewBlockFromValuesWithMetaAndSeriesMeta(
 		bounds,
 		rhsMeta,
@@ -320,8 +326,9 @@ func TestOrCombinedMetadata(t *testing.T) {
 	expectedMetas := []block.SeriesMeta{
 		{Tags: models.Tags{"foo": "bar", "c": "d", "e": "f"}},
 		{Tags: models.Tags{"baz": "qux", "c": "d", "e": "f"}},
-		{Tags: models.Tags{"foo*": "bar", "c": "*d", "g": "h"}},
-		{Tags: models.Tags{"baz": "qux*", "c": "*d", "g": "h"}},
+		{Tags: models.Tags{"foo": "bar", "c": "*d", "g": "h"}},
+		{Tags: models.Tags{"baz": "qux", "c": "*d", "g": "h"}},
 	}
+
 	assert.Equal(t, expectedMetas, sink.Metas)
 }

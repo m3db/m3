@@ -33,15 +33,23 @@ func makeUnlessBlock(
 	node *logicalNode,
 	lIter, rIter block.StepIter,
 ) (block.Block, error) {
-	lSeriesMeta, rSeriesMeta := lIter.SeriesMeta(), rIter.SeriesMeta()
+	// NB: need to flatten metadata for cases where
+	// e.g. lhs: common tags {a:b}, series tags: {c:d}, {e:f}
+	// e.g. rhs: common tags {c:d}, series tags: {a:b}, {e:f}
+	// If not flattened before calculating distinct values,
+	// both series on lhs would be added
+	lSeriesMeta := flattenMetadata(lIter.Meta(), lIter.SeriesMeta())
+	rSeriesMeta := flattenMetadata(rIter.Meta(), rIter.SeriesMeta())
 	lIds := distinctLeft(node.op.Matching, lSeriesMeta, rSeriesMeta)
 	stepCount := len(lIds)
 	distinctSeriesMeta := make([]block.SeriesMeta, 0, stepCount)
 	for _, idx := range lIds {
 		distinctSeriesMeta = append(distinctSeriesMeta, lSeriesMeta[idx])
 	}
-
-	builder, err := node.controller.BlockBuilder(lIter.Meta(), distinctSeriesMeta)
+	meta := lIter.Meta()
+	commonTags, dedupedSeriesMetas := dedupeMetadata(distinctSeriesMeta)
+	meta.Tags = commonTags
+	builder, err := node.controller.BlockBuilder(meta, dedupedSeriesMetas)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +58,7 @@ func makeUnlessBlock(
 		return nil, err
 	}
 
-	if err := appendValuesAtIndeces(lIds, lIter, builder); err != nil {
+	if err := appendValuesAtIndices(lIds, lIter, builder); err != nil {
 		return nil, err
 	}
 

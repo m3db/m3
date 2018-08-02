@@ -101,7 +101,7 @@ func TestAppendAtIndices(t *testing.T) {
 			builder := builderMockWithExpectedValues(ctrl, tt.expectedIndices, tt.expectedValues)
 			stepIter := stepIterWithExpectedValues(ctrl, tt.expectedIndices, tt.expectedValues)
 
-			err := appendValuesAtIndeces(tt.indices, stepIter, builder)
+			err := appendValuesAtIndices(tt.indices, stepIter, builder)
 			assert.NoError(t, err)
 		})
 	}
@@ -117,7 +117,7 @@ func TestAddAtIndicesErrors(t *testing.T) {
 	msg := "err"
 	stepIter.EXPECT().Next().Return(true)
 	stepIter.EXPECT().Current().Return(nil, fmt.Errorf(msg))
-	err := appendValuesAtIndeces([]int{1}, stepIter, builder)
+	err := appendValuesAtIndices([]int{1}, stepIter, builder)
 	assert.EqualError(t, err, msg)
 }
 
@@ -229,4 +229,86 @@ func TestCombineMetaAndSeriesMetaError(t *testing.T) {
 	metas, otherMetas := []block.SeriesMeta{}, []block.SeriesMeta{}
 	_, _, _, err := combineMetaAndSeriesMeta(meta, otherMeta, metas, otherMetas)
 	assert.Error(t, err, errMismatchedBounds.Error())
+}
+
+func TestFlattenMetadata(t *testing.T) {
+	meta := block.Metadata{Tags: models.Tags{"a": "b", "c": "d"}}
+	seriesMetas := []block.SeriesMeta{
+		{Name: "foo", Tags: models.Tags{"e": "f"}},
+		{Name: "bar", Tags: models.Tags{"g": "h"}},
+	}
+	flattened := flattenMetadata(meta, seriesMetas)
+
+	expected := []block.SeriesMeta{
+		{Name: "foo", Tags: models.Tags{"a": "b", "c": "d", "e": "f"}},
+		{Name: "bar", Tags: models.Tags{"a": "b", "c": "d", "g": "h"}},
+	}
+
+	assert.Equal(t, expected, flattened)
+}
+
+var dedupeMetadataTests = []struct {
+	name               string
+	metaTags           []models.Tags
+	expectedCommon     models.Tags
+	expectedSeriesTags []models.Tags
+}{
+	{
+		"empty metas",
+		[]models.Tags{},
+		models.Tags{},
+		[]models.Tags{},
+	},
+	{
+		"single metas",
+		[]models.Tags{{"a": "b", "c": "d"}},
+		models.Tags{"a": "b", "c": "d"},
+		[]models.Tags{{}},
+	},
+	{
+		"one common tag, longer first",
+		[]models.Tags{{"a": "b", "c": "d"}, {"a": "b"}},
+		models.Tags{"a": "b"},
+		[]models.Tags{{"c": "d"}, {}},
+	},
+	{
+		"one common tag, longer second",
+		[]models.Tags{{"a": "b"}, {"a": "b", "c": "d"}},
+		models.Tags{"a": "b"},
+		[]models.Tags{{}, {"c": "d"}},
+	},
+	{
+		"two common tags",
+		[]models.Tags{{"a": "b", "c": "d"}, {"a": "b", "c": "d"}, {"a": "b", "c": "d"}},
+		models.Tags{"a": "b", "c": "d"},
+		[]models.Tags{{}, {}, {}},
+	},
+	{
+		"no common tags in one series",
+		[]models.Tags{{"a": "b", "c": "d"}, {"a": "b", "c": "d"}, {"a": "b*", "c*": "d"}},
+		models.Tags{},
+		[]models.Tags{{"a": "b", "c": "d"}, {"a": "b", "c": "d"}, {"a": "b*", "c*": "d"}},
+	},
+}
+
+func TestDedupeMetadata(t *testing.T) {
+	for _, tt := range dedupeMetadataTests {
+		t.Run(tt.name, func(t *testing.T) {
+			metaTags := tt.metaTags
+			numSeries := len(metaTags)
+			seriesMetas := make([]block.SeriesMeta, numSeries)
+			for i, tags := range metaTags {
+				seriesMetas[i] = block.SeriesMeta{Tags: tags}
+			}
+
+			actual, actualSeriesMetas := dedupeMetadata(seriesMetas)
+			assert.Equal(t, tt.expectedCommon, actual)
+
+			actualTags := make([]models.Tags, numSeries)
+			for i, metas := range actualSeriesMetas {
+				actualTags[i] = metas.Tags
+			}
+			assert.Equal(t, tt.expectedSeriesTags, actualTags)
+		})
+	}
 }

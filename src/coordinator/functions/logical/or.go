@@ -68,7 +68,7 @@ func makeOrBlock(
 		builder.AppendValues(index, lValues)
 	}
 
-	if err := appendValuesAtIndeces(missingIndices, rIter, builder); err != nil {
+	if err := appendValuesAtIndices(missingIndices, rIter, builder); err != nil {
 		return nil, err
 	}
 
