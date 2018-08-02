@@ -214,3 +214,15 @@ func (t Tags) sortKeys() ([]string, int) {
 	sort.Strings(keys)
 	return keys, length
 }
+
+// WithoutName copies the tags excluding the name tag
+func (t Tags) WithoutName() Tags {
+	tags := make(Tags, len(t))
+	for k, v := range t {
+		if k == MetricName {
+			continue
+		}
+		tags[k] = v
+	}
+	return tags
+}

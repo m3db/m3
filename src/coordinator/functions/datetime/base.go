@@ -112,11 +112,15 @@ func (c *baseNode) Process(ID parser.NodeID, b block.Block) error {
 
 // Meta returns the metadata for the block
 func (c *baseNode) Meta(meta block.Metadata) block.Metadata {
+	meta.Tags = meta.Tags.WithoutName()
 	return meta
 }
 
 // SeriesMeta returns the metadata for each series in the block
 func (c *baseNode) SeriesMeta(metas []block.SeriesMeta) []block.SeriesMeta {
+	for _, meta := range metas {
+		meta.Tags = meta.Tags.WithoutName()
+	}
 	return metas
 }
 
