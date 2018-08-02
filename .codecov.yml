@@ -6,8 +6,8 @@ coverage:
   status:
     project:
       default: on
-      coordinator:
-        flags: coordinator
+      query:
+        flags: query
       dbnode:
         flags: dbnode
       m3ninx:
@@ -18,9 +18,9 @@ coverage:
       default: off
 
   flags:
-    coordinator:
+    query:
       paths:
-        - src/coordinator/
+        - src/query/
         - src/cmd/services/m3coordinator/
     dbnode:
       paths:
