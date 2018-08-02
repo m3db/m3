@@ -2,7 +2,7 @@
 
 set -e
 
-ASSET_DIR=${1:-src/coordinator/generated/assets/openapi}
+ASSET_DIR=${1:-src/query/generated/assets/openapi}
 
 # Copy over OpenAPI doc.
 mkdir -p m3metrics.io/openapi

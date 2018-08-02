@@ -28,9 +28,9 @@ import (
 
 	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
-	dbserver "github.com/m3db/m3db/src/cmd/services/m3dbnode/server"
-	coordinatorserver "github.com/m3db/m3db/src/coordinator/services/m3coordinator/server"
 	"github.com/m3db/m3db/src/dbnode/client"
+	dbserver "github.com/m3db/m3db/src/dbnode/server"
+	coordinatorserver "github.com/m3db/m3db/src/query/server"
 	xconfig "github.com/m3db/m3x/config"
 )
 
