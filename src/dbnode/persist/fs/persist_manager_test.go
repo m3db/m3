@@ -646,7 +646,7 @@ func testDataPersistManager(
 }
 
 func testIndexPersistManager(t *testing.T, ctrl *gomock.Controller,
-) (*persistManager, *MockIndexFileSetWriter, *m3ninxpersist.MockMutableSegmentFileSetWriter, Options) {
+) (*persistManager, *MockIndexFileSetWriter, *m3ninxpersist.MockReusableSegmentFileSetWriter, Options) {
 	dir := createTempDir(t)
 
 	opts := testDefaultOpts.
@@ -654,7 +654,7 @@ func testIndexPersistManager(t *testing.T, ctrl *gomock.Controller,
 		SetWriterBufferSize(10)
 
 	writer := NewMockIndexFileSetWriter(ctrl)
-	segmentWriter := m3ninxpersist.NewMockMutableSegmentFileSetWriter(ctrl)
+	segmentWriter := m3ninxpersist.NewMockReusableSegmentFileSetWriter(ctrl)
 
 	mgr, err := NewPersistManager(opts)
 	require.NoError(t, err)

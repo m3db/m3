@@ -96,7 +96,7 @@ func (mr *MockWriterMockRecorder) MinorVersion() *gomock.Call {
 }
 
 // Reset mocks base method
-func (m *MockWriter) Reset(arg0 segment.MutableSegment) error {
+func (m *MockWriter) Reset(arg0 segment.Segment) error {
 	ret := m.ctrl.Call(m, "Reset", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0

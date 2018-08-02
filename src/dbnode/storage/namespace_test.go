@@ -94,7 +94,7 @@ func TestNamespaceName(t *testing.T) {
 }
 
 func TestNamespaceTick(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	ns, closer := newTestNamespace(t)
@@ -110,7 +110,7 @@ func TestNamespaceTick(t *testing.T) {
 }
 
 func TestNamespaceTickError(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	fakeErr := errors.New("fake error")
@@ -148,7 +148,7 @@ func TestNamespaceWriteShardNotOwned(t *testing.T) {
 }
 
 func TestNamespaceWriteShardOwned(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	ctx := context.NewContext()
@@ -184,7 +184,7 @@ func TestNamespaceReadEncodedShardNotOwned(t *testing.T) {
 }
 
 func TestNamespaceReadEncodedShardOwned(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	ctx := context.NewContext()
@@ -228,7 +228,7 @@ func TestNamespaceFetchBlocksShardNotOwned(t *testing.T) {
 }
 
 func TestNamespaceFetchBlocksShardOwned(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	ctx := context.NewContext()
@@ -275,7 +275,7 @@ func TestNamespaceFetchBlocksMetadataShardNotOwned(t *testing.T) {
 }
 
 func TestNamespaceFetchBlocksMetadataShardOwned(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	ctx := context.NewContext()
@@ -363,7 +363,7 @@ func TestNamespaceBootstrapAllShards(t *testing.T) {
 }
 
 func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	var needsBootstrap, alreadyBootstrapped []shard.Shard
@@ -424,7 +424,7 @@ func TestNamespaceFlushDontNeedFlush(t *testing.T) {
 }
 
 func TestNamespaceFlushSkipFlushed(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	ctx := context.NewContext()
@@ -459,7 +459,7 @@ func TestNamespaceFlushSkipFlushed(t *testing.T) {
 }
 
 func TestNamespaceFlushSkipShardNotBootstrappedBeforeTick(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	ctx := context.NewContext()
@@ -489,7 +489,7 @@ type snapshotTestCase struct {
 }
 
 func TestNamespaceSnapshotNotBootstrapped(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	ctx := context.NewContext()
@@ -552,7 +552,7 @@ func TestNamespaceSnapshotShardError(t *testing.T) {
 }
 
 func testSnapshotWithShardSnapshotErrs(t *testing.T, shardMethodResults []snapshotTestCase) error {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	ctx := context.NewContext()
@@ -589,7 +589,7 @@ func testSnapshotWithShardSnapshotErrs(t *testing.T, shardMethodResults []snapsh
 }
 
 func TestNamespaceTruncate(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	ns, closer := newTestNamespace(t)
@@ -608,7 +608,7 @@ func TestNamespaceTruncate(t *testing.T) {
 }
 
 func TestNamespaceRepair(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	ns, closer := newTestNamespaceWithIDOpts(t, defaultTestNs1ID,
@@ -642,7 +642,7 @@ func TestNamespaceRepair(t *testing.T) {
 }
 
 func TestNamespaceShardAt(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	ns, closer := newTestNamespace(t)
@@ -669,7 +669,7 @@ func TestNamespaceShardAt(t *testing.T) {
 }
 
 func TestNamespaceAssignShardSet(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	shards := sharding.NewShards([]uint32{0, 1, 2, 3, 4}, shard.Available)
@@ -790,7 +790,7 @@ func setShardExpects(ns *dbNamespace, ctrl *gomock.Controller, cases []needsFlus
 }
 
 func TestNamespaceNeedsFlushRange(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	var (
@@ -818,7 +818,7 @@ func TestNamespaceNeedsFlushRange(t *testing.T) {
 }
 
 func TestNamespaceNeedsFlushRangeMultipleShardConflict(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	var (
@@ -851,7 +851,7 @@ func TestNamespaceNeedsFlushRangeMultipleShardConflict(t *testing.T) {
 	assert.False(t, ns.NeedsFlush(t2, t0))
 }
 func TestNamespaceNeedsFlushRangeSingleShardConflict(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	var (
@@ -885,7 +885,7 @@ func TestNamespaceNeedsFlushRangeSingleShardConflict(t *testing.T) {
 }
 
 func TestNamespaceNeedsFlushAllSuccess(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	var (
@@ -926,7 +926,7 @@ func TestNamespaceNeedsFlushAllSuccess(t *testing.T) {
 }
 
 func TestNamespaceNeedsFlushAnyFailed(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	var (
@@ -978,7 +978,7 @@ func TestNamespaceNeedsFlushAnyFailed(t *testing.T) {
 }
 
 func TestNamespaceNeedsFlushAnyNotStarted(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	var (
@@ -1029,7 +1029,7 @@ func TestNamespaceNeedsFlushAnyNotStarted(t *testing.T) {
 }
 
 func TestNamespaceCloseWillCloseShard(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	ctx := context.NewContext()
@@ -1059,7 +1059,7 @@ func TestNamespaceCloseDoesNotLeak(t *testing.T) {
 	leakCheck := leaktest.Check(t)
 	defer leakCheck()
 
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	ctx := context.NewContext()
@@ -1082,7 +1082,7 @@ func TestNamespaceCloseDoesNotLeak(t *testing.T) {
 }
 
 func TestNamespaceIndexInsert(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	idx := NewMocknamespaceIndex(ctrl)
@@ -1107,7 +1107,7 @@ func TestNamespaceIndexInsert(t *testing.T) {
 }
 
 func TestNamespaceIndexQuery(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	idx := NewMocknamespaceIndex(ctrl)
@@ -1127,7 +1127,7 @@ func TestNamespaceIndexQuery(t *testing.T) {
 }
 
 func TestNamespaceTicksIndex(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	idx := NewMocknamespaceIndex(ctrl)
@@ -1155,7 +1155,7 @@ func TestNamespaceIndexDisabledQuery(t *testing.T) {
 }
 
 func TestNamespaceBootstrapState(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	ns, closer := newTestNamespace(t)
@@ -1178,7 +1178,7 @@ func TestNamespaceBootstrapState(t *testing.T) {
 }
 
 func TestNamespaceIsCapturedBySnapshot(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	ns, closer := newTestNamespace(t)

@@ -27,13 +27,16 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
+	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -151,6 +154,9 @@ type Block interface {
 	// Tick does internal house keeping operations.
 	Tick(c context.Cancellable, tickStart time.Time) (BlockTickResult, error)
 
+	// Stats returns statistics about the block.
+	Stats() BlockStats
+
 	// Seal prevents the block from taking any more writes, but, it still permits
 	// addition of segments via Bootstrap().
 	Seal() error
@@ -158,32 +164,30 @@ type Block interface {
 	// IsSealed returns whether this block was sealed.
 	IsSealed() bool
 
-	// NeedsMutableSegmentsEvicted returns whether this block has any mutable segments
-	// that are not-empty and sealed.
-	// A sealed non-empty mutable segment needs to get evicted from memory as
-	// soon as it can be to reduce memory footprint.
-	NeedsMutableSegmentsEvicted() bool
+	// NeedsFlush returns whether this block has any segments backed by memory which
+	// need to be evicted.
+	NeedsFlush() bool
 
-	// EvictMutableSegments closes any mutable segments, this is only applicable
-	// valid to be called once the block and hence mutable segments are sealed.
+	// EvictActiveSegments closes any mem backed segments (active/bootstrapped mem segments).
+	// This is only valid to be called once the block is sealed.
 	// It is expected that results have been added to the block that covers any
-	// data the mutable segments should have held at this time.
-	EvictMutableSegments() (EvictMutableSegmentResults, error)
+	// data the segments should have held at this time.
+	EvictActiveSegments() (EvictActiveSegmentResults, error)
 
 	// Close will release any held resources and close the Block.
 	Close() error
 }
 
-// EvictMutableSegmentResults returns statistics about the EvictMutableSegments execution.
-type EvictMutableSegmentResults struct {
-	NumMutableSegments int64
-	NumDocs            int64
+// EvictActiveSegmentResults returns statistics about the EvictActiveSegments execution.
+type EvictActiveSegmentResults struct {
+	NumSegments int64
+	NumDocs     int64
 }
 
 // Add adds the provided results to the receiver.
-func (e *EvictMutableSegmentResults) Add(o EvictMutableSegmentResults) {
+func (e *EvictActiveSegmentResults) Add(o EvictActiveSegmentResults) {
 	e.NumDocs += o.NumDocs
-	e.NumMutableSegments += o.NumMutableSegments
+	e.NumSegments += o.NumSegments
 }
 
 // WriteBatchResult returns statistics about the WriteBatch execution.
@@ -194,6 +198,40 @@ type WriteBatchResult struct {
 
 // BlockTickResult returns statistics about tick.
 type BlockTickResult struct {
+	NumSegments int64
+	NumDocs     int64
+}
+
+// BlockStats returns statistics about index block.
+type BlockStats struct {
+	Active ActiveSegmentsStats
+	Shard  ShardRangeSegmentsStats
+}
+
+// Add adds the provided results to the receiver.
+func (s *BlockStats) Add(o BlockStats) {
+	s.Active.NumDocs += o.Active.NumDocs
+	s.Active.NumSegments += o.Active.NumSegments
+	s.Active.NumMutableSegments += o.Active.NumMutableSegments
+	s.Active.NumFSTSegments += o.Active.NumFSTSegments
+	s.Active.NumActiveCompactions += o.Active.NumActiveCompactions
+	s.Active.NumSegmentsCompacting += o.Active.NumSegmentsCompacting
+	s.Shard.NumDocs += o.Shard.NumDocs
+	s.Shard.NumSegments += o.Shard.NumSegments
+}
+
+// ActiveSegmentsStats returns stats about active segments.
+type ActiveSegmentsStats struct {
+	NumDocs               int64
+	NumSegments           int64
+	NumMutableSegments    int64
+	NumFSTSegments        int64
+	NumActiveCompactions  int64
+	NumSegmentsCompacting int64
+}
+
+// ShardRangeSegmentsStats returns stats about shard range segments.
+type ShardRangeSegmentsStats struct {
 	NumSegments int64
 	NumDocs     int64
 }
@@ -355,7 +393,7 @@ func (b *WriteBatch) PendingDocs() []doc.Document {
 }
 
 // PendingEntries returns all the entries in this batch that are unmarked.
-func (b *WriteBatch) PendingEntries() []WriteBatchEntry {
+func (b *WriteBatch) PendingEntries() WriteBatchEntries {
 	b.SortByUnmarkedAndIndexBlockStart() // Ensure sorted by unmarked first
 	return b.entries[:b.numPending()]
 }
@@ -506,6 +544,24 @@ func (e WriteBatchEntry) Result() WriteBatchEntryResult {
 	return e.result
 }
 
+// WriteBatchEntries is a slice of WriteBatchEntry elements.
+type WriteBatchEntries []WriteBatchEntry
+
+// EarliestEnqueuedAt returns the minimum value for EnqueuedAt in
+// the elements provided.
+func (w WriteBatchEntries) EarliestEnqueuedAt() (time.Time, bool) {
+	if len(w) == 0 {
+		return time.Time{}, false
+	}
+	min := w[0].EnqueuedAt
+	for i := 1; i < len(w); i++ {
+		if w[i].EnqueuedAt.Before(min) {
+			min = w[i].EnqueuedAt
+		}
+	}
+	return min, true
+}
+
 // Options control the Indexing knobs.
 type Options interface {
 	// Validate validates assumptions baked into the code.
@@ -528,6 +584,12 @@ type Options interface {
 
 	// InstrumentOptions returns the instrument options.
 	InstrumentOptions() instrument.Options
+
+	// SetFSTSegmentOptions sets the fst segment options.
+	SetFSTSegmentOptions(value fst.Options) Options
+
+	// FSTSegmentOptions returns the fst segment options.
+	FSTSegmentOptions() fst.Options
 
 	// SetMemSegmentOptions sets the mem segment options.
 	SetMemSegmentOptions(value mem.Options) Options
@@ -552,4 +614,25 @@ type Options interface {
 
 	// ResultsPool returns the results pool.
 	ResultsPool() ResultsPool
+
+	// SetCompactionOptions sets the compaction options.
+	SetCompactionOptions(value CompactionOptions) Options
+
+	// CompactionOptions returns the compaction options.
+	CompactionOptions() CompactionOptions
+}
+
+// CompactionOptions are a set of knobs to control compaction behaviour.
+type CompactionOptions interface {
+	// SetPlannerOptions sets the compaction.PlannerOptions.
+	SetPlannerOptions(value compaction.PlannerOptions) CompactionOptions
+
+	// PlannerOptions returns the compaction.PlannerOptions.
+	PlannerOptions() compaction.PlannerOptions
+
+	// SetWorkerPool sets the compaction worker pool.
+	SetWorkerPool(value xsync.WorkerPool) CompactionOptions
+
+	// WorkerPool returns the compaction worker pool.
+	WorkerPool() xsync.WorkerPool
 }

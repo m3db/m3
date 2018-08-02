@@ -34,7 +34,7 @@ import (
 // allocator.
 func NewDefaultMutableSegmentAllocator() MutableSegmentAllocator {
 	return func() (segment.MutableSegment, error) {
-		return mem.NewSegment(0, mem.NewOptions())
+		return mem.NewSegment(0, mem.NewOptions()), nil
 	}
 }
 

@@ -83,8 +83,8 @@ type Readable interface {
 // CompiledRegex is a collection of regexp compiled structs to allow
 // amortisation of regexp construction costs.
 type CompiledRegex struct {
-	Simple      *regexp.Regexp
-	FST         *vregex.Regexp
+	Simple      *regexp.Regexp // Simple corresponds to a Go compiled 'regexp.Regexp'.
+	FST         *vregex.Regexp // FST corresponds to a Vellum compiled DFA.
 	PrefixBegin []byte
 	PrefixEnd   []byte
 }

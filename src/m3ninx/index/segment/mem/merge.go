@@ -29,7 +29,7 @@ import (
 )
 
 // Merge merges the segments `srcs` into `target`.
-func Merge(target sgmt.MutableSegment, srcs ...sgmt.MutableSegment) error {
+func Merge(target sgmt.MutableSegment, srcs ...sgmt.Segment) error {
 	safeClosers := []io.Closer{}
 	defer func() {
 		for _, c := range safeClosers {

@@ -111,7 +111,7 @@ func TestFlushManagerFlushAlreadyInProgress(t *testing.T) {
 }
 
 func TestFlushManagerFlushDoneDataError(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	fakeErr := errors.New("fake error while marking flush done")
@@ -137,7 +137,7 @@ func TestFlushManagerFlushDoneDataError(t *testing.T) {
 }
 
 func TestFlushManagerFlushDoneIndexError(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	mockFlusher := persist.NewMockDataFlush(ctrl)
@@ -238,7 +238,7 @@ func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
 }
 
 func TestFlushManagerFlushTimeStart(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	inputs := []struct {
@@ -258,7 +258,7 @@ func TestFlushManagerFlushTimeStart(t *testing.T) {
 }
 
 func TestFlushManagerFlushTimeEnd(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	inputs := []struct {
@@ -278,7 +278,7 @@ func TestFlushManagerFlushTimeEnd(t *testing.T) {
 }
 
 func TestFlushManagerNamespaceFlushTimesNoNeedFlush(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	fm, ns1, _ := newMultipleFlushManagerNeedsFlush(t, ctrl)
@@ -290,7 +290,7 @@ func TestFlushManagerNamespaceFlushTimesNoNeedFlush(t *testing.T) {
 }
 
 func TestFlushManagerNamespaceFlushTimesAllNeedFlush(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	fm, ns1, _ := newMultipleFlushManagerNeedsFlush(t, ctrl)
@@ -311,7 +311,7 @@ func TestFlushManagerNamespaceFlushTimesAllNeedFlush(t *testing.T) {
 }
 
 func TestFlushManagerNamespaceFlushTimesSomeNeedFlush(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	fm, ns1, _ := newMultipleFlushManagerNeedsFlush(t, ctrl)
@@ -343,7 +343,7 @@ func TestFlushManagerNamespaceFlushTimesSomeNeedFlush(t *testing.T) {
 }
 
 func TestFlushManagerFlushSnapshot(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	fm, ns1, ns2 := newMultipleFlushManagerNeedsFlush(t, ctrl)
@@ -379,7 +379,7 @@ func TestFlushManagerFlushSnapshot(t *testing.T) {
 }
 
 func TestFlushManagerFlushNoSnapshotWhileFlushPending(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	fm, ns1, ns2 := newMultipleFlushManagerNeedsFlush(t, ctrl)
@@ -414,7 +414,7 @@ func TestFlushManagerFlushNoSnapshotWhileFlushPending(t *testing.T) {
 }
 
 func TestFlushManagerSnapshotBlockStart(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	fm, _, _ := newMultipleFlushManagerNeedsFlush(t, ctrl)

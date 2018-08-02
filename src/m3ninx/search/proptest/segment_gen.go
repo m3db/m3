@@ -55,8 +55,7 @@ func collectDocs(iter doc.Iterator) ([]doc.Document, error) {
 
 func newTestMemSegment(t *testing.T, docs []doc.Document) segment.MutableSegment {
 	opts := mem.NewOptions()
-	s, err := mem.NewSegment(postings.ID(0), opts)
-	require.NoError(t, err)
+	s := mem.NewSegment(postings.ID(0), opts)
 	for _, d := range docs {
 		_, err := s.Insert(d)
 		require.NoError(t, err)
@@ -68,11 +67,10 @@ func (i propTestInput) generate(t *testing.T, docs []doc.Document) []segment.Seg
 	var result []segment.Segment
 	for j := 0; j < len(i.segments); j++ {
 		initialOffset := postings.ID(i.segments[j].initialDocIDOffset)
-		s, err := mem.NewSegment(initialOffset, memOptions)
-		require.NoError(t, err)
+		s := mem.NewSegment(initialOffset, memOptions)
 		for k := 0; k < len(i.docIds[j]); k++ {
 			idx := i.docIds[j][k]
-			_, err = s.Insert(docs[idx])
+			_, err := s.Insert(docs[idx])
 			require.NoError(t, err)
 		}
 

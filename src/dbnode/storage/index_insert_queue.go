@@ -176,8 +176,9 @@ func (q *nsIndexInsertQueue) InsertBatch(
 			return nil, errNewSeriesIndexRateLimitExceeded
 		}
 	}
-	batchLen := batch.Len()
 	q.currBatch.inserts = append(q.currBatch.inserts, batch)
+	batchLen := batch.Len()
+	numBatches := len(q.currBatch.inserts)
 	wg := q.currBatch.wg
 	q.Unlock()
 
@@ -188,7 +189,8 @@ func (q *nsIndexInsertQueue) InsertBatch(
 		// Loop busy, already ready to consume notification
 	}
 
-	q.metrics.numPending.Inc(int64(batchLen))
+	q.metrics.numPendingDocs.Inc(int64(batchLen))
+	q.metrics.numPendingBatches.Update(float64(numBatches))
 	return wg, nil
 }
 
@@ -248,7 +250,8 @@ func (b *nsIndexInsertBatch) Reset() {
 }
 
 type nsIndexInsertQueueMetrics struct {
-	numPending tally.Counter
+	numPendingDocs    tally.Counter
+	numPendingBatches tally.Gauge
 }
 
 func newNamespaceIndexInsertQueueMetrics(
@@ -256,6 +259,7 @@ func newNamespaceIndexInsertQueueMetrics(
 ) nsIndexInsertQueueMetrics {
 	subScope := scope.SubScope("index-queue")
 	return nsIndexInsertQueueMetrics{
-		numPending: subScope.Counter("num-pending"),
+		numPendingDocs:    subScope.Counter("num-pending-docs"),
+		numPendingBatches: subScope.Gauge("num-pending-batches"),
 	}
 }

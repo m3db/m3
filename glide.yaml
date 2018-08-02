@@ -129,7 +129,7 @@ import:
   version: 0bce6a6887123b67a60366d2c9fe2dfb74289d2e
 
 - package: github.com/pilosa/pilosa/roaring
-  version: ^0.9 # FOLLOWUP: should move to 1.0 once that's released
+  version: ^1
 
 # NB(prateek): ideally, the following dependencies would be under testImport, but
 # Glide doesn't like that. https://github.com/Masterminds/glide/issues/564

@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	xtest "github.com/m3db/m3x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/leanovate/gopter"
@@ -91,7 +92,7 @@ func newCleanupMgrTestProperties() *gopter.Properties {
 }
 
 func TestPropertyCommitLogNotCleanedForUnflushedData(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	properties := newCleanupMgrTestProperties()
@@ -126,7 +127,7 @@ func TestPropertyCommitLogNotCleanedForUnflushedData(t *testing.T) {
 }
 
 func TestPropertyCommitLogNotCleanedForUnflushedDataMultipleNs(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	properties := newCleanupMgrTestProperties()

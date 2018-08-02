@@ -36,21 +36,13 @@ var (
 
 var (
 	// DefaultLevels are the default Level(s) used for compaction options.
-	DefaultLevels = []Level{ // i.e. tiers for compaction [0, 262K), [262K, 524K), [524K, 1M), [1M, 2M), [2M, 8M)
+	DefaultLevels = []Level{ // i.e. tiers for compaction [0, 524K), [524K, 2M), [2M, 8M)
 		Level{
 			MinSizeInclusive: 0,
-			MaxSizeExclusive: 1 << 18,
-		},
-		Level{
-			MinSizeInclusive: 1 << 18,
 			MaxSizeExclusive: 1 << 19,
 		},
 		Level{
 			MinSizeInclusive: 1 << 19,
-			MaxSizeExclusive: 1 << 20,
-		},
-		Level{
-			MinSizeInclusive: 1 << 20,
 			MaxSizeExclusive: 1 << 21,
 		},
 		Level{
@@ -174,6 +166,12 @@ func NewPlan(compactableSegments []Segment, opts PlannerOptions) (*Plan, error) 
 			accumulatedSize int64
 		)
 		sort.Slice(levelSegments, func(i, j int) bool {
+			// i.e. order to prefer mutable segments first, and then smaller segments
+			iMutable := levelSegments[i].Type == segments.MutableType
+			jMutable := levelSegments[j].Type == segments.MutableType
+			if iMutable != jMutable {
+				return iMutable
+			}
 			return levelSegments[i].Size < levelSegments[j].Size
 		})
 		for _, seg := range levelSegments {

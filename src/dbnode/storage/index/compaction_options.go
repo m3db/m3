@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,35 +18,47 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package index
 
 import (
-	"testing"
+	"math"
+	"runtime"
 
-	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	xtest "github.com/m3db/m3x/test"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
+	xsync "github.com/m3db/m3x/sync"
 )
 
-func TestOptionsValidateDefaults(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
-	defer ctrl.Finish()
-
-	mockInit := namespace.NewMockInitializer(ctrl)
-	dbOpts := testDatabaseOptions().
-		SetNamespaceInitializer(mockInit)
-	require.NoError(t, dbOpts.Validate())
+type compactionOpts struct {
+	plannerOpts compaction.PlannerOptions
+	workerPool  xsync.WorkerPool
 }
 
-func TestOptionsValidateNilRegistry(t *testing.T) {
-	dbOpts := testDatabaseOptions().
-		SetNamespaceInitializer(nil)
-	require.Error(t, dbOpts.Validate())
+func NewCompactionOptions() CompactionOptions {
+	defaultConcurrency := int(math.Max(1, math.Ceil(float64(runtime.NumCPU())/4)))
+	workers := xsync.NewWorkerPool(defaultConcurrency)
+	workers.Init()
+	return &compactionOpts{
+		plannerOpts: compaction.DefaultOptions,
+		workerPool:  workers,
+	}
 }
 
-func TestOptionsValidateIndexOptions(t *testing.T) {
-	opts := testDatabaseOptions().SetIndexOptions(nil)
-	require.Error(t, opts.Validate())
+func (co *compactionOpts) SetPlannerOptions(value compaction.PlannerOptions) CompactionOptions {
+	opts := *co
+	opts.plannerOpts = value
+	return &opts
+}
+
+func (co *compactionOpts) PlannerOptions() compaction.PlannerOptions {
+	return co.plannerOpts
+}
+
+func (co *compactionOpts) SetWorkerPool(value xsync.WorkerPool) CompactionOptions {
+	opts := *co
+	opts.workerPool = value
+	return &opts
+}
+
+func (co *compactionOpts) WorkerPool() xsync.WorkerPool {
+	return co.workerPool
 }

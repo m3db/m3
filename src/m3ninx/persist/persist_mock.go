@@ -163,111 +163,111 @@ func (mr *MockIndexSegmentFileSetWriterMockRecorder) WriteFile(fileType, writer 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteFile", reflect.TypeOf((*MockIndexSegmentFileSetWriter)(nil).WriteFile), fileType, writer)
 }
 
-// MockMutableSegmentFileSetWriter is a mock of MutableSegmentFileSetWriter interface
-type MockMutableSegmentFileSetWriter struct {
+// MockReusableSegmentFileSetWriter is a mock of ReusableSegmentFileSetWriter interface
+type MockReusableSegmentFileSetWriter struct {
 	ctrl     *gomock.Controller
-	recorder *MockMutableSegmentFileSetWriterMockRecorder
+	recorder *MockReusableSegmentFileSetWriterMockRecorder
 }
 
-// MockMutableSegmentFileSetWriterMockRecorder is the mock recorder for MockMutableSegmentFileSetWriter
-type MockMutableSegmentFileSetWriterMockRecorder struct {
-	mock *MockMutableSegmentFileSetWriter
+// MockReusableSegmentFileSetWriterMockRecorder is the mock recorder for MockReusableSegmentFileSetWriter
+type MockReusableSegmentFileSetWriterMockRecorder struct {
+	mock *MockReusableSegmentFileSetWriter
 }
 
-// NewMockMutableSegmentFileSetWriter creates a new mock instance
-func NewMockMutableSegmentFileSetWriter(ctrl *gomock.Controller) *MockMutableSegmentFileSetWriter {
-	mock := &MockMutableSegmentFileSetWriter{ctrl: ctrl}
-	mock.recorder = &MockMutableSegmentFileSetWriterMockRecorder{mock}
+// NewMockReusableSegmentFileSetWriter creates a new mock instance
+func NewMockReusableSegmentFileSetWriter(ctrl *gomock.Controller) *MockReusableSegmentFileSetWriter {
+	mock := &MockReusableSegmentFileSetWriter{ctrl: ctrl}
+	mock.recorder = &MockReusableSegmentFileSetWriterMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use
-func (m *MockMutableSegmentFileSetWriter) EXPECT() *MockMutableSegmentFileSetWriterMockRecorder {
+func (m *MockReusableSegmentFileSetWriter) EXPECT() *MockReusableSegmentFileSetWriterMockRecorder {
 	return m.recorder
 }
 
 // SegmentType mocks base method
-func (m *MockMutableSegmentFileSetWriter) SegmentType() IndexSegmentType {
+func (m *MockReusableSegmentFileSetWriter) SegmentType() IndexSegmentType {
 	ret := m.ctrl.Call(m, "SegmentType")
 	ret0, _ := ret[0].(IndexSegmentType)
 	return ret0
 }
 
 // SegmentType indicates an expected call of SegmentType
-func (mr *MockMutableSegmentFileSetWriterMockRecorder) SegmentType() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentType", reflect.TypeOf((*MockMutableSegmentFileSetWriter)(nil).SegmentType))
+func (mr *MockReusableSegmentFileSetWriterMockRecorder) SegmentType() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentType", reflect.TypeOf((*MockReusableSegmentFileSetWriter)(nil).SegmentType))
 }
 
 // MajorVersion mocks base method
-func (m *MockMutableSegmentFileSetWriter) MajorVersion() int {
+func (m *MockReusableSegmentFileSetWriter) MajorVersion() int {
 	ret := m.ctrl.Call(m, "MajorVersion")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
 // MajorVersion indicates an expected call of MajorVersion
-func (mr *MockMutableSegmentFileSetWriterMockRecorder) MajorVersion() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MajorVersion", reflect.TypeOf((*MockMutableSegmentFileSetWriter)(nil).MajorVersion))
+func (mr *MockReusableSegmentFileSetWriterMockRecorder) MajorVersion() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MajorVersion", reflect.TypeOf((*MockReusableSegmentFileSetWriter)(nil).MajorVersion))
 }
 
 // MinorVersion mocks base method
-func (m *MockMutableSegmentFileSetWriter) MinorVersion() int {
+func (m *MockReusableSegmentFileSetWriter) MinorVersion() int {
 	ret := m.ctrl.Call(m, "MinorVersion")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
 // MinorVersion indicates an expected call of MinorVersion
-func (mr *MockMutableSegmentFileSetWriterMockRecorder) MinorVersion() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MinorVersion", reflect.TypeOf((*MockMutableSegmentFileSetWriter)(nil).MinorVersion))
+func (mr *MockReusableSegmentFileSetWriterMockRecorder) MinorVersion() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MinorVersion", reflect.TypeOf((*MockReusableSegmentFileSetWriter)(nil).MinorVersion))
 }
 
 // SegmentMetadata mocks base method
-func (m *MockMutableSegmentFileSetWriter) SegmentMetadata() []byte {
+func (m *MockReusableSegmentFileSetWriter) SegmentMetadata() []byte {
 	ret := m.ctrl.Call(m, "SegmentMetadata")
 	ret0, _ := ret[0].([]byte)
 	return ret0
 }
 
 // SegmentMetadata indicates an expected call of SegmentMetadata
-func (mr *MockMutableSegmentFileSetWriterMockRecorder) SegmentMetadata() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentMetadata", reflect.TypeOf((*MockMutableSegmentFileSetWriter)(nil).SegmentMetadata))
+func (mr *MockReusableSegmentFileSetWriterMockRecorder) SegmentMetadata() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentMetadata", reflect.TypeOf((*MockReusableSegmentFileSetWriter)(nil).SegmentMetadata))
 }
 
 // Files mocks base method
-func (m *MockMutableSegmentFileSetWriter) Files() []IndexSegmentFileType {
+func (m *MockReusableSegmentFileSetWriter) Files() []IndexSegmentFileType {
 	ret := m.ctrl.Call(m, "Files")
 	ret0, _ := ret[0].([]IndexSegmentFileType)
 	return ret0
 }
 
 // Files indicates an expected call of Files
-func (mr *MockMutableSegmentFileSetWriterMockRecorder) Files() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Files", reflect.TypeOf((*MockMutableSegmentFileSetWriter)(nil).Files))
+func (mr *MockReusableSegmentFileSetWriterMockRecorder) Files() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Files", reflect.TypeOf((*MockReusableSegmentFileSetWriter)(nil).Files))
 }
 
 // WriteFile mocks base method
-func (m *MockMutableSegmentFileSetWriter) WriteFile(fileType IndexSegmentFileType, writer io.Writer) error {
+func (m *MockReusableSegmentFileSetWriter) WriteFile(fileType IndexSegmentFileType, writer io.Writer) error {
 	ret := m.ctrl.Call(m, "WriteFile", fileType, writer)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // WriteFile indicates an expected call of WriteFile
-func (mr *MockMutableSegmentFileSetWriterMockRecorder) WriteFile(fileType, writer interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteFile", reflect.TypeOf((*MockMutableSegmentFileSetWriter)(nil).WriteFile), fileType, writer)
+func (mr *MockReusableSegmentFileSetWriterMockRecorder) WriteFile(fileType, writer interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteFile", reflect.TypeOf((*MockReusableSegmentFileSetWriter)(nil).WriteFile), fileType, writer)
 }
 
 // Reset mocks base method
-func (m *MockMutableSegmentFileSetWriter) Reset(arg0 segment.MutableSegment) error {
+func (m *MockReusableSegmentFileSetWriter) Reset(arg0 segment.Segment) error {
 	ret := m.ctrl.Call(m, "Reset", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Reset indicates an expected call of Reset
-func (mr *MockMutableSegmentFileSetWriterMockRecorder) Reset(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockMutableSegmentFileSetWriter)(nil).Reset), arg0)
+func (mr *MockReusableSegmentFileSetWriterMockRecorder) Reset(arg0 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockReusableSegmentFileSetWriter)(nil).Reset), arg0)
 }
 
 // MockIndexFileSetReader is a mock of IndexFileSetReader interface

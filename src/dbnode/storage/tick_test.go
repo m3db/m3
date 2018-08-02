@@ -27,13 +27,14 @@ import (
 	"time"
 
 	"github.com/m3db/m3x/context"
+	xtest "github.com/m3db/m3x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
 func TestTickManagerTickNormalFlow(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	opts := testDatabaseOptions()
@@ -52,7 +53,7 @@ func TestTickManagerTickNormalFlow(t *testing.T) {
 }
 
 func TestTickManagerTickCancelled(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	var wg sync.WaitGroup
@@ -88,7 +89,7 @@ func TestTickManagerTickCancelled(t *testing.T) {
 }
 
 func TestTickManagerTickErrorFlow(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	opts := testDatabaseOptions()
@@ -110,7 +111,7 @@ func TestTickManagerTickErrorFlow(t *testing.T) {
 }
 
 func TestTickManagerNonForcedTickDuringOngoingTick(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	var wg sync.WaitGroup
@@ -148,7 +149,7 @@ func TestTickManagerNonForcedTickDuringOngoingTick(t *testing.T) {
 }
 
 func TestTickManagerForcedTickDuringOngoingTick(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	var wg sync.WaitGroup

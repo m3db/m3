@@ -139,7 +139,7 @@ func TestShardFlushStateNotStarted(t *testing.T) {
 }
 
 func TestShardBootstrapWithError(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	opts := testDatabaseOptions()
@@ -187,7 +187,7 @@ func TestShardFlushDuringBootstrap(t *testing.T) {
 }
 
 func TestShardFlushSeriesFlushError(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	blockStart := time.Unix(21600, 0)
@@ -252,7 +252,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 }
 
 func TestShardFlushSeriesFlushSuccess(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	blockStart := time.Unix(21600, 0)
@@ -313,7 +313,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 }
 
 func TestShardSnapshotShardNotBootstrapped(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	blockStart := time.Unix(21600, 0)
@@ -328,7 +328,7 @@ func TestShardSnapshotShardNotBootstrapped(t *testing.T) {
 }
 
 func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	blockStart := time.Unix(21600, 0)
@@ -595,7 +595,7 @@ func TestShardTickCleanupSmallBatchSize(t *testing.T) {
 
 // This tests ensures the shard returns an error if two ticks are triggered concurrently.
 func TestShardReturnsErrorForConcurrentTicks(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	opts := testDatabaseOptions()
@@ -640,7 +640,7 @@ func TestShardReturnsErrorForConcurrentTicks(t *testing.T) {
 // This tests ensures the resources held in series contained in the shard are released
 // when closing the shard.
 func TestShardTicksWhenClosed(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	opts := testDatabaseOptions()
@@ -656,7 +656,7 @@ func TestShardTicksWhenClosed(t *testing.T) {
 
 // This tests ensures the shard terminates Ticks when closing.
 func TestShardTicksStopWhenClosing(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	opts := testDatabaseOptions()
@@ -738,7 +738,7 @@ func TestPurgeExpiredSeriesNonEmptySeries(t *testing.T) {
 // but receives writes after tickForEachSeries finishes but before purgeExpiredSeries
 // starts. The expected behavior is not to expire series in this case.
 func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	opts := testDatabaseOptions()
@@ -766,7 +766,7 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 // starts, we receive a write for a series, then purgeExpiredSeries runs, then we write to
 // the series. The expected behavior is not to expire series in this case.
 func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	var entry *lookup.Entry
@@ -841,7 +841,7 @@ func TestShardFetchBlocksIDNotExists(t *testing.T) {
 }
 
 func TestShardFetchBlocksIDExists(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	opts := testDatabaseOptions()
@@ -961,7 +961,7 @@ func (c *testCloser) Close() {
 }
 
 func TestShardRegisterRuntimeOptionsListeners(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	callRegisterListenerOnShard := 0
@@ -999,7 +999,7 @@ func TestShardRegisterRuntimeOptionsListeners(t *testing.T) {
 }
 
 func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	opts := testDatabaseOptions().SetSeriesCachePolicy(series.CacheRecentlyRead)
@@ -1087,7 +1087,7 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 }
 
 func TestShardNewInvalidShardEntry(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	shard := testDatabaseShard(t, testDatabaseOptions())
@@ -1107,7 +1107,7 @@ func TestShardNewInvalidShardEntry(t *testing.T) {
 }
 
 func TestShardNewValidShardEntry(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	shard := testDatabaseShard(t, testDatabaseOptions())
@@ -1123,7 +1123,7 @@ func TestShardNewValidShardEntry(t *testing.T) {
 // either to retry inserting a series or to finalize the tags at the
 // end of a request/response cycle or from a disk retrieve cycle.
 func TestShardNewEntryDoesNotAlterIDOrTags(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	shard := testDatabaseShard(t, testDatabaseOptions())
@@ -1184,7 +1184,7 @@ func TestShardNewEntryDoesNotAlterIDOrTags(t *testing.T) {
 // marked as NoFinalize that newShardEntry simply takes a ref as it can
 // safely be assured the ID is not pooled.
 func TestShardNewEntryTakesRefToNoFinalizeID(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	shard := testDatabaseShard(t, testDatabaseOptions())

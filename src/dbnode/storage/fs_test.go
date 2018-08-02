@@ -26,11 +26,12 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	xtest "github.com/m3db/m3x/test"
 	"github.com/stretchr/testify/require"
 )
 
 func TestFileSystemManagerShouldRunDuringBootstrap(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	database := newMockdatabase(ctrl)
@@ -45,7 +46,7 @@ func TestFileSystemManagerShouldRunDuringBootstrap(t *testing.T) {
 }
 
 func TestFileSystemManagerShouldRunWhileRunning(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 	database := newMockdatabase(ctrl)
 	fsm := newFileSystemManager(database, testDatabaseOptions())
@@ -57,7 +58,7 @@ func TestFileSystemManagerShouldRunWhileRunning(t *testing.T) {
 }
 
 func TestFileSystemManagerShouldRunEnableDisable(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 	database := newMockdatabase(ctrl)
 	fsm := newFileSystemManager(database, testDatabaseOptions())
@@ -71,7 +72,7 @@ func TestFileSystemManagerShouldRunEnableDisable(t *testing.T) {
 }
 
 func TestFileSystemManagerRun(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 	database := newMockdatabase(ctrl)
 	database.EXPECT().IsBootstrapped().Return(true).AnyTimes()

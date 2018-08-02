@@ -1209,6 +1209,26 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 
 	s.Lock()
 	for i := range inserts {
+		// i.e. we don't have a ref on provided entry, so we check if between the operation being
+		// enqueue in the shard insert queue, and this function executing, an entry was created
+		// for the same ID.
+		entry, _, err := s.lookupEntryWithLock(inserts[i].entry.Series.ID())
+		if entry != nil {
+			// Already exists so update the entry we're pointed at for this insert
+			inserts[i].entry = entry
+		}
+
+		// if it's a new series ID, i.e. we don't yet have an entry for it in the
+		// shard map, we can't rely on the NeedsIndexUpdate CAS to have done the don't
+		// writeness correctly.
+		if inserts[i].opts.hasPendingWrite && inserts[i].opts.hasPendingIndexing {
+			// check if it actually needs to be indexed
+			ts := inserts[i].opts.pendingIndex.timestamp
+			if !inserts[i].entry.NeedsIndexUpdate(s.reverseIndex.BlockStartForWriteTime(ts)) {
+				inserts[i].opts.hasPendingIndexing = false
+			}
+		}
+
 		// If we are going to write to this entry then increment the
 		// writer count so it does not look empty immediately after
 		// we release the write lock.
@@ -1227,15 +1247,6 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		if inserts[i].opts.entryRefCountIncremented {
 			// don't need to inc a ref on the entry, we were given as writable entry as input.
 			continue
-		}
-
-		// i.e. we don't have a ref on provided entry, so we check if between the operation being
-		// enqueue in the shard insert queue, and this function executing, an entry was created
-		// for the same ID.
-		entry, _, err := s.lookupEntryWithLock(inserts[i].entry.Series.ID())
-		if entry != nil {
-			// Already exists so update the entry we're pointed at for this insert
-			inserts[i].entry = entry
 		}
 
 		if hasPendingIndexing || hasPendingWrite || hasPendingRetrievedBlock {

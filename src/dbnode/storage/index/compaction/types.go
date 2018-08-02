@@ -30,10 +30,11 @@ import (
 
 // Segment identifies a candidate for compaction.
 type Segment struct {
-	Age     time.Duration
-	Size    int64
-	Type    segments.Type
-	Segment segment.Segment
+	CompactionNumber int64
+	Size             int64
+	Age              time.Duration
+	Type             segments.Type
+	Segment          segment.Segment
 }
 
 // Task identifies a collection of segments to compact.

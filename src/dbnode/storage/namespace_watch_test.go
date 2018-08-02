@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3x/instrument"
+	xtest "github.com/m3db/m3x/test"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
@@ -52,7 +53,7 @@ func newTestNamespaceWatch(t *testing.T, ctrl *gomock.Controller) (
 }
 
 func TestNamespaceWatchStartStop(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	ch := make(chan struct{}, 1)
 	defer func() {
 		ctrl.Finish()
@@ -73,7 +74,7 @@ func TestNamespaceWatchStartStop(t *testing.T) {
 }
 
 func TestNamespaceWatchStopWithoutStart(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	ch := make(chan struct{}, 1)
 	defer func() {
 		ctrl.Finish()
@@ -87,7 +88,7 @@ func TestNamespaceWatchStopWithoutStart(t *testing.T) {
 }
 
 func TestNamespaceWatchUpdatePropagation(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	ch := make(chan struct{}, 1)
 	defer func() {
 		ctrl.Finish()

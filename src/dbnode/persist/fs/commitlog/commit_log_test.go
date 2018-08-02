@@ -472,9 +472,10 @@ func TestCommitLogReaderIsNotReusable(t *testing.T) {
 	reader := newCommitLogReader(opts, ReadAllSeriesPredicate())
 	_, _, _, err = reader.Open(files[0])
 	require.NoError(t, err)
-	reader.Close()
+	require.NoError(t, reader.Close())
 	_, _, _, err = reader.Open(files[0])
 	require.Equal(t, errCommitLogReaderIsNotReusable, err)
+	reader.Close()
 }
 
 func TestCommitLogIteratorUsesPredicateFilter(t *testing.T) {

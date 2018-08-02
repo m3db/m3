@@ -157,7 +157,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 	seriesOpts := series.NewOptions()
 
 	// Default to using half of the available cores for querying IDs
-	queryIDsWorkerPool := xsync.NewWorkerPool(int(math.Ceil(float64(runtime.NumCPU()) / 2)))
+	queryIDsWorkerPool := xsync.NewWorkerPool(int(math.Ceil(float64(runtime.NumCPU()))))
 	queryIDsWorkerPool.Init()
 
 	o := &options{

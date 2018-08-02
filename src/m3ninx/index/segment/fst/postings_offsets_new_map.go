@@ -32,7 +32,7 @@ import (
 func newPostingsOffsetsMap(initialSize int) *postingsOffsetsMap {
 	return _postingsOffsetsMapAlloc(_postingsOffsetsMapOptions{
 		hash: func(f doc.Field) postingsOffsetsMapHash {
-			// NB(pratee): Similar to the standard composite key hashes for Java objects
+			// NB(prateek): Similar to the standard composite key hashes for Java objects
 			hash := uint64(7)
 			hash = 31*hash + xxhash.Sum64(f.Name)
 			hash = 31*hash + xxhash.Sum64(f.Value)

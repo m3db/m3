@@ -32,13 +32,21 @@ var (
 )
 
 var (
-	// TODO(prateek): tweak builderopts for vellum
+	// TODO(prateek): configure the opts below for different use-cases - flush v compaction differently.
+	// for compaction -
 	vellumBuilderOpts = &vellum.BuilderOpts{
 		Encoder:                  1,
-		RegistryTableSize:        20000,
-		RegistryMRUSize:          4,
+		RegistryTableSize:        10000,
+		RegistryMRUSize:          2,
 		UnfinishedNodesStackSize: 4096,
 	}
+	// for flush -
+	// vellumBuilderOpts = &vellum.BuilderOpts{
+	// 	Encoder:                  1,
+	// 	RegistryTableSize:        80000,
+	// 	RegistryMRUSize:          4,
+	// 	UnfinishedNodesStackSize: 4096,
+	// }
 )
 
 // fstWriter is a writer to help construct an FST.

@@ -461,11 +461,8 @@ func TestBaseBootstrapperIndexHalfCurrentHalfNext(t *testing.T) {
 		}),
 	}
 
-	segFirst, err := mem.NewSegment(0, mem.NewOptions())
-	require.NoError(t, err)
-
-	segSecond, err := mem.NewSegment(0, mem.NewOptions())
-	require.NoError(t, err)
+	segFirst := mem.NewSegment(0, mem.NewOptions())
+	segSecond := mem.NewSegment(0, mem.NewOptions())
 
 	currResult := result.NewIndexBootstrapResult()
 	currResult.Add(result.NewIndexBlock(testTargetStart,

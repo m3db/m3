@@ -73,8 +73,11 @@ func TestNamespaceIndexCleanupExpiredFilesetsWithBlocks(t *testing.T) {
 	idx := nsIdx.(*nsIndex)
 
 	mockBlock := index.NewMockBlock(ctrl)
+	mockBlock.EXPECT().Stats().Return(index.BlockStats{}).AnyTimes()
 	oldestTime := now.Add(-time.Hour * 9)
+	idx.state.Lock()
 	idx.state.blocksByTime[xtime.ToUnixNano(oldestTime)] = mockBlock
+	idx.state.Unlock()
 
 	idx.indexFilesetsBeforeFn = func(dir string, nsID ident.ID, exclusiveTime time.Time) ([]string, error) {
 		require.True(t, exclusiveTime.Equal(oldestTime))
@@ -104,13 +107,15 @@ func TestNamespaceIndexFlushSuccess(t *testing.T) {
 	idx := nsIdx.(*nsIndex)
 
 	mockBlock := index.NewMockBlock(ctrl)
+	mockBlock.EXPECT().Stats().Return(index.BlockStats{}).AnyTimes()
 	blockTime := now.Add(-2 * indexBlockSize)
 	mockBlock.EXPECT().StartTime().Return(blockTime).AnyTimes()
 	mockBlock.EXPECT().EndTime().Return(blockTime.Add(indexBlockSize)).AnyTimes()
-	idx.state.blocksByTime[xtime.ToUnixNano(blockTime)] = mockBlock
-
 	mockBlock.EXPECT().IsSealed().Return(true)
-	mockBlock.EXPECT().NeedsMutableSegmentsEvicted().Return(true)
+	mockBlock.EXPECT().NeedsFlush().Return(true)
+	idx.state.Lock()
+	idx.state.blocksByTime[xtime.ToUnixNano(blockTime)] = mockBlock
+	idx.state.Unlock()
 
 	mockShard := NewMockdatabaseShard(ctrl)
 	mockShard.EXPECT().ID().Return(uint32(0)).AnyTimes()
@@ -148,7 +153,7 @@ func TestNamespaceIndexFlushSuccess(t *testing.T) {
 		gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{}).Return(results, nil, nil)
 
 	mockBlock.EXPECT().AddResults(gomock.Any()).Return(nil)
-	mockBlock.EXPECT().EvictMutableSegments().Return(index.EvictMutableSegmentResults{}, nil)
+	mockBlock.EXPECT().EvictActiveSegments().Return(index.EvictActiveSegmentResults{}, nil)
 
 	require.NoError(t, nsIdx.Flush(mockFlush, shards))
 	require.True(t, persistCalled)
@@ -176,13 +181,16 @@ func TestNamespaceIndexFlushShardStateNotSuccess(t *testing.T) {
 	idx := nsIdx.(*nsIndex)
 
 	mockBlock := index.NewMockBlock(ctrl)
+	mockBlock.EXPECT().Stats().Return(index.BlockStats{}).AnyTimes()
 	blockTime := now.Add(-2 * indexBlockSize)
 	mockBlock.EXPECT().StartTime().Return(blockTime).AnyTimes()
 	mockBlock.EXPECT().EndTime().Return(blockTime.Add(indexBlockSize)).AnyTimes()
+	idx.state.Lock()
 	idx.state.blocksByTime[xtime.ToUnixNano(blockTime)] = mockBlock
+	idx.state.Unlock()
 
 	mockBlock.EXPECT().IsSealed().Return(true)
-	mockBlock.EXPECT().NeedsMutableSegmentsEvicted().Return(true)
+	mockBlock.EXPECT().NeedsFlush().Return(true)
 
 	mockShard := NewMockdatabaseShard(ctrl)
 	mockShard.EXPECT().ID().Return(uint32(0)).AnyTimes()
@@ -216,13 +224,16 @@ func TestNamespaceIndexFlushSuccessMultipleShards(t *testing.T) {
 	idx := nsIdx.(*nsIndex)
 
 	mockBlock := index.NewMockBlock(ctrl)
+	mockBlock.EXPECT().Stats().Return(index.BlockStats{}).AnyTimes()
 	blockTime := now.Add(-2 * indexBlockSize)
 	mockBlock.EXPECT().StartTime().Return(blockTime).AnyTimes()
 	mockBlock.EXPECT().EndTime().Return(blockTime.Add(indexBlockSize)).AnyTimes()
+	idx.state.Lock()
 	idx.state.blocksByTime[xtime.ToUnixNano(blockTime)] = mockBlock
+	idx.state.Unlock()
 
 	mockBlock.EXPECT().IsSealed().Return(true)
-	mockBlock.EXPECT().NeedsMutableSegmentsEvicted().Return(true)
+	mockBlock.EXPECT().NeedsFlush().Return(true)
 
 	mockShard1 := NewMockdatabaseShard(ctrl)
 	mockShard1.EXPECT().ID().Return(uint32(0)).AnyTimes()
@@ -272,7 +283,7 @@ func TestNamespaceIndexFlushSuccessMultipleShards(t *testing.T) {
 		gomock.Any(), gomock.Any(), block.FetchBlocksMetadataOptions{}).Return(results2, nil, nil)
 
 	mockBlock.EXPECT().AddResults(gomock.Any()).Return(nil)
-	mockBlock.EXPECT().EvictMutableSegments().Return(index.EvictMutableSegmentResults{}, nil)
+	mockBlock.EXPECT().EvictActiveSegments().Return(index.EvictActiveSegmentResults{}, nil)
 
 	require.NoError(t, nsIdx.Flush(mockFlush, shards))
 	require.Equal(t, 2, numPersistCalls)

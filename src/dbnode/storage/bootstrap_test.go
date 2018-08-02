@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3x/ident"
+	xtest "github.com/m3db/m3x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -34,7 +35,7 @@ import (
 )
 
 func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	opts := testDatabaseOptions()
@@ -63,7 +64,7 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 }
 
 func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	opts := testDatabaseOptions()

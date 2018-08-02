@@ -26,13 +26,14 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
+	xtest "github.com/m3db/m3x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
 func TestWriteBatchForEachUnmarkedBatchByBlockStart(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	blockSize := time.Hour
@@ -79,7 +80,7 @@ func TestWriteBatchForEachUnmarkedBatchByBlockStart(t *testing.T) {
 }
 
 func TestWriteBatchForEachUnmarkedBatchByBlockStartMore(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	blockSize := time.Hour

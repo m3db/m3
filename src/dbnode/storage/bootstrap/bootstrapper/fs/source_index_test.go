@@ -133,8 +133,7 @@ func writeTSDBPersistedIndexBlock(
 	shards map[uint32]struct{},
 	block []testSeries,
 ) {
-	seg, err := mem.NewSegment(0, mem.NewOptions())
-	require.NoError(t, err)
+	seg := mem.NewSegment(0, mem.NewOptions())
 
 	for _, series := range block {
 		d, err := convert.FromMetric(series.ID(), series.Tags())
@@ -148,7 +147,7 @@ func writeTSDBPersistedIndexBlock(
 		require.NoError(t, err)
 	}
 
-	_, err = seg.Seal()
+	_, err := seg.Seal()
 	require.NoError(t, err)
 
 	pm := newTestOptionsWithPersistManager(t, dir).PersistManager()

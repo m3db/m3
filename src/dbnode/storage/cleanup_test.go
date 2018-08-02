@@ -48,7 +48,7 @@ var (
 )
 
 func TestCleanupManagerCleanup(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	ts := timeFor(36000)
@@ -123,7 +123,7 @@ func TestCleanupManagerNamespaceCleanup(t *testing.T) {
 
 // Test NS doesn't cleanup when flag is present
 func TestCleanupManagerDoesntNeedCleanup(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 	ts := timeFor(36000)
 	rOpts := retention.NewOptions().
@@ -155,7 +155,7 @@ func TestCleanupManagerDoesntNeedCleanup(t *testing.T) {
 }
 
 func TestCleanupDataAndSnapshotFileSetFiles(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 	ts := timeFor(36000)
 
@@ -186,7 +186,7 @@ type deleteInactiveDirectoriesCall struct {
 }
 
 func TestDeleteInactiveDataAndSnapshotFileSetFiles(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 	ts := timeFor(36000)
 
@@ -246,7 +246,7 @@ func TestDeleteInactiveDataAndSnapshotFileSetFiles(t *testing.T) {
 }
 
 func TestCleanupManagerPropagatesGetOwnedNamespacesError(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	ts := timeFor(36000)
@@ -474,7 +474,7 @@ func newCleanupManagerCommitLogTimesTestMultiNS(
 }
 
 func TestCleanupManagerCommitLogTimesAllFlushed(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
@@ -501,7 +501,7 @@ func TestCleanupManagerCommitLogTimesAllFlushed(t *testing.T) {
 }
 
 func TestCleanupManagerCommitLogTimesMiddlePendingFlush(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
@@ -529,7 +529,7 @@ func TestCleanupManagerCommitLogTimesMiddlePendingFlush(t *testing.T) {
 }
 
 func TestCleanupManagerCommitLogTimesStartPendingFlush(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
@@ -558,7 +558,7 @@ func TestCleanupManagerCommitLogTimesStartPendingFlush(t *testing.T) {
 }
 
 func TestCleanupManagerCommitLogTimesAllPendingFlush(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
@@ -597,7 +597,7 @@ func contains(arr []commitlog.File, t time.Time) bool {
 }
 
 func TestCleanupManagerCommitLogTimesAllPendingFlushButHaveSnapshot(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	var (
@@ -642,7 +642,7 @@ func TestCleanupManagerCommitLogTimesAllPendingFlushButHaveSnapshot(t *testing.T
 }
 
 func TestCleanupManagerCommitLogTimesHandlesIsCapturedBySnapshotError(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
@@ -663,7 +663,7 @@ func TestCleanupManagerCommitLogTimesHandlesIsCapturedBySnapshotError(t *testing
 }
 
 func TestCleanupManagerCommitLogTimesMultiNS(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	ns1, ns2, mgr := newCleanupManagerCommitLogTimesTestMultiNS(t, ctrl)

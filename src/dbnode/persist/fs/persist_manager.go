@@ -99,7 +99,7 @@ type dataPersistManager struct {
 
 type indexPersistManager struct {
 	writer        IndexFileSetWriter
-	segmentWriter m3ninxpersist.MutableSegmentFileSetWriter
+	segmentWriter m3ninxpersist.ReusableSegmentFileSetWriter
 
 	// identifiers required to know which file to open
 	// after persistence is over
@@ -149,7 +149,7 @@ func NewPersistManager(opts Options) (persist.Manager, error) {
 	if err != nil {
 		return nil, err
 	}
-	segmentWriter, err := m3ninxpersist.NewMutableSegmentFileSetWriter()
+	segmentWriter, err := m3ninxpersist.NewReusableSegmentFileSetWriter()
 	if err != nil {
 		return nil, err
 	}

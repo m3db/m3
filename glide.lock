@@ -392,7 +392,7 @@ imports:
 - name: github.com/philhofer/fwd
   version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
 - name: github.com/pilosa/pilosa
-  version: a112b2d46af94e3ecfa74b8158381e3595b24e4b
+  version: b22780ccf149c564f8ca271f66965aca1beb3dfa
   subpackages:
   - roaring
 - name: github.com/pkg/errors

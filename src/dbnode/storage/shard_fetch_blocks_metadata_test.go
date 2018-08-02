@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
+	xtest "github.com/m3db/m3x/test"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/mock/gomock"
@@ -43,7 +44,7 @@ import (
 )
 
 func TestShardFetchBlocksMetadata(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	opts := testDatabaseOptions()
@@ -101,7 +102,7 @@ func TestShardFetchBlocksMetadata(t *testing.T) {
 }
 
 func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyCacheAll(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	opts := testDatabaseOptions().SetSeriesCachePolicy(series.CacheAll)
@@ -185,7 +186,7 @@ func (b fetchBlockMetadataResultByStart) Less(i, j int) bool {
 }
 
 func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyNotCacheAll(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	opts := testDatabaseOptions().SetSeriesCachePolicy(series.CacheRecentlyRead)

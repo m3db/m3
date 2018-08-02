@@ -36,6 +36,7 @@ import (
 	xclock "github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
+	xtest "github.com/m3db/m3x/test"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/fortytw2/leaktest"
@@ -111,7 +112,7 @@ func TestShardWriteSyncRefCount(t *testing.T) {
 }
 
 func TestShardWriteTaggedSyncRefCountMockIndex(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	blockSize := namespace.NewIndexOptions().BlockSize()
@@ -150,15 +151,13 @@ func TestShardWriteTaggedSyncRefCountSyncIndex(t *testing.T) {
 	}
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, testDatabaseOptions().
-		SetIndexOptions(index.NewOptions().SetInsertMode(index.InsertSync)))
+	opts := testDatabaseOptions()
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, opts.
+		SetIndexOptions(opts.IndexOptions().SetInsertMode(index.InsertSync)))
 	assert.NoError(t, err)
 
-	defer func() {
-		assert.NoError(t, idx.Close())
-	}()
-
 	testShardWriteTaggedSyncRefCount(t, idx)
+	assert.NoError(t, idx.Close())
 }
 
 func testShardWriteTaggedSyncRefCount(t *testing.T, idx namespaceIndex) {
@@ -308,7 +307,7 @@ func TestShardWriteAsyncRefCount(t *testing.T) {
 }
 
 func TestShardWriteTaggedAsyncRefCountMockIndex(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	blockSize := namespace.NewIndexOptions().BlockSize()

@@ -25,11 +25,12 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	xtest "github.com/m3db/m3x/test"
 	"github.com/stretchr/testify/require"
 )
 
 func TestDatabaseMediatorOpenClose(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	opts := testDatabaseOptions().SetRepairEnabled(false)
@@ -57,7 +58,7 @@ func TestDatabaseMediatorOpenClose(t *testing.T) {
 }
 
 func TestDatabaseMediatorDisableFileOps(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	opts := testDatabaseOptions().SetRepairEnabled(false)

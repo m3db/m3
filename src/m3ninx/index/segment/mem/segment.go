@@ -68,7 +68,7 @@ type segment struct {
 
 // NewSegment returns a new in-memory mutable segment. It will start assigning
 // postings IDs at the provided offset.
-func NewSegment(offset postings.ID, opts Options) (sgmt.MutableSegment, error) {
+func NewSegment(offset postings.ID, opts Options) sgmt.MutableSegment {
 	s := &segment{
 		offset:    int(offset),
 		plPool:    opts.PostingsListPool(),
@@ -76,12 +76,10 @@ func NewSegment(offset postings.ID, opts Options) (sgmt.MutableSegment, error) {
 		termsDict: newTermsDict(opts),
 		readerID:  postings.NewAtomicID(offset),
 	}
-
 	s.docs.data = make([]doc.Document, opts.InitialCapacity())
-
 	s.writer.idSet = newIDsMap(256)
 	s.writer.nextID = offset
-	return s, nil
+	return s
 }
 
 func (s *segment) Size() int64 {

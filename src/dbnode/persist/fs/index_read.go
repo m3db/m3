@@ -21,7 +21,6 @@
 package fs
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -242,7 +241,7 @@ func (r *indexReader) ReadSegmentFileSet() (
 				warning.Error())
 		}
 
-		file := newReadableIndexSegmentFileMmap(segFileType, fd, bytes)
+		file := idxpersist.NewMmapedIndexSegmentFile(segFileType, fd, bytes)
 		result.files = append(result.files, file)
 		digests.files = append(digests.files, indexReaderReadSegmentFileDigest{
 			segmentFileType: segFileType,
@@ -355,55 +354,4 @@ func (s readableIndexSegmentFileSet) SegmentMetadata() []byte {
 
 func (s readableIndexSegmentFileSet) Files() []idxpersist.IndexSegmentFile {
 	return s.files
-}
-
-type readableIndexSegmentFileMmap struct {
-	fileType  idxpersist.IndexSegmentFileType
-	fd        *os.File
-	bytesMmap []byte
-	reader    bytes.Reader
-}
-
-func newReadableIndexSegmentFileMmap(
-	fileType idxpersist.IndexSegmentFileType,
-	fd *os.File,
-	bytesMmap []byte,
-) idxpersist.IndexSegmentFile {
-	r := &readableIndexSegmentFileMmap{
-		fileType:  fileType,
-		fd:        fd,
-		bytesMmap: bytesMmap,
-	}
-	r.reader.Reset(r.bytesMmap)
-	return r
-}
-
-func (f *readableIndexSegmentFileMmap) SegmentFileType() idxpersist.IndexSegmentFileType {
-	return f.fileType
-}
-
-func (f *readableIndexSegmentFileMmap) Bytes() ([]byte, error) {
-	return f.bytesMmap, nil
-}
-
-func (f *readableIndexSegmentFileMmap) Read(b []byte) (int, error) {
-	return f.reader.Read(b)
-}
-
-func (f *readableIndexSegmentFileMmap) Close() error {
-	// Be sure to close the mmap before the file
-	if f.bytesMmap != nil {
-		if err := mmap.Munmap(f.bytesMmap); err != nil {
-			return err
-		}
-		f.bytesMmap = nil
-	}
-	if f.fd != nil {
-		if err := f.fd.Close(); err != nil {
-			return err
-		}
-		f.fd = nil
-	}
-	f.reader.Reset(nil)
-	return nil
 }

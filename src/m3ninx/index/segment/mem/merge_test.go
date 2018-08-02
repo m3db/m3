@@ -76,21 +76,17 @@ func TestMemSegmentMerge(t *testing.T) {
 	rest := docs[1:]
 
 	opts := NewOptions()
-	m1, err := NewSegment(postings.ID(0), opts)
-	require.NoError(t, err)
-	_, err = m1.Insert(d)
+	m1 := NewSegment(postings.ID(0), opts)
+	_, err := m1.Insert(d)
 	require.NoError(t, err)
 
-	m2, err := NewSegment(postings.ID(0), opts)
-	require.NoError(t, err)
+	m2 := NewSegment(postings.ID(0), opts)
 	for _, d := range rest {
 		_, err = m2.Insert(d)
 		require.NoError(t, err)
 	}
 
-	m3, err := NewSegment(postings.ID(0), opts)
-	require.NoError(t, err)
-
+	m3 := NewSegment(postings.ID(0), opts)
 	require.NoError(t, Merge(m3, m1, m2))
 
 	reader, err := m3.Reader()

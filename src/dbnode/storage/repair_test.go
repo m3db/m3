@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
+	xtest "github.com/m3db/m3x/test"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -42,7 +43,7 @@ import (
 )
 
 func TestDatabaseRepairerStartStop(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	opts := testDatabaseOptions().SetRepairOptions(testRepairOptions(ctrl))
@@ -92,7 +93,7 @@ func TestDatabaseRepairerStartStop(t *testing.T) {
 }
 
 func TestDatabaseRepairerHaveNotReachedOffset(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	var (
@@ -137,7 +138,7 @@ func TestDatabaseRepairerHaveNotReachedOffset(t *testing.T) {
 }
 
 func TestDatabaseRepairerOnlyOncePerInterval(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	var (
@@ -194,7 +195,7 @@ func TestDatabaseRepairerOnlyOncePerInterval(t *testing.T) {
 }
 
 func TestDatabaseRepairerRepairNotBootstrapped(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	opts := testDatabaseOptions().SetRepairOptions(testRepairOptions(ctrl))
@@ -209,7 +210,7 @@ func TestDatabaseRepairerRepairNotBootstrapped(t *testing.T) {
 }
 
 func TestDatabaseShardRepairerRepair(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	session := client.NewMockAdminSession(ctrl)
@@ -333,7 +334,7 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 }
 
 func TestRepairerRepairTimes(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	now := time.Unix(188000, 0)
@@ -370,7 +371,7 @@ func TestRepairerRepairTimes(t *testing.T) {
 }
 
 func TestRepairerRepairWithTime(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	repairTimeRange := xtime.Range{Start: time.Unix(7200, 0), End: time.Unix(14400, 0)}
@@ -422,7 +423,7 @@ func TestRepairerTimesMultipleNamespaces(t *testing.T) {
 		return tf2(2 * i)
 	}
 
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	now := time.Unix(188000, 0)

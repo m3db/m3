@@ -106,8 +106,7 @@ func TestSegmentInsert(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			segment, err := NewSegment(0, testOptions)
-			require.NoError(t, err)
+			segment := NewSegment(0, testOptions)
 			require.Equal(t, int64(0), segment.Size())
 
 			id, err := segment.Insert(test.input)
@@ -168,11 +167,10 @@ func TestSegmentInsertDuplicateID(t *testing.T) {
 		}
 	)
 
-	segment, err := NewSegment(0, testOptions)
-	require.NoError(t, err)
+	segment := NewSegment(0, testOptions)
 	require.Equal(t, int64(0), segment.Size())
 
-	id, err = segment.Insert(first)
+	id, err := segment.Insert(first)
 	require.NoError(t, err)
 	ok, err := segment.ContainsID(id)
 	require.NoError(t, err)
@@ -244,12 +242,10 @@ func TestSegmentInsertBatch(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			segment, err := NewSegment(0, testOptions)
-			require.NoError(t, err)
+			segment := NewSegment(0, testOptions)
 			require.Equal(t, int64(0), segment.Size())
 
-			err = segment.InsertBatch(test.input)
-			require.NoError(t, err)
+			require.NoError(t, segment.InsertBatch(test.input))
 			require.Equal(t, int64(len(test.input.Docs)), segment.Size())
 
 			r, err := segment.Reader()
@@ -305,11 +301,10 @@ func TestSegmentInsertBatchError(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			segment, err := NewSegment(0, testOptions)
+			segment := NewSegment(0, testOptions)
 			require.Equal(t, int64(0), segment.Size())
-			require.NoError(t, err)
 
-			err = segment.InsertBatch(test.input)
+			err := segment.InsertBatch(test.input)
 			require.Error(t, err)
 			require.False(t, index.IsBatchPartialError(err))
 			require.Equal(t, int64(0), segment.Size())
@@ -393,11 +388,10 @@ func TestSegmentInsertBatchPartialError(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			segment, err := NewSegment(0, testOptions)
-			require.NoError(t, err)
+			segment := NewSegment(0, testOptions)
 			require.Equal(t, int64(0), segment.Size())
 
-			err = segment.InsertBatch(test.input)
+			err := segment.InsertBatch(test.input)
 			require.Error(t, err)
 			require.True(t, index.IsBatchPartialError(err))
 			require.Equal(t, int64(1), segment.Size())
@@ -459,10 +453,9 @@ func TestSegmentInsertBatchPartialErrorInvalidDoc(t *testing.T) {
 		},
 		index.AllowPartialUpdates(),
 	)
-	segment, err := NewSegment(0, testOptions)
-	require.NoError(t, err)
+	segment := NewSegment(0, testOptions)
 
-	err = segment.InsertBatch(b1)
+	err := segment.InsertBatch(b1)
 	require.Error(t, err)
 	require.True(t, index.IsBatchPartialError(err))
 	be := err.(*index.BatchPartialError)
@@ -513,8 +506,7 @@ func TestSegmentContainsID(t *testing.T) {
 		},
 		index.AllowPartialUpdates(),
 	)
-	segment, err := NewSegment(0, testOptions)
-	require.NoError(t, err)
+	segment := NewSegment(0, testOptions)
 	ok, err := segment.ContainsID([]byte("abc"))
 	require.NoError(t, err)
 	require.False(t, ok)
@@ -597,10 +589,9 @@ func TestSegmentInsertBatchPartialErrorAlreadyIndexing(t *testing.T) {
 		},
 		index.AllowPartialUpdates())
 
-	segment, err := NewSegment(0, testOptions)
-	require.NoError(t, err)
+	segment := NewSegment(0, testOptions)
 
-	err = segment.InsertBatch(b1)
+	err := segment.InsertBatch(b1)
 	require.NoError(t, err)
 
 	err = segment.InsertBatch(b2)
@@ -652,15 +643,13 @@ func TestSegmentReaderMatchExact(t *testing.T) {
 		},
 	}
 
-	segment, err := NewSegment(0, testOptions)
-	require.NoError(t, err)
-
+	segment := NewSegment(0, testOptions)
 	for _, doc := range docs {
-		_, err = segment.Insert(doc)
+		_, err := segment.Insert(doc)
 		require.NoError(t, err)
 	}
 
-	_, err = segment.Seal()
+	_, err := segment.Seal()
 	require.NoError(t, err)
 
 	r, err := segment.Reader()
@@ -691,10 +680,9 @@ func TestSegmentReaderMatchExact(t *testing.T) {
 }
 
 func TestSegmentSealLifecycle(t *testing.T) {
-	segment, err := NewSegment(0, testOptions)
-	require.NoError(t, err)
+	segment := NewSegment(0, testOptions)
 
-	_, err = segment.Seal()
+	_, err := segment.Seal()
 	require.NoError(t, err)
 
 	_, err = segment.Seal()
@@ -702,21 +690,17 @@ func TestSegmentSealLifecycle(t *testing.T) {
 }
 
 func TestSegmentSealCloseLifecycle(t *testing.T) {
-	segment, err := NewSegment(0, testOptions)
-	require.NoError(t, err)
-
+	segment := NewSegment(0, testOptions)
 	require.NoError(t, segment.Close())
-	_, err = segment.Seal()
+	_, err := segment.Seal()
 	require.Error(t, err)
 }
 
 func TestSegmentIsSealed(t *testing.T) {
-	segment, err := NewSegment(0, testOptions)
-	require.NoError(t, err)
-
+	segment := NewSegment(0, testOptions)
 	require.False(t, segment.IsSealed())
 
-	_, err = segment.Seal()
+	_, err := segment.Seal()
 	require.NoError(t, err)
 	require.True(t, segment.IsSealed())
 
@@ -725,19 +709,18 @@ func TestSegmentIsSealed(t *testing.T) {
 }
 
 func TestSegmentFields(t *testing.T) {
-	segment, err := NewSegment(0, testOptions)
-	require.NoError(t, err)
+	segment := NewSegment(0, testOptions)
 
 	knownsFields := map[string]struct{}{}
 	for _, d := range testDocuments {
 		for _, f := range d.Fields {
 			knownsFields[string(f.Name)] = struct{}{}
 		}
-		_, err = segment.Insert(d)
+		_, err := segment.Insert(d)
 		require.NoError(t, err)
 	}
 
-	_, err = segment.Fields()
+	_, err := segment.Fields()
 	require.Error(t, err)
 
 	seg, err := segment.Seal()
@@ -754,8 +737,7 @@ func TestSegmentFields(t *testing.T) {
 }
 
 func TestSegmentTerms(t *testing.T) {
-	segment, err := NewSegment(0, testOptions)
-	require.NoError(t, err)
+	segment := NewSegment(0, testOptions)
 
 	knownsFields := map[string]map[string]struct{}{}
 	for _, d := range testDocuments {
@@ -767,11 +749,11 @@ func TestSegmentTerms(t *testing.T) {
 			}
 			knownVals[string(f.Value)] = struct{}{}
 		}
-		_, err = segment.Insert(d)
+		_, err := segment.Insert(d)
 		require.NoError(t, err)
 	}
 
-	_, err = segment.Seal()
+	_, err := segment.Seal()
 	require.NoError(t, err)
 
 	for field, expectedTerms := range knownsFields {
@@ -787,11 +769,10 @@ func TestSegmentTerms(t *testing.T) {
 
 func TestSegmentReaderMatchRegex(t *testing.T) {
 	docs := testDocuments
-	segment, err := NewSegment(0, testOptions)
-	require.NoError(t, err)
+	segment := NewSegment(0, testOptions)
 
 	for _, doc := range docs {
-		_, err = segment.Insert(doc)
+		_, err := segment.Insert(doc)
 		require.NoError(t, err)
 	}
 

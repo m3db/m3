@@ -43,7 +43,9 @@ import (
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
+	xtest "github.com/m3db/m3x/test"
 	xtime "github.com/m3db/m3x/time"
 	xwatch "github.com/m3db/m3x/watch"
 
@@ -68,6 +70,8 @@ var (
 )
 
 func init() {
+	iopts := instrument.NewOptions().SetReportInterval(10 * time.Millisecond)
+
 	opts := newOptions(pool.NewObjectPoolOptions().
 		SetSize(16))
 
@@ -84,11 +88,14 @@ func init() {
 	}
 
 	defaultTestDatabaseOptions = opts.
+		SetInstrumentOptions(iopts).
 		SetSeriesCachePolicy(series.CacheAll).
 		SetPersistManager(pm).
 		SetRepairEnabled(false).
 		SetCommitLogOptions(opts.CommitLogOptions().
-			SetBlockSize(defaultTestCommitlogBlockSize))
+			SetBlockSize(defaultTestCommitlogBlockSize)).
+		SetIndexOptions(
+			opts.IndexOptions().SetInstrumentOptions(iopts))
 }
 
 type nsMapCh chan namespace.Map
@@ -214,7 +221,7 @@ func dbAddNewMockNamespace(
 }
 
 func TestDatabaseOpen(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	d, mapCh, _ := newTestDatabase(t, ctrl, BootstrapNotStarted)
@@ -228,7 +235,7 @@ func TestDatabaseOpen(t *testing.T) {
 }
 
 func TestDatabaseClose(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
@@ -242,7 +249,7 @@ func TestDatabaseClose(t *testing.T) {
 }
 
 func TestDatabaseTerminate(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
@@ -256,7 +263,7 @@ func TestDatabaseTerminate(t *testing.T) {
 }
 
 func TestDatabaseReadEncodedNamespaceNotOwned(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	ctx := context.NewContext()
@@ -271,7 +278,7 @@ func TestDatabaseReadEncodedNamespaceNotOwned(t *testing.T) {
 }
 
 func TestDatabaseReadEncodedNamespaceOwned(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	ctx := context.NewContext()
@@ -296,7 +303,7 @@ func TestDatabaseReadEncodedNamespaceOwned(t *testing.T) {
 }
 
 func TestDatabaseFetchBlocksNamespaceNotOwned(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	ctx := context.NewContext()
@@ -315,7 +322,7 @@ func TestDatabaseFetchBlocksNamespaceNotOwned(t *testing.T) {
 }
 
 func TestDatabaseFetchBlocksNamespaceOwned(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	ctx := context.NewContext()
@@ -342,7 +349,7 @@ func TestDatabaseFetchBlocksNamespaceOwned(t *testing.T) {
 }
 
 func TestDatabaseFetchBlocksMetadataShardNotOwned(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	ctx := context.NewContext()
@@ -372,7 +379,7 @@ func TestDatabaseFetchBlocksMetadataShardNotOwned(t *testing.T) {
 }
 
 func TestDatabaseFetchBlocksMetadataShardOwned(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	ctx := context.NewContext()
@@ -414,7 +421,7 @@ func TestDatabaseFetchBlocksMetadataShardOwned(t *testing.T) {
 }
 
 func TestDatabaseNamespaces(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
@@ -434,7 +441,7 @@ func TestDatabaseNamespaces(t *testing.T) {
 }
 
 func TestGetOwnedNamespacesErrorIfClosed(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
@@ -450,7 +457,7 @@ func TestGetOwnedNamespacesErrorIfClosed(t *testing.T) {
 }
 
 func TestDatabaseAssignShardSet(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
@@ -481,7 +488,7 @@ func TestDatabaseAssignShardSet(t *testing.T) {
 }
 
 func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
@@ -516,7 +523,7 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 }
 
 func TestDatabaseRemoveNamespace(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	d, mapCh, testReporter := newTestDatabase(t, ctrl, Bootstrapped)
@@ -560,7 +567,7 @@ func TestDatabaseRemoveNamespace(t *testing.T) {
 }
 
 func TestDatabaseAddNamespace(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	d, mapCh, testReporter := newTestDatabase(t, ctrl, Bootstrapped)
@@ -621,7 +628,7 @@ func TestDatabaseAddNamespace(t *testing.T) {
 }
 
 func TestDatabaseUpdateNamespace(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
@@ -668,7 +675,7 @@ func TestDatabaseUpdateNamespace(t *testing.T) {
 }
 
 func TestDatabaseNamespaceIndexFunctions(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	d, mapCh, _ := newTestDatabase(t, ctrl, BootstrapNotStarted)
@@ -715,7 +722,7 @@ func TestDatabaseNamespaceIndexFunctions(t *testing.T) {
 }
 
 func TestDatabaseBootstrapState(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)

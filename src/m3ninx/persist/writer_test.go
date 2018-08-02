@@ -33,10 +33,10 @@ import (
 
 func newTestWriter(t *testing.T, ctrl *gomock.Controller) (
 	*fst.MockWriter,
-	MutableSegmentFileSetWriter,
+	ReusableSegmentFileSetWriter,
 ) {
 	w := fst.NewMockWriter(ctrl)
-	writer, err := newMutableSegmentFileSetWriter(w)
+	writer, err := newReusableSegmentFileSetWriter(w)
 	require.NoError(t, err)
 	return w, writer
 }

@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3x/ident"
+	xtest "github.com/m3db/m3x/test"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
@@ -77,7 +78,7 @@ func TestIndexInsertQueueLifecycleLeaks(t *testing.T) {
 
 func TestIndexInsertQueueCallback(t *testing.T) {
 	defer leaktest.CheckTimeout(t, time.Second)()
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	var (
@@ -111,7 +112,7 @@ func TestIndexInsertQueueCallback(t *testing.T) {
 }
 
 func TestIndexInsertQueueRateLimit(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 	defer leaktest.CheckTimeout(t, time.Second)()
 	var (
@@ -186,7 +187,7 @@ func TestIndexInsertQueueRateLimit(t *testing.T) {
 }
 
 func TestIndexInsertQueueBatchBackoff(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 	var (
 		inserts  [][]*index.WriteBatch

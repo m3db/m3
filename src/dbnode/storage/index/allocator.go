@@ -32,6 +32,6 @@ func NewBootstrapResultMutableSegmentAllocator(
 	opts Options,
 ) result.MutableSegmentAllocator {
 	return func() (segment.MutableSegment, error) {
-		return mem.NewSegment(0, opts.MemSegmentOptions())
+		return mem.NewSegment(0, opts.MemSegmentOptions()), nil
 	}
 }
