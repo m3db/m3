@@ -34,7 +34,7 @@ import (
 const TimestampType = "timestamp"
 
 // NewTimestampOp creates a new date op based on the type
-func NewTimestampOp(optype string) (baseOp, error) {
+func NewTimestampOp(optype string) (transform.Params, error) {
 	if optype != TimestampType {
 		return emptyOp, fmt.Errorf("unknown timestamp type: %s", optype)
 	}

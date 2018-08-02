@@ -75,7 +75,7 @@ func TestDayOfMonthType(t *testing.T) {
 	node := op.Node(c)
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
-	expected := expectedDateVals(times, op.operatorType)
+	expected := expectedDateVals(times, op.OpType())
 	assert.Len(t, sink.Values, 2)
 	test.EqualsWithNans(t, expected, sink.Values)
 }
@@ -95,7 +95,7 @@ func TestDayOfWeekType(t *testing.T) {
 	node := op.Node(c)
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
-	expected := expectedDateVals(times, op.operatorType)
+	expected := expectedDateVals(times, op.OpType())
 	assert.Len(t, sink.Values, 2)
 	test.EqualsWithNans(t, expected, sink.Values)
 }
@@ -115,7 +115,7 @@ func TestDaysInMonthType(t *testing.T) {
 	node := op.Node(c)
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
-	expected := expectedDateVals(times, op.operatorType)
+	expected := expectedDateVals(times, op.OpType())
 	assert.Len(t, sink.Values, 2)
 	test.EqualsWithNans(t, expected, sink.Values)
 }
@@ -135,7 +135,7 @@ func TestHourType(t *testing.T) {
 	node := op.Node(c)
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
-	expected := expectedDateVals(times, op.operatorType)
+	expected := expectedDateVals(times, op.OpType())
 	assert.Len(t, sink.Values, 2)
 	test.EqualsWithNans(t, expected, sink.Values)
 }
@@ -154,7 +154,7 @@ func TestMinuteType(t *testing.T) {
 	node := op.Node(c)
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
-	expected := expectedDateVals(times, op.operatorType)
+	expected := expectedDateVals(times, op.OpType())
 	assert.Len(t, sink.Values, 2)
 	test.EqualsWithNans(t, expected, sink.Values)
 }
@@ -174,7 +174,7 @@ func TestMonthType(t *testing.T) {
 	node := op.Node(c)
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
-	expected := expectedDateVals(times, op.operatorType)
+	expected := expectedDateVals(times, op.OpType())
 	assert.Len(t, sink.Values, 2)
 	test.EqualsWithNans(t, expected, sink.Values)
 }
@@ -193,27 +193,7 @@ func TestYearType(t *testing.T) {
 	node := op.Node(c)
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
-	expected := expectedDateVals(times, op.operatorType)
-	assert.Len(t, sink.Values, 2)
-	test.EqualsWithNans(t, expected, sink.Values)
-}
-
-func TestTimeType(t *testing.T) {
-	v := [][]float64{
-		{0, math.NaN(), 2, 3, 4},
-		{math.NaN(), 6, 7, 8, 9},
-	}
-
-	values, bounds := test.GenerateValuesAndBounds(v, nil)
-	times := getTimes(values, bounds)
-	block := test.NewBlockFromValues(bounds, values)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	op, err := NewDateOp(TimeType)
-	require.NoError(t, err)
-	node := op.Node(c)
-	err = node.Process(parser.NodeID(0), block)
-	require.NoError(t, err)
-	expected := expectedDateVals(times, op.operatorType)
+	expected := expectedDateVals(times, op.OpType())
 	assert.Len(t, sink.Values, 2)
 	test.EqualsWithNans(t, expected, sink.Values)
 }

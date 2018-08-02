@@ -78,7 +78,7 @@ var (
 )
 
 // NewDateOp creates a new date op based on the type
-func NewDateOp(optype string) (baseOp, error) {
+func NewDateOp(optype string) (transform.Params, error) {
 	if _, ok := datetimeFuncs[optype]; !ok {
 		return emptyOp, fmt.Errorf("unknown date type: %s", optype)
 	}

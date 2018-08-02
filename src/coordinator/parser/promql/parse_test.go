@@ -290,11 +290,3 @@ func TestDAGWithTimestampOp(t *testing.T) {
 	assert.Len(t, transforms, 2)
 	assert.Equal(t, transforms[1].Op.OpType(), datetime.TimestampType)
 }
-
-func TestDAGWithTimeOp(t *testing.T) {
-	q := "time()"
-	p, err := Parse(q)
-	require.NoError(t, err)
-	_, _, err = p.DAG()
-	require.Error(t, err)
-}

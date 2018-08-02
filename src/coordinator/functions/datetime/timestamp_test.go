@@ -23,6 +23,7 @@ package datetime
 import (
 	"math"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3db/src/coordinator/parser"
 	"github.com/m3db/m3db/src/coordinator/test"
@@ -31,6 +32,19 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func expectedTimestampVals(values [][]time.Time, opType string) [][]float64 {
+	expected := make([][]float64, 0, len(values))
+	for _, val := range values {
+		v := make([]float64, len(val))
+		for i, t := range val {
+			v[i] = float64(t.Unix()) / 1000
+		}
+		expected = append(expected, v)
+	}
+
+	return expected
+}
 
 func TestTimestampType(t *testing.T) {
 	v := [][]float64{
@@ -47,7 +61,7 @@ func TestTimestampType(t *testing.T) {
 	node := op.Node(c)
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
-	expected := expectedDateVals(times, op.operatorType)
+	expected := expectedTimestampVals(times, op.OpType())
 	for i, vals := range values {
 		for j := range vals {
 			if math.IsNaN(vals[j]) {
