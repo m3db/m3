@@ -59,11 +59,7 @@ type timestampNode struct {
 
 func (c *timestampNode) ProcessStep(values []float64, t time.Time) []float64 {
 	for i := range values {
-		if math.IsNaN(values[i]) {
-			values[i] = math.NaN()
-			continue
-		}
-		values[i] = float64(t.Unix()) / 1000
+		setTimestampVals(values, i, t)
 	}
 
 	return values
@@ -73,12 +69,16 @@ func (c *timestampNode) ProcessSeries(values []float64, bounds block.Bounds) []f
 	var t time.Time
 	for i := range values {
 		t, _ = bounds.TimeForIndex(i)
-		if math.IsNaN(values[i]) {
-			values[i] = math.NaN()
-			continue
-		}
-		values[i] = float64(t.Unix()) / 1000
+		setTimestampVals(values, i, t)
 	}
 
 	return values
+}
+
+func setTimestampVals(values []float64, i int, t time.Time) {
+	if math.IsNaN(values[i]) {
+		values[i] = math.NaN()
+		return
+	}
+	values[i] = float64(t.Unix()) / 1000
 }
