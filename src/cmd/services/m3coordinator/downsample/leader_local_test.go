@@ -18,48 +18,41 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package filter
+package downsample
 
 import (
 	"testing"
 
-	"github.com/m3db/m3db/src/query/storage"
-	"github.com/m3db/m3db/src/query/storage/mock"
+	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/services/leader/campaign"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-var (
-	local  mock.Storage
-	remote mock.Storage
-	multi  mock.Storage
+func TestLeaderLocalService(t *testing.T) {
+	id := services.NewServiceID().SetName("foo")
+	electionID := "bar"
+	leaderSvc := newLocalLeaderService(id)
 
-	q = &storage.FetchQuery{}
-)
+	ch, err := leaderSvc.Campaign(electionID, nil)
+	require.NoError(t, err)
 
-func init() {
-	local = mock.NewMockStorage()
-	local.SetTypeResult(storage.TypeLocalDC)
-	remote = mock.NewMockStorage()
-	remote.SetTypeResult(storage.TypeRemoteDC)
-	multi = mock.NewMockStorage()
-	multi.SetTypeResult(storage.TypeMultiDC)
-}
+	status := <-ch
+	assert.NoError(t, status.Err)
+	assert.Equal(t, campaign.Leader, status.State)
 
-func TestLocalOnly(t *testing.T) {
-	assert.True(t, LocalOnly(q, local))
-	assert.False(t, LocalOnly(q, remote))
-	assert.False(t, LocalOnly(q, multi))
-}
+	err = leaderSvc.Resign(electionID)
+	require.NoError(t, err)
 
-func TestAllowAll(t *testing.T) {
-	assert.True(t, AllowAll(q, local))
-	assert.True(t, AllowAll(q, remote))
-	assert.True(t, AllowAll(q, multi))
-}
+	status = <-ch
+	assert.NoError(t, status.Err)
+	assert.Equal(t, campaign.Follower, status.State)
 
-func TestAllowNone(t *testing.T) {
-	assert.False(t, AllowNone(q, local))
-	assert.False(t, AllowNone(q, remote))
-	assert.False(t, AllowNone(q, multi))
+	leader, err := leaderSvc.Leader(electionID)
+	require.NoError(t, err)
+	assert.Equal(t, id.String(), leader)
+
+	err = leaderSvc.Close()
+	require.NoError(t, err)
 }

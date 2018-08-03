@@ -32,9 +32,11 @@ import (
 
 	clusterclient "github.com/m3db/m3cluster/client"
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
+	"github.com/m3db/m3db/src/cmd/services/m3coordinator/downsample"
 	dbconfig "github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3db/src/cmd/services/m3query/config"
 	"github.com/m3db/m3db/src/dbnode/client"
+	"github.com/m3db/m3db/src/dbnode/serialize"
 	"github.com/m3db/m3db/src/query/api/v1/httpd"
 	m3dbcluster "github.com/m3db/m3db/src/query/cluster/m3db"
 	"github.com/m3db/m3db/src/query/executor"
@@ -46,6 +48,7 @@ import (
 	"github.com/m3db/m3db/src/query/stores/m3db"
 	tsdbRemote "github.com/m3db/m3db/src/query/tsdb/remote"
 	"github.com/m3db/m3db/src/query/util/logging"
+	"github.com/m3db/m3x/clock"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -117,6 +120,7 @@ func Run(runOpts RunOptions) {
 		clusterClientCh = runOpts.ClusterClient
 	}
 
+	var clusterManagementClient clusterclient.Client
 	if clusterClientCh == nil {
 		var etcdCfg *etcdclient.Configuration
 		switch {
@@ -131,13 +135,13 @@ func Run(runOpts RunOptions) {
 		if etcdCfg != nil {
 			// We resolved an etcd configuration for cluster management endpoints
 			clusterSvcClientOpts := etcdCfg.NewOptions()
-			clusterClient, err := etcdclient.NewConfigServiceClient(clusterSvcClientOpts)
+			clusterManagementClient, err = etcdclient.NewConfigServiceClient(clusterSvcClientOpts)
 			if err != nil {
 				logger.Fatal("unable to create cluster management etcd client", zap.Any("error", err))
 			}
 
 			clusterClientSendableCh := make(chan clusterclient.Client, 1)
-			clusterClientSendableCh <- clusterClient
+			clusterClientSendableCh <- clusterManagementClient
 			clusterClientCh = clusterClientSendableCh
 		}
 	}
@@ -203,7 +207,7 @@ func Run(runOpts RunOptions) {
 		return workerPool
 	})
 
-	fanoutStorage, storageCleanup := setupStorages(logger, clusters, cfg, objectPool)
+	fanoutStorage, storageCleanup := newStorages(logger, clusters, cfg, objectPool)
 	defer storageCleanup()
 
 	var clusterClient clusterclient.Client
@@ -215,7 +219,20 @@ func Run(runOpts RunOptions) {
 		}, nil)
 	}
 
-	handler, err := httpd.NewHandler(fanoutStorage, executor.NewEngine(fanoutStorage),
+	var (
+		namespaces  = clusters.ClusterNamespaces()
+		downsampler downsample.Downsampler
+	)
+	if n := namespaces.NumAggregatedClusterNamespaces(); n > 0 {
+		logger.Info("configuring downsampler to use with aggregated cluster namespaces",
+			zap.Int("numAggregatedClusterNamespaces", n))
+		downsampler = newDownsampler(logger, clusterManagementClient,
+			fanoutStorage, instrumentOptions)
+	}
+
+	engine := executor.NewEngine(fanoutStorage)
+
+	handler, err := httpd.NewHandler(fanoutStorage, downsampler, engine,
 		clusterClient, cfg, runOpts.DBConfig, scope)
 	if err != nil {
 		logger.Fatal("unable to set up handlers", zap.Any("error", err))
@@ -239,7 +256,57 @@ func Run(runOpts RunOptions) {
 	}
 }
 
-func setupStorages(logger *zap.Logger, clusters local.Clusters, cfg config.Configuration, workerPool pool.ObjectPool) (storage.Storage, func()) {
+func newDownsampler(
+	logger *zap.Logger,
+	clusterManagementClient clusterclient.Client,
+	storage storage.Storage,
+	instrumentOpts instrument.Options,
+) downsample.Downsampler {
+	if clusterManagementClient == nil {
+		logger.Fatal("no configured cluster management config, must set this " +
+			"config for downsampler")
+	}
+
+	kvStore, err := clusterManagementClient.KV()
+	if err != nil {
+		logger.Fatal("unable to create KV store from the cluster management "+
+			"config client", zap.Any("error", err))
+	}
+
+	tagEncoderOptions := serialize.NewTagEncoderOptions()
+	tagDecoderOptions := serialize.NewTagDecoderOptions()
+	tagEncoderPoolOptions := pool.NewObjectPoolOptions().
+		SetInstrumentOptions(instrumentOpts.
+			SetMetricsScope(instrumentOpts.MetricsScope().
+				SubScope("tag-encoder-pool")))
+	tagDecoderPoolOptions := pool.NewObjectPoolOptions().
+		SetInstrumentOptions(instrumentOpts.
+			SetMetricsScope(instrumentOpts.MetricsScope().
+				SubScope("tag-decoder-pool")))
+
+	downsampler, err := downsample.NewDownsampler(downsample.DownsamplerOptions{
+		Storage:               storage,
+		RulesKVStore:          kvStore,
+		ClockOptions:          clock.NewOptions(),
+		InstrumentOptions:     instrumentOpts,
+		TagEncoderOptions:     tagEncoderOptions,
+		TagDecoderOptions:     tagDecoderOptions,
+		TagEncoderPoolOptions: tagEncoderPoolOptions,
+		TagDecoderPoolOptions: tagDecoderPoolOptions,
+	})
+	if err != nil {
+		logger.Fatal("unable to create downsampler", zap.Any("error", err))
+	}
+
+	return downsampler
+}
+
+func newStorages(
+	logger *zap.Logger,
+	clusters local.Clusters,
+	cfg config.Configuration,
+	workerPool pool.ObjectPool,
+) (storage.Storage, func()) {
 	cleanup := func() {}
 
 	localStorage := local.NewStorage(clusters, workerPool)

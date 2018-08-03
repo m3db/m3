@@ -22,14 +22,17 @@ package remote
 
 import (
 	"context"
+	"errors"
 	"net/http"
+	"sync"
 
+	"github.com/m3db/m3db/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3db/src/query/api/v1/handler"
 	"github.com/m3db/m3db/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3db/src/query/generated/proto/prompb"
 	"github.com/m3db/m3db/src/query/storage"
-	"github.com/m3db/m3db/src/query/util/execution"
 	"github.com/m3db/m3db/src/query/util/logging"
+	xerrors "github.com/m3db/m3x/errors"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/uber-go/tally"
@@ -44,18 +47,31 @@ const (
 	PromWriteHTTPMethod = http.MethodPost
 )
 
+var (
+	errNoStorageOrDownsampler = errors.New("no storage or downsampler set, requires at least one or both")
+)
+
 // PromWriteHandler represents a handler for prometheus write endpoint.
 type PromWriteHandler struct {
 	store            storage.Storage
+	downsampler      downsample.Downsampler
 	promWriteMetrics promWriteMetrics
 }
 
 // NewPromWriteHandler returns a new instance of handler.
-func NewPromWriteHandler(store storage.Storage, scope tally.Scope) http.Handler {
+func NewPromWriteHandler(
+	store storage.Storage,
+	downsampler downsample.Downsampler,
+	scope tally.Scope,
+) (http.Handler, error) {
+	if store == nil && downsampler == nil {
+		return nil, errNoStorageOrDownsampler
+	}
 	return &PromWriteHandler{
 		store:            store,
+		downsampler:      downsampler,
 		promWriteMetrics: newPromWriteMetrics(scope),
-	}
+	}, nil
 }
 
 type promWriteMetrics struct {
@@ -104,25 +120,104 @@ func (h *PromWriteHandler) parseRequest(r *http.Request) (*prompb.WriteRequest, 
 }
 
 func (h *PromWriteHandler) write(ctx context.Context, r *prompb.WriteRequest) error {
-	requests := make([]execution.Request, len(r.Timeseries))
-	for idx, t := range r.Timeseries {
-		requests[idx] = newLocalWriteRequest(storage.PromWriteTSToM3(t), h.store)
+	var (
+		wg            sync.WaitGroup
+		writeUnaggErr error
+		writeAggErr   error
+	)
+	if h.downsampler != nil {
+		// If writing downsampled aggregations, write them async
+		wg.Add(1)
+		go func() {
+			writeAggErr = h.writeAggregated(ctx, r)
+			wg.Done()
+		}()
 	}
-	return execution.ExecuteParallel(ctx, requests)
-}
 
-func (w *localWriteRequest) Process(ctx context.Context) error {
-	return w.store.Write(ctx, w.writeQuery)
-}
-
-type localWriteRequest struct {
-	store      storage.Storage
-	writeQuery *storage.WriteQuery
-}
-
-func newLocalWriteRequest(writeQuery *storage.WriteQuery, store storage.Storage) execution.Request {
-	return &localWriteRequest{
-		store:      store,
-		writeQuery: writeQuery,
+	if h.store != nil {
+		// Write the unaggregated points out, don't spawn goroutine
+		// so we reduce number of goroutines just a fraction
+		writeUnaggErr = h.writeUnaggregated(ctx, r)
 	}
+
+	if h.downsampler != nil {
+		// Wait for downsampling to finish if we wrote datapoints
+		// for aggregations
+		wg.Wait()
+	}
+
+	var multiErr xerrors.MultiError
+	multiErr = multiErr.Add(writeUnaggErr)
+	multiErr = multiErr.Add(writeAggErr)
+	return multiErr.FinalError()
+}
+
+func (h *PromWriteHandler) writeUnaggregated(
+	ctx context.Context,
+	r *prompb.WriteRequest,
+) error {
+	var (
+		wg       sync.WaitGroup
+		errLock  sync.Mutex
+		multiErr xerrors.MultiError
+	)
+	for _, t := range r.Timeseries {
+		t := t // Capture for goroutine
+
+		// TODO(r): Consider adding a worker pool to limit write
+		// request concurrency, instead of using the batch size
+		// of incoming request to determine concurrency (some level of control).
+		wg.Add(1)
+		go func() {
+			write := storage.PromWriteTSToM3(t)
+			write.Attributes = storage.Attributes{
+				MetricsType: storage.UnaggregatedMetricsType,
+			}
+
+			if err := h.store.Write(ctx, write); err != nil {
+				errLock.Lock()
+				multiErr = multiErr.Add(err)
+				errLock.Unlock()
+			}
+
+			wg.Done()
+		}()
+	}
+
+	wg.Wait()
+
+	return multiErr.FinalError()
+}
+
+func (h *PromWriteHandler) writeAggregated(
+	ctx context.Context,
+	r *prompb.WriteRequest,
+) error {
+	var (
+		metricsAppender = h.downsampler.NewMetricsAppender()
+		multiErr        xerrors.MultiError
+	)
+	for _, ts := range r.Timeseries {
+		metricsAppender.Reset()
+		for _, label := range ts.Labels {
+			metricsAppender.AddTag(label.Name, label.Value)
+		}
+
+		samplesAppender, err := metricsAppender.SamplesAppender()
+		if err != nil {
+			multiErr = multiErr.Add(err)
+			continue
+		}
+
+		for _, elem := range ts.Samples {
+			err := samplesAppender.AppendGaugeSample(elem.Value)
+			if err != nil {
+				multiErr = multiErr.Add(err)
+			}
+		}
+	}
+
+	metricsAppender.Finalize()
+
+	return multiErr.FinalError()
 }
