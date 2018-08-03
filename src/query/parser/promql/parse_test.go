@@ -24,7 +24,6 @@ import (
 	"testing"
 
 	"github.com/m3db/m3db/src/query/functions"
-	"github.com/m3db/m3db/src/query/functions/datetime"
 	"github.com/m3db/m3db/src/query/functions/linear"
 	"github.com/m3db/m3db/src/query/functions/logical"
 	"github.com/m3db/m3db/src/query/parser"
@@ -224,7 +223,7 @@ func TestDAGWithDayOfMonthOp(t *testing.T) {
 	transforms, _, err := p.DAG()
 	require.NoError(t, err)
 	assert.Len(t, transforms, 2)
-	assert.Equal(t, transforms[1].Op.OpType(), datetime.DayOfMonthType)
+	assert.Equal(t, transforms[1].Op.OpType(), linear.DayOfMonthType)
 }
 
 func TestDAGWithDayOfWeekOp(t *testing.T) {
@@ -234,7 +233,7 @@ func TestDAGWithDayOfWeekOp(t *testing.T) {
 	transforms, _, err := p.DAG()
 	require.NoError(t, err)
 	assert.Len(t, transforms, 2)
-	assert.Equal(t, transforms[1].Op.OpType(), datetime.DayOfWeekType)
+	assert.Equal(t, transforms[1].Op.OpType(), linear.DayOfWeekType)
 }
 func TestDAGWithDaysInMonthOp(t *testing.T) {
 	q := "days_in_month(up)"
@@ -243,7 +242,7 @@ func TestDAGWithDaysInMonthOp(t *testing.T) {
 	transforms, _, err := p.DAG()
 	require.NoError(t, err)
 	assert.Len(t, transforms, 2)
-	assert.Equal(t, transforms[1].Op.OpType(), datetime.DaysInMonthType)
+	assert.Equal(t, transforms[1].Op.OpType(), linear.DaysInMonthType)
 }
 func TestDAGWithHourOp(t *testing.T) {
 	q := "hour(up)"
@@ -252,7 +251,7 @@ func TestDAGWithHourOp(t *testing.T) {
 	transforms, _, err := p.DAG()
 	require.NoError(t, err)
 	assert.Len(t, transforms, 2)
-	assert.Equal(t, transforms[1].Op.OpType(), datetime.HourType)
+	assert.Equal(t, transforms[1].Op.OpType(), linear.HourType)
 }
 func TestDAGWithMinuteOp(t *testing.T) {
 	q := "minute(up)"
@@ -261,7 +260,7 @@ func TestDAGWithMinuteOp(t *testing.T) {
 	transforms, _, err := p.DAG()
 	require.NoError(t, err)
 	assert.Len(t, transforms, 2)
-	assert.Equal(t, transforms[1].Op.OpType(), datetime.MinuteType)
+	assert.Equal(t, transforms[1].Op.OpType(), linear.MinuteType)
 }
 func TestDAGWithMonthOp(t *testing.T) {
 	q := "month(up)"
@@ -270,7 +269,7 @@ func TestDAGWithMonthOp(t *testing.T) {
 	transforms, _, err := p.DAG()
 	require.NoError(t, err)
 	assert.Len(t, transforms, 2)
-	assert.Equal(t, transforms[1].Op.OpType(), datetime.MonthType)
+	assert.Equal(t, transforms[1].Op.OpType(), linear.MonthType)
 }
 func TestDAGWithYearOp(t *testing.T) {
 	q := "year(up)"
@@ -279,14 +278,5 @@ func TestDAGWithYearOp(t *testing.T) {
 	transforms, _, err := p.DAG()
 	require.NoError(t, err)
 	assert.Len(t, transforms, 2)
-	assert.Equal(t, transforms[1].Op.OpType(), datetime.YearType)
-}
-func TestDAGWithTimestampOp(t *testing.T) {
-	q := "timestamp(up)"
-	p, err := Parse(q)
-	require.NoError(t, err)
-	transforms, _, err := p.DAG()
-	require.NoError(t, err)
-	assert.Len(t, transforms, 2)
-	assert.Equal(t, transforms[1].Op.OpType(), datetime.TimestampType)
+	assert.Equal(t, transforms[1].Op.OpType(), linear.YearType)
 }

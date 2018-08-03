@@ -18,13 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package datetime
+package linear
 
 import (
 	"fmt"
+	"math"
 	"time"
 
-	"github.com/m3db/m3db/src/query/block"
 	"github.com/m3db/m3db/src/query/executor/transform"
 )
 
@@ -71,46 +71,36 @@ var (
 	}
 )
 
-// NewDateOp creates a new date op based on the type
-func NewDateOp(optype string) (transform.Params, error) {
+// NewDateOp creates a new math op based on the type
+func NewDateOp(optype string) (BaseOp, error) {
 	if _, ok := datetimeFuncs[optype]; !ok {
 		return emptyOp, fmt.Errorf("unknown date type: %s", optype)
 	}
 
-	return baseOp{
+	return BaseOp{
 		operatorType: optype,
 		processorFn:  newDateNode,
 	}, nil
 }
 
-func newDateNode(op baseOp, controller *transform.Controller) Processor {
-	return &dateNode{
-		op:         op,
-		controller: controller,
-		dateFn:     datetimeFuncs[op.operatorType],
-	}
+func newDateNode(op BaseOp, controller *transform.Controller) Processor {
+	return &dateNode{op: op, controller: controller, dateFn: datetimeFuncs[op.operatorType]}
 }
 
 type dateNode struct {
-	op         baseOp
+	op         BaseOp
+	dateFn     func(t time.Time) float64
 	controller *transform.Controller
-	dateFn     func(time.Time) float64
 }
 
-func (c *dateNode) ProcessStep(values []float64, t time.Time) []float64 {
-	val := c.dateFn(t)
+func (d *dateNode) Process(values []float64) []float64 {
 	for i := range values {
-		values[i] = val
-	}
-
-	return values
-}
-
-func (c *dateNode) ProcessSeries(values []float64, bounds block.Bounds) []float64 {
-	var t time.Time
-	for i := range values {
-		t, _ = bounds.TimeForIndex(i)
-		values[i] = c.dateFn(t)
+		if math.IsNaN(values[i]) {
+			values[i] = math.NaN()
+			continue
+		}
+		t := time.Unix(int64(values[i]), 0).UTC()
+		values[i] = d.dateFn(t)
 	}
 
 	return values

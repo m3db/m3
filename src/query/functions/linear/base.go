@@ -74,7 +74,7 @@ func (c *baseNode) ProcessStep(step block.Step) (block.Step, error) {
 }
 
 // ProcessSeries allows series iteration
-func (c *baseNode) ProcessSeries(series block.Series, _ block.Bounds) (block.Series, error) {
+func (c *baseNode) ProcessSeries(series block.Series) (block.Series, error) {
 	processedValue := c.processor.Process(series.Values())
 	return block.NewSeries(processedValue, series.Meta), nil
 }

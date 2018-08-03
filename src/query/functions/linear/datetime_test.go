@@ -18,14 +18,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package datetime
+package linear
 
 import (
+	"fmt"
 	"math"
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/query/block"
 	"github.com/m3db/m3db/src/query/parser"
 	"github.com/m3db/m3db/src/query/test"
 	"github.com/m3db/m3db/src/query/test/executor"
@@ -34,40 +34,32 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func expectedDateVals(values [][]time.Time, opType string) [][]float64 {
+func expectedDateVals(values [][]float64, fn func(t time.Time) float64) [][]float64 {
 	expected := make([][]float64, 0, len(values))
 	for _, val := range values {
 		v := make([]float64, len(val))
-		for i, t := range val {
-			v[i] = datetimeFuncs[opType](t)
+		for i, ev := range val {
+			if math.IsNaN(ev) {
+				v[i] = math.NaN()
+				continue
+			}
+			t := time.Unix(int64(ev), 0).UTC()
+			fmt.Println(fn(t))
+			v[i] = fn(t)
 		}
+
 		expected = append(expected, v)
 	}
-
 	return expected
 }
 
-func getTimes(values [][]float64, bounds block.Bounds) [][]time.Time {
-	times := make([][]time.Time, 0, len(values))
-	for _, val := range values {
-		v := make([]time.Time, len(val))
-		for i := 0; i < len(val); i++ {
-			v[i] = bounds.Start.Add(time.Duration(i) * bounds.StepSize)
-		}
-		times = append(times, v)
-	}
-
-	return times
-}
-
-func TestDayOfMonthType(t *testing.T) {
+func TestDayOfMonth(t *testing.T) {
 	v := [][]float64{
-		{0, math.NaN(), 2, 3, 4},
-		{math.NaN(), 6, 7, 8, 9},
+		{1493712846039, math.NaN(), 1493712846139, 1493712846239, 1493712846339},
+		{math.NaN(), 1493712846439, 1493712846539, 1493712846639, 1493712846739},
 	}
 
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
-	times := getTimes(v, bounds)
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	op, err := NewDateOp(DayOfMonthType)
@@ -75,19 +67,18 @@ func TestDayOfMonthType(t *testing.T) {
 	node := op.Node(c)
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
-	expected := expectedDateVals(times, op.OpType())
+	expected := expectedDateVals(values, datetimeFuncs[DayOfMonthType])
 	assert.Len(t, sink.Values, 2)
 	test.EqualsWithNans(t, expected, sink.Values)
 }
 
-func TestDayOfWeekType(t *testing.T) {
+func TestDayOfWeek(t *testing.T) {
 	v := [][]float64{
-		{0, math.NaN(), 2, 3, 4},
-		{math.NaN(), 6, 7, 8, 9},
+		{1493712846039, math.NaN(), 1493712846139, 1493712846239, 1493712846339},
+		{math.NaN(), 1493712846439, 1493712846539, 1493712846639, 1493712846739},
 	}
 
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
-	times := getTimes(values, bounds)
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	op, err := NewDateOp(DayOfWeekType)
@@ -95,19 +86,18 @@ func TestDayOfWeekType(t *testing.T) {
 	node := op.Node(c)
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
-	expected := expectedDateVals(times, op.OpType())
+	expected := expectedDateVals(values, datetimeFuncs[DayOfWeekType])
 	assert.Len(t, sink.Values, 2)
 	test.EqualsWithNans(t, expected, sink.Values)
 }
 
-func TestDaysInMonthType(t *testing.T) {
+func TestDaysInMonth(t *testing.T) {
 	v := [][]float64{
-		{0, math.NaN(), 2, 3, 4},
-		{math.NaN(), 6, 7, 8, 9},
+		{1493712846039, math.NaN(), 1493712846139, 1493712846239, 1493712846339},
+		{math.NaN(), 1493712846439, 1493712846539, 1493712846639, 1493712846739},
 	}
 
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
-	times := getTimes(values, bounds)
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	op, err := NewDateOp(DaysInMonthType)
@@ -115,19 +105,18 @@ func TestDaysInMonthType(t *testing.T) {
 	node := op.Node(c)
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
-	expected := expectedDateVals(times, op.OpType())
+	expected := expectedDateVals(values, datetimeFuncs[DaysInMonthType])
 	assert.Len(t, sink.Values, 2)
 	test.EqualsWithNans(t, expected, sink.Values)
 }
 
-func TestHourType(t *testing.T) {
+func TestHour(t *testing.T) {
 	v := [][]float64{
-		{0, math.NaN(), 2, 3, 4},
-		{math.NaN(), 6, 7, 8, 9},
+		{1493712846039, math.NaN(), 1493712846139, 1493712846239, 1493712846339},
+		{math.NaN(), 1493712846439, 1493712846539, 1493712846639, 1493712846739},
 	}
 
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
-	times := getTimes(values, bounds)
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	op, err := NewDateOp(HourType)
@@ -135,18 +124,18 @@ func TestHourType(t *testing.T) {
 	node := op.Node(c)
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
-	expected := expectedDateVals(times, op.OpType())
+	expected := expectedDateVals(values, datetimeFuncs[HourType])
 	assert.Len(t, sink.Values, 2)
 	test.EqualsWithNans(t, expected, sink.Values)
 }
-func TestMinuteType(t *testing.T) {
+
+func TestMinute(t *testing.T) {
 	v := [][]float64{
-		{0, math.NaN(), 2, 3, 4},
-		{math.NaN(), 6, 7, 8, 9},
+		{1493712846039, math.NaN(), 1493712846139, 1493712846239, 1493712846339},
+		{math.NaN(), 1493712846439, 1493712846539, 1493712846639, 1493712846739},
 	}
 
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
-	times := getTimes(values, bounds)
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	op, err := NewDateOp(MinuteType)
@@ -154,19 +143,18 @@ func TestMinuteType(t *testing.T) {
 	node := op.Node(c)
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
-	expected := expectedDateVals(times, op.OpType())
+	expected := expectedDateVals(values, datetimeFuncs[MinuteType])
 	assert.Len(t, sink.Values, 2)
 	test.EqualsWithNans(t, expected, sink.Values)
 }
 
-func TestMonthType(t *testing.T) {
+func TestMonth(t *testing.T) {
 	v := [][]float64{
-		{0, math.NaN(), 2, 3, 4},
-		{math.NaN(), 6, 7, 8, 9},
+		{1493712846039, math.NaN(), 1493712846139, 1493712846239, 1493712846339},
+		{math.NaN(), 1493712846439, 1493712846539, 1493712846639, 1493712846739},
 	}
 
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
-	times := getTimes(values, bounds)
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	op, err := NewDateOp(MonthType)
@@ -174,18 +162,18 @@ func TestMonthType(t *testing.T) {
 	node := op.Node(c)
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
-	expected := expectedDateVals(times, op.OpType())
+	expected := expectedDateVals(values, datetimeFuncs[MonthType])
 	assert.Len(t, sink.Values, 2)
 	test.EqualsWithNans(t, expected, sink.Values)
 }
-func TestYearType(t *testing.T) {
+
+func TestYear(t *testing.T) {
 	v := [][]float64{
-		{0, math.NaN(), 2, 3, 4},
-		{math.NaN(), 6, 7, 8, 9},
+		{1493712846039, math.NaN(), 1493712846139, 1493712846239, 1493712846339},
+		{math.NaN(), 1493712846439, 1493712846539, 1493712846639, 1493712846739},
 	}
 
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
-	times := getTimes(values, bounds)
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	op, err := NewDateOp(YearType)
@@ -193,7 +181,12 @@ func TestYearType(t *testing.T) {
 	node := op.Node(c)
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
-	expected := expectedDateVals(times, op.OpType())
+	expected := expectedDateVals(values, datetimeFuncs[YearType])
 	assert.Len(t, sink.Values, 2)
 	test.EqualsWithNans(t, expected, sink.Values)
+}
+
+func TestNonExistentDateFunc(t *testing.T) {
+	_, err := NewDateOp("nonexistent_func")
+	require.Error(t, err)
 }

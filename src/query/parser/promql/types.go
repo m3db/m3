@@ -24,7 +24,6 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3db/src/query/functions"
-	"github.com/m3db/m3db/src/query/functions/datetime"
 	"github.com/m3db/m3db/src/query/functions/linear"
 	"github.com/m3db/m3db/src/query/functions/logical"
 	"github.com/m3db/m3db/src/query/models"
@@ -98,12 +97,9 @@ func NewFunctionExpr(name string, argValues []interface{}) (parser.Params, error
 	case linear.RoundType:
 		return linear.NewRoundOp(argValues)
 
-	case datetime.DayOfMonthType, datetime.DayOfWeekType, datetime.DaysInMonthType, datetime.HourType,
-		datetime.MinuteType, datetime.MonthType, datetime.YearType:
-		return datetime.NewDateOp(name)
-
-	case datetime.TimestampType:
-		return datetime.NewTimestampOp(name)
+	case linear.DayOfMonthType, linear.DayOfWeekType, linear.DaysInMonthType, linear.HourType,
+		linear.MinuteType, linear.MonthType, linear.YearType:
+		return linear.NewDateOp(name)
 
 	default:
 		// TODO: handle other types
