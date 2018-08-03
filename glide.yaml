@@ -31,9 +31,6 @@ import:
 - package: github.com/m3db/m3ctl
   version: acc762bfdd42ecb192d34e48fa7ca1fd7ee088ac
 
-- package: github.com/m3db/m3ninx
-  version: 7556fa8339674f1d9f559486d1feca18c17d1190
-
 - package: github.com/m3db/bitset
   version: 07973db6b78acb62ac207d0538055e874b49d90d
 
@@ -185,6 +182,17 @@ import:
 
 - package: github.com/prometheus/tsdb
   version: 16b2bf1b45ce3e3536c78ebec5116ea09a69786e
+# END_PROMETHEUS_DEPS
+
+# START_TALLY_PROMETHEUS_DEPS
+- package: github.com/m3db/prometheus_client_model
+  version: 8b2299a4bf7d7fc10835527021716d4b4a6e8700
+
+- package: github.com/m3db/prometheus_common
+  version: 25aaa3dff79bb48116615ebe1dea6a494b74ce77
+
+- package: github.com/m3db/prometheus_procfs
+  version: 1878d9fbb537119d24b21ca07effd591627cd160
 # END_PROMETHEUS_DEPS
 
 - package: github.com/coreos/pkg

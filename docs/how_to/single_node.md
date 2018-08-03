@@ -15,8 +15,8 @@ and port `9003` (used to read and write metrics) exposed. We recommend you creat
 directory on your host for durability:
 
 ```
-docker pull quay.io/m3db/m3:latest
-docker run -p 7201:7201 -p 9003:9003 --name m3db -v $(pwd)/m3db_data:/var/lib/m3db quay.io/m3db/m3:latest
+docker pull quay.io/m3db/m3dbnode:latest
+docker run -p 7201:7201 -p 9003:9003 --name m3db -v $(pwd)/m3db_data:/var/lib/m3db quay.io/m3db/m3dbnode:latest
 ```
 
 <!-- TODO: link to docs containing explanations of what namespaces, the coordinator,

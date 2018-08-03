@@ -398,7 +398,7 @@ spec:
             weight: 10
       containers:
       - name: m3db
-        image: quay.io/m3db/m3:latest
+        image: quay.io/m3db/m3dbnode:latest
         imagePullPolicy: Always
         # resources:
         #   limits:
