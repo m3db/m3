@@ -22,6 +22,7 @@ package leader
 
 import (
 	"testing"
+	"time"
 
 	"github.com/coreos/etcd/clientv3/concurrency"
 	"github.com/m3db/m3cluster/services"
@@ -99,6 +100,41 @@ func TestService_Leader(t *testing.T) {
 	ld, err := svc.Leader("")
 	assert.NoError(t, err)
 	assert.Equal(t, "foo1", ld)
+}
+
+func TestService_Observe(t *testing.T) {
+	tc := newTestCluster(t)
+	defer tc.close()
+
+	svc := tc.service()
+
+	oc1, err := svc.Observe("e1")
+	assert.NoError(t, err)
+
+	sc1, err := svc.Campaign("e1", overrideOpts(t, "l1"))
+	assert.NoError(t, err)
+	assert.NoError(t, waitForStates(sc1, true, followerS, leaderS))
+
+	select {
+	case <-time.After(time.Second):
+		t.Error("expected to receive client update")
+	case v := <-oc1:
+		assert.Equal(t, "l1", v)
+	}
+
+	oc2, err := svc.Observe("e2")
+	assert.NoError(t, err)
+
+	sc2, err := svc.Campaign("e2", overrideOpts(t, "l1"))
+	assert.NoError(t, err)
+	assert.NoError(t, waitForStates(sc2, true, followerS, leaderS))
+
+	select {
+	case <-time.After(time.Second):
+		t.Error("expected to receive client update")
+	case v := <-oc2:
+		assert.Equal(t, "l1", v)
+	}
 }
 
 func TestService_Close(t *testing.T) {

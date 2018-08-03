@@ -385,4 +385,10 @@ type LeaderService interface {
 	// Leader returns the current leader of a specified election (if there is no
 	// leader then leader.ErrNoLeader is returned).
 	Leader(electionID string) (string, error)
+
+	// Observe returns a channel on which leader updates for a specified election
+	// will be returned. If no one is campaigning for the given election the call
+	// will still succeed and the channel will receive its first update when an
+	// election is started.
+	Observe(electionID string) (<-chan string, error)
 }

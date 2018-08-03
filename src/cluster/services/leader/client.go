@@ -56,12 +56,14 @@ var (
 type client struct {
 	sync.RWMutex
 
-	client      *election.Client
-	opts        services.ElectionOptions
-	cancelFn    context.CancelFunc
-	resignCh    chan struct{}
-	campaigning bool
-	closed      bool
+	client           *election.Client
+	opts             services.ElectionOptions
+	campaignCancelFn context.CancelFunc
+	observeCancelFn  context.CancelFunc
+	observeCtx       context.Context
+	resignCh         chan struct{}
+	campaigning      bool
+	closed           bool
 }
 
 // newClient returns an instance of an client bound to a single election.
@@ -77,10 +79,16 @@ func newClient(cli *clientv3.Client, opts Options, electionID string) (*client, 
 		return nil, err
 	}
 
+	// Allow multiple observe calls with the same parent context, to be cancelled
+	// when the client is closed.
+	ctx, cancel := context.WithCancel(context.Background())
+
 	return &client{
-		client:   ec,
-		opts:     opts.ElectionOpts(),
-		resignCh: make(chan struct{}),
+		client:          ec,
+		opts:            opts.ElectionOpts(),
+		resignCh:        make(chan struct{}),
+		observeCtx:      ctx,
+		observeCancelFn: cancel,
 	}, nil
 }
 
@@ -95,7 +103,7 @@ func (c *client) campaign(opts services.CampaignOptions) (<-chan campaign.Status
 
 	ctx, cancel := context.WithCancel(context.Background())
 	c.Lock()
-	c.cancelFn = cancel
+	c.campaignCancelFn = cancel
 	c.Unlock()
 
 	// buffer 1 to not block initial follower update
@@ -137,9 +145,9 @@ func (c *client) resign() error {
 
 	// if there's an active blocking call to Campaign() stop it
 	c.Lock()
-	if c.cancelFn != nil {
-		c.cancelFn()
-		c.cancelFn = nil
+	if c.campaignCancelFn != nil {
+		c.campaignCancelFn()
+		c.campaignCancelFn = nil
 	}
 	c.Unlock()
 
@@ -175,6 +183,30 @@ func (c *client) leader() (string, error) {
 	return ld, err
 }
 
+func (c *client) observe() (<-chan string, error) {
+	if c.isClosed() {
+		return nil, errClientClosed
+	}
+
+	c.RLock()
+	pCtx := c.observeCtx
+	c.RUnlock()
+
+	ctx, cancel := context.WithCancel(pCtx)
+	ch, err := c.client.Observe(ctx)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+
+	go func() {
+		<-ctx.Done()
+		cancel()
+	}()
+
+	return ch, nil
+}
+
 func (c *client) startCampaign() bool {
 	c.Lock()
 	defer c.Unlock()
@@ -201,6 +233,7 @@ func (c *client) close() error {
 		c.Unlock()
 		return nil
 	}
+	c.observeCancelFn()
 	c.closed = true
 	c.Unlock()
 	return c.client.Close()

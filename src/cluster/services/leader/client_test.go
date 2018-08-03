@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/services/leader/campaign"
@@ -257,6 +258,38 @@ func TestResign_Early(t *testing.T) {
 
 	err := svc.resign()
 	assert.NoError(t, err)
+}
+
+func TestObserve(t *testing.T) {
+	tc := newTestCluster(t)
+	defer tc.close()
+
+	svc1 := tc.client()
+
+	obsC, err := svc1.observe()
+	assert.NoError(t, err)
+
+	sc1, err := svc1.campaign(tc.opts("i1"))
+	assert.NoError(t, err)
+	assert.NoError(t, waitForStates(sc1, true, followerS, leaderS))
+
+	select {
+	case <-time.After(time.Second):
+		t.Error("expected to receive leader update")
+	case v := <-obsC:
+		assert.Equal(t, "i1", v)
+	}
+
+	assert.NoError(t, svc1.close())
+	select {
+	case <-time.After(5 * time.Second):
+		t.Error("expected client channel to be closed")
+	case _, ok := <-obsC:
+		assert.False(t, ok)
+	}
+
+	_, err = svc1.observe()
+	assert.Equal(t, errClientClosed, err)
 }
 
 func testHandoff(t *testing.T, resign bool) {

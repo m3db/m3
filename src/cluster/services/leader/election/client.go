@@ -180,6 +180,45 @@ func (c *Client) Leader(ctx context.Context) (string, error) {
 	return string(resp.Kvs[0].Value), nil
 }
 
+// Observe returns a channel which receives that value of the latest leader for
+// the election. The channel is closed when the context is cancelled.
+func (c *Client) Observe(ctx context.Context) (<-chan string, error) {
+	if c.isClosed() {
+		return nil, ErrClientClosed
+	}
+
+	c.mu.RLock()
+	el := c.election
+	c.mu.RUnlock()
+
+	leaderCh := el.Observe(ctx)
+
+	ch := make(chan string)
+	go func() {
+		for {
+			select {
+			case resp, ok := <-leaderCh:
+				if !ok {
+					close(ch)
+					return
+				}
+
+				// Etcd only sends one value along the receive channel at a time
+				// https://git.io/fNipr.
+				if len(resp.Kvs) > 0 {
+					ch <- string(resp.Kvs[0].Value)
+				}
+
+			case <-ctx.Done():
+				close(ch)
+				return
+			}
+		}
+	}()
+
+	return ch, nil
+}
+
 // Close closes the client's underlying session and prevents any further
 // campaigns from being started.
 func (c *Client) Close() error {
