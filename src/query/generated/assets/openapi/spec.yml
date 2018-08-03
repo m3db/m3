@@ -1,4 +1,4 @@
-# NOTE: Run `make asset-gen-coordinator` if you make any changes to this file!
+# NOTE: Run `make asset-gen-query` if you make any changes to this file!
 swagger: "2.0"
 info:
   title: "M3DB"
