@@ -141,7 +141,7 @@
   
 
 
-  <a href="https://github.com/m3db/m3db/" title="Go to repository" class="md-source" data-md-source="github">
+  <a href="https://github.com/m3db/m3/" title="Go to repository" class="md-source" data-md-source="github">
     
       <div class="md-source__icon">
         <svg viewBox="0 0 24 24" width="24" height="24">
@@ -150,7 +150,7 @@
       </div>
     
     <div class="md-source__repository">
-      m3db/m3db
+      m3db/m3
     </div>
   </a>
 
@@ -187,7 +187,7 @@
   
 
 
-  <a href="https://github.com/m3db/m3db/" title="Go to repository" class="md-source" data-md-source="github">
+  <a href="https://github.com/m3db/m3/" title="Go to repository" class="md-source" data-md-source="github">
     
       <div class="md-source__icon">
         <svg viewBox="0 0 24 24" width="24" height="24">
@@ -196,7 +196,7 @@
       </div>
     
     <div class="md-source__repository">
-      m3db/m3db
+      m3db/m3
     </div>
   </a>
 
@@ -919,7 +919,7 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/m3db/m3db/edit/master/docs/m3db/architecture/engine.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                  <a href="https://github.com/m3db/m3/edit/master/docs/m3db/architecture/engine.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
                 
                 
                 <h1 id="storage-engine-overview">Storage Engine Overview</h1>
@@ -1019,7 +1019,7 @@ series_object       =&gt; map<block_start_time, active_buffers(encoders)> (This 
 <p>If the database is stopped for any reason in-between "flushes" (writing fileset files out to disk), then when the node is started back up those writes will need to be recovered by reading the commitlog or streaming in the data from a peer responsible for the same shard (if the replication factor is larger than 1).</p>
 <p>While the <a href="../storage/">fileset files</a> are designed to support efficient data retrieval via the series primary key (the ID), there is still a heavy cost associated with any query that has to retrieve data from disk because going to disk is always much slower than accessing main memory. To compensate for that, M3DB support various <a href="../caching/">caching policies</a> which can significantly improve the performance of reads by caching data in memory.</p>
 <h2 id="write-path">Write Path</h2>
-<p>We now have enough context of M3DB's architecture to discuss the lifecycle of a write. A write begins when an M3DB client calls the <a href="https://github.com/m3db/m3db/blob/06d3ecc94d13cff67b82a791271816caa338dcab/src/dbnode/generated/thrift/rpc.thrift#L59"><code>writeBatchRaw</code></a> endpoint on M3DB's embedded thrift server. The write itself will contain the following information:</p>
+<p>We now have enough context of M3DB's architecture to discuss the lifecycle of a write. A write begins when an M3DB client calls the <a href="https://github.com/m3db/m3/blob/06d3ecc94d13cff67b82a791271816caa338dcab/src/dbnode/generated/thrift/rpc.thrift#L59"><code>writeBatchRaw</code></a> endpoint on M3DB's embedded thrift server. The write itself will contain the following information:</p>
 <ol>
 <li>The namespace</li>
 <li>The series ID (byte blob)</li>
@@ -1031,7 +1031,7 @@ series_object       =&gt; map<block_start_time, active_buffers(encoders)> (This 
 <p>The write will exist only in this "active buffer" and the commitlog until the block ends and is flushed to disk, at which point the write will exist in a fileset file for efficient storage and retrieval later and the commitlog entry can be garbage collected.</p>
 <p><strong>Note:</strong> Regardless of the success or failure of the write in a single node, the client will return a success or failure to the caller for the write based on the configured <a href="../consistencylevels/">consistency level</a>.</p>
 <h2 id="read-path">Read Path</h2>
-<p>A read begins when an M3DB client calls the <a href="https://github.com/m3db/m3db/blob/master/generated/thrift/rpc.thrift"><code>FetchBatchResult</code></a> or <a href="https://github.com/m3db/m3db/blob/master/generated/thrift/rpc.thrift"><code>FetchBlocksRawResult</code></a> endpoint on M3DB's embedded thrift server. The read request will contain the following information:</p>
+<p>A read begins when an M3DB client calls the <a href="https://github.com/m3db/m3/blob/master/generated/thrift/rpc.thrift"><code>FetchBatchResult</code></a> or <a href="https://github.com/m3db/m3/blob/master/generated/thrift/rpc.thrift"><code>FetchBlocksRawResult</code></a> endpoint on M3DB's embedded thrift server. The read request will contain the following information:</p>
 <ol>
 <li>The namespace</li>
 <li>The series ID (byte blob)</li>

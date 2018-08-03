@@ -4,7 +4,7 @@
     
     <url>
      <loc>/</loc>
-     <lastmod>2018-07-16</lastmod>
+     <lastmod>2018-08-03</lastmod>
      <changefreq>daily</changefreq>
     </url>
     
@@ -13,13 +13,13 @@
         
     <url>
      <loc>/introduction/components/components/</loc>
-     <lastmod>2018-07-16</lastmod>
+     <lastmod>2018-08-03</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/introduction/motivation/motivation/</loc>
-     <lastmod>2018-07-16</lastmod>
+     <lastmod>2018-08-03</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
@@ -29,7 +29,7 @@
         
     <url>
      <loc>/m3db/</loc>
-     <lastmod>2018-07-16</lastmod>
+     <lastmod>2018-08-03</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
@@ -45,13 +45,13 @@
         
     <url>
      <loc>/query_engine/</loc>
-     <lastmod>2018-07-16</lastmod>
+     <lastmod>2018-08-03</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/query_engine/roadmap/</loc>
-     <lastmod>2018-07-16</lastmod>
+     <lastmod>2018-08-03</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
@@ -67,19 +67,19 @@
         
     <url>
      <loc>/how_to/single_node/</loc>
-     <lastmod>2018-07-16</lastmod>
+     <lastmod>2018-08-03</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/how_to/cluster_hard_way/</loc>
-     <lastmod>2018-07-16</lastmod>
+     <lastmod>2018-08-03</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/how_to/kubernetes/</loc>
-     <lastmod>2018-07-16</lastmod>
+     <lastmod>2018-08-03</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
@@ -89,7 +89,7 @@
         
     <url>
      <loc>/integrations/prometheus/</loc>
-     <lastmod>2018-07-16</lastmod>
+     <lastmod>2018-08-03</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
@@ -98,7 +98,7 @@
     
     <url>
      <loc>/troubleshooting/</loc>
-     <lastmod>2018-07-16</lastmod>
+     <lastmod>2018-08-03</lastmod>
      <changefreq>daily</changefreq>
     </url>
     
@@ -106,7 +106,7 @@
     
     <url>
      <loc>/faqs/</loc>
-     <lastmod>2018-07-16</lastmod>
+     <lastmod>2018-08-03</lastmod>
      <changefreq>daily</changefreq>
     </url>
     

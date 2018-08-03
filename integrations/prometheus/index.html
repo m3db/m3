@@ -137,7 +137,7 @@
   
 
 
-  <a href="https://github.com/m3db/m3db/" title="Go to repository" class="md-source" data-md-source="github">
+  <a href="https://github.com/m3db/m3/" title="Go to repository" class="md-source" data-md-source="github">
     
       <div class="md-source__icon">
         <svg viewBox="0 0 24 24" width="24" height="24">
@@ -146,7 +146,7 @@
       </div>
     
     <div class="md-source__repository">
-      m3db/m3db
+      m3db/m3
     </div>
   </a>
 
@@ -183,7 +183,7 @@
   
 
 
-  <a href="https://github.com/m3db/m3db/" title="Go to repository" class="md-source" data-md-source="github">
+  <a href="https://github.com/m3db/m3/" title="Go to repository" class="md-source" data-md-source="github">
     
       <div class="md-source__icon">
         <svg viewBox="0 0 24 24" width="24" height="24">
@@ -192,7 +192,7 @@
       </div>
     
     <div class="md-source__repository">
-      m3db/m3db
+      m3db/m3
     </div>
   </a>
 
@@ -737,14 +737,14 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/m3db/m3db/edit/master/docs/integrations/prometheus.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                  <a href="https://github.com/m3db/m3/edit/master/docs/integrations/prometheus.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
                 
                 
                 <h1 id="prometheus">Prometheus</h1>
 <p>This document is a getting started guide to integrating M3DB with Prometheus.</p>
 <h2 id="m3-coordinator-configuration">M3 Coordinator configuration</h2>
 <p>To write to a remote M3DB cluster the simplest configuration is to run <code>m3coordinator</code> as a sidecar alongside Prometheus.</p>
-<p>Start by downloading the <a href="https://github.com/m3db/m3db/blob/master/src/coordinator/config/m3coordinator-cluster-template.yml">config template</a>. Update the <code>namespaces</code> and the <code>client</code> section for a new cluster to match your cluster's configuration.</p>
+<p>Start by downloading the <a href="https://github.com/m3db/m3/blob/master/src/coordinator/config/m3coordinator-cluster-template.yml">config template</a>. Update the <code>namespaces</code> and the <code>client</code> section for a new cluster to match your cluster's configuration.</p>
 <p>You'll need to specify the static IPs or hostnames of your M3DB seed nodes, and the name and retention values of the namespace you set up.  You can leave the namespace storage metrics type as <code>unaggregated</code> since it's required by default to have a cluster that receives all Prometheus metrics unaggregated.  In the future you might also want to aggregate and downsample metrics for longer retention, and you can come back and update the config once you've setup those clusters.</p>
 <p>It should look something like:</p>
 <pre><code>listenAddress: 0.0.0.0:7201
@@ -754,7 +754,7 @@ metrics:
     prefix: &quot;coordinator&quot;
   prometheus:
     handlerPath: /metrics
-    listenAddress: 0.0.0.0:7203 # until https://github.com/m3db/m3db/issues/682 is resolved
+    listenAddress: 0.0.0.0:7203 # until https://github.com/m3db/m3/issues/682 is resolved
   sanitization: prometheus
   samplingRate: 1.0
   extended: none

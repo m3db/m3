@@ -141,7 +141,7 @@
   
 
 
-  <a href="https://github.com/m3db/m3db/" title="Go to repository" class="md-source" data-md-source="github">
+  <a href="https://github.com/m3db/m3/" title="Go to repository" class="md-source" data-md-source="github">
     
       <div class="md-source__icon">
         <svg viewBox="0 0 24 24" width="24" height="24">
@@ -150,7 +150,7 @@
       </div>
     
     <div class="md-source__repository">
-      m3db/m3db
+      m3db/m3
     </div>
   </a>
 
@@ -187,7 +187,7 @@
   
 
 
-  <a href="https://github.com/m3db/m3db/" title="Go to repository" class="md-source" data-md-source="github">
+  <a href="https://github.com/m3db/m3/" title="Go to repository" class="md-source" data-md-source="github">
     
       <div class="md-source__icon">
         <svg viewBox="0 0 24 24" width="24" height="24">
@@ -196,7 +196,7 @@
       </div>
     
     <div class="md-source__repository">
-      m3db/m3db
+      m3db/m3
     </div>
   </a>
 
@@ -853,7 +853,7 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/m3db/m3db/edit/master/docs/m3db/architecture/sharding.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                  <a href="https://github.com/m3db/m3/edit/master/docs/m3db/architecture/sharding.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
                 
                 
                 <h1 id="sharding">Sharding</h1>
@@ -898,7 +898,7 @@ enum ShardState {
 
 <h2 id="shard-assignment">Shard assignment</h2>
 <p>The assignment of shards is stored in etcd. When adding, removing or replacing a node shard goal states are assigned for each shard assigned.</p>
-<p>For a write to appear as successful for a given replica it must succeed against all assigned hosts for that shard.  That means if there is a given shard with a host assigned as <em>LEAVING</em> and another host assigned as <em>INITIALIZING</em> for a given replica writes to both these hosts must appear as successful to return success for a write to that given replica.  Currently however only <em>AVAILABLE</em> shards count towards consistency, the work to group the <em>LEAVING</em> and <em>INITIALIZING</em> shards together when calculating a write success/error is not complete, see <a href="https://github.com/m3db/m3db/issues/417">issue 417</a>.</p>
+<p>For a write to appear as successful for a given replica it must succeed against all assigned hosts for that shard.  That means if there is a given shard with a host assigned as <em>LEAVING</em> and another host assigned as <em>INITIALIZING</em> for a given replica writes to both these hosts must appear as successful to return success for a write to that given replica.  Currently however only <em>AVAILABLE</em> shards count towards consistency, the work to group the <em>LEAVING</em> and <em>INITIALIZING</em> shards together when calculating a write success/error is not complete, see <a href="https://github.com/m3db/m3/issues/417">issue 417</a>.</p>
 <p>It is up to the nodes themselves to bootstrap shards when the assignment of new shards to it are discovered in the <em>INITIALIZING</em> state and to transition the state to <em>AVAILABLE</em> once bootstrapped by calling the cluster management APIs when done.  Using a compare and set this atomically removes the <em>LEAVING</em> shard still assigned to the node that previously owned it and transitions the shard state on the new node from <em>INITIALIZING</em> state to <em>AVAILABLE</em>.</p>
 <p>Nodes will not start serving reads for the new shard until it is <em>AVAILABLE</em>, meaning not until they have bootstrapped data for those shards.</p>
 <h2 id="cluster-operations">Cluster operations</h2>

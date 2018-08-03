@@ -137,7 +137,7 @@
   
 
 
-  <a href="https://github.com/m3db/m3db/" title="Go to repository" class="md-source" data-md-source="github">
+  <a href="https://github.com/m3db/m3/" title="Go to repository" class="md-source" data-md-source="github">
     
       <div class="md-source__icon">
         <svg viewBox="0 0 24 24" width="24" height="24">
@@ -146,7 +146,7 @@
       </div>
     
     <div class="md-source__repository">
-      m3db/m3db
+      m3db/m3
     </div>
   </a>
 
@@ -183,7 +183,7 @@
   
 
 
-  <a href="https://github.com/m3db/m3db/" title="Go to repository" class="md-source" data-md-source="github">
+  <a href="https://github.com/m3db/m3/" title="Go to repository" class="md-source" data-md-source="github">
     
       <div class="md-source__icon">
         <svg viewBox="0 0 24 24" width="24" height="24">
@@ -192,7 +192,7 @@
       </div>
     
     <div class="md-source__repository">
-      m3db/m3db
+      m3db/m3
     </div>
   </a>
 
@@ -817,7 +817,7 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/m3db/m3db/edit/master/docs/how_to/kubernetes.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                  <a href="https://github.com/m3db/m3/edit/master/docs/how_to/kubernetes.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
                 
                 
                 <h1 id="m3db-on-kubernetes">M3DB on Kubernetes</h1>
@@ -834,20 +834,20 @@ files benefit from lower random read latency.</p>
 provided to provision such a StorageClass on AWS / Azure / GCP using the respective cloud provider's premium disk class.</p>
 <p>If you do not already have a StorageClass named <code>fast</code>, create one using one of the provided manifests:</p>
 <pre><code># AWS EBS (class io1)
-kubectl apply -f https://raw.githubusercontent.com/m3db/m3db/master/kube/storage-class-aws.yaml
+kubectl apply -f https://raw.githubusercontent.com/m3db/m3/master/kube/storage-class-aws.yaml
 
 # Azure premium LRS
-kubectl apply -f https://raw.githubusercontent.com/m3db/m3db/master/kube/storage-class-azure.yaml
+kubectl apply -f https://raw.githubusercontent.com/m3db/m3/master/kube/storage-class-azure.yaml
 
 # GCE Persistent SSD
-kubectl apply -f https://raw.githubusercontent.com/m3db/m3db/master/kube/storage-class-gcp.yaml
+kubectl apply -f https://raw.githubusercontent.com/m3db/m3/master/kube/storage-class-gcp.yaml
 </code></pre>
 
 <p>If you wish to use your cloud provider's default remote disk, or another disk class entirely, you'll have to modify the
 manifests.</p>
 <h2 id="deploying">Deploying</h2>
 <p>Apply the following manifest to create your cluster:</p>
-<pre><code>kubectl apply -f https://raw.githubusercontent.com/m3db/m3db/master/kube/bundle.yaml
+<pre><code>kubectl apply -f https://raw.githubusercontent.com/m3db/m3/master/kube/bundle.yaml
 </code></pre>
 
 <p>Applying this bundle will create the following resources:</p>
