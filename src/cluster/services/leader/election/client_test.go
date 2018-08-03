@@ -233,6 +233,69 @@ func TestCampaign_ResignActive(t *testing.T) {
 	assert.Equal(t, "1", ld)
 }
 
+func TestObserve(t *testing.T) {
+	tc := newTestCluster(t)
+	defer tc.close()
+
+	cl1 := tc.client("a")
+
+	ctx1, cancel1 := context.WithCancel(context.Background())
+	defer cancel1()
+
+	obsC, err := cl1.Observe(ctx1)
+	assert.NoError(t, err)
+
+	bufC := make(chan string, 100)
+	go func() {
+		for v := range obsC {
+			bufC <- v
+		}
+	}()
+
+	_, err = cl1.Campaign(context.Background(), "1")
+	assert.NoError(t, err)
+
+	select {
+	case <-time.After(time.Second):
+		t.Error("expected to receive leader update within 1s")
+	case v := <-bufC:
+		assert.Equal(t, "1", v)
+	}
+
+	cl2 := tc.client("a")
+
+	el2 := make(chan struct{})
+	go func() {
+		_, err := cl2.Campaign(context.Background(), "2")
+		assert.NoError(t, err)
+		close(el2)
+	}()
+
+	err = cl1.Resign(context.Background())
+	assert.NoError(t, err)
+
+	select {
+	case <-time.After(5 * time.Second):
+		t.Error("expected to be leader within 5s")
+	case <-el2:
+	}
+
+	select {
+	case <-time.After(time.Second):
+		t.Error("expected to receive new leader within 1s")
+	case v := <-bufC:
+		assert.Equal(t, "2", v)
+	}
+
+	cancel1()
+	select {
+	case <-time.After(time.Second):
+		t.Error("expected update channel to be closed within 1s")
+	case _, ok := <-obsC:
+		assert.False(t, ok)
+	}
+}
+
 func TestClose(t *testing.T) {
 	tc := newTestCluster(t)
 	defer tc.close()

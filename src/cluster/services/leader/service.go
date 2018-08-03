@@ -191,3 +191,16 @@ func (s *multiClient) Leader(electionID string) (string, error) {
 
 	return client.leader()
 }
+
+func (s *multiClient) Observe(electionID string) (<-chan string, error) {
+	if s.isClosed() {
+		return nil, errClientClosed
+	}
+
+	cl, err := s.getOrCreateClient(electionID)
+	if err != nil {
+		return nil, err
+	}
+
+	return cl.observe()
+}
