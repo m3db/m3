@@ -98,8 +98,9 @@ type dateNode struct {
 }
 
 func (c *dateNode) ProcessStep(values []float64, t time.Time) []float64 {
+	val := c.dateFn(t)
 	for i := range values {
-		values[i] = c.dateFn(t)
+		values[i] = val
 	}
 
 	return values
