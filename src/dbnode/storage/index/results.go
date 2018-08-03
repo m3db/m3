@@ -23,7 +23,7 @@ package index
 import (
 	"errors"
 
-	"github.com/m3db/m3db/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 )

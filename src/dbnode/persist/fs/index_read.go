@@ -28,11 +28,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/digest"
-	"github.com/m3db/m3db/src/dbnode/generated/proto/index"
-	"github.com/m3db/m3db/src/dbnode/persist"
-	"github.com/m3db/m3db/src/dbnode/x/mmap"
-	idxpersist "github.com/m3db/m3db/src/m3ninx/persist"
+	"github.com/m3db/m3/src/dbnode/digest"
+	"github.com/m3db/m3/src/dbnode/generated/proto/index"
+	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/x/mmap"
+	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	xlog "github.com/m3db/m3x/log"
 )
 

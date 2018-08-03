@@ -39,8 +39,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m3db/m3db/src/cmd/tools"
-	"github.com/m3db/m3db/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/cmd/tools"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 )

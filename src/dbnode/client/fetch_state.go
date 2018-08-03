@@ -26,10 +26,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/encoding"
-	"github.com/m3db/m3db/src/dbnode/serialize"
-	"github.com/m3db/m3db/src/dbnode/topology"
-	"github.com/m3db/m3db/src/dbnode/x/xpool"
+	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/serialize"
+	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3x/ident"
 )
 

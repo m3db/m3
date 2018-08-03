@@ -24,8 +24,8 @@ import (
 	re "regexp"
 	"sync"
 
-	"github.com/m3db/m3db/src/m3ninx/doc"
-	"github.com/m3db/m3db/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
 // termsDict is an in-memory terms dictionary. It maps fields to postings lists.

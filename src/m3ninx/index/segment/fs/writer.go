@@ -27,15 +27,15 @@ import (
 	"io"
 	"sort"
 
-	"github.com/m3db/m3db/src/m3ninx/doc"
-	"github.com/m3db/m3db/src/m3ninx/generated/proto/fswriter"
-	"github.com/m3db/m3db/src/m3ninx/index"
-	sgmt "github.com/m3db/m3db/src/m3ninx/index/segment"
-	"github.com/m3db/m3db/src/m3ninx/index/segment/fs/encoding"
-	"github.com/m3db/m3db/src/m3ninx/index/segment/fs/encoding/docs"
-	"github.com/m3db/m3db/src/m3ninx/postings"
-	"github.com/m3db/m3db/src/m3ninx/postings/pilosa"
-	"github.com/m3db/m3db/src/m3ninx/x"
+	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/generated/proto/fswriter"
+	"github.com/m3db/m3/src/m3ninx/index"
+	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fs/encoding"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fs/encoding/docs"
+	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/postings/pilosa"
+	"github.com/m3db/m3/src/m3ninx/x"
 )
 
 var (

@@ -23,7 +23,7 @@ package cmd
 import (
 	"log"
 
-	"github.com/m3db/m3db/src/m3nsch/coordinator"
+	"github.com/m3db/m3/src/m3nsch/coordinator"
 	"github.com/m3db/m3x/instrument"
 
 	"github.com/spf13/cobra"

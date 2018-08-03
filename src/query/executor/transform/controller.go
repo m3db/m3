@@ -21,8 +21,8 @@
 package transform
 
 import (
-	"github.com/m3db/m3db/src/query/block"
-	"github.com/m3db/m3db/src/query/parser"
+	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/parser"
 )
 
 // Controller controls the caching and forwarding the request to downstream.

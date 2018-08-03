@@ -21,9 +21,9 @@
 package executor
 
 import (
-	"github.com/m3db/m3db/src/query/block"
-	"github.com/m3db/m3db/src/query/executor/transform"
-	"github.com/m3db/m3db/src/query/parser"
+	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/parser"
 )
 
 // NewControllerWithSink creates a new controller which has a sink useful for comparison in tests
@@ -39,7 +39,7 @@ func NewControllerWithSink(ID parser.NodeID) (*transform.Controller, *SinkNode) 
 
 // SinkNode is a test node useful for comparisons
 type SinkNode struct {
-	Values   [][]float64
+	Values [][]float64
 }
 
 // Process processes and stores the last block output in the sink node

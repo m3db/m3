@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/query/generated/proto/prompb"
+	"github.com/m3db/m3/src/query/generated/proto/prompb"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/snappy"

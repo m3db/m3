@@ -23,9 +23,9 @@ package mem
 import (
 	"io"
 
-	"github.com/m3db/m3db/src/m3ninx/index"
-	sgmt "github.com/m3db/m3db/src/m3ninx/index/segment"
-	"github.com/m3db/m3db/src/m3ninx/x"
+	"github.com/m3db/m3/src/m3ninx/index"
+	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/x"
 )
 
 // Merge merges the segments `srcs` into `target`.

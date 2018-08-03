@@ -23,7 +23,7 @@ package m3db
 import (
 	"testing"
 
-	m3dbrpc "github.com/m3db/m3db/src/dbnode/generated/thrift/rpc"
+	m3dbrpc "github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3em/generated/proto/m3em"
 	"github.com/m3db/m3em/node"
 	mocknode "github.com/m3db/m3em/node/mocks"

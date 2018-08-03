@@ -23,8 +23,8 @@ package transform
 import (
 	"time"
 
-	"github.com/m3db/m3db/src/query/block"
-	"github.com/m3db/m3db/src/query/parser"
+	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/parser"
 )
 
 // Options to create transform nodes

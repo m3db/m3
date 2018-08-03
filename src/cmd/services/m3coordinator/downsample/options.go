@@ -27,6 +27,8 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/serialize"
+	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3aggregator/aggregator/handler"
 	"github.com/m3db/m3aggregator/client"
@@ -36,8 +38,6 @@ import (
 	placementservice "github.com/m3db/m3cluster/placement/service"
 	placementstorage "github.com/m3db/m3cluster/placement/storage"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3db/src/dbnode/serialize"
-	"github.com/m3db/m3db/src/query/storage"
 	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/matcher"

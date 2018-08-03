@@ -23,9 +23,9 @@ package linear
 import (
 	"testing"
 
-	"github.com/m3db/m3db/src/query/parser"
-	"github.com/m3db/m3db/src/query/test"
-	"github.com/m3db/m3db/src/query/test/executor"
+	"github.com/m3db/m3/src/query/parser"
+	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/executor"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

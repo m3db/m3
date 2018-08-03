@@ -4,14 +4,14 @@ Setup m3db and coordinator:
 
 1) Run m3dbnode
 
-        $ cd $GOPATH/src/github.com/m3db/m3db/
-        $ sudo ./bin/m3dbnode -f $GOPATH/src/github.com/m3db/m3db/src/query/benchmark/benchmarker/main/m3dbnode-local-config.yaml
+        $ cd $GOPATH/src/github.com/m3db/m3/
+        $ sudo ./bin/m3dbnode -f $GOPATH/src/github.com/m3db/m3/src/query/benchmark/benchmarker/main/m3dbnode-local-config.yaml
 
 2) Run m3coordinator
 
-        $ cd $GOPATH/src/github.com/m3db/m3db/src/query
+        $ cd $GOPATH/src/github.com/m3db/m3/src/query
         $ make services
-        $ ./bin/m3coordinator --config.file=$GOPATH/src/github.com/m3db/m3db/src/query/benchmark/benchmarker/main/m3coordinator-local-config.yml
+        $ ./bin/m3coordinator --config.file=$GOPATH/src/github.com/m3db/m3/src/query/benchmark/benchmarker/main/m3coordinator-local-config.yml
 
 This new benchmarker requires a list of files in opentsdb format. These can be generated using the influxdb-comparisons tool, and may need to be regenerated periodically if the data gets too stale:
 
@@ -20,7 +20,7 @@ This new benchmarker requires a list of files in opentsdb format. These can be g
        $ git clone https://github.com/benraskin92/influxdb-comparisons.git $GOPATH/src/github.com/
        $ cd cmd/bulk_data_gen
        $ go build
-       $ cd $GOPATH/src/github.com/m3db/m3db/src/query/benchmark/benchmarker/main/
+       $ cd $GOPATH/src/github.com/m3db/m3/src/query/benchmark/benchmarker/main/
        $ ./data_gen.sh
 
     (NB: the path during these steps and/or in data_gen.sh may not be correct depending on $GOPATH setup)
@@ -28,7 +28,7 @@ This new benchmarker requires a list of files in opentsdb format. These can be g
 
 2) Build the benchmarker
 
-       $ cd $GOPATH/src/github.com/m3db/m3db/src/query/benchmark/benchmarker/main/
+       $ cd $GOPATH/src/github.com/m3db/m3/src/query/benchmark/benchmarker/main/
        $ go build
 
 3) The first time you run the benchmarker, or any time you need to regenerate data (e.g. if generated data is too stale to be written to m3db), add the --regenerateData flag:

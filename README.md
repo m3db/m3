@@ -1,6 +1,6 @@
 ## WARNING: This is pre-release software, and is not intended for use until a stable release.
 
-# M3DB [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fm3db%2Fm3db.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fm3db%2Fm3db?ref=badge_shield) [![Coverage Status](https://codecov.io/gh/m3db/m3db/branch/master/graph/badge.svg)](https://codecov.io/gh/m3db/m3db) [![Gitter chat][gitter-img]](https://gitter.im/m3db/Lobby)
+# M3DB [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fm3db%2Fm3db.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fm3db%2Fm3db?ref=badge_shield) [![Coverage Status](https://codecov.io/gh/m3db/m3/branch/master/graph/badge.svg)](https://codecov.io/gh/m3db/m3) [![Gitter chat][gitter-img]](https://gitter.im/m3db/Lobby)
 
 A time series database.
 
@@ -8,7 +8,7 @@ Documentation: https://m3db.github.io/m3db/
 
 Notes for [developers]
 
-[developers]: https://github.com/m3db/m3db/blob/master/DEVELOPER.md
+[developers]: https://github.com/m3db/m3/blob/master/DEVELOPER.md
 
 ## Test it out
 
@@ -121,8 +121,8 @@ make docs-deploy
 
 This project is released under the [Apache License, Version 2.0](LICENSE).
 
-[doc-img]: https://godoc.org/github.com/m3db/m3db?status.svg
-[doc]: https://godoc.org/github.com/m3db/m3db
-[ci-img]: https://semaphoreci.com/api/v1/m3db/m3db/branches/master/shields_badge.svg
-[ci]: https://semaphoreci.com/m3db/m3db
+[doc-img]: https://godoc.org/github.com/m3db/m3?status.svg
+[doc]: https://godoc.org/github.com/m3db/m3
+[ci-img]: https://semaphoreci.com/api/v1/m3db/m3/branches/master/shields_badge.svg
+[ci]: https://semaphoreci.com/m3db/m3
 [gitter-img]: https://badges.gitter.im/m3db.png

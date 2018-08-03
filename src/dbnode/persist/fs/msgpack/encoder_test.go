@@ -24,7 +24,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/m3db/m3db/src/dbnode/persist/schema"
+	"github.com/m3db/m3/src/dbnode/persist/schema"
 
 	"github.com/stretchr/testify/require"
 )

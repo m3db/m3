@@ -25,9 +25,9 @@ import (
 	"sync"
 	"testing"
 
+	tterrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
+	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3cluster/shard"
-	tterrors "github.com/m3db/m3db/src/dbnode/network/server/tchannelthrift/errors"
-	"github.com/m3db/m3db/src/dbnode/topology"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 

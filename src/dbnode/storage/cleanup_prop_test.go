@@ -28,9 +28,9 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/persist/fs/commitlog"
-	"github.com/m3db/m3db/src/dbnode/retention"
-	"github.com/m3db/m3db/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3/src/dbnode/retention"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 
 	"github.com/golang/mock/gomock"
 	"github.com/leanovate/gopter"

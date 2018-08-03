@@ -25,7 +25,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/m3db/m3db/src/query/errors"
+	"github.com/m3db/m3/src/query/errors"
 )
 
 // Values holds the values for a timeseries.  It provides a minimal interface

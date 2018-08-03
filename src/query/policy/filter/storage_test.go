@@ -23,8 +23,8 @@ package filter
 import (
 	"testing"
 
-	"github.com/m3db/m3db/src/query/storage"
-	"github.com/m3db/m3db/src/query/storage/mock"
+	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/mock"
 
 	"github.com/stretchr/testify/assert"
 )

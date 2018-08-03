@@ -27,7 +27,7 @@ To benchmark m3db writes using m3coordinator.
         $ export GOPATH=$HOME/code
         $ mkdir -p $GOPATH/src/github.com/m3db
         $ cd $GOPATH/src/github.com/m3db
-        $ git clone https://github.com/m3db/m3db
+        $ git clone https://github.com/m3db/m3
     3. Build m3db
         $ git submodule update --init --recursive
         $ glide install

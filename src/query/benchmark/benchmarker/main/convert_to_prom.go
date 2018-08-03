@@ -28,8 +28,8 @@ import (
 	"os"
 	"path"
 
-	"github.com/m3db/m3db/src/query/generated/proto/prompb"
-	"github.com/m3db/m3db/src/query/storage"
+	"github.com/m3db/m3/src/query/generated/proto/prompb"
+	"github.com/m3db/m3/src/query/storage"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"

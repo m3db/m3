@@ -24,8 +24,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/m3db/m3db/src/m3ninx/index/segment"
-	"github.com/m3db/m3db/src/m3ninx/index/segment/fs"
+	"github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fs"
 )
 
 // NewMutableSegmentFileSetWriter returns a new IndexSegmentFileSetWriter for writing

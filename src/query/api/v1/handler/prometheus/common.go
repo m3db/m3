@@ -26,7 +26,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/m3db/m3db/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler"
 
 	"github.com/golang/snappy"
 )

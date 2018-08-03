@@ -29,7 +29,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m3db/m3db/src/query/util/logging"
+	"github.com/m3db/m3/src/query/util/logging"
 
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"

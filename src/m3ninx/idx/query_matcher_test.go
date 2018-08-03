@@ -23,7 +23,7 @@ package idx_test
 import (
 	"testing"
 
-	"github.com/m3db/m3db/src/m3ninx/idx"
+	"github.com/m3db/m3/src/m3ninx/idx"
 
 	"github.com/stretchr/testify/require"
 )

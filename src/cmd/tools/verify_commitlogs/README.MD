@@ -5,7 +5,7 @@
 # Usage
 
 ```bash
-$ git clone git@github.com:m3db/m3db.git
+$ git clone git@github.com:m3db/m3.git
 $ make verify_commitlogs
 $ ./bin/verify_commitlogs -h
 ```

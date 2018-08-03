@@ -28,8 +28,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3db/src/cmd/services/m3query/config"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"

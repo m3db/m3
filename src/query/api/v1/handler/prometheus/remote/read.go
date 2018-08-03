@@ -26,12 +26,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/m3db/m3db/src/query/api/v1/handler"
-	"github.com/m3db/m3db/src/query/api/v1/handler/prometheus"
-	"github.com/m3db/m3db/src/query/executor"
-	"github.com/m3db/m3db/src/query/generated/proto/prompb"
-	"github.com/m3db/m3db/src/query/storage"
-	"github.com/m3db/m3db/src/query/util/logging"
+	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/executor"
+	"github.com/m3db/m3/src/query/generated/proto/prompb"
+	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/util/logging"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/snappy"

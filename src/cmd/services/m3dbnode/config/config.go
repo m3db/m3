@@ -29,9 +29,9 @@ import (
 	"strings"
 	"time"
 
-	coordinatorcfg "github.com/m3db/m3db/src/cmd/services/m3query/config"
-	"github.com/m3db/m3db/src/dbnode/client"
-	"github.com/m3db/m3db/src/dbnode/environment"
+	coordinatorcfg "github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/environment"
 	"github.com/m3db/m3x/config/hostid"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"

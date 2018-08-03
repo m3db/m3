@@ -27,12 +27,12 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/m3db/m3db/src/m3ninx/doc"
-	sgmt "github.com/m3db/m3db/src/m3ninx/index/segment"
-	"github.com/m3db/m3db/src/m3ninx/index/segment/mem"
-	"github.com/m3db/m3db/src/m3ninx/index/util"
-	"github.com/m3db/m3db/src/m3ninx/postings"
-	"github.com/m3db/m3db/src/m3ninx/postings/roaring"
+	"github.com/m3db/m3/src/m3ninx/doc"
+	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
+	"github.com/m3db/m3/src/m3ninx/index/util"
+	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 
 	"github.com/stretchr/testify/require"
 )

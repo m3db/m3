@@ -26,8 +26,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/generated/thrift/rpc"
-	"github.com/m3db/m3db/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 

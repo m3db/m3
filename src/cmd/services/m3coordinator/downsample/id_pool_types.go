@@ -25,7 +25,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/m3db/m3db/src/dbnode/serialize"
+	"github.com/m3db/m3/src/dbnode/serialize"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"

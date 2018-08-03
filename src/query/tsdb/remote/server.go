@@ -24,9 +24,9 @@ import (
 	"io"
 	"net"
 
-	rpc "github.com/m3db/m3db/src/query/generated/proto/rpcpb"
-	"github.com/m3db/m3db/src/query/storage"
-	"github.com/m3db/m3db/src/query/util/logging"
+	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
+	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/util/logging"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"

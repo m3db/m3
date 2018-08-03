@@ -21,10 +21,10 @@
 package database
 
 import (
+	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
+	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/query/util/logging"
 	clusterclient "github.com/m3db/m3cluster/client"
-	dbconfig "github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
-	"github.com/m3db/m3db/src/cmd/services/m3query/config"
-	"github.com/m3db/m3db/src/query/util/logging"
 
 	"github.com/gorilla/mux"
 )

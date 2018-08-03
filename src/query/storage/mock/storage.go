@@ -24,8 +24,8 @@ import (
 	"context"
 	"sync"
 
-	"github.com/m3db/m3db/src/query/block"
-	"github.com/m3db/m3db/src/query/storage"
+	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/storage"
 )
 
 // Storage implements storage.Storage and provides methods to help

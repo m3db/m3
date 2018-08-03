@@ -27,14 +27,14 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/m3db/m3db/src/query/api/v1/handler"
-	"github.com/m3db/m3db/src/query/api/v1/handler/prometheus"
-	"github.com/m3db/m3db/src/query/errors"
-	"github.com/m3db/m3db/src/query/models"
-	"github.com/m3db/m3db/src/query/ts"
-	"github.com/m3db/m3db/src/query/util"
-	"github.com/m3db/m3db/src/query/util/json"
-	"github.com/m3db/m3db/src/query/util/logging"
+	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/errors"
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/query/util"
+	"github.com/m3db/m3/src/query/util/json"
+	"github.com/m3db/m3/src/query/util/logging"
 
 	"go.uber.org/zap"
 )

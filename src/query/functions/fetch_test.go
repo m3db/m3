@@ -24,12 +24,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/m3db/m3db/src/query/block"
-	"github.com/m3db/m3db/src/query/executor/transform"
-	"github.com/m3db/m3db/src/query/parser"
-	"github.com/m3db/m3db/src/query/storage/mock"
-	"github.com/m3db/m3db/src/query/test"
-	"github.com/m3db/m3db/src/query/test/executor"
+	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/parser"
+	"github.com/m3db/m3/src/query/storage/mock"
+	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/executor"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

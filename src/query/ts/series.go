@@ -24,8 +24,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/m3db/m3db/src/query/errors"
-	"github.com/m3db/m3db/src/query/models"
+	"github.com/m3db/m3/src/query/errors"
+	"github.com/m3db/m3/src/query/models"
 )
 
 // Series is the public interface to a block of timeseries values.  Each block has a start time,

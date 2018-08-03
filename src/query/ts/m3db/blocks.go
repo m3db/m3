@@ -23,7 +23,7 @@ package m3db
 import (
 	"errors"
 
-	"github.com/m3db/m3db/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/encoding"
 )
 
 var (

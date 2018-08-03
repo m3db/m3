@@ -24,7 +24,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/persist/fs/msgpack"
+	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3x/pool"
 )
 

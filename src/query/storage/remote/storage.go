@@ -23,10 +23,10 @@ package remote
 import (
 	"context"
 
-	"github.com/m3db/m3db/src/query/block"
-	"github.com/m3db/m3db/src/query/errors"
-	"github.com/m3db/m3db/src/query/storage"
-	"github.com/m3db/m3db/src/query/tsdb/remote"
+	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/errors"
+	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/tsdb/remote"
 )
 
 type remoteStorage struct {

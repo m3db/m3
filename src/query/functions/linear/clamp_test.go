@@ -24,13 +24,14 @@ import (
 	"math"
 	"testing"
 
-	"github.com/m3db/m3db/src/query/parser"
-	"github.com/m3db/m3db/src/query/test"
-	"github.com/m3db/m3db/src/query/test/executor"
+	"github.com/m3db/m3/src/query/parser"
+	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/executor"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
 func expectedClampVals(values [][]float64, num float64, fn func(x, y float64) float64) [][]float64 {
 	expected := make([][]float64, 0, len(values))
 	for _, val := range values {
@@ -75,5 +76,3 @@ func TestClampMax(t *testing.T) {
 	assert.Len(t, sink.Values, 2)
 	test.EqualsWithNans(t, expected, sink.Values)
 }
-
-

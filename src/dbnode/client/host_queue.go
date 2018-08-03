@@ -26,9 +26,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/clock"
-	"github.com/m3db/m3db/src/dbnode/generated/thrift/rpc"
-	"github.com/m3db/m3db/src/dbnode/topology"
+	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 
@@ -669,7 +669,7 @@ func (s namespaceWriteBatchOpsSlice) resetAt(
 }
 
 // TODO: use genny to make namespaceWriteBatchOps and namespaceWriteTaggedBatchOps
-// share code (https://github.com/m3db/m3db/src/dbnode/issues/531)
+// share code (https://github.com/m3db/m3/src/dbnode/issues/531)
 type namespaceWriteTaggedBatchOps struct {
 	namespace                                  ident.ID
 	opsArrayPool                               *opArrayPool

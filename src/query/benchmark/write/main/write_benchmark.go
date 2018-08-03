@@ -28,9 +28,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3db/src/cmd/services/m3query/config"
-	"github.com/m3db/m3db/src/dbnode/client"
-	"github.com/m3db/m3db/src/query/benchmark/common"
+	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/query/benchmark/common"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"

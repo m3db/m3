@@ -24,8 +24,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/m3db/m3db/src/m3ninx/index/segment/fs"
-	"github.com/m3db/m3db/src/m3ninx/x"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fs"
+	"github.com/m3db/m3/src/m3ninx/x"
 )
 
 // NewSegment returns a new fs.Segment backed by the provided fileset.

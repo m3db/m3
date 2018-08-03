@@ -20,7 +20,7 @@
 
 package client
 
-import "github.com/m3db/m3db/src/dbnode/topology"
+import "github.com/m3db/m3/src/dbnode/topology"
 
 type sessionPeer struct {
 	source peerSource

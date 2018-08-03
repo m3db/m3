@@ -24,11 +24,11 @@ import (
 	"net"
 	"net/http"
 
-	ns "github.com/m3db/m3db/src/dbnode/network/server"
-	"github.com/m3db/m3db/src/dbnode/network/server/httpjson"
-	"github.com/m3db/m3db/src/dbnode/network/server/tchannelthrift"
-	ttnode "github.com/m3db/m3db/src/dbnode/network/server/tchannelthrift/node"
-	"github.com/m3db/m3db/src/dbnode/storage"
+	ns "github.com/m3db/m3/src/dbnode/network/server"
+	"github.com/m3db/m3/src/dbnode/network/server/httpjson"
+	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift"
+	ttnode "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/node"
+	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3x/context"
 )
 
