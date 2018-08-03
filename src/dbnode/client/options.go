@@ -336,12 +336,9 @@ func (o *options) Validate() error {
 	); err != nil {
 		return err
 	}
-	if err := topology.ValidateConnectConsistencyLevel(
+	return topology.ValidateConnectConsistencyLevel(
 		o.clusterConnectConsistencyLevel,
-	); err != nil {
-		return err
-	}
-	return nil
+	)
 }
 
 func (o *options) SetEncodingM3TSZ() Options {

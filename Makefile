@@ -1,4 +1,9 @@
 SELF_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
+
+# Grab necessary submodules, in case the repo was cloned without --recursive
+$(SELF_DIR)/.ci/common.mk:
+	git submodule update --init --recursive
+
 include $(SELF_DIR)/.ci/common.mk
 
 SHELL=/bin/bash -o pipefail
@@ -36,11 +41,12 @@ SERVICES :=     \
 	m3coordinator \
 	m3nsch_server \
 	m3nsch_client \
+	m3query       \
 
 SUBDIRS :=    \
 	cmd         \
 	dbnode      \
-	coordinator \
+	query       \
 	m3nsch      \
 	m3ninx      \
 

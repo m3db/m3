@@ -188,6 +188,7 @@ func newNamespaceIndexWithOptions(
 	var (
 		nsMD            = newIndexOpts.md
 		indexOpts       = newIndexOpts.opts.IndexOptions()
+		instrumentOpts  = newIndexOpts.opts.InstrumentOptions()
 		newIndexQueueFn = newIndexOpts.newIndexQueueFn
 		newBlockFn      = newIndexOpts.newBlockFn
 		runtimeOptsMgr  = newIndexOpts.opts.RuntimeOptionsManager()
@@ -196,13 +197,13 @@ func newNamespaceIndexWithOptions(
 		return nil, err
 	}
 
-	scope := indexOpts.InstrumentOptions().MetricsScope().
+	scope := instrumentOpts.MetricsScope().
 		SubScope("dbindex").
 		Tagged(map[string]string{
 			"namespace": nsMD.ID().String(),
 		})
-	iopts := indexOpts.InstrumentOptions().SetMetricsScope(scope)
-	indexOpts = indexOpts.SetInstrumentOptions(iopts)
+	instrumentOpts = instrumentOpts.SetMetricsScope(scope)
+	indexOpts = indexOpts.SetInstrumentOptions(instrumentOpts)
 
 	nowFn := indexOpts.ClockOptions().NowFn()
 	idx := &nsIndex{
@@ -228,7 +229,7 @@ func newNamespaceIndexWithOptions(
 		logger:     indexOpts.InstrumentOptions().Logger(),
 		nsMetadata: nsMD,
 
-		metrics: newNamespaceIndexMetrics(iopts),
+		metrics: newNamespaceIndexMetrics(instrumentOpts),
 	}
 	if runtimeOptsMgr != nil {
 		idx.runtimeOptsListener = runtimeOptsMgr.RegisterListener(idx)

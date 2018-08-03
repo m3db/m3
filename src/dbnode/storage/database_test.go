@@ -88,7 +88,6 @@ func init() {
 		SetSeriesCachePolicy(series.CacheAll).
 		SetPersistManager(pm).
 		SetRepairEnabled(false).
-		SetMaxFlushRetries(3).
 		SetCommitLogOptions(opts.CommitLogOptions().
 			SetRetentionPeriod(defaultTestCommitlogRetentionPeriod).
 			SetBlockSize(defaultTestCommitlogBlockSize))

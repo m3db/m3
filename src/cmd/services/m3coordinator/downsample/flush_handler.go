@@ -27,9 +27,9 @@ import (
 
 	"github.com/m3db/m3aggregator/aggregator/handler"
 	"github.com/m3db/m3aggregator/aggregator/handler/writer"
-	"github.com/m3db/m3db/src/coordinator/models"
-	"github.com/m3db/m3db/src/coordinator/storage"
-	"github.com/m3db/m3db/src/coordinator/ts"
+	"github.com/m3db/m3db/src/query/models"
+	"github.com/m3db/m3db/src/query/storage"
+	"github.com/m3db/m3db/src/query/ts"
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3x/instrument"
 	xsync "github.com/m3db/m3x/sync"

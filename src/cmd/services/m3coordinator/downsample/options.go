@@ -36,8 +36,8 @@ import (
 	placementservice "github.com/m3db/m3cluster/placement/service"
 	placementstorage "github.com/m3db/m3cluster/placement/storage"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3db/src/coordinator/storage"
 	"github.com/m3db/m3db/src/dbnode/serialize"
+	"github.com/m3db/m3db/src/query/storage"
 	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/matcher"
@@ -51,8 +51,8 @@ import (
 )
 
 const (
-	instanceID                 = "downsampler_local"
-	placementKVKey             = "/placement"
+	instanceID                     = "downsampler_local"
+	placementKVKey                 = "/placement"
 	replicationFactor              = 1
 	defaultStorageFlushConcurrency = 20000
 	defaultOpenTimeout             = 10 * time.Second

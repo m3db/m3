@@ -21,7 +21,7 @@ LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
 EXPOSE 7201/tcp 7203/tcp
 
 COPY --from=builder /go/src/github.com/m3db/m3db/bin/m3coordinator /bin/
-COPY --from=builder /go/src/github.com/m3db/m3db/src/coordinator/config/m3coordinator-local-etcd.yml /etc/m3coordinator/m3coordinator.yml
+COPY --from=builder /go/src/github.com/m3db/m3db/src/query/config/m3coordinator-local-etcd.yml /etc/m3coordinator/m3coordinator.yml
 
 ENTRYPOINT [ "/bin/m3coordinator" ]
 CMD [ "-f", "/etc/m3coordinator/m3coordinator.yml" ]
