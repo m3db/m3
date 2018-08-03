@@ -748,12 +748,6 @@ type Options interface {
 	// PersistManager returns the persistence manager.
 	PersistManager() persist.Manager
 
-	// SetMaxFlushRetries sets the maximum number of retries when data flushing fails.
-	SetMaxFlushRetries(value int) Options
-
-	// MaxFlushRetries returns the maximum number of retries when data flushing fails.
-	MaxFlushRetries() int
-
 	// SetMinimumSnapshotInterval sets the minimum amount of time that must elapse between snapshots.
 	SetMinimumSnapshotInterval(value time.Duration) Options
 

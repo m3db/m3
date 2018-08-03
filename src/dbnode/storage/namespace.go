@@ -1002,19 +1002,14 @@ func (n *dbNamespace) needsFlushWithLock(alignedInclusiveStart time.Time, aligne
 
 	// NB(prateek): we do not check if any other flush is in progress in this method,
 	// instead relying on the databaseFlushManager to ensure atomicity of flushes.
-	maxRetries := n.opts.MaxFlushRetries()
+
 	// Check for not started or failed that might need a flush
 	for _, shard := range n.shards {
 		if shard == nil {
 			continue
 		}
 		for _, blockStart := range blockStarts {
-
-			state := shard.FlushState(blockStart)
-			if state.Status == fileOpNotStarted {
-				return true
-			}
-			if state.Status == fileOpFailed && state.NumFailures < maxRetries {
+			if shard.FlushState(blockStart).Status != fileOpSuccess {
 				return true
 			}
 		}

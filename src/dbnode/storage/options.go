@@ -51,9 +51,6 @@ import (
 )
 
 const (
-	// defaultMaxFlushRetries is the default number of retries when flush fails
-	defaultMaxFlushRetries = 3
-
 	// defaultBytesPoolBucketCapacity is the default bytes buffer capacity for the default bytes pool bucket
 	defaultBytesPoolBucketCapacity = 256
 
@@ -129,7 +126,6 @@ type options struct {
 	newDecoderFn                   encoding.NewDecoderFn
 	bootstrapProcessProvider       bootstrap.ProcessProvider
 	persistManager                 persist.Manager
-	maxFlushRetries                int
 	minSnapshotInterval            time.Duration
 	blockRetrieverManager          block.DatabaseBlockRetrieverManager
 	poolOpts                       pool.ObjectPoolOptions
@@ -178,7 +174,6 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		repairEnabled:            defaultRepairEnabled,
 		repairOpts:               repair.NewOptions(),
 		bootstrapProcessProvider: defaultBootstrapProcessProvider,
-		maxFlushRetries:          defaultMaxFlushRetries,
 		minSnapshotInterval:      defaultMinSnapshotInterval,
 		poolOpts:                 poolOpts,
 		contextPool: context.NewPool(context.NewOptions().
@@ -475,16 +470,6 @@ func (o *options) SetPersistManager(value persist.Manager) Options {
 
 func (o *options) PersistManager() persist.Manager {
 	return o.persistManager
-}
-
-func (o *options) SetMaxFlushRetries(value int) Options {
-	opts := *o
-	opts.maxFlushRetries = value
-	return &opts
-}
-
-func (o *options) MaxFlushRetries() int {
-	return o.maxFlushRetries
 }
 
 func (o *options) SetDatabaseBlockRetrieverManager(value block.DatabaseBlockRetrieverManager) Options {
