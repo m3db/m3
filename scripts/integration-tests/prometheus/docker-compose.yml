@@ -13,8 +13,6 @@ services:
       context: ../../../
       dockerfile: ./docker/m3dbnode/Dockerfile
     image: m3dbnode01:latest
-    volumes:
-      - "/tmp/m3dbdata:/var/lib/m3db"
   coordinator01:
     expose:
       - "7201"

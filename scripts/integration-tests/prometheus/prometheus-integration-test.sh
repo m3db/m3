@@ -72,7 +72,7 @@ curl -vvvsSf -X POST localhost:7201/api/v1/placement/init -d '{
 
 echo "Wait for placement to fully initialize"
 
-sleep 60 # TODO Replace sleeps with logic to determine when to proceed
+sleep 10 # TODO Replace sleeps with logic to determine when to proceed
 
 echo "Start Prometheus container"
 
@@ -122,9 +122,9 @@ else
   echo "Result found"
 fi
 
-echo "Sleep for 30 seconds to let the remote write endpoint generate some data"
+echo "Sleep for 20 seconds to let the remote write endpoint generate some data"
 
-sleep 30
+sleep 20
 
 [ "$(curl -sSf localhost:9090/api/v1/query?query=prometheus_remote_storage_succeeded_samples_total | jq .data.result[].value[1])" != '"0"' ]
 
