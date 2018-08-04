@@ -44,7 +44,7 @@ func TestDocHandler(t *testing.T) {
 	body, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "<!DOCTYPE html>\n<!--\nNOTE: Run `make asset-gen-coordinator` if you make any changes to this file!\n-->\n<html>\n  <head>\n    <title>M3DB ReDoc</title>\n    <meta charset=\"utf-8\"/>\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n    <link href=\"https://fonts.googleapis.com/css?family=Montserrat:300,400,700|Roboto:300,400,700\" rel=\"stylesheet\">\n    <style>\n      body {\n        margin: 0;\n        padding: 0;\n      }\n    </style>\n  </head>\n  <body>\n    <redoc spec-url='openapi/static/spec.yml'></redoc>\n    <script src=\"https://cdn.jsdelivr.net/npm/redoc@latest/bundles/redoc.standalone.js\"> </script>\n  </body>\n</html>\n", string(body))
+	assert.Equal(t, "<!DOCTYPE html>\n<!--\nNOTE: Run `make asset-gen-query` if you make any changes to this file!\n-->\n<html>\n  <head>\n    <title>M3DB ReDoc</title>\n    <meta charset=\"utf-8\"/>\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n    <link href=\"https://fonts.googleapis.com/css?family=Montserrat:300,400,700|Roboto:300,400,700\" rel=\"stylesheet\">\n    <style>\n      body {\n        margin: 0;\n        padding: 0;\n      }\n    </style>\n  </head>\n  <body>\n    <redoc spec-url='openapi/static/spec.yml'></redoc>\n    <script src=\"https://cdn.jsdelivr.net/npm/redoc@latest/bundles/redoc.standalone.js\"> </script>\n  </body>\n</html>\n", string(body))
 }
 
 func TestStaticHandler(t *testing.T) {
