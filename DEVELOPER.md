@@ -38,5 +38,5 @@ $ go test  -tags big ./services/m3dbnode/main -run TestIndexEnabledServer -v
 (5) Polish up the PR, ensure CI signs off, and coverage increases. Then ping someone to take a look and get feedback!
 
 ## M3DB Website
-The [M3DB website](https://m3metrics.io/) is hosted via netlify. It is configured to run `make site-build` and then serving the contents of the /m3metrics.io directory. The site is built and republished every time
+The [M3DB website](https://m3db.io/) is hosted via netlify. It is configured to run `make site-build` and then serving the contents of the /m3db.io directory. The site is built and republished every time
 there is a push to master.
