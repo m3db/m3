@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3db/src/coordinator/functions"
+	"github.com/m3db/m3db/src/coordinator/functions/binary"
 	"github.com/m3db/m3db/src/coordinator/functions/linear"
 	"github.com/m3db/m3db/src/coordinator/functions/logical"
 	"github.com/m3db/m3db/src/coordinator/models"
@@ -69,16 +70,29 @@ func NewOperator(opType promql.ItemType) (parser.Params, error) {
 	}
 }
 
+// NewScalarOperator creates a new scalar operator
+func NewScalarOperator(expr *promql.NumberLiteral) parser.Params {
+	return functions.NewScalarOp(expr.Val)
+}
+
 // NewBinaryOperator creates a new binary operator based on the type
 func NewBinaryOperator(expr *promql.BinaryExpr, lhs, rhs parser.NodeID) (parser.Params, error) {
-	matching := promMatchingToM3(expr.VectorMatching)
-
+	// VectorMatching can be nil iff at least one of the sides is a scalar
 	op := getOpType(expr.Op)
 	switch op {
 	case logical.AndType, logical.OrType, logical.UnlessType:
+		matching := promMatchingToM3(expr.VectorMatching)
 		return logical.NewLogicalOp(op, lhs, rhs, matching)
+	case binary.PlusType, binary.MinusType, binary.MultiplyType,
+		binary.ExpType, binary.DivType, binary.ModType:
+		anyScalars :=
+			expr.LHS.Type() == promql.ValueTypeScalar ||
+				expr.RHS.Type() == promql.ValueTypeScalar
+		return binary.NewBinaryOp(op, lhs, rhs, anyScalars)
 	default:
 		// TODO: handle other types
+		fmt.Println(binary.PlusType, binary.MinusType, binary.MultiplyType,
+			binary.ExpType, binary.DivType, binary.ModType, "ACTUAL OP", op, op == binary.MinusType)
 		return nil, fmt.Errorf("operator not supported: %s", expr.Op)
 	}
 }
@@ -125,6 +139,19 @@ func getOpType(opType promql.ItemType) string {
 		return logical.OrType
 	case promql.ItemType(itemLUnless):
 		return logical.UnlessType
+
+	case promql.ItemType(itemADD):
+		return binary.PlusType
+	case promql.ItemType(itemSUB):
+		return binary.MinusType
+	case promql.ItemType(itemMUL):
+		return binary.MultiplyType
+	case promql.ItemType(itemDIV):
+		return binary.DivType
+	case promql.ItemType(itemPOW):
+		return binary.ExpType
+	case promql.ItemType(itemMOD):
+		return binary.ModType
 	default:
 		return common.UnknownOpType
 	}

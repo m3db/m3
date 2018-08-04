@@ -40,7 +40,9 @@ func Parse(q string) (parser.Parser, error) {
 		return nil, err
 	}
 
-	return &promParser{expr: expr}, nil
+	return &promParser{
+		expr: expr,
+	}, nil
 }
 
 func (p *promParser) DAG() (parser.Nodes, parser.Edges, error) {
@@ -99,6 +101,7 @@ func (p *parseState) walk(node pql.Node) error {
 		p.transforms = append(p.transforms, opTransform)
 		// TODO: handle labels, params
 		return nil
+
 	case *pql.MatrixSelector:
 		operation, err := NewSelectorFromMatrix(n)
 		if err != nil {
@@ -175,6 +178,18 @@ func (p *parseState) walk(node pql.Node) error {
 		})
 		p.transforms = append(p.transforms, opTransform)
 		return nil
+
+	case *pql.NumberLiteral:
+		op := NewScalarOperator(n)
+
+		opTransform := parser.NewTransformFromOperation(op, p.transformLen())
+		p.transforms = append(p.transforms, opTransform)
+
+		return nil
+
+	case *pql.ParenExpr:
+		// Evaluate inside of paren expressions
+		return p.walk(n.Expr)
 
 	default:
 		return fmt.Errorf("promql.Walk: unhandled node type %T, %v", node, node)
