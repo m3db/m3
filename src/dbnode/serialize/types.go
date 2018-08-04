@@ -21,7 +21,7 @@
 package serialize
 
 import (
-	"github.com/m3db/m3db/src/dbnode/x/xpool"
+	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 )

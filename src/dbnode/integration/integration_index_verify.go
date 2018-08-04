@@ -24,8 +24,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/m3db/m3db/src/dbnode/client"
-	"github.com/m3db/m3db/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3x/ident"
 
 	"github.com/stretchr/testify/assert"

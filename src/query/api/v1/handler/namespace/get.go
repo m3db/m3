@@ -24,12 +24,12 @@ import (
 	"fmt"
 	"net/http"
 
+	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
+	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/generated/proto/admin"
+	"github.com/m3db/m3/src/query/util/logging"
 	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/kv"
-	nsproto "github.com/m3db/m3db/src/dbnode/generated/proto/namespace"
-	"github.com/m3db/m3db/src/query/api/v1/handler"
-	"github.com/m3db/m3db/src/query/generated/proto/admin"
-	"github.com/m3db/m3db/src/query/util/logging"
 
 	"go.uber.org/zap"
 )

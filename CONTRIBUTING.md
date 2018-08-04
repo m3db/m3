@@ -16,7 +16,7 @@ make test
 ## Making A Change
 
 *Before making any significant changes, please [open an
-issue](https://github.com/m3db/m3db/issues).* Discussing your proposed
+issue](https://github.com/m3db/m3/issues).* Discussing your proposed
 changes ahead of time will make the contribution process smooth for everyone.
 
 Once we've discussed your changes and you've got your code ready, make sure

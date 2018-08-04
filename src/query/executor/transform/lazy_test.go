@@ -23,9 +23,9 @@ package transform
 import (
 	"testing"
 
-	"github.com/m3db/m3db/src/query/block"
-	"github.com/m3db/m3db/src/query/parser"
-	"github.com/m3db/m3db/src/query/test"
+	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/parser"
+	"github.com/m3db/m3/src/query/test"
 
 	"github.com/stretchr/testify/assert"
 )

@@ -24,7 +24,7 @@ import (
 	"errors"
 	"io"
 
-	"github.com/m3db/m3db/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/ts"
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 

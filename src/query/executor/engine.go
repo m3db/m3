@@ -23,11 +23,11 @@ package executor
 import (
 	"context"
 
-	"github.com/m3db/m3db/src/query/models"
-	"github.com/m3db/m3db/src/query/parser"
-	"github.com/m3db/m3db/src/query/plan"
-	"github.com/m3db/m3db/src/query/storage"
-	"github.com/m3db/m3db/src/query/util/logging"
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/parser"
+	"github.com/m3db/m3/src/query/plan"
+	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/util/logging"
 
 	"go.uber.org/zap"
 )

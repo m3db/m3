@@ -23,9 +23,9 @@ package openapi
 import (
 	"net/http"
 
-	"github.com/m3db/m3db/src/query/api/v1/handler"
-	assets "github.com/m3db/m3db/src/query/generated/assets/openapi"
-	"github.com/m3db/m3db/src/query/util/logging"
+	"github.com/m3db/m3/src/query/api/v1/handler"
+	assets "github.com/m3db/m3/src/query/generated/assets/openapi"
+	"github.com/m3db/m3/src/query/util/logging"
 
 	"go.uber.org/zap"
 )

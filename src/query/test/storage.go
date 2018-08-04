@@ -24,8 +24,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/m3db/m3db/src/query/block"
-	"github.com/m3db/m3db/src/query/storage"
+	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/storage"
 )
 
 // slowStorage slows down a request by delay

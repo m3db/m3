@@ -21,7 +21,7 @@
 package encoding
 
 import (
-	"github.com/m3db/m3db/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 )

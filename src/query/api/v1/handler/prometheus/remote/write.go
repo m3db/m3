@@ -26,12 +26,12 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/m3db/m3db/src/cmd/services/m3coordinator/downsample"
-	"github.com/m3db/m3db/src/query/api/v1/handler"
-	"github.com/m3db/m3db/src/query/api/v1/handler/prometheus"
-	"github.com/m3db/m3db/src/query/generated/proto/prompb"
-	"github.com/m3db/m3db/src/query/storage"
-	"github.com/m3db/m3db/src/query/util/logging"
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
+	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
+	"github.com/m3db/m3/src/query/generated/proto/prompb"
+	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/util/logging"
 	xerrors "github.com/m3db/m3x/errors"
 
 	"github.com/golang/protobuf/proto"

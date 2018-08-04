@@ -26,10 +26,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
+	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/kv"
-	nsproto "github.com/m3db/m3db/src/dbnode/generated/proto/namespace"
-	"github.com/m3db/m3db/src/query/util/logging"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"

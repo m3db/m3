@@ -28,12 +28,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/query/block"
-	m3err "github.com/m3db/m3db/src/query/errors"
-	"github.com/m3db/m3db/src/query/models"
-	"github.com/m3db/m3db/src/query/storage"
-	"github.com/m3db/m3db/src/query/ts"
-	"github.com/m3db/m3db/src/query/util/logging"
+	"github.com/m3db/m3/src/query/block"
+	m3err "github.com/m3db/m3/src/query/errors"
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/query/util/logging"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,12 +46,12 @@ const (
 )
 
 var (
-	tags         = models.Tags{"1": "b", "2": "c"}
-	values       = []float64{1.0, 2.0, 3.0, 4.0}
-	errWrite     = errors.New("write error")
-	errRead      = errors.New("read error")
-	initialPort  = 17762
-	testMu       sync.Mutex
+	tags        = models.Tags{"1": "b", "2": "c"}
+	values      = []float64{1.0, 2.0, 3.0, 4.0}
+	errWrite    = errors.New("write error")
+	errRead     = errors.New("read error")
+	initialPort = 17762
+	testMu      sync.Mutex
 )
 
 func generateAddress() string {

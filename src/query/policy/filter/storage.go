@@ -20,7 +20,7 @@
 
 package filter
 
-import "github.com/m3db/m3db/src/query/storage"
+import "github.com/m3db/m3/src/query/storage"
 
 // Storage determines whether storage can fulfil the read query
 type Storage func(query storage.Query, store storage.Storage) bool

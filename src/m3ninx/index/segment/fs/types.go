@@ -23,8 +23,8 @@ package fs
 import (
 	"io"
 
-	"github.com/m3db/m3db/src/m3ninx/index"
-	sgmt "github.com/m3db/m3db/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/index"
+	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
 )
 
 const (

@@ -25,9 +25,9 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
-	"github.com/m3db/m3db/src/dbnode/sharding"
 )
 
 var errInstanceHasNoShardsAssignment = errors.New("invalid instance with no shards assigned")

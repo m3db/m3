@@ -26,12 +26,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/clock"
-	"github.com/m3db/m3db/src/dbnode/encoding"
-	"github.com/m3db/m3db/src/dbnode/storage/block"
-	m3dberrors "github.com/m3db/m3db/src/dbnode/storage/errors"
-	"github.com/m3db/m3db/src/dbnode/ts"
-	"github.com/m3db/m3db/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/storage/block"
+	m3dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
+	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/context"
 	xtime "github.com/m3db/m3x/time"
 )

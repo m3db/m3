@@ -2,8 +2,8 @@
 syntax = "proto3";
 package admin;
 
-import "github.com/m3db/m3db/src/query/generated/proto/admin/namespace.proto";
-import "github.com/m3db/m3db/src/query/generated/proto/admin/placement.proto";
+import "github.com/m3db/m3/src/query/generated/proto/admin/namespace.proto";
+import "github.com/m3db/m3/src/query/generated/proto/admin/placement.proto";
 
 message DatabaseCreateRequest {
   // Required fields

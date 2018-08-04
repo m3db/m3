@@ -24,9 +24,9 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/m3db/m3db/src/query/block"
-	"github.com/m3db/m3db/src/query/executor/transform"
-	"github.com/m3db/m3db/src/query/parser"
+	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/parser"
 )
 
 // CountType counts all non nan elements in a list of series
@@ -73,7 +73,6 @@ func (c *CountNode) Process(ID parser.NodeID, b block.Block) error {
 	if err != nil {
 		return err
 	}
-
 
 	if err := builder.AddCols(stepIter.StepCount()); err != nil {
 		return err

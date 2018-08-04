@@ -21,9 +21,9 @@
 package logical
 
 import (
-	"github.com/m3db/m3db/src/query/block"
-	"github.com/m3db/m3db/src/query/executor/transform"
-	"github.com/m3db/m3db/src/query/models"
+	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/models"
 )
 
 // VectorMatchCardinality describes the cardinality relationship
@@ -32,7 +32,7 @@ type VectorMatchCardinality int
 
 const (
 	// CardOneToOne is used for one-one relationship
-	CardOneToOne   VectorMatchCardinality = iota
+	CardOneToOne VectorMatchCardinality = iota
 	// CardManyToOne is used for many-one relationship
 	CardManyToOne
 	// CardOneToMany is used for one-many relationship
@@ -72,4 +72,4 @@ type Processor interface {
 }
 
 // MakeProcessor is a way to create a logical transform
-type MakeProcessor func (op BaseOp, controller *transform.Controller) Processor
+type MakeProcessor func(op BaseOp, controller *transform.Controller) Processor

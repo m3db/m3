@@ -23,14 +23,14 @@ package fanout
 import (
 	"context"
 
-	"github.com/m3db/m3db/src/query/block"
-	"github.com/m3db/m3db/src/query/errors"
-	"github.com/m3db/m3db/src/query/models"
-	"github.com/m3db/m3db/src/query/policy/filter"
-	"github.com/m3db/m3db/src/query/storage"
-	"github.com/m3db/m3db/src/query/ts"
-	"github.com/m3db/m3db/src/query/util/execution"
-	"github.com/m3db/m3db/src/query/util/logging"
+	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/errors"
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/policy/filter"
+	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/query/util/execution"
+	"github.com/m3db/m3/src/query/util/logging"
 
 	"go.uber.org/zap"
 )

@@ -17,7 +17,7 @@ This usually runs within 1minute on most laptops. And catches basic compilation 
 
 (3) Once the CI job finishes - investigate failures (if any), and reproduce locally.
 
-For e.g. if a Unit Tests `TestXYZ` in package `github.com/m3db/m3db/xyz` failed, run the following:
+For e.g. if a Unit Tests `TestXYZ` in package `github.com/m3db/m3/xyz` failed, run the following:
 
 ```
 $ go test ./xyz -run TestXYZ -race -v

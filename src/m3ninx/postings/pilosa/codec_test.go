@@ -23,8 +23,8 @@ package pilosa
 import (
 	"testing"
 
-	"github.com/m3db/m3db/src/m3ninx/postings"
-	"github.com/m3db/m3db/src/m3ninx/postings/roaring"
+	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 
 	"github.com/stretchr/testify/require"
 )

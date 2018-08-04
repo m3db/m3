@@ -24,8 +24,8 @@ import (
 	"errors"
 	"time"
 
-	nsproto "github.com/m3db/m3db/src/dbnode/generated/proto/namespace"
-	"github.com/m3db/m3db/src/dbnode/retention"
+	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
+	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 )

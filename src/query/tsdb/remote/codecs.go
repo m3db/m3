@@ -25,10 +25,10 @@ import (
 	"fmt"
 	"time"
 
-	rpc "github.com/m3db/m3db/src/query/generated/proto/rpcpb"
-	"github.com/m3db/m3db/src/query/models"
-	"github.com/m3db/m3db/src/query/storage"
-	"github.com/m3db/m3db/src/query/ts"
+	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/ts"
 	xtime "github.com/m3db/m3x/time"
 )
 

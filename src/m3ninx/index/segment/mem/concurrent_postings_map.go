@@ -24,7 +24,7 @@ import (
 	"regexp"
 	"sync"
 
-	"github.com/m3db/m3db/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
 // concurrentPostingsMap is a thread-safe map from []byte -> postings.List.

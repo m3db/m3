@@ -25,9 +25,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/client"
-	"github.com/m3db/m3db/src/dbnode/storage/block"
-	"github.com/m3db/m3db/src/dbnode/topology"
+	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 

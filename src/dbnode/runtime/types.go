@@ -23,8 +23,8 @@ package runtime
 import (
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/ratelimit"
-	"github.com/m3db/m3db/src/dbnode/topology"
+	"github.com/m3db/m3/src/dbnode/ratelimit"
+	"github.com/m3db/m3/src/dbnode/topology"
 	xclose "github.com/m3db/m3x/close"
 )
 

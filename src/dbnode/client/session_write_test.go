@@ -29,9 +29,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/generated/thrift/rpc"
-	"github.com/m3db/m3db/src/dbnode/topology"
-	xmetrics "github.com/m3db/m3db/src/dbnode/x/metrics"
+	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	"github.com/m3db/m3/src/dbnode/topology"
+	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 	xretry "github.com/m3db/m3x/retry"

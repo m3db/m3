@@ -23,8 +23,8 @@ package promql
 import (
 	"fmt"
 
-	"github.com/m3db/m3db/src/query/errors"
-	"github.com/m3db/m3db/src/query/parser"
+	"github.com/m3db/m3/src/query/errors"
+	"github.com/m3db/m3/src/query/parser"
 
 	pql "github.com/prometheus/prometheus/promql"
 )

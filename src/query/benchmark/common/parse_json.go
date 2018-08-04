@@ -31,8 +31,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3db/src/query/generated/proto/prompb"
-	"github.com/m3db/m3db/src/query/storage"
+	"github.com/m3db/m3/src/query/generated/proto/prompb"
+	"github.com/m3db/m3/src/query/storage"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/snappy"

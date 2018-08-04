@@ -23,8 +23,8 @@ package commitlog
 import (
 	"errors"
 
-	"github.com/m3db/m3db/src/dbnode/persist/fs/commitlog"
-	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 )
 
 const (

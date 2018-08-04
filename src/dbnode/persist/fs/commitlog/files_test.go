@@ -28,8 +28,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/persist/fs"
-	"github.com/m3db/m3db/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"

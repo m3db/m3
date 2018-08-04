@@ -21,8 +21,8 @@
 package idx
 
 import (
-	"github.com/m3db/m3db/src/m3ninx/search"
-	"github.com/m3db/m3db/src/m3ninx/search/query"
+	"github.com/m3db/m3/src/m3ninx/search"
+	"github.com/m3db/m3/src/m3ninx/search/query"
 )
 
 // Query encapsulates a search query for an index.

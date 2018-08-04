@@ -27,7 +27,7 @@ import (
 	"sync"
 	"time"
 
-	m3emnode "github.com/m3db/m3db/src/dbnode/x/m3em/node"
+	m3emnode "github.com/m3db/m3/src/dbnode/x/m3em/node"
 	xclock "github.com/m3db/m3x/clock"
 	xlog "github.com/m3db/m3x/log"
 )

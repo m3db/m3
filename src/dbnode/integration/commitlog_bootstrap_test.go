@@ -26,12 +26,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/integration/generate"
-	"github.com/m3db/m3db/src/dbnode/retention"
-	"github.com/m3db/m3db/src/dbnode/storage/bootstrap"
-	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/bootstrapper"
-	bcl "github.com/m3db/m3db/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
-	"github.com/m3db/m3db/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/retention"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
+	bcl "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 
 	"github.com/stretchr/testify/require"
 )

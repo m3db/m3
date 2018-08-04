@@ -31,8 +31,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3db/src/query/benchmark/common"
-	"github.com/m3db/m3db/src/query/util/logging"
+	"github.com/m3db/m3/src/query/benchmark/common"
+	"github.com/m3db/m3/src/query/util/logging"
 
 	"go.uber.org/zap"
 )

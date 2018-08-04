@@ -24,12 +24,12 @@ import (
 	"context"
 	"io"
 
-	"github.com/m3db/m3db/src/dbnode/encoding"
-	"github.com/m3db/m3db/src/dbnode/encoding/m3tsz"
-	"github.com/m3db/m3db/src/dbnode/storage/index"
-	"github.com/m3db/m3db/src/query/storage"
-	"github.com/m3db/m3db/src/query/storage/local"
-	m3block "github.com/m3db/m3db/src/query/ts/m3db"
+	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/local"
+	m3block "github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 )

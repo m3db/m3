@@ -25,8 +25,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/clock"
-	"github.com/m3db/m3db/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
 

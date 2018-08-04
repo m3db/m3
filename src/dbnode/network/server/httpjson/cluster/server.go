@@ -24,10 +24,10 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/m3db/m3db/src/dbnode/client"
-	ns "github.com/m3db/m3db/src/dbnode/network/server"
-	"github.com/m3db/m3db/src/dbnode/network/server/httpjson"
-	ttcluster "github.com/m3db/m3db/src/dbnode/network/server/tchannelthrift/cluster"
+	"github.com/m3db/m3/src/dbnode/client"
+	ns "github.com/m3db/m3/src/dbnode/network/server"
+	"github.com/m3db/m3/src/dbnode/network/server/httpjson"
+	ttcluster "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/cluster"
 	xclose "github.com/m3db/m3x/close"
 	"github.com/m3db/m3x/context"
 )

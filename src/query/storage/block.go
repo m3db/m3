@@ -24,8 +24,8 @@ import (
 	"math"
 	"time"
 
-	"github.com/m3db/m3db/src/query/block"
-	"github.com/m3db/m3db/src/query/ts"
+	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/ts"
 )
 
 // FetchResultToBlockResult converts a fetch result into coordinator blocks
@@ -161,7 +161,6 @@ func (m *multiSeriesBlockSeriesIter) SeriesMeta() []block.SeriesMeta {
 func newMultiSeriesBlockSeriesIter(block multiSeriesBlock) block.SeriesIter {
 	return &multiSeriesBlockSeriesIter{block: block, index: -1}
 }
-
 
 func (m *multiSeriesBlockSeriesIter) SeriesCount() int {
 	return len(m.block.seriesList)

@@ -31,8 +31,8 @@ theme:
 
 edit_uri: edit/master/docs/
 
-repo_name: m3db/m3db
-repo_url: https://github.com/m3db/m3db
+repo_name: m3db/m3
+repo_url: https://github.com/m3db/m3
 
 pages:
   - "Introduction": "index.md"

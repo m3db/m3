@@ -25,11 +25,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/query/functions"
-	"github.com/m3db/m3db/src/query/models"
-	"github.com/m3db/m3db/src/query/parser"
-	"github.com/m3db/m3db/src/query/plan"
-	"github.com/m3db/m3db/src/query/storage/mock"
+	"github.com/m3db/m3/src/query/functions"
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/parser"
+	"github.com/m3db/m3/src/query/plan"
+	"github.com/m3db/m3/src/query/storage/mock"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

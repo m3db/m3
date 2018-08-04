@@ -24,11 +24,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/m3db/m3db/src/query/executor/transform"
-	"github.com/m3db/m3db/src/query/parser"
-	"github.com/m3db/m3db/src/query/plan"
-	"github.com/m3db/m3db/src/query/storage"
-	"github.com/m3db/m3db/src/query/util/execution"
+	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/parser"
+	"github.com/m3db/m3/src/query/plan"
+	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/util/execution"
 
 	"github.com/pkg/errors"
 )

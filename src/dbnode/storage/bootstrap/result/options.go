@@ -21,9 +21,9 @@
 package result
 
 import (
-	"github.com/m3db/m3db/src/dbnode/clock"
-	"github.com/m3db/m3db/src/dbnode/storage/block"
-	"github.com/m3db/m3db/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3x/instrument"
 )
 

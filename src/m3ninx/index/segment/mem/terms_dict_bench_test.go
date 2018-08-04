@@ -24,9 +24,9 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/m3db/m3db/src/m3ninx/doc"
-	"github.com/m3db/m3db/src/m3ninx/index/util"
-	"github.com/m3db/m3db/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index/util"
+	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
 var (

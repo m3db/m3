@@ -23,10 +23,10 @@ package promql
 import (
 	"testing"
 
-	"github.com/m3db/m3db/src/query/functions"
-	"github.com/m3db/m3db/src/query/functions/linear"
-	"github.com/m3db/m3db/src/query/functions/logical"
-	"github.com/m3db/m3db/src/query/parser"
+	"github.com/m3db/m3/src/query/functions"
+	"github.com/m3db/m3/src/query/functions/linear"
+	"github.com/m3db/m3/src/query/functions/logical"
+	"github.com/m3db/m3/src/query/parser"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

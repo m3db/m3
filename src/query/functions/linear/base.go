@@ -23,9 +23,9 @@ package linear
 import (
 	"fmt"
 
-	"github.com/m3db/m3db/src/query/block"
-	"github.com/m3db/m3db/src/query/executor/transform"
-	"github.com/m3db/m3db/src/query/parser"
+	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/parser"
 )
 
 var emptyOp = BaseOp{}

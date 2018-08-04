@@ -23,7 +23,7 @@ package linear
 import (
 	"math"
 
-	"github.com/m3db/m3db/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/executor/transform"
 )
 
 // AbsentType returns a timeseries with all NaNs if the timeseries passed in has any non NaNs,
