@@ -814,13 +814,8 @@ docker run -p 7201:7201 --name m3coordinator -v &lt;config-name.yml&gt;:/etc/m3c
   - url: &quot;http://localhost:7201/api/v1/prom/remote/read&quot;
     # To test reading even when local Prometheus has the data
     read_recent: true
-
 remote_write:
   - url: &quot;http://localhost:7201/api/v1/prom/remote/write&quot;
-    # To differentiate between local and remote storage we will add a storage label
-    write_relabel_configs:
-      - target_label: metrics_storage
-        replacement: m3db_remote
 </code></pre>
                 
                   
