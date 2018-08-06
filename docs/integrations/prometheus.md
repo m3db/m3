@@ -87,11 +87,6 @@ remote_read:
   - url: "http://localhost:7201/api/v1/prom/remote/read"
     # To test reading even when local Prometheus has the data
     read_recent: true
-
 remote_write:
   - url: "http://localhost:7201/api/v1/prom/remote/write"
-    # To differentiate between local and remote storage we will add a storage label
-    write_relabel_configs:
-      - target_label: metrics_storage
-        replacement: m3db_remote
 ```
