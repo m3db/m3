@@ -215,3 +215,68 @@ func TestDAGWithRoundOp(t *testing.T) {
 	assert.Len(t, transforms, 2)
 	assert.Equal(t, transforms[1].Op.OpType(), linear.RoundType)
 }
+
+func TestDAGWithDayOfMonthOp(t *testing.T) {
+	q := "day_of_month(up)"
+	p, err := Parse(q)
+	require.NoError(t, err)
+	transforms, _, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 2)
+	assert.Equal(t, transforms[1].Op.OpType(), linear.DayOfMonthType)
+}
+
+func TestDAGWithDayOfWeekOp(t *testing.T) {
+	q := "day_of_week(up)"
+	p, err := Parse(q)
+	require.NoError(t, err)
+	transforms, _, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 2)
+	assert.Equal(t, transforms[1].Op.OpType(), linear.DayOfWeekType)
+}
+func TestDAGWithDaysInMonthOp(t *testing.T) {
+	q := "days_in_month(up)"
+	p, err := Parse(q)
+	require.NoError(t, err)
+	transforms, _, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 2)
+	assert.Equal(t, transforms[1].Op.OpType(), linear.DaysInMonthType)
+}
+func TestDAGWithHourOp(t *testing.T) {
+	q := "hour(up)"
+	p, err := Parse(q)
+	require.NoError(t, err)
+	transforms, _, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 2)
+	assert.Equal(t, transforms[1].Op.OpType(), linear.HourType)
+}
+func TestDAGWithMinuteOp(t *testing.T) {
+	q := "minute(up)"
+	p, err := Parse(q)
+	require.NoError(t, err)
+	transforms, _, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 2)
+	assert.Equal(t, transforms[1].Op.OpType(), linear.MinuteType)
+}
+func TestDAGWithMonthOp(t *testing.T) {
+	q := "month(up)"
+	p, err := Parse(q)
+	require.NoError(t, err)
+	transforms, _, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 2)
+	assert.Equal(t, transforms[1].Op.OpType(), linear.MonthType)
+}
+func TestDAGWithYearOp(t *testing.T) {
+	q := "year(up)"
+	p, err := Parse(q)
+	require.NoError(t, err)
+	transforms, _, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 2)
+	assert.Equal(t, transforms[1].Op.OpType(), linear.YearType)
+}
