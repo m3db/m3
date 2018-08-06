@@ -1,7 +1,7 @@
 # M3DB on Kubernetes
 
 This doc is aimed at developers building M3DB on Kubernetes. End users should see our
-[how-to](https://m3db.github.io/m3db/how_to/kubernetes) guide for more info.
+[how-to](https://m3db.github.io/m3/how_to/kubernetes) guide for more info.
 
 ## Bundling
 

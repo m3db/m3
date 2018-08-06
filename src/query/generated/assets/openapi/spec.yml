@@ -2,7 +2,7 @@
 swagger: "2.0"
 info:
   title: "M3DB"
-  description: "A distributed time series database using M3TSZ float64 compression. You can find out more about M3DB at [http://m3db.github.io/m3db/](http://m3db.github.io/m3db/) or on [GitHub](https://github.com/m3db/m3)."
+  description: "A distributed time series database using M3TSZ float64 compression. You can find out more about M3DB at [http://m3db.github.io/m3/](http://m3db.github.io/m3/) or on [GitHub](https://github.com/m3db/m3)."
   version: "1.0.0"
   contact:
     name: "M3BD Google Group"
