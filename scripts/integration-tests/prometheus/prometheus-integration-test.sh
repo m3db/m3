@@ -128,4 +128,4 @@ sleep 30
 
 [ "$(curl -sSf localhost:9090/api/v1/query?query=prometheus_remote_storage_succeeded_samples_total | jq .data.result[].value[1])" != '"0"' ]
 
-docker-compose -f docker-compose.yml down
+docker-compose -f docker-compose.yml down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
