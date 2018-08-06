@@ -38,7 +38,9 @@ var (
 // ClustersStaticConfiguration is a set of static cluster configurations.
 type ClustersStaticConfiguration []ClusterStaticConfiguration
 
-type newClientFromConfig func(
+// NewClientFromConfig is a method that can be set on
+// ClusterStaticConfiguration to allow overriding the client initialization.
+type NewClientFromConfig func(
 	cfg client.Configuration,
 	params client.ConfigurationParameters,
 	custom ...client.CustomOption,
@@ -46,7 +48,7 @@ type newClientFromConfig func(
 
 // ClusterStaticConfiguration is a static cluster configuration.
 type ClusterStaticConfiguration struct {
-	newClientFromConfig newClientFromConfig
+	NewClientFromConfig NewClientFromConfig
 	Namespaces          []ClusterStaticNamespaceConfiguration `yaml:"namespaces"`
 	Client              client.Configuration                  `yaml:"client"`
 }
@@ -55,8 +57,8 @@ func (c ClusterStaticConfiguration) newClient(
 	params client.ConfigurationParameters,
 	custom ...client.CustomOption,
 ) (client.Client, error) {
-	if c.newClientFromConfig != nil {
-		return c.newClientFromConfig(c.Client, params, custom...)
+	if c.NewClientFromConfig != nil {
+		return c.NewClientFromConfig(c.Client, params, custom...)
 	}
 	return c.Client.NewClient(params, custom...)
 }

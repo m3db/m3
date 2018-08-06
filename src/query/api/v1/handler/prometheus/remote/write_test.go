@@ -21,64 +21,22 @@
 package remote
 
 import (
-	"bytes"
 	"context"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/x/metrics"
-	"github.com/m3db/m3/src/query/generated/proto/prompb"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote/test/remote"
 	"github.com/m3db/m3/src/query/test/local"
 	"github.com/m3db/m3/src/query/util/logging"
 	xclock "github.com/m3db/m3x/clock"
 
 	"github.com/golang/mock/gomock"
-	"github.com/golang/protobuf/proto"
-	"github.com/golang/snappy"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
-
-func generatePromWriteRequest() *prompb.WriteRequest {
-	req := &prompb.WriteRequest{
-		Timeseries: []*prompb.TimeSeries{{
-			Labels: []*prompb.Label{
-				{Name: "foo", Value: "bar"},
-				{Name: "biz", Value: "baz"},
-			},
-			Samples: []*prompb.Sample{
-				{Value: 1.0, Timestamp: time.Now().UnixNano() / int64(time.Millisecond)},
-				{Value: 2.0, Timestamp: time.Now().UnixNano() / int64(time.Millisecond)},
-			},
-		},
-			{
-				Labels: []*prompb.Label{
-					{Name: "foo", Value: "qux"},
-					{Name: "bar", Value: "baz"},
-				},
-				Samples: []*prompb.Sample{
-					{Value: 3.0, Timestamp: time.Now().UnixNano() / int64(time.Millisecond)},
-					{Value: 4.0, Timestamp: time.Now().UnixNano() / int64(time.Millisecond)},
-				},
-			}},
-	}
-	return req
-}
-
-func generatePromWriteBody(t *testing.T) io.Reader {
-	req := generatePromWriteRequest()
-	data, err := proto.Marshal(req)
-	if err != nil {
-		t.Fatal("couldn't marshal prometheus request")
-	}
-
-	compressed := snappy.Encode(nil, data)
-	b := bytes.NewReader(compressed)
-	return b
-}
 
 func TestPromWriteParsing(t *testing.T) {
 	logging.InitWithCores(nil)
@@ -87,7 +45,9 @@ func TestPromWriteParsing(t *testing.T) {
 
 	promWrite := &PromWriteHandler{store: storage}
 
-	req, _ := http.NewRequest("POST", PromWriteURL, generatePromWriteBody(t))
+	promReq := remote.GeneratePromWriteRequest()
+	promReqBody := remote.GeneratePromWriteRequestBody(t, promReq)
+	req, _ := http.NewRequest("POST", PromWriteURL, promReqBody)
 
 	r, err := promWrite.parseRequest(req)
 	require.Nil(t, err, "unable to parse request")
@@ -103,7 +63,9 @@ func TestPromWrite(t *testing.T) {
 
 	promWrite := &PromWriteHandler{store: storage}
 
-	req, _ := http.NewRequest("POST", PromWriteURL, generatePromWriteBody(t))
+	promReq := remote.GeneratePromWriteRequest()
+	promReqBody := remote.GeneratePromWriteRequestBody(t, promReq)
+	req, _ := http.NewRequest("POST", PromWriteURL, promReqBody)
 
 	r, err := promWrite.parseRequest(req)
 	require.Nil(t, err, "unable to parse request")

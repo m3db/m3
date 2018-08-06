@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"os"
+	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
@@ -48,6 +49,7 @@ import (
 )
 
 const (
+	healthURL = "/health"
 	pprofURL  = "/debug/pprof/profile"
 	routesURL = "/routes"
 )
@@ -67,6 +69,7 @@ type Handler struct {
 	config        config.Configuration
 	embeddedDbCfg *dbconfig.DBConfiguration
 	scope         tally.Scope
+	createdAt     time.Time
 }
 
 // NewHandler returns a new instance of handler with routes.
@@ -96,6 +99,7 @@ func NewHandler(
 		config:        cfg,
 		embeddedDbCfg: embeddedDbCfg,
 		scope:         scope,
+		createdAt:     time.Now(),
 	}
 	return h, nil
 }
@@ -124,10 +128,22 @@ func (h *Handler) RegisterRoutes() error {
 		database.RegisterRoutes(h.Router, h.clusterClient, h.config, h.embeddedDbCfg)
 	}
 
+	h.registerHealthEndpoints()
 	h.registerProfileEndpoints()
 	h.registerRoutesEndpoint()
 
 	return nil
+}
+
+// Endpoints useful for profiling the service
+func (h *Handler) registerHealthEndpoints() {
+	h.Router.HandleFunc(healthURL, func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(struct {
+			Uptime string `json:"uptime"`
+		}{
+			Uptime: time.Since(h.createdAt).String(),
+		})
+	}).Methods(http.MethodGet)
 }
 
 // Endpoints useful for profiling the service
@@ -157,5 +173,5 @@ func (h *Handler) registerRoutesEndpoint() {
 		}{
 			Routes: routes,
 		})
-	})
+	}).Methods(http.MethodGet)
 }
