@@ -4,7 +4,7 @@
 
 A time series database.
 
-Documentation: https://m3db.github.io/m3db/
+Documentation: https://m3db.github.io/m3/
 
 Notes for [developers]
 
@@ -12,7 +12,7 @@ Notes for [developers]
 
 ## Test it out
 
-(For a fully comprehsensive getting started guide, see our [single node how-to](https://m3db.github.io/m3db/how_to/single_node/)).
+(For a fully comprehsensive getting started guide, see our [single node how-to](https://m3db.github.io/m3/how_to/single_node/)).
 
 ### Starting a node
 
