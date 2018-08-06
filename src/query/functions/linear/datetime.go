@@ -25,7 +25,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/m3db/m3db/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/executor/transform"
 )
 
 const (
