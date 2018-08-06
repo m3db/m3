@@ -31,6 +31,9 @@ import (
 )
 
 const (
+	// *******************************************
+	// * Arithmetic functions
+
 	// PlusType adds datapoints in both series
 	PlusType = "+"
 
@@ -56,9 +59,37 @@ const (
 	// 	 NaN % X = NaN
 	// 	 X % NaN = NaN
 	ModType = "%"
+
+	// *******************************************
+	// * Comparison functions
+
+	// EqType raises lhs to the power of rhs
+	EqType = "=="
+
+	// NotEqType raises lhs to the power of rhs
+	NotEqType = "!="
+
+	// GreaterType raises lhs to the power of rhs
+	GreaterType = ">"
+
+	// LesserType raises lhs to the power of rhs
+	LesserType = "<"
+
+	// GreaterEqType raises lhs to the power of rhs
+	GreaterEqType = ">="
+
+	// LesserEqType raises lhs to the power of rhs
+	LesserEqType = "<="
 )
 
 type mathFunc func(x, y float64) float64
+
+func toFloat(b bool) float64 {
+	if b {
+		return 1
+	}
+	return 0
+}
 
 var (
 	mathFuncs = map[string]mathFunc{
@@ -68,6 +99,13 @@ var (
 		DivType:      func(x, y float64) float64 { return x / y },
 		ModType:      math.Mod,
 		ExpType:      math.Pow,
+
+		EqType:        func(x, y float64) float64 { return toFloat(x == y) },
+		NotEqType:     func(x, y float64) float64 { return toFloat(x != y) },
+		GreaterType:   func(x, y float64) float64 { return toFloat(x > y) },
+		LesserType:    func(x, y float64) float64 { return toFloat(x < y) },
+		GreaterEqType: func(x, y float64) float64 { return toFloat(x >= y) },
+		LesserEqType:  func(x, y float64) float64 { return toFloat(x <= y) },
 	}
 )
 
@@ -106,12 +144,19 @@ type binaryNode struct {
 	mu         sync.Mutex
 }
 
+// NodeInformation describes the types of nodes used
+// for binary operations
+type NodeInformation struct {
+	LNode, RNode         parser.NodeID
+	LIsScalar, RIsScalar bool
+}
+
 // NewBinaryOp creates a new binary operation
 func NewBinaryOp(
 	opType string,
 	lNode parser.NodeID,
 	rNode parser.NodeID,
-	anyScalars bool,
+	// anyScalars bool,
 ) (parser.Params, error) {
 	fn, ok := mathFuncs[opType]
 	if !ok {
@@ -123,7 +168,7 @@ func NewBinaryOp(
 		LNode:        lNode,
 		RNode:        rNode,
 		fn:           fn,
-		anyScalars:   anyScalars,
+		// anyScalars:   anyScalars,
 	}, nil
 }
 

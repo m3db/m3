@@ -59,7 +59,7 @@ func newScalarBlock(val float64, bounds Bounds) Block {
 // StepIter returns a StepIterator
 func (b *scalarBlock) StepIter() (StepIter, error) {
 	bounds := b.meta.Bounds
-	steps := bounds.End.Sub(bounds.Start) / bounds.StepSize
+	steps := bounds.Steps()
 	return &scalarStepIter{
 		meta: b.meta,
 		step: scalarStep{
@@ -70,8 +70,21 @@ func (b *scalarBlock) StepIter() (StepIter, error) {
 	}, nil
 }
 
-func (b *scalarBlock) SeriesIter() (SeriesIter, error) { return nil, nil }
-func (b *scalarBlock) Close() error                    { return nil }
+func (b *scalarBlock) SeriesIter() (SeriesIter, error) {
+	bounds := b.meta.Bounds
+	steps := bounds.Steps()
+	vals := make([]float64, int(steps))
+	for i := range vals {
+		vals[i] = b.val
+	}
+	return &scalarSeriesIter{
+		meta: b.meta,
+		vals: vals,
+		idx:  -1,
+	}, nil
+}
+
+func (b *scalarBlock) Close() error { return nil }
 
 type scalarStepIter struct {
 	meta    Metadata
@@ -120,9 +133,9 @@ func (it *scalarStep) Time() time.Time   { return it.time }
 func (it *scalarStep) Values() []float64 { return it.vals }
 
 type scalarSeriesIter struct {
-	next bool
 	meta Metadata
 	vals []float64
+	idx  int
 }
 
 // assert that scalarStepIter implements StepIter
@@ -133,14 +146,14 @@ func (it *scalarSeriesIter) SeriesCount() int         { return 1 }
 func (it *scalarSeriesIter) SeriesMeta() []SeriesMeta { return seriesMeta }
 func (it *scalarSeriesIter) Meta() Metadata           { return it.meta }
 func (it *scalarSeriesIter) Next() bool {
-	if it.next {
-		it.next = false
-		return true
-	}
-	return false
+	it.idx++
+	return it.idx == 0
 }
 
 func (it *scalarSeriesIter) Current() (Series, error) {
+	if it.idx != 0 {
+		return Series{}, fmt.Errorf("invalid scalar index: %d, numVals: 1", it.idx)
+	}
 	return Series{
 		Meta: SeriesMeta{
 			Tags: make(models.Tags),

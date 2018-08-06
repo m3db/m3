@@ -84,15 +84,12 @@ func NewBinaryOperator(expr *promql.BinaryExpr, lhs, rhs parser.NodeID) (parser.
 		matching := promMatchingToM3(expr.VectorMatching)
 		return logical.NewLogicalOp(op, lhs, rhs, matching)
 	case binary.PlusType, binary.MinusType, binary.MultiplyType,
-		binary.ExpType, binary.DivType, binary.ModType:
-		anyScalars :=
-			expr.LHS.Type() == promql.ValueTypeScalar ||
-				expr.RHS.Type() == promql.ValueTypeScalar
-		return binary.NewBinaryOp(op, lhs, rhs, anyScalars)
+		binary.ExpType, binary.DivType, binary.ModType,
+		binary.EqType, binary.NotEqType, binary.GreaterType,
+		binary.LesserType, binary.GreaterEqType, binary.LesserEqType:
+		return binary.NewBinaryOp(op, lhs, rhs)
 	default:
 		// TODO: handle other types
-		fmt.Println(binary.PlusType, binary.MinusType, binary.MultiplyType,
-			binary.ExpType, binary.DivType, binary.ModType, "ACTUAL OP", op, op == binary.MinusType)
 		return nil, fmt.Errorf("operator not supported: %s", expr.Op)
 	}
 }
@@ -152,6 +149,20 @@ func getOpType(opType promql.ItemType) string {
 		return binary.ExpType
 	case promql.ItemType(itemMOD):
 		return binary.ModType
+
+	case promql.ItemType(itemEQL):
+		return binary.EqType
+	case promql.ItemType(itemNEQ):
+		return binary.NotEqType
+	case promql.ItemType(itemGTR):
+		return binary.GreaterType
+	case promql.ItemType(itemLSS):
+		return binary.LesserType
+	case promql.ItemType(itemGTE):
+		return binary.GreaterEqType
+	case promql.ItemType(itemLTE):
+		return binary.LesserEqType
+
 	default:
 		return common.UnknownOpType
 	}
