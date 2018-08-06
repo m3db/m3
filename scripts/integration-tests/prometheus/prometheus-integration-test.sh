@@ -122,9 +122,9 @@ else
   echo "Result found"
 fi
 
-echo "Sleep for 10 seconds to let the remote write endpoint generate some data"
+echo "Sleep for 30 seconds to let the remote write endpoint generate some data"
 
-sleep 10
+sleep 30
 
 [ "$(curl -sSf localhost:9090/api/v1/query?query=prometheus_remote_storage_succeeded_samples_total | jq .data.result[].value[1])" != '"0"' ]
 

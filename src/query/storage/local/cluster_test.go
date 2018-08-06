@@ -69,7 +69,7 @@ func TestNewClustersFromConfig(t *testing.T) {
 	newClient2, mockSession2 := newTestClientFromConfig(ctrl)
 	cfg := ClustersStaticConfiguration{
 		ClusterStaticConfiguration{
-			newClientFromConfig: newClient1,
+			NewClientFromConfig: newClient1,
 			Namespaces: []ClusterStaticNamespaceConfiguration{
 				ClusterStaticNamespaceConfiguration{
 					Namespace:          "unaggregated",
@@ -79,7 +79,7 @@ func TestNewClustersFromConfig(t *testing.T) {
 			},
 		},
 		ClusterStaticConfiguration{
-			newClientFromConfig: newClient2,
+			NewClientFromConfig: newClient2,
 			Namespaces: []ClusterStaticNamespaceConfiguration{
 				ClusterStaticNamespaceConfiguration{
 					Namespace:          "aggregated0",
@@ -151,7 +151,7 @@ func TestNewClustersFromConfig(t *testing.T) {
 }
 
 func newTestClientFromConfig(ctrl *gomock.Controller) (
-	newClientFromConfig,
+	NewClientFromConfig,
 	*client.MockSession,
 ) {
 	mockSession := client.NewMockSession(ctrl)
