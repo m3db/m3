@@ -1,6 +1,6 @@
 # M3 [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![Coverage Status](https://codecov.io/gh/m3db/m3/branch/master/graph/badge.svg)](https://codecov.io/gh/m3db/m3) [![Gitter chat][gitter-img]](https://gitter.im/m3db/Lobby)
 
-<p align="center"><img src="docs/theme/assets/images/M3-logo.png" alt="M3 Logo" width="128" height="135"></p>
+<p align="center"><img src="docs/theme/assets/images/M3-logo.png" alt="M3 Logo" width="256" height="270"></p>
 
 Distributed TSDB and Query Engine, Prometheus Sidecar, Metrics Aggregator, and more.
 
