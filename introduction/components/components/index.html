@@ -266,8 +266,29 @@
     <ul class="md-nav__list" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#m3coordinator" title="M3Coordinator" class="md-nav__link">
-    M3Coordinator
+  <a href="#m3-coordinator" title="M3 Coordinator" class="md-nav__link">
+    M3 Coordinator
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#m3db" title="M3DB" class="md-nav__link">
+    M3DB
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#m3-query" title="M3 Query" class="md-nav__link">
+    M3 Query
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#m3-aggregator" title="M3 Aggregator" class="md-nav__link">
+    M3 Aggregator
   </a>
   
 </li>
@@ -464,11 +485,11 @@
       <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4">
     
     <label class="md-nav__link" for="nav-4">
-      Query Engine/Coordinator
+      Query Engine and Coordinator
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
       <label class="md-nav__title" for="nav-4">
-        Query Engine/Coordinator
+        Query Engine and Coordinator
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
         
@@ -703,8 +724,29 @@
     <ul class="md-nav__list" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#m3coordinator" title="M3Coordinator" class="md-nav__link">
-    M3Coordinator
+  <a href="#m3-coordinator" title="M3 Coordinator" class="md-nav__link">
+    M3 Coordinator
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#m3db" title="M3DB" class="md-nav__link">
+    M3DB
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#m3-query" title="M3 Query" class="md-nav__link">
+    M3 Query
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#m3-aggregator" title="M3 Aggregator" class="md-nav__link">
+    M3 Aggregator
   </a>
   
 </li>
@@ -727,8 +769,14 @@
                 
                 
                 <h1 id="components">Components</h1>
-<h2 id="m3coordinator">M3Coordinator</h2>
-<p>M3Coordinator is a coordination service that sits in between Prometheus and M3DB. It acts as a bridge for both reads and writes so that users can access all of the benefits of M3DB such as long term storage and multi DC setup without migrating off of Prometheus. See <a href="https://schd.ws/hosted_files/cloudnativeeu2017/73/Integrating%20Long-Term%20Storage%20with%20Prometheus%20-%20CloudNativeCon%20Berlin%2C%20March%2030%2C%202017.pdf">this presentation</a> for more on long term storage in Prometheus.</p>
+<h2 id="m3-coordinator">M3 Coordinator</h2>
+<p>M3 Coordinator is a service that coordinates reads and writes between upstream systems, such as Prometheus, and M3DB. It is a bridge that users can deploy to access the benefits of M3DB such as long term storage and multi-DC setup with other monitoring systems, such as Prometheus. See <a href="https://schd.ws/hosted_files/cloudnativeeu2017/73/Integrating%20Long-Term%20Storage%20with%20Prometheus%20-%20CloudNativeCon%20Berlin%2C%20March%2030%2C%202017.pdf">this presentation</a> for more on long term storage in Prometheus.</p>
+<h2 id="m3db">M3DB</h2>
+<p>M3DB is a distributed time series database that provides scalable storage and a reverse index of time series. It is optimized as a cost effective and reliable realtime and long term retention metrics store and index.  For more details, see the <a href="../../../../m3db/">M3DB documentation</a>.</p>
+<h2 id="m3-query">M3 Query</h2>
+<p>M3 Query is a service that houses a distributed query engine for querying both realtime and historical metrics, supporting several different query languages. It is designed to support both low latency realtime queries and queries that can take longer to execute, aggregating over much larger datasets, for analytical use cases.  For more details, see the <a href="../../../../query_engine/">query engine documentation</a>.</p>
+<h2 id="m3-aggregator">M3 Aggregator</h2>
+<p>M3 Aggregator is a service that runs as a dedicated metrics aggregator and provides stream based downsampling, based on dynamic rules stored in etcd. It uses leader election and aggregation window tracking, leveraging etcd to manage this state, to reliably emit at-least-once aggregations for downsampled metrics to long term storage. This provides cost effective and reliable downsampling &amp; roll up of metrics. These features also reside in the M3 Coordinator, however the dedicated aggregator is sharded and replicated, whereas the M3 Coordinator is not and requires care to deploy and run in a highly available way. There is work remaining to make the aggregator more accessible to users without requiring them to write their own compatible producer and consumer.</p>
                 
                   
                 

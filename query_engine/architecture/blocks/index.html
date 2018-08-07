@@ -92,7 +92,7 @@
             
               
                 <span class="md-header-nav__parent">
-                  Query Engine/Coordinator
+                  Query Engine and Coordinator
                 </span>
               
                 <span class="md-header-nav__parent">
@@ -432,11 +432,11 @@
       <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4" checked>
     
     <label class="md-nav__link" for="nav-4">
-      Query Engine/Coordinator
+      Query Engine and Coordinator
     </label>
     <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
       <label class="md-nav__title" for="nav-4">
-        Query Engine/Coordinator
+        Query Engine and Coordinator
       </label>
       <ul class="md-nav__list" data-md-scrollfix>
         
@@ -545,8 +545,8 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#m3db-m3coordinator-blocks" title="M3DB =&gt; M3Coordinator Blocks" class="md-nav__link">
-    M3DB =&gt; M3Coordinator Blocks
+  <a href="#m3db-m3-query-blocks" title="M3DB =&gt; M3 Query Blocks" class="md-nav__link">
+    M3DB =&gt; M3 Query Blocks
   </a>
   
 </li>
@@ -737,8 +737,8 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#m3db-m3coordinator-blocks" title="M3DB =&gt; M3Coordinator Blocks" class="md-nav__link">
-    M3DB =&gt; M3Coordinator Blocks
+  <a href="#m3db-m3-query-blocks" title="M3DB =&gt; M3 Query Blocks" class="md-nav__link">
+    M3DB =&gt; M3 Query Blocks
   </a>
   
 </li>
@@ -763,8 +763,8 @@
                 <h1 id="blocks">Blocks</h1>
 <p><strong>Please note:</strong> This documentation is a work in progress and more detail is required.</p>
 <h2 id="overview">Overview</h2>
-<p>The fundamental data structures that M3Coordinator uses are <code>Blocks</code>. <code>Blocks</code> are what get created from the series iterators that M3DB returns. A <code>Block</code> is associated with a start and end time. It contains data from multiple time series stored in columnar format.</p>
-<p>Most transformations within M3Coordinator will be applied across different series for each time interval. Therefore, having data stored in columnar format helps with the memory locality of the data. Moreover, most transformations within M3Coordinator can work in parallel on different blocks which can significantly increase the computation speed.</p>
+<p>The fundamental data structures that M3 Query uses are <code>Blocks</code>. <code>Blocks</code> are what get created from the series iterators that M3DB returns. A <code>Block</code> is associated with a start and end time. It contains data from multiple time series stored in columnar format.</p>
+<p>Most transformations within M3 Query will be applied across different series for each time interval. Therefore, having data stored in columnar format helps with the memory locality of the data. Moreover, most transformations within M3 Query can work in parallel on different blocks which can significantly increase the computation speed.</p>
 <h2 id="diagram">Diagram</h2>
 <p>Below is a visual representation of a set of <code>Blocks</code>. On top is the M3QL query that gets executed, and on the bottom, are the results of the query containing 3 different Blocks.</p>
 <pre><code>                              ┌───────────────────────────────────────────────────────────────────────┐
@@ -804,12 +804,12 @@
                               └──────┴──────┴──────┘    └──────┴──────┴──────┘   └──────┴──────┴──────┘
 </code></pre>
 
-<h2 id="m3db-m3coordinator-blocks">M3DB =&gt; M3Coordinator Blocks</h2>
-<p>In order to convert M3DB blocks into M3Coordinator blocks, we need to consolidate across different namespaces. In short, M3DB namespaces are essentially different resolutions that metrics are stored at. For example, a metric might be stored at both 1min and 10min resolutions- meaning this metric is found in two namespaces.</p>
-<p>At a high level, M3DB returns to M3Coordinator <code>SeriesBlocks</code> that contain a list of <code>SeriesIterators</code> for a given timeseries per namespace. M3Coordinator then aligns the blocks across common time bounds before applying consolidation.</p>
-<p>For example, let's say we have a query that returns two timeseries from two different namespaces- 1min and 10min. When we create the M3Coordinator <code>Block</code>, in order to accurately consolidate results from these two namespaces, we need to convert everything to have a 10min resolution. Otherwise it will not be possible to perform correctly apply functions.</p>
+<h2 id="m3db-m3-query-blocks">M3DB =&gt; M3 Query Blocks</h2>
+<p>In order to convert M3DB blocks into M3 Query blocks, we need to consolidate across different namespaces. In short, M3DB namespaces are essentially different resolutions that metrics are stored at. For example, a metric might be stored at both 1min and 10min resolutions- meaning this metric is found in two namespaces.</p>
+<p>At a high level, M3DB returns to M3 Query <code>SeriesBlocks</code> that contain a list of <code>SeriesIterators</code> for a given timeseries per namespace. M3 Query then aligns the blocks across common time bounds before applying consolidation.</p>
+<p>For example, let's say we have a query that returns two timeseries from two different namespaces- 1min and 10min. When we create the M3 Query <code>Block</code>, in order to accurately consolidate results from these two namespaces, we need to convert everything to have a 10min resolution. Otherwise it will not be possible to perform correctly apply functions.</p>
 <blockquote>
-<p>Coming Soon: More documentation on how M3Coordinator applies consolidation.</p>
+<p>Coming Soon: More documentation on how M3 Query applies consolidation.</p>
 </blockquote>
                 
                   
