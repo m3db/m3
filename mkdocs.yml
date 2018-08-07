@@ -50,7 +50,7 @@ pages:
       - "Commit Logs": "m3db/architecture/commitlogs.md"
       - "Peer Streaming": "m3db/architecture/peer_streaming.md"
       - "Caching": "m3db/architecture/caching.md"
-  - "Query Engine/Coordinator":
+  - "Query Engine and Coordinator":
     - "Introduction": "query_engine/index.md"
     - "Roadmap": "query_engine/roadmap.md"
     - "Architecture":
