@@ -74,8 +74,8 @@ m3coordinator -f <config-name.yml>
 Or, use the docker container:
 
 ```
-docker pull quay.io/m3db/m3coordinator:latest
-docker run -p 7201:7201 --name m3coordinator -v <config-name.yml>:/etc/m3coordinator/m3coordinator.yml quay.io/m3db/m3coordinator:latest
+docker pull quay.io/m3/m3coordinator:latest
+docker run -p 7201:7201 --name m3coordinator -v <config-name.yml>:/etc/m3coordinator/m3coordinator.yml quay.io/m3/m3coordinator:latest
 ```
 
 ## Prometheus configuration
