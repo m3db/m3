@@ -89,6 +89,10 @@ type RunOptions struct {
 
 	// ClusterClient is the local M3DB cluster client when running embedded.
 	ClusterClient <-chan clusterclient.Client
+
+	// InterruptCh is a programmatic interrupt channel to supply to
+	// interrupt and shutdown the server.
+	InterruptCh <-chan error
 }
 
 // Run runs the server programmatically given a filename for the configuration file.
@@ -250,7 +254,16 @@ func Run(runOpts RunOptions) {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
-	<-sigChan
+	var interruptCh <-chan error = make(chan error)
+	if runOpts.InterruptCh != nil {
+		interruptCh = runOpts.InterruptCh
+	}
+
+	select {
+	case <-sigChan:
+	case <-interruptCh:
+	}
+
 	if err := clusters.Close(); err != nil {
 		logger.Fatal("unable to close M3DB cluster sessions", zap.Any("error", err))
 	}

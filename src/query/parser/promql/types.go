@@ -83,30 +83,23 @@ func NewBinaryOperator(expr *promql.BinaryExpr, lhs, rhs parser.NodeID) (parser.
 // NewFunctionExpr creates a new function expr based on the type
 func NewFunctionExpr(name string, argValues []interface{}) (parser.Params, error) {
 	switch name {
-	case linear.AbsType:
-		return linear.NewMathOp(linear.AbsType)
+
+	case linear.AbsType, linear.CeilType, linear.ExpType, linear.FloorType, linear.LnType,
+		linear.Log10Type, linear.Log2Type, linear.SqrtType:
+		return linear.NewMathOp(name)
+
 	case linear.AbsentType:
 		return linear.NewAbsentOp(), nil
-	case linear.CeilType:
-		return linear.NewMathOp(linear.CeilType)
-	case linear.ClampMinType:
-		return linear.NewClampOp(argValues, linear.ClampMinType)
-	case linear.ClampMaxType:
-		return linear.NewClampOp(argValues, linear.ClampMaxType)
-	case linear.ExpType:
-		return linear.NewMathOp(linear.ExpType)
-	case linear.FloorType:
-		return linear.NewMathOp(linear.FloorType)
-	case linear.LnType:
-		return linear.NewMathOp(linear.LnType)
-	case linear.Log10Type:
-		return linear.NewMathOp(linear.Log10Type)
-	case linear.Log2Type:
-		return linear.NewMathOp(linear.Log2Type)
+
+	case linear.ClampMinType, linear.ClampMaxType:
+		return linear.NewClampOp(argValues, name)
+
 	case linear.RoundType:
 		return linear.NewRoundOp(argValues)
-	case linear.SqrtType:
-		return linear.NewMathOp(linear.SqrtType)
+
+	case linear.DayOfMonthType, linear.DayOfWeekType, linear.DaysInMonthType, linear.HourType,
+		linear.MinuteType, linear.MonthType, linear.YearType:
+		return linear.NewDateOp(name)
 
 	default:
 		// TODO: handle other types

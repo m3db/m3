@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
@@ -136,4 +137,34 @@ func TestRoutesGet(t *testing.T) {
 		}
 	}
 	assert.True(t, foundRoutesURL, "routes URL not served by routes endpoint")
+}
+
+func TestHealthGet(t *testing.T) {
+	logging.InitWithCores(nil)
+
+	req, _ := http.NewRequest("GET", healthURL, nil)
+	res := httptest.NewRecorder()
+	ctrl := gomock.NewController(t)
+	storage, _ := local.NewStorageAndSession(t, ctrl)
+
+	h, err := NewHandler(storage, nil, executor.NewEngine(storage), nil,
+		config.Configuration{}, nil, tally.NewTestScope("", nil))
+	require.NoError(t, err, "unable to setup handler")
+	h.RegisterRoutes()
+
+	h.Router.ServeHTTP(res, req)
+
+	require.Equal(t, res.Code, http.StatusOK)
+
+	response := &struct {
+		Uptime string `json:"uptime"`
+	}{}
+
+	err = json.NewDecoder(res.Body).Decode(response)
+	require.NoError(t, err)
+
+	result, err := time.ParseDuration(response.Uptime)
+	require.NoError(t, err)
+
+	assert.True(t, result > 0)
 }

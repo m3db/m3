@@ -61,8 +61,8 @@ curl -vvvsSf -X POST localhost:7201/api/v1/placement/init -d '{
             "isolation_group": "rack-a",
             "zone": "embedded",
             "weight": 1024,
-            "endpoint": "127.0.0.1:9000",
-            "hostname": "127.0.0.1",
+            "endpoint": "dbnode01:9000",
+            "hostname": "dbnode01",
             "port": 9000
         }
     ]
@@ -122,10 +122,10 @@ else
   echo "Result found"
 fi
 
-echo "Sleep for 20 seconds to let the remote write endpoint generate some data"
+echo "Sleep for 30 seconds to let the remote write endpoint generate some data"
 
-sleep 20
+sleep 30
 
 [ "$(curl -sSf localhost:9090/api/v1/query?query=prometheus_remote_storage_succeeded_samples_total | jq .data.result[].value[1])" != '"0"' ]
 
-docker-compose -f docker-compose.yml down
+docker-compose -f docker-compose.yml down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
