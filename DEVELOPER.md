@@ -37,6 +37,23 @@ $ go test  -tags big ./services/m3dbnode/main -run TestIndexEnabledServer -v
 
 (5) Polish up the PR, ensure CI signs off, and coverage increases. Then ping someone to take a look and get feedback!
 
+## Building the Docs
+
+The `docs` folder contains our documentation in Markdown files. These Markdown files are built into a static site using
+[`mkdocs`](https://www.mkdocs.org/) with the [`mkdocs-material`](https://squidfunk.github.io/mkdocs-material/) theme.
+Building the docs using our predefined `make` targets requires a working Docker installation:
+
+```
+# generate the docs in the `site/` directory
+make docs-build
+
+# build docs and serve on localhost:8000 (with live reload)
+make docs-serve
+
+# build the docs and auto-push to the `gh-pages` branch
+make docs-deploy
+```
+
 ## M3DB Website
 The [M3DB website](https://m3db.io/) is hosted via netlify. It is configured to run `make site-build` and then serving the contents of the /m3db.io directory. The site is built and republished every time
 there is a push to master.

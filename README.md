@@ -5,11 +5,8 @@
 Distributed TSDB and Query Engine, Prometheus Sidecar, Metrics Aggregator, and more.
 
 More information:
-- [Documentation](documentation)
-- [Developers](developers)
-
-[documentation]: https://m3db.github.io/m3/
-[developers]: https://github.com/m3db/m3/blob/master/DEVELOPER.md
+- [Documentation](https://m3db.github.io/m3/)
+- [Developers](https://github.com/m3db/m3/blob/master/DEVELOPER.md)
 
 ## Test it out
 
@@ -109,23 +106,6 @@ provide your own and mount it into the container:
 
 ```
 docker run --name m3dbnode -v /host/config.yml:/etc/m3dbnode/myconfig.yml m3dbnode:tag -f /etc/m3dbnode/myconfig.yml
-```
-
-## Building the Docs
-
-The `docs` folder contains our documentation in Markdown files. These Markdown files are built into a static site using
-[`mkdocs`](https://www.mkdocs.org/) with the [`mkdocs-material`](https://squidfunk.github.io/mkdocs-material/) theme.
-Building the docs using our predefined `make` targets requires a working Docker installation:
-
-```
-# generate the docs in the `site/` directory
-make docs-build
-
-# build docs and serve on localhost:8000 (with live reload)
-make docs-serve
-
-# build the docs and auto-push to the `gh-pages` branch
-make docs-deploy
 ```
 
 <hr>
