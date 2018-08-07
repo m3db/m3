@@ -21,7 +21,6 @@
 package linear
 
 import (
-	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -44,7 +43,6 @@ func expectedDateVals(values [][]float64, fn func(t time.Time) float64) [][]floa
 				continue
 			}
 			t := time.Unix(int64(ev), 0).UTC()
-			fmt.Println(fn(t))
 			v[i] = fn(t)
 		}
 

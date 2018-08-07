@@ -108,6 +108,5 @@ func matcherToQuery(matcher *models.Matcher) (idx.Query, error) {
 
 	default:
 		return idx.Query{}, fmt.Errorf("unsupported query type %v", matcher)
-
 	}
 }

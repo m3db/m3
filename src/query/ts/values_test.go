@@ -30,12 +30,13 @@ func generateDatapoints(start time.Time, interval time.Duration, num int) Datapo
 	}
 	return dps
 }
+
 func createExamples() []testSample {
 	now := time.Time{}
 	samples := []testSample{
 		{
 			input:       generateDatapoints(now.Add(-5*time.Second), time.Second, 5),
-			expected:    []float64{0, 1, 2, 3, 4,},
+			expected:    []float64{0, 1, 2, 3, 4},
 			start:       now.Add(-5 * time.Second),
 			end:         now,
 			interval:    time.Second,
@@ -43,7 +44,7 @@ func createExamples() []testSample {
 		},
 		{
 			input:       generateDatapoints(now.Add(-5*time.Second), 2*time.Second, 5),
-			expected:    []float64{0, 0, 1, 1, 2,},
+			expected:    []float64{0, 0, 1, 1, 2},
 			start:       now.Add(-5 * time.Second),
 			end:         now,
 			interval:    time.Second,
@@ -51,7 +52,7 @@ func createExamples() []testSample {
 		},
 		{
 			input:       generateDatapoints(now.Add(-5*time.Second), time.Second, 5),
-			expected:    []float64{0, 2,},
+			expected:    []float64{0, 2},
 			start:       now.Add(-5 * time.Second),
 			end:         now,
 			interval:    2 * time.Second,
@@ -59,7 +60,7 @@ func createExamples() []testSample {
 		},
 		{
 			input:       generateDatapoints(now.Add(time.Second), 2*time.Second, 5),
-			expected:    []float64{1,},
+			expected:    []float64{1},
 			start:       now.Add(3 * time.Second),
 			end:         now.Add(3 * time.Second),
 			interval:    time.Second,
@@ -68,7 +69,7 @@ func createExamples() []testSample {
 		{
 			input: generateDatapoints(now.Add(time.Second), 2*time.Second, 5),
 			// start time after end time of datapoints so we get NaNs
-			expected:    []float64{math.NaN(), math.NaN(),},
+			expected:    []float64{math.NaN(), math.NaN()},
 			start:       now.Add(10 * time.Second),
 			end:         now.Add(12 * time.Second),
 			interval:    time.Second,
@@ -77,7 +78,7 @@ func createExamples() []testSample {
 		},
 		{
 			input:       generateDatapoints(now.Add(time.Second), 10*time.Second, 10),
-			expected:    []float64{0, 0,},
+			expected:    []float64{0, 0},
 			start:       now,
 			end:         now.Add(20 * time.Second),
 			interval:    10 * time.Second,
