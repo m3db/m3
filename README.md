@@ -1,13 +1,12 @@
-## WARNING: This is pre-release software, and is not intended for use until a stable release.
+# M3 [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![Coverage Status](https://codecov.io/gh/m3db/m3/branch/master/graph/badge.svg)](https://codecov.io/gh/m3db/m3) [![Gitter chat][gitter-img]](https://gitter.im/m3db/Lobby)
 
-# M3DB [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fm3db%2Fm3db.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fm3db%2Fm3db?ref=badge_shield) [![Coverage Status](https://codecov.io/gh/m3db/m3/branch/master/graph/badge.svg)](https://codecov.io/gh/m3db/m3) [![Gitter chat][gitter-img]](https://gitter.im/m3db/Lobby)
+Distributed TSDB and Query Engine, Prometheus Sidecar, Metrics Aggregator, and more.
 
-A time series database.
+More information:
+- [Documentation](documentation)
+- [Developers](developers)
 
-Documentation: https://m3db.github.io/m3/
-
-Notes for [developers]
-
+[documentation]: https://m3db.github.io/m3/
 [developers]: https://github.com/m3db/m3/blob/master/DEVELOPER.md
 
 ## Test it out
@@ -21,10 +20,20 @@ Notes for [developers]
 make m3dbnode
 
 # run it with the sample configuration
-./bin/m3dbnode -f ./src/dbnode/config/m3dbnode-local.yml
+./bin/m3dbnode -f ./src/dbnode/config/m3dbnode-local-etcd.yml
 ```
 
 To cross-compile and build for Linux AMD64 build with `make m3dbnode-linux-amd64`.
+
+### Creating a namespace to store metrics
+
+```
+curl -X POST http://localhost:7201/api/v1/database/create -d '{
+  "type": "local",
+  "namespaceName": "metrics",
+  "retentionTime": "2h"
+}'
+```
 
 ### Test RPC
 
@@ -36,7 +45,7 @@ Note: performance sensitive users are expected to use the more performant endpoi
 
 ```
 curl http://localhost:9003/writetagged -s -X POST -d '{
-  "namespace": "default",
+  "namespace": "metrics",
   "id": "foo",
   "tags": [
     {
@@ -59,7 +68,7 @@ curl http://localhost:9003/writetagged -s -X POST -d '{
 
 ```
 curl http://localhost:9003/query -s -X POST -d '{
-  "namespace": "default",
+  "namespace": "metrics",
   "query": {
     "regexp": {
       "field": "city",
