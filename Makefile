@@ -171,7 +171,7 @@ docs-serve: docs-container
 
 .PHONY: docs-deploy
 docs-deploy: docs-container
-	docker run -v $(PWD):/m3db --rm m3db-docs "mkdocs build -e docs/theme -t material && mkdocs gh-deploy --dirty"
+	docker run -v $(PWD):/m3db --rm -v $(HOME)/.ssh/id_rsa:/root/.ssh/id_rsa:ro -it m3db-docs "mkdocs build -e docs/theme -t material && mkdocs gh-deploy --dirty"
 
 .PHONY: docker-integration-test
 docker-integration-test:
