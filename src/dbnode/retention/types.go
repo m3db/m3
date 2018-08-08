@@ -69,4 +69,20 @@ type Options interface {
 	// BlockDataExpiryAfterNotAccessedPeriod returns the period that blocks data should
 	// be expired after not being accessed for a given duration
 	BlockDataExpiryAfterNotAccessedPeriod() time.Duration
+
+	// SetFlushAfterNoMetricPeriod sets the period of no metrics after which
+	// non-realtime blocks should be flushed
+	SetFlushAfterNoMetricPeriod(period time.Duration) Options
+
+	// FlushAfterNoMetricPeriod returns the period of no metrics after which
+	// non-realtime blocks should be flushed
+	FlushAfterNoMetricPeriod() time.Duration
+
+	// SetMaxWritesBeforeFlush sets the max number of writes for a non-realtime block
+	// after which they should be flushed
+	SetMaxWritesBeforeFlush(value uint64) Options
+
+	// MaxWritesBeforeFlush returns the max number of writes for a non-realtime block
+	// after which they should be flushed
+	MaxWritesBeforeFlush() uint64
 }

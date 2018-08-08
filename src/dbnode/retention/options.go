@@ -43,6 +43,14 @@ const (
 
 	// defaultDataExpiryAfterNotAccessedPeriod is the default data expiry after not accessed period
 	defaultDataExpiryAfterNotAccessedPeriod = 5 * time.Minute
+
+	// defaultFlushAfterNoMetricPeriod is the period of no metrics after which a non-realtime metric
+	// block should be flushed
+	defaultFlushAfterNoMetricPeriod = 5 * time.Minute
+
+	// defaultMaxWritesBeforeFlush is the max number writes in non-realtime blocks after which
+	// block should be flushed
+	defaultMaxWritesBeforeFlush = 1<<16 - 1
 )
 
 var (
@@ -61,6 +69,8 @@ type options struct {
 	bufferPast                       time.Duration
 	dataExpiry                       bool
 	dataExpiryAfterNotAccessedPeriod time.Duration
+	flushAfterNoMetricPeriod         time.Duration
+	maxWritesBeforeFlush             uint64
 }
 
 // NewOptions creates new retention options
@@ -72,6 +82,8 @@ func NewOptions() Options {
 		bufferPast:                       defaultBufferPast,
 		dataExpiry:                       defaultDataExpiry,
 		dataExpiryAfterNotAccessedPeriod: defaultDataExpiryAfterNotAccessedPeriod,
+		flushAfterNoMetricPeriod:         defaultFlushAfterNoMetricPeriod,
+		maxWritesBeforeFlush:             defaultMaxWritesBeforeFlush,
 	}
 }
 
@@ -164,4 +176,24 @@ func (o *options) SetBlockDataExpiryAfterNotAccessedPeriod(value time.Duration) 
 
 func (o *options) BlockDataExpiryAfterNotAccessedPeriod() time.Duration {
 	return o.dataExpiryAfterNotAccessedPeriod
+}
+
+func (o *options) SetFlushAfterNoMetricPeriod(value time.Duration) Options {
+	opts := *o
+	opts.flushAfterNoMetricPeriod = value
+	return &opts
+}
+
+func (o *options) FlushAfterNoMetricPeriod() time.Duration {
+	return o.flushAfterNoMetricPeriod
+}
+
+func (o *options) SetMaxWritesBeforeFlush(value uint64) Options {
+	opts := *o
+	opts.maxWritesBeforeFlush = value
+	return &opts
+}
+
+func (o *options) MaxWritesBeforeFlush() uint64 {
+	return o.maxWritesBeforeFlush
 }

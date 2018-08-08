@@ -29,10 +29,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
-	m3dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -49,13 +49,21 @@ const (
 	// 3. Bucket for the future that can be taking writes that is head of
 	// the current block if write is for the future within bounds
 	bucketsLen = 3
+
+	//TODO is 16 the right number?
+	defaultBufferBucketPoolSize = 16
 )
 
 type computeBucketIdxOp int
+type bucketType int
 
 const (
 	computeBucketIdx computeBucketIdxOp = iota
 	computeAndResetBucketIdx
+
+	bucketTypeAll bucketType = iota
+	bucketTypeRealTime
+	bucketTypeNotRealTime
 )
 
 type databaseBuffer interface {
@@ -119,14 +127,16 @@ type bufferTickResult struct {
 }
 
 type dbBuffer struct {
-	opts              Options
-	nowFn             clock.NowFn
-	drainFn           databaseBufferDrainFn
-	pastMostBucketIdx int
-	buckets           [bucketsLen]dbBufferBucket
-	blockSize         time.Duration
-	bufferPast        time.Duration
-	bufferFuture      time.Duration
+	opts               Options
+	nowFn              clock.NowFn
+	drainFn            databaseBufferDrainFn
+	pastMostBucketIdx  int
+	bucketsRealTime    [bucketsLen]dbBufferBucket
+	bucketsNotRealTime map[int64]*dbBufferBucket
+	bucketPool         *dbBufferBucketPool
+	blockSize          time.Duration
+	bufferPast         time.Duration
+	bufferFuture       time.Duration
 }
 
 type databaseBufferDrainFn func(b block.DatabaseBlock)
@@ -134,8 +144,12 @@ type databaseBufferDrainFn func(b block.DatabaseBlock)
 // NB(prateek): databaseBuffer.Reset(...) must be called upon the returned
 // object prior to use.
 func newDatabaseBuffer(drainFn databaseBufferDrainFn) databaseBuffer {
+	bucketPoolOpts := pool.NewObjectPoolOptions().SetSize(defaultBufferBucketPoolSize)
+
 	b := &dbBuffer{
-		drainFn: drainFn,
+		drainFn:            drainFn,
+		bucketsNotRealTime: make(map[int64]*dbBufferBucket),
+		bucketPool:         newDBBufferBucketPool(bucketPoolOpts),
 	}
 	return b
 }
@@ -147,24 +161,41 @@ func (b *dbBuffer) Reset(opts Options) {
 	b.blockSize = ropts.BlockSize()
 	b.bufferPast = ropts.BufferPast()
 	b.bufferFuture = ropts.BufferFuture()
+	b.removeBucketsNotRealTime()
 	// Avoid capturing any variables with callback
-	b.computedForEachBucketAsc(computeAndResetBucketIdx, bucketResetStart)
+	b.computedForEachBucketAsc(computeAndResetBucketIdx, bucketTypeRealTime, bucketResetStart)
 }
 
-func bucketResetStart(now time.Time, b *dbBuffer, idx int, start time.Time) int {
-	b.buckets[idx].opts = b.opts
-	b.buckets[idx].resetTo(start)
+func (b *dbBuffer) removeBucketsNotRealTime() {
+	for key := range b.bucketsNotRealTime {
+		b.removeBucket(key)
+	}
+}
+
+func bucketResetStart(now time.Time, b *dbBuffer, idx int64, start time.Time, isRealTime bool) int {
+	bucket := bucketAtIdx(b, idx, isRealTime)
+
+	bucket.opts = b.opts
+	bucket.resetTo(start, true)
 	return 1
+}
+
+func bucketAtIdx(b *dbBuffer, idx int64, isRealTime bool) *dbBufferBucket {
+	if isRealTime {
+		return &b.bucketsRealTime[idx]
+	}
+
+	return b.bucketsNotRealTime[idx]
 }
 
 func (b *dbBuffer) MinMax() (time.Time, time.Time, error) {
 	var min, max time.Time
-	for i := range b.buckets {
-		if (min.IsZero() || b.buckets[i].start.Before(min)) && !b.buckets[i].drained {
-			min = b.buckets[i].start
+	for i := range b.bucketsRealTime {
+		if (min.IsZero() || b.bucketsRealTime[i].start.Before(min)) && !b.bucketsRealTime[i].drained {
+			min = b.bucketsRealTime[i].start
 		}
-		if max.IsZero() || b.buckets[i].start.After(max) && !b.buckets[i].drained {
-			max = b.buckets[i].start
+		if max.IsZero() || b.bucketsRealTime[i].start.After(max) && !b.bucketsRealTime[i].drained {
+			max = b.bucketsRealTime[i].start
 		}
 	}
 
@@ -183,59 +214,113 @@ func (b *dbBuffer) Write(
 	annotation []byte,
 ) error {
 	now := b.nowFn()
+	bucketStart := timestamp.Truncate(b.blockSize)
+	key := b.writableBucketKey(timestamp)
+
+	if b.isRealTime(timestamp) {
+		idx := b.writableBucketIdx(timestamp)
+
+		if b.bucketsRealTime[idx].needsReset(now, bucketStart) {
+			b.DrainAndReset()
+		}
+		// If there was previously a non-realtime metric written to this bucket
+		// already, then use that bucket.
+		if _, ok := b.bucketsNotRealTime[key]; ok {
+			b.makeBucketRealTime(key, idx)
+		}
+
+		return b.bucketsRealTime[idx].write(now, timestamp, value, unit, annotation)
+	}
+
+	if _, ok := b.bucketsNotRealTime[key]; !ok {
+		b.initializeBucket(key)
+	}
+
+	if b.bucketsNotRealTime[key].needsDrain(now, bucketStart) {
+		bucketDrain(now, b, key, bucketStart, false)
+
+		if b.bucketsNotRealTime[key].isStale(now) {
+			b.removeBucket(key)
+		}
+	}
+
+	return b.bucketsNotRealTime[key].write(now, timestamp, value, unit, annotation)
+}
+
+func (b *dbBuffer) isRealTime(timestamp time.Time) bool {
+	now := b.nowFn()
 	futureLimit := now.Add(1 * b.bufferFuture)
 	pastLimit := now.Add(-1 * b.bufferPast)
-	if !futureLimit.After(timestamp) {
-		return m3dberrors.ErrTooFuture
-	}
-	if !pastLimit.Before(timestamp) {
-		return m3dberrors.ErrTooPast
-	}
-
-	bucketStart := timestamp.Truncate(b.blockSize)
-	idx := b.writableBucketIdx(timestamp)
-	if b.buckets[idx].needsReset(bucketStart) {
-		// Needs reset
-		b.DrainAndReset()
-	}
-
-	return b.buckets[idx].write(timestamp, value, unit, annotation)
+	return pastLimit.Before(timestamp) && futureLimit.After(timestamp)
 }
 
 func (b *dbBuffer) writableBucketIdx(t time.Time) int {
 	return int(t.Truncate(b.blockSize).UnixNano() / int64(b.blockSize) % bucketsLen)
 }
 
+func (b *dbBuffer) writableBucketKey(t time.Time) int64 {
+	return t.Truncate(b.blockSize).UnixNano()
+}
+
+func (b *dbBuffer) initializeBucket(key int64) {
+	b.bucketsNotRealTime[key] = b.bucketPool.Get()
+	b.bucketsNotRealTime[key].opts = b.opts
+	b.bucketsNotRealTime[key].resetTo(time.Unix(0, key), false)
+}
+
+func (b *dbBuffer) removeBucket(idx int64) {
+	b.bucketPool.Put(b.bucketsNotRealTime[idx])
+	delete(b.bucketsNotRealTime, idx)
+}
+
 func (b *dbBuffer) IsEmpty() bool {
-	canReadAny := false
-	for i := range b.buckets {
-		canReadAny = canReadAny || b.buckets[i].canRead()
+	for i := range b.bucketsRealTime {
+		if b.bucketsRealTime[i].canRead() {
+			return false
+		}
 	}
-	return !canReadAny
+
+	for key := range b.bucketsNotRealTime {
+		if b.bucketsNotRealTime[key].canRead() {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (b *dbBuffer) Stats() bufferStats {
 	var stats bufferStats
 	writableIdx := b.writableBucketIdx(b.nowFn())
-	for i := range b.buckets {
-		if !b.buckets[i].canRead() {
+	for i := range b.bucketsRealTime {
+		if !b.bucketsRealTime[i].canRead() {
 			continue
 		}
-		if i == writableIdx {
+		if i == int(writableIdx) {
 			stats.openBlocks++
 		}
 		stats.wiredBlocks++
 	}
+
+	for key := range b.bucketsNotRealTime {
+		if !b.bucketsNotRealTime[key].canRead() {
+			continue
+		}
+		stats.openBlocks++
+		stats.wiredBlocks++
+	}
+
 	return stats
 }
 
 func (b *dbBuffer) NeedsDrain() bool {
 	// Avoid capturing any variables with callback
-	return b.computedForEachBucketAsc(computeBucketIdx, bucketNeedsDrain) > 0
+	return b.computedForEachBucketAsc(computeBucketIdx, bucketTypeAll, bucketNeedsDrain) > 0
 }
 
-func bucketNeedsDrain(now time.Time, b *dbBuffer, idx int, start time.Time) int {
-	if b.buckets[idx].needsDrain(now, start) {
+func bucketNeedsDrain(now time.Time, b *dbBuffer, idx int64, start time.Time, isRealTime bool) int {
+	bucket := bucketAtIdx(b, idx, isRealTime)
+	if bucket.needsDrain(now, start) {
 		return 1
 	}
 	return 0
@@ -243,18 +328,20 @@ func bucketNeedsDrain(now time.Time, b *dbBuffer, idx int, start time.Time) int 
 
 func (b *dbBuffer) Tick() bufferTickResult {
 	// Avoid capturing any variables with callback
-	mergedOutOfOrder := b.computedForEachBucketAsc(computeAndResetBucketIdx, bucketTick)
+	mergedOutOfOrder := b.computedForEachBucketAsc(computeAndResetBucketIdx, bucketTypeAll, bucketTick)
 	return bufferTickResult{
 		mergedOutOfOrderBlocks: mergedOutOfOrder,
 	}
 }
 
-func bucketTick(now time.Time, b *dbBuffer, idx int, start time.Time) int {
+func bucketTick(now time.Time, b *dbBuffer, idx int64, start time.Time, isRealTime bool) int {
 	// Perform a drain and reset if necessary
-	mergedOutOfOrderBlocks := bucketDrainAndReset(now, b, idx, start)
+	mergedOutOfOrderBlocks := bucketDrainAndReset(now, b, idx, start, isRealTime)
+
+	bucket := bucketAtIdx(b, idx, isRealTime)
 
 	// Try to merge any out of order encoders to amortize the cost of a drain
-	r, err := b.buckets[idx].merge()
+	r, err := bucket.merge()
 	if err != nil {
 		log := b.opts.InstrumentOptions().Logger()
 		log.Errorf("buffer merge encode error: %v", err)
@@ -268,64 +355,102 @@ func bucketTick(now time.Time, b *dbBuffer, idx int, start time.Time) int {
 
 func (b *dbBuffer) DrainAndReset() drainAndResetResult {
 	// Avoid capturing any variables with callback
-	mergedOutOfOrder := b.computedForEachBucketAsc(computeAndResetBucketIdx, bucketDrainAndReset)
+	mergedOutOfOrder := b.computedForEachBucketAsc(computeAndResetBucketIdx, bucketTypeRealTime, bucketDrainAndReset)
 	return drainAndResetResult{
 		mergedOutOfOrderBlocks: mergedOutOfOrder,
 	}
 }
 
-func bucketDrainAndReset(now time.Time, b *dbBuffer, idx int, start time.Time) int {
+func bucketDrainAndReset(now time.Time, b *dbBuffer, idx int64, start time.Time, isRealTime bool) int {
 	mergedOutOfOrderBlocks := 0
+	bucket := bucketAtIdx(b, idx, isRealTime)
 
-	if b.buckets[idx].needsDrain(now, start) {
-		// Rotate the buffer to a block, merging if required
-		result, err := b.buckets[idx].discardMerged()
-		if err != nil {
-			log := b.opts.InstrumentOptions().Logger()
-			log.Errorf("buffer merge encode error: %v", err)
-		} else {
-			if result.merges > 0 {
-				mergedOutOfOrderBlocks++
-			}
-			if !(result.block.Len() > 0) {
-				log := b.opts.InstrumentOptions().Logger()
-				log.Errorf("buffer drain tried to drain empty stream for bucket: %v",
-					start.String())
-			} else {
-				// If this block was read mark it as such
-				if lastRead := b.buckets[idx].lastRead(); !lastRead.IsZero() {
-					result.block.SetLastReadTime(lastRead)
-				}
-				b.drainFn(result.block)
-			}
-		}
-
-		b.buckets[idx].drained = true
+	if bucket.needsDrain(now, start) {
+		mergedOutOfOrderBlocks += bucketDrain(now, b, idx, start, isRealTime)
 	}
 
-	if b.buckets[idx].needsReset(start) {
-		// Reset bucket
-		b.buckets[idx].resetTo(start)
+	if bucket.needsReset(now, start) {
+		bucket.resetTo(start, true)
+	}
+
+	if bucket.isStale(now) {
+		b.removeBucket(idx)
 	}
 
 	return mergedOutOfOrderBlocks
 }
 
+func bucketDrain(now time.Time, b *dbBuffer, idx int64, start time.Time, isRealTime bool) int {
+	mergedOutOfOrderBlocks := 0
+
+	bucket := bucketAtIdx(b, idx, isRealTime)
+	// Rotate the buffer to a block, merging if required
+	result, err := bucket.discardMerged()
+	if err != nil {
+		log := b.opts.InstrumentOptions().Logger()
+		log.Errorf("buffer merge encode error: %v", err)
+	} else {
+		if result.merges > 0 {
+			mergedOutOfOrderBlocks++
+		}
+		if !(result.block.Len() > 0) {
+			log := b.opts.InstrumentOptions().Logger()
+			log.Errorf("buffer drain tried to drain empty stream for bucket: %v",
+				start.String())
+		} else {
+			// If this block was read mark it as such
+			if lastRead := bucket.lastRead(); !lastRead.IsZero() {
+				result.block.SetLastReadTime(lastRead)
+			}
+			b.drainFn(result.block)
+		}
+	}
+
+	bucket.drained = true
+	bucket.resetNumWrites()
+	if bucket.isStale(now) {
+		b.removeBucket(idx)
+	}
+
+	return mergedOutOfOrderBlocks
+}
+
+func (b *dbBuffer) makeBucketRealTime(fromKey int64, toIdx int) {
+	bucket, ok := b.bucketsNotRealTime[fromKey]
+	if !ok || b.bucketsNotRealTime[fromKey].isRealTime {
+		return
+	}
+
+	bucket.isRealTime = true
+	b.bucketsRealTime[toIdx] = *bucket
+	b.removeBucket(fromKey)
+}
+
 func (b *dbBuffer) Bootstrap(bl block.DatabaseBlock) error {
 	blockStart := bl.StartTime()
 	bootstrapped := false
-	for i := range b.buckets {
-		if b.buckets[i].start.Equal(blockStart) {
-			if b.buckets[i].drained {
+	for i := range b.bucketsRealTime {
+		if b.bucketsRealTime[i].start.Equal(blockStart) {
+			if b.bucketsRealTime[i].drained {
 				return fmt.Errorf(
 					"block at %s cannot be bootstrapped by buffer because its already drained",
 					blockStart.String(),
 				)
 			}
-			b.buckets[i].bootstrap(bl)
+			b.bucketsRealTime[i].bootstrap(bl)
 			bootstrapped = true
 			break
 		}
+	}
+	if bucket, ok := b.bucketsNotRealTime[blockStart.UnixNano()]; !bootstrapped && ok {
+		if bucket.drained {
+			return fmt.Errorf(
+				"block at %s cannot be bootstrapped by buffer because its already drained",
+				blockStart.String(),
+			)
+		}
+		bucket.bootstrap(bl)
+		bootstrapped = true
 	}
 	if !bootstrapped {
 		return fmt.Errorf("block at %s not contained by buffer", blockStart.String())
@@ -335,10 +460,17 @@ func (b *dbBuffer) Bootstrap(bl block.DatabaseBlock) error {
 
 // forEachBucketAsc iterates over the buckets in time ascending order
 // to read bucket data
-func (b *dbBuffer) forEachBucketAsc(fn func(*dbBufferBucket)) {
+func (b *dbBuffer) forEachBucketAsc(
+	bType bucketType,
+	fn func(*dbBufferBucket),
+) {
 	for i := 0; i < bucketsLen; i++ {
 		idx := (b.pastMostBucketIdx + i) % bucketsLen
-		fn(&b.buckets[idx])
+		fn(&b.bucketsRealTime[idx])
+	}
+
+	for key := range b.bucketsNotRealTime {
+		fn(b.bucketsNotRealTime[key])
 	}
 }
 
@@ -346,20 +478,31 @@ func (b *dbBuffer) forEachBucketAsc(fn func(*dbBufferBucket)) {
 // and returns the sum of the number returned by each fn
 func (b *dbBuffer) computedForEachBucketAsc(
 	op computeBucketIdxOp,
-	fn func(now time.Time, b *dbBuffer, idx int, bucketStart time.Time) int,
+	bType bucketType,
+	fn func(now time.Time, b *dbBuffer, idx int64, bucketStart time.Time, isRealTime bool) int,
 ) int {
 	now := b.nowFn()
 	pastMostBucketStart := now.Truncate(b.blockSize).Add(-1 * b.blockSize)
 	bucketNum := (pastMostBucketStart.UnixNano() / int64(b.blockSize)) % bucketsLen
 	result := 0
-	for i := int64(0); i < bucketsLen; i++ {
-		idx := int((bucketNum + i) % bucketsLen)
-		curr := pastMostBucketStart.Add(time.Duration(i) * b.blockSize)
-		result += fn(now, b, idx, curr)
+
+	if bType == bucketTypeAll || bType == bucketTypeRealTime {
+		for i := int64(0); i < bucketsLen; i++ {
+			idx := (bucketNum + i) % bucketsLen
+			curr := pastMostBucketStart.Add(time.Duration(i) * b.blockSize)
+			result += fn(now, b, idx, curr, true)
+		}
+		if op == computeAndResetBucketIdx {
+			b.pastMostBucketIdx = int(bucketNum)
+		}
 	}
-	if op == computeAndResetBucketIdx {
-		b.pastMostBucketIdx = int(bucketNum)
+
+	if bType == bucketTypeAll || bType == bucketTypeNotRealTime {
+		for key := range b.bucketsNotRealTime {
+			result += fn(now, b, key, time.Unix(0, key), false)
+		}
 	}
+
 	return result
 }
 
@@ -369,7 +512,7 @@ func (b *dbBuffer) Snapshot(ctx context.Context, blockStart time.Time) (xio.Segm
 		err error
 	)
 
-	b.forEachBucketAsc(func(bucket *dbBufferBucket) {
+	b.forEachBucketAsc(bucketTypeAll, func(bucket *dbBufferBucket) {
 		if err != nil {
 			// Something already went wrong and we want to return the error to the caller
 			// as soon as possible instead of continuing to do work.
@@ -414,7 +557,7 @@ func (b *dbBuffer) Snapshot(ctx context.Context, blockStart time.Time) (xio.Segm
 func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xio.BlockReader {
 	// TODO(r): pool these results arrays
 	var res [][]xio.BlockReader
-	b.forEachBucketAsc(func(bucket *dbBufferBucket) {
+	b.forEachBucketAsc(bucketTypeAll, func(bucket *dbBufferBucket) {
 		if !bucket.canRead() {
 			return
 		}
@@ -442,7 +585,7 @@ func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xi
 func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time) []block.FetchBlockResult {
 	var res []block.FetchBlockResult
 
-	b.forEachBucketAsc(func(bucket *dbBufferBucket) {
+	b.forEachBucketAsc(bucketTypeAll, func(bucket *dbBufferBucket) {
 		if !bucket.canRead() {
 			return
 		}
@@ -473,7 +616,7 @@ func (b *dbBuffer) FetchBlocksMetadata(
 ) block.FetchBlockMetadataResults {
 	blockSize := b.opts.RetentionOptions().BlockSize()
 	res := b.opts.FetchBlockMetadataResultsPool().Get()
-	b.forEachBucketAsc(func(bucket *dbBufferBucket) {
+	b.forEachBucketAsc(bucketTypeAll, func(bucket *dbBufferBucket) {
 		if !bucket.canRead() {
 			return
 		}
@@ -506,13 +649,16 @@ func (b *dbBuffer) FetchBlocksMetadata(
 }
 
 type dbBufferBucket struct {
-	opts              Options
-	start             time.Time
-	encoders          []inOrderEncoder
-	bootstrapped      []block.DatabaseBlock
-	lastReadUnixNanos int64
-	empty             bool
-	drained           bool
+	opts               Options
+	start              time.Time
+	encoders           []inOrderEncoder
+	bootstrapped       []block.DatabaseBlock
+	lastReadUnixNanos  int64
+	lastWriteUnixNanos int64
+	undrainedWrites    uint64
+	empty              bool
+	drained            bool
+	isRealTime         bool
 }
 
 type inOrderEncoder struct {
@@ -522,6 +668,7 @@ type inOrderEncoder struct {
 
 func (b *dbBufferBucket) resetTo(
 	start time.Time,
+	isRealTime bool,
 ) {
 	// Close the old context if we're resetting for use
 	b.finalize()
@@ -537,8 +684,11 @@ func (b *dbBufferBucket) resetTo(
 	})
 	b.bootstrapped = nil
 	atomic.StoreInt64(&b.lastReadUnixNanos, 0)
+	atomic.StoreInt64(&b.lastWriteUnixNanos, 0)
 	b.empty = true
 	b.drained = false
+	b.resetNumWrites()
+	b.isRealTime = isRealTime
 }
 
 func (b *dbBufferBucket) finalize() {
@@ -551,20 +701,44 @@ func (b *dbBufferBucket) canRead() bool {
 }
 
 func (b *dbBufferBucket) needsReset(
+	now time.Time,
 	targetStart time.Time,
 ) bool {
+	if !b.isRealTime {
+		return false
+	}
+
 	return !b.start.Equal(targetStart)
+}
+
+func (b *dbBufferBucket) isStale(now time.Time) bool {
+	if b.isRealTime {
+		return false
+	}
+
+	return b.numWrites() > 0 && now.Sub(b.lastWrite()) > b.opts.RetentionOptions().FlushAfterNoMetricPeriod()
+}
+
+func (b *dbBufferBucket) isFull() bool {
+	if b.isRealTime {
+		return false
+	}
+
+	return b.numWrites() >= b.opts.RetentionOptions().MaxWritesBeforeFlush()
 }
 
 func (b *dbBufferBucket) needsDrain(
 	now time.Time,
 	targetStart time.Time,
 ) bool {
+	if !b.isRealTime {
+		return b.isStale(now) || b.isFull()
+	}
+
 	retentionOpts := b.opts.RetentionOptions()
 	blockSize := retentionOpts.BlockSize()
 	bufferPast := retentionOpts.BufferPast()
-
-	return b.canRead() && (b.needsReset(targetStart) ||
+	return b.canRead() && (b.needsReset(now, targetStart) ||
 		b.start.Add(blockSize).Before(now.Add(-bufferPast)))
 }
 
@@ -576,6 +750,9 @@ func (b *dbBufferBucket) bootstrap(
 }
 
 func (b *dbBufferBucket) write(
+	// `now` represents the time the metric came in and not the
+	// time of the metric itself.
+	now time.Time,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
@@ -612,6 +789,10 @@ func (b *dbBufferBucket) write(
 		return err
 	}
 	b.encoders[idx].lastWriteAt = timestamp
+	b.setLastWrite(now)
+	b.incNumWrites()
+	// Required for non-realtime buckets
+	b.drained = false
 	b.empty = false
 	return nil
 }
@@ -659,8 +840,28 @@ func (b *dbBufferBucket) setLastRead(value time.Time) {
 	atomic.StoreInt64(&b.lastReadUnixNanos, value.UnixNano())
 }
 
+func (b *dbBufferBucket) setLastWrite(value time.Time) {
+	atomic.StoreInt64(&b.lastWriteUnixNanos, value.UnixNano())
+}
+
+func (b *dbBufferBucket) incNumWrites() {
+	atomic.AddUint64(&b.undrainedWrites, 1)
+}
+
+func (b *dbBufferBucket) resetNumWrites() {
+	atomic.StoreUint64(&b.undrainedWrites, uint64(0))
+}
+
 func (b *dbBufferBucket) lastRead() time.Time {
 	return time.Unix(0, atomic.LoadInt64(&b.lastReadUnixNanos))
+}
+
+func (b *dbBufferBucket) lastWrite() time.Time {
+	return time.Unix(0, atomic.LoadInt64(&b.lastWriteUnixNanos))
+}
+
+func (b *dbBufferBucket) numWrites() uint64 {
+	return atomic.LoadUint64(&b.undrainedWrites)
 }
 
 func (b *dbBufferBucket) resetEncoders() {
@@ -839,4 +1040,25 @@ func (b *dbBufferBucket) discardMerged() (discardMergedResult, error) {
 	b.empty = true
 
 	return discardMergedResult{newBlock, result.merges}, nil
+}
+
+type dbBufferBucketPool struct {
+	pool pool.ObjectPool
+}
+
+// newDBBufferBucketPool creates a new dbBufferBucketPool
+func newDBBufferBucketPool(opts pool.ObjectPoolOptions) *dbBufferBucketPool {
+	p := &dbBufferBucketPool{pool: pool.NewObjectPool(opts)}
+	p.pool.Init(func() interface{} {
+		return &dbBufferBucket{}
+	})
+	return p
+}
+
+func (p *dbBufferBucketPool) Get() *dbBufferBucket {
+	return p.pool.Get().(*dbBufferBucket)
+}
+
+func (p *dbBufferBucketPool) Put(bucket *dbBufferBucket) {
+	p.pool.Put(*bucket)
 }
