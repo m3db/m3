@@ -33,7 +33,7 @@ import (
 func TestDocHandler(t *testing.T) {
 	w := httptest.NewRecorder()
 
-	req := httptest.NewRequest("GET", "/api/v1/docs", nil)
+	req := httptest.NewRequest("GET", "/api/v1/openapi", nil)
 	require.NotNil(t, req)
 
 	docHandler := DocHandler{}

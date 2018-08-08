@@ -53,7 +53,7 @@ warn-level errors (prefixed with `[W]`) should not block bootstrapping.
 ```
 
 The node also self-hosts its OpenAPI docs, outlining available endpoints. You can access this by
-going to `localhost:7201/api/v1/docs` in your browser.
+going to `localhost:7201/api/v1/openapi` in your browser.
 
 ![OpenAPI Doc](redoc_screenshot.png)
 
