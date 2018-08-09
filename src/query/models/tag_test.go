@@ -21,6 +21,7 @@
 package models
 
 import (
+	"hash/fnv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -104,9 +105,47 @@ func TestMatchType(t *testing.T) {
 	require.Equal(t, MatchEqual.String(), "=")
 }
 
-func TestTagID(t *testing.T) {
+func createTags(withName bool) Tags {
 	tags := make(Tags)
 	tags["t1"] = "v1"
 	tags["t2"] = "v2"
+
+	if withName {
+		tags[MetricName] = "v0"
+	}
+	return tags
+}
+
+func TestTagID(t *testing.T) {
+	tags := createTags(false)
 	assert.Equal(t, tags.ID(), "t1=v1,t2=v2,")
+}
+
+func TestWithoutName(t *testing.T) {
+	tags := createTags(true)
+	tagsWithoutName := tags.WithoutName()
+
+	assert.Equal(t, createTags(false), tagsWithoutName)
+}
+
+func TestIDWithKeys(t *testing.T) {
+	tags := createTags(true)
+
+	b := []byte("t1=v1,t2=v2,__name__=v0,")
+	h := fnv.New64a()
+	h.Write(b)
+
+	idWithKeys := tags.IDWithKeys("t1", "t2", MetricName)
+	assert.Equal(t, h.Sum64(), idWithKeys)
+}
+
+func TestIDWithExcludes(t *testing.T) {
+	tags := createTags(true)
+
+	b := []byte("t2=v2,")
+	h := fnv.New64a()
+	h.Write(b)
+
+	idWithExcludes := tags.IDWithExcludes("t1")
+	assert.Equal(t, h.Sum64(), idWithExcludes)
 }
