@@ -28,6 +28,8 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings"
 
 	xerrors "github.com/m3db/m3x/errors"
+
+	vregex "github.com/couchbase/vellum/regexp"
 )
 
 // ErrDocNotFound is the error returned when there is no document for a given postings ID.
@@ -66,7 +68,7 @@ type Readable interface {
 
 	// MatchRegexp returns a postings list over all documents which match the given
 	// regular expression.
-	MatchRegexp(field, regexp []byte, compiled *regexp.Regexp) (postings.List, error)
+	MatchRegexp(field, regexp []byte, c *CompiledRegex) (postings.List, error)
 
 	// MatchAll returns a postings list for all documents known to the Reader.
 	MatchAll() (postings.MutableList, error)
@@ -77,6 +79,13 @@ type Readable interface {
 
 	// AllDocs returns an iterator over the documents known to the Reader.
 	AllDocs() (IDDocIterator, error)
+}
+
+// CompiledRegex is a collection of regexp compiled structs to allow
+// amortisation of regexp construction costs.
+type CompiledRegex struct {
+	Simple *regexp.Regexp
+	FST    *vregex.Regexp
 }
 
 // DocRetriever returns the document associated with a postings ID. It returns

@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"regexp"
 	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
@@ -298,16 +297,24 @@ func (r *fsSegment) MatchTerm(field []byte, term []byte) (postings.List, error) 
 	return pl, nil
 }
 
-func (r *fsSegment) MatchRegexp(field []byte, regexp []byte, compiled *regexp.Regexp) (postings.List, error) {
+func (r *fsSegment) MatchRegexp(field []byte, regexp []byte, compiled *index.CompiledRegex) (postings.List, error) {
 	r.RLock()
 	defer r.RUnlock()
 	if r.closed {
 		return nil, errReaderClosed
 	}
 
-	re, err := vregex.New(string(regexp))
-	if err != nil {
-		return nil, err
+	var (
+		re  *vregex.Regexp
+		err error
+	)
+	if compiled != nil && compiled.FST != nil {
+		re = compiled.FST
+	} else {
+		re, err = vregex.New(string(regexp))
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	termsFST, exists, err := r.retrieveTermsFSTWithRLock(field)
@@ -510,7 +517,7 @@ func (sr *fsSegmentReader) MatchTerm(field []byte, term []byte) (postings.List, 
 	return sr.fsSegment.MatchTerm(field, term)
 }
 
-func (sr *fsSegmentReader) MatchRegexp(field []byte, regexp []byte, compiled *regexp.Regexp) (postings.List, error) {
+func (sr *fsSegmentReader) MatchRegexp(field []byte, regexp []byte, compiled *index.CompiledRegex) (postings.List, error) {
 	sr.RLock()
 	defer sr.RUnlock()
 	if sr.closed {

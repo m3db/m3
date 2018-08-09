@@ -29,41 +29,49 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/m3ninx/search/searcher"
+
+	vregex "github.com/couchbase/vellum/regexp"
 )
 
 // RegexpQuery finds documents which match the given regular expression.
 type RegexpQuery struct {
 	field    []byte
 	regexp   []byte
-	compiled *re.Regexp
+	compiled *index.CompiledRegex
 }
 
 // NewRegexpQuery constructs a new query for the given regular expression.
 func NewRegexpQuery(field, regexp []byte) (search.Query, error) {
-	compiled, err := re.Compile(string(regexp))
+	var (
+		stringRE      = string(regexp)
+		compiledRegex = &index.CompiledRegex{}
+	)
+	simpleRE, err := re.Compile(stringRE)
 	if err != nil {
 		return nil, err
 	}
+	compiledRegex.Simple = simpleRE
+
+	fstRE, err := vregex.New(stringRE)
+	if err != nil {
+		return nil, err
+	}
+	compiledRegex.FST = fstRE
 
 	return &RegexpQuery{
 		field:    field,
 		regexp:   regexp,
-		compiled: compiled,
+		compiled: compiledRegex,
 	}, nil
 }
 
 // MustCreateRegexpQuery is like NewRegexpQuery but panics if the query cannot be created.
 func MustCreateRegexpQuery(field, regexp []byte) search.Query {
-	compiled, err := re.Compile(string(regexp))
+	q, err := NewRegexpQuery(field, regexp)
 	if err != nil {
 		panic(err)
 	}
-
-	return &RegexpQuery{
-		field:    field,
-		regexp:   regexp,
-		compiled: compiled,
-	}
+	return q
 }
 
 // Searcher returns a searcher over the provided readers.
