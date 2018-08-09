@@ -296,7 +296,7 @@ func (b *dbBuffer) Stats() bufferStats {
 		if !b.bucketsRealTime[i].canRead() {
 			continue
 		}
-		if i == int(writableIdx) {
+		if i == writableIdx {
 			stats.openBlocks++
 		}
 		stats.wiredBlocks++
