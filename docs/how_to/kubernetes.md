@@ -18,13 +18,13 @@ provided to provision such a StorageClass on AWS / Azure / GCP using the respect
 If you do not already have a StorageClass named `fast`, create one using one of the provided manifests:
 ```
 # AWS EBS (class io1)
-kubectl apply -f https://raw.githubusercontent.com/m3db/m3/master/kube/storage-class-aws.yaml
+kubectl apply -f https://raw.githubusercontent.com/m3db/m3/master/kube/storage-fast-aws.yaml
 
 # Azure premium LRS
-kubectl apply -f https://raw.githubusercontent.com/m3db/m3/master/kube/storage-class-azure.yaml
+kubectl apply -f https://raw.githubusercontent.com/m3db/m3/master/kube/storage-fast-azure.yaml
 
 # GCE Persistent SSD
-kubectl apply -f https://raw.githubusercontent.com/m3db/m3/master/kube/storage-class-gcp.yaml
+kubectl apply -f https://raw.githubusercontent.com/m3db/m3/master/kube/storage-fast-gcp.yaml
 ```
 
 If you wish to use your cloud provider's default remote disk, or another disk class entirely, you'll have to modify the
