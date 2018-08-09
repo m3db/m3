@@ -18,37 +18,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package fs
+package segment
 
-import (
-	"bytes"
+// EmptyOrderedBytesIterator is an empty OrderedBytesIterator.
+var EmptyOrderedBytesIterator OrderedBytesIterator = emptyBytesIter{}
 
-	"github.com/cespare/xxhash"
-)
+type emptyBytesIter struct{}
 
-// newFSTTermsOffsetsMap returns a new fstTermsOffsetsMap with default ctor parameters.
-func newFSTTermsOffsetsMap(initialSize int) *fstTermsOffsetsMap {
-	return _fstTermsOffsetsMapAlloc(_fstTermsOffsetsMapOptions{
-		hash: func(k []byte) fstTermsOffsetsMapHash {
-			return fstTermsOffsetsMapHash(xxhash.Sum64(k))
-		},
-		equals: func(f, g []byte) bool {
-			return bytes.Equal(f, g)
-		},
-		copy:        undefinedFSTTermsOffsetsMapCopyFn,
-		finalize:    undefinedFSTTermsOffsetsMapFinalizeFn,
-		initialSize: initialSize,
-	})
-}
-
-var undefinedFSTTermsOffsetsMapCopyFn fstTermsOffsetsMapCopyFn = func([]byte) []byte {
-	// NB: intentionally not defined to force users of the map to not
-	// allocate extra copies.
-	panic("not implemented")
-}
-
-var undefinedFSTTermsOffsetsMapFinalizeFn fstTermsOffsetsMapFinalizeFn = func([]byte) {
-	// NB: intentionally not defined to force users of the map to not
-	// allocate extra copies.
-	panic("not implemented")
-}
+func (e emptyBytesIter) Next() bool      { return false }
+func (e emptyBytesIter) Current() []byte { return nil }
+func (e emptyBytesIter) Err() error      { return nil }
+func (e emptyBytesIter) Close() error    { return nil }
+func (e emptyBytesIter) Len() int        { return 0 }

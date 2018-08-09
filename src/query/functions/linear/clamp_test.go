@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// nolint
 func expectedClampVals(values [][]float64, num float64, fn func(x, y float64) float64) [][]float64 {
 	expected := make([][]float64, 0, len(values))
 	for _, val := range values {

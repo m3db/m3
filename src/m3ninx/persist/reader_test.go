@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/m3db/m3/src/m3ninx/index/segment/fs"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	xtest "github.com/m3db/m3x/test"
 
 	"github.com/golang/mock/gomock"
@@ -38,7 +38,7 @@ func TestReaderValidateType(t *testing.T) {
 	fset := NewMockIndexSegmentFileSet(ctrl)
 	fset.EXPECT().SegmentType().Return(IndexSegmentType("random"))
 	fset.EXPECT().Files().Return(nil).AnyTimes()
-	_, err := NewSegment(fset, fs.NewSegmentOpts{})
+	_, err := NewSegment(fset, nil)
 	require.Error(t, err)
 }
 
@@ -51,7 +51,7 @@ func TestReaderValidateErrorCloses(t *testing.T) {
 	fset := NewMockIndexSegmentFileSet(ctrl)
 	fset.EXPECT().SegmentType().Return(IndexSegmentType("random"))
 	fset.EXPECT().Files().Return([]IndexSegmentFile{file}).AnyTimes()
-	_, err := NewSegment(fset, fs.NewSegmentOpts{})
+	_, err := NewSegment(fset, nil)
 	require.Error(t, err)
 }
 
@@ -61,12 +61,12 @@ func TestReaderValidateDataSlices(t *testing.T) {
 
 	fset := NewMockIndexSegmentFileSet(ctrl)
 	fset.EXPECT().SegmentType().Return(FSTIndexSegmentType)
-	fset.EXPECT().MajorVersion().Return(fs.MajorVersion)
+	fset.EXPECT().MajorVersion().Return(fst.MajorVersion)
 	fset.EXPECT().MinorVersion().Return(1)
 	fset.EXPECT().SegmentMetadata().Return([]byte{})
 	fset.EXPECT().Files().Return(nil).AnyTimes()
 
-	_, err := NewSegment(fset, fs.NewSegmentOpts{})
+	_, err := NewSegment(fset, nil)
 	require.Error(t, err)
 }
 
@@ -76,7 +76,7 @@ func TestReaderValidateByteAccess(t *testing.T) {
 
 	fset := NewMockIndexSegmentFileSet(ctrl)
 	fset.EXPECT().SegmentType().Return(FSTIndexSegmentType)
-	fset.EXPECT().MajorVersion().Return(fs.MajorVersion)
+	fset.EXPECT().MajorVersion().Return(fst.MajorVersion)
 	fset.EXPECT().MinorVersion().Return(1)
 	fset.EXPECT().SegmentMetadata().Return([]byte{})
 
@@ -86,7 +86,7 @@ func TestReaderValidateByteAccess(t *testing.T) {
 	docsDataFile.EXPECT().Close()
 	fset.EXPECT().Files().Return([]IndexSegmentFile{docsDataFile}).AnyTimes()
 
-	_, err := NewSegment(fset, fs.NewSegmentOpts{})
+	_, err := NewSegment(fset, nil)
 	require.Error(t, err)
 }
 
@@ -96,7 +96,7 @@ func TestReaderValidateDoesNotCloseAllOnBadByteAccess(t *testing.T) {
 
 	fset := NewMockIndexSegmentFileSet(ctrl)
 	fset.EXPECT().SegmentType().Return(FSTIndexSegmentType)
-	fset.EXPECT().MajorVersion().Return(fs.MajorVersion)
+	fset.EXPECT().MajorVersion().Return(fst.MajorVersion)
 	fset.EXPECT().MinorVersion().Return(1)
 	fset.EXPECT().SegmentMetadata().Return([]byte{})
 
@@ -112,7 +112,7 @@ func TestReaderValidateDoesNotCloseAllOnBadByteAccess(t *testing.T) {
 
 	fset.EXPECT().Files().Return([]IndexSegmentFile{docsDataFile, docsIdxFile}).AnyTimes()
 
-	_, err := NewSegment(fset, fs.NewSegmentOpts{})
+	_, err := NewSegment(fset, nil)
 	require.Error(t, err)
 }
 
@@ -122,7 +122,7 @@ func TestReaderValidateSegmentFileType(t *testing.T) {
 
 	fset := NewMockIndexSegmentFileSet(ctrl)
 	fset.EXPECT().SegmentType().Return(FSTIndexSegmentType)
-	fset.EXPECT().MajorVersion().Return(fs.MajorVersion)
+	fset.EXPECT().MajorVersion().Return(fst.MajorVersion)
 	fset.EXPECT().MinorVersion().Return(1)
 	fset.EXPECT().SegmentMetadata().Return([]byte{})
 
@@ -131,7 +131,7 @@ func TestReaderValidateSegmentFileType(t *testing.T) {
 	docsDataFile.EXPECT().Close()
 	fset.EXPECT().Files().Return([]IndexSegmentFile{docsDataFile}).AnyTimes()
 
-	_, err := NewSegment(fset, fs.NewSegmentOpts{})
+	_, err := NewSegment(fset, nil)
 	require.Error(t, err)
 }
 
@@ -141,7 +141,7 @@ func TestReaderValidateAllByteAccess(t *testing.T) {
 
 	fset := NewMockIndexSegmentFileSet(ctrl)
 	fset.EXPECT().SegmentType().Return(FSTIndexSegmentType)
-	fset.EXPECT().MajorVersion().Return(fs.MajorVersion)
+	fset.EXPECT().MajorVersion().Return(fst.MajorVersion)
 	fset.EXPECT().MinorVersion().Return(1)
 	fset.EXPECT().SegmentMetadata().Return([]byte{})
 
@@ -175,7 +175,7 @@ func TestReaderValidateAllByteAccess(t *testing.T) {
 		fstFieldsFile,
 		fstTermsFile}).AnyTimes()
 
-	_, err := NewSegment(fset, fs.NewSegmentOpts{})
+	_, err := NewSegment(fset, nil)
 	// due to empty bytes being passed
 	require.Error(t, err)
 }

@@ -190,7 +190,7 @@ func (h *PromWriteHandler) writeUnaggregated(
 }
 
 func (h *PromWriteHandler) writeAggregated(
-	ctx context.Context,
+	_ context.Context,
 	r *prompb.WriteRequest,
 ) error {
 	var (
