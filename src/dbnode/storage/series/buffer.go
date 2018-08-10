@@ -132,11 +132,31 @@ type dbBuffer struct {
 	drainFn            databaseBufferDrainFn
 	pastMostBucketIdx  int
 	bucketsRealTime    [bucketsLen]dbBufferBucket
-	bucketsNotRealTime map[int64]*dbBufferBucket
+	bucketsNotRealTime map[xtime.UnixNano]*dbBufferBucket
 	bucketPool         *dbBufferBucketPool
 	blockSize          time.Duration
 	bufferPast         time.Duration
 	bufferFuture       time.Duration
+}
+
+type bucketID struct {
+	isRealTime bool
+	idx        int
+	key        xtime.UnixNano
+}
+
+func realtimeBucketID(idx int) bucketID {
+	return bucketID{
+		isRealTime: true,
+		idx:        idx,
+	}
+}
+
+func notRealtimeBucketID(key xtime.UnixNano) bucketID {
+	return bucketID{
+		isRealTime: false,
+		key:        key,
+	}
 }
 
 type databaseBufferDrainFn func(b block.DatabaseBlock)
@@ -148,7 +168,7 @@ func newDatabaseBuffer(drainFn databaseBufferDrainFn) databaseBuffer {
 
 	b := &dbBuffer{
 		drainFn:            drainFn,
-		bucketsNotRealTime: make(map[int64]*dbBufferBucket),
+		bucketsNotRealTime: make(map[xtime.UnixNano]*dbBufferBucket),
 		bucketPool:         newDBBufferBucketPool(bucketPoolOpts),
 	}
 	return b
@@ -172,20 +192,20 @@ func (b *dbBuffer) removeBucketsNotRealTime() {
 	}
 }
 
-func bucketResetStart(now time.Time, b *dbBuffer, idx int64, start time.Time, isRealTime bool) int {
-	bucket := bucketAtIdx(b, idx, isRealTime)
+func bucketResetStart(now time.Time, b *dbBuffer, id bucketID, start time.Time) int {
+	bucket := bucketAtIdx(b, id)
 
 	bucket.opts = b.opts
 	bucket.resetTo(start, true)
 	return 1
 }
 
-func bucketAtIdx(b *dbBuffer, idx int64, isRealTime bool) *dbBufferBucket {
-	if isRealTime {
-		return &b.bucketsRealTime[idx]
+func bucketAtIdx(b *dbBuffer, id bucketID) *dbBufferBucket {
+	if id.isRealTime {
+		return &b.bucketsRealTime[id.idx]
 	}
 
-	return b.bucketsNotRealTime[idx]
+	return b.bucketsNotRealTime[id.key]
 }
 
 func (b *dbBuffer) MinMax() (time.Time, time.Time, error) {
@@ -237,7 +257,7 @@ func (b *dbBuffer) Write(
 	}
 
 	if b.bucketsNotRealTime[key].needsDrain(now, bucketStart) {
-		bucketDrain(now, b, key, bucketStart, false)
+		bucketDrain(now, b, notRealtimeBucketID(key), bucketStart)
 
 		if b.bucketsNotRealTime[key].isStale(now) {
 			b.removeBucket(key)
@@ -258,17 +278,17 @@ func (b *dbBuffer) writableBucketIdx(t time.Time) int {
 	return int(t.Truncate(b.blockSize).UnixNano() / int64(b.blockSize) % bucketsLen)
 }
 
-func (b *dbBuffer) writableBucketKey(t time.Time) int64 {
-	return t.Truncate(b.blockSize).UnixNano()
+func (b *dbBuffer) writableBucketKey(t time.Time) xtime.UnixNano {
+	return xtime.ToUnixNano(t.Truncate(b.blockSize))
 }
 
-func (b *dbBuffer) initializeBucket(key int64) {
+func (b *dbBuffer) initializeBucket(key xtime.UnixNano) {
 	b.bucketsNotRealTime[key] = b.bucketPool.Get()
 	b.bucketsNotRealTime[key].opts = b.opts
-	b.bucketsNotRealTime[key].resetTo(time.Unix(0, key), false)
+	b.bucketsNotRealTime[key].resetTo(key.ToTime(), false)
 }
 
-func (b *dbBuffer) removeBucket(idx int64) {
+func (b *dbBuffer) removeBucket(idx xtime.UnixNano) {
 	b.bucketPool.Put(b.bucketsNotRealTime[idx])
 	delete(b.bucketsNotRealTime, idx)
 }
@@ -318,8 +338,8 @@ func (b *dbBuffer) NeedsDrain() bool {
 	return b.computedForEachBucketAsc(computeBucketIdx, bucketTypeAll, bucketNeedsDrain) > 0
 }
 
-func bucketNeedsDrain(now time.Time, b *dbBuffer, idx int64, start time.Time, isRealTime bool) int {
-	bucket := bucketAtIdx(b, idx, isRealTime)
+func bucketNeedsDrain(now time.Time, b *dbBuffer, id bucketID, start time.Time) int {
+	bucket := bucketAtIdx(b, id)
 	if bucket.needsDrain(now, start) {
 		return 1
 	}
@@ -334,11 +354,11 @@ func (b *dbBuffer) Tick() bufferTickResult {
 	}
 }
 
-func bucketTick(now time.Time, b *dbBuffer, idx int64, start time.Time, isRealTime bool) int {
+func bucketTick(now time.Time, b *dbBuffer, id bucketID, start time.Time) int {
 	// Perform a drain and reset if necessary
-	mergedOutOfOrderBlocks := bucketDrainAndReset(now, b, idx, start, isRealTime)
+	mergedOutOfOrderBlocks := bucketDrainAndReset(now, b, id, start)
 
-	bucket := bucketAtIdx(b, idx, isRealTime)
+	bucket := bucketAtIdx(b, id)
 
 	// Try to merge any out of order encoders to amortize the cost of a drain
 	r, err := bucket.merge()
@@ -361,12 +381,12 @@ func (b *dbBuffer) DrainAndReset() drainAndResetResult {
 	}
 }
 
-func bucketDrainAndReset(now time.Time, b *dbBuffer, idx int64, start time.Time, isRealTime bool) int {
+func bucketDrainAndReset(now time.Time, b *dbBuffer, id bucketID, start time.Time) int {
 	mergedOutOfOrderBlocks := 0
-	bucket := bucketAtIdx(b, idx, isRealTime)
+	bucket := bucketAtIdx(b, id)
 
 	if bucket.needsDrain(now, start) {
-		mergedOutOfOrderBlocks += bucketDrain(now, b, idx, start, isRealTime)
+		mergedOutOfOrderBlocks += bucketDrain(now, b, id, start)
 	}
 
 	if bucket.needsReset(now, start) {
@@ -374,16 +394,16 @@ func bucketDrainAndReset(now time.Time, b *dbBuffer, idx int64, start time.Time,
 	}
 
 	if bucket.isStale(now) {
-		b.removeBucket(idx)
+		b.removeBucket(id.key)
 	}
 
 	return mergedOutOfOrderBlocks
 }
 
-func bucketDrain(now time.Time, b *dbBuffer, idx int64, start time.Time, isRealTime bool) int {
+func bucketDrain(now time.Time, b *dbBuffer, id bucketID, start time.Time) int {
 	mergedOutOfOrderBlocks := 0
 
-	bucket := bucketAtIdx(b, idx, isRealTime)
+	bucket := bucketAtIdx(b, id)
 	// Rotate the buffer to a block, merging if required
 	result, err := bucket.discardMerged()
 	if err != nil {
@@ -409,13 +429,13 @@ func bucketDrain(now time.Time, b *dbBuffer, idx int64, start time.Time, isRealT
 	bucket.drained = true
 	bucket.resetNumWrites()
 	if bucket.isStale(now) {
-		b.removeBucket(idx)
+		b.removeBucket(id.key)
 	}
 
 	return mergedOutOfOrderBlocks
 }
 
-func (b *dbBuffer) makeBucketRealTime(fromKey int64, toIdx int) {
+func (b *dbBuffer) makeBucketRealTime(fromKey xtime.UnixNano, toIdx int) {
 	bucket, ok := b.bucketsNotRealTime[fromKey]
 	if !ok || b.bucketsNotRealTime[fromKey].isRealTime {
 		return
@@ -442,7 +462,7 @@ func (b *dbBuffer) Bootstrap(bl block.DatabaseBlock) error {
 			break
 		}
 	}
-	if bucket, ok := b.bucketsNotRealTime[blockStart.UnixNano()]; !bootstrapped && ok {
+	if bucket, ok := b.bucketsNotRealTime[xtime.ToUnixNano(blockStart)]; !bootstrapped && ok {
 		if bucket.drained {
 			return fmt.Errorf(
 				"block at %s cannot be bootstrapped by buffer because its already drained",
@@ -483,7 +503,7 @@ func (b *dbBuffer) forEachBucketAsc(
 func (b *dbBuffer) computedForEachBucketAsc(
 	op computeBucketIdxOp,
 	bType bucketType,
-	fn func(now time.Time, b *dbBuffer, idx int64, bucketStart time.Time, isRealTime bool) int,
+	fn func(now time.Time, b *dbBuffer, id bucketID, bucketStart time.Time) int,
 ) int {
 	now := b.nowFn()
 	pastMostBucketStart := now.Truncate(b.blockSize).Add(-1 * b.blockSize)
@@ -492,9 +512,9 @@ func (b *dbBuffer) computedForEachBucketAsc(
 
 	if bType == bucketTypeAll || bType == bucketTypeRealTime {
 		for i := int64(0); i < bucketsLen; i++ {
-			idx := (bucketNum + i) % bucketsLen
+			idx := int((bucketNum + i) % bucketsLen)
 			curr := pastMostBucketStart.Add(time.Duration(i) * b.blockSize)
-			result += fn(now, b, idx, curr, true)
+			result += fn(now, b, realtimeBucketID(idx), curr)
 		}
 		if op == computeAndResetBucketIdx {
 			b.pastMostBucketIdx = int(bucketNum)
@@ -503,7 +523,7 @@ func (b *dbBuffer) computedForEachBucketAsc(
 
 	if bType == bucketTypeAll || bType == bucketTypeNotRealTime {
 		for key := range b.bucketsNotRealTime {
-			result += fn(now, b, key, time.Unix(0, key), false)
+			result += fn(now, b, notRealtimeBucketID(key), key.ToTime())
 		}
 	}
 
