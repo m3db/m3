@@ -464,13 +464,17 @@ func (b *dbBuffer) forEachBucketAsc(
 	bType bucketType,
 	fn func(*dbBufferBucket),
 ) {
-	for i := 0; i < bucketsLen; i++ {
-		idx := (b.pastMostBucketIdx + i) % bucketsLen
-		fn(&b.bucketsRealTime[idx])
+	if bType == bucketTypeAll || bType == bucketTypeRealTime {
+		for i := 0; i < bucketsLen; i++ {
+			idx := (b.pastMostBucketIdx + i) % bucketsLen
+			fn(&b.bucketsRealTime[idx])
+		}
 	}
 
-	for key := range b.bucketsNotRealTime {
-		fn(b.bucketsNotRealTime[key])
+	if bType == bucketTypeAll || bType == bucketTypeNotRealTime {
+		for key := range b.bucketsNotRealTime {
+			fn(b.bucketsNotRealTime[key])
+		}
 	}
 }
 
