@@ -25,8 +25,44 @@ import (
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/index/util"
 	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/x/bytes"
+	"github.com/m3db/m3x/instrument"
 )
+
+// Options is a collection of knobs for an in-memory segment.
+type Options interface {
+	// SetInstrumentOptions sets the instrument options.
+	SetInstrumentOptions(value instrument.Options) Options
+
+	// InstrumentOptions returns the instrument options.
+	InstrumentOptions() instrument.Options
+
+	// SetBytesSliceArrayPool sets the bytes slice array pool.
+	SetBytesSliceArrayPool(value bytes.SliceArrayPool) Options
+
+	// BytesSliceArrayPool returns the bytes slice array pool.
+	BytesSliceArrayPool() bytes.SliceArrayPool
+
+	// SetPostingsListPool sets the postings list pool.
+	SetPostingsListPool(value postings.Pool) Options
+
+	// PostingsListPool returns the postings list pool.
+	PostingsListPool() postings.Pool
+
+	// SetInitialCapacity sets the initial capacity.
+	SetInitialCapacity(value int) Options
+
+	// InitialCapacity returns the initial capacity.
+	InitialCapacity() int
+
+	// SetNewUUIDFn sets the function used to generate new UUIDs.
+	SetNewUUIDFn(value util.NewUUIDFn) Options
+
+	// NewUUIDFn returns the function used to generate new UUIDs.
+	NewUUIDFn() util.NewUUIDFn
+}
 
 // termsDictionary is an internal interface for a mutable terms dictionary.
 type termsDictionary interface {

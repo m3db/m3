@@ -26,7 +26,6 @@ import (
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/postings"
-
 	xerrors "github.com/m3db/m3x/errors"
 
 	vregex "github.com/couchbase/vellum/regexp"
@@ -63,6 +62,9 @@ type Writer interface {
 type Readable interface {
 	DocRetriever
 
+	// DocRange returns the range of DocIDs contained by the Readable.
+	DocRange() (startInclusive, endExclusive postings.ID)
+
 	// MatchTerm returns a postings list over all documents which match the given term.
 	MatchTerm(field, term []byte) (postings.List, error)
 
@@ -71,6 +73,7 @@ type Readable interface {
 	MatchRegexp(field, regexp []byte, c CompiledRegex) (postings.List, error)
 
 	// MatchAll returns a postings list for all documents known to the Reader.
+	// TODO(prateek): this should return an immutable postings.List
 	MatchAll() (postings.MutableList, error)
 
 	// Docs returns an iterator over the documents whose IDs are in the provided

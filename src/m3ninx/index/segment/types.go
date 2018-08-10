@@ -54,7 +54,7 @@ type Segment interface {
 	Close() error
 }
 
-// OrderedBytesIterator iterates over a collection of []bytes in lexicographical order.
+// OrderedBytesIterator iterates over a collection of []byte(s) in lexicographical order.
 type OrderedBytesIterator interface {
 	// Next returns a bool indicating if there are any more elements.
 	Next() bool
@@ -70,6 +70,7 @@ type OrderedBytesIterator interface {
 	Close() error
 
 	// Len returns the total number of elements the iterator contained at the start of iteration.
+	// NB: this may return an estimate depending on the backing implementation.
 	Len() int
 }
 

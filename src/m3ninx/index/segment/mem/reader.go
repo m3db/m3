@@ -56,6 +56,12 @@ func newReader(s ReadableSegment, l readerDocRange, p postings.Pool) index.Reade
 	}
 }
 
+func (r *reader) DocRange() (start, end postings.ID) {
+	r.RLock()
+	defer r.RUnlock()
+	return r.limits.startInclusive, r.limits.endExclusive
+}
+
 func (r *reader) MatchTerm(field, term []byte) (postings.List, error) {
 	r.RLock()
 	defer r.RUnlock()

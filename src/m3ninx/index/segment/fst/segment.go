@@ -165,6 +165,15 @@ func (r *fsSegment) Size() int64 {
 	return r.numDocs
 }
 
+func (r *fsSegment) DocRange() (postings.ID, postings.ID) {
+	r.RLock()
+	defer r.RUnlock()
+	if r.closed {
+		return 0, 0
+	}
+	return r.startInclusive, r.endExclusive
+}
+
 func (r *fsSegment) ContainsID(docID []byte) (bool, error) {
 	r.RLock()
 	defer r.RUnlock()
@@ -533,6 +542,15 @@ func (sr *fsSegmentReader) MatchAll() (postings.MutableList, error) {
 		return nil, errReaderClosed
 	}
 	return sr.fsSegment.MatchAll()
+}
+
+func (sr *fsSegmentReader) DocRange() (postings.ID, postings.ID) {
+	sr.RLock()
+	defer sr.RUnlock()
+	if sr.closed {
+		return 0, 0
+	}
+	return sr.fsSegment.DocRange()
 }
 
 func (sr *fsSegmentReader) Doc(id postings.ID) (doc.Document, error) {

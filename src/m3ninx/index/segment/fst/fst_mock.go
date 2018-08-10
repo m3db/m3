@@ -241,6 +241,19 @@ func (mr *MockSegmentMockRecorder) Doc(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Doc", reflect.TypeOf((*MockSegment)(nil).Doc), arg0)
 }
 
+// DocRange mocks base method
+func (m *MockSegment) DocRange() (postings.ID, postings.ID) {
+	ret := m.ctrl.Call(m, "DocRange")
+	ret0, _ := ret[0].(postings.ID)
+	ret1, _ := ret[1].(postings.ID)
+	return ret0, ret1
+}
+
+// DocRange indicates an expected call of DocRange
+func (mr *MockSegmentMockRecorder) DocRange() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DocRange", reflect.TypeOf((*MockSegment)(nil).DocRange))
+}
+
 // Docs mocks base method
 func (m *MockSegment) Docs(arg0 postings.List) (doc.Iterator, error) {
 	ret := m.ctrl.Call(m, "Docs", arg0)

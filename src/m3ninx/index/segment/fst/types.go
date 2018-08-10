@@ -25,6 +25,10 @@ import (
 
 	"github.com/m3db/m3/src/m3ninx/index"
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/x/bytes"
+	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/pool"
 )
 
 const (
@@ -76,4 +80,31 @@ type Writer interface {
 	// WriteFSTFields writes out the FSTFields file using the provided writer.
 	// NB(prateek): this must be called after WriteFSTTerm().
 	WriteFSTFields(w io.Writer) error
+}
+
+// Options is a collection of knobs for a fs segment.
+type Options interface {
+	// SetInstrumentOptions sets the instrument options.
+	SetInstrumentOptions(value instrument.Options) Options
+
+	// InstrumentOptions returns the instrument options.
+	InstrumentOptions() instrument.Options
+
+	// SetBytesSliceArrayPool sets the bytes slice array pool.
+	SetBytesSliceArrayPool(value bytes.SliceArrayPool) Options
+
+	// BytesSliceArrayPool returns the bytes slice array pool.
+	BytesSliceArrayPool() bytes.SliceArrayPool
+
+	// SetBytesPool sets the bytes pool.
+	SetBytesPool(value pool.BytesPool) Options
+
+	// BytesPool returns the bytes pool.
+	BytesPool() pool.BytesPool
+
+	// SetPostingsListPool sets the postings list pool.
+	SetPostingsListPool(value postings.Pool) Options
+
+	// PostingsListPool returns the postings list pool.
+	PostingsListPool() postings.Pool
 }
