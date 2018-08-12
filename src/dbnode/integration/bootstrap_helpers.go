@@ -23,10 +23,10 @@
 package integration
 
 import (
-	"github.com/m3db/m3db/src/dbnode/storage/bootstrap"
-	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/bootstrapper"
-	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3db/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 )
 
 func newTestBootstrapperSource(

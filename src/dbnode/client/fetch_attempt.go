@@ -23,7 +23,7 @@ package client
 import (
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/encoding"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"

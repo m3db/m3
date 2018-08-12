@@ -4,9 +4,9 @@
 
 ## Overview
 
-The fundamental data structures that M3Coordinator uses are `Blocks`. `Blocks` are what get created from the series iterators that M3DB returns. A `Block` is associated with a start and end time. It contains data from multiple time series stored in columnar format.
+The fundamental data structures that M3 Query uses are `Blocks`. `Blocks` are what get created from the series iterators that M3DB returns. A `Block` is associated with a start and end time. It contains data from multiple time series stored in columnar format.
 
-Most transformations within M3Coordinator will be applied across different series for each time interval. Therefore, having data stored in columnar format helps with the memory locality of the data. Moreover, most transformations within M3Coordinator can work in parallel on different blocks which can significantly increase the computation speed.
+Most transformations within M3 Query will be applied across different series for each time interval. Therefore, having data stored in columnar format helps with the memory locality of the data. Moreover, most transformations within M3 Query can work in parallel on different blocks which can significantly increase the computation speed.
 
 ## Diagram
 
@@ -50,12 +50,12 @@ Below is a visual representation of a set of `Blocks`. On top is the M3QL query 
                               └──────┴──────┴──────┘    └──────┴──────┴──────┘   └──────┴──────┴──────┘
 ```
 
-## M3DB => M3Coordinator Blocks
+## M3DB => M3 Query Blocks
 
-In order to convert M3DB blocks into M3Coordinator blocks, we need to consolidate across different namespaces. In short, M3DB namespaces are essentially different resolutions that metrics are stored at. For example, a metric might be stored at both 1min and 10min resolutions- meaning this metric is found in two namespaces.
+In order to convert M3DB blocks into M3 Query blocks, we need to consolidate across different namespaces. In short, M3DB namespaces are essentially different resolutions that metrics are stored at. For example, a metric might be stored at both 1min and 10min resolutions- meaning this metric is found in two namespaces.
 
-At a high level, M3DB returns to M3Coordinator `SeriesBlocks` that contain a list of `SeriesIterators` for a given timeseries per namespace. M3Coordinator then aligns the blocks across common time bounds before applying consolidation.
+At a high level, M3DB returns to M3 Query `SeriesBlocks` that contain a list of `SeriesIterators` for a given timeseries per namespace. M3 Query then aligns the blocks across common time bounds before applying consolidation.
 
-For example, let's say we have a query that returns two timeseries from two different namespaces- 1min and 10min. When we create the M3Coordinator `Block`, in order to accurately consolidate results from these two namespaces, we need to convert everything to have a 10min resolution. Otherwise it will not be possible to perform correctly apply functions.
+For example, let's say we have a query that returns two timeseries from two different namespaces- 1min and 10min. When we create the M3 Query `Block`, in order to accurately consolidate results from these two namespaces, we need to convert everything to have a 10min resolution. Otherwise it will not be possible to perform correctly apply functions.
 
-> Coming Soon: More documentation on how M3Coordinator applies consolidation.
+> Coming Soon: More documentation on how M3 Query applies consolidation.

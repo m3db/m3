@@ -21,11 +21,11 @@
 package peers
 
 import (
-	"github.com/m3db/m3db/src/dbnode/client"
-	"github.com/m3db/m3db/src/dbnode/persist"
-	m3dbruntime "github.com/m3db/m3db/src/dbnode/runtime"
-	"github.com/m3db/m3db/src/dbnode/storage/block"
-	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/persist"
+	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 )
 
 // Options represents the options for bootstrapping from peers

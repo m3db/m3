@@ -21,7 +21,7 @@
 package fs
 
 import (
-	"github.com/m3db/m3db/src/dbnode/digest"
+	"github.com/m3db/m3/src/dbnode/digest"
 )
 
 // filesetDigests is a container struct for storing a digest for all of the

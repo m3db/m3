@@ -1,0 +1,30 @@
+
+syntax = "proto3";
+package prometheus;
+
+option go_package = "prompb";
+
+import "github.com/m3db/m3/src/query/generated/proto/prompb/types.proto";
+
+message WriteRequest {
+  repeated prometheus.TimeSeries timeseries = 1;
+}
+
+message ReadRequest {
+  repeated Query queries = 1;
+}
+
+message ReadResponse {
+  // In same order as the request's queries.
+  repeated QueryResult results = 1;
+}
+
+message Query {
+  int64 start_timestamp_ms = 1;
+  int64 end_timestamp_ms = 2;
+  repeated prometheus.LabelMatcher matchers = 3;
+}
+
+message QueryResult {
+  repeated prometheus.TimeSeries timeseries = 1;
+}

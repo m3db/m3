@@ -21,7 +21,7 @@
 package idx
 
 import (
-	"github.com/m3db/m3db/src/m3ninx/search/query"
+	"github.com/m3db/m3/src/m3ninx/search/query"
 )
 
 // Marshal encodes the query into a byte slice.

@@ -25,9 +25,9 @@ import (
 	"io"
 	"math"
 
-	"github.com/m3db/m3db/src/m3ninx/index"
-	"github.com/m3db/m3db/src/m3ninx/index/segment/fs/encoding"
-	"github.com/m3db/m3db/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/index"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fs/encoding"
+	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
 const emptyID = math.MaxUint64

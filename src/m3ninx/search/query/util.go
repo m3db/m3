@@ -23,7 +23,7 @@ package query
 import (
 	"bytes"
 
-	"github.com/m3db/m3db/src/m3ninx/search"
+	"github.com/m3db/m3/src/m3ninx/search"
 )
 
 // singular returns a bool indicating whether a given query is composed of a single

@@ -25,7 +25,7 @@ import (
 	"io"
 	"regexp"
 
-	"github.com/m3db/m3db/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/index/segment"
 )
 
 var (

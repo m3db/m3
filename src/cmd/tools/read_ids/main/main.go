@@ -28,8 +28,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/generated/thrift/rpc"
-	nchannel "github.com/m3db/m3db/src/dbnode/network/server/tchannelthrift/node/channel"
+	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	nchannel "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/node/channel"
 	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
 	xretry "github.com/m3db/m3x/retry"

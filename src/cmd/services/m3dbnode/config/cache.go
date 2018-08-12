@@ -20,7 +20,7 @@
 
 package config
 
-import "github.com/m3db/m3db/src/dbnode/storage/series"
+import "github.com/m3db/m3/src/dbnode/storage/series"
 
 // CacheConfigurations is the cache configurations.
 type CacheConfigurations struct {

@@ -1,4 +1,9 @@
 SELF_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
+
+# Grab necessary submodules, in case the repo was cloned without --recursive
+$(SELF_DIR)/.ci/common.mk:
+	git submodule update --init --recursive
+
 include $(SELF_DIR)/.ci/common.mk
 
 SHELL=/bin/bash -o pipefail
@@ -6,7 +11,7 @@ SHELL=/bin/bash -o pipefail
 auto_gen             := scripts/auto-gen.sh
 process_coverfile    := scripts/process-cover.sh
 gopath_prefix        := $(GOPATH)/src
-m3db_package         := github.com/m3db/m3db
+m3db_package         := github.com/m3db/m3
 m3db_package_path    := $(gopath_prefix)/$(m3db_package)
 mockgen_package      := github.com/golang/mock/mockgen
 retool_bin_path      := $(m3db_package_path)/_tools/bin
@@ -36,11 +41,12 @@ SERVICES :=     \
 	m3coordinator \
 	m3nsch_server \
 	m3nsch_client \
+	m3query       \
 
 SUBDIRS :=    \
 	cmd         \
 	dbnode      \
-	coordinator \
+	query       \
 	m3nsch      \
 	m3ninx      \
 
@@ -165,7 +171,7 @@ docs-serve: docs-container
 
 .PHONY: docs-deploy
 docs-deploy: docs-container
-	docker run -v $(PWD):/m3db --rm m3db-docs "mkdocs build -e docs/theme -t material && mkdocs gh-deploy --dirty"
+	docker run -v $(PWD):/m3db --rm -v $(HOME)/.ssh/id_rsa:/root/.ssh/id_rsa:ro -it m3db-docs "mkdocs build -e docs/theme -t material && mkdocs gh-deploy --dirty"
 
 .PHONY: docker-integration-test
 docker-integration-test:

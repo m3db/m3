@@ -21,8 +21,8 @@
 package cluster
 
 import (
-	"github.com/m3db/m3db/src/dbnode/storage"
-	"github.com/m3db/m3db/src/dbnode/topology"
+	"github.com/m3db/m3/src/dbnode/storage"
+	"github.com/m3db/m3/src/dbnode/topology"
 )
 
 // Database is a clustered time series database

@@ -21,7 +21,7 @@
 package topology
 
 import (
-	"github.com/m3db/m3db/src/dbnode/sharding"
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3x/ident"
 	xwatch "github.com/m3db/m3x/watch"
 )

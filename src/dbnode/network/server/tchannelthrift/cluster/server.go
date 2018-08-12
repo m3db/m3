@@ -21,10 +21,10 @@
 package cluster
 
 import (
-	"github.com/m3db/m3db/src/dbnode/client"
-	"github.com/m3db/m3db/src/dbnode/generated/thrift/rpc"
-	ns "github.com/m3db/m3db/src/dbnode/network/server"
-	"github.com/m3db/m3db/src/dbnode/network/server/tchannelthrift"
+	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	ns "github.com/m3db/m3/src/dbnode/network/server"
+	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift"
 	xclose "github.com/m3db/m3x/close"
 	"github.com/m3db/m3x/context"
 

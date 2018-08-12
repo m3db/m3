@@ -24,8 +24,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/m3db/m3db/src/dbnode/generated/thrift/rpc"
-	tterrors "github.com/m3db/m3db/src/dbnode/network/server/tchannelthrift/errors"
+	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	tterrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
 	xerrors "github.com/m3db/m3x/errors"
 )
 

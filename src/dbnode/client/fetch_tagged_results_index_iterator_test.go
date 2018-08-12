@@ -23,7 +23,7 @@ package client
 import (
 	"testing"
 
-	"github.com/m3db/m3db/src/dbnode/serialize"
+	"github.com/m3db/m3/src/dbnode/serialize"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 

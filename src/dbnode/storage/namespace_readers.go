@@ -24,8 +24,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/persist/fs"
-	"github.com/m3db/m3db/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"

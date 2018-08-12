@@ -25,10 +25,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	"github.com/m3db/m3/src/dbnode/topology"
+	tu "github.com/m3db/m3/src/dbnode/topology/testutil"
 	"github.com/m3db/m3cluster/shard"
-	"github.com/m3db/m3db/src/dbnode/generated/thrift/rpc"
-	"github.com/m3db/m3db/src/dbnode/topology"
-	tu "github.com/m3db/m3db/src/dbnode/topology/testutil"
 )
 
 var (

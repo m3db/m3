@@ -23,8 +23,8 @@ package peers
 import (
 	"testing"
 
-	"github.com/m3db/m3db/src/dbnode/client"
-	"github.com/m3db/m3db/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/persist"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"

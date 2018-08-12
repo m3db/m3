@@ -25,10 +25,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
-	"github.com/m3db/m3db/src/dbnode/sharding"
 	xlog "github.com/m3db/m3x/log"
 	xwatch "github.com/m3db/m3x/watch"
 )

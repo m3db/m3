@@ -23,7 +23,7 @@ package digest
 import (
 	"hash/adler32"
 
-	"github.com/m3db/m3db/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/stackadler32"
 )
 

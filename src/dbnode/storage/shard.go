@@ -30,24 +30,24 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/clock"
-	"github.com/m3db/m3db/src/dbnode/generated/proto/pagetoken"
-	"github.com/m3db/m3db/src/dbnode/persist"
-	"github.com/m3db/m3db/src/dbnode/persist/fs"
-	"github.com/m3db/m3db/src/dbnode/persist/fs/commitlog"
-	"github.com/m3db/m3db/src/dbnode/retention"
-	"github.com/m3db/m3db/src/dbnode/runtime"
-	"github.com/m3db/m3db/src/dbnode/storage/block"
-	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3db/src/dbnode/storage/index"
-	"github.com/m3db/m3db/src/dbnode/storage/index/convert"
-	"github.com/m3db/m3db/src/dbnode/storage/namespace"
-	"github.com/m3db/m3db/src/dbnode/storage/repair"
-	"github.com/m3db/m3db/src/dbnode/storage/series"
-	"github.com/m3db/m3db/src/dbnode/storage/series/lookup"
-	"github.com/m3db/m3db/src/dbnode/ts"
-	"github.com/m3db/m3db/src/dbnode/x/xio"
-	"github.com/m3db/m3db/src/m3ninx/doc"
+	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/generated/proto/pagetoken"
+	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3/src/dbnode/retention"
+	"github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/index/convert"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/repair"
+	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
+	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	xclose "github.com/m3db/m3x/close"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
@@ -1018,7 +1018,9 @@ func (s *dbShard) newShardEntry(
 
 	switch tagsArgOpts.arg {
 	case tagsIterArg:
-		tagsIter := tagsArgOpts.tagsIter
+		// NB(r): Take a duplicate so that we don't double close the tag iterator
+		// passed to this method
+		tagsIter := tagsArgOpts.tagsIter.Duplicate()
 
 		// Ensure tag iterator at start
 		if tagsIter.CurrentIndex() != 0 {

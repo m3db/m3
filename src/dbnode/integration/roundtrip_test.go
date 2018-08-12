@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/integration/generate"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"

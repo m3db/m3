@@ -72,7 +72,7 @@ Note: the steps that follow assume you have the following 3 seed nodes - make ne
 - m3db002 (Region=us-east1, Zone=us-east1-b, Static IP=10.142.0.2)
 - m3db003 (Region=us-east1, Zone=us-east1-c, Static IP=10.142.0.3)
 
-We’re going to start with the M3DB config template and modify it to work for your cluster. Start by downloading the [config](https://github.com/m3db/m3db/blob/master/src/dbnode/config/m3dbnode-cluster-template.yml). Update the config ‘service’ and 'seedNodes' sections to read as follows:
+We’re going to start with the M3DB config template and modify it to work for your cluster. Start by downloading the [config](https://github.com/m3db/m3/blob/master/src/dbnode/config/m3dbnode-cluster-template.yml). Update the config ‘service’ and 'seedNodes' sections to read as follows:
 
 ```
 config:

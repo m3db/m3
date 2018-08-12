@@ -33,10 +33,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/digest"
-	"github.com/m3db/m3db/src/dbnode/persist"
-	"github.com/m3db/m3db/src/dbnode/retention"
-	"github.com/m3db/m3db/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/digest"
+	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/retention"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3x/ident"
 
 	"github.com/stretchr/testify/assert"

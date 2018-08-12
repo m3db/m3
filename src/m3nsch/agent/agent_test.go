@@ -26,10 +26,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/m3nsch"
-	"github.com/m3db/m3db/src/m3nsch/datums"
+	"github.com/m3db/m3/src/m3nsch"
+	"github.com/m3db/m3/src/m3nsch/datums"
 
-	"github.com/m3db/m3db/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3x/instrument"
 	xtime "github.com/m3db/m3x/time"
 	"github.com/stretchr/testify/require"

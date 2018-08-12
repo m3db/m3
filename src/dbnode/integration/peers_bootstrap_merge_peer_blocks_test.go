@@ -26,11 +26,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/client"
-	"github.com/m3db/m3db/src/dbnode/integration/generate"
-	"github.com/m3db/m3db/src/dbnode/retention"
-	"github.com/m3db/m3db/src/dbnode/storage/namespace"
-	"github.com/m3db/m3db/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/retention"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/ts"
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 

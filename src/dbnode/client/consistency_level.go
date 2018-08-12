@@ -21,7 +21,7 @@
 package client
 
 import (
-	"github.com/m3db/m3db/src/dbnode/topology"
+	"github.com/m3db/m3/src/dbnode/topology"
 )
 
 // runtimeReadConsistencyLevel is a queryable value for a

@@ -23,7 +23,7 @@ package storage
 import (
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 )
 
 // numIntervals returns the number of intervals between [start, end] for a given

@@ -27,10 +27,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/client"
-	"github.com/m3db/m3db/src/dbnode/encoding"
-	"github.com/m3db/m3db/src/dbnode/storage/index"
-	"github.com/m3db/m3db/src/m3ninx/idx"
+	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 

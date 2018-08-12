@@ -4,7 +4,7 @@ import (
 	"flag"
 	"os"
 
-	"github.com/m3db/m3db/src/dbnode/persist/fs/clone"
+	"github.com/m3db/m3/src/dbnode/persist/fs/clone"
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 )

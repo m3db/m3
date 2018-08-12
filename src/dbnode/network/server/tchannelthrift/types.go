@@ -21,7 +21,7 @@
 package tchannelthrift
 
 import (
-	"github.com/m3db/m3db/src/dbnode/serialize"
+	"github.com/m3db/m3/src/dbnode/serialize"
 	"github.com/m3db/m3x/instrument"
 )
 

@@ -25,9 +25,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/encoding"
-	"github.com/m3db/m3db/src/dbnode/ts"
-	"github.com/m3db/m3db/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 )
 
 type dbMergedBlockReader struct {

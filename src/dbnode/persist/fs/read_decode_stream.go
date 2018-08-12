@@ -25,8 +25,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/m3db/m3db/src/dbnode/digest"
-	"github.com/m3db/m3db/src/dbnode/persist/fs/msgpack"
+	"github.com/m3db/m3/src/dbnode/digest"
+	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 )
 
 type dataFileSetReaderDecoderStream interface {

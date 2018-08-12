@@ -27,7 +27,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3x/ident"
 
 	"github.com/fortytw2/leaktest"

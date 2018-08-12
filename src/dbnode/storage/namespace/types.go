@@ -23,8 +23,8 @@ package namespace
 import (
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3cluster/client"
-	"github.com/m3db/m3db/src/dbnode/retention"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 )
