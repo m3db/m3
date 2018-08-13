@@ -226,7 +226,7 @@ func (r *fsSegment) Fields() (sgmt.FieldsIterator, error) {
 		return nil, errReaderClosed
 	}
 
-	return newFSTTermsIter(newFstTermsIterOpts{
+	return newFSTTermsIter(newFSTTermsIterOpts{
 		opts:        r.opts,
 		fst:         r.fieldsFST,
 		finalizeFST: false,
@@ -249,7 +249,7 @@ func (r *fsSegment) Terms(field []byte) (sgmt.TermsIterator, error) {
 		return sgmt.EmptyOrderedBytesIterator, nil
 	}
 
-	return newFSTTermsIter(newFstTermsIterOpts{
+	return newFSTTermsIter(newFSTTermsIterOpts{
 		opts:        r.opts,
 		fst:         termsFST,
 		finalizeFST: true,

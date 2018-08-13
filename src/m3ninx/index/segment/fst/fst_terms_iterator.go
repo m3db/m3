@@ -27,25 +27,25 @@ import (
 	"github.com/couchbase/vellum"
 )
 
-type newFstTermsIterOpts struct {
+type newFSTTermsIterOpts struct {
 	opts        Options
 	fst         *vellum.FST
 	finalizeFST bool
 }
 
-func (o *newFstTermsIterOpts) Close() error {
+func (o *newFSTTermsIterOpts) Close() error {
 	if o.finalizeFST {
 		return o.fst.Close()
 	}
 	return nil
 }
 
-func newFSTTermsIter(opts newFstTermsIterOpts) *fstTermsIter {
+func newFSTTermsIter(opts newFSTTermsIterOpts) *fstTermsIter {
 	return &fstTermsIter{iterOpts: opts}
 }
 
 type fstTermsIter struct {
-	iterOpts newFstTermsIterOpts
+	iterOpts newFSTTermsIterOpts
 
 	iter        *vellum.FSTIterator
 	err         error
@@ -125,6 +125,6 @@ func (f *fstTermsIter) Close() error {
 	f.iter = nil
 
 	multiErr = multiErr.Add(f.iterOpts.Close())
-	f.iterOpts = newFstTermsIterOpts{}
+	f.iterOpts = newFSTTermsIterOpts{}
 	return multiErr.FinalError()
 }

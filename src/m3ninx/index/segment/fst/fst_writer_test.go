@@ -26,7 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestFstWriterNoPanic(t *testing.T) {
+func TestFSTWriterNoPanic(t *testing.T) {
 	w := newFSTWriter()
 	_, err := w.Write(nil)
 	require.Error(t, err)
