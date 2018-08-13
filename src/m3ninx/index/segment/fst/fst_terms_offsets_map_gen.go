@@ -2,7 +2,7 @@
 // Any changes will be lost if this file is regenerated.
 // see https://github.com/mauricelam/genny
 
-package fs
+package fst
 
 // Copyright (c) 2018 Uber Technologies, Inc.
 //

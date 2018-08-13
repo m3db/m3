@@ -25,6 +25,7 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
+	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
@@ -64,22 +65,22 @@ func (d *termsDict) MatchTerm(field, term []byte) postings.List {
 	return pl
 }
 
-func (d *termsDict) Fields() [][]byte {
+func (d *termsDict) Fields() sgmt.FieldsIterator {
 	d.fields.RLock()
 	defer d.fields.RUnlock()
-	fields := make([][]byte, 0, d.fields.Len())
+	fields := d.opts.BytesSliceArrayPool().Get()
 	for _, entry := range d.fields.Iter() {
 		fields = append(fields, entry.Key())
 	}
-	return fields
+	return newBytesSliceIter(fields, d.opts)
 }
 
-func (d *termsDict) Terms(field []byte) [][]byte {
+func (d *termsDict) Terms(field []byte) sgmt.TermsIterator {
 	d.fields.RLock()
 	defer d.fields.RUnlock()
 	values, ok := d.fields.Get(field)
 	if !ok {
-		return nil
+		return sgmt.EmptyOrderedBytesIterator
 	}
 	return values.Keys()
 }

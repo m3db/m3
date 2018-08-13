@@ -24,15 +24,15 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/m3db/m3/src/m3ninx/index/segment/fs"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/x"
 )
 
-// NewSegment returns a new fs.Segment backed by the provided fileset.
+// NewSegment returns a new fst.Segment backed by the provided fileset.
 // NB: this method takes ownership of the provided fileset files, in case of both errors,
 // and success. i.e. users are not expected to call Close on any of the provided fileset.Files()
 // after invoking this function.
-func NewSegment(fileset IndexSegmentFileSet, opts fs.NewSegmentOpts) (fs.Segment, error) {
+func NewSegment(fileset IndexSegmentFileSet, opts fst.Options) (fst.Segment, error) {
 	success := false
 	safeCloser := newSafeIndexSegmentFileSetCloser(fileset)
 	defer func() {
@@ -51,7 +51,7 @@ func NewSegment(fileset IndexSegmentFileSet, opts fs.NewSegmentOpts) (fs.Segment
 	}
 	sd.Closer = safeCloser
 
-	segment, err := fs.NewSegment(sd, opts)
+	segment, err := fst.NewSegment(sd, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -63,9 +63,9 @@ func NewSegment(fileset IndexSegmentFileSet, opts fs.NewSegmentOpts) (fs.Segment
 	return segment, nil
 }
 
-func filesetToSegmentData(fileset IndexSegmentFileSet) (fs.SegmentData, error) {
+func filesetToSegmentData(fileset IndexSegmentFileSet) (fst.SegmentData, error) {
 	var (
-		sd = fs.SegmentData{
+		sd = fst.SegmentData{
 			MajorVersion: fileset.MajorVersion(),
 			MinorVersion: fileset.MinorVersion(),
 			Metadata:     fileset.SegmentMetadata(),

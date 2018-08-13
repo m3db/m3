@@ -44,14 +44,43 @@ type Segment interface {
 	// Reader returns a point-in-time accessor to search the segment.
 	Reader() (index.Reader, error)
 
-	// Fields returns the list of known fields.
-	Fields() ([][]byte, error)
+	// Fields returns an iterator over the list of known fields.
+	Fields() (FieldsIterator, error)
 
-	// Terms returns the list of known terms values for the given field.
-	Terms(field []byte) ([][]byte, error)
+	// Terms returns an iterator over the known terms values for the given field.
+	Terms(field []byte) (TermsIterator, error)
 
 	// Close closes the segment and releases any internal resources.
 	Close() error
+}
+
+// OrderedBytesIterator iterates over a collection of []bytes in lexicographical order.
+type OrderedBytesIterator interface {
+	// Next returns a bool indicating if there are any more elements.
+	Next() bool
+
+	// Current returns the current element.
+	// NB: the element returned is only valid until the subsequent call to Next().
+	Current() []byte
+
+	// Err returns any errors encountered during iteration.
+	Err() error
+
+	// Close releases any resources held by the iterator.
+	Close() error
+
+	// Len returns the total number of elements the iterator contained at the start of iteration.
+	Len() int
+}
+
+// FieldsIterator iterates over all known fields.
+type FieldsIterator interface {
+	OrderedBytesIterator
+}
+
+// TermsIterator iterates over all known terms for the provided field.
+type TermsIterator interface {
+	OrderedBytesIterator
 }
 
 // MutableSegment is a segment which can be updated.

@@ -25,23 +25,23 @@ import (
 	"io"
 
 	"github.com/m3db/m3/src/m3ninx/index/segment"
-	"github.com/m3db/m3/src/m3ninx/index/segment/fs"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 )
 
 // NewMutableSegmentFileSetWriter returns a new IndexSegmentFileSetWriter for writing
 // out the provided Mutable Segment.
 func NewMutableSegmentFileSetWriter() (MutableSegmentFileSetWriter, error) {
-	return newMutableSegmentFileSetWriter(fs.NewWriter())
+	return newMutableSegmentFileSetWriter(fst.NewWriter())
 }
 
-func newMutableSegmentFileSetWriter(fsWriter fs.Writer) (MutableSegmentFileSetWriter, error) {
+func newMutableSegmentFileSetWriter(fsWriter fst.Writer) (MutableSegmentFileSetWriter, error) {
 	return &writer{
 		fsWriter: fsWriter,
 	}, nil
 }
 
 type writer struct {
-	fsWriter fs.Writer
+	fsWriter fst.Writer
 }
 
 func (w *writer) Reset(s segment.MutableSegment) error {
@@ -53,11 +53,11 @@ func (w *writer) SegmentType() IndexSegmentType {
 }
 
 func (w *writer) MajorVersion() int {
-	return fs.MajorVersion
+	return fst.MajorVersion
 }
 
 func (w *writer) MinorVersion() int {
-	return fs.MinorVersion
+	return fst.MinorVersion
 }
 
 func (w *writer) SegmentMetadata() []byte {

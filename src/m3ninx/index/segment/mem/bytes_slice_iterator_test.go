@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package fs
+package mem
 
 import (
 	"testing"
@@ -26,14 +26,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestFstWriterNoPanic(t *testing.T) {
-	w := newFSTWriter()
-	_, err := w.Write(nil)
-	require.Error(t, err)
-
-	err = w.Add(nil, 0)
-	require.Error(t, err)
-
-	_, err = w.Close()
-	require.Error(t, err)
+func TestBytesSliceIteratorSortedOrder(t *testing.T) {
+	input := [][]byte{
+		[]byte("def"),
+		[]byte("abc"),
+		[]byte("ghi"),
+	}
+	iter := newBytesSliceIter(input, testOptions)
+	require.True(t, iter.Next())
+	require.Equal(t, []byte("abc"), iter.Current())
+	require.True(t, iter.Next())
+	require.Equal(t, []byte("def"), iter.Current())
+	require.True(t, iter.Next())
+	require.Equal(t, []byte("ghi"), iter.Current())
+	require.False(t, iter.Next())
+	require.NoError(t, iter.Err())
+	require.NoError(t, iter.Close())
 }

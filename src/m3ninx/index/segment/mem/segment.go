@@ -395,7 +395,7 @@ func (s *segment) Seal() (sgmt.Segment, error) {
 	return s, nil
 }
 
-func (s *segment) Fields() ([][]byte, error) {
+func (s *segment) Fields() (sgmt.FieldsIterator, error) {
 	s.state.RLock()
 	defer s.state.RUnlock()
 	if err := s.checkIsSealedWithRLock(); err != nil {
@@ -404,7 +404,7 @@ func (s *segment) Fields() ([][]byte, error) {
 	return s.termsDict.Fields(), nil
 }
 
-func (s *segment) Terms(name []byte) ([][]byte, error) {
+func (s *segment) Terms(name []byte) (sgmt.TermsIterator, error) {
 	s.state.RLock()
 	defer s.state.RUnlock()
 	if err := s.checkIsSealedWithRLock(); err != nil {

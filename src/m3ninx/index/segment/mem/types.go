@@ -24,6 +24,7 @@ import (
 	re "regexp"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
+	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
@@ -44,11 +45,11 @@ type termsDictionary interface {
 	// given egular expression.
 	MatchRegexp(field, regexp []byte, compiled *re.Regexp) postings.List
 
-	// Fields returns the list of known fields.
-	Fields() [][]byte
+	// Fields returns the known fields.
+	Fields() sgmt.FieldsIterator
 
-	// Terms returns the list of known terms values for the given field.
-	Terms(field []byte) [][]byte
+	// Terms returns the known terms values for the given field.
+	Terms(field []byte) sgmt.TermsIterator
 }
 
 // ReadableSegment is an internal interface for reading from a segment.

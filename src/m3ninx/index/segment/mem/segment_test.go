@@ -31,6 +31,8 @@ import (
 )
 
 var (
+	testOptions = NewOptions()
+
 	testDocuments = []doc.Document{
 		doc.Document{
 			Fields: []doc.Field{
@@ -741,9 +743,10 @@ func TestSegmentFields(t *testing.T) {
 	seg, err := segment.Seal()
 	require.NoError(t, err)
 
-	fields, err := seg.Fields()
+	fieldsIter, err := seg.Fields()
 	require.NoError(t, err)
 
+	fields := toSlice(t, fieldsIter)
 	for _, f := range fields {
 		delete(knownsFields, string(f))
 	}
@@ -772,8 +775,9 @@ func TestSegmentTerms(t *testing.T) {
 	require.NoError(t, err)
 
 	for field, expectedTerms := range knownsFields {
-		terms, err := segment.Terms([]byte(field))
+		termsIter, err := segment.Terms([]byte(field))
 		require.NoError(t, err)
+		terms := toSlice(t, termsIter)
 		for _, term := range terms {
 			delete(expectedTerms, string(term))
 		}
