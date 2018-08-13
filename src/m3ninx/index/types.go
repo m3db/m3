@@ -68,7 +68,7 @@ type Readable interface {
 
 	// MatchRegexp returns a postings list over all documents which match the given
 	// regular expression.
-	MatchRegexp(field, regexp []byte, c *CompiledRegex) (postings.List, error)
+	MatchRegexp(field, regexp []byte, c CompiledRegex) (postings.List, error)
 
 	// MatchAll returns a postings list for all documents known to the Reader.
 	MatchAll() (postings.MutableList, error)

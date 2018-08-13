@@ -78,7 +78,7 @@ func TestReaderMatchRegex(t *testing.T) {
 	)
 
 	reader := newReader(segment, readerDocRange{0, maxID}, postings.NewPool(nil, roaring.NewPostingsList))
-	actual, err := reader.MatchRegexp(name, regexp, &index.CompiledRegex{Simple: compiled})
+	actual, err := reader.MatchRegexp(name, regexp, index.CompiledRegex{Simple: compiled})
 	require.NoError(t, err)
 	require.True(t, postingsList.Equal(actual))
 

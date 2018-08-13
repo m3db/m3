@@ -22,7 +22,6 @@ package mem
 
 import (
 	"errors"
-	re "regexp"
 	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
@@ -72,22 +71,18 @@ func (r *reader) MatchTerm(field, term []byte) (postings.List, error) {
 	return pl, err
 }
 
-func (r *reader) MatchRegexp(field, regexp []byte, compiled *index.CompiledRegex) (postings.List, error) {
+func (r *reader) MatchRegexp(field, regexp []byte, compiled index.CompiledRegex) (postings.List, error) {
 	r.RLock()
 	defer r.RUnlock()
 	if r.closed {
 		return nil, errSegmentReaderClosed
 	}
 
-	var compileRE *re.Regexp
-	if compiled != nil {
-		compileRE = compiled.Simple
-	}
-
 	// A reader can return IDs in the posting list which are greater than its maximum
 	// permitted ID. The reader only guarantees that when fetching the documents associated
 	// with a postings list through a call to Docs will IDs greater than the maximum be
 	// filtered out.
+	compileRE := compiled.Simple
 	pl, err := r.segment.matchRegexp(field, regexp, compileRE)
 	return pl, err
 }

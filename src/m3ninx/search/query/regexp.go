@@ -37,14 +37,14 @@ import (
 type RegexpQuery struct {
 	field    []byte
 	regexp   []byte
-	compiled *index.CompiledRegex
+	compiled index.CompiledRegex
 }
 
 // NewRegexpQuery constructs a new query for the given regular expression.
 func NewRegexpQuery(field, regexp []byte) (search.Query, error) {
 	var (
 		stringRE      = string(regexp)
-		compiledRegex = &index.CompiledRegex{}
+		compiledRegex = index.CompiledRegex{}
 	)
 	simpleRE, err := re.Compile(stringRE)
 	if err != nil {

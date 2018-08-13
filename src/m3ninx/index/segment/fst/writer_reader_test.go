@@ -28,6 +28,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index"
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
 	"github.com/m3db/m3/src/m3ninx/index/util"
@@ -281,12 +282,12 @@ func TestPostingsListRegexAll(t *testing.T) {
 			for _, f := range fields {
 				reader, err := memSeg.Reader()
 				require.NoError(t, err)
-				memPl, err := reader.MatchRegexp(f, []byte("."), nil)
+				memPl, err := reader.MatchRegexp(f, []byte("."), index.CompiledRegex{})
 				require.NoError(t, err)
 
 				fstReader, err := fstSeg.Reader()
 				require.NoError(t, err)
-				fstPl, err := fstReader.MatchRegexp(f, []byte(".*"), nil)
+				fstPl, err := fstReader.MatchRegexp(f, []byte(".*"), index.CompiledRegex{})
 				require.NoError(t, err)
 				require.True(t, memPl.Equal(fstPl))
 			}

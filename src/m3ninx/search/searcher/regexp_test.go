@@ -37,7 +37,7 @@ func TestRegexpSearcher(t *testing.T) {
 	defer mockCtrl.Finish()
 
 	field, regexp := []byte("fruit"), []byte(".*pple")
-	compiled := &index.CompiledRegex{
+	compiled := index.CompiledRegex{
 		Simple: re.MustCompile(string(regexp)),
 	}
 
