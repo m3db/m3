@@ -151,11 +151,11 @@ func (p *parseState) walk(node pql.Node) error {
 
 	case *pql.BinaryExpr:
 		err := p.walk(n.LHS)
-		lhsID := p.lastTransformID()
 		if err != nil {
 			return err
 		}
 
+		lhsID := p.lastTransformID()
 		err = p.walk(n.RHS)
 		if err != nil {
 			return err

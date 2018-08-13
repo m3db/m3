@@ -44,6 +44,12 @@ func TestScalarBlock(t *testing.T) {
 	require.Len(t, blocks.Blocks, 1)
 	block := blocks.Blocks[0]
 
+	if scalar, ok := block.(*ScalarBlock); !ok {
+		require.FailNow(t, "unexpected type for new scalar blocks")
+	} else {
+		assert.Equal(t, val, scalar.Value())
+	}
+
 	stepIter, err := block.StepIter()
 	require.NoError(t, err)
 	require.NotNil(t, stepIter)

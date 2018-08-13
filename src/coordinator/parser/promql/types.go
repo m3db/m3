@@ -77,21 +77,43 @@ func NewScalarOperator(expr *promql.NumberLiteral) parser.Params {
 
 // NewBinaryOperator creates a new binary operator based on the type
 func NewBinaryOperator(expr *promql.BinaryExpr, lhs, rhs parser.NodeID) (parser.Params, error) {
-	// VectorMatching can be nil iff at least one of the sides is a scalar
+	matching := promMatchingToM3(expr.VectorMatching)
+	nodeInformation := binary.NodeInformation{
+		LNode:          lhs,
+		RNode:          rhs,
+		LIsScalar:      expr.LHS.Type() == promql.ValueTypeScalar,
+		RIsScalar:      expr.RHS.Type() == promql.ValueTypeScalar,
+		ReturnBool:     expr.ReturnBool,
+		VectorMatching: matching,
+	}
+
 	op := getOpType(expr.Op)
-	switch op {
-	case logical.AndType, logical.OrType, logical.UnlessType:
-		matching := promMatchingToM3(expr.VectorMatching)
+	switch {
+	case isLogical(op):
 		return logical.NewLogicalOp(op, lhs, rhs, matching)
-	case binary.PlusType, binary.MinusType, binary.MultiplyType,
-		binary.ExpType, binary.DivType, binary.ModType,
-		binary.EqType, binary.NotEqType, binary.GreaterType,
-		binary.LesserType, binary.GreaterEqType, binary.LesserEqType:
-		return binary.NewBinaryOp(op, lhs, rhs)
+	case isArithmetic(op) || isComparison(op):
+		return binary.NewBinaryOp(op, nodeInformation)
 	default:
 		// TODO: handle other types
 		return nil, fmt.Errorf("operator not supported: %s", expr.Op)
 	}
+}
+
+func isLogical(op string) bool {
+	return op == logical.AndType || op == logical.OrType ||
+		op == logical.UnlessType
+}
+
+func isArithmetic(op string) bool {
+	return op == binary.PlusType || op == binary.MinusType ||
+		op == binary.MultiplyType || op == binary.ExpType ||
+		op == binary.DivType || op == binary.ModType
+}
+
+func isComparison(op string) bool {
+	return op == binary.EqType || op == binary.NotEqType ||
+		op == binary.GreaterType || op == binary.LesserType ||
+		op == binary.GreaterEqType || op == binary.LesserEqType
 }
 
 // NewFunctionExpr creates a new function expr based on the type
@@ -221,6 +243,10 @@ func promVectorCardinalityToM3(card promql.VectorMatchCardinality) logical.Vecto
 }
 
 func promMatchingToM3(vectorMatching *promql.VectorMatching) *logical.VectorMatching {
+	// vectorMatching can be nil iff at least one of the sides is a scalar
+	if vectorMatching == nil {
+		return nil
+	}
 	return &logical.VectorMatching{
 		Card:           promVectorCardinalityToM3(vectorMatching.Card),
 		MatchingLabels: vectorMatching.MatchingLabels,

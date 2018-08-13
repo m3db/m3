@@ -27,18 +27,21 @@ import (
 	"github.com/m3db/m3db/src/coordinator/models"
 )
 
-type scalarBlock struct {
+// ScalarBlock is a block containing a single value
+// over a certain bound
+type ScalarBlock struct {
 	val  float64
 	meta Metadata
 }
 
-// assert that scalarBlock implements Block
-var _ Block = (*scalarBlock)(nil)
+// assert that ScalarBlock implements Block
+var _ Block = (*ScalarBlock)(nil)
 
-// NewScalarBlockResult creates a Result consisting of scalar blocks over the bound
+// NewScalarBlockResult creates a Result consisting
+// of scalar blocks over the bound
 func NewScalarBlockResult(val float64, bounds Bounds) *Result {
 	blocks := []Block{
-		newScalarBlock(val, bounds),
+		NewScalarBlock(val, bounds),
 	}
 
 	return &Result{
@@ -46,8 +49,9 @@ func NewScalarBlockResult(val float64, bounds Bounds) *Result {
 	}
 }
 
-func newScalarBlock(val float64, bounds Bounds) Block {
-	return &scalarBlock{
+// NewScalarBlock creates a scalar block containing val over the bounds
+func NewScalarBlock(val float64, bounds Bounds) Block {
+	return &ScalarBlock{
 		val: val,
 		meta: Metadata{
 			Bounds: bounds,
@@ -57,7 +61,7 @@ func newScalarBlock(val float64, bounds Bounds) Block {
 }
 
 // StepIter returns a StepIterator
-func (b *scalarBlock) StepIter() (StepIter, error) {
+func (b *ScalarBlock) StepIter() (StepIter, error) {
 	bounds := b.meta.Bounds
 	steps := bounds.Steps()
 	return &scalarStepIter{
@@ -70,7 +74,8 @@ func (b *scalarBlock) StepIter() (StepIter, error) {
 	}, nil
 }
 
-func (b *scalarBlock) SeriesIter() (SeriesIter, error) {
+// SeriesIter returns a SeriesIterator
+func (b *ScalarBlock) SeriesIter() (SeriesIter, error) {
 	bounds := b.meta.Bounds
 	steps := bounds.Steps()
 	vals := make([]float64, int(steps))
@@ -84,7 +89,11 @@ func (b *scalarBlock) SeriesIter() (SeriesIter, error) {
 	}, nil
 }
 
-func (b *scalarBlock) Close() error { return nil }
+// Close closes the scalar block
+func (b *ScalarBlock) Close() error { return nil }
+
+// Value returns the value for the scalar block
+func (b *ScalarBlock) Value() float64 { return b.val }
 
 type scalarStepIter struct {
 	meta    Metadata

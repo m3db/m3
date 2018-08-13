@@ -21,12 +21,14 @@
 package binary
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"sync"
 
 	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/executor/transform"
+	"github.com/m3db/m3db/src/coordinator/functions/logical"
 	"github.com/m3db/m3db/src/coordinator/parser"
 )
 
@@ -43,15 +45,18 @@ const (
 	// MultiplyType multiplies datapoints by series
 	MultiplyType = "*"
 
-	// ExpType raises lhs to the power of rhs
-	ExpType = "^"
-
 	// DivType divides datapoints by series
 	// Special cases are:
 	// 	 X / 0 = +Inf
 	// 	-X / 0 = -Inf
 	// 	 0 / 0 =  NaN
 	DivType = "/"
+
+	// ExpType raises lhs to the power of rhs
+	// NB: to keep consistency with prometheus (and go)
+	//  0 ^ 0 = 1
+	//  NaN ^ 0 = 1
+	ExpType = "^"
 
 	// ModType takes the modulo of lhs by rhs
 	// Special cases are:
@@ -84,6 +89,8 @@ const (
 
 type mathFunc func(x, y float64) float64
 
+type singleScalarFunc func(x float64) float64
+
 func toFloat(b bool) float64 {
 	if b {
 		return 1
@@ -107,15 +114,16 @@ var (
 		GreaterEqType: func(x, y float64) float64 { return toFloat(x >= y) },
 		LesserEqType:  func(x, y float64) float64 { return toFloat(x <= y) },
 	}
+
+	errLeftScalar              = errors.New("expected left scalar but node type incorrect")
+	errRightScalar             = errors.New("expected right scalar but node type incorrect")
+	errNoModifierForComparison = errors.New("comparisons between scalars must use BOOL modifier")
 )
 
 type binaryOp struct {
 	OperatorType string
-	LNode        parser.NodeID
-	RNode        parser.NodeID
 	fn           mathFunc
-	anyScalars   bool
-	ReturnBool   bool
+	info         NodeInformation
 }
 
 // OpType for the operator
@@ -125,7 +133,7 @@ func (o binaryOp) OpType() string {
 
 // String representation
 func (o binaryOp) String() string {
-	return fmt.Sprintf("type: %s, lnode: %s, rnode: %s", o.OpType(), o.LNode, o.RNode)
+	return fmt.Sprintf("type: %s, lnode: %s, rnode: %s", o.OpType(), o.info.LNode, o.info.RNode)
 }
 
 // Node creates an execution node
@@ -149,14 +157,14 @@ type binaryNode struct {
 type NodeInformation struct {
 	LNode, RNode         parser.NodeID
 	LIsScalar, RIsScalar bool
+	ReturnBool           bool
+	VectorMatching       *logical.VectorMatching
 }
 
 // NewBinaryOp creates a new binary operation
 func NewBinaryOp(
 	opType string,
-	lNode parser.NodeID,
-	rNode parser.NodeID,
-	// anyScalars bool,
+	info NodeInformation,
 ) (parser.Params, error) {
 	fn, ok := mathFuncs[opType]
 	if !ok {
@@ -165,10 +173,10 @@ func NewBinaryOp(
 
 	return binaryOp{
 		OperatorType: opType,
-		LNode:        lNode,
-		RNode:        rNode,
-		fn:           fn,
-		// anyScalars:   anyScalars,
+		// LNode:        lNode,
+		// RNode:        rNode,
+		fn:   fn,
+		info: info,
 	}, nil
 }
 
@@ -199,11 +207,69 @@ func (n *binaryNode) Process(ID parser.NodeID, b block.Block) error {
 
 // processes two logical blocks, performing a logical operation on them
 func (n *binaryNode) process(lhs, rhs block.Block) (block.Block, error) {
+	info := n.op.info
+
 	lIter, err := lhs.StepIter()
 	if err != nil {
 		return nil, err
 	}
 
+	fn := n.op.fn
+
+	if info.LIsScalar {
+		scalarL, ok := lhs.(*block.ScalarBlock)
+		if !ok {
+			return nil, errLeftScalar
+		}
+
+		lVal := scalarL.Value()
+		// if both lhs and rhs are scalars, can create a new block
+		// by extracting values from lhs and rhs instead of doing
+		// by-value comparisons
+		if info.RIsScalar {
+			scalarR, ok := rhs.(*block.ScalarBlock)
+			if !ok {
+				return nil, errRightScalar
+			}
+
+			// NB(arnikola): this is a sanity check, as scalar comparisons
+			// should have previously errored out during the parsing step
+			if !n.op.info.ReturnBool {
+				return nil, errNoModifierForComparison
+			}
+
+			return block.NewScalarBlock(
+				fn(lVal, scalarR.Value()),
+				lIter.Meta().Bounds,
+			), nil
+		}
+
+		// rhs is a series; use rhs metadata and series meta
+		return n.processSingleBlock(
+			rhs,
+			func(x float64) float64 {
+				return n.op.fn(lVal, x)
+			},
+		)
+	}
+
+	if info.RIsScalar {
+		scalarR, ok := rhs.(*block.ScalarBlock)
+		if !ok {
+			return nil, errRightScalar
+		}
+
+		rVal := scalarR.Value()
+		// lhs is a series; use lhs metadata and series meta
+		return n.processSingleBlock(
+			lhs,
+			func(x float64) float64 {
+				return n.op.fn(x, rVal)
+			},
+		)
+	}
+
+	// both lhs and rhs are series
 	rIter, err := rhs.StepIter()
 	if err != nil {
 		return nil, err
@@ -232,10 +298,65 @@ func (n *binaryNode) process(lhs, rhs block.Block) (block.Block, error) {
 		}
 
 		rValues := rStep.Values()
-		fn := n.op.fn
 
 		for idx, value := range lValues {
 			builder.AppendValue(index, fn(value, rValues[idx]))
+		}
+	}
+
+	return builder.Build(), nil
+}
+
+func isComparison(op string) bool {
+	return op == EqType || op == NotEqType ||
+		op == GreaterType || op == LesserType ||
+		op == GreaterEqType || op == LesserEqType
+}
+
+// If returnBool is false and op is a comparison function,
+// the function should return the scalar value rather than 1 or 0
+func actualFunc(fn singleScalarFunc, op string, returnBool bool) singleScalarFunc {
+	if returnBool || !isComparison(op) {
+		return fn
+	}
+	return func(x float64) float64 {
+		take := fn(x) == 1
+		if take {
+			return x
+		}
+		return math.NaN()
+	}
+}
+
+func (n *binaryNode) processSingleBlock(
+	block block.Block,
+	fn singleScalarFunc,
+) (block.Block, error) {
+	actualFn := actualFunc(fn, n.op.OperatorType, n.op.info.ReturnBool)
+
+	it, err := block.StepIter()
+	if err != nil {
+		return nil, err
+	}
+
+	builder, err := n.controller.BlockBuilder(it.Meta(), it.SeriesMeta())
+	if err != nil {
+		return nil, err
+	}
+
+	if err := builder.AddCols(it.StepCount()); err != nil {
+		return nil, err
+	}
+
+	for index := 0; it.Next(); index++ {
+		step, err := it.Current()
+		if err != nil {
+			return nil, err
+		}
+
+		values := step.Values()
+		for _, value := range values {
+			builder.AppendValue(index, actualFn(value))
 		}
 	}
 
@@ -248,16 +369,16 @@ func (n *binaryNode) computeOrCache(ID parser.NodeID, b block.Block) (block.Bloc
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	op := n.op
-	if op.LNode == ID {
-		rBlock, ok := n.cache.Get(op.RNode)
+	if op.info.LNode == ID {
+		rBlock, ok := n.cache.Get(op.info.RNode)
 		if !ok {
 			return lhs, rhs, n.cache.Add(ID, b)
 		}
 
 		rhs = rBlock
 		lhs = b
-	} else if op.RNode == ID {
-		lBlock, ok := n.cache.Get(op.LNode)
+	} else if op.info.RNode == ID {
+		lBlock, ok := n.cache.Get(op.info.LNode)
 		if !ok {
 			return lhs, rhs, n.cache.Add(ID, b)
 		}
@@ -272,6 +393,6 @@ func (n *binaryNode) computeOrCache(ID parser.NodeID, b block.Block) (block.Bloc
 func (n *binaryNode) cleanup() {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	n.cache.Remove(n.op.LNode)
-	n.cache.Remove(n.op.RNode)
+	n.cache.Remove(n.op.info.LNode)
+	n.cache.Remove(n.op.info.RNode)
 }
