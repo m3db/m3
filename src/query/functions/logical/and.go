@@ -24,8 +24,6 @@ import (
 	"math"
 
 	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/executor/transform"
-	"github.com/m3db/m3/src/query/parser"
 )
 
 // AndType uses values from left hand side for which there is a value in right hand side with exactly matching label sets.
@@ -39,12 +37,6 @@ func makeAndBlock(
 	lMeta, rSeriesMeta := lIter.Meta(), rIter.SeriesMeta()
 
 	builder, err := node.controller.BlockBuilder(lMeta, rSeriesMeta)
-	if err != nil {
-		return nil, err
-	}
-
-	intersection := c.intersect(lIter.SeriesMeta(), rIter.SeriesMeta())
-	builder, err := c.controller.BlockBuilder(lIter.Meta(), rIter.SeriesMeta())
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +73,7 @@ func makeAndBlock(
 
 	return builder.Build(), nil
 }
-\
+
 // intersect returns the slice of rhs indices if there is a match with
 // a corresponding lhs index. If no match is found, it returns -1
 func intersect(

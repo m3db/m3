@@ -58,12 +58,11 @@ func NewBlockFromValuesWithSeriesMeta(
 ) block.Block {
 	blockMeta := block.Metadata{Bounds: bounds}
 
-	return NewBlockFromValuesWithMetaAndSeriesMeta(bounds, blockMeta, seriesMeta, seriesValues)
+	return NewBlockFromValuesWithMetaAndSeriesMeta(blockMeta, seriesMeta, seriesValues)
 }
 
 // NewBlockFromValuesWithMetaAndSeriesMeta creates a new block using the provided values
 func NewBlockFromValuesWithMetaAndSeriesMeta(
-	bounds block.Bounds,
 	meta block.Metadata,
 	seriesMeta []block.SeriesMeta,
 	seriesValues [][]float64,

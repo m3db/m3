@@ -25,11 +25,12 @@ import (
 	"math"
 	"testing"
 
-	"github.com/m3db/m3/src/coordinator/block"
-	"github.com/m3db/m3/src/coordinator/models"
-	"github.com/m3db/m3/src/coordinator/parser"
-	"github.com/m3db/m3/src/coordinator/test"
-	"github.com/m3db/m3/src/coordinator/test/executor"
+	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/parser"
+	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/executor"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -291,7 +292,6 @@ func TestOrCombinedMetadata(t *testing.T) {
 
 	lSeriesMeta := createSeriesMeta()
 	lhs := test.NewBlockFromValuesWithMetaAndSeriesMeta(
-		bounds,
 		lhsMeta,
 		lSeriesMeta,
 		[][]float64{{1, 2}, {10, 20}})
@@ -309,7 +309,6 @@ func TestOrCombinedMetadata(t *testing.T) {
 	// block despite the individual seriesMeta tags being the same.
 	rSeriesMeta := createSeriesMeta()
 	rhs := test.NewBlockFromValuesWithMetaAndSeriesMeta(
-		bounds,
 		rhsMeta,
 		rSeriesMeta,
 		[][]float64{{3, 4}, {30, 40}})

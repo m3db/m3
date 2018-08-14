@@ -23,7 +23,7 @@ package logical
 import (
 	"sort"
 
-	"github.com/m3db/m3/src/coordinator/block"
+	"github.com/m3db/m3/src/query/block"
 )
 
 // UnlessType uses all values from lhs which do not exist in rhs

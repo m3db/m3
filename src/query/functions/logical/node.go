@@ -24,9 +24,9 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/m3db/m3/src/coordinator/block"
-	"github.com/m3db/m3/src/coordinator/executor/transform"
-	"github.com/m3db/m3/src/coordinator/parser"
+	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/parser"
 )
 
 type logicalOp struct {

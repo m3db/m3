@@ -23,11 +23,11 @@ package logical
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/coordinator/block"
-	"github.com/m3db/m3/src/coordinator/models"
-	"github.com/m3db/m3/src/coordinator/parser"
-	"github.com/m3db/m3/src/coordinator/test"
-	"github.com/m3db/m3/src/coordinator/test/executor"
+	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/parser"
+	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/executor"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

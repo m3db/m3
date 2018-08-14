@@ -25,8 +25,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/coordinator/block"
-	"github.com/m3db/m3/src/coordinator/models"
+	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -44,7 +44,7 @@ func builderMockWithExpectedValues(ctrl *gomock.Controller, indices []int, value
 	return builder
 }
 
-func stepIterWithExpectedValues(ctrl *gomock.Controller, indices []int, values [][]float64) block.StepIter {
+func stepIterWithExpectedValues(ctrl *gomock.Controller, _ []int, values [][]float64) block.StepIter {
 	stepIter := block.NewMockStepIter(ctrl)
 	for _, val := range values {
 		stepIter.EXPECT().Next().Return(true)

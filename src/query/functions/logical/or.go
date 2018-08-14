@@ -21,7 +21,7 @@
 package logical
 
 import (
-	"github.com/m3db/m3/src/coordinator/block"
+	"github.com/m3db/m3/src/query/block"
 )
 
 // OrType uses all values from left hand side, and appends values from the right hand side which do

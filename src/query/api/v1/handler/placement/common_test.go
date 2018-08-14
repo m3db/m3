@@ -84,7 +84,7 @@ func TestPlacementServiceWithClusterHeaders(t *testing.T) {
 	mockServices.EXPECT().PlacementService(gomock.Not(nil), gomock.Not(nil)).
 		DoAndReturn(func(
 			serviceID services.ServiceID,
-			opts placement.Options,
+			_ placement.Options,
 		) (placement.Service, error) {
 			actual = serviceID
 			return mockPlacementService, nil

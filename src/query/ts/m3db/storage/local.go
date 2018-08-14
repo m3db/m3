@@ -65,7 +65,7 @@ func (s *localStorage) fetchRaw(
 
 // todo(braskin): merge this with Fetch()
 func (s *localStorage) fetchBlocks(
-	ctx context.Context,
+	_ context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (map[ident.ID][]m3block.SeriesBlocks, error) {
