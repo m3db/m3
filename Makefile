@@ -35,6 +35,7 @@ GO_BUILD_LDFLAGS_CMD := $(abspath ./.ci/go-build-ldflags.sh) $(m3db_package)
 GO_BUILD_LDFLAGS     := $(shell $(GO_BUILD_LDFLAGS_CMD))
 LINUX_AMD64_ENV      := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
 GO_RELEASER_VERSION  := v0.76.1
+GOMETALINT_VERSION   := v2.0.5
 
 SERVICES :=     \
 	m3dbnode      \
@@ -130,6 +131,11 @@ install-codegen-tools: install-retool
 	@echo "Installing retool dependencies"
 	@retool sync >/dev/null 2>/dev/null
 	@retool build >/dev/null 2>/dev/null
+
+.PHONY: install-gometalinter
+install-gometalinter:
+	@mkdir -p $(retool_bin_path)
+	./scripts/install-gometalinter.sh -b $(retool_bin_path) -d $(GOMETALINT_VERSION)
 
 .PHONY: install-stringer
 install-stringer:
@@ -251,9 +257,10 @@ genny-gen-$(SUBDIR): install-codegen-tools
 all-gen-$(SUBDIR): thrift-gen-$(SUBDIR) proto-gen-$(SUBDIR) asset-gen-$(SUBDIR) genny-gen-$(SUBDIR) mock-gen-$(SUBDIR)
 
 .PHONY: metalint-$(SUBDIR)
-metalint-$(SUBDIR): install-metalinter install-linter-badtime install-linter-importorder
+metalint-$(SUBDIR): install-gometalinter install-linter-badtime install-linter-importorder
 	@echo metalinting $(SUBDIR)
-	@($(metalint_check) src/$(SUBDIR)/$(metalint_config) src/$(SUBDIR)/$(metalint_exclude) src/$(SUBDIR))
+	@(PATH=$(retool_bin_path):$(PATH) $(metalint_check) \
+		src/$(SUBDIR)/$(metalint_config) src/$(SUBDIR)/$(metalint_exclude) src/$(SUBDIR))
 
 .PHONY: test-$(SUBDIR)
 test-$(SUBDIR):

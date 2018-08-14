@@ -82,9 +82,9 @@ func (mr *MockSegmentMockRecorder) ContainsID(arg0 interface{}) *gomock.Call {
 }
 
 // Fields mocks base method
-func (m *MockSegment) Fields() ([][]byte, error) {
+func (m *MockSegment) Fields() (FieldsIterator, error) {
 	ret := m.ctrl.Call(m, "Fields")
-	ret0, _ := ret[0].([][]byte)
+	ret0, _ := ret[0].(FieldsIterator)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -120,9 +120,9 @@ func (mr *MockSegmentMockRecorder) Size() *gomock.Call {
 }
 
 // Terms mocks base method
-func (m *MockSegment) Terms(arg0 []byte) ([][]byte, error) {
+func (m *MockSegment) Terms(arg0 []byte) (TermsIterator, error) {
 	ret := m.ctrl.Call(m, "Terms", arg0)
-	ret0, _ := ret[0].([][]byte)
+	ret0, _ := ret[0].(TermsIterator)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -181,9 +181,9 @@ func (mr *MockMutableSegmentMockRecorder) ContainsID(arg0 interface{}) *gomock.C
 }
 
 // Fields mocks base method
-func (m *MockMutableSegment) Fields() ([][]byte, error) {
+func (m *MockMutableSegment) Fields() (FieldsIterator, error) {
 	ret := m.ctrl.Call(m, "Fields")
-	ret0, _ := ret[0].([][]byte)
+	ret0, _ := ret[0].(FieldsIterator)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -269,9 +269,9 @@ func (mr *MockMutableSegmentMockRecorder) Size() *gomock.Call {
 }
 
 // Terms mocks base method
-func (m *MockMutableSegment) Terms(arg0 []byte) ([][]byte, error) {
+func (m *MockMutableSegment) Terms(arg0 []byte) (TermsIterator, error) {
 	ret := m.ctrl.Call(m, "Terms", arg0)
-	ret0, _ := ret[0].([][]byte)
+	ret0, _ := ret[0].(TermsIterator)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

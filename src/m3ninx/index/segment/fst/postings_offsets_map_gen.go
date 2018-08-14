@@ -2,7 +2,7 @@
 // Any changes will be lost if this file is regenerated.
 // see https://github.com/mauricelam/genny
 
-package fs
+package fst
 
 import "github.com/m3db/m3/src/m3ninx/doc"
 

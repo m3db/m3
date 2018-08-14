@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package fs
+package fst
 
 import (
 	"errors"
@@ -28,7 +28,7 @@ import (
 )
 
 var (
-	errFstWriterBuildUnset = errors.New("fst writer builer has not been Reset() before use")
+	errFSTWriterBuildUnset = errors.New("fst writer builer has not been Reset() before use")
 )
 
 var (
@@ -54,7 +54,7 @@ func newFSTWriter() *fstWriter {
 
 func (f *fstWriter) Write(p []byte) (int, error) {
 	if f.writer == nil {
-		return 0, errFstWriterBuildUnset
+		return 0, errFSTWriterBuildUnset
 	}
 	n, err := f.writer.Write(p)
 	if err != nil {
@@ -80,14 +80,14 @@ func (f *fstWriter) Reset(w io.Writer) error {
 
 func (f *fstWriter) Add(b []byte, v uint64) error {
 	if f.builder == nil {
-		return errFstWriterBuildUnset
+		return errFSTWriterBuildUnset
 	}
 	return f.builder.Insert(b, v)
 }
 
 func (f *fstWriter) Close() (uint64, error) {
 	if f.builder == nil {
-		return 0, errFstWriterBuildUnset
+		return 0, errFSTWriterBuildUnset
 	}
 	err := f.builder.Close()
 	if err != nil {

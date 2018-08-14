@@ -37,7 +37,9 @@ func TestRegexpSearcher(t *testing.T) {
 	defer mockCtrl.Finish()
 
 	field, regexp := []byte("fruit"), []byte(".*pple")
-	compiled := re.MustCompile(string(regexp))
+	compiled := index.CompiledRegex{
+		Simple: re.MustCompile(string(regexp)),
+	}
 
 	// First reader.
 	firstPL := roaring.NewPostingsList()

@@ -18,61 +18,70 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package searcher
+package mem
 
 import (
-	"github.com/m3db/m3/src/m3ninx/index"
-	"github.com/m3db/m3/src/m3ninx/postings"
-	"github.com/m3db/m3/src/m3ninx/search"
+	"bytes"
+	"sort"
+
+	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
 )
 
-type regexpSearcher struct {
-	field, regexp []byte
-	compiled      index.CompiledRegex
-	readers       index.Readers
-
-	idx  int
-	curr postings.List
+type bytesSliceIter struct {
 	err  error
+	done bool
+
+	currentIdx   int
+	current      []byte
+	backingSlice [][]byte
+	opts         Options
 }
 
-// NewRegexpSearcher returns a new searcher for finding documents which match the given regular
-// expression. It is not safe for concurrent access.
-func NewRegexpSearcher(rs index.Readers, field, regexp []byte, compiled index.CompiledRegex) search.Searcher {
-	return &regexpSearcher{
-		field:    field,
-		regexp:   regexp,
-		compiled: compiled,
-		readers:  rs,
-		idx:      -1,
+var _ sgmt.FieldsIterator = &bytesSliceIter{}
+var _ sgmt.TermsIterator = &bytesSliceIter{}
+
+func newBytesSliceIter(slice [][]byte, opts Options) *bytesSliceIter {
+	sortSliceOfByteSlices(slice)
+	return &bytesSliceIter{
+		currentIdx:   -1,
+		backingSlice: slice,
+		opts:         opts,
 	}
 }
 
-func (s *regexpSearcher) Next() bool {
-	if s.err != nil || s.idx == len(s.readers)-1 {
+func (b *bytesSliceIter) Next() bool {
+	if b.done || b.err != nil {
 		return false
 	}
-
-	s.idx++
-	r := s.readers[s.idx]
-	pl, err := r.MatchRegexp(s.field, s.regexp, s.compiled)
-	if err != nil {
-		s.err = err
+	b.currentIdx++
+	if b.currentIdx >= len(b.backingSlice) {
+		b.done = true
 		return false
 	}
-	s.curr = pl
-
+	b.current = b.backingSlice[b.currentIdx]
 	return true
 }
 
-func (s *regexpSearcher) Current() postings.List {
-	return s.curr
+func (b *bytesSliceIter) Current() []byte {
+	return b.current
 }
 
-func (s *regexpSearcher) Err() error {
-	return s.err
+func (b *bytesSliceIter) Err() error {
+	return nil
 }
 
-func (s *regexpSearcher) NumReaders() int {
-	return len(s.readers)
+func (b *bytesSliceIter) Len() int {
+	return len(b.backingSlice)
+}
+
+func (b *bytesSliceIter) Close() error {
+	b.current = nil
+	b.opts.BytesSliceArrayPool().Put(b.backingSlice)
+	return nil
+}
+
+func sortSliceOfByteSlices(b [][]byte) {
+	sort.Slice(b, func(i, j int) bool {
+		return bytes.Compare(b[i], b[j]) < 0
+	})
 }

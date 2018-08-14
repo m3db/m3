@@ -18,21 +18,19 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package fs
+package fst
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
-	"sort"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/generated/proto/fswriter"
 	"github.com/m3db/m3/src/m3ninx/index"
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
-	"github.com/m3db/m3/src/m3ninx/index/segment/fs/encoding"
-	"github.com/m3db/m3/src/m3ninx/index/segment/fs/encoding/docs"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/pilosa"
 	"github.com/m3db/m3/src/m3ninx/x"
@@ -192,7 +190,8 @@ func (w *writer) WritePostingsOffsets(iow io.Writer) error {
 	}
 
 	// for each known field
-	for _, f := range fields {
+	for fields.Next() {
+		f := fields.Current()
 		// retrieve known terms for current field
 		terms, err := w.seg.Terms(f)
 		if err != nil {
@@ -200,7 +199,8 @@ func (w *writer) WritePostingsOffsets(iow io.Writer) error {
 		}
 
 		// for each term corresponding to the current field
-		for _, t := range terms {
+		for terms.Next() {
+			t := terms.Current()
 			// retrieve the postings list for this (field, term) combination
 			pl, err := w.segReader.MatchTerm(f, t)
 			if err != nil {
@@ -225,6 +225,22 @@ func (w *writer) WritePostingsOffsets(iow io.Writer) error {
 			// track current offset as the offset for the current field/term
 			w.addPostingsOffset(currentOffset, f, t)
 		}
+
+		if err := terms.Err(); err != nil {
+			return err
+		}
+
+		if err := terms.Close(); err != nil {
+			return err
+		}
+	}
+
+	if err := fields.Err(); err != nil {
+		return err
+	}
+
+	if err := fields.Close(); err != nil {
+		return err
 	}
 
 	w.postingsFileWritten = true
@@ -246,7 +262,8 @@ func (w *writer) WriteFSTTerms(iow io.Writer) error {
 	}
 
 	// build a fst for each field's terms
-	for _, f := range fields {
+	for fields.Next() {
+		f := fields.Current()
 		// reset writer for this field's fst
 		if err := w.fstWriter.Reset(iow); err != nil {
 			return err
@@ -258,11 +275,10 @@ func (w *writer) WriteFSTTerms(iow io.Writer) error {
 			return err
 		}
 
-		// inserts into the fst have to be lexicographically ordered
-		sortSliceOfByteSlices(terms)
-
 		// for each term corresponding to this field
-		for _, t := range terms {
+		for terms.Next() {
+			t := terms.Current()
+
 			// retieve postsings offset for the current field,term
 			po, err := w.getPostingsOffset(f, t)
 			if err != nil {
@@ -273,6 +289,13 @@ func (w *writer) WriteFSTTerms(iow io.Writer) error {
 			if err := w.fstWriter.Add(t, po); err != nil {
 				return err
 			}
+		}
+		if err := terms.Err(); err != nil {
+			return err
+		}
+
+		if err := terms.Close(); err != nil {
+			return err
 		}
 
 		// retrieve a serialized representation of the field's fst
@@ -292,6 +315,14 @@ func (w *writer) WriteFSTTerms(iow io.Writer) error {
 
 		// track current offset as the offset for the current field's fst
 		w.addFSTTermsOffset(currentOffset, f)
+	}
+
+	if err := fields.Err(); err != nil {
+		return err
+	}
+
+	if err := fields.Close(); err != nil {
+		return err
 	}
 
 	// all good!
@@ -315,11 +346,9 @@ func (w *writer) WriteFSTFields(iow io.Writer) error {
 		return err
 	}
 
-	// inserts into the fst have to be lexicographically ordered
-	sortSliceOfByteSlices(fields)
-
 	// insert each field into fst
-	for _, f := range fields {
+	for fields.Next() {
+		f := fields.Current()
 		// get offset for this field's term fst
 		offset, err := w.getFSTTermsOffset(f)
 		if err != nil {
@@ -330,6 +359,14 @@ func (w *writer) WriteFSTFields(iow io.Writer) error {
 		if err := w.fstWriter.Add(f, offset); err != nil {
 			return err
 		}
+	}
+
+	if err := fields.Err(); err != nil {
+		return err
+	}
+
+	if err := fields.Close(); err != nil {
+		return err
 	}
 
 	// flush the fst writer
@@ -405,12 +442,6 @@ func (w *writer) getPostingsOffset(name, value []byte) (uint64, error) {
 		return 0, errUnableToFindPostingsOffset
 	}
 	return offset, nil
-}
-
-func sortSliceOfByteSlices(b [][]byte) {
-	sort.Slice(b, func(i, j int) bool {
-		return bytes.Compare(b[i], b[j]) < 0
-	})
 }
 
 func defaultV1Metadata() fswriter.Metadata {

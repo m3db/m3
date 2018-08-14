@@ -532,7 +532,7 @@ func (s *commitLogSource) bootstrapShardSnapshots(
 				// because the fact that snapshotTime == blockStart means we already accounted
 				// for the fact that this snapshot did not exist when we were deciding which
 				// commit logs to read.
-				s.log.Infof(
+				s.log.Debugf(
 					"no snapshots for shard: %d and blockStart: %s",
 					shard, blockStart.String())
 				continue

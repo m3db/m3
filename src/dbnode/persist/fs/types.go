@@ -33,8 +33,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	idxpersist "github.com/m3db/m3/src/m3ninx/persist"
-	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -421,11 +421,11 @@ type Options interface {
 	// TagDecoderPool returns the tag decoder pool
 	TagDecoderPool() serialize.TagDecoderPool
 
-	// SetPostignsListPool sets the postings list pool
-	SetPostingsListPool(value postings.Pool) Options
+	// SetFStOptions sets the fst options
+	SetFSTOptions(value fst.Options) Options
 
-	// PostingsListPool returns the postings list pool
-	PostingsListPool() postings.Pool
+	// FSTOptions returns the fst options
+	FSTOptions() fst.Options
 }
 
 // BlockRetrieverOptions represents the options for block retrieval

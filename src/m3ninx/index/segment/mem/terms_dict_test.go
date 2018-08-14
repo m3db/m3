@@ -105,7 +105,8 @@ func (t *termsDictionaryTestSuite) TestIterateFields() {
 					t.termsDict.Insert(f, id)
 					expectedFields[string(f.Name)] = struct{}{}
 				}
-				fields := t.termsDict.Fields()
+				fieldsIter := t.termsDict.Fields()
+				fields := toSlice(t.T(), fieldsIter)
 				for _, field := range fields {
 					delete(expectedFields, string(field))
 				}
@@ -137,7 +138,8 @@ func (t *termsDictionaryTestSuite) TestIterateTerms() {
 				}
 				// for each expected combination of fieldName -> []fieldValues, ensure all are present
 				for name, expectedValues := range expectedFields {
-					values := t.termsDict.Terms([]byte(name))
+					valuesIter := t.termsDict.Terms([]byte(name))
+					values := toSlice(t.T(), valuesIter)
 					for _, val := range values {
 						delete(expectedValues, string(val))
 					}
