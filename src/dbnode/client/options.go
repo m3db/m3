@@ -27,12 +27,12 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/clock"
-	"github.com/m3db/m3db/src/dbnode/encoding"
-	"github.com/m3db/m3db/src/dbnode/encoding/m3tsz"
-	m3dbruntime "github.com/m3db/m3db/src/dbnode/runtime"
-	"github.com/m3db/m3db/src/dbnode/serialize"
-	"github.com/m3db/m3db/src/dbnode/topology"
+	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/serialize"
+	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -336,12 +336,9 @@ func (o *options) Validate() error {
 	); err != nil {
 		return err
 	}
-	if err := topology.ValidateConnectConsistencyLevel(
+	return topology.ValidateConnectConsistencyLevel(
 		o.clusterConnectConsistencyLevel,
-	); err != nil {
-		return err
-	}
-	return nil
+	)
 }
 
 func (o *options) SetEncodingM3TSZ() Options {

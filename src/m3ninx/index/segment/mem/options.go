@@ -21,15 +21,18 @@
 package mem
 
 import (
-	"github.com/m3db/m3db/src/m3ninx/index/util"
-	"github.com/m3db/m3db/src/m3ninx/postings"
-	"github.com/m3db/m3db/src/m3ninx/postings/roaring"
+	"github.com/m3db/m3/src/m3ninx/index/util"
+	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/postings/roaring"
+	"github.com/m3db/m3/src/m3ninx/x/bytes"
 
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/pool"
 )
 
 const (
-	defaultInitialCapacity = 1024
+	defaultInitialCapacity        = 1024
+	defaultBytesArrayPoolCapacity = 1024
 )
 
 // Options is a collection of knobs for an in-memory segment.
@@ -39,6 +42,12 @@ type Options interface {
 
 	// InstrumentOptions returns the instrument options.
 	InstrumentOptions() instrument.Options
+
+	// SetBytesSliceArrayPool sets the bytes slice array pool.
+	SetBytesSliceArrayPool(value bytes.SliceArrayPool) Options
+
+	// BytesSliceArrayPool returns the bytes slice array pool.
+	BytesSliceArrayPool() bytes.SliceArrayPool
 
 	// SetPostingsListPool sets the postings list pool.
 	SetPostingsListPool(value postings.Pool) Options
@@ -60,19 +69,26 @@ type Options interface {
 }
 
 type opts struct {
-	iopts           instrument.Options
-	postingsPool    postings.Pool
-	initialCapacity int
-	newUUIDFn       util.NewUUIDFn
+	iopts             instrument.Options
+	bytesSliceArrPool bytes.SliceArrayPool
+	postingsPool      postings.Pool
+	initialCapacity   int
+	newUUIDFn         util.NewUUIDFn
 }
 
 // NewOptions returns new options.
 func NewOptions() Options {
+	arrPool := bytes.NewSliceArrayPool(bytes.SliceArrayPoolOpts{
+		Capacity: defaultBytesArrayPoolCapacity,
+		Options:  pool.NewObjectPoolOptions(),
+	})
+	arrPool.Init()
 	return &opts{
-		iopts:           instrument.NewOptions(),
-		postingsPool:    postings.NewPool(nil, roaring.NewPostingsList),
-		initialCapacity: defaultInitialCapacity,
-		newUUIDFn:       util.NewUUID,
+		iopts:             instrument.NewOptions(),
+		bytesSliceArrPool: arrPool,
+		postingsPool:      postings.NewPool(nil, roaring.NewPostingsList),
+		initialCapacity:   defaultInitialCapacity,
+		newUUIDFn:         util.NewUUID,
 	}
 }
 
@@ -84,6 +100,16 @@ func (o *opts) SetInstrumentOptions(v instrument.Options) Options {
 
 func (o *opts) InstrumentOptions() instrument.Options {
 	return o.iopts
+}
+
+func (o *opts) SetBytesSliceArrayPool(value bytes.SliceArrayPool) Options {
+	opts := *o
+	opts.bytesSliceArrPool = value
+	return &opts
+}
+
+func (o *opts) BytesSliceArrayPool() bytes.SliceArrayPool {
+	return o.bytesSliceArrPool
 }
 
 func (o *opts) SetPostingsListPool(v postings.Pool) Options {

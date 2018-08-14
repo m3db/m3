@@ -24,7 +24,7 @@ import (
 	"regexp"
 	"sync"
 
-	"github.com/m3db/m3db/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
 // concurrentPostingsMap is a thread-safe map from []byte -> postings.List.
@@ -78,14 +78,14 @@ func (m *concurrentPostingsMap) Add(key []byte, id postings.ID) {
 }
 
 // Keys returns the keys known to the map.
-func (m *concurrentPostingsMap) Keys() [][]byte {
+func (m *concurrentPostingsMap) Keys() *bytesSliceIter {
 	m.RLock()
 	defer m.RUnlock()
-	keys := make([][]byte, 0, m.Len())
+	keys := m.opts.BytesSliceArrayPool().Get()
 	for _, entry := range m.Iter() {
 		keys = append(keys, entry.Key())
 	}
-	return keys
+	return newBytesSliceIter(keys, m.opts)
 }
 
 // Get returns the postings.List backing `key`.

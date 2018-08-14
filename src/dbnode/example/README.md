@@ -11,7 +11,7 @@ Setup GCP for m3db:
     3. Create m3db directory
         $ mkdir -p $HOME/code/src/github.com/m3db
     4. cd into m3db directory and git clone m3db
-        $ git clone https://github.com/m3db/m3db
+        $ git clone https://github.com/m3db/m3
     5. Build m3db
         $ git submodule update --init --recursive
         $ glide install

@@ -25,21 +25,21 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/clock"
-	"github.com/m3db/m3db/src/dbnode/encoding"
-	"github.com/m3db/m3db/src/dbnode/persist"
-	"github.com/m3db/m3db/src/dbnode/persist/fs/commitlog"
-	"github.com/m3db/m3db/src/dbnode/runtime"
-	"github.com/m3db/m3db/src/dbnode/sharding"
-	"github.com/m3db/m3db/src/dbnode/storage/block"
-	"github.com/m3db/m3db/src/dbnode/storage/bootstrap"
-	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3db/src/dbnode/storage/index"
-	"github.com/m3db/m3db/src/dbnode/storage/namespace"
-	"github.com/m3db/m3db/src/dbnode/storage/repair"
-	"github.com/m3db/m3db/src/dbnode/storage/series"
-	"github.com/m3db/m3db/src/dbnode/x/xcounter"
-	"github.com/m3db/m3db/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/sharding"
+	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/repair"
+	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/dbnode/x/xcounter"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -747,12 +747,6 @@ type Options interface {
 
 	// PersistManager returns the persistence manager.
 	PersistManager() persist.Manager
-
-	// SetMaxFlushRetries sets the maximum number of retries when data flushing fails.
-	SetMaxFlushRetries(value int) Options
-
-	// MaxFlushRetries returns the maximum number of retries when data flushing fails.
-	MaxFlushRetries() int
 
 	// SetMinimumSnapshotInterval sets the minimum amount of time that must elapse between snapshots.
 	SetMinimumSnapshotInterval(value time.Duration) Options

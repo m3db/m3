@@ -23,8 +23,8 @@ package topology
 import (
 	"testing"
 
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3cluster/shard"
-	"github.com/m3db/m3db/src/dbnode/sharding"
 	"github.com/m3db/m3x/ident"
 
 	"github.com/stretchr/testify/assert"

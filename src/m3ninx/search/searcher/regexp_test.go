@@ -24,9 +24,9 @@ import (
 	re "regexp"
 	"testing"
 
-	"github.com/m3db/m3db/src/m3ninx/index"
-	"github.com/m3db/m3db/src/m3ninx/postings"
-	"github.com/m3db/m3db/src/m3ninx/postings/roaring"
+	"github.com/m3db/m3/src/m3ninx/index"
+	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -37,7 +37,9 @@ func TestRegexpSearcher(t *testing.T) {
 	defer mockCtrl.Finish()
 
 	field, regexp := []byte("fruit"), []byte(".*pple")
-	compiled := re.MustCompile(string(regexp))
+	compiled := index.CompiledRegex{
+		Simple: re.MustCompile(string(regexp)),
+	}
 
 	// First reader.
 	firstPL := roaring.NewPostingsList()

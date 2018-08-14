@@ -23,8 +23,9 @@ package mem
 import (
 	re "regexp"
 
-	"github.com/m3db/m3db/src/m3ninx/doc"
-	"github.com/m3db/m3db/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/doc"
+	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
 // termsDictionary is an internal interface for a mutable terms dictionary.
@@ -44,11 +45,11 @@ type termsDictionary interface {
 	// given egular expression.
 	MatchRegexp(field, regexp []byte, compiled *re.Regexp) postings.List
 
-	// Fields returns the list of known fields.
-	Fields() [][]byte
+	// Fields returns the known fields.
+	Fields() sgmt.FieldsIterator
 
-	// Terms returns the list of known terms values for the given field.
-	Terms(field []byte) [][]byte
+	// Terms returns the known terms values for the given field.
+	Terms(field []byte) sgmt.TermsIterator
 }
 
 // ReadableSegment is an internal interface for reading from a segment.

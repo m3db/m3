@@ -21,7 +21,7 @@
 package schema
 
 import (
-	"github.com/m3db/m3db/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist"
 )
 
 // MajorVersion is the major schema version for a set of fileset files,

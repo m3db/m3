@@ -25,9 +25,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3db/src/dbnode/sharding"
 	"github.com/m3db/m3x/instrument"
 )
 

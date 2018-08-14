@@ -1,0 +1,50 @@
+listenAddress: 0.0.0.0:7201
+
+metrics:
+  scope:
+    prefix: "coordinator"
+  prometheus:
+    handlerPath: /metrics
+    listenAddress: 0.0.0.0:7203 # until https://github.com/m3db/m3/issues/682 is resolved
+  sanitization: prometheus
+  samplingRate: 1.0
+  extended: none
+
+clusters:
+## Fill-out the following and un-comment before using, and 
+## make sure indent by two spaces is applied.
+#   - namespaces:
+#       - namespace: default
+#         retention: 48h
+#         storageMetricsType: unaggregated
+#     client:
+#       config:
+#         service:
+#           env: default_env
+#           zone: embedded
+#           service: m3db
+#           cacheDir: /var/lib/m3kv
+#           etcdClusters:
+#             - zone: embedded
+#               endpoints:
+#                 - M3DB_NODE_01_STATIC_IP_ADDRESS:2379
+#                 - M3DB_NODE_02_STATIC_IP_ADDRESS:2379
+#                 - M3DB_NODE_03_STATIC_IP_ADDRESS:2379
+##                ... etc, list only M3DB seed nodes
+#       writeConsistencyLevel: majority
+#       readConsistencyLevel: unstrict_majority
+#       writeTimeout: 10s
+#       fetchTimeout: 15s
+#       connectTimeout: 20s
+#       writeRetry:
+#         initialBackoff: 500ms
+#         backoffFactor: 3
+#         maxRetries: 2
+#         jitter: true
+#       fetchRetry:
+#         initialBackoff: 500ms
+#         backoffFactor: 2
+#         maxRetries: 3
+#         jitter: true
+#       backgroundHealthCheckFailLimit: 4
+#       backgroundHealthCheckFailThrottleFactor: 0.5

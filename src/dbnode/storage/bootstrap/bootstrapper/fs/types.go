@@ -21,11 +21,11 @@
 package fs
 
 import (
-	"github.com/m3db/m3db/src/dbnode/persist"
-	"github.com/m3db/m3db/src/dbnode/persist/fs"
-	"github.com/m3db/m3db/src/dbnode/runtime"
-	"github.com/m3db/m3db/src/dbnode/storage/block"
-	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 )

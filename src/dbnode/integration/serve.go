@@ -26,16 +26,16 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/m3db/m3/src/dbnode/client"
+	hjcluster "github.com/m3db/m3/src/dbnode/network/server/httpjson/cluster"
+	hjnode "github.com/m3db/m3/src/dbnode/network/server/httpjson/node"
+	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift"
+	ttcluster "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/cluster"
+	ttnode "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/node"
+	"github.com/m3db/m3/src/dbnode/sharding"
+	"github.com/m3db/m3/src/dbnode/storage"
+	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3cluster/shard"
-	"github.com/m3db/m3db/src/dbnode/client"
-	hjcluster "github.com/m3db/m3db/src/dbnode/network/server/httpjson/cluster"
-	hjnode "github.com/m3db/m3db/src/dbnode/network/server/httpjson/node"
-	"github.com/m3db/m3db/src/dbnode/network/server/tchannelthrift"
-	ttcluster "github.com/m3db/m3db/src/dbnode/network/server/tchannelthrift/cluster"
-	ttnode "github.com/m3db/m3db/src/dbnode/network/server/tchannelthrift/node"
-	"github.com/m3db/m3db/src/dbnode/sharding"
-	"github.com/m3db/m3db/src/dbnode/storage"
-	"github.com/m3db/m3db/src/dbnode/topology"
 )
 
 // newTestShardSet creates a default shard set

@@ -1,0 +1,14 @@
+
+syntax = "proto3";
+package admin;
+
+import "github.com/m3db/m3/src/dbnode/generated/proto/namespace/namespace.proto";
+
+message NamespaceGetResponse {
+  namespace.Registry registry = 1;
+}
+
+message NamespaceAddRequest {
+  string                        name = 1;
+  namespace.NamespaceOptions options = 2;
+}

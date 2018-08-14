@@ -4,7 +4,7 @@
 
 # Usage
 ```
-$ git clone git@github.com:m3db/m3db.git
+$ git clone git@github.com:m3db/m3.git
 $ make clone_fileset
 $ ./bin/clone_fileset -h
 

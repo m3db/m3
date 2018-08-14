@@ -25,16 +25,16 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/kvconfig"
+	"github.com/m3db/m3/src/dbnode/sharding"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/topology"
 	clusterclient "github.com/m3db/m3cluster/client"
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3cluster/kv"
 	m3clusterkvmem "github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
-	"github.com/m3db/m3db/src/dbnode/kvconfig"
-	"github.com/m3db/m3db/src/dbnode/sharding"
-	"github.com/m3db/m3db/src/dbnode/storage/namespace"
-	"github.com/m3db/m3db/src/dbnode/topology"
 	"github.com/m3db/m3x/instrument"
 )
 

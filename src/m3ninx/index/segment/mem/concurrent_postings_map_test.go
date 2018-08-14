@@ -26,6 +26,8 @@ import (
 	"sort"
 	"testing"
 
+	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -63,7 +65,7 @@ func TestConcurrentPostingsMapKeys(t *testing.T) {
 	opts := NewOptions()
 	pm := newConcurrentPostingsMap(opts)
 
-	keys := pm.Keys()
+	keys := toSlice(t, pm.Keys())
 	require.Empty(t, keys)
 
 	var (
@@ -73,20 +75,30 @@ func TestConcurrentPostingsMapKeys(t *testing.T) {
 	)
 
 	pm.Add(foo, 1)
-	keys = pm.Keys()
+	keys = toSlice(t, pm.Keys())
 	require.Equal(t, [][]byte{foo}, sortKeys(keys))
 
 	pm.Add(bar, 2)
-	keys = pm.Keys()
+	keys = toSlice(t, pm.Keys())
 	require.Equal(t, [][]byte{bar, foo}, sortKeys(keys))
 
 	pm.Add(foo, 3)
-	keys = pm.Keys()
+	keys = toSlice(t, pm.Keys())
 	require.Equal(t, [][]byte{bar, foo}, sortKeys(keys))
 
 	pm.Add(baz, 4)
-	keys = pm.Keys()
+	keys = toSlice(t, pm.Keys())
 	require.Equal(t, [][]byte{bar, baz, foo}, sortKeys(keys))
+}
+
+func toSlice(t *testing.T, iter sgmt.OrderedBytesIterator) [][]byte {
+	elems := [][]byte{}
+	for iter.Next() {
+		elems = append(elems, iter.Current())
+	}
+	require.NoError(t, iter.Err())
+	require.NoError(t, iter.Close())
+	return elems
 }
 
 func sortKeys(keys [][]byte) [][]byte {

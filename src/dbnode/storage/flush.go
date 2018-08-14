@@ -26,8 +26,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/persist"
-	"github.com/m3db/m3db/src/dbnode/retention"
+	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/retention"
 	xerrors "github.com/m3db/m3x/errors"
 
 	"github.com/uber-go/tally"

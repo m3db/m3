@@ -26,9 +26,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3cluster/integration/etcd"
-	"github.com/m3db/m3db/src/dbnode/integration/generate"
-	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/protobuf/proto"

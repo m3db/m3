@@ -1,4 +1,9 @@
 SELF_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
+
+# Grab necessary submodules, in case the repo was cloned without --recursive
+$(SELF_DIR)/.ci/common.mk:
+	git submodule update --init --recursive
+
 include $(SELF_DIR)/.ci/common.mk
 
 SHELL=/bin/bash -o pipefail
@@ -6,7 +11,7 @@ SHELL=/bin/bash -o pipefail
 auto_gen             := scripts/auto-gen.sh
 process_coverfile    := scripts/process-cover.sh
 gopath_prefix        := $(GOPATH)/src
-m3db_package         := github.com/m3db/m3db
+m3db_package         := github.com/m3db/m3
 m3db_package_path    := $(gopath_prefix)/$(m3db_package)
 mockgen_package      := github.com/golang/mock/mockgen
 retool_bin_path      := $(m3db_package_path)/_tools/bin
@@ -30,17 +35,19 @@ GO_BUILD_LDFLAGS_CMD := $(abspath ./.ci/go-build-ldflags.sh) $(m3db_package)
 GO_BUILD_LDFLAGS     := $(shell $(GO_BUILD_LDFLAGS_CMD))
 LINUX_AMD64_ENV      := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
 GO_RELEASER_VERSION  := v0.76.1
+GOMETALINT_VERSION   := v2.0.5
 
 SERVICES :=     \
 	m3dbnode      \
 	m3coordinator \
 	m3nsch_server \
 	m3nsch_client \
+	m3query       \
 
 SUBDIRS :=    \
 	cmd         \
 	dbnode      \
-	coordinator \
+	query       \
 	m3nsch      \
 	m3ninx      \
 
@@ -125,6 +132,11 @@ install-codegen-tools: install-retool
 	@retool sync >/dev/null 2>/dev/null
 	@retool build >/dev/null 2>/dev/null
 
+.PHONY: install-gometalinter
+install-gometalinter:
+	@mkdir -p $(retool_bin_path)
+	./scripts/install-gometalinter.sh -b $(retool_bin_path) -d $(GOMETALINT_VERSION)
+
 .PHONY: install-stringer
 install-stringer:
 		@which stringer > /dev/null || go get golang.org/x/tools/cmd/stringer
@@ -165,7 +177,7 @@ docs-serve: docs-container
 
 .PHONY: docs-deploy
 docs-deploy: docs-container
-	docker run -v $(PWD):/m3db --rm m3db-docs "mkdocs build -e docs/theme -t material && mkdocs gh-deploy --dirty"
+	docker run -v $(PWD):/m3db --rm -v $(HOME)/.ssh/id_rsa:/root/.ssh/id_rsa:ro -it m3db-docs "mkdocs build -e docs/theme -t material && mkdocs gh-deploy --dirty"
 
 .PHONY: docker-integration-test
 docker-integration-test:
@@ -245,9 +257,10 @@ genny-gen-$(SUBDIR): install-codegen-tools
 all-gen-$(SUBDIR): thrift-gen-$(SUBDIR) proto-gen-$(SUBDIR) asset-gen-$(SUBDIR) genny-gen-$(SUBDIR) mock-gen-$(SUBDIR)
 
 .PHONY: metalint-$(SUBDIR)
-metalint-$(SUBDIR): install-metalinter install-linter-badtime install-linter-importorder
+metalint-$(SUBDIR): install-gometalinter install-linter-badtime install-linter-importorder
 	@echo metalinting $(SUBDIR)
-	@($(metalint_check) src/$(SUBDIR)/$(metalint_config) src/$(SUBDIR)/$(metalint_exclude) src/$(SUBDIR))
+	@(PATH=$(retool_bin_path):$(PATH) $(metalint_check) \
+		src/$(SUBDIR)/$(metalint_config) src/$(SUBDIR)/$(metalint_exclude) src/$(SUBDIR))
 
 .PHONY: test-$(SUBDIR)
 test-$(SUBDIR):

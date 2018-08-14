@@ -28,21 +28,21 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/clock"
-	"github.com/m3db/m3db/src/dbnode/encoding"
-	"github.com/m3db/m3db/src/dbnode/encoding/m3tsz"
-	"github.com/m3db/m3db/src/dbnode/persist"
-	"github.com/m3db/m3db/src/dbnode/persist/fs/commitlog"
-	"github.com/m3db/m3db/src/dbnode/retention"
-	m3dbruntime "github.com/m3db/m3db/src/dbnode/runtime"
-	"github.com/m3db/m3db/src/dbnode/storage/block"
-	"github.com/m3db/m3db/src/dbnode/storage/bootstrap"
-	"github.com/m3db/m3db/src/dbnode/storage/index"
-	"github.com/m3db/m3db/src/dbnode/storage/namespace"
-	"github.com/m3db/m3db/src/dbnode/storage/repair"
-	"github.com/m3db/m3db/src/dbnode/storage/series"
-	"github.com/m3db/m3db/src/dbnode/x/xcounter"
-	"github.com/m3db/m3db/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3/src/dbnode/retention"
+	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
+	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/repair"
+	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/dbnode/x/xcounter"
+	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -51,9 +51,6 @@ import (
 )
 
 const (
-	// defaultMaxFlushRetries is the default number of retries when flush fails
-	defaultMaxFlushRetries = 3
-
 	// defaultBytesPoolBucketCapacity is the default bytes buffer capacity for the default bytes pool bucket
 	defaultBytesPoolBucketCapacity = 256
 
@@ -129,7 +126,6 @@ type options struct {
 	newDecoderFn                   encoding.NewDecoderFn
 	bootstrapProcessProvider       bootstrap.ProcessProvider
 	persistManager                 persist.Manager
-	maxFlushRetries                int
 	minSnapshotInterval            time.Duration
 	blockRetrieverManager          block.DatabaseBlockRetrieverManager
 	poolOpts                       pool.ObjectPoolOptions
@@ -178,7 +174,6 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		repairEnabled:            defaultRepairEnabled,
 		repairOpts:               repair.NewOptions(),
 		bootstrapProcessProvider: defaultBootstrapProcessProvider,
-		maxFlushRetries:          defaultMaxFlushRetries,
 		minSnapshotInterval:      defaultMinSnapshotInterval,
 		poolOpts:                 poolOpts,
 		contextPool: context.NewPool(context.NewOptions().
@@ -475,16 +470,6 @@ func (o *options) SetPersistManager(value persist.Manager) Options {
 
 func (o *options) PersistManager() persist.Manager {
 	return o.persistManager
-}
-
-func (o *options) SetMaxFlushRetries(value int) Options {
-	opts := *o
-	opts.maxFlushRetries = value
-	return &opts
-}
-
-func (o *options) MaxFlushRetries() int {
-	return o.maxFlushRetries
 }
 
 func (o *options) SetDatabaseBlockRetrieverManager(value block.DatabaseBlockRetrieverManager) Options {

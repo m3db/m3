@@ -26,11 +26,11 @@ import (
 	"io"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/encoding"
-	"github.com/m3db/m3db/src/dbnode/encoding/m3tsz"
-	"github.com/m3db/m3db/src/dbnode/environment"
-	"github.com/m3db/m3db/src/dbnode/topology"
-	"github.com/m3db/m3db/src/dbnode/x/tchannel"
+	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/environment"
+	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3/src/dbnode/x/tchannel"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/retry"
 )

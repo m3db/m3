@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/topology"
+	"github.com/m3db/m3/src/dbnode/topology"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/retry"
 

@@ -13,4 +13,4 @@ docker run --rm -u $(id -u) -v "$(pwd):/data" \
   --inputFile /data/rpc.thrift --outputDir /data
 
 # ensure formatting is correct
-go fmt github.com/m3db/m3db/src/dbnode/generated/thrift/rpc
+go fmt github.com/m3db/m3/src/dbnode/generated/thrift/rpc

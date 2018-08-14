@@ -5,9 +5,9 @@ import (
 	"io/ioutil"
 	"time"
 
+	m3emnode "github.com/m3db/m3/src/dbnode/x/m3em/node"
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3cluster/placement"
-	m3emnode "github.com/m3db/m3db/src/dbnode/x/m3em/node"
 	"github.com/m3db/m3em/cluster"
 	"github.com/m3db/m3em/generated/proto/m3em"
 	"github.com/m3db/m3em/node"

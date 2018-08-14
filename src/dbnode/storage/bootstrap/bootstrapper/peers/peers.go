@@ -23,8 +23,8 @@ package peers
 import (
 	"fmt"
 
-	"github.com/m3db/m3db/src/dbnode/storage/bootstrap"
-	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/bootstrapper"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 )
 
 const (

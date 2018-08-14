@@ -26,14 +26,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/clock"
-	"github.com/m3db/m3db/src/dbnode/persist"
-	"github.com/m3db/m3db/src/dbnode/ratelimit"
-	"github.com/m3db/m3db/src/dbnode/runtime"
-	"github.com/m3db/m3db/src/dbnode/ts"
-	"github.com/m3db/m3db/src/m3ninx/index/segment"
-	m3ninxfs "github.com/m3db/m3db/src/m3ninx/index/segment/fs"
-	m3ninxpersist "github.com/m3db/m3db/src/m3ninx/persist"
+	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/ratelimit"
+	"github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/m3ninx/index/segment"
+	m3ninxfs "github.com/m3db/m3/src/m3ninx/index/segment/fst"
+	m3ninxpersist "github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -119,7 +119,7 @@ type newIndexReaderFn func(Options) (IndexFileSetReader, error)
 
 type newPersistentSegmentFn func(
 	m3ninxpersist.IndexSegmentFileSet,
-	m3ninxfs.NewSegmentOpts,
+	m3ninxfs.Options,
 ) (m3ninxfs.Segment, error)
 
 type persistManagerMetrics struct {

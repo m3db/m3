@@ -2,7 +2,7 @@ SELF_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 include $(SELF_DIR)/../../.ci/common.mk
 
 gopath_prefix        := $(GOPATH)/src
-m3ninx_package       := github.com/m3db/m3db/src/m3ninx
+m3ninx_package       := github.com/m3db/m3/src/m3ninx
 m3ninx_package_path  := $(gopath_prefix)/$(m3ninx_package)
 m3x_package          := github.com/m3db/m3x
 m3x_package_path     := $(gopath_prefix)/$(m3x_package)
@@ -23,7 +23,7 @@ install-m3x-repo: install-glide
 
 # Generation rule for all generated types
 .PHONY: genny-all
-genny-all: genny-map-all
+genny-all: genny-map-all genny-arraypool-all
 
 # Map generation rule for all generated maps
 .PHONY: genny-map-all
@@ -31,8 +31,8 @@ genny-map-all:                          \
 	genny-map-segment-mem-postingsmap     \
 	genny-map-segment-mem-fieldsmap       \
 	genny-map-segment-mem-idsmap          \
-	genny-map-segment-fs-postings-offset  \
-	genny-map-segment-fs-fst-terms-offset
+	genny-map-segment-fst-postings-offset \
+	genny-map-segment-fst-terms-offset
 
 # NB: We use (genny)[1] to combat the lack of generics in Go. It allows us
 # to declare templat-ized versions of code, and specialize using code
@@ -88,30 +88,48 @@ genny-map-segment-mem-idsmap: install-m3x-repo
 	# Rename generated map file
 	mv -f $(m3ninx_package_path)/index/segment/mem/map_gen.go $(m3ninx_package_path)/index/segment/mem/ids_map_gen.go
 
-# Map generation rule for index/segment/fs/postingsOffsetsMap
-.PHONY: genny-map-segment-fs-postings-offset
-genny-map-segment-fs-postings-offset: install-m3x-repo
+# Map generation rule for index/segment/fst/postingsOffsetsMap
+.PHONY: genny-map-segment-fst-postings-offset
+genny-map-segment-fst-postings-offset: install-m3x-repo
 	cd $(m3x_package_path) && make hashmap-gen           \
-		pkg=fs                                             \
+		pkg=fst                                            \
 		key_type=doc.Field                                 \
 		value_type=uint64                                  \
-		target_package=$(m3ninx_package)/index/segment/fs  \
+		target_package=$(m3ninx_package)/index/segment/fst \
 		rename_nogen_key=true                              \
 		rename_nogen_value=true                            \
 		rename_type_prefix=postingsOffsets
 	# Rename generated map file
-	mv -f $(m3ninx_package_path)/index/segment/fs/map_gen.go $(m3ninx_package_path)/index/segment/fs/postings_offsets_map_gen.go
+	mv -f $(m3ninx_package_path)/index/segment/fst/map_gen.go $(m3ninx_package_path)/index/segment/fst/postings_offsets_map_gen.go
 
-# Map generation rule for index/segment/fs/fstTermsOffsetsMap
-.PHONY: genny-map-segment-fs-fst-terms-offset
-genny-map-segment-fs-fst-terms-offset: install-m3x-repo
+# Map generation rule for index/segment/fst/fstTermsOffsetsMap
+.PHONY: genny-map-segment-fst-terms-offset
+genny-map-segment-fst-terms-offset: install-m3x-repo
 	cd $(m3x_package_path) && make hashmap-gen           \
-		pkg=fs                                             \
+		pkg=fst                                            \
 		key_type=[]byte                                    \
 		value_type=uint64                                  \
-		target_package=$(m3ninx_package)/index/segment/fs  \
+		target_package=$(m3ninx_package)/index/segment/fst \
 		rename_nogen_key=true                              \
 		rename_nogen_value=true                            \
 		rename_type_prefix=fstTermsOffsets
 	# Rename generated map file
-	mv -f $(m3ninx_package_path)/index/segment/fs/map_gen.go $(m3ninx_package_path)/index/segment/fs/fst_terms_offsets_map_gen.go
+	mv -f $(m3ninx_package_path)/index/segment/fst/map_gen.go $(m3ninx_package_path)/index/segment/fst/fst_terms_offsets_map_gen.go
+
+# generation rule for all generated arraypools
+.PHONY: genny-arraypool-all
+genny-arraypool-all:                     \
+	genny-arraypool-bytes-slice-array-pool \
+
+# arraypool generation rule for ./x/bytes.SliceArrayPool
+.PHONY: genny-arraypool-bytes-slice-array-pool
+genny-arraypool-bytes-slice-array-pool: install-m3x-repo
+	cd $(m3x_package_path) && make genny-arraypool \
+	pkg=bytes                                      \
+	elem_type=[]byte                               \
+	target_package=$(m3ninx_package)/x/bytes       \
+	out_file=slice_arraypool_gen.go                \
+	rename_type_prefix=Slice                       \
+	rename_type_middle=Slice                       \
+	rename_constructor=NewSliceArrayPool
+

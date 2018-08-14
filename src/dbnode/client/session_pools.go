@@ -21,9 +21,9 @@
 package client
 
 import (
-	"github.com/m3db/m3db/src/dbnode/encoding"
-	"github.com/m3db/m3db/src/dbnode/serialize"
-	"github.com/m3db/m3db/src/dbnode/x/xpool"
+	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/serialize"
+	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 )

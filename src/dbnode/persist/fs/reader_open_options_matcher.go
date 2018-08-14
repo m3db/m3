@@ -23,7 +23,7 @@ package fs
 import (
 	"fmt"
 
-	"github.com/m3db/m3db/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist"
 )
 
 // ReaderOpenOptionsMatcher is a matcher for the DataReaderOpenOptions struct

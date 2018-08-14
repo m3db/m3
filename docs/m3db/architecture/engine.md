@@ -107,7 +107,7 @@ While the [fileset files](storage.md) are designed to support efficient data ret
 
 ## Write Path
 
-We now have enough context of M3DB's architecture to discuss the lifecycle of a write. A write begins when an M3DB client calls the [`writeBatchRaw`](https://github.com/m3db/m3db/blob/06d3ecc94d13cff67b82a791271816caa338dcab/src/dbnode/generated/thrift/rpc.thrift#L59) endpoint on M3DB's embedded thrift server. The write itself will contain the following information:
+We now have enough context of M3DB's architecture to discuss the lifecycle of a write. A write begins when an M3DB client calls the [`writeBatchRaw`](https://github.com/m3db/m3/blob/06d3ecc94d13cff67b82a791271816caa338dcab/src/dbnode/generated/thrift/rpc.thrift#L59) endpoint on M3DB's embedded thrift server. The write itself will contain the following information:
 
 1. The namespace
 2. The series ID (byte blob)
@@ -124,7 +124,7 @@ The write will exist only in this "active buffer" and the commitlog until the bl
 
 ## Read Path
 
-A read begins when an M3DB client calls the [`FetchBatchResult`](https://github.com/m3db/m3db/blob/master/generated/thrift/rpc.thrift) or [`FetchBlocksRawResult`](https://github.com/m3db/m3db/blob/master/generated/thrift/rpc.thrift) endpoint on M3DB's embedded thrift server. The read request will contain the following information:
+A read begins when an M3DB client calls the [`FetchBatchResult`](https://github.com/m3db/m3/blob/master/generated/thrift/rpc.thrift) or [`FetchBlocksRawResult`](https://github.com/m3db/m3/blob/master/generated/thrift/rpc.thrift) endpoint on M3DB's embedded thrift server. The read request will contain the following information:
 
 1. The namespace
 2. The series ID (byte blob)

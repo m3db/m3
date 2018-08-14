@@ -25,7 +25,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/ts"
+	"github.com/m3db/m3/src/dbnode/ts"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"

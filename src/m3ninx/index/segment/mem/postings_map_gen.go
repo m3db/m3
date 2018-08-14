@@ -4,7 +4,7 @@
 
 package mem
 
-import "github.com/m3db/m3db/src/m3ninx/postings"
+import "github.com/m3db/m3/src/m3ninx/postings"
 
 // Copyright (c) 2018 Uber Technologies, Inc.
 //

@@ -1,5 +1,5 @@
-hash: 3a53f2c08d71320ccc49b0078a702b0eee06f316cab7a68135c8cbc74d44983c
-updated: 2018-07-25T13:02:19.326704-04:00
+hash: ab5f540aa745c7a2328cf4ed6de02f59fc578137440034d74cdf9d6af8377782
+updated: 2018-08-03T17:15:02.030496-04:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -120,14 +120,14 @@ imports:
 - name: github.com/glycerine/go-unsnap-stream
   version: 9f0cb55181dd3a0a4c168d3dbc72d4aca4853126
 - name: github.com/go-kit/kit
-  version: 04dd4f741c6e76cc170a4d7913f4c625952e6f58
+  version: de60aef62101a73dbd4b1b596e6db9a801009508
   subpackages:
   - log
   - log/level
 - name: github.com/go-logfmt/logfmt
   version: 390ab7935ee28ec6b286364bba9b4dd6410cb3d5
 - name: github.com/go-stack/stack
-  version: 54be5f394ed2c3e19dac9134a40a95ba5a017f7b
+  version: 259ab82a6cad3992b4e21ff5cac294ccb06474bc
 - name: github.com/gogo/protobuf
   version: 100ba4e885062801d56799d78530b73b178a78f3
   subpackages:
@@ -198,21 +198,26 @@ imports:
 - name: github.com/m3db/bloom
   version: 47fe1193cdb900de7193d1f3d26ea9b2cbf6fb31
 - name: github.com/m3db/m3aggregator
-  version: fd38c07d1a94b8598b6839a9c471e0a6feacfafb
+  version: 6f59918fe3791a3df0dc146ea492593925809c3e
   subpackages:
   - aggregation
   - aggregation/quantile/cm
   - aggregator
   - aggregator/handler
   - aggregator/handler/common
+  - aggregator/handler/filter
+  - aggregator/handler/router
+  - aggregator/handler/router/trafficcontrol
   - aggregator/handler/writer
+  - bitset
+  - client
   - generated/proto/flush
   - hash
   - rate
   - runtime
   - sharding
 - name: github.com/m3db/m3cluster
-  version: b4935c48a00f47c6f16f71d15d94e1c24785297d
+  version: 313c27d715da9c0993bdc640b758d93d1392438a
   subpackages:
   - client
   - client/etcd
@@ -237,6 +242,14 @@ imports:
   - services/leader/campaign
   - services/leader/election
   - shard
+- name: github.com/m3db/m3ctl
+  version: acc762bfdd42ecb192d34e48fa7ca1fd7ee088ac
+  subpackages:
+  - auth
+  - service
+  - service/r2
+  - service/r2/store
+  - service/r2/store/kv
 - name: github.com/m3db/m3em
   version: ed532baee45a440f0b08b6893c816634c6978d4d
   subpackages:
@@ -250,47 +263,48 @@ imports:
   - os/fs
   - x/grpc
 - name: github.com/m3db/m3metrics
-  version: f22d8684fa8b42ff30f1d68f6f2be5e465db9a9d
+  version: b400256bc6da4c10bad5a5f0a11e91bfa095e2e6
   subpackages:
   - aggregation
+  - encoding
+  - encoding/msgpack
+  - encoding/protobuf
   - errors
   - filters
-  - generated/proto/schema
+  - generated/proto/aggregationpb
+  - generated/proto/metricpb
+  - generated/proto/pipelinepb
+  - generated/proto/policypb
+  - generated/proto/rulepb
+  - generated/proto/transformationpb
   - matcher
   - matcher/cache
+  - metadata
   - metric
   - metric/aggregated
   - metric/id
   - metric/id/m3
   - metric/unaggregated
+  - pipeline
+  - pipeline/applied
   - policy
-  - protocol/msgpack
   - rules
-  - rules/models
-  - rules/models/changes
-- name: github.com/m3db/m3ninx
-  version: 7556fa8339674f1d9f559486d1feca18c17d1190
+  - rules/store/kv
+  - rules/view
+  - rules/view/changes
+  - transformation
+  - x/bytes
+- name: github.com/m3db/m3msg
+  version: 4680d9b45286826f87b134a4559b11d795786eaf
   subpackages:
-  - doc
-  - generated/proto/fswriter
-  - generated/proto/querypb
-  - idx
-  - index
-  - index/segment
-  - index/segment/fs
-  - index/segment/fs/encoding
-  - index/segment/fs/encoding/docs
-  - index/segment/mem
-  - index/util
-  - persist
-  - postings
-  - postings/pilosa
-  - postings/roaring
-  - search
-  - search/executor
-  - search/query
-  - search/searcher
-  - x
+  - generated/proto/msgpb
+  - generated/proto/topicpb
+  - producer
+  - producer/buffer
+  - producer/config
+  - producer/writer
+  - protocol/proto
+  - topic
 - name: github.com/m3db/m3x
   version: 994ab3222cc45bdb1b439f96d37221651b24feca
   vcs: git
@@ -342,16 +356,20 @@ imports:
   version: c12348ce28de40eed0136aa2b644d0ee0650e56c
   subpackages:
   - pbutil
+- name: github.com/mauricelam/genny
+  version: 11e1a0b9d8936dda6aa9b8f4bfeae2a6715ea858
+  subpackages:
+  - generic
 - name: github.com/mitchellh/mapstructure
-  version: bb74f1db0675b241733089d5a1faa5dd8b0ef57b
+  version: f15292f7a699fcc1a38a80977f80a046874ba8ac
 - name: github.com/mschoch/smat
   version: 90eadee771aeab36e8bf796039b8c261bebebe4f
 - name: github.com/nightlyone/lockfile
-  version: 1d49c987357a327b5b03aa84cbddd582c328615d
+  version: 0ad87eef1443f64d3d8c50da647e2b1552851124
 - name: github.com/nu7hatch/gouuid
   version: 179d4d0c4d8d407a32af483c2354df1d2c91e6c3
 - name: github.com/oklog/ulid
-  version: 66bb6560562feca7045b23db1ae85b01260f87c5
+  version: fbd4c399462d51c71b859451c8084036c35ecb3d
 - name: github.com/opentracing/opentracing-go
   version: 855519783f479520497c6b3445611b05fc42f009
   subpackages:
@@ -361,7 +379,7 @@ imports:
 - name: github.com/pborman/uuid
   version: e790cca94e6cc75c7064b1332e63811d4aae1a53
 - name: github.com/pelletier/go-toml
-  version: c01d1270ff3e442a8a57cddc1c92dc1138598194
+  version: c2dbbc24a97911339e01bda0b8cabdbd8f13b602
 - name: github.com/philhofer/fwd
   version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
 - name: github.com/pilosa/pilosa
@@ -369,7 +387,7 @@ imports:
   subpackages:
   - roaring
 - name: github.com/pkg/errors
-  version: 248dadf4e9068a0b3e79f02ed0a610d935de5302
+  version: 816c9085562cd7ee03e7f8188a1cfd942858cded
 - name: github.com/pkg/profile
   version: 5b67d428864e92711fcbd2f8629456121a56d91f
 - name: github.com/pmezard/go-difflib
@@ -381,11 +399,11 @@ imports:
   subpackages:
   - prometheus
 - name: github.com/prometheus/client_model
-  version: 6f3806018612930941127f2a7c6c453ba2c527d2
+  version: fa8ad6fec33561be4280a8f0514318c79d7f6cb6
   subpackages:
   - go
 - name: github.com/prometheus/common
-  version: 49fee292b27bfff7f354ee0f64e1bc4850462edf
+  version: 9e0844febd9e2856f839c9cb974fbd676d1755a8
   subpackages:
   - expfmt
   - internal/bitbucket.org/ww/goautoneg
@@ -416,7 +434,7 @@ imports:
   - index
   - labels
 - name: github.com/RoaringBitmap/roaring
-  version: 361768d03f0924093d3eed7623f3cf58392620f4
+  version: 3d677d3262197ee558b85029301eb69b8239f91a
 - name: github.com/satori/go.uuid
   version: f58768cc1a7a7e77a3bd49e98cdd21419399b6a3
 - name: github.com/sergi/go-diff
@@ -448,13 +466,13 @@ imports:
   - require
   - suite
 - name: github.com/tinylib/msgp
-  version: c8cf64dff2009d53fa8f8a16df54d1cdfc64c4a7
+  version: 53e4ad1e134ee9b42a7add28ca77177ab17983b3
   subpackages:
   - msgp
 - name: github.com/uber-go/atomic
   version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
 - name: github.com/uber-go/tally
-  version: 79f2a33b0e55b1255ffbbaf824dcafb09ff34dda
+  version: ff17f3c43c065c3c2991f571e740eee43ea3a14a
   subpackages:
   - m3
   - m3/customtransports
@@ -494,8 +512,7 @@ imports:
   - internal/exit
   - zapcore
 - name: golang.org/x/crypto
-  version: 9419663f5a44be8b34ca85f08abc5fe1be11f8a3
-
+  version: 1351f936d976c60a0a48d728281922cf63eafb8d
   subpackages:
   - bcrypt
   - blowfish
@@ -517,12 +534,11 @@ imports:
   - lex/httplex
   - trace
 - name: golang.org/x/sync
-  version: 450f422ab23cf9881c94e2db30cac0eb1b7cf80c
+  version: 1d60e4601c6fd243af51cc01ddf169918a5407ca
   subpackages:
   - errgroup
 - name: golang.org/x/sys
-  version: e48874b42435b4347fc52bdee0424a52abc974d7
-
+  version: d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03
   subpackages:
   - unix
 - name: golang.org/x/text
@@ -552,14 +568,9 @@ imports:
   version: 5b3c4e850e90a4cf6a20ebd46c8b32a0a3afcb9e
   subpackages:
   - balancer
-  - balancer/base
-  - balancer/roundrobin
-  - channelz
   - codes
   - connectivity
   - credentials
-  - encoding
-  - encoding/proto
   - grpclb/grpc_lb_v1/messages
   - grpclog
   - health/grpc_health_v1
@@ -569,8 +580,6 @@ imports:
   - naming
   - peer
   - resolver
-  - resolver/dns
-  - resolver/passthrough
   - stats
   - status
   - tap
@@ -590,9 +599,17 @@ testImports:
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/fortytw2/leaktest
   version: 3677f62bb30dbf3b042c4c211245d072aa9ee075
+- name: github.com/go-playground/locales
+  version: 1e5f1161c6416a5ff48840eb8724a394e48cc534
+  subpackages:
+  - currency
+- name: github.com/go-playground/universal-translator
+  version: 71201497bace774495daed26a3874fd339e0b538
 - name: github.com/leanovate/gopter
   version: f778776473e0ef7764e1434dd01a61cc1ec574b4
   subpackages:
   - commands
   - gen
   - prop
+- name: gopkg.in/go-playground/validator.v9
+  version: a021b2ec9a8a8bb970f3f15bc42617cb520e8a64

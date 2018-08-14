@@ -24,7 +24,7 @@ import (
 	"io"
 	"time"
 
-	m3emnode "github.com/m3db/m3db/src/dbnode/x/m3em/node"
+	m3emnode "github.com/m3db/m3/src/dbnode/x/m3em/node"
 )
 
 // NodePredicate is a predicate on a M3DB ServiceNode

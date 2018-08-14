@@ -30,8 +30,8 @@ import (
 	"time"
 
 	"github.com/m3db/bloom"
-	"github.com/m3db/m3db/src/dbnode/digest"
-	"github.com/m3db/m3db/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/digest"
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"

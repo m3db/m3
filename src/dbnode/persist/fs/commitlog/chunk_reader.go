@@ -24,7 +24,7 @@ import (
 	"bufio"
 	"os"
 
-	"github.com/m3db/m3db/src/dbnode/digest"
+	"github.com/m3db/m3/src/dbnode/digest"
 )
 
 const (

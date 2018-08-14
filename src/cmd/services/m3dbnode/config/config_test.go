@@ -25,8 +25,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/m3db/m3db/src/dbnode/environment"
-	xtest "github.com/m3db/m3db/src/dbnode/x/test"
+	"github.com/m3db/m3/src/dbnode/environment"
+	xtest "github.com/m3db/m3/src/dbnode/x/test"
 	xconfig "github.com/m3db/m3x/config"
 
 	"github.com/stretchr/testify/assert"
@@ -40,24 +40,24 @@ db:
     logging:
         level: info
         file: /var/log/m3dbnode.log
-    
+
     metrics:
         prometheus:
             handlerPath: /metrics
         sanitization: prometheus
         samplingRate: 1.0
         extended: detailed
-    
+
     listenAddress: 0.0.0.0:9000
     clusterListenAddress: 0.0.0.0:9001
     httpNodeListenAddress: 0.0.0.0:9002
     httpClusterListenAddress: 0.0.0.0:9003
     debugListenAddress: 0.0.0.0:9004
-    
+
     hostID:
         resolver: config
         value: host1
-    
+
     client:
         writeConsistencyLevel: majority
         readConsistencyLevel: unstrict_majority
@@ -79,13 +79,13 @@ db:
         backgroundHealthCheckFailThrottleFactor: 0.5
         hashing:
           seed: 42
-    
-    
+
+
     gcPercentage: 100
-    
+
     writeNewSeriesLimitPerSecond: 1048576
     writeNewSeriesBackoffDuration: 2ms
-    
+
     bootstrap:
         bootstrappers:
             - filesystem
@@ -93,7 +93,7 @@ db:
             - noop-all
         fs:
             numProcessorsPerCPU: 0.125
-    
+
     commitlog:
         flushMaxBytes: 524288
         flushEvery: 1s
@@ -102,7 +102,7 @@ db:
             size: 2097152
         retentionPeriod: 24h
         blockSize: 10m
-    
+
     fs:
         filePathPrefix: /var/lib/m3db
         writeBufferSize: 65536
@@ -111,7 +111,7 @@ db:
         seekReadBufferSize: 4096
         throughputLimitMbps: 100.0
         throughputCheckEvery: 128
-    
+
     repair:
         enabled: false
         interval: 2h
@@ -119,7 +119,7 @@ db:
         jitter: 1h
         throttle: 2m
         checkInterval: 1m
-    
+
     pooling:
         blockAllocSize: 16
         type: simple
@@ -245,7 +245,7 @@ db:
                   size: 32768
                   lowWatermark: 0.01
                   highWatermark: 0.02
-    
+
     config:
         service:
             env: production
@@ -546,6 +546,7 @@ db:
         tls: null
       m3sd:
         initTimeout: null
+      watchWithRevision: 0
     static: null
     seedNodes:
       rootDir: /var/lib/etcd

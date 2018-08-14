@@ -26,13 +26,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/clock"
-	"github.com/m3db/m3db/src/dbnode/persist/fs/commitlog"
-	"github.com/m3db/m3db/src/dbnode/runtime"
-	"github.com/m3db/m3db/src/dbnode/storage/index"
-	"github.com/m3db/m3db/src/dbnode/storage/namespace"
-	"github.com/m3db/m3db/src/dbnode/ts"
-	xmetrics "github.com/m3db/m3db/src/dbnode/x/metrics"
+	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/ts"
+	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	xclock "github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
@@ -142,7 +142,7 @@ func TestShardWriteTaggedSyncRefCountMockIndex(t *testing.T) {
 }
 
 func TestShardWriteTaggedSyncRefCountSyncIndex(t *testing.T) {
-	defer leaktest.CheckTimeout(t, 2*time.Second)()
+	defer leaktest.CheckTimeout(t, 10*time.Second)()
 	newFn := func(fn nsIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
 		q := newNamespaceIndexInsertQueue(fn, nowFn, s)
 		q.(*nsIndexInsertQueue).indexBatchBackoff = 10 * time.Millisecond
@@ -335,7 +335,7 @@ func TestShardWriteTaggedAsyncRefCountMockIndex(t *testing.T) {
 }
 
 func TestShardWriteTaggedAsyncRefCountSyncIndex(t *testing.T) {
-	defer leaktest.CheckTimeout(t, 2*time.Second)()
+	defer leaktest.CheckTimeout(t, 10*time.Second)()
 	newFn := func(fn nsIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
 		q := newNamespaceIndexInsertQueue(fn, nowFn, s)
 		q.(*nsIndexInsertQueue).indexBatchBackoff = 10 * time.Millisecond
@@ -399,7 +399,7 @@ func testShardWriteTaggedAsyncRefCount(t *testing.T, idx namespaceIndex) {
 	inserted := xclock.WaitUntil(func() bool {
 		counter, ok := testReporter.Counters()["dbshard.insert-queue.inserts"]
 		return ok && counter == 3
-	}, 2*time.Second)
+	}, 5*time.Second)
 	assert.True(t, inserted)
 
 	// ensure all entries have no references left
@@ -422,7 +422,7 @@ func testShardWriteTaggedAsyncRefCount(t *testing.T, idx namespaceIndex) {
 
 	written := xclock.WaitUntil(func() bool {
 		return atomic.LoadInt32(&numCommitLogWrites) == 6
-	}, 2*time.Second)
+	}, 5*time.Second)
 	assert.True(t, written)
 
 	// ensure all entries have no references left

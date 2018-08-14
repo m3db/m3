@@ -1,18 +1,16 @@
-## WARNING: This is pre-release software, and is not intended for use until a stable release.
+# M3 [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![Coverage Status](https://codecov.io/gh/m3db/m3/branch/master/graph/badge.svg)](https://codecov.io/gh/m3db/m3) [![Gitter chat][gitter-img]](https://gitter.im/m3db/Lobby)
 
-# M3DB [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fm3db%2Fm3db.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fm3db%2Fm3db?ref=badge_shield) [![Coverage Status](https://codecov.io/gh/m3db/m3db/branch/master/graph/badge.svg)](https://codecov.io/gh/m3db/m3db) [![Gitter chat][gitter-img]](https://gitter.im/m3db/Lobby)
+<p align="center"><img src="docs/theme/assets/images/M3-logo.png" alt="M3 Logo" width="256" height="270"></p>
 
-A time series database.
+Distributed TSDB and Query Engine, Prometheus Sidecar, Metrics Aggregator, and more.
 
-Documentation: https://m3db.github.io/m3db/
-
-Notes for [developers]
-
-[developers]: https://github.com/m3db/m3db/blob/master/DEVELOPER.md
+More information:
+- [Documentation](https://m3db.github.io/m3/)
+- [Developers](https://github.com/m3db/m3/blob/master/DEVELOPER.md)
 
 ## Test it out
 
-(For a fully comprehsensive getting started guide, see our [single node how-to](https://m3db.github.io/m3db/how_to/single_node/)).
+(For a fully comprehsensive getting started guide, see our [single node how-to](https://m3db.github.io/m3/how_to/single_node/)).
 
 ### Starting a node
 
@@ -21,10 +19,20 @@ Notes for [developers]
 make m3dbnode
 
 # run it with the sample configuration
-./bin/m3dbnode -f ./src/dbnode/config/m3dbnode-local.yml
+./bin/m3dbnode -f ./src/dbnode/config/m3dbnode-local-etcd.yml
 ```
 
 To cross-compile and build for Linux AMD64 build with `make m3dbnode-linux-amd64`.
+
+### Creating a namespace to store metrics
+
+```
+curl -X POST http://localhost:7201/api/v1/database/create -d '{
+  "type": "local",
+  "namespaceName": "metrics",
+  "retentionTime": "2h"
+}'
+```
 
 ### Test RPC
 
@@ -36,7 +44,7 @@ Note: performance sensitive users are expected to use the more performant endpoi
 
 ```
 curl http://localhost:9003/writetagged -s -X POST -d '{
-  "namespace": "default",
+  "namespace": "metrics",
   "id": "foo",
   "tags": [
     {
@@ -59,7 +67,7 @@ curl http://localhost:9003/writetagged -s -X POST -d '{
 
 ```
 curl http://localhost:9003/query -s -X POST -d '{
-  "namespace": "default",
+  "namespace": "metrics",
   "query": {
     "regexp": {
       "field": "city",
@@ -100,29 +108,12 @@ provide your own and mount it into the container:
 docker run --name m3dbnode -v /host/config.yml:/etc/m3dbnode/myconfig.yml m3dbnode:tag -f /etc/m3dbnode/myconfig.yml
 ```
 
-## Building the Docs
-
-The `docs` folder contains our documentation in Markdown files. These Markdown files are built into a static site using
-[`mkdocs`](https://www.mkdocs.org/) with the [`mkdocs-material`](https://squidfunk.github.io/mkdocs-material/) theme.
-Building the docs using our predefined `make` targets requires a working Docker installation:
-
-```
-# generate the docs in the `site/` directory
-make docs-build
-
-# build docs and serve on localhost:8000 (with live reload)
-make docs-serve
-
-# build the docs and auto-push to the `gh-pages` branch
-make docs-deploy
-```
-
 <hr>
 
 This project is released under the [Apache License, Version 2.0](LICENSE).
 
-[doc-img]: https://godoc.org/github.com/m3db/m3db?status.svg
-[doc]: https://godoc.org/github.com/m3db/m3db
-[ci-img]: https://semaphoreci.com/api/v1/m3db/m3db/branches/master/shields_badge.svg
-[ci]: https://semaphoreci.com/m3db/m3db
+[doc-img]: https://godoc.org/github.com/m3db/m3?status.svg
+[doc]: https://godoc.org/github.com/m3db/m3
+[ci-img]: https://semaphoreci.com/api/v1/m3db/m3/branches/master/shields_badge.svg
+[ci]: https://semaphoreci.com/m3db/m3
 [gitter-img]: https://badges.gitter.im/m3db.png

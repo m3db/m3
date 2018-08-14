@@ -32,10 +32,10 @@ scrape_configs:
 
   - job_name: 'coordinator'
     static_configs:
-      - targets: ['dbnode01:7203']
+      - targets: ['coordinator01:7203']
 
 remote_read:
-  - url: http://dbnode01:7201/api/v1/prom/remote/read # when running on GCP, change to IP address of m3coordinator
+  - url: http://coordinator01:7201/api/v1/prom/remote/read
 
 remote_write:
-  - url: http://dbnode01:7201/api/v1/prom/remote/write # when running on GCP, change to IP address of m3coordinator
+  - url: http://coordinator01:7201/api/v1/prom/remote/write

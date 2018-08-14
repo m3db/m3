@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/m3db/m3db/src/dbnode/retention"
+	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3x/ident"
 
 	"github.com/golang/mock/gomock"

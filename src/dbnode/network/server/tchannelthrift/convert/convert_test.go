@@ -25,11 +25,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/generated/thrift/rpc"
-	"github.com/m3db/m3db/src/dbnode/network/server/tchannelthrift/convert"
-	"github.com/m3db/m3db/src/dbnode/storage/index"
-	"github.com/m3db/m3db/src/dbnode/x/xpool"
-	"github.com/m3db/m3db/src/m3ninx/idx"
+	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
+	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/convert"
+	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/x/xpool"
+	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 

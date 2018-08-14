@@ -6,7 +6,7 @@ This document is a getting started guide to integrating M3DB with Prometheus.
 
 To write to a remote M3DB cluster the simplest configuration is to run `m3coordinator` as a sidecar alongside Prometheus.
 
-Start by downloading the [config template](https://github.com/m3db/m3db/blob/master/src/coordinator/config/m3coordinator-cluster-template.yml). Update the `namespaces` and the `client` section for a new cluster to match your cluster's configuration.
+Start by downloading the [config template](https://github.com/m3db/m3/blob/master/src/query/config/m3coordinator-cluster-template.yml). Update the `namespaces` and the `client` section for a new cluster to match your cluster's configuration.
 
 You'll need to specify the static IPs or hostnames of your M3DB seed nodes, and the name and retention values of the namespace you set up.  You can leave the namespace storage metrics type as `unaggregated` since it's required by default to have a cluster that receives all Prometheus metrics unaggregated.  In the future you might also want to aggregate and downsample metrics for longer retention, and you can come back and update the config once you've setup those clusters.
 
@@ -20,7 +20,7 @@ metrics:
     prefix: "coordinator"
   prometheus:
     handlerPath: /metrics
-    listenAddress: 0.0.0.0:7203 # until https://github.com/m3db/m3db/issues/682 is resolved
+    listenAddress: 0.0.0.0:7203 # until https://github.com/m3db/m3/issues/682 is resolved
   sanitization: prometheus
   samplingRate: 1.0
   extended: none
@@ -74,8 +74,8 @@ m3coordinator -f <config-name.yml>
 Or, use the docker container:
 
 ```
-docker pull quay.io/m3db/m3coordinator:latest
-docker run -p 7201:7201 --name m3coordinator -v <config-name.yml>:/etc/m3coordinator/m3coordinator.yml quay.io/m3db/m3coordinator:latest
+docker pull quay.io/m3/m3coordinator:latest
+docker run -p 7201:7201 --name m3coordinator -v <config-name.yml>:/etc/m3coordinator/m3coordinator.yml quay.io/m3/m3coordinator:latest
 ```
 
 ## Prometheus configuration
@@ -87,11 +87,6 @@ remote_read:
   - url: "http://localhost:7201/api/v1/prom/remote/read"
     # To test reading even when local Prometheus has the data
     read_recent: true
-
 remote_write:
   - url: "http://localhost:7201/api/v1/prom/remote/write"
-    # To differentiate between local and remote storage we will add a storage label
-    write_relabel_configs:
-      - target_label: metrics_storage
-        replacement: m3db_remote
 ```

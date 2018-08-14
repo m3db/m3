@@ -25,12 +25,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/m3db/m3db/src/dbnode/clock"
-	"github.com/m3db/m3db/src/dbnode/persist/fs/msgpack"
-	"github.com/m3db/m3db/src/dbnode/runtime"
-	"github.com/m3db/m3db/src/dbnode/serialize"
-	"github.com/m3db/m3db/src/m3ninx/postings"
-	"github.com/m3db/m3db/src/m3ninx/postings/roaring"
+	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
+	"github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/serialize"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 )
@@ -88,7 +87,7 @@ type options struct {
 	mmapHugePagesThreshold               int64
 	tagEncoderPool                       serialize.TagEncoderPool
 	tagDecoderPool                       serialize.TagDecoderPool
-	postingsPool                         postings.Pool
+	fstOptions                           fst.Options
 }
 
 // NewOptions creates a new set of fs options
@@ -99,8 +98,7 @@ func NewOptions() Options {
 	tagDecoderPool := serialize.NewTagDecoderPool(
 		serialize.NewTagDecoderOptions(), pool.NewObjectPoolOptions())
 	tagDecoderPool.Init()
-	postingsPool := postings.NewPool(
-		pool.NewObjectPoolOptions(), roaring.NewPostingsList)
+	fstOptions := fst.NewOptions()
 
 	return &options{
 		clockOpts:                            clock.NewOptions(),
@@ -120,7 +118,7 @@ func NewOptions() Options {
 		mmapHugePagesThreshold:               defaultMmapHugePagesThreshold,
 		tagEncoderPool:                       tagEncoderPool,
 		tagDecoderPool:                       tagDecoderPool,
-		postingsPool:                         postingsPool,
+		fstOptions:                           fstOptions,
 	}
 }
 
@@ -314,12 +312,12 @@ func (o *options) TagDecoderPool() serialize.TagDecoderPool {
 	return o.tagDecoderPool
 }
 
-func (o *options) SetPostingsListPool(value postings.Pool) Options {
+func (o *options) SetFSTOptions(value fst.Options) Options {
 	opts := *o
-	opts.postingsPool = value
+	opts.fstOptions = value
 	return &opts
 }
 
-func (o *options) PostingsListPool() postings.Pool {
-	return o.postingsPool
+func (o *options) FSTOptions() fst.Options {
+	return o.fstOptions
 }

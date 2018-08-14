@@ -24,10 +24,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/bootstrapper"
-	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
-	bfs "github.com/m3db/m3db/src/dbnode/storage/bootstrap/bootstrapper/fs"
-	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/bootstrapper/peers"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
+	bfs "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/peers"
 
 	"github.com/stretchr/testify/require"
 )

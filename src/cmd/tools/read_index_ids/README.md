@@ -4,7 +4,7 @@
 
 # Usage
 ```
-$ git clone git@github.com:m3db/m3db.git
+$ git clone git@github.com:m3db/m3.git
 $ make read_index_ids
 $ ./bin/read_index_ids
 Usage: read_index_ids [-b value] [-n value] [-p value] [-s value] [parameters ...]

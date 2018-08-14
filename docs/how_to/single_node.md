@@ -15,8 +15,8 @@ and port `9003` (used to read and write metrics) exposed. We recommend you creat
 directory on your host for durability:
 
 ```
-docker pull quay.io/m3db/m3db:latest
-docker run -p 7201:7201 -p 9003:9003 --name m3db -v $(pwd)/m3db_data:/var/lib/m3db quay.io/m3db/m3db:latest
+docker pull quay.io/m3/m3dbnode:latest
+docker run -p 7201:7201 -p 9003:9003 --name m3db -v $(pwd)/m3db_data:/var/lib/m3db quay.io/m3/m3dbnode:latest
 ```
 
 <!-- TODO: link to docs containing explanations of what namespaces, the coordinator,
@@ -53,7 +53,7 @@ warn-level errors (prefixed with `[W]`) should not block bootstrapping.
 ```
 
 The node also self-hosts its OpenAPI docs, outlining available endpoints. You can access this by
-going to `localhost:7201/api/v1/docs` in your browser.
+going to `localhost:7201/api/v1/openapi` in your browser.
 
 ![OpenAPI Doc](redoc_screenshot.png)
 

@@ -24,9 +24,8 @@ import (
 	"errors"
 	"io"
 
-	"github.com/m3db/m3db/src/m3ninx/index/segment"
-	m3ninxfs "github.com/m3db/m3db/src/m3ninx/index/segment/fs"
-	m3ninxpersist "github.com/m3db/m3db/src/m3ninx/persist"
+	"github.com/m3db/m3/src/m3ninx/index/segment"
+	m3ninxpersist "github.com/m3db/m3/src/m3ninx/persist"
 )
 
 var (
@@ -102,9 +101,7 @@ func ReadIndexSegments(
 			return nil, err
 		}
 
-		seg, err := newPersistentSegment(fileset, m3ninxfs.NewSegmentOpts{
-			PostingsListPool: fsOpts.PostingsListPool(),
-		})
+		seg, err := newPersistentSegment(fileset, fsOpts.FSTOptions())
 		if err != nil {
 			return nil, err
 		}

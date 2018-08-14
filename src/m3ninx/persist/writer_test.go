@@ -24,7 +24,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/m3db/m3db/src/m3ninx/index/segment/fs"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	xtest "github.com/m3db/m3x/test"
 
 	"github.com/golang/mock/gomock"
@@ -32,10 +32,10 @@ import (
 )
 
 func newTestWriter(t *testing.T, ctrl *gomock.Controller) (
-	*fs.MockWriter,
+	*fst.MockWriter,
 	MutableSegmentFileSetWriter,
 ) {
-	w := fs.NewMockWriter(ctrl)
+	w := fst.NewMockWriter(ctrl)
 	writer, err := newMutableSegmentFileSetWriter(w)
 	require.NoError(t, err)
 	return w, writer

@@ -26,16 +26,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/integration/generate"
-	persistfs "github.com/m3db/m3db/src/dbnode/persist/fs"
-	"github.com/m3db/m3db/src/dbnode/retention"
-	"github.com/m3db/m3db/src/dbnode/storage/bootstrap"
-	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/bootstrapper"
-	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/bootstrapper/fs"
-	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3db/src/dbnode/storage/index"
-	"github.com/m3db/m3db/src/dbnode/storage/namespace"
-	"github.com/m3db/m3db/src/m3ninx/idx"
+	"github.com/m3db/m3/src/dbnode/integration/generate"
+	persistfs "github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/retention"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3x/ident"
 
 	"github.com/stretchr/testify/require"
@@ -161,7 +161,7 @@ func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	queryOpts := index.QueryOptions{StartInclusive: start, EndExclusive: end}
 
 	// Match all new_*r*
-	regexpQuery, err := idx.NewRegexpQuery([]byte("city"), []byte("^new_.*r.*$"))
+	regexpQuery, err := idx.NewRegexpQuery([]byte("city"), []byte("new_.*r.*"))
 	require.NoError(t, err)
 	iter, exhausitive, err := session.FetchTaggedIDs(ns1.ID(),
 		index.Query{regexpQuery}, queryOpts)
@@ -175,7 +175,7 @@ func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	})
 
 	// Match all *e*e*
-	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte("^.*e.*e.*$"))
+	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte(".*e.*e.*"))
 	require.NoError(t, err)
 	iter, exhausitive, err = session.FetchTaggedIDs(ns1.ID(),
 		index.Query{regexpQuery}, queryOpts)

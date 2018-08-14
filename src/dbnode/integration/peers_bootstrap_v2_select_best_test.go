@@ -25,7 +25,7 @@ package integration
 import (
 	"testing"
 
-	"github.com/m3db/m3db/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/client"
 )
 
 func TestPeersBootstrapSelectBestV2(t *testing.T) {

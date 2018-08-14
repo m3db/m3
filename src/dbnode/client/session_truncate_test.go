@@ -24,7 +24,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/m3db/m3db/src/dbnode/generated/thrift/rpc"
+	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3x/ident"
 
 	"github.com/golang/mock/gomock"

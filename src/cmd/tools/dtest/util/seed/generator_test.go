@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
