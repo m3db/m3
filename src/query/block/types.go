@@ -145,7 +145,7 @@ func (b Bounds) Equals(other Bounds) bool {
 	if b.StepSize != other.StepSize {
 		return false
 	}
-	return b.Start.Equal(other.Start) && b.End.Equal(other.End)
+	return b.Start.Equal(other.Start) && b.Duration == other.Duration
 }
 
 // Iterator is the base iterator

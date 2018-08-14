@@ -24,6 +24,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
@@ -46,7 +47,7 @@ func TestAndWithExactValues(t *testing.T) {
 	require.NoError(t, err)
 
 	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
-	node := op.(logicalOp).Node(c)
+	node := op.(logicalOp).Node(c, transform.Options{})
 
 	err = node.Process(parser.NodeID(1), block2)
 	require.NoError(t, err)
@@ -76,7 +77,7 @@ func TestAndWithSomeValues(t *testing.T) {
 	require.NoError(t, err)
 
 	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
-	node := op.(logicalOp).Node(c)
+	node := op.(logicalOp).Node(c, transform.Options{})
 
 	err = node.Process(parser.NodeID(1), block2)
 	require.NoError(t, err)

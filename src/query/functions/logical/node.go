@@ -49,7 +49,7 @@ func (o logicalOp) String() string {
 }
 
 // Node creates an execution node
-func (o logicalOp) Node(controller *transform.Controller) transform.OpNode {
+func (o logicalOp) Node(controller *transform.Controller, _ transform.Options) transform.OpNode {
 	return &logicalNode{
 		controller: controller,
 		cache:      transform.NewBlockCache(),
