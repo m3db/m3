@@ -26,7 +26,6 @@ package index
 
 import (
 	"reflect"
-	"regexp"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/postings"
@@ -122,7 +121,7 @@ func (mr *MockReaderMockRecorder) MatchAll() *gomock.Call {
 }
 
 // MatchRegexp mocks base method
-func (m *MockReader) MatchRegexp(arg0, arg1 []byte, arg2 *regexp.Regexp) (postings.List, error) {
+func (m *MockReader) MatchRegexp(arg0, arg1 []byte, arg2 CompiledRegex) (postings.List, error) {
 	ret := m.ctrl.Call(m, "MatchRegexp", arg0, arg1, arg2)
 	ret0, _ := ret[0].(postings.List)
 	ret1, _ := ret[1].(error)

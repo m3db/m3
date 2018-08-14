@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 
@@ -77,8 +78,7 @@ func TestReaderMatchRegex(t *testing.T) {
 	)
 
 	reader := newReader(segment, readerDocRange{0, maxID}, postings.NewPool(nil, roaring.NewPostingsList))
-
-	actual, err := reader.MatchRegexp(name, regexp, compiled)
+	actual, err := reader.MatchRegexp(name, regexp, index.CompiledRegex{Simple: compiled})
 	require.NoError(t, err)
 	require.True(t, postingsList.Equal(actual))
 

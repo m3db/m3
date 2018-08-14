@@ -21,8 +21,6 @@
 package searcher
 
 import (
-	re "regexp"
-
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/search"
@@ -30,7 +28,7 @@ import (
 
 type regexpSearcher struct {
 	field, regexp []byte
-	compiled      *re.Regexp
+	compiled      index.CompiledRegex
 	readers       index.Readers
 
 	idx  int
@@ -40,7 +38,7 @@ type regexpSearcher struct {
 
 // NewRegexpSearcher returns a new searcher for finding documents which match the given regular
 // expression. It is not safe for concurrent access.
-func NewRegexpSearcher(rs index.Readers, field, regexp []byte, compiled *re.Regexp) search.Searcher {
+func NewRegexpSearcher(rs index.Readers, field, regexp []byte, compiled index.CompiledRegex) search.Searcher {
 	return &regexpSearcher{
 		field:    field,
 		regexp:   regexp,
