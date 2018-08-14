@@ -55,7 +55,7 @@ func TestCountWithThreeBlocks(t *testing.T) {
 	err = node.Process(parser.NodeID(0), block3)
 	require.NoError(t, err)
 	assert.Len(t, sink.Values, 0, "nothing processed yet")
-	_, exists := bNode.cache.Get(boundStart)
+	_, exists := bNode.cache.get(boundStart)
 	assert.True(t, exists, "block cached for future")
 
 	original := values[0][0]
@@ -72,9 +72,9 @@ func TestCountWithThreeBlocks(t *testing.T) {
 	assert.Len(t, sink.Values, 2, "output from first block only")
 	test.EqualsWithNans(t, []float64{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 4}, sink.Values[0])
 	test.EqualsWithNans(t, []float64{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 5}, sink.Values[1])
-	_, exists = bNode.cache.Get(boundStart)
+	_, exists = bNode.cache.get(boundStart)
 	assert.True(t, exists, "block still cached")
-	_, exists = bNode.cache.Get(boundStart.Add(-1 * bounds.Duration))
+	_, exists = bNode.cache.get(boundStart.Add(-1 * bounds.Duration))
 	assert.False(t, exists, "block cached")
 
 	block2 := test.NewBlockFromValues(block.Bounds{
@@ -91,7 +91,8 @@ func TestCountWithThreeBlocks(t *testing.T) {
 	expected := []float64{5, 5, 5, 5, 5}
 	test.EqualsWithNans(t, expected, sink.Values[2])
 	test.EqualsWithNans(t, expected, sink.Values[3])
-	cachedBlocks := bNode.cache.MultiGet([]time.Time{boundStart.Add(-2 * bounds.Duration), boundStart.Add(-1 * bounds.Duration), boundStart})
+	cachedBlocks, err := bNode.cache.multiGet(bounds.Previous(2), 3, false)
+	require.NoError(t, err)
 	assert.Nil(t, cachedBlocks[0], "block removed from cache")
 	assert.Nil(t, cachedBlocks[1], "block not cached")
 	assert.Nil(t, cachedBlocks[2], "block removed from cache")

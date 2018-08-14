@@ -68,7 +68,7 @@ func TestBaseWithStartBlock(t *testing.T) {
 	assert.Len(t, sink.Values, 2)
 	require.IsType(t, node, &baseNode{})
 	bNode := node.(*baseNode)
-	_, exists := bNode.cache.Get(boundStart)
+	_, exists := bNode.cache.get(boundStart)
 	assert.True(t, exists, "block cached since the query end is larger")
 
 	c, sink = executor.NewControllerWithSink(parser.NodeID(1))
@@ -83,7 +83,7 @@ func TestBaseWithStartBlock(t *testing.T) {
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
 	bNode = node.(*baseNode)
-	_, exists = bNode.cache.Get(boundStart)
+	_, exists = bNode.cache.get(boundStart)
 	assert.False(t, exists, "block not cached since no other blocks left to process")
 
 	c, sink = executor.NewControllerWithSink(parser.NodeID(1))
@@ -98,7 +98,7 @@ func TestBaseWithStartBlock(t *testing.T) {
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
 	bNode = node.(*baseNode)
-	_, exists = bNode.cache.Get(boundStart)
+	_, exists = bNode.cache.get(boundStart)
 	assert.False(t, exists, "block not cached since no other blocks left to process")
 }
 
@@ -124,7 +124,7 @@ func TestBaseWithSecondBlock(t *testing.T) {
 	err := node.Process(parser.NodeID(0), block1)
 	require.NoError(t, err)
 	assert.Len(t, sink.Values, 0, "nothing processed yet")
-	_, exists := bNode.cache.Get(boundStart)
+	_, exists := bNode.cache.get(boundStart)
 	assert.True(t, exists, "block cached for future")
 
 	block2 := test.NewBlockFromValues(block.Bounds{
@@ -136,9 +136,13 @@ func TestBaseWithSecondBlock(t *testing.T) {
 	err = node.Process(parser.NodeID(0), block2)
 	require.NoError(t, err)
 	assert.Len(t, sink.Values, 4, "output from both blocks")
-	cachedBlocks := bNode.cache.MultiGet([]time.Time{boundStart, boundStart.Add(-1 * bounds.Duration)})
-	assert.Nil(t, cachedBlocks[0], "block removed from cache")
-	assert.Nil(t, cachedBlocks[1], "block not cached")
+	_, exists = bNode.cache.get(bounds.Previous(1).Start)
+	assert.False(t, exists, "block removed from cache")
+	_, exists = bNode.cache.get(bounds.Start)
+	assert.False(t, exists, "block not cached")
+	blks, err := bNode.cache.multiGet(bounds.Previous(1), 2, false)
+	require.NoError(t, err)
+	assert.Len(t, blks, 0)
 }
 
 // B3 [0,1] -> B1 [-2, -1] -> B2 [-1,0]
@@ -164,7 +168,7 @@ func TestBaseWithThreeBlocks(t *testing.T) {
 	err := node.Process(parser.NodeID(0), block3)
 	require.NoError(t, err)
 	assert.Len(t, sink.Values, 0, "nothing processed yet")
-	_, exists := bNode.cache.Get(boundStart)
+	_, exists := bNode.cache.get(boundStart)
 	assert.True(t, exists, "block cached for future")
 
 	block1 := test.NewBlockFromValues(block.Bounds{
@@ -176,9 +180,9 @@ func TestBaseWithThreeBlocks(t *testing.T) {
 	err = node.Process(parser.NodeID(0), block1)
 	require.NoError(t, err)
 	assert.Len(t, sink.Values, 2, "output from first block only")
-	_, exists = bNode.cache.Get(boundStart)
+	_, exists = bNode.cache.get(boundStart)
 	assert.True(t, exists, "block still cached")
-	_, exists = bNode.cache.Get(boundStart.Add(-1 * bounds.Duration))
+	_, exists = bNode.cache.get(boundStart.Add(-1 * bounds.Duration))
 	assert.False(t, exists, "block cached")
 
 	block2 := test.NewBlockFromValues(block.Bounds{
@@ -190,8 +194,14 @@ func TestBaseWithThreeBlocks(t *testing.T) {
 	err = node.Process(parser.NodeID(0), block2)
 	require.NoError(t, err)
 	assert.Len(t, sink.Values, 6, "output from all 3 blocks")
-	cachedBlocks := bNode.cache.MultiGet([]time.Time{boundStart.Add(-2 * bounds.Duration), boundStart.Add(-1 * bounds.Duration), boundStart})
-	assert.Nil(t, cachedBlocks[0], "block removed from cache")
-	assert.Nil(t, cachedBlocks[1], "block not cached")
-	assert.Nil(t, cachedBlocks[2], "block removed from cache")
+	_, exists = bNode.cache.get(bounds.Previous(2).Start)
+	assert.False(t, exists, "block removed from cache")
+	_, exists = bNode.cache.get(bounds.Previous(1).Start)
+	assert.False(t, exists, "block not cached")
+	_, exists = bNode.cache.get(bounds.Start)
+	assert.False(t, exists, "block removed from cache")
+	blks, err := bNode.cache.multiGet(bounds.Previous(2), 3, false)
+	require.NoError(t, err)
+	assert.Len(t, blks, 0)
+
 }
