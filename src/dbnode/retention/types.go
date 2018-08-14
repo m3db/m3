@@ -70,6 +70,12 @@ type Options interface {
 	// be expired after not being accessed for a given duration
 	BlockDataExpiryAfterNotAccessedPeriod() time.Duration
 
+	// SetAnyWriteTimeEnabled sets whether writes to any time is enabled
+	SetAnyWriteTimeEnabled(value bool) Options
+
+	// AnyWriteTimeEnabled returns whether writes to any time is enabled
+	AnyWriteTimeEnabled() bool
+
 	// SetFlushAfterNoMetricPeriod sets the period of no metrics after which
 	// non-realtime blocks should be flushed
 	SetFlushAfterNoMetricPeriod(period time.Duration) Options

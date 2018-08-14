@@ -82,7 +82,7 @@ func TestBufferWriteTooFuture(t *testing.T) {
 	defer ctx.Close()
 
 	err := buffer.Write(ctx, curr.Add(rops.BufferFuture()), 1, xtime.Second, nil)
-	assert.NoError(t, err)
+	assert.Error(t, err)
 }
 
 func TestBufferWriteTooPast(t *testing.T) {
@@ -99,7 +99,7 @@ func TestBufferWriteTooPast(t *testing.T) {
 	defer ctx.Close()
 
 	err := buffer.Write(ctx, curr.Add(-1*rops.BufferPast()), 1, xtime.Second, nil)
-	assert.NoError(t, err)
+	assert.Error(t, err)
 }
 
 func TestBufferWriteNotRealTimeDrain(t *testing.T) {
@@ -113,7 +113,7 @@ func TestBufferWriteNotRealTimeDrain(t *testing.T) {
 	curr := time.Now().Truncate(rops.BlockSize())
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
-	}))
+	})).SetRetentionOptions(rops.SetAnyWriteTimeEnabled(true))
 	buffer := newDatabaseBuffer(drainFn).(*dbBuffer)
 	buffer.Reset(opts)
 
@@ -160,7 +160,7 @@ func TestBufferWriteNotRealTimeStale(t *testing.T) {
 	curr := time.Now().Truncate(rops.BlockSize())
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
-	}))
+	})).SetRetentionOptions(rops.SetAnyWriteTimeEnabled(true))
 	buffer := newDatabaseBuffer(drainFn).(*dbBuffer)
 	buffer.Reset(opts)
 
@@ -206,7 +206,7 @@ func TestBufferWriteNotRealTimeMakeRealTime(t *testing.T) {
 	curr := time.Now().Truncate(rops.BlockSize())
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
-	}))
+	})).SetRetentionOptions(rops.SetAnyWriteTimeEnabled(true))
 	buffer := newDatabaseBuffer(drainFn).(*dbBuffer)
 	buffer.Reset(opts)
 

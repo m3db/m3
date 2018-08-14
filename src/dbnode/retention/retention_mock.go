@@ -222,6 +222,30 @@ func (mr *MockOptionsMockRecorder) BlockDataExpiryAfterNotAccessedPeriod() *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlockDataExpiryAfterNotAccessedPeriod", reflect.TypeOf((*MockOptions)(nil).BlockDataExpiryAfterNotAccessedPeriod))
 }
 
+// SetAnyWriteTimeEnabled mocks base method
+func (m *MockOptions) SetAnyWriteTimeEnabled(value bool) Options {
+	ret := m.ctrl.Call(m, "SetAnyWriteTimeEnabled", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetAnyWriteTimeEnabled indicates an expected call of SetAnyWriteTimeEnabled
+func (mr *MockOptionsMockRecorder) SetAnyWriteTimeEnabled(value interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAnyWriteTimeEnabled", reflect.TypeOf((*MockOptions)(nil).SetAnyWriteTimeEnabled), value)
+}
+
+// AnyWriteTimeEnabled mocks base method
+func (m *MockOptions) AnyWriteTimeEnabled() bool {
+	ret := m.ctrl.Call(m, "AnyWriteTimeEnabled")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// AnyWriteTimeEnabled indicates an expected call of AnyWriteTimeEnabled
+func (mr *MockOptionsMockRecorder) AnyWriteTimeEnabled() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AnyWriteTimeEnabled", reflect.TypeOf((*MockOptions)(nil).AnyWriteTimeEnabled))
+}
+
 // SetFlushAfterNoMetricPeriod mocks base method
 func (m *MockOptions) SetFlushAfterNoMetricPeriod(period time.Duration) Options {
 	ret := m.ctrl.Call(m, "SetFlushAfterNoMetricPeriod", period)

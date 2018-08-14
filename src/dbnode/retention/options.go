@@ -44,6 +44,9 @@ const (
 	// defaultDataExpiryAfterNotAccessedPeriod is the default data expiry after not accessed period
 	defaultDataExpiryAfterNotAccessedPeriod = 5 * time.Minute
 
+	// defaultAnyWriteEnabled is the default setting on whether to accept writes to any time
+	defaultAnyWriteEnabled = false
+
 	// defaultFlushAfterNoMetricPeriod is the period of no metrics after which a non-realtime metric
 	// block should be flushed
 	defaultFlushAfterNoMetricPeriod = 5 * time.Minute
@@ -67,10 +70,11 @@ type options struct {
 	blockSize                        time.Duration
 	bufferFuture                     time.Duration
 	bufferPast                       time.Duration
-	dataExpiry                       bool
 	dataExpiryAfterNotAccessedPeriod time.Duration
 	flushAfterNoMetricPeriod         time.Duration
 	maxWritesBeforeFlush             uint64
+	dataExpiry                       bool
+	anyWriteTimeEnabled              bool
 }
 
 // NewOptions creates new retention options
@@ -84,6 +88,7 @@ func NewOptions() Options {
 		dataExpiryAfterNotAccessedPeriod: defaultDataExpiryAfterNotAccessedPeriod,
 		flushAfterNoMetricPeriod:         defaultFlushAfterNoMetricPeriod,
 		maxWritesBeforeFlush:             defaultMaxWritesBeforeFlush,
+		anyWriteTimeEnabled:              defaultAnyWriteEnabled,
 	}
 }
 
@@ -115,7 +120,10 @@ func (o *options) Equal(value Options) bool {
 		o.bufferFuture == value.BufferFuture() &&
 		o.bufferPast == value.BufferPast() &&
 		o.dataExpiry == value.BlockDataExpiry() &&
-		o.dataExpiryAfterNotAccessedPeriod == value.BlockDataExpiryAfterNotAccessedPeriod()
+		o.dataExpiryAfterNotAccessedPeriod == value.BlockDataExpiryAfterNotAccessedPeriod() &&
+		o.anyWriteTimeEnabled == value.AnyWriteTimeEnabled() &&
+		o.flushAfterNoMetricPeriod == value.FlushAfterNoMetricPeriod() &&
+		o.maxWritesBeforeFlush == value.MaxWritesBeforeFlush()
 }
 
 func (o *options) SetRetentionPeriod(value time.Duration) Options {
@@ -176,6 +184,16 @@ func (o *options) SetBlockDataExpiryAfterNotAccessedPeriod(value time.Duration) 
 
 func (o *options) BlockDataExpiryAfterNotAccessedPeriod() time.Duration {
 	return o.dataExpiryAfterNotAccessedPeriod
+}
+
+func (o *options) SetAnyWriteTimeEnabled(value bool) Options {
+	opts := *o
+	opts.anyWriteTimeEnabled = value
+	return &opts
+}
+
+func (o *options) AnyWriteTimeEnabled() bool {
+	return o.anyWriteTimeEnabled
 }
 
 func (o *options) SetFlushAfterNoMetricPeriod(value time.Duration) Options {

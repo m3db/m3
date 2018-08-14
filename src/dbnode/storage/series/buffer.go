@@ -39,6 +39,7 @@ import (
 var (
 	errMoreThanOneStreamAfterMerge = errors.New("buffer has more than one stream after merge")
 	errNoAvailableBuckets          = errors.New("[invariant violated] buffer has no available buckets")
+	errAnyWriteTimeNotEnabled      = errors.New("non-realtime metrics not enabled")
 	timeZero                       time.Time
 )
 
@@ -50,7 +51,7 @@ const (
 	// the current block if write is for the future within bounds
 	bucketsLen = 3
 
-	//TODO is 16 the right number?
+	// TODO: make sure this is a good pool size or make it customizable
 	defaultBufferBucketPoolSize = 16
 )
 
@@ -141,8 +142,10 @@ type dbBuffer struct {
 
 type bucketID struct {
 	isRealTime bool
-	idx        int
-	key        xtime.UnixNano
+	// idx is the index of a realtime bucket in the array
+	idx int
+	// key is the key of a non-realtime bucket in the map
+	key xtime.UnixNano
 }
 
 func realtimeBucketID(idx int) bucketID {
@@ -250,6 +253,10 @@ func (b *dbBuffer) Write(
 		}
 
 		return b.bucketsRealTime[idx].write(now, timestamp, value, unit, annotation)
+	}
+
+	if !b.opts.RetentionOptions().AnyWriteTimeEnabled() {
+		return errAnyWriteTimeNotEnabled
 	}
 
 	if _, ok := b.bucketsNotRealTime[key]; !ok {
