@@ -29,7 +29,7 @@
 //go:generate sh -c "mockgen -package=block -destination=$GOPATH/src/$PACKAGE/src/query/block/block_mock.go $PACKAGE/src/query/block Block,StepIter,SeriesIter,Builder,Step"
 
 // mockgen rules for generating mocks for unexported interfaces (file mode)
-//go:generate sh -c "mockgen -package=en	ding -destination=$GOPATH/src/$PACKAGE/src/dbnode/encoding/encoding_mock.go -source=$GOPATH/src/$PACKAGE/src/dbnode/encoding/types.go"
+//go:generate sh -c "mockgen -package=encoding -destination=$GOPATH/src/$PACKAGE/src/dbnode/encoding/encoding_mock.go -source=$GOPATH/src/$PACKAGE/src/dbnode/encoding/types.go"
 //go:generate sh -c "mockgen -package=bootstrap -destination=$GOPATH/src/$PACKAGE/src/dbnode/storage/bootstrap/bootstrap_mock.go -source=$GOPATH/src/$PACKAGE/src/dbnode/storage/bootstrap/types.go"
 //go:generate sh -c "mockgen -package=persist -destination=$GOPATH/src/$PACKAGE/src/dbnode/persist/persist_mock.go -source=$GOPATH/src/$PACKAGE/src/dbnode/persist/types.go"
 //go:generate sh -c "mockgen -package=storage -destination=$GOPATH/src/$PACKAGE/src/dbnode/storage/storage_mock.go -source=$GOPATH/src/$PACKAGE/src/dbnode/storage/types.go"
