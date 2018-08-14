@@ -24,9 +24,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/m3db/m3db/src/coordinator/functions/logical"
-
 	"github.com/m3db/m3db/src/coordinator/block"
+	"github.com/m3db/m3db/src/coordinator/functions/logical"
 	"github.com/m3db/m3db/src/coordinator/parser"
 	"github.com/m3db/m3db/src/coordinator/test"
 	"github.com/m3db/m3db/src/coordinator/test/executor"
@@ -501,16 +500,205 @@ var bothSeriesTests = []struct {
 	expectedMetas []block.SeriesMeta
 	expected      [][]float64
 }{
+	/* Arithmetic */
 	{
-		"+",
+		"+, second series matches first",
 		PlusType,
 		test.NewSeriesMeta("a", 2),
-		[][]float64{{1, 2, 3}, {3, 6, 9}},
+		[][]float64{{1, 2, 3}, {4, 5, 6}},
 		test.NewSeriesMeta("a", 3)[1:],
 		[][]float64{{10, 20, 30}, {40, 50, 60}},
 		true,
 		test.NewSeriesMeta("a", 2)[1:],
-		[][]float64{{13, 26, 39}},
+		[][]float64{{14, 25, 36}},
+	},
+	{
+		"-, first two series on lhs match",
+		MinusType,
+		test.NewSeriesMeta("a", 2),
+		[][]float64{{1, 2, 3}, {4, 5, 6}},
+		test.NewSeriesMeta("a", 3),
+		[][]float64{{10, 20, 30}, {40, 50, 60}, {700, 800, 900}},
+		true,
+		test.NewSeriesMeta("a", 2),
+		[][]float64{{-9, -18, -27}, {-36, -45, -54}},
+	},
+	{
+		"*, last two series on lhs match",
+		MultiplyType,
+		test.NewSeriesMeta("a", 3),
+		[][]float64{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}},
+		test.NewSeriesMeta("a", 3)[1:],
+		[][]float64{{10, 20, 30}, {40, 50, 60}},
+		true,
+		test.NewSeriesMeta("a", 3)[1:],
+		[][]float64{{40, 100, 180}, {280, 400, 540}},
+	},
+	{
+		"/, both series match",
+		DivType,
+		test.NewSeriesMeta("a", 2),
+		[][]float64{{1, 2, 3}, {40, 50, 60}},
+		test.NewSeriesMeta("a", 2),
+		[][]float64{{10, 20, 30}, {4, 5, 6}},
+		true,
+		test.NewSeriesMeta("a", 2),
+		[][]float64{{0.1, 0.1, 0.1}, {10, 10, 10}},
+	},
+	{
+		"^, single matching series",
+		ExpType,
+		test.NewSeriesMeta("a", 1),
+		[][]float64{{10, math.NaN(), -1, 9, 10, 4}},
+		test.NewSeriesMeta("a", 1),
+		[][]float64{{2, 2, 0.5, 0.5, -1, -0.5}},
+		true,
+		test.NewSeriesMeta("a", 1),
+		[][]float64{{100, math.NaN(), math.NaN(), 3, 0.1, 0.5}},
+	},
+	{
+		"%, single matching series",
+		ModType,
+		test.NewSeriesMeta("a", 1),
+		[][]float64{{10, 11, 12, 13, 14, 15}},
+		test.NewSeriesMeta("a", 1),
+		[][]float64{{2, 3, -5, 1.5, 1.5, -1.5}},
+		true,
+		test.NewSeriesMeta("a", 1),
+		[][]float64{{0, 2, 2, 1, 0.5, 0}},
+	},
+	/* Comparison */
+	{
+		"==, second series matches first",
+		EqType,
+		test.NewSeriesMeta("a", 2),
+		[][]float64{{1, 2, 3}, {3, 6, 9}},
+		test.NewSeriesMeta("a", 3)[1:],
+		[][]float64{{10, 6, 30}, {40, 50, 60}},
+		false,
+		test.NewSeriesMeta("a", 2)[1:],
+		[][]float64{{math.NaN(), 6, math.NaN()}},
+	},
+	{
+		"== BOOL, second series matches first",
+		EqType,
+		test.NewSeriesMeta("a", 2),
+		[][]float64{{1, 2, 3}, {3, 6, 9}},
+		test.NewSeriesMeta("a", 3)[1:],
+		[][]float64{{10, 6, 30}, {40, 50, 60}},
+		true,
+		test.NewSeriesMeta("a", 2)[1:],
+		[][]float64{{0, 1, 0}},
+	},
+	{
+		"=! BOOL, both series match",
+		NotEqType,
+		test.NewSeriesMeta("a", 2),
+		[][]float64{{1, 2, 3}, {3, 6, 9}},
+		test.NewSeriesMeta("a", 2),
+		[][]float64{{1, 20, 3}, {40, 6, 60}},
+		true,
+		test.NewSeriesMeta("a", 2),
+		[][]float64{{0, 1, 0}, {1, 0, 1}},
+	},
+	{
+		"=!, both series match",
+		NotEqType,
+		test.NewSeriesMeta("a", 2),
+		[][]float64{{1, 2, 3}, {3, 6, 9}},
+		test.NewSeriesMeta("a", 2),
+		[][]float64{{1, 20, 3}, {40, 6, 60}},
+		false,
+		test.NewSeriesMeta("a", 2),
+		[][]float64{{math.NaN(), 2, math.NaN()}, {3, math.NaN(), 9}},
+	},
+	{
+		"> BOOL, last two series of rhs match",
+		GreaterType,
+		test.NewSeriesMeta("a", 3)[1:],
+		[][]float64{{1, 2, 3}, {3, 6, 9}},
+		test.NewSeriesMeta("a", 3),
+		[][]float64{{10, 10, 10}, {1, 20, -100}, {2, 4, 10}},
+		true,
+		test.NewSeriesMeta("a", 3)[1:],
+		[][]float64{{0, 0, 1}, {1, 1, 0}},
+	},
+	{
+		">, last two series of rhs match",
+		GreaterType,
+		test.NewSeriesMeta("a", 3)[1:],
+		[][]float64{{1, 2, 3}, {3, 6, 9}},
+		test.NewSeriesMeta("a", 3),
+		[][]float64{{10, 10, 10}, {1, 20, -100}, {2, 4, 10}},
+		false,
+		test.NewSeriesMeta("a", 3)[1:],
+		[][]float64{{math.NaN(), math.NaN(), 3}, {3, 6, math.NaN()}},
+	},
+	{
+		"< BOOL, single series matches",
+		LesserType,
+		test.NewSeriesMeta("a", 1),
+		[][]float64{{1, 2, 3}},
+		test.NewSeriesMeta("a", 1),
+		[][]float64{{-1, 2, 5}},
+		true,
+		test.NewSeriesMeta("a", 1),
+		[][]float64{{0, 0, 1}},
+	},
+	{
+		"<, single series matches",
+		LesserType,
+		test.NewSeriesMeta("a", 1),
+		[][]float64{{1, 2, 3}},
+		test.NewSeriesMeta("a", 1),
+		[][]float64{{-1, 2, 5}},
+		false,
+		test.NewSeriesMeta("a", 1),
+		[][]float64{{math.NaN(), math.NaN(), 3}},
+	},
+	{
+		">= BOOL, single series matches",
+		GreaterEqType,
+		test.NewSeriesMeta("a", 1),
+		[][]float64{{1, 2, 3}},
+		test.NewSeriesMeta("a", 1),
+		[][]float64{{-1, 2, 5}},
+		true,
+		test.NewSeriesMeta("a", 1),
+		[][]float64{{1, 1, 0}},
+	},
+	{
+		">=, single series matches",
+		GreaterEqType,
+		test.NewSeriesMeta("a", 1),
+		[][]float64{{1, 2, 3}},
+		test.NewSeriesMeta("a", 1),
+		[][]float64{{-1, 2, 5}},
+		false,
+		test.NewSeriesMeta("a", 1),
+		[][]float64{{1, 2, math.NaN()}},
+	},
+	{
+		"<= BOOL, single series matches",
+		LesserEqType,
+		test.NewSeriesMeta("a", 1),
+		[][]float64{{1, 2, 3}},
+		test.NewSeriesMeta("a", 1),
+		[][]float64{{-1, 2, 5}},
+		true,
+		test.NewSeriesMeta("a", 1),
+		[][]float64{{0, 1, 1}},
+	},
+	{
+		"<=, single series matches",
+		LesserEqType,
+		test.NewSeriesMeta("a", 1),
+		[][]float64{{1, 2, 3}},
+		test.NewSeriesMeta("a", 1),
+		[][]float64{{-1, 2, 5}},
+		false,
+		test.NewSeriesMeta("a", 1),
+		[][]float64{{math.NaN(), 2, 3}},
 	},
 }
 
@@ -540,6 +728,11 @@ func TestBothSeries(t *testing.T) {
 
 			test.EqualsWithNans(t, tt.expected, sink.Values)
 
+			// Extract duped expected metas
+			expectedMeta := block.Metadata{Bounds: bounds}
+			expectedMeta.Tags, tt.expectedMetas = logical.DedupeMetadata(tt.expectedMetas)
+			assert.Equal(t, expectedMeta, sink.Meta)
+			assert.Equal(t, tt.expectedMetas, sink.Metas)
 		})
 	}
 }

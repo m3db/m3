@@ -352,6 +352,9 @@ func actualFunc(fn mathFunc, op string, returnBool bool) mathFunc {
 		return fn
 	}
 	return func(left, right float64) float64 {
+		// NB (arnikola): safe to check that this equals 1 since this is
+		// only performed on comparison functions where viable values
+		// are only 1 or 0
 		take := fn(left, right) == 1
 		if take {
 			return left
@@ -404,8 +407,6 @@ func (n *binaryNode) processBothSeries(
 			rIdx := correspondingRight[seriesIdx]
 			lVal := lValues[lIdx]
 			rVal := rValues[rIdx]
-
-			fmt.Println(lVal, rVal)
 
 			builder.AppendValue(index, actualFn(lVal, rVal))
 		}
