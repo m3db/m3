@@ -24,6 +24,8 @@ import (
 	"math"
 	"testing"
 
+	"github.com/m3db/m3db/src/coordinator/functions/logical"
+
 	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/parser"
 	"github.com/m3db/m3db/src/coordinator/test"
@@ -131,16 +133,14 @@ func TestScalars(t *testing.T) {
 	}
 }
 
-type singleSeriesTest struct {
+var singleSeriesTests = []struct {
 	name         string
 	seriesValues [][]float64
 	scalarVal    float64
 	opType       string
 	seriesLeft   bool
 	expected     [][]float64
-}
-
-var singleSeriesTests = []singleSeriesTest{
+}{
 	/* Arithmetic */
 	// +
 	{
@@ -432,27 +432,19 @@ func TestSingleSeriesReturnValues(t *testing.T) {
 	returnBool := false
 	_, bounds := test.GenerateValuesAndBounds(nil, nil)
 
-	comparisonTests := make([]singleSeriesTest, 0, 10)
-	for _, test := range singleSeriesTests {
-		if isComparison(test.opType) {
-			comparisonTests = append(comparisonTests, test)
-		}
-	}
-
-	for _, tt := range comparisonTests {
+	for _, tt := range singleSeriesTests {
 		t.Run(tt.name, func(t *testing.T) {
 			// So as to not re-generate test case for ReturnBool == true
-			// construct the expected results here
-			expected := make([][]float64, len(tt.expected))
-			for i := range expected {
-				expected[i] = make([]float64, len(tt.expected[i]))
-
-				for ii := range expected[i] {
-					takeValue := tt.expected[i][ii] == 1
-					if takeValue {
-						expected[i][ii] = tt.seriesValues[i][ii]
-					} else {
-						expected[i][ii] = math.NaN()
+			// construct the expected results here for comparison functions
+			expected := tt.expected
+			if isComparison(tt.opType) {
+				for i := range expected {
+					for ii, val := range expected[i] {
+						if val == 1 {
+							expected[i][ii] = tt.seriesValues[i][ii]
+						} else {
+							expected[i][ii] = math.NaN()
+						}
 					}
 				}
 			}
@@ -494,6 +486,60 @@ func TestSingleSeriesReturnValues(t *testing.T) {
 			assert.Len(t, sink.Meta.Tags, 0)
 
 			assert.Equal(t, metas, sink.Metas)
+		})
+	}
+}
+
+var bothSeriesTests = []struct {
+	name          string
+	opType        string
+	lhsMeta       []block.SeriesMeta
+	lhs           [][]float64
+	rhsMeta       []block.SeriesMeta
+	rhs           [][]float64
+	returnBool    bool
+	expectedMetas []block.SeriesMeta
+	expected      [][]float64
+}{
+	{
+		"+",
+		PlusType,
+		test.NewSeriesMeta("a", 2),
+		[][]float64{{1, 2, 3}, {3, 6, 9}},
+		test.NewSeriesMeta("a", 3)[1:],
+		[][]float64{{10, 20, 30}, {40, 50, 60}},
+		true,
+		test.NewSeriesMeta("a", 2)[1:],
+		[][]float64{{13, 26, 39}},
+	},
+}
+
+func TestBothSeries(t *testing.T) {
+	_, bounds := test.GenerateValuesAndBounds(nil, nil)
+
+	for _, tt := range bothSeriesTests {
+		t.Run(tt.name, func(t *testing.T) {
+			op, err := NewBinaryOp(
+				tt.opType,
+				NodeInformation{
+					parser.NodeID(0),
+					parser.NodeID(1),
+					false, false,
+					tt.returnBool, &logical.VectorMatching{}},
+			)
+			require.NoError(t, err)
+
+			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
+			node := op.(binaryOp).Node(c)
+
+			err = node.Process(parser.NodeID(0), test.NewBlockFromValuesWithSeriesMeta(bounds, tt.lhsMeta, tt.lhs))
+			require.NoError(t, err)
+
+			err = node.Process(parser.NodeID(1), test.NewBlockFromValuesWithSeriesMeta(bounds, tt.rhsMeta, tt.rhs))
+			require.NoError(t, err)
+
+			test.EqualsWithNans(t, tt.expected, sink.Values)
+
 		})
 	}
 }

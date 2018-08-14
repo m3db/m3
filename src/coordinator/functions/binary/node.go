@@ -118,6 +118,7 @@ var (
 	errLeftScalar              = errors.New("expected left scalar but node type incorrect")
 	errRightScalar             = errors.New("expected right scalar but node type incorrect")
 	errNoModifierForComparison = errors.New("comparisons between scalars must use BOOL modifier")
+	errNoMatching              = errors.New("functions must have a vector matching set")
 )
 
 type binaryOp struct {
@@ -275,36 +276,14 @@ func (n *binaryNode) process(lhs, rhs block.Block) (block.Block, error) {
 		return nil, err
 	}
 
-	lMeta, rSeriesMeta := lIter.Meta(), rIter.SeriesMeta()
-	builder, err := n.controller.BlockBuilder(lMeta, rSeriesMeta)
-	if err != nil {
-		return nil, err
+	// NB(arnikola): this is a sanity check, as functions between
+	// two series missing vector matching should have previously
+	// errored out during the parsing step
+	if n.op.info.VectorMatching == nil {
+		return nil, errNoMatching
 	}
 
-	if err := builder.AddCols(lIter.StepCount()); err != nil {
-		return nil, err
-	}
-
-	for index := 0; lIter.Next() && rIter.Next(); index++ {
-		lStep, err := lIter.Current()
-		if err != nil {
-			return nil, err
-		}
-
-		lValues := lStep.Values()
-		rStep, err := rIter.Current()
-		if err != nil {
-			return nil, err
-		}
-
-		rValues := rStep.Values()
-
-		for idx, value := range lValues {
-			builder.AppendValue(index, fn(value, rValues[idx]))
-		}
-	}
-
-	return builder.Build(), nil
+	return n.processBothSeries(lIter, rIter)
 }
 
 func isComparison(op string) bool {
@@ -315,7 +294,7 @@ func isComparison(op string) bool {
 
 // If returnBool is false and op is a comparison function,
 // the function should return the scalar value rather than 1 or 0
-func actualFunc(fn singleScalarFunc, op string, returnBool bool) singleScalarFunc {
+func actualScalarFunc(fn singleScalarFunc, op string, returnBool bool) singleScalarFunc {
 	if returnBool || !isComparison(op) {
 		return fn
 	}
@@ -324,6 +303,8 @@ func actualFunc(fn singleScalarFunc, op string, returnBool bool) singleScalarFun
 		if take {
 			return x
 		}
+		// NB(arnikola): whereas prometheus does not include not matching
+		// points in the output, we here replace them with NaNs instead
 		return math.NaN()
 	}
 }
@@ -332,7 +313,7 @@ func (n *binaryNode) processSingleBlock(
 	block block.Block,
 	fn singleScalarFunc,
 ) (block.Block, error) {
-	actualFn := actualFunc(fn, n.op.OperatorType, n.op.info.ReturnBool)
+	actualFn := actualScalarFunc(fn, n.op.OperatorType, n.op.info.ReturnBool)
 
 	it, err := block.StepIter()
 	if err != nil {
@@ -357,6 +338,76 @@ func (n *binaryNode) processSingleBlock(
 		values := step.Values()
 		for _, value := range values {
 			builder.AppendValue(index, actualFn(value))
+		}
+	}
+
+	return builder.Build(), nil
+}
+
+// If returnBool is false and op is a comparison function,
+// the function should return the scalar value of lhs if the comparison
+// is true; otherwise, it should return 1 if true, and 0 if false
+func actualFunc(fn mathFunc, op string, returnBool bool) mathFunc {
+	if returnBool || !isComparison(op) {
+		return fn
+	}
+	return func(left, right float64) float64 {
+		take := fn(left, right) == 1
+		if take {
+			return left
+		}
+		// NB(arnikola): whereas prometheus does not include not matching
+		// points in the output, we here replace them with NaNs instead
+		return math.NaN()
+	}
+}
+
+func (n *binaryNode) processBothSeries(
+	lIter, rIter block.StepIter,
+) (block.Block, error) {
+	lMeta, rMeta := lIter.Meta(), rIter.Meta()
+
+	lSeriesMeta := logical.FlattenMetadata(lMeta, lIter.SeriesMeta())
+	rSeriesMeta := logical.FlattenMetadata(rMeta, rIter.SeriesMeta())
+
+	takeLeft, correspondingRight, lSeriesMeta := intersect(n.op.info.VectorMatching, lSeriesMeta, rSeriesMeta)
+
+	lMeta.Tags, lSeriesMeta = logical.DedupeMetadata(lSeriesMeta)
+
+	// Use metas from only taken left series
+	builder, err := n.controller.BlockBuilder(lMeta, lSeriesMeta)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := builder.AddCols(lIter.StepCount()); err != nil {
+		return nil, err
+	}
+
+	actualFn := actualFunc(n.op.fn, n.op.OperatorType, n.op.info.ReturnBool)
+
+	for index := 0; lIter.Next() && rIter.Next(); index++ {
+		lStep, err := lIter.Current()
+		if err != nil {
+			return nil, err
+		}
+
+		lValues := lStep.Values()
+		rStep, err := rIter.Current()
+		if err != nil {
+			return nil, err
+		}
+
+		rValues := rStep.Values()
+
+		for seriesIdx, lIdx := range takeLeft {
+			rIdx := correspondingRight[seriesIdx]
+			lVal := lValues[lIdx]
+			rVal := rValues[rIdx]
+
+			fmt.Println(lVal, rVal)
+
+			builder.AppendValue(index, actualFn(lVal, rVal))
 		}
 	}
 
@@ -395,4 +446,36 @@ func (n *binaryNode) cleanup() {
 	defer n.mu.Unlock()
 	n.cache.Remove(n.op.info.LNode)
 	n.cache.Remove(n.op.info.RNode)
+}
+
+const initIndexSliceLength = 10
+
+// intersect returns the slice of lhs indices that are shared with rhs,
+// the indices of the corresponding rhs values, and the metas for taken indices
+func intersect(
+	matching *logical.VectorMatching,
+	lhs, rhs []block.SeriesMeta,
+) ([]int, []int, []block.SeriesMeta) {
+	idFunction := logical.HashFunc(matching.On, matching.MatchingLabels...)
+	// The set of signatures for the right-hand side.
+	rightSigs := make(map[uint64]int, len(rhs))
+	for idx, meta := range rhs {
+		rightSigs[idFunction(meta.Tags)] = idx
+	}
+
+	takeLeft := make([]int, 0, initIndexSliceLength)
+	correspondingRight := make([]int, 0, initIndexSliceLength)
+	leftMetas := make([]block.SeriesMeta, 0, initIndexSliceLength)
+
+	for lIdx, ls := range lhs {
+		// If there's a matching entry in the left-hand side Vector, add the sample.
+		id := idFunction(ls.Tags)
+		if rIdx, ok := rightSigs[id]; ok {
+			takeLeft = append(takeLeft, lIdx)
+			correspondingRight = append(correspondingRight, rIdx)
+			leftMetas = append(leftMetas, ls)
+		}
+	}
+
+	return takeLeft, correspondingRight, leftMetas
 }

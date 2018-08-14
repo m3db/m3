@@ -38,8 +38,8 @@ func makeUnlessBlock(
 	// e.g. rhs: common tags {c:d}, series tags: {a:b}, {e:f}
 	// If not flattened before calculating distinct values,
 	// both series on lhs would be added
-	lSeriesMeta := flattenMetadata(lIter.Meta(), lIter.SeriesMeta())
-	rSeriesMeta := flattenMetadata(rIter.Meta(), rIter.SeriesMeta())
+	lSeriesMeta := FlattenMetadata(lIter.Meta(), lIter.SeriesMeta())
+	rSeriesMeta := FlattenMetadata(rIter.Meta(), rIter.SeriesMeta())
 	lIds := distinctLeft(node.op.Matching, lSeriesMeta, rSeriesMeta)
 	stepCount := len(lIds)
 	distinctSeriesMeta := make([]block.SeriesMeta, 0, stepCount)
@@ -47,7 +47,7 @@ func makeUnlessBlock(
 		distinctSeriesMeta = append(distinctSeriesMeta, lSeriesMeta[idx])
 	}
 	meta := lIter.Meta()
-	commonTags, dedupedSeriesMetas := dedupeMetadata(distinctSeriesMeta)
+	commonTags, dedupedSeriesMetas := DedupeMetadata(distinctSeriesMeta)
 	meta.Tags = commonTags
 	builder, err := node.controller.BlockBuilder(meta, dedupedSeriesMetas)
 	if err != nil {
@@ -70,7 +70,7 @@ func distinctLeft(
 	matching *VectorMatching,
 	lhs, rhs []block.SeriesMeta,
 ) []int {
-	idFunction := hashFunc(matching.On, matching.MatchingLabels...)
+	idFunction := HashFunc(matching.On, matching.MatchingLabels...)
 	// The set of signatures for the left-hand side.
 	leftSigs := make(map[uint64]int, len(lhs))
 	for idx, meta := range lhs {
