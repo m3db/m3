@@ -21,6 +21,7 @@
 package test
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
@@ -29,19 +30,44 @@ import (
 
 // NewBlockFromValues creates a new block using the provided values
 func NewBlockFromValues(bounds block.Bounds, seriesValues [][]float64) block.Block {
-	blockMeta := block.Metadata{Bounds: bounds}
-	seriesMeta := make([]block.SeriesMeta, len(seriesValues))
+	meta := NewSeriesMeta("dummy", len(seriesValues))
+	return NewBlockFromValuesWithSeriesMeta(bounds, meta, seriesValues)
+}
+
+// NewSeriesMeta creates new metadata tags in the format [tagPrefix:i] for the number of series
+func NewSeriesMeta(tagPrefix string, count int) []block.SeriesMeta {
+	seriesMeta := make([]block.SeriesMeta, count)
 	for i := range seriesMeta {
 		tags := make(models.Tags)
-		tags[models.MetricName] = string(i)
-		tags["dummy"] = string(i)
+		t := fmt.Sprintf("%s%d", tagPrefix, i)
+		tags[models.MetricName] = t
+		tags[t] = t
 		seriesMeta[i] = block.SeriesMeta{
-			Name: string(i),
+			Name: t,
 			Tags: tags,
 		}
 	}
+	return seriesMeta
+}
 
-	columnBuilder := block.NewColumnBlockBuilder(blockMeta, seriesMeta)
+// NewBlockFromValuesWithSeriesMeta creates a new block using the provided values
+func NewBlockFromValuesWithSeriesMeta(
+	bounds block.Bounds,
+	seriesMeta []block.SeriesMeta,
+	seriesValues [][]float64,
+) block.Block {
+	blockMeta := block.Metadata{Bounds: bounds}
+
+	return NewBlockFromValuesWithMetaAndSeriesMeta(blockMeta, seriesMeta, seriesValues)
+}
+
+// NewBlockFromValuesWithMetaAndSeriesMeta creates a new block using the provided values
+func NewBlockFromValuesWithMetaAndSeriesMeta(
+	meta block.Metadata,
+	seriesMeta []block.SeriesMeta,
+	seriesValues [][]float64,
+) block.Block {
+	columnBuilder := block.NewColumnBlockBuilder(meta, seriesMeta)
 	columnBuilder.AddCols(len(seriesValues[0]))
 	for _, seriesVal := range seriesValues {
 		for idx, val := range seriesVal {

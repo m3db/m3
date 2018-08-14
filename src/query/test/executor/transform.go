@@ -32,7 +32,10 @@ func NewControllerWithSink(ID parser.NodeID) (*transform.Controller, *SinkNode) 
 		ID: ID,
 	}
 
-	node := &SinkNode{}
+	node := &SinkNode{
+		Values: make([][]float64, 0),
+		Metas:  make([]block.SeriesMeta, 0),
+	}
 	c.AddTransform(node)
 	return c, node
 }
@@ -40,6 +43,8 @@ func NewControllerWithSink(ID parser.NodeID) (*transform.Controller, *SinkNode) 
 // SinkNode is a test node useful for comparisons
 type SinkNode struct {
 	Values [][]float64
+	Meta   block.Metadata
+	Metas  []block.SeriesMeta
 }
 
 // Process processes and stores the last block output in the sink node
@@ -60,7 +65,10 @@ func (s *SinkNode) Process(ID parser.NodeID, block block.Block) error {
 			values[i] = val.ValueAtStep(i)
 		}
 		s.Values = append(s.Values, values)
+		s.Metas = append(s.Metas, val.Meta)
 	}
+
+	s.Meta = iter.Meta()
 
 	return nil
 }

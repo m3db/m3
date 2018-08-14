@@ -21,8 +21,9 @@
 package logical
 
 import (
+	"errors"
+
 	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
 )
 
@@ -66,10 +67,134 @@ func hashFunc(on bool, names ...string) func(models.Tags) uint64 {
 	return func(tags models.Tags) uint64 { return tags.IDWithExcludes(names...) }
 }
 
-// Processor is implemented by each logical transform
-type Processor interface {
-	Process(lhs block.Block, rhs block.Block) (block.Block, error)
+const initIndexSliceLength = 10
+
+var (
+	errMismatchedBounds     = errors.New("block bounds are mismatched")
+	errMismatchedStepCounts = errors.New("block step counts are mismatched")
+)
+
+func combineMetaAndSeriesMeta(
+	meta, otherMeta block.Metadata,
+	seriesMeta, otherSeriesMeta []block.SeriesMeta,
+) (block.Metadata, []block.SeriesMeta, []block.SeriesMeta, error) {
+	if !meta.Bounds.Equals(otherMeta.Bounds) {
+		return block.Metadata{},
+			[]block.SeriesMeta{},
+			[]block.SeriesMeta{},
+			errMismatchedBounds
+	}
+
+	// NB (arnikola): mutating tags in `meta` to avoid allocations
+	commonTags := meta.Tags
+	otherTags := otherMeta.Tags
+	for k, v := range commonTags {
+		if otherVal, ok := otherTags[k]; ok {
+			if v != otherVal {
+				// If both metas have the same common tag  with different
+				// values, remove it from common tag list and explicitly
+				// add it to each seriesMeta.
+				delete(commonTags, k)
+				for _, metas := range seriesMeta {
+					metas.Tags[k] = v
+				}
+				for _, otherMetas := range otherSeriesMeta {
+					otherMetas.Tags[k] = otherVal
+				}
+			}
+
+			// NB(arnikola): delete common tag from otherTags as it
+			// has already been handled
+			delete(otherTags, k)
+		} else {
+			// Tag does not exist on otherMeta; remove it
+			// from common tags and explicitly add it to each seriesMeta
+			delete(commonTags, k)
+			for _, metas := range seriesMeta {
+				metas.Tags[k] = v
+			}
+		}
+	}
+
+	// Iterate over otherMeta common tags and explicitly add
+	// remaining tags to otherSeriesMeta
+	for otherK, otherV := range otherTags {
+		for _, otherMetas := range otherSeriesMeta {
+			otherMetas.Tags[otherK] = otherV
+		}
+	}
+
+	return meta,
+		seriesMeta,
+		otherSeriesMeta,
+		nil
 }
 
-// MakeProcessor is a way to create a logical transform
-type MakeProcessor func(op BaseOp, controller *transform.Controller) Processor
+// Applies all shared tags from Metadata to each SeriesMeta
+func flattenMetadata(
+	meta block.Metadata,
+	seriesMeta []block.SeriesMeta,
+) []block.SeriesMeta {
+	for k, v := range meta.Tags {
+		for _, metas := range seriesMeta {
+			metas.Tags[k] = v
+		}
+	}
+
+	return seriesMeta
+}
+
+// Applies all shared tags from Metadata to each SeriesMeta
+func dedupeMetadata(
+	seriesMeta []block.SeriesMeta,
+) (models.Tags, []block.SeriesMeta) {
+	tags := make(models.Tags)
+	if len(seriesMeta) == 0 {
+		return tags, seriesMeta
+	}
+
+	// For each tag in the first series, read through list of seriesMetas;
+	// if key not found or value differs, this is not a shared tag
+	var distinct bool
+	for k, v := range seriesMeta[0].Tags {
+		distinct = false
+		for _, metas := range seriesMeta[1:] {
+			if val, ok := metas.Tags[k]; ok {
+				if val != v {
+					distinct = true
+					break
+				}
+			} else {
+				distinct = true
+				break
+			}
+		}
+
+		if !distinct {
+			// This is a shared tag; add it to shared meta and remove
+			// it from each seriesMeta
+			tags[k] = v
+			for _, metas := range seriesMeta {
+				delete(metas.Tags, k)
+			}
+		}
+	}
+
+	return tags, seriesMeta
+}
+
+func appendValuesAtIndices(idxArray []int, iter block.StepIter, builder block.Builder) error {
+	for index := 0; iter.Next(); index++ {
+		step, err := iter.Current()
+		if err != nil {
+			return err
+		}
+
+		values := step.Values()
+		for _, idx := range idxArray {
+			builder.AppendValue(index, values[idx])
+		}
+	}
+
+	return nil
+}

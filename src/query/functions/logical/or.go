@@ -21,22 +21,34 @@
 package logical
 
 import (
-	"math"
-
 	"github.com/m3db/m3/src/query/block"
 )
 
-// AndType uses values from left hand side for which there is a value in right hand side with exactly matching label sets.
-// Other elements are replaced by NaNs. The metric name and values are carried over from the left-hand side.
-const AndType = "and"
+// OrType uses all values from left hand side, and appends values from the right hand side which do
+// not have corresponding tags on the right
+const OrType = "or"
 
-func makeAndBlock(
+func makeOrBlock(
 	node *logicalNode,
 	lIter, rIter block.StepIter,
 ) (block.Block, error) {
-	lMeta, rSeriesMeta := lIter.Meta(), rIter.SeriesMeta()
+	meta, lSeriesMetas, rSeriesMetas, err := combineMetaAndSeriesMeta(
+		lIter.Meta(),
+		rIter.Meta(),
+		lIter.SeriesMeta(),
+		rIter.SeriesMeta(),
+	)
+	if err != nil {
+		return nil, err
+	}
 
-	builder, err := node.controller.BlockBuilder(lMeta, rSeriesMeta)
+	missingIndices, combinedSeriesMeta := missing(
+		node.op.Matching,
+		lSeriesMetas,
+		rSeriesMetas,
+	)
+
+	builder, err := node.controller.BlockBuilder(meta, combinedSeriesMeta)
 	if err != nil {
 		return nil, err
 	}
@@ -45,57 +57,45 @@ func makeAndBlock(
 		return nil, err
 	}
 
-	intersection := intersect(node.op.Matching, lIter.SeriesMeta(), rIter.SeriesMeta())
-	for index := 0; lIter.Next() && rIter.Next(); index++ {
+	index := 0
+	for ; lIter.Next(); index++ {
 		lStep, err := lIter.Current()
 		if err != nil {
 			return nil, err
 		}
 
 		lValues := lStep.Values()
-		rStep, err := rIter.Current()
-		if err != nil {
-			return nil, err
-		}
+		builder.AppendValues(index, lValues)
+	}
 
-		rValues := rStep.Values()
-
-		for idx, value := range lValues {
-			rIdx := intersection[idx]
-			if rIdx < 0 || math.IsNaN(rValues[rIdx]) {
-				builder.AppendValue(index, math.NaN())
-				continue
-			}
-
-			builder.AppendValue(index, value)
-		}
+	if err := appendValuesAtIndices(missingIndices, rIter, builder); err != nil {
+		return nil, err
 	}
 
 	return builder.Build(), nil
 }
 
-// intersect returns the slice of rhs indices if there is a match with
-// a corresponding lhs index. If no match is found, it returns -1
-func intersect(
+// missing returns the slice of rhs indices for which there are no corresponding
+// indices on the lhs. It also returns the metadatas for the series at these
+// indices to avoid having to calculate this separately
+func missing(
 	matching *VectorMatching,
 	lhs, rhs []block.SeriesMeta,
-) []int {
+) ([]int, []block.SeriesMeta) {
 	idFunction := hashFunc(matching.On, matching.MatchingLabels...)
-	// The set of signatures for the right-hand side.
-	rightSigs := make(map[uint64]int, len(rhs))
-	for idx, meta := range rhs {
-		rightSigs[idFunction(meta.Tags)] = idx
+	// The set of signatures for the left-hand side.
+	leftSigs := make(map[uint64]struct{}, len(lhs))
+	for _, meta := range lhs {
+		leftSigs[idFunction(meta.Tags)] = struct{}{}
 	}
 
-	matches := make([]int, len(lhs))
-	for i, ls := range lhs {
-		// If there's a matching entry in the right-hand side Vector, add the sample.
-		if idx, ok := rightSigs[idFunction(ls.Tags)]; ok {
-			matches[i] = idx
-		} else {
-			matches[i] = -1
+	missing := make([]int, 0, initIndexSliceLength)
+	for i, rs := range rhs {
+		// If there's no matching entry in the left-hand side Vector, add the sample.
+		if _, ok := leftSigs[idFunction(rs.Tags)]; !ok {
+			missing = append(missing, i)
+			lhs = append(lhs, rs)
 		}
 	}
-
-	return matches
+	return missing, lhs
 }
