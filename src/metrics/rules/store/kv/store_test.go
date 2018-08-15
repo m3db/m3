@@ -393,6 +393,14 @@ func TestReadNamespaces(t *testing.T) {
 	require.NotNil(t, nss.Namespaces)
 }
 
+func TestReadNamespaceNotFound(t *testing.T) {
+	s := testStore()
+	defer s.Close()
+
+	_, err := s.ReadNamespaces()
+	require.IsType(t, merrors.NewNotFoundError(""), err)
+}
+
 func TestReadNamespacesError(t *testing.T) {
 	s := testStore()
 	defer s.Close()
@@ -413,6 +421,14 @@ func TestReadRuleSet(t *testing.T) {
 	rs, err := s.ReadRuleSet(testNamespace)
 	require.NoError(t, err)
 	require.NotNil(t, rs)
+}
+
+func TestReadRuleSetNotFound(t *testing.T) {
+	s := testStore()
+	defer s.Close()
+
+	_, err := s.ReadRuleSet(testNamespace)
+	require.IsType(t, merrors.NewNotFoundError(""), err)
 }
 
 func TestReadRuleSetError(t *testing.T) {
@@ -642,6 +658,6 @@ type mockValidator struct {
 	validateFn validateFn
 }
 
-func (v *mockValidator) Validate(rs rules.RuleSet) error                { return v.validateFn(rs) }
+func (v *mockValidator) Validate(rs rules.RuleSet) error              { return v.validateFn(rs) }
 func (v *mockValidator) ValidateSnapshot(snapshot view.RuleSet) error { return nil }
-func (v *mockValidator) Close()                                         {}
+func (v *mockValidator) Close()                                       {}

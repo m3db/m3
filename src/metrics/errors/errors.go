@@ -42,3 +42,10 @@ type StaleDataError string
 // NewStaleDataError creates a new version mismatch error.
 func NewStaleDataError(str string) error { return StaleDataError(str) }
 func (e StaleDataError) Error() string   { return string(e) }
+
+// NotFoundError is returned when fetching value from rule store that does not exist.
+type NotFoundError string
+
+// NewNotFoundError creates a new not found error.
+func NewNotFoundError(str string) error { return NotFoundError(str) }
+func (e NotFoundError) Error() string   { return string(e) }
