@@ -1,5 +1,10 @@
 coordinator:
-  listenAddress: 0.0.0.0:7201
+  listenAddress:
+    hostname: "0.0.0.0"
+    port:
+      resolver: "environment"
+      envVarName: "UBER_PORT_HTTP"
+
   metrics:
     scope:
       prefix: "coordinator"

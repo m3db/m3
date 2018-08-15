@@ -1,5 +1,5 @@
-hash: ab5f540aa745c7a2328cf4ed6de02f59fc578137440034d74cdf9d6af8377782
-updated: 2018-08-03T17:15:02.030496-04:00
+hash: 4133ef812b541eaac03da8bbb0debcc77c8c6478b63563185bfd743d79cee7f2
+updated: 2018-08-15T17:43:58.833051259-04:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -120,12 +120,12 @@ imports:
 - name: github.com/glycerine/go-unsnap-stream
   version: 9f0cb55181dd3a0a4c168d3dbc72d4aca4853126
 - name: github.com/go-kit/kit
-  version: de60aef62101a73dbd4b1b596e6db9a801009508
+  version: 9bf23341289dc5ecc1c4bb9dbad72265fbdfdd94
   subpackages:
   - log
   - log/level
 - name: github.com/go-logfmt/logfmt
-  version: 390ab7935ee28ec6b286364bba9b4dd6410cb3d5
+  version: c2152ce9154221b192a66372715a5330c67dbce3
 - name: github.com/go-stack/stack
   version: 259ab82a6cad3992b4e21ff5cac294ccb06474bc
 - name: github.com/gogo/protobuf
@@ -306,7 +306,7 @@ imports:
   - protocol/proto
   - topic
 - name: github.com/m3db/m3x
-  version: 994ab3222cc45bdb1b439f96d37221651b24feca
+  version: 49a94422a02501a99c1ae6c1a632f83aea9efad6
   vcs: git
   subpackages:
   - checked
@@ -369,7 +369,7 @@ imports:
 - name: github.com/nu7hatch/gouuid
   version: 179d4d0c4d8d407a32af483c2354df1d2c91e6c3
 - name: github.com/oklog/ulid
-  version: fbd4c399462d51c71b859451c8084036c35ecb3d
+  version: 3928b679b154aad7ea1db5352e4277e4e448b324
 - name: github.com/opentracing/opentracing-go
   version: 855519783f479520497c6b3445611b05fc42f009
   subpackages:
@@ -454,11 +454,11 @@ imports:
   subpackages:
   - cobra
 - name: github.com/spf13/jwalterweatherman
-  version: 7c0cea34c8ece3fbeb2b27ab9b59511d360fb394
+  version: 14d3d4c518341bea657dd8a226f5121c0ff8c9f2
 - name: github.com/spf13/pflag
   version: 4f9190456aed1c2113ca51ea9b89219747458dc1
 - name: github.com/spf13/viper
-  version: b5e8006cbee93ec955a89ab31e0e3ce3204f3736
+  version: 907c19d40d9a6c9bb55f040ff4ae45271a4754b9
 - name: github.com/stretchr/testify
   version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
   subpackages:
@@ -606,7 +606,7 @@ testImports:
 - name: github.com/go-playground/universal-translator
   version: 71201497bace774495daed26a3874fd339e0b538
 - name: github.com/leanovate/gopter
-  version: f778776473e0ef7764e1434dd01a61cc1ec574b4
+  version: 1f4d0ba27bd5df5390eb622bcb458f8f7ac2573c
   subpackages:
   - commands
   - gen
