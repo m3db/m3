@@ -4,7 +4,7 @@ import:
 - package: github.com/m3db/m3cluster
   version: 53fc512c11e1ed03db2d65dac4c139a3c2ff2eda
 - package: github.com/m3db/m3metrics
-  version: 115abc5764862381dcba3ef30cd0b42026bd69fe
+  version: dcfe68fe112095f688cbaa1b0aa4c4ac65922e84
 - package: github.com/m3db/m3x
   version: a5cc485300c733558a25e1e6c5e9dcf4dbc241c4
 - package: github.com/apache/thrift

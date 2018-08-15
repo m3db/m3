@@ -117,6 +117,32 @@ func TestUpdateRuleSetVersionMisMatch(t *testing.T) {
 	require.IsType(t, r2.NewConflictError(""), err)
 }
 
+func TestUpdateRuleSetFetchNotFound(t *testing.T) {
+	rsChanges := newTestRuleSetChanges(
+		view.MappingRules{},
+		view.RollupRules{},
+	)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockedStore := rules.NewMockStore(ctrl)
+	mockedStore.EXPECT().ReadRuleSet("testNamespace").Return(
+		nil,
+		merrors.NewNotFoundError("something bad has happened"),
+	)
+
+	storeOpts := NewStoreOptions().SetClockOptions(
+		clock.NewOptions().SetNowFn(func() time.Time {
+			return time.Unix(0, 200)
+		}),
+	)
+	rulesStore := NewStore(mockedStore, storeOpts)
+	uOpts := r2store.NewUpdateOptions().SetAuthor("validUser")
+	_, err := rulesStore.UpdateRuleSet(rsChanges, 1, uOpts)
+	require.Error(t, err)
+	require.IsType(t, r2.NewNotFoundError(""), err)
+}
+
 func TestUpdateRuleSetFetchFailure(t *testing.T) {
 	rsChanges := newTestRuleSetChanges(
 		view.MappingRules{},

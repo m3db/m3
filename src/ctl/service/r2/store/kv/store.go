@@ -478,6 +478,8 @@ func handleUpstreamError(err error) error {
 		return r2.NewConflictError(err.Error())
 	case merrors.ValidationError:
 		return r2.NewBadInputError(err.Error())
+	case merrors.NotFoundError:
+		return r2.NewNotFoundError(err.Error())
 	default:
 		return r2.NewInternalError(err.Error())
 	}
