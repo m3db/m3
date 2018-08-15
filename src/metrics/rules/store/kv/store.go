@@ -48,7 +48,7 @@ func NewStore(kvStore kv.TxnStore, opts StoreOptions) rules.Store {
 func (s *store) ReadNamespaces() (*rules.Namespaces, error) {
 	value, err := s.kvStore.Get(s.opts.NamespacesKey)
 	if err != nil {
-		return nil, err
+		return nil, wrapReadError(err)
 	}
 
 	version := value.Version()
@@ -67,9 +67,8 @@ func (s *store) ReadNamespaces() (*rules.Namespaces, error) {
 func (s *store) ReadRuleSet(nsName string) (rules.RuleSet, error) {
 	ruleSetKey := s.ruleSetKey(nsName)
 	value, err := s.kvStore.Get(ruleSetKey)
-
 	if err != nil {
-		return nil, err
+		return nil, wrapReadError(err)
 	}
 
 	version := value.Version()
@@ -186,4 +185,15 @@ func wrapWriteError(err error) error {
 	}
 
 	return err
+}
+
+func wrapReadError(err error) error {
+	switch err {
+	case kv.ErrNotFound:
+		return merrors.NewNotFoundError(
+			fmt.Sprintf("not found: %s", err.Error()),
+		)
+	default:
+		return err
+	}
 }
