@@ -13,7 +13,11 @@ You'll need to specify the static IPs or hostnames of your M3DB seed nodes, and 
 It should look something like:
 
 ```
-listenAddress: 0.0.0.0:7201
+listenAddress:
+  hostname: "0.0.0.0"
+  port:
+    portType: "config"
+    value: "7201"
 
 metrics:
   scope:
