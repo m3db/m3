@@ -167,12 +167,8 @@ type databaseBufferDrainFn func(b block.DatabaseBlock)
 // NB(prateek): databaseBuffer.Reset(...) must be called upon the returned
 // object prior to use.
 func newDatabaseBuffer(drainFn databaseBufferDrainFn) databaseBuffer {
-	bucketPoolOpts := pool.NewObjectPoolOptions().SetSize(defaultBufferBucketPoolSize)
-
 	b := &dbBuffer{
-		drainFn:            drainFn,
-		bucketsNotRealTime: make(map[xtime.UnixNano]*dbBufferBucket),
-		bucketPool:         newDBBufferBucketPool(bucketPoolOpts),
+		drainFn: drainFn,
 	}
 	return b
 }
@@ -184,7 +180,14 @@ func (b *dbBuffer) Reset(opts Options) {
 	b.blockSize = ropts.BlockSize()
 	b.bufferPast = ropts.BufferPast()
 	b.bufferFuture = ropts.BufferFuture()
-	b.removeBucketsNotRealTime()
+
+	if ropts.AnyWriteTimeEnabled() {
+		bucketPoolOpts := pool.NewObjectPoolOptions().SetSize(defaultBufferBucketPoolSize)
+		b.bucketPool = newDBBufferBucketPool(bucketPoolOpts)
+		b.bucketsNotRealTime = make(map[xtime.UnixNano]*dbBufferBucket)
+		b.removeBucketsNotRealTime()
+	}
+
 	// Avoid capturing any variables with callback
 	b.computedForEachBucketAsc(computeAndResetBucketIdx, bucketTypeRealTime, bucketResetStart)
 }
@@ -196,14 +199,14 @@ func (b *dbBuffer) removeBucketsNotRealTime() {
 }
 
 func bucketResetStart(now time.Time, b *dbBuffer, id bucketID, start time.Time) int {
-	bucket := bucketAtIdx(b, id)
+	bucket := b.bucketAtIdx(id)
 
 	bucket.opts = b.opts
 	bucket.resetTo(start, true)
 	return 1
 }
 
-func bucketAtIdx(b *dbBuffer, id bucketID) *dbBufferBucket {
+func (b *dbBuffer) bucketAtIdx(id bucketID) *dbBufferBucket {
 	if id.isRealTime {
 		return &b.bucketsRealTime[id.idx]
 	}
@@ -264,7 +267,7 @@ func (b *dbBuffer) Write(
 	}
 
 	if b.bucketsNotRealTime[key].needsDrain(now, bucketStart) {
-		bucketDrain(now, b, notRealtimeBucketID(key), bucketStart)
+		b.bucketDrain(now, notRealtimeBucketID(key), bucketStart)
 
 		if b.bucketsNotRealTime[key].isStale(now) {
 			b.removeBucket(key)
@@ -346,7 +349,7 @@ func (b *dbBuffer) NeedsDrain() bool {
 }
 
 func bucketNeedsDrain(now time.Time, b *dbBuffer, id bucketID, start time.Time) int {
-	bucket := bucketAtIdx(b, id)
+	bucket := b.bucketAtIdx(id)
 	if bucket.needsDrain(now, start) {
 		return 1
 	}
@@ -365,7 +368,7 @@ func bucketTick(now time.Time, b *dbBuffer, id bucketID, start time.Time) int {
 	// Perform a drain and reset if necessary
 	mergedOutOfOrderBlocks := bucketDrainAndReset(now, b, id, start)
 
-	bucket := bucketAtIdx(b, id)
+	bucket := b.bucketAtIdx(id)
 
 	// Try to merge any out of order encoders to amortize the cost of a drain
 	r, err := bucket.merge()
@@ -390,10 +393,10 @@ func (b *dbBuffer) DrainAndReset() drainAndResetResult {
 
 func bucketDrainAndReset(now time.Time, b *dbBuffer, id bucketID, start time.Time) int {
 	mergedOutOfOrderBlocks := 0
-	bucket := bucketAtIdx(b, id)
+	bucket := b.bucketAtIdx(id)
 
 	if bucket.needsDrain(now, start) {
-		mergedOutOfOrderBlocks += bucketDrain(now, b, id, start)
+		mergedOutOfOrderBlocks += b.bucketDrain(now, id, start)
 	}
 
 	if bucket.needsReset(now, start) {
@@ -407,10 +410,10 @@ func bucketDrainAndReset(now time.Time, b *dbBuffer, id bucketID, start time.Tim
 	return mergedOutOfOrderBlocks
 }
 
-func bucketDrain(now time.Time, b *dbBuffer, id bucketID, start time.Time) int {
+func (b *dbBuffer) bucketDrain(now time.Time, id bucketID, start time.Time) int {
 	mergedOutOfOrderBlocks := 0
 
-	bucket := bucketAtIdx(b, id)
+	bucket := b.bucketAtIdx(id)
 	// Rotate the buffer to a block, merging if required
 	result, err := bucket.discardMerged()
 	if err != nil {
@@ -533,7 +536,6 @@ func (b *dbBuffer) computedForEachBucketAsc(
 			result += fn(now, b, notRealtimeBucketID(key), key.ToTime())
 		}
 	}
-
 	return result
 }
 
