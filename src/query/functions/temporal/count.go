@@ -23,7 +23,7 @@ package temporal
 import (
 	"math"
 
-	"github.com/m3db/m3db/src/coordinator/executor/transform"
+	"github.com/m3db/m3/src/query/executor/transform"
 )
 
 // CountTemporalType generates count of all values in the specified interval

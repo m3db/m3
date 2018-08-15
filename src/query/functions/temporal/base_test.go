@@ -24,11 +24,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/coordinator/block"
-	"github.com/m3db/m3db/src/coordinator/executor/transform"
-	"github.com/m3db/m3db/src/coordinator/parser"
-	"github.com/m3db/m3db/src/coordinator/test"
-	"github.com/m3db/m3db/src/coordinator/test/executor"
+	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/parser"
+	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/executor"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -203,5 +203,4 @@ func TestBaseWithThreeBlocks(t *testing.T) {
 	blks, err := bNode.cache.multiGet(bounds.Previous(2), 3, false)
 	require.NoError(t, err)
 	assert.Len(t, blks, 0)
-
 }

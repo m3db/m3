@@ -25,11 +25,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/coordinator/block"
-	"github.com/m3db/m3db/src/coordinator/executor/transform"
-	"github.com/m3db/m3db/src/coordinator/parser"
-	"github.com/m3db/m3db/src/coordinator/test"
-	"github.com/m3db/m3db/src/coordinator/test/executor"
+	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/parser"
+	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/executor"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -91,9 +91,13 @@ func TestCountWithThreeBlocks(t *testing.T) {
 	expected := []float64{5, 5, 5, 5, 5}
 	test.EqualsWithNans(t, expected, sink.Values[2])
 	test.EqualsWithNans(t, expected, sink.Values[3])
-	cachedBlocks, err := bNode.cache.multiGet(bounds.Previous(2), 3, false)
+	_, exists = bNode.cache.get(bounds.Previous(2).Start)
+	assert.False(t, exists, "block removed from cache")
+	_, exists = bNode.cache.get(bounds.Previous(1).Start)
+	assert.False(t, exists, "block not cached")
+	_, exists = bNode.cache.get(bounds.Start)
+	assert.False(t, exists, "block removed from cache")
+	blks, err := bNode.cache.multiGet(bounds.Previous(2), 3, false)
 	require.NoError(t, err)
-	assert.Nil(t, cachedBlocks[0], "block removed from cache")
-	assert.Nil(t, cachedBlocks[1], "block not cached")
-	assert.Nil(t, cachedBlocks[2], "block removed from cache")
+	assert.Len(t, blks, 0)
 }

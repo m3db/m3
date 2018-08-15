@@ -24,6 +24,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
@@ -54,7 +55,7 @@ func TestAbsWithAllValues(t *testing.T) {
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	op, err := NewMathOp(AbsType)
 	require.NoError(t, err)
-	node := op.Node(c)
+	node := op.Node(c, transform.Options{})
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedMathVals(values, math.Abs)
@@ -73,7 +74,7 @@ func TestAbsWithSomeValues(t *testing.T) {
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	op, err := NewMathOp(AbsType)
 	require.NoError(t, err)
-	node := op.Node(c)
+	node := op.Node(c, transform.Options{})
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedMathVals(values, math.Abs)
@@ -88,7 +89,7 @@ func TestLn(t *testing.T) {
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	op, err := NewMathOp(LnType)
 	require.NoError(t, err)
-	node := op.Node(c)
+	node := op.Node(c, transform.Options{})
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedMathVals(values, math.Log)
@@ -107,7 +108,7 @@ func TestLog10WithNoValues(t *testing.T) {
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	op, err := NewMathOp(Log10Type)
 	require.NoError(t, err)
-	node := op.Node(c)
+	node := op.Node(c, transform.Options{})
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedMathVals(values, math.Log10)
@@ -126,7 +127,7 @@ func TestLog2WithSomeValues(t *testing.T) {
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	op, err := NewMathOp(Log2Type)
 	require.NoError(t, err)
-	node := op.Node(c)
+	node := op.Node(c, transform.Options{})
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedMathVals(values, math.Log2)
@@ -145,7 +146,7 @@ func TestFloorWithSomeValues(t *testing.T) {
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	op, err := NewMathOp(FloorType)
 	require.NoError(t, err)
-	node := op.Node(c)
+	node := op.Node(c, transform.Options{})
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedMathVals(values, math.Floor)
@@ -164,7 +165,7 @@ func TestCeilWithSomeValues(t *testing.T) {
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	op, err := NewMathOp(CeilType)
 	require.NoError(t, err)
-	node := op.Node(c)
+	node := op.Node(c, transform.Options{})
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedMathVals(values, math.Ceil)
@@ -182,7 +183,7 @@ func TestExpWithSomeValues(t *testing.T) {
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	op, err := NewMathOp(ExpType)
 	require.NoError(t, err)
-	node := op.Node(c)
+	node := op.Node(c, transform.Options{})
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedMathVals(values, math.Exp)
@@ -201,7 +202,7 @@ func TestSqrtWithSomeValues(t *testing.T) {
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	op, err := NewMathOp(SqrtType)
 	require.NoError(t, err)
-	node := op.Node(c)
+	node := op.Node(c, transform.Options{})
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedMathVals(values, math.Sqrt)
