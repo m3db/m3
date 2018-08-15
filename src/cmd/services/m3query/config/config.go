@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/query/storage/local"
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
+	"github.com/m3db/m3x/config/listenaddress"
 	"github.com/m3db/m3x/instrument"
 )
 
@@ -46,7 +47,7 @@ type Configuration struct {
 	ClusterManagement *ClusterManagementConfiguration `yaml:"clusterManagement"`
 
 	// ListenAddress is the server listen address.
-	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`
+	ListenAddress *listenaddress.Configuration `yaml:"listenAddress" validate:"nonzero"`
 
 	// RPC is the RPC configuration.
 	RPC *RPCConfiguration `yaml:"rpc"`
