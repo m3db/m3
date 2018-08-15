@@ -46,7 +46,11 @@ import (
 )
 
 var configYAML = `
-listenAddress: 127.0.0.1:7201
+listenAddress:
+  hostname: "0.0.0.0"
+  port:
+    portType: "config"
+    value: 7201
 
 metrics:
   scope:
