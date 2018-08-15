@@ -245,14 +245,14 @@ func Run(runOpts RunOptions) {
 
 	listenAddress, err := cfg.ListenAddress.Resolve()
 	if err != nil {
-		logger.Fatal("unable to get listen address", zap.Any("error", err))
+		logger.Fatal("unable to get listen address", zap.Error("error", err))
 	}
 
 	logger.Info("starting server", zap.String("address", listenAddress))
 	go func() {
 		if err := http.ListenAndServe(listenAddress, handler.Router); err != nil {
 			logger.Fatal("unable to serve on listen address",
-				zap.Any("address", listenAddress), zap.Any("error", err))
+				zap.String("address", listenAddress), zap.Error("error", err))
 		}
 	}()
 
