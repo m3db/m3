@@ -184,7 +184,7 @@ func (c *baseNode) processRight(bounds block.Bounds, maxBlocks int, rightRangeSt
 	return rightBlks, len(rightBlks) != maxBlocks, nil
 }
 
-// processCompletedBlocks processes all blocks for which are dependant blocks are present
+// processCompletedBlocks processes all blocks for which all dependent blocks are present
 func (c *baseNode) processCompletedBlocks(processRequests []processRequest, queryStartBounds, queryEndBounds block.Bounds, maxBlocks int) error {
 	processedKeys := make([]time.Time, len(processRequests))
 	for i, req := range processRequests {
@@ -383,24 +383,25 @@ func (c *blockCache) remove(idx int) error {
 	if idx >= len(c.blockList) {
 		return fmt.Errorf("index out of range for remove: %d", idx)
 	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
 
+	c.mu.Lock()
 	c.blockList[idx] = nil
+	c.mu.Unlock()
+
 	return nil
 }
 
 // Get the block from the cache
 func (c *blockCache) get(key time.Time) (block.Block, bool) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	index, err := c.index(key)
 	if err != nil {
+		c.mu.Unlock()
 		return nil, false
 	}
 
 	b := c.blockList[index]
+	c.mu.Unlock()
 	return b, b != nil
 }
 
@@ -488,11 +489,11 @@ func (c *blockCache) markProcessed(keys []time.Time) {
 // Processed returns all processed block times from the cache
 func (c *blockCache) processed() []bool {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	processedBlocks := make([]bool, len(c.processedBlocks))
 	for i, processed := range c.processedBlocks {
 		processedBlocks[i] = processed
 	}
 
+	c.mu.Unlock()
 	return processedBlocks
 }
