@@ -73,7 +73,7 @@ type scalarNode struct {
 
 // Execute runs the scalar node operation
 func (n *scalarNode) Execute(ctx context.Context) error {
-	bounds := n.timespec.ToBounds()
+	bounds := n.timespec.Bounds()
 
 	block := block.NewScalar(n.op.val, bounds)
 	if n.debug {

@@ -85,6 +85,12 @@ const (
 
 	// LesserEqType raises lhs to the power of rhs
 	LesserEqType = "<="
+
+	initIndexSliceLength = 10
+)
+
+var (
+	errMismatchedStepCounts = errors.New("block step counts are mismatched")
 )
 
 type mathFunc func(x, y float64) float64
@@ -222,6 +228,7 @@ func (n *binaryNode) process(lhs, rhs block.Block) (block.Block, error) {
 		lVal := scalarL.Value()
 
 		// rhs is a series; use rhs metadata and series meta
+		// and build a binary function where lhs is the scalar value
 		if !params.RIsScalar {
 			return n.processSingleBlock(
 				rhs,
@@ -259,6 +266,7 @@ func (n *binaryNode) process(lhs, rhs block.Block) (block.Block, error) {
 
 		rVal := scalarR.Value()
 		// lhs is a series; use lhs metadata and series meta
+		// and build a binary function where rhs is the scalar value
 		return n.processSingleBlock(
 			lhs,
 			func(x float64) float64 {
@@ -271,6 +279,11 @@ func (n *binaryNode) process(lhs, rhs block.Block) (block.Block, error) {
 	rIter, err := rhs.StepIter()
 	if err != nil {
 		return nil, err
+	}
+
+	// Ensure step count is equal for both series
+	if lIter.StepCount() != rIter.StepCount() {
+		return nil, errMismatchedStepCounts
 	}
 
 	// NB(arnikola): this is a sanity check, as functions between
@@ -393,14 +406,13 @@ func (n *binaryNode) processBothSeries(
 			return nil, err
 		}
 
-		lValues := lStep.Values()
 		rStep, err := rIter.Current()
 		if err != nil {
 			return nil, err
 		}
 
+		lValues := lStep.Values()
 		rValues := rStep.Values()
-
 		for seriesIdx, lIdx := range takeLeft {
 			rIdx := correspondingRight[seriesIdx]
 			lVal := lValues[lIdx]
@@ -447,8 +459,6 @@ func (n *binaryNode) cleanup() {
 	n.cache.Remove(n.op.params.LNode)
 	n.cache.Remove(n.op.params.RNode)
 }
-
-const initIndexSliceLength = 10
 
 // intersect returns the slice of lhs indices that are shared with rhs,
 // the indices of the corresponding rhs values, and the metas for taken indices

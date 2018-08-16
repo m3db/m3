@@ -58,7 +58,6 @@ func CreateScalarSource(
 	options transform.Options,
 ) (parser.Source, *transform.Controller) {
 	controller := &transform.Controller{ID: ID}
-
 	return params.Node(controller, options), controller
 }
 

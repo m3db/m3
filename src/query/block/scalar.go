@@ -27,8 +27,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 )
 
-// Scalar is a block containing a single value
-// over a certain bound
+// Scalar is a block containing a single value over a certain bound
 // This represents constant values; it greatly simplifies downstream operations by
 // allowing them to treat this as a regular block, while at the same time
 // having an option to optimize by accessing the scalar value directly instead
@@ -36,9 +35,6 @@ type Scalar struct {
 	val  float64
 	meta Metadata
 }
-
-// assert that Scalar implements Block
-var _ Block = (*Scalar)(nil)
 
 // NewScalar creates a scalar block containing val over the bounds
 func NewScalar(val float64, bounds Bounds) Block {
@@ -87,14 +83,10 @@ func (b *Scalar) Close() error { return nil }
 func (b *Scalar) Value() float64 { return b.val }
 
 type scalarStepIter struct {
-	meta    Metadata
-	step    scalarStep
-	numVals int
-	idx     int
+	meta         Metadata
+	step         scalarStep
+	numVals, idx int
 }
-
-// assert that scalarStepIter implements StepIter
-var _ StepIter = (*scalarStepIter)(nil)
 
 // build an empty SeriesMeta
 func buildSeriesMeta() SeriesMeta {
@@ -127,9 +119,6 @@ type scalarStep struct {
 	time time.Time
 }
 
-// assert that scalarStepIter implements StepIter
-var _ Step = (*scalarStep)(nil)
-
 func (it *scalarStep) Time() time.Time   { return it.time }
 func (it *scalarStep) Values() []float64 { return it.vals }
 
@@ -138,9 +127,6 @@ type scalarSeriesIter struct {
 	vals []float64
 	idx  int
 }
-
-// assert that scalarStepIter implements StepIter
-var _ SeriesIter = (*scalarSeriesIter)(nil)
 
 func (it *scalarSeriesIter) Close()                   { /* No-op*/ }
 func (it *scalarSeriesIter) SeriesCount() int         { return 1 }

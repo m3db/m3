@@ -181,10 +181,8 @@ func (p *parseState) walk(node pql.Node) error {
 
 	case *pql.NumberLiteral:
 		op := NewScalarOperator(n)
-
 		opTransform := parser.NewTransformFromOperation(op, p.transformLen())
 		p.transforms = append(p.transforms, opTransform)
-
 		return nil
 
 	case *pql.ParenExpr:

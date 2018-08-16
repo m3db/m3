@@ -47,8 +47,8 @@ type TimeSpec struct {
 	Step time.Duration
 }
 
-// ToBounds transforms a timespec to bounds
-func (ts TimeSpec) ToBounds() block.Bounds {
+// Bounds transforms a timespec to bounds
+func (ts TimeSpec) Bounds() block.Bounds {
 	return block.Bounds{
 		Start:    ts.Start,
 		End:      ts.End,
