@@ -38,6 +38,7 @@ import (
 const FetchType = "fetch"
 
 // FetchOp stores required properties for fetch
+// TODO: Make FetchOp private
 type FetchOp struct {
 	Name     string
 	Range    time.Duration
@@ -46,6 +47,7 @@ type FetchOp struct {
 }
 
 // FetchNode is the execution node
+// TODO: Make FetchNode private
 type FetchNode struct {
 	op         FetchOp
 	controller *transform.Controller
