@@ -58,9 +58,9 @@ type VectorMatching struct {
 	Include []string
 }
 
-// hashFunc returns a function that calculates the signature for a metric
+// HashFunc returns a function that calculates the signature for a metric
 // ignoring the provided labels. If on, then the given labels are only used instead.
-func hashFunc(on bool, names ...string) func(models.Tags) uint64 {
+func HashFunc(on bool, names ...string) func(models.Tags) uint64 {
 	if on {
 		return func(tags models.Tags) uint64 { return tags.IDWithKeys(names...) }
 	}
@@ -130,8 +130,8 @@ func combineMetaAndSeriesMeta(
 		nil
 }
 
-// Applies all shared tags from Metadata to each SeriesMeta
-func flattenMetadata(
+// FlattenMetadata applies all shared tags from Metadata to each SeriesMeta
+func FlattenMetadata(
 	meta block.Metadata,
 	seriesMeta []block.SeriesMeta,
 ) []block.SeriesMeta {
@@ -144,8 +144,8 @@ func flattenMetadata(
 	return seriesMeta
 }
 
-// Applies all shared tags from Metadata to each SeriesMeta
-func dedupeMetadata(
+// DedupeMetadata applies all shared tags from Metadata to each SeriesMeta
+func DedupeMetadata(
 	seriesMeta []block.SeriesMeta,
 ) (models.Tags, []block.SeriesMeta) {
 	tags := make(models.Tags)

@@ -42,13 +42,30 @@ type ExecutionState struct {
 }
 
 // CreateSource creates a source node
-func CreateSource(ID parser.NodeID, params SourceParams, storage storage.Storage, options transform.Options) (parser.Source, *transform.Controller) {
+func CreateSource(
+	ID parser.NodeID,
+	params SourceParams, storage storage.Storage,
+	options transform.Options,
+) (parser.Source, *transform.Controller) {
 	controller := &transform.Controller{ID: ID}
 	return params.Node(controller, storage, options), controller
 }
 
+// CreateScalarSource creates a scalar source node
+func CreateScalarSource(
+	ID parser.NodeID,
+	params ScalarParams,
+	options transform.Options,
+) (parser.Source, *transform.Controller) {
+	controller := &transform.Controller{ID: ID}
+	return params.Node(controller, options), controller
+}
+
 // CreateTransform creates a transform node which works on functions and contains state
-func CreateTransform(ID parser.NodeID, params transform.Params) (transform.OpNode, *transform.Controller) {
+func CreateTransform(
+	ID parser.NodeID,
+	params transform.Params,
+) (transform.OpNode, *transform.Controller) {
 	controller := &transform.Controller{ID: ID}
 	node := params.Node(controller)
 
@@ -67,11 +84,27 @@ func CreateTransform(ID parser.NodeID, params transform.Params) (transform.OpNod
 // SourceParams are defined by sources
 type SourceParams interface {
 	parser.Params
-	Node(controller *transform.Controller, storage storage.Storage, options transform.Options) parser.Source
+	Node(
+		controller *transform.Controller,
+		storage storage.Storage,
+		options transform.Options,
+	) parser.Source
+}
+
+// ScalarParams are defined by sources
+type ScalarParams interface {
+	parser.Params
+	Node(
+		controller *transform.Controller,
+		options transform.Options,
+	) parser.Source
 }
 
 // GenerateExecutionState creates an execution state from the physical plan
-func GenerateExecutionState(pplan plan.PhysicalPlan, storage storage.Storage) (*ExecutionState, error) {
+func GenerateExecutionState(
+	pplan plan.PhysicalPlan,
+	storage storage.Storage,
+) (*ExecutionState, error) {
 	result := pplan.ResultStep
 	state := &ExecutionState{
 		plan:    pplan,
@@ -105,11 +138,21 @@ func GenerateExecutionState(pplan plan.PhysicalPlan, storage storage.Storage) (*
 
 // createNode helps to create an execution node recursively
 // TODO: consider modifying this function so that ExecutionState can have a non pointer receiver
-func (s *ExecutionState) createNode(step plan.LogicalStep, options transform.Options) (*transform.Controller, error) {
+func (s *ExecutionState) createNode(
+	step plan.LogicalStep,
+	options transform.Options,
+) (*transform.Controller, error) {
 	// TODO: consider using a registry instead of casting to an interface
 	sourceParams, ok := step.Transform.Op.(SourceParams)
 	if ok {
 		source, controller := CreateSource(step.ID(), sourceParams, s.storage, options)
+		s.sources = append(s.sources, source)
+		return controller, nil
+	}
+
+	scalarParams, ok := step.Transform.Op.(ScalarParams)
+	if ok {
+		source, controller := CreateScalarSource(step.ID(), scalarParams, options)
 		s.sources = append(s.sources, source)
 		return controller, nil
 	}

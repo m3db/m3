@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/query/functions"
+	"github.com/m3db/m3/src/query/functions/binary"
 	"github.com/m3db/m3/src/query/functions/linear"
 	"github.com/m3db/m3/src/query/functions/logical"
 	"github.com/m3db/m3/src/query/parser"
@@ -63,260 +64,137 @@ func TestDAGWithUnknownOp(t *testing.T) {
 	require.Error(t, err, "unsupported operation fails parsing")
 }
 
-func TestDAGWithAbsOp(t *testing.T) {
-	q := "abs(http_requests_total{method=\"GET\"})"
-	p, err := Parse(q)
-	require.NoError(t, err)
-	transforms, edges, err := p.DAG()
-	require.NoError(t, err)
-	assert.Len(t, transforms, 2)
-	assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
-	assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
-	assert.Equal(t, transforms[1].Op.OpType(), linear.AbsType)
-	assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
-	assert.Len(t, edges, 1)
-	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"), "fetch should be the parent")
-	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"), "function expr should be the child")
+var linearParseTests = []struct {
+	q            string
+	expectedType string
+}{
+	{"abs(up)", linear.AbsType},
+	{"absent(up)", linear.AbsentType},
+	{"ceil(up)", linear.CeilType},
+	{"clamp_min(up, 1)", linear.ClampMinType},
+	{"clamp_max(up, 1)", linear.ClampMaxType},
+	{"exp(up)", linear.ExpType},
+	{"floor(up)", linear.FloorType},
+	{"ln(up)", linear.LnType},
+	{"log2(up)", linear.Log2Type},
+	{"log10(up)", linear.Log10Type},
+	{"sqrt(up)", linear.SqrtType},
+	{"round(up, 10)", linear.RoundType},
+
+	{"day_of_month(up)", linear.DayOfMonthType},
+	{"day_of_week(up)", linear.DayOfWeekType},
+	{"day_of_month(up)", linear.DayOfMonthType},
+	{"days_in_month(up)", linear.DaysInMonthType},
+
+	{"hour(up)", linear.HourType},
+	{"minute(up)", linear.MinuteType},
+	{"month(up)", linear.MonthType},
+	{"year(up)", linear.YearType},
 }
 
-func TestDAGWithAbsentOp(t *testing.T) {
-	q := "absent(http_requests_total{method=\"GET\"})"
-	p, err := Parse(q)
-	require.NoError(t, err)
-	transforms, edges, err := p.DAG()
-	require.NoError(t, err)
-	assert.Len(t, transforms, 2)
-	assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
-	assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
-	assert.Equal(t, transforms[1].Op.OpType(), linear.AbsentType)
-	assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
-	assert.Len(t, edges, 1)
-	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"), "fetch should be the parent")
-	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"), "function expr should be the child")
+func TestLinearParses(t *testing.T) {
+	for _, tt := range linearParseTests {
+		t.Run(tt.q, func(t *testing.T) {
+			q := tt.q
+			p, err := Parse(q)
+			require.NoError(t, err)
+			transforms, edges, err := p.DAG()
+			require.NoError(t, err)
+			assert.Len(t, transforms, 2)
+			assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
+			assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
+			assert.Equal(t, transforms[1].Op.OpType(), tt.expectedType)
+			assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
+			assert.Len(t, edges, 1)
+			assert.Equal(t, edges[0].ParentID, parser.NodeID("0"))
+			assert.Equal(t, edges[0].ChildID, parser.NodeID("1"))
+		})
+	}
 }
 
-func TestDAGWithAndOp(t *testing.T) {
-	q := "up and up"
-	p, err := Parse(q)
+var binaryParseTests = []struct {
+	q                string
+	LHSType, RHSType string
+	expectedType     string
+}{
+	// Arithmetic
+	{"up / up", functions.FetchType, functions.FetchType, binary.DivType},
+	{"up ^ 10", functions.FetchType, functions.ScalarType, binary.ExpType},
+	{"10 - up", functions.ScalarType, functions.FetchType, binary.MinusType},
+	{"10 + 10", functions.ScalarType, functions.ScalarType, binary.PlusType},
+	{"up % up", functions.FetchType, functions.FetchType, binary.ModType},
+	{"up * 10", functions.FetchType, functions.ScalarType, binary.MultiplyType},
+
+	// Equality
+	{"up == up", functions.FetchType, functions.FetchType, binary.EqType},
+	{"up != 10", functions.FetchType, functions.ScalarType, binary.NotEqType},
+	{"up > up", functions.FetchType, functions.FetchType, binary.GreaterType},
+	{"10 < up", functions.ScalarType, functions.FetchType, binary.LesserType},
+	{"up >= 10", functions.FetchType, functions.ScalarType, binary.GreaterEqType},
+	{"up <= 10", functions.FetchType, functions.ScalarType, binary.LesserEqType},
+
+	// Logical
+	{"up and up", functions.FetchType, functions.FetchType, logical.AndType},
+	{"up or up", functions.FetchType, functions.FetchType, logical.OrType},
+	{"up unless up", functions.FetchType, functions.FetchType, logical.UnlessType},
+}
+
+func TestBinaryParses(t *testing.T) {
+	for _, tt := range binaryParseTests {
+		t.Run(tt.q, func(t *testing.T) {
+			p, err := Parse(tt.q)
+			require.NoError(t, err)
+			transforms, edges, err := p.DAG()
+			require.NoError(t, err)
+			require.Len(t, transforms, 3)
+			assert.Equal(t, transforms[0].Op.OpType(), tt.LHSType)
+			assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
+			assert.Equal(t, transforms[1].Op.OpType(), tt.RHSType)
+			assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
+			assert.Equal(t, transforms[2].Op.OpType(), tt.expectedType)
+			assert.Equal(t, transforms[2].ID, parser.NodeID("2"))
+			assert.Len(t, edges, 2)
+			assert.Equal(t, edges[0].ParentID, parser.NodeID("0"))
+			assert.Equal(t, edges[0].ChildID, parser.NodeID("2"))
+			assert.Equal(t, edges[1].ParentID, parser.NodeID("1"))
+			assert.Equal(t, edges[1].ChildID, parser.NodeID("2"))
+		})
+	}
+}
+
+func TestParenPrecedenceParses(t *testing.T) {
+	p, err := Parse("(5^(up-6))")
 	require.NoError(t, err)
 	transforms, edges, err := p.DAG()
 	require.NoError(t, err)
-	assert.Len(t, transforms, 3)
-	assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
+	require.Len(t, transforms, 5)
+	// 5
+	assert.Equal(t, transforms[0].Op.OpType(), functions.ScalarType)
 	assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
+	// up
 	assert.Equal(t, transforms[1].Op.OpType(), functions.FetchType)
 	assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
-	assert.Equal(t, transforms[2].Op.OpType(), logical.AndType)
+	// 6
+	assert.Equal(t, transforms[2].Op.OpType(), functions.ScalarType)
 	assert.Equal(t, transforms[2].ID, parser.NodeID("2"))
-	assert.Len(t, edges, 2)
-	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"), "fetch should be the parent")
-	assert.Equal(t, edges[0].ChildID, parser.NodeID("2"), "and op should be child")
-	assert.Equal(t, edges[1].ParentID, parser.NodeID("1"), "second fetch should be the parent")
-	assert.Equal(t, edges[1].ChildID, parser.NodeID("2"), "and op should be child")
-}
+	// -
+	assert.Equal(t, transforms[3].Op.OpType(), binary.MinusType)
+	assert.Equal(t, transforms[3].ID, parser.NodeID("3"))
+	// ^
+	assert.Equal(t, transforms[4].Op.OpType(), binary.ExpType)
+	assert.Equal(t, transforms[4].ID, parser.NodeID("4"))
 
-func TestDAGWithOrOp(t *testing.T) {
-	q := "up or up"
-	p, err := Parse(q)
-	require.NoError(t, err)
-	transforms, edges, err := p.DAG()
-	require.NoError(t, err)
-	assert.Len(t, transforms, 3)
-	assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
-	assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
-	assert.Equal(t, transforms[1].Op.OpType(), functions.FetchType)
-	assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
-	assert.Equal(t, transforms[2].Op.OpType(), logical.OrType)
-	assert.Equal(t, transforms[2].ID, parser.NodeID("2"))
-	assert.Len(t, edges, 2)
-	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"), "fetch should be the parent")
-	assert.Equal(t, edges[0].ChildID, parser.NodeID("2"), "or op should be child")
-	assert.Equal(t, edges[1].ParentID, parser.NodeID("1"), "second fetch should be the parent")
-	assert.Equal(t, edges[1].ChildID, parser.NodeID("2"), "or op should be child")
-}
-
-func TestDAGWithUnlessOp(t *testing.T) {
-	q := "up unless up"
-	p, err := Parse(q)
-	require.NoError(t, err)
-	transforms, edges, err := p.DAG()
-	require.NoError(t, err)
-	assert.Len(t, transforms, 3)
-	assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
-	assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
-	assert.Equal(t, transforms[1].Op.OpType(), functions.FetchType)
-	assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
-	assert.Equal(t, transforms[2].Op.OpType(), logical.UnlessType)
-	assert.Equal(t, transforms[2].ID, parser.NodeID("2"))
-	assert.Len(t, edges, 2)
-	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"), "fetch should be the parent")
-	assert.Equal(t, edges[0].ChildID, parser.NodeID("2"), "or op should be child")
-	assert.Equal(t, edges[1].ParentID, parser.NodeID("1"), "second fetch should be the parent")
-	assert.Equal(t, edges[1].ChildID, parser.NodeID("2"), "or op should be child")
-}
-
-func TestDAGWithClampOp(t *testing.T) {
-	q := "clamp_min(up, 1)"
-	p, err := Parse(q)
-	require.NoError(t, err)
-	transforms, edges, err := p.DAG()
-	require.NoError(t, err)
-	assert.Len(t, transforms, 2)
-	assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
-	assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
-	assert.Equal(t, transforms[1].Op.OpType(), linear.ClampMinType)
-	assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
-	assert.Len(t, edges, 1)
-	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"), "fetch should be the parent")
-	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"), "clamp op should be child")
-}
-func TestDAGWithLogOp(t *testing.T) {
-	q := "ln(up)"
-	p, err := Parse(q)
-	require.NoError(t, err)
-	transforms, edges, err := p.DAG()
-	require.NoError(t, err)
-	assert.Len(t, transforms, 2)
-	assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
-	assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
-	assert.Equal(t, transforms[1].Op.OpType(), linear.LnType)
-	assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
-	assert.Len(t, edges, 1)
-	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"), "fetch should be the parent")
-	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"), "log op should be child")
-}
-
-func TestDAGWithCeilOp(t *testing.T) {
-	q := "ceil(up)"
-	p, err := Parse(q)
-	require.NoError(t, err)
-	transforms, _, err := p.DAG()
-	require.NoError(t, err)
-	assert.Len(t, transforms, 2)
-	assert.Equal(t, transforms[1].Op.OpType(), linear.CeilType)
-}
-
-func TestDAGWithFloorOp(t *testing.T) {
-	q := "floor(up)"
-	p, err := Parse(q)
-	require.NoError(t, err)
-	transforms, _, err := p.DAG()
-	require.NoError(t, err)
-	assert.Len(t, transforms, 2)
-	assert.Equal(t, transforms[1].Op.OpType(), linear.FloorType)
-}
-
-func TestDAGWithExpOp(t *testing.T) {
-	q := "exp(up)"
-	p, err := Parse(q)
-	require.NoError(t, err)
-	transforms, _, err := p.DAG()
-	require.NoError(t, err)
-	assert.Len(t, transforms, 2)
-	assert.Equal(t, transforms[1].Op.OpType(), linear.ExpType)
-}
-
-func TestDAGWithSqrtOp(t *testing.T) {
-	q := "sqrt(up)"
-	p, err := Parse(q)
-	require.NoError(t, err)
-	transforms, _, err := p.DAG()
-	require.NoError(t, err)
-	assert.Len(t, transforms, 2)
-	assert.Equal(t, transforms[1].Op.OpType(), linear.SqrtType)
-}
-
-func TestDAGWithLog2Op(t *testing.T) {
-	q := "log2(up)"
-	p, err := Parse(q)
-	require.NoError(t, err)
-	transforms, _, err := p.DAG()
-	require.NoError(t, err)
-	assert.Len(t, transforms, 2)
-	assert.Equal(t, transforms[1].Op.OpType(), linear.Log2Type)
-}
-
-func TestDAGWithLog10Op(t *testing.T) {
-	q := "log10(up)"
-	p, err := Parse(q)
-	require.NoError(t, err)
-	transforms, _, err := p.DAG()
-	require.NoError(t, err)
-	assert.Len(t, transforms, 2)
-	assert.Equal(t, transforms[1].Op.OpType(), linear.Log10Type)
-}
-
-func TestDAGWithRoundOp(t *testing.T) {
-	q := "round(up, 10)"
-	p, err := Parse(q)
-	require.NoError(t, err)
-	transforms, _, err := p.DAG()
-	require.NoError(t, err)
-	assert.Len(t, transforms, 2)
-	assert.Equal(t, transforms[1].Op.OpType(), linear.RoundType)
-}
-
-func TestDAGWithDayOfMonthOp(t *testing.T) {
-	q := "day_of_month(up)"
-	p, err := Parse(q)
-	require.NoError(t, err)
-	transforms, _, err := p.DAG()
-	require.NoError(t, err)
-	assert.Len(t, transforms, 2)
-	assert.Equal(t, transforms[1].Op.OpType(), linear.DayOfMonthType)
-}
-
-func TestDAGWithDayOfWeekOp(t *testing.T) {
-	q := "day_of_week(up)"
-	p, err := Parse(q)
-	require.NoError(t, err)
-	transforms, _, err := p.DAG()
-	require.NoError(t, err)
-	assert.Len(t, transforms, 2)
-	assert.Equal(t, transforms[1].Op.OpType(), linear.DayOfWeekType)
-}
-func TestDAGWithDaysInMonthOp(t *testing.T) {
-	q := "days_in_month(up)"
-	p, err := Parse(q)
-	require.NoError(t, err)
-	transforms, _, err := p.DAG()
-	require.NoError(t, err)
-	assert.Len(t, transforms, 2)
-	assert.Equal(t, transforms[1].Op.OpType(), linear.DaysInMonthType)
-}
-func TestDAGWithHourOp(t *testing.T) {
-	q := "hour(up)"
-	p, err := Parse(q)
-	require.NoError(t, err)
-	transforms, _, err := p.DAG()
-	require.NoError(t, err)
-	assert.Len(t, transforms, 2)
-	assert.Equal(t, transforms[1].Op.OpType(), linear.HourType)
-}
-func TestDAGWithMinuteOp(t *testing.T) {
-	q := "minute(up)"
-	p, err := Parse(q)
-	require.NoError(t, err)
-	transforms, _, err := p.DAG()
-	require.NoError(t, err)
-	assert.Len(t, transforms, 2)
-	assert.Equal(t, transforms[1].Op.OpType(), linear.MinuteType)
-}
-func TestDAGWithMonthOp(t *testing.T) {
-	q := "month(up)"
-	p, err := Parse(q)
-	require.NoError(t, err)
-	transforms, _, err := p.DAG()
-	require.NoError(t, err)
-	assert.Len(t, transforms, 2)
-	assert.Equal(t, transforms[1].Op.OpType(), linear.MonthType)
-}
-func TestDAGWithYearOp(t *testing.T) {
-	q := "year(up)"
-	p, err := Parse(q)
-	require.NoError(t, err)
-	transforms, _, err := p.DAG()
-	require.NoError(t, err)
-	assert.Len(t, transforms, 2)
-	assert.Equal(t, transforms[1].Op.OpType(), linear.YearType)
+	assert.Len(t, edges, 4)
+	// up -
+	assert.Equal(t, edges[0].ParentID, parser.NodeID("1"))
+	assert.Equal(t, edges[0].ChildID, parser.NodeID("3"))
+	// 6 -
+	assert.Equal(t, edges[1].ParentID, parser.NodeID("2"))
+	assert.Equal(t, edges[1].ChildID, parser.NodeID("3"))
+	// 5 ^
+	assert.Equal(t, edges[2].ParentID, parser.NodeID("0"))
+	assert.Equal(t, edges[2].ChildID, parser.NodeID("4"))
+	// (up -6) ^
+	assert.Equal(t, edges[3].ParentID, parser.NodeID("3"))
+	assert.Equal(t, edges[3].ChildID, parser.NodeID("4"))
 }

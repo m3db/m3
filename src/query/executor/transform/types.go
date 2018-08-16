@@ -47,6 +47,15 @@ type TimeSpec struct {
 	Step time.Duration
 }
 
+// Bounds transforms a timespec to bounds
+func (ts TimeSpec) Bounds() block.Bounds {
+	return block.Bounds{
+		Start:    ts.Start,
+		End:      ts.End,
+		StepSize: ts.Step,
+	}
+}
+
 // Params are defined by transforms
 type Params interface {
 	parser.Params

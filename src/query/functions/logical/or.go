@@ -82,7 +82,7 @@ func missing(
 	matching *VectorMatching,
 	lhs, rhs []block.SeriesMeta,
 ) ([]int, []block.SeriesMeta) {
-	idFunction := hashFunc(matching.On, matching.MatchingLabels...)
+	idFunction := HashFunc(matching.On, matching.MatchingLabels...)
 	// The set of signatures for the left-hand side.
 	leftSigs := make(map[uint64]struct{}, len(lhs))
 	for _, meta := range lhs {

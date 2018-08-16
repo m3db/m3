@@ -237,7 +237,7 @@ func TestFlattenMetadata(t *testing.T) {
 		{Name: "foo", Tags: models.Tags{"e": "f"}},
 		{Name: "bar", Tags: models.Tags{"g": "h"}},
 	}
-	flattened := flattenMetadata(meta, seriesMetas)
+	flattened := FlattenMetadata(meta, seriesMetas)
 
 	expected := []block.SeriesMeta{
 		{Name: "foo", Tags: models.Tags{"a": "b", "c": "d", "e": "f"}},
@@ -301,7 +301,7 @@ func TestDedupeMetadata(t *testing.T) {
 				seriesMetas[i] = block.SeriesMeta{Tags: tags}
 			}
 
-			actual, actualSeriesMetas := dedupeMetadata(seriesMetas)
+			actual, actualSeriesMetas := DedupeMetadata(seriesMetas)
 			assert.Equal(t, tt.expectedCommon, actual)
 
 			actualTags := make([]models.Tags, numSeries)
