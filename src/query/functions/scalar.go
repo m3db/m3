@@ -27,6 +27,9 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/parser"
+	"github.com/m3db/m3/src/query/util/logging"
+
+	"go.uber.org/zap"
 )
 
 // ScalarType is a scalar series
@@ -44,8 +47,15 @@ func (o scalarOp) String() string {
 	return fmt.Sprintf("type: %s. val: %f", o.OpType(), o.val)
 }
 
-func (o scalarOp) Node(controller *transform.Controller, options transform.Options) parser.Source {
-	return &scalarNode{op: o, controller: controller, timespec: options.TimeSpec}
+func (o scalarOp) Node(
+	controller *transform.Controller,
+	options transform.Options,
+) parser.Source {
+	return &scalarNode{
+		op: o, controller: controller,
+		timespec: options.TimeSpec,
+		debug:    options.Debug,
+	}
 }
 
 // NewScalarOp creates a new scalar op
@@ -58,22 +68,28 @@ type scalarNode struct {
 	op         scalarOp
 	controller *transform.Controller
 	timespec   transform.TimeSpec
+	debug      bool
 }
 
-// Execute runs the fetch node operation
+// Execute runs the scalar node operation
 func (n *scalarNode) Execute(ctx context.Context) error {
 	bounds := n.timespec.ToBounds()
 
-	blockResult := block.NewScalarBlockResult(n.op.val, bounds)
-	for _, block := range blockResult.Blocks {
-		if err := n.controller.Process(block); err != nil {
-			block.Close()
-			// Fail on first error
-			return err
+	block := block.NewScalar(n.op.val, bounds)
+	if n.debug {
+		// Ignore any errors
+		iter, _ := block.StepIter()
+		if iter != nil {
+			logging.WithContext(ctx).Info("scalar node", zap.Any("meta", iter.Meta()))
 		}
-
-		block.Close()
 	}
 
+	if err := n.controller.Process(block); err != nil {
+		block.Close()
+		// Fail on first error
+		return err
+	}
+
+	block.Close()
 	return nil
 }

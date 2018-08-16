@@ -27,31 +27,22 @@ import (
 	"github.com/m3db/m3/src/query/models"
 )
 
-// ScalarBlock is a block containing a single value
+// Scalar is a block containing a single value
 // over a certain bound
-type ScalarBlock struct {
+// This represents constant values; it greatly simplifies downstream operations by
+// allowing them to treat this as a regular block, while at the same time
+// having an option to optimize by accessing the scalar value directly instead
+type Scalar struct {
 	val  float64
 	meta Metadata
 }
 
-// assert that ScalarBlock implements Block
-var _ Block = (*ScalarBlock)(nil)
+// assert that Scalar implements Block
+var _ Block = (*Scalar)(nil)
 
-// NewScalarBlockResult creates a Result consisting
-// of scalar blocks over the bound
-func NewScalarBlockResult(val float64, bounds Bounds) *Result {
-	blocks := []Block{
-		NewScalarBlock(val, bounds),
-	}
-
-	return &Result{
-		Blocks: blocks,
-	}
-}
-
-// NewScalarBlock creates a scalar block containing val over the bounds
-func NewScalarBlock(val float64, bounds Bounds) Block {
-	return &ScalarBlock{
+// NewScalar creates a scalar block containing val over the bounds
+func NewScalar(val float64, bounds Bounds) Block {
+	return &Scalar{
 		val: val,
 		meta: Metadata{
 			Bounds: bounds,
@@ -61,7 +52,7 @@ func NewScalarBlock(val float64, bounds Bounds) Block {
 }
 
 // StepIter returns a StepIterator
-func (b *ScalarBlock) StepIter() (StepIter, error) {
+func (b *Scalar) StepIter() (StepIter, error) {
 	bounds := b.meta.Bounds
 	steps := bounds.Steps()
 	return &scalarStepIter{
@@ -75,7 +66,7 @@ func (b *ScalarBlock) StepIter() (StepIter, error) {
 }
 
 // SeriesIter returns a SeriesIterator
-func (b *ScalarBlock) SeriesIter() (SeriesIter, error) {
+func (b *Scalar) SeriesIter() (SeriesIter, error) {
 	bounds := b.meta.Bounds
 	steps := bounds.Steps()
 	vals := make([]float64, steps)
@@ -90,10 +81,10 @@ func (b *ScalarBlock) SeriesIter() (SeriesIter, error) {
 }
 
 // Close closes the scalar block
-func (b *ScalarBlock) Close() error { return nil }
+func (b *Scalar) Close() error { return nil }
 
 // Value returns the value for the scalar block
-func (b *ScalarBlock) Value() float64 { return b.val }
+func (b *Scalar) Value() float64 { return b.val }
 
 type scalarStepIter struct {
 	meta    Metadata
@@ -105,15 +96,16 @@ type scalarStepIter struct {
 // assert that scalarStepIter implements StepIter
 var _ StepIter = (*scalarStepIter)(nil)
 
-var seriesMeta = []SeriesMeta{
-	SeriesMeta{
-		Tags: models.Tags{},
-	},
+// build an empty SeriesMeta
+func buildSeriesMeta() SeriesMeta {
+	return SeriesMeta{
+		Tags: make(models.Tags),
+	}
 }
 
 func (it *scalarStepIter) Close()                   { /* No-op*/ }
 func (it *scalarStepIter) StepCount() int           { return it.numVals }
-func (it *scalarStepIter) SeriesMeta() []SeriesMeta { return seriesMeta }
+func (it *scalarStepIter) SeriesMeta() []SeriesMeta { return []SeriesMeta{buildSeriesMeta()} }
 func (it *scalarStepIter) Meta() Metadata           { return it.meta }
 
 func (it *scalarStepIter) Next() bool {
@@ -152,7 +144,7 @@ var _ SeriesIter = (*scalarSeriesIter)(nil)
 
 func (it *scalarSeriesIter) Close()                   { /* No-op*/ }
 func (it *scalarSeriesIter) SeriesCount() int         { return 1 }
-func (it *scalarSeriesIter) SeriesMeta() []SeriesMeta { return seriesMeta }
+func (it *scalarSeriesIter) SeriesMeta() []SeriesMeta { return []SeriesMeta{buildSeriesMeta()} }
 func (it *scalarSeriesIter) Meta() Metadata           { return it.meta }
 func (it *scalarSeriesIter) Next() bool {
 	it.idx++
@@ -164,9 +156,7 @@ func (it *scalarSeriesIter) Current() (Series, error) {
 		return Series{}, fmt.Errorf("invalid scalar index: %d, numVals: 1", it.idx)
 	}
 	return Series{
-		Meta: SeriesMeta{
-			Tags: make(models.Tags),
-		},
+		Meta:   buildSeriesMeta(),
 		values: it.vals,
 	}, nil
 }

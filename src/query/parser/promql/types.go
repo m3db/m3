@@ -79,7 +79,7 @@ func NewScalarOperator(expr *promql.NumberLiteral) parser.Params {
 func NewBinaryOperator(expr *promql.BinaryExpr, lhs, rhs parser.NodeID) (parser.Params, error) {
 	matching := promMatchingToM3(expr.VectorMatching)
 
-	nodeInformation := binary.NodeInformation{
+	nodeInformation := binary.NodeParams{
 		LNode:          lhs,
 		RNode:          rhs,
 		LIsScalar:      expr.LHS.Type() == promql.ValueTypeScalar,

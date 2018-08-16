@@ -72,11 +72,9 @@ func CreateTransform(
 
 	switch node.(type) {
 	case transform.SeriesNode:
-		fmt.Println("Series node")
 		return transform.NewLazyNode(node, controller)
 
 	case transform.StepNode:
-		fmt.Println("Step node")
 		return transform.NewLazyNode(node, controller)
 
 	default:

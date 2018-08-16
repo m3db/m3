@@ -99,7 +99,7 @@ func TestScalars(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			op, err := NewBinaryOp(
 				tt.opType,
-				NodeInformation{
+				NodeParams{
 					parser.NodeID(0),
 					parser.NodeID(1),
 					true, true,
@@ -110,10 +110,10 @@ func TestScalars(t *testing.T) {
 			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
 			node := op.(binaryOp).Node(c)
 
-			err = node.Process(parser.NodeID(0), block.NewScalarBlock(tt.lVal, bounds))
+			err = node.Process(parser.NodeID(0), block.NewScalar(tt.lVal, bounds))
 			require.NoError(t, err)
 
-			err = node.Process(parser.NodeID(1), block.NewScalarBlock(tt.rVal, bounds))
+			err = node.Process(parser.NodeID(1), block.NewScalar(tt.rVal, bounds))
 			require.NoError(t, err)
 
 			expected := [][]float64{{
@@ -388,7 +388,7 @@ func TestSingleSeriesReturnBool(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			op, err := NewBinaryOp(
 				tt.opType,
-				NodeInformation{
+				NodeParams{
 					parser.NodeID(0),
 					parser.NodeID(1),
 					!tt.seriesLeft, tt.seriesLeft,
@@ -407,10 +407,10 @@ func TestSingleSeriesReturnBool(t *testing.T) {
 				err = node.Process(parser.NodeID(0), series)
 				require.NoError(t, err)
 
-				err = node.Process(parser.NodeID(1), block.NewScalarBlock(tt.scalarVal, bounds))
+				err = node.Process(parser.NodeID(1), block.NewScalar(tt.scalarVal, bounds))
 				require.NoError(t, err)
 			} else {
-				err = node.Process(parser.NodeID(0), block.NewScalarBlock(tt.scalarVal, bounds))
+				err = node.Process(parser.NodeID(0), block.NewScalar(tt.scalarVal, bounds))
 				require.NoError(t, err)
 
 				err = node.Process(parser.NodeID(1), series)
@@ -450,7 +450,7 @@ func TestSingleSeriesReturnValues(t *testing.T) {
 
 			op, err := NewBinaryOp(
 				tt.opType,
-				NodeInformation{
+				NodeParams{
 					parser.NodeID(0),
 					parser.NodeID(1),
 					!tt.seriesLeft, tt.seriesLeft,
@@ -469,10 +469,10 @@ func TestSingleSeriesReturnValues(t *testing.T) {
 				err = node.Process(parser.NodeID(0), series)
 				require.NoError(t, err)
 
-				err = node.Process(parser.NodeID(1), block.NewScalarBlock(tt.scalarVal, bounds))
+				err = node.Process(parser.NodeID(1), block.NewScalar(tt.scalarVal, bounds))
 				require.NoError(t, err)
 			} else {
-				err = node.Process(parser.NodeID(0), block.NewScalarBlock(tt.scalarVal, bounds))
+				err = node.Process(parser.NodeID(0), block.NewScalar(tt.scalarVal, bounds))
 				require.NoError(t, err)
 
 				err = node.Process(parser.NodeID(1), series)
@@ -709,7 +709,7 @@ func TestBothSeries(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			op, err := NewBinaryOp(
 				tt.opType,
-				NodeInformation{
+				NodeParams{
 					parser.NodeID(0),
 					parser.NodeID(1),
 					false, false,
