@@ -17,7 +17,7 @@ listenAddress:
   hostname: "0.0.0.0"
   port:
     portType: "config"
-    value: "7201"
+    value: 7201
 
 metrics:
   scope:
