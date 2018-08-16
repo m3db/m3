@@ -214,4 +214,4 @@ testImport:
   version: 3677f62bb30dbf3b042c4c211245d072aa9ee075
 
 - package: github.com/leanovate/gopter
-  version: ^0.2
+  version: f778776473e0ef7764e1434dd01a61cc1ec574b4
