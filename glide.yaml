@@ -121,7 +121,7 @@ import:
 
 - package: github.com/couchbase/vellum
   repo:    https://github.com/m3db/vellum
-  version: 1782e2d46ce2a9f28bd1ac1b46cd141c0d887c9b
+  version: f923fa31245756d3f555fa6a20a5ba944fba04b2
 
 - package: github.com/edsrzf/mmap-go # un-used but required for a compile time dep from vellum
   version: 0bce6a6887123b67a60366d2c9fe2dfb74289d2e
