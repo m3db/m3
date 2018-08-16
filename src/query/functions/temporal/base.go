@@ -47,7 +47,7 @@ func newBaseOp(args []interface{}, operatorType string, processorFn MakeProcesso
 
 	duration, ok := args[0].(time.Duration)
 	if !ok {
-		return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v", args[0])
+		return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[0], operatorType)
 	}
 
 	return baseOp{
@@ -93,7 +93,8 @@ type baseNode struct {
 // 2. For the current block, figure out whether we have enough previous blocks which can help process it
 // 3. For the blocks after current block, figure out which can be processed right now
 // 4. Process all valid blocks from #3, #4 and mark them as processed
-// 5. Run a sweep face to free up blocks which are no longer needed to be cached
+// 5. Run a sweep phase to free up blocks which are no longer needed to be cached
+// TODO: Figure out if something else needs to be locked
 func (c *baseNode) Process(ID parser.NodeID, b block.Block) error {
 	iter, err := b.StepIter()
 	if err != nil {
@@ -107,7 +108,7 @@ func (c *baseNode) Process(ID parser.NodeID, b block.Block) error {
 	// Figure out the maximum blocks needed for the temporal function
 	maxBlocks := int(math.Ceil(float64(c.op.duration) / float64(blockDuration)))
 
-	// Figure out the leftmost block and rightmost blocks
+	// Figure out the leftmost block
 	leftRangeStart := bounds.Previous(maxBlocks)
 	queryStartBounds := bounds.Nearest(c.transformOpts.TimeSpec.Start)
 
@@ -115,6 +116,7 @@ func (c *baseNode) Process(ID parser.NodeID, b block.Block) error {
 		leftRangeStart = queryStartBounds
 	}
 
+	// Figure out the rightmost blocks
 	rightRangeStart := bounds.Next(maxBlocks)
 	queryEndBounds := bounds.Nearest(c.transformOpts.TimeSpec.End.Add(-1 * bounds.StepSize))
 
@@ -122,8 +124,8 @@ func (c *baseNode) Process(ID parser.NodeID, b block.Block) error {
 		rightRangeStart = queryEndBounds
 	}
 
-	// Process left side of the range
-	leftBlks, emptyLeftBlocks, err := c.processLeft(bounds, maxBlocks, leftRangeStart)
+	// Process the current block by figuring out the left range
+	leftBlks, emptyLeftBlocks, err := c.processCurrent(bounds, maxBlocks, leftRangeStart)
 	if err != nil {
 		return err
 	}
@@ -163,9 +165,9 @@ func (c *baseNode) Process(ID parser.NodeID, b block.Block) error {
 	return c.processCompletedBlocks(processRequests, queryStartBounds, queryEndBounds, maxBlocks)
 }
 
-// processLeft processes the current block. For the current block, figure out whether we have enough previous blocks which can help process it
-func (c *baseNode) processLeft(bounds block.Bounds, maxBlocks int, leftRangeStart block.Bounds) ([]block.Block, bool, error) {
-	numBlocks := int(bounds.Start.Sub(leftRangeStart.Start) / bounds.Duration)
+// processCurrent processes the current block. For the current block, figure out whether we have enough previous blocks which can help process it
+func (c *baseNode) processCurrent(bounds block.Bounds, maxBlocks int, leftRangeStart block.Bounds) ([]block.Block, bool, error) {
+	numBlocks := bounds.Blocks(leftRangeStart.Start)
 	leftBlks, err := c.cache.multiGet(leftRangeStart, numBlocks, true)
 	if err != nil {
 		return nil, false, err
@@ -175,7 +177,7 @@ func (c *baseNode) processLeft(bounds block.Bounds, maxBlocks int, leftRangeStar
 
 // processRight processes blocks after current block. This is done by fetching all contiguous right blocks until the right range
 func (c *baseNode) processRight(bounds block.Bounds, maxBlocks int, rightRangeStart block.Bounds) ([]block.Block, bool, error) {
-	numBlocks := int(rightRangeStart.Start.Sub(bounds.Start) / bounds.Duration)
+	numBlocks := rightRangeStart.Blocks(bounds.Start)
 	rightBlks, err := c.cache.multiGet(bounds.Next(1), numBlocks, false)
 	if err != nil {
 		return nil, false, err
@@ -317,6 +319,7 @@ type processRequest struct {
 	deps   []block.Block
 }
 
+// blockCache keeps track of blocks from the same parent across time
 type blockCache struct {
 	mu              sync.Mutex
 	initialized     bool
@@ -345,8 +348,9 @@ func (c *blockCache) init(bounds block.Bounds) {
 		return
 	}
 
-	c.startBounds = bounds.Nearest(c.transformOpts.TimeSpec.Start)
-	c.endBounds = bounds.Nearest(c.transformOpts.TimeSpec.End.Add(-1 * bounds.StepSize))
+	timeSpec := c.transformOpts.TimeSpec
+	c.startBounds = bounds.Nearest(timeSpec.Start)
+	c.endBounds = bounds.Nearest(timeSpec.End.Add(-1 * bounds.StepSize))
 	numBlocks := c.endBounds.End().Sub(c.startBounds.Start) / bounds.Duration
 	c.blockList = make([]block.Block, numBlocks)
 	c.processedBlocks = make([]bool, numBlocks)
@@ -354,11 +358,12 @@ func (c *blockCache) init(bounds block.Bounds) {
 }
 
 func (c *blockCache) index(t time.Time) (int, error) {
-	if t.Before(c.startBounds.Start) || t.After(c.endBounds.Start) {
-		return 0, fmt.Errorf("invalid time for the block cache: %v, start: %v, end: %v", t, c.startBounds.Start, c.endBounds.Start)
+	start := c.startBounds.Start
+	if t.Before(start) || t.After(c.endBounds.Start) {
+		return 0, fmt.Errorf("invalid time for the block cache: %v, start: %v, end: %v", t, start, c.endBounds.Start)
 	}
 
-	return int(t.Sub(c.startBounds.Start) / c.startBounds.Duration), nil
+	return int(t.Sub(start) / c.startBounds.Duration), nil
 }
 
 // Add the block to the cache, errors out if block already exists
@@ -475,7 +480,6 @@ func reversed(blocks []block.Block) {
 // MarkProcessed is used to mark a block as processed
 func (c *blockCache) markProcessed(keys []time.Time) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	for _, key := range keys {
 		index, err := c.index(key)
 		if err != nil {
@@ -484,6 +488,8 @@ func (c *blockCache) markProcessed(keys []time.Time) {
 
 		c.processedBlocks[index] = true
 	}
+
+	c.mu.Unlock()
 }
 
 // Processed returns all processed block times from the cache

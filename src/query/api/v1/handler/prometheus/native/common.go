@@ -45,7 +45,7 @@ const (
 	targetParam = "target"
 	stepParam   = "step"
 	debugParam  = "debug"
-	endInclusiveParam = "end-inclusive"
+	endExclusiveParam = "end-exclusive"
 
 	formatErrStr = "error parsing param: %s, error: %v"
 )
@@ -114,15 +114,15 @@ func parseParams(r *http.Request) (models.RequestParams, *handler.ParseError) {
 	}
 
 	// Default to including end if unable to parse the flag
-	endInclusiveVal := r.FormValue(endInclusiveParam)
+	endExclusiveVal := r.FormValue(endExclusiveParam)
 	params.IncludeEnd = true
-	if endInclusiveVal != "" {
-		includeEnd, err := strconv.ParseBool(endInclusiveVal)
+	if endExclusiveVal != "" {
+		excludeEnd, err := strconv.ParseBool(endExclusiveVal)
 		if err != nil {
 			logging.WithContext(r.Context()).Warn("unable to parse end inclusive flag", zap.Any("error", err))
 		}
 
-		params.IncludeEnd = includeEnd
+		params.IncludeEnd = !excludeEnd
 	}
 
 	return params, nil

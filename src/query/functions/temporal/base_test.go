@@ -37,8 +37,13 @@ import (
 type processor struct {
 }
 
-func (p *processor) Process([]float64) float64 {
-	return 0
+func (p *processor) Process(f []float64) float64 {
+	sum := 0.0
+	for _, n := range f {
+		sum += n
+	}
+
+	return sum
 }
 
 func dummyProcessor(op baseOp, controller *transform.Controller) Processor {
@@ -203,4 +208,37 @@ func TestBaseWithThreeBlocks(t *testing.T) {
 	blks, err := bNode.cache.multiGet(bounds.Previous(2), 3, false)
 	require.NoError(t, err)
 	assert.Len(t, blks, 0)
+}
+
+func TestSingleProcessRequest(t *testing.T) {
+	values, bounds := test.GenerateValuesAndBounds(nil, nil)
+	boundStart := bounds.Start
+	block2 := test.NewBlockFromValues(bounds, values)
+	values = [][]float64{{10, 11, 12, 13, 14}, {15, 16, 17, 18, 19}}
+
+	block1 := test.NewBlockFromValues(block.Bounds{
+		Start:    bounds.Start.Add(-1 * bounds.Duration),
+		Duration: bounds.Duration,
+		StepSize: bounds.StepSize,
+	}, values)
+	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	baseOp := baseOp{
+		operatorType: "dummy",
+		duration:     5 * time.Minute,
+		processorFn:  dummyProcessor,
+	}
+
+	node := baseOp.Node(c, transform.Options{
+		TimeSpec: transform.TimeSpec{
+			Start: boundStart.Add(-2 * bounds.Duration),
+			End:   bounds.End(),
+			Step:  time.Second,
+		},
+	})
+	bNode := node.(*baseNode)
+	err := bNode.processSingleRequest(processRequest{blk: block2, bounds: bounds, deps: []block.Block{block1}})
+	assert.NoError(t, err)
+	assert.Len(t, sink.Values, 2, "block processed")
+	assert.Equal(t, sink.Values[0], []float64{50, 40, 30, 20, 10}, "first series is 10 - 14 which sums to 60, the current block first series is 0-4 which sums to 10, we need 5 values per aggregation")
+	assert.Equal(t, sink.Values[1], []float64{75, 65, 55, 45, 35}, "second series is 15 - 19 which sums to 85 and second series is 5-9 which sums to 35")
 }

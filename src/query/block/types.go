@@ -76,7 +76,8 @@ func (b Bounds) Steps() int {
 
 // Contains returns whether the time lies between the bounds.
 func (b Bounds) Contains(t time.Time) bool {
-	return !b.Start.After(t) && b.Start.Add(b.Duration).After(t)
+	diff := b.Start.Sub(t)
+	return diff >= 0 && diff < b.Duration
 }
 
 // Next returns the nth next bound from the current bound
@@ -90,18 +91,23 @@ func (b Bounds) Previous(n int) Bounds {
 }
 
 func (b Bounds) nth(n int, forward bool) Bounds {
-	multiplier := 1
+	multiplier := time.Duration(n)
 	if !forward {
-		multiplier = -1
+		multiplier *= -1
 	}
 
 	blockDuration := b.Duration
-	start := b.Start.Add(blockDuration * time.Duration(n*multiplier))
+	start := b.Start.Add(blockDuration * multiplier)
 	return Bounds{
 		Start:    start,
 		Duration: blockDuration,
 		StepSize: b.StepSize,
 	}
+}
+
+// Blocks returns the number of blocks until time t
+func (b Bounds) Blocks(t time.Time) int {
+	return int(b.Start.Sub(t) / b.Duration)
 }
 
 // String representation of the bounds
