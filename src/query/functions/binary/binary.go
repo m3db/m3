@@ -156,14 +156,7 @@ func buildLogicalFunction(
 		return nil, false
 	}
 
-	return createBinaryProcessingStep(params, fn), true
-}
-
-// Build the binary processing step
-func createBinaryProcessingStep(
-	params NodeParams,
-	fn mathFunc,
-) func(block.Block, block.Block, *transform.Controller) (block.Block, error) {
+	// Build the binary processing step
 	return func(lhs, rhs block.Block, controller *transform.Controller) (block.Block, error) {
 		return processBinary(lhs, rhs, params, controller, fn)
 	}
