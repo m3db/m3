@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package logical
+package binary
 
 import (
 	"fmt"
@@ -29,76 +29,73 @@ import (
 	"github.com/m3db/m3/src/query/parser"
 )
 
-type logicalOp struct {
+type baseOp struct {
 	OperatorType string
-	LNode        parser.NodeID
-	RNode        parser.NodeID
-	makeBlock    makeBlockFn
-	Matching     *VectorMatching
-	ReturnBool   bool
+	processFunc  processFunc
+	params       NodeParams
+}
+
+// NodeParams describes the types of nodes used
+// for binary operations
+type NodeParams struct {
+	LNode, RNode         parser.NodeID
+	LIsScalar, RIsScalar bool
+	ReturnBool           bool
+	VectorMatching       *VectorMatching
 }
 
 // OpType for the operator
-func (o logicalOp) OpType() string {
+func (o baseOp) OpType() string {
 	return o.OperatorType
 }
 
 // String representation
-func (o logicalOp) String() string {
-	return fmt.Sprintf("type: %s, lnode: %s, rnode: %s", o.OpType(), o.LNode, o.RNode)
+func (o baseOp) String() string {
+	return fmt.Sprintf("type: %s, lnode: %s, rnode: %s", o.OpType(), o.params.LNode, o.params.RNode)
 }
 
 // Node creates an execution node
-func (o logicalOp) Node(controller *transform.Controller) transform.OpNode {
-	return &logicalNode{
+func (o baseOp) Node(controller *transform.Controller) transform.OpNode {
+	return &baseNode{
+		op:         o,
+		process:    o.processFunc,
 		controller: controller,
 		cache:      transform.NewBlockCache(),
-		op:         o,
 	}
 }
 
-type logicalNode struct {
-	op         logicalOp
+// NewOp creates a new binary operation
+func NewOp(
+	opType string,
+	params NodeParams,
+) (parser.Params, error) {
+	fn, ok := buildBinaryFunction(opType, params)
+	if !ok {
+		fn, ok = buildLogicalFunction(opType, params)
+		if !ok {
+			return baseOp{}, fmt.Errorf("operator not supported: %s", opType)
+		}
+	}
+
+	return baseOp{
+		OperatorType: opType,
+		processFunc:  fn,
+		params:       params,
+	}, nil
+}
+
+type baseNode struct {
+	op         baseOp
+	process    processFunc
 	controller *transform.Controller
 	cache      *transform.BlockCache
 	mu         sync.Mutex
 }
 
-type makeBlockFn func(
-	logicalNode *logicalNode,
-	lIter, rIter block.StepIter,
-) (block.Block, error)
-
-// NewLogicalOp creates a new logical operation
-func NewLogicalOp(
-	opType string,
-	lNode parser.NodeID,
-	rNode parser.NodeID,
-	matching *VectorMatching,
-) (parser.Params, error) {
-	var makeBlock makeBlockFn
-	switch opType {
-	case AndType:
-		makeBlock = makeAndBlock
-	case OrType:
-		makeBlock = makeOrBlock
-	case UnlessType:
-		makeBlock = makeUnlessBlock
-	default:
-		return logicalOp{}, fmt.Errorf("operator not supported: %s", opType)
-	}
-
-	return logicalOp{
-		OperatorType: opType,
-		LNode:        lNode,
-		RNode:        rNode,
-		Matching:     matching,
-		makeBlock:    makeBlock,
-	}, nil
-}
+type processFunc func(block.Block, block.Block, *transform.Controller) (block.Block, error)
 
 // Process processes a block
-func (n *logicalNode) Process(ID parser.NodeID, b block.Block) error {
+func (n *baseNode) Process(ID parser.NodeID, b block.Block) error {
 	lhs, rhs, err := n.computeOrCache(ID, b)
 	if err != nil {
 		// Clean up any blocks from cache
@@ -113,7 +110,7 @@ func (n *logicalNode) Process(ID parser.NodeID, b block.Block) error {
 
 	n.cleanup()
 
-	nextBlock, err := n.process(lhs, rhs)
+	nextBlock, err := n.process(lhs, rhs, n.controller)
 	if err != nil {
 		return err
 	}
@@ -122,41 +119,23 @@ func (n *logicalNode) Process(ID parser.NodeID, b block.Block) error {
 	return n.controller.Process(nextBlock)
 }
 
-// processes two logical blocks, performing a logical operation on them
-func (n *logicalNode) process(lhs, rhs block.Block) (block.Block, error) {
-	lIter, err := lhs.StepIter()
-	if err != nil {
-		return nil, err
-	}
-
-	rIter, err := rhs.StepIter()
-	if err != nil {
-		return nil, err
-	}
-
-	if lIter.StepCount() != rIter.StepCount() {
-		return nil, errMismatchedStepCounts
-	}
-
-	return n.op.makeBlock(n, lIter, rIter)
-}
-
 // computeOrCache figures out if both lhs and rhs are available, if not then it caches the incoming block
-func (n *logicalNode) computeOrCache(ID parser.NodeID, b block.Block) (block.Block, block.Block, error) {
+func (n *baseNode) computeOrCache(ID parser.NodeID, b block.Block) (block.Block, block.Block, error) {
 	var lhs, rhs block.Block
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	op := n.op
-	if op.LNode == ID {
-		rBlock, ok := n.cache.Get(op.RNode)
+	params := op.params
+	if params.LNode == ID {
+		rBlock, ok := n.cache.Get(params.RNode)
 		if !ok {
 			return lhs, rhs, n.cache.Add(ID, b)
 		}
 
 		rhs = rBlock
 		lhs = b
-	} else if op.RNode == ID {
-		lBlock, ok := n.cache.Get(op.LNode)
+	} else if params.RNode == ID {
+		lBlock, ok := n.cache.Get(params.LNode)
 		if !ok {
 			return lhs, rhs, n.cache.Add(ID, b)
 		}
@@ -168,9 +147,10 @@ func (n *logicalNode) computeOrCache(ID parser.NodeID, b block.Block) (block.Blo
 	return lhs, rhs, nil
 }
 
-func (n *logicalNode) cleanup() {
+func (n *baseNode) cleanup() {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	n.cache.Remove(n.op.LNode)
-	n.cache.Remove(n.op.RNode)
+	params := n.op.params
+	n.cache.Remove(params.LNode)
+	n.cache.Remove(params.RNode)
 }

@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package logical
+package binary
 
 import (
 	"fmt"
@@ -40,16 +40,18 @@ func TestOrWithExactValues(t *testing.T) {
 	block1 := test.NewBlockFromValues(bounds, values)
 	block2 := test.NewBlockFromValues(bounds, values)
 
-	op, err := NewLogicalOp(
+	op, err := NewOp(
 		OrType,
-		parser.NodeID(0),
-		parser.NodeID(1),
-		&VectorMatching{},
+		NodeParams{
+			LNode:          parser.NodeID(0),
+			RNode:          parser.NodeID(1),
+			VectorMatching: &VectorMatching{},
+		},
 	)
 	require.NoError(t, err)
 
 	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
-	node := op.(logicalOp).Node(c)
+	node := op.(baseOp).Node(c)
 
 	err = node.Process(parser.NodeID(1), block2)
 	require.NoError(t, err)
@@ -69,16 +71,18 @@ func TestOrWithSomeValues(t *testing.T) {
 
 	block2 := test.NewBlockFromValues(bounds, v)
 
-	op, err := NewLogicalOp(
+	op, err := NewOp(
 		OrType,
-		parser.NodeID(0),
-		parser.NodeID(1),
-		&VectorMatching{},
+		NodeParams{
+			LNode:          parser.NodeID(0),
+			RNode:          parser.NodeID(1),
+			VectorMatching: &VectorMatching{},
+		},
 	)
 	require.NoError(t, err)
 
 	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
-	node := op.(logicalOp).Node(c)
+	node := op.(baseOp).Node(c)
 
 	err = node.Process(parser.NodeID(1), block2)
 	require.NoError(t, err)
@@ -206,16 +210,18 @@ func TestOrs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, bounds := test.GenerateValuesAndBounds(nil, nil)
 
-			op, err := NewLogicalOp(
+			op, err := NewOp(
 				OrType,
-				parser.NodeID(0),
-				parser.NodeID(1),
-				&VectorMatching{},
+				NodeParams{
+					LNode:          parser.NodeID(0),
+					RNode:          parser.NodeID(1),
+					VectorMatching: &VectorMatching{},
+				},
 			)
 			require.NoError(t, err)
 
 			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
-			node := op.(logicalOp).Node(c)
+			node := op.(baseOp).Node(c)
 
 			lhs := test.NewBlockFromValuesWithSeriesMeta(bounds, tt.lhsMeta, tt.lhs)
 			err = node.Process(parser.NodeID(0), lhs)
@@ -239,16 +245,18 @@ func TestOrsBoundsError(t *testing.T) {
 	tt := orTests[0]
 	_, bounds := test.GenerateValuesAndBounds(nil, nil)
 
-	op, err := NewLogicalOp(
+	op, err := NewOp(
 		OrType,
-		parser.NodeID(0),
-		parser.NodeID(1),
-		&VectorMatching{},
+		NodeParams{
+			LNode:          parser.NodeID(0),
+			RNode:          parser.NodeID(1),
+			VectorMatching: &VectorMatching{},
+		},
 	)
 	require.NoError(t, err)
 
 	c, _ := executor.NewControllerWithSink(parser.NodeID(2))
-	node := op.(logicalOp).Node(c)
+	node := op.(baseOp).Node(c)
 
 	lhs := test.NewBlockFromValuesWithSeriesMeta(bounds, tt.lhsMeta, tt.lhs)
 	err = node.Process(parser.NodeID(0), lhs)
@@ -274,16 +282,18 @@ func createSeriesMeta() []block.SeriesMeta {
 func TestOrCombinedMetadata(t *testing.T) {
 	_, bounds := test.GenerateValuesAndBounds(nil, nil)
 
-	op, err := NewLogicalOp(
+	op, err := NewOp(
 		OrType,
-		parser.NodeID(0),
-		parser.NodeID(1),
-		&VectorMatching{},
+		NodeParams{
+			LNode:          parser.NodeID(0),
+			RNode:          parser.NodeID(1),
+			VectorMatching: &VectorMatching{},
+		},
 	)
 	require.NoError(t, err)
 
 	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
-	node := op.(logicalOp).Node(c)
+	node := op.(baseOp).Node(c)
 
 	lhsMeta := block.Metadata{
 		Bounds: bounds,
