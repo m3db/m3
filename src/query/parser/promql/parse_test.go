@@ -26,7 +26,6 @@ import (
 	"github.com/m3db/m3/src/query/functions"
 	"github.com/m3db/m3/src/query/functions/binary"
 	"github.com/m3db/m3/src/query/functions/linear"
-	"github.com/m3db/m3/src/query/functions/logical"
 	"github.com/m3db/m3/src/query/parser"
 
 	"github.com/stretchr/testify/assert"
@@ -134,9 +133,9 @@ var binaryParseTests = []struct {
 	{"up <= 10", functions.FetchType, functions.ScalarType, binary.LesserEqType},
 
 	// Logical
-	{"up and up", functions.FetchType, functions.FetchType, logical.AndType},
-	{"up or up", functions.FetchType, functions.FetchType, logical.OrType},
-	{"up unless up", functions.FetchType, functions.FetchType, logical.UnlessType},
+	{"up and up", functions.FetchType, functions.FetchType, binary.AndType},
+	{"up or up", functions.FetchType, functions.FetchType, binary.OrType},
+	{"up unless up", functions.FetchType, functions.FetchType, binary.UnlessType},
 }
 
 func TestBinaryParses(t *testing.T) {

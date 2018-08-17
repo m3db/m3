@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package logical
+package binary
 
 import (
 	"testing"
@@ -202,16 +202,18 @@ func TestUnless(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, bounds := test.GenerateValuesAndBounds(nil, nil)
 
-			op, err := NewLogicalOp(
+			op, err := NewOp(
 				UnlessType,
-				parser.NodeID(0),
-				parser.NodeID(1),
-				&VectorMatching{},
+				NodeParams{
+					LNode:          parser.NodeID(0),
+					RNode:          parser.NodeID(1),
+					VectorMatching: &VectorMatching{},
+				},
 			)
 			require.NoError(t, err)
 
 			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
-			node := op.(logicalOp).Node(c)
+			node := op.(baseOp).Node(c)
 
 			lhs := test.NewBlockFromValuesWithSeriesMeta(bounds, tt.lhsMeta, tt.lhs)
 			err = node.Process(parser.NodeID(0), lhs)
