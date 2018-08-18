@@ -158,16 +158,16 @@ func TestDontCompactSegmentTooLarge(t *testing.T) {
 func testOptions() PlannerOptions {
 	opts := DefaultOptions
 	opts.MaxImmutableCompactionSize = 1024
-	opts.SizeBuckets = []SizeBucket{ // i.e. tiers for compaction [0, 64), [64, 524), [524, 4000)
-		SizeBucket{
+	opts.Levels = []Level{ // i.e. tiers for compaction [0, 64), [64, 524), [524, 4000)
+		Level{
 			MinSizeInclusive: 0,
 			MaxSizeExclusive: 64,
 		},
-		SizeBucket{
+		Level{
 			MinSizeInclusive: 64,
 			MaxSizeExclusive: 524,
 		},
-		SizeBucket{
+		Level{
 			MinSizeInclusive: 524,
 			MaxSizeExclusive: 4000,
 		},

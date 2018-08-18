@@ -71,8 +71,8 @@ type PlannerOptions struct {
 	// MaxImmutableCompactionSize is the maximum size of an immutable segment
 	// that would still be considered for compaction.
 	MaxImmutableCompactionSize int64
-	// SizeBuckets define the tiers for compactions.
-	SizeBuckets []SizeBucket
+	// Levels define the levels for compactions.
+	Levels []Level
 	// OrderBy defines the order of tasks in the compaction plan returned.
 	OrderBy TasksOrderBy
 }
@@ -85,8 +85,9 @@ const (
 	TasksOrderedByOldestMutableAndSize TasksOrderBy = iota
 )
 
-// SizeBucket defines a range of compaction size buckets.
-type SizeBucket struct {
+// Level defines a range of (min, max) sizes such that any segments within the Level
+// are allowed to be compacted together.
+type Level struct {
 	MinSizeInclusive int64
 	MaxSizeExclusive int64
 }

@@ -30,40 +30,42 @@ import (
 )
 
 var (
-	errMutableCompactionAgeNegative = errors.New("mutable compaction age must be postive")
-	errSizeBucketsUndefined         = errors.New("size buckets are undefined")
+	errMutableCompactionAgeNegative = errors.New("mutable compaction age must be positive")
+	errLevelsUndefined              = errors.New("compaction levels are undefined")
 	errMaxImmutableCompactionSize   = errors.New("max immutable compaction size must be positive")
 )
 
 var (
-	DefaultSizeBuckets = []SizeBucket{ // i.e. tiers for compaction [0, 262K), [262K, 524K), [524K, 1M), [1M, 2M), [2M, 8M)
-		SizeBucket{
+	// DefaultLevels are the default Level(s) used for compaction options.
+	DefaultLevels = []Level{ // i.e. tiers for compaction [0, 262K), [262K, 524K), [524K, 1M), [1M, 2M), [2M, 8M)
+		Level{
 			MinSizeInclusive: 0,
 			MaxSizeExclusive: 1 << 18,
 		},
-		SizeBucket{
+		Level{
 			MinSizeInclusive: 1 << 18,
 			MaxSizeExclusive: 1 << 19,
 		},
-		SizeBucket{
+		Level{
 			MinSizeInclusive: 1 << 19,
 			MaxSizeExclusive: 1 << 20,
 		},
-		SizeBucket{
+		Level{
 			MinSizeInclusive: 1 << 20,
 			MaxSizeExclusive: 1 << 21,
 		},
-		SizeBucket{
+		Level{
 			MinSizeInclusive: 1 << 21,
 			MaxSizeExclusive: 1 << 23,
 		},
 	}
 
+	// DefaultOptions are the default compaction PlannerOptions.
 	DefaultOptions = PlannerOptions{
 		MaxImmutableCompactionSize: 1 << 22,                            // ~4M
 		MaxMutableSegmentSize:      1 << 16,                            // 64K
 		MutableCompactionAge:       15 * time.Second,                   // any mutable segment 15s or older is eligible for compactions
-		SizeBuckets:                DefaultSizeBuckets,                 // sizes defined above
+		Levels:                     DefaultLevels,                      // sizes defined above
 		OrderBy:                    TasksOrderedByOldestMutableAndSize, // compact mutable segments first
 	}
 )
@@ -83,24 +85,28 @@ func NewPlan(candidateSegments []Segment, opts PlannerOptions) (*Plan, error) {
 	//    - All immutable segments (below size MaxCompactionSize) are compactable
 	//
 	// (2) Come up with a logical plan for compactable segments
-	//    (a) Group the segments into given buckets (compactions can only be performed for segments within the same bucket)
-	//    (b) For each bucket:
-	//    (b1) Accumulate segments until cumulative size is over the max of the current bucket.
+	//    (a) Group the segments into given levels (compactions can only be performed for segments within the same level)
+	//    (b) For each level:
+	//    (b1) Accumulate segments until cumulative size is over the max of the current level.
 	//    (b2) Add a Task which comprises segments from (b1) to the Plan.
-	//    (b3) Continue (b1) until the bucket is empty.
+	//    (b3) Continue (b1) until the level is empty.
 	//    (c) Priotize Tasks w/ "compactable" Mutable Segments over all others
 
 	// 1st phase - find all compactable segments
-	var compactableSegments []Segment
+	compactableSegments := make([]Segment, 0, len(candidateSegments))
 	for _, seg := range candidateSegments {
 		compactable := (seg.Type == segments.FSTType && seg.Size < opts.MaxImmutableCompactionSize) ||
 			(seg.Type == segments.MutableType &&
 				(seg.Age >= opts.MutableCompactionAge || seg.Size >= opts.MaxMutableSegmentSize))
 		if compactable {
 			compactableSegments = append(compactableSegments, seg)
-		} else {
-			plan.UnusedSegments = append(plan.UnusedSegments, seg)
+			continue
 		}
+		// NB: lazily allocate UnusedSegments as they're typically not going to be very many.
+		if len(plan.UnusedSegments) == 0 {
+			plan.UnusedSegments = make([]Segment, 0, len(candidateSegments))
+		}
+		plan.UnusedSegments = append(plan.UnusedSegments, seg)
 	}
 
 	// if we don't have any compactable segments, we can early terminate
@@ -108,43 +114,45 @@ func NewPlan(candidateSegments []Segment, opts PlannerOptions) (*Plan, error) {
 		return plan, nil
 	}
 
-	// now we have segments to compact, so on to phase 2
-	buckets := opts.SizeBuckets
-	sort.Sort(ByMinSize(buckets))
+	// NB: making a copy of levels to ensure we don't modify any input vars.
+	levels := make([]Level, len(opts.Levels))
+	copy(levels, opts.Levels)
+	sort.Sort(ByMinSize(levels))
 
-	// group segments into buckets (2a)
-	segmentsByBucket := make(map[SizeBucket][]Segment, len(buckets))
+	// now we have segments to compact, so on to phase 2
+	// group segments into levels (2a)
+	segmentsByBucket := make(map[Level][]Segment, len(levels))
 	for _, seg := range compactableSegments {
 		var (
-			bucket      SizeBucket
-			bucketFound bool
+			level      Level
+			levelFound bool
 		)
-		for _, b := range buckets {
+		for _, b := range levels {
 			if b.MinSizeInclusive <= seg.Size && seg.Size < b.MaxSizeExclusive {
-				bucket = b
-				bucketFound = true
+				level = b
+				levelFound = true
 				break
 			}
 		}
-		if !bucketFound {
+		if !levelFound {
 			plan.UnusedSegments = append(plan.UnusedSegments, seg)
 		}
-		segmentsByBucket[bucket] = append(segmentsByBucket[bucket], seg)
+		segmentsByBucket[level] = append(segmentsByBucket[level], seg)
 	}
 
-	// for each bucket, sub-group segments into tier'd sizes (2b)
-	for bucket, bucketSegments := range segmentsByBucket {
+	// for each level, sub-group segments into tier'd sizes (2b)
+	for level, levelSegments := range segmentsByBucket {
 		var (
 			task            Task
 			accumulatedSize int64
 		)
-		sort.Slice(bucketSegments, func(i, j int) bool {
-			return bucketSegments[i].Size < bucketSegments[j].Size
+		sort.Slice(levelSegments, func(i, j int) bool {
+			return levelSegments[i].Size < levelSegments[j].Size
 		})
-		for _, seg := range bucketSegments {
+		for _, seg := range levelSegments {
 			accumulatedSize += seg.Size
 			task.Segments = append(task.Segments, seg)
-			if accumulatedSize >= bucket.MaxSizeExclusive {
+			if accumulatedSize >= level.MaxSizeExclusive {
 				plan.Tasks = append(plan.Tasks, task)
 				task = Task{}
 				accumulatedSize = 0
@@ -197,28 +205,30 @@ func (p *Plan) Less(i, j int) bool {
 	}
 }
 
+// Validate ensures the receiver PlannerOptions specify valid values
+// for each of the knobs.
 func (o PlannerOptions) Validate() error {
-	if o.MutableCompactionAge <= 0 {
+	if o.MutableCompactionAge < 0 {
 		return errMutableCompactionAgeNegative
 	}
 	if o.MaxImmutableCompactionSize <= 0 {
 		return errMaxImmutableCompactionSize
 	}
-	if len(o.SizeBuckets) == 0 {
-		return errSizeBucketsUndefined
+	if len(o.Levels) == 0 {
+		return errLevelsUndefined
 	}
-	sort.Sort(ByMinSize(o.SizeBuckets))
-	for i := 0; i < len(o.SizeBuckets); i++ {
-		current := o.SizeBuckets[i]
+	sort.Sort(ByMinSize(o.Levels))
+	for i := 0; i < len(o.Levels); i++ {
+		current := o.Levels[i]
 		if current.MaxSizeExclusive <= current.MinSizeInclusive {
-			return fmt.Errorf("illegal size buckets definition, MaxSize <= MinSize (%+v)", current)
+			return fmt.Errorf("illegal size levels definition, MaxSize <= MinSize (%+v)", current)
 		}
 	}
 	return nil
 }
 
-// ByMinSizeAsc orders a []SizeBucket by MinSize in ascending order.
-type ByMinSize []SizeBucket
+// ByMinSize orders a []Level by MinSize in ascending order.
+type ByMinSize []Level
 
 func (a ByMinSize) Len() int           { return len(a) }
 func (a ByMinSize) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
