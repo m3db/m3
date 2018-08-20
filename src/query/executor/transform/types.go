@@ -51,7 +51,7 @@ type TimeSpec struct {
 func (ts TimeSpec) Bounds() block.Bounds {
 	return block.Bounds{
 		Start:    ts.Start,
-		End:      ts.End,
+		Duration: ts.End.Sub(ts.Start),
 		StepSize: ts.Step,
 	}
 }

@@ -28,10 +28,32 @@ import (
 	"github.com/m3db/m3/src/query/models"
 )
 
+type ValueMod func([]float64) []float64
+
+func NoopMod(v []float64) []float64 {
+	return v
+}
+
 // NewBlockFromValues creates a new block using the provided values
 func NewBlockFromValues(bounds block.Bounds, seriesValues [][]float64) block.Block {
 	meta := NewSeriesMeta("dummy", len(seriesValues))
 	return NewBlockFromValuesWithSeriesMeta(bounds, meta, seriesValues)
+}
+
+// NewBlockFromValues creates a new block using the provided values
+func NewMultiBlocksFromValues(bounds block.Bounds, seriesValues [][]float64, valueMod ValueMod, numBlocks int) []block.Block {
+	meta := NewSeriesMeta("dummy", len(seriesValues))
+	blocks := make([]block.Block, numBlocks)
+	for i := 0; i < numBlocks; i++ {
+		blocks[i] = NewBlockFromValuesWithSeriesMeta(bounds, meta, seriesValues)
+		// Avoid modifying the first value
+		for i, val := range seriesValues {
+			seriesValues[i] = valueMod(val)
+		}
+
+		bounds = bounds.Next(1)
+	}
+	return blocks
 }
 
 // NewSeriesMeta creates new metadata tags in the format [tagPrefix:i] for the number of series

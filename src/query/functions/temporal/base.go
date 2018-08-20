@@ -103,6 +103,16 @@ func (c *baseNode) Process(ID parser.NodeID, b block.Block) error {
 
 	meta := iter.Meta()
 	bounds := meta.Bounds
+	queryStartBounds := bounds.Nearest(c.transformOpts.TimeSpec.Start)
+	if bounds.Start.Before(queryStartBounds.Start) {
+		return fmt.Errorf("block start cannot be before query start, bounds: %v, queryStart: %v", bounds, queryStartBounds)
+	}
+
+	queryEndBounds := bounds.Nearest(c.transformOpts.TimeSpec.End.Add(-1 * bounds.StepSize))
+	if bounds.Start.After(queryEndBounds.Start) {
+		return fmt.Errorf("block start cannot be after query end, bounds: %v, query end: %v", bounds, queryEndBounds)
+	}
+
 	c.cache.init(bounds)
 	blockDuration := bounds.Duration
 	// Figure out the maximum blocks needed for the temporal function
@@ -110,7 +120,6 @@ func (c *baseNode) Process(ID parser.NodeID, b block.Block) error {
 
 	// Figure out the leftmost block
 	leftRangeStart := bounds.Previous(maxBlocks)
-	queryStartBounds := bounds.Nearest(c.transformOpts.TimeSpec.Start)
 
 	if leftRangeStart.Start.Before(queryStartBounds.Start) {
 		leftRangeStart = queryStartBounds
@@ -118,7 +127,6 @@ func (c *baseNode) Process(ID parser.NodeID, b block.Block) error {
 
 	// Figure out the rightmost blocks
 	rightRangeStart := bounds.Next(maxBlocks)
-	queryEndBounds := bounds.Nearest(c.transformOpts.TimeSpec.End.Add(-1 * bounds.StepSize))
 
 	if rightRangeStart.Start.After(queryEndBounds.Start) {
 		rightRangeStart = queryEndBounds
@@ -283,8 +291,8 @@ func (c *baseNode) processSingleRequest(request processRequest) error {
 
 func (c *baseNode) sweep(processedKeys []bool, queryStartBounds block.Bounds, queryEndBounds block.Bounds, maxBlocks int) {
 	prevProcessed := 0
-	numBlocks := len(processedKeys) - 1
-	for i := numBlocks; i >= 0; i-- {
+	maxRight := len(processedKeys) - 1
+	for i := maxRight; i >= 0; i-- {
 		processed := processedKeys[i]
 		if !processed {
 			prevProcessed = 0
@@ -292,8 +300,9 @@ func (c *baseNode) sweep(processedKeys []bool, queryStartBounds block.Bounds, qu
 		}
 
 		dependantBlocks := maxBlocks
-		if dependantBlocks > numBlocks-i-1 {
-			dependantBlocks = numBlocks - i - 1
+		remainingBlocks := maxRight - i
+		if dependantBlocks > remainingBlocks {
+			dependantBlocks = remainingBlocks
 		}
 
 		if prevProcessed >= dependantBlocks {
