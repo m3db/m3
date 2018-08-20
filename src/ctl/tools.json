@@ -1,0 +1,9 @@
+{
+  "Tools": [
+    {
+      "Repository": "github.com/rakyll/statik",
+      "Commit": "19b88da8fc15428620782ba18f68423130e7ac7d"
+    }
+  ],
+  "RetoolVersion": "1.3.7"
+}

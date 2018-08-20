@@ -136,6 +136,10 @@ imports:
   version: 195bde7883f7c39ea62b0d92ab7359b5327065cb
 - name: github.com/prometheus/procfs
   version: 1878d9fbb537119d24b21ca07effd591627cd160
+- name: github.com/rakyll/statik
+  version: 19b88da8fc15428620782ba18f68423130e7ac7d
+  subpackages:
+  - fs
 - name: github.com/shirou/gopsutil
   version: b62e301a8b9958eebb7299683eb57fab229a9501
   subpackages:

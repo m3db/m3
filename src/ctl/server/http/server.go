@@ -24,19 +24,23 @@ import (
 	"net/http"
 	"sync"
 
+	_ "github.com/m3db/m3ctl/generated/ui/statik" // Generated UI statik package
 	mserver "github.com/m3db/m3ctl/server"
 	"github.com/m3db/m3ctl/service"
 	"github.com/m3db/m3x/log"
 
 	"github.com/gorilla/mux"
+	"github.com/rakyll/statik/fs"
 )
 
 const (
 	publicPathPrefix = "/public"
-	publicDirPath    = "public"
 	staticPathPrefix = "/static"
-	staticDirPath    = "ui/build/static"
-	indexFilePath    = "ui/build/index.html"
+	indexFile        = "/index.html"
+)
+
+var (
+	indexPaths = []string{"/", indexFile}
 )
 
 type server struct {
@@ -90,26 +94,35 @@ func (s *server) Close() {
 
 func initRouter(services []service.Service) (http.Handler, error) {
 	router := mux.NewRouter()
-	registerStaticRoutes(router)
+	if err := registerStaticRoutes(router); err != nil {
+		return nil, err
+	}
 	if err := registerServiceRoutes(router, services); err != nil {
 		return nil, err
 	}
 	return router, nil
 }
 
-func registerStaticRoutes(router *mux.Router) {
-	// Register public handler.
-	publicHandler := http.StripPrefix(publicPathPrefix, http.FileServer(http.Dir(publicDirPath)))
-	router.PathPrefix(publicPathPrefix).Handler(publicHandler)
+func registerStaticRoutes(router *mux.Router) error {
+	// Register static and public handler.
+	fileServer, err := fs.New()
+	if err != nil {
+		return err
+	}
 
-	// Register static handler.
-	staticHandler := http.StripPrefix(staticPathPrefix, http.FileServer(http.Dir(staticDirPath)))
-	router.PathPrefix(staticPathPrefix).Handler(staticHandler)
+	fileServerHandler := http.FileServer(fileServer)
+	router.PathPrefix(publicPathPrefix).Handler(fileServerHandler)
+	router.PathPrefix(staticPathPrefix).Handler(fileServerHandler)
 
-	// Register not found handler.
-	router.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, indexFilePath)
+	// Register index handlers.
+	indexHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fileServerHandler.ServeHTTP(w, r)
 	})
+	for _, path := range indexPaths {
+		router.Path(path).HandlerFunc(indexHandler)
+	}
+
+	return nil
 }
 
 func registerServiceRoutes(router *mux.Router, services []service.Service) error {

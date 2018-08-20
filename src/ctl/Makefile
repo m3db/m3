@@ -21,9 +21,13 @@ vendor_prefix        := vendor
 mocks_output_dir     := generated/mocks/mocks
 package_root         := github.com/m3db/m3ctl
 mocks_rules_dir      := generated/mocks
+ui_codegen_dir       := generated/ui
 auto_gen             := .ci/auto-gen.sh
 license_node_modules := $(license_dir)/node_modules
 license_dir          := .ci/uber-licence
+retool_bin_path      := _tools/bin
+retool_package       := github.com/twitchtv/retool
+node_version         := v6
 
 BUILD           := $(abspath ./bin)
 LINUX_AMD64_ENV := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
@@ -38,6 +42,10 @@ setup:
 define SERVICE_RULES
 
 $(SERVICE): setup
+ifeq ($(SERVICE),r2ctl)
+	@echo "Building $(SERVICE) dependencies"
+	make build-ui-statik-packages
+endif
 	@echo Building $(SERVICE)
 	$(VENDOR_ENV) go build -o $(BUILD)/$(SERVICE) ./services/$(SERVICE)/main/.
 
@@ -50,10 +58,35 @@ services: $(SERVICES)
 services-linux-amd64:
 	$(LINUX_AMD64_ENV) make services
 
-build-ui:
-	cd ui && npm install
-	cd ui && npm run build
+cmd-using-node-version:
+ifneq ($(shell brew --prefix nvm 2>/dev/null),)
+	@echo "Using nvm from brew to select node version $(node_version)"
+	source $(shell brew --prefix nvm)/nvm.sh && nvm use $(node_version) && bash -c "$(node_cmd)"
+else ifneq ($(shell type nvm 2>/dev/null),)
+	@echo "Using nvm to select node version $(node_version)"
+	nvm use $(node_version) && bash -c "$(node_cmd)"
+else
+	@echo "Not using nvm, using node version $(shell node --version)"
+	bash -c "$(node_cmd)"
+endif
 
+build-ui:
+ifeq ($(shell ls ./ui/build 2>/dev/null),)
+	# Need to use subshell output of set-node-version as cannot
+	# set side-effects of nvm to later commands
+	@echo "Building UI components, if npm install or build fails try: npm cache clean"
+	make cmd-using-node-version node_cmd="cd ui && npm install && npm run build"
+else
+	@echo "Skip building UI components, already built, to rebuild first make clean"
+endif
+	# Move public assets into public subdirectory so that it can
+	# be included in the single statik package built from ./ui/build
+	rm -rf ./ui/build/public
+	cp -r ./public ./ui/build/public
+
+build-ui-statik-packages: build-ui install-tools
+	mkdir -p $(ui_codegen_dir)
+	$(retool_bin_path)/statik -src ./ui/build -dest $(ui_codegen_dir) -p statik
 
 $(foreach SERVICE,$(SERVICES),$(eval $(SERVICE_RULES)))
 
@@ -102,10 +135,11 @@ test-ci-integration:
 
 .PHONY: clean
 clean:
-	@rm -f *.html *.xml *.out *.test
+	@rm -f *.html *.xml *.out *.test $(BUILD)/*
+	@rm -rf ./ui/build
 
 .PHONY: all
-all: lint metalint test-ci-unit services build-ui
+all: lint metalint test-ci-unit services
 	@echo Made all successfully
 
 .PHONY: install-licence-bin
@@ -118,6 +152,16 @@ install-license-bin: install-vendor
 install-mockgen: install-vendor
 	@echo Installing mockgen
 	glide install
+
+.PHONY: install-retool
+install-retool:
+	@which retool >/dev/null || go get $(retool_package)
+
+.PHONY: install-tools
+install-tools: install-retool
+	@echo "Installing tools"
+	@retool sync >/dev/null 2>/dev/null
+	@retool build >/dev/null 2>/dev/null
 
 .PHONY: mock-gen
 mock-gen: install-mockgen install-license-bin install-util-mockclean
