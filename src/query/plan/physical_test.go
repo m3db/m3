@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/functions"
+	"github.com/m3db/m3/src/query/functions/aggregation"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 
@@ -34,7 +35,7 @@ import (
 
 func TestResultNode(t *testing.T) {
 	fetchTransform := parser.NewTransformFromOperation(functions.FetchOp{}, 1)
-	countTransform := parser.NewTransformFromOperation(functions.CountOp{}, 2)
+	countTransform := parser.NewTransformFromOperation(aggregation.CountOp{}, 2)
 	transforms := parser.Nodes{fetchTransform, countTransform}
 	edges := parser.Edges{
 		parser.Edge{

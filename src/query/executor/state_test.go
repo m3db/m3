@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/functions"
+	"github.com/m3db/m3/src/query/functions/aggregation"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/plan"
@@ -37,7 +38,7 @@ import (
 
 func TestValidState(t *testing.T) {
 	fetchTransform := parser.NewTransformFromOperation(functions.FetchOp{}, 1)
-	countTransform := parser.NewTransformFromOperation(functions.CountOp{}, 2)
+	countTransform := parser.NewTransformFromOperation(aggregation.CountOp{}, 2)
 	transforms := parser.Nodes{fetchTransform, countTransform}
 	edges := parser.Edges{
 		parser.Edge{
@@ -59,7 +60,7 @@ func TestValidState(t *testing.T) {
 }
 
 func TestWithoutSources(t *testing.T) {
-	countTransform := parser.NewTransformFromOperation(functions.CountOp{}, 2)
+	countTransform := parser.NewTransformFromOperation(aggregation.CountOp{}, 2)
 	transforms := parser.Nodes{countTransform}
 	edges := parser.Edges{}
 	lp, err := plan.NewLogicalPlan(transforms, edges)
@@ -85,7 +86,7 @@ func TestOnlySources(t *testing.T) {
 
 func TestMultipleSources(t *testing.T) {
 	fetchTransform1 := parser.NewTransformFromOperation(functions.FetchOp{}, 1)
-	countTransform := parser.NewTransformFromOperation(functions.CountOp{}, 2)
+	countTransform := parser.NewTransformFromOperation(aggregation.CountOp{}, 2)
 	fetchTransform2 := parser.NewTransformFromOperation(functions.FetchOp{}, 3)
 	transforms := parser.Nodes{fetchTransform1, fetchTransform2, countTransform}
 	edges := parser.Edges{

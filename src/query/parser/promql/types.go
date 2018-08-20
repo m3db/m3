@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3/src/query/functions"
+	"github.com/m3db/m3/src/query/functions/aggregation"
 	"github.com/m3db/m3/src/query/functions/binary"
 	"github.com/m3db/m3/src/query/functions/linear"
 	"github.com/m3db/m3/src/query/functions/logical"
@@ -60,10 +61,11 @@ func NewSelectorFromMatrix(n *promql.MatrixSelector) (parser.Params, error) {
 }
 
 // NewOperator creates a new operator based on the type
+//ARTEMFIXME
 func NewOperator(opType promql.ItemType) (parser.Params, error) {
 	switch getOpType(opType) {
-	case functions.CountType:
-		return functions.CountOp{}, nil
+	case aggregation.CountType:
+		return aggregation.CountOp{}, nil
 	default:
 		// TODO: handle other types
 		return nil, fmt.Errorf("operator not supported: %s", opType)
@@ -147,7 +149,7 @@ func NewFunctionExpr(name string, argValues []interface{}) (parser.Params, error
 func getOpType(opType promql.ItemType) string {
 	switch opType {
 	case promql.ItemType(itemCount):
-		return functions.CountType
+		return aggregation.CountType
 	case promql.ItemType(itemLAND):
 		return logical.AndType
 	case promql.ItemType(itemLOR):
