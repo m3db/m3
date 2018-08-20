@@ -104,6 +104,10 @@ func (c *baseNode) Process(ID parser.NodeID, b block.Block) error {
 	meta := iter.Meta()
 	bounds := meta.Bounds
 	queryStartBounds := bounds.Nearest(c.transformOpts.TimeSpec.Start)
+	if bounds.Duration == 0 {
+		return fmt.Errorf("bound duration cannot be 0, bounds: %v", bounds)
+	}
+
 	if bounds.Start.Before(queryStartBounds.Start) {
 		return fmt.Errorf("block start cannot be before query start, bounds: %v, queryStart: %v", bounds, queryStartBounds)
 	}
@@ -213,7 +217,6 @@ func (c *baseNode) processCompletedBlocks(processRequests []processRequest, quer
 }
 
 func (c *baseNode) processSingleRequest(request processRequest) error {
-	aggDuration := c.op.duration
 	seriesIter, err := request.blk.SeriesIter()
 	if err != nil {
 		return err
@@ -225,12 +228,11 @@ func (c *baseNode) processSingleRequest(request processRequest) error {
 		if err != nil {
 			return err
 		}
+
 		depIters[i] = iter
 	}
 
 	bounds := seriesIter.Meta().Bounds
-	steps := int((aggDuration + bounds.Duration) / bounds.StepSize)
-	values := make([]float64, 0, steps)
 
 	seriesMeta := seriesIter.SeriesMeta()
 	resultSeriesMeta := make([]block.SeriesMeta, len(seriesMeta))
@@ -249,8 +251,12 @@ func (c *baseNode) processSingleRequest(request processRequest) error {
 		return err
 	}
 
+	aggDuration := c.op.duration
+	steps := int((aggDuration + bounds.Duration) / bounds.StepSize)
+	values := make([]float64, 0, steps)
+	desiredLength := int(aggDuration / bounds.StepSize)
 	for seriesIter.Next() {
-		values = values[0:0]
+		values = values[:0]
 		for i, iter := range depIters {
 			if !iter.Next() {
 				return fmt.Errorf("incorrect number of series for block: %d", i)
@@ -264,7 +270,6 @@ func (c *baseNode) processSingleRequest(request processRequest) error {
 			values = append(values, s.Values()...)
 		}
 
-		desiredLength := int(aggDuration / bounds.StepSize)
 		series, err := seriesIter.Current()
 		if err != nil {
 			return err
@@ -274,13 +279,14 @@ func (c *baseNode) processSingleRequest(request processRequest) error {
 			val := series.ValueAtStep(i)
 			values = append(values, val)
 			newVal := math.NaN()
+			// Remove the older values from slice as newer values are pushed in.
+			// TODO: Consider using a rotating slice since this is inefficient
 			if desiredLength <= len(values) {
 				values = values[len(values)-desiredLength:]
 				newVal = c.processor.Process(values)
 			}
 
 			builder.AppendValue(i, newVal)
-
 		}
 	}
 
@@ -299,18 +305,17 @@ func (c *baseNode) sweep(processedKeys []bool, queryStartBounds block.Bounds, qu
 			continue
 		}
 
-		dependantBlocks := maxBlocks
+		dependentBlocks := maxBlocks
 		remainingBlocks := maxRight - i
-		if dependantBlocks > remainingBlocks {
-			dependantBlocks = remainingBlocks
+		if dependentBlocks > remainingBlocks {
+			dependentBlocks = remainingBlocks
 		}
 
-		if prevProcessed >= dependantBlocks {
+		if prevProcessed >= dependentBlocks {
 			c.cache.remove(i)
 		}
 
 		prevProcessed++
-
 	}
 }
 
@@ -346,6 +351,7 @@ func newBlockCache(op baseOp, transformOpts transform.Options) *blockCache {
 		transformOpts: transformOpts,
 	}
 }
+
 func (c *blockCache) init(bounds block.Bounds) {
 	if c.initialized {
 		return
@@ -421,21 +427,21 @@ func (c *blockCache) get(key time.Time) (block.Block, bool) {
 
 // multiGet retrieves multiple blocks from the cache at once until if finds an empty block
 func (c *blockCache) multiGet(startBounds block.Bounds, numBlocks int, reverse bool) ([]block.Block, error) {
+	if numBlocks == 0 {
+		return []block.Block{}, nil
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	blks := make([]block.Block, 0, numBlocks)
-	if numBlocks == 0 {
-		return blks, nil
-	}
-
 	startIdx, err := c.index(startBounds.Start)
 	if err != nil {
 		return nil, err
 	}
 
-	// Process a single index
-	process := func(i int) (bool, error) {
+	// Fetch an index and notified if it was empty
+	fetchAndCheckEmpty := func(i int) (bool, error) {
 		if startIdx+i >= len(c.blockList) {
 			return true, fmt.Errorf("index out of range: %d", startIdx+i)
 		}
@@ -451,7 +457,7 @@ func (c *blockCache) multiGet(startBounds block.Bounds, numBlocks int, reverse b
 
 	if reverse {
 		for i := numBlocks - 1; i >= 0; i-- {
-			empty, err := process(i)
+			empty, err := fetchAndCheckEmpty(i)
 			if err != nil {
 				return nil, err
 			}
@@ -461,12 +467,12 @@ func (c *blockCache) multiGet(startBounds block.Bounds, numBlocks int, reverse b
 			}
 		}
 
-		reversed(blks)
+		reverseSlice(blks)
 		return blks, nil
 	}
 
 	for i := 0; i < numBlocks; i++ {
-		empty, err := process(i)
+		empty, err := fetchAndCheckEmpty(i)
 		if err != nil {
 			return nil, err
 		}
@@ -479,11 +485,11 @@ func (c *blockCache) multiGet(startBounds block.Bounds, numBlocks int, reverse b
 	return blks, nil
 }
 
-func reversed(blocks []block.Block) {
+// reverseSlice reverses a slice
+func reverseSlice(blocks []block.Block) {
 	for i, j := 0, len(blocks)-1; i < j; i, j = i+1, j-1 {
 		blocks[i], blocks[j] = blocks[j], blocks[i]
 	}
-
 }
 
 // MarkProcessed is used to mark a block as processed
