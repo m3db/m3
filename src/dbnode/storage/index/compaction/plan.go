@@ -61,54 +61,46 @@ var (
 
 	// DefaultOptions are the default compaction PlannerOptions.
 	DefaultOptions = PlannerOptions{
-		MaxMutableSegmentSize: 1 << 16,                            // 64K
-		MutableCompactionAge:  15 * time.Second,                   // any mutable segment 15s or older is eligible for compactions
-		Levels:                DefaultLevels,                      // sizes defined above
-		OrderBy:               TasksOrderedByOldestMutableAndSize, // compact mutable segments first
+		MutableSegmentSizeThreshold:   1 << 16,          // 64K
+		MutableCompactionAgeThreshold: 15 * time.Second, // any mutable segment 15s or older is eligible for compactions
+		Levels:  DefaultLevels,                      // sizes defined above
+		OrderBy: TasksOrderedByOldestMutableAndSize, // compact mutable segments first
 	}
 )
 
+// Compactable returns whether the current segment meets the requirements to be
+// compacted in steady-state.
+// NB: Steady-state here refers to the usual operating mode for M3DB, where the
+// database is constantly receiving new writes. In these situations, we don't
+// compact as soon as we receive a write to allow segments to buffer incoming
+// writes to reduce the number of total compactions required by the process.
+// However, in times where the proces isn't already compacting, mutable segments
+// that don't meet the requirements laid herein may still be considered compactable.
+func (s Segment) Compactable(opts PlannerOptions) bool {
+	// In steady state, i.e. when we are constantly getting writes w/ new IDs, any
+	// of following conditions holding true indicates we will compact a segment:
+	//  - a mutable segment is sufficiently old, i.e, has Age > MutableCompactionAgeThreshold
+	//  - a mutable segment is sufficiently large, i.e, has Size > MutableCompactionSizeThreshold
+	//  - a FST segment fits within within any of the given opts.Levels
+	if s.Type == segments.MutableType {
+		return s.Age >= opts.MutableCompactionAgeThreshold || s.Size >= opts.MutableSegmentSizeThreshold
+	}
+	if s.Type == segments.FSTType {
+		for _, l := range opts.Levels {
+			if l.MinSizeInclusive <= s.Size && s.Size < l.MaxSizeExclusive {
+				return true
+			}
+		}
+		return false
+	}
+	// we don't know how to compact anything that isn't FST/Mutable.
+	return false
+}
+
 // NewPlan returns a new compaction.Plan per the rules above and the knobs provided.
-func NewPlan(candidateSegments []Segment, opts PlannerOptions) (*Plan, error) {
+func NewPlan(compactableSegments []Segment, opts PlannerOptions) (*Plan, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
-	}
-
-	plan := &Plan{
-		OrderBy: opts.OrderBy,
-	}
-	// Planning is a two-phase process:
-	// (1) Identify all "compactable" Segments:
-	//    - All mutable segments are compactable (over age Y)
-	//    - All immutable segments (below size MaxCompactionSize) are compactable
-	//
-	// (2) Come up with a logical plan for compactable segments
-	//    (a) Group the segments into given levels (compactions can only be performed for segments within the same level)
-	//    (b) For each level:
-	//    (b1) Accumulate segments until cumulative size is over the max of the current level.
-	//    (b2) Add a Task which comprises segments from (b1) to the Plan.
-	//    (b3) Continue (b1) until the level is empty.
-	//    (c) Priotize Tasks w/ "compactable" Mutable Segments over all others
-
-	// 1st phase - find all compactable segments
-	compactableSegments := make([]Segment, 0, len(candidateSegments))
-	for _, seg := range candidateSegments {
-		compactable := (seg.Type == segments.FSTType) || (seg.Type == segments.MutableType &&
-			(seg.Age >= opts.MutableCompactionAge || seg.Size >= opts.MaxMutableSegmentSize))
-		if compactable {
-			compactableSegments = append(compactableSegments, seg)
-			continue
-		}
-		// NB: lazily allocate UnusedSegments as they're typically not going to be very many.
-		if len(plan.UnusedSegments) == 0 {
-			plan.UnusedSegments = make([]Segment, 0, len(candidateSegments))
-		}
-		plan.UnusedSegments = append(plan.UnusedSegments, seg)
-	}
-
-	// if we don't have any compactable segments, we can early terminate
-	if len(compactableSegments) == 0 {
-		return plan, nil
 	}
 
 	// NB: making a copy of levels to ensure we don't modify any input vars.
@@ -116,10 +108,33 @@ func NewPlan(candidateSegments []Segment, opts PlannerOptions) (*Plan, error) {
 	copy(levels, opts.Levels)
 	sort.Sort(ByMinSize(levels))
 
-	// now we have segments to compact, so on to phase 2
-	// group segments into levels (2a)
-	segmentsByBucket := make(map[Level][]Segment, len(levels))
-	var catchAllMutableSegmentTask Task
+	// if we don't have any compactable segments, we can early terminate
+	if len(compactableSegments) == 0 {
+		return &Plan{}, nil
+	}
+
+	// initialise to avoid allocs as much as possible
+	plan := &Plan{
+		OrderBy:        opts.OrderBy,
+		UnusedSegments: make([]Segment, 0, len(compactableSegments)),
+	}
+
+	// Come up with a logical plan for all compactable segments using the following steps:
+	//  (a) Group the segments into given levels (compactions can only be performed for
+	//      segments within the same level). In addition, any mutable segment outside known
+	//      levels can still be compacted.
+	//  (b) For each level:
+	//  (b1) Accumulate segments until cumulative size is over the max of the current level.
+	//  (b2) Add a Task which comprises segments from (b1) to the Plan.
+	//  (b3) Continue (b1) until the level is empty.
+	//  (c) Priotize Tasks w/ "compactable" Mutable Segments over all others
+
+	var (
+		// group segments into levels (a)
+		segementsByLevel = make(map[Level][]Segment, len(levels))
+		// mutable segment which don't fit a known level are still considered compactable
+		catchAllMutableSegmentTask Task
+	)
 	for _, seg := range compactableSegments {
 		var (
 			level      Level
@@ -133,7 +148,7 @@ func NewPlan(candidateSegments []Segment, opts PlannerOptions) (*Plan, error) {
 			}
 		}
 		if levelFound {
-			segmentsByBucket[level] = append(segmentsByBucket[level], seg)
+			segementsByLevel[level] = append(segementsByLevel[level], seg)
 			continue
 		}
 		// we need to compact mutable segments regardless of whether they belong to a known level.
@@ -152,8 +167,8 @@ func NewPlan(candidateSegments []Segment, opts PlannerOptions) (*Plan, error) {
 		})
 	}
 
-	// for each level, sub-group segments into tier'd sizes (2b)
-	for level, levelSegments := range segmentsByBucket {
+	// for each level, sub-group segments into tier'd sizes (b)
+	for level, levelSegments := range segementsByLevel {
 		var (
 			task            Task
 			accumulatedSize int64
@@ -191,7 +206,7 @@ func NewPlan(candidateSegments []Segment, opts PlannerOptions) (*Plan, error) {
 		plan.UnusedSegments = append(plan.UnusedSegments, task.Segments[0])
 	}
 
-	// now that we have the plan, we priortise the tasks as requested in the opts. (2c)
+	// now that we have the plan, we priortise the tasks as requested in the opts. (c)
 	sort.Stable(plan)
 	return plan, nil
 }
@@ -203,6 +218,10 @@ func (p *Plan) Less(i, j int) bool {
 	case TasksOrderedByOldestMutableAndSize:
 		fallthrough
 	default:
+		// NB: the intent with the conditions below is to optimise for e2e ingest latency first,
+		// which is why we prefer to compact older mutable segments first, then any larger ones,
+		// after which, we fall back to the graceful plan of compacting smaller segments over
+		// larger ones to reduce total compactions required.
 		taskSummaryi, taskSummaryj := p.Tasks[i].Summary(), p.Tasks[j].Summary()
 		if taskSummaryi.CumulativeMutableAge != taskSummaryj.CumulativeMutableAge {
 			// i.e. put those tasks which have cumulative age greater first
@@ -220,7 +239,7 @@ func (p *Plan) Less(i, j int) bool {
 // Validate ensures the receiver PlannerOptions specify valid values
 // for each of the knobs.
 func (o PlannerOptions) Validate() error {
-	if o.MutableCompactionAge < 0 {
+	if o.MutableCompactionAgeThreshold < 0 {
 		return errMutableCompactionAgeNegative
 	}
 	if len(o.Levels) == 0 {

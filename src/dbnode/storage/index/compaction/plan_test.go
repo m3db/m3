@@ -21,6 +21,7 @@
 package compaction
 
 import (
+	"fmt"
 	"sort"
 	"testing"
 	"time"
@@ -36,27 +37,25 @@ func TestDefaultOptsValidate(t *testing.T) {
 func TestBrandNewMutableSegment(t *testing.T) {
 	opts := DefaultOptions
 	s1 := Segment{
-		Age:  (opts.MutableCompactionAge - time.Second),
+		Age:  (opts.MutableCompactionAgeThreshold - time.Second),
 		Size: 10,
 		Type: segments.MutableType,
 	}
-	plan, err := NewPlan([]Segment{s1}, opts)
-	require.NoError(t, err)
-	require.Equal(t, &Plan{UnusedSegments: []Segment{s1}}, plan)
+	require.False(t, s1.Compactable(opts))
 }
 
 func TestSingleMutableCompaction(t *testing.T) {
 	opts := DefaultOptions
 	candidates := []Segment{
 		Segment{
-			Age:  (opts.MutableCompactionAge + time.Second),
+			Age:  (opts.MutableCompactionAgeThreshold + time.Second),
 			Size: 10,
 			Type: segments.MutableType,
 		},
 	}
 	plan, err := NewPlan(candidates, opts)
 	require.NoError(t, err)
-	require.Equal(t, &Plan{
+	requirePlansEqual(t, &Plan{
 		Tasks: []Task{
 			Task{
 				Segments: candidates,
@@ -70,12 +69,12 @@ func TestReportNewMutableSegmentUnused(t *testing.T) {
 	opts := DefaultOptions
 	var (
 		s1 = Segment{
-			Age:  (opts.MutableCompactionAge - time.Second),
+			Age:  (opts.MutableCompactionAgeThreshold - time.Second),
 			Size: 10,
 			Type: segments.MutableType,
 		}
 		s2 = Segment{
-			Age:  (opts.MutableCompactionAge + time.Second),
+			Age:  (opts.MutableCompactionAgeThreshold + time.Second),
 			Size: 10,
 			Type: segments.MutableType,
 		}
@@ -83,10 +82,9 @@ func TestReportNewMutableSegmentUnused(t *testing.T) {
 	candidates := []Segment{s1, s2}
 	plan, err := NewPlan(candidates, opts)
 	require.NoError(t, err)
-	require.Equal(t, &Plan{
-		UnusedSegments: []Segment{s1},
+	requirePlansEqual(t, &Plan{
 		Tasks: []Task{
-			Task{Segments: []Segment{s2}},
+			Task{Segments: []Segment{s1, s2}},
 		},
 		OrderBy: opts.OrderBy,
 	}, plan)
@@ -96,7 +94,7 @@ func TestMarkUnusedSegmentsSingleTier(t *testing.T) {
 	opts := testOptions()
 	var (
 		s1 = Segment{
-			Age:  (opts.MutableCompactionAge + time.Second),
+			Age:  (opts.MutableCompactionAgeThreshold + time.Second),
 			Size: 10,
 			Type: segments.MutableType,
 		}
@@ -127,7 +125,7 @@ func TestDontCompactSegmentTooLarge(t *testing.T) {
 	maxBucketSize := opts.Levels[len(opts.Levels)-1].MaxSizeExclusive
 	var (
 		s1 = Segment{
-			Age:  (opts.MutableCompactionAge + time.Second),
+			Age:  (opts.MutableCompactionAgeThreshold + time.Second),
 			Size: maxBucketSize + 1,
 			Type: segments.MutableType,
 		}
@@ -136,7 +134,7 @@ func TestDontCompactSegmentTooLarge(t *testing.T) {
 			Type: segments.FSTType,
 		}
 		s3 = Segment{
-			Age:  (opts.MutableCompactionAge + time.Second),
+			Age:  (opts.MutableCompactionAgeThreshold + time.Second),
 			Size: 61,
 			Type: segments.MutableType,
 		}
@@ -156,6 +154,24 @@ func TestDontCompactSegmentTooLarge(t *testing.T) {
 		},
 		OrderBy: opts.OrderBy,
 	}, plan)
+}
+
+func requirePlansEqual(t *testing.T, expected, observed *Plan) {
+	if expected == nil {
+		require.Nil(t, observed)
+		return
+	}
+	require.Equal(t, len(expected.UnusedSegments), len(observed.UnusedSegments),
+		fmt.Sprintf("exp [%+v]\nobs[%+v]", expected.UnusedSegments, observed.UnusedSegments))
+	for i := range expected.UnusedSegments {
+		require.Equal(t, expected.UnusedSegments[i], observed.UnusedSegments[i], i)
+	}
+	require.Equal(t, len(expected.Tasks), len(observed.Tasks),
+		fmt.Sprintf("exp [%+v]\nobs[%+v]", expected.Tasks, observed.Tasks))
+	for i := range expected.Tasks {
+		require.Equal(t, expected.Tasks[i], observed.Tasks[i], i)
+	}
+	require.Equal(t, expected.OrderBy, observed.OrderBy)
 }
 
 func testOptions() PlannerOptions {

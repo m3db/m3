@@ -62,12 +62,12 @@ var _ sort.Interface = &Plan{}
 
 // PlannerOptions are the knobs to tweak planning behaviour.
 type PlannerOptions struct {
-	// MaxMutableSegmentSize is the maximum size a mutable segment is
+	// MutableSegmentSizeThreshold is the maximum size a mutable segment is
 	// allowed to grow before it's rotated out for compactions.
-	MaxMutableSegmentSize int64
-	// MutableCompactionAge is minimum age required of a mutable segment
-	// before it would be considered for compaction.
-	MutableCompactionAge time.Duration
+	MutableSegmentSizeThreshold int64
+	// MutableCompactionAgeThreshold is minimum age required of a mutable segment
+	// before it would be considered for compaction in steady state.
+	MutableCompactionAgeThreshold time.Duration
 	// Levels define the levels for compactions.
 	Levels []Level
 	// OrderBy defines the order of tasks in the compaction plan returned.
