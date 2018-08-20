@@ -323,7 +323,7 @@
                         "description": "the new state of the ruleset",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/MappingRuleData"
+                            "$ref": "#/definitions/MappingRule"
                         }
                     },
                     {
@@ -431,7 +431,7 @@
                         "description": "the new state of the ruleset",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/MappingRuleData"
+                            "$ref": "#/definitions/MappingRule"
                         }
                     },
                     {
@@ -617,7 +617,7 @@
                         "description": "the new state of the ruleset",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/RollupRuleData"
+                            "$ref": "#/definitions/RollupRule"
                         }
                     },
                     {
@@ -725,7 +725,7 @@
                         "description": "the new state of the ruleset",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/RollupRuleData"
+                            "$ref": "#/definitions/RollupRule"
                         }
                     },
                     {
@@ -975,7 +975,7 @@
                     "description": "ID of the rule, should be omitted for adds"
                 },
                 "ruleData": {
-                    "$ref": "#/definitions/MappingRuleData",
+                    "$ref": "#/definitions/MappingRule",
                     "description": "new rule data, can be left empty for deletes"
                 }
             }
@@ -993,7 +993,7 @@
                     "description": "ID of the rule, should be omitted for adds"
                 },
                 "ruleData": {
-                    "$ref": "#/definitions/RollupRuleData",
+                    "$ref": "#/definitions/RollupRule",
                     "description": "new rule data, can be omitted for deletes"
                 }
             }

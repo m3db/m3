@@ -1,1 +1,19 @@
-Welcome to M3CTL.
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Public</title>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <script type="text/javascript">
+      var href = window.location.href;
+      if (href.indexOf('?') !== -1) {
+        href = href.substring(0, href.indexOf('?'));
+      }
+      if (href[href.length-1] === '/') {
+        href = href.substring(0, href.length-1);
+      }
+      window.location.replace(href + '/r2/v1/swagger');
+    </script>
+  </body>
+</html>

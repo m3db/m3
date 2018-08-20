@@ -20,3 +20,6 @@ bin/
 debug
 debug.test
 
+# retool tools
+_tools/
+

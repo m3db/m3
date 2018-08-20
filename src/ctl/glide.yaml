@@ -63,6 +63,8 @@ import:
   version: 71201497bace774495daed26a3874fd339e0b538
 - package: gopkg.in/go-playground/validator.v9
   version: a021b2ec9a8a8bb970f3f15bc42617cb520e8a64
+- package: github.com/rakyll/statik/fs
+  version: 19b88da8fc15428620782ba18f68423130e7ac7d
 testImport:
 - package: github.com/stretchr/testify
   version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
