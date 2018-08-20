@@ -68,9 +68,6 @@ type PlannerOptions struct {
 	// MutableCompactionAge is minimum age required of a mutable segment
 	// before it would be considered for compaction.
 	MutableCompactionAge time.Duration
-	// MaxImmutableCompactionSize is the maximum size of an immutable segment
-	// that would still be considered for compaction.
-	MaxImmutableCompactionSize int64
 	// Levels define the levels for compactions.
 	Levels []Level
 	// OrderBy defines the order of tasks in the compaction plan returned.

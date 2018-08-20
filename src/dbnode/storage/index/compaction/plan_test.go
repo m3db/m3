@@ -21,6 +21,7 @@
 package compaction
 
 import (
+	"sort"
 	"testing"
 	"time"
 
@@ -122,14 +123,16 @@ func TestMarkUnusedSegmentsSingleTier(t *testing.T) {
 
 func TestDontCompactSegmentTooLarge(t *testing.T) {
 	opts := testOptions()
+	sort.Sort(ByMinSize(opts.Levels))
+	maxBucketSize := opts.Levels[len(opts.Levels)-1].MaxSizeExclusive
 	var (
 		s1 = Segment{
 			Age:  (opts.MutableCompactionAge + time.Second),
-			Size: opts.MaxImmutableCompactionSize + 1,
+			Size: maxBucketSize + 1,
 			Type: segments.MutableType,
 		}
 		s2 = Segment{
-			Size: opts.MaxImmutableCompactionSize + 1,
+			Size: maxBucketSize + 1,
 			Type: segments.FSTType,
 		}
 		s3 = Segment{
@@ -157,7 +160,6 @@ func TestDontCompactSegmentTooLarge(t *testing.T) {
 
 func testOptions() PlannerOptions {
 	opts := DefaultOptions
-	opts.MaxImmutableCompactionSize = 1024
 	opts.Levels = []Level{ // i.e. tiers for compaction [0, 64), [64, 524), [524, 4000)
 		Level{
 			MinSizeInclusive: 0,

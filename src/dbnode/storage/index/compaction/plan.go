@@ -32,7 +32,6 @@ import (
 var (
 	errMutableCompactionAgeNegative = errors.New("mutable compaction age must be positive")
 	errLevelsUndefined              = errors.New("compaction levels are undefined")
-	errMaxImmutableCompactionSize   = errors.New("max immutable compaction size must be positive")
 )
 
 var (
@@ -62,11 +61,10 @@ var (
 
 	// DefaultOptions are the default compaction PlannerOptions.
 	DefaultOptions = PlannerOptions{
-		MaxImmutableCompactionSize: 1 << 22,                            // ~4M
-		MaxMutableSegmentSize:      1 << 16,                            // 64K
-		MutableCompactionAge:       15 * time.Second,                   // any mutable segment 15s or older is eligible for compactions
-		Levels:                     DefaultLevels,                      // sizes defined above
-		OrderBy:                    TasksOrderedByOldestMutableAndSize, // compact mutable segments first
+		MaxMutableSegmentSize: 1 << 16,                            // 64K
+		MutableCompactionAge:  15 * time.Second,                   // any mutable segment 15s or older is eligible for compactions
+		Levels:                DefaultLevels,                      // sizes defined above
+		OrderBy:               TasksOrderedByOldestMutableAndSize, // compact mutable segments first
 	}
 )
 
@@ -95,9 +93,8 @@ func NewPlan(candidateSegments []Segment, opts PlannerOptions) (*Plan, error) {
 	// 1st phase - find all compactable segments
 	compactableSegments := make([]Segment, 0, len(candidateSegments))
 	for _, seg := range candidateSegments {
-		compactable := (seg.Type == segments.FSTType && seg.Size < opts.MaxImmutableCompactionSize) ||
-			(seg.Type == segments.MutableType &&
-				(seg.Age >= opts.MutableCompactionAge || seg.Size >= opts.MaxMutableSegmentSize))
+		compactable := (seg.Type == segments.FSTType) || (seg.Type == segments.MutableType &&
+			(seg.Age >= opts.MutableCompactionAge || seg.Size >= opts.MaxMutableSegmentSize))
 		if compactable {
 			compactableSegments = append(compactableSegments, seg)
 			continue
@@ -122,6 +119,7 @@ func NewPlan(candidateSegments []Segment, opts PlannerOptions) (*Plan, error) {
 	// now we have segments to compact, so on to phase 2
 	// group segments into levels (2a)
 	segmentsByBucket := make(map[Level][]Segment, len(levels))
+	var catchAllMutableSegmentTask Task
 	for _, seg := range compactableSegments {
 		var (
 			level      Level
@@ -134,10 +132,24 @@ func NewPlan(candidateSegments []Segment, opts PlannerOptions) (*Plan, error) {
 				break
 			}
 		}
-		if !levelFound {
-			plan.UnusedSegments = append(plan.UnusedSegments, seg)
+		if levelFound {
+			segmentsByBucket[level] = append(segmentsByBucket[level], seg)
+			continue
 		}
-		segmentsByBucket[level] = append(segmentsByBucket[level], seg)
+		// we need to compact mutable segments regardless of whether they belong to a known level.
+		if seg.Type == segments.MutableType {
+			catchAllMutableSegmentTask.Segments = append(catchAllMutableSegmentTask.Segments, seg)
+			continue
+		}
+		// in all other situations, we simply mark the segment unused and move on
+		plan.UnusedSegments = append(plan.UnusedSegments, seg)
+	}
+
+	// any segments that don't fit any known buckets
+	if len(catchAllMutableSegmentTask.Segments) != 0 {
+		plan.Tasks = append(plan.Tasks, Task{
+			Segments: catchAllMutableSegmentTask.Segments,
+		})
 	}
 
 	// for each level, sub-group segments into tier'd sizes (2b)
@@ -210,9 +222,6 @@ func (p *Plan) Less(i, j int) bool {
 func (o PlannerOptions) Validate() error {
 	if o.MutableCompactionAge < 0 {
 		return errMutableCompactionAgeNegative
-	}
-	if o.MaxImmutableCompactionSize <= 0 {
-		return errMaxImmutableCompactionSize
 	}
 	if len(o.Levels) == 0 {
 		return errLevelsUndefined
