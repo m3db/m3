@@ -23,10 +23,13 @@
 package listenaddress
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"strconv"
+)
+
+const (
+	defaultHostname = "0.0.0.0"
 )
 
 // Resolver is a type of port resolver
@@ -42,59 +45,59 @@ const (
 
 // Configuration is the configuration for resolving a listen address.
 type Configuration struct {
-	// Hostname is the hostname to use
-	Hostname string `yaml:"hostname" validate:"nonzero"`
+	// ListenAddressType is the port type for the port
+	ListenAddressType Resolver `yaml:"type" validate:"nonzero"`
 
-	// Port specifies the port to listen on
-	Port *Port `yaml:"port" validate:"nonzero"`
-}
+	// Value is the config specified listen address if using config port type.
+	Value *string `yaml:"value"`
 
-// Port specifies the port to use
-type Port struct {
-	// PortType is the port type for the port
-	PortType Resolver `yaml:"portType" validate:"nonzero"`
+	// EnvVarListenPort specifies the environment variable name for the listen address port.
+	EnvVarListenPort *string `yaml:"envVarListenPort"`
 
-	// Value is the config specified port if using config port type.
-	Value *int `yaml:"value"`
-
-	// EnvVarName is the environment specified port if using environment port type.
-	EnvVarName *string `yaml:"envVarName"`
+	// EnvVarListenHost specifies the environment variable name for the listen address hostname.
+	EnvVarListenHost *string `yaml:"envVarListenHost"`
 }
 
 // Resolve returns the resolved listen address given the configuration.
 func (c Configuration) Resolve() (string, error) {
-	if c.Port == nil {
-		return "", errors.New("missing port config")
-	}
-	p := c.Port
+	listenAddrType := c.ListenAddressType
 
-	var port int
-	switch p.PortType {
+	var listenAddress string
+	switch listenAddrType {
 	case ConfigResolver:
-		if p.Value == nil {
-			err := fmt.Errorf("missing port type using: resolver=%s",
-				string(p.PortType))
+		if c.Value == nil {
+			err := fmt.Errorf("missing listen address value using: resolver=%s",
+				string(listenAddrType))
 			return "", err
 		}
-		port = *p.Value
+		listenAddress = *c.Value
+
 	case EnvironmentResolver:
-		if p.EnvVarName == nil {
+		// environment variable for port is required
+		if c.EnvVarListenPort == nil {
 			err := fmt.Errorf("missing port env var name using: resolver=%s",
-				string(p.PortType))
+				string(listenAddrType))
 			return "", err
 		}
-		portStr := os.Getenv(*p.EnvVarName)
-		var err error
-		port, err = strconv.Atoi(portStr)
+		portStr := os.Getenv(*c.EnvVarListenPort)
+		port, err := strconv.Atoi(portStr)
 		if err != nil {
 			err := fmt.Errorf("invalid port env var value using: resolver=%s, name=%s",
-				string(p.PortType), *p.EnvVarName)
+				string(listenAddrType), *c.EnvVarListenPort)
 			return "", err
 		}
+		// if environment variable for hostname is not set, use the default
+		if c.EnvVarListenHost == nil {
+			listenAddress = fmt.Sprintf("%s:%d", defaultHostname, port)
+		} else {
+			envHost := os.Getenv(*c.EnvVarListenHost)
+			listenAddress = fmt.Sprintf("%s:%d", envHost, port)
+		}
+
 	default:
-		return "", fmt.Errorf("unknown port type: resolver=%s",
-			string(p.PortType))
+		return "", fmt.Errorf("unknown listen address type: resolver=%s",
+			string(listenAddrType))
 	}
 
-	return fmt.Sprintf("%s:%d", c.Hostname, port), nil
+	return listenAddress, nil
 }

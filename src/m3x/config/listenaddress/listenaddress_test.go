@@ -31,66 +31,76 @@ import (
 )
 
 var (
-	port     = 9000
-	hostname = "0.0.0.0"
+	envListenPort = "ENV_LISTEN_PORT"
+	envListenHost = "ENV_LISTEN_HOST"
+	defaultListen = "0.0.0.0:9000"
 )
 
 func TestListenAddressResolver(t *testing.T) {
 	cfg := Configuration{
-		Hostname: hostname,
-		Port: &Port{
-			PortType: ConfigResolver,
-			Value:    &port,
-		},
+		ListenAddressType: ConfigResolver,
+		Value:             &defaultListen,
 	}
 
 	value, err := cfg.Resolve()
 	require.NoError(t, err)
 
-	assert.Equal(t, "0.0.0.0:9000", value)
+	assert.Equal(t, defaultListen, value)
 }
 
 func TestConfigResolverErrorWhenMissing(t *testing.T) {
 	cfg := Configuration{
-		Hostname: hostname,
+		ListenAddressType: ConfigResolver,
 	}
 
 	_, err := cfg.Resolve()
 	require.Error(t, err)
 }
 
-func TestEnvironmentVariableResolver(t *testing.T) {
-	varName := "PORT_ENV_NAME"
-	expected := "9000"
+func TestEnvironmentVariableResolverWithDefault(t *testing.T) {
+	envPort := "9000"
 
-	require.NoError(t, os.Setenv(varName, expected))
+	require.NoError(t, os.Setenv(envListenPort, envPort))
 
 	cfg := Configuration{
-		Hostname: hostname,
-		Port: &Port{
-			PortType:   EnvironmentResolver,
-			EnvVarName: &varName,
-		},
+		ListenAddressType: EnvironmentResolver,
+		EnvVarListenPort:  &envListenPort,
 	}
 
 	value, err := cfg.Resolve()
 	require.NoError(t, err)
 
-	assert.Equal(t, "0.0.0.0:9000", value)
+	assert.Equal(t, defaultListen, value)
+}
+
+func TestEnvironmentVariableResolver(t *testing.T) {
+	envHost := "127.0.0.1"
+	envPort := "9000"
+
+	require.NoError(t, os.Setenv(envListenPort, envPort))
+	require.NoError(t, os.Setenv(envListenHost, envHost))
+
+	cfg := Configuration{
+		ListenAddressType: EnvironmentResolver,
+		EnvVarListenPort:  &envListenPort,
+		EnvVarListenHost:  &envListenHost,
+	}
+
+	value, err := cfg.Resolve()
+	require.NoError(t, err)
+
+	assert.Equal(t, "127.0.0.1:9000", value)
 }
 
 func TestInvalidEnvironmentVariableResolver(t *testing.T) {
-	varName := "PORT_ENV_NAME"
+	varName := "BAD_LISTEN_ENV_PORT"
 	expected := "foo"
 
 	require.NoError(t, os.Setenv(varName, expected))
 
 	cfg := Configuration{
-		Hostname: hostname,
-		Port: &Port{
-			PortType:   EnvironmentResolver,
-			EnvVarName: &varName,
-		},
+		ListenAddressType: EnvironmentResolver,
+		EnvVarListenPort:  &varName,
 	}
 
 	_, err := cfg.Resolve()
@@ -99,10 +109,7 @@ func TestInvalidEnvironmentVariableResolver(t *testing.T) {
 
 func TestEnvironmentResolverErrorWhenNameMissing(t *testing.T) {
 	cfg := Configuration{
-		Hostname: hostname,
-		Port: &Port{
-			PortType: EnvironmentResolver,
-		},
+		ListenAddressType: EnvironmentResolver,
 	}
 
 	_, err := cfg.Resolve()
@@ -110,14 +117,11 @@ func TestEnvironmentResolverErrorWhenNameMissing(t *testing.T) {
 }
 
 func TestEnvironmentResolverErrorWhenValueMissing(t *testing.T) {
-	varName := "PORT_ENV_NAME_OTHER"
+	varName := "OTHER_LISTEN_ENV_PORT"
 
 	cfg := Configuration{
-		Hostname: hostname,
-		Port: &Port{
-			PortType:   EnvironmentResolver,
-			EnvVarName: &varName,
-		},
+		ListenAddressType: EnvironmentResolver,
+		EnvVarListenPort:  &varName,
 	}
 
 	_, err := cfg.Resolve()
@@ -126,11 +130,7 @@ func TestEnvironmentResolverErrorWhenValueMissing(t *testing.T) {
 
 func TestUnknownResolverError(t *testing.T) {
 	cfg := Configuration{
-		Hostname: hostname,
-		Port: &Port{
-			PortType: "some-unknown-resolver",
-			Value:    &port,
-		},
+		ListenAddressType: "some-unknown-resolver",
 	}
 
 	_, err := cfg.Resolve()
