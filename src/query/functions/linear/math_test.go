@@ -99,8 +99,8 @@ func TestLn(t *testing.T) {
 
 func TestLog10WithNoValues(t *testing.T) {
 	v := [][]float64{
-		{nan, nan, nan, nan},
-		{nan, nan, nan, nan},
+		{nan, nan, nan, nan, nan},
+		{nan, nan, nan, nan, nan},
 	}
 
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
@@ -118,8 +118,8 @@ func TestLog10WithNoValues(t *testing.T) {
 
 func TestLog2WithSomeValues(t *testing.T) {
 	v := [][]float64{
-		{nan, 1, 2, 3},
-		{nan, 4, 5, 6},
+		{nan, 1, 2, 3, 3},
+		{nan, 4, 5, 6, 6},
 	}
 
 	values, bounds := test.GenerateValuesAndBounds(v, nil)

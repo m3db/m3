@@ -33,7 +33,7 @@ var (
 	val    = 13.37
 	bounds = Bounds{
 		Start:    start,
-		End:      start.Add(time.Minute),
+		Duration: time.Minute,
 		StepSize: time.Second * 10,
 	}
 )
@@ -53,7 +53,7 @@ func TestScalarBlock(t *testing.T) {
 
 	verifyMetas(t, stepIter.Meta(), stepIter.SeriesMeta())
 
-	assert.Equal(t, 7, stepIter.StepCount())
+	assert.Equal(t, 6, stepIter.StepCount())
 	v, err := stepIter.Current()
 	require.Error(t, err)
 	require.Nil(t, v)
@@ -73,7 +73,7 @@ func TestScalarBlock(t *testing.T) {
 
 		valCounts++
 	}
-	assert.Equal(t, 7, valCounts)
+	assert.Equal(t, 6, valCounts)
 	v, err = stepIter.Current()
 	require.Error(t, err)
 	require.Nil(t, v)
@@ -92,9 +92,9 @@ func TestScalarBlock(t *testing.T) {
 	series, err = seriesIter.Current()
 	require.NoError(t, err)
 
-	assert.Equal(t, 7, series.Len())
+	assert.Equal(t, 6, series.Len())
 	vals := series.Values()
-	require.Len(t, vals, 7)
+	require.Len(t, vals, 6)
 	for _, actual := range vals {
 		assert.Equal(t, val, actual)
 	}

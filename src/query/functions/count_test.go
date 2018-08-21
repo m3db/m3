@@ -24,8 +24,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
 

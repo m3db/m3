@@ -21,6 +21,7 @@
 package temporal
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"sync"
@@ -29,6 +30,9 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/parser"
+	"github.com/m3db/m3/src/query/util/logging"
+
+	"go.uber.org/zap"
 )
 
 var emptyOp = baseOp{}
@@ -40,6 +44,8 @@ type baseOp struct {
 	processorFn  MakeProcessor
 }
 
+// skipping lint check for a single operator type since we will be adding more
+// nolint : unparam
 func newBaseOp(args []interface{}, operatorType string, processorFn MakeProcessor) (baseOp, error) {
 	if len(args) != 1 {
 		return emptyOp, fmt.Errorf("invalid number of args for %s: %d", operatorType, len(args))
@@ -84,7 +90,6 @@ type baseNode struct {
 	controller    *transform.Controller
 	cache         *blockCache
 	processor     Processor
-	mu            sync.Mutex
 	transformOpts transform.Options
 }
 
@@ -137,7 +142,7 @@ func (c *baseNode) Process(ID parser.NodeID, b block.Block) error {
 	}
 
 	// Process the current block by figuring out the left range
-	leftBlks, emptyLeftBlocks, err := c.processCurrent(bounds, maxBlocks, leftRangeStart)
+	leftBlks, emptyLeftBlocks, err := c.processCurrent(bounds, leftRangeStart)
 	if err != nil {
 		return err
 	}
@@ -151,7 +156,7 @@ func (c *baseNode) Process(ID parser.NodeID, b block.Block) error {
 	leftBlks = append(leftBlks, b)
 
 	// Process right side of the range
-	rightBlks, emptyRightBlocks, err := c.processRight(bounds, maxBlocks, rightRangeStart)
+	rightBlks, emptyRightBlocks, err := c.processRight(bounds, rightRangeStart)
 	if err != nil {
 		return err
 	}
@@ -174,11 +179,11 @@ func (c *baseNode) Process(ID parser.NodeID, b block.Block) error {
 		}
 	}
 
-	return c.processCompletedBlocks(processRequests, queryStartBounds, queryEndBounds, maxBlocks)
+	return c.processCompletedBlocks(processRequests, maxBlocks)
 }
 
 // processCurrent processes the current block. For the current block, figure out whether we have enough previous blocks which can help process it
-func (c *baseNode) processCurrent(bounds block.Bounds, maxBlocks int, leftRangeStart block.Bounds) ([]block.Block, bool, error) {
+func (c *baseNode) processCurrent(bounds block.Bounds, leftRangeStart block.Bounds) ([]block.Block, bool, error) {
 	numBlocks := bounds.Blocks(leftRangeStart.Start)
 	leftBlks, err := c.cache.multiGet(leftRangeStart, numBlocks, true)
 	if err != nil {
@@ -188,18 +193,18 @@ func (c *baseNode) processCurrent(bounds block.Bounds, maxBlocks int, leftRangeS
 }
 
 // processRight processes blocks after current block. This is done by fetching all contiguous right blocks until the right range
-func (c *baseNode) processRight(bounds block.Bounds, maxBlocks int, rightRangeStart block.Bounds) ([]block.Block, bool, error) {
+func (c *baseNode) processRight(bounds block.Bounds, rightRangeStart block.Bounds) ([]block.Block, bool, error) {
 	numBlocks := rightRangeStart.Blocks(bounds.Start)
 	rightBlks, err := c.cache.multiGet(bounds.Next(1), numBlocks, false)
 	if err != nil {
 		return nil, false, err
 	}
 
-	return rightBlks, len(rightBlks) != maxBlocks, nil
+	return rightBlks, len(rightBlks) != numBlocks, nil
 }
 
 // processCompletedBlocks processes all blocks for which all dependent blocks are present
-func (c *baseNode) processCompletedBlocks(processRequests []processRequest, queryStartBounds, queryEndBounds block.Bounds, maxBlocks int) error {
+func (c *baseNode) processCompletedBlocks(processRequests []processRequest, maxBlocks int) error {
 	processedKeys := make([]time.Time, len(processRequests))
 	for i, req := range processRequests {
 		if err := c.processSingleRequest(req); err != nil {
@@ -211,8 +216,9 @@ func (c *baseNode) processCompletedBlocks(processRequests []processRequest, quer
 
 	// Mark all blocks as processed
 	c.cache.markProcessed(processedKeys)
+
 	// Sweep to free blocks from cache with no dependencies
-	c.sweep(c.cache.processed(), queryStartBounds, queryEndBounds, maxBlocks)
+	c.sweep(c.cache.processed(), maxBlocks)
 	return nil
 }
 
@@ -295,7 +301,7 @@ func (c *baseNode) processSingleRequest(request processRequest) error {
 	return c.controller.Process(nextBlock)
 }
 
-func (c *baseNode) sweep(processedKeys []bool, queryStartBounds block.Bounds, queryEndBounds block.Bounds, maxBlocks int) {
+func (c *baseNode) sweep(processedKeys []bool, maxBlocks int) {
 	prevProcessed := 0
 	maxRight := len(processedKeys) - 1
 	for i := maxRight; i >= 0; i-- {
@@ -312,7 +318,9 @@ func (c *baseNode) sweep(processedKeys []bool, queryStartBounds block.Bounds, qu
 		}
 
 		if prevProcessed >= dependentBlocks {
-			c.cache.remove(i)
+			if err := c.cache.remove(i); err != nil {
+				logging.WithContext(context.TODO()).Warn("unable to remove key from cache", zap.Int("index", i))
+			}
 		}
 
 		prevProcessed++
@@ -511,9 +519,7 @@ func (c *blockCache) markProcessed(keys []time.Time) {
 func (c *blockCache) processed() []bool {
 	c.mu.Lock()
 	processedBlocks := make([]bool, len(c.processedBlocks))
-	for i, processed := range c.processedBlocks {
-		processedBlocks[i] = processed
-	}
+	copy(processedBlocks, c.processedBlocks)
 
 	c.mu.Unlock()
 	return processedBlocks

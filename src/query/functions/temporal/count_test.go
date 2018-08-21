@@ -55,8 +55,10 @@ func TestCountWithThreeBlocks(t *testing.T) {
 	err = node.Process(parser.NodeID(0), block3)
 	require.NoError(t, err)
 	assert.Len(t, sink.Values, 0, "nothing processed yet")
-	_, exists := bNode.cache.get(boundStart)
+	b, exists := bNode.cache.get(boundStart)
 	assert.True(t, exists, "block cached for future")
+	_, err = b.StepIter()
+	assert.NoError(t, err)
 
 	original := values[0][0]
 	values[0][0] = math.NaN()

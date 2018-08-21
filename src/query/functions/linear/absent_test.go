@@ -54,8 +54,8 @@ func TestAbsentWithValues(t *testing.T) {
 
 func TestAbsentWithNoValues(t *testing.T) {
 	v := [][]float64{
-		{nan, nan, nan, nan},
-		{nan, nan, nan, nan},
+		{nan, nan, nan, nan, nan},
+		{nan, nan, nan, nan, nan},
 	}
 
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
@@ -65,5 +65,5 @@ func TestAbsentWithNoValues(t *testing.T) {
 	err := node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
 	assert.Len(t, sink.Values, 2)
-	assert.Equal(t, [][]float64{{1, 1, 1, 1}, {1, 1, 1, 1}}, sink.Values)
+	assert.Equal(t, [][]float64{{1, 1, 1, 1, 1}, {1, 1, 1, 1, 1}}, sink.Values)
 }

@@ -28,8 +28,10 @@ import (
 	"github.com/m3db/m3/src/query/models"
 )
 
+// ValueMod can be used to modify provided values for testing
 type ValueMod func([]float64) []float64
 
+// NoopMod can be used to generate multi blocks when no value modification is needed
 func NoopMod(v []float64) []float64 {
 	return v
 }
@@ -40,7 +42,7 @@ func NewBlockFromValues(bounds block.Bounds, seriesValues [][]float64) block.Blo
 	return NewBlockFromValuesWithSeriesMeta(bounds, meta, seriesValues)
 }
 
-// NewBlockFromValues creates a new block using the provided values
+// NewMultiBlocksFromValues creates new blocks using the provided values and a modifier
 func NewMultiBlocksFromValues(bounds block.Bounds, seriesValues [][]float64, valueMod ValueMod, numBlocks int) []block.Block {
 	meta := NewSeriesMeta("dummy", len(seriesValues))
 	blocks := make([]block.Block, numBlocks)

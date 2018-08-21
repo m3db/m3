@@ -86,7 +86,7 @@ func TestBaseWithB0(t *testing.T) {
 	_, exists := bNode.cache.get(boundStart)
 	assert.True(t, exists, "block cached since the query end is larger")
 
-	c, sink = executor.NewControllerWithSink(parser.NodeID(1))
+	c, _ = executor.NewControllerWithSink(parser.NodeID(1))
 	node = baseOp.Node(c, transform.Options{
 		TimeSpec: transform.TimeSpec{
 			Start: boundStart,
@@ -101,7 +101,7 @@ func TestBaseWithB0(t *testing.T) {
 	_, exists = bNode.cache.get(boundStart)
 	assert.False(t, exists, "block not cached since no other blocks left to process")
 
-	c, sink = executor.NewControllerWithSink(parser.NodeID(1))
+	c, _ = executor.NewControllerWithSink(parser.NodeID(1))
 	node = baseOp.Node(c, transform.Options{
 		TimeSpec: transform.TimeSpec{
 			Start: boundStart.Add(bounds.StepSize),

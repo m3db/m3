@@ -43,6 +43,10 @@ func (c *columnBlock) Meta() Metadata {
 
 // StepIter returns a StepIterator
 func (c *columnBlock) StepIter() (StepIter, error) {
+	if len(c.columns) != c.meta.Bounds.Steps() {
+		return nil, fmt.Errorf("mismatch in block columns and meta bounds, columns: %d, bounds: %v", len(c.columns), c.meta.Bounds)
+	}
+
 	return &colBlockIter{
 		columns:    c.columns,
 		seriesMeta: c.seriesMeta,

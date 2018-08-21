@@ -37,6 +37,7 @@ type RequestParams struct {
 	IncludeEnd bool
 }
 
+// ExclusiveEnd returns the end exclusive
 func (r RequestParams) ExclusiveEnd() time.Time {
 	if r.IncludeEnd {
 		return r.End.Add(r.Step)
