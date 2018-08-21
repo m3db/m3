@@ -156,6 +156,115 @@ func TestDontCompactSegmentTooLarge(t *testing.T) {
 	}, plan)
 }
 
+func TestPlanOrderByMutableAge(t *testing.T) {
+	var (
+		s1 = Segment{
+			Age:  10,
+			Size: 1,
+			Type: segments.MutableType,
+		}
+		s2 = Segment{
+			Age:  10,
+			Size: 10,
+			Type: segments.MutableType,
+		}
+		s3 = Segment{
+			Age:  100,
+			Size: 10,
+			Type: segments.MutableType,
+		}
+	)
+	p := &Plan{
+		Tasks: []Task{
+			Task{Segments: []Segment{s1, s2}},
+			Task{Segments: []Segment{s3}},
+		},
+		OrderBy: TasksOrderedByOldestMutableAndSize,
+	}
+	sort.Sort(p)
+	requirePlansEqual(t, &Plan{
+		Tasks: []Task{
+			Task{Segments: []Segment{s3}},
+			Task{Segments: []Segment{s1, s2}},
+		},
+		OrderBy: TasksOrderedByOldestMutableAndSize,
+	}, p)
+}
+func TestPlanOrderByNumMutable(t *testing.T) {
+	var (
+		s1 = Segment{
+			Age:  5,
+			Size: 1,
+			Type: segments.MutableType,
+		}
+		s2 = Segment{
+			Age:  5,
+			Size: 10,
+			Type: segments.MutableType,
+		}
+		s3 = Segment{
+			Age:  10,
+			Size: 10,
+			Type: segments.MutableType,
+		}
+	)
+	p := &Plan{
+		Tasks: []Task{
+			Task{Segments: []Segment{s3}},
+			Task{Segments: []Segment{s1, s2}},
+		},
+		OrderBy: TasksOrderedByOldestMutableAndSize,
+	}
+	sort.Sort(p)
+	requirePlansEqual(t, &Plan{
+		Tasks: []Task{
+			Task{Segments: []Segment{s1, s2}},
+			Task{Segments: []Segment{s3}},
+		},
+		OrderBy: TasksOrderedByOldestMutableAndSize,
+	}, p)
+}
+
+func TestPlanOrderByMutableCumulativeSize(t *testing.T) {
+	var (
+		s1 = Segment{
+			Age:  10,
+			Size: 10,
+			Type: segments.MutableType,
+		}
+		s2 = Segment{
+			Age:  10,
+			Size: 2,
+			Type: segments.MutableType,
+		}
+		s3 = Segment{
+			Age:  15,
+			Size: 10,
+			Type: segments.MutableType,
+		}
+		s4 = Segment{
+			Age:  5,
+			Size: 6,
+			Type: segments.MutableType,
+		}
+	)
+	p := &Plan{
+		Tasks: []Task{
+			Task{Segments: []Segment{s3, s4}},
+			Task{Segments: []Segment{s1, s2}},
+		},
+		OrderBy: TasksOrderedByOldestMutableAndSize,
+	}
+	sort.Sort(p)
+	requirePlansEqual(t, &Plan{
+		Tasks: []Task{
+			Task{Segments: []Segment{s1, s2}},
+			Task{Segments: []Segment{s3, s4}},
+		},
+		OrderBy: TasksOrderedByOldestMutableAndSize,
+	}, p)
+}
+
 func requirePlansEqual(t *testing.T, expected, observed *Plan) {
 	if expected == nil {
 		require.Nil(t, observed)
@@ -169,7 +278,7 @@ func requirePlansEqual(t *testing.T, expected, observed *Plan) {
 	require.Equal(t, len(expected.Tasks), len(observed.Tasks),
 		fmt.Sprintf("exp [%+v]\nobs[%+v]", expected.Tasks, observed.Tasks))
 	for i := range expected.Tasks {
-		require.Equal(t, expected.Tasks[i], observed.Tasks[i], i)
+		require.Equal(t, expected.Tasks[i], observed.Tasks[i])
 	}
 	require.Equal(t, expected.OrderBy, observed.OrderBy)
 }

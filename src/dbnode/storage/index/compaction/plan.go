@@ -74,7 +74,7 @@ var (
 // database is constantly receiving new writes. In these situations, we don't
 // compact as soon as we receive a write to allow segments to buffer incoming
 // writes to reduce the number of total compactions required by the process.
-// However, in times where the proces isn't already compacting, mutable segments
+// However, in times where the process isn't already compacting, mutable segments
 // that don't meet the requirements laid herein may still be considered compactable.
 func (s Segment) Compactable(opts PlannerOptions) bool {
 	// In steady state, i.e. when we are constantly getting writes w/ new IDs, any
