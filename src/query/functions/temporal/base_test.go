@@ -46,7 +46,7 @@ func (p *processor) Process(f []float64) float64 {
 	return sum
 }
 
-func dummyProcessor(op baseOp, controller *transform.Controller) Processor {
+func dummyProcessor(_ baseOp, _ *transform.Controller) Processor {
 	return &processor{}
 }
 
@@ -248,7 +248,7 @@ func TestBaseWithB0B2B1(t *testing.T) {
 	err = node.Process(parser.NodeID(0), blocks[2])
 	require.NoError(t, err)
 	assert.Len(t, sink.Values, 2, "Only B0 processed")
-	compareCacheState(t, bNode, bounds, []bool{false, false, true}, "B2 cached, B0 removed")
+	compareCacheState(t, bNode, bounds, []bool{true, false, true}, "B0, B2 cached")
 
 	// B1 arrives
 	err = node.Process(parser.NodeID(0), blocks[1])
