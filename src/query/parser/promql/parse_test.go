@@ -23,9 +23,8 @@ package promql
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/query/functions/aggregation"
-
 	"github.com/m3db/m3/src/query/functions"
+	"github.com/m3db/m3/src/query/functions/aggregation"
 	"github.com/m3db/m3/src/query/functions/binary"
 	"github.com/m3db/m3/src/query/functions/linear"
 	"github.com/m3db/m3/src/query/functions/logical"

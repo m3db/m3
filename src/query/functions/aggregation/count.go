@@ -21,153 +21,25 @@
 package aggregation
 
 import (
-	"fmt"
 	"math"
-
-	"github.com/m3db/m3/src/query/models"
-
-	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/executor/transform"
-	"github.com/m3db/m3/src/query/parser"
 )
 
 // CountType counts all non nan elements in a list of series
 const CountType = "count"
 
-// countOp stores required properties for count
-type countOp struct {
-	params NodeParams
-}
-
-// OpType for the operator
-func (o countOp) OpType() string {
-	return CountType
-}
-
-// String representation
-func (o countOp) String() string {
-	return fmt.Sprintf("type: %s", o.OpType())
-}
-
-// Node creates an execution node
-func (o countOp) Node(controller *transform.Controller) transform.OpNode {
-	return &countNode{op: o, controller: controller}
-}
-
-// CountNode is an execution node
-type countNode struct {
-	op         countOp
-	controller *transform.Controller
-}
-
-// Process the block
-func (c *countNode) Process(ID parser.NodeID, b block.Block) error {
-	// TODO: Figure out a good name and tags after an aggregation operation
-	meta := block.SeriesMeta{
-		Name: CountType,
-	}
-
-	stepIter, err := b.StepIter()
-	if err != nil {
-		return err
-	}
-
-	builder, err := c.controller.BlockBuilder(stepIter.Meta(), []block.SeriesMeta{meta})
-	if err != nil {
-		return err
-	}
-
-	if err := builder.AddCols(stepIter.StepCount()); err != nil {
-		return err
-	}
-
-	for index := 0; stepIter.Next(); index++ {
-		step, err := stepIter.Current()
-		if err != nil {
-			return err
-		}
-
-		values := step.Values()
+func countFn(values []float64, indices [][]int) []float64 {
+	countByIndices := make([]float64, len(indices))
+	for i, indexList := range indices {
 		count := 0.0
-		for _, value := range values {
-			if !math.IsNaN(value) {
+		for _, idx := range indexList {
+			v := values[idx]
+			if !math.IsNaN(v) {
 				count++
 			}
 		}
 
-		builder.AppendValue(index, count)
+		countByIndices[i] = count
 	}
 
-	nextBlock := builder.Build()
-	defer nextBlock.Close()
-	return c.controller.Process(nextBlock)
-}
-
-type withKeysID func(tags models.Tags, matching []string) uint64
-
-func includeKeysID(tags models.Tags, matching []string) uint64 {
-	return tags.IDWithKeys(matching...)
-}
-
-func excludeKeysID(tags models.Tags, matching []string) uint64 {
-	return tags.IDWithExcludes(matching...)
-}
-
-type withKeysTags func(tags models.Tags, matching []string) models.Tags
-
-func includeKeysTags(tags models.Tags, matching []string) models.Tags {
-	return tags.TagsWithKeys(matching)
-}
-
-func excludeKeysTags(tags models.Tags, matching []string) models.Tags {
-	return tags.TagsWithoutKeys(matching)
-}
-
-// create the output, by tags,
-// returns a list of seriesMeta for the combined series,
-// and a list of [index lists].
-// Input series that exist in an index list are mapped to the
-// relevant index in the combined series meta.
-func (c *countNode) collectSeries(metas []block.SeriesMeta) ([][]int, []block.SeriesMeta) {
-	without, matching := c.op.params.Without, c.op.params.Matching
-
-	var idFunc withKeysID
-	var tagsFunc withKeysTags
-	if without {
-		idFunc = excludeKeysID
-		tagsFunc = excludeKeysTags
-	} else {
-		idFunc = includeKeysID
-		tagsFunc = includeKeysTags
-	}
-
-	type tagMatch struct {
-		indices []int
-		tags    models.Tags
-	}
-
-	tagMap := make(map[uint64]*tagMatch)
-	for i, meta := range metas {
-		id := idFunc(meta.Tags, matching)
-		if val, ok := tagMap[id]; ok {
-			val.indices = append(val.indices, i)
-		} else {
-			tagMap[id] = &tagMatch{
-				indices: []int{i},
-				tags:    tagsFunc(meta.Tags, matching),
-			}
-		}
-	}
-
-	collectedMetas := make([]block.SeriesMeta, len(tagMap))
-	collectedIndices := make([][]int, len(tagMap))
-
-	i := 0
-	for _, v := range tagMap {
-		collectedMetas[i] = block.SeriesMeta{Tags: v.tags}
-		collectedIndices[i] = v.indices
-		i++
-	}
-
-	return collectedIndices, collectedMetas
+	return countByIndices
 }
