@@ -60,12 +60,19 @@ func NewSelectorFromMatrix(n *promql.MatrixSelector) (parser.Params, error) {
 	return functions.FetchOp{Name: n.Name, Offset: n.Offset, Matchers: matchers, Range: n.Range}, nil
 }
 
-// NewOperator creates a new operator based on the type
-func NewOperator(expr *promql.AggregateExpr) (parser.Params, error) {
+// NewAggregationOperator creates a new aggregation operator based on the type
+func NewAggregationOperator(expr *promql.AggregateExpr) (parser.Params, error) {
 	opType := expr.Op
-	switch getOpType(opType) {
+
+	nodeInformation := aggregation.NodeParams{
+		Matching: expr.Grouping,
+		Without:  expr.Without,
+	}
+
+	op := getOpType(opType)
+	switch op {
 	case aggregation.CountType:
-		return aggregation.CountOp{}, nil
+		return aggregation.NewAggregationOp(op, nodeInformation)
 	default:
 		// TODO: handle other types
 		return nil, fmt.Errorf("operator not supported: %s", opType)

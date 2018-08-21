@@ -21,7 +21,6 @@
 package aggregation
 
 import (
-	"fmt"
 	"math"
 	"sort"
 	"testing"
@@ -41,7 +40,7 @@ func TestCountWithAllValues(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	countNode := (&CountOp{}).Node(c)
+	countNode := (&countOp{}).Node(c)
 	err := countNode.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := make([]float64, len(values[0]))
@@ -61,7 +60,7 @@ func TestCountWithSomeValues(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(v, nil)
 	block := test.NewBlockFromValues(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	countNode := (&CountOp{}).Node(c)
+	countNode := (&countOp{}).Node(c)
 	err := countNode.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := []float64{1, 1, 2, 2, 2}
@@ -101,96 +100,106 @@ var collectTest = []struct {
 			{"c": "d"},
 		},
 	},
-	// {
-	// 	"no equal Matching",
-	// 	[]string{"f", "g", "h"},
-	// 	[]models.Tags{
-	// 		{"a": "1"},
-	// 		{"a": "1", "b": "2", "c": "4"},
-	// 		{"b": "2"},
-	// 		{"a": "1", "b": "2", "c": "3"},
-	// 		{"a": "1", "b": "2", "d": "3"},
-	// 		{"c": "d"},
-	// 	},
-	// 	[][]int{{0, 1, 2, 3, 4, 5}},
-	// 	[]models.Tags{{}},
-	// 	[][]int{{0}, {1}, {2}, {3}, {4}, {5}},
-	// 	[]models.Tags{
-	// 		{"a": "1"},
-	// 		{"a": "1", "b": "2", "c": "4"},
-	// 		{"b": "2"},
-	// 		{"a": "1", "b": "2", "c": "3"},
-	// 		{"a": "1", "b": "2", "d": "3"},
-	// 		{"c": "d"},
-	// 	},
-	// },
-	// {
-	// 	"oneMatching",
-	// 	[]string{"a"},
-	// 	[]models.Tags{
-	// 		{"a": "1"},
-	// 		{"a": "1", "b": "2", "c": "4"},
-	// 		{"b": "2"},
-	// 		{"a": "1", "b": "2", "c": "3"},
-	// 		{"a": "1", "b": "2", "d": "3"},
-	// 		{"c": "d"},
-	// 	},
-	// 	[][]int{{0, 1, 3, 4}, {2, 5}},
-	// 	[]models.Tags{
-	// 		{"a": "1"},
-	// 		{},
-	// 	},
-	// 	[][]int{{0}, {1}, {2}, {3}, {4}, {5}},
-	// 	[]models.Tags{
-	// 		{"a": "1"},
-	// 		{"a": "1", "b": "2", "c": "4"},
-	// 		{"b": "2"},
-	// 		{"a": "1", "b": "2", "c": "3"},
-	// 		{"a": "1", "b": "2", "d": "3"},
-	// 		{"c": "d"},
-	// 	},
-	// },
-	// {
-	// 	"diffMatching",
-	// 	[]string{"a"},
-	// 	[]models.Tags{
-	// 		{"a": "1"},
-	// 		{"a": "2", "b": "2", "c": "4"},
-	// 		{"a": "2"},
-	// 		{"a": "1", "b": "2", "c": "3"},
-	// 		{"a": "1", "b": "2", "d": "3"},
-	// 		{"a": "d"},
-	// 	},
-	// 	[][]int{{0, 3, 4}, {1, 2}, {5}},
-	// 	[]models.Tags{
-	// 		{"a": "1"},
-	// 		{"a": "2"},
-	// 		{"a": "d"},
-	// 	},
-	// 	[][]int{},
-	// 	[]models.Tags{},
-	// },
-	// {
-	// 	"someMatching",
-	// 	[]string{"a", "b"},
-	// 	[]models.Tags{
-	// 		{"a": "1"},
-	// 		{"a": "1", "b": "2", "c": "4"},
-	// 		{"b": "2"},
-	// 		{"a": "1", "b": "2", "c": "3"},
-	// 		{"a": "1", "b": "2", "d": "3"},
-	// 		{"c": "d"},
-	// 	},
-	// 	[][]int{{0}, {1, 3, 4}, {2}, {5}},
-	// 	[]models.Tags{
-	// 		{"a": "1"},
-	// 		{"a": "1", "b": "2"},
-	// 		{"b": "2"},
-	// 		{},
-	// 	},
-	// 	[][]int{},
-	// 	[]models.Tags{},
-	// },
+	{
+		"no equal Matching",
+		[]string{"f", "g", "h"},
+		[]models.Tags{
+			{"a": "1"},
+			{"a": "1", "b": "2", "c": "4"},
+			{"b": "2"},
+			{"a": "1", "b": "2", "c": "3"},
+			{"a": "1", "b": "2", "d": "3"},
+			{"c": "d"},
+		},
+		[][]int{{0, 1, 2, 3, 4, 5}},
+		[]models.Tags{{}},
+		[][]int{{0}, {1}, {2}, {3}, {4}, {5}},
+		[]models.Tags{
+			{"a": "1"},
+			{"a": "1", "b": "2", "c": "4"},
+			{"b": "2"},
+			{"a": "1", "b": "2", "c": "3"},
+			{"a": "1", "b": "2", "d": "3"},
+			{"c": "d"},
+		},
+	},
+	{
+		"oneMatching",
+		[]string{"a"},
+		[]models.Tags{
+			{"a": "1"},
+			{"a": "1", "b": "2", "c": "4"},
+			{"b": "2"},
+			{"a": "1", "b": "2", "c": "3"},
+			{"a": "1", "b": "2", "d": "3"},
+			{"c": "d"},
+		},
+		[][]int{{0, 1, 3, 4}, {2, 5}},
+		[]models.Tags{
+			{"a": "1"},
+			{},
+		},
+		[][]int{{0}, {1}, {2}, {3}, {4}, {5}},
+		[]models.Tags{
+			{},
+			{"b": "2", "c": "4"},
+			{"b": "2"},
+			{"b": "2", "c": "3"},
+			{"b": "2", "d": "3"},
+			{"c": "d"},
+		},
+	},
+	{
+		"diffMatching",
+		[]string{"a"},
+		[]models.Tags{
+			{"a": "1"},
+			{"a": "2", "b": "2", "c": "4"},
+			{"a": "2"},
+			{"a": "1", "b": "2", "c": "3"},
+			{"a": "1", "b": "2", "d": "3"},
+			{"a": "d"},
+		},
+		[][]int{{0, 3, 4}, {1, 2}, {5}},
+		[]models.Tags{
+			{"a": "1"},
+			{"a": "2"},
+			{"a": "d"},
+		},
+		[][]int{{0, 2, 5}, {1}, {3}, {4}},
+		[]models.Tags{
+			{},
+			{"b": "2", "c": "4"},
+			{"b": "2", "c": "3"},
+			{"b": "2", "d": "3"},
+		},
+	},
+	{
+		"someMatching",
+		[]string{"a", "b"},
+		[]models.Tags{
+			{"a": "1"},
+			{"a": "1", "b": "2", "c": "4"},
+			{"b": "2"},
+			{"a": "1", "b": "2", "c": "3"},
+			{"a": "1", "b": "2", "d": "3"},
+			{"c": "3"},
+		},
+		[][]int{{0}, {1, 3, 4}, {2}, {5}},
+		[]models.Tags{
+			{"a": "1"},
+			{"a": "1", "b": "2"},
+			{"b": "2"},
+			{},
+		},
+		[][]int{{0, 2}, {1}, {3, 5}, {4}},
+		[]models.Tags{
+			{},
+			{"c": "4"},
+			{"c": "3"},
+			{"d": "3"},
+		},
+	},
 }
 
 func testCollect(t *testing.T, without bool) {
@@ -206,8 +215,16 @@ func testCollect(t *testing.T, without bool) {
 				metas[i] = block.SeriesMeta{Tags: tagList}
 			}
 
-			countNode := CountNode{matching: tt.matching, without: without}
-			indices, collected := countNode.collectSeries(metas)
+			node := countNode{
+				op: countOp{
+					NodeParams{
+						Matching: tt.matching,
+						Without:  without,
+					},
+				},
+			}
+
+			indices, collected := node.collectSeries(metas)
 
 			expectedTags := tt.expectedTags
 			expectedIndicies := tt.expectedIndices
@@ -220,11 +237,6 @@ func testCollect(t *testing.T, without bool) {
 			for i, tags := range expectedTags {
 				expectedMetas[i] = block.SeriesMeta{Tags: tags}
 			}
-			fmt.Println(name)
-			fmt.Println("meta", collected)
-			fmt.Println("idx-", indices)
-			fmt.Println("xMta", expectedMetas)
-			fmt.Println("xIdx", expectedIndicies)
 
 			compareLists(t, collected, expectedMetas, indices, expectedIndicies)
 		})

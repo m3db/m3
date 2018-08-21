@@ -34,35 +34,34 @@ import (
 // CountType counts all non nan elements in a list of series
 const CountType = "count"
 
-// CountOp stores required properties for count
-type CountOp struct {
+// countOp stores required properties for count
+type countOp struct {
+	params NodeParams
 }
 
 // OpType for the operator
-func (o CountOp) OpType() string {
+func (o countOp) OpType() string {
 	return CountType
 }
 
 // String representation
-func (o CountOp) String() string {
+func (o countOp) String() string {
 	return fmt.Sprintf("type: %s", o.OpType())
 }
 
 // Node creates an execution node
-func (o CountOp) Node(controller *transform.Controller) transform.OpNode {
-	return &CountNode{op: o, controller: controller}
+func (o countOp) Node(controller *transform.Controller) transform.OpNode {
+	return &countNode{op: o, controller: controller}
 }
 
 // CountNode is an execution node
-type CountNode struct {
-	op         CountOp
+type countNode struct {
+	op         countOp
 	controller *transform.Controller
-	matching   []string
-	without    bool
 }
 
 // Process the block
-func (c *CountNode) Process(ID parser.NodeID, b block.Block) error {
+func (c *countNode) Process(ID parser.NodeID, b block.Block) error {
 	// TODO: Figure out a good name and tags after an aggregation operation
 	meta := block.SeriesMeta{
 		Name: CountType,
@@ -106,14 +105,20 @@ func (c *CountNode) Process(ID parser.NodeID, b block.Block) error {
 
 type withKeysID func(tags models.Tags, matching []string) uint64
 
-func includeKeysID(tags models.Tags, matching []string) uint64 { return tags.IDWithKeys(matching...) }
-func excludeKeysID(tags models.Tags, matching []string) uint64 { return tags.IDWithKeys(matching...) }
+func includeKeysID(tags models.Tags, matching []string) uint64 {
+	return tags.IDWithKeys(matching...)
+}
+
+func excludeKeysID(tags models.Tags, matching []string) uint64 {
+	return tags.IDWithExcludes(matching...)
+}
 
 type withKeysTags func(tags models.Tags, matching []string) models.Tags
 
 func includeKeysTags(tags models.Tags, matching []string) models.Tags {
 	return tags.TagsWithKeys(matching)
 }
+
 func excludeKeysTags(tags models.Tags, matching []string) models.Tags {
 	return tags.TagsWithoutKeys(matching)
 }
@@ -123,15 +128,12 @@ func excludeKeysTags(tags models.Tags, matching []string) models.Tags {
 // and a list of [index lists].
 // Input series that exist in an index list are mapped to the
 // relevant index in the combined series meta.
-func (c *CountNode) collectSeries(metas []block.SeriesMeta) ([][]int, []block.SeriesMeta) {
-	type tagMatch struct {
-		indices []int
-		tags    models.Tags
-	}
+func (c *countNode) collectSeries(metas []block.SeriesMeta) ([][]int, []block.SeriesMeta) {
+	without, matching := c.op.params.Without, c.op.params.Matching
 
 	var idFunc withKeysID
 	var tagsFunc withKeysTags
-	if c.without {
+	if without {
 		idFunc = excludeKeysID
 		tagsFunc = excludeKeysTags
 	} else {
@@ -139,18 +141,21 @@ func (c *CountNode) collectSeries(metas []block.SeriesMeta) ([][]int, []block.Se
 		tagsFunc = includeKeysTags
 	}
 
+	type tagMatch struct {
+		indices []int
+		tags    models.Tags
+	}
+
 	tagMap := make(map[uint64]*tagMatch)
 	for i, meta := range metas {
-		id := idFunc(meta.Tags, c.matching)
+		id := idFunc(meta.Tags, matching)
 		if val, ok := tagMap[id]; ok {
 			val.indices = append(val.indices, i)
 		} else {
-			fmt.Println("Tags", meta.Tags)
 			tagMap[id] = &tagMatch{
 				indices: []int{i},
-				tags:    tagsFunc(meta.Tags, c.matching),
+				tags:    tagsFunc(meta.Tags, matching),
 			}
-			fmt.Println("FuncTag", tagMap[id].tags)
 		}
 	}
 

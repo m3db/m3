@@ -95,7 +95,7 @@ func (p *parseState) walk(node pql.Node) error {
 			return err
 		}
 
-		op, err := NewOperator(n)
+		op, err := NewAggregationOperator(n)
 		if err != nil {
 			return err
 		}

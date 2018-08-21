@@ -18,40 +18,27 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package plan
+package aggregation
 
 import (
-	"testing"
-	"time"
+	"fmt"
 
-	"github.com/m3db/m3/src/query/functions"
-	"github.com/m3db/m3/src/query/functions/aggregation"
-	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-func TestResultNode(t *testing.T) {
-	fetchTransform := parser.NewTransformFromOperation(functions.FetchOp{}, 1)
-	agg, err := aggregation.NewAggregationOp(aggregation.CountType, aggregation.NodeParams{})
-	require.NoError(t, err)
-	countTransform := parser.NewTransformFromOperation(agg, 2)
-	transforms := parser.Nodes{fetchTransform, countTransform}
-	edges := parser.Edges{
-		parser.Edge{
-			ParentID: fetchTransform.ID,
-			ChildID:  countTransform.ID,
-		},
-	}
+// NodeParams contains additional parameters required for aggregation ops
+type NodeParams struct {
+	Matching []string
+	Without  bool
+}
 
-	lp, err := NewLogicalPlan(transforms, edges)
-	require.NoError(t, err)
-	p, err := NewPhysicalPlan(lp, nil, models.RequestParams{Now: time.Now()})
-	require.NoError(t, err)
-	node, err := p.leafNode()
-	require.NoError(t, err)
-	assert.Equal(t, node.ID(), countTransform.ID)
-	assert.Equal(t, p.ResultStep.Parent, countTransform.ID)
+// NewAggregationOp creates a new aggregation operation
+func NewAggregationOp(
+	opType string,
+	params NodeParams,
+) (parser.Params, error) {
+	if opType == CountType {
+		return countOp{params: params}, nil
+	}
+	return countOp{}, fmt.Errorf("operator not supported: %s", opType)
 }
