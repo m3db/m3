@@ -61,8 +61,8 @@ func NewSelectorFromMatrix(n *promql.MatrixSelector) (parser.Params, error) {
 }
 
 // NewOperator creates a new operator based on the type
-//ARTEMFIXME
-func NewOperator(opType promql.ItemType) (parser.Params, error) {
+func NewOperator(expr *promql.AggregateExpr) (parser.Params, error) {
+	opType := expr.Op
 	switch getOpType(opType) {
 	case aggregation.CountType:
 		return aggregation.CountOp{}, nil

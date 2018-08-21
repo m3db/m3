@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/m3db/m3/src/query/models"
+
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/parser"
@@ -55,6 +57,8 @@ func (o CountOp) Node(controller *transform.Controller) transform.OpNode {
 type CountNode struct {
 	op         CountOp
 	controller *transform.Controller
+	matching   []string
+	without    bool
 }
 
 // Process the block
@@ -98,4 +102,67 @@ func (c *CountNode) Process(ID parser.NodeID, b block.Block) error {
 	nextBlock := builder.Build()
 	defer nextBlock.Close()
 	return c.controller.Process(nextBlock)
+}
+
+type withKeysID func(tags models.Tags, matching []string) uint64
+
+func includeKeysID(tags models.Tags, matching []string) uint64 { return tags.IDWithKeys(matching...) }
+func excludeKeysID(tags models.Tags, matching []string) uint64 { return tags.IDWithKeys(matching...) }
+
+type withKeysTags func(tags models.Tags, matching []string) models.Tags
+
+func includeKeysTags(tags models.Tags, matching []string) models.Tags {
+	return tags.TagsWithKeys(matching)
+}
+func excludeKeysTags(tags models.Tags, matching []string) models.Tags {
+	return tags.TagsWithoutKeys(matching)
+}
+
+// create the output, by tags,
+// returns a list of seriesMeta for the combined series,
+// and a list of [index lists].
+// Input series that exist in an index list are mapped to the
+// relevant index in the combined series meta.
+func (c *CountNode) collectSeries(metas []block.SeriesMeta) ([][]int, []block.SeriesMeta) {
+	type tagMatch struct {
+		indices []int
+		tags    models.Tags
+	}
+
+	var idFunc withKeysID
+	var tagsFunc withKeysTags
+	if c.without {
+		idFunc = excludeKeysID
+		tagsFunc = excludeKeysTags
+	} else {
+		idFunc = includeKeysID
+		tagsFunc = includeKeysTags
+	}
+
+	tagMap := make(map[uint64]*tagMatch)
+	for i, meta := range metas {
+		id := idFunc(meta.Tags, c.matching)
+		if val, ok := tagMap[id]; ok {
+			val.indices = append(val.indices, i)
+		} else {
+			fmt.Println("Tags", meta.Tags)
+			tagMap[id] = &tagMatch{
+				indices: []int{i},
+				tags:    tagsFunc(meta.Tags, c.matching),
+			}
+			fmt.Println("FuncTag", tagMap[id].tags)
+		}
+	}
+
+	collectedMetas := make([]block.SeriesMeta, len(tagMap))
+	collectedIndices := make([][]int, len(tagMap))
+
+	i := 0
+	for _, v := range tagMap {
+		collectedMetas[i] = block.SeriesMeta{Tags: v.tags}
+		collectedIndices[i] = v.indices
+		i++
+	}
+
+	return collectedIndices, collectedMetas
 }
