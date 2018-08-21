@@ -244,7 +244,7 @@ func TestCollectWithoutTags(t *testing.T) {
 type match struct {
 	indices []int
 	metas   block.SeriesMeta
-	values  [][]float64
+	values  []float64
 }
 
 type matches []match
@@ -262,8 +262,8 @@ func compareLists(t *testing.T, meta, exMeta []block.SeriesMeta, index, exIndex 
 	actual := make(matches, len(meta))
 	// build matchers
 	for i := range meta {
-		ex[i] = match{exIndex[i], exMeta[i], [][]float64{}}
-		actual[i] = match{index[i], meta[i], [][]float64{}}
+		ex[i] = match{exIndex[i], exMeta[i], []float64{}}
+		actual[i] = match{index[i], meta[i], []float64{}}
 	}
 	sort.Sort(ex)
 	sort.Sort(actual)
@@ -279,9 +279,10 @@ func compareValues(t *testing.T, meta, exMeta []block.SeriesMeta, vals, exVals [
 	actual := make(matches, len(meta))
 	// build matchers
 	for i := range meta {
-		ex[i] = match{[]int{}, exMeta[i], exVals}
-		actual[i] = match{[]int{}, meta[i], vals}
+		ex[i] = match{[]int{}, exMeta[i], exVals[i]}
+		actual[i] = match{[]int{}, meta[i], vals[i]}
 	}
+
 	sort.Sort(ex)
 	sort.Sort(actual)
 	for i := range ex {
