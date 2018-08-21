@@ -83,13 +83,6 @@ func (p *parseState) walk(node pql.Node) error {
 
 	switch n := node.(type) {
 	case *pql.AggregateExpr:
-		fmt.Println("N is agg", n)
-		fmt.Println("expr", n.Expr)
-		fmt.Println("grouping", n.Grouping)
-		fmt.Println("op", n.Op)
-		fmt.Println("param", n.Param)
-		fmt.Println("without", n.Without)
-
 		err := p.walk(n.Expr)
 		if err != nil {
 			return err
@@ -110,8 +103,6 @@ func (p *parseState) walk(node pql.Node) error {
 		return nil
 
 	case *pql.MatrixSelector:
-		fmt.Println("N is matrix", n)
-
 		operation, err := NewSelectorFromMatrix(n)
 		if err != nil {
 			return err
@@ -121,8 +112,6 @@ func (p *parseState) walk(node pql.Node) error {
 		return nil
 
 	case *pql.VectorSelector:
-		fmt.Println("N is vector", n)
-
 		operation, err := NewSelectorFromVector(n)
 		if err != nil {
 			return err
@@ -132,8 +121,6 @@ func (p *parseState) walk(node pql.Node) error {
 		return nil
 
 	case *pql.Call:
-		fmt.Println("N is call", n)
-
 		expressions := n.Args
 		argValues := make([]interface{}, 0, len(expressions))
 		for _, expr := range expressions {
@@ -163,8 +150,6 @@ func (p *parseState) walk(node pql.Node) error {
 		return nil
 
 	case *pql.BinaryExpr:
-		fmt.Println("N is binary", n)
-
 		err := p.walk(n.LHS)
 		if err != nil {
 			return err
@@ -195,16 +180,12 @@ func (p *parseState) walk(node pql.Node) error {
 		return nil
 
 	case *pql.NumberLiteral:
-		fmt.Println("N is literal", n)
-
 		op := NewScalarOperator(n)
 		opTransform := parser.NewTransformFromOperation(op, p.transformLen())
 		p.transforms = append(p.transforms, opTransform)
 		return nil
 
 	case *pql.ParenExpr:
-		fmt.Println("N is paren", n)
-
 		// Evaluate inside of paren expressions
 		return p.walk(n.Expr)
 

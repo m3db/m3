@@ -109,7 +109,13 @@ func collectSeries(params NodeParams, opName string, metas []block.SeriesMeta) (
 type aggregationFn func(values []float64, indices [][]int) []float64
 
 var aggregationFunctions = map[string]aggregationFn{
-	CountType: countFn,
+	SumType:               sumFn,
+	MinType:               minFn,
+	MaxType:               maxFn,
+	AverageType:           averageFn,
+	StandardDeviationType: stddevFn,
+	StandardVarianceType:  varianceFn,
+	CountType:             countFn,
 }
 
 // NewAggregationOp creates a new aggregation operation

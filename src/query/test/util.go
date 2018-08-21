@@ -30,34 +30,53 @@ import (
 
 // EqualsWithNans helps compare float slices which have NaNs in them
 func EqualsWithNans(t *testing.T, expected interface{}, actual interface{}) {
+	EqualsWithNansWithDelta(t, expected, actual, 0)
+}
+
+// EqualsWithNansWithDelta helps compare float slices which have NaNs in them
+// allowing a delta for float comparisons.
+func EqualsWithNansWithDelta(t *testing.T, expected interface{}, actual interface{}, delta float64) {
 	debugMsg := fmt.Sprintf("expected: %v, actual: %v", expected, actual)
 	switch v := expected.(type) {
 	case [][]float64:
 		actualV, ok := actual.([][]float64)
 		require.True(t, ok, "actual should be of type [][]float64, found: %T", actual)
-		require.Equal(t, len(v), len(actualV))
+		require.Equal(t, len(v), len(actualV),
+			fmt.Sprintf("expected length: %v, actual length: %v\nfor expected: %v, actual: %v",
+				len(v), len(actualV), expected, actual))
 		for i, vals := range v {
-			equalsWithNans(t, vals, actualV[i], debugMsg)
+			equalsWithNans(t, vals, actualV[i], delta, debugMsg)
 		}
 
 	case []float64:
 		actualV, ok := actual.([]float64)
 		require.True(t, ok, "actual should be of type []float64, found: %T", actual)
-		require.Equal(t, len(v), len(actualV))
-		equalsWithNans(t, v, actualV, debugMsg)
+		require.Equal(t, len(v), len(actualV),
+			fmt.Sprintf("expected length: %v, actual length: %v\nfor expected: %v, actual: %v",
+				len(v), len(actualV), expected, actual))
+		equalsWithNans(t, v, actualV, delta, debugMsg)
 
 	default:
 		require.Fail(t, "unknown type: %T", v)
 	}
 }
 
-func equalsWithNans(t *testing.T, expected []float64, actual []float64, debugMsg string) {
+func equalsWithNans(t *testing.T, expected []float64, actual []float64, delta float64, debugMsg string) {
 	require.Equal(t, len(expected), len(actual))
 	for i, v := range expected {
 		if math.IsNaN(v) {
 			require.True(t, math.IsNaN(actual[i]), debugMsg)
 		} else {
-			require.Equal(t, v, actual[i], debugMsg)
+			equalsWithDelta(t, v, actual[i], delta, debugMsg)
 		}
+	}
+}
+
+func equalsWithDelta(t *testing.T, expected, actual, delta float64, debugMsg string) {
+	if delta == 0 {
+		require.Equal(t, expected, actual, debugMsg)
+	} else {
+		diff := math.Abs(expected - actual)
+		require.True(t, delta > diff, debugMsg)
 	}
 }

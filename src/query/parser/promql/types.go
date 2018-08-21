@@ -69,13 +69,32 @@ func NewAggregationOperator(expr *promql.AggregateExpr) (parser.Params, error) {
 		Without:  expr.Without,
 	}
 
-	op := getOpType(opType)
-	switch op {
-	case aggregation.CountType:
-		return aggregation.NewAggregationOp(op, nodeInformation)
-	default:
-		// TODO: handle other types
+	op := getAggOpType(opType)
+	if op == common.UnknownOpType {
 		return nil, fmt.Errorf("operator not supported: %s", opType)
+	}
+
+	return aggregation.NewAggregationOp(op, nodeInformation)
+}
+
+func getAggOpType(opType promql.ItemType) string {
+	switch opType {
+	case promql.ItemType(itemSum):
+		return aggregation.SumType
+	case promql.ItemType(itemMin):
+		return aggregation.MinType
+	case promql.ItemType(itemMax):
+		return aggregation.MaxType
+	case promql.ItemType(itemAvg):
+		return aggregation.AverageType
+	case promql.ItemType(itemStddev):
+		return aggregation.StandardDeviationType
+	case promql.ItemType(itemStdvar):
+		return aggregation.StandardVarianceType
+	case promql.ItemType(itemCount):
+		return aggregation.CountType
+	default:
+		return common.UnknownOpType
 	}
 }
 
@@ -97,7 +116,7 @@ func NewBinaryOperator(expr *promql.BinaryExpr, lhs, rhs parser.NodeID) (parser.
 		VectorMatching: matching,
 	}
 
-	op := getOpType(expr.Op)
+	op := getBinaryOpType(expr.Op)
 	switch {
 	case isLogical(op):
 		return logical.NewLogicalOp(op, lhs, rhs, matching)
@@ -153,10 +172,8 @@ func NewFunctionExpr(name string, argValues []interface{}) (parser.Params, error
 	}
 }
 
-func getOpType(opType promql.ItemType) string {
+func getBinaryOpType(opType promql.ItemType) string {
 	switch opType {
-	case promql.ItemType(itemCount):
-		return aggregation.CountType
 	case promql.ItemType(itemLAND):
 		return logical.AndType
 	case promql.ItemType(itemLOR):
