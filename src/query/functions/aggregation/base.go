@@ -175,7 +175,7 @@ func (n *baseNode) Process(ID parser.NodeID, b block.Block) error {
 	}
 
 	params := n.op.params
-	indices, metas := collectSeries(params, CountType, stepIter.SeriesMeta())
+	indices, metas := collectSeries(params, n.op.opType, stepIter.SeriesMeta())
 
 	builder, err := n.controller.BlockBuilder(stepIter.Meta(), metas)
 	if err != nil {

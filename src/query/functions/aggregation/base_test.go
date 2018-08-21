@@ -21,11 +21,15 @@
 package aggregation
 
 import (
+	"math"
 	"sort"
 	"testing"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/parser"
+	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/test/executor"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -163,6 +167,30 @@ var collectTest = []struct {
 			{"d": "3"},
 		},
 	},
+	{
+		"functionMatching",
+		[]string{"a"},
+		[]models.Tags{
+			{"a": "1"},
+			{"a": "1"},
+			{"a": "1", "b": "2"},
+			{"a": "2", "b": "2"},
+			{"b": "2"},
+			{"c": "3"},
+		},
+		[][]int{{0, 1, 2}, {3}, {4, 5}},
+		[]models.Tags{
+			{"a": "1"},
+			{"a": "2"},
+			{},
+		},
+		[][]int{{0, 1}, {2, 3, 4}, {5}},
+		[]models.Tags{
+			{},
+			{"b": "2"},
+			{"c": "3"},
+		},
+	},
 }
 
 func testCollect(t *testing.T, without bool) {
@@ -216,6 +244,7 @@ func TestCollectWithoutTags(t *testing.T) {
 type match struct {
 	indices []int
 	metas   block.SeriesMeta
+	values  [][]float64
 }
 
 type matches []match
@@ -233,10 +262,99 @@ func compareLists(t *testing.T, meta, exMeta []block.SeriesMeta, index, exIndex 
 	actual := make(matches, len(meta))
 	// build matchers
 	for i := range meta {
-		ex[i] = match{exIndex[i], exMeta[i]}
-		actual[i] = match{index[i], meta[i]}
+		ex[i] = match{exIndex[i], exMeta[i], [][]float64{}}
+		actual[i] = match{index[i], meta[i], [][]float64{}}
 	}
 	sort.Sort(ex)
 	sort.Sort(actual)
 	assert.Equal(t, ex, actual)
+}
+
+func compareValues(t *testing.T, meta, exMeta []block.SeriesMeta, vals, exVals [][]float64) {
+	require.Equal(t, len(exVals), len(exMeta))
+	require.Equal(t, len(exMeta), len(meta))
+	require.Equal(t, len(exVals), len(vals))
+
+	ex := make(matches, len(meta))
+	actual := make(matches, len(meta))
+	// build matchers
+	for i := range meta {
+		ex[i] = match{[]int{}, exMeta[i], exVals}
+		actual[i] = match{[]int{}, meta[i], vals}
+	}
+	sort.Sort(ex)
+	sort.Sort(actual)
+	for i := range ex {
+		assert.Equal(t, ex[i].metas, actual[i].metas)
+		test.EqualsWithNansWithDelta(t, ex[i].values, actual[i].values, 0.00001)
+	}
+}
+
+func TestFunctionWithFiltering(t *testing.T) {
+	_, bounds := test.GenerateValuesAndBounds(nil, nil)
+	seriesMetas := []block.SeriesMeta{
+		{Tags: models.Tags{"a": "1"}},
+		{Tags: models.Tags{"a": "1"}},
+		{Tags: models.Tags{"a": "1", "b": "2"}},
+		{Tags: models.Tags{"a": "2", "b": "2"}},
+		{Tags: models.Tags{"b": "2"}},
+		{Tags: models.Tags{"c": "3"}},
+	}
+	v := [][]float64{
+		{0, math.NaN(), 2, 3, 4},
+		{math.NaN(), 6, 7, 8, 9},
+		{10, 20, 30, 40, 50},
+		{50, 60, 70, 80, 90},
+		{100, 200, 300, 400, 500},
+		{600, 700, 800, 900, 1000},
+	}
+
+	bl := test.NewBlockFromValuesWithSeriesMeta(bounds, seriesMetas, v)
+	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	op, err := NewAggregationOp(StandardDeviationType, NodeParams{Matching: []string{"a"}, Without: false})
+	require.NoError(t, err)
+	node := op.(baseOp).Node(c)
+	err = node.Process(parser.NodeID(0), bl)
+	require.NoError(t, err)
+	expected := [][]float64{
+		// stddev of first three series
+		{7.07107, 9.89949, 14.93318, 20.07486, 25.23886},
+		// stddev of fourth series
+		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		// stddev of fifth and sixth series
+		{353.55339, 353.55339, 353.55339, 353.55339, 353.55339},
+	}
+
+	expectedMetas := []block.SeriesMeta{
+		{Name: StandardDeviationType, Tags: models.Tags{"a": "1"}},
+		{Name: StandardDeviationType, Tags: models.Tags{"a": "2"}},
+		{Name: StandardDeviationType, Tags: models.Tags{}},
+	}
+
+	compareValues(t, sink.Metas, expectedMetas, sink.Values, expected)
+	assert.Equal(t, bounds, sink.Meta.Bounds)
+
+	c, sink = executor.NewControllerWithSink(parser.NodeID(1))
+	op, err = NewAggregationOp(StandardDeviationType, NodeParams{Matching: []string{"a"}, Without: true})
+	require.NoError(t, err)
+	node = op.(baseOp).Node(c)
+	err = node.Process(parser.NodeID(0), bl)
+	require.NoError(t, err)
+	expected = [][]float64{
+		// stddev of first two series
+		{math.NaN(), math.NaN(), 3.53553, 3.53553, 3.53553},
+		// stddev of third, fourth, and fifth series
+		{45.0925, 94.51631, 145.71662, 197.31531, 249.06492},
+		// stddev of sixth series
+		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+	}
+
+	expectedMetas = []block.SeriesMeta{
+		{Name: StandardDeviationType, Tags: models.Tags{}},
+		{Name: StandardDeviationType, Tags: models.Tags{"b": "2"}},
+		{Name: StandardDeviationType, Tags: models.Tags{"c": "3"}},
+	}
+
+	compareValues(t, sink.Metas, expectedMetas, sink.Values, expected)
+	assert.Equal(t, bounds, sink.Meta.Bounds)
 }
