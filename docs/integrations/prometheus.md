@@ -14,10 +14,8 @@ It should look something like:
 
 ```
 listenAddress:
-  hostname: "0.0.0.0"
-  port:
-    portType: "config"
-    value: 7201
+  type: "config"
+  value: "0.0.0.0:7201"
 
 metrics:
   scope:

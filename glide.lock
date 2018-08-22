@@ -1,5 +1,5 @@
-hash: 2a7d688276cd3d5662f9aed348227ab1a919ba14aa70ae393d6f22f2f99b9c06
-updated: 2018-08-16T11:56:47.183175701-04:00
+hash: fca92c30a75f7f05a3f5427da46a14ea745d202adbbd790beeb7156ba8ec056d
+updated: 2018-08-20T16:30:58.894229099-04:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -142,7 +142,7 @@ imports:
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
-  version: b4deda0973fb4c70b50d226b1af49f3da59f5265
+  version: aa810b61a9c79d51363740d207bb46cf8e620ed5
   subpackages:
   - jsonpb
   - proto
@@ -306,7 +306,7 @@ imports:
   - protocol/proto
   - topic
 - name: github.com/m3db/m3x
-  version: 49a94422a02501a99c1ae6c1a632f83aea9efad6
+  version: 31a628e11c478af132b6eab71506fb93c7f9ca39
   vcs: git
   subpackages:
   - checked
@@ -314,7 +314,6 @@ imports:
   - close
   - config
   - config/hostid
-  - config/listenaddress
   - context
   - errors
   - ident
