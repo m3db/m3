@@ -25,86 +25,9 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
-	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/functions/utils"
 	"github.com/m3db/m3/src/query/parser"
 )
-
-// NodeParams contains additional parameters required for aggregation ops
-type NodeParams struct {
-	Matching []string
-	Without  bool
-}
-
-type withKeysID func(tags models.Tags, matching []string) uint64
-
-func includeKeysID(tags models.Tags, matching []string) uint64 {
-	return tags.IDWithKeys(matching...)
-}
-
-func excludeKeysID(tags models.Tags, matching []string) uint64 {
-	return tags.IDWithExcludes(matching...)
-}
-
-type withKeysTags func(tags models.Tags, matching []string) models.Tags
-
-func includeKeysTags(tags models.Tags, matching []string) models.Tags {
-	return tags.TagsWithKeys(matching)
-}
-
-func excludeKeysTags(tags models.Tags, matching []string) models.Tags {
-	return tags.TagsWithoutKeys(matching)
-}
-
-// create the output, by tags,
-// returns a list of seriesMeta for the combined series,
-// and a list of [index lists].
-// Input series that exist in an index list are mapped to the
-// relevant index in the combined series meta.
-func collectSeries(params NodeParams, opName string, metas []block.SeriesMeta) ([][]int, []block.SeriesMeta) {
-	without, matching := params.Without, params.Matching
-
-	var idFunc withKeysID
-	var tagsFunc withKeysTags
-	if without {
-		idFunc = excludeKeysID
-		tagsFunc = excludeKeysTags
-	} else {
-		idFunc = includeKeysID
-		tagsFunc = includeKeysTags
-	}
-
-	type tagMatch struct {
-		indices []int
-		tags    models.Tags
-	}
-
-	tagMap := make(map[uint64]*tagMatch)
-	for i, meta := range metas {
-		id := idFunc(meta.Tags, matching)
-		if val, ok := tagMap[id]; ok {
-			val.indices = append(val.indices, i)
-		} else {
-			tagMap[id] = &tagMatch{
-				indices: []int{i},
-				tags:    tagsFunc(meta.Tags, matching),
-			}
-		}
-	}
-
-	collectedIndices := make([][]int, len(tagMap))
-	collectedMetas := make([]block.SeriesMeta, len(tagMap))
-	i := 0
-	for _, v := range tagMap {
-		collectedIndices[i] = v.indices
-		collectedMetas[i] = block.SeriesMeta{
-			Tags: v.tags,
-			Name: opName,
-		}
-		i++
-	}
-
-	return collectedIndices, collectedMetas
-}
 
 type aggregationFn func(values []float64, indices [][]int) []float64
 
@@ -116,6 +39,12 @@ var aggregationFunctions = map[string]aggregationFn{
 	StandardDeviationType: stddevFn,
 	StandardVarianceType:  varianceFn,
 	CountType:             countFn,
+}
+
+// NodeParams contains additional parameters required for aggregation ops
+type NodeParams struct {
+	Matching []string
+	Without  bool
 }
 
 // NewAggregationOp creates a new aggregation operation
@@ -175,7 +104,12 @@ func (n *baseNode) Process(ID parser.NodeID, b block.Block) error {
 	}
 
 	params := n.op.params
-	indices, metas := collectSeries(params, n.op.opType, stepIter.SeriesMeta())
+	indices, metas := utils.GroupSeries(
+		params.Matching,
+		params.Without,
+		n.op.opType,
+		stepIter.SeriesMeta(),
+	)
 
 	builder, err := n.controller.BlockBuilder(stepIter.Meta(), metas)
 	if err != nil {

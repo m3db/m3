@@ -24,8 +24,24 @@ import (
 	"math"
 )
 
-// SumType adds all non nan elements in a list of series
-const SumType = "sum"
+const (
+	// SumType adds all non nan elements in a list of series
+	SumType = "sum"
+	// MinType takes the minimum all non nan elements in a list of series
+	MinType = "min"
+	// MaxType takes the maximum all non nan elements in a list of series
+	MaxType = "max"
+	// AverageType averages all non nan elements in a list of series
+	AverageType = "avg"
+	// StandardDeviationType takes the standard deviation of all non nan elements
+	// in a list of series
+	StandardDeviationType = "stddev"
+	// StandardVarianceType takes the standard variance of all non nan elements
+	// in a list of series
+	StandardVarianceType = "var"
+	// CountType counts all non nan elements in a list of series
+	CountType = "count"
+)
 
 func sumFn(values []float64, indices [][]int) []float64 {
 	sumByIndices := make([]float64, len(indices))
@@ -43,9 +59,6 @@ func sumFn(values []float64, indices [][]int) []float64 {
 
 	return sumByIndices
 }
-
-// MinType takes the minimum all non nan elements in a list of series
-const MinType = "min"
 
 func minFn(values []float64, indices [][]int) []float64 {
 	minByIndices := make([]float64, len(indices))
@@ -70,9 +83,6 @@ func minFn(values []float64, indices [][]int) []float64 {
 	return minByIndices
 }
 
-// MaxType takes the maximum all non nan elements in a list of series
-const MaxType = "max"
-
 func maxFn(values []float64, indices [][]int) []float64 {
 	maxByIndices := make([]float64, len(indices))
 	for i, indexList := range indices {
@@ -95,9 +105,6 @@ func maxFn(values []float64, indices [][]int) []float64 {
 
 	return maxByIndices
 }
-
-// AverageType averages all non nan elements in a list of series
-const AverageType = "avg"
 
 func averageFn(values []float64, indices [][]int) []float64 {
 	averageByIndices := make([]float64, len(indices))
@@ -123,10 +130,6 @@ func averageFn(values []float64, indices [][]int) []float64 {
 
 	return averageByIndices
 }
-
-// StandardDeviationType takes the standard deviation of all non nan elements
-// in a list of series
-const StandardDeviationType = "stddev"
 
 func stddevFn(values []float64, indices [][]int) []float64 {
 	stddevByIndices := make([]float64, len(indices))
@@ -164,10 +167,6 @@ func stddevFn(values []float64, indices [][]int) []float64 {
 	return stddevByIndices
 }
 
-// StandardVarianceType takes the standard variance of all non nan elements
-// in a list of series
-const StandardVarianceType = "var"
-
 func varianceFn(values []float64, indices [][]int) []float64 {
 	varianceByIndices := make([]float64, len(indices))
 	for i, indexList := range indices {
@@ -202,9 +201,6 @@ func varianceFn(values []float64, indices [][]int) []float64 {
 
 	return varianceByIndices
 }
-
-// CountType counts all non nan elements in a list of series
-const CountType = "count"
 
 func countFn(values []float64, indices [][]int) []float64 {
 	countByIndices := make([]float64, len(indices))

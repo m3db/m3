@@ -23,8 +23,12 @@ package test
 import (
 	"fmt"
 	"math"
+	"sort"
 	"testing"
 
+	"github.com/m3db/m3/src/query/block"
+
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -78,5 +82,57 @@ func equalsWithDelta(t *testing.T, expected, actual, delta float64, debugMsg str
 	} else {
 		diff := math.Abs(expected - actual)
 		require.True(t, delta > diff, debugMsg)
+	}
+}
+
+type match struct {
+	indices []int
+	metas   block.SeriesMeta
+	values  []float64
+}
+
+type matches []match
+
+func (m matches) Len() int           { return len(m) }
+func (m matches) Less(i, j int) bool { return m[i].metas.Tags.ID() > m[j].metas.Tags.ID() }
+func (m matches) Swap(i, j int)      { m[i], m[j] = m[j], m[i] }
+
+// CompareLists compares series meta / index pairs
+func CompareLists(t *testing.T, meta, exMeta []block.SeriesMeta, index, exIndex [][]int) {
+	require.Equal(t, len(exIndex), len(exMeta))
+	require.Equal(t, len(exMeta), len(meta))
+	require.Equal(t, len(exIndex), len(index))
+
+	ex := make(matches, len(meta))
+	actual := make(matches, len(meta))
+	// build matchers
+	for i := range meta {
+		ex[i] = match{exIndex[i], exMeta[i], []float64{}}
+		actual[i] = match{index[i], meta[i], []float64{}}
+	}
+	sort.Sort(ex)
+	sort.Sort(actual)
+	assert.Equal(t, ex, actual)
+}
+
+// CompareValues compares series meta / value pairs
+func CompareValues(t *testing.T, meta, exMeta []block.SeriesMeta, vals, exVals [][]float64) {
+	require.Equal(t, len(exVals), len(exMeta))
+	require.Equal(t, len(exMeta), len(meta))
+	require.Equal(t, len(exVals), len(vals))
+
+	ex := make(matches, len(meta))
+	actual := make(matches, len(meta))
+	// build matchers
+	for i := range meta {
+		ex[i] = match{[]int{}, exMeta[i], exVals[i]}
+		actual[i] = match{[]int{}, meta[i], vals[i]}
+	}
+
+	sort.Sort(ex)
+	sort.Sort(actual)
+	for i := range ex {
+		assert.Equal(t, ex[i].metas, actual[i].metas)
+		EqualsWithNansWithDelta(t, ex[i].values, actual[i].values, 0.00001)
 	}
 }
