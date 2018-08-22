@@ -148,14 +148,14 @@ type bucketID struct {
 	key xtime.UnixNano
 }
 
-func realtimeBucketID(idx int) bucketID {
+func bucketIDRealtime(idx int) bucketID {
 	return bucketID{
 		isRealTime: true,
 		idx:        idx,
 	}
 }
 
-func notRealtimeBucketID(key xtime.UnixNano) bucketID {
+func bucketIDNotRealtime(key xtime.UnixNano) bucketID {
 	return bucketID{
 		isRealTime: false,
 		key:        key,
@@ -267,7 +267,7 @@ func (b *dbBuffer) Write(
 	}
 
 	if b.bucketsNotRealTime[key].needsDrain(now, bucketStart) {
-		b.bucketDrain(now, notRealtimeBucketID(key), bucketStart)
+		b.bucketDrain(now, bucketIDNotRealtime(key), bucketStart)
 
 		if b.bucketsNotRealTime[key].isStale(now) {
 			b.removeBucket(key)
@@ -447,7 +447,7 @@ func (b *dbBuffer) bucketDrain(now time.Time, id bucketID, start time.Time) int 
 
 func (b *dbBuffer) makeBucketRealTime(fromKey xtime.UnixNano, toIdx int) {
 	bucket, ok := b.bucketsNotRealTime[fromKey]
-	if !ok || b.bucketsNotRealTime[fromKey].isRealTime {
+	if !ok {
 		return
 	}
 
@@ -524,7 +524,7 @@ func (b *dbBuffer) computedForEachBucketAsc(
 		for i := int64(0); i < bucketsLen; i++ {
 			idx := int((bucketNum + i) % bucketsLen)
 			curr := pastMostBucketStart.Add(time.Duration(i) * b.blockSize)
-			result += fn(now, b, realtimeBucketID(idx), curr)
+			result += fn(now, b, bucketIDRealtime(idx), curr)
 		}
 		if op == computeAndResetBucketIdx {
 			b.pastMostBucketIdx = int(bucketNum)
@@ -533,7 +533,7 @@ func (b *dbBuffer) computedForEachBucketAsc(
 
 	if bType == bucketTypeAll || bType == bucketTypeNotRealTime {
 		for key := range b.bucketsNotRealTime {
-			result += fn(now, b, notRealtimeBucketID(key), key.ToTime())
+			result += fn(now, b, bucketIDNotRealtime(key), key.ToTime())
 		}
 	}
 	return result
