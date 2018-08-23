@@ -25,24 +25,24 @@ import (
 	"github.com/m3db/m3/src/query/models"
 )
 
-type withKeysID func(tags models.Tags, matching []string) uint64
+type withKeysID func(tags models.Tags, matchingTags []string) uint64
 
-func includeKeysID(tags models.Tags, matching []string) uint64 {
-	return tags.IDWithKeys(matching...)
+func includeKeysID(tags models.Tags, matchingTags []string) uint64 {
+	return tags.IDWithKeys(matchingTags...)
 }
 
-func excludeKeysID(tags models.Tags, matching []string) uint64 {
-	return tags.IDWithExcludes(matching...)
+func excludeKeysID(tags models.Tags, matchingTags []string) uint64 {
+	return tags.IDWithExcludes(matchingTags...)
 }
 
-type withKeysTags func(tags models.Tags, matching []string) models.Tags
+type withKeysTags func(tags models.Tags, matchingTags []string) models.Tags
 
-func includeKeysTags(tags models.Tags, matching []string) models.Tags {
-	return tags.TagsWithKeys(matching)
+func includeKeysTags(tags models.Tags, matchingTags []string) models.Tags {
+	return tags.TagsWithKeys(matchingTags)
 }
 
-func excludeKeysTags(tags models.Tags, matching []string) models.Tags {
-	return tags.TagsWithoutKeys(matching)
+func excludeKeysTags(tags models.Tags, matchingTags []string) models.Tags {
+	return tags.TagsWithoutKeys(matchingTags)
 }
 
 // GroupSeries groups series by tags.
@@ -50,7 +50,7 @@ func excludeKeysTags(tags models.Tags, matching []string) models.Tags {
 // and a list of corresponding indices which signify which
 // series are mapped to which grouped outputs
 func GroupSeries(
-	matching []string,
+	matchingTags []string,
 	without bool,
 	opName string,
 	metas []block.SeriesMeta,
@@ -72,13 +72,21 @@ func GroupSeries(
 
 	tagMap := make(map[uint64]*tagMatch)
 	for i, meta := range metas {
-		id := idFunc(meta.Tags, matching)
+		// NB(arnikola): Get the ID of the series with relevant tags
+		id := idFunc(meta.Tags, matchingTags)
 		if val, ok := tagMap[id]; ok {
+			// If ID has been seen, the corresponding grouped
+			// series for this index already exists; add the
+			// current index to the list of indices for that
+			// grouped series
 			val.indices = append(val.indices, i)
 		} else {
+			// If ID has not been seen, create a grouped series
+			// with the appropriate tags, and add the current index
+			// to the list of indices for that grouped series
 			tagMap[id] = &tagMatch{
 				indices: []int{i},
-				tags:    tagsFunc(meta.Tags, matching),
+				tags:    tagsFunc(meta.Tags, matchingTags),
 			}
 		}
 	}

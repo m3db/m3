@@ -43,8 +43,11 @@ var aggregationFunctions = map[string]aggregationFn{
 
 // NodeParams contains additional parameters required for aggregation ops
 type NodeParams struct {
-	Matching []string
-	Without  bool
+	// MatchingTags is the set of tags by which the aggregation groups output series
+	MatchingTags []string
+	// Without indicates if series should use only the MatchingTags or if MatchingTags
+	// should be excluded from grouping
+	Without bool
 }
 
 // NewAggregationOp creates a new aggregation operation
@@ -105,7 +108,7 @@ func (n *baseNode) Process(ID parser.NodeID, b block.Block) error {
 
 	params := n.op.params
 	indices, metas := utils.GroupSeries(
-		params.Matching,
+		params.MatchingTags,
 		params.Without,
 		n.op.opType,
 		stepIter.SeriesMeta(),

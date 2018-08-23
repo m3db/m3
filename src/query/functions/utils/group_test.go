@@ -29,13 +29,13 @@ import (
 )
 
 var collectTest = []struct {
-	name            string
-	matching        []string
-	tagLists        []models.Tags
-	expectedIndices [][]int
-	expectedTags    []models.Tags
-	withoutIndices  [][]int
-	withoutTags     []models.Tags
+	name                       string
+	matching                   []string
+	tagLists                   []models.Tags
+	withTagsExpectedIndices    [][]int
+	withTagsExpectedTags       []models.Tags
+	withoutTagsExpectedIndices [][]int
+	withoutTagsExpectedTags    []models.Tags
 }{
 	{
 		"noMatching",
@@ -247,11 +247,11 @@ func testCollect(t *testing.T, without bool) {
 
 			indices, collected := GroupSeries(tt.matching, without, name, metas)
 
-			expectedTags := tt.expectedTags
-			expectedIndicies := tt.expectedIndices
+			expectedTags := tt.withTagsExpectedTags
+			expectedIndicies := tt.withTagsExpectedIndices
 			if without {
-				expectedTags = tt.withoutTags
-				expectedIndicies = tt.withoutIndices
+				expectedTags = tt.withoutTagsExpectedTags
+				expectedIndicies = tt.withoutTagsExpectedIndices
 			}
 
 			expectedMetas := make([]block.SeriesMeta, len(expectedTags))

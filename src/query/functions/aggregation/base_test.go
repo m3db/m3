@@ -55,7 +55,9 @@ func TestFunctionWithFiltering(t *testing.T) {
 
 	bl := test.NewBlockFromValuesWithSeriesMeta(bounds, seriesMetas, v)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	op, err := NewAggregationOp(StandardDeviationType, NodeParams{Matching: []string{"a"}, Without: false})
+	op, err := NewAggregationOp(StandardDeviationType, NodeParams{
+		MatchingTags: []string{"a"}, Without: true,
+	})
 	require.NoError(t, err)
 	node := op.(baseOp).Node(c)
 	err = node.Process(parser.NodeID(0), bl)
@@ -79,7 +81,9 @@ func TestFunctionWithFiltering(t *testing.T) {
 	assert.Equal(t, bounds, sink.Meta.Bounds)
 
 	c, sink = executor.NewControllerWithSink(parser.NodeID(1))
-	op, err = NewAggregationOp(StandardDeviationType, NodeParams{Matching: []string{"a"}, Without: true})
+	op, err = NewAggregationOp(StandardDeviationType, NodeParams{
+		MatchingTags: []string{"a"}, Without: true,
+	})
 	require.NoError(t, err)
 	node = op.(baseOp).Node(c)
 	err = node.Process(parser.NodeID(0), bl)
