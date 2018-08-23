@@ -186,14 +186,7 @@ func (t Tags) IDWithExcludes(excludeKeys ...string) uint64 {
 
 // TagsWithoutKeys returns only the tags which do not have the given keys
 func (t Tags) TagsWithoutKeys(excludeKeys []string) Tags {
-	excludeTags := make(Tags)
-	for k, v := range t {
-		if k == MetricName {
-			continue
-		}
-		excludeTags[k] = v
-	}
-
+	excludeTags := t.WithoutName()
 	for _, k := range excludeKeys {
 		if _, ok := excludeTags[k]; ok {
 			delete(excludeTags, k)
