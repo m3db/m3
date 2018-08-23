@@ -65,8 +65,8 @@ func NewAggregationOperator(expr *promql.AggregateExpr) (parser.Params, error) {
 	opType := expr.Op
 
 	nodeInformation := aggregation.NodeParams{
-		Matching: expr.Grouping,
-		Without:  expr.Without,
+		MatchingTags: expr.Grouping,
+		Without:      expr.Without,
 	}
 
 	op := getAggOpType(opType)

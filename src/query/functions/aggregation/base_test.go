@@ -56,7 +56,7 @@ func TestFunctionWithFiltering(t *testing.T) {
 	bl := test.NewBlockFromValuesWithSeriesMeta(bounds, seriesMetas, v)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	op, err := NewAggregationOp(StandardDeviationType, NodeParams{
-		MatchingTags: []string{"a"}, Without: true,
+		MatchingTags: []string{"a"}, Without: false,
 	})
 	require.NoError(t, err)
 	node := op.(baseOp).Node(c)
