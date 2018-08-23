@@ -488,6 +488,10 @@ func TestSingleProcessRequest(t *testing.T) {
 	err := bNode.processSingleRequest(processRequest{blk: block2, bounds: bounds, deps: []block.Block{block1}})
 	assert.NoError(t, err)
 	assert.Len(t, sink.Values, 2, "block processed")
+	// Current Block:     0  1  2  3  4  5
+	// Previous Block:   10 11 12 13 14 15
+	// i = 0; prev values [11, 12, 13, 14, 15], current values [0], sum = 50
+	// i = 1; prev values [12, 13, 14, 15], current values [0, 1], sum = 40
 	assert.Equal(t, sink.Values[0], []float64{50, 40, 30, 20, 10}, "first series is 10 - 14 which sums to 60, the current block first series is 0-4 which sums to 10, we need 5 values per aggregation")
 	assert.Equal(t, sink.Values[1], []float64{75, 65, 55, 45, 35}, "second series is 15 - 19 which sums to 85 and second series is 5-9 which sums to 35")
 }
