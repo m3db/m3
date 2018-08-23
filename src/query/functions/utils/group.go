@@ -47,7 +47,7 @@ func excludeKeysTags(tags models.Tags, matchingTags []string) models.Tags {
 
 // GroupSeries groups series by tags.
 // It gives a list of seriesMeta for the grouped series,
-// and a list of corresponding indices which signify which
+// and a list of corresponding buckets which signify which
 // series are mapped to which grouped outputs
 func GroupSeries(
 	matchingTags []string,
@@ -66,7 +66,7 @@ func GroupSeries(
 	}
 
 	type tagMatch struct {
-		indices []int
+		buckets []int
 		tags    models.Tags
 	}
 
@@ -77,25 +77,25 @@ func GroupSeries(
 		if val, ok := tagMap[id]; ok {
 			// If ID has been seen, the corresponding grouped
 			// series for this index already exists; add the
-			// current index to the list of indices for that
+			// current index to the bucket for that
 			// grouped series
-			val.indices = append(val.indices, i)
+			val.buckets = append(val.buckets, i)
 		} else {
 			// If ID has not been seen, create a grouped series
 			// with the appropriate tags, and add the current index
-			// to the list of indices for that grouped series
+			// to the bucket for that grouped series
 			tagMap[id] = &tagMatch{
-				indices: []int{i},
+				buckets: []int{i},
 				tags:    tagsFunc(meta.Tags, matchingTags),
 			}
 		}
 	}
 
-	groupedIndices := make([][]int, len(tagMap))
+	groupedBuckets := make([][]int, len(tagMap))
 	groupedMetas := make([]block.SeriesMeta, len(tagMap))
 	i := 0
 	for _, v := range tagMap {
-		groupedIndices[i] = v.indices
+		groupedBuckets[i] = v.buckets
 		groupedMetas[i] = block.SeriesMeta{
 			Tags: v.tags,
 			Name: opName,
@@ -103,5 +103,5 @@ func GroupSeries(
 		i++
 	}
 
-	return groupedIndices, groupedMetas
+	return groupedBuckets, groupedMetas
 }

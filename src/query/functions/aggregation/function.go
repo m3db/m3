@@ -43,178 +43,140 @@ const (
 	CountType = "count"
 )
 
-func sumFn(values []float64, indices [][]int) []float64 {
-	sumByIndices := make([]float64, len(indices))
-	for i, indexList := range indices {
-		sum := 0.0
-		for _, idx := range indexList {
-			v := values[idx]
-			if !math.IsNaN(v) {
-				sum += v
-			}
+func sumFn(values []float64, bucket []int) float64 {
+	sum := 0.0
+	for _, idx := range bucket {
+		v := values[idx]
+		if !math.IsNaN(v) {
+			sum += v
 		}
-
-		sumByIndices[i] = sum
 	}
 
-	return sumByIndices
+	return sum
 }
 
-func minFn(values []float64, indices [][]int) []float64 {
-	minByIndices := make([]float64, len(indices))
-	for i, indexList := range indices {
-		min := math.NaN()
-		for _, idx := range indexList {
-			v := values[idx]
-			if !math.IsNaN(v) {
-				if math.IsNaN(min) {
+func minFn(values []float64, buckets []int) float64 {
+	min := math.NaN()
+	for _, idx := range buckets {
+		v := values[idx]
+		if !math.IsNaN(v) {
+			if math.IsNaN(min) {
+				min = v
+			} else {
+				if min > v {
 					min = v
-				} else {
-					if min > v {
-						min = v
-					}
 				}
 			}
 		}
-
-		minByIndices[i] = min
 	}
 
-	return minByIndices
+	return min
 }
 
-func maxFn(values []float64, indices [][]int) []float64 {
-	maxByIndices := make([]float64, len(indices))
-	for i, indexList := range indices {
-		max := math.NaN()
-		for _, idx := range indexList {
-			v := values[idx]
-			if !math.IsNaN(v) {
-				if math.IsNaN(max) {
+func maxFn(values []float64, buckets []int) float64 {
+	max := math.NaN()
+	for _, idx := range buckets {
+		v := values[idx]
+		if !math.IsNaN(v) {
+			if math.IsNaN(max) {
+				max = v
+			} else {
+				if max < v {
 					max = v
-				} else {
-					if max < v {
-						max = v
-					}
 				}
 			}
 		}
-
-		maxByIndices[i] = max
 	}
 
-	return maxByIndices
+	return max
 }
 
-func averageFn(values []float64, indices [][]int) []float64 {
-	averageByIndices := make([]float64, len(indices))
-	for i, indexList := range indices {
-		sum := 0.0
-		count := 0.0
-		for _, idx := range indexList {
-			v := values[idx]
-			if !math.IsNaN(v) {
-				sum += v
-				count++
-			}
+func averageFn(values []float64, buckets []int) float64 {
+	sum := 0.0
+	count := 0.0
+	for _, idx := range buckets {
+		v := values[idx]
+		if !math.IsNaN(v) {
+			sum += v
+			count++
 		}
-
-		// Cannot take average of no values
-		if count == 0 {
-			averageByIndices[i] = math.NaN()
-			continue
-		}
-
-		averageByIndices[i] = sum / count
 	}
 
-	return averageByIndices
+	// Cannot take average of no values
+	if count == 0 {
+		return math.NaN()
+	}
+
+	return sum / count
 }
 
-func stddevFn(values []float64, indices [][]int) []float64 {
-	stddevByIndices := make([]float64, len(indices))
-	for i, indexList := range indices {
-		sum := 0.0
-		count := 0.0
-		for _, idx := range indexList {
-			v := values[idx]
-			if !math.IsNaN(v) {
-				sum += v
-				count++
-			}
+func stddevFn(values []float64, buckets []int) float64 {
+	sum := 0.0
+	count := 0.0
+	for _, idx := range buckets {
+		v := values[idx]
+		if !math.IsNaN(v) {
+			sum += v
+			count++
 		}
-
-		// Cannot take standard deviation of one or fewer values
-		if count < 2 {
-			stddevByIndices[i] = math.NaN()
-			continue
-		}
-
-		average := sum / count
-		sumOfSquares := 0.0
-		for _, idx := range indexList {
-			v := values[idx]
-			if !math.IsNaN(v) {
-				diff := v - average
-				sumOfSquares += diff * diff
-			}
-		}
-
-		variance := sumOfSquares / (count - 1)
-		stddevByIndices[i] = math.Sqrt(variance)
 	}
 
-	return stddevByIndices
+	// Cannot take standard deviation of one or fewer values
+	if count < 2 {
+		return math.NaN()
+	}
+
+	average := sum / count
+	sumOfSquares := 0.0
+	for _, idx := range buckets {
+		v := values[idx]
+		if !math.IsNaN(v) {
+			diff := v - average
+			sumOfSquares += diff * diff
+		}
+	}
+
+	variance := sumOfSquares / (count - 1)
+	return math.Sqrt(variance)
 }
 
-func varianceFn(values []float64, indices [][]int) []float64 {
-	varianceByIndices := make([]float64, len(indices))
-	for i, indexList := range indices {
-		sum := 0.0
-		count := 0.0
-		for _, idx := range indexList {
-			v := values[idx]
-			if !math.IsNaN(v) {
-				sum += v
-				count++
-			}
+func varianceFn(values []float64, buckets []int) float64 {
+	sum := 0.0
+	count := 0.0
+	for _, idx := range buckets {
+		v := values[idx]
+		if !math.IsNaN(v) {
+			sum += v
+			count++
 		}
-
-		// Cannot take standard variance of one or fewer values
-		if count < 2 {
-			varianceByIndices[i] = math.NaN()
-			continue
-		}
-
-		average := sum / count
-		sumOfSquares := 0.0
-		for _, idx := range indexList {
-			v := values[idx]
-			if !math.IsNaN(v) {
-				diff := v - average
-				sumOfSquares += diff * diff
-			}
-		}
-
-		varianceByIndices[i] = sumOfSquares / (count - 1)
 	}
 
-	return varianceByIndices
+	// Cannot take standard variance of one or fewer values
+	if count < 2 {
+		return math.NaN()
+	}
+
+	average := sum / count
+	sumOfSquares := 0.0
+	for _, idx := range buckets {
+		v := values[idx]
+		if !math.IsNaN(v) {
+			diff := v - average
+			sumOfSquares += diff * diff
+		}
+	}
+
+	return sumOfSquares / (count - 1)
 }
 
-func countFn(values []float64, indices [][]int) []float64 {
-	countByIndices := make([]float64, len(indices))
-	for i, indexList := range indices {
-		count := 0.0
-		for _, idx := range indexList {
-			v := values[idx]
-			if !math.IsNaN(v) {
-				count++
-			}
+func countFn(values []float64, buckets []int) float64 {
+	count := 0.0
+	for _, idx := range buckets {
+		v := values[idx]
+		if !math.IsNaN(v) {
+			count++
 		}
-
-		countByIndices[i] = count
 	}
 
-	return countByIndices
+	return count
 }

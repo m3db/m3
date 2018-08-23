@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3/src/query/parser"
 )
 
-type aggregationFn func(values []float64, indices [][]int) []float64
+type aggregationFn func(values []float64, indices []int) float64
 
 var aggregationFunctions = map[string]aggregationFn{
 	SumType:               sumFn,
@@ -107,7 +107,7 @@ func (n *baseNode) Process(ID parser.NodeID, b block.Block) error {
 	}
 
 	params := n.op.params
-	indices, metas := utils.GroupSeries(
+	buckets, metas := utils.GroupSeries(
 		params.MatchingTags,
 		params.Without,
 		n.op.opType,
@@ -130,7 +130,11 @@ func (n *baseNode) Process(ID parser.NodeID, b block.Block) error {
 		}
 
 		values := step.Values()
-		aggregatedValues := n.op.aggFn(values, indices)
+		aggregatedValues := make([]float64, len(buckets))
+		for i, bucket := range buckets {
+			aggregatedValues[i] = n.op.aggFn(values, bucket)
+		}
+
 		builder.AppendValues(index, aggregatedValues)
 	}
 

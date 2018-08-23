@@ -60,6 +60,11 @@ func EqualsWithNansWithDelta(t *testing.T, expected interface{}, actual interfac
 				len(v), len(actualV), expected, actual))
 		equalsWithNans(t, v, actualV, delta, debugMsg)
 
+	case float64:
+		actualV, ok := actual.(float64)
+		require.True(t, ok, "actual should be of type float64, found: %T", actual)
+		equalsWithDelta(t, v, actualV, delta, debugMsg)
+
 	default:
 		require.Fail(t, "unknown type: %T", v)
 	}
@@ -77,11 +82,15 @@ func equalsWithNans(t *testing.T, expected []float64, actual []float64, delta fl
 }
 
 func equalsWithDelta(t *testing.T, expected, actual, delta float64, debugMsg string) {
-	if delta == 0 {
-		require.Equal(t, expected, actual, debugMsg)
+	if math.IsNaN(expected) {
+		require.True(t, math.IsNaN(actual), debugMsg)
 	} else {
-		diff := math.Abs(expected - actual)
-		require.True(t, delta > diff, debugMsg)
+		if delta == 0 {
+			require.Equal(t, expected, actual, debugMsg)
+		} else {
+			diff := math.Abs(expected - actual)
+			require.True(t, delta > diff, debugMsg)
+		}
 	}
 }
 

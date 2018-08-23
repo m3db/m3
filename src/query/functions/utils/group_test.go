@@ -245,7 +245,7 @@ func testCollect(t *testing.T, without bool) {
 				metas[i] = block.SeriesMeta{Tags: tagList}
 			}
 
-			indices, collected := GroupSeries(tt.matching, without, name, metas)
+			buckets, collected := GroupSeries(tt.matching, without, name, metas)
 
 			expectedTags := tt.withTagsExpectedTags
 			expectedIndicies := tt.withTagsExpectedIndices
@@ -262,7 +262,7 @@ func testCollect(t *testing.T, without bool) {
 				}
 			}
 
-			test.CompareLists(t, collected, expectedMetas, indices, expectedIndicies)
+			test.CompareLists(t, collected, expectedMetas, buckets, expectedIndicies)
 		})
 	}
 }

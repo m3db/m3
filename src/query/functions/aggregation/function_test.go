@@ -77,7 +77,7 @@ type funcTest struct {
 var fnTest = []struct {
 	name      string
 	values    []float64
-	indicies  [][]int
+	buckets   [][]int
 	functions []funcTest
 }{
 	{
@@ -181,8 +181,11 @@ func TestAggFns(t *testing.T) {
 	for _, tt := range fnTest {
 		for _, function := range tt.functions {
 			t.Run(tt.name+" "+function.name, func(t *testing.T) {
-				actual := function.fn(tt.values, tt.indicies)
-				test.EqualsWithNansWithDelta(t, function.expected, actual, 0.00001)
+				for i, bucket := range tt.buckets {
+					actual := function.fn(tt.values, bucket)
+					expected := function.expected[i]
+					test.EqualsWithNansWithDelta(t, expected, actual, 0.00001)
+				}
 			})
 		}
 	}
