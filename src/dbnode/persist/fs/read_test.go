@@ -271,7 +271,7 @@ func TestReadNoCheckpointFile(t *testing.T) {
 
 	shardDir := ShardDataDirPath(filePathPrefix, testNs1ID, shard)
 	checkpointFile := filesetPathFromTime(shardDir, testWriterStart, checkpointFileSuffix)
-	require.True(t, FileExists(checkpointFile))
+	require.True(t, mustFileExists(t, checkpointFile))
 	os.Remove(checkpointFile)
 
 	r := newTestReader(t, filePathPrefix)

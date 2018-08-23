@@ -89,7 +89,10 @@ type cleanupTimesCommitLog struct {
 
 func (c *cleanupTimesCommitLog) anyExist() bool {
 	for _, t := range c.times {
-		_, index := fs.NextCommitLogsFile(c.filePathPrefix, t)
+		_, index, err := fs.NextCommitLogsFile(c.filePathPrefix, t)
+		if err != nil {
+			panic(err)
+		}
 		if index != 0 {
 			return true
 		}
@@ -99,7 +102,10 @@ func (c *cleanupTimesCommitLog) anyExist() bool {
 
 func (c *cleanupTimesCommitLog) allExist() bool {
 	for _, t := range c.times {
-		_, index := fs.NextCommitLogsFile(c.filePathPrefix, t)
+		_, index, err := fs.NextCommitLogsFile(c.filePathPrefix, t)
+		if err != nil {
+			panic(err)
+		}
 		if index == 0 {
 			return false
 		}

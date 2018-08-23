@@ -102,7 +102,7 @@ func TestDeleteFiles(t *testing.T) {
 
 	require.Error(t, DeleteFiles(files))
 	for i := 0; i < iter; i++ {
-		require.True(t, !FileExists(files[i]))
+		require.True(t, !mustFileExists(t, files[i]))
 	}
 }
 
@@ -293,20 +293,20 @@ func TestFileExists(t *testing.T) {
 
 	infoFilePath := filesetPathFromTime(shardDir, start, infoFileSuffix)
 	createDataFile(t, shardDir, start, infoFileSuffix, nil)
-	require.True(t, FileExists(infoFilePath))
+	require.True(t, mustFileExists(t, infoFilePath))
 	exists, err := DataFileSetExistsAt(dir, testNs1ID, uint32(shard), start)
 	require.NoError(t, err)
 	require.False(t, exists)
 
 	checkpointFilePath := filesetPathFromTime(shardDir, start, checkpointFileSuffix)
 	createDataFile(t, shardDir, start, checkpointFileSuffix, nil)
-	require.True(t, FileExists(checkpointFilePath))
+	require.True(t, mustFileExists(t, checkpointFilePath))
 	exists, err = DataFileSetExistsAt(dir, testNs1ID, uint32(shard), start)
 	require.NoError(t, err)
 	require.True(t, exists)
 
 	os.Remove(infoFilePath)
-	require.False(t, FileExists(infoFilePath))
+	require.False(t, mustFileExists(t, infoFilePath))
 }
 
 func TestShardDirPath(t *testing.T) {
@@ -940,7 +940,8 @@ func createCommitLogFiles(t *testing.T, iter, perSlot int) string {
 	assert.NoError(t, os.Mkdir(commitLogsDir, 0755))
 	for i := 0; i < iter; i++ {
 		for j := 0; j < perSlot; j++ {
-			filePath, _ := NextCommitLogsFile(dir, time.Unix(0, int64(i)))
+			filePath, _, err := NextCommitLogsFile(dir, time.Unix(0, int64(i)))
+			require.NoError(t, err)
 			fd, err := os.Create(filePath)
 			assert.NoError(t, err)
 			assert.NoError(t, fd.Close())
@@ -974,4 +975,10 @@ func writeOutTestSnapshot(
 
 	writeTestDataWithVolume(
 		t, w, shard, blockStart, volume, entries, persist.FileSetSnapshotType)
+}
+
+func mustFileExists(t *testing.T, path string) bool {
+	exists, err := FileExists(path)
+	require.NoError(t, err)
+	return exists
 }
