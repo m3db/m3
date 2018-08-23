@@ -1028,13 +1028,10 @@ func CommitLogsDirPath(prefix string) string {
 }
 
 // DataFileSetExistsAt determines whether data fileset files exist for the given namespace, shard, and block start.
-func DataFileSetExistsAt(prefix string, namespace ident.ID, shard uint32, blockStart time.Time) (bool, error) {
-	_, ok, err := FileSetAt(prefix, namespace, shard, blockStart)
-	if err != nil {
-		return false, err
-	}
-
-	return ok, nil
+func DataFileSetExistsAt(filePathPrefix string, namespace ident.ID, shard uint32, blockStart time.Time) (bool, error) {
+	dir := ShardDataDirPath(filePathPrefix, namespace, shard)
+	path := filesetPathFromTime(dir, blockStart, checkpointFileSuffix)
+	return FileExists(path), nil
 }
 
 // SnapshotFileSetExistsAt determines whether snapshot fileset files exist for the given namespace, shard, and block start time.
