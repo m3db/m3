@@ -28,10 +28,34 @@ import (
 	"github.com/m3db/m3/src/query/models"
 )
 
+// ValueMod can be used to modify provided values for testing
+type ValueMod func([]float64) []float64
+
+// NoopMod can be used to generate multi blocks when no value modification is needed
+func NoopMod(v []float64) []float64 {
+	return v
+}
+
 // NewBlockFromValues creates a new block using the provided values
 func NewBlockFromValues(bounds block.Bounds, seriesValues [][]float64) block.Block {
 	meta := NewSeriesMeta("dummy", len(seriesValues))
 	return NewBlockFromValuesWithSeriesMeta(bounds, meta, seriesValues)
+}
+
+// NewMultiBlocksFromValues creates new blocks using the provided values and a modifier
+func NewMultiBlocksFromValues(bounds block.Bounds, seriesValues [][]float64, valueMod ValueMod, numBlocks int) []block.Block {
+	meta := NewSeriesMeta("dummy", len(seriesValues))
+	blocks := make([]block.Block, numBlocks)
+	for i := 0; i < numBlocks; i++ {
+		blocks[i] = NewBlockFromValuesWithSeriesMeta(bounds, meta, seriesValues)
+		// Avoid modifying the first value
+		for i, val := range seriesValues {
+			seriesValues[i] = valueMod(val)
+		}
+
+		bounds = bounds.Next(1)
+	}
+	return blocks
 }
 
 // NewSeriesMeta creates new metadata tags in the format [tagPrefix:i] for the number of series
@@ -93,7 +117,7 @@ func GenerateValuesAndBounds(vals [][]float64, b *block.Bounds) ([][]float64, bl
 		now := time.Now()
 		bounds = block.Bounds{
 			Start:    now,
-			End:      now.Add(time.Minute * 5),
+			Duration: time.Minute * 5,
 			StepSize: time.Minute,
 		}
 	} else {
