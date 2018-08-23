@@ -55,3 +55,28 @@ func TestResultNode(t *testing.T) {
 	assert.Equal(t, node.ID(), countTransform.ID)
 	assert.Equal(t, p.ResultStep.Parent, countTransform.ID)
 }
+
+func TestShiftTime(t *testing.T) {
+	fetchTransform := parser.NewTransformFromOperation(functions.FetchOp{}, 1)
+	countTransform := parser.NewTransformFromOperation(functions.CountOp{}, 2)
+	transforms := parser.Nodes{fetchTransform, countTransform}
+	edges := parser.Edges{
+		parser.Edge{
+			ParentID: fetchTransform.ID,
+			ChildID:  countTransform.ID,
+		},
+	}
+
+	lp, _ := NewLogicalPlan(transforms, edges)
+	now := time.Now()
+	start := time.Now().Add(-1 * time.Hour)
+	p, err := NewPhysicalPlan(lp, nil, models.RequestParams{Now: now, Start: start})
+	require.NoError(t, err)
+	assert.Equal(t, p.TimeSpec.Start, start)
+	fetchTransform = parser.NewTransformFromOperation(functions.FetchOp{Offset: time.Minute, Range: time.Hour}, 1)
+	transforms = parser.Nodes{fetchTransform, countTransform}
+	lp, _ = NewLogicalPlan(transforms, edges)
+	p, err = NewPhysicalPlan(lp, nil, models.RequestParams{Now: now, Start: start})
+	require.NoError(t, err)
+	assert.Equal(t, p.TimeSpec.Start, start.Add(-1 * (time.Minute + time.Hour)), "start time offset by fetch")
+}

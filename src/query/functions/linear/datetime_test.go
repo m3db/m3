@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
@@ -62,7 +63,7 @@ func TestDayOfMonth(t *testing.T) {
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	op, err := NewDateOp(DayOfMonthType)
 	require.NoError(t, err)
-	node := op.Node(c)
+	node := op.Node(c, transform.Options{})
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedDateVals(values, datetimeFuncs[DayOfMonthType])
@@ -81,7 +82,7 @@ func TestDayOfWeek(t *testing.T) {
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	op, err := NewDateOp(DayOfWeekType)
 	require.NoError(t, err)
-	node := op.Node(c)
+	node := op.Node(c, transform.Options{})
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedDateVals(values, datetimeFuncs[DayOfWeekType])
@@ -100,7 +101,7 @@ func TestDaysInMonth(t *testing.T) {
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	op, err := NewDateOp(DaysInMonthType)
 	require.NoError(t, err)
-	node := op.Node(c)
+	node := op.Node(c, transform.Options{})
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedDateVals(values, datetimeFuncs[DaysInMonthType])
@@ -119,7 +120,7 @@ func TestHour(t *testing.T) {
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	op, err := NewDateOp(HourType)
 	require.NoError(t, err)
-	node := op.Node(c)
+	node := op.Node(c, transform.Options{})
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedDateVals(values, datetimeFuncs[HourType])
@@ -138,7 +139,7 @@ func TestMinute(t *testing.T) {
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	op, err := NewDateOp(MinuteType)
 	require.NoError(t, err)
-	node := op.Node(c)
+	node := op.Node(c, transform.Options{})
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedDateVals(values, datetimeFuncs[MinuteType])
@@ -157,7 +158,7 @@ func TestMonth(t *testing.T) {
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	op, err := NewDateOp(MonthType)
 	require.NoError(t, err)
-	node := op.Node(c)
+	node := op.Node(c, transform.Options{})
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedDateVals(values, datetimeFuncs[MonthType])
@@ -176,7 +177,7 @@ func TestYear(t *testing.T) {
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	op, err := NewDateOp(YearType)
 	require.NoError(t, err)
-	node := op.Node(c)
+	node := op.Node(c, transform.Options{})
 	err = node.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := expectedDateVals(values, datetimeFuncs[YearType])

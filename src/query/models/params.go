@@ -29,9 +29,19 @@ type RequestParams struct {
 	Start time.Time
 	End   time.Time
 	// Now captures the current time and fixes it throughout the request, we may let people override it in the future
-	Now     time.Time
-	Timeout time.Duration
-	Step    time.Duration
-	Target  string
-	Debug   bool
+	Now        time.Time
+	Timeout    time.Duration
+	Step       time.Duration
+	Target     string
+	Debug      bool
+	IncludeEnd bool
+}
+
+// ExclusiveEnd returns the end exclusive
+func (r RequestParams) ExclusiveEnd() time.Time {
+	if r.IncludeEnd {
+		return r.End.Add(r.Step)
+	}
+
+	return r.End
 }

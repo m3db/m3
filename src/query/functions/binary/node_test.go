@@ -23,6 +23,7 @@ package binary
 import (
 	"math"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/functions/logical"
@@ -118,7 +119,7 @@ func TestScalars(t *testing.T) {
 
 			expected := [][]float64{{
 				tt.expected, tt.expected, tt.expected,
-				tt.expected, tt.expected, tt.expected,
+				tt.expected, tt.expected,
 			}}
 			test.EqualsWithNans(t, expected, sink.Values)
 
@@ -382,7 +383,7 @@ var singleSeriesTests = []struct {
 
 func TestSingleSeriesReturnBool(t *testing.T) {
 	returnBool := true
-	_, bounds := test.GenerateValuesAndBounds(nil, nil)
+	now := time.Now()
 
 	for _, tt := range singleSeriesTests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -401,6 +402,12 @@ func TestSingleSeriesReturnBool(t *testing.T) {
 
 			seriesValues := tt.seriesValues
 			metas := test.NewSeriesMeta("a", len(seriesValues))
+			bounds := block.Bounds{
+				Start:    now,
+				Duration: time.Minute * time.Duration(len(seriesValues[0])),
+				StepSize: time.Minute,
+			}
+
 			series := test.NewBlockFromValuesWithSeriesMeta(bounds, metas, seriesValues)
 			// Set the series and scalar blocks on the correct sides
 			if tt.seriesLeft {
@@ -429,7 +436,7 @@ func TestSingleSeriesReturnBool(t *testing.T) {
 
 func TestSingleSeriesReturnValues(t *testing.T) {
 	returnBool := false
-	_, bounds := test.GenerateValuesAndBounds(nil, nil)
+	now := time.Now()
 
 	for _, tt := range singleSeriesTests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -463,6 +470,12 @@ func TestSingleSeriesReturnValues(t *testing.T) {
 
 			seriesValues := tt.seriesValues
 			metas := test.NewSeriesMeta("a", len(seriesValues))
+			bounds := block.Bounds{
+				Start:    now,
+				Duration: time.Minute * time.Duration(len(seriesValues[0])),
+				StepSize: time.Minute,
+			}
+
 			series := test.NewBlockFromValuesWithSeriesMeta(bounds, metas, seriesValues)
 			// Set the series and scalar blocks on the correct sides
 			if tt.seriesLeft {
@@ -703,7 +716,7 @@ var bothSeriesTests = []struct {
 }
 
 func TestBothSeries(t *testing.T) {
-	_, bounds := test.GenerateValuesAndBounds(nil, nil)
+	now := time.Now()
 
 	for _, tt := range bothSeriesTests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -719,6 +732,11 @@ func TestBothSeries(t *testing.T) {
 
 			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
 			node := op.(binaryOp).Node(c)
+			bounds := block.Bounds{
+				Start:    now,
+				Duration: time.Minute * time.Duration(len(tt.lhs[0])),
+				StepSize: time.Minute,
+			}
 
 			err = node.Process(parser.NodeID(0), test.NewBlockFromValuesWithSeriesMeta(bounds, tt.lhsMeta, tt.lhs))
 			require.NoError(t, err)

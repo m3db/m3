@@ -128,6 +128,8 @@ func (p *parseState) walk(node pql.Node) error {
 			case *pql.NumberLiteral:
 				argValues = append(argValues, e.Val)
 				continue
+			case *pql.MatrixSelector:
+				argValues = append(argValues, e.Range)
 			}
 
 			err := p.walk(expr)

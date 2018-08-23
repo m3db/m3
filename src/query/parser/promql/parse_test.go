@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/query/functions/binary"
 	"github.com/m3db/m3/src/query/functions/linear"
 	"github.com/m3db/m3/src/query/functions/logical"
+	"github.com/m3db/m3/src/query/functions/temporal"
 	"github.com/m3db/m3/src/query/parser"
 
 	"github.com/stretchr/testify/assert"
@@ -229,4 +230,21 @@ func TestParenPrecedenceParses(t *testing.T) {
 	// (up -6) ^
 	assert.Equal(t, edges[3].ParentID, parser.NodeID("3"))
 	assert.Equal(t, edges[3].ChildID, parser.NodeID("4"))
+}
+
+func TestDAGWithCountOverTimeOp(t *testing.T) {
+	q := "count_over_time(http_requests_total[5m])"
+	p, err := Parse(q)
+	require.NoError(t, err)
+	transforms, edges, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 2)
+	assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
+	assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
+	assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
+	assert.Equal(t, transforms[1].Op.OpType(), temporal.CountTemporalType)
+	assert.Len(t, edges, 1)
+	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"), "fetch should be the parent")
+	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"), "aggregation should be the child")
+
 }

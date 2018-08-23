@@ -43,36 +43,107 @@ type SeriesMeta struct {
 	Name string
 }
 
-// Bounds are the time bounds
+// Bounds are the time bounds, start time is inclusive but end is exclusive
 type Bounds struct {
 	Start    time.Time
-	End      time.Time
+	Duration time.Duration
 	StepSize time.Duration
 }
 
 // TimeForIndex returns the start time for a given index assuming a uniform step size
 func (b Bounds) TimeForIndex(idx int) (time.Time, error) {
-	step := b.StepSize
-	t := b.Start.Add(time.Duration(idx) * step)
-	if t.After(b.End) {
+	duration := time.Duration(idx) * b.StepSize
+	if b.Steps() == 0 || duration >= b.Duration {
 		return time.Time{}, fmt.Errorf("out of bounds, %d", idx)
 	}
 
-	return t, nil
+	return b.Start.Add(duration), nil
+}
+
+// End calculates the end time for the block and is exclusive
+func (b Bounds) End() time.Time {
+	return b.Start.Add(b.Duration)
 }
 
 // Steps calculates the number of steps for the bounds
 func (b Bounds) Steps() int {
-	if b.Start.After(b.End) || b.StepSize <= 0 {
+	if b.StepSize <= 0 {
 		return 0
 	}
 
-	return int(b.End.Sub(b.Start)/b.StepSize) + 1
+	return int(b.Duration / b.StepSize)
+}
+
+// Contains returns whether the time lies between the bounds.
+func (b Bounds) Contains(t time.Time) bool {
+	diff := b.Start.Sub(t)
+	return diff >= 0 && diff < b.Duration
+}
+
+// Next returns the nth next bound from the current bound
+func (b Bounds) Next(n int) Bounds {
+	return b.nth(n, true)
+}
+
+// Previous returns the nth previous bound from the current bound
+func (b Bounds) Previous(n int) Bounds {
+	return b.nth(n, false)
+}
+
+func (b Bounds) nth(n int, forward bool) Bounds {
+	multiplier := time.Duration(n)
+	if !forward {
+		multiplier *= -1
+	}
+
+	blockDuration := b.Duration
+	start := b.Start.Add(blockDuration * multiplier)
+	return Bounds{
+		Start:    start,
+		Duration: blockDuration,
+		StepSize: b.StepSize,
+	}
+}
+
+// Blocks returns the number of blocks until time t
+func (b Bounds) Blocks(t time.Time) int {
+	return int(b.Start.Sub(t) / b.Duration)
 }
 
 // String representation of the bounds
 func (b Bounds) String() string {
-	return fmt.Sprintf("start: %v, end: %v, stepSize: %v, steps: %d", b.Start, b.End, b.StepSize, b.Steps())
+	return fmt.Sprintf("start: %v, duration: %v, stepSize: %v, steps: %d", b.Start, b.Duration, b.StepSize, b.Steps())
+}
+
+// Nearest returns the nearest bound before the given time
+func (b Bounds) Nearest(t time.Time) Bounds {
+	startTime := b.Start
+	duration := b.Duration
+	endTime := startTime.Add(duration)
+	step := b.StepSize
+	if t.After(startTime) {
+		for endTime.Before(t) {
+			startTime = endTime
+			endTime = endTime.Add(duration)
+		}
+
+		return Bounds{
+			Start:    startTime,
+			Duration: duration,
+			StepSize: step,
+		}
+	}
+
+	for startTime.After(t) {
+		endTime = startTime
+		startTime = startTime.Add(-1 * duration)
+	}
+
+	return Bounds{
+		Start:    startTime,
+		Duration: duration,
+		StepSize: step,
+	}
 }
 
 // Equals is true if two bounds are equal, including stepsize
@@ -80,7 +151,7 @@ func (b Bounds) Equals(other Bounds) bool {
 	if b.StepSize != other.StepSize {
 		return false
 	}
-	return b.Start.Equal(other.Start) && b.End.Equal(other.End)
+	return b.Start.Equal(other.Start) && b.Duration == other.Duration
 }
 
 // Iterator is the base iterator

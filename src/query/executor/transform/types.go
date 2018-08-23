@@ -38,7 +38,7 @@ type OpNode interface {
 	Process(ID parser.NodeID, block block.Block) error
 }
 
-// TimeSpec defines the time bounds for the query execution
+// TimeSpec defines the time bounds for the query execution. End is exclusive
 type TimeSpec struct {
 	Start time.Time
 	End   time.Time
@@ -51,7 +51,7 @@ type TimeSpec struct {
 func (ts TimeSpec) Bounds() block.Bounds {
 	return block.Bounds{
 		Start:    ts.Start,
-		End:      ts.End,
+		Duration: ts.End.Sub(ts.Start),
 		StepSize: ts.Step,
 	}
 }
@@ -59,7 +59,7 @@ func (ts TimeSpec) Bounds() block.Bounds {
 // Params are defined by transforms
 type Params interface {
 	parser.Params
-	Node(controller *Controller) OpNode
+	Node(controller *Controller, opts Options) OpNode
 }
 
 // MetaNode is implemented by function nodes which can alter metadata for a block
@@ -80,4 +80,15 @@ type SeriesNode interface {
 type StepNode interface {
 	MetaNode
 	ProcessStep(step block.Step) (block.Step, error)
+}
+
+// BoundOp is implements by operations which have bounds
+type BoundOp interface {
+	Bounds() BoundSpec
+}
+
+// BoundSpec is the bound spec for an operation
+type BoundSpec struct {
+	Range  time.Duration
+	Offset time.Duration
 }
