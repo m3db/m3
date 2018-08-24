@@ -432,7 +432,9 @@ func (b *dbBuffer) bucketDrain(now time.Time, id bucketID, start time.Time) int 
 			if lastRead := bucket.lastRead(); !lastRead.IsZero() {
 				result.block.SetLastReadTime(lastRead)
 			}
-			b.drainFn(result.block)
+			if b.drainFn != nil {
+				b.drainFn(result.block)
+			}
 		}
 	}
 
