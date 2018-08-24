@@ -34,18 +34,17 @@ import (
 )
 
 func generateJSONWriteRequest() string {
-	return `{ "tags": { "tag_one": "val_one", "tag_two": "val_two" },
-			 "timestamp": 1534952005,
+	return `{
+		   "tags": { "tag_one": "val_one", "tag_two": "val_two" },
+			 "timestamp": "1534952005",
 			 "value": 10.0
-		}`
+		      }`
 }
 
 func TestJSONWriteParsing(t *testing.T) {
 	logging.InitWithCores(nil)
-	ctrl := gomock.NewController(t)
-	storage, _ := local.NewStorageAndSession(t, ctrl)
 
-	jsonWrite := &WriteJSONHandler{store: storage}
+	jsonWrite := &WriteJSONHandler{store: nil}
 
 	jsonReq := generateJSONWriteRequest()
 	req, _ := http.NewRequest("POST", WriteJSONURL, strings.NewReader(jsonReq))
@@ -68,10 +67,11 @@ func TestJSONWrite(t *testing.T) {
 	jsonReq := generateJSONWriteRequest()
 	req, _ := http.NewRequest("POST", WriteJSONURL, strings.NewReader(jsonReq))
 
-	r, err := jsonWrite.parseRequest(req)
-	require.Nil(t, err, "unable to parse request")
+	r, rErr := jsonWrite.parseRequest(req)
+	require.Nil(t, rErr, "unable to parse request")
 
-	writeQuery := newStorageWriteQuery(r)
+	writeQuery, err := newStorageWriteQuery(r)
+	require.NoError(t, err)
 
 	writeErr := jsonWrite.store.Write(context.TODO(), writeQuery)
 	require.NoError(t, writeErr)

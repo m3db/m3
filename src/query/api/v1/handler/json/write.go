@@ -25,11 +25,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/logging"
 	xtime "github.com/m3db/m3x/time"
 
@@ -38,7 +38,7 @@ import (
 
 const (
 	// WriteJSONURL is the url for the write json handler
-	WriteJSONURL = handler.RoutePrefixV1 + "/write_json"
+	WriteJSONURL = handler.RoutePrefixV1 + "/json/write"
 
 	// JSONWriteHTTPMethod is the HTTP method used with this resource.
 	JSONWriteHTTPMethod = http.MethodPost
@@ -60,7 +60,7 @@ func NewWriteJSONHandler(store storage.Storage) http.Handler {
 // NB(braskin): support only writing one datapoint for now
 type WriteQuery struct {
 	Tags      map[string]string `json:"tags" validate:"nonzero"`
-	Timestamp int               `json:"timestamp" validate:"nonzero"`
+	Timestamp string            `json:"timestamp" validate:"nonzero"`
 	Value     float64           `json:"value" validate:"nonzero"`
 }
 
@@ -71,27 +71,35 @@ func (h *WriteJSONHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeQuery := newStorageWriteQuery(req)
+	writeQuery, err := newStorageWriteQuery(req)
+	if err != nil {
+		logging.WithContext(r.Context()).Error("Parsing error", zap.Any("err", err))
+		handler.Error(w, err, http.StatusInternalServerError)
+	}
 
 	if err := h.store.Write(r.Context(), writeQuery); err != nil {
 		logging.WithContext(r.Context()).Error("Write error", zap.Any("err", err))
 		handler.Error(w, err, http.StatusInternalServerError)
-		return
 	}
 }
 
-func newStorageWriteQuery(req *WriteQuery) *storage.WriteQuery {
+func newStorageWriteQuery(req *WriteQuery) (*storage.WriteQuery, error) {
+	parsedTime, err := util.ParseTimeString(req.Timestamp)
+	if err != nil {
+		return nil, err
+	}
+
 	return &storage.WriteQuery{
 		Tags: req.Tags,
 		Datapoints: ts.Datapoints{
 			{
-				Timestamp: time.Unix(int64(req.Timestamp), 0),
+				Timestamp: parsedTime,
 				Value:     req.Value,
 			},
 		},
 		Unit:       xtime.Millisecond,
 		Annotation: nil,
-	}
+	}, nil
 }
 
 func (h *WriteJSONHandler) parseRequest(r *http.Request) (*WriteQuery, *handler.ParseError) {
