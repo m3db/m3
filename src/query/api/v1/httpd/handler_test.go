@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	m3json "github.com/m3db/m3/src/query/api/v1/handler/json"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
 	"github.com/m3db/m3/src/query/executor"
@@ -104,6 +105,22 @@ func TestPromNativeReadPost(t *testing.T) {
 	h.RegisterRoutes()
 	h.Router.ServeHTTP(res, req)
 	require.Equal(t, res.Code, http.StatusMethodNotAllowed, "POST method not defined")
+}
+
+func TestJSONWritePost(t *testing.T) {
+	logging.InitWithCores(nil)
+
+	req, _ := http.NewRequest("POST", m3json.WriteJSONURL, nil)
+	res := httptest.NewRecorder()
+	ctrl := gomock.NewController(t)
+	storage, _ := local.NewStorageAndSession(t, ctrl)
+
+	h, err := NewHandler(storage, nil, executor.NewEngine(storage), nil,
+		config.Configuration{}, nil, tally.NewTestScope("", nil))
+	require.NoError(t, err, "unable to setup handler")
+	h.RegisterRoutes()
+	h.Router.ServeHTTP(res, req)
+	require.Equal(t, res.Code, http.StatusBadRequest, "Empty request")
 }
 
 func TestRoutesGet(t *testing.T) {

@@ -56,7 +56,7 @@ func TestJSONWriteParsing(t *testing.T) {
 	require.Equal(t, map[string]string{"tag_one": "val_one", "tag_two": "val_two"}, r.Tags)
 }
 
-func TestPromWrite(t *testing.T) {
+func TestJSONWrite(t *testing.T) {
 	logging.InitWithCores(nil)
 
 	ctrl := gomock.NewController(t)

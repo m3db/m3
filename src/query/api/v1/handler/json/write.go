@@ -39,14 +39,25 @@ import (
 const (
 	// WriteJSONURL is the url for the write json handler
 	WriteJSONURL = handler.RoutePrefixV1 + "/write_json"
+
+	// JSONWriteHTTPMethod is the HTTP method used with this resource.
+	JSONWriteHTTPMethod = http.MethodPost
 )
 
-// WriteJSONHandler represents a handler for write json endpoint.
+// WriteJSONHandler represents a handler for the write json endpoint
 type WriteJSONHandler struct {
 	store storage.Storage
 }
 
+// NewWriteJSONHandler returns a new instance of handler.
+func NewWriteJSONHandler(store storage.Storage) http.Handler {
+	return &WriteJSONHandler{
+		store: store,
+	}
+}
+
 // WriteQuery represents the write request from the user
+// NB(braskin): support only writing one datapoint for now
 type WriteQuery struct {
 	Tags      map[string]string `json:"tags"`
 	Timestamp int               `json:"timestamp"`
