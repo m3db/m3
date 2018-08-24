@@ -59,8 +59,8 @@ func NewWriteJSONHandler(store storage.Storage) http.Handler {
 // WriteQuery represents the write request from the user
 // NB(braskin): support only writing one datapoint for now
 type WriteQuery struct {
-	Tags      map[string]string `json:"tags"`
-	Timestamp int               `json:"timestamp"`
+	Tags      map[string]string `json:"tags" validate:"nonzero"`
+	Timestamp int               `json:"timestamp" validate:"nonzero"`
 	Value     float64           `json:"value" validate:"nonzero"`
 }
 
