@@ -468,7 +468,11 @@ func forEachInfoFile(
 			digestsFilePath = filesetPathFromTimeAndIndex(dir, t, volume, digestFileSuffix)
 			infoFilePath = filesetPathFromTimeAndIndex(dir, t, volume, infoFileSuffix)
 		}
-		if !FileExists(checkpointFilePath) {
+		checkpointExists, err := FileExists(checkpointFilePath)
+		if err != nil {
+			continue
+		}
+		if !checkpointExists {
 			continue
 		}
 		checkpointFd, err := os.Open(checkpointFilePath)
@@ -1028,13 +1032,10 @@ func CommitLogsDirPath(prefix string) string {
 }
 
 // DataFileSetExistsAt determines whether data fileset files exist for the given namespace, shard, and block start.
-func DataFileSetExistsAt(prefix string, namespace ident.ID, shard uint32, blockStart time.Time) (bool, error) {
-	_, ok, err := FileSetAt(prefix, namespace, shard, blockStart)
-	if err != nil {
-		return false, err
-	}
-
-	return ok, nil
+func DataFileSetExistsAt(filePathPrefix string, namespace ident.ID, shard uint32, blockStart time.Time) (bool, error) {
+	shardDir := ShardDataDirPath(filePathPrefix, namespace, shard)
+	checkpointPath := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
+	return FileExists(checkpointPath)
 }
 
 // SnapshotFileSetExistsAt determines whether snapshot fileset files exist for the given namespace, shard, and block start time.
@@ -1053,13 +1054,17 @@ func SnapshotFileSetExistsAt(prefix string, namespace ident.ID, shard uint32, bl
 }
 
 // NextCommitLogsFile returns the next commit logs file.
-func NextCommitLogsFile(prefix string, start time.Time) (string, int) {
+func NextCommitLogsFile(prefix string, start time.Time) (string, int, error) {
 	for i := 0; ; i++ {
 		entry := fmt.Sprintf("%d%s%d", start.UnixNano(), separator, i)
 		fileName := fmt.Sprintf("%s%s%s%s", commitLogFilePrefix, separator, entry, fileSuffix)
 		filePath := path.Join(CommitLogsDirPath(prefix), fileName)
-		if !FileExists(filePath) {
-			return filePath, i
+		exists, err := FileExists(filePath)
+		if err != nil {
+			return "", -1, err
+		}
+		if !exists {
+			return filePath, i, nil
 		}
 	}
 }
@@ -1122,9 +1127,17 @@ func NextIndexSnapshotFileIndex(filePathPrefix string, namespace ident.ID, block
 }
 
 // FileExists returns whether a file at the given path exists.
-func FileExists(filePath string) bool {
+func FileExists(filePath string) (bool, error) {
 	_, err := os.Stat(filePath)
-	return err == nil
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return true, nil
 }
 
 // OpenWritable opens a file for writing and truncating as necessary.

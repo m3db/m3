@@ -138,7 +138,11 @@ func (r *indexReader) Open(
 }
 
 func (r *indexReader) readCheckpointFile(filePath string) error {
-	if !FileExists(filePath) {
+	exists, err := FileExists(filePath)
+	if err != nil {
+		return err
+	}
+	if !exists {
 		return ErrCheckpointFileNotFound
 	}
 	data, err := ioutil.ReadFile(filePath)

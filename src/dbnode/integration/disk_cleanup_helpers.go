@@ -89,7 +89,10 @@ type cleanupTimesCommitLog struct {
 
 func (c *cleanupTimesCommitLog) anyExist() bool {
 	for _, t := range c.times {
-		_, index := fs.NextCommitLogsFile(c.filePathPrefix, t)
+		_, index, err := fs.NextCommitLogsFile(c.filePathPrefix, t)
+		if err != nil {
+			panic(err)
+		}
 		if index != 0 {
 			return true
 		}
@@ -99,7 +102,10 @@ func (c *cleanupTimesCommitLog) anyExist() bool {
 
 func (c *cleanupTimesCommitLog) allExist() bool {
 	for _, t := range c.times {
-		_, index := fs.NextCommitLogsFile(c.filePathPrefix, t)
+		_, index, err := fs.NextCommitLogsFile(c.filePathPrefix, t)
+		if err != nil {
+			panic(err)
+		}
 		if index == 0 {
 			return false
 		}
@@ -172,7 +178,11 @@ func waitUntilDataCleanedUpExtended(
 func waitUntilNamespacesCleanedUp(filePathPrefix string, namespace ident.ID, waitTimeout time.Duration) error {
 	dataCleanedUp := func() bool {
 		namespaceDir := fs.NamespaceDataDirPath(filePathPrefix, namespace)
-		return !fs.FileExists(namespaceDir)
+		exists, err := fs.FileExists(namespaceDir)
+		if err != nil {
+			panic(err)
+		}
+		return !exists
 	}
 
 	if waitUntil(dataCleanedUp, waitTimeout) {
@@ -210,7 +220,11 @@ func waitUntilDataFileSetsCleanedUp(filePathPrefix string, namespaces []storage.
 	dataCleanedUp := func() bool {
 		for _, n := range namespaces {
 			shardDir := fs.ShardDataDirPath(filePathPrefix, n.ID(), extraShard)
-			if fs.FileExists(shardDir) {
+			exists, err := fs.FileExists(shardDir)
+			if err != nil {
+				panic(err)
+			}
+			if exists {
 				return false
 			}
 		}
