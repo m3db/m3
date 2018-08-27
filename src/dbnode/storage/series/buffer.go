@@ -438,10 +438,12 @@ func (b *dbBuffer) bucketDrain(now time.Time, id bucketID, start time.Time) int 
 		}
 	}
 
-	bucket.drained = true
-	bucket.resetNumWrites()
 	if bucket.isStale(now) {
 		b.removeBucket(id.key)
+	} else {
+		bucket.drained = true
+		bucket.setLastWrite(now)
+		bucket.resetNumWrites()
 	}
 
 	return mergedOutOfOrderBlocks
