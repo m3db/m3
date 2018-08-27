@@ -68,23 +68,71 @@ func TestFromIdentTagIteratorToTags(t *testing.T) {
 }
 
 func TestFetchQueryToM3Query(t *testing.T) {
-	matchers := models.Matchers{
+	tests := []struct {
+		name     string
+		expected string
+		matchers models.Matchers
+	}{
 		{
-			Type:  models.MatchEqual,
-			Name:  "t1",
-			Value: "v1",
+			name:     "exact match",
+			expected: "conjunction(term(t1, v1))",
+			matchers: models.Matchers{
+				{
+					Type:  models.MatchEqual,
+					Name:  "t1",
+					Value: "v1",
+				},
+			},
+		},
+		{
+			name:     "exact match negated",
+			expected: "conjunction(negation(term(t1, v1)))",
+			matchers: models.Matchers{
+				{
+					Type:  models.MatchNotEqual,
+					Name:  "t1",
+					Value: "v1",
+				},
+			},
+		},
+		{
+			name:     "regexp match",
+			expected: "conjunction(regexp(t1, v1))",
+			matchers: models.Matchers{
+				{
+					Type:  models.MatchRegexp,
+					Name:  "t1",
+					Value: "v1",
+				},
+			},
+		},
+		{
+			name:     "regexp match negated",
+			expected: "conjunction(negation(regexp(t1, v1)))",
+			matchers: models.Matchers{
+				{
+					Type:  models.MatchNotRegexp,
+					Name:  "t1",
+					Value: "v1",
+				},
+			},
 		},
 	}
 
-	fetchQuery := &FetchQuery{
-		Raw:         "up",
-		TagMatchers: matchers,
-		Start:       now.Add(-5 * time.Minute),
-		End:         now,
-		Interval:    15 * time.Second,
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fetchQuery := &FetchQuery{
+				Raw:         "up",
+				TagMatchers: test.matchers,
+				Start:       now.Add(-5 * time.Minute),
+				End:         now,
+				Interval:    15 * time.Second,
+			}
+
+			m3Query, err := FetchQueryToM3Query(fetchQuery)
+			require.NoError(t, err)
+			assert.Equal(t, test.expected, m3Query.String())
+		})
 	}
 
-	m3Query, err := FetchQueryToM3Query(fetchQuery)
-	require.NoError(t, err)
-	assert.Equal(t, "conjunction(term(t1, v1))", m3Query.String())
 }

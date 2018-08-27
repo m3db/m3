@@ -124,7 +124,7 @@ func PromTypeToM3(labelType prompb.LabelMatcher_Type) (models.MatchType, error) 
 		return models.MatchNotRegexp, nil
 
 	default:
-		return 0, fmt.Errorf("unknown match type %v", labelType)
+		return 0, fmt.Errorf("unknown match type: %v", labelType)
 	}
 }
 
