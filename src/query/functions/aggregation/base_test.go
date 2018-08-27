@@ -23,6 +23,7 @@ package aggregation
 import (
 	"math"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
@@ -35,17 +36,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestFunctionWithFiltering(t *testing.T) {
-	_, bounds := test.GenerateValuesAndBounds(nil, nil)
-	seriesMetas := []block.SeriesMeta{
-		{Tags: models.Tags{"a": "1"}},
-		{Tags: models.Tags{"a": "1"}},
-		{Tags: models.Tags{"a": "1", "b": "2"}},
-		{Tags: models.Tags{"a": "2", "b": "2"}},
-		{Tags: models.Tags{"b": "2"}},
-		{Tags: models.Tags{"c": "3"}},
+var (
+	seriesMetas = []block.SeriesMeta{
+		{Tags: models.Tags{"a": "1", "d": "4"}},
+		{Tags: models.Tags{"a": "1", "d": "4"}},
+		{Tags: models.Tags{"a": "1", "b": "2", "d": "4"}},
+		{Tags: models.Tags{"a": "2", "b": "2", "d": "4"}},
+		{Tags: models.Tags{"b": "2", "d": "4"}},
+		{Tags: models.Tags{"c": "3", "d": "4"}},
 	}
-	v := [][]float64{
+	v = [][]float64{
 		{0, math.NaN(), 2, 3, 4},
 		{math.NaN(), 6, 7, 8, 9},
 		{10, 20, 30, 40, 50},
@@ -54,15 +54,29 @@ func TestFunctionWithFiltering(t *testing.T) {
 		{600, 700, 800, 900, 1000},
 	}
 
+	bounds = block.Bounds{
+		Start:    time.Now(),
+		Duration: time.Minute * 5,
+		StepSize: time.Minute,
+	}
+)
+
+func processAggregationOp(t *testing.T, op parser.Params) *executor.SinkNode {
+	// With "a" tag
 	bl := test.NewBlockFromValuesWithSeriesMeta(bounds, seriesMetas, v)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	node := op.(baseOp).Node(c, transform.Options{})
+	err := node.Process(parser.NodeID(0), bl)
+	require.NoError(t, err)
+	return sink
+}
+
+func TestFunctionFilteringWithA(t *testing.T) {
 	op, err := NewAggregationOp(StandardDeviationType, NodeParams{
 		MatchingTags: []string{"a"}, Without: false,
 	})
 	require.NoError(t, err)
-	node := op.(baseOp).Node(c, transform.Options{})
-	err = node.Process(parser.NodeID(0), bl)
-	require.NoError(t, err)
+	sink := processAggregationOp(t, op)
 	expected := [][]float64{
 		// stddev of first three series
 		{7.07107, 9.89949, 14.93318, 20.07486, 25.23886},
@@ -77,19 +91,20 @@ func TestFunctionWithFiltering(t *testing.T) {
 		{Name: StandardDeviationType, Tags: models.Tags{"a": "2"}},
 		{Name: StandardDeviationType, Tags: models.Tags{}},
 	}
+	expectedMetaTags := models.Tags{}
 
 	test.CompareValues(t, sink.Metas, expectedMetas, sink.Values, expected)
 	assert.Equal(t, bounds, sink.Meta.Bounds)
+	assert.Equal(t, expectedMetaTags, sink.Meta.Tags)
+}
 
-	c, sink = executor.NewControllerWithSink(parser.NodeID(1))
-	op, err = NewAggregationOp(StandardDeviationType, NodeParams{
+func TestFunctionFilteringWithoutA(t *testing.T) {
+	op, err := NewAggregationOp(StandardDeviationType, NodeParams{
 		MatchingTags: []string{"a"}, Without: true,
 	})
 	require.NoError(t, err)
-	node = op.(baseOp).Node(c, transform.Options{})
-	err = node.Process(parser.NodeID(0), bl)
-	require.NoError(t, err)
-	expected = [][]float64{
+	sink := processAggregationOp(t, op)
+	expected := [][]float64{
 		// stddev of first two series
 		{math.NaN(), math.NaN(), 3.53553, 3.53553, 3.53553},
 		// stddev of third, fourth, and fifth series
@@ -98,12 +113,69 @@ func TestFunctionWithFiltering(t *testing.T) {
 		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 	}
 
-	expectedMetas = []block.SeriesMeta{
+	expectedMetas := []block.SeriesMeta{
 		{Name: StandardDeviationType, Tags: models.Tags{}},
 		{Name: StandardDeviationType, Tags: models.Tags{"b": "2"}},
 		{Name: StandardDeviationType, Tags: models.Tags{"c": "3"}},
 	}
+	expectedMetaTags := models.Tags{"d": "4"}
 
 	test.CompareValues(t, sink.Metas, expectedMetas, sink.Values, expected)
 	assert.Equal(t, bounds, sink.Meta.Bounds)
+	assert.Equal(t, expectedMetaTags, sink.Meta.Tags)
+}
+
+func TestFunctionFilteringWithD(t *testing.T) {
+	op, err := NewAggregationOp(StandardDeviationType, NodeParams{
+		MatchingTags: []string{"d"}, Without: false,
+	})
+	require.NoError(t, err)
+	sink := processAggregationOp(t, op)
+	expected := [][]float64{
+		// stddev of all series
+		{253.51529, 291.37467, 313.76408, 356.86958, 401.32169},
+	}
+
+	expectedMetas := []block.SeriesMeta{
+		{Name: StandardDeviationType, Tags: models.Tags{}},
+	}
+	expectedMetaTags := models.Tags{"d": "4"}
+
+	test.CompareValues(t, sink.Metas, expectedMetas, sink.Values, expected)
+	assert.Equal(t, bounds, sink.Meta.Bounds)
+	assert.Equal(t, expectedMetaTags, sink.Meta.Tags)
+}
+
+func TestFunctionFilteringWithoutD(t *testing.T) {
+	op, err := NewAggregationOp(StandardDeviationType, NodeParams{
+		MatchingTags: []string{"d"}, Without: true,
+	})
+	require.NoError(t, err)
+	sink := processAggregationOp(t, op)
+
+	expected := [][]float64{
+		// stddev of first two series
+		{math.NaN(), math.NaN(), 3.53553, 3.53553, 3.53553},
+		// stddev of third series
+		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		// stddev of fourth series
+		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		// stddev of fifth series
+		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		// stddev of sixth series
+		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+	}
+
+	expectedMetas := []block.SeriesMeta{
+		{Name: StandardDeviationType, Tags: models.Tags{"a": "1"}},
+		{Name: StandardDeviationType, Tags: models.Tags{"a": "1", "b": "2"}},
+		{Name: StandardDeviationType, Tags: models.Tags{"a": "2", "b": "2"}},
+		{Name: StandardDeviationType, Tags: models.Tags{"b": "2"}},
+		{Name: StandardDeviationType, Tags: models.Tags{"c": "3"}},
+	}
+	expectedMetaTags := models.Tags{}
+
+	test.CompareValues(t, sink.Metas, expectedMetas, sink.Values, expected)
+	assert.Equal(t, bounds, sink.Meta.Bounds)
+	assert.Equal(t, expectedMetaTags, sink.Meta.Tags)
 }
