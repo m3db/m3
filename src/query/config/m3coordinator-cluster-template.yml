@@ -1,4 +1,6 @@
-listenAddress: 0.0.0.0:7201
+listenAddress:
+  type: "config"
+  value: "0.0.0.0:7201"
 
 metrics:
   scope:
@@ -11,7 +13,7 @@ metrics:
   extended: none
 
 clusters:
-## Fill-out the following and un-comment before using, and 
+## Fill-out the following and un-comment before using, and
 ## make sure indent by two spaces is applied.
 #   - namespaces:
 #       - namespace: default
