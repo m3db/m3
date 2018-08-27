@@ -29,12 +29,16 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/util/logging"
+
+	"go.uber.org/zap"
 )
 
 // FetchType gets the series from storage
 const FetchType = "fetch"
 
 // FetchOp stores required properties for fetch
+// TODO: Make FetchOp private
 type FetchOp struct {
 	Name     string
 	Range    time.Duration
@@ -43,6 +47,7 @@ type FetchOp struct {
 }
 
 // FetchNode is the execution node
+// TODO: Make FetchNode private
 type FetchNode struct {
 	op         FetchOp
 	controller *transform.Controller
@@ -54,6 +59,14 @@ type FetchNode struct {
 // OpType for the operator
 func (o FetchOp) OpType() string {
 	return FetchType
+}
+
+// Bounds returns the bounds for the spec
+func (o FetchOp) Bounds() transform.BoundSpec {
+	return transform.BoundSpec{
+		Range:  o.Range,
+		Offset: o.Offset,
+	}
 }
 
 // String representation
@@ -69,7 +82,8 @@ func (o FetchOp) Node(controller *transform.Controller, storage storage.Storage,
 // Execute runs the fetch node operation
 func (n *FetchNode) Execute(ctx context.Context) error {
 	timeSpec := n.timespec
-	startTime := timeSpec.Start.Add(-1 * n.op.Offset)
+	// No need to adjust start and ends since physical plan already considers the offset, range
+	startTime := timeSpec.Start
 	endTime := timeSpec.End
 	blockResult, err := n.storage.FetchBlocks(ctx, &storage.FetchQuery{
 		Start:       startTime,
@@ -82,6 +96,14 @@ func (n *FetchNode) Execute(ctx context.Context) error {
 	}
 
 	for _, block := range blockResult.Blocks {
+		if n.debug {
+			// Ignore any errors
+			iter, _ := block.StepIter()
+			if iter != nil {
+				logging.WithContext(ctx).Info("fetch node", zap.Any("meta", iter.Meta()))
+			}
+		}
+
 		if err := n.controller.Process(block); err != nil {
 			block.Close()
 			// Fail on first error

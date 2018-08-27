@@ -40,11 +40,12 @@ import (
 )
 
 const (
-	endParam    = "end"
-	startParam  = "start"
-	targetParam = "target"
-	stepParam   = "step"
-	debugParam  = "debug"
+	endParam          = "end"
+	startParam        = "start"
+	targetParam       = "target"
+	stepParam         = "step"
+	debugParam        = "debug"
+	endExclusiveParam = "end-exclusive"
 
 	formatErrStr = "error parsing param: %s, error: %v"
 )
@@ -112,6 +113,18 @@ func parseParams(r *http.Request) (models.RequestParams, *handler.ParseError) {
 		params.Debug = debug
 	}
 
+	// Default to including end if unable to parse the flag
+	endExclusiveVal := r.FormValue(endExclusiveParam)
+	params.IncludeEnd = true
+	if endExclusiveVal != "" {
+		excludeEnd, err := strconv.ParseBool(endExclusiveVal)
+		if err != nil {
+			logging.WithContext(r.Context()).Warn("unable to parse end inclusive flag", zap.Any("error", err))
+		}
+
+		params.IncludeEnd = !excludeEnd
+	}
+
 	return params, nil
 }
 
@@ -129,7 +142,8 @@ func parseTarget(r *http.Request) (string, error) {
 	return targetQueries[0], nil
 }
 
-func renderResultsJSON(w io.Writer, series []*ts.Series) {
+func renderResultsJSON(w io.Writer, series []*ts.Series, params models.RequestParams) {
+	startIdx := 0
 	jw := json.NewWriter(w)
 	jw.BeginArray()
 	for _, s := range series {
@@ -148,8 +162,16 @@ func renderResultsJSON(w io.Writer, series []*ts.Series) {
 		jw.BeginObjectField("datapoints")
 		jw.BeginArray()
 		vals := s.Values()
-		for i := 0; i < s.Len(); i++ {
+		for i := startIdx; i < s.Len(); i++ {
 			dp := vals.DatapointAt(i)
+			// Skip points before the query boundary. Ideal place to adjust these would be at the result node but that would make it inefficient
+			// since we would need to create another block just for the sake of restricting the bounds.
+			// Each series have the same start time so we just need to calculate the correct startIdx once
+			if dp.Timestamp.Before(params.Start) {
+				startIdx = i + 1
+				continue
+			}
+
 			jw.BeginArray()
 			jw.WriteFloat64(dp.Value)
 			jw.WriteInt(int(dp.Timestamp.Unix()))

@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3/src/query/functions"
 	"github.com/m3db/m3/src/query/functions/binary"
 	"github.com/m3db/m3/src/query/functions/linear"
+	"github.com/m3db/m3/src/query/functions/temporal"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/parser/common"
@@ -111,6 +112,9 @@ func NewFunctionExpr(name string, argValues []interface{}) (parser.Params, error
 	case linear.DayOfMonthType, linear.DayOfWeekType, linear.DaysInMonthType, linear.HourType,
 		linear.MinuteType, linear.MonthType, linear.YearType:
 		return linear.NewDateOp(name)
+
+	case temporal.CountTemporalType:
+		return temporal.NewCountOp(argValues)
 
 	default:
 		// TODO: handle other types

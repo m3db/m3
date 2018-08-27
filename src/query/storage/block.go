@@ -59,7 +59,7 @@ func newMultiSeriesBlock(seriesList ts.SeriesList, query *FetchQuery) (multiSeri
 	meta := block.Metadata{
 		Bounds: block.Bounds{
 			Start:    query.Start,
-			End:      query.End,
+			Duration: query.End.Sub(query.Start),
 			StepSize: resolution,
 		},
 	}

@@ -21,153 +21,19 @@
 package binary
 
 import (
-	"errors"
-	"math"
-
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 )
 
-const (
-	// *******************************************
-	// * Arithmetic functions
-
-	// PlusType adds datapoints in both series
-	PlusType = "+"
-
-	// MinusType subtracts rhs from lhs
-	MinusType = "-"
-
-	// MultiplyType multiplies datapoints by series
-	MultiplyType = "*"
-
-	// DivType divides datapoints by series
-	// Special cases are:
-	// 	 X / 0 = +Inf
-	// 	-X / 0 = -Inf
-	// 	 0 / 0 =  NaN
-	DivType = "/"
-
-	// ExpType raises lhs to the power of rhs
-	// NB: to keep consistency with prometheus (and go)
-	//  0 ^ 0 = 1
-	//  NaN ^ 0 = 1
-	ExpType = "^"
-
-	// ModType takes the modulo of lhs by rhs
-	// Special cases are:
-	// 	 X % 0 = NaN
-	// 	 NaN % X = NaN
-	// 	 X % NaN = NaN
-	ModType = "%"
-
-	// *******************************************
-	// * Comparison functions
-
-	// EqType raises lhs to the power of rhs
-	EqType = "=="
-
-	// NotEqType raises lhs to the power of rhs
-	NotEqType = "!="
-
-	// GreaterType raises lhs to the power of rhs
-	GreaterType = ">"
-
-	// LesserType raises lhs to the power of rhs
-	LesserType = "<"
-
-	// GreaterEqType raises lhs to the power of rhs
-	GreaterEqType = ">="
-
-	// LesserEqType raises lhs to the power of rhs
-	LesserEqType = "<="
-
-	// suffix to return bool values instead of lhs values
-	returnBoolSuffix = "BOOL"
-)
-
-type mathFunc func(x, y float64) float64
-
+type binaryFunc func(x, y float64) float64
 type singleScalarFunc func(x float64) float64
-
-// convert true to 1, false to 0
-func toFloat(b bool) float64 {
-	if b {
-		return 1
-	}
-	return 0
-}
-
-func toComparisonValue(b bool, x float64) float64 {
-	if b {
-		return x
-	}
-	return math.NaN()
-}
-
-var (
-	mathFuncs = map[string]mathFunc{
-		PlusType:     func(x, y float64) float64 { return x + y },
-		MinusType:    func(x, y float64) float64 { return x - y },
-		MultiplyType: func(x, y float64) float64 { return x * y },
-		DivType:      func(x, y float64) float64 { return x / y },
-		ModType:      math.Mod,
-		ExpType:      math.Pow,
-
-		PlusType + returnBoolSuffix:     func(x, y float64) float64 { return x + y },
-		MinusType + returnBoolSuffix:    func(x, y float64) float64 { return x - y },
-		MultiplyType + returnBoolSuffix: func(x, y float64) float64 { return x * y },
-		DivType + returnBoolSuffix:      func(x, y float64) float64 { return x / y },
-		ModType + returnBoolSuffix:      math.Mod,
-		ExpType + returnBoolSuffix:      math.Pow,
-
-		EqType:        func(x, y float64) float64 { return toComparisonValue(x == y, x) },
-		NotEqType:     func(x, y float64) float64 { return toComparisonValue(x != y, x) },
-		GreaterType:   func(x, y float64) float64 { return toComparisonValue(x > y, x) },
-		LesserType:    func(x, y float64) float64 { return toComparisonValue(x < y, x) },
-		GreaterEqType: func(x, y float64) float64 { return toComparisonValue(x >= y, x) },
-		LesserEqType:  func(x, y float64) float64 { return toComparisonValue(x <= y, x) },
-
-		EqType + returnBoolSuffix:        func(x, y float64) float64 { return toFloat(x == y) },
-		NotEqType + returnBoolSuffix:     func(x, y float64) float64 { return toFloat(x != y) },
-		GreaterType + returnBoolSuffix:   func(x, y float64) float64 { return toFloat(x > y) },
-		LesserType + returnBoolSuffix:    func(x, y float64) float64 { return toFloat(x < y) },
-		GreaterEqType + returnBoolSuffix: func(x, y float64) float64 { return toFloat(x >= y) },
-		LesserEqType + returnBoolSuffix:  func(x, y float64) float64 { return toFloat(x <= y) },
-	}
-
-	errLeftScalar              = errors.New("expected left scalar but node type incorrect")
-	errRightScalar             = errors.New("expected right scalar but node type incorrect")
-	errNoModifierForComparison = errors.New("comparisons between scalars must use BOOL modifier")
-	errNoMatching              = errors.New("vector matching parameters must be provided for binary operations between series")
-)
-
-// Builds a logical processing function if able. If wrong opType supplied,
-// returns no function and false
-func buildLogicalFunction(
-	opType string,
-	params NodeParams,
-) (processFunc, bool) {
-	if params.ReturnBool {
-		opType += returnBoolSuffix
-	}
-	fn, ok := mathFuncs[opType]
-	if !ok {
-		return nil, false
-	}
-
-	// Build the binary processing step
-	return func(lhs, rhs block.Block, controller *transform.Controller) (block.Block, error) {
-		return processBinary(lhs, rhs, params, controller, fn)
-	}, true
-}
 
 // processes two logical blocks, performing a logical operation on them
 func processBinary(
 	lhs, rhs block.Block,
 	params NodeParams,
 	controller *transform.Controller,
-	fn mathFunc,
+	fn binaryFunc,
 ) (block.Block, error) {
 	lIter, err := lhs.StepIter()
 	if err != nil {
@@ -286,7 +152,7 @@ func processBothSeries(
 	lIter, rIter block.StepIter,
 	controller *transform.Controller,
 	matching *VectorMatching,
-	fn mathFunc,
+	fn binaryFunc,
 ) (block.Block, error) {
 	if lIter.StepCount() != rIter.StepCount() {
 		return nil, errMismatchedStepCounts

@@ -55,7 +55,7 @@ func (o baseOp) String() string {
 }
 
 // Node creates an execution node
-func (o baseOp) Node(controller *transform.Controller) transform.OpNode {
+func (o baseOp) Node(controller *transform.Controller, _ transform.Options) transform.OpNode {
 	return &baseNode{
 		op:         o,
 		process:    o.processFunc,
@@ -69,11 +69,14 @@ func NewOp(
 	opType string,
 	params NodeParams,
 ) (parser.Params, error) {
-	fn, ok := buildBinaryFunction(opType, params)
+	fn, ok := buildLogicalFunction(opType, params)
 	if !ok {
-		fn, ok = buildLogicalFunction(opType, params)
+		fn, ok = buildArithmeticFunction(opType, params)
 		if !ok {
-			return baseOp{}, fmt.Errorf("operator not supported: %s", opType)
+			fn, ok = buildComparisonFunction(opType, params)
+			if !ok {
+				return baseOp{}, fmt.Errorf("operator not supported: %s", opType)
+			}
 		}
 	}
 

@@ -47,7 +47,7 @@ func (o CountOp) String() string {
 }
 
 // Node creates an execution node
-func (o CountOp) Node(controller *transform.Controller) transform.OpNode {
+func (o CountOp) Node(controller *transform.Controller, _ transform.Options) transform.OpNode {
 	return &CountNode{op: o, controller: controller}
 }
 

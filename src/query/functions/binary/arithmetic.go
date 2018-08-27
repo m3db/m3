@@ -21,65 +21,67 @@
 package binary
 
 import (
+	"math"
+
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 )
 
-type makeBlockFn func(
-	lIter, rIter block.StepIter,
-	controller *transform.Controller,
-	matching *VectorMatching,
-) (block.Block, error)
+const (
+	// PlusType adds datapoints in both series
+	PlusType = "+"
 
-// Builds a logical processing function if able. If wrong opType supplied,
+	// MinusType subtracts rhs from lhs
+	MinusType = "-"
+
+	// MultiplyType multiplies datapoints by series
+	MultiplyType = "*"
+
+	// DivType divides datapoints by series
+	// Special cases are:
+	// 	 X / 0 = +Inf
+	// 	-X / 0 = -Inf
+	// 	 0 / 0 =  NaN
+	DivType = "/"
+
+	// ExpType raises lhs to the power of rhs
+	// NB: to keep consistency with prometheus (and go)
+	//  0 ^ 0 = 1
+	//  NaN ^ 0 = 1
+	ExpType = "^"
+
+	// ModType takes the modulo of lhs by rhs
+	// Special cases are:
+	// 	 X % 0 = NaN
+	// 	 NaN % X = NaN
+	// 	 X % NaN = NaN
+	ModType = "%"
+)
+
+var (
+	arithmeticFuncs = map[string]binaryFunc{
+		PlusType:     func(x, y float64) float64 { return x + y },
+		MinusType:    func(x, y float64) float64 { return x - y },
+		MultiplyType: func(x, y float64) float64 { return x * y },
+		DivType:      func(x, y float64) float64 { return x / y },
+		ModType:      math.Mod,
+		ExpType:      math.Pow,
+	}
+)
+
+// Builds an arithmetic processing function if able. If wrong opType supplied,
 // returns no function and false
-func buildLogicalFunction(
+func buildArithmeticFunction(
 	opType string,
 	params NodeParams,
 ) (processFunc, bool) {
-	var makeBlock makeBlockFn
-	switch opType {
-	case AndType:
-		makeBlock = makeAndBlock
-	case OrType:
-		makeBlock = makeOrBlock
-	case UnlessType:
-		makeBlock = makeUnlessBlock
-	default:
+	fn, ok := arithmeticFuncs[opType]
+	if !ok {
 		return nil, false
 	}
 
-	return createLogicalProcessingStep(params, makeBlock), true
-}
-
-func createLogicalProcessingStep(
-	params NodeParams,
-	fn makeBlockFn,
-) func(block.Block, block.Block, *transform.Controller) (block.Block, error) {
+	// Build the binary processing step
 	return func(lhs, rhs block.Block, controller *transform.Controller) (block.Block, error) {
-		return processLogical(lhs, rhs, controller, params.VectorMatching, fn)
-	}
-}
-
-func processLogical(
-	lhs, rhs block.Block,
-	controller *transform.Controller,
-	matching *VectorMatching,
-	makeBlock makeBlockFn,
-) (block.Block, error) {
-	lIter, err := lhs.StepIter()
-	if err != nil {
-		return nil, err
-	}
-
-	rIter, err := rhs.StepIter()
-	if err != nil {
-		return nil, err
-	}
-
-	if lIter.StepCount() != rIter.StepCount() {
-		return nil, errMismatchedStepCounts
-	}
-
-	return makeBlock(lIter, rIter, controller, matching)
+		return processBinary(lhs, rhs, params, controller, fn)
+	}, true
 }

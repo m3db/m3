@@ -47,7 +47,7 @@ func (o BaseOp) String() string {
 }
 
 // Node creates an execution node
-func (o BaseOp) Node(controller *transform.Controller) transform.OpNode {
+func (o BaseOp) Node(controller *transform.Controller, _ transform.Options) transform.OpNode {
 	return &baseNode{
 		controller: controller,
 		cache:      transform.NewBlockCache(),

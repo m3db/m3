@@ -24,8 +24,10 @@ import (
 	"fmt"
 	"math"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
@@ -51,7 +53,7 @@ func TestOrWithExactValues(t *testing.T) {
 	require.NoError(t, err)
 
 	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
-	node := op.(baseOp).Node(c)
+	node := op.(baseOp).Node(c, transform.Options{})
 
 	err = node.Process(parser.NodeID(1), block2)
 	require.NoError(t, err)
@@ -82,7 +84,7 @@ func TestOrWithSomeValues(t *testing.T) {
 	require.NoError(t, err)
 
 	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
-	node := op.(baseOp).Node(c)
+	node := op.(baseOp).Node(c, transform.Options{})
 
 	err = node.Process(parser.NodeID(1), block2)
 	require.NoError(t, err)
@@ -206,9 +208,9 @@ var orTests = []struct {
 }
 
 func TestOrs(t *testing.T) {
+	now := time.Now()
 	for _, tt := range orTests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, bounds := test.GenerateValuesAndBounds(nil, nil)
 
 			op, err := NewOp(
 				OrType,
@@ -221,11 +223,22 @@ func TestOrs(t *testing.T) {
 			require.NoError(t, err)
 
 			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
-			node := op.(baseOp).Node(c)
+			node := op.(baseOp).Node(c, transform.Options{})
+			bounds := block.Bounds{
+				Start:    now,
+				Duration: time.Minute * time.Duration(len(tt.lhs[0])),
+				StepSize: time.Minute,
+			}
 
 			lhs := test.NewBlockFromValuesWithSeriesMeta(bounds, tt.lhsMeta, tt.lhs)
 			err = node.Process(parser.NodeID(0), lhs)
 			require.NoError(t, err)
+
+			bounds = block.Bounds{
+				Start:    now,
+				Duration: time.Minute * time.Duration(len(tt.rhs[0])),
+				StepSize: time.Minute,
+			}
 
 			rhs := test.NewBlockFromValuesWithSeriesMeta(bounds, tt.rhsMeta, tt.rhs)
 			err = node.Process(parser.NodeID(1), rhs)
@@ -243,7 +256,11 @@ func TestOrs(t *testing.T) {
 
 func TestOrsBoundsError(t *testing.T) {
 	tt := orTests[0]
-	_, bounds := test.GenerateValuesAndBounds(nil, nil)
+	bounds := block.Bounds{
+		Start:    time.Now(),
+		Duration: time.Minute * time.Duration(len(tt.lhs[0])),
+		StepSize: time.Minute,
+	}
 
 	op, err := NewOp(
 		OrType,
@@ -256,7 +273,7 @@ func TestOrsBoundsError(t *testing.T) {
 	require.NoError(t, err)
 
 	c, _ := executor.NewControllerWithSink(parser.NodeID(2))
-	node := op.(baseOp).Node(c)
+	node := op.(baseOp).Node(c, transform.Options{})
 
 	lhs := test.NewBlockFromValuesWithSeriesMeta(bounds, tt.lhsMeta, tt.lhs)
 	err = node.Process(parser.NodeID(0), lhs)
@@ -264,7 +281,7 @@ func TestOrsBoundsError(t *testing.T) {
 
 	differentBounds := block.Bounds{
 		Start:    bounds.Start.Add(1),
-		End:      bounds.End,
+		Duration: bounds.Duration,
 		StepSize: bounds.StepSize,
 	}
 	rhs := test.NewBlockFromValuesWithSeriesMeta(differentBounds, tt.rhsMeta, tt.rhs)
@@ -280,8 +297,6 @@ func createSeriesMeta() []block.SeriesMeta {
 }
 
 func TestOrCombinedMetadata(t *testing.T) {
-	_, bounds := test.GenerateValuesAndBounds(nil, nil)
-
 	op, err := NewOp(
 		OrType,
 		NodeParams{
@@ -293,7 +308,13 @@ func TestOrCombinedMetadata(t *testing.T) {
 	require.NoError(t, err)
 
 	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
-	node := op.(baseOp).Node(c)
+	node := op.(baseOp).Node(c, transform.Options{})
+
+	bounds := block.Bounds{
+		Start:    time.Now(),
+		Duration: time.Minute * 2,
+		StepSize: time.Minute,
+	}
 
 	lhsMeta := block.Metadata{
 		Bounds: bounds,
