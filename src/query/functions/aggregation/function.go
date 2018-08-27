@@ -43,7 +43,7 @@ const (
 	CountType = "count"
 )
 
-func sumAndAverage(values []float64, buckets []int) (float64, float64) {
+func sumAndCount(values []float64, buckets []int) (float64, float64) {
 	sum := 0.0
 	count := 0.0
 	for _, idx := range buckets {
@@ -58,7 +58,7 @@ func sumAndAverage(values []float64, buckets []int) (float64, float64) {
 }
 
 func sumFn(values []float64, buckets []int) float64 {
-	sum, _ := sumAndAverage(values, buckets)
+	sum, _ := sumAndCount(values, buckets)
 	return sum
 }
 
@@ -91,7 +91,7 @@ func maxFn(values []float64, buckets []int) float64 {
 }
 
 func averageFn(values []float64, buckets []int) float64 {
-	sum, count := sumAndAverage(values, buckets)
+	sum, count := sumAndCount(values, buckets)
 
 	// Cannot take average of no values
 	if count == 0 {
@@ -101,13 +101,12 @@ func averageFn(values []float64, buckets []int) float64 {
 	return sum / count
 }
 
-// Since stddev is just sqrt(variance), handle in one function
-func stddevOrVariance(
-	values []float64,
-	buckets []int,
-	getVariance bool,
-) float64 {
-	sum, count := sumAndAverage(values, buckets)
+func stddevFn(values []float64, buckets []int) float64 {
+	return math.Sqrt(varianceFn(values, buckets))
+}
+
+func varianceFn(values []float64, buckets []int) float64 {
+	sum, count := sumAndCount(values, buckets)
 
 	// Cannot take standard deviation of one or fewer values
 	if count < 2 {
@@ -124,22 +123,10 @@ func stddevOrVariance(
 		}
 	}
 
-	variance := sumOfSquares / (count - 1)
-	if getVariance {
-		return variance
-	}
-	return math.Sqrt(variance)
-}
-
-func stddevFn(values []float64, buckets []int) float64 {
-	return stddevOrVariance(values, buckets, false)
-}
-
-func varianceFn(values []float64, buckets []int) float64 {
-	return stddevOrVariance(values, buckets, true)
+	return sumOfSquares / (count - 1)
 }
 
 func countFn(values []float64, buckets []int) float64 {
-	_, count := sumAndAverage(values, buckets)
+	_, count := sumAndCount(values, buckets)
 	return count
 }
