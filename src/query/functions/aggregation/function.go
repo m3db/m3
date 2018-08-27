@@ -43,15 +43,22 @@ const (
 	CountType = "count"
 )
 
-func sumFn(values []float64, bucket []int) float64 {
+func sumAndAverage(values []float64, buckets []int) (float64, float64) {
 	sum := 0.0
-	for _, idx := range bucket {
+	count := 0.0
+	for _, idx := range buckets {
 		v := values[idx]
 		if !math.IsNaN(v) {
 			sum += v
+			count++
 		}
 	}
 
+	return sum, count
+}
+
+func sumFn(values []float64, buckets []int) float64 {
+	sum, _ := sumAndAverage(values, buckets)
 	return sum
 }
 
@@ -60,12 +67,8 @@ func minFn(values []float64, buckets []int) float64 {
 	for _, idx := range buckets {
 		v := values[idx]
 		if !math.IsNaN(v) {
-			if math.IsNaN(min) {
+			if math.IsNaN(min) || min > v {
 				min = v
-			} else {
-				if min > v {
-					min = v
-				}
 			}
 		}
 	}
@@ -78,12 +81,8 @@ func maxFn(values []float64, buckets []int) float64 {
 	for _, idx := range buckets {
 		v := values[idx]
 		if !math.IsNaN(v) {
-			if math.IsNaN(max) {
+			if math.IsNaN(max) || max < v {
 				max = v
-			} else {
-				if max < v {
-					max = v
-				}
 			}
 		}
 	}
@@ -92,15 +91,7 @@ func maxFn(values []float64, buckets []int) float64 {
 }
 
 func averageFn(values []float64, buckets []int) float64 {
-	sum := 0.0
-	count := 0.0
-	for _, idx := range buckets {
-		v := values[idx]
-		if !math.IsNaN(v) {
-			sum += v
-			count++
-		}
-	}
+	sum, count := sumAndAverage(values, buckets)
 
 	// Cannot take average of no values
 	if count == 0 {
@@ -110,16 +101,13 @@ func averageFn(values []float64, buckets []int) float64 {
 	return sum / count
 }
 
-func stddevFn(values []float64, buckets []int) float64 {
-	sum := 0.0
-	count := 0.0
-	for _, idx := range buckets {
-		v := values[idx]
-		if !math.IsNaN(v) {
-			sum += v
-			count++
-		}
-	}
+// Since stddev is just sqrt(variance), handle in one function
+func stddevOrVariance(
+	values []float64,
+	buckets []int,
+	getVariance bool,
+) float64 {
+	sum, count := sumAndAverage(values, buckets)
 
 	// Cannot take standard deviation of one or fewer values
 	if count < 2 {
@@ -137,46 +125,21 @@ func stddevFn(values []float64, buckets []int) float64 {
 	}
 
 	variance := sumOfSquares / (count - 1)
+	if getVariance {
+		return variance
+	}
 	return math.Sqrt(variance)
 }
 
+func stddevFn(values []float64, buckets []int) float64 {
+	return stddevOrVariance(values, buckets, false)
+}
+
 func varianceFn(values []float64, buckets []int) float64 {
-	sum := 0.0
-	count := 0.0
-	for _, idx := range buckets {
-		v := values[idx]
-		if !math.IsNaN(v) {
-			sum += v
-			count++
-		}
-	}
-
-	// Cannot take standard variance of one or fewer values
-	if count < 2 {
-		return math.NaN()
-	}
-
-	average := sum / count
-	sumOfSquares := 0.0
-	for _, idx := range buckets {
-		v := values[idx]
-		if !math.IsNaN(v) {
-			diff := v - average
-			sumOfSquares += diff * diff
-		}
-	}
-
-	return sumOfSquares / (count - 1)
+	return stddevOrVariance(values, buckets, true)
 }
 
 func countFn(values []float64, buckets []int) float64 {
-	count := 0.0
-	for _, idx := range buckets {
-		v := values[idx]
-		if !math.IsNaN(v) {
-			count++
-		}
-	}
-
+	_, count := sumAndAverage(values, buckets)
 	return count
 }

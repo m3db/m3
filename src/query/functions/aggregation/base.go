@@ -79,7 +79,7 @@ func (o baseOp) String() string {
 }
 
 // Node creates an execution node
-func (o baseOp) Node(controller *transform.Controller) transform.OpNode {
+func (o baseOp) Node(controller *transform.Controller, _ transform.Options) transform.OpNode {
 	return &baseNode{
 		op:         o,
 		controller: controller,
@@ -123,6 +123,7 @@ func (n *baseNode) Process(ID parser.NodeID, b block.Block) error {
 		return err
 	}
 
+	aggregatedValues := make([]float64, len(buckets))
 	for index := 0; stepIter.Next(); index++ {
 		step, err := stepIter.Current()
 		if err != nil {
@@ -130,7 +131,6 @@ func (n *baseNode) Process(ID parser.NodeID, b block.Block) error {
 		}
 
 		values := step.Values()
-		aggregatedValues := make([]float64, len(buckets))
 		for i, bucket := range buckets {
 			aggregatedValues[i] = n.op.aggFn(values, bucket)
 		}

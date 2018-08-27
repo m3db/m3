@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
@@ -59,7 +60,7 @@ func TestFunctionWithFiltering(t *testing.T) {
 		MatchingTags: []string{"a"}, Without: false,
 	})
 	require.NoError(t, err)
-	node := op.(baseOp).Node(c)
+	node := op.(baseOp).Node(c, transform.Options{})
 	err = node.Process(parser.NodeID(0), bl)
 	require.NoError(t, err)
 	expected := [][]float64{
@@ -85,7 +86,7 @@ func TestFunctionWithFiltering(t *testing.T) {
 		MatchingTags: []string{"a"}, Without: true,
 	})
 	require.NoError(t, err)
-	node = op.(baseOp).Node(c)
+	node = op.(baseOp).Node(c, transform.Options{})
 	err = node.Process(parser.NodeID(0), bl)
 	require.NoError(t, err)
 	expected = [][]float64{

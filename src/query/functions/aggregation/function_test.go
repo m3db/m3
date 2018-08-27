@@ -24,6 +24,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
@@ -38,7 +39,7 @@ func TestCountWithAllValues(t *testing.T) {
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	op, err := NewAggregationOp(CountType, NodeParams{})
 	require.NoError(t, err)
-	countNode := op.(baseOp).Node(c)
+	countNode := op.(baseOp).Node(c, transform.Options{})
 	err = countNode.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := make([]float64, len(values[0]))
@@ -60,7 +61,7 @@ func TestCountWithSomeValues(t *testing.T) {
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	op, err := NewAggregationOp(CountType, NodeParams{})
 	require.NoError(t, err)
-	countNode := op.(baseOp).Node(c)
+	countNode := op.(baseOp).Node(c, transform.Options{})
 	err = countNode.Process(parser.NodeID(0), block)
 	require.NoError(t, err)
 	expected := []float64{1, 1, 2, 2, 2}
