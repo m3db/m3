@@ -439,8 +439,10 @@ func TestCommitLogReaderIsNotReusable(t *testing.T) {
 	// Make sure we're not leaking goroutines
 	defer leaktest.CheckTimeout(t, time.Second)()
 
+	overrideFlushInterval := 10 * time.Millisecond
 	opts, scope := newTestOptions(t, overrides{
-		strategy: StrategyWriteWait,
+		strategy:      StrategyWriteWait,
+		flushInterval: &overrideFlushInterval,
 	})
 	defer cleanup(t, opts)
 
