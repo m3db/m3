@@ -29,7 +29,7 @@ To cross-compile and build for Linux AMD64 build with `make m3dbnode-linux-amd64
 ```
 curl -X POST http://localhost:7201/api/v1/database/create -d '{
   "type": "local",
-  "namespaceName": "metrics",
+  "namespaceName": "default",
   "retentionTime": "2h"
 }'
 ```
@@ -44,7 +44,7 @@ Note: performance sensitive users are expected to use the more performant endpoi
 
 ```
 curl http://localhost:9003/writetagged -s -X POST -d '{
-  "namespace": "metrics",
+  "namespace": "default",
   "id": "foo",
   "tags": [
     {
@@ -67,7 +67,7 @@ curl http://localhost:9003/writetagged -s -X POST -d '{
 
 ```
 curl http://localhost:9003/query -s -X POST -d '{
-  "namespace": "metrics",
+  "namespace": "default",
   "query": {
     "regexp": {
       "field": "city",
