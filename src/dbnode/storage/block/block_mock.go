@@ -461,6 +461,18 @@ func (mr *MockDatabaseBlockMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDatabaseBlock)(nil).Close))
 }
 
+// CloseIfFromDisk mocks base method
+func (m *MockDatabaseBlock) CloseIfFromDisk() bool {
+	ret := m.ctrl.Call(m, "CloseIfFromDisk")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// CloseIfFromDisk indicates an expected call of CloseIfFromDisk
+func (mr *MockDatabaseBlockMockRecorder) CloseIfFromDisk() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseIfFromDisk", reflect.TypeOf((*MockDatabaseBlock)(nil).CloseIfFromDisk))
+}
+
 // SetOnEvictedFromWiredList mocks base method
 func (m *MockDatabaseBlock) SetOnEvictedFromWiredList(arg0 OnEvictedFromWiredList) {
 	m.ctrl.Call(m, "SetOnEvictedFromWiredList", arg0)
