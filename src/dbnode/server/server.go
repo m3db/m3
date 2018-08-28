@@ -1003,12 +1003,20 @@ func withEncodingAndPoolingOptions(
 		SetBytesPool(bytesPool)
 
 	if opts.SeriesCachePolicy() == series.CacheLRU {
-		runtimeOpts := opts.RuntimeOptionsManager()
-		wiredList := block.NewWiredList(block.WiredListOptions{
-			RuntimeOptionsManager: runtimeOpts,
-			InstrumentOptions:     iopts,
-			ClockOptions:          opts.ClockOptions(),
-		})
+		var (
+			runtimeOpts   = opts.RuntimeOptionsManager()
+			wiredListOpts = block.WiredListOptions{
+				RuntimeOptionsManager: runtimeOpts,
+				InstrumentOptions:     iopts,
+				ClockOptions:          opts.ClockOptions(),
+			}
+			lruCfg = cfg.Cache.SeriesConfiguration().LRU
+		)
+
+		if lruCfg != nil && lruCfg.EventsChannelSize > 0 {
+			wiredListOpts.EventsChannelSize = lruCfg.EventsChannelSize
+		}
+		wiredList := block.NewWiredList(wiredListOpts)
 		blockOpts = blockOpts.SetWiredList(wiredList)
 	}
 	blockPool := block.NewDatabaseBlockPool(poolOptions(policy.BlockPool,
