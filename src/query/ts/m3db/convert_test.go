@@ -33,6 +33,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/query/models"
 )
 
 var (
@@ -92,8 +93,5 @@ func TestConversion(t *testing.T) {
 func checkTags(t *testing.T, tags ident.TagIterator) {
 	convertedTags, err := storage.FromIdentTagIteratorToTags(tags)
 	require.NoError(t, err)
-	converted, _ := convertedTags.Get("foo")
-	assert.Equal(t, testTags["foo"], converted)
-	converted, _ = convertedTags.Get("baz")
-	assert.Equal(t, testTags["baz"], converted)
+	assert.Equal(t, models.Tags{{"baz", testTags["baz"]}, {"foo", testTags["foo"]}}, convertedTags)
 }

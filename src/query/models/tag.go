@@ -37,14 +37,14 @@ const (
 	eq  = byte('=')
 )
 
-// Tags is a key/value . of metric tags.
+// Tags is a list of key/value metric tag pairs
 type Tags []Tag
 
 func (t Tags) Len() int           { return len(t) }
 func (t Tags) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
 func (t Tags) Less(i, j int) bool { return t[i].Name < t[j].Name }
 
-// Tag represents a single tag key/value pair
+// Tag is a key/value metric tag pair
 type Tag struct {
 	Name, Value string
 }
@@ -134,15 +134,16 @@ type Matchers []*Matcher
 // ToTags converts Matchers to Tags
 // NB (braskin): this only works for exact matches
 func (m Matchers) ToTags() (Tags, error) {
-	tags := make(map[string]string, len(m))
-	for _, v := range m {
+	tags := make(Tags, len(m))
+	for i, v := range m {
 		if v.Type != MatchEqual {
 			return nil, fmt.Errorf("illegal match type, got %v, but expecting: %v", v.Type, MatchEqual)
 		}
-		tags[v.Name] = v.Value
+
+		tags[i] = Tag{Name: v.Name, Value: v.Value}
 	}
 
-	return FromMap(tags), nil
+	return Normalize(tags), nil
 }
 
 // ID returns a string representation of the tags
@@ -191,8 +192,7 @@ func (t Tags) IDWithExcludes(excludeKeys ...string) uint64 {
 	return h.Sum64()
 }
 
-// TagsWithoutKeys returns only the tags which do not have the given keys
-func (t Tags) tagsSubSet(keys []string, include bool) Tags {
+func (t Tags) tagSubSet(keys []string, include bool) Tags {
 	tags := make(Tags, 0, len(t))
 	for _, tag := range t {
 		found := false
@@ -213,7 +213,7 @@ func (t Tags) tagsSubSet(keys []string, include bool) Tags {
 
 // TagsWithoutKeys returns only the tags which do not have the given keys
 func (t Tags) TagsWithoutKeys(excludeKeys []string) Tags {
-	return t.tagsSubSet(excludeKeys, false)
+	return t.tagSubSet(excludeKeys, false)
 }
 
 // IDWithKeys returns a string representation of the tags only including the given keys
@@ -238,8 +238,7 @@ func (t Tags) IDWithKeys(includeKeys ...string) uint64 {
 
 // TagsWithKeys returns only the tags which have the given keys
 func (t Tags) TagsWithKeys(includeKeys []string) Tags {
-	return t.tagsSubSet(includeKeys, true)
-
+	return t.tagSubSet(includeKeys, true)
 }
 
 // WithoutName copies the tags excluding the name tag
@@ -254,26 +253,18 @@ func (t Tags) Get(key string) (string, bool) {
 			return tag.Value, true
 		}
 	}
+
 	return "", false
 }
 
 // FromMap returns new sorted tags from the given map.
 func FromMap(m map[string]string) Tags {
-	l := make([]Tag, 0, len(m))
+	l := make(Tags, 0, len(m))
 	for k, v := range m {
 		l = append(l, Tag{Name: k, Value: v})
 	}
-	return New(l)
-}
 
-// MultiTagsFromMaps returns a slice of tags from a slice of maps
-func MultiTagsFromMaps(tagMaps []map[string]string) []Tags {
-	tags := make([]Tags, len(tagMaps))
-	for i, m := range tagMaps {
-		tags[i] = FromMap(m)
-	}
-
-	return tags
+	return Normalize(l)
 }
 
 // TagMap returns a tag map of the tags.
@@ -299,14 +290,16 @@ func (t Tags) StringMap() map[string]string {
 // Add is used to add a bunch of tags and then maintain the sort order
 func (t Tags) Add(tags Tags) Tags {
 	updated := append(t, tags...)
-	return New(updated)
+	return Normalize(updated)
 }
 
-// New returns a sorted Tags from the given tags.
-// The caller has to guarantee that all tags names are unique.
-func New(tags Tags) Tags {
-	set := make(Tags, len(tags))
-	copy(set, tags)
-	sort.Sort(set)
-	return set
+// Normalize normalizes the tags by sorting them in place. In future, it might also ensure other things like uniqueness
+func Normalize(tags Tags) Tags {
+	sort.Sort(tags)
+	return tags
+}
+
+// EmptyTags returns empty model tags
+func EmptyTags() Tags {
+	return make(Tags, 0)
 }

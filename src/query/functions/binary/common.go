@@ -93,16 +93,15 @@ func combineMetaAndSeriesMeta(
 	leftTags := meta.Tags
 	otherTags := otherMeta.Tags.TagMap()
 
-	metaTagsToAdd := make(models.Tags, 0)
-	otherMetaTagsToAdd := make(models.Tags, 0)
-	tags := make(models.Tags, 0)
+	metaTagsToAdd := make(models.Tags, 0, len(leftTags))
+	otherMetaTagsToAdd := make(models.Tags, 0, len(otherTags))
+	tags := models.EmptyTags()
 
 	for _, t := range leftTags {
 		if otherTag, ok := otherTags[t.Name]; ok {
 			if t.Value != otherTag.Value {
 				// If both metas have the same common tag  with different
-				// values, remove it from common tag list and explicitly
-				// add it to each seriesMeta.
+				// values explicitly add it to each seriesMeta.
 				metaTagsToAdd = append(metaTagsToAdd, t)
 				otherMetaTagsToAdd = append(otherMetaTagsToAdd, otherTag)
 			} else {
@@ -113,8 +112,7 @@ func combineMetaAndSeriesMeta(
 			// has already been handled
 			delete(otherTags, t.Name)
 		} else {
-			// Tag does not exist on otherMeta; remove it
-			// from common tags and explicitly add it to each seriesMeta
+			// Tag does not exist on otherMeta explicitly add it to each seriesMeta
 			metaTagsToAdd = append(metaTagsToAdd, t)
 		}
 	}

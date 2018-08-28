@@ -42,7 +42,7 @@ func DedupeMetadata(
 	seriesMeta []block.SeriesMeta,
 ) (models.Tags, []block.SeriesMeta) {
 	if len(seriesMeta) == 0 {
-		return make(models.Tags, 0), seriesMeta
+		return models.EmptyTags(), seriesMeta
 	}
 
 	commonKeys := make([]string, 0, len(seriesMeta[0].Tags))

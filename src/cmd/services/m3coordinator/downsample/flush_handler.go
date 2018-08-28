@@ -116,13 +116,13 @@ func (w *downsamplerFlushHandlerWriter) Write(
 		}
 
 		// Add extra tag since we may need to add an aggregation suffix tag
-		tags := make(map[string]string, expected+1)
+		tags := make(models.Tags, 0, expected+1)
 		for iter.Next() {
 			name, value := iter.Current()
-			tags[string(name)] = string(value)
+			tags = append(tags, models.Tag{Name: string(name), Value: string(value)})
 		}
 		if len(mp.ChunkedID.Suffix) != 0 {
-			tags[aggregationSuffixTag] = string(mp.ChunkedID.Suffix)
+			tags = append(tags, models.Tag{Name: aggregationSuffixTag, Value: string(mp.ChunkedID.Suffix)})
 		}
 
 		err := iter.Err()
@@ -134,7 +134,7 @@ func (w *downsamplerFlushHandlerWriter) Write(
 		}
 
 		err = w.handler.storage.Write(w.ctx, &storage.WriteQuery{
-			Tags: models.FromMap(tags),
+			Tags: models.Normalize(tags),
 			Datapoints: ts.Datapoints{ts.Datapoint{
 				Timestamp: time.Unix(0, mp.TimeNanos),
 				Value:     mp.Value,

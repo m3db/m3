@@ -40,7 +40,7 @@ var collectTest = []struct {
 	{
 		"noMatching",
 		[]string{},
-		models.MultiTagsFromMaps([]map[string]string{
+		multiTagsFromMaps([]map[string]string{
 			{"a": "1"},
 			{"a": "1", "b": "2", "c": "4"},
 			{"b": "2"},
@@ -51,7 +51,7 @@ var collectTest = []struct {
 		[][]int{{0, 1, 2, 3, 4, 5}},
 		[]models.Tags{{}},
 		[][]int{{0}, {1}, {2}, {3}, {4}, {5}},
-		models.MultiTagsFromMaps([]map[string]string{
+		multiTagsFromMaps([]map[string]string{
 			{"a": "1"},
 			{"a": "1", "b": "2", "c": "4"},
 			{"b": "2"},
@@ -63,7 +63,7 @@ var collectTest = []struct {
 	{
 		"no equal Matching",
 		[]string{"f", "g", "h"},
-		models.MultiTagsFromMaps([]map[string]string{
+		multiTagsFromMaps([]map[string]string{
 			{"a": "1"},
 			{"a": "1", "b": "2", "c": "4"},
 			{"b": "2"},
@@ -72,9 +72,9 @@ var collectTest = []struct {
 			{"c": "d"},
 		}),
 		[][]int{{0, 1, 2, 3, 4, 5}},
-		models.MultiTagsFromMaps([]map[string]string{{}}),
+		multiTagsFromMaps([]map[string]string{{}}),
 		[][]int{{0}, {1}, {2}, {3}, {4}, {5}},
-		models.MultiTagsFromMaps([]map[string]string{
+		multiTagsFromMaps([]map[string]string{
 			{"a": "1"},
 			{"a": "1", "b": "2", "c": "4"},
 			{"b": "2"},
@@ -86,7 +86,7 @@ var collectTest = []struct {
 	{
 		"oneMatching",
 		[]string{"a"},
-		models.MultiTagsFromMaps([]map[string]string{
+		multiTagsFromMaps([]map[string]string{
 			{"a": "1"},
 			{"a": "1", "b": "2", "c": "4"},
 			{"b": "2"},
@@ -95,12 +95,12 @@ var collectTest = []struct {
 			{"c": "d"},
 		}),
 		[][]int{{0, 1, 3, 4}, {2, 5}},
-		models.MultiTagsFromMaps([]map[string]string{
+		multiTagsFromMaps([]map[string]string{
 			{"a": "1"},
 			{},
 		}),
 		[][]int{{0}, {1}, {2}, {3}, {4}, {5}},
-		models.MultiTagsFromMaps([]map[string]string{
+		multiTagsFromMaps([]map[string]string{
 			{},
 			{"b": "2", "c": "4"},
 			{"b": "2"},
@@ -112,7 +112,7 @@ var collectTest = []struct {
 	{
 		"same tag matching",
 		[]string{"a", "a"},
-		models.MultiTagsFromMaps([]map[string]string{
+		multiTagsFromMaps([]map[string]string{
 			{"a": "1"},
 			{"a": "1", "b": "2", "c": "4"},
 			{"b": "2"},
@@ -121,12 +121,12 @@ var collectTest = []struct {
 			{"c": "d"},
 		}),
 		[][]int{{0, 1, 3, 4}, {2, 5}},
-		models.MultiTagsFromMaps([]map[string]string{
+		multiTagsFromMaps([]map[string]string{
 			{"a": "1"},
 			{},
 		}),
 		[][]int{{0}, {1}, {2}, {3}, {4}, {5}},
-		models.MultiTagsFromMaps([]map[string]string{
+		multiTagsFromMaps([]map[string]string{
 			{},
 			{"b": "2", "c": "4"},
 			{"b": "2"},
@@ -138,7 +138,7 @@ var collectTest = []struct {
 	{
 		"diffMatching",
 		[]string{"a"},
-		models.MultiTagsFromMaps([]map[string]string{
+		multiTagsFromMaps([]map[string]string{
 			{"a": "1"},
 			{"a": "2", "b": "2", "c": "4"},
 			{"a": "2"},
@@ -147,13 +147,13 @@ var collectTest = []struct {
 			{"a": "d"},
 		}),
 		[][]int{{0, 3, 4}, {1, 2}, {5}},
-		models.MultiTagsFromMaps([]map[string]string{
+		multiTagsFromMaps([]map[string]string{
 			{"a": "1"},
 			{"a": "2"},
 			{"a": "d"},
 		}),
 		[][]int{{0, 2, 5}, {1}, {3}, {4}},
-		models.MultiTagsFromMaps([]map[string]string{
+		multiTagsFromMaps([]map[string]string{
 			{},
 			{"b": "2", "c": "4"},
 			{"b": "2", "c": "3"},
@@ -163,7 +163,7 @@ var collectTest = []struct {
 	{
 		"someMatching",
 		[]string{"a", "b"},
-		models.MultiTagsFromMaps([]map[string]string{
+		multiTagsFromMaps([]map[string]string{
 			{"a": "1"},
 			{"a": "1", "b": "2", "c": "4"},
 			{"b": "2"},
@@ -172,14 +172,14 @@ var collectTest = []struct {
 			{"c": "3"},
 		}),
 		[][]int{{0}, {1, 3, 4}, {2}, {5}},
-		models.MultiTagsFromMaps([]map[string]string{
+		multiTagsFromMaps([]map[string]string{
 			{"a": "1"},
 			{"a": "1", "b": "2"},
 			{"b": "2"},
 			{},
 		}),
 		[][]int{{0, 2}, {1}, {3, 5}, {4}},
-		models.MultiTagsFromMaps([]map[string]string{
+		multiTagsFromMaps([]map[string]string{
 			{},
 			{"c": "4"},
 			{"c": "3"},
@@ -189,7 +189,7 @@ var collectTest = []struct {
 	{
 		"functionMatching",
 		[]string{"a"},
-		models.MultiTagsFromMaps([]map[string]string{
+		multiTagsFromMaps([]map[string]string{
 			{"a": "1"},
 			{"a": "1"},
 			{"a": "1", "b": "2"},
@@ -198,13 +198,13 @@ var collectTest = []struct {
 			{"c": "3"},
 		}),
 		[][]int{{0, 1, 2}, {3}, {4, 5}},
-		models.MultiTagsFromMaps([]map[string]string{
+		multiTagsFromMaps([]map[string]string{
 			{"a": "1"},
 			{"a": "2"},
 			{},
 		}),
 		[][]int{{0, 1}, {2, 3, 4}, {5}},
-		models.MultiTagsFromMaps([]map[string]string{
+		multiTagsFromMaps([]map[string]string{
 			{},
 			{"b": "2"},
 			{"c": "3"},
@@ -213,18 +213,18 @@ var collectTest = []struct {
 	{
 		"different matching",
 		[]string{"a", "b"},
-		models.MultiTagsFromMaps([]map[string]string{
+		multiTagsFromMaps([]map[string]string{
 			{"a": "1", "c": "3", "d": "4"},
 			{"b": "1", "c": "3", "d": "5"},
 			{"b": "1", "c": "3", "d": "6"},
 		}),
 		[][]int{{0}, {1, 2}},
-		models.MultiTagsFromMaps([]map[string]string{
+		multiTagsFromMaps([]map[string]string{
 			{"a": "1"},
 			{"b": "1"},
 		}),
 		[][]int{{0}, {1}, {2}},
-		models.MultiTagsFromMaps([]map[string]string{
+		multiTagsFromMaps([]map[string]string{
 			{"c": "3", "d": "4"},
 			{"c": "3", "d": "5"},
 			{"c": "3", "d": "6"},
@@ -273,4 +273,13 @@ func TestCollectWithTags(t *testing.T) {
 
 func TestCollectWithoutTags(t *testing.T) {
 	testCollect(t, true)
+}
+
+func multiTagsFromMaps(tagMaps []map[string]string) []models.Tags {
+	tags := make([]models.Tags, len(tagMaps))
+	for i, m := range tagMaps {
+		tags[i] = models.FromMap(m)
+	}
+
+	return tags
 }

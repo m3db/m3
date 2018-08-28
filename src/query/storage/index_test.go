@@ -42,11 +42,12 @@ func TestTagsToIdentTagIterator(t *testing.T) {
 	tagIter := TagsToIdentTagIterator(testTags)
 	defer tagIter.Close()
 
-	tags := make(map[string]string, len(testTags))
-	for tagIter.Next() {
-		tags[tagIter.Current().Name.String()] = tagIter.Current().Value.String()
+	tags := make(models.Tags, len(testTags))
+	for i := 0; tagIter.Next(); i++ {
+		tags[i] = models.Tag{tagIter.Current().Name.String(), tagIter.Current().Value.String()}
 	}
-	assert.Equal(t, testTags, models.FromMap(tags))
+
+	assert.Equal(t, testTags, tags)
 }
 
 func TestFromM3IdentToMetric(t *testing.T) {

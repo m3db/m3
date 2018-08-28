@@ -48,6 +48,7 @@ func encodeTags(tags models.Tags) []*rpc.Tag {
 			Value: []byte(t.Value),
 		})
 	}
+
 	return encodedTags
 }
 
@@ -92,12 +93,12 @@ func DecodeFetchResult(_ context.Context, rpcSeries []*rpc.Series) ([]*ts.Series
 }
 
 func decodeTags(tags []*rpc.Tag) models.Tags {
-	modelTags := make(map[string]string, len(tags))
-	for _, t := range tags {
-		name, value := string(t.GetName()), string(t.GetValue())
-		modelTags[name] = value
+	modelTags := make(models.Tags, len(tags))
+	for i, t := range tags {
+		modelTags[i] = models.Tag{Name: string(t.GetName()), Value: string(t.GetValue())}
 	}
-	return models.FromMap(modelTags)
+
+	return modelTags
 }
 
 func decodeTs(r *rpc.Series) (*ts.Series, error) {
@@ -231,6 +232,7 @@ func EncodeWriteMessage(query *storage.WriteQuery, queryID string) *rpc.WriteMes
 }
 
 func encodeWriteQuery(query *storage.WriteQuery) *rpc.WriteQuery {
+	// TODO: Convert RPC tags to list of name/value pairs rather than a map
 	return &rpc.WriteQuery{
 		Unit:       int32(query.Unit),
 		Annotation: query.Annotation,

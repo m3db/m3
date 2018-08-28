@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/serialize"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/mock"
 	"github.com/m3db/m3cluster/kv/mem"
@@ -157,13 +158,13 @@ func TestDownsamplerAggregation(t *testing.T) {
 	writes := testDownsampler.storage.Writes()
 	for _, metric := range testCounterMetrics {
 		write := mustFindWrite(t, writes, metric.tags["__name__"])
-		assert.Equal(t, metric.tags, map[string]string(write.Tags))
+		assert.Equal(t, metric.tags, write.Tags.StringMap())
 		require.Equal(t, 1, len(write.Datapoints))
 		assert.Equal(t, float64(metric.expected), write.Datapoints[0].Value)
 	}
 	for _, metric := range testGaugeMetrics {
 		write := mustFindWrite(t, writes, metric.tags["__name__"])
-		assert.Equal(t, metric.tags, map[string]string(write.Tags))
+		assert.Equal(t, metric.tags, write.Tags.StringMap())
 		require.Equal(t, 1, len(write.Datapoints))
 		assert.Equal(t, float64(metric.expected), write.Datapoints[0].Value)
 	}
@@ -279,11 +280,14 @@ func newTestID(t *testing.T, tags map[string]string) id.ID {
 func mustFindWrite(t *testing.T, writes []*storage.WriteQuery, name string) *storage.WriteQuery {
 	var write *storage.WriteQuery
 	for _, w := range writes {
-		if w.Tags["__name__"] == name {
-			write = w
-			break
+		if t, ok := w.Tags.Get(models.MetricName); ok {
+			if t == name {
+				write = w
+				break
+			}
 		}
 	}
+
 	require.NotNil(t, write)
 	return write
 }
