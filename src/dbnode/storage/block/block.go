@@ -425,7 +425,6 @@ func (b *dbBlock) Close() {
 func (b *dbBlock) closeAndDiscard() ts.Segment {
 	b.Lock()
 	if b.closed {
-		panic("DOUBLE CLOSE")
 		b.Unlock()
 		return ts.Segment{}
 	}
