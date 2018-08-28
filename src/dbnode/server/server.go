@@ -1015,7 +1015,7 @@ func withEncodingAndPoolingOptions(
 		)
 
 		if lruCfg != nil && lruCfg.EventsChannelSize > 0 {
-			wiredListOpts.EventsChannelSize = lruCfg.EventsChannelSize
+			wiredListOpts.EventsChannelSize = int(lruCfg.EventsChannelSize)
 		}
 		wiredList := block.NewWiredList(wiredListOpts)
 		blockOpts = blockOpts.SetWiredList(wiredList)
