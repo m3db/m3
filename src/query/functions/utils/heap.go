@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package util
+package utils
 
 import (
 	"container/heap"
@@ -130,6 +130,15 @@ func (fh FloatHeap) FlushByPop() []ValueIndexPair {
 		values = append(values, heap.Pop(h).(ValueIndexPair))
 	}
 	return values
+}
+
+// Peek reveals the top value of the heap without mutating the heap.
+func (fh FloatHeap) Peek() (ValueIndexPair, bool) {
+	h := fh.floatHeap.heap
+	if len(h) == 0 {
+		return ValueIndexPair{}, false
+	}
+	return h[0], true
 }
 
 // floatHeap is a heap that can be given a maximum size

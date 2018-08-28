@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package util
+package utils
 
 import (
 	"sort"
@@ -134,9 +134,16 @@ func TestMaxHeap(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			size := tt.size
 			h := NewFloatHeap(true, size)
+			_, seen := h.Peek()
+			assert.False(t, seen)
+
 			for i, v := range tt.values {
 				h.Push(v, i)
 			}
+
+			peek, seen := h.Peek()
+			assert.True(t, seen)
+			assert.Equal(t, peek, tt.expectedMax[0])
 
 			// Flush and sort results (Flush does not care about order)
 			actual := h.Flush()
@@ -144,6 +151,8 @@ func TestMaxHeap(t *testing.T) {
 			assert.Equal(t, tt.expectedMax, actual)
 			// Assert Flush flushes the heap
 			assert.Equal(t, 0, h.floatHeap.Len())
+			_, seen = h.Peek()
+			assert.False(t, seen)
 
 			// Refill heap
 			for i, v := range tt.values {
@@ -163,9 +172,16 @@ func TestMinHeap(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			size := tt.size
 			h := NewFloatHeap(false, size)
+			_, seen := h.Peek()
+			assert.False(t, seen)
+
 			for i, v := range tt.values {
 				h.Push(v, i)
 			}
+
+			peek, seen := h.Peek()
+			assert.True(t, seen)
+			assert.Equal(t, peek, tt.expectedMin[0])
 
 			// Flush and sort results (Flush does not care about order)
 			actual := h.Flush()
@@ -173,6 +189,8 @@ func TestMinHeap(t *testing.T) {
 			assert.Equal(t, tt.expectedMin, actual)
 			// Assert Flush flushes the heap
 			assert.Equal(t, 0, h.floatHeap.Len())
+			_, seen = h.Peek()
+			assert.False(t, seen)
 
 			// Refill heap
 			for i, v := range tt.values {
