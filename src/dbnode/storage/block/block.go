@@ -414,19 +414,37 @@ func (b *dbBlock) resetRetrievableWithLock(
 }
 
 func (b *dbBlock) Discard() ts.Segment {
-	return b.closeAndDiscard()
+	seg, _ := b.closeAndDiscardConditionally(nil)
+	return seg
 }
 
 func (b *dbBlock) Close() {
-	segment := b.closeAndDiscard()
+	segment, _ := b.closeAndDiscardConditionally(nil)
 	segment.Finalize()
 }
 
-func (b *dbBlock) closeAndDiscard() ts.Segment {
+func (b *dbBlock) CloseIfFromDisk() bool {
+	segment, ok := b.closeAndDiscardConditionally(func(b *dbBlock) bool {
+		return b.wasRetrievedFromDisk
+	})
+	if !ok {
+		return false
+	}
+	segment.Finalize()
+	return true
+}
+
+func (b *dbBlock) closeAndDiscardConditionally(condition func(b *dbBlock) bool) (ts.Segment, bool) {
 	b.Lock()
+
+	if condition != nil && !condition(b) {
+		b.Unlock()
+		return ts.Segment{}, false
+	}
+
 	if b.closed {
 		b.Unlock()
-		return ts.Segment{}
+		return ts.Segment{}, true
 	}
 
 	segment := b.segment
@@ -439,7 +457,7 @@ func (b *dbBlock) closeAndDiscard() ts.Segment {
 		pool.Put(b)
 	}
 
-	return segment
+	return segment, true
 }
 
 func (b *dbBlock) resetMergeTargetWithLock() {

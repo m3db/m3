@@ -98,7 +98,6 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 			blTime := start
 			start = start.Add(blockSize)
 			shard.OnRetrieveBlock(id, nil, blTime, ts.Segment{})
-			// shard.OnEvictedFromWiredList(id, blTime)
 			wg.Done()
 		}()
 	}

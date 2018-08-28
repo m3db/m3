@@ -263,9 +263,10 @@ func (l *WiredList) insertAfter(v, at DatabaseBlock) {
 			// is single-threaded.
 			invariantLogger := instrument.EmitInvariantViolationAndGetLogger(l.iOpts)
 			invariantLogger.WithFields(
+				xlog.NewField("blockStart", entry.startTime),
 				xlog.NewField("closed", entry.closed),
 				xlog.NewField("wasRetrievedFromDisk", entry.wasRetrievedFromDisk),
-			).Errorf("wired list tried to process a block that was not unwireable")
+			).Errorf("wired list tried to process a block that was not retrieved from disk")
 		}
 
 		// Evict the block before closing it so that callers of series.ReadEncoded()
@@ -279,7 +280,15 @@ func (l *WiredList) insertAfter(v, at DatabaseBlock) {
 		// the block from the wired list before we close it.
 		nextBl := bl.next()
 		l.remove(bl)
-		bl.Close()
+		if wasFromDisk := bl.CloseIfFromDisk(); !wasFromDisk {
+			// Should never happen
+			invariantLogger := instrument.EmitInvariantViolationAndGetLogger(l.iOpts)
+			invariantLogger.WithFields(
+				xlog.NewField("blockStart", entry.startTime),
+				xlog.NewField("closed", entry.closed),
+				xlog.NewField("wasRetrievedFromDisk", entry.wasRetrievedFromDisk),
+			).Errorf("wired list tried to close a block that was not from disk")
+		}
 
 		l.metrics.evicted.Inc(1)
 
