@@ -30,58 +30,59 @@ type ValueIndexPair struct {
 	index int
 }
 
+type lessFn func(ValueIndexPair, ValueIndexPair) bool
+
+func maxHeapLess(i, j ValueIndexPair) bool {
+	if i.val == j.val {
+		return i.index > j.index
+	}
+	return i.val < j.val
+}
+
+func minHeapLess(i, j ValueIndexPair) bool {
+	if i.val == j.val {
+		return i.index > j.index
+	}
+	return i.val > j.val
+}
+
 // FloatHeap is a heap that can be given a maximum size
 type FloatHeap struct {
 	isMaxHeap bool
-	maxSize   int
-	heap      []ValueIndexPair
+	floatHeap *floatHeap
 }
-
-// Assert that FloatHeap is a heap.interface
-var _ heap.Interface = (*FloatHeap)(nil)
 
 // NewFloatHeap builds a new FloatHeap based on first parameter
 // and a maxSize given by second parameter. Zero and negative
 // values for maxSize provide an unbounded FloatHeap
-func NewFloatHeap(isMaxHeap bool, maxSize int) *FloatHeap {
-	return &FloatHeap{
+func NewFloatHeap(isMaxHeap bool, maxSize int) FloatHeap {
+	var less lessFn
+	if isMaxHeap {
+		less = maxHeapLess
+	} else {
+		less = minHeapLess
+	}
+	floatHeap := &floatHeap{
+		heap:    make([]ValueIndexPair, 0, maxSize),
+		maxSize: maxSize,
+		less:    less,
+	}
+	heap.Init(floatHeap)
+	return FloatHeap{
+		floatHeap: floatHeap,
 		isMaxHeap: isMaxHeap,
-		heap:      make([]ValueIndexPair, 0, maxSize),
-		maxSize:   maxSize,
 	}
 }
 
-// Len gives the length of items in the heap
-func (h *FloatHeap) Len() int {
-	return len(h.heap)
-}
-
-// Less is true if value of i is less than value of j
-func (h *FloatHeap) Less(i, j int) bool {
-	heap := h.heap
-	iVal, jVal := heap[i].val, heap[j].val
-	if iVal == jVal {
-		return heap[i].index > heap[j].index
-	}
-	less := iVal < jVal
-	return h.isMaxHeap == less
-}
-
-// Swap swaps values at these indices
-func (h *FloatHeap) Swap(i, j int) {
-	h.heap[i], h.heap[j] = h.heap[j], h.heap[i]
-}
-
-// Push pushes a ValueIndexPair to the FloatMaxHeap
-func (h *FloatHeap) Push(x interface{}) {
-	pair := x.(ValueIndexPair)
+// Push pushes a value and index pair to the heap
+func (fh FloatHeap) Push(value float64, index int) {
+	h := fh.floatHeap
 	// If maxSize is zero or negative, allow infinite size heap
 	if h.maxSize > 0 {
 		// At max size, drop or replace incoming value.
 		// Otherwise, continue as normal
 		if len(h.heap) >= h.maxSize {
 			peek := h.heap[0]
-
 			// Compare incoming value with current top of heap.
 			// Decide if to replace the current top, or to drop incoming
 			// value as appropriate for this min/max heap
@@ -91,20 +92,79 @@ func (h *FloatHeap) Push(x interface{}) {
 			// NB(arnikola): unfortunately, can't just replace first
 			// element as it may not respect internal order. Need to
 			// run heap.Fix() to rectify this
-			if h.isMaxHeap && pair.val > peek.val ||
-				(!h.isMaxHeap && pair.val < peek.val) {
-				h.heap[0] = pair
+			if fh.isMaxHeap && value > peek.val ||
+				(!fh.isMaxHeap && value < peek.val) {
+				h.heap[0] = ValueIndexPair{
+					val:   value,
+					index: index,
+				}
+
 				heap.Fix(h, 0)
 			}
 
 			return
 		}
+
+		// Otherwise, fallthrough
 	}
+
+	heap.Push(h, ValueIndexPair{
+		val:   value,
+		index: index,
+	})
+}
+
+// Flush flushes the float heap and resets it. Does not guarantee order.
+func (fh FloatHeap) Flush() []ValueIndexPair {
+	values := fh.floatHeap.heap
+	fh.floatHeap.heap = fh.floatHeap.heap[:0]
+	return values
+}
+
+// FlushByPop flushes the float heap and resets it by popping values from the heap.
+// Guarantees order.
+func (fh FloatHeap) FlushByPop() []ValueIndexPair {
+	h := fh.floatHeap
+	values := make([]ValueIndexPair, 0, len(h.heap))
+	for h.Len() > 0 {
+		values = append(values, heap.Pop(h).(ValueIndexPair))
+	}
+	return values
+}
+
+// floatHeap is a heap that can be given a maximum size
+type floatHeap struct {
+	maxSize int
+	less    lessFn
+	heap    []ValueIndexPair
+}
+
+// Assert that floatHeap is a heap.Interface
+var _ heap.Interface = (*floatHeap)(nil)
+
+// Len gives the length of items in the heap
+func (h *floatHeap) Len() int {
+	return len(h.heap)
+}
+
+// Less is true if value of i is less than value of j
+func (h *floatHeap) Less(i, j int) bool {
+	return h.less(h.heap[i], h.heap[j])
+}
+
+// Swap swaps values at these indices
+func (h *floatHeap) Swap(i, j int) {
+	h.heap[i], h.heap[j] = h.heap[j], h.heap[i]
+}
+
+// Push pushes a ValueIndexPair to the FloatMaxHeap
+func (h *floatHeap) Push(x interface{}) {
+	pair := x.(ValueIndexPair)
 	h.heap = append(h.heap, pair)
 }
 
 // Pop pops a ValueIndexPair from the FloatMaxHeap
-func (h *FloatHeap) Pop() interface{} {
+func (h *floatHeap) Pop() interface{} {
 	old := h.heap
 	n := len(old)
 	tail := old[n-1]

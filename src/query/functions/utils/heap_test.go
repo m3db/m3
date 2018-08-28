@@ -21,12 +21,33 @@
 package util
 
 import (
-	"container/heap"
-	"math/rand"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+type maxSlice []ValueIndexPair
+
+func (s maxSlice) Len() int      { return len(s) }
+func (s maxSlice) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+func (s maxSlice) Less(i, j int) bool {
+	if s[i].val == s[j].val {
+		return s[i].index > s[j].index
+	}
+	return s[i].val < s[j].val
+}
+
+type minSlice []ValueIndexPair
+
+func (s minSlice) Len() int      { return len(s) }
+func (s minSlice) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+func (s minSlice) Less(i, j int) bool {
+	if s[i].val == s[j].val {
+		return s[i].index > s[j].index
+	}
+	return s[i].val > s[j].val
+}
 
 var heapTests = []struct {
 	name        string
@@ -113,27 +134,26 @@ func TestMaxHeap(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			size := tt.size
 			h := NewFloatHeap(true, size)
-			heap.Init(h)
 			for i, v := range tt.values {
-				pair := ValueIndexPair{
-					val:   v,
-					index: i,
-				}
-				heap.Push(h, pair)
-				if size < 1 {
-					// No max size; length should be index + 1
-					assert.Equal(t, i+1, h.Len(), "size <= 0, no max size")
-				} else {
-					assert.True(t, h.Len() <= size, "length is larger than max size")
-				}
+				h.Push(v, i)
 			}
 
-			actual := make([]ValueIndexPair, 0, h.Len())
-			for h.Len() > 0 {
-				pair := heap.Pop(h).(ValueIndexPair)
-				actual = append(actual, pair)
-			}
+			// Flush and sort results (Flush does not care about order)
+			actual := h.Flush()
+			sort.Sort(maxSlice(actual))
 			assert.Equal(t, tt.expectedMax, actual)
+			// Assert Flush flushes the heap
+			assert.Equal(t, 0, h.floatHeap.Len())
+
+			// Refill heap
+			for i, v := range tt.values {
+				h.Push(v, i)
+			}
+
+			actual = h.FlushByPop()
+			assert.Equal(t, tt.expectedMax, actual)
+			// Assert FlushByPop flushes the heap
+			assert.Equal(t, 0, h.floatHeap.Len())
 		})
 	}
 }
@@ -143,67 +163,24 @@ func TestMinHeap(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			size := tt.size
 			h := NewFloatHeap(false, size)
-			heap.Init(h)
 			for i, v := range tt.values {
-				pair := ValueIndexPair{
-					val:   v,
-					index: i,
-				}
-				heap.Push(h, pair)
-				if size < 1 {
-					// No max size; length should be index + 1
-					assert.Equal(t, i+1, h.Len(), "size <= 0, no max size")
-				} else {
-					assert.True(t, h.Len() <= size, "length is larger than max size")
-				}
+				h.Push(v, i)
 			}
 
-			actual := make([]ValueIndexPair, 0, h.Len())
-			for h.Len() > 0 {
-				pair := heap.Pop(h).(ValueIndexPair)
-				actual = append(actual, pair)
+			// Flush and sort results (Flush does not care about order)
+			actual := h.Flush()
+			sort.Sort(minSlice(actual))
+			assert.Equal(t, tt.expectedMin, actual)
+			// Assert Flush flushes the heap
+			assert.Equal(t, 0, h.floatHeap.Len())
+
+			// Refill heap
+			for i, v := range tt.values {
+				h.Push(v, i)
 			}
+
+			actual = h.FlushByPop()
 			assert.Equal(t, tt.expectedMin, actual)
 		})
 	}
 }
-
-func BenchmarkHeap(b *testing.B) {
-	values := make([]float64, 100000)
-	for i := range values {
-		values[i] = rand.Float64()
-	}
-	h := NewFloatHeap(true, 0)
-	heap.Init(h)
-	for i := 0; i < b.N; i++ {
-		for i, v := range values {
-			// if len(h.heap) == 0 {
-			// 	heap.Push(h, ValueIndexPair{
-			// 		val:   v,
-			// 		index: i,
-			// 	})
-			// 	continue
-			// }
-			// if v >= h.heap[0].val {
-			// 	continue
-			// }
-
-			pair := ValueIndexPair{
-				val:   v,
-				index: i,
-			}
-			heap.Push(h, pair)
-		}
-	}
-}
-
-// BenchmarkHeap-8   	     500	   3395086 ns/op	 1601606 B/op	  100000 allocs/op
-
-// with fix: BenchmarkHeap-8   	   10000	    107431 ns/op	      80 B/op	       0 allocs/op
-// with manual: BenchmarkHeap-8   	   10000	    111572 ns/op	      80 B/op	       0 allocs/op
-
-// limit(20)  500           3419644 ns/op         1601610 B/op     100000 allocs/op
-// BenchmarkHeap-8   	   10000	    130780 ns/op	      80 B/op	       0 allocs/op
-// BenchmarkHeap-8   	   10000	    126953 ns/op	      80 B/op	       0 allocs/op
-// no pointer pre-checked BenchmarkHeap-8   	   10000	    111578 ns/op	      80 B/op	       0 allocs/op
-// unlimited  200	          8568156 ns/op	         9687749 B/op	   100000 allocs/op
