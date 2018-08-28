@@ -64,8 +64,8 @@ import (
 )
 
 const (
-	wiredListEventsChannelLength = 65536
-	wiredListSampleGaugesEvery   = 100
+	defaultWiredListEventsChannelSize = 65536
+	wiredListSampleGaugesEvery        = 100
 )
 
 var (
@@ -82,13 +82,14 @@ type WiredList struct {
 	// Max wired blocks, must use atomic store and load to access.
 	maxWired int64
 
-	root      dbBlock
-	length    int
-	updatesCh chan DatabaseBlock
-	doneCh    chan struct{}
+	root          dbBlock
+	length        int
+	updatesChSize int
+	updatesCh     chan DatabaseBlock
+	doneCh        chan struct{}
 
 	metrics wiredListMetrics
-	logger  xlog.Logger
+	iOpts   instrument.Options
 }
 
 type wiredListMetrics struct {
@@ -118,22 +119,31 @@ func newWiredListMetrics(scope tally.Scope) wiredListMetrics {
 	}
 }
 
+// WiredListOptions is the options struct for the WiredList constructor.
+type WiredListOptions struct {
+	RuntimeOptionsManager runtime.OptionsManager
+	InstrumentOptions     instrument.Options
+	ClockOptions          clock.Options
+	EventsChannelSize     int
+}
+
 // NewWiredList returns a new database block wired list.
-func NewWiredList(
-	runtimeOptsMgr runtime.OptionsManager,
-	iopts instrument.Options,
-	copts clock.Options,
-) *WiredList {
-	scope := iopts.MetricsScope().
+func NewWiredList(opts WiredListOptions) *WiredList {
+	scope := opts.InstrumentOptions.MetricsScope().
 		SubScope("wired-list")
 	l := &WiredList{
-		nowFn:   copts.NowFn(),
+		nowFn:   opts.ClockOptions.NowFn(),
 		metrics: newWiredListMetrics(scope),
-		logger:  iopts.Logger(),
+		iOpts:   opts.InstrumentOptions,
+	}
+	if opts.EventsChannelSize > 0 {
+		l.updatesChSize = opts.EventsChannelSize
+	} else {
+		l.updatesChSize = defaultWiredListEventsChannelSize
 	}
 	l.root.setNext(&l.root)
 	l.root.setPrev(&l.root)
-	runtimeOptsMgr.RegisterListener(l)
+	opts.RuntimeOptionsManager.RegisterListener(l)
 	return l
 }
 
@@ -151,7 +161,7 @@ func (l *WiredList) Start() error {
 		return errAlreadyStarted
 	}
 
-	l.updatesCh = make(chan DatabaseBlock, wiredListEventsChannelLength)
+	l.updatesCh = make(chan DatabaseBlock, l.updatesChSize)
 	l.doneCh = make(chan struct{}, 1)
 	go func() {
 		i := 0
@@ -202,20 +212,13 @@ func (l *WiredList) Update(v DatabaseBlock) {
 func (l *WiredList) processUpdateBlock(v DatabaseBlock) {
 	entry := v.wiredListEntry()
 
-	if !entry.wasRetrievedFromDisk {
-		// The WiredList should should never receive blocks that were not retrieved from disk,
-		// but we check for posterity.
-		l.logger.WithFields(
-			xlog.NewField("closed", entry.closed),
-			xlog.NewField("wasRetrievedFromDisk", entry.wasRetrievedFromDisk),
-		).Errorf("wired list tried to process a block that was not unwireable")
-	}
-
 	// In some cases the WiredList can receive blocks that are closed. This can happen if a block is
 	// in the updatesCh (because it was read) but also already in the WiredList, and while its still
 	// in the updatesCh, it is evicted from the wired list to make room for some other block that is
 	// being processed. The eviction of the block will close it, but the enqueued update is still in
-	// the updateCh even though its an update for a closed block.
+	// the updateCh even though its an update for a closed block. For the same reason, the wired list
+	// can receive blocks that were not retrieved from disk because the closed block was returned to
+	// a pool and then re-used.
 	unwireable := !entry.closed && entry.wasRetrievedFromDisk
 
 	// If a block is still unwireable then its worth keeping track of in the wired list
@@ -252,11 +255,23 @@ func (l *WiredList) insertAfter(v, at DatabaseBlock) {
 	// Try to unwire all blocks possible
 	bl := l.root.next()
 	for l.length > maxWired && bl != &l.root {
+		entry := bl.wiredListEntry()
+		if !entry.wasRetrievedFromDisk {
+			// This should never happen because processUpdateBlock performs the same
+			// check, and a block should never be pooled in-between those steps because
+			// the wired list is supposed to have sole ownership over that lifecycle and
+			// is single-threaded.
+			invariantLogger := instrument.EmitInvariantViolationAndGetLogger(l.iOpts)
+			invariantLogger.WithFields(
+				xlog.NewField("closed", entry.closed),
+				xlog.NewField("wasRetrievedFromDisk", entry.wasRetrievedFromDisk),
+			).Errorf("wired list tried to process a block that was not unwireable")
+		}
+
 		// Evict the block before closing it so that callers of series.ReadEncoded()
 		// don't get errors about trying to read from a closed block.
 		if onEvict := bl.OnEvictedFromWiredList(); onEvict != nil {
-			wlEntry := bl.wiredListEntry()
-			onEvict.OnEvictedFromWiredList(wlEntry.retrieveID, wlEntry.startTime)
+			onEvict.OnEvictedFromWiredList(entry.retrieveID, entry.startTime)
 		}
 
 		// bl.Close() will return the block to the pool. In order to avoid races

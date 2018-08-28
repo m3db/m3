@@ -1004,7 +1004,11 @@ func withEncodingAndPoolingOptions(
 
 	if opts.SeriesCachePolicy() == series.CacheLRU {
 		runtimeOpts := opts.RuntimeOptionsManager()
-		wiredList := block.NewWiredList(runtimeOpts, iopts, opts.ClockOptions())
+		wiredList := block.NewWiredList(block.WiredListOptions{
+			RuntimeOptionsManager: runtimeOpts,
+			InstrumentOptions:     iopts,
+			ClockOptions:          opts.ClockOptions(),
+		})
 		blockOpts = blockOpts.SetWiredList(wiredList)
 	}
 	blockPool := block.NewDatabaseBlockPool(poolOptions(policy.BlockPool,

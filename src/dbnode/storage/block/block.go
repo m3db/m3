@@ -196,8 +196,8 @@ func (b *dbBlock) OnRetrieveBlock(
 	defer b.Unlock()
 
 	if b.closed ||
-		!id.Equal(b.retrieveID) ||
-		!startTime.Equal(b.startWithRLock()) {
+		!id.Equal(b.retrieveID) {
+		// !startTime.Equal(b.startWithRLock()) {
 		return
 	}
 
@@ -425,6 +425,7 @@ func (b *dbBlock) Close() {
 func (b *dbBlock) closeAndDiscard() ts.Segment {
 	b.Lock()
 	if b.closed {
+		panic("DOUBLE CLOSE")
 		b.Unlock()
 		return ts.Segment{}
 	}

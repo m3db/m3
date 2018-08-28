@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -519,9 +520,9 @@ func (s *dbSeries) OnRetrieveBlock(
 	segment ts.Segment,
 ) {
 	s.Lock()
-	defer s.Unlock()
 
 	if !id.Equal(s.id) {
+		s.Unlock()
 		return
 	}
 
@@ -549,11 +550,17 @@ func (s *dbSeries) OnRetrieveBlock(
 	// If we retrieved this from disk then we directly emplace it
 	s.addBlockWithLock(b)
 
-	if list := s.opts.DatabaseBlockOptions().WiredList(); list != nil {
+	list := s.opts.DatabaseBlockOptions().WiredList()
+	s.Unlock()
+
+	if list != nil {
 		// Need to update the WiredList so blocks that were read from disk
 		// can enter the list (OnReadBlock is only called for blocks that
 		// were read from memory, regardless of whether the data originated
 		// from disk or a buffer rotation.)
+		// Also, doing this outside of the lock is safe because updating the
+		// wired list is asynchronous anyways (Update just puts the block in
+		// a channel to be processed later.)
 		list.Update(b)
 	}
 }
@@ -585,7 +592,8 @@ func (s *dbSeries) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 	if ok {
 		if !block.WasRetrievedFromDisk() {
 			// Should never happen - invalid application state could cause data loss
-			s.opts.InstrumentOptions().Logger().WithFields(
+			instrument.EmitInvariantViolationAndGetLogger(
+				s.opts.InstrumentOptions()).WithFields(
 				xlog.NewField("id", id.String()),
 				xlog.NewField("blockStart", blockStart),
 			).Errorf("tried to evict block that was not retrieved from disk")
