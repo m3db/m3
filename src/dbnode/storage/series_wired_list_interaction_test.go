@@ -91,12 +91,22 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 		}
 	}()
 
-	start := time.Now().Truncate(blockSize)
+	var (
+		start          = time.Now().Truncate(blockSize)
+		startLock      = sync.Mutex{}
+		getAndIncStart = func() time.Time {
+			startLock.Lock()
+			t := start
+			start = start.Add(blockSize)
+			startLock.Unlock()
+			return t
+		}
+	)
+
 	for i := 0; i < 1000; i++ {
 		wg.Add(1)
 		go func() {
-			blTime := start
-			start = start.Add(blockSize)
+			blTime := getAndIncStart()
 			shard.OnRetrieveBlock(id, nil, blTime, ts.Segment{})
 			wg.Done()
 		}()
