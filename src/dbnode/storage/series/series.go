@@ -564,8 +564,8 @@ func (s *dbSeries) OnRetrieveBlock(
 		// can enter the list (OnReadBlock is only called for blocks that
 		// were read from memory, regardless of whether the data originated
 		// from disk or a buffer rotation.)
-		// Also, doing this outside of the lock is safe because updating the
-		// wired list is asynchronous anyways (Update just puts the block in
+		// Doing this outside of the lock is safe because updating the
+		// wired list is asynchronous already (Update just puts the block in
 		// a channel to be processed later.)
 		list.Update(b)
 	}
