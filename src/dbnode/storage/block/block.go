@@ -196,8 +196,8 @@ func (b *dbBlock) OnRetrieveBlock(
 	defer b.Unlock()
 
 	if b.closed ||
-		!id.Equal(b.retrieveID) {
-		// !startTime.Equal(b.startWithRLock()) {
+		!id.Equal(b.retrieveID) ||
+		!startTime.Equal(b.startWithRLock()) {
 		return
 	}
 

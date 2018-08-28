@@ -73,8 +73,9 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 	shard.Unlock()
 
 	var (
-		wg     = sync.WaitGroup{}
-		doneCh = make(chan struct{})
+		wg        = sync.WaitGroup{}
+		doneCh    = make(chan struct{})
+		blockSize = 2 * time.Hour
 	)
 	go func() {
 		// Try and trigger any pooling issues
@@ -84,18 +85,20 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 				return
 			default:
 				bl := blPool.Get()
-				bl.ResetRetrievable(time.Time{}, 2*time.Hour, nil, block.RetrievableBlockMetadata{})
+				bl.ResetRetrievable(time.Time{}, blockSize, nil, block.RetrievableBlockMetadata{})
 				bl.Close()
 			}
 		}
 	}()
 
+	start := time.Now().Truncate(blockSize)
 	for i := 0; i < 1000; i++ {
 		wg.Add(1)
 		go func() {
-			blTime := time.Time{}.Add(2 * time.Hour)
+			blTime := start
+			start = start.Add(blockSize)
 			shard.OnRetrieveBlock(id, nil, blTime, ts.Segment{})
-			shard.OnEvictedFromWiredList(id, blTime)
+			// shard.OnEvictedFromWiredList(id, blTime)
 			wg.Done()
 		}()
 	}

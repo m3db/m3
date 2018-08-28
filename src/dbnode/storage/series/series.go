@@ -520,9 +520,14 @@ func (s *dbSeries) OnRetrieveBlock(
 	segment ts.Segment,
 ) {
 	s.Lock()
+	shouldUnlock := true
+	defer func() {
+		if shouldUnlock {
+			s.Unlock()
+		}
+	}()
 
 	if !id.Equal(s.id) {
-		s.Unlock()
 		return
 	}
 
@@ -551,6 +556,7 @@ func (s *dbSeries) OnRetrieveBlock(
 	s.addBlockWithLock(b)
 
 	list := s.opts.DatabaseBlockOptions().WiredList()
+	shouldUnlock = false
 	s.Unlock()
 
 	if list != nil {
