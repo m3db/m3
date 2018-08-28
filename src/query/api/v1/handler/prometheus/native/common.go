@@ -173,7 +173,7 @@ func renderResultsJSON(w io.Writer, series []*ts.Series, params models.RequestPa
 			}
 
 			jw.BeginArray()
-			jw.WriteFloat64(dp.Value)
+			jw.WriteString(valueToProm(dp.Value))
 			jw.WriteInt(int(dp.Timestamp.Unix()))
 			jw.EndArray()
 		}
@@ -189,4 +189,8 @@ func renderResultsJSON(w io.Writer, series []*ts.Series, params models.RequestPa
 
 	jw.EndArray()
 	jw.Close()
+}
+
+func valueToProm(value float64) string {
+	return strconv.FormatFloat(value, 'f', -1, 64)
 }
