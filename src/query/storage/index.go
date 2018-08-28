@@ -99,14 +99,34 @@ func FetchQueryToM3Query(fetchQuery *FetchQuery) (index.Query, error) {
 }
 
 func matcherToQuery(matcher *models.Matcher) (idx.Query, error) {
+	negate := false
 	switch matcher.Type {
+	// Support for Regexp types
+	case models.MatchNotRegexp:
+		negate = true
+		fallthrough
 	case models.MatchRegexp:
-		return idx.NewRegexpQuery([]byte(matcher.Name), []byte(matcher.Value))
+		query, err := idx.NewRegexpQuery([]byte(matcher.Name), []byte(matcher.Value))
+		if err != nil {
+			return idx.Query{}, err
+		}
+		if negate {
+			query = idx.NewNegationQuery(query)
+		}
+		return query, nil
 
+	// Support exact matches
+	case models.MatchNotEqual:
+		negate = true
+		fallthrough
 	case models.MatchEqual:
-		return idx.NewTermQuery([]byte(matcher.Name), []byte(matcher.Value)), nil
+		query := idx.NewTermQuery([]byte(matcher.Name), []byte(matcher.Value))
+		if negate {
+			query = idx.NewNegationQuery(query)
+		}
+		return query, nil
 
 	default:
-		return idx.Query{}, fmt.Errorf("unsupported query type %v", matcher)
+		return idx.Query{}, fmt.Errorf("unsupported query type: %v", matcher)
 	}
 }

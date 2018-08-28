@@ -133,7 +133,10 @@ func (w *writer) Open(start time.Time, duration time.Duration) error {
 		return err
 	}
 
-	filePath, index := fs.NextCommitLogsFile(w.filePathPrefix, start)
+	filePath, index, err := fs.NextCommitLogsFile(w.filePathPrefix, start)
+	if err != nil {
+		return err
+	}
 	logInfo := schema.LogInfo{
 		Start:    start.UnixNano(),
 		Duration: int64(duration),

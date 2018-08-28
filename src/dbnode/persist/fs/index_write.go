@@ -175,7 +175,11 @@ func (w *indexWriter) WriteSegmentFileSet(
 			err := fmt.Errorf("unknown fileset type: %s", w.fileSetType)
 			return w.markSegmentWriteError(segType, segFileType, err)
 		}
-		if FileExists(filePath) {
+		exists, err := FileExists(filePath)
+		if err != nil {
+			return err
+		}
+		if exists {
 			err := fmt.Errorf("segment file type already exists at %s", filePath)
 			return w.markSegmentWriteError(segType, segFileType, err)
 		}

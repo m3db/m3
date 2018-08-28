@@ -22,9 +22,13 @@ package storage
 
 import (
 	"errors"
+	"fmt"
+	"math"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/test/seriesiter"
 	"github.com/m3db/m3x/ident"
@@ -136,4 +140,94 @@ func TestFailingExpandSeriesValidPools(t *testing.T) {
 	result, err := SeriesIteratorsToFetchResult(mockIters, ident.StringID("strID"), objectPool)
 	require.Nil(t, result)
 	require.EqualError(t, err, "error")
+}
+
+func TestPromReadQueryToM3(t *testing.T) {
+	tests := []struct {
+		name        string
+		matchers    []*prompb.LabelMatcher
+		expected    []*models.Matcher
+		expectError bool
+	}{
+		{
+			name: "single exact match",
+			matchers: []*prompb.LabelMatcher{
+				&prompb.LabelMatcher{Type: prompb.LabelMatcher_EQ, Name: "foo", Value: "bar"},
+			},
+			expected: []*models.Matcher{
+				&models.Matcher{Type: models.MatchEqual, Name: "foo", Value: "bar"},
+			},
+		},
+		{
+			name: "single exact match negated",
+			matchers: []*prompb.LabelMatcher{
+				&prompb.LabelMatcher{Type: prompb.LabelMatcher_NEQ, Name: "foo", Value: "bar"},
+			},
+			expected: []*models.Matcher{
+				&models.Matcher{Type: models.MatchNotEqual, Name: "foo", Value: "bar"},
+			},
+		},
+		{
+			name: "single regexp match",
+			matchers: []*prompb.LabelMatcher{
+				&prompb.LabelMatcher{Type: prompb.LabelMatcher_RE, Name: "foo", Value: "bar"},
+			},
+			expected: []*models.Matcher{
+				&models.Matcher{Type: models.MatchRegexp, Name: "foo", Value: "bar"},
+			},
+		},
+		{
+			name: "single regexp match negated",
+			matchers: []*prompb.LabelMatcher{
+				&prompb.LabelMatcher{Type: prompb.LabelMatcher_NRE, Name: "foo", Value: "bar"},
+			},
+			expected: []*models.Matcher{
+				&models.Matcher{Type: models.MatchNotRegexp, Name: "foo", Value: "bar"},
+			},
+		},
+		{
+			name: "mixed exact match and regexp match",
+			matchers: []*prompb.LabelMatcher{
+				&prompb.LabelMatcher{Type: prompb.LabelMatcher_EQ, Name: "foo", Value: "bar"},
+				&prompb.LabelMatcher{Type: prompb.LabelMatcher_RE, Name: "baz", Value: "qux"},
+			},
+			expected: []*models.Matcher{
+				&models.Matcher{Type: models.MatchEqual, Name: "foo", Value: "bar"},
+				&models.Matcher{Type: models.MatchRegexp, Name: "baz", Value: "qux"},
+			},
+		},
+		{
+			name: "unrecognized matcher type",
+			matchers: []*prompb.LabelMatcher{
+				&prompb.LabelMatcher{Type: prompb.LabelMatcher_Type(math.MaxInt32), Name: "foo", Value: "bar"},
+			},
+			expectError: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			input := &prompb.Query{
+				StartTimestampMs: 123000,
+				EndTimestampMs:   456000,
+				Matchers:         test.matchers,
+			}
+			result, err := PromReadQueryToM3(input)
+			if test.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.True(t, result.Start.Equal(time.Unix(123, 0)), "start does not match")
+				assert.True(t, result.End.Equal(time.Unix(456, 0)), "end does not match")
+				require.Equal(t, len(test.expected), len(result.TagMatchers),
+					"tag matchers length not match")
+				for i, expected := range test.expected {
+					expectedStr := expected.String()
+					actualStr := result.TagMatchers[i].String()
+					assert.Equal(t, expectedStr, actualStr,
+						fmt.Sprintf("matcher does not match: idx=%d, expected=%s, actual=%s",
+							i, expectedStr, actualStr))
+				}
+			}
+		})
+	}
 }

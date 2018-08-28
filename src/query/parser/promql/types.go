@@ -27,7 +27,6 @@ import (
 	"github.com/m3db/m3/src/query/functions/aggregation"
 	"github.com/m3db/m3/src/query/functions/binary"
 	"github.com/m3db/m3/src/query/functions/linear"
-	"github.com/m3db/m3/src/query/functions/logical"
 	"github.com/m3db/m3/src/query/functions/temporal"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
@@ -108,7 +107,7 @@ func NewScalarOperator(expr *promql.NumberLiteral) parser.Params {
 func NewBinaryOperator(expr *promql.BinaryExpr, lhs, rhs parser.NodeID) (parser.Params, error) {
 	matching := promMatchingToM3(expr.VectorMatching)
 
-	nodeInformation := binary.NodeParams{
+	nodeParams := binary.NodeParams{
 		LNode:          lhs,
 		RNode:          rhs,
 		LIsScalar:      expr.LHS.Type() == promql.ValueTypeScalar,
@@ -117,33 +116,8 @@ func NewBinaryOperator(expr *promql.BinaryExpr, lhs, rhs parser.NodeID) (parser.
 		VectorMatching: matching,
 	}
 
-	op := getBinaryOpType(expr.Op)
-	switch {
-	case isLogical(op):
-		return logical.NewLogicalOp(op, lhs, rhs, matching)
-	case isArithmetic(op) || isComparison(op):
-		return binary.NewBinaryOp(op, nodeInformation)
-	default:
-		// TODO: handle other types
-		return nil, fmt.Errorf("operator not supported: %s", expr.Op)
-	}
-}
-
-func isLogical(op string) bool {
-	return op == logical.AndType || op == logical.OrType ||
-		op == logical.UnlessType
-}
-
-func isArithmetic(op string) bool {
-	return op == binary.PlusType || op == binary.MinusType ||
-		op == binary.MultiplyType || op == binary.ExpType ||
-		op == binary.DivType || op == binary.ModType
-}
-
-func isComparison(op string) bool {
-	return op == binary.EqType || op == binary.NotEqType ||
-		op == binary.GreaterType || op == binary.LesserType ||
-		op == binary.GreaterEqType || op == binary.LesserEqType
+	op := getOpType(expr.Op)
+	return binary.NewOp(op, nodeParams)
 }
 
 // NewFunctionExpr creates a new function expr based on the type
@@ -179,11 +153,11 @@ func NewFunctionExpr(name string, argValues []interface{}) (parser.Params, error
 func getBinaryOpType(opType promql.ItemType) string {
 	switch opType {
 	case promql.ItemType(itemLAND):
-		return logical.AndType
+		return binary.AndType
 	case promql.ItemType(itemLOR):
-		return logical.OrType
+		return binary.OrType
 	case promql.ItemType(itemLUnless):
-		return logical.UnlessType
+		return binary.UnlessType
 
 	case promql.ItemType(itemADD):
 		return binary.PlusType
@@ -253,27 +227,27 @@ func promTypeToM3(labelType labels.MatchType) (models.MatchType, error) {
 	}
 }
 
-func promVectorCardinalityToM3(card promql.VectorMatchCardinality) logical.VectorMatchCardinality {
+func promVectorCardinalityToM3(card promql.VectorMatchCardinality) binary.VectorMatchCardinality {
 	switch card {
 	case promql.CardOneToOne:
-		return logical.CardOneToOne
+		return binary.CardOneToOne
 	case promql.CardManyToMany:
-		return logical.CardManyToMany
+		return binary.CardManyToMany
 	case promql.CardManyToOne:
-		return logical.CardManyToOne
+		return binary.CardManyToOne
 	case promql.CardOneToMany:
-		return logical.CardOneToMany
+		return binary.CardOneToMany
 	}
 
 	panic(fmt.Sprintf("unknown prom cardinality %d", card))
 }
 
-func promMatchingToM3(vectorMatching *promql.VectorMatching) *logical.VectorMatching {
+func promMatchingToM3(vectorMatching *promql.VectorMatching) *binary.VectorMatching {
 	// vectorMatching can be nil iff at least one of the sides is a scalar
 	if vectorMatching == nil {
 		return nil
 	}
-	return &logical.VectorMatching{
+	return &binary.VectorMatching{
 		Card:           promVectorCardinalityToM3(vectorMatching.Card),
 		MatchingLabels: vectorMatching.MatchingLabels,
 		On:             vectorMatching.On,
