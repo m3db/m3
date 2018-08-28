@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/functions/utils"
 )
 
 // UnlessType uses all values from lhs which do not exist in rhs
@@ -40,8 +41,8 @@ func makeUnlessBlock(
 	// e.g. rhs: common tags {c:d}, series tags: {a:b}, {e:f}
 	// If not flattened before calculating distinct values,
 	// both series on lhs would be added
-	lSeriesMeta := FlattenMetadata(lIter.Meta(), lIter.SeriesMeta())
-	rSeriesMeta := FlattenMetadata(rIter.Meta(), rIter.SeriesMeta())
+	lSeriesMeta := utils.FlattenMetadata(lIter.Meta(), lIter.SeriesMeta())
+	rSeriesMeta := utils.FlattenMetadata(rIter.Meta(), rIter.SeriesMeta())
 	lIds := distinctLeft(matching, lSeriesMeta, rSeriesMeta)
 	stepCount := len(lIds)
 	distinctSeriesMeta := make([]block.SeriesMeta, 0, stepCount)
@@ -49,7 +50,7 @@ func makeUnlessBlock(
 		distinctSeriesMeta = append(distinctSeriesMeta, lSeriesMeta[idx])
 	}
 	meta := lIter.Meta()
-	commonTags, dedupedSeriesMetas := DedupeMetadata(distinctSeriesMeta)
+	commonTags, dedupedSeriesMetas := utils.DedupeMetadata(distinctSeriesMeta)
 	meta.Tags = commonTags
 	builder, err := controller.BlockBuilder(meta, dedupedSeriesMetas)
 	if err != nil {

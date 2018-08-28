@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/functions/utils"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
@@ -783,7 +784,7 @@ func TestBothSeries(t *testing.T) {
 
 			// Extract duped expected metas
 			expectedMeta := block.Metadata{Bounds: bounds}
-			expectedMeta.Tags, tt.expectedMetas = DedupeMetadata(tt.expectedMetas)
+			expectedMeta.Tags, tt.expectedMetas = utils.DedupeMetadata(tt.expectedMetas)
 			assert.Equal(t, expectedMeta, sink.Meta)
 			assert.Equal(t, tt.expectedMetas, sink.Metas)
 		})

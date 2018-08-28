@@ -25,7 +25,6 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
-	"github.com/m3db/m3/src/query/functions/logical"
 	"github.com/m3db/m3/src/query/functions/utils"
 	"github.com/m3db/m3/src/query/parser"
 )
@@ -109,14 +108,14 @@ func (n *baseNode) Process(ID parser.NodeID, b block.Block) error {
 
 	params := n.op.params
 	meta := stepIter.Meta()
-	seriesMetas := logical.FlattenMetadata(meta, stepIter.SeriesMeta())
+	seriesMetas := utils.FlattenMetadata(meta, stepIter.SeriesMeta())
 	buckets, metas := utils.GroupSeries(
 		params.MatchingTags,
 		params.Without,
 		n.op.opType,
 		seriesMetas,
 	)
-	meta.Tags, metas = logical.DedupeMetadata(metas)
+	meta.Tags, metas = utils.DedupeMetadata(metas)
 
 	builder, err := n.controller.BlockBuilder(meta, metas)
 	if err != nil {

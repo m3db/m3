@@ -116,7 +116,7 @@ func NewBinaryOperator(expr *promql.BinaryExpr, lhs, rhs parser.NodeID) (parser.
 		VectorMatching: matching,
 	}
 
-	op := getOpType(expr.Op)
+	op := getBinaryOpType(expr.Op)
 	return binary.NewOp(op, nodeParams)
 }
 

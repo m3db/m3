@@ -218,7 +218,7 @@ func (t Tags) IDWithKeys(includeKeys ...string) uint64 {
 
 // TagsWithKeys returns only the tags which have the given keys
 func (t Tags) TagsWithKeys(includeKeys []string) Tags {
-	includeTags := make(Tags)
+	includeTags := make(Tags, len(includeKeys))
 	for _, k := range includeKeys {
 		if v, ok := t[k]; ok {
 			includeTags[k] = v

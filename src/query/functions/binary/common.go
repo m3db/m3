@@ -134,59 +134,6 @@ func combineMetaAndSeriesMeta(
 		nil
 }
 
-// FlattenMetadata applies all shared tags from Metadata to each SeriesMeta
-func FlattenMetadata(
-	meta block.Metadata,
-	seriesMeta []block.SeriesMeta,
-) []block.SeriesMeta {
-	for k, v := range meta.Tags {
-		for _, metas := range seriesMeta {
-			metas.Tags[k] = v
-		}
-	}
-
-	return seriesMeta
-}
-
-// DedupeMetadata applies all shared tags from Metadata to each SeriesMeta
-func DedupeMetadata(
-	seriesMeta []block.SeriesMeta,
-) (models.Tags, []block.SeriesMeta) {
-	tags := make(models.Tags)
-	if len(seriesMeta) == 0 {
-		return tags, seriesMeta
-	}
-
-	// For each tag in the first series, read through list of seriesMetas;
-	// if key not found or value differs, this is not a shared tag
-	var distinct bool
-	for k, v := range seriesMeta[0].Tags {
-		distinct = false
-		for _, metas := range seriesMeta[1:] {
-			if val, ok := metas.Tags[k]; ok {
-				if val != v {
-					distinct = true
-					break
-				}
-			} else {
-				distinct = true
-				break
-			}
-		}
-
-		if !distinct {
-			// This is a shared tag; add it to shared meta and remove
-			// it from each seriesMeta
-			tags[k] = v
-			for _, metas := range seriesMeta {
-				delete(metas.Tags, k)
-			}
-		}
-	}
-
-	return tags, seriesMeta
-}
-
 func appendValuesAtIndices(idxArray []int, iter block.StepIter, builder block.Builder) error {
 	for index := 0; iter.Next(); index++ {
 		step, err := iter.Current()
