@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package logical
+package binary
 
 import (
 	"fmt"
@@ -42,16 +42,18 @@ func TestOrWithExactValues(t *testing.T) {
 	block1 := test.NewBlockFromValues(bounds, values)
 	block2 := test.NewBlockFromValues(bounds, values)
 
-	op, err := NewLogicalOp(
+	op, err := NewOp(
 		OrType,
-		parser.NodeID(0),
-		parser.NodeID(1),
-		&VectorMatching{},
+		NodeParams{
+			LNode:          parser.NodeID(0),
+			RNode:          parser.NodeID(1),
+			VectorMatching: &VectorMatching{},
+		},
 	)
 	require.NoError(t, err)
 
 	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
-	node := op.(logicalOp).Node(c, transform.Options{})
+	node := op.(baseOp).Node(c, transform.Options{})
 
 	err = node.Process(parser.NodeID(1), block2)
 	require.NoError(t, err)
@@ -71,16 +73,18 @@ func TestOrWithSomeValues(t *testing.T) {
 
 	block2 := test.NewBlockFromValues(bounds, v)
 
-	op, err := NewLogicalOp(
+	op, err := NewOp(
 		OrType,
-		parser.NodeID(0),
-		parser.NodeID(1),
-		&VectorMatching{},
+		NodeParams{
+			LNode:          parser.NodeID(0),
+			RNode:          parser.NodeID(1),
+			VectorMatching: &VectorMatching{},
+		},
 	)
 	require.NoError(t, err)
 
 	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
-	node := op.(logicalOp).Node(c, transform.Options{})
+	node := op.(baseOp).Node(c, transform.Options{})
 
 	err = node.Process(parser.NodeID(1), block2)
 	require.NoError(t, err)
@@ -207,16 +211,19 @@ func TestOrs(t *testing.T) {
 	now := time.Now()
 	for _, tt := range orTests {
 		t.Run(tt.name, func(t *testing.T) {
-			op, err := NewLogicalOp(
+
+			op, err := NewOp(
 				OrType,
-				parser.NodeID(0),
-				parser.NodeID(1),
-				&VectorMatching{},
+				NodeParams{
+					LNode:          parser.NodeID(0),
+					RNode:          parser.NodeID(1),
+					VectorMatching: &VectorMatching{},
+				},
 			)
 			require.NoError(t, err)
 
 			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
-			node := op.(logicalOp).Node(c, transform.Options{})
+			node := op.(baseOp).Node(c, transform.Options{})
 			bounds := block.Bounds{
 				Start:    now,
 				Duration: time.Minute * time.Duration(len(tt.lhs[0])),
@@ -255,17 +262,18 @@ func TestOrsBoundsError(t *testing.T) {
 		StepSize: time.Minute,
 	}
 
-
-	op, err := NewLogicalOp(
+	op, err := NewOp(
 		OrType,
-		parser.NodeID(0),
-		parser.NodeID(1),
-		&VectorMatching{},
+		NodeParams{
+			LNode:          parser.NodeID(0),
+			RNode:          parser.NodeID(1),
+			VectorMatching: &VectorMatching{},
+		},
 	)
 	require.NoError(t, err)
 
 	c, _ := executor.NewControllerWithSink(parser.NodeID(2))
-	node := op.(logicalOp).Node(c, transform.Options{})
+	node := op.(baseOp).Node(c, transform.Options{})
 
 	lhs := test.NewBlockFromValuesWithSeriesMeta(bounds, tt.lhsMeta, tt.lhs)
 	err = node.Process(parser.NodeID(0), lhs)
@@ -289,16 +297,18 @@ func createSeriesMeta() []block.SeriesMeta {
 }
 
 func TestOrCombinedMetadata(t *testing.T) {
-	op, err := NewLogicalOp(
+	op, err := NewOp(
 		OrType,
-		parser.NodeID(0),
-		parser.NodeID(1),
-		&VectorMatching{},
+		NodeParams{
+			LNode:          parser.NodeID(0),
+			RNode:          parser.NodeID(1),
+			VectorMatching: &VectorMatching{},
+		},
 	)
 	require.NoError(t, err)
 
 	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
-	node := op.(logicalOp).Node(c, transform.Options{})
+	node := op.(baseOp).Node(c, transform.Options{})
 
 	bounds := block.Bounds{
 		Start:    time.Now(),

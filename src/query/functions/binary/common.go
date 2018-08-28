@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package logical
+package binary
 
 import (
 	"errors"
@@ -70,8 +70,12 @@ func HashFunc(on bool, names ...string) func(models.Tags) uint64 {
 const initIndexSliceLength = 10
 
 var (
-	errMismatchedBounds     = errors.New("block bounds are mismatched")
-	errMismatchedStepCounts = errors.New("block step counts are mismatched")
+	errMismatchedBounds        = errors.New("block bounds are mismatched")
+	errMismatchedStepCounts    = errors.New("block step counts are mismatched")
+	errLeftScalar              = errors.New("expected left scalar but node type incorrect")
+	errRightScalar             = errors.New("expected right scalar but node type incorrect")
+	errNoModifierForComparison = errors.New("comparisons between scalars must use BOOL modifier")
+	errNoMatching              = errors.New("vector matching parameters must be provided for binary operations between series")
 )
 
 func combineMetaAndSeriesMeta(

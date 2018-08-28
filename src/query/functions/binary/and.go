@@ -18,12 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package logical
+package binary
 
 import (
 	"math"
 
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/executor/transform"
 )
 
 // AndType uses values from left hand side for which there is a value in right hand side with exactly matching label sets.
@@ -31,12 +32,13 @@ import (
 const AndType = "and"
 
 func makeAndBlock(
-	node *logicalNode,
 	lIter, rIter block.StepIter,
+	controller *transform.Controller,
+	matching *VectorMatching,
 ) (block.Block, error) {
 	lMeta, rSeriesMeta := lIter.Meta(), rIter.SeriesMeta()
 
-	builder, err := node.controller.BlockBuilder(lMeta, rSeriesMeta)
+	builder, err := controller.BlockBuilder(lMeta, rSeriesMeta)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +47,7 @@ func makeAndBlock(
 		return nil, err
 	}
 
-	intersection := intersect(node.op.Matching, lIter.SeriesMeta(), rIter.SeriesMeta())
+	intersection := andIntersect(matching, lIter.SeriesMeta(), rIter.SeriesMeta())
 	for index := 0; lIter.Next() && rIter.Next(); index++ {
 		lStep, err := lIter.Current()
 		if err != nil {
@@ -76,7 +78,7 @@ func makeAndBlock(
 
 // intersect returns the slice of rhs indices if there is a match with
 // a corresponding lhs index. If no match is found, it returns -1
-func intersect(
+func andIntersect(
 	matching *VectorMatching,
 	lhs, rhs []block.SeriesMeta,
 ) []int {
