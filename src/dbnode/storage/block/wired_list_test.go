@@ -166,51 +166,6 @@ func TestWiredListRemovesUnwiredBlocks(t *testing.T) {
 	require.Equal(t, &l.root, l.root.prev())
 }
 
-func TestDeadlock(t *testing.T) {
-	wiredListEventsChannelLength = 1
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	l, _ := newTestWiredList(runtime.NewOptions().SetMaxWiredBlocks(1), nil)
-
-	opts := testOptions.SetWiredList(l)
-
-	// l.Start()
-	bl := newTestUnwireableBlock(ctrl, fmt.Sprintf("foo.%d", 0), opts)
-
-	l.Start()
-	l.Update(bl)
-	l.Update(bl)
-	l.Stop()
-
-	// Order due to LRU should be: 1, 0
-	require.Equal(t, bl, l.root.next())
-	// require.Equal(t, blocks[0], l.root.next().next())
-
-	// Unwire block and assert removed
-	// blocks[1].closed = true
-
-	// l.Start()
-	// l.Update(blocks[1])
-	// l.Stop()
-
-	// require.Equal(t, 1, l.length)
-	// require.Equal(t, blocks[0], l.root.next())
-	// require.Equal(t, &l.root, l.root.next().next())
-
-	// // Unwire final block and assert removed
-	// blocks[0].closed = true
-
-	// l.Start()
-	// l.Update(blocks[0])
-	// l.Stop()
-
-	// require.Equal(t, 0, l.length)
-	// require.Equal(t, &l.root, l.root.next())
-	// require.Equal(t, &l.root, l.root.prev())
-}
-
 // wiredListTestWiredBlocksString is used to debug the order of the wired list
 func wiredListTestWiredBlocksString(l *WiredList) string { // nolint: unused
 	b := bytes.NewBuffer(nil)
