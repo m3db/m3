@@ -218,8 +218,8 @@ type databaseBlock interface {
 	setNext(block DatabaseBlock)
 	prev() DatabaseBlock
 	setPrev(block DatabaseBlock)
-	nextPrevUpdatedAtUnixNano() int64
-	setNextPrevUpdatedAtUnixNano(value int64)
+	enteredListAtUnixNano() int64
+	setEnteredListAtUnixNano(value int64)
 	wiredListEntry() wiredListEntry
 }
 

@@ -242,7 +242,6 @@ func (l *WiredList) insertAfter(v, at DatabaseBlock) {
 	at.setNext(v)
 	v.setPrev(at)
 	v.setNext(n)
-	v.setNextPrevUpdatedAtUnixNano(now.UnixNano())
 	n.setPrev(v)
 	l.length++
 
@@ -292,8 +291,8 @@ func (l *WiredList) insertAfter(v, at DatabaseBlock) {
 
 		l.metrics.evicted.Inc(1)
 
-		lastUpdatedAt := time.Unix(0, bl.nextPrevUpdatedAtUnixNano())
-		l.metrics.evictedAfterDuration.Record(now.Sub(lastUpdatedAt))
+		enteredListAt := time.Unix(0, bl.enteredListAtUnixNano())
+		l.metrics.evictedAfterDuration.Record(now.Sub(enteredListAt))
 
 		bl = nextBl
 	}
@@ -320,6 +319,7 @@ func (l *WiredList) pushBack(v DatabaseBlock) {
 
 	l.metrics.inserted.Inc(1)
 	l.insertAfter(v, l.root.prev())
+	v.setEnteredListAtUnixNano(l.nowFn().UnixNano())
 }
 
 func (l *WiredList) moveToBack(v DatabaseBlock) {

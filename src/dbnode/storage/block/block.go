@@ -73,9 +73,9 @@ type dbBlock struct {
 }
 
 type listState struct {
-	next                      DatabaseBlock
-	prev                      DatabaseBlock
-	nextPrevUpdatedAtUnixNano int64
+	next                  DatabaseBlock
+	prev                  DatabaseBlock
+	enteredListAtUnixNano int64
 }
 
 // NewDatabaseBlock creates a new DatabaseBlock instance.
@@ -488,13 +488,13 @@ func (b *dbBlock) setPrev(value DatabaseBlock) {
 }
 
 // Should only be used by the WiredList.
-func (b *dbBlock) nextPrevUpdatedAtUnixNano() int64 {
-	return b.listState.nextPrevUpdatedAtUnixNano
+func (b *dbBlock) enteredListAtUnixNano() int64 {
+	return b.listState.enteredListAtUnixNano
 }
 
 // Should only be used by the WiredList.
-func (b *dbBlock) setNextPrevUpdatedAtUnixNano(value int64) {
-	b.listState.nextPrevUpdatedAtUnixNano = value
+func (b *dbBlock) setEnteredListAtUnixNano(value int64) {
+	b.listState.enteredListAtUnixNano = value
 }
 
 // wiredListEntry is a snapshot of a subset of the block's state that the WiredList
