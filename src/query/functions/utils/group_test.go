@@ -40,195 +40,195 @@ var collectTest = []struct {
 	{
 		"noMatching",
 		[]string{},
-		[]models.Tags{
+		models.MultiTagsFromMaps([]map[string]string{
 			{"a": "1"},
 			{"a": "1", "b": "2", "c": "4"},
 			{"b": "2"},
 			{"a": "1", "b": "2", "c": "3"},
 			{"a": "1", "b": "2", "d": "3"},
 			{"c": "d"},
-		},
+		}),
 		[][]int{{0, 1, 2, 3, 4, 5}},
 		[]models.Tags{{}},
 		[][]int{{0}, {1}, {2}, {3}, {4}, {5}},
-		[]models.Tags{
+		models.MultiTagsFromMaps([]map[string]string{
 			{"a": "1"},
 			{"a": "1", "b": "2", "c": "4"},
 			{"b": "2"},
 			{"a": "1", "b": "2", "c": "3"},
 			{"a": "1", "b": "2", "d": "3"},
 			{"c": "d"},
-		},
+		}),
 	},
 	{
 		"no equal Matching",
 		[]string{"f", "g", "h"},
-		[]models.Tags{
+		models.MultiTagsFromMaps([]map[string]string{
 			{"a": "1"},
 			{"a": "1", "b": "2", "c": "4"},
 			{"b": "2"},
 			{"a": "1", "b": "2", "c": "3"},
 			{"a": "1", "b": "2", "d": "3"},
 			{"c": "d"},
-		},
+		}),
 		[][]int{{0, 1, 2, 3, 4, 5}},
-		[]models.Tags{{}},
+		models.MultiTagsFromMaps([]map[string]string{{}}),
 		[][]int{{0}, {1}, {2}, {3}, {4}, {5}},
-		[]models.Tags{
+		models.MultiTagsFromMaps([]map[string]string{
 			{"a": "1"},
 			{"a": "1", "b": "2", "c": "4"},
 			{"b": "2"},
 			{"a": "1", "b": "2", "c": "3"},
 			{"a": "1", "b": "2", "d": "3"},
 			{"c": "d"},
-		},
+		}),
 	},
 	{
 		"oneMatching",
 		[]string{"a"},
-		[]models.Tags{
+		models.MultiTagsFromMaps([]map[string]string{
 			{"a": "1"},
 			{"a": "1", "b": "2", "c": "4"},
 			{"b": "2"},
 			{"a": "1", "b": "2", "c": "3"},
 			{"a": "1", "b": "2", "d": "3"},
 			{"c": "d"},
-		},
+		}),
 		[][]int{{0, 1, 3, 4}, {2, 5}},
-		[]models.Tags{
+		models.MultiTagsFromMaps([]map[string]string{
 			{"a": "1"},
 			{},
-		},
+		}),
 		[][]int{{0}, {1}, {2}, {3}, {4}, {5}},
-		[]models.Tags{
+		models.MultiTagsFromMaps([]map[string]string{
 			{},
 			{"b": "2", "c": "4"},
 			{"b": "2"},
 			{"b": "2", "c": "3"},
 			{"b": "2", "d": "3"},
 			{"c": "d"},
-		},
+		}),
 	},
 	{
 		"same tag matching",
 		[]string{"a", "a"},
-		[]models.Tags{
+		models.MultiTagsFromMaps([]map[string]string{
 			{"a": "1"},
 			{"a": "1", "b": "2", "c": "4"},
 			{"b": "2"},
 			{"a": "1", "b": "2", "c": "3"},
 			{"a": "1", "b": "2", "d": "3"},
 			{"c": "d"},
-		},
+		}),
 		[][]int{{0, 1, 3, 4}, {2, 5}},
-		[]models.Tags{
+		models.MultiTagsFromMaps([]map[string]string{
 			{"a": "1"},
 			{},
-		},
+		}),
 		[][]int{{0}, {1}, {2}, {3}, {4}, {5}},
-		[]models.Tags{
+		models.MultiTagsFromMaps([]map[string]string{
 			{},
 			{"b": "2", "c": "4"},
 			{"b": "2"},
 			{"b": "2", "c": "3"},
 			{"b": "2", "d": "3"},
 			{"c": "d"},
-		},
+		}),
 	},
 	{
 		"diffMatching",
 		[]string{"a"},
-		[]models.Tags{
+		models.MultiTagsFromMaps([]map[string]string{
 			{"a": "1"},
 			{"a": "2", "b": "2", "c": "4"},
 			{"a": "2"},
 			{"a": "1", "b": "2", "c": "3"},
 			{"a": "1", "b": "2", "d": "3"},
 			{"a": "d"},
-		},
+		}),
 		[][]int{{0, 3, 4}, {1, 2}, {5}},
-		[]models.Tags{
+		models.MultiTagsFromMaps([]map[string]string{
 			{"a": "1"},
 			{"a": "2"},
 			{"a": "d"},
-		},
+		}),
 		[][]int{{0, 2, 5}, {1}, {3}, {4}},
-		[]models.Tags{
+		models.MultiTagsFromMaps([]map[string]string{
 			{},
 			{"b": "2", "c": "4"},
 			{"b": "2", "c": "3"},
 			{"b": "2", "d": "3"},
-		},
+		}),
 	},
 	{
 		"someMatching",
 		[]string{"a", "b"},
-		[]models.Tags{
+		models.MultiTagsFromMaps([]map[string]string{
 			{"a": "1"},
 			{"a": "1", "b": "2", "c": "4"},
 			{"b": "2"},
 			{"a": "1", "b": "2", "c": "3"},
 			{"a": "1", "b": "2", "d": "3"},
 			{"c": "3"},
-		},
+		}),
 		[][]int{{0}, {1, 3, 4}, {2}, {5}},
-		[]models.Tags{
+		models.MultiTagsFromMaps([]map[string]string{
 			{"a": "1"},
 			{"a": "1", "b": "2"},
 			{"b": "2"},
 			{},
-		},
+		}),
 		[][]int{{0, 2}, {1}, {3, 5}, {4}},
-		[]models.Tags{
+		models.MultiTagsFromMaps([]map[string]string{
 			{},
 			{"c": "4"},
 			{"c": "3"},
 			{"d": "3"},
-		},
+		}),
 	},
 	{
 		"functionMatching",
 		[]string{"a"},
-		[]models.Tags{
+		models.MultiTagsFromMaps([]map[string]string{
 			{"a": "1"},
 			{"a": "1"},
 			{"a": "1", "b": "2"},
 			{"a": "2", "b": "2"},
 			{"b": "2"},
 			{"c": "3"},
-		},
+		}),
 		[][]int{{0, 1, 2}, {3}, {4, 5}},
-		[]models.Tags{
+		models.MultiTagsFromMaps([]map[string]string{
 			{"a": "1"},
 			{"a": "2"},
 			{},
-		},
+		}),
 		[][]int{{0, 1}, {2, 3, 4}, {5}},
-		[]models.Tags{
+		models.MultiTagsFromMaps([]map[string]string{
 			{},
 			{"b": "2"},
 			{"c": "3"},
-		},
+		}),
 	},
 	{
 		"different matching",
 		[]string{"a", "b"},
-		[]models.Tags{
+		models.MultiTagsFromMaps([]map[string]string{
 			{"a": "1", "c": "3", "d": "4"},
 			{"b": "1", "c": "3", "d": "5"},
 			{"b": "1", "c": "3", "d": "6"},
-		},
+		}),
 		[][]int{{0}, {1, 2}},
-		[]models.Tags{
+		models.MultiTagsFromMaps([]map[string]string{
 			{"a": "1"},
 			{"b": "1"},
-		},
+		}),
 		[][]int{{0}, {1}, {2}},
-		[]models.Tags{
+		models.MultiTagsFromMaps([]map[string]string{
 			{"c": "3", "d": "4"},
 			{"c": "3", "d": "5"},
 			{"c": "3", "d": "6"},
-		},
+		}),
 	},
 }
 

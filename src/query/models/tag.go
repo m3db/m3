@@ -266,6 +266,16 @@ func FromMap(m map[string]string) Tags {
 	return New(l)
 }
 
+// MultiTagsFromMaps returns a slice of tags from a slice of maps
+func MultiTagsFromMaps(tagMaps []map[string]string) []Tags {
+	tags := make([]Tags, len(tagMaps))
+	for i, m := range tagMaps {
+		tags[i] = FromMap(m)
+	}
+
+	return tags
+}
+
 // TagMap returns a tag map of the tags.
 func (t Tags) TagMap() map[string]Tag {
 	m := make(map[string]Tag, len(t))

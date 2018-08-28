@@ -141,59 +141,6 @@ func combineMetaAndSeriesMeta(
 		nil
 }
 
-// FlattenMetadata applies all shared tags from Metadata to each SeriesMeta
-func FlattenMetadata(
-	meta block.Metadata,
-	seriesMeta []block.SeriesMeta,
-) []block.SeriesMeta {
-	for i, metas := range seriesMeta {
-		seriesMeta[i].Tags = metas.Tags.Add(meta.Tags)
-	}
-
-	return seriesMeta
-}
-
-// DedupeMetadata applies all shared tags from Metadata to each SeriesMeta
-func DedupeMetadata(
-	seriesMeta []block.SeriesMeta,
-) (models.Tags, []block.SeriesMeta) {
-	if len(seriesMeta) == 0 {
-		return make(models.Tags, 0), seriesMeta
-	}
-
-	commonKeys := make([]string, 0, len(seriesMeta[0].Tags))
-	commonTags := make(map[string]string, len(seriesMeta[0].Tags))
-	// For each tag in the first series, read through list of seriesMetas;
-	// if key not found or value differs, this is not a shared tag
-	var distinct bool
-	for _, t := range seriesMeta[0].Tags {
-		distinct = false
-		for _, metas := range seriesMeta[1:] {
-			if val, ok := metas.Tags.Get(t.Name); ok {
-				if val != t.Value {
-					distinct = true
-					break
-				}
-			} else {
-				distinct = true
-				break
-			}
-		}
-
-		if !distinct {
-			// This is a shared tag; add it to shared meta
-			commonKeys = append(commonKeys, t.Name)
-			commonTags[t.Name] = t.Value
-		}
-	}
-
-	for i, meta := range seriesMeta {
-		seriesMeta[i].Tags = meta.Tags.WithoutKeys(commonKeys)
-	}
-
-	return models.FromMap(commonTags), seriesMeta
-}
-
 func appendValuesAtIndices(idxArray []int, iter block.StepIter, builder block.Builder) error {
 	for index := 0; iter.Next(); index++ {
 		step, err := iter.Current()

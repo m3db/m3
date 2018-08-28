@@ -38,12 +38,12 @@ import (
 
 var (
 	seriesMetas = []block.SeriesMeta{
-		{Tags: models.Tags{"a": "1", "d": "4"}},
-		{Tags: models.Tags{"a": "1", "d": "4"}},
-		{Tags: models.Tags{"a": "1", "b": "2", "d": "4"}},
-		{Tags: models.Tags{"a": "2", "b": "2", "d": "4"}},
-		{Tags: models.Tags{"b": "2", "d": "4"}},
-		{Tags: models.Tags{"c": "3", "d": "4"}},
+		{Tags: models.FromMap(map[string]string{"a": "1", "d": "4"})},
+		{Tags: models.FromMap(map[string]string{"a": "1", "d": "4"})},
+		{Tags: models.FromMap(map[string]string{"a": "1", "b": "2", "d": "4"})},
+		{Tags: models.FromMap(map[string]string{"a": "2", "b": "2", "d": "4"})},
+		{Tags: models.FromMap(map[string]string{"b": "2", "d": "4"})},
+		{Tags: models.FromMap(map[string]string{"c": "3", "d": "4"})},
 	}
 	v = [][]float64{
 		{0, math.NaN(), 2, 3, 4},
@@ -87,11 +87,11 @@ func TestFunctionFilteringWithA(t *testing.T) {
 	}
 
 	expectedMetas := []block.SeriesMeta{
-		{Name: StandardDeviationType, Tags: models.Tags{"a": "1"}},
-		{Name: StandardDeviationType, Tags: models.Tags{"a": "2"}},
-		{Name: StandardDeviationType, Tags: models.Tags{}},
+		{Name: StandardDeviationType, Tags: models.FromMap(map[string]string{"a": "1"})},
+		{Name: StandardDeviationType, Tags: models.FromMap(map[string]string{"a": "2"})},
+		{Name: StandardDeviationType, Tags: models.FromMap(map[string]string{})},
 	}
-	expectedMetaTags := models.Tags{}
+	expectedMetaTags := models.FromMap(map[string]string{})
 
 	test.CompareValues(t, sink.Metas, expectedMetas, sink.Values, expected)
 	assert.Equal(t, bounds, sink.Meta.Bounds)
@@ -114,11 +114,11 @@ func TestFunctionFilteringWithoutA(t *testing.T) {
 	}
 
 	expectedMetas := []block.SeriesMeta{
-		{Name: StandardDeviationType, Tags: models.Tags{}},
-		{Name: StandardDeviationType, Tags: models.Tags{"b": "2"}},
-		{Name: StandardDeviationType, Tags: models.Tags{"c": "3"}},
+		{Name: StandardDeviationType, Tags: models.FromMap(map[string]string{})},
+		{Name: StandardDeviationType, Tags: models.FromMap(map[string]string{"b": "2"})},
+		{Name: StandardDeviationType, Tags: models.FromMap(map[string]string{"c": "3"})},
 	}
-	expectedMetaTags := models.Tags{"d": "4"}
+	expectedMetaTags := models.FromMap(map[string]string{"d": "4"})
 
 	test.CompareValues(t, sink.Metas, expectedMetas, sink.Values, expected)
 	assert.Equal(t, bounds, sink.Meta.Bounds)
@@ -137,9 +137,9 @@ func TestFunctionFilteringWithD(t *testing.T) {
 	}
 
 	expectedMetas := []block.SeriesMeta{
-		{Name: StandardDeviationType, Tags: models.Tags{}},
+		{Name: StandardDeviationType, Tags: models.FromMap(map[string]string{})},
 	}
-	expectedMetaTags := models.Tags{"d": "4"}
+	expectedMetaTags := models.FromMap(map[string]string{"d": "4"})
 
 	test.CompareValues(t, sink.Metas, expectedMetas, sink.Values, expected)
 	assert.Equal(t, bounds, sink.Meta.Bounds)
@@ -167,11 +167,11 @@ func TestFunctionFilteringWithoutD(t *testing.T) {
 	}
 
 	expectedMetas := []block.SeriesMeta{
-		{Name: StandardDeviationType, Tags: models.Tags{"a": "1"}},
-		{Name: StandardDeviationType, Tags: models.Tags{"a": "1", "b": "2"}},
-		{Name: StandardDeviationType, Tags: models.Tags{"a": "2", "b": "2"}},
-		{Name: StandardDeviationType, Tags: models.Tags{"b": "2"}},
-		{Name: StandardDeviationType, Tags: models.Tags{"c": "3"}},
+		{Name: StandardDeviationType, Tags: models.FromMap(map[string]string{"a": "1"})},
+		{Name: StandardDeviationType, Tags: models.FromMap(map[string]string{"a": "1", "b": "2"})},
+		{Name: StandardDeviationType, Tags: models.FromMap(map[string]string{"a": "2", "b": "2"})},
+		{Name: StandardDeviationType, Tags: models.FromMap(map[string]string{"b": "2"})},
+		{Name: StandardDeviationType, Tags: models.FromMap(map[string]string{"c": "3"})},
 	}
 	expectedMetaTags := models.Tags{}
 
