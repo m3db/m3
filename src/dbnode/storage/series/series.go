@@ -560,14 +560,20 @@ func (s *dbSeries) OnRetrieveBlock(
 	s.Unlock()
 
 	if list != nil {
-		// Need to update the WiredList so blocks that were read from disk
+		// 1) We need to update the WiredList so that blocks that were read from disk
 		// can enter the list (OnReadBlock is only called for blocks that
 		// were read from memory, regardless of whether the data originated
 		// from disk or a buffer rotation.)
-		// Doing this outside of the lock is safe because updating the
+		// 2) We must perform this action outside of the lock to prevent deadlock
+		// with the WiredList itself when it tries to call OnEvictedFromWiredList
+		// on the same series that is trying to perform a blocking update.
+		// 3) Doing this outside of the lock is safe because updating the
 		// wired list is asynchronous already (Update just puts the block in
 		// a channel to be processed later.)
-		list.Update(b)
+		// 4) We have to perform a blocking update because in this flow, the block
+		// is not already in the wired list so we need to make sure that the WiredList
+		// takes control of its lifecycle.
+		list.BlockingUpdate(b)
 	}
 }
 
@@ -578,9 +584,16 @@ func (s *dbSeries) OnReadBlock(b block.DatabaseBlock) {
 		// The WiredList is only responsible for managing the lifecycle of blocks
 		// retrieved from disk.
 		if b.WasRetrievedFromDisk() {
-			// Need to update the WiredList so it knows which blocks have been
+			// 1) Need to update the WiredList so it knows which blocks have been
 			// most recently read.
-			list.Update(b)
+			// 2) We do a non-blocking update here to prevent deadlock with the
+			// WiredList calling OnEvictedFromWiredList on the same series since
+			// OnReadBlock is usually called within the context of a read lock
+			// on this series.
+			// 3) Its safe to do a non-blocking update because the wired list has
+			// already been exposed to this block, so even if the wired list drops
+			// this update, it will still manage this blocks lifecycle.
+			list.NonBlockingUpdate(b)
 		}
 	}
 }

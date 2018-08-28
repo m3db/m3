@@ -198,13 +198,25 @@ func (l *WiredList) Stop() error {
 	return nil
 }
 
-// Update places the block into the channel of blocks which are waiting to notify the
+// BlockingUpdate places the block into the channel of blocks which are waiting to notify the
 // wired list that they were accessed. All updates must be processed through this channel
 // to force synchronization.
 //
 // We use a channel and a background processing goroutine to reduce blocking / lock contention.
-func (l *WiredList) Update(v DatabaseBlock) {
+func (l *WiredList) BlockingUpdate(v DatabaseBlock) {
 	l.updatesCh <- v
+}
+
+// NonBlockingUpdate will attempt to put the block in the events channel, but will not block
+// if the channel is full. Used in cases where a blocking update could trigger deadlock with
+// the WiredList itself.
+func (l *WiredList) NonBlockingUpdate(v DatabaseBlock) bool {
+	select {
+	case l.updatesCh <- v:
+		return true
+	default:
+		return false
+	}
 }
 
 // processUpdateBlock inspects a block that has been modified or read recently

@@ -98,10 +98,10 @@ func TestWiredListInsertsAndUpdatesWiredBlocks(t *testing.T) {
 		blocks = append(blocks, bl)
 	}
 
-	l.Update(blocks[0])
-	l.Update(blocks[1])
-	l.Update(blocks[2])
-	l.Update(blocks[1])
+	l.BlockingUpdate(blocks[0])
+	l.BlockingUpdate(blocks[1])
+	l.BlockingUpdate(blocks[2])
+	l.BlockingUpdate(blocks[1])
 
 	l.Stop()
 
@@ -133,9 +133,9 @@ func TestWiredListRemovesUnwiredBlocks(t *testing.T) {
 		blocks = append(blocks, bl)
 	}
 
-	l.Update(blocks[0])
-	l.Update(blocks[1])
-	l.Update(blocks[0])
+	l.BlockingUpdate(blocks[0])
+	l.BlockingUpdate(blocks[1])
+	l.BlockingUpdate(blocks[0])
 
 	l.Stop()
 
@@ -147,7 +147,7 @@ func TestWiredListRemovesUnwiredBlocks(t *testing.T) {
 	blocks[1].closed = true
 
 	l.Start()
-	l.Update(blocks[1])
+	l.BlockingUpdate(blocks[1])
 	l.Stop()
 
 	require.Equal(t, 1, l.length)
@@ -158,7 +158,7 @@ func TestWiredListRemovesUnwiredBlocks(t *testing.T) {
 	blocks[0].closed = true
 
 	l.Start()
-	l.Update(blocks[0])
+	l.BlockingUpdate(blocks[0])
 	l.Stop()
 
 	require.Equal(t, 0, l.length)

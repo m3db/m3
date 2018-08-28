@@ -11,9 +11,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
+	"github.com/stretchr/testify/require"
 )
 
 // TestSeriesWiredListConcurrentInteractions was added as a regression test
@@ -108,6 +110,9 @@ func TestSeriesWiredListConcurrentInteractions(t *testing.T) {
 		go func() {
 			blTime := getAndIncStart()
 			shard.OnRetrieveBlock(id, nil, blTime, ts.Segment{})
+			// Simulate concurrent reads
+			_, err := shard.ReadEncoded(context.NewContext(), id, blTime, blTime.Add(blockSize))
+			require.NoError(t, err)
 			wg.Done()
 		}()
 	}
