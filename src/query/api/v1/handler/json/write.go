@@ -27,6 +27,7 @@ import (
 	"net/http"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util"
@@ -90,7 +91,7 @@ func newStorageWriteQuery(req *WriteQuery) (*storage.WriteQuery, error) {
 	}
 
 	return &storage.WriteQuery{
-		Tags: req.Tags,
+		Tags: models.FromMap(req.Tags),
 		Datapoints: ts.Datapoints{
 			{
 				Timestamp: parsedTime,

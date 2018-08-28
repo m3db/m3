@@ -116,7 +116,7 @@ func (w *downsamplerFlushHandlerWriter) Write(
 		}
 
 		// Add extra tag since we may need to add an aggregation suffix tag
-		tags := make(models.Tags, expected+1)
+		tags := make(map[string]string, expected+1)
 		for iter.Next() {
 			name, value := iter.Current()
 			tags[string(name)] = string(value)
@@ -134,7 +134,7 @@ func (w *downsamplerFlushHandlerWriter) Write(
 		}
 
 		err = w.handler.storage.Write(w.ctx, &storage.WriteQuery{
-			Tags: tags,
+			Tags: models.FromMap(tags),
 			Datapoints: ts.Datapoints{ts.Datapoint{
 				Timestamp: time.Unix(0, mp.TimeNanos),
 				Value:     mp.Value,

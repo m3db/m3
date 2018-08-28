@@ -47,7 +47,7 @@ func FromM3IdentToMetric(identNamespace, identID ident.ID, iterTags ident.TagIte
 
 // FromIdentTagIteratorToTags converts ident tags to coordinator tags
 func FromIdentTagIteratorToTags(identTags ident.TagIterator) (models.Tags, error) {
-	tags := make(models.Tags, identTags.Remaining())
+	tags := make(map[string]string, identTags.Remaining())
 
 	for identTags.Next() {
 		identTag := identTags.Current()
@@ -59,15 +59,15 @@ func FromIdentTagIteratorToTags(identTags ident.TagIterator) (models.Tags, error
 		return nil, err
 	}
 
-	return tags, nil
+	return models.FromMap(tags), nil
 }
 
 // TagsToIdentTagIterator converts coordinator tags to ident tags
 func TagsToIdentTagIterator(tags models.Tags) ident.TagIterator {
 	identTags := make([]ident.Tag, 0, len(tags))
 
-	for key, val := range tags {
-		identTags = append(identTags, ident.StringTag(key, val))
+	for _, t := range tags {
+		identTags = append(identTags, ident.StringTag(t.Name, t.Value))
 	}
 
 	return ident.NewTagsIterator(ident.NewTags(identTags...))

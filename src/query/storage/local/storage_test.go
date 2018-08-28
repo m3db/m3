@@ -116,7 +116,7 @@ func newWriteQuery() *storage.WriteQuery {
 			Value:     2.0,
 		}}
 	return &storage.WriteQuery{
-		Tags:       tags,
+		Tags:       models.FromMap(tags),
 		Unit:       xtime.Millisecond,
 		Datapoints: datapoints,
 	}
@@ -214,13 +214,13 @@ func TestLocalRead(t *testing.T) {
 	searchReq := newFetchReq()
 	results, err := store.Fetch(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
 	assert.NoError(t, err)
-	tags := make(models.Tags, 1)
+	tags := make(map[string]string, 1)
 	tags[testTags.Name.String()] = testTags.Value.String()
 	require.NotNil(t, results)
 	require.NotNil(t, results.SeriesList)
 	require.Len(t, results.SeriesList, 1)
 	require.NotNil(t, results.SeriesList[0])
-	assert.Equal(t, tags, results.SeriesList[0].Tags)
+	assert.Equal(t, models.FromMap(tags), results.SeriesList[0].Tags)
 }
 
 func TestLocalReadNoClustersForTimeRangeError(t *testing.T) {
@@ -328,8 +328,8 @@ func TestLocalSearchSuccess(t *testing.T) {
 
 		assert.Equal(t, expected.id, actual.ID)
 		assert.Equal(t, expected.namespace, actual.Namespace)
-		assert.Equal(t, models.Tags{
-			expected.tagName: expected.tagValue,
-		}, actual.Tags)
+		assert.Equal(t, models.Tags{{
+			expected.tagName, expected.tagValue,
+		}}, actual.Tags)
 	}
 }

@@ -34,7 +34,7 @@ import (
 var (
 	testID   = ident.StringID("test_id")
 	testNS   = ident.StringID("test_namespace")
-	testTags = models.Tags{"t1": "v1", "t2": "v2"}
+	testTags = models.Tags{{"t1", "v1"}, {"t2", "v2"}}
 	now      = time.Now()
 )
 
@@ -42,11 +42,11 @@ func TestTagsToIdentTagIterator(t *testing.T) {
 	tagIter := TagsToIdentTagIterator(testTags)
 	defer tagIter.Close()
 
-	tags := make(models.Tags, len(testTags))
+	tags := make(map[string]string, len(testTags))
 	for tagIter.Next() {
 		tags[tagIter.Current().Name.String()] = tagIter.Current().Value.String()
 	}
-	assert.Equal(t, testTags, tags)
+	assert.Equal(t, testTags, models.FromMap(tags))
 }
 
 func TestFromM3IdentToMetric(t *testing.T) {

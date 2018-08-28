@@ -106,12 +106,9 @@ func TestMatchType(t *testing.T) {
 }
 
 func createTags(withName bool) Tags {
-	tags := make(Tags)
-	tags["t1"] = "v1"
-	tags["t2"] = "v2"
-
+	tags := Tags{{"t1", "v1"}, {"t2", "v2"}}
 	if withName {
-		tags[MetricName] = "v0"
+		tags = append(tags, Tag{Name: MetricName, Value: "v0"})
 	}
 	return tags
 }

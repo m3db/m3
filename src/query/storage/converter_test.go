@@ -50,13 +50,13 @@ func verifyExpandSeries(t *testing.T, ctrl *gomock.Controller, num int, pools po
 	require.NotNil(t, results)
 	require.NotNil(t, results.SeriesList)
 	require.Len(t, results.SeriesList, num)
-	expectedTags := make(models.Tags, 1)
+	expectedTags := make(map[string]string, 1)
 	expectedTags[testTags.Name.String()] = testTags.Value.String()
 
 	for i := 0; i < num; i++ {
 		series := results.SeriesList[i]
 		require.NotNil(t, series)
-		require.Equal(t, expectedTags, series.Tags)
+		require.Equal(t, models.FromMap(expectedTags), series.Tags)
 	}
 }
 

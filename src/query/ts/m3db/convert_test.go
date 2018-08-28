@@ -92,6 +92,8 @@ func TestConversion(t *testing.T) {
 func checkTags(t *testing.T, tags ident.TagIterator) {
 	convertedTags, err := storage.FromIdentTagIteratorToTags(tags)
 	require.NoError(t, err)
-	assert.Equal(t, testTags["foo"], convertedTags["foo"])
-	assert.Equal(t, testTags["baz"], convertedTags["baz"])
+	converted, _ := convertedTags.Get("foo")
+	assert.Equal(t, testTags["foo"], converted)
+	converted, _ = convertedTags.Get("baz")
+	assert.Equal(t, testTags["baz"], converted)
 }

@@ -90,48 +90,108 @@ func combineMetaAndSeriesMeta(
 	}
 
 	// NB (arnikola): mutating tags in `meta` to avoid allocations
-	commonTags := meta.Tags
-	otherTags := otherMeta.Tags
-	for k, v := range commonTags {
-		if otherVal, ok := otherTags[k]; ok {
-			if v != otherVal {
+	leftTags := meta.Tags
+	otherTags := otherMeta.Tags.TagMap()
+
+	metaTagsToAdd := make(models.Tags, 0)
+	otherMetaTagsToAdd := make(models.Tags, 0)
+	tags := make(models.Tags, 0)
+
+	for _, t := range leftTags {
+		if otherTag, ok := otherTags[t.Name]; ok {
+			if t.Value != otherTag.Value {
 				// If both metas have the same common tag  with different
 				// values, remove it from common tag list and explicitly
 				// add it to each seriesMeta.
-				delete(commonTags, k)
-				for _, metas := range seriesMeta {
-					metas.Tags[k] = v
-				}
-				for _, otherMetas := range otherSeriesMeta {
-					otherMetas.Tags[k] = otherVal
-				}
+				metaTagsToAdd = append(metaTagsToAdd, t)
+				otherMetaTagsToAdd = append(otherMetaTagsToAdd, otherTag)
+			} else {
+				tags = append(tags, t)
 			}
 
 			// NB(arnikola): delete common tag from otherTags as it
 			// has already been handled
-			delete(otherTags, k)
+			delete(otherTags, t.Name)
 		} else {
 			// Tag does not exist on otherMeta; remove it
 			// from common tags and explicitly add it to each seriesMeta
-			delete(commonTags, k)
-			for _, metas := range seriesMeta {
-				metas.Tags[k] = v
-			}
+			metaTagsToAdd = append(metaTagsToAdd, t)
 		}
 	}
 
 	// Iterate over otherMeta common tags and explicitly add
 	// remaining tags to otherSeriesMeta
-	for otherK, otherV := range otherTags {
-		for _, otherMetas := range otherSeriesMeta {
-			otherMetas.Tags[otherK] = otherV
-		}
+	for _, otherTag := range otherTags {
+		otherMetaTagsToAdd = append(otherMetaTagsToAdd, otherTag)
+	}
+
+	// Set common tags
+	meta.Tags = tags
+	for i, m := range seriesMeta {
+		seriesMeta[i].Tags = m.Tags.Add(metaTagsToAdd)
+	}
+
+	for i, m := range otherSeriesMeta {
+		otherSeriesMeta[i].Tags = m.Tags.Add(otherMetaTagsToAdd)
 	}
 
 	return meta,
 		seriesMeta,
 		otherSeriesMeta,
 		nil
+}
+
+// FlattenMetadata applies all shared tags from Metadata to each SeriesMeta
+func FlattenMetadata(
+	meta block.Metadata,
+	seriesMeta []block.SeriesMeta,
+) []block.SeriesMeta {
+	for i, metas := range seriesMeta {
+		seriesMeta[i].Tags = metas.Tags.Add(meta.Tags)
+	}
+
+	return seriesMeta
+}
+
+// DedupeMetadata applies all shared tags from Metadata to each SeriesMeta
+func DedupeMetadata(
+	seriesMeta []block.SeriesMeta,
+) (models.Tags, []block.SeriesMeta) {
+	if len(seriesMeta) == 0 {
+		return make(models.Tags, 0), seriesMeta
+	}
+
+	commonKeys := make([]string, 0, len(seriesMeta[0].Tags))
+	commonTags := make(map[string]string, len(seriesMeta[0].Tags))
+	// For each tag in the first series, read through list of seriesMetas;
+	// if key not found or value differs, this is not a shared tag
+	var distinct bool
+	for _, t := range seriesMeta[0].Tags {
+		distinct = false
+		for _, metas := range seriesMeta[1:] {
+			if val, ok := metas.Tags.Get(t.Name); ok {
+				if val != t.Value {
+					distinct = true
+					break
+				}
+			} else {
+				distinct = true
+				break
+			}
+		}
+
+		if !distinct {
+			// This is a shared tag; add it to shared meta
+			commonKeys = append(commonKeys, t.Name)
+			commonTags[t.Name] = t.Value
+		}
+	}
+
+	for i, meta := range seriesMeta {
+		seriesMeta[i].Tags = meta.Tags.WithoutKeys(commonKeys)
+	}
+
+	return models.FromMap(commonTags), seriesMeta
 }
 
 func appendValuesAtIndices(idxArray []int, iter block.StepIter, builder block.Builder) error {

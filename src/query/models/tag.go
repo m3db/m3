@@ -37,8 +37,17 @@ const (
 	eq  = byte('=')
 )
 
-// Tags is a key/value map of metric tags.
-type Tags map[string]string
+// Tags is a key/value . of metric tags.
+type Tags []Tag
+
+func (t Tags) Len() int           { return len(t) }
+func (t Tags) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
+func (t Tags) Less(i, j int) bool { return t[i].Name < t[j].Name }
+
+// Tag represents a single tag key/value pair
+type Tag struct {
+	Name, Value string
+}
 
 // Metric is the individual metric that gets returned from the search endpoint
 type Metric struct {
@@ -55,7 +64,7 @@ type MatchType int
 
 // Possible MatchTypes.
 const (
-	MatchEqual MatchType = iota
+	MatchEqual     MatchType = iota
 	MatchNotEqual
 	MatchRegexp
 	MatchNotRegexp
@@ -125,7 +134,7 @@ type Matchers []*Matcher
 // ToTags converts Matchers to Tags
 // NB (braskin): this only works for exact matches
 func (m Matchers) ToTags() (Tags, error) {
-	tags := make(Tags, len(m))
+	tags := make(map[string]string, len(m))
 	for _, v := range m {
 		if v.Type != MatchEqual {
 			return nil, fmt.Errorf("illegal match type, got %v, but expecting: %v", v.Type, MatchEqual)
@@ -133,17 +142,16 @@ func (m Matchers) ToTags() (Tags, error) {
 		tags[v.Name] = v.Value
 	}
 
-	return tags, nil
+	return FromMap(tags), nil
 }
 
 // ID returns a string representation of the tags
 func (t Tags) ID() string {
-	sortedKeys, bufLength := t.sortKeys()
-	b := make([]byte, 0, bufLength)
-	for _, k := range sortedKeys {
-		b = append(b, k...)
+	b := make([]byte, 0, len(t))
+	for _, tag := range t {
+		b = append(b, tag.Name...)
 		b = append(b, eq)
-		b = append(b, t[k]...)
+		b = append(b, tag.Value...)
 		b = append(b, sep)
 	}
 
@@ -152,17 +160,16 @@ func (t Tags) ID() string {
 
 // IDWithExcludes returns a string representation of the tags excluding some tag keys
 func (t Tags) IDWithExcludes(excludeKeys ...string) uint64 {
-	sortedKeys, bufLength := t.sortKeys()
-	b := make([]byte, 0, bufLength)
-	for _, k := range sortedKeys {
+	b := make([]byte, 0, len(t))
+	for _, tag := range t {
 		// Always exclude the metric name by default
-		if k == MetricName {
+		if tag.Name == MetricName {
 			continue
 		}
 
 		found := false
 		for _, n := range excludeKeys {
-			if n == k {
+			if n == tag.Name {
 				found = true
 				break
 			}
@@ -173,9 +180,9 @@ func (t Tags) IDWithExcludes(excludeKeys ...string) uint64 {
 			continue
 		}
 
-		b = append(b, k...)
+		b = append(b, tag.Name...)
 		b = append(b, eq)
-		b = append(b, t[k]...)
+		b = append(b, tag.Value...)
 		b = append(b, sep)
 	}
 
@@ -185,30 +192,43 @@ func (t Tags) IDWithExcludes(excludeKeys ...string) uint64 {
 }
 
 // TagsWithoutKeys returns only the tags which do not have the given keys
-func (t Tags) TagsWithoutKeys(excludeKeys []string) Tags {
-	excludeTags := t.WithoutName()
-	for _, k := range excludeKeys {
-		if _, ok := excludeTags[k]; ok {
-			delete(excludeTags, k)
+func (t Tags) tagsSubSet(keys []string, include bool) Tags {
+	tags := make(Tags, 0, len(t))
+	for _, tag := range t {
+		found := false
+		for _, k := range keys {
+			if tag.Name == k {
+				found = true
+				break
+			}
+		}
+
+		if found == include {
+			tags = append(tags, tag)
 		}
 	}
 
-	return excludeTags
+	return tags
+}
+
+// TagsWithoutKeys returns only the tags which do not have the given keys
+func (t Tags) TagsWithoutKeys(excludeKeys []string) Tags {
+	return t.tagsSubSet(excludeKeys, false)
 }
 
 // IDWithKeys returns a string representation of the tags only including the given keys
 func (t Tags) IDWithKeys(includeKeys ...string) uint64 {
 	b := make([]byte, 0, len(t))
-	for _, k := range includeKeys {
-		v, ok := t[k]
-		if !ok {
-			continue
+	for _, tag := range t {
+		for _, k := range includeKeys {
+			if tag.Name == k {
+				b = append(b, tag.Name...)
+				b = append(b, eq)
+				b = append(b, tag.Value...)
+				b = append(b, sep)
+				break
+			}
 		}
-
-		b = append(b, k...)
-		b = append(b, eq)
-		b = append(b, v...)
-		b = append(b, sep)
 	}
 
 	h := fnv.New64a()
@@ -218,35 +238,65 @@ func (t Tags) IDWithKeys(includeKeys ...string) uint64 {
 
 // TagsWithKeys returns only the tags which have the given keys
 func (t Tags) TagsWithKeys(includeKeys []string) Tags {
-	includeTags := make(Tags, len(includeKeys))
-	for _, k := range includeKeys {
-		if v, ok := t[k]; ok {
-			includeTags[k] = v
-		}
-	}
+	return t.tagsSubSet(includeKeys, true)
 
-	return includeTags
-}
-
-func (t Tags) sortKeys() ([]string, int) {
-	length := 0
-	keys := make([]string, 0, len(t))
-	for k := range t {
-		length += len(k) + len(t[k]) + 2
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys, length
 }
 
 // WithoutName copies the tags excluding the name tag
 func (t Tags) WithoutName() Tags {
-	tags := make(Tags, len(t))
-	for k, v := range t {
-		if k == MetricName {
-			continue
+	return t.TagsWithoutKeys([]string{MetricName})
+}
+
+// Get returns the value for the tag with the given name.
+func (t Tags) Get(key string) (string, bool) {
+	for _, tag := range t {
+		if tag.Name == key {
+			return tag.Value, true
 		}
-		tags[k] = v
 	}
-	return tags
+	return "", false
+}
+
+// FromMap returns new sorted tags from the given map.
+func FromMap(m map[string]string) Tags {
+	l := make([]Tag, 0, len(m))
+	for k, v := range m {
+		l = append(l, Tag{Name: k, Value: v})
+	}
+	return New(l)
+}
+
+// TagMap returns a tag map of the tags.
+func (t Tags) TagMap() map[string]Tag {
+	m := make(map[string]Tag, len(t))
+	for _, tag := range t {
+		m[tag.Name] = tag
+	}
+
+	return m
+}
+
+// StringMap returns a string map of the tags.
+func (t Tags) StringMap() map[string]string {
+	m := make(map[string]string, len(t))
+	for _, tag := range t {
+		m[tag.Name] = tag.Value
+	}
+
+	return m
+}
+
+// Add is used to add a bunch of tags and then maintain the sort order
+func (t Tags) Add(tags Tags) Tags {
+	updated := append(t, tags...)
+	return New(updated)
+}
+
+// New returns a sorted Tags from the given tags.
+// The caller has to guarantee that all tags names are unique.
+func New(tags Tags) Tags {
+	set := make(Tags, len(tags))
+	copy(set, tags)
+	sort.Sort(set)
+	return set
 }

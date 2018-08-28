@@ -18,5 +18,5 @@ curl -G $m3command > m3out
 curl -G $promcommand > promout
 jq ".[]|.tags,.datapoints" m3out > m3result
 jq ".data.result|.[]|.metric,.values" promout > promresult
-echo "M3 file size" $(stat -f%z m3out)
-echo "Prom file size" $(stat -f%z promout)
+echo "M3 file size" $(stat -f%z m3result)
+echo "Prom file size" $(stat -f%z promresult)
