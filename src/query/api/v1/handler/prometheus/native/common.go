@@ -173,8 +173,8 @@ func renderResultsJSON(w io.Writer, series []*ts.Series, params models.RequestPa
 			}
 
 			jw.BeginArray()
-			jw.WriteString(valueToProm(dp.Value))
 			jw.WriteInt(int(dp.Timestamp.Unix()))
+			jw.WriteString(valueToProm(dp.Value))
 			jw.EndArray()
 		}
 		jw.EndArray()
