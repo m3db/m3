@@ -139,6 +139,13 @@ func TestIDWithKeys(t *testing.T) {
 	assert.Equal(t, h.Sum64(), idWithKeys)
 }
 
+func TestTagsWithKeys(t *testing.T) {
+	tags := createTags(true)
+
+	tagsWithKeys := tags.TagsWithKeys([]string{"t1"})
+	assert.Equal(t, Tags{"t1": "v1"}, tagsWithKeys)
+}
+
 func TestIDWithExcludes(t *testing.T) {
 	tags := createTags(true)
 
@@ -148,4 +155,17 @@ func TestIDWithExcludes(t *testing.T) {
 
 	idWithExcludes := tags.IDWithExcludes("t1")
 	assert.Equal(t, h.Sum64(), idWithExcludes)
+}
+
+func TestTagsWithExcludes(t *testing.T) {
+	tags := createTags(true)
+
+	tagsWithoutKeys := tags.TagsWithoutKeys([]string{"t1"})
+	assert.Equal(t, Tags{"t2": "v2"}, tagsWithoutKeys)
+}
+
+func TestTagsWithExcludesCustom(t *testing.T) {
+	tags := Tags{"a": "1", "b": "2", "c": "3", MetricName: "foo"}
+	tagsWithoutKeys := tags.TagsWithoutKeys([]string{"a", "c"})
+	assert.Equal(t, Tags{"b": "2"}, tagsWithoutKeys)
 }

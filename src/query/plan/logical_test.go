@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/query/functions"
+	"github.com/m3db/m3/src/query/functions/aggregation"
 	"github.com/m3db/m3/src/query/parser"
 
 	"github.com/stretchr/testify/assert"
@@ -32,7 +33,9 @@ import (
 
 func TestSingleChildParentRelation(t *testing.T) {
 	fetchTransform := parser.NewTransformFromOperation(functions.FetchOp{}, 1)
-	countTransform := parser.NewTransformFromOperation(functions.CountOp{}, 2)
+	agg, err := aggregation.NewAggregationOp(aggregation.CountType, aggregation.NodeParams{})
+	require.NoError(t, err)
+	countTransform := parser.NewTransformFromOperation(agg, 2)
 	transforms := parser.Nodes{fetchTransform, countTransform}
 	edges := parser.Edges{
 		parser.Edge{
@@ -56,8 +59,10 @@ func TestSingleChildParentRelation(t *testing.T) {
 
 func TestSingleParentMultiChild(t *testing.T) {
 	fetchTransform := parser.NewTransformFromOperation(functions.FetchOp{}, 1)
-	countTransform1 := parser.NewTransformFromOperation(functions.CountOp{}, 2)
-	countTransform2 := parser.NewTransformFromOperation(functions.CountOp{}, 3)
+	agg, err := aggregation.NewAggregationOp(aggregation.CountType, aggregation.NodeParams{})
+	require.NoError(t, err)
+	countTransform1 := parser.NewTransformFromOperation(agg, 2)
+	countTransform2 := parser.NewTransformFromOperation(agg, 3)
 	transforms := parser.Nodes{fetchTransform, countTransform1, countTransform2}
 	edges := parser.Edges{
 		parser.Edge{
@@ -83,7 +88,9 @@ func TestMultiParent(t *testing.T) {
 	fetchTransform1 := parser.NewTransformFromOperation(functions.FetchOp{}, 1)
 	fetchTransform2 := parser.NewTransformFromOperation(functions.FetchOp{}, 2)
 	// TODO: change this to a real multi parent operation such as asPercent
-	countTransform := parser.NewTransformFromOperation(functions.CountOp{}, 3)
+	agg, err := aggregation.NewAggregationOp(aggregation.CountType, aggregation.NodeParams{})
+	require.NoError(t, err)
+	countTransform := parser.NewTransformFromOperation(agg, 3)
 
 	transforms := parser.Nodes{fetchTransform1, fetchTransform2, countTransform}
 	edges := parser.Edges{

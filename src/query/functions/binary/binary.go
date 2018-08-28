@@ -23,6 +23,7 @@ package binary
 import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/functions/utils"
 )
 
 type binaryFunc func(x, y float64) float64
@@ -160,12 +161,12 @@ func processBothSeries(
 
 	lMeta, rMeta := lIter.Meta(), rIter.Meta()
 
-	lSeriesMeta := FlattenMetadata(lMeta, lIter.SeriesMeta())
-	rSeriesMeta := FlattenMetadata(rMeta, rIter.SeriesMeta())
+	lSeriesMeta := utils.FlattenMetadata(lMeta, lIter.SeriesMeta())
+	rSeriesMeta := utils.FlattenMetadata(rMeta, rIter.SeriesMeta())
 
 	takeLeft, correspondingRight, lSeriesMeta := intersect(matching, lSeriesMeta, rSeriesMeta)
 
-	lMeta.Tags, lSeriesMeta = DedupeMetadata(lSeriesMeta)
+	lMeta.Tags, lSeriesMeta = utils.DedupeMetadata(lSeriesMeta)
 
 	// Use metas from only taken left series
 	builder, err := controller.BlockBuilder(lMeta, lSeriesMeta)

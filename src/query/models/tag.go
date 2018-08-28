@@ -184,6 +184,18 @@ func (t Tags) IDWithExcludes(excludeKeys ...string) uint64 {
 	return h.Sum64()
 }
 
+// TagsWithoutKeys returns only the tags which do not have the given keys
+func (t Tags) TagsWithoutKeys(excludeKeys []string) Tags {
+	excludeTags := t.WithoutName()
+	for _, k := range excludeKeys {
+		if _, ok := excludeTags[k]; ok {
+			delete(excludeTags, k)
+		}
+	}
+
+	return excludeTags
+}
+
 // IDWithKeys returns a string representation of the tags only including the given keys
 func (t Tags) IDWithKeys(includeKeys ...string) uint64 {
 	b := make([]byte, 0, len(t))
@@ -202,6 +214,18 @@ func (t Tags) IDWithKeys(includeKeys ...string) uint64 {
 	h := fnv.New64a()
 	h.Write(b)
 	return h.Sum64()
+}
+
+// TagsWithKeys returns only the tags which have the given keys
+func (t Tags) TagsWithKeys(includeKeys []string) Tags {
+	includeTags := make(Tags, len(includeKeys))
+	for _, k := range includeKeys {
+		if v, ok := t[k]; ok {
+			includeTags[k] = v
+		}
+	}
+
+	return includeTags
 }
 
 func (t Tags) sortKeys() ([]string, int) {

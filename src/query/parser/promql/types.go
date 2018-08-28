@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3/src/query/functions"
+	"github.com/m3db/m3/src/query/functions/aggregation"
 	"github.com/m3db/m3/src/query/functions/binary"
 	"github.com/m3db/m3/src/query/functions/linear"
 	"github.com/m3db/m3/src/query/functions/temporal"
@@ -59,14 +60,41 @@ func NewSelectorFromMatrix(n *promql.MatrixSelector) (parser.Params, error) {
 	return functions.FetchOp{Name: n.Name, Offset: n.Offset, Matchers: matchers, Range: n.Range}, nil
 }
 
-// NewOperator creates a new operator based on the type
-func NewOperator(opType promql.ItemType) (parser.Params, error) {
-	switch getOpType(opType) {
-	case functions.CountType:
-		return functions.CountOp{}, nil
-	default:
-		// TODO: handle other types
+// NewAggregationOperator creates a new aggregation operator based on the type
+func NewAggregationOperator(expr *promql.AggregateExpr) (parser.Params, error) {
+	opType := expr.Op
+
+	nodeInformation := aggregation.NodeParams{
+		MatchingTags: expr.Grouping,
+		Without:      expr.Without,
+	}
+
+	op := getAggOpType(opType)
+	if op == common.UnknownOpType {
 		return nil, fmt.Errorf("operator not supported: %s", opType)
+	}
+
+	return aggregation.NewAggregationOp(op, nodeInformation)
+}
+
+func getAggOpType(opType promql.ItemType) string {
+	switch opType {
+	case promql.ItemType(itemSum):
+		return aggregation.SumType
+	case promql.ItemType(itemMin):
+		return aggregation.MinType
+	case promql.ItemType(itemMax):
+		return aggregation.MaxType
+	case promql.ItemType(itemAvg):
+		return aggregation.AverageType
+	case promql.ItemType(itemStddev):
+		return aggregation.StandardDeviationType
+	case promql.ItemType(itemStdvar):
+		return aggregation.StandardVarianceType
+	case promql.ItemType(itemCount):
+		return aggregation.CountType
+	default:
+		return common.UnknownOpType
 	}
 }
 
@@ -88,7 +116,7 @@ func NewBinaryOperator(expr *promql.BinaryExpr, lhs, rhs parser.NodeID) (parser.
 		VectorMatching: matching,
 	}
 
-	op := getOpType(expr.Op)
+	op := getBinaryOpType(expr.Op)
 	return binary.NewOp(op, nodeParams)
 }
 
@@ -122,10 +150,8 @@ func NewFunctionExpr(name string, argValues []interface{}) (parser.Params, error
 	}
 }
 
-func getOpType(opType promql.ItemType) string {
+func getBinaryOpType(opType promql.ItemType) string {
 	switch opType {
-	case promql.ItemType(itemCount):
-		return functions.CountType
 	case promql.ItemType(itemLAND):
 		return binary.AndType
 	case promql.ItemType(itemLOR):

@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/query/functions"
+	"github.com/m3db/m3/src/query/functions/aggregation"
 	"github.com/m3db/m3/src/query/functions/binary"
 	"github.com/m3db/m3/src/query/functions/linear"
 	"github.com/m3db/m3/src/query/functions/temporal"
@@ -43,7 +44,7 @@ func TestDAGWithCountOp(t *testing.T) {
 	assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
 	assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
 	assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
-	assert.Equal(t, transforms[1].Op.OpType(), functions.CountType)
+	assert.Equal(t, transforms[1].Op.OpType(), aggregation.CountType)
 	assert.Len(t, edges, 1)
 	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"), "fetch should be the parent")
 	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"), "aggregation should be the child")
@@ -56,12 +57,43 @@ func TestDAGWithEmptyExpression(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestDAGWithUnknownOp(t *testing.T) {
-	q := "sum(http_requests_total{method=\"GET\"})"
-	p, err := Parse(q)
-	require.NoError(t, err)
-	_, _, err = p.DAG()
-	require.Error(t, err, "unsupported operation fails parsing")
+func TestDAGWithFakeOp(t *testing.T) {
+	q := "fake(http_requests_total{method=\"GET\"})"
+	_, err := Parse(q)
+	require.Error(t, err)
+}
+
+var aggregateParseTests = []struct {
+	q            string
+	expectedType string
+}{
+	{"sum(up)", aggregation.SumType},
+	{"min(up)", aggregation.MinType},
+	{"max(up)", aggregation.MaxType},
+	{"avg(up)", aggregation.AverageType},
+	{"stddev(up)", aggregation.StandardDeviationType},
+	{"stdvar(up)", aggregation.StandardVarianceType},
+	{"count(up)", aggregation.CountType},
+}
+
+func TestAggregateParses(t *testing.T) {
+	for _, tt := range aggregateParseTests {
+		t.Run(tt.q, func(t *testing.T) {
+			q := tt.q
+			p, err := Parse(q)
+			require.NoError(t, err)
+			transforms, edges, err := p.DAG()
+			require.NoError(t, err)
+			assert.Len(t, transforms, 2)
+			assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
+			assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
+			assert.Equal(t, transforms[1].Op.OpType(), tt.expectedType)
+			assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
+			assert.Len(t, edges, 1)
+			assert.Equal(t, edges[0].ParentID, parser.NodeID("0"))
+			assert.Equal(t, edges[0].ChildID, parser.NodeID("1"))
+		})
+	}
 }
 
 var linearParseTests = []struct {
