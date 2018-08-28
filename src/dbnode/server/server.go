@@ -326,7 +326,7 @@ func Run(runOpts RunOptions) {
 	opts = opts.SetSeriesCachePolicy(seriesCachePolicy)
 
 	// Apply pooling options
-	opts = withEncodingAndPoolingOptions(logger, opts, cfg.PoolingPolicy)
+	opts = withEncodingAndPoolingOptions(cfg, logger, opts, cfg.PoolingPolicy)
 
 	// Setup the block retriever
 	switch seriesCachePolicy {
@@ -882,6 +882,7 @@ func kvWatchBootstrappers(
 }
 
 func withEncodingAndPoolingOptions(
+	cfg config.DBConfiguration,
 	logger xlog.Logger,
 	opts storage.Options,
 	policy config.PoolingPolicy,
