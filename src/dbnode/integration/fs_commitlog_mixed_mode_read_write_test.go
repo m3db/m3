@@ -54,7 +54,6 @@ func testMixedModeReadWrite(t *testing.T, snapshotEnabled bool) {
 	// Test setup
 	var (
 		commitLogBlockSize = 15 * time.Minute
-		commitLogRetetion  = 6 * time.Hour
 		ns1BlockSize       = 1 * time.Hour
 		ns1ROpts           = retention.NewOptions().SetRetentionPeriod(3 * time.Hour).SetBlockSize(ns1BlockSize)
 		nsID               = testNamespaces[0]
