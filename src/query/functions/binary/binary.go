@@ -41,8 +41,6 @@ func processBinary(
 		return nil, err
 	}
 
-	// fn := n.op.fn
-	// params := n.op.params
 	if params.LIsScalar {
 		scalarL, ok := lhs.(*block.Scalar)
 		if !ok {

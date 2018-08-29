@@ -167,7 +167,7 @@ var fnTest = []struct {
 		"only nans",
 		[]float64{math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 		[][]int{{0, 1, 2, 3}}, []funcTest{
-			{SumType, sumFn, []float64{0}},
+			{SumType, sumFn, []float64{math.NaN()}},
 			{MinType, minFn, []float64{math.NaN()}},
 			{MaxType, maxFn, []float64{math.NaN()}},
 			{AverageType, averageFn, []float64{math.NaN()}},
@@ -185,7 +185,7 @@ func TestAggFns(t *testing.T) {
 				for i, bucket := range tt.buckets {
 					actual := function.fn(tt.values, bucket)
 					expected := function.expected[i]
-					test.EqualsWithNansWithDelta(t, expected, actual, 0.00001)
+					test.EqualsWithNansWithDelta(t, expected, actual, math.Pow10(-5))
 				}
 			})
 		}

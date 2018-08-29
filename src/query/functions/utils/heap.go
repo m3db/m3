@@ -26,36 +26,37 @@ import (
 
 // ValueIndexPair is a pair of float value and index at which it exists
 type ValueIndexPair struct {
-	val   float64
-	index int
+	Val   float64
+	Index int
 }
 
 type lessFn func(ValueIndexPair, ValueIndexPair) bool
 
 func maxHeapLess(i, j ValueIndexPair) bool {
-	if i.val == j.val {
-		return i.index > j.index
+	if i.Val == j.Val {
+		return i.Index > j.Index
 	}
-	return i.val < j.val
+	return i.Val < j.Val
 }
 
 func minHeapLess(i, j ValueIndexPair) bool {
-	if i.val == j.val {
-		return i.index > j.index
+	if i.Val == j.Val {
+		return i.Index > j.Index
 	}
-	return i.val > j.val
+	return i.Val > j.Val
 }
 
 // FloatHeap is a heap that can be given a maximum size
 type FloatHeap struct {
 	isMaxHeap bool
+	capacity  int
 	floatHeap *floatHeap
 }
 
 // NewFloatHeap builds a new FloatHeap based on first parameter
-// and a maxSize given by second parameter. Zero and negative
+// and a capacity given by second parameter. Zero and negative
 // values for maxSize provide an unbounded FloatHeap
-func NewFloatHeap(isMaxHeap bool, maxSize int) FloatHeap {
+func NewFloatHeap(isMaxHeap bool, capacity int) FloatHeap {
 	var less lessFn
 	if isMaxHeap {
 		less = maxHeapLess
@@ -63,25 +64,25 @@ func NewFloatHeap(isMaxHeap bool, maxSize int) FloatHeap {
 		less = minHeapLess
 	}
 	floatHeap := &floatHeap{
-		heap:    make([]ValueIndexPair, 0, maxSize),
-		maxSize: maxSize,
-		less:    less,
+		heap: make([]ValueIndexPair, 0, capacity),
+		less: less,
 	}
 	heap.Init(floatHeap)
 	return FloatHeap{
-		floatHeap: floatHeap,
 		isMaxHeap: isMaxHeap,
+		capacity:  capacity,
+		floatHeap: floatHeap,
 	}
 }
 
 // Push pushes a value and index pair to the heap
 func (fh FloatHeap) Push(value float64, index int) {
 	h := fh.floatHeap
-	// If maxSize is zero or negative, allow infinite size heap
-	if h.maxSize > 0 {
+	// If capacity is zero or negative, allow infinite size heap
+	if fh.capacity > 0 {
 		// At max size, drop or replace incoming value.
 		// Otherwise, continue as normal
-		if len(h.heap) >= h.maxSize {
+		if len(h.heap) >= fh.capacity {
 			peek := h.heap[0]
 			// Compare incoming value with current top of heap.
 			// Decide if to replace the current top, or to drop incoming
@@ -92,11 +93,11 @@ func (fh FloatHeap) Push(value float64, index int) {
 			// NB(arnikola): unfortunately, can't just replace first
 			// element as it may not respect internal order. Need to
 			// run heap.Fix() to rectify this
-			if fh.isMaxHeap && value > peek.val ||
-				(!fh.isMaxHeap && value < peek.val) {
+			if fh.isMaxHeap && value > peek.Val ||
+				(!fh.isMaxHeap && value < peek.Val) {
 				h.heap[0] = ValueIndexPair{
-					val:   value,
-					index: index,
+					Val:   value,
+					Index: index,
 				}
 
 				heap.Fix(h, 0)
@@ -109,15 +110,30 @@ func (fh FloatHeap) Push(value float64, index int) {
 	}
 
 	heap.Push(h, ValueIndexPair{
-		val:   value,
-		index: index,
+		Val:   value,
+		Index: index,
 	})
+}
+
+// Len returns the current length of the heap
+func (fh FloatHeap) Len() int {
+	return fh.floatHeap.Len()
+}
+
+// Cap returns the capacity of the heap
+func (fh FloatHeap) Cap() int {
+	return fh.capacity
+}
+
+// Reset resets the heap
+func (fh *FloatHeap) Reset() {
+	fh.floatHeap.heap = fh.floatHeap.heap[:0]
 }
 
 // Flush flushes the float heap and resets it. Does not guarantee order.
 func (fh FloatHeap) Flush() []ValueIndexPair {
 	values := fh.floatHeap.heap
-	fh.floatHeap.heap = fh.floatHeap.heap[:0]
+	fh.Reset()
 	return values
 }
 
@@ -143,9 +159,8 @@ func (fh FloatHeap) Peek() (ValueIndexPair, bool) {
 
 // floatHeap is a heap that can be given a maximum size
 type floatHeap struct {
-	maxSize int
-	less    lessFn
-	heap    []ValueIndexPair
+	less lessFn
+	heap []ValueIndexPair
 }
 
 // Assert that floatHeap is a heap.Interface

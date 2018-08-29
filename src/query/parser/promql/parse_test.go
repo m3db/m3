@@ -74,6 +74,10 @@ var aggregateParseTests = []struct {
 	{"stddev(up)", aggregation.StandardDeviationType},
 	{"stdvar(up)", aggregation.StandardVarianceType},
 	{"count(up)", aggregation.CountType},
+
+	{"topk(3, up)", aggregation.TopKType},
+	{"bottomk(3, up)", aggregation.BottomKType},
+	{"quantile(3, up)", aggregation.QuantileType},
 }
 
 func TestAggregateParses(t *testing.T) {

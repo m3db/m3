@@ -84,13 +84,17 @@ func equalsWithNans(t *testing.T, expected []float64, actual []float64, delta fl
 func equalsWithDelta(t *testing.T, expected, actual, delta float64, debugMsg string) {
 	if math.IsNaN(expected) {
 		require.True(t, math.IsNaN(actual), debugMsg)
+		return
+	}
+	if math.IsInf(expected, 0) {
+		require.Equal(t, expected, actual, debugMsg)
+		return
+	}
+	if delta == 0 {
+		require.Equal(t, expected, actual, debugMsg)
 	} else {
-		if delta == 0 {
-			require.Equal(t, expected, actual, debugMsg)
-		} else {
-			diff := math.Abs(expected - actual)
-			require.True(t, delta > diff, debugMsg)
-		}
+		diff := math.Abs(expected - actual)
+		require.True(t, delta > diff, debugMsg)
 	}
 }
 
@@ -127,8 +131,8 @@ func CompareLists(t *testing.T, meta, exMeta []block.SeriesMeta, index, exIndex 
 // CompareValues compares series meta / value pairs
 func CompareValues(t *testing.T, meta, exMeta []block.SeriesMeta, vals, exVals [][]float64) {
 	require.Equal(t, len(exVals), len(exMeta))
-	require.Equal(t, len(exMeta), len(meta))
-	require.Equal(t, len(exVals), len(vals))
+	require.Equal(t, len(exMeta), len(meta), "Meta is", meta, "ExMeta is", exMeta)
+	require.Equal(t, len(exVals), len(vals), "Vals is", meta, "ExVals is", exMeta)
 
 	ex := make(matches, len(meta))
 	actual := make(matches, len(meta))

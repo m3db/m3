@@ -32,10 +32,10 @@ type maxSlice []ValueIndexPair
 func (s maxSlice) Len() int      { return len(s) }
 func (s maxSlice) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 func (s maxSlice) Less(i, j int) bool {
-	if s[i].val == s[j].val {
-		return s[i].index > s[j].index
+	if s[i].Val == s[j].Val {
+		return s[i].Index > s[j].Index
 	}
-	return s[i].val < s[j].val
+	return s[i].Val < s[j].Val
 }
 
 type minSlice []ValueIndexPair
@@ -43,21 +43,21 @@ type minSlice []ValueIndexPair
 func (s minSlice) Len() int      { return len(s) }
 func (s minSlice) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 func (s minSlice) Less(i, j int) bool {
-	if s[i].val == s[j].val {
-		return s[i].index > s[j].index
+	if s[i].Val == s[j].Val {
+		return s[i].Index > s[j].Index
 	}
-	return s[i].val > s[j].val
+	return s[i].Val > s[j].Val
 }
 
 var heapTests = []struct {
 	name        string
-	size        int
+	capacity    int
 	values      []float64
 	expectedMax []ValueIndexPair
 	expectedMin []ValueIndexPair
 }{
 	{
-		"size 0",
+		"capacity 0",
 		0,
 		[]float64{1, 8, 2, 4, 2, 3, 0, -3, 3},
 		[]ValueIndexPair{
@@ -84,7 +84,7 @@ var heapTests = []struct {
 		},
 	},
 	{
-		"size 1",
+		"capacity 1",
 		1,
 		[]float64{1, 8, 2, 4, 2, 3, 0, -3, 3},
 		[]ValueIndexPair{
@@ -95,7 +95,7 @@ var heapTests = []struct {
 		},
 	},
 	{
-		"size 3",
+		"capacity 3",
 		3,
 		[]float64{1, 8, 2, 4, 2, 3, 0, -3, 3},
 		[]ValueIndexPair{
@@ -111,7 +111,7 @@ var heapTests = []struct {
 		},
 	},
 	{
-		"size 4",
+		"capacity 4",
 		4,
 		[]float64{1, 8, 2, 4, 2, 3, 0, -3, 3},
 		[]ValueIndexPair{
@@ -132,13 +132,20 @@ var heapTests = []struct {
 func TestMaxHeap(t *testing.T) {
 	for _, tt := range heapTests {
 		t.Run(tt.name, func(t *testing.T) {
-			size := tt.size
-			h := NewFloatHeap(true, size)
+			capacity := tt.capacity
+			h := NewFloatHeap(true, capacity)
+			assert.Equal(t, capacity, h.Cap())
 			_, seen := h.Peek()
 			assert.False(t, seen)
 
 			for i, v := range tt.values {
 				h.Push(v, i)
+				if capacity < 1 {
+					// No max size; length should be index + 1
+					assert.Equal(t, i+1, h.Len(), "capacity <= 0, no max capacity")
+				} else {
+					assert.True(t, h.Len() <= capacity, "length is larger than capacity")
+				}
 			}
 
 			peek, seen := h.Peek()
@@ -170,8 +177,9 @@ func TestMaxHeap(t *testing.T) {
 func TestMinHeap(t *testing.T) {
 	for _, tt := range heapTests {
 		t.Run(tt.name, func(t *testing.T) {
-			size := tt.size
-			h := NewFloatHeap(false, size)
+			capacity := tt.capacity
+			h := NewFloatHeap(false, capacity)
+			assert.Equal(t, capacity, h.Cap())
 			_, seen := h.Peek()
 			assert.False(t, seen)
 
@@ -195,6 +203,12 @@ func TestMinHeap(t *testing.T) {
 			// Refill heap
 			for i, v := range tt.values {
 				h.Push(v, i)
+				if capacity < 1 {
+					// No max size; length should be index + 1
+					assert.Equal(t, i+1, h.Len(), "capacity <= 0, no max capacity")
+				} else {
+					assert.True(t, h.Len() <= capacity, "length is larger than capacity")
+				}
 			}
 
 			actual = h.FlushByPop()

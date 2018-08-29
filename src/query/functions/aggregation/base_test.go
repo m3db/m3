@@ -62,7 +62,6 @@ var (
 )
 
 func processAggregationOp(t *testing.T, op parser.Params) *executor.SinkNode {
-	// With "a" tag
 	bl := test.NewBlockFromValuesWithSeriesMeta(bounds, seriesMetas, v)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	node := op.(baseOp).Node(c, transform.Options{})

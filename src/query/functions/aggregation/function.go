@@ -54,6 +54,11 @@ func sumAndCount(values []float64, buckets []int) (float64, float64) {
 		}
 	}
 
+	// If all elements are NaN, sum should be NaN
+	if count == 0 {
+		sum = math.NaN()
+	}
+
 	return sum, count
 }
 
