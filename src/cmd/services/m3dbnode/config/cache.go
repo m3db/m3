@@ -47,5 +47,6 @@ type SeriesCacheConfiguration struct {
 // LRUSeriesCachePolicyConfiguration contains configuration for the LRU
 // series caching policy.
 type LRUSeriesCachePolicyConfiguration struct {
-	MaxBlocks uint `yaml:"maxBlocks" validate:"nonzero"`
+	MaxBlocks         uint `yaml:"maxBlocks" validate:"nonzero"`
+	EventsChannelSize uint `yaml:"eventsChannelSize" validate:"nonzero"`
 }

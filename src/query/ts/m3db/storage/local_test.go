@@ -112,8 +112,7 @@ func TestLocalRead(t *testing.T) {
 			assert.Equal(t, "namespace", blocks.Namespace.String())
 			blockTags, err := storage.FromIdentTagIteratorToTags(blocks.Tags)
 			require.NoError(t, err)
-			assert.Equal(t, "bar", blockTags["foo"])
-			assert.Equal(t, "qux", blockTags["baz"])
+			assert.Equal(t, models.Tags{{"baz", "qux"}, {"foo", "bar"}}, blockTags)
 		}
 	}
 }

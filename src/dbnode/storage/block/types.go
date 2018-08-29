@@ -197,6 +197,11 @@ type DatabaseBlock interface {
 	// Close closes the block.
 	Close()
 
+	// CloseIfFromDisk atomically checks if the disk was retrieved from disk, and
+	// if so, closes it. It is meant as a layered protection for the WiredList
+	// which should only close blocks that were retrieved from disk.
+	CloseIfFromDisk() bool
+
 	// SetOnEvictedFromWiredList sets the owner of the block
 	SetOnEvictedFromWiredList(OnEvictedFromWiredList)
 
@@ -213,8 +218,8 @@ type databaseBlock interface {
 	setNext(block DatabaseBlock)
 	prev() DatabaseBlock
 	setPrev(block DatabaseBlock)
-	nextPrevUpdatedAtUnixNano() int64
-	setNextPrevUpdatedAtUnixNano(value int64)
+	enteredListAtUnixNano() int64
+	setEnteredListAtUnixNano(value int64)
 	wiredListEntry() wiredListEntry
 }
 

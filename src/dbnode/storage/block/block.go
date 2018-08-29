@@ -73,9 +73,9 @@ type dbBlock struct {
 }
 
 type listState struct {
-	next                      DatabaseBlock
-	prev                      DatabaseBlock
-	nextPrevUpdatedAtUnixNano int64
+	next                  DatabaseBlock
+	prev                  DatabaseBlock
+	enteredListAtUnixNano int64
 }
 
 // NewDatabaseBlock creates a new DatabaseBlock instance.
@@ -414,19 +414,37 @@ func (b *dbBlock) resetRetrievableWithLock(
 }
 
 func (b *dbBlock) Discard() ts.Segment {
-	return b.closeAndDiscard()
+	seg, _ := b.closeAndDiscardConditionally(nil)
+	return seg
 }
 
 func (b *dbBlock) Close() {
-	segment := b.closeAndDiscard()
+	segment, _ := b.closeAndDiscardConditionally(nil)
 	segment.Finalize()
 }
 
-func (b *dbBlock) closeAndDiscard() ts.Segment {
+func (b *dbBlock) CloseIfFromDisk() bool {
+	segment, ok := b.closeAndDiscardConditionally(func(b *dbBlock) bool {
+		return b.wasRetrievedFromDisk
+	})
+	if !ok {
+		return false
+	}
+	segment.Finalize()
+	return true
+}
+
+func (b *dbBlock) closeAndDiscardConditionally(condition func(b *dbBlock) bool) (ts.Segment, bool) {
 	b.Lock()
+
+	if condition != nil && !condition(b) {
+		b.Unlock()
+		return ts.Segment{}, false
+	}
+
 	if b.closed {
 		b.Unlock()
-		return ts.Segment{}
+		return ts.Segment{}, true
 	}
 
 	segment := b.segment
@@ -439,7 +457,7 @@ func (b *dbBlock) closeAndDiscard() ts.Segment {
 		pool.Put(b)
 	}
 
-	return segment
+	return segment, true
 }
 
 func (b *dbBlock) resetMergeTargetWithLock() {
@@ -470,13 +488,13 @@ func (b *dbBlock) setPrev(value DatabaseBlock) {
 }
 
 // Should only be used by the WiredList.
-func (b *dbBlock) nextPrevUpdatedAtUnixNano() int64 {
-	return b.listState.nextPrevUpdatedAtUnixNano
+func (b *dbBlock) enteredListAtUnixNano() int64 {
+	return b.listState.enteredListAtUnixNano
 }
 
 // Should only be used by the WiredList.
-func (b *dbBlock) setNextPrevUpdatedAtUnixNano(value int64) {
-	b.listState.nextPrevUpdatedAtUnixNano = value
+func (b *dbBlock) setEnteredListAtUnixNano(value int64) {
+	b.listState.enteredListAtUnixNano = value
 }
 
 // wiredListEntry is a snapshot of a subset of the block's state that the WiredList

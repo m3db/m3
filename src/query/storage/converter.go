@@ -55,11 +55,11 @@ func PromWriteTSToM3(timeseries *prompb.TimeSeries) *WriteQuery {
 // PromLabelsToM3Tags converts Prometheus labels to M3 tags
 func PromLabelsToM3Tags(labels []*prompb.Label) models.Tags {
 	tags := make(models.Tags, len(labels))
-	for _, label := range labels {
-		tags[label.Name] = label.Value
+	for i, label := range labels {
+		tags[i] = models.Tag{Name: label.Name, Value: label.Value}
 	}
 
-	return tags
+	return models.Normalize(tags)
 }
 
 // PromSamplesToM3Datapoints converts Prometheus samples to M3 datapoints
@@ -162,8 +162,8 @@ func SeriesToPromTS(series *ts.Series) *prompb.TimeSeries {
 // TagsToPromLabels converts tags to prometheus labels
 func TagsToPromLabels(tags models.Tags) []*prompb.Label {
 	labels := make([]*prompb.Label, 0, len(tags))
-	for k, v := range tags {
-		labels = append(labels, &prompb.Label{Name: k, Value: v})
+	for _, t := range tags {
+		labels = append(labels, &prompb.Label{Name: t.Name, Value: t.Value})
 	}
 
 	return labels

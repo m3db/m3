@@ -112,7 +112,7 @@ func TestSearchResponse(t *testing.T) {
 
 	assert.Equal(t, testID, results.Metrics[0].ID)
 	assert.Equal(t, testNamespace, results.Metrics[0].Namespace)
-	assert.Equal(t, models.Tags{"foo": "bar"}, results.Metrics[0].Tags)
+	assert.Equal(t, models.Tags{{"foo", "bar"}}, results.Metrics[0].Tags)
 }
 
 func TestSearchEndpoint(t *testing.T) {
