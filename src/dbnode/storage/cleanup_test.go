@@ -271,28 +271,6 @@ func TestCleanupManagerPropagatesGetOwnedNamespacesError(t *testing.T) {
 	require.Error(t, mgr.Cleanup(ts))
 }
 
-func TestCleanupManagerCommitLogTimeRange(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	var (
-		ts    = time.Unix(25200, 0)
-		rOpts = retention.NewOptions().
-			SetRetentionPeriod(18000 * time.Second).
-			SetBufferPast(0 * time.Second).
-			SetBlockSize(7200 * time.Second)
-		_, mgr = testCleanupManager(ctrl)
-	)
-
-	mgr.opts = mgr.opts.SetCommitLogOptions(
-		mgr.opts.CommitLogOptions().
-			SetRetentionPeriod(rOpts.RetentionPeriod()).
-			SetBlockSize(rOpts.BlockSize()))
-	cs, ce := mgr.commitLogTimeRange(ts)
-	require.Equal(t, time.Unix(0, 0), cs)
-	require.Equal(t, time.Unix(7200, 0), ce)
-}
-
 type testCaseCleanupMgrNsBlocks struct {
 	// input
 	id                     string

@@ -267,26 +267,9 @@ func (m *cleanupManager) cleanupNamespaceSnapshotFiles(earliestToRetain time.Tim
 	return multiErr.FinalError()
 }
 
-// NB(xichen): since each commit log contains data needed for bootstrapping not only
-// its own block size period but also its left and right block neighbors due to past
-// writes and future writes, we need to shift flush time range by block size as the
-// time range for commit log files we need to check.
-func (m *cleanupManager) commitLogTimeRange(t time.Time) (time.Time, time.Time) {
-	var (
-		copts      = m.opts.CommitLogOptions()
-		blockSize  = copts.BlockSize()
-		flushStart = retention.FlushTimeStartForRetentionPeriod(copts.RetentionPeriod(), blockSize, t)
-		flushEnd   = retention.FlushTimeEndForBlockSize(blockSize, t)
-	)
-	return flushStart.Add(-blockSize), flushEnd.Add(-blockSize)
-}
-
 // commitLogTimes returns the earliest time before which the commit logs are expired,
 // as well as a list of times we need to clean up commit log files for.
 func (m *cleanupManager) commitLogTimes(t time.Time) ([]commitlog.File, error) {
-	var (
-		earliest, _ = m.commitLogTimeRange(t)
-	)
 	// NB(prateek): this logic of polling the namespaces across the commit log's entire
 	// retention history could get expensive if commit logs are retained for long periods.
 	// e.g. if we retain them for 40 days, with a block 2 hours; then every time
@@ -307,14 +290,6 @@ func (m *cleanupManager) commitLogTimes(t time.Time) ([]commitlog.File, error) {
 	}
 
 	shouldCleanupFile := func(start time.Time, duration time.Duration) (bool, error) {
-		if start.Before(earliest) {
-			// Safe to clean up expired files.
-			// TODO(rartoul): Now that we have commit log compaction via snapshot files we would like
-			// to remove the concept of commit log retention so that users cannot accidentally
-			// configure M3DB in such a way that it loses data (commit log retention < block size).
-			return true, nil
-		}
-
 		for _, ns := range namespaces {
 			var (
 				ropts                      = ns.Options().RetentionOptions()
