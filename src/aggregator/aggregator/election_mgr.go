@@ -184,6 +184,9 @@ type electionManagerMetrics struct {
 	verifyLeaderNotChanged                 tally.Counter
 	verifyCampaignDisabled                 tally.Counter
 	verifyPendingChangeStale               tally.Counter
+	verifyPlacementErrors                  tally.Counter
+	verifyInstanceErrors                   tally.Counter
+	verifyLeaderNotInPlacement             tally.Counter
 	followerResign                         tally.Counter
 	resignTimeout                          tally.Counter
 	resignErrors                           tally.Counter
@@ -216,6 +219,9 @@ func newElectionManagerMetrics(scope tally.Scope) electionManagerMetrics {
 		verifyLeaderNotChanged:                 verifyScope.Counter("leader-not-changed"),
 		verifyCampaignDisabled:                 verifyScope.Counter("campaign-disabled"),
 		verifyPendingChangeStale:               verifyScope.Counter("pending-change-stale"),
+		verifyPlacementErrors:                  verifyScope.Counter("placement-errors"),
+		verifyInstanceErrors:                   verifyScope.Counter("instance-errors"),
+		verifyLeaderNotInPlacement:             verifyScope.Counter("leader-not-in-placement"),
 		followerResign:                         resignScope.Counter("follower-resign"),
 		resignTimeout:                          resignScope.Counter("timeout"),
 		resignErrors:                           resignScope.Counter("errors"),
@@ -504,6 +510,32 @@ func (mgr *electionManager) verifyPendingFollower(watch watch.Watch) {
 				mgr.logError("leader has not changed", errLeaderNotChanged)
 				return errLeaderNotChanged
 			}
+			_, p, err := mgr.placementManager.Placement()
+			if err != nil {
+				mgr.metrics.verifyPlacementErrors.Inc(1)
+				mgr.logError("error getting placement", err)
+				return err
+			}
+			leaderInstance, exist := p.Instance(leader)
+			if !exist {
+				mgr.metrics.verifyLeaderNotInPlacement.Inc(1)
+				err := fmt.Errorf("received invalid leader value: [%s], which is not available in placement", leader)
+				mgr.logError("invalid leader value", err)
+				return err
+			}
+			instance, err := mgr.placementManager.Instance()
+			if err != nil {
+				mgr.metrics.verifyInstanceErrors.Inc(1)
+				mgr.logError("error getting instance", err)
+				return err
+			}
+			if leaderInstance.ShardSetID() != instance.ShardSetID() {
+				err := fmt.Errorf("received invalid leader value: [%s] which is in shardSet group %v",
+					leader, leaderInstance.ShardSetID())
+				mgr.logError("invalid leader value", err)
+				return err
+			}
+			mgr.logger.Infof("found valid new leader: [%s] for the campaign", leader)
 			return nil
 		}); verifyErr != nil {
 			// If state has changed, we skip this stale change.
