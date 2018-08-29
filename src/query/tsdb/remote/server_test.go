@@ -46,7 +46,7 @@ const (
 )
 
 var (
-	tags        = models.Tags{"1": "b", "2": "c"}
+	tags        = models.Tags{{"1", "b"}, {"2", "c"}}
 	values      = []float64{1.0, 2.0, 3.0, 4.0}
 	errWrite    = errors.New("write error")
 	errRead     = errors.New("read error")

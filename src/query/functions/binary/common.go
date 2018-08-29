@@ -90,42 +90,47 @@ func combineMetaAndSeriesMeta(
 	}
 
 	// NB (arnikola): mutating tags in `meta` to avoid allocations
-	commonTags := meta.Tags
-	otherTags := otherMeta.Tags
-	for k, v := range commonTags {
-		if otherVal, ok := otherTags[k]; ok {
-			if v != otherVal {
+	leftTags := meta.Tags
+	otherTags := otherMeta.Tags.TagMap()
+
+	metaTagsToAdd := make(models.Tags, 0, len(leftTags))
+	otherMetaTagsToAdd := make(models.Tags, 0, len(otherTags))
+	tags := models.EmptyTags()
+
+	for _, t := range leftTags {
+		if otherTag, ok := otherTags[t.Name]; ok {
+			if t.Value != otherTag.Value {
 				// If both metas have the same common tag  with different
-				// values, remove it from common tag list and explicitly
-				// add it to each seriesMeta.
-				delete(commonTags, k)
-				for _, metas := range seriesMeta {
-					metas.Tags[k] = v
-				}
-				for _, otherMetas := range otherSeriesMeta {
-					otherMetas.Tags[k] = otherVal
-				}
+				// values explicitly add it to each seriesMeta.
+				metaTagsToAdd = append(metaTagsToAdd, t)
+				otherMetaTagsToAdd = append(otherMetaTagsToAdd, otherTag)
+			} else {
+				tags = append(tags, t)
 			}
 
 			// NB(arnikola): delete common tag from otherTags as it
 			// has already been handled
-			delete(otherTags, k)
+			delete(otherTags, t.Name)
 		} else {
-			// Tag does not exist on otherMeta; remove it
-			// from common tags and explicitly add it to each seriesMeta
-			delete(commonTags, k)
-			for _, metas := range seriesMeta {
-				metas.Tags[k] = v
-			}
+			// Tag does not exist on otherMeta explicitly add it to each seriesMeta
+			metaTagsToAdd = append(metaTagsToAdd, t)
 		}
 	}
 
 	// Iterate over otherMeta common tags and explicitly add
 	// remaining tags to otherSeriesMeta
-	for otherK, otherV := range otherTags {
-		for _, otherMetas := range otherSeriesMeta {
-			otherMetas.Tags[otherK] = otherV
-		}
+	for _, otherTag := range otherTags {
+		otherMetaTagsToAdd = append(otherMetaTagsToAdd, otherTag)
+	}
+
+	// Set common tags
+	meta.Tags = tags
+	for i, m := range seriesMeta {
+		seriesMeta[i].Tags = m.Tags.Add(metaTagsToAdd)
+	}
+
+	for i, m := range otherSeriesMeta {
+		otherSeriesMeta[i].Tags = m.Tags.Add(otherMetaTagsToAdd)
 	}
 
 	return meta,

@@ -30,10 +30,8 @@ func FlattenMetadata(
 	meta block.Metadata,
 	seriesMeta []block.SeriesMeta,
 ) []block.SeriesMeta {
-	for k, v := range meta.Tags {
-		for _, metas := range seriesMeta {
-			metas.Tags[k] = v
-		}
+	for i, metas := range seriesMeta {
+		seriesMeta[i].Tags = metas.Tags.Add(meta.Tags)
 	}
 
 	return seriesMeta
@@ -43,19 +41,20 @@ func FlattenMetadata(
 func DedupeMetadata(
 	seriesMeta []block.SeriesMeta,
 ) (models.Tags, []block.SeriesMeta) {
-	tags := make(models.Tags)
 	if len(seriesMeta) == 0 {
-		return tags, seriesMeta
+		return models.EmptyTags(), seriesMeta
 	}
 
+	commonKeys := make([]string, 0, len(seriesMeta[0].Tags))
+	commonTags := make(map[string]string, len(seriesMeta[0].Tags))
 	// For each tag in the first series, read through list of seriesMetas;
 	// if key not found or value differs, this is not a shared tag
 	var distinct bool
-	for k, v := range seriesMeta[0].Tags {
+	for _, t := range seriesMeta[0].Tags {
 		distinct = false
 		for _, metas := range seriesMeta[1:] {
-			if val, ok := metas.Tags[k]; ok {
-				if val != v {
+			if val, ok := metas.Tags.Get(t.Name); ok {
+				if val != t.Value {
 					distinct = true
 					break
 				}
@@ -66,14 +65,15 @@ func DedupeMetadata(
 		}
 
 		if !distinct {
-			// This is a shared tag; add it to shared meta and remove
-			// it from each seriesMeta
-			tags[k] = v
-			for _, metas := range seriesMeta {
-				delete(metas.Tags, k)
-			}
+			// This is a shared tag; add it to shared meta
+			commonKeys = append(commonKeys, t.Name)
+			commonTags[t.Name] = t.Value
 		}
 	}
 
-	return tags, seriesMeta
+	for i, meta := range seriesMeta {
+		seriesMeta[i].Tags = meta.Tags.TagsWithoutKeys(commonKeys)
+	}
+
+	return models.FromMap(commonTags), seriesMeta
 }

@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 
 	"github.com/golang/protobuf/proto"
@@ -169,7 +170,7 @@ func id(lowerCaseTags map[string]string, name string) string {
 }
 
 func metricsToPromTS(m Metrics) *prompb.TimeSeries {
-	labels := storage.TagsToPromLabels(m.Tags)
+	labels := storage.TagsToPromLabels(models.FromMap(m.Tags))
 	samples := metricsPointsToSamples(m.Value, m.Time)
 	return &prompb.TimeSeries{
 		Labels:  labels,

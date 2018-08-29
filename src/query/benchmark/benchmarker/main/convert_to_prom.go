@@ -29,6 +29,7 @@ import (
 	"path"
 
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 
 	"github.com/gogo/protobuf/proto"
@@ -160,7 +161,7 @@ func marshalTSDBToProm(opentsdb string) (*prompb.TimeSeries, error) {
 	if err := json.Unmarshal(data, &m); err != nil {
 		return nil, err
 	}
-	labels := storage.TagsToPromLabels(m.Tags)
+	labels := storage.TagsToPromLabels(models.FromMap(m.Tags))
 	samples := metricsPointsToSamples(m.Value, m.Time)
 	return &prompb.TimeSeries{
 		Labels:  labels,

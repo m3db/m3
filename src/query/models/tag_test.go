@@ -106,12 +106,9 @@ func TestMatchType(t *testing.T) {
 }
 
 func createTags(withName bool) Tags {
-	tags := make(Tags)
-	tags["t1"] = "v1"
-	tags["t2"] = "v2"
-
+	tags := Tags{{"t1", "v1"}, {"t2", "v2"}}
 	if withName {
-		tags[MetricName] = "v0"
+		tags = append(tags, Tag{Name: MetricName, Value: "v0"})
 	}
 	return tags
 }
@@ -143,7 +140,7 @@ func TestTagsWithKeys(t *testing.T) {
 	tags := createTags(true)
 
 	tagsWithKeys := tags.TagsWithKeys([]string{"t1"})
-	assert.Equal(t, Tags{"t1": "v1"}, tagsWithKeys)
+	assert.Equal(t, Tags{{"t1", "v1"}}, tagsWithKeys)
 }
 
 func TestIDWithExcludes(t *testing.T) {
@@ -160,12 +157,12 @@ func TestIDWithExcludes(t *testing.T) {
 func TestTagsWithExcludes(t *testing.T) {
 	tags := createTags(true)
 
-	tagsWithoutKeys := tags.TagsWithoutKeys([]string{"t1"})
-	assert.Equal(t, Tags{"t2": "v2"}, tagsWithoutKeys)
+	tagsWithoutKeys := tags.TagsWithoutKeys([]string{"t1", MetricName})
+	assert.Equal(t, Tags{{"t2", "v2"}}, tagsWithoutKeys)
 }
 
 func TestTagsWithExcludesCustom(t *testing.T) {
-	tags := Tags{"a": "1", "b": "2", "c": "3", MetricName: "foo"}
-	tagsWithoutKeys := tags.TagsWithoutKeys([]string{"a", "c"})
-	assert.Equal(t, Tags{"b": "2"}, tagsWithoutKeys)
+	tags := Tags{{"a", "1"}, {"b", "2"}, {"c", "3"}, {MetricName, "foo"}}
+	tagsWithoutKeys := tags.TagsWithoutKeys([]string{"a", "c", MetricName})
+	assert.Equal(t, Tags{{"b", "2"}}, tagsWithoutKeys)
 }
