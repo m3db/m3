@@ -297,6 +297,11 @@ func (m *cleanupManager) commitLogTimes(t time.Time) ([]commitlog.File, error) {
 				needsFlush                 = ns.NeedsFlush(nsBlocksStart, nsBlocksEnd)
 			)
 
+			outOfRetention := nsBlocksEnd.Before(retention.FlushTimeStart(ropts, t))
+			if outOfRetention {
+				continue
+			}
+
 			if !needsFlush {
 				// Data has been flushed to disk so the commit log file is
 				// safe to clean up.
