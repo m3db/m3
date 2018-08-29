@@ -55,7 +55,6 @@ func newPropTestCleanupMgr(
 	)
 	opts = opts.SetCommitLogOptions(
 		opts.CommitLogOptions().
-			SetRetentionPeriod(ropts.RetentionPeriod()).
 			SetBlockSize(commitLogBlockSize))
 
 	db.EXPECT().Options().Return(opts).AnyTimes()
