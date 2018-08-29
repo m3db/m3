@@ -232,7 +232,7 @@ func EncodeWriteMessage(query *storage.WriteQuery, queryID string) *rpc.WriteMes
 }
 
 func encodeWriteQuery(query *storage.WriteQuery) *rpc.WriteQuery {
-	// TODO: Convert RPC tags to list of name/value pairs rather than a map
+	// TODO (arnikola): Convert RPC tags to list of name/value pairs rather than a map
 	return &rpc.WriteQuery{
 		Unit:       int32(query.Unit),
 		Annotation: query.Annotation,

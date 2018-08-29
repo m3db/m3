@@ -111,7 +111,8 @@ func (w *downsamplerFlushHandlerWriter) Write(
 		iter.Reset(mp.ChunkedID.Data)
 
 		expected := iter.NumTags()
-		if len(mp.ChunkedID.Suffix) != 0 {
+		chunkSuffix := mp.ChunkedID.Suffix
+		if len(chunkSuffix) != 0 {
 			expected++
 		}
 
@@ -121,8 +122,9 @@ func (w *downsamplerFlushHandlerWriter) Write(
 			name, value := iter.Current()
 			tags = append(tags, models.Tag{Name: string(name), Value: string(value)})
 		}
-		if len(mp.ChunkedID.Suffix) != 0 {
-			tags = append(tags, models.Tag{Name: aggregationSuffixTag, Value: string(mp.ChunkedID.Suffix)})
+		
+		if len(chunkSuffix) != 0 {
+			tags = append(tags, models.Tag{Name: aggregationSuffixTag, Value: string(chunkSuffix)})
 		}
 
 		err := iter.Err()

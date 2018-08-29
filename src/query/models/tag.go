@@ -192,7 +192,7 @@ func (t Tags) IDWithExcludes(excludeKeys ...string) uint64 {
 	return h.Sum64()
 }
 
-func (t Tags) tagSubSet(keys []string, include bool) Tags {
+func (t Tags) tagSubset(keys []string, include bool) Tags {
 	tags := make(Tags, 0, len(t))
 	for _, tag := range t {
 		found := false
@@ -213,7 +213,7 @@ func (t Tags) tagSubSet(keys []string, include bool) Tags {
 
 // TagsWithoutKeys returns only the tags which do not have the given keys
 func (t Tags) TagsWithoutKeys(excludeKeys []string) Tags {
-	return t.tagSubSet(excludeKeys, false)
+	return t.tagSubset(excludeKeys, false)
 }
 
 // IDWithKeys returns a string representation of the tags only including the given keys
@@ -238,7 +238,7 @@ func (t Tags) IDWithKeys(includeKeys ...string) uint64 {
 
 // TagsWithKeys returns only the tags which have the given keys
 func (t Tags) TagsWithKeys(includeKeys []string) Tags {
-	return t.tagSubSet(includeKeys, true)
+	return t.tagSubset(includeKeys, true)
 }
 
 // WithoutName copies the tags excluding the name tag

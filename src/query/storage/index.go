@@ -51,7 +51,10 @@ func FromIdentTagIteratorToTags(identTags ident.TagIterator) (models.Tags, error
 
 	for identTags.Next() {
 		identTag := identTags.Current()
-		tags = append(tags, models.Tag{Name: identTag.Name.String(), Value: identTag.Value.String()})
+		tags = append(tags, models.Tag{
+			Name:  identTag.Name.String(),
+			Value: identTag.Value.String(),
+		})
 	}
 
 	if err := identTags.Err(); err != nil {
