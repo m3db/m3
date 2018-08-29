@@ -519,11 +519,28 @@ func (s *dbSeries) OnRetrieveBlock(
 	startTime time.Time,
 	segment ts.Segment,
 ) {
+	var (
+		b    block.DatabaseBlock
+		list *block.WiredList
+	)
 	s.Lock()
-	shouldUnlock := true
 	defer func() {
-		if shouldUnlock {
-			s.Unlock()
+		s.Unlock()
+		if b != nil && list != nil {
+			// 1) We need to update the WiredList so that blocks that were read from disk
+			// can enter the list (OnReadBlock is only called for blocks that
+			// were read from memory, regardless of whether the data originated
+			// from disk or a buffer rotation.)
+			// 2) We must perform this action outside of the lock to prevent deadlock
+			// with the WiredList itself when it tries to call OnEvictedFromWiredList
+			// on the same series that is trying to perform a blocking update.
+			// 3) Doing this outside of the lock is safe because updating the
+			// wired list is asynchronous already (Update just puts the block in
+			// a channel to be processed later.)
+			// 4) We have to perform a blocking update because in this flow, the block
+			// is not already in the wired list so we need to make sure that the WiredList
+			// takes control of its lifecycle.
+			list.BlockingUpdate(b)
 		}
 	}()
 
@@ -531,7 +548,7 @@ func (s *dbSeries) OnRetrieveBlock(
 		return
 	}
 
-	b := s.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
+	b = s.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 	metadata := block.RetrievableBlockMetadata{
 		ID:       s.id,
 		Length:   segment.Len(),
@@ -555,26 +572,7 @@ func (s *dbSeries) OnRetrieveBlock(
 	// If we retrieved this from disk then we directly emplace it
 	s.addBlockWithLock(b)
 
-	list := s.opts.DatabaseBlockOptions().WiredList()
-	shouldUnlock = false
-	s.Unlock()
-
-	if list != nil {
-		// 1) We need to update the WiredList so that blocks that were read from disk
-		// can enter the list (OnReadBlock is only called for blocks that
-		// were read from memory, regardless of whether the data originated
-		// from disk or a buffer rotation.)
-		// 2) We must perform this action outside of the lock to prevent deadlock
-		// with the WiredList itself when it tries to call OnEvictedFromWiredList
-		// on the same series that is trying to perform a blocking update.
-		// 3) Doing this outside of the lock is safe because updating the
-		// wired list is asynchronous already (Update just puts the block in
-		// a channel to be processed later.)
-		// 4) We have to perform a blocking update because in this flow, the block
-		// is not already in the wired list so we need to make sure that the WiredList
-		// takes control of its lifecycle.
-		list.BlockingUpdate(b)
-	}
+	list = s.opts.DatabaseBlockOptions().WiredList()
 }
 
 // OnReadBlock is only called for blocks that were read from memory, regardless of
