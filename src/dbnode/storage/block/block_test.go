@@ -551,6 +551,18 @@ func TestDatabaseBlockStreamMergePerformsCopy(t *testing.T) {
 	require.NoError(t, iter.Err())
 }
 
+func TestDatabaseBlockCloseIfFromDisk(t *testing.T) {
+	var (
+		blockOpts        = NewOptions()
+		blockNotFromDisk = NewDatabaseBlock(time.Time{}, time.Hour, ts.Segment{}, blockOpts).(*dbBlock)
+		blockFromDisk    = NewDatabaseBlock(time.Time{}, time.Hour, ts.Segment{}, blockOpts).(*dbBlock)
+	)
+	blockFromDisk.wasRetrievedFromDisk = true
+
+	require.False(t, blockNotFromDisk.CloseIfFromDisk())
+	require.True(t, blockFromDisk.CloseIfFromDisk())
+}
+
 func TestDatabaseSeriesBlocksAddBlock(t *testing.T) {
 	now := time.Now()
 	blockTimes := []time.Time{now, now.Add(time.Second), now.Add(time.Minute), now.Add(-time.Second), now.Add(-time.Hour)}

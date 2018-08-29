@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -518,14 +519,36 @@ func (s *dbSeries) OnRetrieveBlock(
 	startTime time.Time,
 	segment ts.Segment,
 ) {
+	var (
+		b    block.DatabaseBlock
+		list *block.WiredList
+	)
 	s.Lock()
-	defer s.Unlock()
+	defer func() {
+		s.Unlock()
+		if b != nil && list != nil {
+			// 1) We need to update the WiredList so that blocks that were read from disk
+			// can enter the list (OnReadBlock is only called for blocks that
+			// were read from memory, regardless of whether the data originated
+			// from disk or a buffer rotation.)
+			// 2) We must perform this action outside of the lock to prevent deadlock
+			// with the WiredList itself when it tries to call OnEvictedFromWiredList
+			// on the same series that is trying to perform a blocking update.
+			// 3) Doing this outside of the lock is safe because updating the
+			// wired list is asynchronous already (Update just puts the block in
+			// a channel to be processed later.)
+			// 4) We have to perform a blocking update because in this flow, the block
+			// is not already in the wired list so we need to make sure that the WiredList
+			// takes control of its lifecycle.
+			list.BlockingUpdate(b)
+		}
+	}()
 
 	if !id.Equal(s.id) {
 		return
 	}
 
-	b := s.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
+	b = s.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 	metadata := block.RetrievableBlockMetadata{
 		ID:       s.id,
 		Length:   segment.Len(),
@@ -549,13 +572,7 @@ func (s *dbSeries) OnRetrieveBlock(
 	// If we retrieved this from disk then we directly emplace it
 	s.addBlockWithLock(b)
 
-	if list := s.opts.DatabaseBlockOptions().WiredList(); list != nil {
-		// Need to update the WiredList so blocks that were read from disk
-		// can enter the list (OnReadBlock is only called for blocks that
-		// were read from memory, regardless of whether the data originated
-		// from disk or a buffer rotation.)
-		list.Update(b)
-	}
+	list = s.opts.DatabaseBlockOptions().WiredList()
 }
 
 // OnReadBlock is only called for blocks that were read from memory, regardless of
@@ -565,9 +582,16 @@ func (s *dbSeries) OnReadBlock(b block.DatabaseBlock) {
 		// The WiredList is only responsible for managing the lifecycle of blocks
 		// retrieved from disk.
 		if b.WasRetrievedFromDisk() {
-			// Need to update the WiredList so it knows which blocks have been
+			// 1) Need to update the WiredList so it knows which blocks have been
 			// most recently read.
-			list.Update(b)
+			// 2) We do a non-blocking update here to prevent deadlock with the
+			// WiredList calling OnEvictedFromWiredList on the same series since
+			// OnReadBlock is usually called within the context of a read lock
+			// on this series.
+			// 3) Its safe to do a non-blocking update because the wired list has
+			// already been exposed to this block, so even if the wired list drops
+			// this update, it will still manage this blocks lifecycle.
+			list.NonBlockingUpdate(b)
 		}
 	}
 }
@@ -585,7 +609,8 @@ func (s *dbSeries) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 	if ok {
 		if !block.WasRetrievedFromDisk() {
 			// Should never happen - invalid application state could cause data loss
-			s.opts.InstrumentOptions().Logger().WithFields(
+			instrument.EmitInvariantViolationAndGetLogger(
+				s.opts.InstrumentOptions()).WithFields(
 				xlog.NewField("id", id.String()),
 				xlog.NewField("blockStart", blockStart),
 			).Errorf("tried to evict block that was not retrieved from disk")
