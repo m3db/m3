@@ -251,7 +251,6 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	storageOpts = storageOpts.SetCommitLogOptions(
 		storageOpts.CommitLogOptions().
 			SetFilesystemOptions(fsOpts).
-			SetRetentionPeriod(opts.CommitLogRetentionPeriod()).
 			SetBlockSize(opts.CommitLogBlockSize()))
 
 	// Set up persistence manager

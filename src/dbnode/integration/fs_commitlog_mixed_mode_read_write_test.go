@@ -66,7 +66,6 @@ func testMixedModeReadWrite(t *testing.T, snapshotEnabled bool) {
 	ns1, err := namespace.NewMetadata(nsID, ns1Opts)
 	require.NoError(t, err)
 	opts := newTestOptions(t).
-		SetCommitLogRetentionPeriod(commitLogRetetion).
 		SetCommitLogBlockSize(commitLogBlockSize).
 		SetNamespaces([]namespace.Metadata{ns1})
 

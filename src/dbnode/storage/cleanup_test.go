@@ -76,7 +76,6 @@ func TestCleanupManagerCleanup(t *testing.T) {
 	mgr := newCleanupManager(db, tally.NoopScope).(*cleanupManager)
 	mgr.opts = mgr.opts.SetCommitLogOptions(
 		mgr.opts.CommitLogOptions().
-			SetRetentionPeriod(rOpts.RetentionPeriod()).
 			SetBlockSize(rOpts.BlockSize()))
 
 	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
@@ -149,7 +148,6 @@ func TestCleanupManagerDoesntNeedCleanup(t *testing.T) {
 	mgr := newCleanupManager(db, tally.NoopScope).(*cleanupManager)
 	mgr.opts = mgr.opts.SetCommitLogOptions(
 		mgr.opts.CommitLogOptions().
-			SetRetentionPeriod(rOpts.RetentionPeriod()).
 			SetBlockSize(rOpts.BlockSize()))
 
 	var deletedFiles []string
@@ -447,7 +445,6 @@ func newCleanupManagerCommitLogTimesTest(t *testing.T, ctrl *gomock.Controller) 
 
 	mgr.opts = mgr.opts.SetCommitLogOptions(
 		mgr.opts.CommitLogOptions().
-			SetRetentionPeriod(rOpts.RetentionPeriod()).
 			SetBlockSize(rOpts.BlockSize()))
 	return ns, mgr
 }
@@ -477,7 +474,6 @@ func newCleanupManagerCommitLogTimesTestMultiNS(
 
 	mgr.opts = mgr.opts.SetCommitLogOptions(
 		mgr.opts.CommitLogOptions().
-			SetRetentionPeriod(rOpts.RetentionPeriod()).
 			SetBlockSize(rOpts.BlockSize()))
 	return ns1, ns2, mgr
 }

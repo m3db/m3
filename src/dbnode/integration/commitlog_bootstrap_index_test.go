@@ -61,7 +61,6 @@ func TestCommitLogIndexBootstrap(t *testing.T) {
 	ns2, err := namespace.NewMetadata(testNamespaces[1], nsOpts)
 	require.NoError(t, err)
 	opts := newTestOptions(t).
-		SetCommitLogRetentionPeriod(rOpts.RetentionPeriod()).
 		SetCommitLogBlockSize(blockSize).
 		SetNamespaces([]namespace.Metadata{ns1, ns2})
 
