@@ -148,10 +148,10 @@ func TestQuantileFunctionFilteringWithoutA(t *testing.T) {
 
 	expectedMetas := []block.SeriesMeta{
 		{Name: QuantileType, Tags: models.Tags{}},
-		{Name: QuantileType, Tags: models.Tags{"b": "2"}},
-		{Name: QuantileType, Tags: models.Tags{"c": "3"}},
+		{Name: QuantileType, Tags: models.Tags{{Name: "b", Value: "2"}}},
+		{Name: QuantileType, Tags: models.Tags{{Name: "c", Value: "3"}}},
 	}
-	expectedMetaTags := models.Tags{"d": "4"}
+	expectedMetaTags := models.Tags{{Name: "d", Value: "4"}}
 
 	test.CompareValues(t, sink.Metas, expectedMetas, sink.Values, expected)
 	assert.Equal(t, bounds, sink.Meta.Bounds)
