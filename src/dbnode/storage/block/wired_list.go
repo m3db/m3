@@ -286,9 +286,9 @@ func (l *WiredList) insertAfter(v, at DatabaseBlock) {
 			onEvict.OnEvictedFromWiredList(entry.retrieveID, entry.startTime)
 		}
 
-		// bl.Close() will return the block to the pool. In order to avoid races
-		// with the pool itself, we capture the value of the next block and remove
-		// the block from the wired list before we close it.
+		// bl.CloseIfFromDisk() will return the block to the pool. In order to avoid
+		// races with the pool itself, we capture the value of the next block and
+		// remove the block from the wired list before we close it.
 		nextBl := bl.next()
 		l.remove(bl)
 		if wasFromDisk := bl.CloseIfFromDisk(); !wasFromDisk {
