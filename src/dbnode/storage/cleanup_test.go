@@ -47,11 +47,6 @@ var (
 	commitLogBlockSize = 10 * time.Second
 )
 
-func testCleanupManager(ctrl *gomock.Controller) (*Mockdatabase, *cleanupManager) {
-	db := newMockdatabase(ctrl)
-	return db, newCleanupManager(db, tally.NoopScope).(*cleanupManager)
-}
-
 func TestCleanupManagerCleanup(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
