@@ -92,7 +92,7 @@ type countValuesNode struct {
 type bucketColumn []float64
 
 type bucketBlock struct {
-	metas        []block.SeriesMeta
+	// metas        []block.SeriesMeta
 	columns      []bucketColumn
 	indexMapping map[float64]int
 }
@@ -125,7 +125,6 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 	for i := range tempBlock {
 		tempBlock[i].columns = make([]bucketColumn, stepCount)
 		tempBlock[i].indexMapping = make(map[float64]int, 10)
-		tempBlock[i].metas = make([]block.SeriesMeta, 0, 10)
 	}
 
 	for columnIndex := 0; stepIter.Next(); columnIndex++ {
@@ -144,29 +143,44 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 				for i := 0; i < previousLen; i++ {
 					currentBucketBlock.columns[columnIndex][i] = math.NaN()
 				}
+				if bucketIndex == 0 {
+					fmt.Println("********Filled up initial column index with", currentBucketBlock.columns[columnIndex])
+				}
 			}
-			currentBucketColumn := currentBucketBlock.columns[columnIndex]
 
 			countedValues := countValuesFn(values, bucket)
+			if bucketIndex == 0 {
+				fmt.Println("Values:", values, "bucket:", bucket, "counted", countedValues)
+			}
 			for distinctValue, count := range countedValues {
+				currentBucketColumn := currentBucketBlock.columns[columnIndex]
+				if bucketIndex == 0 {
+					fmt.Println("--current mapping", currentBucketBlock.indexMapping)
+					fmt.Println("      current columns", currentBucketBlock.columns[columnIndex])
+				}
 				if rowIndex, seen := currentBucketBlock.indexMapping[distinctValue]; seen {
 					// This value has already been seen at rowIndex in a previous column
 					// so add the current value to the appropriate row index.
 					fmt.Println("Seen", currentBucketBlock.indexMapping)
 					fmt.Println("Bucket index", bucketIndex, "col Index", columnIndex, "row Index", rowIndex, "col", currentBucketColumn)
-					currentBucketColumn[rowIndex] = count
+					currentBucketBlock.columns[columnIndex][rowIndex] = count
 				} else {
+					// The column index needs to be created here already
 					// Add the count to the end of the bucket column
+					fmt.Println("Adding", distinctValue, " to currentBucketBlock.column[", columnIndex, "]:", currentBucketBlock.columns[columnIndex])
 					currentBucketBlock.columns[columnIndex] = append(currentBucketColumn, count)
+					if bucketIndex == 0 {
+						fmt.Println("Added", distinctValue, " to currentBucketBlock.column[", columnIndex, "]:", currentBucketBlock.columns[columnIndex])
+					}
 
 					// Generate a metadata with a new tag consisting of tagName: distinctValue
-					tempBlock[bucketIndex].metas = append(currentBucketBlock.metas, block.SeriesMeta{
-						Name: n.op.OpType(),
-						Tags: metas[bucketIndex].Tags.Clone().Add(models.Tags{{
-							Name:  n.op.params.StringParameter,
-							Value: strconv.FormatFloat(distinctValue, 'f', -1, 64),
-						}}),
-					})
+					// tempBlock[bucketIndex].metas = append(currentBucketBlock.metas, block.SeriesMeta{
+					// 	Name: n.op.OpType(),
+					// 	Tags: metas[bucketIndex].Tags.Clone().Add(models.Tags{{
+					// 		Name:  n.op.params.StringParameter,
+					// 		Value: strconv.FormatFloat(distinctValue, 'f', -1, 64),
+					// 	}}),
+					// })
 
 					// Add the distinctValue to the indexMapping
 					currentBucketBlock.indexMapping[distinctValue] = len(currentBucketColumn)
@@ -177,14 +191,20 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 
 	for i, bucketBlock := range tempBlock {
 		fmt.Println("BucketBlock", i)
-		tags := make([]models.Tags, 10)
-		for i, meta := range bucketBlock.metas {
-			tags[i] = meta.Tags
+		fmt.Println(" metas:", metas[i])
+		fmt.Println("mapping", bucketBlock.indexMapping)
+		tags := make(models.Tags, len(bucketBlock.indexMapping))
+
+		for k, v := range bucketBlock.indexMapping {
+			tags[v] = models.Tag{
+				Name:  n.op.params.StringParameter,
+				Value: strconv.FormatFloat(k, 'f', -1, 64),
+			}
 		}
 		fmt.Println("Tag length", len(tags))
 
 		for j, col := range bucketBlock.columns {
-			fmt.Println("Tags", tags[j], "Column", j, col)
+			fmt.Println("Column", j, col)
 		}
 
 	}
@@ -230,19 +250,6 @@ func countValuesFn(values []float64, buckets []int) map[float64]float64 {
 			countedValues[val]++
 		}
 	}
+
 	return countedValues
-
-	// tagValuePairs := make([]tagValuePair, len(buckets))
-	// for distinctValue, countedValue := range countedValues {
-	// 	distinctValueString := strconv.FormatFloat(distinctValue, 'f', -1, 64)
-	// 	tagValuePairs = append(tagValuePairs, tagValuePair{
-	// 		tag: models.Tag{
-	// 			Name:  tagName,
-	// 			Value: distinctValueString,
-	// 		},
-	// 		value: countedValue,
-	// 	})
-	// }
-
-	// return tagValuePairs
 }

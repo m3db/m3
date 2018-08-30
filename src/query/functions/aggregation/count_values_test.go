@@ -28,8 +28,33 @@ import (
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+/*
+	seriesMetas = []block.SeriesMeta{
+		{Tags: models.FromMap(map[string]string{"d": "4"})},
+		{Tags: models.FromMap(map[string]string{"d": "4"})},
+
+		{Tags: models.FromMap(map[string]string{"b": "2", "d": "4"})},
+		{Tags: models.FromMap(map[string]string{"b": "2", "d": "4"})},
+		{Tags: models.FromMap(map[string]string{"b": "2", "d": "4"})},
+
+		{Tags: models.FromMap(map[string]string{"c": "3", "d": "4"})},
+	}
+
+	v = [][]float64{
+		{0, math.NaN(), 2, 3, 4},
+		{math.NaN(), 6, 7, 8, 9},
+
+		{10, 20, 30, 40, 50},
+		{50, 60, 70, 80, 90},
+		{100, 200, 300, 400, 500},
+
+		{600, 700, 800, 900, 1000},
+	}
+*/
 
 func processCountValuesOp(t *testing.T, op parser.Params) *executor.SinkNode {
 	bl := test.NewBlockFromValuesWithSeriesMeta(bounds, seriesMetas, v)
@@ -62,4 +87,12 @@ func TestProcessCountValuesFunctionFilteringWithoutA(t *testing.T) {
 	// assert.Equal(t, seriesMetas, sink.Metas)
 	// test.EqualsWithNansWithDelta(t, expected, sink.Values, math.Pow10(-5))
 	// assert.Equal(t, bounds, sink.Meta.Bounds)
+}
+
+func TestCountValuesFn(t *testing.T) {
+	values := []float64{1, 2, 3, 4, 5, 6, 7, 1}
+	buckets := []int{0, 1, 7}
+	actual := countValuesFn(values, buckets)
+	assert.Equal(t, 2.0, actual[1])
+	assert.Equal(t, 1.0, actual[2])
 }
