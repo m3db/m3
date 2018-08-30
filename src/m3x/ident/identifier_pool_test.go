@@ -37,13 +37,6 @@ func TestSimpleIDPool(t *testing.T) {
 	suite.Run(t, s)
 }
 
-func TestNativeIDPool(t *testing.T) {
-	s := &idPoolTestSuite{
-		pool: NewNativePool(nil, PoolOptions{}),
-	}
-	suite.Run(t, s)
-}
-
 type idPoolTestSuite struct {
 	suite.Suite
 	pool Pool
