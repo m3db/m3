@@ -21,6 +21,7 @@
 package native
 
 import (
+	"math"
 	"net/http"
 	"net/url"
 	"testing"
@@ -73,4 +74,11 @@ func TestInvalidTarget(t *testing.T) {
 	require.NotNil(t, err, "unable to parse request")
 	assert.NotNil(t, p.Start)
 	require.Equal(t, err.Code(), http.StatusBadRequest)
+}
+
+func TestValueToProm(t *testing.T) {
+	assert.Equal(t, valueToProm(1.0), "1")
+	assert.Equal(t, valueToProm(1.2), "1.2")
+	assert.Equal(t, valueToProm(math.NaN()), "NaN")
+	assert.Equal(t, valueToProm(0.0119311), "0.0119311")
 }
