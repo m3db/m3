@@ -287,13 +287,32 @@ func (t Tags) StringMap() map[string]string {
 	return m
 }
 
-// Add is used to add a bunch of tags and then maintain the sort order
+// Clone returns a copy of the tags
+func (t Tags) Clone() Tags {
+	cloned := make(Tags, len(t))
+	copy(cloned, t)
+	return cloned
+}
+
+// AddSingle is used to add a single tag and maintain sorted order
+func (t Tags) AddSingle(tag Tag) Tags {
+	fmt.Println("tags", t, tag)
+	updated := append(t, tag)
+	fmt.Println("updated", updated)
+
+	z := Normalize(updated)
+	fmt.Println("normd", z)
+	return z
+}
+
+// Add is used to add a list of tags and maintain sorted order
 func (t Tags) Add(tags Tags) Tags {
 	updated := append(t, tags...)
 	return Normalize(updated)
 }
 
-// Normalize normalizes the tags by sorting them in place. In future, it might also ensure other things like uniqueness
+// Normalize normalizes the tags by sorting them in place.
+// In future, it might also ensure other things like uniqueness
 func Normalize(tags Tags) Tags {
 	sort.Sort(tags)
 	return tags

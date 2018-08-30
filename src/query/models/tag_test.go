@@ -21,6 +21,7 @@
 package models
 
 import (
+	"fmt"
 	"hash/fnv"
 	"testing"
 
@@ -165,4 +166,42 @@ func TestTagsWithExcludesCustom(t *testing.T) {
 	tags := Tags{{"a", "1"}, {"b", "2"}, {"c", "3"}, {MetricName, "foo"}}
 	tagsWithoutKeys := tags.TagsWithoutKeys([]string{"a", "c", MetricName})
 	assert.Equal(t, Tags{{"b", "2"}}, tagsWithoutKeys)
+}
+
+func TestAddTags(t *testing.T) {
+	tags := make(Tags, 0, 4)
+
+	tagToAdd := Tag{"z", "3"}
+	tags = tags.AddSingle(tagToAdd)
+	assert.Equal(t, Tags{tagToAdd}, tags)
+
+	tagsToAdd := Tags{{"a", "1"}, {"b", "2"}, {"c", "3"}}
+	tags = tags.Add(tagsToAdd)
+
+	expected := Tags{{"a", "1"}, {"b", "2"}, {"c", "3"}, {"z", "3"}}
+	assert.Equal(t, expected, tags)
+}
+
+func TestClonedddTags(t *testing.T) {
+	tags := createTags(true)
+	// original := createTags(true)
+	ts := Tags{{"axc", "1"}, {"bsdf", "2"}, {"csf", "3"}}
+	// tags.Add(ts)
+	// fmt.Println(tags)
+	// assert.Equal(t, original, tags)
+	tags.AddSingle(ts[0])
+	fmt.Println(tags)
+	// assert.Equal(t, original, tags)
+}
+
+func TestCloneTags(t *testing.T) {
+	tags := createTags(true)
+	original := createTags(true)
+
+	cloned := tags.Clone()
+	assert.Equal(t, cloned, tags)
+	// mutate cloned and ensure tags is unchanged
+	cloned = cloned[1:]
+	assert.NotEqual(t, cloned, tags)
+	assert.Equal(t, original, tags)
 }
