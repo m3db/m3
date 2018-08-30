@@ -24,7 +24,6 @@ import (
 	"testing"
 
 	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/context"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -58,17 +57,5 @@ func TestNoFinalize(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		v.Finalize()
 		checkValid()
-	}
-}
-
-func BenchmarkPooling(b *testing.B) {
-	p := NewNativePool(nil, PoolOptions{})
-	ctx := context.NewContext()
-
-	v := checked.NewBytes([]byte{'a', 'b', 'c'}, nil)
-
-	for i := 0; i < b.N; i++ {
-		id := p.GetBinaryID(ctx, v)
-		id.Finalize()
 	}
 }
