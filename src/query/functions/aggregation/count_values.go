@@ -120,7 +120,6 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 	)
 
 	stepCount := stepIter.StepCount()
-
 	tempBlock := make([]bucketBlock, len(buckets))
 	for i := range tempBlock {
 		tempBlock[i].columns = make([]bucketColumn, stepCount)
@@ -144,43 +143,34 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 					currentBucketBlock.columns[columnIndex][i] = math.NaN()
 				}
 				if bucketIndex == 0 {
-					fmt.Println("********Filled up initial column index with", currentBucketBlock.columns[columnIndex])
+					// fmt.Println("********Filled up initial column index with", currentBucketBlock.columns[columnIndex])
 				}
 			}
 
 			countedValues := countValuesFn(values, bucket)
 			if bucketIndex == 0 {
-				fmt.Println("Values:", values, "bucket:", bucket, "counted", countedValues)
+				// fmt.Println("Values:", values, "bucket:", bucket, "counted", countedValues)
 			}
 			for distinctValue, count := range countedValues {
 				currentBucketColumn := currentBucketBlock.columns[columnIndex]
 				if bucketIndex == 0 {
-					fmt.Println("--current mapping", currentBucketBlock.indexMapping)
-					fmt.Println("      current columns", currentBucketBlock.columns[columnIndex])
+					// fmt.Println("--current mapping", currentBucketBlock.indexMapping)
+					// fmt.Println("      current columns", currentBucketBlock.columns[columnIndex])
 				}
 				if rowIndex, seen := currentBucketBlock.indexMapping[distinctValue]; seen {
 					// This value has already been seen at rowIndex in a previous column
 					// so add the current value to the appropriate row index.
-					fmt.Println("Seen", currentBucketBlock.indexMapping)
-					fmt.Println("Bucket index", bucketIndex, "col Index", columnIndex, "row Index", rowIndex, "col", currentBucketColumn)
+					// fmt.Println("Seen", currentBucketBlock.indexMapping)
+					// fmt.Println("Bucket index", bucketIndex, "col Index", columnIndex, "row Index", rowIndex, "col", currentBucketColumn)
 					currentBucketBlock.columns[columnIndex][rowIndex] = count
 				} else {
 					// The column index needs to be created here already
 					// Add the count to the end of the bucket column
-					fmt.Println("Adding", distinctValue, " to currentBucketBlock.column[", columnIndex, "]:", currentBucketBlock.columns[columnIndex])
+					// fmt.Println("Adding", distinctValue, " to currentBucketBlock.column[", columnIndex, "]:", currentBucketBlock.columns[columnIndex])
 					currentBucketBlock.columns[columnIndex] = append(currentBucketColumn, count)
 					if bucketIndex == 0 {
-						fmt.Println("Added", distinctValue, " to currentBucketBlock.column[", columnIndex, "]:", currentBucketBlock.columns[columnIndex])
+						// fmt.Println("Added", distinctValue, " to currentBucketBlock.column[", columnIndex, "]:", currentBucketBlock.columns[columnIndex])
 					}
-
-					// Generate a metadata with a new tag consisting of tagName: distinctValue
-					// tempBlock[bucketIndex].metas = append(currentBucketBlock.metas, block.SeriesMeta{
-					// 	Name: n.op.OpType(),
-					// 	Tags: metas[bucketIndex].Tags.Clone().Add(models.Tags{{
-					// 		Name:  n.op.params.StringParameter,
-					// 		Value: strconv.FormatFloat(distinctValue, 'f', -1, 64),
-					// 	}}),
-					// })
 
 					// Add the distinctValue to the indexMapping
 					currentBucketBlock.indexMapping[distinctValue] = len(currentBucketColumn)
@@ -189,56 +179,66 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 		}
 	}
 
-	for i, bucketBlock := range tempBlock {
-		fmt.Println("BucketBlock", i)
-		fmt.Println(" metas:", metas[i])
-		fmt.Println("mapping", bucketBlock.indexMapping)
-		tags := make(models.Tags, len(bucketBlock.indexMapping))
+	numSeries := 0
 
-		for k, v := range bucketBlock.indexMapping {
-			tags[v] = models.Tag{
-				Name:  n.op.params.StringParameter,
-				Value: strconv.FormatFloat(k, 'f', -1, 64),
-			}
-		}
-		fmt.Println("Tag length", len(tags))
-
-		for j, col := range bucketBlock.columns {
-			fmt.Println("Column", j, col)
-		}
-
+	for _, bucketBlock := range tempBlock {
+		numSeries += len(bucketBlock.indexMapping)
 	}
 
-	return nil
-	// seenValues := make(seenValuesForBucket, len(buckets))
-	// // aggregatedValueIndex := make(map[float64]int, stepIter.StepCount())
+	// Rebuild block metas in the expected order
+	blockMetas := make([]block.SeriesMeta, numSeries)
+	initialIndex := 0
+	for bucketIndex, bucketBlock := range tempBlock {
+		for k, v := range bucketBlock.indexMapping {
+			blockMetas[v+initialIndex] = block.SeriesMeta{
+				Name: n.op.OpType(),
+				Tags: metas[bucketIndex].Tags.Clone().Add(models.Tags{{
+					Name:  n.op.params.StringParameter,
+					Value: strconv.FormatFloat(k, 'f', -1, 64),
+				}}),
+			}
+		}
 
-	// aggregatedValues := make([]float64, len(buckets))
-	// for index := 0; stepIter.Next(); index++ {
-	// 	step, err := stepIter.Current()
-	// 	if err != nil {
-	// 		return err
-	// 	}
+		initialIndex += len(bucketBlock.indexMapping)
+	}
 
-	// 	values := step.Values()
-	// 	for i, bucket := range buckets {
-	// 		seenValuesForThisBucket := seenValues[i]
-	// 		countedValues := countValuesFn(values, bucket)
-	// 		for distinctValue, count := range countedValues {
-	// 			if idx, seen := seenValues[distinctValue]; seen {
-	// 				builder.AppendValue(index)
-	// 			}
-	// 		}
-	// 		seenValues[i] = nil
-	// 		aggregatedValues[i] = n.op.aggFn(values, bucket)
-	// 	}
+	// Dedupe common metadatas
+	metaTags, flattenedMeta := utils.DedupeMetadata(blockMetas)
+	meta.Tags = metaTags
 
-	// 	builder.AppendValues(index, aggregatedValues)
-	// }
+	builder, err := n.controller.BlockBuilder(meta, flattenedMeta)
+	if err != nil {
+		return err
+	}
 
-	// nextBlock := builder.Build()
-	// defer nextBlock.Close()
-	// return n.controller.Process(nextBlock)
+	if err := builder.AddCols(stepCount); err != nil {
+		return err
+	}
+
+	for columnIndex := 0; columnIndex < stepCount; columnIndex++ {
+		for _, bucketBlock := range tempBlock {
+			vals := []float64(bucketBlock.columns[columnIndex])
+			valsToAdd := padValuesWithNaNs(vals, len(bucketBlock.indexMapping))
+			builder.AppendValues(columnIndex, valsToAdd)
+		}
+	}
+
+	nextBlock := builder.Build()
+	defer nextBlock.Close()
+	return n.controller.Process(nextBlock)
+}
+
+// pads val with enough NaNs to match size
+func padValuesWithNaNs(vals []float64, size int) []float64 {
+	// 789
+	// 456
+	// 321
+	//  0
+	numPad := size - len(vals)
+	for i := 0; i < numPad; i++ {
+		vals = append(vals, math.NaN())
+	}
+	return vals
 }
 
 // count values takes a and, adding the count of distinct non nan values.

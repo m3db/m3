@@ -74,6 +74,11 @@ func NewAggregationOperator(expr *promql.AggregateExpr) (parser.Params, error) {
 		return nil, fmt.Errorf("operator not supported: %s", opType)
 	}
 
+	if op == aggregation.CountValuesType {
+		nodeInformation.StringParameter = expr.Param.String()
+		return aggregation.NewCountValuesOp(op, nodeInformation)
+	}
+
 	return aggregation.NewAggregationOp(op, nodeInformation)
 }
 

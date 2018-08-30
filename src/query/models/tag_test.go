@@ -21,7 +21,6 @@
 package models
 
 import (
-	"fmt"
 	"hash/fnv"
 	"testing"
 
@@ -180,18 +179,6 @@ func TestAddTags(t *testing.T) {
 
 	expected := Tags{{"a", "1"}, {"b", "2"}, {"c", "3"}, {"z", "3"}}
 	assert.Equal(t, expected, tags)
-}
-
-func TestClonedddTags(t *testing.T) {
-	tags := createTags(true)
-	// original := createTags(true)
-	ts := Tags{{"axc", "1"}, {"bsdf", "2"}, {"csf", "3"}}
-	// tags.Add(ts)
-	// fmt.Println(tags)
-	// assert.Equal(t, original, tags)
-	tags.AddSingle(ts[0])
-	fmt.Println(tags)
-	// assert.Equal(t, original, tags)
 }
 
 func TestCloneTags(t *testing.T) {

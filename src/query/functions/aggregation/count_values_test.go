@@ -21,6 +21,8 @@
 package aggregation
 
 import (
+	"fmt"
+	"math"
 	"testing"
 
 	"github.com/m3db/m3/src/query/executor/transform"
@@ -56,6 +58,23 @@ import (
 	}
 */
 
+func TestPadValuesWithNans(t *testing.T) {
+	// When padding neccessary adds enough NaNs
+	vals := []float64{1}
+	actual := padValuesWithNaNs(vals, 4)
+	test.EqualsWithNans(t, []float64{1, math.NaN(), math.NaN(), math.NaN()}, actual)
+
+	// When no padding neccessary should do nothing
+	vals = []float64{1, 2, 3, 4}
+	actual = padValuesWithNaNs(vals, 4)
+	test.EqualsWithNans(t, []float64{1, 2, 3, 4}, actual)
+
+	// When vals is longer than padding length, should do nothing
+	vals = []float64{1, 2, 3, 4, 5}
+	actual = padValuesWithNaNs(vals, 4)
+	test.EqualsWithNans(t, []float64{1, 2, 3, 4, 5}, actual)
+}
+
 func processCountValuesOp(t *testing.T, op parser.Params) *executor.SinkNode {
 	bl := test.NewBlockFromValuesWithSeriesMeta(bounds, seriesMetas, v)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
@@ -70,7 +89,11 @@ func TestProcessCountValuesFunctionFilteringWithoutA(t *testing.T) {
 		MatchingTags: []string{"a"}, Without: true, StringParameter: "prefix",
 	})
 	require.NoError(t, err)
-	processCountValuesOp(t, op)
+	sink := processCountValuesOp(t, op)
+
+	for i, m := range sink.Metas {
+		fmt.Println("Tags", i, ")", m.Tags, ":", sink.Values[i])
+	}
 	// expected := [][]float64{
 	// 	// Taking bottomk(1) of first two series, keeping both series
 	// 	{0, math.NaN(), 2, 3, 4},
