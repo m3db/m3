@@ -91,7 +91,6 @@ func (a *aggNode) Process(values []float64) float64 {
 		for _, v := range values {
 			if !math.IsNaN(v) {
 				count++
-				fmt.Println(v, mean, count)
 				mean += (v - mean) / count
 			}
 		}

@@ -41,9 +41,6 @@ type testCase struct {
 	afterAllBlocks [][]float64
 }
 
-//	{0, 1, 2, 3, 4},
-//  {5, 6, 7, 8, 9},
-
 var testCases = []testCase{
 	{
 		description: "testing avg_over_time",
@@ -109,24 +106,24 @@ var testCases = []testCase{
 		description: "testing stddev_over_time",
 		opType:      StdDevTemporalType,
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 10},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 35},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1.1180},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1.4142},
 		},
 		afterAllBlocks: [][]float64{
-			{10, 10, 10, 10, 10},
-			{35, 35, 35, 35, 35},
+			{1.4142, 1.4142, 1.4142, 1.4142, 1.4142},
+			{1.4142, 1.4142, 1.4142, 1.4142, 1.4142},
 		},
 	},
 	{
 		description: "testing stdvar_over_time",
 		opType:      StdVarTemporalType,
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 10},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 35},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1.25},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 2},
 		},
 		afterAllBlocks: [][]float64{
-			{10, 10, 10, 10, 10},
-			{35, 35, 35, 35, 35},
+			{2, 2, 2, 2, 2},
+			{2, 2, 2, 2, 2},
 		},
 	},
 }
@@ -169,8 +166,8 @@ func TestAggregation(t *testing.T) {
 		err = node.Process(parser.NodeID(0), block1)
 		require.NoError(t, err)
 		assert.Len(t, sink.Values, 2, "output from first block only")
-		test.EqualsWithNans(t, testCase.afterBlockOne[0], sink.Values[0])
-		test.EqualsWithNans(t, testCase.afterBlockOne[1], sink.Values[1])
+		test.EqualsWithNansWithDelta(t, testCase.afterBlockOne[0], sink.Values[0], 0.0001)
+		test.EqualsWithNansWithDelta(t, testCase.afterBlockOne[1], sink.Values[1], 0.0001)
 		_, exists = bNode.cache.get(boundStart)
 		assert.True(t, exists, "block still cached")
 		_, exists = bNode.cache.get(boundStart.Add(-1 * bounds.Duration))
@@ -185,12 +182,12 @@ func TestAggregation(t *testing.T) {
 		err = node.Process(parser.NodeID(0), block2)
 		require.NoError(t, err)
 		assert.Len(t, sink.Values, 6, "output from all 3 blocks")
-		test.EqualsWithNans(t, testCase.afterBlockOne[0], sink.Values[0])
-		test.EqualsWithNans(t, testCase.afterBlockOne[1], sink.Values[1])
+		test.EqualsWithNansWithDelta(t, testCase.afterBlockOne[0], sink.Values[0], 0.0001)
+		test.EqualsWithNansWithDelta(t, testCase.afterBlockOne[1], sink.Values[1], 0.0001)
 		expectedOne := testCase.afterAllBlocks[0]
 		expectedTwo := testCase.afterAllBlocks[1]
-		test.EqualsWithNans(t, expectedOne, sink.Values[2])
-		test.EqualsWithNans(t, expectedTwo, sink.Values[3])
+		test.EqualsWithNansWithDelta(t, expectedOne, sink.Values[2], 0.0001)
+		test.EqualsWithNansWithDelta(t, expectedTwo, sink.Values[3], 0.0001)
 		_, exists = bNode.cache.get(bounds.Previous(2).Start)
 		assert.False(t, exists, "block removed from cache")
 		_, exists = bNode.cache.get(bounds.Previous(1).Start)
@@ -201,4 +198,9 @@ func TestAggregation(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, blks, 0)
 	}
+}
+
+func TestUnknownAggregation(t *testing.T) {
+	_, err := NewAggOp([]interface{}{5 * time.Minute}, "unknown_agg_func")
+	require.Error(t, err)
 }
