@@ -25,7 +25,9 @@ import (
 	"math"
 	"testing"
 
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
@@ -33,30 +35,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-/*
-	seriesMetas = []block.SeriesMeta{
-		{Tags: models.FromMap(map[string]string{"d": "4"})},
-		{Tags: models.FromMap(map[string]string{"d": "4"})},
-
-		{Tags: models.FromMap(map[string]string{"b": "2", "d": "4"})},
-		{Tags: models.FromMap(map[string]string{"b": "2", "d": "4"})},
-		{Tags: models.FromMap(map[string]string{"b": "2", "d": "4"})},
-
-		{Tags: models.FromMap(map[string]string{"c": "3", "d": "4"})},
-	}
-
-	v = [][]float64{
-		{0, math.NaN(), 2, 3, 4},
-		{math.NaN(), 6, 7, 8, 9},
-
-		{10, 20, 30, 40, 50},
-		{50, 60, 70, 80, 90},
-		{100, 200, 300, 400, 500},
-
-		{600, 700, 800, 900, 1000},
-	}
-*/
 
 func TestPadValuesWithNans(t *testing.T) {
 	// When padding necessary adds enough NaNs
@@ -75,8 +53,32 @@ func TestPadValuesWithNans(t *testing.T) {
 	test.EqualsWithNans(t, []float64{1, 2, 3, 4, 5}, actual)
 }
 
-func processCountValuesOp(t *testing.T, op parser.Params) *executor.SinkNode {
-	bl := test.NewBlockFromValuesWithSeriesMeta(bounds, seriesMetas, v)
+func TestCountValuesFn(t *testing.T) {
+	values := []float64{1, 2, 3, 4, 5, 6, 7, 1}
+	buckets := []int{0, 1, 7}
+	actual := countValuesFn(values, buckets)
+	assert.Equal(t, 2.0, actual[1])
+	assert.Equal(t, 1.0, actual[2])
+}
+
+func tagsToSeriesMeta(tags []models.Tags) []block.SeriesMeta {
+	expectedMetas := make([]block.SeriesMeta, len(tags))
+	for i, m := range tags {
+		expectedMetas[i] = block.SeriesMeta{
+			Name: CountValuesType,
+			Tags: m,
+		}
+	}
+	return expectedMetas
+}
+
+func processCountValuesOp(
+	t *testing.T,
+	op parser.Params,
+	metas []block.SeriesMeta,
+	vals [][]float64,
+) *executor.SinkNode {
+	bl := test.NewBlockFromValuesWithSeriesMeta(bounds, metas, vals)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	node := op.(countValuesOp).Node(c, transform.Options{})
 	err := node.Process(parser.NodeID(0), bl)
@@ -84,38 +86,213 @@ func processCountValuesOp(t *testing.T, op parser.Params) *executor.SinkNode {
 	return sink
 }
 
-func TestProcessCountValuesFunctionFilteringWithoutA(t *testing.T) {
+var (
+	simpleMetas = []block.SeriesMeta{
+		{Tags: models.Tags{{Name: "a", Value: "1"}, {Name: "b", Value: "2"}}},
+		{Tags: models.Tags{{Name: "a", Value: "1"}, {Name: "b", Value: "2"}}},
+		{Tags: models.Tags{{Name: "a", Value: "1"}, {Name: "b", Value: "3"}}},
+		{Tags: models.Tags{{Name: "a", Value: "1"}, {Name: "b", Value: "3"}}},
+	}
+
+	simpleVals = [][]float64{
+		{0, math.NaN(), 0, 0, 0},
+		{0, math.NaN(), 0, 0, 0},
+		{math.NaN(), 0, 0, 0, 0},
+		{math.NaN(), 0, 0, 0, 0},
+	}
+)
+
+func TestSimpleProcessCountValuesFunctionUnfiltered(t *testing.T) {
+	tagName := "tag-name"
 	op, err := NewCountValuesOp(CountValuesType, NodeParams{
-		MatchingTags: []string{"a"}, Without: true, StringParameter: "prefix",
+		StringParameter: tagName,
 	})
 	require.NoError(t, err)
-	sink := processCountValuesOp(t, op)
+	sink := processCountValuesOp(t, op, simpleMetas, simpleVals)
+	expected := [][]float64{{2, 2, 4, 4, 4}}
+	expectedTags := []models.Tags{{}}
 
-	for i, m := range sink.Metas {
-		fmt.Println("Tags", i, ")", m.Tags, ":", sink.Values[i])
-	}
-	// expected := [][]float64{
-	// 	// Taking bottomk(1) of first two series, keeping both series
-	// 	{0, math.NaN(), 2, 3, 4},
-	// 	{math.NaN(), 6, math.NaN(), math.NaN(), math.NaN()},
-	// 	// Taking bottomk(1) of third, fourth, and fifth two series, keeping all series
-	// 	{10, 20, 30, 40, 50},
-	// 	{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-	// 	{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-	// 	// Taking bottomk(1) of last series, keeping it
-	// 	{600, 700, 800, 900, 1000},
-	// }
-
-	// // Should have the same metas as when started
-	// assert.Equal(t, seriesMetas, sink.Metas)
-	// test.EqualsWithNansWithDelta(t, expected, sink.Values, math.Pow10(-5))
-	// assert.Equal(t, bounds, sink.Meta.Bounds)
+	// Double check expected tags is the same length as expected values
+	require.Equal(t, len(expectedTags), len(expected))
+	assert.Equal(t, bounds, sink.Meta.Bounds)
+	assert.Equal(t, models.Tags{{Name: tagName, Value: "0"}}, sink.Meta.Tags)
+	test.CompareValues(t, sink.Metas, tagsToSeriesMeta(expectedTags), sink.Values, expected)
 }
 
-func TestCountValuesFn(t *testing.T) {
-	values := []float64{1, 2, 3, 4, 5, 6, 7, 1}
-	buckets := []int{0, 1, 7}
-	actual := countValuesFn(values, buckets)
-	assert.Equal(t, 2.0, actual[1])
-	assert.Equal(t, 1.0, actual[2])
+func TestSimpleProcessCountValuesFunctionFilteringWithoutA(t *testing.T) {
+	tagName := "tag-name"
+	op, err := NewCountValuesOp(CountValuesType, NodeParams{
+		MatchingTags: []string{"a"}, Without: true, StringParameter: tagName,
+	})
+	require.NoError(t, err)
+	sink := processCountValuesOp(t, op, simpleMetas, simpleVals)
+	expected := [][]float64{
+		{2, math.NaN(), 2, 2, 2},
+		{math.NaN(), 2, 2, 2, 2},
+	}
+	expectedTags := []models.Tags{
+		{{Name: "b", Value: "2"}},
+		{{Name: "b", Value: "3"}},
+	}
+
+	// Double check expected tags is the same length as expected values
+	require.Equal(t, len(expectedTags), len(expected))
+	assert.Equal(t, bounds, sink.Meta.Bounds)
+	assert.Equal(t, models.Tags{{Name: tagName, Value: "0"}}, sink.Meta.Tags)
+	test.CompareValues(t, sink.Metas, tagsToSeriesMeta(expectedTags), sink.Values, expected)
+}
+
+func TestCustomProcessCountValuesFunctionFilteringWithoutA(t *testing.T) {
+	tagName := "tag-name"
+	op, err := NewCountValuesOp(CountValuesType, NodeParams{
+		MatchingTags: []string{"a"}, Without: true, StringParameter: tagName,
+	})
+	require.NoError(t, err)
+	ms := []block.SeriesMeta{
+		{Tags: models.Tags{{Name: "a", Value: "1"}, {Name: "b", Value: "2"}}},
+		{Tags: models.Tags{{Name: "a", Value: "1"}, {Name: "b", Value: "2"}}},
+		{Tags: models.Tags{{Name: "a", Value: "1"}, {Name: "b", Value: "3"}}},
+		{Tags: models.Tags{{Name: "a", Value: "1"}, {Name: "b", Value: "3"}}},
+	}
+
+	vs := [][]float64{
+		{0, math.NaN(), 0, 2, 0},
+		{0, math.NaN(), 1, 0, 3},
+		{math.NaN(), 0, 1, 0, 2},
+		{math.NaN(), 0, 0, 2, 3},
+	}
+
+	sink := processCountValuesOp(t, op, ms, vs)
+	expected := [][]float64{
+		{2, math.NaN(), 1, 1, 1},
+		{math.NaN(), math.NaN(), 1, math.NaN(), math.NaN()},
+		{math.NaN(), math.NaN(), math.NaN(), 1, math.NaN()},
+		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1},
+
+		{math.NaN(), 2, 1, 1, math.NaN()},
+		{math.NaN(), math.NaN(), 1, math.NaN(), math.NaN()},
+		{math.NaN(), math.NaN(), math.NaN(), 1, 1},
+		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1},
+	}
+
+	expectedTags := []models.Tags{
+		{{Name: "b", Value: "2"}, {Name: tagName, Value: "0"}},
+		{{Name: "b", Value: "2"}, {Name: tagName, Value: "1"}},
+		{{Name: "b", Value: "2"}, {Name: tagName, Value: "2"}},
+		{{Name: "b", Value: "2"}, {Name: tagName, Value: "3"}},
+
+		{{Name: "b", Value: "3"}, {Name: tagName, Value: "0"}},
+		{{Name: "b", Value: "3"}, {Name: tagName, Value: "1"}},
+		{{Name: "b", Value: "3"}, {Name: tagName, Value: "2"}},
+		{{Name: "b", Value: "3"}, {Name: tagName, Value: "3"}},
+	}
+
+	fmt.Println(sink.Values)
+	// Double check expected tags is the same length as expected values
+	require.Equal(t, len(expectedTags), len(expected))
+	assert.Equal(t, bounds, sink.Meta.Bounds)
+	assert.Equal(t, models.Tags{}, sink.Meta.Tags)
+	test.CompareValues(t, sink.Metas, tagsToSeriesMeta(expectedTags), sink.Values, expected)
+}
+
+func TestSimpleProcessCountValuesFunctionFilteringWithA(t *testing.T) {
+	tagName := "0_tag-name"
+	op, err := NewCountValuesOp(CountValuesType, NodeParams{
+		MatchingTags: []string{"a"}, Without: false, StringParameter: tagName,
+	})
+	require.NoError(t, err)
+	sink := processCountValuesOp(t, op, simpleMetas, simpleVals)
+	expected := [][]float64{{2, 2, 4, 4, 4}}
+	expectedTags := []models.Tags{{}}
+
+	// Double check expected tags is the same length as expected values
+	require.Equal(t, len(expectedTags), len(expected))
+	assert.Equal(t, bounds, sink.Meta.Bounds)
+	assert.Equal(t, models.Tags{{Name: tagName, Value: "0"}, {Name: "a", Value: "1"}}, sink.Meta.Tags)
+	test.CompareValues(t, sink.Metas, tagsToSeriesMeta(expectedTags), sink.Values, expected)
+}
+
+func TestProcessCountValuesFunctionFilteringWithoutA(t *testing.T) {
+	tagName := "tag-name"
+	op, err := NewCountValuesOp(CountValuesType, NodeParams{
+		MatchingTags: []string{"a"}, Without: true, StringParameter: tagName,
+	})
+	require.NoError(t, err)
+	sink := processCountValuesOp(t, op, seriesMetas, v)
+
+	expected := [][]float64{
+		// No shared values between series 1 and 2
+		{1, math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		{math.NaN(), 1, math.NaN(), math.NaN(), math.NaN()},
+		{math.NaN(), math.NaN(), 1, math.NaN(), math.NaN()},
+		{math.NaN(), math.NaN(), 1, math.NaN(), math.NaN()},
+		{math.NaN(), math.NaN(), math.NaN(), 1, math.NaN()},
+		{math.NaN(), math.NaN(), math.NaN(), 1, math.NaN()},
+		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1},
+		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1},
+
+		// One shared value between series 3, 4 and 5
+		{1, math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		{1, math.NaN(), math.NaN(), math.NaN(), 1},
+		{1, math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		{math.NaN(), 1, math.NaN(), math.NaN(), math.NaN()},
+		{math.NaN(), 1, math.NaN(), math.NaN(), math.NaN()},
+		{math.NaN(), 1, math.NaN(), math.NaN(), math.NaN()},
+		{math.NaN(), math.NaN(), 1, math.NaN(), math.NaN()},
+		{math.NaN(), math.NaN(), 1, math.NaN(), math.NaN()},
+		{math.NaN(), math.NaN(), 1, math.NaN(), math.NaN()},
+		{math.NaN(), math.NaN(), math.NaN(), 1, math.NaN()},
+		{math.NaN(), math.NaN(), math.NaN(), 1, math.NaN()},
+		{math.NaN(), math.NaN(), math.NaN(), 1, math.NaN()},
+		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1},
+		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1},
+
+		// No shared values in series 6
+		{1, math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		{math.NaN(), 1, math.NaN(), math.NaN(), math.NaN()},
+		{math.NaN(), math.NaN(), 1, math.NaN(), math.NaN()},
+		{math.NaN(), math.NaN(), math.NaN(), 1, math.NaN()},
+		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1},
+	}
+
+	expectedTags := []models.Tags{
+		// No shared values between series 1 and 2, but two NaNs
+		{{Name: tagName, Value: "0"}},
+		{{Name: tagName, Value: "6"}},
+		{{Name: tagName, Value: "2"}},
+		{{Name: tagName, Value: "7"}},
+		{{Name: tagName, Value: "3"}},
+		{{Name: tagName, Value: "8"}},
+		{{Name: tagName, Value: "4"}},
+		{{Name: tagName, Value: "9"}},
+
+		// One shared value between series 3, 4 and 5,
+		{{Name: "b", Value: "2"}, {Name: tagName, Value: "10"}},
+		{{Name: "b", Value: "2"}, {Name: tagName, Value: "50"}},
+		{{Name: "b", Value: "2"}, {Name: tagName, Value: "100"}},
+		{{Name: "b", Value: "2"}, {Name: tagName, Value: "20"}},
+		{{Name: "b", Value: "2"}, {Name: tagName, Value: "60"}},
+		{{Name: "b", Value: "2"}, {Name: tagName, Value: "200"}},
+		{{Name: "b", Value: "2"}, {Name: tagName, Value: "30"}},
+		{{Name: "b", Value: "2"}, {Name: tagName, Value: "70"}},
+		{{Name: "b", Value: "2"}, {Name: tagName, Value: "300"}},
+		{{Name: "b", Value: "2"}, {Name: tagName, Value: "40"}},
+		{{Name: "b", Value: "2"}, {Name: tagName, Value: "80"}},
+		{{Name: "b", Value: "2"}, {Name: tagName, Value: "400"}},
+		{{Name: "b", Value: "2"}, {Name: tagName, Value: "90"}},
+		{{Name: "b", Value: "2"}, {Name: tagName, Value: "500"}},
+
+		// No shared values in series 6
+		{{Name: "c", Value: "3"}, {Name: tagName, Value: "600"}},
+		{{Name: "c", Value: "3"}, {Name: tagName, Value: "700"}},
+		{{Name: "c", Value: "3"}, {Name: tagName, Value: "800"}},
+		{{Name: "c", Value: "3"}, {Name: tagName, Value: "900"}},
+		{{Name: "c", Value: "3"}, {Name: tagName, Value: "1000"}},
+	}
+
+	// Double check expected tags is the same length as expected values
+	require.Equal(t, len(expectedTags), len(expected))
+	assert.Equal(t, bounds, sink.Meta.Bounds)
+	assert.Equal(t, models.Tags{{Name: "d", Value: "4"}}, sink.Meta.Tags)
+	test.CompareValues(t, sink.Metas, tagsToSeriesMeta(expectedTags), sink.Values, expected)
 }
