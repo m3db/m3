@@ -52,7 +52,6 @@ import (
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
 
 	"github.com/stretchr/testify/require"
@@ -67,10 +66,9 @@ var (
 	tchannelNodeAddr    = flag.String("nodetchanneladdr", "127.0.0.1:9003", "Node TChannel server address")
 	httpDebugAddr       = flag.String("debughttpaddr", "127.0.0.1:9004", "HTTP debug server address")
 
-	errServerStartTimedOut   = errors.New("server took too long to start")
-	errServerStopTimedOut    = errors.New("server took too long to stop")
-	testNamespaces           = []ident.ID{ident.StringID("testNs1"), ident.StringID("testNs2")}
-	testNativePoolingBuckets = []pool.Bucket{{Capacity: 4096, Count: 256}}
+	errServerStartTimedOut = errors.New("server took too long to start")
+	errServerStopTimedOut  = errors.New("server took too long to stop")
+	testNamespaces         = []ident.ID{ident.StringID("testNs1"), ident.StringID("testNs2")}
 
 	created = uint64(0)
 )
@@ -87,7 +85,6 @@ type testSetup struct {
 	db              cluster.Database
 	storageOpts     storage.Options
 	fsOpts          fs.Options
-	nativePooling   bool
 	hostID          string
 	topoInit        topology.Initializer
 	shardSet        sharding.ShardSet
@@ -140,21 +137,6 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		SetWriteNewSeriesAsync(opts.WriteNewSeriesAsync())
 	if err := runtimeOptsMgr.Update(runtimeOpts); err != nil {
 		return nil, err
-	}
-
-	nativePooling := strings.ToLower(os.Getenv("TEST_NATIVE_POOLING")) == "true"
-	if nativePooling {
-		buckets := testNativePoolingBuckets
-		bytesPool := pool.NewCheckedBytesPool(buckets, nil, func(s []pool.Bucket) pool.BytesPool {
-			return pool.NewNativeHeap(s, nil)
-		})
-		bytesPool.Init()
-
-		storageOpts = storageOpts.SetBytesPool(bytesPool)
-
-		idPool := ident.NewNativePool(bytesPool, ident.PoolOptions{})
-
-		storageOpts = storageOpts.SetIdentifierPool(idPool)
 	}
 
 	// Set up shard set
@@ -325,7 +307,6 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		logger:          logger,
 		storageOpts:     storageOpts,
 		fsOpts:          fsOpts,
-		nativePooling:   nativePooling,
 		hostID:          id,
 		topoInit:        topoInit,
 		shardSet:        shardSet,

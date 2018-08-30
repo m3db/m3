@@ -1,7 +1,7 @@
 package: github.com/m3db/m3
 import:
 - package: github.com/m3db/m3x
-  version: 994ab3222cc45bdb1b439f96d37221651b24feca
+  version: a5cbf118c0da5a58cbc1a7390865eb4c96fc0a73
   vcs: git
   subpackages:
   - checked

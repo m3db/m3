@@ -881,31 +881,6 @@ func kvWatchBootstrappers(
 	}
 }
 
-func newBytesPool(
-	policy config.PoolingPolicy,
-	buckets []pool.Bucket,
-	bytesPoolOpts, checkedBytesPoolOpts pool.ObjectPoolOptions,
-) (pool.CheckedBytesPool, error) {
-	switch policy.Type {
-	case config.SimplePooling:
-		return pool.NewCheckedBytesPool(
-			buckets,
-			checkedBytesPoolOpts,
-			func(s []pool.Bucket) pool.BytesPool {
-				return pool.NewBytesPool(s, bytesPoolOpts)
-			}), nil
-	case config.NativePooling:
-		return pool.NewCheckedBytesPool(
-			buckets,
-			checkedBytesPoolOpts,
-			func(s []pool.Bucket) pool.BytesPool {
-				return pool.NewNativeHeap(s, bytesPoolOpts)
-			}), nil
-	default:
-		return nil, fmt.Errorf("unrecognized pooling type: %s", policy.Type)
-	}
-}
-
 func withEncodingAndPoolingOptions(
 	logger xlog.Logger,
 	opts storage.Options,
@@ -933,17 +908,17 @@ func withEncodingAndPoolingOptions(
 			bucket.RefillLowWaterMark, bucket.RefillHighWaterMark)
 	}
 
-	// NB(r): There are some obvious memory leaks and other unsafe
-	// side effects possible when using native pooling.
-	if policy.Type == config.NativePooling {
-		policy.Type = config.SimplePooling
-		logger.Warnf("native pooling not supported, defaulting to simple pool")
-	}
-
-	bytesPool, err := newBytesPool(policy, buckets,
-		bytesPoolOpts, checkedBytesPoolOpts)
-	if err != nil {
-		logger.Fatal(err.Error())
+	var bytesPool pool.CheckedBytesPool
+	switch policy.Type {
+	case config.SimplePooling:
+		bytesPool = pool.NewCheckedBytesPool(
+			buckets,
+			checkedBytesPoolOpts,
+			func(s []pool.Bucket) pool.BytesPool {
+				return pool.NewBytesPool(s, bytesPoolOpts)
+			})
+	default:
+		logger.Fatalf("unrecognized pooling type: %s", policy.Type)
 	}
 
 	logger.Infof("bytes pool %s init", policy.Type)
