@@ -51,9 +51,8 @@ func NewCountValuesOp(
 
 // countValuesOp stores required properties for take ops
 type countValuesOp struct {
-	params   NodeParams
-	opType   string
-	takeFunc takeFunc
+	params NodeParams
+	opType string
 }
 
 // OpType for the operator
@@ -92,14 +91,8 @@ type countValuesNode struct {
 type bucketColumn []float64
 
 type bucketBlock struct {
-	// metas        []block.SeriesMeta
 	columns      []bucketColumn
 	indexMapping map[float64]int
-}
-
-type tagValuePair struct {
-	tag   models.Tag
-	value float64
 }
 
 // Process the block
@@ -142,35 +135,19 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 				for i := 0; i < previousLen; i++ {
 					currentBucketBlock.columns[columnIndex][i] = math.NaN()
 				}
-				if bucketIndex == 0 {
-					// fmt.Println("********Filled up initial column index with", currentBucketBlock.columns[columnIndex])
-				}
 			}
 
 			countedValues := countValuesFn(values, bucket)
-			if bucketIndex == 0 {
-				// fmt.Println("Values:", values, "bucket:", bucket, "counted", countedValues)
-			}
 			for distinctValue, count := range countedValues {
 				currentBucketColumn := currentBucketBlock.columns[columnIndex]
-				if bucketIndex == 0 {
-					// fmt.Println("--current mapping", currentBucketBlock.indexMapping)
-					// fmt.Println("      current columns", currentBucketBlock.columns[columnIndex])
-				}
 				if rowIndex, seen := currentBucketBlock.indexMapping[distinctValue]; seen {
 					// This value has already been seen at rowIndex in a previous column
 					// so add the current value to the appropriate row index.
-					// fmt.Println("Seen", currentBucketBlock.indexMapping)
-					// fmt.Println("Bucket index", bucketIndex, "col Index", columnIndex, "row Index", rowIndex, "col", currentBucketColumn)
 					currentBucketBlock.columns[columnIndex][rowIndex] = count
 				} else {
 					// The column index needs to be created here already
 					// Add the count to the end of the bucket column
-					// fmt.Println("Adding", distinctValue, " to currentBucketBlock.column[", columnIndex, "]:", currentBucketBlock.columns[columnIndex])
 					currentBucketBlock.columns[columnIndex] = append(currentBucketColumn, count)
-					if bucketIndex == 0 {
-						// fmt.Println("Added", distinctValue, " to currentBucketBlock.column[", columnIndex, "]:", currentBucketBlock.columns[columnIndex])
-					}
 
 					// Add the distinctValue to the indexMapping
 					currentBucketBlock.indexMapping[distinctValue] = len(currentBucketColumn)
@@ -192,10 +169,10 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 		for k, v := range bucketBlock.indexMapping {
 			blockMetas[v+initialIndex] = block.SeriesMeta{
 				Name: n.op.OpType(),
-				Tags: metas[bucketIndex].Tags.Clone().Add(models.Tags{{
+				Tags: metas[bucketIndex].Tags.Clone().AddTag(models.Tag{
 					Name:  n.op.params.StringParameter,
 					Value: strconv.FormatFloat(k, 'f', -1, 64),
-				}}),
+				}),
 			}
 		}
 
@@ -228,20 +205,17 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 	return n.controller.Process(nextBlock)
 }
 
-// pads val with enough NaNs to match size
+// pads vals with enough NaNs to match size
 func padValuesWithNaNs(vals []float64, size int) []float64 {
-	// 789
-	// 456
-	// 321
-	//  0
-	numPad := size - len(vals)
-	for i := 0; i < numPad; i++ {
+	numToPad := size - len(vals)
+	for i := 0; i < numToPad; i++ {
 		vals = append(vals, math.NaN())
 	}
 	return vals
 }
 
-// count values takes a and, adding the count of distinct non nan values.
+// count values takes a value array and a bucket list, returns a map of
+// distinct values to number of times the value was seen in this bucket
 func countValuesFn(values []float64, buckets []int) map[float64]float64 {
 	countedValues := make(map[float64]float64, len(buckets))
 	for _, idx := range buckets {

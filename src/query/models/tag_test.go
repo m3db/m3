@@ -171,7 +171,7 @@ func TestAddTags(t *testing.T) {
 	tags := make(Tags, 0, 4)
 
 	tagToAdd := Tag{"z", "3"}
-	tags = tags.AddSingle(tagToAdd)
+	tags = tags.AddTag(tagToAdd)
 	assert.Equal(t, Tags{tagToAdd}, tags)
 
 	tagsToAdd := Tags{{"a", "1"}, {"b", "2"}, {"c", "3"}}

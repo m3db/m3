@@ -59,12 +59,12 @@ import (
 */
 
 func TestPadValuesWithNans(t *testing.T) {
-	// When padding neccessary adds enough NaNs
+	// When padding necessary adds enough NaNs
 	vals := []float64{1}
 	actual := padValuesWithNaNs(vals, 4)
 	test.EqualsWithNans(t, []float64{1, math.NaN(), math.NaN(), math.NaN()}, actual)
 
-	// When no padding neccessary should do nothing
+	// When no padding necessary should do nothing
 	vals = []float64{1, 2, 3, 4}
 	actual = padValuesWithNaNs(vals, 4)
 	test.EqualsWithNans(t, []float64{1, 2, 3, 4}, actual)

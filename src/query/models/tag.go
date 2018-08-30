@@ -294,14 +294,10 @@ func (t Tags) Clone() Tags {
 	return cloned
 }
 
-// AddSingle is used to add a single tag and maintain sorted order
-func (t Tags) AddSingle(tag Tag) Tags {
-	fmt.Println("tags", t, tag)
+// AddTag is used to add a single tag and maintain sorted order
+func (t Tags) AddTag(tag Tag) Tags {
 	updated := append(t, tag)
-	fmt.Println("updated", updated)
-
 	z := Normalize(updated)
-	fmt.Println("normd", z)
 	return z
 }
 
