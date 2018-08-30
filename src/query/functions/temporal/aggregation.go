@@ -28,7 +28,6 @@ import (
 )
 
 const (
-
 	// AvgTemporalType calculates the average of all values in the specified interval
 	AvgTemporalType = "avg_over_time"
 
