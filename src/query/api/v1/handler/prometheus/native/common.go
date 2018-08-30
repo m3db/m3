@@ -153,9 +153,9 @@ func renderResultsJSON(w io.Writer, series []*ts.Series, params models.RequestPa
 
 		jw.BeginObjectField("tags")
 		jw.BeginObject()
-		for k, v := range s.Tags {
-			jw.BeginObjectField(k)
-			jw.WriteString(v)
+		for _, t := range s.Tags {
+			jw.BeginObjectField(t.Name)
+			jw.WriteString(t.Value)
 		}
 		jw.EndObject()
 

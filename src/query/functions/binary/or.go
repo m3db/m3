@@ -18,10 +18,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package logical
+package binary
 
 import (
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/executor/transform"
 )
 
 // OrType uses all values from left hand side, and appends values from the right hand side which do
@@ -29,8 +30,9 @@ import (
 const OrType = "or"
 
 func makeOrBlock(
-	node *logicalNode,
 	lIter, rIter block.StepIter,
+	controller *transform.Controller,
+	matching *VectorMatching,
 ) (block.Block, error) {
 	meta, lSeriesMetas, rSeriesMetas, err := combineMetaAndSeriesMeta(
 		lIter.Meta(),
@@ -43,12 +45,12 @@ func makeOrBlock(
 	}
 
 	missingIndices, combinedSeriesMeta := missing(
-		node.op.Matching,
+		matching,
 		lSeriesMetas,
 		rSeriesMetas,
 	)
 
-	builder, err := node.controller.BlockBuilder(meta, combinedSeriesMeta)
+	builder, err := controller.BlockBuilder(meta, combinedSeriesMeta)
 	if err != nil {
 		return nil, err
 	}

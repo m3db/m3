@@ -461,6 +461,18 @@ func (mr *MockDatabaseBlockMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDatabaseBlock)(nil).Close))
 }
 
+// CloseIfFromDisk mocks base method
+func (m *MockDatabaseBlock) CloseIfFromDisk() bool {
+	ret := m.ctrl.Call(m, "CloseIfFromDisk")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// CloseIfFromDisk indicates an expected call of CloseIfFromDisk
+func (mr *MockDatabaseBlockMockRecorder) CloseIfFromDisk() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseIfFromDisk", reflect.TypeOf((*MockDatabaseBlock)(nil).CloseIfFromDisk))
+}
+
 // SetOnEvictedFromWiredList mocks base method
 func (m *MockDatabaseBlock) SetOnEvictedFromWiredList(arg0 OnEvictedFromWiredList) {
 	m.ctrl.Call(m, "SetOnEvictedFromWiredList", arg0)
@@ -527,26 +539,26 @@ func (mr *MockDatabaseBlockMockRecorder) setPrev(block interface{}) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "setPrev", reflect.TypeOf((*MockDatabaseBlock)(nil).setPrev), block)
 }
 
-// nextPrevUpdatedAtUnixNano mocks base method
-func (m *MockDatabaseBlock) nextPrevUpdatedAtUnixNano() int64 {
-	ret := m.ctrl.Call(m, "nextPrevUpdatedAtUnixNano")
+// enteredListAtUnixNano mocks base method
+func (m *MockDatabaseBlock) enteredListAtUnixNano() int64 {
+	ret := m.ctrl.Call(m, "enteredListAtUnixNano")
 	ret0, _ := ret[0].(int64)
 	return ret0
 }
 
-// nextPrevUpdatedAtUnixNano indicates an expected call of nextPrevUpdatedAtUnixNano
-func (mr *MockDatabaseBlockMockRecorder) nextPrevUpdatedAtUnixNano() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "nextPrevUpdatedAtUnixNano", reflect.TypeOf((*MockDatabaseBlock)(nil).nextPrevUpdatedAtUnixNano))
+// enteredListAtUnixNano indicates an expected call of enteredListAtUnixNano
+func (mr *MockDatabaseBlockMockRecorder) enteredListAtUnixNano() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "enteredListAtUnixNano", reflect.TypeOf((*MockDatabaseBlock)(nil).enteredListAtUnixNano))
 }
 
-// setNextPrevUpdatedAtUnixNano mocks base method
-func (m *MockDatabaseBlock) setNextPrevUpdatedAtUnixNano(value int64) {
-	m.ctrl.Call(m, "setNextPrevUpdatedAtUnixNano", value)
+// setEnteredListAtUnixNano mocks base method
+func (m *MockDatabaseBlock) setEnteredListAtUnixNano(value int64) {
+	m.ctrl.Call(m, "setEnteredListAtUnixNano", value)
 }
 
-// setNextPrevUpdatedAtUnixNano indicates an expected call of setNextPrevUpdatedAtUnixNano
-func (mr *MockDatabaseBlockMockRecorder) setNextPrevUpdatedAtUnixNano(value interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "setNextPrevUpdatedAtUnixNano", reflect.TypeOf((*MockDatabaseBlock)(nil).setNextPrevUpdatedAtUnixNano), value)
+// setEnteredListAtUnixNano indicates an expected call of setEnteredListAtUnixNano
+func (mr *MockDatabaseBlockMockRecorder) setEnteredListAtUnixNano(value interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "setEnteredListAtUnixNano", reflect.TypeOf((*MockDatabaseBlock)(nil).setEnteredListAtUnixNano), value)
 }
 
 // wiredListEntry mocks base method
@@ -628,26 +640,26 @@ func (mr *MockdatabaseBlockMockRecorder) setPrev(block interface{}) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "setPrev", reflect.TypeOf((*MockdatabaseBlock)(nil).setPrev), block)
 }
 
-// nextPrevUpdatedAtUnixNano mocks base method
-func (m *MockdatabaseBlock) nextPrevUpdatedAtUnixNano() int64 {
-	ret := m.ctrl.Call(m, "nextPrevUpdatedAtUnixNano")
+// enteredListAtUnixNano mocks base method
+func (m *MockdatabaseBlock) enteredListAtUnixNano() int64 {
+	ret := m.ctrl.Call(m, "enteredListAtUnixNano")
 	ret0, _ := ret[0].(int64)
 	return ret0
 }
 
-// nextPrevUpdatedAtUnixNano indicates an expected call of nextPrevUpdatedAtUnixNano
-func (mr *MockdatabaseBlockMockRecorder) nextPrevUpdatedAtUnixNano() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "nextPrevUpdatedAtUnixNano", reflect.TypeOf((*MockdatabaseBlock)(nil).nextPrevUpdatedAtUnixNano))
+// enteredListAtUnixNano indicates an expected call of enteredListAtUnixNano
+func (mr *MockdatabaseBlockMockRecorder) enteredListAtUnixNano() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "enteredListAtUnixNano", reflect.TypeOf((*MockdatabaseBlock)(nil).enteredListAtUnixNano))
 }
 
-// setNextPrevUpdatedAtUnixNano mocks base method
-func (m *MockdatabaseBlock) setNextPrevUpdatedAtUnixNano(value int64) {
-	m.ctrl.Call(m, "setNextPrevUpdatedAtUnixNano", value)
+// setEnteredListAtUnixNano mocks base method
+func (m *MockdatabaseBlock) setEnteredListAtUnixNano(value int64) {
+	m.ctrl.Call(m, "setEnteredListAtUnixNano", value)
 }
 
-// setNextPrevUpdatedAtUnixNano indicates an expected call of setNextPrevUpdatedAtUnixNano
-func (mr *MockdatabaseBlockMockRecorder) setNextPrevUpdatedAtUnixNano(value interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "setNextPrevUpdatedAtUnixNano", reflect.TypeOf((*MockdatabaseBlock)(nil).setNextPrevUpdatedAtUnixNano), value)
+// setEnteredListAtUnixNano indicates an expected call of setEnteredListAtUnixNano
+func (mr *MockdatabaseBlockMockRecorder) setEnteredListAtUnixNano(value interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "setEnteredListAtUnixNano", reflect.TypeOf((*MockdatabaseBlock)(nil).setEnteredListAtUnixNano), value)
 }
 
 // wiredListEntry mocks base method

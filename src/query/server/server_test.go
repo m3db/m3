@@ -46,7 +46,9 @@ import (
 )
 
 var configYAML = `
-listenAddress: 127.0.0.1:7201
+listenAddress:
+  type: "config"
+  value: "127.0.0.1:7201"
 
 metrics:
   scope:

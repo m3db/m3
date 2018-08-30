@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/functions"
+	"github.com/m3db/m3/src/query/functions/aggregation"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 
@@ -34,7 +35,9 @@ import (
 
 func TestResultNode(t *testing.T) {
 	fetchTransform := parser.NewTransformFromOperation(functions.FetchOp{}, 1)
-	countTransform := parser.NewTransformFromOperation(functions.CountOp{}, 2)
+	agg, err := aggregation.NewAggregationOp(aggregation.CountType, aggregation.NodeParams{})
+	require.NoError(t, err)
+	countTransform := parser.NewTransformFromOperation(agg, 2)
 	transforms := parser.Nodes{fetchTransform, countTransform}
 	edges := parser.Edges{
 		parser.Edge{
@@ -55,7 +58,9 @@ func TestResultNode(t *testing.T) {
 
 func TestShiftTime(t *testing.T) {
 	fetchTransform := parser.NewTransformFromOperation(functions.FetchOp{}, 1)
-	countTransform := parser.NewTransformFromOperation(functions.CountOp{}, 2)
+	agg, err := aggregation.NewAggregationOp(aggregation.CountType, aggregation.NodeParams{})
+	require.NoError(t, err)
+	countTransform := parser.NewTransformFromOperation(agg, 2)
 	transforms := parser.Nodes{fetchTransform, countTransform}
 	edges := parser.Edges{
 		parser.Edge{
@@ -75,5 +80,5 @@ func TestShiftTime(t *testing.T) {
 	lp, _ = NewLogicalPlan(transforms, edges)
 	p, err = NewPhysicalPlan(lp, nil, models.RequestParams{Now: now, Start: start})
 	require.NoError(t, err)
-	assert.Equal(t, p.TimeSpec.Start, start.Add(-1 * (time.Minute + time.Hour)), "start time offset by fetch")
+	assert.Equal(t, p.TimeSpec.Start, start.Add(-1*(time.Minute+time.Hour)), "start time offset by fetch")
 }

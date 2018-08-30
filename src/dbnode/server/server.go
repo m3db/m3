@@ -326,7 +326,7 @@ func Run(runOpts RunOptions) {
 	opts = opts.SetSeriesCachePolicy(seriesCachePolicy)
 
 	// Apply pooling options
-	opts = withEncodingAndPoolingOptions(logger, opts, cfg.PoolingPolicy)
+	opts = withEncodingAndPoolingOptions(cfg, logger, opts, cfg.PoolingPolicy)
 
 	// Setup the block retriever
 	switch seriesCachePolicy {
@@ -882,6 +882,7 @@ func kvWatchBootstrappers(
 }
 
 func withEncodingAndPoolingOptions(
+	cfg config.DBConfiguration,
 	logger xlog.Logger,
 	opts storage.Options,
 	policy config.PoolingPolicy,
@@ -996,8 +997,20 @@ func withEncodingAndPoolingOptions(
 		SetBytesPool(bytesPool)
 
 	if opts.SeriesCachePolicy() == series.CacheLRU {
-		runtimeOpts := opts.RuntimeOptionsManager()
-		wiredList := block.NewWiredList(runtimeOpts, iopts, opts.ClockOptions())
+		var (
+			runtimeOpts   = opts.RuntimeOptionsManager()
+			wiredListOpts = block.WiredListOptions{
+				RuntimeOptionsManager: runtimeOpts,
+				InstrumentOptions:     iopts,
+				ClockOptions:          opts.ClockOptions(),
+			}
+			lruCfg = cfg.Cache.SeriesConfiguration().LRU
+		)
+
+		if lruCfg != nil && lruCfg.EventsChannelSize > 0 {
+			wiredListOpts.EventsChannelSize = int(lruCfg.EventsChannelSize)
+		}
+		wiredList := block.NewWiredList(wiredListOpts)
 		blockOpts = blockOpts.SetWiredList(wiredList)
 	}
 	blockPool := block.NewDatabaseBlockPool(poolOptions(policy.BlockPool,

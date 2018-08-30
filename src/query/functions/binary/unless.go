@@ -18,38 +18,41 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package logical
+package binary
 
 import (
 	"sort"
 
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/functions/utils"
 )
 
 // UnlessType uses all values from lhs which do not exist in rhs
 const UnlessType = "unless"
 
 func makeUnlessBlock(
-	node *logicalNode,
 	lIter, rIter block.StepIter,
+	controller *transform.Controller,
+	matching *VectorMatching,
 ) (block.Block, error) {
 	// NB: need to flatten metadata for cases where
 	// e.g. lhs: common tags {a:b}, series tags: {c:d}, {e:f}
 	// e.g. rhs: common tags {c:d}, series tags: {a:b}, {e:f}
 	// If not flattened before calculating distinct values,
 	// both series on lhs would be added
-	lSeriesMeta := FlattenMetadata(lIter.Meta(), lIter.SeriesMeta())
-	rSeriesMeta := FlattenMetadata(rIter.Meta(), rIter.SeriesMeta())
-	lIds := distinctLeft(node.op.Matching, lSeriesMeta, rSeriesMeta)
+	lSeriesMeta := utils.FlattenMetadata(lIter.Meta(), lIter.SeriesMeta())
+	rSeriesMeta := utils.FlattenMetadata(rIter.Meta(), rIter.SeriesMeta())
+	lIds := distinctLeft(matching, lSeriesMeta, rSeriesMeta)
 	stepCount := len(lIds)
 	distinctSeriesMeta := make([]block.SeriesMeta, 0, stepCount)
 	for _, idx := range lIds {
 		distinctSeriesMeta = append(distinctSeriesMeta, lSeriesMeta[idx])
 	}
 	meta := lIter.Meta()
-	commonTags, dedupedSeriesMetas := DedupeMetadata(distinctSeriesMeta)
+	commonTags, dedupedSeriesMetas := utils.DedupeMetadata(distinctSeriesMeta)
 	meta.Tags = commonTags
-	builder, err := node.controller.BlockBuilder(meta, dedupedSeriesMetas)
+	builder, err := controller.BlockBuilder(meta, dedupedSeriesMetas)
 	if err != nil {
 		return nil, err
 	}

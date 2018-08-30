@@ -42,7 +42,7 @@ func NewScalar(val float64, bounds Bounds) Block {
 		val: val,
 		meta: Metadata{
 			Bounds: bounds,
-			Tags:   make(models.Tags),
+			Tags:   models.EmptyTags(),
 		},
 	}
 }
@@ -91,7 +91,7 @@ type scalarStepIter struct {
 // build an empty SeriesMeta
 func buildSeriesMeta() SeriesMeta {
 	return SeriesMeta{
-		Tags: make(models.Tags),
+		Tags: models.EmptyTags(),
 	}
 }
 

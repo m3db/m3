@@ -26,7 +26,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/functions/logical"
+	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/functions/utils"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
@@ -98,18 +99,21 @@ func TestScalars(t *testing.T) {
 
 	for _, tt := range scalarTests {
 		t.Run(tt.name, func(t *testing.T) {
-			op, err := NewBinaryOp(
+			op, err := NewOp(
 				tt.opType,
 				NodeParams{
-					parser.NodeID(0),
-					parser.NodeID(1),
-					true, true,
-					true, nil},
+					LNode:          parser.NodeID(0),
+					RNode:          parser.NodeID(1),
+					LIsScalar:      true,
+					RIsScalar:      true,
+					ReturnBool:     true,
+					VectorMatching: nil,
+				},
 			)
 			require.NoError(t, err)
 
 			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
-			node := op.(binaryOp).Node(c)
+			node := op.(baseOp).Node(c, transform.Options{})
 
 			err = node.Process(parser.NodeID(0), block.NewScalar(tt.lVal, bounds))
 			require.NoError(t, err)
@@ -121,6 +125,7 @@ func TestScalars(t *testing.T) {
 				tt.expected, tt.expected, tt.expected,
 				tt.expected, tt.expected,
 			}}
+
 			test.EqualsWithNans(t, expected, sink.Values)
 
 			assert.Equal(t, bounds, sink.Meta.Bounds)
@@ -140,6 +145,7 @@ var singleSeriesTests = []struct {
 	opType       string
 	seriesLeft   bool
 	expected     [][]float64
+	expectedBool [][]float64
 }{
 	/* Arithmetic */
 	// +
@@ -150,6 +156,7 @@ var singleSeriesTests = []struct {
 		scalarVal:    10,
 		seriesLeft:   true,
 		expected:     [][]float64{{11, math.NaN(), 13}, {14, 15, 16}},
+		expectedBool: [][]float64{{11, math.NaN(), 13}, {14, 15, 16}},
 	},
 	{
 		name:         "scalar + series",
@@ -158,6 +165,7 @@ var singleSeriesTests = []struct {
 		seriesValues: [][]float64{{1, 2, 3}, {4, 5, math.NaN()}},
 		seriesLeft:   false,
 		expected:     [][]float64{{11, 12, 13}, {14, 15, math.NaN()}},
+		expectedBool: [][]float64{{11, 12, 13}, {14, 15, math.NaN()}},
 	},
 	// -
 	{
@@ -167,6 +175,7 @@ var singleSeriesTests = []struct {
 		scalarVal:    10,
 		seriesLeft:   true,
 		expected:     [][]float64{{-9, -8, -7}, {-6, -5, -4}},
+		expectedBool: [][]float64{{-9, -8, -7}, {-6, -5, -4}},
 	},
 	{
 		name:         "scalar - series",
@@ -175,6 +184,7 @@ var singleSeriesTests = []struct {
 		seriesValues: [][]float64{{1, 2, 3}, {4, 5, 6}},
 		seriesLeft:   false,
 		expected:     [][]float64{{9, 8, 7}, {6, 5, 4}},
+		expectedBool: [][]float64{{9, 8, 7}, {6, 5, 4}},
 	},
 	// *
 	{
@@ -184,6 +194,7 @@ var singleSeriesTests = []struct {
 		scalarVal:    10,
 		seriesLeft:   true,
 		expected:     [][]float64{{-10, 0, math.NaN()}, {math.Inf(1), math.Inf(-1), 10}},
+		expectedBool: [][]float64{{-10, 0, math.NaN()}, {math.Inf(1), math.Inf(-1), 10}},
 	},
 	{
 		name:         "scalar * series",
@@ -192,6 +203,7 @@ var singleSeriesTests = []struct {
 		seriesValues: [][]float64{{-1, 0, math.NaN(), math.MaxFloat64 - 1, -1 * (math.MaxFloat64 - 1), 1}},
 		seriesLeft:   false,
 		expected:     [][]float64{{-10, 0, math.NaN(), math.Inf(1), math.Inf(-1), 10}},
+		expectedBool: [][]float64{{-10, 0, math.NaN(), math.Inf(1), math.Inf(-1), 10}},
 	},
 	// /
 	{
@@ -201,6 +213,7 @@ var singleSeriesTests = []struct {
 		scalarVal:    10,
 		seriesLeft:   true,
 		expected:     [][]float64{{1, 0, 0.5, math.Inf(1), math.Inf(-1), math.NaN()}},
+		expectedBool: [][]float64{{1, 0, 0.5, math.Inf(1), math.Inf(-1), math.NaN()}},
 	},
 	{
 		name:         "scalar / series",
@@ -209,6 +222,7 @@ var singleSeriesTests = []struct {
 		seriesValues: [][]float64{{10, 0, 5, math.Inf(1), math.Inf(-1), math.NaN()}},
 		seriesLeft:   false,
 		expected:     [][]float64{{1, math.Inf(1), 2, 0, 0, math.NaN()}},
+		expectedBool: [][]float64{{1, math.Inf(1), 2, 0, 0, math.NaN()}},
 	},
 	{
 		name:         "series / 0",
@@ -217,6 +231,7 @@ var singleSeriesTests = []struct {
 		scalarVal:    0,
 		seriesLeft:   true,
 		expected:     [][]float64{{math.Inf(1), math.Inf(-1)}, {math.Inf(1), math.Inf(-1)}, {math.NaN(), math.NaN()}},
+		expectedBool: [][]float64{{math.Inf(1), math.Inf(-1)}, {math.Inf(1), math.Inf(-1)}, {math.NaN(), math.NaN()}},
 	},
 	// ^
 	{
@@ -226,6 +241,7 @@ var singleSeriesTests = []struct {
 		scalarVal:    2,
 		seriesLeft:   true,
 		expected:     [][]float64{{1, 4, 9}, {16, math.NaN(), math.Inf(1)}},
+		expectedBool: [][]float64{{1, 4, 9}, {16, math.NaN(), math.Inf(1)}},
 	},
 	{
 		name:         "scalar ^ series",
@@ -234,6 +250,7 @@ var singleSeriesTests = []struct {
 		seriesValues: [][]float64{{1, 2, 3}, {4, 5, 6}},
 		seriesLeft:   false,
 		expected:     [][]float64{{10, 100, 1000}, {10000, 100000, 1000000}},
+		expectedBool: [][]float64{{10, 100, 1000}, {10000, 100000, 1000000}},
 	},
 	{
 		name:         "series ^ 0",
@@ -242,6 +259,7 @@ var singleSeriesTests = []struct {
 		scalarVal:    0,
 		seriesLeft:   true,
 		expected:     [][]float64{{1, 1, 1}, {1, 1, 1}},
+		expectedBool: [][]float64{{1, 1, 1}, {1, 1, 1}},
 	},
 	{
 		name:         "series ^ 0.5",
@@ -250,6 +268,7 @@ var singleSeriesTests = []struct {
 		scalarVal:    0.5,
 		seriesLeft:   true,
 		expected:     [][]float64{{1, 2, 3}},
+		expectedBool: [][]float64{{1, 2, 3}},
 	},
 	{
 		name:         "series ^ -1",
@@ -258,6 +277,7 @@ var singleSeriesTests = []struct {
 		scalarVal:    -1,
 		seriesLeft:   true,
 		expected:     [][]float64{{1, .5, .25}},
+		expectedBool: [][]float64{{1, .5, .25}},
 	},
 	// %
 	{
@@ -267,6 +287,7 @@ var singleSeriesTests = []struct {
 		scalarVal:    10,
 		seriesLeft:   true,
 		expected:     [][]float64{{1, 2, 3}, {4, -5, 0}},
+		expectedBool: [][]float64{{1, 2, 3}, {4, -5, 0}},
 	},
 	{
 		name:         "scalar % series",
@@ -275,24 +296,31 @@ var singleSeriesTests = []struct {
 		seriesValues: [][]float64{{1, 2, 3}, {4, 5, 6}},
 		seriesLeft:   false,
 		expected:     [][]float64{{0, 0, 1}, {2, 0, 4}},
+		expectedBool: [][]float64{{0, 0, 1}, {2, 0, 4}},
 	},
 	/* Comparison */
 	// ==
 	{
-		name:         "series == scalar",
-		seriesValues: [][]float64{{-10, 0, 1, 9, 10}, {11, math.MaxFloat64, math.NaN(), math.Inf(1), math.Inf(-1)}},
-		opType:       EqType,
-		scalarVal:    10,
-		seriesLeft:   true,
-		expected:     [][]float64{{0, 0, 0, 0, 1}, {0, 0, 0, 0, 0}},
+		name: "series == scalar",
+		seriesValues: [][]float64{{-10, 0, 1, 9, 10},
+			{11, math.MaxFloat64, math.NaN(), math.Inf(1), math.Inf(-1)}},
+		opType:     EqType,
+		scalarVal:  10,
+		seriesLeft: true,
+		expected: [][]float64{{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 10},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()}},
+		expectedBool: [][]float64{{0, 0, 0, 0, 1}, {0, 0, 0, 0, 0}},
 	},
 	{
-		name:         "scalar == series",
-		scalarVal:    10,
-		opType:       EqType,
-		seriesValues: [][]float64{{-10, 0, 1, 9, 10}, {11, math.MaxFloat64, math.NaN(), math.Inf(1), math.Inf(-1)}},
-		seriesLeft:   false,
-		expected:     [][]float64{{0, 0, 0, 0, 1}, {0, 0, 0, 0, 0}},
+		name:      "scalar == series",
+		scalarVal: 10,
+		opType:    EqType,
+		seriesValues: [][]float64{{-10, 0, 1, 9, 10},
+			{11, math.MaxFloat64, math.NaN(), math.Inf(1), math.Inf(-1)}},
+		seriesLeft: false,
+		expected: [][]float64{{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 10},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()}},
+		expectedBool: [][]float64{{0, 0, 0, 0, 1}, {0, 0, 0, 0, 0}},
 	},
 	// !=
 	{
@@ -301,7 +329,8 @@ var singleSeriesTests = []struct {
 		opType:       NotEqType,
 		scalarVal:    10,
 		seriesLeft:   true,
-		expected:     [][]float64{{1, 1, 1, 1, 0}, {1, 1, 1, 1, 1}},
+		expected:     [][]float64{{-10, 0, 1, 9, math.NaN()}, {11, math.MaxFloat64, math.NaN(), math.Inf(1), math.Inf(-1)}},
+		expectedBool: [][]float64{{1, 1, 1, 1, 0}, {1, 1, 1, 1, 1}},
 	},
 	{
 		name:         "scalar != series",
@@ -309,16 +338,20 @@ var singleSeriesTests = []struct {
 		opType:       NotEqType,
 		seriesValues: [][]float64{{-10, 0, 1, 9, 10}, {11, math.MaxFloat64, math.NaN(), math.Inf(1), math.Inf(-1)}},
 		seriesLeft:   false,
-		expected:     [][]float64{{1, 1, 1, 1, 0}, {1, 1, 1, 1, 1}},
+		expected:     [][]float64{{10, 10, 10, 10, math.NaN()}, {10, 10, 10, 10, 10}},
+		expectedBool: [][]float64{{1, 1, 1, 1, 0}, {1, 1, 1, 1, 1}},
 	},
 	// >
 	{
-		name:         "series > scalar",
-		seriesValues: [][]float64{{-10, 0, 1, 9, 10}, {11, math.MaxFloat64, math.NaN(), math.Inf(1), math.Inf(-1)}},
-		opType:       GreaterType,
-		scalarVal:    10,
-		seriesLeft:   true,
-		expected:     [][]float64{{0, 0, 0, 0, 0}, {1, 1, 0, 1, 0}},
+		name: "series > scalar",
+		seriesValues: [][]float64{{-10, 0, 1, 9, 10},
+			{11, math.MaxFloat64, math.NaN(), math.Inf(1), math.Inf(-1)}},
+		opType:     GreaterType,
+		scalarVal:  10,
+		seriesLeft: true,
+		expected: [][]float64{{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{11, math.MaxFloat64, math.NaN(), math.Inf(1), math.NaN()}},
+		expectedBool: [][]float64{{0, 0, 0, 0, 0}, {1, 1, 0, 1, 0}},
 	},
 	{
 		name:         "scalar > series",
@@ -326,7 +359,8 @@ var singleSeriesTests = []struct {
 		opType:       GreaterType,
 		seriesValues: [][]float64{{-10, 0, 1, 9, 10}, {11, math.MaxFloat64, math.NaN(), math.Inf(1), math.Inf(-1)}},
 		seriesLeft:   false,
-		expected:     [][]float64{{1, 1, 1, 1, 0}, {0, 0, 0, 0, 1}},
+		expected:     [][]float64{{10, 10, 10, 10, math.NaN()}, {math.NaN(), math.NaN(), math.NaN(), math.NaN(), 10}},
+		expectedBool: [][]float64{{1, 1, 1, 1, 0}, {0, 0, 0, 0, 1}},
 	},
 	// >
 	{
@@ -335,24 +369,31 @@ var singleSeriesTests = []struct {
 		opType:       LesserType,
 		scalarVal:    10,
 		seriesLeft:   true,
-		expected:     [][]float64{{1, 1, 1, 1, 0}, {0, 0, 0, 0, 1}},
+		expected:     [][]float64{{-10, 0, 1, 9, math.NaN()}, {math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.Inf(-1)}},
+		expectedBool: [][]float64{{1, 1, 1, 1, 0}, {0, 0, 0, 0, 1}},
 	},
 	{
-		name:         "scalar < series",
-		scalarVal:    10,
-		opType:       LesserType,
-		seriesValues: [][]float64{{-10, 0, 1, 9, 10}, {11, math.MaxFloat64, math.NaN(), math.Inf(1), math.Inf(-1)}},
-		seriesLeft:   false,
-		expected:     [][]float64{{0, 0, 0, 0, 0}, {1, 1, 0, 1, 0}},
+		name:      "scalar < series",
+		scalarVal: 10,
+		opType:    LesserType,
+		seriesValues: [][]float64{{-10, 0, 1, 9, 10},
+			{11, math.MaxFloat64, math.NaN(), math.Inf(1), math.Inf(-1)}},
+		seriesLeft: false,
+		expected: [][]float64{{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{10, 10, math.NaN(), 10, math.NaN()}},
+		expectedBool: [][]float64{{0, 0, 0, 0, 0}, {1, 1, 0, 1, 0}},
 	},
 	// >=
 	{
-		name:         "series >= scalar",
-		seriesValues: [][]float64{{-10, 0, 1, 9, 10}, {11, math.MaxFloat64, math.NaN(), math.Inf(1), math.Inf(-1)}},
-		opType:       GreaterEqType,
-		scalarVal:    10,
-		seriesLeft:   true,
-		expected:     [][]float64{{0, 0, 0, 0, 1}, {1, 1, 0, 1, 0}},
+		name: "series >= scalar",
+		seriesValues: [][]float64{{-10, 0, 1, 9, 10},
+			{11, math.MaxFloat64, math.NaN(), math.Inf(1), math.Inf(-1)}},
+		opType:     GreaterEqType,
+		scalarVal:  10,
+		seriesLeft: true,
+		expected: [][]float64{{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 10},
+			{11, math.MaxFloat64, math.NaN(), math.Inf(1), math.NaN()}},
+		expectedBool: [][]float64{{0, 0, 0, 0, 1}, {1, 1, 0, 1, 0}},
 	},
 	{
 		name:         "scalar >= series",
@@ -360,7 +401,8 @@ var singleSeriesTests = []struct {
 		opType:       GreaterEqType,
 		seriesValues: [][]float64{{-10, 0, 1, 9, 10}, {11, math.MaxFloat64, math.NaN(), math.Inf(1), math.Inf(-1)}},
 		seriesLeft:   false,
-		expected:     [][]float64{{1, 1, 1, 1, 1}, {0, 0, 0, 0, 1}},
+		expected:     [][]float64{{10, 10, 10, 10, 10}, {math.NaN(), math.NaN(), math.NaN(), math.NaN(), 10}},
+		expectedBool: [][]float64{{1, 1, 1, 1, 1}, {0, 0, 0, 0, 1}},
 	},
 	// <=
 	{
@@ -369,7 +411,8 @@ var singleSeriesTests = []struct {
 		opType:       LesserEqType,
 		scalarVal:    10,
 		seriesLeft:   true,
-		expected:     [][]float64{{1, 1, 1, 1, 1}, {0, 0, 0, 0, 1}},
+		expected:     [][]float64{{-10, 0, 1, 9, 10}, {math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.Inf(-1)}},
+		expectedBool: [][]float64{{1, 1, 1, 1, 1}, {0, 0, 0, 0, 1}},
 	},
 	{
 		name:         "scalar <= series",
@@ -377,28 +420,86 @@ var singleSeriesTests = []struct {
 		opType:       LesserEqType,
 		seriesValues: [][]float64{{-10, 0, 1, 9, 10}, {11, math.MaxFloat64, math.NaN(), math.Inf(1), math.Inf(-1)}},
 		seriesLeft:   false,
-		expected:     [][]float64{{0, 0, 0, 0, 1}, {1, 1, 0, 1, 0}},
+		expected:     [][]float64{{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 10}, {10, 10, math.NaN(), 10, math.NaN()}},
+		expectedBool: [][]float64{{0, 0, 0, 0, 1}, {1, 1, 0, 1, 0}},
 	},
 }
 
 func TestSingleSeriesReturnBool(t *testing.T) {
-	returnBool := true
 	now := time.Now()
 
 	for _, tt := range singleSeriesTests {
 		t.Run(tt.name, func(t *testing.T) {
-			op, err := NewBinaryOp(
+			op, err := NewOp(
 				tt.opType,
 				NodeParams{
-					parser.NodeID(0),
-					parser.NodeID(1),
-					!tt.seriesLeft, tt.seriesLeft,
-					returnBool, nil},
+					LNode:          parser.NodeID(0),
+					RNode:          parser.NodeID(1),
+					LIsScalar:      !tt.seriesLeft,
+					RIsScalar:      tt.seriesLeft,
+					ReturnBool:     true,
+					VectorMatching: nil,
+				},
 			)
 			require.NoError(t, err)
 
 			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
-			node := op.(binaryOp).Node(c)
+			node := op.(baseOp).Node(c, transform.Options{})
+
+			seriesValues := tt.seriesValues
+			metas := test.NewSeriesMeta("a", len(seriesValues))
+			bounds := block.Bounds{
+				Start:    now,
+				Duration: time.Minute * time.Duration(len(seriesValues[0])),
+				StepSize: time.Minute,
+			}
+
+			series := test.NewBlockFromValuesWithSeriesMeta(bounds, metas, seriesValues)
+			// Set the series and scalar blocks on the correct sides
+			if tt.seriesLeft {
+				err = node.Process(parser.NodeID(0), series)
+				require.NoError(t, err)
+
+				err = node.Process(parser.NodeID(1), block.NewScalar(tt.scalarVal, bounds))
+				require.NoError(t, err)
+			} else {
+				err = node.Process(parser.NodeID(0), block.NewScalar(tt.scalarVal, bounds))
+				require.NoError(t, err)
+
+				err = node.Process(parser.NodeID(1), series)
+				require.NoError(t, err)
+			}
+
+			test.EqualsWithNans(t, tt.expectedBool, sink.Values)
+
+			assert.Equal(t, bounds, sink.Meta.Bounds)
+			assert.Len(t, sink.Meta.Tags, 0)
+
+			assert.Equal(t, metas, sink.Metas)
+		})
+	}
+}
+
+func TestSingleSeriesReturnValues(t *testing.T) {
+	now := time.Now()
+
+	for _, tt := range singleSeriesTests {
+		t.Run(tt.name, func(t *testing.T) {
+			op, err := NewOp(
+				tt.opType,
+				NodeParams{
+					LNode:          parser.NodeID(0),
+					RNode:          parser.NodeID(1),
+					LIsScalar:      !tt.seriesLeft,
+					RIsScalar:      tt.seriesLeft,
+					ReturnBool:     false,
+					VectorMatching: nil,
+				},
+			)
+			require.NoError(t, err)
+
+			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
+			node := op.(baseOp).Node(c, transform.Options{})
 
 			seriesValues := tt.seriesValues
 			metas := test.NewSeriesMeta("a", len(seriesValues))
@@ -425,74 +526,6 @@ func TestSingleSeriesReturnBool(t *testing.T) {
 			}
 
 			test.EqualsWithNans(t, tt.expected, sink.Values)
-
-			assert.Equal(t, bounds, sink.Meta.Bounds)
-			assert.Len(t, sink.Meta.Tags, 0)
-
-			assert.Equal(t, metas, sink.Metas)
-		})
-	}
-}
-
-func TestSingleSeriesReturnValues(t *testing.T) {
-	returnBool := false
-	now := time.Now()
-
-	for _, tt := range singleSeriesTests {
-		t.Run(tt.name, func(t *testing.T) {
-			// So as to not re-generate test case for ReturnBool == true
-			// construct the expected results here for comparison functions
-			expected := tt.expected
-			if isComparison(tt.opType) {
-				for i := range expected {
-					for ii, val := range expected[i] {
-						if val == 1 {
-							expected[i][ii] = tt.seriesValues[i][ii]
-						} else {
-							expected[i][ii] = math.NaN()
-						}
-					}
-				}
-			}
-
-			op, err := NewBinaryOp(
-				tt.opType,
-				NodeParams{
-					parser.NodeID(0),
-					parser.NodeID(1),
-					!tt.seriesLeft, tt.seriesLeft,
-					returnBool, nil},
-			)
-			require.NoError(t, err)
-
-			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
-			node := op.(binaryOp).Node(c)
-
-			seriesValues := tt.seriesValues
-			metas := test.NewSeriesMeta("a", len(seriesValues))
-			bounds := block.Bounds{
-				Start:    now,
-				Duration: time.Minute * time.Duration(len(seriesValues[0])),
-				StepSize: time.Minute,
-			}
-
-			series := test.NewBlockFromValuesWithSeriesMeta(bounds, metas, seriesValues)
-			// Set the series and scalar blocks on the correct sides
-			if tt.seriesLeft {
-				err = node.Process(parser.NodeID(0), series)
-				require.NoError(t, err)
-
-				err = node.Process(parser.NodeID(1), block.NewScalar(tt.scalarVal, bounds))
-				require.NoError(t, err)
-			} else {
-				err = node.Process(parser.NodeID(0), block.NewScalar(tt.scalarVal, bounds))
-				require.NoError(t, err)
-
-				err = node.Process(parser.NodeID(1), series)
-				require.NoError(t, err)
-			}
-
-			test.EqualsWithNans(t, expected, sink.Values)
 
 			assert.Equal(t, bounds, sink.Meta.Bounds)
 			assert.Len(t, sink.Meta.Tags, 0)
@@ -720,18 +753,21 @@ func TestBothSeries(t *testing.T) {
 
 	for _, tt := range bothSeriesTests {
 		t.Run(tt.name, func(t *testing.T) {
-			op, err := NewBinaryOp(
+			op, err := NewOp(
 				tt.opType,
 				NodeParams{
-					parser.NodeID(0),
-					parser.NodeID(1),
-					false, false,
-					tt.returnBool, &logical.VectorMatching{}},
+					LNode:          parser.NodeID(0),
+					RNode:          parser.NodeID(1),
+					LIsScalar:      false,
+					RIsScalar:      false,
+					ReturnBool:     tt.returnBool,
+					VectorMatching: &VectorMatching{},
+				},
 			)
 			require.NoError(t, err)
 
 			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
-			node := op.(binaryOp).Node(c)
+			node := op.(baseOp).Node(c, transform.Options{})
 			bounds := block.Bounds{
 				Start:    now,
 				Duration: time.Minute * time.Duration(len(tt.lhs[0])),
@@ -748,7 +784,7 @@ func TestBothSeries(t *testing.T) {
 
 			// Extract duped expected metas
 			expectedMeta := block.Metadata{Bounds: bounds}
-			expectedMeta.Tags, tt.expectedMetas = logical.DedupeMetadata(tt.expectedMetas)
+			expectedMeta.Tags, tt.expectedMetas = utils.DedupeMetadata(tt.expectedMetas)
 			assert.Equal(t, expectedMeta, sink.Meta)
 			assert.Equal(t, tt.expectedMetas, sink.Metas)
 		})

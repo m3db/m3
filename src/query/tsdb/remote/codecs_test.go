@@ -60,8 +60,8 @@ var (
 
 	time1 = "2093-02-06T11:54:48+07:00"
 
-	tags0  = map[string]string{"a": "b", "c": "d"}
-	tags1  = map[string]string{"e": "f", "g": "h"}
+	tags0  = models.Tags{{"a", "b"}, {"c", "d"}}
+	tags1  = models.Tags{{"e", "f"}, {"g", "h"}}
 	float0 = 100.0
 	float1 = 3.5
 	ann    = []byte("aasjgał")
@@ -227,7 +227,7 @@ func createStorageWriteQuery(t *testing.T) (*storage.WriteQuery, ts.Datapoints) 
 func TestEncodeWriteMessage(t *testing.T) {
 	write, points := createStorageWriteQuery(t)
 	encw := EncodeWriteMessage(write, id)
-	assert.Equal(t, tags0, encw.GetQuery().GetTags())
+	assert.Equal(t, tags0.StringMap(), encw.GetQuery().GetTags())
 	assert.Equal(t, ann, encw.GetQuery().GetAnnotation())
 	assert.Equal(t, int32(2), encw.GetQuery().GetUnit())
 	assert.Equal(t, id, encw.GetOptions().GetId())

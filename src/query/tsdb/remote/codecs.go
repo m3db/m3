@@ -40,15 +40,16 @@ func toTime(t int64) time.Time {
 	return storage.TimestampToTime(t)
 }
 
-func encodeTags(tagMap map[string]string) []*rpc.Tag {
-	tags := make([]*rpc.Tag, 0, len(tagMap))
-	for name, value := range tagMap {
-		tags = append(tags, &rpc.Tag{
-			Name:  []byte(name),
-			Value: []byte(value),
+func encodeTags(tags models.Tags) []*rpc.Tag {
+	encodedTags := make([]*rpc.Tag, 0, len(tags))
+	for _, t := range tags {
+		encodedTags = append(encodedTags, &rpc.Tag{
+			Name:  []byte(t.Name),
+			Value: []byte(t.Value),
 		})
 	}
-	return tags
+
+	return encodedTags
 }
 
 // EncodeFetchResult encodes fetch result to rpc result
@@ -92,11 +93,11 @@ func DecodeFetchResult(_ context.Context, rpcSeries []*rpc.Series) ([]*ts.Series
 }
 
 func decodeTags(tags []*rpc.Tag) models.Tags {
-	modelTags := make(models.Tags)
-	for _, t := range tags {
-		name, value := string(t.GetName()), string(t.GetValue())
-		modelTags[name] = value
+	modelTags := make(models.Tags, len(tags))
+	for i, t := range tags {
+		modelTags[i] = models.Tag{Name: string(t.GetName()), Value: string(t.GetValue())}
 	}
+
 	return modelTags
 }
 
@@ -231,11 +232,12 @@ func EncodeWriteMessage(query *storage.WriteQuery, queryID string) *rpc.WriteMes
 }
 
 func encodeWriteQuery(query *storage.WriteQuery) *rpc.WriteQuery {
+	// TODO (arnikola): Convert RPC tags to list of name/value pairs rather than a map
 	return &rpc.WriteQuery{
 		Unit:       int32(query.Unit),
 		Annotation: query.Annotation,
 		Datapoints: encodeDatapoints(query.Datapoints),
-		Tags:       query.Tags,
+		Tags:       query.Tags.StringMap(),
 	}
 }
 
@@ -253,7 +255,7 @@ func decodeWriteQuery(query *rpc.WriteQuery) *storage.WriteQuery {
 		}
 	}
 	return &storage.WriteQuery{
-		Tags:       query.GetTags(),
+		Tags:       models.FromMap(query.GetTags()),
 		Datapoints: ts.Datapoints(points),
 		Unit:       xtime.Unit(query.GetUnit()),
 		Annotation: query.Annotation,

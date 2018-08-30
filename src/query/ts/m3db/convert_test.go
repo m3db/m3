@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3x/ident"
@@ -92,6 +93,5 @@ func TestConversion(t *testing.T) {
 func checkTags(t *testing.T, tags ident.TagIterator) {
 	convertedTags, err := storage.FromIdentTagIteratorToTags(tags)
 	require.NoError(t, err)
-	assert.Equal(t, testTags["foo"], convertedTags["foo"])
-	assert.Equal(t, testTags["baz"], convertedTags["baz"])
+	assert.Equal(t, models.Tags{{"baz", testTags["baz"]}, {"foo", testTags["foo"]}}, convertedTags)
 }

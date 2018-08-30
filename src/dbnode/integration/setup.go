@@ -280,11 +280,13 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 
 	// Set up wired list if required
 	if storageOpts.SeriesCachePolicy() == series.CacheLRU {
-		wiredList := block.NewWiredList(
-			runtimeOptsMgr,
-			storageOpts.InstrumentOptions(),
-			storageOpts.ClockOptions(),
-		)
+		wiredList := block.NewWiredList(block.WiredListOptions{
+			RuntimeOptionsManager: runtimeOptsMgr,
+			InstrumentOptions:     storageOpts.InstrumentOptions(),
+			ClockOptions:          storageOpts.ClockOptions(),
+			// Use a small event channel size to stress-test the implementation
+			EventsChannelSize: 1,
+		})
 		blockOpts := storageOpts.DatabaseBlockOptions().SetWiredList(wiredList)
 		blockPool := block.NewDatabaseBlockPool(nil)
 		// Have to manually set the blockpool because the default one uses a constructor

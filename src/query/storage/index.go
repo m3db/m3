@@ -47,27 +47,29 @@ func FromM3IdentToMetric(identNamespace, identID ident.ID, iterTags ident.TagIte
 
 // FromIdentTagIteratorToTags converts ident tags to coordinator tags
 func FromIdentTagIteratorToTags(identTags ident.TagIterator) (models.Tags, error) {
-	tags := make(models.Tags, identTags.Remaining())
+	tags := make(models.Tags, 0, identTags.Remaining())
 
 	for identTags.Next() {
 		identTag := identTags.Current()
-
-		tags[identTag.Name.String()] = identTag.Value.String()
+		tags = append(tags, models.Tag{
+			Name:  identTag.Name.String(),
+			Value: identTag.Value.String(),
+		})
 	}
 
 	if err := identTags.Err(); err != nil {
 		return nil, err
 	}
 
-	return tags, nil
+	return models.Normalize(tags), nil
 }
 
 // TagsToIdentTagIterator converts coordinator tags to ident tags
 func TagsToIdentTagIterator(tags models.Tags) ident.TagIterator {
 	identTags := make([]ident.Tag, 0, len(tags))
 
-	for key, val := range tags {
-		identTags = append(identTags, ident.StringTag(key, val))
+	for _, t := range tags {
+		identTags = append(identTags, ident.StringTag(t.Name, t.Value))
 	}
 
 	return ident.NewTagsIterator(ident.NewTags(identTags...))
@@ -115,7 +117,7 @@ func matcherToQuery(matcher *models.Matcher) (idx.Query, error) {
 		}
 		return query, nil
 
-	// Support exact matches
+		// Support exact matches
 	case models.MatchNotEqual:
 		negate = true
 		fallthrough

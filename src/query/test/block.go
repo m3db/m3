@@ -62,13 +62,13 @@ func NewMultiBlocksFromValues(bounds block.Bounds, seriesValues [][]float64, val
 func NewSeriesMeta(tagPrefix string, count int) []block.SeriesMeta {
 	seriesMeta := make([]block.SeriesMeta, count)
 	for i := range seriesMeta {
-		tags := make(models.Tags)
+		tags := make(map[string]string)
 		t := fmt.Sprintf("%s%d", tagPrefix, i)
 		tags[models.MetricName] = t
 		tags[t] = t
 		seriesMeta[i] = block.SeriesMeta{
 			Name: t,
-			Tags: tags,
+			Tags: models.FromMap(tags),
 		}
 	}
 	return seriesMeta

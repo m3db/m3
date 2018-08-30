@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package logical
+package binary
 
 import (
 	"math"
@@ -38,16 +38,18 @@ func TestAndWithExactValues(t *testing.T) {
 	block1 := test.NewBlockFromValues(bounds, values)
 	block2 := test.NewBlockFromValues(bounds, values)
 
-	op, err := NewLogicalOp(
+	op, err := NewOp(
 		AndType,
-		parser.NodeID(0),
-		parser.NodeID(1),
-		&VectorMatching{},
+		NodeParams{
+			LNode:          parser.NodeID(0),
+			RNode:          parser.NodeID(1),
+			VectorMatching: &VectorMatching{},
+		},
 	)
 	require.NoError(t, err)
 
 	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
-	node := op.(logicalOp).Node(c, transform.Options{})
+	node := op.(baseOp).Node(c, transform.Options{})
 
 	err = node.Process(parser.NodeID(1), block2)
 	require.NoError(t, err)
@@ -68,16 +70,18 @@ func TestAndWithSomeValues(t *testing.T) {
 	values2, bounds2 := test.GenerateValuesAndBounds(v, nil)
 	block2 := test.NewBlockFromValues(bounds2, values2)
 
-	op, err := NewLogicalOp(
+	op, err := NewOp(
 		AndType,
-		parser.NodeID(0),
-		parser.NodeID(1),
-		&VectorMatching{},
+		NodeParams{
+			LNode:          parser.NodeID(0),
+			RNode:          parser.NodeID(1),
+			VectorMatching: &VectorMatching{},
+		},
 	)
 	require.NoError(t, err)
 
 	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
-	node := op.(logicalOp).Node(c, transform.Options{})
+	node := op.(baseOp).Node(c, transform.Options{})
 
 	err = node.Process(parser.NodeID(1), block2)
 	require.NoError(t, err)
