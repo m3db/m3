@@ -20,39 +20,39 @@
 
 package temporal
 
-import (
-	"math"
+// import (
+// 	"math"
 
-	"github.com/m3db/m3/src/query/executor/transform"
-)
+// 	"github.com/m3db/m3/src/query/executor/transform"
+// )
 
-// CountTemporalType generates count of all values in the specified interval
-const CountTemporalType = "count_over_time"
+// // CountTemporalType generates count of all values in the specified interval
+// const CountTemporalType = "count_over_time"
 
-// NewCountOp creates a new base linear transform with a count node
-func NewCountOp(args []interface{}) (transform.Params, error) {
-	return newBaseOp(args, CountTemporalType, newCountNode)
-}
+// // NewCountOp creates a new base linear transform with a count node
+// func NewCountOp(args []interface{}) (transform.Params, error) {
+// 	return newBaseOp(args, CountTemporalType, newCountNode)
+// }
 
-func newCountNode(op baseOp, controller *transform.Controller) Processor {
-	return &countNode{
-		op:         op,
-		controller: controller,
-	}
-}
+// func newCountNode(op baseOp, controller *transform.Controller) Processor {
+// 	return &countNode{
+// 		op:         op,
+// 		controller: controller,
+// 	}
+// }
 
-type countNode struct {
-	op         baseOp
-	controller *transform.Controller
-}
+// type countNode struct {
+// 	op         baseOp
+// 	controller *transform.Controller
+// }
 
-func (c *countNode) Process(values []float64) float64 {
-	var count float64
-	for _, v := range values {
-		if !math.IsNaN(v) {
-			count++
-		}
-	}
+// func (c *countNode) Process(values []float64) float64 {
+// 	var count float64
+// 	for _, v := range values {
+// 		if !math.IsNaN(v) {
+// 			count++
+// 		}
+// 	}
 
-	return count
-}
+// 	return count
+// }
