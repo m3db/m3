@@ -708,7 +708,7 @@ func (s *commitLogSource) newReadCommitLogPredBasedOnAvailableSnapshotFiles(
 					instrument.InvariantViolatedMetricName, shard, block.ToTime().String())
 			}
 
-			s.log.Infof(
+			s.log.Debugf(
 				"most recent snapshot for block: %s and shard: %d is %s",
 				block.ToTime().String(), shard, mostRecent.CachedSnapshotTime.String())
 		}
@@ -723,7 +723,7 @@ func (s *commitLogSource) newReadCommitLogPredBasedOnAvailableSnapshotFiles(
 	minimumMostRecentSnapshotTimeByBlock := s.minimumMostRecentSnapshotTimeByBlock(
 		shardsTimeRanges, blockSize, mostRecentCompleteSnapshotByBlockShard)
 	for block, minSnapshotTime := range minimumMostRecentSnapshotTimeByBlock {
-		s.log.Infof(
+		s.log.Debugf(
 			"min snapshot time for block: %s is: %s",
 			block.ToTime().String(), minSnapshotTime.String())
 	}
