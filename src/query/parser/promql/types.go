@@ -98,6 +98,8 @@ func getAggOpType(opType promql.ItemType) string {
 		return aggregation.StandardVarianceType
 	case promql.ItemType(itemCount):
 		return aggregation.CountType
+	case promql.ItemType(itemCountValues):
+		return aggregation.CountValuesType
 	default:
 		return common.UnknownOpType
 	}
