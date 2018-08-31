@@ -178,9 +178,6 @@ type CommitLogPolicy struct {
 	// The queue the commit log will keep in front of the current commit log segment.
 	Queue CommitLogQueuePolicy `yaml:"queue" validate:"nonzero"`
 
-	// The commit log retention policy.
-	RetentionPeriod time.Duration `yaml:"retentionPeriod" validate:"nonzero"`
-
 	// The commit log block size.
 	BlockSize time.Duration `yaml:"blockSize" validate:"nonzero"`
 }
