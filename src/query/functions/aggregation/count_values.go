@@ -25,13 +25,12 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/m3db/m3/src/query/ts"
-
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/functions/utils"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
+	"github.com/m3db/m3/src/query/ts"
 )
 
 const (
@@ -90,12 +89,55 @@ type countValuesNode struct {
 	controller *transform.Controller
 }
 
+// bucketColumn represents a column of times a particular value in a series has
+// been seen. This may expand as more unique values are seen
 type bucketColumn []int
 
+// bucketBlock is an abstraction for a set of series grouped by tags; count_values
+// works on these groupings rather than the entire set of series.
 type bucketBlock struct {
+	// columnLength can expand as further columns are processed; used to initialize
+	// the columns with empty values at each step
 	columnLength int
-	columns      []bucketColumn
+	// columns indicates the number of times a value has been seen at a given step
+	columns []bucketColumn
+	// indexMapping maps any unique values seen to the appropriate column index
 	indexMapping map[float64]int
+}
+
+// Processes all series in this block bucket at the current column.
+func processBlockBucketAtColumn(
+	currentBucketBlock *bucketBlock,
+	values []float64,
+	bucket []int,
+	columnIndex int,
+) {
+	// Generate appropriate number of rows full of -1s that will later map to NaNs
+	// unless updated with valid values
+	currentColumnLength := currentBucketBlock.columnLength
+	currentBucketBlock.columns[columnIndex] = make(bucketColumn, currentColumnLength)
+	for i := 0; i < currentColumnLength; i++ {
+		ts.MemsetInt(currentBucketBlock.columns[columnIndex], -1)
+	}
+
+	countedValues := countValuesFn(values, bucket)
+	for distinctValue, count := range countedValues {
+		currentBucketColumn := currentBucketBlock.columns[columnIndex]
+		if rowIndex, seen := currentBucketBlock.indexMapping[distinctValue]; seen {
+			// This value has already been seen at rowIndex in a previous column
+			// so add the current value to the appropriate row index.
+			currentBucketColumn[rowIndex] = count
+		} else {
+			// The column index needs to be created here already
+			// Add the count to the end of the bucket column
+			currentBucketBlock.columns[columnIndex] = append(currentBucketColumn, count)
+
+			// Add the distinctValue to the indexMapping
+			currentBucketBlock.indexMapping[distinctValue] = len(currentBucketColumn)
+		}
+	}
+
+	currentBucketBlock.columnLength = len(currentBucketBlock.columns[columnIndex])
 }
 
 // Process the block
@@ -130,39 +172,18 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 
 		values := step.Values()
 		for bucketIndex, bucket := range buckets {
-			currentBucketBlock := intermediateBlock[bucketIndex]
-			// Generate appropriate number of rows full of -1s that will later map to NaNs
-			currentColumnLength := currentBucketBlock.columnLength
-			currentBucketBlock.columns[columnIndex] = make(bucketColumn, currentColumnLength)
-			for i := 0; i < currentColumnLength; i++ {
-				ts.MemsetInt(currentBucketBlock.columns[columnIndex], -1)
-			}
-
-			countedValues := countValuesFn(values, bucket)
-			for distinctValue, count := range countedValues {
-				currentBucketColumn := currentBucketBlock.columns[columnIndex]
-				if rowIndex, seen := currentBucketBlock.indexMapping[distinctValue]; seen {
-					// This value has already been seen at rowIndex in a previous column
-					// so add the current value to the appropriate row index.
-					currentBucketColumn[rowIndex] = count
-				} else {
-					// The column index needs to be created here already
-					// Add the count to the end of the bucket column
-					currentBucketBlock.columns[columnIndex] = append(currentBucketColumn, count)
-
-					// Add the distinctValue to the indexMapping
-					currentBucketBlock.indexMapping[distinctValue] = len(currentBucketColumn)
-				}
-			}
-
-			intermediateBlock[bucketIndex].columnLength = len(currentBucketBlock.columns[columnIndex])
+			processBlockBucketAtColumn(
+				&intermediateBlock[bucketIndex],
+				values,
+				bucket,
+				columnIndex,
+			)
 		}
 	}
 
 	numSeries := 0
-
 	for _, bucketBlock := range intermediateBlock {
-		numSeries += len(bucketBlock.indexMapping)
+		numSeries += bucketBlock.columnLength
 	}
 
 	// Rebuild block metas in the expected order
@@ -179,7 +200,7 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 			}
 		}
 
-		initialIndex += len(bucketBlock.indexMapping)
+		initialIndex += bucketBlock.columnLength
 	}
 
 	// Dedupe common metadatas
