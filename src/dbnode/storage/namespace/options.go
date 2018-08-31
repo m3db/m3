@@ -46,7 +46,7 @@ const (
 	defaultRepairEnabled = false
 
 	// Disable allowing writing to arbitrary times by default
-	defaultAnyWriteTimeEnabled = false
+	defaultNonRealtimeWritesEnabled = false
 )
 
 var (
@@ -56,29 +56,29 @@ var (
 )
 
 type options struct {
-	retentionOpts       retention.Options
-	indexOpts           IndexOptions
-	bootstrapEnabled    bool
-	flushEnabled        bool
-	snapshotEnabled     bool
-	writesToCommitLog   bool
-	cleanupEnabled      bool
-	repairEnabled       bool
-	anyWriteTimeEnabled bool
+	retentionOpts            retention.Options
+	indexOpts                IndexOptions
+	bootstrapEnabled         bool
+	flushEnabled             bool
+	snapshotEnabled          bool
+	writesToCommitLog        bool
+	cleanupEnabled           bool
+	repairEnabled            bool
+	nonRealtimeWritesEnabled bool
 }
 
 // NewOptions creates a new namespace options
 func NewOptions() Options {
 	return &options{
-		bootstrapEnabled:    defaultBootstrapEnabled,
-		flushEnabled:        defaultFlushEnabled,
-		snapshotEnabled:     defaultSnapshotEnabled,
-		writesToCommitLog:   defaultWritesToCommitLog,
-		cleanupEnabled:      defaultCleanupEnabled,
-		repairEnabled:       defaultRepairEnabled,
-		retentionOpts:       retention.NewOptions(),
-		indexOpts:           NewIndexOptions(),
-		anyWriteTimeEnabled: defaultAnyWriteTimeEnabled,
+		bootstrapEnabled:         defaultBootstrapEnabled,
+		flushEnabled:             defaultFlushEnabled,
+		snapshotEnabled:          defaultSnapshotEnabled,
+		writesToCommitLog:        defaultWritesToCommitLog,
+		cleanupEnabled:           defaultCleanupEnabled,
+		repairEnabled:            defaultRepairEnabled,
+		retentionOpts:            retention.NewOptions(),
+		indexOpts:                NewIndexOptions(),
+		nonRealtimeWritesEnabled: defaultNonRealtimeWritesEnabled,
 	}
 }
 
@@ -115,7 +115,7 @@ func (o *options) Equal(value Options) bool {
 		o.repairEnabled == value.RepairEnabled() &&
 		o.retentionOpts.Equal(value.RetentionOptions()) &&
 		o.indexOpts.Equal(value.IndexOptions()) &&
-		o.anyWriteTimeEnabled == value.AnyWriteTimeEnabled()
+		o.nonRealtimeWritesEnabled == value.NonRealtimeWritesEnabled()
 }
 
 func (o *options) SetBootstrapEnabled(value bool) Options {
@@ -198,12 +198,12 @@ func (o *options) IndexOptions() IndexOptions {
 	return o.indexOpts
 }
 
-func (o *options) SetAnyWriteTimeEnabled(value bool) Options {
+func (o *options) SetNonRealtimeWritesEnabled(value bool) Options {
 	opts := *o
-	opts.anyWriteTimeEnabled = value
+	opts.nonRealtimeWritesEnabled = value
 	return &opts
 }
 
-func (o *options) AnyWriteTimeEnabled() bool {
-	return o.anyWriteTimeEnabled
+func (o *options) NonRealtimeWritesEnabled() bool {
+	return o.nonRealtimeWritesEnabled
 }

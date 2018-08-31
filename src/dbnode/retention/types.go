@@ -70,25 +70,25 @@ type Options interface {
 	// be expired after not being accessed for a given duration
 	BlockDataExpiryAfterNotAccessedPeriod() time.Duration
 
-	// SetAnyWriteTimeEnabled sets whether writes to any time is enabled
-	SetAnyWriteTimeEnabled(value bool) Options
+	// SetNonRealtimeWritesEnabled sets whether writes to any time is enabled
+	SetNonRealtimeWritesEnabled(value bool) Options
 
-	// AnyWriteTimeEnabled returns whether writes to any time is enabled
-	AnyWriteTimeEnabled() bool
+	// NonRealtimeWritesEnabled returns whether writes to any time is enabled
+	NonRealtimeWritesEnabled() bool
 
-	// SetFlushAfterNoMetricPeriod sets the period of no metrics after which
+	// SetNonRealtimeFlushAfterNoMetricPeriod sets the period of no metrics after which
 	// non-realtime blocks should be flushed
-	SetFlushAfterNoMetricPeriod(period time.Duration) Options
+	SetNonRealtimeFlushAfterNoMetricPeriod(period time.Duration) Options
 
-	// FlushAfterNoMetricPeriod returns the period of no metrics after which
+	// NonRealtimeFlushAfterNoMetricPeriod returns the period of no metrics after which
 	// non-realtime blocks should be flushed
-	FlushAfterNoMetricPeriod() time.Duration
+	NonRealtimeFlushAfterNoMetricPeriod() time.Duration
 
-	// SetMaxWritesBeforeFlush sets the max number of writes for a non-realtime block
+	// SetNonRealtimeMaxWritesBeforeFlush sets the max number of writes for a non-realtime block
 	// after which they should be flushed
-	SetMaxWritesBeforeFlush(value uint64) Options
+	SetNonRealtimeMaxWritesBeforeFlush(value uint64) Options
 
-	// MaxWritesBeforeFlush returns the max number of writes for a non-realtime block
+	// NonRealtimeMaxWritesBeforeFlush returns the max number of writes for a non-realtime block
 	// after which they should be flushed
-	MaxWritesBeforeFlush() uint64
+	NonRealtimeMaxWritesBeforeFlush() uint64
 }
