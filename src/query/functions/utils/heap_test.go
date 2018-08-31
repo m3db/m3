@@ -161,16 +161,6 @@ func TestMaxHeap(t *testing.T) {
 			assert.Equal(t, 0, h.floatHeap.Len())
 			_, seen = h.Peek()
 			assert.False(t, seen)
-
-			// Refill heap
-			for i, v := range tt.values {
-				h.Push(v, i)
-			}
-
-			actual = h.FlushByPop()
-			assert.Equal(t, tt.expectedMax, actual)
-			// Assert FlushByPop flushes the heap
-			assert.Equal(t, 0, h.floatHeap.Len())
 		})
 	}
 }
@@ -200,20 +190,6 @@ func TestMinHeap(t *testing.T) {
 			assert.Equal(t, 0, h.floatHeap.Len())
 			_, seen = h.Peek()
 			assert.False(t, seen)
-
-			// Refill heap
-			for i, v := range tt.values {
-				h.Push(v, i)
-				if capacity < 1 {
-					// No max size; length should be index + 1
-					assert.Equal(t, i+1, h.Len(), "capacity <= 0, no max capacity")
-				} else {
-					assert.True(t, h.Len() <= capacity, "length is larger than capacity")
-				}
-			}
-
-			actual = h.FlushByPop()
-			assert.Equal(t, tt.expectedMin, actual)
 		})
 	}
 }

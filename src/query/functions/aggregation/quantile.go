@@ -33,29 +33,29 @@ const (
 	QuantileType = "quantile"
 )
 
-// Creates a quantile aggregation function for a given n-quantile measurement
-func makeQuantileFn(opType string, n float64) (aggregationFn, bool) {
+// Creates a quantile aggregation function for a given q-quantile measurement
+func makeQuantileFn(opType string, q float64) (aggregationFn, bool) {
 	if opType != QuantileType {
 		return nil, false
 	}
-	return func(values []float64, buckets []int) float64 {
-		return quantileFn(n, values, buckets)
+	return func(values []float64, bucket []int) float64 {
+		return quantileFn(q, values, bucket)
 	}, true
 }
 
-func quantileFn(n float64, values []float64, buckets []int) float64 {
-	if len(buckets) == 0 || len(values) == 0 {
+func quantileFn(q float64, values []float64, bucket []int) float64 {
+	if len(bucket) == 0 || len(values) == 0 {
 		return math.NaN()
 	}
 
-	if n < 0 || n > 1 {
-		// Use math.Inf(0) == +Inf by truncating n and subtracting 1 to give
+	if q < 0 || q > 1 {
+		// Use math.Inf(0) == +Inf by truncating q and subtracting 1 to give
 		// the correctly signed infinity
-		return math.Inf(int(n) - 1)
+		return math.Inf(int(q) - 1)
 	}
 
-	bucketVals := make([]float64, 0, len(buckets))
-	for _, idx := range buckets {
+	bucketVals := make([]float64, 0, len(bucket))
+	for _, idx := range bucket {
 		val := values[idx]
 		if !math.IsNaN(val) {
 			bucketVals = append(bucketVals, values[idx])
@@ -71,7 +71,7 @@ func quantileFn(n float64, values []float64, buckets []int) float64 {
 	sort.Float64s(bucketVals)
 	// When the quantile lies between two samples,
 	// use a weighted average of the two samples.
-	rank := n * (l - 1)
+	rank := q * (l - 1)
 
 	leftIndex := math.Max(0, math.Floor(rank))
 	rightIndex := math.Min(l-1, leftIndex+1)

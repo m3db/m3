@@ -33,20 +33,20 @@ const (
 	MaxType = "max"
 	// AverageType averages all non nan elements in a list of series
 	AverageType = "avg"
-	// StandardDeviationType takes the standard deviation of all non nan elements
-	// in a list of series
+	// StandardDeviationType takes the population standard deviation of all non
+	// nan elements in a list of series
 	StandardDeviationType = "stddev"
-	// StandardVarianceType takes the standard variance of all non nan elements
-	// in a list of series
+	// StandardVarianceType takes the population standard variance of all non
+	// nan elements in a list of series
 	StandardVarianceType = "var"
 	// CountType counts all non nan elements in a list of series
 	CountType = "count"
 )
 
-func sumAndCount(values []float64, buckets []int) (float64, float64) {
+func sumAndCount(values []float64, bucket []int) (float64, float64) {
 	sum := 0.0
 	count := 0.0
-	for _, idx := range buckets {
+	for _, idx := range bucket {
 		v := values[idx]
 		if !math.IsNaN(v) {
 			sum += v
@@ -62,14 +62,14 @@ func sumAndCount(values []float64, buckets []int) (float64, float64) {
 	return sum, count
 }
 
-func sumFn(values []float64, buckets []int) float64 {
-	sum, _ := sumAndCount(values, buckets)
+func sumFn(values []float64, bucket []int) float64 {
+	sum, _ := sumAndCount(values, bucket)
 	return sum
 }
 
-func minFn(values []float64, buckets []int) float64 {
+func minFn(values []float64, bucket []int) float64 {
 	min := math.NaN()
-	for _, idx := range buckets {
+	for _, idx := range bucket {
 		v := values[idx]
 		if !math.IsNaN(v) {
 			if math.IsNaN(min) || min > v {
@@ -81,9 +81,9 @@ func minFn(values []float64, buckets []int) float64 {
 	return min
 }
 
-func maxFn(values []float64, buckets []int) float64 {
+func maxFn(values []float64, bucket []int) float64 {
 	max := math.NaN()
-	for _, idx := range buckets {
+	for _, idx := range bucket {
 		v := values[idx]
 		if !math.IsNaN(v) {
 			if math.IsNaN(max) || max < v {
@@ -95,8 +95,8 @@ func maxFn(values []float64, buckets []int) float64 {
 	return max
 }
 
-func averageFn(values []float64, buckets []int) float64 {
-	sum, count := sumAndCount(values, buckets)
+func averageFn(values []float64, bucket []int) float64 {
+	sum, count := sumAndCount(values, bucket)
 
 	// Cannot take average of no values
 	if count == 0 {
@@ -106,21 +106,21 @@ func averageFn(values []float64, buckets []int) float64 {
 	return sum / count
 }
 
-func stddevFn(values []float64, buckets []int) float64 {
-	return math.Sqrt(varianceFn(values, buckets))
+func stddevFn(values []float64, bucket []int) float64 {
+	return math.Sqrt(varianceFn(values, bucket))
 }
 
-func varianceFn(values []float64, buckets []int) float64 {
-	sum, count := sumAndCount(values, buckets)
+func varianceFn(values []float64, bucket []int) float64 {
+	sum, count := sumAndCount(values, bucket)
 
-	// Cannot take standard deviation of one or fewer values
-	if count < 2 {
+	// Cannot take population standard deviation of less than 1 value
+	if count < 1 {
 		return math.NaN()
 	}
 
 	average := sum / count
 	sumOfSquares := 0.0
-	for _, idx := range buckets {
+	for _, idx := range bucket {
 		v := values[idx]
 		if !math.IsNaN(v) {
 			diff := v - average
@@ -128,10 +128,10 @@ func varianceFn(values []float64, buckets []int) float64 {
 		}
 	}
 
-	return sumOfSquares / (count - 1)
+	return sumOfSquares / count
 }
 
-func countFn(values []float64, buckets []int) float64 {
-	_, count := sumAndCount(values, buckets)
+func countFn(values []float64, bucket []int) float64 {
+	_, count := sumAndCount(values, bucket)
 	return count
 }

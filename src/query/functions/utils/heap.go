@@ -139,18 +139,6 @@ func (fh FloatHeap) Flush() []ValueIndexPair {
 	return values
 }
 
-// FlushByPop flushes the float heap and resets it by popping values from the heap.
-// Guarantees order.
-func (fh FloatHeap) FlushByPop() []ValueIndexPair {
-	h := fh.floatHeap
-	values := make([]ValueIndexPair, 0, len(h.heap))
-	for h.Len() > 0 {
-		values = append(values, heap.Pop(h).(ValueIndexPair))
-	}
-
-	return values
-}
-
 // Peek reveals the top value of the heap without mutating the heap.
 func (fh FloatHeap) Peek() (ValueIndexPair, bool) {
 	h := fh.floatHeap.heap

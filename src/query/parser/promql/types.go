@@ -112,8 +112,6 @@ func getAggOpType(opType promql.ItemType) string {
 		return aggregation.BottomKType
 	case promql.ItemType(itemQuantile):
 		return aggregation.QuantileType
-	case promql.ItemType(itemCountValues):
-		return aggregation.CountValuesType
 	default:
 		return common.UnknownOpType
 	}
