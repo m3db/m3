@@ -38,27 +38,32 @@ import (
 
 func TestPadValuesWithNans(t *testing.T) {
 	// When padding necessary adds enough NaNs
-	vals := []float64{1}
-	actual := padValuesWithNaNs(vals, 4)
+	vals := []int{1}
+	actual := convertCountsToPaddedFloatList(vals, 4)
 	test.EqualsWithNans(t, []float64{1, math.NaN(), math.NaN(), math.NaN()}, actual)
 
 	// When no padding necessary should do nothing
-	vals = []float64{1, 2, 3, 4}
-	actual = padValuesWithNaNs(vals, 4)
+	vals = []int{1, 2, 3, 4}
+	actual = convertCountsToPaddedFloatList(vals, 4)
 	test.EqualsWithNans(t, []float64{1, 2, 3, 4}, actual)
 
 	// When vals is longer than padding length, should do nothing
-	vals = []float64{1, 2, 3, 4, 5}
-	actual = padValuesWithNaNs(vals, 4)
+	vals = []int{1, 2, 3, 4, 5}
+	actual = convertCountsToPaddedFloatList(vals, 4)
 	test.EqualsWithNans(t, []float64{1, 2, 3, 4, 5}, actual)
+
+	// Converts -1s into NaNs and pads with NaNs
+	vals = []int{-1, 3, 4}
+	actual = convertCountsToPaddedFloatList(vals, 4)
+	test.EqualsWithNans(t, []float64{math.NaN(), 3, 4, math.NaN()}, actual)
 }
 
 func TestCountValuesFn(t *testing.T) {
 	values := []float64{1, 2, 3, 4, 5, 6, 7, 1}
 	buckets := []int{0, 1, 7}
 	actual := countValuesFn(values, buckets)
-	assert.Equal(t, 2.0, actual[1])
-	assert.Equal(t, 1.0, actual[2])
+	assert.Equal(t, 2, actual[1])
+	assert.Equal(t, 1, actual[2])
 }
 
 func tagsToSeriesMeta(tags []models.Tags) []block.SeriesMeta {

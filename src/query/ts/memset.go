@@ -41,3 +41,18 @@ func Memset(data []float64, value float64) {
 		}
 	}
 }
+
+// MemsetInt is a faster way to initialize an int array.
+func MemsetInt(data []int, value int) {
+	if value == 0 {
+		for i := range data {
+			data[i] = 0
+		}
+	} else if len(data) != 0 {
+		data[0] = value
+
+		for i := 1; i < len(data); i *= 2 {
+			copy(data[i:], data[:i])
+		}
+	}
+}

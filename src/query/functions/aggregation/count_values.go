@@ -25,6 +25,8 @@ import (
 	"math"
 	"strconv"
 
+	"github.com/m3db/m3/src/query/ts"
+
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/functions/utils"
@@ -37,7 +39,7 @@ const (
 	CountValuesType = "count_values"
 )
 
-// NewCountValuesOp creates a new take operation
+// NewCountValuesOp creates a new count values operation
 func NewCountValuesOp(
 	opType string,
 	params NodeParams,
@@ -49,7 +51,7 @@ func NewCountValuesOp(
 	return newCountValuesOp(params, opType), nil
 }
 
-// countValuesOp stores required properties for take ops
+// countValuesOp stores required properties for count values ops
 type countValuesOp struct {
 	params NodeParams
 	opType string
@@ -88,9 +90,10 @@ type countValuesNode struct {
 	controller *transform.Controller
 }
 
-type bucketColumn []float64
+type bucketColumn []int
 
 type bucketBlock struct {
+	columnLength int
 	columns      []bucketColumn
 	indexMapping map[float64]int
 }
@@ -113,10 +116,10 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 	)
 
 	stepCount := stepIter.StepCount()
-	tempBlock := make([]bucketBlock, len(buckets))
-	for i := range tempBlock {
-		tempBlock[i].columns = make([]bucketColumn, stepCount)
-		tempBlock[i].indexMapping = make(map[float64]int, 10)
+	intermediateBlock := make([]bucketBlock, len(buckets))
+	for i := range intermediateBlock {
+		intermediateBlock[i].columns = make([]bucketColumn, stepCount)
+		intermediateBlock[i].indexMapping = make(map[float64]int, 10)
 	}
 
 	for columnIndex := 0; stepIter.Next(); columnIndex++ {
@@ -127,14 +130,12 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 
 		values := step.Values()
 		for bucketIndex, bucket := range buckets {
-			currentBucketBlock := tempBlock[bucketIndex]
-			// If not on the first column, generate appropriate number of rows full of NaNs
-			if columnIndex > 0 {
-				previousLen := len(currentBucketBlock.columns[columnIndex-1])
-				currentBucketBlock.columns[columnIndex] = make(bucketColumn, previousLen)
-				for i := 0; i < previousLen; i++ {
-					currentBucketBlock.columns[columnIndex][i] = math.NaN()
-				}
+			currentBucketBlock := intermediateBlock[bucketIndex]
+			// Generate appropriate number of rows full of -1s that will later map to NaNs
+			currentColumnLength := currentBucketBlock.columnLength
+			currentBucketBlock.columns[columnIndex] = make(bucketColumn, currentColumnLength)
+			for i := 0; i < currentColumnLength; i++ {
+				ts.MemsetInt(currentBucketBlock.columns[columnIndex], -1)
 			}
 
 			countedValues := countValuesFn(values, bucket)
@@ -143,7 +144,7 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 				if rowIndex, seen := currentBucketBlock.indexMapping[distinctValue]; seen {
 					// This value has already been seen at rowIndex in a previous column
 					// so add the current value to the appropriate row index.
-					currentBucketBlock.columns[columnIndex][rowIndex] = count
+					currentBucketColumn[rowIndex] = count
 				} else {
 					// The column index needs to be created here already
 					// Add the count to the end of the bucket column
@@ -153,19 +154,21 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 					currentBucketBlock.indexMapping[distinctValue] = len(currentBucketColumn)
 				}
 			}
+
+			intermediateBlock[bucketIndex].columnLength = len(currentBucketBlock.columns[columnIndex])
 		}
 	}
 
 	numSeries := 0
 
-	for _, bucketBlock := range tempBlock {
+	for _, bucketBlock := range intermediateBlock {
 		numSeries += len(bucketBlock.indexMapping)
 	}
 
 	// Rebuild block metas in the expected order
 	blockMetas := make([]block.SeriesMeta, numSeries)
 	initialIndex := 0
-	for bucketIndex, bucketBlock := range tempBlock {
+	for bucketIndex, bucketBlock := range intermediateBlock {
 		for k, v := range bucketBlock.indexMapping {
 			blockMetas[v+initialIndex] = block.SeriesMeta{
 				Name: n.op.OpType(),
@@ -193,9 +196,11 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 	}
 
 	for columnIndex := 0; columnIndex < stepCount; columnIndex++ {
-		for _, bucketBlock := range tempBlock {
-			vals := []float64(bucketBlock.columns[columnIndex])
-			valsToAdd := padValuesWithNaNs(vals, len(bucketBlock.indexMapping))
+		for _, bucketBlock := range intermediateBlock {
+			valsToAdd := convertCountsToPaddedFloatList(
+				bucketBlock.columns[columnIndex],
+				len(bucketBlock.indexMapping),
+			)
 			builder.AppendValues(columnIndex, valsToAdd)
 		}
 	}
@@ -205,20 +210,33 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 	return n.controller.Process(nextBlock)
 }
 
-// pads vals with enough NaNs to match size
-func padValuesWithNaNs(vals []float64, size int) []float64 {
+// converts bucketColumn to a list of floats, with -1 values converted
+// to NaNs, and padded with enough NaNs to match size
+func convertCountsToPaddedFloatList(vals bucketColumn, size int) []float64 {
+	floatVals := make([]float64, len(vals))
+	for i, v := range vals {
+		var value float64
+		if v == -1 {
+			value = math.NaN()
+		} else {
+			value = float64(v)
+		}
+
+		floatVals[i] = value
+	}
+
 	numToPad := size - len(vals)
 	for i := 0; i < numToPad; i++ {
-		vals = append(vals, math.NaN())
+		floatVals = append(floatVals, math.NaN())
 	}
-	return vals
+	return floatVals
 }
 
 // count values takes a value array and a bucket list, returns a map of
 // distinct values to number of times the value was seen in this bucket
-func countValuesFn(values []float64, buckets []int) map[float64]float64 {
-	countedValues := make(map[float64]float64, len(buckets))
-	for _, idx := range buckets {
+func countValuesFn(values []float64, bucket []int) map[float64]int {
+	countedValues := make(map[float64]int, len(bucket))
+	for _, idx := range bucket {
 		val := values[idx]
 		if !math.IsNaN(val) {
 			countedValues[val]++
