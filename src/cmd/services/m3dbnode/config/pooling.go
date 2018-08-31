@@ -26,11 +26,6 @@ type PoolingType string
 const (
 	// SimplePooling uses the basic Go runtime to allocate bytes for bytes pools.
 	SimplePooling PoolingType = "simple"
-	// NativePooling uses a mmap syscall to allocate bytes for bytes pools, take
-	// great care when experimenting with this. There's not enough protection
-	// even with ref counting that M3DB performs to use this safely in
-	// production. Here be dragons and so forth.
-	NativePooling PoolingType = "native"
 )
 
 const (
@@ -42,7 +37,7 @@ type PoolingPolicy struct {
 	// The initial alloc size for a block
 	BlockAllocSize int `yaml:"blockAllocSize"`
 
-	// The general pool type: simple or native.
+	// The general pool type (currently only supported: simple).
 	Type PoolingType `yaml:"type"`
 
 	// The Bytes pool buckets to use

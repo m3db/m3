@@ -918,13 +918,6 @@ func withEncodingAndPoolingOptions(
 			func(s []pool.Bucket) pool.BytesPool {
 				return pool.NewBytesPool(s, bytesPoolOpts)
 			})
-	case config.NativePooling:
-		bytesPool = pool.NewCheckedBytesPool(
-			buckets,
-			checkedBytesPoolOpts,
-			func(s []pool.Bucket) pool.BytesPool {
-				return pool.NewNativeHeap(s, bytesPoolOpts)
-			})
 	default:
 		logger.Fatalf("unrecognized pooling type: %s", policy.Type)
 	}
