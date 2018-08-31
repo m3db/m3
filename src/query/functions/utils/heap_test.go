@@ -46,6 +46,7 @@ func (s minSlice) Less(i, j int) bool {
 	if s[i].Val == s[j].Val {
 		return s[i].Index > s[j].Index
 	}
+
 	return s[i].Val > s[j].Val
 }
 

@@ -63,10 +63,12 @@ func NewFloatHeap(isMaxHeap bool, capacity int) FloatHeap {
 	} else {
 		less = minHeapLess
 	}
+
 	floatHeap := &floatHeap{
 		heap: make([]ValueIndexPair, 0, capacity),
 		less: less,
 	}
+
 	heap.Init(floatHeap)
 	return FloatHeap{
 		isMaxHeap: isMaxHeap,
@@ -145,6 +147,7 @@ func (fh FloatHeap) FlushByPop() []ValueIndexPair {
 	for h.Len() > 0 {
 		values = append(values, heap.Pop(h).(ValueIndexPair))
 	}
+
 	return values
 }
 
