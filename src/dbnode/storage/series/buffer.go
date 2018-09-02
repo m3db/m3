@@ -583,16 +583,15 @@ func (b *dbBufferBucket) write(
 ) error {
 	idx := -1
 	for i := range b.encoders {
-		if timestamp.Equal(b.encoders[i].lastWriteAt) {
-			// NB(xichen): We discard datapoints with the same timestamps as the
-			// ones we've already encoded. Immutable/first-write-wins semantics.
-			return nil
-		}
 		if timestamp.After(b.encoders[i].lastWriteAt) {
 			idx = i
 			break
 		}
 	}
+	// NB(r): We push datapoints with the same timestamps as the
+	// ones we've already encoded into a new buffer since that's how
+	// record the latest value of a timestamp.
+	// Upsert/last-write-wins semantics.
 	if idx == -1 {
 		b.opts.Stats().IncCreatedEncoders()
 		bopts := b.opts.DatabaseBlockOptions()
@@ -727,20 +726,14 @@ func (b *dbBufferBucket) merge() (mergeResult, error) {
 		}
 	}
 
-	start := b.start
-	readers := make([]xio.SegmentReader, 0, len(b.encoders)+len(b.bootstrapped))
-	streams := make([]xio.SegmentReader, 0, len(b.encoders))
-	for i := range b.encoders {
-		if s := b.encoders[i].encoder.Stream(); s != nil {
-			merges++
-			readers = append(readers, s)
-			streams = append(streams, s)
-		}
-	}
-
-	var lastWriteAt time.Time
-	iter := b.opts.MultiReaderIteratorPool().Get()
-	ctx := b.opts.ContextPool().Get()
+	var (
+		start       = b.start
+		readers     = make([]xio.SegmentReader, 0, len(b.encoders)+len(b.bootstrapped))
+		streams     = make([]xio.SegmentReader, 0, len(b.encoders))
+		iter        = b.opts.MultiReaderIteratorPool().Get()
+		ctx         = b.opts.ContextPool().Get()
+		lastWriteAt time.Time
+	)
 	defer func() {
 		iter.Close()
 		ctx.Close()
@@ -752,11 +745,21 @@ func (b *dbBufferBucket) merge() (mergeResult, error) {
 		}
 	}()
 
+	// Rank bootstrapped blocks as data that has appeared before data that
+	// arrived locally in the buffer
 	for i := range b.bootstrapped {
 		block, err := b.bootstrapped[i].Stream(ctx)
 		if err == nil && block.SegmentReader != nil {
 			merges++
 			readers = append(readers, block.SegmentReader)
+		}
+	}
+
+	for i := range b.encoders {
+		if s := b.encoders[i].encoder.Stream(); s != nil {
+			merges++
+			readers = append(readers, s)
+			streams = append(streams, s)
 		}
 	}
 

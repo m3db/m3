@@ -38,13 +38,13 @@ var (
 // iterators is a collection of iterators, and allows for reading in order values
 // from the underlying iterators that are separately in order themselves.
 type iterators struct {
-	values      []Iterator
-	earliest    Iterator
-	earliestIdx int
-	earliestAt  time.Time
-	filtering   bool
-	filterStart time.Time
-	filterEnd   time.Time
+	values       []Iterator
+	earliest     []Iterator
+	lastEarliest Iterator
+	earliestAt   time.Time
+	filtering    bool
+	filterStart  time.Time
+	filterEnd    time.Time
 }
 
 func (i *iterators) len() int {
@@ -52,7 +52,7 @@ func (i *iterators) len() int {
 }
 
 func (i *iterators) current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
-	return i.earliest.Current()
+	return i.lastEarliest.Current()
 }
 
 func (i *iterators) at() time.Time {
@@ -64,13 +64,26 @@ func (i *iterators) push(iter Iterator) bool {
 		return false
 	}
 	i.values = append(i.values, iter)
-	dp, _, _ := iter.Current()
-	if dp.Timestamp.Before(i.earliestAt) {
-		i.earliest = iter
-		i.earliestIdx = len(i.values) - 1
-		i.earliestAt = dp.Timestamp
-	}
+	i.tryAddEarliest(iter)
 	return true
+}
+
+func (i *iterators) tryAddEarliest(iter Iterator) {
+	added := false
+	dp, _, _ := iter.Current()
+	if dp.Timestamp.Equal(i.earliestAt) {
+		// Push equal earliest
+		i.earliest = append(i.earliest, iter)
+		added = true
+	} else if dp.Timestamp.Before(i.earliestAt) {
+		// Reset earliest and push new iter
+		i.earliest = append(i.earliest[:0], iter)
+		i.earliestAt = dp.Timestamp
+		added = true
+	}
+	if added {
+		i.lastEarliest = iter
+	}
 }
 
 func (i *iterators) moveIteratorToFilterNext(iter Iterator) bool {
@@ -94,57 +107,58 @@ func (i *iterators) moveIteratorToFilterNext(iter Iterator) bool {
 }
 
 func (i *iterators) moveToValidNext() (bool, error) {
-	n := len(i.values)
-	if n == 0 {
-		return false, nil
-	}
-
 	var (
 		prevAt = i.earliestAt
-		next   = i.earliest.Next()
+		n      = len(i.values)
 	)
-	if i.filtering && next {
-		// Filter out values if applying filters
-		next = i.moveIteratorToFilterNext(i.earliest)
-	}
-
-	err := i.earliest.Err()
-	if err != nil {
-		i.reset()
-		return false, err
-	}
-
-	if n == 1 {
-		if next {
-			dp, _, _ := i.earliest.Current()
-			i.earliestAt = dp.Timestamp
-		} else {
-			i.reset()
+	for _, iter := range i.earliest {
+		next := iter.Next()
+		if next && i.filtering {
+			// Filter out values if applying filters
+			next = i.moveIteratorToFilterNext(iter)
 		}
-		return i.validateNext(next, prevAt)
-	}
 
-	if !next {
+		err := iter.Err()
+		if err != nil {
+			i.reset()
+			return false, err
+		}
+
+		if next {
+			continue
+		}
+
 		// No next so swap tail in and shrink by one
-		i.earliest.Close()
-		i.values[i.earliestIdx] = i.values[n-1]
+		iter.Close()
+		idx := -1
+		for i, curr := range i.values {
+			if curr == iter {
+				idx = i
+				break
+			}
+		}
+		i.values[idx] = i.values[n-1]
 		i.values[n-1] = nil
 		i.values = i.values[:n-1]
 		n = n - 1
 	}
 
-	// Evaluate new earliest
-	i.earliest = i.values[0]
-	i.earliestIdx = 0
-	dp, _, _ := i.earliest.Current()
-	i.earliestAt = dp.Timestamp
-	for idx := 1; idx < n; idx++ {
-		dp, _, _ = i.values[idx].Current()
-		if dp.Timestamp.Before(i.earliestAt) {
-			i.earliest = i.values[idx]
-			i.earliestIdx = idx
-			i.earliestAt = dp.Timestamp
-		}
+	// Reset earliest
+	for idx := range i.earliest {
+		i.earliest[idx] = nil
+	}
+	i.earliest = i.earliest[:0]
+
+	// No iterators left
+	if n == 0 {
+		i.reset()
+		return false, nil
+	}
+
+	// Force first to be new earliest, evaluate rest
+	i.earliestAt = timeMax
+	for _, iter := range i.values {
+		i.tryAddEarliest(iter)
 	}
 
 	// Apply filter to new earliest if necessary
@@ -174,9 +188,12 @@ func (i *iterators) reset() {
 		i.values[idx] = nil
 	}
 	i.values = i.values[:0]
-	i.earliest = nil
-	i.earliestIdx = 0
+	for idx := range i.earliest {
+		i.earliest[idx] = nil
+	}
+	i.earliest = i.earliest[:0]
 	i.earliestAt = timeMax
+	i.lastEarliest = nil
 }
 
 func (i *iterators) setFilter(start, end time.Time) {
