@@ -21,11 +21,17 @@
 package native
 
 import (
+	"bytes"
+	"encoding/json"
 	"math"
 	"net/http"
 	"net/url"
 	"testing"
 	"time"
+
+	xtest "github.com/m3db/m3/src/dbnode/x/test"
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/ts"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -104,4 +110,81 @@ func TestParseDurationError(t *testing.T) {
 	require.NoError(t, err)
 	_, err = parseDuration(r, stepParam)
 	assert.Error(t, err)
+}
+
+func TestRenderResultsJSON(t *testing.T) {
+	start := time.Unix(1535948880, 0)
+
+	buffer := bytes.NewBuffer(nil)
+	params := models.RequestParams{}
+	series := []*ts.Series{
+		ts.NewSeries("foo", ts.NewFixedStepValues(10000, 2, 1, start), models.Tags{
+			models.Tag{Name: "bar", Value: "baz"},
+			models.Tag{Name: "qux", Value: "qaz"},
+		}),
+		ts.NewSeries("bar", ts.NewFixedStepValues(10000, 2, 2, start), models.Tags{
+			models.Tag{Name: "baz", Value: "bar"},
+			models.Tag{Name: "qaz", Value: "qux"},
+		}),
+	}
+
+	renderResultsJSON(buffer, series, params)
+
+	expected := mustPrettyJSON(t, `
+	{
+		"status": "success",
+		"data": {
+			"resultType": "matrix",
+			"result": [
+				{
+					"metric": {
+						"bar": "baz",
+						"qux": "qaz"
+					},
+					"values": [
+						[
+							1535948880,
+							"1"
+						],
+						[
+							1535948890,
+							"1"
+						]
+					],
+					"step_size_ms": 0
+				},
+				{
+					"metric": {
+						"baz": "bar",
+						"qaz": "qux"
+					},
+					"values": [
+						[
+							1535948880,
+							"2"
+						],
+						[
+							1535948890,
+							"2"
+						]
+					],
+					"step_size_ms": 0
+				}
+			]
+		}
+	}
+	`)
+
+	actual := mustPrettyJSON(t, buffer.String())
+
+	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
+}
+
+func mustPrettyJSON(t *testing.T, str string) string {
+	var unmarshalled map[string]interface{}
+	err := json.Unmarshal([]byte(str), &unmarshalled)
+	require.NoError(t, err)
+	pretty, err := json.MarshalIndent(unmarshalled, "", "  ")
+	require.NoError(t, err)
+	return string(pretty)
 }

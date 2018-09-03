@@ -153,13 +153,22 @@ func parseQuery(r *http.Request) (string, error) {
 func renderResultsJSON(w io.Writer, series []*ts.Series, params models.RequestParams) {
 	startIdx := 0
 	jw := json.NewWriter(w)
+	jw.BeginObject()
+
+	jw.BeginObjectField("status")
+	jw.WriteString("success")
+
+	jw.BeginObjectField("data")
+	jw.BeginObject()
+
+	jw.BeginObjectField("resultType")
+	jw.WriteString("matrix")
+
+	jw.BeginObjectField("result")
 	jw.BeginArray()
 	for _, s := range series {
 		jw.BeginObject()
-		jw.BeginObjectField("target")
-		jw.WriteString(s.Name())
-
-		jw.BeginObjectField("tags")
+		jw.BeginObjectField("metric")
 		jw.BeginObject()
 		for _, t := range s.Tags {
 			jw.BeginObjectField(t.Name)
@@ -167,7 +176,7 @@ func renderResultsJSON(w io.Writer, series []*ts.Series, params models.RequestPa
 		}
 		jw.EndObject()
 
-		jw.BeginObjectField("datapoints")
+		jw.BeginObjectField("values")
 		jw.BeginArray()
 		vals := s.Values()
 		for i := startIdx; i < s.Len(); i++ {
@@ -194,8 +203,11 @@ func renderResultsJSON(w io.Writer, series []*ts.Series, params models.RequestPa
 			jw.EndObject()
 		}
 	}
-
 	jw.EndArray()
+
+	jw.EndObject()
+
+	jw.EndObject()
 	jw.Close()
 }
 

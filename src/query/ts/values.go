@@ -107,17 +107,17 @@ func (b *fixedResolutionValues) StartTime() time.Time {
 
 // Resolution returns resolution per step
 func (b *fixedResolutionValues) Resolution() time.Duration {
-	return b.MillisPerStep()
+	return b.MillisPerStep() * time.Millisecond
 }
 
 // StepAtTime returns the step within the block containing the given time
 func (b *fixedResolutionValues) StepAtTime(t time.Time) int {
-	return int(t.Sub(b.StartTime()) / b.MillisPerStep())
+	return int(t.Sub(b.StartTime()) / b.Resolution())
 }
 
 // StartTimeForStep returns the time at which the given step starts
 func (b *fixedResolutionValues) StartTimeForStep(n int) time.Time {
-	return b.startTime.Add(time.Duration(n) * b.MillisPerStep())
+	return b.startTime.Add(time.Duration(n) * b.Resolution())
 }
 
 // SetValueAt sets the value at the given entry
