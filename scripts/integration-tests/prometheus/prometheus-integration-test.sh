@@ -126,6 +126,10 @@ echo "Sleep for 30 seconds to let the remote write endpoint generate some data"
 
 sleep 30
 
+# Ensure Prometheus can proxy a Prometheus query
 [ "$(curl -sSf localhost:9090/api/v1/query?query=prometheus_remote_storage_succeeded_samples_total | jq .data.result[].value[1])" != '"0"' ]
 
-docker-compose -f docker-compose.yml down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
+# Ensure M3 Query can serve a Prometheus query
+[ "$(curl -sSf localhost:7201/api/v1/query_range?query=prometheus_remote_storage_succeeded_samples_total | jq '.[0].datapoints | length' )" != '"0"' ]
+
+# docker-compose -f docker-compose.yml down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes

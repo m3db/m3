@@ -32,6 +32,11 @@ import (
 )
 
 const (
+	// DefaultQueryRangeURL specifies the default URL for the query range endpoint
+	// found on a Prometheus server
+	DefaultQueryRangeURL    = "/api/v1/query_range"
+	DefaultQueryRangeMethod = http.MethodGet
+
 	// TODO: get timeouts from configs
 	maxTimeout     = time.Minute
 	defaultTimeout = time.Second * 15

@@ -42,7 +42,7 @@ import (
 const (
 	endParam          = "end"
 	startParam        = "start"
-	targetParam       = "target"
+	queryParam        = "query"
 	stepParam         = "step"
 	debugParam        = "debug"
 	endExclusiveParam = "end-exclusive"
@@ -61,7 +61,15 @@ func parseTime(r *http.Request, key string) (time.Time, error) {
 // nolint: unparam
 func parseDuration(r *http.Request, key string) (time.Duration, error) {
 	if d := r.FormValue(key); d != "" {
-		return time.ParseDuration(d)
+		value, firstErr := time.ParseDuration(d)
+		if firstErr != nil {
+			// Try parsing as an integer value specifying seconds, the Prometheus default
+			if seconds, err := strconv.ParseInt(d, 10, 64); err == nil {
+				value = time.Duration(seconds) * time.Second
+				firstErr = nil
+			}
+		}
+		return value, firstErr
 	}
 
 	return 0, errors.ErrNotFound
@@ -97,9 +105,9 @@ func parseParams(r *http.Request) (models.RequestParams, *handler.ParseError) {
 	}
 	params.Step = step
 
-	target, err := parseTarget(r)
+	target, err := parseQuery(r)
 	if err != nil {
-		return params, handler.NewParseError(fmt.Errorf(formatErrStr, targetParam, err), http.StatusBadRequest)
+		return params, handler.NewParseError(fmt.Errorf(formatErrStr, queryParam, err), http.StatusBadRequest)
 	}
 	params.Target = target
 
@@ -128,18 +136,18 @@ func parseParams(r *http.Request) (models.RequestParams, *handler.ParseError) {
 	return params, nil
 }
 
-func parseTarget(r *http.Request) (string, error) {
-	targetQueries, ok := r.URL.Query()[targetParam]
-	if !ok || len(targetQueries) == 0 || targetQueries[0] == "" {
+func parseQuery(r *http.Request) (string, error) {
+	queries, ok := r.URL.Query()[queryParam]
+	if !ok || len(queries) == 0 || queries[0] == "" {
 		return "", errors.ErrNoTargetFound
 	}
 
 	// TODO: currently, we only support one target at a time
-	if len(targetQueries) > 1 {
+	if len(queries) > 1 {
 		return "", errors.ErrBatchQuery
 	}
 
-	return targetQueries[0], nil
+	return queries[0], nil
 }
 
 func renderResultsJSON(w io.Writer, series []*ts.Series, params models.RequestParams) {
