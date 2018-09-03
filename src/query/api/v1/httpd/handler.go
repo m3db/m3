@@ -51,10 +51,9 @@ import (
 )
 
 const (
-	healthURL                 = "/health"
-	pprofURL                  = "/debug/pprof/profile"
-	routesURL                 = "/routes"
-	defaultPrometheusQueryURL = "/api/v1/"
+	healthURL = "/health"
+	pprofURL  = "/debug/pprof/profile"
+	routesURL = "/routes"
 )
 
 var (
