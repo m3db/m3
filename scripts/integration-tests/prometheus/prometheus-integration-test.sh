@@ -132,4 +132,4 @@ sleep 30
 # Ensure M3 Query can serve a Prometheus query
 [ "$(curl -sSf localhost:7201/api/v1/query_range?query=prometheus_remote_storage_succeeded_samples_total | jq '.[0].datapoints | length' )" != '"0"' ]
 
-# docker-compose -f docker-compose.yml down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
+docker-compose -f docker-compose.yml down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
