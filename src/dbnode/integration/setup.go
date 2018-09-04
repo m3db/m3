@@ -173,6 +173,12 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		return nil, fmt.Errorf("unable to cast to admin options")
 	}
 
+	// Have to set the ID of the host in the admin options origin as different
+	// than the actual ID because the client itself will not route requests for
+	// metadata to itself, but existing tests rely on this behavior.
+	origin := topology.NewHost(id+"-admin-client-hack", tchannelNodeAddr)
+	adminOpts = adminOpts.SetOrigin(origin)
+
 	// Set up tchannel client
 	channel, tc, err := tchannelClient(tchannelNodeAddr)
 	if err != nil {

@@ -218,6 +218,7 @@ func newDefaultBootstrappableTestSetups(
 		noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
 		var peersBootstrapper bootstrap.BootstrapperProvider
 
+		var adminClient client.AdminClient
 		if usingPeersBootstrapper {
 			adminOpts := client.NewAdminOptions()
 			if bootstrapBlocksBatchSize > 0 {
@@ -238,7 +239,7 @@ func newDefaultBootstrappableTestSetups(
 			retrier := xretry.NewRetrier(retryOpts)
 			adminOpts = adminOpts.SetStreamBlocksRetrier(retrier)
 
-			adminClient := newMultiAddrAdminClient(
+			adminClient = newMultiAddrAdminClient(
 				t, adminOpts, topologyInitializer, instrumentOpts, setup.shardSet, replicas, instance)
 
 			runtimeOptsMgr := setup.storageOpts.RuntimeOptionsManager()
@@ -276,9 +277,10 @@ func newDefaultBootstrappableTestSetups(
 		fsBootstrapper, err := bfs.NewFileSystemBootstrapperProvider(bfsOpts, peersBootstrapper)
 		require.NoError(t, err)
 
+		processOpts := bootstrap.NewProcessOptions().SetAdminClient(adminClient)
 		setup.storageOpts = setup.storageOpts.
 			SetBootstrapProcessProvider(
-				bootstrap.NewProcessProvider(fsBootstrapper, bootstrap.NewProcessOptions(), bsOpts))
+				bootstrap.NewProcessProvider(fsBootstrapper, processOpts, bsOpts))
 
 		setups = append(setups, setup)
 		appendCleanupFn(func() {
