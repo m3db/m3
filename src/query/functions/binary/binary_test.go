@@ -138,6 +138,58 @@ func TestScalars(t *testing.T) {
 	}
 }
 
+func TestScalarsReturnBoolFalse(t *testing.T) {
+	_, bounds := test.GenerateValuesAndBounds(nil, nil)
+
+	for _, tt := range scalarTests {
+		t.Run(tt.name, func(t *testing.T) {
+			op, err := NewOp(
+				tt.opType,
+				NodeParams{
+					LNode:          parser.NodeID(0),
+					RNode:          parser.NodeID(1),
+					LIsScalar:      true,
+					RIsScalar:      true,
+					ReturnBool:     false,
+					VectorMatching: nil,
+				},
+			)
+			require.NoError(t, err)
+
+			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
+			node := op.(baseOp).Node(c, transform.Options{})
+
+			err = node.Process(parser.NodeID(0), block.NewScalar(tt.lVal, bounds))
+			require.NoError(t, err)
+
+			err = node.Process(parser.NodeID(1), block.NewScalar(tt.rVal, bounds))
+
+			if tt.opType == EqType || tt.opType == NotEqType ||
+				tt.opType == GreaterType || tt.opType == LesserType ||
+				tt.opType == GreaterEqType || tt.opType == LesserEqType {
+				require.Error(t, err, "scalar comparisons should fail without returnBool")
+				return
+			}
+
+			require.NoError(t, err, "scalar arithmetic should succeed without returnBool")
+
+			expected := [][]float64{{
+				tt.expected, tt.expected, tt.expected,
+				tt.expected, tt.expected,
+			}}
+
+			test.EqualsWithNans(t, expected, sink.Values)
+
+			assert.Equal(t, bounds, sink.Meta.Bounds)
+			assert.Len(t, sink.Meta.Tags, 0)
+
+			assert.Len(t, sink.Metas, 1)
+			assert.Equal(t, "", sink.Metas[0].Name)
+			assert.Len(t, sink.Metas[0].Tags, 0)
+		})
+	}
+}
+
 var singleSeriesTests = []struct {
 	name         string
 	seriesValues [][]float64
