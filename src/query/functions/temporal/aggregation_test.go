@@ -129,9 +129,12 @@ var testCases = []testCase{
 	},
 }
 
-// B1 has NaN in first series, first position
 func TestAggregation(t *testing.T) {
-	testAggregation(t, testCases, nil)
+	v := [][]float64{
+		{0, 1, 2, 3, 4},
+		{5, 6, 7, 8, 9},
+	}
+	testAggregation(t, testCases, v)
 }
 
 var testCasesNaNs = []testCase{
@@ -229,19 +232,11 @@ func TestAggregationAllNaNs(t *testing.T) {
 	testAggregation(t, testCasesNaNs, v)
 }
 
+// B1 has NaN in first series, first position
 func testAggregation(t *testing.T, testCases []testCase, vals [][]float64) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			var (
-				values [][]float64
-				bounds block.Bounds
-			)
-
-			if vals == nil {
-				values, bounds = test.GenerateValuesAndBounds(nil, nil)
-			} else {
-				values, bounds = test.GenerateValuesAndBounds(vals, nil)
-			}
+			values, bounds := test.GenerateValuesAndBounds(vals, nil)
 			boundStart := bounds.Start
 			block3 := test.NewBlockFromValues(bounds, values)
 			c, sink := executor.NewControllerWithSink(parser.NodeID(1))

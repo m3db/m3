@@ -95,6 +95,7 @@ func avgOverTime(values []float64) float64 {
 			sum += v
 		}
 	}
+
 	if count == 0 {
 		return math.NaN()
 	}
@@ -112,26 +113,32 @@ func countOverTime(values []float64) float64 {
 }
 
 func minOverTime(values []float64) float64 {
+	var count float64
 	min := math.Inf(1)
 	for _, v := range values {
 		if !math.IsNaN(v) {
+			count++
 			min = math.Min(min, v)
 		}
 	}
-	if min == math.Inf(1) {
+
+	if count == 0 {
 		return math.NaN()
 	}
 	return min
 }
 
 func maxOverTime(values []float64) float64 {
+	var count float64
 	max := math.Inf(-1)
 	for _, v := range values {
 		if !math.IsNaN(v) {
+			count++
 			max = math.Max(max, v)
 		}
 	}
-	if max == math.Inf(-1) {
+
+	if count == 0 {
 		return math.NaN()
 	}
 	return max
@@ -145,6 +152,7 @@ func sumOverTime(values []float64) float64 {
 			sum += v
 		}
 	}
+
 	if count == 0 {
 		return math.NaN()
 	}
@@ -161,6 +169,7 @@ func stddevOverTime(values []float64) float64 {
 			aux += delta * (v - mean)
 		}
 	}
+
 	if count == 0 {
 		return math.NaN()
 	}
@@ -177,6 +186,7 @@ func stdvarOverTime(values []float64) float64 {
 			aux += delta * (v - mean)
 		}
 	}
+
 	if count == 0 {
 		return math.NaN()
 	}
