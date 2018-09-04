@@ -28,6 +28,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 
@@ -175,6 +176,30 @@ func (mr *MockProcessOptionsMockRecorder) CacheSeriesMetadata() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CacheSeriesMetadata", reflect.TypeOf((*MockProcessOptions)(nil).CacheSeriesMetadata))
 }
 
+// SetAdminClient mocks base method
+func (m *MockProcessOptions) SetAdminClient(value client.AdminClient) ProcessOptions {
+	ret := m.ctrl.Call(m, "SetAdminClient", value)
+	ret0, _ := ret[0].(ProcessOptions)
+	return ret0
+}
+
+// SetAdminClient indicates an expected call of SetAdminClient
+func (mr *MockProcessOptionsMockRecorder) SetAdminClient(value interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAdminClient", reflect.TypeOf((*MockProcessOptions)(nil).SetAdminClient), value)
+}
+
+// AdminClient mocks base method
+func (m *MockProcessOptions) AdminClient() client.AdminClient {
+	ret := m.ctrl.Call(m, "AdminClient")
+	ret0, _ := ret[0].(client.AdminClient)
+	return ret0
+}
+
+// AdminClient indicates an expected call of AdminClient
+func (mr *MockProcessOptionsMockRecorder) AdminClient() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AdminClient", reflect.TypeOf((*MockProcessOptions)(nil).AdminClient))
+}
+
 // MockRunOptions is a mock of RunOptions interface
 type MockRunOptions struct {
 	ctrl     *gomock.Controller
@@ -244,6 +269,30 @@ func (m *MockRunOptions) CacheSeriesMetadata() bool {
 // CacheSeriesMetadata indicates an expected call of CacheSeriesMetadata
 func (mr *MockRunOptionsMockRecorder) CacheSeriesMetadata() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CacheSeriesMetadata", reflect.TypeOf((*MockRunOptions)(nil).CacheSeriesMetadata))
+}
+
+// SetInitialTopologyState mocks base method
+func (m *MockRunOptions) SetInitialTopologyState(value *TopologyState) RunOptions {
+	ret := m.ctrl.Call(m, "SetInitialTopologyState", value)
+	ret0, _ := ret[0].(RunOptions)
+	return ret0
+}
+
+// SetInitialTopologyState indicates an expected call of SetInitialTopologyState
+func (mr *MockRunOptionsMockRecorder) SetInitialTopologyState(value interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInitialTopologyState", reflect.TypeOf((*MockRunOptions)(nil).SetInitialTopologyState), value)
+}
+
+// InitialTopologyState mocks base method
+func (m *MockRunOptions) InitialTopologyState() *TopologyState {
+	ret := m.ctrl.Call(m, "InitialTopologyState")
+	ret0, _ := ret[0].(*TopologyState)
+	return ret0
+}
+
+// InitialTopologyState indicates an expected call of InitialTopologyState
+func (mr *MockRunOptionsMockRecorder) InitialTopologyState() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InitialTopologyState", reflect.TypeOf((*MockRunOptions)(nil).InitialTopologyState))
 }
 
 // MockBootstrapperProvider is a mock of BootstrapperProvider interface
@@ -403,40 +452,40 @@ func (mr *MockSourceMockRecorder) Can(strategy interface{}) *gomock.Call {
 }
 
 // AvailableData mocks base method
-func (m *MockSource) AvailableData(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges) result.ShardTimeRanges {
-	ret := m.ctrl.Call(m, "AvailableData", ns, shardsTimeRanges)
+func (m *MockSource) AvailableData(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, runOpts RunOptions) result.ShardTimeRanges {
+	ret := m.ctrl.Call(m, "AvailableData", ns, shardsTimeRanges, runOpts)
 	ret0, _ := ret[0].(result.ShardTimeRanges)
 	return ret0
 }
 
 // AvailableData indicates an expected call of AvailableData
-func (mr *MockSourceMockRecorder) AvailableData(ns, shardsTimeRanges interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AvailableData", reflect.TypeOf((*MockSource)(nil).AvailableData), ns, shardsTimeRanges)
+func (mr *MockSourceMockRecorder) AvailableData(ns, shardsTimeRanges, runOpts interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AvailableData", reflect.TypeOf((*MockSource)(nil).AvailableData), ns, shardsTimeRanges, runOpts)
 }
 
 // ReadData mocks base method
-func (m *MockSource) ReadData(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, opts RunOptions) (result.DataBootstrapResult, error) {
-	ret := m.ctrl.Call(m, "ReadData", ns, shardsTimeRanges, opts)
+func (m *MockSource) ReadData(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, runOpts RunOptions) (result.DataBootstrapResult, error) {
+	ret := m.ctrl.Call(m, "ReadData", ns, shardsTimeRanges, runOpts)
 	ret0, _ := ret[0].(result.DataBootstrapResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ReadData indicates an expected call of ReadData
-func (mr *MockSourceMockRecorder) ReadData(ns, shardsTimeRanges, opts interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadData", reflect.TypeOf((*MockSource)(nil).ReadData), ns, shardsTimeRanges, opts)
+func (mr *MockSourceMockRecorder) ReadData(ns, shardsTimeRanges, runOpts interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadData", reflect.TypeOf((*MockSource)(nil).ReadData), ns, shardsTimeRanges, runOpts)
 }
 
 // AvailableIndex mocks base method
-func (m *MockSource) AvailableIndex(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges) result.ShardTimeRanges {
-	ret := m.ctrl.Call(m, "AvailableIndex", ns, shardsTimeRanges)
+func (m *MockSource) AvailableIndex(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, opts RunOptions) result.ShardTimeRanges {
+	ret := m.ctrl.Call(m, "AvailableIndex", ns, shardsTimeRanges, opts)
 	ret0, _ := ret[0].(result.ShardTimeRanges)
 	return ret0
 }
 
 // AvailableIndex indicates an expected call of AvailableIndex
-func (mr *MockSourceMockRecorder) AvailableIndex(ns, shardsTimeRanges interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AvailableIndex", reflect.TypeOf((*MockSource)(nil).AvailableIndex), ns, shardsTimeRanges)
+func (mr *MockSourceMockRecorder) AvailableIndex(ns, shardsTimeRanges, opts interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AvailableIndex", reflect.TypeOf((*MockSource)(nil).AvailableIndex), ns, shardsTimeRanges, opts)
 }
 
 // ReadIndex mocks base method
