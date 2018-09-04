@@ -28,12 +28,9 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
@@ -214,10 +211,7 @@ func TestBootstrapIndex(t *testing.T) {
 
 	gomock.InOrder(mockAdminSessionCalls...)
 
-	mockAdminClient := newValidMockClient(t, ctrl)
-	// mockAdminClient is already setup to return an appropriate mockAdminSession that will
-	// satisfy all the calls for instantiation, so we setup the second call that will return
-	// the mockAdminSession with all the calls for handling the actual bootstrapping process.
+	mockAdminClient := client.NewMockAdminClient(ctrl)
 	mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil)
 
 	opts = opts.SetAdminClient(mockAdminClient)
@@ -393,22 +387,7 @@ func TestBootstrapIndexErr(t *testing.T) {
 	}
 
 	nsID := nsMetadata.ID().String()
-
-	// Setup the topology to pass the availability check
-	ids := []uint32{}
-	for shardID := range shardTimeRanges {
-		ids = append(ids, shardID)
-	}
-	hashFn := sharding.NewHashFn(len(ids), 0)
-	shards := sharding.NewShards(ids, shard.Available)
-	shardSet, err := sharding.NewShardSet(shards, hashFn)
-	require.NoError(t, err)
-	topoOpts := topology.NewStaticOptions().
-		SetShardSet(shardSet)
-	topoMap := topology.NewStaticTopology(topoOpts).Get()
-
 	mockAdminSession := client.NewMockAdminSession(ctrl)
-	mockAdminSession.EXPECT().TopologyMap().Return(topoMap, nil)
 	mockAdminSessionCalls := []*gomock.Call{}
 
 	for blockStart := start; blockStart.Before(end); blockStart = blockStart.Add(blockSize) {
@@ -473,7 +452,7 @@ func TestBootstrapIndexErr(t *testing.T) {
 	gomock.InOrder(mockAdminSessionCalls...)
 
 	mockAdminClient := client.NewMockAdminClient(ctrl)
-	mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil).Times(2)
+	mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil).Times(1)
 
 	opts = opts.SetAdminClient(mockAdminClient)
 
