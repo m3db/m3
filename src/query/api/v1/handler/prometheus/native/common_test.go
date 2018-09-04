@@ -174,9 +174,7 @@ func TestRenderResultsJSON(t *testing.T) {
 		}
 	}
 	`)
-
 	actual := mustPrettyJSON(t, buffer.String())
-
 	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
 }
 

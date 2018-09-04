@@ -110,7 +110,7 @@ func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, pa
 	opts.AbortCh = abortCh
 
 	// TODO: Capture timing
-	parser, err := promql.Parse(params.Target)
+	parser, err := promql.Parse(params.Query)
 	if err != nil {
 		return nil, err
 	}
