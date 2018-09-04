@@ -250,11 +250,6 @@ func (b *dbBuffer) Write(
 		if b.bucketsRealtime[idx].needsReset(now, bucketStart) {
 			b.DrainAndReset()
 		}
-		// If there was previously a non-realtime metric written to this bucket
-		// already, then use that bucket.
-		if _, ok := b.bucketsNonRealtime[key]; ok {
-			b.makeBucketRealtime(key, idx)
-		}
 
 		return b.bucketsRealtime[idx].write(now, timestamp, value, unit, annotation)
 	}
@@ -443,17 +438,6 @@ func (b *dbBuffer) bucketDrain(now time.Time, id bucketID, start time.Time) int 
 	bucket.resetNumWrites()
 
 	return mergedOutOfOrderBlocks
-}
-
-func (b *dbBuffer) makeBucketRealtime(fromKey xtime.UnixNano, toIdx int) {
-	bucket, ok := b.bucketsNonRealtime[fromKey]
-	if !ok {
-		return
-	}
-
-	bucket.isRealtime = true
-	b.bucketsRealtime[toIdx] = *bucket
-	b.removeBucket(fromKey)
 }
 
 func (b *dbBuffer) Bootstrap(bl block.DatabaseBlock) error {

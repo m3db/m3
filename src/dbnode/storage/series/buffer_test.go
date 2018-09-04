@@ -195,7 +195,7 @@ func TestBufferWriteNonRealtimeStale(t *testing.T) {
 	}}, opts)
 }
 
-func TestBufferWriteNonRealtimeMakeRealtime(t *testing.T) {
+func TestBufferWriteNonRealtimeIntoRealtime(t *testing.T) {
 	var drained []block.DatabaseBlock
 	drainFn := func(b block.DatabaseBlock) {
 		drained = append(drained, b)
@@ -211,7 +211,7 @@ func TestBufferWriteNonRealtimeMakeRealtime(t *testing.T) {
 	buffer.Reset(opts)
 
 	// Non-realtime writes
-	firstWriteTime := curr.Add(rops.BlockSize())
+	firstWriteTime := curr.Add(rops.BufferFuture() * 2)
 	data := []value{
 		{firstWriteTime.Add(secs(0)), 0, xtime.Second, nil},
 		{firstWriteTime.Add(secs(1)), 1, xtime.Second, nil},
@@ -229,15 +229,15 @@ func TestBufferWriteNonRealtimeMakeRealtime(t *testing.T) {
 		return firstWriteTime
 	}
 
-	v := value{firstWriteTime.Add(secs(0)), 0, xtime.Second, nil}
+	v := value{firstWriteTime.Add(secs(3)), 3, xtime.Second, nil}
+	// append to data for expected values in assertion later
+	data = append([]value{v}, data...)
 	ctx := context.NewContext()
 	// This write should move the previous non-realtime bucket into the realtime bucket
 	assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation))
 	ctx.Close()
 
-	assert.Len(t, buffer.bucketsNonRealtime, 0)
-
-	results := buffer.ReadEncoded(ctx, firstWriteTime, timeDistantFuture)
+	results := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture)
 	require.NotNil(t, results)
 	assertValuesEqual(t, data, results, opts)
 }
