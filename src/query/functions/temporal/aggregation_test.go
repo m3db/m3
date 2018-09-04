@@ -36,7 +36,7 @@ import (
 )
 
 type testCase struct {
-	description    string
+	name           string
 	opType         string
 	afterBlockOne  [][]float64
 	afterAllBlocks [][]float64
@@ -44,8 +44,8 @@ type testCase struct {
 
 var testCases = []testCase{
 	{
-		description: "testing avg_over_time",
-		opType:      AvgTemporalType,
+		name:   "avg_over_time",
+		opType: AvgTemporalType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 2.5},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 7},
@@ -56,8 +56,8 @@ var testCases = []testCase{
 		},
 	},
 	{
-		description: "testing count_over_time",
-		opType:      CountTemporalType,
+		name:   "count_over_time",
+		opType: CountTemporalType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 4},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 5},
@@ -68,8 +68,8 @@ var testCases = []testCase{
 		},
 	},
 	{
-		description: "testing min_over_time",
-		opType:      MinTemporalType,
+		name:   "min_over_time",
+		opType: MinTemporalType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 5},
@@ -80,8 +80,8 @@ var testCases = []testCase{
 		},
 	},
 	{
-		description: "testing max_over_time",
-		opType:      MaxTemporalType,
+		name:   "max_over_time",
+		opType: MaxTemporalType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 4},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 9},
@@ -92,8 +92,8 @@ var testCases = []testCase{
 		},
 	},
 	{
-		description: "testing sum_over_time",
-		opType:      SumTemporalType,
+		name:   "sum_over_time",
+		opType: SumTemporalType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 10},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 35},
@@ -104,8 +104,8 @@ var testCases = []testCase{
 		},
 	},
 	{
-		description: "testing stddev_over_time",
-		opType:      StdDevTemporalType,
+		name:   "stddev_over_time",
+		opType: StdDevTemporalType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1.1180},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1.4142},
@@ -116,8 +116,8 @@ var testCases = []testCase{
 		},
 	},
 	{
-		description: "testing stdvar_over_time",
-		opType:      StdVarTemporalType,
+		name:   "stdvar_over_time",
+		opType: StdVarTemporalType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1.25},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 2},
@@ -131,73 +131,183 @@ var testCases = []testCase{
 
 // B1 has NaN in first series, first position
 func TestAggregation(t *testing.T) {
-	for _, testCase := range testCases {
-		values, bounds := test.GenerateValuesAndBounds(nil, nil)
-		boundStart := bounds.Start
-		block3 := test.NewBlockFromValues(bounds, values)
-		c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	testAggregation(t, testCases, nil)
+}
 
-		baseOp, err := NewAggOp([]interface{}{5 * time.Minute}, testCase.opType)
-		require.NoError(t, err)
-		node := baseOp.Node(c, transform.Options{
-			TimeSpec: transform.TimeSpec{
-				Start: boundStart.Add(-2 * bounds.Duration),
-				End:   bounds.End(),
-				Step:  time.Second,
-			},
+var testCasesNaNs = []testCase{
+	{
+		name:   "avg_over_time",
+		opType: AvgTemporalType,
+		afterBlockOne: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+		afterAllBlocks: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+	},
+	{
+		name:   "count_over_time",
+		opType: CountTemporalType,
+		afterBlockOne: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 0},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 0},
+		},
+		afterAllBlocks: [][]float64{
+			{0, 0, 0, 0, 0},
+			{0, 0, 0, 0, 0},
+		},
+	},
+	{
+		name:   "min_over_time",
+		opType: MinTemporalType,
+		afterBlockOne: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+		afterAllBlocks: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+	},
+	{
+		name:   "max_over_time",
+		opType: MaxTemporalType,
+		afterBlockOne: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+		afterAllBlocks: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+	},
+	{
+		name:   "sum_over_time",
+		opType: SumTemporalType,
+		afterBlockOne: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+		afterAllBlocks: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+	},
+	{
+		name:   "stddev_over_time",
+		opType: StdDevTemporalType,
+		afterBlockOne: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+		afterAllBlocks: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+	},
+	{
+		name:   "stdvar_over_time",
+		opType: StdVarTemporalType,
+		afterBlockOne: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+		afterAllBlocks: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+	},
+}
+
+func TestAggregationAllNaNs(t *testing.T) {
+	v := [][]float64{
+		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+	}
+	testAggregation(t, testCasesNaNs, v)
+}
+
+func testAggregation(t *testing.T, testCases []testCase, vals [][]float64) {
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			var (
+				values [][]float64
+				bounds block.Bounds
+			)
+
+			if vals == nil {
+				values, bounds = test.GenerateValuesAndBounds(nil, nil)
+			} else {
+				values, bounds = test.GenerateValuesAndBounds(vals, nil)
+			}
+			boundStart := bounds.Start
+			block3 := test.NewBlockFromValues(bounds, values)
+			c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+
+			baseOp, err := NewAggOp([]interface{}{5 * time.Minute}, tt.opType)
+			require.NoError(t, err)
+			node := baseOp.Node(c, transform.Options{
+				TimeSpec: transform.TimeSpec{
+					Start: boundStart.Add(-2 * bounds.Duration),
+					End:   bounds.End(),
+					Step:  time.Second,
+				},
+			})
+			bNode := node.(*baseNode)
+			err = node.Process(parser.NodeID(0), block3)
+			require.NoError(t, err)
+			assert.Len(t, sink.Values, 0, "nothing processed yet")
+			b, exists := bNode.cache.get(boundStart)
+			assert.True(t, exists, "block cached for future")
+			_, err = b.StepIter()
+			assert.NoError(t, err)
+
+			original := values[0][0]
+			values[0][0] = math.NaN()
+			block1 := test.NewBlockFromValues(block.Bounds{
+				Start:    bounds.Start.Add(-2 * bounds.Duration),
+				Duration: bounds.Duration,
+				StepSize: bounds.StepSize,
+			}, values)
+
+			values[0][0] = original
+			err = node.Process(parser.NodeID(0), block1)
+			require.NoError(t, err)
+			assert.Len(t, sink.Values, 2, "output from first block only")
+			test.EqualsWithNansWithDelta(t, tt.afterBlockOne[0], sink.Values[0], 0.0001)
+			test.EqualsWithNansWithDelta(t, tt.afterBlockOne[1], sink.Values[1], 0.0001)
+			_, exists = bNode.cache.get(boundStart)
+			assert.True(t, exists, "block still cached")
+			_, exists = bNode.cache.get(boundStart.Add(-1 * bounds.Duration))
+			assert.False(t, exists, "block cached")
+
+			block2 := test.NewBlockFromValues(block.Bounds{
+				Start:    bounds.Start.Add(-1 * bounds.Duration),
+				Duration: bounds.Duration,
+				StepSize: bounds.StepSize,
+			}, values)
+
+			err = node.Process(parser.NodeID(0), block2)
+			require.NoError(t, err)
+			assert.Len(t, sink.Values, 6, "output from all 3 blocks")
+			test.EqualsWithNansWithDelta(t, tt.afterBlockOne[0], sink.Values[0], 0.0001)
+			test.EqualsWithNansWithDelta(t, tt.afterBlockOne[1], sink.Values[1], 0.0001)
+			expectedOne := tt.afterAllBlocks[0]
+			expectedTwo := tt.afterAllBlocks[1]
+			test.EqualsWithNansWithDelta(t, expectedOne, sink.Values[2], 0.0001)
+			test.EqualsWithNansWithDelta(t, expectedTwo, sink.Values[3], 0.0001)
+			_, exists = bNode.cache.get(bounds.Previous(2).Start)
+			assert.False(t, exists, "block removed from cache")
+			_, exists = bNode.cache.get(bounds.Previous(1).Start)
+			assert.False(t, exists, "block not cached")
+			_, exists = bNode.cache.get(bounds.Start)
+			assert.False(t, exists, "block removed from cache")
+			blks, err := bNode.cache.multiGet(bounds.Previous(2), 3, false)
+			require.NoError(t, err)
+			assert.Len(t, blks, 0)
 		})
-		bNode := node.(*baseNode)
-		err = node.Process(parser.NodeID(0), block3)
-		require.NoError(t, err)
-		assert.Len(t, sink.Values, 0, "nothing processed yet")
-		b, exists := bNode.cache.get(boundStart)
-		assert.True(t, exists, "block cached for future")
-		_, err = b.StepIter()
-		assert.NoError(t, err)
-
-		original := values[0][0]
-		values[0][0] = math.NaN()
-		block1 := test.NewBlockFromValues(block.Bounds{
-			Start:    bounds.Start.Add(-2 * bounds.Duration),
-			Duration: bounds.Duration,
-			StepSize: bounds.StepSize,
-		}, values)
-
-		values[0][0] = original
-		err = node.Process(parser.NodeID(0), block1)
-		require.NoError(t, err)
-		assert.Len(t, sink.Values, 2, "output from first block only")
-		test.EqualsWithNansWithDelta(t, testCase.afterBlockOne[0], sink.Values[0], 0.0001)
-		test.EqualsWithNansWithDelta(t, testCase.afterBlockOne[1], sink.Values[1], 0.0001)
-		_, exists = bNode.cache.get(boundStart)
-		assert.True(t, exists, "block still cached")
-		_, exists = bNode.cache.get(boundStart.Add(-1 * bounds.Duration))
-		assert.False(t, exists, "block cached")
-
-		block2 := test.NewBlockFromValues(block.Bounds{
-			Start:    bounds.Start.Add(-1 * bounds.Duration),
-			Duration: bounds.Duration,
-			StepSize: bounds.StepSize,
-		}, values)
-
-		err = node.Process(parser.NodeID(0), block2)
-		require.NoError(t, err)
-		assert.Len(t, sink.Values, 6, "output from all 3 blocks")
-		test.EqualsWithNansWithDelta(t, testCase.afterBlockOne[0], sink.Values[0], 0.0001)
-		test.EqualsWithNansWithDelta(t, testCase.afterBlockOne[1], sink.Values[1], 0.0001)
-		expectedOne := testCase.afterAllBlocks[0]
-		expectedTwo := testCase.afterAllBlocks[1]
-		test.EqualsWithNansWithDelta(t, expectedOne, sink.Values[2], 0.0001)
-		test.EqualsWithNansWithDelta(t, expectedTwo, sink.Values[3], 0.0001)
-		_, exists = bNode.cache.get(bounds.Previous(2).Start)
-		assert.False(t, exists, "block removed from cache")
-		_, exists = bNode.cache.get(bounds.Previous(1).Start)
-		assert.False(t, exists, "block not cached")
-		_, exists = bNode.cache.get(bounds.Start)
-		assert.False(t, exists, "block removed from cache")
-		blks, err := bNode.cache.multiGet(bounds.Previous(2), 3, false)
-		require.NoError(t, err)
-		assert.Len(t, blks, 0)
 	}
 }
 

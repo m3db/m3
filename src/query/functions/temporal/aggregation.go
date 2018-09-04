@@ -51,14 +51,14 @@ const (
 )
 
 var (
-	aggFuncs = map[string]interface{}{
-		AvgTemporalType:    struct{}{},
-		CountTemporalType:  struct{}{},
-		MinTemporalType:    struct{}{},
-		MaxTemporalType:    struct{}{},
-		SumTemporalType:    struct{}{},
-		StdDevTemporalType: struct{}{},
-		StdVarTemporalType: struct{}{},
+	aggFuncs = map[string]func([]float64) float64{
+		AvgTemporalType:    avgOverTime,
+		CountTemporalType:  countOverTime,
+		MinTemporalType:    minOverTime,
+		MaxTemporalType:    maxOverTime,
+		SumTemporalType:    sumOverTime,
+		StdDevTemporalType: stddevOverTime,
+		StdVarTemporalType: stdvarOverTime,
 	}
 )
 
@@ -84,78 +84,101 @@ type aggNode struct {
 }
 
 func (a *aggNode) Process(values []float64) float64 {
-	switch a.op.operatorType {
-	case AvgTemporalType:
-		var mean, count float64
-		for _, v := range values {
-			if !math.IsNaN(v) {
-				count++
-				mean += (v - mean) / count
-			}
-		}
-		return mean
+	return aggFuncs[a.op.operatorType](values)
+}
 
-	case CountTemporalType:
-		var count float64
-		for _, v := range values {
-			if !math.IsNaN(v) {
-				count++
-			}
+func avgOverTime(values []float64) float64 {
+	var sum, count float64
+	for _, v := range values {
+		if !math.IsNaN(v) {
+			count++
+			sum += v
 		}
-		return count
-
-	case MinTemporalType:
-		min := math.Inf(1)
-		for _, v := range values {
-			if !math.IsNaN(v) {
-				min = math.Min(min, v)
-			}
-		}
-		return min
-
-	case MaxTemporalType:
-		max := math.Inf(-1)
-		for _, v := range values {
-			if !math.IsNaN(v) {
-				max = math.Max(max, v)
-			}
-		}
-		return max
-
-	case SumTemporalType:
-		var sum float64
-		for _, v := range values {
-			if !math.IsNaN(v) {
-				sum += v
-			}
-		}
-		return sum
-
-	case StdDevTemporalType:
-		var aux, count, mean float64
-		for _, v := range values {
-			if !math.IsNaN(v) {
-				count++
-				delta := v - mean
-				mean += delta / count
-				aux += delta * (v - mean)
-			}
-		}
-		return math.Sqrt(aux / count)
-
-	case StdVarTemporalType:
-		var aux, count, mean float64
-		for _, v := range values {
-			if !math.IsNaN(v) {
-				count++
-				delta := v - mean
-				mean += delta / count
-				aux += delta * (v - mean)
-			}
-		}
-		return aux / count
-
-	default:
-		panic("unknown aggregation type")
 	}
+	if count == 0 {
+		return math.NaN()
+	}
+	return sum / count
+}
+
+func countOverTime(values []float64) float64 {
+	var count float64
+	for _, v := range values {
+		if !math.IsNaN(v) {
+			count++
+		}
+	}
+	return count
+}
+
+func minOverTime(values []float64) float64 {
+	min := math.Inf(1)
+	for _, v := range values {
+		if !math.IsNaN(v) {
+			min = math.Min(min, v)
+		}
+	}
+	if min == math.Inf(1) {
+		return math.NaN()
+	}
+	return min
+}
+
+func maxOverTime(values []float64) float64 {
+	max := math.Inf(-1)
+	for _, v := range values {
+		if !math.IsNaN(v) {
+			max = math.Max(max, v)
+		}
+	}
+	if max == math.Inf(-1) {
+		return math.NaN()
+	}
+	return max
+}
+
+func sumOverTime(values []float64) float64 {
+	var sum, count float64
+	for _, v := range values {
+		if !math.IsNaN(v) {
+			count++
+			sum += v
+		}
+	}
+	if count == 0 {
+		return math.NaN()
+	}
+	return sum
+}
+
+func stddevOverTime(values []float64) float64 {
+	var aux, count, mean float64
+	for _, v := range values {
+		if !math.IsNaN(v) {
+			count++
+			delta := v - mean
+			mean += delta / count
+			aux += delta * (v - mean)
+		}
+	}
+	if count == 0 {
+		return math.NaN()
+	}
+	return math.Sqrt(aux / count)
+}
+
+func stdvarOverTime(values []float64) float64 {
+	var aux, count, mean float64
+	for _, v := range values {
+		if !math.IsNaN(v) {
+			count++
+			delta := v - mean
+			mean += delta / count
+			aux += delta * (v - mean)
+		}
+	}
+	if count == 0 {
+		return math.NaN()
+	}
+	return aux / count
 }
