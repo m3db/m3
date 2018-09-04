@@ -229,23 +229,6 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 			mockMap.EXPECT().HostShardSets().Return(hostShardSets).AnyTimes()
 			mockMap.EXPECT().MajorityReplicas().Return(replicaMajority).AnyTimes()
 
-			// mockAdminSession := client.NewMockAdminSession(ctrl)
-			// mockAdminSession.EXPECT().
-			// 	TopologyMap().
-			// 	Return(mockMap, nil)
-
-			// mockClient := client.NewMockAdminClient(ctrl)
-			// mockClient.EXPECT().
-			// 	DefaultAdminSession().
-			// 	Return(mockAdminSession, nil)
-			// mockClient.EXPECT().
-			// 	Options().
-			// 	Return(
-			// 		client.NewAdminOptions().
-			// 			SetOrigin(topology.NewHost("self", "selfAddress")),
-			// 	).
-			// 	AnyTimes()
-
 			mockRuntimeOpts := m3dbruntime.NewMockOptions(ctrl)
 			mockRuntimeOpts.
 				EXPECT().
