@@ -236,24 +236,12 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 
 // pads vals with enough NaNs to match size
 func padValuesWithNaNs(vals bucketColumn, size int) bucketColumn {
-	floatVals := make(bucketColumn, len(vals))
-	for i, v := range vals {
-		var value float64
-		if v == -1 {
-			value = math.NaN()
-		} else {
-			value = float64(v)
-		}
-
-		floatVals[i] = value
-	}
-
 	numToPad := size - len(vals)
 	for i := 0; i < numToPad; i++ {
-		floatVals = append(floatVals, math.NaN())
+		vals = append(vals, math.NaN())
 	}
 
-	return floatVals
+	return vals
 }
 
 // count values takes a value array and a bucket list, returns a map of

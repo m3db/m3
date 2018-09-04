@@ -53,11 +53,6 @@ func TestPadValuesWithNans(t *testing.T) {
 	vals = bucketColumn{1, 2, 3, 4, 5}
 	actual = padValuesWithNaNs(vals, 4)
 	test.EqualsWithNans(t, []float64{1, 2, 3, 4, 5}, []float64(actual))
-
-	// Converts -1s into NaNs and pads with NaNs
-	vals = bucketColumn{-1, 3, 4}
-	actual = padValuesWithNaNs(vals, 4)
-	test.EqualsWithNans(t, []float64{math.NaN(), 3, 4, math.NaN()}, []float64(actual))
 }
 
 func TestCountValuesFn(t *testing.T) {
