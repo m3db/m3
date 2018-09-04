@@ -20,6 +20,8 @@
 
 package bootstrap
 
+import "github.com/m3db/m3/src/dbnode/client"
+
 const (
 	// defaultCacheSeriesMetadata declares that by default bootstrap providers should
 	// cache series metadata between runs.
@@ -28,12 +30,14 @@ const (
 
 type processOptions struct {
 	cacheSeriesMetadata bool
+	adminClient         client.AdminClient
 }
 
 // NewProcessOptions creates new bootstrap run options
 func NewProcessOptions() ProcessOptions {
 	return &processOptions{
 		cacheSeriesMetadata: defaultCacheSeriesMetadata,
+		adminClient:         nil,
 	}
 }
 
@@ -45,4 +49,14 @@ func (o *processOptions) SetCacheSeriesMetadata(value bool) ProcessOptions {
 
 func (o *processOptions) CacheSeriesMetadata() bool {
 	return o.cacheSeriesMetadata
+}
+
+func (o *processOptions) SetAdminClient(value client.AdminClient) ProcessOptions {
+	opts := *o
+	opts.adminClient = value
+	return &opts
+}
+
+func (o *processOptions) AdminClient() client.AdminClient {
+	return o.adminClient
 }

@@ -27,15 +27,17 @@ const (
 )
 
 type runOptions struct {
-	incremental         bool
-	cacheSeriesMetadata bool
+	incremental          bool
+	cacheSeriesMetadata  bool
+	initialTopologyState *TopologyState
 }
 
 // NewRunOptions creates new bootstrap run options
 func NewRunOptions() RunOptions {
 	return &runOptions{
-		incremental:         defaultIncremental,
-		cacheSeriesMetadata: defaultCacheSeriesMetadata,
+		incremental:          defaultIncremental,
+		cacheSeriesMetadata:  defaultCacheSeriesMetadata,
+		initialTopologyState: nil,
 	}
 }
 
@@ -57,4 +59,14 @@ func (o *runOptions) SetCacheSeriesMetadata(value bool) RunOptions {
 
 func (o *runOptions) CacheSeriesMetadata() bool {
 	return o.cacheSeriesMetadata
+}
+
+func (o *runOptions) SetInitialTopologyState(value *TopologyState) RunOptions {
+	opts := *o
+	opts.initialTopologyState = value
+	return &opts
+}
+
+func (o *runOptions) InitialTopologyState() *TopologyState {
+	return o.initialTopologyState
 }

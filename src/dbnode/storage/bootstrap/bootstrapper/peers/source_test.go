@@ -24,9 +24,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/client"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3cluster/shard"
@@ -36,10 +36,41 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	selfID = "self"
+)
+
 type sourceAvailableHost struct {
-	host        string
+	name        string
 	shards      []uint32
 	shardStates shard.State
+}
+
+type sourceAvailableHosts []sourceAvailableHost
+
+func (s sourceAvailableHosts) topologyState() *bootstrap.TopologyState {
+	topoState := &bootstrap.TopologyState{
+		Self:             selfID,
+		MajorityReplicas: 2,
+		ShardStates:      make(map[bootstrap.ShardID]map[bootstrap.HostID]bootstrap.HostShardState),
+	}
+
+	for _, host := range s {
+		for _, shard := range host.shards {
+			hostShardStates, ok := topoState.ShardStates[bootstrap.ShardID(shard)]
+			if !ok {
+				hostShardStates = make(map[bootstrap.HostID]bootstrap.HostShardState)
+			}
+
+			hostShardStates[bootstrap.HostID(host.name)] = bootstrap.HostShardState{
+				Host:       topology.NewHost(host.name, host.name+"address"),
+				ShardState: host.shardStates,
+			}
+			topoState.ShardStates[bootstrap.ShardID(shard)] = hostShardStates
+		}
+	}
+
+	return topoState
 }
 
 func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
@@ -68,7 +99,7 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 
 	testCases := []struct {
 		title                             string
-		hosts                             []sourceAvailableHost
+		hosts                             sourceAvailableHosts
 		bootstrapReadConsistency          topology.ReadConsistencyLevel
 		shardsTimeRangesToBootstrap       result.ShardTimeRanges
 		expectedAvailableShardsTimeRanges result.ShardTimeRanges
@@ -77,7 +108,7 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 			title: "Returns empty if only self is available",
 			hosts: []sourceAvailableHost{
 				sourceAvailableHost{
-					host:        "self",
+					name:        selfID,
 					shards:      shards,
 					shardStates: shard.Available,
 				},
@@ -90,17 +121,17 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 			title: "Returns empty if all other peers initializing/unknown",
 			hosts: []sourceAvailableHost{
 				sourceAvailableHost{
-					host:        "self",
+					name:        selfID,
 					shards:      shards,
 					shardStates: shard.Available,
 				},
 				sourceAvailableHost{
-					host:        "other1",
+					name:        "other1",
 					shards:      shards,
 					shardStates: shard.Initializing,
 				},
 				sourceAvailableHost{
-					host:        "other2",
+					name:        "other2",
 					shards:      shards,
 					shardStates: shard.Unknown,
 				},
@@ -113,17 +144,17 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 			title: "Returns success if consistency can be met (available/leaving)",
 			hosts: []sourceAvailableHost{
 				sourceAvailableHost{
-					host:        "self",
+					name:        selfID,
 					shards:      shards,
 					shardStates: shard.Initializing,
 				},
 				sourceAvailableHost{
-					host:        "other1",
+					name:        "other1",
 					shards:      shards,
 					shardStates: shard.Available,
 				},
 				sourceAvailableHost{
-					host:        "other2",
+					name:        "other2",
 					shards:      shards,
 					shardStates: shard.Leaving,
 				},
@@ -136,17 +167,17 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 			title: "Skips shards that were not in the topology at start",
 			hosts: []sourceAvailableHost{
 				sourceAvailableHost{
-					host:        "self",
+					name:        selfID,
 					shards:      shards,
 					shardStates: shard.Initializing,
 				},
 				sourceAvailableHost{
-					host:        "other1",
+					name:        "other1",
 					shards:      shards,
 					shardStates: shard.Available,
 				},
 				sourceAvailableHost{
-					host:        "other2",
+					name:        "other2",
 					shards:      shards,
 					shardStates: shard.Available,
 				},
@@ -159,17 +190,17 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 			title: "Returns empty if consistency can not be met",
 			hosts: []sourceAvailableHost{
 				sourceAvailableHost{
-					host:        "self",
+					name:        selfID,
 					shards:      shards,
 					shardStates: shard.Initializing,
 				},
 				sourceAvailableHost{
-					host:        "other1",
+					name:        "other1",
 					shards:      shards,
 					shardStates: shard.Available,
 				},
 				sourceAvailableHost{
-					host:        "other2",
+					name:        "other2",
 					shards:      shards,
 					shardStates: shard.Available,
 				},
@@ -190,7 +221,7 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 				require.NoError(t, err)
 
 				hostShardSet := topology.NewHostShardSet(
-					topology.NewHost(host.host, host.host+"address"), shardSet)
+					topology.NewHost(host.name, host.name+"address"), shardSet)
 				hostShardSets = append(hostShardSets, hostShardSet)
 			}
 
@@ -198,22 +229,22 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 			mockMap.EXPECT().HostShardSets().Return(hostShardSets).AnyTimes()
 			mockMap.EXPECT().MajorityReplicas().Return(replicaMajority).AnyTimes()
 
-			mockAdminSession := client.NewMockAdminSession(ctrl)
-			mockAdminSession.EXPECT().
-				TopologyMap().
-				Return(mockMap, nil)
+			// mockAdminSession := client.NewMockAdminSession(ctrl)
+			// mockAdminSession.EXPECT().
+			// 	TopologyMap().
+			// 	Return(mockMap, nil)
 
-			mockClient := client.NewMockAdminClient(ctrl)
-			mockClient.EXPECT().
-				DefaultAdminSession().
-				Return(mockAdminSession, nil)
-			mockClient.EXPECT().
-				Options().
-				Return(
-					client.NewAdminOptions().
-						SetOrigin(topology.NewHost("self", "selfAddress")),
-				).
-				AnyTimes()
+			// mockClient := client.NewMockAdminClient(ctrl)
+			// mockClient.EXPECT().
+			// 	DefaultAdminSession().
+			// 	Return(mockAdminSession, nil)
+			// mockClient.EXPECT().
+			// 	Options().
+			// 	Return(
+			// 		client.NewAdminOptions().
+			// 			SetOrigin(topology.NewHost("self", "selfAddress")),
+			// 	).
+			// 	AnyTimes()
 
 			mockRuntimeOpts := m3dbruntime.NewMockOptions(ctrl)
 			mockRuntimeOpts.
@@ -230,16 +261,17 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 				AnyTimes()
 
 			opts := testDefaultOpts.
-				SetAdminClient(mockClient).
+				// SetAdminClient(mockClient).
 				SetRuntimeOptionsManager(mockRuntimeOptsMgr)
 
 			src, err := newPeersSource(opts)
 			require.NoError(t, err)
 
-			dataRes := src.AvailableData(nsMetadata, tc.shardsTimeRangesToBootstrap)
+			runOpts := testDefaultRunOpts.SetInitialTopologyState(tc.hosts.topologyState())
+			dataRes := src.AvailableData(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
 			require.Equal(t, tc.expectedAvailableShardsTimeRanges, dataRes)
 
-			indexRes := src.AvailableIndex(nsMetadata, tc.shardsTimeRangesToBootstrap)
+			indexRes := src.AvailableIndex(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
 			require.Equal(t, tc.expectedAvailableShardsTimeRanges, indexRes)
 		})
 	}

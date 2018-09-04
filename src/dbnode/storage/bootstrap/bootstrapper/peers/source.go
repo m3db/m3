@@ -43,10 +43,9 @@ import (
 )
 
 type peersSource struct {
-	initialTopologyState topologyState
-	opts                 Options
-	log                  xlog.Logger
-	nowFn                clock.NowFn
+	opts  Options
+	log   xlog.Logger
+	nowFn clock.NowFn
 }
 
 type incrementalFlush struct {
@@ -58,20 +57,10 @@ type incrementalFlush struct {
 }
 
 func newPeersSource(opts Options) (bootstrap.Source, error) {
-	// We measure the topology on instantiation, and use it through all bootstrap
-	// calls (across all namespaces / shards / blocks) so that we make consistent
-	// decisions regarding whether the peer bootstrap is able to fulfull bootstrap
-	// requests.
-	initialTopologyState, err := initialTopologyState(opts)
-	if err != nil {
-		return nil, err
-	}
-
 	return &peersSource{
-		initialTopologyState: initialTopologyState,
-		opts:                 opts,
-		log:                  opts.ResultOptions().InstrumentOptions().Logger(),
-		nowFn:                opts.ResultOptions().ClockOptions().NowFn(),
+		opts:  opts,
+		log:   opts.ResultOptions().InstrumentOptions().Logger(),
+		nowFn: opts.ResultOptions().ClockOptions().NowFn(),
 	}, nil
 }
 
@@ -91,8 +80,9 @@ type shardPeerAvailability struct {
 func (s *peersSource) AvailableData(
 	nsMetadata namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
+	runOpts bootstrap.RunOptions,
 ) result.ShardTimeRanges {
-	return s.peerAvailability(nsMetadata, shardsTimeRanges)
+	return s.peerAvailability(nsMetadata, shardsTimeRanges, runOpts)
 }
 
 func (s *peersSource) ReadData(
@@ -534,8 +524,9 @@ func (s *peersSource) cacheShardIndices(
 func (s *peersSource) AvailableIndex(
 	nsMetadata namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
+	runOpts bootstrap.RunOptions,
 ) result.ShardTimeRanges {
-	return s.peerAvailability(nsMetadata, shardsTimeRanges)
+	return s.peerAvailability(nsMetadata, shardsTimeRanges, runOpts)
 }
 
 func (s *peersSource) ReadIndex(
@@ -688,20 +679,21 @@ func (s *peersSource) readBlockMetadataAndIndex(
 func (s *peersSource) peerAvailability(
 	nsMetadata namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
+	runOpts bootstrap.RunOptions,
 ) result.ShardTimeRanges {
 	var (
-		self                    = s.opts.AdminClient().Options().(client.AdminOptions).Origin().ID()
-		peerAvailabilityByShard = map[shardID]*shardPeerAvailability{}
+		peerAvailabilityByShard = map[bootstrap.ShardID]*shardPeerAvailability{}
+		initialTopologyState    = runOpts.InitialTopologyState()
 	)
 
 	for shardIDUint := range shardsTimeRanges {
-		shardID := shardID(shardIDUint)
+		shardID := bootstrap.ShardID(shardIDUint)
 		shardPeers, ok := peerAvailabilityByShard[shardID]
 		if !ok {
 			shardPeers = &shardPeerAvailability{}
 			peerAvailabilityByShard[shardID] = shardPeers
 		}
-		hostShardStates, ok := s.initialTopologyState.shardStates[shardID]
+		hostShardStates, ok := initialTopologyState.ShardStates[shardID]
 		if !ok {
 			// This shard was not part of the topology when the bootstrapping
 			// process began.
@@ -710,12 +702,12 @@ func (s *peersSource) peerAvailability(
 
 		shardPeers.numPeers = len(hostShardStates)
 		for _, hostShardState := range hostShardStates {
-			if hostShardState.host.ID() == self {
+			if hostShardState.Host.ID() == initialTopologyState.Self {
 				// Don't take self into account
 				continue
 			}
 
-			shardState := hostShardState.shardState
+			shardState := hostShardState.ShardState
 
 			switch shardState {
 			// Skip cases - We cannot bootstrap from this host
@@ -739,11 +731,11 @@ func (s *peersSource) peerAvailability(
 	var (
 		runtimeOpts               = s.opts.RuntimeOptionsManager().Get()
 		bootstrapConsistencyLevel = runtimeOpts.ClientBootstrapConsistencyLevel()
-		majorityReplicas          = s.initialTopologyState.majorityReplicas
+		majorityReplicas          = initialTopologyState.MajorityReplicas
 		availableShardTimeRanges  = result.ShardTimeRanges{}
 	)
 	for shardIDUint := range shardsTimeRanges {
-		shardID := shardID(shardIDUint)
+		shardID := bootstrap.ShardID(shardIDUint)
 		shardPeers := peerAvailabilityByShard[shardID]
 
 		total := shardPeers.numPeers
@@ -792,58 +784,3 @@ func (s *peersSource) markIndexResultErrorAsUnfulfilled(
 	}
 	r.Add(result.IndexBlock{}, unfulfilled)
 }
-
-func initialTopologyState(opts Options) (topologyState, error) {
-	session, err := opts.AdminClient().DefaultAdminSession()
-	if err != nil {
-		return topologyState{}, err
-	}
-
-	topoMap, err := session.TopologyMap()
-	if err != nil {
-		return topologyState{}, err
-	}
-
-	var (
-		hostShardSets = topoMap.HostShardSets()
-		topologyState = topologyState{
-			majorityReplicas: topoMap.MajorityReplicas(),
-			shardStates:      shardStates{},
-		}
-	)
-
-	for _, hostShardSet := range hostShardSets {
-		for _, currShard := range hostShardSet.ShardSet().All() {
-			shardID := shardID(currShard.ID())
-			existing, ok := topologyState.shardStates[shardID]
-			if !ok {
-				existing = map[hostID]hostShardState{}
-				topologyState.shardStates[shardID] = existing
-			}
-
-			hostID := hostID(hostShardSet.Host().String())
-			existing[hostID] = hostShardState{
-				host:       hostShardSet.Host(),
-				shardState: currShard.State(),
-			}
-		}
-	}
-
-	return topologyState, nil
-}
-
-type topologyState struct {
-	majorityReplicas int
-	shardStates      shardStates
-}
-
-type shardStates map[shardID]map[hostID]hostShardState
-
-type hostShardState struct {
-	host       topology.Host
-	shardState shard.State
-}
-
-type hostID string
-
-type shardID uint32

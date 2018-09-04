@@ -156,7 +156,7 @@ func TestPeersSourceEmptyShardTimeRanges(t *testing.T) {
 	nsMetdata := testNamespaceMetadata(t)
 
 	target := result.ShardTimeRanges{}
-	available := src.AvailableData(nsMetdata, target)
+	available := src.AvailableData(nsMetdata, target, testDefaultRunOpts)
 	assert.Equal(t, target, available)
 
 	r, err := src.ReadData(nsMetdata, target, testDefaultRunOpts)

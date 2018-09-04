@@ -23,6 +23,7 @@ package bootstrap
 import (
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	xtime "github.com/m3db/m3x/time"
@@ -75,6 +76,12 @@ type ProcessOptions interface {
 	// CacheSeriesMetadata returns whether bootstrappers created by this
 	// provider should cache series metadata between runs.
 	CacheSeriesMetadata() bool
+
+	// SetAdminClient sets the admin client.
+	SetAdminClient(value client.AdminClient) ProcessOptions
+
+	// AdminClient returns the admin client.
+	AdminClient() client.AdminClient
 }
 
 // RunOptions is a set of options for a bootstrap run.
@@ -94,6 +101,14 @@ type RunOptions interface {
 	// CacheSeriesMetadata returns whether bootstrappers created by this
 	// provider should cache series metadata between runs.
 	CacheSeriesMetadata() bool
+
+	// SetInitialTopologyState sets the initial topology state as it was
+	// measured before the bootstrap process began.
+	SetInitialTopologyState(value *TopologyState) RunOptions
+
+	// InitialTopologyState returns the initial topology as it was measured
+	// before the bootstrap process began.
+	InitialTopologyState() *TopologyState
 }
 
 // BootstrapperProvider constructs a bootstrapper.
@@ -157,6 +172,7 @@ type Source interface {
 	AvailableData(
 		ns namespace.Metadata,
 		shardsTimeRanges result.ShardTimeRanges,
+		runOpts RunOptions,
 	) result.ShardTimeRanges
 
 	// ReadData returns raw series for a given set of shards & specified time ranges and
@@ -166,13 +182,14 @@ type Source interface {
 	ReadData(
 		ns namespace.Metadata,
 		shardsTimeRanges result.ShardTimeRanges,
-		opts RunOptions,
+		runOpts RunOptions,
 	) (result.DataBootstrapResult, error)
 
 	// AvailableIndex returns what time ranges are available for bootstrapping.
 	AvailableIndex(
 		ns namespace.Metadata,
 		shardsTimeRanges result.ShardTimeRanges,
+		opts RunOptions,
 	) result.ShardTimeRanges
 
 	// ReadIndex returns series index blocks.
