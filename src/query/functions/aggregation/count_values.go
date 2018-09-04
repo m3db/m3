@@ -23,7 +23,6 @@ package aggregation
 import (
 	"fmt"
 	"math"
-	"strconv"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
@@ -91,7 +90,7 @@ type countValuesNode struct {
 
 // bucketColumn represents a column of times a particular value in a series has
 // been seen. This may expand as more unique values are seen
-type bucketColumn []int
+type bucketColumn []float64
 
 // bucketBlock is an abstraction for a set of series grouped by tags; count_values
 // works on these groupings rather than the entire set of series.
@@ -117,7 +116,7 @@ func processBlockBucketAtColumn(
 	currentColumnLength := currentBucketBlock.columnLength
 	currentBucketBlock.columns[columnIndex] = make(bucketColumn, currentColumnLength)
 	for i := 0; i < currentColumnLength; i++ {
-		ts.MemsetInt(currentBucketBlock.columns[columnIndex], -1)
+		ts.Memset(currentBucketBlock.columns[columnIndex], math.NaN())
 	}
 
 	countedValues := countValuesFn(values, bucket)
@@ -161,7 +160,7 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 	intermediateBlock := make([]bucketBlock, len(buckets))
 	for i := range intermediateBlock {
 		intermediateBlock[i].columns = make([]bucketColumn, stepCount)
-		intermediateBlock[i].indexMapping = make(map[float64]int, 10)
+		intermediateBlock[i].indexMapping = make(map[float64]int, len(buckets[i]))
 	}
 
 	for columnIndex := 0; stepIter.Next(); columnIndex++ {
@@ -188,19 +187,23 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 
 	// Rebuild block metas in the expected order
 	blockMetas := make([]block.SeriesMeta, numSeries)
-	initialIndex := 0
+	previousBucketBlockIndex := 0
 	for bucketIndex, bucketBlock := range intermediateBlock {
 		for k, v := range bucketBlock.indexMapping {
-			blockMetas[v+initialIndex] = block.SeriesMeta{
+			// Add the metas of this bucketBlock right after the previous block
+			blockMetas[v+previousBucketBlockIndex] = block.SeriesMeta{
 				Name: n.op.OpType(),
 				Tags: metas[bucketIndex].Tags.Clone().AddTag(models.Tag{
 					Name:  n.op.params.StringParameter,
-					Value: strconv.FormatFloat(k, 'f', -1, 64),
+					Value: utils.FormatFloat(k),
 				}),
 			}
 		}
 
-		initialIndex += bucketBlock.columnLength
+		// NB: All metadatas for the intermediate block for this bucket have
+		// been added to the combined block metas. The metadatas for the next
+		// intermediate block should be added after these to maintain order
+		previousBucketBlockIndex += bucketBlock.columnLength
 	}
 
 	// Dedupe common metadatas
@@ -218,7 +221,7 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 
 	for columnIndex := 0; columnIndex < stepCount; columnIndex++ {
 		for _, bucketBlock := range intermediateBlock {
-			valsToAdd := convertCountsToPaddedFloatList(
+			valsToAdd := padValuesWithNaNs(
 				bucketBlock.columns[columnIndex],
 				len(bucketBlock.indexMapping),
 			)
@@ -231,10 +234,9 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 	return n.controller.Process(nextBlock)
 }
 
-// converts bucketColumn to a list of floats, with -1 values converted
-// to NaNs, and padded with enough NaNs to match size
-func convertCountsToPaddedFloatList(vals bucketColumn, size int) []float64 {
-	floatVals := make([]float64, len(vals))
+// pads vals with enough NaNs to match size
+func padValuesWithNaNs(vals bucketColumn, size int) bucketColumn {
+	floatVals := make(bucketColumn, len(vals))
 	for i, v := range vals {
 		var value float64
 		if v == -1 {
@@ -250,13 +252,15 @@ func convertCountsToPaddedFloatList(vals bucketColumn, size int) []float64 {
 	for i := 0; i < numToPad; i++ {
 		floatVals = append(floatVals, math.NaN())
 	}
+
 	return floatVals
 }
 
 // count values takes a value array and a bucket list, returns a map of
-// distinct values to number of times the value was seen in this bucket
-func countValuesFn(values []float64, bucket []int) map[float64]int {
-	countedValues := make(map[float64]int, len(bucket))
+// distinct values to number of times the value was seen in this bucket.
+// The distinct number returned here becomes the datapoint's value
+func countValuesFn(values []float64, bucket []int) map[float64]float64 {
+	countedValues := make(map[float64]float64, len(bucket))
 	for _, idx := range bucket {
 		val := values[idx]
 		if !math.IsNaN(val) {
