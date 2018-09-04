@@ -44,7 +44,7 @@ func newTestBootstrapperSource(
 	if opts.availableData != nil {
 		src.availableData = opts.availableData
 	} else {
-		src.availableData = func(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges) result.ShardTimeRanges {
+		src.availableData = func(_ namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, _ bootstrap.RunOptions) result.ShardTimeRanges {
 			return shardsTimeRanges
 		}
 	}
@@ -60,7 +60,7 @@ func newTestBootstrapperSource(
 	if opts.availableIndex != nil {
 		src.availableIndex = opts.availableIndex
 	} else {
-		src.availableIndex = func(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges) result.ShardTimeRanges {
+		src.availableIndex = func(_ namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, _ bootstrap.RunOptions) result.ShardTimeRanges {
 			return shardsTimeRanges
 		}
 	}
@@ -104,9 +104,9 @@ type testBootstrapper struct {
 
 type testBootstrapperSourceOptions struct {
 	can            func(bootstrap.Strategy) bool
-	availableData  func(namespace.Metadata, result.ShardTimeRanges) result.ShardTimeRanges
+	availableData  func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) result.ShardTimeRanges
 	readData       func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.DataBootstrapResult, error)
-	availableIndex func(namespace.Metadata, result.ShardTimeRanges) result.ShardTimeRanges
+	availableIndex func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) result.ShardTimeRanges
 	readIndex      func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.IndexBootstrapResult, error)
 }
 
@@ -114,9 +114,9 @@ var _ bootstrap.Source = &testBootstrapperSource{}
 
 type testBootstrapperSource struct {
 	can            func(bootstrap.Strategy) bool
-	availableData  func(namespace.Metadata, result.ShardTimeRanges) result.ShardTimeRanges
+	availableData  func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) result.ShardTimeRanges
 	readData       func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.DataBootstrapResult, error)
-	availableIndex func(namespace.Metadata, result.ShardTimeRanges) result.ShardTimeRanges
+	availableIndex func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) result.ShardTimeRanges
 	readIndex      func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.IndexBootstrapResult, error)
 }
 
@@ -127,8 +127,9 @@ func (t testBootstrapperSource) Can(strategy bootstrap.Strategy) bool {
 func (t testBootstrapperSource) AvailableData(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
+	runOpts bootstrap.RunOptions,
 ) result.ShardTimeRanges {
-	return t.availableData(ns, shardsTimeRanges)
+	return t.availableData(ns, shardsTimeRanges, runOpts)
 }
 
 func (t testBootstrapperSource) ReadData(
@@ -142,8 +143,9 @@ func (t testBootstrapperSource) ReadData(
 func (t testBootstrapperSource) AvailableIndex(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
+	runOpts bootstrap.RunOptions,
 ) result.ShardTimeRanges {
-	return t.availableIndex(ns, shardsTimeRanges)
+	return t.availableIndex(ns, shardsTimeRanges, runOptions)
 }
 
 func (t testBootstrapperSource) ReadIndex(
