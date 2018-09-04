@@ -246,50 +246,50 @@ func (mr *MockOptionsMockRecorder) NonRealtimeWritesEnabled() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NonRealtimeWritesEnabled", reflect.TypeOf((*MockOptions)(nil).NonRealtimeWritesEnabled))
 }
 
-// SetFlushAfterNoMetricPeriod mocks base method
-func (m *MockOptions) SetFlushAfterNoMetricPeriod(period time.Duration) Options {
-	ret := m.ctrl.Call(m, "SetFlushAfterNoMetricPeriod", period)
+// SetNonRealtimeFlushAfterNoMetricPeriod mocks base method
+func (m *MockOptions) SetNonRealtimeFlushAfterNoMetricPeriod(period time.Duration) Options {
+	ret := m.ctrl.Call(m, "SetNonRealtimeFlushAfterNoMetricPeriod", period)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-// SetFlushAfterNoMetricPeriod indicates an expected call of SetFlushAfterNoMetricPeriod
-func (mr *MockOptionsMockRecorder) SetFlushAfterNoMetricPeriod(period interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFlushAfterNoMetricPeriod", reflect.TypeOf((*MockOptions)(nil).SetFlushAfterNoMetricPeriod), period)
+// SetNonRealtimeFlushAfterNoMetricPeriod indicates an expected call of SetNonRealtimeFlushAfterNoMetricPeriod
+func (mr *MockOptionsMockRecorder) SetNonRealtimeFlushAfterNoMetricPeriod(period interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNonRealtimeFlushAfterNoMetricPeriod", reflect.TypeOf((*MockOptions)(nil).SetNonRealtimeFlushAfterNoMetricPeriod), period)
 }
 
-// FlushAfterNoMetricPeriod mocks base method
-func (m *MockOptions) FlushAfterNoMetricPeriod() time.Duration {
-	ret := m.ctrl.Call(m, "FlushAfterNoMetricPeriod")
+// NonRealtimeFlushAfterNoMetricPeriod mocks base method
+func (m *MockOptions) NonRealtimeFlushAfterNoMetricPeriod() time.Duration {
+	ret := m.ctrl.Call(m, "NonRealtimeFlushAfterNoMetricPeriod")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
 }
 
-// FlushAfterNoMetricPeriod indicates an expected call of FlushAfterNoMetricPeriod
-func (mr *MockOptionsMockRecorder) FlushAfterNoMetricPeriod() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FlushAfterNoMetricPeriod", reflect.TypeOf((*MockOptions)(nil).FlushAfterNoMetricPeriod))
+// NonRealtimeFlushAfterNoMetricPeriod indicates an expected call of NonRealtimeFlushAfterNoMetricPeriod
+func (mr *MockOptionsMockRecorder) NonRealtimeFlushAfterNoMetricPeriod() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NonRealtimeFlushAfterNoMetricPeriod", reflect.TypeOf((*MockOptions)(nil).NonRealtimeFlushAfterNoMetricPeriod))
 }
 
-// SetMaxWritesBeforeFlush mocks base method
-func (m *MockOptions) SetMaxWritesBeforeFlush(value uint64) Options {
-	ret := m.ctrl.Call(m, "SetMaxWritesBeforeFlush", value)
+// SetNonRealtimeMaxWritesBeforeFlush mocks base method
+func (m *MockOptions) SetNonRealtimeMaxWritesBeforeFlush(value uint64) Options {
+	ret := m.ctrl.Call(m, "SetNonRealtimeMaxWritesBeforeFlush", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-// SetMaxWritesBeforeFlush indicates an expected call of SetMaxWritesBeforeFlush
-func (mr *MockOptionsMockRecorder) SetMaxWritesBeforeFlush(value interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMaxWritesBeforeFlush", reflect.TypeOf((*MockOptions)(nil).SetMaxWritesBeforeFlush), value)
+// SetNonRealtimeMaxWritesBeforeFlush indicates an expected call of SetNonRealtimeMaxWritesBeforeFlush
+func (mr *MockOptionsMockRecorder) SetNonRealtimeMaxWritesBeforeFlush(value interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNonRealtimeMaxWritesBeforeFlush", reflect.TypeOf((*MockOptions)(nil).SetNonRealtimeMaxWritesBeforeFlush), value)
 }
 
-// MaxWritesBeforeFlush mocks base method
-func (m *MockOptions) MaxWritesBeforeFlush() uint64 {
-	ret := m.ctrl.Call(m, "MaxWritesBeforeFlush")
+// NonRealtimeMaxWritesBeforeFlush mocks base method
+func (m *MockOptions) NonRealtimeMaxWritesBeforeFlush() uint64 {
+	ret := m.ctrl.Call(m, "NonRealtimeMaxWritesBeforeFlush")
 	ret0, _ := ret[0].(uint64)
 	return ret0
 }
 
-// MaxWritesBeforeFlush indicates an expected call of MaxWritesBeforeFlush
-func (mr *MockOptionsMockRecorder) MaxWritesBeforeFlush() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MaxWritesBeforeFlush", reflect.TypeOf((*MockOptions)(nil).MaxWritesBeforeFlush))
+// NonRealtimeMaxWritesBeforeFlush indicates an expected call of NonRealtimeMaxWritesBeforeFlush
+func (mr *MockOptionsMockRecorder) NonRealtimeMaxWritesBeforeFlush() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NonRealtimeMaxWritesBeforeFlush", reflect.TypeOf((*MockOptions)(nil).NonRealtimeMaxWritesBeforeFlush))
 }

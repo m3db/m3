@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	m3dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/context"
@@ -39,7 +40,6 @@ import (
 var (
 	errMoreThanOneStreamAfterMerge = errors.New("buffer has more than one stream after merge")
 	errNoAvailableBuckets          = errors.New("[invariant violated] buffer has no available buckets")
-	errAnyWriteTimeNotEnabled      = errors.New("non-realtime metrics not enabled")
 	timeZero                       time.Time
 )
 
@@ -260,22 +260,21 @@ func (b *dbBuffer) Write(
 	}
 
 	if !b.opts.RetentionOptions().NonRealtimeWritesEnabled() {
-		return errAnyWriteTimeNotEnabled
+		return m3dberrors.ErrNonRealtimeWriteTimeNotEnabled
 	}
 
-	if _, ok := b.bucketsNonRealtime[key]; !ok {
-		b.initializeNonRealtimeBucket(key)
+	var bucket *dbBufferBucket
+	if nonRealtimeBucket, ok := b.bucketsNonRealtime[key]; ok {
+		bucket = nonRealtimeBucket
+	} else {
+		bucket = b.initializeNonRealtimeBucket(key)
 	}
 
-	if b.bucketsNonRealtime[key].needsDrain(now, bucketStart) {
+	if bucket.needsDrain(now, bucketStart) {
 		b.bucketDrain(now, newBucketIDNonRealtime(key), bucketStart)
-
-		if b.bucketsNonRealtime[key].isStale(now) {
-			b.removeBucket(key)
-		}
 	}
 
-	return b.bucketsNonRealtime[key].write(now, timestamp, value, unit, annotation)
+	return bucket.write(now, timestamp, value, unit, annotation)
 }
 
 func (b *dbBuffer) isRealtime(timestamp time.Time) bool {
@@ -293,10 +292,12 @@ func (b *dbBuffer) writableBucketKey(t time.Time) xtime.UnixNano {
 	return xtime.ToUnixNano(t.Truncate(b.blockSize))
 }
 
-func (b *dbBuffer) initializeNonRealtimeBucket(key xtime.UnixNano) {
-	b.bucketsNonRealtime[key] = b.bucketPool.Get()
-	b.bucketsNonRealtime[key].opts = b.opts
-	b.bucketsNonRealtime[key].resetTo(key.ToTime(), false)
+func (b *dbBuffer) initializeNonRealtimeBucket(key xtime.UnixNano) *dbBufferBucket {
+	newNonRealtimeBucket := b.bucketPool.Get()
+	b.bucketsNonRealtime[key] = newNonRealtimeBucket
+	newNonRealtimeBucket.opts = b.opts
+	newNonRealtimeBucket.resetTo(key.ToTime(), false)
+	return newNonRealtimeBucket
 }
 
 func (b *dbBuffer) removeBucket(idx xtime.UnixNano) {
@@ -368,7 +369,6 @@ func (b *dbBuffer) Tick() bufferTickResult {
 func bucketTick(now time.Time, b *dbBuffer, id bucketID, start time.Time) int {
 	// Perform a drain and reset if necessary
 	mergedOutOfOrderBlocks := bucketDrainAndReset(now, b, id, start)
-
 	bucket := b.bucketAtIdx(id)
 
 	// Try to merge any out of order encoders to amortize the cost of a drain
@@ -379,6 +379,10 @@ func bucketTick(now time.Time, b *dbBuffer, id bucketID, start time.Time) int {
 	}
 	if r.merges > 0 {
 		mergedOutOfOrderBlocks++
+	}
+
+	if bucket.isStale(now) {
+		b.removeBucket(id.key)
 	}
 
 	return mergedOutOfOrderBlocks
@@ -402,10 +406,6 @@ func bucketDrainAndReset(now time.Time, b *dbBuffer, id bucketID, start time.Tim
 
 	if bucket.needsReset(now, start) {
 		bucket.resetTo(start, true)
-	}
-
-	if bucket.isStale(now) {
-		b.removeBucket(id.key)
 	}
 
 	return mergedOutOfOrderBlocks
@@ -440,11 +440,7 @@ func (b *dbBuffer) bucketDrain(now time.Time, id bucketID, start time.Time) int 
 	}
 
 	bucket.drained = true
-	bucket.setLastWrite(now)
 	bucket.resetNumWrites()
-	if bucket.isStale(now) {
-		b.removeBucket(id.key)
-	}
 
 	return mergedOutOfOrderBlocks
 }
@@ -476,15 +472,17 @@ func (b *dbBuffer) Bootstrap(bl block.DatabaseBlock) error {
 			break
 		}
 	}
-	if bucket, ok := b.bucketsNonRealtime[xtime.ToUnixNano(blockStart)]; !bootstrapped && ok {
-		if bucket.drained {
-			return fmt.Errorf(
-				"block at %s cannot be bootstrapped by buffer because its already drained",
-				blockStart.String(),
-			)
+	if !bootstrapped {
+		if bucket, ok := b.bucketsNonRealtime[xtime.ToUnixNano(blockStart)]; ok {
+			if bucket.drained {
+				return fmt.Errorf(
+					"block at %s cannot be bootstrapped by buffer because its already drained",
+					blockStart.String(),
+				)
+			}
+			bucket.bootstrap(bl)
+			bootstrapped = true
 		}
-		bucket.bootstrap(bl)
-		bootstrapped = true
 	}
 	if !bootstrapped {
 		return fmt.Errorf("block at %s not contained by buffer", blockStart.String())
@@ -549,7 +547,7 @@ func (b *dbBuffer) Snapshot(ctx context.Context, blockStart time.Time) (xio.Segm
 		err error
 	)
 
-	b.forEachBucketAsc(bucketTypeAll, func(bucket *dbBufferBucket) {
+	b.forEachBucketAsc(bucketTypeRealtime, func(bucket *dbBufferBucket) {
 		if err != nil {
 			// Something already went wrong and we want to return the error to the caller
 			// as soon as possible instead of continuing to do work.
@@ -753,7 +751,7 @@ func (b *dbBufferBucket) isStale(now time.Time) bool {
 		return false
 	}
 
-	return b.numWrites() > 0 && now.Sub(b.lastWrite()) > b.opts.RetentionOptions().NonRealtimeFlushAfterNoMetricPeriod()
+	return now.Sub(b.lastWrite()) > b.opts.RetentionOptions().NonRealtimeFlushAfterNoMetricPeriod()
 }
 
 func (b *dbBufferBucket) isFull() bool {
@@ -769,7 +767,7 @@ func (b *dbBufferBucket) needsDrain(
 	targetStart time.Time,
 ) bool {
 	if !b.isRealtime {
-		return b.isStale(now) || b.isFull()
+		return b.isFull() || (b.numWrites() > 0 && b.isStale(now))
 	}
 
 	retentionOpts := b.opts.RetentionOptions()
