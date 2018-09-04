@@ -48,6 +48,8 @@ type NodeParams struct {
 	// Without indicates if series should use only the MatchingTags or if MatchingTags
 	// should be excluded from grouping
 	Without bool
+	// StringParameter is the string representation of the param value
+	StringParameter string
 }
 
 // NewAggregationOp creates a new aggregation operation

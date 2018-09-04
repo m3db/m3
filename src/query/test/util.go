@@ -49,6 +49,7 @@ func EqualsWithNansWithDelta(t *testing.T, expected interface{}, actual interfac
 			fmt.Sprintf("expected length: %v, actual length: %v\nfor expected: %v, actual: %v",
 				len(v), len(actualV), expected, actual))
 		for i, vals := range v {
+			debugMsg = fmt.Sprintf("on index %d, expected: %v, actual: %v", i, vals, actualV[i])
 			equalsWithNans(t, vals, actualV[i], delta, debugMsg)
 		}
 
@@ -58,6 +59,7 @@ func EqualsWithNansWithDelta(t *testing.T, expected interface{}, actual interfac
 		require.Equal(t, len(v), len(actualV),
 			fmt.Sprintf("expected length: %v, actual length: %v\nfor expected: %v, actual: %v",
 				len(v), len(actualV), expected, actual))
+
 		equalsWithNans(t, v, actualV, delta, debugMsg)
 
 	case float64:
