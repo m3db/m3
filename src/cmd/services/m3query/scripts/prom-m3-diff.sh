@@ -17,7 +17,7 @@ echo $m3url
 echo $promurl
 curl -G $m3url > m3out
 curl -G $promurl > promout
-jq ".[]|.tags,.datapoints" m3out > m3result
+jq ".data.result|.[]|.metric,.values" m3out > m3result
 jq ".data.result|.[]|.metric,.values" promout > promresult
 echo "M3 file size" $(stat -f%z m3result)
 echo "Prom file size" $(stat -f%z promresult)

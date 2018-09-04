@@ -57,7 +57,7 @@ func TestParamParsing(t *testing.T) {
 
 	r, err := parseParams(req)
 	require.Nil(t, err, "unable to parse request")
-	require.Equal(t, promQuery, r.Target)
+	require.Equal(t, promQuery, r.Query)
 }
 
 func TestInvalidStart(t *testing.T) {
@@ -118,11 +118,11 @@ func TestRenderResultsJSON(t *testing.T) {
 	buffer := bytes.NewBuffer(nil)
 	params := models.RequestParams{}
 	series := []*ts.Series{
-		ts.NewSeries("foo", ts.NewFixedStepValues(10000, 2, 1, start), models.Tags{
+		ts.NewSeries("foo", ts.NewFixedStepValues(10*time.Second, 2, 1, start), models.Tags{
 			models.Tag{Name: "bar", Value: "baz"},
 			models.Tag{Name: "qux", Value: "qaz"},
 		}),
-		ts.NewSeries("bar", ts.NewFixedStepValues(10000, 2, 2, start), models.Tags{
+		ts.NewSeries("bar", ts.NewFixedStepValues(10*time.Second, 2, 2, start), models.Tags{
 			models.Tag{Name: "baz", Value: "bar"},
 			models.Tag{Name: "qaz", Value: "qux"},
 		}),
@@ -151,7 +151,7 @@ func TestRenderResultsJSON(t *testing.T) {
 							"1"
 						]
 					],
-					"step_size_ms": 0
+					"step_size_ms": 10000
 				},
 				{
 					"metric": {
@@ -168,7 +168,7 @@ func TestRenderResultsJSON(t *testing.T) {
 							"2"
 						]
 					],
-					"step_size_ms": 0
+					"step_size_ms": 10000
 				}
 			]
 		}

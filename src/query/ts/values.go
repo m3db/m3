@@ -80,19 +80,17 @@ type FixedResolutionMutableValues interface {
 	StartTimeForStep(n int) time.Time
 	// Time when the series starts
 	StartTime() time.Time
-	MillisPerStep() time.Duration
 }
 
 type fixedResolutionValues struct {
-	millisPerStep time.Duration
-	numSteps      int
-	values        []float64
-	startTime     time.Time
+	resolution time.Duration
+	numSteps   int
+	values     []float64
+	startTime  time.Time
 }
 
-func (b *fixedResolutionValues) MillisPerStep() time.Duration { return b.millisPerStep }
-func (b *fixedResolutionValues) Len() int                     { return b.numSteps }
-func (b *fixedResolutionValues) ValueAt(point int) float64    { return b.values[point] }
+func (b *fixedResolutionValues) Len() int                  { return b.numSteps }
+func (b *fixedResolutionValues) ValueAt(point int) float64 { return b.values[point] }
 func (b *fixedResolutionValues) DatapointAt(point int) Datapoint {
 	return Datapoint{
 		Timestamp: b.StartTimeForStep(point),
@@ -107,7 +105,7 @@ func (b *fixedResolutionValues) StartTime() time.Time {
 
 // Resolution returns resolution per step
 func (b *fixedResolutionValues) Resolution() time.Duration {
-	return b.MillisPerStep() * time.Millisecond
+	return b.resolution
 }
 
 // StepAtTime returns the step within the block containing the given time
@@ -126,19 +124,19 @@ func (b *fixedResolutionValues) SetValueAt(n int, v float64) {
 }
 
 // NewFixedStepValues returns mutable values with fixed resolution
-func NewFixedStepValues(millisPerStep time.Duration, numSteps int, initialValue float64, startTime time.Time) FixedResolutionMutableValues {
-	return newFixedStepValues(millisPerStep, numSteps, initialValue, startTime)
+func NewFixedStepValues(resolution time.Duration, numSteps int, initialValue float64, startTime time.Time) FixedResolutionMutableValues {
+	return newFixedStepValues(resolution, numSteps, initialValue, startTime)
 }
 
-func newFixedStepValues(millisPerStep time.Duration, numSteps int, initialValue float64, startTime time.Time) *fixedResolutionValues {
+func newFixedStepValues(resolution time.Duration, numSteps int, initialValue float64, startTime time.Time) *fixedResolutionValues {
 	values := make([]float64, numSteps)
 	// Faster way to initialize an array instead of a loop
 	Memset(values, initialValue)
 	return &fixedResolutionValues{
-		millisPerStep: millisPerStep,
-		numSteps:      numSteps,
-		startTime:     startTime,
-		values:        values,
+		resolution: resolution,
+		numSteps:   numSteps,
+		startTime:  startTime,
+		values:     values,
 	}
 }
 

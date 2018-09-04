@@ -187,7 +187,7 @@ func renderResultsJSON(w io.Writer, series []*ts.Series, params models.RequestPa
 			// Skip points before the query boundary. Ideal place to adjust these would be at the result node but that would make it inefficient
 			// since we would need to create another block just for the sake of restricting the bounds.
 			// Each series have the same start time so we just need to calculate the correct startIdx once
-			// NB(r): Removing the optimziation of computing startIdx once just in case our assumptions are wrong,
+			// NB(r): Removing the optimization of computing startIdx once just in case our assumptions are wrong,
 			// we can always add this optimization back later.  Without this code I see datapoints more often.
 			if dp.Timestamp.Before(params.Start) {
 				continue
@@ -203,7 +203,7 @@ func renderResultsJSON(w io.Writer, series []*ts.Series, params models.RequestPa
 		fixedStep, ok := s.Values().(ts.FixedResolutionMutableValues)
 		if ok {
 			jw.BeginObjectField("step_size_ms")
-			jw.WriteInt(int(util.DurationToMS(fixedStep.MillisPerStep())))
+			jw.WriteInt(int(fixedStep.Resolution()/))
 			jw.EndObject()
 		}
 	}
