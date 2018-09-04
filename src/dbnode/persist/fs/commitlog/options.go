@@ -42,9 +42,6 @@ const (
 	// defaultFlushSize is the default commit log flush size
 	defaultFlushSize = 65536
 
-	// defaultRetentionPeriod is the default commit log retention period
-	defaultRetentionPeriod = 2 * 24 * time.Hour
-
 	// defaultBlockSize is the default commit log block size
 	defaultBlockSize = 15 * time.Minute
 
@@ -58,17 +55,14 @@ var (
 )
 
 var (
-	errFlushIntervalNonNegative       = errors.New("flush interval must be non-negative")
-	errBlockSizePositive              = errors.New("block size must be a positive duration")
-	errRetentionPeriodPositive        = errors.New("retention period must be a positive duration")
-	errRetentionGreaterEqualBlockSize = errors.New("retention period must be >= block size")
-	errReadConcurrencyPositive        = errors.New("read concurrency must be a positive integer")
+	errFlushIntervalNonNegative = errors.New("flush interval must be non-negative")
+	errBlockSizePositive        = errors.New("block size must be a positive duration")
+	errReadConcurrencyPositive  = errors.New("read concurrency must be a positive integer")
 )
 
 type options struct {
 	clockOpts        clock.Options
 	instrumentOpts   instrument.Options
-	retentionPeriod  time.Duration
 	blockSize        time.Duration
 	fsOpts           fs.Options
 	strategy         Strategy
@@ -85,7 +79,6 @@ func NewOptions() Options {
 	o := &options{
 		clockOpts:        clock.NewOptions(),
 		instrumentOpts:   instrument.NewOptions(),
-		retentionPeriod:  defaultRetentionPeriod,
 		blockSize:        defaultBlockSize,
 		fsOpts:           fs.NewOptions(),
 		strategy:         defaultStrategy,
@@ -108,12 +101,6 @@ func (o *options) Validate() error {
 	}
 	if o.BlockSize() <= 0 {
 		return errBlockSizePositive
-	}
-	if o.RetentionPeriod() <= 0 {
-		return errRetentionPeriodPositive
-	}
-	if o.RetentionPeriod() < o.BlockSize() {
-		return errRetentionGreaterEqualBlockSize
 	}
 	if o.ReadConcurrency() <= 0 {
 		return errReadConcurrencyPositive
@@ -139,16 +126,6 @@ func (o *options) SetInstrumentOptions(value instrument.Options) Options {
 
 func (o *options) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
-}
-
-func (o *options) SetRetentionPeriod(value time.Duration) Options {
-	opts := *o
-	opts.retentionPeriod = value
-	return &opts
-}
-
-func (o *options) RetentionPeriod() time.Duration {
-	return o.retentionPeriod
 }
 
 func (o *options) SetBlockSize(value time.Duration) Options {

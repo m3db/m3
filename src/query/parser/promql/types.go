@@ -74,6 +74,11 @@ func NewAggregationOperator(expr *promql.AggregateExpr) (parser.Params, error) {
 		return nil, fmt.Errorf("operator not supported: %s", opType)
 	}
 
+	if op == aggregation.CountValuesType {
+		nodeInformation.StringParameter = expr.Param.String()
+		return aggregation.NewCountValuesOp(op, nodeInformation)
+	}
+
 	return aggregation.NewAggregationOp(op, nodeInformation)
 }
 
@@ -93,6 +98,8 @@ func getAggOpType(opType promql.ItemType) string {
 		return aggregation.StandardVarianceType
 	case promql.ItemType(itemCount):
 		return aggregation.CountType
+	case promql.ItemType(itemCountValues):
+		return aggregation.CountValuesType
 	default:
 		return common.UnknownOpType
 	}

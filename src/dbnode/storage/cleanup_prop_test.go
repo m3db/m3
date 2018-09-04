@@ -55,7 +55,6 @@ func newPropTestCleanupMgr(
 	)
 	opts = opts.SetCommitLogOptions(
 		opts.CommitLogOptions().
-			SetRetentionPeriod(ropts.RetentionPeriod()).
 			SetBlockSize(commitLogBlockSize))
 
 	db.EXPECT().Options().Return(opts).AnyTimes()
@@ -108,11 +107,10 @@ func TestPropertyCommitLogNotCleanedForUnflushedData(t *testing.T) {
 			}
 			for _, f := range filesToCleanup {
 				s, e := commitLogNamespaceBlockTimes(f.Start, f.Duration, ns.ropts)
-				earliest, _ := cm.commitLogTimeRange(cleanupTime)
 				needsFlush := ns.NeedsFlush(s, e)
 				isCapturedBySnapshot, err := ns.IsCapturedBySnapshot(s, e, f.Start.Add(f.Duration))
 				require.NoError(t, err)
-				if needsFlush && !isCapturedBySnapshot && !f.Start.Before(earliest) {
+				if needsFlush && !isCapturedBySnapshot {
 					return false, fmt.Errorf("trying to cleanup commit log at %v, but ns needsFlush; (range: %v, %v)",
 						f.Start.String(), s.String(), e.String())
 				}
@@ -146,11 +144,10 @@ func TestPropertyCommitLogNotCleanedForUnflushedDataMultipleNs(t *testing.T) {
 			for _, f := range filesToCleanup {
 				for _, ns := range nses {
 					s, e := commitLogNamespaceBlockTimes(f.Start, f.Duration, ns.ropts)
-					earliest, _ := cm.commitLogTimeRange(cleanupTime)
 					needsFlush := ns.NeedsFlush(s, e)
 					isCapturedBySnapshot, err := ns.IsCapturedBySnapshot(s, e, f.Start.Add(f.Duration))
 					require.NoError(t, err)
-					if needsFlush && !isCapturedBySnapshot && !f.Start.Before(earliest) {
+					if needsFlush && !isCapturedBySnapshot {
 						return false, fmt.Errorf("trying to cleanup commit log at %v, but ns needsFlush; (range: %v, %v)",
 							f.Start.String(), s.String(), e.String())
 					}

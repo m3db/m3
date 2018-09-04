@@ -7,6 +7,7 @@ Distributed TSDB and Query Engine, Prometheus Sidecar, Metrics Aggregator, and m
 More information:
 - [Documentation](https://m3db.github.io/m3/)
 - [Developers](https://github.com/m3db/m3/blob/master/DEVELOPER.md)
+- [Gitter (chat channel)](https://gitter.im/m3db/Lobby)
 
 ## Test it out
 

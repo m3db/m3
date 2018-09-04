@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/errors"
+	"github.com/m3db/m3/src/query/functions/utils"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util"
@@ -195,7 +196,7 @@ func renderResultsJSON(w io.Writer, series []*ts.Series, params models.RequestPa
 
 			jw.BeginArray()
 			jw.WriteInt(int(dp.Timestamp.Unix()))
-			jw.WriteString(valueToProm(dp.Value))
+			jw.WriteString(utils.FormatFloat(dp.Value))
 			jw.EndArray()
 		}
 		jw.EndArray()
@@ -213,8 +214,4 @@ func renderResultsJSON(w io.Writer, series []*ts.Series, params models.RequestPa
 
 	jw.EndObject()
 	jw.Close()
-}
-
-func valueToProm(value float64) string {
-	return strconv.FormatFloat(value, 'f', -1, 64)
 }

@@ -123,12 +123,6 @@ type Options interface {
 	// InstrumentOptions returns the instrumentation options
 	InstrumentOptions() instrument.Options
 
-	// SetRetentionPeriod sets the retention period
-	SetRetentionPeriod(value time.Duration) Options
-
-	// RetentionPeriod returns the retention period
-	RetentionPeriod() time.Duration
-
 	// SetBlockSize sets the block size
 	SetBlockSize(value time.Duration) Options
 
