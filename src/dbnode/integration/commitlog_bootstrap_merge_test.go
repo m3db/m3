@@ -141,8 +141,11 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 	fsBootstrapper, err := fs.NewFileSystemBootstrapperProvider(bfsOpts, commitLogBootstrapper)
 	require.NoError(t, err)
 	// bootstrapper storage opts
+	processOpts := bootstrap.NewProcessOptions().SetAdminClient(
+		setup.m3dbAdminClient,
+	)
 	process := bootstrap.NewProcessProvider(
-		fsBootstrapper, bootstrap.NewProcessOptions(), bsOpts)
+		fsBootstrapper, processOpts, bsOpts)
 	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(process)
 
 	log.Info("moving time forward and starting server")

@@ -108,8 +108,10 @@ func TestCommitLogBootstrapMultipleNamespaces(t *testing.T) {
 	bs, err := bcl.NewCommitLogBootstrapperProvider(
 		bclOpts, mustInspectFilesystem(fsOpts), noOpAll)
 	require.NoError(t, err)
-	process := bootstrap.NewProcessProvider(
-		bs, bootstrap.NewProcessOptions(), bsOpts)
+	processOpts := bootstrap.NewProcessOptions().SetAdminClient(
+		setup.m3dbAdminClient,
+	)
+	process := bootstrap.NewProcessProvider(bs, processOpts, bsOpts)
 	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(process)
 
 	later := now.Add(4 * ns1BlockSize)

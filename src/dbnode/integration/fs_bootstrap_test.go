@@ -76,8 +76,11 @@ func TestFilesystemBootstrap(t *testing.T) {
 		SetPersistManager(persistMgr)
 	bs, err := fs.NewFileSystemBootstrapperProvider(bfsOpts, noOpAll)
 	require.NoError(t, err)
+	processOpts := bootstrap.NewProcessOptions().SetAdminClient(
+		setup.m3dbAdminClient,
+	)
 	processProvider := bootstrap.NewProcessProvider(
-		bs, bootstrap.NewProcessOptions(), bsOpts)
+		bs, processOpts, bsOpts)
 
 	setup.storageOpts = setup.storageOpts.
 		SetBootstrapProcessProvider(processProvider)

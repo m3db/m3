@@ -167,6 +167,7 @@ func (bsc BootstrapConfiguration) New(
 	if bsc.CacheSeriesMetadata != nil {
 		providerOpts = providerOpts.SetCacheSeriesMetadata(*bsc.CacheSeriesMetadata)
 	}
+	providerOpts = providerOpts.SetAdminClient(setup.m3dbAdminClient)
 	return bootstrap.NewProcessProvider(bs, providerOpts, rsOpts), nil
 }
 

@@ -245,8 +245,10 @@ func setCommitLogAndFilesystemBootstrapper(t *testing.T, opts testOptions, setup
 	require.NoError(t, err)
 
 	// bootstrapper storage opts
-	processProvider := bootstrap.NewProcessProvider(
-		fsBootstrapper, bootstrap.NewProcessOptions(), bsOpts)
+	processOpts := bootstrap.NewProcessOptions().SetAdminClient(
+		setup.m3dbAdminClient,
+	)
+	processProvider := bootstrap.NewProcessProvider(fsBootstrapper, processOpts, bsOpts)
 	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(processProvider)
 
 	return setup
