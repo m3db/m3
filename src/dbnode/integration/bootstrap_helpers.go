@@ -145,7 +145,7 @@ func (t testBootstrapperSource) AvailableIndex(
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
 ) result.ShardTimeRanges {
-	return t.availableIndex(ns, shardsTimeRanges, runOptions)
+	return t.availableIndex(ns, shardsTimeRanges, runOpts)
 }
 
 func (t testBootstrapperSource) ReadIndex(
