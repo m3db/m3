@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3/src/query/errors"
+	"github.com/m3db/m3/src/query/functions/binary"
 	"github.com/m3db/m3/src/query/parser"
 
 	pql "github.com/prometheus/prometheus/promql"
@@ -80,7 +81,7 @@ func (p *parseState) walk(node pql.Node) error {
 	if node == nil {
 		return nil
 	}
-
+	fmt.Printf("Node type %T, %v\n", node, node)
 	switch n := node.(type) {
 	case *pql.AggregateExpr:
 		err := p.walk(n.Expr)
@@ -88,6 +89,11 @@ func (p *parseState) walk(node pql.Node) error {
 			return err
 		}
 
+		val, err := p.resolveScalarArgument(n.Param)
+		if err != nil {
+			return err
+		}
+		fmt.Println(val, "expr", n.Expr.String(), "params", n.Param.String())
 		op, err := NewAggregationOperator(n)
 		if err != nil {
 			return err
@@ -197,4 +203,47 @@ func (p *parseState) walk(node pql.Node) error {
 
 	// TODO: This should go away once all cases have been implemented
 	return errors.ErrNotImplemented
+}
+
+var (
+	errNilScalarArg = fmt.Errorf("scalar expression is nil")
+)
+
+// resolves an expression which should resolve to a scalar argument
+func (p *parseState) resolveScalarArgument(expr pql.Expr) (float64, error) {
+	if expr == nil {
+		return 0, errNilScalarArg
+	}
+
+	switch n := expr.(type) {
+	case *pql.BinaryExpr:
+		left, err := p.resolveScalarArgument(n.LHS)
+		if err != nil {
+			return 0, err
+		}
+
+		right, err := p.resolveScalarArgument(n.RHS)
+		if err != nil {
+			return 0, err
+		}
+
+		op := getBinaryOpType(n.Op)
+
+		fn, err := binary.ArithmeticFunction(op, n.ReturnBool)
+		if err != nil {
+			return 0, err
+		}
+
+		return fn(left, right), nil
+
+	case *pql.NumberLiteral:
+		return n.Val, nil
+
+	case *pql.ParenExpr:
+		// Evaluate inside of paren expressions
+		return p.resolveScalarArgument(n.Expr)
+
+	default:
+		return 0, fmt.Errorf("resolveScalarArgument: unhandled node type %T, %v", expr, expr)
+	}
 }

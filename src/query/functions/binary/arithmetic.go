@@ -59,7 +59,7 @@ const (
 )
 
 var (
-	arithmeticFuncs = map[string]binaryFunc{
+	arithmeticFuncs = map[string]Function{
 		PlusType:     func(x, y float64) float64 { return x + y },
 		MinusType:    func(x, y float64) float64 { return x - y },
 		MultiplyType: func(x, y float64) float64 { return x * y },

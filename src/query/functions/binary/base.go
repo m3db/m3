@@ -64,6 +64,25 @@ func (o baseOp) Node(controller *transform.Controller, _ transform.Options) tran
 	}
 }
 
+// ArithmeticFunction returns the arithmetic function for this operation type.
+func ArithmeticFunction(opType string, returnBool bool) (Function, error) {
+	if fn, ok := arithmeticFuncs[opType]; ok {
+		return fn, nil
+	}
+
+	// If this is a comparison function and does not have return bool on, error out
+	if _, ok := comparisonFuncs[opType]; ok {
+		return nil, errNoModifierForComparison
+	}
+
+	opType += returnBoolSuffix
+	if fn, ok := comparisonFuncs[opType]; ok {
+		return fn, nil
+	}
+
+	return nil, errNoMatching
+}
+
 // NewOp creates a new binary operation
 func NewOp(
 	opType string,
