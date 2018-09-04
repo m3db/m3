@@ -218,30 +218,28 @@ func newDefaultBootstrappableTestSetups(
 		noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
 		var peersBootstrapper bootstrap.BootstrapperProvider
 
-		var adminClient client.AdminClient
+		adminOpts := client.NewAdminOptions()
+		if bootstrapBlocksBatchSize > 0 {
+			adminOpts = adminOpts.SetFetchSeriesBlocksBatchSize(bootstrapBlocksBatchSize)
+		}
+		if bootstrapBlocksConcurrency > 0 {
+			adminOpts = adminOpts.SetFetchSeriesBlocksBatchConcurrency(bootstrapBlocksConcurrency)
+		}
+		if topologyInitializer != nil {
+			adminOpts = adminOpts.SetTopologyInitializer(topologyInitializer).(client.AdminOptions)
+		}
+
+		// Prevent integration tests from timing out when a node is down
+		retryOpts := xretry.NewOptions().
+			SetInitialBackoff(1 * time.Millisecond).
+			SetMaxRetries(1).
+			SetJitter(true)
+		retrier := xretry.NewRetrier(retryOpts)
+		adminOpts = adminOpts.SetStreamBlocksRetrier(retrier)
+
+		adminClient := newMultiAddrAdminClient(
+			t, adminOpts, topologyInitializer, instrumentOpts, setup.shardSet, replicas, instance)
 		if usingPeersBootstrapper {
-			adminOpts := client.NewAdminOptions()
-			if bootstrapBlocksBatchSize > 0 {
-				adminOpts = adminOpts.SetFetchSeriesBlocksBatchSize(bootstrapBlocksBatchSize)
-			}
-			if bootstrapBlocksConcurrency > 0 {
-				adminOpts = adminOpts.SetFetchSeriesBlocksBatchConcurrency(bootstrapBlocksConcurrency)
-			}
-			if topologyInitializer != nil {
-				adminOpts = adminOpts.SetTopologyInitializer(topologyInitializer).(client.AdminOptions)
-			}
-
-			// Prevent integration tests from timing out when a node is down
-			retryOpts := xretry.NewOptions().
-				SetInitialBackoff(1 * time.Millisecond).
-				SetMaxRetries(1).
-				SetJitter(true)
-			retrier := xretry.NewRetrier(retryOpts)
-			adminOpts = adminOpts.SetStreamBlocksRetrier(retrier)
-
-			adminClient = newMultiAddrAdminClient(
-				t, adminOpts, topologyInitializer, instrumentOpts, setup.shardSet, replicas, instance)
-
 			runtimeOptsMgr := setup.storageOpts.RuntimeOptionsManager()
 			runtimeOpts := runtimeOptsMgr.Get().
 				SetClientBootstrapConsistencyLevel(bootstrapConsistencyLevel)
