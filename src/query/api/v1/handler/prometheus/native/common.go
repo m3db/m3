@@ -203,7 +203,7 @@ func renderResultsJSON(w io.Writer, series []*ts.Series, params models.RequestPa
 		fixedStep, ok := s.Values().(ts.FixedResolutionMutableValues)
 		if ok {
 			jw.BeginObjectField("step_size_ms")
-			jw.WriteInt(int(fixedStep.Resolution()/))
+			jw.WriteInt(int(fixedStep.Resolution() / time.Millisecond))
 			jw.EndObject()
 		}
 	}
