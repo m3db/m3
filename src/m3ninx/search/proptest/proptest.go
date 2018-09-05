@@ -18,6 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// proptest contains a collection of generative tests to validate query behaviour
+// Package proptest contains a collection of generative tests to validate query behaviour
 // in a variety of situations.
 package proptest
