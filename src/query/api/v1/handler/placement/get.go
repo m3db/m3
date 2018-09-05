@@ -21,7 +21,6 @@
 package placement
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
@@ -61,11 +60,7 @@ func (h *GetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	placement, version, err := service.Placement()
 	if err != nil {
-		json.NewEncoder(w).Encode(struct {
-			Result string `json:"result"`
-		}{
-			Result: "no placement found",
-		})
+		handler.Error(w, err, http.StatusNotFound)
 		return
 	}
 
