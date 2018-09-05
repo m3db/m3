@@ -244,6 +244,9 @@ func setCommitLogAndFilesystemBootstrapper(t *testing.T, opts testOptions, setup
 	fsBootstrapper, err := fs.NewFileSystemBootstrapperProvider(bfsOpts, commitLogBootstrapper)
 	require.NoError(t, err)
 
+	// Need to make sure we have an active m3dbAdminClient because the previosu one
+	// may have been shutdown by stopServer().
+	setup.maybeResetClients()
 	// bootstrapper storage opts
 	processOpts := bootstrap.NewProcessOptions().SetAdminClient(
 		setup.m3dbAdminClient,

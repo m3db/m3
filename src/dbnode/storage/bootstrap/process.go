@@ -93,6 +93,7 @@ func (b *bootstrapProcessProvider) Provide() (Process, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return bootstrapProcess{
 		processOpts:          b.processOpts,
 		resultOpts:           b.resultOpts,

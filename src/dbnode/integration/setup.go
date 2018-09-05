@@ -429,54 +429,23 @@ func (ts *testSetup) waitUntilServerIsDown() error {
 func (ts *testSetup) startServer() error {
 	ts.logger.Infof("starting server")
 
-	resultCh := make(chan error, 1)
+	var (
+		resultCh = make(chan error, 1)
+		err      error
+	)
 
-	httpClusterAddr := *httpClusterAddr
-	if addr := ts.opts.HTTPClusterAddr(); addr != "" {
-		httpClusterAddr = addr
-	}
-
-	tchannelClusterAddr := *tchannelClusterAddr
-	if addr := ts.opts.TChannelClusterAddr(); addr != "" {
-		tchannelClusterAddr = addr
-	}
-
-	httpNodeAddr := *httpNodeAddr
-	if addr := ts.opts.HTTPNodeAddr(); addr != "" {
-		httpNodeAddr = addr
-	}
-
-	tchannelNodeAddr := *tchannelNodeAddr
-	if addr := ts.opts.TChannelNodeAddr(); addr != "" {
-		tchannelNodeAddr = addr
-	}
-
-	httpDebugAddr := *httpDebugAddr
-	if addr := ts.opts.HTTPDebugAddr(); addr != "" {
-		httpDebugAddr = addr
-	}
-
-	var err error
 	ts.db, err = cluster.NewDatabase(ts.hostID, ts.topoInit, ts.storageOpts)
 	if err != nil {
 		return err
 	}
 
-	if ts.m3dbClient == nil {
-		// Recreate the clients as their session was destroyed by stopServer()
-		adminClient, verificationAdminClient, err := newClients(ts.topoInit, ts.opts, ts.hostID, tchannelNodeAddr)
-		if err != nil {
-			return err
-		}
-		ts.m3dbClient = adminClient.(client.Client)
-		ts.m3dbAdminClient = adminClient
-		ts.m3dbVerificationAdminClient = verificationAdminClient
-	}
+	// Check if clients were closed by stopServer and need to be re-created.
+	ts.maybeResetClients()
 
 	go func() {
 		if err := openAndServe(
-			httpClusterAddr, tchannelClusterAddr,
-			httpNodeAddr, tchannelNodeAddr, httpDebugAddr,
+			ts.httpClusterAddr(), ts.tchannelClusterAddr(),
+			ts.httpNodeAddr(), ts.tchannelNodeAddr(), ts.httpDebugAddr(),
 			ts.db, ts.m3dbClient, ts.storageOpts, ts.doneCh,
 		); err != nil {
 			select {
@@ -578,6 +547,57 @@ func (ts *testSetup) sleepFor10xTickMinimumInterval() {
 	runtimeMgr := ts.storageOpts.RuntimeOptionsManager()
 	opts := runtimeMgr.Get()
 	time.Sleep(opts.TickMinimumInterval() * 10)
+}
+
+func (ts *testSetup) httpClusterAddr() string {
+	if addr := ts.opts.HTTPClusterAddr(); addr != "" {
+		return addr
+	}
+	return *httpClusterAddr
+}
+
+func (ts *testSetup) httpNodeAddr() string {
+	if addr := ts.opts.HTTPNodeAddr(); addr != "" {
+		return addr
+	}
+	return *httpNodeAddr
+}
+
+func (ts *testSetup) tchannelClusterAddr() string {
+	if addr := ts.opts.TChannelClusterAddr(); addr != "" {
+		return addr
+	}
+	return *tchannelClusterAddr
+}
+
+func (ts *testSetup) tchannelNodeAddr() string {
+	if addr := ts.opts.TChannelNodeAddr(); addr != "" {
+		return addr
+	}
+	return *tchannelNodeAddr
+}
+
+func (ts *testSetup) httpDebugAddr() string {
+	if addr := ts.opts.HTTPDebugAddr(); addr != "" {
+		return addr
+	}
+	return *httpDebugAddr
+}
+
+func (ts *testSetup) maybeResetClients() error {
+	if ts.m3dbClient == nil {
+		// Recreate the clients as their session was destroyed by stopServer()
+		adminClient, verificationAdminClient, err := newClients(
+			ts.topoInit, ts.opts, ts.hostID, ts.tchannelNodeAddr())
+		if err != nil {
+			return err
+		}
+		ts.m3dbClient = adminClient.(client.Client)
+		ts.m3dbAdminClient = adminClient
+		ts.m3dbVerificationAdminClient = verificationAdminClient
+	}
+
+	return nil
 }
 
 func newClients(
