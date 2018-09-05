@@ -164,35 +164,7 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		}
 	}
 
-	var (
-		clientOpts = defaultClientOptions(topoInit).
-				SetClusterConnectTimeout(opts.ClusterConnectionTimeout()).
-				SetWriteConsistencyLevel(opts.WriteConsistencyLevel()).
-				SetTopologyInitializer(topoInit)
-
-		// We need two distinct clients where one has the origin set to the same ID as the
-		// node itself (I.E) the client will behave exactly as if it is the node itself
-		// making requests, and another client with the origin set to an ID different than
-		// the node itself so that we can make requests from the perspective of a "different"
-		// M3DB node for verification purposes in some of the tests.
-		origin             = topology.NewHost(id, tchannelNodeAddr)
-		verificationOrigin = topology.NewHost(id+"-verification", tchannelNodeAddr)
-
-		adminOpts             = clientOpts.(client.AdminOptions).SetOrigin(origin)
-		verificationAdminOpts = adminOpts.SetOrigin(verificationOrigin)
-	)
-
-	// Set up m3db client
-	adminClient, err := m3dbAdminClient(adminOpts)
-	if err != nil {
-		return nil, err
-	}
-
-	// Set up m3db verification client
-	verificationAdminClient, err := m3dbAdminClient(verificationAdminOpts)
-	if err != nil {
-		return nil, err
-	}
+	adminClient, verificationAdminClient, err := newClients(topoInit, opts, id, tchannelNodeAddr)
 
 	// Set up tchannel client
 	channel, tc, err := tchannelClient(tchannelNodeAddr)
@@ -486,6 +458,16 @@ func (ts *testSetup) startServer() error {
 	if err != nil {
 		return err
 	}
+
+	adminClient, verificationAdminClient, err := newClients(ts.topoInit, ts.opts, ts.hostID, tchannelNodeAddr)
+	if err != nil {
+		return err
+	}
+
+	ts.m3dbClient = adminClient.(client.Client)
+	ts.m3dbAdminClient = adminClient
+	ts.m3dbVerificationAdminClient = verificationAdminClient
+
 	go func() {
 		if err := openAndServe(
 			httpClusterAddr, tchannelClusterAddr,
@@ -520,13 +502,13 @@ func (ts *testSetup) startServer() error {
 func (ts *testSetup) stopServer() error {
 	ts.doneCh <- struct{}{}
 
-	// if ts.m3dbClient.DefaultSessionActive() {
-	// 	session, err := ts.m3dbClient.DefaultSession()
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	defer session.Close()
-	// }
+	if ts.m3dbClient.DefaultSessionActive() {
+		session, err := ts.m3dbClient.DefaultSession()
+		if err != nil {
+			return err
+		}
+		defer session.Close()
+	}
 
 	if err := ts.waitUntilServerIsDown(); err != nil {
 		return err
@@ -588,6 +570,45 @@ func (ts *testSetup) sleepFor10xTickMinimumInterval() {
 	runtimeMgr := ts.storageOpts.RuntimeOptionsManager()
 	opts := runtimeMgr.Get()
 	time.Sleep(opts.TickMinimumInterval() * 10)
+}
+
+func newClients(
+	topoInit topology.Initializer,
+	opts testOptions,
+	id,
+	tchannelNodeAddr string,
+) (client.AdminClient, client.AdminClient, error) {
+	var (
+		clientOpts = defaultClientOptions(topoInit).
+				SetClusterConnectTimeout(opts.ClusterConnectionTimeout()).
+				SetWriteConsistencyLevel(opts.WriteConsistencyLevel()).
+				SetTopologyInitializer(topoInit)
+
+		// We need two distinct clients where one has the origin set to the same ID as the
+		// node itself (I.E) the client will behave exactly as if it is the node itself
+		// making requests, and another client with the origin set to an ID different than
+		// the node itself so that we can make requests from the perspective of a "different"
+		// M3DB node for verification purposes in some of the tests.
+		origin             = topology.NewHost(id, tchannelNodeAddr)
+		verificationOrigin = topology.NewHost(id+"-verification", tchannelNodeAddr)
+
+		adminOpts             = clientOpts.(client.AdminOptions).SetOrigin(origin)
+		verificationAdminOpts = adminOpts.SetOrigin(verificationOrigin)
+	)
+
+	// Set up m3db client
+	adminClient, err := m3dbAdminClient(adminOpts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Set up m3db verification client
+	verificationAdminClient, err := m3dbAdminClient(verificationAdminOpts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return adminClient, verificationAdminClient, nil
 }
 
 type testSetups []*testSetup
