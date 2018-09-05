@@ -276,9 +276,9 @@ func newDefaultBootstrappableTestSetups(
 		require.NoError(t, err)
 
 		processOpts := bootstrap.NewProcessOptions().SetAdminClient(adminClient)
-		setup.storageOpts = setup.storageOpts.
-			SetBootstrapProcessProvider(
-				bootstrap.NewProcessProvider(fsBootstrapper, processOpts, bsOpts))
+		provider, err := bootstrap.NewProcessProvider(fsBootstrapper, processOpts, bsOpts)
+		require.NoError(t, err)
+		setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(provider)
 
 		setups = append(setups, setup)
 		appendCleanupFn(func() {
