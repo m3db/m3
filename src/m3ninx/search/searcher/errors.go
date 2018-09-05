@@ -22,22 +22,8 @@ package searcher
 
 import (
 	"errors"
-	"fmt"
-
-	"github.com/m3db/m3/src/m3ninx/search"
 )
 
 var (
-	errEmptySearchers   = errors.New("list of searchers cannot be empty in a composite searcher")
-	errSearcherTooShort = errors.New("searcher did not contain enough postings lists")
+	errEmptySearchers = errors.New("list of searchers cannot be empty in a composite searcher")
 )
-
-func validateSearchers(numReaders int, searchers search.Searchers) error {
-	for _, s := range searchers {
-		n := s.NumReaders()
-		if n != numReaders {
-			return fmt.Errorf("searcher has %v readers, expected %v", n, numReaders)
-		}
-	}
-	return nil
-}

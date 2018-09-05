@@ -21,16 +21,9 @@
 package executor
 
 import (
-	"errors"
-
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/search"
-)
-
-var (
-	errNotEnoughReaders = errors.New("searcher returned more postings lists than the number of readers")
-	errTooManyReaders   = errors.New("searcher returned less postings lists than the number of readers")
 )
 
 type iterator struct {
@@ -49,12 +42,14 @@ func newIterator(s search.Searcher, rs index.Readers) (doc.Iterator, error) {
 	it := &iterator{
 		searcher: s,
 		readers:  rs,
+		idx:      -1,
 	}
 
-	currIter, err := it.nextIter()
+	currIter, _, err := it.nextIter()
 	if err != nil {
 		return nil, err
 	}
+
 	it.currIter = currIter
 	return it, nil
 }
@@ -79,16 +74,16 @@ func (it *iterator) Next() bool {
 			return false
 		}
 
-		it.idx++
-		iter, err := it.nextIter()
+		iter, hasNext, err := it.nextIter()
 		if err != nil {
 			it.err = err
 			return false
 		}
 
-		if iter == nil {
+		if !hasNext {
 			return false
 		}
+
 		it.currIter = iter
 	}
 
@@ -114,32 +109,23 @@ func (it *iterator) Close() error {
 
 // nextIter gets the next document iterator by getting the next postings list from
 // the it's searcher and then getting the documents for that postings list from the
-// corresponding reader associated with that postings list. It also validates that
-// the number of postings lists returned by the searcher is equal to the number of
-// readers that the iterator is searching over.
-func (it *iterator) nextIter() (doc.Iterator, error) {
-	if !it.searcher.Next() {
-		if err := it.searcher.Err(); err != nil {
-			return nil, err
-		}
-
-		// Check that the Searcher hasn't returned too few postings lists.
-		if it.idx != len(it.readers) {
-			return nil, errTooManyReaders
-		}
-
-		return nil, nil
+// corresponding reader associated with that postings list.
+func (it *iterator) nextIter() (doc.Iterator, bool, error) {
+	it.idx++
+	if it.idx >= len(it.readers) {
+		return nil, false, nil
 	}
 
-	// Check that the Searcher hasn't returned too many postings lists.
-	if it.idx == len(it.readers) {
-		return nil, errNotEnoughReaders
-	}
-
-	pl := it.searcher.Current()
-	iter, err := it.readers[it.idx].Docs(pl)
+	reader := it.readers[it.idx]
+	pl, err := it.searcher.Search(reader)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return iter, nil
+
+	iter, err := reader.Docs(pl)
+	if err != nil {
+		return nil, false, err
+	}
+
+	return iter, true, nil
 }

@@ -24,7 +24,6 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3/src/m3ninx/generated/proto/querypb"
-	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/m3ninx/search/searcher"
 )
@@ -42,12 +41,12 @@ func NewNegationQuery(q search.Query) search.Query {
 }
 
 // Searcher returns a searcher over the provided readers.
-func (q *NegationQuery) Searcher(rs index.Readers) (search.Searcher, error) {
-	s, err := q.query.Searcher(rs)
+func (q *NegationQuery) Searcher() (search.Searcher, error) {
+	s, err := q.query.Searcher()
 	if err != nil {
 		return nil, err
 	}
-	return searcher.NewNegationSearcher(rs, s)
+	return searcher.NewNegationSearcher(s)
 }
 
 // Equal reports whether q is equivalent to o.

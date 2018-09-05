@@ -28,49 +28,16 @@ import (
 
 type termSearcher struct {
 	field, term []byte
-	readers     index.Readers
-
-	idx  int
-	curr postings.List
-	err  error
 }
 
 // NewTermSearcher returns a new searcher for finding documents which match the given term.
-// It is not safe for concurrent access.
-func NewTermSearcher(rs index.Readers, field, term []byte) search.Searcher {
+func NewTermSearcher(field, term []byte) search.Searcher {
 	return &termSearcher{
-		field:   field,
-		term:    term,
-		readers: rs,
-		idx:     -1,
+		field: field,
+		term:  term,
 	}
 }
 
-func (s *termSearcher) Next() bool {
-	if s.err != nil || s.idx == len(s.readers)-1 {
-		return false
-	}
-
-	s.idx++
-	r := s.readers[s.idx]
-	pl, err := r.MatchTerm(s.field, s.term)
-	if err != nil {
-		s.err = err
-		return false
-	}
-	s.curr = pl
-
-	return true
-}
-
-func (s *termSearcher) Current() postings.List {
-	return s.curr
-}
-
-func (s *termSearcher) Err() error {
-	return s.err
-}
-
-func (s *termSearcher) NumReaders() int {
-	return len(s.readers)
+func (s *termSearcher) Search(r index.Reader) (postings.List, error) {
+	return r.MatchTerm(s.field, s.term)
 }

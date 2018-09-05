@@ -380,7 +380,7 @@ func newTestSegments(t *testing.T, docs []doc.Document) (memSeg sgmt.MutableSegm
 		_, err := s.Insert(d)
 		require.NoError(t, err)
 	}
-	return s, newFSTSegment(t, s)
+	return s, newFSTSegment(t, s, testOptions)
 }
 
 func newTestMemSegment(t *testing.T) sgmt.MutableSegment {
@@ -388,43 +388,6 @@ func newTestMemSegment(t *testing.T) sgmt.MutableSegment {
 	s, err := mem.NewSegment(postings.ID(0), opts)
 	require.NoError(t, err)
 	return s
-}
-
-func newFSTSegment(t *testing.T, s sgmt.MutableSegment) sgmt.Segment {
-	_, err := s.Seal()
-	require.NoError(t, err)
-
-	w := NewWriter()
-	require.NoError(t, w.Reset(s))
-
-	var (
-		docsDataBuffer  bytes.Buffer
-		docsIndexBuffer bytes.Buffer
-		postingsBuffer  bytes.Buffer
-		fstTermsBuffer  bytes.Buffer
-		fstFieldsBuffer bytes.Buffer
-	)
-
-	require.NoError(t, w.WriteDocumentsData(&docsDataBuffer))
-	require.NoError(t, w.WriteDocumentsIndex(&docsIndexBuffer))
-	require.NoError(t, w.WritePostingsOffsets(&postingsBuffer))
-	require.NoError(t, w.WriteFSTTerms(&fstTermsBuffer))
-	require.NoError(t, w.WriteFSTFields(&fstFieldsBuffer))
-
-	data := SegmentData{
-		MajorVersion:  w.MajorVersion(),
-		MinorVersion:  w.MinorVersion(),
-		Metadata:      w.Metadata(),
-		DocsData:      docsDataBuffer.Bytes(),
-		DocsIdxData:   docsIndexBuffer.Bytes(),
-		PostingsData:  postingsBuffer.Bytes(),
-		FSTTermsData:  fstTermsBuffer.Bytes(),
-		FSTFieldsData: fstFieldsBuffer.Bytes(),
-	}
-	reader, err := NewSegment(data, testOptions)
-	require.NoError(t, err)
-
-	return reader
 }
 
 func assertSliceOfByteSlicesEqual(t *testing.T, a, b [][]byte) {

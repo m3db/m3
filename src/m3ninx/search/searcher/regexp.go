@@ -29,50 +29,18 @@ import (
 type regexpSearcher struct {
 	field, regexp []byte
 	compiled      index.CompiledRegex
-	readers       index.Readers
-
-	idx  int
-	curr postings.List
-	err  error
 }
 
 // NewRegexpSearcher returns a new searcher for finding documents which match the given regular
-// expression. It is not safe for concurrent access.
-func NewRegexpSearcher(rs index.Readers, field, regexp []byte, compiled index.CompiledRegex) search.Searcher {
+// expression.
+func NewRegexpSearcher(field, regexp []byte, compiled index.CompiledRegex) search.Searcher {
 	return &regexpSearcher{
 		field:    field,
 		regexp:   regexp,
 		compiled: compiled,
-		readers:  rs,
-		idx:      -1,
 	}
 }
 
-func (s *regexpSearcher) Next() bool {
-	if s.err != nil || s.idx == len(s.readers)-1 {
-		return false
-	}
-
-	s.idx++
-	r := s.readers[s.idx]
-	pl, err := r.MatchRegexp(s.field, s.regexp, s.compiled)
-	if err != nil {
-		s.err = err
-		return false
-	}
-	s.curr = pl
-
-	return true
-}
-
-func (s *regexpSearcher) Current() postings.List {
-	return s.curr
-}
-
-func (s *regexpSearcher) Err() error {
-	return s.err
-}
-
-func (s *regexpSearcher) NumReaders() int {
-	return len(s.readers)
+func (s *regexpSearcher) Search(r index.Reader) (postings.List, error) {
+	return r.MatchRegexp(s.field, s.regexp, s.compiled)
 }

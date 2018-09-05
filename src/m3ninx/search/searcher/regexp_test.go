@@ -60,21 +60,15 @@ func TestRegexpSearcher(t *testing.T) {
 		secondReader.EXPECT().MatchRegexp(field, regexp, compiled).Return(secondPL, nil),
 	)
 
-	readers := []index.Reader{firstReader, secondReader}
-
-	s := NewRegexpSearcher(readers, field, regexp, compiled)
-
-	// Ensure the searcher is searching over two readers.
-	require.Equal(t, 2, s.NumReaders())
+	s := NewRegexpSearcher(field, regexp, compiled)
 
 	// Test the postings list from the first Reader.
-	require.True(t, s.Next())
-	require.True(t, s.Current().Equal(firstPL))
+	pl, err := s.Search(firstReader)
+	require.NoError(t, err)
+	require.True(t, pl.Equal(firstPL))
 
 	// Test the postings list from the second Reader.
-	require.True(t, s.Next())
-	require.True(t, s.Current().Equal(secondPL))
-
-	require.False(t, s.Next())
-	require.NoError(t, s.Err())
+	pl, err = s.Search(secondReader)
+	require.NoError(t, err)
+	require.True(t, pl.Equal(secondPL))
 }

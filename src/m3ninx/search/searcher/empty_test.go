@@ -23,6 +23,7 @@ package searcher
 import (
 	"testing"
 
+	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 
 	"github.com/golang/mock/gomock"
@@ -33,18 +34,10 @@ func TestEmptySearcher(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 
-	n := 42
-	s := NewEmptySearcher(42)
-
-	require.Equal(t, 42, s.NumReaders())
-
+	s := NewEmptySearcher()
+	reader := index.NewMockReader(mockCtrl)
 	emptyPL := roaring.NewPostingsList()
-
-	for i := 0; i < n; i++ {
-		require.True(t, s.Next())
-		require.True(t, s.Current().Equal(emptyPL))
-	}
-
-	require.False(t, s.Next())
-	require.NoError(t, s.Err())
+	pl, err := s.Search(reader)
+	require.NoError(t, err)
+	require.True(t, pl.Equal(emptyPL))
 }

@@ -25,7 +25,6 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3/src/m3ninx/generated/proto/querypb"
-	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/m3ninx/search/searcher"
 )
@@ -45,8 +44,8 @@ func NewTermQuery(field, term []byte) search.Query {
 }
 
 // Searcher returns a searcher over the provided readers.
-func (q *TermQuery) Searcher(rs index.Readers) (search.Searcher, error) {
-	return searcher.NewTermSearcher(rs, q.field, q.term), nil
+func (q *TermQuery) Searcher() (search.Searcher, error) {
+	return searcher.NewTermSearcher(q.field, q.term), nil
 }
 
 // Equal reports whether q is equivalent to o.

@@ -24,7 +24,6 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3/src/m3ninx/generated/proto/querypb"
-	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/m3ninx/search/searcher"
 )
@@ -67,18 +66,18 @@ func NewConjunctionQuery(queries []search.Query) search.Query {
 }
 
 // Searcher returns a searcher over the provided readers.
-func (q *ConjuctionQuery) Searcher(rs index.Readers) (search.Searcher, error) {
+func (q *ConjuctionQuery) Searcher() (search.Searcher, error) {
 	switch {
 	case len(q.queries) == 0:
-		return searcher.NewEmptySearcher(len(rs)), nil
+		return searcher.NewEmptySearcher(), nil
 
 	case len(q.queries) == 1 && len(q.negations) == 0:
-		return q.queries[0].Searcher(rs)
+		return q.queries[0].Searcher()
 	}
 
 	qsrs := make(search.Searchers, 0, len(q.queries))
 	for _, q := range q.queries {
-		sr, err := q.Searcher(rs)
+		sr, err := q.Searcher()
 		if err != nil {
 			return nil, err
 		}
@@ -87,14 +86,14 @@ func (q *ConjuctionQuery) Searcher(rs index.Readers) (search.Searcher, error) {
 
 	nsrs := make(search.Searchers, 0, len(q.negations))
 	for _, q := range q.negations {
-		sr, err := q.Searcher(rs)
+		sr, err := q.Searcher()
 		if err != nil {
 			return nil, err
 		}
 		nsrs = append(nsrs, sr)
 	}
 
-	return searcher.NewConjunctionSearcher(len(rs), qsrs, nsrs)
+	return searcher.NewConjunctionSearcher(qsrs, nsrs)
 }
 
 // Equal reports whether q is equivalent to o.
