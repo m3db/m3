@@ -667,5 +667,3 @@ func newNodes(
 
 	return nodes, topoInit, nodeClose
 }
-
-func ()
