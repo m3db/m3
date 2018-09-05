@@ -39,8 +39,9 @@ import (
 )
 
 const (
-	// PromReadURL is the url for native prom read handler
-	PromReadURL = handler.RoutePrefixV1 + "/prom/native/read"
+	// PromReadURL is the url for native prom read handler, this matches the
+	// default URL for the query range endpoint found on a Prometheus server
+	PromReadURL = handler.RoutePrefixV1 + "/query_range"
 
 	// PromReadHTTPMethod is the HTTP method used with this resource.
 	PromReadHTTPMethod = http.MethodGet

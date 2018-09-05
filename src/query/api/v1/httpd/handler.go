@@ -37,7 +37,6 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler/openapi"
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
 	"github.com/m3db/m3/src/query/executor"
@@ -122,12 +121,7 @@ func (h *Handler) RegisterRoutes() error {
 
 	h.Router.HandleFunc(remote.PromReadURL, logged(promRemoteReadHandler).ServeHTTP).Methods(remote.PromReadHTTPMethod)
 	h.Router.HandleFunc(remote.PromWriteURL, logged(promRemoteWriteHandler).ServeHTTP).Methods(remote.PromWriteHTTPMethod)
-
-	// Prometheus native query endpoints, registered under both the default
-	// Prometheus server route and the Prometheus native read endpoint route
-	promNativeRead := logged(native.NewPromReadHandler(h.engine)).ServeHTTP
-	h.Router.HandleFunc(prometheus.DefaultQueryRangeURL, promNativeRead).Methods(prometheus.DefaultQueryRangeMethod)
-	h.Router.HandleFunc(native.PromReadURL, promNativeRead).Methods(native.PromReadHTTPMethod)
+	h.Router.HandleFunc(native.PromReadURL, logged(native.NewPromReadHandler(h.engine)).ServeHTTP).Methods(native.PromReadHTTPMethod)
 
 	// Native M3 search and write endpoints
 	h.Router.HandleFunc(handler.SearchURL, logged(handler.NewSearchHandler(h.storage)).ServeHTTP).Methods(handler.SearchHTTPMethod)
