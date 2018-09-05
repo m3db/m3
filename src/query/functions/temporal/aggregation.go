@@ -75,16 +75,18 @@ func newAggNode(op baseOp, controller *transform.Controller) Processor {
 	return &aggNode{
 		op:         op,
 		controller: controller,
+		aggFunc:    aggFuncs[op.operatorType],
 	}
 }
 
 type aggNode struct {
 	op         baseOp
 	controller *transform.Controller
+	aggFunc    func([]float64) float64
 }
 
 func (a *aggNode) Process(values []float64) float64 {
-	return aggFuncs[a.op.operatorType](values)
+	return a.aggFunc(values)
 }
 
 func avgOverTime(values []float64) float64 {
