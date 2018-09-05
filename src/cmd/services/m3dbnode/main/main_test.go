@@ -497,7 +497,6 @@ db:
         queue:
             calculationType: fixed
             size: 2097152
-        retentionPeriod: 24h
         blockSize: 10m
 
     fs:

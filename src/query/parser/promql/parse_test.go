@@ -78,6 +78,7 @@ var aggregateParseTests = []struct {
 	{"topk(3, up)", aggregation.TopKType},
 	{"bottomk(3, up)", aggregation.BottomKType},
 	{"quantile(3, up)", aggregation.QuantileType},
+	{"count_values(\"some_name\", up)", aggregation.CountValuesType},
 }
 
 func TestAggregateParses(t *testing.T) {

@@ -216,7 +216,7 @@ test-ci-big-unit: test-big-base
 
 .PHONY: test-ci-integration
 test-ci-integration:
-	INTEGRATION_TIMEOUT=4m TEST_NATIVE_POOLING=false TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
+	INTEGRATION_TIMEOUT=4m TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
 	$(process_coverfile) $(coverfile)
 
 define SUBDIR_RULES
@@ -278,16 +278,15 @@ test-html-$(SUBDIR):
 	@echo test-html $(SUBDIR)
 	SRC_ROOT=./src/$(SUBDIR) make test-base-html
 
-# Note: do not test native pooling since it's experimental/deprecated
 .PHONY: test-integration-$(SUBDIR)
 test-integration-$(SUBDIR):
 	@echo test-integration $(SUBDIR)
-	SRC_ROOT=./src/$(SUBDIR) TEST_NATIVE_POOLING=false make test-base-integration
+	SRC_ROOT=./src/$(SUBDIR) make test-base-integration
 
 # Usage: make test-single-integration name=<test_name>
 .PHONY: test-single-integration-$(SUBDIR)
 test-single-integration-$(SUBDIR):
-	SRC_ROOT=./src/$(SUBDIR) TEST_NATIVE_POOLING=false make test-base-single-integration name=$(name)
+	SRC_ROOT=./src/$(SUBDIR) make test-base-single-integration name=$(name)
 
 .PHONY: test-ci-unit-$(SUBDIR)
 test-ci-unit-$(SUBDIR):
@@ -304,7 +303,7 @@ test-ci-big-unit-$(SUBDIR):
 .PHONY: test-ci-integration-$(SUBDIR)
 test-ci-integration-$(SUBDIR):
 	@echo test-ci-integration $(SUBDIR)
-	SRC_ROOT=./src/$(SUBDIR) INTEGRATION_TIMEOUT=4m TEST_NATIVE_POOLING=false TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
+	SRC_ROOT=./src/$(SUBDIR) INTEGRATION_TIMEOUT=4m TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
 	$(codecov_push) -f $(coverfile) -F $(SUBDIR)
 
 endef

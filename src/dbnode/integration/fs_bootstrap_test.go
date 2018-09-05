@@ -53,7 +53,6 @@ func TestFilesystemBootstrap(t *testing.T) {
 	require.NoError(t, err)
 
 	opts := newTestOptions(t).
-		SetCommitLogRetentionPeriod(rOpts.RetentionPeriod()).
 		SetCommitLogBlockSize(blockSize).
 		SetNamespaces([]namespace.Metadata{ns1, ns2})
 

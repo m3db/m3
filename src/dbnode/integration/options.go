@@ -98,12 +98,6 @@ type testOptions interface {
 	// NamespaceInitializer returns the namespace initializer
 	NamespaceInitializer() namespace.Initializer
 
-	// SetCommitLogRetentionPeriod sets the commit log retention period
-	SetCommitLogRetentionPeriod(value time.Duration) testOptions
-
-	// CommitLogRetentionPeriod returns the commit log retention period
-	CommitLogRetentionPeriod() time.Duration
-
 	// SetCommitLogBlockSize sets the commit log block size
 	SetCommitLogBlockSize(value time.Duration) testOptions
 
@@ -277,7 +271,6 @@ type testOptions interface {
 type options struct {
 	namespaces                         []namespace.Metadata
 	nsInitializer                      namespace.Initializer
-	commitlogRetentionPeriod           time.Duration
 	commitlogBlockSize                 time.Duration
 	id                                 string
 	tickMinimumInterval                time.Duration
@@ -320,7 +313,6 @@ func newTestOptions(t *testing.T) testOptions {
 
 	return &options{
 		namespaces:                     namespaces,
-		commitlogRetentionPeriod:       defaultIntegrationTestRetentionOpts.RetentionPeriod(),
 		commitlogBlockSize:             defaultIntegrationTestRetentionOpts.BlockSize(),
 		id:                             defaultID,
 		tickMinimumInterval:            defaultTickMinimumInterval,
@@ -359,16 +351,6 @@ func (o *options) SetNamespaceInitializer(value namespace.Initializer) testOptio
 
 func (o *options) NamespaceInitializer() namespace.Initializer {
 	return o.nsInitializer
-}
-
-func (o *options) SetCommitLogRetentionPeriod(value time.Duration) testOptions {
-	opts := *o
-	opts.commitlogRetentionPeriod = value
-	return &opts
-}
-
-func (o *options) CommitLogRetentionPeriod() time.Duration {
-	return o.commitlogRetentionPeriod
 }
 
 func (o *options) SetCommitLogBlockSize(value time.Duration) testOptions {

@@ -318,7 +318,6 @@ func Run(runOpts RunOptions) {
 		SetFlushSize(cfg.CommitLog.FlushMaxBytes).
 		SetFlushInterval(cfg.CommitLog.FlushEvery).
 		SetBacklogQueueSize(commitLogQueueSize).
-		SetRetentionPeriod(cfg.CommitLog.RetentionPeriod).
 		SetBlockSize(cfg.CommitLog.BlockSize))
 
 	// Set the series cache policy
@@ -917,13 +916,6 @@ func withEncodingAndPoolingOptions(
 			checkedBytesPoolOpts,
 			func(s []pool.Bucket) pool.BytesPool {
 				return pool.NewBytesPool(s, bytesPoolOpts)
-			})
-	case config.NativePooling:
-		bytesPool = pool.NewCheckedBytesPool(
-			buckets,
-			checkedBytesPoolOpts,
-			func(s []pool.Bucket) pool.BytesPool {
-				return pool.NewNativeHeap(s, bytesPoolOpts)
 			})
 	default:
 		logger.Fatalf("unrecognized pooling type: %s", policy.Type)

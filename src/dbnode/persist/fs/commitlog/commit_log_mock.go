@@ -254,30 +254,6 @@ func (mr *MockOptionsMockRecorder) InstrumentOptions() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstrumentOptions", reflect.TypeOf((*MockOptions)(nil).InstrumentOptions))
 }
 
-// SetRetentionPeriod mocks base method
-func (m *MockOptions) SetRetentionPeriod(value time.Duration) Options {
-	ret := m.ctrl.Call(m, "SetRetentionPeriod", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetRetentionPeriod indicates an expected call of SetRetentionPeriod
-func (mr *MockOptionsMockRecorder) SetRetentionPeriod(value interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRetentionPeriod", reflect.TypeOf((*MockOptions)(nil).SetRetentionPeriod), value)
-}
-
-// RetentionPeriod mocks base method
-func (m *MockOptions) RetentionPeriod() time.Duration {
-	ret := m.ctrl.Call(m, "RetentionPeriod")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// RetentionPeriod indicates an expected call of RetentionPeriod
-func (mr *MockOptionsMockRecorder) RetentionPeriod() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetentionPeriod", reflect.TypeOf((*MockOptions)(nil).RetentionPeriod))
-}
-
 // SetBlockSize mocks base method
 func (m *MockOptions) SetBlockSize(value time.Duration) Options {
 	ret := m.ctrl.Call(m, "SetBlockSize", value)

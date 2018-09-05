@@ -50,6 +50,8 @@ type NodeParams struct {
 	Without bool
 	// Parameter is the param value for the aggregation op when appropriate
 	Parameter float64
+	// StringParameter is the string representation of the param value
+	StringParameter string
 }
 
 // NewAggregationOp creates a new aggregation operation

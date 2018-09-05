@@ -47,11 +47,6 @@ var (
 	commitLogBlockSize = 10 * time.Second
 )
 
-func testCleanupManager(ctrl *gomock.Controller) (*Mockdatabase, *cleanupManager) {
-	db := newMockdatabase(ctrl)
-	return db, newCleanupManager(db, tally.NoopScope).(*cleanupManager)
-}
-
 func TestCleanupManagerCleanup(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -76,7 +71,6 @@ func TestCleanupManagerCleanup(t *testing.T) {
 	mgr := newCleanupManager(db, tally.NoopScope).(*cleanupManager)
 	mgr.opts = mgr.opts.SetCommitLogOptions(
 		mgr.opts.CommitLogOptions().
-			SetRetentionPeriod(rOpts.RetentionPeriod()).
 			SetBlockSize(rOpts.BlockSize()))
 
 	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
@@ -149,7 +143,6 @@ func TestCleanupManagerDoesntNeedCleanup(t *testing.T) {
 	mgr := newCleanupManager(db, tally.NoopScope).(*cleanupManager)
 	mgr.opts = mgr.opts.SetCommitLogOptions(
 		mgr.opts.CommitLogOptions().
-			SetRetentionPeriod(rOpts.RetentionPeriod()).
 			SetBlockSize(rOpts.BlockSize()))
 
 	var deletedFiles []string
@@ -269,28 +262,6 @@ func TestCleanupManagerPropagatesGetOwnedNamespacesError(t *testing.T) {
 	require.NoError(t, db.Terminate())
 
 	require.Error(t, mgr.Cleanup(ts))
-}
-
-func TestCleanupManagerCommitLogTimeRange(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	var (
-		ts    = time.Unix(25200, 0)
-		rOpts = retention.NewOptions().
-			SetRetentionPeriod(18000 * time.Second).
-			SetBufferPast(0 * time.Second).
-			SetBlockSize(7200 * time.Second)
-		_, mgr = testCleanupManager(ctrl)
-	)
-
-	mgr.opts = mgr.opts.SetCommitLogOptions(
-		mgr.opts.CommitLogOptions().
-			SetRetentionPeriod(rOpts.RetentionPeriod()).
-			SetBlockSize(rOpts.BlockSize()))
-	cs, ce := mgr.commitLogTimeRange(ts)
-	require.Equal(t, time.Unix(0, 0), cs)
-	require.Equal(t, time.Unix(7200, 0), ce)
 }
 
 type testCaseCleanupMgrNsBlocks struct {
@@ -469,7 +440,6 @@ func newCleanupManagerCommitLogTimesTest(t *testing.T, ctrl *gomock.Controller) 
 
 	mgr.opts = mgr.opts.SetCommitLogOptions(
 		mgr.opts.CommitLogOptions().
-			SetRetentionPeriod(rOpts.RetentionPeriod()).
 			SetBlockSize(rOpts.BlockSize()))
 	return ns, mgr
 }
@@ -499,7 +469,6 @@ func newCleanupManagerCommitLogTimesTestMultiNS(
 
 	mgr.opts = mgr.opts.SetCommitLogOptions(
 		mgr.opts.CommitLogOptions().
-			SetRetentionPeriod(rOpts.RetentionPeriod()).
 			SetBlockSize(rOpts.BlockSize()))
 	return ns1, ns2, mgr
 }
