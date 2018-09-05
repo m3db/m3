@@ -23,10 +23,15 @@
 package integration
 
 import (
+	"testing"
+
+	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/stretchr/testify/require"
 )
 
 func newTestBootstrapperSource(
@@ -158,4 +163,32 @@ func (t testBootstrapperSource) ReadIndex(
 
 func (t testBootstrapperSource) String() string {
 	return "test-bootstrapper"
+}
+
+func setupCommitLogBootstrapperWithFSInspection(
+	t *testing.T, setup *testSetup, commitLogOpts commitlog.Options) {
+	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
+	bsOpts := newDefaulTestResultOptions(setup.storageOpts)
+	bclOpts := bcl.NewOptions().
+		SetResultOptions(bsOpts).
+		SetCommitLogOptions(commitLogOpts)
+	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
+	bs, err := bcl.NewCommitLogBootstrapperProvider(
+		bclOpts, mustInspectFilesystem(fsOpts), noOpAll)
+	require.NoError(t, err)
+	processOpts := bootstrap.NewProcessOptions().SetAdminClient(
+		setup.m3dbAdminClient,
+	)
+	process, err := bootstrap.NewProcessProvider(bs, processOpts, bsOpts)
+	require.NoError(t, err)
+	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(process)
+}
+
+func mustInspectFilesystem(fsOpts fs.Options) fs.Inspection {
+	inspection, err := fs.InspectFilesystem(fsOpts)
+	if err != nil {
+		panic(err)
+	}
+
+	return inspection
 }

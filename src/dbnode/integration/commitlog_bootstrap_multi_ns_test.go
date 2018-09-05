@@ -28,9 +28,6 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
-	bcl "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 
 	"github.com/stretchr/testify/require"
@@ -99,21 +96,7 @@ func TestCommitLogBootstrapMultipleNamespaces(t *testing.T) {
 	log.Info("written data - ns2")
 
 	// Setup bootstrapper after writing data so filesystem inspection can find it
-	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
-	bsOpts := newDefaulTestResultOptions(setup.storageOpts)
-	bclOpts := bcl.NewOptions().
-		SetResultOptions(bsOpts).
-		SetCommitLogOptions(commitLogOpts)
-	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
-	bs, err := bcl.NewCommitLogBootstrapperProvider(
-		bclOpts, mustInspectFilesystem(fsOpts), noOpAll)
-	require.NoError(t, err)
-	processOpts := bootstrap.NewProcessOptions().SetAdminClient(
-		setup.m3dbAdminClient,
-	)
-	process, err := bootstrap.NewProcessProvider(bs, processOpts, bsOpts)
-	require.NoError(t, err)
-	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(process)
+	setupCommitLogBootstrapperWithFSInspection(t, setup, commitLogOpts)
 
 	later := now.Add(4 * ns1BlockSize)
 	setup.setNowFn(later)
