@@ -43,7 +43,7 @@ import (
 const (
 	endParam          = "end"
 	startParam        = "start"
-	targetParam       = "target"
+	queryParam        = "query"
 	stepParam         = "step"
 	debugParam        = "debug"
 	endExclusiveParam = "end-exclusive"
@@ -61,11 +61,22 @@ func parseTime(r *http.Request, key string) (time.Time, error) {
 
 // nolint: unparam
 func parseDuration(r *http.Request, key string) (time.Duration, error) {
-	if d := r.FormValue(key); d != "" {
-		return time.ParseDuration(d)
+	str := r.FormValue(key)
+	if str == "" {
+		return 0, errors.ErrNotFound
 	}
 
-	return 0, errors.ErrNotFound
+	value, err := time.ParseDuration(str)
+	if err == nil {
+		return value, nil
+	}
+
+	// Try parsing as an integer value specifying seconds, the Prometheus default
+	if seconds, intErr := strconv.ParseInt(str, 10, 64); intErr == nil {
+		return time.Duration(seconds) * time.Second, nil
+	}
+
+	return 0, err
 }
 
 // parseParams parses all params from the GET request
@@ -98,11 +109,11 @@ func parseParams(r *http.Request) (models.RequestParams, *handler.ParseError) {
 	}
 	params.Step = step
 
-	target, err := parseTarget(r)
+	query, err := parseQuery(r)
 	if err != nil {
-		return params, handler.NewParseError(fmt.Errorf(formatErrStr, targetParam, err), http.StatusBadRequest)
+		return params, handler.NewParseError(fmt.Errorf(formatErrStr, queryParam, err), http.StatusBadRequest)
 	}
-	params.Target = target
+	params.Query = query
 
 	// Skip debug if unable to parse debug param
 	debugVal := r.FormValue(debugParam)
@@ -129,30 +140,38 @@ func parseParams(r *http.Request) (models.RequestParams, *handler.ParseError) {
 	return params, nil
 }
 
-func parseTarget(r *http.Request) (string, error) {
-	targetQueries, ok := r.URL.Query()[targetParam]
-	if !ok || len(targetQueries) == 0 || targetQueries[0] == "" {
-		return "", errors.ErrNoTargetFound
+func parseQuery(r *http.Request) (string, error) {
+	queries, ok := r.URL.Query()[queryParam]
+	if !ok || len(queries) == 0 || queries[0] == "" {
+		return "", errors.ErrNoQueryFound
 	}
 
 	// TODO: currently, we only support one target at a time
-	if len(targetQueries) > 1 {
+	if len(queries) > 1 {
 		return "", errors.ErrBatchQuery
 	}
 
-	return targetQueries[0], nil
+	return queries[0], nil
 }
 
 func renderResultsJSON(w io.Writer, series []*ts.Series, params models.RequestParams) {
-	startIdx := 0
 	jw := json.NewWriter(w)
+	jw.BeginObject()
+
+	jw.BeginObjectField("status")
+	jw.WriteString("success")
+
+	jw.BeginObjectField("data")
+	jw.BeginObject()
+
+	jw.BeginObjectField("resultType")
+	jw.WriteString("matrix")
+
+	jw.BeginObjectField("result")
 	jw.BeginArray()
 	for _, s := range series {
 		jw.BeginObject()
-		jw.BeginObjectField("target")
-		jw.WriteString(s.Name())
-
-		jw.BeginObjectField("tags")
+		jw.BeginObjectField("metric")
 		jw.BeginObject()
 		for _, t := range s.Tags {
 			jw.BeginObjectField(t.Name)
@@ -160,16 +179,18 @@ func renderResultsJSON(w io.Writer, series []*ts.Series, params models.RequestPa
 		}
 		jw.EndObject()
 
-		jw.BeginObjectField("datapoints")
+		jw.BeginObjectField("values")
 		jw.BeginArray()
 		vals := s.Values()
-		for i := startIdx; i < s.Len(); i++ {
+		length := s.Len()
+		for i := 0; i < length; i++ {
 			dp := vals.DatapointAt(i)
 			// Skip points before the query boundary. Ideal place to adjust these would be at the result node but that would make it inefficient
 			// since we would need to create another block just for the sake of restricting the bounds.
 			// Each series have the same start time so we just need to calculate the correct startIdx once
+			// NB(r): Removing the optimization of computing startIdx once just in case our assumptions are wrong,
+			// we can always add this optimization back later.  Without this code I see datapoints more often.
 			if dp.Timestamp.Before(params.Start) {
-				startIdx = i + 1
 				continue
 			}
 
@@ -183,11 +204,14 @@ func renderResultsJSON(w io.Writer, series []*ts.Series, params models.RequestPa
 		fixedStep, ok := s.Values().(ts.FixedResolutionMutableValues)
 		if ok {
 			jw.BeginObjectField("step_size_ms")
-			jw.WriteInt(int(util.DurationToMS(fixedStep.MillisPerStep())))
+			jw.WriteInt(int(fixedStep.Resolution() / time.Millisecond))
 			jw.EndObject()
 		}
 	}
-
 	jw.EndArray()
+
+	jw.EndObject()
+
+	jw.EndObject()
 	jw.Close()
 }

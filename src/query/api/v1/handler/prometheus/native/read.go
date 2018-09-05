@@ -39,8 +39,9 @@ import (
 )
 
 const (
-	// PromReadURL is the url for native prom read handler
-	PromReadURL = handler.RoutePrefixV1 + "/prom/native/read"
+	// PromReadURL is the url for native prom read handler, this matches the
+	// default URL for the query range endpoint found on a Prometheus server
+	PromReadURL = handler.RoutePrefixV1 + "/query_range"
 
 	// PromReadHTTPMethod is the HTTP method used with this resource.
 	PromReadHTTPMethod = http.MethodGet
@@ -96,6 +97,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// TODO: Support multiple result types
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	renderResultsJSON(w, result, params)
 }
 
@@ -109,7 +111,7 @@ func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, pa
 	opts.AbortCh = abortCh
 
 	// TODO: Capture timing
-	parser, err := promql.Parse(params.Target)
+	parser, err := promql.Parse(params.Query)
 	if err != nil {
 		return nil, err
 	}

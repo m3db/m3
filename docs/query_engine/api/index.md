@@ -8,7 +8,7 @@
 
 * **URL**
 
-  /prom/native/read
+  /query_range
 
 * **Method:**
 
