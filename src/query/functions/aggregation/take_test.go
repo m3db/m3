@@ -54,7 +54,7 @@ func TestTakeFn(t *testing.T) {
 	test.EqualsWithNans(t, expectedMax, valuesMax)
 
 	valuesQuantile := []float64{1.1, 2.1, 3.1, 4.1, 5.1}
-	actualQ := quantileFn(0, valuesQuantile, []int{0, 1, 2, 3})
+	actualQ := bucketedQuantileFn(0, valuesQuantile, []int{0, 1, 2, 3})
 	test.EqualsWithNans(t, 1.1, actualQ)
 }
 

@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3/src/query/parser"
 )
 
-type aggregationFn func(values []float64, buckets []int) float64
+type aggregationFn func(values []float64, bucket []int) float64
 
 var aggregationFunctions = map[string]aggregationFn{
 	SumType:               sumFn,

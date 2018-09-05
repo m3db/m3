@@ -39,11 +39,11 @@ func makeQuantileFn(opType string, q float64) (aggregationFn, bool) {
 		return nil, false
 	}
 	return func(values []float64, bucket []int) float64 {
-		return quantileFn(q, values, bucket)
+		return bucketedQuantileFn(q, values, bucket)
 	}, true
 }
 
-func quantileFn(q float64, values []float64, bucket []int) float64 {
+func bucketedQuantileFn(q float64, values []float64, bucket []int) float64 {
 	if len(bucket) == 0 || len(values) == 0 {
 		return math.NaN()
 	}
@@ -62,13 +62,17 @@ func quantileFn(q float64, values []float64, bucket []int) float64 {
 		}
 	}
 
-	l := float64(len(bucketVals))
+	return quantileFn(q, bucketVals)
+}
+
+func quantileFn(q float64, values []float64) float64 {
+	l := float64(len(values))
 	if l == 0 {
 		// No non-NaN values
 		return math.NaN()
 	}
 
-	sort.Float64s(bucketVals)
+	sort.Float64s(values)
 	// When the quantile lies between two samples,
 	// use a weighted average of the two samples.
 	rank := q * (l - 1)
@@ -77,7 +81,7 @@ func quantileFn(q float64, values []float64, bucket []int) float64 {
 	rightIndex := math.Min(l-1, leftIndex+1)
 
 	weight := rank - math.Floor(rank)
-	weightedLeft := bucketVals[int(leftIndex)] * (1 - weight)
-	weightedRight := bucketVals[int(rightIndex)] * weight
+	weightedLeft := values[int(leftIndex)] * (1 - weight)
+	weightedRight := values[int(rightIndex)] * weight
 	return weightedLeft + weightedRight
 }

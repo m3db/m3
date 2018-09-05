@@ -54,7 +54,7 @@ func TestQuantileFn(t *testing.T) {
 
 	actual := make([]float64, len(ns))
 	for i, n := range ns {
-		actual[i] = quantileFn(n, values, buckets)
+		actual[i] = bucketedQuantileFn(n, values, buckets)
 	}
 
 	test.EqualsWithNansWithDelta(t, expected, actual, math.Pow10(-5))
@@ -81,7 +81,7 @@ func TestQuantileFnMostlyNan(t *testing.T) {
 
 	actual := make([]float64, len(ns))
 	for i, n := range ns {
-		actual[i] = quantileFn(n, values, buckets)
+		actual[i] = bucketedQuantileFn(n, values, buckets)
 	}
 
 	test.EqualsWithNansWithDelta(t, expected, actual, math.Pow10(-5))
@@ -107,7 +107,7 @@ func TestQuantileFnSingleNonNan(t *testing.T) {
 
 	actual := make([]float64, len(ns))
 	for i, n := range ns {
-		actual[i] = quantileFn(n, values, buckets)
+		actual[i] = bucketedQuantileFn(n, values, buckets)
 	}
 
 	test.EqualsWithNansWithDelta(t, expected, actual, math.Pow10(-5))
@@ -159,18 +159,18 @@ func TestQuantileFunctionFilteringWithoutA(t *testing.T) {
 }
 
 func TestNans(t *testing.T) {
-	actual := quantileFn(0.5, []float64{}, []int{})
+	actual := bucketedQuantileFn(0.5, []float64{}, []int{})
 	assert.True(t, math.IsNaN(actual))
 
-	actual = quantileFn(0.5, []float64{1}, []int{})
+	actual = bucketedQuantileFn(0.5, []float64{1}, []int{})
 	assert.True(t, math.IsNaN(actual))
 
-	actual = quantileFn(0.5, []float64{}, []int{1})
+	actual = bucketedQuantileFn(0.5, []float64{}, []int{1})
 	assert.True(t, math.IsNaN(actual))
 
 	// all NaNs in bucket
 	values := []float64{math.NaN(), math.NaN(), 1, math.NaN(), math.NaN()}
 	buckets := []int{0, 1, 3, 4}
-	actual = quantileFn(0.5, values, buckets)
+	actual = bucketedQuantileFn(0.5, values, buckets)
 	assert.True(t, math.IsNaN(actual))
 }

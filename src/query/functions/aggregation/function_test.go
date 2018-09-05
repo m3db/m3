@@ -24,50 +24,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/m3db/m3/src/query/executor/transform"
-	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
-	"github.com/m3db/m3/src/query/test/executor"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
-
-func TestCountWithAllValues(t *testing.T) {
-	vals, b := test.GenerateValuesAndBounds(nil, nil)
-	block := test.NewBlockFromValues(b, vals)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	op, err := NewAggregationOp(CountType, NodeParams{})
-	require.NoError(t, err)
-	countNode := op.(baseOp).Node(c, transform.Options{})
-	err = countNode.Process(parser.NodeID(0), block)
-	require.NoError(t, err)
-	expected := make([]float64, len(vals[0]))
-	for i := range expected {
-		expected[i] = 2
-	}
-	assert.Len(t, sink.Values, 1)
-	assert.Equal(t, expected, sink.Values[0])
-}
-
-func TestCountWithSomeValues(t *testing.T) {
-	vals := [][]float64{
-		{0, math.NaN(), 2, 3, 4},
-		{math.NaN(), 6, 7, 8, 9},
-	}
-
-	values, b := test.GenerateValuesAndBounds(vals, nil)
-	block := test.NewBlockFromValues(b, values)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	op, err := NewAggregationOp(CountType, NodeParams{})
-	require.NoError(t, err)
-	countNode := op.(baseOp).Node(c, transform.Options{})
-	err = countNode.Process(parser.NodeID(0), block)
-	require.NoError(t, err)
-	expected := []float64{1, 1, 2, 2, 2}
-	assert.Len(t, sink.Values, 1)
-	assert.Equal(t, expected, sink.Values[0])
-}
 
 type funcTest struct {
 	name     string
