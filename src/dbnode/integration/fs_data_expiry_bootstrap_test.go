@@ -98,8 +98,8 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 	processOpts := bootstrap.NewProcessOptions().SetAdminClient(
 		setup.m3dbAdminClient,
 	)
-	processProvider := bootstrap.NewProcessProvider(
-		bs, processOpts, bsOpts)
+	processProvider, err := bootstrap.NewProcessProvider(bs, processOpts, bsOpts)
+	require.NoError(t, err)
 
 	setup.storageOpts = setup.storageOpts.
 		SetBootstrapProcessProvider(processProvider)

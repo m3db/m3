@@ -148,7 +148,8 @@ func TestCommitLogIndexBootstrap(t *testing.T) {
 	processOpts := bootstrap.NewProcessOptions().SetAdminClient(
 		setup.m3dbAdminClient,
 	)
-	process := bootstrap.NewProcessProvider(bs, processOpts, bsOpts)
+	process, err := bootstrap.NewProcessProvider(bs, processOpts, bsOpts)
+	require.NoError(t, err)
 	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(process)
 
 	setup.setNowFn(now)

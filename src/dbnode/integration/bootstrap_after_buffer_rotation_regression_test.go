@@ -135,8 +135,9 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 	processOpts := bootstrap.NewProcessOptions().SetAdminClient(
 		setup.m3dbAdminClient,
 	)
-	processProvider := bootstrap.NewProcessProvider(
+	processProvider, err := bootstrap.NewProcessProvider(
 		test, processOpts, bootstrapOpts)
+	require.NoError(t, err)
 	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(processProvider)
 
 	// Start a background goroutine which will wait until the server is started,

@@ -56,13 +56,13 @@ func NewProcessProvider(
 	bootstrapperProvider BootstrapperProvider,
 	processOpts ProcessOptions,
 	resultOpts result.Options,
-) ProcessProvider {
+) (ProcessProvider, error) {
 	return &bootstrapProcessProvider{
 		processOpts:          processOpts,
 		resultOpts:           resultOpts,
 		log:                  resultOpts.InstrumentOptions().Logger(),
 		bootstrapperProvider: bootstrapperProvider,
-	}
+	}, nil
 }
 
 func (b *bootstrapProcessProvider) SetBootstrapperProvider(bootstrapperProvider BootstrapperProvider) {
