@@ -281,8 +281,7 @@ func genPropTestInputs(blockStart time.Time) gopter.Gen {
 		gen.IntRange(1, maxPoints),
 		gen.Bool(),
 		gen.Bool(),
-	).Map(func(val interface{}) propTestInput {
-		inputs := val.([]interface{})
+	).Map(func(inputs []interface{}) propTestInput {
 		return propTestInput{
 			blockSize:            time.Duration(inputs[0].(int64)),
 			bufferPast:           time.Duration(inputs[1].(int64)),

@@ -126,7 +126,7 @@ func propTestDatabaseShard(t *testing.T, tickBatchSize int) (*dbShard, Options) 
 
 func anyIDs() gopter.Gen {
 	return gen.IntRange(0, 20).
-		Map(func(n int) interface{} {
+		Map(func(n int) []ident.ID {
 			ids := make([]ident.ID, 0, n)
 			for i := 0; i < n; i++ {
 				ids = append(ids, ident.StringID(fmt.Sprintf("foo.%d", i)))

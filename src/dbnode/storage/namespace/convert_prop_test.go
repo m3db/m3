@@ -69,8 +69,7 @@ func TestConvert(t *testing.T) {
 // map generator
 func genMap() gopter.Gen {
 	return gen.SliceOf(genMetadata()).Map(
-		func(values interface{}) namespace.Map {
-			metadatas := values.([]namespace.Metadata)
+		func(metadatas []namespace.Metadata) namespace.Map {
 			nsMap, err := namespace.NewMap(metadatas)
 			if err != nil {
 				panic(err.Error())
