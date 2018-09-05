@@ -22,7 +22,6 @@ package promql
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/m3db/m3/src/query/functions"
 	"github.com/m3db/m3/src/query/functions/aggregation"
@@ -76,13 +75,12 @@ func NewAggregationOperator(expr *promql.AggregateExpr) (parser.Params, error) {
 	}
 
 	if op == aggregation.BottomKType || op == aggregation.TopKType {
-		paramString := expr.Param.String()
-		floatParam, err := strconv.ParseFloat(paramString, 64)
+		val, err := resolveScalarArgument(expr.Param)
 		if err != nil {
 			return nil, err
 		}
 
-		nodeInformation.Parameter = floatParam
+		nodeInformation.Parameter = val
 		return aggregation.NewTakeOp(op, nodeInformation)
 	}
 

@@ -24,6 +24,8 @@ import (
 	"container/heap"
 )
 
+const initIndexSliceLength = 10
+
 // ValueIndexPair is a pair of float value and index at which it exists
 type ValueIndexPair struct {
 	Val   float64
@@ -64,8 +66,13 @@ func NewFloatHeap(isMaxHeap bool, capacity int) FloatHeap {
 		less = minHeapLess
 	}
 
+	var heapInit = capacity
+	if capacity < 1 {
+		heapInit = initIndexSliceLength
+	}
+
 	floatHeap := &floatHeap{
-		heap: make([]ValueIndexPair, 0, capacity),
+		heap: make([]ValueIndexPair, 0, heapInit),
 		less: less,
 	}
 
@@ -124,6 +131,11 @@ func (fh FloatHeap) Len() int {
 
 // Cap returns the capacity of the heap
 func (fh FloatHeap) Cap() int {
+	// If capacity is less than 1, return 0
+	if fh.capacity < 1 {
+		return 0
+	}
+
 	return fh.capacity
 }
 
