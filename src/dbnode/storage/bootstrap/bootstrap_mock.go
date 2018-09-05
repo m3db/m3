@@ -200,6 +200,18 @@ func (mr *MockProcessOptionsMockRecorder) AdminClient() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AdminClient", reflect.TypeOf((*MockProcessOptions)(nil).AdminClient))
 }
 
+// Validate mocks base method
+func (m *MockProcessOptions) Validate() error {
+	ret := m.ctrl.Call(m, "Validate")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Validate indicates an expected call of Validate
+func (mr *MockProcessOptionsMockRecorder) Validate() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Validate", reflect.TypeOf((*MockProcessOptions)(nil).Validate))
+}
+
 // MockRunOptions is a mock of RunOptions interface
 type MockRunOptions struct {
 	ctrl     *gomock.Controller
