@@ -113,6 +113,5 @@ func TestPlacementGetHandler(t *testing.T) {
 
 	resp = w.Result()
 	body, _ = ioutil.ReadAll(resp.Body)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "{\"result\":\"no placement found\"}\n", string(body))
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 }
