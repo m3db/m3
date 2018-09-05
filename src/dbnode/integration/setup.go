@@ -82,18 +82,19 @@ type testSetup struct {
 
 	logger xlog.Logger
 
-	db              cluster.Database
-	storageOpts     storage.Options
-	fsOpts          fs.Options
-	hostID          string
-	topoInit        topology.Initializer
-	shardSet        sharding.ShardSet
-	getNowFn        clock.NowFn
-	setNowFn        nowSetterFn
-	tchannelClient  rpc.TChanNode
-	m3dbClient      client.Client
-	m3dbAdminClient client.AdminClient
-	workerPool      xsync.WorkerPool
+	db                          cluster.Database
+	storageOpts                 storage.Options
+	fsOpts                      fs.Options
+	hostID                      string
+	topoInit                    topology.Initializer
+	shardSet                    sharding.ShardSet
+	getNowFn                    clock.NowFn
+	setNowFn                    nowSetterFn
+	tchannelClient              rpc.TChanNode
+	m3dbClient                  client.Client
+	m3dbAdminClient             client.AdminClient
+	m3dbVerificationAdminClient client.AdminClient
+	workerPool                  xsync.WorkerPool
 
 	// things that need to be cleaned up
 	channel        *tchannel.Channel
@@ -163,30 +164,38 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		}
 	}
 
-	clientOpts := defaultClientOptions(topoInit).
-		SetClusterConnectTimeout(opts.ClusterConnectionTimeout()).
-		SetWriteConsistencyLevel(opts.WriteConsistencyLevel()).
-		SetTopologyInitializer(topoInit)
+	var (
+		clientOpts = defaultClientOptions(topoInit).
+				SetClusterConnectTimeout(opts.ClusterConnectionTimeout()).
+				SetWriteConsistencyLevel(opts.WriteConsistencyLevel()).
+				SetTopologyInitializer(topoInit)
 
-	adminOpts, ok := clientOpts.(client.AdminOptions)
-	if !ok {
-		return nil, fmt.Errorf("unable to cast to admin options")
-	}
+		// We need two distinct clients where one has the origin set to the same ID as the
+		// node itself (I.E) the client will behave exactly as if it is the node itself
+		// making requests, and another client with the origin set to an ID different than
+		// the node itself so that we can make requests from the perspective of a "different"
+		// M3DB node for verification purposes in some of the tests.
+		origin             = topology.NewHost(id, tchannelNodeAddr)
+		verificationOrigin = topology.NewHost(id+"-verification", tchannelNodeAddr)
 
-	// Have to set the ID of the host in the admin options origin as different
-	// than the actual ID because the client itself will not route requests for
-	// metadata to itself, but existing tests rely on this behavior.
-	origin := topology.NewHost(id+"-admin-client-hack", tchannelNodeAddr)
-	adminOpts = adminOpts.SetOrigin(origin)
+		adminOpts             = clientOpts.(client.AdminOptions).SetOrigin(origin)
+		verificationAdminOpts = adminOpts.SetOrigin(verificationOrigin)
+	)
 
-	// Set up tchannel client
-	channel, tc, err := tchannelClient(tchannelNodeAddr)
+	// Set up m3db client
+	adminClient, err := m3dbAdminClient(adminOpts)
 	if err != nil {
 		return nil, err
 	}
 
-	// Set up m3db client
-	adminClient, err := m3dbAdminClient(adminOpts)
+	// Set up m3db verification client
+	verificationAdminClient, err := m3dbAdminClient(verificationAdminOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set up tchannel client
+	channel, tc, err := tchannelClient(tchannelNodeAddr)
 	if err != nil {
 		return nil, err
 	}
@@ -309,25 +318,26 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	}
 
 	return &testSetup{
-		t:               t,
-		opts:            opts,
-		logger:          logger,
-		storageOpts:     storageOpts,
-		fsOpts:          fsOpts,
-		hostID:          id,
-		topoInit:        topoInit,
-		shardSet:        shardSet,
-		getNowFn:        getNowFn,
-		setNowFn:        setNowFn,
-		tchannelClient:  tc,
-		m3dbClient:      adminClient.(client.Client),
-		m3dbAdminClient: adminClient,
-		workerPool:      workerPool,
-		channel:         channel,
-		filePathPrefix:  filePathPrefix,
-		namespaces:      opts.Namespaces(),
-		doneCh:          make(chan struct{}),
-		closedCh:        make(chan struct{}),
+		t:                           t,
+		opts:                        opts,
+		logger:                      logger,
+		storageOpts:                 storageOpts,
+		fsOpts:                      fsOpts,
+		hostID:                      id,
+		topoInit:                    topoInit,
+		shardSet:                    shardSet,
+		getNowFn:                    getNowFn,
+		setNowFn:                    setNowFn,
+		tchannelClient:              tc,
+		m3dbClient:                  adminClient.(client.Client),
+		m3dbAdminClient:             adminClient,
+		m3dbVerificationAdminClient: verificationAdminClient,
+		workerPool:                  workerPool,
+		channel:                     channel,
+		filePathPrefix:              filePathPrefix,
+		namespaces:                  opts.Namespaces(),
+		doneCh:                      make(chan struct{}),
+		closedCh:                    make(chan struct{}),
 	}, nil
 }
 
