@@ -510,13 +510,13 @@ func (ts *testSetup) startServer() error {
 func (ts *testSetup) stopServer() error {
 	ts.doneCh <- struct{}{}
 
-	if ts.m3dbClient.DefaultSessionActive() {
-		session, err := ts.m3dbClient.DefaultSession()
-		if err != nil {
-			return err
-		}
-		defer session.Close()
-	}
+	// if ts.m3dbClient.DefaultSessionActive() {
+	// 	session, err := ts.m3dbClient.DefaultSession()
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	defer session.Close()
+	// }
 
 	if err := ts.waitUntilServerIsDown(); err != nil {
 		return err
