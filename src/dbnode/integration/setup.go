@@ -165,6 +165,9 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	}
 
 	adminClient, verificationAdminClient, err := newClients(topoInit, opts, id, tchannelNodeAddr)
+	if err != nil {
+		return nil, err
+	}
 
 	// Set up tchannel client
 	channel, tc, err := tchannelClient(tchannelNodeAddr)
