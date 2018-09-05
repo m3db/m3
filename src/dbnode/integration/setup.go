@@ -459,14 +459,16 @@ func (ts *testSetup) startServer() error {
 		return err
 	}
 
-	adminClient, verificationAdminClient, err := newClients(ts.topoInit, ts.opts, ts.hostID, tchannelNodeAddr)
-	if err != nil {
-		return err
+	if ts.m3dbClient == nil {
+		// Recreate the clients as their session was destroyed by stopServer()
+		adminClient, verificationAdminClient, err := newClients(ts.topoInit, ts.opts, ts.hostID, tchannelNodeAddr)
+		if err != nil {
+			return err
+		}
+		ts.m3dbClient = adminClient.(client.Client)
+		ts.m3dbAdminClient = adminClient
+		ts.m3dbVerificationAdminClient = verificationAdminClient
 	}
-
-	ts.m3dbClient = adminClient.(client.Client)
-	ts.m3dbAdminClient = adminClient
-	ts.m3dbVerificationAdminClient = verificationAdminClient
 
 	go func() {
 		if err := openAndServe(
@@ -507,6 +509,9 @@ func (ts *testSetup) stopServer() error {
 		if err != nil {
 			return err
 		}
+		ts.m3dbClient = nil
+		ts.m3dbAdminClient = nil
+		ts.m3dbVerificationAdminClient = nil
 		defer session.Close()
 	}
 
