@@ -75,6 +75,9 @@ var aggregateParseTests = []struct {
 	{"stdvar(up)", aggregation.StandardVarianceType},
 	{"count(up)", aggregation.CountType},
 
+	{"topk(3, up)", aggregation.TopKType},
+	{"bottomk(3, up)", aggregation.BottomKType},
+	{"quantile(3, up)", aggregation.QuantileType},
 	{"count_values(\"some_name\", up)", aggregation.CountValuesType},
 }
 

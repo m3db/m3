@@ -64,7 +64,7 @@ type MatchType int
 
 // Possible MatchTypes.
 const (
-	MatchEqual     MatchType = iota
+	MatchEqual MatchType = iota
 	MatchNotEqual
 	MatchRegexp
 	MatchNotRegexp

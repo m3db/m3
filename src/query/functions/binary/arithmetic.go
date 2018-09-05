@@ -82,6 +82,6 @@ func buildArithmeticFunction(
 
 	// Build the binary processing step
 	return func(lhs, rhs block.Block, controller *transform.Controller) (block.Block, error) {
-		return processBinary(lhs, rhs, params, controller, fn)
+		return processBinary(lhs, rhs, params, controller, false, fn)
 	}, true
 }
