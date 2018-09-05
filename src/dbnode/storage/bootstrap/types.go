@@ -82,6 +82,9 @@ type ProcessOptions interface {
 
 	// AdminClient returns the admin client.
 	AdminClient() client.AdminClient
+
+	// Validate validates that the ProcessOptions are correct.
+	Validate() error
 }
 
 // RunOptions is a set of options for a bootstrap run.

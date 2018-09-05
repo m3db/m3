@@ -57,6 +57,10 @@ func NewProcessProvider(
 	processOpts ProcessOptions,
 	resultOpts result.Options,
 ) (ProcessProvider, error) {
+	if err := processOpts.Validate(); err != nil {
+		return nil, err
+	}
+
 	return &bootstrapProcessProvider{
 		processOpts:          processOpts,
 		resultOpts:           resultOpts,

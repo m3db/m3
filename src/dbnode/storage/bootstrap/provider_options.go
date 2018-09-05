@@ -20,12 +20,20 @@
 
 package bootstrap
 
-import "github.com/m3db/m3/src/dbnode/client"
+import (
+	"errors"
+
+	"github.com/m3db/m3/src/dbnode/client"
+)
 
 const (
 	// defaultCacheSeriesMetadata declares that by default bootstrap providers should
 	// cache series metadata between runs.
 	defaultCacheSeriesMetadata = true
+)
+
+var (
+	errAdminClientShouldNotBeNil = errors.New("admin client should not be nil")
 )
 
 type processOptions struct {
@@ -39,6 +47,14 @@ func NewProcessOptions() ProcessOptions {
 		cacheSeriesMetadata: defaultCacheSeriesMetadata,
 		adminClient:         nil,
 	}
+}
+
+func (o *processOptions) Validate() error {
+	if o.adminClient == nil {
+		return errAdminClientShouldNotBeNil
+	}
+
+	return nil
 }
 
 func (o *processOptions) SetCacheSeriesMetadata(value bool) ProcessOptions {
