@@ -149,7 +149,6 @@ func NewBinaryOperator(expr *promql.BinaryExpr, lhs, rhs parser.NodeID) (parser.
 // NewFunctionExpr creates a new function expr based on the type
 func NewFunctionExpr(name string, argValues []interface{}) (parser.Params, error) {
 	switch name {
-
 	case linear.AbsType, linear.CeilType, linear.ExpType, linear.FloorType, linear.LnType,
 		linear.Log10Type, linear.Log2Type, linear.SqrtType:
 		return linear.NewMathOp(name)

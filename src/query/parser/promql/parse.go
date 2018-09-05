@@ -22,6 +22,7 @@ package promql
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/functions/binary"
@@ -93,6 +94,7 @@ func (p *parseState) walk(node pql.Node) error {
 		if err != nil {
 			return err
 		}
+
 		fmt.Println(val, "expr", n.Expr.String(), "params", n.Param.String())
 		op, err := NewAggregationOperator(n)
 		if err != nil {
@@ -128,20 +130,32 @@ func (p *parseState) walk(node pql.Node) error {
 
 	case *pql.Call:
 		expressions := n.Args
+		argTypes := n.Func.ArgTypes
 		argValues := make([]interface{}, 0, len(expressions))
-		for _, expr := range expressions {
-			switch e := expr.(type) {
-			case *pql.NumberLiteral:
-				argValues = append(argValues, e.Val)
-				continue
-			case *pql.MatrixSelector:
-				argValues = append(argValues, e.Range)
+		for i, expr := range expressions {
+			if argTypes[i] == pql.ValueTypeScalar {
+				val, err := p.resolveScalarArgument(expr)
+				if err != nil {
+					return err
+				}
+
+				argValues = append(argValues, val)
+			} else {
+
+				// switch e := expr.(type) {
+				// case *pql.NumberLiteral:
+				// 	argValues = append(argValues, e.Val)
+				// 	continue
+				// case *pql.MatrixSelector:
+				// 	argValues = append(argValues, e.Range)
+				// }
+
+				err := p.walk(expr)
+				if err != nil {
+					return err
+				}
 			}
 
-			err := p.walk(expr)
-			if err != nil {
-				return err
-			}
 		}
 
 		op, err := NewFunctionExpr(n.Func.Name, argValues)
@@ -206,23 +220,40 @@ func (p *parseState) walk(node pql.Node) error {
 }
 
 var (
-	errNilScalarArg = fmt.Errorf("scalar expression is nil")
+	errNilScalarArg         = fmt.Errorf("scalar expression is nil")
+	errInvalidNestingFetch  = fmt.Errorf("invalid nesting for fetch")
+	errInvalidNestingVector = fmt.Errorf("invalid nesting for vector conversion")
 )
 
-// resolves an expression which should resolve to a scalar argument
 func (p *parseState) resolveScalarArgument(expr pql.Expr) (float64, error) {
+	nesting := 0
+	value, err := resolveScalarArgument(expr, &nesting)
+	// On a regular error, return error
+	if err != nil {
+		return 0, err
+	}
+
+	if nesting != 0 {
+		return 0, fmt.Errorf("promql.resolveScalarArgument: invalid nesting %d", nesting)
+	}
+
+	return value, nil
+}
+
+// resolves an expression which should resolve to a scalar argument
+func resolveScalarArgument(expr pql.Expr, nesting *int) (float64, error) {
 	if expr == nil {
 		return 0, errNilScalarArg
 	}
 
 	switch n := expr.(type) {
 	case *pql.BinaryExpr:
-		left, err := p.resolveScalarArgument(n.LHS)
+		left, err := resolveScalarArgument(n.LHS, nesting)
 		if err != nil {
 			return 0, err
 		}
 
-		right, err := p.resolveScalarArgument(n.RHS)
+		right, err := resolveScalarArgument(n.RHS, nesting)
 		if err != nil {
 			return 0, err
 		}
@@ -236,14 +267,42 @@ func (p *parseState) resolveScalarArgument(expr pql.Expr) (float64, error) {
 
 		return fn(left, right), nil
 
+	case *pql.VectorSelector:
+		// during scalar argument resolution, prom does not expand vectors
+		// and returns NaN as the value instead.
+		if *nesting < 1 {
+			return 0, errInvalidNestingFetch
+		}
+
+		*nesting = *nesting - 1
+		return math.NaN(), nil
+
+	case *pql.Call:
+		// TODO: once these functions exist, use those constants here
+		// If the function called is `scalar`, evaluate inside and insure a scalar
+		if n.Func.Name == "scalar" {
+			*nesting = *nesting + 1
+			return resolveScalarArgument(n.Args[0], nesting)
+		} else if n.Func.Name == "vector" {
+			// If the function called is `vector`, evaluate inside and insure a vector
+			if *nesting < 1 {
+				return 0, errInvalidNestingFetch
+			}
+
+			*nesting = *nesting - 1
+			return resolveScalarArgument(n.Args[0], nesting)
+		}
+
+		fmt.Println(n.Type(), n.String(), n.Func.Name, n.Func.ArgTypes, n.Func.Variadic, n.Func.ReturnType)
+		return 0, nil
+
 	case *pql.NumberLiteral:
 		return n.Val, nil
 
 	case *pql.ParenExpr:
 		// Evaluate inside of paren expressions
-		return p.resolveScalarArgument(n.Expr)
-
-	default:
-		return 0, fmt.Errorf("resolveScalarArgument: unhandled node type %T, %v", expr, expr)
+		return resolveScalarArgument(n.Expr, nesting)
 	}
+
+	return 0, fmt.Errorf("resolveScalarArgument: unhandled node type %T, %v", expr, expr)
 }
