@@ -112,6 +112,5 @@ func TestPlacementGetHandler(t *testing.T) {
 	handler.ServeHTTP(w, req)
 
 	resp = w.Result()
-	body, _ = ioutil.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 }

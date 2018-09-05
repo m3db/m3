@@ -37,6 +37,10 @@ paths:
           description: ""
           schema:
             $ref: "#/definitions/NamespaceGetResponse"
+        404:
+          description: ""
+          schema:
+            $ref: "#/definitions/GenericError"
         500:
           description: ""
           schema:
