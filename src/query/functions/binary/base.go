@@ -70,12 +70,10 @@ func ArithmeticFunction(opType string, returnBool bool) (Function, error) {
 		return fn, nil
 	}
 
-	// If this is a comparison function and does not have return bool on, error out
-	if _, ok := comparisonFuncs[opType]; ok {
-		return nil, errNoModifierForComparison
+	if returnBool {
+		opType += returnBoolSuffix
 	}
 
-	opType += returnBoolSuffix
 	if fn, ok := comparisonFuncs[opType]; ok {
 		return fn, nil
 	}

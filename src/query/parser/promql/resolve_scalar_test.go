@@ -30,13 +30,13 @@ import (
 )
 
 var scalarResolverTests = []struct {
-	funcString  string
-	expected    float64
-	expectedErr error
+	funcString string
+	expected   float64
 }{
-	{"(9+scalar(vector(-10)))", -1, nil},
-	{"(9+scalar(some_fetch))", math.NaN(), nil},
-	{"scalar(9+vector(4)) / 2", 6.5, nil},
+	{"7+2-1", 8},
+	{"(9+scalar(vector(-10)))", -1},
+	{"(9+scalar(some_fetch))", math.NaN()},
+	{"scalar(9+vector(4)) / 2", 6.5},
 	{
 		`scalar(
 			scalar(
@@ -44,24 +44,29 @@ var scalarResolverTests = []struct {
 					vector( 20 - 4 ) ^ 0.5 - 2
 				) - vector( 2 )
 			) + vector(2)
-		)`,
-		2,
-		nil,
+		) * 9`,
+		18,
 	},
 	{
-		`scalar(
+		`5 - scalar(
 			scalar(
 				scalar(
 					vector( 20 - 4 ) ^ vector(0.5) - vector(2)
 				) - vector( 2 )
 			) + vector(2)
 		)`,
-		2,
-		nil,
+		3,
 	},
-	{"some_fetch", 0, errInvalidNestingFetch},
-	// {"scalar(scalar(some_fetch))", 0, errInvalidNestingFetch},
-	// {"scalar(scalar(5))", 0, errors.New("promql.resolveScalarArgument: invalid nesting 2")},
+	{"scalar(vector(1) + vector(2))", 3},
+	{"scalar(vector(1) + scalar(vector(1) + vector(2)))", 4},
+	{"scalar(vector(1) + scalar(vector(1) + scalar(vector(1) + vector(2))))", 5},
+	{"(scalar(9+vector(4)) * 4 - 9+scalar(vector(3)))", 46},
+	{"scalar(vector(1) + scalar(some_fetch == 1))", math.NaN()},
+	{"scalar(vector(1) + scalar(1 == some_fetch))", math.NaN()},
+	{"scalar(1 +vector(2 != bool 1))", 2},
+	{"scalar(1 +vector(1 != bool 1))", 1},
+	{"1 >= bool 1", 1},
+	{"1 >= bool 2", 0},
 }
 
 func TestScalarResolver(t *testing.T) {
@@ -72,7 +77,7 @@ func TestScalarResolver(t *testing.T) {
 			expr := parsed.(*promParser).expr
 			actual, err := resolveScalarArgument(expr)
 
-			require.Equal(t, tt.expectedErr, err)
+			require.NoError(t, err)
 			test.EqualsWithNans(t, tt.expected, actual)
 		})
 	}

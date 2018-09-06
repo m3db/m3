@@ -58,18 +58,25 @@ func resolveScalarArgumentWithNesting(expr pql.Expr, nesting *int) (float64, err
 
 	switch n := expr.(type) {
 	case *pql.BinaryExpr:
-		left, err := resolveScalarArgumentWithNesting(n.LHS, nesting)
+		nestingLeft, nestingRight := *nesting, *nesting
+
+		left, err := resolveScalarArgumentWithNesting(n.LHS, &nestingLeft)
 		if err != nil {
 			return 0, err
 		}
 
-		right, err := resolveScalarArgumentWithNesting(n.RHS, nesting)
+		right, err := resolveScalarArgumentWithNesting(n.RHS, &nestingRight)
 		if err != nil {
 			return 0, err
+		}
+
+		if nestingLeft < nestingRight {
+			*nesting = nestingLeft
+		} else {
+			*nesting = nestingRight
 		}
 
 		op := getBinaryOpType(n.Op)
-
 		fn, err := binary.ArithmeticFunction(op, n.ReturnBool)
 		if err != nil {
 			return 0, err
@@ -103,7 +110,6 @@ func resolveScalarArgumentWithNesting(expr pql.Expr, nesting *int) (float64, err
 			return resolveScalarArgumentWithNesting(n.Args[0], nesting)
 		}
 
-		fmt.Println(n.Type(), n.String(), n.Func.Name, n.Func.ArgTypes, n.Func.Variadic, n.Func.ReturnType)
 		return 0, nil
 
 	case *pql.NumberLiteral:

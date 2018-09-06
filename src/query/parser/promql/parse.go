@@ -80,7 +80,7 @@ func (p *parseState) walk(node pql.Node) error {
 	if node == nil {
 		return nil
 	}
-	fmt.Printf("Node type %T, %v\n", node, node)
+
 	switch n := node.(type) {
 	case *pql.AggregateExpr:
 		err := p.walk(n.Expr)
@@ -133,14 +133,9 @@ func (p *parseState) walk(node pql.Node) error {
 
 				argValues = append(argValues, val)
 			} else {
-
-				// switch e := expr.(type) {
-				// case *pql.NumberLiteral:
-				// 	argValues = append(argValues, e.Val)
-				// 	continue
-				// case *pql.MatrixSelector:
-				// 	argValues = append(argValues, e.Range)
-				// }
+				if e, ok := expr.(*pql.MatrixSelector); ok {
+					argValues = append(argValues, e.Range)
+				}
 
 				err := p.walk(expr)
 				if err != nil {
