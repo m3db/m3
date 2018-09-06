@@ -21,59 +21,36 @@
 package searcher
 
 import (
+	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/search"
 )
 
 type conjunctionSearcher struct {
-	searchers  search.Searchers
-	negations  search.Searchers
-	numReaders int
-
-	idx  int
-	curr postings.List
-	err  error
+	searchers search.Searchers
+	negations search.Searchers
 }
 
 // NewConjunctionSearcher returns a new Searcher which matches documents which match each
-// of the given searchers and none of the negations. It is not safe for concurrent access.
-func NewConjunctionSearcher(numReaders int, searchers, negations search.Searchers) (search.Searcher, error) {
+// of the given searchers and none of the negations.
+func NewConjunctionSearcher(searchers, negations search.Searchers) (search.Searcher, error) {
 	if len(searchers) == 0 {
 		return nil, errEmptySearchers
 	}
 
-	if err := validateSearchers(numReaders, searchers); err != nil {
-		return nil, err
-	}
-	if err := validateSearchers(numReaders, negations); err != nil {
-		return nil, err
-	}
-
 	return &conjunctionSearcher{
-		searchers:  searchers,
-		negations:  negations,
-		numReaders: numReaders,
-		idx:        -1,
+		searchers: searchers,
+		negations: negations,
 	}, nil
 }
 
-func (s *conjunctionSearcher) Next() bool {
-	if s.err != nil || s.idx == s.numReaders-1 {
-		return false
-	}
-
+func (s *conjunctionSearcher) Search(r index.Reader) (postings.List, error) {
 	var pl postings.MutableList
-	s.idx++
 	for _, sr := range s.searchers {
-		if !sr.Next() {
-			err := sr.Err()
-			if err == nil {
-				err = errSearcherTooShort
-			}
-			s.err = err
-			return false
+		curr, err := sr.Search(r)
+		if err != nil {
+			return nil, err
 		}
-		curr := sr.Current()
 
 		// TODO: Sort the iterators so that we take the intersection in order of increasing size.
 		if pl == nil {
@@ -89,15 +66,10 @@ func (s *conjunctionSearcher) Next() bool {
 	}
 
 	for _, sr := range s.negations {
-		if !sr.Next() {
-			err := sr.Err()
-			if err == nil {
-				err = errSearcherTooShort
-			}
-			s.err = err
-			return false
+		curr, err := sr.Search(r)
+		if err != nil {
+			return nil, err
 		}
-		curr := sr.Current()
 
 		// TODO: Sort the iterators so that we take the set differences in order of decreasing size.
 		pl.Difference(curr)
@@ -108,19 +80,5 @@ func (s *conjunctionSearcher) Next() bool {
 		}
 	}
 
-	s.curr = pl
-
-	return true
-}
-
-func (s *conjunctionSearcher) Current() postings.List {
-	return s.curr
-}
-
-func (s *conjunctionSearcher) Err() error {
-	return s.err
-}
-
-func (s *conjunctionSearcher) NumReaders() int {
-	return s.numReaders
+	return pl, nil
 }

@@ -21,8 +21,6 @@
 package searcher
 
 import (
-	"fmt"
-
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/search"
@@ -30,64 +28,27 @@ import (
 
 type negationSearcher struct {
 	searcher search.Searcher
-	readers  index.Readers
-
-	idx  int
-	curr postings.List
-	err  error
 }
 
 // NewNegationSearcher returns a new searcher for finding documents which do not match a
-// given query. It is not safe for concurrent access.
-func NewNegationSearcher(rs index.Readers, s search.Searcher) (search.Searcher, error) {
-	if s.NumReaders() != len(rs) {
-		return nil, fmt.Errorf("received %d readers but searcher has %d readers", len(rs), s.NumReaders())
-	}
-
-	ns := &negationSearcher{
+// given query.
+func NewNegationSearcher(s search.Searcher) (search.Searcher, error) {
+	return &negationSearcher{
 		searcher: s,
-		readers:  rs,
-		idx:      -1,
-	}
-	return ns, nil
+	}, nil
 }
 
-func (s *negationSearcher) Next() bool {
-	if s.err != nil || s.idx == len(s.readers)-1 {
-		return false
-	}
-
-	s.idx++
-	if !s.searcher.Next() {
-		err := s.searcher.Err()
-		if err == nil {
-			err = errSearcherTooShort
-		}
-		s.err = err
-		return false
-	}
-
-	r := s.readers[s.idx]
+func (s *negationSearcher) Search(r index.Reader) (postings.List, error) {
 	pl, err := r.MatchAll()
 	if err != nil {
-		s.err = err
-		return false
+		return nil, err
 	}
 
-	pl.Difference(s.searcher.Current())
-	s.curr = pl
+	sPl, err := s.searcher.Search(r)
+	if err != nil {
+		return nil, err
+	}
 
-	return true
-}
-
-func (s *negationSearcher) Current() postings.List {
-	return s.curr
-}
-
-func (s *negationSearcher) Err() error {
-	return s.err
-}
-
-func (s *negationSearcher) NumReaders() int {
-	return len(s.readers)
+	pl.Difference(sPl)
+	return pl, nil
 }

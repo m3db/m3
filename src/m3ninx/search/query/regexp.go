@@ -75,8 +75,8 @@ func MustCreateRegexpQuery(field, regexp []byte) search.Query {
 }
 
 // Searcher returns a searcher over the provided readers.
-func (q *RegexpQuery) Searcher(rs index.Readers) (search.Searcher, error) {
-	return searcher.NewRegexpSearcher(rs, q.field, q.regexp, q.compiled), nil
+func (q *RegexpQuery) Searcher() (search.Searcher, error) {
+	return searcher.NewRegexpSearcher(q.field, q.regexp, q.compiled), nil
 }
 
 // Equal reports whether q is equivalent to o.

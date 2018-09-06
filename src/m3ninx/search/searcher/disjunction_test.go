@@ -23,6 +23,7 @@ package searcher
 import (
 	"testing"
 
+	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/m3ninx/search"
@@ -34,6 +35,9 @@ import (
 func TestDisjunctionSearcher(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
+
+	firstReader := index.NewMockReader(mockCtrl)
+	secondReader := index.NewMockReader(mockCtrl)
 
 	// First searcher.
 	firstPL1 := roaring.NewPostingsList()
@@ -59,56 +63,40 @@ func TestDisjunctionSearcher(t *testing.T) {
 	thirdPL2.Insert(postings.ID(89))
 	thirdSearcher := search.NewMockSearcher(mockCtrl)
 
-	numReaders := 2
 	gomock.InOrder(
-		firstSearcher.EXPECT().NumReaders().Return(numReaders),
-		secondSearcher.EXPECT().NumReaders().Return(numReaders),
-		thirdSearcher.EXPECT().NumReaders().Return(numReaders),
-
 		// Get the postings lists for the first Reader.
-		firstSearcher.EXPECT().Next().Return(true),
-		firstSearcher.EXPECT().Current().Return(firstPL1),
-		secondSearcher.EXPECT().Next().Return(true),
-		secondSearcher.EXPECT().Current().Return(secondPL1),
-		thirdSearcher.EXPECT().Next().Return(true),
-		thirdSearcher.EXPECT().Current().Return(thirdPL1),
+		firstSearcher.EXPECT().Search(firstReader).Return(firstPL1, nil),
+		secondSearcher.EXPECT().Search(firstReader).Return(secondPL1, nil),
+		thirdSearcher.EXPECT().Search(firstReader).Return(thirdPL1, nil),
 
 		// Get the postings lists for the second Reader.
-		firstSearcher.EXPECT().Next().Return(true),
-		firstSearcher.EXPECT().Current().Return(firstPL2),
-		secondSearcher.EXPECT().Next().Return(true),
-		secondSearcher.EXPECT().Current().Return(secondPL2),
-		thirdSearcher.EXPECT().Next().Return(true),
-		thirdSearcher.EXPECT().Current().Return(thirdPL2),
+		firstSearcher.EXPECT().Search(secondReader).Return(firstPL2, nil),
+		secondSearcher.EXPECT().Search(secondReader).Return(secondPL2, nil),
+		thirdSearcher.EXPECT().Search(secondReader).Return(thirdPL2, nil),
 	)
 
 	searchers := []search.Searcher{firstSearcher, secondSearcher, thirdSearcher}
 
-	s, err := NewDisjunctionSearcher(numReaders, searchers)
+	s, err := NewDisjunctionSearcher(searchers)
 	require.NoError(t, err)
 
-	// Ensure the searcher is searching over two readers.
-	require.Equal(t, 2, s.NumReaders())
-
 	// Test the postings list from the first Reader.
-	require.True(t, s.Next())
-
 	expected := firstPL1.Clone()
 	expected.Union(secondPL1)
 	expected.Union(thirdPL1)
-	require.True(t, s.Current().Equal(expected))
+	pl, err := s.Search(firstReader)
+	require.NoError(t, err)
+	require.True(t, pl.Equal(expected))
 
 	// Test the postings list from the second Reader.
-	require.True(t, s.Next())
-
 	expected = firstPL2.Clone()
 	expected.Union(secondPL2)
 	expected.Union(thirdPL2)
-	require.True(t, s.Current().Equal(expected))
-
-	require.False(t, s.Next())
-	require.NoError(t, s.Err())
+	pl, err = s.Search(secondReader)
+	require.NoError(t, err)
+	require.True(t, pl.Equal(expected))
 }
+
 func TestDisjunctionSearcherError(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -123,7 +111,7 @@ func TestDisjunctionSearcherError(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := NewDisjunctionSearcher(test.numReaders, test.searchers)
+			_, err := NewDisjunctionSearcher(test.searchers)
 			require.Error(t, err)
 		})
 	}
