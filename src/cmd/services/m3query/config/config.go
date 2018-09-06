@@ -52,6 +52,8 @@ type Configuration struct {
 	// RPC is the RPC configuration.
 	RPC *RPCConfiguration `yaml:"rpc"`
 
+	Backend string `yaml:"backend"`
+
 	// DecompressWorkerPoolCount is the number of decompression worker pools.
 	DecompressWorkerPoolCount int `yaml:"workerPoolCount"`
 

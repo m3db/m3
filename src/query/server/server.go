@@ -57,6 +57,7 @@ import (
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"github.com/uber-go/tally"
 )
 
 const (
@@ -119,124 +120,26 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("could not connect to metrics", zap.Any("error", err))
 	}
 
-	var clusterClientCh <-chan clusterclient.Client
-	if runOpts.ClusterClient != nil {
-		clusterClientCh = runOpts.ClusterClient
-	}
+	var (
+		backendStorage storage.Storage
+		clusterClient  clusterclient.Client
+		downsampler    downsample.Downsampler
+		cleanup        func()
+		enabled        bool
+	)
 
-	var clusterManagementClient clusterclient.Client
-	if clusterClientCh == nil {
-		var etcdCfg *etcdclient.Configuration
-		switch {
-		case cfg.ClusterManagement != nil:
-			etcdCfg = &cfg.ClusterManagement.Etcd
-
-		case len(cfg.Clusters) == 1 &&
-			cfg.Clusters[0].Client.EnvironmentConfig.Service != nil:
-			etcdCfg = cfg.Clusters[0].Client.EnvironmentConfig.Service
-		}
-
-		if etcdCfg != nil {
-			// We resolved an etcd configuration for cluster management endpoints
-			clusterSvcClientOpts := etcdCfg.NewOptions()
-			clusterManagementClient, err = etcdclient.NewConfigServiceClient(clusterSvcClientOpts)
-			if err != nil {
-				logger.Fatal("unable to create cluster management etcd client", zap.Any("error", err))
-			}
-
-			clusterClientSendableCh := make(chan clusterclient.Client, 1)
-			clusterClientSendableCh <- clusterManagementClient
-			clusterClientCh = clusterClientSendableCh
-		}
-	}
-
-	var clusters local.Clusters
-	if len(cfg.Clusters) > 0 {
-		opts := local.ClustersStaticConfigurationOptions{
-			AsyncSessions: true,
-		}
-		clusters, err = cfg.Clusters.NewClusters(opts)
-		if err != nil {
-			logger.Fatal("unable to connect to clusters", zap.Any("error", err))
+	if cfg.Backend == "grpc" {
+		if backendStorage, enabled = remoteClient(logger, cfg); !enabled {
+			logger.Fatal("need remote clients for grpc backend")
 		}
 	} else {
-		localCfg := cfg.Local
-		if localCfg == nil {
-			localCfg = defaultLocalConfiguration
-		}
-		dbClientCh := runOpts.DBClient
-		if dbClientCh == nil {
-			logger.Fatal("no clusters configured and not running local cluster")
-		}
-		session := m3db.NewAsyncSession(func() (client.Client, error) {
-			return <-dbClientCh, nil
-		}, nil)
-		clusters, err = local.NewClusters(local.UnaggregatedClusterNamespaceDefinition{
-			NamespaceID: ident.StringID(localCfg.Namespace),
-			Session:     session,
-			Retention:   localCfg.Retention,
-		})
-		if err != nil {
-			logger.Fatal("unable to connect to clusters", zap.Any("error", err))
-		}
+		backendStorage, clusterClient, downsampler, cleanup = setupM3DBStorage(runOpts, cfg, logger, scope)
 	}
 
-	for _, namespace := range clusters.ClusterNamespaces() {
-		logger.Info("resolved cluster namespace",
-			zap.String("namespace", namespace.NamespaceID().String()))
-	}
+	defer cleanup()
+	engine := executor.NewEngine(backendStorage)
 
-	workerPoolCount := cfg.DecompressWorkerPoolCount
-	if workerPoolCount == 0 {
-		workerPoolCount = defaultWorkerPoolCount
-	}
-
-	workerPoolSize := cfg.DecompressWorkerPoolSize
-	if workerPoolSize == 0 {
-		workerPoolSize = defaultWorkerPoolSize
-	}
-
-	instrumentOptions := instrument.NewOptions().
-		SetZapLogger(logger).
-		SetMetricsScope(scope.SubScope("series-decompression-pool"))
-
-	poolOptions := pool.NewObjectPoolOptions().
-		SetSize(workerPoolCount).
-		SetInstrumentOptions(instrumentOptions)
-
-	objectPool := pool.NewObjectPool(poolOptions)
-	objectPool.Init(func() interface{} {
-		workerPool := xsync.NewWorkerPool(workerPoolSize)
-		workerPool.Init()
-		return workerPool
-	})
-
-	fanoutStorage, storageCleanup := newStorages(logger, clusters, cfg, objectPool)
-	defer storageCleanup()
-
-	var clusterClient clusterclient.Client
-	if clusterClientCh != nil {
-		// Only use a cluster client if we are going to receive one, that
-		// way passing nil to httpd NewHandler disables the endpoints entirely
-		clusterClient = m3dbcluster.NewAsyncClient(func() (clusterclient.Client, error) {
-			return <-clusterClientCh, nil
-		}, nil)
-	}
-
-	var (
-		namespaces  = clusters.ClusterNamespaces()
-		downsampler downsample.Downsampler
-	)
-	if n := namespaces.NumAggregatedClusterNamespaces(); n > 0 {
-		logger.Info("configuring downsampler to use with aggregated cluster namespaces",
-			zap.Int("numAggregatedClusterNamespaces", n))
-		downsampler = newDownsampler(logger, clusterManagementClient,
-			fanoutStorage, instrumentOptions)
-	}
-
-	engine := executor.NewEngine(fanoutStorage)
-
-	handler, err := httpd.NewHandler(fanoutStorage, downsampler, engine,
+	handler, err := httpd.NewHandler(backendStorage, downsampler, engine,
 		clusterClient, cfg, runOpts.DBConfig, scope)
 	if err != nil {
 		logger.Fatal("unable to set up handlers", zap.Any("error", err))
@@ -269,9 +172,105 @@ func Run(runOpts RunOptions) {
 	case <-interruptCh:
 	}
 
-	if err := clusters.Close(); err != nil {
-		logger.Fatal("unable to close M3DB cluster sessions", zap.Any("error", err))
+}
+
+func setupM3DBStorage(
+	runOpts RunOptions,
+	cfg config.Configuration,
+	logger *zap.Logger,
+	scope tally.Scope,
+) (storage.Storage, clusterclient.Client, downsample.Downsampler, func()) {
+	var clusterClientCh <-chan clusterclient.Client
+	if runOpts.ClusterClient != nil {
+		clusterClientCh = runOpts.ClusterClient
 	}
+
+	var (
+		clusterManagementClient clusterclient.Client
+		err                     error
+	)
+	if clusterClientCh == nil {
+		var etcdCfg *etcdclient.Configuration
+		switch {
+		case cfg.ClusterManagement != nil:
+			etcdCfg = &cfg.ClusterManagement.Etcd
+
+		case len(cfg.Clusters) == 1 &&
+			cfg.Clusters[0].Client.EnvironmentConfig.Service != nil:
+			etcdCfg = cfg.Clusters[0].Client.EnvironmentConfig.Service
+		}
+
+		if etcdCfg != nil {
+			// We resolved an etcd configuration for cluster management endpoints
+			clusterSvcClientOpts := etcdCfg.NewOptions()
+			clusterManagementClient, err = etcdclient.NewConfigServiceClient(clusterSvcClientOpts)
+			if err != nil {
+				logger.Fatal("unable to create cluster management etcd client", zap.Any("error", err))
+			}
+
+			clusterClientSendableCh := make(chan clusterclient.Client, 1)
+			clusterClientSendableCh <- clusterManagementClient
+			clusterClientCh = clusterClientSendableCh
+		}
+	}
+
+	clusters := initClusters(cfg, runOpts.DBClient, logger)
+
+	workerPoolCount := cfg.DecompressWorkerPoolCount
+	if workerPoolCount == 0 {
+		workerPoolCount = defaultWorkerPoolCount
+	}
+
+	workerPoolSize := cfg.DecompressWorkerPoolSize
+	if workerPoolSize == 0 {
+		workerPoolSize = defaultWorkerPoolSize
+	}
+
+	instrumentOptions := instrument.NewOptions().
+		SetZapLogger(logger).
+		SetMetricsScope(scope.SubScope("series-decompression-pool"))
+
+	poolOptions := pool.NewObjectPoolOptions().
+		SetSize(workerPoolCount).
+		SetInstrumentOptions(instrumentOptions)
+
+	objectPool := pool.NewObjectPool(poolOptions)
+	objectPool.Init(func() interface{} {
+		workerPool := xsync.NewWorkerPool(workerPoolSize)
+		workerPool.Init()
+		return workerPool
+	})
+
+	fanoutStorage, storageCleanup := newStorages(logger, clusters, cfg, objectPool)
+
+	var clusterClient clusterclient.Client
+	if clusterClientCh != nil {
+		// Only use a cluster client if we are going to receive one, that
+		// way passing nil to httpd NewHandler disables the endpoints entirely
+		clusterClient = m3dbcluster.NewAsyncClient(func() (clusterclient.Client, error) {
+			return <-clusterClientCh, nil
+		}, nil)
+	}
+
+	var (
+		namespaces  = clusters.ClusterNamespaces()
+		downsampler downsample.Downsampler
+	)
+	if n := namespaces.NumAggregatedClusterNamespaces(); n > 0 {
+		logger.Info("configuring downsampler to use with aggregated cluster namespaces",
+			zap.Int("numAggregatedClusterNamespaces", n))
+		downsampler = newDownsampler(logger, clusterManagementClient,
+			fanoutStorage, instrumentOptions)
+	}
+
+	cleanup := func() {
+		storageCleanup()
+		if err := clusters.Close(); err != nil {
+			logger.Fatal("unable to close M3DB cluster sessions", zap.Any("error", err))
+		}
+	}
+
+	return fanoutStorage, clusterClient, downsampler, cleanup
 }
 
 func newDownsampler(
@@ -295,12 +294,12 @@ func newDownsampler(
 	tagDecoderOptions := serialize.NewTagDecoderOptions()
 	tagEncoderPoolOptions := pool.NewObjectPoolOptions().
 		SetInstrumentOptions(instrumentOpts.
-			SetMetricsScope(instrumentOpts.MetricsScope().
-				SubScope("tag-encoder-pool")))
+		SetMetricsScope(instrumentOpts.MetricsScope().
+		SubScope("tag-encoder-pool")))
 	tagDecoderPoolOptions := pool.NewObjectPoolOptions().
 		SetInstrumentOptions(instrumentOpts.
-			SetMetricsScope(instrumentOpts.MetricsScope().
-				SubScope("tag-decoder-pool")))
+		SetMetricsScope(instrumentOpts.MetricsScope().
+		SubScope("tag-decoder-pool")))
 
 	downsampler, err := downsample.NewDownsampler(downsample.DownsamplerOptions{
 		Storage:               storage,
@@ -317,6 +316,50 @@ func newDownsampler(
 	}
 
 	return downsampler
+}
+
+func initClusters(cfg config.Configuration, dbClientCh <-chan client.Client, logger *zap.Logger) local.Clusters {
+	var (
+		clusters local.Clusters
+		err      error
+	)
+
+	if len(cfg.Clusters) > 0 {
+		opts := local.ClustersStaticConfigurationOptions{
+			AsyncSessions: true,
+		}
+		clusters, err = cfg.Clusters.NewClusters(opts)
+		if err != nil {
+			logger.Fatal("unable to connect to clusters", zap.Any("error", err))
+		}
+	} else {
+		localCfg := cfg.Local
+		if localCfg == nil {
+			localCfg = defaultLocalConfiguration
+		}
+
+		if dbClientCh == nil {
+			logger.Fatal("no clusters configured and not running local cluster")
+		}
+		session := m3db.NewAsyncSession(func() (client.Client, error) {
+			return <-dbClientCh, nil
+		}, nil)
+		clusters, err = local.NewClusters(local.UnaggregatedClusterNamespaceDefinition{
+			NamespaceID: ident.StringID(localCfg.Namespace),
+			Session:     session,
+			Retention:   localCfg.Retention,
+		})
+		if err != nil {
+			logger.Fatal("unable to connect to clusters", zap.Any("error", err))
+		}
+	}
+
+	for _, namespace := range clusters.ClusterNamespaces() {
+		logger.Info("resolved cluster namespace",
+			zap.String("namespace", namespace.NamespaceID().String()))
+	}
+
+	return clusters
 }
 
 func newStorages(
@@ -337,14 +380,9 @@ func newStorages(
 			server.GracefulStop()
 		}
 
-		if remotes := cfg.RPC.RemoteListenAddresses; len(remotes) > 0 {
-			client, err := tsdbRemote.NewGrpcClient(remotes)
-			if err != nil {
-				logger.Fatal("unable to start remote clients for addresses", zap.Any("error", err))
-			}
-
-			stores = append(stores, remote.NewStorage(client))
-			remoteEnabled = true
+		if remoteStorage, enabled := remoteClient(logger, cfg); remoteEnabled {
+			stores = append(stores, remoteStorage)
+			remoteEnabled = enabled
 		}
 	}
 
@@ -355,6 +393,23 @@ func newStorages(
 
 	fanoutStorage := fanout.NewStorage(stores, readFilter, filter.LocalOnly)
 	return fanoutStorage, cleanup
+}
+
+func remoteClient(
+	logger *zap.Logger,
+	cfg config.Configuration,
+) (storage.Storage, bool) {
+	if remotes := cfg.RPC.RemoteListenAddresses; len(remotes) > 0 {
+		client, err := tsdbRemote.NewGrpcClient(remotes)
+		if err != nil {
+			logger.Fatal("unable to start remote clients for addresses", zap.Any("error", err))
+		}
+
+		remoteStorage := remote.NewStorage(client)
+		return remoteStorage, true
+	}
+
+	return nil, false
 }
 
 func startGrpcServer(logger *zap.Logger, storage storage.Storage, cfg *config.RPCConfiguration) *grpc.Server {
