@@ -93,15 +93,14 @@ func (a *aggNode) Process(values []float64) float64 {
 
 func avgOverTime(values []float64) float64 {
 	sum, count := sumAndCount(values)
-	if count == 0 {
-		return math.NaN()
-	}
-
 	return sum / count
 }
 
 func countOverTime(values []float64) float64 {
 	_, count := sumAndCount(values)
+	if count == 0 {
+		return math.NaN()
+	}
 	return count
 }
 
@@ -140,11 +139,7 @@ func maxOverTime(values []float64) float64 {
 }
 
 func sumOverTime(values []float64) float64 {
-	sum, count := sumAndCount(values)
-	if count == 0 {
-		return math.NaN()
-	}
-
+	sum, _ := sumAndCount(values)
 	return sum
 }
 
@@ -178,6 +173,10 @@ func sumAndCount(values []float64) (float64, float64) {
 			sum += v
 			count++
 		}
+	}
+
+	if count == 0 {
+		return math.NaN(), 0
 	}
 
 	return sum, count

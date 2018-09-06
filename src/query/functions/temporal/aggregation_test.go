@@ -154,12 +154,12 @@ var testCasesNaNs = []testCase{
 		name:   "count_over_time",
 		opType: CountTemporalType,
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 0},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 0},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 		},
 		afterAllBlocks: [][]float64{
-			{0, 0, 0, 0, 0},
-			{0, 0, 0, 0, 0},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 		},
 	},
 	{
