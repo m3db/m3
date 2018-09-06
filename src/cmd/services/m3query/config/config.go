@@ -52,6 +52,7 @@ type Configuration struct {
 	// RPC is the RPC configuration.
 	RPC *RPCConfiguration `yaml:"rpc"`
 
+	// Backend is the backend store for query service. We currently support grpc and m3db (default).
 	Backend string `yaml:"backend"`
 
 	// DecompressWorkerPoolCount is the number of decompression worker pools.
@@ -86,7 +87,7 @@ type RPCConfiguration struct {
 	Enabled bool `yaml:"enabled"`
 
 	// ListenAddress is the RPC server listen address.
-	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`
+	ListenAddress string `yaml:"listenAddress"`
 
 	// RemoteListenAddresses is the remote listen addresses to call for remote
 	// coordinator calls.

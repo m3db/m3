@@ -55,9 +55,10 @@ import (
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
 
+	"github.com/pkg/errors"
+	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
-	"github.com/uber-go/tally"
 )
 
 const (
@@ -124,25 +125,32 @@ func Run(runOpts RunOptions) {
 		backendStorage storage.Storage
 		clusterClient  clusterclient.Client
 		downsampler    downsample.Downsampler
-		cleanup        func()
 		enabled        bool
 	)
 
 	if cfg.Backend == "grpc" {
-		if backendStorage, enabled = remoteClient(logger, cfg); !enabled {
+		backendStorage, enabled, err = remoteClient(cfg)
+		if err != nil {
+			logger.Fatal("unable to setup grpc backend", zap.Error(err))
+		}
+		if !enabled {
 			logger.Fatal("need remote clients for grpc backend")
 		}
 	} else {
-		backendStorage, clusterClient, downsampler, cleanup = setupM3DBStorage(runOpts, cfg, logger, scope)
+		var cleanup func() error
+		backendStorage, clusterClient, downsampler, cleanup, err = setupM3DBStorage(runOpts, cfg, logger, scope)
+		if err != nil {
+			logger.Fatal("unable to setup m3db backend", zap.Error(err))
+		}
+		defer cleanup()
 	}
 
-	defer cleanup()
 	engine := executor.NewEngine(backendStorage)
 
 	handler, err := httpd.NewHandler(backendStorage, downsampler, engine,
 		clusterClient, cfg, runOpts.DBConfig, scope)
 	if err != nil {
-		logger.Fatal("unable to set up handlers", zap.Any("error", err))
+		logger.Fatal("unable to set up handlers", zap.Error(err))
 	}
 	handler.RegisterRoutes()
 
@@ -179,7 +187,7 @@ func setupM3DBStorage(
 	cfg config.Configuration,
 	logger *zap.Logger,
 	scope tally.Scope,
-) (storage.Storage, clusterclient.Client, downsample.Downsampler, func()) {
+) (storage.Storage, clusterclient.Client, downsample.Downsampler, func() error, error) {
 	var clusterClientCh <-chan clusterclient.Client
 	if runOpts.ClusterClient != nil {
 		clusterClientCh = runOpts.ClusterClient
@@ -205,7 +213,7 @@ func setupM3DBStorage(
 			clusterSvcClientOpts := etcdCfg.NewOptions()
 			clusterManagementClient, err = etcdclient.NewConfigServiceClient(clusterSvcClientOpts)
 			if err != nil {
-				logger.Fatal("unable to create cluster management etcd client", zap.Any("error", err))
+				return nil, nil, nil, nil, errors.Wrap(err, "unable to create cluster management etcd client")
 			}
 
 			clusterClientSendableCh := make(chan clusterclient.Client, 1)
@@ -214,7 +222,10 @@ func setupM3DBStorage(
 		}
 	}
 
-	clusters := initClusters(cfg, runOpts.DBClient, logger)
+	clusters, err := initClusters(cfg, runOpts.DBClient, logger)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
 
 	workerPoolCount := cfg.DecompressWorkerPoolCount
 	if workerPoolCount == 0 {
@@ -241,7 +252,10 @@ func setupM3DBStorage(
 		return workerPool
 	})
 
-	fanoutStorage, storageCleanup := newStorages(logger, clusters, cfg, objectPool)
+	fanoutStorage, storageCleanup, err := newStorages(logger, clusters, cfg, objectPool)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
 
 	var clusterClient clusterclient.Client
 	if clusterClientCh != nil {
@@ -259,35 +273,45 @@ func setupM3DBStorage(
 	if n := namespaces.NumAggregatedClusterNamespaces(); n > 0 {
 		logger.Info("configuring downsampler to use with aggregated cluster namespaces",
 			zap.Int("numAggregatedClusterNamespaces", n))
-		downsampler = newDownsampler(logger, clusterManagementClient,
+		downsampler, err = newDownsampler(clusterManagementClient,
 			fanoutStorage, instrumentOptions)
-	}
-
-	cleanup := func() {
-		storageCleanup()
-		if err := clusters.Close(); err != nil {
-			logger.Fatal("unable to close M3DB cluster sessions", zap.Any("error", err))
+		if err != nil {
+			return nil, nil, nil, nil, err
 		}
 	}
 
-	return fanoutStorage, clusterClient, downsampler, cleanup
+	cleanup := func() error {
+		lastErr := storageCleanup()
+		// Don't want to quit on the first error since the full cleanup is important
+		if err := clusters.Close(); err != nil {
+			if lastErr == nil {
+				lastErr = err
+			} else {
+				// Make sure the previous error is atleast logged
+				logger.Error("error during cleanup", zap.Error(lastErr))
+			}
+			return errors.Wrap(err, "unable to close M3DB cluster sessions")
+		}
+
+		return lastErr
+	}
+
+	return fanoutStorage, clusterClient, downsampler, cleanup, nil
 }
 
 func newDownsampler(
-	logger *zap.Logger,
 	clusterManagementClient clusterclient.Client,
 	storage storage.Storage,
 	instrumentOpts instrument.Options,
-) downsample.Downsampler {
+) (downsample.Downsampler, error) {
 	if clusterManagementClient == nil {
-		logger.Fatal("no configured cluster management config, must set this " +
+		return nil, errors.New("no configured cluster management config, must set this " +
 			"config for downsampler")
 	}
 
 	kvStore, err := clusterManagementClient.KV()
 	if err != nil {
-		logger.Fatal("unable to create KV store from the cluster management "+
-			"config client", zap.Any("error", err))
+		return nil, errors.Wrap(err, "unable to create KV store from the cluster management config client")
 	}
 
 	tagEncoderOptions := serialize.NewTagEncoderOptions()
@@ -312,13 +336,13 @@ func newDownsampler(
 		TagDecoderPoolOptions: tagDecoderPoolOptions,
 	})
 	if err != nil {
-		logger.Fatal("unable to create downsampler", zap.Any("error", err))
+		return nil, errors.Wrap(err, "unable to create downsampler")
 	}
 
-	return downsampler
+	return downsampler, nil
 }
 
-func initClusters(cfg config.Configuration, dbClientCh <-chan client.Client, logger *zap.Logger) local.Clusters {
+func initClusters(cfg config.Configuration, dbClientCh <-chan client.Client, logger *zap.Logger) (local.Clusters, error) {
 	var (
 		clusters local.Clusters
 		err      error
@@ -330,7 +354,7 @@ func initClusters(cfg config.Configuration, dbClientCh <-chan client.Client, log
 		}
 		clusters, err = cfg.Clusters.NewClusters(opts)
 		if err != nil {
-			logger.Fatal("unable to connect to clusters", zap.Any("error", err))
+			return nil, errors.Wrap(err, "unable to connect to clusters")
 		}
 	} else {
 		localCfg := cfg.Local
@@ -339,7 +363,7 @@ func initClusters(cfg config.Configuration, dbClientCh <-chan client.Client, log
 		}
 
 		if dbClientCh == nil {
-			logger.Fatal("no clusters configured and not running local cluster")
+			return nil, errors.New("no clusters configured and not running local cluster")
 		}
 		session := m3db.NewAsyncSession(func() (client.Client, error) {
 			return <-dbClientCh, nil
@@ -350,7 +374,7 @@ func initClusters(cfg config.Configuration, dbClientCh <-chan client.Client, log
 			Retention:   localCfg.Retention,
 		})
 		if err != nil {
-			logger.Fatal("unable to connect to clusters", zap.Any("error", err))
+			return nil, errors.Wrap(err, "unable to connect to clusters")
 		}
 	}
 
@@ -359,7 +383,7 @@ func initClusters(cfg config.Configuration, dbClientCh <-chan client.Client, log
 			zap.String("namespace", namespace.NamespaceID().String()))
 	}
 
-	return clusters
+	return clusters, nil
 }
 
 func newStorages(
@@ -367,20 +391,30 @@ func newStorages(
 	clusters local.Clusters,
 	cfg config.Configuration,
 	workerPool pool.ObjectPool,
-) (storage.Storage, func()) {
-	cleanup := func() {}
+) (storage.Storage, func() error, error) {
+	cleanup := func() error { return nil }
 
 	localStorage := local.NewStorage(clusters, workerPool)
 	stores := []storage.Storage{localStorage}
 	remoteEnabled := false
 	if cfg.RPC != nil && cfg.RPC.Enabled {
 		logger.Info("rpc enabled")
-		server := startGrpcServer(logger, localStorage, cfg.RPC)
-		cleanup = func() {
-			server.GracefulStop()
+		server, err := startGrpcServer(logger, localStorage, cfg.RPC)
+		if err != nil {
+			return nil, nil, err
 		}
 
-		if remoteStorage, enabled := remoteClient(logger, cfg); remoteEnabled {
+		cleanup = func() error {
+			server.GracefulStop()
+			return nil
+		}
+
+		remoteStorage, enabled, err := remoteClient(cfg)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if enabled {
 			stores = append(stores, remoteStorage)
 			remoteEnabled = enabled
 		}
@@ -392,37 +426,40 @@ func newStorages(
 	}
 
 	fanoutStorage := fanout.NewStorage(stores, readFilter, filter.LocalOnly)
-	return fanoutStorage, cleanup
+	return fanoutStorage, cleanup, nil
 }
 
-func remoteClient(
-	logger *zap.Logger,
-	cfg config.Configuration,
-) (storage.Storage, bool) {
+func remoteClient(cfg config.Configuration) (storage.Storage, bool, error) {
+	if cfg.RPC == nil {
+		return nil, false, nil
+	}
+
 	if remotes := cfg.RPC.RemoteListenAddresses; len(remotes) > 0 {
 		client, err := tsdbRemote.NewGrpcClient(remotes)
 		if err != nil {
-			logger.Fatal("unable to start remote clients for addresses", zap.Any("error", err))
+			return nil, false, err
 		}
 
 		remoteStorage := remote.NewStorage(client)
-		return remoteStorage, true
+		return remoteStorage, true, nil
 	}
 
-	return nil, false
+	return nil, false, nil
 }
 
-func startGrpcServer(logger *zap.Logger, storage storage.Storage, cfg *config.RPCConfiguration) *grpc.Server {
+func startGrpcServer(logger *zap.Logger, storage storage.Storage, cfg *config.RPCConfiguration) (*grpc.Server, error) {
 	logger.Info("creating gRPC server")
 	server := tsdbRemote.CreateNewGrpcServer(storage)
 	waitForStart := make(chan struct{})
+	var startErr error
 	go func() {
-		logger.Info("starting gRPC server on port", zap.Any("rpc", cfg.ListenAddress))
+		logger.Info("starting gRPC server on port", zap.String("rpc", cfg.ListenAddress))
 		err := tsdbRemote.StartNewGrpcServer(server, cfg.ListenAddress, waitForStart)
+		// TODO: consider removing logger.Fatal here and pass back error through a channel
 		if err != nil {
-			logger.Fatal("unable to start gRPC server", zap.Any("error", err))
+			startErr = errors.Wrap(err, "unable to start gRPC server")
 		}
 	}()
 	<-waitForStart
-	return server
+	return server, startErr
 }
