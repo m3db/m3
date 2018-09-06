@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/serialize"
 	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3metrics/matcher"
+	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3x/clock"
 )
 
@@ -40,6 +41,7 @@ type metricsAppender struct {
 
 type metricsAppenderOptions struct {
 	agg                     aggregator.Aggregator
+	defaultStagedMetadatas  []metadata.StagedMetadatas
 	clockOpts               clock.Options
 	tagEncoder              serialize.TagEncoder
 	matcher                 matcher.Matcher
@@ -77,6 +79,15 @@ func (a *metricsAppender) SamplesAppender() (SamplesAppender, error) {
 	toNanos := nowNanos + 1
 	matchResult := a.matcher.ForwardMatch(id, fromNanos, toNanos)
 	id.Close()
+
+	// Always aggregate any default staged metadats
+	for _, stagedMetadatas := range a.defaultStagedMetadatas {
+		a.multiSamplesAppender.addSamplesAppender(samplesAppender{
+			agg:             a.agg,
+			unownedID:       unownedID,
+			stagedMetadatas: stagedMetadatas,
+		})
+	}
 
 	stagedMetadatas := matchResult.ForExistingIDAt(nowNanos)
 	if !stagedMetadatas.IsDefault() && len(stagedMetadatas) != 0 {

@@ -30,6 +30,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/m3db/m3metrics/aggregation"
+"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
@@ -54,6 +56,7 @@ import (
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
+	xtime "github.com/m3db/m3x/time"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -230,8 +233,9 @@ func Run(runOpts RunOptions) {
 	if n := namespaces.NumAggregatedClusterNamespaces(); n > 0 {
 		logger.Info("configuring downsampler to use with aggregated cluster namespaces",
 			zap.Int("numAggregatedClusterNamespaces", n))
-		downsampler = newDownsampler(logger, clusterManagementClient,
-			fanoutStorage, instrumentOptions)
+		autoMappingRules := newDownsamplerAutoMappingRules(namespaces, logger)
+		downsampler = newDownsampler(clusterManagementClient,
+			fanoutStorage, autoMappingRules, instrumentOptions, logger)
 	}
 
 	engine := executor.NewEngine(fanoutStorage)
@@ -275,10 +279,11 @@ func Run(runOpts RunOptions) {
 }
 
 func newDownsampler(
-	logger *zap.Logger,
 	clusterManagementClient clusterclient.Client,
 	storage storage.Storage,
+	autoMappingRules []downsample.MappingRule,
 	instrumentOpts instrument.Options,
+	logger *zap.Logger,
 ) downsample.Downsampler {
 	if clusterManagementClient == nil {
 		logger.Fatal("no configured cluster management config, must set this " +
@@ -317,6 +322,38 @@ func newDownsampler(
 	}
 
 	return downsampler
+}
+
+func newDownsamplerAutoMappingRules(
+	namespaces []local.ClusterNamespace,
+	logger *zap.Logger,
+) []downsample.MappingRule {
+	var autoMappingRules []downsample.MappingRule
+	for _, namespace := range namespaces {
+		opts := namespace.Options()
+		attrs := opts.Attributes()
+		if attrs.MetricsType == storage.AggregatedMetricsType {
+			downsampleOpts, err := opts.DownsampleOptions()
+			if err != nil {
+				logger.Fatal("unable to resolve downsample options",
+					zap.String("namespace", namespace.NamespaceID().String()))
+			}
+			if downsampleOpts.All {
+				storagePolicy := policy.NewStoragePolicy(attrs.Resolution,
+					xtime.Second, attrs.Retention)
+				autoMappingRules = append(autoMappingRules, downsample.MappingRule{
+					// NB(r): By default we will apply just keep all last values
+					// since coordinator only uses downsampling with Prometheus
+					// remote write endpoint.
+					// More rich static configuration mapping rules can be added
+					// in the future but they are currently not required.
+					Aggregations: []aggregation.Type{aggregation.Last},
+					Policies:     policy.StoragePolicies{storagePolicy},
+				})
+			}
+		}
+	}
+	return autoMappingRules
 }
 
 func newStorages(

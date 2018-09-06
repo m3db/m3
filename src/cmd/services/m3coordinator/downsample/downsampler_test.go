@@ -47,12 +47,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDownsamplerAggregation(t *testing.T) {
+var (
+	testAggregationType            = aggregation.Sum
+	testAggregationStoragePolicies = []policy.StoragePolicy{
+		policy.MustParseStoragePolicy("2s:1d"),
+	}
+)
+
+func TestDownsamplerAggregationWithAutoMappingRules(t *testing.T) {
+	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{
+		autoMappingRules: []MappingRule{
+			{
+				Aggregations: []aggregation.Type{testAggregationType},
+				Policies:     testAggregationStoragePolicies,
+			},
+		},
+	})
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
+func TestDownsamplerAggregationWithRulesStore(t *testing.T) {
 	testDownsampler := newTestDownsampler(t, testDownsamplerOptions{})
-	downsampler := testDownsampler.downsampler
 	rulesStore := testDownsampler.rulesStore
-	logger := testDownsampler.instrumentOpts.Logger().
-		WithFields(xlog.NewField("test", t.Name()))
 
 	// Create rules
 	_, err := rulesStore.CreateNamespace("default", store.NewUpdateOptions())
@@ -62,12 +80,15 @@ func TestDownsamplerAggregation(t *testing.T) {
 		ID:              "mappingrule",
 		Name:            "mappingrule",
 		Filter:          "app:test*",
-		AggregationID:   aggregation.MustCompressTypes(aggregation.Sum),
-		StoragePolicies: []policy.StoragePolicy{policy.MustParseStoragePolicy("2s:1d")},
+		AggregationID:   aggregation.MustCompressTypes(testAggregationType),
+		StoragePolicies: testAggregationStoragePolicies,
 	}
 	_, err = rulesStore.CreateMappingRule("default", rule,
 		store.NewUpdateOptions())
 	require.NoError(t, err)
+
+	logger := testDownsampler.instrumentOpts.Logger().
+		WithFields(xlog.NewField("test", t.Name()))
 
 	// Wait for mapping rule to appear
 	logger.Infof("waiting for mapping rules to propagate")
@@ -85,6 +106,19 @@ func TestDownsamplerAggregation(t *testing.T) {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
+
+	// Test expected output
+	testDownsamplerAggregation(t, testDownsampler)
+}
+
+func testDownsamplerAggregation(
+	t *testing.T,
+	testDownsampler testDownsampler,
+) {
+	downsampler := testDownsampler.downsampler
+
+	logger := testDownsampler.instrumentOpts.Logger().
+		WithFields(xlog.NewField("test", t.Name()))
 
 	testCounterMetrics := []struct {
 		tags     map[string]string
@@ -180,8 +214,9 @@ type testDownsampler struct {
 }
 
 type testDownsamplerOptions struct {
-	clockOpts      clock.Options
-	instrumentOpts instrument.Options
+	autoMappingRules []MappingRule
+	clockOpts        clock.Options
+	instrumentOpts   instrument.Options
 }
 
 func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampler {
@@ -227,6 +262,7 @@ func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampl
 	instance, err := NewDownsampler(DownsamplerOptions{
 		Storage:               storage,
 		RulesKVStore:          rulesKVStore,
+		AutoMappingRules:      opts.autoMappingRules,
 		ClockOptions:          clockOpts,
 		InstrumentOptions:     instrumentOpts,
 		TagEncoderOptions:     tagEncoderOptions,

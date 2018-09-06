@@ -21,6 +21,7 @@
 package local
 
 import (
+	goerrors "errors"
 	"fmt"
 	"sync"
 	"time"
@@ -32,6 +33,8 @@ import (
 )
 
 var (
+	errNotAggregatedClusterNamespace = goerrors.New("not an aggregated cluster namespace")
+
 	defaultNewClientConfigurationParams = client.ConfigurationParameters{}
 )
 
@@ -66,10 +69,23 @@ func (c ClusterStaticConfiguration) newClient(
 // ClusterStaticNamespaceConfiguration describes the namespaces in a
 // static cluster.
 type ClusterStaticNamespaceConfiguration struct {
-	Namespace          string              `yaml:"namespace"`
-	StorageMetricsType storage.MetricsType `yaml:"storageMetricsType"`
-	Retention          time.Duration       `yaml:"retention" validate:"nonzero"`
-	Resolution         time.Duration       `yaml:"resolution" validate:"min=0"`
+	Namespace  string                                         `yaml:"namespace"`
+	Type       storage.MetricsType                            `yaml:"type"`
+	Retention  time.Duration                                  `yaml:"retention" validate:"nonzero"`
+	Resolution time.Duration                                  `yaml:"resolution" validate:"min=0"`
+	Downsample *DownsampleClusterStaticNamespaceConfiguration `yaml:"downsample"`
+}
+
+// DownsampleClusterStaticNamespaceConfiguration is configuration
+// specified for downsampling options on an aggregated cluster namespace.
+type DownsampleClusterStaticNamespaceConfiguration struct {
+	All bool `yaml:"all"`
+}
+
+func (c DownsampleClusterStaticNamespaceConfiguration) downsampleOptions() ClusterNamespaceDownsampleOptions {
+	return ClusterNamespaceDownsampleOptions{
+		All: c.All,
+	}
 }
 
 type unaggregatedClusterNamespaceConfiguration struct {
@@ -95,6 +111,21 @@ type ClustersStaticConfigurationOptions struct {
 	AsyncSessions bool
 }
 
+// AggregatedConfig returns the aggregated cluster namespace config.
+func (c ClusterStaticNamespaceConfiguration) downsampleOptions() (
+	ClusterNamespaceDownsampleOptions,
+	error,
+) {
+	if c.Type != storage.AggregatedMetricsType {
+		return ClusterNamespaceDownsampleOptions{}, errNotAggregatedClusterNamespace
+	}
+	if c.Downsample == nil {
+		return defaultClusterNamespaceDownsampleOptions, nil
+	}
+
+	return c.Downsample.downsampleOptions(), nil
+}
+
 // NewClusters instantiates a new Clusters instance.
 func (c ClustersStaticConfiguration) NewClusters(
 	opts ClustersStaticConfigurationOptions,
@@ -118,7 +149,7 @@ func (c ClustersStaticConfiguration) NewClusters(
 		}
 
 		for _, n := range clusterCfg.Namespaces {
-			switch n.StorageMetricsType {
+			switch n.Type {
 			case storage.UnaggregatedMetricsType:
 				numUnaggregatedClusterNamespaces++
 				if numUnaggregatedClusterNamespaces > 1 {
@@ -137,7 +168,7 @@ func (c ClustersStaticConfiguration) NewClusters(
 
 			default:
 				return nil, fmt.Errorf("unknown storage metrics type: %v",
-					n.StorageMetricsType)
+					n.Type)
 			}
 		}
 
@@ -202,11 +233,18 @@ func (c ClustersStaticConfiguration) NewClusters(
 		}
 
 		for _, n := range cfg.namespaces {
+			downsampleOpts, err := n.downsampleOptions()
+			if err != nil {
+				return nil, fmt.Errorf("error parse downsample options for cluster #%d namespace %s: %v",
+					i, n.Namespace, err)
+			}
+
 			def := AggregatedClusterNamespaceDefinition{
 				NamespaceID: ident.StringID(n.Namespace),
 				Session:     cfg.result.session,
 				Retention:   n.Retention,
 				Resolution:  n.Resolution,
+				Downsample:  &downsampleOpts,
 			}
 			aggregatedClusterNamespaces = append(aggregatedClusterNamespaces, def)
 		}

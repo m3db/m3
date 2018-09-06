@@ -15,7 +15,7 @@ metrics:
 clusters:
   - namespaces:
       - namespace: default
-        storageMetricsType: unaggregated
+        type: unaggregated
         retention: 48h
     client:
       config:
