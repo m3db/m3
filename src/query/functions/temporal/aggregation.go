@@ -50,8 +50,10 @@ const (
 	StdVarTemporalType = "stdvar_over_time"
 )
 
+type aggFunc func([]float64) float64
+
 var (
-	aggFuncs = map[string]func([]float64) float64{
+	aggFuncs = map[string]aggFunc{
 		AvgTemporalType:    avgOverTime,
 		CountTemporalType:  countOverTime,
 		MinTemporalType:    minOverTime,
@@ -64,18 +66,23 @@ var (
 
 // NewAggOp creates a new base temporal transform with a specified node
 func NewAggOp(args []interface{}, optype string) (transform.Params, error) {
-	if _, ok := aggFuncs[optype]; !ok {
-		return emptyOp, fmt.Errorf("unknown aggregation type: %s", optype)
+	var (
+		aggregationFunc aggFunc
+		ok              bool
+	)
+
+	if aggregationFunc, ok = aggFuncs[optype]; !ok {
+		return nil, fmt.Errorf("unknown aggregation type: %s", optype)
 	}
 
-	return newBaseOp(args, optype, newAggNode)
+	return newBaseOp(args, optype, newAggNode, aggregationFunc)
 }
 
 func newAggNode(op baseOp, controller *transform.Controller) Processor {
 	return &aggNode{
 		op:         op,
 		controller: controller,
-		aggFunc:    aggFuncs[op.operatorType],
+		aggFunc:    op.aggFunc,
 	}
 }
 
@@ -90,92 +97,64 @@ func (a *aggNode) Process(values []float64) float64 {
 }
 
 func avgOverTime(values []float64) float64 {
-	var sum, count float64
-	for _, v := range values {
-		if !math.IsNaN(v) {
-			count++
-			sum += v
-		}
-	}
-
+	sum, count := sumAndCount(values)
 	if count == 0 {
 		return math.NaN()
 	}
+
 	return sum / count
 }
 
 func countOverTime(values []float64) float64 {
-	var count float64
-	for _, v := range values {
-		if !math.IsNaN(v) {
-			count++
-		}
-	}
+	_, count := sumAndCount(values)
 	return count
 }
 
 func minOverTime(values []float64) float64 {
-	var count float64
+	var seenNotNaN bool
 	min := math.Inf(1)
 	for _, v := range values {
 		if !math.IsNaN(v) {
-			count++
+			seenNotNaN = true
 			min = math.Min(min, v)
 		}
 	}
 
-	if count == 0 {
+	if !seenNotNaN {
 		return math.NaN()
 	}
+
 	return min
 }
 
 func maxOverTime(values []float64) float64 {
-	var count float64
+	var seenNotNaN bool
 	max := math.Inf(-1)
 	for _, v := range values {
 		if !math.IsNaN(v) {
-			count++
+			seenNotNaN = true
 			max = math.Max(max, v)
 		}
 	}
 
-	if count == 0 {
+	if !seenNotNaN {
 		return math.NaN()
 	}
+
 	return max
 }
 
 func sumOverTime(values []float64) float64 {
-	var sum, count float64
-	for _, v := range values {
-		if !math.IsNaN(v) {
-			count++
-			sum += v
-		}
-	}
-
+	sum, count := sumAndCount(values)
 	if count == 0 {
 		return math.NaN()
 	}
+
 	return sum
 }
 
 func stddevOverTime(values []float64) float64 {
-	var aux, count, mean float64
-	for _, v := range values {
-		if !math.IsNaN(v) {
-			count++
-			delta := v - mean
-			mean += delta / count
-			aux += delta * (v - mean)
-		}
-	}
-
-	if count == 0 {
-		return math.NaN()
-	}
-	return math.Sqrt(aux / count)
+	return math.Sqrt(stdvarOverTime(values))
 }
 
 func stdvarOverTime(values []float64) float64 {
@@ -192,5 +171,19 @@ func stdvarOverTime(values []float64) float64 {
 	if count == 0 {
 		return math.NaN()
 	}
+
 	return aux / count
+}
+
+func sumAndCount(values []float64) (float64, float64) {
+	sum := 0.0
+	count := 0.0
+	for _, v := range values {
+		if !math.IsNaN(v) {
+			sum += v
+			count++
+		}
+	}
+
+	return sum, count
 }
