@@ -598,7 +598,7 @@ testImports:
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/fortytw2/leaktest
-  version: 3677f62bb30dbf3b042c4c211245d072aa9ee075
+  version: b433bbd6d743c1854040b39062a3916ed5f78fe8
 - name: github.com/go-playground/locales
   version: 1e5f1161c6416a5ff48840eb8724a394e48cc534
   subpackages:
