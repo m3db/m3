@@ -66,16 +66,11 @@ var (
 
 // NewAggOp creates a new base temporal transform with a specified node
 func NewAggOp(args []interface{}, optype string) (transform.Params, error) {
-	var (
-		aggregationFunc aggFunc
-		ok              bool
-	)
-
-	if aggregationFunc, ok = aggFuncs[optype]; !ok {
-		return nil, fmt.Errorf("unknown aggregation type: %s", optype)
+	if aggregationFunc, ok := aggFuncs[optype]; ok {
+		return newBaseOp(args, optype, newAggNode, aggregationFunc)
 	}
 
-	return newBaseOp(args, optype, newAggNode, aggregationFunc)
+	return nil, fmt.Errorf("unknown aggregation type: %s", optype)
 }
 
 func newAggNode(op baseOp, controller *transform.Controller) Processor {
