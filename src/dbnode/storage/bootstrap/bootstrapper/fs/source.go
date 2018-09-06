@@ -125,6 +125,7 @@ func (s *fileSystemSource) Can(strategy bootstrap.Strategy) bool {
 func (s *fileSystemSource) AvailableData(
 	md namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
+	runOpts bootstrap.RunOptions,
 ) result.ShardTimeRanges {
 	return s.availability(md, shardsTimeRanges)
 }
@@ -144,6 +145,7 @@ func (s *fileSystemSource) ReadData(
 func (s *fileSystemSource) AvailableIndex(
 	md namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
+	runOpts bootstrap.RunOptions,
 ) result.ShardTimeRanges {
 	return s.availability(md, shardsTimeRanges)
 }

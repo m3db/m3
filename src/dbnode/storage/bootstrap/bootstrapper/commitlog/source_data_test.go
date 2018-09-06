@@ -88,7 +88,7 @@ func testOptions() Options {
 func TestAvailableEmptyRangeError(t *testing.T) {
 	opts := testOptions()
 	src := newCommitLogSource(opts, fs.Inspection{})
-	res := src.AvailableData(testNsMetadata(t), result.ShardTimeRanges{})
+	res := src.AvailableData(testNsMetadata(t), result.ShardTimeRanges{}, testDefaultRunOpts)
 	require.True(t, result.ShardTimeRanges{}.Equal(res))
 }
 
