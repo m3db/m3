@@ -30,7 +30,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3cluster/shard"
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -104,37 +103,37 @@ func (b *bootstrapProcessProvider) Provide() (Process, error) {
 	}, nil
 }
 
-func (b *bootstrapProcessProvider) newInitialTopologyState() (*TopologyState, error) {
+func (b *bootstrapProcessProvider) newInitialTopologyState() (*topology.StateSnapshot, error) {
 	session, err := b.processOpts.AdminClient().DefaultAdminSession()
 	if err != nil {
-		return &TopologyState{}, err
+		return nil, err
 	}
 
 	topoMap, err := session.TopologyMap()
 	if err != nil {
-		return &TopologyState{}, err
+		return nil, err
 	}
 
 	var (
 		hostShardSets = topoMap.HostShardSets()
-		topologyState = &TopologyState{
-			Self:             b.processOpts.AdminClient().Options().(client.AdminOptions).Origin().ID(),
+		topologyState = &topology.StateSnapshot{
+			Origin:           b.processOpts.AdminClient().Options().(client.AdminOptions).Origin(),
 			MajorityReplicas: topoMap.MajorityReplicas(),
-			ShardStates:      ShardStates{},
+			ShardStates:      topology.ShardStates{},
 		}
 	)
 
 	for _, hostShardSet := range hostShardSets {
 		for _, currShard := range hostShardSet.ShardSet().All() {
-			shardID := ShardID(currShard.ID())
+			shardID := topology.ShardID(currShard.ID())
 			existing, ok := topologyState.ShardStates[shardID]
 			if !ok {
-				existing = map[HostID]HostShardState{}
+				existing = map[topology.HostID]topology.HostShardState{}
 				topologyState.ShardStates[shardID] = existing
 			}
 
-			hostID := HostID(hostShardSet.Host().String())
-			existing[hostID] = HostShardState{
+			hostID := topology.HostID(hostShardSet.Host().String())
+			existing[hostID] = topology.HostShardState{
 				Host:       hostShardSet.Host(),
 				ShardState: currShard.State(),
 			}
@@ -150,7 +149,7 @@ type bootstrapProcess struct {
 	nowFn                clock.NowFn
 	log                  xlog.Logger
 	bootstrapper         Bootstrapper
-	initialTopologyState *TopologyState
+	initialTopologyState *topology.StateSnapshot
 }
 
 func (b bootstrapProcess) Run(
@@ -360,27 +359,3 @@ func (b bootstrapProcess) newRunOptions() RunOptions {
 		).
 		SetInitialTopologyState(b.initialTopologyState)
 }
-
-// TopologyState represents a snapshot of the state of the topology at a
-// given moment.
-type TopologyState struct {
-	Self             string
-	MajorityReplicas int
-	ShardStates      ShardStates
-}
-
-// ShardStates maps shard IDs to the state of each of the hosts that own
-// that shard.
-type ShardStates map[ShardID]map[HostID]HostShardState
-
-// HostShardState contains the state of a shard as owned by a given host.
-type HostShardState struct {
-	Host       topology.Host
-	ShardState shard.State
-}
-
-// HostID is the string representation of a host ID.
-type HostID string
-
-// ShardID is the ID of a shard.
-type ShardID uint32

@@ -82,16 +82,21 @@ type testSetup struct {
 
 	logger xlog.Logger
 
-	db                          cluster.Database
-	storageOpts                 storage.Options
-	fsOpts                      fs.Options
-	hostID                      string
-	topoInit                    topology.Initializer
-	shardSet                    sharding.ShardSet
-	getNowFn                    clock.NowFn
-	setNowFn                    nowSetterFn
-	tchannelClient              rpc.TChanNode
-	m3dbClient                  client.Client
+	db             cluster.Database
+	storageOpts    storage.Options
+	fsOpts         fs.Options
+	hostID         string
+	topoInit       topology.Initializer
+	shardSet       sharding.ShardSet
+	getNowFn       clock.NowFn
+	setNowFn       nowSetterFn
+	tchannelClient rpc.TChanNode
+	m3dbClient     client.Client
+	// We need two distinct clients where one has the origin set to the same ID as the
+	// node itself (I.E) the client will behave exactly as if it is the node itself
+	// making requests, and another client with the origin set to an ID different than
+	// the node itself so that we can make requests from the perspective of a "different"
+	// M3DB node for verification purposes in some of the tests.
 	m3dbAdminClient             client.AdminClient
 	m3dbVerificationAdminClient client.AdminClient
 	workerPool                  xsync.WorkerPool
@@ -612,11 +617,6 @@ func newClients(
 				SetWriteConsistencyLevel(opts.WriteConsistencyLevel()).
 				SetTopologyInitializer(topoInit)
 
-		// We need two distinct clients where one has the origin set to the same ID as the
-		// node itself (I.E) the client will behave exactly as if it is the node itself
-		// making requests, and another client with the origin set to an ID different than
-		// the node itself so that we can make requests from the perspective of a "different"
-		// M3DB node for verification purposes in some of the tests.
 		origin             = topology.NewHost(id, tchannelNodeAddr)
 		verificationOrigin = topology.NewHost(id+"-verification", tchannelNodeAddr)
 

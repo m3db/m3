@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/topology"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -107,11 +108,11 @@ type RunOptions interface {
 
 	// SetInitialTopologyState sets the initial topology state as it was
 	// measured before the bootstrap process began.
-	SetInitialTopologyState(value *TopologyState) RunOptions
+	SetInitialTopologyState(value *topology.StateSnapshot) RunOptions
 
 	// InitialTopologyState returns the initial topology as it was measured
 	// before the bootstrap process began.
-	InitialTopologyState() *TopologyState
+	InitialTopologyState() *topology.StateSnapshot
 }
 
 // BootstrapperProvider constructs a bootstrapper.

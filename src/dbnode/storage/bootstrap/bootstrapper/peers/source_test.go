@@ -26,7 +26,6 @@ import (
 
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3cluster/shard"
@@ -48,25 +47,25 @@ type sourceAvailableHost struct {
 
 type sourceAvailableHosts []sourceAvailableHost
 
-func (s sourceAvailableHosts) topologyState() *bootstrap.TopologyState {
-	topoState := &bootstrap.TopologyState{
-		Self:             selfID,
+func (s sourceAvailableHosts) topologyState() *topology.StateSnapshot {
+	topoState := &topology.StateSnapshot{
+		Origin:           topology.NewHost(selfID, "127.0.0.1"),
 		MajorityReplicas: 2,
-		ShardStates:      make(map[bootstrap.ShardID]map[bootstrap.HostID]bootstrap.HostShardState),
+		ShardStates:      make(map[topology.ShardID]map[topology.HostID]topology.HostShardState),
 	}
 
 	for _, host := range s {
 		for _, shard := range host.shards {
-			hostShardStates, ok := topoState.ShardStates[bootstrap.ShardID(shard)]
+			hostShardStates, ok := topoState.ShardStates[topology.ShardID(shard)]
 			if !ok {
-				hostShardStates = make(map[bootstrap.HostID]bootstrap.HostShardState)
+				hostShardStates = make(map[topology.HostID]topology.HostShardState)
 			}
 
-			hostShardStates[bootstrap.HostID(host.name)] = bootstrap.HostShardState{
+			hostShardStates[topology.HostID(host.name)] = topology.HostShardState{
 				Host:       topology.NewHost(host.name, host.name+"address"),
 				ShardState: host.shardStates,
 			}
-			topoState.ShardStates[bootstrap.ShardID(shard)] = hostShardStates
+			topoState.ShardStates[topology.ShardID(shard)] = hostShardStates
 		}
 	}
 

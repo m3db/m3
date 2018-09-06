@@ -682,12 +682,12 @@ func (s *peersSource) peerAvailability(
 	runOpts bootstrap.RunOptions,
 ) result.ShardTimeRanges {
 	var (
-		peerAvailabilityByShard = map[bootstrap.ShardID]*shardPeerAvailability{}
+		peerAvailabilityByShard = map[topology.ShardID]*shardPeerAvailability{}
 		initialTopologyState    = runOpts.InitialTopologyState()
 	)
 
 	for shardIDUint := range shardsTimeRanges {
-		shardID := bootstrap.ShardID(shardIDUint)
+		shardID := topology.ShardID(shardIDUint)
 		shardPeers, ok := peerAvailabilityByShard[shardID]
 		if !ok {
 			shardPeers = &shardPeerAvailability{}
@@ -702,7 +702,7 @@ func (s *peersSource) peerAvailability(
 
 		shardPeers.numPeers = len(hostShardStates)
 		for _, hostShardState := range hostShardStates {
-			if hostShardState.Host.ID() == initialTopologyState.Self {
+			if hostShardState.Host.ID() == initialTopologyState.Origin.ID() {
 				// Don't take self into account
 				continue
 			}
@@ -735,7 +735,7 @@ func (s *peersSource) peerAvailability(
 		availableShardTimeRanges  = result.ShardTimeRanges{}
 	)
 	for shardIDUint := range shardsTimeRanges {
-		shardID := bootstrap.ShardID(shardIDUint)
+		shardID := topology.ShardID(shardIDUint)
 		shardPeers := peerAvailabilityByShard[shardID]
 
 		total := shardPeers.numPeers

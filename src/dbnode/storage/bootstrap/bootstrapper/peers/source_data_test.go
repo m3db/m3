@@ -127,7 +127,7 @@ func TestPeersSourceEmptyShardTimeRanges(t *testing.T) {
 	var (
 		nsMetdata = testNamespaceMetadata(t)
 		target    = result.ShardTimeRanges{}
-		runOpts   = testDefaultRunOpts.SetInitialTopologyState(&bootstrap.TopologyState{})
+		runOpts   = testDefaultRunOpts.SetInitialTopologyState(&topology.StateSnapshot{})
 	)
 	available := src.AvailableData(nsMetdata, target, runOpts)
 	assert.Equal(t, target, available)

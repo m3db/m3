@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/topology"
 
 	"github.com/golang/mock/gomock"
 )
@@ -284,7 +285,7 @@ func (mr *MockRunOptionsMockRecorder) CacheSeriesMetadata() *gomock.Call {
 }
 
 // SetInitialTopologyState mocks base method
-func (m *MockRunOptions) SetInitialTopologyState(value *TopologyState) RunOptions {
+func (m *MockRunOptions) SetInitialTopologyState(value *topology.StateSnapshot) RunOptions {
 	ret := m.ctrl.Call(m, "SetInitialTopologyState", value)
 	ret0, _ := ret[0].(RunOptions)
 	return ret0
@@ -296,9 +297,9 @@ func (mr *MockRunOptionsMockRecorder) SetInitialTopologyState(value interface{})
 }
 
 // InitialTopologyState mocks base method
-func (m *MockRunOptions) InitialTopologyState() *TopologyState {
+func (m *MockRunOptions) InitialTopologyState() *topology.StateSnapshot {
 	ret := m.ctrl.Call(m, "InitialTopologyState")
-	ret0, _ := ret[0].(*TopologyState)
+	ret0, _ := ret[0].(*topology.StateSnapshot)
 	return ret0
 }
 
