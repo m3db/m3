@@ -84,6 +84,12 @@ type Options interface {
 
 	// IndexOptions returns the IndexOptions.
 	IndexOptions() IndexOptions
+
+	// SetNonRealtimeWritesEnabled sets whether this namespace allows any write time
+	SetNonRealtimeWritesEnabled(value bool) Options
+
+	// NonRealtimeWritesEnabled returns whether this namespace allows any write time
+	NonRealtimeWritesEnabled() bool
 }
 
 // IndexOptions controls the indexing options for a namespace.

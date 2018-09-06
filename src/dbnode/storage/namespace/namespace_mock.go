@@ -275,6 +275,30 @@ func (mr *MockOptionsMockRecorder) IndexOptions() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexOptions", reflect.TypeOf((*MockOptions)(nil).IndexOptions))
 }
 
+// SetNonRealtimeWritesEnabled mocks base method
+func (m *MockOptions) SetNonRealtimeWritesEnabled(value bool) Options {
+	ret := m.ctrl.Call(m, "SetNonRealtimeWritesEnabled", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetNonRealtimeWritesEnabled indicates an expected call of SetNonRealtimeWritesEnabled
+func (mr *MockOptionsMockRecorder) SetNonRealtimeWritesEnabled(value interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNonRealtimeWritesEnabled", reflect.TypeOf((*MockOptions)(nil).SetNonRealtimeWritesEnabled), value)
+}
+
+// NonRealtimeWritesEnabled mocks base method
+func (m *MockOptions) NonRealtimeWritesEnabled() bool {
+	ret := m.ctrl.Call(m, "NonRealtimeWritesEnabled")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// NonRealtimeWritesEnabled indicates an expected call of NonRealtimeWritesEnabled
+func (mr *MockOptionsMockRecorder) NonRealtimeWritesEnabled() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NonRealtimeWritesEnabled", reflect.TypeOf((*MockOptions)(nil).NonRealtimeWritesEnabled))
+}
+
 // MockIndexOptions is a mock of IndexOptions interface
 type MockIndexOptions struct {
 	ctrl     *gomock.Controller

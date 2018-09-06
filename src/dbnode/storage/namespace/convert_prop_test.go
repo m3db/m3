@@ -104,7 +104,6 @@ func genMetadata() gopter.Gen {
 				SetBlockSize(retention.BlockSize())))
 		if err != nil {
 			panic(err.Error())
-			return nil
 		}
 		return md
 	})

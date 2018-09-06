@@ -44,6 +44,9 @@ const (
 
 	// Namespace requires repair disabled by default
 	defaultRepairEnabled = false
+
+	// Disable allowing writing to arbitrary times by default
+	defaultNonRealtimeWritesEnabled = false
 )
 
 var (
@@ -53,27 +56,29 @@ var (
 )
 
 type options struct {
-	bootstrapEnabled  bool
-	flushEnabled      bool
-	snapshotEnabled   bool
-	writesToCommitLog bool
-	cleanupEnabled    bool
-	repairEnabled     bool
-	retentionOpts     retention.Options
-	indexOpts         IndexOptions
+	retentionOpts            retention.Options
+	indexOpts                IndexOptions
+	bootstrapEnabled         bool
+	flushEnabled             bool
+	snapshotEnabled          bool
+	writesToCommitLog        bool
+	cleanupEnabled           bool
+	repairEnabled            bool
+	nonRealtimeWritesEnabled bool
 }
 
 // NewOptions creates a new namespace options
 func NewOptions() Options {
 	return &options{
-		bootstrapEnabled:  defaultBootstrapEnabled,
-		flushEnabled:      defaultFlushEnabled,
-		snapshotEnabled:   defaultSnapshotEnabled,
-		writesToCommitLog: defaultWritesToCommitLog,
-		cleanupEnabled:    defaultCleanupEnabled,
-		repairEnabled:     defaultRepairEnabled,
-		retentionOpts:     retention.NewOptions(),
-		indexOpts:         NewIndexOptions(),
+		bootstrapEnabled:         defaultBootstrapEnabled,
+		flushEnabled:             defaultFlushEnabled,
+		snapshotEnabled:          defaultSnapshotEnabled,
+		writesToCommitLog:        defaultWritesToCommitLog,
+		cleanupEnabled:           defaultCleanupEnabled,
+		repairEnabled:            defaultRepairEnabled,
+		retentionOpts:            retention.NewOptions(),
+		indexOpts:                NewIndexOptions(),
+		nonRealtimeWritesEnabled: defaultNonRealtimeWritesEnabled,
 	}
 }
 
@@ -109,7 +114,8 @@ func (o *options) Equal(value Options) bool {
 		o.cleanupEnabled == value.CleanupEnabled() &&
 		o.repairEnabled == value.RepairEnabled() &&
 		o.retentionOpts.Equal(value.RetentionOptions()) &&
-		o.indexOpts.Equal(value.IndexOptions())
+		o.indexOpts.Equal(value.IndexOptions()) &&
+		o.nonRealtimeWritesEnabled == value.NonRealtimeWritesEnabled()
 }
 
 func (o *options) SetBootstrapEnabled(value bool) Options {
@@ -190,4 +196,14 @@ func (o *options) SetIndexOptions(value IndexOptions) Options {
 
 func (o *options) IndexOptions() IndexOptions {
 	return o.indexOpts
+}
+
+func (o *options) SetNonRealtimeWritesEnabled(value bool) Options {
+	opts := *o
+	opts.nonRealtimeWritesEnabled = value
+	return &opts
+}
+
+func (o *options) NonRealtimeWritesEnabled() bool {
+	return o.nonRealtimeWritesEnabled
 }

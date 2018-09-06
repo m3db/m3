@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/context"
-	xerrors "github.com/m3db/m3x/errors"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/assert"
@@ -60,7 +59,9 @@ func newBufferTestOptions() Options {
 		SetRetentionOptions(opts.RetentionOptions().
 			SetBlockSize(2 * time.Minute).
 			SetBufferFuture(10 * time.Second).
-			SetBufferPast(10 * time.Second)).
+			SetBufferPast(10 * time.Second).
+			SetNonRealtimeMaxWritesBeforeFlush(5).
+			SetNonRealtimeFlushAfterNoMetricPeriod(30 * time.Second)).
 		SetDatabaseBlockOptions(opts.DatabaseBlockOptions().
 			SetContextPool(opts.ContextPool()).
 			SetEncoderPool(opts.EncoderPool()))
@@ -82,7 +83,6 @@ func TestBufferWriteTooFuture(t *testing.T) {
 
 	err := buffer.Write(ctx, curr.Add(rops.BufferFuture()), 1, xtime.Second, nil)
 	assert.Error(t, err)
-	assert.True(t, xerrors.IsInvalidParams(err))
 }
 
 func TestBufferWriteTooPast(t *testing.T) {
@@ -100,7 +100,146 @@ func TestBufferWriteTooPast(t *testing.T) {
 
 	err := buffer.Write(ctx, curr.Add(-1*rops.BufferPast()), 1, xtime.Second, nil)
 	assert.Error(t, err)
-	assert.True(t, xerrors.IsInvalidParams(err))
+}
+
+func TestBufferWriteNonRealtimeDrain(t *testing.T) {
+	var drained []block.DatabaseBlock
+	drainFn := func(b block.DatabaseBlock) {
+		drained = append(drained, b)
+	}
+
+	opts := newBufferTestOptions()
+	rops := opts.RetentionOptions()
+	curr := time.Now().Truncate(rops.BlockSize())
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	})).SetRetentionOptions(rops.SetNonRealtimeWritesEnabled(true))
+	buffer := newDatabaseBuffer(drainFn).(*dbBuffer)
+	buffer.Reset(opts)
+
+	firstWriteTime := curr.Add(rops.BlockSize())
+	data := []value{
+		{firstWriteTime.Add(mins(0.0)), 0, xtime.Second, nil},
+		{firstWriteTime.Add(mins(0.1)), 1, xtime.Second, nil},
+		{firstWriteTime.Add(mins(0.2)), 2, xtime.Second, nil},
+		{firstWriteTime.Add(mins(0.3)), 3, xtime.Second, nil},
+		{firstWriteTime.Add(mins(0.4)), 4, xtime.Second, nil},
+		// Sixth datapoint in the same block should cause
+		// a drain due to MaxWritesBeforeFlush() == 5
+		{firstWriteTime.Add(mins(0.5)), 5, xtime.Second, nil},
+	}
+
+	for _, v := range data {
+		ctx := context.NewContext()
+		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation))
+		ctx.Close()
+	}
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	assertValuesEqual(t, data[:5], [][]xio.BlockReader{[]xio.BlockReader{
+		xio.BlockReader{
+			SegmentReader: requireDrainedStream(ctx, t, drained[0]),
+		},
+	}}, opts)
+
+	results := buffer.ReadEncoded(ctx, firstWriteTime, timeDistantFuture)
+	require.NotNil(t, results)
+	assertValuesEqual(t, data[5:], results, opts)
+}
+
+func TestBufferWriteNonRealtimeStale(t *testing.T) {
+	var drained []block.DatabaseBlock
+	drainFn := func(b block.DatabaseBlock) {
+		drained = append(drained, b)
+	}
+
+	opts := newBufferTestOptions()
+	rops := opts.RetentionOptions()
+	curr := time.Now().Truncate(rops.BlockSize())
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	})).SetRetentionOptions(rops.SetNonRealtimeWritesEnabled(true))
+	buffer := newDatabaseBuffer(drainFn).(*dbBuffer)
+	buffer.Reset(opts)
+
+	firstWriteTime := curr.Add(rops.BlockSize())
+	data := []value{
+		{firstWriteTime.Add(mins(0)), 0, xtime.Second, nil},
+		{firstWriteTime.Add(mins(0.1)), 1, xtime.Second, nil},
+		{firstWriteTime.Add(mins(0.2)), 2, xtime.Second, nil},
+	}
+
+	for _, v := range data {
+		ctx := context.NewContext()
+		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation))
+		ctx.Close()
+	}
+
+	buffer.nowFn = func() time.Time {
+		return curr.Add(2 * rops.NonRealtimeFlushAfterNoMetricPeriod())
+	}
+
+	// This tick should cause a drain and remove the bucket from the
+	// non-realtime bucket map because the bucket is now stale
+	buffer.Tick()
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	assertValuesEqual(t, data[:3], [][]xio.BlockReader{[]xio.BlockReader{
+		xio.BlockReader{
+			SegmentReader: requireDrainedStream(ctx, t, drained[0]),
+		},
+	}}, opts)
+}
+
+func TestBufferWriteNonRealtimeIntoRealtime(t *testing.T) {
+	var drained []block.DatabaseBlock
+	drainFn := func(b block.DatabaseBlock) {
+		drained = append(drained, b)
+	}
+
+	opts := newBufferTestOptions()
+	rops := opts.RetentionOptions()
+	curr := time.Now().Truncate(rops.BlockSize())
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	})).SetRetentionOptions(rops.SetNonRealtimeWritesEnabled(true))
+	buffer := newDatabaseBuffer(drainFn).(*dbBuffer)
+	buffer.Reset(opts)
+
+	// Non-realtime writes
+	firstWriteTime := curr.Add(rops.BufferFuture() * 2)
+	data := []value{
+		{firstWriteTime.Add(secs(0)), 0, xtime.Second, nil},
+		{firstWriteTime.Add(secs(1)), 1, xtime.Second, nil},
+		{firstWriteTime.Add(secs(2)), 2, xtime.Second, nil},
+	}
+
+	for _, v := range data {
+		ctx := context.NewContext()
+		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation))
+		ctx.Close()
+	}
+
+	// Make the previous writes now in the "realtime" window
+	buffer.nowFn = func() time.Time {
+		return firstWriteTime
+	}
+
+	v := value{firstWriteTime.Add(secs(3)), 3, xtime.Second, nil}
+	// append to data for expected values in assertion later
+	data = append([]value{v}, data...)
+	ctx := context.NewContext()
+	// This write should move the previous non-realtime bucket into the realtime bucket
+	assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation))
+	ctx.Close()
+
+	results := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture)
+	require.NotNil(t, results)
+	assertValuesEqual(t, data, results, opts)
 }
 
 func TestBufferWriteRead(t *testing.T) {
@@ -304,14 +443,14 @@ func TestBufferBootstrapAlreadyDrained(t *testing.T) {
 	}))
 	buffer.Reset(opts)
 
-	bucketStart := buffer.buckets[0].start
+	bucketStart := buffer.bucketsRealtime[0].start
 	dbBlock := block.NewDatabaseBlock(bucketStart, 0, ts.Segment{}, block.NewOptions())
 
 	// Make sure multiple adds dont cause an error
 	require.NoError(t, buffer.Bootstrap(dbBlock))
 	require.NoError(t, buffer.Bootstrap(dbBlock))
 
-	buffer.buckets[0].drained = true
+	buffer.bucketsRealtime[0].drained = true
 
 	// Should return an error because we dont want to add bootstrapped blocks to
 	// a bucket that is already drained because they'll never get flushed.
@@ -393,10 +532,10 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 	}
 
 	bucketIdx := (curr.UnixNano() / int64(rops.BlockSize())) % bucketsLen
-	assert.Equal(t, 2, len(buffer.buckets[bucketIdx].encoders))
-	assert.False(t, buffer.buckets[bucketIdx].empty)
-	assert.Equal(t, data[1].timestamp, buffer.buckets[bucketIdx].encoders[0].lastWriteAt)
-	assert.Equal(t, data[2].timestamp, buffer.buckets[bucketIdx].encoders[1].lastWriteAt)
+	assert.Equal(t, 2, len(buffer.bucketsRealtime[bucketIdx].encoders))
+	assert.False(t, buffer.bucketsRealtime[bucketIdx].empty)
+	assert.Equal(t, data[1].timestamp, buffer.bucketsRealtime[bucketIdx].encoders[0].lastWriteAt)
+	assert.Equal(t, data[2].timestamp, buffer.bucketsRealtime[bucketIdx].encoders[1].lastWriteAt)
 
 	// Restore data to in order for comparison
 	sort.Sort(valuesByTime(data))
@@ -411,8 +550,8 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 
 	// Explicitly merge
 	var mergedResults [][]xio.BlockReader
-	for i := range buffer.buckets {
-		mergedResult, err := buffer.buckets[i].discardMerged()
+	for i := range buffer.bucketsRealtime {
+		mergedResult, err := buffer.bucketsRealtime[i].discardMerged()
 		require.NoError(t, err)
 
 		block := mergedResult.block
@@ -436,7 +575,7 @@ func newTestBufferBucketWithData(t *testing.T) (*dbBufferBucket, Options, []valu
 	rops := opts.RetentionOptions()
 	curr := time.Now().Truncate(rops.BlockSize())
 	b := &dbBufferBucket{opts: opts}
-	b.resetTo(curr)
+	b.resetTo(curr, true)
 	data := [][]value{
 		{
 			{curr, 1, xtime.Second, nil},
@@ -511,7 +650,7 @@ func TestBufferBucketMergeNilEncoderStreams(t *testing.T) {
 	curr := time.Now().Truncate(ropts.BlockSize())
 
 	b := &dbBufferBucket{opts: opts}
-	b.resetTo(curr)
+	b.resetTo(curr, true)
 	emptyEncoder := opts.EncoderPool().Get()
 	emptyEncoder.Reset(curr, 0)
 	b.encoders = append(b.encoders, inOrderEncoder{encoder: emptyEncoder})
@@ -544,14 +683,14 @@ func TestBufferBucketWriteDuplicate(t *testing.T) {
 	curr := time.Now().Truncate(rops.BlockSize())
 
 	b := &dbBufferBucket{opts: opts}
-	b.resetTo(curr)
-	require.NoError(t, b.write(curr, 1, xtime.Second, nil))
+	b.resetTo(curr, true)
+	require.NoError(t, b.write(curr, curr, 1, xtime.Second, nil))
 	require.Equal(t, 1, len(b.encoders))
 	require.False(t, b.empty)
 
 	encoded, err := b.encoders[0].encoder.Stream().Segment()
 	require.NoError(t, err)
-	require.NoError(t, b.write(curr, 1, xtime.Second, nil))
+	require.NoError(t, b.write(curr, curr, 1, xtime.Second, nil))
 	require.Equal(t, 1, len(b.encoders))
 
 	result, err := b.discardMerged()
@@ -576,12 +715,12 @@ func TestBufferFetchBlocks(t *testing.T) {
 
 	buffer := newDatabaseBuffer(nil).(*dbBuffer)
 	buffer.Reset(opts)
-	buffer.buckets[0] = *b
+	buffer.bucketsRealtime[0] = *b
 
 	for i := 1; i < 3; i++ {
 		newBucketStart := b.start.Add(time.Duration(i) * time.Minute)
-		(&buffer.buckets[i]).resetTo(newBucketStart)
-		buffer.buckets[i].encoders = []inOrderEncoder{{newBucketStart, nil}}
+		(&buffer.bucketsRealtime[i]).resetTo(newBucketStart, true)
+		buffer.bucketsRealtime[i].encoders = []inOrderEncoder{{newBucketStart, nil}}
 	}
 
 	res := buffer.FetchBlocks(ctx, []time.Time{b.start, b.start.Add(time.Second)})
@@ -604,7 +743,7 @@ func TestBufferFetchBlocksMetadata(t *testing.T) {
 
 	buffer := newDatabaseBuffer(nil).(*dbBuffer)
 	buffer.Reset(opts)
-	buffer.buckets[0] = *b
+	buffer.bucketsRealtime[0] = *b
 
 	expectedSize := int64(b.streamsLen())
 
@@ -662,13 +801,13 @@ func TestBufferReadEncodedValidAfterDrain(t *testing.T) {
 		Add(time.Nanosecond)
 
 	var encoders []encoding.Encoder
-	for i := range buffer.buckets {
-		if !buffer.buckets[i].start.Equal(start) {
+	for i := range buffer.bucketsRealtime {
+		if !buffer.bucketsRealtime[i].start.Equal(start) {
 			continue
 		}
 		// Current bucket encoders should all have data in them
-		for j := range buffer.buckets[i].encoders {
-			encoder := buffer.buckets[i].encoders[j].encoder
+		for j := range buffer.bucketsRealtime[i].encoders {
+			encoder := buffer.bucketsRealtime[i].encoders[j].encoder
 			assert.NotNil(t, encoder.Stream())
 
 			encoders = append(encoders, encoder)
@@ -750,13 +889,13 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 	}
 
 	var encoders []encoding.Encoder
-	for i := range buffer.buckets {
-		if !buffer.buckets[i].start.Equal(start) {
+	for i := range buffer.bucketsRealtime {
+		if !buffer.bucketsRealtime[i].start.Equal(start) {
 			continue
 		}
 		// Current bucket encoders should all have data in them
-		for j := range buffer.buckets[i].encoders {
-			encoder := buffer.buckets[i].encoders[j].encoder
+		for j := range buffer.bucketsRealtime[i].encoders {
+			encoder := buffer.bucketsRealtime[i].encoders[j].encoder
 			assert.NotNil(t, encoder.Stream())
 
 			encoders = append(encoders, encoder)
@@ -781,13 +920,13 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 
 	// Count the encoders again
 	encoders = encoders[:0]
-	for i := range buffer.buckets {
-		if !buffer.buckets[i].start.Equal(start) {
+	for i := range buffer.bucketsRealtime {
+		if !buffer.bucketsRealtime[i].start.Equal(start) {
 			continue
 		}
 		// Current bucket encoders should all have data in them
-		for j := range buffer.buckets[i].encoders {
-			encoder := buffer.buckets[i].encoders[j].encoder
+		for j := range buffer.bucketsRealtime[i].encoders {
+			encoder := buffer.bucketsRealtime[i].encoders[j].encoder
 			assert.NotNil(t, encoder.Stream())
 
 			encoders = append(encoders, encoder)
@@ -842,13 +981,13 @@ func TestBufferSnapshot(t *testing.T) {
 
 	// Verify internal state
 	var encoders []encoding.Encoder
-	for i := range buffer.buckets {
-		if !buffer.buckets[i].start.Equal(start) {
+	for i := range buffer.bucketsRealtime {
+		if !buffer.bucketsRealtime[i].start.Equal(start) {
 			continue
 		}
 		// Current bucket encoders should all have data in them
-		for j := range buffer.buckets[i].encoders {
-			encoder := buffer.buckets[i].encoders[j].encoder
+		for j := range buffer.bucketsRealtime[i].encoders {
+			encoder := buffer.bucketsRealtime[i].encoders[j].encoder
 			assert.NotNil(t, encoder.Stream())
 
 			encoders = append(encoders, encoder)
@@ -876,13 +1015,13 @@ func TestBufferSnapshot(t *testing.T) {
 
 	// Check internal state to make sure the merge happened and was persisted
 	encoders = encoders[:0]
-	for i := range buffer.buckets {
-		if !buffer.buckets[i].start.Equal(start) {
+	for i := range buffer.bucketsRealtime {
+		if !buffer.bucketsRealtime[i].start.Equal(start) {
 			continue
 		}
 		// Current bucket encoders should all have data in them
-		for j := range buffer.buckets[i].encoders {
-			encoder := buffer.buckets[i].encoders[j].encoder
+		for j := range buffer.bucketsRealtime[i].encoders {
+			encoder := buffer.bucketsRealtime[i].encoders[j].encoder
 			assert.NotNil(t, encoder.Stream())
 
 			encoders = append(encoders, encoder)
