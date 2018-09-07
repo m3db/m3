@@ -91,7 +91,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	result, err := h.read(ctx, w, params)
 	if err != nil {
 		logger.Error("unable to fetch data", zap.Any("error", err))
-		handler.Error(w, err, http.StatusInternalServerError)
+		handler.Error(w, err, http.StatusBadRequest)
 		return
 	}
 
