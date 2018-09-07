@@ -73,6 +73,8 @@ var (
 	}
 )
 
+type cleanupFn func() error
+
 // RunOptions provides options for running the server
 // with backwards compatibility if only solely adding fields.
 type RunOptions struct {
@@ -128,7 +130,7 @@ func Run(runOpts RunOptions) {
 		enabled        bool
 	)
 
-	if cfg.Backend == "grpc" {
+	if cfg.Backend == config.GRPCStorageType {
 		backendStorage, enabled, err = remoteClient(cfg)
 		if err != nil {
 			logger.Fatal("unable to setup grpc backend", zap.Error(err))
@@ -137,8 +139,8 @@ func Run(runOpts RunOptions) {
 			logger.Fatal("need remote clients for grpc backend")
 		}
 	} else {
-		var cleanup func() error
-		backendStorage, clusterClient, downsampler, cleanup, err = setupM3DBStorage(runOpts, cfg, logger, scope)
+		var cleanup cleanupFn
+		backendStorage, clusterClient, downsampler, cleanup, err = newM3DBStorage(runOpts, cfg, logger, scope)
 		if err != nil {
 			logger.Fatal("unable to setup m3db backend", zap.Error(err))
 		}
@@ -182,12 +184,12 @@ func Run(runOpts RunOptions) {
 
 }
 
-func setupM3DBStorage(
+func newM3DBStorage(
 	runOpts RunOptions,
 	cfg config.Configuration,
 	logger *zap.Logger,
 	scope tally.Scope,
-) (storage.Storage, clusterclient.Client, downsample.Downsampler, func() error, error) {
+) (storage.Storage, clusterclient.Client, downsample.Downsampler, cleanupFn, error) {
 	var clusterClientCh <-chan clusterclient.Client
 	if runOpts.ClusterClient != nil {
 		clusterClientCh = runOpts.ClusterClient
@@ -287,7 +289,7 @@ func setupM3DBStorage(
 			if lastErr == nil {
 				lastErr = err
 			} else {
-				// Make sure the previous error is atleast logged
+				// Make sure the previous error is at least logged
 				logger.Error("error during cleanup", zap.Error(lastErr))
 			}
 			return errors.Wrap(err, "unable to close M3DB cluster sessions")
@@ -391,7 +393,7 @@ func newStorages(
 	clusters local.Clusters,
 	cfg config.Configuration,
 	workerPool pool.ObjectPool,
-) (storage.Storage, func() error, error) {
+) (storage.Storage, cleanupFn, error) {
 	cleanup := func() error { return nil }
 
 	localStorage := local.NewStorage(clusters, workerPool)

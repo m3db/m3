@@ -124,7 +124,7 @@ func TestRun(t *testing.T) {
 	}()
 
 	// Wait for server to come up
-	waitForServerHealthy(t)
+	waitForServerHealthy(t, 7201)
 
 	// Send Prometheus write request
 	promReq := remotetest.GeneratePromWriteRequest()
@@ -156,11 +156,11 @@ func newTestFile(t *testing.T, fileName, contents string) (*os.File, closeFn) {
 	}
 }
 
-func waitForServerHealthy(t *testing.T) {
+func waitForServerHealthy(t *testing.T, port int) {
 	maxWait := 10 * time.Second
 	startAt := time.Now()
 	for time.Since(startAt) < maxWait {
-		req, err := http.NewRequest("GET", "http://127.0.0.1:7201/health", nil)
+		req, err := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%d/health", port), nil)
 		require.NoError(t, err)
 		res, err := http.DefaultClient.Do(req)
 		if err != nil || res.StatusCode != http.StatusOK {
@@ -191,7 +191,7 @@ func TestGRPCBackend(t *testing.T) {
 	var grpcConfigYAML = `
 listenAddress:
   type: "config"
-  value: "127.0.0.1:7201"
+  value: "127.0.0.1:17201"
 
 metrics:
   scope:
@@ -203,7 +203,7 @@ metrics:
 
 rpc:
   remoteListenAddresses: 
-    - "127.0.0.1:7202"
+    - "127.0.0.1:17202"
 
 backend: grpc
 `
@@ -211,7 +211,7 @@ backend: grpc
 	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
-	port := "127.0.0.1:7202"
+	port := "127.0.0.1:17202"
 	lis, err := net.Listen("tcp", port)
 	require.NoError(t, err)
 	s := grpc.NewServer()
@@ -231,7 +231,7 @@ backend: grpc
 
 	// No clusters
 	require.Equal(t, 0, len(cfg.Clusters))
-	require.Equal(t, "grpc", cfg.Backend)
+	require.Equal(t, config.GRPCStorageType, cfg.Backend)
 
 	interruptCh := make(chan error)
 	doneCh := make(chan struct{})
@@ -244,13 +244,13 @@ backend: grpc
 	}()
 
 	// Wait for server to come up
-	waitForServerHealthy(t)
+	waitForServerHealthy(t, 17201)
 
 	// Send Prometheus write request
 	promReq := remotetest.GeneratePromWriteRequest()
 	promReqBody := remotetest.GeneratePromWriteRequestBody(t, promReq)
 	req, err := http.NewRequest(http.MethodPost,
-		"http://127.0.0.1:7201"+remote.PromWriteURL, promReqBody)
+		"http://127.0.0.1:17201"+remote.PromWriteURL, promReqBody)
 	require.NoError(t, err)
 
 	_, err = http.DefaultClient.Do(req)

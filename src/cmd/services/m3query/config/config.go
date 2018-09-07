@@ -29,6 +29,16 @@ import (
 	"github.com/m3db/m3x/instrument"
 )
 
+// BackendStorageType is an enum for different backends
+type BackendStorageType string
+
+const (
+	// GRPCStorageType is for backends which only support grpc endpoints
+	GRPCStorageType BackendStorageType = "grpc"
+	// M3DBStorageType is for m3db backend
+	M3DBStorageType BackendStorageType = "m3db"
+)
+
 // Configuration is the configuration for the query service.
 type Configuration struct {
 	// Metrics configuration.
@@ -53,7 +63,7 @@ type Configuration struct {
 	RPC *RPCConfiguration `yaml:"rpc"`
 
 	// Backend is the backend store for query service. We currently support grpc and m3db (default).
-	Backend string `yaml:"backend"`
+	Backend BackendStorageType `yaml:"backend"`
 
 	// DecompressWorkerPoolCount is the number of decompression worker pools.
 	DecompressWorkerPoolCount int `yaml:"workerPoolCount"`
