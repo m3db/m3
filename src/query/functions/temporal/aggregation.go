@@ -101,6 +101,7 @@ func countOverTime(values []float64) float64 {
 	if count == 0 {
 		return math.NaN()
 	}
+
 	return count
 }
 
