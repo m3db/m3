@@ -1361,7 +1361,13 @@ func (s *session) fetchIDsAttempt(
 				// due to a pending request in queue.
 				seriesID := s.pools.id.Clone(tsID)
 				namespaceID := s.pools.id.Clone(namespace)
-				iter.Reset(seriesID, namespaceID, nil, startInclusive, endExclusive, successIters)
+				iter.Reset(encoding.SeriesIteratorOptions{
+					ID:             seriesID,
+					Namespace:      namespaceID,
+					StartInclusive: startInclusive,
+					EndExclusive:   endExclusive,
+					Replicas:       successIters,
+				})
 				iters.SetAt(idx, iter)
 			}
 			if atomic.AddInt32(&resultsAccessors, -1) == 0 {
