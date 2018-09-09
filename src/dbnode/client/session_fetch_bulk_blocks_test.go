@@ -2543,6 +2543,14 @@ func (e *testEncoder) Stream() xio.SegmentReader {
 	return xio.NewSegmentReader(e.data)
 }
 
+func (e *testEncoder) NumEncoded() int {
+	return 0
+}
+
+func (e *testEncoder) LastEncoded() (ts.Datapoint, error) {
+	return ts.Datapoint{}, fmt.Errorf("not implemented")
+}
+
 func (e *testEncoder) Len() int {
 	return e.data.Len()
 }

@@ -580,25 +580,30 @@ func (b *dbBufferBucket) write(
 	annotation []byte,
 ) error {
 	idx := -1
-	for i := range b.encoders {
-		last, err := b.encoders[i].encoder.LastEncoded()
-		if err != nil {
-			return err
-		}
-		if timestamp.Equal(last.Timestamp) && last.Value == value {
-			// No-op since matches the current value
-			// TODO(r): in the future we could return some metadata that
-			// this result was a no-op and hence does not need to be written
-			// to the commit log, otherwise high frequency write volumes
-			// that are using M3DB as a cache-like index of things seen
-			// in a time window will still cause a flood of disk/CPU resource
-			// usage writing values to the commit log, even if the memory
-			// profile is lean as a side effect of this write being a no-op.
-			return nil
-		}
-		if timestamp.After(last.Timestamp) {
-			idx = i
-			break
+	if b.empty {
+		// No values written yet, write to first buffer
+		idx = 0
+	} else {
+		for i := range b.encoders {
+			last, err := b.encoders[i].encoder.LastEncoded()
+			if err != nil {
+				return err
+			}
+			if timestamp.Equal(last.Timestamp) && last.Value == value {
+				// No-op since matches the current value
+				// TODO(r): in the future we could return some metadata that
+				// this result was a no-op and hence does not need to be written
+				// to the commit log, otherwise high frequency write volumes
+				// that are using M3DB as a cache-like index of things seen
+				// in a time window will still cause a flood of disk/CPU resource
+				// usage writing values to the commit log, even if the memory
+				// profile is lean as a side effect of this write being a no-op.
+				return nil
+			}
+			if timestamp.After(last.Timestamp) {
+				idx = i
+				break
+			}
 		}
 	}
 
