@@ -29,49 +29,126 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestIteratorsSelectsDuplicateTimestampFromLastIterator(t *testing.T) {
-	at := time.Now()
-
-	testValues := [][]testValue{
+var (
+	at               = time.Now()
+	commonTestValues = [][]testValue{
 		[]testValue{
 			{t: at, value: 2.0, unit: xtime.Second},
-			{t: at.Add(time.Second), value: 5.0, unit: xtime.Second},
-			{t: at.Add(2 * time.Second), value: 8.0, unit: xtime.Second},
-		},
-		[]testValue{
-			{t: at, value: 1.0, unit: xtime.Second},
-			{t: at.Add(time.Second), value: 4.0, unit: xtime.Second},
+			{t: at.Add(time.Second), value: 6.0, unit: xtime.Second},
 			{t: at.Add(2 * time.Second), value: 7.0, unit: xtime.Second},
 		},
 		[]testValue{
+			{t: at, value: 1.0, unit: xtime.Second},
+			{t: at.Add(time.Second), value: 5.0, unit: xtime.Second},
+			{t: at.Add(2 * time.Second), value: 9.0, unit: xtime.Second},
+		},
+		[]testValue{
 			{t: at, value: 3.0, unit: xtime.Second},
+			{t: at.Add(time.Second), value: 4.0, unit: xtime.Second},
+			{t: at.Add(2 * time.Second), value: 8.0, unit: xtime.Second},
+		},
+	}
+)
+
+func TestIteratorsIterateEqualTimestampStrategy(t *testing.T) {
+	testValues := commonTestValues
+	lastTestValues := commonTestValues[len(commonTestValues)-1]
+
+	iters := iterators{equalTimesStrategy: IterateLastPushed}
+	iters.reset()
+
+	assertIteratorsValues(t, iters, testValues, lastTestValues)
+}
+
+func TestIteratorsIterateHighestValue(t *testing.T) {
+	testValues := commonTestValues
+	lastTestValues := []testValue{
+		testValues[2][0],
+		testValues[0][1],
+		testValues[1][2],
+	}
+
+	iters := iterators{equalTimesStrategy: IterateHighestValue}
+	iters.reset()
+
+	assertIteratorsValues(t, iters, testValues, lastTestValues)
+}
+
+func TestIteratorsIterateLowestValue(t *testing.T) {
+	testValues := commonTestValues
+	lastTestValues := []testValue{
+		testValues[1][0],
+		testValues[2][1],
+		testValues[0][2],
+	}
+
+	iters := iterators{equalTimesStrategy: IterateLowestValue}
+	iters.reset()
+
+	assertIteratorsValues(t, iters, testValues, lastTestValues)
+}
+
+func TestIteratorsIterateHighestFrequencyValue(t *testing.T) {
+	testValues := [][]testValue{
+		[]testValue{
+			{t: at, value: 2.0, unit: xtime.Second},
+			{t: at.Add(time.Second), value: 6.0, unit: xtime.Second},
+			{t: at.Add(2 * time.Second), value: 8.0, unit: xtime.Second},
+		},
+		[]testValue{
+			{t: at, value: 2.0, unit: xtime.Second},
 			{t: at.Add(time.Second), value: 6.0, unit: xtime.Second},
 			{t: at.Add(2 * time.Second), value: 9.0, unit: xtime.Second},
 		},
+		[]testValue{
+			{t: at, value: 3.0, unit: xtime.Second},
+			{t: at.Add(time.Second), value: 5.0, unit: xtime.Second},
+			{t: at.Add(2 * time.Second), value: 8.0, unit: xtime.Second},
+
+			// Also test just a single value without any other frequencies
+			{t: at.Add(3 * time.Second), value: 10.0, unit: xtime.Second},
+		},
 	}
-	lastTestValues := testValues[len(testValues)-1]
+	lastTestValues := []testValue{
+		testValues[0][0],
+		testValues[1][1],
+		testValues[2][2],
+		testValues[2][3],
+	}
+
+	iters := iterators{equalTimesStrategy: IterateHighestFrequencyValue}
+	iters.reset()
+
+	assertIteratorsValues(t, iters, testValues, lastTestValues)
+}
+
+func assertIteratorsValues(
+	t *testing.T,
+	iters iterators,
+	testValues [][]testValue,
+	expectedValues []testValue,
+) {
+	require.Equal(t, 0, len(iters.values))
 
 	var testIters []Iterator
 	for _, values := range testValues {
 		testIters = append(testIters, newTestIterator(values))
 	}
 
-	var iters iterators
-	iters.reset()
 	for _, iter := range testIters {
 		require.True(t, iters.push(iter))
 	}
 
-	for i := 0; i < 3; i++ {
+	for _, expectedValue := range expectedValues {
 		ok, err := iters.moveToValidNext()
 		require.NoError(t, err)
 		require.True(t, ok)
 
 		dp, unit, annotation := iters.current()
-		require.True(t, lastTestValues[i].t.Equal(dp.Timestamp))
-		require.Equal(t, lastTestValues[i].value, dp.Value)
-		require.Equal(t, lastTestValues[i].unit, unit)
-		require.Equal(t, lastTestValues[i].annotation, []byte(annotation))
+		require.True(t, expectedValue.t.Equal(dp.Timestamp))
+		require.Equal(t, dp.Value, expectedValue.value)
+		require.Equal(t, unit, expectedValue.unit)
+		require.Equal(t, []byte(annotation), expectedValue.annotation)
 	}
 	ok, err := iters.moveToValidNext()
 	require.NoError(t, err)

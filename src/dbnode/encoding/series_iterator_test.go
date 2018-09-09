@@ -153,10 +153,43 @@ func TestSeriesIteratorErrorOnOutOfOrder(t *testing.T) {
 	assertTestSeriesIterator(t, test)
 }
 
-func assertTestSeriesIterator(
+func TestSeriesIteratorSetIterateEqualTimestampStrategy(t *testing.T) {
+	test := testSeries{
+		id:   "foo",
+		nsID: "bar",
+	}
+
+	iter := newTestSeriesIterator(t, test).iter
+
+	// Ensure default value if none set
+	assert.Equal(t, iter.iters.equalTimesStrategy,
+		DefaultIterateEqualTimestampStrategy)
+
+	// Ensure value is propagated during a reset
+	iter.Reset(SeriesIteratorOptions{
+		ID: ident.StringID("baz"),
+		IterateEqualTimestampStrategy: IterateHighestValue,
+	})
+	assert.Equal(t, iter.iters.equalTimesStrategy,
+		IterateHighestValue)
+
+	// Ensure falls back to default after a reset without specifying
+	iter.Reset(SeriesIteratorOptions{
+		ID: ident.StringID("baz"),
+	})
+	assert.Equal(t, iter.iters.equalTimesStrategy,
+		DefaultIterateEqualTimestampStrategy)
+}
+
+type newTestSeriesIteratorResult struct {
+	iter                 *seriesIterator
+	multiReaderIterators []MultiReaderIterator
+}
+
+func newTestSeriesIterator(
 	t *testing.T,
 	series testSeries,
-) {
+) newTestSeriesIteratorResult {
 	var iters []MultiReaderIterator
 	for i := range series.input {
 		if series.input[i] == nil {
@@ -166,7 +199,31 @@ func assertTestSeriesIterator(
 		}
 	}
 
-	iter := NewSeriesIterator(ident.StringID(series.id), ident.StringID(series.nsID), ident.EmptyTagIterator, series.start, series.end, iters, nil)
+	iter := NewSeriesIterator(SeriesIteratorOptions{
+		ID:             ident.StringID(series.id),
+		Namespace:      ident.StringID(series.nsID),
+		Tags:           ident.EmptyTagIterator,
+		StartInclusive: series.start,
+		EndExclusive:   series.end,
+		Replicas:       iters,
+	}, nil)
+
+	seriesIter, ok := iter.(*seriesIterator)
+	require.True(t, ok)
+
+	return newTestSeriesIteratorResult{
+		iter:                 seriesIter,
+		multiReaderIterators: iters,
+	}
+}
+
+func assertTestSeriesIterator(
+	t *testing.T,
+	series testSeries,
+) {
+	newSeriesIter := newTestSeriesIterator(t, series)
+	iter := newSeriesIter.iter
+	multiReaderIterators := newSeriesIter.multiReaderIterators
 	defer iter.Close()
 
 	assert.Equal(t, series.id, iter.ID().String())
@@ -196,7 +253,7 @@ func assertTestSeriesIterator(
 	} else {
 		assert.Equal(t, series.expectedErr.err, iter.Err())
 	}
-	for _, iter := range iters {
+	for _, iter := range multiReaderIterators {
 		if iter != nil {
 			assert.Equal(t, true, iter.(*testMultiIterator).closed)
 		}

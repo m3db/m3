@@ -42,6 +42,14 @@ type Encoder interface {
 	// Stream is the streaming interface for reading encoded bytes in the encoder.
 	Stream() xio.SegmentReader
 
+	// NumEncoded returns the number of encoded datapoints.
+	NumEncoded() int
+
+	// LastEncoded returns the last encoded datapoint, useful for
+	// de-duplicating encoded values. If there no values encoded previously
+	// an error is returned.
+	LastEncoded() (ts.Datapoint, error)
+
 	// Len returns the length of the encoded bytes in the encoder.
 	Len() int
 
@@ -171,10 +179,21 @@ type SeriesIterator interface {
 	// must note that this can be an array with nil entries if some replicas did not return successfully.
 	// NB: the SeriesIterator assumes ownership of the provided ids, this includes calling `id.Finalize()` upon
 	// iter.Close().
-	Reset(id ident.ID, ns ident.ID, t ident.TagIterator, startInclusive, endExclusive time.Time, replicas []MultiReaderIterator)
+	Reset(opts SeriesIteratorOptions)
 
 	// Replicas exposes the underlying MultiReaderIterator slice for this SeriesIterator
 	Replicas() []MultiReaderIterator
+}
+
+// SeriesIteratorOptions is a set of options for using a series iterator.
+type SeriesIteratorOptions struct {
+	ID                            ident.ID
+	Namespace                     ident.ID
+	Tags                          ident.TagIterator
+	Replicas                      []MultiReaderIterator
+	StartInclusive                time.Time
+	EndExclusive                  time.Time
+	IterateEqualTimestampStrategy IterateEqualTimestampStrategy
 }
 
 // SeriesIterators is a collection of SeriesIterator that can close all iterators

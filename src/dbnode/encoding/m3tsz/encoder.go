@@ -40,7 +40,8 @@ const (
 )
 
 var (
-	errEncoderClosed = errors.New("encoder is closed")
+	errEncoderClosed       = errors.New("encoder is closed")
+	errNoEncodedDatapoints = errors.New("encoder has no encoded datapoints")
 )
 
 type encoder struct {
@@ -59,7 +60,7 @@ type encoder struct {
 	tu                 xtime.Unit // current time unit
 	intOptimized       bool       // whether the encoding scheme is optimized for ints
 	isFloat            bool       // whether we are encoding ints/floats
-	hasStartedWriting  bool       // whether any datapoints have been written yet
+	numEncoded         uint32     // whether any datapoints have been written yet
 	maxMult            uint8      // current max multiplier for int vals
 	numSig             uint8      // current largest number of significant places for int diffs
 	curHighestLowerSig uint8
@@ -114,11 +115,17 @@ func (enc *encoder) Encode(dp ts.Datapoint, tu xtime.Unit, ant ts.Annotation) er
 		return errEncoderClosed
 	}
 
-	if !enc.hasStartedWriting {
-		return enc.writeFirst(dp, ant, tu)
+	var err error
+	if enc.numEncoded == 0 {
+		err = enc.writeFirst(dp, ant, tu)
+	} else {
+		err = enc.writeNext(dp, ant, tu)
+	}
+	if err == nil {
+		enc.numEncoded++
 	}
 
-	return enc.writeNext(dp, ant, tu)
+	return err
 }
 
 // writeFirst writes the first datapoint with annotation.
@@ -199,7 +206,6 @@ func (enc *encoder) writeFirstTime(t time.Time, ant ts.Annotation, tu xtime.Unit
 	// if the start time is going to be a multiple of the time unit provided.
 	nt := xtime.ToNormalizedTime(enc.t, time.Nanosecond)
 	enc.os.WriteBits(uint64(nt), 64)
-	enc.hasStartedWriting = true
 	return enc.writeNextTime(t, ant, tu)
 }
 
@@ -515,7 +521,7 @@ func (enc *encoder) reset(start time.Time, bytes checked.Bytes) {
 	enc.numLowerSig = 0
 	enc.ant = nil
 	enc.tu = initialTimeUnit(start, enc.opts.DefaultTimeUnit())
-	enc.hasStartedWriting = false
+	enc.numEncoded = 0
 	enc.closed = false
 }
 
@@ -530,6 +536,24 @@ func (enc *encoder) Stream() xio.SegmentReader {
 		return reader
 	}
 	return xio.NewSegmentReader(segment)
+}
+
+func (enc *encoder) NumEncoded() int {
+	return int(enc.numEncoded)
+}
+
+func (enc *encoder) LastEncoded() (ts.Datapoint, error) {
+	if enc.numEncoded == 0 {
+		return ts.Datapoint{}, errNoEncodedDatapoints
+	}
+
+	result := ts.Datapoint{Timestamp: enc.t}
+	if enc.isFloat {
+		result.Value = math.Float64frombits(enc.vb)
+	} else {
+		result.Value = enc.intVal
+	}
+	return result, nil
 }
 
 func (enc *encoder) Len() int {

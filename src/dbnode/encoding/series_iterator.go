@@ -45,15 +45,11 @@ type seriesIterator struct {
 // NewSeriesIterator creates a new series iterator.
 // NB: The returned SeriesIterator assumes ownership of the provided `ident.ID`.
 func NewSeriesIterator(
-	id ident.ID,
-	nsID ident.ID,
-	tags ident.TagIterator,
-	startInclusive, endExclusive time.Time,
-	replicas []MultiReaderIterator,
+	opts SeriesIteratorOptions,
 	pool SeriesIteratorPool,
 ) SeriesIterator {
 	it := &seriesIterator{pool: pool}
-	it.Reset(id, nsID, tags, startInclusive, endExclusive, replicas)
+	it.Reset(opts)
 	return it
 }
 
@@ -101,10 +97,17 @@ func (it *seriesIterator) Close() {
 		return
 	}
 	it.closed = true
-	it.id.Finalize()
-	it.nsID.Finalize()
+	if it.id != nil {
+		it.id.Finalize()
+		it.id = nil
+	}
+	if it.nsID != nil {
+		it.nsID.Finalize()
+		it.nsID = nil
+	}
 	if it.tags != nil {
 		it.tags.Close()
+		it.tags = nil
 	}
 
 	for idx := range it.multiReaderIters {
@@ -121,19 +124,25 @@ func (it *seriesIterator) Replicas() []MultiReaderIterator {
 	return it.multiReaderIters
 }
 
-func (it *seriesIterator) Reset(id ident.ID, nsID ident.ID, tags ident.TagIterator, startInclusive, endExclusive time.Time, replicas []MultiReaderIterator) {
-	it.id = id
-	it.nsID = nsID
-	it.tags = tags
-	it.start = startInclusive
-	it.end = endExclusive
+func (it *seriesIterator) Reset(opts SeriesIteratorOptions) {
+	it.id = opts.ID
+	it.nsID = opts.Namespace
+	it.tags = opts.Tags
+	if it.tags == nil {
+		it.tags = ident.EmptyTagIterator
+	}
+	it.start = opts.StartInclusive
+	it.end = opts.EndExclusive
 	it.iters.reset()
-	it.iters.setFilter(startInclusive, endExclusive)
+	if !it.start.IsZero() && !it.end.IsZero() {
+		it.iters.setFilter(it.start, it.end)
+	}
+	it.iters.equalTimesStrategy = opts.IterateEqualTimestampStrategy
 	it.multiReaderIters = it.multiReaderIters[:0]
 	it.err = nil
 	it.firstNext = true
 	it.closed = false
-	for _, replica := range replicas {
+	for _, replica := range opts.Replicas {
 		if !replica.Next() || !it.iters.push(replica) {
 			replica.Close()
 			continue

@@ -21,6 +21,7 @@
 package encoding
 
 import (
+	"sort"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/ts"
@@ -38,13 +39,16 @@ var (
 // iterators is a collection of iterators, and allows for reading in order values
 // from the underlying iterators that are separately in order themselves.
 type iterators struct {
-	values       []Iterator
-	earliest     []Iterator
-	lastEarliest Iterator
-	earliestAt   time.Time
-	filtering    bool
-	filterStart  time.Time
-	filterEnd    time.Time
+	values             []Iterator
+	earliest           []Iterator
+	earliestAt         time.Time
+	filterStart        time.Time
+	filterEnd          time.Time
+	filtering          bool
+	equalTimesStrategy IterateEqualTimestampStrategy
+
+	// Used for caching reuse of value frequency lookup
+	valueFrequencies map[float64]int
 }
 
 func (i *iterators) len() int {
@@ -52,7 +56,54 @@ func (i *iterators) len() int {
 }
 
 func (i *iterators) current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
-	return i.lastEarliest.Current()
+	numIters := len(i.earliest)
+
+	switch i.equalTimesStrategy {
+	case IterateHighestValue:
+		sort.Slice(i.earliest, func(a, b int) bool {
+			currA, _, _ := i.earliest[a].Current()
+			currB, _, _ := i.earliest[b].Current()
+			return currA.Value < currB.Value
+		})
+
+	case IterateLowestValue:
+		sort.Slice(i.earliest, func(a, b int) bool {
+			currA, _, _ := i.earliest[a].Current()
+			currB, _, _ := i.earliest[b].Current()
+			return currA.Value > currB.Value
+		})
+
+	case IterateHighestFrequencyValue:
+		// Calculate frequencies
+		if i.valueFrequencies == nil {
+			i.valueFrequencies = make(map[float64]int)
+		}
+		for _, iter := range i.earliest {
+			curr, _, _ := iter.Current()
+			i.valueFrequencies[curr.Value]++
+		}
+
+		// Sort
+		sort.Slice(i.earliest, func(a, b int) bool {
+			currA, _, _ := i.earliest[a].Current()
+			currB, _, _ := i.earliest[b].Current()
+			freqA := i.valueFrequencies[currA.Value]
+			freqB := i.valueFrequencies[currB.Value]
+			return freqA < freqB
+		})
+
+		// Reset reuseable value frequencies
+		for key := range i.valueFrequencies {
+			delete(i.valueFrequencies, key)
+		}
+
+	default:
+		// IterateLastPushed or unknown strategy code path, don't panic on unknown
+		// as this is an internal data structure and this option is validated at a
+		// layer above.
+	}
+
+	return i.earliest[numIters-1].Current()
 }
 
 func (i *iterators) at() time.Time {
@@ -69,20 +120,14 @@ func (i *iterators) push(iter Iterator) bool {
 }
 
 func (i *iterators) tryAddEarliest(iter Iterator) {
-	added := false
 	dp, _, _ := iter.Current()
 	if dp.Timestamp.Equal(i.earliestAt) {
 		// Push equal earliest
 		i.earliest = append(i.earliest, iter)
-		added = true
 	} else if dp.Timestamp.Before(i.earliestAt) {
 		// Reset earliest and push new iter
 		i.earliest = append(i.earliest[:0], iter)
 		i.earliestAt = dp.Timestamp
-		added = true
-	}
-	if added {
-		i.lastEarliest = iter
 	}
 }
 
@@ -193,7 +238,6 @@ func (i *iterators) reset() {
 	}
 	i.earliest = i.earliest[:0]
 	i.earliestAt = timeMax
-	i.lastEarliest = nil
 }
 
 func (i *iterators) setFilter(start, end time.Time) {
