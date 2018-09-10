@@ -98,6 +98,17 @@ func (s *uninitializedSource) availability(
 			continue
 		}
 
+		// The basic idea for the algorithm is that on a shard-by-shard basis we
+		// need to determine if the namespace is "new" in the sense that it has
+		// never been completely initialized (reached a state where all the hosts
+		// in the topology are "available").
+		// In order to determine this, we simply count the number of hosts in the
+		// "initializing" state. If this number is larger than zero, than the
+		// namespace is "new".
+		// The one exception to this case is when we perform topology changes and
+		// we end up with one extra node that is initializing which should be offset
+		// by the corresponding node that is leaving. I.E if numInitializing > 0
+		// BUT numLeaving >= numInitializing then it is still not a new namespace.
 		var (
 			numInitializing = 0
 			numLeaving      = 0
@@ -108,6 +119,10 @@ func (s *uninitializedSource) availability(
 			case shard.Initializing:
 				numInitializing++
 			case shard.Unknown:
+				// TODO: Right now we ignore unknown shards (which biases us towards
+				// failing the bootstrap). Once this interface supports returning errors,
+				// we should return an error in this case because the cluster is in a bad
+				// state and the operator should make a decision on how they want to proceed.
 			case shard.Leaving:
 				numLeaving++
 			case shard.Available:
