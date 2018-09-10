@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
 	bfs "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/peers"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/uninitialized"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 )
@@ -120,7 +121,7 @@ func (bsc BootstrapConfiguration) New(
 		case bootstrapper.NoOpNoneBootstrapperName:
 			bs = bootstrapper.NewNoOpNoneBootstrapperProvider()
 		case bfs.FileSystemBootstrapperName:
-			fsbopts := bfs.NewOptions().
+			fsbOpts := bfs.NewOptions().
 				SetInstrumentOptions(opts.InstrumentOptions()).
 				SetResultOptions(rsOpts).
 				SetFilesystemOptions(fsOpts).
@@ -129,12 +130,12 @@ func (bsc BootstrapConfiguration) New(
 				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager()).
 				SetRuntimeOptionsManager(opts.RuntimeOptionsManager()).
 				SetIdentifierPool(opts.IdentifierPool())
-			bs, err = bfs.NewFileSystemBootstrapperProvider(fsbopts, bs)
+			bs, err = bfs.NewFileSystemBootstrapperProvider(fsbOpts, bs)
 			if err != nil {
 				return nil, err
 			}
 		case commitlog.CommitLogBootstrapperName:
-			copts := commitlog.NewOptions().
+			cOpts := commitlog.NewOptions().
 				SetResultOptions(rsOpts).
 				SetCommitLogOptions(opts.CommitLogOptions())
 
@@ -142,19 +143,27 @@ func (bsc BootstrapConfiguration) New(
 			if err != nil {
 				return nil, err
 			}
-			bs, err = commitlog.NewCommitLogBootstrapperProvider(copts, inspection, bs)
+			bs, err = commitlog.NewCommitLogBootstrapperProvider(cOpts, inspection, bs)
 			if err != nil {
 				return nil, err
 			}
 		case peers.PeersBootstrapperName:
-			popts := peers.NewOptions().
+			pOpts := peers.NewOptions().
 				SetResultOptions(rsOpts).
 				SetAdminClient(adminClient).
 				SetPersistManager(opts.PersistManager()).
 				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager()).
 				SetFetchBlocksMetadataEndpointVersion(bsc.peersFetchBlocksMetadataEndpointVersion()).
 				SetRuntimeOptionsManager(opts.RuntimeOptionsManager())
-			bs, err = peers.NewPeersBootstrapperProvider(popts, bs)
+			bs, err = peers.NewPeersBootstrapperProvider(pOpts, bs)
+			if err != nil {
+				return nil, err
+			}
+		case uninitialized.UninitializedBootstrapperName:
+			uopts := uninitialized.NewOptions().
+				SetResultOptions(rsOpts).
+				SetInstrumentOptions(opts.InstrumentOptions())
+			bs, err = uninitialized.NewUninitializedBootstrapperProvider(uopts, bs)
 			if err != nil {
 				return nil, err
 			}
@@ -193,6 +202,12 @@ func ValidateBootstrappersOrder(names []string) error {
 		commitlog.CommitLogBootstrapperName: []string{
 			// Commit log bootstrapper may appear after filesystem or peers
 			bfs.FileSystemBootstrapperName,
+			peers.PeersBootstrapperName,
+		},
+		uninitialized.UninitializedBootstrapperName: []string{
+			// Unintialized bootstrapper may appear after filesystem or peers or commitlog
+			bfs.FileSystemBootstrapperName,
+			commitlog.CommitLogBootstrapperName,
 			peers.PeersBootstrapperName,
 		},
 	}
