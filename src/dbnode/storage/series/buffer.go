@@ -633,6 +633,7 @@ func (b *dbBufferBucket) write(
 	bopts := b.opts.DatabaseBlockOptions()
 	blockSize := b.opts.RetentionOptions().BlockSize()
 	blockAllocSize := bopts.DatabaseBlockAllocSize()
+
 	encoder := bopts.EncoderPool().Get()
 	encoder.Reset(timestamp.Truncate(blockSize), blockAllocSize)
 

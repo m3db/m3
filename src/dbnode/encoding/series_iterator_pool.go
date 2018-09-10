@@ -21,13 +21,7 @@
 package encoding
 
 import (
-	"time"
-
 	"github.com/m3db/m3x/pool"
-)
-
-var (
-	timeZero time.Time
 )
 
 type seriesIteratorPool struct {
