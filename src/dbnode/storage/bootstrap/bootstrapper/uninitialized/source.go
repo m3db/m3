@@ -133,8 +133,8 @@ func (s *uninitializedSource) availability(
 			}
 		}
 
-		isNewNamespace := numInitializing-numLeaving > 0
-		if isNewNamespace {
+		shardHasEverBeenCompletelyInitialized := numInitializing-numLeaving > 0
+		if shardHasEverBeenCompletelyInitialized {
 			availableShardTimeRanges[shardIDUint] = shardsTimeRanges[shardIDUint]
 		}
 	}
