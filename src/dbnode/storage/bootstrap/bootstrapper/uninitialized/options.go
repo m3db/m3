@@ -23,15 +23,18 @@ package uninitialized
 import (
 	"errors"
 
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3x/instrument"
 )
 
 var (
 	errInstrumentOptsNotSet = errors.New("instrument options not set")
+	errResultOptsNotSet     = errors.New("result options not set")
 )
 
 type options struct {
-	iOpts instrument.Options
+	resultOpts result.Options
+	iOpts      instrument.Options
 }
 
 func NewOptions() Options {
@@ -43,7 +46,21 @@ func (o *options) Validate() error {
 		return errInstrumentOptsNotSet
 	}
 
+	if o.resultOpts == nil {
+		return errResultOptsNotSet
+	}
+
 	return nil
+}
+
+func (o *options) SetResultOptions(value result.Options) Options {
+	opts := *o
+	opts.resultOpts = value
+	return &opts
+}
+
+func (o *options) ResultOptions() result.Options {
+	return o.resultOpts
 }
 
 func (o *options) SetInstrumentOptions(value instrument.Options) Options {

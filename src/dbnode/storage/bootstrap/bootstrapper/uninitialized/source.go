@@ -44,14 +44,10 @@ type uninitializedSource struct {
 }
 
 // NewUninitializedSource creates a new uninitialized source.
-func NewUninitializedSource(opts Options) (bootstrap.Source, error) {
-	if err := opts.Validate(); err != nil {
-		return nil, err
-	}
-
+func newUninitializedSource(opts Options) bootstrap.Source {
 	return &uninitializedSource{
 		opts: opts,
-	}, nil
+	}
 }
 
 func (s *uninitializedSource) Can(strategy bootstrap.Strategy) bool {

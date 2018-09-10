@@ -266,16 +266,15 @@ func TestUnitializedSourceAvailableDataAndAvailableIndex(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.title, func(t *testing.T) {
 
-			srcOpts := NewOptions().SetInstrumentOptions(instrument.NewOptions())
-			src, err := NewUninitializedSource(srcOpts)
-			require.NoError(t, err)
-
-			runOpts := testDefaultRunOpts.SetInitialTopologyState(tc.hosts.TopologyState(tc.majorityReplicas))
-			dataRes := src.AvailableData(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
+			var (
+				srcOpts  = NewOptions().SetInstrumentOptions(instrument.NewOptions())
+				src      = newUninitializedSource(srcOpts)
+				runOpts  = testDefaultRunOpts.SetInitialTopologyState(tc.hosts.TopologyState(tc.majorityReplicas))
+				dataRes  = src.AvailableData(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
+				indexRes = src.AvailableIndex(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
+			)
 
 			require.Equal(t, tc.expectedAvailableShardsTimeRanges, dataRes)
-
-			indexRes := src.AvailableIndex(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
 			require.Equal(t, tc.expectedAvailableShardsTimeRanges, indexRes)
 		})
 	}

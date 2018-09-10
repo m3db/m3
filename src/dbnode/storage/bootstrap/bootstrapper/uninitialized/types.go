@@ -20,10 +20,19 @@
 
 package uninitialized
 
-import "github.com/m3db/m3x/instrument"
+import (
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3x/instrument"
+)
 
 // Options is the options interface for the uninitialized source.
 type Options interface {
+	// SetResultOptions sets the result options
+	SetResultOptions(value result.Options) Options
+
+	// ResultOptions returns the result options
+	ResultOptions() result.Options
+
 	// Return the instrument options.
 	InstrumentOptions() instrument.Options
 
