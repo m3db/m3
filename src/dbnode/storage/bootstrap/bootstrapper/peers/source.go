@@ -722,6 +722,8 @@ func (s *peersSource) peerAvailability(
 			case shard.Available:
 				shardPeers.numAvailablePeers++
 			default:
+				// TODO(rartoul): Make this a hard error once we refactor the interface to support
+				// returning errors.
 				panic(
 					fmt.Sprintf("encountered unknown shard state: %s", shardState.String()))
 			}

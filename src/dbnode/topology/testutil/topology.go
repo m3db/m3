@@ -28,6 +28,10 @@ import (
 	"github.com/m3db/m3cluster/shard"
 )
 
+const (
+	SelfID = "self"
+)
+
 // MustNewTopologyMap returns a new topology.Map with provided parameters.
 // It's a utility method to make tests easier to write.
 func MustNewTopologyMap(
@@ -100,4 +104,42 @@ func (v TopologyView) Map() (topology.Map, error) {
 		SetShardSet(shardSet)
 
 	return topology.NewStaticMap(opts), nil
+}
+
+// SourceAvailableHost is a human-friendly way of constructing
+// TopologyStates for test cases.
+type SourceAvailableHost struct {
+	Name        string
+	Shards      []uint32
+	ShardStates shard.State
+}
+
+// SourceAvailableHosts is a slice of SourceAvailableHost.
+type SourceAvailableHosts []SourceAvailableHost
+
+// TopologyState returns a topology.StateSnapshot that is equivalent to
+// the slice of SourceAvailableHosts.
+func (s SourceAvailableHosts) TopologyState(numMajorityReplicas int) *topology.StateSnapshot {
+	topoState := &topology.StateSnapshot{
+		Origin:           topology.NewHost(SelfID, "127.0.0.1"),
+		MajorityReplicas: numMajorityReplicas,
+		ShardStates:      make(map[topology.ShardID]map[topology.HostID]topology.HostShardState),
+	}
+
+	for _, host := range s {
+		for _, shard := range host.Shards {
+			hostShardStates, ok := topoState.ShardStates[topology.ShardID(shard)]
+			if !ok {
+				hostShardStates = make(map[topology.HostID]topology.HostShardState)
+			}
+
+			hostShardStates[topology.HostID(host.Name)] = topology.HostShardState{
+				Host:       topology.NewHost(host.Name, host.Name+"address"),
+				ShardState: host.ShardStates,
+			}
+			topoState.ShardStates[topology.ShardID(shard)] = hostShardStates
+		}
+	}
+
+	return topoState
 }

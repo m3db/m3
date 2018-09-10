@@ -86,14 +86,14 @@ func testOptions() Options {
 }
 
 func TestAvailableEmptyRangeError(t *testing.T) {
-	opts := testOptions()
+	opts := testDefaultOpts
 	src := newCommitLogSource(opts, fs.Inspection{})
 	res := src.AvailableData(testNsMetadata(t), result.ShardTimeRanges{}, testDefaultRunOpts)
 	require.True(t, result.ShardTimeRanges{}.Equal(res))
 }
 
 func TestReadEmpty(t *testing.T) {
-	opts := testOptions()
+	opts := testDefaultOpts
 
 	src := newCommitLogSource(opts, fs.Inspection{})
 
@@ -105,7 +105,7 @@ func TestReadEmpty(t *testing.T) {
 }
 
 func TestReadErrorOnNewIteratorError(t *testing.T) {
-	opts := testOptions()
+	opts := testDefaultOpts
 	src := newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
 
 	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, error) {
@@ -124,7 +124,7 @@ func TestReadErrorOnNewIteratorError(t *testing.T) {
 }
 
 func TestReadOrderedValues(t *testing.T) {
-	opts := testOptions()
+	opts := testDefaultOpts
 	md := testNsMetadata(t)
 	src := newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
 
@@ -169,7 +169,7 @@ func TestReadOrderedValues(t *testing.T) {
 }
 
 func TestReadUnorderedValues(t *testing.T) {
-	opts := testOptions()
+	opts := testDefaultOpts
 	md := testNsMetadata(t)
 	src := newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
 
@@ -216,7 +216,7 @@ func TestReadUnorderedValues(t *testing.T) {
 // files can span multiple M3DB processes which means that unique indexes could be re-used for multiple
 // different series.
 func TestReadHandlesDifferentSeriesWithIdenticalUniqueIndex(t *testing.T) {
-	opts := testOptions()
+	opts := testDefaultOpts
 	md := testNsMetadata(t)
 	src := newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
 
@@ -257,7 +257,7 @@ func TestReadHandlesDifferentSeriesWithIdenticalUniqueIndex(t *testing.T) {
 }
 
 func TestReadTrimsToRanges(t *testing.T) {
-	opts := testOptions()
+	opts := testDefaultOpts
 	md := testNsMetadata(t)
 	src := newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
 
@@ -302,7 +302,7 @@ func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		opts      = testOptions()
+		opts      = testDefaultOpts
 		md        = testNsMetadata(t)
 		src       = newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
 		blockSize = md.Options().RetentionOptions().BlockSize()
