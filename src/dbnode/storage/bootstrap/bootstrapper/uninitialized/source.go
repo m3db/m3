@@ -109,6 +109,7 @@ func (s *uninitializedSource) availability(
 		// we end up with one extra node that is initializing which should be offset
 		// by the corresponding node that is leaving. I.E if numInitializing > 0
 		// BUT numLeaving >= numInitializing then it is still not a new namespace.
+		// See the TestUnitializedSourceAvailableDataAndAvailableIndex test for more details.
 		var (
 			numInitializing = 0
 			numLeaving      = 0
