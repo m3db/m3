@@ -37,6 +37,7 @@ type options struct {
 	iOpts      instrument.Options
 }
 
+// NewOptions creates a new Options.
 func NewOptions() Options {
 	return &options{}
 }

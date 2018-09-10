@@ -27,12 +27,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	"github.com/m3db/m3/src/dbnode/topology"
 	topotestutils "github.com/m3db/m3/src/dbnode/topology/testutil"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	xtime "github.com/m3db/m3x/time"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -66,7 +66,6 @@ func TestUnitializedSourceAvailableDataAndAvailableIndex(t *testing.T) {
 		title                             string
 		majorityReplicas                  int
 		hosts                             topotestutils.SourceAvailableHosts
-		bootstrapReadConsistency          topology.ReadConsistencyLevel
 		shardsTimeRangesToBootstrap       result.ShardTimeRanges
 		expectedAvailableShardsTimeRanges result.ShardTimeRanges
 	}{

@@ -29,6 +29,7 @@ import (
 )
 
 const (
+	// SelfID is the string used to represent the ID of the origin node.
 	SelfID = "self"
 )
 
