@@ -30,13 +30,15 @@ import (
 	"github.com/m3db/m3cluster/shard"
 )
 
-// The purpose of the unitializedSource is succeed bootstraps for any
+// The purpose of the unitializedSource is to succeed bootstraps for any
 // shard/time-ranges if the given shard/namespace combination has never
 // been completely initialized (is a new namespace). This is required for
 // allowing us to configure the bootstrappers such that the commitlog
 // bootstrapper can precede the peers bootstrapper and still suceed bootstraps
 // for brand new namespaces without permitting unintentional data loss by
 // putting the noop-all or noop-none bootstrappers at the end of the process.
+// Behavior is best understood by reading the test cases for the test:
+// TestUnitializedSourceAvailableDataAndAvailableIndex
 type uninitializedSource struct {
 	opts Options
 }

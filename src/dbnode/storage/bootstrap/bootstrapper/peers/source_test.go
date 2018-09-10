@@ -35,6 +35,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	notSelfID1 = "not-self1"
+	notSelfID2 = "not-self2"
+)
+
 func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -89,12 +94,12 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 					ShardStates: shard.Available,
 				},
 				topotestutils.SourceAvailableHost{
-					Name:        "other1",
+					Name:        notSelfID1,
 					Shards:      shards,
 					ShardStates: shard.Initializing,
 				},
 				topotestutils.SourceAvailableHost{
-					Name:        "other2",
+					Name:        notSelfID2,
 					Shards:      shards,
 					ShardStates: shard.Unknown,
 				},
@@ -113,12 +118,12 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 					ShardStates: shard.Initializing,
 				},
 				topotestutils.SourceAvailableHost{
-					Name:        "other1",
+					Name:        notSelfID1,
 					Shards:      shards,
 					ShardStates: shard.Available,
 				},
 				topotestutils.SourceAvailableHost{
-					Name:        "other2",
+					Name:        notSelfID2,
 					Shards:      shards,
 					ShardStates: shard.Leaving,
 				},
@@ -136,12 +141,12 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 					ShardStates: shard.Initializing,
 				},
 				topotestutils.SourceAvailableHost{
-					Name:        "other1",
+					Name:        notSelfID1,
 					Shards:      shards,
 					ShardStates: shard.Available,
 				},
 				topotestutils.SourceAvailableHost{
-					Name:        "other2",
+					Name:        notSelfID2,
 					Shards:      shards,
 					ShardStates: shard.Available,
 				},
@@ -160,12 +165,12 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 					ShardStates: shard.Initializing,
 				},
 				topotestutils.SourceAvailableHost{
-					Name:        "other1",
+					Name:        notSelfID1,
 					Shards:      shards,
 					ShardStates: shard.Available,
 				},
 				topotestutils.SourceAvailableHost{
-					Name:        "other2",
+					Name:        notSelfID2,
 					Shards:      shards,
 					ShardStates: shard.Available,
 				},
