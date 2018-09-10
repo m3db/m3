@@ -118,11 +118,12 @@ func Run(runOpts RunOptions) {
 	logger := logging.WithContext(ctx)
 	defer logger.Sync()
 
-	scope, _, err := cfg.Metrics.NewRootScope()
+	scope, closer, err := cfg.Metrics.NewRootScope()
 	if err != nil {
 		logger.Fatal("could not connect to metrics", zap.Any("error", err))
 	}
 
+	defer closer.Close()
 	var (
 		backendStorage storage.Storage
 		clusterClient  clusterclient.Client
