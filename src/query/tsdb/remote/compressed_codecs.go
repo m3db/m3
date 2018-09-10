@@ -394,7 +394,12 @@ func seriesIteratorFromCompressedSeries(
 	start := xtime.FromNanoseconds(compressedValues.GetStartTime())
 	end := xtime.FromNanoseconds(compressedValues.GetEndTime())
 
-	seriesIter := seriesIterPool.Get()
+	var seriesIter encoding.SeriesIterator
+	if seriesIterPool != nil {
+		seriesIter = seriesIterPool.Get()
+	} else {
+		seriesIter = encoding.NewSeriesIterator(encoding.SeriesIteratorOptions{}, nil)
+	}
 	seriesIter.Reset(encoding.SeriesIteratorOptions{
 		ID:             id,
 		Namespace:      ns,

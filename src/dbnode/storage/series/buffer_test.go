@@ -395,8 +395,8 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 	bucketIdx := (curr.UnixNano() / int64(rops.BlockSize())) % bucketsLen
 	assert.Equal(t, 2, len(buffer.buckets[bucketIdx].encoders))
 	assert.False(t, buffer.buckets[bucketIdx].empty)
-	assert.Equal(t, data[1].timestamp, buffer.buckets[bucketIdx].encoders[0].lastWriteAt)
-	assert.Equal(t, data[2].timestamp, buffer.buckets[bucketIdx].encoders[1].lastWriteAt)
+	assert.Equal(t, data[1].timestamp, mustGetLastEncoded(t, buffer.buckets[bucketIdx].encoders[0]).Timestamp)
+	assert.Equal(t, data[2].timestamp, mustGetLastEncoded(t, buffer.buckets[bucketIdx].encoders[1]).Timestamp)
 
 	// Restore data to in order for comparison
 	sort.Sort(valuesByTime(data))
@@ -620,7 +620,7 @@ func TestBufferFetchBlocks(t *testing.T) {
 	for i := 1; i < 3; i++ {
 		newBucketStart := b.start.Add(time.Duration(i) * time.Minute)
 		(&buffer.buckets[i]).resetTo(newBucketStart)
-		buffer.buckets[i].encoders = []inOrderEncoder{{newBucketStart, nil}}
+		buffer.buckets[i].encoders = []inOrderEncoder{{}}
 	}
 
 	res := buffer.FetchBlocks(ctx, []time.Time{b.start, b.start.Add(time.Second)})
@@ -930,4 +930,10 @@ func TestBufferSnapshot(t *testing.T) {
 
 	// Ensure single encoder again
 	assert.Equal(t, 1, len(encoders))
+}
+
+func mustGetLastEncoded(t *testing.T, entry inOrderEncoder) ts.Datapoint {
+	last, err := entry.encoder.LastEncoded()
+	require.NoError(t, err)
+	return last
 }

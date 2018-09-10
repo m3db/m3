@@ -828,8 +828,14 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 	multiIt := opts.MultiReaderIteratorPool().Get()
 
 	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(encoded))
-	it := encoding.NewSeriesIterator(id, nsID, ident.NewTagsIterator(tags),
-		qStart, qEnd, []encoding.MultiReaderIterator{multiIt}, nil)
+	it := encoding.NewSeriesIterator(encoding.SeriesIteratorOptions{
+		ID:             id,
+		Namespace:      nsID,
+		Tags:           ident.NewTagsIterator(tags),
+		StartInclusive: qStart,
+		EndExclusive:   qEnd,
+		Replicas:       []encoding.MultiReaderIterator{multiIt},
+	}, nil)
 	defer it.Close()
 
 	var actual []ts.Datapoint

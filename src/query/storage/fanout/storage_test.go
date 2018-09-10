@@ -51,8 +51,11 @@ func fakeIterator(t *testing.T) encoding.SeriesIterators {
 	id := ident.StringID("id")
 	namespace := ident.StringID("metrics")
 	return encoding.NewSeriesIterators([]encoding.SeriesIterator{
-		encoding.NewSeriesIterator(id, namespace, seriesiter.GenerateSingleSampleTagIterator(gomock.NewController(t), seriesiter.GenerateTag()),
-			time.Now(), time.Now(), nil, nil)}, nil)
+		encoding.NewSeriesIterator(encoding.SeriesIteratorOptions{
+			ID:        id,
+			Namespace: namespace,
+			Tags:      seriesiter.GenerateSingleSampleTagIterator(gomock.NewController(t), seriesiter.GenerateTag()),
+		}, nil)}, nil)
 }
 
 type fetchResponse struct {
