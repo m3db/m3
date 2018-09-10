@@ -157,8 +157,14 @@ func seriesBlocksFromBlockReplicas(blockReplicas []blockReplica, seriesIterator 
 		// todo(braskin): pooling
 		// NB(braskin): we should be careful when directly accessing the series iterators.
 		// Instead, we should access them through the SeriesBlock.
-		valuesIter := encoding.NewSeriesIterator(clonedID, clonedNamespace,
-			clonedTags.Duplicate(), filterValuesStart, filterValuesEnd, block.replicas, nil)
+		valuesIter := encoding.NewSeriesIterator(encoding.SeriesIteratorOptions{
+			ID:             clonedID,
+			Namespace:      clonedNamespace,
+			Tags:           clonedTags.Duplicate(),
+			StartInclusive: filterValuesStart,
+			EndExclusive:   filterValuesEnd,
+			Replicas:       block.replicas,
+		}, nil)
 
 		series.Blocks[i] = SeriesBlock{
 			start:          filterValuesStart,

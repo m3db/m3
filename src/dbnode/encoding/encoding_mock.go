@@ -88,6 +88,31 @@ func (mr *MockEncoderMockRecorder) Stream() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stream", reflect.TypeOf((*MockEncoder)(nil).Stream))
 }
 
+// NumEncoded mocks base method
+func (m *MockEncoder) NumEncoded() int {
+	ret := m.ctrl.Call(m, "NumEncoded")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// NumEncoded indicates an expected call of NumEncoded
+func (mr *MockEncoderMockRecorder) NumEncoded() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NumEncoded", reflect.TypeOf((*MockEncoder)(nil).NumEncoded))
+}
+
+// LastEncoded mocks base method
+func (m *MockEncoder) LastEncoded() (ts.Datapoint, error) {
+	ret := m.ctrl.Call(m, "LastEncoded")
+	ret0, _ := ret[0].(ts.Datapoint)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// LastEncoded indicates an expected call of LastEncoded
+func (mr *MockEncoderMockRecorder) LastEncoded() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LastEncoded", reflect.TypeOf((*MockEncoder)(nil).LastEncoded))
+}
+
 // Len mocks base method
 func (m *MockEncoder) Len() int {
 	ret := m.ctrl.Call(m, "Len")
@@ -722,13 +747,13 @@ func (mr *MockSeriesIteratorMockRecorder) End() *gomock.Call {
 }
 
 // Reset mocks base method
-func (m *MockSeriesIterator) Reset(id, ns ident.ID, t ident.TagIterator, startInclusive, endExclusive time.Time, replicas []MultiReaderIterator) {
-	m.ctrl.Call(m, "Reset", id, ns, t, startInclusive, endExclusive, replicas)
+func (m *MockSeriesIterator) Reset(opts SeriesIteratorOptions) {
+	m.ctrl.Call(m, "Reset", opts)
 }
 
 // Reset indicates an expected call of Reset
-func (mr *MockSeriesIteratorMockRecorder) Reset(id, ns, t, startInclusive, endExclusive, replicas interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockSeriesIterator)(nil).Reset), id, ns, t, startInclusive, endExclusive, replicas)
+func (mr *MockSeriesIteratorMockRecorder) Reset(opts interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockSeriesIterator)(nil).Reset), opts)
 }
 
 // Replicas mocks base method

@@ -168,15 +168,15 @@ func BuildTestSeriesIterator() (encoding.SeriesIterator, error) {
 	}
 
 	return encoding.NewSeriesIterator(
-		ident.StringID(SeriesID),
-		ident.StringID(SeriesNamespace),
-		ident.NewTagsIterator(tags),
-		SeriesStart,
-		End,
-		[]encoding.MultiReaderIterator{
-			replicaOne,
-			replicaTwo,
-		},
-		nil,
-	), nil
+		encoding.SeriesIteratorOptions{
+			ID:             ident.StringID(SeriesID),
+			Namespace:      ident.StringID(SeriesNamespace),
+			Tags:           ident.NewTagsIterator(tags),
+			StartInclusive: SeriesStart,
+			EndExclusive:   End,
+			Replicas: []encoding.MultiReaderIterator{
+				replicaOne,
+				replicaTwo,
+			},
+		}, nil), nil
 }
