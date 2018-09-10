@@ -63,7 +63,7 @@ db:
     bootstrappers:
         - filesystem
         - commitlog
-        - noop-none
+        - uninitialized
     fs:
         numProcessorsPerCPU: 0.125
 
