@@ -516,7 +516,8 @@ type dbBufferBucket struct {
 }
 
 type inOrderEncoder struct {
-	encoder encoding.Encoder
+	encoder     encoding.Encoder
+	lastWriteAt time.Time
 }
 
 func (b *dbBufferBucket) resetTo(
@@ -579,17 +580,26 @@ func (b *dbBufferBucket) write(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	idx := -1
+	datapoint := ts.Datapoint{
+		Timestamp: timestamp,
+		Value:     value,
+	}
 	if b.empty {
 		// No values written yet, write to first buffer
-		idx = 0
-	} else {
-		for i := range b.encoders {
+		return b.writeToEncoderIndex(0, datapoint, unit, annotation)
+	}
+
+	// Find the correct encoder to write to
+	idx := -1
+	for i := range b.encoders {
+		lastWriteAt := b.encoders[i].lastWriteAt
+
+		if timestamp.Equal(lastWriteAt) {
 			last, err := b.encoders[i].encoder.LastEncoded()
 			if err != nil {
 				return err
 			}
-			if timestamp.Equal(last.Timestamp) && last.Value == value {
+			if last.Value == value {
 				// No-op since matches the current value
 				// TODO(r): in the future we could return some metadata that
 				// this result was a no-op and hence does not need to be written
@@ -600,10 +610,12 @@ func (b *dbBufferBucket) write(
 				// profile is lean as a side effect of this write being a no-op.
 				return nil
 			}
-			if timestamp.After(last.Timestamp) {
-				idx = i
-				break
-			}
+			continue
+		}
+
+		if timestamp.After(lastWriteAt) {
+			idx = i
+			break
 		}
 	}
 
@@ -612,25 +624,50 @@ func (b *dbBufferBucket) write(
 	// value into a new encoder later in the stack of in order encoders
 	// since an encoder is immutable.
 	// The encoders pushed later will surface their values first.
-	if idx == -1 {
-		b.opts.Stats().IncCreatedEncoders()
-		bopts := b.opts.DatabaseBlockOptions()
-		blockSize := b.opts.RetentionOptions().BlockSize()
-		blockAllocSize := bopts.DatabaseBlockAllocSize()
-		encoder := bopts.EncoderPool().Get()
-		encoder.Reset(timestamp.Truncate(blockSize), blockAllocSize)
-		next := inOrderEncoder{encoder: encoder}
-		b.encoders = append(b.encoders, next)
-		idx = len(b.encoders) - 1
+	if idx != -1 {
+		return b.writeToEncoderIndex(idx, datapoint, unit, annotation)
 	}
 
-	if err := b.encoders[idx].encoder.Encode(ts.Datapoint{
-		Timestamp: timestamp,
-		Value:     value,
-	}, unit, annotation); err != nil {
+	// Need a new encoder, we didn't find an encoder to write to
+	b.opts.Stats().IncCreatedEncoders()
+	bopts := b.opts.DatabaseBlockOptions()
+	blockSize := b.opts.RetentionOptions().BlockSize()
+	blockAllocSize := bopts.DatabaseBlockAllocSize()
+	encoder := bopts.EncoderPool().Get()
+	encoder.Reset(timestamp.Truncate(blockSize), blockAllocSize)
+
+	b.encoders = append(b.encoders, inOrderEncoder{
+		encoder:     encoder,
+		lastWriteAt: timestamp,
+	})
+
+	idx = len(b.encoders) - 1
+	err := b.writeToEncoderIndex(idx, datapoint, unit, annotation)
+	if err != nil {
+		encoder.Close()
+		b.encoders = b.encoders[:idx]
 		return err
 	}
-	b.empty = false
+	return nil
+}
+
+func (b *dbBufferBucket) writeToEncoderIndex(
+	idx int,
+	datapoint ts.Datapoint,
+	unit xtime.Unit,
+	annotation []byte,
+) error {
+	err := b.encoders[idx].encoder.Encode(datapoint, unit, annotation)
+	if err != nil {
+		return err
+	}
+
+	b.encoders[idx].lastWriteAt = datapoint.Timestamp
+
+	if b.empty {
+		b.empty = false
+	}
+
 	return nil
 }
 

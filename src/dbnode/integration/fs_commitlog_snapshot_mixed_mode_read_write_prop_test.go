@@ -189,6 +189,7 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 
 						err := setup.db.Write(ctx, nsID, dp.series, ts, dp.value, xtime.Second, nil)
 						if err != nil {
+							log.Warnf("error writing series datapoint: %v", err)
 							return false, err
 						}
 					}
