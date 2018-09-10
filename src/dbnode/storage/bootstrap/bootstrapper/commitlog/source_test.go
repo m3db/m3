@@ -29,6 +29,7 @@ import (
 	topotestutils "github.com/m3db/m3/src/dbnode/topology/testutil"
 	"github.com/m3db/m3cluster/shard"
 	xtime "github.com/m3db/m3x/time"
+
 	"github.com/stretchr/testify/require"
 )
 
