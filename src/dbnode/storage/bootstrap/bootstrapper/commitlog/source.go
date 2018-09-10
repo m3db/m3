@@ -1447,7 +1447,7 @@ func (s *commitLogSource) availability(
 			iOpts := s.opts.CommitLogOptions().InstrumentOptions()
 			invariantLogger := instrument.EmitInvariantViolationAndGetLogger(iOpts)
 			invariantLogger.Errorf(
-				"Initial topolgoy state does not contain shard state for origin node and shard: %d", shardIDUint)
+				"Initial topology state does not contain shard state for origin node and shard: %d", shardIDUint)
 			continue
 		}
 
