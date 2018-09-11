@@ -44,6 +44,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"sync"
 )
 
 var configYAML = `
@@ -176,14 +177,19 @@ func waitForServerHealthy(t *testing.T, port int) {
 
 type queryServer struct {
 	writes, reads int
+	mu sync.Mutex
 }
 
 func (s *queryServer) Fetch(*rpcpb.FetchMessage, rpcpb.Query_FetchServer) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.reads++
 	return nil
 }
 
 func (s *queryServer) Write(rpcpb.Query_WriteServer) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.writes++
 	return nil
 }
