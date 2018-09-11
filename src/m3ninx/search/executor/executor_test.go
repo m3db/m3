@@ -50,7 +50,7 @@ func TestExecutor(t *testing.T) {
 		rs = index.Readers{r}
 	)
 	gomock.InOrder(
-		q.EXPECT().Searcher(rs).Return(nil, nil),
+		q.EXPECT().Searcher().Return(nil, nil),
 
 		r.EXPECT().Close().Return(nil),
 	)

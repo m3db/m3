@@ -62,7 +62,6 @@ var (
 )
 
 func processAggregationOp(t *testing.T, op parser.Params) *executor.SinkNode {
-	// With "a" tag
 	bl := test.NewBlockFromValuesWithSeriesMeta(bounds, seriesMetas, v)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	node := op.(baseOp).Node(c, transform.Options{})
@@ -79,11 +78,11 @@ func TestFunctionFilteringWithA(t *testing.T) {
 	sink := processAggregationOp(t, op)
 	expected := [][]float64{
 		// stddev of first three series
-		{7.07107, 9.89949, 14.93318, 20.07486, 25.23886},
+		{5, 7, 12.19289, 16.39105, 20.60744},
 		// stddev of fourth series
-		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		{0, 0, 0, 0, 0},
 		// stddev of fifth and sixth series
-		{353.55339, 353.55339, 353.55339, 353.55339, 353.55339},
+		{250, 250, 250, 250, 250},
 	}
 
 	expectedMetas := []block.SeriesMeta{
@@ -106,11 +105,11 @@ func TestFunctionFilteringWithoutA(t *testing.T) {
 	sink := processAggregationOp(t, op)
 	expected := [][]float64{
 		// stddev of first two series
-		{math.NaN(), math.NaN(), 3.53553, 3.53553, 3.53553},
+		{0, 0, 2.5, 2.5, 2.5},
 		// stddev of third, fourth, and fifth series
-		{45.0925, 94.51631, 145.71662, 197.31531, 249.06492},
+		{36.81787, 77.17225, 118.97712, 161.10728, 203.36065},
 		// stddev of sixth series
-		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		{0, 0, 0, 0, 0},
 	}
 
 	expectedMetas := []block.SeriesMeta{
@@ -133,7 +132,7 @@ func TestFunctionFilteringWithD(t *testing.T) {
 	sink := processAggregationOp(t, op)
 	expected := [][]float64{
 		// stddev of all series
-		{253.51529, 291.37467, 313.76408, 356.86958, 401.32169},
+		{226.75096, 260.61343, 286.42611, 325.77587, 366.35491},
 	}
 
 	expectedMetas := []block.SeriesMeta{
@@ -155,15 +154,15 @@ func TestFunctionFilteringWithoutD(t *testing.T) {
 
 	expected := [][]float64{
 		// stddev of first two series
-		{math.NaN(), math.NaN(), 3.53553, 3.53553, 3.53553},
+		{0, 0, 2.5, 2.5, 2.5},
 		// stddev of third series
-		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		{0, 0, 0, 0, 0},
 		// stddev of fourth series
-		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		{0, 0, 0, 0, 0},
 		// stddev of fifth series
-		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		{0, 0, 0, 0, 0},
 		// stddev of sixth series
-		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		{0, 0, 0, 0, 0},
 	}
 
 	expectedMetas := []block.SeriesMeta{

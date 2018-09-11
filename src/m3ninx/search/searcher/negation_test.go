@@ -57,39 +57,27 @@ func TestNegationSearcher(t *testing.T) {
 	searcher := search.NewMockSearcher(mockCtrl)
 
 	gomock.InOrder(
-		searcher.EXPECT().NumReaders().Return(2),
-
-		searcher.EXPECT().Next().Return(true),
 		firstReader.EXPECT().MatchAll().Return(readerFirstPL, nil),
-		searcher.EXPECT().Current().Return(searcherFirstPL),
-
-		searcher.EXPECT().Next().Return(true),
+		searcher.EXPECT().Search(firstReader).Return(searcherFirstPL, nil),
 		secondReader.EXPECT().MatchAll().Return(readerSecondPL, nil),
-		searcher.EXPECT().Current().Return(searcherSecondPL),
+		searcher.EXPECT().Search(secondReader).Return(searcherSecondPL, nil),
 	)
 
-	readers := []index.Reader{firstReader, secondReader}
-
-	s, err := NewNegationSearcher(readers, searcher)
+	s, err := NewNegationSearcher(searcher)
 	require.NoError(t, err)
 
-	// Ensure the searcher is searching over two readers.
-	require.Equal(t, 2, s.NumReaders())
-
 	// Test the postings list from the first Reader.
-	require.True(t, s.Next())
-
 	expected := readerFirstPL.Clone()
 	expected.Difference(searcherFirstPL)
-	require.True(t, s.Current().Equal(expected))
+	pl, err := s.Search(firstReader)
+	require.NoError(t, err)
+	require.True(t, pl.Equal(expected))
 
 	// Test the postings list from the second Reader.
-	require.True(t, s.Next())
-
+	require.NoError(t, err)
 	expected = readerSecondPL.Clone()
 	expected.Difference(searcherSecondPL)
-	require.True(t, s.Current().Equal(expected))
-
-	require.False(t, s.Next())
-	require.NoError(t, s.Err())
+	pl, err = s.Search(secondReader)
+	require.NoError(t, err)
+	require.True(t, pl.Equal(expected))
 }

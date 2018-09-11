@@ -24,10 +24,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/topology"
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -53,13 +55,17 @@ func NewProcessProvider(
 	bootstrapperProvider BootstrapperProvider,
 	processOpts ProcessOptions,
 	resultOpts result.Options,
-) ProcessProvider {
+) (ProcessProvider, error) {
+	if err := processOpts.Validate(); err != nil {
+		return nil, err
+	}
+
 	return &bootstrapProcessProvider{
 		processOpts:          processOpts,
 		resultOpts:           resultOpts,
 		log:                  resultOpts.InstrumentOptions().Logger(),
 		bootstrapperProvider: bootstrapperProvider,
-	}
+	}, nil
 }
 
 func (b *bootstrapProcessProvider) SetBootstrapperProvider(bootstrapperProvider BootstrapperProvider) {
@@ -81,21 +87,69 @@ func (b *bootstrapProcessProvider) Provide() (Process, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	initialTopologyState, err := b.newInitialTopologyState()
+	if err != nil {
+		return nil, err
+	}
+
 	return bootstrapProcess{
-		processOpts:  b.processOpts,
-		resultOpts:   b.resultOpts,
-		nowFn:        b.resultOpts.ClockOptions().NowFn(),
-		log:          b.log,
-		bootstrapper: bootstrapper,
+		processOpts:          b.processOpts,
+		resultOpts:           b.resultOpts,
+		nowFn:                b.resultOpts.ClockOptions().NowFn(),
+		log:                  b.log,
+		bootstrapper:         bootstrapper,
+		initialTopologyState: initialTopologyState,
 	}, nil
 }
 
+func (b *bootstrapProcessProvider) newInitialTopologyState() (*topology.StateSnapshot, error) {
+	session, err := b.processOpts.AdminClient().DefaultAdminSession()
+	if err != nil {
+		return nil, err
+	}
+
+	topoMap, err := session.TopologyMap()
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		hostShardSets = topoMap.HostShardSets()
+		topologyState = &topology.StateSnapshot{
+			Origin:           b.processOpts.AdminClient().Options().(client.AdminOptions).Origin(),
+			MajorityReplicas: topoMap.MajorityReplicas(),
+			ShardStates:      topology.ShardStates{},
+		}
+	)
+
+	for _, hostShardSet := range hostShardSets {
+		for _, currShard := range hostShardSet.ShardSet().All() {
+			shardID := topology.ShardID(currShard.ID())
+			existing, ok := topologyState.ShardStates[shardID]
+			if !ok {
+				existing = map[topology.HostID]topology.HostShardState{}
+				topologyState.ShardStates[shardID] = existing
+			}
+
+			hostID := topology.HostID(hostShardSet.Host().String())
+			existing[hostID] = topology.HostShardState{
+				Host:       hostShardSet.Host(),
+				ShardState: currShard.State(),
+			}
+		}
+	}
+
+	return topologyState, nil
+}
+
 type bootstrapProcess struct {
-	processOpts  ProcessOptions
-	resultOpts   result.Options
-	nowFn        clock.NowFn
-	log          xlog.Logger
-	bootstrapper Bootstrapper
+	processOpts          ProcessOptions
+	resultOpts           result.Options
+	nowFn                clock.NowFn
+	log                  xlog.Logger
+	bootstrapper         Bootstrapper
+	initialTopologyState *topology.StateSnapshot
 }
 
 func (b bootstrapProcess) Run(
@@ -302,5 +356,6 @@ func (b bootstrapProcess) newRunOptions() RunOptions {
 	return NewRunOptions().
 		SetCacheSeriesMetadata(
 			b.processOpts.CacheSeriesMetadata(),
-		)
+		).
+		SetInitialTopologyState(b.initialTopologyState)
 }

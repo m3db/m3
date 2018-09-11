@@ -24,50 +24,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/m3db/m3/src/query/executor/transform"
-	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
-	"github.com/m3db/m3/src/query/test/executor"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
-
-func TestCountWithAllValues(t *testing.T) {
-	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	block := test.NewBlockFromValues(bounds, values)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	op, err := NewAggregationOp(CountType, NodeParams{})
-	require.NoError(t, err)
-	countNode := op.(baseOp).Node(c, transform.Options{})
-	err = countNode.Process(parser.NodeID(0), block)
-	require.NoError(t, err)
-	expected := make([]float64, len(values[0]))
-	for i := range expected {
-		expected[i] = 2
-	}
-	assert.Len(t, sink.Values, 1)
-	assert.Equal(t, expected, sink.Values[0])
-}
-
-func TestCountWithSomeValues(t *testing.T) {
-	v := [][]float64{
-		{0, math.NaN(), 2, 3, 4},
-		{math.NaN(), 6, 7, 8, 9},
-	}
-
-	values, bounds := test.GenerateValuesAndBounds(v, nil)
-	block := test.NewBlockFromValues(bounds, values)
-	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
-	op, err := NewAggregationOp(CountType, NodeParams{})
-	require.NoError(t, err)
-	countNode := op.(baseOp).Node(c, transform.Options{})
-	err = countNode.Process(parser.NodeID(0), block)
-	require.NoError(t, err)
-	expected := []float64{1, 1, 2, 2, 2}
-	assert.Len(t, sink.Values, 1)
-	assert.Equal(t, expected, sink.Values[0])
-}
 
 type funcTest struct {
 	name     string
@@ -98,8 +56,8 @@ var fnTest = []struct {
 			{MinType, minFn, []float64{1.5}},
 			{MaxType, maxFn, []float64{1.5}},
 			{AverageType, averageFn, []float64{1.5}},
-			{StandardDeviationType, stddevFn, []float64{math.NaN()}},
-			{StandardVarianceType, varianceFn, []float64{math.NaN()}},
+			{StandardDeviationType, stddevFn, []float64{0}},
+			{StandardVarianceType, varianceFn, []float64{0}},
 			{CountType, countFn, []float64{1}},
 		},
 	},
@@ -109,8 +67,8 @@ var fnTest = []struct {
 			{MinType, minFn, []float64{1.5}},
 			{MaxType, maxFn, []float64{2.6}},
 			{AverageType, averageFn, []float64{2.05}},
-			{StandardDeviationType, stddevFn, []float64{0.777817}},
-			{StandardVarianceType, varianceFn, []float64{0.605}},
+			{StandardDeviationType, stddevFn, []float64{0.55}},
+			{StandardVarianceType, varianceFn, []float64{0.3025}},
 			{CountType, countFn, []float64{2}},
 		},
 	},
@@ -120,8 +78,8 @@ var fnTest = []struct {
 			{MinType, minFn, []float64{1.5, 2.6}},
 			{MaxType, maxFn, []float64{1.5, 2.6}},
 			{AverageType, averageFn, []float64{1.5, 2.6}},
-			{StandardDeviationType, stddevFn, []float64{math.NaN(), math.NaN()}},
-			{StandardVarianceType, varianceFn, []float64{math.NaN(), math.NaN()}},
+			{StandardDeviationType, stddevFn, []float64{0, 0}},
+			{StandardVarianceType, varianceFn, []float64{0, 0}},
 			{CountType, countFn, []float64{1, 1}},
 		},
 	},
@@ -131,8 +89,8 @@ var fnTest = []struct {
 			{MinType, minFn, []float64{4}},
 			{MaxType, maxFn, []float64{10}},
 			{AverageType, averageFn, []float64{8}},
-			{StandardDeviationType, stddevFn, []float64{2.19089}},
-			{StandardVarianceType, varianceFn, []float64{4.8}},
+			{StandardDeviationType, stddevFn, []float64{2}},
+			{StandardVarianceType, varianceFn, []float64{4}},
 			{CountType, countFn, []float64{6}},
 		},
 	},
@@ -145,8 +103,8 @@ var fnTest = []struct {
 			{MinType, minFn, []float64{4, -3}},
 			{MaxType, maxFn, []float64{10, 100}},
 			{AverageType, averageFn, []float64{8, 19.16666}},
-			{StandardDeviationType, stddevFn, []float64{2.19089, 40.24011}},
-			{StandardVarianceType, varianceFn, []float64{4.8, 1619.26667}},
+			{StandardDeviationType, stddevFn, []float64{2, 36.73403}},
+			{StandardVarianceType, varianceFn, []float64{4, 1349.38889}},
 			{CountType, countFn, []float64{6, 6}},
 		},
 	},
@@ -158,8 +116,8 @@ var fnTest = []struct {
 			{MinType, minFn, []float64{4}},
 			{MaxType, maxFn, []float64{10}},
 			{AverageType, averageFn, []float64{8}},
-			{StandardDeviationType, stddevFn, []float64{2.82843}},
-			{StandardVarianceType, varianceFn, []float64{8}},
+			{StandardDeviationType, stddevFn, []float64{2.44949}},
+			{StandardVarianceType, varianceFn, []float64{6}},
 			{CountType, countFn, []float64{4}},
 		},
 	},
@@ -167,13 +125,21 @@ var fnTest = []struct {
 		"only nans",
 		[]float64{math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 		[][]int{{0, 1, 2, 3}}, []funcTest{
-			{SumType, sumFn, []float64{0}},
+			{SumType, sumFn, []float64{math.NaN()}},
 			{MinType, minFn, []float64{math.NaN()}},
 			{MaxType, maxFn, []float64{math.NaN()}},
 			{AverageType, averageFn, []float64{math.NaN()}},
 			{StandardDeviationType, stddevFn, []float64{math.NaN()}},
 			{StandardVarianceType, varianceFn, []float64{math.NaN()}},
 			{CountType, countFn, []float64{0}},
+		},
+	},
+	{
+		"verified population deviations",
+		[]float64{9, 2, 5, 4, 12, 7, 8, 11, 9, 3, 7, 4, 12, 5, 4, 10, 9, 6, 9, 4},
+		[][]int{{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19}}, []funcTest{
+			{StandardDeviationType, stddevFn, []float64{2.98329}},
+			{StandardVarianceType, varianceFn, []float64{8.9}},
 		},
 	},
 }
@@ -185,7 +151,7 @@ func TestAggFns(t *testing.T) {
 				for i, bucket := range tt.buckets {
 					actual := function.fn(tt.values, bucket)
 					expected := function.expected[i]
-					test.EqualsWithNansWithDelta(t, expected, actual, 0.00001)
+					test.EqualsWithNansWithDelta(t, expected, actual, math.Pow10(-5))
 				}
 			})
 		}

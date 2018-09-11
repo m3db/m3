@@ -306,7 +306,7 @@ imports:
   - protocol/proto
   - topic
 - name: github.com/m3db/m3x
-  version: 0d74829a38311339911aeb8ff22c84c710832ab7
+  version: 76a586220279667a81eaaec4150de182f4d5077c
   vcs: git
   subpackages:
   - checked
@@ -586,19 +586,27 @@ imports:
   - transport
 - name: gopkg.in/alecthomas/kingpin.v2
   version: 947dcec5ba9c011838740e680966fd7087a71d0d
+  repo: https://github.com/alecthomas/kingpin.git
+  vcs: git
 - name: gopkg.in/validator.v2
   version: 3e4f037f12a1221a0864cf0dd2e81c452ab22448
+  repo: https://github.com/go-validator/validator.git
+  vcs: git
 - name: gopkg.in/vmihailenco/msgpack.v2
   version: a1382b1ce0c749733b814157c245e02cc1f41076
+  repo: https://github.com/vmihailenco/msgpack.git
+  vcs: git
   subpackages:
   - codes
 - name: gopkg.in/yaml.v2
   version: 5420a8b6744d3b0345ab293f6fcba19c978f1183
+  repo: https://github.com/go-yaml/yaml.git
+  vcs: git
 testImports:
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/fortytw2/leaktest
-  version: 3677f62bb30dbf3b042c4c211245d072aa9ee075
+  version: b433bbd6d743c1854040b39062a3916ed5f78fe8
 - name: github.com/go-playground/locales
   version: 1e5f1161c6416a5ff48840eb8724a394e48cc534
   subpackages:
@@ -613,3 +621,5 @@ testImports:
   - prop
 - name: gopkg.in/go-playground/validator.v9
   version: a021b2ec9a8a8bb970f3f15bc42617cb520e8a64
+  repo: https://github.com/go-playground/validator.git
+  vcs: git

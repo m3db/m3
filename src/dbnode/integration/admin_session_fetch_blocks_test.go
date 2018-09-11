@@ -103,7 +103,7 @@ func testSetupMetadatas(
 ) map[uint32][]block.ReplicaMetadata {
 	// Retrieve written data using the AdminSession APIs
 	// FetchMetadataBlocksFromPeers/FetchBlocksFromPeers
-	adminClient := testSetup.m3dbAdminClient
+	adminClient := testSetup.m3dbVerificationAdminClient
 	level := topology.ReadConsistencyLevelMajority
 	version := client.FetchBlocksMetadataEndpointV2
 	metadatasByShard, err := m3dbClientFetchBlocksMetadata(adminClient,
@@ -172,7 +172,7 @@ func testSetupToSeriesMaps(
 	resultOpts := newDefaulTestResultOptions(testSetup.storageOpts)
 	consistencyLevel := testSetup.storageOpts.RepairOptions().RepairConsistencyLevel()
 	iterPool := testSetup.storageOpts.ReaderIteratorPool()
-	session, err := testSetup.m3dbAdminClient.DefaultAdminSession()
+	session, err := testSetup.m3dbVerificationAdminClient.DefaultAdminSession()
 	require.NoError(t, err)
 	require.NotNil(t, session)
 

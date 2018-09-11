@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 )
@@ -216,3 +217,27 @@ type DynamicOptions interface {
 	// HashGen returns HashGen function
 	HashGen() sharding.HashGen
 }
+
+// StateSnapshot represents a snapshot of the state of the topology at a
+// given moment.
+type StateSnapshot struct {
+	Origin           Host
+	MajorityReplicas int
+	ShardStates      ShardStates
+}
+
+// ShardStates maps shard IDs to the state of each of the hosts that own
+// that shard.
+type ShardStates map[ShardID]map[HostID]HostShardState
+
+// HostShardState contains the state of a shard as owned by a given host.
+type HostShardState struct {
+	Host       Host
+	ShardState shard.State
+}
+
+// HostID is the string representation of a host ID.
+type HostID string
+
+// ShardID is the ID of a shard.
+type ShardID uint32

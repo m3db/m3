@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
-	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3x/context"
@@ -211,13 +210,4 @@ func writeSnapshotsWithPredicate(
 	err := writeTestSnapshotsToDiskWithPredicate(
 		namespace, s, data, pred, snapshotInterval)
 	require.NoError(t, err)
-}
-
-func mustInspectFilesystem(fsOpts fs.Options) fs.Inspection {
-	inspection, err := fs.InspectFilesystem(fsOpts)
-	if err != nil {
-		panic(err)
-	}
-
-	return inspection
 }

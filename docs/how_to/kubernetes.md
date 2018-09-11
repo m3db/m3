@@ -1,9 +1,9 @@
 # M3DB on Kubernetes
 
 M3DB on Kubernetes is currently in the alpha phase of development. We currently provide static manifests to bootstrap a
-cluster. In the future we hope to create an [operator](https://coreos.com/operators/) and leverage [custom resource
+cluster. In the future, we hope to create an [operator](https://coreos.com/operators/) and leverage [custom resource
 definitions](https://v1-10.docs.kubernetes.io/docs/concepts/api-extension/custom-resources/) (CRDs) to automatically
-handle operations such as managing cluster topology, but for now our manifests should be adequate to get started.
+handle operations such as managing cluster topology, but for now, our manifests should be adequate to get started.
 
 ## Prerequisites
 
@@ -13,7 +13,7 @@ files benefit from lower random read latency.
 
 Because of this, the included manifests reference a
 [StorageClass](https://v1-10.docs.kubernetes.io/docs/concepts/storage/storage-classes/) named `fast`. Manifests are
-provided to provision such a StorageClass on AWS / Azure / GCP using the respective cloud provider's premium disk class.
+provided to provide such a StorageClass on AWS / Azure / GCP using the respective cloud provider's premium disk class.
 
 If you do not already have a StorageClass named `fast`, create one using one of the provided manifests:
 ```
@@ -27,7 +27,7 @@ kubectl apply -f https://raw.githubusercontent.com/m3db/m3/master/kube/storage-f
 kubectl apply -f https://raw.githubusercontent.com/m3db/m3/master/kube/storage-fast-gcp.yaml
 ```
 
-If you wish to use your cloud provider's default remote disk, or another disk class entirely, you'll have to modify the
+If you wish to use your cloud provider's default remote disk, or another disk class entirely, you'll have to modify them
 manifests.
 
 ## Deploying
@@ -60,7 +60,7 @@ m3dbnode-1   1/1       Running   0          22m
 m3dbnode-2   1/1       Running   0          22m
 ```
 
-You can now proceed to initialize a namespace and placment for the cluster the same as you would for our other how-to
+You can now proceed to initialize a namespace and placement for the cluster the same as you would for our other how-to
 guides:
 ```
 # Open a local connection to the coordinator service:
@@ -152,7 +152,7 @@ $ kubectl -n m3db logs -f m3dbnode-0
 21:37:29.733025[I] successfully updated topology to 3 hosts
 ```
 
-You can now write and read metrics using the API on the db nodes:
+You can now write and read metrics using the API on the DB nodes:
 ```
 $ kubectl -n m3db port-forward svc/m3dbnode 9003
 Forwarding from 127.0.0.1:9003 -> 9003
@@ -274,7 +274,7 @@ remote_write:
 
 ## Scheduling
 
-In some cases you might prefer M3DB to run on certain nodes in your cluster. For example: if your cluster is comprised
+In some cases, you might prefer M3DB to run on certain nodes in your cluster. For example: if your cluster is comprised
 of different instance types and some have more memory than others then you'd like M3DB to run on those nodes if
 possible. To accommodate this, the pods created by the StatefulSets use [pod
 affinities](https://v1-10.docs.kubernetes.io/docs/concepts/configuration/assign-pod-node/) and

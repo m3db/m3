@@ -167,7 +167,8 @@ func (bsc BootstrapConfiguration) New(
 	if bsc.CacheSeriesMetadata != nil {
 		providerOpts = providerOpts.SetCacheSeriesMetadata(*bsc.CacheSeriesMetadata)
 	}
-	return bootstrap.NewProcessProvider(bs, providerOpts, rsOpts), nil
+	providerOpts = providerOpts.SetAdminClient(adminClient)
+	return bootstrap.NewProcessProvider(bs, providerOpts, rsOpts)
 }
 
 // ValidateBootstrappersOrder will validate that a list of bootstrappers specified

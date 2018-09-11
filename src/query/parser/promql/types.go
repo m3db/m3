@@ -22,6 +22,7 @@ package promql
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/m3db/m3/src/query/functions"
 	"github.com/m3db/m3/src/query/functions/aggregation"
@@ -74,6 +75,17 @@ func NewAggregationOperator(expr *promql.AggregateExpr) (parser.Params, error) {
 		return nil, fmt.Errorf("operator not supported: %s", opType)
 	}
 
+	if op == aggregation.BottomKType || op == aggregation.TopKType {
+		paramString := expr.Param.String()
+		floatParam, err := strconv.ParseFloat(paramString, 64)
+		if err != nil {
+			return nil, err
+		}
+
+		nodeInformation.Parameter = floatParam
+		return aggregation.NewTakeOp(op, nodeInformation)
+	}
+
 	if op == aggregation.CountValuesType {
 		nodeInformation.StringParameter = expr.Param.String()
 		return aggregation.NewCountValuesOp(op, nodeInformation)
@@ -98,6 +110,13 @@ func getAggOpType(opType promql.ItemType) string {
 		return aggregation.StandardVarianceType
 	case promql.ItemType(itemCount):
 		return aggregation.CountType
+
+	case promql.ItemType(itemTopK):
+		return aggregation.TopKType
+	case promql.ItemType(itemBottomK):
+		return aggregation.BottomKType
+	case promql.ItemType(itemQuantile):
+		return aggregation.QuantileType
 	case promql.ItemType(itemCountValues):
 		return aggregation.CountValuesType
 	default:
@@ -148,8 +167,10 @@ func NewFunctionExpr(name string, argValues []interface{}) (parser.Params, error
 		linear.MinuteType, linear.MonthType, linear.YearType:
 		return linear.NewDateOp(name)
 
-	case temporal.CountTemporalType:
-		return temporal.NewCountOp(argValues)
+	case temporal.AvgTemporalType, temporal.CountTemporalType, temporal.MinTemporalType,
+		temporal.MaxTemporalType, temporal.SumTemporalType, temporal.StdDevTemporalType,
+		temporal.StdVarTemporalType:
+		return temporal.NewAggOp(argValues, name)
 
 	default:
 		// TODO: handle other types

@@ -82,8 +82,11 @@ func TestFilesystemBootstrapMultipleNamespaces(t *testing.T) {
 	bs, err := fs.NewFileSystemBootstrapperProvider(bfsOpts, noOpAll)
 	require.NoError(t, err)
 
-	processProvider := bootstrap.NewProcessProvider(
-		bs, bootstrap.NewProcessOptions(), bsOpts)
+	processOpts := bootstrap.NewProcessOptions().SetAdminClient(
+		setup.m3dbAdminClient,
+	)
+	processProvider, err := bootstrap.NewProcessProvider(bs, processOpts, bsOpts)
+	require.NoError(t, err)
 
 	setup.storageOpts = setup.storageOpts.
 		SetBootstrapProcessProvider(processProvider)

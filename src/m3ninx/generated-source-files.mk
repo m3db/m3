@@ -6,7 +6,7 @@ m3ninx_package       := github.com/m3db/m3/src/m3ninx
 m3ninx_package_path  := $(gopath_prefix)/$(m3ninx_package)
 m3x_package          := github.com/m3db/m3x
 m3x_package_path     := $(gopath_prefix)/$(m3x_package)
-m3x_package_min_ver  := 6148700dde75adcdcc27d16fb68cee2d9d9126d8
+m3x_package_min_ver  := 76a586220279667a81eaaec4150de182f4d5077c
 
 .PHONY: install-m3x-repo
 install-m3x-repo: install-glide

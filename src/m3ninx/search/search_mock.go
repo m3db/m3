@@ -119,16 +119,16 @@ func (mr *MockQueryMockRecorder) String() *gomock.Call {
 }
 
 // Searcher mocks base method
-func (m *MockQuery) Searcher(rs index.Readers) (Searcher, error) {
-	ret := m.ctrl.Call(m, "Searcher", rs)
+func (m *MockQuery) Searcher() (Searcher, error) {
+	ret := m.ctrl.Call(m, "Searcher")
 	ret0, _ := ret[0].(Searcher)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Searcher indicates an expected call of Searcher
-func (mr *MockQueryMockRecorder) Searcher(rs interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Searcher", reflect.TypeOf((*MockQuery)(nil).Searcher), rs)
+func (mr *MockQueryMockRecorder) Searcher() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Searcher", reflect.TypeOf((*MockQuery)(nil).Searcher))
 }
 
 // Equal mocks base method
@@ -178,50 +178,15 @@ func (m *MockSearcher) EXPECT() *MockSearcherMockRecorder {
 	return m.recorder
 }
 
-// Next mocks base method
-func (m *MockSearcher) Next() bool {
-	ret := m.ctrl.Call(m, "Next")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// Next indicates an expected call of Next
-func (mr *MockSearcherMockRecorder) Next() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockSearcher)(nil).Next))
-}
-
-// Current mocks base method
-func (m *MockSearcher) Current() postings.List {
-	ret := m.ctrl.Call(m, "Current")
+// Search mocks base method
+func (m *MockSearcher) Search(arg0 index.Reader) (postings.List, error) {
+	ret := m.ctrl.Call(m, "Search", arg0)
 	ret0, _ := ret[0].(postings.List)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
-// Current indicates an expected call of Current
-func (mr *MockSearcherMockRecorder) Current() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockSearcher)(nil).Current))
-}
-
-// Err mocks base method
-func (m *MockSearcher) Err() error {
-	ret := m.ctrl.Call(m, "Err")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Err indicates an expected call of Err
-func (mr *MockSearcherMockRecorder) Err() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockSearcher)(nil).Err))
-}
-
-// NumReaders mocks base method
-func (m *MockSearcher) NumReaders() int {
-	ret := m.ctrl.Call(m, "NumReaders")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// NumReaders indicates an expected call of NumReaders
-func (mr *MockSearcherMockRecorder) NumReaders() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NumReaders", reflect.TypeOf((*MockSearcher)(nil).NumReaders))
+// Search indicates an expected call of Search
+func (mr *MockSearcherMockRecorder) Search(arg0 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Search", reflect.TypeOf((*MockSearcher)(nil).Search), arg0)
 }

@@ -75,6 +75,9 @@ var aggregateParseTests = []struct {
 	{"stdvar(up)", aggregation.StandardVarianceType},
 	{"count(up)", aggregation.CountType},
 
+	{"topk(3, up)", aggregation.TopKType},
+	{"bottomk(3, up)", aggregation.BottomKType},
+	{"quantile(3, up)", aggregation.QuantileType},
 	{"count_values(\"some_name\", up)", aggregation.CountValuesType},
 }
 
@@ -233,19 +236,41 @@ func TestParenPrecedenceParses(t *testing.T) {
 	assert.Equal(t, edges[3].ChildID, parser.NodeID("4"))
 }
 
-func TestDAGWithCountOverTimeOp(t *testing.T) {
-	q := "count_over_time(http_requests_total[5m])"
-	p, err := Parse(q)
-	require.NoError(t, err)
-	transforms, edges, err := p.DAG()
-	require.NoError(t, err)
-	assert.Len(t, transforms, 2)
-	assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
-	assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
-	assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
-	assert.Equal(t, transforms[1].Op.OpType(), temporal.CountTemporalType)
-	assert.Len(t, edges, 1)
-	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"), "fetch should be the parent")
-	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"), "aggregation should be the child")
+var temporalParseTests = []struct {
+	q            string
+	expectedType string
+}{
+	{"avg_over_time(up[5m])", temporal.AvgTemporalType},
+	{"count_over_time(up[5m])", temporal.CountTemporalType},
+	{"min_over_time(up[5m])", temporal.MinTemporalType},
+	{"max_over_time(up[5m])", temporal.MaxTemporalType},
+	{"sum_over_time(up[5m])", temporal.SumTemporalType},
+	{"stddev_over_time(up[5m])", temporal.StdDevTemporalType},
+	{"stdvar_over_time(up[5m])", temporal.StdVarTemporalType},
+}
 
+func TestTemporalParses(t *testing.T) {
+	for _, tt := range temporalParseTests {
+		t.Run(tt.q, func(t *testing.T) {
+			q := tt.q
+			p, err := Parse(q)
+			require.NoError(t, err)
+			transforms, edges, err := p.DAG()
+			require.NoError(t, err)
+			assert.Len(t, transforms, 2)
+			assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
+			assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
+			assert.Equal(t, transforms[1].Op.OpType(), tt.expectedType)
+			assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
+			assert.Len(t, edges, 1)
+			assert.Equal(t, edges[0].ParentID, parser.NodeID("0"))
+			assert.Equal(t, edges[0].ChildID, parser.NodeID("1"))
+		})
+	}
+}
+
+func TestFailedTemporalParse(t *testing.T) {
+	q := "unknown_over_time(http_requests_total[5m])"
+	_, err := Parse(q)
+	require.Error(t, err)
 }

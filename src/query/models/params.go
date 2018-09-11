@@ -32,7 +32,7 @@ type RequestParams struct {
 	Now        time.Time
 	Timeout    time.Duration
 	Step       time.Duration
-	Target     string
+	Query      string
 	Debug      bool
 	IncludeEnd bool
 }
