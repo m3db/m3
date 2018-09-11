@@ -123,7 +123,14 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("could not connect to metrics", zap.Any("error", err))
 	}
 
-	defer closer.Close()
+	// Close metrics scope
+	defer func() {
+		logger.Info("closing metrics scope")
+		if err := closer.Close(); err != nil {
+			logger.Error("unable to close metrics scope", zap.Error(err))
+		}
+	}()
+
 	var (
 		backendStorage storage.Storage
 		clusterClient  clusterclient.Client
@@ -139,6 +146,8 @@ func Run(runOpts RunOptions) {
 		if !enabled {
 			logger.Fatal("need remote clients for grpc backend")
 		}
+
+		logger.Info("setup grpc backend")
 	} else {
 		var cleanup cleanupFn
 		backendStorage, clusterClient, downsampler, cleanup, err = newM3DBStorage(runOpts, cfg, logger, scope)
@@ -155,16 +164,30 @@ func Run(runOpts RunOptions) {
 	if err != nil {
 		logger.Fatal("unable to set up handlers", zap.Error(err))
 	}
-	handler.RegisterRoutes()
+
+	if err := handler.RegisterRoutes(); err != nil {
+		logger.Fatal("unable to register routes", zap.Error(err))
+	}
 
 	listenAddress, err := cfg.ListenAddress.Resolve()
 	if err != nil {
 		logger.Fatal("unable to get listen address", zap.Error(err))
 	}
 
-	logger.Info("starting server", zap.String("address", listenAddress))
+	srv := &http.Server{Addr: listenAddress, Handler: handler.Router}
+	var serverClosed bool
+	defer func() {
+		logger.Info("closing server")
+		if err := srv.Shutdown(ctx); err != nil {
+			logger.Error("error closing server", zap.Error(err))
+		}
+
+		serverClosed = true
+	}()
+
 	go func() {
-		if err := http.ListenAndServe(listenAddress, handler.Router); err != nil {
+		logger.Info("starting server", zap.String("address", listenAddress))
+		if err := srv.ListenAndServe(); err != nil && !serverClosed {
 			logger.Fatal("unable to serve on listen address",
 				zap.String("address", listenAddress), zap.Error(err))
 		}
@@ -182,7 +205,6 @@ func Run(runOpts RunOptions) {
 	case <-sigChan:
 	case <-interruptCh:
 	}
-
 }
 
 func newM3DBStorage(

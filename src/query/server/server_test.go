@@ -56,6 +56,7 @@ metrics:
     prefix: "coordinator"
   prometheus:
     handlerPath: /metrics
+    listenAddress: "127.0.0.1:7202"
   sanitization: prometheus
   samplingRate: 1.0
 
@@ -198,6 +199,8 @@ metrics:
     prefix: "coordinator"
   prometheus:
     handlerPath: /metrics
+    listenAddress: "127.0.0.1:17203"
+    onError: stderr
   sanitization: prometheus
   samplingRate: 1.0
 
