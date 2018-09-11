@@ -309,14 +309,14 @@ func newM3DBStorage(
 	cleanup := func() error {
 		lastErr := storageCleanup()
 		// Don't want to quit on the first error since the full cleanup is important
-		if err := clusters.Close(); err != nil {
-			if lastErr == nil {
-				lastErr = err
-			}
+		if lastErr != nil {
+			logger.Error("error during storage cleanup", zap.Error(lastErr))
+		}
 
+		if err := clusters.Close(); err != nil {
+			lastErr = errors.Wrap(err, "unable to close M3DB cluster sessions")
 			// Make sure the previous error is at least logged
-			logger.Error("error during cleanup", zap.Error(err))
-			return errors.Wrap(err, "unable to close M3DB cluster sessions")
+			logger.Error("error during cluster cleanup", zap.Error(err))
 		}
 
 		return lastErr
