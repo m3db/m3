@@ -30,8 +30,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/m3db/m3metrics/aggregation"
-"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
@@ -50,6 +48,8 @@ import (
 	"github.com/m3db/m3/src/query/util/logging"
 	clusterclient "github.com/m3db/m3cluster/client"
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
+	"github.com/m3db/m3metrics/aggregation"
+	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/clock"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/ident"
@@ -233,9 +233,15 @@ func Run(runOpts RunOptions) {
 	if n := namespaces.NumAggregatedClusterNamespaces(); n > 0 {
 		logger.Info("configuring downsampler to use with aggregated cluster namespaces",
 			zap.Int("numAggregatedClusterNamespaces", n))
-		autoMappingRules := newDownsamplerAutoMappingRules(namespaces, logger)
-		downsampler = newDownsampler(clusterManagementClient,
-			fanoutStorage, autoMappingRules, instrumentOptions, logger)
+		autoMappingRules, err := newDownsamplerAutoMappingRules(namespaces)
+		if err != nil {
+			logger.Fatal(err.Error())
+		}
+		downsampler, err = newDownsampler(clusterManagementClient,
+			fanoutStorage, autoMappingRules, instrumentOptions)
+		if err != nil {
+			logger.Fatal(err.Error())
+		}
 	}
 
 	engine := executor.NewEngine(fanoutStorage)
@@ -284,16 +290,16 @@ func newDownsampler(
 	autoMappingRules []downsample.MappingRule,
 	instrumentOpts instrument.Options,
 	logger *zap.Logger,
-) downsample.Downsampler {
+) (downsample.Downsampler, error) {
 	if clusterManagementClient == nil {
-		logger.Fatal("no configured cluster management config, must set this " +
-			"config for downsampler")
+		return nil, fmt.Errorf("no configured cluster management config, " +
+			"must set this config for downsampler")
 	}
 
 	kvStore, err := clusterManagementClient.KV()
 	if err != nil {
-		logger.Fatal("unable to create KV store from the cluster management "+
-			"config client", zap.Any("error", err))
+		return nil, fmt.Errorf("unable to create KV store from the "+
+			"cluster management config client: %v", err)
 	}
 
 	tagEncoderOptions := serialize.NewTagEncoderOptions()
@@ -318,16 +324,15 @@ func newDownsampler(
 		TagDecoderPoolOptions: tagDecoderPoolOptions,
 	})
 	if err != nil {
-		logger.Fatal("unable to create downsampler", zap.Any("error", err))
+		return nil, fmt.Errorf("unable to create downsampler: %v", err)
 	}
 
-	return downsampler
+	return downsampler, nil
 }
 
 func newDownsamplerAutoMappingRules(
 	namespaces []local.ClusterNamespace,
-	logger *zap.Logger,
-) []downsample.MappingRule {
+) ([]downsample.MappingRule, error) {
 	var autoMappingRules []downsample.MappingRule
 	for _, namespace := range namespaces {
 		opts := namespace.Options()
@@ -335,8 +340,8 @@ func newDownsamplerAutoMappingRules(
 		if attrs.MetricsType == storage.AggregatedMetricsType {
 			downsampleOpts, err := opts.DownsampleOptions()
 			if err != nil {
-				logger.Fatal("unable to resolve downsample options",
-					zap.String("namespace", namespace.NamespaceID().String()))
+				errFmt := "unable to resolve downsample options for namespace: %v"
+				return nil, fmt.Errorf(errFmt, namespace.NamespaceID().String())
 			}
 			if downsampleOpts.All {
 				storagePolicy := policy.NewStoragePolicy(attrs.Resolution,
@@ -353,7 +358,7 @@ func newDownsamplerAutoMappingRules(
 			}
 		}
 	}
-	return autoMappingRules
+	return autoMappingRules, nil
 }
 
 func newStorages(
