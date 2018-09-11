@@ -175,20 +175,18 @@ func Run(runOpts RunOptions) {
 	}
 
 	srv := &http.Server{Addr: listenAddress, Handler: handler.Router}
-	var serverClosed bool
 	defer func() {
 		logger.Info("closing server")
 		if err := srv.Shutdown(ctx); err != nil {
 			logger.Error("error closing server", zap.Error(err))
 		}
 
-		serverClosed = true
 	}()
 
 	go func() {
 		logger.Info("starting server", zap.String("address", listenAddress))
-		if err := srv.ListenAndServe(); err != nil && !serverClosed {
-			logger.Fatal("unable to serve on listen address",
+		if err := srv.ListenAndServe(); err != nil {
+			logger.Error("server error while listening",
 				zap.String("address", listenAddress), zap.Error(err))
 		}
 	}()
