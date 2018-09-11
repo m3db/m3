@@ -151,7 +151,7 @@ import:
 
 - package: gopkg.in/alecthomas/kingpin.v2
   version: ^2.2.6
-  repo:    https://github.com/alecthomas/kingpin.git
+  repo: https://github.com/alecthomas/kingpin.git
 
 - package: github.com/m3db/m3metrics
   version: b400256bc6da4c10bad5a5f0a11e91bfa095e2e6
