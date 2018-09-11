@@ -280,7 +280,7 @@ func newM3DBStorage(
 
 	fanoutStorage, storageCleanup, err := newStorages(logger, clusters, cfg, objectPool)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, errors.Wrap(err, "unable to set up storages")
 	}
 
 	var clusterClient clusterclient.Client
@@ -312,10 +312,10 @@ func newM3DBStorage(
 		if err := clusters.Close(); err != nil {
 			if lastErr == nil {
 				lastErr = err
-			} else {
-				// Make sure the previous error is at least logged
-				logger.Error("error during cleanup", zap.Error(lastErr))
 			}
+
+			// Make sure the previous error is at least logged
+			logger.Error("error during cleanup", zap.Error(err))
 			return errors.Wrap(err, "unable to close M3DB cluster sessions")
 		}
 
