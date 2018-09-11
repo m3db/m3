@@ -84,6 +84,7 @@ import:
 
 - package: gopkg.in/vmihailenco/msgpack.v2
   version: a1382b1ce0c749733b814157c245e02cc1f41076
+  repo: https://github.com/vmihailenco/msgpack.git
 
 - package: github.com/uber-go/tally
   version: ^3.3.6
@@ -150,6 +151,7 @@ import:
 
 - package: gopkg.in/alecthomas/kingpin.v2
   version: ^2.2.6
+  repo:    https://github.com/alecthomas/kingpin.git
 
 - package: github.com/m3db/m3metrics
   version: b400256bc6da4c10bad5a5f0a11e91bfa095e2e6
@@ -208,6 +210,7 @@ import:
 
 - package: gopkg.in/validator.v2
   version: 3e4f037f12a1221a0864cf0dd2e81c452ab22448
+  repo: https://github.com/go-validator/validator.git
 
 testImport:
 - package: github.com/fortytw2/leaktest
