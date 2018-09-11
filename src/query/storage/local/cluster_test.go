@@ -72,9 +72,9 @@ func TestNewClustersFromConfig(t *testing.T) {
 			NewClientFromConfig: newClient1,
 			Namespaces: []ClusterStaticNamespaceConfiguration{
 				ClusterStaticNamespaceConfiguration{
-					Namespace:          "unaggregated",
-					Type: storage.UnaggregatedMetricsType,
-					Retention:          7 * 24 * time.Hour,
+					Namespace: "unaggregated",
+					Type:      storage.UnaggregatedMetricsType,
+					Retention: 7 * 24 * time.Hour,
 				},
 			},
 		},
@@ -82,16 +82,16 @@ func TestNewClustersFromConfig(t *testing.T) {
 			NewClientFromConfig: newClient2,
 			Namespaces: []ClusterStaticNamespaceConfiguration{
 				ClusterStaticNamespaceConfiguration{
-					Namespace:          "aggregated0",
-					Type: storage.AggregatedMetricsType,
-					Retention:          30 * 24 * time.Hour,
-					Resolution:         time.Minute,
+					Namespace:  "aggregated0",
+					Type:       storage.AggregatedMetricsType,
+					Retention:  30 * 24 * time.Hour,
+					Resolution: time.Minute,
 				},
 				ClusterStaticNamespaceConfiguration{
-					Namespace:          "aggregated1",
-					Type: storage.AggregatedMetricsType,
-					Retention:          365 * 24 * time.Hour,
-					Resolution:         10 * time.Minute,
+					Namespace:  "aggregated1",
+					Type:       storage.AggregatedMetricsType,
+					Retention:  365 * 24 * time.Hour,
+					Resolution: 10 * time.Minute,
 				},
 			},
 		},

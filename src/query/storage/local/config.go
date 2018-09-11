@@ -33,7 +33,8 @@ import (
 )
 
 var (
-	errNotAggregatedClusterNamespace = goerrors.New("not an aggregated cluster namespace")
+	errNotAggregatedClusterNamespace              = goerrors.New("not an aggregated cluster namespace")
+	errBothNamespaceTypeNewAndDeprecatedFieldsSet = goerrors.New("cannot specify both deprecated and non-deprecated fields for namespace type")
 
 	defaultNewClientConfigurationParams = client.ConfigurationParameters{}
 )
@@ -69,11 +70,67 @@ func (c ClusterStaticConfiguration) newClient(
 // ClusterStaticNamespaceConfiguration describes the namespaces in a
 // static cluster.
 type ClusterStaticNamespaceConfiguration struct {
-	Namespace  string                                         `yaml:"namespace"`
-	Type       storage.MetricsType                            `yaml:"type"`
-	Retention  time.Duration                                  `yaml:"retention" validate:"nonzero"`
-	Resolution time.Duration                                  `yaml:"resolution" validate:"min=0"`
+	// Namespace is namespace in the cluster that is specified.
+	Namespace string `yaml:"namespace"`
+
+	// Type is the type of values stored by the namespace, current
+	// supported values are "unaggregated" or "aggregated".
+	Type storage.MetricsType `yaml:"type"`
+
+	// Retention is the length of which values are stored by the namespace.
+	Retention time.Duration `yaml:"retention" validate:"nonzero"`
+
+	// Resolution is the frequency of which values are stored by the namespace.
+	Resolution time.Duration `yaml:"resolution" validate:"min=0"`
+
+	// Downsample is the configuration for downsampling options to use with
+	// the namespace.
 	Downsample *DownsampleClusterStaticNamespaceConfiguration `yaml:"downsample"`
+
+	// StorageMetricsType is the namespace type.
+	//
+	// Deprecated: Use "Type" field when specifying config instead, it is
+	// invalid to use both.
+	StorageMetricsType storage.MetricsType `yaml:"storageMetricsType"`
+}
+
+func (c ClusterStaticNamespaceConfiguration) metricsType() (storage.MetricsType, error) {
+	result := storage.DefaultMetricsType
+	if c.Type != storage.DefaultMetricsType && c.StorageMetricsType != storage.DefaultMetricsType {
+		// Don't allow both to not be default
+		return result, errBothNamespaceTypeNewAndDeprecatedFieldsSet
+	}
+
+	if c.Type != storage.DefaultMetricsType {
+		// New field value set
+		return c.Type, nil
+	}
+
+	if c.StorageMetricsType != storage.DefaultMetricsType {
+		// Deprecated field value set
+		return c.StorageMetricsType, nil
+	}
+
+	// Both are default
+	return result, nil
+}
+
+func (c ClusterStaticNamespaceConfiguration) downsampleOptions() (
+	ClusterNamespaceDownsampleOptions,
+	error,
+) {
+	nsType, err := c.metricsType()
+	if err != nil {
+		return ClusterNamespaceDownsampleOptions{}, err
+	}
+	if nsType != storage.AggregatedMetricsType {
+		return ClusterNamespaceDownsampleOptions{}, errNotAggregatedClusterNamespace
+	}
+	if c.Downsample == nil {
+		return defaultClusterNamespaceDownsampleOptions, nil
+	}
+
+	return c.Downsample.downsampleOptions(), nil
 }
 
 // DownsampleClusterStaticNamespaceConfiguration is configuration
@@ -111,21 +168,6 @@ type ClustersStaticConfigurationOptions struct {
 	AsyncSessions bool
 }
 
-// AggregatedConfig returns the aggregated cluster namespace config.
-func (c ClusterStaticNamespaceConfiguration) downsampleOptions() (
-	ClusterNamespaceDownsampleOptions,
-	error,
-) {
-	if c.Type != storage.AggregatedMetricsType {
-		return ClusterNamespaceDownsampleOptions{}, errNotAggregatedClusterNamespace
-	}
-	if c.Downsample == nil {
-		return defaultClusterNamespaceDownsampleOptions, nil
-	}
-
-	return c.Downsample.downsampleOptions(), nil
-}
-
 // NewClusters instantiates a new Clusters instance.
 func (c ClustersStaticConfiguration) NewClusters(
 	opts ClustersStaticConfigurationOptions,
@@ -149,7 +191,12 @@ func (c ClustersStaticConfiguration) NewClusters(
 		}
 
 		for _, n := range clusterCfg.Namespaces {
-			switch n.Type {
+			nsType, err := n.metricsType()
+			if err != nil {
+				return nil, err
+			}
+
+			switch nsType {
 			case storage.UnaggregatedMetricsType:
 				numUnaggregatedClusterNamespaces++
 				if numUnaggregatedClusterNamespaces > 1 {
@@ -167,8 +214,7 @@ func (c ClustersStaticConfiguration) NewClusters(
 					append(aggregatedClusterNamespacesCfg.namespaces, n)
 
 			default:
-				return nil, fmt.Errorf("unknown storage metrics type: %v",
-					n.Type)
+				return nil, fmt.Errorf("unknown storage metrics type: %v", nsType)
 			}
 		}
 

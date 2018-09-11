@@ -139,6 +139,9 @@ const (
 	UnaggregatedMetricsType MetricsType = iota
 	// AggregatedMetricsType is an aggregated metrics type.
 	AggregatedMetricsType
+
+	// DefaultMetricsType is the default metrics type value.
+	DefaultMetricsType = UnaggregatedMetricsType
 )
 
 var (
