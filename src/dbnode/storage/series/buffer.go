@@ -820,12 +820,14 @@ func (b *dbBufferBucket) merge() (mergeResult, error) {
 		}
 	}
 
+	var lastWriteAt time.Time
 	iter.Reset(readers, start, b.opts.RetentionOptions().BlockSize())
 	for iter.Next() {
 		dp, unit, annotation := iter.Current()
 		if err := encoder.Encode(dp, unit, annotation); err != nil {
 			return mergeResult{}, err
 		}
+		lastWriteAt = dp.Timestamp
 	}
 	if err := iter.Err(); err != nil {
 		return mergeResult{}, err
@@ -835,7 +837,8 @@ func (b *dbBufferBucket) merge() (mergeResult, error) {
 	b.resetBootstrapped()
 
 	b.encoders = append(b.encoders, inOrderEncoder{
-		encoder: encoder,
+		encoder:     encoder,
+		lastWriteAt: lastWriteAt,
 	})
 
 	return mergeResult{merges: merges}, nil
