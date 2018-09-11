@@ -93,8 +93,7 @@ func instantValue(values []float64, isRate bool, stepSize time.Duration) float64
 	if isRate {
 		// Convert to per-second.
 		fmt.Println(stepSize, float64(stepSize), float64(stepSize)/1000, "sec: ", stepSize.Seconds())
-		// resultValue /= float64(stepSize) / 1000
-		resultValue /= float64(stepSize.Nanoseconds()) / 1000
+		resultValue /= float64(stepSize) / math.Pow10(9)
 	}
 
 	return resultValue

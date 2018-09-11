@@ -72,7 +72,7 @@ func testRate(t *testing.T, testCases []testCase, vals [][]float64) {
 				TimeSpec: transform.TimeSpec{
 					Start: boundStart.Add(-2 * bounds.Duration),
 					End:   bounds.End(),
-					Step:  time.Second,
+					Step:  time.Minute,
 				},
 			})
 			bNode := node.(*baseNode)
