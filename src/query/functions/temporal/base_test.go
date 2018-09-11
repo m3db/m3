@@ -46,7 +46,7 @@ func (p *processor) Process(f []float64) float64 {
 	return sum
 }
 
-func dummyProcessor(_ baseOp, _ *transform.Controller) Processor {
+func dummyProcessor(_ baseOp, _ *transform.Controller, _ transform.Options) Processor {
 	return &processor{}
 }
 

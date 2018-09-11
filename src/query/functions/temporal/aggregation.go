@@ -73,7 +73,7 @@ func NewAggOp(args []interface{}, optype string) (transform.Params, error) {
 	return nil, fmt.Errorf("unknown aggregation type: %s", optype)
 }
 
-func newAggNode(op baseOp, controller *transform.Controller) Processor {
+func newAggNode(op baseOp, controller *transform.Controller, _ transform.Options) Processor {
 	return &aggNode{
 		op:         op,
 		controller: controller,
