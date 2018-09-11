@@ -861,6 +861,7 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 		for i := range unmergedBlock {
 			// TODO(r): Write unit test to ensure that different values that arrive
 			// later in the commit log will upsert the previous value when bootstrapping
+			// Tracking with issue: https://github.com/m3db/m3/issues/898
 			if unmergedBlock[i].lastWriteAt.Before(dp.Timestamp) {
 				unmergedBlock[i].lastWriteAt = dp.Timestamp
 				err = unmergedBlock[i].enc.Encode(dp, unit, annotation)

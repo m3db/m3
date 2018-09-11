@@ -35,7 +35,9 @@ type IterateEqualTimestampStrategy uint8
 
 const (
 	// IterateLastPushed is useful for within a single replica, using the last
-	// immutable buffer that was created to decide which value to choose.
+	// immutable buffer that was created to decide which value to choose. It is
+	// important to order the buffers passed to the construction of the iterators
+	// in the correct order to achieve the desired outcome.
 	IterateLastPushed IterateEqualTimestampStrategy = iota
 	// IterateHighestValue is useful across replicas when you just want to choose
 	// the highest value every time.
@@ -51,7 +53,7 @@ const (
 
 	// DefaultIterateEqualTimestampStrategy is the default iterate
 	// equal timestamp strategy.
-	DefaultIterateEqualTimestampStrategy = IterateEqualTimestampStrategy(0)
+	DefaultIterateEqualTimestampStrategy = IterateLastPushed
 )
 
 var (
@@ -67,9 +69,9 @@ var (
 // equal timestamp strategies.
 func ValidIterateEqualTimestampStrategies() []IterateEqualTimestampStrategy {
 	// Return a copy here so callers cannot mutate the known list.
-	result := make([]IterateEqualTimestampStrategy, 0,
-		len(validIterateEqualTimestampStrategies))
-	copy(result, validIterateEqualTimestampStrategies)
+	src := validIterateEqualTimestampStrategies
+	result := make([]IterateEqualTimestampStrategy, len(src))
+	copy(result, src)
 	return result
 }
 

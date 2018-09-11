@@ -46,7 +46,7 @@ type Encoder interface {
 	NumEncoded() int
 
 	// LastEncoded returns the last encoded datapoint, useful for
-	// de-duplicating encoded values. If there no values encoded previously
+	// de-duplicating encoded values. If there are no previously encoded values
 	// an error is returned.
 	LastEncoded() (ts.Datapoint, error)
 
@@ -180,6 +180,13 @@ type SeriesIterator interface {
 	// NB: the SeriesIterator assumes ownership of the provided ids, this includes calling `id.Finalize()` upon
 	// iter.Close().
 	Reset(opts SeriesIteratorOptions)
+
+	// SetIterateEqualTimestampStrategy sets the equal timestamp strategy of how
+	// to select a value when the timestamp matches differing values with the same
+	// timestamp from different replicas.
+	// It can be set at any time and will apply to the current value returned
+	// from the iterator immediately.
+	SetIterateEqualTimestampStrategy(strategy IterateEqualTimestampStrategy)
 
 	// Replicas exposes the underlying MultiReaderIterator slice for this SeriesIterator
 	Replicas() []MultiReaderIterator

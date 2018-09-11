@@ -511,7 +511,6 @@ type dbBufferBucket struct {
 	encoders          []inOrderEncoder
 	bootstrapped      []block.DatabaseBlock
 	lastReadUnixNanos int64
-	empty             bool
 	drained           bool
 }
 
@@ -536,7 +535,6 @@ func (b *dbBufferBucket) resetTo(
 	})
 	b.bootstrapped = nil
 	atomic.StoreInt64(&b.lastReadUnixNanos, 0)
-	b.empty = true
 	b.drained = false
 }
 
@@ -545,8 +543,22 @@ func (b *dbBufferBucket) finalize() {
 	b.resetBootstrapped()
 }
 
+func (b *dbBufferBucket) empty() bool {
+	for _, block := range b.bootstrapped {
+		if block.Len() > 0 {
+			return false
+		}
+	}
+	for _, elem := range b.encoders {
+		if elem.encoder != nil && elem.encoder.NumEncoded() > 0 {
+			return false
+		}
+	}
+	return true
+}
+
 func (b *dbBufferBucket) canRead() bool {
-	return !b.drained && !b.empty
+	return !b.drained && !b.empty()
 }
 
 func (b *dbBufferBucket) needsReset(
@@ -570,7 +582,6 @@ func (b *dbBufferBucket) needsDrain(
 func (b *dbBufferBucket) bootstrap(
 	bl block.DatabaseBlock,
 ) {
-	b.empty = false
 	b.bootstrapped = append(b.bootstrapped, bl)
 }
 
@@ -584,16 +595,11 @@ func (b *dbBufferBucket) write(
 		Timestamp: timestamp,
 		Value:     value,
 	}
-	if b.empty {
-		// No values written yet, write to first buffer
-		return b.writeToEncoderIndex(0, datapoint, unit, annotation)
-	}
 
 	// Find the correct encoder to write to
 	idx := -1
 	for i := range b.encoders {
 		lastWriteAt := b.encoders[i].lastWriteAt
-
 		if timestamp.Equal(lastWriteAt) {
 			last, err := b.encoders[i].encoder.LastEncoded()
 			if err != nil {
@@ -664,11 +670,6 @@ func (b *dbBufferBucket) writeToEncoderIndex(
 	}
 
 	b.encoders[idx].lastWriteAt = datapoint.Timestamp
-
-	if b.empty {
-		b.empty = false
-	}
-
 	return nil
 }
 
@@ -857,7 +858,6 @@ func (b *dbBufferBucket) discardMerged() (discardMergedResult, error) {
 		// just remove it from the list of encoders
 		b.encoders = b.encoders[:0]
 		b.resetBootstrapped()
-		b.empty = true
 
 		return discardMergedResult{newBlock, 0}, nil
 	}
@@ -870,7 +870,6 @@ func (b *dbBufferBucket) discardMerged() (discardMergedResult, error) {
 		// are passing ownership of it to the caller
 		b.resetEncoders()
 		b.bootstrapped = nil
-		b.empty = true
 
 		return discardMergedResult{existingBlock, 0}, nil
 	}
@@ -879,7 +878,6 @@ func (b *dbBufferBucket) discardMerged() (discardMergedResult, error) {
 	if err != nil {
 		b.resetEncoders()
 		b.resetBootstrapped()
-		b.empty = true
 		return discardMergedResult{}, err
 	}
 
@@ -893,7 +891,6 @@ func (b *dbBufferBucket) discardMerged() (discardMergedResult, error) {
 	// just remove it from the list of encoders
 	b.encoders = b.encoders[:0]
 	b.resetBootstrapped()
-	b.empty = true
 
 	return discardMergedResult{newBlock, result.merges}, nil
 }

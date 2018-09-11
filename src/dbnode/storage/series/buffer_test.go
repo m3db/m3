@@ -394,7 +394,7 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 
 	bucketIdx := (curr.UnixNano() / int64(rops.BlockSize())) % bucketsLen
 	assert.Equal(t, 2, len(buffer.buckets[bucketIdx].encoders))
-	assert.False(t, buffer.buckets[bucketIdx].empty)
+	assert.False(t, buffer.buckets[bucketIdx].empty())
 	assert.Equal(t, data[1].timestamp, mustGetLastEncoded(t, buffer.buckets[bucketIdx].encoders[0]).Timestamp)
 	assert.Equal(t, data[2].timestamp, mustGetLastEncoded(t, buffer.buckets[bucketIdx].encoders[1]).Timestamp)
 
@@ -477,7 +477,6 @@ func newTestBufferBucketWithData(t *testing.T) (*dbBufferBucket, Options, []valu
 		b.encoders = append(b.encoders, inOrderEncoder{encoder: encoder})
 		expected = append(expected, d...)
 	}
-	b.empty = false
 	sort.Sort(valuesByTime(expected))
 	return b, opts, expected
 }
@@ -493,7 +492,7 @@ func TestBufferBucketMerge(t *testing.T) {
 
 	assert.Equal(t, 0, len(b.encoders))
 	assert.Equal(t, 0, len(b.bootstrapped))
-	assert.True(t, b.empty)
+	assert.True(t, b.empty())
 
 	ctx := context.NewContext()
 	defer ctx.Close()

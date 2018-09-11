@@ -756,6 +756,16 @@ func (mr *MockSeriesIteratorMockRecorder) Reset(opts interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockSeriesIterator)(nil).Reset), opts)
 }
 
+// SetIterateEqualTimestampStrategy mocks base method
+func (m *MockSeriesIterator) SetIterateEqualTimestampStrategy(strategy IterateEqualTimestampStrategy) {
+	m.ctrl.Call(m, "SetIterateEqualTimestampStrategy", strategy)
+}
+
+// SetIterateEqualTimestampStrategy indicates an expected call of SetIterateEqualTimestampStrategy
+func (mr *MockSeriesIteratorMockRecorder) SetIterateEqualTimestampStrategy(strategy interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIterateEqualTimestampStrategy", reflect.TypeOf((*MockSeriesIterator)(nil).SetIterateEqualTimestampStrategy), strategy)
+}
+
 // Replicas mocks base method
 func (m *MockSeriesIterator) Replicas() []MultiReaderIterator {
 	ret := m.ctrl.Call(m, "Replicas")

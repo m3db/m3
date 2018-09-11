@@ -131,17 +131,19 @@ func (it *seriesIterator) Reset(opts SeriesIteratorOptions) {
 	if it.tags == nil {
 		it.tags = ident.EmptyTagIterator
 	}
-	it.start = opts.StartInclusive
-	it.end = opts.EndExclusive
-	it.iters.reset()
-	if !it.start.IsZero() && !it.end.IsZero() {
-		it.iters.setFilter(it.start, it.end)
-	}
-	it.iters.equalTimesStrategy = opts.IterateEqualTimestampStrategy
 	it.multiReaderIters = it.multiReaderIters[:0]
 	it.err = nil
 	it.firstNext = true
 	it.closed = false
+
+	it.iters.reset()
+	it.start = opts.StartInclusive
+	it.end = opts.EndExclusive
+	if !it.start.IsZero() && !it.end.IsZero() {
+		it.iters.setFilter(it.start, it.end)
+	}
+	it.SetIterateEqualTimestampStrategy(opts.IterateEqualTimestampStrategy)
+
 	for _, replica := range opts.Replicas {
 		if !replica.Next() || !it.iters.push(replica) {
 			replica.Close()
@@ -149,6 +151,10 @@ func (it *seriesIterator) Reset(opts SeriesIteratorOptions) {
 		}
 		it.multiReaderIters = append(it.multiReaderIters, replica)
 	}
+}
+
+func (it *seriesIterator) SetIterateEqualTimestampStrategy(strategy IterateEqualTimestampStrategy) {
+	it.iters.equalTimesStrategy = strategy
 }
 
 func (it *seriesIterator) hasError() bool {

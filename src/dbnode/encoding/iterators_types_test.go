@@ -32,9 +32,14 @@ import (
 
 func TestValidIterateEqualTimestampStrategies(t *testing.T) {
 	result := ValidIterateEqualTimestampStrategies()
+
+	// Ensure copy was taken and ptrs don't match
 	p1 := uintptr(unsafe.Pointer(&validIterateEqualTimestampStrategies))
 	p2 := uintptr(unsafe.Pointer(&result))
 	assert.NotEqual(t, p1, p2)
+
+	// Ensure values match
+	assert.Equal(t, result, validIterateEqualTimestampStrategies)
 }
 
 func TestIterateEqualTimestampStrategyUnmarshalYAML(t *testing.T) {
