@@ -34,6 +34,7 @@ func processBinary(
 	lhs, rhs block.Block,
 	params NodeParams,
 	controller *transform.Controller,
+	isComparison bool,
 	fn binaryFunc,
 ) (block.Block, error) {
 	lIter, err := lhs.StepIter()
@@ -41,8 +42,6 @@ func processBinary(
 		return nil, err
 	}
 
-	// fn := n.op.fn
-	// params := n.op.params
 	if params.LIsScalar {
 		scalarL, ok := lhs.(*block.Scalar)
 		if !ok {
@@ -72,7 +71,7 @@ func processBinary(
 
 		// NB(arnikola): this is a sanity check, as scalar comparisons
 		// should have previously errored out during the parsing step
-		if !params.ReturnBool {
+		if !params.ReturnBool && isComparison {
 			return nil, errNoModifierForComparison
 		}
 

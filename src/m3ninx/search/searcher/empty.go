@@ -21,45 +21,23 @@
 package searcher
 
 import (
+	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3/src/m3ninx/search"
 )
 
 type emptySearcher struct {
-	numReaders int
-	postings   postings.List
-
-	idx int
-	err error
+	postings postings.List
 }
 
 // NewEmptySearcher returns a new searcher which always returns an empty postings list.
-// It is not safe for concurrent access.
-func NewEmptySearcher(numReaders int) search.Searcher {
+func NewEmptySearcher() search.Searcher {
 	return &emptySearcher{
-		numReaders: numReaders,
-		postings:   roaring.NewPostingsList(),
-		idx:        -1,
+		postings: roaring.NewPostingsList(),
 	}
 }
 
-func (s *emptySearcher) Next() bool {
-	if s.idx == s.numReaders-1 {
-		return false
-	}
-	s.idx++
-	return true
-}
-
-func (s *emptySearcher) Current() postings.List {
-	return s.postings
-}
-
-func (s *emptySearcher) Err() error {
-	return s.err
-}
-
-func (s *emptySearcher) NumReaders() int {
-	return s.numReaders
+func (s *emptySearcher) Search(r index.Reader) (postings.List, error) {
+	return s.postings, nil
 }

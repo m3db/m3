@@ -121,7 +121,7 @@ import:
 
 - package: github.com/couchbase/vellum
   repo:    https://github.com/m3db/vellum
-  version: 28dce9c5a7c652389e0aaf428c393033f0199dc4
+  version: 51c732079c882f52f8e6af889d99ac2a1611d5e4
 
 - package: github.com/edsrzf/mmap-go # un-used but required for a compile time dep from vellum
   version: 0bce6a6887123b67a60366d2c9fe2dfb74289d2e
@@ -211,7 +211,7 @@ import:
 
 testImport:
 - package: github.com/fortytw2/leaktest
-  version: 3677f62bb30dbf3b042c4c211245d072aa9ee075
+  version: b433bbd6d743c1854040b39062a3916ed5f78fe8
 
 - package: github.com/leanovate/gopter
   version: f778776473e0ef7764e1434dd01a61cc1ec574b4

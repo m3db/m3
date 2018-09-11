@@ -56,21 +56,15 @@ func TestTermSearcher(t *testing.T) {
 		secondReader.EXPECT().MatchTerm(field, term).Return(secondPL, nil),
 	)
 
-	readers := []index.Reader{firstReader, secondReader}
-
-	s := NewTermSearcher(readers, field, term)
-
-	// Ensure the searcher is searching over two readers.
-	require.Equal(t, 2, s.NumReaders())
+	s := NewTermSearcher(field, term)
 
 	// Test the postings list from the first Reader.
-	require.True(t, s.Next())
-	require.True(t, s.Current().Equal(firstPL))
+	pl, err := s.Search(firstReader)
+	require.NoError(t, err)
+	require.True(t, pl.Equal(firstPL))
 
 	// Test the postings list from the second Reader.
-	require.True(t, s.Next())
-	require.True(t, s.Current().Equal(secondPL))
-
-	require.False(t, s.Next())
-	require.NoError(t, s.Err())
+	pl, err = s.Search(secondReader)
+	require.NoError(t, err)
+	require.True(t, pl.Equal(secondPL))
 }

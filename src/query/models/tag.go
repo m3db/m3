@@ -64,7 +64,7 @@ type MatchType int
 
 // Possible MatchTypes.
 const (
-	MatchEqual     MatchType = iota
+	MatchEqual MatchType = iota
 	MatchNotEqual
 	MatchRegexp
 	MatchNotRegexp
@@ -287,13 +287,28 @@ func (t Tags) StringMap() map[string]string {
 	return m
 }
 
-// Add is used to add a bunch of tags and then maintain the sort order
+// Clone returns a copy of the tags
+func (t Tags) Clone() Tags {
+	cloned := make(Tags, len(t))
+	copy(cloned, t)
+	return cloned
+}
+
+// AddTag is used to add a single tag and maintain sorted order
+func (t Tags) AddTag(tag Tag) Tags {
+	updated := append(t, tag)
+	z := Normalize(updated)
+	return z
+}
+
+// Add is used to add a list of tags and maintain sorted order
 func (t Tags) Add(tags Tags) Tags {
 	updated := append(t, tags...)
 	return Normalize(updated)
 }
 
-// Normalize normalizes the tags by sorting them in place. In future, it might also ensure other things like uniqueness
+// Normalize normalizes the tags by sorting them in place.
+// In future, it might also ensure other things like uniqueness
 func Normalize(tags Tags) Tags {
 	sort.Sort(tags)
 	return tags

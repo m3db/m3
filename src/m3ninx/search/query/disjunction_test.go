@@ -23,7 +23,6 @@ package query
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/search"
 
 	"github.com/stretchr/testify/require"
@@ -52,11 +51,10 @@ func TestDisjunctionQuery(t *testing.T) {
 		},
 	}
 
-	rs := index.Readers{}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			q := NewDisjunctionQuery(test.queries)
-			_, err := q.Searcher(rs)
+			_, err := q.Searcher()
 			require.NoError(t, err)
 		})
 	}

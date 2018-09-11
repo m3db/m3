@@ -166,3 +166,29 @@ func TestTagsWithExcludesCustom(t *testing.T) {
 	tagsWithoutKeys := tags.TagsWithoutKeys([]string{"a", "c", MetricName})
 	assert.Equal(t, Tags{{"b", "2"}}, tagsWithoutKeys)
 }
+
+func TestAddTags(t *testing.T) {
+	tags := make(Tags, 0, 4)
+
+	tagToAdd := Tag{"z", "3"}
+	tags = tags.AddTag(tagToAdd)
+	assert.Equal(t, Tags{tagToAdd}, tags)
+
+	tagsToAdd := Tags{{"a", "1"}, {"b", "2"}, {"c", "3"}}
+	tags = tags.Add(tagsToAdd)
+
+	expected := Tags{{"a", "1"}, {"b", "2"}, {"c", "3"}, {"z", "3"}}
+	assert.Equal(t, expected, tags)
+}
+
+func TestCloneTags(t *testing.T) {
+	tags := createTags(true)
+	original := createTags(true)
+
+	cloned := tags.Clone()
+	assert.Equal(t, cloned, tags)
+	// mutate cloned and ensure tags is unchanged
+	cloned = cloned[1:]
+	assert.NotEqual(t, cloned, tags)
+	assert.Equal(t, original, tags)
+}

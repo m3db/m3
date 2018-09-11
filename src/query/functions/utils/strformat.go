@@ -18,41 +18,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package temporal
+package utils
 
 import (
-	"math"
-
-	"github.com/m3db/m3/src/query/executor/transform"
+	"strconv"
 )
 
-// CountTemporalType generates count of all values in the specified interval
-const CountTemporalType = "count_over_time"
-
-// NewCountOp creates a new base linear transform with a count node
-func NewCountOp(args []interface{}) (transform.Params, error) {
-	return newBaseOp(args, CountTemporalType, newCountNode)
-}
-
-func newCountNode(op baseOp, controller *transform.Controller) Processor {
-	return &countNode{
-		op:         op,
-		controller: controller,
-	}
-}
-
-type countNode struct {
-	op         baseOp
-	controller *transform.Controller
-}
-
-func (c *countNode) Process(values []float64) float64 {
-	var count float64
-	for _, v := range values {
-		if !math.IsNaN(v) {
-			count++
-		}
-	}
-
-	return count
+// FormatFloat applies all shared tags from Metadata to each SeriesMeta
+func FormatFloat(
+	value float64,
+) string {
+	return strconv.FormatFloat(value, 'f', -1, 64)
 }

@@ -43,16 +43,6 @@ func TestIterator(t *testing.T) {
 	secondPL := roaring.NewPostingsList()
 	firstPL.Insert(67)
 
-	searcher := search.NewMockSearcher(mockCtrl)
-	gomock.InOrder(
-		searcher.EXPECT().Next().Return(true),
-		searcher.EXPECT().Current().Return(firstPL),
-		searcher.EXPECT().Next().Return(true),
-		searcher.EXPECT().Current().Return(secondPL),
-		searcher.EXPECT().Next().Return(false),
-		searcher.EXPECT().Err().Return(nil),
-	)
-
 	// Set up Readers.
 	docs := []doc.Document{
 		doc.Document{
@@ -103,9 +93,15 @@ func TestIterator(t *testing.T) {
 	secondReader := index.NewMockReader(mockCtrl)
 	gomock.InOrder(
 		firstReader.EXPECT().Docs(firstPL).Return(firstDocIter, nil),
-
 		secondReader.EXPECT().Docs(secondPL).Return(secondDocIter, nil),
 	)
+
+	searcher := search.NewMockSearcher(mockCtrl)
+	gomock.InOrder(
+		searcher.EXPECT().Search(firstReader).Return(firstPL, nil),
+		searcher.EXPECT().Search(secondReader).Return(secondPL, nil),
+	)
+
 	readers := index.Readers{firstReader, secondReader}
 
 	// Construct iterator and run tests.

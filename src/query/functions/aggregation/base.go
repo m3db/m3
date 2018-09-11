@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3/src/query/parser"
 )
 
-type aggregationFn func(values []float64, indices []int) float64
+type aggregationFn func(values []float64, bucket []int) float64
 
 var aggregationFunctions = map[string]aggregationFn{
 	SumType:               sumFn,
@@ -48,6 +48,10 @@ type NodeParams struct {
 	// Without indicates if series should use only the MatchingTags or if MatchingTags
 	// should be excluded from grouping
 	Without bool
+	// Parameter is the param value for the aggregation op when appropriate
+	Parameter float64
+	// StringParameter is the string representation of the param value
+	StringParameter string
 }
 
 // NewAggregationOp creates a new aggregation operation
@@ -58,10 +62,15 @@ func NewAggregationOp(
 	if fn, ok := aggregationFunctions[opType]; ok {
 		return newBaseOp(params, opType, fn), nil
 	}
+
+	if fn, ok := makeQuantileFn(opType, params.Parameter); ok {
+		return newBaseOp(params, opType, fn), nil
+	}
+
 	return baseOp{}, fmt.Errorf("operator not supported: %s", opType)
 }
 
-// baseOp stores required properties for count
+// baseOp stores required properties for the baseOp
 type baseOp struct {
 	params NodeParams
 	opType string

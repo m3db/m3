@@ -28,9 +28,6 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
-	bcl "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/ts"
 
@@ -52,7 +49,6 @@ func TestCommitLogBootstrapWithSnapshots(t *testing.T) {
 	ns2, err := namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().SetRetentionOptions(ropts))
 	require.NoError(t, err)
 	opts := newTestOptions(t).
-		SetCommitLogRetentionPeriod(ropts.RetentionPeriod()).
 		SetCommitLogBlockSize(blockSize).
 		SetNamespaces([]namespace.Metadata{ns1, ns2})
 
@@ -110,18 +106,7 @@ func TestCommitLogBootstrapWithSnapshots(t *testing.T) {
 	log.Info("finished writing data")
 
 	// Setup bootstrapper after writing data so filesystem inspection can find it.
-	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
-	bsOpts := newDefaulTestResultOptions(setup.storageOpts)
-	bclOpts := bcl.NewOptions().
-		SetResultOptions(bsOpts).
-		SetCommitLogOptions(commitLogOpts)
-	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
-	bs, err := bcl.NewCommitLogBootstrapperProvider(
-		bclOpts, mustInspectFilesystem(fsOpts), noOpAll)
-	require.NoError(t, err)
-	process := bootstrap.NewProcessProvider(
-		bs, bootstrap.NewProcessOptions(), bsOpts)
-	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(process)
+	setupCommitLogBootstrapperWithFSInspection(t, setup, commitLogOpts)
 
 	setup.setNowFn(now)
 	// Start the server with filesystem bootstrapper

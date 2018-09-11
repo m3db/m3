@@ -129,7 +129,7 @@ func decodeFixedResTs(r *rpc.Series) (ts.FixedResolutionMutableValues, error) {
 		startTime = toTime(datapoints[0].Timestamp)
 	}
 
-	ms, ok := millisPerStep(r.Values)
+	ms, ok := resolveResolution(r.Values)
 	if !ok {
 		return nil, fmt.Errorf("unable to find resolution")
 	}
@@ -279,7 +279,7 @@ func encodeWriteOptions(queryID string) *rpc.WriteOptions {
 	}
 }
 
-func millisPerStep(dps *rpc.Datapoints) (time.Duration, bool) {
+func resolveResolution(dps *rpc.Datapoints) (time.Duration, bool) {
 	if !dps.FixedResolution {
 		return time.Duration(0), false
 	}
@@ -289,5 +289,6 @@ func millisPerStep(dps *rpc.Datapoints) (time.Duration, bool) {
 		return time.Duration(0), true
 	}
 
-	return time.Duration(points[1].Timestamp-points[0].Timestamp) * time.Millisecond, true
+	return storage.TimestampToTime(points[1].Timestamp).
+		Sub(storage.TimestampToTime(points[0].Timestamp)), true
 }

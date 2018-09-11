@@ -54,7 +54,6 @@ func testMixedModeReadWrite(t *testing.T, snapshotEnabled bool) {
 	// Test setup
 	var (
 		commitLogBlockSize = 15 * time.Minute
-		commitLogRetetion  = 6 * time.Hour
 		ns1BlockSize       = 1 * time.Hour
 		ns1ROpts           = retention.NewOptions().SetRetentionPeriod(3 * time.Hour).SetBlockSize(ns1BlockSize)
 		nsID               = testNamespaces[0]
@@ -66,7 +65,6 @@ func testMixedModeReadWrite(t *testing.T, snapshotEnabled bool) {
 	ns1, err := namespace.NewMetadata(nsID, ns1Opts)
 	require.NoError(t, err)
 	opts := newTestOptions(t).
-		SetCommitLogRetentionPeriod(commitLogRetetion).
 		SetCommitLogBlockSize(commitLogBlockSize).
 		SetNamespaces([]namespace.Metadata{ns1})
 
@@ -246,9 +244,15 @@ func setCommitLogAndFilesystemBootstrapper(t *testing.T, opts testOptions, setup
 	fsBootstrapper, err := fs.NewFileSystemBootstrapperProvider(bfsOpts, commitLogBootstrapper)
 	require.NoError(t, err)
 
+	// Need to make sure we have an active m3dbAdminClient because the previous one
+	// may have been shutdown by stopServer().
+	setup.maybeResetClients()
 	// bootstrapper storage opts
-	processProvider := bootstrap.NewProcessProvider(
-		fsBootstrapper, bootstrap.NewProcessOptions(), bsOpts)
+	processOpts := bootstrap.NewProcessOptions().SetAdminClient(
+		setup.m3dbAdminClient,
+	)
+	processProvider, err := bootstrap.NewProcessProvider(fsBootstrapper, processOpts, bsOpts)
+	require.NoError(t, err)
 	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(processProvider)
 
 	return setup

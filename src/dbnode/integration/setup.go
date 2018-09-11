@@ -82,18 +82,24 @@ type testSetup struct {
 
 	logger xlog.Logger
 
-	db              cluster.Database
-	storageOpts     storage.Options
-	fsOpts          fs.Options
-	hostID          string
-	topoInit        topology.Initializer
-	shardSet        sharding.ShardSet
-	getNowFn        clock.NowFn
-	setNowFn        nowSetterFn
-	tchannelClient  rpc.TChanNode
-	m3dbClient      client.Client
-	m3dbAdminClient client.AdminClient
-	workerPool      xsync.WorkerPool
+	db             cluster.Database
+	storageOpts    storage.Options
+	fsOpts         fs.Options
+	hostID         string
+	topoInit       topology.Initializer
+	shardSet       sharding.ShardSet
+	getNowFn       clock.NowFn
+	setNowFn       nowSetterFn
+	tchannelClient rpc.TChanNode
+	m3dbClient     client.Client
+	// We need two distinct clients where one has the origin set to the same ID as the
+	// node itself (I.E) the client will behave exactly as if it is the node itself
+	// making requests, and another client with the origin set to an ID different than
+	// the node itself so that we can make requests from the perspective of a "different"
+	// M3DB node for verification purposes in some of the tests.
+	m3dbAdminClient             client.AdminClient
+	m3dbVerificationAdminClient client.AdminClient
+	workerPool                  xsync.WorkerPool
 
 	// things that need to be cleaned up
 	channel        *tchannel.Channel
@@ -163,24 +169,13 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		}
 	}
 
-	clientOpts := defaultClientOptions(topoInit).
-		SetClusterConnectTimeout(opts.ClusterConnectionTimeout()).
-		SetWriteConsistencyLevel(opts.WriteConsistencyLevel()).
-		SetTopologyInitializer(topoInit)
-
-	adminOpts, ok := clientOpts.(client.AdminOptions)
-	if !ok {
-		return nil, fmt.Errorf("unable to cast to admin options")
-	}
-
-	// Set up tchannel client
-	channel, tc, err := tchannelClient(tchannelNodeAddr)
+	adminClient, verificationAdminClient, err := newClients(topoInit, opts, id, tchannelNodeAddr)
 	if err != nil {
 		return nil, err
 	}
 
-	// Set up m3db client
-	adminClient, err := m3dbAdminClient(adminOpts)
+	// Set up tchannel client
+	channel, tc, err := tchannelClient(tchannelNodeAddr)
 	if err != nil {
 		return nil, err
 	}
@@ -233,7 +228,6 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	storageOpts = storageOpts.SetCommitLogOptions(
 		storageOpts.CommitLogOptions().
 			SetFilesystemOptions(fsOpts).
-			SetRetentionPeriod(opts.CommitLogRetentionPeriod()).
 			SetBlockSize(opts.CommitLogBlockSize()))
 
 	// Set up persistence manager
@@ -304,25 +298,26 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	}
 
 	return &testSetup{
-		t:               t,
-		opts:            opts,
-		logger:          logger,
-		storageOpts:     storageOpts,
-		fsOpts:          fsOpts,
-		hostID:          id,
-		topoInit:        topoInit,
-		shardSet:        shardSet,
-		getNowFn:        getNowFn,
-		setNowFn:        setNowFn,
-		tchannelClient:  tc,
-		m3dbClient:      adminClient.(client.Client),
-		m3dbAdminClient: adminClient,
-		workerPool:      workerPool,
-		channel:         channel,
-		filePathPrefix:  filePathPrefix,
-		namespaces:      opts.Namespaces(),
-		doneCh:          make(chan struct{}),
-		closedCh:        make(chan struct{}),
+		t:                           t,
+		opts:                        opts,
+		logger:                      logger,
+		storageOpts:                 storageOpts,
+		fsOpts:                      fsOpts,
+		hostID:                      id,
+		topoInit:                    topoInit,
+		shardSet:                    shardSet,
+		getNowFn:                    getNowFn,
+		setNowFn:                    setNowFn,
+		tchannelClient:              tc,
+		m3dbClient:                  adminClient.(client.Client),
+		m3dbAdminClient:             adminClient,
+		m3dbVerificationAdminClient: verificationAdminClient,
+		workerPool:                  workerPool,
+		channel:                     channel,
+		filePathPrefix:              filePathPrefix,
+		namespaces:                  opts.Namespaces(),
+		doneCh:                      make(chan struct{}),
+		closedCh:                    make(chan struct{}),
 	}, nil
 }
 
@@ -439,42 +434,23 @@ func (ts *testSetup) waitUntilServerIsDown() error {
 func (ts *testSetup) startServer() error {
 	ts.logger.Infof("starting server")
 
-	resultCh := make(chan error, 1)
+	var (
+		resultCh = make(chan error, 1)
+		err      error
+	)
 
-	httpClusterAddr := *httpClusterAddr
-	if addr := ts.opts.HTTPClusterAddr(); addr != "" {
-		httpClusterAddr = addr
-	}
-
-	tchannelClusterAddr := *tchannelClusterAddr
-	if addr := ts.opts.TChannelClusterAddr(); addr != "" {
-		tchannelClusterAddr = addr
-	}
-
-	httpNodeAddr := *httpNodeAddr
-	if addr := ts.opts.HTTPNodeAddr(); addr != "" {
-		httpNodeAddr = addr
-	}
-
-	tchannelNodeAddr := *tchannelNodeAddr
-	if addr := ts.opts.TChannelNodeAddr(); addr != "" {
-		tchannelNodeAddr = addr
-	}
-
-	httpDebugAddr := *httpDebugAddr
-	if addr := ts.opts.HTTPDebugAddr(); addr != "" {
-		httpDebugAddr = addr
-	}
-
-	var err error
 	ts.db, err = cluster.NewDatabase(ts.hostID, ts.topoInit, ts.storageOpts)
 	if err != nil {
 		return err
 	}
+
+	// Check if clients were closed by stopServer and need to be re-created.
+	ts.maybeResetClients()
+
 	go func() {
 		if err := openAndServe(
-			httpClusterAddr, tchannelClusterAddr,
-			httpNodeAddr, tchannelNodeAddr, httpDebugAddr,
+			ts.httpClusterAddr(), ts.tchannelClusterAddr(),
+			ts.httpNodeAddr(), ts.tchannelNodeAddr(), ts.httpDebugAddr(),
 			ts.db, ts.m3dbClient, ts.storageOpts, ts.doneCh,
 		); err != nil {
 			select {
@@ -510,6 +486,9 @@ func (ts *testSetup) stopServer() error {
 		if err != nil {
 			return err
 		}
+		ts.m3dbClient = nil
+		ts.m3dbAdminClient = nil
+		ts.m3dbVerificationAdminClient = nil
 		defer session.Close()
 	}
 
@@ -573,6 +552,91 @@ func (ts *testSetup) sleepFor10xTickMinimumInterval() {
 	runtimeMgr := ts.storageOpts.RuntimeOptionsManager()
 	opts := runtimeMgr.Get()
 	time.Sleep(opts.TickMinimumInterval() * 10)
+}
+
+func (ts *testSetup) httpClusterAddr() string {
+	if addr := ts.opts.HTTPClusterAddr(); addr != "" {
+		return addr
+	}
+	return *httpClusterAddr
+}
+
+func (ts *testSetup) httpNodeAddr() string {
+	if addr := ts.opts.HTTPNodeAddr(); addr != "" {
+		return addr
+	}
+	return *httpNodeAddr
+}
+
+func (ts *testSetup) tchannelClusterAddr() string {
+	if addr := ts.opts.TChannelClusterAddr(); addr != "" {
+		return addr
+	}
+	return *tchannelClusterAddr
+}
+
+func (ts *testSetup) tchannelNodeAddr() string {
+	if addr := ts.opts.TChannelNodeAddr(); addr != "" {
+		return addr
+	}
+	return *tchannelNodeAddr
+}
+
+func (ts *testSetup) httpDebugAddr() string {
+	if addr := ts.opts.HTTPDebugAddr(); addr != "" {
+		return addr
+	}
+	return *httpDebugAddr
+}
+
+func (ts *testSetup) maybeResetClients() error {
+	if ts.m3dbClient == nil {
+		// Recreate the clients as their session was destroyed by stopServer()
+		adminClient, verificationAdminClient, err := newClients(
+			ts.topoInit, ts.opts, ts.hostID, ts.tchannelNodeAddr())
+		if err != nil {
+			return err
+		}
+		ts.m3dbClient = adminClient.(client.Client)
+		ts.m3dbAdminClient = adminClient
+		ts.m3dbVerificationAdminClient = verificationAdminClient
+	}
+
+	return nil
+}
+
+func newClients(
+	topoInit topology.Initializer,
+	opts testOptions,
+	id,
+	tchannelNodeAddr string,
+) (client.AdminClient, client.AdminClient, error) {
+	var (
+		clientOpts = defaultClientOptions(topoInit).
+				SetClusterConnectTimeout(opts.ClusterConnectionTimeout()).
+				SetWriteConsistencyLevel(opts.WriteConsistencyLevel()).
+				SetTopologyInitializer(topoInit)
+
+		origin             = topology.NewHost(id, tchannelNodeAddr)
+		verificationOrigin = topology.NewHost(id+"-verification", tchannelNodeAddr)
+
+		adminOpts             = clientOpts.(client.AdminOptions).SetOrigin(origin)
+		verificationAdminOpts = adminOpts.SetOrigin(verificationOrigin)
+	)
+
+	// Set up m3db client
+	adminClient, err := m3dbAdminClient(adminOpts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Set up m3db verification client
+	verificationAdminClient, err := m3dbAdminClient(verificationAdminOpts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return adminClient, verificationAdminClient, nil
 }
 
 type testSetups []*testSetup

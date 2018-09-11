@@ -24,7 +24,6 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3/src/m3ninx/generated/proto/querypb"
-	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/m3ninx/search/searcher"
 )
@@ -54,25 +53,25 @@ func NewDisjunctionQuery(queries []search.Query) search.Query {
 }
 
 // Searcher returns a searcher over the provided readers.
-func (q *DisjuctionQuery) Searcher(rs index.Readers) (search.Searcher, error) {
+func (q *DisjuctionQuery) Searcher() (search.Searcher, error) {
 	switch len(q.queries) {
 	case 0:
-		return searcher.NewEmptySearcher(len(rs)), nil
+		return searcher.NewEmptySearcher(), nil
 
 	case 1:
-		return q.queries[0].Searcher(rs)
+		return q.queries[0].Searcher()
 	}
 
 	srs := make(search.Searchers, 0, len(q.queries))
 	for _, q := range q.queries {
-		sr, err := q.Searcher(rs)
+		sr, err := q.Searcher()
 		if err != nil {
 			return nil, err
 		}
 		srs = append(srs, sr)
 	}
 
-	return searcher.NewDisjunctionSearcher(len(rs), srs)
+	return searcher.NewDisjunctionSearcher(srs)
 }
 
 // Equal reports whether q is equivalent to o.

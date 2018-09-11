@@ -102,6 +102,7 @@ func (s *commitLogSource) Can(strategy bootstrap.Strategy) bool {
 func (s *commitLogSource) AvailableData(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
+	runOpts bootstrap.RunOptions,
 ) result.ShardTimeRanges {
 	// Commit log bootstrapper is a last ditch effort, so fulfill all
 	// time ranges requested even if not enough data, just to succeed
@@ -1249,6 +1250,7 @@ func (s *commitLogSource) logMergeShardsOutcome(shardErrs []int, shardEmptyErrs 
 func (s *commitLogSource) AvailableIndex(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
+	runOpts bootstrap.RunOptions,
 ) result.ShardTimeRanges {
 	// Commit log bootstrapper is a last ditch effort, so fulfill all
 	// time ranges requested even if not enough data, just to succeed

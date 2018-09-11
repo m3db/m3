@@ -21,11 +21,16 @@
 package native
 
 import (
-	"math"
+	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"testing"
 	"time"
+
+	xtest "github.com/m3db/m3/src/dbnode/x/test"
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/ts"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,7 +43,7 @@ const (
 func defaultParams() url.Values {
 	vals := url.Values{}
 	now := time.Now()
-	vals.Add(targetParam, promQuery)
+	vals.Add(queryParam, promQuery)
 	vals.Add(startParam, now.Format(time.RFC3339))
 	vals.Add(endParam, string(now.Add(time.Hour).Format(time.RFC3339)))
 	vals.Add(stepParam, (time.Duration(10) * time.Second).String())
@@ -51,7 +56,7 @@ func TestParamParsing(t *testing.T) {
 
 	r, err := parseParams(req)
 	require.Nil(t, err, "unable to parse request")
-	require.Equal(t, promQuery, r.Target)
+	require.Equal(t, promQuery, r.Query)
 }
 
 func TestInvalidStart(t *testing.T) {
@@ -67,7 +72,7 @@ func TestInvalidStart(t *testing.T) {
 func TestInvalidTarget(t *testing.T) {
 	req, _ := http.NewRequest("GET", PromReadURL, nil)
 	vals := defaultParams()
-	vals.Del(targetParam)
+	vals.Del(queryParam)
 	req.URL.RawQuery = vals.Encode()
 
 	p, err := parseParams(req)
@@ -76,9 +81,100 @@ func TestInvalidTarget(t *testing.T) {
 	require.Equal(t, err.Code(), http.StatusBadRequest)
 }
 
-func TestValueToProm(t *testing.T) {
-	assert.Equal(t, valueToProm(1.0), "1")
-	assert.Equal(t, valueToProm(1.2), "1.2")
-	assert.Equal(t, valueToProm(math.NaN()), "NaN")
-	assert.Equal(t, valueToProm(0.0119311), "0.0119311")
+func TestParseDuration(t *testing.T) {
+	r, err := http.NewRequest(http.MethodGet, "/foo?step=10s", nil)
+	require.NoError(t, err)
+	v, err := parseDuration(r, stepParam)
+	require.NoError(t, err)
+	assert.Equal(t, 10*time.Second, v)
+}
+
+func TestParseDurationParsesIntAsSeconds(t *testing.T) {
+	r, err := http.NewRequest(http.MethodGet, "/foo?step=30", nil)
+	require.NoError(t, err)
+	v, err := parseDuration(r, stepParam)
+	require.NoError(t, err)
+	assert.Equal(t, 30*time.Second, v)
+}
+
+func TestParseDurationError(t *testing.T) {
+	r, err := http.NewRequest(http.MethodGet, "/foo?step=bar10", nil)
+	require.NoError(t, err)
+	_, err = parseDuration(r, stepParam)
+	assert.Error(t, err)
+}
+
+func TestRenderResultsJSON(t *testing.T) {
+	start := time.Unix(1535948880, 0)
+
+	buffer := bytes.NewBuffer(nil)
+	params := models.RequestParams{}
+	series := []*ts.Series{
+		ts.NewSeries("foo", ts.NewFixedStepValues(10*time.Second, 2, 1, start), models.Tags{
+			models.Tag{Name: "bar", Value: "baz"},
+			models.Tag{Name: "qux", Value: "qaz"},
+		}),
+		ts.NewSeries("bar", ts.NewFixedStepValues(10*time.Second, 2, 2, start), models.Tags{
+			models.Tag{Name: "baz", Value: "bar"},
+			models.Tag{Name: "qaz", Value: "qux"},
+		}),
+	}
+
+	renderResultsJSON(buffer, series, params)
+
+	expected := mustPrettyJSON(t, `
+	{
+		"status": "success",
+		"data": {
+			"resultType": "matrix",
+			"result": [
+				{
+					"metric": {
+						"bar": "baz",
+						"qux": "qaz"
+					},
+					"values": [
+						[
+							1535948880,
+							"1"
+						],
+						[
+							1535948890,
+							"1"
+						]
+					],
+					"step_size_ms": 10000
+				},
+				{
+					"metric": {
+						"baz": "bar",
+						"qaz": "qux"
+					},
+					"values": [
+						[
+							1535948880,
+							"2"
+						],
+						[
+							1535948890,
+							"2"
+						]
+					],
+					"step_size_ms": 10000
+				}
+			]
+		}
+	}
+	`)
+	actual := mustPrettyJSON(t, buffer.String())
+	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
+}
+
+func mustPrettyJSON(t *testing.T, str string) string {
+	var unmarshalled map[string]interface{}
+	err := json.Unmarshal([]byte(str), &unmarshalled)
+	require.NoError(t, err)
+	pretty, err := json.MarshalIndent(unmarshalled, "", "  ")
+	require.NoError(t, err)
+	return string(pretty)
 }

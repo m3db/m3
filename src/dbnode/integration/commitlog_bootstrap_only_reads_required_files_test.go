@@ -27,9 +27,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/retention"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
-	bcl "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 
 	"github.com/stretchr/testify/require"
@@ -48,7 +45,6 @@ func TestCommitLogBootstrapOnlyReadsRequiredFiles(t *testing.T) {
 	ns1, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ropts))
 	require.NoError(t, err)
 	opts := newTestOptions(t).
-		SetCommitLogRetentionPeriod(ropts.RetentionPeriod()).
 		SetCommitLogBlockSize(blockSize).
 		SetNamespaces([]namespace.Metadata{ns1})
 
@@ -91,18 +87,7 @@ func TestCommitLogBootstrapOnlyReadsRequiredFiles(t *testing.T) {
 	log.Info("finished writing data to commitlog file with out of range timestamp")
 
 	// Setup bootstrapper after writing data so filesystem inspection can find it.
-	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
-	bsOpts := newDefaulTestResultOptions(setup.storageOpts)
-	bclOpts := bcl.NewOptions().
-		SetResultOptions(bsOpts).
-		SetCommitLogOptions(commitLogOpts)
-	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
-	bs, err := bcl.NewCommitLogBootstrapperProvider(
-		bclOpts, mustInspectFilesystem(fsOpts), noOpAll)
-	require.NoError(t, err)
-	process := bootstrap.NewProcessProvider(
-		bs, bootstrap.NewProcessOptions(), bsOpts)
-	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(process)
+	setupCommitLogBootstrapperWithFSInspection(t, setup, commitLogOpts)
 
 	setup.setNowFn(now)
 	// Start the server with filesystem bootstrapper

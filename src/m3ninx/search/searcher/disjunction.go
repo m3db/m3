@@ -21,75 +21,41 @@
 package searcher
 
 import (
+	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/search"
 )
 
 type disjunctionSearcher struct {
-	searchers  search.Searchers
-	numReaders int
-
-	idx  int
-	curr postings.List
-	err  error
+	searchers search.Searchers
 }
 
 // NewDisjunctionSearcher returns a new Searcher which matches documents which are matched
-// by any of the given Searchers. It is not safe for concurrent access.
-func NewDisjunctionSearcher(numReaders int, searchers search.Searchers) (search.Searcher, error) {
+// by any of the given Searchers.
+func NewDisjunctionSearcher(searchers search.Searchers) (search.Searcher, error) {
 	if len(searchers) == 0 {
 		return nil, errEmptySearchers
 	}
 
-	if err := validateSearchers(numReaders, searchers); err != nil {
-		return nil, err
-	}
-
 	return &disjunctionSearcher{
-		searchers:  searchers,
-		numReaders: numReaders,
-		idx:        -1,
+		searchers: searchers,
 	}, nil
 }
 
-func (s *disjunctionSearcher) Next() bool {
-	if s.err != nil || s.idx == s.numReaders-1 {
-		return false
-	}
-
+func (s *disjunctionSearcher) Search(r index.Reader) (postings.List, error) {
 	var pl postings.MutableList
-	s.idx++
 	for _, sr := range s.searchers {
-		if !sr.Next() {
-			err := sr.Err()
-			if err == nil {
-				err = errSearcherTooShort
-			}
-			s.err = err
-			return false
+		curr, err := sr.Search(r)
+		if err != nil {
+			return nil, err
 		}
 
 		// TODO: Sort the iterators so that we take the union in order of decreasing size.
-		curr := sr.Current()
 		if pl == nil {
 			pl = curr.Clone()
 		} else {
 			pl.Union(curr)
 		}
 	}
-	s.curr = pl
-
-	return true
-}
-
-func (s *disjunctionSearcher) Current() postings.List {
-	return s.curr
-}
-
-func (s *disjunctionSearcher) Err() error {
-	return s.err
-}
-
-func (s *disjunctionSearcher) NumReaders() int {
-	return s.numReaders
+	return pl, nil
 }

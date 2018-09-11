@@ -59,7 +59,7 @@ func (e *executor) Execute(q search.Query) (doc.Iterator, error) {
 		return nil, errExecutorClosed
 	}
 
-	s, err := q.Searcher(e.readers)
+	s, err := q.Searcher()
 	if err != nil {
 		return nil, err
 	}

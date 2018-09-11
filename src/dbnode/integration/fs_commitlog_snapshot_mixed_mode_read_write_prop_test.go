@@ -126,8 +126,6 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 					return false, err
 				}
 				opts := newTestOptions(t).
-					// Make sure commit logs never expire during the course of a test
-					SetCommitLogRetentionPeriod(maxBlockSize * 5).
 					SetCommitLogBlockSize(commitLogBlockSize).
 					SetNamespaces([]namespace.Metadata{ns1}).
 					// Make sure that we're never waiting for a snapshot that doesn't occur

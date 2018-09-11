@@ -42,8 +42,8 @@ type Executor interface {
 type Query interface {
 	fmt.Stringer
 
-	// Searcher returns a Searcher for executing the query over a set of Readers.
-	Searcher(rs index.Readers) (Searcher, error)
+	// Searcher returns a Searcher for executing the query.
+	Searcher() (Searcher, error)
 
 	// Equal reports whether two queries are equivalent.
 	Equal(q Query) bool
@@ -52,23 +52,11 @@ type Query interface {
 	ToProto() *querypb.Query
 }
 
-// Searcher executes a query against a collection of Readers. It is an iterator which
-// returns the postings lists of the documents it matches for each segment. A Searcher
-// will execute queries over segments in parallel since the segments are independent.
-// A Searcher is not safe for concurrent access.
+// Searcher executes a query against a given Reader. It returns the postings lists
+// of the documents it matches for the given segment.
 type Searcher interface {
-	// Next returns the whether the iterator has another postings list.
-	Next() bool
-
-	// Current returns the current postings list. It is only safe to call Current immediately
-	// after a call to Next confirms there are more postings lists remaining.
-	Current() postings.List
-
-	// Err returns any errors encountered during iteration.
-	Err() error
-
-	// NumReaders returns the number of Readers that the Searcher is searching over.
-	NumReaders() int
+	// Search executes a configured query against the given Reader.
+	Search(index.Reader) (postings.List, error)
 }
 
 // Searchers is a slice of Searcher.

@@ -60,7 +60,7 @@ func (s *bootstrapData) prepare(
 	totalRanges result.ShardTimeRanges,
 ) bootstrapStepPreparedResult {
 	return bootstrapStepPreparedResult{
-		currAvailable: s.curr.AvailableData(s.namespace, totalRanges),
+		currAvailable: s.curr.AvailableData(s.namespace, totalRanges, s.opts),
 	}
 }
 

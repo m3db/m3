@@ -68,7 +68,6 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 	ns1, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ropts))
 	require.NoError(t, err)
 	opts := newTestOptions(t).
-		SetCommitLogRetentionPeriod(ropts.RetentionPeriod()).
 		SetCommitLogBlockSize(blockSize).
 		SetNamespaces([]namespace.Metadata{ns1})
 
@@ -133,8 +132,12 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 		},
 	}, bootstrapOpts, bootstrapper)
 
-	processProvider := bootstrap.NewProcessProvider(
-		test, bootstrap.NewProcessOptions(), bootstrapOpts)
+	processOpts := bootstrap.NewProcessOptions().SetAdminClient(
+		setup.m3dbAdminClient,
+	)
+	processProvider, err := bootstrap.NewProcessProvider(
+		test, processOpts, bootstrapOpts)
+	require.NoError(t, err)
 	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(processProvider)
 
 	// Start a background goroutine which will wait until the server is started,
