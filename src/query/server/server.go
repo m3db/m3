@@ -138,6 +138,8 @@ func Run(runOpts RunOptions) {
 		enabled        bool
 	)
 
+	// For grpc backend, we need to setup only the grpc client and a storage accompanying that client.
+	// For m3db backend, we need to make connections to the m3db cluster which generates a session and use the storage with the session.
 	if cfg.Backend == config.GRPCStorageType {
 		backendStorage, enabled, err = remoteClient(cfg)
 		if err != nil {
@@ -205,6 +207,7 @@ func Run(runOpts RunOptions) {
 	}
 }
 
+// make connections to the m3db cluster(s) and generate sessions for those clusters along with the storage
 func newM3DBStorage(
 	runOpts RunOptions,
 	cfg config.Configuration,
