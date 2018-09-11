@@ -98,8 +98,10 @@ imports:
   - context
 - name: gopkg.in/validator.v2
   version: 3e4f037f12a1221a0864cf0dd2e81c452ab22448
+  repo: https://github.com/go-validator/validator.git
 - name: gopkg.in/yaml.v2
   version: 5420a8b6744d3b0345ab293f6fcba19c978f1183
+  repo: https://github.com/go-yaml/yaml.git
 testImports:
 - name: github.com/fortytw2/leaktest
   version: a5ef70473c97b71626b9abeda80ee92ba2a7de9e
