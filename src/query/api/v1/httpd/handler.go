@@ -22,10 +22,8 @@ package httpd
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 	"net/http/pprof"
-	"os"
 	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
@@ -46,7 +44,6 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 const (
@@ -62,7 +59,6 @@ var (
 // Handler represents an HTTP handler.
 type Handler struct {
 	Router        *mux.Router
-	CLFLogger     *log.Logger
 	storage       storage.Storage
 	downsampler   downsample.Downsampler
 	engine        *executor.Engine
@@ -84,14 +80,7 @@ func NewHandler(
 	scope tally.Scope,
 ) (*Handler, error) {
 	r := mux.NewRouter()
-	logger, err := zap.NewProduction()
-	if err != nil {
-		return nil, err
-	}
-
-	defer logger.Sync() // flushes buffer, if any
 	h := &Handler{
-		CLFLogger:     log.New(os.Stderr, "[httpd] ", 0),
 		Router:        r,
 		storage:       storage,
 		downsampler:   downsampler,

@@ -1,4 +1,3 @@
-// +build big
 //
 // Copyright (c) 2018 Uber Technologies, Inc.
 //
@@ -25,24 +24,27 @@ package server
 import (
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
+	"sync"
 	"testing"
 	"time"
-
-	"github.com/m3db/m3x/ident"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
 	remotetest "github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote/test/remote"
+	"github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/storage/local"
 	xconfig "github.com/m3db/m3x/config"
+	"github.com/m3db/m3x/ident"
 	xtest "github.com/m3db/m3x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 )
 
 var configYAML = `
@@ -55,6 +57,7 @@ metrics:
     prefix: "coordinator"
   prometheus:
     handlerPath: /metrics
+    listenAddress: "127.0.0.1:7202"
   sanitization: prometheus
   samplingRate: 1.0
 
@@ -123,7 +126,7 @@ func TestRun(t *testing.T) {
 	}()
 
 	// Wait for server to come up
-	waitForServerHealthy(t)
+	waitForServerHealthy(t, 7201)
 
 	// Send Prometheus write request
 	promReq := remotetest.GeneratePromWriteRequest()
@@ -135,7 +138,6 @@ func TestRun(t *testing.T) {
 	res, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, res.StatusCode)
-
 	// Ensure close server performs as expected
 	interruptCh <- fmt.Errorf("interrupt")
 	<-doneCh
@@ -147,7 +149,7 @@ func newTestFile(t *testing.T, fileName, contents string) (*os.File, closeFn) {
 	tmpFile, err := ioutil.TempFile("", fileName)
 	require.NoError(t, err)
 
-	_, err = tmpFile.Write([]byte(configYAML))
+	_, err = tmpFile.Write([]byte(contents))
 	require.NoError(t, err)
 
 	return tmpFile, func() {
@@ -156,11 +158,11 @@ func newTestFile(t *testing.T, fileName, contents string) (*os.File, closeFn) {
 	}
 }
 
-func waitForServerHealthy(t *testing.T) {
+func waitForServerHealthy(t *testing.T, port int) {
 	maxWait := 10 * time.Second
 	startAt := time.Now()
 	for time.Since(startAt) < maxWait {
-		req, err := http.NewRequest("GET", "http://127.0.0.1:7201/health", nil)
+		req, err := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%d/health", port), nil)
 		require.NoError(t, err)
 		res, err := http.DefaultClient.Do(req)
 		if err != nil || res.StatusCode != http.StatusOK {
@@ -171,4 +173,99 @@ func waitForServerHealthy(t *testing.T) {
 	}
 	require.FailNow(t, "waited for server healthy longer than limit: "+
 		maxWait.String())
+}
+
+type queryServer struct {
+	writes, reads int
+	mu sync.Mutex
+}
+
+func (s *queryServer) Fetch(*rpcpb.FetchMessage, rpcpb.Query_FetchServer) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.reads++
+	return nil
+}
+
+func (s *queryServer) Write(rpcpb.Query_WriteServer) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.writes++
+	return nil
+}
+
+func TestGRPCBackend(t *testing.T) {
+	var grpcConfigYAML = `
+listenAddress:
+  type: "config"
+  value: "127.0.0.1:17201"
+
+metrics:
+  scope:
+    prefix: "coordinator"
+  prometheus:
+    handlerPath: /metrics
+    listenAddress: "127.0.0.1:17203"
+    onError: stderr
+  sanitization: prometheus
+  samplingRate: 1.0
+
+rpc:
+  remoteListenAddresses: 
+    - "127.0.0.1:17202"
+
+backend: grpc
+`
+
+	ctrl := gomock.NewController(xtest.Reporter{t})
+	defer ctrl.Finish()
+
+	port := "127.0.0.1:17202"
+	lis, err := net.Listen("tcp", port)
+	require.NoError(t, err)
+	s := grpc.NewServer()
+	defer s.GracefulStop()
+	qs := &queryServer{}
+	rpcpb.RegisterQueryServer(s, qs)
+	go func() {
+		s.Serve(lis)
+	}()
+
+	configFile, close := newTestFile(t, "config_backend.yaml", grpcConfigYAML)
+	defer close()
+
+	var cfg config.Configuration
+	err = xconfig.LoadFile(&cfg, configFile.Name(), xconfig.Options{})
+	require.NoError(t, err)
+
+	// No clusters
+	require.Equal(t, 0, len(cfg.Clusters))
+	require.Equal(t, config.GRPCStorageType, cfg.Backend)
+
+	interruptCh := make(chan error)
+	doneCh := make(chan struct{})
+	go func() {
+		Run(RunOptions{
+			Config:      cfg,
+			InterruptCh: interruptCh,
+		})
+		doneCh <- struct{}{}
+	}()
+
+	// Wait for server to come up
+	waitForServerHealthy(t, 17201)
+
+	// Send Prometheus write request
+	promReq := remotetest.GeneratePromWriteRequest()
+	promReqBody := remotetest.GeneratePromWriteRequestBody(t, promReq)
+	req, err := http.NewRequest(http.MethodPost,
+		"http://127.0.0.1:17201"+remote.PromWriteURL, promReqBody)
+	require.NoError(t, err)
+
+	_, err = http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	assert.Equal(t, qs.writes, 2)
+	// Ensure close server performs as expected
+	interruptCh <- fmt.Errorf("interrupt")
+	<-doneCh
 }
