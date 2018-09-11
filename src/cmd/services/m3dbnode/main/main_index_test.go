@@ -327,6 +327,7 @@ db:
         bootstrappers:
             - filesystem
             - commitlog
+            - peers
             - uninitialized
         fs:
             numProcessorsPerCPU: 0.125

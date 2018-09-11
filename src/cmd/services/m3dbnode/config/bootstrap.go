@@ -198,6 +198,8 @@ func ValidateBootstrappersOrder(names []string) error {
 		peers.PeersBootstrapperName: []string{
 			// Peers must always appear after filesystem
 			bfs.FileSystemBootstrapperName,
+			// Peers may appear before OR after commitlog
+			commitlog.CommitLogBootstrapperName,
 		},
 		commitlog.CommitLogBootstrapperName: []string{
 			// Commit log bootstrapper may appear after filesystem or peers
