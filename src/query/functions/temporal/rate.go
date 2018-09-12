@@ -44,7 +44,7 @@ func NewRateOp(args []interface{}, optype string) (transform.Params, error) {
 		return newBaseOp(args, optype, newRateNode, nil)
 	}
 
-	return nil, fmt.Errorf("unknown aggregation type: %s", optype)
+	return nil, fmt.Errorf("unknown rate type: %s", optype)
 }
 
 func newRateNode(op baseOp, controller *transform.Controller, opts transform.Options) Processor {
@@ -68,10 +68,12 @@ func (r *rateNode) Process(values []float64) float64 {
 	case IDeltaTemporalType:
 		return instantValue(values, false, r.timeSpec.Step)
 	default:
-		panic("unknown aggregation type")
+		panic("unknown rate type")
 	}
 }
 
+// findNonNanIdx iterates over the values backwards until we find a non-NaN value,
+// then returns its index
 func findNonNanIdx(vals []float64, startingIdx int) int {
 	for i := startingIdx; i >= 0; i-- {
 		if !math.IsNaN(vals[i]) {
