@@ -38,6 +38,10 @@ var (
 	errSessionNotSet     = errors.New("session not set")
 	errRetentionNotSet   = errors.New("retention not set")
 	errResolutionNotSet  = errors.New("resolution not set")
+
+	defaultClusterNamespaceDownsampleOptions = ClusterNamespaceDownsampleOptions{
+		All: true,
+	}
 )
 
 // Clusters is a flattened collection of local storage clusters and namespaces.
@@ -66,8 +70,42 @@ type RetentionResolution struct {
 // ClusterNamespace is a local storage cluster namespace.
 type ClusterNamespace interface {
 	NamespaceID() ident.ID
-	Attributes() storage.Attributes
+	Options() ClusterNamespaceOptions
 	Session() client.Session
+}
+
+// ClusterNamespaceOptions is a set of options
+type ClusterNamespaceOptions struct {
+	// Note: Don't allow direct access, as we want to provide defaults
+	// and/or error if call to access a field is not relevant/correct.
+	attributes storage.Attributes
+	downsample *ClusterNamespaceDownsampleOptions
+}
+
+// Attributes returns the storage attributes of the cluster namespace.
+func (o ClusterNamespaceOptions) Attributes() storage.Attributes {
+	return o.attributes
+}
+
+// DownsampleOptions returns the downsample options for a cluster namespace,
+// which is only valid if the namespace is an aggregated cluster namespace.
+func (o ClusterNamespaceOptions) DownsampleOptions() (
+	ClusterNamespaceDownsampleOptions,
+	error,
+) {
+	if o.attributes.MetricsType != storage.AggregatedMetricsType {
+		return ClusterNamespaceDownsampleOptions{}, errNotAggregatedClusterNamespace
+	}
+	if o.downsample == nil {
+		return defaultClusterNamespaceDownsampleOptions, nil
+	}
+	return *o.downsample, nil
+}
+
+// ClusterNamespaceDownsampleOptions is the downsample options for
+// a cluster namespace.
+type ClusterNamespaceDownsampleOptions struct {
+	All bool
 }
 
 // ClusterNamespaces is a slice of ClusterNamespace instances.
@@ -78,7 +116,7 @@ type ClusterNamespaces []ClusterNamespace
 func (n ClusterNamespaces) NumAggregatedClusterNamespaces() int {
 	count := 0
 	for _, namespace := range n {
-		if namespace.Attributes().MetricsType == storage.AggregatedMetricsType {
+		if namespace.Options().Attributes().MetricsType == storage.AggregatedMetricsType {
 			count++
 		}
 	}
@@ -115,6 +153,7 @@ type AggregatedClusterNamespaceDefinition struct {
 	Session     client.Session
 	Retention   time.Duration
 	Resolution  time.Duration
+	Downsample  *ClusterNamespaceDownsampleOptions
 }
 
 // Validate validates the cluster namespace definition.
@@ -166,8 +205,8 @@ func NewClusters(
 
 		namespaces = append(namespaces, namespace)
 		key := RetentionResolution{
-			Retention:  namespace.Attributes().Retention,
-			Resolution: namespace.Attributes().Resolution,
+			Retention:  namespace.Options().Attributes().Retention,
+			Resolution: namespace.Options().Attributes().Resolution,
 		}
 
 		_, exists := aggregatedNamespaces[key]
@@ -241,7 +280,7 @@ func (c *clusters) Close() error {
 
 type clusterNamespace struct {
 	namespaceID ident.ID
-	attributes  storage.Attributes
+	options     ClusterNamespaceOptions
 	session     client.Session
 }
 
@@ -253,9 +292,11 @@ func newUnaggregatedClusterNamespace(
 	}
 	return &clusterNamespace{
 		namespaceID: def.NamespaceID,
-		attributes: storage.Attributes{
-			MetricsType: storage.UnaggregatedMetricsType,
-			Retention:   def.Retention,
+		options: ClusterNamespaceOptions{
+			attributes: storage.Attributes{
+				MetricsType: storage.UnaggregatedMetricsType,
+				Retention:   def.Retention,
+			},
 		},
 		session: def.Session,
 	}, nil
@@ -269,10 +310,13 @@ func newAggregatedClusterNamespace(
 	}
 	return &clusterNamespace{
 		namespaceID: def.NamespaceID,
-		attributes: storage.Attributes{
-			MetricsType: storage.AggregatedMetricsType,
-			Retention:   def.Retention,
-			Resolution:  def.Resolution,
+		options: ClusterNamespaceOptions{
+			attributes: storage.Attributes{
+				MetricsType: storage.AggregatedMetricsType,
+				Retention:   def.Retention,
+				Resolution:  def.Resolution,
+			},
+			downsample: def.Downsample,
 		},
 		session: def.Session,
 	}, nil
@@ -282,8 +326,8 @@ func (n *clusterNamespace) NamespaceID() ident.ID {
 	return n.namespaceID
 }
 
-func (n *clusterNamespace) Attributes() storage.Attributes {
-	return n.attributes
+func (n *clusterNamespace) Options() ClusterNamespaceOptions {
+	return n.options
 }
 
 func (n *clusterNamespace) Session() client.Session {

@@ -18,7 +18,7 @@ clusters:
 #   - namespaces:
 #       - namespace: default
 #         retention: 48h
-#         storageMetricsType: unaggregated
+#         type: unaggregated
 #     client:
 #       config:
 #         service:

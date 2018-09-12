@@ -63,7 +63,8 @@ func NewDownsampler(
 
 func (d *downsampler) NewMetricsAppender() MetricsAppender {
 	return newMetricsAppender(metricsAppenderOptions{
-		agg:                     d.agg.aggregator,
+		agg: d.agg.aggregator,
+		defaultStagedMetadatas:  d.agg.defaultStagedMetadatas,
 		clockOpts:               d.agg.clockOpts,
 		tagEncoder:              d.agg.pools.tagEncoderPool.Get(),
 		matcher:                 d.agg.matcher,

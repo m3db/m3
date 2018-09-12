@@ -64,7 +64,7 @@ metrics:
 clusters:
   - namespaces:
       - namespace: prometheus_metrics
-        storageMetricsType: unaggregated
+        type: unaggregated
         retention: 48h
 `
 

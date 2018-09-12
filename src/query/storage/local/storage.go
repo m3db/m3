@@ -83,7 +83,7 @@ func (s *localStorage) Fetch(ctx context.Context, query *storage.FetchQuery, opt
 	for _, namespace := range namespaces {
 		namespace := namespace // Capture var
 
-		clusterStart := now.Add(-1 * namespace.Attributes().Retention)
+		clusterStart := now.Add(-1 * namespace.Options().Attributes().Retention)
 
 		// Only include if cluster can completely fulfill the range
 		if clusterStart.After(query.Start) {
@@ -95,7 +95,7 @@ func (s *localStorage) Fetch(ctx context.Context, query *storage.FetchQuery, opt
 		wg.Add(1)
 		go func() {
 			r, err := s.fetch(namespace, m3query, opts)
-			result.add(namespace.Attributes(), r, err)
+			result.add(namespace.Options().Attributes(), r, err)
 			wg.Done()
 		}()
 	}
@@ -154,7 +154,7 @@ func (s *localStorage) FetchTags(ctx context.Context, query *storage.FetchQuery,
 	for _, namespace := range namespaces {
 		namespace := namespace // Capture var
 
-		clusterStart := now.Add(-1 * namespace.Attributes().Retention)
+		clusterStart := now.Add(-1 * namespace.Options().Attributes().Retention)
 
 		// Only include if cluster can completely fulfill the range
 		if clusterStart.After(query.Start) {

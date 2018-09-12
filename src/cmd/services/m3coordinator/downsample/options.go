@@ -42,7 +42,9 @@ import (
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/matcher"
 	"github.com/m3db/m3metrics/matcher/cache"
+	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric/id"
+	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
@@ -76,6 +78,7 @@ type DownsamplerOptions struct {
 	Storage                 storage.Storage
 	StorageFlushConcurrency int
 	RulesKVStore            kv.Store
+	AutoMappingRules        []MappingRule
 	NameTag                 string
 	ClockOptions            clock.Options
 	InstrumentOptions       instrument.Options
@@ -84,6 +87,33 @@ type DownsamplerOptions struct {
 	TagEncoderPoolOptions   pool.ObjectPoolOptions
 	TagDecoderPoolOptions   pool.ObjectPoolOptions
 	OpenTimeout             time.Duration
+}
+
+// MappingRule is a mapping rule to apply to metrics.
+type MappingRule struct {
+	Aggregations []aggregation.Type
+	Policies     policy.StoragePolicies
+}
+
+// StagedMetadatas returns the corresponding staged metadatas for this mapping rule.
+func (r MappingRule) StagedMetadatas() (metadata.StagedMetadatas, error) {
+	aggID, err := aggregation.CompressTypes(r.Aggregations...)
+	if err != nil {
+		return nil, err
+	}
+
+	return metadata.StagedMetadatas{
+		metadata.StagedMetadata{
+			Metadata: metadata.Metadata{
+				Pipelines: metadata.PipelineMetadatas{
+					metadata.PipelineMetadata{
+						AggregationID:   aggID,
+						StoragePolicies: r.Policies,
+					},
+				},
+			},
+		},
+	}, nil
 }
 
 // Validate validates the dynamic downsampling options.
@@ -116,10 +146,11 @@ func (o DownsamplerOptions) validate() error {
 }
 
 type agg struct {
-	aggregator aggregator.Aggregator
-	clockOpts  clock.Options
-	matcher    matcher.Matcher
-	pools      aggPools
+	aggregator             aggregator.Aggregator
+	defaultStagedMetadatas []metadata.StagedMetadatas
+	clockOpts              clock.Options
+	matcher                matcher.Matcher
+	pools                  aggPools
 }
 
 func (o DownsamplerOptions) newAggregator() (agg, error) {
@@ -134,12 +165,20 @@ func (o DownsamplerOptions) newAggregator() (agg, error) {
 		clockOpts               = o.ClockOptions
 		instrumentOpts          = o.InstrumentOptions
 		openTimeout             = defaultOpenTimeout
+		defaultStagedMetadatas  []metadata.StagedMetadatas
 	)
 	if o.StorageFlushConcurrency > 0 {
 		storageFlushConcurrency = o.StorageFlushConcurrency
 	}
 	if o.OpenTimeout > 0 {
 		openTimeout = o.OpenTimeout
+	}
+	for _, rule := range o.AutoMappingRules {
+		metadatas, err := rule.StagedMetadatas()
+		if err != nil {
+			return agg{}, err
+		}
+		defaultStagedMetadatas = append(defaultStagedMetadatas, metadatas)
 	}
 
 	pools := o.newAggregatorPools()
@@ -227,9 +266,10 @@ func (o DownsamplerOptions) newAggregator() (agg, error) {
 	}
 
 	return agg{
-		aggregator: aggregatorInstance,
-		matcher:    matcher,
-		pools:      pools,
+		aggregator:             aggregatorInstance,
+		defaultStagedMetadatas: defaultStagedMetadatas,
+		matcher:                matcher,
+		pools:                  pools,
 	}, nil
 }
 

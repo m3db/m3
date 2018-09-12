@@ -32,7 +32,7 @@ clusters:
 # We created a namespace called "default" and had set it to retention "48h".
        - namespace: default
          retention: 48h
-         storageMetricsType: unaggregated
+         type: unaggregated
      client:
        config:
          service:

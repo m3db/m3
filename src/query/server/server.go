@@ -48,12 +48,15 @@ import (
 	"github.com/m3db/m3/src/query/util/logging"
 	clusterclient "github.com/m3db/m3cluster/client"
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
+	"github.com/m3db/m3metrics/aggregation"
+	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/clock"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/pkg/errors"
 	"github.com/uber-go/tally"
@@ -299,8 +302,12 @@ func newM3DBStorage(
 	if n := namespaces.NumAggregatedClusterNamespaces(); n > 0 {
 		logger.Info("configuring downsampler to use with aggregated cluster namespaces",
 			zap.Int("numAggregatedClusterNamespaces", n))
+		autoMappingRules, err := newDownsamplerAutoMappingRules(namespaces)
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
 		downsampler, err = newDownsampler(clusterManagementClient,
-			fanoutStorage, instrumentOptions)
+			fanoutStorage, autoMappingRules, instrumentOptions)
 		if err != nil {
 			return nil, nil, nil, nil, err
 		}
@@ -328,32 +335,35 @@ func newM3DBStorage(
 func newDownsampler(
 	clusterManagementClient clusterclient.Client,
 	storage storage.Storage,
+	autoMappingRules []downsample.MappingRule,
 	instrumentOpts instrument.Options,
 ) (downsample.Downsampler, error) {
 	if clusterManagementClient == nil {
-		return nil, errors.New("no configured cluster management config, must set this " +
-			"config for downsampler")
+		return nil, fmt.Errorf("no configured cluster management config, " +
+			"must set this config for downsampler")
 	}
 
 	kvStore, err := clusterManagementClient.KV()
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to create KV store from the cluster management config client")
+		return nil, errors.Wrap(err, "unable to create KV store from the "+
+			"cluster management config client")
 	}
 
 	tagEncoderOptions := serialize.NewTagEncoderOptions()
 	tagDecoderOptions := serialize.NewTagDecoderOptions()
 	tagEncoderPoolOptions := pool.NewObjectPoolOptions().
 		SetInstrumentOptions(instrumentOpts.
-		SetMetricsScope(instrumentOpts.MetricsScope().
-		SubScope("tag-encoder-pool")))
+			SetMetricsScope(instrumentOpts.MetricsScope().
+				SubScope("tag-encoder-pool")))
 	tagDecoderPoolOptions := pool.NewObjectPoolOptions().
 		SetInstrumentOptions(instrumentOpts.
-		SetMetricsScope(instrumentOpts.MetricsScope().
-		SubScope("tag-decoder-pool")))
+			SetMetricsScope(instrumentOpts.MetricsScope().
+				SubScope("tag-decoder-pool")))
 
 	downsampler, err := downsample.NewDownsampler(downsample.DownsamplerOptions{
 		Storage:               storage,
 		RulesKVStore:          kvStore,
+		AutoMappingRules:      autoMappingRules,
 		ClockOptions:          clock.NewOptions(),
 		InstrumentOptions:     instrumentOpts,
 		TagEncoderOptions:     tagEncoderOptions,
@@ -366,6 +376,37 @@ func newDownsampler(
 	}
 
 	return downsampler, nil
+}
+
+func newDownsamplerAutoMappingRules(
+	namespaces []local.ClusterNamespace,
+) ([]downsample.MappingRule, error) {
+	var autoMappingRules []downsample.MappingRule
+	for _, namespace := range namespaces {
+		opts := namespace.Options()
+		attrs := opts.Attributes()
+		if attrs.MetricsType == storage.AggregatedMetricsType {
+			downsampleOpts, err := opts.DownsampleOptions()
+			if err != nil {
+				errFmt := "unable to resolve downsample options for namespace: %v"
+				return nil, fmt.Errorf(errFmt, namespace.NamespaceID().String())
+			}
+			if downsampleOpts.All {
+				storagePolicy := policy.NewStoragePolicy(attrs.Resolution,
+					xtime.Second, attrs.Retention)
+				autoMappingRules = append(autoMappingRules, downsample.MappingRule{
+					// NB(r): By default we will apply just keep all last values
+					// since coordinator only uses downsampling with Prometheus
+					// remote write endpoint.
+					// More rich static configuration mapping rules can be added
+					// in the future but they are currently not required.
+					Aggregations: []aggregation.Type{aggregation.Last},
+					Policies:     policy.StoragePolicies{storagePolicy},
+				})
+			}
+		}
+	}
+	return autoMappingRules, nil
 }
 
 func initClusters(cfg config.Configuration, dbClientCh <-chan client.Client, logger *zap.Logger) (local.Clusters, error) {
