@@ -4,6 +4,7 @@ package rpcpb;
 
 service Query {
 	rpc Fetch(FetchMessage) returns (stream FetchResult);
+	rpc FetchTagged(FetchMessage) returns (stream FetchResult);
 	rpc Write(stream WriteMessage) returns (Error);
 }
 
@@ -48,8 +49,17 @@ message FetchQuery {
 	repeated Matcher tagMatchers = 3;
 }
 
+message Ownership {
+	string source = 1;
+	string chargebackID = 2;
+	string user = 3;
+	string dashboard = 4;
+	string sourceUUID = 5;
+}
+
 message FetchOptions {
 	string id = 1;
+	Ownership owner = 2;
 }
 
 message Matcher {
@@ -78,14 +88,6 @@ message CompressedValuesReplica {
 	repeated Segments segments = 1;
 }
 
-message CompressedDatapoints {
-	bytes namespace = 1;
-	int64 startTime = 2;
-	int64 endTime = 3;
-	bytes compressedTags = 4;
-	repeated CompressedValuesReplica replicas = 5;
-}
-
 message Tag {
 	bytes name = 1;
 	bytes value = 2;
@@ -95,5 +97,9 @@ message Series {
 	bytes id = 1;
 	Datapoints values = 2;
 	repeated Tag tags = 3;
-	CompressedDatapoints compressed = 4;
+	bytes namespace = 4;
+	int64 startTime = 5;
+	int64 endTime = 6;
+	bytes compressedTags = 7;
+	repeated CompressedValuesReplica replicas = 8;
 }

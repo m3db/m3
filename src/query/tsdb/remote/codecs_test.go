@@ -138,7 +138,7 @@ func TestDecodeFetchResult(t *testing.T) {
 	require.Len(t, revert.GetSeries(), len(rpcSeries))
 	for i, expected := range rpcSeries {
 		assert.Equal(t, expected.GetId(), revert.GetSeries()[i].GetId())
-		assert.Equal(t, expected.GetCompressed(), revert.GetSeries()[i].GetCompressed())
+		assert.Equal(t, expected.GetNamespace(), revert.GetSeries()[i].GetNamespace())
 		assert.Equal(t, expected.GetValues(), revert.GetSeries()[i].GetValues())
 		for _, tag := range expected.GetTags() {
 			assert.Contains(t, revert.GetSeries()[i].GetTags(), tag)

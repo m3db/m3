@@ -61,6 +61,7 @@ func compressedSegmentFromBlockReader(br xio.BlockReader) (*rpc.Segment, error) 
 	if err != nil {
 		return nil, err
 	}
+
 	return &rpc.Segment{
 		Head:      segment.Head.Bytes(),
 		Tail:      segment.Tail.Bytes(),
@@ -80,6 +81,7 @@ func compressedSegmentsFromReaders(readers xio.ReaderSliceOfSlicesIterator) (*rp
 		if err != nil {
 			return nil, err
 		}
+
 		segments.Merged = segment
 	} else {
 		unmerged := make([]*rpc.Segment, 0, l)
@@ -91,8 +93,10 @@ func compressedSegmentsFromReaders(readers xio.ReaderSliceOfSlicesIterator) (*rp
 			}
 			unmerged = append(unmerged, segment)
 		}
+
 		segments.Unmerged = unmerged
 	}
+
 	return segments, nil
 }
 
@@ -102,11 +106,13 @@ func compressedTagsFromTagIteratorWithEncoder(tagIter ident.TagIterator, encoder
 	if err != nil {
 		return nil, err
 	}
+
 	defer encoder.Finalize()
 	data, encoded := encoder.Data()
 	if !encoded {
 		return nil, fmt.Errorf("no refs available to data")
 	}
+
 	return data.Bytes(), nil
 }
 
@@ -119,10 +125,12 @@ func tagsFromTagIterator(tagIter ident.TagIterator) ([]*rpc.Tag, error) {
 			Value: tag.Value.Bytes(),
 		})
 	}
+
 	err := tagIter.Err()
 	if err != nil {
 		return nil, err
 	}
+
 	return tags, nil
 }
 
@@ -134,6 +142,7 @@ func buildTags(tagIter ident.TagIterator, iterPools encoding.IteratorPools) ([]b
 			return compressedTags, nil, err
 		}
 	}
+
 	tags, err := tagsFromTagIterator(tagIter)
 	return nil, tags, err
 }
@@ -162,8 +171,10 @@ func compressedSeriesFromSeriesIterator(it encoding.SeriesIterator, iterPools en
 			if err != nil {
 				return nil, err
 			}
+
 			replicaSegments = append(replicaSegments, segments)
 		}
+
 		compressedReplicas = append(compressedReplicas, &rpc.CompressedValuesReplica{
 			Segments: replicaSegments,
 		})
@@ -177,18 +188,14 @@ func compressedSeriesFromSeriesIterator(it encoding.SeriesIterator, iterPools en
 		return nil, err
 	}
 
-	compressedDatapoints := &rpc.CompressedDatapoints{
+	return &rpc.Series{
+		Id:             it.ID().Bytes(),
+		Tags:           tags,
 		Namespace:      it.Namespace().Bytes(),
 		StartTime:      start,
 		EndTime:        end,
 		Replicas:       compressedReplicas,
 		CompressedTags: compressedTags,
-	}
-
-	return &rpc.Series{
-		Id:         it.ID().Bytes(),
-		Compressed: compressedDatapoints,
-		Tags:       tags,
 	}, nil
 }
 
@@ -204,6 +211,7 @@ func EncodeToCompressedFetchResult(
 		if err != nil {
 			return nil, err
 		}
+
 		seriesList = append(seriesList, series)
 	}
 
@@ -225,6 +233,7 @@ func segmentBytesFromCompressedSegment(
 		head = checked.NewBytes(segHead, opts)
 		tail = checked.NewBytes(segTail, opts)
 	}
+
 	return head, tail
 }
 
@@ -251,6 +260,7 @@ func tagIteratorFromCompressedTagsWithDecoder(
 	if iterPools == nil || iterPools.CheckedBytesWrapper() == nil || iterPools.TagDecoder() == nil {
 		return nil, errors.ErrCannotDecodeCompressedTags
 	}
+
 	checkedBytes := iterPools.CheckedBytesWrapper().Get(compressedTags)
 	decoder := iterPools.TagDecoder().Get()
 	decoder.Reset(checkedBytes)
@@ -290,14 +300,15 @@ func tagIteratorFromTags(compressedTags []*rpc.Tag, idPool ident.Pool) ident.Tag
 }
 
 func tagIteratorFromSeries(series *rpc.Series, iteratorPools encoding.IteratorPools) (ident.TagIterator, error) {
-	compressedValues := series.GetCompressed()
-	if compressedValues != nil && len(compressedValues.GetCompressedTags()) > 0 {
-		return tagIteratorFromCompressedTagsWithDecoder(compressedValues.GetCompressedTags(), iteratorPools)
+	if series != nil && len(series.GetCompressedTags()) > 0 {
+		return tagIteratorFromCompressedTagsWithDecoder(series.GetCompressedTags(), iteratorPools)
 	}
+
 	var idPool ident.Pool
 	if iteratorPools != nil {
 		idPool = iteratorPools.ID()
 	}
+
 	return tagIteratorFromTags(series.GetTags(), idPool), nil
 }
 
@@ -320,6 +331,7 @@ func blockReadersFromCompressedSegments(
 				blockReadersPerSegment = append(blockReadersPerSegment, reader)
 			}
 		}
+
 		blockReaders[i] = blockReadersPerSegment
 	}
 
@@ -353,9 +365,7 @@ func seriesIteratorFromCompressedSeries(
 		allReplicaIterators []encoding.MultiReaderIterator
 	)
 
-	compressedValues := timeSeries.GetCompressed()
-	replicas := compressedValues.GetReplicas()
-
+	replicas := timeSeries.GetReplicas()
 	// Set up iterator pools if available
 	if iteratorPools != nil {
 		multiReaderPool = iteratorPools.MultiReaderIterator()
@@ -380,7 +390,7 @@ func seriesIteratorFromCompressedSeries(
 	}
 
 	var (
-		idString, nsString = string(timeSeries.GetId()), string(compressedValues.GetNamespace())
+		idString, nsString = string(timeSeries.GetId()), string(timeSeries.GetNamespace())
 		id, ns             ident.ID
 	)
 	if idPool != nil {
@@ -391,8 +401,8 @@ func seriesIteratorFromCompressedSeries(
 		ns = ident.StringID(nsString)
 	}
 
-	start := xtime.FromNanoseconds(compressedValues.GetStartTime())
-	end := xtime.FromNanoseconds(compressedValues.GetEndTime())
+	start := xtime.FromNanoseconds(timeSeries.GetStartTime())
+	end := xtime.FromNanoseconds(timeSeries.GetEndTime())
 
 	var seriesIter encoding.SeriesIterator
 	if seriesIterPool != nil {
@@ -431,19 +441,26 @@ func DecodeCompressedFetchResult(
 	} else {
 		seriesIterators = make([]encoding.SeriesIterator, numSeries)
 	}
+
 	for i, series := range rpcSeries {
 		iter, err := seriesIteratorFromCompressedSeries(series, iteratorPools)
 		if err != nil {
 			return nil, err
 		}
+
 		if pooledIterators != nil {
 			pooledIterators.SetAt(i, iter)
 		} else {
 			seriesIterators[i] = iter
 		}
 	}
+
 	if pooledIterators != nil {
 		return pooledIterators, nil
 	}
-	return encoding.NewSeriesIterators(seriesIterators, nil), nil
+
+	return encoding.NewSeriesIterators(
+		seriesIterators,
+		nil,
+	), nil
 }

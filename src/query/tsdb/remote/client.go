@@ -24,6 +24,9 @@ import (
 	"context"
 	"io"
 
+	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3x/pool"
+
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
@@ -42,26 +45,35 @@ type Client interface {
 }
 
 type grpcClient struct {
-	client     rpc.QueryClient
-	connection *grpc.ClientConn
+	client        rpc.QueryClient
+	connection    *grpc.ClientConn
+	iteratorPools encoding.IteratorPools
+	workerPool    pool.ObjectPool
 }
 
+const initResultSize = 10
+
 // NewGrpcClient creates grpc client
-func NewGrpcClient(addresses []string, additionalDialOpts ...grpc.DialOption) (Client, error) {
+func NewGrpcClient(
+	addresses []string,
+	iteratorPools encoding.IteratorPools,
+	workerPool pool.ObjectPool,
+	additionalDialOpts ...grpc.DialOption,
+) (Client, error) {
 	if len(addresses) == 0 {
 		return nil, errors.ErrNoClientAddresses
 	}
+
 	resolver := newStaticResolver(addresses)
 	balancer := grpc.RoundRobin(resolver)
 	dialOptions := []grpc.DialOption{grpc.WithBalancer(balancer), grpc.WithInsecure()}
 	dialOptions = append(dialOptions, additionalDialOpts...)
-
 	cc, err := grpc.Dial("", dialOptions...)
 	if err != nil {
 		return nil, err
 	}
-	client := rpc.NewQueryClient(cc)
 
+	client := rpc.NewQueryClient(cc)
 	return &grpcClient{
 		client:     client,
 		connection: cc,
@@ -69,7 +81,11 @@ func NewGrpcClient(addresses []string, additionalDialOpts ...grpc.DialOption) (C
 }
 
 // Fetch reads from remote client storage
-func (c *grpcClient) Fetch(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (*storage.FetchResult, error) {
+func (c *grpcClient) Fetch(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (*storage.FetchResult, error) {
 	// Send the id from the client to the remote server so that provides logging
 	id := logging.ReadContextID(ctx)
 	fetchClient, err := c.client.Fetch(ctx, EncodeFetchMessage(query, id))
@@ -87,25 +103,33 @@ func (c *grpcClient) Fetch(ctx context.Context, query *storage.FetchQuery, optio
 			return nil, errors.ErrQueryInterrupted
 		default:
 		}
+
 		result, err := fetchClient.Recv()
 		if err == io.EOF {
 			break
 		}
+
 		if err != nil {
 			return nil, err
 		}
+
 		rpcSeries := result.GetSeries()
 		fResult, err := DecodeFetchResult(ctx, rpcSeries)
 		if err != nil {
 			return nil, err
 		}
+
 		tsSeries = append(tsSeries, fResult...)
 	}
 
 	return &storage.FetchResult{LocalOnly: false, SeriesList: tsSeries}, nil
 }
 
-func (c *grpcClient) FetchTags(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (*storage.SearchResults, error) {
+func (c *grpcClient) FetchTags(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (*storage.SearchResults, error) {
 	return nil, nil
 }
 
@@ -130,12 +154,65 @@ func (c *grpcClient) Write(ctx context.Context, query *storage.WriteQuery) error
 	if err == io.EOF {
 		return nil
 	}
+
 	return err
 }
 
 func (c *grpcClient) FetchBlocks(
-	ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (block.Result, error) {
-	return block.Result{}, errors.ErrNotImplemented
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (block.Result, error) {
+	// Send the id from the client to the remote server so that provides logging
+	id := logging.ReadContextID(ctx)
+	fetchClient, err := c.client.FetchTagged(ctx, EncodeFetchMessage(query, id))
+	if err != nil {
+		return block.Result{}, err
+	}
+
+	defer fetchClient.CloseSend()
+	seriesIterators := make([]encoding.SeriesIterator, 0, initResultSize)
+	for {
+		select {
+		// If query is killed during gRPC streaming, close the channel
+		case <-options.KillChan:
+			return block.Result{}, errors.ErrQueryInterrupted
+		default:
+		}
+
+		result, err := fetchClient.Recv()
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			return block.Result{}, err
+		}
+
+		iters, err := DecodeCompressedFetchResult(result, c.iteratorPools)
+		if err != nil {
+			return block.Result{}, err
+		}
+
+		seriesIterators = append(seriesIterators, iters.Iters()...)
+	}
+
+	iters := encoding.NewSeriesIterators(
+		seriesIterators,
+		nil,
+	)
+
+	fetchResult, err := storage.SeriesIteratorsToFetchResult(iters, nil, c.workerPool)
+	if err != nil {
+		return block.Result{}, err
+	}
+
+	res, err := storage.FetchResultToBlockResult(fetchResult, query)
+	if err != nil {
+		return block.Result{}, err
+	}
+
+	return res, nil
 }
 
 // Close closes the underlying connection

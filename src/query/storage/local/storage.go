@@ -53,7 +53,11 @@ func NewStorage(clusters Clusters, workerPool pool.ObjectPool) storage.Storage {
 	return &localStorage{clusters: clusters, workerPool: workerPool}
 }
 
-func (s *localStorage) Fetch(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (*storage.FetchResult, error) {
+func (s *localStorage) Fetch(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (*storage.FetchResult, error) {
 	// Check if the query was interrupted.
 	select {
 	case <-ctx.Done():

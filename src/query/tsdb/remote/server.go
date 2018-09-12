@@ -21,6 +21,7 @@
 package remote
 
 import (
+	"errors"
 	"io"
 	"net"
 
@@ -91,6 +92,12 @@ func (s *grpcServer) Fetch(message *rpc.FetchMessage, stream rpc.Query_FetchServ
 		}
 	}
 	return nil
+}
+
+// FetchTagged reads from local storage
+// TODO: implement
+func (s *grpcServer) FetchTagged(message *rpc.FetchMessage, stream rpc.Query_FetchTaggedServer) error {
+	return errors.New("not implemented")
 }
 
 // Write writes to local storage

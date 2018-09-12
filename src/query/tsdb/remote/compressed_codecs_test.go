@@ -146,19 +146,17 @@ func verifyUncompressedTags(t *testing.T, series *rpc.Series) {
 		delete(testTags, expectedVal)
 	}
 
-	compressed := series.GetCompressed()
-	assert.Empty(t, compressed.GetCompressedTags())
+	assert.Empty(t, series.GetCompressedTags())
 }
 
 func verifyCompressedSeries(t *testing.T, series *rpc.Series) {
 	assert.Equal(t, []byte(seriesID), series.GetId())
 
-	compressed := series.GetCompressed()
-	assert.Equal(t, []byte(seriesNamespace), compressed.GetNamespace())
-	assert.Equal(t, seriesStart.UnixNano(), compressed.GetStartTime())
-	assert.Equal(t, end.UnixNano(), compressed.GetEndTime())
+	assert.Equal(t, []byte(seriesNamespace), series.GetNamespace())
+	assert.Equal(t, seriesStart.UnixNano(), series.GetStartTime())
+	assert.Equal(t, end.UnixNano(), series.GetEndTime())
 
-	replicas := compressed.GetReplicas()
+	replicas := series.GetReplicas()
 	require.Len(t, replicas, 2)
 
 	for _, replica := range replicas {
@@ -201,7 +199,7 @@ func TestSeriesConversionFromCompressedData(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, rpcSeries.GetTags())
-	assert.Empty(t, rpcSeries.GetCompressed().GetCompressedTags())
+	assert.Empty(t, rpcSeries.GetCompressedTags())
 
 	seriesIterator, err := seriesIteratorFromCompressedSeries(rpcSeries, nil)
 	require.NoError(t, err)
@@ -220,7 +218,7 @@ func TestSeriesConversionFromCompressedDataWithIteratorPool(t *testing.T) {
 	verifyCompressedSeries(t, rpcSeries)
 
 	assert.Empty(t, rpcSeries.GetTags())
-	assert.NotEmpty(t, rpcSeries.GetCompressed().GetCompressedTags())
+	assert.NotEmpty(t, rpcSeries.GetCompressedTags())
 
 	seriesIterator, err := seriesIteratorFromCompressedSeries(rpcSeries, ip)
 	require.NoError(t, err)
@@ -276,7 +274,7 @@ func TestSeriesConversionFromCompressedDataWithIteratorPoolOnCompression(t *test
 	require.NoError(t, err)
 	verifyCompressedSeries(t, rpcSeries)
 	require.Empty(t, rpcSeries.GetTags())
-	require.NotEmpty(t, rpcSeries.GetCompressed().GetCompressedTags())
+	require.NotEmpty(t, rpcSeries.GetCompressedTags())
 
 	seriesIterator, err := seriesIteratorFromCompressedSeries(rpcSeries, nil)
 	require.EqualError(t, err, errors.ErrCannotDecodeCompressedTags.Error())
@@ -341,7 +339,7 @@ func TestDecodeCompressedFetchResultWithIteratorPool(t *testing.T) {
 	for _, series := range fetchResult.Series {
 		verifyCompressedSeries(t, series)
 		assert.Empty(t, series.GetTags())
-		require.NotEmpty(t, series.GetCompressed().GetCompressedTags())
+		require.NotEmpty(t, series.GetCompressedTags())
 	}
 
 	revertedIters, err := DecodeCompressedFetchResult(fetchResult, ip)

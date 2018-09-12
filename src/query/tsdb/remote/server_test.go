@@ -197,7 +197,7 @@ func TestRpc(t *testing.T) {
 	}
 	startServer(t, host, store)
 	hosts := []string{host}
-	client, err := NewGrpcClient(hosts, grpc.WithBlock())
+	client, err := NewGrpcClient(hosts, nil, nil, grpc.WithBlock())
 	require.NoError(t, err)
 	defer func() {
 		err = client.Close()
@@ -219,7 +219,7 @@ func TestRpcMultipleRead(t *testing.T) {
 	}
 	startServer(t, host, store)
 	hosts := []string{host}
-	client, err := NewGrpcClient(hosts, grpc.WithBlock())
+	client, err := NewGrpcClient(hosts, nil, nil, grpc.WithBlock())
 	defer func() {
 		err = client.Close()
 		assert.NoError(t, err)
@@ -244,7 +244,7 @@ func TestRpcStopsStreamingWhenFetchKilledOnClient(t *testing.T) {
 	}
 	startServer(t, host, store)
 	hosts := []string{host}
-	client, err := NewGrpcClient(hosts, grpc.WithBlock())
+	client, err := NewGrpcClient(hosts, nil, nil, grpc.WithBlock())
 	defer func() {
 		err = client.Close()
 		assert.NoError(t, err)
@@ -280,7 +280,7 @@ func TestMultipleClientRpc(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			hosts := []string{host}
-			client, err := NewGrpcClient(hosts, grpc.WithBlock())
+			client, err := NewGrpcClient(hosts, nil, nil, grpc.WithBlock())
 			defer func() {
 				err = client.Close()
 				assert.NoError(t, err)
@@ -330,7 +330,7 @@ func (s *errStorage) Close() error {
 
 func TestEmptyAddressListErrors(t *testing.T) {
 	addresses := []string{}
-	client, err := NewGrpcClient(addresses)
+	client, err := NewGrpcClient(addresses, nil, nil)
 	assert.Nil(t, client)
 	assert.Equal(t, m3err.ErrNoClientAddresses, err)
 }
@@ -344,7 +344,7 @@ func TestErrRpc(t *testing.T) {
 	}
 	startServer(t, host, store)
 	hosts := []string{host}
-	client, err := NewGrpcClient(hosts, grpc.WithBlock())
+	client, err := NewGrpcClient(hosts, nil, nil, grpc.WithBlock())
 	defer func() {
 		err = client.Close()
 		assert.NoError(t, err)
@@ -372,7 +372,7 @@ func TestRoundRobinClientRpc(t *testing.T) {
 	startServer(t, errHost, errStore)
 
 	hosts := []string{host, errHost}
-	client, err := NewGrpcClient(hosts, grpc.WithBlock())
+	client, err := NewGrpcClient(hosts, nil, nil, grpc.WithBlock())
 	defer func() {
 		err = client.Close()
 		assert.NoError(t, err)

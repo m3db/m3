@@ -184,7 +184,16 @@ func encodeTagMatchers(modelMatchers models.Matchers) []*rpc.Matcher {
 
 func encodeFetchOptions(queryID string) *rpc.FetchOptions {
 	return &rpc.FetchOptions{
-		Id: queryID,
+		Id:    queryID,
+		Owner: encodeOwnership(),
+	}
+}
+
+// TODO: build ownership once cost accounting exists.
+func encodeOwnership() *rpc.Ownership {
+	return &rpc.Ownership{
+		Source: "query",
+		User:   "query",
 	}
 }
 
