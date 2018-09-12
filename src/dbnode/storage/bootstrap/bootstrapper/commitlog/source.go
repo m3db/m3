@@ -1447,16 +1447,15 @@ func (s *commitLogSource) availability(
 			iOpts := s.opts.CommitLogOptions().InstrumentOptions()
 			invariantLogger := instrument.EmitInvariantViolationAndGetLogger(iOpts)
 			invariantLogger.Errorf(
-				"Initial topology state does not contain shard state for origin node and shard: %d", shardIDUint)
+				"initial topology state does not contain shard state for origin node and shard: %d", shardIDUint)
 			continue
 		}
 
 		originShardState := originHostShardState.ShardState
 		switch originShardState {
-		// In the Initializing and Unknown states we have to assume that the commit log
+		// In the Initializing state we have to assume that the commit log
 		// is missing data and can't satisfy the bootstrap request.
 		case shard.Initializing:
-		case shard.Unknown:
 		// In the Leaving and Available case, we assume that the commit log contains
 		// all the data required to satisfy the bootstrap request because the node
 		// had (at some point) been completely bootstrapped for the requested shard.
@@ -1475,10 +1474,13 @@ func (s *commitLogSource) availability(
 			// modify this to only say the commit log bootstrapper can fullfil
 			// "unfulfilled" data, but not corrupt data.
 			availableShardTimeRanges[shardIDUint] = shardsTimeRanges[shardIDUint]
+		case shard.Unknown:
+			fallthrough
 		default:
 			// TODO(rartoul): Make this a hard error once we refactor the interface to support
 			// returning errors.
-			panic(fmt.Sprintf("unknown shard state: %v", originShardState))
+			s.log.Errorf("unknown shard state: %v", originShardState)
+			return result.ShardTimeRanges{}
 		}
 	}
 

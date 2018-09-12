@@ -21,8 +21,6 @@
 package uninitialized
 
 import (
-	"fmt"
-
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
@@ -115,18 +113,16 @@ func (s *uninitializedSource) availability(
 			switch shardState {
 			case shard.Initializing:
 				numInitializing++
-			case shard.Unknown:
-				// TODO: Right now we ignore unknown shards (which biases us towards
-				// failing the bootstrap). Once this interface supports returning errors,
-				// we should return an error in this case because the cluster is in a bad
-				// state and the operator should make a decision on how they want to proceed.
 			case shard.Leaving:
 				numLeaving++
 			case shard.Available:
+			case shard.Unknown:
+				fallthrough
 			default:
 				// TODO(rartoul): Make this a hard error once we refactor the interface to support
 				// returning errors.
-				panic(fmt.Sprintf("unknown shard state: %v", shardState))
+				s.opts.InstrumentOptions().Logger().Errorf("unknown shard state: %v", shardState)
+				return result.ShardTimeRanges{}
 			}
 		}
 

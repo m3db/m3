@@ -724,8 +724,8 @@ func (s *peersSource) peerAvailability(
 			default:
 				// TODO(rartoul): Make this a hard error once we refactor the interface to support
 				// returning errors.
-				panic(
-					fmt.Sprintf("encountered unknown shard state: %s", shardState.String()))
+				s.log.Errorf("unknown shard state: %v", shardState)
+				return result.ShardTimeRanges{}
 			}
 		}
 	}
