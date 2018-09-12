@@ -176,14 +176,21 @@ func waitForServerHealthy(t *testing.T, port int) {
 }
 
 type queryServer struct {
-	writes, reads int
-	mu sync.Mutex
+	writes, reads, taggedReads int
+	mu                         sync.Mutex
 }
 
 func (s *queryServer) Fetch(*rpcpb.FetchMessage, rpcpb.Query_FetchServer) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.reads++
+	return nil
+}
+
+func (s *queryServer) FetchTagged(*rpcpb.FetchMessage, rpcpb.Query_FetchTaggedServer) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.taggedReads++
 	return nil
 }
 
@@ -211,7 +218,7 @@ metrics:
   samplingRate: 1.0
 
 rpc:
-  remoteListenAddresses: 
+  remoteListenAddresses:
     - "127.0.0.1:17202"
 
 backend: grpc

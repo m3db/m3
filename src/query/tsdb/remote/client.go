@@ -25,14 +25,13 @@ import (
 	"io"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3x/pool"
-
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3x/pool"
 
 	"google.golang.org/grpc"
 )
@@ -75,8 +74,10 @@ func NewGrpcClient(
 
 	client := rpc.NewQueryClient(cc)
 	return &grpcClient{
-		client:     client,
-		connection: cc,
+		client:        client,
+		connection:    cc,
+		iteratorPools: iteratorPools,
+		workerPool:    workerPool,
 	}, nil
 }
 

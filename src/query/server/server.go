@@ -55,18 +55,11 @@ import (
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
-	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/pkg/errors"
-	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
-)
-
-const (
-	defaultWorkerPoolCount = 4096
-	defaultWorkerPoolSize  = 20
 )
 
 var (
@@ -141,10 +134,12 @@ func Run(runOpts RunOptions) {
 		enabled        bool
 	)
 
+	workerPool, instrumentOptions := buildWorkerPools(cfg, logger, scope)
+
 	// For grpc backend, we need to setup only the grpc client and a storage accompanying that client.
 	// For m3db backend, we need to make connections to the m3db cluster which generates a session and use the storage with the session.
 	if cfg.Backend == config.GRPCStorageType {
-		backendStorage, enabled, err = remoteClient(cfg)
+		backendStorage, enabled, err = remoteClient(cfg, workerPool)
 		if err != nil {
 			logger.Fatal("unable to setup grpc backend", zap.Error(err))
 		}
@@ -155,7 +150,13 @@ func Run(runOpts RunOptions) {
 		logger.Info("setup grpc backend")
 	} else {
 		var cleanup cleanupFn
-		backendStorage, clusterClient, downsampler, cleanup, err = newM3DBStorage(runOpts, cfg, logger, scope)
+		backendStorage, clusterClient, downsampler, cleanup, err = newM3DBStorage(
+			runOpts,
+			cfg,
+			logger,
+			workerPool,
+			instrumentOptions,
+		)
 		if err != nil {
 			logger.Fatal("unable to setup m3db backend", zap.Error(err))
 		}
@@ -215,7 +216,8 @@ func newM3DBStorage(
 	runOpts RunOptions,
 	cfg config.Configuration,
 	logger *zap.Logger,
-	scope tally.Scope,
+	workerPool pool.ObjectPool,
+	instrumentOptions instrument.Options,
 ) (storage.Storage, clusterclient.Client, downsample.Downsampler, cleanupFn, error) {
 	var clusterClientCh <-chan clusterclient.Client
 	if runOpts.ClusterClient != nil {
@@ -256,32 +258,7 @@ func newM3DBStorage(
 		return nil, nil, nil, nil, err
 	}
 
-	workerPoolCount := cfg.DecompressWorkerPoolCount
-	if workerPoolCount == 0 {
-		workerPoolCount = defaultWorkerPoolCount
-	}
-
-	workerPoolSize := cfg.DecompressWorkerPoolSize
-	if workerPoolSize == 0 {
-		workerPoolSize = defaultWorkerPoolSize
-	}
-
-	instrumentOptions := instrument.NewOptions().
-		SetZapLogger(logger).
-		SetMetricsScope(scope.SubScope("series-decompression-pool"))
-
-	poolOptions := pool.NewObjectPoolOptions().
-		SetSize(workerPoolCount).
-		SetInstrumentOptions(instrumentOptions)
-
-	objectPool := pool.NewObjectPool(poolOptions)
-	objectPool.Init(func() interface{} {
-		workerPool := xsync.NewWorkerPool(workerPoolSize)
-		workerPool.Init()
-		return workerPool
-	})
-
-	fanoutStorage, storageCleanup, err := newStorages(logger, clusters, cfg, objectPool)
+	fanoutStorage, storageCleanup, err := newStorages(logger, clusters, cfg, workerPool)
 	if err != nil {
 		return nil, nil, nil, nil, errors.Wrap(err, "unable to set up storages")
 	}
@@ -476,7 +453,7 @@ func newStorages(
 			return nil
 		}
 
-		remoteStorage, enabled, err := remoteClient(cfg)
+		remoteStorage, enabled, err := remoteClient(cfg, workerPool)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -496,13 +473,16 @@ func newStorages(
 	return fanoutStorage, cleanup, nil
 }
 
-func remoteClient(cfg config.Configuration) (storage.Storage, bool, error) {
+func remoteClient(
+	cfg config.Configuration,
+	workerPool pool.ObjectPool,
+) (storage.Storage, bool, error) {
 	if cfg.RPC == nil {
 		return nil, false, nil
 	}
 
 	if remotes := cfg.RPC.RemoteListenAddresses; len(remotes) > 0 {
-		client, err := tsdbRemote.NewGrpcClient(remotes)
+		client, err := tsdbRemote.NewGrpcClient(remotes, nil, workerPool)
 		if err != nil {
 			return nil, false, err
 		}
