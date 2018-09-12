@@ -43,7 +43,7 @@ type termsDictionary interface {
 
 	// MatchRegexp returns the postings list corresponding to documents which match the
 	// given egular expression.
-	MatchRegexp(field, regexp []byte, compiled *re.Regexp) postings.List
+	MatchRegexp(field []byte, compiled *re.Regexp) postings.List
 
 	// Fields returns the known fields.
 	Fields() sgmt.FieldsIterator
@@ -63,7 +63,7 @@ type ReadableSegment interface {
 	matchTerm(field, term []byte) (postings.List, error)
 
 	// matchRegexp returns the postings list of documents which match the given regular expression.
-	matchRegexp(name, regexp []byte, compiled *re.Regexp) (postings.List, error)
+	matchRegexp(field []byte, compiled *re.Regexp) (postings.List, error)
 
 	// getDoc returns the document associated with the given ID.
 	getDoc(id postings.ID) (doc.Document, error)

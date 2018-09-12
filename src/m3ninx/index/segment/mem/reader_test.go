@@ -74,11 +74,11 @@ func TestReaderMatchRegex(t *testing.T) {
 
 	segment := NewMockReadableSegment(mockCtrl)
 	gomock.InOrder(
-		segment.EXPECT().matchRegexp(name, regexp, compiled).Return(postingsList, nil),
+		segment.EXPECT().matchRegexp(name, compiled).Return(postingsList, nil),
 	)
 
 	reader := newReader(segment, readerDocRange{0, maxID}, postings.NewPool(nil, roaring.NewPostingsList))
-	actual, err := reader.MatchRegexp(name, regexp, index.CompiledRegex{Simple: compiled})
+	actual, err := reader.MatchRegexp(name, index.CompiledRegex{Simple: compiled})
 	require.NoError(t, err)
 	require.True(t, postingsList.Equal(actual))
 

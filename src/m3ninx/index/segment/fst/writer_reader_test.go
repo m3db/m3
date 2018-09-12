@@ -282,12 +282,16 @@ func TestPostingsListRegexAll(t *testing.T) {
 			for _, f := range fields {
 				reader, err := memSeg.Reader()
 				require.NoError(t, err)
-				memPl, err := reader.MatchRegexp(f, []byte("."), index.CompiledRegex{})
+				c, err := index.CompileRegex([]byte(".*"))
+				require.NoError(t, err)
+				memPl, err := reader.MatchRegexp(f, c)
 				require.NoError(t, err)
 
 				fstReader, err := fstSeg.Reader()
 				require.NoError(t, err)
-				fstPl, err := fstReader.MatchRegexp(f, []byte(".*"), index.CompiledRegex{})
+				c, err = index.CompileRegex([]byte(".*"))
+				require.NoError(t, err)
+				fstPl, err := fstReader.MatchRegexp(f, c)
 				require.NoError(t, err)
 				require.True(t, memPl.Equal(fstPl))
 			}
