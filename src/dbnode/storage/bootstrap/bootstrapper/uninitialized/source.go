@@ -126,8 +126,8 @@ func (s *uninitializedSource) availability(
 			}
 		}
 
-		shardHasEverBeenCompletelyInitialized := numInitializing-numLeaving > 0
-		if shardHasEverBeenCompletelyInitialized {
+		shardHasNeverBeenCompletelyInitialized := numInitializing-numLeaving > 0
+		if shardHasNeverBeenCompletelyInitialized {
 			availableShardTimeRanges[shardIDUint] = shardsTimeRanges[shardIDUint]
 		}
 	}
