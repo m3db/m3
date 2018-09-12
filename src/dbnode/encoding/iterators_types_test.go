@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -21,28 +21,41 @@
 package encoding
 
 import (
-	"github.com/m3db/m3x/pool"
+	"fmt"
+	"testing"
+	"unsafe"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v2"
 )
 
-type seriesIteratorPool struct {
-	pool pool.ObjectPool
+func TestValidIterateEqualTimestampStrategies(t *testing.T) {
+	result := ValidIterateEqualTimestampStrategies()
+
+	// Ensure copy was taken and ptrs don't match
+	p1 := uintptr(unsafe.Pointer(&validIterateEqualTimestampStrategies))
+	p2 := uintptr(unsafe.Pointer(&result))
+	assert.NotEqual(t, p1, p2)
+
+	// Ensure values match
+	assert.Equal(t, result, validIterateEqualTimestampStrategies)
 }
 
-// NewSeriesIteratorPool creates a new pool for SeriesIterators.
-func NewSeriesIteratorPool(opts pool.ObjectPoolOptions) SeriesIteratorPool {
-	return &seriesIteratorPool{pool: pool.NewObjectPool(opts)}
-}
+func TestIterateEqualTimestampStrategyUnmarshalYAML(t *testing.T) {
+	type config struct {
+		Strategy IterateEqualTimestampStrategy `yaml:"strategy"`
+	}
 
-func (p *seriesIteratorPool) Init() {
-	p.pool.Init(func() interface{} {
-		return NewSeriesIterator(SeriesIteratorOptions{}, p)
-	})
-}
+	for _, value := range ValidIterateEqualTimestampStrategies() {
+		str := fmt.Sprintf("strategy: %s\n", value.String())
 
-func (p *seriesIteratorPool) Get() SeriesIterator {
-	return p.pool.Get().(SeriesIterator)
-}
+		var cfg config
+		require.NoError(t, yaml.Unmarshal([]byte(str), &cfg))
 
-func (p *seriesIteratorPool) Put(iter SeriesIterator) {
-	p.pool.Put(iter)
+		assert.Equal(t, value, cfg.Strategy)
+	}
+
+	var cfg config
+	require.Error(t, yaml.Unmarshal([]byte("strategy: not_a_known_type\n"), &cfg))
 }

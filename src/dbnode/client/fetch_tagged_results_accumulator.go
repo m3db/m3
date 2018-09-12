@@ -238,8 +238,14 @@ func (accum *fetchTaggedResultAccumulator) sliceResponsesAsSeriesIter(
 	tsID := pools.CheckedBytesWrapper().Get(elem.ID)
 	nsID := pools.CheckedBytesWrapper().Get(elem.NameSpace)
 	seriesIter := pools.SeriesIterator().Get()
-	seriesIter.Reset(pools.ID().BinaryID(tsID), pools.ID().BinaryID(nsID),
-		decoder, accum.startTime, accum.endTime, iters)
+	seriesIter.Reset(encoding.SeriesIteratorOptions{
+		ID:             pools.ID().BinaryID(tsID),
+		Namespace:      pools.ID().BinaryID(nsID),
+		Tags:           decoder,
+		StartInclusive: accum.startTime,
+		EndExclusive:   accum.endTime,
+		Replicas:       iters,
+	})
 
 	return seriesIter
 }

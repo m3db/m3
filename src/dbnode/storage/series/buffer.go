@@ -511,13 +511,12 @@ type dbBufferBucket struct {
 	encoders          []inOrderEncoder
 	bootstrapped      []block.DatabaseBlock
 	lastReadUnixNanos int64
-	empty             bool
 	drained           bool
 }
 
 type inOrderEncoder struct {
-	lastWriteAt time.Time
 	encoder     encoding.Encoder
+	lastWriteAt time.Time
 }
 
 func (b *dbBufferBucket) resetTo(
@@ -532,12 +531,10 @@ func (b *dbBufferBucket) resetTo(
 
 	b.start = start
 	b.encoders = append(b.encoders, inOrderEncoder{
-		lastWriteAt: timeZero,
-		encoder:     encoder,
+		encoder: encoder,
 	})
 	b.bootstrapped = nil
 	atomic.StoreInt64(&b.lastReadUnixNanos, 0)
-	b.empty = true
 	b.drained = false
 }
 
@@ -546,8 +543,22 @@ func (b *dbBufferBucket) finalize() {
 	b.resetBootstrapped()
 }
 
+func (b *dbBufferBucket) empty() bool {
+	for _, block := range b.bootstrapped {
+		if block.Len() > 0 {
+			return false
+		}
+	}
+	for _, elem := range b.encoders {
+		if elem.encoder != nil && elem.encoder.NumEncoded() > 0 {
+			return false
+		}
+	}
+	return true
+}
+
 func (b *dbBufferBucket) canRead() bool {
-	return !b.drained && !b.empty
+	return !b.drained && !b.empty()
 }
 
 func (b *dbBufferBucket) needsReset(
@@ -571,7 +582,6 @@ func (b *dbBufferBucket) needsDrain(
 func (b *dbBufferBucket) bootstrap(
 	bl block.DatabaseBlock,
 ) {
-	b.empty = false
 	b.bootstrapped = append(b.bootstrapped, bl)
 }
 
@@ -581,38 +591,85 @@ func (b *dbBufferBucket) write(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
+	datapoint := ts.Datapoint{
+		Timestamp: timestamp,
+		Value:     value,
+	}
+
+	// Find the correct encoder to write to
 	idx := -1
 	for i := range b.encoders {
-		if timestamp.Equal(b.encoders[i].lastWriteAt) {
-			// NB(xichen): We discard datapoints with the same timestamps as the
-			// ones we've already encoded. Immutable/first-write-wins semantics.
-			return nil
+		lastWriteAt := b.encoders[i].lastWriteAt
+		if timestamp.Equal(lastWriteAt) {
+			last, err := b.encoders[i].encoder.LastEncoded()
+			if err != nil {
+				return err
+			}
+			if last.Value == value {
+				// No-op since matches the current value
+				// TODO(r): in the future we could return some metadata that
+				// this result was a no-op and hence does not need to be written
+				// to the commit log, otherwise high frequency write volumes
+				// that are using M3DB as a cache-like index of things seen
+				// in a time window will still cause a flood of disk/CPU resource
+				// usage writing values to the commit log, even if the memory
+				// profile is lean as a side effect of this write being a no-op.
+				return nil
+			}
+			continue
 		}
-		if timestamp.After(b.encoders[i].lastWriteAt) {
+
+		if timestamp.After(lastWriteAt) {
 			idx = i
 			break
 		}
 	}
-	if idx == -1 {
-		b.opts.Stats().IncCreatedEncoders()
-		bopts := b.opts.DatabaseBlockOptions()
-		blockSize := b.opts.RetentionOptions().BlockSize()
-		blockAllocSize := bopts.DatabaseBlockAllocSize()
-		encoder := bopts.EncoderPool().Get()
-		encoder.Reset(timestamp.Truncate(blockSize), blockAllocSize)
-		next := inOrderEncoder{encoder: encoder}
-		b.encoders = append(b.encoders, next)
-		idx = len(b.encoders) - 1
+
+	// Upsert/last-write-wins semantics.
+	// NB(r): We push datapoints with the same timestamp but differing
+	// value into a new encoder later in the stack of in order encoders
+	// since an encoder is immutable.
+	// The encoders pushed later will surface their values first.
+	if idx != -1 {
+		return b.writeToEncoderIndex(idx, datapoint, unit, annotation)
 	}
 
-	if err := b.encoders[idx].encoder.Encode(ts.Datapoint{
-		Timestamp: timestamp,
-		Value:     value,
-	}, unit, annotation); err != nil {
+	// Need a new encoder, we didn't find an encoder to write to
+	b.opts.Stats().IncCreatedEncoders()
+	bopts := b.opts.DatabaseBlockOptions()
+	blockSize := b.opts.RetentionOptions().BlockSize()
+	blockAllocSize := bopts.DatabaseBlockAllocSize()
+
+	encoder := bopts.EncoderPool().Get()
+	encoder.Reset(timestamp.Truncate(blockSize), blockAllocSize)
+
+	b.encoders = append(b.encoders, inOrderEncoder{
+		encoder:     encoder,
+		lastWriteAt: timestamp,
+	})
+
+	idx = len(b.encoders) - 1
+	err := b.writeToEncoderIndex(idx, datapoint, unit, annotation)
+	if err != nil {
+		encoder.Close()
+		b.encoders = b.encoders[:idx]
 		return err
 	}
-	b.encoders[idx].lastWriteAt = timestamp
-	b.empty = false
+	return nil
+}
+
+func (b *dbBufferBucket) writeToEncoderIndex(
+	idx int,
+	datapoint ts.Datapoint,
+	unit xtime.Unit,
+	annotation []byte,
+) error {
+	err := b.encoders[idx].encoder.Encode(datapoint, unit, annotation)
+	if err != nil {
+		return err
+	}
+
+	b.encoders[idx].lastWriteAt = datapoint.Timestamp
 	return nil
 }
 
@@ -727,20 +784,13 @@ func (b *dbBufferBucket) merge() (mergeResult, error) {
 		}
 	}
 
-	start := b.start
-	readers := make([]xio.SegmentReader, 0, len(b.encoders)+len(b.bootstrapped))
-	streams := make([]xio.SegmentReader, 0, len(b.encoders))
-	for i := range b.encoders {
-		if s := b.encoders[i].encoder.Stream(); s != nil {
-			merges++
-			readers = append(readers, s)
-			streams = append(streams, s)
-		}
-	}
-
-	var lastWriteAt time.Time
-	iter := b.opts.MultiReaderIteratorPool().Get()
-	ctx := b.opts.ContextPool().Get()
+	var (
+		start   = b.start
+		readers = make([]xio.SegmentReader, 0, len(b.encoders)+len(b.bootstrapped))
+		streams = make([]xio.SegmentReader, 0, len(b.encoders))
+		iter    = b.opts.MultiReaderIteratorPool().Get()
+		ctx     = b.opts.ContextPool().Get()
+	)
 	defer func() {
 		iter.Close()
 		ctx.Close()
@@ -752,6 +802,8 @@ func (b *dbBufferBucket) merge() (mergeResult, error) {
 		}
 	}()
 
+	// Rank bootstrapped blocks as data that has appeared before data that
+	// arrived locally in the buffer
 	for i := range b.bootstrapped {
 		block, err := b.bootstrapped[i].Stream(ctx)
 		if err == nil && block.SegmentReader != nil {
@@ -760,6 +812,15 @@ func (b *dbBufferBucket) merge() (mergeResult, error) {
 		}
 	}
 
+	for i := range b.encoders {
+		if s := b.encoders[i].encoder.Stream(); s != nil {
+			merges++
+			readers = append(readers, s)
+			streams = append(streams, s)
+		}
+	}
+
+	var lastWriteAt time.Time
 	iter.Reset(readers, start, b.opts.RetentionOptions().BlockSize())
 	for iter.Next() {
 		dp, unit, annotation := iter.Current()
@@ -776,8 +837,8 @@ func (b *dbBufferBucket) merge() (mergeResult, error) {
 	b.resetBootstrapped()
 
 	b.encoders = append(b.encoders, inOrderEncoder{
-		lastWriteAt: lastWriteAt,
 		encoder:     encoder,
+		lastWriteAt: lastWriteAt,
 	})
 
 	return mergeResult{merges: merges}, nil
@@ -800,7 +861,6 @@ func (b *dbBufferBucket) discardMerged() (discardMergedResult, error) {
 		// just remove it from the list of encoders
 		b.encoders = b.encoders[:0]
 		b.resetBootstrapped()
-		b.empty = true
 
 		return discardMergedResult{newBlock, 0}, nil
 	}
@@ -813,7 +873,6 @@ func (b *dbBufferBucket) discardMerged() (discardMergedResult, error) {
 		// are passing ownership of it to the caller
 		b.resetEncoders()
 		b.bootstrapped = nil
-		b.empty = true
 
 		return discardMergedResult{existingBlock, 0}, nil
 	}
@@ -822,7 +881,6 @@ func (b *dbBufferBucket) discardMerged() (discardMergedResult, error) {
 	if err != nil {
 		b.resetEncoders()
 		b.resetBootstrapped()
-		b.empty = true
 		return discardMergedResult{}, err
 	}
 
@@ -836,7 +894,6 @@ func (b *dbBufferBucket) discardMerged() (discardMergedResult, error) {
 	// just remove it from the list of encoders
 	b.encoders = b.encoders[:0]
 	b.resetBootstrapped()
-	b.empty = true
 
 	return discardMergedResult{newBlock, result.merges}, nil
 }

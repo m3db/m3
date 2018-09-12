@@ -345,7 +345,7 @@ func seriesIteratorFromCompressedSeries(
 
 	var (
 		multiReaderPool encoding.MultiReaderIteratorPool
-		seriesPool      encoding.SeriesIteratorPool
+		seriesIterPool  encoding.SeriesIteratorPool
 
 		checkedBytesWrapperPool xpool.CheckedBytesWrapperPool
 		idPool                  ident.Pool
@@ -359,7 +359,7 @@ func seriesIteratorFromCompressedSeries(
 	// Set up iterator pools if available
 	if iteratorPools != nil {
 		multiReaderPool = iteratorPools.MultiReaderIterator()
-		seriesPool = iteratorPools.SeriesIterator()
+		seriesIterPool = iteratorPools.SeriesIterator()
 		checkedBytesWrapperPool = iteratorPools.CheckedBytesWrapper()
 		idPool = iteratorPools.ID()
 
@@ -394,7 +394,22 @@ func seriesIteratorFromCompressedSeries(
 	start := xtime.FromNanoseconds(compressedValues.GetStartTime())
 	end := xtime.FromNanoseconds(compressedValues.GetEndTime())
 
-	return encoding.NewSeriesIterator(id, ns, tagIter, start, end, allReplicaIterators, seriesPool), nil
+	var seriesIter encoding.SeriesIterator
+	if seriesIterPool != nil {
+		seriesIter = seriesIterPool.Get()
+	} else {
+		seriesIter = encoding.NewSeriesIterator(encoding.SeriesIteratorOptions{}, nil)
+	}
+	seriesIter.Reset(encoding.SeriesIteratorOptions{
+		ID:             id,
+		Namespace:      ns,
+		Tags:           tagIter,
+		StartInclusive: start,
+		EndExclusive:   end,
+		Replicas:       allReplicaIterators,
+	})
+
+	return seriesIter, nil
 }
 
 // DecodeCompressedFetchResult decodes compressed fetch results to seriesIterators

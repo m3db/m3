@@ -21,6 +21,7 @@
 package m3tsz
 
 import (
+	"math/rand"
 	"testing"
 	"time"
 
@@ -32,7 +33,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var testStartTime = time.Unix(1427162400, 0)
+var (
+	testStartTime         = time.Unix(1427162400, 0)
+	testDeterministicSeed = testStartTime.Unix()
+)
 
 func getTestEncoder(startTime time.Time) *encoder {
 	return NewEncoder(startTime, nil, false, nil).(*encoder)
@@ -379,4 +383,78 @@ func TestEncoderResets(t *testing.T) {
 	require.Equal(t, nil, enc.Stream())
 	b, _ = enc.os.Rawbytes()
 	require.Equal(t, []byte{}, b.Bytes())
+}
+
+func TestEncoderNumEncoded(t *testing.T) {
+	testMultiplePasses(t, multiplePassesTest{
+		postEncodeAll: func(enc *encoder, numDatapointsEncoded int) {
+			assert.Equal(t, numDatapointsEncoded, enc.NumEncoded())
+		},
+	})
+}
+
+func TestEncoderLastEncoded(t *testing.T) {
+	testMultiplePasses(t, multiplePassesTest{
+		postEncodeDatapoint: func(enc *encoder, datapoint ts.Datapoint) {
+			last, err := enc.LastEncoded()
+			require.NoError(t, err)
+			assert.True(t, datapoint.Timestamp.Equal(last.Timestamp))
+			assert.Equal(t, datapoint.Value, datapoint.Value)
+		},
+	})
+}
+
+type multiplePassesTest struct {
+	preEncodeAll        func(enc *encoder, numDatapointsToEncode int)
+	preEncodeDatapoint  func(enc *encoder, datapoint ts.Datapoint)
+	postEncodeDatapoint func(enc *encoder, datapoint ts.Datapoint)
+	postEncodeAll       func(enc *encoder, numDatapointsEncoded int)
+}
+
+func testMultiplePasses(t *testing.T, test multiplePassesTest) {
+	src := rand.NewSource(testDeterministicSeed)
+	rng := rand.New(src)
+	maxValues := 512
+
+	for n := 0; n < 1024; n++ {
+		encoder := getTestEncoder(testStartTime)
+
+		numValues := int(rng.Int63()) % maxValues
+		// Check boundary cases
+		switch n {
+		case 0:
+			numValues = 0
+		case 1:
+			numValues = 1
+		}
+
+		now := testStartTime
+
+		if test.preEncodeAll != nil {
+			test.preEncodeAll(encoder, numValues)
+		}
+
+		for i := 0; i < numValues; i++ {
+			now = now.Add(time.Duration(rng.Int63()) % time.Minute)
+			value := ts.Datapoint{
+				Timestamp: now,
+				Value:     rng.NormFloat64(),
+			}
+
+			if test.preEncodeDatapoint != nil {
+				test.preEncodeDatapoint(encoder, value)
+			}
+
+			err := encoder.Encode(value, xtime.Nanosecond, nil)
+			require.NoError(t, err)
+
+			if test.postEncodeDatapoint != nil {
+				test.postEncodeDatapoint(encoder, value)
+			}
+		}
+
+		if test.postEncodeAll != nil {
+			test.postEncodeAll(encoder, numValues)
+		}
+	}
 }
