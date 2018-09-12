@@ -22,14 +22,16 @@ package bootstrap
 
 import "github.com/m3db/m3/src/dbnode/topology"
 
-const (
+var (
 	// defaultIncremental declares the intent to by default not perform an
 	// incremental bootstrap.
-	defaultIncremental = false
+	defaultIncremental = IncrementalConfig{
+		Enabled: false,
+	}
 )
 
 type runOptions struct {
-	incremental          bool
+	incrementalConfig    IncrementalConfig
 	cacheSeriesMetadata  bool
 	initialTopologyState *topology.StateSnapshot
 }
@@ -37,20 +39,20 @@ type runOptions struct {
 // NewRunOptions creates new bootstrap run options
 func NewRunOptions() RunOptions {
 	return &runOptions{
-		incremental:          defaultIncremental,
+		incrementalConfig:    defaultIncremental,
 		cacheSeriesMetadata:  defaultCacheSeriesMetadata,
 		initialTopologyState: nil,
 	}
 }
 
-func (o *runOptions) SetIncremental(value bool) RunOptions {
+func (o *runOptions) SetIncrementalConfig(value IncrementalConfig) RunOptions {
 	opts := *o
-	opts.incremental = value
+	opts.incrementalConfig = value
 	return &opts
 }
 
-func (o *runOptions) Incremental() bool {
-	return o.incremental
+func (o *runOptions) IncrementalConfig() IncrementalConfig {
+	return o.incrementalConfig
 }
 
 func (o *runOptions) SetCacheSeriesMetadata(value bool) RunOptions {

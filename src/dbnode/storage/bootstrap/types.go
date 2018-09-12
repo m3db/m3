@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
@@ -68,6 +69,15 @@ type TargetRange struct {
 	RunOptions RunOptions
 }
 
+// IncrementalConfig is the configuration for an incremental bootstrap.
+type IncrementalConfig struct {
+	// Whether this bootstrap should incrementally persist data to disk.
+	Enabled bool
+	// If enabled, what type of files should be generated during the incremental
+	// process.
+	FileSetType persist.FileSetType
+}
+
 // ProcessOptions is a set of options for a bootstrap provider.
 type ProcessOptions interface {
 	// SetCacheSeriesMetadata sets whether bootstrappers created by this
@@ -90,13 +100,11 @@ type ProcessOptions interface {
 
 // RunOptions is a set of options for a bootstrap run.
 type RunOptions interface {
-	// SetIncremental sets whether this bootstrap should be an incremental
-	// that saves intermediate results to durable storage or not.
-	SetIncremental(value bool) RunOptions
+	// SetIncrementalConfig sets incremental configuration for this bootstrap.
+	SetIncrementalConfig(value IncrementalConfig) RunOptions
 
-	// Incremental returns whether this bootstrap should be an incremental
-	// that saves intermediate results to durable storage or not.
-	Incremental() bool
+	// IncrementalConfig returns the incremental configuration for this bootstrap.
+	IncrementalConfig() IncrementalConfig
 
 	// SetCacheSeriesMetadata sets whether bootstrappers created by this
 	// provider should cache series metadata between runs.

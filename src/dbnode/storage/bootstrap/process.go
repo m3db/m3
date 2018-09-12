@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
@@ -342,12 +343,18 @@ func (b bootstrapProcess) targetRanges(
 	// cause the process to OOM.
 	return []TargetRange{
 		{
-			Range:      xtime.Range{Start: start, End: midPoint},
-			RunOptions: b.newRunOptions().SetIncremental(true),
+			Range: xtime.Range{Start: start, End: midPoint},
+			RunOptions: b.newRunOptions().SetIncrementalConfig(IncrementalConfig{
+				Enabled:     true,
+				FileSetType: persist.FileSetFlushType,
+			}),
 		},
 		{
-			Range:      xtime.Range{Start: midPoint, End: cutover},
-			RunOptions: b.newRunOptions().SetIncremental(false),
+			Range: xtime.Range{Start: midPoint, End: cutover},
+			RunOptions: b.newRunOptions().SetIncrementalConfig(IncrementalConfig{
+				Enabled:     true,
+				FileSetType: persist.FileSetSnapshotType,
+			}),
 		},
 	}
 }
