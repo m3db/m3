@@ -140,9 +140,7 @@ type DownsampleClusterStaticNamespaceConfiguration struct {
 }
 
 func (c DownsampleClusterStaticNamespaceConfiguration) downsampleOptions() ClusterNamespaceDownsampleOptions {
-	return ClusterNamespaceDownsampleOptions{
-		All: c.All,
-	}
+	return ClusterNamespaceDownsampleOptions(c)
 }
 
 type unaggregatedClusterNamespaceConfiguration struct {

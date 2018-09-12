@@ -363,6 +363,7 @@ func newDownsampler(
 	downsampler, err := downsample.NewDownsampler(downsample.DownsamplerOptions{
 		Storage:               storage,
 		RulesKVStore:          kvStore,
+		AutoMappingRules:      autoMappingRules,
 		ClockOptions:          clock.NewOptions(),
 		InstrumentOptions:     instrumentOpts,
 		TagEncoderOptions:     tagEncoderOptions,
