@@ -312,8 +312,9 @@ func newAggregatedClusterNamespace(
 		namespaceID: def.NamespaceID,
 		options: ClusterNamespaceOptions{
 			attributes: storage.Attributes{
-				MetricsType: storage.UnaggregatedMetricsType,
+				MetricsType: storage.AggregatedMetricsType,
 				Retention:   def.Retention,
+				Resolution:  def.Resolution,
 			},
 			downsample: def.Downsample,
 		},

@@ -106,7 +106,7 @@ func TestNewClustersFromConfig(t *testing.T) {
 	assert.Equal(t, storage.Attributes{
 		MetricsType: storage.UnaggregatedMetricsType,
 		Retention:   7 * 24 * time.Hour,
-	}, unaggregatedNs.Attributes())
+	}, unaggregatedNs.Options().Attributes())
 	assert.True(t, mockSession1 == unaggregatedNs.Session())
 
 	aggregated1Month1Minute, ok := clusters.AggregatedClusterNamespace(RetentionResolution{
@@ -119,7 +119,7 @@ func TestNewClustersFromConfig(t *testing.T) {
 		MetricsType: storage.AggregatedMetricsType,
 		Retention:   30 * 24 * time.Hour,
 		Resolution:  time.Minute,
-	}, aggregated1Month1Minute.Attributes())
+	}, aggregated1Month1Minute.Options().Attributes())
 	assert.True(t, mockSession2 == aggregated1Month1Minute.Session())
 
 	aggregated1Year10Minute, ok := clusters.AggregatedClusterNamespace(RetentionResolution{
@@ -132,7 +132,7 @@ func TestNewClustersFromConfig(t *testing.T) {
 		MetricsType: storage.AggregatedMetricsType,
 		Retention:   365 * 24 * time.Hour,
 		Resolution:  10 * time.Minute,
-	}, aggregated1Year10Minute.Attributes())
+	}, aggregated1Year10Minute.Options().Attributes())
 	assert.True(t, mockSession2 == aggregated1Year10Minute.Session())
 
 	// Ensure cannot resolve unexpected clusters
