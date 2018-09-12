@@ -247,6 +247,8 @@ var temporalParseTests = []struct {
 	{"sum_over_time(up[5m])", temporal.SumTemporalType},
 	{"stddev_over_time(up[5m])", temporal.StdDevTemporalType},
 	{"stdvar_over_time(up[5m])", temporal.StdVarTemporalType},
+	{"irate(up[5m])", temporal.IRateTemporalType},
+	{"idelta(up[5m])", temporal.IDeltaTemporalType},
 }
 
 func TestTemporalParses(t *testing.T) {

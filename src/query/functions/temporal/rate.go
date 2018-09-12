@@ -32,11 +32,15 @@ const (
 	// IRateTemporalType calculates the per-second instant rate of increase of the time series
 	// in the range vector. This is based on the last two data points.
 	IRateTemporalType = "irate"
+
+	// IDeltaTemporalType calculates the difference between the last two samples in the time series.
+	// IDeltaTemporalType should only be used with gauges.
+	IDeltaTemporalType = "idelta"
 )
 
 // NewRateOp creates a new base temporal transform for rate functions
 func NewRateOp(args []interface{}, optype string) (transform.Params, error) {
-	if optype == IRateTemporalType {
+	if optype == IRateTemporalType || optype == IDeltaTemporalType {
 		return newBaseOp(args, optype, newRateNode, nil)
 	}
 
@@ -61,25 +65,41 @@ func (r *rateNode) Process(values []float64) float64 {
 	switch r.op.operatorType {
 	case IRateTemporalType:
 		return instantValue(values, true, r.timeSpec.Step)
+	case IDeltaTemporalType:
+		return instantValue(values, false, r.timeSpec.Step)
 	default:
 		panic("unknown aggregation type")
 	}
 }
 
+func findNonNanIdx(vals []float64, startingIdx int) int {
+	for i := startingIdx; i >= 0; i-- {
+		if !math.IsNaN(vals[i]) {
+			return i
+		}
+	}
+	return -1
+}
+
 func instantValue(values []float64, isRate bool, stepSize time.Duration) float64 {
-	fmt.Println(values)
 	valuesLen := len(values)
 	if valuesLen < 2 {
 		return math.NaN()
 	}
 
-	// {0, 1, 2, 3, 4},
-	// {5, 6, 7, 8, 9},
-
-	lastSample := values[valuesLen-1]
-	previousSample := values[valuesLen-2]
-
-	fmt.Println(lastSample, previousSample)
+	nonNanIdx := valuesLen - 1
+	// find idx for last non-NaN value
+	nonNanIdx = findNonNanIdx(values, nonNanIdx)
+	// if nonNanIdx is 0 then you only have one value and should return a NaN
+	if nonNanIdx < 1 {
+		return math.NaN()
+	}
+	lastSample := values[nonNanIdx]
+	nonNanIdx = findNonNanIdx(values, nonNanIdx-1)
+	if nonNanIdx == -1 {
+		return math.NaN()
+	}
+	previousSample := values[nonNanIdx]
 
 	var resultValue float64
 	if isRate && lastSample < previousSample {
@@ -88,11 +108,8 @@ func instantValue(values []float64, isRate bool, stepSize time.Duration) float64
 	} else {
 		resultValue = lastSample - previousSample
 	}
-	fmt.Println("result: ", resultValue)
 
 	if isRate {
-		// Convert to per-second.
-		fmt.Println(stepSize, float64(stepSize), float64(stepSize)/1000, "sec: ", stepSize.Seconds())
 		resultValue /= float64(stepSize) / math.Pow10(9)
 	}
 

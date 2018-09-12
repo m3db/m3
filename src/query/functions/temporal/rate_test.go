@@ -30,38 +30,134 @@ import (
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-var testRateCases = []testCase{
+type testRateCase struct {
+	name           string
+	vals           [][]float64
+	opType         string
+	afterBlockOne  [][]float64
+	afterAllBlocks [][]float64
+}
+
+var testRateCases = []testRateCase{
 	{
 		name:   "irate",
 		opType: IRateTemporalType,
+		vals: [][]float64{
+			{678758, 680986, 683214, 685442, 687670},
+			{1987036, 1988988, 1990940, 1992892, 1994844},
+		},
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1952},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 37.1333},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 32.5333},
 		},
 		afterAllBlocks: [][]float64{
-			{2, 2, 2, 2, 2},
-			{7, 7, 7, 7, 7},
+			{11312.6333, 37.1333, 37.1333, 37.1333, 37.1333},
+			{33117.2666, 32.5333, 32.5333, 32.5333, 32.5333},
+		},
+	},
+	{
+		name:   "irate with some NaNs",
+		opType: IRateTemporalType,
+		vals: [][]float64{
+			{1987036, 1988988, 1990940, math.NaN(), 1994844},
+			{1987036, 1988988, 1990940, math.NaN(), math.NaN()},
+		},
+		afterBlockOne: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 65.0666},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 32.5333},
+		},
+		afterAllBlocks: [][]float64{
+			{33117.2666, 32.5333, 32.5333, 32.5333, 65.0666},
+			{33117.2666, 32.5333, 32.5333, 32.5333, 32.5333},
+		},
+	},
+	{
+		name:   "irate with all NaNs",
+		opType: IRateTemporalType,
+		vals: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+		afterBlockOne: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+		afterAllBlocks: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 		},
 	},
 }
 
-func TestRate(t *testing.T) {
-	v := [][]float64{
-		{1987036, 1988988, 1990940, 1992892, 1994844},
-		{5, 6, 7, 8, 9},
-	}
-	testRate(t, testRateCases, v)
+func TestIRate(t *testing.T) {
+	testRate(t, testRateCases)
+}
+
+var testDeltaCases = []testRateCase{
+	{
+		name:   "idelta",
+		opType: IDeltaTemporalType,
+		vals: [][]float64{
+			{863682, 865910, 868138, 870366, 872594},
+			{1987036, 1988988, 1990940, 1992892, 1994844},
+		},
+		afterBlockOne: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 2228},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1952},
+		},
+		afterAllBlocks: [][]float64{
+			{-8912, 2228, 2228, 2228, 2228},
+			{-7808, 1952, 1952, 1952, 1952},
+		},
+	},
+	{
+		name:   "idelta with some NaNs",
+		opType: IDeltaTemporalType,
+		vals: [][]float64{
+			{1987036, 1988988, 1990940, math.NaN(), 1994844},
+			{1987036, 1988988, 1990940, math.NaN(), math.NaN()},
+		},
+		afterBlockOne: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 3904},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1952},
+		},
+		afterAllBlocks: [][]float64{
+			{-7808, 1952, 1952, 1952, 3904},
+			{-3904, 1952, 1952, 1952, 1952},
+		},
+	},
+	{
+		name:   "idelta with all NaNs",
+		opType: IDeltaTemporalType,
+		vals: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+		afterBlockOne: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+		afterAllBlocks: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+	},
+}
+
+func TestIDelta(t *testing.T) {
+	testRate(t, testDeltaCases)
 }
 
 // B1 has NaN in first series, first position
-func testRate(t *testing.T, testCases []testCase, vals [][]float64) {
+func testRate(t *testing.T, testCases []testRateCase) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			values, bounds := test.GenerateValuesAndBounds(vals, nil)
+			values, bounds := test.GenerateValuesAndBounds(tt.vals, nil)
 			boundStart := bounds.Start
 			block3 := test.NewBlockFromValues(bounds, values)
 			c, sink := executor.NewControllerWithSink(parser.NodeID(1))
@@ -129,6 +225,10 @@ func testRate(t *testing.T, testCases []testCase, vals [][]float64) {
 			assert.Len(t, blks, 0)
 		})
 	}
+}
+
+func TestFindNonNanIdx(t *testing.T) {
+
 }
 
 // func TestUnknownAggregation(t *testing.T) {

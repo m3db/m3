@@ -172,7 +172,7 @@ func NewFunctionExpr(name string, argValues []interface{}) (parser.Params, error
 		temporal.StdVarTemporalType:
 		return temporal.NewAggOp(argValues, name)
 
-	case temporal.IRateTemporalType:
+	case temporal.IRateTemporalType, temporal.IDeltaTemporalType:
 		return temporal.NewRateOp(argValues, name)
 
 	default:
