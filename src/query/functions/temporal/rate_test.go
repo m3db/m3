@@ -228,10 +228,10 @@ func testRate(t *testing.T, testCases []testRateCase) {
 }
 
 func TestFindNonNanIdx(t *testing.T) {
-
+	// TODO(braskin): add test
 }
 
-// func TestUnknownAggregation(t *testing.T) {
-// 	_, err := NewAggOp([]interface{}{5 * time.Minute}, "unknown_agg_func")
-// 	require.Error(t, err)
-// }
+func TestUnknownRate(t *testing.T) {
+	_, err := NewRateOp([]interface{}{5 * time.Minute}, "unknown_rate_func")
+	require.Error(t, err)
+}
