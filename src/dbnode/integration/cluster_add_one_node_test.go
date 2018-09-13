@@ -48,6 +48,10 @@ type idShard struct {
 }
 
 func TestClusterAddOneNode(t *testing.T) {
+	testClusterAddOneNode(t, false)
+}
+
+func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoin bool) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -257,5 +261,14 @@ func TestClusterAddOneNode(t *testing.T) {
 	// Verify in-memory data match what we expect
 	for i := range setups {
 		verifySeriesMaps(t, setups[i], namesp.ID(), expectedSeriesMaps[i])
+	}
+
+	if verifyCommitlogCanBootstrapAfterNodeJoin {
+		// Verify that the node that joined the cluster can immediately bootstrap
+		// the data it streamed from its peers from the commit log as soon as
+		// the bootstrapping process completes.
+		require.NoError(t, setups[1].stopServer())
+		startServerWithNewInspection(t, opts, setups[1])
+		verifySeriesMaps(t, setups[1], namesp.ID(), expectedSeriesMaps[1])
 	}
 }
