@@ -266,15 +266,30 @@ func TestUnitializedSourceAvailableDataAndAvailableIndex(t *testing.T) {
 		t.Run(tc.title, func(t *testing.T) {
 
 			var (
-				srcOpts  = NewOptions().SetInstrumentOptions(instrument.NewOptions())
-				src      = newUninitializedSource(srcOpts)
-				runOpts  = testDefaultRunOpts.SetInitialTopologyState(tc.hosts.TopologyState(tc.majorityReplicas))
-				dataRes  = src.AvailableData(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
-				indexRes = src.AvailableIndex(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
+				srcOpts                 = NewOptions().SetInstrumentOptions(instrument.NewOptions())
+				src                     = newUninitializedSource(srcOpts)
+				runOpts                 = testDefaultRunOpts.SetInitialTopologyState(tc.hosts.TopologyState(tc.majorityReplicas))
+				dataAvailabilityResult  = src.AvailableData(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
+				indexAvailabilityResult = src.AvailableIndex(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
 			)
 
-			require.Equal(t, tc.expectedAvailableShardsTimeRanges, dataRes)
-			require.Equal(t, tc.expectedAvailableShardsTimeRanges, indexRes)
+			// Make sure AvailableData and AvailableIndex return the correct result
+			require.Equal(t, tc.expectedAvailableShardsTimeRanges, dataAvailabilityResult)
+			require.Equal(t, tc.expectedAvailableShardsTimeRanges, indexAvailabilityResult)
+
+			// Make sure ReadData marks anything that AvailableData wouldn't return as unfulfilled
+			dataResult, err := src.ReadData(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
+			require.NoError(t, err)
+			expectedDataUnfulfilled := tc.shardsTimeRangesToBootstrap.Copy()
+			expectedDataUnfulfilled.Subtract(tc.expectedAvailableShardsTimeRanges)
+			require.Equal(t, expectedDataUnfulfilled, dataResult.Unfulfilled())
+
+			// Make sure ReadIndex marks anything that AvailableIndex wouldn't return as unfulfilled
+			indexResult, err := src.ReadIndex(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
+			require.NoError(t, err)
+			expectedIndexUnfulfilled := tc.shardsTimeRangesToBootstrap.Copy()
+			expectedIndexUnfulfilled.Subtract(tc.expectedAvailableShardsTimeRanges)
+			require.Equal(t, expectedIndexUnfulfilled, indexResult.Unfulfilled())
 		})
 	}
 }
