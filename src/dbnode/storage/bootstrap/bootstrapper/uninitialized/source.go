@@ -140,7 +140,17 @@ func (s *uninitializedSource) ReadData(
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
 ) (result.DataBootstrapResult, error) {
-	return result.NewDataBootstrapResult(), nil
+	var (
+		availability = s.availability(ns, shardsTimeRanges, runOpts)
+		missing      = shardsTimeRanges.Copy()
+	)
+	missing.Subtract(availability)
+
+	if missing.IsEmpty() {
+		return result.NewDataBootstrapResult(), nil
+	} else {
+		return missing.ToUnfulfilledDataResult(), nil
+	}
 }
 
 func (s *uninitializedSource) ReadIndex(
@@ -148,5 +158,15 @@ func (s *uninitializedSource) ReadIndex(
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
 ) (result.IndexBootstrapResult, error) {
-	return result.NewIndexBootstrapResult(), nil
+	var (
+		availability = s.availability(ns, shardsTimeRanges, runOpts)
+		missing      = shardsTimeRanges.Copy()
+	)
+	missing.Subtract(availability)
+
+	if missing.IsEmpty() {
+		return result.NewIndexBootstrapResult(), nil
+	} else {
+		return missing.ToUnfulfilledIndexResult(), nil
+	}
 }
