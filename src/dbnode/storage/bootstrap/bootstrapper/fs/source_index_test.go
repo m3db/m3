@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
@@ -284,7 +285,8 @@ func TestBootstrapIndexIncremental(t *testing.T) {
 	scope := tally.NewTestScope("", nil)
 	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope))
 
-	runOpts := testDefaultRunOpts.SetIncremental(true)
+	runOpts := testDefaultRunOpts.
+		SetIncrementalConfig(bootstrap.IncrementalConfig{Enabled: true})
 
 	src := newFileSystemSource(opts).(*fileSystemSource)
 	res, err := src.ReadIndex(testNsMetadata(t), times.shardTimeRanges,
@@ -353,7 +355,8 @@ func TestBootstrapIndexIncrementalPrefersPersistedIndexBlocks(t *testing.T) {
 	scope := tally.NewTestScope("", nil)
 	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope))
 
-	runOpts := testDefaultRunOpts.SetIncremental(true)
+	runOpts := testDefaultRunOpts.
+		SetIncrementalConfig(bootstrap.IncrementalConfig{Enabled: true})
 
 	src := newFileSystemSource(opts).(*fileSystemSource)
 	res, err := src.ReadIndex(testNsMetadata(t), times.shardTimeRanges,

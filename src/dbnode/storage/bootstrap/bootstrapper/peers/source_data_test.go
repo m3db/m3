@@ -58,11 +58,13 @@ var (
 		return ns
 	}
 
-	testDefaultRunOpts     = bootstrap.NewRunOptions().SetIncremental(false)
-	testIncrementalRunOpts = bootstrap.NewRunOptions().SetIncremental(true)
-	testBlockOpts          = block.NewOptions()
-	testDefaultResultOpts  = result.NewOptions().SetSeriesCachePolicy(series.CacheAll)
-	testDefaultOpts        = NewOptions().
+	testDefaultRunOpts = bootstrap.NewRunOptions().
+				SetIncrementalConfig(bootstrap.IncrementalConfig{Enabled: false})
+	testIncrementalRunOpts = bootstrap.NewRunOptions().
+				SetIncrementalConfig(bootstrap.IncrementalConfig{Enabled: true})
+	testBlockOpts         = block.NewOptions()
+	testDefaultResultOpts = result.NewOptions().SetSeriesCachePolicy(series.CacheAll)
+	testDefaultOpts       = NewOptions().
 				SetResultOptions(testDefaultResultOpts)
 )
 

@@ -236,28 +236,28 @@ func (m *MockRunOptions) EXPECT() *MockRunOptionsMockRecorder {
 	return m.recorder
 }
 
-// SetIncremental mocks base method
-func (m *MockRunOptions) SetIncremental(value bool) RunOptions {
-	ret := m.ctrl.Call(m, "SetIncremental", value)
+// SetIncrementalConfig mocks base method
+func (m *MockRunOptions) SetIncrementalConfig(value IncrementalConfig) RunOptions {
+	ret := m.ctrl.Call(m, "SetIncrementalConfig", value)
 	ret0, _ := ret[0].(RunOptions)
 	return ret0
 }
 
-// SetIncremental indicates an expected call of SetIncremental
-func (mr *MockRunOptionsMockRecorder) SetIncremental(value interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIncremental", reflect.TypeOf((*MockRunOptions)(nil).SetIncremental), value)
+// SetIncrementalConfig indicates an expected call of SetIncrementalConfig
+func (mr *MockRunOptionsMockRecorder) SetIncrementalConfig(value interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIncrementalConfig", reflect.TypeOf((*MockRunOptions)(nil).SetIncrementalConfig), value)
 }
 
-// Incremental mocks base method
-func (m *MockRunOptions) Incremental() bool {
-	ret := m.ctrl.Call(m, "Incremental")
-	ret0, _ := ret[0].(bool)
+// IncrementalConfig mocks base method
+func (m *MockRunOptions) IncrementalConfig() IncrementalConfig {
+	ret := m.ctrl.Call(m, "IncrementalConfig")
+	ret0, _ := ret[0].(IncrementalConfig)
 	return ret0
 }
 
-// Incremental indicates an expected call of Incremental
-func (mr *MockRunOptionsMockRecorder) Incremental() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Incremental", reflect.TypeOf((*MockRunOptions)(nil).Incremental))
+// IncrementalConfig indicates an expected call of IncrementalConfig
+func (mr *MockRunOptionsMockRecorder) IncrementalConfig() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncrementalConfig", reflect.TypeOf((*MockRunOptions)(nil).IncrementalConfig))
 }
 
 // SetCacheSeriesMetadata mocks base method

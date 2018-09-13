@@ -255,7 +255,7 @@ func main() {
 	nsID := ident.StringID(namespaceStr)
 	runOpts := bootstrap.NewRunOptions().
 		// Dont save intermediate results
-		SetIncremental(false)
+		SetIncrementalConfig(bootstrap.IncrementalConfig{Enabled: false})
 	nsMetadata, err := namespace.NewMetadata(nsID, namespace.NewOptions().SetRetentionOptions(retentionOpts))
 	if err != nil {
 		log.Fatal(err.Error())
