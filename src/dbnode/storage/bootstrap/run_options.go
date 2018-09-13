@@ -23,9 +23,9 @@ package bootstrap
 import "github.com/m3db/m3/src/dbnode/topology"
 
 var (
-	// defaultIncremental declares the intent to by default not perform an
+	// defaultIncrementalConfig declares the intent to by default not perform an
 	// incremental bootstrap.
-	defaultIncremental = IncrementalConfig{
+	defaultIncrementalConfig = IncrementalConfig{
 		Enabled: false,
 	}
 )
@@ -39,7 +39,7 @@ type runOptions struct {
 // NewRunOptions creates new bootstrap run options
 func NewRunOptions() RunOptions {
 	return &runOptions{
-		incrementalConfig:    defaultIncremental,
+		incrementalConfig:    defaultIncrementalConfig,
 		cacheSeriesMetadata:  defaultCacheSeriesMetadata,
 		initialTopologyState: nil,
 	}
