@@ -22,9 +22,11 @@ package remote
 
 import (
 	"context"
+	"net/http"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/api/v1/handler"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -83,19 +85,19 @@ func TestTimeConversions(t *testing.T) {
 	assert.Equal(t, tix, fromTime(toTime(tix)))
 }
 
-func createRPCSeries() []*rpc.Series {
-	return []*rpc.Series{
-		&rpc.Series{
+func createRPCSeries() []*rpc.DecompressedSeries {
+	return []*rpc.DecompressedSeries{
+		&rpc.DecompressedSeries{
 			Id:     name0,
 			Values: valList0,
 			Tags:   encodeTags(tags0),
 		},
-		&rpc.Series{
+		&rpc.DecompressedSeries{
 			Id:     name1,
 			Values: valList1,
 			Tags:   encodeTags(tags1),
 		},
-		&rpc.Series{
+		&rpc.DecompressedSeries{
 			Id:     name2,
 			Values: valList2,
 			Tags:   encodeTags(tags1),
@@ -107,7 +109,7 @@ func TestDecodeFetchResult(t *testing.T) {
 	ctx := context.Background()
 	rpcSeries := createRPCSeries()
 
-	tsSeries, err := DecodeFetchResult(ctx, rpcSeries)
+	tsSeries, err := DecodeDecompressedFetchResult(ctx, rpcSeries)
 	assert.NoError(t, err)
 	assert.Len(t, tsSeries, 3)
 	assert.Equal(t, string(name0), tsSeries[0].Name())
@@ -138,7 +140,6 @@ func TestDecodeFetchResult(t *testing.T) {
 	require.Len(t, revert.GetSeries(), len(rpcSeries))
 	for i, expected := range rpcSeries {
 		assert.Equal(t, expected.GetId(), revert.GetSeries()[i].GetId())
-		assert.Equal(t, expected.GetNamespace(), revert.GetSeries()[i].GetNamespace())
 		assert.Equal(t, expected.GetValues(), revert.GetSeries()[i].GetValues())
 		for _, tag := range expected.GetTags() {
 			assert.Contains(t, revert.GetSeries()[i].GetTags(), tag)
@@ -176,7 +177,7 @@ func createStorageFetchQuery(t *testing.T) (*storage.FetchQuery, time.Time, time
 func TestEncodeFetchMessage(t *testing.T) {
 	rQ, start, end := createStorageFetchQuery(t)
 
-	grpcQ := EncodeFetchMessage(rQ, id)
+	grpcQ := EncodeFetchMessage(context.TODO(), rQ, id)
 	require.NotNil(t, grpcQ)
 	assert.Equal(t, fromTime(start), grpcQ.GetQuery().GetStart())
 	assert.Equal(t, fromTime(end), grpcQ.GetQuery().GetEnd())
@@ -193,15 +194,32 @@ func TestEncodeFetchMessage(t *testing.T) {
 
 func TestEncodeDecodeFetchQuery(t *testing.T) {
 	rQ, _, _ := createStorageFetchQuery(t)
-	gq := EncodeFetchMessage(rQ, id)
+	gq := EncodeFetchMessage(context.TODO(), rQ, id)
 	reverted, decodeID, err := DecodeFetchMessage(gq)
 	require.Nil(t, err)
 	assert.Equal(t, id, decodeID)
 	readQueriesAreEqual(t, rQ, reverted)
 
 	// Encode again
-	gqr := EncodeFetchMessage(reverted, decodeID)
+	gqr := EncodeFetchMessage(context.TODO(), reverted, decodeID)
 	assert.Equal(t, gq, gqr)
+}
+
+func TestEncodeFetchQueryMetadata(t *testing.T) {
+	rQ, _, _ := createStorageFetchQuery(t)
+
+	headers := make(http.Header)
+	headers.Add("Foo", "bar")
+	headers.Add("Foo", "baz")
+	headers.Add("Foo", "abc")
+	headers.Add("Lorem", "ipsum")
+	ctx := context.WithValue(context.TODO(), handler.HeaderKey, headers)
+	gq := EncodeFetchMessage(ctx, rQ, id)
+
+	metadata := gq.GetOptions().GetMetadata()
+	assert.Equal(t, 2, len(metadata))
+	assert.Equal(t, "bar", metadata["Foo"])
+	assert.Equal(t, "ipsum", metadata["Lorem"])
 }
 
 func createStorageWriteQuery(t *testing.T) (*storage.WriteQuery, ts.Datapoints) {

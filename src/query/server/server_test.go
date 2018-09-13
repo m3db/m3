@@ -180,14 +180,20 @@ type queryServer struct {
 	mu                         sync.Mutex
 }
 
-func (s *queryServer) Fetch(*rpcpb.FetchMessage, rpcpb.Query_FetchServer) error {
+func (s *queryServer) FetchDecompressed(
+	*rpcpb.FetchMessage,
+	rpcpb.Query_FetchDecompressedServer,
+) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.reads++
 	return nil
 }
 
-func (s *queryServer) FetchTagged(*rpcpb.FetchMessage, rpcpb.Query_FetchTaggedServer) error {
+func (s *queryServer) FetchTagged(
+	*rpcpb.FetchMessage,
+	rpcpb.Query_FetchTaggedServer,
+) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.taggedReads++

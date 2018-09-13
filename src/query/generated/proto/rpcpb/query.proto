@@ -3,7 +3,7 @@ syntax = "proto3";
 package rpcpb;
 
 service Query {
-	rpc Fetch(FetchMessage) returns (stream FetchResult);
+	rpc FetchDecompressed(FetchMessage) returns (stream DecompressedFetchResult);
 	rpc FetchTagged(FetchMessage) returns (stream FetchResult);
 	rpc Write(stream WriteMessage) returns (Error);
 }
@@ -24,16 +24,6 @@ message WriteOptions {
 	string id = 1;
 }
 
-message Datapoint {
-	int64 timestamp = 1;
-	double value = 2;
-}
-
-message Datapoints {
-	repeated Datapoint datapoints = 1;
-	bool fixedResolution = 2;
-}
-
 message Error {
 	string error = 1;
 }
@@ -49,17 +39,9 @@ message FetchQuery {
 	repeated Matcher tagMatchers = 3;
 }
 
-message Ownership {
-	string source = 1;
-	string chargebackID = 2;
-	string user = 3;
-	string dashboard = 4;
-	string sourceUUID = 5;
-}
-
 message FetchOptions {
 	string id = 1;
-	Ownership owner = 2;
+	map<string, string> metadata = 2;
 }
 
 message Matcher {
@@ -88,18 +70,37 @@ message CompressedValuesReplica {
 	repeated Segments segments = 1;
 }
 
+message Series {
+	bytes id = 1;
+	bytes namespace = 2;
+	int64 startTime = 3;
+	int64 endTime = 4;
+	bytes compressedTags = 5;
+	repeated CompressedValuesReplica replicas = 6;
+	repeated Tag decompressedTags = 7;
+}
+
 message Tag {
 	bytes name = 1;
 	bytes value = 2;
 }
 
-message Series {
+message Datapoint {
+	int64 timestamp = 1;
+	double value = 2;
+}
+
+message Datapoints {
+	repeated Datapoint datapoints = 1;
+	bool fixedResolution = 2;
+}
+
+message DecompressedSeries {
 	bytes id = 1;
 	Datapoints values = 2;
 	repeated Tag tags = 3;
-	bytes namespace = 4;
-	int64 startTime = 5;
-	int64 endTime = 6;
-	bytes compressedTags = 7;
-	repeated CompressedValuesReplica replicas = 8;
+}
+
+message DecompressedFetchResult {
+	repeated DecompressedSeries series = 1;
 }

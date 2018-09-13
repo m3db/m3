@@ -189,13 +189,13 @@ func compressedSeriesFromSeriesIterator(it encoding.SeriesIterator, iterPools en
 	}
 
 	return &rpc.Series{
-		Id:             it.ID().Bytes(),
-		Tags:           tags,
-		Namespace:      it.Namespace().Bytes(),
-		StartTime:      start,
-		EndTime:        end,
-		Replicas:       compressedReplicas,
-		CompressedTags: compressedTags,
+		Id:               it.ID().Bytes(),
+		Namespace:        it.Namespace().Bytes(),
+		StartTime:        start,
+		EndTime:          end,
+		CompressedTags:   compressedTags,
+		Replicas:         compressedReplicas,
+		DecompressedTags: tags,
 	}, nil
 }
 
@@ -309,7 +309,7 @@ func tagIteratorFromSeries(series *rpc.Series, iteratorPools encoding.IteratorPo
 		idPool = iteratorPools.ID()
 	}
 
-	return tagIteratorFromTags(series.GetTags(), idPool), nil
+	return tagIteratorFromTags(series.GetDecompressedTags(), idPool), nil
 }
 
 func blockReadersFromCompressedSegments(

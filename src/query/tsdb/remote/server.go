@@ -62,8 +62,11 @@ func StartNewGrpcServer(server *grpc.Server, address string, waitForStart chan<-
 	return server.Serve(lis)
 }
 
-// Fetch reads from local storage
-func (s *grpcServer) Fetch(message *rpc.FetchMessage, stream rpc.Query_FetchServer) error {
+// FetchDecompressed reads decompressed series from local storage
+func (s *grpcServer) FetchDecompressed(
+	message *rpc.FetchMessage,
+	stream rpc.Query_FetchDecompressedServer,
+) error {
 	storeQuery, id, err := DecodeFetchMessage(message)
 	ctx := logging.NewContextWithID(stream.Context(), id)
 	logger := logging.WithContext(ctx)

@@ -23,8 +23,10 @@ package remote
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"time"
 
+	"github.com/m3db/m3/src/query/api/v1/handler"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -53,8 +55,8 @@ func encodeTags(tags models.Tags) []*rpc.Tag {
 }
 
 // EncodeFetchResult encodes fetch result to rpc result
-func EncodeFetchResult(sResult *storage.FetchResult) *rpc.FetchResult {
-	series := make([]*rpc.Series, len(sResult.SeriesList))
+func EncodeFetchResult(sResult *storage.FetchResult) *rpc.DecompressedFetchResult {
+	series := make([]*rpc.DecompressedSeries, len(sResult.SeriesList))
 	for i, result := range sResult.SeriesList {
 		vLen := result.Len()
 		datapoints := make([]*rpc.Datapoint, vLen)
@@ -67,7 +69,7 @@ func EncodeFetchResult(sResult *storage.FetchResult) *rpc.FetchResult {
 			}
 		}
 
-		series[i] = &rpc.Series{
+		series[i] = &rpc.DecompressedSeries{
 			Id: []byte(result.Name()),
 			Values: &rpc.Datapoints{
 				Datapoints:      datapoints,
@@ -76,11 +78,14 @@ func EncodeFetchResult(sResult *storage.FetchResult) *rpc.FetchResult {
 			Tags: encodeTags(result.Tags),
 		}
 	}
-	return &rpc.FetchResult{Series: series}
+	return &rpc.DecompressedFetchResult{Series: series}
 }
 
-// DecodeFetchResult decodes fetch results from a GRPC-compatible type.
-func DecodeFetchResult(_ context.Context, rpcSeries []*rpc.Series) ([]*ts.Series, error) {
+// DecodeDecompressedFetchResult decodes fetch results from a GRPC-compatible type.
+func DecodeDecompressedFetchResult(
+	_ context.Context,
+	rpcSeries []*rpc.DecompressedSeries,
+) ([]*ts.Series, error) {
 	tsSeries := make([]*ts.Series, len(rpcSeries))
 	var err error
 	for i, series := range rpcSeries {
@@ -101,7 +106,7 @@ func decodeTags(tags []*rpc.Tag) models.Tags {
 	return modelTags
 }
 
-func decodeTs(r *rpc.Series) (*ts.Series, error) {
+func decodeTs(r *rpc.DecompressedSeries) (*ts.Series, error) {
 	fixedRes := r.Values.FixedResolution
 	var (
 		values ts.Values
@@ -122,7 +127,7 @@ func decodeTs(r *rpc.Series) (*ts.Series, error) {
 	return series, nil
 }
 
-func decodeFixedResTs(r *rpc.Series) (ts.FixedResolutionMutableValues, error) {
+func decodeFixedResTs(r *rpc.DecompressedSeries) (ts.FixedResolutionMutableValues, error) {
 	startTime := time.Time{}
 	datapoints := r.Values.Datapoints
 	if len(datapoints) > 0 {
@@ -140,7 +145,7 @@ func decodeFixedResTs(r *rpc.Series) (ts.FixedResolutionMutableValues, error) {
 	return values, nil
 }
 
-func decodeRawTs(r *rpc.Series) ts.Datapoints {
+func decodeRawTs(r *rpc.DecompressedSeries) ts.Datapoints {
 	datapoints := make(ts.Datapoints, len(r.Values.Datapoints))
 	for i, v := range r.Values.Datapoints {
 		datapoints[i] = ts.Datapoint{
@@ -153,12 +158,11 @@ func decodeRawTs(r *rpc.Series) ts.Datapoints {
 }
 
 // EncodeFetchMessage encodes fetch query and fetch options into rpc WriteMessage
-func EncodeFetchMessage(query *storage.FetchQuery, queryID string) *rpc.FetchMessage {
+func EncodeFetchMessage(ctx context.Context, query *storage.FetchQuery, queryID string) *rpc.FetchMessage {
 	return &rpc.FetchMessage{
 		Query:   encodeFetchQuery(query),
-		Options: encodeFetchOptions(queryID),
+		Options: encodeFetchOptions(ctx, queryID),
 	}
-
 }
 
 func encodeFetchQuery(query *storage.FetchQuery) *rpc.FetchQuery {
@@ -182,19 +186,35 @@ func encodeTagMatchers(modelMatchers models.Matchers) []*rpc.Matcher {
 	return matchers
 }
 
-func encodeFetchOptions(queryID string) *rpc.FetchOptions {
+func encodeFetchOptions(ctx context.Context, queryID string) *rpc.FetchOptions {
 	return &rpc.FetchOptions{
-		Id:    queryID,
-		Owner: encodeOwnership(),
+		Id:       queryID,
+		Metadata: encodeFetchMetadata(ctx),
 	}
 }
 
-// TODO: build ownership once cost accounting exists.
-func encodeOwnership() *rpc.Ownership {
-	return &rpc.Ownership{
-		Source: "query",
-		User:   "query",
+func encodeFetchMetadata(ctx context.Context) map[string]string {
+	if ctx == nil {
+		return map[string]string{}
 	}
+
+	headerValues := ctx.Value(handler.HeaderKey)
+	headers, ok := headerValues.(http.Header)
+	if !ok {
+		return map[string]string{}
+	}
+
+	headerMap := map[string][]string(headers)
+	metadata := make(map[string]string, len(headerMap))
+	for k, v := range headerMap {
+		if len(v) > 0 {
+			metadata[k] = v[0]
+		} else {
+			metadata[k] = ""
+		}
+	}
+
+	return metadata
 }
 
 // DecodeFetchMessage decodes rpc fetch message to read query and read options

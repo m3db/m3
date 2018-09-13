@@ -89,7 +89,8 @@ func (c *grpcClient) Fetch(
 ) (*storage.FetchResult, error) {
 	// Send the id from the client to the remote server so that provides logging
 	id := logging.ReadContextID(ctx)
-	fetchClient, err := c.client.Fetch(ctx, EncodeFetchMessage(query, id))
+
+	fetchClient, err := c.client.FetchDecompressed(ctx, EncodeFetchMessage(ctx, query, id))
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +116,7 @@ func (c *grpcClient) Fetch(
 		}
 
 		rpcSeries := result.GetSeries()
-		fResult, err := DecodeFetchResult(ctx, rpcSeries)
+		fResult, err := DecodeDecompressedFetchResult(ctx, rpcSeries)
 		if err != nil {
 			return nil, err
 		}
@@ -166,7 +167,7 @@ func (c *grpcClient) FetchBlocks(
 ) (block.Result, error) {
 	// Send the id from the client to the remote server so that provides logging
 	id := logging.ReadContextID(ctx)
-	fetchClient, err := c.client.FetchTagged(ctx, EncodeFetchMessage(query, id))
+	fetchClient, err := c.client.FetchTagged(ctx, EncodeFetchMessage(ctx, query, id))
 	if err != nil {
 		return block.Result{}, err
 	}

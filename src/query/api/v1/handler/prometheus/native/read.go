@@ -75,7 +75,7 @@ func NewPromReadHandler(engine *executor.Engine) http.Handler {
 }
 
 func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	logger := logging.WithContext(ctx)
 
 	params, rErr := parseParams(r)
