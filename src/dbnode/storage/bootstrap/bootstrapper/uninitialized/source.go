@@ -148,9 +148,9 @@ func (s *uninitializedSource) ReadData(
 
 	if missing.IsEmpty() {
 		return result.NewDataBootstrapResult(), nil
-	} else {
-		return missing.ToUnfulfilledDataResult(), nil
 	}
+
+	return missing.ToUnfulfilledDataResult(), nil
 }
 
 func (s *uninitializedSource) ReadIndex(
@@ -166,7 +166,7 @@ func (s *uninitializedSource) ReadIndex(
 
 	if missing.IsEmpty() {
 		return result.NewIndexBootstrapResult(), nil
-	} else {
-		return missing.ToUnfulfilledIndexResult(), nil
 	}
+
+	return missing.ToUnfulfilledIndexResult(), nil
 }
