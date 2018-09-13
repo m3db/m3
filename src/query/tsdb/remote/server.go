@@ -25,7 +25,7 @@ import (
 	"io"
 	"net"
 
-	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
+	"github.com/m3db/m3/src/query/generated/proto/rpc"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
 

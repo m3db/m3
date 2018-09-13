@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package rpcpb;
+package rpc;
 
 service Query {
 	rpc FetchDecompressed(FetchMessage) returns (stream DecompressedFetchResult);
