@@ -77,7 +77,7 @@ func (r *rateNode) Process(values []float64) float64 {
 	nonNanIdx := valuesLen - 1
 	// find idx for last non-NaN value
 	indexLast := findNonNanIdx(values, nonNanIdx)
-	// if nonNanIdx is 0 then you only have one value and should return a NaN
+	// if indexLast is 0 then you only have one value and should return a NaN
 	if indexLast < 1 {
 		return math.NaN()
 	}
