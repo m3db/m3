@@ -34,6 +34,7 @@ import (
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/serialize"
 	"github.com/m3db/m3/src/query/api/v1/httpd"
 	m3dbcluster "github.com/m3db/m3/src/query/cluster/m3db"
@@ -139,7 +140,7 @@ func Run(runOpts RunOptions) {
 	// For grpc backend, we need to setup only the grpc client and a storage accompanying that client.
 	// For m3db backend, we need to make connections to the m3db cluster which generates a session and use the storage with the session.
 	if cfg.Backend == config.GRPCStorageType {
-		backendStorage, enabled, err = remoteClient(cfg, workerPool)
+		backendStorage, enabled, err = remoteClient(cfg, buildIteratorPools(), workerPool)
 		if err != nil {
 			logger.Fatal("unable to setup grpc backend", zap.Error(err))
 		}
@@ -253,12 +254,12 @@ func newM3DBStorage(
 		}
 	}
 
-	clusters, err := initClusters(cfg, runOpts.DBClient, logger)
+	clusters, pools, err := initClusters(cfg, runOpts.DBClient, logger)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
 
-	fanoutStorage, storageCleanup, err := newStorages(logger, clusters, cfg, workerPool)
+	fanoutStorage, storageCleanup, err := newStorages(logger, clusters, cfg, pools, workerPool)
 	if err != nil {
 		return nil, nil, nil, nil, errors.Wrap(err, "unable to set up storages")
 	}
@@ -386,9 +387,14 @@ func newDownsamplerAutoMappingRules(
 	return autoMappingRules, nil
 }
 
-func initClusters(cfg config.Configuration, dbClientCh <-chan client.Client, logger *zap.Logger) (local.Clusters, error) {
+func initClusters(
+	cfg config.Configuration,
+	dbClientCh <-chan client.Client,
+	logger *zap.Logger,
+) (local.Clusters, encoding.IteratorPools, error) {
 	var (
 		clusters local.Clusters
+		pools    encoding.IteratorPools
 		err      error
 	)
 
@@ -398,7 +404,7 @@ func initClusters(cfg config.Configuration, dbClientCh <-chan client.Client, log
 		}
 		clusters, err = cfg.Clusters.NewClusters(opts)
 		if err != nil {
-			return nil, errors.Wrap(err, "unable to connect to clusters")
+			return nil, nil, errors.Wrap(err, "unable to connect to clusters")
 		}
 	} else {
 		localCfg := cfg.Local
@@ -407,7 +413,7 @@ func initClusters(cfg config.Configuration, dbClientCh <-chan client.Client, log
 		}
 
 		if dbClientCh == nil {
-			return nil, errors.New("no clusters configured and not running local cluster")
+			return nil, nil, errors.New("no clusters configured and not running local cluster")
 		}
 		session := m3db.NewAsyncSession(func() (client.Client, error) {
 			return <-dbClientCh, nil
@@ -418,7 +424,12 @@ func initClusters(cfg config.Configuration, dbClientCh <-chan client.Client, log
 			Retention:   localCfg.Retention,
 		})
 		if err != nil {
-			return nil, errors.Wrap(err, "unable to connect to clusters")
+			return nil, nil, errors.Wrap(err, "unable to connect to clusters")
+		}
+
+		pools, err = session.IteratorPools()
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "session iterator pools unavailable")
 		}
 	}
 
@@ -427,13 +438,14 @@ func initClusters(cfg config.Configuration, dbClientCh <-chan client.Client, log
 			zap.String("namespace", namespace.NamespaceID().String()))
 	}
 
-	return clusters, nil
+	return clusters, pools, nil
 }
 
 func newStorages(
 	logger *zap.Logger,
 	clusters local.Clusters,
 	cfg config.Configuration,
+	pools encoding.IteratorPools,
 	workerPool pool.ObjectPool,
 ) (storage.Storage, cleanupFn, error) {
 	cleanup := func() error { return nil }
@@ -453,7 +465,7 @@ func newStorages(
 			return nil
 		}
 
-		remoteStorage, enabled, err := remoteClient(cfg, workerPool)
+		remoteStorage, enabled, err := remoteClient(cfg, pools, workerPool)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -475,6 +487,7 @@ func newStorages(
 
 func remoteClient(
 	cfg config.Configuration,
+	pools encoding.IteratorPools,
 	workerPool pool.ObjectPool,
 ) (storage.Storage, bool, error) {
 	if cfg.RPC == nil {
@@ -482,7 +495,7 @@ func remoteClient(
 	}
 
 	if remotes := cfg.RPC.RemoteListenAddresses; len(remotes) > 0 {
-		client, err := tsdbRemote.NewGrpcClient(remotes, nil, workerPool)
+		client, err := tsdbRemote.NewGrpcClient(remotes, pools, workerPool)
 		if err != nil {
 			return nil, false, err
 		}

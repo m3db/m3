@@ -35,7 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
 	remotetest "github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote/test/remote"
-	"github.com/m3db/m3/src/query/generated/proto/rpcpb"
+	"github.com/m3db/m3/src/query/generated/proto/rpc"
 	"github.com/m3db/m3/src/query/storage/local"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/ident"
@@ -181,8 +181,8 @@ type queryServer struct {
 }
 
 func (s *queryServer) FetchDecompressed(
-	*rpcpb.FetchMessage,
-	rpcpb.Query_FetchDecompressedServer,
+	*rpc.FetchMessage,
+	rpc.Query_FetchDecompressedServer,
 ) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -191,8 +191,8 @@ func (s *queryServer) FetchDecompressed(
 }
 
 func (s *queryServer) FetchTagged(
-	*rpcpb.FetchMessage,
-	rpcpb.Query_FetchTaggedServer,
+	*rpc.FetchMessage,
+	rpc.Query_FetchTaggedServer,
 ) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -200,7 +200,7 @@ func (s *queryServer) FetchTagged(
 	return nil
 }
 
-func (s *queryServer) Write(rpcpb.Query_WriteServer) error {
+func (s *queryServer) Write(rpc.Query_WriteServer) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.writes++
@@ -239,7 +239,7 @@ backend: grpc
 	s := grpc.NewServer()
 	defer s.GracefulStop()
 	qs := &queryServer{}
-	rpcpb.RegisterQueryServer(s, qs)
+	rpc.RegisterQueryServer(s, qs)
 	go func() {
 		s.Serve(lis)
 	}()
