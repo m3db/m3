@@ -29,11 +29,11 @@ import (
 )
 
 const (
-	// IRateTemporalType calculates the per-second instant rate of increase of the time series
-	// in the range vector. This is based on the last two data points.
+	// IRateTemporalType calculates the per-second rate of increase of the time series
+	// across the specified time range. This is based on the last two data points.
 	IRateTemporalType = "irate"
 
-	// IDeltaTemporalType calculates the difference between the last two samples in the time series.
+	// IDeltaTemporalType calculates the difference between the last two values in the time series.
 	// IDeltaTemporalType should only be used with gauges.
 	IDeltaTemporalType = "idelta"
 )
@@ -48,10 +48,16 @@ func NewRateOp(args []interface{}, optype string) (transform.Params, error) {
 }
 
 func newRateNode(op baseOp, controller *transform.Controller, opts transform.Options) Processor {
+	var isRate bool
+	if op.operatorType == IRateTemporalType {
+		isRate = true
+	}
+
 	return &rateNode{
 		op:         op,
 		controller: controller,
 		timeSpec:   opts.TimeSpec,
+		isRate:     isRate,
 	}
 }
 
@@ -59,17 +65,11 @@ type rateNode struct {
 	op         baseOp
 	controller *transform.Controller
 	timeSpec   transform.TimeSpec
+	isRate     bool
 }
 
 func (r *rateNode) Process(values []float64) float64 {
-	switch r.op.operatorType {
-	case IRateTemporalType:
-		return instantValue(values, true, r.timeSpec.Step)
-	case IDeltaTemporalType:
-		return instantValue(values, false, r.timeSpec.Step)
-	default:
-		panic("unknown rate type")
-	}
+	return instantValue(values, r.isRate, r.timeSpec.Step)
 }
 
 // findNonNanIdx iterates over the values backwards until we find a non-NaN value,
@@ -80,6 +80,7 @@ func findNonNanIdx(vals []float64, startingIdx int) int {
 			return i
 		}
 	}
+
 	return -1
 }
 
@@ -89,6 +90,8 @@ func instantValue(values []float64, isRate bool, stepSize time.Duration) float64
 		return math.NaN()
 	}
 
+	var indexLast int
+
 	nonNanIdx := valuesLen - 1
 	// find idx for last non-NaN value
 	nonNanIdx = findNonNanIdx(values, nonNanIdx)
@@ -96,7 +99,9 @@ func instantValue(values []float64, isRate bool, stepSize time.Duration) float64
 	if nonNanIdx < 1 {
 		return math.NaN()
 	}
+	indexLast = nonNanIdx
 	lastSample := values[nonNanIdx]
+
 	nonNanIdx = findNonNanIdx(values, nonNanIdx-1)
 	if nonNanIdx == -1 {
 		return math.NaN()
@@ -112,7 +117,8 @@ func instantValue(values []float64, isRate bool, stepSize time.Duration) float64
 	}
 
 	if isRate {
-		resultValue /= float64(stepSize) / math.Pow10(9)
+		resultValue *= float64(time.Second)
+		resultValue /= float64(stepSize) * float64(indexLast-nonNanIdx)
 	}
 
 	return resultValue

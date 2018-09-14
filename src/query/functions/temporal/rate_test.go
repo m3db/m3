@@ -68,12 +68,12 @@ var testRateCases = []testRateCase{
 			{1987036, 1988988, 1990940, math.NaN(), math.NaN()},
 		},
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 65.0666},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 32.5333},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 32.5333},
 		},
 		afterAllBlocks: [][]float64{
-			{33117.2666, 32.5333, 32.5333, 32.5333, 65.0666},
 			{33117.2666, 32.5333, 32.5333, 32.5333, 32.5333},
+			{11039.0888, 32.5333, 32.5333, 32.5333, 32.5333},
 		},
 	},
 	{
