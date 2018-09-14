@@ -48,10 +48,7 @@ func NewRateOp(args []interface{}, optype string) (transform.Params, error) {
 }
 
 func newRateNode(op baseOp, controller *transform.Controller, opts transform.Options) Processor {
-	var isRate bool
-	if op.operatorType == IRateType {
-		isRate = true
-	}
+	isRate := op.operatorType == IRateType
 
 	return &rateNode{
 		op:         op,
@@ -82,13 +79,13 @@ func (r *rateNode) Process(values []float64) float64 {
 		return math.NaN()
 	}
 
-	lastSample := values[indexLast]
 	nonNanIdx = findNonNanIdx(values, indexLast-1)
 	if nonNanIdx == -1 {
 		return math.NaN()
 	}
 
 	previousSample := values[nonNanIdx]
+	lastSample := values[indexLast]
 
 	var resultValue float64
 	if r.isRate && lastSample < previousSample {
