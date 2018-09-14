@@ -46,7 +46,7 @@ type testRateCase struct {
 var testRateCases = []testRateCase{
 	{
 		name:   "irate",
-		opType: IRateTemporalType,
+		opType: IRateType,
 		vals: [][]float64{
 			{678758, 680986, 683214, 685442, 687670},
 			{1987036, 1988988, 1990940, 1992892, 1994844},
@@ -62,7 +62,7 @@ var testRateCases = []testRateCase{
 	},
 	{
 		name:   "irate with some NaNs",
-		opType: IRateTemporalType,
+		opType: IRateType,
 		vals: [][]float64{
 			{1987036, 1988988, 1990940, math.NaN(), 1994844},
 			{1987036, 1988988, 1990940, math.NaN(), math.NaN()},
@@ -78,7 +78,7 @@ var testRateCases = []testRateCase{
 	},
 	{
 		name:   "irate with all NaNs",
-		opType: IRateTemporalType,
+		opType: IRateType,
 		vals: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
@@ -101,7 +101,7 @@ func TestIRate(t *testing.T) {
 var testDeltaCases = []testRateCase{
 	{
 		name:   "idelta",
-		opType: IDeltaTemporalType,
+		opType: IDeltaType,
 		vals: [][]float64{
 			{863682, 865910, 868138, 870366, 872594},
 			{1987036, 1988988, 1990940, 1992892, 1994844},
@@ -117,7 +117,7 @@ var testDeltaCases = []testRateCase{
 	},
 	{
 		name:   "idelta with some NaNs",
-		opType: IDeltaTemporalType,
+		opType: IDeltaType,
 		vals: [][]float64{
 			{1987036, 1988988, 1990940, math.NaN(), 1994844},
 			{1987036, 1988988, 1990940, math.NaN(), math.NaN()},
@@ -133,7 +133,7 @@ var testDeltaCases = []testRateCase{
 	},
 	{
 		name:   "idelta with all NaNs",
-		opType: IDeltaTemporalType,
+		opType: IDeltaType,
 		vals: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},

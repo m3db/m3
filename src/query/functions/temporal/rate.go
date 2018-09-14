@@ -29,18 +29,18 @@ import (
 )
 
 const (
-	// IRateTemporalType calculates the per-second rate of increase of the time series
+	// IRateType calculates the per-second rate of increase of the time series
 	// across the specified time range. This is based on the last two data points.
-	IRateTemporalType = "irate"
+	IRateType = "irate"
 
-	// IDeltaTemporalType calculates the difference between the last two values in the time series.
+	// IDeltaType calculates the difference between the last two values in the time series.
 	// IDeltaTemporalType should only be used with gauges.
-	IDeltaTemporalType = "idelta"
+	IDeltaType = "idelta"
 )
 
 // NewRateOp creates a new base temporal transform for rate functions
 func NewRateOp(args []interface{}, optype string) (transform.Params, error) {
-	if optype == IRateTemporalType || optype == IDeltaTemporalType {
+	if optype == IRateType || optype == IDeltaType {
 		return newBaseOp(args, optype, newRateNode, nil)
 	}
 
@@ -49,7 +49,7 @@ func NewRateOp(args []interface{}, optype string) (transform.Params, error) {
 
 func newRateNode(op baseOp, controller *transform.Controller, opts transform.Options) Processor {
 	var isRate bool
-	if op.operatorType == IRateTemporalType {
+	if op.operatorType == IRateType {
 		isRate = true
 	}
 
