@@ -175,6 +175,9 @@ func NewFunctionExpr(name string, argValues []interface{}) (parser.Params, error
 	case temporal.IRateType, temporal.IDeltaType:
 		return temporal.NewRateOp(argValues, name)
 
+	case temporal.ResetsTemporalType, temporal.ChangesTemporalType:
+		return temporal.NewFunctionOp(argValues, name)
+
 	default:
 		// TODO: handle other types
 		return nil, fmt.Errorf("function not supported: %s", name)
