@@ -67,7 +67,7 @@ func TestTemporalFunc(t *testing.T) {
 		{1, 0, 2, math.NaN(), 1},
 		{6, 4, 4, 2, 5},
 	}
-	testTemporalAggregation(t, testTemporalCases, v)
+	testTemporalFunc(t, testTemporalCases, v)
 }
 
 var testTemporalCasesNaNs = []testCase{
@@ -102,11 +102,11 @@ func TestTemporalFuncAllNaNs(t *testing.T) {
 		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 	}
-	testTemporalAggregation(t, testTemporalCasesNaNs, v)
+	testTemporalFunc(t, testTemporalCasesNaNs, v)
 }
 
 // B1 has NaN in first series, first position
-func testTemporalAggregation(t *testing.T, testCases []testCase, vals [][]float64) {
+func testTemporalFunc(t *testing.T, testCases []testCase, vals [][]float64) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			values, bounds := test.GenerateValuesAndBounds(vals, nil)
