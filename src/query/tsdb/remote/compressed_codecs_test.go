@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/serialize"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/query/errors"
-	"github.com/m3db/m3/src/query/generated/proto/rpc"
+	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"

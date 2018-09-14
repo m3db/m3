@@ -35,7 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
 	remotetest "github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote/test/remote"
-	"github.com/m3db/m3/src/query/generated/proto/rpc"
+	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/storage/local"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/ident"

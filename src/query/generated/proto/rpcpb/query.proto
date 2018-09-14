@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package rpc;
 
+option go_package = "rpcpb";
+
 service Query {
 	rpc FetchDecompressed(FetchMessage) returns (stream DecompressedFetchResult);
 	rpc FetchTagged(FetchMessage) returns (stream FetchResult);
