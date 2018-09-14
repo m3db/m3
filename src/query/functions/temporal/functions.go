@@ -28,61 +28,67 @@ import (
 )
 
 const (
-	// ResetsTemporalType returns the number of counter resets within the provided time range as a time series.
+	// ResetsType returns the number of counter resets within the provided time range as a time series.
 	// Any decrease in the value between two consecutive datapoints is interpreted as a counter reset.
 	// ResetsTemporalType should only be used with counters.
-	ResetsTemporalType = "resets"
+	ResetsType = "resets"
 
-	// ChangesTemporalType returns the number of times a value changes within the provided time range for
+	// ChangesType returns the number of times a value changes within the provided time range for
 	// a given time series.
-	ChangesTemporalType = "changes"
+	ChangesType = "changes"
 )
 
 var (
-	temporalFuncs = map[string]temporalFunc{
-		ResetsTemporalType:  resets,
-		ChangesTemporalType: changes,
+	temporalFuncs = map[string]interface{}{
+		ResetsType:  struct{}{},
+		ChangesType: struct{}{},
 	}
 )
 
 // NewFunctionOp creates a new base temporal transform for functions
 func NewFunctionOp(args []interface{}, optype string) (transform.Params, error) {
-	if temporalFunc, ok := temporalFuncs[optype]; ok {
-		return newBaseOp(args, optype, newFunctionNode, temporalFunc)
+	if _, ok := temporalFuncs[optype]; ok {
+		return newBaseOp(args, optype, newFunctionNode, nil)
 	}
 
 	return nil, fmt.Errorf("unknown function type: %s", optype)
 }
 
-func newFunctionNode(op baseOp, controller *transform.Controller) Processor {
+func newFunctionNode(op baseOp, controller *transform.Controller, _ transform.Options) Processor {
+	var compFunc comparisonFunc
+	if op.operatorType == ResetsType {
+		compFunc = func(a, b float64) bool { return a < b }
+	} else {
+		compFunc = func(a, b float64) bool { return a != b }
+	}
+
 	return &functionNode{
-		op:           op,
-		controller:   controller,
-		temporalFunc: op.temporalFunc,
+		op:             op,
+		controller:     controller,
+		comparisonFunc: compFunc,
 	}
 }
 
+type comparisonFunc func(a, b float64) bool
+
 type functionNode struct {
-	op           baseOp
-	controller   *transform.Controller
-	temporalFunc temporalFunc
+	op             baseOp
+	controller     *transform.Controller
+	temporalFunc   temporalFunc
+	comparisonFunc comparisonFunc
 }
 
 func (f *functionNode) Process(values []float64) float64 {
-	return f.temporalFunc(values)
-}
-
-func resets(vals []float64) float64 {
-	resets := 0.0
-	prev := vals[0]
+	result := 0.0
+	prev := values[0]
 	var curr float64
 
-	for _, val := range vals[1:] {
+	for _, val := range values[1:] {
 		curr = val
 		if !math.IsNaN(prev) {
 			if !math.IsNaN(curr) {
-				if curr < prev {
-					resets++
+				if f.comparisonFunc(curr, prev) {
+					result++
 				}
 				prev = curr
 				continue
@@ -91,27 +97,5 @@ func resets(vals []float64) float64 {
 		}
 		prev = curr
 	}
-	return resets
-}
-
-func changes(vals []float64) float64 {
-	changes := 0.0
-	prev := vals[0]
-	var curr float64
-
-	for _, val := range vals[1:] {
-		curr = val
-		if !math.IsNaN(prev) {
-			if !math.IsNaN(curr) {
-				if curr != prev {
-					changes++
-				}
-				prev = curr
-				continue
-			}
-			continue
-		}
-		prev = curr
-	}
-	return changes
+	return result
 }

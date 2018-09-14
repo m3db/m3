@@ -38,7 +38,7 @@ import (
 var testTemporalCases = []testCase{
 	{
 		name:   "resets",
-		opType: ResetsTemporalType,
+		opType: ResetsType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 2},
@@ -50,7 +50,7 @@ var testTemporalCases = []testCase{
 	},
 	{
 		name:   "changes",
-		opType: ChangesTemporalType,
+		opType: ChangesType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 2},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 3},
@@ -73,7 +73,7 @@ func TestTemporalFunc(t *testing.T) {
 var testTemporalCasesNaNs = []testCase{
 	{
 		name:   "resets",
-		opType: ResetsTemporalType,
+		opType: ResetsType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 0},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 0},
@@ -85,7 +85,7 @@ var testTemporalCasesNaNs = []testCase{
 	},
 	{
 		name:   "changes",
-		opType: ChangesTemporalType,
+		opType: ChangesType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 0},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 0},

@@ -50,8 +50,10 @@ const (
 	StdVarTemporalType = "stdvar_over_time"
 )
 
+type aggFunc func([]float64) float64
+
 var (
-	aggFuncs = map[string]temporalFunc{
+	aggFuncs = map[string]aggFunc{
 		AvgTemporalType:    avgOverTime,
 		CountTemporalType:  countOverTime,
 		MinTemporalType:    minOverTime,
@@ -75,7 +77,7 @@ func newAggNode(op baseOp, controller *transform.Controller, _ transform.Options
 	return &aggNode{
 		op:         op,
 		controller: controller,
-		aggFunc:    op.temporalFunc,
+		aggFunc:    op.aggFunc,
 	}
 }
 

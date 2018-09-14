@@ -42,14 +42,14 @@ type baseOp struct {
 	operatorType string
 	duration     time.Duration
 	processorFn  MakeProcessor
-	temporalFunc temporalFunc
+	aggFunc      aggFunc
 }
 
 type temporalFunc func([]float64) float64
 
 // skipping lint check for a single operator type since we will be adding more
 // nolint : unparam
-func newBaseOp(args []interface{}, operatorType string, processorFn MakeProcessor, temporalFunc temporalFunc) (baseOp, error) {
+func newBaseOp(args []interface{}, operatorType string, processorFn MakeProcessor, aggFunc aggFunc) (baseOp, error) {
 	if len(args) != 1 {
 		return emptyOp, fmt.Errorf("invalid number of args for %s: %d", operatorType, len(args))
 	}
@@ -63,7 +63,7 @@ func newBaseOp(args []interface{}, operatorType string, processorFn MakeProcesso
 		operatorType: operatorType,
 		processorFn:  processorFn,
 		duration:     duration,
-		temporalFunc: temporalFunc,
+		aggFunc:      aggFunc,
 	}, nil
 }
 
