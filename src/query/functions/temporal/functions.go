@@ -74,7 +74,6 @@ type comparisonFunc func(a, b float64) bool
 type functionNode struct {
 	op             baseOp
 	controller     *transform.Controller
-	temporalFunc   temporalFunc
 	comparisonFunc comparisonFunc
 }
 
