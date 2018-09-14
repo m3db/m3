@@ -69,7 +69,41 @@ type rateNode struct {
 }
 
 func (r *rateNode) Process(values []float64) float64 {
-	return instantValue(values, r.isRate, r.timeSpec.Step)
+	valuesLen := len(values)
+	if valuesLen < 2 {
+		return math.NaN()
+	}
+
+	nonNanIdx := valuesLen - 1
+	// find idx for last non-NaN value
+	indexLast := findNonNanIdx(values, nonNanIdx)
+	// if nonNanIdx is 0 then you only have one value and should return a NaN
+	if indexLast < 1 {
+		return math.NaN()
+	}
+
+	lastSample := values[indexLast]
+	nonNanIdx = findNonNanIdx(values, indexLast-1)
+	if nonNanIdx == -1 {
+		return math.NaN()
+	}
+
+	previousSample := values[nonNanIdx]
+
+	var resultValue float64
+	if r.isRate && lastSample < previousSample {
+		// Counter reset.
+		resultValue = lastSample
+	} else {
+		resultValue = lastSample - previousSample
+	}
+
+	if r.isRate {
+		resultValue *= float64(time.Second)
+		resultValue /= float64(r.timeSpec.Step) * float64(indexLast-nonNanIdx)
+	}
+
+	return resultValue
 }
 
 // findNonNanIdx iterates over the values backwards until we find a non-NaN value,
@@ -82,44 +116,4 @@ func findNonNanIdx(vals []float64, startingIdx int) int {
 	}
 
 	return -1
-}
-
-func instantValue(values []float64, isRate bool, stepSize time.Duration) float64 {
-	valuesLen := len(values)
-	if valuesLen < 2 {
-		return math.NaN()
-	}
-
-	var indexLast int
-
-	nonNanIdx := valuesLen - 1
-	// find idx for last non-NaN value
-	nonNanIdx = findNonNanIdx(values, nonNanIdx)
-	// if nonNanIdx is 0 then you only have one value and should return a NaN
-	if nonNanIdx < 1 {
-		return math.NaN()
-	}
-	indexLast = nonNanIdx
-	lastSample := values[nonNanIdx]
-
-	nonNanIdx = findNonNanIdx(values, nonNanIdx-1)
-	if nonNanIdx == -1 {
-		return math.NaN()
-	}
-	previousSample := values[nonNanIdx]
-
-	var resultValue float64
-	if isRate && lastSample < previousSample {
-		// Counter reset.
-		resultValue = lastSample
-	} else {
-		resultValue = lastSample - previousSample
-	}
-
-	if isRate {
-		resultValue *= float64(time.Second)
-		resultValue /= float64(stepSize) * float64(indexLast-nonNanIdx)
-	}
-
-	return resultValue
 }
