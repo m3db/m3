@@ -234,7 +234,7 @@ Forwarding from [::1]:7201 -> 7201
 ```
 
 ```json
-curl -sSf -X POST localhost:7201/api/v1/placement/add -d '{
+curl -sSf -X POST localhost:7201/api/v1/placement -d '{
     "instances": [
         {
             "id": "m3dbnode-3",
