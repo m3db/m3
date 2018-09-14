@@ -81,7 +81,7 @@ func (o baseOp) Node(controller *transform.Controller, opts transform.Options) t
 		controller:    controller,
 		cache:         newBlockCache(o, opts),
 		op:            o,
-		processor:     o.processorFn(o, controller),
+		processor:     o.processorFn(o, controller, opts),
 		transformOpts: opts,
 	}
 }
@@ -335,7 +335,7 @@ type Processor interface {
 }
 
 // MakeProcessor is a way to create a transform
-type MakeProcessor func(op baseOp, controller *transform.Controller) Processor
+type MakeProcessor func(op baseOp, controller *transform.Controller, opts transform.Options) Processor
 
 type processRequest struct {
 	blk    block.Block
