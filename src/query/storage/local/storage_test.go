@@ -206,33 +206,44 @@ func TestLocalRead(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	store, sessions := setup(t, ctrl)
-	testTags := seriesiter.GenerateTag()
-	sessions.forEach(func(session *client.MockSession) {
-		session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(seriesiter.NewMockSeriesIters(ctrl, testTags, 1, 2), true, nil)
-	})
+	testTag := seriesiter.GenerateTag()
+
+	session := sessions.unaggregated1MonthRetention
+	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(seriesiter.NewMockSeriesIters(ctrl, testTag, 1, 2), true, nil)
+
 	searchReq := newFetchReq()
 	results, err := store.Fetch(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
-	assert.NoError(t, err)
+	require.NoError(t, err)
+	assertFetchResult(t, results, testTag)
+}
+
+func TestLocalReadExceedsRetention(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	store, sessions := setup(t, ctrl)
+	testTag := seriesiter.GenerateTag()
+
+	session := sessions.unaggregated1MonthRetention
+	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(seriesiter.NewMockSeriesIters(ctrl, testTag, 1, 2), true, nil)
+
+	searchReq := newFetchReq()
+	searchReq.Start = time.Now().Add(-2 * testRetention)
+	searchReq.End = time.Now()
+	results, err := store.Fetch(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
+	require.NoError(t, err)
+	assertFetchResult(t, results, testTag)
+}
+
+func assertFetchResult(t *testing.T, results *storage.FetchResult, testTag ident.Tag) {
 	tags := make(map[string]string, 1)
-	tags[testTags.Name.String()] = testTags.Value.String()
+	tags[testTag.Name.String()] = testTag.Value.String()
 	require.NotNil(t, results)
 	require.NotNil(t, results.SeriesList)
 	require.Len(t, results.SeriesList, 1)
 	require.NotNil(t, results.SeriesList[0])
 	assert.Equal(t, models.FromMap(tags), results.SeriesList[0].Tags)
-}
-
-func TestLocalReadNoClustersForTimeRangeError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	store, _ := setup(t, ctrl)
-	searchReq := newFetchReq()
-	searchReq.Start = time.Now().Add(-2 * testRetention)
-	searchReq.End = time.Now()
-	_, err := store.Fetch(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
-	require.Error(t, err)
-	assert.Equal(t, errNoLocalClustersFulfillsQuery, err)
 }
 
 func TestLocalSearchError(t *testing.T) {
