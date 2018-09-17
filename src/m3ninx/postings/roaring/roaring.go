@@ -22,6 +22,7 @@ package roaring
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/x"
@@ -36,7 +37,22 @@ var (
 	errIteratorClosed        = errors.New("iterator has been closed")
 )
 
-// postingsList wraps a Roaring Bitmap with the m3ninx pl API.
+// Union retrieves a new postings list which is the union of the provided lists.
+func Union(inputs []postings.List) (postings.MutableList, error) {
+	bitmaps := make([]*roaring.Bitmap, 0, len(inputs))
+	for _, in := range inputs {
+		pl, ok := in.(*postingsList)
+		if !ok {
+			return nil, fmt.Errorf("unable to convert inputs into roaring postings lists")
+		}
+		bitmaps = append(bitmaps, pl.bitmap)
+	}
+	return &postingsList{
+		bitmap: roaring.FastOr(bitmaps...),
+	}, nil
+}
+
+// postingsList abstracts a Roaring Bitmap.
 type postingsList struct {
 	bitmap *roaring.Bitmap
 }
