@@ -26,18 +26,18 @@ import (
 )
 
 const (
-	// UninitializedBootstrapperName is the name of the uninitialized bootstrapper.
-	UninitializedBootstrapperName = "uninitialized"
+	// UninitializedTopologyBootstrapperName is the name of the uninitialized bootstrapper.
+	UninitializedTopologyBootstrapperName = "uninitialized_topology"
 )
 
-type uninitializedBootstrapperProvider struct {
+type uninitializedTopologyBootstrapperProvider struct {
 	opts Options
 	next bootstrap.BootstrapperProvider
 }
 
-// NewUninitializedBootstrapperProvider creates a new uninitialized bootstrapper
+// NewuninitializedTopologyBootstrapperProvider creates a new uninitialized bootstrapper
 // provider.
-func NewUninitializedBootstrapperProvider(
+func NewuninitializedTopologyBootstrapperProvider(
 	opts Options,
 	next bootstrap.BootstrapperProvider,
 ) (bootstrap.BootstrapperProvider, error) {
@@ -45,16 +45,16 @@ func NewUninitializedBootstrapperProvider(
 		return nil, err
 	}
 
-	return uninitializedBootstrapperProvider{
+	return uninitializedTopologyBootstrapperProvider{
 		opts: opts,
 		next: next,
 	}, nil
 }
 
-func (p uninitializedBootstrapperProvider) Provide() (bootstrap.Bootstrapper, error) {
+func (p uninitializedTopologyBootstrapperProvider) Provide() (bootstrap.Bootstrapper, error) {
 	var (
-		src  = newUninitializedSource(p.opts)
-		b    = &uninitializedBootstrapper{}
+		src  = newTopologyUninitializedSource(p.opts)
+		b    = &uninitializedTopologyBootstrapper{}
 		next bootstrap.Bootstrapper
 		err  error
 	)
@@ -70,14 +70,14 @@ func (p uninitializedBootstrapperProvider) Provide() (bootstrap.Bootstrapper, er
 		b.String(), src, p.opts.ResultOptions(), next)
 }
 
-func (p uninitializedBootstrapperProvider) String() string {
-	return UninitializedBootstrapperName
+func (p uninitializedTopologyBootstrapperProvider) String() string {
+	return UninitializedTopologyBootstrapperName
 }
 
-type uninitializedBootstrapper struct {
+type uninitializedTopologyBootstrapper struct {
 	bootstrap.Bootstrapper
 }
 
-func (*uninitializedBootstrapper) String() string {
-	return UninitializedBootstrapperName
+func (*uninitializedTopologyBootstrapper) String() string {
+	return UninitializedTopologyBootstrapperName
 }

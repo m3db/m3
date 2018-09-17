@@ -44,7 +44,7 @@ var (
 	notSelfID3         = "not-self-3"
 )
 
-func TestUnitializedSourceAvailableDataAndAvailableIndex(t *testing.T) {
+func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 	var (
 		blockSize                  = 2 * time.Hour
 		shards                     = []uint32{0, 1, 2, 3}
@@ -267,7 +267,7 @@ func TestUnitializedSourceAvailableDataAndAvailableIndex(t *testing.T) {
 
 			var (
 				srcOpts                 = NewOptions().SetInstrumentOptions(instrument.NewOptions())
-				src                     = newUninitializedSource(srcOpts)
+				src                     = newTopologyUninitializedSource(srcOpts)
 				runOpts                 = testDefaultRunOpts.SetInitialTopologyState(tc.hosts.TopologyState(tc.majorityReplicas))
 				dataAvailabilityResult  = src.AvailableData(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
 				indexAvailabilityResult = src.AvailableIndex(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)

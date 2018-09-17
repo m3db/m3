@@ -27,18 +27,18 @@ import (
 
 // Options is the options interface for the uninitialized source.
 type Options interface {
+	// Validate validates the options are correct.
+	Validate() error
+
 	// SetResultOptions sets the result options
 	SetResultOptions(value result.Options) Options
 
 	// ResultOptions returns the result options
 	ResultOptions() result.Options
 
-	// Return the instrument options.
-	InstrumentOptions() instrument.Options
-
 	// Set the instrument options.
 	SetInstrumentOptions(value instrument.Options) Options
 
-	// Validate validates the options are correct.
-	Validate() error
+	// Return the instrument options.
+	InstrumentOptions() instrument.Options
 }

@@ -488,7 +488,7 @@ db:
             - filesystem
             - commitlog
             - peers
-            - uninitialized
+            - uninitialized_topology
         fs:
             numProcessorsPerCPU: 0.125
 

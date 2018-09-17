@@ -37,18 +37,18 @@ import (
 // putting the noop-all or noop-none bootstrappers at the end of the process.
 // Behavior is best understood by reading the test cases for the test:
 // TestUnitializedSourceAvailableDataAndAvailableIndex
-type uninitializedSource struct {
+type uninitializedTopologySource struct {
 	opts Options
 }
 
-// NewUninitializedSource creates a new uninitialized source.
-func newUninitializedSource(opts Options) bootstrap.Source {
-	return &uninitializedSource{
+// newTopologyUninitializedSource creates a new uninitialized source.
+func newTopologyUninitializedSource(opts Options) bootstrap.Source {
+	return &uninitializedTopologySource{
 		opts: opts,
 	}
 }
 
-func (s *uninitializedSource) Can(strategy bootstrap.Strategy) bool {
+func (s *uninitializedTopologySource) Can(strategy bootstrap.Strategy) bool {
 	switch strategy {
 	case bootstrap.BootstrapSequential:
 		return true
@@ -57,7 +57,7 @@ func (s *uninitializedSource) Can(strategy bootstrap.Strategy) bool {
 	return false
 }
 
-func (s *uninitializedSource) AvailableData(
+func (s *uninitializedTopologySource) AvailableData(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
@@ -65,7 +65,7 @@ func (s *uninitializedSource) AvailableData(
 	return s.availability(ns, shardsTimeRanges, runOpts)
 }
 
-func (s *uninitializedSource) AvailableIndex(
+func (s *uninitializedTopologySource) AvailableIndex(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
@@ -73,7 +73,7 @@ func (s *uninitializedSource) AvailableIndex(
 	return s.availability(ns, shardsTimeRanges, runOpts)
 }
 
-func (s *uninitializedSource) availability(
+func (s *uninitializedTopologySource) availability(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
@@ -135,7 +135,7 @@ func (s *uninitializedSource) availability(
 	return availableShardTimeRanges
 }
 
-func (s *uninitializedSource) ReadData(
+func (s *uninitializedTopologySource) ReadData(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
@@ -153,7 +153,7 @@ func (s *uninitializedSource) ReadData(
 	return missing.ToUnfulfilledDataResult(), nil
 }
 
-func (s *uninitializedSource) ReadIndex(
+func (s *uninitializedTopologySource) ReadIndex(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,

@@ -159,11 +159,11 @@ func (bsc BootstrapConfiguration) New(
 			if err != nil {
 				return nil, err
 			}
-		case uninitialized.UninitializedBootstrapperName:
+		case uninitialized.UninitializedTopologyBootstrapperName:
 			uopts := uninitialized.NewOptions().
 				SetResultOptions(rsOpts).
 				SetInstrumentOptions(opts.InstrumentOptions())
-			bs, err = uninitialized.NewUninitializedBootstrapperProvider(uopts, bs)
+			bs, err = uninitialized.NewuninitializedTopologyBootstrapperProvider(uopts, bs)
 			if err != nil {
 				return nil, err
 			}
@@ -206,7 +206,7 @@ func ValidateBootstrappersOrder(names []string) error {
 			bfs.FileSystemBootstrapperName,
 			peers.PeersBootstrapperName,
 		},
-		uninitialized.UninitializedBootstrapperName: []string{
+		uninitialized.UninitializedTopologyBootstrapperName: []string{
 			// Unintialized bootstrapper may appear after filesystem or peers or commitlog
 			bfs.FileSystemBootstrapperName,
 			commitlog.CommitLogBootstrapperName,
