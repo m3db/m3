@@ -206,11 +206,18 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 					log.Infof("verified data in database equals expected data")
 					if input.waitForFlushFiles {
 						log.Infof("Waiting for data files to be flushed")
-						now := setup.getNowFn()
-						latestFlushTime := now.Truncate(ns1BlockSize).Add(-ns1BlockSize)
-						expectedFlushedData := datapoints.before(latestFlushTime.Add(-bufferPast)).toSeriesMap(ns1BlockSize)
-						err := waitUntilDataFilesFlushed(
-							filePathPrefix, setup.shardSet, nsID, expectedFlushedData, maxFlushWaitTime)
+						var (
+							now                       = setup.getNowFn()
+							endOfLatestFlushableBlock = retention.FlushTimeEnd(ns1ROpts, now).
+								// Add block size because FlushTimeEnd will return the beginning of the
+								// latest flushable block.
+								Add(ns1BlockSize)
+								// Any data that falls within or before the end the last flushable block should
+								// be available on disk.
+							expectedFlushedData = datapoints.before(endOfLatestFlushableBlock).toSeriesMap(ns1BlockSize)
+							err                 = waitUntilDataFilesFlushed(
+								filePathPrefix, setup.shardSet, nsID, expectedFlushedData, maxFlushWaitTime)
+						)
 						if err != nil {
 							return false, fmt.Errorf("error waiting for data files to flush: %s", err)
 						}
