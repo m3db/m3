@@ -34,7 +34,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/serialize"
-	"github.com/m3db/m3/src/dbnode/x/mmap"
+	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"

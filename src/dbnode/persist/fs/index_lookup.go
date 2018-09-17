@@ -27,7 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/digest"
 	xmsgpack "github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
-	"github.com/m3db/m3/src/dbnode/x/mmap"
+	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3x/ident"
 
 	"gopkg.in/vmihailenco/msgpack.v2"
