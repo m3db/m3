@@ -344,14 +344,14 @@ func (b bootstrapProcess) targetRanges(
 	return []TargetRange{
 		{
 			Range: xtime.Range{Start: start, End: midPoint},
-			RunOptions: b.newRunOptions().SetIncrementalConfig(IncrementalConfig{
+			RunOptions: b.newRunOptions().SetPersistConfig(PersistConfig{
 				Enabled:     true,
 				FileSetType: persist.FileSetFlushType,
 			}),
 		},
 		{
 			Range: xtime.Range{Start: midPoint, End: cutover},
-			RunOptions: b.newRunOptions().SetIncrementalConfig(IncrementalConfig{
+			RunOptions: b.newRunOptions().SetPersistConfig(PersistConfig{
 				Enabled:     true,
 				FileSetType: persist.FileSetSnapshotType,
 			}),

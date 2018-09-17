@@ -236,28 +236,28 @@ func (m *MockRunOptions) EXPECT() *MockRunOptionsMockRecorder {
 	return m.recorder
 }
 
-// SetIncrementalConfig mocks base method
-func (m *MockRunOptions) SetIncrementalConfig(value IncrementalConfig) RunOptions {
-	ret := m.ctrl.Call(m, "SetIncrementalConfig", value)
+// SetPersistConfig mocks base method
+func (m *MockRunOptions) SetPersistConfig(value PersistConfig) RunOptions {
+	ret := m.ctrl.Call(m, "SetPersistConfig", value)
 	ret0, _ := ret[0].(RunOptions)
 	return ret0
 }
 
-// SetIncrementalConfig indicates an expected call of SetIncrementalConfig
-func (mr *MockRunOptionsMockRecorder) SetIncrementalConfig(value interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIncrementalConfig", reflect.TypeOf((*MockRunOptions)(nil).SetIncrementalConfig), value)
+// SetPersistConfig indicates an expected call of SetPersistConfig
+func (mr *MockRunOptionsMockRecorder) SetPersistConfig(value interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPersistConfig", reflect.TypeOf((*MockRunOptions)(nil).SetPersistConfig), value)
 }
 
-// IncrementalConfig mocks base method
-func (m *MockRunOptions) IncrementalConfig() IncrementalConfig {
-	ret := m.ctrl.Call(m, "IncrementalConfig")
-	ret0, _ := ret[0].(IncrementalConfig)
+// PersistConfig mocks base method
+func (m *MockRunOptions) PersistConfig() PersistConfig {
+	ret := m.ctrl.Call(m, "PersistConfig")
+	ret0, _ := ret[0].(PersistConfig)
 	return ret0
 }
 
-// IncrementalConfig indicates an expected call of IncrementalConfig
-func (mr *MockRunOptionsMockRecorder) IncrementalConfig() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncrementalConfig", reflect.TypeOf((*MockRunOptions)(nil).IncrementalConfig))
+// PersistConfig indicates an expected call of PersistConfig
+func (mr *MockRunOptionsMockRecorder) PersistConfig() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PersistConfig", reflect.TypeOf((*MockRunOptions)(nil).PersistConfig))
 }
 
 // SetCacheSeriesMetadata mocks base method
