@@ -220,7 +220,7 @@ func (s *fileSystemSource) enqueueReaders(
 	// Close the readers ch if and only if all readers are enqueued
 	defer close(readersCh)
 
-	indexIncrementalBootstrap := run == bootstrapIndexRunType && runOpts.IncrementalConfig().Enabled
+	indexIncrementalBootstrap := run == bootstrapIndexRunType && runOpts.PersistConfig().Enabled
 	if !indexIncrementalBootstrap {
 		// Normal run, open readers
 		s.enqueueReadersGroupedByBlockSize(ns, run, runOpts,
@@ -594,7 +594,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		}
 	}
 
-	incremental := runOpts.IncrementalConfig().Enabled
+	incremental := runOpts.PersistConfig().Enabled
 	noneRemaining := remainingRanges.IsEmpty()
 	if run == bootstrapIndexRunType && incremental && noneRemaining {
 		err := s.incrementalBootstrapIndexSegment(ns, requestedRanges, runResult)
