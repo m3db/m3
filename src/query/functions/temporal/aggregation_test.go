@@ -45,7 +45,7 @@ type testCase struct {
 var testCases = []testCase{
 	{
 		name:   "avg_over_time",
-		opType: AvgTemporalType,
+		opType: AvgType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 2.5},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 7},
@@ -57,7 +57,7 @@ var testCases = []testCase{
 	},
 	{
 		name:   "count_over_time",
-		opType: CountTemporalType,
+		opType: CountType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 4},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 5},
@@ -69,7 +69,7 @@ var testCases = []testCase{
 	},
 	{
 		name:   "min_over_time",
-		opType: MinTemporalType,
+		opType: MinType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 5},
@@ -81,7 +81,7 @@ var testCases = []testCase{
 	},
 	{
 		name:   "max_over_time",
-		opType: MaxTemporalType,
+		opType: MaxType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 4},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 9},
@@ -93,7 +93,7 @@ var testCases = []testCase{
 	},
 	{
 		name:   "sum_over_time",
-		opType: SumTemporalType,
+		opType: SumType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 10},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 35},
@@ -105,7 +105,7 @@ var testCases = []testCase{
 	},
 	{
 		name:   "stddev_over_time",
-		opType: StdDevTemporalType,
+		opType: StdDevType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1.1180},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1.4142},
@@ -117,7 +117,7 @@ var testCases = []testCase{
 	},
 	{
 		name:   "stdvar_over_time",
-		opType: StdVarTemporalType,
+		opType: StdVarType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1.25},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 2},
@@ -140,7 +140,7 @@ func TestAggregation(t *testing.T) {
 var testCasesNaNs = []testCase{
 	{
 		name:   "avg_over_time",
-		opType: AvgTemporalType,
+		opType: AvgType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
@@ -152,7 +152,7 @@ var testCasesNaNs = []testCase{
 	},
 	{
 		name:   "count_over_time",
-		opType: CountTemporalType,
+		opType: CountType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
@@ -164,7 +164,7 @@ var testCasesNaNs = []testCase{
 	},
 	{
 		name:   "min_over_time",
-		opType: MinTemporalType,
+		opType: MinType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
@@ -176,7 +176,7 @@ var testCasesNaNs = []testCase{
 	},
 	{
 		name:   "max_over_time",
-		opType: MaxTemporalType,
+		opType: MaxType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
@@ -188,7 +188,7 @@ var testCasesNaNs = []testCase{
 	},
 	{
 		name:   "sum_over_time",
-		opType: SumTemporalType,
+		opType: SumType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
@@ -200,7 +200,7 @@ var testCasesNaNs = []testCase{
 	},
 	{
 		name:   "stddev_over_time",
-		opType: StdDevTemporalType,
+		opType: StdDevType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
@@ -212,7 +212,7 @@ var testCasesNaNs = []testCase{
 	},
 	{
 		name:   "stdvar_over_time",
-		opType: StdVarTemporalType,
+		opType: StdVarType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},

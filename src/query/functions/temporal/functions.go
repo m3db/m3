@@ -78,23 +78,24 @@ type functionNode struct {
 }
 
 func (f *functionNode) Process(values []float64) float64 {
+	if len(values) == 0 {
+		return math.NaN()
+	}
+
 	result := 0.0
 	prev := values[0]
-	var curr float64
 
-	for _, val := range values[1:] {
-		curr = val
-		if !math.IsNaN(prev) {
-			if !math.IsNaN(curr) {
-				if f.comparisonFunc(curr, prev) {
-					result++
-				}
-				prev = curr
-				continue
+	for _, curr := range values[1:] {
+		if !math.IsNaN(prev) && !math.IsNaN(curr) {
+			if f.comparisonFunc(curr, prev) {
+				result++
 			}
+			prev = curr
 			continue
 		}
-		prev = curr
+		if !math.IsNaN(curr) {
+			prev = curr
+		}
 	}
 	return result
 }
