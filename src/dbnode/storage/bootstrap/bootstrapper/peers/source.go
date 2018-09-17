@@ -101,9 +101,9 @@ func (s *peersSource) ReadData(
 		persistFlush      persist.DataFlush
 		incremental       = false
 		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
-		incrementalConfig = opts.IncrementalConfig()
+		persistConfig     = opts.PersistConfig()
 	)
-	if incrementalConfig.Enabled && seriesCachePolicy != series.CacheAll {
+	if persistConfig.Enabled && seriesCachePolicy != series.CacheAll {
 		retrieverMgr := s.opts.DatabaseBlockRetrieverManager()
 		persistManager := s.opts.PersistManager()
 
@@ -360,7 +360,7 @@ func (s *peersSource) incrementalFlush(
 		shardRetriever    = shardRetrieverMgr.ShardRetriever(shard)
 		tmpCtx            = context.NewContext()
 		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
-		incrementalConfig = opts.IncrementalConfig()
+		persistConfig     = opts.PersistConfig()
 	)
 	if seriesCachePolicy == series.CacheAllMetadata && shardRetriever == nil {
 		return fmt.Errorf("shard retriever missing for shard: %d", shard)
@@ -369,7 +369,7 @@ func (s *peersSource) incrementalFlush(
 	for start := tr.Start; start.Before(tr.End); start = start.Add(blockSize) {
 		prepareOpts := persist.DataPrepareOptions{
 			NamespaceMetadata: nsMetadata,
-			FileSetType:       incrementalConfig.FileSetType,
+			FileSetType:       persistConfig.FileSetType,
 			Shard:             shard,
 			BlockStart:        start,
 			// If we've peer bootstrapped this shard/block combination AND the fileset
@@ -427,7 +427,7 @@ func (s *peersSource) incrementalFlush(
 				break
 			}
 
-			switch incrementalConfig.FileSetType {
+			switch persistConfig.FileSetType {
 			case persist.FileSetFlushType:
 				switch seriesCachePolicy {
 				case series.CacheAll:
@@ -454,7 +454,7 @@ func (s *peersSource) incrementalFlush(
 				}
 			case persist.FileSetSnapshotType:
 			default:
-				panic(fmt.Sprintf("unknown FileSetFileType: %v", incrementalConfig.FileSetType))
+				return fmt.Errorf("unknown FileSetFileType: %v", persistConfig.FileSetType)
 			}
 		}
 

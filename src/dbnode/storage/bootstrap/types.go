@@ -69,8 +69,8 @@ type TargetRange struct {
 	RunOptions RunOptions
 }
 
-// IncrementalConfig is the configuration for an incremental bootstrap.
-type IncrementalConfig struct {
+// PersistConfig is the configuration for an incremental bootstrap.
+type PersistConfig struct {
 	// Whether this bootstrap should incrementally persist data to disk.
 	Enabled bool
 	// If enabled, what type of files should be generated during the incremental
@@ -100,11 +100,11 @@ type ProcessOptions interface {
 
 // RunOptions is a set of options for a bootstrap run.
 type RunOptions interface {
-	// SetIncrementalConfig sets incremental configuration for this bootstrap.
-	SetIncrementalConfig(value IncrementalConfig) RunOptions
+	// SetPersistConfig sets incremental configuration for this bootstrap.
+	SetPersistConfig(value PersistConfig) RunOptions
 
-	// IncrementalConfig returns the incremental configuration for this bootstrap.
-	IncrementalConfig() IncrementalConfig
+	// PersistConfig returns the incremental configuration for this bootstrap.
+	PersistConfig() PersistConfig
 
 	// SetCacheSeriesMetadata sets whether bootstrappers created by this
 	// provider should cache series metadata between runs.
