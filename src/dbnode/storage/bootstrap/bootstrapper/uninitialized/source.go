@@ -29,8 +29,8 @@ import (
 )
 
 // The purpose of the unitializedSource is to succeed bootstraps for any
-// shard/time-ranges if the given shard/namespace combination has never
-// been completely initialized (is a new namespace). This is required for
+// shard/time-ranges if the cluster they're associated with has never
+// been completely initialized (is a new cluster). This is required for
 // allowing us to configure the bootstrappers such that the commitlog
 // bootstrapper can precede the peers bootstrapper and still succeed bootstraps
 // for brand new namespaces without permitting unintentional data loss by

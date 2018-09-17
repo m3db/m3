@@ -26,7 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
-	topotestutils "github.com/m3db/m3/src/dbnode/topology/testutil"
+	tu "github.com/m3db/m3/src/dbnode/topology/testutil"
 	"github.com/m3db/m3cluster/shard"
 	xtime "github.com/m3db/m3x/time"
 
@@ -57,16 +57,16 @@ func TestAvailableData(t *testing.T) {
 
 	testCases := []struct {
 		title                             string
-		hosts                             topotestutils.SourceAvailableHosts
+		hosts                             tu.SourceAvailableHosts
 		majorityReplicas                  int
 		shardsTimeRangesToBootstrap       result.ShardTimeRanges
 		expectedAvailableShardsTimeRanges result.ShardTimeRanges
 	}{
 		{
 			title: "Single node - Shard initializing",
-			hosts: []topotestutils.SourceAvailableHost{
-				topotestutils.SourceAvailableHost{
-					Name:        topotestutils.SelfID,
+			hosts: []tu.SourceAvailableHost{
+				tu.SourceAvailableHost{
+					Name:        tu.SelfID,
 					Shards:      shards,
 					ShardStates: shard.Initializing,
 				},
@@ -77,9 +77,9 @@ func TestAvailableData(t *testing.T) {
 		},
 		{
 			title: "Single node - Shard unknown",
-			hosts: []topotestutils.SourceAvailableHost{
-				topotestutils.SourceAvailableHost{
-					Name:        topotestutils.SelfID,
+			hosts: []tu.SourceAvailableHost{
+				tu.SourceAvailableHost{
+					Name:        tu.SelfID,
 					Shards:      shards,
 					ShardStates: shard.Unknown,
 				},
@@ -90,9 +90,9 @@ func TestAvailableData(t *testing.T) {
 		},
 		{
 			title: "Single node - Shard leaving",
-			hosts: []topotestutils.SourceAvailableHost{
-				topotestutils.SourceAvailableHost{
-					Name:        topotestutils.SelfID,
+			hosts: []tu.SourceAvailableHost{
+				tu.SourceAvailableHost{
+					Name:        tu.SelfID,
 					Shards:      shards,
 					ShardStates: shard.Leaving,
 				},
@@ -103,9 +103,9 @@ func TestAvailableData(t *testing.T) {
 		},
 		{
 			title: "Single node - Shard available",
-			hosts: []topotestutils.SourceAvailableHost{
-				topotestutils.SourceAvailableHost{
-					Name:        topotestutils.SelfID,
+			hosts: []tu.SourceAvailableHost{
+				tu.SourceAvailableHost{
+					Name:        tu.SelfID,
 					Shards:      shards,
 					ShardStates: shard.Available,
 				},
@@ -116,13 +116,13 @@ func TestAvailableData(t *testing.T) {
 		},
 		{
 			title: "Multi node - Origin available",
-			hosts: []topotestutils.SourceAvailableHost{
-				topotestutils.SourceAvailableHost{
-					Name:        topotestutils.SelfID,
+			hosts: []tu.SourceAvailableHost{
+				tu.SourceAvailableHost{
+					Name:        tu.SelfID,
 					Shards:      shards,
 					ShardStates: shard.Available,
 				},
-				topotestutils.SourceAvailableHost{
+				tu.SourceAvailableHost{
 					Name:        notSelfID,
 					Shards:      shards,
 					ShardStates: shard.Initializing,
@@ -134,13 +134,13 @@ func TestAvailableData(t *testing.T) {
 		},
 		{
 			title: "Multi node - Origin not available",
-			hosts: []topotestutils.SourceAvailableHost{
-				topotestutils.SourceAvailableHost{
-					Name:        topotestutils.SelfID,
+			hosts: []tu.SourceAvailableHost{
+				tu.SourceAvailableHost{
+					Name:        tu.SelfID,
 					Shards:      shards,
 					ShardStates: shard.Initializing,
 				},
-				topotestutils.SourceAvailableHost{
+				tu.SourceAvailableHost{
 					Name:        notSelfID,
 					Shards:      shards,
 					ShardStates: shard.Available,

@@ -27,7 +27,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	topotestutils "github.com/m3db/m3/src/dbnode/topology/testutil"
+	tu "github.com/m3db/m3/src/dbnode/topology/testutil"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -65,7 +65,7 @@ func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 	testCases := []struct {
 		title                             string
 		majorityReplicas                  int
-		hosts                             topotestutils.SourceAvailableHosts
+		hosts                             tu.SourceAvailableHosts
 		shardsTimeRangesToBootstrap       result.ShardTimeRanges
 		expectedAvailableShardsTimeRanges result.ShardTimeRanges
 	}{
@@ -74,9 +74,9 @@ func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 		{
 			title:            "Single node - Shard initializing",
 			majorityReplicas: 1,
-			hosts: []topotestutils.SourceAvailableHost{
-				topotestutils.SourceAvailableHost{
-					Name:        topotestutils.SelfID,
+			hosts: []tu.SourceAvailableHost{
+				tu.SourceAvailableHost{
+					Name:        tu.SelfID,
 					Shards:      shards,
 					ShardStates: shard.Initializing,
 				},
@@ -89,9 +89,9 @@ func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 		{
 			title:            "Single node - Shard unknown",
 			majorityReplicas: 1,
-			hosts: []topotestutils.SourceAvailableHost{
-				topotestutils.SourceAvailableHost{
-					Name:        topotestutils.SelfID,
+			hosts: []tu.SourceAvailableHost{
+				tu.SourceAvailableHost{
+					Name:        tu.SelfID,
 					Shards:      shards,
 					ShardStates: shard.Unknown,
 				},
@@ -104,9 +104,9 @@ func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 		{
 			title:            "Single node - Shard leaving",
 			majorityReplicas: 1,
-			hosts: []topotestutils.SourceAvailableHost{
-				topotestutils.SourceAvailableHost{
-					Name:        topotestutils.SelfID,
+			hosts: []tu.SourceAvailableHost{
+				tu.SourceAvailableHost{
+					Name:        tu.SelfID,
 					Shards:      shards,
 					ShardStates: shard.Leaving,
 				},
@@ -119,9 +119,9 @@ func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 		{
 			title:            "Single node - Shard available",
 			majorityReplicas: 1,
-			hosts: []topotestutils.SourceAvailableHost{
-				topotestutils.SourceAvailableHost{
-					Name:        topotestutils.SelfID,
+			hosts: []tu.SourceAvailableHost{
+				tu.SourceAvailableHost{
+					Name:        tu.SelfID,
 					Shards:      shards,
 					ShardStates: shard.Available,
 				},
@@ -134,18 +134,18 @@ func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 		{
 			title:            "Multi node - Brand new namespace (all nodes initializing)",
 			majorityReplicas: 2,
-			hosts: []topotestutils.SourceAvailableHost{
-				topotestutils.SourceAvailableHost{
-					Name:        topotestutils.SelfID,
+			hosts: []tu.SourceAvailableHost{
+				tu.SourceAvailableHost{
+					Name:        tu.SelfID,
 					Shards:      shards,
 					ShardStates: shard.Initializing,
 				},
-				topotestutils.SourceAvailableHost{
+				tu.SourceAvailableHost{
 					Name:        notSelfID1,
 					Shards:      shards,
 					ShardStates: shard.Initializing,
 				},
-				topotestutils.SourceAvailableHost{
+				tu.SourceAvailableHost{
 					Name:        notSelfID2,
 					Shards:      shards,
 					ShardStates: shard.Initializing,
@@ -160,18 +160,18 @@ func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 		{
 			title:            "Multi node - Recently created namespace (one node still initializing)",
 			majorityReplicas: 2,
-			hosts: []topotestutils.SourceAvailableHost{
-				topotestutils.SourceAvailableHost{
-					Name:        topotestutils.SelfID,
+			hosts: []tu.SourceAvailableHost{
+				tu.SourceAvailableHost{
+					Name:        tu.SelfID,
 					Shards:      shards,
 					ShardStates: shard.Initializing,
 				},
-				topotestutils.SourceAvailableHost{
+				tu.SourceAvailableHost{
 					Name:        notSelfID1,
 					Shards:      shards,
 					ShardStates: shard.Available,
 				},
-				topotestutils.SourceAvailableHost{
+				tu.SourceAvailableHost{
 					Name:        notSelfID2,
 					Shards:      shards,
 					ShardStates: shard.Available,
@@ -185,18 +185,18 @@ func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 		{
 			title:            "Multi node - Initialized namespace (no nodes initializing)",
 			majorityReplicas: 2,
-			hosts: []topotestutils.SourceAvailableHost{
-				topotestutils.SourceAvailableHost{
-					Name:        topotestutils.SelfID,
+			hosts: []tu.SourceAvailableHost{
+				tu.SourceAvailableHost{
+					Name:        tu.SelfID,
 					Shards:      shards,
 					ShardStates: shard.Available,
 				},
-				topotestutils.SourceAvailableHost{
+				tu.SourceAvailableHost{
 					Name:        notSelfID1,
 					Shards:      shards,
 					ShardStates: shard.Available,
 				},
-				topotestutils.SourceAvailableHost{
+				tu.SourceAvailableHost{
 					Name:        notSelfID2,
 					Shards:      shards,
 					ShardStates: shard.Available,
@@ -210,23 +210,23 @@ func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 		{
 			title:            "Multi node - Node replace (one node leaving, one initializing)",
 			majorityReplicas: 2,
-			hosts: []topotestutils.SourceAvailableHost{
-				topotestutils.SourceAvailableHost{
-					Name:        topotestutils.SelfID,
+			hosts: []tu.SourceAvailableHost{
+				tu.SourceAvailableHost{
+					Name:        tu.SelfID,
 					Shards:      shards,
 					ShardStates: shard.Available,
 				},
-				topotestutils.SourceAvailableHost{
+				tu.SourceAvailableHost{
 					Name:        notSelfID1,
 					Shards:      shards,
 					ShardStates: shard.Leaving,
 				},
-				topotestutils.SourceAvailableHost{
+				tu.SourceAvailableHost{
 					Name:        notSelfID2,
 					Shards:      shards,
 					ShardStates: shard.Available,
 				},
-				topotestutils.SourceAvailableHost{
+				tu.SourceAvailableHost{
 					Name:        notSelfID3,
 					Shards:      shards,
 					ShardStates: shard.Initializing,
@@ -240,18 +240,18 @@ func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 		{
 			title:            "Multi node - One node unknown",
 			majorityReplicas: 2,
-			hosts: []topotestutils.SourceAvailableHost{
-				topotestutils.SourceAvailableHost{
-					Name:        topotestutils.SelfID,
+			hosts: []tu.SourceAvailableHost{
+				tu.SourceAvailableHost{
+					Name:        tu.SelfID,
 					Shards:      shards,
 					ShardStates: shard.Available,
 				},
-				topotestutils.SourceAvailableHost{
+				tu.SourceAvailableHost{
 					Name:        notSelfID1,
 					Shards:      shards,
 					ShardStates: shard.Available,
 				},
-				topotestutils.SourceAvailableHost{
+				tu.SourceAvailableHost{
 					Name:        notSelfID2,
 					Shards:      shards,
 					ShardStates: shard.Unknown,

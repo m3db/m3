@@ -27,7 +27,7 @@ import (
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
-	topotestutils "github.com/m3db/m3/src/dbnode/topology/testutil"
+	tu "github.com/m3db/m3/src/dbnode/topology/testutil"
 	"github.com/m3db/m3cluster/shard"
 	xtime "github.com/m3db/m3x/time"
 
@@ -65,7 +65,7 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 
 	testCases := []struct {
 		title                             string
-		hosts                             topotestutils.SourceAvailableHosts
+		hosts                             tu.SourceAvailableHosts
 		majorityReplicas                  int
 		bootstrapReadConsistency          topology.ReadConsistencyLevel
 		shardsTimeRangesToBootstrap       result.ShardTimeRanges
@@ -73,9 +73,9 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 	}{
 		{
 			title: "Returns empty if only self is available",
-			hosts: []topotestutils.SourceAvailableHost{
-				topotestutils.SourceAvailableHost{
-					Name:        topotestutils.SelfID,
+			hosts: []tu.SourceAvailableHost{
+				tu.SourceAvailableHost{
+					Name:        tu.SelfID,
 					Shards:      shards,
 					ShardStates: shard.Available,
 				},
@@ -87,18 +87,18 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 		},
 		{
 			title: "Returns empty if all other peers initializing/unknown",
-			hosts: []topotestutils.SourceAvailableHost{
-				topotestutils.SourceAvailableHost{
-					Name:        topotestutils.SelfID,
+			hosts: []tu.SourceAvailableHost{
+				tu.SourceAvailableHost{
+					Name:        tu.SelfID,
 					Shards:      shards,
 					ShardStates: shard.Available,
 				},
-				topotestutils.SourceAvailableHost{
+				tu.SourceAvailableHost{
 					Name:        notSelfID1,
 					Shards:      shards,
 					ShardStates: shard.Initializing,
 				},
-				topotestutils.SourceAvailableHost{
+				tu.SourceAvailableHost{
 					Name:        notSelfID2,
 					Shards:      shards,
 					ShardStates: shard.Unknown,
@@ -111,18 +111,18 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 		},
 		{
 			title: "Returns success if consistency can be met (available/leaving)",
-			hosts: []topotestutils.SourceAvailableHost{
-				topotestutils.SourceAvailableHost{
-					Name:        topotestutils.SelfID,
+			hosts: []tu.SourceAvailableHost{
+				tu.SourceAvailableHost{
+					Name:        tu.SelfID,
 					Shards:      shards,
 					ShardStates: shard.Initializing,
 				},
-				topotestutils.SourceAvailableHost{
+				tu.SourceAvailableHost{
 					Name:        notSelfID1,
 					Shards:      shards,
 					ShardStates: shard.Available,
 				},
-				topotestutils.SourceAvailableHost{
+				tu.SourceAvailableHost{
 					Name:        notSelfID2,
 					Shards:      shards,
 					ShardStates: shard.Leaving,
@@ -134,18 +134,18 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 		},
 		{
 			title: "Skips shards that were not in the topology at start",
-			hosts: []topotestutils.SourceAvailableHost{
-				topotestutils.SourceAvailableHost{
-					Name:        topotestutils.SelfID,
+			hosts: []tu.SourceAvailableHost{
+				tu.SourceAvailableHost{
+					Name:        tu.SelfID,
 					Shards:      shards,
 					ShardStates: shard.Initializing,
 				},
-				topotestutils.SourceAvailableHost{
+				tu.SourceAvailableHost{
 					Name:        notSelfID1,
 					Shards:      shards,
 					ShardStates: shard.Available,
 				},
-				topotestutils.SourceAvailableHost{
+				tu.SourceAvailableHost{
 					Name:        notSelfID2,
 					Shards:      shards,
 					ShardStates: shard.Available,
@@ -158,18 +158,18 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 		},
 		{
 			title: "Returns empty if consistency can not be met",
-			hosts: []topotestutils.SourceAvailableHost{
-				topotestutils.SourceAvailableHost{
-					Name:        topotestutils.SelfID,
+			hosts: []tu.SourceAvailableHost{
+				tu.SourceAvailableHost{
+					Name:        tu.SelfID,
 					Shards:      shards,
 					ShardStates: shard.Initializing,
 				},
-				topotestutils.SourceAvailableHost{
+				tu.SourceAvailableHost{
 					Name:        notSelfID1,
 					Shards:      shards,
 					ShardStates: shard.Available,
 				},
-				topotestutils.SourceAvailableHost{
+				tu.SourceAvailableHost{
 					Name:        notSelfID2,
 					Shards:      shards,
 					ShardStates: shard.Available,
