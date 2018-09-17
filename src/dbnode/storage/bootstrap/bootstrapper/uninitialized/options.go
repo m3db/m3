@@ -39,7 +39,10 @@ type options struct {
 
 // NewOptions creates a new Options.
 func NewOptions() Options {
-	return &options{}
+	return &options{
+		resultOpts: result.NewOptions(),
+		iOpts:      instrument.NewOptions(),
+	}
 }
 
 func (o *options) SetResultOptions(value result.Options) Options {
