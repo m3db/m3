@@ -86,16 +86,20 @@ func (f *functionNode) Process(values []float64) float64 {
 	prev := values[0]
 
 	for _, curr := range values[1:] {
-		if !math.IsNaN(prev) && !math.IsNaN(curr) {
+		if math.IsNaN(curr) {
+			continue
+		}
+
+		if !math.IsNaN(prev) {
 			if f.comparisonFunc(curr, prev) {
 				result++
 			}
 			prev = curr
 			continue
 		}
-		if !math.IsNaN(curr) {
-			prev = curr
-		}
+
+		prev = curr
 	}
+
 	return result
 }
