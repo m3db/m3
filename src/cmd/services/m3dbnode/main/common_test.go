@@ -34,8 +34,10 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/ident"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -138,4 +140,36 @@ func newNamespaceWithIndexProtoValue(id string, indexEnabled bool) (proto.Messag
 		return nil, err
 	}
 	return namespace.ToProto(nsMap), nil
+}
+
+// waitUntilAllShardsAreAvailable continually polls the session checking to see if the topology.Map
+// that the session is currently storing contains a non-zero number of host shard sets, and if so,
+// makes sure that all their shard states are Available.
+func waitUntilAllShardsAreAvailable(t *testing.T, session client.AdminSession) {
+outer:
+	for {
+		time.Sleep(10 * time.Millisecond)
+
+		topoMap, err := session.TopologyMap()
+		require.NoError(t, err)
+
+		var (
+			hostShardSets = topoMap.HostShardSets()
+		)
+
+		if len(hostShardSets) == 0 {
+			// We haven't received an actual topology yet.
+			continue
+		}
+
+		for _, hostShardSet := range hostShardSets {
+			for _, hostShard := range hostShardSet.ShardSet().All() {
+				if hostShard.State() != shard.Available {
+					continue outer
+				}
+			}
+		}
+
+		break
+	}
 }

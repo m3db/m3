@@ -135,6 +135,22 @@ func TestIndexResultAdd(t *testing.T) {
 	require.Equal(t, testRanges, results.Unfulfilled())
 }
 
+func TestShardTimeRangesToUnfulfilledIndexResult(t *testing.T) {
+	str := ShardTimeRanges{
+		0: xtime.NewRanges(xtime.Range{
+			Start: time.Now(),
+			End:   time.Now().Add(time.Minute),
+		}),
+		1: xtime.NewRanges(xtime.Range{
+			Start: time.Now().Add(3 * time.Minute),
+			End:   time.Now().Add(4 * time.Minute),
+		}),
+	}
+	r := str.ToUnfulfilledIndexResult()
+	assert.Equal(t, 0, len(r.IndexResults()))
+	assert.True(t, r.Unfulfilled().Equal(str))
+}
+
 func TestIndexResulsMarkFulfilled(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

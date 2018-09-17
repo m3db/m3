@@ -132,7 +132,7 @@ func (b *bootstrapProcessProvider) newInitialTopologyState() (*topology.StateSna
 				topologyState.ShardStates[shardID] = existing
 			}
 
-			hostID := topology.HostID(hostShardSet.Host().String())
+			hostID := topology.HostID(hostShardSet.Host().ID())
 			existing[hostID] = topology.HostShardState{
 				Host:       hostShardSet.Host(),
 				ShardState: currShard.State(),

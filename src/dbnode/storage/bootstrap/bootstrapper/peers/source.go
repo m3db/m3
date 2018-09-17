@@ -710,20 +710,22 @@ func (s *peersSource) peerAvailability(
 			shardState := hostShardState.ShardState
 
 			switch shardState {
-			// Skip cases - We cannot bootstrap from this host
+			// Don't want to peer bootstrap from a node that has not yet completely
+			// taken ownership of the shard.
 			case shard.Initializing:
-				// Don't want to peer bootstrap from a node that has not yet completely
-				// taken ownership of the shard.
-			case shard.Unknown:
 				// Success cases - We can bootstrap from this host, which is enough to
 				// mark this shard as bootstrappable.
 			case shard.Leaving:
 				fallthrough
 			case shard.Available:
 				shardPeers.numAvailablePeers++
+			case shard.Unknown:
+				fallthrough
 			default:
-				panic(
-					fmt.Sprintf("encountered unknown shard state: %s", shardState.String()))
+				// TODO(rartoul): Make this a hard error once we refactor the interface to support
+				// returning errors.
+				s.log.Errorf("unknown shard state: %v", shardState)
+				return result.ShardTimeRanges{}
 			}
 		}
 	}

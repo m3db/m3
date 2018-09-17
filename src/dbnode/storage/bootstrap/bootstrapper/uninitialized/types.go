@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,39 +18,24 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package commitlog
+package uninitialized
 
 import (
-	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3x/instrument"
 )
 
-// Options represents the options for bootstrapping from commit logs
+// Options is the options interface for the uninitialized source.
 type Options interface {
-	// Validate validates the options
-	Validate() error
-
 	// SetResultOptions sets the result options
 	SetResultOptions(value result.Options) Options
 
 	// ResultOptions returns the result options
 	ResultOptions() result.Options
 
-	// SetCommitLogOptions sets the commit log options
-	SetCommitLogOptions(value commitlog.Options) Options
+	// Set the instrument options.
+	SetInstrumentOptions(value instrument.Options) Options
 
-	// CommitLogOptions returns the commit log options
-	CommitLogOptions() commitlog.Options
-
-	// SetEncodingConcurrency sets the concurrency for encoding
-	SetEncodingConcurrency(value int) Options
-
-	// EncodingConcurrency returns the concurrency for encoding
-	EncodingConcurrency() int
-
-	// SetMergeShardConcurrency sets the concurrency for merging shards
-	SetMergeShardsConcurrency(value int) Options
-
-	// MergeShardConcurrency returns the concurrency for merging shards
-	MergeShardsConcurrency() int
+	// Return the instrument options.
+	InstrumentOptions() instrument.Options
 }

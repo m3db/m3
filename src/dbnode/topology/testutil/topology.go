@@ -28,6 +28,11 @@ import (
 	"github.com/m3db/m3cluster/shard"
 )
 
+const (
+	// SelfID is the string used to represent the ID of the origin node.
+	SelfID = "self"
+)
+
 // MustNewTopologyMap returns a new topology.Map with provided parameters.
 // It's a utility method to make tests easier to write.
 func MustNewTopologyMap(
@@ -100,4 +105,35 @@ func (v TopologyView) Map() (topology.Map, error) {
 		SetShardSet(shardSet)
 
 	return topology.NewStaticMap(opts), nil
+}
+
+// HostShardStates is a human-readable way of describing an initial state topology
+// on a host-by-host basis.
+type HostShardStates map[string][]shard.Shard
+
+// NewStateSnapshot creates a new initial topology state snapshot using HostShardStates
+// as input.
+func NewStateSnapshot(numMajorityReplicas int, hostShardStates HostShardStates) *topology.StateSnapshot {
+	topoState := &topology.StateSnapshot{
+		Origin:           topology.NewHost(SelfID, "127.0.0.1"),
+		MajorityReplicas: numMajorityReplicas,
+		ShardStates:      make(map[topology.ShardID]map[topology.HostID]topology.HostShardState),
+	}
+
+	for host, shards := range hostShardStates {
+		for _, shard := range shards {
+			hostShardStates, ok := topoState.ShardStates[topology.ShardID(shard.ID())]
+			if !ok {
+				hostShardStates = make(map[topology.HostID]topology.HostShardState)
+			}
+
+			hostShardStates[topology.HostID(host)] = topology.HostShardState{
+				Host:       topology.NewHost(host, host+"address"),
+				ShardState: shard.State(),
+			}
+			topoState.ShardStates[topology.ShardID(shard.ID())] = hostShardStates
+		}
+	}
+
+	return topoState
 }

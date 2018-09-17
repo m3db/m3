@@ -18,35 +18,31 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package peers
+package commitlog
 
 import (
 	"testing"
 	"time"
 
-	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
 	tu "github.com/m3db/m3/src/dbnode/topology/testutil"
 	"github.com/m3db/m3cluster/shard"
 	xtime "github.com/m3db/m3x/time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	notSelfID1 = "not-self1"
-	notSelfID2 = "not-self2"
+var (
+	testDefaultOpts = testOptions()
+	notSelfID       = "not-self"
 )
 
-func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
+func TestAvailableData(t *testing.T) {
 	var (
+		nsMetadata                 = testNsMetadata(t)
 		blockSize                  = 2 * time.Hour
-		nsMetadata                 = testNamespaceMetadata(t)
 		numShards                  = uint32(4)
 		blockStart                 = time.Now().Truncate(blockSize)
 		shardTimeRangesToBootstrap = result.ShardTimeRanges{}
@@ -60,66 +56,59 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 		shardTimeRangesToBootstrap[uint32(i)] = bootstrapRanges
 	}
 
-	shardTimeRangesToBootstrapOneExtra := shardTimeRangesToBootstrap.Copy()
-	shardTimeRangesToBootstrapOneExtra[100] = bootstrapRanges
-
 	testCases := []struct {
 		title                             string
 		topoState                         *topology.StateSnapshot
-		bootstrapReadConsistency          topology.ReadConsistencyLevel
 		shardsTimeRangesToBootstrap       result.ShardTimeRanges
 		expectedAvailableShardsTimeRanges result.ShardTimeRanges
 	}{
 		{
-			title: "Returns empty if only self is available",
+			title: "Single node - Shard initializing",
+			topoState: tu.NewStateSnapshot(1, tu.HostShardStates{
+				tu.SelfID: tu.ShardsRange(0, numShards, shard.Initializing),
+			}),
+			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
+			expectedAvailableShardsTimeRanges: result.ShardTimeRanges{},
+		},
+		{
+			title: "Single node - Shard unknown",
+			topoState: tu.NewStateSnapshot(1, tu.HostShardStates{
+				tu.SelfID: tu.ShardsRange(0, numShards, shard.Unknown),
+			}),
+			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
+			expectedAvailableShardsTimeRanges: result.ShardTimeRanges{},
+		},
+		{
+			title: "Single node - Shard leaving",
+			topoState: tu.NewStateSnapshot(1, tu.HostShardStates{
+				tu.SelfID: tu.ShardsRange(0, numShards, shard.Leaving),
+			}),
+			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
+			expectedAvailableShardsTimeRanges: shardTimeRangesToBootstrap,
+		},
+		{
+			title: "Single node - Shard available",
 			topoState: tu.NewStateSnapshot(1, tu.HostShardStates{
 				tu.SelfID: tu.ShardsRange(0, numShards, shard.Available),
 			}),
-			bootstrapReadConsistency:          topology.ReadConsistencyLevelMajority,
-			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
-			expectedAvailableShardsTimeRanges: result.ShardTimeRanges{},
-		},
-		{
-			title: "Returns empty if all other peers initializing/unknown",
-			topoState: tu.NewStateSnapshot(2, tu.HostShardStates{
-				tu.SelfID:  tu.ShardsRange(0, numShards, shard.Available),
-				notSelfID1: tu.ShardsRange(0, numShards, shard.Initializing),
-				notSelfID2: tu.ShardsRange(0, numShards, shard.Unknown),
-			}),
-			bootstrapReadConsistency:          topology.ReadConsistencyLevelMajority,
-			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
-			expectedAvailableShardsTimeRanges: result.ShardTimeRanges{},
-		},
-		{
-			title: "Returns success if consistency can be met (available/leaving)",
-			topoState: tu.NewStateSnapshot(2, tu.HostShardStates{
-				tu.SelfID:  tu.ShardsRange(0, numShards, shard.Initializing),
-				notSelfID1: tu.ShardsRange(0, numShards, shard.Available),
-				notSelfID2: tu.ShardsRange(0, numShards, shard.Leaving),
-			}),
-			bootstrapReadConsistency:          topology.ReadConsistencyLevelMajority,
 			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
 			expectedAvailableShardsTimeRanges: shardTimeRangesToBootstrap,
 		},
 		{
-			title: "Skips shards that were not in the topology at start",
-			topoState: tu.NewStateSnapshot(2, tu.HostShardStates{
-				tu.SelfID:  tu.ShardsRange(0, numShards, shard.Initializing),
-				notSelfID1: tu.ShardsRange(0, numShards, shard.Available),
-				notSelfID2: tu.ShardsRange(0, numShards, shard.Available),
+			title: "Multi node - Origin available",
+			topoState: tu.NewStateSnapshot(1, tu.HostShardStates{
+				tu.SelfID: tu.ShardsRange(0, numShards, shard.Available),
+				notSelfID: tu.ShardsRange(0, numShards, shard.Initializing),
 			}),
-			bootstrapReadConsistency:          topology.ReadConsistencyLevelMajority,
-			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrapOneExtra,
+			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
 			expectedAvailableShardsTimeRanges: shardTimeRangesToBootstrap,
 		},
 		{
-			title: "Returns empty if consistency can not be met",
-			topoState: tu.NewStateSnapshot(2, tu.HostShardStates{
-				tu.SelfID:  tu.ShardsRange(0, numShards, shard.Initializing),
-				notSelfID1: tu.ShardsRange(0, numShards, shard.Available),
-				notSelfID2: tu.ShardsRange(0, numShards, shard.Available),
+			title: "Multi node - Origin not available",
+			topoState: tu.NewStateSnapshot(1, tu.HostShardStates{
+				tu.SelfID: tu.ShardsRange(0, numShards, shard.Initializing),
+				notSelfID: tu.ShardsRange(0, numShards, shard.Available),
 			}),
-			bootstrapReadConsistency:          topology.ReadConsistencyLevelAll,
 			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
 			expectedAvailableShardsTimeRanges: result.ShardTimeRanges{},
 		},
@@ -127,30 +116,13 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.title, func(t *testing.T) {
-			mockRuntimeOpts := m3dbruntime.NewMockOptions(ctrl)
-			mockRuntimeOpts.
-				EXPECT().
-				ClientBootstrapConsistencyLevel().
-				Return(tc.bootstrapReadConsistency).
-				AnyTimes()
-
-			mockRuntimeOptsMgr := m3dbruntime.NewMockOptionsManager(ctrl)
-			mockRuntimeOptsMgr.
-				EXPECT().
-				Get().
-				Return(mockRuntimeOpts).
-				AnyTimes()
-
-			opts := testDefaultOpts.
-				SetRuntimeOptionsManager(mockRuntimeOptsMgr)
-
-			src, err := newPeersSource(opts)
-			require.NoError(t, err)
 
 			var (
+				src     = newCommitLogSource(testOptions(), fs.Inspection{})
 				runOpts = testDefaultRunOpts.SetInitialTopologyState(tc.topoState)
 				dataRes = src.AvailableData(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
 			)
+
 			require.Equal(t, tc.expectedAvailableShardsTimeRanges, dataRes)
 
 			indexRes := src.AvailableIndex(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
