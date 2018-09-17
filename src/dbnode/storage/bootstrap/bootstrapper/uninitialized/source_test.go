@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/topology"
 	tu "github.com/m3db/m3/src/dbnode/topology/testutil"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/ident"
@@ -47,7 +48,7 @@ var (
 func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 	var (
 		blockSize                  = 2 * time.Hour
-		shards                     = []uint32{0, 1, 2, 3}
+		numShards                  = uint32(4)
 		blockStart                 = time.Now().Truncate(blockSize)
 		shardTimeRangesToBootstrap = result.ShardTimeRanges{}
 		bootstrapRanges            = xtime.Ranges{}.AddRange(xtime.Range{
@@ -58,99 +59,65 @@ func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 	nsMetadata, err := namespace.NewMetadata(testNamespaceID, namespace.NewOptions())
 	require.NoError(t, err)
 
-	for _, shard := range shards {
-		shardTimeRangesToBootstrap[shard] = bootstrapRanges
+	for i := 0; i < int(numShards); i++ {
+		shardTimeRangesToBootstrap[uint32(i)] = bootstrapRanges
 	}
 
 	testCases := []struct {
 		title                             string
-		majorityReplicas                  int
-		hosts                             tu.SourceAvailableHosts
+		topoState                         *topology.StateSnapshot
 		shardsTimeRangesToBootstrap       result.ShardTimeRanges
 		expectedAvailableShardsTimeRanges result.ShardTimeRanges
 	}{
 		// Snould return that it can bootstrap everything because
 		// it's a new namespace.
 		{
-			title:            "Single node - Shard initializing",
-			majorityReplicas: 1,
-			hosts: []tu.SourceAvailableHost{
-				tu.SourceAvailableHost{
-					Name:        tu.SelfID,
-					Shards:      shards,
-					ShardStates: shard.Initializing,
-				},
-			},
+			title: "Single node - Shard initializing",
+			topoState: tu.NewStateSnapshot(1, tu.HostShardStates{
+				tu.SelfID: tu.ShardsRange(0, numShards, shard.Initializing),
+			}),
 			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
 			expectedAvailableShardsTimeRanges: shardTimeRangesToBootstrap,
 		},
 		// Snould return that it can't bootstrap anything because we don't
 		// know how to handle unknown shard states.
 		{
-			title:            "Single node - Shard unknown",
-			majorityReplicas: 1,
-			hosts: []tu.SourceAvailableHost{
-				tu.SourceAvailableHost{
-					Name:        tu.SelfID,
-					Shards:      shards,
-					ShardStates: shard.Unknown,
-				},
-			},
+			title: "Single node - Shard unknown",
+			topoState: tu.NewStateSnapshot(1, tu.HostShardStates{
+				tu.SelfID: tu.ShardsRange(0, numShards, shard.Unknown),
+			}),
 			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
 			expectedAvailableShardsTimeRanges: result.ShardTimeRanges{},
 		},
 		// Snould return that it can't bootstrap anything because it's not
 		// a new namespace.
 		{
-			title:            "Single node - Shard leaving",
-			majorityReplicas: 1,
-			hosts: []tu.SourceAvailableHost{
-				tu.SourceAvailableHost{
-					Name:        tu.SelfID,
-					Shards:      shards,
-					ShardStates: shard.Leaving,
-				},
-			},
+			title: "Single node - Shard leaving",
+			topoState: tu.NewStateSnapshot(1, tu.HostShardStates{
+				tu.SelfID: tu.ShardsRange(0, numShards, shard.Leaving),
+			}),
 			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
 			expectedAvailableShardsTimeRanges: result.ShardTimeRanges{},
 		},
 		// Snould return that it can't bootstrap anything because it's not
 		// a new namespace.
 		{
-			title:            "Single node - Shard available",
-			majorityReplicas: 1,
-			hosts: []tu.SourceAvailableHost{
-				tu.SourceAvailableHost{
-					Name:        tu.SelfID,
-					Shards:      shards,
-					ShardStates: shard.Available,
-				},
-			},
+			title: "Single node - Shard available",
+			topoState: tu.NewStateSnapshot(1, tu.HostShardStates{
+				tu.SelfID: tu.ShardsRange(0, numShards, shard.Available),
+			}),
 			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
 			expectedAvailableShardsTimeRanges: result.ShardTimeRanges{},
 		},
 		// Snould return that it can bootstrap everything because
 		// it's a new namespace.
 		{
-			title:            "Multi node - Brand new namespace (all nodes initializing)",
-			majorityReplicas: 2,
-			hosts: []tu.SourceAvailableHost{
-				tu.SourceAvailableHost{
-					Name:        tu.SelfID,
-					Shards:      shards,
-					ShardStates: shard.Initializing,
-				},
-				tu.SourceAvailableHost{
-					Name:        notSelfID1,
-					Shards:      shards,
-					ShardStates: shard.Initializing,
-				},
-				tu.SourceAvailableHost{
-					Name:        notSelfID2,
-					Shards:      shards,
-					ShardStates: shard.Initializing,
-				},
-			},
+			title: "Multi node - Brand new namespace (all nodes initializing)",
+			topoState: tu.NewStateSnapshot(2, tu.HostShardStates{
+				tu.SelfID:  tu.ShardsRange(0, numShards, shard.Initializing),
+				notSelfID1: tu.ShardsRange(0, numShards, shard.Initializing),
+				notSelfID2: tu.ShardsRange(0, numShards, shard.Initializing),
+			}),
 			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
 			expectedAvailableShardsTimeRanges: shardTimeRangesToBootstrap,
 		},
@@ -158,105 +125,49 @@ func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 		// it's a new namespace (one of the nodes hasn't completed
 		// initializing yet.)
 		{
-			title:            "Multi node - Recently created namespace (one node still initializing)",
-			majorityReplicas: 2,
-			hosts: []tu.SourceAvailableHost{
-				tu.SourceAvailableHost{
-					Name:        tu.SelfID,
-					Shards:      shards,
-					ShardStates: shard.Initializing,
-				},
-				tu.SourceAvailableHost{
-					Name:        notSelfID1,
-					Shards:      shards,
-					ShardStates: shard.Available,
-				},
-				tu.SourceAvailableHost{
-					Name:        notSelfID2,
-					Shards:      shards,
-					ShardStates: shard.Available,
-				},
-			},
+			title: "Multi node - Recently created namespace (one node still initializing)",
+			topoState: tu.NewStateSnapshot(2, tu.HostShardStates{
+				tu.SelfID:  tu.ShardsRange(0, numShards, shard.Initializing),
+				notSelfID1: tu.ShardsRange(0, numShards, shard.Available),
+				notSelfID2: tu.ShardsRange(0, numShards, shard.Available),
+			}),
 			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
 			expectedAvailableShardsTimeRanges: shardTimeRangesToBootstrap,
 		},
 		// Snould return that it can't bootstrap anything because it's not
 		// a new namespace.
 		{
-			title:            "Multi node - Initialized namespace (no nodes initializing)",
-			majorityReplicas: 2,
-			hosts: []tu.SourceAvailableHost{
-				tu.SourceAvailableHost{
-					Name:        tu.SelfID,
-					Shards:      shards,
-					ShardStates: shard.Available,
-				},
-				tu.SourceAvailableHost{
-					Name:        notSelfID1,
-					Shards:      shards,
-					ShardStates: shard.Available,
-				},
-				tu.SourceAvailableHost{
-					Name:        notSelfID2,
-					Shards:      shards,
-					ShardStates: shard.Available,
-				},
-			},
+			title: "Multi node - Initialized namespace (no nodes initializing)",
+			topoState: tu.NewStateSnapshot(2, tu.HostShardStates{
+				tu.SelfID:  tu.ShardsRange(0, numShards, shard.Available),
+				notSelfID1: tu.ShardsRange(0, numShards, shard.Available),
+				notSelfID2: tu.ShardsRange(0, numShards, shard.Available),
+			}),
 			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
 			expectedAvailableShardsTimeRanges: result.ShardTimeRanges{},
 		},
 		// Snould return that it can't bootstrap anything because it's not
 		// a new namespace, we're just doing a node replace.
 		{
-			title:            "Multi node - Node replace (one node leaving, one initializing)",
-			majorityReplicas: 2,
-			hosts: []tu.SourceAvailableHost{
-				tu.SourceAvailableHost{
-					Name:        tu.SelfID,
-					Shards:      shards,
-					ShardStates: shard.Available,
-				},
-				tu.SourceAvailableHost{
-					Name:        notSelfID1,
-					Shards:      shards,
-					ShardStates: shard.Leaving,
-				},
-				tu.SourceAvailableHost{
-					Name:        notSelfID2,
-					Shards:      shards,
-					ShardStates: shard.Available,
-				},
-				tu.SourceAvailableHost{
-					Name:        notSelfID3,
-					Shards:      shards,
-					ShardStates: shard.Initializing,
-				},
-			},
+			title: "Multi node - Node replace (one node leaving, one initializing)",
+			topoState: tu.NewStateSnapshot(2, tu.HostShardStates{
+				tu.SelfID:  tu.ShardsRange(0, numShards, shard.Available),
+				notSelfID1: tu.ShardsRange(0, numShards, shard.Leaving),
+				notSelfID2: tu.ShardsRange(0, numShards, shard.Available),
+				notSelfID3: tu.ShardsRange(0, numShards, shard.Initializing),
+			}),
 			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
 			expectedAvailableShardsTimeRanges: result.ShardTimeRanges{},
 		},
 		// Snould return that it can't bootstrap anything because we don't
 		// know how to interpret the unknown host.
 		{
-			title:            "Multi node - One node unknown",
-			majorityReplicas: 2,
-			hosts: []tu.SourceAvailableHost{
-				tu.SourceAvailableHost{
-					Name:        tu.SelfID,
-					Shards:      shards,
-					ShardStates: shard.Available,
-				},
-				tu.SourceAvailableHost{
-					Name:        notSelfID1,
-					Shards:      shards,
-					ShardStates: shard.Available,
-				},
-				tu.SourceAvailableHost{
-					Name:        notSelfID2,
-					Shards:      shards,
-					ShardStates: shard.Unknown,
-				},
-			},
+			title: "Multi node - One node unknown",
+			topoState: tu.NewStateSnapshot(2, tu.HostShardStates{
+				tu.SelfID:  tu.ShardsRange(0, numShards, shard.Available),
+				notSelfID1: tu.ShardsRange(0, numShards, shard.Available),
+				notSelfID2: tu.ShardsRange(0, numShards, shard.Unknown),
+			}),
 			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
 			expectedAvailableShardsTimeRanges: result.ShardTimeRanges{},
 		},
@@ -268,7 +179,7 @@ func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 			var (
 				srcOpts                 = NewOptions().SetInstrumentOptions(instrument.NewOptions())
 				src                     = newTopologyUninitializedSource(srcOpts)
-				runOpts                 = testDefaultRunOpts.SetInitialTopologyState(tc.hosts.TopologyState(tc.majorityReplicas))
+				runOpts                 = testDefaultRunOpts.SetInitialTopologyState(tc.topoState)
 				dataAvailabilityResult  = src.AvailableData(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
 				indexAvailabilityResult = src.AvailableIndex(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
 			)

@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/topology"
 	tu "github.com/m3db/m3/src/dbnode/topology/testutil"
 	"github.com/m3db/m3cluster/shard"
 	xtime "github.com/m3db/m3x/time"
@@ -42,7 +43,7 @@ func TestAvailableData(t *testing.T) {
 	var (
 		nsMetadata                 = testNsMetadata(t)
 		blockSize                  = 2 * time.Hour
-		shards                     = []uint32{0, 1, 2, 3}
+		numShards                  = uint32(4)
 		blockStart                 = time.Now().Truncate(blockSize)
 		shardTimeRangesToBootstrap = result.ShardTimeRanges{}
 		bootstrapRanges            = xtime.Ranges{}.AddRange(xtime.Range{
@@ -51,102 +52,63 @@ func TestAvailableData(t *testing.T) {
 		})
 	)
 
-	for _, shard := range shards {
-		shardTimeRangesToBootstrap[shard] = bootstrapRanges
+	for i := 0; i < int(numShards); i++ {
+		shardTimeRangesToBootstrap[uint32(i)] = bootstrapRanges
 	}
 
 	testCases := []struct {
 		title                             string
-		hosts                             tu.SourceAvailableHosts
-		majorityReplicas                  int
+		topoState                         *topology.StateSnapshot
 		shardsTimeRangesToBootstrap       result.ShardTimeRanges
 		expectedAvailableShardsTimeRanges result.ShardTimeRanges
 	}{
 		{
 			title: "Single node - Shard initializing",
-			hosts: []tu.SourceAvailableHost{
-				tu.SourceAvailableHost{
-					Name:        tu.SelfID,
-					Shards:      shards,
-					ShardStates: shard.Initializing,
-				},
-			},
-			majorityReplicas:                  1,
+			topoState: tu.NewStateSnapshot(1, tu.HostShardStates{
+				tu.SelfID: tu.ShardsRange(0, numShards, shard.Initializing),
+			}),
 			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
 			expectedAvailableShardsTimeRanges: result.ShardTimeRanges{},
 		},
 		{
 			title: "Single node - Shard unknown",
-			hosts: []tu.SourceAvailableHost{
-				tu.SourceAvailableHost{
-					Name:        tu.SelfID,
-					Shards:      shards,
-					ShardStates: shard.Unknown,
-				},
-			},
-			majorityReplicas:                  1,
+			topoState: tu.NewStateSnapshot(1, tu.HostShardStates{
+				tu.SelfID: tu.ShardsRange(0, numShards, shard.Unknown),
+			}),
 			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
 			expectedAvailableShardsTimeRanges: result.ShardTimeRanges{},
 		},
 		{
 			title: "Single node - Shard leaving",
-			hosts: []tu.SourceAvailableHost{
-				tu.SourceAvailableHost{
-					Name:        tu.SelfID,
-					Shards:      shards,
-					ShardStates: shard.Leaving,
-				},
-			},
-			majorityReplicas:                  1,
+			topoState: tu.NewStateSnapshot(1, tu.HostShardStates{
+				tu.SelfID: tu.ShardsRange(0, numShards, shard.Leaving),
+			}),
 			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
 			expectedAvailableShardsTimeRanges: shardTimeRangesToBootstrap,
 		},
 		{
 			title: "Single node - Shard available",
-			hosts: []tu.SourceAvailableHost{
-				tu.SourceAvailableHost{
-					Name:        tu.SelfID,
-					Shards:      shards,
-					ShardStates: shard.Available,
-				},
-			},
-			majorityReplicas:                  1,
+			topoState: tu.NewStateSnapshot(1, tu.HostShardStates{
+				tu.SelfID: tu.ShardsRange(0, numShards, shard.Available),
+			}),
 			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
 			expectedAvailableShardsTimeRanges: shardTimeRangesToBootstrap,
 		},
 		{
 			title: "Multi node - Origin available",
-			hosts: []tu.SourceAvailableHost{
-				tu.SourceAvailableHost{
-					Name:        tu.SelfID,
-					Shards:      shards,
-					ShardStates: shard.Available,
-				},
-				tu.SourceAvailableHost{
-					Name:        notSelfID,
-					Shards:      shards,
-					ShardStates: shard.Initializing,
-				},
-			},
-			majorityReplicas:                  1,
+			topoState: tu.NewStateSnapshot(1, tu.HostShardStates{
+				tu.SelfID: tu.ShardsRange(0, numShards, shard.Available),
+				notSelfID: tu.ShardsRange(0, numShards, shard.Initializing),
+			}),
 			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
 			expectedAvailableShardsTimeRanges: shardTimeRangesToBootstrap,
 		},
 		{
 			title: "Multi node - Origin not available",
-			hosts: []tu.SourceAvailableHost{
-				tu.SourceAvailableHost{
-					Name:        tu.SelfID,
-					Shards:      shards,
-					ShardStates: shard.Initializing,
-				},
-				tu.SourceAvailableHost{
-					Name:        notSelfID,
-					Shards:      shards,
-					ShardStates: shard.Available,
-				},
-			},
-			majorityReplicas:                  1,
+			topoState: tu.NewStateSnapshot(1, tu.HostShardStates{
+				tu.SelfID: tu.ShardsRange(0, numShards, shard.Initializing),
+				notSelfID: tu.ShardsRange(0, numShards, shard.Available),
+			}),
 			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
 			expectedAvailableShardsTimeRanges: result.ShardTimeRanges{},
 		},
@@ -156,10 +118,9 @@ func TestAvailableData(t *testing.T) {
 		t.Run(tc.title, func(t *testing.T) {
 
 			var (
-				src       = newCommitLogSource(testOptions(), fs.Inspection{})
-				topoState = tc.hosts.TopologyState(tc.majorityReplicas)
-				runOpts   = testDefaultRunOpts.SetInitialTopologyState(topoState)
-				dataRes   = src.AvailableData(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
+				src     = newCommitLogSource(testOptions(), fs.Inspection{})
+				runOpts = testDefaultRunOpts.SetInitialTopologyState(tc.topoState)
+				dataRes = src.AvailableData(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
 			)
 
 			require.Equal(t, tc.expectedAvailableShardsTimeRanges, dataRes)

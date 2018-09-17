@@ -107,38 +107,31 @@ func (v TopologyView) Map() (topology.Map, error) {
 	return topology.NewStaticMap(opts), nil
 }
 
-// SourceAvailableHost is a human-friendly way of constructing
-// TopologyStates for test cases.
-type SourceAvailableHost struct {
-	Name        string
-	Shards      []uint32
-	ShardStates shard.State
-}
+// HostShardStates is a human-readable way of describing an initial state topology
+// on a host-by-host basis.
+type HostShardStates map[string][]shard.Shard
 
-// SourceAvailableHosts is a slice of SourceAvailableHost.
-type SourceAvailableHosts []SourceAvailableHost
-
-// TopologyState returns a topology.StateSnapshot that is equivalent to
-// the slice of SourceAvailableHosts.
-func (s SourceAvailableHosts) TopologyState(numMajorityReplicas int) *topology.StateSnapshot {
+// NewStateSnapshot creates a new initial topology state snapshot using HostShardStates
+// as input.
+func NewStateSnapshot(numMajorityReplicas int, hostShardStates HostShardStates) *topology.StateSnapshot {
 	topoState := &topology.StateSnapshot{
 		Origin:           topology.NewHost(SelfID, "127.0.0.1"),
 		MajorityReplicas: numMajorityReplicas,
 		ShardStates:      make(map[topology.ShardID]map[topology.HostID]topology.HostShardState),
 	}
 
-	for _, host := range s {
-		for _, shard := range host.Shards {
-			hostShardStates, ok := topoState.ShardStates[topology.ShardID(shard)]
+	for host, shards := range hostShardStates {
+		for _, shard := range shards {
+			hostShardStates, ok := topoState.ShardStates[topology.ShardID(shard.ID())]
 			if !ok {
 				hostShardStates = make(map[topology.HostID]topology.HostShardState)
 			}
 
-			hostShardStates[topology.HostID(host.Name)] = topology.HostShardState{
-				Host:       topology.NewHost(host.Name, host.Name+"address"),
-				ShardState: host.ShardStates,
+			hostShardStates[topology.HostID(host)] = topology.HostShardState{
+				Host:       topology.NewHost(host, host+"address"),
+				ShardState: shard.State(),
 			}
-			topoState.ShardStates[topology.ShardID(shard)] = hostShardStates
+			topoState.ShardStates[topology.ShardID(shard.ID())] = hostShardStates
 		}
 	}
 

@@ -40,15 +40,11 @@ type uninitializedTopologyBootstrapperProvider struct {
 func NewuninitializedTopologyBootstrapperProvider(
 	opts Options,
 	next bootstrap.BootstrapperProvider,
-) (bootstrap.BootstrapperProvider, error) {
-	if err := opts.Validate(); err != nil {
-		return nil, err
-	}
-
+) bootstrap.BootstrapperProvider {
 	return uninitializedTopologyBootstrapperProvider{
 		opts: opts,
 		next: next,
-	}, nil
+	}
 }
 
 func (p uninitializedTopologyBootstrapperProvider) Provide() (bootstrap.Bootstrapper, error) {

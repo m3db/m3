@@ -40,7 +40,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	topotestutils "github.com/m3db/m3/src/dbnode/topology/testutil"
+	tu "github.com/m3db/m3/src/dbnode/topology/testutil"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/checked"
@@ -328,13 +328,9 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 
 			// Perform the bootstrap
 			var (
-				initialTopoState = topotestutils.SourceAvailableHosts{
-					topotestutils.SourceAvailableHost{
-						Name:        topotestutils.SelfID,
-						Shards:      allShardsSlice,
-						ShardStates: shard.Available,
-					},
-				}.TopologyState(1)
+				initialTopoState = tu.NewStateSnapshot(1, tu.HostShardStates{
+					tu.SelfID: tu.Shards(allShardsSlice, shard.Available),
+				})
 				runOpts = testDefaultRunOpts.SetInitialTopologyState(initialTopoState)
 			)
 			dataResult, err := source.BootstrapData(nsMeta, shardTimeRanges, runOpts)

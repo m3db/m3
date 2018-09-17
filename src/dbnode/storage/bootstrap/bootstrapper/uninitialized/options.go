@@ -42,18 +42,6 @@ func NewOptions() Options {
 	return &options{}
 }
 
-func (o *options) Validate() error {
-	if o.iOpts == nil {
-		return errInstrumentOptsNotSet
-	}
-
-	if o.resultOpts == nil {
-		return errResultOptsNotSet
-	}
-
-	return nil
-}
-
 func (o *options) SetResultOptions(value result.Options) Options {
 	opts := *o
 	opts.resultOpts = value
