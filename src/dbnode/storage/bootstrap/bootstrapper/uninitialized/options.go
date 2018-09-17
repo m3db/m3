@@ -21,15 +21,8 @@
 package uninitialized
 
 import (
-	"errors"
-
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3x/instrument"
-)
-
-var (
-	errInstrumentOptsNotSet = errors.New("instrument options not set")
-	errResultOptsNotSet     = errors.New("result options not set")
 )
 
 type options struct {
