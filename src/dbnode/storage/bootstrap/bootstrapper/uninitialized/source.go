@@ -93,12 +93,12 @@ func (s *uninitializedTopologySource) availability(
 		}
 
 		// The basic idea for the algorithm is that on a shard-by-shard basis we
-		// need to determine if the namespace is "new" in the sense that it has
+		// need to determine if the cluster is "new" in the sense that it has
 		// never been completely initialized (reached a state where all the hosts
-		// in the topology are "available").
+		// in the topology are "available" for that specific shard).
 		// In order to determine this, we simply count the number of hosts in the
 		// "initializing" state. If this number is larger than zero, than the
-		// namespace is "new".
+		// cluster is "new".
 		// The one exception to this case is when we perform topology changes and
 		// we end up with one extra node that is initializing which should be offset
 		// by the corresponding node that is leaving. I.E if numInitializing > 0
@@ -126,6 +126,12 @@ func (s *uninitializedTopologySource) availability(
 			}
 		}
 
+		// This heuristic works for all scenarios except for if we tried to change the replication
+		// factor of a cluster that was already initialized. In that case, we might have to come
+		// up with a new heuristic, or simply require that the peers bootstrapper be configured as
+		// a bootstrapper if users want to change the replication factor dynamically, which is fine
+		// because otherwise you'd have to wait for one entire retention period for the replicaiton
+		// factor to actually increase correctly.
 		shardHasNeverBeenCompletelyInitialized := numInitializing-numLeaving > 0
 		if shardHasNeverBeenCompletelyInitialized {
 			availableShardTimeRanges[shardIDUint] = shardsTimeRanges[shardIDUint]

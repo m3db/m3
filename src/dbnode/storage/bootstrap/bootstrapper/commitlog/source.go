@@ -1422,7 +1422,7 @@ func (s commitLogSource) maybeAddToIndex(
 }
 
 // The commitlog bootstrapper determines availability primarily by checking if the
-// origin host has ever reached the "Initialized" state for the shard that is being
+// origin host has ever reached the "Available" state for the shard that is being
 // bootstrapped. If not, then it can't provide data for that shard because it doesn't
 // have all of it by definition.
 func (s *commitLogSource) availability(
