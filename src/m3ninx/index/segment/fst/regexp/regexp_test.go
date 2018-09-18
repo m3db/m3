@@ -18,28 +18,49 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package searcher
+// Adapted from: https://raw.githubusercontent.com/blevesearch/bleve/master/index/scorch/segment/regexp_test.go
+package regexp
 
 import (
-	"github.com/m3db/m3/src/m3ninx/index"
-	"github.com/m3db/m3/src/m3ninx/postings"
-	"github.com/m3db/m3/src/m3ninx/search"
+	"fmt"
+	"regexp/syntax"
+	"testing"
 )
 
-type regexpSearcher struct {
-	field    []byte
-	compiled index.CompiledRegex
-}
-
-// NewRegexpSearcher returns a new searcher for finding documents which match the given regular
-// expression.
-func NewRegexpSearcher(field []byte, compiled index.CompiledRegex) search.Searcher {
-	return &regexpSearcher{
-		field:    field,
-		compiled: compiled,
+func TestLiteralPrefix(t *testing.T) {
+	tests := []struct {
+		input, expected string
+	}{
+		{"", ""},
+		{"hello", "hello"},
+		{"hello.?", "hello"},
+		{"hello$", "hello"},
+		{`[h][e][l][l][o].*world`, "hello"},
+		{`[h-h][e-e][l-l][l-l][o-o].*world`, "hello"},
+		{".*", ""},
+		{"h.*", "h"},
+		{"h.?", "h"},
+		{"h[a-z]", "h"},
+		{`h\s`, "h"},
+		{`(hello)world`, ""},
+		{`日本語`, "日本語"},
+		{`日本語\w`, "日本語"},
+		{`^hello`, ""},
+		{`^`, ""},
+		{`$`, ""},
 	}
-}
 
-func (s *regexpSearcher) Search(r index.Reader) (postings.List, error) {
-	return r.MatchRegexp(s.field, s.compiled)
+	for i, test := range tests {
+		t.Run(fmt.Sprintf("test: %d, %+v", i, test), func(t *testing.T) {
+			s, err := syntax.Parse(test.input, syntax.Perl)
+			if err != nil {
+				t.Fatalf("expected no syntax.Parse error, got: %v", err)
+			}
+
+			got := LiteralPrefix(s)
+			if test.expected != got {
+				t.Fatalf("got: %s", got)
+			}
+		})
+	}
 }

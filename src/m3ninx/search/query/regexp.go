@@ -23,14 +23,11 @@ package query
 import (
 	"bytes"
 	"fmt"
-	re "regexp"
 
 	"github.com/m3db/m3/src/m3ninx/generated/proto/querypb"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/m3ninx/search/searcher"
-
-	vregex "github.com/couchbase/vellum/regexp"
 )
 
 // RegexpQuery finds documents which match the given regular expression.
@@ -42,26 +39,15 @@ type RegexpQuery struct {
 
 // NewRegexpQuery constructs a new query for the given regular expression.
 func NewRegexpQuery(field, regexp []byte) (search.Query, error) {
-	var (
-		stringRE      = string(regexp)
-		compiledRegex = index.CompiledRegex{}
-	)
-	simpleRE, err := re.Compile(stringRE)
+	compiled, err := index.CompileRegex(regexp)
 	if err != nil {
 		return nil, err
 	}
-	compiledRegex.Simple = simpleRE
-
-	fstRE, err := vregex.New(stringRE)
-	if err != nil {
-		return nil, err
-	}
-	compiledRegex.FST = fstRE
 
 	return &RegexpQuery{
 		field:    field,
 		regexp:   regexp,
-		compiled: compiledRegex,
+		compiled: compiled,
 	}, nil
 }
 
@@ -76,7 +62,7 @@ func MustCreateRegexpQuery(field, regexp []byte) search.Query {
 
 // Searcher returns a searcher over the provided readers.
 func (q *RegexpQuery) Searcher() (search.Searcher, error) {
-	return searcher.NewRegexpSearcher(q.field, q.regexp, q.compiled), nil
+	return searcher.NewRegexpSearcher(q.field, q.compiled), nil
 }
 
 // Equal reports whether q is equivalent to o.

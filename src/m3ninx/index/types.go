@@ -26,7 +26,6 @@ import (
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/postings"
-
 	xerrors "github.com/m3db/m3x/errors"
 
 	vregex "github.com/couchbase/vellum/regexp"
@@ -68,7 +67,7 @@ type Readable interface {
 
 	// MatchRegexp returns a postings list over all documents which match the given
 	// regular expression.
-	MatchRegexp(field, regexp []byte, c CompiledRegex) (postings.List, error)
+	MatchRegexp(field []byte, c CompiledRegex) (postings.List, error)
 
 	// MatchAll returns a postings list for all documents known to the Reader.
 	MatchAll() (postings.MutableList, error)
@@ -84,8 +83,10 @@ type Readable interface {
 // CompiledRegex is a collection of regexp compiled structs to allow
 // amortisation of regexp construction costs.
 type CompiledRegex struct {
-	Simple *regexp.Regexp
-	FST    *vregex.Regexp
+	Simple      *regexp.Regexp
+	FST         *vregex.Regexp
+	PrefixBegin []byte
+	PrefixEnd   []byte
 }
 
 // DocRetriever returns the document associated with a postings ID. It returns

@@ -113,6 +113,6 @@ func benchmarkTermsDictMatchRegex(docs []doc.Document, b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		dict.MatchRegexp(benchTermsDictField, benchTermsDictRegexp, benchTermsDictCompiled)
+		dict.MatchRegexp(benchTermsDictField, benchTermsDictCompiled)
 	}
 }

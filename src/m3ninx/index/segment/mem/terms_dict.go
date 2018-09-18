@@ -100,7 +100,7 @@ func (d *termsDict) matchTerm(field, term []byte) (postings.List, bool) {
 }
 
 func (d *termsDict) MatchRegexp(
-	field, regexp []byte,
+	field []byte,
 	compiled *re.Regexp,
 ) postings.List {
 	d.fields.RLock()

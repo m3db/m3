@@ -118,6 +118,6 @@ func benchmarkMatchRegexSegment(docs []doc.Document, b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		s.matchRegexp(benchSegmentField, benchSegmentRegexp, benchSegmentCompiled)
+		s.matchRegexp(benchSegmentField, benchSegmentCompiled)
 	}
 }

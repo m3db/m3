@@ -121,16 +121,16 @@ func (mr *MockReaderMockRecorder) MatchAll() *gomock.Call {
 }
 
 // MatchRegexp mocks base method
-func (m *MockReader) MatchRegexp(arg0, arg1 []byte, arg2 CompiledRegex) (postings.List, error) {
-	ret := m.ctrl.Call(m, "MatchRegexp", arg0, arg1, arg2)
+func (m *MockReader) MatchRegexp(arg0 []byte, arg1 CompiledRegex) (postings.List, error) {
+	ret := m.ctrl.Call(m, "MatchRegexp", arg0, arg1)
 	ret0, _ := ret[0].(postings.List)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // MatchRegexp indicates an expected call of MatchRegexp
-func (mr *MockReaderMockRecorder) MatchRegexp(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchRegexp", reflect.TypeOf((*MockReader)(nil).MatchRegexp), arg0, arg1, arg2)
+func (mr *MockReaderMockRecorder) MatchRegexp(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchRegexp", reflect.TypeOf((*MockReader)(nil).MatchRegexp), arg0, arg1)
 }
 
 // MatchTerm mocks base method
