@@ -1,4 +1,4 @@
-# Commit Logs
+# Commit Logs And Snapshot Files
 
 ## Overview
 
@@ -47,10 +47,12 @@ CommitLogMetadata {
 }
 ```
 
-### Garbage Collected
+### Compaction / Snapshotting
 
-Commit logs are garbage collected after all blocks within the retention period in which data inside the commit logs could be applicable have already been flushed to disk as immutable compressed filesets.
+Commit log files are compacted via the snapshotting proccess which (if enabled at the namespace level) will snapshot all data in memory into compressed files which have the same structure as the [fileset files](storage.md) but are stored in a different location. Once these snapshot files are created, then all the commit log files whose data are captured by the snapshot files can be deleted. This can result in significant disk savings for M3DB nodes running with large block sizes and high write volume where the size of the (uncompressed) commit logs can quickly get out of hand.
 
-### Compaction
+In addition, since the snapshot files are already compressed, bootstrapping from them is much faster than bootstrapping from raw commit log files because the individual data points don't need to be decoded and then M3TSZ encoded. The M3DB node just needs to read the raw bytes off disk and load them into memory.
 
-There is currently no compaction process for commitlogs. They are deleted once they fall out of their configurable retention period *or* all the [fileset files](storage.md) for that period are flushed.
+### Cleanup
+
+Commit log files are automatically deleted once all the data they contain has been flushed to disk as immutable compressed filesets *or* all the data they contain has been captured by a compressed snapshot file. Similarly, snapshot files are deleted once all the data they contain has been flushed to disk as filesets.
