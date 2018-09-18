@@ -31,8 +31,8 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index"
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
-	"github.com/m3db/m3/src/m3ninx/index/util"
 	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/util"
 
 	"github.com/stretchr/testify/require"
 )
@@ -79,7 +79,7 @@ var (
 			},
 		},
 	}
-	lotsTestDocuments = util.MustReadDocs("../../util/testdata/node_exporter.json", 2000)
+	lotsTestDocuments = util.MustReadDocs("../../../util/testdata/node_exporter.json", 2000)
 
 	testDocuments = []struct {
 		name string

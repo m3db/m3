@@ -25,7 +25,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
-	"github.com/m3db/m3/src/m3ninx/index/util"
+	"github.com/m3db/m3/src/m3ninx/util"
 )
 
 var (
@@ -53,7 +53,7 @@ func BenchmarkSegment(b *testing.B) {
 		},
 	}
 
-	docs, err := util.ReadDocs("../../util/testdata/node_exporter.json", 2000)
+	docs, err := util.ReadDocs("../../../util/testdata/node_exporter.json", 2000)
 	if err != nil {
 		b.Fatalf("unable to read documents for benchmarks: %v", err)
 	}

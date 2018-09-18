@@ -25,7 +25,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
-	"github.com/m3db/m3/src/m3ninx/index/util"
+	"github.com/m3db/m3/src/m3ninx/util"
 
 	"github.com/stretchr/testify/require"
 )
@@ -76,7 +76,7 @@ func TestStoredFieldsData(t *testing.T) {
 		},
 		{
 			name: "node exporter metrics",
-			docs: util.MustReadDocs("../../../../util/testdata/node_exporter.json", 2000),
+			docs: util.MustReadDocs("../../../../../util/testdata/node_exporter.json", 2000),
 		},
 	}
 
