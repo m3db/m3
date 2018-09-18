@@ -53,7 +53,7 @@ var (
 	middle      = test.Middle
 	end         = test.End
 
-	tagMu sync.Mutex
+	tagMu sync.RWMutex
 
 	// required for iterator pool
 	testIterAlloc = func(r io.Reader) encoding.ReaderIterator {
@@ -120,21 +120,21 @@ func validateSeries(t *testing.T, it encoding.SeriesIterator) {
 	assert.Equal(t, seriesStart, it.Start())
 	assert.Equal(t, end, it.End())
 
-	tagMu.Lock()
+	tagMu.RLock()
 	tagIter := it.Tags()
 	tagCount := 0
-	expectedCount := len(testTags)
+	expectedCount := 2
 	for tagIter.Next() {
 		tag := tagIter.Current()
 		name := tag.Name.String()
 		expectedVal, contains := testTags[name]
 		require.True(t, contains)
 		assert.Equal(t, expectedVal, tag.Value.String())
-		delete(testTags, expectedVal)
 		tagCount++
 	}
-	tagMu.Unlock()
+
 	assert.Equal(t, expectedCount, tagCount)
+	tagMu.RUnlock()
 }
 
 func TestGeneratedSeries(t *testing.T) {

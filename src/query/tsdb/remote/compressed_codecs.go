@@ -56,13 +56,13 @@ var (
 	initialize sync.Once
 )
 
-func compressedSegmentFromBlockReader(br xio.BlockReader) (*rpc.Segment, error) {
+func compressedSegmentFromBlockReader(br xio.BlockReader) (*rpc.M3Segment, error) {
 	segment, err := br.Segment()
 	if err != nil {
 		return nil, err
 	}
 
-	return &rpc.Segment{
+	return &rpc.M3Segment{
 		Head:      segment.Head.Bytes(),
 		Tail:      segment.Tail.Bytes(),
 		StartTime: xtime.ToNanoseconds(br.Start),
@@ -70,8 +70,8 @@ func compressedSegmentFromBlockReader(br xio.BlockReader) (*rpc.Segment, error) 
 	}, nil
 }
 
-func compressedSegmentsFromReaders(readers xio.ReaderSliceOfSlicesIterator) (*rpc.Segments, error) {
-	segments := &rpc.Segments{}
+func compressedSegmentsFromReaders(readers xio.ReaderSliceOfSlicesIterator) (*rpc.M3Segments, error) {
+	segments := &rpc.M3Segments{}
 	l, _, _ := readers.CurrentReaders()
 	// NB(arnikola) If there's only a single reader, the segment has been merged
 	// otherwise, multiple unmerged segments exist.
@@ -84,7 +84,7 @@ func compressedSegmentsFromReaders(readers xio.ReaderSliceOfSlicesIterator) (*rp
 
 		segments.Merged = segment
 	} else {
-		unmerged := make([]*rpc.Segment, 0, l)
+		unmerged := make([]*rpc.M3Segment, 0, l)
 		for i := 0; i < l; i++ {
 			br := readers.CurrentReaderAt(i)
 			segment, err := compressedSegmentFromBlockReader(br)
@@ -142,9 +142,9 @@ to send it across the wire without needing to expand the series
 */
 func compressedSeriesFromSeriesIterator(it encoding.SeriesIterator, iterPools encoding.IteratorPools) (*rpc.Series, error) {
 	replicas := it.Replicas()
-	compressedReplicas := make([]*rpc.CompressedValuesReplica, 0, len(replicas))
+	compressedReplicas := make([]*rpc.M3CompressedValuesReplica, 0, len(replicas))
 	for _, replica := range replicas {
-		replicaSegments := make([]*rpc.Segments, 0, len(replicas))
+		replicaSegments := make([]*rpc.M3Segments, 0, len(replicas))
 		readers := replica.Readers()
 		for next := true; next; next = readers.Next() {
 			segments, err := compressedSegmentsFromReaders(readers)
@@ -155,7 +155,7 @@ func compressedSeriesFromSeriesIterator(it encoding.SeriesIterator, iterPools en
 			replicaSegments = append(replicaSegments, segments)
 		}
 
-		compressedReplicas = append(compressedReplicas, &rpc.CompressedValuesReplica{
+		compressedReplicas = append(compressedReplicas, &rpc.M3CompressedValuesReplica{
 			Segments: replicaSegments,
 		})
 	}
@@ -222,7 +222,7 @@ func segmentBytesFromCompressedSegment(
 }
 
 func blockReaderFromCompressedSegment(
-	seg *rpc.Segment,
+	seg *rpc.M3Segment,
 	opts checked.BytesOptions,
 	checkedBytesWrapperPool xpool.CheckedBytesWrapperPool,
 ) xio.BlockReader {
@@ -272,7 +272,7 @@ func tagIteratorFromSeries(
 }
 
 func blockReadersFromCompressedSegments(
-	segments []*rpc.Segments,
+	segments []*rpc.M3Segments,
 	checkedBytesWrapperPool xpool.CheckedBytesWrapperPool,
 ) [][]xio.BlockReader {
 	blockReaders := make([][]xio.BlockReader, len(segments))
