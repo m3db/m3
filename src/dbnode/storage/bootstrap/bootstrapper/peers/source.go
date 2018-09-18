@@ -82,6 +82,8 @@ func (s *peersSource) AvailableData(
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
 ) result.ShardTimeRanges {
+	// TODO: Call validateRunOpts here when we modify this interface
+	// to support returning errors.
 	return s.peerAvailability(nsMetadata, shardsTimeRanges, runOpts)
 }
 
@@ -90,6 +92,10 @@ func (s *peersSource) ReadData(
 	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
 ) (result.DataBootstrapResult, error) {
+	if err := s.validateRunOpts(opts); err != nil {
+		return nil, err
+	}
+
 	if shardsTimeRanges.IsEmpty() {
 		return result.NewDataBootstrapResult(), nil
 	}
@@ -461,6 +467,7 @@ func (s *peersSource) incrementalFlush(
 				// from memory AND the commit log bootstrapper is set before the peers bootstrapper
 				// in the bootstrappers configuration.
 			default:
+				// panic("wtf")
 				return fmt.Errorf("unknown FileSetFileType: %v", persistConfig.FileSetType)
 			}
 		}
@@ -544,6 +551,8 @@ func (s *peersSource) AvailableIndex(
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
 ) result.ShardTimeRanges {
+	// TODO: Call validateRunOpts here when we modify this interface
+	// to support returning errors.
 	return s.peerAvailability(nsMetadata, shardsTimeRanges, runOpts)
 }
 
@@ -552,6 +561,10 @@ func (s *peersSource) ReadIndex(
 	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
 ) (result.IndexBootstrapResult, error) {
+	if err := s.validateRunOpts(opts); err != nil {
+		return nil, err
+	}
+
 	// FOLLOWUP(r): Try to reuse any metadata fetched during the ReadData(...)
 	// call rather than going to the network again
 	r := result.NewIndexBootstrapResult()
@@ -803,4 +816,14 @@ func (s *peersSource) markIndexResultErrorAsUnfulfilled(
 		shard: xtime.NewRanges(timeRange),
 	}
 	r.Add(result.IndexBlock{}, unfulfilled)
+}
+
+func (s *peersSource) validateRunOpts(runOpts bootstrap.RunOptions) error {
+	persistConfig := runOpts.PersistConfig()
+	if persistConfig.FileSetType != persist.FileSetFlushType &&
+		persistConfig.FileSetType != persist.FileSetSnapshotType {
+		return fmt.Errorf("unknown persist config fileset file type: %v", persistConfig.FileSetType)
+	}
+
+	return nil
 }
