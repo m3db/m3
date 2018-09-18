@@ -30,44 +30,34 @@ import (
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/ts"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3/src/query/util/logging"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/metadata"
 )
 
 var (
 	now      = time.Now()
 	name0    = []byte("regex")
 	val0     = "[a-z]"
-	valList0 = &rpc.Datapoints{
-		Datapoints:      []*rpc.Datapoint{{1, 1.0}, {2, 2.0}, {3, 3.0}},
-		FixedResolution: false,
-	}
-	time0 = "2000-02-06T11:54:48+07:00"
+	valList0 = []*rpc.Datapoint{{1, 1.0}, {2, 2.0}, {3, 3.0}}
+	time0    = "2000-02-06T11:54:48+07:00"
 
 	name1    = []byte("eq")
 	val1     = "val"
-	valList1 = &rpc.Datapoints{
-		Datapoints:      []*rpc.Datapoint{{1, 4.0}, {2, 5.0}, {3, 6.0}},
-		FixedResolution: false,
-	}
+	valList1 = []*rpc.Datapoint{{1, 4.0}, {2, 5.0}, {3, 6.0}}
 
-	name2    = []byte("s2")
-	valList2 = &rpc.Datapoints{
-		Datapoints:      []*rpc.Datapoint{{fromTime(now.Add(-3 * time.Minute)), 4.0}, {fromTime(now.Add(-2 * time.Minute)), 5.0}, {fromTime(now.Add(-1 * time.Minute)), 6.0}},
-		FixedResolution: true,
+	valList2 = []*rpc.Datapoint{
+		{fromTime(now.Add(-3 * time.Minute)), 4.0},
+		{fromTime(now.Add(-2 * time.Minute)), 5.0},
+		{fromTime(now.Add(-1 * time.Minute)), 6.0},
 	}
 
 	time1 = "2093-02-06T11:54:48+07:00"
 
-	tags0  = models.Tags{{"a", "b"}, {"c", "d"}}
-	tags1  = models.Tags{{"e", "f"}, {"g", "h"}}
-	float0 = 100.0
-	float1 = 3.5
-	ann    = []byte("aasjgał")
-	id     = "asdgsdh"
+	tags0 = models.Tags{{"a", "b"}, {"c", "d"}}
+	tags1 = models.Tags{{"e", "f"}, {"g", "h"}}
 )
 
 func parseTimes(t *testing.T) (time.Time, time.Time) {
@@ -88,50 +78,47 @@ func TestTimeConversions(t *testing.T) {
 func createRPCSeries() []*rpc.DecompressedSeries {
 	return []*rpc.DecompressedSeries{
 		&rpc.DecompressedSeries{
-			Id:     name0,
-			Values: valList0,
-			Tags:   encodeTags(tags0),
+			Datapoints: valList0,
+			Tags:       encodeTags(tags0),
 		},
 		&rpc.DecompressedSeries{
-			Id:     name1,
-			Values: valList1,
-			Tags:   encodeTags(tags1),
+			Datapoints: valList1,
+			Tags:       encodeTags(tags1),
 		},
 		&rpc.DecompressedSeries{
-			Id:     name2,
-			Values: valList2,
-			Tags:   encodeTags(tags1),
+			Datapoints: valList2,
+			Tags:       encodeTags(tags1),
 		},
 	}
 }
 
 func TestDecodeFetchResult(t *testing.T) {
-	ctx := context.Background()
 	rpcSeries := createRPCSeries()
+	name := "name"
 
-	tsSeries, err := DecodeDecompressedFetchResult(ctx, rpcSeries)
+	tsSeries, err := DecodeDecompressedFetchResult(name, rpcSeries)
 	assert.NoError(t, err)
 	assert.Len(t, tsSeries, 3)
-	assert.Equal(t, string(name0), tsSeries[0].Name())
-	assert.Equal(t, string(name1), tsSeries[1].Name())
+	assert.Equal(t, name, tsSeries[0].Name())
+	assert.Equal(t, name, tsSeries[1].Name())
 	assert.Equal(t, models.Tags(tags0), tsSeries[0].Tags)
 	assert.Equal(t, models.Tags(tags1), tsSeries[1].Tags)
 
-	assert.Equal(t, len(valList0.Datapoints), tsSeries[0].Len())
-	assert.Equal(t, len(valList1.Datapoints), tsSeries[1].Len())
-	assert.Equal(t, len(valList2.Datapoints), tsSeries[2].Len())
+	assert.Equal(t, len(valList0), tsSeries[0].Len())
+	assert.Equal(t, len(valList1), tsSeries[1].Len())
+	assert.Equal(t, len(valList2), tsSeries[2].Len())
 
-	for i := range valList0.Datapoints {
-		assert.Equal(t, float64(valList0.Datapoints[i].Value), tsSeries[0].Values().ValueAt(i))
-		assert.Equal(t, valList0.Datapoints[i].Timestamp, fromTime(tsSeries[0].Values().DatapointAt(i).Timestamp))
+	for i := range valList0 {
+		assert.Equal(t, float64(valList0[i].Value), tsSeries[0].Values().ValueAt(i))
+		assert.Equal(t, valList0[i].Timestamp, fromTime(tsSeries[0].Values().DatapointAt(i).Timestamp))
 	}
-	for i := range valList1.Datapoints {
-		assert.Equal(t, float64(valList1.Datapoints[i].Value), tsSeries[1].Values().ValueAt(i))
-		assert.Equal(t, valList1.Datapoints[i].Timestamp, fromTime(tsSeries[1].Values().DatapointAt(i).Timestamp))
+	for i := range valList1 {
+		assert.Equal(t, float64(valList1[i].Value), tsSeries[1].Values().ValueAt(i))
+		assert.Equal(t, valList1[i].Timestamp, fromTime(tsSeries[1].Values().DatapointAt(i).Timestamp))
 	}
-	for i := range valList2.Datapoints {
-		assert.Equal(t, float64(valList2.Datapoints[i].Value), tsSeries[2].Values().ValueAt(i))
-		assert.Equal(t, valList2.Datapoints[i].Timestamp, fromTime(tsSeries[2].Values().DatapointAt(i).Timestamp))
+	for i := range valList2 {
+		assert.Equal(t, float64(valList2[i].Value), tsSeries[2].Values().ValueAt(i))
+		assert.Equal(t, valList2[i].Timestamp, fromTime(tsSeries[2].Values().DatapointAt(i).Timestamp))
 	}
 
 	// Encode again
@@ -139,10 +126,9 @@ func TestDecodeFetchResult(t *testing.T) {
 	revert := EncodeFetchResult(fetchResult)
 	require.Len(t, revert.GetSeries(), len(rpcSeries))
 	for i, expected := range rpcSeries {
-		assert.Equal(t, expected.GetId(), revert.GetSeries()[i].GetId())
-		assert.Equal(t, expected.GetValues(), revert.GetSeries()[i].GetValues())
+		assert.Equal(t, expected.GetDatapoints(), revert.GetSeries()[i].GetDecompressed().GetDatapoints())
 		for _, tag := range expected.GetTags() {
-			assert.Contains(t, revert.GetSeries()[i].GetTags(), tag)
+			assert.Contains(t, revert.GetSeries()[i].GetDecompressed().GetTags(), tag)
 		}
 	}
 }
@@ -177,11 +163,12 @@ func createStorageFetchQuery(t *testing.T) (*storage.FetchQuery, time.Time, time
 func TestEncodeFetchMessage(t *testing.T) {
 	rQ, start, end := createStorageFetchQuery(t)
 
-	grpcQ := EncodeFetchMessage(context.TODO(), rQ, id)
+	grpcQ, err := EncodeFetchRequest(rQ)
 	require.NotNil(t, grpcQ)
-	assert.Equal(t, fromTime(start), grpcQ.GetQuery().GetStart())
-	assert.Equal(t, fromTime(end), grpcQ.GetQuery().GetEnd())
-	mRPC := grpcQ.GetQuery().GetTagMatchers()
+	require.NoError(t, err)
+	assert.Equal(t, fromTime(start), grpcQ.GetStart())
+	assert.Equal(t, fromTime(end), grpcQ.GetEnd())
+	mRPC := grpcQ.GetTagMatchers().GetTagMatchers()
 	assert.Equal(t, 2, len(mRPC))
 	assert.Equal(t, string(name0), mRPC[0].GetName())
 	assert.Equal(t, val0, mRPC[0].GetValue())
@@ -189,93 +176,51 @@ func TestEncodeFetchMessage(t *testing.T) {
 	assert.Equal(t, string(name1), mRPC[1].GetName())
 	assert.Equal(t, val1, mRPC[1].GetValue())
 	assert.Equal(t, models.MatchEqual, models.MatchType(mRPC[1].GetType()))
-	assert.Equal(t, id, grpcQ.GetOptions().GetId())
 }
 
 func TestEncodeDecodeFetchQuery(t *testing.T) {
 	rQ, _, _ := createStorageFetchQuery(t)
-	gq := EncodeFetchMessage(context.TODO(), rQ, id)
-	reverted, decodeID, err := DecodeFetchMessage(gq)
-	require.Nil(t, err)
-	assert.Equal(t, id, decodeID)
+	gq, err := EncodeFetchRequest(rQ)
+	require.NoError(t, err)
+	reverted, err := DecodeFetchRequest(gq)
+	require.NoError(t, err)
 	readQueriesAreEqual(t, rQ, reverted)
 
 	// Encode again
-	gqr := EncodeFetchMessage(context.TODO(), reverted, decodeID)
+	gqr, err := EncodeFetchRequest(reverted)
+	require.NoError(t, err)
 	assert.Equal(t, gq, gqr)
 }
 
-func TestEncodeFetchQueryMetadata(t *testing.T) {
-	rQ, _, _ := createStorageFetchQuery(t)
+func TestEncodeMetadata(t *testing.T) {
+	headers := make(http.Header)
+	headers.Add("Foo", "bar")
+	headers.Add("Foo", "baz")
+	headers.Add("Foo", "abc")
+	headers.Add("lorem", "ipsum")
+	ctx := context.WithValue(context.TODO(), handler.HeaderKey, headers)
+	requestID := "requestID"
+
+	encodedCtx := EncodeMetadata(ctx, requestID)
+	md, ok := metadata.FromOutgoingContext(encodedCtx)
+	require.True(t, ok)
+	assert.Equal(t, []string{"bar", "baz", "abc"}, md["foo"], "metadat keys must be lower case")
+	assert.Equal(t, []string{"ipsum"}, md["lorem"])
+	assert.Equal(t, []string{requestID}, md[reqIDKey])
+}
+
+func TestRetrieveMetadata(t *testing.T) {
+	logging.InitWithCores(nil)
 
 	headers := make(http.Header)
 	headers.Add("Foo", "bar")
 	headers.Add("Foo", "baz")
 	headers.Add("Foo", "abc")
 	headers.Add("Lorem", "ipsum")
-	ctx := context.WithValue(context.TODO(), handler.HeaderKey, headers)
-	gq := EncodeFetchMessage(ctx, rQ, id)
+	requestID := "requestID"
+	headers[reqIDKey] = []string{requestID}
+	ctx := metadata.NewIncomingContext(context.TODO(), metadata.MD(headers))
+	encodedCtx := RetrieveMetadata(ctx)
 
-	metadata := gq.GetOptions().GetMetadata()
-	assert.Equal(t, 2, len(metadata))
-	assert.Equal(t, "bar", metadata["Foo"])
-	assert.Equal(t, "ipsum", metadata["Lorem"])
-}
-
-func createStorageWriteQuery(t *testing.T) (*storage.WriteQuery, ts.Datapoints) {
-	t0, t1 := parseTimes(t)
-	points := []ts.Datapoint{
-		ts.Datapoint{
-			Timestamp: t0,
-			Value:     float0,
-		},
-		ts.Datapoint{
-			Timestamp: t1,
-			Value:     float1,
-		},
-	}
-	return &storage.WriteQuery{
-		Tags:       tags0,
-		Unit:       xtime.Unit(2),
-		Annotation: ann,
-		Datapoints: points,
-	}, points
-}
-
-func TestEncodeWriteMessage(t *testing.T) {
-	write, points := createStorageWriteQuery(t)
-	encw := EncodeWriteMessage(write, id)
-	assert.Equal(t, tags0.StringMap(), encw.GetQuery().GetTags())
-	assert.Equal(t, ann, encw.GetQuery().GetAnnotation())
-	assert.Equal(t, int32(2), encw.GetQuery().GetUnit())
-	assert.Equal(t, id, encw.GetOptions().GetId())
-	encPoints := encw.GetQuery().GetDatapoints()
-	assert.Equal(t, len(points), len(encPoints))
-	for i, v := range points {
-		assert.Equal(t, fromTime(v.Timestamp), encPoints[i].GetTimestamp())
-		assert.Equal(t, v.Value, encPoints[i].GetValue())
-	}
-}
-
-func writeQueriesAreEqual(t *testing.T, this, other *storage.WriteQuery) {
-	assert.Equal(t, this.Annotation, other.Annotation)
-	assert.Equal(t, this.Tags, other.Tags)
-	assert.Equal(t, this.Unit, other.Unit)
-	assert.Equal(t, this.Datapoints.Len(), other.Datapoints.Len())
-	for i := 0; i < this.Datapoints.Len(); i++ {
-		assert.Equal(t, this.Datapoints.ValueAt(i), other.Datapoints.ValueAt(i))
-		assert.True(t, this.Datapoints[i].Timestamp.Equal(other.Datapoints[i].Timestamp))
-	}
-}
-
-func TestEncodeDecodeWriteQuery(t *testing.T) {
-	write, _ := createStorageWriteQuery(t)
-	encw := EncodeWriteMessage(write, id)
-	rev, decodeID := DecodeWriteMessage(encw)
-	writeQueriesAreEqual(t, write, rev)
-	require.Equal(t, id, decodeID)
-
-	// Encode again
-	reencw := EncodeWriteMessage(rev, decodeID)
-	assert.Equal(t, encw, reencw)
+	require.Equal(t, requestID, logging.ReadContextID(encodedCtx))
 }

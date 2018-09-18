@@ -24,6 +24,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
 )
@@ -35,21 +36,53 @@ type slowStorage struct {
 }
 
 // NewSlowStorage creates a new slow storage
-func NewSlowStorage(storage storage.Storage, delay time.Duration) storage.Storage {
+func NewSlowStorage(
+	storage storage.Storage,
+	delay time.Duration,
+) storage.Storage {
 	return &slowStorage{storage: storage, delay: delay}
 }
 
-func (s *slowStorage) Fetch(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (*storage.FetchResult, error) {
+func (s *slowStorage) Fetch(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (*storage.FetchResult, error) {
 	time.Sleep(s.delay)
 	return s.storage.Fetch(ctx, query, options)
 }
 
-func (s *slowStorage) FetchTags(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (*storage.SearchResults, error) {
+func (s *slowStorage) FetchRaw(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (encoding.SeriesIterators, error) {
+	time.Sleep(s.delay)
+	return s.storage.FetchRaw(ctx, query, options)
+}
+
+func (s *slowStorage) FetchBlocks(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (block.Result, error) {
+	time.Sleep(s.delay)
+	return s.storage.FetchBlocks(ctx, query, options)
+}
+
+func (s *slowStorage) FetchTags(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (*storage.SearchResults, error) {
 	time.Sleep(s.delay)
 	return s.storage.FetchTags(ctx, query, options)
 }
 
-func (s *slowStorage) Write(ctx context.Context, query *storage.WriteQuery) error {
+func (s *slowStorage) Write(
+	ctx context.Context,
+	query *storage.WriteQuery,
+) error {
 	time.Sleep(s.delay)
 	return s.storage.Write(ctx, query)
 }
@@ -60,10 +93,4 @@ func (s *slowStorage) Type() storage.Type {
 
 func (s *slowStorage) Close() error {
 	return nil
-}
-
-func (s *slowStorage) FetchBlocks(
-	ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (block.Result, error) {
-	time.Sleep(s.delay)
-	return s.storage.FetchBlocks(ctx, query, options)
 }

@@ -27,13 +27,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/execution"
-	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
@@ -112,7 +112,86 @@ func (s *localStorage) Fetch(
 	if err := result.err.FinalError(); err != nil {
 		return nil, err
 	}
+
 	return result.result, nil
+}
+
+func (s *localStorage) FetchBlocks(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (block.Result, error) {
+	fetchResult, err := s.Fetch(ctx, query, options)
+	if err != nil {
+		return block.Result{}, err
+	}
+
+	return storage.FetchResultToBlockResult(fetchResult, query)
+}
+
+func (s *localStorage) FetchRaw(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (encoding.SeriesIterators, error) {
+	// Check if the query was interrupted.
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-options.KillChan:
+		return nil, errors.ErrQueryInterrupted
+	default:
+	}
+
+	m3query, err := storage.FetchQueryToM3Query(query)
+	if err != nil {
+		return nil, err
+	}
+
+	// NB(r): Since we don't use a single index we fan out to each
+	// cluster that can completely fulfill this range and then prefer the
+	// highest resolution (most fine grained) results.
+	// This needs to be optimized, however this is a start.
+	var (
+		opts       = storage.FetchOptionsToM3Options(options, query)
+		namespaces = s.clusters.ClusterNamespaces()
+		now        = time.Now()
+		fetches    = 0
+		result     multiFetchRawResult
+		wg         sync.WaitGroup
+	)
+	for _, namespace := range namespaces {
+		namespace := namespace // Capture var
+
+		clusterStart := now.Add(-1 * namespace.Options().Attributes().Retention)
+
+		// Only include if cluster can completely fulfill the range
+		if clusterStart.After(query.Start) {
+			continue
+		}
+
+		fetches++
+
+		wg.Add(1)
+		go func() {
+			session := namespace.Session()
+			ns := namespace.NamespaceID()
+			iters, _, err := session.FetchTagged(ns, m3query, opts)
+			result.add(namespace.Options().Attributes(), iters, err)
+			wg.Done()
+		}()
+	}
+
+	if fetches == 0 {
+		return nil, errNoLocalClustersFulfillsQuery
+	}
+
+	wg.Wait()
+	if err := result.err.FinalError(); err != nil {
+		return nil, err
+	}
+
+	return result.iterators, nil
 }
 
 func (s *localStorage) fetch(
@@ -132,7 +211,11 @@ func (s *localStorage) fetch(
 	return storage.SeriesIteratorsToFetchResult(iters, namespaceID, s.workerPool)
 }
 
-func (s *localStorage) FetchTags(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (*storage.SearchResults, error) {
+func (s *localStorage) FetchTags(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (*storage.SearchResults, error) {
 	// Check if the query was interrupted.
 	select {
 	case <-ctx.Done():
@@ -208,17 +291,21 @@ func (s *localStorage) fetchTags(
 
 		metrics = append(metrics, m)
 	}
+
 	if err := iter.Err(); err != nil {
 		return nil, err
 	}
-	iter.Finalize()
 
+	iter.Finalize()
 	return &storage.SearchResults{
 		Metrics: metrics,
 	}, nil
 }
 
-func (s *localStorage) Write(ctx context.Context, query *storage.WriteQuery) error {
+func (s *localStorage) Write(
+	ctx context.Context,
+	query *storage.WriteQuery,
+) error {
 	// Check if the query was interrupted.
 	select {
 	case <-ctx.Done():
@@ -249,23 +336,6 @@ func (s *localStorage) Write(ctx context.Context, query *storage.WriteQuery) err
 
 func (s *localStorage) Type() storage.Type {
 	return storage.TypeLocalDC
-}
-
-func (s *localStorage) FetchBlocks(
-	ctx context.Context,
-	query *storage.FetchQuery,
-	options *storage.FetchOptions) (block.Result, error) {
-	fetchResult, err := s.Fetch(ctx, query, options)
-	if err != nil {
-		return block.Result{}, err
-	}
-
-	res, err := storage.FetchResultToBlockResult(fetchResult, query)
-	if err != nil {
-		return block.Result{}, err
-	}
-
-	return res, nil
 }
 
 func (s *localStorage) Close() error {
@@ -325,127 +395,14 @@ type writeRequest struct {
 	value              float64
 }
 
-func newWriteRequest(writeRequestCommon *writeRequestCommon, timestamp time.Time, value float64) execution.Request {
+func newWriteRequest(
+	writeRequestCommon *writeRequestCommon,
+	timestamp time.Time,
+	value float64,
+) execution.Request {
 	return &writeRequest{
 		writeRequestCommon: writeRequestCommon,
 		timestamp:          timestamp,
 		value:              value,
-	}
-}
-
-type multiFetchResult struct {
-	sync.Mutex
-	result           *storage.FetchResult
-	err              xerrors.MultiError
-	dedupeFirstAttrs storage.Attributes
-	dedupeMap        map[string]multiFetchResultSeries
-}
-
-type multiFetchResultSeries struct {
-	idx   int
-	attrs storage.Attributes
-}
-
-func (r *multiFetchResult) add(
-	attrs storage.Attributes,
-	result *storage.FetchResult,
-	err error,
-) {
-	r.Lock()
-	defer r.Unlock()
-
-	if err != nil {
-		r.err = r.err.Add(err)
-		return
-	}
-
-	if r.result == nil {
-		r.result = result
-		r.dedupeFirstAttrs = attrs
-		return
-	}
-
-	r.result.HasNext = r.result.HasNext && result.HasNext
-	r.result.LocalOnly = r.result.LocalOnly && result.LocalOnly
-
-	// Need to dedupe
-	if r.dedupeMap == nil {
-		r.dedupeMap = make(map[string]multiFetchResultSeries, len(r.result.SeriesList))
-		for idx, s := range r.result.SeriesList {
-			r.dedupeMap[s.Name()] = multiFetchResultSeries{
-				idx:   idx,
-				attrs: r.dedupeFirstAttrs,
-			}
-		}
-	}
-
-	for _, s := range result.SeriesList {
-		id := s.Name()
-		existing, exists := r.dedupeMap[id]
-		if exists && existing.attrs.Resolution <= attrs.Resolution {
-			// Already exists and resolution of result we are adding is not as precise
-			continue
-		}
-
-		// Does not exist already or more precise, add result
-		var idx int
-		if !exists {
-			idx = len(r.result.SeriesList)
-			r.result.SeriesList = append(r.result.SeriesList, s)
-		} else {
-			idx = existing.idx
-			r.result.SeriesList[idx] = s
-		}
-
-		r.dedupeMap[id] = multiFetchResultSeries{
-			idx:   idx,
-			attrs: attrs,
-		}
-	}
-}
-
-type multiFetchTagsResult struct {
-	sync.Mutex
-	result    *storage.SearchResults
-	err       xerrors.MultiError
-	dedupeMap map[string]struct{}
-}
-
-func (r *multiFetchTagsResult) add(
-	result *storage.SearchResults,
-	err error,
-) {
-	r.Lock()
-	defer r.Unlock()
-
-	if err != nil {
-		r.err = r.err.Add(err)
-		return
-	}
-
-	if r.result == nil {
-		r.result = result
-		return
-	}
-
-	// Need to dedupe
-	if r.dedupeMap == nil {
-		r.dedupeMap = make(map[string]struct{}, len(r.result.Metrics))
-		for _, s := range r.result.Metrics {
-			r.dedupeMap[s.ID] = struct{}{}
-		}
-	}
-
-	for _, s := range result.Metrics {
-		id := s.ID
-		_, exists := r.dedupeMap[id]
-		if exists {
-			// Already exists
-			continue
-		}
-
-		// Does not exist already, add result
-		r.result.Metrics = append(r.result.Metrics, s)
-		r.dedupeMap[id] = struct{}{}
 	}
 }

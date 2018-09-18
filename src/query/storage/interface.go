@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
@@ -86,11 +87,31 @@ type FetchOptions struct {
 type Querier interface {
 	// Fetch fetches timeseries data based on a query
 	Fetch(
-		ctx context.Context, query *FetchQuery, options *FetchOptions) (*FetchResult, error)
-	FetchTags(
-		ctx context.Context, query *FetchQuery, options *FetchOptions) (*SearchResults, error)
+		ctx context.Context,
+		query *FetchQuery,
+		options *FetchOptions,
+	) (*FetchResult, error)
+
+	// FetchRaw returns the raw iterators from the underlying storage
+	FetchRaw(
+		ctx context.Context,
+		query *FetchQuery,
+		options *FetchOptions,
+	) (encoding.SeriesIterators, error)
+
+	// FetchBlocks converts fetch results to storage blocks
 	FetchBlocks(
-		ctx context.Context, query *FetchQuery, options *FetchOptions) (block.Result, error)
+		ctx context.Context,
+		query *FetchQuery,
+		options *FetchOptions,
+	) (block.Result, error)
+
+	// FetchTags returns search results for tags
+	FetchTags(
+		ctx context.Context,
+		query *FetchQuery,
+		options *FetchOptions,
+	) (*SearchResults, error)
 }
 
 // WriteQuery represents the input timeseries that is written to M3DB

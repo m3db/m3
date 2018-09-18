@@ -23,6 +23,7 @@ package remote
 import (
 	"context"
 
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/storage"
@@ -46,25 +47,12 @@ func (s *remoteStorage) Fetch(
 	return s.client.Fetch(ctx, query, options)
 }
 
-func (s *remoteStorage) FetchTags(
+func (s *remoteStorage) FetchRaw(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
-) (*storage.SearchResults, error) {
-	// todo (braskin): implement remote FetchTags
-	return nil, errors.ErrNotImplemented
-}
-
-func (s *remoteStorage) Write(ctx context.Context, query *storage.WriteQuery) error {
-	return s.client.Write(ctx, query)
-}
-
-func (s *remoteStorage) Type() storage.Type {
-	return storage.TypeRemoteDC
-}
-
-func (s *remoteStorage) Close() error {
-	return nil
+) (encoding.SeriesIterators, error) {
+	return s.client.FetchRaw(ctx, query, options)
 }
 
 func (s *remoteStorage) FetchBlocks(
@@ -73,4 +61,24 @@ func (s *remoteStorage) FetchBlocks(
 	options *storage.FetchOptions,
 ) (block.Result, error) {
 	return s.client.FetchBlocks(ctx, query, options)
+}
+
+func (s *remoteStorage) FetchTags(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (*storage.SearchResults, error) {
+	return s.client.FetchTags(ctx, query, options)
+}
+
+func (s *remoteStorage) Write(ctx context.Context, query *storage.WriteQuery) error {
+	return errors.ErrRemoteWriteQuery
+}
+
+func (s *remoteStorage) Type() storage.Type {
+	return storage.TypeRemoteDC
+}
+
+func (s *remoteStorage) Close() error {
+	return nil
 }

@@ -176,34 +176,17 @@ func waitForServerHealthy(t *testing.T, port int) {
 }
 
 type queryServer struct {
-	writes, reads, taggedReads int
-	mu                         sync.Mutex
+	reads int
+	mu    sync.Mutex
 }
 
-func (s *queryServer) FetchDecompressed(
-	*rpc.FetchMessage,
-	rpc.Query_FetchDecompressedServer,
+func (s *queryServer) Fetch(
+	*rpc.FetchRequest,
+	rpc.Query_FetchServer,
 ) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.reads++
-	return nil
-}
-
-func (s *queryServer) FetchTagged(
-	*rpc.FetchMessage,
-	rpc.Query_FetchTaggedServer,
-) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.taggedReads++
-	return nil
-}
-
-func (s *queryServer) Write(rpc.Query_WriteServer) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.writes++
 	return nil
 }
 
@@ -268,16 +251,17 @@ backend: grpc
 	// Wait for server to come up
 	waitForServerHealthy(t, 17201)
 
-	// Send Prometheus write request
-	promReq := remotetest.GeneratePromWriteRequest()
-	promReqBody := remotetest.GeneratePromWriteRequestBody(t, promReq)
+	// Send Prometheus read request
+	promReq := remotetest.GeneratePromReadRequest()
+	promReqBody := remotetest.GeneratePromReadRequestBody(t, promReq)
 	req, err := http.NewRequest(http.MethodPost,
-		"http://127.0.0.1:17201"+remote.PromWriteURL, promReqBody)
+		"http://127.0.0.1:17201"+remote.PromReadURL, promReqBody)
 	require.NoError(t, err)
 
 	_, err = http.DefaultClient.Do(req)
 	require.NoError(t, err)
-	assert.Equal(t, qs.writes, 2)
+	assert.Equal(t, qs.reads, 1)
+
 	// Ensure close server performs as expected
 	interruptCh <- fmt.Errorf("interrupt")
 	<-doneCh

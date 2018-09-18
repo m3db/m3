@@ -100,7 +100,7 @@ func compressedSegmentsFromReaders(readers xio.ReaderSliceOfSlicesIterator) (*rp
 	return segments, nil
 }
 
-func compressedTagsFromTagIteratorWithEncoder(tagIter ident.TagIterator, encoderPool serialize.TagEncoderPool) ([]byte, error) {
+func compressedTagsFromTagIterator(tagIter ident.TagIterator, encoderPool serialize.TagEncoderPool) ([]byte, error) {
 	encoder := encoderPool.Get()
 	err := encoder.Encode(tagIter)
 	if err != nil {
@@ -116,35 +116,15 @@ func compressedTagsFromTagIteratorWithEncoder(tagIter ident.TagIterator, encoder
 	return data.Bytes(), nil
 }
 
-func tagsFromTagIterator(tagIter ident.TagIterator) ([]*rpc.Tag, error) {
-	tags := make([]*rpc.Tag, 0, tagIter.Remaining())
-	for tagIter.Next() {
-		tag := tagIter.Current()
-		tags = append(tags, &rpc.Tag{
-			Name:  tag.Name.Bytes(),
-			Value: tag.Value.Bytes(),
-		})
-	}
-
-	err := tagIter.Err()
-	if err != nil {
-		return nil, err
-	}
-
-	return tags, nil
-}
-
-func buildTags(tagIter ident.TagIterator, iterPools encoding.IteratorPools) ([]byte, []*rpc.Tag, error) {
+func buildTags(tagIter ident.TagIterator, iterPools encoding.IteratorPools) ([]byte, error) {
 	if iterPools != nil {
 		encoderPool := iterPools.TagEncoder()
 		if encoderPool != nil {
-			compressedTags, err := compressedTagsFromTagIteratorWithEncoder(tagIter, encoderPool)
-			return compressedTags, nil, err
+			return compressedTagsFromTagIterator(tagIter, encoderPool)
 		}
 	}
 
-	tags, err := tagsFromTagIterator(tagIter)
-	return nil, tags, err
+	return nil, errors.ErrCannotEncodeCompressedTags
 }
 
 /*
@@ -183,27 +163,31 @@ func compressedSeriesFromSeriesIterator(it encoding.SeriesIterator, iterPools en
 	start := xtime.ToNanoseconds(it.Start())
 	end := xtime.ToNanoseconds(it.End())
 
-	compressedTags, tags, err := buildTags(it.Tags(), iterPools)
+	tags, err := buildTags(it.Tags(), iterPools)
 	if err != nil {
 		return nil, err
 	}
 
 	return &rpc.Series{
-		Id:               it.ID().Bytes(),
-		Namespace:        it.Namespace().Bytes(),
-		StartTime:        start,
-		EndTime:          end,
-		CompressedTags:   compressedTags,
-		Replicas:         compressedReplicas,
-		DecompressedTags: tags,
+		Meta: &rpc.SeriesMetadata{
+			Id:        it.ID().Bytes(),
+			StartTime: start,
+			EndTime:   end,
+		},
+		Value: &rpc.Series_Compressed{
+			Compressed: &rpc.M3CompressedSeries{
+				CompressedTags: tags,
+				Replicas:       compressedReplicas,
+			},
+		},
 	}, nil
 }
 
-// EncodeToCompressedFetchResult encodes SeriesIterators to compressed fetch results
+// EncodeToCompressedFetchResult encodes SeriesIterators to compressed fetch response
 func EncodeToCompressedFetchResult(
 	iterators encoding.SeriesIterators,
 	iterPools encoding.IteratorPools,
-) (*rpc.FetchResult, error) {
+) (*rpc.FetchResponse, error) {
 	iters := iterators.Iters()
 	seriesList := make([]*rpc.Series, 0, len(iters))
 	for _, iter := range iters {
@@ -215,7 +199,7 @@ func EncodeToCompressedFetchResult(
 		seriesList = append(seriesList, series)
 	}
 
-	return &rpc.FetchResult{
+	return &rpc.FetchResponse{
 		Series: seriesList,
 	}, nil
 }
@@ -269,47 +253,22 @@ func tagIteratorFromCompressedTagsWithDecoder(
 	return decoder.Duplicate(), nil
 }
 
-func tagIteratorFromTags(compressedTags []*rpc.Tag, idPool ident.Pool) ident.TagIterator {
-	var (
-		tags    ident.Tags
-		tagIter ident.TagsIterator
-	)
-	if idPool != nil {
-		tags = idPool.Tags()
-	} else {
-		tags = ident.NewTags()
-	}
-
-	for _, tag := range compressedTags {
-		name, value := string(tag.GetName()), string(tag.GetValue())
-		if idPool != nil {
-			tags.Append(idPool.StringTag(name, value))
-		} else {
-			tags.Append(ident.StringTag(name, value))
-		}
-	}
-
-	if idPool != nil {
-		tagIter = idPool.TagsIterator()
-		tagIter.Reset(tags)
-	} else {
-		tagIter = ident.NewTagsIterator(tags)
-	}
-
-	return tagIter
-}
-
-func tagIteratorFromSeries(series *rpc.Series, iteratorPools encoding.IteratorPools) (ident.TagIterator, error) {
+func tagIteratorFromSeries(
+	series *rpc.M3CompressedSeries,
+	iteratorPools encoding.IteratorPools,
+) (ident.TagIterator, error) {
 	if series != nil && len(series.GetCompressedTags()) > 0 {
-		return tagIteratorFromCompressedTagsWithDecoder(series.GetCompressedTags(), iteratorPools)
+		return tagIteratorFromCompressedTagsWithDecoder(
+			series.GetCompressedTags(),
+			iteratorPools,
+		)
 	}
 
-	var idPool ident.Pool
-	if iteratorPools != nil {
-		idPool = iteratorPools.ID()
+	if iteratorPools == nil {
+		return ident.NewTagsIterator(ident.NewTags()), nil
 	}
 
-	return tagIteratorFromTags(series.GetDecompressedTags(), idPool), nil
+	return iteratorPools.TagDecoder().Get().Duplicate(), nil
 }
 
 func blockReadersFromCompressedSegments(
@@ -344,7 +303,8 @@ CompressedSeriesFromSeriesIterator, and takes an optional iteratorPool
 argument that allows reuse of the underlying iterator pools from the m3db session
 */
 func seriesIteratorFromCompressedSeries(
-	timeSeries *rpc.Series,
+	timeSeries *rpc.M3CompressedSeries,
+	meta *rpc.SeriesMetadata,
 	iteratorPools encoding.IteratorPools,
 ) (encoding.SeriesIterator, error) {
 	initialize.Do(initializeVars)
@@ -390,19 +350,17 @@ func seriesIteratorFromCompressedSeries(
 	}
 
 	var (
-		idString, nsString = string(timeSeries.GetId()), string(timeSeries.GetNamespace())
-		id, ns             ident.ID
+		idString = string(meta.GetId())
+		id, ns   ident.ID
 	)
 	if idPool != nil {
 		id = idPool.StringID(idString)
-		ns = idPool.StringID(nsString)
 	} else {
 		id = ident.StringID(idString)
-		ns = ident.StringID(nsString)
 	}
 
-	start := xtime.FromNanoseconds(timeSeries.GetStartTime())
-	end := xtime.FromNanoseconds(timeSeries.GetEndTime())
+	start := xtime.FromNanoseconds(meta.GetStartTime())
+	end := xtime.FromNanoseconds(meta.GetEndTime())
 
 	var seriesIter encoding.SeriesIterator
 	if seriesIterPool != nil {
@@ -422,9 +380,9 @@ func seriesIteratorFromCompressedSeries(
 	return seriesIter, nil
 }
 
-// DecodeCompressedFetchResult decodes compressed fetch results to seriesIterators
-func DecodeCompressedFetchResult(
-	fetchResult *rpc.FetchResult,
+// DecodeCompressedFetchResponse decodes compressed fetch response to seriesIterators
+func DecodeCompressedFetchResponse(
+	fetchResult *rpc.FetchResponse,
 	iteratorPools encoding.IteratorPools,
 ) (encoding.SeriesIterators, error) {
 	rpcSeries := fetchResult.GetSeries()
@@ -443,7 +401,16 @@ func DecodeCompressedFetchResult(
 	}
 
 	for i, series := range rpcSeries {
-		iter, err := seriesIteratorFromCompressedSeries(series, iteratorPools)
+		compressed := series.GetCompressed()
+		if compressed == nil {
+			continue
+		}
+
+		iter, err := seriesIteratorFromCompressedSeries(
+			compressed,
+			series.GetMeta(),
+			iteratorPools,
+		)
 		if err != nil {
 			return nil, err
 		}

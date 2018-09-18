@@ -455,7 +455,7 @@ func newStorages(
 	remoteEnabled := false
 	if cfg.RPC != nil && cfg.RPC.Enabled {
 		logger.Info("rpc enabled")
-		server, err := startGrpcServer(logger, localStorage, cfg.RPC)
+		server, err := startGrpcServer(logger, localStorage, pools, cfg.RPC)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -507,9 +507,14 @@ func remoteClient(
 	return nil, false, nil
 }
 
-func startGrpcServer(logger *zap.Logger, storage storage.Storage, cfg *config.RPCConfiguration) (*grpc.Server, error) {
+func startGrpcServer(
+	logger *zap.Logger,
+	storage storage.Storage,
+	pools encoding.IteratorPools,
+	cfg *config.RPCConfiguration,
+) (*grpc.Server, error) {
 	logger.Info("creating gRPC server")
-	server := tsdbRemote.CreateNewGrpcServer(storage)
+	server := tsdbRemote.CreateNewGrpcServer(storage, pools)
 	waitForStart := make(chan struct{})
 	var startErr error
 	go func() {
