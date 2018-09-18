@@ -25,7 +25,7 @@ import (
 
 	"github.com/m3db/bloom"
 	"github.com/m3db/m3/src/dbnode/digest"
-	"github.com/m3db/m3/src/dbnode/x/mmap"
+	"github.com/m3db/m3/src/x/mmap"
 )
 
 // ManagedConcurrentBloomFilter is a container object that implements lifecycle
