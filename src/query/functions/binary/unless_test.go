@@ -215,7 +215,7 @@ func TestUnless(t *testing.T) {
 
 			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
 			node := op.(baseOp).Node(c, transform.Options{})
-			bounds := block.Bounds{
+			bounds := models.Bounds{
 				Start:    now,
 				Duration: time.Minute * time.Duration(len(tt.lhs[0])),
 				StepSize: time.Minute,
@@ -224,7 +224,7 @@ func TestUnless(t *testing.T) {
 			lhs := test.NewBlockFromValuesWithSeriesMeta(bounds, tt.lhsMeta, tt.lhs)
 			err = node.Process(parser.NodeID(0), lhs)
 			require.NoError(t, err)
-			bounds = block.Bounds{
+			bounds = models.Bounds{
 				Start:    now,
 				Duration: time.Minute * time.Duration(len(tt.rhs[0])),
 				StepSize: time.Minute,

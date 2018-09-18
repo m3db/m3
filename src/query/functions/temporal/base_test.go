@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
@@ -50,7 +51,7 @@ func dummyProcessor(_ baseOp, _ *transform.Controller, _ transform.Options) Proc
 	return &processor{}
 }
 
-func compareCacheState(t *testing.T, bNode *baseNode, bounds block.Bounds, state []bool, debugMsg string) {
+func compareCacheState(t *testing.T, bNode *baseNode, bounds models.Bounds, state []bool, debugMsg string) {
 	actualState := make([]bool, len(state))
 	for i := range state {
 		_, exists := bNode.cache.get(bounds.Next(i).Start)
@@ -465,7 +466,7 @@ func TestSingleProcessRequest(t *testing.T) {
 	block2 := test.NewBlockFromValues(bounds, values)
 	values = [][]float64{{10, 11, 12, 13, 14}, {15, 16, 17, 18, 19}}
 
-	block1 := test.NewBlockFromValues(block.Bounds{
+	block1 := test.NewBlockFromValues(models.Bounds{
 		Start:    bounds.Start.Add(-1 * bounds.Duration),
 		Duration: bounds.Duration,
 		StepSize: bounds.StepSize,

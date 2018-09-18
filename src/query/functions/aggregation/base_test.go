@@ -54,7 +54,7 @@ var (
 		{600, 700, 800, 900, 1000},
 	}
 
-	bounds = block.Bounds{
+	bounds = models.Bounds{
 		Start:    time.Now(),
 		Duration: time.Minute * 5,
 		StepSize: time.Minute,

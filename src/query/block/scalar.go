@@ -37,7 +37,7 @@ type Scalar struct {
 }
 
 // NewScalar creates a scalar block containing val over the bounds
-func NewScalar(val float64, bounds Bounds) Block {
+func NewScalar(val float64, bounds models.Bounds) Block {
 	return &Scalar{
 		val: val,
 		meta: Metadata{

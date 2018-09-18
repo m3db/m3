@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
 )
 
@@ -57,7 +58,7 @@ func newMultiSeriesBlock(seriesList ts.SeriesList, query *FetchQuery) (multiSeri
 	}
 
 	meta := block.Metadata{
-		Bounds: block.Bounds{
+		Bounds: models.Bounds{
 			Start:    query.Start,
 			Duration: query.End.Sub(query.Start),
 			StepSize: resolution,

@@ -25,8 +25,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
@@ -261,7 +261,7 @@ func testAggregation(t *testing.T, testCases []testCase, vals [][]float64) {
 
 			original := values[0][0]
 			values[0][0] = math.NaN()
-			block1 := test.NewBlockFromValues(block.Bounds{
+			block1 := test.NewBlockFromValues(models.Bounds{
 				Start:    bounds.Start.Add(-2 * bounds.Duration),
 				Duration: bounds.Duration,
 				StepSize: bounds.StepSize,
@@ -278,7 +278,7 @@ func testAggregation(t *testing.T, testCases []testCase, vals [][]float64) {
 			_, exists = bNode.cache.get(boundStart.Add(-1 * bounds.Duration))
 			assert.False(t, exists, "block cached")
 
-			block2 := test.NewBlockFromValues(block.Bounds{
+			block2 := test.NewBlockFromValues(models.Bounds{
 				Start:    bounds.Start.Add(-1 * bounds.Duration),
 				Duration: bounds.Duration,
 				StepSize: bounds.StepSize,
