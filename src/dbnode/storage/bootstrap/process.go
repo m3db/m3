@@ -345,14 +345,21 @@ func (b bootstrapProcess) targetRanges(
 		{
 			Range: xtime.Range{Start: start, End: midPoint},
 			RunOptions: b.newRunOptions().SetPersistConfig(PersistConfig{
-				Enabled:     true,
+				Enabled: true,
+				// These blocks are no longer active, so we want to flush them
+				// to disk as we receive them so that we don't hold too much
+				// data in memory at once.
 				FileSetType: persist.FileSetFlushType,
 			}),
 		},
 		{
 			Range: xtime.Range{Start: midPoint, End: cutover},
 			RunOptions: b.newRunOptions().SetPersistConfig(PersistConfig{
-				Enabled:     true,
+				Enabled: true,
+				// These blocks are still active so we'll have to keep them
+				// in memory, but we want to snapshot them as we receive them
+				// so that once bootstrapping completes we can still recover
+				// from just the commit log bootstrapper.
 				FileSetType: persist.FileSetSnapshotType,
 			}),
 		},
