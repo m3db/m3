@@ -98,7 +98,7 @@ func (w *writer) clear() {
 	w.docOffsets = w.docOffsets[:0]
 }
 
-func (w *writer) Reset(s sgmt.MutableSegment) error {
+func (w *writer) Reset(s sgmt.Segment) error {
 	w.clear()
 
 	if s == nil {

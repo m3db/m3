@@ -53,13 +53,13 @@ type IndexSegmentFileSetWriter interface {
 	WriteFile(fileType IndexSegmentFileType, writer io.Writer) error
 }
 
-// MutableSegmentFileSetWriter is a new IndexSegmentFileSetWriter for writing
+// ReusableSegmentFileSetWriter is a new IndexSegmentFileSetWriter for writing
 // out Mutable Segments.
-type MutableSegmentFileSetWriter interface {
+type ReusableSegmentFileSetWriter interface {
 	IndexSegmentFileSetWriter
 
-	// Reset resets the writer to write the provided mutable segment.
-	Reset(segment.MutableSegment) error
+	// Reset resets the writer to write the provided segment.
+	Reset(segment.Segment) error
 }
 
 // IndexFileSetReader is an index file set reader, it can read many segments.
