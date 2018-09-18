@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
+	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/logging"
 
 	"go.uber.org/zap"
@@ -104,7 +105,16 @@ type baseNode struct {
 // 5. Run a sweep phase to free up blocks which are no longer needed to be cached
 // TODO: Figure out if something else needs to be locked
 func (c *baseNode) Process(ID parser.NodeID, b block.Block) error {
-	iter, err := b.StepIter()
+	unconsolidatedBlock, err := b.Unconsolidated()
+	if err != nil {
+		return err
+	}
+
+	if unconsolidatedBlock == nil {
+		return fmt.Errorf("block needs to be unconsolidated for the op: %s", c.op)
+	}
+
+	iter, err := unconsolidatedBlock.StepIter()
 	if err != nil {
 		return err
 	}
@@ -153,10 +163,10 @@ func (c *baseNode) Process(ID parser.NodeID, b block.Block) error {
 	processRequests := make([]processRequest, 0, len(leftBlks))
 	// If we have all blocks for the left range in the cache, then process the current block
 	if !emptyLeftBlocks {
-		processRequests = append(processRequests, processRequest{blk: b, deps: leftBlks, bounds: bounds})
+		processRequests = append(processRequests, processRequest{blk: unconsolidatedBlock, deps: leftBlks, bounds: bounds})
 	}
 
-	leftBlks = append(leftBlks, b)
+	leftBlks = append(leftBlks, unconsolidatedBlock)
 
 	// Process right side of the range
 	rightBlks, emptyRightBlocks, err := c.processRight(bounds, rightRangeStart)
@@ -177,7 +187,7 @@ func (c *baseNode) Process(ID parser.NodeID, b block.Block) error {
 
 	// If either the left range or right range wasn't fully processed then cache the current block
 	if emptyLeftBlocks || emptyRightBlocks {
-		if err := c.cache.add(bounds.Start, b); err != nil {
+		if err := c.cache.add(bounds.Start, unconsolidatedBlock); err != nil {
 			return err
 		}
 	}
@@ -186,7 +196,7 @@ func (c *baseNode) Process(ID parser.NodeID, b block.Block) error {
 }
 
 // processCurrent processes the current block. For the current block, figure out whether we have enough previous blocks which can help process it
-func (c *baseNode) processCurrent(bounds models.Bounds, leftRangeStart models.Bounds) ([]block.Block, bool, error) {
+func (c *baseNode) processCurrent(bounds models.Bounds, leftRangeStart models.Bounds) ([]block.UnconsolidatedBlock, bool, error) {
 	numBlocks := bounds.Blocks(leftRangeStart.Start)
 	leftBlks, err := c.cache.multiGet(leftRangeStart, numBlocks, true)
 	if err != nil {
@@ -196,7 +206,7 @@ func (c *baseNode) processCurrent(bounds models.Bounds, leftRangeStart models.Bo
 }
 
 // processRight processes blocks after current block. This is done by fetching all contiguous right blocks until the right range
-func (c *baseNode) processRight(bounds models.Bounds, rightRangeStart models.Bounds) ([]block.Block, bool, error) {
+func (c *baseNode) processRight(bounds models.Bounds, rightRangeStart models.Bounds) ([]block.UnconsolidatedBlock, bool, error) {
 	numBlocks := rightRangeStart.Blocks(bounds.Start)
 	rightBlks, err := c.cache.multiGet(bounds.Next(1), numBlocks, false)
 	if err != nil {
@@ -231,7 +241,7 @@ func (c *baseNode) processSingleRequest(request processRequest) error {
 		return err
 	}
 
-	depIters := make([]block.SeriesIter, len(request.deps))
+	depIters := make([]block.UnconsolidatedSeriesIter, len(request.deps))
 	for i, blk := range request.deps {
 		iter, err := blk.SeriesIter()
 		if err != nil {
@@ -262,8 +272,8 @@ func (c *baseNode) processSingleRequest(request processRequest) error {
 
 	aggDuration := c.op.duration
 	steps := int((aggDuration + bounds.Duration) / bounds.StepSize)
-	values := make([]float64, 0, steps)
-	desiredLength := int(aggDuration / bounds.StepSize)
+	values := make([]ts.Datapoints, 0, steps)
+	desiredLength := int(math.Ceil(float64(aggDuration) / float64(bounds.StepSize)))
 	for seriesIter.Next() {
 		values = values[:0]
 		for i, iter := range depIters {
@@ -276,7 +286,7 @@ func (c *baseNode) processSingleRequest(request processRequest) error {
 				return err
 			}
 
-			values = append(values, s.Values()...)
+			values = append(values, s.Datapoints()...)
 		}
 
 		series, err := seriesIter.Current()
@@ -285,14 +295,27 @@ func (c *baseNode) processSingleRequest(request processRequest) error {
 		}
 
 		for i := 0; i < series.Len(); i++ {
-			val := series.ValueAtStep(i)
+			val := series.DatapointsAtStep(i)
 			values = append(values, val)
 			newVal := math.NaN()
+			alignedTime, _ := bounds.TimeForIndex(i)
+			oldestDatapointTimestamp := alignedTime.Add(-1 * aggDuration)
 			// Remove the older values from slice as newer values are pushed in.
 			// TODO: Consider using a rotating slice since this is inefficient
 			if desiredLength <= len(values) {
 				values = values[len(values)-desiredLength:]
-				newVal = c.processor.Process(values)
+				flattenedValues := make(ts.Datapoints, 0)
+				for _, dps := range values {
+					for _, dp := range dps {
+						if dp.Timestamp.Before(oldestDatapointTimestamp) {
+							continue
+						}
+
+						flattenedValues = append(flattenedValues, dp)
+					}
+				}
+
+				newVal = c.processor.Process(flattenedValues)
 			}
 
 			builder.AppendValue(i, newVal)
@@ -332,23 +355,23 @@ func (c *baseNode) sweep(processedKeys []bool, maxBlocks int) {
 
 // Processor is implemented by the underlying transforms
 type Processor interface {
-	Process(values []float64) float64
+	Process(values ts.Datapoints) float64
 }
 
 // MakeProcessor is a way to create a transform
 type MakeProcessor func(op baseOp, controller *transform.Controller, opts transform.Options) Processor
 
 type processRequest struct {
-	blk    block.Block
+	blk    block.UnconsolidatedBlock
 	bounds models.Bounds
-	deps   []block.Block
+	deps   []block.UnconsolidatedBlock
 }
 
 // blockCache keeps track of blocks from the same parent across time
 type blockCache struct {
 	mu              sync.Mutex
 	initialized     bool
-	blockList       []block.Block
+	blockList       []block.UnconsolidatedBlock
 	op              baseOp
 	transformOpts   transform.Options
 	startBounds     models.Bounds
@@ -378,7 +401,7 @@ func (c *blockCache) init(bounds models.Bounds) {
 	c.startBounds = bounds.Nearest(timeSpec.Start)
 	c.endBounds = bounds.Nearest(timeSpec.End.Add(-1 * bounds.StepSize))
 	numBlocks := c.endBounds.End().Sub(c.startBounds.Start) / bounds.Duration
-	c.blockList = make([]block.Block, numBlocks)
+	c.blockList = make([]block.UnconsolidatedBlock, numBlocks)
 	c.processedBlocks = make([]bool, numBlocks)
 	c.initialized = true
 }
@@ -393,7 +416,7 @@ func (c *blockCache) index(t time.Time) (int, error) {
 }
 
 // Add the block to the cache, errors out if block already exists
-func (c *blockCache) add(key time.Time, b block.Block) error {
+func (c *blockCache) add(key time.Time, b block.UnconsolidatedBlock) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	index, err := c.index(key)
@@ -423,7 +446,7 @@ func (c *blockCache) remove(idx int) error {
 }
 
 // Get the block from the cache
-func (c *blockCache) get(key time.Time) (block.Block, bool) {
+func (c *blockCache) get(key time.Time) (block.UnconsolidatedBlock, bool) {
 	c.mu.Lock()
 	index, err := c.index(key)
 	if err != nil {
@@ -437,15 +460,15 @@ func (c *blockCache) get(key time.Time) (block.Block, bool) {
 }
 
 // multiGet retrieves multiple blocks from the cache at once until if finds an empty block
-func (c *blockCache) multiGet(startBounds models.Bounds, numBlocks int, reverse bool) ([]block.Block, error) {
+func (c *blockCache) multiGet(startBounds models.Bounds, numBlocks int, reverse bool) ([]block.UnconsolidatedBlock, error) {
 	if numBlocks == 0 {
-		return []block.Block{}, nil
+		return []block.UnconsolidatedBlock{}, nil
 	}
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	blks := make([]block.Block, 0, numBlocks)
+	blks := make([]block.UnconsolidatedBlock, 0, numBlocks)
 	startIdx, err := c.index(startBounds.Start)
 	if err != nil {
 		return nil, err
@@ -497,7 +520,7 @@ func (c *blockCache) multiGet(startBounds models.Bounds, numBlocks int, reverse 
 }
 
 // reverseSlice reverses a slice
-func reverseSlice(blocks []block.Block) {
+func reverseSlice(blocks []block.UnconsolidatedBlock) {
 	for i, j := 0, len(blocks)-1; i < j; i, j = i+1, j-1 {
 		blocks[i], blocks[j] = blocks[j], blocks[i]
 	}

@@ -145,6 +145,22 @@ type lazyBlock struct {
 	processedBlock block.Block
 }
 
+// Unconsolidated returns the unconsolidated version for the block
+func (f *lazyBlock) Unconsolidated() (block.UnconsolidatedBlock, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.processedBlock != nil {
+		return f.processedBlock.Unconsolidated()
+	}
+
+	if err := f.process(); err != nil {
+		return nil, err
+	}
+
+	return f.processedBlock.Unconsolidated()
+}
+
 func (f *lazyBlock) StepIter() (block.StepIter, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

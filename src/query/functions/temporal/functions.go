@@ -25,6 +25,7 @@ import (
 	"math"
 
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/ts"
 )
 
 const (
@@ -70,28 +71,28 @@ type functionNode struct {
 	comparisonFunc comparisonFunc
 }
 
-func (f *functionNode) Process(values []float64) float64 {
-	if len(values) == 0 {
+func (f *functionNode) Process(datapoints ts.Datapoints) float64 {
+	if len(datapoints) == 0 {
 		return math.NaN()
 	}
 
 	allNaNs := true
 	result := 0.0
-	prev := values[0]
+	prev := datapoints[0].Value
 
-	for _, curr := range values[1:] {
-		if math.IsNaN(curr) {
+	for _, curr := range datapoints[1:] {
+		if math.IsNaN(curr.Value) {
 			continue
 		}
 
 		allNaNs = false
 		if !math.IsNaN(prev) {
-			if f.comparisonFunc(curr, prev) {
+			if f.comparisonFunc(curr.Value, prev) {
 				result++
 			}
 		}
 
-		prev = curr
+		prev = curr.Value
 	}
 
 	if allNaNs {

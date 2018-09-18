@@ -26,6 +26,8 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/ts"
 )
 
 // ValueMod can be used to modify provided values for testing
@@ -42,12 +44,48 @@ func NewBlockFromValues(bounds models.Bounds, seriesValues [][]float64) block.Bl
 	return NewBlockFromValuesWithSeriesMeta(bounds, meta, seriesValues)
 }
 
-// NewMultiBlocksFromValues creates new blocks using the provided values and a modifier
-func NewMultiBlocksFromValues(bounds models.Bounds, seriesValues [][]float64, valueMod ValueMod, numBlocks int) []block.Block {
+// NewUnconsolidatedBlockFromDatapointsWithMeta creates a new unconsolidated block using the provided values and metadata
+func NewUnconsolidatedBlockFromDatapointsWithMeta(bounds models.Bounds, meta []block.SeriesMeta, seriesValues [][]float64) block.Block {
+	seriesList := make(ts.SeriesList, len(seriesValues))
+	for i, values := range seriesValues {
+		dps := seriesValuesToDatapoints(values, bounds)
+		seriesList[i] = ts.NewSeries(meta[i].Name, dps, meta[i].Tags)
+	}
+
+	b, _ := storage.NewMultiSeriesBlock(seriesList, &storage.FetchQuery{
+		Start:    bounds.Start,
+		End:      bounds.End(),
+		Interval: bounds.StepSize,
+	})
+
+	return storage.NewMultiBlockWrapper(b)
+}
+
+// NewUnconsolidatedBlockFromDatapoints creates a new unconsolidated block using the provided values
+func NewUnconsolidatedBlockFromDatapoints(bounds models.Bounds, seriesValues [][]float64) block.Block {
+	meta := NewSeriesMeta("dummy", len(seriesValues))
+	return NewUnconsolidatedBlockFromDatapointsWithMeta(bounds, meta, seriesValues)
+}
+
+func seriesValuesToDatapoints(values []float64, bounds models.Bounds) ts.Datapoints {
+	dps := make(ts.Datapoints, len(values))
+	for i, v := range values {
+		t, _ := bounds.TimeForIndex(i)
+		dps[i] = ts.Datapoint{
+			Timestamp: t.Add(-1 * time.Microsecond),
+			Value:     v,
+		}
+	}
+
+	return dps
+}
+
+// NewMultiUnconsolidatedBlocksFromValues creates new blocks using the provided values and a modifier
+func NewMultiUnconsolidatedBlocksFromValues(bounds models.Bounds, seriesValues [][]float64, valueMod ValueMod, numBlocks int) []block.Block {
 	meta := NewSeriesMeta("dummy", len(seriesValues))
 	blocks := make([]block.Block, numBlocks)
 	for i := 0; i < numBlocks; i++ {
-		blocks[i] = NewBlockFromValuesWithSeriesMeta(bounds, meta, seriesValues)
+		blocks[i] = NewUnconsolidatedBlockFromDatapointsWithMeta(bounds, meta, seriesValues)
 		// Avoid modifying the first value
 		for i, val := range seriesValues {
 			seriesValues[i] = valueMod(val)

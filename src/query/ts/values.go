@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/errors"
+	"github.com/m3db/m3/src/query/models"
 )
 
 // Values holds the values for a timeseries.  It provides a minimal interface
@@ -44,6 +45,9 @@ type Values interface {
 
 	// DatapointAt returns the datapoint at the nth element
 	DatapointAt(n int) Datapoint
+
+	// AlignToBounds returns values aligned to the start time and duration
+	AlignToBounds(bounds models.Bounds) []Datapoints
 }
 
 // A Datapoint is a single data value reported at a given time
@@ -63,6 +67,40 @@ func (d Datapoints) ValueAt(n int) float64 { return d[n].Value }
 
 // DatapointAt returns the value at the nth element.
 func (d Datapoints) DatapointAt(n int) Datapoint { return d[n] }
+
+// Values returns the values representation.
+func (d Datapoints) Values() []float64 {
+	values := make([]float64, len(d))
+	for i, dp := range d {
+		values[i] = dp.Value
+	}
+
+	return values
+}
+
+// AlignToBounds returns values aligned to given bounds.
+func (d Datapoints) AlignToBounds(bounds models.Bounds) []Datapoints {
+	numDatapoints := d.Len()
+	steps := bounds.Steps()
+	stepValues := make([]Datapoints, steps)
+	dpIdx := 0
+	for i := 0; i < steps; i++ {
+		startIdx := dpIdx
+		t, _ := bounds.TimeForIndex(i)
+		for dpIdx < numDatapoints && d[dpIdx].Timestamp.Before(t) {
+			dpIdx++
+		}
+
+		singleStepValues := make(Datapoints, dpIdx-startIdx)
+		for i := startIdx; i < dpIdx; i++ {
+			singleStepValues[i-startIdx] = d[i]
+		}
+
+		stepValues[i] = singleStepValues
+	}
+
+	return stepValues
+}
 
 // MutableValues is the interface for values that can be updated
 type MutableValues interface {
@@ -96,6 +134,17 @@ func (b *fixedResolutionValues) DatapointAt(point int) Datapoint {
 		Timestamp: b.StartTimeForStep(point),
 		Value:     b.ValueAt(point),
 	}
+}
+
+// AlignToBounds returns values aligned to given bounds.
+// TODO: Consider bounds as well
+func (b *fixedResolutionValues) AlignToBounds(_ models.Bounds) []Datapoints {
+	values := make([]Datapoints, len(b.values))
+	for i := 0; i < b.Len(); i++ {
+		values[i] = Datapoints{b.DatapointAt(i)}
+	}
+
+	return values
 }
 
 // StartTime returns the time the values start

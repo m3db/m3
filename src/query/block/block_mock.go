@@ -28,6 +28,8 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/m3db/m3/src/query/block"
+
 	"github.com/golang/mock/gomock"
 )
 
@@ -90,6 +92,19 @@ func (m *MockBlock) StepIter() (StepIter, error) {
 // StepIter indicates an expected call of StepIter
 func (mr *MockBlockMockRecorder) StepIter() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StepIter", reflect.TypeOf((*MockBlock)(nil).StepIter))
+}
+
+// Unconsolidated mocks base method
+func (m *MockBlock) Unconsolidated() (UnconsolidatedBlock, error) {
+	ret := m.ctrl.Call(m, "Unconsolidated")
+	ret0, _ := ret[0].(UnconsolidatedBlock)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Unconsolidated indicates an expected call of Unconsolidated
+func (mr *MockBlockMockRecorder) Unconsolidated() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Unconsolidated", reflect.TypeOf((*MockBlock)(nil).Unconsolidated))
 }
 
 // MockStepIter is a mock of StepIter interface
