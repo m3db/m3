@@ -453,6 +453,13 @@ func (s *peersSource) incrementalFlush(
 					bl.Close()
 				}
 			case persist.FileSetSnapshotType:
+				// Unlike the FileSetFlushType scenario, in this case the caching
+				// strategy doesn't matter. Even if the LRU/RecentlyRead strategies are
+				// enabled, we still need to keep all the data in memory long enough for it
+				// to be flushed because the snapshot that we wrote out earlier will only ever
+				// be used if the node goes down again before we have a chance to flush the data
+				// from memory AND the commit log bootstrapper is set before the peers bootstrapper
+				// in the bootstrappers configuration.
 			default:
 				return fmt.Errorf("unknown FileSetFileType: %v", persistConfig.FileSetType)
 			}
