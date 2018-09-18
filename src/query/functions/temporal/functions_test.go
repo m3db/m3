@@ -39,6 +39,10 @@ var testTemporalCases = []testCase{
 	{
 		name:   "resets",
 		opType: ResetsType,
+		vals: [][]float64{
+			{1, 0, 2, math.NaN(), 1},
+			{6, 4, 4, 2, 5},
+		},
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 2},
@@ -51,6 +55,10 @@ var testTemporalCases = []testCase{
 	{
 		name:   "changes",
 		opType: ChangesType,
+		vals: [][]float64{
+			{1, 0, 2, math.NaN(), 1},
+			{6, 4, 4, 2, 5},
+		},
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 2},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 3},
@@ -60,56 +68,81 @@ var testTemporalCases = []testCase{
 			{3, 4, 3, 3, 3},
 		},
 	},
+	{
+		name:   "resets all NaNs",
+		opType: ResetsType,
+		vals: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+		afterBlockOne: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 0},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 0},
+		},
+		afterAllBlocks: [][]float64{
+			{0, 0, 0, 0, 0},
+			{0, 0, 0, 0, 0},
+		},
+	},
+	{
+		name:   "changes all NaNs",
+		opType: ChangesType,
+		vals: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+		afterBlockOne: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 0},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 0},
+		},
+		afterAllBlocks: [][]float64{
+			{0, 0, 0, 0, 0},
+			{0, 0, 0, 0, 0},
+		},
+	},
+	{
+		name:   "resets first and last NaN",
+		opType: ResetsType,
+		vals: [][]float64{
+			{math.NaN(), 0, 2, 1, math.NaN()},
+			{math.NaN(), 4, 4, 2, math.NaN()},
+		},
+		afterBlockOne: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1},
+		},
+		afterAllBlocks: [][]float64{
+			{1, 2, 1, 1, 1},
+			{1, 1, 0, 1, 1},
+		},
+	},
+	{
+		name:   "changes first and last NaN",
+		opType: ChangesType,
+		vals: [][]float64{
+			{math.NaN(), 0, 2, 5, math.NaN()},
+			{math.NaN(), 4, 4, 2, math.NaN()},
+		},
+		afterBlockOne: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 2},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1},
+		},
+		afterAllBlocks: [][]float64{
+			{2, 2, 2, 2, 2},
+			{1, 2, 1, 1, 1},
+		},
+	},
 }
 
 func TestTemporalFunc(t *testing.T) {
-	v := [][]float64{
-		{1, 0, 2, math.NaN(), 1},
-		{6, 4, 4, 2, 5},
-	}
-	testTemporalFunc(t, testTemporalCases, v)
-}
-
-var testTemporalCasesNaNs = []testCase{
-	{
-		name:   "resets",
-		opType: ResetsType,
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 0},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 0},
-		},
-		afterAllBlocks: [][]float64{
-			{0, 0, 0, 0, 0},
-			{0, 0, 0, 0, 0},
-		},
-	},
-	{
-		name:   "changes",
-		opType: ChangesType,
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 0},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 0},
-		},
-		afterAllBlocks: [][]float64{
-			{0, 0, 0, 0, 0},
-			{0, 0, 0, 0, 0},
-		},
-	},
-}
-
-func TestTemporalFuncAllNaNs(t *testing.T) {
-	v := [][]float64{
-		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-	}
-	testTemporalFunc(t, testTemporalCasesNaNs, v)
+	testTemporalFunc(t, testTemporalCases)
 }
 
 // B1 has NaN in first series, first position
-func testTemporalFunc(t *testing.T, testCases []testCase, vals [][]float64) {
+func testTemporalFunc(t *testing.T, testCases []testCase) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			values, bounds := test.GenerateValuesAndBounds(vals, nil)
+			values, bounds := test.GenerateValuesAndBounds(tt.vals, nil)
 			boundStart := bounds.Start
 			block3 := test.NewBlockFromValues(bounds, values)
 			c, sink := executor.NewControllerWithSink(parser.NodeID(1))

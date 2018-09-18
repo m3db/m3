@@ -38,6 +38,7 @@ import (
 type testCase struct {
 	name           string
 	opType         string
+	vals           [][]float64
 	afterBlockOne  [][]float64
 	afterAllBlocks [][]float64
 }

@@ -38,20 +38,13 @@ const (
 	ChangesType = "changes"
 )
 
-var (
-	temporalFuncs = map[string]interface{}{
-		ResetsType:  struct{}{},
-		ChangesType: struct{}{},
-	}
-)
-
 // NewFunctionOp creates a new base temporal transform for functions
 func NewFunctionOp(args []interface{}, optype string) (transform.Params, error) {
-	if _, ok := temporalFuncs[optype]; ok {
-		return newBaseOp(args, optype, newFunctionNode, nil)
+	if optype != ResetsType && optype != ChangesType {
+		return nil, fmt.Errorf("unknown function type: %s", optype)
 	}
 
-	return nil, fmt.Errorf("unknown function type: %s", optype)
+	return newBaseOp(args, optype, newFunctionNode, nil)
 }
 
 func newFunctionNode(op baseOp, controller *transform.Controller, _ transform.Options) Processor {
@@ -94,8 +87,6 @@ func (f *functionNode) Process(values []float64) float64 {
 			if f.comparisonFunc(curr, prev) {
 				result++
 			}
-			prev = curr
-			continue
 		}
 
 		prev = curr
