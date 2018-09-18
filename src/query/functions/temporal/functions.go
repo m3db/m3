@@ -75,6 +75,7 @@ func (f *functionNode) Process(values []float64) float64 {
 		return math.NaN()
 	}
 
+	allNaNs := true
 	result := 0.0
 	prev := values[0]
 
@@ -83,6 +84,7 @@ func (f *functionNode) Process(values []float64) float64 {
 			continue
 		}
 
+		allNaNs = false
 		if !math.IsNaN(prev) {
 			if f.comparisonFunc(curr, prev) {
 				result++
@@ -90,6 +92,10 @@ func (f *functionNode) Process(values []float64) float64 {
 		}
 
 		prev = curr
+	}
+
+	if allNaNs {
+		return math.NaN()
 	}
 
 	return result

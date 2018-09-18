@@ -76,12 +76,12 @@ var testTemporalCases = []testCase{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 		},
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 0},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 0},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 		},
 		afterAllBlocks: [][]float64{
-			{0, 0, 0, 0, 0},
-			{0, 0, 0, 0, 0},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 		},
 	},
 	{
@@ -92,12 +92,12 @@ var testTemporalCases = []testCase{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 		},
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 0},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 0},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 		},
 		afterAllBlocks: [][]float64{
-			{0, 0, 0, 0, 0},
-			{0, 0, 0, 0, 0},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 		},
 	},
 	{
