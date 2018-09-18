@@ -223,8 +223,8 @@ func TestCombineMetaAndSeriesMeta(t *testing.T) {
 func TestCombineMetaAndSeriesMetaError(t *testing.T) {
 	now := time.Now()
 	meta, otherMeta :=
-		block.Metadata{Bounds: block.Bounds{Start: now}},
-		block.Metadata{Bounds: block.Bounds{Start: now.Add(2)}}
+		block.Metadata{Bounds: models.Bounds{Start: now}},
+		block.Metadata{Bounds: models.Bounds{Start: now.Add(2)}}
 
 	metas, otherMetas := []block.SeriesMeta{}, []block.SeriesMeta{}
 	_, _, _, err := combineMetaAndSeriesMeta(meta, otherMeta, metas, otherMetas)

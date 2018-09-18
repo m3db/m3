@@ -223,7 +223,7 @@ func TestOrs(t *testing.T) {
 
 			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
 			node := op.(baseOp).Node(c, transform.Options{})
-			bounds := block.Bounds{
+			bounds := models.Bounds{
 				Start:    now,
 				Duration: time.Minute * time.Duration(len(tt.lhs[0])),
 				StepSize: time.Minute,
@@ -233,7 +233,7 @@ func TestOrs(t *testing.T) {
 			err = node.Process(parser.NodeID(0), lhs)
 			require.NoError(t, err)
 
-			bounds = block.Bounds{
+			bounds = models.Bounds{
 				Start:    now,
 				Duration: time.Minute * time.Duration(len(tt.rhs[0])),
 				StepSize: time.Minute,
@@ -255,7 +255,7 @@ func TestOrs(t *testing.T) {
 
 func TestOrsBoundsError(t *testing.T) {
 	tt := orTests[0]
-	bounds := block.Bounds{
+	bounds := models.Bounds{
 		Start:    time.Now(),
 		Duration: time.Minute * time.Duration(len(tt.lhs[0])),
 		StepSize: time.Minute,
@@ -278,7 +278,7 @@ func TestOrsBoundsError(t *testing.T) {
 	err = node.Process(parser.NodeID(0), lhs)
 	require.NoError(t, err)
 
-	differentBounds := block.Bounds{
+	differentBounds := models.Bounds{
 		Start:    bounds.Start.Add(1),
 		Duration: bounds.Duration,
 		StepSize: bounds.StepSize,
@@ -309,7 +309,7 @@ func TestOrCombinedMetadata(t *testing.T) {
 	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
 	node := op.(baseOp).Node(c, transform.Options{})
 
-	bounds := block.Bounds{
+	bounds := models.Bounds{
 		Start:    time.Now(),
 		Duration: time.Minute * 2,
 		StepSize: time.Minute,
