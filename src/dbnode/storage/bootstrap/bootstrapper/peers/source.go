@@ -467,6 +467,7 @@ func (s *peersSource) incrementalFlush(
 				// from memory AND the commit log bootstrapper is set before the peers bootstrapper
 				// in the bootstrappers configuration.
 			default:
+				// Should never happen
 				return fmt.Errorf("unknown FileSetFileType: %v", persistConfig.FileSetType)
 			}
 		}
@@ -821,6 +822,7 @@ func (s *peersSource) validateRunOpts(runOpts bootstrap.RunOptions) error {
 	persistConfig := runOpts.PersistConfig()
 	if persistConfig.FileSetType != persist.FileSetFlushType &&
 		persistConfig.FileSetType != persist.FileSetSnapshotType {
+		// Should never happen
 		return fmt.Errorf("unknown persist config fileset file type: %v", persistConfig.FileSetType)
 	}
 
