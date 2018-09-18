@@ -161,7 +161,7 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 	}
 }
 
-func TestPeersSourceReturnsErrorIfUnknownIncrementalFileSetType(t *testing.T) {
+func TestPeersSourceReturnsErrorIfUnknownPersistenceFileSetType(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -183,7 +183,7 @@ func TestPeersSourceReturnsErrorIfUnknownIncrementalFileSetType(t *testing.T) {
 		1: xtime.NewRanges(xtime.Range{Start: start, End: end}),
 	}
 
-	runOpts := testIncrementalRunOpts.SetPersistConfig(bootstrap.PersistConfig{Enabled: true, FileSetType: 999})
+	runOpts := testRunOptsWithPersist.SetPersistConfig(bootstrap.PersistConfig{Enabled: true, FileSetType: 999})
 	_, err = src.ReadData(testNsMd, target, runOpts)
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "unknown persist config fileset file type"))

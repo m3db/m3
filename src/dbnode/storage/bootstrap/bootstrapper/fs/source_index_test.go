@@ -271,7 +271,7 @@ func TestBootstrapIndex(t *testing.T) {
 	validateGoodTaggedSeries(t, times.start, indexResults)
 }
 
-func TestBootstrapIndexIncremental(t *testing.T) {
+func TestBootstrapIndexWithPersist(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
@@ -334,7 +334,7 @@ func TestBootstrapIndexIncremental(t *testing.T) {
 	require.Equal(t, int64(1), counters["fs-bootstrapper.persist-index-blocks-write+"].Value())
 }
 
-func TestBootstrapIndexIgnoresIncrementalIfSnapshotType(t *testing.T) {
+func TestBootstrapIndexIgnoresPersistConfigIfSnapshotType(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
@@ -388,7 +388,7 @@ func TestBootstrapIndexIgnoresIncrementalIfSnapshotType(t *testing.T) {
 	require.Equal(t, int64(0), counters["fs-bootstrapper.persist-index-blocks-write+"].Value())
 }
 
-func TestBootstrapIndexIncrementalPrefersPersistedIndexBlocks(t *testing.T) {
+func TestBootstrapIndexWithPersistPrefersPersistedIndexBlocks(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
@@ -438,7 +438,7 @@ func TestBootstrapIndexIncrementalPrefersPersistedIndexBlocks(t *testing.T) {
 	validateGoodTaggedSeries(t, times.start, indexResults)
 
 	// Validate that read the block and no blocks were written
-	// (ensure incremental didn't write it back out again)
+	// (ensure persist config didn't write it back out again)
 	counters := scope.Snapshot().Counters()
 	require.Equal(t, int64(1), counters["fs-bootstrapper.persist-index-blocks-read+"].Value())
 	require.Equal(t, int64(0), counters["fs-bootstrapper.persist-index-blocks-write+"].Value())

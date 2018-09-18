@@ -60,7 +60,7 @@ var (
 
 	testDefaultRunOpts = bootstrap.NewRunOptions().
 				SetPersistConfig(bootstrap.PersistConfig{Enabled: false})
-	testIncrementalRunOpts = bootstrap.NewRunOptions().
+	testRunOptsWithPersist = bootstrap.NewRunOptions().
 				SetPersistConfig(bootstrap.PersistConfig{Enabled: true})
 	testBlockOpts         = block.NewOptions()
 	testDefaultResultOpts = result.NewOptions().SetSeriesCachePolicy(series.CacheAll)
@@ -229,7 +229,7 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 	require.Equal(t, ropts.BlockSize(), block.BlockSize())
 }
 
-func TestPeersSourceIncrementalRun(t *testing.T) {
+func TestPeersSourceRunWithPersist(t *testing.T) {
 	for _, cachePolicy := range []series.CachePolicy{
 		series.CacheAllMetadata,
 		series.CacheRecentlyRead,
@@ -399,7 +399,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 			1: xtime.NewRanges(xtime.Range{Start: start, End: end}),
 		}
 
-		r, err := src.ReadData(testNsMd, target, testIncrementalRunOpts)
+		r, err := src.ReadData(testNsMd, target, testRunOptsWithPersist)
 		assert.NoError(t, err)
 
 		require.True(t, r.Unfulfilled()[0].IsEmpty())
@@ -446,7 +446,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 	}
 }
 
-func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
+func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -738,7 +738,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 			AddRange(xtime.Range{Start: midway, End: end}),
 	}
 
-	r, err := src.ReadData(testNsMd, target, testIncrementalRunOpts)
+	r, err := src.ReadData(testNsMd, target, testRunOptsWithPersist)
 	assert.NoError(t, err)
 
 	assert.Equal(t, 0, len(r.ShardResults()))

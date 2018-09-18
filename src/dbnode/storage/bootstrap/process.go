@@ -338,7 +338,7 @@ func (b bootstrapProcess) targetRanges(
 		Add(opts.blockSize)
 
 	// NB(r): We want the large initial time range bootstrapped to
-	// bootstrap incrementally so we don't keep the full raw
+	// bootstrap with persistence so we don't keep the full raw
 	// data in process until we finish bootstrapping which could
 	// cause the process to OOM.
 	return []TargetRange{

@@ -23,8 +23,8 @@ package bootstrap
 import "github.com/m3db/m3/src/dbnode/topology"
 
 var (
-	// defaultPersistConfig declares the intent to by default not perform an
-	// incremental bootstrap.
+	// defaultPersistConfig declares the intent to by default to perform
+	// a bootstrap without persistence enabled.
 	defaultPersistConfig = PersistConfig{
 		Enabled: false,
 	}

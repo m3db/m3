@@ -69,12 +69,13 @@ type TargetRange struct {
 	RunOptions RunOptions
 }
 
-// PersistConfig is the configuration for an incremental bootstrap.
+// PersistConfig is the configuration for a bootstrap with persistence.
 type PersistConfig struct {
-	// Whether this bootstrap should incrementally persist data to disk.
+	// If enabled bootstrappers are allowed to write out bootstrapped data
+	// to disk on their own instead of just returning result in-memory.
 	Enabled bool
-	// If enabled, what type of files should be generated during the incremental
-	// process.
+	// If enabled, what type of persistence files should be generated during
+	// the process.
 	FileSetType persist.FileSetType
 }
 
@@ -100,10 +101,10 @@ type ProcessOptions interface {
 
 // RunOptions is a set of options for a bootstrap run.
 type RunOptions interface {
-	// SetPersistConfig sets incremental configuration for this bootstrap.
+	// SetPersistConfig sets persistence configuration for this bootstrap.
 	SetPersistConfig(value PersistConfig) RunOptions
 
-	// PersistConfig returns the incremental configuration for this bootstrap.
+	// PersistConfig returns the persistence configuration for this bootstrap.
 	PersistConfig() PersistConfig
 
 	// SetCacheSeriesMetadata sets whether bootstrappers created by this
