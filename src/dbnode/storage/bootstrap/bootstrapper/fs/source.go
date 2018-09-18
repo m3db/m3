@@ -220,7 +220,7 @@ func (s *fileSystemSource) enqueueReaders(
 	// Close the readers ch if and only if all readers are enqueued
 	defer close(readersCh)
 
-	indexIncrementalBootstrap := run == bootstrapIndexRunType && runOpts.PersistConfig().Enabled
+	indexIncrementalBootstrap := run == bootstrapIndexRunType && s.isIncrementalBootstrap(runOpts)
 	if !indexIncrementalBootstrap {
 		// Normal run, open readers
 		s.enqueueReadersGroupedByBlockSize(ns, run, runOpts,
@@ -594,8 +594,10 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		}
 	}
 
-	incremental := runOpts.PersistConfig().Enabled
-	noneRemaining := remainingRanges.IsEmpty()
+	var (
+		incremental   = s.isIncrementalBootstrap(runOpts)
+		noneRemaining = remainingRanges.IsEmpty()
+	)
 	if run == bootstrapIndexRunType && incremental && noneRemaining {
 		err := s.incrementalBootstrapIndexSegment(ns, requestedRanges, runResult)
 		if err != nil {
@@ -1153,6 +1155,11 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 	}
 
 	return res, nil
+}
+
+func (s *fileSystemSource) isIncrementalBootstrap(runOpts bootstrap.RunOptions) bool {
+	persistConfig := runOpts.PersistConfig()
+	return persistConfig.Enabled && persistConfig.FileSetType == persist.FileSetFlushType
 }
 
 type timeWindowReaders struct {
