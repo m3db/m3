@@ -467,7 +467,6 @@ func (s *peersSource) incrementalFlush(
 				// from memory AND the commit log bootstrapper is set before the peers bootstrapper
 				// in the bootstrappers configuration.
 			default:
-				// panic("wtf")
 				return fmt.Errorf("unknown FileSetFileType: %v", persistConfig.FileSetType)
 			}
 		}
