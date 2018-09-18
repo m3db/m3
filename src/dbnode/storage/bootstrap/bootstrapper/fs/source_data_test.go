@@ -57,7 +57,7 @@ var (
 	testDirMode          = os.ModeDir | os.FileMode(0755)
 	testWriterBufferSize = 10
 	testDefaultRunOpts   = bootstrap.NewRunOptions().
-				SetIncrementalConfig(bootstrap.IncrementalConfig{Enabled: false})
+				SetPersistConfig(bootstrap.PersistConfig{Enabled: false})
 	testDefaultResultOpts = result.NewOptions().SetSeriesCachePolicy(series.CacheAll)
 	testDefaultOpts       = NewOptions().SetResultOptions(testDefaultResultOpts)
 )

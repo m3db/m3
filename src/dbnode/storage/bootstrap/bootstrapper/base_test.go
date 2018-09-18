@@ -45,7 +45,7 @@ var (
 	testTargetStart    = time.Now()
 	testShard          = uint32(0)
 	testDefaultRunOpts = bootstrap.NewRunOptions().
-				SetIncrementalConfig(bootstrap.IncrementalConfig{Enabled: false})
+				SetPersistConfig(bootstrap.PersistConfig{Enabled: false})
 )
 
 func testNsMetadata(t *testing.T) namespace.Metadata {

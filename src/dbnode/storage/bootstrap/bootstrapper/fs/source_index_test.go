@@ -286,7 +286,7 @@ func TestBootstrapIndexIncremental(t *testing.T) {
 	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope))
 
 	runOpts := testDefaultRunOpts.
-		SetIncrementalConfig(bootstrap.IncrementalConfig{Enabled: true})
+		SetPersistConfig(bootstrap.PersistConfig{Enabled: true})
 
 	src := newFileSystemSource(opts).(*fileSystemSource)
 	res, err := src.ReadIndex(testNsMetadata(t), times.shardTimeRanges,
@@ -356,7 +356,7 @@ func TestBootstrapIndexIncrementalPrefersPersistedIndexBlocks(t *testing.T) {
 	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope))
 
 	runOpts := testDefaultRunOpts.
-		SetIncrementalConfig(bootstrap.IncrementalConfig{Enabled: true})
+		SetPersistConfig(bootstrap.PersistConfig{Enabled: true})
 
 	src := newFileSystemSource(opts).(*fileSystemSource)
 	res, err := src.ReadIndex(testNsMetadata(t), times.shardTimeRanges,

@@ -59,9 +59,9 @@ var (
 	}
 
 	testDefaultRunOpts = bootstrap.NewRunOptions().
-				SetIncrementalConfig(bootstrap.IncrementalConfig{Enabled: false})
+				SetPersistConfig(bootstrap.PersistConfig{Enabled: false})
 	testIncrementalRunOpts = bootstrap.NewRunOptions().
-				SetIncrementalConfig(bootstrap.IncrementalConfig{Enabled: true})
+				SetPersistConfig(bootstrap.PersistConfig{Enabled: true})
 	testBlockOpts         = block.NewOptions()
 	testDefaultResultOpts = result.NewOptions().SetSeriesCachePolicy(series.CacheAll)
 	testDefaultOpts       = NewOptions().
