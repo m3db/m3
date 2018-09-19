@@ -15,6 +15,7 @@ docker start "m3dbnode-version-$(git rev-parse HEAD)"
 if [ $? -ne 0 ]; then
   echo "m3dbnode docker failed to start"
   docker logs "m3dbnode-version-$(git rev-parse HEAD)"
+  exit 1
 fi 
 
 echo "Sleeping for a bit to ensure db up"
