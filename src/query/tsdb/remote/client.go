@@ -31,9 +31,14 @@ import (
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 
 	"google.golang.org/grpc"
+)
+
+var (
+	namespace = ident.StringID("remote")
 )
 
 // Client is the grpc client
@@ -155,7 +160,7 @@ func (c *grpcClient) FetchBlocks(
 		return block.Result{}, err
 	}
 
-	fetchResult, err := storage.SeriesIteratorsToFetchResult(iters, nil, c.workerPool)
+	fetchResult, err := storage.SeriesIteratorsToFetchResult(iters, namespace, c.workerPool)
 	if err != nil {
 		return block.Result{}, err
 	}

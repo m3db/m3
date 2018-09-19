@@ -194,9 +194,6 @@ func encodeMatcherTypeToProto(t models.MatchType) (rpc.MatcherType, error) {
 
 // EncodeMetadata creates a context that propagates request metadata as well as requestID
 func EncodeMetadata(ctx context.Context, requestID string) context.Context {
-	// if true {
-	// 	return ctx
-	// }
 	if ctx == nil {
 		return ctx
 	}
