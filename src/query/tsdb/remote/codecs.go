@@ -166,8 +166,8 @@ func encodeTagMatchers(modelMatchers models.Matchers) (*rpc.TagMatchers, error) 
 		}
 
 		matchers[i] = &rpc.TagMatcher{
-			Name:  matcher.Name,
-			Value: matcher.Value,
+			Name:  []byte(matcher.Name),
+			Value: []byte(matcher.Value),
 			Type:  t,
 		}
 	}
@@ -257,7 +257,7 @@ func decodeTagMatchers(rpcMatchers *rpc.TagMatchers) (models.Matchers, error) {
 	matchers := make([]*models.Matcher, len(tagMatchers))
 	for i, matcher := range tagMatchers {
 		matchType, name, value := models.MatchType(matcher.GetType()), matcher.GetName(), matcher.GetValue()
-		mMatcher, err := models.NewMatcher(matchType, name, value)
+		mMatcher, err := models.NewMatcher(matchType, string(name), string(value))
 		if err != nil {
 			return matchers, err
 		}

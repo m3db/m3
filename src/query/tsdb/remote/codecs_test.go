@@ -40,12 +40,12 @@ import (
 var (
 	now      = time.Now()
 	name0    = []byte("regex")
-	val0     = "[a-z]"
+	val0     = []byte("[a-z]")
 	valList0 = []*rpc.Datapoint{{1, 1.0}, {2, 2.0}, {3, 3.0}}
 	time0    = "2000-02-06T11:54:48+07:00"
 
 	name1    = []byte("eq")
-	val1     = "val"
+	val1     = []byte("val")
 	valList1 = []*rpc.Datapoint{{1, 4.0}, {2, 5.0}, {3, 6.0}}
 
 	valList2 = []*rpc.Datapoint{
@@ -146,9 +146,9 @@ func readQueriesAreEqual(t *testing.T, this, other *storage.FetchQuery) {
 }
 
 func createStorageFetchQuery(t *testing.T) (*storage.FetchQuery, time.Time, time.Time) {
-	m0, err := models.NewMatcher(models.MatchRegexp, string(name0), val0)
+	m0, err := models.NewMatcher(models.MatchRegexp, string(name0), string(val0))
 	require.Nil(t, err)
-	m1, err := models.NewMatcher(models.MatchEqual, string(name1), val1)
+	m1, err := models.NewMatcher(models.MatchEqual, string(name1), string(val1))
 	require.Nil(t, err)
 	start, end := parseTimes(t)
 
@@ -170,10 +170,10 @@ func TestEncodeFetchMessage(t *testing.T) {
 	assert.Equal(t, fromTime(end), grpcQ.GetEnd())
 	mRPC := grpcQ.GetTagMatchers().GetTagMatchers()
 	assert.Equal(t, 2, len(mRPC))
-	assert.Equal(t, string(name0), mRPC[0].GetName())
+	assert.Equal(t, name0, mRPC[0].GetName())
 	assert.Equal(t, val0, mRPC[0].GetValue())
 	assert.Equal(t, models.MatchRegexp, models.MatchType(mRPC[0].GetType()))
-	assert.Equal(t, string(name1), mRPC[1].GetName())
+	assert.Equal(t, name1, mRPC[1].GetName())
 	assert.Equal(t, val1, mRPC[1].GetValue())
 	assert.Equal(t, models.MatchEqual, models.MatchType(mRPC[1].GetType()))
 }

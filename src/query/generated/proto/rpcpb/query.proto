@@ -21,8 +21,8 @@ message TagMatchers {
 }
 
 message TagMatcher {
-	string name      = 1;
-	string value     = 2;
+	bytes name       = 1;
+	bytes value      = 2;
 	MatcherType type = 3;
 }
 
@@ -36,7 +36,6 @@ enum MatcherType {
 	EXISTS    = 4;
 	NOTEXISTS = 5;
 }
-
 
 message FetchResponse {
 	repeated Series series = 1;
