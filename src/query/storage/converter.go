@@ -36,7 +36,12 @@ import (
 )
 
 const (
-	xTimeUnit = xtime.Millisecond
+	xTimeUnit             = xtime.Millisecond
+	initRawFetchAllocSize = 32
+)
+
+var (
+	defaultNamespace = ident.StringID("unknown")
 )
 
 // PromWriteTSToM3 converts a prometheus write query to an M3 one
@@ -182,17 +187,15 @@ func SeriesToPromSamples(series *ts.Series) []*prompb.Sample {
 	return samples
 }
 
-const (
-	// TODO(arnikola) get from config
-	initRawFetchAllocSize = 32
-)
-
 func iteratorToTsSeries(
 	iter encoding.SeriesIterator,
 	namespace ident.ID,
 ) (*ts.Series, error) {
 	if namespace == nil {
 		namespace = iter.Namespace()
+		if namespace == nil {
+			namespace = defaultNamespace
+		}
 	}
 	metric, err := FromM3IdentToMetric(namespace, iter.ID(), iter.Tags())
 	if err != nil {
@@ -292,7 +295,6 @@ func SeriesIteratorsToFetchResult(
 
 	iters := seriesIterators.Iters()
 	iterLength := seriesIterators.Len()
-
 	if workerPools == nil {
 		return decompressSequentially(iterLength, iters, namespace)
 	}
@@ -301,7 +303,7 @@ func SeriesIteratorsToFetchResult(
 	if !ok {
 		return decompressSequentially(iterLength, iters, namespace)
 	}
-	defer workerPools.Put(pool)
 
+	defer workerPools.Put(pool)
 	return decompressConcurrently(iterLength, iters, namespace, pool)
 }

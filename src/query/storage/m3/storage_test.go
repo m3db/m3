@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package local
+package m3
 
 import (
 	"context"
@@ -211,6 +211,7 @@ func TestLocalRead(t *testing.T) {
 		session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(seriesiter.NewMockSeriesIters(ctrl, testTags, 1, 2), true, nil)
 	})
+
 	searchReq := newFetchReq()
 	results, err := store.Fetch(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
 	assert.NoError(t, err)
@@ -329,7 +330,7 @@ func TestLocalSearchSuccess(t *testing.T) {
 		assert.Equal(t, expected.id, actual.ID)
 		assert.Equal(t, expected.namespace, actual.Namespace)
 		assert.Equal(t, models.Tags{{
-			expected.tagName, expected.tagValue,
+			Name: expected.tagName, Value: expected.tagValue,
 		}}, actual.Tags)
 	}
 }

@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package local
+package m3
 
 import (
 	"sync"
@@ -27,22 +27,15 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 )
 
-type multiFetchResult struct {
+type multiFetchTagsResult struct {
 	sync.Mutex
-	result           *storage.FetchResult
-	err              xerrors.MultiError
-	dedupeFirstAttrs storage.Attributes
-	dedupeMap        map[string]multiFetchResultSeries
+	result    *storage.SearchResults
+	err       xerrors.MultiError
+	dedupeMap map[string]struct{}
 }
 
-type multiFetchResultSeries struct {
-	idx   int
-	attrs storage.Attributes
-}
-
-func (r *multiFetchResult) add(
-	attrs storage.Attributes,
-	result *storage.FetchResult,
+func (r *multiFetchTagsResult) add(
+	result *storage.SearchResults,
 	err error,
 ) {
 	r.Lock()
@@ -55,45 +48,27 @@ func (r *multiFetchResult) add(
 
 	if r.result == nil {
 		r.result = result
-		r.dedupeFirstAttrs = attrs
 		return
 	}
 
-	r.result.HasNext = r.result.HasNext && result.HasNext
-	r.result.LocalOnly = r.result.LocalOnly && result.LocalOnly
-
 	// Need to dedupe
 	if r.dedupeMap == nil {
-		r.dedupeMap = make(map[string]multiFetchResultSeries, len(r.result.SeriesList))
-		for idx, s := range r.result.SeriesList {
-			r.dedupeMap[s.Name()] = multiFetchResultSeries{
-				idx:   idx,
-				attrs: r.dedupeFirstAttrs,
-			}
+		r.dedupeMap = make(map[string]struct{}, len(r.result.Metrics))
+		for _, s := range r.result.Metrics {
+			r.dedupeMap[s.ID] = struct{}{}
 		}
 	}
 
-	for _, s := range result.SeriesList {
-		id := s.Name()
-		existing, exists := r.dedupeMap[id]
-		if exists && existing.attrs.Resolution <= attrs.Resolution {
-			// Already exists and resolution of result we are adding is not as precise
+	for _, s := range result.Metrics {
+		id := s.ID
+		_, exists := r.dedupeMap[id]
+		if exists {
+			// Already exists
 			continue
 		}
 
-		// Does not exist already or more precise, add result
-		var idx int
-		if !exists {
-			idx = len(r.result.SeriesList)
-			r.result.SeriesList = append(r.result.SeriesList, s)
-		} else {
-			idx = existing.idx
-			r.result.SeriesList[idx] = s
-		}
-
-		r.dedupeMap[id] = multiFetchResultSeries{
-			idx:   idx,
-			attrs: attrs,
-		}
+		// Does not exist already, add result
+		r.result.Metrics = append(r.result.Metrics, s)
+		r.dedupeMap[id] = struct{}{}
 	}
 }

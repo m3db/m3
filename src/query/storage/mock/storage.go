@@ -24,7 +24,6 @@ import (
 	"context"
 	"sync"
 
-	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
 )
@@ -61,10 +60,6 @@ type mockStorage struct {
 	}
 	fetchBlocksResult struct {
 		result block.Result
-		err    error
-	}
-	fetchRawResult struct {
-		result encoding.SeriesIterators
 		err    error
 	}
 	closeResult struct {
@@ -131,16 +126,6 @@ func (s *mockStorage) Fetch(
 	s.RLock()
 	defer s.RUnlock()
 	return s.fetchResult.result, s.fetchResult.err
-}
-
-func (s *mockStorage) FetchRaw(
-	ctx context.Context,
-	query *storage.FetchQuery,
-	options *storage.FetchOptions,
-) (encoding.SeriesIterators, error) {
-	s.RLock()
-	defer s.RUnlock()
-	return s.fetchRawResult.result, s.fetchRawResult.err
 }
 
 func (s *mockStorage) FetchBlocks(

@@ -23,7 +23,6 @@ package fanout
 import (
 	"context"
 
-	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
@@ -68,27 +67,6 @@ func (s *fanoutStorage) Fetch(
 	}
 
 	return handleFetchResponses(requests)
-}
-
-// TODO: consolidate multiple series iterators correctly here,
-// accounting for duplicate IDs
-func (s *fanoutStorage) FetchRaw(
-	ctx context.Context,
-	query *storage.FetchQuery,
-	options *storage.FetchOptions,
-) (encoding.SeriesIterators, error) {
-	stores := filterStores(s.stores, s.writeFilter, query)
-	iterators := make([]encoding.SeriesIterator, len(stores))
-	for _, store := range stores {
-		iters, err := store.FetchRaw(ctx, query, options)
-		if err != nil {
-			return nil, err
-		}
-
-		iterators = append(iterators, iters.Iters()...)
-	}
-
-	return encoding.NewSeriesIterators(iterators, nil), nil
 }
 
 func (s *fanoutStorage) FetchBlocks(

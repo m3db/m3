@@ -28,7 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/x/metrics"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote/test/remote"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote/test"
 	"github.com/m3db/m3/src/query/test/local"
 	"github.com/m3db/m3/src/query/util/logging"
 	xclock "github.com/m3db/m3x/clock"
@@ -45,8 +45,8 @@ func TestPromWriteParsing(t *testing.T) {
 
 	promWrite := &PromWriteHandler{store: storage}
 
-	promReq := remote.GeneratePromWriteRequest()
-	promReqBody := remote.GeneratePromWriteRequestBody(t, promReq)
+	promReq := test.GeneratePromWriteRequest()
+	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
 	req, _ := http.NewRequest("POST", PromWriteURL, promReqBody)
 
 	r, err := promWrite.parseRequest(req)
@@ -63,8 +63,8 @@ func TestPromWrite(t *testing.T) {
 
 	promWrite := &PromWriteHandler{store: storage}
 
-	promReq := remote.GeneratePromWriteRequest()
-	promReqBody := remote.GeneratePromWriteRequestBody(t, promReq)
+	promReq := test.GeneratePromWriteRequest()
+	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
 	req, _ := http.NewRequest("POST", PromWriteURL, promReqBody)
 
 	r, err := promWrite.parseRequest(req)

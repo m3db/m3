@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package local
+package m3
 
 import (
 	"context"
@@ -43,33 +43,60 @@ var (
 	errNoLocalClustersFulfillsQuery = goerrors.New("no clusters can fulfill query")
 )
 
-type localStorage struct {
+type m3storage struct {
 	clusters   Clusters
 	workerPool pool.ObjectPool
 }
 
-// NewStorage creates a new local Storage instance.
-func NewStorage(clusters Clusters, workerPool pool.ObjectPool) storage.Storage {
-	return &localStorage{clusters: clusters, workerPool: workerPool}
+// NewStorage creates a new local m3storage instance.
+func NewStorage(clusters Clusters, workerPool pool.ObjectPool) Storage {
+	return &m3storage{clusters: clusters, workerPool: workerPool}
 }
 
-func (s *localStorage) Fetch(
+func (s *m3storage) Fetch(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (*storage.FetchResult, error) {
+	raw, cleanup, err := s.FetchRaw(ctx, query, options)
+	defer cleanup()
+	if err != nil {
+		return nil, err
+	}
+
+	return storage.SeriesIteratorsToFetchResult(raw, nil, s.workerPool)
+}
+
+func (s *m3storage) FetchBlocks(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (block.Result, error) {
+	fetchResult, err := s.Fetch(ctx, query, options)
+	if err != nil {
+		return block.Result{}, err
+	}
+
+	return storage.FetchResultToBlockResult(fetchResult, query)
+}
+
+func (s *m3storage) FetchRaw(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (encoding.SeriesIterators, Cleanup, error) {
 	// Check if the query was interrupted.
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nil, noop, ctx.Err()
 	case <-options.KillChan:
-		return nil, errors.ErrQueryInterrupted
+		return nil, noop, errors.ErrQueryInterrupted
 	default:
 	}
 
 	m3query, err := storage.FetchQueryToM3Query(query)
 	if err != nil {
-		return nil, err
+		return nil, noop, err
 	}
 
 	// NB(r): Since we don't use a single index we fan out to each
@@ -98,82 +125,6 @@ func (s *localStorage) Fetch(
 
 		wg.Add(1)
 		go func() {
-			r, err := s.fetch(namespace, m3query, opts)
-			result.add(namespace.Options().Attributes(), r, err)
-			wg.Done()
-		}()
-	}
-
-	if fetches == 0 {
-		return nil, errNoLocalClustersFulfillsQuery
-	}
-
-	wg.Wait()
-	if err := result.err.FinalError(); err != nil {
-		return nil, err
-	}
-
-	return result.result, nil
-}
-
-func (s *localStorage) FetchBlocks(
-	ctx context.Context,
-	query *storage.FetchQuery,
-	options *storage.FetchOptions,
-) (block.Result, error) {
-	fetchResult, err := s.Fetch(ctx, query, options)
-	if err != nil {
-		return block.Result{}, err
-	}
-
-	return storage.FetchResultToBlockResult(fetchResult, query)
-}
-
-func (s *localStorage) FetchRaw(
-	ctx context.Context,
-	query *storage.FetchQuery,
-	options *storage.FetchOptions,
-) (encoding.SeriesIterators, error) {
-	// Check if the query was interrupted.
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case <-options.KillChan:
-		return nil, errors.ErrQueryInterrupted
-	default:
-	}
-
-	m3query, err := storage.FetchQueryToM3Query(query)
-	if err != nil {
-		return nil, err
-	}
-
-	// NB(r): Since we don't use a single index we fan out to each
-	// cluster that can completely fulfill this range and then prefer the
-	// highest resolution (most fine grained) results.
-	// This needs to be optimized, however this is a start.
-	var (
-		opts       = storage.FetchOptionsToM3Options(options, query)
-		namespaces = s.clusters.ClusterNamespaces()
-		now        = time.Now()
-		fetches    = 0
-		result     multiFetchRawResult
-		wg         sync.WaitGroup
-	)
-	for _, namespace := range namespaces {
-		namespace := namespace // Capture var
-
-		clusterStart := now.Add(-1 * namespace.Options().Attributes().Retention)
-
-		// Only include if cluster can completely fulfill the range
-		if clusterStart.After(query.Start) {
-			continue
-		}
-
-		fetches++
-
-		wg.Add(1)
-		go func() {
 			session := namespace.Session()
 			ns := namespace.NamespaceID()
 			iters, _, err := session.FetchTagged(ns, m3query, opts)
@@ -181,37 +132,18 @@ func (s *localStorage) FetchRaw(
 			wg.Done()
 		}()
 	}
-
 	if fetches == 0 {
-		return nil, errNoLocalClustersFulfillsQuery
+		return nil, noop, errNoLocalClustersFulfillsQuery
 	}
-
 	wg.Wait()
 	if err := result.err.FinalError(); err != nil {
-		return nil, err
+		return nil, noop, err
 	}
 
-	return result.iterators, nil
+	return result.iterators, result.cleanup, nil
 }
 
-func (s *localStorage) fetch(
-	namespace ClusterNamespace,
-	query index.Query,
-	opts index.QueryOptions,
-) (*storage.FetchResult, error) {
-	namespaceID := namespace.NamespaceID()
-	session := namespace.Session()
-
-	// TODO (nikunj): Handle second return param
-	iters, _, err := session.FetchTagged(namespaceID, query, opts)
-	if err != nil {
-		return nil, err
-	}
-
-	return storage.SeriesIteratorsToFetchResult(iters, namespaceID, s.workerPool)
-}
-
-func (s *localStorage) FetchTags(
+func (s *m3storage) FetchTags(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
@@ -268,7 +200,7 @@ func (s *localStorage) FetchTags(
 	return result.result, nil
 }
 
-func (s *localStorage) fetchTags(
+func (s *m3storage) fetchTags(
 	namespace ClusterNamespace,
 	query index.Query,
 	opts index.QueryOptions,
@@ -302,7 +234,7 @@ func (s *localStorage) fetchTags(
 	}, nil
 }
 
-func (s *localStorage) Write(
+func (s *m3storage) Write(
 	ctx context.Context,
 	query *storage.WriteQuery,
 ) error {
@@ -334,11 +266,11 @@ func (s *localStorage) Write(
 	return execution.ExecuteParallel(ctx, requests)
 }
 
-func (s *localStorage) Type() storage.Type {
+func (s *m3storage) Type() storage.Type {
 	return storage.TypeLocalDC
 }
 
-func (s *localStorage) Close() error {
+func (s *m3storage) Close() error {
 	return nil
 }
 
@@ -381,7 +313,7 @@ func (w *writeRequest) Process(ctx context.Context) error {
 }
 
 type writeRequestCommon struct {
-	store       *localStorage
+	store       *m3storage
 	annotation  []byte
 	unit        xtime.Unit
 	id          string

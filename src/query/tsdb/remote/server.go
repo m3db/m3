@@ -25,7 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
-	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/util/logging"
 
 	"go.uber.org/zap"
@@ -34,13 +34,13 @@ import (
 
 // TODO: add metrics
 type grpcServer struct {
-	storage storage.Storage
+	storage m3.Storage
 	pools   encoding.IteratorPools
 }
 
-// CreateNewGrpcServer creates server, given context local storage
+// CreateNewGrpcServer builds a grpc server which must be started later
 func CreateNewGrpcServer(
-	store storage.Storage,
+	store m3.Storage,
 	pools encoding.IteratorPools,
 ) *grpc.Server {
 	server := grpc.NewServer()
@@ -48,8 +48,8 @@ func CreateNewGrpcServer(
 		storage: store,
 		pools:   pools,
 	}
-	rpc.RegisterQueryServer(server, grpcServer)
 
+	rpc.RegisterQueryServer(server, grpcServer)
 	return server
 }
 
@@ -67,7 +67,7 @@ func StartNewGrpcServer(
 	return server.Serve(lis)
 }
 
-// Fetch reads decompressed series from local storage
+// Fetch reads decompressed series from m3 storage
 func (s *grpcServer) Fetch(
 	message *rpc.FetchRequest,
 	stream rpc.Query_FetchServer,
@@ -80,7 +80,8 @@ func (s *grpcServer) Fetch(
 		return err
 	}
 
-	result, err := s.storage.FetchRaw(ctx, storeQuery, nil)
+	result, cleanup, err := s.storage.FetchRaw(ctx, storeQuery, nil)
+	defer cleanup()
 	if err != nil {
 		logger.Error("unable to fetch local query", zap.Error(err))
 		return err

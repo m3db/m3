@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/storage/local"
+	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3x/ident"
@@ -55,11 +55,11 @@ func setup(
 	defer logger.Sync()
 	unaggregated1MonthRetention := client.NewMockSession(ctrl)
 	aggregated1MonthRetention1MinuteResolution := client.NewMockSession(ctrl)
-	clusters, err := local.NewClusters(local.UnaggregatedClusterNamespaceDefinition{
+	clusters, err := m3.NewClusters(m3.UnaggregatedClusterNamespaceDefinition{
 		NamespaceID: ident.StringID("metrics_unaggregated"),
 		Session:     unaggregated1MonthRetention,
 		Retention:   testRetention,
-	}, local.AggregatedClusterNamespaceDefinition{
+	}, m3.AggregatedClusterNamespaceDefinition{
 		NamespaceID: ident.StringID("metrics_aggregated"),
 		Session:     aggregated1MonthRetention1MinuteResolution,
 		Retention:   testRetention,

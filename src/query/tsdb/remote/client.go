@@ -91,7 +91,7 @@ func (c *grpcClient) Fetch(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (*storage.FetchResult, error) {
-	iters, err := c.FetchRaw(ctx, query, options)
+	iters, err := c.fetchRaw(ctx, query, options)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +99,7 @@ func (c *grpcClient) Fetch(
 	return storage.SeriesIteratorsToFetchResult(iters, nil, c.workerPool)
 }
 
-func (c *grpcClient) FetchRaw(
+func (c *grpcClient) fetchRaw(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
@@ -155,7 +155,7 @@ func (c *grpcClient) FetchBlocks(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (block.Result, error) {
-	iters, err := c.FetchRaw(ctx, query, options)
+	iters, err := c.fetchRaw(ctx, query, options)
 	if err != nil {
 		return block.Result{}, err
 	}

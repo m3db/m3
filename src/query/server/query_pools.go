@@ -38,8 +38,14 @@ import (
 )
 
 const (
-	defaultWorkerPoolCount = 4096
-	defaultWorkerPoolSize  = 20
+	// TODO: add capabilities to get this from configs
+	defaultWorkerPoolCount      = 4096
+	defaultWorkerPoolSize       = 20
+	replicas                    = 1
+	iteratorPoolSize            = 65536
+	checkedBytesWrapperPoolSize = 65536
+	defaultIdentifierPoolSize   = 8192
+	defaultBucketCapacity       = 256
 )
 
 func buildWorkerPools(
@@ -118,18 +124,15 @@ func (s sessionPools) TagDecoder() serialize.TagDecoderPool {
 	return s.tagDecoder
 }
 
+func buildBuckets() []pool.Bucket {
+	return []pool.Bucket{
+		{Capacity: defaultBucketCapacity, Count: defaultIdentifierPoolSize},
+	}
+}
+
 // Build iterator pools if they are unavailable from m3db (e.g. if running standalone query)
 func buildIteratorPools() encoding.IteratorPools {
-	// TODO: add capabilities to get this from configs
-	// TODO2: add instrumentation options to these pools
-	replicas := 1
-	iteratorPoolSize := 65536
-	checkedBytesWrapperPoolSize := 65536
-	defaultIdentifierPoolSize := 8192
-	buckets := []pool.Bucket{
-		{Capacity: 256, Count: defaultIdentifierPoolSize},
-	}
-
+	// TODO: add instrumentation options to these pools
 	pools := sessionPools{}
 	pools.multiReaderIteratorArray = encoding.NewMultiReaderIteratorArrayPool([]pool.Bucket{
 		pool.Bucket{
@@ -155,7 +158,7 @@ func buildIteratorPools() encoding.IteratorPools {
 	pools.seriesIterator = encoding.NewSeriesIteratorPool(seriesIteratorPoolOpts)
 	pools.seriesIterator.Init()
 
-	pools.seriesIterators = encoding.NewMutableSeriesIteratorsPool(buckets)
+	pools.seriesIterators = encoding.NewMutableSeriesIteratorsPool(buildBuckets())
 	pools.seriesIterators.Init()
 
 	wrapperPoolOpts := pool.NewObjectPoolOptions().
@@ -175,7 +178,7 @@ func buildIteratorPools() encoding.IteratorPools {
 	)
 	pools.tagDecoder.Init()
 
-	bytesPool := pool.NewCheckedBytesPool(buckets, nil,
+	bytesPool := pool.NewCheckedBytesPool(buildBuckets(), nil,
 		func(sizes []pool.Bucket) pool.BytesPool {
 			return pool.NewBytesPool(sizes, nil)
 		})

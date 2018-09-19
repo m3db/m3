@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
@@ -91,13 +90,6 @@ type Querier interface {
 		query *FetchQuery,
 		options *FetchOptions,
 	) (*FetchResult, error)
-
-	// FetchRaw returns the raw iterators from the underlying storage
-	FetchRaw(
-		ctx context.Context,
-		query *FetchQuery,
-		options *FetchOptions,
-	) (encoding.SeriesIterators, error)
 
 	// FetchBlocks converts fetch results to storage blocks
 	FetchBlocks(

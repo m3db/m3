@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	m3err "github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/util/logging"
 
@@ -120,7 +121,7 @@ func checkRemoteFetch(t *testing.T, its encoding.SeriesIterators) {
 	validateSeries(t, iters[0])
 }
 
-func startServer(t *testing.T, host string, store storage.Storage) {
+func startServer(t *testing.T, host string, store m3.Storage) {
 	ip := &mockIteratorPool{}
 	server := CreateNewGrpcServer(store, ip)
 	waitForStart := make(chan struct{})
@@ -128,6 +129,7 @@ func startServer(t *testing.T, host string, store storage.Storage) {
 		err := StartNewGrpcServer(server, host, waitForStart)
 		assert.NoError(t, err)
 	}()
+
 	<-waitForStart
 }
 
@@ -148,13 +150,13 @@ func createCtxReadOpts(t *testing.T) (context.Context, *storage.FetchQuery, *sto
 }
 
 func checkFetch(ctx context.Context, t *testing.T, client Client, read *storage.FetchQuery, readOpts *storage.FetchOptions) {
-	fetch, err := client.FetchRaw(ctx, read, readOpts)
+	fetch, err := client.Fetch(ctx, read, readOpts)
 	require.NoError(t, err)
 	checkRemoteFetch(t, fetch)
 }
 
 func checkErrorFetch(ctx context.Context, t *testing.T, client Client, read *storage.FetchQuery, readOpts *storage.FetchOptions) {
-	fetch, err := client.FetchRaw(ctx, read, readOpts)
+	fetch, err := client.Fetch(ctx, read, readOpts)
 	assert.Nil(t, fetch)
 	assert.Equal(t, errRead.Error(), grpc.ErrorDesc(err))
 }
@@ -188,13 +190,15 @@ func TestRpcMultipleRead(t *testing.T) {
 		t:    t,
 		read: read,
 	}
+
 	startServer(t, host, store)
 	hosts := []string{host}
 	client := buildClient(t, hosts)
 	defer func() {
 		assert.NoError(t, client.Close())
 	}()
-	fetch, err := client.FetchRaw(ctx, read, readOpts)
+
+	fetch, err := client.Fetch(ctx, read, readOpts)
 	require.NoError(t, err)
 	checkRemoteFetch(t, fetch)
 }
@@ -207,6 +211,7 @@ func TestRpcStopsStreamingWhenFetchKilledOnClient(t *testing.T) {
 		read:        read,
 		sleepMillis: sleepMillis,
 	}
+
 	startServer(t, host, store)
 	hosts := []string{host}
 	client := buildClient(t, hosts)
@@ -218,7 +223,8 @@ func TestRpcStopsStreamingWhenFetchKilledOnClient(t *testing.T) {
 		time.Sleep(time.Millisecond * 10)
 		readOpts.KillChan <- struct{}{}
 	}()
-	fetch, err := client.FetchRaw(ctx, read, readOpts)
+
+	fetch, err := client.Fetch(ctx, read, readOpts)
 	require.Nil(t, fetch)
 	assert.Equal(t, err, m3err.ErrQueryInterrupted)
 }

@@ -23,7 +23,6 @@ package remote
 import (
 	"context"
 
-	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/storage"
@@ -45,14 +44,6 @@ func (s *remoteStorage) Fetch(
 	options *storage.FetchOptions,
 ) (*storage.FetchResult, error) {
 	return s.client.Fetch(ctx, query, options)
-}
-
-func (s *remoteStorage) FetchRaw(
-	ctx context.Context,
-	query *storage.FetchQuery,
-	options *storage.FetchOptions,
-) (encoding.SeriesIterators, error) {
-	return s.client.FetchRaw(ctx, query, options)
 }
 
 func (s *remoteStorage) FetchBlocks(

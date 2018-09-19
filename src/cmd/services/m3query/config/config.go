@@ -23,7 +23,7 @@ package config
 import (
 	"time"
 
-	"github.com/m3db/m3/src/query/storage/local"
+	"github.com/m3db/m3/src/query/storage/m3"
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3x/config/listenaddress"
 	"github.com/m3db/m3x/instrument"
@@ -46,7 +46,7 @@ type Configuration struct {
 
 	// Clusters is the DB cluster configurations for read, write and
 	// query endpoints.
-	Clusters local.ClustersStaticConfiguration `yaml:"clusters"`
+	Clusters m3.ClustersStaticConfiguration `yaml:"clusters"`
 
 	// LocalConfiguration is the local embedded configuration if running
 	// coordinator embedded in the DB.

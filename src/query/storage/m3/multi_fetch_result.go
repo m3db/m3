@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package local
+package m3
 
 import (
 	"sync"
@@ -29,26 +29,39 @@ import (
 )
 
 // TODO: use a better seriesIterators merge here
-type multiFetchRawResult struct {
+type multiFetchResult struct {
 	sync.Mutex
 	iterators        encoding.SeriesIterators
 	err              xerrors.MultiError
 	dedupeFirstAttrs storage.Attributes
-	dedupeMap        map[string]multiFetchRawResultSeries
+	dedupeMap        map[string]multiFetchResultSeries
+	// Need to keep track of seen iterators, otherwise they are not
+	// properly cleaned up and returned to the pool; can also leak
+	// duplciate series iterators.
+	seenIters []encoding.SeriesIterators
 }
 
-type multiFetchRawResultSeries struct {
+type multiFetchResultSeries struct {
 	idx   int
 	attrs storage.Attributes
 }
 
-func (r *multiFetchRawResult) add(
+func (r *multiFetchResult) cleanup() error {
+	for _, iters := range r.seenIters {
+		iters.Close()
+	}
+
+	return nil
+}
+
+func (r *multiFetchResult) add(
 	attrs storage.Attributes,
 	iterators encoding.SeriesIterators,
 	err error,
 ) {
 	r.Lock()
 	defer r.Unlock()
+	r.seenIters = append(r.seenIters, iterators)
 
 	if err != nil {
 		r.err = r.err.Add(err)
@@ -64,9 +77,9 @@ func (r *multiFetchRawResult) add(
 	iters := iterators.Iters()
 	// Need to dedupe
 	if r.dedupeMap == nil {
-		r.dedupeMap = make(map[string]multiFetchRawResultSeries, len(iters))
+		r.dedupeMap = make(map[string]multiFetchResultSeries, len(iters))
 		for idx, s := range iters {
-			r.dedupeMap[s.ID().String()] = multiFetchRawResultSeries{
+			r.dedupeMap[s.ID().String()] = multiFetchResultSeries{
 				idx:   idx,
 				attrs: r.dedupeFirstAttrs,
 			}
@@ -94,7 +107,7 @@ func (r *multiFetchRawResult) add(
 
 		// TODO: use a pool here
 		r.iterators = encoding.NewSeriesIterators(currentIters, nil)
-		r.dedupeMap[id] = multiFetchRawResultSeries{
+		r.dedupeMap[id] = multiFetchResultSeries{
 			idx:   idx,
 			attrs: attrs,
 		}

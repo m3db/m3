@@ -18,57 +18,34 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package local
+package m3
 
 import (
-	"sync"
+	"context"
 
-	"github.com/m3db/m3/src/query/storage"
-	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3/src/dbnode/encoding"
+	genericstorage "github.com/m3db/m3/src/query/storage"
 )
 
-type multiFetchTagsResult struct {
-	sync.Mutex
-	result    *storage.SearchResults
-	err       xerrors.MultiError
-	dedupeMap map[string]struct{}
+// Cleanup is a cleanup function to be called after resources are freed
+type Cleanup func() error
+
+func noop() error {
+	return nil
 }
 
-func (r *multiFetchTagsResult) add(
-	result *storage.SearchResults,
-	err error,
-) {
-	r.Lock()
-	defer r.Unlock()
+// Storage provides an interface for reading and writing to the tsdb
+type Storage interface {
+	genericstorage.Storage
+	Querier
+}
 
-	if err != nil {
-		r.err = r.err.Add(err)
-		return
-	}
-
-	if r.result == nil {
-		r.result = result
-		return
-	}
-
-	// Need to dedupe
-	if r.dedupeMap == nil {
-		r.dedupeMap = make(map[string]struct{}, len(r.result.Metrics))
-		for _, s := range r.result.Metrics {
-			r.dedupeMap[s.ID] = struct{}{}
-		}
-	}
-
-	for _, s := range result.Metrics {
-		id := s.ID
-		_, exists := r.dedupeMap[id]
-		if exists {
-			// Already exists
-			continue
-		}
-
-		// Does not exist already, add result
-		r.result.Metrics = append(r.result.Metrics, s)
-		r.dedupeMap[id] = struct{}{}
-	}
+// Querier handles queries against an M3 instance.
+type Querier interface {
+	// FetchRaw fetches timeseries data based on a query
+	FetchRaw(
+		ctx context.Context,
+		query *genericstorage.FetchQuery,
+		options *genericstorage.FetchOptions,
+	) (encoding.SeriesIterators, Cleanup, error)
 }

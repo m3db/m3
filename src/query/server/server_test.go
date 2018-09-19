@@ -34,9 +34,9 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
-	remotetest "github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote/test/remote"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote/test"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
-	"github.com/m3db/m3/src/query/storage/local"
+	"github.com/m3db/m3/src/query/storage/m3"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/ident"
 	xtest "github.com/m3db/m3x/test"
@@ -69,7 +69,7 @@ clusters:
 `
 
 func TestRun(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
 	configFile, close := newTestFile(t, "config.yaml", configYAML)
@@ -106,7 +106,7 @@ func TestRun(t *testing.T) {
 	dbClient := client.NewMockClient(ctrl)
 	dbClient.EXPECT().DefaultSession().Return(session, nil)
 
-	cfg.Clusters[0].NewClientFromConfig = local.NewClientFromConfig(
+	cfg.Clusters[0].NewClientFromConfig = m3.NewClientFromConfig(
 		func(
 			cfg client.Configuration,
 			params client.ConfigurationParameters,
@@ -129,8 +129,8 @@ func TestRun(t *testing.T) {
 	waitForServerHealthy(t, 7201)
 
 	// Send Prometheus write request
-	promReq := remotetest.GeneratePromWriteRequest()
-	promReqBody := remotetest.GeneratePromWriteRequestBody(t, promReq)
+	promReq := test.GeneratePromWriteRequest()
+	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
 	req, err := http.NewRequest(http.MethodPost,
 		"http://127.0.0.1:7201"+remote.PromWriteURL, promReqBody)
 	require.NoError(t, err)
@@ -213,7 +213,7 @@ rpc:
 backend: grpc
 `
 
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
 	port := "127.0.0.1:17202"
@@ -252,8 +252,8 @@ backend: grpc
 	waitForServerHealthy(t, 17201)
 
 	// Send Prometheus read request
-	promReq := remotetest.GeneratePromReadRequest()
-	promReqBody := remotetest.GeneratePromReadRequestBody(t, promReq)
+	promReq := test.GeneratePromReadRequest()
+	promReqBody := test.GeneratePromReadRequestBody(t, promReq)
 	req, err := http.NewRequest(http.MethodPost,
 		"http://127.0.0.1:17201"+remote.PromReadURL, promReqBody)
 	require.NoError(t, err)

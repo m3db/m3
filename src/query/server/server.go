@@ -42,7 +42,7 @@ import (
 	"github.com/m3db/m3/src/query/policy/filter"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/fanout"
-	"github.com/m3db/m3/src/query/storage/local"
+	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/remote"
 	"github.com/m3db/m3/src/query/stores/m3db"
 	tsdbRemote "github.com/m3db/m3/src/query/tsdb/remote"
@@ -357,7 +357,7 @@ func newDownsampler(
 }
 
 func newDownsamplerAutoMappingRules(
-	namespaces []local.ClusterNamespace,
+	namespaces []m3.ClusterNamespace,
 ) ([]downsample.MappingRule, error) {
 	var autoMappingRules []downsample.MappingRule
 	for _, namespace := range namespaces {
@@ -391,15 +391,15 @@ func initClusters(
 	cfg config.Configuration,
 	dbClientCh <-chan client.Client,
 	logger *zap.Logger,
-) (local.Clusters, encoding.IteratorPools, error) {
+) (m3.Clusters, encoding.IteratorPools, error) {
 	var (
-		clusters local.Clusters
+		clusters m3.Clusters
 		pools    encoding.IteratorPools
 		err      error
 	)
 
 	if len(cfg.Clusters) > 0 {
-		opts := local.ClustersStaticConfigurationOptions{
+		opts := m3.ClustersStaticConfigurationOptions{
 			AsyncSessions: true,
 		}
 		clusters, err = cfg.Clusters.NewClusters(opts)
@@ -418,7 +418,7 @@ func initClusters(
 		session := m3db.NewAsyncSession(func() (client.Client, error) {
 			return <-dbClientCh, nil
 		}, nil)
-		clusters, err = local.NewClusters(local.UnaggregatedClusterNamespaceDefinition{
+		clusters, err = m3.NewClusters(m3.UnaggregatedClusterNamespaceDefinition{
 			NamespaceID: ident.StringID(localCfg.Namespace),
 			Session:     session,
 			Retention:   localCfg.Retention,
@@ -443,14 +443,14 @@ func initClusters(
 
 func newStorages(
 	logger *zap.Logger,
-	clusters local.Clusters,
+	clusters m3.Clusters,
 	cfg config.Configuration,
 	pools encoding.IteratorPools,
 	workerPool pool.ObjectPool,
 ) (storage.Storage, cleanupFn, error) {
 	cleanup := func() error { return nil }
 
-	localStorage := local.NewStorage(clusters, workerPool)
+	localStorage := m3.NewStorage(clusters, workerPool)
 	stores := []storage.Storage{localStorage}
 	remoteEnabled := false
 	if cfg.RPC != nil && cfg.RPC.Enabled {
@@ -509,7 +509,7 @@ func remoteClient(
 
 func startGrpcServer(
 	logger *zap.Logger,
-	storage storage.Storage,
+	storage m3.Storage,
 	pools encoding.IteratorPools,
 	cfg *config.RPCConfiguration,
 ) (*grpc.Server, error) {

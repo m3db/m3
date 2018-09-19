@@ -56,8 +56,8 @@ var (
 
 	time1 = "2093-02-06T11:54:48+07:00"
 
-	tags0 = models.Tags{{"a", "b"}, {"c", "d"}}
-	tags1 = models.Tags{{"e", "f"}, {"g", "h"}}
+	tags0 = models.Tags{{Name: "a", Value: "b"}, {Name: "c", Value: "d"}}
+	tags1 = models.Tags{{Name: "e", Value: "f"}, {Name: "g", Value: "h"}}
 )
 
 func parseTimes(t *testing.T) (time.Time, time.Time) {

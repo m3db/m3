@@ -26,7 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/storage/local"
+	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3x/ident"
 
 	"github.com/golang/mock/gomock"
@@ -42,18 +42,18 @@ const (
 	TestRetention = 30 * 24 * time.Hour
 )
 
-// NewStorageAndSession generates a new local storage and mock session
+// NewStorageAndSession generates a new m3 storage and mock session
 func NewStorageAndSession(
 	t *testing.T,
 	ctrl *gomock.Controller,
 ) (storage.Storage, *client.MockSession) {
 	session := client.NewMockSession(ctrl)
-	clusters, err := local.NewClusters(local.UnaggregatedClusterNamespaceDefinition{
+	clusters, err := m3.NewClusters(m3.UnaggregatedClusterNamespaceDefinition{
 		NamespaceID: ident.StringID(TestNamespaceID),
 		Session:     session,
 		Retention:   TestRetention,
 	})
 	require.NoError(t, err)
-	storage := local.NewStorage(clusters, nil)
+	storage := m3.NewStorage(clusters, nil)
 	return storage, session
 }

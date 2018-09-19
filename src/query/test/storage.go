@@ -24,7 +24,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
 )
@@ -50,15 +49,6 @@ func (s *slowStorage) Fetch(
 ) (*storage.FetchResult, error) {
 	time.Sleep(s.delay)
 	return s.storage.Fetch(ctx, query, options)
-}
-
-func (s *slowStorage) FetchRaw(
-	ctx context.Context,
-	query *storage.FetchQuery,
-	options *storage.FetchOptions,
-) (encoding.SeriesIterators, error) {
-	time.Sleep(s.delay)
-	return s.storage.FetchRaw(ctx, query, options)
 }
 
 func (s *slowStorage) FetchBlocks(

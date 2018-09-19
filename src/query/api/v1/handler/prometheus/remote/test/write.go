@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package remote
+package test
 
 import (
 	"bytes"
@@ -33,31 +33,41 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// GeneratePromReadRequest generates a Prometheus remote
-// read request.
-func GeneratePromReadRequest() *prompb.ReadRequest {
-	return &prompb.ReadRequest{
-		Queries: []*prompb.Query{
-			&prompb.Query{
-				StartTimestampMs: time.Now().UnixNano()/int64(time.Millisecond) - int64(60000*time.Millisecond),
-				EndTimestampMs:   time.Now().UnixNano() / int64(time.Millisecond),
-				Matchers: []*prompb.LabelMatcher{
-					&prompb.LabelMatcher{
-						Name:  "__name__",
-						Value: "first",
-						Type:  prompb.LabelMatcher_EQ,
-					},
-				},
+// GeneratePromWriteRequest generates a Prometheus remote
+// write request.
+func GeneratePromWriteRequest() *prompb.WriteRequest {
+	req := &prompb.WriteRequest{
+		Timeseries: []*prompb.TimeSeries{{
+			Labels: []*prompb.Label{
+				{Name: "__name__", Value: "first"},
+				{Name: "foo", Value: "bar"},
+				{Name: "biz", Value: "baz"},
+			},
+			Samples: []*prompb.Sample{
+				{Value: 1.0, Timestamp: time.Now().UnixNano() / int64(time.Millisecond)},
+				{Value: 2.0, Timestamp: time.Now().UnixNano() / int64(time.Millisecond)},
 			},
 		},
+			{
+				Labels: []*prompb.Label{
+					{Name: "__name__", Value: "second"},
+					{Name: "foo", Value: "qux"},
+					{Name: "bar", Value: "baz"},
+				},
+				Samples: []*prompb.Sample{
+					{Value: 3.0, Timestamp: time.Now().UnixNano() / int64(time.Millisecond)},
+					{Value: 4.0, Timestamp: time.Now().UnixNano() / int64(time.Millisecond)},
+				},
+			}},
 	}
+	return req
 }
 
-// GeneratePromReadRequestBody generates a Prometheus remote
-// read request body.
-func GeneratePromReadRequestBody(
+// GeneratePromWriteRequestBody generates a Prometheus remote
+// write request body.
+func GeneratePromWriteRequestBody(
 	t *testing.T,
-	req *prompb.ReadRequest,
+	req *prompb.WriteRequest,
 ) io.Reader {
 	data, err := proto.Marshal(req)
 	require.NoError(t, err)
