@@ -11,6 +11,13 @@ docker build -t "m3query:$(git rev-parse HEAD)" -f ./docker/m3query/Dockerfile .
 echo "Run m3dbnode docker container"
 
 docker create --name "m3dbnode-version-$(git rev-parse HEAD)" -p 9000:9000 -p 9001:9001 -p 9002:9002 -p 9003:9003 -p 9004:9004 -p 7201:7201 "m3dbnode:$(git rev-parse HEAD)"
+
+# Remove the container if people are running this locally
+if [ $? -ne 0 ]; then 
+  echo "docker container m3dbnode-version-"$(git rev-parse HEAD)" already exist removing it"
+  docker rm  "m3dbnode-version-$(git rev-parse HEAD)"
+fi
+
 docker start "m3dbnode-version-$(git rev-parse HEAD)"
 if [ $? -ne 0 ]; then
   echo "m3dbnode docker failed to start"
