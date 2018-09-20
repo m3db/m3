@@ -8,7 +8,7 @@ M3DB stores its topology (mapping of which hosts are responsible for which shard
 2. Available
 3. Leaving
 
-Note that these states are not a reflection of the current status of an M3DB node, but an indicating of whether a given node has ever successfully bootstrapped and taken ownership of a given shard. For example, in a new cluster all the nodes will begin with all of their shards in the Initializing state. Once all the nodes finish bootstrapping, they will mark all of their shards as Available. If all the M3DB nodes are stopped at the same time, the cluster topology will still show all of the shards for all of the hosts as Available.
+Note that these states are not a reflection of the current status of an M3DB node, but an indication of whether a given node has ever successfully bootstrapped and taken ownership of a given shard. For example, in a new cluster all the nodes will begin with all of their shards in the Initializing state. Once all the nodes finish bootstrapping, they will mark all of their shards as Available. If all the M3DB nodes are stopped at the same time, the cluster topology will still show all of the shards for all of the hosts as Available.
 
 ## Initializing State
 
