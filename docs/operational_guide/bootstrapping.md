@@ -2,7 +2,7 @@
 
 ## Introduction
 
-We recommend reading the topology operational guide(TODO LINK) before reading the rest of this document.
+We recommend reading the [topology operational guide](topology.md) before reading the rest of this document.
 
 When an M3DB node is turned on (or experiences a topology change) it needs to go through a bootstrapping process to determine the integrity of data that it has. In most cases, as long as you're running with the default and recommended bootstrapper configuration of: "filesystem,commitlog,peers,uninitialized_topology" then you should not need to worry about the bootstrapping process at all and M3DB will take care of doing the rigth thing such that you don't lose data and its consistency guarantees are met.
 
@@ -25,7 +25,7 @@ For example, imagine an M3DB node that is responsible for shards 1, 5, 13, and 2
 
 ### Filesystem Bootstrapper
 
-The filesystem bootstrapper's responsibility is to determine which immutable filesetfiles(TODO LINK) exist on disk, and if so, mark them as fulfilled. The filesystem bootstrapper achieves this by scanning M3DB's directory structure and determining which fileset files already exist on disk.
+The filesystem bootstrapper's responsibility is to determine which immutable [fileset files](../m3db/architecture/storage.md) exist on disk, and if so, mark them as fulfilled. The filesystem bootstrapper achieves this by scanning M3DB's directory structure and determining which fileset files already exist on disk.
 
 ### Commitlog Bootstrapper
 
