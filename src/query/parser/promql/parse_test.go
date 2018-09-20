@@ -248,6 +248,9 @@ var temporalParseTests = []struct {
 	{"stdvar_over_time(up[5m])", temporal.StdVarType},
 	{"irate(up[5m])", temporal.IRateType},
 	{"idelta(up[5m])", temporal.IDeltaType},
+	{"rate(up[5m])", temporal.RateType},
+	{"delta(up[5m])", temporal.DeltaType},
+	{"increase(up[5m])", temporal.IncreaseType},
 	{"resets(up[5m])", temporal.ResetsType},
 	{"changes(up[5m])", temporal.ChangesType},
 }

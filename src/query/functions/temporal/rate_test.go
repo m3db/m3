@@ -147,6 +147,38 @@ var testDeltaCases = []testRateCase{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 		},
 	},
+	// {
+	// 	name:   "delta",
+	// 	opType: DeltaType,
+	// 	vals: [][]float64{
+	// 		{678758, 680986, 683214, 685442, 687670},
+	// 		{2299, 2299, 2299, 2787, 2787},
+	// 	},
+	// 	afterBlockOne: [][]float64{
+	// 		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 8355},
+	// 		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 671},
+	// 	},
+	// 	afterAllBlocks: [][]float64{
+	// 		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+	// 		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+	// 	},
+	// },
+	{
+		name:   "delta with all NaNs",
+		opType: DeltaType,
+		vals: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+		afterBlockOne: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+		afterAllBlocks: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+	},
 }
 
 func TestIDelta(t *testing.T) {

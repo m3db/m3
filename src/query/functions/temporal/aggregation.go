@@ -65,21 +65,28 @@ var (
 	}
 )
 
+type aggProcessor struct {
+	aggFunc aggFunc
+}
+
+func (a aggProcessor) Init(op baseOp, controller *transform.Controller, opts transform.Options) Processor {
+	return &aggNode{
+		controller: controller,
+		op:         op,
+		aggFunc:    aggFuncs[op.operatorType],
+	}
+}
+
 // NewAggOp creates a new base temporal transform with a specified node
 func NewAggOp(args []interface{}, optype string) (transform.Params, error) {
 	if aggregationFunc, ok := aggFuncs[optype]; ok {
-		return newBaseOp(args, optype, newAggNode, aggregationFunc)
+		a := aggProcessor{
+			aggFunc: aggregationFunc,
+		}
+		return newBaseOp(args, optype, a)
 	}
 
 	return nil, fmt.Errorf("unknown aggregation type: %s", optype)
-}
-
-func newAggNode(op baseOp, controller *transform.Controller, _ transform.Options) Processor {
-	return &aggNode{
-		op:         op,
-		controller: controller,
-		aggFunc:    op.aggFunc,
-	}
 }
 
 type aggNode struct {

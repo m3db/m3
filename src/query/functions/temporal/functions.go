@@ -39,16 +39,13 @@ const (
 	ChangesType = "changes"
 )
 
-// NewFunctionOp creates a new base temporal transform for functions
-func NewFunctionOp(args []interface{}, optype string) (transform.Params, error) {
-	if optype != ResetsType && optype != ChangesType {
-		return nil, fmt.Errorf("unknown function type: %s", optype)
-	}
+type comparisonFunc func(a, b float64) bool
 
-	return newBaseOp(args, optype, newFunctionNode, nil)
+type functionProcessor struct {
+	compFunc comparisonFunc
 }
 
-func newFunctionNode(op baseOp, controller *transform.Controller, _ transform.Options) Processor {
+func (f functionProcessor) Init(op baseOp, controller *transform.Controller, opts transform.Options) Processor {
 	var compFunc comparisonFunc
 	if op.operatorType == ResetsType {
 		compFunc = func(a, b float64) bool { return a < b }
@@ -63,7 +60,14 @@ func newFunctionNode(op baseOp, controller *transform.Controller, _ transform.Op
 	}
 }
 
-type comparisonFunc func(a, b float64) bool
+// NewFunctionOp creates a new base temporal transform for functions
+func NewFunctionOp(args []interface{}, optype string) (transform.Params, error) {
+	if optype != ResetsType && optype != ChangesType {
+		return nil, fmt.Errorf("unknown function type: %s", optype)
+	}
+	f := functionProcessor{}
+	return newBaseOp(args, optype, f)
+}
 
 type functionNode struct {
 	op             baseOp
