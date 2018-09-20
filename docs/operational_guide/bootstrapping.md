@@ -49,7 +49,7 @@ The peer bootstrapper's responsibility is to stream in data for shard/ranges fro
 |  3   |   2   |   A   |
 |  3   |   3   |   A   |
 
-In this case, the peer bootstrapper running on node 1 will not be able to fullfill any requests because node 2 is in the Initializing state for all of its shards and cannot fulfill bootstrap requests. This means that node 1's peer bootstrapper cannot meet its default consistency level of majority for bootstrapping (1 < 2 which is majority with a replication factor of 3). On the otherhand, node 1 would be able to peer bootstrap in the following topology because its peers (nodes 2/3) are available for all of their shards:
+In this case, the peer bootstrapper running on node 1 will not be able to fullfill any requests because node 2 is in the Initializing state for all of its shards and cannot fulfill bootstrap requests. This means that node 1's peer bootstrapper cannot meet its default consistency level of majority for bootstrapping (1 < 2 which is majority with a replication factor of 3). On the other hand, node 1 would be able to peer bootstrap in the following topology because its peers (nodes 2/3) are available for all of their shards:
 
 | Node | Shard | State |
 |------|-------|-------|
