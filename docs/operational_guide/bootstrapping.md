@@ -95,7 +95,7 @@ This bootstrapping configuration will work just fine if nodes are never added/re
 
 #### peers,uninitialized_topology
 
-Everytime a node is restarted, it will attempt to stream in *all* of the data that it IS responsible for from its peers, completely ignoring the immutable fileset files it already has on disk. We do not recommend running in this mode as it can lead to violations of M3DB's consistency guarantees due to the fact that the commit logs are being ignored, however, it *can* be useful if you want to repair the data on a node by forcing it to stream from its peers.
+Everytime a node is restarted, it will attempt to stream in *all* of the data that it is responsible for from its peers, completely ignoring the immutable fileset files it already has on disk. We do not recommend running in this mode as it can lead to violations of M3DB's consistency guarantees due to the fact that the commit logs are being ignored, however, it *can* be useful if you want to repair the data on a node by forcing it to stream from its peers.
 
 #### filesystem,uninitialized_topology
 
