@@ -415,18 +415,23 @@ func initClusters(
 		if dbClientCh == nil {
 			return nil, nil, errors.New("no clusters configured and not running local cluster")
 		}
+
+		sessionInitChan := make(chan struct{})
 		session := m3db.NewAsyncSession(func() (client.Client, error) {
 			return <-dbClientCh, nil
-		}, nil)
+		}, sessionInitChan)
+
 		clusters, err = m3.NewClusters(m3.UnaggregatedClusterNamespaceDefinition{
 			NamespaceID: ident.StringID(localCfg.Namespace),
 			Session:     session,
 			Retention:   localCfg.Retention,
 		})
+
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "unable to connect to clusters")
 		}
 
+		<-sessionInitChan
 		pools, err = session.IteratorPools()
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "session iterator pools unavailable")
