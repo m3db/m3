@@ -2,7 +2,7 @@
 
 ## Overview
 
-M3DB stores its topology (mapping of which hosts are responsible for which shards) in etcd. There are three possible states that each host/shard pair can be in:
+M3DB stores its topology (mapping of which hosts are responsible for which shards) in [etcd](https://coreos.com/etcd/). There are three possible states that each host/shard pair can be in:
 
 1. Initializing
 2. Available
