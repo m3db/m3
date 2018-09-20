@@ -47,3 +47,6 @@ site/
 !m3db.io/**/vendor
 # Automatically populated from asset sources
 m3db.io/openapi
+
+# Github token for goreleaser
+github_token

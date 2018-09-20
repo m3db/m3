@@ -60,3 +60,5 @@ release:
   github:
     owner: m3db
     name: m3
+env_files:
+  github_token: ./github_token
