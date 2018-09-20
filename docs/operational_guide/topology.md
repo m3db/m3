@@ -22,7 +22,7 @@ Once a node with a shard in the Initializing state successfully bootstraps all o
 
 ## Leaving State
 
-The leaving state indicates that a node is attempting to leave the cluster. The purpose of this state is to allow the node to remain in the cluster long enough for thhe nodes that are taking over its responsibilities to stream data from it.
+The leaving state indicates that a node is attempting to leave the cluster. The purpose of this state is to allow the node to remain in the cluster long enough for the nodes that are taking over its responsibilities to stream data from it.
 
 
 ## Sample Cluster State Transitions - Node Add
