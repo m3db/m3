@@ -45,6 +45,7 @@ SERVICES :=     \
 	m3query       \
 
 SUBDIRS :=    \
+	x           \
 	cmd         \
 	dbnode      \
 	query       \
