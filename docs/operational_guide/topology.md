@@ -27,66 +27,87 @@ The leaving state indicates that a node is attempting to leave the cluster. The 
 
 ## Sample Cluster State Transitions - Node Add
 
+Replication factor: 3
+
 ### Initial Topology
 
 | Node | Shard | State |
 |------|-------|-------|
 |  1   |   1   |   A   |
 |  1   |   2   |   A   |
+|  1   |   3   |   A   |
+|  2   |   1   |   A   |
 |  2   |   2   |   A   |
 |  2   |   3   |   A   |
 |  3   |   1   |   A   |
+|  3   |   2   |   A   |
 |  3   |   3   |   A   |
 
 ### Begin Node Add
 
 | Node | Shard | State |
 |------|-------|-------|
-|  1   |   1   |   A   |
-|  1   |   2   |   L   |
-|  2   |   2   |   A   |
-|  2   |   3   |   L   |
+|  1   |   1   |   L   |
+|  1   |   2   |   A   |
+|  1   |   3   |   A   |
+|  2   |   1   |   A   |
+|  2   |   2   |   L   |
+|  2   |   3   |   A   |
 |  3   |   1   |   A   |
-|  3   |   3   |   A   |
+|  3   |   2   |   A   |
+|  3   |   3   |   L   |
 |  4   |   1   |   I   |
+|  4   |   2   |   I   |
 |  4   |   3   |   I   |
 
 ### Complete Node Add
 
 | Node | Shard | State |
 |------|-------|-------|
-|  1   |   1   |   A   |
-|  2   |   2   |   A   |
+|  1   |   2   |   A   |
+|  1   |   3   |   A   |
+|  2   |   1   |   A   |
+|  2   |   3   |   A   |
 |  3   |   1   |   A   |
-|  3   |   3   |   A   |
+|  3   |   2   |   A   |
 |  4   |   1   |   A   |
+|  4   |   2   |   A   |
 |  4   |   3   |   A   |
 
-## Sample Cluster State Transitions - Node Add
+## Sample Cluster State Transitions - Node Remove
+
+Replication factor: 3
 
 ### Initial Topology
 
 | Node | Shard | State |
 |------|-------|-------|
-|  1   |   1   |   A   |
 |  1   |   2   |   A   |
-|  2   |   2   |   A   |
+|  1   |   3   |   A   |
+|  2   |   1   |   A   |
 |  2   |   3   |   A   |
 |  3   |   1   |   A   |
-|  3   |   3   |   A   |
+|  3   |   2   |   A   |
+|  4   |   1   |   L   |
+|  4   |   2   |   L   |
+|  4   |   3   |   L   |
 
 ### Begin Node Remove
 
 | Node | Shard | State |
 |------|-------|-------|
-|  1   |   1   |   A   |
+|  1   |   1   |   I   |
 |  1   |   2   |   A   |
-|  1   |   3   |   I   |
-|  2   |   1   |   I   |
-|  2   |   2   |   A   |
+|  1   |   3   |   A   |
+|  2   |   1   |   A   |
+|  2   |   2   |   I   |
 |  2   |   3   |   A   |
-|  3   |   1   |   L   |
-|  3   |   3   |   L   |
+|  3   |   1   |   A   |
+|  3   |   2   |   A   |
+|  3   |   3   |   I   |
+|  4   |   1   |   L   |
+|  4   |   2   |   L   |
+|  4   |   3   |   L   |
 
 ### Complete Node Remove
 
@@ -98,8 +119,13 @@ The leaving state indicates that a node is attempting to leave the cluster. The 
 |  2   |   1   |   A   |
 |  2   |   2   |   A   |
 |  2   |   3   |   A   |
+|  3   |   1   |   A   |
+|  3   |   2   |   A   |
+|  3   |   3   |   A   |
 
 ## Sample Cluster State Transitions - Node Replace
+
+Replication factor: 3
 
 ### Initial Topology
 
@@ -107,31 +133,41 @@ The leaving state indicates that a node is attempting to leave the cluster. The 
 |------|-------|-------|
 |  1   |   1   |   A   |
 |  1   |   2   |   A   |
+|  1   |   3   |   A   |
+|  2   |   1   |   A   |
 |  2   |   2   |   A   |
 |  2   |   3   |   A   |
 |  3   |   1   |   A   |
+|  3   |   2   |   A   |
 |  3   |   3   |   A   |
 
 ### Begin Node Replace
 
 | Node | Shard | State |
 |------|-------|-------|
-|  1   |   1   |   L   |
-|  1   |   2   |   L   |
+|  1   |   1   |   A   |
+|  1   |   2   |   A   |
 |  1   |   3   |   A   |
 |  2   |   1   |   A   |
 |  2   |   2   |   A   |
 |  2   |   3   |   A   |
-|  3   |   1   |   I   |
-|  3   |   3   |   I   |
+|  3   |   1   |   L   |
+|  3   |   2   |   L   |
+|  3   |   3   |   L   |
+|  4   |   1   |   I   |
+|  4   |   2   |   I   |
+|  4   |   3   |   I   |
 
 ### Complete Node Replace
 
 | Node | Shard | State |
 |------|-------|-------|
+|  1   |   1   |   A   |
+|  1   |   2   |   A   |
 |  1   |   3   |   A   |
 |  2   |   1   |   A   |
 |  2   |   2   |   A   |
 |  2   |   3   |   A   |
-|  3   |   1   |   A   |
-|  3   |   3   |   A   |
+|  4   |   1   |   A   |
+|  4   |   2   |   A   |
+|  4   |   3   |   A   |
