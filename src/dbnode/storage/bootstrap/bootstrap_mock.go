@@ -465,10 +465,11 @@ func (mr *MockSourceMockRecorder) Can(strategy interface{}) *gomock.Call {
 }
 
 // AvailableData mocks base method
-func (m *MockSource) AvailableData(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, runOpts RunOptions) result.ShardTimeRanges {
+func (m *MockSource) AvailableData(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, runOpts RunOptions) (result.ShardTimeRanges, error) {
 	ret := m.ctrl.Call(m, "AvailableData", ns, shardsTimeRanges, runOpts)
 	ret0, _ := ret[0].(result.ShardTimeRanges)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // AvailableData indicates an expected call of AvailableData
@@ -490,10 +491,11 @@ func (mr *MockSourceMockRecorder) ReadData(ns, shardsTimeRanges, runOpts interfa
 }
 
 // AvailableIndex mocks base method
-func (m *MockSource) AvailableIndex(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, opts RunOptions) result.ShardTimeRanges {
+func (m *MockSource) AvailableIndex(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, opts RunOptions) (result.ShardTimeRanges, error) {
 	ret := m.ctrl.Call(m, "AvailableIndex", ns, shardsTimeRanges, opts)
 	ret0, _ := ret[0].(result.ShardTimeRanges)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // AvailableIndex indicates an expected call of AvailableIndex

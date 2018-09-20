@@ -256,7 +256,7 @@ func TestBaseBootstrapperCurrentNoUnfulfilled(t *testing.T) {
 
 	source.EXPECT().
 		AvailableData(testNs, targetRanges, testDefaultRunOpts).
-		Return(targetRanges)
+		Return(targetRanges, nil)
 	source.EXPECT().
 		ReadData(testNs, targetRanges, testDefaultRunOpts).
 		Return(result, nil)
@@ -294,7 +294,7 @@ func TestBaseBootstrapperCurrentSomeUnfulfilled(t *testing.T) {
 
 	source.EXPECT().
 		AvailableData(testNs, targetRanges, testDefaultRunOpts).
-		Return(targetRanges)
+		Return(targetRanges, nil)
 	source.EXPECT().
 		ReadData(testNs, targetRanges, testDefaultRunOpts).
 		Return(currResult, nil)
@@ -331,7 +331,7 @@ func testBasebootstrapperNext(t *testing.T, nextUnfulfilled result.ShardTimeRang
 
 	source.EXPECT().
 		AvailableData(testNs, targetRanges, testDefaultRunOpts).
-		Return(nil)
+		Return(nil, nil)
 	source.EXPECT().
 		ReadData(testNs, shardTimeRangesMatcher{nil},
 			testDefaultRunOpts).
@@ -407,7 +407,9 @@ func TestBaseBootstrapperBoth(t *testing.T) {
 	})
 
 	source.EXPECT().Can(bootstrap.BootstrapParallel).Return(true)
-	source.EXPECT().AvailableData(testNs, targetRanges, testDefaultRunOpts).Return(availableRanges)
+	source.EXPECT().
+		AvailableData(testNs, targetRanges, testDefaultRunOpts).
+		Return(availableRanges, nil)
 	source.EXPECT().
 		ReadData(testNs, shardTimeRangesMatcher{availableRanges},
 			testDefaultRunOpts).
@@ -475,7 +477,7 @@ func TestBaseBootstrapperIndexHalfCurrentHalfNext(t *testing.T) {
 	source.EXPECT().Can(bootstrap.BootstrapParallel).Return(false)
 	source.EXPECT().
 		AvailableIndex(testNs, shardTimeRangesMatcher{targetRanges}, testDefaultRunOpts).
-		Return(firstHalf)
+		Return(firstHalf, nil)
 	source.EXPECT().
 		ReadIndex(testNs, shardTimeRangesMatcher{firstHalf}, testDefaultRunOpts).
 		Return(currResult, nil)
