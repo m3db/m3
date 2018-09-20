@@ -51,7 +51,7 @@ func newTestBootstrapperSource(
 		src.availableData = opts.availableData
 	} else {
 		src.availableData = func(_ namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, _ bootstrap.RunOptions) (result.ShardTimeRanges, error) {
-			return shardsTimeRanges
+			return shardsTimeRanges, nil
 		}
 	}
 
@@ -67,7 +67,7 @@ func newTestBootstrapperSource(
 		src.availableIndex = opts.availableIndex
 	} else {
 		src.availableIndex = func(_ namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, _ bootstrap.RunOptions) (result.ShardTimeRanges, error) {
-			return shardsTimeRanges
+			return shardsTimeRanges, nil
 		}
 	}
 
