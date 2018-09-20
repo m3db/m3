@@ -246,22 +246,24 @@ func validateTimeRanges(t *testing.T, tr xtime.Ranges, expected xtime.Ranges) {
 
 func TestAvailableEmptyRangeError(t *testing.T) {
 	src := newFileSystemSource(newTestOptions("foo"))
-	res := src.AvailableData(
+	res, err := src.AvailableData(
 		testNsMetadata(t),
 		map[uint32]xtime.Ranges{0: xtime.Ranges{}},
 		testDefaultRunOpts,
 	)
+	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.True(t, res.IsEmpty())
 }
 
 func TestAvailablePatternError(t *testing.T) {
 	src := newFileSystemSource(newTestOptions("[["))
-	res := src.AvailableData(
+	res, err := src.AvailableData(
 		testNsMetadata(t),
 		testShardTimeRanges(),
 		testDefaultRunOpts,
 	)
+	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.True(t, res.IsEmpty())
 }
@@ -278,11 +280,12 @@ func TestAvailableReadInfoError(t *testing.T) {
 	writeInfoFile(t, dir, testNs1ID, shard, testStart, []byte{0x1, 0x2})
 
 	src := newFileSystemSource(newTestOptions(dir))
-	res := src.AvailableData(
+	res, err := src.AvailableData(
 		testNsMetadata(t),
 		testShardTimeRanges(),
 		testDefaultRunOpts,
 	)
+	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.True(t, res.IsEmpty())
 }
@@ -299,11 +302,12 @@ func TestAvailableDigestOfDigestMismatch(t *testing.T) {
 	writeDigestFile(t, dir, testNs1ID, shard, testStart, nil)
 
 	src := newFileSystemSource(newTestOptions(dir))
-	res := src.AvailableData(
+	res, err := src.AvailableData(
 		testNsMetadata(t),
 		testShardTimeRanges(),
 		testDefaultRunOpts,
 	)
+	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.True(t, res.IsEmpty())
 }
@@ -316,11 +320,12 @@ func TestAvailableTimeRangeFilter(t *testing.T) {
 	writeGoodFiles(t, dir, testNs1ID, shard)
 
 	src := newFileSystemSource(newTestOptions(dir))
-	res := src.AvailableData(
+	res, err := src.AvailableData(
 		testNsMetadata(t),
 		testShardTimeRanges(),
 		testDefaultRunOpts,
 	)
+	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res))
 	require.NotNil(t, res[testShard])
@@ -341,11 +346,12 @@ func TestAvailableTimeRangePartialError(t *testing.T) {
 	writeInfoFile(t, dir, testNs1ID, shard, testStart.Add(4*time.Hour), []byte{0x1, 0x2})
 
 	src := newFileSystemSource(newTestOptions(dir))
-	res := src.AvailableData(
+	res, err := src.AvailableData(
 		testNsMetadata(t),
 		testShardTimeRanges(),
 		testDefaultRunOpts,
 	)
+	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res))
 	require.NotNil(t, res[testShard])

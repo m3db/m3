@@ -126,7 +126,7 @@ func (s *fileSystemSource) AvailableData(
 	md namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
-) result.ShardTimeRanges {
+) (result.ShardTimeRanges, error) {
 	return s.availability(md, shardsTimeRanges)
 }
 
@@ -146,7 +146,7 @@ func (s *fileSystemSource) AvailableIndex(
 	md namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
-) result.ShardTimeRanges {
+) (result.ShardTimeRanges, error) {
 	return s.availability(md, shardsTimeRanges)
 }
 
@@ -165,12 +165,12 @@ func (s *fileSystemSource) ReadIndex(
 func (s *fileSystemSource) availability(
 	md namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
-) result.ShardTimeRanges {
+) (result.ShardTimeRanges, error) {
 	result := make(map[uint32]xtime.Ranges)
 	for shard, ranges := range shardsTimeRanges {
 		result[shard] = s.shardAvailability(md.ID(), shard, ranges)
 	}
-	return result
+	return result, nil
 }
 
 func (s *fileSystemSource) shardAvailability(
