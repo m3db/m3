@@ -21,10 +21,12 @@
 package peers
 
 import (
+	"strings"
 	"testing"
 	"time"
 
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
 	tu "github.com/m3db/m3/src/dbnode/topology/testutil"
@@ -157,4 +159,36 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 			require.Equal(t, tc.expectedAvailableShardsTimeRanges, indexRes)
 		})
 	}
+}
+
+func TestPeersSourceReturnsErrorIfUnknownPersistenceFileSetType(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		testNsMd   = testNamespaceMetadata(t)
+		resultOpts = testDefaultResultOpts
+		opts       = testDefaultOpts.SetResultOptions(resultOpts)
+		ropts      = testNsMd.Options().RetentionOptions()
+
+		start = time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
+		end   = start.Add(2 * ropts.BlockSize())
+	)
+
+	src, err := newPeersSource(opts)
+	require.NoError(t, err)
+
+	target := result.ShardTimeRanges{
+		0: xtime.NewRanges(xtime.Range{Start: start, End: end}),
+		1: xtime.NewRanges(xtime.Range{Start: start, End: end}),
+	}
+
+	runOpts := testRunOptsWithPersist.SetPersistConfig(bootstrap.PersistConfig{Enabled: true, FileSetType: 999})
+	_, err = src.ReadData(testNsMd, target, runOpts)
+	require.Error(t, err)
+	require.True(t, strings.Contains(err.Error(), "unknown persist config fileset file type"))
+
+	_, err = src.ReadIndex(testNsMd, target, runOpts)
+	require.Error(t, err)
+	require.True(t, strings.Contains(err.Error(), "unknown persist config fileset file type"))
 }

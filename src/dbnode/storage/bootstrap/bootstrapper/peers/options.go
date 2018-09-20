@@ -34,8 +34,8 @@ import (
 
 var (
 	defaultDefaultShardConcurrency            = runtime.NumCPU()
-	defaultIncrementalShardConcurrency        = int(math.Max(1, float64(runtime.NumCPU())/2))
-	defaultIncrementalPersistMaxQueueSize     = 0
+	defaultShardPersistenceConcurrency        = int(math.Max(1, float64(runtime.NumCPU())/2))
+	defaultPersistenceMaxQueueSize            = 0
 	defaultFetchBlocksMetadataEndpointVersion = client.FetchBlocksMetadataEndpointV1
 )
 
@@ -49,8 +49,8 @@ type options struct {
 	resultOpts                         result.Options
 	client                             client.AdminClient
 	defaultShardConcurrency            int
-	incrementalShardConcurrency        int
-	incrementalPersistMaxQueueSize     int
+	shardPersistenceConcurrency        int
+	persistenceMaxQueueSize            int
 	persistManager                     persist.Manager
 	blockRetrieverManager              block.DatabaseBlockRetrieverManager
 	fetchBlocksMetadataEndpointVersion client.FetchBlocksMetadataEndpointVersion
@@ -62,8 +62,8 @@ func NewOptions() Options {
 	return &options{
 		resultOpts:                         result.NewOptions(),
 		defaultShardConcurrency:            defaultDefaultShardConcurrency,
-		incrementalShardConcurrency:        defaultIncrementalShardConcurrency,
-		incrementalPersistMaxQueueSize:     defaultIncrementalPersistMaxQueueSize,
+		shardPersistenceConcurrency:        defaultShardPersistenceConcurrency,
+		persistenceMaxQueueSize:            defaultPersistenceMaxQueueSize,
 		fetchBlocksMetadataEndpointVersion: defaultFetchBlocksMetadataEndpointVersion,
 	}
 }
@@ -111,24 +111,24 @@ func (o *options) DefaultShardConcurrency() int {
 	return o.defaultShardConcurrency
 }
 
-func (o *options) SetIncrementalShardConcurrency(value int) Options {
+func (o *options) SetShardPersistenceConcurrency(value int) Options {
 	opts := *o
-	opts.incrementalShardConcurrency = value
+	opts.shardPersistenceConcurrency = value
 	return &opts
 }
 
-func (o *options) IncrementalShardConcurrency() int {
-	return o.incrementalShardConcurrency
+func (o *options) ShardPersistenceConcurrency() int {
+	return o.shardPersistenceConcurrency
 }
 
-func (o *options) SetIncrementalPersistMaxQueueSize(value int) Options {
+func (o *options) SetPersistenceMaxQueueSize(value int) Options {
 	opts := *o
-	opts.incrementalPersistMaxQueueSize = value
+	opts.persistenceMaxQueueSize = value
 	return &opts
 }
 
-func (o *options) IncrementalPersistMaxQueueSize() int {
-	return o.incrementalPersistMaxQueueSize
+func (o *options) PersistenceMaxQueueSize() int {
+	return o.persistenceMaxQueueSize
 }
 
 func (o *options) SetPersistManager(value persist.Manager) Options {

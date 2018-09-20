@@ -50,7 +50,7 @@ import (
 
 var (
 	testNamespaceID       = ident.StringID("testnamespace")
-	testDefaultRunOpts    = bootstrap.NewRunOptions().SetIncremental(true)
+	testDefaultRunOpts    = bootstrap.NewRunOptions()
 	minCommitLogRetention = 10 * time.Minute
 )
 

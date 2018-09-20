@@ -54,11 +54,11 @@ type Options interface {
 	FilesystemOptions() fs.Options
 
 	// SetPersistManager sets the persistence manager used to flush blocks
-	// when performing an incremental bootstrap run.
+	// when performing a bootstrap run with persistence enabled.
 	SetPersistManager(value persist.Manager) Options
 
 	// PersistManager returns the persistence manager used to flush blocks
-	// when performing an incremental bootstrap run.
+	// when performing a bootstrap run with persistence enabled.
 	PersistManager() persist.Manager
 
 	// SetBoostrapDataNumProcessors sets the number of processors for CPU-bound

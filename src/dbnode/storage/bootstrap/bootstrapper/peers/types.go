@@ -46,47 +46,53 @@ type Options interface {
 	AdminClient() client.AdminClient
 
 	// SetDefaultShardConcurrency sets the concurrency for
-	// bootstrapping shards when performing a non-incremental bootstrap.
+	// bootstrapping shards when performing a bootstrap with
+	// persistence enabled.
 	SetDefaultShardConcurrency(value int) Options
 
 	// DefaultShardConcurrency returns the concurrency for
-	// bootstrapping shards when performing a non-incremental bootstrap.
+	// bootstrapping shards when performing a bootstrap with
+	// persistence enabled.
 	DefaultShardConcurrency() int
 
-	// SetIncrementalShardConcurrency sets the concurrency for
-	// bootstrapping shards when performing an incremental bootstrap.
-	SetIncrementalShardConcurrency(value int) Options
+	// SetShardPersistenceConcurrency sets the concurrency for
+	// bootstrapping shards when performing a bootstrap with
+	// persistence enabled.
+	SetShardPersistenceConcurrency(value int) Options
 
-	// IncrementalShardConcurrency returns the concurrency for
-	// bootstrapping shards when performing an incremental bootstrap.
-	IncrementalShardConcurrency() int
+	// ShardPersistenceConcurrency returns the concurrency for
+	// bootstrapping shards when performing a bootstrap with
+	// persistence enabled.
+	ShardPersistenceConcurrency() int
 
-	// SetIncrementalPersistMaxQueueSize sets the max queue for
+	// SetPersistenceMaxQueueSize sets the max queue for
 	// bootstrapping shards waiting in line to persist without blocking
 	// the concurrent shard fetchers.
-	SetIncrementalPersistMaxQueueSize(value int) Options
+	SetPersistenceMaxQueueSize(value int) Options
 
-	// IncrementalPersistMaxQueueSize returns the max queue for
+	// PersistenceMaxQueueSize returns the max queue for
 	// bootstrapping shards waiting in line to persist without blocking
 	// the concurrent shard fetchers.
-	IncrementalPersistMaxQueueSize() int
+	PersistenceMaxQueueSize() int
 
 	// SetPersistManager sets the persistence manager used to flush blocks
-	// when performing an incremental bootstrap run.
+	// when performing a bootstrap with persistence.
 	SetPersistManager(value persist.Manager) Options
 
 	// PersistManager returns the persistence manager used to flush blocks
-	// when performing an incremental bootstrap run.
+	// when performing a bootstrap with persistence.
 	PersistManager() persist.Manager
 
 	// SetDatabaseBlockRetrieverManager sets the block retriever manager to
-	// pass to newly flushed blocks when performing an incremental bootstrap run.
+	// pass to newly flushed blocks when performing a bootstrap run with
+	// persistence enabled.
 	SetDatabaseBlockRetrieverManager(
 		value block.DatabaseBlockRetrieverManager,
 	) Options
 
 	// NewBlockRetrieverFn returns the block retriever manager to
-	// pass to newly flushed blocks when performing an incremental bootstrap run.
+	// pass to newly flushed blocks when performing a bootstrap run with
+	// persistence enabled.
 	DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager
 
 	// SetFetchBlocksMetadataEndpointVersion sets the version of the fetch blocks

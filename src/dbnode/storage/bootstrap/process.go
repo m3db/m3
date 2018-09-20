@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
@@ -337,17 +338,30 @@ func (b bootstrapProcess) targetRanges(
 		Add(opts.blockSize)
 
 	// NB(r): We want the large initial time range bootstrapped to
-	// bootstrap incrementally so we don't keep the full raw
+	// bootstrap with persistence so we don't keep the full raw
 	// data in process until we finish bootstrapping which could
 	// cause the process to OOM.
 	return []TargetRange{
 		{
-			Range:      xtime.Range{Start: start, End: midPoint},
-			RunOptions: b.newRunOptions().SetIncremental(true),
+			Range: xtime.Range{Start: start, End: midPoint},
+			RunOptions: b.newRunOptions().SetPersistConfig(PersistConfig{
+				Enabled: true,
+				// These blocks are no longer active, so we want to flush them
+				// to disk as we receive them so that we don't hold too much
+				// data in memory at once.
+				FileSetType: persist.FileSetFlushType,
+			}),
 		},
 		{
-			Range:      xtime.Range{Start: midPoint, End: cutover},
-			RunOptions: b.newRunOptions().SetIncremental(false),
+			Range: xtime.Range{Start: midPoint, End: cutover},
+			RunOptions: b.newRunOptions().SetPersistConfig(PersistConfig{
+				Enabled: true,
+				// These blocks are still active so we'll have to keep them
+				// in memory, but we want to snapshot them as we receive them
+				// so that once bootstrapping completes we can still recover
+				// from just the commit log bootstrapper.
+				FileSetType: persist.FileSetSnapshotType,
+			}),
 		},
 	}
 }
