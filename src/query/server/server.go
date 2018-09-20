@@ -196,17 +196,25 @@ func Run(runOpts RunOptions) {
 		}
 	}()
 
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-
 	var interruptCh <-chan error = make(chan error)
 	if runOpts.InterruptCh != nil {
 		interruptCh = runOpts.InterruptCh
 	}
 
-	select {
-	case <-sigChan:
-	case <-interruptCh:
+	if cfg.Backend == config.GRPCStorageType {
+		// Only use this if not running embedded, otherwise will
+		// obfuscate signal channel for m3db
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+		select {
+		case <-sigChan:
+		case <-interruptCh:
+		}
+	} else {
+		select {
+		case <-interruptCh:
+		}
 	}
 }
 
@@ -409,7 +417,11 @@ func newDownsamplerAutoMappingRules(
 	return autoMappingRules, nil
 }
 
-func initClusters(cfg config.Configuration, dbClientCh <-chan client.Client, logger *zap.Logger) (local.Clusters, error) {
+func initClusters(
+	cfg config.Configuration,
+	dbClientCh <-chan client.Client,
+	logger *zap.Logger,
+) (local.Clusters, error) {
 	var (
 		clusters local.Clusters
 		err      error
