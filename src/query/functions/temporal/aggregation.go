@@ -28,39 +28,39 @@ import (
 )
 
 const (
-	// AvgTemporalType calculates the average of all values in the specified interval
-	AvgTemporalType = "avg_over_time"
+	// AvgType calculates the average of all values in the specified interval
+	AvgType = "avg_over_time"
 
-	// CountTemporalType calculates count of all values in the specified interval
-	CountTemporalType = "count_over_time"
+	// CountType calculates count of all values in the specified interval
+	CountType = "count_over_time"
 
-	// MinTemporalType calculates the minimum of all values in the specified interval
-	MinTemporalType = "min_over_time"
+	// MinType calculates the minimum of all values in the specified interval
+	MinType = "min_over_time"
 
-	// MaxTemporalType calculates the maximum of all values in the specified interval
-	MaxTemporalType = "max_over_time"
+	// MaxType calculates the maximum of all values in the specified interval
+	MaxType = "max_over_time"
 
-	// SumTemporalType calculates the sum of all values in the specified interval
-	SumTemporalType = "sum_over_time"
+	// SumType calculates the sum of all values in the specified interval
+	SumType = "sum_over_time"
 
-	// StdDevTemporalType calculates the standard deviation of all values in the specified interval
-	StdDevTemporalType = "stddev_over_time"
+	// StdDevType calculates the standard deviation of all values in the specified interval
+	StdDevType = "stddev_over_time"
 
-	// StdVarTemporalType calculates the standard variance of all values in the specified interval
-	StdVarTemporalType = "stdvar_over_time"
+	// StdVarType calculates the standard variance of all values in the specified interval
+	StdVarType = "stdvar_over_time"
 )
 
 type aggFunc func([]float64) float64
 
 var (
 	aggFuncs = map[string]aggFunc{
-		AvgTemporalType:    avgOverTime,
-		CountTemporalType:  countOverTime,
-		MinTemporalType:    minOverTime,
-		MaxTemporalType:    maxOverTime,
-		SumTemporalType:    sumOverTime,
-		StdDevTemporalType: stddevOverTime,
-		StdVarTemporalType: stdvarOverTime,
+		AvgType:    avgOverTime,
+		CountType:  countOverTime,
+		MinType:    minOverTime,
+		MaxType:    maxOverTime,
+		SumType:    sumOverTime,
+		StdDevType: stddevOverTime,
+		StdVarType: stdvarOverTime,
 	}
 )
 

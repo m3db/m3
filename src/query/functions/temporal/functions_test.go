@@ -25,8 +25,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
-	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
@@ -35,214 +35,119 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type testCase struct {
-	name           string
-	opType         string
-	vals           [][]float64
-	afterBlockOne  [][]float64
-	afterAllBlocks [][]float64
-}
-
-var testCases = []testCase{
+var testTemporalCases = []testCase{
 	{
-		name:   "avg_over_time",
-		opType: AvgType,
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 2.5},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 7},
+		name:   "resets",
+		opType: ResetsType,
+		vals: [][]float64{
+			{1, 0, 2, math.NaN(), 1},
+			{6, 4, 4, 2, 5},
 		},
-		afterAllBlocks: [][]float64{
-			{2, 2, 2, 2, 2},
-			{7, 7, 7, 7, 7},
-		},
-	},
-	{
-		name:   "count_over_time",
-		opType: CountType,
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 4},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 5},
-		},
-		afterAllBlocks: [][]float64{
-			{5, 5, 5, 5, 5},
-			{5, 5, 5, 5, 5},
-		},
-	},
-	{
-		name:   "min_over_time",
-		opType: MinType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 5},
-		},
-		afterAllBlocks: [][]float64{
-			{0, 0, 0, 0, 0},
-			{5, 5, 5, 5, 5},
-		},
-	},
-	{
-		name:   "max_over_time",
-		opType: MaxType,
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 4},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 9},
-		},
-		afterAllBlocks: [][]float64{
-			{4, 4, 4, 4, 4},
-			{9, 9, 9, 9, 9},
-		},
-	},
-	{
-		name:   "sum_over_time",
-		opType: SumType,
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 10},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 35},
-		},
-		afterAllBlocks: [][]float64{
-			{10, 10, 10, 10, 10},
-			{35, 35, 35, 35, 35},
-		},
-	},
-	{
-		name:   "stddev_over_time",
-		opType: StdDevType,
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1.1180},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1.4142},
-		},
-		afterAllBlocks: [][]float64{
-			{1.4142, 1.4142, 1.4142, 1.4142, 1.4142},
-			{1.4142, 1.4142, 1.4142, 1.4142, 1.4142},
-		},
-	},
-	{
-		name:   "stdvar_over_time",
-		opType: StdVarType,
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1.25},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 2},
 		},
 		afterAllBlocks: [][]float64{
+			{1, 2, 1, 1, 2},
+			{1, 2, 1, 2, 2},
+		},
+	},
+	{
+		name:   "changes",
+		opType: ChangesType,
+		vals: [][]float64{
+			{1, 0, 2, math.NaN(), 1},
+			{6, 4, 4, 2, 5},
+		},
+		afterBlockOne: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 2},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 3},
+		},
+		afterAllBlocks: [][]float64{
+			{2, 2, 2, 2, 3},
+			{3, 4, 3, 3, 3},
+		},
+	},
+	{
+		name:   "resets all NaNs",
+		opType: ResetsType,
+		vals: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+		afterBlockOne: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+		afterAllBlocks: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+	},
+	{
+		name:   "changes all NaNs",
+		opType: ChangesType,
+		vals: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+		afterBlockOne: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+		afterAllBlocks: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+	},
+	{
+		name:   "resets first and last NaN",
+		opType: ResetsType,
+		vals: [][]float64{
+			{math.NaN(), 0, 2, 1, math.NaN()},
+			{math.NaN(), 4, 4, 2, math.NaN()},
+		},
+		afterBlockOne: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1},
+		},
+		afterAllBlocks: [][]float64{
+			{1, 2, 1, 1, 1},
+			{1, 1, 0, 1, 1},
+		},
+	},
+	{
+		name:   "changes first and last NaN",
+		opType: ChangesType,
+		vals: [][]float64{
+			{math.NaN(), 0, 2, 5, math.NaN()},
+			{math.NaN(), 4, 4, 2, math.NaN()},
+		},
+		afterBlockOne: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 2},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1},
+		},
+		afterAllBlocks: [][]float64{
 			{2, 2, 2, 2, 2},
-			{2, 2, 2, 2, 2},
+			{1, 2, 1, 1, 1},
 		},
 	},
 }
 
-func TestAggregation(t *testing.T) {
-	v := [][]float64{
-		{0, 1, 2, 3, 4},
-		{5, 6, 7, 8, 9},
-	}
-	testAggregation(t, testCases, v)
-}
-
-var testCasesNaNs = []testCase{
-	{
-		name:   "avg_over_time",
-		opType: AvgType,
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-		afterAllBlocks: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-	},
-	{
-		name:   "count_over_time",
-		opType: CountType,
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-		afterAllBlocks: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-	},
-	{
-		name:   "min_over_time",
-		opType: MinType,
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-		afterAllBlocks: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-	},
-	{
-		name:   "max_over_time",
-		opType: MaxType,
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-		afterAllBlocks: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-	},
-	{
-		name:   "sum_over_time",
-		opType: SumType,
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-		afterAllBlocks: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-	},
-	{
-		name:   "stddev_over_time",
-		opType: StdDevType,
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-		afterAllBlocks: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-	},
-	{
-		name:   "stdvar_over_time",
-		opType: StdVarType,
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-		afterAllBlocks: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-	},
-}
-
-func TestAggregationAllNaNs(t *testing.T) {
-	v := [][]float64{
-		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-	}
-	testAggregation(t, testCasesNaNs, v)
+func TestTemporalFunc(t *testing.T) {
+	testTemporalFunc(t, testTemporalCases)
 }
 
 // B1 has NaN in first series, first position
-func testAggregation(t *testing.T, testCases []testCase, vals [][]float64) {
+func testTemporalFunc(t *testing.T, testCases []testCase) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			values, bounds := test.GenerateValuesAndBounds(vals, nil)
+			values, bounds := test.GenerateValuesAndBounds(tt.vals, nil)
 			boundStart := bounds.Start
 			block3 := test.NewBlockFromValues(bounds, values)
 			c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 
-			baseOp, err := NewAggOp([]interface{}{5 * time.Minute}, tt.opType)
+			baseOp, err := NewFunctionOp([]interface{}{5 * time.Minute}, tt.opType)
 			require.NoError(t, err)
 			node := baseOp.Node(c, transform.Options{
 				TimeSpec: transform.TimeSpec{
@@ -262,7 +167,7 @@ func testAggregation(t *testing.T, testCases []testCase, vals [][]float64) {
 
 			original := values[0][0]
 			values[0][0] = math.NaN()
-			block1 := test.NewBlockFromValues(models.Bounds{
+			block1 := test.NewBlockFromValues(block.Bounds{
 				Start:    bounds.Start.Add(-2 * bounds.Duration),
 				Duration: bounds.Duration,
 				StepSize: bounds.StepSize,
@@ -279,7 +184,7 @@ func testAggregation(t *testing.T, testCases []testCase, vals [][]float64) {
 			_, exists = bNode.cache.get(boundStart.Add(-1 * bounds.Duration))
 			assert.False(t, exists, "block cached")
 
-			block2 := test.NewBlockFromValues(models.Bounds{
+			block2 := test.NewBlockFromValues(block.Bounds{
 				Start:    bounds.Start.Add(-1 * bounds.Duration),
 				Duration: bounds.Duration,
 				StepSize: bounds.StepSize,
@@ -307,7 +212,7 @@ func testAggregation(t *testing.T, testCases []testCase, vals [][]float64) {
 	}
 }
 
-func TestUnknownAggregation(t *testing.T) {
-	_, err := NewAggOp([]interface{}{5 * time.Minute}, "unknown_agg_func")
+func TestUnknownFunction(t *testing.T) {
+	_, err := NewFunctionOp([]interface{}{5 * time.Minute}, "unknown_func")
 	require.Error(t, err)
 }
