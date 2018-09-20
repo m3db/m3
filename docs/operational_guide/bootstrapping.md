@@ -6,7 +6,7 @@ We recommend reading the [topology operational guide](topology.md) before readin
 
 When an M3DB node is turned on (or experiences a topology change) it needs to go through a bootstrapping process to determine the integrity of data that it has, replay writes from the commit log, and/or stream missing data from its peers. In most cases, as long as you're running with the default and recommended bootstrapper configuration of: "filesystem,commitlog,peers,uninitialized_topology" then you should not need to worry about the bootstrapping process at all and M3DB will take care of doing the right thing such that you don't lose data and consistency guarantees are met.
 
-In some rare cases, you may want to modify the bootstrapper configuration. The purpose of this document is to explain how all the different bootstrappers work. and what the implications of the bootstrapping order are.
+In some rare cases, you may want to modify the bootstrapper configuration. The purpose of this document is to explain how all the different bootstrappers work. and what the implications of changing the bootstrappers order is.
 
 M3DB currently supports 5 different bootstrappers:
 
