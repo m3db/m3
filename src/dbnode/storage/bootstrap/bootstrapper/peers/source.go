@@ -756,8 +756,6 @@ func (s *peersSource) peerAvailability(
 			case shard.Unknown:
 				fallthrough
 			default:
-				// TODO(rartoul): Make this a hard error once we refactor the interface to support
-				// returning errors.
 				errMsg := fmt.Sprintf("unknown shard state: %v", shardState)
 				s.log.Error(errMsg)
 				return nil, errors.New(errMsg)
