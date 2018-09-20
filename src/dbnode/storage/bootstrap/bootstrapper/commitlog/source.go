@@ -1482,8 +1482,6 @@ func (s *commitLogSource) availability(
 		case shard.Unknown:
 			fallthrough
 		default:
-			// TODO(rartoul): Make this a hard error once we refactor the interface to support
-			// returning errors.
 			errMsg := fmt.Sprintf("unknown shard state: %v", originShardState)
 			s.log.Error(errMsg)
 			return result.ShardTimeRanges{}, errors.New(errMsg)
