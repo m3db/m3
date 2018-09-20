@@ -26,7 +26,7 @@ import (
 )
 
 type bootstrapStep interface {
-	prepare(totalRanges result.ShardTimeRanges) bootstrapStepPreparedResult
+	prepare(totalRanges result.ShardTimeRanges) (bootstrapStepPreparedResult, error)
 	runCurrStep(targetRanges result.ShardTimeRanges) (bootstrapStepStatus, error)
 	runNextStep(targetRanges result.ShardTimeRanges) (bootstrapStepStatus, error)
 	mergeResults(totalUnfulfilled result.ShardTimeRanges)

@@ -186,7 +186,7 @@ type Source interface {
 		ns namespace.Metadata,
 		shardsTimeRanges result.ShardTimeRanges,
 		runOpts RunOptions,
-	) result.ShardTimeRanges
+	) (result.ShardTimeRanges, error)
 
 	// ReadData returns raw series for a given set of shards & specified time ranges and
 	// the time ranges it's unable to fulfill. A bootstrapper source should only return
@@ -203,7 +203,7 @@ type Source interface {
 		ns namespace.Metadata,
 		shardsTimeRanges result.ShardTimeRanges,
 		opts RunOptions,
-	) result.ShardTimeRanges
+	) (result.ShardTimeRanges, error)
 
 	// ReadIndex returns series index blocks.
 	ReadIndex(
