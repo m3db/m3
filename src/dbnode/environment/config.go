@@ -109,11 +109,10 @@ type ConfigureResults struct {
 
 // ConfigurationParameters are options used to create new ConfigureResults
 type ConfigurationParameters struct {
-	InstrumentOpts             instrument.Options
-	HashingSeed                uint32
-	HostID                     string
-	NamespaceResolutionTimeout time.Duration
-	TopologyResolutionTimeout  time.Duration
+	InstrumentOpts    instrument.Options
+	HashingSeed       uint32
+	HostID            string
+	ResolutionTimeout time.Duration
 }
 
 // Configure creates a new ConfigureResults
@@ -136,14 +135,9 @@ func (c Configuration) Configure(cfgParams ConfigurationParameters) (ConfigureRe
 }
 
 func (c Configuration) configureDynamic(cfgParams ConfigurationParameters) (ConfigureResults, error) {
-	sdTimeout := defaultSDTimeout
-	if initTimeout := c.Service.SDConfig.InitTimeout; initTimeout != nil && *initTimeout != 0 {
-		sdTimeout = *initTimeout
-	}
-
 	configSvcClientOpts := c.Service.NewOptions().
 		SetInstrumentOptions(cfgParams.InstrumentOpts).
-		SetServicesOptions(c.Service.SDConfig.NewOptions().SetInitTimeout(sdTimeout))
+		SetServicesOptions(services.NewOptions().SetInitTimeout(cfgParams.ResolutionTimeout))
 	configSvcClient, err := etcdclient.NewConfigServiceClient(configSvcClientOpts)
 	if err != nil {
 		err = fmt.Errorf("could not create m3cluster client: %v", err)
@@ -154,7 +148,7 @@ func (c Configuration) configureDynamic(cfgParams ConfigurationParameters) (Conf
 		SetInstrumentOptions(cfgParams.InstrumentOpts).
 		SetConfigServiceClient(configSvcClient).
 		SetNamespaceRegistryKey(kvconfig.NamespacesKey).
-		SetInitTimeout(cfgParams.NamespaceResolutionTimeout)
+		SetInitTimeout(cfgParams.ResolutionTimeout)
 	nsInit := namespace.NewDynamicInitializer(dynamicOpts)
 
 	serviceID := services.NewServiceID().
@@ -168,7 +162,7 @@ func (c Configuration) configureDynamic(cfgParams ConfigurationParameters) (Conf
 		SetQueryOptions(services.NewQueryOptions().SetIncludeUnhealthy(true)).
 		SetInstrumentOptions(cfgParams.InstrumentOpts).
 		SetHashGen(sharding.NewHashGenWithSeed(cfgParams.HashingSeed)).
-		SetInitTimeout(cfgParams.TopologyResolutionTimeout)
+		SetInitTimeout(cfgParams.ResolutionTimeout)
 	topoInit := topology.NewDynamicInitializer(topoOpts)
 
 	kv, err := configSvcClient.KV()

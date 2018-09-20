@@ -80,10 +80,9 @@ import (
 )
 
 const (
-	bootstrapConfigInitTimeout        = 10 * time.Second
-	serverGracefulCloseTimeout        = 10 * time.Second
-	defaultNamespaceResolutionTimeout = time.Minute
-	defaultTopologyResolutionTimeout  = time.Minute
+	bootstrapConfigInitTimeout            = 10 * time.Second
+	serverGracefulCloseTimeout            = 10 * time.Second
+	defaultDynamicConfigResolutionTimeout = time.Minute
 )
 
 // RunOptions provides options for running the server
@@ -378,21 +377,15 @@ func Run(runOpts RunOptions) {
 	if cfg.EnvironmentConfig.Static == nil {
 		logger.Info("creating dynamic config service client with m3cluster")
 
-		namespaceResolutionTimeout := cfg.EnvironmentConfig.NamespaceResolutionTimeout
-		if namespaceResolutionTimeout <= 0 {
-			namespaceResolutionTimeout = defaultNamespaceResolutionTimeout
-		}
-
-		topologyResolutionTimeout := cfg.EnvironmentConfig.TopologyResolutionTimeout
-		if topologyResolutionTimeout <= 0 {
-			topologyResolutionTimeout = defaultTopologyResolutionTimeout
+		dynamicConfigResolutionTimeout := cfg.EnvironmentConfig.ResolutionTime
+		if dynamicConfigResolutionTimeout <= 0 {
+			dynamicConfigResolutionTimeout = defaultDynamicConfigResolutionTimeout
 		}
 
 		envCfg, err = cfg.EnvironmentConfig.Configure(environment.ConfigurationParameters{
-			InstrumentOpts:             iopts,
-			HashingSeed:                cfg.Hashing.Seed,
-			NamespaceResolutionTimeout: namespaceResolutionTimeout,
-			TopologyResolutionTimeout:  topologyResolutionTimeout,
+			InstrumentOpts:    iopts,
+			HashingSeed:       cfg.Hashing.Seed,
+			ResolutionTimeout: dynamicConfigResolutionTimeout,
 		})
 		if err != nil {
 			logger.Fatalf("could not initialize dynamic config: %v", err)
@@ -417,7 +410,7 @@ func Run(runOpts RunOptions) {
 
 	topo, err := envCfg.TopologyInitializer.Init()
 	if err != nil {
-		logger.Fatalf("could not initialize m3db topology: %v", err)
+		logger.Fatalf("could not initialize m3db topology: %v. make sure a topology has been set", err)
 	}
 
 	m3dbClient, err := cfg.Client.NewAdminClient(

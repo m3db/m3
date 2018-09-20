@@ -90,18 +90,15 @@ func newDynamicTopology(opts DynamicOptions) (DynamicTopology, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Watch will wait for an initial value so we don't need to do that
+	// in this function.
 	watch, err := services.Watch(opts.ServiceID(), opts.QueryOptions())
 	if err != nil {
 		return nil, err
 	}
 
 	logger := opts.InstrumentOptions().Logger()
-	if err = waitOnInit(watch, opts.InitTimeout()); err != nil {
-		logger.Errorf("dynamic topology initialization timed out in %s: %v",
-			opts.InitTimeout().String(), err)
-		return nil, err
-	}
-
 	m, err := getMapFromUpdate(watch.Get(), opts.HashGen())
 	if err != nil {
 		logger.Errorf("dynamic topology received invalid initial value: %v",
