@@ -18,8 +18,8 @@ M3DB currently supports 5 different bootstrappers:
 
 When the bootstrapping process begins, M3DB nodes need to determine two things:
 
-1. What shards they should bootstrap, which can be determined from the cluster topology
-2. What time-ranges they need to bootstrap those shards for, which can be determined from the namespace retention
+1. What shards they should bootstrap, which can be determined from the cluster topology.
+2. What time-ranges they need to bootstrap those shards for, which can be determined from the namespace retention.
 
 For example, imagine an M3DB node that is responsible for shards 1, 5, 13, and 25 according to the cluster topology. In addition, it has a single namespace called "metrics" with a retention of 48 hours. When the M3DB node is started, the node will determine that it needs to bootstrap shards 1, 5, 13, and 25 for the time range starting at the current time and ending 48 hours ago. In order to obtain all this data, it will run the configured bootstrappers in the specified order. Every bootstrapper will notify the bootstrapping process of which shard/ranges it was able to bootstrap and the bootstrapping process will continue working its way through the list of bootstrappers until all the shards/ranges it requires have been marked as fulfilled, otherwise the M3DB node will fail to start.
 
