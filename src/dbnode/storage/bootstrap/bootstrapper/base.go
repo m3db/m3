@@ -115,8 +115,12 @@ func (b baseBootstrapper) runBootstrapStep(
 	totalRanges result.ShardTimeRanges,
 	step bootstrapStep,
 ) error {
+	prepareResult, err := step.prepare(totalRanges)
+	if err != nil {
+		return err
+	}
+
 	var (
-		prepareResult          = step.prepare(totalRanges)
 		wg                     sync.WaitGroup
 		currStatus, nextStatus bootstrapStepStatus
 		currErr, nextErr       error

@@ -105,7 +105,7 @@ func (s *commitLogSource) AvailableData(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
-) result.ShardTimeRanges {
+) (result.ShardTimeRanges, error) {
 	return s.availability(ns, shardsTimeRanges, runOpts)
 }
 
@@ -1250,7 +1250,7 @@ func (s *commitLogSource) AvailableIndex(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
-) result.ShardTimeRanges {
+) (result.ShardTimeRanges, error) {
 	return s.availability(ns, shardsTimeRanges, runOpts)
 }
 
@@ -1432,7 +1432,7 @@ func (s *commitLogSource) availability(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
-) result.ShardTimeRanges {
+) (result.ShardTimeRanges, error) {
 	var (
 		topoState                = runOpts.InitialTopologyState()
 		availableShardTimeRanges = result.ShardTimeRanges{}
@@ -1449,13 +1449,11 @@ func (s *commitLogSource) availability(
 
 		originHostShardState, ok := hostShardStates[topology.HostID(topoState.Origin.ID())]
 		if !ok {
-			// TODO(rartoul): Make this a hard error once we refactor the interface to support
-			// returning errors.
+			errMsg := fmt.Sprintf("initial topology state does not contain shard state for origin node and shard: %d", shardIDUint)
 			iOpts := s.opts.CommitLogOptions().InstrumentOptions()
 			invariantLogger := instrument.EmitInvariantViolationAndGetLogger(iOpts)
-			invariantLogger.Errorf(
-				"initial topology state does not contain shard state for origin node and shard: %d", shardIDUint)
-			continue
+			invariantLogger.Error(errMsg)
+			return nil, errors.New(errMsg)
 		}
 
 		originShardState := originHostShardState.ShardState
@@ -1486,12 +1484,13 @@ func (s *commitLogSource) availability(
 		default:
 			// TODO(rartoul): Make this a hard error once we refactor the interface to support
 			// returning errors.
-			s.log.Errorf("unknown shard state: %v", originShardState)
-			return result.ShardTimeRanges{}
+			errMsg := fmt.Sprintf("unknown shard state: %v", originShardState)
+			s.log.Error(errMsg)
+			return result.ShardTimeRanges{}, errors.New(errMsg)
 		}
 	}
 
-	return availableShardTimeRanges
+	return availableShardTimeRanges, nil
 }
 
 func newReadSeriesPredicate(ns namespace.Metadata) commitlog.SeriesFilterPredicate {
