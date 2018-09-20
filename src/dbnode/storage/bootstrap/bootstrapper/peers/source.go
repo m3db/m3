@@ -21,6 +21,7 @@
 package peers
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -82,9 +83,10 @@ func (s *peersSource) AvailableData(
 	nsMetadata namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
-) result.ShardTimeRanges {
-	// TODO: Call validateRunOpts here when we modify this interface
-	// to support returning errors.
+) (result.ShardTimeRanges, error) {
+	if err := s.validateRunOpts(runOpts); err != nil {
+		return nil, err
+	}
 	return s.peerAvailability(nsMetadata, shardsTimeRanges, runOpts)
 }
 
@@ -550,9 +552,10 @@ func (s *peersSource) AvailableIndex(
 	nsMetadata namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
-) result.ShardTimeRanges {
-	// TODO: Call validateRunOpts here when we modify this interface
-	// to support returning errors.
+) (result.ShardTimeRanges, error) {
+	if err := s.validateRunOpts(runOpts); err != nil {
+		return nil, err
+	}
 	return s.peerAvailability(nsMetadata, shardsTimeRanges, runOpts)
 }
 
@@ -711,7 +714,7 @@ func (s *peersSource) peerAvailability(
 	nsMetadata namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
-) result.ShardTimeRanges {
+) (result.ShardTimeRanges, error) {
 	var (
 		peerAvailabilityByShard = map[topology.ShardID]*shardPeerAvailability{}
 		initialTopologyState    = runOpts.InitialTopologyState()
@@ -755,8 +758,9 @@ func (s *peersSource) peerAvailability(
 			default:
 				// TODO(rartoul): Make this a hard error once we refactor the interface to support
 				// returning errors.
-				s.log.Errorf("unknown shard state: %v", shardState)
-				return result.ShardTimeRanges{}
+				errMsg := fmt.Sprintf("unknown shard state: %v", shardState)
+				s.log.Error(errMsg)
+				return nil, errors.New(errMsg)
 			}
 		}
 	}
@@ -791,7 +795,7 @@ func (s *peersSource) peerAvailability(
 		availableShardTimeRanges[shardIDUint] = shardsTimeRanges[shardIDUint]
 	}
 
-	return availableShardTimeRanges
+	return availableShardTimeRanges, nil
 }
 
 func (s *peersSource) markIndexResultErrorAsUnfulfilled(
