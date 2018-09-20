@@ -63,7 +63,7 @@ In this case, the peer bootstrapper running on node 1 will not be able to fullfi
 |  3   |   2   |   A   |
 |  3   |   3   |   A   |
 
-Note that a bootstrap consistency level of majority is the default value, but can be modified by changing the value of the key "m3db.client.bootstrap-consistency-level" in EtcD to one of: "none", "one", "unstrict_majority" (attempt to read from majority, but settle for less if any errors occur), "majority" (strict majority), and "all".
+Note that a bootstrap consistency level of majority is the default value, but can be modified by changing the value of the key "m3db.client.bootstrap-consistency-level" in etcd to one of: "none", "one", "unstrict_majority" (attempt to read from majority, but settle for less if any errors occur), "majority" (strict majority), and "all".
 
 **Note**: Any bootstrappers configuration that does not include the peers bootstrapper will be unable to handle dynamic topology changes of any kind.
 
@@ -75,7 +75,7 @@ The uninitialized topology bootstrapper determines whether a topology is "new" f
 
 ### No Operational All Bootstrapper
 
-The noop_all bootstrapper succeeds all bootstraps regardless of requests shards/time ranges.
+The `noop_all` bootstrapper succeeds all bootstraps regardless of requests shards/time ranges.
 
 ### Bootstrappers Configuration
 
