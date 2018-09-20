@@ -83,7 +83,7 @@ Now that we've gone over the various bootstrappers, lets consider how M3DB will 
 
 #### filesystem,commitlog,peers,uninitialized_topology (default)
 
-This is the default bootstrappers configuration for M3DB and will behave "as expected" in the sense that it will maintain M3DB's consistency guarantees. I.E Successful quorum writes will always be readable via quorum reads.
+This is the default bootstrappers configuration for M3DB and will behave "as expected" in the sense that it will maintain M3DB's consistency guarantees at all times, handle node adds/replaces/removes correctly, and still work with brand new topologies.
 
 In the general case, the node will use only the filesystem and commitlog bootstrappers on node startup. However, in the case of a node add/remove/replace, the commitlog bootstrapper will detect that it is unable to fulfill the bootstrap request (because the node has never reached the Available state) and defer to the peers bootstrapper to stream in the data.
 
