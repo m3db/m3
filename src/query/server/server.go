@@ -203,9 +203,7 @@ func Run(runOpts RunOptions) {
 
 	var interruptErr error
 	if runOpts.DBConfig != nil {
-		select {
-		case interruptErr = <-interruptCh:
-		}
+		interruptErr = <-interruptCh
 	} else {
 		// Only use this if running standalone, as otherwise it will
 		// obfuscate signal channel for the db
