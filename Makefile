@@ -261,7 +261,7 @@ all-gen-$(SUBDIR): thrift-gen-$(SUBDIR) proto-gen-$(SUBDIR) asset-gen-$(SUBDIR) 
 metalint-$(SUBDIR): install-gometalinter install-linter-badtime install-linter-importorder
 	@echo metalinting $(SUBDIR)
 	@(PATH=$(retool_bin_path):$(PATH) $(metalint_check) \
-		src/$(SUBDIR)/$(metalint_config) src/$(SUBDIR)/$(metalint_exclude) src/$(SUBDIR))
+		$(metalint_config) $(metalint_exclude) src/$(SUBDIR))
 
 .PHONY: test-$(SUBDIR)
 test-$(SUBDIR):
