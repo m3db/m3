@@ -25,11 +25,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/m3nsch"
 	"github.com/m3db/m3/src/m3nsch/datums"
 	"github.com/m3db/m3x/ident"
-
-	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
