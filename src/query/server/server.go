@@ -201,21 +201,24 @@ func Run(runOpts RunOptions) {
 		interruptCh = runOpts.InterruptCh
 	}
 
-	if cfg.Backend == config.GRPCStorageType {
-		// Only use this if not running embedded, otherwise will
-		// obfuscate signal channel for m3db
-		sigChan := make(chan os.Signal, 1)
-		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-
+	var interruptErr error
+	if runOpts.DBConfig != nil {
 		select {
-		case <-sigChan:
-		case <-interruptCh:
+		case interruptErr = <-interruptCh:
 		}
 	} else {
+		// Only use this if running standalone, as otherwise it will
+		// obfuscate signal channel for the db
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 		select {
-		case <-interruptCh:
+		case sig := <-sigChan:
+			interruptErr = fmt.Errorf("%v", sig)
+		case interruptErr = <-interruptCh:
 		}
 	}
+
+	logger.Info(fmt.Sprintf("interrupt: %s", interruptErr))
 }
 
 // make connections to the m3db cluster(s) and generate sessions for those clusters along with the storage
