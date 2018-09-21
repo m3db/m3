@@ -9,7 +9,7 @@ PARAM_TEST_BUILD="${TEST_BUILD:-true}"
 PARAM_TEST_VERIFY="${TEST_VERIFY:-true}"
 PARAM_TEST_TEARDOWN="${TEST_TEARDOWN:-true}"
 
-if [ $PARAM_TEST_BUILD != "true" ]; do
+if [ $PARAM_TEST_BUILD != "true" ]; then
   echo "SKIP build docker images"
 else
   echo "Build docker images"
@@ -85,7 +85,7 @@ echo "Start Prometheus container"
 
 docker-compose -f docker-compose.yml up -d prometheus01
 
-if [ $PARAM_TEST_VERIFY != "true" ]; do
+if [ $PARAM_TEST_VERIFY != "true" ]; then
   echo "SKIP verify"
 else
   echo "Write direct test data"
@@ -138,7 +138,7 @@ else
   [ "$(curl -sSf localhost:9090/api/v1/query?query=prometheus_remote_storage_succeeded_samples_total | jq .data.result[].value[1])" != '"0"' ]
 fi
 
-if [ $PARAM_TEST_TEARDOWN != "true" ]; do
+if [ $PARAM_TEST_TEARDOWN != "true" ]; then
   echo "SKIP teardown"
 else
   docker-compose -f docker-compose.yml down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes

@@ -34,6 +34,10 @@ scrape_configs:
     static_configs:
       - targets: ['coordinator01:7203']
 
+  - job_name: 'dbnode'
+      static_configs:
+        - targets: ['dbnode01:9004']
+
 remote_read:
   - url: http://coordinator01:7201/api/v1/prom/remote/read
 
