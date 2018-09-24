@@ -514,3 +514,34 @@ type VersionedStagedMetadatas struct {
 	Version         int             `json:"version"`
 	StagedMetadatas StagedMetadatas `json:"stagedMetadatas"`
 }
+
+// TimedMetadata represents the metadata information associated with timed metrics.
+type TimedMetadata struct {
+	// List of aggregation types.
+	AggregationID aggregation.ID
+
+	// Storage policy.
+	StoragePolicy policy.StoragePolicy
+}
+
+// ToProto converts the timed metadata to a protobuf message in place.
+func (m TimedMetadata) ToProto(pb *metricpb.TimedMetadata) error {
+	if err := m.AggregationID.ToProto(&pb.AggregationId); err != nil {
+		return err
+	}
+	if err := m.StoragePolicy.ToProto(&pb.StoragePolicy); err != nil {
+		return err
+	}
+	return nil
+}
+
+// FromProto converts the protobuf message to a timed metadata in place.
+func (m *TimedMetadata) FromProto(pb metricpb.TimedMetadata) error {
+	if err := m.AggregationID.FromProto(pb.AggregationId); err != nil {
+		return err
+	}
+	if err := m.StoragePolicy.FromProto(pb.StoragePolicy); err != nil {
+		return err
+	}
+	return nil
+}

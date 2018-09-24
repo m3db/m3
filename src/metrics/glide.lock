@@ -1,5 +1,5 @@
-hash: eae468699cb0aceb2512a0a82a7dadc3138f7060378e2ac1333e619d69d9af0d
-updated: 2018-06-07T16:20:52.30299-04:00
+hash: 2b7aa163b74e4dd17cd8979ac1e7a34c019117581efe33c56f7787ccd3af9577
+updated: 2018-09-24T11:56:40.818342-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -8,7 +8,7 @@ imports:
 - name: github.com/cespare/xxhash
   version: 48099fad606eafc26e3a569fad19ff510fff4df6
 - name: github.com/gogo/protobuf
-  version: 117892bf1866fbaa2318c03e50e40564c8845457
+  version: 636bf0302bc95575d69441b25a2603156ffdddf1
   subpackages:
   - gogoproto
   - proto
@@ -63,7 +63,7 @@ imports:
 - name: github.com/uber-go/atomic
   version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
 - name: github.com/uber-go/tally
-  version: 79f2a33b0e55b1255ffbbaf824dcafb09ff34dda
+  version: ff17f3c43c065c3c2991f571e740eee43ea3a14a
   subpackages:
   - m3
   - m3/customtransports
@@ -88,7 +88,7 @@ imports:
   subpackages:
   - context
 - name: google.golang.org/appengine
-  version: 267c27e7492265b84fc6719503b14a1e17975d79
+  version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
   subpackages:
   - datastore
   - internal

@@ -34,6 +34,7 @@ import (
 
 var (
 	errNilForwardedMetricWithMetadataProto = errors.New("nil forwarded metric with metadata proto message")
+	errNilTimedMetricWithMetadataProto     = errors.New("nil timed metric with metadata proto message")
 )
 
 // Metric is a metric, which is essentially a named value at certain time.
@@ -191,4 +192,29 @@ func (fm *ForwardedMetricWithMetadata) FromProto(pb *metricpb.ForwardedMetricWit
 		return err
 	}
 	return fm.ForwardMetadata.FromProto(pb.Metadata)
+}
+
+// TimedMetricWithMetadata is a timed metric with metadata.
+type TimedMetricWithMetadata struct {
+	Metric
+	metadata.TimedMetadata
+}
+
+// ToProto converts the timed metric with metadata to a protobuf message in place.
+func (tm TimedMetricWithMetadata) ToProto(pb *metricpb.TimedMetricWithMetadata) error {
+	if err := tm.Metric.ToProto(&pb.Metric); err != nil {
+		return err
+	}
+	return tm.TimedMetadata.ToProto(&pb.Metadata)
+}
+
+// FromProto converts the protobuf message to a timed metric with metadata in place.
+func (tm *TimedMetricWithMetadata) FromProto(pb *metricpb.TimedMetricWithMetadata) error {
+	if pb == nil {
+		return errNilTimedMetricWithMetadataProto
+	}
+	if err := tm.Metric.FromProto(pb.Metric); err != nil {
+		return err
+	}
+	return tm.TimedMetadata.FromProto(pb.Metadata)
 }

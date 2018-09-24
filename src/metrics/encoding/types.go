@@ -37,6 +37,7 @@ const (
 	BatchTimerWithMetadatasType
 	GaugeWithMetadatasType
 	ForwardedMetricWithMetadataType
+	TimedMetricWithMetadataType
 )
 
 // UnaggregatedMessageUnion is a union of different types of unaggregated messages.
@@ -49,6 +50,7 @@ type UnaggregatedMessageUnion struct {
 	BatchTimerWithMetadatas     unaggregated.BatchTimerWithMetadatas
 	GaugeWithMetadatas          unaggregated.GaugeWithMetadatas
 	ForwardedMetricWithMetadata aggregated.ForwardedMetricWithMetadata
+	TimedMetricWithMetadata     aggregated.TimedMetricWithMetadata
 }
 
 // ByteReadScanner is capable of reading and scanning bytes.
