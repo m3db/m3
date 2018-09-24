@@ -37,7 +37,6 @@ import (
 	"github.com/m3db/m3cluster/integration/etcd"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/shard"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -488,6 +487,8 @@ db:
         bootstrappers:
             - filesystem
             - commitlog
+            - peers
+            - uninitialized_topology
         fs:
             numProcessorsPerCPU: 0.125
 
@@ -632,35 +633,3 @@ db:
                   endpoint: {{.InitialClusterEndpoint}}
 `
 )
-
-// waitUntilAllShardsAreAvailable continually polls the session checking to see if the topology.Map
-// that the session is currently storing contains a non-zero number of host shard sets, and if so,
-// makes sure that all their shard states are Available.
-func waitUntilAllShardsAreAvailable(t *testing.T, session client.AdminSession) {
-outer:
-	for {
-		time.Sleep(10 * time.Millisecond)
-
-		topoMap, err := session.TopologyMap()
-		require.NoError(t, err)
-
-		var (
-			hostShardSets = topoMap.HostShardSets()
-		)
-
-		if len(hostShardSets) == 0 {
-			// We haven't received an actual topology yet.
-			continue
-		}
-
-		for _, hostShardSet := range hostShardSets {
-			for _, hostShard := range hostShardSet.ShardSet().All() {
-				if hostShard.State() != shard.Available {
-					continue outer
-				}
-			}
-		}
-
-		break
-	}
-}

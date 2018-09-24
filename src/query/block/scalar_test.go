@@ -24,6 +24,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/models"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,7 +33,7 @@ import (
 var (
 	start  = time.Time{}
 	val    = 13.37
-	bounds = Bounds{
+	bounds = models.Bounds{
 		Start:    start,
 		Duration: time.Minute,
 		StepSize: time.Second * 10,

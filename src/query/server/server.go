@@ -199,18 +199,27 @@ func Run(runOpts RunOptions) {
 		}
 	}()
 
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-
 	var interruptCh <-chan error = make(chan error)
 	if runOpts.InterruptCh != nil {
 		interruptCh = runOpts.InterruptCh
 	}
 
-	select {
-	case <-sigChan:
-	case <-interruptCh:
+	var interruptErr error
+	if runOpts.DBConfig != nil {
+		interruptErr = <-interruptCh
+	} else {
+		// Only use this if running standalone, as otherwise it will
+		// obfuscate signal channel for the db
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+		select {
+		case sig := <-sigChan:
+			interruptErr = fmt.Errorf("%v", sig)
+		case interruptErr = <-interruptCh:
+		}
 	}
+
+	logger.Info(fmt.Sprintf("interrupt: %s", interruptErr))
 }
 
 // make connections to the m3db cluster(s) and generate sessions for those clusters along with the storage
@@ -391,8 +400,8 @@ func newDownsamplerAutoMappingRules(
 func initClusters(
 	cfg config.Configuration,
 	dbClientCh <-chan client.Client,
-	logger *zap.Logger,
-) (m3.Clusters, *pools.PoolWrapper, error) {
+	logger *zap.Logger, 
+) (m3.Clusters, *pools.PoolWrapper, error) { 
 	var (
 		clusters    m3.Clusters
 		poolWrapper *pools.PoolWrapper

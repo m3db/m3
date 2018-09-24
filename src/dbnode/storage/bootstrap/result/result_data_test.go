@@ -363,7 +363,7 @@ func TestShardTimeRangesCopy(t *testing.T) {
 	assert.True(t, str.Equal(copied))
 }
 
-func TestShardTimeRangesToUnfulfilledResult(t *testing.T) {
+func TestShardTimeRangesToUnfulfilledDataResult(t *testing.T) {
 	str := ShardTimeRanges{
 		0: xtime.NewRanges(xtime.Range{
 			Start: time.Now(),
@@ -374,7 +374,7 @@ func TestShardTimeRangesToUnfulfilledResult(t *testing.T) {
 			End:   time.Now().Add(4 * time.Minute),
 		}),
 	}
-	r := str.ToUnfulfilledResult()
+	r := str.ToUnfulfilledDataResult()
 	assert.Equal(t, 0, len(r.ShardResults()))
 	assert.True(t, r.Unfulfilled().Equal(str))
 }

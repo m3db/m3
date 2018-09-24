@@ -37,13 +37,13 @@ func NoopMod(v []float64) []float64 {
 }
 
 // NewBlockFromValues creates a new block using the provided values
-func NewBlockFromValues(bounds block.Bounds, seriesValues [][]float64) block.Block {
+func NewBlockFromValues(bounds models.Bounds, seriesValues [][]float64) block.Block {
 	meta := NewSeriesMeta("dummy", len(seriesValues))
 	return NewBlockFromValuesWithSeriesMeta(bounds, meta, seriesValues)
 }
 
 // NewMultiBlocksFromValues creates new blocks using the provided values and a modifier
-func NewMultiBlocksFromValues(bounds block.Bounds, seriesValues [][]float64, valueMod ValueMod, numBlocks int) []block.Block {
+func NewMultiBlocksFromValues(bounds models.Bounds, seriesValues [][]float64, valueMod ValueMod, numBlocks int) []block.Block {
 	meta := NewSeriesMeta("dummy", len(seriesValues))
 	blocks := make([]block.Block, numBlocks)
 	for i := 0; i < numBlocks; i++ {
@@ -76,7 +76,7 @@ func NewSeriesMeta(tagPrefix string, count int) []block.SeriesMeta {
 
 // NewBlockFromValuesWithSeriesMeta creates a new block using the provided values
 func NewBlockFromValuesWithSeriesMeta(
-	bounds block.Bounds,
+	bounds models.Bounds,
 	seriesMeta []block.SeriesMeta,
 	seriesValues [][]float64,
 ) block.Block {
@@ -103,7 +103,7 @@ func NewBlockFromValuesWithMetaAndSeriesMeta(
 }
 
 // GenerateValuesAndBounds generates a list of sample values and bounds while allowing overrides
-func GenerateValuesAndBounds(vals [][]float64, b *block.Bounds) ([][]float64, block.Bounds) {
+func GenerateValuesAndBounds(vals [][]float64, b *models.Bounds) ([][]float64, models.Bounds) {
 	values := vals
 	if values == nil {
 		values = [][]float64{
@@ -112,10 +112,10 @@ func GenerateValuesAndBounds(vals [][]float64, b *block.Bounds) ([][]float64, bl
 		}
 	}
 
-	var bounds block.Bounds
+	var bounds models.Bounds
 	if b == nil {
 		now := time.Now()
-		bounds = block.Bounds{
+		bounds = models.Bounds{
 			Start:    now,
 			Duration: time.Minute * 5,
 			StepSize: time.Minute,

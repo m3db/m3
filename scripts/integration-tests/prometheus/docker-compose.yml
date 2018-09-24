@@ -38,5 +38,13 @@ services:
     image: prom/prometheus:latest
     volumes:
       - "./:/etc/prometheus/"
+  grafana:
+    expose:
+      - "3000"
+    ports:
+      - "0.0.0.0:3000:3000"
+    networks:
+      - backend
+    image: grafana/grafana:latest
 networks:
   backend:

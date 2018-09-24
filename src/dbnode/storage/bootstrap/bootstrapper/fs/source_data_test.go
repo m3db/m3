@@ -48,15 +48,16 @@ import (
 )
 
 var (
-	testShard             = uint32(0)
-	testNs1ID             = ident.StringID("testNs")
-	testBlockSize         = 2 * time.Hour
-	testIndexBlockSize    = 4 * time.Hour
-	testStart             = time.Now().Truncate(testBlockSize)
-	testFileMode          = os.FileMode(0666)
-	testDirMode           = os.ModeDir | os.FileMode(0755)
-	testWriterBufferSize  = 10
-	testDefaultRunOpts    = bootstrap.NewRunOptions().SetIncremental(false)
+	testShard            = uint32(0)
+	testNs1ID            = ident.StringID("testNs")
+	testBlockSize        = 2 * time.Hour
+	testIndexBlockSize   = 4 * time.Hour
+	testStart            = time.Now().Truncate(testBlockSize)
+	testFileMode         = os.FileMode(0666)
+	testDirMode          = os.ModeDir | os.FileMode(0755)
+	testWriterBufferSize = 10
+	testDefaultRunOpts   = bootstrap.NewRunOptions().
+				SetPersistConfig(bootstrap.PersistConfig{Enabled: false})
 	testDefaultResultOpts = result.NewOptions().SetSeriesCachePolicy(series.CacheAll)
 	testDefaultOpts       = NewOptions().SetResultOptions(testDefaultResultOpts)
 )

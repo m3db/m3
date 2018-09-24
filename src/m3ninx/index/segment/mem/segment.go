@@ -28,8 +28,8 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
-	"github.com/m3db/m3/src/m3ninx/index/util"
 	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/util"
 )
 
 var (
@@ -323,21 +323,14 @@ func (s *segment) matchTerm(field, term []byte) (postings.List, error) {
 	return s.termsDict.MatchTerm(field, term), nil
 }
 
-func (s *segment) matchRegexp(name, regexp []byte, compiled *re.Regexp) (postings.List, error) {
+func (s *segment) matchRegexp(field []byte, compiled *re.Regexp) (postings.List, error) {
 	s.state.RLock()
 	defer s.state.RUnlock()
 	if s.state.closed {
 		return nil, sgmt.ErrClosed
 	}
 
-	if compiled == nil {
-		var err error
-		compiled, err = re.Compile(string(regexp))
-		if err != nil {
-			return nil, err
-		}
-	}
-	return s.termsDict.MatchRegexp(name, regexp, compiled), nil
+	return s.termsDict.MatchRegexp(field, compiled), nil
 }
 
 func (s *segment) getDoc(id postings.ID) (doc.Document, error) {

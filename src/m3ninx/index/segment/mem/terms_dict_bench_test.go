@@ -25,8 +25,8 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
-	"github.com/m3db/m3/src/m3ninx/index/util"
 	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/util"
 )
 
 var (
@@ -54,7 +54,7 @@ func BenchmarkTermsDict(b *testing.B) {
 		},
 	}
 
-	docs, err := util.ReadDocs("../../util/testdata/node_exporter.json", 2000)
+	docs, err := util.ReadDocs("../../../util/testdata/node_exporter.json", 2000)
 	if err != nil {
 		b.Fatalf("unable to read documents for benchmarks: %v", err)
 	}
@@ -113,6 +113,6 @@ func benchmarkTermsDictMatchRegex(docs []doc.Document, b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		dict.MatchRegexp(benchTermsDictField, benchTermsDictRegexp, benchTermsDictCompiled)
+		dict.MatchRegexp(benchTermsDictField, benchTermsDictCompiled)
 	}
 }

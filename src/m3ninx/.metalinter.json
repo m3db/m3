@@ -16,7 +16,6 @@
   "Enable": [
     "vet",
     "gofmt",
-    "deadcode",
     "varcheck",
     "structcheck",
     "goconst",

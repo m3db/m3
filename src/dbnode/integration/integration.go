@@ -250,7 +250,7 @@ func newDefaultBootstrappableTestSetups(
 				SetAdminClient(adminClient).
 				SetFetchBlocksMetadataEndpointVersion(setupOpts[i].fetchBlocksMetadataEndpointVersion).
 				// DatabaseBlockRetrieverManager and PersistManager need to be set or we will never execute
-				// the incremental path
+				// the persist bootstrapping path
 				SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager()).
 				SetPersistManager(setup.storageOpts.PersistManager()).
 				SetRuntimeOptionsManager(runtimeOptsMgr)

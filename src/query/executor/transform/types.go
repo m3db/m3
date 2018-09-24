@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 )
 
@@ -48,8 +49,8 @@ type TimeSpec struct {
 }
 
 // Bounds transforms a timespec to bounds
-func (ts TimeSpec) Bounds() block.Bounds {
-	return block.Bounds{
+func (ts TimeSpec) Bounds() models.Bounds {
+	return models.Bounds{
 		Start:    ts.Start,
 		Duration: ts.End.Sub(ts.Start),
 		StepSize: ts.Step,

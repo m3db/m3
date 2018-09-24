@@ -167,10 +167,16 @@ func NewFunctionExpr(name string, argValues []interface{}) (parser.Params, error
 		linear.MinuteType, linear.MonthType, linear.YearType:
 		return linear.NewDateOp(name)
 
-	case temporal.AvgTemporalType, temporal.CountTemporalType, temporal.MinTemporalType,
-		temporal.MaxTemporalType, temporal.SumTemporalType, temporal.StdDevTemporalType,
-		temporal.StdVarTemporalType:
+	case temporal.AvgType, temporal.CountType, temporal.MinType,
+		temporal.MaxType, temporal.SumType, temporal.StdDevType,
+		temporal.StdVarType:
 		return temporal.NewAggOp(argValues, name)
+
+	case temporal.IRateType, temporal.IDeltaType:
+		return temporal.NewRateOp(argValues, name)
+
+	case temporal.ResetsType, temporal.ChangesType:
+		return temporal.NewFunctionOp(argValues, name)
 
 	default:
 		// TODO: handle other types

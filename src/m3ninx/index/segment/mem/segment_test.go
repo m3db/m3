@@ -800,7 +800,7 @@ func TestSegmentReaderMatchRegex(t *testing.T) {
 
 	field, regexp := []byte("fruit"), []byte(".*ple")
 	compiled := re.MustCompile(string(regexp))
-	pl, err := r.MatchRegexp(field, regexp, index.CompiledRegex{Simple: compiled})
+	pl, err := r.MatchRegexp(field, index.CompiledRegex{Simple: compiled})
 	require.NoError(t, err)
 
 	iter, err := r.Docs(pl)

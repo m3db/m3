@@ -73,7 +73,7 @@ func (f *fstTermsIter) Next() bool {
 	if !f.initialized {
 		f.initialized = true
 		f.iter = &vellum.FSTIterator{}
-		err = f.iter.Reset(f.iterOpts.fst, minByteKey, nil, nil)
+		err = f.iter.Reset(f.iterOpts.fst, nil, nil, nil)
 	} else {
 		err = f.iter.Next()
 	}

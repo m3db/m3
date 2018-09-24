@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
@@ -270,7 +271,7 @@ func TestBootstrapIndex(t *testing.T) {
 	validateGoodTaggedSeries(t, times.start, indexResults)
 }
 
-func TestBootstrapIndexIncremental(t *testing.T) {
+func TestBootstrapIndexWithPersist(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
@@ -284,7 +285,8 @@ func TestBootstrapIndexIncremental(t *testing.T) {
 	scope := tally.NewTestScope("", nil)
 	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope))
 
-	runOpts := testDefaultRunOpts.SetIncremental(true)
+	runOpts := testDefaultRunOpts.
+		SetPersistConfig(bootstrap.PersistConfig{Enabled: true})
 
 	src := newFileSystemSource(opts).(*fileSystemSource)
 	res, err := src.ReadIndex(testNsMetadata(t), times.shardTimeRanges,
@@ -332,7 +334,61 @@ func TestBootstrapIndexIncremental(t *testing.T) {
 	require.Equal(t, int64(1), counters["fs-bootstrapper.persist-index-blocks-write+"].Value())
 }
 
-func TestBootstrapIndexIncrementalPrefersPersistedIndexBlocks(t *testing.T) {
+func TestBootstrapIndexIgnoresPersistConfigIfSnapshotType(t *testing.T) {
+	dir := createTempDir(t)
+	defer os.RemoveAll(dir)
+
+	times := newTestBootstrapIndexTimes(testTimesOptions{
+		numBlocks: 2,
+	})
+
+	writeTSDBGoodTaggedSeriesDataFiles(t, dir, testNs1ID, times.start)
+
+	opts := newTestOptionsWithPersistManager(t, dir)
+	scope := tally.NewTestScope("", nil)
+	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope))
+
+	runOpts := testDefaultRunOpts.
+		SetPersistConfig(bootstrap.PersistConfig{
+			Enabled:     true,
+			FileSetType: persist.FileSetSnapshotType,
+		})
+
+	src := newFileSystemSource(opts).(*fileSystemSource)
+	res, err := src.ReadIndex(testNsMetadata(t), times.shardTimeRanges,
+		runOpts)
+	require.NoError(t, err)
+
+	// Check that not segments were written out
+	infoFiles := fs.ReadIndexInfoFiles(src.fsopts.FilePathPrefix(), testNs1ID,
+		src.fsopts.InfoReaderBufferSize())
+	require.Equal(t, 0, len(infoFiles))
+
+	indexResults := res.IndexResults()
+
+	// Check that both segments are mutable
+	block, ok := indexResults[xtime.ToUnixNano(times.start)]
+	require.True(t, ok)
+	require.Equal(t, 1, len(block.Segments()))
+	_, mutable := block.Segments()[0].(segment.MutableSegment)
+	require.True(t, mutable)
+
+	block, ok = indexResults[xtime.ToUnixNano(times.start.Add(testIndexBlockSize))]
+	require.True(t, ok)
+	require.Equal(t, 1, len(block.Segments()))
+	_, mutable = block.Segments()[0].(segment.MutableSegment)
+	require.True(t, mutable)
+
+	// Validate results
+	validateGoodTaggedSeries(t, times.start, indexResults)
+
+	// Validate that no index blocks were read from disk and that no files were written out
+	counters := scope.Snapshot().Counters()
+	require.Equal(t, int64(0), counters["fs-bootstrapper.persist-index-blocks-read+"].Value())
+	require.Equal(t, int64(0), counters["fs-bootstrapper.persist-index-blocks-write+"].Value())
+}
+
+func TestBootstrapIndexWithPersistPrefersPersistedIndexBlocks(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
@@ -353,7 +409,8 @@ func TestBootstrapIndexIncrementalPrefersPersistedIndexBlocks(t *testing.T) {
 	scope := tally.NewTestScope("", nil)
 	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope))
 
-	runOpts := testDefaultRunOpts.SetIncremental(true)
+	runOpts := testDefaultRunOpts.
+		SetPersistConfig(bootstrap.PersistConfig{Enabled: true})
 
 	src := newFileSystemSource(opts).(*fileSystemSource)
 	res, err := src.ReadIndex(testNsMetadata(t), times.shardTimeRanges,
@@ -381,7 +438,7 @@ func TestBootstrapIndexIncrementalPrefersPersistedIndexBlocks(t *testing.T) {
 	validateGoodTaggedSeries(t, times.start, indexResults)
 
 	// Validate that read the block and no blocks were written
-	// (ensure incremental didn't write it back out again)
+	// (ensure persist config didn't write it back out again)
 	counters := scope.Snapshot().Counters()
 	require.Equal(t, int64(1), counters["fs-bootstrapper.persist-index-blocks-read+"].Value())
 	require.Equal(t, int64(0), counters["fs-bootstrapper.persist-index-blocks-write+"].Value())

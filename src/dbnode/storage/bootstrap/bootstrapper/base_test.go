@@ -44,7 +44,8 @@ var (
 	testNamespaceID    = ident.StringID("testNamespace")
 	testTargetStart    = time.Now()
 	testShard          = uint32(0)
-	testDefaultRunOpts = bootstrap.NewRunOptions().SetIncremental(false)
+	testDefaultRunOpts = bootstrap.NewRunOptions().
+				SetPersistConfig(bootstrap.PersistConfig{Enabled: false})
 )
 
 func testNsMetadata(t *testing.T) namespace.Metadata {

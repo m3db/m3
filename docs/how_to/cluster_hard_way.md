@@ -161,7 +161,7 @@ curl -X POST localhost:7201/api/v1/namespace -d '{
     "flushEnabled": true,
     "writesToCommitLog": true,
     "cleanupEnabled": true,
-    "snapshotEnabled": false,
+    "snapshotEnabled": true,
     "repairEnabled": false,
     "retentionOptions": {
       "retentionPeriodDuration": "720h",

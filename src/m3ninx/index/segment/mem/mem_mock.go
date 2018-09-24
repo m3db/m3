@@ -71,16 +71,16 @@ func (mr *MockReadableSegmentMockRecorder) getDoc(arg0 interface{}) *gomock.Call
 }
 
 // matchRegexp mocks base method
-func (m *MockReadableSegment) matchRegexp(arg0, arg1 []byte, arg2 *regexp.Regexp) (postings.List, error) {
-	ret := m.ctrl.Call(m, "matchRegexp", arg0, arg1, arg2)
+func (m *MockReadableSegment) matchRegexp(arg0 []byte, arg1 *regexp.Regexp) (postings.List, error) {
+	ret := m.ctrl.Call(m, "matchRegexp", arg0, arg1)
 	ret0, _ := ret[0].(postings.List)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // matchRegexp indicates an expected call of matchRegexp
-func (mr *MockReadableSegmentMockRecorder) matchRegexp(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "matchRegexp", reflect.TypeOf((*MockReadableSegment)(nil).matchRegexp), arg0, arg1, arg2)
+func (mr *MockReadableSegmentMockRecorder) matchRegexp(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "matchRegexp", reflect.TypeOf((*MockReadableSegment)(nil).matchRegexp), arg0, arg1)
 }
 
 // matchTerm mocks base method

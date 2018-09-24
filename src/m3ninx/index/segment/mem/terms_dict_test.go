@@ -231,13 +231,12 @@ func (t *termsDictionaryTestSuite) TestMatchRegex() {
 			func(input fieldAndRegexp, id postings.ID) (bool, error) {
 				var (
 					f        = input.field
-					regexp   = input.regexp
 					compiled = input.compiled
 				)
 
 				t.termsDict.Insert(f, id)
 
-				pl := t.termsDict.MatchRegexp(f.Name, []byte(regexp), compiled)
+				pl := t.termsDict.MatchRegexp(f.Name, compiled)
 				if pl == nil {
 					return false, fmt.Errorf("postings list of documents matching query should not be nil")
 				}
@@ -262,10 +261,9 @@ func (t *termsDictionaryTestSuite) TestMatchRegexNoResults() {
 			func(input fieldAndRegexp, id postings.ID) (bool, error) {
 				var (
 					f        = input.field
-					regexp   = input.regexp
 					compiled = input.compiled
 				)
-				pl := t.termsDict.MatchRegexp(f.Name, []byte(regexp), compiled)
+				pl := t.termsDict.MatchRegexp(f.Name, compiled)
 				if pl == nil {
 					return false, fmt.Errorf("postings list returned should not be nil")
 				}

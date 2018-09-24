@@ -54,13 +54,13 @@ func TestRegexpSearcher(t *testing.T) {
 
 	gomock.InOrder(
 		// Query the first reader.
-		firstReader.EXPECT().MatchRegexp(field, regexp, compiled).Return(firstPL, nil),
+		firstReader.EXPECT().MatchRegexp(field, compiled).Return(firstPL, nil),
 
 		// Query the second reader.
-		secondReader.EXPECT().MatchRegexp(field, regexp, compiled).Return(secondPL, nil),
+		secondReader.EXPECT().MatchRegexp(field, compiled).Return(secondPL, nil),
 	)
 
-	s := NewRegexpSearcher(field, regexp, compiled)
+	s := NewRegexpSearcher(field, compiled)
 
 	// Test the postings list from the first Reader.
 	pl, err := s.Search(firstReader)

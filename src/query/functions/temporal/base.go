@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/util/logging"
 
@@ -81,7 +82,7 @@ func (o baseOp) Node(controller *transform.Controller, opts transform.Options) t
 		controller:    controller,
 		cache:         newBlockCache(o, opts),
 		op:            o,
-		processor:     o.processorFn(o, controller),
+		processor:     o.processorFn(o, controller, opts),
 		transformOpts: opts,
 	}
 }
@@ -185,7 +186,7 @@ func (c *baseNode) Process(ID parser.NodeID, b block.Block) error {
 }
 
 // processCurrent processes the current block. For the current block, figure out whether we have enough previous blocks which can help process it
-func (c *baseNode) processCurrent(bounds block.Bounds, leftRangeStart block.Bounds) ([]block.Block, bool, error) {
+func (c *baseNode) processCurrent(bounds models.Bounds, leftRangeStart models.Bounds) ([]block.Block, bool, error) {
 	numBlocks := bounds.Blocks(leftRangeStart.Start)
 	leftBlks, err := c.cache.multiGet(leftRangeStart, numBlocks, true)
 	if err != nil {
@@ -195,7 +196,7 @@ func (c *baseNode) processCurrent(bounds block.Bounds, leftRangeStart block.Boun
 }
 
 // processRight processes blocks after current block. This is done by fetching all contiguous right blocks until the right range
-func (c *baseNode) processRight(bounds block.Bounds, rightRangeStart block.Bounds) ([]block.Block, bool, error) {
+func (c *baseNode) processRight(bounds models.Bounds, rightRangeStart models.Bounds) ([]block.Block, bool, error) {
 	numBlocks := rightRangeStart.Blocks(bounds.Start)
 	rightBlks, err := c.cache.multiGet(bounds.Next(1), numBlocks, false)
 	if err != nil {
@@ -335,11 +336,11 @@ type Processor interface {
 }
 
 // MakeProcessor is a way to create a transform
-type MakeProcessor func(op baseOp, controller *transform.Controller) Processor
+type MakeProcessor func(op baseOp, controller *transform.Controller, opts transform.Options) Processor
 
 type processRequest struct {
 	blk    block.Block
-	bounds block.Bounds
+	bounds models.Bounds
 	deps   []block.Block
 }
 
@@ -350,8 +351,8 @@ type blockCache struct {
 	blockList       []block.Block
 	op              baseOp
 	transformOpts   transform.Options
-	startBounds     block.Bounds
-	endBounds       block.Bounds
+	startBounds     models.Bounds
+	endBounds       models.Bounds
 	processedBlocks []bool
 }
 
@@ -362,7 +363,7 @@ func newBlockCache(op baseOp, transformOpts transform.Options) *blockCache {
 	}
 }
 
-func (c *blockCache) init(bounds block.Bounds) {
+func (c *blockCache) init(bounds models.Bounds) {
 	if c.initialized {
 		return
 	}
@@ -436,7 +437,7 @@ func (c *blockCache) get(key time.Time) (block.Block, bool) {
 }
 
 // multiGet retrieves multiple blocks from the cache at once until if finds an empty block
-func (c *blockCache) multiGet(startBounds block.Bounds, numBlocks int, reverse bool) ([]block.Block, error) {
+func (c *blockCache) multiGet(startBounds models.Bounds, numBlocks int, reverse bool) ([]block.Block, error) {
 	if numBlocks == 0 {
 		return []block.Block{}, nil
 	}

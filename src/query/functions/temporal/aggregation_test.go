@@ -25,8 +25,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
@@ -38,6 +38,7 @@ import (
 type testCase struct {
 	name           string
 	opType         string
+	vals           [][]float64
 	afterBlockOne  [][]float64
 	afterAllBlocks [][]float64
 }
@@ -45,7 +46,7 @@ type testCase struct {
 var testCases = []testCase{
 	{
 		name:   "avg_over_time",
-		opType: AvgTemporalType,
+		opType: AvgType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 2.5},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 7},
@@ -57,7 +58,7 @@ var testCases = []testCase{
 	},
 	{
 		name:   "count_over_time",
-		opType: CountTemporalType,
+		opType: CountType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 4},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 5},
@@ -69,7 +70,7 @@ var testCases = []testCase{
 	},
 	{
 		name:   "min_over_time",
-		opType: MinTemporalType,
+		opType: MinType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 5},
@@ -81,7 +82,7 @@ var testCases = []testCase{
 	},
 	{
 		name:   "max_over_time",
-		opType: MaxTemporalType,
+		opType: MaxType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 4},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 9},
@@ -93,7 +94,7 @@ var testCases = []testCase{
 	},
 	{
 		name:   "sum_over_time",
-		opType: SumTemporalType,
+		opType: SumType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 10},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 35},
@@ -105,7 +106,7 @@ var testCases = []testCase{
 	},
 	{
 		name:   "stddev_over_time",
-		opType: StdDevTemporalType,
+		opType: StdDevType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1.1180},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1.4142},
@@ -117,7 +118,7 @@ var testCases = []testCase{
 	},
 	{
 		name:   "stdvar_over_time",
-		opType: StdVarTemporalType,
+		opType: StdVarType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1.25},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 2},
@@ -140,7 +141,7 @@ func TestAggregation(t *testing.T) {
 var testCasesNaNs = []testCase{
 	{
 		name:   "avg_over_time",
-		opType: AvgTemporalType,
+		opType: AvgType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
@@ -152,7 +153,7 @@ var testCasesNaNs = []testCase{
 	},
 	{
 		name:   "count_over_time",
-		opType: CountTemporalType,
+		opType: CountType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
@@ -164,7 +165,7 @@ var testCasesNaNs = []testCase{
 	},
 	{
 		name:   "min_over_time",
-		opType: MinTemporalType,
+		opType: MinType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
@@ -176,7 +177,7 @@ var testCasesNaNs = []testCase{
 	},
 	{
 		name:   "max_over_time",
-		opType: MaxTemporalType,
+		opType: MaxType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
@@ -188,7 +189,7 @@ var testCasesNaNs = []testCase{
 	},
 	{
 		name:   "sum_over_time",
-		opType: SumTemporalType,
+		opType: SumType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
@@ -200,7 +201,7 @@ var testCasesNaNs = []testCase{
 	},
 	{
 		name:   "stddev_over_time",
-		opType: StdDevTemporalType,
+		opType: StdDevType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
@@ -212,7 +213,7 @@ var testCasesNaNs = []testCase{
 	},
 	{
 		name:   "stdvar_over_time",
-		opType: StdVarTemporalType,
+		opType: StdVarType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
@@ -261,7 +262,7 @@ func testAggregation(t *testing.T, testCases []testCase, vals [][]float64) {
 
 			original := values[0][0]
 			values[0][0] = math.NaN()
-			block1 := test.NewBlockFromValues(block.Bounds{
+			block1 := test.NewBlockFromValues(models.Bounds{
 				Start:    bounds.Start.Add(-2 * bounds.Duration),
 				Duration: bounds.Duration,
 				StepSize: bounds.StepSize,
@@ -278,7 +279,7 @@ func testAggregation(t *testing.T, testCases []testCase, vals [][]float64) {
 			_, exists = bNode.cache.get(boundStart.Add(-1 * bounds.Duration))
 			assert.False(t, exists, "block cached")
 
-			block2 := test.NewBlockFromValues(block.Bounds{
+			block2 := test.NewBlockFromValues(models.Bounds{
 				Start:    bounds.Start.Add(-1 * bounds.Duration),
 				Duration: bounds.Duration,
 				StepSize: bounds.StepSize,
