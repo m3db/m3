@@ -255,11 +255,13 @@ func (s *m3storage) Write(
 	}
 
 	id := query.Tags.ID()
+	// TODO: Consider caching id -> identId
+	identId := ident.StringID(id)
 	common := &writeRequestCommon{
 		store:       s,
 		annotation:  query.Annotation,
 		unit:        query.Unit,
-		id:          id,
+		id:          identId,
 		tagIterator: storage.TagsToIdentTagIterator(query.Tags),
 		attributes:  query.Attributes,
 	}
@@ -282,7 +284,7 @@ func (s *m3storage) Close() error {
 func (w *writeRequest) Process(ctx context.Context) error {
 	common := w.writeRequestCommon
 	store := common.store
-	id := ident.StringID(common.id)
+	id := common.id
 
 	var (
 		namespace ClusterNamespace
@@ -321,7 +323,7 @@ type writeRequestCommon struct {
 	store       *m3storage
 	annotation  []byte
 	unit        xtime.Unit
-	id          string
+	id          ident.ID
 	tagIterator ident.TagIterator
 	attributes  storage.Attributes
 }
