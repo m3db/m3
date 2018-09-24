@@ -28,8 +28,7 @@ import (
 
 // PoolWrapper is an asynchronous wrapper for iterator pools
 type PoolWrapper struct {
-	sync.Once
-	sync.Mutex
+	mu          sync.Mutex
 	watchers    []chan encoding.IteratorPools
 	watchersErr []chan error
 	pools       encoding.IteratorPools
@@ -51,17 +50,15 @@ func (w *PoolWrapper) Init(
 	sessionPools encoding.IteratorPools,
 	err error,
 ) {
-	w.Do(func() {
-		w.Lock()
-		w.pools, w.err = sessionPools, err
-		for _, watcher := range w.watchers {
-			watcher <- w.pools
-		}
-		for _, watcherErr := range w.watchersErr {
-			watcherErr <- w.err
-		}
-		w.Unlock()
-	})
+	w.mu.Lock()
+	w.pools, w.err = sessionPools, err
+	for _, watcher := range w.watchers {
+		watcher <- w.pools
+	}
+	for _, watcherErr := range w.watchersErr {
+		watcherErr <- w.err
+	}
+	w.mu.Unlock()
 }
 
 // nolint
@@ -69,8 +66,8 @@ func (w *PoolWrapper) Init(
 // when iterator pools become available
 func (w *PoolWrapper) IteratorPools() (
 	bool, encoding.IteratorPools, error, <-chan encoding.IteratorPools, <-chan error) {
-	w.Lock()
-	defer w.Unlock()
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	if w.pools != nil || w.err != nil {
 		return true, w.pools, w.err, nil, nil
 	}
