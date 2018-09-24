@@ -67,6 +67,7 @@ type unaggregatedEncoder struct {
 	bm   metricpb.BatchTimerWithMetadatas
 	gm   metricpb.GaugeWithMetadatas
 	fm   metricpb.ForwardedMetricWithMetadata
+	tm   metricpb.TimedMetricWithMetadata
 	buf  []byte
 	used int
 
@@ -124,6 +125,8 @@ func (enc *unaggregatedEncoder) EncodeMessage(msg encoding.UnaggregatedMessageUn
 		return enc.encodeGaugeWithMetadatas(msg.GaugeWithMetadatas)
 	case encoding.ForwardedMetricWithMetadataType:
 		return enc.encodeForwardedMetricWithMetadata(msg.ForwardedMetricWithMetadata)
+	case encoding.TimedMetricWithMetadataType:
+		return enc.encodeTimedMetricWithMetadata(msg.TimedMetricWithMetadata)
 	default:
 		return fmt.Errorf("unknown message type: %v", msg.Type)
 	}
@@ -145,7 +148,7 @@ func (enc *unaggregatedEncoder) encodeBatchTimerWithMetadatas(bm unaggregated.Ba
 		return fmt.Errorf("batch timer with metadatas proto conversion failed: %v", err)
 	}
 	mm := metricpb.MetricWithMetadatas{
-		Type: metricpb.MetricWithMetadatas_BATCH_TIMER_WITH_METADATAS,
+		Type:                    metricpb.MetricWithMetadatas_BATCH_TIMER_WITH_METADATAS,
 		BatchTimerWithMetadatas: &enc.bm,
 	}
 	return enc.encodeMetricWithMetadatas(mm)
@@ -167,8 +170,19 @@ func (enc *unaggregatedEncoder) encodeForwardedMetricWithMetadata(fm aggregated.
 		return fmt.Errorf("forwarded metric with metadata proto conversion failed: %v", err)
 	}
 	mm := metricpb.MetricWithMetadatas{
-		Type: metricpb.MetricWithMetadatas_FORWARDED_METRIC_WITH_METADATA,
+		Type:                        metricpb.MetricWithMetadatas_FORWARDED_METRIC_WITH_METADATA,
 		ForwardedMetricWithMetadata: &enc.fm,
+	}
+	return enc.encodeMetricWithMetadatas(mm)
+}
+
+func (enc *unaggregatedEncoder) encodeTimedMetricWithMetadata(tm aggregated.TimedMetricWithMetadata) error {
+	if err := tm.ToProto(&enc.tm); err != nil {
+		return fmt.Errorf("timed metric with metadata proto conversion failed: %v", err)
+	}
+	mm := metricpb.MetricWithMetadatas{
+		Type:                    metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_METADATA,
+		TimedMetricWithMetadata: &enc.tm,
 	}
 	return enc.encodeMetricWithMetadatas(mm)
 }

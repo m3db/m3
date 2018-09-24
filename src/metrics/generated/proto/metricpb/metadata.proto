@@ -57,3 +57,8 @@ message ForwardMetadata {
   uint32 source_id = 4;
   int32 num_forwarded_times = 5;
 }
+
+message TimedMetadata {
+  aggregationpb.AggregationID aggregation_id = 1 [(gogoproto.nullable) = false];
+  policypb.StoragePolicy storage_policy = 2 [(gogoproto.nullable) = false];
+}

@@ -48,6 +48,11 @@ message ForwardedMetricWithMetadata {
   ForwardMetadata metadata = 2 [(gogoproto.nullable) = false];
 }
 
+message TimedMetricWithMetadata {
+  TimedMetric metric = 1 [(gogoproto.nullable) = false];
+  TimedMetadata metadata = 2 [(gogoproto.nullable) = false];
+}
+
 // NB: we intentionally choose to explicitly define the message type as well
 // as the corresponding payload as opposed to use `oneof` protobuf type here.
 // This is because the generated `Unmarshal` method of `oneof` types doesn't
@@ -61,10 +66,12 @@ message MetricWithMetadatas {
     BATCH_TIMER_WITH_METADATAS = 2;
     GAUGE_WITH_METADATAS = 3;
     FORWARDED_METRIC_WITH_METADATA = 4;
+    TIMED_METRIC_WITH_METADATA = 5;
   }
   Type type = 1;
   CounterWithMetadatas counter_with_metadatas = 2;
   BatchTimerWithMetadatas batch_timer_with_metadatas = 3;
   GaugeWithMetadatas gauge_with_metadatas = 4;
   ForwardedMetricWithMetadata forwarded_metric_with_metadata = 5;
+  TimedMetricWithMetadata timed_metric_with_metadata = 6;
 }
