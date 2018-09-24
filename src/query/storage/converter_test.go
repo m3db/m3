@@ -44,13 +44,13 @@ func verifyExpandSeries(t *testing.T, ctrl *gomock.Controller, num int, pools po
 	testTags := seriesiter.GenerateTag()
 	iters := seriesiter.NewMockSeriesIters(ctrl, testTags, num, 2)
 
-	results, err := SeriesIteratorsToFetchResult(iters, ident.StringID("strID"), pools)
+	results, err := SeriesIteratorsToFetchResult(iters, pools)
 	assert.NoError(t, err)
 
 	require.NotNil(t, results)
 	require.NotNil(t, results.SeriesList)
 	require.Len(t, results.SeriesList, num)
-	expectedTags := models.Tags{{testTags.Name.String(), testTags.Value.String()}}
+	expectedTags := models.Tags{{Name: testTags.Name.String(), Value: testTags.Value.String()}}
 	for i := 0; i < num; i++ {
 		series := results.SeriesList[i]
 		require.NotNil(t, series)
@@ -135,7 +135,7 @@ func TestFailingExpandSeriesValidPools(t *testing.T) {
 	mockIters.EXPECT().Len().Return(len(iters)).Times(1)
 	mockIters.EXPECT().Close().Times(1)
 
-	result, err := SeriesIteratorsToFetchResult(mockIters, ident.StringID("strID"), objectPool)
+	result, err := SeriesIteratorsToFetchResult(mockIters, objectPool)
 	require.Nil(t, result)
 	require.EqualError(t, err, "error")
 }

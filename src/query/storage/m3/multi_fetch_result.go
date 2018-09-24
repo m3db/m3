@@ -39,6 +39,7 @@ type multiFetchResult struct {
 	// properly cleaned up and returned to the pool; can also leak
 	// duplciate series iterators.
 	seenIters []encoding.SeriesIterators
+	pools     encoding.IteratorPools
 }
 
 type multiFetchResultSeries struct {
@@ -46,7 +47,7 @@ type multiFetchResultSeries struct {
 	attrs storage.Attributes
 }
 
-func (r *multiFetchResult) cleanup() error {
+func (r *multiFetchResult) close() error {
 	for _, iters := range r.seenIters {
 		iters.Close()
 	}
@@ -86,6 +87,14 @@ func (r *multiFetchResult) add(
 		}
 	}
 
+	r.dedupe(attrs, iterators)
+}
+
+func (r *multiFetchResult) dedupe(
+	attrs storage.Attributes,
+	iterators encoding.SeriesIterators,
+) {
+	iters := iterators.Iters()
 	for _, s := range iters {
 		id := s.ID().String()
 		existing, exists := r.dedupeMap[id]
@@ -105,8 +114,12 @@ func (r *multiFetchResult) add(
 			currentIters[idx] = s
 		}
 
-		// TODO: use a pool here
-		r.iterators = encoding.NewSeriesIterators(currentIters, nil)
+		var pool encoding.MutableSeriesIteratorsPool
+		if r.pools != nil {
+			pool = r.pools.MutableSeriesIterators()
+		}
+
+		r.iterators = encoding.NewSeriesIterators(currentIters, pool)
 		r.dedupeMap[id] = multiFetchResultSeries{
 			idx:   idx,
 			attrs: attrs,

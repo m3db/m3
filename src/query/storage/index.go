@@ -30,8 +30,7 @@ import (
 )
 
 // FromM3IdentToMetric converts an M3 ident metric to a coordinator metric
-func FromM3IdentToMetric(identNamespace, identID ident.ID, iterTags ident.TagIterator) (*models.Metric, error) {
-	namespace := identNamespace.String()
+func FromM3IdentToMetric(identID ident.ID, iterTags ident.TagIterator) (*models.Metric, error) {
 	id := identID.String()
 	tags, err := FromIdentTagIteratorToTags(iterTags)
 	if err != nil {
@@ -39,9 +38,8 @@ func FromM3IdentToMetric(identNamespace, identID ident.ID, iterTags ident.TagIte
 	}
 
 	return &models.Metric{
-		ID:        id,
-		Namespace: namespace,
-		Tags:      tags,
+		ID:   id,
+		Tags: tags,
 	}, nil
 }
 

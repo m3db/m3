@@ -51,9 +51,8 @@ type Tag struct {
 
 // Metric is the individual metric that gets returned from the search endpoint
 type Metric struct {
-	Namespace string
-	ID        string
-	Tags      Tags
+	ID   string
+	Tags Tags
 }
 
 // Metrics is a list of individual metrics

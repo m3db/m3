@@ -76,7 +76,7 @@ func NewMockSeriesIterSlice(
 		mockIter.EXPECT().Close().Do(func() {
 			// Make sure to close the tags generated when closing the iter
 			tags.Close()
-		}).MinTimes(1)
+		}).AnyTimes()
 
 		iteratorList = append(iteratorList, mockIter)
 	}
@@ -105,7 +105,7 @@ func NewMockSeriesIters(
 				iter.Close()
 			}
 		}
-	}).MinTimes(1)
+	}).AnyTimes()
 
 	return mockIters
 }

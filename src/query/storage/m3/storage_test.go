@@ -210,6 +210,8 @@ func TestLocalRead(t *testing.T) {
 	sessions.forEach(func(session *client.MockSession) {
 		session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(seriesiter.NewMockSeriesIters(ctrl, testTags, 1, 2), true, nil)
+		session.EXPECT().IteratorPools().
+			Return(nil, nil).AnyTimes()
 	})
 
 	searchReq := newFetchReq()
@@ -243,6 +245,8 @@ func TestLocalSearchError(t *testing.T) {
 	sessions.forEach(func(session *client.MockSession) {
 		session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(nil, false, fmt.Errorf("an error"))
+		session.EXPECT().IteratorPools().
+			Return(nil, nil).AnyTimes()
 	})
 
 	searchReq := newFetchReq()
@@ -306,6 +310,9 @@ func TestLocalSearchSuccess(t *testing.T) {
 
 		session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(iter, true, nil)
+
+		session.EXPECT().IteratorPools().
+			Return(nil, nil).AnyTimes()
 	})
 	searchReq := newFetchReq()
 	result, err := store.FetchTags(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
@@ -328,7 +335,6 @@ func TestLocalSearchSuccess(t *testing.T) {
 		require.True(t, ok)
 
 		assert.Equal(t, expected.id, actual.ID)
-		assert.Equal(t, expected.namespace, actual.Namespace)
 		assert.Equal(t, models.Tags{{
 			Name: expected.tagName, Value: expected.tagValue,
 		}}, actual.Tags)

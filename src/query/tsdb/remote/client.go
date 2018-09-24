@@ -31,14 +31,9 @@ import (
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 
 	"google.golang.org/grpc"
-)
-
-var (
-	namespace = ident.StringID("remote")
 )
 
 // Client is the grpc client
@@ -96,7 +91,7 @@ func (c *grpcClient) Fetch(
 		return nil, err
 	}
 
-	return storage.SeriesIteratorsToFetchResult(iters, nil, c.workerPool)
+	return storage.SeriesIteratorsToFetchResult(iters, c.workerPool)
 }
 
 func (c *grpcClient) fetchRaw(
@@ -150,6 +145,7 @@ func (c *grpcClient) fetchRaw(
 	), nil
 }
 
+// TODO: change to iterator block logic
 func (c *grpcClient) FetchBlocks(
 	ctx context.Context,
 	query *storage.FetchQuery,
@@ -160,7 +156,7 @@ func (c *grpcClient) FetchBlocks(
 		return block.Result{}, err
 	}
 
-	fetchResult, err := storage.SeriesIteratorsToFetchResult(iters, namespace, c.workerPool)
+	fetchResult, err := storage.SeriesIteratorsToFetchResult(iters, c.workerPool)
 	if err != nil {
 		return block.Result{}, err
 	}

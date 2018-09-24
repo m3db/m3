@@ -86,7 +86,10 @@ func TestPromReadStorageWithFetchError(t *testing.T) {
 	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
 	storage, session := local.NewStorageAndSession(t, ctrl)
-	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, true, fmt.Errorf("unable to get data"))
+	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, true, fmt.Errorf("unable to get data"))
+	session.EXPECT().IteratorPools().
+		Return(nil, nil)
 	promRead := &PromReadHandler{engine: executor.NewEngine(storage), promReadMetrics: promReadTestMetrics}
 	req := test.GeneratePromReadRequest()
 	_, err := promRead.read(context.TODO(), httptest.NewRecorder(), req, time.Hour)
@@ -134,7 +137,10 @@ func TestReadErrorMetricsCount(t *testing.T) {
 	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
 	storage, session := local.NewStorageAndSession(t, ctrl)
-	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, true, fmt.Errorf("unable to get data"))
+	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, true, fmt.Errorf("unable to get data"))
+	session.EXPECT().IteratorPools().
+		Return(nil, nil)
 
 	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
 	scope, closer := tally.NewRootScope(tally.ScopeOptions{Reporter: reporter}, time.Millisecond)

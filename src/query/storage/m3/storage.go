@@ -64,7 +64,7 @@ func (s *m3storage) Fetch(
 		return nil, err
 	}
 
-	return storage.SeriesIteratorsToFetchResult(raw, nil, s.workerPool)
+	return storage.SeriesIteratorsToFetchResult(raw, s.workerPool)
 }
 
 func (s *m3storage) FetchBlocks(
@@ -128,6 +128,10 @@ func (s *m3storage) FetchRaw(
 			session := namespace.Session()
 			ns := namespace.NamespaceID()
 			iters, _, err := session.FetchTagged(ns, m3query, opts)
+			// Ignore error from getting iterator pools, since operation
+			// will not be dramatically impacted if pools is nil
+			pools, _ := session.IteratorPools()
+			result.pools = pools
 			result.add(namespace.Options().Attributes(), iters, err)
 			wg.Done()
 		}()
@@ -140,7 +144,7 @@ func (s *m3storage) FetchRaw(
 		return nil, noop, err
 	}
 
-	return result.iterators, result.cleanup, nil
+	return result.iterators, result.close, nil
 }
 
 func (s *m3storage) FetchTags(
@@ -216,7 +220,8 @@ func (s *m3storage) fetchTags(
 
 	var metrics models.Metrics
 	for iter.Next() {
-		m, err := storage.FromM3IdentToMetric(iter.Current())
+		_, id, it := iter.Current()
+		m, err := storage.FromM3IdentToMetric(id, it)
 		if err != nil {
 			return nil, err
 		}
