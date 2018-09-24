@@ -26,7 +26,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/m3db/m3/src/query/test/local"
+	"github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/query/util/logging"
 
 	"github.com/golang/mock/gomock"
@@ -59,8 +59,13 @@ func TestJSONWrite(t *testing.T) {
 	logging.InitWithCores(nil)
 
 	ctrl := gomock.NewController(t)
-	storage, session := local.NewStorageAndSession(t, ctrl)
-	session.EXPECT().WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
+	storage, session := m3.NewStorageAndSession(t, ctrl)
+	session.EXPECT().
+		WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(),
+			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		AnyTimes()
+	session.EXPECT().IteratorPools().
+		Return(nil, nil).AnyTimes()
 
 	jsonWrite := &WriteJSONHandler{store: storage}
 

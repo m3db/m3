@@ -33,7 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/test"
-	"github.com/m3db/m3/src/query/test/local"
+	"github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/query/util/logging"
 	xclock "github.com/m3db/m3x/clock"
 
@@ -51,8 +51,10 @@ func setupServer(t *testing.T) *httptest.Server {
 	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
 	// No calls expected on session object
-	lstore, session := local.NewStorageAndSession(t, ctrl)
-	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, false, fmt.Errorf("not initialized"))
+	lstore, session := m3.NewStorageAndSession(t, ctrl)
+	session.EXPECT().
+		FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, false, fmt.Errorf("not initialized"))
 	storage := test.NewSlowStorage(lstore, 10*time.Millisecond)
 	engine := executor.NewEngine(storage)
 	promRead := &PromReadHandler{engine: engine, promReadMetrics: promReadTestMetrics}
@@ -63,7 +65,7 @@ func setupServer(t *testing.T) *httptest.Server {
 func TestPromReadParsing(t *testing.T) {
 	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
-	storage, _ := local.NewStorageAndSession(t, ctrl)
+	storage, _ := m3.NewStorageAndSession(t, ctrl)
 	promRead := &PromReadHandler{engine: executor.NewEngine(storage), promReadMetrics: promReadTestMetrics}
 	req, _ := http.NewRequest("POST", PromReadURL, test.GeneratePromReadBody(t))
 
@@ -75,7 +77,7 @@ func TestPromReadParsing(t *testing.T) {
 func TestPromReadParsingBad(t *testing.T) {
 	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
-	storage, _ := local.NewStorageAndSession(t, ctrl)
+	storage, _ := m3.NewStorageAndSession(t, ctrl)
 	promRead := &PromReadHandler{engine: executor.NewEngine(storage), promReadMetrics: promReadTestMetrics}
 	req, _ := http.NewRequest("POST", PromReadURL, strings.NewReader("bad body"))
 	_, err := promRead.parseRequest(req)
@@ -85,7 +87,7 @@ func TestPromReadParsingBad(t *testing.T) {
 func TestPromReadStorageWithFetchError(t *testing.T) {
 	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
-	storage, session := local.NewStorageAndSession(t, ctrl)
+	storage, session := m3.NewStorageAndSession(t, ctrl)
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, true, fmt.Errorf("unable to get data"))
 	session.EXPECT().IteratorPools().
@@ -136,7 +138,7 @@ func TestQueryKillOnTimeout(t *testing.T) {
 func TestReadErrorMetricsCount(t *testing.T) {
 	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
-	storage, session := local.NewStorageAndSession(t, ctrl)
+	storage, session := m3.NewStorageAndSession(t, ctrl)
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, true, fmt.Errorf("unable to get data"))
 	session.EXPECT().IteratorPools().

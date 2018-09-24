@@ -131,7 +131,7 @@ func (s *m3storage) FetchRaw(
 			// Ignore error from getting iterator pools, since operation
 			// will not be dramatically impacted if pools is nil
 			pools, _ := session.IteratorPools()
-			result.pools = pools
+			result.setPools(pools)
 			result.add(namespace.Options().Attributes(), iters, err)
 			wg.Done()
 		}()

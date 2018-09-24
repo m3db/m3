@@ -29,7 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/x/metrics"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote/test"
-	"github.com/m3db/m3/src/query/test/local"
+	"github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/query/util/logging"
 	xclock "github.com/m3db/m3x/clock"
 
@@ -41,7 +41,7 @@ import (
 func TestPromWriteParsing(t *testing.T) {
 	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
-	storage, _ := local.NewStorageAndSession(t, ctrl)
+	storage, _ := m3.NewStorageAndSession(t, ctrl)
 
 	promWrite := &PromWriteHandler{store: storage}
 
@@ -58,7 +58,7 @@ func TestPromWrite(t *testing.T) {
 	logging.InitWithCores(nil)
 
 	ctrl := gomock.NewController(t)
-	storage, session := local.NewStorageAndSession(t, ctrl)
+	storage, session := m3.NewStorageAndSession(t, ctrl)
 	session.EXPECT().WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 
 	promWrite := &PromWriteHandler{store: storage}
@@ -78,7 +78,7 @@ func TestWriteErrorMetricCount(t *testing.T) {
 	logging.InitWithCores(nil)
 
 	ctrl := gomock.NewController(t)
-	storage, session := local.NewStorageAndSession(t, ctrl)
+	storage, session := m3.NewStorageAndSession(t, ctrl)
 	session.EXPECT().WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 
 	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())

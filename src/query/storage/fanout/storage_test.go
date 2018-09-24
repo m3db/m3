@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/policy/filter"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/test/local"
+	"github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/query/test/seriesiter"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/logging"
@@ -76,13 +76,18 @@ func setupFanoutRead(t *testing.T, output bool, response ...*fetchResponse) stor
 	}
 
 	ctrl := gomock.NewController(t)
-	store1, session1 := local.NewStorageAndSession(t, ctrl)
-	store2, session2 := local.NewStorageAndSession(t, ctrl)
+	store1, session1 := m3.NewStorageAndSession(t, ctrl)
+	store2, session2 := m3.NewStorageAndSession(t, ctrl)
 
 	session1.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(response[0].result, true, response[0].err)
 	session2.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(response[len(response)-1].result, true, response[len(response)-1].err)
 	session1.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, false, errors.ErrNotImplemented)
 	session2.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, false, errors.ErrNotImplemented)
+	session1.EXPECT().IteratorPools().
+		Return(nil, nil).AnyTimes()
+	session2.EXPECT().IteratorPools().
+		Return(nil, nil).AnyTimes()
+
 	stores := []storage.Storage{
 		store1, store2,
 	}
@@ -94,10 +99,20 @@ func setupFanoutRead(t *testing.T, output bool, response ...*fetchResponse) stor
 func setupFanoutWrite(t *testing.T, output bool, errs ...error) storage.Storage {
 	setup()
 	ctrl := gomock.NewController(t)
-	store1, session1 := local.NewStorageAndSession(t, ctrl)
-	store2, session2 := local.NewStorageAndSession(t, ctrl)
-	session1.EXPECT().WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(errs[0])
-	session2.EXPECT().WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(errs[len(errs)-1])
+	store1, session1 := m3.NewStorageAndSession(t, ctrl)
+	store2, session2 := m3.NewStorageAndSession(t, ctrl)
+	session1.EXPECT().
+		WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(errs[0])
+	session1.EXPECT().IteratorPools().
+		Return(nil, nil).AnyTimes()
+
+	session2.EXPECT().
+		WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(errs[len(errs)-1])
+	session2.EXPECT().IteratorPools().
+		Return(nil, nil).AnyTimes()
+
 	stores := []storage.Storage{
 		store1, store2,
 	}

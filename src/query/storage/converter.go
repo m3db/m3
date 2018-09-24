@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
@@ -38,10 +37,6 @@ import (
 const (
 	xTimeUnit             = xtime.Millisecond
 	initRawFetchAllocSize = 32
-)
-
-var (
-	defaultNamespace = ident.StringID("unknown")
 )
 
 // PromWriteTSToM3 converts a prometheus write query to an M3 one

@@ -33,7 +33,6 @@ import (
 
 var (
 	testID   = ident.StringID("test_id")
-	testNS   = ident.StringID("test_namespace")
 	testTags = models.Tags{{Name: "t1", Value: "v1"}, {Name: "t2", Value: "v2"}}
 	now      = time.Now()
 )

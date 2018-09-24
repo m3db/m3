@@ -31,6 +31,7 @@ import (
 // TODO: use a better seriesIterators merge here
 type multiFetchResult struct {
 	sync.Mutex
+	sync.Once
 	iterators        encoding.SeriesIterators
 	err              xerrors.MultiError
 	dedupeFirstAttrs storage.Attributes
@@ -53,6 +54,14 @@ func (r *multiFetchResult) close() error {
 	}
 
 	return nil
+}
+
+func (r *multiFetchResult) setPools(pools encoding.IteratorPools) {
+	r.Lock()
+	r.Do(func() {
+		r.pools = pools
+	})
+	r.Unlock()
 }
 
 func (r *multiFetchResult) add(
