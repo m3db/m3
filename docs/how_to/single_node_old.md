@@ -29,13 +29,12 @@ Next, create an initial namespace for your metrics in the database:
 
 <!-- TODO: link to config reference docs once available -->
 
-```
+```json
 curl -X POST http://localhost:7201/api/v1/database/create -d '{
   "type": "local",
   "namespaceName": "default",
   "retentionTime": "48h"
 }'
-
 ```
 
 Shortly after, you should see your node complete bootstrapping! Don't worry if you see warnings or

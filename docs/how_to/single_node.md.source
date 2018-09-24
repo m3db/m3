@@ -14,10 +14,10 @@ To begin, first start up a Docker container with port `7201` (used to manage the
 and port `9003` (used to read and write metrics) exposed. We recommend you create a persistent data
 directory on your host for durability:
 
-```
+<operation>
 docker pull quay.io/m3/m3dbnode:latest
 docker run -p 7201:7201 -p 9003:9003 --name m3db -v $(pwd)/m3db_data:/var/lib/m3db quay.io/m3/m3dbnode:latest
-```
+</operation>
 
 <!-- TODO: link to docs containing explanations of what namespaces, the coordinator,
 placements, etc. are -->
@@ -29,14 +29,15 @@ Next, create an initial namespace for your metrics in the database:
 
 <!-- TODO: link to config reference docs once available -->
 
-```
+<operation>
 curl -X POST http://localhost:7201/api/v1/database/create -d '{
   "type": "local",
   "namespaceName": "default",
   "retentionTime": "48h"
 }'
-
-```
+<validation>
+</validation>
+</operation>
 
 Shortly after, you should see your node complete bootstrapping! Don't worry if you see warnings or
 errors related to a local cache file, such as `[W] could not load cache from file
