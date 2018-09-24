@@ -1,0 +1,32 @@
+version: "3.5"
+services:
+  fakewebserver01:
+    expose:
+      - "7000-8000"
+    ports:
+      - "0.0.0.0:8080-9080:7000-8000"
+    networks:
+      - backend
+    environment:
+      - PORT_COUNT=1000
+    image: quay.io/m3/bench-fakewebserver:latest
+  prometheus01:
+    expose:
+      - "9090"
+    ports:
+      - "0.0.0.0:9090:9090"
+    networks:
+      - backend
+    image: prom/prometheus:latest
+    volumes:
+      - "/tmp/prometheus.yml:/etc/prometheus/prometheus.yml"
+  grafana01:
+    expose:
+      - "3000"
+    ports:
+      - "0.0.0.0:3000:3000"
+    networks:
+      - backend
+    image: grafana/grafana:latest
+networks:
+  backend:
