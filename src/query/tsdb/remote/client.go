@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
+	"github.com/m3db/m3/src/query/pools"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3x/pool"
@@ -43,10 +44,10 @@ type Client interface {
 }
 
 type grpcClient struct {
-	client        rpc.QueryClient
-	connection    *grpc.ClientConn
-	iteratorPools encoding.IteratorPools
-	workerPool    pool.ObjectPool
+	client      rpc.QueryClient
+	connection  *grpc.ClientConn
+	poolWrapper *pools.PoolWrapper
+	workerPool  pool.ObjectPool
 }
 
 const initResultSize = 10
@@ -54,7 +55,7 @@ const initResultSize = 10
 // NewGrpcClient creates grpc client
 func NewGrpcClient(
 	addresses []string,
-	iteratorPools encoding.IteratorPools,
+	poolWrapper *pools.PoolWrapper,
 	workerPool pool.ObjectPool,
 	additionalDialOpts ...grpc.DialOption,
 ) (Client, error) {
@@ -73,10 +74,10 @@ func NewGrpcClient(
 
 	client := rpc.NewQueryClient(cc)
 	return &grpcClient{
-		client:        client,
-		connection:    cc,
-		iteratorPools: iteratorPools,
-		workerPool:    workerPool,
+		client:      client,
+		connection:  cc,
+		poolWrapper: poolWrapper,
+		workerPool:  workerPool,
 	}, nil
 }
 
@@ -131,7 +132,20 @@ func (c *grpcClient) fetchRaw(
 			return nil, err
 		}
 
-		iters, err := DecodeCompressedFetchResponse(result, c.iteratorPools)
+		available, pools, err, poolCh, errCh := c.poolWrapper.IteratorPools()
+		if err != nil {
+			return nil, err
+		}
+
+		if !available {
+			select {
+			case pools = <-poolCh:
+			case err = <-errCh:
+				return nil, err
+			}
+		}
+
+		iters, err := DecodeCompressedFetchResponse(result, pools)
 		if err != nil {
 			return nil, err
 		}

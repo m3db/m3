@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package server
+package pools
 
 import (
 	"io"
@@ -48,7 +48,8 @@ const (
 	defaultBucketCapacity       = 256
 )
 
-func buildWorkerPools(
+// BuildWorkerPools builds a worker pool
+func BuildWorkerPools(
 	cfg config.Configuration,
 	logger *zap.Logger,
 	scope tally.Scope,
@@ -130,8 +131,9 @@ func buildBuckets() []pool.Bucket {
 	}
 }
 
-// Build iterator pools if they are unavailable from m3db (e.g. if running standalone query)
-func buildIteratorPools() encoding.IteratorPools {
+// BuildIteratorPools build iterator pools if they are unavailable from
+// m3db (e.g. if running standalone query)
+func BuildIteratorPools() encoding.IteratorPools {
 	// TODO: add instrumentation options to these pools
 	pools := sessionPools{}
 	pools.multiReaderIteratorArray = encoding.NewMultiReaderIteratorArrayPool([]pool.Bucket{
@@ -151,6 +153,7 @@ func buildIteratorPools() encoding.IteratorPools {
 		intOptimized := m3tsz.DefaultIntOptimizationEnabled
 		return m3tsz.NewReaderIterator(r, intOptimized, encodingOpts)
 	}
+
 	pools.multiReaderIterator.Init(readerIterAlloc)
 
 	seriesIteratorPoolOpts := pool.NewObjectPoolOptions().

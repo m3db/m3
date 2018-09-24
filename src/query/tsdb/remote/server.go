@@ -23,8 +23,8 @@ package remote
 import (
 	"net"
 
-	"github.com/m3db/m3/src/dbnode/encoding"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
+	"github.com/m3db/m3/src/query/pools"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/util/logging"
 
@@ -34,19 +34,19 @@ import (
 
 // TODO: add metrics
 type grpcServer struct {
-	storage m3.Storage
-	pools   encoding.IteratorPools
+	storage     m3.Storage
+	poolWrapper *pools.PoolWrapper
 }
 
 // CreateNewGrpcServer builds a grpc server which must be started later
 func CreateNewGrpcServer(
 	store m3.Storage,
-	pools encoding.IteratorPools,
+	poolWrapper *pools.PoolWrapper,
 ) *grpc.Server {
 	server := grpc.NewServer()
 	grpcServer := &grpcServer{
-		storage: store,
-		pools:   pools,
+		storage:     store,
+		poolWrapper: poolWrapper,
 	}
 
 	rpc.RegisterQueryServer(server, grpcServer)
@@ -87,7 +87,20 @@ func (s *grpcServer) Fetch(
 		return err
 	}
 
-	response, err := EncodeToCompressedFetchResult(result, s.pools)
+	available, pools, err, poolCh, errCh := s.poolWrapper.IteratorPools()
+	if err != nil {
+		return err
+	}
+
+	if !available {
+		select {
+		case pools = <-poolCh:
+		case err = <-errCh:
+			return err
+		}
+	}
+
+	response, err := EncodeToCompressedFetchResult(result, pools)
 	if err != nil {
 		logger.Error("unable to compress query", zap.Error(err))
 		return err

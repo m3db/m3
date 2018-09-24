@@ -34,12 +34,12 @@ import (
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/serialize"
 	"github.com/m3db/m3/src/query/api/v1/httpd"
 	m3dbcluster "github.com/m3db/m3/src/query/cluster/m3db"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/policy/filter"
+	"github.com/m3db/m3/src/query/pools"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/fanout"
 	"github.com/m3db/m3/src/query/storage/m3"
@@ -135,12 +135,13 @@ func Run(runOpts RunOptions) {
 		enabled        bool
 	)
 
-	workerPool, instrumentOptions := buildWorkerPools(cfg, logger, scope)
+	workerPool, instrumentOptions := pools.BuildWorkerPools(cfg, logger, scope)
 
 	// For grpc backend, we need to setup only the grpc client and a storage accompanying that client.
 	// For m3db backend, we need to make connections to the m3db cluster which generates a session and use the storage with the session.
 	if cfg.Backend == config.GRPCStorageType {
-		backendStorage, enabled, err = remoteClient(cfg, buildIteratorPools(), workerPool)
+		poolWrapper := pools.NewPoolsWrapper(pools.BuildIteratorPools())
+		backendStorage, enabled, err = remoteClient(cfg, poolWrapper, workerPool)
 		if err != nil {
 			logger.Fatal("unable to setup grpc backend", zap.Error(err))
 		}
@@ -254,12 +255,12 @@ func newM3DBStorage(
 		}
 	}
 
-	clusters, pools, err := initClusters(cfg, runOpts.DBClient, logger)
+	clusters, poolWrapper, err := initClusters(cfg, runOpts.DBClient, logger)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
 
-	fanoutStorage, storageCleanup, err := newStorages(logger, clusters, cfg, pools, workerPool)
+	fanoutStorage, storageCleanup, err := newStorages(logger, clusters, cfg, poolWrapper, workerPool)
 	if err != nil {
 		return nil, nil, nil, nil, errors.Wrap(err, "unable to set up storages")
 	}
@@ -391,11 +392,11 @@ func initClusters(
 	cfg config.Configuration,
 	dbClientCh <-chan client.Client,
 	logger *zap.Logger,
-) (m3.Clusters, encoding.IteratorPools, error) {
+) (m3.Clusters, *pools.PoolWrapper, error) {
 	var (
-		clusters m3.Clusters
-		pools    encoding.IteratorPools
-		err      error
+		clusters    m3.Clusters
+		poolWrapper *pools.PoolWrapper
+		err         error
 	)
 
 	if len(cfg.Clusters) > 0 {
@@ -431,11 +432,11 @@ func initClusters(
 			return nil, nil, errors.Wrap(err, "unable to connect to clusters")
 		}
 
-		<-sessionInitChan
-		pools, err = session.IteratorPools()
-		if err != nil {
-			return nil, nil, errors.Wrap(err, "session iterator pools unavailable")
-		}
+		poolWrapper = pools.NewAsyncPoolsWrapper()
+		go func() {
+			<-sessionInitChan
+			poolWrapper.Init(session.IteratorPools())
+		}()
 	}
 
 	for _, namespace := range clusters.ClusterNamespaces() {
@@ -443,14 +444,14 @@ func initClusters(
 			zap.String("namespace", namespace.NamespaceID().String()))
 	}
 
-	return clusters, pools, nil
+	return clusters, poolWrapper, nil
 }
 
 func newStorages(
 	logger *zap.Logger,
 	clusters m3.Clusters,
 	cfg config.Configuration,
-	pools encoding.IteratorPools,
+	poolWrapper *pools.PoolWrapper,
 	workerPool pool.ObjectPool,
 ) (storage.Storage, cleanupFn, error) {
 	cleanup := func() error { return nil }
@@ -460,7 +461,7 @@ func newStorages(
 	remoteEnabled := false
 	if cfg.RPC != nil && cfg.RPC.Enabled {
 		logger.Info("rpc enabled")
-		server, err := startGrpcServer(logger, localStorage, pools, cfg.RPC)
+		server, err := startGrpcServer(logger, localStorage, poolWrapper, cfg.RPC)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -470,7 +471,7 @@ func newStorages(
 			return nil
 		}
 
-		remoteStorage, enabled, err := remoteClient(cfg, pools, workerPool)
+		remoteStorage, enabled, err := remoteClient(cfg, poolWrapper, workerPool)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -492,7 +493,7 @@ func newStorages(
 
 func remoteClient(
 	cfg config.Configuration,
-	pools encoding.IteratorPools,
+	poolWrapper *pools.PoolWrapper,
 	workerPool pool.ObjectPool,
 ) (storage.Storage, bool, error) {
 	if cfg.RPC == nil {
@@ -500,7 +501,7 @@ func remoteClient(
 	}
 
 	if remotes := cfg.RPC.RemoteListenAddresses; len(remotes) > 0 {
-		client, err := tsdbRemote.NewGrpcClient(remotes, pools, workerPool)
+		client, err := tsdbRemote.NewGrpcClient(remotes, poolWrapper, workerPool)
 		if err != nil {
 			return nil, false, err
 		}
@@ -515,11 +516,11 @@ func remoteClient(
 func startGrpcServer(
 	logger *zap.Logger,
 	storage m3.Storage,
-	pools encoding.IteratorPools,
+	poolWrapper *pools.PoolWrapper,
 	cfg *config.RPCConfiguration,
 ) (*grpc.Server, error) {
 	logger.Info("creating gRPC server")
-	server := tsdbRemote.CreateNewGrpcServer(storage, pools)
+	server := tsdbRemote.CreateNewGrpcServer(storage, poolWrapper)
 	waitForStart := make(chan struct{})
 	var startErr error
 	go func() {
