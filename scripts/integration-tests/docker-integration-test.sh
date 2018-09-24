@@ -44,7 +44,7 @@ curl -vvvsSf -X POST localhost:7201/api/v1/namespace -d '{
 
 echo "Sleep while namespace is init'd"
 
-sleep 10 # TODO Replace sleeps with logic to determine when to proceed
+sleep 60 # TODO Replace sleeps with logic to determine when to proceed
 
 [ "$(curl -sSf localhost:7201/api/v1/namespace | jq .registry.namespaces.default.indexOptions.enabled)" == true ]
 
