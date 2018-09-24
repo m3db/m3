@@ -255,13 +255,13 @@ func (s *m3storage) Write(
 	}
 
 	id := query.Tags.ID()
-	// TODO: Consider caching id -> identId
-	identId := ident.StringID(id)
+	// TODO: Consider caching id -> identID
+	identID := ident.StringID(id)
 	common := &writeRequestCommon{
 		store:       s,
 		annotation:  query.Annotation,
 		unit:        query.Unit,
-		id:          identId,
+		id:          identID,
 		tagIterator: storage.TagsToIdentTagIterator(query.Tags),
 		attributes:  query.Attributes,
 	}
