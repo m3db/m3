@@ -718,19 +718,21 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 	s.state.replicas = replicas
 	s.state.majority = majority
 
-	// NB(r): Always recreate the fetch batch op array array pool as it must be
-	// the exact length of the queues as we index directly into the return array in
-	// in fetch calls
-	poolOpts := pool.NewObjectPoolOptions().
-		SetSize(s.opts.FetchBatchOpPoolSize()).
-		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
-			s.scope.SubScope("fetch-batch-op-array-array-pool"),
-		))
-	s.pools.fetchBatchOpArrayArray = newFetchBatchOpArrayArrayPool(
-		poolOpts,
-		len(queues),
-		s.opts.FetchBatchOpPoolSize()/len(queues))
-	s.pools.fetchBatchOpArrayArray.Init()
+	// If the number of hostQueues has changed then we need to recreate the fetch
+	// batch op array pool as it must be the exact length of the queues as we index
+	// directly into the return array in fetch calls.
+	if len(queues) != len(prevQueues) {
+		poolOpts := pool.NewObjectPoolOptions().
+			SetSize(s.opts.FetchBatchOpPoolSize()).
+			SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+				s.scope.SubScope("fetch-batch-op-array-array-pool"),
+			))
+		s.pools.fetchBatchOpArrayArray = newFetchBatchOpArrayArrayPool(
+			poolOpts,
+			len(queues),
+			s.opts.FetchBatchOpPoolSize()/len(queues))
+		s.pools.fetchBatchOpArrayArray.Init()
+	}
 
 	if s.pools.multiReaderIteratorArray == nil {
 		s.pools.multiReaderIteratorArray = encoding.NewMultiReaderIteratorArrayPool([]pool.Bucket{
