@@ -29,15 +29,15 @@ Next, create an initial namespace for your metrics in the database:
 
 <!-- TODO: link to config reference docs once available -->
 
-<operation>
+<operation_json>
 curl -X POST http://localhost:7201/api/v1/database/create -d '{
   "type": "local",
   "namespaceName": "default",
   "retentionTime": "48h"
 }'
 <validation>
-</validation>
-</operation>
+<!-- TODO: add validation -->
+</validation></operation>
 
 Shortly after, you should see your node complete bootstrapping! Don't worry if you see warnings or
 errors related to a local cache file, such as `[W] could not load cache from file
@@ -60,7 +60,7 @@ going to `localhost:7201/api/v1/openapi` in your browser.
 ![OpenAPI Doc](redoc_screenshot.png)
 
 Now you can experiment with writing tagged metrics:
-```json
+<operation_json>
 curl -sSf -X POST http://localhost:9003/writetagged -d '{
   "namespace": "default",
   "id": "foo",
@@ -80,10 +80,12 @@ curl -sSf -X POST http://localhost:9003/writetagged -d '{
   }
 }
 '
-```
+<validation>
+<!-- TODO: add validation -->
+</validation></operation>
 
 And reading the metrics you've written:
-```json
+<operation_json>
 curl -sSf -X POST http://localhost:9003/query -d '{
   "namespace": "default",
   "query": {
@@ -95,32 +97,9 @@ curl -sSf -X POST http://localhost:9003/query -d '{
   "rangeStart": 0,
   "rangeEnd": '"$(date "+%s")"'
 }' | jq .
-
-{
-  "results": [
-    {
-      "id": "foo",
-      "tags": [
-        {
-          "name": "city",
-          "value": "new_york"
-        },
-        {
-          "name": "endpoint",
-          "value": "/request"
-        }
-      ],
-      "datapoints": [
-        {
-          "timestamp": 1527039389,
-          "value": 42.123456789
-        }
-      ]
-    }
-  ],
-  "exhaustive": true
-}
-```
+<validation>
+<!-- TODO: add validation -->
+</validation></operation>
 
 ## Integrations
 

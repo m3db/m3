@@ -10,10 +10,16 @@ import (
 )
 
 const (
-	starting   = `(?s)<operation>.*?</operation>`
-	docTest    = `<operation>`
-	docTestEnd = `</operation>`
-	validation = `(?s)<validation>.*?</validation>`
+	operationRegEx  = `(?s)<operation>.*?</operation>|(?s)<operation_json>.*?</operation>`
+	validationRegEx = `(?s)<validation>.*?</validation>`
+
+	operationOpen   = `<operation>`
+	operationClose  = `</operation>`
+	operationJSON   = `<operation_json>`
+	validationOpen  = `<validation>`
+	validationClose = `</validation>`
+
+	all = `<operation>|</operation>|<validation>|</validation>`
 )
 
 var (
@@ -32,29 +38,40 @@ func main() {
 		panic(err)
 	}
 
-	re := regexp.MustCompile(starting)
-	validationRegEx := regexp.MustCompile(validation)
-
-	matches := re.FindAll(f, 100)
+	// create bash script file based on name of source file
 	scriptFileName := fmt.Sprintf("%s%s", strings.Replace(file, ".md.source", "", -1), ".sh")
 	script, err := os.Create(scriptFileName)
 	if err != nil {
 		panic(err)
 	}
-
 	defer script.Close()
+
 	script.Chmod(0644)
 	script.WriteString("#!/usr/bin/env bash \n")
 
+	operationRegEx := regexp.MustCompile(operationRegEx)
+	validationRegEx := regexp.MustCompile(validationRegEx)
+
+	// find all of the operations in the source file
+	matches := operationRegEx.FindAll(f, 100)
+
 	for _, match := range matches {
-		fmt.Println(string(match))
-		fmt.Println("***********")
-		replaced := strings.Replace(string(match), "<doc_test>", "", -1)
-		replaced = strings.Replace(replaced, "</doc_test>", "", -1)
-		script.Write([]byte(replaced))
+		// find any validations
+		validationRaw := validationRegEx.Find(match)
+
+		// write operations to script
+		match = validationRegEx.ReplaceAll(match, nil)
+		operation := removeTags(string(match), []string{operationOpen, operationClose, operationJSON})
+		script.WriteString(operation)
+
+		// write validations to script
+		if len(validationRaw) > 0 {
+			validation := removeTags(string(validationRaw), []string{validationOpen, validationClose})
+			script.WriteString(validation)
+		}
 	}
 
-	// create new markdown file without '.source'
+	// create new markdown file based on name of source file
 	out, err := os.Create(strings.Replace(file, ".source", "", -1))
 	if err != nil {
 		panic(err)
@@ -62,11 +79,21 @@ func main() {
 	defer out.Close()
 	out.Chmod(0644)
 
-	open := regexp.MustCompile(docTest)
-	close := regexp.MustCompile(docTestEnd)
+	// convert tags to markdown syntax
+	OpOpen := regexp.MustCompile(operationOpen)
+	OpClose := regexp.MustCompile(operationClose)
+	OpJSONOpen := regexp.MustCompile(operationJSON)
 
-	f = open.ReplaceAll(f, []byte("```"))
-	f = close.ReplaceAll(f, []byte("```"))
+	f = OpOpen.ReplaceAll(f, []byte("```"))
+	f = OpClose.ReplaceAll(f, []byte("```"))
+	f = OpJSONOpen.ReplaceAll(f, []byte("```json"))
 	f = validationRegEx.ReplaceAll(f, nil)
 	out.Write(f)
+}
+
+func removeTags(text string, tagNames []string) string {
+	for _, tag := range tagNames {
+		text = strings.Replace(text, tag, "", -1)
+	}
+	return text
 }
