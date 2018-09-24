@@ -29,14 +29,14 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 )
 
 const (
-	xTimeUnit = xtime.Millisecond
+	xTimeUnit             = xtime.Millisecond
+	initRawFetchAllocSize = 32
 )
 
 // PromWriteTSToM3 converts a prometheus write query to an M3 one
@@ -182,19 +182,10 @@ func SeriesToPromSamples(series *ts.Series) []*prompb.Sample {
 	return samples
 }
 
-const (
-	// TODO(arnikola) get from config
-	initRawFetchAllocSize = 32
-)
-
 func iteratorToTsSeries(
 	iter encoding.SeriesIterator,
-	namespace ident.ID,
 ) (*ts.Series, error) {
-	if namespace == nil {
-		namespace = iter.Namespace()
-	}
-	metric, err := FromM3IdentToMetric(namespace, iter.ID(), iter.Tags())
+	metric, err := FromM3IdentToMetric(iter.ID(), iter.Tags())
 	if err != nil {
 		return nil, err
 	}
@@ -212,11 +203,10 @@ func iteratorToTsSeries(
 func decompressSequentially(
 	iterLength int,
 	iters []encoding.SeriesIterator,
-	namespace ident.ID,
 ) (*FetchResult, error) {
 	seriesList := make([]*ts.Series, iterLength)
 	for i, iter := range iters {
-		series, err := iteratorToTsSeries(iter, namespace)
+		series, err := iteratorToTsSeries(iter)
 		if err != nil {
 			return nil, err
 		}
@@ -231,7 +221,6 @@ func decompressSequentially(
 func decompressConcurrently(
 	iterLength int,
 	iters []encoding.SeriesIterator,
-	namespace ident.ID,
 	pool xsync.WorkerPool,
 ) (*FetchResult, error) {
 	seriesList := make([]*ts.Series, iterLength)
@@ -258,7 +247,7 @@ func decompressConcurrently(
 				return
 			}
 
-			series, err := iteratorToTsSeries(iter, namespace)
+			series, err := iteratorToTsSeries(iter)
 			if err != nil {
 				// Return the first error that is encountered.
 				select {
@@ -285,23 +274,21 @@ func decompressConcurrently(
 // SeriesIteratorsToFetchResult converts SeriesIterators into a fetch result
 func SeriesIteratorsToFetchResult(
 	seriesIterators encoding.SeriesIterators,
-	namespace ident.ID,
 	workerPools pool.ObjectPool,
 ) (*FetchResult, error) {
 	defer seriesIterators.Close()
 
 	iters := seriesIterators.Iters()
 	iterLength := seriesIterators.Len()
-
 	if workerPools == nil {
-		return decompressSequentially(iterLength, iters, namespace)
+		return decompressSequentially(iterLength, iters)
 	}
 
 	pool, ok := workerPools.Get().(xsync.WorkerPool)
 	if !ok {
-		return decompressSequentially(iterLength, iters, namespace)
+		return decompressSequentially(iterLength, iters)
 	}
-	defer workerPools.Put(pool)
 
-	return decompressConcurrently(iterLength, iters, namespace, pool)
+	defer workerPools.Put(pool)
+	return decompressConcurrently(iterLength, iters, pool)
 }

@@ -18,33 +18,42 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package executor
+package m3
 
 import (
-	"context"
-	"fmt"
 	"testing"
+	"time"
 
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/test/m3"
-	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3x/ident"
 
 	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestExecute(t *testing.T) {
-	logging.InitWithCores(nil)
-	ctrl := gomock.NewController(t)
-	store, session := m3.NewStorageAndSession(t, ctrl)
-	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, false, fmt.Errorf("dummy"))
+const (
+	// TestNamespaceID is the namespace of the test unaggregated namespace
+	// used by local storage.
+	TestNamespaceID = "metrics"
+	// TestRetention is the retention of the test unaggregated namespace
+	// used by local storage.
+	TestRetention = 30 * 24 * time.Hour
+)
 
-	// Results is closed by execute
-	results := make(chan *storage.QueryResult)
-	closing := make(chan bool)
-
-	engine := NewEngine(store)
-	go engine.Execute(context.TODO(), &storage.FetchQuery{}, &EngineOptions{}, closing, results)
-	<-results
-	assert.Equal(t, len(engine.tracker.queries), 1)
+// NewStorageAndSession generates a new m3 storage and mock session
+func NewStorageAndSession(
+	t *testing.T,
+	ctrl *gomock.Controller,
+) (storage.Storage, *client.MockSession) {
+	session := client.NewMockSession(ctrl)
+	clusters, err := m3.NewClusters(m3.UnaggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID(TestNamespaceID),
+		Session:     session,
+		Retention:   TestRetention,
+	})
+	require.NoError(t, err)
+	storage := m3.NewStorage(clusters, nil)
+	return storage, session
 }

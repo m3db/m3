@@ -128,6 +128,16 @@ func (s *mockStorage) Fetch(
 	return s.fetchResult.result, s.fetchResult.err
 }
 
+func (s *mockStorage) FetchBlocks(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (block.Result, error) {
+	s.RLock()
+	defer s.RUnlock()
+	return s.fetchBlocksResult.result, s.fetchBlocksResult.err
+}
+
 func (s *mockStorage) FetchTags(
 	ctx context.Context,
 	query *storage.FetchQuery,
@@ -158,14 +168,4 @@ func (s *mockStorage) Close() error {
 	s.RLock()
 	defer s.RUnlock()
 	return s.closeResult.err
-}
-
-func (s *mockStorage) FetchBlocks(
-	ctx context.Context,
-	query *storage.FetchQuery,
-	options *storage.FetchOptions,
-) (block.Result, error) {
-	s.RLock()
-	defer s.RUnlock()
-	return s.fetchBlocksResult.result, s.fetchBlocksResult.err
 }

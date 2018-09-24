@@ -28,6 +28,9 @@ var (
 	// ErrNilWriteQuery is returned when trying to write a nil query
 	ErrNilWriteQuery = errors.New("nil write query")
 
+	// ErrRemoteWriteQuery is returned when trying to write to a remote endpoint query
+	ErrRemoteWriteQuery = errors.New("cannot write to remote endpoint")
+
 	// ErrNotImplemented is returned when the storage endpoint is not implemented
 	ErrNotImplemented = errors.New("not implemented")
 
@@ -55,7 +58,12 @@ var (
 	// ErrCannotDecodeCompressedTags is an error returned when compressed tags cannot be decoded
 	ErrCannotDecodeCompressedTags = errors.New("unable to decode compressed tags")
 
+	// ErrCannotDecodeDecompressedTags is an error returned when decompressed tags cannot be decoded
+	ErrCannotDecodeDecompressedTags = errors.New("unable to decode decompressed tags")
+
+	// ErrCannotEncodeCompressedTags is an error returned when compressed tags cannot be encoded
+	ErrCannotEncodeCompressedTags = errors.New("unable to encode compressed tags")
+
 	// ErrOnlyFixedResSupported is an error returned we try to get step size for variable resolution
 	ErrOnlyFixedResSupported = errors.New("only fixed resolution supported")
-
 )

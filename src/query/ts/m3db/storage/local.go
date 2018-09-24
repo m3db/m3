@@ -28,14 +28,14 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/storage/local"
+	"github.com/m3db/m3/src/query/storage/m3"
 	m3block "github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 )
 
 type localStorage struct {
-	clusters   local.Clusters
+	clusters   m3.Clusters
 	workerPool pool.ObjectPool
 }
 
@@ -48,13 +48,13 @@ var (
 )
 
 // nolint: deadcode
-func newStorage(clusters local.Clusters, workerPool pool.ObjectPool) *localStorage {
+func newStorage(clusters m3.Clusters, workerPool pool.ObjectPool) *localStorage {
 	return &localStorage{clusters: clusters, workerPool: workerPool}
 }
 
 // nolint: unparam
 func (s *localStorage) fetchRaw(
-	namespace local.ClusterNamespace,
+	namespace m3.ClusterNamespace,
 	query index.Query,
 	opts index.QueryOptions,
 ) (encoding.SeriesIterators, bool, error) {

@@ -86,11 +86,24 @@ type FetchOptions struct {
 type Querier interface {
 	// Fetch fetches timeseries data based on a query
 	Fetch(
-		ctx context.Context, query *FetchQuery, options *FetchOptions) (*FetchResult, error)
-	FetchTags(
-		ctx context.Context, query *FetchQuery, options *FetchOptions) (*SearchResults, error)
+		ctx context.Context,
+		query *FetchQuery,
+		options *FetchOptions,
+	) (*FetchResult, error)
+
+	// FetchBlocks converts fetch results to storage blocks
 	FetchBlocks(
-		ctx context.Context, query *FetchQuery, options *FetchOptions) (block.Result, error)
+		ctx context.Context,
+		query *FetchQuery,
+		options *FetchOptions,
+	) (block.Result, error)
+
+	// FetchTags returns search results for tags
+	FetchTags(
+		ctx context.Context,
+		query *FetchQuery,
+		options *FetchOptions,
+	) (*SearchResults, error)
 }
 
 // WriteQuery represents the input timeseries that is written to M3DB

@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package local
+package m3
 
 import (
 	"context"
@@ -210,7 +210,10 @@ func TestLocalRead(t *testing.T) {
 	sessions.forEach(func(session *client.MockSession) {
 		session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(seriesiter.NewMockSeriesIters(ctrl, testTags, 1, 2), true, nil)
+		session.EXPECT().IteratorPools().
+			Return(nil, nil).AnyTimes()
 	})
+
 	searchReq := newFetchReq()
 	results, err := store.Fetch(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
 	assert.NoError(t, err)
@@ -242,6 +245,8 @@ func TestLocalSearchError(t *testing.T) {
 	sessions.forEach(func(session *client.MockSession) {
 		session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(nil, false, fmt.Errorf("an error"))
+		session.EXPECT().IteratorPools().
+			Return(nil, nil).AnyTimes()
 	})
 
 	searchReq := newFetchReq()
@@ -305,6 +310,9 @@ func TestLocalSearchSuccess(t *testing.T) {
 
 		session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(iter, true, nil)
+
+		session.EXPECT().IteratorPools().
+			Return(nil, nil).AnyTimes()
 	})
 	searchReq := newFetchReq()
 	result, err := store.FetchTags(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
@@ -327,9 +335,8 @@ func TestLocalSearchSuccess(t *testing.T) {
 		require.True(t, ok)
 
 		assert.Equal(t, expected.id, actual.ID)
-		assert.Equal(t, expected.namespace, actual.Namespace)
 		assert.Equal(t, models.Tags{{
-			expected.tagName, expected.tagValue,
+			Name: expected.tagName, Value: expected.tagValue,
 		}}, actual.Tags)
 	}
 }

@@ -56,12 +56,13 @@ var (
 	initialize sync.Once
 )
 
-func compressedSegmentFromBlockReader(br xio.BlockReader) (*rpc.Segment, error) {
+func compressedSegmentFromBlockReader(br xio.BlockReader) (*rpc.M3Segment, error) {
 	segment, err := br.Segment()
 	if err != nil {
 		return nil, err
 	}
-	return &rpc.Segment{
+
+	return &rpc.M3Segment{
 		Head:      segment.Head.Bytes(),
 		Tail:      segment.Tail.Bytes(),
 		StartTime: xtime.ToNanoseconds(br.Start),
@@ -69,8 +70,8 @@ func compressedSegmentFromBlockReader(br xio.BlockReader) (*rpc.Segment, error) 
 	}, nil
 }
 
-func compressedSegmentsFromReaders(readers xio.ReaderSliceOfSlicesIterator) (*rpc.Segments, error) {
-	segments := &rpc.Segments{}
+func compressedSegmentsFromReaders(readers xio.ReaderSliceOfSlicesIterator) (*rpc.M3Segments, error) {
+	segments := &rpc.M3Segments{}
 	l, _, _ := readers.CurrentReaders()
 	// NB(arnikola) If there's only a single reader, the segment has been merged
 	// otherwise, multiple unmerged segments exist.
@@ -80,9 +81,10 @@ func compressedSegmentsFromReaders(readers xio.ReaderSliceOfSlicesIterator) (*rp
 		if err != nil {
 			return nil, err
 		}
+
 		segments.Merged = segment
 	} else {
-		unmerged := make([]*rpc.Segment, 0, l)
+		unmerged := make([]*rpc.M3Segment, 0, l)
 		for i := 0; i < l; i++ {
 			br := readers.CurrentReaderAt(i)
 			segment, err := compressedSegmentFromBlockReader(br)
@@ -91,51 +93,38 @@ func compressedSegmentsFromReaders(readers xio.ReaderSliceOfSlicesIterator) (*rp
 			}
 			unmerged = append(unmerged, segment)
 		}
+
 		segments.Unmerged = unmerged
 	}
+
 	return segments, nil
 }
 
-func compressedTagsFromTagIteratorWithEncoder(tagIter ident.TagIterator, encoderPool serialize.TagEncoderPool) ([]byte, error) {
+func compressedTagsFromTagIterator(tagIter ident.TagIterator, encoderPool serialize.TagEncoderPool) ([]byte, error) {
 	encoder := encoderPool.Get()
 	err := encoder.Encode(tagIter)
 	if err != nil {
 		return nil, err
 	}
+
 	defer encoder.Finalize()
 	data, encoded := encoder.Data()
 	if !encoded {
 		return nil, fmt.Errorf("no refs available to data")
 	}
+
 	return data.Bytes(), nil
 }
 
-func tagsFromTagIterator(tagIter ident.TagIterator) ([]*rpc.Tag, error) {
-	tags := make([]*rpc.Tag, 0, tagIter.Remaining())
-	for tagIter.Next() {
-		tag := tagIter.Current()
-		tags = append(tags, &rpc.Tag{
-			Name:  tag.Name.Bytes(),
-			Value: tag.Value.Bytes(),
-		})
-	}
-	err := tagIter.Err()
-	if err != nil {
-		return nil, err
-	}
-	return tags, nil
-}
-
-func buildTags(tagIter ident.TagIterator, iterPools encoding.IteratorPools) ([]byte, []*rpc.Tag, error) {
+func buildTags(tagIter ident.TagIterator, iterPools encoding.IteratorPools) ([]byte, error) {
 	if iterPools != nil {
 		encoderPool := iterPools.TagEncoder()
 		if encoderPool != nil {
-			compressedTags, err := compressedTagsFromTagIteratorWithEncoder(tagIter, encoderPool)
-			return compressedTags, nil, err
+			return compressedTagsFromTagIterator(tagIter, encoderPool)
 		}
 	}
-	tags, err := tagsFromTagIterator(tagIter)
-	return nil, tags, err
+
+	return nil, errors.ErrCannotEncodeCompressedTags
 }
 
 /*
@@ -153,18 +142,20 @@ to send it across the wire without needing to expand the series
 */
 func compressedSeriesFromSeriesIterator(it encoding.SeriesIterator, iterPools encoding.IteratorPools) (*rpc.Series, error) {
 	replicas := it.Replicas()
-	compressedReplicas := make([]*rpc.CompressedValuesReplica, 0, len(replicas))
+	compressedReplicas := make([]*rpc.M3CompressedValuesReplica, 0, len(replicas))
 	for _, replica := range replicas {
-		replicaSegments := make([]*rpc.Segments, 0, len(replicas))
+		replicaSegments := make([]*rpc.M3Segments, 0, len(replicas))
 		readers := replica.Readers()
 		for next := true; next; next = readers.Next() {
 			segments, err := compressedSegmentsFromReaders(readers)
 			if err != nil {
 				return nil, err
 			}
+
 			replicaSegments = append(replicaSegments, segments)
 		}
-		compressedReplicas = append(compressedReplicas, &rpc.CompressedValuesReplica{
+
+		compressedReplicas = append(compressedReplicas, &rpc.M3CompressedValuesReplica{
 			Segments: replicaSegments,
 		})
 	}
@@ -172,31 +163,31 @@ func compressedSeriesFromSeriesIterator(it encoding.SeriesIterator, iterPools en
 	start := xtime.ToNanoseconds(it.Start())
 	end := xtime.ToNanoseconds(it.End())
 
-	compressedTags, tags, err := buildTags(it.Tags(), iterPools)
+	tags, err := buildTags(it.Tags(), iterPools)
 	if err != nil {
 		return nil, err
 	}
 
-	compressedDatapoints := &rpc.CompressedDatapoints{
-		Namespace:      it.Namespace().Bytes(),
-		StartTime:      start,
-		EndTime:        end,
-		Replicas:       compressedReplicas,
-		CompressedTags: compressedTags,
-	}
-
 	return &rpc.Series{
-		Id:         it.ID().Bytes(),
-		Compressed: compressedDatapoints,
-		Tags:       tags,
+		Meta: &rpc.SeriesMetadata{
+			Id:        it.ID().Bytes(),
+			StartTime: start,
+			EndTime:   end,
+		},
+		Value: &rpc.Series_Compressed{
+			Compressed: &rpc.M3CompressedSeries{
+				CompressedTags: tags,
+				Replicas:       compressedReplicas,
+			},
+		},
 	}, nil
 }
 
-// EncodeToCompressedFetchResult encodes SeriesIterators to compressed fetch results
+// EncodeToCompressedFetchResult encodes SeriesIterators to compressed fetch response
 func EncodeToCompressedFetchResult(
 	iterators encoding.SeriesIterators,
 	iterPools encoding.IteratorPools,
-) (*rpc.FetchResult, error) {
+) (*rpc.FetchResponse, error) {
 	iters := iterators.Iters()
 	seriesList := make([]*rpc.Series, 0, len(iters))
 	for _, iter := range iters {
@@ -204,10 +195,11 @@ func EncodeToCompressedFetchResult(
 		if err != nil {
 			return nil, err
 		}
+
 		seriesList = append(seriesList, series)
 	}
 
-	return &rpc.FetchResult{
+	return &rpc.FetchResponse{
 		Series: seriesList,
 	}, nil
 }
@@ -225,11 +217,12 @@ func segmentBytesFromCompressedSegment(
 		head = checked.NewBytes(segHead, opts)
 		tail = checked.NewBytes(segTail, opts)
 	}
+
 	return head, tail
 }
 
 func blockReaderFromCompressedSegment(
-	seg *rpc.Segment,
+	seg *rpc.M3Segment,
 	opts checked.BytesOptions,
 	checkedBytesWrapperPool xpool.CheckedBytesWrapperPool,
 ) xio.BlockReader {
@@ -251,6 +244,7 @@ func tagIteratorFromCompressedTagsWithDecoder(
 	if iterPools == nil || iterPools.CheckedBytesWrapper() == nil || iterPools.TagDecoder() == nil {
 		return nil, errors.ErrCannotDecodeCompressedTags
 	}
+
 	checkedBytes := iterPools.CheckedBytesWrapper().Get(compressedTags)
 	decoder := iterPools.TagDecoder().Get()
 	decoder.Reset(checkedBytes)
@@ -259,50 +253,26 @@ func tagIteratorFromCompressedTagsWithDecoder(
 	return decoder.Duplicate(), nil
 }
 
-func tagIteratorFromTags(compressedTags []*rpc.Tag, idPool ident.Pool) ident.TagIterator {
-	var (
-		tags    ident.Tags
-		tagIter ident.TagsIterator
-	)
-	if idPool != nil {
-		tags = idPool.Tags()
-	} else {
-		tags = ident.NewTags()
+func tagIteratorFromSeries(
+	series *rpc.M3CompressedSeries,
+	iteratorPools encoding.IteratorPools,
+) (ident.TagIterator, error) {
+	if series != nil && len(series.GetCompressedTags()) > 0 {
+		return tagIteratorFromCompressedTagsWithDecoder(
+			series.GetCompressedTags(),
+			iteratorPools,
+		)
 	}
 
-	for _, tag := range compressedTags {
-		name, value := string(tag.GetName()), string(tag.GetValue())
-		if idPool != nil {
-			tags.Append(idPool.StringTag(name, value))
-		} else {
-			tags.Append(ident.StringTag(name, value))
-		}
+	if iteratorPools == nil {
+		return ident.NewTagsIterator(ident.NewTags()), nil
 	}
 
-	if idPool != nil {
-		tagIter = idPool.TagsIterator()
-		tagIter.Reset(tags)
-	} else {
-		tagIter = ident.NewTagsIterator(tags)
-	}
-
-	return tagIter
-}
-
-func tagIteratorFromSeries(series *rpc.Series, iteratorPools encoding.IteratorPools) (ident.TagIterator, error) {
-	compressedValues := series.GetCompressed()
-	if compressedValues != nil && len(compressedValues.GetCompressedTags()) > 0 {
-		return tagIteratorFromCompressedTagsWithDecoder(compressedValues.GetCompressedTags(), iteratorPools)
-	}
-	var idPool ident.Pool
-	if iteratorPools != nil {
-		idPool = iteratorPools.ID()
-	}
-	return tagIteratorFromTags(series.GetTags(), idPool), nil
+	return iteratorPools.TagDecoder().Get().Duplicate(), nil
 }
 
 func blockReadersFromCompressedSegments(
-	segments []*rpc.Segments,
+	segments []*rpc.M3Segments,
 	checkedBytesWrapperPool xpool.CheckedBytesWrapperPool,
 ) [][]xio.BlockReader {
 	blockReaders := make([][]xio.BlockReader, len(segments))
@@ -320,6 +290,7 @@ func blockReadersFromCompressedSegments(
 				blockReadersPerSegment = append(blockReadersPerSegment, reader)
 			}
 		}
+
 		blockReaders[i] = blockReadersPerSegment
 	}
 
@@ -332,7 +303,8 @@ CompressedSeriesFromSeriesIterator, and takes an optional iteratorPool
 argument that allows reuse of the underlying iterator pools from the m3db session
 */
 func seriesIteratorFromCompressedSeries(
-	timeSeries *rpc.Series,
+	timeSeries *rpc.M3CompressedSeries,
+	meta *rpc.SeriesMetadata,
 	iteratorPools encoding.IteratorPools,
 ) (encoding.SeriesIterator, error) {
 	initialize.Do(initializeVars)
@@ -353,9 +325,7 @@ func seriesIteratorFromCompressedSeries(
 		allReplicaIterators []encoding.MultiReaderIterator
 	)
 
-	compressedValues := timeSeries.GetCompressed()
-	replicas := compressedValues.GetReplicas()
-
+	replicas := timeSeries.GetReplicas()
 	// Set up iterator pools if available
 	if iteratorPools != nil {
 		multiReaderPool = iteratorPools.MultiReaderIterator()
@@ -380,19 +350,17 @@ func seriesIteratorFromCompressedSeries(
 	}
 
 	var (
-		idString, nsString = string(timeSeries.GetId()), string(compressedValues.GetNamespace())
-		id, ns             ident.ID
+		idString = string(meta.GetId())
+		id, ns   ident.ID
 	)
 	if idPool != nil {
 		id = idPool.StringID(idString)
-		ns = idPool.StringID(nsString)
 	} else {
 		id = ident.StringID(idString)
-		ns = ident.StringID(nsString)
 	}
 
-	start := xtime.FromNanoseconds(compressedValues.GetStartTime())
-	end := xtime.FromNanoseconds(compressedValues.GetEndTime())
+	start := xtime.FromNanoseconds(meta.GetStartTime())
+	end := xtime.FromNanoseconds(meta.GetEndTime())
 
 	var seriesIter encoding.SeriesIterator
 	if seriesIterPool != nil {
@@ -412,9 +380,9 @@ func seriesIteratorFromCompressedSeries(
 	return seriesIter, nil
 }
 
-// DecodeCompressedFetchResult decodes compressed fetch results to seriesIterators
-func DecodeCompressedFetchResult(
-	fetchResult *rpc.FetchResult,
+// DecodeCompressedFetchResponse decodes compressed fetch response to seriesIterators
+func DecodeCompressedFetchResponse(
+	fetchResult *rpc.FetchResponse,
 	iteratorPools encoding.IteratorPools,
 ) (encoding.SeriesIterators, error) {
 	rpcSeries := fetchResult.GetSeries()
@@ -431,19 +399,35 @@ func DecodeCompressedFetchResult(
 	} else {
 		seriesIterators = make([]encoding.SeriesIterator, numSeries)
 	}
+
 	for i, series := range rpcSeries {
-		iter, err := seriesIteratorFromCompressedSeries(series, iteratorPools)
+		compressed := series.GetCompressed()
+		if compressed == nil {
+			continue
+		}
+
+		iter, err := seriesIteratorFromCompressedSeries(
+			compressed,
+			series.GetMeta(),
+			iteratorPools,
+		)
 		if err != nil {
 			return nil, err
 		}
+
 		if pooledIterators != nil {
 			pooledIterators.SetAt(i, iter)
 		} else {
 			seriesIterators[i] = iter
 		}
 	}
+
 	if pooledIterators != nil {
 		return pooledIterators, nil
 	}
-	return encoding.NewSeriesIterators(seriesIterators, nil), nil
+
+	return encoding.NewSeriesIterators(
+		seriesIterators,
+		nil,
+	), nil
 }

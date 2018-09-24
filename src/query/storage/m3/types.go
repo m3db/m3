@@ -18,42 +18,34 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package local
+package m3
 
 import (
-	"testing"
-	"time"
+	"context"
 
-	"github.com/m3db/m3/src/dbnode/client"
-	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/storage/local"
-	"github.com/m3db/m3x/ident"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3/src/dbnode/encoding"
+	genericstorage "github.com/m3db/m3/src/query/storage"
 )
 
-const (
-	// TestNamespaceID is the namespace of the test unaggregated namespace
-	// used by local storage.
-	TestNamespaceID = "metrics"
-	// TestRetention is the retention of the test unaggregated namespace
-	// used by local storage.
-	TestRetention = 30 * 24 * time.Hour
-)
+// Cleanup is a cleanup function to be called after resources are freed
+type Cleanup func() error
 
-// NewStorageAndSession generates a new local storage and mock session
-func NewStorageAndSession(
-	t *testing.T,
-	ctrl *gomock.Controller,
-) (storage.Storage, *client.MockSession) {
-	session := client.NewMockSession(ctrl)
-	clusters, err := local.NewClusters(local.UnaggregatedClusterNamespaceDefinition{
-		NamespaceID: ident.StringID(TestNamespaceID),
-		Session:     session,
-		Retention:   TestRetention,
-	})
-	require.NoError(t, err)
-	storage := local.NewStorage(clusters, nil)
-	return storage, session
+func noop() error {
+	return nil
+}
+
+// Storage provides an interface for reading and writing to the tsdb
+type Storage interface {
+	genericstorage.Storage
+	Querier
+}
+
+// Querier handles queries against an M3 instance.
+type Querier interface {
+	// FetchRaw fetches timeseries data based on a query
+	FetchRaw(
+		ctx context.Context,
+		query *genericstorage.FetchQuery,
+		options *genericstorage.FetchOptions,
+	) (encoding.SeriesIterators, Cleanup, error)
 }

@@ -38,17 +38,32 @@ func NewStorage(c remote.Client) storage.Storage {
 	return &remoteStorage{client: c}
 }
 
-func (s *remoteStorage) Fetch(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (*storage.FetchResult, error) {
+func (s *remoteStorage) Fetch(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (*storage.FetchResult, error) {
 	return s.client.Fetch(ctx, query, options)
 }
 
-func (s *remoteStorage) FetchTags(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (*storage.SearchResults, error) {
-	// todo (braskin): implement remote FetchTags
-	return nil, errors.ErrNotImplemented
+func (s *remoteStorage) FetchBlocks(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (block.Result, error) {
+	return s.client.FetchBlocks(ctx, query, options)
+}
+
+func (s *remoteStorage) FetchTags(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (*storage.SearchResults, error) {
+	return s.client.FetchTags(ctx, query, options)
 }
 
 func (s *remoteStorage) Write(ctx context.Context, query *storage.WriteQuery) error {
-	return s.client.Write(ctx, query)
+	return errors.ErrRemoteWriteQuery
 }
 
 func (s *remoteStorage) Type() storage.Type {
@@ -57,9 +72,4 @@ func (s *remoteStorage) Type() storage.Type {
 
 func (s *remoteStorage) Close() error {
 	return nil
-}
-
-func (s *remoteStorage) FetchBlocks(
-	ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (block.Result, error) {
-	return block.Result{}, errors.ErrNotImplemented
 }

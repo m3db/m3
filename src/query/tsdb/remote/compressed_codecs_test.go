@@ -22,6 +22,7 @@ package remote
 
 import (
 	"io"
+	"sync"
 	"testing"
 	"time"
 
@@ -29,7 +30,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/serialize"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
-	"github.com/m3db/m3/src/query/errors"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3x/ident"
@@ -52,6 +52,8 @@ var (
 	seriesStart = test.SeriesStart
 	middle      = test.Middle
 	end         = test.End
+
+	tagMu sync.RWMutex
 
 	// required for iterator pool
 	testIterAlloc = func(r io.Reader) encoding.ReaderIterator {
@@ -112,23 +114,27 @@ func validateSeries(t *testing.T, it encoding.SeriesIterator) {
 
 	assert.False(t, it.Next())
 	assert.Equal(t, seriesID, it.ID().String())
-	assert.Equal(t, seriesNamespace, it.Namespace().String())
+	if it.Namespace() != nil {
+		assert.Equal(t, seriesNamespace, it.Namespace().String())
+	}
 	assert.Equal(t, seriesStart, it.Start())
 	assert.Equal(t, end, it.End())
 
+	tagMu.RLock()
 	tagIter := it.Tags()
 	tagCount := 0
-	expectedCount := len(testTags)
+	expectedCount := 2
 	for tagIter.Next() {
 		tag := tagIter.Current()
 		name := tag.Name.String()
 		expectedVal, contains := testTags[name]
 		require.True(t, contains)
 		assert.Equal(t, expectedVal, tag.Value.String())
-		delete(testTags, expectedVal)
 		tagCount++
 	}
+
 	assert.Equal(t, expectedCount, tagCount)
+	tagMu.RUnlock()
 }
 
 func TestGeneratedSeries(t *testing.T) {
@@ -136,29 +142,15 @@ func TestGeneratedSeries(t *testing.T) {
 	validateSeriesInternals(t, buildTestSeriesIterator(t))
 }
 
-func verifyUncompressedTags(t *testing.T, series *rpc.Series) {
-	tags := series.GetTags()
-	require.Len(t, tags, len(testTags))
-	for _, tag := range tags {
-		expectedVal, contains := testTags[string(tag.Name)]
-		require.True(t, contains)
-		assert.Equal(t, expectedVal, string(tag.Value))
-		delete(testTags, expectedVal)
-	}
+func verifyCompressedSeries(t *testing.T, s *rpc.Series) {
+	meta := s.GetMeta()
+	series := s.GetCompressed()
+	require.NotNil(t, series)
+	assert.Equal(t, []byte(seriesID), meta.GetId())
+	assert.Equal(t, seriesStart.UnixNano(), meta.GetStartTime())
+	assert.Equal(t, end.UnixNano(), meta.GetEndTime())
 
-	compressed := series.GetCompressed()
-	assert.Empty(t, compressed.GetCompressedTags())
-}
-
-func verifyCompressedSeries(t *testing.T, series *rpc.Series) {
-	assert.Equal(t, []byte(seriesID), series.GetId())
-
-	compressed := series.GetCompressed()
-	assert.Equal(t, []byte(seriesNamespace), compressed.GetNamespace())
-	assert.Equal(t, seriesStart.UnixNano(), compressed.GetStartTime())
-	assert.Equal(t, end.UnixNano(), compressed.GetEndTime())
-
-	replicas := compressed.GetReplicas()
+	replicas := series.GetReplicas()
 	require.Len(t, replicas, 2)
 
 	for _, replica := range replicas {
@@ -190,43 +182,33 @@ func verifyCompressedSeries(t *testing.T, series *rpc.Series) {
 func TestConversionToCompressedData(t *testing.T) {
 	it := buildTestSeriesIterator(t)
 	series, err := compressedSeriesFromSeriesIterator(it, nil)
-	require.NoError(t, err)
-	verifyCompressedSeries(t, series)
-	verifyUncompressedTags(t, series)
+	require.Error(t, err)
+	require.Nil(t, series)
 }
 
 func TestSeriesConversionFromCompressedData(t *testing.T) {
 	it := buildTestSeriesIterator(t)
-	rpcSeries, err := compressedSeriesFromSeriesIterator(it, nil)
-	require.NoError(t, err)
-
-	assert.NotEmpty(t, rpcSeries.GetTags())
-	assert.Empty(t, rpcSeries.GetCompressed().GetCompressedTags())
-
-	seriesIterator, err := seriesIteratorFromCompressedSeries(rpcSeries, nil)
-	require.NoError(t, err)
-	validateSeries(t, seriesIterator)
-
-	seriesIterator, err = seriesIteratorFromCompressedSeries(rpcSeries, nil)
-	require.NoError(t, err)
-	validateSeriesInternals(t, seriesIterator)
+	series, err := compressedSeriesFromSeriesIterator(it, nil)
+	require.Error(t, err)
+	require.Nil(t, series)
 }
 
 func TestSeriesConversionFromCompressedDataWithIteratorPool(t *testing.T) {
 	it := buildTestSeriesIterator(t)
 	ip := &mockIteratorPool{}
-	rpcSeries, err := compressedSeriesFromSeriesIterator(it, ip)
+	series, err := compressedSeriesFromSeriesIterator(it, ip)
+
 	require.NoError(t, err)
-	verifyCompressedSeries(t, rpcSeries)
+	verifyCompressedSeries(t, series)
+	rpcSeries := series.GetCompressed()
+	require.NotNil(t, rpcSeries)
+	assert.NotEmpty(t, rpcSeries.GetCompressedTags())
 
-	assert.Empty(t, rpcSeries.GetTags())
-	assert.NotEmpty(t, rpcSeries.GetCompressed().GetCompressedTags())
-
-	seriesIterator, err := seriesIteratorFromCompressedSeries(rpcSeries, ip)
+	seriesIterator, err := seriesIteratorFromCompressedSeries(rpcSeries, series.GetMeta(), ip)
 	require.NoError(t, err)
 	validateSeries(t, seriesIterator)
 
-	seriesIterator, err = seriesIteratorFromCompressedSeries(rpcSeries, ip)
+	seriesIterator, err = seriesIteratorFromCompressedSeries(rpcSeries, series.GetMeta(), ip)
 	require.NoError(t, err)
 	validateSeriesInternals(t, seriesIterator)
 
@@ -241,49 +223,18 @@ func TestSeriesConversionFromCompressedDataWithIteratorPool(t *testing.T) {
 	assert.False(t, ip.msiPoolUsed)
 }
 
-func TestSeriesConversionFromCompressedDataWithIteratorPoolOnDecompression(t *testing.T) {
-	it := buildTestSeriesIterator(t)
-	rpcSeries, err := compressedSeriesFromSeriesIterator(it, nil)
-	require.NoError(t, err)
-	verifyCompressedSeries(t, rpcSeries)
-	verifyUncompressedTags(t, rpcSeries)
-
+func TestEncodeToCompressedFetchResult(t *testing.T) {
+	iters := encoding.NewSeriesIterators([]encoding.SeriesIterator{buildTestSeriesIterator(t), buildTestSeriesIterator(t)}, nil)
 	ip := &mockIteratorPool{}
-	seriesIterator, err := seriesIteratorFromCompressedSeries(rpcSeries, ip)
+	fetchResult, err := EncodeToCompressedFetchResult(iters, ip)
 	require.NoError(t, err)
-	validateSeries(t, seriesIterator)
 
-	seriesIterator, err = seriesIteratorFromCompressedSeries(rpcSeries, ip)
-	require.NoError(t, err)
-	validateSeriesInternals(t, seriesIterator)
-
-	assert.True(t, ip.mriPoolUsed)
-	assert.True(t, ip.siPoolUsed)
-	assert.True(t, ip.mriaPoolUsed)
-	assert.True(t, ip.cbwPoolUsed)
-	assert.True(t, ip.identPoolUsed)
-	// Encoded series should be using decompressed tags, should not be using these pools
-	assert.False(t, ip.encodePoolUsed)
-	assert.False(t, ip.decodePoolUsed)
-	// Should not be using mutable series iterator pool
-	assert.False(t, ip.msiPoolUsed)
-}
-
-func TestSeriesConversionFromCompressedDataWithIteratorPoolOnCompression(t *testing.T) {
-	it := buildTestSeriesIterator(t)
-	ip := &mockIteratorPool{}
-	rpcSeries, err := compressedSeriesFromSeriesIterator(it, ip)
-	require.NoError(t, err)
-	verifyCompressedSeries(t, rpcSeries)
-	require.Empty(t, rpcSeries.GetTags())
-	require.NotEmpty(t, rpcSeries.GetCompressed().GetCompressedTags())
-
-	seriesIterator, err := seriesIteratorFromCompressedSeries(rpcSeries, nil)
-	require.EqualError(t, err, errors.ErrCannotDecodeCompressedTags.Error())
-	require.Nil(t, seriesIterator)
+	require.Len(t, fetchResult.Series, 2)
+	for _, series := range fetchResult.Series {
+		verifyCompressedSeries(t, series)
+	}
 
 	assert.True(t, ip.encodePoolUsed)
-	// Encoded series should be using compressed tags, and decompression should fail
 	assert.False(t, ip.mriPoolUsed)
 	assert.False(t, ip.siPoolUsed)
 	assert.False(t, ip.mriaPoolUsed)
@@ -293,43 +244,11 @@ func TestSeriesConversionFromCompressedDataWithIteratorPoolOnCompression(t *test
 	assert.False(t, ip.msiPoolUsed)
 }
 
-func TestEncodeToCompressedFetchResult(t *testing.T) {
-	iters := encoding.NewSeriesIterators([]encoding.SeriesIterator{buildTestSeriesIterator(t), buildTestSeriesIterator(t)}, nil)
-	fetchResult, err := EncodeToCompressedFetchResult(iters, nil)
-	require.NoError(t, err)
-
-	require.Len(t, fetchResult.Series, 2)
-	for _, series := range fetchResult.Series {
-		verifyCompressedSeries(t, series)
-		verifyUncompressedTags(t, series)
-	}
-}
-
 func TestDecodeCompressedFetchResult(t *testing.T) {
 	iters := encoding.NewSeriesIterators([]encoding.SeriesIterator{buildTestSeriesIterator(t), buildTestSeriesIterator(t)}, nil)
 	fetchResult, err := EncodeToCompressedFetchResult(iters, nil)
-	require.NoError(t, err)
-	require.Len(t, fetchResult.Series, 2)
-	for _, series := range fetchResult.Series {
-		verifyCompressedSeries(t, series)
-		verifyUncompressedTags(t, series)
-	}
-
-	revertedIters, err := DecodeCompressedFetchResult(fetchResult, nil)
-	require.NoError(t, err)
-	revertedIterList := revertedIters.Iters()
-	require.Len(t, revertedIterList, 2)
-	for _, seriesIterator := range revertedIterList {
-		validateSeries(t, seriesIterator)
-	}
-
-	revertedIters, err = DecodeCompressedFetchResult(fetchResult, nil)
-	require.NoError(t, err)
-	revertedIterList = revertedIters.Iters()
-	require.Len(t, revertedIterList, 2)
-	for _, seriesIterator := range revertedIterList {
-		validateSeriesInternals(t, seriesIterator)
-	}
+	require.Error(t, err)
+	require.Nil(t, fetchResult)
 }
 
 func TestDecodeCompressedFetchResultWithIteratorPool(t *testing.T) {
@@ -340,11 +259,9 @@ func TestDecodeCompressedFetchResultWithIteratorPool(t *testing.T) {
 	require.Len(t, fetchResult.Series, 2)
 	for _, series := range fetchResult.Series {
 		verifyCompressedSeries(t, series)
-		assert.Empty(t, series.GetTags())
-		require.NotEmpty(t, series.GetCompressed().GetCompressedTags())
 	}
 
-	revertedIters, err := DecodeCompressedFetchResult(fetchResult, ip)
+	revertedIters, err := DecodeCompressedFetchResponse(fetchResult, ip)
 	require.NoError(t, err)
 	revertedIterList := revertedIters.Iters()
 	require.Len(t, revertedIterList, 2)
@@ -352,7 +269,7 @@ func TestDecodeCompressedFetchResultWithIteratorPool(t *testing.T) {
 		validateSeries(t, seriesIterator)
 	}
 
-	revertedIters, err = DecodeCompressedFetchResult(fetchResult, ip)
+	revertedIters, err = DecodeCompressedFetchResponse(fetchResult, ip)
 	require.NoError(t, err)
 	revertedIterList = revertedIters.Iters()
 	require.Len(t, revertedIterList, 2)
@@ -393,6 +310,7 @@ var (
 	_        encoding.IteratorPools = &mockIteratorPool{}
 	buckets                         = []pool.Bucket{{Capacity: 100, Count: 100}}
 	poolOpts                        = pool.NewObjectPoolOptions().SetSize(1)
+	mu       sync.Mutex
 )
 
 func (ip *mockIteratorPool) MultiReaderIterator() encoding.MultiReaderIteratorPool {
@@ -441,8 +359,10 @@ func (ip *mockIteratorPool) TagDecoder() serialize.TagDecoderPool {
 	return decoderPool
 }
 func (ip *mockIteratorPool) TagEncoder() serialize.TagEncoderPool {
+	mu.Lock()
 	ip.encodePoolUsed = true
 	encoderPool := serialize.NewTagEncoderPool(serialize.NewTagEncoderOptions(), poolOpts)
 	encoderPool.Init()
+	mu.Unlock()
 	return encoderPool
 }

@@ -34,12 +34,12 @@ import (
 // GenerateSingleSampleTagIterator generates a new tag iterator
 func GenerateSingleSampleTagIterator(ctrl *gomock.Controller, tag ident.Tag) ident.TagIterator {
 	mockTagIterator := ident.NewMockTagIterator(ctrl)
-	mockTagIterator.EXPECT().Remaining().Return(1).Times(1)
-	mockTagIterator.EXPECT().Next().Return(true).Times(1)
-	mockTagIterator.EXPECT().Current().Return(tag).Times(1)
-	mockTagIterator.EXPECT().Next().Return(false).Times(1)
-	mockTagIterator.EXPECT().Err().Return(nil).Times(1)
-	mockTagIterator.EXPECT().Close().Times(1)
+	mockTagIterator.EXPECT().Remaining().Return(1).MaxTimes(1)
+	mockTagIterator.EXPECT().Next().Return(true).MaxTimes(1)
+	mockTagIterator.EXPECT().Current().Return(tag).MaxTimes(1)
+	mockTagIterator.EXPECT().Next().Return(false).MaxTimes(1)
+	mockTagIterator.EXPECT().Err().Return(nil).MaxTimes(1)
+	mockTagIterator.EXPECT().Close().AnyTimes()
 
 	return mockTagIterator
 }
@@ -53,24 +53,30 @@ func GenerateTag() ident.Tag {
 }
 
 // NewMockSeriesIterSlice generates a slice of mock series iterators
-func NewMockSeriesIterSlice(ctrl *gomock.Controller, tagGenerator func() ident.TagIterator, len int, numValues int) []encoding.SeriesIterator {
+func NewMockSeriesIterSlice(
+	ctrl *gomock.Controller,
+	tagGenerator func() ident.TagIterator,
+	len int,
+	numValues int,
+) []encoding.SeriesIterator {
 	iteratorList := make([]encoding.SeriesIterator, 0, len)
 	for i := 0; i < len; i++ {
 		mockIter := encoding.NewMockSeriesIterator(ctrl)
-		mockIter.EXPECT().Next().Return(true).Times(numValues)
-		mockIter.EXPECT().Next().Return(false).Times(1)
+		mockIter.EXPECT().Next().Return(true).MaxTimes(numValues)
+		mockIter.EXPECT().Next().Return(false).MaxTimes(1)
 		now := time.Now()
 		for i := 0; i < numValues; i++ {
-			mockIter.EXPECT().Current().Return(m3ts.Datapoint{Timestamp: now.Add(time.Duration(i*10) * time.Second), Value: float64(i)}, xtime.Millisecond, nil).Times(1)
+			mockIter.EXPECT().Current().Return(m3ts.Datapoint{Timestamp: now.Add(time.Duration(i*10) * time.Second), Value: float64(i)}, xtime.Millisecond, nil).MaxTimes(1)
 		}
 
 		tags := tagGenerator()
-		mockIter.EXPECT().ID().Return(ident.StringID("foo")).Times(1)
-		mockIter.EXPECT().Tags().Return(tags).Times(1)
+		mockIter.EXPECT().Namespace().Return(ident.StringID("foo")).AnyTimes()
+		mockIter.EXPECT().ID().Return(ident.StringID("bar")).AnyTimes()
+		mockIter.EXPECT().Tags().Return(tags).MaxTimes(1)
 		mockIter.EXPECT().Close().Do(func() {
 			// Make sure to close the tags generated when closing the iter
 			tags.Close()
-		})
+		}).AnyTimes()
 
 		iteratorList = append(iteratorList, mockIter)
 	}
@@ -78,21 +84,28 @@ func NewMockSeriesIterSlice(ctrl *gomock.Controller, tagGenerator func() ident.T
 }
 
 // NewMockSeriesIters generates a new mock series iters
-func NewMockSeriesIters(ctrl *gomock.Controller, tags ident.Tag, len int, numValues int) encoding.SeriesIterators {
+func NewMockSeriesIters(
+	ctrl *gomock.Controller,
+	tags ident.Tag,
+	l int,
+	numValues int,
+) encoding.SeriesIterators {
 	tagGenerator := func() ident.TagIterator {
 		return GenerateSingleSampleTagIterator(ctrl, tags)
 	}
-	iteratorList := NewMockSeriesIterSlice(ctrl, tagGenerator, len, numValues)
 
+	iteratorList := NewMockSeriesIterSlice(ctrl, tagGenerator, l, numValues)
 	mockIters := encoding.NewMockSeriesIterators(ctrl)
-	mockIters.EXPECT().Iters().Return(iteratorList)
-	mockIters.EXPECT().Len().Return(len)
+	mockIters.EXPECT().Iters().Return(iteratorList).AnyTimes()
+	mockIters.EXPECT().Len().Return(l).AnyTimes()
 	mockIters.EXPECT().Close().Do(func() {
 		// Make sure to close the iterators
 		for _, iter := range iteratorList {
-			iter.Close()
+			if iter != nil {
+				iter.Close()
+			}
 		}
-	})
+	}).AnyTimes()
 
 	return mockIters
 }

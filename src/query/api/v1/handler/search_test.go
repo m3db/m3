@@ -34,7 +34,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/test/local"
+	"github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/query/test/seriesiter"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3x/ident"
@@ -45,8 +45,7 @@ import (
 )
 
 const (
-	testID        = "test_id"
-	testNamespace = "test_namespace"
+	testID = "test_id"
 )
 
 func generateSearchReq() *storage.FetchQuery {
@@ -81,7 +80,7 @@ func generateTagIters(ctrl *gomock.Controller) *client.MockTaggedIDsIterator {
 	mockTaggedIDsIter := client.NewMockTaggedIDsIterator(ctrl)
 	mockTaggedIDsIter.EXPECT().Next().Return(true).MaxTimes(1)
 	mockTaggedIDsIter.EXPECT().Next().Return(false)
-	mockTaggedIDsIter.EXPECT().Current().Return(ident.StringID(testNamespace),
+	mockTaggedIDsIter.EXPECT().Current().Return(ident.StringID("ns"),
 		ident.StringID(testID), seriesiter.GenerateSingleSampleTagIterator(ctrl, seriesiter.GenerateTag()))
 	mockTaggedIDsIter.EXPECT().Err().Return(nil)
 	mockTaggedIDsIter.EXPECT().Finalize()
@@ -95,7 +94,7 @@ func searchServer(t *testing.T) *SearchHandler {
 
 	mockTaggedIDsIter := generateTagIters(ctrl)
 
-	storage, session := local.NewStorageAndSession(t, ctrl)
+	storage, session := m3.NewStorageAndSession(t, ctrl)
 	session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(mockTaggedIDsIter, false, nil)
 
@@ -111,8 +110,7 @@ func TestSearchResponse(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, testID, results.Metrics[0].ID)
-	assert.Equal(t, testNamespace, results.Metrics[0].Namespace)
-	assert.Equal(t, models.Tags{{"foo", "bar"}}, results.Metrics[0].Tags)
+	assert.Equal(t, models.Tags{{Name: "foo", Value: "bar"}}, results.Metrics[0].Tags)
 }
 
 func TestSearchEndpoint(t *testing.T) {

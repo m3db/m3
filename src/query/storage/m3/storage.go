@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package local
+package m3
 
 import (
 	"context"
@@ -27,13 +27,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/execution"
-	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
@@ -43,29 +43,60 @@ var (
 	errNoLocalClustersFulfillsQuery = goerrors.New("no clusters can fulfill query")
 )
 
-type localStorage struct {
+type m3storage struct {
 	clusters   Clusters
 	workerPool pool.ObjectPool
 }
 
-// NewStorage creates a new local Storage instance.
-func NewStorage(clusters Clusters, workerPool pool.ObjectPool) storage.Storage {
-	return &localStorage{clusters: clusters, workerPool: workerPool}
+// NewStorage creates a new local m3storage instance.
+func NewStorage(clusters Clusters, workerPool pool.ObjectPool) Storage {
+	return &m3storage{clusters: clusters, workerPool: workerPool}
 }
 
-func (s *localStorage) Fetch(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (*storage.FetchResult, error) {
+func (s *m3storage) Fetch(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (*storage.FetchResult, error) {
+	raw, cleanup, err := s.FetchRaw(ctx, query, options)
+	defer cleanup()
+	if err != nil {
+		return nil, err
+	}
+
+	return storage.SeriesIteratorsToFetchResult(raw, s.workerPool)
+}
+
+func (s *m3storage) FetchBlocks(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (block.Result, error) {
+	fetchResult, err := s.Fetch(ctx, query, options)
+	if err != nil {
+		return block.Result{}, err
+	}
+
+	return storage.FetchResultToBlockResult(fetchResult, query)
+}
+
+func (s *m3storage) FetchRaw(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (encoding.SeriesIterators, Cleanup, error) {
 	// Check if the query was interrupted.
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nil, noop, ctx.Err()
 	case <-options.KillChan:
-		return nil, errors.ErrQueryInterrupted
+		return nil, noop, errors.ErrQueryInterrupted
 	default:
 	}
 
 	m3query, err := storage.FetchQueryToM3Query(query)
 	if err != nil {
-		return nil, err
+		return nil, noop, err
 	}
 
 	// NB(r): Since we don't use a single index we fan out to each
@@ -94,41 +125,33 @@ func (s *localStorage) Fetch(ctx context.Context, query *storage.FetchQuery, opt
 
 		wg.Add(1)
 		go func() {
-			r, err := s.fetch(namespace, m3query, opts)
-			result.add(namespace.Options().Attributes(), r, err)
+			session := namespace.Session()
+			ns := namespace.NamespaceID()
+			iters, _, err := session.FetchTagged(ns, m3query, opts)
+			// Ignore error from getting iterator pools, since operation
+			// will not be dramatically impacted if pools is nil
+			pools, _ := session.IteratorPools()
+			result.setPools(pools)
+			result.add(namespace.Options().Attributes(), iters, err)
 			wg.Done()
 		}()
 	}
-
 	if fetches == 0 {
-		return nil, errNoLocalClustersFulfillsQuery
+		return nil, noop, errNoLocalClustersFulfillsQuery
 	}
-
 	wg.Wait()
 	if err := result.err.FinalError(); err != nil {
-		return nil, err
-	}
-	return result.result, nil
-}
-
-func (s *localStorage) fetch(
-	namespace ClusterNamespace,
-	query index.Query,
-	opts index.QueryOptions,
-) (*storage.FetchResult, error) {
-	namespaceID := namespace.NamespaceID()
-	session := namespace.Session()
-
-	// TODO (nikunj): Handle second return param
-	iters, _, err := session.FetchTagged(namespaceID, query, opts)
-	if err != nil {
-		return nil, err
+		return nil, noop, err
 	}
 
-	return storage.SeriesIteratorsToFetchResult(iters, namespaceID, s.workerPool)
+	return result.iterators, result.close, nil
 }
 
-func (s *localStorage) FetchTags(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (*storage.SearchResults, error) {
+func (s *m3storage) FetchTags(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (*storage.SearchResults, error) {
 	// Check if the query was interrupted.
 	select {
 	case <-ctx.Done():
@@ -181,7 +204,7 @@ func (s *localStorage) FetchTags(ctx context.Context, query *storage.FetchQuery,
 	return result.result, nil
 }
 
-func (s *localStorage) fetchTags(
+func (s *m3storage) fetchTags(
 	namespace ClusterNamespace,
 	query index.Query,
 	opts index.QueryOptions,
@@ -197,24 +220,29 @@ func (s *localStorage) fetchTags(
 
 	var metrics models.Metrics
 	for iter.Next() {
-		m, err := storage.FromM3IdentToMetric(iter.Current())
+		_, id, it := iter.Current()
+		m, err := storage.FromM3IdentToMetric(id, it)
 		if err != nil {
 			return nil, err
 		}
 
 		metrics = append(metrics, m)
 	}
+
 	if err := iter.Err(); err != nil {
 		return nil, err
 	}
-	iter.Finalize()
 
+	iter.Finalize()
 	return &storage.SearchResults{
 		Metrics: metrics,
 	}, nil
 }
 
-func (s *localStorage) Write(ctx context.Context, query *storage.WriteQuery) error {
+func (s *m3storage) Write(
+	ctx context.Context,
+	query *storage.WriteQuery,
+) error {
 	// Check if the query was interrupted.
 	select {
 	case <-ctx.Done():
@@ -243,28 +271,11 @@ func (s *localStorage) Write(ctx context.Context, query *storage.WriteQuery) err
 	return execution.ExecuteParallel(ctx, requests)
 }
 
-func (s *localStorage) Type() storage.Type {
+func (s *m3storage) Type() storage.Type {
 	return storage.TypeLocalDC
 }
 
-func (s *localStorage) FetchBlocks(
-	ctx context.Context,
-	query *storage.FetchQuery,
-	options *storage.FetchOptions) (block.Result, error) {
-	fetchResult, err := s.Fetch(ctx, query, options)
-	if err != nil {
-		return block.Result{}, err
-	}
-
-	res, err := storage.FetchResultToBlockResult(fetchResult, query)
-	if err != nil {
-		return block.Result{}, err
-	}
-
-	return res, nil
-}
-
-func (s *localStorage) Close() error {
+func (s *m3storage) Close() error {
 	return nil
 }
 
@@ -307,7 +318,7 @@ func (w *writeRequest) Process(ctx context.Context) error {
 }
 
 type writeRequestCommon struct {
-	store       *localStorage
+	store       *m3storage
 	annotation  []byte
 	unit        xtime.Unit
 	id          string
@@ -321,127 +332,14 @@ type writeRequest struct {
 	value              float64
 }
 
-func newWriteRequest(writeRequestCommon *writeRequestCommon, timestamp time.Time, value float64) execution.Request {
+func newWriteRequest(
+	writeRequestCommon *writeRequestCommon,
+	timestamp time.Time,
+	value float64,
+) execution.Request {
 	return &writeRequest{
 		writeRequestCommon: writeRequestCommon,
 		timestamp:          timestamp,
 		value:              value,
-	}
-}
-
-type multiFetchResult struct {
-	sync.Mutex
-	result           *storage.FetchResult
-	err              xerrors.MultiError
-	dedupeFirstAttrs storage.Attributes
-	dedupeMap        map[string]multiFetchResultSeries
-}
-
-type multiFetchResultSeries struct {
-	idx   int
-	attrs storage.Attributes
-}
-
-func (r *multiFetchResult) add(
-	attrs storage.Attributes,
-	result *storage.FetchResult,
-	err error,
-) {
-	r.Lock()
-	defer r.Unlock()
-
-	if err != nil {
-		r.err = r.err.Add(err)
-		return
-	}
-
-	if r.result == nil {
-		r.result = result
-		r.dedupeFirstAttrs = attrs
-		return
-	}
-
-	r.result.HasNext = r.result.HasNext && result.HasNext
-	r.result.LocalOnly = r.result.LocalOnly && result.LocalOnly
-
-	// Need to dedupe
-	if r.dedupeMap == nil {
-		r.dedupeMap = make(map[string]multiFetchResultSeries, len(r.result.SeriesList))
-		for idx, s := range r.result.SeriesList {
-			r.dedupeMap[s.Name()] = multiFetchResultSeries{
-				idx:   idx,
-				attrs: r.dedupeFirstAttrs,
-			}
-		}
-	}
-
-	for _, s := range result.SeriesList {
-		id := s.Name()
-		existing, exists := r.dedupeMap[id]
-		if exists && existing.attrs.Resolution <= attrs.Resolution {
-			// Already exists and resolution of result we are adding is not as precise
-			continue
-		}
-
-		// Does not exist already or more precise, add result
-		var idx int
-		if !exists {
-			idx = len(r.result.SeriesList)
-			r.result.SeriesList = append(r.result.SeriesList, s)
-		} else {
-			idx = existing.idx
-			r.result.SeriesList[idx] = s
-		}
-
-		r.dedupeMap[id] = multiFetchResultSeries{
-			idx:   idx,
-			attrs: attrs,
-		}
-	}
-}
-
-type multiFetchTagsResult struct {
-	sync.Mutex
-	result    *storage.SearchResults
-	err       xerrors.MultiError
-	dedupeMap map[string]struct{}
-}
-
-func (r *multiFetchTagsResult) add(
-	result *storage.SearchResults,
-	err error,
-) {
-	r.Lock()
-	defer r.Unlock()
-
-	if err != nil {
-		r.err = r.err.Add(err)
-		return
-	}
-
-	if r.result == nil {
-		r.result = result
-		return
-	}
-
-	// Need to dedupe
-	if r.dedupeMap == nil {
-		r.dedupeMap = make(map[string]struct{}, len(r.result.Metrics))
-		for _, s := range r.result.Metrics {
-			r.dedupeMap[s.ID] = struct{}{}
-		}
-	}
-
-	for _, s := range result.Metrics {
-		id := s.ID
-		_, exists := r.dedupeMap[id]
-		if exists {
-			// Already exists
-			continue
-		}
-
-		// Does not exist already, add result
-		r.result.Metrics = append(r.result.Metrics, s)
-		r.dedupeMap[id] = struct{}{}
 	}
 }

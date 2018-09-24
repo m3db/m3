@@ -18,33 +18,57 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package executor
+package m3
 
 import (
-	"context"
-	"fmt"
-	"testing"
+	"sync"
 
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/test/m3"
-	"github.com/m3db/m3/src/query/util/logging"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
+	xerrors "github.com/m3db/m3x/errors"
 )
 
-func TestExecute(t *testing.T) {
-	logging.InitWithCores(nil)
-	ctrl := gomock.NewController(t)
-	store, session := m3.NewStorageAndSession(t, ctrl)
-	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, false, fmt.Errorf("dummy"))
+type multiFetchTagsResult struct {
+	sync.Mutex
+	result    *storage.SearchResults
+	err       xerrors.MultiError
+	dedupeMap map[string]struct{}
+}
 
-	// Results is closed by execute
-	results := make(chan *storage.QueryResult)
-	closing := make(chan bool)
+func (r *multiFetchTagsResult) add(
+	result *storage.SearchResults,
+	err error,
+) {
+	r.Lock()
+	defer r.Unlock()
 
-	engine := NewEngine(store)
-	go engine.Execute(context.TODO(), &storage.FetchQuery{}, &EngineOptions{}, closing, results)
-	<-results
-	assert.Equal(t, len(engine.tracker.queries), 1)
+	if err != nil {
+		r.err = r.err.Add(err)
+		return
+	}
+
+	if r.result == nil {
+		r.result = result
+		return
+	}
+
+	// Need to dedupe
+	if r.dedupeMap == nil {
+		r.dedupeMap = make(map[string]struct{}, len(r.result.Metrics))
+		for _, s := range r.result.Metrics {
+			r.dedupeMap[s.ID] = struct{}{}
+		}
+	}
+
+	for _, s := range result.Metrics {
+		id := s.ID
+		_, exists := r.dedupeMap[id]
+		if exists {
+			// Already exists
+			continue
+		}
+
+		// Does not exist already, add result
+		r.result.Metrics = append(r.result.Metrics, s)
+		r.dedupeMap[id] = struct{}{}
+	}
 }
