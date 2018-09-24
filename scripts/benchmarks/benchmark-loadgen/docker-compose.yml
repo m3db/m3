@@ -1,10 +1,6 @@
 version: "3.5"
 services:
   fakewebserver01:
-    expose:
-      - "7000-7100"
-    ports:
-      - "0.0.0.0:8080-8180:7000-7100"
     networks:
       - backend
     environment:
