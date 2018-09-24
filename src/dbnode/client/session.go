@@ -763,6 +763,7 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 		s.pools.multiReaderIterator = encoding.NewMultiReaderIteratorPool(poolOpts)
 		s.pools.multiReaderIterator.Init(s.opts.ReaderIteratorAllocate())
 	}
+
 	if replicas > len(s.metrics.writeNodesRespondingErrors) {
 		curr := len(s.metrics.writeNodesRespondingErrors)
 		for i := curr; i < replicas; i++ {
@@ -772,6 +773,7 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 				append(s.metrics.writeNodesRespondingErrors, counter)
 		}
 	}
+
 	if replicas > len(s.metrics.fetchNodesRespondingErrors) {
 		curr := len(s.metrics.fetchNodesRespondingErrors)
 		for i := curr; i < replicas; i++ {

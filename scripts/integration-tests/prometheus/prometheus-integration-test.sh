@@ -9,7 +9,7 @@ PARAM_TEST_BUILD="${TEST_BUILD:-true}"
 PARAM_TEST_VERIFY="${TEST_VERIFY:-true}"
 PARAM_TEST_TEARDOWN="${TEST_TEARDOWN:-true}"
 
-if [ $PARAM_TEST_BUILD != "true" ]; then
+if [ "$PARAM_TEST_BUILD" != "true" ]; then
   echo "SKIP build docker images"
 else
   echo "Build docker images"
@@ -19,11 +19,12 @@ fi
 echo "Run m3dbnode and m3coordinator containers"
 
 docker-compose -f docker-compose.yml up -d dbnode01
+docker-compose -f docker-compose.yml up -d dbnode02
 docker-compose -f docker-compose.yml up -d coordinator01
 
 echo "Sleeping for a bit to ensure db up"
 
-sleep 10 # TODO Replace sleeps with logic to determine when to proceed
+sleep 2 # TODO Replace sleeps with logic to determine when to proceed
 
 echo "Adding namespace"
 
@@ -34,7 +35,7 @@ curl -vvvsSf -X POST localhost:7201/api/v1/namespace -d '{
     "flushEnabled": true,
     "writesToCommitLog": true,
     "cleanupEnabled": true,
-    "snapshotEnabled": false,
+    "snapshotEnabled": true,
     "repairEnabled": false,
     "retentionOptions": {
       "retentionPeriodNanos": 172800000000000,
@@ -53,7 +54,7 @@ curl -vvvsSf -X POST localhost:7201/api/v1/namespace -d '{
 
 echo "Sleep while namespace is init'd"
 
-sleep 10 # TODO Replace sleeps with logic to determine when to proceed
+sleep 2 # TODO Replace sleeps with logic to determine when to proceed
 
 [ "$(curl -sSf localhost:7201/api/v1/namespace | jq .registry.namespaces.prometheus_metrics.indexOptions.enabled)" == true ]
 
@@ -71,6 +72,15 @@ curl -vvvsSf -X POST localhost:7201/api/v1/placement/init -d '{
             "endpoint": "dbnode01:9000",
             "hostname": "dbnode01",
             "port": 9000
+        },
+        {
+            "id": "m3db_local_2",
+            "isolation_group": "rack-b",
+            "zone": "embedded",
+            "weight": 1024,
+            "endpoint": "dbnode02:9005",
+            "hostname": "dbnode02",
+            "port": 9005
         }
     ]
 }'
@@ -79,13 +89,14 @@ curl -vvvsSf -X POST localhost:7201/api/v1/placement/init -d '{
 
 echo "Wait for placement to fully initialize"
 
-sleep 10 # TODO Replace sleeps with logic to determine when to proceed
+sleep 2 # TODO Replace sleeps with logic to determine when to proceed
 
-echo "Start Prometheus container"
+echo "Start Prometheus and Grafana containers"
 
 docker-compose -f docker-compose.yml up -d prometheus01
+docker-compose -f docker-compose.yml up -d grafana
 
-if [ $PARAM_TEST_VERIFY != "true" ]; then
+if [ "$PARAM_TEST_VERIFY" != "true" ]; then
   echo "SKIP verify"
 else
   echo "Write direct test data"
@@ -138,7 +149,7 @@ else
   [ "$(curl -sSf localhost:9090/api/v1/query?query=prometheus_remote_storage_succeeded_samples_total | jq .data.result[].value[1])" != '"0"' ]
 fi
 
-if [ $PARAM_TEST_TEARDOWN != "true" ]; then
+if [ "$PARAM_TEST_TEARDOWN" != "true" ]; then
   echo "SKIP teardown"
 else
   docker-compose -f docker-compose.yml down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
