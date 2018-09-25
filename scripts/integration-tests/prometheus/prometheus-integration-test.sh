@@ -19,12 +19,11 @@ fi
 echo "Run m3dbnode and m3coordinator containers"
 
 docker-compose -f docker-compose.yml up -d dbnode01
-docker-compose -f docker-compose.yml up -d dbnode02
 docker-compose -f docker-compose.yml up -d coordinator01
 
 echo "Sleeping for a bit to ensure db up"
 
-sleep 2 # TODO Replace sleeps with logic to determine when to proceed
+sleep 10 # TODO Replace sleeps with logic to determine when to proceed
 
 echo "Adding namespace"
 
@@ -54,7 +53,7 @@ curl -vvvsSf -X POST localhost:7201/api/v1/namespace -d '{
 
 echo "Sleep while namespace is init'd"
 
-sleep 2 # TODO Replace sleeps with logic to determine when to proceed
+sleep 10 # TODO Replace sleeps with logic to determine when to proceed
 
 [ "$(curl -sSf localhost:7201/api/v1/namespace | jq .registry.namespaces.prometheus_metrics.indexOptions.enabled)" == true ]
 
@@ -72,15 +71,6 @@ curl -vvvsSf -X POST localhost:7201/api/v1/placement/init -d '{
             "endpoint": "dbnode01:9000",
             "hostname": "dbnode01",
             "port": 9000
-        },
-        {
-            "id": "m3db_local_2",
-            "isolation_group": "rack-b",
-            "zone": "embedded",
-            "weight": 1024,
-            "endpoint": "dbnode02:9005",
-            "hostname": "dbnode02",
-            "port": 9005
         }
     ]
 }'
