@@ -235,7 +235,6 @@ func (w *writer) Close() error {
 		return err
 	}
 
-	w.chunkWriter.fd = nil
 	w.start = timeZero
 	w.duration = 0
 	w.seen.ClearAll()
