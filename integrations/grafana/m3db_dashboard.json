@@ -134,7 +134,7 @@
       "tableColumn": "Value",
       "targets": [
         {
-          "expr": "sum(database_bootstrapped{instance=~\"$instance\"} == 1)",
+          "expr": "sum(database_bootstrapped{instance=~\"$instance\"} == bool 1)",
           "format": "time_series",
           "instant": true,
           "intervalFactor": 1,
