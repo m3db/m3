@@ -65,13 +65,14 @@ func TestConcurrentQueries(t *testing.T) {
 			require.NoError(t, err)
 
 			var (
-				wg       sync.WaitGroup
-				errLock  sync.Mutex
-				matchErr error
+				numConcurrentWorkers = 2
+				wg                   sync.WaitGroup
+				errLock              sync.Mutex
+				matchErr             error
 			)
-			wg.Add(2)
+			wg.Add(numConcurrentWorkers)
 
-			for i := 0; i < 2; i++ {
+			for i := 0; i < numConcurrentWorkers; i++ {
 				go func() {
 					defer wg.Done()
 					fstDocs, err := fstExec.Execute(q)
