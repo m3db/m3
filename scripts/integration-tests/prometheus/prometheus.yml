@@ -2,8 +2,8 @@
 global:
   external_labels:
     role: "remote"
-  scrape_interval:     1s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
-  evaluation_interval: 1s # Evaluate rules every 15 seconds. The default is every 1 minute.
+  scrape_interval:     15s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
+  evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
   # scrape_timeout is set to the global default (10s).
 
 # Alertmanager configuration
@@ -36,7 +36,7 @@ scrape_configs:
 
   - job_name: 'dbnode'
     static_configs:
-      - targets: ['dbnode01:7203', 'dbnode02:7203', 'dbnode03:7203']
+      - targets: ['dbnode01:9004']
 
 remote_read:
   - url: http://coordinator01:7201/api/v1/prom/remote/read
