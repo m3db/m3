@@ -105,6 +105,7 @@ func NewDatabase(
 	// Wait for the topology to be available
 	log.Info("cluster database resolving topology")
 	<-watch.C()
+	log.Info("cluster database resolved topology")
 
 	d := &clusterDB{
 		log:            log,
