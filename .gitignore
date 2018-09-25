@@ -47,5 +47,3 @@ site/
 # Automatically populated from asset sources
 m3db.io/openapi
 
-# GitHub API token
-github_token
