@@ -6,6 +6,8 @@ coverage:
   status:
     project:
       default: on
+      x:
+        flags: x
       query:
         flags: query
       dbnode:
