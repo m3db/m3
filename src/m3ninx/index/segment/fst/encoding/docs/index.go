@@ -103,7 +103,6 @@ func (w *IndexWriter) Reset(wr io.Writer) {
 // IndexReader is a reader for the index file for documents.
 type IndexReader struct {
 	data  []byte
-	dec   *encoding.Decoder
 	base  postings.ID
 	limit postings.ID
 	len   int
@@ -127,10 +126,10 @@ func NewIndexReader(data []byte) (*IndexReader, error) {
 
 	r := &IndexReader{
 		data: data,
-		dec:  encoding.NewDecoder(data[:8]),
 	}
 
-	base, err := r.dec.Uint64()
+	dec := encoding.NewDecoder(data[:8])
+	base, err := dec.Uint64()
 	if err != nil {
 		return nil, fmt.Errorf("could not read base postings ID: %v", err)
 	}
@@ -146,8 +145,8 @@ func (r *IndexReader) Read(id postings.ID) (uint64, error) {
 	}
 
 	idx := r.index(id)
-	r.dec.Reset(r.data[idx:])
-	offset, err := r.dec.Uint64()
+	dec := encoding.NewDecoder(r.data[idx:])
+	offset, err := dec.Uint64()
 	if err != nil {
 		return 0, err
 	}

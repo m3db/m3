@@ -1,5 +1,3 @@
-// +build big
-
 // Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -25,6 +23,7 @@ package proptest
 import (
 	"math/rand"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -38,7 +37,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSegmentDistributionDoesNotAffectQuery(t *testing.T) {
+func TestConcurrentQueries(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
 	seed := time.Now().UnixNano()
 	parameters.MinSuccessfulTests = 100
@@ -47,87 +46,48 @@ func TestSegmentDistributionDoesNotAffectQuery(t *testing.T) {
 	properties := gopter.NewProperties(parameters)
 
 	simpleSeg := newTestMemSegment(t, lotsTestDocuments)
-	properties.Property("Any distribution of test documents in segments does not affect query results", prop.ForAll(
-		func(i propTestInput, q search.Query) (bool, error) {
-			r, err := simpleSeg.Reader()
-			require.NoError(t, err)
-			eOrg := executor.NewExecutor([]index.Reader{r})
-			dOrg, err := eOrg.Execute(q)
-			if err != nil {
-				return false, err
-			}
-			matchedDocs, err := collectDocs(dOrg)
-			require.NoError(t, err)
-			docMatcher, err := newDocumentIteratorMatcher(matchedDocs...)
-			require.NoError(t, err)
+	simpleReader, err := simpleSeg.Reader()
+	require.NoError(t, err)
+	simpleExec := executor.NewExecutor([]index.Reader{simpleReader})
 
-			segments := i.generate(t, lotsTestDocuments)
-			readers := make([]index.Reader, 0, len(segments))
-			for _, s := range segments {
-				r, err := s.Reader()
-				if err != nil {
-					return false, err
-				}
-				readers = append(readers, r)
-			}
-
-			e := executor.NewExecutor(readers)
-			d, err := e.Execute(q)
-			if err != nil {
-				return false, err
-			}
-
-			if err := docMatcher.Matches(d); err != nil {
-				return false, err
-			}
-
-			return true, nil
-		},
-		genPropTestInput(len(lotsTestDocuments)),
-		genQuery(lotsTestDocuments),
-	))
-
-	reporter := gopter.NewFormatedReporter(true, 160, os.Stdout)
-	if !properties.Run(reporter) {
-		t.Errorf("failed with initial seed: %d", seed)
-	}
-}
-
-func TestFSTSimpleSegmentsQueryTheSame(t *testing.T) {
-	parameters := gopter.DefaultTestParameters()
-	seed := time.Now().UnixNano()
-	parameters.MinSuccessfulTests = 100
-	parameters.MaxSize = 20
-	parameters.Rng = rand.New(rand.NewSource(seed))
-	properties := gopter.NewProperties(parameters)
-
-	simpleSeg := newTestMemSegment(t, lotsTestDocuments)
 	fstSeg := fst.ToTestSegment(t, simpleSeg, fstOptions)
+	fstReader, err := fstSeg.Reader()
+	require.NoError(t, err)
+	fstExec := executor.NewExecutor([]index.Reader{fstReader})
 
-	properties.Property("Simple & FST Segments Query the same results", prop.ForAll(
+	properties.Property("Any concurrent queries segments does not affect fst segments", prop.ForAll(
 		func(q search.Query) (bool, error) {
-			r, err := simpleSeg.Reader()
+			dOrg, err := simpleExec.Execute(q)
 			require.NoError(t, err)
-			eOrg := executor.NewExecutor([]index.Reader{r})
-			dOrg, err := eOrg.Execute(q)
-			if err != nil {
-				return false, err
-			}
 			matchedDocs, err := collectDocs(dOrg)
 			require.NoError(t, err)
 			docMatcher, err := newDocumentIteratorMatcher(matchedDocs...)
 			require.NoError(t, err)
 
-			rFst, err := fstSeg.Reader()
-			require.NoError(t, err)
-			e := executor.NewExecutor([]index.Reader{rFst})
-			d, err := e.Execute(q)
-			if err != nil {
-				return false, err
-			}
+			var (
+				wg       sync.WaitGroup
+				errLock  sync.Mutex
+				matchErr error
+			)
+			wg.Add(2)
 
-			if err := docMatcher.Matches(d); err != nil {
-				return false, err
+			for i := 0; i < 2; i++ {
+				go func() {
+					defer wg.Done()
+					fstDocs, err := fstExec.Execute(q)
+					require.NoError(t, err)
+					if err := docMatcher.Matches(fstDocs); err != nil {
+						errLock.Lock()
+						matchErr = err
+						errLock.Unlock()
+					}
+				}()
+			}
+			wg.Wait()
+			errLock.Lock()
+			defer errLock.Unlock()
+			if matchErr != nil {
+				return false, matchErr
 			}
 
 			return true, nil
