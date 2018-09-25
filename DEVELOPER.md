@@ -1,5 +1,9 @@
 # Developer Notes
 
+## Running the M3 stack locally
+
+Follow the instructions in `/scripts/development/m3_stack/README.md`
+
 ## Testing Changes
 M3DB has an extensive (and ever increasing) set of tests to ensure we are able to validate changes. More notes about the various testing strategies we employ can be found in `TESTING.md`. An unfortunate consequence of the number of tests is running the test suite takes too long on a developer's laptop. Here's the workflow most developers employ to be productive. Note: take this as a suggestion of something that works for some people, not as a directive. Do what makes you enjoy the development process most, including disregarding this suggestion!
 
@@ -56,3 +60,4 @@ make docs-deploy
 ## M3DB Website
 The [M3DB website](https://m3db.io/) is hosted via netlify. It is configured to run `make site-build` and then serving the contents of the `/m3db.io` directory. The site is built and republished every time
 there is a push to master.
+

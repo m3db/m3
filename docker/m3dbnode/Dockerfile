@@ -18,7 +18,7 @@ RUN cd /go/src/github.com/m3db/m3/ && \
 FROM alpine:latest
 LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
 
-EXPOSE 2379/tcp 2380/tcp 7201/tcp 9000-9004/tcp
+EXPOSE 2379/tcp 2380/tcp 7201/tcp 7203/tcp 9000-9004/tcp
 
 COPY --from=builder /go/src/github.com/m3db/m3/bin/m3dbnode /bin/
 COPY --from=builder /go/src/github.com/m3db/m3/src/dbnode/config/m3dbnode-local-etcd.yml /etc/m3dbnode/m3dbnode.yml
