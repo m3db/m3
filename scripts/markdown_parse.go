@@ -47,7 +47,8 @@ func main() {
 	defer script.Close()
 
 	script.Chmod(0644)
-	script.WriteString("#!/usr/bin/env bash \n")
+	script.WriteString("#!/usr/bin/env bash \n \n")
+	script.WriteString("set -xe \n")
 
 	operationRegEx := regexp.MustCompile(operationRegEx)
 	validationRegEx := regexp.MustCompile(validationRegEx)
