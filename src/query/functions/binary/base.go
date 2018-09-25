@@ -70,6 +70,8 @@ func ArithmeticFunction(opType string, returnBool bool) (Function, error) {
 		return fn, nil
 	}
 
+	// For comparison functions, check if returning bool or not and return the
+	// appropriate one
 	if returnBool {
 		opType += returnBoolSuffix
 	}

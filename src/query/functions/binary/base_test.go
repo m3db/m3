@@ -27,24 +27,42 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func testFunction(t *testing.T, op string, expected float64) {
+	fn, err := ArithmeticFunction(op, false)
+	assert.NoError(t, err)
+	actual := fn(12, 15)
+	if math.IsNaN(expected) {
+		assert.True(t, math.IsNaN(actual))
+	} else {
+		assert.Equal(t, expected, actual)
+	}
+}
+
+func testFunctionReturnBool(t *testing.T, op string, expected float64) {
+	fn, err := ArithmeticFunction(op, true)
+	assert.NoError(t, err)
+	assert.Equal(t, expected, fn(12, 15))
+}
+
 func TestArithmeticFunction(t *testing.T) {
-	fn, err := ArithmeticFunction(PlusType, false)
-	assert.NoError(t, err)
-	assert.Equal(t, 27.0, fn(12, 15))
+	testFunction(t, PlusType, 27)
+	testFunction(t, MinusType, -3)
+	testFunction(t, MultiplyType, 180)
+	testFunction(t, DivType, 0.8)
+	testFunction(t, ExpType, 15407021574586368)
+	testFunction(t, ModType, 12)
 
-	fn, err = ArithmeticFunction(EqType, false)
-	assert.NoError(t, err)
-	assert.True(t, math.IsNaN(fn(12, 15)))
+	testFunction(t, EqType, math.NaN())
+	testFunction(t, NotEqType, 12)
+	testFunction(t, GreaterType, math.NaN())
+	testFunction(t, LesserType, 12)
+	testFunction(t, GreaterEqType, math.NaN())
+	testFunction(t, LesserEqType, 12)
 
-	fn, err = ArithmeticFunction(EqType, false)
-	assert.NoError(t, err)
-	assert.Equal(t, 12.0, fn(12, 12))
-
-	fn, err = ArithmeticFunction(EqType, true)
-	assert.NoError(t, err)
-	assert.Equal(t, 0.0, fn(12, 15))
-
-	fn, err = ArithmeticFunction(EqType, true)
-	assert.NoError(t, err)
-	assert.Equal(t, 1.0, fn(12, 12))
+	testFunctionReturnBool(t, EqType, 0)
+	testFunctionReturnBool(t, NotEqType, 1)
+	testFunctionReturnBool(t, GreaterType, 0)
+	testFunctionReturnBool(t, LesserType, 1)
+	testFunctionReturnBool(t, GreaterEqType, 0)
+	testFunctionReturnBool(t, LesserEqType, 1)
 }
