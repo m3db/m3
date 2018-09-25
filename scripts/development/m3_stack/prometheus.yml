@@ -1,10 +1,8 @@
-# my global config
 global:
   external_labels:
     role: "remote"
-  scrape_interval:     1s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
-  evaluation_interval: 1s # Evaluate rules every 15 seconds. The default is every 1 minute.
-  # scrape_timeout is set to the global default (10s).
+  scrape_interval:     1s # Set low to increase load
+  evaluation_interval: 1s # Set low to increase load
 
 # Alertmanager configuration
 alerting:
