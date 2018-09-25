@@ -1,0 +1,75 @@
+version: "3.5"
+services:
+  m3db_seed:
+    networks:
+      - backend
+    build:
+      context: ../../../
+      dockerfile: ./docker/m3dbnode/Dockerfile
+    image: m3dbnode01:latest
+    volumes:
+      - "./dbnode_config.yml:/etc/m3dbnode/m3dbnode.yml"
+    environment:
+      - M3DB_HOST_ID=m3db_seed
+  m3db_data01:
+    networks:
+      - backend
+    build:
+      context: ../../../
+      dockerfile: ./docker/m3dbnode/Dockerfile
+    image: m3dbnode02:latest
+    volumes:
+      - "./dbnode_config.yml:/etc/m3dbnode/m3dbnode.yml"
+    environment:
+      - M3DB_HOST_ID=m3db_data01
+  m3db_data02:
+    networks:
+      - backend
+    build:
+      context: ../../../
+      dockerfile: ./docker/m3dbnode/Dockerfile
+    image: m3dbnode03:latest
+    volumes:
+      - "./dbnode_config.yml:/etc/m3dbnode/m3dbnode.yml"
+    environment:
+      - M3DB_HOST_ID=m3db_data02
+  coordinator01:
+    expose:
+      - "7201"
+      - "7203"
+      - "7208"
+    ports:
+      - "0.0.0.0:7201:7201"
+      - "0.0.0.0:7203:7203"
+      - "0.0.0.0:7208:7208"
+    networks:
+      - backend
+    build:
+      context: ../../../
+      dockerfile: ./docker/m3coordinator/Dockerfile
+    image: m3coordinator01:latest
+    volumes:
+      - "./:/etc/m3coordinator/"
+  prometheus01:
+    expose:
+      - "9090"
+    ports:
+      - "0.0.0.0:9090:9090"
+    networks:
+      - backend
+    image: prom/prometheus:latest
+    volumes:
+      - "./:/etc/prometheus/"
+  grafana2:
+    build:
+      context: ../../../
+      dockerfile: ./docker/grafana/Dockerfile
+    expose:
+      - "3000"
+    ports:
+      - "0.0.0.0:3000:3000"
+    networks:
+      - backend
+    image: grafana/grafana:latest
+networks:
+  backend:
