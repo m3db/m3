@@ -9,7 +9,7 @@ This docker-compose file will setup the following environment:
 
 ## Usage
 
-Use the `start.sh` and `stop.sh` scripts
+Use the `start_m3.sh` and `stop_m3.sh` scripts
 
 ## Grafana
 
