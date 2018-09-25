@@ -70,7 +70,10 @@ type Configuration struct {
 
 	// DecompressWorkerPoolSize is the size of the worker pool given to each
 	// fetch request.
-	DecompressWorkerPoolSize int `yaml:"workerPoolSize"`
+	DecompressWorkerPoolSize int `yaml:"decompressWorkerPoolSize"`
+
+	// WriteWorkerPoolSize is the size of the worker pool write requests.
+	WriteWorkerPoolSize int `yaml:"writeWorkerPoolSize"`
 }
 
 // LocalConfiguration is the local embedded configuration if running

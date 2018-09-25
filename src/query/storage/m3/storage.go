@@ -33,10 +33,11 @@ import (
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/util/execution"
+	"github.com/m3db/m3/src/query/ts"
+	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
-	xtime "github.com/m3db/m3x/time"
+	xsync "github.com/m3db/m3x/sync"
 )
 
 var (
@@ -44,13 +45,15 @@ var (
 )
 
 type m3storage struct {
-	clusters   Clusters
-	workerPool pool.ObjectPool
+	clusters        Clusters
+	readWorkerPool  pool.ObjectPool
+	writeWorkerPool xsync.PooledWorkerPool
 }
 
 // NewStorage creates a new local m3storage instance.
-func NewStorage(clusters Clusters, workerPool pool.ObjectPool) Storage {
-	return &m3storage{clusters: clusters, workerPool: workerPool}
+// TODO: Consider combining readWorkerPool and writeWorkerPool
+func NewStorage(clusters Clusters, workerPool pool.ObjectPool, writeWorkerPool xsync.PooledWorkerPool) Storage {
+	return &m3storage{clusters: clusters, readWorkerPool: workerPool, writeWorkerPool: writeWorkerPool}
 }
 
 func (s *m3storage) Fetch(
@@ -64,7 +67,7 @@ func (s *m3storage) Fetch(
 		return nil, err
 	}
 
-	return storage.SeriesIteratorsToFetchResult(raw, s.workerPool)
+	return storage.SeriesIteratorsToFetchResult(raw, s.readWorkerPool)
 }
 
 func (s *m3storage) FetchBlocks(
@@ -259,20 +262,30 @@ func (s *m3storage) Write(
 	identID := ident.StringID(id)
 	// Set id to NoFinalize to avoid cloning it in write operations
 	identID.NoFinalize()
-	common := &writeRequestCommon{
-		store:       s,
-		annotation:  query.Annotation,
-		unit:        query.Unit,
-		id:          identID,
-		tagIterator: storage.TagsToIdentTagIterator(query.Tags),
-		attributes:  query.Attributes,
+	tagIterator := storage.TagsToIdentTagIterator(query.Tags)
+
+	var (
+		wg       sync.WaitGroup
+		multiErr xerrors.MultiError
+	)
+
+	for _, datapoint := range query.Datapoints {
+		tagIter := tagIterator.Duplicate()
+		// capture var
+		datapoint := datapoint
+		s.writeWorkerPool.Go(func() {
+			wg.Add(1)
+			if err := s.writeSingle(ctx, query, datapoint, identID, tagIter); err != nil {
+				multiErr = multiErr.Add(err)
+			}
+
+			tagIter.Close()
+			wg.Done()
+		})
 	}
 
-	requests := make([]execution.Request, len(query.Datapoints))
-	for idx, datapoint := range query.Datapoints {
-		requests[idx] = newWriteRequest(common, datapoint.Timestamp, datapoint.Value)
-	}
-	return execution.ExecuteParallel(ctx, requests)
+	wg.Wait()
+	return multiErr.FinalError()
 }
 
 func (s *m3storage) Type() storage.Type {
@@ -283,31 +296,35 @@ func (s *m3storage) Close() error {
 	return nil
 }
 
-func (w *writeRequest) Process(ctx context.Context) error {
-	common := w.writeRequestCommon
-	store := common.store
-	id := common.id
-
+func (s *m3storage) writeSingle(
+	ctx context.Context,
+	query *storage.WriteQuery,
+	datapoint ts.Datapoint,
+	identID ident.ID,
+	iterator ident.TagIterator,
+) error {
 	var (
 		namespace ClusterNamespace
 		err       error
 	)
-	switch common.attributes.MetricsType {
+
+	attributes := query.Attributes
+	switch attributes.MetricsType {
 	case storage.UnaggregatedMetricsType:
-		namespace = store.clusters.UnaggregatedClusterNamespace()
+		namespace = s.clusters.UnaggregatedClusterNamespace()
 	case storage.AggregatedMetricsType:
 		attrs := RetentionResolution{
-			Retention:  common.attributes.Retention,
-			Resolution: common.attributes.Resolution,
+			Retention:  attributes.Retention,
+			Resolution: attributes.Resolution,
 		}
 		var exists bool
-		namespace, exists = store.clusters.AggregatedClusterNamespace(attrs)
+		namespace, exists = s.clusters.AggregatedClusterNamespace(attrs)
 		if !exists {
 			err = fmt.Errorf("no configured cluster namespace for: retention=%s, resolution=%s",
 				attrs.Retention.String(), attrs.Resolution.String())
 		}
 	default:
-		metricsType := common.attributes.MetricsType
+		metricsType := attributes.MetricsType
 		err = fmt.Errorf("invalid write request metrics type: %s (%d)",
 			metricsType.String(), uint(metricsType))
 	}
@@ -317,33 +334,6 @@ func (w *writeRequest) Process(ctx context.Context) error {
 
 	namespaceID := namespace.NamespaceID()
 	session := namespace.Session()
-	return session.WriteTagged(namespaceID, id, common.tagIterator,
-		w.timestamp, w.value, common.unit, common.annotation)
-}
-
-type writeRequestCommon struct {
-	store       *m3storage
-	annotation  []byte
-	unit        xtime.Unit
-	id          ident.ID
-	tagIterator ident.TagIterator
-	attributes  storage.Attributes
-}
-
-type writeRequest struct {
-	writeRequestCommon *writeRequestCommon
-	timestamp          time.Time
-	value              float64
-}
-
-func newWriteRequest(
-	writeRequestCommon *writeRequestCommon,
-	timestamp time.Time,
-	value float64,
-) execution.Request {
-	return &writeRequest{
-		writeRequestCommon: writeRequestCommon,
-		timestamp:          timestamp,
-		value:              value,
-	}
+	return session.WriteTagged(namespaceID, identID, iterator,
+		datapoint.Timestamp, datapoint.Value, query.Unit, query.Annotation)
 }
