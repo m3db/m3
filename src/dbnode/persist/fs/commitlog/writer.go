@@ -24,6 +24,8 @@ import (
 	"bufio"
 	"encoding/binary"
 	"errors"
+	"io"
+	"io/ioutil"
 	"os"
 	"time"
 
@@ -146,12 +148,11 @@ func (w *writer) Open(start time.Time, duration time.Duration) error {
 	if err := w.logEncoder.EncodeLogInfo(logInfo); err != nil {
 		return err
 	}
-	fd, err := fs.OpenWritable(filePath, w.newFileMode)
+	_, err = fs.OpenWritable(filePath, w.newFileMode)
 	if err != nil {
 		return err
 	}
 
-	w.chunkWriter.fd = fd
 	w.buffer.Reset(w.chunkWriter)
 	if err := w.write(w.logEncoder.Bytes()); err != nil {
 		w.Close()
@@ -245,9 +246,6 @@ func (w *writer) Close() error {
 	if err := w.Flush(); err != nil {
 		return err
 	}
-	if err := w.chunkWriter.fd.Close(); err != nil {
-		return err
-	}
 
 	w.chunkWriter.fd = nil
 	w.start = timeZero
@@ -278,7 +276,7 @@ func (w *writer) write(data []byte) error {
 }
 
 type chunkWriter struct {
-	fd      *os.File
+	fd      io.Writer
 	flushFn flushFn
 	buff    []byte
 	fsync   bool
@@ -286,6 +284,7 @@ type chunkWriter struct {
 
 func newChunkWriter(flushFn flushFn, fsync bool) *chunkWriter {
 	return &chunkWriter{
+		fd:      ioutil.Discard,
 		flushFn: flushFn,
 		buff:    make([]byte, chunkHeaderLen),
 		fsync:   fsync,
@@ -325,11 +324,6 @@ func (w *chunkWriter) Write(p []byte) (int, error) {
 	if err != nil {
 		w.flushFn(err)
 		return n, err
-	}
-
-	// Fsync if required to
-	if w.fsync {
-		err = w.fd.Sync()
 	}
 
 	// Fire flush callback
