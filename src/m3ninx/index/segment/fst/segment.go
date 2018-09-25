@@ -319,9 +319,10 @@ func (r *fsSegment) MatchRegexp(field []byte, compiled index.CompiledRegex) (pos
 
 	var (
 		fstCloser     = x.NewSafeCloser(termsFST)
-		pl            = r.opts.PostingsListPool().Get()
 		iter, iterErr = termsFST.Search(re, compiled.PrefixBegin, compiled.PrefixEnd)
 		iterCloser    = x.NewSafeCloser(iter)
+		// NB(prateek): way quicker to union the PLs together at the end, rathen than one at a time.
+		pls []postings.List // TODO: pool this slice allocation
 	)
 	defer func() {
 		iterCloser.Close()
@@ -342,11 +343,13 @@ func (r *fsSegment) MatchRegexp(field []byte, compiled index.CompiledRegex) (pos
 		if err != nil {
 			return nil, err
 		}
-		if err := pl.Union(nextPl); err != nil {
-			return nil, err
-		}
-
+		pls = append(pls, nextPl)
 		iterErr = iter.Next()
+	}
+
+	pl, err := roaring.Union(pls)
+	if err != nil {
+		return nil, err
 	}
 
 	if err := iterCloser.Close(); err != nil {
