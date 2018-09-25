@@ -32,6 +32,10 @@ curl -vvvsSf -X POST localhost:7201/api/v1/namespace -d '{
 }'
 echo "Done initializing namespace"
 
+echo "Validating namespace"
+[ "$(curl -sSf localhost:7201/api/v1/namespace | jq .registry.namespaces.prometheus_metrics.indexOptions.enabled)" == true ]
+echo "Done validating namespace"
+
 echo "Initializing topology"
 curl -vvvsSf -X POST localhost:7201/api/v1/placement/init -d '{
     "num_shards": 64,
@@ -67,6 +71,10 @@ curl -vvvsSf -X POST localhost:7201/api/v1/placement/init -d '{
     ]
 }'
 echo "Done initializing topology"
+
+echo "Validating topology"
+[ "$(curl -sSf localhost:7201/api/v1/placement | jq .placement.instances.m3db_seed.id)" == '"m3db_seed"' ]
+echo "Done validating topology"
 
 echo "Prometheus available at localhost:9090"
 echo "Grafana available at localhost:3000"
