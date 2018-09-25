@@ -95,6 +95,29 @@ func TestServiceHealth(t *testing.T) {
 	assert.Equal(t, true, result.Bootstrapped)
 }
 
+func TestServiceBootstrapped(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
+
+	service := NewService(mockDB, nil).(*service)
+
+	// Should return an error when not bootstrapped
+	mockDB.EXPECT().IsBootstrapped().Return(false)
+	tctx, _ := thrift.NewContext(time.Minute)
+	_, err := service.Bootstrapped(tctx)
+	require.Error(t, err)
+
+	// Should not return an error when bootstrapped
+	mockDB.EXPECT().IsBootstrapped().Return(true)
+
+	tctx, _ = thrift.NewContext(time.Minute)
+	_, err = service.Health(tctx)
+	require.NoError(t, err)
+}
+
 func TestServiceQuery(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

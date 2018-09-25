@@ -45,6 +45,7 @@ type TChanCluster interface {
 
 // TChanNode is the interface that defines the server handler and client interface.
 type TChanNode interface {
+	Bootstrapped(ctx thrift.Context) (*NodeBootstrappedResult_, error)
 	Fetch(ctx thrift.Context, req *FetchRequest) (*FetchResult_, error)
 	FetchBatchRaw(ctx thrift.Context, req *FetchBatchRawRequest) (*FetchBatchRawResult_, error)
 	FetchBlocksMetadataRaw(ctx thrift.Context, req *FetchBlocksMetadataRawRequest) (*FetchBlocksMetadataRawResult_, error)
@@ -473,6 +474,22 @@ func NewTChanNodeClient(client thrift.TChanClient) TChanNode {
 	return NewTChanNodeInheritedClient("Node", client)
 }
 
+func (c *tchanNodeClient) Bootstrapped(ctx thrift.Context) (*NodeBootstrappedResult_, error) {
+	var resp NodeBootstrappedResult
+	args := NodeBootstrappedArgs{}
+	success, err := c.client.Call(ctx, c.thriftService, "bootstrapped", &args, &resp)
+	if err == nil && !success {
+		switch {
+		case resp.Err != nil:
+			err = resp.Err
+		default:
+			err = fmt.Errorf("received no result or unknown exception for bootstrapped")
+		}
+	}
+
+	return resp.GetSuccess(), err
+}
+
 func (c *tchanNodeClient) Fetch(ctx thrift.Context, req *FetchRequest) (*FetchResult_, error) {
 	var resp NodeFetchResult
 	args := NodeFetchArgs{
@@ -875,6 +892,7 @@ func (s *tchanNodeServer) Service() string {
 
 func (s *tchanNodeServer) Methods() []string {
 	return []string{
+		"bootstrapped",
 		"fetch",
 		"fetchBatchRaw",
 		"fetchBlocksMetadataRaw",
@@ -902,6 +920,8 @@ func (s *tchanNodeServer) Methods() []string {
 
 func (s *tchanNodeServer) Handle(ctx thrift.Context, methodName string, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
 	switch methodName {
+	case "bootstrapped":
+		return s.handleBootstrapped(ctx, protocol)
 	case "fetch":
 		return s.handleFetch(ctx, protocol)
 	case "fetchBatchRaw":
@@ -950,6 +970,34 @@ func (s *tchanNodeServer) Handle(ctx thrift.Context, methodName string, protocol
 	default:
 		return false, nil, fmt.Errorf("method %v not found in service %v", methodName, s.Service())
 	}
+}
+
+func (s *tchanNodeServer) handleBootstrapped(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeBootstrappedArgs
+	var res NodeBootstrappedResult
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	r, err :=
+		s.handler.Bootstrapped(ctx)
+
+	if err != nil {
+		switch v := err.(type) {
+		case *Error:
+			if v == nil {
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
+			}
+			res.Err = v
+		default:
+			return false, nil, err
+		}
+	} else {
+		res.Success = r
+	}
+
+	return err == nil, &res, nil
 }
 
 func (s *tchanNodeServer) handleFetch(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {

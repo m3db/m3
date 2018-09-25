@@ -166,6 +166,19 @@ func (m *MockTChanNode) EXPECT() *MockTChanNodeMockRecorder {
 	return m.recorder
 }
 
+// Bootstrapped mocks base method
+func (m *MockTChanNode) Bootstrapped(ctx thrift.Context) (*NodeBootstrappedResult_, error) {
+	ret := m.ctrl.Call(m, "Bootstrapped", ctx)
+	ret0, _ := ret[0].(*NodeBootstrappedResult_)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Bootstrapped indicates an expected call of Bootstrapped
+func (mr *MockTChanNodeMockRecorder) Bootstrapped(ctx interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrapped", reflect.TypeOf((*MockTChanNode)(nil).Bootstrapped), ctx)
+}
+
 // Fetch mocks base method
 func (m *MockTChanNode) Fetch(ctx thrift.Context, req *FetchRequest) (*FetchResult_, error) {
 	ret := m.ctrl.Call(m, "Fetch", ctx, req)
