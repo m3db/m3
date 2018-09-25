@@ -126,10 +126,6 @@ func newCommitLogWriter(
 }
 
 func (w *writer) Open(start time.Time, duration time.Duration) error {
-	if w.isOpen() {
-		return errCommitLogWriterAlreadyOpen
-	}
-
 	commitLogsDir := fs.CommitLogsDirPath(w.filePathPrefix)
 	if err := os.MkdirAll(commitLogsDir, w.newDirectoryMode); err != nil {
 		return err
@@ -162,10 +158,6 @@ func (w *writer) Open(start time.Time, duration time.Duration) error {
 	w.start = start
 	w.duration = duration
 	return nil
-}
-
-func (w *writer) isOpen() bool {
-	return w.chunkWriter.fd != nil
 }
 
 func (w *writer) Write(
@@ -239,10 +231,6 @@ func (w *writer) Flush() error {
 }
 
 func (w *writer) Close() error {
-	if !w.isOpen() {
-		return nil
-	}
-
 	if err := w.Flush(); err != nil {
 		return err
 	}
