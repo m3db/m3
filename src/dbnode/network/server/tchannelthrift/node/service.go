@@ -236,6 +236,10 @@ func (s *service) Health(ctx thrift.Context) (*rpc.NodeHealthResult_, error) {
 	return health, nil
 }
 
+// Bootstrapped is design to be used with cluster management tools like k8 that expect an endpoint
+// that will return success if the node is healthy/bootstrapped and an error if not. We added this
+// endpoint because while the Health endpoint provides the same information, this endpoint does not
+// require parsing the response to determine if the node is bootstrapped or not.
 func (s *service) Bootstrapped(ctx thrift.Context) (*rpc.NodeBootstrappedResult_, error) {
 	if bootstrapped := s.db.IsBootstrapped(); !bootstrapped {
 		return nil, convert.ToRPCError(errNodeIsNotBootstrapped)
