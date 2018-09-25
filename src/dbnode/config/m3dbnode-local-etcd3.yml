@@ -24,15 +24,15 @@ db:
     samplingRate: 1.0
     extended: detailed
 
-  listenAddress: 0.0.0.0:9005
-  clusterListenAddress: 0.0.0.0:9006
-  httpNodeListenAddress: 0.0.0.0:9007
-  httpClusterListenAddress: 0.0.0.0:9008
-  debugListenAddress: 0.0.0.0:9009
+  listenAddress: 0.0.0.0:9010
+  clusterListenAddress: 0.0.0.0:9011
+  httpNodeListenAddress: 0.0.0.0:9012
+  httpClusterListenAddress: 0.0.0.0:9013
+  debugListenAddress: 0.0.0.0:9014
 
   hostID:
     resolver: config
-    value: m3db_local_2
+    value: m3db_local_3
 
   client:
     writeConsistencyLevel: majority

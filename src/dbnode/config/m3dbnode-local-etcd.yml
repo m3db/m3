@@ -1,3 +1,18 @@
+coordinator:
+  listenAddress:
+    type: "config"
+    value: "0.0.0.0:7201"
+
+  metrics:
+    scope:
+      prefix: "coordinator"
+    prometheus:
+      handlerPath: /metrics
+      listenAddress: 0.0.0.0:7203 # until https://github.com/m3db/m3/issues/682 is resolved
+    sanitization: prometheus
+    samplingRate: 1.0
+    extended: none
+
 db:
   logging:
     level: info
@@ -26,7 +41,7 @@ db:
     fetchTimeout: 15s
     connectTimeout: 20s
     writeRetry:
-        initialBackoff: 500ms
+        initialBackoff: 500msh
         backoffFactor: 3
         maxRetries: 2
         jitter: true
@@ -47,8 +62,8 @@ db:
   bootstrap:
     bootstrappers:
         - filesystem
-        - commitlog
         - peers
+        - commitlog
         - uninitialized_topology
     fs:
         numProcessorsPerCPU: 0.125

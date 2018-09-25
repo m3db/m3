@@ -1,4 +1,4 @@
-version: "3.5"
+version: "2.2"
 services:
   dbnode01:
     expose:
@@ -26,13 +26,28 @@ services:
       context: ../../../
       dockerfile: ./docker/m3dbnode/Dockerfile2
     image: m3dbnode02:latest
+  dbnode03:
+    expose:
+      - "9010-9014"
+      - "2383-2384"
+    ports:
+      - "0.0.0.0:9010-9014:9010-9014"
+      - "0.0.0.0:2383-2384:2383-2384"
+    networks:
+      - backend
+    build:
+      context: ../../../
+      dockerfile: ./docker/m3dbnode/Dockerfile3
+    image: m3dbnode03:latest
   coordinator01:
     expose:
       - "7201"
       - "7203"
+      - "7208"
     ports:
       - "0.0.0.0:7201:7201"
       - "0.0.0.0:7203:7203"
+      - "0.0.0.0:7208:7208"
     networks:
       - backend
     build:
@@ -41,16 +56,16 @@ services:
     image: m3coordinator01:latest
     volumes:
       - "./:/etc/m3coordinator/"
-  # prometheus01:
-  #   expose:
-  #     - "9090"
-  #   ports:
-  #     - "0.0.0.0:9090:9090"
-  #   networks:
-  #     - backend
-  #   image: prom/prometheus:latest
-  #   volumes:
-  #     - "./:/etc/prometheus/"
+  prometheus01:
+    expose:
+      - "9090"
+    ports:
+      - "0.0.0.0:9090:9090"
+    networks:
+      - backend
+    image: prom/prometheus:latest
+    volumes:
+      - "./:/etc/prometheus/"
   grafana2:
     build:
       context: ../../../

@@ -281,7 +281,7 @@ func newSession(opts Options) (clientSession, error) {
 	s.pools.writeAttempt.Init()
 
 	fetchAttemptPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(opts.FetchBatchOpPoolSize()).
+		SetSize(1).
 		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
 			scope.SubScope("fetch-attempt-pool"),
 		))
@@ -289,7 +289,7 @@ func newSession(opts Options) (clientSession, error) {
 	s.pools.fetchAttempt.Init()
 
 	fetchTaggedAttemptPoolImplOpts := pool.NewObjectPoolOptions().
-		SetSize(opts.FetchBatchOpPoolSize()).
+		SetSize(1).
 		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
 			scope.SubScope("fetch-tagged-attempt-pool"),
 		))
@@ -505,7 +505,7 @@ func (s *session) Open() error {
 	s.pools.writeState.Init()
 
 	fetchBatchOpPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(s.opts.FetchBatchOpPoolSize()).
+		SetSize(1).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("fetch-batch-op-pool"),
 		))
@@ -513,7 +513,7 @@ func (s *session) Open() error {
 	s.pools.fetchBatchOp.Init()
 
 	fetchTaggedOpPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(s.opts.FetchBatchOpPoolSize()).
+		SetSize(1).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("fetch-tagged-op-pool"),
 		))
@@ -521,7 +521,7 @@ func (s *session) Open() error {
 	s.pools.fetchTaggedOp.Init()
 
 	fetchStatePoolOpts := pool.NewObjectPoolOptions().
-		SetSize(s.opts.FetchBatchOpPoolSize()).
+		SetSize(1).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("fetch-tagged-state-pool"),
 		))
@@ -723,14 +723,14 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 	// directly into the return array in fetch calls.
 	if len(queues) != len(prevQueues) {
 		poolOpts := pool.NewObjectPoolOptions().
-			SetSize(s.opts.FetchBatchOpPoolSize()).
+			SetSize(1).
 			SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 				s.scope.SubScope("fetch-batch-op-array-array-pool"),
 			))
 		s.pools.fetchBatchOpArrayArray = newFetchBatchOpArrayArrayPool(
 			poolOpts,
 			len(queues),
-			s.opts.FetchBatchOpPoolSize()/len(queues))
+			1/len(queues))
 		s.pools.fetchBatchOpArrayArray.Init()
 	}
 
