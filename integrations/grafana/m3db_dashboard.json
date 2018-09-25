@@ -140,7 +140,6 @@
           "intervalFactor": 1,
           "key": 0.3593853225333008,
           "refId": "A",
-          "target": "fetch service:statsdex_m3dbnode name:database.bootstrapped host:$servers | >=1 |  removeEmpty | count"
         }
       ],
       "thresholds": "",
@@ -233,7 +232,6 @@
           "intervalFactor": 1,
           "key": 0.08874521907599053,
           "refId": "A",
-          "target": "fetch service:statsdex_m3dbnode name:database.bootstrapped host:$servers | <1 |  removeEmpty | count"
         }
       ],
       "thresholds": "",
@@ -325,7 +323,6 @@
           "intervalFactor": 1,
           "key": 0.25234693632915994,
           "refId": "A",
-          "target": "fetch service:statsdex_m3dbnode name:build-information host:$servers | sum revision |  removeEmpty | count"
         }
       ],
       "thresholds": "",
@@ -417,7 +414,6 @@
           "intervalFactor": 1,
           "key": 0.08534584879068197,
           "refId": "A",
-          "target": "fetch service:statsdex_m3dbnode name:build-information host:$servers | sum go-version |  removeEmpty | count"
         }
       ],
       "thresholds": "",
@@ -504,7 +500,6 @@
           "intervalFactor": 1,
           "key": 0.09635984016153087,
           "refId": "C",
-          "target": "fetch service:statsdex_m3dbnode name:commitlog.writes.queued host:$servers | aliasByTags name host",
           "textEditor": true
         }
       ],
@@ -600,7 +595,6 @@
           "key": 0.7940843773344208,
           "legendFormat": "writes",
           "refId": "C",
-          "target": "fetch service:statsdex_m3dbnode name:commitlog.writes.success host:$servers | \n  sumSeries | \n  scaleToSeconds 1 | \n  aliasByTags name host",
           "textEditor": true
         }
       ],
@@ -677,16 +671,6 @@
       "pointradius": 5,
       "points": false,
       "renderer": "flot",
-      "seriesOverrides": [
-        {
-          "alias": "divideSeries(sumSeries(perSecond(statsdex.metrics.query.mquery01-sjc1.storage.m3dbshadow.mismatches)),sumSeries(perSecond(statsdex.metrics.query.mquery01-sjc1.storage.m3dbshadow.matches)))",
-          "yaxis": 2
-        },
-        {
-          "alias": "divideSeries(diffSeries(sumSeries(perSecond(statsdex.metrics.query.mquery01-sjc1.storage.m3dbshadow.matches)),sumSeries(perSecond(statsdex.metrics.query.mquery01-sjc1.storage.m3dbshadow.mismatches))),sumSeries(perSecond(statsdex.metrics.query.mquery01-sjc1.storage.m3dbshadow.matches)))",
-          "yaxis": 2
-        }
-      ],
       "spaceLength": 10,
       "stack": false,
       "steppedLine": false,
@@ -699,7 +683,6 @@
           "key": 0.6661769838428799,
           "legendFormat": "pendingWrite-{{pending_write}}",
           "refId": "C",
-          "target": "fetch service:statsdex_m3dbnode name:dbshard.insert-queue.inserts host:$servers | scaleToSeconds 1 | sum pending-write",
           "textEditor": true
         }
       ],
@@ -805,7 +788,6 @@
               "intervalFactor": 1,
               "key": 0.666035411738013,
               "refId": "C",
-              "target": "fetch service:statsdex_m3dbnode name:service.fetchbatchraw.success host:$servers | scaleToSeconds 1 | aliasByTags host name",
               "textEditor": true
             },
             {
@@ -815,7 +797,6 @@
               "intervalFactor": 1,
               "key": 0.666035411738013,
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:service.fetchbatchraw.success host:$servers | scaleToSeconds 1 | aliasByTags host name",
               "textEditor": true
             },
             {
@@ -825,7 +806,6 @@
               "intervalFactor": 1,
               "key": 0.666035411738013,
               "refId": "B",
-              "target": "fetch service:statsdex_m3dbnode name:service.fetchbatchraw.success host:$servers | scaleToSeconds 1 | aliasByTags host name",
               "textEditor": true
             },
             {
@@ -835,7 +815,6 @@
               "intervalFactor": 1,
               "key": 0.666035411738013,
               "refId": "D",
-              "target": "fetch service:statsdex_m3dbnode name:service.fetchbatchraw.success host:$servers | scaleToSeconds 1 | aliasByTags host name",
               "textEditor": true
             }
           ],
@@ -912,16 +891,6 @@
           "pointradius": 5,
           "points": false,
           "renderer": "flot",
-          "seriesOverrides": [
-            {
-              "alias": "divideSeries(sumSeries(perSecond(statsdex.metrics.query.mquery01-sjc1.storage.m3dbshadow.mismatches)),sumSeries(perSecond(statsdex.metrics.query.mquery01-sjc1.storage.m3dbshadow.matches)))",
-              "yaxis": 2
-            },
-            {
-              "alias": "divideSeries(diffSeries(sumSeries(perSecond(statsdex.metrics.query.mquery01-sjc1.storage.m3dbshadow.matches)),sumSeries(perSecond(statsdex.metrics.query.mquery01-sjc1.storage.m3dbshadow.mismatches))),sumSeries(perSecond(statsdex.metrics.query.mquery01-sjc1.storage.m3dbshadow.matches)))",
-              "yaxis": 2
-            }
-          ],
           "spaceLength": 10,
           "stack": false,
           "steppedLine": false,
@@ -932,7 +901,6 @@
               "intervalFactor": 1,
               "key": 0.813148562053182,
               "refId": "D",
-              "target": "fetch service:statsdex_m3dbnode name:service.writebatchraw.latency timertype:p99 host:$servers | aliasByTags host name timertype"
             }
           ],
           "thresholds": [],
@@ -1008,16 +976,6 @@
           "pointradius": 5,
           "points": false,
           "renderer": "flot",
-          "seriesOverrides": [
-            {
-              "alias": "divideSeries(sumSeries(perSecond(statsdex.metrics.query.mquery01-sjc1.storage.m3dbshadow.mismatches)),sumSeries(perSecond(statsdex.metrics.query.mquery01-sjc1.storage.m3dbshadow.matches)))",
-              "yaxis": 2
-            },
-            {
-              "alias": "divideSeries(diffSeries(sumSeries(perSecond(statsdex.metrics.query.mquery01-sjc1.storage.m3dbshadow.matches)),sumSeries(perSecond(statsdex.metrics.query.mquery01-sjc1.storage.m3dbshadow.mismatches))),sumSeries(perSecond(statsdex.metrics.query.mquery01-sjc1.storage.m3dbshadow.matches)))",
-              "yaxis": 2
-            }
-          ],
           "spaceLength": 10,
           "stack": false,
           "steppedLine": false,
@@ -1028,7 +986,6 @@
               "intervalFactor": 1,
               "key": 0.37467787057058555,
               "refId": "D",
-              "target": "fetch service:statsdex_m3dbnode name:service.fetchbatchraw.latency timertype:p99 host:$servers | aliasByTags host name timertype"
             }
           ],
           "thresholds": [],
@@ -1143,7 +1100,6 @@
           "key": 0.666035411738013,
           "legendFormat": "writeTaggedSuccess",
           "refId": "C",
-          "target": "fetch service:statsdex_m3dbnode name:service.fetchtagged.success host:$servers | scaleToSeconds 1 | aliasByTags host name",
           "textEditor": true
         },
         {
@@ -1154,7 +1110,6 @@
           "key": 0.666035411738013,
           "legendFormat": "writeTaggedErrors",
           "refId": "A",
-          "target": "fetch service:statsdex_m3dbnode name:service.fetchtagged.success host:$servers | scaleToSeconds 1 | aliasByTags host name",
           "textEditor": true
         },
         {
@@ -1165,7 +1120,6 @@
           "key": 0.666035411738013,
           "legendFormat": "fetchTaggedSuccess",
           "refId": "B",
-          "target": "fetch service:statsdex_m3dbnode name:service.fetchtagged.success host:$servers | scaleToSeconds 1 | aliasByTags host name",
           "textEditor": true
         },
         {
@@ -1176,7 +1130,6 @@
           "key": 0.666035411738013,
           "legendFormat": "fetchTaggedErrors",
           "refId": "D",
-          "target": "fetch service:statsdex_m3dbnode name:service.fetchtagged.success host:$servers | scaleToSeconds 1 | aliasByTags host name",
           "textEditor": true
         }
       ],
@@ -1253,16 +1206,6 @@
       "pointradius": 5,
       "points": false,
       "renderer": "flot",
-      "seriesOverrides": [
-        {
-          "alias": "divideSeries(sumSeries(perSecond(statsdex.metrics.query.mquery01-sjc1.storage.m3dbshadow.mismatches)),sumSeries(perSecond(statsdex.metrics.query.mquery01-sjc1.storage.m3dbshadow.matches)))",
-          "yaxis": 2
-        },
-        {
-          "alias": "divideSeries(diffSeries(sumSeries(perSecond(statsdex.metrics.query.mquery01-sjc1.storage.m3dbshadow.matches)),sumSeries(perSecond(statsdex.metrics.query.mquery01-sjc1.storage.m3dbshadow.mismatches))),sumSeries(perSecond(statsdex.metrics.query.mquery01-sjc1.storage.m3dbshadow.matches)))",
-          "yaxis": 2
-        }
-      ],
       "spaceLength": 10,
       "stack": false,
       "steppedLine": false,
@@ -1273,7 +1216,6 @@
           "intervalFactor": 1,
           "key": 0.813148562053182,
           "refId": "D",
-          "target": "fetch service:statsdex_m3dbnode name:service.writetaggedbatchraw.latency timertype:p99 host:$servers | aliasByTags host name timertype"
         }
       ],
       "thresholds": [],
@@ -1349,16 +1291,6 @@
       "pointradius": 5,
       "points": false,
       "renderer": "flot",
-      "seriesOverrides": [
-        {
-          "alias": "divideSeries(sumSeries(perSecond(statsdex.metrics.query.mquery01-sjc1.storage.m3dbshadow.mismatches)),sumSeries(perSecond(statsdex.metrics.query.mquery01-sjc1.storage.m3dbshadow.matches)))",
-          "yaxis": 2
-        },
-        {
-          "alias": "divideSeries(diffSeries(sumSeries(perSecond(statsdex.metrics.query.mquery01-sjc1.storage.m3dbshadow.matches)),sumSeries(perSecond(statsdex.metrics.query.mquery01-sjc1.storage.m3dbshadow.mismatches))),sumSeries(perSecond(statsdex.metrics.query.mquery01-sjc1.storage.m3dbshadow.matches)))",
-          "yaxis": 2
-        }
-      ],
       "spaceLength": 10,
       "stack": false,
       "steppedLine": false,
@@ -1370,7 +1302,6 @@
           "key": 0.37467787057058555,
           "legendFormat": "{{instance}}",
           "refId": "D",
-          "target": "fetch service:statsdex_m3dbnode name:service.fetchtagged.success-latency timertype:p99 host:$servers | aliasByTags host name timertype"
         }
       ],
       "thresholds": [],
@@ -1561,7 +1492,6 @@
           "key": 0.7090064740553321,
           "legendFormat": "resident-{{instance}}",
           "refId": "A",
-          "target": "fetch service:statsdex_node_exporter name:node_memory_memtotal dc:$dc host:$servers | keepLastValue | sum host\n| diff (fetch name:node_memory_memavailable dc:$dc host:$servers | keepLastValue | sum host)\n| asPercent (fetch name:node_memory_memtotal dc:$dc host:$servers | keepLastValue | sum host) | aliasByTags host",
           "textEditor": true
         },
         {
@@ -1572,7 +1502,6 @@
           "key": 0.7090064740553321,
           "legendFormat": "virtual-{{instance}}",
           "refId": "B",
-          "target": "fetch service:statsdex_node_exporter name:node_memory_memtotal dc:$dc host:$servers | keepLastValue | sum host\n| diff (fetch name:node_memory_memavailable dc:$dc host:$servers | keepLastValue | sum host)\n| asPercent (fetch name:node_memory_memtotal dc:$dc host:$servers | keepLastValue | sum host) | aliasByTags host",
           "textEditor": true
         }
       ],
@@ -1746,7 +1675,6 @@
           "key": 0.4107640408210529,
           "legendFormat": "{{instance}}",
           "refId": "A",
-          "target": "fetch service:statsdex_m3dbnode name:process.num-fds host:$servers | aliasByTags host | transformNull"
         }
       ],
       "thresholds": [],
@@ -1833,7 +1761,6 @@
           "key": 0.5498548297308425,
           "legendFormat": "{{instance}}",
           "refId": "A",
-          "target": "fetch service:statsdex_m3dbnode name:runtime.num-goroutines host:$servers | aliasByTags host"
         }
       ],
       "thresholds": [],
@@ -1930,7 +1857,6 @@
               "key": 0.5232381035821441,
               "legendFormat": "{{instance}}",
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:database.bootstrapped host:$servers | aliasByTags host"
             }
           ],
           "thresholds": [],
@@ -2017,7 +1943,6 @@
               "key": 0.045140271498789186,
               "legendFormat": "{{instance}}",
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:database.tick.duration timertype:p99 host:$servers | aliasByTags host"
             }
           ],
           "thresholds": [],
@@ -2104,7 +2029,6 @@
               "key": 0.7552494727739296,
               "legendFormat": "totalActiveSeries",
               "refId": "B",
-              "target": "fetch service:statsdex_m3dbnode name:database.status.active-series host:$servers | movingAverage 2m | sum namespace | scale 0.333333 | alias {{.namespace}} unique-series"
             }
           ],
           "thresholds": [],
@@ -2191,7 +2115,6 @@
               "key": 0.025515486279266364,
               "legendFormat": "{{instance}}",
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:database.fs.flush host:$servers | aliasByTags host"
             }
           ],
           "thresholds": [],
@@ -2274,7 +2197,6 @@
               "intervalFactor": 1,
               "legendFormat": "{{instance}}",
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:database.fs.snapshot host:$servers | aliasByTags host"
             }
           ],
           "thresholds": [],
@@ -2359,7 +2281,6 @@
               "intervalFactor": 1,
               "legendFormat": "{{instance}}",
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:database.fs.index-flush host:$servers | aliasByTags host"
             }
           ],
           "thresholds": [],
@@ -2463,7 +2384,6 @@
               "key": 0.6091384812937135,
               "legendFormat": "wiredBlocks-{{instance}}",
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:database.tick.{wired,unwired}-blocks host:$servers | scaleToSeconds 1 | aliasByTags host namespace name"
             },
             {
               "expr": "database_tick_unwired_blocks{instance=~\"$instance\"}",
@@ -2472,7 +2392,6 @@
               "key": 0.6091384812937135,
               "legendFormat": "unwiredBlocks-{{instance}}",
               "refId": "B",
-              "target": "fetch service:statsdex_m3dbnode name:database.tick.{wired,unwired,open,active}-blocks host:$servers | scaleToSeconds 1 | aliasByTags host namespace name"
             },
             {
               "expr": "database_tick_active_blocks{instance=~\"$instance\"}",
@@ -2573,7 +2492,6 @@
               "key": 0.12716494400774314,
               "legendFormat": "madeExpiredBlocks-{{instance}}",
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:database.tick.{made-unwired,made-wired,merged-out-of-order}-blocks host:$servers | scaleToSeconds 1 | aliasByTags host namespace name"
             },
             {
               "expr": "rate(database_tick_made_unwired_blocks{instance=~\"$instance\"}[$step])",
@@ -2681,7 +2599,6 @@
               "key": 0.12716494400774314,
               "legendFormat": "seriesEncoderCreated-{{instance}}",
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:database.series.encoder-created host:$servers | scaleToSeconds 1 | aliasByTags host name"
             }
           ],
           "thresholds": [],
@@ -2768,7 +2685,6 @@
               "key": 0.8040141995856238,
               "legendFormat": "available",
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:cluster.shards.* host:$servers | aliasByTags host name"
             },
             {
               "expr": "sum(cluster_shards_initializing{instace=~\"$instance\"})",
@@ -2777,7 +2693,6 @@
               "key": 0.8040141995856238,
               "legendFormat": "initializing",
               "refId": "B",
-              "target": "fetch service:statsdex_m3dbnode name:cluster.shards.* host:$servers | aliasByTags host name"
             },
             {
               "expr": "sum(cluster_shards_leaving{instace=~\"$instance\"})",
@@ -2786,7 +2701,6 @@
               "key": 0.8040141995856238,
               "legendFormat": "leaving",
               "refId": "C",
-              "target": "fetch service:statsdex_m3dbnode name:cluster.shards.* host:$servers | aliasByTags host name"
             }
           ],
           "thresholds": [],
@@ -2869,7 +2783,6 @@
               "hide": false,
               "intervalFactor": 1,
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:wired-list.{limit,evicted,unwireable} host:$servers | aliasByTags host name"
             },
             {
               "expr": "rate(wired_list_evicted{instance=~\"$instance\"}[$step])",
@@ -2965,7 +2878,6 @@
               "format": "time_series",
               "intervalFactor": 1,
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:wired-list.* host:$servers timertype:p99"
             }
           ],
           "thresholds": [],
@@ -3253,7 +3165,6 @@
               "key": 0.05448509070742946,
               "legendFormat": "{{namespace}}_tagged_success",
               "refId": "C",
-              "target": "fetch service:statsdex_m3dbnode name:database.write.success host:$servers | scaleToSeconds 1 | sum name namespace  | alias {{.namespace}}-write-success",
               "textEditor": true
             },
             {
@@ -3263,7 +3174,6 @@
               "key": 0.8767351594065642,
               "legendFormat": "{{namespace}}_tagged_errors",
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:database.write.errors host:$servers | scaleToSeconds 1 | sum name namespace  | alias {{.namespace}}-write-errors"
             },
             {
               "expr": "sum(rate(database_write_success{instance=~\"$instance\"}[$step])) by (namespace)",
@@ -3272,7 +3182,6 @@
               "key": 0.8767351594065642,
               "legendFormat": "{{namespace}}_success",
               "refId": "B",
-              "target": "fetch service:statsdex_m3dbnode name:database.write.errors host:$servers | scaleToSeconds 1 | sum name namespace  | alias {{.namespace}}-write-errors"
             },
             {
               "expr": "sum(rate(database_write_errors{instance=~\"$instance\"}[$step])) by (namespace)",
@@ -3281,7 +3190,6 @@
               "key": 0.8767351594065642,
               "legendFormat": "{{namespace}}_errors",
               "refId": "D",
-              "target": "fetch service:statsdex_m3dbnode name:database.write.errors host:$servers | scaleToSeconds 1 | sum name namespace  | alias {{.namespace}}-write-errors"
             }
           ],
           "thresholds": [],
@@ -3370,7 +3278,6 @@
               "key": 0.05448509070742946,
               "legendFormat": "{{namespace}}_tagged_success",
               "refId": "C",
-              "target": "fetch service:statsdex_m3dbnode name:database.write.success host:$servers | scaleToSeconds 1 | sum name namespace  | alias {{.namespace}}-write-success",
               "textEditor": true
             },
             {
@@ -3380,7 +3287,6 @@
               "key": 0.8767351594065642,
               "legendFormat": "{{namespace}}_tagged_errors",
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:database.write.errors host:$servers | scaleToSeconds 1 | sum name namespace  | alias {{.namespace}}-write-errors"
             },
             {
               "expr": "sum(rate(database_read_success{instance=~\"$instance\"}[$step])) by (namespace)",
@@ -3389,7 +3295,6 @@
               "key": 0.8767351594065642,
               "legendFormat": "{{namespace}}_success",
               "refId": "B",
-              "target": "fetch service:statsdex_m3dbnode name:database.write.errors host:$servers | scaleToSeconds 1 | sum name namespace  | alias {{.namespace}}-write-errors"
             },
             {
               "expr": "sum(rate(database_reads_errors{instance=~\"$instance\"}[$step])) by (namespace)",
@@ -3398,7 +3303,6 @@
               "key": 0.8767351594065642,
               "legendFormat": "{{namespace}}_errors",
               "refId": "D",
-              "target": "fetch service:statsdex_m3dbnode name:database.write.errors host:$servers | scaleToSeconds 1 | sum name namespace  | alias {{.namespace}}-write-errors"
             }
           ],
           "thresholds": [],
@@ -3487,7 +3391,6 @@
               "key": 0.05448509070742946,
               "legendFormat": "{{namespace}}_query_ids_success",
               "refId": "C",
-              "target": "fetch service:statsdex_m3dbnode name:database.queryIDs.success host:$servers | scaleToSeconds 1 | sum name namespace  | alias {{.namespace}}-write-tagged-success",
               "textEditor": true
             },
             {
@@ -3498,7 +3401,6 @@
               "key": 0.8767351594065642,
               "legendFormat": "{{namespace}}_query_ids_errors",
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:database.queryIDs.errors host:$servers | scaleToSeconds 1 | sum name namespace  | alias {{.namespace}}-write-tagged-errors"
             }
           ],
           "thresholds": [],
@@ -3587,7 +3489,6 @@
               "key": 0.44937754638999294,
               "legendFormat": "{{namespace}}_flush_success",
               "refId": "C",
-              "target": "fetch service:statsdex_m3dbnode name:database.flush.success host:$servers | scaleToSeconds 1 | sum name namespace | aliasByTags name namespace | removeEmpty",
               "textEditor": true
             },
             {
@@ -3598,7 +3499,6 @@
               "key": 0.44937754638999294,
               "legendFormat": "{{namespace}}_flush_errors",
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:database.flush.errors host:$servers | scaleToSeconds 1 | sum name namespace | aliasByTags name namespace | removeEmpty ",
               "textEditor": true
             }
           ],
@@ -3688,7 +3588,6 @@
               "key": 0.44937754638999294,
               "legendFormat": "{{namespace}}_index_flush_success",
               "refId": "C",
-              "target": "fetch service:statsdex_m3dbnode name:database.index-flush.success host:$servers | scaleToSeconds 1 | sum name namespace |removeEmpty| aliasByTags name namespace ",
               "textEditor": true
             },
             {
@@ -3799,7 +3698,6 @@
               "key": 0.26636320136208314,
               "legendFormat": "fetchBlocksInProgress-{{instance}}",
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:m3dbclient.stream-from-peers.fetch-blocks-inprogress host:$servers | sum host | aliasByTags host"
             }
           ],
           "thresholds": [],
@@ -3886,7 +3784,6 @@
               "key": 0.6565937560035238,
               "legendFormat": "fetchBlocksMetadataInProgress-{{instance}}",
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:m3dbclient.stream-from-peers.fetch-metadata-peers-inprogress host:$servers | sum host | aliasByTags host"
             }
           ],
           "thresholds": [],
@@ -3973,7 +3870,6 @@
               "key": 0.024380707546677316,
               "legendFormat": "fetchBlocksEnqueueChannelLength-{{instance}}",
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:m3dbclient.stream-from-peers.fetch-blocks-enqueue-channel-length host:$servers | sum host | aliasByTags host"
             }
           ],
           "thresholds": [],
@@ -4060,7 +3956,6 @@
               "key": 0.8052472520531426,
               "legendFormat": "fetchBlocksMetadataBatchCalls-{{instance}}",
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:m3dbclient.stream-from-peers.fetch-metadata-peers-batch-call host:$servers | sum host | scaleToSeconds 1 | aliasByTags host"
             }
           ],
           "thresholds": [],
@@ -4147,7 +4042,6 @@
               "key": 0.359145903986988,
               "legendFormat": "fetchBlocksMetadataReceived-{{instance}}",
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:m3dbclient.stream-from-peers.fetch-metadata-peers-received host:$servers | sum host | scaleToSeconds 1 | aliasByTags host"
             }
           ],
           "thresholds": [],
@@ -4234,7 +4128,6 @@
               "key": 0.359145903986988,
               "legendFormat": "fetchBlocksMetadataPaginationRetry-{{instance}}",
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:m3dbclient.stream-from-peers.fetch-metadata-peers-peer-retry host:$servers | sum host | scaleToSeconds 1 | aliasByTags host"
             }
           ],
           "thresholds": [],
@@ -4335,7 +4228,6 @@
               "intervalFactor": 1,
               "key": 0.05455062296227564,
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:service.overload-rejected host:$servers | aliasByTags host"
             }
           ],
           "thresholds": [],
@@ -4421,7 +4313,6 @@
               "intervalFactor": 1,
               "key": 0.8368215616799846,
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:database.fs.persist.write-duration-ms host:$servers | aliasByTags host name"
             },
             {
               "expr": "database_fs_persist_throttle_duration_ms{instance=~\"$instance\"}",
@@ -4429,7 +4320,6 @@
               "intervalFactor": 1,
               "key": 0.2814048282536148,
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:database.fs.persist.throttle-duration-ms host:$servers | aliasByTags host name"
             }
           ],
           "thresholds": [],
@@ -4531,7 +4421,6 @@
               "key": 0.4195302108331671,
               "legendFormat": "fetchBlockSuccess-{{instance}}",
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:m3dbclient.stream-from-peers.fetch-block-success host:$servers | sum host | transformNull  | scaleToSeconds 1 | aliasByTags host"
             }
           ],
           "thresholds": [],
@@ -4618,7 +4507,6 @@
               "key": 0.7411861401478703,
               "legendFormat": "fetchBlockError-{{instance}}",
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:m3dbclient.stream-from-peers.fetch-block-error host:$servers | sum host | transformNull | scaleToSeconds 1 | aliasByTags host"
             }
           ],
           "thresholds": [],
@@ -4705,7 +4593,6 @@
               "key": 0.3848186046051656,
               "legendFormat": "fetchBlockFullRetry-{{instance}}",
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:m3dbclient.stream-from-peers.fetch-block-full-retry host:$servers | sum host | transformNull | scaleToSeconds 1 | aliasByTags host"
             }
           ],
           "thresholds": [],
@@ -4792,7 +4679,6 @@
               "key": 0.3848186046051656,
               "legendFormat": "fetchBlockFinalError-{{instance}}",
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:m3dbclient.stream-from-peers.fetch-block-final-error host:$servers | sum host | transformNull | aliasByTags host"
             }
           ],
           "thresholds": [],
@@ -4893,7 +4779,6 @@
               "intervalFactor": 1,
               "key": 0.4590639612241416,
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:$PoolType.{free,put-on-full} host:$servers | aliasByTags host name bucket-capacity"
             },
             {
               "expr": "[[PoolType]]_put_on_full{instance=~\"$instance\"}",
@@ -4902,7 +4787,6 @@
               "intervalFactor": 1,
               "key": 0.4590639612241416,
               "refId": "B",
-              "target": "fetch service:statsdex_m3dbnode name:$PoolType.{free,put-on-full} host:$servers | aliasByTags host name bucket-capacity"
             }
           ],
           "thresholds": [],
@@ -4989,7 +4873,6 @@
               "intervalFactor": 1,
               "key": 0.3914310519012809,
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:$PoolType.{total,get-on-empty} host:$servers | keepLastValue | sum bucket-capacity | diff (fetch service:statsdex_m3dbnode name:$PoolType.{put-on-full,free} host:$servers | sum bucket-capacity) | asPercent (fetch service:statsdex_m3dbnode name:$PoolType.total host:$servers | keepLastValue | sum bucket-capacity) | alias bucket-capacity-{{.bucket-capacity}}"
             }
           ],
           "thresholds": [],
@@ -5091,7 +4974,6 @@
               "key": 0.7855942131678251,
               "legendFormat": "{{go_version}}",
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:build-information host:$servers | removeEmpty | sum go-version | alias {{.go-version}}"
             }
           ],
           "thresholds": [],
@@ -5185,7 +5067,6 @@
               "key": 0.5783520603949805,
               "legendFormat": "{{revision}}",
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:build-information host:$servers | sum revision | aliasByTags revision"
             }
           ],
           "thresholds": [],
@@ -5288,14 +5169,12 @@
               "hide": false,
               "intervalFactor": 1,
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:dbindex.insert-queue.index-queue.num-pending host:$servers | scaleToSeconds 1 | sum | alias pending-indexing"
             },
             {
               "expr": "rate(dbindex_index_error{instance=~\"$instance\"}[$step])",
               "format": "time_series",
               "intervalFactor": 1,
               "refId": "B",
-              "target": "fetch service:statsdex_m3dbnode name:dbindex.index-error host:$servers | scaleToSeconds 1  | sum name error_type"
             }
           ],
           "thresholds": [],
@@ -5379,7 +5258,6 @@
               "format": "time_series",
               "intervalFactor": 1,
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:dbindex.insert-end-to-end-latency host:$servers timertype:{median,p99} | keepLastValue |aliasByTags host timertype"
             }
           ],
           "thresholds": [],
@@ -5478,7 +5356,6 @@
               "format": "time_series",
               "intervalFactor": 1,
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:dbindex.num-docs host:$servers type:gauge | sum segment_type host  | alias {{.host}}-{{.segment_type}}-num-docs"
             }
           ],
           "thresholds": [],
@@ -5562,7 +5439,6 @@
               "format": "time_series",
               "intervalFactor": 1,
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:dbindex.num-segments host:$servers type:gauge | sum segment_type host  | alias {{.host}}-{{.segment_type}}-num-segments"
             }
           ],
           "thresholds": [],
@@ -5646,7 +5522,6 @@
               "format": "time_series",
               "intervalFactor": 1,
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:dbindex.num-active-compactions host:$servers type:gauge  | alias {{.host}}-num-active-compactions"
             },
             {
               "expr": "dbindex_num_segments_compacting{instance=~\"$instance\"}",
@@ -5654,7 +5529,6 @@
               "hide": true,
               "intervalFactor": 1,
               "refId": "B",
-              "target": "fetch service:statsdex_m3dbnode name:dbindex.num-segments-compacting host:$servers type:gauge  | alias {{.host}}-num-segments-compacting"
             }
           ],
           "thresholds": [],
@@ -5738,7 +5612,6 @@
               "format": "time_series",
               "intervalFactor": 1,
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:dbindex.compaction-latency host:$servers timertype:{upper} | keepLastValue  | alias {{.host}}-compaction-latency-{{.timertype}}"
             }
           ],
           "thresholds": [],
@@ -5822,14 +5695,12 @@
               "format": "time_series",
               "intervalFactor": 1,
               "refId": "A",
-              "target": "fetch service:statsdex_m3dbnode name:database.tick.index.num-blocks-{evicted,sealed} host:$servers  | aliasByTags host namespace name"
             },
             {
               "expr": "increase(database_tick_index_num_blocks_sealed{instance=~\"$instance\"}[$step])",
               "format": "time_series",
               "intervalFactor": 1,
               "refId": "B",
-              "target": "fetch service:statsdex_m3dbnode name:database.tick.index.num-blocks-{evicted,sealed} host:$servers  | aliasByTags host namespace name"
             }
           ],
           "thresholds": [],
