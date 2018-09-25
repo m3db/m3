@@ -150,7 +150,9 @@ func Run(runOpts RunOptions) {
 	capnslog.SetGlobalLogLevel(capnslog.WARNING)
 
 	// Presence of KV server config indicates embedded etcd cluster
-	if cfg.EnvironmentConfig.SeedNodes != nil {
+	if cfg.EnvironmentConfig.SeedNodes == nil {
+		logger.Info("no seed nodes set, using dedicated etcd cluster")
+	} else {
 		// Default etcd client clusters if not set already
 		clusters := cfg.EnvironmentConfig.Service.ETCDClusters
 		seedNodes := cfg.EnvironmentConfig.SeedNodes.InitialCluster
