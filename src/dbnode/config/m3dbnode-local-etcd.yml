@@ -41,7 +41,7 @@ db:
     fetchTimeout: 15s
     connectTimeout: 20s
     writeRetry:
-        initialBackoff: 500msh
+        initialBackoff: 500ms
         backoffFactor: 3
         maxRetries: 2
         jitter: true
