@@ -10,3 +10,19 @@ This docker-compose file will setup the following environment:
 ## Usage
 
 Use the `start.sh` and `stop.sh` scripts
+
+## Grafana
+
+Use Grafana by navigating to `http://localhost:3000` and using `admin` for both the username and password. The M3DB dashboard should already be populated and working.
+
+## Prometheus
+
+Use Prometheus by navigating to `http://localhost:9090`
+
+## Increasing Load
+
+Load can easily be increased by modifying the `prometheus.yml` file to reduce the scrape interval to `1s`
+
+## Containers Hanging / Unresponsive
+
+Running the entire stack can be resource intensive. If the containers are unresponsive try increasing the amount of cores and memory that the docker daemon is allowed to use.
