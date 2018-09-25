@@ -29,10 +29,10 @@ import (
 	"github.com/m3db/m3/src/m3nsch"
 	"github.com/m3db/m3/src/m3nsch/rpc"
 	"github.com/m3db/m3/src/m3nsch/rpc/convert"
-
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
+
 	"google.golang.org/grpc"
 )
 
