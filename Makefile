@@ -183,8 +183,8 @@ docs-deploy: docs-container
 .PHONY: docker-integration-test
 docker-integration-test:
 	@echo "Running Docker integration test"
-	@./scripts/integration-tests/docker-integration-test.sh
 	@cd scripts/integration-tests/prometheus/ && ./prometheus-integration-test.sh
+	@./scripts/integration-tests/docker-integration-test.sh
 
 .PHONY: site-build
 site-build:
