@@ -84,7 +84,6 @@ sleep 2 # TODO Replace sleeps with logic to determine when to proceed
 echo "Start Prometheus and Grafana containers"
 
 docker-compose -f docker-compose.yml up -d prometheus01
-docker-compose -f docker-compose.yml up -d grafana
 
 if [ "$PARAM_TEST_VERIFY" != "true" ]; then
   echo "SKIP verify"
