@@ -154,3 +154,52 @@ Replication factor: 3
 │                          │ └─────────────────────────┘ │ └───────────────────────┘ │                         │└──────────────────────┘ │
 │                          │                             │                           │                         │                         │
 └──────────────────────────┴─────────────────────────────┴───────────────────────────┴─────────────────────────┴─────────────────────────┘
+
+## Cluster State Transitions - Placement Updates Initiation
+
+ ┌────────────────────────────────┐
+ │             Host 1             │
+ │                                │
+ │       Shard 1: Available       │
+ │       Shard 2: Available       │     Operator performs node replace by
+ │       Shard 3: Available       │      updating placement in etcd such
+ │                                │     that shards on host 1 are marked
+ └────────────────────────────────┤     Leaving and shards on host 2 are
+                                  │            marked Initializing
+                                  └─────────────────────────────────┐
+                                                                    │
+                                                                    │
+                                                                    │
+                                                                    │
+                                                                    │
+                                                                    ▼
+                                                   ┌────────────────────────────────┐
+                                                   │             Host 1             │
+                                                   │                                │
+                                                   │        Shard 1: Leaving        │
+                                                   │        Shard 2: Leaving        │
+                                                   │        Shard 3: Leaving        │
+                                                   │                                │
+                                                   └────────────────────────────────┘
+
+                                                   ┌────────────────────────────────┐
+                                                   │             Host 2             │
+                                                   │                                │
+                                                   │     Shard 1: Initializing      │
+┌────────────────────────────────┐                 │     Shard 2: Initializing      │
+│                                │                 │     Shard 3: Initializing      │
+│                                │                 │                                │
+│             Host 1             │                 └────────────────────────────────┘
+│                                │                                  │
+│                                │                                  │
+│                                │                                  │
+└────────────────────────────────┘                                  │
+                                                                    │
+┌────────────────────────────────┐                                  │
+│             Host 2             │                                  │
+│                                │                                  │
+│       Shard 1: Available       │   Host 2 completes bootstrapping and
+│       Shard 2: Available       │◀────updates placement (via etcd) to
+│       Shard 3: Available       │    indicate shard state is Available
+│                                │
+└────────────────────────────────┘
