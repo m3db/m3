@@ -24,6 +24,8 @@ import (
 	"bufio"
 	"encoding/binary"
 	"errors"
+	"io"
+	"io/ioutil"
 	"os"
 	"time"
 
@@ -124,10 +126,6 @@ func newCommitLogWriter(
 }
 
 func (w *writer) Open(start time.Time, duration time.Duration) error {
-	if w.isOpen() {
-		return errCommitLogWriterAlreadyOpen
-	}
-
 	commitLogsDir := fs.CommitLogsDirPath(w.filePathPrefix)
 	if err := os.MkdirAll(commitLogsDir, w.newDirectoryMode); err != nil {
 		return err
@@ -146,12 +144,11 @@ func (w *writer) Open(start time.Time, duration time.Duration) error {
 	if err := w.logEncoder.EncodeLogInfo(logInfo); err != nil {
 		return err
 	}
-	fd, err := fs.OpenWritable(filePath, w.newFileMode)
+	_, err = fs.OpenWritable(filePath, w.newFileMode)
 	if err != nil {
 		return err
 	}
 
-	w.chunkWriter.fd = fd
 	w.buffer.Reset(w.chunkWriter)
 	if err := w.write(w.logEncoder.Bytes()); err != nil {
 		w.Close()
@@ -161,10 +158,6 @@ func (w *writer) Open(start time.Time, duration time.Duration) error {
 	w.start = start
 	w.duration = duration
 	return nil
-}
-
-func (w *writer) isOpen() bool {
-	return w.chunkWriter.fd != nil
 }
 
 func (w *writer) Write(
@@ -238,18 +231,10 @@ func (w *writer) Flush() error {
 }
 
 func (w *writer) Close() error {
-	if !w.isOpen() {
-		return nil
-	}
-
 	if err := w.Flush(); err != nil {
 		return err
 	}
-	if err := w.chunkWriter.fd.Close(); err != nil {
-		return err
-	}
 
-	w.chunkWriter.fd = nil
 	w.start = timeZero
 	w.duration = 0
 	w.seen.ClearAll()
@@ -278,7 +263,7 @@ func (w *writer) write(data []byte) error {
 }
 
 type chunkWriter struct {
-	fd      *os.File
+	fd      io.Writer
 	flushFn flushFn
 	buff    []byte
 	fsync   bool
@@ -286,6 +271,7 @@ type chunkWriter struct {
 
 func newChunkWriter(flushFn flushFn, fsync bool) *chunkWriter {
 	return &chunkWriter{
+		fd:      ioutil.Discard,
 		flushFn: flushFn,
 		buff:    make([]byte, chunkHeaderLen),
 		fsync:   fsync,
@@ -325,11 +311,6 @@ func (w *chunkWriter) Write(p []byte) (int, error) {
 	if err != nil {
 		w.flushFn(err)
 		return n, err
-	}
-
-	// Fsync if required to
-	if w.fsync {
-		err = w.fd.Sync()
 	}
 
 	// Fire flush callback
