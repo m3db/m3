@@ -64,7 +64,7 @@ func (f *mirroredSelector) SelectInitialInstances(
 
 	var groups = make([][]placement.Instance, 0, len(candidates))
 	for _, hosts := range weightToHostMap {
-		groupedHosts, ungrouped := groupHostsWithIGCheck(hosts, rf)
+		groupedHosts, ungrouped := groupHostsWithIsolationGroupCheck(hosts, rf)
 		if len(ungrouped) != 0 {
 			for _, host := range ungrouped {
 				f.logger.Warnf("could not group host %s, isolation group %s, weight %d", host.name, host.isolationGroup, host.weight)
@@ -107,17 +107,27 @@ func (f *mirroredSelector) SelectAddingInstances(
 
 	var groups = make([][]placement.Instance, 0, len(candidates))
 	for _, hosts := range weightToHostMap {
-		groupedHosts, _ := groupHostsWithIGCheck(hosts, p.ReplicaFactor())
+		groupedHosts, _ := groupHostsWithIsolationGroupCheck(hosts, p.ReplicaFactor())
 		if len(groupedHosts) == 0 {
 			continue
 		}
 
-		groups, err = groupInstancesByHostPort(groupedHosts[:1])
+		if !f.opts.AddAllCandidates() {
+			// When AddAllCandidates option is disabled, we will only add
+			// one pair of hosts into the placement.
+			groups, err = groupInstancesByHostPort(groupedHosts[:1])
+			if err != nil {
+				return nil, err
+			}
+
+			break
+		}
+
+		newGroups, err := groupInstancesByHostPort(groupedHosts)
 		if err != nil {
 			return nil, err
 		}
-
-		break
+		groups = append(groups, newGroups...)
 	}
 
 	if len(groups) == 0 {
@@ -269,10 +279,10 @@ func groupHostsByWeight(candidates []placement.Instance) (map[uint32][]host, err
 	return weightToHostsMap, nil
 }
 
-// groupHostsWithIGCheck looks at the isolation groups of the given hosts
+// groupHostsWithIsolationGroupCheck looks at the isolation groups of the given hosts
 // and try to make as many groups as possible. The hosts in each group
 // must come from different isolation groups.
-func groupHostsWithIGCheck(hosts []host, rf int) ([][]host, []host) {
+func groupHostsWithIsolationGroupCheck(hosts []host, rf int) (groups [][]host, ungrouped []host) {
 	if len(hosts) < rf {
 		// When the number of hosts is less than rf, no groups can be made.
 		return nil, hosts
@@ -301,21 +311,21 @@ func groupHostsWithIGCheck(hosts []host, rf int) ([][]host, []host) {
 	// For each group, always prefer to find one host from the largest isolation group
 	// in the heap. After a group is filled, push all the checked isolation groups back
 	// to the heap so they can be used for the next group.
-	res := make([][]host, 0, int(math.Ceil(float64(len(hosts))/float64(rf))))
+	groups = make([][]host, 0, int(math.Ceil(float64(len(hosts))/float64(rf))))
 	for rh.Len() >= rf {
 		// When there are more than rf isolation groups available, try to make a group.
 		seenIGs := make(map[string]*group, rf)
-		groups := make([]host, 0, rf)
+		g := make([]host, 0, rf)
 		for i := 0; i < rf; i++ {
 			r := heap.Pop(&rh).(*group)
 			// Move the host from the isolation group to the group.
 			// The isolation groups in the heap always have at least one host.
-			groups = append(groups, r.hosts[len(r.hosts)-1])
+			g = append(g, r.hosts[len(r.hosts)-1])
 			r.hosts = r.hosts[:len(r.hosts)-1]
 			seenIGs[r.isolationGroup] = r
 		}
-		if len(groups) == rf {
-			res = append(res, groups)
+		if len(g) == rf {
+			groups = append(groups, g)
 		}
 		for _, r := range seenIGs {
 			if len(r.hosts) > 0 {
@@ -324,11 +334,11 @@ func groupHostsWithIGCheck(hosts []host, rf int) ([][]host, []host) {
 		}
 	}
 
-	ungrouped := make([]host, 0, rh.Len())
+	ungrouped = make([]host, 0, rh.Len())
 	for _, r := range rh {
 		ungrouped = append(ungrouped, r.hosts...)
 	}
-	return res, ungrouped
+	return groups, ungrouped
 }
 
 func groupInstancesByHostPort(hostGroups [][]host) ([][]placement.Instance, error) {
