@@ -30,6 +30,9 @@ The `Leaving` state indicates that a node has been marked for removal from the c
 
 ## Sample Cluster State Transitions - Node Add
 
+Node adds are performed by adding the new host to the placement. Some portion of the existing shards will be assigned to the new node based on its weight, and they will begin in the `Initializing` state. Similarly, the shards will be marked as `Leaving` on the node that are destined to lose ownership of them. Once the new node finishes bootstrapping the shards, it will update the placement to indicate that the shards it owns are `Available` and that the `Leaving` host should no longer own that shard in the placement.
+
+```
 Replication factor: 3
 
                                  ┌─────────────────┐          ┌─────────────────┐        ┌─────────────────┐       ┌─────────────────┐
@@ -39,7 +42,7 @@ Replication factor: 3
 │                          │ │                         │ │ │                       │ │ │                      ││                         │
 │                          │ │                         │ │ │                       │ │ │                      ││                         │
 │                          │ │   Shard 1: Available    │ │ │  Shard 1: Available   │ │ │  Shard 1: Available  ││                         │
-│     Initial Placement    │ │   Shard 2: Available    │ │ │  Shard 2: Available   │ │ │  Shard 2: Available  ││                         │
+│  1) Initial Placement    │ │   Shard 2: Available    │ │ │  Shard 2: Available   │ │ │  Shard 2: Available  ││                         │
 │                          │ │   Shard 3: Available    │ │ │  Shard 3: Available   │ │ │  Shard 3: Available  ││                         │
 │                          │ │                         │ │ │                       │ │ │                      ││                         │
 │                          │ │                         │ │ │                       │ │ │                      ││                         │
@@ -50,7 +53,7 @@ Replication factor: 3
 │                          │ │                         │ │ │                       │ │ │                      │││                      │ │
 │                          │ │                         │ │ │                       │ │ │                      │││                      │ │
 │                          │ │    Shard 1: Leaving     │ │ │   Shard 1: Available  │ │ │  Shard 1: Available  │││Shard 1: Initializing │ │
-│      Begin Node Add      │ │    Shard 2: Available   │ │ │   Shard 2: Leaving    │ │ │  Shard 2: Available  │││Shard 2: Initializing │ │
+│   2) Begin Node Add      │ │    Shard 2: Available   │ │ │   Shard 2: Leaving    │ │ │  Shard 2: Available  │││Shard 2: Initializing │ │
 │                          │ │    Shard 3: Available   │ │ │   Shard 3: Available  │ │ │  Shard 3: Leaving    │││Shard 3: Initializing │ │
 │                          │ │                         │ │ │                       │ │ │                      │││                      │ │
 │                          │ │                         │ │ │                       │ │ │                      │││                      │ │
@@ -62,20 +65,22 @@ Replication factor: 3
 │                          │ │                         │ │ │                       │ │ │                      │││                      │ │
 │                          │ │                         │ │ │                       │ │ │                      │││                      │ │
 │                          │ │   Shard 2: Available    │ │ │  Shard 1: Available   │ │ │  Shard 1: Available  │││  Shard 1: Available  │ │
-│     Complete Node Add    │ │   Shard 3: Available    │ │ │  Shard 3: Available   │ │ │  Shard 2: Available  │││  Shard 2: Available  │ │
+│  3) Complete Node Add    │ │   Shard 3: Available    │ │ │  Shard 3: Available   │ │ │  Shard 2: Available  │││  Shard 2: Available  │ │
 │                          │ │                         │ │ │                       │ │ │                      │││  Shard 3: Available  │ │
 │                          │ │                         │ │ │                       │ │ │                      │││                      │ │
 │                          │ │                         │ │ │                       │ │ │                      │││                      │ │
 │                          │ └─────────────────────────┘ │ └───────────────────────┘ │ └──────────────────────┘│└──────────────────────┘ │
 │                          │                             │                           │                         │                         │
 └──────────────────────────┴─────────────────────────────┴───────────────────────────┴─────────────────────────┴─────────────────────────┘
-
+```
 
 ## Sample Cluster State Transitions - Node Remove
 
-Replication factor: 3
+Node removes are performed by updating the placement such that all the shards on the host that will be removed from the cluster are marked as `Leaving` and those shards are distributed to the remaining nodes (based on their weight) and assigned a state of `Initializing`. Once the existing nodes that are taking ownership of the leaving nodes shards finish bootstrapping, they will update the placement to indicate that the shards that they just acquired are `Available` and that the leaving host should no longer own those shards in the placement.
 
 ```
+Replication factor: 3
+
                                  ┌─────────────────┐          ┌─────────────────┐        ┌─────────────────┐       ┌─────────────────┐
                                  │     Host 1      │          │     Host 2      │        │     Host 3      │       │     Host 4      │
 ┌──────────────────────────┬─────┴─────────────────┴─────┬────┴─────────────────┴────┬───┴─────────────────┴───┬───┴─────────────────┴───┐
@@ -83,7 +88,7 @@ Replication factor: 3
 │                          │ │                         │ │ │                       │ │ │                      │││                      │ │
 │                          │ │                         │ │ │                       │ │ │                      │││                      │ │
 │                          │ │   Shard 2: Available    │ │ │  Shard 1: Available   │ │ │  Shard 1: Available  │││  Shard 1: Available  │ │
-│     Initial Placement    │ │   Shard 3: Available    │ │ │  Shard 3: Available   │ │ │  Shard 2: Available  │││  Shard 2: Available  │ │
+│  1) Initial Placement    │ │   Shard 3: Available    │ │ │  Shard 3: Available   │ │ │  Shard 2: Available  │││  Shard 2: Available  │ │
 │                          │ │                         │ │ │                       │ │ │                      │││  Shard 3: Available  │ │
 │                          │ │                         │ │ │                       │ │ │                      │││                      │ │
 │                          │ │                         │ │ │                       │ │ │                      │││                      │ │
@@ -94,7 +99,7 @@ Replication factor: 3
 │                          │ │                         │ │ │                       │ ││                       │││                      │ │
 │                          │ │                         │ │ │                       │ ││  Shard 1: Available   │││                      │ │
 │                          │ │   Shard 1: Initializing │ │ │  Shard 1: Available   │ ││  Shard 2: Available   │││   Shard 1: Leaving   │ │
-│     Begin Node Remove    │ │   Shard 2: Available    │ │ │  Shard 2: Initializing│ ││  Shard 3: Initializing│││   Shard 2: Leaving   │ │
+│  2) Begin Node Remove    │ │   Shard 2: Available    │ │ │  Shard 2: Initializing│ ││  Shard 3: Initializing│││   Shard 2: Leaving   │ │
 │                          │ │   Shard 3: Available    │ │ │  Shard 3: Available   │ ││                       │││   Shard 3: Leaving   │ │
 │                          │ │                         │ │ │                       │ ││                       │││                      │ │
 │                          │ │                         │ │ │                       │ ││                       │││                      │ │
@@ -106,7 +111,7 @@ Replication factor: 3
 │                          │ │                         │ │ │                       │ │ │                      ││                         │
 │                          │ │                         │ │ │                       │ │ │                      ││                         │
 │                          │ │    Shard 1: Avaiable    │ │ │  Shard 1: Available   │ │ │  Shard 1: Available  ││                         │
-│     Complete Node Add    │ │   Shard 2: Available    │ │ │  Shard 2: Available   │ │ │  Shard 2: Available  ││                         │
+│  3) Complete Node Add    │ │   Shard 2: Available    │ │ │  Shard 2: Available   │ │ │  Shard 2: Available  ││                         │
 │                          │ │   Shard 3: Available    │ │ │  Shard 3: Available   │ │ │  Shard 3: Available  ││                         │
 │                          │ │                         │ │ │                       │ │ │                      ││                         │
 │                          │ │                         │ │ │                       │ │ │                      ││                         │
@@ -117,9 +122,11 @@ Replication factor: 3
 
 ## Sample Cluster State Transitions - Node Replace
 
-Replication factor: 3
+Node replaces are performed by updating the placement such that all the shards on the host that will be removed from the cluster are marked as `Leaving` and those shards are all added to the host that is being added and assigned a state of `Initializing`. Once the replacement node finishes bootstrapping, it will update the placement to indicate that the shards that it acquired are `Available` and that the leaving host should no longer own those shards in the placement.
 
 ```
+Replication factor: 3
+
                                  ┌─────────────────┐          ┌─────────────────┐        ┌─────────────────┐       ┌─────────────────┐
                                  │     Host 1      │          │     Host 2      │        │     Host 3      │       │     Host 4      │
 ┌──────────────────────────┬─────┴─────────────────┴─────┬────┴─────────────────┴────┬───┴─────────────────┴───┬───┴─────────────────┴───┐
@@ -127,7 +134,7 @@ Replication factor: 3
 │                          │ │                         │ │ │                       │ │ │                      ││                         │
 │                          │ │                         │ │ │                       │ │ │                      ││                         │
 │                          │ │   Shard 1: Available    │ │ │  Shard 1: Available   │ │ │  Shard 1: Available  ││                         │
-│     Initial Placement    │ │   Shard 2: Available    │ │ │  Shard 2: Available   │ │ │  Shard 2: Available  ││                         │
+│  1) Initial Placement    │ │   Shard 2: Available    │ │ │  Shard 2: Available   │ │ │  Shard 2: Available  ││                         │
 │                          │ │   Shard 3: Available    │ │ │  Shard 3: Available   │ │ │  Shard 3: Available  ││                         │
 │                          │ │                         │ │ │                       │ │ │                      ││                         │
 │                          │ │                         │ │ │                       │ │ │                      ││                         │
@@ -138,7 +145,7 @@ Replication factor: 3
 │                          │ │                         │ │ │                       │ ││                       │││                      │ │
 │                          │ │                         │ │ │                       │ ││                       │││                      │ │
 │                          │ │   Shard 1: Available    │ │ │  Shard 1: Available   │ ││   Shard 1: Leaving    │││Shard 1: Initializing │ │
-│     Begin Node Remove    │ │   Shard 2: Available    │ │ │  Shard 2: Available   │ ││   Shard 2: Leaving    │││Shard 2: Initializing │ │
+│  2) Begin Node Remove    │ │   Shard 2: Available    │ │ │  Shard 2: Available   │ ││   Shard 2: Leaving    │││Shard 2: Initializing │ │
 │                          │ │   Shard 3: Available    │ │ │  Shard 3: Available   │ ││   Shard 3: Leaving    │││Shard 3: Initializing │ │
 │                          │ │                         │ │ │                       │ ││                       │││                      │ │
 │                          │ │                         │ │ │                       │ ││                       │││                      │ │
@@ -150,7 +157,7 @@ Replication factor: 3
 │                          │ │                         │ │ │                       │ │                         ││                      │ │
 │                          │ │                         │ │ │                       │ │                         ││                      │ │
 │                          │ │    Shard 1: Avaiable    │ │ │  Shard 1: Available   │ │                         ││  Shard 1: Available  │ │
-│     Complete Node Add    │ │   Shard 2: Available    │ │ │  Shard 2: Available   │ │                         ││  Shard 2: Available  │ │
+│  3) Complete Node Add    │ │   Shard 2: Available    │ │ │  Shard 2: Available   │ │                         ││  Shard 2: Available  │ │
 │                          │ │   Shard 3: Available    │ │ │  Shard 3: Available   │ │                         ││  Shard 3: Available  │ │
 │                          │ │                         │ │ │                       │ │                         ││                      │ │
 │                          │ │                         │ │ │                       │ │                         ││                      │ │
@@ -160,6 +167,8 @@ Replication factor: 3
 ```
 
 ## Cluster State Transitions - Placement Updates Initiation
+
+The diagram below depicts the sequence of events that happen during a node replace and illustrates which entity is performing the placement update (in etcd) at each step.
 
 ```
  ┌────────────────────────────────┐
