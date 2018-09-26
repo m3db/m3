@@ -620,6 +620,7 @@ func TestSelectAddingInstanceForMirror(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 4, len(res))
 
+	// Make sure leaving nodes are eligible for adding.
 	h1p1.SetShards(shard.NewShards([]shard.Shard{shard.NewShard(0).SetState(shard.Leaving)}))
 	h2p1.SetShards(shard.NewShards([]shard.Shard{shard.NewShard(0).SetState(shard.Leaving)}))
 
@@ -666,4 +667,127 @@ func TestSelectAddingInstanceForMirror(t *testing.T) {
 		p,
 	)
 	require.Error(t, err)
+}
+
+func TestSelectAddingInstanceForMirrorWithAddAllCandidates(t *testing.T) {
+	h1p1 := placement.NewInstance().
+		SetID("h1p1").
+		SetHostname("h1").
+		SetPort(1).
+		SetIsolationGroup("r1").
+		SetZone("z1").
+		SetEndpoint("h1p1e").
+		SetWeight(1).
+		SetShardSetID(1)
+	h1p2 := placement.NewInstance().
+		SetID("h1p2").
+		SetHostname("h1").
+		SetPort(2).
+		SetIsolationGroup("r1").
+		SetZone("z1").
+		SetEndpoint("h1p2e").
+		SetWeight(1).
+		SetShardSetID(2)
+	h2p1 := placement.NewInstance().
+		SetID("h2p1").
+		SetHostname("h2").
+		SetPort(1).
+		SetIsolationGroup("r2").
+		SetZone("z1").
+		SetEndpoint("h2p1e").
+		SetWeight(1).
+		SetShardSetID(1)
+	h2p2 := placement.NewInstance().
+		SetID("h2p2").
+		SetHostname("h2").
+		SetPort(2).
+		SetIsolationGroup("r2").
+		SetZone("z1").
+		SetEndpoint("h2p2e").
+		SetWeight(1).
+		SetShardSetID(2)
+
+	p := placement.NewPlacement().
+		SetInstances([]placement.Instance{h1p1, h1p2, h2p1, h2p2}).
+		SetIsMirrored(true).
+		SetIsSharded(true).
+		SetReplicaFactor(2).
+		SetMaxShardSetID(2)
+
+	h3p1 := placement.NewInstance().
+		SetID("h3p1").
+		SetHostname("h3").
+		SetPort(1).
+		SetIsolationGroup("r1").
+		SetZone("z1").
+		SetEndpoint("h3p1e").
+		SetWeight(1)
+	h3p2 := placement.NewInstance().
+		SetID("h3p2").
+		SetHostname("h3").
+		SetPort(2).
+		SetIsolationGroup("r1").
+		SetZone("z1").
+		SetEndpoint("h3p2e").
+		SetWeight(1)
+	h4p1 := placement.NewInstance().
+		SetID("h4p1").
+		SetHostname("h4").
+		SetPort(1).
+		SetIsolationGroup("r3").
+		SetZone("z1").
+		SetEndpoint("h4p1e").
+		SetWeight(1)
+	h4p2 := placement.NewInstance().
+		SetID("h4p2").
+		SetHostname("h4").
+		SetPort(2).
+		SetIsolationGroup("r3").
+		SetZone("z1").
+		SetEndpoint("h4p2e").
+		SetWeight(1)
+	h5p1 := placement.NewInstance().
+		SetID("h5p1").
+		SetHostname("h5").
+		SetPort(1).
+		SetIsolationGroup("r1").
+		SetZone("z1").
+		SetEndpoint("h5p1e").
+		SetWeight(1)
+	h5p2 := placement.NewInstance().
+		SetID("h5p2").
+		SetHostname("h5").
+		SetPort(2).
+		SetIsolationGroup("r1").
+		SetZone("z1").
+		SetEndpoint("h5p2e").
+		SetWeight(1)
+	h6p1 := placement.NewInstance().
+		SetID("h6p1").
+		SetHostname("h6").
+		SetPort(1).
+		SetIsolationGroup("r3").
+		SetZone("z1").
+		SetEndpoint("h6p1e").
+		SetWeight(1)
+	h6p2 := placement.NewInstance().
+		SetID("h6p2").
+		SetHostname("h6").
+		SetPort(2).
+		SetIsolationGroup("r3").
+		SetZone("z1").
+		SetEndpoint("h6p2e").
+		SetWeight(1)
+
+	selector := newMirroredSelector(placement.NewOptions().SetValidZone("z1").SetAddAllCandidates(true))
+	res, err := selector.SelectAddingInstances(
+		[]placement.Instance{h3p1, h3p2, h4p1, h4p2, h5p1, h5p2, h6p1, h6p2},
+		p,
+	)
+	require.NoError(t, err)
+	require.Equal(t, 8, len(res))
+	require.Equal(t, h3p1.ShardSetID(), h4p1.ShardSetID())
+	require.Equal(t, h3p2.ShardSetID(), h4p2.ShardSetID())
+	require.Equal(t, h5p1.ShardSetID(), h6p1.ShardSetID())
+	require.Equal(t, h5p1.ShardSetID(), h6p1.ShardSetID())
 }

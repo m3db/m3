@@ -22,6 +22,7 @@ package services
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -333,13 +334,13 @@ func TestAdvertiseUnadvertise(t *testing.T) {
 	require.NoError(t, sd.Unadvertise(sid, "i1"))
 	ids, err := s.Get()
 	require.NoError(t, err)
-	require.Equal(t, 0, len(ids))
+	require.Equal(t, 0, len(ids), fmt.Sprintf("ids: %v", ids))
 
 	// give enough time for another heartbeat
 	time.Sleep(hbInterval)
 	ids, err = s.Get()
 	require.NoError(t, err)
-	require.Equal(t, 0, len(ids))
+	require.Equal(t, 0, len(ids), fmt.Sprintf("ids: %v", ids))
 
 	// resume heartbeat
 	require.NoError(t, sd.Advertise(ad))

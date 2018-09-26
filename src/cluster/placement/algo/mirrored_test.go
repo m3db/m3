@@ -193,7 +193,7 @@ func TestMirrorWorkflow(t *testing.T) {
 	assert.NoError(t, placement.Validate(p))
 }
 
-func TestMirrorTestAddAndRevertBeforeCutover(t *testing.T) {
+func TestMirrorAddAndRevertBeforeCutover(t *testing.T) {
 	i1 := placement.NewInstance().
 		SetID("i1").
 		SetIsolationGroup("r1").
@@ -274,7 +274,128 @@ func TestMirrorTestAddAndRevertBeforeCutover(t *testing.T) {
 	assert.Equal(t, p.SetMaxShardSetID(3), p2)
 }
 
-func TestMirrorTestAddAndRevertAfterCutover(t *testing.T) {
+func TestMirrorAddMultiplePairs(t *testing.T) {
+	i1 := placement.NewInstance().
+		SetID("i1").
+		SetIsolationGroup("r1").
+		SetEndpoint("endpoint1").
+		SetShardSetID(1).
+		SetWeight(1)
+	i2 := placement.NewInstance().
+		SetID("i2").
+		SetIsolationGroup("r2").
+		SetEndpoint("endpoint2").
+		SetShardSetID(1).
+		SetWeight(1)
+	i3 := placement.NewInstance().
+		SetID("i3").
+		SetIsolationGroup("r3").
+		SetEndpoint("endpoint3").
+		SetShardSetID(2).
+		SetWeight(2)
+	i4 := placement.NewInstance().
+		SetID("i4").
+		SetIsolationGroup("r4").
+		SetEndpoint("endpoint4").
+		SetShardSetID(2).
+		SetWeight(2)
+	i5 := placement.NewInstance().
+		SetID("i5").
+		SetIsolationGroup("r5").
+		SetEndpoint("endpoint5").
+		SetShardSetID(3).
+		SetWeight(3)
+	i6 := placement.NewInstance().
+		SetID("i6").
+		SetIsolationGroup("r6").
+		SetEndpoint("endpoint6").
+		SetShardSetID(3).
+		SetWeight(3)
+	i7 := placement.NewInstance().
+		SetID("i7").
+		SetIsolationGroup("r7").
+		SetEndpoint("endpoint7").
+		SetShardSetID(4).
+		SetWeight(3)
+	i8 := placement.NewInstance().
+		SetID("i8").
+		SetIsolationGroup("r8").
+		SetEndpoint("endpoint8").
+		SetShardSetID(4).
+		SetWeight(3)
+
+	instances := []placement.Instance{i1, i2, i3, i4}
+
+	numShards := 100
+	ids := make([]uint32, numShards)
+	for i := 0; i < len(ids); i++ {
+		ids[i] = uint32(i)
+	}
+
+	now := time.Now()
+	nowNanos := now.UnixNano()
+	shardCutoverTime := now.Add(time.Hour).UnixNano()
+	opts := placement.NewOptions().
+		SetIsMirrored(true).
+		SetShardCutoverNanosFn(func() int64 { return shardCutoverTime }).
+		SetShardCutoffNanosFn(func() int64 { return shardCutoverTime })
+	a := NewAlgorithm(opts)
+	p, err := a.InitialPlacement(instances, ids, 2)
+	assert.NoError(t, err)
+	assert.Equal(t, uint32(2), p.MaxShardSetID())
+	assert.NoError(t, placement.Validate(p))
+
+	p, _, err = a.MarkAllShardsAvailable(p)
+	assert.NoError(t, err)
+
+	p1, err := a.AddInstances(p, []placement.Instance{i5, i6, i7, i8})
+	assert.NoError(t, err)
+	assert.Equal(t, uint32(4), p1.MaxShardSetID())
+	assert.NoError(t, placement.Validate(p1))
+	assert.True(t, allInitializing(p1, []string{"i5", "i6", "i7", "i8"}, nowNanos))
+	i5, ok := p1.Instance("i5")
+	assert.True(t, ok)
+	i6, ok = p1.Instance("i6")
+	assert.True(t, ok)
+	assert.Equal(t, i5.Shards().AllIDs(), i6.Shards().AllIDs())
+	assert.Equal(t, i5.ShardSetID(), i6.ShardSetID())
+	i7, ok = p1.Instance("i7")
+	assert.True(t, ok)
+	i8, ok = p1.Instance("i8")
+	assert.True(t, ok)
+	assert.Equal(t, i7.Shards().AllIDs(), i8.Shards().AllIDs())
+	assert.Equal(t, i7.ShardSetID(), i8.ShardSetID())
+
+	// Removing all initializing nodes will trigger the revert path.
+	p2, err := a.RemoveInstances(p1.Clone(), []string{"i5", "i6", "i7", "i8"})
+	assert.NoError(t, err)
+	assert.Equal(t, uint32(4), p2.MaxShardSetID())
+	assert.NoError(t, placement.Validate(p2))
+	_, ok = p2.Instance("i5")
+	assert.False(t, ok)
+	_, ok = p2.Instance("i7")
+	assert.False(t, ok)
+
+	assert.NoError(t, err)
+	assert.Equal(t, p.SetMaxShardSetID(4), p2)
+
+	// Removing part of the initializing nodes will not trigger the revert path
+	// and will only do a normal revert.
+	p3, err := a.RemoveInstances(p1.Clone(), []string{"i7", "i8"})
+	assert.NoError(t, err)
+	assert.Equal(t, uint32(4), p3.MaxShardSetID())
+	assert.NoError(t, placement.Validate(p3))
+	_, ok = p3.Instance("i5")
+	assert.True(t, ok)
+	newI7, ok := p3.Instance("i7")
+	assert.True(t, ok)
+	assert.True(t, newI7.IsLeaving())
+
+	assert.NoError(t, err)
+	assert.Equal(t, p.SetMaxShardSetID(4), p2)
+}
+
+func TestMirrorAddAndRevertAfterCutover(t *testing.T) {
 	i1 := placement.NewInstance().
 		SetID("i1").
 		SetIsolationGroup("r1").
@@ -350,7 +471,7 @@ func TestMirrorTestAddAndRevertAfterCutover(t *testing.T) {
 	assert.True(t, i6.IsLeaving())
 }
 
-func TestMirrorTestRemoveAndRevertBeforeCutover(t *testing.T) {
+func TestMirrorRemoveAndRevertBeforeCutover(t *testing.T) {
 	i1 := placement.NewInstance().
 		SetID("i1").
 		SetIsolationGroup("r1").
@@ -433,7 +554,7 @@ func TestMirrorTestRemoveAndRevertBeforeCutover(t *testing.T) {
 	assert.Equal(t, p, p2)
 }
 
-func TestMirrorTestRemoveAndRevertAfterCutover(t *testing.T) {
+func TestMirrorRemoveAndRevertAfterCutover(t *testing.T) {
 	i1 := placement.NewInstance().
 		SetID("i1").
 		SetIsolationGroup("r1").
@@ -510,7 +631,7 @@ func TestMirrorTestRemoveAndRevertAfterCutover(t *testing.T) {
 	assert.True(t, i6.IsInitializing())
 }
 
-func TestMirrorTestReplaceAndRevertBeforeCutover(t *testing.T) {
+func TestMirrorReplaceAndRevertBeforeCutover(t *testing.T) {
 	i1 := placement.NewInstance().
 		SetID("i1").
 		SetIsolationGroup("r1").
@@ -580,7 +701,7 @@ func TestMirrorTestReplaceAndRevertBeforeCutover(t *testing.T) {
 	assert.False(t, ok)
 }
 
-func TestMirrorTestReplaceAndRevertAfterCutover(t *testing.T) {
+func TestMirrorReplaceAndRevertAfterCutover(t *testing.T) {
 	i1 := placement.NewInstance().
 		SetID("i1").
 		SetIsolationGroup("r1").
