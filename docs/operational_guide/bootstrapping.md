@@ -37,6 +37,7 @@ On a shard-by-shard basis, the `commitlog` bootstrapper will consult the cluster
 
 The peer bootstrapper's responsibility is to stream in data for shard/ranges from other M3DB nodes (peers) in the cluster. This bootstrapper is only useful in M3DB clusters with more than a single node *and* where the replication factor is set to a value larger than 1. The `peers` bootstrapper will determine whether or not it can satisfy a bootstrap request on a shard-by-shard basis by consulting the cluster placement and determining if there are enough peers to satisfy the bootstrap request. For example, imagine the following M3DB placement where node 1 is trying to perform a peer bootstrap:
 
+```
     ┌─────────────────┐          ┌─────────────────┐        ┌─────────────────┐
     │     Host 1      │          │     Host 2      │        │     Host 3      │
 ────┴─────────────────┴──────────┴─────────────────┴────────┴─────────────────┴───
@@ -49,9 +50,11 @@ The peer bootstrapper's responsibility is to stream in data for shard/ranges fro
 │                         │   │                       │   │                      │
 │                         │   │                       │   │                      │
 └─────────────────────────┘   └───────────────────────┘   └──────────────────────┘
+```
 
 In this case, the peer bootstrapper running on node 1 will not be able to fullfill any requests because node 2 is in the `Initializing` state for all of its shards and cannot fulfill bootstrap requests. This means that node 1's peer bootstrapper cannot meet its default consistency level of majority for bootstrapping (1 < 2 which is majority with a replication factor of 3). On the other hand, node 1 would be able to peer bootstrap in the following placement because its peers (nodes 2/3) are `Available` for all of their shards:
 
+```
     ┌─────────────────┐          ┌─────────────────┐        ┌─────────────────┐
     │     Host 1      │          │     Host 2      │        │     Host 3      │
 ────┴─────────────────┴──────────┴─────────────────┴────────┴─────────────────┴───
@@ -64,6 +67,7 @@ In this case, the peer bootstrapper running on node 1 will not be able to fullfi
 │                         │   │                       │   │                      │
 │                         │   │                       │   │                      │
 └─────────────────────────┘   └───────────────────────┘   └──────────────────────┘
+```
 
 Note that a bootstrap consistency level of majority is the default value, but can be modified by changing the value of the key "m3db.client.bootstrap-consistency-level" in [etcd](https://coreos.com/etcd/) to one of: "none", "one", "unstrict_majority" (attempt to read from majority, but settle for less if any errors occur), "majority" (strict majority), and "all".
 
