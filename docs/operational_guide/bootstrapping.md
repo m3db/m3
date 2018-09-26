@@ -89,19 +89,27 @@ Now that we've gone over the various bootstrappers, let's consider how M3DB will
 
 #### filesystem,commitlog,peers,uninitialized_topology (default)
 
-This is the default bootstrappers configuration for M3DB and will behave "as expected" in the sense that it will maintain M3DB's consistency guarantees at all times, handle node adds/replaces/removes correctly, and still work with brand new topologies.
+This is the default bootstrappers configuration for M3DB and will behave "as expected" in the sense that it will maintain M3DB's consistency guarantees at all times, handle node adds/replaces/removes correctly, and still work with brand new placements / topologies. **This is the only configuration that we recommend using in production**.
 
 In the general case, the node will use only the `filesystem` and `commitlog` bootstrappers on node startup. However, in the case of a node add/remove/replace, the `commitlog` bootstrapper will detect that it is unable to fulfill the bootstrap request (because the node has never reached the `Available` state) and defer to the `peers` bootstrapper to stream in the data.
 
 Additionally, if it is a brand new placement where even the `peers` bootstrapper cannot fulfill the bootstrap, this will be detected by the `uninitialized_topology` bootstrapper which will succeed the bootstrap.
 
-#### filesystem,commitlog,uninitialized_topology
+#### filesystem,peers,uninitialized_topology (default)
 
-This bootstrapping configuration will work just fine if nodes are never added/replaced/removed, but will fail when attempting a node add/replace/remove.
+Everytime a node is restarted it will attempt to stream in all of the the data for any blocks that it has never flushed, which is generally the currently active block and possibly the previous block as well. This mode can be useful if you want to improve performance or save disk space by operating nodes without a commitlog, or want to force a repair of any unflushed blocks. This mode can lead to violations of M3DB's consistency guarantees due to the fact that commit logs are being ignored. In addition, if you lose a replication factors worth or more of hosts at the same time, the node will not be able to bootstrap unless an operator modifies the bootstrap consistency level configuration in etcd (see `peers` bootstrap section above). Finally, this mode adds additional network and resource pressure on other nodes in the cluster while one node is peer bootstrapping from them which can be problematic in catastrophic scenarios where all the nodes are trying to stream data from each other.
 
 #### peers,uninitialized_topology
 
-Every time a node is restarted, it will attempt to stream in *all* of the data that it is responsible for from its peers, completely ignoring the immutable Fileset files it already has on disk. We do not recommend running in this mode as it can lead to violations of M3DB's consistency guarantees due to the fact that the commit logs are being ignored, however, it *can* be useful if you want to repair the data on a node by forcing it to stream from its peers.
+Every time a node is restarted, it will attempt to stream in *all* of the data that it is responsible for from its peers, completely ignoring the immutable Fileset files it already has on disk. This mode can be useful if you want to improve performance or save disk space by operating nodes without a commitlog, or want to force a repair of all data on an individual node. This mode can lead to violations of M3DB's consistency guarantees due to the fact that the commit logs are being ignored. In addition, if you lose a replication factors worth or more of hosts at the same time, the node will not be able to bootstrap unless an operator modifies the bootstrap consistency level configuration in etcd (see `peers` bootstrap section above). Finally, this mode adds additional network and resource pressure on other nodes in the cluster while one node is peer bootstrapping from them which can be problematic in catastrophic scenarios where all the nodes are trying to stream data from each other.
+
+### Invalid bootstrappers configuration
+
+For the sake of completeness, we've included a short discussion below of some bootstrapping configurations that we consider "invalid" in that they are likely to lose data / violate M3DB's consistency guarantees and/or not handle placement changes in a correct way.
+
+#### filesystem,commitlog,uninitialized_topology
+
+This bootstrapping configuration will work just fine if nodes are never added/replaced/removed, but will fail when attempting a node add/replace/remove.
 
 #### filesystem,uninitialized_topology
 
