@@ -137,8 +137,7 @@ func (p *parseState) walk(node pql.Node) error {
 					argValues = append(argValues, e.Range)
 				}
 
-				err := p.walk(expr)
-				if err != nil {
+				if err := p.walk(expr); err != nil {
 					return err
 				}
 			}
