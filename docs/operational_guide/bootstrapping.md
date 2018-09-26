@@ -37,31 +37,33 @@ On a shard-by-shard basis, the `commitlog` bootstrapper will consult the cluster
 
 The peer bootstrapper's responsibility is to stream in data for shard/ranges from other M3DB nodes (peers) in the cluster. This bootstrapper is only useful in M3DB clusters with more than a single node *and* where the replication factor is set to a value larger than 1. The `peers` bootstrapper will determine whether or not it can satisfy a bootstrap request on a shard-by-shard basis by consulting the cluster placement and determining if there are enough peers to satisfy the bootstrap request. For example, imagine the following M3DB placement where node 1 is trying to perform a peer bootstrap:
 
-| Node | Shard | State |
-|------|-------|-------|
-|  1   |   1   |   I   |
-|  1   |   2   |   I   |
-|  1   |   3   |   I   |
-|  2   |   1   |   I   |
-|  2   |   2   |   I   |
-|  2   |   3   |   I   |
-|  3   |   1   |   A   |
-|  3   |   2   |   A   |
-|  3   |   3   |   A   |
+    ┌─────────────────┐          ┌─────────────────┐        ┌─────────────────┐
+    │     Host 1      │          │     Host 2      │        │     Host 3      │
+────┴─────────────────┴──────────┴─────────────────┴────────┴─────────────────┴───
+┌─────────────────────────┐   ┌───────────────────────┐   ┌──────────────────────┐
+│                         │   │                       │   │                      │
+│                         │   │                       │   │                      │
+│  Shard 1: Initializing  │   │ Shard 1: Initializing │   │  Shard 1: Available  │
+│  Shard 2: Initializing  │   │ Shard 2: Initializing │   │  Shard 2: Available  │
+│  Shard 3: Initializing  │   │ Shard 3: Initializing │   │  Shard 3: Available  │
+│                         │   │                       │   │                      │
+│                         │   │                       │   │                      │
+└─────────────────────────┘   └───────────────────────┘   └──────────────────────┘
 
 In this case, the peer bootstrapper running on node 1 will not be able to fullfill any requests because node 2 is in the `Initializing` state for all of its shards and cannot fulfill bootstrap requests. This means that node 1's peer bootstrapper cannot meet its default consistency level of majority for bootstrapping (1 < 2 which is majority with a replication factor of 3). On the other hand, node 1 would be able to peer bootstrap in the following placement because its peers (nodes 2/3) are `Available` for all of their shards:
 
-| Node | Shard | State |
-|------|-------|-------|
-|  1   |   1   |   I   |
-|  1   |   2   |   I   |
-|  1   |   3   |   I   |
-|  2   |   1   |   A   |
-|  2   |   2   |   A   |
-|  2   |   3   |   A   |
-|  3   |   1   |   A   |
-|  3   |   2   |   A   |
-|  3   |   3   |   A   |
+    ┌─────────────────┐          ┌─────────────────┐        ┌─────────────────┐
+    │     Host 1      │          │     Host 2      │        │     Host 3      │
+────┴─────────────────┴──────────┴─────────────────┴────────┴─────────────────┴───
+┌─────────────────────────┐   ┌───────────────────────┐   ┌──────────────────────┐
+│                         │   │                       │   │                      │
+│                         │   │                       │   │                      │
+│  Shard 1: Initializing  │   │ Shard 1: Available    │   │  Shard 1: Available  │
+│  Shard 2: Initializing  │   │ Shard 2: Available    │   │  Shard 2: Available  │
+│  Shard 3: Initializing  │   │ Shard 3: Available    │   │  Shard 3: Available  │
+│                         │   │                       │   │                      │
+│                         │   │                       │   │                      │
+└─────────────────────────┘   └───────────────────────┘   └──────────────────────┘
 
 Note that a bootstrap consistency level of majority is the default value, but can be modified by changing the value of the key "m3db.client.bootstrap-consistency-level" in [etcd](https://coreos.com/etcd/) to one of: "none", "one", "unstrict_majority" (attempt to read from majority, but settle for less if any errors occur), "majority" (strict majority), and "all".
 
