@@ -4,13 +4,14 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"regexp"
 	"strings"
 )
 
 const (
-	operationRegEx  = `(?s)<operation>.*?</operation>|(?s)<operation_json>.*?</operation>`
+	operationRegEx  = `(?s)<operation>.*?</operation>|(?s)<operation_json>.*?</operation_json>`
 	validationRegEx = `(?s)<validation>.*?</validation>`
 
 	operationOpen   = `<operation>`
@@ -35,14 +36,14 @@ func main() {
 
 	f, err := ioutil.ReadFile(file)
 	if err != nil {
-		panic(err)
+		log.Fatalf("unable to read source file: %v\n", err)
 	}
 
 	// create bash script file based on name of source file
 	scriptFileName := fmt.Sprintf("%s%s", strings.Replace(file, ".md.source", "", -1), ".sh")
 	script, err := os.Create(scriptFileName)
 	if err != nil {
-		panic(err)
+		log.Fatalf("unable to create bash script: %v\n", err)
 	}
 	defer script.Close()
 
@@ -75,7 +76,7 @@ func main() {
 	// create new markdown file based on name of source file
 	out, err := os.Create(strings.Replace(file, ".source", "", -1))
 	if err != nil {
-		panic(err)
+		log.Fatalf("unable to create markdown file: %v\n", err)
 	}
 	defer out.Close()
 	out.Chmod(0644)
