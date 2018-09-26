@@ -23,6 +23,8 @@ When the bootstrapping process begins, M3DB nodes need to determine two things:
 
 For example, imagine a M3DB node that is responsible for shards 1, 5, 13, and 25 according to the cluster placement. In addition, it has a single namespace called "metrics" with a retention of 48 hours. When the M3DB node is started, the node will determine that it needs to bootstrap shards 1, 5, 13, and 25 for the time range starting at the current time and ending 48 hours ago. In order to obtain all this data, it will run the configured bootstrappers in the specified order. Every bootstrapper will notify the bootstrapping process of which shard/ranges it was able to bootstrap and the bootstrapping process will continue working its way through the list of bootstrappers until all the shards/ranges required have been marked as fulfilled. Otherwise the M3DB node will fail to start.
 
+## Bootstrappers
+
 ### Filesystem Bootstrapper
 
 The `filesystem` bootstrapper's responsibility is to determine which immutable [Fileset files](../m3db/architecture/storage.md) exist on disk, and if so, mark them as fulfilled. The `filesystem` bootstrapper achieves this by scanning M3DB's directory structure and determining which Fileset files exist on disk. Unlike the other bootstrappers, the `filesystem` bootstrapper does not need to load any data into memory, it simply verifies the checksums of the data on disk and other components of the M3DB node will handle reading (and caching) the data dynamically once it begins to serve reads.
@@ -83,11 +85,11 @@ The `uninitialized_topology` bootstrapper determines whether a placement is "new
 
 The `noop_all` bootstrapper succeeds all bootstraps regardless of requests shards/time ranges.
 
-### Bootstrappers Configuration
+## Bootstrappers Configuration
 
 Now that we've gone over the various bootstrappers, let's consider how M3DB will behave in different configurations. Note that we include `uninitialized_topology` at the end of all the lists of bootstrappers because its required to get a new placement up and running in the first place, but is not required after that (although leaving it in has no detrimental effects). Also note that any configuration that does not include the `peers` bootstrapper will not be able to handle dynamic placement changes like node adds/removes/replaces.
 
-#### filesystem,commitlog,peers,uninitialized_topology (default)
+### filesystem,commitlog,peers,uninitialized_topology (default)
 
 This is the default bootstrappers configuration for M3DB and will behave "as expected" in the sense that it will maintain M3DB's consistency guarantees at all times, handle node adds/replaces/removes correctly, and still work with brand new placements / topologies. **This is the only configuration that we recommend using in production**.
 
@@ -95,26 +97,26 @@ In the general case, the node will use only the `filesystem` and `commitlog` boo
 
 Additionally, if it is a brand new placement where even the `peers` bootstrapper cannot fulfill the bootstrap, this will be detected by the `uninitialized_topology` bootstrapper which will succeed the bootstrap.
 
-#### filesystem,peers,uninitialized_topology (default)
+### filesystem,peers,uninitialized_topology (default)
 
 Everytime a node is restarted it will attempt to stream in all of the the data for any blocks that it has never flushed, which is generally the currently active block and possibly the previous block as well. This mode can be useful if you want to improve performance or save disk space by operating nodes without a commitlog, or want to force a repair of any unflushed blocks. This mode can lead to violations of M3DB's consistency guarantees due to the fact that commit logs are being ignored. In addition, if you lose a replication factors worth or more of hosts at the same time, the node will not be able to bootstrap unless an operator modifies the bootstrap consistency level configuration in etcd (see `peers` bootstrap section above). Finally, this mode adds additional network and resource pressure on other nodes in the cluster while one node is peer bootstrapping from them which can be problematic in catastrophic scenarios where all the nodes are trying to stream data from each other.
 
-#### peers,uninitialized_topology
+### peers,uninitialized_topology
 
 Every time a node is restarted, it will attempt to stream in *all* of the data that it is responsible for from its peers, completely ignoring the immutable Fileset files it already has on disk. This mode can be useful if you want to improve performance or save disk space by operating nodes without a commitlog, or want to force a repair of all data on an individual node. This mode can lead to violations of M3DB's consistency guarantees due to the fact that the commit logs are being ignored. In addition, if you lose a replication factors worth or more of hosts at the same time, the node will not be able to bootstrap unless an operator modifies the bootstrap consistency level configuration in etcd (see `peers` bootstrap section above). Finally, this mode adds additional network and resource pressure on other nodes in the cluster while one node is peer bootstrapping from them which can be problematic in catastrophic scenarios where all the nodes are trying to stream data from each other.
 
-### Invalid bootstrappers configuration
+## Invalid bootstrappers configuration
 
 For the sake of completeness, we've included a short discussion below of some bootstrapping configurations that we consider "invalid" in that they are likely to lose data / violate M3DB's consistency guarantees and/or not handle placement changes in a correct way.
 
-#### filesystem,commitlog,uninitialized_topology
+### filesystem,commitlog,uninitialized_topology
 
 This bootstrapping configuration will work just fine if nodes are never added/replaced/removed, but will fail when attempting a node add/replace/remove.
 
-#### filesystem,uninitialized_topology
+### filesystem,uninitialized_topology
 
 Every time a node is restarted it will utilize the immutable Fileset files its already written out to disk, but any data that it had received since it wrote out the last set of immutable files will be lost.
 
-#### commitlog,uninitialized_topology
+### commitlog,uninitialized_topology
 
 Every time a node is restarted it will read all the commit log and snapshot files it has on disk, but it will ignore all the data in the immutable Fileset files that it has already written.
