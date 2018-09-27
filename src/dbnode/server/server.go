@@ -403,7 +403,7 @@ func Run(runOpts RunOptions) {
 
 	topo, err := envCfg.TopologyInitializer.Init()
 	if err != nil {
-		logger.Fatalf("could not initialize m3db topology: %v. make sure a topology has been set", err)
+		logger.Fatalf("could not initialize m3db topology: %v", err)
 	}
 
 	m3dbClient, err := cfg.Client.NewAdminClient(

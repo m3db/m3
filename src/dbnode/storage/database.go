@@ -166,7 +166,7 @@ func NewDatabase(
 	logger.Info("creating namespaces watch")
 	nsReg, err := nsInit.Init()
 	if err != nil {
-		return nil, fmt.Errorf("database: namespace initialized failed: %v. make sure a namespace has been set")
+		return nil, err
 	}
 
 	// get a namespace watch
