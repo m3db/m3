@@ -56,12 +56,6 @@ type Configuration struct {
 
 	// Presence of a (etcd) server in this config denotes an embedded cluster
 	SeedNodes *SeedNodesConfig `yaml:"seedNodes"`
-
-	// NamespaceResolutionTimeout is the maximum time to wait to discover namespaces from KV
-	NamespaceResolutionTimeout time.Duration `yaml:"namespaceResolutionTimeout"`
-
-	// TopologyResolutionTimeout is the maximum time to wait for a topology from KV
-	TopologyResolutionTimeout time.Duration `yaml:"topologyResolutionTimeout"`
 }
 
 // SeedNodesConfig defines fields for seed node
@@ -109,10 +103,9 @@ type ConfigureResults struct {
 
 // ConfigurationParameters are options used to create new ConfigureResults
 type ConfigurationParameters struct {
-	InstrumentOpts    instrument.Options
-	HashingSeed       uint32
-	HostID            string
-	ResolutionTimeout time.Duration
+	InstrumentOpts instrument.Options
+	HashingSeed    uint32
+	HostID         string
 }
 
 // Configure creates a new ConfigureResults
@@ -137,7 +130,7 @@ func (c Configuration) Configure(cfgParams ConfigurationParameters) (ConfigureRe
 func (c Configuration) configureDynamic(cfgParams ConfigurationParameters) (ConfigureResults, error) {
 	configSvcClientOpts := c.Service.NewOptions().
 		SetInstrumentOptions(cfgParams.InstrumentOpts).
-		SetServicesOptions(services.NewOptions().SetInitTimeout(cfgParams.ResolutionTimeout))
+		SetServicesOptions(services.NewOptions())
 	configSvcClient, err := etcdclient.NewConfigServiceClient(configSvcClientOpts)
 	if err != nil {
 		err = fmt.Errorf("could not create m3cluster client: %v", err)
@@ -147,8 +140,7 @@ func (c Configuration) configureDynamic(cfgParams ConfigurationParameters) (Conf
 	dynamicOpts := namespace.NewDynamicOptions().
 		SetInstrumentOptions(cfgParams.InstrumentOpts).
 		SetConfigServiceClient(configSvcClient).
-		SetNamespaceRegistryKey(kvconfig.NamespacesKey).
-		SetInitTimeout(cfgParams.ResolutionTimeout)
+		SetNamespaceRegistryKey(kvconfig.NamespacesKey)
 	nsInit := namespace.NewDynamicInitializer(dynamicOpts)
 
 	serviceID := services.NewServiceID().
@@ -161,8 +153,7 @@ func (c Configuration) configureDynamic(cfgParams ConfigurationParameters) (Conf
 		SetServiceID(serviceID).
 		SetQueryOptions(services.NewQueryOptions().SetIncludeUnhealthy(true)).
 		SetInstrumentOptions(cfgParams.InstrumentOpts).
-		SetHashGen(sharding.NewHashGenWithSeed(cfgParams.HashingSeed)).
-		SetInitTimeout(cfgParams.ResolutionTimeout)
+		SetHashGen(sharding.NewHashGenWithSeed(cfgParams.HashingSeed))
 	topoInit := topology.NewDynamicInitializer(topoOpts)
 
 	kv, err := configSvcClient.KV()

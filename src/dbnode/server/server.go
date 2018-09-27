@@ -80,9 +80,8 @@ import (
 )
 
 const (
-	bootstrapConfigInitTimeout            = 10 * time.Second
-	serverGracefulCloseTimeout            = 10 * time.Second
-	defaultDynamicConfigResolutionTimeout = time.Minute
+	bootstrapConfigInitTimeout = 10 * time.Second
+	serverGracefulCloseTimeout = 10 * time.Second
 )
 
 // RunOptions provides options for running the server
@@ -377,15 +376,9 @@ func Run(runOpts RunOptions) {
 	if cfg.EnvironmentConfig.Static == nil {
 		logger.Info("creating dynamic config service client with m3cluster")
 
-		dynamicConfigResolutionTimeout := cfg.EnvironmentConfig.ResolutionTime
-		if dynamicConfigResolutionTimeout <= 0 {
-			dynamicConfigResolutionTimeout = defaultDynamicConfigResolutionTimeout
-		}
-
 		envCfg, err = cfg.EnvironmentConfig.Configure(environment.ConfigurationParameters{
-			InstrumentOpts:    iopts,
-			HashingSeed:       cfg.Hashing.Seed,
-			ResolutionTimeout: dynamicConfigResolutionTimeout,
+			InstrumentOpts: iopts,
+			HashingSeed:    cfg.Hashing.Seed,
 		})
 		if err != nil {
 			logger.Fatalf("could not initialize dynamic config: %v", err)

@@ -54,7 +54,6 @@ func newTestOpts(t *testing.T, ctrl *gomock.Controller, watchable kv.ValueWatcha
 			instrument.NewOptions().
 				SetReportInterval(10 * time.Millisecond).
 				SetMetricsScope(ts)).
-		SetInitTimeout(100 * time.Millisecond).
 		SetConfigServiceClient(mockCSClient)
 
 	return opts

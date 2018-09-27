@@ -59,7 +59,7 @@ func TestInitTimeout(t *testing.T) {
 	opts, w := testSetup(ctrl)
 	defer testFinish(ctrl, w)
 
-	topo, err := newDynamicTopology(opts.SetInitTimeout(10 * time.Millisecond))
+	topo, err := newDynamicTopology(opts)
 	assert.Equal(t, errInitTimeOut, err)
 	assert.Nil(t, topo)
 }

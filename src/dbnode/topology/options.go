@@ -194,15 +194,6 @@ func (o *dynamicOptions) InstrumentOptions() instrument.Options {
 	return o.instrumentOptions
 }
 
-func (o *dynamicOptions) SetInitTimeout(value time.Duration) DynamicOptions {
-	o.initTimeout = value
-	return o
-}
-
-func (o *dynamicOptions) InitTimeout() time.Duration {
-	return o.initTimeout
-}
-
 func (o *dynamicOptions) SetHashGen(h sharding.HashGen) DynamicOptions {
 	o.hashGen = h
 	return o
