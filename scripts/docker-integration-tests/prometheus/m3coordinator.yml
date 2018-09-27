@@ -14,7 +14,7 @@ metrics:
 
 clusters:
   - namespaces:
-      - namespace: prometheus_metrics
+      - namespace: default
         type: unaggregated
         retention: 48h
     client:
