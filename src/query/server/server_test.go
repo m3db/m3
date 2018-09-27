@@ -50,14 +50,14 @@ import (
 var configYAML = `
 listenAddress:
   type: "config"
-  value: "127.0.0.1:7201"
+  value: "127.0.0.1:18201"
 
 metrics:
   scope:
     prefix: "coordinator"
   prometheus:
     handlerPath: /metrics
-    listenAddress: "127.0.0.1:7202"
+    listenAddress: "127.0.0.1:18202"
   sanitization: prometheus
   samplingRate: 1.0
 
@@ -126,13 +126,13 @@ func TestRun(t *testing.T) {
 	}()
 
 	// Wait for server to come up
-	waitForServerHealthy(t, 7201)
+	waitForServerHealthy(t, 18201)
 
 	// Send Prometheus write request
 	promReq := test.GeneratePromWriteRequest()
 	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
 	req, err := http.NewRequest(http.MethodPost,
-		"http://127.0.0.1:7201"+remote.PromWriteURL, promReqBody)
+		"http://127.0.0.1:18201"+remote.PromWriteURL, promReqBody)
 	require.NoError(t, err)
 
 	res, err := http.DefaultClient.Do(req)

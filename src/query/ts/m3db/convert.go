@@ -33,6 +33,29 @@ const (
 	initBlockReplicaLength = 10
 )
 
+type seriesBlock struct {
+	start          time.Time
+	end            time.Time
+	id             ident.ID
+	tags           ident.TagIterator
+	seriesIterator encoding.SeriesIterator
+}
+
+// // do i need this?
+
+// func (b *seriesBlock) close() {
+// 	b.id.Finalize()
+// 	b.tags.Close()
+// 	b.seriesIterator.Close()
+// }
+
+// func (b *seriesBlock) current() ts.Datapoint {
+// 	dp, _, _ := b.seriesIterator.Current()
+// 	return dp
+// }
+
+// func (b *seriesBlock.N)
+
 // blockReplica contains the replicas for a single m3db block
 type blockReplica struct {
 	start     time.Time
@@ -56,7 +79,10 @@ func (b blockReplicas) Less(i, j int) bool {
 
 // ConvertM3DBSeriesIterators converts m3db SeriesIterators to SeriesBlocks
 // which are used to construct Blocks for query processing.
-func ConvertM3DBSeriesIterators(iterators encoding.SeriesIterators, iterAlloc encoding.ReaderIteratorAllocate) ([]SeriesBlocks, error) {
+func ConvertM3DBSeriesIterators(
+	iterators encoding.SeriesIterators,
+	iterAlloc encoding.ReaderIteratorAllocate,
+) ([]SeriesBlocks, error) {
 	defer iterators.Close()
 	multiSeriesBlocks := make([]SeriesBlocks, iterators.Len())
 
@@ -77,8 +103,11 @@ func ConvertM3DBSeriesIterators(iterators encoding.SeriesIterators, iterAlloc en
 	return multiSeriesBlocks, nil
 }
 
-func blockReplicasFromSeriesIterator(seriesIterator encoding.SeriesIterator, iterAlloc encoding.ReaderIteratorAllocate) ([]blockReplica, error) {
-	blockReplicas := make(blockReplicas, 0, initBlockReplicaLength)
+func blockReplicasFromSeriesIterator(
+	seriesIterator encoding.SeriesIterator,
+	iterAlloc encoding.ReaderIteratorAllocate,
+) ([]blockReplica, error) {
+	replicas := make(blockReplicas, 0, initBlockReplicaLength)
 	for _, replica := range seriesIterator.Replicas() {
 		perBlockSliceReaders := replica.Readers()
 		for next := true; next; next = perBlockSliceReaders.Next() {
@@ -99,15 +128,15 @@ func blockReplicasFromSeriesIterator(seriesIterator encoding.SeriesIterator, ite
 			iter.Reset(readers, start, bs)
 
 			inserted := false
-			for i := range blockReplicas {
-				if blockReplicas[i].start.Equal(start) {
+			for i := range replicas {
+				if replicas[i].start.Equal(start) {
 					inserted = true
-					blockReplicas[i].replicas = append(blockReplicas[i].replicas, iter)
+					replicas[i].replicas = append(replicas[i].replicas, iter)
 					break
 				}
 			}
 			if !inserted {
-				blockReplicas = append(blockReplicas, blockReplica{
+				replicas = append(replicas, blockReplica{
 					start:     start,
 					blockSize: bs,
 					replicas:  []encoding.MultiReaderIterator{iter},
@@ -117,12 +146,15 @@ func blockReplicasFromSeriesIterator(seriesIterator encoding.SeriesIterator, ite
 	}
 
 	// sort block replicas by start time
-	sort.Sort(blockReplicas)
+	sort.Sort(replicas)
 
-	return blockReplicas, nil
+	return replicas, nil
 }
 
-func seriesBlocksFromBlockReplicas(blockReplicas []blockReplica, seriesIterator encoding.SeriesIterator) (SeriesBlocks, error) {
+func seriesBlocksFromBlockReplicas(
+	blockReplicas []blockReplica,
+	seriesIterator encoding.SeriesIterator,
+) (SeriesBlocks, error) {
 	// NB(braskin): we need to clone the ID, namespace, and tags since we close the series iterator
 	var (
 		// todo(braskin): use ident pool
