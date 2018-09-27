@@ -97,13 +97,3 @@ func (o *dynamicOpts) SetNamespaceRegistryKey(k string) DynamicOptions {
 func (o *dynamicOpts) NamespaceRegistryKey() string {
 	return o.nsRegistryKey
 }
-
-func (o *dynamicOpts) SetInitTimeout(value time.Duration) DynamicOptions {
-	opts := *o
-	opts.initTimeout = value
-	return &opts
-}
-
-func (o *dynamicOpts) InitTimeout() time.Duration {
-	return o.initTimeout
-}

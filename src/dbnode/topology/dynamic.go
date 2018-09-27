@@ -23,7 +23,6 @@ package topology
 import (
 	"errors"
 	"sync"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3cluster/placement"
@@ -34,7 +33,6 @@ import (
 )
 
 var (
-	errInitTimeOut               = errors.New("timed out waiting for initial value")
 	errInvalidService            = errors.New("service topology is invalid")
 	errUnexpectedShard           = errors.New("shard is unexpected")
 	errMissingShard              = errors.New("shard is missing")
@@ -90,17 +88,16 @@ func newDynamicTopology(opts DynamicOptions) (DynamicTopology, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	logger := opts.InstrumentOptions().Logger()
+	logger.Info(`waiting for dynamic topology initialization.
+		If this takes a long time, make sure that a topology / placement is configured`)
 	watch, err := services.Watch(opts.ServiceID(), opts.QueryOptions())
 	if err != nil {
 		return nil, err
 	}
-
-	logger := opts.InstrumentOptions().Logger()
-	if err = waitOnInit(watch, opts.InitTimeout()); err != nil {
-		logger.Errorf("dynamic topology initialization timed out in %s: %v",
-			opts.InitTimeout().String(), err)
-		return nil, err
-	}
+	<-watch.C()
+	logger.Info("initial topology / placement value received")
 
 	m, err := getMapFromUpdate(watch.Get(), opts.HashGen())
 	if err != nil {
@@ -183,19 +180,6 @@ func (t *dynamicTopology) MarkShardsAvailable(
 		return err
 	}
 	return ps.MarkShardsAvailable(instanceID, shardIDs...)
-}
-
-func waitOnInit(w services.Watch, d time.Duration) error {
-	if d <= 0 {
-		<-w.C() // Wait for the first placement indefinitely
-		return nil
-	}
-	select {
-	case <-w.C():
-		return nil
-	case <-time.After(d):
-		return errInitTimeOut
-	}
 }
 
 func getMapFromUpdate(data interface{}, hashGen sharding.HashGen) (Map, error) {
