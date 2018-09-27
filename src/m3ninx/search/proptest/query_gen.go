@@ -91,7 +91,7 @@ func genRegexpQuery(docs []doc.Document) gopter.Gen {
 
 		// escape any '(' or ')' we see to avoid regular expression parsing failure
 		escapeFront := bytes.Replace(re, []byte("("), []byte("\\("), -1)
-		escapeBack := bytes.Replace(escapeFront, []byte("("), []byte("\\)"), -1)
+		escapeBack := bytes.Replace(escapeFront, []byte(")"), []byte("\\)"), -1)
 
 		q, err := query.NewRegexpQuery(field.Name, escapeBack)
 		if err != nil {
