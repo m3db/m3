@@ -65,7 +65,7 @@ ATTEMPTS=4 TIMEOUT=1 retry_with_backoff  \
   '[ "$(curl -sSf 0.0.0.0:7201/api/v1/placement | jq .placement.instances.m3db_local.id)" == \"m3db_local\" ]'
 
 echo "Sleep until bootstrapped"
-ATTEMPTS=5 TIMEOUT=2 retry_with_backoff  \
+ATTEMPTS=6 TIMEOUT=2 retry_with_backoff  \
   '[ "$(curl -sSf 0.0.0.0:9002/health | jq .bootstrapped)" == true ]'
 
 echo "Start Prometheus containers"
@@ -73,7 +73,7 @@ docker-compose -f ${COMPOSE_FILE} up -d prometheus01
 
 # Ensure Prometheus can proxy a Prometheus query
 echo "Wait until the remote write endpoint generates and allows for data to be queried"
-ATTEMPTS=5 TIMEOUT=2 retry_with_backoff  \
+ATTEMPTS=6 TIMEOUT=2 retry_with_backoff  \
   '[[ $(curl -sSf 0.0.0.0:9090/api/v1/query?query=prometheus_remote_storage_succeeded_samples_total | jq -r .data.result[].value[1]) -gt 100 ]]'
 
 docker-compose -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
