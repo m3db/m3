@@ -23,8 +23,9 @@ import (
 	"errors"
 	"io"
 
-	tthrift "github.com/apache/thrift/lib/go/thrift"
 	"github.com/m3db/m3x/pool"
+
+	tthrift "github.com/apache/thrift/lib/go/thrift"
 )
 
 // tBinaryProtocol wraps the underlying TBinaryProtocol within a struct to maintain
