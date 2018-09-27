@@ -47,8 +47,8 @@ const (
 	minBlockSize       = 15 * time.Minute
 	maxBlockSize       = 12 * time.Hour
 	maxPoints          = 100
-	minSuccessfulTests = 8
-	maxFlushWaitTime   = time.Minute
+	minSuccessfulTests = 4
+	maxFlushWaitTime   = 30 * time.Second
 )
 
 // This integration test uses property testing to make sure that the node
