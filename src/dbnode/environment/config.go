@@ -130,7 +130,9 @@ func (c Configuration) Configure(cfgParams ConfigurationParameters) (ConfigureRe
 func (c Configuration) configureDynamic(cfgParams ConfigurationParameters) (ConfigureResults, error) {
 	configSvcClientOpts := c.Service.NewOptions().
 		SetInstrumentOptions(cfgParams.InstrumentOpts).
-		SetServicesOptions(services.NewOptions())
+		// Set timeout to zero so it will wait indefinitely for the
+		// initial value.
+		SetServicesOptions(services.NewOptions().SetInitTimeout(0))
 	configSvcClient, err := etcdclient.NewConfigServiceClient(configSvcClientOpts)
 	if err != nil {
 		err = fmt.Errorf("could not create m3cluster client: %v", err)

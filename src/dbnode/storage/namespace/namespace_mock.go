@@ -738,27 +738,3 @@ func (m *MockDynamicOptions) NamespaceRegistryKey() string {
 func (mr *MockDynamicOptionsMockRecorder) NamespaceRegistryKey() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NamespaceRegistryKey", reflect.TypeOf((*MockDynamicOptions)(nil).NamespaceRegistryKey))
 }
-
-// SetInitTimeout mocks base method
-func (m *MockDynamicOptions) SetInitTimeout(value time.Duration) DynamicOptions {
-	ret := m.ctrl.Call(m, "SetInitTimeout", value)
-	ret0, _ := ret[0].(DynamicOptions)
-	return ret0
-}
-
-// SetInitTimeout indicates an expected call of SetInitTimeout
-func (mr *MockDynamicOptionsMockRecorder) SetInitTimeout(value interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInitTimeout", reflect.TypeOf((*MockDynamicOptions)(nil).SetInitTimeout), value)
-}
-
-// InitTimeout mocks base method
-func (m *MockDynamicOptions) InitTimeout() time.Duration {
-	ret := m.ctrl.Call(m, "InitTimeout")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// InitTimeout indicates an expected call of InitTimeout
-func (mr *MockDynamicOptionsMockRecorder) InitTimeout() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InitTimeout", reflect.TypeOf((*MockDynamicOptions)(nil).InitTimeout))
-}
