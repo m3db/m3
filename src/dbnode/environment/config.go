@@ -23,7 +23,6 @@ package environment
 import (
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/kvconfig"
 	"github.com/m3db/m3/src/dbnode/sharding"
@@ -36,10 +35,6 @@ import (
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/instrument"
-)
-
-const (
-	defaultSDTimeout = time.Duration(0) // Wait indefinitely by default
 )
 
 var (

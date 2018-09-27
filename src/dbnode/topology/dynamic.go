@@ -23,7 +23,6 @@ package topology
 import (
 	"errors"
 	"sync"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3cluster/placement"
@@ -183,19 +182,6 @@ func (t *dynamicTopology) MarkShardsAvailable(
 		return err
 	}
 	return ps.MarkShardsAvailable(instanceID, shardIDs...)
-}
-
-func waitOnInit(w services.Watch, d time.Duration) error {
-	if d <= 0 {
-		<-w.C() // Wait for the first placement indefinitely
-		return nil
-	}
-	select {
-	case <-w.C():
-		return nil
-	case <-time.After(d):
-		return errInitTimeOut
-	}
 }
 
 func getMapFromUpdate(data interface{}, hashGen sharding.HashGen) (Map, error) {
