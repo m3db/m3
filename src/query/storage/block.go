@@ -115,7 +115,10 @@ func (m *multiBlockWrapper) WithMetadata(
 	}
 
 	if m.unconsolidated != nil {
-		unconsolidated, err = m.unconsolidated.WithMetadata(meta, seriesMetas)
+		unconsolidated, err = m.unconsolidated.WithMetadataUnconsolidated(
+			meta,
+			seriesMetas,
+		)
 	}
 
 	if err != nil {
@@ -155,7 +158,7 @@ func (m multiSeriesBlock) Meta() block.Metadata {
 	return m.meta
 }
 
-func (m multiSeriesBlock) WithMetadata(
+func (m multiSeriesBlock) WithMetadataUnconsolidated(
 	meta block.Metadata,
 	seriesMeta []block.SeriesMeta,
 ) (block.UnconsolidatedBlock, error) {
@@ -180,11 +183,11 @@ func (m multiSeriesBlock) StepCount() int {
 	return m.meta.Bounds.Steps()
 }
 
-func (m multiSeriesBlock) StepIter() (block.UnconsolidatedStepIter, error) {
+func (m multiSeriesBlock) StepIterUnconsolidated() (block.UnconsolidatedStepIter, error) {
 	return newMultiSeriesBlockStepIter(m), nil
 }
 
-func (m multiSeriesBlock) SeriesIter() (block.UnconsolidatedSeriesIter, error) {
+func (m multiSeriesBlock) SeriesIterUnconsolidated() (block.UnconsolidatedSeriesIter, error) {
 	return newMultiSeriesBlockSeriesIter(m), nil
 }
 
@@ -209,7 +212,10 @@ func (c *consolidatedBlock) WithMetadata(
 	meta block.Metadata,
 	seriesMeta []block.SeriesMeta,
 ) (block.Block, error) {
-	unconsolidated, err := c.unconsolidated.WithMetadata(meta, seriesMeta)
+	unconsolidated, err := c.unconsolidated.WithMetadataUnconsolidated(
+		meta,
+		seriesMeta,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -262,11 +268,13 @@ func (m *multiSeriesBlockStepIter) Next() bool {
 	return m.index < len(m.values[0])
 }
 
-func (m *multiSeriesBlockStepIter) Current() (block.UnconsolidatedStep, error) {
+func (m *multiSeriesBlockStepIter) CurrentUnconsolidated() (
+	block.UnconsolidatedStep,
+	error,
+) {
 	values := make([]ts.Datapoints, len(m.values))
 	for i, series := range m.values {
 		values[i] = series[m.index]
-
 	}
 
 	bounds := m.block.meta.Bounds
@@ -296,7 +304,9 @@ func (m *multiSeriesBlockSeriesIter) SeriesMeta() []block.SeriesMeta {
 	return m.block.SeriesMeta()
 }
 
-func newMultiSeriesBlockSeriesIter(block multiSeriesBlock) block.UnconsolidatedSeriesIter {
+func newMultiSeriesBlockSeriesIter(
+	block multiSeriesBlock,
+) block.UnconsolidatedSeriesIter {
 	return &multiSeriesBlockSeriesIter{block: block, index: -1}
 }
 
@@ -309,7 +319,10 @@ func (m *multiSeriesBlockSeriesIter) Next() bool {
 	return m.index < m.SeriesCount()
 }
 
-func (m *multiSeriesBlockSeriesIter) Current() (block.UnconsolidatedSeries, error) {
+func (m *multiSeriesBlockSeriesIter) CurrentUnconsolidated() (
+	block.UnconsolidatedSeries,
+	error,
+) {
 	s := m.block.seriesList[m.index]
 	values := make([]ts.Datapoints, m.block.StepCount())
 	seriesValues := s.Values().AlignToBounds(m.block.meta.Bounds)

@@ -29,12 +29,12 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/query/ts/m3db"
 	"github.com/m3db/m3x/ident"
 	xsync "github.com/m3db/m3x/sync"
 )
@@ -88,11 +88,47 @@ func (s *m3storage) Fetch(
 	return storage.SeriesIteratorsToFetchResult(raw, s.readWorkerPool, false, s.tagOptions)
 }
 
+func (s *m3storage) fetchSeriesBlocks(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (block.Result, error) {
+	raw, _, err := s.FetchCompressed(ctx, query, options)
+	if err != nil {
+		return block.Result{}, err
+	}
+
+	bounds := &models.Bounds{
+		Start:    query.Start,
+		Duration: query.End.Sub(query.Start),
+		StepSize: query.Interval,
+	}
+
+	multiPurposeBlocks := m3db.ConvertM3DBSeriesIterators(
+		raw,
+		s.tagOptions,
+		bounds,
+	)
+
+	blocks := make([]block.Block, len(multiPurposeBlocks))
+	for i, b := range multiPurposeBlocks {
+		blocks[i] = b
+	}
+
+	return block.Result{
+		Blocks: blocks,
+	}, nil
+}
+
 func (s *m3storage) FetchBlocks(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (block.Result, error) {
+	if !options.UseDecodedBlocks {
+		return s.fetchSeriesBlocks(ctx, query, options)
+	}
+
 	fetchResult, err := s.Fetch(ctx, query, options)
 	if err != nil {
 		return block.Result{}, err
@@ -245,41 +281,6 @@ func (s *m3storage) SearchCompressed(
 
 	tagResult, err := result.FinalResult()
 	return tagResult, result.Close, err
-}
-
-func (s *m3storage) fetchTags(
-	namespace ClusterNamespace,
-	query index.Query,
-	opts index.QueryOptions,
-) (*storage.SearchResults, error) {
-	namespaceID := namespace.NamespaceID()
-	session := namespace.Session()
-
-	// TODO (juchan): Handle second return param
-	iter, _, err := session.FetchTaggedIDs(namespaceID, query, opts)
-	if err != nil {
-		return nil, err
-	}
-
-	var metrics models.Metrics
-	for iter.Next() {
-		_, id, it := iter.Current()
-		m, err := storage.FromM3IdentToMetric(id, it, s.tagOptions)
-		if err != nil {
-			return nil, err
-		}
-
-		metrics = append(metrics, m)
-	}
-
-	if err := iter.Err(); err != nil {
-		return nil, err
-	}
-
-	iter.Finalize()
-	return &storage.SearchResults{
-		Metrics: metrics,
-	}, nil
 }
 
 func (s *m3storage) Write(

@@ -21,19 +21,14 @@
 package remote
 
 import (
-	"io"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
-	"github.com/m3db/m3/src/dbnode/x/xpool"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/test"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -54,11 +49,6 @@ var (
 	end         = test.End
 
 	tagMu sync.RWMutex
-
-	// required for iterator pool
-	testIterAlloc = func(r io.Reader) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
-	}
 )
 
 func buildTestSeriesIterator(t *testing.T) encoding.SeriesIterator {
@@ -195,7 +185,7 @@ func TestSeriesConversionFromCompressedData(t *testing.T) {
 
 func TestSeriesConversionFromCompressedDataWithIteratorPool(t *testing.T) {
 	it := buildTestSeriesIterator(t)
-	ip := &mockIteratorPool{}
+	ip := test.MakeMockIteratorPool()
 	series, err := compressedSeriesFromSeriesIterator(it, ip)
 
 	require.NoError(t, err)
@@ -212,20 +202,20 @@ func TestSeriesConversionFromCompressedDataWithIteratorPool(t *testing.T) {
 	require.NoError(t, err)
 	validateSeriesInternals(t, seriesIterator)
 
-	assert.True(t, ip.mriPoolUsed)
-	assert.True(t, ip.siPoolUsed)
-	assert.True(t, ip.mriaPoolUsed)
-	assert.True(t, ip.cbwPoolUsed)
-	assert.True(t, ip.identPoolUsed)
-	assert.True(t, ip.encodePoolUsed)
-	assert.True(t, ip.decodePoolUsed)
+	assert.True(t, ip.MriPoolUsed)
+	assert.True(t, ip.SiPoolUsed)
+	assert.True(t, ip.MriaPoolUsed)
+	assert.True(t, ip.CbwPoolUsed)
+	assert.True(t, ip.IdentPoolUsed)
+	assert.True(t, ip.EncodePoolUsed)
+	assert.True(t, ip.DecodePoolUsed)
 	// Should not be using mutable series iterator pool
-	assert.False(t, ip.msiPoolUsed)
+	assert.False(t, ip.MsiPoolUsed)
 }
 
 func TestencodeToCompressedFetchResult(t *testing.T) {
 	iters := encoding.NewSeriesIterators([]encoding.SeriesIterator{buildTestSeriesIterator(t), buildTestSeriesIterator(t)}, nil)
-	ip := &mockIteratorPool{}
+	ip := test.MakeMockIteratorPool()
 	fetchResult, err := encodeToCompressedFetchResult(iters, ip)
 	require.NoError(t, err)
 
@@ -234,14 +224,14 @@ func TestencodeToCompressedFetchResult(t *testing.T) {
 		verifyCompressedSeries(t, series)
 	}
 
-	assert.True(t, ip.encodePoolUsed)
-	assert.False(t, ip.mriPoolUsed)
-	assert.False(t, ip.siPoolUsed)
-	assert.False(t, ip.mriaPoolUsed)
-	assert.False(t, ip.cbwPoolUsed)
-	assert.False(t, ip.identPoolUsed)
-	assert.False(t, ip.decodePoolUsed)
-	assert.False(t, ip.msiPoolUsed)
+	assert.True(t, ip.EncodePoolUsed)
+	assert.False(t, ip.MriPoolUsed)
+	assert.False(t, ip.SiPoolUsed)
+	assert.False(t, ip.MriaPoolUsed)
+	assert.False(t, ip.CbwPoolUsed)
+	assert.False(t, ip.IdentPoolUsed)
+	assert.False(t, ip.DecodePoolUsed)
+	assert.False(t, ip.MsiPoolUsed)
 }
 
 func TestDecodeCompressedFetchResult(t *testing.T) {
@@ -252,7 +242,7 @@ func TestDecodeCompressedFetchResult(t *testing.T) {
 }
 
 func TestDecodeCompressedFetchResultWithIteratorPool(t *testing.T) {
-	ip := &mockIteratorPool{}
+	ip := test.MakeMockIteratorPool()
 	iters := encoding.NewSeriesIterators([]encoding.SeriesIterator{buildTestSeriesIterator(t), buildTestSeriesIterator(t)}, nil)
 	fetchResult, err := encodeToCompressedFetchResult(iters, ip)
 	require.NoError(t, err)
@@ -277,14 +267,14 @@ func TestDecodeCompressedFetchResultWithIteratorPool(t *testing.T) {
 		validateSeriesInternals(t, seriesIterator)
 	}
 
-	assert.True(t, ip.mriPoolUsed)
-	assert.True(t, ip.siPoolUsed)
-	assert.True(t, ip.mriaPoolUsed)
-	assert.True(t, ip.cbwPoolUsed)
-	assert.True(t, ip.identPoolUsed)
-	assert.True(t, ip.encodePoolUsed)
-	assert.True(t, ip.decodePoolUsed)
-	assert.True(t, ip.msiPoolUsed)
+	assert.True(t, ip.MriPoolUsed)
+	assert.True(t, ip.SiPoolUsed)
+	assert.True(t, ip.MriaPoolUsed)
+	assert.True(t, ip.CbwPoolUsed)
+	assert.True(t, ip.IdentPoolUsed)
+	assert.True(t, ip.EncodePoolUsed)
+	assert.True(t, ip.DecodePoolUsed)
+	assert.True(t, ip.MsiPoolUsed)
 }
 
 // NB: make sure that SeriesIterator is not closed during conversion, or bytes will be empty
@@ -300,69 +290,4 @@ func TestConversionDoesNotCloseSeriesIterator(t *testing.T) {
 	mockIter.EXPECT().ID().Return(ident.StringID("")).Times(1)
 
 	compressedSeriesFromSeriesIterator(mockIter, nil)
-}
-
-type mockIteratorPool struct {
-	mriPoolUsed, siPoolUsed, msiPoolUsed, mriaPoolUsed, cbwPoolUsed, identPoolUsed, encodePoolUsed, decodePoolUsed bool
-}
-
-var (
-	_        encoding.IteratorPools = &mockIteratorPool{}
-	buckets                         = []pool.Bucket{{Capacity: 100, Count: 100}}
-	poolOpts                        = pool.NewObjectPoolOptions().SetSize(1)
-	mu       sync.Mutex
-)
-
-func (ip *mockIteratorPool) MultiReaderIterator() encoding.MultiReaderIteratorPool {
-	ip.mriPoolUsed = true
-	mriPool := encoding.NewMultiReaderIteratorPool(nil)
-	mriPool.Init(testIterAlloc)
-	return mriPool
-}
-func (ip *mockIteratorPool) MutableSeriesIterators() encoding.MutableSeriesIteratorsPool {
-	ip.msiPoolUsed = true
-	msiPool := encoding.NewMutableSeriesIteratorsPool(buckets)
-	msiPool.Init()
-	return msiPool
-}
-func (ip *mockIteratorPool) SeriesIterator() encoding.SeriesIteratorPool {
-	ip.siPoolUsed = true
-	siPool := encoding.NewSeriesIteratorPool(nil)
-	siPool.Init()
-	return siPool
-}
-func (ip *mockIteratorPool) MultiReaderIteratorArray() encoding.MultiReaderIteratorArrayPool {
-	ip.mriaPoolUsed = true
-	mriaPool := encoding.NewMultiReaderIteratorArrayPool(nil)
-	mriaPool.Init()
-	return mriaPool
-}
-func (ip *mockIteratorPool) CheckedBytesWrapper() xpool.CheckedBytesWrapperPool {
-	ip.cbwPoolUsed = true
-	cbwPool := xpool.NewCheckedBytesWrapperPool(nil)
-	cbwPool.Init()
-	return cbwPool
-}
-func (ip *mockIteratorPool) ID() ident.Pool {
-	ip.identPoolUsed = true
-	bytesPool := pool.NewCheckedBytesPool(buckets, nil,
-		func(sizes []pool.Bucket) pool.BytesPool {
-			return pool.NewBytesPool(sizes, nil)
-		})
-	bytesPool.Init()
-	return ident.NewPool(bytesPool, ident.PoolOptions{})
-}
-func (ip *mockIteratorPool) TagDecoder() serialize.TagDecoderPool {
-	ip.decodePoolUsed = true
-	decoderPool := serialize.NewTagDecoderPool(serialize.NewTagDecoderOptions(), poolOpts)
-	decoderPool.Init()
-	return decoderPool
-}
-func (ip *mockIteratorPool) TagEncoder() serialize.TagEncoderPool {
-	mu.Lock()
-	ip.encodePoolUsed = true
-	encoderPool := serialize.NewTagEncoderPool(serialize.NewTagEncoderOptions(), poolOpts)
-	encoderPool.Init()
-	mu.Unlock()
-	return encoderPool
 }

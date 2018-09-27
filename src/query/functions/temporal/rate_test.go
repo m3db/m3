@@ -328,7 +328,7 @@ func testRate(t *testing.T, testCases []testRateCase) {
 			assert.Len(t, sink.Values, 0, "nothing processed yet")
 			b, exists := bNode.cache.get(boundStart)
 			assert.True(t, exists, "block cached for future")
-			_, err = b.StepIter()
+			_, err = b.StepIterUnconsolidated()
 			assert.NoError(t, err)
 
 			original := values[0][0]

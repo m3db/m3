@@ -76,9 +76,12 @@ func (q *FetchQuery) String() string {
 	return q.Raw
 }
 
-// FetchOptions represents the options for fetch query
+// FetchOptions represents the options for fetch query.
 type FetchOptions struct {
+	// Limit is the maximum number of series to return.
 	Limit int
+	// UseDecodedBlocks determines if decoded blocks should be used.
+	UseDecodedBlocks bool
 }
 
 // NewFetchOptions creates a new fetch options.

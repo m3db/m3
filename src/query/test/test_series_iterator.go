@@ -21,6 +21,7 @@
 package test
 
 import (
+	"fmt"
 	"io"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
@@ -179,4 +181,85 @@ func BuildTestSeriesIterator() (encoding.SeriesIterator, error) {
 				replicaTwo,
 			},
 		}, nil), nil
+}
+
+// Datapoint is a datapoint with a value and an offset for building a custom iterator
+type Datapoint struct {
+	Value  float64
+	Offset time.Duration
+}
+
+// BuildCustomIterator builds a custom iterator with bounds
+func BuildCustomIterator(
+	dps [][]Datapoint,
+	testTags map[string]string,
+	seriesID, seriesNamespace string,
+	start time.Time,
+	blockSize, stepSize time.Duration,
+) (encoding.SeriesIterator, *models.Bounds, error) {
+	// Build a merged BlockReader
+	readers := make([][]xio.BlockReader, 0, len(dps))
+	currentStart := start
+	for _, datapoints := range dps {
+		encoder := m3tsz.NewEncoder(currentStart, checked.NewBytes(nil, nil), true, encoding.NewOptions())
+		// NB: empty datapoints should skip this block reader but still increase time
+		if len(datapoints) > 0 {
+			for _, dp := range datapoints {
+				offset := dp.Offset
+				if offset > blockSize {
+					return nil, nil, fmt.Errorf("custom series iterator offset is larger than blockSize")
+				}
+
+				if offset < 0 {
+					return nil, nil, fmt.Errorf("custom series iterator offset is negative")
+				}
+
+				tsDp := ts.Datapoint{
+					Value:     dp.Value,
+					Timestamp: currentStart.Add(offset),
+				}
+
+				err := encoder.Encode(tsDp, xtime.Second, nil)
+				if err != nil {
+					return nil, nil, err
+				}
+			}
+
+			segment := encoder.Discard()
+			readers = append(readers, []xio.BlockReader{{
+				SegmentReader: xio.NewSegmentReader(segment),
+				Start:         currentStart,
+				BlockSize:     blockSize,
+			}})
+		}
+
+		currentStart = currentStart.Add(blockSize)
+	}
+
+	multiReader := encoding.NewMultiReaderIterator(testIterAlloc, nil)
+	sliceOfSlicesIter := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(readers)
+	multiReader.ResetSliceOfSlices(sliceOfSlicesIter)
+
+	tags := ident.Tags{}
+	for name, value := range testTags {
+		tags.Append(ident.StringTag(name, value))
+	}
+
+	return encoding.NewSeriesIterator(
+			encoding.SeriesIteratorOptions{
+				ID:             ident.StringID(seriesID),
+				Namespace:      ident.StringID(seriesNamespace),
+				Tags:           ident.NewTagsIterator(tags),
+				StartInclusive: start,
+				EndExclusive:   currentStart.Add(blockSize),
+				Replicas: []encoding.MultiReaderIterator{
+					multiReader,
+				},
+			}, nil),
+		&models.Bounds{
+			Start:    start,
+			Duration: blockSize * time.Duration(len(dps)),
+			StepSize: stepSize,
+		},
+		nil
 }

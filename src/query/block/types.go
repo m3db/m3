@@ -22,6 +22,7 @@ package block
 
 import (
 	"fmt"
+	"io"
 	"math"
 	"time"
 
@@ -29,8 +30,15 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 )
 
+// MultipurposeBlock is a block that satisfies consolidated and unconsolidated blocks
+type MultipurposeBlock interface {
+	Block
+	unconsolidatedBlock
+}
+
 // Block represents a group of series across a time bound
 type Block interface {
+	io.Closer
 	// Unconsolidated returns the unconsolidated version of the block
 	Unconsolidated() (UnconsolidatedBlock, error)
 	// StepIter returns a StepIterator
@@ -39,22 +47,23 @@ type Block interface {
 	SeriesIter() (SeriesIter, error)
 	// WithMetadata returns a block with updated meta and series metadata.
 	WithMetadata(Metadata, []SeriesMeta) (Block, error)
-	// Close frees up any resources
-	Close() error
 }
 
 // UnconsolidatedBlock represents a group of unconsolidated series across a time bound
 type UnconsolidatedBlock interface {
-	// StepIter returns a StepIterator
-	StepIter() (UnconsolidatedStepIter, error)
-	// SeriesIter returns a SeriesIterator
-	SeriesIter() (UnconsolidatedSeriesIter, error)
+	io.Closer
+	unconsolidatedBlock
+}
+
+type unconsolidatedBlock interface {
+	// StepIterUnconsolidated returns an UnconsolidatedStepIter
+	StepIterUnconsolidated() (UnconsolidatedStepIter, error)
+	// SeriesIterUnconsolidated returns an UnconsolidatedSeriesIter
+	SeriesIterUnconsolidated() (UnconsolidatedSeriesIter, error)
 	// Consolidate an unconsolidated block
 	Consolidate() (Block, error)
-	// WithMetadata returns a block with updated meta and series metadata.
-	WithMetadata(Metadata, []SeriesMeta) (UnconsolidatedBlock, error)
-	// Close frees up any resources
-	Close() error
+	// WithMetadataUnconsolidated returns a block with updated meta and series metadata.
+	WithMetadataUnconsolidated(Metadata, []SeriesMeta) (UnconsolidatedBlock, error)
 }
 
 // SeriesMeta is metadata data for the series
@@ -96,8 +105,8 @@ type SeriesIter interface {
 type UnconsolidatedSeriesIter interface {
 	Iterator
 	SeriesMetaIter
-	// Current returns the current series for the block
-	Current() (UnconsolidatedSeries, error)
+	// CurrentUnconsolidated returns the current series for the block
+	CurrentUnconsolidated() (UnconsolidatedSeries, error)
 }
 
 // StepMetaIter is implemented by step iterators which provide meta information
@@ -119,8 +128,8 @@ type StepIter interface {
 type UnconsolidatedStepIter interface {
 	Iterator
 	StepMetaIter
-	// Current returns the current step for the block
-	Current() (UnconsolidatedStep, error)
+	// CurrentUnconsolidated returns the current step for the block
+	CurrentUnconsolidated() (UnconsolidatedStep, error)
 }
 
 // Step is a single time step within a block

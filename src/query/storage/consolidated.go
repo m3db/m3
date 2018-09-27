@@ -36,7 +36,7 @@ func (c *consolidatedBlock) Unconsolidated() (block.UnconsolidatedBlock, error) 
 }
 
 func (c *consolidatedBlock) StepIter() (block.StepIter, error) {
-	stepIter, err := c.unconsolidated.StepIter()
+	stepIter, err := c.unconsolidated.StepIterUnconsolidated()
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +48,7 @@ func (c *consolidatedBlock) StepIter() (block.StepIter, error) {
 }
 
 func (c *consolidatedBlock) SeriesIter() (block.SeriesIter, error) {
-	seriesIter, err := c.unconsolidated.SeriesIter()
+	seriesIter, err := c.unconsolidated.SeriesIterUnconsolidated()
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +77,7 @@ func (c *consolidatedStepIter) Close() {
 }
 
 func (c *consolidatedStepIter) Current() (block.Step, error) {
-	step, err := c.unconsolidated.Current()
+	step, err := c.unconsolidated.CurrentUnconsolidated()
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +117,7 @@ func (c *consolidatedSeriesIter) Close() {
 }
 
 func (c *consolidatedSeriesIter) Current() (block.Series, error) {
-	series, err := c.unconsolidated.Current()
+	series, err := c.unconsolidated.CurrentUnconsolidated()
 	if err != nil {
 		return block.Series{}, err
 	}

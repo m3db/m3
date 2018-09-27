@@ -114,7 +114,7 @@ func (c *baseNode) Process(ID parser.NodeID, b block.Block) error {
 		return fmt.Errorf("block needs to be unconsolidated for temporal operations: %s", c.op)
 	}
 
-	iter, err := unconsolidatedBlock.StepIter()
+	iter, err := unconsolidatedBlock.StepIterUnconsolidated()
 	if err != nil {
 		return err
 	}
@@ -236,14 +236,14 @@ func (c *baseNode) processCompletedBlocks(processRequests []processRequest, maxB
 }
 
 func (c *baseNode) processSingleRequest(request processRequest) error {
-	seriesIter, err := request.blk.SeriesIter()
+	seriesIter, err := request.blk.SeriesIterUnconsolidated()
 	if err != nil {
 		return err
 	}
 
 	depIters := make([]block.UnconsolidatedSeriesIter, len(request.deps))
 	for i, blk := range request.deps {
-		iter, err := blk.SeriesIter()
+		iter, err := blk.SeriesIterUnconsolidated()
 		if err != nil {
 			return err
 		}
@@ -281,7 +281,7 @@ func (c *baseNode) processSingleRequest(request processRequest) error {
 				return fmt.Errorf("incorrect number of series for block: %d", i)
 			}
 
-			s, err := iter.Current()
+			s, err := iter.CurrentUnconsolidated()
 			if err != nil {
 				return err
 			}
@@ -289,7 +289,7 @@ func (c *baseNode) processSingleRequest(request processRequest) error {
 			values = append(values, s.Datapoints()...)
 		}
 
-		series, err := seriesIter.Current()
+		series, err := seriesIter.CurrentUnconsolidated()
 		if err != nil {
 			return err
 		}
