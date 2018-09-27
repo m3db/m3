@@ -34,7 +34,6 @@ import (
 )
 
 var (
-	errInitTimeOut           = errors.New("timed out waiting for initial value")
 	errRegistryAlreadyClosed = errors.New("registry already closed")
 	errInvalidRegistry       = errors.New("could not parse latest value from config service")
 )

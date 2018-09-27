@@ -33,7 +33,6 @@ import (
 )
 
 var (
-	errInitTimeOut               = errors.New("timed out waiting for initial value")
 	errInvalidService            = errors.New("service topology is invalid")
 	errUnexpectedShard           = errors.New("shard is unexpected")
 	errMissingShard              = errors.New("shard is missing")
