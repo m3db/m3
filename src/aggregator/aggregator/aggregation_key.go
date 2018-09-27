@@ -27,15 +27,17 @@ import (
 )
 
 type aggregationKey struct {
-	aggregationID     aggregation.ID
-	storagePolicy     policy.StoragePolicy
-	pipeline          applied.Pipeline
-	numForwardedTimes int
+	aggregationID      aggregation.ID
+	storagePolicy      policy.StoragePolicy
+	pipeline           applied.Pipeline
+	numForwardedTimes  int
+	idPrefixSuffixType IDPrefixSuffixType
 }
 
 func (k aggregationKey) Equal(other aggregationKey) bool {
 	return k.aggregationID == other.aggregationID &&
 		k.storagePolicy == other.storagePolicy &&
 		k.pipeline.Equal(other.pipeline) &&
-		k.numForwardedTimes == other.numForwardedTimes
+		k.numForwardedTimes == other.numForwardedTimes &&
+		k.idPrefixSuffixType == other.idPrefixSuffixType
 }

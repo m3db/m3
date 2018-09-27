@@ -54,6 +54,8 @@ var (
 		policy.NewStoragePolicy(time.Minute, xtime.Minute, 40*24*time.Hour),
 	}
 
+	defaultTimedMetricBuffer = time.Minute
+
 	// By default writes are buffered for 10 minutes before traffic is cut over to a shard
 	// in case there are issues with a new instance taking over shards.
 	defaultBufferDurationBeforeShardCutover = 10 * time.Minute
@@ -74,6 +76,9 @@ var (
 // if any, flushing delay, queuing delay, encoding delay, network delay, decoding delay at
 // destination server, and ingestion delay at the destination server.
 type MaxAllowedForwardingDelayFn func(resolution time.Duration, numForwardedTimes int) time.Duration
+
+// BufferForPastTimedMetricFn returns the buffer duration for past timed metrics.
+type BufferForPastTimedMetricFn func(resolution time.Duration) time.Duration
 
 // Options provide a set of base and derived options for the aggregator.
 type Options interface {
@@ -237,6 +242,18 @@ type Options interface {
 	// delay for given metric resolution and number of times the metric has been forwarded.
 	MaxAllowedForwardingDelayFn() MaxAllowedForwardingDelayFn
 
+	// SetBufferForPastTimedMetricFn sets the size of the buffer for timed metrics in the past.
+	SetBufferForPastTimedMetricFn(value BufferForPastTimedMetricFn) Options
+
+	// BufferForPastTimedMetricFn returns the size of the buffer for timed metrics in the past.
+	BufferForPastTimedMetricFn() BufferForPastTimedMetricFn
+
+	// SetBufferForFutureTimedMetric sets the size of the buffer for timed metrics in the future.
+	SetBufferForFutureTimedMetric(value time.Duration) Options
+
+	// BufferForFutureTimedMetric returns the size of the buffer for timed metrics in the future.
+	BufferForFutureTimedMetric() time.Duration
+
 	// SetMaxNumCachedSourceSets sets the maximum number of cached source sets.
 	SetMaxNumCachedSourceSets(value int) Options
 
@@ -313,6 +330,8 @@ type options struct {
 	electionManager                  ElectionManager
 	resignTimeout                    time.Duration
 	maxAllowedForwardingDelayFn      MaxAllowedForwardingDelayFn
+	bufferForPastTimedMetricFn       BufferForPastTimedMetricFn
+	bufferForFutureTimedMetric       time.Duration
 	maxNumCachedSourceSets           int
 	discardNaNAggregatedValues       bool
 	entryPool                        EntryPool
@@ -354,6 +373,8 @@ func NewOptions() Options {
 		defaultStoragePolicies:           defaultDefaultStoragePolicies,
 		resignTimeout:                    defaultResignTimeout,
 		maxAllowedForwardingDelayFn:      defaultMaxAllowedForwardingDelayFn,
+		bufferForPastTimedMetricFn:       defaultBufferForPastTimedMetricFn,
+		bufferForFutureTimedMetric:       defaultTimedMetricBuffer,
 		maxNumCachedSourceSets:           defaultMaxNumCachedSourceSets,
 		discardNaNAggregatedValues:       defaultDiscardNaNAggregatedValues,
 	}
@@ -631,6 +652,26 @@ func (o *options) MaxAllowedForwardingDelayFn() MaxAllowedForwardingDelayFn {
 	return o.maxAllowedForwardingDelayFn
 }
 
+func (o *options) SetBufferForPastTimedMetricFn(value BufferForPastTimedMetricFn) Options {
+	opts := *o
+	opts.bufferForPastTimedMetricFn = value
+	return &opts
+}
+
+func (o *options) BufferForPastTimedMetricFn() BufferForPastTimedMetricFn {
+	return o.bufferForPastTimedMetricFn
+}
+
+func (o *options) SetBufferForFutureTimedMetric(value time.Duration) Options {
+	opts := *o
+	opts.bufferForFutureTimedMetric = value
+	return &opts
+}
+
+func (o *options) BufferForFutureTimedMetric() time.Duration {
+	return o.bufferForFutureTimedMetric
+}
+
 func (o *options) SetMaxNumCachedSourceSets(value int) Options {
 	opts := *o
 	opts.maxNumCachedSourceSets = value
@@ -716,17 +757,17 @@ func (o *options) initPools() {
 
 	o.counterElemPool = NewCounterElemPool(nil)
 	o.counterElemPool.Init(func() *CounterElem {
-		return MustNewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, o)
+		return MustNewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, WithPrefixWithSuffix, o)
 	})
 
 	o.timerElemPool = NewTimerElemPool(nil)
 	o.timerElemPool.Init(func() *TimerElem {
-		return MustNewTimerElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, o)
+		return MustNewTimerElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, WithPrefixWithSuffix, o)
 	})
 
 	o.gaugeElemPool = NewGaugeElemPool(nil)
 	o.gaugeElemPool.Init(func() *GaugeElem {
-		return MustNewGaugeElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, o)
+		return MustNewGaugeElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, WithPrefixWithSuffix, o)
 	})
 }
 
@@ -766,4 +807,8 @@ func defaultMaxAllowedForwardingDelayFn(
 	numForwardedTimes int,
 ) time.Duration {
 	return resolution * time.Duration(numForwardedTimes)
+}
+
+func defaultBufferForPastTimedMetricFn(resolution time.Duration) time.Duration {
+	return resolution + defaultTimedMetricBuffer
 }

@@ -59,6 +59,7 @@ func NewServer(address string, aggregator aggregator.Aggregator, opts Options) x
 type handlerMetrics struct {
 	unknownMessageTypeErrors tally.Counter
 	addUntimedErrors         tally.Counter
+	addTimedErrors           tally.Counter
 	addForwardedErrors       tally.Counter
 	unknownErrorTypeErrors   tally.Counter
 	decodeErrors             tally.Counter
@@ -69,6 +70,7 @@ func newHandlerMetrics(scope tally.Scope) handlerMetrics {
 	return handlerMetrics{
 		unknownMessageTypeErrors: scope.Counter("unknown-message-type-errors"),
 		addUntimedErrors:         scope.Counter("add-untimed-errors"),
+		addTimedErrors:           scope.Counter("add-timed-errors"),
 		addForwardedErrors:       scope.Counter("add-forwarded-errors"),
 		unknownErrorTypeErrors:   scope.Counter("unknown-error-type-errors"),
 		decodeErrors:             scope.Counter("decode-errors"),
@@ -126,6 +128,8 @@ func (s *handler) Handle(conn net.Conn) {
 		stagedMetadatas metadata.StagedMetadatas
 		forwardedMetric aggregated.ForwardedMetric
 		forwardMetadata metadata.ForwardMetadata
+		timedMetric     aggregated.Metric
+		timedMetadata   metadata.TimedMetadata
 		err             error
 	)
 	for it.Next() {
@@ -147,6 +151,10 @@ func (s *handler) Handle(conn net.Conn) {
 			forwardedMetric = current.ForwardedMetricWithMetadata.ForwardedMetric
 			forwardMetadata = current.ForwardedMetricWithMetadata.ForwardMetadata
 			err = toAddForwardedError(s.aggregator.AddForwarded(forwardedMetric, forwardMetadata))
+		case encoding.TimedMetricWithMetadataType:
+			timedMetric = current.TimedMetricWithMetadata.Metric
+			timedMetadata = current.TimedMetricWithMetadata.TimedMetadata
+			err = toAddTimedError(s.aggregator.AddTimed(timedMetric, timedMetadata))
 		default:
 			err = newUnknownMessageTypeError(current.Type)
 		}
@@ -186,6 +194,15 @@ func (s *handler) Handle(conn net.Conn) {
 				log.NewField("values", forwardedMetric.Values),
 				log.NewErrField(err),
 			).Error("error adding forwarded metric")
+		case addTimedError:
+			s.metrics.addTimedErrors.Inc(1)
+			s.log.WithFields(
+				log.NewField("remoteAddress", remoteAddress),
+				log.NewField("id", timedMetric.ID.String()),
+				log.NewField("timestamp", time.Unix(0, timedMetric.TimeNanos).String()),
+				log.NewField("value", timedMetric.Value),
+				log.NewErrField(err),
+			).Error("error adding timed metric")
 		default:
 			s.metrics.unknownErrorTypeErrors.Inc(1)
 			s.log.WithFields(
@@ -238,6 +255,19 @@ func toAddUntimedError(err error) error {
 }
 
 func (e addUntimedError) Error() string { return e.err.Error() }
+
+type addTimedError struct {
+	err error
+}
+
+func toAddTimedError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return addTimedError{err: err}
+}
+
+func (e addTimedError) Error() string { return e.err.Error() }
 
 type addForwardedError struct {
 	err error

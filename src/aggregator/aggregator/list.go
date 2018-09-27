@@ -688,11 +688,83 @@ func (l *forwardedMetricList) Close() {
 	}
 }
 
+type timedMetricListID struct {
+	resolution time.Duration
+}
+
+func (id timedMetricListID) toMetricListID() metricListID {
+	return metricListID{listType: timedMetricListType, timed: id}
+}
+
+type timedMetricList struct {
+	*baseMetricList
+
+	flushOffset time.Duration
+	log         log.Logger
+	flushMgr    FlushManager
+}
+
+func newTimedMetricList(
+	shard uint32,
+	id timedMetricListID,
+	opts Options,
+) (*timedMetricList, error) {
+	var (
+		resolution                 = id.resolution
+		fn                         = opts.BufferForPastTimedMetricFn()
+		timedAggregationBufferPast = fn(resolution)
+		iOpts                      = opts.InstrumentOptions()
+		listScope                  = iOpts.MetricsScope().Tagged(map[string]string{"list-type": "timed"})
+	)
+	// Timed metrics that have been kept for longer than the maximum buffer
+	// will be flushed.
+	targetNanosFn := func(nowNanos int64) int64 {
+		return nowNanos - timedAggregationBufferPast.Nanoseconds()
+	}
+	l, err := newBaseMetricList(
+		shard,
+		resolution,
+		targetNanosFn,
+		isStandardMetricEarlierThan,
+		standardMetricTimestampNanos,
+		opts.SetInstrumentOptions(iOpts.SetMetricsScope(listScope)),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	flushOffset := timedAggregationBufferPast - timedAggregationBufferPast.Truncate(l.FlushInterval())
+	fl := &timedMetricList{
+		baseMetricList: l,
+		flushOffset:    flushOffset,
+		log:            opts.InstrumentOptions().Logger(),
+		flushMgr:       opts.FlushManager(),
+	}
+	fl.flushMgr.Register(fl)
+	return fl, nil
+}
+
+func (l *timedMetricList) ID() metricListID {
+	return timedMetricListID{
+		resolution: l.resolution,
+	}.toMetricListID()
+}
+
+func (l *timedMetricList) Close() {
+	if !l.baseMetricList.Close() {
+		return
+	}
+	if err := l.flushMgr.Unregister(l); err != nil {
+		l.log.Errorf("error unregistering list: %v", err)
+	}
+}
+
 type metricListType int
 
 const (
 	standardMetricListType metricListType = iota
 	forwardedMetricListType
+	timedMetricListType
 )
 
 func (t metricListType) String() string {
@@ -701,6 +773,8 @@ func (t metricListType) String() string {
 		return "standard"
 	case forwardedMetricListType:
 		return "forwarded"
+	case timedMetricListType:
+		return "timed"
 	default:
 		// Should never get here.
 		return "unknown"
@@ -711,6 +785,7 @@ type metricListID struct {
 	listType  metricListType
 	standard  standardMetricListID
 	forwarded forwardedMetricListID
+	timed     timedMetricListID
 }
 
 func newMetricList(shard uint32, id metricListID, opts Options) (metricList, error) {
@@ -719,6 +794,8 @@ func newMetricList(shard uint32, id metricListID, opts Options) (metricList, err
 		return newStandardMetricList(shard, id.standard, opts)
 	case forwardedMetricListType:
 		return newForwardedMetricList(shard, id.forwarded, opts)
+	case timedMetricListType:
+		return newTimedMetricList(shard, id.timed, opts)
 	default:
 		return nil, fmt.Errorf("unknown list type: %v", id.listType)
 	}
@@ -797,6 +874,7 @@ func (l *metricLists) Tick() listsTickResult {
 	res := listsTickResult{
 		standard:  make(map[time.Duration]int, len(l.lists)),
 		forwarded: make(map[time.Duration]int, len(l.lists)),
+		timed:     make(map[time.Duration]int, len(l.lists)),
 	}
 	for id, list := range l.lists {
 		resolution := list.Resolution()
@@ -806,6 +884,8 @@ func (l *metricLists) Tick() listsTickResult {
 			res.standard[resolution] += numElems
 		case forwardedMetricListType:
 			res.forwarded[resolution] += numElems
+		case timedMetricListType:
+			res.timed[resolution] += numElems
 		}
 	}
 	return res
@@ -828,4 +908,5 @@ func (l *metricLists) Close() {
 type listsTickResult struct {
 	standard  map[time.Duration]int
 	forwarded map[time.Duration]int
+	timed     map[time.Duration]int
 }

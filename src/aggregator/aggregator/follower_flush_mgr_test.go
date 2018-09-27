@@ -99,6 +99,24 @@ func TestFollowerFlushManagerCanNotLeadStandardFlushWindowsNotEnded(t *testing.T
 	require.False(t, mgr.CanLead())
 }
 
+func TestFollowerFlushManagerCanNotLeadTimedFlushWindowsNotEnded(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	doneCh := make(chan struct{})
+	electionManager := NewMockElectionManager(ctrl)
+	opts := NewFlushManagerOptions().SetElectionManager(electionManager)
+	mgr := newFollowerFlushManager(doneCh, opts).(*followerFlushManager)
+	mgr.processed = testFlushTimes2
+	electionManager.EXPECT().IsCampaigning().Return(true)
+	mgr.openedAt = time.Unix(3624, 0)
+	require.False(t, mgr.CanLead())
+
+	electionManager.EXPECT().IsCampaigning().Return(true)
+	mgr.openedAt = time.Unix(3524, 0)
+	require.True(t, mgr.CanLead())
+}
+
 func TestFollowerFlushManagerCanNotLeadForwardedFlushWindowsNotEnded(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

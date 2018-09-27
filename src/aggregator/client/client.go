@@ -69,6 +69,12 @@ type Client interface {
 		metadatas metadata.StagedMetadatas,
 	) error
 
+	// WriteTimed writes timed metrics.
+	WriteTimed(
+		metric aggregated.Metric,
+		metadata metadata.TimedMetadata,
+	) error
+
 	// Flush flushes any remaining data buffered by the client.
 	Flush() error
 
@@ -230,6 +236,23 @@ func (c *client) WriteUntimedGauge(
 	}
 	err := c.write(gauge.ID, c.nowNanos(), payload)
 	c.metrics.writeUntimedGauge.ReportSuccessOrError(err, c.nowFn().Sub(callStart))
+	return err
+}
+
+func (c *client) WriteTimed(
+	metric aggregated.Metric,
+	metadata metadata.TimedMetadata,
+) error {
+	callStart := c.nowFn()
+	payload := payloadUnion{
+		payloadType: timedType,
+		timed: timedPayload{
+			metric:   metric,
+			metadata: metadata,
+		},
+	}
+	err := c.write(metric.ID, metric.TimeNanos, payload)
+	c.metrics.writeForwarded.ReportSuccessOrError(err, c.nowFn().Sub(callStart))
 	return err
 }
 

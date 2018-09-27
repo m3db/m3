@@ -83,6 +83,9 @@ var (
 					1000000000:  3669000000000,
 					60000000000: 3660000000000,
 				},
+				TimedByResolution: map[int64]int64{
+					1000000000: 3600000000000,
+				},
 				ForwardedByResolution: map[int64]*schema.ForwardedFlushTimesForResolution{
 					1000000000: &schema.ForwardedFlushTimesForResolution{
 						ByNumForwardedTimes: map[int32]int64{
@@ -428,14 +431,15 @@ func TestLeaderFlushManagerOnBucketAdded(t *testing.T) {
 }
 
 func TestCloneFlushTimesByShard(t *testing.T) {
-	cloned := cloneFlushTimesByShard(testFlushTimes.ByShard)
+	cloned := cloneFlushTimesByShard(testFlushTimes2.ByShard)
 	actual := &schema.ShardSetFlushTimes{ByShard: cloned}
-	validateShardSetFlushTimes(t, testFlushTimes, actual)
+	validateShardSetFlushTimes(t, testFlushTimes2, actual)
 
 	// Assert that mutating a clone does not alter the original data.
-	cloned2 := cloneFlushTimesByShard(testFlushTimes.ByShard)
+	cloned2 := cloneFlushTimesByShard(testFlushTimes2.ByShard)
 	require.Equal(t, cloned, cloned2)
 	cloned2[0].StandardByResolution[1000000000] = 1000
+	cloned2[0].TimedByResolution[1000000000] = 2000
 	cloned2[1].ForwardedByResolution[1000000000].ByNumForwardedTimes[1] = 2000
 	cloned2[1].ForwardedByResolution[1000000000].ByNumForwardedTimes[2] = 3000
 	cloned2[3] = &schema.ShardFlushTimes{
@@ -444,7 +448,7 @@ func TestCloneFlushTimesByShard(t *testing.T) {
 		},
 	}
 	require.NotEqual(t, cloned, cloned2)
-	validateShardSetFlushTimes(t, testFlushTimes, actual)
+	validateShardSetFlushTimes(t, testFlushTimes2, actual)
 }
 
 func TestLeaderFlushTaskRunShardsError(t *testing.T) {
@@ -702,6 +706,11 @@ func testFlushBuckets2(ctrl *gomock.Controller) []*flushBucket {
 	standardFlusher2.EXPECT().FlushInterval().Return(time.Hour).AnyTimes()
 	standardFlusher2.EXPECT().LastFlushedNanos().Return(int64(7200000000000)).AnyTimes()
 
+	timedFlusher1 := NewMockflushingMetricList(ctrl)
+	timedFlusher1.EXPECT().Shard().Return(uint32(0)).AnyTimes()
+	timedFlusher1.EXPECT().FlushInterval().Return(time.Second).AnyTimes()
+	timedFlusher1.EXPECT().LastFlushedNanos().Return(int64(3600000000000)).AnyTimes()
+
 	forwardedFlusher1 := NewMockflushingMetricList(ctrl)
 	forwardedFlusher1.EXPECT().Shard().Return(uint32(0)).AnyTimes()
 	forwardedFlusher1.EXPECT().FlushInterval().Return(time.Second).AnyTimes()
@@ -724,6 +733,12 @@ func testFlushBuckets2(ctrl *gomock.Controller) []*flushBucket {
 			interval: time.Hour,
 			offset:   time.Minute,
 			flushers: []flushingMetricList{standardFlusher2},
+		},
+		&flushBucket{
+			bucketID: timedMetricListID{resolution: time.Second}.toMetricListID(),
+			interval: time.Second,
+			offset:   250 * time.Millisecond,
+			flushers: []flushingMetricList{timedFlusher1},
 		},
 		&flushBucket{
 			bucketID: forwardedMetricListID{resolution: time.Second, numForwardedTimes: 1}.toMetricListID(),

@@ -28,6 +28,7 @@ message ShardFlushTimes {
   map<int64, int64> standard_by_resolution = 1;
   bool tombstoned = 2;
   map<int64, ForwardedFlushTimesForResolution> forwarded_by_resolution = 3;
+  map<int64, int64> timed_by_resolution = 4;
 }
 
 message ForwardedFlushTimesForResolution {

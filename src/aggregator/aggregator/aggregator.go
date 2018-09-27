@@ -66,6 +66,9 @@ type Aggregator interface {
 	// AddUntimed adds an untimed metric with staged metadatas.
 	AddUntimed(metric unaggregated.MetricUnion, metas metadata.StagedMetadatas) error
 
+	// AddTimed adds a timed metric with metadata.
+	AddTimed(metric aggregated.Metric, metadata metadata.TimedMetadata) error
+
 	// AddForwarded adds a forwarded metric with metadata.
 	AddForwarded(metric aggregated.ForwardedMetric, metadata metadata.ForwardMetadata) error
 
@@ -180,6 +183,25 @@ func (agg *aggregator) AddUntimed(
 		return err
 	}
 	agg.metrics.addUntimed.ReportSuccess(agg.nowFn().Sub(callStart))
+	return nil
+}
+
+func (agg *aggregator) AddTimed(
+	metric aggregated.Metric,
+	metadata metadata.TimedMetadata,
+) error {
+	callStart := agg.nowFn()
+	agg.metrics.timed.Inc(1)
+	shard, err := agg.shardFor(metric.ID)
+	if err != nil {
+		agg.metrics.addTimed.ReportError(err)
+		return err
+	}
+	if err = shard.AddTimed(metric, metadata); err != nil {
+		agg.metrics.addTimed.ReportError(err)
+		return err
+	}
+	agg.metrics.addTimed.ReportSuccess(agg.nowFn().Sub(callStart))
 	return nil
 }
 
@@ -662,6 +684,39 @@ func (m *aggregatorAddUntimedMetrics) ReportError(err error) {
 	m.aggregatorAddMetricMetrics.ReportError(err)
 }
 
+type aggregatorAddTimedMetrics struct {
+	aggregatorAddMetricMetrics
+
+	tooFarInTheFuture tally.Counter
+	tooFarInThePast   tally.Counter
+}
+
+func newAggregatorAddTimedMetrics(
+	scope tally.Scope,
+	samplingRate float64,
+) aggregatorAddTimedMetrics {
+	return aggregatorAddTimedMetrics{
+		aggregatorAddMetricMetrics: newAggregatorAddMetricMetrics(scope, samplingRate),
+		tooFarInTheFuture: scope.Tagged(map[string]string{
+			"reason": "too-far-in-the-future",
+		}).Counter("errors"),
+		tooFarInThePast: scope.Tagged(map[string]string{
+			"reason": "too-far-in-the-past",
+		}).Counter("errors"),
+	}
+}
+
+func (m *aggregatorAddTimedMetrics) ReportError(err error) {
+	switch err {
+	case errTooFarInTheFuture:
+		m.tooFarInTheFuture.Inc(1)
+	case errTooFarInThePast:
+		m.tooFarInThePast.Inc(1)
+	default:
+		m.aggregatorAddMetricMetrics.ReportError(err)
+	}
+}
+
 type latencyBucketKey struct {
 	resolution        time.Duration
 	numForwardedTimes int
@@ -837,7 +892,9 @@ type aggregatorMetrics struct {
 	timerBatches tally.Counter
 	gauges       tally.Counter
 	forwarded    tally.Counter
+	timed        tally.Counter
 	addUntimed   aggregatorAddUntimedMetrics
+	addTimed     aggregatorAddTimedMetrics
 	addForwarded aggregatorAddForwardedMetrics
 	placement    aggregatorPlacementMetrics
 	shards       aggregatorShardsMetrics
@@ -851,6 +908,7 @@ func newAggregatorMetrics(
 	maxAllowedForwardingDelayFn MaxAllowedForwardingDelayFn,
 ) aggregatorMetrics {
 	addUntimedScope := scope.SubScope("addUntimed")
+	addTimedScope := scope.SubScope("addTimed")
 	addForwardedScope := scope.SubScope("addForwarded")
 	placementScope := scope.SubScope("placement")
 	shardsScope := scope.SubScope("shards")
@@ -862,7 +920,9 @@ func newAggregatorMetrics(
 		timerBatches: scope.Counter("timer-batches"),
 		gauges:       scope.Counter("gauges"),
 		forwarded:    scope.Counter("forwarded"),
+		timed:        scope.Counter("timed"),
 		addUntimed:   newAggregatorAddUntimedMetrics(addUntimedScope, samplingRate),
+		addTimed:     newAggregatorAddTimedMetrics(addTimedScope, samplingRate),
 		addForwarded: newAggregatorAddForwardedMetrics(addForwardedScope, samplingRate, maxAllowedForwardingDelayFn),
 		placement:    newAggregatorPlacementMetrics(placementScope),
 		shards:       newAggregatorShardsMetrics(shardsScope),

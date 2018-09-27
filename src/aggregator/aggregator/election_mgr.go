@@ -557,6 +557,7 @@ func (mgr *electionManager) verifyPendingFollower(watch watch.Watch) {
 			continue
 		}
 		mgr.setGoalStateWithLock(FollowerState)
+		mgr.logger.Infof("goal state changed to follower")
 		mgr.goalStateLock.Unlock()
 	}
 }

@@ -44,4 +44,5 @@ type SnapshotResult struct {
 	BatchTimersWithMetadatas     []unaggregated.BatchTimerWithMetadatas
 	GaugesWithMetadatas          []unaggregated.GaugeWithMetadatas
 	ForwardedMetricsWithMetadata []aggregated.ForwardedMetricWithMetadata
+	TimedMetricWithMetadata      []aggregated.TimedMetricWithMetadata
 }

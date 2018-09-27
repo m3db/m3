@@ -58,6 +58,7 @@ const (
 	unknownMetricCategory metricCategory = iota
 	untimedMetric
 	forwardedMetric
+	timedMetric
 )
 
 type entryKey struct {
@@ -158,6 +159,24 @@ func (m *metricMap) AddUntimed(
 	return err
 }
 
+func (m *metricMap) AddTimed(
+	metric aggregated.Metric,
+	metadata metadata.TimedMetadata,
+) error {
+	key := entryKey{
+		metricCategory: timedMetric,
+		metricType:     metric.Type,
+		idHash:         hash.Murmur3Hash128(metric.ID),
+	}
+	entry, err := m.findOrCreate(key)
+	if err != nil {
+		return err
+	}
+	err = entry.AddTimed(metric, metadata)
+	entry.DecWriter()
+	return err
+}
+
 func (m *metricMap) AddForwarded(
 	metric aggregated.ForwardedMetric,
 	metadata metadata.ForwardMetadata,
@@ -181,6 +200,7 @@ func (m *metricMap) Tick(target time.Duration) tickResult {
 	listsTickRes := m.metricLists.Tick()
 	mapTickRes.standard.activeElems = listsTickRes.standard
 	mapTickRes.forwarded.activeElems = listsTickRes.forwarded
+	mapTickRes.timed.activeElems = listsTickRes.timed
 	return mapTickRes
 }
 
@@ -294,6 +314,8 @@ func (m *metricMap) tick(target time.Duration) tickResult {
 		numStandardExpired   int
 		numForwardedActive   int
 		numForwardedExpired  int
+		numTimedActive       int
+		numTimedExpired      int
 		entryIdx             int
 	)
 	m.forEachEntry(func(entry hashedEntry) {
@@ -309,29 +331,33 @@ func (m *metricMap) tick(target time.Duration) tickResult {
 			numStandardActive++
 		case forwardedMetric:
 			numForwardedActive++
+		case timedMetric:
+			numTimedActive++
 		}
 		if entry.entry.ShouldExpire(now) {
 			expired = append(expired, entry)
 		}
 		if len(expired) >= defaultExpireBatchSize {
-			standardExpired, forwardedExpired := m.purgeExpired(now, expired)
+			standardExpired, forwardedExpired, timedExpired := m.purgeExpired(now, expired)
 			for i := range expired {
 				expired[i] = emptyHashedEntry
 			}
 			expired = expired[:0]
 			numStandardExpired += standardExpired
 			numForwardedExpired += forwardedExpired
+			numTimedExpired += timedExpired
 		}
 		entryIdx++
 	})
 
 	// Purge remaining expired entries.
-	standardExpired, forwardedExpired := m.purgeExpired(m.nowFn(), expired)
+	standardExpired, forwardedExpired, timedExpired := m.purgeExpired(m.nowFn(), expired)
 	for i := range expired {
 		expired[i] = emptyHashedEntry
 	}
 	numStandardExpired += standardExpired
 	numForwardedExpired += forwardedExpired
+	numTimedExpired += timedExpired
 	return tickResult{
 		standard: tickResultForMetricCategory{
 			activeEntries:  numStandardActive - numStandardExpired,
@@ -341,15 +367,19 @@ func (m *metricMap) tick(target time.Duration) tickResult {
 			activeEntries:  numForwardedActive - numForwardedExpired,
 			expiredEntries: numForwardedExpired,
 		},
+		timed: tickResultForMetricCategory{
+			activeEntries:  numTimedActive - numTimedExpired,
+			expiredEntries: numTimedExpired,
+		},
 	}
 }
 
 func (m *metricMap) purgeExpired(
 	now time.Time,
 	entries []hashedEntry,
-) (numStandardExpired, numForwardedExpired int) {
+) (numStandardExpired, numForwardedExpired, numTimedExpired int) {
 	if len(entries) == 0 {
-		return 0, 0
+		return 0, 0, 0
 	}
 	m.entryListDelLock.Lock()
 	m.Lock()
@@ -361,6 +391,8 @@ func (m *metricMap) purgeExpired(
 				numStandardExpired++
 			case forwardedMetric:
 				numForwardedExpired++
+			case timedMetric:
+				numTimedExpired++
 			}
 			elem := m.entries[key]
 			delete(m.entries, key)
@@ -370,7 +402,7 @@ func (m *metricMap) purgeExpired(
 	}
 	m.Unlock()
 	m.entryListDelLock.Unlock()
-	return numStandardExpired, numForwardedExpired
+	return numStandardExpired, numForwardedExpired, numTimedExpired
 }
 
 func (m *metricMap) forEachEntry(entryFn hashedEntryFn) {
