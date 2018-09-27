@@ -23,11 +23,10 @@ package test
 import (
 	"sync"
 
-	"github.com/m3db/m3/src/query/pools"
-
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/serialize"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
+	"github.com/m3db/m3/src/query/pools"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 )
