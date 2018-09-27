@@ -257,6 +257,8 @@ func (s *m3storage) Write(
 	id := query.Tags.ID()
 	// TODO: Consider caching id -> identID
 	identID := ident.StringID(id)
+	// Set id to NoFinalize to avoid cloning it in write operations
+	identID.NoFinalize()
 	common := &writeRequestCommon{
 		store:       s,
 		annotation:  query.Annotation,
