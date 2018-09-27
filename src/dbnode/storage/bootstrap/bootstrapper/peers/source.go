@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
@@ -484,20 +485,18 @@ func (s *peersSource) flush(
 		}
 	}
 
-	if seriesCachePolicy != series.CacheAll && seriesCachePolicy != series.CacheAllMetadata {
-		// TODO: We need this right now because nodes with older versions of M3DB will return an extra
-		// block when requesting bootstrapped blocks. Once all the clusters have been upgraded we can
-		// remove this code.
-		for _, entry := range shardResult.AllSeries().Iter() {
-			s := entry.Value()
-			bl, ok := s.Blocks.BlockAt(tr.End)
-			if !ok {
-				continue
-			}
-			s.Blocks.RemoveBlockAt(tr.End)
-			bl.Close()
-		}
+	// We only want to retain the series metadata in one of three cases:
+	// 	1) CacheAll caching policy (because we're expected to cache everything in memory)
+	// 	2) CacheAllMetadata caching policy (because we're expected to cache all metadata in memory)
+	// 	3) PersistConfig.FileSetType is set to FileSetSnapshotType because that means we're bootstrapping
+	//     an active block that we'll want to perform a flush on later, and we're only flushing here for
+	//     the sake of allowing the commit log bootstrapper to be able to recover this data if the node
+	//     goes down in-between this bootstrapper completing and the subsequent flush.
+	shouldRetainSeriesMetadata := seriesCachePolicy == series.CacheAll ||
+		seriesCachePolicy == series.CacheAllMetadata ||
+		persistConfig.FileSetType == persist.FileSetSnapshotType
 
+	if !shouldRetainSeriesMetadata {
 		// If we're not going to keep all of the data, or at least all of the metadata in memory
 		// then we don't want to keep these series in the shard result. If we leave them in, then
 		// they will all get loaded into the shard object, and then immediately evicted on the next
@@ -521,11 +520,13 @@ func (s *peersSource) flush(
 			series.Tags.Finalize()
 		}
 		if numSeriesTriedToRemoveWithRemainingBlocks > 0 {
-			s.log.WithFields(
-				xlog.NewField("start", tr.Start.Unix()),
-				xlog.NewField("end", tr.End.Unix()),
-				xlog.NewField("numTimes", numSeriesTriedToRemoveWithRemainingBlocks),
-			).Error("error tried to remove series that still has blocks")
+			iOpts := s.opts.ResultOptions().InstrumentOptions()
+			instrument.EmitInvariantViolationAndGetLogger(iOpts).
+				WithFields(
+					xlog.NewField("start", tr.Start.Unix()),
+					xlog.NewField("end", tr.End.Unix()),
+					xlog.NewField("numTimes", numSeriesTriedToRemoveWithRemainingBlocks),
+				).Error("error tried to remove series that still has blocks")
 		}
 	}
 
