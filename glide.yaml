@@ -47,11 +47,9 @@ import:
   version: 48099fad606eafc26e3a569fad19ff510fff4df6
 
 - package: github.com/apache/thrift
-  version: 0.9.3-pool-read-binary-2
+  version: ~0.9.3
   subpackages:
   - lib/go/thrift
-  repo: https://github.com/m3db/thrift
-  vcs: git
 
 - package: github.com/golang/mock
   version: ^1
@@ -78,7 +76,9 @@ import:
   version: 9f5d223c60793748f04a9d5b4b4eacddfc1f755d
 
 - package: github.com/uber/tchannel-go
-  version: 1fcf82ec86967eb43ba0baa9b964f8eb226d242e
+  version: fa133a188a4650bfa117429fac1b1738516a8874
+  repo: https://github.com/prateek/tchannel-go
+  vcs: git
   subpackages:
   - thrift
 
@@ -215,7 +215,7 @@ import:
   repo: https://github.com/go-validator/validator.git
   vcs: git
 
-testImport:
+# testImport:
 - package: github.com/fortytw2/leaktest
   version: b433bbd6d743c1854040b39062a3916ed5f78fe8
 

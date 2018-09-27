@@ -1,10 +1,8 @@
-hash: bc8c8f7d91429a979e2745c8507dad93a217e06525e7c0baac753dd8a8477d2e
-updated: 2018-08-30T10:47:26.772333-04:00
+hash: fea585f40ceb4ec142703c7fa6d3c1b265f42b73cea8008389863da9886327f2
+updated: 2018-09-27T01:39:19.717099-04:00
 imports:
 - name: github.com/apache/thrift
-  version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
-  repo: https://github.com/m3db/thrift
-  vcs: git
+  version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
   subpackages:
   - lib/go/thrift
 - name: github.com/beorn7/perks
@@ -113,6 +111,8 @@ imports:
   version: d2709f9f1f31ebcda9651b03077758c1f3a0018c
 - name: github.com/edsrzf/mmap-go
   version: 0bce6a6887123b67a60366d2c9fe2dfb74289d2e
+- name: github.com/fortytw2/leaktest
+  version: b433bbd6d743c1854040b39062a3916ed5f78fe8
 - name: github.com/fsnotify/fsnotify
   version: c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9
 - name: github.com/ghodss/yaml
@@ -163,6 +163,8 @@ imports:
   - cmp/internal/diff
   - cmp/internal/function
   - cmp/internal/value
+- name: github.com/google/uuid
+  version: 9b3b1e0f5f99ae461456d768e7d301a7acdaa2d8
 - name: github.com/gorilla/context
   version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
 - name: github.com/gorilla/mux
@@ -193,6 +195,12 @@ imports:
   version: 2eee05ed794112d45db504eb05aa693efd2b8b09
 - name: github.com/kr/logfmt
   version: b84e30acd515aadc4b783ad4ff83aff3299bdfe0
+- name: github.com/leanovate/gopter
+  version: f0356731348c8fffa27bab27c37ec8be5b0662c8
+  subpackages:
+  - commands
+  - gen
+  - prop
 - name: github.com/m3db/bitset
   version: 07973db6b78acb62ac207d0538055e874b49d90d
 - name: github.com/m3db/bloom
@@ -314,6 +322,7 @@ imports:
   - close
   - config
   - config/hostid
+  - config/listenaddress
   - context
   - errors
   - ident
@@ -377,7 +386,7 @@ imports:
 - name: github.com/pborman/getopt
   version: ec82d864f599c39673eef89f91b93fa5576567a1
 - name: github.com/pborman/uuid
-  version: e790cca94e6cc75c7064b1332e63811d4aae1a53
+  version: adf5a7427709b9deb95d29d3fa8a2bf9cfd388f1
 - name: github.com/pelletier/go-toml
   version: c2dbbc24a97911339e01bda0b8cabdbd8f13b602
 - name: github.com/philhofer/fwd
@@ -458,7 +467,7 @@ imports:
 - name: github.com/spf13/pflag
   version: 4f9190456aed1c2113ca51ea9b89219747458dc1
 - name: github.com/spf13/viper
-  version: 907c19d40d9a6c9bb55f040ff4ae45271a4754b9
+  version: 8fb642006536c8d3760c99d4fa2389f5e2205631
 - name: github.com/stretchr/testify
   version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
   subpackages:
@@ -481,7 +490,9 @@ imports:
   - multi
   - prometheus
 - name: github.com/uber/tchannel-go
-  version: 1fcf82ec86967eb43ba0baa9b964f8eb226d242e
+  version: fa133a188a4650bfa117429fac1b1738516a8874
+  repo: https://github.com/prateek/tchannel-go
+  vcs: git
   subpackages:
   - internal/argreader
   - relay
@@ -600,26 +611,14 @@ imports:
   - codes
 - name: gopkg.in/yaml.v2
   version: 5420a8b6744d3b0345ab293f6fcba19c978f1183
-  repo: https://github.com/go-yaml/yaml.git
-  vcs: git
 testImports:
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
-- name: github.com/fortytw2/leaktest
-  version: b433bbd6d743c1854040b39062a3916ed5f78fe8
 - name: github.com/go-playground/locales
   version: 1e5f1161c6416a5ff48840eb8724a394e48cc534
   subpackages:
   - currency
 - name: github.com/go-playground/universal-translator
   version: 71201497bace774495daed26a3874fd339e0b538
-- name: github.com/leanovate/gopter
-  version: f0356731348c8fffa27bab27c37ec8be5b0662c8
-  subpackages:
-  - commands
-  - gen
-  - prop
 - name: gopkg.in/go-playground/validator.v9
   version: a021b2ec9a8a8bb970f3f15bc42617cb520e8a64
-  repo: https://github.com/go-playground/validator.git
-  vcs: git

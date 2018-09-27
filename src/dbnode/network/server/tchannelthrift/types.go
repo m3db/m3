@@ -23,6 +23,8 @@ package tchannelthrift
 import (
 	"github.com/m3db/m3/src/dbnode/serialize"
 	"github.com/m3db/m3x/instrument"
+
+	ubertchannelthrift "github.com/uber/tchannel-go/thrift"
 )
 
 // Options controls server behavior
@@ -80,4 +82,10 @@ type Options interface {
 
 	// TagDecoderPool returns the tag encoder pool
 	TagDecoderPool() serialize.TagDecoderPool
+
+	// SetProtocolPool sets the protocol pool.
+	SetProtocolPool(value ubertchannelthrift.ProtocolPool) Options
+
+	// ProtocolPool returns the protocol pool.
+	ProtocolPool() ubertchannelthrift.ProtocolPool
 }

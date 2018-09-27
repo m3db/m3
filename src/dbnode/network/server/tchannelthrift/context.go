@@ -36,9 +36,18 @@ const (
 )
 
 // RegisterServer will register a tchannel thrift server and create and close M3DB contexts per request
-func RegisterServer(channel *tchannel.Channel, service thrift.TChanServer, contextPool context.Pool) {
+func RegisterServer(
+	channel *tchannel.Channel,
+	service thrift.TChanServer,
+	contextPool context.Pool,
+	protocolPool thrift.ProtocolPool,
+) {
 	server := thrift.NewServer(channel)
-	server.Register(service, thrift.OptPostResponse(postResponseFn))
+	registerOpts := []thrift.RegisterOption{thrift.OptPostResponse(postResponseFn)}
+	if protocolPool != nil {
+		registerOpts = append(registerOpts, thrift.OptProtocolPool(protocolPool))
+	}
+	server.Register(service, registerOpts...)
 	server.SetContextFn(func(ctx xnetcontext.Context, method string, headers map[string]string) thrift.Context {
 		ctxWithValue := xnetcontext.WithValue(ctx, contextKey, contextPool.Get())
 		return thrift.WithHeaders(ctxWithValue, headers)

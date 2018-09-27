@@ -502,6 +502,9 @@ func Run(runOpts RunOptions) {
 	blocksMetadataSlicePool := tchannelthrift.NewBlocksMetadataSlicePool(
 		capacityPoolOptions(policy.BlocksMetadataSlicePool, scope.SubScope("blocks-metadata-slice-pool")),
 		policy.BlocksMetadataSlicePool.Capacity)
+	protocolPool := tchannelthrift.NewProtocolPool(
+		protocolPoolOptions(policy.ProtocolPool, scope.SubScope("protocol-pool")),
+		opts.BytesPool().BytesPool())
 
 	ttopts := tchannelthrift.NewOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
@@ -510,7 +513,8 @@ func Run(runOpts RunOptions) {
 		SetBlocksMetadataPool(blocksMetadataPool).
 		SetBlocksMetadataSlicePool(blocksMetadataSlicePool).
 		SetTagEncoderPool(tagEncoderPool).
-		SetTagDecoderPool(tagDecoderPool)
+		SetTagDecoderPool(tagDecoderPool).
+		SetProtocolPool(protocolPool)
 
 	db, err := cluster.NewDatabase(hostID, envCfg.TopologyInitializer, opts)
 	if err != nil {
@@ -1058,6 +1062,20 @@ func withEncodingAndPoolingOptions(
 	resultsPool.Init(func() index.Results { return index.NewResults(indexOpts) })
 
 	return opts.SetIndexOptions(indexOpts)
+}
+
+// TODO(prateek): wire the policy in the config
+// nolint
+func protocolPoolOptions(
+	policy config.PoolPolicy,
+	scope tally.Scope,
+) pool.ObjectPoolOptions {
+	opts := pool.NewObjectPoolOptions().SetSize(524288)
+	if scope != nil {
+		opts = opts.SetInstrumentOptions(opts.InstrumentOptions().
+			SetMetricsScope(scope))
+	}
+	return opts
 }
 
 func poolOptions(

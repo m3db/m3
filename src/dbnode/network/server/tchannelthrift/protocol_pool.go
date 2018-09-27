@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -17,21 +17,39 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
+package tchannelthrift
 
-package xtchannel
+import (
+	"github.com/m3db/m3x/pool"
 
-import tchannel "github.com/uber/tchannel-go"
-
-const (
-	framePoolSize = 1 << 20
+	ubertchannelthrift "github.com/uber/tchannel-go/thrift"
 )
 
-// NewDefaultChannelOptions returns the default tchannel options used.
-func NewDefaultChannelOptions() *tchannel.ChannelOptions {
-	return &tchannel.ChannelOptions{
-		Logger: NewNoopLogger(),
-		DefaultConnectionOptions: tchannel.ConnectionOptions{
-			FramePool: tchannel.NewChannelFramePool(framePoolSize),
-		},
+type protocolPool struct {
+	pool pool.ObjectPool
+}
+
+var _ ubertchannelthrift.ProtocolPool = &protocolPool{}
+
+// NewProtocolPool returns a new protocol pool.
+func NewProtocolPool(opts pool.ObjectPoolOptions, bytesPool pool.BytesPool) ubertchannelthrift.ProtocolPool {
+	if bytesPool == nil {
+		bytesPool = pool.NewBytesPool([]pool.Bucket{{Capacity: 256, Count: 256}}, opts)
+		bytesPool.Init()
 	}
+	p := pool.NewObjectPool(opts)
+	p.Init(func() interface{} {
+		transport := &ubertchannelthrift.OptimizedTRichTransport{}
+		protocol := NewTBinaryProtocolTransport(transport, bytesPool)
+		return &ubertchannelthrift.PooledProtocol{transport, protocol}
+	})
+	return protocolPool{p}
+}
+
+func (p protocolPool) Get() *ubertchannelthrift.PooledProtocol {
+	return p.pool.Get().(*ubertchannelthrift.PooledProtocol)
+}
+
+func (p protocolPool) Release(value *ubertchannelthrift.PooledProtocol) {
+	p.pool.Put(value)
 }

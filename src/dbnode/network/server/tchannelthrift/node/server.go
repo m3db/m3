@@ -71,7 +71,7 @@ func (s *server) ListenAndServe() (ns.Close, error) {
 	}
 
 	service := NewService(s.db, s.ttopts)
-	tchannelthrift.RegisterServer(channel, rpc.NewTChanNodeServer(service), s.contextPool)
+	tchannelthrift.RegisterServer(channel, rpc.NewTChanNodeServer(service), s.contextPool, s.ttopts.ProtocolPool())
 
 	channel.ListenAndServe(s.address)
 

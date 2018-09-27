@@ -48,7 +48,6 @@ import (
 	"github.com/m3db/m3x/resource"
 	xtime "github.com/m3db/m3x/time"
 
-	apachethrift "github.com/apache/thrift/lib/go/thrift"
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
 )
@@ -179,7 +178,8 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 	})
 	segmentPool.Init()
 
-	writeBatchPooledReqPool := newWriteBatchPooledReqPool(iopts)
+	writeBatchPooledReqPool := newWriteBatchPooledReqPool(iopts,
+		db.Options().BytesPool().BytesPool())
 	writeBatchPooledReqPool.Init(opts.TagDecoderPool())
 
 	s := &service{
@@ -1383,14 +1383,14 @@ func (r *writeBatchPooledReq) Finalize() {
 	// Return any pooled thrift byte slices to the thrift pool
 	if r.writeReq != nil {
 		for _, elem := range r.writeReq.Elements {
-			apachethrift.BytesPoolPut(elem.ID)
+			r.pool.bytesPool.Put(elem.ID)
 		}
 		r.writeReq = nil
 	}
 	if r.writeTaggedReq != nil {
 		for _, elem := range r.writeTaggedReq.Elements {
-			apachethrift.BytesPoolPut(elem.ID)
-			apachethrift.BytesPoolPut(elem.EncodedTags)
+			r.pool.bytesPool.Put(elem.ID)
+			r.pool.bytesPool.Put(elem.EncodedTags)
 		}
 		r.writeTaggedReq = nil
 	}
@@ -1406,17 +1406,19 @@ type writeBatchPooledReqID struct {
 }
 
 type writeBatchPooledReqPool struct {
-	pool pool.ObjectPool
+	pool      pool.ObjectPool
+	bytesPool pool.BytesPool
 }
 
 func newWriteBatchPooledReqPool(
 	iopts instrument.Options,
+	bytesPool pool.BytesPool,
 ) *writeBatchPooledReqPool {
 	pool := pool.NewObjectPool(pool.NewObjectPoolOptions().
 		SetSize(writeBatchPooledReqPoolSize).
 		SetInstrumentOptions(iopts.SetMetricsScope(
 			iopts.MetricsScope().SubScope("write-batch-pooled-req-pool"))))
-	return &writeBatchPooledReqPool{pool: pool}
+	return &writeBatchPooledReqPool{pool: pool, bytesPool: bytesPool}
 }
 
 func (p *writeBatchPooledReqPool) Init(

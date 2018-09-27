@@ -24,6 +24,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/serialize"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
+	ubertchannelthrift "github.com/uber/tchannel-go/thrift"
 )
 
 type options struct {
@@ -36,6 +37,7 @@ type options struct {
 	blocksMetadataSlicePool  BlocksMetadataSlicePool
 	tagEncoderPool           serialize.TagEncoderPool
 	tagDecoderPool           serialize.TagDecoderPool
+	protocolPool             ubertchannelthrift.ProtocolPool
 }
 
 // NewOptions creates new options
@@ -60,6 +62,7 @@ func NewOptions() Options {
 		blocksMetadataSlicePool:  NewBlocksMetadataSlicePool(nil, 0),
 		tagEncoderPool:           tagEncoderPool,
 		tagDecoderPool:           tagDecoderPool,
+		protocolPool:             NewProtocolPool(nil, nil),
 	}
 }
 
@@ -151,4 +154,14 @@ func (o *options) SetTagDecoderPool(value serialize.TagDecoderPool) Options {
 
 func (o *options) TagDecoderPool() serialize.TagDecoderPool {
 	return o.tagDecoderPool
+}
+
+func (o *options) SetProtocolPool(value ubertchannelthrift.ProtocolPool) Options {
+	opts := *o
+	opts.protocolPool = value
+	return &opts
+}
+
+func (o *options) ProtocolPool() ubertchannelthrift.ProtocolPool {
+	return o.protocolPool
 }

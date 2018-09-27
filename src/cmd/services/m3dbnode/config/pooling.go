@@ -102,6 +102,9 @@ type PoolingPolicy struct {
 
 	// The policy for the TagDecoderPool
 	TagDecoderPool PoolPolicy `yaml:"tagDecoderPool"`
+
+	// The policy for the ProtocolPool
+	ProtocolPool PoolPolicy `yaml:"protocolPool"`
 }
 
 // PoolPolicy specifies a single pool policy.
