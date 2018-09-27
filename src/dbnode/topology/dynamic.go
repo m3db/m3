@@ -93,12 +93,11 @@ func newDynamicTopology(opts DynamicOptions) (DynamicTopology, error) {
 	logger := opts.InstrumentOptions().Logger()
 	logger.Info(`waiting for dynamic topology initialization.
 		If this takes a long time, make sure that a topology / placement is configured`)
-	// Watch will wait for an initial value so we don't need to do that
-	// in this function.
 	watch, err := services.Watch(opts.ServiceID(), opts.QueryOptions())
 	if err != nil {
 		return nil, err
 	}
+	<-watch.C()
 	logger.Info("initial topology / placement value received")
 
 	m, err := getMapFromUpdate(watch.Get(), opts.HashGen())

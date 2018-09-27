@@ -54,16 +54,6 @@ func testFinish(ctrl *gomock.Controller, watch *testWatch) {
 	ctrl.Finish()
 }
 
-func TestInitTimeout(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	opts, w := testSetup(ctrl)
-	defer testFinish(ctrl, w)
-
-	topo, err := newDynamicTopology(opts)
-	assert.Equal(t, errInitTimeOut, err)
-	assert.Nil(t, topo)
-}
-
 func TestInitNoTimeout(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	opts, w := testSetup(ctrl)
