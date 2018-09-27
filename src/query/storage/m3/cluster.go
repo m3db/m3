@@ -290,8 +290,12 @@ func newUnaggregatedClusterNamespace(
 	if err := def.Validate(); err != nil {
 		return nil, err
 	}
+
+	ns := def.NamespaceID
+	// Set namespace to NoFinalize to avoid cloning it in write operations
+	ns.NoFinalize()
 	return &clusterNamespace{
-		namespaceID: def.NamespaceID,
+		namespaceID: ns,
 		options: ClusterNamespaceOptions{
 			attributes: storage.Attributes{
 				MetricsType: storage.UnaggregatedMetricsType,
@@ -308,8 +312,12 @@ func newAggregatedClusterNamespace(
 	if err := def.Validate(); err != nil {
 		return nil, err
 	}
+
+	ns := def.NamespaceID
+	// Set namespace to NoFinalize to avoid cloning it in write operations
+	ns.NoFinalize()
 	return &clusterNamespace{
-		namespaceID: def.NamespaceID,
+		namespaceID: ns,
 		options: ClusterNamespaceOptions{
 			attributes: storage.Attributes{
 				MetricsType: storage.AggregatedMetricsType,
