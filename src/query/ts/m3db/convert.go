@@ -33,28 +33,8 @@ const (
 	initBlockReplicaLength = 10
 )
 
-type seriesBlock struct {
-	start          time.Time
-	end            time.Time
-	id             ident.ID
-	tags           ident.TagIterator
-	seriesIterator encoding.SeriesIterator
-}
-
-// // do i need this?
-
-// func (b *seriesBlock) close() {
-// 	b.id.Finalize()
-// 	b.tags.Close()
-// 	b.seriesIterator.Close()
-// }
-
-// func (b *seriesBlock) current() ts.Datapoint {
-// 	dp, _, _ := b.seriesIterator.Current()
-// 	return dp
-// }
-
-// func (b *seriesBlock.N)
+// Represents a vertical slice of series iterators that represent a block
+type seriesBlocks []encoding.SeriesIterator
 
 // blockReplica contains the replicas for a single m3db block
 type blockReplica struct {
@@ -77,22 +57,21 @@ func (b blockReplicas) Less(i, j int) bool {
 	return b[i].start.Before(b[j].start)
 }
 
-// ConvertM3DBSeriesIterators converts m3db SeriesIterators to SeriesBlocks
-// which are used to construct Blocks for query processing.
-func ConvertM3DBSeriesIterators(
+func convertM3DBSeriesIterators(
 	iterators encoding.SeriesIterators,
 	iterAlloc encoding.ReaderIteratorAllocate,
-) ([]SeriesBlocks, error) {
+	pools encoding.IteratorPools,
+) ([]seriesBlocks, error) {
 	defer iterators.Close()
-	multiSeriesBlocks := make([]SeriesBlocks, iterators.Len())
+	multiSeriesBlocks := make([]seriesBlocks, iterators.Len())
 
 	for i, seriesIterator := range iterators.Iters() {
-		blockReplicas, err := blockReplicasFromSeriesIterator(seriesIterator, iterAlloc)
+		blockReplicas, err := blockReplicasFromSeriesIterator(seriesIterator, iterAlloc, pools)
 		if err != nil {
 			return nil, err
 		}
 
-		series, err := seriesBlocksFromBlockReplicas(blockReplicas, seriesIterator)
+		series, err := seriesBlocksFromBlockReplicas(blockReplicas, seriesIterator, pools)
 		if err != nil {
 			return nil, err
 		}
@@ -106,6 +85,7 @@ func ConvertM3DBSeriesIterators(
 func blockReplicasFromSeriesIterator(
 	seriesIterator encoding.SeriesIterator,
 	iterAlloc encoding.ReaderIteratorAllocate,
+	pools encoding.IteratorPools,
 ) ([]blockReplica, error) {
 	replicas := make(blockReplicas, 0, initBlockReplicaLength)
 	for _, replica := range seriesIterator.Replicas() {
@@ -121,8 +101,10 @@ func blockReplicasFromSeriesIterator(
 				if err != nil {
 					return nil, err
 				}
+
 				readers[i] = clonedReader
 			}
+
 			// todo(braskin): pooling
 			iter := encoding.NewMultiReaderIterator(iterAlloc, nil)
 			iter.Reset(readers, start, bs)
@@ -135,6 +117,7 @@ func blockReplicasFromSeriesIterator(
 					break
 				}
 			}
+
 			if !inserted {
 				replicas = append(replicas, blockReplica{
 					start:     start,
@@ -154,7 +137,8 @@ func blockReplicasFromSeriesIterator(
 func seriesBlocksFromBlockReplicas(
 	blockReplicas []blockReplica,
 	seriesIterator encoding.SeriesIterator,
-) (SeriesBlocks, error) {
+	pools encoding.IteratorPools,
+) (seriesBlocks, error) {
 	// NB(braskin): we need to clone the ID, namespace, and tags since we close the series iterator
 	var (
 		// todo(braskin): use ident pool
@@ -164,15 +148,14 @@ func seriesBlocksFromBlockReplicas(
 
 	clonedTags, err := cloneTagIterator(seriesIterator.Tags())
 	if err != nil {
-		return SeriesBlocks{}, err
+		return seriesBlocks{}, err
 	}
 
-	series := SeriesBlocks{
-		ID:        clonedID,
-		Namespace: clonedNamespace,
-		Tags:      clonedTags,
-		Blocks:    make([]SeriesBlock, len(blockReplicas)),
-	}
+	seriesIteratorsPool := pools.MutableSeriesIterators()
+	seriesIterPool := pools.SeriesIterator()
+
+	series := seriesIteratorsPool.Get(len(blockReplicas))
+	series.Reset(len(blockReplicas))
 
 	for i, block := range blockReplicas {
 		filterValuesStart := seriesIterator.Start()
@@ -196,16 +179,12 @@ func seriesBlocksFromBlockReplicas(
 			StartInclusive: filterValuesStart,
 			EndExclusive:   filterValuesEnd,
 			Replicas:       block.replicas,
-		}, nil)
+		}, seriesIterPool)
 
-		series.Blocks[i] = SeriesBlock{
-			start:          filterValuesStart,
-			end:            filterValuesEnd,
-			seriesIterator: valuesIter,
-		}
+		series.SetAt(i, valuesIter)
 	}
 
-	return series, nil
+	return seriesBlocks(series.Iters()), nil
 }
 
 func cloneTagIterator(tagIter ident.TagIterator) (ident.TagIterator, error) {

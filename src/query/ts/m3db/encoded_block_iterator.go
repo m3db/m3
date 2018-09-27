@@ -23,10 +23,9 @@ package m3db
 import (
 	"sync"
 
-	"github.com/m3db/m3/src/query/functions/utils"
-
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/functions/utils"
 	"github.com/m3db/m3/src/query/storage"
 )
 

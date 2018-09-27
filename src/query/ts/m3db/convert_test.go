@@ -37,9 +37,6 @@ import (
 )
 
 var (
-	seriesID        = test.SeriesID
-	seriesNamespace = test.SeriesNamespace
-
 	testTags = test.TestTags
 
 	start  = test.Start
@@ -53,19 +50,16 @@ var (
 
 func TestConversion(t *testing.T) {
 	iter, err := test.BuildTestSeriesIterator()
+	pools := test.MakeMockIteratorPool()
 	require.NoError(t, err)
 	iterators := encoding.NewSeriesIterators([]encoding.SeriesIterator{iter}, nil)
 
-	blocks, err := ConvertM3DBSeriesIterators(iterators, testIterAlloc)
+	blocks, err := convertM3DBSeriesIterators(iterators, testIterAlloc, pools)
 	require.NoError(t, err)
 
 	for _, block := range blocks {
-		assert.Equal(t, seriesID, block.ID.String())
-		assert.Equal(t, seriesNamespace, block.Namespace.String())
-		checkTags(t, block.Tags)
-
-		blockOneSeriesIterator := block.Blocks[0].seriesIterator
-		blockTwoSeriesIterator := block.Blocks[1].seriesIterator
+		blockOneSeriesIterator := block[0]
+		blockTwoSeriesIterator := block[1]
 
 		assert.Equal(t, start.Add(2*time.Minute), blockOneSeriesIterator.Start())
 		assert.Equal(t, middle, blockOneSeriesIterator.End())
