@@ -40,7 +40,7 @@ func NewProtocolPool(opts pool.ObjectPoolOptions, bytesPool pool.BytesPool) uber
 	p := pool.NewObjectPool(opts)
 	p.Init(func() interface{} {
 		transport := &ubertchannelthrift.OptimizedTRichTransport{}
-		protocol := NewTBinaryProtocolTransport(transport, bytesPool)
+		protocol := newTBinaryProtocolTransport(transport, bytesPool)
 		return &ubertchannelthrift.PooledProtocol{transport, protocol}
 	})
 	return protocolPool{p}
