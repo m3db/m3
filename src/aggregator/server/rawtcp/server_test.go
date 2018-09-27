@@ -68,6 +68,12 @@ var (
 		ID:       []byte("testGauge"),
 		GaugeVal: 456.780,
 	}
+	testTimed = aggregated.Metric{
+		Type:      metric.CounterType,
+		ID:        []byte("testForwarded"),
+		TimeNanos: 12345,
+		Value:     -13,
+	}
 	testForwarded = aggregated.ForwardedMetric{
 		Type:      metric.CounterType,
 		ID:        []byte("testForwarded"),
@@ -110,6 +116,10 @@ var (
 			},
 		},
 	}
+	testTimedMetadata = metadata.TimedMetadata{
+		AggregationID: aggregation.DefaultID,
+		StoragePolicy: policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour),
+	}
 	testForwardMetadata = metadata.ForwardMetadata{
 		AggregationID: aggregation.DefaultID,
 		StoragePolicy: policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour),
@@ -148,6 +158,10 @@ var (
 	testGaugeWithMetadatas = unaggregated.GaugeWithMetadatas{
 		Gauge:           testGauge.Gauge(),
 		StagedMetadatas: testDefaultMetadatas,
+	}
+	testTimedMetricWithMetadata = aggregated.TimedMetricWithMetadata{
+		Metric:        testTimed,
+		TimedMetadata: testTimedMetadata,
 	}
 	testForwardedMetricWithMetadata = aggregated.ForwardedMetricWithMetadata{
 		ForwardedMetric: testForwarded,
@@ -209,8 +223,9 @@ func testRawTCPServerHandleUnaggregated(
 
 		protocol := protocolSelector(i)
 		if protocol == protobufEncoding {
+			expectedResult.TimedMetricWithMetadata = append(expectedResult.TimedMetricWithMetadata, testTimedMetricWithMetadata)
 			expectedResult.ForwardedMetricsWithMetadata = append(expectedResult.ForwardedMetricsWithMetadata, testForwardedMetricWithMetadata)
-			expectedTotalMetrics += 4
+			expectedTotalMetrics += 5
 		} else {
 			expectedTotalMetrics += 3
 		}
@@ -244,6 +259,10 @@ func testRawTCPServerHandleUnaggregated(
 					GaugeWithMetadatas: testGaugeWithMetadatas,
 				}))
 				require.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
+					Type: encoding.TimedMetricWithMetadataType,
+					TimedMetricWithMetadata: testTimedMetricWithMetadata,
+				}))
+				require.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
 					Type: encoding.ForwardedMetricWithMetadataType,
 					ForwardedMetricWithMetadata: testForwardedMetricWithMetadata,
 				}))
@@ -265,7 +284,8 @@ func testRawTCPServerHandleUnaggregated(
 	s.Close()
 
 	// Assert the snapshot match expectations.
-	require.True(t, cmp.Equal(expectedResult, agg.Snapshot(), testCmpOpts...))
+	snapshot := agg.Snapshot()
+	require.True(t, cmp.Equal(expectedResult, snapshot, testCmpOpts...), expectedResult, snapshot)
 }
 
 func testServerOptions() Options {

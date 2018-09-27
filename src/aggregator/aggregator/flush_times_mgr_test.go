@@ -52,6 +52,9 @@ var (
 						},
 					},
 				},
+				TimedByResolution: map[int64]int64{
+					int64(time.Second): 500,
+				},
 			},
 			1: &schema.ShardFlushTimes{
 				StandardByResolution: map[int64]int64{
@@ -64,6 +67,9 @@ var (
 							3: 3500,
 						},
 					},
+				},
+				TimedByResolution: map[int64]int64{
+					int64(time.Second): 1500,
 				},
 			},
 		},
@@ -193,8 +199,10 @@ func TestFlushTimesCheckerHasFlushed(t *testing.T) {
 		flushTimes  *schema.ShardSetFlushTimes
 		expected    bool
 	}{
-		{shardID: 0, targetNanos: 700, flushTimes: testFlushTimesProto, expected: true},
-		{shardID: 1, targetNanos: 2000, flushTimes: testFlushTimesProto, expected: true},
+		{shardID: 0, targetNanos: 700, flushTimes: testFlushTimesProto, expected: false},
+		{shardID: 0, targetNanos: 300, flushTimes: testFlushTimesProto, expected: true},
+		{shardID: 1, targetNanos: 2000, flushTimes: testFlushTimesProto, expected: false},
+		{shardID: 1, targetNanos: 1200, flushTimes: testFlushTimesProto, expected: true},
 		{shardID: 0, targetNanos: 0, flushTimes: nil, expected: false},
 		{shardID: 0, targetNanos: 1000, flushTimes: testFlushTimesProto, expected: false},
 		{shardID: 1, targetNanos: 3000, flushTimes: testFlushTimesProto, expected: false},

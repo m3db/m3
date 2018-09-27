@@ -1,5 +1,5 @@
-hash: fa2a416219edee84a66219c434cc3f437cf3fcc16f509d94487799b40ef4c745
-updated: 2018-07-25T13:07:14.221024-04:00
+hash: 5feeef73da3be22a270ba88657fdf1d889e91b6c423e06c1b786423dc7df4369
+updated: 2018-09-24T12:34:19.172517-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -116,7 +116,7 @@ imports:
 - name: github.com/go-ole/go-ole
   version: de8695c8edbf8236f30d6e1376e20b198a028d42
 - name: github.com/gogo/protobuf
-  version: 100ba4e885062801d56799d78530b73b178a78f3
+  version: 636bf0302bc95575d69441b25a2603156ffdddf1
   subpackages:
   - gogoproto
   - proto
@@ -188,7 +188,7 @@ imports:
   - services/leader/election
   - shard
 - name: github.com/m3db/m3metrics
-  version: d92603d5788a2012ecfc3f0161deab37462928f8
+  version: e1a7251068a31510c520545297868aa342c0f7e2
   subpackages:
   - aggregation
   - encoding

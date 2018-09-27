@@ -159,6 +159,20 @@ func (c *client) writeUntimedMetricWithMetadatas(
 	return c.writeUnaggregatedMessage(msg)
 }
 
+func (c *client) writeTimedMetricWithMetadata(
+	metric aggregated.Metric,
+	metadata metadata.TimedMetadata,
+) error {
+	msg := encoding.UnaggregatedMessageUnion{
+		Type: encoding.TimedMetricWithMetadataType,
+		TimedMetricWithMetadata: aggregated.TimedMetricWithMetadata{
+			Metric:        metric,
+			TimedMetadata: metadata,
+		},
+	}
+	return c.writeUnaggregatedMessage(msg)
+}
+
 func (c *client) writeForwardedMetricWithMetadata(
 	metric aggregated.ForwardedMetric,
 	metadata metadata.ForwardMetadata,

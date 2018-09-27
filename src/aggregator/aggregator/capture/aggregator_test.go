@@ -55,6 +55,12 @@ var (
 		ID:       id.RawID("testCounter"),
 		GaugeVal: 123.456,
 	}
+	testTimed = aggregated.Metric{
+		Type:      metric.CounterType,
+		ID:        []byte("testForwarded"),
+		TimeNanos: 12345,
+		Value:     -13.5,
+	}
 	testForwarded = aggregated.ForwardedMetric{
 		Type:      metric.CounterType,
 		ID:        []byte("testForwarded"),
@@ -66,7 +72,11 @@ var (
 		ID:   id.RawID("invalid"),
 	}
 	testDefaultMetadatas = metadata.DefaultStagedMetadatas
-	testForwardMetadata  = metadata.ForwardMetadata{
+	testTimedMetadata    = metadata.TimedMetadata{
+		AggregationID: aggregation.DefaultID,
+		StoragePolicy: policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour),
+	}
+	testForwardMetadata = metadata.ForwardMetadata{
 		AggregationID: aggregation.DefaultID,
 		StoragePolicy: policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour),
 		Pipeline: applied.NewPipeline([]applied.OpUnion{
@@ -121,6 +131,18 @@ func TestAggregator(t *testing.T) {
 		require.NoError(t, agg.AddUntimed(mu, metadatas))
 	}
 
+	// Add valid timed metrics with metadata.
+	expected.TimedMetricWithMetadata = append(
+		expected.TimedMetricWithMetadata,
+		aggregated.TimedMetricWithMetadata{
+			Metric:        testTimed,
+			TimedMetadata: testTimedMetadata,
+		},
+	)
+	require.NoError(t, agg.AddTimed(testTimed, testTimedMetadata))
+
+	require.Equal(t, 4, agg.NumMetricsAdded())
+
 	// Add valid forwarded metrics with metadata.
 	expected.ForwardedMetricsWithMetadata = append(
 		expected.ForwardedMetricsWithMetadata,
@@ -131,7 +153,7 @@ func TestAggregator(t *testing.T) {
 	)
 	require.NoError(t, agg.AddForwarded(testForwarded, testForwardMetadata))
 
-	require.Equal(t, 4, agg.NumMetricsAdded())
+	require.Equal(t, 5, agg.NumMetricsAdded())
 
 	res := agg.Snapshot()
 	require.Equal(t, expected, res)

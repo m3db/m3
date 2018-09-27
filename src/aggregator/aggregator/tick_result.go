@@ -53,6 +53,7 @@ func (r *tickResultForMetricCategory) merge(
 type tickResult struct {
 	standard  tickResultForMetricCategory
 	forwarded tickResultForMetricCategory
+	timed     tickResultForMetricCategory
 }
 
 // merge merges two results. Both input results may become invalid after merge is called.
@@ -60,5 +61,6 @@ func (r *tickResult) merge(other tickResult) tickResult {
 	return tickResult{
 		standard:  r.standard.merge(other.standard),
 		forwarded: r.forwarded.merge(other.forwarded),
+		timed:     r.timed.merge(other.timed),
 	}
 }

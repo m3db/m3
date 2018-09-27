@@ -45,6 +45,11 @@ type addUntimedFn func(
 	metadatas metadata.StagedMetadatas,
 ) error
 
+type addTimedFn func(
+	metric aggregated.Metric,
+	metadata metadata.TimedMetadata,
+) error
+
 type addForwardedFn func(
 	metric aggregated.ForwardedMetric,
 	metadata metadata.ForwardMetadata,
@@ -78,6 +83,7 @@ type aggregatorShard struct {
 	metricMap      *metricMap
 	metrics        aggregatorShardMetrics
 	addUntimedFn   addUntimedFn
+	addTimedFn     addTimedFn
 	addForwardedFn addForwardedFn
 }
 
@@ -98,6 +104,7 @@ func newAggregatorShard(shard uint32, opts Options) *aggregatorShard {
 		metrics:                          newAggregatorShardMetrics(scope),
 	}
 	s.addUntimedFn = s.metricMap.AddUntimed
+	s.addTimedFn = s.metricMap.AddTimed
 	s.addForwardedFn = s.metricMap.AddForwarded
 	return s
 }
@@ -162,6 +169,29 @@ func (s *aggregatorShard) AddUntimed(
 		return errAggregatorShardNotWriteable
 	}
 	err := s.addUntimedFn(metric, metadatas)
+	s.RUnlock()
+	if err != nil {
+		return err
+	}
+	s.metrics.writeSucccess.Inc(1)
+	return nil
+}
+
+func (s *aggregatorShard) AddTimed(
+	metric aggregated.Metric,
+	metadata metadata.TimedMetadata,
+) error {
+	s.RLock()
+	if s.closed {
+		s.RUnlock()
+		return errAggregatorShardClosed
+	}
+	if !s.isWritableWithLock() {
+		s.RUnlock()
+		s.metrics.notWriteableErrors.Inc(1)
+		return errAggregatorShardNotWriteable
+	}
+	err := s.addTimedFn(metric, metadata)
 	s.RUnlock()
 	if err != nil {
 		return err

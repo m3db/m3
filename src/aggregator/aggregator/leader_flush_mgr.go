@@ -50,15 +50,18 @@ type leaderFlushManagerMetrics struct {
 	queueSize tally.Gauge
 	standard  leaderFlusherMetrics
 	forwarded leaderFlusherMetrics
+	timed     leaderFlusherMetrics
 }
 
 func newLeaderFlushManagerMetrics(scope tally.Scope) leaderFlushManagerMetrics {
 	standardScope := scope.Tagged(map[string]string{"flusher-type": "standard"})
 	forwardedScope := scope.Tagged(map[string]string{"flusher-type": "forwarded"})
+	timedScope := scope.Tagged(map[string]string{"flusher-type": "timed"})
 	return leaderFlushManagerMetrics{
 		queueSize: scope.Gauge("queue-size"),
 		standard:  newLeaderFlusherMetrics(standardScope),
 		forwarded: newLeaderFlusherMetrics(forwardedScope),
+		timed:     newLeaderFlusherMetrics(timedScope),
 	}
 }
 
@@ -266,9 +269,21 @@ func (mgr *leaderFlushManager) updateFlushTimesWithLock(
 		bucketID := bucket.bucketID
 		switch bucketID.listType {
 		case standardMetricListType:
-			mgr.updateStandardFlushTimesWithLock(bucketID.standard, bucket.flushers)
+			mgr.updateStandardFlushTimesWithLock(
+				bucketID.standard.resolution,
+				bucket.flushers,
+				getStandardFlushTimesByResolutionFn,
+				mgr.metrics.standard,
+			)
 		case forwardedMetricListType:
 			mgr.updateForwardedFlushTimesWithLock(bucketID.forwarded, bucket.flushers)
+		case timedMetricListType:
+			mgr.updateStandardFlushTimesWithLock(
+				bucketID.timed.resolution,
+				bucket.flushers,
+				getTimedFlushTimesByResolutionFn,
+				mgr.metrics.timed,
+			)
 		default:
 			panic("should never get here")
 		}
@@ -276,10 +291,11 @@ func (mgr *leaderFlushManager) updateFlushTimesWithLock(
 }
 
 func (mgr *leaderFlushManager) updateStandardFlushTimesWithLock(
-	listID standardMetricListID,
+	resolution time.Duration,
 	flushers []flushingMetricList,
+	getFlushTimesByResolutionFn getFlushTimesByResolutionFn,
+	metrics leaderFlusherMetrics,
 ) {
-	resolution := listID.resolution
 	for _, flusher := range flushers {
 		shard := flusher.Shard()
 		flushTimes, exists := mgr.flushedByShard[shard]
@@ -287,10 +303,11 @@ func (mgr *leaderFlushManager) updateStandardFlushTimesWithLock(
 			flushTimes = newShardFlushTimes()
 			mgr.flushedByShard[shard] = flushTimes
 		}
-		flushTimes.StandardByResolution[int64(resolution)] = flusher.LastFlushedNanos()
+		flushTimesByResolution := getFlushTimesByResolutionFn(flushTimes)
+		flushTimesByResolution[int64(resolution)] = flusher.LastFlushedNanos()
 		flushTimes.Tombstoned = false
 	}
-	mgr.metrics.standard.updateFlushTimes.Inc(int64(len(flushers)))
+	metrics.updateFlushTimes.Inc(int64(len(flushers)))
 }
 
 func (mgr *leaderFlushManager) updateForwardedFlushTimesWithLock(
@@ -325,6 +342,7 @@ func newShardFlushTimes() *schema.ShardFlushTimes {
 	return &schema.ShardFlushTimes{
 		StandardByResolution:  make(map[int64]int64),
 		ForwardedByResolution: make(map[int64]*schema.ForwardedFlushTimesForResolution),
+		TimedByResolution:     make(map[int64]int64),
 	}
 }
 
@@ -348,6 +366,7 @@ func cloneShardFlushTimes(proto *schema.ShardFlushTimes) *schema.ShardFlushTimes
 	clonedShardFlushTimes := &schema.ShardFlushTimes{
 		StandardByResolution:  make(map[int64]int64, len(proto.StandardByResolution)),
 		ForwardedByResolution: make(map[int64]*schema.ForwardedFlushTimesForResolution, len(proto.ForwardedByResolution)),
+		TimedByResolution:     make(map[int64]int64, len(proto.TimedByResolution)),
 		Tombstoned:            proto.Tombstoned,
 	}
 
@@ -356,6 +375,9 @@ func cloneShardFlushTimes(proto *schema.ShardFlushTimes) *schema.ShardFlushTimes
 	}
 	for k, v := range proto.ForwardedByResolution {
 		clonedShardFlushTimes.ForwardedByResolution[k] = cloneForwardedFlushTimesForResolution(v)
+	}
+	for k, v := range proto.TimedByResolution {
+		clonedShardFlushTimes.TimedByResolution[k] = v
 	}
 	return clonedShardFlushTimes
 }

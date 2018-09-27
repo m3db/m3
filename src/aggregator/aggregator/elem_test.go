@@ -104,7 +104,7 @@ var (
 
 func TestCounterResetSetData(t *testing.T) {
 	opts := NewOptions()
-	ce, err := NewCounterElem(nil, policy.EmptyStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, 1, opts)
+	ce, err := NewCounterElem(nil, policy.EmptyStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, 1, NoPrefixNoSuffix, opts)
 	require.NoError(t, err)
 	require.Equal(t, opts.AggregationTypesOptions().DefaultCounterAggregationTypes(), ce.aggTypes)
 	require.True(t, ce.useDefaultAggregation)
@@ -112,7 +112,7 @@ func TestCounterResetSetData(t *testing.T) {
 	require.Equal(t, 1, ce.numForwardedTimes)
 
 	// Reset element with a default pipeline.
-	err = ce.ResetSetData(testCounterID, testStoragePolicy, testAggregationTypesExpensive, applied.DefaultPipeline, 2)
+	err = ce.ResetSetData(testCounterID, testStoragePolicy, testAggregationTypesExpensive, applied.DefaultPipeline, 2, NoPrefixNoSuffix)
 	require.NoError(t, err)
 	require.Equal(t, testCounterID, ce.id)
 	require.Equal(t, testStoragePolicy, ce.sp)
@@ -153,7 +153,7 @@ func TestCounterResetSetData(t *testing.T) {
 			},
 		}),
 	}
-	err = ce.ResetSetData(testCounterID, testStoragePolicy, testAggregationTypesExpensive, testPipeline, 0)
+	err = ce.ResetSetData(testCounterID, testStoragePolicy, testAggregationTypesExpensive, testPipeline, 0, NoPrefixNoSuffix)
 	require.NoError(t, err)
 	require.Equal(t, expectedParsedPipeline, ce.parsedPipeline)
 	require.Equal(t, len(testAggregationTypesExpensive), len(ce.lastConsumedValues))
@@ -164,14 +164,14 @@ func TestCounterResetSetData(t *testing.T) {
 
 func TestCounterResetSetDataInvalidAggregationType(t *testing.T) {
 	opts := NewOptions()
-	ce := MustNewCounterElem(nil, policy.EmptyStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, opts)
-	err := ce.ResetSetData(testCounterID, testStoragePolicy, maggregation.Types{maggregation.Last}, applied.DefaultPipeline, 0)
+	ce := MustNewCounterElem(nil, policy.EmptyStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NoPrefixNoSuffix, opts)
+	err := ce.ResetSetData(testCounterID, testStoragePolicy, maggregation.Types{maggregation.Last}, applied.DefaultPipeline, 0, NoPrefixNoSuffix)
 	require.Error(t, err)
 }
 
 func TestCounterResetSetDataInvalidPipeline(t *testing.T) {
 	opts := NewOptions()
-	ce := MustNewCounterElem(nil, policy.EmptyStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, opts)
+	ce := MustNewCounterElem(nil, policy.EmptyStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NoPrefixNoSuffix, opts)
 
 	invalidPipeline := applied.NewPipeline([]applied.OpUnion{
 		{
@@ -179,12 +179,12 @@ func TestCounterResetSetDataInvalidPipeline(t *testing.T) {
 			Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
 		},
 	})
-	err := ce.ResetSetData(testCounterID, testStoragePolicy, maggregation.DefaultTypes, invalidPipeline, 0)
+	err := ce.ResetSetData(testCounterID, testStoragePolicy, maggregation.DefaultTypes, invalidPipeline, 0, NoPrefixNoSuffix)
 	require.Error(t, err)
 }
 
 func TestCounterElemAddUnion(t *testing.T) {
-	e, err := NewCounterElem(testCounterID, testStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NewOptions())
+	e, err := NewCounterElem(testCounterID, testStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NoPrefixNoSuffix, NewOptions())
 	require.NoError(t, err)
 
 	// Add a counter metric.
@@ -220,7 +220,7 @@ func TestCounterElemAddUnion(t *testing.T) {
 }
 
 func TestCounterElemAddUnionWithCustomAggregation(t *testing.T) {
-	e, err := NewCounterElem(testCounterID, testStoragePolicy, testAggregationTypesExpensive, applied.DefaultPipeline, testNumForwardedTimes, NewOptions())
+	e, err := NewCounterElem(testCounterID, testStoragePolicy, testAggregationTypesExpensive, applied.DefaultPipeline, testNumForwardedTimes, NoPrefixNoSuffix, NewOptions())
 	require.NoError(t, err)
 
 	// Add a counter metric.
@@ -254,7 +254,7 @@ func TestCounterElemAddUnionWithCustomAggregation(t *testing.T) {
 }
 
 func TestCounterElemAddUnique(t *testing.T) {
-	e, err := NewCounterElem(testCounterID, testStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NewOptions())
+	e, err := NewCounterElem(testCounterID, testStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NoPrefixNoSuffix, NewOptions())
 	require.NoError(t, err)
 
 	// Add a metric.
@@ -307,7 +307,7 @@ func TestCounterElemAddUnique(t *testing.T) {
 }
 
 func TestCounterElemAddUniqueWithCustomAggregation(t *testing.T) {
-	e, err := NewCounterElem(testCounterID, testStoragePolicy, testAggregationTypesExpensive, applied.DefaultPipeline, testNumForwardedTimes, NewOptions())
+	e, err := NewCounterElem(testCounterID, testStoragePolicy, testAggregationTypesExpensive, applied.DefaultPipeline, testNumForwardedTimes, NoPrefixNoSuffix, NewOptions())
 	require.NoError(t, err)
 
 	// Add a counter metric.
@@ -607,7 +607,7 @@ func TestCounterElemClose(t *testing.T) {
 }
 
 func TestCounterFindOrCreateNoSourceSet(t *testing.T) {
-	e, err := NewCounterElem(testCounterID, testStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NewOptions())
+	e, err := NewCounterElem(testCounterID, testStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NoPrefixNoSuffix, NewOptions())
 	require.NoError(t, err)
 
 	inputs := []int64{10, 10, 20, 10, 15}
@@ -632,7 +632,7 @@ func TestCounterFindOrCreateNoSourceSet(t *testing.T) {
 }
 
 func TestCounterFindOrCreateWithSourceSet(t *testing.T) {
-	e, err := NewCounterElem(testCounterID, testStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NewOptions())
+	e, err := NewCounterElem(testCounterID, testStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NoPrefixNoSuffix, NewOptions())
 	require.NoError(t, err)
 	e.cachedSourceSets = []*bitset.BitSet{bitset.New(0)}
 
@@ -657,7 +657,7 @@ func TestCounterFindOrCreateWithSourceSet(t *testing.T) {
 
 func TestTimerResetSetData(t *testing.T) {
 	opts := NewOptions()
-	te, err := NewTimerElem(nil, policy.EmptyStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, opts)
+	te, err := NewTimerElem(nil, policy.EmptyStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NoPrefixNoSuffix, opts)
 	require.NoError(t, err)
 	require.Nil(t, te.quantilesPool)
 	require.NotNil(t, te.quantiles)
@@ -666,7 +666,7 @@ func TestTimerResetSetData(t *testing.T) {
 	require.True(t, te.useDefaultAggregation)
 
 	// Reset element with a default pipeline.
-	err = te.ResetSetData(testBatchTimerID, testStoragePolicy, maggregation.Types{maggregation.Max, maggregation.P999}, applied.DefaultPipeline, 0)
+	err = te.ResetSetData(testBatchTimerID, testStoragePolicy, maggregation.Types{maggregation.Max, maggregation.P999}, applied.DefaultPipeline, 0, NoPrefixNoSuffix)
 	require.NoError(t, err)
 	require.Equal(t, testBatchTimerID, te.id)
 	require.Equal(t, testStoragePolicy, te.sp)
@@ -708,7 +708,7 @@ func TestTimerResetSetData(t *testing.T) {
 			},
 		}),
 	}
-	err = te.ResetSetData(testBatchTimerID, testStoragePolicy, testAggregationTypesExpensive, testPipeline, 0)
+	err = te.ResetSetData(testBatchTimerID, testStoragePolicy, testAggregationTypesExpensive, testPipeline, 0, NoPrefixNoSuffix)
 	require.NoError(t, err)
 	require.Equal(t, expectedParsedPipeline, te.parsedPipeline)
 	require.Equal(t, len(testAggregationTypesExpensive), len(te.lastConsumedValues))
@@ -719,14 +719,14 @@ func TestTimerResetSetData(t *testing.T) {
 
 func TestTimerResetSetDataInvalidAggregationType(t *testing.T) {
 	opts := NewOptions()
-	te := MustNewTimerElem(nil, policy.EmptyStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, opts)
-	err := te.ResetSetData(testBatchTimerID, testStoragePolicy, maggregation.Types{maggregation.Last}, applied.DefaultPipeline, 0)
+	te := MustNewTimerElem(nil, policy.EmptyStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NoPrefixNoSuffix, opts)
+	err := te.ResetSetData(testBatchTimerID, testStoragePolicy, maggregation.Types{maggregation.Last}, applied.DefaultPipeline, 0, NoPrefixNoSuffix)
 	require.Error(t, err)
 }
 
 func TestTimerResetSetDataInvalidPipeline(t *testing.T) {
 	opts := NewOptions()
-	te := MustNewTimerElem(nil, policy.EmptyStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, opts)
+	te := MustNewTimerElem(nil, policy.EmptyStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NoPrefixNoSuffix, opts)
 
 	invalidPipeline := applied.NewPipeline([]applied.OpUnion{
 		{
@@ -734,12 +734,12 @@ func TestTimerResetSetDataInvalidPipeline(t *testing.T) {
 			Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
 		},
 	})
-	err := te.ResetSetData(testBatchTimerID, testStoragePolicy, maggregation.DefaultTypes, invalidPipeline, 0)
+	err := te.ResetSetData(testBatchTimerID, testStoragePolicy, maggregation.DefaultTypes, invalidPipeline, 0, NoPrefixNoSuffix)
 	require.Error(t, err)
 }
 
 func TestTimerElemAddUnion(t *testing.T) {
-	e, err := NewTimerElem(testBatchTimerID, testStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NewOptions())
+	e, err := NewTimerElem(testBatchTimerID, testStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NoPrefixNoSuffix, NewOptions())
 	require.NoError(t, err)
 
 	// Add a timer metric.
@@ -784,7 +784,7 @@ func TestTimerElemAddUnion(t *testing.T) {
 }
 
 func TestTimerElemAddUnique(t *testing.T) {
-	e, err := NewTimerElem(testBatchTimerID, testStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NewOptions())
+	e, err := NewTimerElem(testBatchTimerID, testStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NoPrefixNoSuffix, NewOptions())
 	require.NoError(t, err)
 
 	// Add a metric.
@@ -1115,7 +1115,7 @@ func TestTimerElemClose(t *testing.T) {
 }
 
 func TestTimerFindOrCreateNoSourceSet(t *testing.T) {
-	e, err := NewTimerElem(testBatchTimerID, testStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NewOptions())
+	e, err := NewTimerElem(testBatchTimerID, testStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NoPrefixNoSuffix, NewOptions())
 	require.NoError(t, err)
 
 	inputs := []int64{10, 10, 20, 10, 15}
@@ -1139,7 +1139,7 @@ func TestTimerFindOrCreateNoSourceSet(t *testing.T) {
 }
 
 func TestTimerFindOrCreateWithSourceSet(t *testing.T) {
-	e, err := NewTimerElem(testBatchTimerID, testStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NewOptions())
+	e, err := NewTimerElem(testBatchTimerID, testStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NoPrefixNoSuffix, NewOptions())
 	require.NoError(t, err)
 	e.cachedSourceSets = []*bitset.BitSet{bitset.New(0)}
 
@@ -1164,14 +1164,14 @@ func TestTimerFindOrCreateWithSourceSet(t *testing.T) {
 
 func TestGaugeResetSetData(t *testing.T) {
 	opts := NewOptions()
-	ge, err := NewGaugeElem(nil, policy.EmptyStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, opts)
+	ge, err := NewGaugeElem(nil, policy.EmptyStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NoPrefixNoSuffix, opts)
 	require.NoError(t, err)
 	require.Equal(t, opts.AggregationTypesOptions().DefaultGaugeAggregationTypes(), ge.aggTypes)
 	require.True(t, ge.useDefaultAggregation)
 	require.False(t, ge.aggOpts.HasExpensiveAggregations)
 
 	// Reset element with a default pipeline.
-	err = ge.ResetSetData(testGaugeID, testStoragePolicy, testAggregationTypesExpensive, applied.DefaultPipeline, 0)
+	err = ge.ResetSetData(testGaugeID, testStoragePolicy, testAggregationTypesExpensive, applied.DefaultPipeline, 0, NoPrefixNoSuffix)
 	require.NoError(t, err)
 	require.Equal(t, testGaugeID, ge.id)
 	require.Equal(t, testStoragePolicy, ge.sp)
@@ -1211,7 +1211,7 @@ func TestGaugeResetSetData(t *testing.T) {
 			},
 		}),
 	}
-	err = ge.ResetSetData(testGaugeID, testStoragePolicy, testAggregationTypesExpensive, testPipeline, 0)
+	err = ge.ResetSetData(testGaugeID, testStoragePolicy, testAggregationTypesExpensive, testPipeline, 0, NoPrefixNoSuffix)
 	require.NoError(t, err)
 	require.Equal(t, expectedParsedPipeline, ge.parsedPipeline)
 	require.Equal(t, len(testAggregationTypesExpensive), len(ge.lastConsumedValues))
@@ -1221,7 +1221,7 @@ func TestGaugeResetSetData(t *testing.T) {
 }
 
 func TestGaugeElemAddUnion(t *testing.T) {
-	e, err := NewGaugeElem(testGaugeID, testStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NewOptions())
+	e, err := NewGaugeElem(testGaugeID, testStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NoPrefixNoSuffix, NewOptions())
 	require.NoError(t, err)
 
 	// Add a gauge metric.
@@ -1257,7 +1257,7 @@ func TestGaugeElemAddUnion(t *testing.T) {
 }
 
 func TestGaugeElemAddUnionWithCustomAggregation(t *testing.T) {
-	e, err := NewGaugeElem(testGaugeID, testStoragePolicy, testAggregationTypesExpensive, applied.DefaultPipeline, testNumForwardedTimes, NewOptions())
+	e, err := NewGaugeElem(testGaugeID, testStoragePolicy, testAggregationTypesExpensive, applied.DefaultPipeline, testNumForwardedTimes, NoPrefixNoSuffix, NewOptions())
 	require.NoError(t, err)
 
 	// Add a gauge metric.
@@ -1295,7 +1295,7 @@ func TestGaugeElemAddUnionWithCustomAggregation(t *testing.T) {
 }
 
 func TestGaugeElemAddUnique(t *testing.T) {
-	e, err := NewGaugeElem(testGaugeID, testStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NewOptions())
+	e, err := NewGaugeElem(testGaugeID, testStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NoPrefixNoSuffix, NewOptions())
 	require.NoError(t, err)
 
 	// Add a metric.
@@ -1348,7 +1348,7 @@ func TestGaugeElemAddUnique(t *testing.T) {
 }
 
 func TestGaugeElemAddUniqueWithCustomAggregation(t *testing.T) {
-	e, err := NewGaugeElem(testGaugeID, testStoragePolicy, testAggregationTypesExpensive, applied.DefaultPipeline, testNumForwardedTimes, NewOptions())
+	e, err := NewGaugeElem(testGaugeID, testStoragePolicy, testAggregationTypesExpensive, applied.DefaultPipeline, testNumForwardedTimes, NoPrefixNoSuffix, NewOptions())
 	require.NoError(t, err)
 
 	// Add a gauge metric.
@@ -1648,7 +1648,7 @@ func TestGaugeElemClose(t *testing.T) {
 }
 
 func TestGaugeFindOrCreateNoSourceSet(t *testing.T) {
-	e, err := NewGaugeElem(testGaugeID, testStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NewOptions())
+	e, err := NewGaugeElem(testGaugeID, testStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NoPrefixNoSuffix, NewOptions())
 	require.NoError(t, err)
 
 	inputs := []int64{10, 10, 20, 10, 15}
@@ -1672,7 +1672,7 @@ func TestGaugeFindOrCreateNoSourceSet(t *testing.T) {
 }
 
 func TestGaugeFindOrCreateWithSourceSet(t *testing.T) {
-	e, err := NewGaugeElem(testGaugeID, testStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NewOptions())
+	e, err := NewGaugeElem(testGaugeID, testStoragePolicy, maggregation.DefaultTypes, applied.DefaultPipeline, testNumForwardedTimes, NoPrefixNoSuffix, NewOptions())
 	require.NoError(t, err)
 	e.cachedSourceSets = []*bitset.BitSet{bitset.New(0)}
 
@@ -1801,7 +1801,7 @@ func testCounterElem(
 	pipeline applied.Pipeline,
 	opts Options,
 ) *CounterElem {
-	e := MustNewCounterElem(testCounterID, testStoragePolicy, aggTypes, pipeline, testNumForwardedTimes, opts)
+	e := MustNewCounterElem(testCounterID, testStoragePolicy, aggTypes, pipeline, testNumForwardedTimes, WithPrefixWithSuffix, opts)
 	for i, aligned := range alignedstartAtNanos {
 		counter := &lockedCounterAggregation{aggregation: newCounterAggregation(raggregation.NewCounter(e.aggOpts))}
 		counter.aggregation.Update(counterVals[i])
@@ -1820,7 +1820,7 @@ func testTimerElem(
 	pipeline applied.Pipeline,
 	opts Options,
 ) *TimerElem {
-	e := MustNewTimerElem(testBatchTimerID, testStoragePolicy, aggTypes, pipeline, testNumForwardedTimes, opts)
+	e := MustNewTimerElem(testBatchTimerID, testStoragePolicy, aggTypes, pipeline, testNumForwardedTimes, WithPrefixWithSuffix, opts)
 	for i, aligned := range alignedstartAtNanos {
 		newTimer := raggregation.NewTimer(opts.AggregationTypesOptions().Quantiles(), opts.StreamOptions(), e.aggOpts)
 		timer := &lockedTimerAggregation{aggregation: newTimerAggregation(newTimer)}
@@ -1840,7 +1840,7 @@ func testGaugeElem(
 	pipeline applied.Pipeline,
 	opts Options,
 ) *GaugeElem {
-	e := MustNewGaugeElem(testGaugeID, testStoragePolicy, aggTypes, pipeline, testNumForwardedTimes, opts)
+	e := MustNewGaugeElem(testGaugeID, testStoragePolicy, aggTypes, pipeline, testNumForwardedTimes, WithPrefixWithSuffix, opts)
 	for i, aligned := range alignedstartAtNanos {
 		gauge := &lockedGaugeAggregation{aggregation: newGaugeAggregation(raggregation.NewGauge(e.aggOpts))}
 		gauge.aggregation.Update(gaugeVals[i])

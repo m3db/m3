@@ -64,6 +64,12 @@ var (
 		ID:       []byte("foo"),
 		GaugeVal: 123.456,
 	}
+	testTimed = aggregated.Metric{
+		Type:      metric.CounterType,
+		ID:        []byte("testForwarded"),
+		TimeNanos: 1234,
+		Value:     178,
+	}
 	testForwarded = aggregated.ForwardedMetric{
 		Type:      metric.CounterType,
 		ID:        []byte("testForwarded"),
@@ -101,6 +107,10 @@ var (
 				},
 			},
 		},
+	}
+	testTimedMetadata = metadata.TimedMetadata{
+		AggregationID: aggregation.DefaultID,
+		StoragePolicy: policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour),
 	}
 	testForwardMetadata = metadata.ForwardMetadata{
 		AggregationID: aggregation.DefaultID,
@@ -433,6 +443,106 @@ func TestClientWriteUntimedMetricAfterShardCutoff(t *testing.T) {
 	err := c.WriteUntimedCounter(testCounter.Counter(), testStagedMetadatas)
 	require.NoError(t, err)
 	require.Nil(t, instancesRes)
+}
+
+func TestClientWriteTimedMetricSuccess(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		instancesRes []placement.Instance
+		shardRes     uint32
+		payloadRes   payloadUnion
+	)
+	writerMgr := NewMockinstanceWriterManager(ctrl)
+	writerMgr.EXPECT().
+		Write(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(
+			instance placement.Instance,
+			shardID uint32,
+			payload payloadUnion,
+		) error {
+			instancesRes = append(instancesRes, instance)
+			shardRes = shardID
+			payloadRes = payload
+			return nil
+		}).
+		MinTimes(1)
+	stagedPlacement := placement.NewMockActiveStagedPlacement(ctrl)
+	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, func() {}, nil).MinTimes(1)
+	watcher := placement.NewMockStagedPlacementWatcher(ctrl)
+	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, func() {}, nil).MinTimes(1)
+	c := NewClient(testOptions()).(*client)
+	c.state = clientInitialized
+	c.nowFn = func() time.Time { return time.Unix(0, testNowNanos) }
+	c.writerMgr = writerMgr
+	c.placementWatcher = watcher
+
+	expectedInstances := []placement.Instance{
+		testPlacementInstances[0],
+		testPlacementInstances[2],
+	}
+	testMetric := testTimed
+	testMetric.TimeNanos = testNowNanos
+	err := c.WriteTimed(testMetric, testTimedMetadata)
+	require.NoError(t, err)
+	require.Equal(t, expectedInstances, instancesRes)
+	require.Equal(t, uint32(1), shardRes)
+	require.Equal(t, timedType, payloadRes.payloadType)
+	require.Equal(t, testMetric, payloadRes.timed.metric)
+	require.Equal(t, testTimedMetadata, payloadRes.timed.metadata)
+}
+
+func TestClientWriteTimedMetricPartialError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		instancesRes     []placement.Instance
+		shardRes         uint32
+		payloadRes       payloadUnion
+		errInstanceWrite = errors.New("instance write error")
+	)
+	writerMgr := NewMockinstanceWriterManager(ctrl)
+	writerMgr.EXPECT().
+		Write(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(
+			instance placement.Instance,
+			shardID uint32,
+			payload payloadUnion,
+		) error {
+			if instance.ID() == testPlacementInstances[0].ID() {
+				return errInstanceWrite
+			}
+			instancesRes = append(instancesRes, instance)
+			shardRes = shardID
+			payloadRes = payload
+			return nil
+		}).
+		MinTimes(1)
+	stagedPlacement := placement.NewMockActiveStagedPlacement(ctrl)
+	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, func() {}, nil).MinTimes(1)
+	watcher := placement.NewMockStagedPlacementWatcher(ctrl)
+	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, func() {}, nil).MinTimes(1)
+	c := NewClient(testOptions()).(*client)
+	c.state = clientInitialized
+	c.nowFn = func() time.Time { return time.Unix(0, testNowNanos) }
+	c.writerMgr = writerMgr
+	c.placementWatcher = watcher
+
+	expectedInstances := []placement.Instance{
+		testPlacementInstances[2],
+	}
+	testMetric := testTimed
+	testMetric.TimeNanos = testNowNanos
+	err := c.WriteTimed(testMetric, testTimedMetadata)
+	require.Error(t, err)
+	require.True(t, strings.Contains(err.Error(), errInstanceWrite.Error()))
+	require.Equal(t, expectedInstances, instancesRes)
+	require.Equal(t, uint32(1), shardRes)
+	require.Equal(t, timedType, payloadRes.payloadType)
+	require.Equal(t, testMetric, payloadRes.timed.metric)
+	require.Equal(t, testTimedMetadata, payloadRes.timed.metadata)
 }
 
 func TestClientWriteForwardedMetricSuccess(t *testing.T) {

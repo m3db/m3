@@ -33,6 +33,7 @@ const (
 	unknownPayloadType payloadType = iota
 	untimedType
 	forwardedType
+	timedType
 )
 
 type untimedPayload struct {
@@ -45,8 +46,14 @@ type forwardedPayload struct {
 	metadata metadata.ForwardMetadata
 }
 
+type timedPayload struct {
+	metric   aggregated.Metric
+	metadata metadata.TimedMetadata
+}
+
 type payloadUnion struct {
 	payloadType payloadType
 	untimed     untimedPayload
 	forwarded   forwardedPayload
+	timed       timedPayload
 }

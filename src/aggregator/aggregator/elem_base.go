@@ -74,6 +74,17 @@ type createAggregationOptions struct {
 	initSourceSet bool
 }
 
+// IDPrefixSuffixType configs if the id should be added with prefix or suffix
+// after aggregation.
+type IDPrefixSuffixType int
+
+const (
+	// WithPrefixWithSuffix adds both prefix and suffix to the id after aggregation.
+	WithPrefixWithSuffix IDPrefixSuffixType = iota
+	// NoPrefixNoSuffix adds neither prefix nor suffix to the id after aggregation.
+	NoPrefixNoSuffix
+)
+
 // metricElem is the common interface for metric elements.
 type metricElem interface {
 	// Type returns the metric type.
@@ -95,16 +106,21 @@ type metricElem interface {
 		aggTypes maggregation.Types,
 		pipeline applied.Pipeline,
 		numForwardedTimes int,
+		idPrefixSuffixType IDPrefixSuffixType,
 	) error
 
 	// SetForwardedCallbacks sets the callback functions to write forwarded
 	// metrics for elements producing such forwarded metrics.
 	SetForwardedCallbacks(
 		writeFn writeForwardedMetricFn,
-		onDoneFn onForwardedAggregationDoneFn)
+		onDoneFn onForwardedAggregationDoneFn,
+	)
 
 	// AddUnion adds a metric value union at a given timestamp.
 	AddUnion(timestamp time.Time, mu unaggregated.MetricUnion) error
+
+	// AddMetric adds a metric value at a given timestamp.
+	AddValue(timestamp time.Time, value float64) error
 
 	// AddUnique adds a metric value from a given source at a given timestamp.
 	// If previous values from the same source have already been added to the
@@ -144,6 +160,7 @@ type elemBase struct {
 	aggOpts                         raggregation.Options
 	parsedPipeline                  parsedPipeline
 	numForwardedTimes               int
+	idPrefixSuffixType              IDPrefixSuffixType
 	writeForwardedMetricFn          writeForwardedMetricFn
 	onForwardedAggregationWrittenFn onForwardedAggregationDoneFn
 
@@ -170,6 +187,7 @@ func (e *elemBase) resetSetData(
 	useDefaultAggregation bool,
 	pipeline applied.Pipeline,
 	numForwardedTimes int,
+	idPrefixSuffixType IDPrefixSuffixType,
 ) error {
 	parsed, err := newParsedPipeline(pipeline)
 	if err != nil {
@@ -184,6 +202,7 @@ func (e *elemBase) resetSetData(
 	e.numForwardedTimes = numForwardedTimes
 	e.tombstoned = false
 	e.closed = false
+	e.idPrefixSuffixType = idPrefixSuffixType
 	return nil
 }
 

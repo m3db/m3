@@ -11,7 +11,7 @@ import:
   version: 4680d9b45286826f87b134a4559b11d795786eaf
 
 - package: github.com/m3db/m3metrics
-  version: d92603d5788a2012ecfc3f0161deab37462928f8
+  version: e1a7251068a31510c520545297868aa342c0f7e2
 
 - package: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -118,7 +118,7 @@ import:
   version: 3ac0863d7acf3bc44daf49afef8919af12f704ef
 
 - package: github.com/gogo/protobuf
-  version: 0.4
+  version: ^1
 
 - package: github.com/google/btree
   version: 925471ac9e2131377a91e1595defec898166fe49

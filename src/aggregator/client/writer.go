@@ -162,6 +162,8 @@ func (w *writer) encodeWithLock(
 		return w.encodeUntimedWithLock(encoder, payload.untimed.metric, payload.untimed.metadatas)
 	case forwardedType:
 		return w.encodeForwardedWithLock(encoder, payload.forwarded.metric, payload.forwarded.metadata)
+	case timedType:
+		return w.encodeTimedWithLock(encoder, payload.timed.metric, payload.timed.metadata)
 	default:
 		return fmt.Errorf("unknown payload type: %v", payload.payloadType)
 	}
@@ -314,6 +316,45 @@ func (w *writer) encodeForwardedWithLock(
 			log.NewField("metadata", metadata),
 			log.NewErrField(err),
 		).Error("encode forwarded metric error")
+		// Rewind buffer and clear out the encoder error.
+		encoder.Truncate(sizeBefore)
+		encoder.Unlock()
+		w.metrics.encodeErrors.Inc(1)
+		return err
+	}
+
+	// If the buffer size is not big enough, do nothing.
+	if sizeAfter := encoder.Len(); sizeAfter < w.flushSize {
+		encoder.Unlock()
+		return nil
+	}
+
+	// Otherwise we enqueue the current buffer.
+	buffer := w.prepareEnqueueBufferWithLock(encoder, sizeBefore)
+	encoder.Unlock()
+	return w.enqueueBuffer(buffer)
+}
+
+func (w *writer) encodeTimedWithLock(
+	encoder *lockedEncoder,
+	metric aggregated.Metric,
+	metadata metadata.TimedMetadata,
+) error {
+	encoder.Lock()
+
+	sizeBefore := encoder.Len()
+	msg := encoding.UnaggregatedMessageUnion{
+		Type: encoding.TimedMetricWithMetadataType,
+		TimedMetricWithMetadata: aggregated.TimedMetricWithMetadata{
+			Metric:        metric,
+			TimedMetadata: metadata,
+		}}
+	if err := encoder.EncodeMessage(msg); err != nil {
+		w.log.WithFields(
+			log.NewField("metric", metric),
+			log.NewField("metadata", metadata),
+			log.NewErrField(err),
+		).Error("encode timed metric error")
 		// Rewind buffer and clear out the encoder error.
 		encoder.Truncate(sizeBefore)
 		encoder.Unlock()

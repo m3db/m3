@@ -175,6 +175,51 @@ func TestAggregatorShardAddUntimedSuccess(t *testing.T) {
 	require.Equal(t, testStagedMetadatas, resultMetadatas)
 }
 
+func TestAggregatorShardAddTimedShardNotWriteable(t *testing.T) {
+	now := time.Unix(0, 12345)
+	shard := newAggregatorShard(testShard, NewOptions())
+	shard.nowFn = func() time.Time { return now }
+
+	inputs := []struct {
+		earliestNanos int64
+		latestNanos   int64
+	}{
+		{earliestNanos: 23456, latestNanos: 34567},
+		{earliestNanos: 1234, latestNanos: 3456},
+		{earliestNanos: 0, latestNanos: 0},
+		{earliestNanos: math.MaxInt64, latestNanos: math.MaxInt64},
+	}
+	for _, input := range inputs {
+		shard.earliestWritableNanos = input.earliestNanos
+		shard.latestWriteableNanos = input.latestNanos
+		err := shard.AddTimed(testTimedMetric, testTimedMetadata)
+		require.Equal(t, errAggregatorShardNotWriteable, err)
+	}
+}
+
+func TestAggregatorShardAddTimedSuccess(t *testing.T) {
+	shard := newAggregatorShard(testShard, NewOptions())
+	require.Equal(t, testShard, shard.ID())
+
+	var (
+		resultMetric   aggregated.Metric
+		resultMetadata metadata.TimedMetadata
+	)
+	shard.addTimedFn = func(
+		metric aggregated.Metric,
+		metadata metadata.TimedMetadata,
+	) error {
+		resultMetric = metric
+		resultMetadata = metadata
+		return nil
+	}
+
+	shard.SetWriteableRange(timeRange{cutoverNanos: 0, cutoffNanos: math.MaxInt64})
+	require.NoError(t, shard.AddTimed(testTimedMetric, testTimedMetadata))
+	require.Equal(t, testTimedMetric, resultMetric)
+	require.Equal(t, testTimedMetadata, resultMetadata)
+}
+
 func TestAggregatorShardAddForwardedShardNotWriteable(t *testing.T) {
 	now := time.Unix(0, 12345)
 	shard := newAggregatorShard(testShard, NewOptions())

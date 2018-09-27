@@ -84,13 +84,14 @@ func NewTimerElem(
 	aggTypes maggregation.Types,
 	pipeline applied.Pipeline,
 	numForwardedTimes int,
+	idPrefixSuffixType IDPrefixSuffixType,
 	opts Options,
 ) (*TimerElem, error) {
 	e := &TimerElem{
 		elemBase: newElemBase(opts),
 		values:   make([]timedTimer, 0, defaultNumAggregations), // in most cases values will have two entries
 	}
-	if err := e.ResetSetData(id, sp, aggTypes, pipeline, numForwardedTimes); err != nil {
+	if err := e.ResetSetData(id, sp, aggTypes, pipeline, numForwardedTimes, idPrefixSuffixType); err != nil {
 		return nil, err
 	}
 	return e, nil
@@ -103,9 +104,10 @@ func MustNewTimerElem(
 	aggTypes maggregation.Types,
 	pipeline applied.Pipeline,
 	numForwardedTimes int,
+	idPrefixSuffixType IDPrefixSuffixType,
 	opts Options,
 ) *TimerElem {
-	elem, err := NewTimerElem(id, sp, aggTypes, pipeline, numForwardedTimes, opts)
+	elem, err := NewTimerElem(id, sp, aggTypes, pipeline, numForwardedTimes, idPrefixSuffixType, opts)
 	if err != nil {
 		panic(fmt.Errorf("unable to create element: %v", err))
 	}
@@ -119,12 +121,13 @@ func (e *TimerElem) ResetSetData(
 	aggTypes maggregation.Types,
 	pipeline applied.Pipeline,
 	numForwardedTimes int,
+	idPrefixSuffixType IDPrefixSuffixType,
 ) error {
 	useDefaultAggregation := aggTypes.IsDefault()
 	if useDefaultAggregation {
 		aggTypes = e.DefaultAggregationTypes(e.aggTypesOpts)
 	}
-	if err := e.elemBase.resetSetData(id, sp, aggTypes, useDefaultAggregation, pipeline, numForwardedTimes); err != nil {
+	if err := e.elemBase.resetSetData(id, sp, aggTypes, useDefaultAggregation, pipeline, numForwardedTimes, idPrefixSuffixType); err != nil {
 		return err
 	}
 	if err := e.timerElemBase.ResetSetData(e.aggTypesOpts, aggTypes, useDefaultAggregation); err != nil {
@@ -159,6 +162,23 @@ func (e *TimerElem) AddUnion(timestamp time.Time, mu unaggregated.MetricUnion) e
 		return errAggregationClosed
 	}
 	lockedAgg.aggregation.AddUnion(mu)
+	lockedAgg.Unlock()
+	return nil
+}
+
+// AddValue adds a metric value at a given timestamp.
+func (e *TimerElem) AddValue(timestamp time.Time, value float64) error {
+	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
+	lockedAgg, err := e.findOrCreate(alignedStart, createAggregationOptions{})
+	if err != nil {
+		return err
+	}
+	lockedAgg.Lock()
+	if lockedAgg.closed {
+		lockedAgg.Unlock()
+		return errAggregationClosed
+	}
+	lockedAgg.aggregation.Add(value)
 	lockedAgg.Unlock()
 	return nil
 }
@@ -395,7 +415,6 @@ func (e *TimerElem) processValueWithAggregationLock(
 	flushForwardedFn flushForwardedMetricFn,
 ) {
 	var (
-		fullPrefix       = e.FullPrefix(e.opts)
 		transformations  = e.parsedPipeline.Transformations
 		discardNaNValues = e.opts.DiscardNaNAggregatedValues()
 	)
@@ -424,7 +443,12 @@ func (e *TimerElem) processValueWithAggregationLock(
 			continue
 		}
 		if !e.parsedPipeline.HasRollup {
-			flushLocalFn(fullPrefix, e.id, e.TypeStringFor(e.aggTypesOpts, aggType), timeNanos, value, e.sp)
+			switch e.idPrefixSuffixType {
+			case NoPrefixNoSuffix:
+				flushLocalFn(nil, e.id, nil, timeNanos, value, e.sp)
+			case WithPrefixWithSuffix:
+				flushLocalFn(e.FullPrefix(e.opts), e.id, e.TypeStringFor(e.aggTypesOpts, aggType), timeNanos, value, e.sp)
+			}
 		} else {
 			forwardedAggregationKey, _ := e.ForwardedAggregationKey()
 			flushForwardedFn(e.writeForwardedMetricFn, forwardedAggregationKey, timeNanos, value)

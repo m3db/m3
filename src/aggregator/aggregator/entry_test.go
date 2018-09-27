@@ -1193,6 +1193,222 @@ func TestEntryStoragePolicies(t *testing.T) {
 	}
 }
 
+func TestEntryTimedRateLimiting(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	e, _, now := testEntry(ctrl)
+
+	// Reset runtime options to disable rate limiting.
+	noRateLimitRuntimeOpts := runtime.NewOptions().SetWriteValuesPerMetricLimitPerSecond(0)
+	e.SetRuntimeOptions(noRateLimitRuntimeOpts)
+	require.NoError(t, e.AddTimed(testTimedMetric, testTimedMetadata))
+
+	// Reset runtime options to enable a rate limit of 10/s.
+	limitPerSecond := 10
+	runtimeOpts := runtime.NewOptions().SetWriteValuesPerMetricLimitPerSecond(int64(limitPerSecond))
+	e.SetRuntimeOptions(runtimeOpts)
+	for i := 0; i < limitPerSecond; i++ {
+		require.NoError(t, e.AddTimed(testTimedMetric, testTimedMetadata))
+	}
+	require.Equal(t, errWriteValueRateLimitExceeded, e.AddTimed(testTimedMetric, testTimedMetadata))
+
+	// Reset limit to enable a rate limit of 100/s.
+	limitPerSecond = 100
+	runtimeOpts = runtime.NewOptions().SetWriteValuesPerMetricLimitPerSecond(int64(limitPerSecond))
+	e.SetRuntimeOptions(runtimeOpts)
+	for i := 0; i < limitPerSecond; i++ {
+		require.NoError(t, e.AddTimed(testTimedMetric, testTimedMetadata))
+	}
+	require.Equal(t, errWriteValueRateLimitExceeded, e.AddTimed(testTimedMetric, testTimedMetadata))
+
+	// Advancing the time will reset the quota.
+	*now = (*now).Add(time.Second)
+	require.NoError(t, e.AddTimed(testTimedMetric, testTimedMetadata))
+}
+
+func TestEntryAddTimedEntryClosed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	e, _, _ := testEntry(ctrl)
+	e.closed = true
+	require.Equal(t, errEntryClosed, e.AddTimed(testTimedMetric, testTimedMetadata))
+}
+
+func TestEntryAddTimedMetricTooLate(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	timedAggregationBufferPastFn := func(
+		resolution time.Duration,
+	) time.Duration {
+		return resolution + time.Second
+	}
+	e, _, now := testEntry(ctrl)
+	e.opts = e.opts.SetBufferForPastTimedMetricFn(timedAggregationBufferPastFn)
+
+	inputs := []struct {
+		timeNanos     int64
+		storagePolicy policy.StoragePolicy
+	}{
+		{
+			timeNanos:     now.UnixNano() - 40*time.Second.Nanoseconds(),
+			storagePolicy: policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour),
+		},
+		{
+			timeNanos:     now.UnixNano() - 62*time.Second.Nanoseconds(),
+			storagePolicy: policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+		},
+	}
+
+	for _, input := range inputs {
+		metric := testTimedMetric
+		metric.TimeNanos = input.timeNanos
+		require.Equal(t, errTooFarInThePast, e.AddTimed(metric, metadata.TimedMetadata{StoragePolicy: input.storagePolicy}))
+	}
+}
+
+func TestEntryAddTimedMetricTooEarly(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	e, _, now := testEntry(ctrl)
+	e.opts = e.opts.SetBufferForFutureTimedMetric(time.Second)
+
+	inputs := []struct {
+		timeNanos     int64
+		storagePolicy policy.StoragePolicy
+	}{
+		{
+			timeNanos:     now.UnixNano() + 2*time.Second.Nanoseconds(),
+			storagePolicy: policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour),
+		},
+		{
+			timeNanos:     now.UnixNano() + time.Second.Nanoseconds() + time.Nanosecond.Nanoseconds(),
+			storagePolicy: policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+		},
+	}
+
+	for _, input := range inputs {
+		metric := testTimedMetric
+		metric.TimeNanos = input.timeNanos
+		require.Equal(t, errTooFarInTheFuture, e.AddTimed(metric, metadata.TimedMetadata{StoragePolicy: input.storagePolicy}))
+	}
+}
+
+func TestEntryAddTimed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	e, lists, _ := testEntry(ctrl)
+
+	// Add an initial timed metric.
+	require.NoError(t, e.AddTimed(testTimedMetric, testTimedMetadata))
+	require.Equal(t, 1, len(e.aggregations))
+	expectedKey := aggregationKey{
+		aggregationID:      testTimedMetadata.AggregationID,
+		storagePolicy:      testTimedMetadata.StoragePolicy,
+		idPrefixSuffixType: NoPrefixNoSuffix,
+	}
+	idx := e.aggregations.index(expectedKey)
+	require.True(t, idx >= 0)
+	expectedElem := e.aggregations[idx].elem
+	require.Equal(t, 1, len(lists.lists))
+	expectedListID := timedMetricListID{
+		resolution: testTimedMetadata.StoragePolicy.Resolution().Window,
+	}.toMetricListID()
+	res, exists := lists.lists[expectedListID]
+	require.True(t, exists)
+	list := res.(*timedMetricList)
+	require.Equal(t, expectedListID.timed.resolution, list.resolution)
+	require.Equal(t, 1, list.Len())
+	require.True(t, expectedElem == list.aggregations.Front())
+	checkElemTombstoned(t, expectedElem.Value.(metricElem), nil)
+	values := expectedElem.Value.(*CounterElem).values
+	require.Equal(t, 1, len(values))
+	resolution := testTimedMetadata.StoragePolicy.Resolution().Window
+	expectedNanos := time.Unix(0, testTimedMetric.TimeNanos).Truncate(resolution).UnixNano()
+	require.Equal(t, expectedNanos, values[0].startAtNanos)
+	require.Equal(t, int64(1), values[0].lockedAgg.aggregation.Count())
+	require.Equal(t, int64(1000), values[0].lockedAgg.aggregation.Sum())
+	require.Equal(t, float64(1000), values[0].lockedAgg.aggregation.Mean())
+
+	// Add the timed metric again with duplicate metadata should not result in an error.
+	require.NoError(t, e.AddTimed(testTimedMetric, testTimedMetadata))
+	require.Equal(t, 1, len(e.aggregations))
+	idx = e.aggregations.index(expectedKey)
+	require.True(t, idx >= 0)
+	expectedElem = e.aggregations[idx].elem
+	values = expectedElem.Value.(*CounterElem).values
+	require.Equal(t, 1, len(values))
+	require.Equal(t, int64(2), values[0].lockedAgg.aggregation.Count())
+	require.Equal(t, int64(2000), values[0].lockedAgg.aggregation.Sum())
+	require.Equal(t, float64(1000), values[0].lockedAgg.aggregation.Mean())
+
+	// Add the timed metric with different timestamp and same metadata.
+	metric := testTimedMetric
+	metric.TimeNanos += testTimedMetadata.StoragePolicy.Resolution().Window.Nanoseconds()
+	require.NoError(t, e.AddTimed(metric, testTimedMetadata))
+	require.Equal(t, 1, len(e.aggregations))
+	idx = e.aggregations.index(expectedKey)
+	require.True(t, idx >= 0)
+	expectedElem = e.aggregations[idx].elem
+	values = expectedElem.Value.(*CounterElem).values
+	require.Equal(t, 2, len(values))
+	expectedNanos += testTimedMetadata.StoragePolicy.Resolution().Window.Nanoseconds()
+	require.Equal(t, expectedNanos, values[1].startAtNanos)
+	require.Equal(t, int64(1), values[1].lockedAgg.aggregation.Count())
+	require.Equal(t, int64(1000), values[1].lockedAgg.aggregation.Sum())
+
+	// Add the timed metric with a different metadata.
+	metric.ID = make(id.RawID, len(testTimedMetric.ID))
+	copy(metric.ID, testTimedMetric.ID)
+	metric.TimeNanos += 2 * testTimedMetadata.StoragePolicy.Resolution().Window.Nanoseconds()
+	metadata := testTimedMetadata
+	metadata.StoragePolicy = policy.MustParseStoragePolicy("5m:30d")
+	require.NoError(t, e.AddTimed(metric, metadata))
+	require.Equal(t, 2, len(e.aggregations))
+	expectedKeyNew := aggregationKey{
+		aggregationID:      metadata.AggregationID,
+		storagePolicy:      metadata.StoragePolicy,
+		idPrefixSuffixType: NoPrefixNoSuffix,
+	}
+	idx = e.aggregations.index(expectedKey)
+	require.True(t, idx >= 0)
+	expectedElem = e.aggregations[idx].elem
+	values = expectedElem.Value.(*CounterElem).values
+	require.Equal(t, 2, len(values))
+	checkElemTombstoned(t, expectedElem.Value.(metricElem), nil)
+	idx = e.aggregations.index(expectedKeyNew)
+	require.True(t, idx >= 0)
+	expectedElemNew := e.aggregations[idx].elem
+	require.Equal(t, 2, len(lists.lists))
+	expectedListIDNew := timedMetricListID{
+		resolution: metadata.StoragePolicy.Resolution().Window,
+	}.toMetricListID()
+	res, exists = lists.lists[expectedListIDNew]
+	require.True(t, exists)
+	listNew := res.(*timedMetricList)
+	require.Equal(t, expectedListIDNew.timed.resolution, listNew.resolution)
+	require.Equal(t, 1, listNew.Len())
+	require.True(t, expectedElemNew == listNew.aggregations.Front())
+	counterElem := expectedElemNew.Value.(*CounterElem)
+	values = counterElem.values
+	require.Equal(t, 1, len(values))
+	resolution = metadata.StoragePolicy.Resolution().Window
+	expectedNanos = time.Unix(0, metric.TimeNanos).Truncate(resolution).UnixNano()
+	require.Equal(t, expectedNanos, values[0].startAtNanos)
+	require.Equal(t, int64(1), values[0].lockedAgg.aggregation.Count())
+	require.Equal(t, int64(1000), values[0].lockedAgg.aggregation.Sum())
+	require.Equal(t, metric.ID, counterElem.ID())
+
+	// Ensure the ID is properly cloned so mutating the ID externally does not mutate the
+	// metric ID stored in the elements.
+	metric.ID[0] = '2'
+	require.Equal(t, testTimedMetric.ID, counterElem.ID())
+}
+
 func TestEntryForwardedRateLimiting(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -1290,10 +1506,11 @@ func TestEntryAddForwarded(t *testing.T) {
 	require.NoError(t, e.AddForwarded(testForwardedMetric, testForwardMetadata1))
 	require.Equal(t, 1, len(e.aggregations))
 	expectedKey := aggregationKey{
-		aggregationID:     testForwardMetadata1.AggregationID,
-		storagePolicy:     testForwardMetadata1.StoragePolicy,
-		pipeline:          testForwardMetadata1.Pipeline,
-		numForwardedTimes: testForwardMetadata1.NumForwardedTimes,
+		aggregationID:      testForwardMetadata1.AggregationID,
+		storagePolicy:      testForwardMetadata1.StoragePolicy,
+		pipeline:           testForwardMetadata1.Pipeline,
+		numForwardedTimes:  testForwardMetadata1.NumForwardedTimes,
+		idPrefixSuffixType: WithPrefixWithSuffix,
 	}
 	idx := e.aggregations.index(expectedKey)
 	require.True(t, idx >= 0)
@@ -1365,10 +1582,11 @@ func TestEntryAddForwarded(t *testing.T) {
 	require.NoError(t, e.AddForwarded(metric, testForwardMetadata2))
 	require.Equal(t, 2, len(e.aggregations))
 	expectedKeyNew := aggregationKey{
-		aggregationID:     testForwardMetadata2.AggregationID,
-		storagePolicy:     testForwardMetadata2.StoragePolicy,
-		pipeline:          testForwardMetadata2.Pipeline,
-		numForwardedTimes: testForwardMetadata2.NumForwardedTimes,
+		aggregationID:      testForwardMetadata2.AggregationID,
+		storagePolicy:      testForwardMetadata2.StoragePolicy,
+		pipeline:           testForwardMetadata2.Pipeline,
+		numForwardedTimes:  testForwardMetadata2.NumForwardedTimes,
+		idPrefixSuffixType: WithPrefixWithSuffix,
 	}
 	idx = e.aggregations.index(expectedKey)
 	require.True(t, idx >= 0)
@@ -1589,7 +1807,7 @@ func populateTestUntimedAggregations(
 			require.Fail(t, fmt.Sprintf("unrecognized metric type: %v", typ))
 		}
 		aggTypes := e.decompressor.MustDecompress(aggKey.aggregationID)
-		newElem.ResetSetData(testID, aggKey.storagePolicy, aggTypes, aggKey.pipeline, 0)
+		newElem.ResetSetData(testID, aggKey.storagePolicy, aggTypes, aggKey.pipeline, 0, NoPrefixNoSuffix)
 		listID := standardMetricListID{
 			resolution: aggKey.storagePolicy.Resolution().Window,
 		}.toMetricListID()
@@ -1714,9 +1932,10 @@ func aggregationKeys(pipelines []metadata.PipelineMetadata) []aggregationKey {
 	for _, pipeline := range pipelines {
 		for _, storagePolicy := range pipeline.StoragePolicies {
 			aggKey := aggregationKey{
-				aggregationID: pipeline.AggregationID,
-				storagePolicy: storagePolicy,
-				pipeline:      pipeline.Pipeline,
+				aggregationID:      pipeline.AggregationID,
+				storagePolicy:      storagePolicy,
+				pipeline:           pipeline.Pipeline,
+				idPrefixSuffixType: WithPrefixWithSuffix,
 			}
 			aggregationKeys = append(aggregationKeys, aggKey)
 		}

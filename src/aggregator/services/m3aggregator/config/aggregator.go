@@ -89,6 +89,12 @@ type AggregatorConfiguration struct {
 	// Amount of time we buffer writes after shard cutoff.
 	BufferDurationAfterShardCutoff time.Duration `yaml:"bufferDurationAfterShardCutoff"`
 
+	// Amount of time we buffer timed metrics in the past.
+	BufferDurationForPastTimedMetric time.Duration `yaml:"bufferDurationForPastTimedMetric"`
+
+	// Amount of time we buffer timed metrics in the future.
+	BufferDurationForFutureTimedMetric time.Duration `yaml:"bufferDurationForFutureTimedMetric"`
+
 	// Resign timeout.
 	ResignTimeout time.Duration `yaml:"resignTimeout"`
 
@@ -218,6 +224,12 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	if c.BufferDurationAfterShardCutoff != 0 {
 		opts = opts.SetBufferDurationAfterShardCutoff(c.BufferDurationAfterShardCutoff)
 	}
+	if c.BufferDurationForPastTimedMetric != 0 {
+		opts = opts.SetBufferForPastTimedMetricFn(bufferForPastTimedMetricFn(c.BufferDurationForPastTimedMetric))
+	}
+	if c.BufferDurationForFutureTimedMetric != 0 {
+		opts = opts.SetBufferForFutureTimedMetric(c.BufferDurationForFutureTimedMetric)
+	}
 
 	// Set resign timeout.
 	if c.ResignTimeout != 0 {
@@ -311,7 +323,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	counterElemPool := aggregator.NewCounterElemPool(counterElemPoolOpts)
 	opts = opts.SetCounterElemPool(counterElemPool)
 	counterElemPool.Init(func() *aggregator.CounterElem {
-		return aggregator.MustNewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, opts)
+		return aggregator.MustNewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, aggregator.NoPrefixNoSuffix, opts)
 	})
 
 	// Set timer elem pool.
@@ -320,7 +332,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	timerElemPool := aggregator.NewTimerElemPool(timerElemPoolOpts)
 	opts = opts.SetTimerElemPool(timerElemPool)
 	timerElemPool.Init(func() *aggregator.TimerElem {
-		return aggregator.MustNewTimerElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, opts)
+		return aggregator.MustNewTimerElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, aggregator.NoPrefixNoSuffix, opts)
 	})
 
 	// Set gauge elem pool.
@@ -329,7 +341,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	gaugeElemPool := aggregator.NewGaugeElemPool(gaugeElemPoolOpts)
 	opts = opts.SetGaugeElemPool(gaugeElemPool)
 	gaugeElemPool.Init(func() *aggregator.GaugeElem {
-		return aggregator.MustNewGaugeElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, opts)
+		return aggregator.MustNewGaugeElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, aggregator.NoPrefixNoSuffix, opts)
 	})
 
 	// Set entry pool.
@@ -340,6 +352,12 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	opts = opts.SetEntryPool(entryPool)
 	entryPool.Init(func() *aggregator.Entry { return aggregator.NewEntry(nil, runtimeOpts, opts) })
 	return opts, nil
+}
+
+func bufferForPastTimedMetricFn(buffer time.Duration) aggregator.BufferForPastTimedMetricFn {
+	return func(resolution time.Duration) time.Duration {
+		return buffer + resolution
+	}
 }
 
 // streamConfiguration contains configuration for quantile-related metric streams.
