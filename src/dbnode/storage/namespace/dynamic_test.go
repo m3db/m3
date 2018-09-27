@@ -77,20 +77,6 @@ func currentVersionMetrics(opts DynamicOptions) float64 {
 	return g.Value()
 }
 
-func TestInitializerTimeout(t *testing.T) {
-	defer leaktest.CheckTimeout(t, time.Second)()
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	w := newTestWatchable(t, nil)
-	opts := newTestOpts(t, ctrl, w)
-	init := NewDynamicInitializer(opts)
-	_, err := init.Init()
-	require.Error(t, err)
-	require.Equal(t, errInitTimeOut, err)
-}
-
 func TestInitializerNoTimeout(t *testing.T) {
 	defer leaktest.CheckTimeout(t, time.Second)()
 
