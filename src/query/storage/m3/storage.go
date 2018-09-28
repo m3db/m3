@@ -134,13 +134,15 @@ func (s *m3storage) FetchRaw(
 			// will not be dramatically impacted if pools is nil
 			pools, _ := session.IteratorPools()
 			result.setPools(pools)
-			result.add(namespace.Options().Attributes(), iters, err)
+			result.add(namespace.Options().Attributes().Resolution, iters, err)
 			wg.Done()
 		}()
 	}
+
 	if fetches == 0 {
 		return nil, noop, errNoLocalClustersFulfillsQuery
 	}
+
 	wg.Wait()
 	if err := result.err.FinalError(); err != nil {
 		return nil, noop, err
