@@ -21,6 +21,7 @@
 package utils
 
 import (
+	"math/rand"
 	"sort"
 	"testing"
 
@@ -191,5 +192,27 @@ func TestMinHeap(t *testing.T) {
 			_, seen = h.Peek()
 			assert.False(t, seen)
 		})
+	}
+}
+
+func TestNegativeCapacityHeap(t *testing.T) {
+	h := NewFloatHeap(false, -1)
+	assert.Equal(t, 0, h.Cap())
+	_, seen := h.Peek()
+	assert.False(t, seen)
+
+	length := 10000
+	testArray := make([]float64, length)
+	for i := range testArray {
+		testArray[i] = rand.Float64()
+		h.Push(testArray[i], i)
+	}
+
+	assert.Equal(t, length, h.Len())
+	flushed := h.Flush()
+	assert.Equal(t, length, len(flushed))
+	assert.Equal(t, 0, h.Len())
+	for _, pair := range flushed {
+		assert.Equal(t, testArray[pair.Index], pair.Val)
 	}
 }

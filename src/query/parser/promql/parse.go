@@ -122,20 +122,26 @@ func (p *parseState) walk(node pql.Node) error {
 
 	case *pql.Call:
 		expressions := n.Args
+		argTypes := n.Func.ArgTypes
 		argValues := make([]interface{}, 0, len(expressions))
-		for _, expr := range expressions {
-			switch e := expr.(type) {
-			case *pql.NumberLiteral:
-				argValues = append(argValues, e.Val)
-				continue
-			case *pql.MatrixSelector:
-				argValues = append(argValues, e.Range)
+		for i, expr := range expressions {
+			if argTypes[i] == pql.ValueTypeScalar {
+				val, err := resolveScalarArgument(expr)
+				if err != nil {
+					return err
+				}
+
+				argValues = append(argValues, val)
+			} else {
+				if e, ok := expr.(*pql.MatrixSelector); ok {
+					argValues = append(argValues, e.Range)
+				}
+
+				if err := p.walk(expr); err != nil {
+					return err
+				}
 			}
 
-			err := p.walk(expr)
-			if err != nil {
-				return err
-			}
 		}
 
 		op, err := NewFunctionExpr(n.Func.Name, argValues)

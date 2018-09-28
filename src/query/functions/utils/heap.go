@@ -64,6 +64,10 @@ func NewFloatHeap(isMaxHeap bool, capacity int) FloatHeap {
 		less = minHeapLess
 	}
 
+	if capacity < 1 {
+		capacity = 0
+	}
+
 	floatHeap := &floatHeap{
 		heap: make([]ValueIndexPair, 0, capacity),
 		less: less,
