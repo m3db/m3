@@ -10,3 +10,6 @@ rsync -a --exclude=*.go "$ASSET_DIR"/* m3db.io/openapi
 # Create .bak file and then delete it to make sed work for both GNU and Mac versions
 sed -i.bak "s#spec-url='.*'#spec-url='spec.yml'#g" m3db.io/openapi/index.html
 rm m3db.io/openapi/index.html.bak
+# Create docs subdir
+mkdir -p m3db.io/docs
+cp -r site/* m3db.io/docs/
