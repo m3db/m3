@@ -34,7 +34,6 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
-	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
@@ -266,17 +265,17 @@ func (s *m3storage) Write(
 
 	var (
 		wg       sync.WaitGroup
-		multiErr xerrors.MultiError
+		multiErr syncMultiErrs
 	)
 
 	for _, datapoint := range query.Datapoints {
 		tagIter := tagIterator.Duplicate()
 		// capture var
 		datapoint := datapoint
+		wg.Add(1)
 		s.writeWorkerPool.Go(func() {
-			wg.Add(1)
 			if err := s.writeSingle(ctx, query, datapoint, identID, tagIter); err != nil {
-				multiErr = multiErr.Add(err)
+				multiErr.add(err)
 			}
 
 			tagIter.Close()
@@ -285,7 +284,7 @@ func (s *m3storage) Write(
 	}
 
 	wg.Wait()
-	return multiErr.FinalError()
+	return multiErr.finalError()
 }
 
 func (s *m3storage) Type() storage.Type {

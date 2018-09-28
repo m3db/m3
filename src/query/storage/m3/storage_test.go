@@ -38,6 +38,7 @@ import (
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3x/sync"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -78,7 +79,10 @@ func setup(
 		Resolution:  time.Minute,
 	})
 	require.NoError(t, err)
-	storage := NewStorage(clusters, nil)
+	writePool, err := sync.NewPooledWorkerPool(10, sync.NewPooledWorkerPoolOptions())
+	require.NoError(t, err)
+	writePool.Init()
+	storage := NewStorage(clusters, nil, writePool)
 	return storage, testSessions{
 		unaggregated1MonthRetention:                unaggregated1MonthRetention,
 		aggregated1MonthRetention1MinuteResolution: aggregated1MonthRetention1MinuteResolution,
