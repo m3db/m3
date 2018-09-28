@@ -1,0 +1,14 @@
+[Unit]
+Description="M3DB Timeseries Database"
+Documentation=http://m3db.github.io/m3/
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/m3dbnode
+Restart=on-failure
+SuccessExitStatus=0
+LimitNOFILE=500000
+
+[Install]
+WantedBy=multi-user.target
