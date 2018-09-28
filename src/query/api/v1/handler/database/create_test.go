@@ -33,9 +33,9 @@ import (
 
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	xtest "github.com/m3db/m3/src/dbnode/x/test"
 	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
 	"github.com/m3db/m3/src/query/util/logging"
+	xtest "github.com/m3db/m3/src/x/test"
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/generated/proto/placementpb"
 	"github.com/m3db/m3cluster/kv"
