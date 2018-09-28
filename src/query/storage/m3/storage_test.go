@@ -35,10 +35,10 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3x/sync"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
