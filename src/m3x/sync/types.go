@@ -20,7 +20,11 @@
 
 package sync
 
-import "time"
+import (
+	"time"
+
+	"github.com/m3db/m3x/instrument"
+)
 
 // Work is a unit of item to be worked on.
 type Work func()
@@ -43,7 +47,17 @@ type PooledWorkerPool interface {
 	// Init initializes the pool.
 	Init()
 
-	// Go waits until the next worker becomes available and executes it.
+	// Go assign the Work to be executed by a Goroutine. Whether or not
+	// it waits for an existing Goroutine to become available or not
+	// is determined by the GrowOnDemand() option. If GrowOnDemand is not
+	// set then the call to Go() will block until a goroutine is available.
+	// If GrowOnDemand() is set then it will expand the pool of goroutines to
+	// accommodate the work. The newly allocated goroutine will temporarily
+	// participate in the pool in an effort to amortize its allocation cost, but
+	// will eventually be killed. This allows the pool to dynamically respond to
+	// workloads without causing excessive memory pressure. The pool will grow in
+	// size when the workload exceeds its capacity and shrink back down to its
+	// original size if/when the burst subsides.
 	Go(work Work)
 }
 
@@ -67,6 +81,12 @@ type WorkerPool interface {
 
 // PooledWorkerPoolOptions is the options for a PooledWorkerPool.
 type PooledWorkerPoolOptions interface {
+	// SetGrowOnDemand sets whether the GrowOnDemand feature is enabled.
+	SetGrowOnDemand(value bool) PooledWorkerPoolOptions
+
+	// GrowOnDemand returns whether the GrowOnDemand feature is enabled.
+	GrowOnDemand() bool
+
 	// SetNumShards sets the number of worker channel shards.
 	SetNumShards(value int64) PooledWorkerPoolOptions
 
@@ -84,4 +104,10 @@ type PooledWorkerPoolOptions interface {
 
 	// NowFn returns the now function.
 	NowFn() NowFn
+
+	// SetInstrumentOptions sets the instrument options.
+	SetInstrumentOptions(value instrument.Options) PooledWorkerPoolOptions
+
+	// InstrumentOptions returns the now function.
+	InstrumentOptions() instrument.Options
 }

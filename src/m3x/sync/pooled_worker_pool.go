@@ -24,10 +24,20 @@ import (
 	"fmt"
 	"math/rand"
 	"sync"
+	"sync/atomic"
+
+	"github.com/uber-go/tally"
+)
+
+const (
+	numGoroutinesGaugeSampleRate = 1000
 )
 
 type pooledWorkerPool struct {
 	sync.Mutex
+	numRoutinesAtomic     int64
+	numRoutinesGauge      tally.Gauge
+	growOnDemand          bool
 	workChs               []chan Work
 	numShards             int64
 	killWorkerProbability float64
@@ -51,6 +61,9 @@ func NewPooledWorkerPool(size int, opts PooledWorkerPoolOptions) (PooledWorkerPo
 	}
 
 	return &pooledWorkerPool{
+		numRoutinesAtomic:     0,
+		numRoutinesGauge:      opts.InstrumentOptions().MetricsScope().Gauge("num-routines"),
+		growOnDemand:          opts.GrowOnDemand(),
 		workChs:               workChs,
 		numShards:             numShards,
 		killWorkerProbability: opts.KillWorkerProbability(),
@@ -61,28 +74,82 @@ func NewPooledWorkerPool(size int, opts PooledWorkerPoolOptions) (PooledWorkerPo
 func (p *pooledWorkerPool) Init() {
 	for _, workCh := range p.workChs {
 		for i := 0; i < cap(workCh); i++ {
-			p.spawnWorker(workCh)
+			p.spawnWorker(nil, workCh, true)
 		}
 	}
 }
 
 func (p *pooledWorkerPool) Go(work Work) {
-	// Use time.Now() to avoid excessive synchronization
-	workChIdx := p.nowFn().UnixNano() % p.numShards
-	workCh := p.workChs[workChIdx]
-	workCh <- work
+	var (
+		// Use time.Now() to avoid excessive synchronization
+		currTime  = p.nowFn().UnixNano()
+		workChIdx = currTime % p.numShards
+		workCh    = p.workChs[workChIdx]
+	)
+
+	if currTime%numGoroutinesGaugeSampleRate == 0 {
+		p.emitNumRoutines()
+	}
+
+	if !p.growOnDemand {
+		workCh <- work
+		return
+	}
+
+	select {
+	case workCh <- work:
+	default:
+		// If the queue for the worker we were assigned to is full,
+		// allocate a new goroutine to do the work and then
+		// assign it to be a temporary additional worker for the queue.
+		// This allows the worker pool to accommodate "bursts" of
+		// traffic. Also, it reduces the need for operators to tune the size
+		// of the pool for a given workload. If the pool is initially
+		// sized too small, it will eventually grow to accommodate the
+		// workload, and if the workload decreases the killWorkerProbability
+		// will slowly shrink the pool back down to its original size because
+		// workers created in this manner will not spawn their replacement
+		// before killing themselves.
+		p.spawnWorker(work, workCh, false)
+	}
 }
 
-func (p *pooledWorkerPool) spawnWorker(workCh chan Work) {
+func (p *pooledWorkerPool) spawnWorker(
+	initialWork Work, workCh chan Work, spawnReplacement bool) {
 	go func() {
+		p.incNumRoutines()
+		if initialWork != nil {
+			initialWork()
+		}
+
 		// RNG per worker to avoid synchronization.
 		rng := rand.New(rand.NewSource(p.nowFn().UnixNano()))
 		for f := range workCh {
 			f()
 			if rng.Float64() < p.killWorkerProbability {
-				p.spawnWorker(workCh)
+				if spawnReplacement {
+					p.spawnWorker(nil, workCh, true)
+				}
+				p.decNumRoutines()
 				return
 			}
 		}
 	}()
+}
+
+func (p *pooledWorkerPool) emitNumRoutines() {
+	numRoutines := float64(p.getNumRoutines())
+	p.numRoutinesGauge.Update(numRoutines)
+}
+
+func (p *pooledWorkerPool) incNumRoutines() {
+	atomic.AddInt64(&p.numRoutinesAtomic, 1)
+}
+
+func (p *pooledWorkerPool) decNumRoutines() {
+	atomic.AddInt64(&p.numRoutinesAtomic, -1)
+}
+
+func (p *pooledWorkerPool) getNumRoutines() int64 {
+	return atomic.LoadInt64(&p.numRoutinesAtomic)
 }
