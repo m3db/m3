@@ -193,15 +193,14 @@ func (p *simplePool) StringTag(name string, value string) Tag {
 }
 
 func (p *simplePool) Clone(existing ID) ID {
-	if existing.IsNoFinalize() {
-		return existing
-	}
+	id := p.pool.Get().(*id)
 
-	var (
-		id      = p.pool.Get().(*id)
-		data    = existing.Bytes()
-		newData = p.bytesPool.Get(len(data))
-	)
+	// NB(rartoul): Do not modify this function without careful
+	// benchmarking on a hot production workload. When we tried to
+	// introduce a helper function for the lines below we saw no
+	// discrepancy in micro-benchmarks, but heavy perf degradation in production.
+	data := existing.Bytes()
+	newData := p.bytesPool.Get(len(data))
 	newData.IncRef()
 	newData.AppendAll(data)
 
