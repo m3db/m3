@@ -22,11 +22,10 @@ package index
 
 import (
 	"bytes"
-	"reflect"
 	"testing"
-	"unsafe"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
+	xtest "github.com/m3db/m3/src/x/test"
 	"github.com/m3db/m3x/ident"
 
 	"github.com/stretchr/testify/require"
@@ -126,7 +125,7 @@ func TestResultsInsertCopies(t *testing.T) {
 		found = true
 		// ensure the underlying []byte for ID/Fields is at a different address
 		// than the original.
-		assertByteSlicesBackedByDifferentData(t, key, dValid.ID)
+		require.False(t, xtest.ByteSlicesBackedBySameData(key, dValid.ID))
 		tags := entry.Value().Values()
 		for _, f := range dValid.Fields {
 			fName := f.Name
@@ -137,19 +136,13 @@ func TestResultsInsertCopies(t *testing.T) {
 				if !bytes.Equal(fName, tName) || !bytes.Equal(fValue, tValue) {
 					continue
 				}
-				assertByteSlicesBackedByDifferentData(t, fName, tName)
-				assertByteSlicesBackedByDifferentData(t, fValue, tValue)
+				require.False(t, xtest.ByteSlicesBackedBySameData(fName, tName))
+				require.False(t, xtest.ByteSlicesBackedBySameData(fValue, tValue))
 			}
 		}
 	}
 
 	require.True(t, found)
-}
-
-func assertByteSlicesBackedByDifferentData(t *testing.T, a, b []byte) {
-	aHeader := (*reflect.SliceHeader)(unsafe.Pointer(&a))
-	bHeader := (*reflect.SliceHeader)(unsafe.Pointer(&b))
-	require.NotEqual(t, aHeader.Data, bHeader.Data)
 }
 
 func TestResultsReset(t *testing.T) {
