@@ -52,7 +52,7 @@
   "gnetId": null,
   "graphTooltip": 1,
   "id": null,
-  "iteration": 1537889403436,
+  "iteration": 1538144350249,
   "links": [],
   "panels": [
     {
@@ -671,6 +671,7 @@
       "pointradius": 5,
       "points": false,
       "renderer": "flot",
+      "seriesOverrides": [],
       "spaceLength": 10,
       "stack": false,
       "steppedLine": false,
@@ -1206,6 +1207,7 @@
       "pointradius": 5,
       "points": false,
       "renderer": "flot",
+      "seriesOverrides": [],
       "spaceLength": 10,
       "stack": false,
       "steppedLine": false,
@@ -1291,6 +1293,7 @@
       "pointradius": 5,
       "points": false,
       "renderer": "flot",
+      "seriesOverrides": [],
       "spaceLength": 10,
       "stack": false,
       "steppedLine": false,
@@ -5896,26 +5899,24 @@
         "type": "custom"
       },
       {
-        "allValue": "*",
-        "current": {
-          "selected": true,
-          "text": ".*",
-          "value": ".*"
-        },
+        "allValue": null,
+        "current": {},
+        "datasource": "${DS_PROMETHEUS}",
         "hide": 0,
-        "includeAll": false,
+        "includeAll": true,
         "label": "instance",
-        "multi": false,
+        "multi": true,
         "name": "instance",
-        "options": [
-          {
-            "selected": true,
-            "text": ".*",
-            "value": ".*"
-          }
-        ],
-        "query": ".*",
-        "type": "custom"
+        "options": [],
+        "query": "label_values(commitlog_writes_queued,instance)",
+        "refresh": 2,
+        "regex": "",
+        "sort": 0,
+        "tagValuesQuery": "",
+        "tags": [],
+        "tagsQuery": "",
+        "type": "query",
+        "useTags": false
       }
     ]
   },
