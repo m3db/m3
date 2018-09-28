@@ -21,6 +21,7 @@
 package models
 
 import (
+	"bytes"
 	"fmt"
 	"hash/fnv"
 	"regexp"
@@ -40,13 +41,15 @@ const (
 // Tags is a list of key/value metric tag pairs
 type Tags []Tag
 
-func (t Tags) Len() int           { return len(t) }
-func (t Tags) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
-func (t Tags) Less(i, j int) bool { return t[i].Name < t[j].Name }
+func (t Tags) Len() int      { return len(t) }
+func (t Tags) Swap(i, j int) { t[i], t[j] = t[j], t[i] }
+func (t Tags) Less(i, j int) bool {
+	return bytes.Compare(t[i].Name, t[j].Name) == -1
+}
 
 // Tag is a key/value metric tag pair
 type Tag struct {
-	Name, Value string
+	Name, Value []byte
 }
 
 // Metric is the individual metric that gets returned from the search endpoint
@@ -85,21 +88,21 @@ func (m MatchType) String() string {
 // Matcher models the matching of a label.
 type Matcher struct {
 	Type  MatchType `json:"type"`
-	Name  string    `json:"name"`
-	Value string    `json:"value"`
+	Name  []byte    `json:"name"`
+	Value []byte    `json:"value"`
 
 	re *regexp.Regexp
 }
 
 // NewMatcher returns a matcher object.
-func NewMatcher(t MatchType, n, v string) (*Matcher, error) {
+func NewMatcher(t MatchType, n, v []byte) (*Matcher, error) {
 	m := &Matcher{
 		Type:  t,
 		Name:  n,
 		Value: v,
 	}
 	if t == MatchRegexp || t == MatchNotRegexp {
-		re, err := regexp.Compile("^(?:" + v + ")$")
+		re, err := regexp.Compile("^(?:" + string(v) + ")$")
 		if err != nil {
 			return nil, err
 		}
@@ -113,7 +116,7 @@ func (m *Matcher) String() string {
 }
 
 // Matches returns whether the matcher matches the given string value.
-func (m *Matcher) Matches(s string) bool {
+func (m *Matcher) Matches(s []byte) bool {
 	switch m.Type {
 	case MatchEqual:
 		return s == m.Value
