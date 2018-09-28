@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/sync"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -54,6 +55,9 @@ func NewStorageAndSession(
 		Retention:   TestRetention,
 	})
 	require.NoError(t, err)
-	storage := m3.NewStorage(clusters, nil)
+	writePool, err := sync.NewPooledWorkerPool(10, sync.NewPooledWorkerPoolOptions())
+	require.NoError(t, err)
+	writePool.Init()
+	storage := m3.NewStorage(clusters, nil, writePool)
 	return storage, session
 }

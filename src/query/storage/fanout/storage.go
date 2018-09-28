@@ -129,7 +129,13 @@ func (s *fanoutStorage) FetchTags(ctx context.Context, query *storage.FetchQuery
 }
 
 func (s *fanoutStorage) Write(ctx context.Context, query *storage.WriteQuery) error {
+	// TODO: Consider removing this lookup on every write by maintaining different read/write lists
 	stores := filterStores(s.stores, s.writeFilter, query)
+	// short circuit writes
+	if len(stores) == 1 {
+		return stores[0].Write(ctx, query)
+	}
+
 	requests := make([]execution.Request, len(stores))
 	for idx, store := range stores {
 		requests[idx] = newWriteRequest(store, query)

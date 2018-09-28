@@ -53,7 +53,7 @@ func BuildWorkerPools(
 	cfg config.Configuration,
 	logger *zap.Logger,
 	scope tally.Scope,
-) (pool.ObjectPool, instrument.Options) {
+) (pool.ObjectPool, xsync.PooledWorkerPool, instrument.Options, error) {
 	workerPoolCount := cfg.DecompressWorkerPoolCount
 	if workerPoolCount == 0 {
 		workerPoolCount = defaultWorkerPoolCount
@@ -79,7 +79,18 @@ func BuildWorkerPools(
 		return workerPool
 	})
 
-	return objectPool, instrumentOptions
+	writePoolSize := cfg.WriteWorkerPoolSize
+	if writePoolSize == 0 {
+		writePoolSize = defaultWorkerPoolSize
+	}
+
+	writeWorkerPool, err := xsync.NewPooledWorkerPool(writePoolSize, xsync.NewPooledWorkerPoolOptions())
+	if err != nil {
+		return nil, nil, instrumentOptions, err
+	}
+
+	writeWorkerPool.Init()
+	return objectPool, writeWorkerPool, instrumentOptions, nil
 }
 
 type sessionPools struct {

@@ -56,6 +56,7 @@ import (
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
+	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/pkg/errors"
@@ -135,7 +136,10 @@ func Run(runOpts RunOptions) {
 		enabled        bool
 	)
 
-	workerPool, instrumentOptions := pools.BuildWorkerPools(cfg, logger, scope)
+	workerPool, writeWorkerPool, instrumentOptions, err := pools.BuildWorkerPools(cfg, logger, scope)
+	if err != nil {
+		logger.Fatal("could not create worker pools", zap.Any("error", err))
+	}
 
 	// For grpc backend, we need to setup only the grpc client and a storage accompanying that client.
 	// For m3db backend, we need to make connections to the m3db cluster which generates a session and use the storage with the session.
@@ -157,6 +161,7 @@ func Run(runOpts RunOptions) {
 			cfg,
 			logger,
 			workerPool,
+			writeWorkerPool,
 			instrumentOptions,
 		)
 		if err != nil {
@@ -228,6 +233,7 @@ func newM3DBStorage(
 	cfg config.Configuration,
 	logger *zap.Logger,
 	workerPool pool.ObjectPool,
+	writeWorkerPool xsync.PooledWorkerPool,
 	instrumentOptions instrument.Options,
 ) (storage.Storage, clusterclient.Client, downsample.Downsampler, cleanupFn, error) {
 	var clusterClientCh <-chan clusterclient.Client
@@ -269,7 +275,7 @@ func newM3DBStorage(
 		return nil, nil, nil, nil, err
 	}
 
-	fanoutStorage, storageCleanup, err := newStorages(logger, clusters, cfg, poolWrapper, workerPool)
+	fanoutStorage, storageCleanup, err := newStorages(logger, clusters, cfg, poolWrapper, workerPool, writeWorkerPool)
 	if err != nil {
 		return nil, nil, nil, nil, errors.Wrap(err, "unable to set up storages")
 	}
@@ -400,8 +406,8 @@ func newDownsamplerAutoMappingRules(
 func initClusters(
 	cfg config.Configuration,
 	dbClientCh <-chan client.Client,
-	logger *zap.Logger, 
-) (m3.Clusters, *pools.PoolWrapper, error) { 
+	logger *zap.Logger,
+) (m3.Clusters, *pools.PoolWrapper, error) {
 	var (
 		clusters    m3.Clusters
 		poolWrapper *pools.PoolWrapper
@@ -462,10 +468,11 @@ func newStorages(
 	cfg config.Configuration,
 	poolWrapper *pools.PoolWrapper,
 	workerPool pool.ObjectPool,
+	writeWorkerPool xsync.PooledWorkerPool,
 ) (storage.Storage, cleanupFn, error) {
 	cleanup := func() error { return nil }
 
-	localStorage := m3.NewStorage(clusters, workerPool)
+	localStorage := m3.NewStorage(clusters, workerPool, writeWorkerPool)
 	stores := []storage.Storage{localStorage}
 	remoteEnabled := false
 	if cfg.RPC != nil && cfg.RPC.Enabled {
