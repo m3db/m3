@@ -5,7 +5,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/m3dbnode
+ExecStart=/usr/bin/m3dbnode -f /etc/m3db/m3dbnode.yaml
 Restart=on-failure
 RestartSecs=10s
 SuccessExitStatus=0
