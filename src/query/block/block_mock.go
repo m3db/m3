@@ -28,8 +28,6 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/m3db/m3/src/query/block"
-
 	"github.com/golang/mock/gomock"
 )
 
