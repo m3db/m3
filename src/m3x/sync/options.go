@@ -20,11 +20,16 @@
 
 package sync
 
-import "time"
+import (
+	"time"
+
+	"github.com/m3db/m3x/instrument"
+)
 
 const (
 	defaultNumShards             = int64(2 ^ 4)
 	defaultKillWorkerProbability = 0.0001
+	defaultGrowOnDemand          = false
 )
 
 var (
@@ -37,16 +42,30 @@ type NowFn func() time.Time
 // NewPooledWorkerPoolOptions returns a new PooledWorkerPoolOptions with default options
 func NewPooledWorkerPoolOptions() PooledWorkerPoolOptions {
 	return &pooledWorkerPoolOptions{
+		growOnDemand:          defaultGrowOnDemand,
 		numShards:             defaultNumShards,
 		killWorkerProbability: defaultKillWorkerProbability,
 		nowFn: defaultNowFn,
+		iOpts: instrument.NewOptions(),
 	}
 }
 
 type pooledWorkerPoolOptions struct {
+	growOnDemand          bool
 	numShards             int64
 	killWorkerProbability float64
 	nowFn                 NowFn
+	iOpts                 instrument.Options
+}
+
+func (o *pooledWorkerPoolOptions) SetGrowOnDemand(value bool) PooledWorkerPoolOptions {
+	opts := *o
+	opts.growOnDemand = value
+	return &opts
+}
+
+func (o *pooledWorkerPoolOptions) GrowOnDemand() bool {
+	return o.growOnDemand
 }
 
 func (o *pooledWorkerPoolOptions) SetNumShards(value int64) PooledWorkerPoolOptions {
@@ -77,4 +96,14 @@ func (o *pooledWorkerPoolOptions) SetNowFn(value NowFn) PooledWorkerPoolOptions 
 
 func (o *pooledWorkerPoolOptions) NowFn() NowFn {
 	return o.nowFn
+}
+
+func (o *pooledWorkerPoolOptions) SetInstrumentOptions(value instrument.Options) PooledWorkerPoolOptions {
+	opts := *o
+	opts.iOpts = value
+	return &opts
+}
+
+func (o *pooledWorkerPoolOptions) InstrumentOptions() instrument.Options {
+	return o.iOpts
 }
