@@ -1,0 +1,1227 @@
+
+
+
+
+<!DOCTYPE html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <meta http-equiv="x-ua-compatible" content="ie=edge">
+      
+      
+      
+      
+        <meta name="lang:clipboard.copy" content="Copy to clipboard">
+      
+        <meta name="lang:clipboard.copied" content="Copied to clipboard">
+      
+        <meta name="lang:search.language" content="en">
+      
+        <meta name="lang:search.pipeline.stopwords" content="True">
+      
+        <meta name="lang:search.pipeline.trimmer" content="True">
+      
+        <meta name="lang:search.result.none" content="No matching documents">
+      
+        <meta name="lang:search.result.one" content="1 matching document">
+      
+        <meta name="lang:search.result.other" content="# matching documents">
+      
+        <meta name="lang:search.tokenizer" content="[\s\-]+">
+      
+      <link rel="shortcut icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-0.17.3, mkdocs-material-2.7.3">
+    
+    
+      
+        <title>Function Processing - M3 Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/application.8d40d89b.css">
+      
+    
+    
+      <script src="../../../assets/javascripts/modernizr.1aa3b519.js"></script>
+    
+    
+      <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
+      
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700|Roboto+Mono">
+        <style>body,input{font-family:"Roboto","Helvetica Neue",Helvetica,Arial,sans-serif}code,kbd,pre{font-family:"Roboto Mono","Courier New",Courier,monospace}</style>
+      
+      <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    
+    
+    
+  </head>
+  
+    <body dir="ltr">
+  
+    <svg class="md-svg">
+      <defs>
+        
+        
+          <svg xmlns="http://www.w3.org/2000/svg" width="416" height="448"
+    viewBox="0 0 416 448" id="github">
+  <path fill="currentColor" d="M160 304q0 10-3.125 20.5t-10.75 19-18.125
+        8.5-18.125-8.5-10.75-19-3.125-20.5 3.125-20.5 10.75-19 18.125-8.5
+        18.125 8.5 10.75 19 3.125 20.5zM320 304q0 10-3.125 20.5t-10.75
+        19-18.125 8.5-18.125-8.5-10.75-19-3.125-20.5 3.125-20.5 10.75-19
+        18.125-8.5 18.125 8.5 10.75 19 3.125 20.5zM360
+        304q0-30-17.25-51t-46.75-21q-10.25 0-48.75 5.25-17.75 2.75-39.25
+        2.75t-39.25-2.75q-38-5.25-48.75-5.25-29.5 0-46.75 21t-17.25 51q0 22 8
+        38.375t20.25 25.75 30.5 15 35 7.375 37.25 1.75h42q20.5 0
+        37.25-1.75t35-7.375 30.5-15 20.25-25.75 8-38.375zM416 260q0 51.75-15.25
+        82.75-9.5 19.25-26.375 33.25t-35.25 21.5-42.5 11.875-42.875 5.5-41.75
+        1.125q-19.5 0-35.5-0.75t-36.875-3.125-38.125-7.5-34.25-12.875-30.25-20.25-21.5-28.75q-15.5-30.75-15.5-82.75
+        0-59.25 34-99-6.75-20.5-6.75-42.5 0-29 12.75-54.5 27 0 47.5 9.875t47.25
+        30.875q36.75-8.75 77.25-8.75 37 0 70 8 26.25-20.5
+        46.75-30.25t47.25-9.75q12.75 25.5 12.75 54.5 0 21.75-6.75 42 34 40 34
+        99.5z" />
+</svg>
+        
+      </defs>
+    </svg>
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="search" autocomplete="off">
+    <label class="md-overlay" data-md-component="overlay" for="drawer"></label>
+    
+      <a href="#function-processing" tabindex="1" class="md-skip">
+        Skip to content
+      </a>
+    
+    
+      <header class="md-header" data-md-component="header">
+  <nav class="md-header-nav md-grid">
+    <div class="md-flex">
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <a href="../../.." title="M3 Documentation" class="md-header-nav__button md-logo">
+          
+            <i class="md-icon"></i>
+          
+        </a>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <label class="md-icon md-icon--menu md-header-nav__button" for="drawer"></label>
+      </div>
+      <div class="md-flex__cell md-flex__cell--stretch">
+        <div class="md-flex__ellipsis md-header-nav__title" data-md-component="title">
+          
+            
+              <span class="md-header-nav__topic">
+                M3 Documentation
+              </span>
+              <span class="md-header-nav__topic">
+                Function Processing
+              </span>
+            
+          
+        </div>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        
+          
+            <label class="md-icon md-icon--search md-header-nav__button" for="search"></label>
+            
+<div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="query" data-md-state="active">
+      <label class="md-icon md-search__icon" for="search"></label>
+      <button type="reset" class="md-icon md-search__icon" data-md-component="reset" tabindex="-1">
+        &#xE5CD;
+      </button>
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="result">
+          <div class="md-search-result__meta">
+            Type to start searching
+          </div>
+          <ol class="md-search-result__list"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+          
+        
+      </div>
+      
+        <div class="md-flex__cell md-flex__cell--shrink">
+          <div class="md-header-nav__source">
+            
+
+
+  
+
+
+  <a href="https://github.com/m3db/m3/" title="Go to repository" class="md-source" data-md-source="github">
+    
+      <div class="md-source__icon">
+        <svg viewBox="0 0 24 24" width="24" height="24">
+          <use xlink:href="#github" width="24" height="24"></use>
+        </svg>
+      </div>
+    
+    <div class="md-source__repository">
+      m3db/m3
+    </div>
+  </a>
+
+          </div>
+        </div>
+      
+    </div>
+  </nav>
+</header>
+    
+    <div class="md-container">
+      
+        
+      
+      
+      <main class="md-main">
+        <div class="md-main__inner md-grid" data-md-component="container">
+          
+            
+              <div class="md-sidebar md-sidebar--primary" data-md-component="navigation">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    <nav class="md-nav md-nav--primary" data-md-level="0">
+  <label class="md-nav__title md-nav__title--site" for="drawer">
+    <span class="md-nav__button md-logo">
+      
+        <i class="md-icon"></i>
+      
+    </span>
+    M3 Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      
+
+
+  
+
+
+  <a href="https://github.com/m3db/m3/" title="Go to repository" class="md-source" data-md-source="github">
+    
+      <div class="md-source__icon">
+        <svg viewBox="0 0 24 24" width="24" height="24">
+          <use xlink:href="#github" width="24" height="24"></use>
+        </svg>
+      </div>
+    
+    <div class="md-source__repository">
+      m3db/m3
+    </div>
+  </a>
+
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../.." title="Introduction" class="md-nav__link">
+      Introduction
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2" type="checkbox" id="nav-2">
+    
+    <label class="md-nav__link" for="nav-2">
+      Overview
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-2">
+        Overview
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../introduction/components/components/" title="Components" class="md-nav__link">
+      Components
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../introduction/motivation/motivation/" title="Motivation" class="md-nav__link">
+      Motivation
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3" type="checkbox" id="nav-3">
+    
+    <label class="md-nav__link" for="nav-3">
+      M3DB
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-3">
+        M3DB
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../m3db/" title="Introduction" class="md-nav__link">
+      Introduction
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3-2" type="checkbox" id="nav-3-2">
+    
+    <label class="md-nav__link" for="nav-3-2">
+      Architecture
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-3-2">
+        Architecture
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../m3db/architecture/" title="Overview" class="md-nav__link">
+      Overview
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../m3db/architecture/engine/" title="Storage Engine" class="md-nav__link">
+      Storage Engine
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../m3db/architecture/sharding/" title="Sharding and Replication" class="md-nav__link">
+      Sharding and Replication
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../m3db/architecture/consistencylevels/" title="Consistency Levels" class="md-nav__link">
+      Consistency Levels
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../m3db/architecture/storage/" title="Storage" class="md-nav__link">
+      Storage
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../m3db/architecture/commitlogs/" title="Commit Logs" class="md-nav__link">
+      Commit Logs
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../m3db/architecture/peer_streaming/" title="Peer Streaming" class="md-nav__link">
+      Peer Streaming
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../m3db/architecture/caching/" title="Caching" class="md-nav__link">
+      Caching
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4" checked>
+    
+    <label class="md-nav__link" for="nav-4">
+      Query Engine and Coordinator
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-4">
+        Query Engine and Coordinator
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../" title="Introduction" class="md-nav__link">
+      Introduction
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../roadmap/" title="Roadmap" class="md-nav__link">
+      Roadmap
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-3" type="checkbox" id="nav-4-3" checked>
+    
+    <label class="md-nav__link" for="nav-4-3">
+      Architecture
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-4-3">
+        Architecture
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../" title="Overview" class="md-nav__link">
+      Overview
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../blocks/" title="Blocks" class="md-nav__link">
+      Blocks
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="toc">
+    
+      
+    
+    
+      <label class="md-nav__link md-nav__link--active" for="toc">
+        Function Processing
+      </label>
+    
+    <a href="./" title="Function Processing" class="md-nav__link md-nav__link--active">
+      Function Processing
+    </a>
+    
+      
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#supported-functions" title="Supported Functions" class="md-nav__link">
+    Supported Functions
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+    
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5">
+    
+    <label class="md-nav__link" for="nav-5">
+      How-To's
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-5">
+        How-To's
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../how_to/single_node/" title="M3DB Single Node Deployment" class="md-nav__link">
+      M3DB Single Node Deployment
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../how_to/cluster_hard_way/" title="M3DB Cluster Deployment, Manually" class="md-nav__link">
+      M3DB Cluster Deployment, Manually
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../how_to/kubernetes/" title="M3DB on Kubernetes" class="md-nav__link">
+      M3DB on Kubernetes
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-6" type="checkbox" id="nav-6">
+    
+    <label class="md-nav__link" for="nav-6">
+      Operational Guides
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-6">
+        Operational Guides
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../operational_guide/placement/" title="Placement / Topology" class="md-nav__link">
+      Placement / Topology
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../operational_guide/bootstrapping/" title="Bootstrapping" class="md-nav__link">
+      Bootstrapping
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-7" type="checkbox" id="nav-7">
+    
+    <label class="md-nav__link" for="nav-7">
+      Integrations
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-7">
+        Integrations
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../integrations/prometheus/" title="Prometheus" class="md-nav__link">
+      Prometheus
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../../troubleshooting/" title="Troubleshooting" class="md-nav__link">
+      Troubleshooting
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../../faqs/" title="FAQs" class="md-nav__link">
+      FAQs
+    </a>
+  </li>
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="toc">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#supported-functions" title="Supported Functions" class="md-nav__link">
+    Supported Functions
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          <div class="md-content">
+            <article class="md-content__inner md-typeset">
+              
+                
+                  <a href="https://github.com/m3db/m3/edit/master/docs/query_engine/architecture/functions.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                
+                
+                <h1 id="function-processing">Function Processing</h1>
+<h2 id="supported-functions">Supported Functions</h2>
+<table>
+<thead>
+<tr>
+<th>M3QL</th>
+<th>Prometheus</th>
+<th>Graphite</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>abs/absolute</td>
+<td>abs()</td>
+<td>absolute(seriesList)</td>
+</tr>
+<tr>
+<td>alias [alias]</td>
+<td></td>
+<td>alias(seriesList, newName)</td>
+</tr>
+<tr>
+<td>aliasByTags [tag]</td>
+<td></td>
+<td>aliasByTags(seriesList, *tags)</td>
+</tr>
+<tr>
+<td>aliasByBucket/aliasByHistogramBucket [tag]</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>anomalies [flags]</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>asPercent</td>
+<td>/</td>
+<td>asPercent(seriesList, total=None, *nodes)</td>
+</tr>
+<tr>
+<td>avg/averageSeries [tag]</td>
+<td>avg()</td>
+<td>averageSeries(*seriesLists)</td>
+</tr>
+<tr>
+<td>changed</td>
+<td></td>
+<td>changed(seriesList)</td>
+</tr>
+<tr>
+<td>constantLine [value]</td>
+<td></td>
+<td>constantLine(value)</td>
+</tr>
+<tr>
+<td>count</td>
+<td>count()</td>
+<td>countSeries(*seriesLists)</td>
+</tr>
+<tr>
+<td>derivative</td>
+<td></td>
+<td>derivative(seriesList)</td>
+</tr>
+<tr>
+<td>diff</td>
+<td>-</td>
+<td>diffSeries(*seriesLists)</td>
+</tr>
+<tr>
+<td>divideSeries</td>
+<td>/</td>
+<td>divideSeries(dividendSeriesList, divisorSeries)</td>
+</tr>
+<tr>
+<td>eq/== [value]</td>
+<td>==</td>
+<td>removeBelowValue(seriesList, n)/removeAboveValue(seriesList, n)</td>
+</tr>
+<tr>
+<td>ne/!= [value]</td>
+<td>!=</td>
+<td>removeBelowValue(seriesList, n)/removeAboveValue(seriesList, n)</td>
+</tr>
+<tr>
+<td>excludeByTag [tag, pattern]</td>
+<td></td>
+<td>exclude(seriesList, pattern)</td>
+</tr>
+<tr>
+<td>execute/exec [fetch]</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>fallbackSeries [replacement]</td>
+<td></td>
+<td>fallbackSeries(seriesList, fallback)</td>
+</tr>
+<tr>
+<td>fetch</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>ge/=&gt; [value]</td>
+<td>&gt;=</td>
+<td>removeBelowValue(seriesList, n)</td>
+</tr>
+<tr>
+<td>gt/&gt; [value]</td>
+<td>&gt;</td>
+<td>removeBelowValue(seriesList, n)</td>
+</tr>
+<tr>
+<td>head [limit]</td>
+<td>topk()</td>
+<td>highest(seriesList, n=1, func='average')</td>
+</tr>
+<tr>
+<td>histogramCDF [idTag, rangeTag, value]</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>histogramPercentile [idTag, rangeTag, percentileValue]</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>identity [name]</td>
+<td></td>
+<td>identity(name)</td>
+</tr>
+<tr>
+<td>integral</td>
+<td></td>
+<td>integral(seriesList)</td>
+</tr>
+<tr>
+<td>intersect [tags]</td>
+<td>and/or</td>
+<td></td>
+</tr>
+<tr>
+<td>isNonNull</td>
+<td></td>
+<td>isNonNull(seriesList)</td>
+</tr>
+<tr>
+<td>jainCP</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>keepLastValue</td>
+<td></td>
+<td>keepLastValue(seriesList, limit=inf)</td>
+</tr>
+<tr>
+<td>le/&lt;= [value]</td>
+<td>&lt;=</td>
+<td>removeAboveValue(seriesList, n)</td>
+</tr>
+<tr>
+<td>logarithm</td>
+<td>ln()</td>
+<td>logarithm(seriesList, base=10)</td>
+</tr>
+<tr>
+<td>lt/&lt; [value]</td>
+<td>&lt;</td>
+<td>removeAboveValue(seriesList, n)</td>
+</tr>
+<tr>
+<td>max/maxSeries [tag]</td>
+<td>max()</td>
+<td>maxSeries(*seriesLists)</td>
+</tr>
+<tr>
+<td>min/minSeries [tag]</td>
+<td>min()</td>
+<td>minSeries(*seriesLists)</td>
+</tr>
+<tr>
+<td>moving [interval, func]</td>
+<td><aggregation>_over_time()</td>
+<td>movingMax, movingMin, movingMedian, movingAverage, etc.</td>
+</tr>
+<tr>
+<td>multiply/multiplySeries [tag]</td>
+<td>*</td>
+<td>multiplySeries(*seriesLists)</td>
+</tr>
+<tr>
+<td>nonNegativeDerivative [maxValue]</td>
+<td></td>
+<td>nonNegativeDerivative(seriesList, maxValue=None)</td>
+</tr>
+<tr>
+<td>nPercentile [percentile]</td>
+<td></td>
+<td>nPercentile(seriesList, n)</td>
+</tr>
+<tr>
+<td>offset [amount]</td>
+<td></td>
+<td>offset(seriesList, factor)</td>
+</tr>
+<tr>
+<td>percentileOfSeries [n, true/false, tag]</td>
+<td></td>
+<td>percentileOfSeries(seriesList, n, interpolate=False)</td>
+</tr>
+<tr>
+<td>perSecond</td>
+<td>rate()</td>
+<td>perSecond(seriesList, maxValue=None)</td>
+</tr>
+<tr>
+<td>promHistogramPercentile [percentileValue]</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>range [tag]</td>
+<td></td>
+<td>rangeOfSeries(*seriesLists)</td>
+</tr>
+<tr>
+<td>removeAbovePercentile [percentile]</td>
+<td></td>
+<td>removeAbovePercentile(seriesList, n)</td>
+</tr>
+<tr>
+<td>removeBelowPercentile [percentile]</td>
+<td></td>
+<td>removeBelowPercentile(seriesList, n)</td>
+</tr>
+<tr>
+<td>removeAboveValue [value]</td>
+<td></td>
+<td>removeAboveValue(seriesList, n)</td>
+</tr>
+<tr>
+<td>removeBelowValue [value]</td>
+<td></td>
+<td>removeBelowValue(seriesList, n)</td>
+</tr>
+<tr>
+<td>removeEmpty</td>
+<td></td>
+<td>removeEmptySeries(seriesList, xFilesFactor=None)</td>
+</tr>
+<tr>
+<td>scale [factor]</td>
+<td></td>
+<td>scale(seriesList, factor)</td>
+</tr>
+<tr>
+<td>scaleToSeconds [seconds]</td>
+<td></td>
+<td>scaleToSeconds(seriesList, seconds)</td>
+</tr>
+<tr>
+<td>setDiff [tags]</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>showAnomalyThresholds [level, model]</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>showTags [true/false, tagName(s)]</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>sort/sortSeries [avg, current, max, stddev, sum]</td>
+<td>sort()</td>
+<td>sortBy(seriesList, func='average', reverse=False)</td>
+</tr>
+<tr>
+<td>stdev [points, windowTolerance]</td>
+<td>stddev()</td>
+<td>stdev(seriesList, points, windowTolerance=0.1)</td>
+</tr>
+<tr>
+<td>sqrt/squareRoot</td>
+<td>sqrt()</td>
+<td>squareRoot(seriesList)</td>
+</tr>
+<tr>
+<td>summarize [interval, func, alignToFrom]</td>
+<td></td>
+<td>summarize(seriesList, intervalString, func='sum', alignToFrom=False)</td>
+</tr>
+<tr>
+<td>sum/sumSeries [tag]</td>
+<td>sum()</td>
+<td>sumSeries(*seriesLists)</td>
+</tr>
+<tr>
+<td>sustain [duration]</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>sustainedAbove &amp; sustainedBelow</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>tail [limit]</td>
+<td>bottomk()</td>
+<td>lowest(seriesList, n=1, func='average')</td>
+</tr>
+<tr>
+<td>timeshift [duration]</td>
+<td></td>
+<td>timeShift(seriesList, timeShift, resetEnd=True, alignDST=False)</td>
+</tr>
+<tr>
+<td>timestamp</td>
+<td>timestamp()</td>
+<td></td>
+</tr>
+<tr>
+<td>transformNull [value]</td>
+<td></td>
+<td>transformNull(seriesList, default=0, referenceSeries=None)</td>
+</tr>
+</tbody>
+</table>
+                
+                  
+                
+              
+              
+                
+
+
+              
+            </article>
+          </div>
+        </div>
+      </main>
+      
+        
+<footer class="md-footer">
+  
+    <div class="md-footer-nav">
+      <nav class="md-footer-nav__inner md-grid">
+        
+          <a href="../blocks/" title="Blocks" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+            <div class="md-flex__cell md-flex__cell--shrink">
+              <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
+            </div>
+            <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
+              <span class="md-flex__ellipsis">
+                <span class="md-footer-nav__direction">
+                  Previous
+                </span>
+                Blocks
+              </span>
+            </div>
+          </a>
+        
+        
+          <a href="../../../how_to/single_node/" title="M3DB Single Node Deployment" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+            <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
+              <span class="md-flex__ellipsis">
+                <span class="md-footer-nav__direction">
+                  Next
+                </span>
+                M3DB Single Node Deployment
+              </span>
+            </div>
+            <div class="md-flex__cell md-flex__cell--shrink">
+              <i class="md-icon md-icon--arrow-forward md-footer-nav__button"></i>
+            </div>
+          </a>
+        
+      </nav>
+    </div>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright">
+        
+        powered by
+        <a href="http://www.mkdocs.org">MkDocs</a>
+        and
+        <a href="https://squidfunk.github.io/mkdocs-material/">
+          Material for MkDocs</a>
+      </div>
+      
+        
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    
+      <script src="../../../assets/javascripts/application.b438e6c5.js"></script>
+      
+      <script>app.initialize({version:"0.17.3",url:{base:"../../.."}})</script>
+      
+    
+    
+      
+    
+  </body>
+</html>

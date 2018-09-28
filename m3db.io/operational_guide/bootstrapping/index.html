@@ -1,0 +1,1200 @@
+
+
+
+
+<!DOCTYPE html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <meta http-equiv="x-ua-compatible" content="ie=edge">
+      
+      
+      
+      
+        <meta name="lang:clipboard.copy" content="Copy to clipboard">
+      
+        <meta name="lang:clipboard.copied" content="Copied to clipboard">
+      
+        <meta name="lang:search.language" content="en">
+      
+        <meta name="lang:search.pipeline.stopwords" content="True">
+      
+        <meta name="lang:search.pipeline.trimmer" content="True">
+      
+        <meta name="lang:search.result.none" content="No matching documents">
+      
+        <meta name="lang:search.result.one" content="1 matching document">
+      
+        <meta name="lang:search.result.other" content="# matching documents">
+      
+        <meta name="lang:search.tokenizer" content="[\s\-]+">
+      
+      <link rel="shortcut icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-0.17.3, mkdocs-material-2.7.3">
+    
+    
+      
+        <title>Bootstrapping - M3 Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/application.8d40d89b.css">
+      
+    
+    
+      <script src="../../assets/javascripts/modernizr.1aa3b519.js"></script>
+    
+    
+      <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
+      
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700|Roboto+Mono">
+        <style>body,input{font-family:"Roboto","Helvetica Neue",Helvetica,Arial,sans-serif}code,kbd,pre{font-family:"Roboto Mono","Courier New",Courier,monospace}</style>
+      
+      <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    
+    
+    
+  </head>
+  
+    <body dir="ltr">
+  
+    <svg class="md-svg">
+      <defs>
+        
+        
+          <svg xmlns="http://www.w3.org/2000/svg" width="416" height="448"
+    viewBox="0 0 416 448" id="github">
+  <path fill="currentColor" d="M160 304q0 10-3.125 20.5t-10.75 19-18.125
+        8.5-18.125-8.5-10.75-19-3.125-20.5 3.125-20.5 10.75-19 18.125-8.5
+        18.125 8.5 10.75 19 3.125 20.5zM320 304q0 10-3.125 20.5t-10.75
+        19-18.125 8.5-18.125-8.5-10.75-19-3.125-20.5 3.125-20.5 10.75-19
+        18.125-8.5 18.125 8.5 10.75 19 3.125 20.5zM360
+        304q0-30-17.25-51t-46.75-21q-10.25 0-48.75 5.25-17.75 2.75-39.25
+        2.75t-39.25-2.75q-38-5.25-48.75-5.25-29.5 0-46.75 21t-17.25 51q0 22 8
+        38.375t20.25 25.75 30.5 15 35 7.375 37.25 1.75h42q20.5 0
+        37.25-1.75t35-7.375 30.5-15 20.25-25.75 8-38.375zM416 260q0 51.75-15.25
+        82.75-9.5 19.25-26.375 33.25t-35.25 21.5-42.5 11.875-42.875 5.5-41.75
+        1.125q-19.5 0-35.5-0.75t-36.875-3.125-38.125-7.5-34.25-12.875-30.25-20.25-21.5-28.75q-15.5-30.75-15.5-82.75
+        0-59.25 34-99-6.75-20.5-6.75-42.5 0-29 12.75-54.5 27 0 47.5 9.875t47.25
+        30.875q36.75-8.75 77.25-8.75 37 0 70 8 26.25-20.5
+        46.75-30.25t47.25-9.75q12.75 25.5 12.75 54.5 0 21.75-6.75 42 34 40 34
+        99.5z" />
+</svg>
+        
+      </defs>
+    </svg>
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="search" autocomplete="off">
+    <label class="md-overlay" data-md-component="overlay" for="drawer"></label>
+    
+      <a href="#bootstrapping" tabindex="1" class="md-skip">
+        Skip to content
+      </a>
+    
+    
+      <header class="md-header" data-md-component="header">
+  <nav class="md-header-nav md-grid">
+    <div class="md-flex">
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <a href="../.." title="M3 Documentation" class="md-header-nav__button md-logo">
+          
+            <i class="md-icon"></i>
+          
+        </a>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <label class="md-icon md-icon--menu md-header-nav__button" for="drawer"></label>
+      </div>
+      <div class="md-flex__cell md-flex__cell--stretch">
+        <div class="md-flex__ellipsis md-header-nav__title" data-md-component="title">
+          
+            
+              <span class="md-header-nav__topic">
+                M3 Documentation
+              </span>
+              <span class="md-header-nav__topic">
+                Bootstrapping
+              </span>
+            
+          
+        </div>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        
+          
+            <label class="md-icon md-icon--search md-header-nav__button" for="search"></label>
+            
+<div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="query" data-md-state="active">
+      <label class="md-icon md-search__icon" for="search"></label>
+      <button type="reset" class="md-icon md-search__icon" data-md-component="reset" tabindex="-1">
+        &#xE5CD;
+      </button>
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="result">
+          <div class="md-search-result__meta">
+            Type to start searching
+          </div>
+          <ol class="md-search-result__list"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+          
+        
+      </div>
+      
+        <div class="md-flex__cell md-flex__cell--shrink">
+          <div class="md-header-nav__source">
+            
+
+
+  
+
+
+  <a href="https://github.com/m3db/m3/" title="Go to repository" class="md-source" data-md-source="github">
+    
+      <div class="md-source__icon">
+        <svg viewBox="0 0 24 24" width="24" height="24">
+          <use xlink:href="#github" width="24" height="24"></use>
+        </svg>
+      </div>
+    
+    <div class="md-source__repository">
+      m3db/m3
+    </div>
+  </a>
+
+          </div>
+        </div>
+      
+    </div>
+  </nav>
+</header>
+    
+    <div class="md-container">
+      
+        
+      
+      
+      <main class="md-main">
+        <div class="md-main__inner md-grid" data-md-component="container">
+          
+            
+              <div class="md-sidebar md-sidebar--primary" data-md-component="navigation">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    <nav class="md-nav md-nav--primary" data-md-level="0">
+  <label class="md-nav__title md-nav__title--site" for="drawer">
+    <span class="md-nav__button md-logo">
+      
+        <i class="md-icon"></i>
+      
+    </span>
+    M3 Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      
+
+
+  
+
+
+  <a href="https://github.com/m3db/m3/" title="Go to repository" class="md-source" data-md-source="github">
+    
+      <div class="md-source__icon">
+        <svg viewBox="0 0 24 24" width="24" height="24">
+          <use xlink:href="#github" width="24" height="24"></use>
+        </svg>
+      </div>
+    
+    <div class="md-source__repository">
+      m3db/m3
+    </div>
+  </a>
+
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../.." title="Introduction" class="md-nav__link">
+      Introduction
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2" type="checkbox" id="nav-2">
+    
+    <label class="md-nav__link" for="nav-2">
+      Overview
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-2">
+        Overview
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../introduction/components/components/" title="Components" class="md-nav__link">
+      Components
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../introduction/motivation/motivation/" title="Motivation" class="md-nav__link">
+      Motivation
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3" type="checkbox" id="nav-3">
+    
+    <label class="md-nav__link" for="nav-3">
+      M3DB
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-3">
+        M3DB
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../m3db/" title="Introduction" class="md-nav__link">
+      Introduction
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3-2" type="checkbox" id="nav-3-2">
+    
+    <label class="md-nav__link" for="nav-3-2">
+      Architecture
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-3-2">
+        Architecture
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../m3db/architecture/" title="Overview" class="md-nav__link">
+      Overview
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../m3db/architecture/engine/" title="Storage Engine" class="md-nav__link">
+      Storage Engine
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../m3db/architecture/sharding/" title="Sharding and Replication" class="md-nav__link">
+      Sharding and Replication
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../m3db/architecture/consistencylevels/" title="Consistency Levels" class="md-nav__link">
+      Consistency Levels
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../m3db/architecture/storage/" title="Storage" class="md-nav__link">
+      Storage
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../m3db/architecture/commitlogs/" title="Commit Logs" class="md-nav__link">
+      Commit Logs
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../m3db/architecture/peer_streaming/" title="Peer Streaming" class="md-nav__link">
+      Peer Streaming
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../m3db/architecture/caching/" title="Caching" class="md-nav__link">
+      Caching
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4">
+    
+    <label class="md-nav__link" for="nav-4">
+      Query Engine and Coordinator
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-4">
+        Query Engine and Coordinator
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../query_engine/" title="Introduction" class="md-nav__link">
+      Introduction
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../query_engine/roadmap/" title="Roadmap" class="md-nav__link">
+      Roadmap
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-3" type="checkbox" id="nav-4-3">
+    
+    <label class="md-nav__link" for="nav-4-3">
+      Architecture
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-4-3">
+        Architecture
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../query_engine/architecture/" title="Overview" class="md-nav__link">
+      Overview
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../query_engine/architecture/blocks/" title="Blocks" class="md-nav__link">
+      Blocks
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../query_engine/architecture/functions/" title="Function Processing" class="md-nav__link">
+      Function Processing
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5">
+    
+    <label class="md-nav__link" for="nav-5">
+      How-To's
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-5">
+        How-To's
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../how_to/single_node/" title="M3DB Single Node Deployment" class="md-nav__link">
+      M3DB Single Node Deployment
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../how_to/cluster_hard_way/" title="M3DB Cluster Deployment, Manually" class="md-nav__link">
+      M3DB Cluster Deployment, Manually
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../how_to/kubernetes/" title="M3DB on Kubernetes" class="md-nav__link">
+      M3DB on Kubernetes
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-6" type="checkbox" id="nav-6" checked>
+    
+    <label class="md-nav__link" for="nav-6">
+      Operational Guides
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-6">
+        Operational Guides
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../placement/" title="Placement / Topology" class="md-nav__link">
+      Placement / Topology
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="toc">
+    
+      
+    
+    
+      <label class="md-nav__link md-nav__link--active" for="toc">
+        Bootstrapping
+      </label>
+    
+    <a href="./" title="Bootstrapping" class="md-nav__link md-nav__link--active">
+      Bootstrapping
+    </a>
+    
+      
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#introduction" title="Introduction" class="md-nav__link">
+    Introduction
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bootstrappers" title="Bootstrappers" class="md-nav__link">
+    Bootstrappers
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#filesystem-bootstrapper" title="Filesystem Bootstrapper" class="md-nav__link">
+    Filesystem Bootstrapper
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#commitlog-bootstrapper" title="Commitlog Bootstrapper" class="md-nav__link">
+    Commitlog Bootstrapper
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#peers-bootstrapper" title="Peers Bootstrapper" class="md-nav__link">
+    Peers Bootstrapper
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#uninitialized-topology-bootstrapper" title="Uninitialized Topology Bootstrapper" class="md-nav__link">
+    Uninitialized Topology Bootstrapper
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#no-operational-all-bootstrapper" title="No Operational All Bootstrapper" class="md-nav__link">
+    No Operational All Bootstrapper
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bootstrappers-configuration" title="Bootstrappers Configuration" class="md-nav__link">
+    Bootstrappers Configuration
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#filesystemcommitlogpeersuninitialized_topology-default" title="filesystem,commitlog,peers,uninitialized_topology (default)" class="md-nav__link">
+    filesystem,commitlog,peers,uninitialized_topology (default)
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filesystempeersuninitialized_topology-default" title="filesystem,peers,uninitialized_topology (default)" class="md-nav__link">
+    filesystem,peers,uninitialized_topology (default)
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#peersuninitialized_topology" title="peers,uninitialized_topology" class="md-nav__link">
+    peers,uninitialized_topology
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#invalid-bootstrappers-configuration" title="Invalid bootstrappers configuration" class="md-nav__link">
+    Invalid bootstrappers configuration
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#filesystemcommitloguninitialized_topology" title="filesystem,commitlog,uninitialized_topology" class="md-nav__link">
+    filesystem,commitlog,uninitialized_topology
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filesystemuninitialized_topology" title="filesystem,uninitialized_topology" class="md-nav__link">
+    filesystem,uninitialized_topology
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#commitloguninitialized_topology" title="commitlog,uninitialized_topology" class="md-nav__link">
+    commitlog,uninitialized_topology
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+    
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-7" type="checkbox" id="nav-7">
+    
+    <label class="md-nav__link" for="nav-7">
+      Integrations
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-7">
+        Integrations
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../integrations/prometheus/" title="Prometheus" class="md-nav__link">
+      Prometheus
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../troubleshooting/" title="Troubleshooting" class="md-nav__link">
+      Troubleshooting
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../faqs/" title="FAQs" class="md-nav__link">
+      FAQs
+    </a>
+  </li>
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="toc">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#introduction" title="Introduction" class="md-nav__link">
+    Introduction
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bootstrappers" title="Bootstrappers" class="md-nav__link">
+    Bootstrappers
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#filesystem-bootstrapper" title="Filesystem Bootstrapper" class="md-nav__link">
+    Filesystem Bootstrapper
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#commitlog-bootstrapper" title="Commitlog Bootstrapper" class="md-nav__link">
+    Commitlog Bootstrapper
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#peers-bootstrapper" title="Peers Bootstrapper" class="md-nav__link">
+    Peers Bootstrapper
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#uninitialized-topology-bootstrapper" title="Uninitialized Topology Bootstrapper" class="md-nav__link">
+    Uninitialized Topology Bootstrapper
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#no-operational-all-bootstrapper" title="No Operational All Bootstrapper" class="md-nav__link">
+    No Operational All Bootstrapper
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bootstrappers-configuration" title="Bootstrappers Configuration" class="md-nav__link">
+    Bootstrappers Configuration
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#filesystemcommitlogpeersuninitialized_topology-default" title="filesystem,commitlog,peers,uninitialized_topology (default)" class="md-nav__link">
+    filesystem,commitlog,peers,uninitialized_topology (default)
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filesystempeersuninitialized_topology-default" title="filesystem,peers,uninitialized_topology (default)" class="md-nav__link">
+    filesystem,peers,uninitialized_topology (default)
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#peersuninitialized_topology" title="peers,uninitialized_topology" class="md-nav__link">
+    peers,uninitialized_topology
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#invalid-bootstrappers-configuration" title="Invalid bootstrappers configuration" class="md-nav__link">
+    Invalid bootstrappers configuration
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#filesystemcommitloguninitialized_topology" title="filesystem,commitlog,uninitialized_topology" class="md-nav__link">
+    filesystem,commitlog,uninitialized_topology
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filesystemuninitialized_topology" title="filesystem,uninitialized_topology" class="md-nav__link">
+    filesystem,uninitialized_topology
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#commitloguninitialized_topology" title="commitlog,uninitialized_topology" class="md-nav__link">
+    commitlog,uninitialized_topology
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          <div class="md-content">
+            <article class="md-content__inner md-typeset">
+              
+                
+                  <a href="https://github.com/m3db/m3/edit/master/docs/operational_guide/bootstrapping.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                
+                
+                <h1 id="bootstrapping">Bootstrapping</h1>
+<h2 id="introduction">Introduction</h2>
+<p>We recommend reading the <a href="../placement/">placement operational guide</a> before reading the rest of this document.</p>
+<p>When an M3DB node is turned on (goes through a placement change) it needs to go through a bootstrapping process to determine the integrity of data that it has, replay writes from the commit log, and/or stream missing data from its peers. In most cases, as long as you're running with the default and recommended bootstrapper configuration of: <code>filesystem,commitlog,peers,uninitialized_topology</code> then you should not need to worry about the bootstrapping process at all and M3DB will take care of doing the right thing such that you don't lose data and consistency guarantees are met. Note that the order of the configured bootstrappers <em>does</em> matter.</p>
+<p>Generally speaking, we recommend that operators do not modify the bootstrappers configuration, but in the rare case that you to, this document is designed to help you understand the implications of doing so.</p>
+<p>M3DB currently supports 5 different bootstrappers:</p>
+<ol>
+<li><code>filesystem</code></li>
+<li><code>commitlog</code></li>
+<li><code>peers</code></li>
+<li><code>uninitialized_topology</code></li>
+<li><code>noop_all</code></li>
+</ol>
+<p>When the bootstrapping process begins, M3DB nodes need to determine two things:</p>
+<ol>
+<li>What shards the bootstrapping node should bootstrap, which can be determined from the cluster placement.</li>
+<li>What time-ranges the bootstrapping node needs to bootstrap those shards for, which can be determined from the namespace retention.</li>
+</ol>
+<p>For example, imagine a M3DB node that is responsible for shards 1, 5, 13, and 25 according to the cluster placement. In addition, it has a single namespace called "metrics" with a retention of 48 hours. When the M3DB node is started, the node will determine that it needs to bootstrap shards 1, 5, 13, and 25 for the time range starting at the current time and ending 48 hours ago. In order to obtain all this data, it will run the configured bootstrappers in the specified order. Every bootstrapper will notify the bootstrapping process of which shard/ranges it was able to bootstrap and the bootstrapping process will continue working its way through the list of bootstrappers until all the shards/ranges required have been marked as fulfilled. Otherwise the M3DB node will fail to start.</p>
+<h2 id="bootstrappers">Bootstrappers</h2>
+<h3 id="filesystem-bootstrapper">Filesystem Bootstrapper</h3>
+<p>The <code>filesystem</code> bootstrapper's responsibility is to determine which immutable <a href="../../m3db/architecture/storage/">Fileset files</a> exist on disk, and if so, mark them as fulfilled. The <code>filesystem</code> bootstrapper achieves this by scanning M3DB's directory structure and determining which Fileset files exist on disk. Unlike the other bootstrappers, the <code>filesystem</code> bootstrapper does not need to load any data into memory, it simply verifies the checksums of the data on disk and other components of the M3DB node will handle reading (and caching) the data dynamically once it begins to serve reads.</p>
+<h3 id="commitlog-bootstrapper">Commitlog Bootstrapper</h3>
+<p>The <code>commitlog</code> bootstrapper's responsibility is to read the commitlog and snapshot (compacted commitlogs) files on disk and recover any data that has not yet been written out as an immutable Fileset file. Unlike the <code>filesystem</code> bootstrapper, the commit log bootstrapper cannot simply check which files are on disk in order to determine if it can satisfy a bootstrap request. Instead, the <code>commitlog</code> bootstrapper determines whether it can satisfy a bootstrap request using a simple heuristic.</p>
+<p>On a shard-by-shard basis, the <code>commitlog</code> bootstrapper will consult the cluster placement to see if the node it is running on has ever achieved the <code>Available</code> status for the specified shard. If so, then the commit log bootstrapper should have all the data since the last Fileset file was flushed and will return that it can satisfy any time range for that shard. In other words, the commit log bootstrapper is all-or-nothing for a given shard: it will either return that it can satisfy any time range for a given shard or none at all. In addition, the <code>commitlog</code> bootstrapper <em>assumes</em> it is running after the <code>filesystem</code> bootstrapper. M3DB will not allow you to run with a configuration where the <code>filesystem</code> bootstrapper is placed after the <code>commitlog</code> bootstrapper, but it will allow you to run the <code>commitlog</code> bootstrapper without the <code>filesystem</code> bootstrapper which can result in loss of data, depending on the workload.</p>
+<h3 id="peers-bootstrapper">Peers Bootstrapper</h3>
+<p>The <code>peers</code> bootstrapper's responsibility is to stream in data for shard/ranges from other M3DB nodes (peers) in the cluster. This bootstrapper is only useful in M3DB clusters with more than a single node <em>and</em> where the replication factor is set to a value larger than 1. The <code>peers</code> bootstrapper will determine whether or not it can satisfy a bootstrap request on a shard-by-shard basis by consulting the cluster placement and determining if there are enough peers to satisfy the bootstrap request. For example, imagine the following M3DB placement where node A is trying to perform a peer bootstrap:</p>
+<pre><code>    ┌─────────────────┐          ┌─────────────────┐        ┌─────────────────┐
+    │     Node A      │          │     Node B      │        │     Node C      │
+────┴─────────────────┴──────────┴─────────────────┴────────┴─────────────────┴───
+┌─────────────────────────┐   ┌───────────────────────┐   ┌──────────────────────┐
+│                         │   │                       │   │                      │
+│                         │   │                       │   │                      │
+│  Shard 1: Initializing  │   │ Shard 1: Initializing │   │  Shard 1: Available  │
+│  Shard 2: Initializing  │   │ Shard 2: Initializing │   │  Shard 2: Available  │
+│  Shard 3: Initializing  │   │ Shard 3: Initializing │   │  Shard 3: Available  │
+│                         │   │                       │   │                      │
+│                         │   │                       │   │                      │
+└─────────────────────────┘   └───────────────────────┘   └──────────────────────┘
+</code></pre>
+
+<p>In this case, the <code>peers</code> bootstrapper running on node A will not be able to fullfill any requests because node B is in the <code>Initializing</code> state for all of its shards and cannot fulfill bootstrap requests. This means that node A's <code>peers</code> bootstrapper cannot meet its default consistency level of majority for bootstrapping (1 &lt; 2 which is majority with a replication factor of 3). On the other hand, node A would be able to peer bootstrap its shards in the following placement because its peers (nodes B/C) have sufficient replicas of the shards it needs in the <code>Available</code> state:</p>
+<pre><code>    ┌─────────────────┐          ┌─────────────────┐        ┌─────────────────┐
+    │     Node A      │          │     Node B      │        │     Node C      │
+────┴─────────────────┴──────────┴─────────────────┴────────┴─────────────────┴───
+┌─────────────────────────┐   ┌───────────────────────┐   ┌──────────────────────┐
+│                         │   │                       │   │                      │
+│                         │   │                       │   │                      │
+│  Shard 1: Initializing  │   │ Shard 1: Available    │   │  Shard 1: Available  │
+│  Shard 2: Initializing  │   │ Shard 2: Available    │   │  Shard 2: Available  │
+│  Shard 3: Initializing  │   │ Shard 3: Available    │   │  Shard 3: Available  │
+│                         │   │                       │   │                      │
+│                         │   │                       │   │                      │
+└─────────────────────────┘   └───────────────────────┘   └──────────────────────┘
+</code></pre>
+
+<p>Note that a bootstrap consistency level of <code>majority</code> is the default value, but can be modified by changing the value of the key <code>m3db.client.bootstrap-consistency-level</code> in <a href="https://coreos.com/etcd/">etcd</a> to one of: <code>none</code>, <code>one</code>, <code>unstrict_majority</code> (attempt to read from majority, but settle for less if any errors occur), <code>majority</code> (strict majority), and <code>all</code>. For example, if an entire cluster with a replication factor of 3 was restarted simultaneously, all the nodes would get stuck in an infinite loop trying to peer bootstrap from each other and not achieving majority until an operator modified this value. Note that this can happen even if all the shards were in the <code>Available</code> state because M3DB nodes will reject all read requests for a shard until they have bootstrapped that shard (which has to happen everytime the node is restarted).</p>
+<p><strong>Note</strong>: Any bootstrappers configuration that does not include the <code>peers</code> bootstrapper will be unable to handle dynamic placement changes of any kind.</p>
+<h3 id="uninitialized-topology-bootstrapper">Uninitialized Topology Bootstrapper</h3>
+<p>The purpose of the <code>uninitialized_topology</code> bootstrapper is to succeed bootstraps for all time ranges for shards that have never been completely bootstrapped (at a cluster level). This allows us to run the default bootstrapper configuration of: <code>filesystem,commitlog,peers,topology_uninitialized</code> such that the <code>filesystem</code> and <code>commitlog</code> bootstrappers are used by default in node restarts, the <code>peers</code> bootstrapper is used for node adds/removes/replaces, and bootstraps still succeed for brand new placement where both the <code>commitlog</code> and <code>peers</code> bootstrappers will be unable to succeed any bootstraps. In other words, the <code>uninitialized_topology</code> bootstrapper allows us to place the <code>commitlog</code> bootstrapper <em>before</em> the <code>peers</code> bootstrapper and still succeed bootstraps with brand new placements without resorting to using the noop-all bootstrapper which suceeds bootstraps for all shard/time-ranges regardless of the status of the placement.</p>
+<p>The <code>uninitialized_topology</code> bootstrapper determines whether a placement is "new" for a given shard by counting the number of nodes in the <code>Initializing</code> state and <code>Leaving</code> states and there are more <code>Initializing</code> than <code>Leaving</code>, then it succeeds the bootstrap because that means the placement has never reached a state where all nodes are <code>Available</code>.</p>
+<h3 id="no-operational-all-bootstrapper">No Operational All Bootstrapper</h3>
+<p>The <code>noop_all</code> bootstrapper succeeds all bootstraps regardless of requests shards/time ranges.</p>
+<h2 id="bootstrappers-configuration">Bootstrappers Configuration</h2>
+<p>Now that we've gone over the various bootstrappers, let's consider how M3DB will behave in different configurations. Note that we include <code>uninitialized_topology</code> at the end of all the lists of bootstrappers because its required to get a new placement up and running in the first place, but is not required after that (although leaving it in has no detrimental effects). Also note that any configuration that does not include the <code>peers</code> bootstrapper will not be able to handle dynamic placement changes like node adds/removes/replaces.</p>
+<h3 id="filesystemcommitlogpeersuninitialized_topology-default">filesystem,commitlog,peers,uninitialized_topology (default)</h3>
+<p>This is the default bootstrappers configuration for M3DB and will behave "as expected" in the sense that it will maintain M3DB's consistency guarantees at all times, handle node adds/replaces/removes correctly, and still work with brand new placements / topologies. <strong>This is the only configuration that we recommend using in production</strong>.</p>
+<p>In the general case, the node will use only the <code>filesystem</code> and <code>commitlog</code> bootstrappers on node startup. However, in the case of a node add/remove/replace, the <code>commitlog</code> bootstrapper will detect that it is unable to fulfill the bootstrap request (because the node has never reached the <code>Available</code> state) and defer to the <code>peers</code> bootstrapper to stream in the data.</p>
+<p>Additionally, if it is a brand new placement where even the <code>peers</code> bootstrapper cannot fulfill the bootstrap, this will be detected by the <code>uninitialized_topology</code> bootstrapper which will succeed the bootstrap.</p>
+<h3 id="filesystempeersuninitialized_topology-default">filesystem,peers,uninitialized_topology (default)</h3>
+<p>Everytime a node is restarted it will attempt to stream in all of the the data for any blocks that it has never flushed, which is generally the currently active block and possibly the previous block as well. This mode can be useful if you want to improve performance or save disk space by operating nodes without a commitlog, or want to force a repair of any unflushed blocks. This mode can lead to violations of M3DB's consistency guarantees due to the fact that commit logs are being ignored. In addition, if you lose a replication factors worth or more of hosts at the same time, the node will not be able to bootstrap unless an operator modifies the bootstrap consistency level configuration in etcd (see <code>peers</code> bootstrap section above). Finally, this mode adds additional network and resource pressure on other nodes in the cluster while one node is peer bootstrapping from them which can be problematic in catastrophic scenarios where all the nodes are trying to stream data from each other.</p>
+<h3 id="peersuninitialized_topology">peers,uninitialized_topology</h3>
+<p>Every time a node is restarted, it will attempt to stream in <em>all</em> of the data that it is responsible for from its peers, completely ignoring the immutable Fileset files it already has on disk. This mode can be useful if you want to improve performance or save disk space by operating nodes without a commitlog, or want to force a repair of all data on an individual node. This mode can lead to violations of M3DB's consistency guarantees due to the fact that the commit logs are being ignored. In addition, if you lose a replication factors worth or more of hosts at the same time, the node will not be able to bootstrap unless an operator modifies the bootstrap consistency level configuration in etcd (see <code>peers</code> bootstrap section above). Finally, this mode adds additional network and resource pressure on other nodes in the cluster while one node is peer bootstrapping from them which can be problematic in catastrophic scenarios where all the nodes are trying to stream data from each other.</p>
+<h2 id="invalid-bootstrappers-configuration">Invalid bootstrappers configuration</h2>
+<p>For the sake of completeness, we've included a short discussion below of some bootstrapping configurations that we consider "invalid" in that they are likely to lose data / violate M3DB's consistency guarantees and/or not handle placement changes in a correct way.</p>
+<h3 id="filesystemcommitloguninitialized_topology">filesystem,commitlog,uninitialized_topology</h3>
+<p>This bootstrapping configuration will work just fine if nodes are never added/replaced/removed, but will fail when attempting a node add/replace/remove.</p>
+<h3 id="filesystemuninitialized_topology">filesystem,uninitialized_topology</h3>
+<p>Every time a node is restarted it will utilize the immutable Fileset files its already written out to disk, but any data that it had received since it wrote out the last set of immutable files will be lost.</p>
+<h3 id="commitloguninitialized_topology">commitlog,uninitialized_topology</h3>
+<p>Every time a node is restarted it will read all the commit log and snapshot files it has on disk, but it will ignore all the data in the immutable Fileset files that it has already written.</p>
+                
+                  
+                
+              
+              
+                
+
+
+              
+            </article>
+          </div>
+        </div>
+      </main>
+      
+        
+<footer class="md-footer">
+  
+    <div class="md-footer-nav">
+      <nav class="md-footer-nav__inner md-grid">
+        
+          <a href="../placement/" title="Placement / Topology" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+            <div class="md-flex__cell md-flex__cell--shrink">
+              <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
+            </div>
+            <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
+              <span class="md-flex__ellipsis">
+                <span class="md-footer-nav__direction">
+                  Previous
+                </span>
+                Placement / Topology
+              </span>
+            </div>
+          </a>
+        
+        
+          <a href="../../integrations/prometheus/" title="Prometheus" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+            <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
+              <span class="md-flex__ellipsis">
+                <span class="md-footer-nav__direction">
+                  Next
+                </span>
+                Prometheus
+              </span>
+            </div>
+            <div class="md-flex__cell md-flex__cell--shrink">
+              <i class="md-icon md-icon--arrow-forward md-footer-nav__button"></i>
+            </div>
+          </a>
+        
+      </nav>
+    </div>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright">
+        
+        powered by
+        <a href="http://www.mkdocs.org">MkDocs</a>
+        and
+        <a href="https://squidfunk.github.io/mkdocs-material/">
+          Material for MkDocs</a>
+      </div>
+      
+        
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    
+      <script src="../../assets/javascripts/application.b438e6c5.js"></script>
+      
+      <script>app.initialize({version:"0.17.3",url:{base:"../.."}})</script>
+      
+    
+    
+      
+    
+  </body>
+</html>

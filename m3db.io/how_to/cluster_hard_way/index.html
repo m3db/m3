@@ -1,0 +1,1284 @@
+
+
+
+
+<!DOCTYPE html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <meta http-equiv="x-ua-compatible" content="ie=edge">
+      
+      
+      
+      
+        <meta name="lang:clipboard.copy" content="Copy to clipboard">
+      
+        <meta name="lang:clipboard.copied" content="Copied to clipboard">
+      
+        <meta name="lang:search.language" content="en">
+      
+        <meta name="lang:search.pipeline.stopwords" content="True">
+      
+        <meta name="lang:search.pipeline.trimmer" content="True">
+      
+        <meta name="lang:search.result.none" content="No matching documents">
+      
+        <meta name="lang:search.result.one" content="1 matching document">
+      
+        <meta name="lang:search.result.other" content="# matching documents">
+      
+        <meta name="lang:search.tokenizer" content="[\s\-]+">
+      
+      <link rel="shortcut icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-0.17.3, mkdocs-material-2.7.3">
+    
+    
+      
+        <title>M3DB Cluster Deployment, Manually - M3 Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/application.8d40d89b.css">
+      
+    
+    
+      <script src="../../assets/javascripts/modernizr.1aa3b519.js"></script>
+    
+    
+      <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
+      
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700|Roboto+Mono">
+        <style>body,input{font-family:"Roboto","Helvetica Neue",Helvetica,Arial,sans-serif}code,kbd,pre{font-family:"Roboto Mono","Courier New",Courier,monospace}</style>
+      
+      <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    
+    
+    
+  </head>
+  
+    <body dir="ltr">
+  
+    <svg class="md-svg">
+      <defs>
+        
+        
+          <svg xmlns="http://www.w3.org/2000/svg" width="416" height="448"
+    viewBox="0 0 416 448" id="github">
+  <path fill="currentColor" d="M160 304q0 10-3.125 20.5t-10.75 19-18.125
+        8.5-18.125-8.5-10.75-19-3.125-20.5 3.125-20.5 10.75-19 18.125-8.5
+        18.125 8.5 10.75 19 3.125 20.5zM320 304q0 10-3.125 20.5t-10.75
+        19-18.125 8.5-18.125-8.5-10.75-19-3.125-20.5 3.125-20.5 10.75-19
+        18.125-8.5 18.125 8.5 10.75 19 3.125 20.5zM360
+        304q0-30-17.25-51t-46.75-21q-10.25 0-48.75 5.25-17.75 2.75-39.25
+        2.75t-39.25-2.75q-38-5.25-48.75-5.25-29.5 0-46.75 21t-17.25 51q0 22 8
+        38.375t20.25 25.75 30.5 15 35 7.375 37.25 1.75h42q20.5 0
+        37.25-1.75t35-7.375 30.5-15 20.25-25.75 8-38.375zM416 260q0 51.75-15.25
+        82.75-9.5 19.25-26.375 33.25t-35.25 21.5-42.5 11.875-42.875 5.5-41.75
+        1.125q-19.5 0-35.5-0.75t-36.875-3.125-38.125-7.5-34.25-12.875-30.25-20.25-21.5-28.75q-15.5-30.75-15.5-82.75
+        0-59.25 34-99-6.75-20.5-6.75-42.5 0-29 12.75-54.5 27 0 47.5 9.875t47.25
+        30.875q36.75-8.75 77.25-8.75 37 0 70 8 26.25-20.5
+        46.75-30.25t47.25-9.75q12.75 25.5 12.75 54.5 0 21.75-6.75 42 34 40 34
+        99.5z" />
+</svg>
+        
+      </defs>
+    </svg>
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="search" autocomplete="off">
+    <label class="md-overlay" data-md-component="overlay" for="drawer"></label>
+    
+      <a href="#m3db-cluster-deployment-manually-the-hard-way" tabindex="1" class="md-skip">
+        Skip to content
+      </a>
+    
+    
+      <header class="md-header" data-md-component="header">
+  <nav class="md-header-nav md-grid">
+    <div class="md-flex">
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <a href="../.." title="M3 Documentation" class="md-header-nav__button md-logo">
+          
+            <i class="md-icon"></i>
+          
+        </a>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <label class="md-icon md-icon--menu md-header-nav__button" for="drawer"></label>
+      </div>
+      <div class="md-flex__cell md-flex__cell--stretch">
+        <div class="md-flex__ellipsis md-header-nav__title" data-md-component="title">
+          
+            
+              <span class="md-header-nav__topic">
+                M3 Documentation
+              </span>
+              <span class="md-header-nav__topic">
+                M3DB Cluster Deployment, Manually
+              </span>
+            
+          
+        </div>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        
+          
+            <label class="md-icon md-icon--search md-header-nav__button" for="search"></label>
+            
+<div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="query" data-md-state="active">
+      <label class="md-icon md-search__icon" for="search"></label>
+      <button type="reset" class="md-icon md-search__icon" data-md-component="reset" tabindex="-1">
+        &#xE5CD;
+      </button>
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="result">
+          <div class="md-search-result__meta">
+            Type to start searching
+          </div>
+          <ol class="md-search-result__list"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+          
+        
+      </div>
+      
+        <div class="md-flex__cell md-flex__cell--shrink">
+          <div class="md-header-nav__source">
+            
+
+
+  
+
+
+  <a href="https://github.com/m3db/m3/" title="Go to repository" class="md-source" data-md-source="github">
+    
+      <div class="md-source__icon">
+        <svg viewBox="0 0 24 24" width="24" height="24">
+          <use xlink:href="#github" width="24" height="24"></use>
+        </svg>
+      </div>
+    
+    <div class="md-source__repository">
+      m3db/m3
+    </div>
+  </a>
+
+          </div>
+        </div>
+      
+    </div>
+  </nav>
+</header>
+    
+    <div class="md-container">
+      
+        
+      
+      
+      <main class="md-main">
+        <div class="md-main__inner md-grid" data-md-component="container">
+          
+            
+              <div class="md-sidebar md-sidebar--primary" data-md-component="navigation">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    <nav class="md-nav md-nav--primary" data-md-level="0">
+  <label class="md-nav__title md-nav__title--site" for="drawer">
+    <span class="md-nav__button md-logo">
+      
+        <i class="md-icon"></i>
+      
+    </span>
+    M3 Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      
+
+
+  
+
+
+  <a href="https://github.com/m3db/m3/" title="Go to repository" class="md-source" data-md-source="github">
+    
+      <div class="md-source__icon">
+        <svg viewBox="0 0 24 24" width="24" height="24">
+          <use xlink:href="#github" width="24" height="24"></use>
+        </svg>
+      </div>
+    
+    <div class="md-source__repository">
+      m3db/m3
+    </div>
+  </a>
+
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../.." title="Introduction" class="md-nav__link">
+      Introduction
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2" type="checkbox" id="nav-2">
+    
+    <label class="md-nav__link" for="nav-2">
+      Overview
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-2">
+        Overview
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../introduction/components/components/" title="Components" class="md-nav__link">
+      Components
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../introduction/motivation/motivation/" title="Motivation" class="md-nav__link">
+      Motivation
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3" type="checkbox" id="nav-3">
+    
+    <label class="md-nav__link" for="nav-3">
+      M3DB
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-3">
+        M3DB
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../m3db/" title="Introduction" class="md-nav__link">
+      Introduction
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3-2" type="checkbox" id="nav-3-2">
+    
+    <label class="md-nav__link" for="nav-3-2">
+      Architecture
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-3-2">
+        Architecture
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../m3db/architecture/" title="Overview" class="md-nav__link">
+      Overview
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../m3db/architecture/engine/" title="Storage Engine" class="md-nav__link">
+      Storage Engine
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../m3db/architecture/sharding/" title="Sharding and Replication" class="md-nav__link">
+      Sharding and Replication
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../m3db/architecture/consistencylevels/" title="Consistency Levels" class="md-nav__link">
+      Consistency Levels
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../m3db/architecture/storage/" title="Storage" class="md-nav__link">
+      Storage
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../m3db/architecture/commitlogs/" title="Commit Logs" class="md-nav__link">
+      Commit Logs
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../m3db/architecture/peer_streaming/" title="Peer Streaming" class="md-nav__link">
+      Peer Streaming
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../m3db/architecture/caching/" title="Caching" class="md-nav__link">
+      Caching
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4">
+    
+    <label class="md-nav__link" for="nav-4">
+      Query Engine and Coordinator
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-4">
+        Query Engine and Coordinator
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../query_engine/" title="Introduction" class="md-nav__link">
+      Introduction
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../query_engine/roadmap/" title="Roadmap" class="md-nav__link">
+      Roadmap
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4-3" type="checkbox" id="nav-4-3">
+    
+    <label class="md-nav__link" for="nav-4-3">
+      Architecture
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="2">
+      <label class="md-nav__title" for="nav-4-3">
+        Architecture
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../query_engine/architecture/" title="Overview" class="md-nav__link">
+      Overview
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../query_engine/architecture/blocks/" title="Blocks" class="md-nav__link">
+      Blocks
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../query_engine/architecture/functions/" title="Function Processing" class="md-nav__link">
+      Function Processing
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-5" type="checkbox" id="nav-5" checked>
+    
+    <label class="md-nav__link" for="nav-5">
+      How-To's
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-5">
+        How-To's
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../single_node/" title="M3DB Single Node Deployment" class="md-nav__link">
+      M3DB Single Node Deployment
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="toc">
+    
+      
+    
+    
+      <label class="md-nav__link md-nav__link--active" for="toc">
+        M3DB Cluster Deployment, Manually
+      </label>
+    
+    <a href="./" title="M3DB Cluster Deployment, Manually" class="md-nav__link md-nav__link--active">
+      M3DB Cluster Deployment, Manually
+    </a>
+    
+      
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#introduction" title="Introduction" class="md-nav__link">
+    Introduction
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#primer-architecture" title="Primer Architecture" class="md-nav__link">
+    Primer Architecture
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#role-type" title="Role Type" class="md-nav__link">
+    Role Type
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#provisioning" title="Provisioning" class="md-nav__link">
+    Provisioning
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#network" title="Network" class="md-nav__link">
+    Network
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kernel" title="Kernel" class="md-nav__link">
+    Kernel
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#os" title="OS" class="md-nav__link">
+    OS
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#config-files" title="Config files" class="md-nav__link">
+    Config files
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#start-the-seed-nodes" title="Start the seed nodes" class="md-nav__link">
+    Start the seed nodes
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#initialize-topology" title="Initialize Topology" class="md-nav__link">
+    Initialize Topology
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#create-namespaces" title="Create namespace(s)" class="md-nav__link">
+    Create namespace(s)
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#test-it-out" title="Test it out" class="md-nav__link">
+    Test it out
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#integrations" title="Integrations" class="md-nav__link">
+    Integrations
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+    
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../kubernetes/" title="M3DB on Kubernetes" class="md-nav__link">
+      M3DB on Kubernetes
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-6" type="checkbox" id="nav-6">
+    
+    <label class="md-nav__link" for="nav-6">
+      Operational Guides
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-6">
+        Operational Guides
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../operational_guide/placement/" title="Placement / Topology" class="md-nav__link">
+      Placement / Topology
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../operational_guide/bootstrapping/" title="Bootstrapping" class="md-nav__link">
+      Bootstrapping
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-7" type="checkbox" id="nav-7">
+    
+    <label class="md-nav__link" for="nav-7">
+      Integrations
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-7">
+        Integrations
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../integrations/prometheus/" title="Prometheus" class="md-nav__link">
+      Prometheus
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../troubleshooting/" title="Troubleshooting" class="md-nav__link">
+      Troubleshooting
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../../faqs/" title="FAQs" class="md-nav__link">
+      FAQs
+    </a>
+  </li>
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="toc">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#introduction" title="Introduction" class="md-nav__link">
+    Introduction
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#primer-architecture" title="Primer Architecture" class="md-nav__link">
+    Primer Architecture
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#role-type" title="Role Type" class="md-nav__link">
+    Role Type
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#provisioning" title="Provisioning" class="md-nav__link">
+    Provisioning
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#network" title="Network" class="md-nav__link">
+    Network
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kernel" title="Kernel" class="md-nav__link">
+    Kernel
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#os" title="OS" class="md-nav__link">
+    OS
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#config-files" title="Config files" class="md-nav__link">
+    Config files
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#start-the-seed-nodes" title="Start the seed nodes" class="md-nav__link">
+    Start the seed nodes
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#initialize-topology" title="Initialize Topology" class="md-nav__link">
+    Initialize Topology
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#create-namespaces" title="Create namespace(s)" class="md-nav__link">
+    Create namespace(s)
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#test-it-out" title="Test it out" class="md-nav__link">
+    Test it out
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#integrations" title="Integrations" class="md-nav__link">
+    Integrations
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          <div class="md-content">
+            <article class="md-content__inner md-typeset">
+              
+                
+                  <a href="https://github.com/m3db/m3/edit/master/docs/how_to/cluster_hard_way.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                
+                
+                <h1 id="m3db-cluster-deployment-manually-the-hard-way">M3DB Cluster Deployment, Manually (The Hard Way)</h1>
+<h2 id="introduction">Introduction</h2>
+<p>This document lists the manual steps involved in deploying a M3DB cluster. In practice, you'd be automating this using Terraform or using Kubernetes rather than doing this by hand; guides for doing so are available under the How-To section.</p>
+<h2 id="primer-architecture">Primer Architecture</h2>
+<p>A quick primer on M3DB architecture. Here’s what a typical deployment looks like:</p>
+<p><img alt="Typical Deployment" src="../cluster_architecture.png" /></p>
+<p>A few different things to highlight about the diagram:</p>
+<h3 id="role-type">Role Type</h3>
+<p>There are three ‘role types’ for a m3db deployment -</p>
+<ul>
+<li>
+<p>Coordinator: <code>m3coordinator</code> serves to coordinate reads and writes across all hosts in the cluster. It’s a lightweight process, and does not store any data. This role would typically be run alongside a Prometheus instance, or be baked into a collector agent.</p>
+</li>
+<li>
+<p>Storage Node: <code>m3dbnode</code> processes running on these hosts are the workhorses of the database, they store data; and serve reads and writes.</p>
+</li>
+<li>
+<p>Seed Node: First and foremost, these hosts are storage nodes themselves. In addition to that responsibility, they run an embedded ETCD server. This is to allow the various M3DB processes running across the cluster to reason about the topology/configuration of the cluster in a consistent manner.</p>
+</li>
+</ul>
+<p>Note: In very large deployments, you’d use a dedicated ETCD cluster, and only use M3DB Storage and Coordinator Nodes</p>
+<h2 id="provisioning">Provisioning</h2>
+<p>Enough background, lets get you going with a real cluster! Provision your host (be it VMs from AWS/GCP/etc) or bare-metal servers in your DC with the latest and greatest flavour of Linux you favor. M3DB works on all popular distributions - Ubuntu/RHEL/CentOS, let us know if you run into issues on another platform and we’ll be happy to assist.</p>
+<h3 id="network">Network</h3>
+<p>If you’re using AWS or GCP it is highly advised to use static IPs so that if you need to replace a host, you don’t have to update your configuration files on all the hosts, you simply decomission the old seed node and provision a new seed node with the same host ID and static IP that the old seed node had.  For AWS you can use a <a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-eni.html">Elastic Network Interface</a> on a VPC and for GCP you can simply use an <a href="https://cloud.google.com/compute/docs/ip-addresses/reserve-static-internal-ip-address">internal static IP address</a>.</p>
+<p>In this example you will be creating three static IP addresses for the three seed nodes.</p>
+<p>Further, we assume you have hostnames configured correctly too. i.e. running <code>hostname</code> on a host in the cluster returns the host ID you'll be using when specifying instance host IDs when creating the M3DB cluster placement. E.g. running <code>hostname</code> on a node <code>m3db001</code> should return it's host ID <code>m3db001</code>.</p>
+<p>In GCP the name of your instance when you create it will automatically be it's hostname. When you create an instance click "Management, disks, networking, SSH keys" and under "Networking" click the default interface and click the "Primary internal IP" drop down and select "Reserve a static internal IP address" and give it a name, i.e. <code>m3db001</code>, a description that describes it's a seed node IP address and use "Assign automatically".</p>
+<p>In AWS it might be simpler to just use whatever the hostname you get for the provisioned VM as your host ID when specifying M3DB placement.  Either that or use the <code>environment</code> host ID resolver and pass your host ID when launching the database process with an environment variable.  You can set to the host ID and specify the environment variable name in config as <code>envVarName: M3DB_HOST_ID</code> if you are using an environment variable named <code>M3DB_HOST_ID</code>.</p>
+<p>Relevant config snippet:</p>
+<pre><code>hostID:
+  resolver: environment
+  envVarName: M3DB_HOST_ID
+</code></pre>
+
+<p>Then start your process with:</p>
+<pre><code>M3DB_HOST_ID=m3db001 m3dbnode -f config.yml
+</code></pre>
+
+<h3 id="kernel">Kernel</h3>
+<p><code>m3dbnode</code> uses a lot of mmap-ed files for performance, as a result, you might need to bump <code>vm.max_map_count</code>. We suggest setting this value to 262,144 when provisioning your VM, so you don’t have to come back and debug issues later.</p>
+<h3 id="os">OS</h3>
+<p><code>m3dbnode</code> also can use a high number of files and we suggest setting a high max open number of files due to per partition fileset volumes.</p>
+<p>On linux you can set a high limit for number of max open files in <code>/etc/security/limits.conf</code>:</p>
+<pre><code>your_m3db_user        hard nofile 500000
+your_m3db_user        soft nofile 500000
+</code></pre>
+
+<p>Alternatively, if you wish to have <code>m3dbnode</code> run under <code>systemd</code> you can use our <a href="https://github.com/m3db/m3/tree/master/integrations/systemd/m3dbnode.service">service example</a> which will set sane defaults.</p>
+<p>Before running the process make sure the limits are set, if running manually you can raise the limit for the current user with <code>ulimit -n 500000</code>.</p>
+<h2 id="config-files">Config files</h2>
+<p>We wouldn’t feel right to call this guide, “The Hard Way” and not require you to change some configs by hand.</p>
+<p>Note: the steps that follow assume you have the following 3 seed nodes - make necessary adjustment if you have more or are using a dedicated ETCD cluster. Example seed nodes:</p>
+<ul>
+<li>m3db001 (Region=us-east1, Zone=us-east1-a, Static IP=10.142.0.1)</li>
+<li>m3db002 (Region=us-east1, Zone=us-east1-b, Static IP=10.142.0.2)</li>
+<li>m3db003 (Region=us-east1, Zone=us-east1-c, Static IP=10.142.0.3)</li>
+</ul>
+<p>We’re going to start with the M3DB config template and modify it to work for your cluster. Start by downloading the <a href="https://github.com/m3db/m3/blob/master/src/dbnode/config/m3dbnode-cluster-template.yml">config</a>. Update the config ‘service’ and 'seedNodes' sections to read as follows:</p>
+<pre><code>config:
+  service:
+    env: default_env
+    zone: embedded
+    service: m3db
+    cacheDir: /var/lib/m3kv
+    etcdClusters:
+      - zone: embedded
+        endpoints:
+          - 10.142.0.1:2379
+          - 10.142.0.2:2379
+          - 10.142.0.3:2379
+  seedNodes:
+    initialCluster:
+      - hostID: m3db001
+        endpoint: http://10.142.0.1:2380
+      - hostID: m3db002
+        endpoint: http://10.142.0.2:2380
+      - hostID: m3db003
+        endpoint: http://10.142.0.3:2380
+</code></pre>
+
+<h2 id="start-the-seed-nodes">Start the seed nodes</h2>
+<p>Transfer the config you just crafted to each host in the cluster. And then starting with the seed nodes, start up the m3dbnode process:</p>
+<pre><code>m3dbnode -f &lt;config-name.yml&gt;
+</code></pre>
+
+<p>Note, remember to daemon-ize this using your favourite utility: systemd/init.d/supervisor/etc</p>
+<h2 id="initialize-topology">Initialize Topology</h2>
+<p>M3DB calls its cluster topology ‘placement’. Run the command below on any of the seed nodes to initialize your first placement.</p>
+<p>Note: Isolation group specifies how the cluster places shards to avoid more than one replica of a shard appearing in the same replica group. As such you must be using at least as many isolation groups as your replication factor. In this example we use the availibity zones <code>us-east1-a</code>, <code>us-east1-b</code>, <code>us-east1-c</code> as our isolation groups which matches our replication factor of 3.</p>
+<pre><code class="json">curl -X POST localhost:7201/api/v1/placement/init -d '{
+    &quot;num_shards&quot;: 1024,
+    &quot;replication_factor&quot;: 3,
+    &quot;instances&quot;: [
+        {
+            &quot;id&quot;: &quot;m3db001&quot;,
+            &quot;isolation_group&quot;: &quot;us-east1-a&quot;,
+            &quot;zone&quot;: &quot;embedded&quot;,
+            &quot;weight&quot;: 100,
+            &quot;endpoint&quot;: &quot;10.142.0.1:9000&quot;,
+            &quot;hostname&quot;: &quot;m3db001&quot;,
+            &quot;port&quot;: 9000
+        },
+        {
+            &quot;id&quot;: &quot;m3db002&quot;,
+            &quot;isolation_group&quot;: &quot;us-east1-b&quot;,
+            &quot;zone&quot;: &quot;embedded&quot;,
+            &quot;weight&quot;: 100,
+            &quot;endpoint&quot;: &quot;10.142.0.2:9000&quot;,
+            &quot;hostname&quot;: &quot;m3db002-us-east&quot;,
+            &quot;port&quot;: 9000
+        },
+        {
+            &quot;id&quot;: &quot;m3db003&quot;,
+            &quot;isolation_group&quot;: &quot;us-east1-c&quot;,
+            &quot;zone&quot;: &quot;embedded&quot;,
+            &quot;weight&quot;: 100,
+            &quot;endpoint&quot;: &quot;10.142.0.3:9000&quot;,
+            &quot;hostname&quot;: &quot;m3db003&quot;,
+            &quot;port&quot;: 9000
+        }
+    ]
+}'
+</code></pre>
+
+<h2 id="create-namespaces">Create namespace(s)</h2>
+<p>A namespace in M3DB is similar to a table in Cassandra (C*). You can specify retention and a few distinct properties on a namespace.</p>
+<p>Run the following on any seed node to create a ‘metrics’ namespace with 30 day retention, 12 hour block sizes, ability to write out of order datapoints into past or future by 1 hour:</p>
+<pre><code class="json">curl -X POST localhost:7201/api/v1/namespace -d '{
+  &quot;name&quot;: &quot;metrics&quot;,
+  &quot;options&quot;: {
+    &quot;bootstrapEnabled&quot;: true,
+    &quot;flushEnabled&quot;: true,
+    &quot;writesToCommitLog&quot;: true,
+    &quot;cleanupEnabled&quot;: true,
+    &quot;snapshotEnabled&quot;: true,
+    &quot;repairEnabled&quot;: false,
+    &quot;retentionOptions&quot;: {
+      &quot;retentionPeriodDuration&quot;: &quot;720h&quot;,
+      &quot;blockSizeDuration&quot;: &quot;12h&quot;,
+      &quot;bufferFutureDuration&quot;: &quot;1h&quot;,
+      &quot;bufferPastDuration&quot;: &quot;1h&quot;,
+      &quot;blockDataExpiry&quot;: true,
+      &quot;blockDataExpiryAfterNotAccessPeriodDuration&quot;: &quot;5m&quot;
+    },
+    &quot;indexOptions&quot;: {
+      &quot;enabled&quot;: true,
+      &quot;blockSizeDuration&quot;: &quot;12h&quot;
+    }
+  }
+}'
+</code></pre>
+
+<p>Shortly after, you should see your node complete bootstrapping:</p>
+<pre><code>20:10:12.911218[I] updating database namespaces [{adds [default]} {updates []} {removals []}]
+20:10:13.462798[I] node tchannelthrift: listening on 0.0.0.0:9000
+20:10:13.463107[I] cluster tchannelthrift: listening on 0.0.0.0:9001
+20:10:13.747173[I] node httpjson: listening on 0.0.0.0:9002
+20:10:13.747506[I] cluster httpjson: listening on 0.0.0.0:9003
+20:10:13.747763[I] bootstrapping shards for range starting ...
+...
+20:10:13.757834[I] bootstrap finished [{namespace metrics} {duration 10.1261ms}]
+20:10:13.758001[I] bootstrapped
+20:10:14.764771[I] successfully updated topology to 3 hosts
+</code></pre>
+
+<p>Read more about namespaces and the various knobs in the docs.</p>
+<h2 id="test-it-out">Test it out</h2>
+<p>Now you can experiment with writing tagged metrics:</p>
+<pre><code class="json">curl -sSf -X POST localhost:9003/writetagged -d '{
+  &quot;namespace&quot;: &quot;metrics&quot;,
+  &quot;id&quot;: &quot;foo&quot;,
+  &quot;tags&quot;: [
+    {
+      &quot;name&quot;: &quot;city&quot;,
+      &quot;value&quot;: &quot;new_york&quot;
+    },
+    {
+      &quot;name&quot;: &quot;endpoint&quot;,
+      &quot;value&quot;: &quot;/request&quot;
+    }
+  ],
+  &quot;datapoint&quot;: {
+    &quot;timestamp&quot;: '&quot;$(date &quot;+%s&quot;)&quot;',
+    &quot;value&quot;: 42.123456789
+  }
+}'
+</code></pre>
+
+<p>And reading the metrics you've written:</p>
+<pre><code class="json">curl -sSf -X POST http://localhost:9003/query -d '{
+  &quot;namespace&quot;: &quot;metrics&quot;,
+  &quot;query&quot;: {
+    &quot;regexp&quot;: {
+      &quot;field&quot;: &quot;city&quot;,
+      &quot;regexp&quot;: &quot;.*&quot;
+    }
+  },
+  &quot;rangeStart&quot;: 0,
+  &quot;rangeEnd&quot;: '&quot;$(date &quot;+%s&quot;)&quot;'
+}' | jq .
+</code></pre>
+
+<h2 id="integrations">Integrations</h2>
+<p><a href="../../integrations/prometheus/">Prometheus as a long term storage remote read/write endpoint</a>.</p>
+                
+                  
+                
+              
+              
+                
+
+
+              
+            </article>
+          </div>
+        </div>
+      </main>
+      
+        
+<footer class="md-footer">
+  
+    <div class="md-footer-nav">
+      <nav class="md-footer-nav__inner md-grid">
+        
+          <a href="../single_node/" title="M3DB Single Node Deployment" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+            <div class="md-flex__cell md-flex__cell--shrink">
+              <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
+            </div>
+            <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
+              <span class="md-flex__ellipsis">
+                <span class="md-footer-nav__direction">
+                  Previous
+                </span>
+                M3DB Single Node Deployment
+              </span>
+            </div>
+          </a>
+        
+        
+          <a href="../kubernetes/" title="M3DB on Kubernetes" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+            <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
+              <span class="md-flex__ellipsis">
+                <span class="md-footer-nav__direction">
+                  Next
+                </span>
+                M3DB on Kubernetes
+              </span>
+            </div>
+            <div class="md-flex__cell md-flex__cell--shrink">
+              <i class="md-icon md-icon--arrow-forward md-footer-nav__button"></i>
+            </div>
+          </a>
+        
+      </nav>
+    </div>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright">
+        
+        powered by
+        <a href="http://www.mkdocs.org">MkDocs</a>
+        and
+        <a href="https://squidfunk.github.io/mkdocs-material/">
+          Material for MkDocs</a>
+      </div>
+      
+        
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    
+      <script src="../../assets/javascripts/application.b438e6c5.js"></script>
+      
+      <script>app.initialize({version:"0.17.3",url:{base:"../.."}})</script>
+      
+    
+    
+      
+    
+  </body>
+</html>
