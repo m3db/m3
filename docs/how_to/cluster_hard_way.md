@@ -61,7 +61,16 @@ your_m3db_user        hard nofile 500000
 your_m3db_user        soft nofile 500000
 ```
 
-Before running the process make sure the limits are set, if running manually you can raise the limit for the current user with `ulimit -n 500000`.
+If you are starting `m3dbnode` as a `systemd` service, then you have to set the limit under `[Service]` section of m3dbnode systemd service:
+```
+LimitNOFILE=500000
+```
+
+This is because `systemd` won't read limits from `/etc/security/limits.conf`.
+
+After changing the value, you need to reload the systemd daemon to reread service files: `systemctl daemon-reload`.
+
+You can check if the limits are set for the process with `cat /proc/$(pidof m3dbnode)/limits` after starting the service.
 
 ## Config files
 We wouldn’t feel right to call this guide, “The Hard Way” and not require you to change some configs by hand.
