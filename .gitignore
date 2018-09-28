@@ -46,4 +46,5 @@ site/
 !m3db.io/**/vendor
 # Automatically populated from asset sources
 m3db.io/openapi
-
+# Automatically populated from site directory
+m3db.io/docs

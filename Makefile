@@ -189,7 +189,7 @@ docker-integration-test:
 	@./scripts/docker-integration-tests/prometheus/test.sh
 
 .PHONY: site-build
-site-build:
+site-build: docs-build
 	@echo "Building site"
 	@./scripts/site-build.sh
 
