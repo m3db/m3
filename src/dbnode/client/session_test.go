@@ -111,13 +111,17 @@ func applySessionTestOptions(opts Options) Options {
 }
 
 func newTestHostQueue(opts Options) *queue {
-	return newHostQueue(h, hostQueueOpts{
+	hq, err := newHostQueue(h, hostQueueOpts{
 		writeBatchRawRequestPool:                   testWriteBatchRawPool,
 		writeBatchRawRequestElementArrayPool:       testWriteArrayPool,
 		writeTaggedBatchRawRequestPool:             testWriteTaggedBatchRawPool,
 		writeTaggedBatchRawRequestElementArrayPool: testWriteTaggedArrayPool,
 		opts: opts,
-	}).(*queue)
+	})
+	if err != nil {
+		panic(err)
+	}
+	return hq.(*queue)
 }
 
 func TestSessionCreationFailure(t *testing.T) {
@@ -271,7 +275,7 @@ func testSessionClusterConnectConsistencyLevel(
 	session.newHostQueueFn = func(
 		host topology.Host,
 		opts hostQueueOpts,
-	) hostQueue {
+	) (hostQueue, error) {
 		hostQueue := NewMockhostQueue(ctrl)
 		hostQueue.EXPECT().Open().Times(1)
 		hostQueue.EXPECT().Host().Return(host).AnyTimes()
@@ -282,7 +286,7 @@ func testSessionClusterConnectConsistencyLevel(
 			hostQueue.EXPECT().ConnectionCount().Return(min).AnyTimes()
 		}
 		hostQueue.EXPECT().Close().AnyTimes()
-		return hostQueue
+		return hostQueue, nil
 	}
 
 	err = session.Open()
@@ -307,7 +311,7 @@ func mockHostQueues(
 	s.newHostQueueFn = func(
 		host topology.Host,
 		opts hostQueueOpts,
-	) hostQueue {
+	) (hostQueue, error) {
 		// Make a copy of the enqueue fns for each host
 		hostEnqueueFns := make([]testEnqueueFn, len(enqueueFns))
 		copy(hostEnqueueFns, enqueueFns)
@@ -338,7 +342,7 @@ func mockHostQueues(
 		}
 		hostQueue.EXPECT().Close()
 		idx++
-		return hostQueue
+		return hostQueue, nil
 	}
 	return &enqueueWg
 }

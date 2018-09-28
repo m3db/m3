@@ -1,7 +1,7 @@
 package: github.com/m3db/m3
 import:
 - package: github.com/m3db/m3x
-  version: 76a586220279667a81eaaec4150de182f4d5077c
+  version: 5d91038ef61625744d867ba000d6cb17bfe61af0
   vcs: git
   subpackages:
   - checked
@@ -220,4 +220,3 @@ testImport:
   version: b433bbd6d743c1854040b39062a3916ed5f78fe8
 
 - package: github.com/leanovate/gopter
-  version: f0356731348c8fffa27bab27c37ec8be5b0662c8

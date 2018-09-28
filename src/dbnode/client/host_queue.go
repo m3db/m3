@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
+	xsync "github.com/m3db/m3x/sync"
 
 	"github.com/uber/tchannel-go/thrift"
 )
@@ -47,6 +48,7 @@ type queue struct {
 	writeBatchRawRequestElementArrayPool       writeBatchRawRequestElementArrayPool
 	writeTaggedBatchRawRequestPool             writeTaggedBatchRawRequestPool
 	writeTaggedBatchRawRequestElementArrayPool writeTaggedBatchRawRequestElementArrayPool
+	workerPool                                 xsync.PooledWorkerPool
 	size                                       int
 	ops                                        []op
 	opsSumSize                                 int
@@ -59,13 +61,24 @@ type queue struct {
 func newHostQueue(
 	host topology.Host,
 	hostQueueOpts hostQueueOpts,
-) hostQueue {
+) (hostQueue, error) {
 	opts := hostQueueOpts.opts
 	scope := opts.InstrumentOptions().MetricsScope().
 		SubScope("hostqueue").
 		Tagged(map[string]string{
 			"hostID": host.ID(),
 		})
+
+	workerPoolOpts := xsync.NewPooledWorkerPoolOptions().
+		SetGrowOnDemand(true)
+	workerPool, err := xsync.NewPooledWorkerPool(
+		int(workerPoolOpts.NumShards()),
+		workerPoolOpts,
+	)
+	if err != nil {
+		return nil, err
+	}
+	workerPool.Init()
 
 	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope))
 
@@ -90,11 +103,12 @@ func newHostQueue(
 		writeBatchRawRequestElementArrayPool:       hostQueueOpts.writeBatchRawRequestElementArrayPool,
 		writeTaggedBatchRawRequestPool:             hostQueueOpts.writeTaggedBatchRawRequestPool,
 		writeTaggedBatchRawRequestElementArrayPool: hostQueueOpts.writeTaggedBatchRawRequestElementArrayPool,
+		workerPool:   workerPool,
 		size:         size,
 		ops:          opArrayPool.Get(),
 		opsArrayPool: opArrayPool,
 		drainIn:      make(chan []op, opsArraysLen),
-	}
+	}, nil
 }
 
 func (q *queue) Open() {

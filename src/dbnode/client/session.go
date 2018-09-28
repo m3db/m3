@@ -238,7 +238,7 @@ type hostQueueOpts struct {
 type newHostQueueFn func(
 	host topology.Host,
 	hostQueueOpts hostQueueOpts,
-) hostQueue
+) (hostQueue, error)
 
 func newSession(opts Options) (clientSession, error) {
 	topo, err := opts.TopologyInitializer().Init()
@@ -611,7 +611,10 @@ func (s *session) hostQueues(
 			queues = append(queues, existingQueue)
 			continue
 		}
-		newQueue := s.newHostQueue(host, topoMap)
+		newQueue, err := s.newHostQueue(host, topoMap)
+		if err != nil {
+			return nil, 0, 0, err
+		}
 		queues = append(queues, newQueue)
 		newQueues = append(newQueues, newQueue)
 	}
@@ -795,7 +798,7 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 	s.log.Infof("successfully updated topology to %d hosts", topoMap.HostsLen())
 }
 
-func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) hostQueue {
+func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) (hostQueue, error) {
 	// NB(r): Due to hosts being replicas we have:
 	// = replica * numWrites
 	// = total writes to all hosts
@@ -847,15 +850,18 @@ func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) hostQue
 		writeTaggedBatchRawRequestElementArrayPoolOpts, s.opts.WriteBatchSize())
 	writeTaggedBatchRawRequestElementArrayPool.Init()
 
-	hostQueue := s.newHostQueueFn(host, hostQueueOpts{
+	hostQueue, err := s.newHostQueueFn(host, hostQueueOpts{
 		writeBatchRawRequestPool:                   writeBatchRequestPool,
 		writeBatchRawRequestElementArrayPool:       writeBatchRawRequestElementArrayPool,
 		writeTaggedBatchRawRequestPool:             writeTaggedBatchRequestPool,
 		writeTaggedBatchRawRequestElementArrayPool: writeTaggedBatchRawRequestElementArrayPool,
 		opts: s.opts,
 	})
+	if err != nil {
+		return nil, err
+	}
 	hostQueue.Open()
-	return hostQueue
+	return hostQueue, nil
 }
 
 func (s *session) Write(
