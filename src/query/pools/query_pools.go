@@ -81,7 +81,7 @@ func BuildWorkerPools(
 
 	writePoolSize := cfg.WriteWorkerPoolSize
 	if writePoolSize == 0 {
-		writePoolSize = defaultWorkerPoolSize
+		writePoolSize = defaultWorkerPoolCount
 	}
 
 	writeWorkerPool, err := xsync.NewPooledWorkerPool(writePoolSize, xsync.NewPooledWorkerPoolOptions())
