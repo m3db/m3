@@ -111,7 +111,7 @@ func (c *baseNode) Process(ID parser.NodeID, b block.Block) error {
 	}
 
 	if unconsolidatedBlock == nil {
-		return fmt.Errorf("block needs to be unconsolidated for the op: %s", c.op)
+		return fmt.Errorf("block needs to be unconsolidated for temporal operations: %s", c.op)
 	}
 
 	iter, err := unconsolidatedBlock.StepIter()
@@ -304,15 +304,20 @@ func (c *baseNode) processSingleRequest(request processRequest) error {
 			// TODO: Consider using a rotating slice since this is inefficient
 			if desiredLength <= len(values) {
 				values = values[len(values)-desiredLength:]
-				flattenedValues := make(ts.Datapoints, 0)
+				flattenedValues := make(ts.Datapoints, 0, len(values))
 				for _, dps := range values {
-					for _, dp := range dps {
-						if dp.Timestamp.Before(oldestDatapointTimestamp) {
-							continue
+					var (
+						idx int
+						dp  ts.Datapoint
+					)
+					for idx, dp = range dps {
+						// Keep going until we find datapoints at the oldest timestamp for window
+						if !dp.Timestamp.Before(oldestDatapointTimestamp) {
+							break
 						}
-
-						flattenedValues = append(flattenedValues, dp)
 					}
+
+					flattenedValues = append(flattenedValues, dps[idx:]...)
 				}
 
 				newVal = c.processor.Process(flattenedValues)

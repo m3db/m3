@@ -84,9 +84,10 @@ func (d Datapoints) AlignToBounds(bounds models.Bounds) []Datapoints {
 	steps := bounds.Steps()
 	stepValues := make([]Datapoints, steps)
 	dpIdx := 0
+	stepSize := bounds.StepSize
+	t := bounds.Start
 	for i := 0; i < steps; i++ {
 		startIdx := dpIdx
-		t, _ := bounds.TimeForIndex(i)
 		for dpIdx < numDatapoints && d[dpIdx].Timestamp.Before(t) {
 			dpIdx++
 		}
@@ -97,6 +98,7 @@ func (d Datapoints) AlignToBounds(bounds models.Bounds) []Datapoints {
 		}
 
 		stepValues[i] = singleStepValues
+		t = t.Add(stepSize)
 	}
 
 	return stepValues

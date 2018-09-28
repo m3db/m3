@@ -158,11 +158,13 @@ type Result struct {
 // ConsolidationFunc consolidates a bunch of datapoints into a single float value
 type ConsolidationFunc func(datapoints ts.Datapoints) float64
 
-// TakeLast is a consolidation function which takes the last datapoint
+// TakeLast is a consolidation function which takes the last datapoint which has non nan value
 func TakeLast(values ts.Datapoints) float64 {
-	if len(values) == 0 {
-		return math.NaN()
+	for i := len(values) - 1; i >= 0; i-- {
+		if !math.IsNaN(values[i].Value) {
+			return values[i].Value
+		}
 	}
 
-	return values[len(values)-1].Value
+	return math.NaN()
 }

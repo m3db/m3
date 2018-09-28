@@ -137,18 +137,22 @@ func (s *seriesIter) Next() bool {
 }
 
 type lazyBlock struct {
-	mu sync.Mutex
-
+	mu             sync.Mutex
 	rawBlock       block.Block
 	lazyNode       *lazyNode
 	ID             parser.NodeID
 	processedBlock block.Block
+	processError   error
 }
 
 // Unconsolidated returns the unconsolidated version for the block
 func (f *lazyBlock) Unconsolidated() (block.UnconsolidatedBlock, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
+	if f.processError != nil {
+		return nil, f.processError
+	}
 
 	if f.processedBlock != nil {
 		return f.processedBlock.Unconsolidated()
@@ -164,6 +168,10 @@ func (f *lazyBlock) Unconsolidated() (block.UnconsolidatedBlock, error) {
 func (f *lazyBlock) StepIter() (block.StepIter, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
+	if f.processError != nil {
+		return nil, f.processError
+	}
 
 	if f.processedBlock != nil {
 		return f.processedBlock.StepIter()
@@ -193,6 +201,10 @@ func (f *lazyBlock) StepIter() (block.StepIter, error) {
 func (f *lazyBlock) SeriesIter() (block.SeriesIter, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
+	if f.processError != nil {
+		return nil, f.processError
+	}
 
 	if f.processedBlock != nil {
 		return f.processedBlock.SeriesIter()
@@ -226,6 +238,7 @@ func (f *lazyBlock) Close() error {
 func (f *lazyBlock) process() error {
 	err := f.lazyNode.fNode.Process(f.ID, f.rawBlock)
 	if err != nil {
+		f.processError = err
 		return err
 	}
 

@@ -49,9 +49,10 @@ func NewMultiBlockWrapper(unconsolidatedBlock block.UnconsolidatedBlock) block.B
 }
 
 type multiBlockWrapper struct {
-	unconsolidated block.UnconsolidatedBlock
-	consolidated   block.Block
-	mu             sync.Mutex
+	unconsolidated   block.UnconsolidatedBlock
+	consolidated     block.Block
+	consolidateError error
+	once             sync.Once
 }
 
 func (m *multiBlockWrapper) Unconsolidated() (block.UnconsolidatedBlock, error) {
@@ -59,31 +60,30 @@ func (m *multiBlockWrapper) Unconsolidated() (block.UnconsolidatedBlock, error) 
 }
 
 func (m *multiBlockWrapper) StepIter() (block.StepIter, error) {
-	if err := m.tryConsolidate(); err != nil {
+	if err := m.consolidate(); err != nil {
 		return nil, err
 	}
 
 	return m.consolidated.StepIter()
 }
 
-func (m *multiBlockWrapper) tryConsolidate() error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if m.consolidated == nil {
+func (m *multiBlockWrapper) consolidate() error {
+	m.once.Do(func() {
 		consolidated, err := m.unconsolidated.Consolidate()
 		if err != nil {
-			return err
+			m.consolidateError = err
+			return
 		}
 
 		m.consolidated = consolidated
-	}
 
-	return nil
+	})
+
+	return m.consolidateError
 }
 
 func (m *multiBlockWrapper) SeriesIter() (block.SeriesIter, error) {
-	if err := m.tryConsolidate(); err != nil {
+	if err := m.consolidate(); err != nil {
 		return nil, err
 	}
 
