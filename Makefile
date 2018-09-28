@@ -33,7 +33,8 @@ cache_policy         ?= recently_read
 BUILD                := $(abspath ./bin)
 GO_BUILD_LDFLAGS_CMD := $(abspath ./.ci/go-build-ldflags.sh) $(m3db_package)
 GO_BUILD_LDFLAGS     := $(shell $(GO_BUILD_LDFLAGS_CMD))
-LINUX_AMD64_ENV      := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
+GO_BUILD_COMMON_ENV  := CGO_ENABLED=0
+LINUX_AMD64_ENV      := GOOS=linux GOARCH=amd64 $(GO_BUILD_COMMON_ENV)
 GO_RELEASER_VERSION  := v0.76.1
 GOMETALINT_VERSION   := v2.0.5
 
@@ -72,7 +73,7 @@ define SERVICE_RULES
 $(SERVICE): setup
 	@echo Building $(SERVICE)
 	[ -d $(m3db_package_path)/$(vendor_prefix) ] || make install-vendor
-	go build -ldflags '$(GO_BUILD_LDFLAGS)' -o $(BUILD)/$(SERVICE) ./src/cmd/services/$(SERVICE)/main/.
+	$(GO_BUILD_COMMON_ENV) go build -ldflags '$(GO_BUILD_LDFLAGS)' -o $(BUILD)/$(SERVICE) ./src/cmd/services/$(SERVICE)/main/.
 
 .PHONY: $(SERVICE)-linux-amd64
 $(SERVICE)-linux-amd64:
