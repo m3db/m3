@@ -107,24 +107,23 @@ func TestSessionWriteDoesNotCloneNoFinalize(t *testing.T) {
 	defer ctrl.Finish()
 
 	session := newDefaultTestSession(t).(*session)
-
 	w := newWriteStub()
 	var completionFn completionFn
 	enqueueWg := mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{func(idx int, op op) {
 		completionFn = op.CompletionFn()
 		write, ok := op.(*writeOperation)
-		assert.True(t, ok)
-		assert.True(t,
+		require.True(t, ok)
+		require.True(t,
+			xtest.ByteSlicesBackedBySameData(
+				w.ns.Bytes(),
+				write.namespace.Bytes()))
+		require.True(t,
 			xtest.ByteSlicesBackedBySameData(
 				w.id.Bytes(),
 				write.request.ID))
-		assert.Equal(t, w.value, write.request.Datapoint.Value)
-		assert.Equal(t, w.t.Unix(), write.request.Datapoint.Timestamp)
-		assert.Equal(t, rpc.TimeType_UNIX_SECONDS, write.request.Datapoint.TimestampTimeType)
-		assert.NotNil(t, write.completionFn)
 	}})
 
-	assert.NoError(t, session.Open())
+	require.NoError(t, session.Open())
 
 	// Begin write
 	var resultErr error
@@ -141,7 +140,9 @@ func TestSessionWriteDoesNotCloneNoFinalize(t *testing.T) {
 		completionFn(session.state.topoMap.Hosts()[0], nil)
 	}
 
-	assert.NoError(t, session.Close())
+	writeWg.Wait()
+	require.NoError(t, resultErr)
+	require.NoError(t, session.Close())
 }
 
 func TestSessionWriteBadUnitErr(t *testing.T) {
