@@ -41,14 +41,14 @@ func TestConstructorEquality(t *testing.T) {
 }
 
 func TestNoFinalize(t *testing.T) {
-	v := StringID("abc").(*id)
+	v := StringID("abc")
 
 	checkValid := func() {
-		require.NotNil(t, v.data)
+		require.NotNil(t, v.Bytes())
 		assert.True(t, v.Equal(StringID("abc")))
 	}
 	checkValid()
-	assert.False(t, v.IsNoFinalize())
+	assert.True(t, v.IsNoFinalize())
 
 	v.NoFinalize()
 	checkValid()
