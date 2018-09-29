@@ -62,15 +62,21 @@ func newHostQueue(
 	host topology.Host,
 	hostQueueOpts hostQueueOpts,
 ) (hostQueue, error) {
-	opts := hostQueueOpts.opts
-	scope := opts.InstrumentOptions().MetricsScope().
-		SubScope("hostqueue").
-		Tagged(map[string]string{
-			"hostID": host.ID(),
-		})
+	var (
+		opts  = hostQueueOpts.opts
+		iOpts = opts.InstrumentOptions()
+		scope = iOpts.MetricsScope().
+			SubScope("hostqueue").
+			Tagged(map[string]string{
+				"hostID": host.ID(),
+			})
+	)
+	iOpts = iOpts.SetMetricsScope(scope)
 
 	workerPoolOpts := xsync.NewPooledWorkerPoolOptions().
-		SetGrowOnDemand(true)
+		SetGrowOnDemand(true).
+		SetKillWorkerProbability(0.01).
+		SetInstrumentOptions(iOpts)
 	workerPool, err := xsync.NewPooledWorkerPool(
 		int(workerPoolOpts.NumShards()),
 		workerPoolOpts,
