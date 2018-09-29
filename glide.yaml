@@ -210,7 +210,7 @@ import:
   subpackages:
   - codes
 
-- name: gopkg.in/go-playground/validator.v9
+- package: gopkg.in/go-playground/validator.v9
   version: a021b2ec9a8a8bb970f3f15bc42617cb520e8a64
   repo: https://github.com/go-playground/validator.git
   vcs: git

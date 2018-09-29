@@ -1,10 +1,6 @@
-hash: 19ed33cbd302d4c743abac78b0c6a7c591559913461aece0c98a3901ea229f9f
-updated: 2018-09-29T17:45:27.291225-04:00
+hash: 9e03462b625c8e71deb4b2eeefa830e95b3111062edbc8ba60c856b8288ac158
+updated: 2018-09-29T17:52:33.578338-04:00
 imports:
-- name: ""
-  version: a021b2ec9a8a8bb970f3f15bc42617cb520e8a64
-  repo: https://github.com/go-playground/validator.git
-  vcs: git
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
   repo: https://github.com/m3db/thrift
@@ -601,6 +597,10 @@ imports:
   version: 947dcec5ba9c011838740e680966fd7087a71d0d
   repo: https://github.com/alecthomas/kingpin.git
   vcs: git
+- name: gopkg.in/go-playground/validator.v9
+  version: a021b2ec9a8a8bb970f3f15bc42617cb520e8a64
+  repo: https://github.com/go-playground/validator.git
+  vcs: git
 - name: gopkg.in/validator.v2
   version: 3e4f037f12a1221a0864cf0dd2e81c452ab22448
 - name: gopkg.in/vmihailenco/msgpack.v2
@@ -624,5 +624,3 @@ testImports:
   - currency
 - name: github.com/go-playground/universal-translator
   version: 71201497bace774495daed26a3874fd339e0b538
-- name: gopkg.in/go-playground/validator.v9
-  version: a021b2ec9a8a8bb970f3f15bc42617cb520e8a64
