@@ -3,7 +3,6 @@ rules:
     protection:
       required_pull_request_reviews:
         required_approving_review_count: 1
-      enabling_label: ready-to-be-merged
       required_status_checks:
         strict: true
         contexts:
@@ -12,4 +11,5 @@ rules:
           - license/cla
           - codecov/patch
           - codecov/project
+    enabling_label: ready-to-be-merged
 
