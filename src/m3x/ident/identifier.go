@@ -34,9 +34,7 @@ func BinaryID(v checked.Bytes) ID {
 
 // StringID constructs a new ID based on a string value.
 func StringID(str string) ID {
-	v := checked.NewBytes([]byte(str), nil)
-	v.IncRef()
-	return &id{data: v}
+	return BytesID([]byte(str))
 }
 
 type id struct {
