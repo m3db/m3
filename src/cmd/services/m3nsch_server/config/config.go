@@ -21,15 +21,17 @@
 package config
 
 import (
+	"github.com/m3db/m3/src/dbnode/client"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/instrument"
 )
 
 // Configuration represents the knobs available to configure a m3nsch_server
 type Configuration struct {
-	Server  ServerConfiguration             `yaml:"server"`
-	M3nsch  M3nschConfiguration             `yaml:"m3nsch" validate:"nonzero"`
-	Metrics instrument.MetricsConfiguration `yaml:"metrics" validate:"nonzero"`
+	Server   ServerConfiguration             `yaml:"server"`
+	M3nsch   M3nschConfiguration             `yaml:"m3nsch" validate:"nonzero"`
+	Metrics  instrument.MetricsConfiguration `yaml:"metrics" validate:"nonzero"`
+	DBClient client.Configuration            `yaml:"dbClient"`
 }
 
 // ServerConfiguration represents the knobs available to configure server properties
