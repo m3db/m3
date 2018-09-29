@@ -1,0 +1,16 @@
+rules:
+  default:
+    protection:
+      required_pull_request_reviews:
+        required_approving_review_count: 1
+      required_status_checks:
+        contexts:
+        - codecov/project/x
+        - codecov/project/m3ninx
+        - codecov/project/query
+        - deploy/netlify
+        - codecov/project/dbnode
+        - semaphoreci
+        - license/cla
+        - codecov/patch
+        - codecov/project
