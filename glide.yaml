@@ -210,6 +210,11 @@ import:
   subpackages:
   - codes
 
+- package: gopkg.in/validator.v2
+  version: 3e4f037f12a1221a0864cf0dd2e81c452ab22448
+  repo: https://github.com/go-validator/validator.git
+  vcs: git
+
 - package: gopkg.in/go-playground/validator.v9
   version: a021b2ec9a8a8bb970f3f15bc42617cb520e8a64
   repo: https://github.com/go-playground/validator.git

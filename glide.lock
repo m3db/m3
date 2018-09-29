@@ -1,5 +1,5 @@
-hash: 9e03462b625c8e71deb4b2eeefa830e95b3111062edbc8ba60c856b8288ac158
-updated: 2018-09-29T17:52:33.578338-04:00
+hash: 5cf709f4cd0810365b19227ef1ae322dc36893f68f87b80d2bbb34f44e5b8c01
+updated: 2018-09-29T17:54:45.564757-04:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -603,6 +603,8 @@ imports:
   vcs: git
 - name: gopkg.in/validator.v2
   version: 3e4f037f12a1221a0864cf0dd2e81c452ab22448
+  repo: https://github.com/go-validator/validator.git
+  vcs: git
 - name: gopkg.in/vmihailenco/msgpack.v2
   version: a1382b1ce0c749733b814157c245e02cc1f41076
   repo: https://github.com/vmihailenco/msgpack.git
