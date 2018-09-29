@@ -972,8 +972,8 @@ func (s *session) writeAttemptWithRLock(
 	// use in the various queues. Tracking per writeAttempt isn't sufficient as
 	// we may enqueue multiple writeStates concurrently depending on retries
 	// and consistency level checks.
-	nsID := s.maybeClone(namespace)
-	tsID := s.maybeClone(id)
+	nsID := s.cloneFinalizable(namespace)
+	tsID := s.cloneFinalizable(id)
 	var tagEncoder serialize.TagEncoder
 	if wType == taggedWriteAttemptType {
 		tagEncoder = s.pools.tagEncoder.Get()
@@ -1191,7 +1191,7 @@ func (s *session) fetchTaggedAttemptWithRLock(
 ) (*fetchState, error) {
 	// NB(prateek): we have to clone the namespace, as we cannot guarantee the lifecycle
 	// of the hostQueues responding is less than the lifecycle of the current method.
-	nsClone := s.maybeClone(ns)
+	nsClone := s.cloneFinalizable(ns)
 
 	// FOLLOWUP(prateek): currently both `index.Query` and the returned request depend on
 	// native, un-pooled types; so we do not Clone() either. We will start doing so
@@ -1261,7 +1261,7 @@ func (s *session) fetchIDsAttempt(
 
 	// NB(prateek): need to make a copy of inputNamespace and inputIDs to control
 	// their life-cycle within this function.
-	namespace := s.maybeClone(inputNamespace)
+	namespace := s.cloneFinalizable(inputNamespace)
 	// First, we duplicate the iterator (only the struct referencing the underlying slice,
 	// not the slice itself). Need this to be able to iterate the original iterator
 	// multiple times in case of retries.
@@ -1315,7 +1315,7 @@ func (s *session) fetchIDsAttempt(
 	for idx := 0; ids.Next(); idx++ {
 		var (
 			idx  = idx // capture loop variable
-			tsID = s.maybeClone(ids.Current())
+			tsID = s.cloneFinalizable(ids.Current())
 
 			wgIsDone int32
 			// NB(xichen): resultsAccessors and idAccessors get initialized to number of replicas + 1
@@ -1367,8 +1367,8 @@ func (s *session) fetchIDsAttempt(
 				// to have control over the lifecycle of ID. We cannot allow seriesIterator
 				// to control the lifecycle of the original ident.ID, as it might still be in use
 				// due to a pending request in queue.
-				seriesID := s.maybeClone(tsID)
-				namespaceID := s.maybeClone(namespace)
+				seriesID := s.cloneFinalizable(tsID)
+				namespaceID := s.cloneFinalizable(namespace)
 				iter.Reset(encoding.SeriesIteratorOptions{
 					ID:             seriesID,
 					Namespace:      namespaceID,
@@ -3024,7 +3024,7 @@ func (s *session) verifyFetchedBlock(block *rpc.Block) error {
 	return nil
 }
 
-func (s *session) maybeClone(id ident.ID) ident.ID {
+func (s *session) cloneFinalizable(id ident.ID) ident.ID {
 	if id.IsNoFinalize() {
 		return id
 	}
