@@ -1191,7 +1191,7 @@ func (s *session) fetchTaggedAttemptWithRLock(
 ) (*fetchState, error) {
 	// NB(prateek): we have to clone the namespace, as we cannot guarantee the lifecycle
 	// of the hostQueues responding is less than the lifecycle of the current method.
-	nsClone := s.cloneFinalizable(ns)
+	nsClone := s.pools.id.Clone(ns)
 
 	// FOLLOWUP(prateek): currently both `index.Query` and the returned request depend on
 	// native, un-pooled types; so we do not Clone() either. We will start doing so
@@ -1261,7 +1261,7 @@ func (s *session) fetchIDsAttempt(
 
 	// NB(prateek): need to make a copy of inputNamespace and inputIDs to control
 	// their life-cycle within this function.
-	namespace := s.cloneFinalizable(inputNamespace)
+	namespace := s.pools.id.Clone(inputNamespace)
 	// First, we duplicate the iterator (only the struct referencing the underlying slice,
 	// not the slice itself). Need this to be able to iterate the original iterator
 	// multiple times in case of retries.
@@ -1315,7 +1315,7 @@ func (s *session) fetchIDsAttempt(
 	for idx := 0; ids.Next(); idx++ {
 		var (
 			idx  = idx // capture loop variable
-			tsID = s.cloneFinalizable(ids.Current())
+			tsID = s.pools.id.Clone(ids.Current())
 
 			wgIsDone int32
 			// NB(xichen): resultsAccessors and idAccessors get initialized to number of replicas + 1
@@ -1367,8 +1367,8 @@ func (s *session) fetchIDsAttempt(
 				// to have control over the lifecycle of ID. We cannot allow seriesIterator
 				// to control the lifecycle of the original ident.ID, as it might still be in use
 				// due to a pending request in queue.
-				seriesID := s.cloneFinalizable(tsID)
-				namespaceID := s.cloneFinalizable(namespace)
+				seriesID := s.pools.id.Clone(tsID)
+				namespaceID := s.pools.id.Clone(namespace)
 				iter.Reset(encoding.SeriesIteratorOptions{
 					ID:             seriesID,
 					Namespace:      namespaceID,
