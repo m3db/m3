@@ -211,6 +211,10 @@ rpc:
     - "127.0.0.1:17202"
 
 backend: grpc
+
+workerPoolCount: 20
+decompressWorkerPoolSize: 20
+writeWorkerPoolSize: 20
 `
 
 	ctrl := gomock.NewController(xtest.Reporter{T: t})
