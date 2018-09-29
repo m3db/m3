@@ -1,5 +1,5 @@
-hash: cf6b2ad247773e57b60fcc2966dc87dd6fbc89354a75d344f598c13921e2ba35
-updated: 2018-09-29T17:38:06.40791-04:00
+hash: 19ed33cbd302d4c743abac78b0c6a7c591559913461aece0c98a3901ea229f9f
+updated: 2018-09-29T17:45:27.291225-04:00
 imports:
 - name: ""
   version: a021b2ec9a8a8bb970f3f15bc42617cb520e8a64
@@ -603,8 +603,6 @@ imports:
   vcs: git
 - name: gopkg.in/validator.v2
   version: 3e4f037f12a1221a0864cf0dd2e81c452ab22448
-  repo: https://github.com/go-validator/validator.git
-  vcs: git
 - name: gopkg.in/vmihailenco/msgpack.v2
   version: a1382b1ce0c749733b814157c245e02cc1f41076
   repo: https://github.com/vmihailenco/msgpack.git
