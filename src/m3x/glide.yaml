@@ -39,6 +39,9 @@ import:
   - assert
   - require
 
+- package: github.com/MichaelTJones/pcg
+  version: df440c6ed7ed8897ac98a408365e5e89c7becf1a
+
 - package: github.com/google/go-cmp
   version: ^0.2
   subpackages:
