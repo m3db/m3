@@ -31,9 +31,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
+	xsync "github.com/m3db/m3x/sync"
 
 	"github.com/uber/tchannel-go/thrift"
 )
+
+const workerPoolKillProbability = 0.01
 
 type queue struct {
 	sync.WaitGroup
@@ -47,6 +50,7 @@ type queue struct {
 	writeBatchRawRequestElementArrayPool       writeBatchRawRequestElementArrayPool
 	writeTaggedBatchRawRequestPool             writeTaggedBatchRawRequestPool
 	writeTaggedBatchRawRequestElementArrayPool writeTaggedBatchRawRequestElementArrayPool
+	workerPool                                 xsync.PooledWorkerPool
 	size                                       int
 	ops                                        []op
 	opsSumSize                                 int
@@ -59,13 +63,30 @@ type queue struct {
 func newHostQueue(
 	host topology.Host,
 	hostQueueOpts hostQueueOpts,
-) hostQueue {
-	opts := hostQueueOpts.opts
-	scope := opts.InstrumentOptions().MetricsScope().
-		SubScope("hostqueue").
-		Tagged(map[string]string{
-			"hostID": host.ID(),
-		})
+) (hostQueue, error) {
+	var (
+		opts  = hostQueueOpts.opts
+		iOpts = opts.InstrumentOptions()
+		scope = iOpts.MetricsScope().
+			SubScope("hostqueue").
+			Tagged(map[string]string{
+				"hostID": host.ID(),
+			})
+	)
+	iOpts = iOpts.SetMetricsScope(scope)
+
+	workerPoolOpts := xsync.NewPooledWorkerPoolOptions().
+		SetGrowOnDemand(true).
+		SetKillWorkerProbability(workerPoolKillProbability).
+		SetInstrumentOptions(iOpts)
+	workerPool, err := xsync.NewPooledWorkerPool(
+		int(workerPoolOpts.NumShards()),
+		workerPoolOpts,
+	)
+	if err != nil {
+		return nil, err
+	}
+	workerPool.Init()
 
 	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope))
 
@@ -90,11 +111,12 @@ func newHostQueue(
 		writeBatchRawRequestElementArrayPool:       hostQueueOpts.writeBatchRawRequestElementArrayPool,
 		writeTaggedBatchRawRequestPool:             hostQueueOpts.writeTaggedBatchRawRequestPool,
 		writeTaggedBatchRawRequestElementArrayPool: hostQueueOpts.writeTaggedBatchRawRequestElementArrayPool,
+		workerPool:   workerPool,
 		size:         size,
 		ops:          opArrayPool.Get(),
 		opsArrayPool: opArrayPool,
 		drainIn:      make(chan []op, opsArraysLen),
-	}
+	}, nil
 }
 
 func (q *queue) Open() {
@@ -283,8 +305,8 @@ func (q *queue) asyncTaggedWrite(
 	elems []*rpc.WriteTaggedBatchRawRequestElement,
 ) {
 	q.Add(1)
-	// TODO(r): Use a worker pool to avoid creating new go routines for async writes
-	go func() {
+
+	q.workerPool.Go(func() {
 		req := q.writeTaggedBatchRawRequestPool.Get()
 		req.NameSpace = namespace.Bytes()
 		req.Elements = elems
@@ -339,7 +361,7 @@ func (q *queue) asyncTaggedWrite(
 		// Entire batch failed
 		callAllCompletionFns(ops, q.host, err)
 		cleanup()
-	}()
+	})
 }
 
 func (q *queue) asyncWrite(
@@ -348,8 +370,7 @@ func (q *queue) asyncWrite(
 	elems []*rpc.WriteBatchRawRequestElement,
 ) {
 	q.Add(1)
-	// TODO(r): Use a worker pool to avoid creating new go routines for async writes
-	go func() {
+	q.workerPool.Go(func() {
 		req := q.writeBatchRawRequestPool.Get()
 		req.NameSpace = namespace.Bytes()
 		req.Elements = elems
@@ -404,13 +425,12 @@ func (q *queue) asyncWrite(
 		// Entire batch failed
 		callAllCompletionFns(ops, q.host, err)
 		cleanup()
-	}()
+	})
 }
 
 func (q *queue) asyncFetch(op *fetchBatchOp) {
 	q.Add(1)
-	// TODO(r): Use a worker pool to avoid creating new go routines for async fetches
-	go func() {
+	q.workerPool.Go(func() {
 		// NB(r): Defer is slow in the hot path unfortunately
 		cleanup := func() {
 			op.DecRef()
@@ -449,13 +469,12 @@ func (q *queue) asyncFetch(op *fetchBatchOp) {
 			op.complete(i, result.Elements[i].Segments, nil)
 		}
 		cleanup()
-	}()
+	})
 }
 
 func (q *queue) asyncFetchTagged(op *fetchTaggedOp) {
 	q.Add(1)
-	// TODO(r): Use a worker pool to avoid creating new go routines for async fetches
-	go func() {
+	q.workerPool.Go(func() {
 		// NB(r): Defer is slow in the hot path unfortunately
 		cleanup := func() {
 			op.decRef()
@@ -483,13 +502,13 @@ func (q *queue) asyncFetchTagged(op *fetchTaggedOp) {
 			response: result,
 		}, err)
 		cleanup()
-	}()
+	})
 }
 
 func (q *queue) asyncTruncate(op *truncateOp) {
 	q.Add(1)
 
-	go func() {
+	q.workerPool.Go(func() {
 		cleanup := q.Done
 
 		client, err := q.connPool.NextClient()
@@ -508,7 +527,7 @@ func (q *queue) asyncTruncate(op *truncateOp) {
 		}
 
 		cleanup()
-	}()
+	})
 }
 
 func (q *queue) Len() int {

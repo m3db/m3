@@ -1904,8 +1904,8 @@ func (qs MockHostQueues) newHostQueueFn() newHostQueueFn {
 	return func(
 		host topology.Host,
 		opts hostQueueOpts,
-	) hostQueue {
-		return qs[atomic.AddUint64(&idx, 1)-1]
+	) (hostQueue, error) {
+		return qs[atomic.AddUint64(&idx, 1)-1], nil
 	}
 }
 

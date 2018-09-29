@@ -1,7 +1,7 @@
 package: github.com/m3db/m3
 import:
 - package: github.com/m3db/m3x
-  version: 76a586220279667a81eaaec4150de182f4d5077c
+  version: 3ab0cd67ff3c6e63a40893bad1ec4d993b5422c2
   vcs: git
   subpackages:
   - checked
@@ -215,9 +215,19 @@ import:
   repo: https://github.com/go-validator/validator.git
   vcs: git
 
-testImport:
-- package: github.com/fortytw2/leaktest
-  version: b433bbd6d743c1854040b39062a3916ed5f78fe8
+- package: gopkg.in/go-playground/validator.v9
+  version: a021b2ec9a8a8bb970f3f15bc42617cb520e8a64
+  repo: https://github.com/go-playground/validator.git
+  vcs: git
+
+- package: gopkg.in/yaml.v2
+  version: 5420a8b6744d3b0345ab293f6fcba19c978f1183
+  repo: https://github.com/go-yaml/yaml.git
+  vcs: git
 
 - package: github.com/leanovate/gopter
   version: f0356731348c8fffa27bab27c37ec8be5b0662c8
+
+testImport:
+- package: github.com/fortytw2/leaktest
+  version: b433bbd6d743c1854040b39062a3916ed5f78fe8
