@@ -17,8 +17,8 @@ message TimeSeries {
 }
 
 message Label {
-  string name  = 1;
-  string value = 2;
+  bytes name  = 1;
+  bytes value = 2;
 }
 
 message Labels {

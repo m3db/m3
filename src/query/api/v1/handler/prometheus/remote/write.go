@@ -200,7 +200,7 @@ func (h *PromWriteHandler) writeAggregated(
 	for _, ts := range r.Timeseries {
 		metricsAppender.Reset()
 		for _, label := range ts.Labels {
-			metricsAppender.AddTag(label.Name, label.Value)
+			metricsAppender.AddTag(string(label.Name), string(label.Value))
 		}
 
 		samplesAppender, err := metricsAppender.SamplesAppender()

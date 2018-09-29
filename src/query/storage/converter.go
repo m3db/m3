@@ -56,7 +56,7 @@ func PromWriteTSToM3(timeseries *prompb.TimeSeries) *WriteQuery {
 func PromLabelsToM3Tags(labels []*prompb.Label) models.Tags {
 	tags := make(models.Tags, len(labels))
 	for i, label := range labels {
-		tags[i] = models.Tag{Name: label.Name, Value: label.Value}
+		tags[i] = models.Tag{Name: string(label.Name), Value: string(label.Value)}
 	}
 
 	return models.Normalize(tags)
@@ -163,7 +163,7 @@ func SeriesToPromTS(series *ts.Series) *prompb.TimeSeries {
 func TagsToPromLabels(tags models.Tags) []*prompb.Label {
 	labels := make([]*prompb.Label, 0, len(tags))
 	for _, t := range tags {
-		labels = append(labels, &prompb.Label{Name: t.Name, Value: t.Value})
+		labels = append(labels, &prompb.Label{Name: []byte(t.Name), Value: []byte(t.Value)})
 	}
 
 	return labels
