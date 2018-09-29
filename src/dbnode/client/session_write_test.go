@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
+	xtest "github.com/m3db/m3/src/x/test"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 	xretry "github.com/m3db/m3x/retry"
@@ -97,6 +98,48 @@ func TestSessionWrite(t *testing.T) {
 	// Wait for write to complete
 	writeWg.Wait()
 	assert.Nil(t, resultErr)
+
+	assert.NoError(t, session.Close())
+}
+
+func TestSessionWriteDoesNotCloneNoFinalize(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	session := newDefaultTestSession(t).(*session)
+
+	w := newWriteStub()
+	var completionFn completionFn
+	enqueueWg := mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{func(idx int, op op) {
+		completionFn = op.CompletionFn()
+		write, ok := op.(*writeOperation)
+		assert.True(t, ok)
+		assert.True(t,
+			xtest.ByteSlicesBackedBySameData(
+				w.id.Bytes(),
+				write.request.ID))
+		assert.Equal(t, w.value, write.request.Datapoint.Value)
+		assert.Equal(t, w.t.Unix(), write.request.Datapoint.Timestamp)
+		assert.Equal(t, rpc.TimeType_UNIX_SECONDS, write.request.Datapoint.TimestampTimeType)
+		assert.NotNil(t, write.completionFn)
+	}})
+
+	assert.NoError(t, session.Open())
+
+	// Begin write
+	var resultErr error
+	var writeWg sync.WaitGroup
+	writeWg.Add(1)
+	go func() {
+		resultErr = session.Write(w.ns, w.id, w.t, w.value, w.unit, w.annotation)
+		writeWg.Done()
+	}()
+
+	// Callback
+	enqueueWg.Wait()
+	for i := 0; i < session.state.topoMap.Replicas(); i++ {
+		completionFn(session.state.topoMap.Hosts()[0], nil)
+	}
 
 	assert.NoError(t, session.Close())
 }
