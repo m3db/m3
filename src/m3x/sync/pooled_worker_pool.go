@@ -22,10 +22,11 @@ package sync
 
 import (
 	"fmt"
-	"math/rand"
+	"math"
 	"sync"
 	"sync/atomic"
 
+	"github.com/MichaelTJones/pcg"
 	"github.com/uber-go/tally"
 )
 
@@ -72,9 +73,10 @@ func NewPooledWorkerPool(size int, opts PooledWorkerPoolOptions) (PooledWorkerPo
 }
 
 func (p *pooledWorkerPool) Init() {
+	rng := pcg.NewPCG64() // Just use default seed here
 	for _, workCh := range p.workChs {
 		for i := 0; i < cap(workCh); i++ {
-			p.spawnWorker(nil, workCh, true)
+			p.spawnWorker(rng.Random(), nil, workCh, true)
 		}
 	}
 }
@@ -110,12 +112,12 @@ func (p *pooledWorkerPool) Go(work Work) {
 		// will slowly shrink the pool back down to its original size because
 		// workers created in this manner will not spawn their replacement
 		// before killing themselves.
-		p.spawnWorker(work, workCh, false)
+		p.spawnWorker(uint64(currTime), work, workCh, false)
 	}
 }
 
 func (p *pooledWorkerPool) spawnWorker(
-	initialWork Work, workCh chan Work, spawnReplacement bool) {
+	seed uint64, initialWork Work, workCh chan Work, spawnReplacement bool) {
 	go func() {
 		p.incNumRoutines()
 		if initialWork != nil {
@@ -123,12 +125,23 @@ func (p *pooledWorkerPool) spawnWorker(
 		}
 
 		// RNG per worker to avoid synchronization.
-		rng := rand.New(rand.NewSource(p.nowFn().UnixNano()))
+		var (
+			rng = pcg.NewPCG64().Seed(seed, seed*2, seed*3, seed*4)
+			// killWorkerProbability is a float but but the PCG RNG only
+			// generates uint64s so we need to identify the uint64 number
+			// that corresponds to the equivalent probability assuming we're
+			// generating random numbers in the entire uint64 range. For example,
+			// if the max uint64 was 1000 and we had a killWorkerProbability of 0.15
+			// then the killThreshold should be 0.15 * 1000 = 150 if we want a randomly
+			// chosen number between 0 and 1000 to have a 15% chance of being below
+			// the selected threshold.
+			killThreshold = uint64(p.killWorkerProbability * float64(math.MaxUint64))
+		)
 		for f := range workCh {
 			f()
-			if rng.Float64() < p.killWorkerProbability {
+			if rng.Random() < killThreshold {
 				if spawnReplacement {
-					p.spawnWorker(nil, workCh, true)
+					p.spawnWorker(rng.Random(), nil, workCh, true)
 				}
 				p.decNumRoutines()
 				return
