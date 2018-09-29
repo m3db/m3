@@ -66,6 +66,10 @@ clusters:
       - namespace: prometheus_metrics
         type: unaggregated
         retention: 48h
+
+workerPoolCount: 20
+decompressWorkerPoolSize: 20
+writeWorkerPoolSize: 20
 `
 
 func TestRun(t *testing.T) {
