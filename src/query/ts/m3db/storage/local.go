@@ -20,111 +20,113 @@
 
 package storage
 
-// import (
-// 	"context"
-// 	"io"
+import (
+	"context"
+	"io"
 
-// 	"github.com/m3db/m3/src/dbnode/encoding"
-// 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
-// 	"github.com/m3db/m3/src/dbnode/storage/index"
-// 	"github.com/m3db/m3/src/query/storage"
-// 	"github.com/m3db/m3/src/query/storage/m3"
-// 	m3block "github.com/m3db/m3/src/query/ts/m3db"
-// 	"github.com/m3db/m3x/ident"
-// 	"github.com/m3db/m3x/pool"
-// )
+	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3"
+	m3block "github.com/m3db/m3/src/query/ts/m3db"
+	"github.com/m3db/m3x/pool"
+)
 
-// type localStorage struct {
-// 	clusters   m3.Clusters
-// 	workerPool pool.ObjectPool
-// }
+type localStorage struct {
+	clusters   m3.Clusters
+	workerPool pool.ObjectPool
+}
 
-// var (
-// 	iterAlloc = func(r io.Reader) encoding.ReaderIterator {
-// 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
-// 	}
+var (
+	iterAlloc = func(r io.Reader) encoding.ReaderIterator {
+		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
+	}
 
-// 	emptySeriesMap map[ident.ID][]m3block.SeriesBlocks
-// )
+	emptySeriesMap map[string][]m3block.SeriesBlocks
+)
 
-// // nolint: deadcode
-// func newStorage(clusters m3.Clusters, workerPool pool.ObjectPool) *localStorage {
-// 	return &localStorage{clusters: clusters, workerPool: workerPool}
-// }
+// nolint: deadcode
+func newStorage(clusters m3.Clusters, workerPool pool.ObjectPool) *localStorage {
+	return &localStorage{clusters: clusters, workerPool: workerPool}
+}
 
-// // nolint: unparam
-// func (s *localStorage) fetchRaw(
-// 	namespace m3.ClusterNamespace,
-// 	query index.Query,
-// 	opts index.QueryOptions,
-// ) (encoding.SeriesIterators, bool, error) {
-// 	namespaceID := namespace.NamespaceID()
-// 	session := namespace.Session()
-// 	return session.FetchTagged(namespaceID, query, opts)
-// }
+// nolint: unparam
+func (s *localStorage) fetchRaw(
+	namespace m3.ClusterNamespace,
+	query index.Query,
+	opts index.QueryOptions,
+) (encoding.SeriesIterators, bool, error) {
+	namespaceID := namespace.NamespaceID()
+	session := namespace.Session()
+	return session.FetchTagged(namespaceID, query, opts)
+}
 
-// // todo(braskin): merge this with Fetch()
-// func (s *localStorage) fetchBlocks(
-// 	_ context.Context,
-// 	query *storage.FetchQuery,
-// 	options *storage.FetchOptions,
-// ) (map[ident.ID][]m3block.SeriesBlocks, error) {
+// todo(braskin): merge this with Fetch() and use genny to generate
+// a map that can handle ident.ID as a key so we don't need to
+// allocate a string for each entry.
+func (s *localStorage) fetchBlocks(
+	_ context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (map[string][]m3block.SeriesBlocks, error) {
 
-// 	m3query, err := storage.FetchQueryToM3Query(query)
-// 	if err != nil {
-// 		return emptySeriesMap, err
-// 	}
+	m3query, err := storage.FetchQueryToM3Query(query)
+	if err != nil {
+		return emptySeriesMap, err
+	}
 
-// 	opts := storage.FetchOptionsToM3Options(options, query)
+	opts := storage.FetchOptionsToM3Options(options, query)
 
-// 	// todo(braskin): figure out how to deal with multiple namespaces
-// 	namespaces := s.clusters.ClusterNamespaces()
-// 	// todo(braskin): figure out what to do with second return argument
-// 	seriesIters, _, err := s.fetchRaw(namespaces[0], m3query, opts)
-// 	if err != nil {
-// 		return emptySeriesMap, err
-// 	}
+	// todo(braskin): figure out how to deal with multiple namespaces
+	namespaces := s.clusters.ClusterNamespaces()
+	// todo(braskin): figure out what to do with second return argument
+	seriesIters, _, err := s.fetchRaw(namespaces[0], m3query, opts)
+	if err != nil {
+		return emptySeriesMap, err
+	}
 
-// 	seriesBlockList, err := m3block.ConvertM3DBSeriesIterators(seriesIters, iterAlloc)
-// 	if err != nil {
-// 		return emptySeriesMap, err
-// 	}
+	seriesBlockList, err := m3block.ConvertM3DBSeriesIterators(seriesIters, iterAlloc)
+	if err != nil {
+		return emptySeriesMap, err
+	}
 
-// 	// NB/todo(braskin): because we are only support querying one namespace now, we can just create
-// 	// a multiNamespaceSeriesList with one element. However, once we support querying multiple namespaces,
-// 	// we will need to append each namespace seriesBlockList to the multiNamespaceSeriesList
-// 	namespaceSeriesList := m3block.NamespaceSeriesList{
-// 		Namespace:  namespaces[0].NamespaceID().String(),
-// 		SeriesList: seriesBlockList,
-// 	}
+	// NB/todo(braskin): because we are only support querying one namespace now, we can just create
+	// a multiNamespaceSeriesList with one element. However, once we support querying multiple namespaces,
+	// we will need to append each namespace seriesBlockList to the multiNamespaceSeriesList
+	namespaceSeriesList := m3block.NamespaceSeriesList{
+		Namespace:  namespaces[0].NamespaceID().String(),
+		SeriesList: seriesBlockList,
+	}
 
-// 	multiNamespaceSeriesList := []m3block.NamespaceSeriesList{namespaceSeriesList}
-// 	multiNamespaceSeries := fromNamespaceListToSeriesList(multiNamespaceSeriesList)
-// 	return multiNamespaceSeries, nil
-// }
+	multiNamespaceSeriesList := []m3block.NamespaceSeriesList{namespaceSeriesList}
+	multiNamespaceSeries := fromNamespaceListToSeriesList(multiNamespaceSeriesList)
+	return multiNamespaceSeries, nil
+}
 
-// func (s *localStorage) Close() error {
-// 	return nil
-// }
+func (s *localStorage) Close() error {
+	return nil
+}
 
-// func fromNamespaceListToSeriesList(nsList []m3block.NamespaceSeriesList) map[ident.ID][]m3block.SeriesBlocks {
-// 	seriesList := make(map[ident.ID][]m3block.SeriesBlocks)
+func fromNamespaceListToSeriesList(nsList []m3block.NamespaceSeriesList) map[string][]m3block.SeriesBlocks {
+	seriesList := make(map[string][]m3block.SeriesBlocks)
 
-// 	for _, ns := range nsList {
-// 		for _, series := range ns.SeriesList {
-// 			if _, ok := seriesList[series.ID]; !ok {
-// 				seriesList[series.ID] = []m3block.SeriesBlocks{
-// 					{
-// 						Blocks:    series.Blocks,
-// 						ID:        series.ID,
-// 						Tags:      series.Tags,
-// 						Namespace: series.Namespace,
-// 					},
-// 				}
-// 			} else {
-// 				seriesList[series.ID] = append(seriesList[series.ID], series)
-// 			}
-// 		}
-// 	}
-// 	return seriesList
-// }
+	for _, ns := range nsList {
+		for _, series := range ns.SeriesList {
+			idStr := series.ID.String()
+			if _, ok := seriesList[idStr]; !ok {
+				seriesList[idStr] = []m3block.SeriesBlocks{
+					{
+						Blocks:    series.Blocks,
+						ID:        series.ID,
+						Tags:      series.Tags,
+						Namespace: series.Namespace,
+					},
+				}
+			} else {
+				seriesList[idStr] = append(seriesList[idStr], series)
+			}
+		}
+	}
+	return seriesList
+}

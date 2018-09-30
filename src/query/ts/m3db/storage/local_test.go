@@ -20,99 +20,99 @@
 
 package storage
 
-// import (
-// 	"context"
-// 	"testing"
-// 	"time"
+import (
+	"context"
+	"testing"
+	"time"
 
-// 	"github.com/m3db/m3/src/dbnode/client"
-// 	"github.com/m3db/m3/src/dbnode/encoding"
-// 	"github.com/m3db/m3/src/query/models"
-// 	"github.com/m3db/m3/src/query/storage"
-// 	"github.com/m3db/m3/src/query/storage/m3"
-// 	"github.com/m3db/m3/src/query/test"
-// 	"github.com/m3db/m3/src/query/util/logging"
-// 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3x/ident"
 
-// 	"github.com/golang/mock/gomock"
-// 	"github.com/stretchr/testify/assert"
-// 	"github.com/stretchr/testify/require"
-// )
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
 
-// var testRetention = 30 * 24 * time.Hour
+var testRetention = 30 * 24 * time.Hour
 
-// type testSessions struct {
-// 	unaggregated1MonthRetention                *client.MockSession
-// 	aggregated1MonthRetention1MinuteResolution *client.MockSession
-// }
+type testSessions struct {
+	unaggregated1MonthRetention                *client.MockSession
+	aggregated1MonthRetention1MinuteResolution *client.MockSession
+}
 
-// func setup(
-// 	t *testing.T,
-// 	ctrl *gomock.Controller,
-// ) (*localStorage, testSessions) {
-// 	logging.InitWithCores(nil)
-// 	logger := logging.WithContext(context.TODO())
-// 	defer logger.Sync()
-// 	unaggregated1MonthRetention := client.NewMockSession(ctrl)
-// 	aggregated1MonthRetention1MinuteResolution := client.NewMockSession(ctrl)
-// 	clusters, err := m3.NewClusters(m3.UnaggregatedClusterNamespaceDefinition{
-// 		NamespaceID: ident.StringID("metrics_unaggregated"),
-// 		Session:     unaggregated1MonthRetention,
-// 		Retention:   testRetention,
-// 	}, m3.AggregatedClusterNamespaceDefinition{
-// 		NamespaceID: ident.StringID("metrics_aggregated"),
-// 		Session:     aggregated1MonthRetention1MinuteResolution,
-// 		Retention:   testRetention,
-// 		Resolution:  time.Minute,
-// 	})
-// 	require.NoError(t, err)
-// 	storage := newStorage(clusters, nil)
-// 	return storage, testSessions{
-// 		unaggregated1MonthRetention:                unaggregated1MonthRetention,
-// 		aggregated1MonthRetention1MinuteResolution: aggregated1MonthRetention1MinuteResolution,
-// 	}
-// }
+func setup(
+	t *testing.T,
+	ctrl *gomock.Controller,
+) (*localStorage, testSessions) {
+	logging.InitWithCores(nil)
+	logger := logging.WithContext(context.TODO())
+	defer logger.Sync()
+	unaggregated1MonthRetention := client.NewMockSession(ctrl)
+	aggregated1MonthRetention1MinuteResolution := client.NewMockSession(ctrl)
+	clusters, err := m3.NewClusters(m3.UnaggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("metrics_unaggregated"),
+		Session:     unaggregated1MonthRetention,
+		Retention:   testRetention,
+	}, m3.AggregatedClusterNamespaceDefinition{
+		NamespaceID: ident.StringID("metrics_aggregated"),
+		Session:     aggregated1MonthRetention1MinuteResolution,
+		Retention:   testRetention,
+		Resolution:  time.Minute,
+	})
+	require.NoError(t, err)
+	storage := newStorage(clusters, nil)
+	return storage, testSessions{
+		unaggregated1MonthRetention:                unaggregated1MonthRetention,
+		aggregated1MonthRetention1MinuteResolution: aggregated1MonthRetention1MinuteResolution,
+	}
+}
 
-// func newFetchReq() *storage.FetchQuery {
-// 	matchers := models.Matchers{
-// 		{
-// 			Type:  models.MatchEqual,
-// 			Name:  "foo",
-// 			Value: "bar",
-// 		},
-// 		{
-// 			Type:  models.MatchEqual,
-// 			Name:  "biz",
-// 			Value: "baz",
-// 		},
-// 	}
-// 	return &storage.FetchQuery{
-// 		TagMatchers: matchers,
-// 		Start:       time.Now().Add(-10 * time.Minute),
-// 		End:         time.Now(),
-// 	}
-// }
+func newFetchReq() *storage.FetchQuery {
+	matchers := models.Matchers{
+		{
+			Type:  models.MatchEqual,
+			Name:  "foo",
+			Value: "bar",
+		},
+		{
+			Type:  models.MatchEqual,
+			Name:  "biz",
+			Value: "baz",
+		},
+	}
+	return &storage.FetchQuery{
+		TagMatchers: matchers,
+		Start:       time.Now().Add(-10 * time.Minute),
+		End:         time.Now(),
+	}
+}
 
-// func TestLocalRead(t *testing.T) {
-// 	ctrl := gomock.NewController(t)
-// 	defer ctrl.Finish()
-// 	store, sessions := setup(t, ctrl)
-// 	iter, err := test.BuildTestSeriesIterator()
-// 	require.NoError(t, err)
-// 	iterators := encoding.NewSeriesIterators([]encoding.SeriesIterator{iter}, nil)
-// 	sessions.unaggregated1MonthRetention.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
-// 		Return(iterators, true, nil)
-// 	searchReq := newFetchReq()
-// 	results, err := store.fetchBlocks(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
-// 	assert.NoError(t, err)
+func TestLocalRead(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	store, sessions := setup(t, ctrl)
+	iter, err := test.BuildTestSeriesIterator()
+	require.NoError(t, err)
+	iterators := encoding.NewSeriesIterators([]encoding.SeriesIterator{iter}, nil)
+	sessions.unaggregated1MonthRetention.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(iterators, true, nil)
+	searchReq := newFetchReq()
+	results, err := store.fetchBlocks(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
+	assert.NoError(t, err)
 
-// 	for id, seriesBlocks := range results {
-// 		assert.Equal(t, "id", id.String())
-// 		for _, blocks := range seriesBlocks {
-// 			assert.Equal(t, "namespace", blocks.Namespace.String())
-// 			blockTags, err := storage.FromIdentTagIteratorToTags(blocks.Tags)
-// 			require.NoError(t, err)
-// 			assert.Equal(t, models.Tags{{"baz", "qux"}, {"foo", "bar"}}, blockTags)
-// 		}
-// 	}
-// }
+	for id, seriesBlocks := range results {
+		assert.Equal(t, "id", id)
+		for _, blocks := range seriesBlocks {
+			assert.Equal(t, "namespace", blocks.Namespace.String())
+			blockTags, err := storage.FromIdentTagIteratorToTags(blocks.Tags)
+			require.NoError(t, err)
+			assert.Equal(t, models.Tags{{"baz", "qux"}, {"foo", "bar"}}, blockTags)
+		}
+	}
+}
