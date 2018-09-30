@@ -21,4 +21,4 @@ which make
 
 make install-ci
 
-make test-ci-unit
+make test-ci-big-unit
