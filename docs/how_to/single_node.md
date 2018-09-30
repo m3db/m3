@@ -93,31 +93,6 @@ curl -sSf -X POST http://localhost:9003/query -d '{
   "rangeStart": 0,
   "rangeEnd": '"$(date "+%s")"'
 }' | jq .
-
-{
-  "results": [
-    {
-      "id": "foo",
-      "tags": [
-        {
-          "name": "city",
-          "value": "new_york"
-        },
-        {
-          "name": "endpoint",
-          "value": "/request"
-        }
-      ],
-      "datapoints": [
-        {
-          "timestamp": 1527039389,
-          "value": 42.123456789
-        }
-      ]
-    }
-  ],
-  "exhaustive": true
-}
 ```
 
 ## Integrations

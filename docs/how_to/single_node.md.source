@@ -39,7 +39,7 @@ curl -X POST http://localhost:7201/api/v1/database/create -d '{
 }'
 <validation>
 curl http://localhost:7201/api/v1/placement || exit 1
-</validation></operation>
+</validation></operation_json>
 
 Shortly after, you should see your node complete bootstrapping! Don't worry if you see warnings or
 errors related to a local cache file, such as `[W] could not load cache from file
@@ -84,7 +84,7 @@ curl -sSf -X POST http://localhost:9003/writetagged -d '{
 '
 <validation>
 <!-- TODO: add validation (received a 200) -->
-</validation></operation>
+</validation></operation_json>
 
 And reading the metrics you've written:
 <operation_json>
@@ -101,7 +101,7 @@ curl -sSf -X POST http://localhost:9003/query -d '{
 }' | jq .
 <validation>
 <!-- TODO: add validation -->
-</validation></operation>
+</validation></operation_json>
 
 ## Integrations
 
