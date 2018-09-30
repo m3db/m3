@@ -58,6 +58,7 @@ import (
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
+	"github.com/uber-go/tally"
 
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -359,7 +360,7 @@ func newDownsampler(
 		RulesKVStore:          kvStore,
 		AutoMappingRules:      autoMappingRules,
 		ClockOptions:          clock.NewOptions(),
-		InstrumentOptions:     instrumentOpts,
+		InstrumentOptions:     instrumentOpts.SetMetricsScope(tally.NoopScope),
 		TagEncoderOptions:     tagEncoderOptions,
 		TagDecoderOptions:     tagDecoderOptions,
 		TagEncoderPoolOptions: tagEncoderPoolOptions,
