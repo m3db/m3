@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/serialize"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
+	xm3test "github.com/m3db/m3/src/x/test"
 	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
@@ -155,6 +156,62 @@ func TestSessionWriteTagged(t *testing.T) {
 	assert.Nil(t, resultErr)
 
 	assert.NoError(t, session.Close())
+}
+
+func TestSessionWriteTaggedDoesNotCloneNoFinalize(t *testing.T) {
+	ctrl := gomock.NewController(xtest.Reporter{t})
+	defer ctrl.Finish()
+
+	w := newWriteTaggedStub()
+	session := newDefaultTestSession(t).(*session)
+	mockEncoder := serialize.NewMockTagEncoder(ctrl)
+	mockEncoderPool := serialize.NewMockTagEncoderPool(ctrl)
+	session.pools.tagEncoder = mockEncoderPool
+
+	gomock.InOrder(
+		mockEncoderPool.EXPECT().Get().Return(mockEncoder),
+		mockEncoder.EXPECT().Encode(gomock.Any()).Return(nil),
+		mockEncoder.EXPECT().Data().Return(testEncodeTags(w.tags), true),
+		mockEncoder.EXPECT().Finalize(),
+	)
+
+	var completionFn completionFn
+	enqueueWg := mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{func(idx int, op op) {
+		completionFn = op.CompletionFn()
+		write, ok := op.(*writeTaggedOperation)
+		require.True(t, ok)
+		require.True(t,
+			xm3test.ByteSlicesBackedBySameData(
+				w.ns.Bytes(),
+				write.namespace.Bytes()))
+		require.True(t,
+			xm3test.ByteSlicesBackedBySameData(
+				w.id.Bytes(),
+				write.request.ID))
+	}})
+
+	require.NoError(t, session.Open())
+	// Begin write
+	var resultErr error
+	var writeWg sync.WaitGroup
+	writeWg.Add(1)
+	go func() {
+		resultErr = session.WriteTagged(w.ns, w.id, ident.NewTagsIterator(w.tags),
+			w.t, w.value, w.unit, w.annotation)
+		writeWg.Done()
+	}()
+
+	// Callback
+	enqueueWg.Wait()
+	for i := 0; i < session.state.topoMap.Replicas(); i++ {
+		completionFn(session.state.topoMap.Hosts()[0], nil)
+	}
+
+	// Wait for write to complete
+	writeWg.Wait()
+	require.NoError(t, resultErr)
+
+	require.NoError(t, session.Close())
 }
 
 func TestSessionWriteTaggedBadUnitErr(t *testing.T) {

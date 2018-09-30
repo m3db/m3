@@ -107,7 +107,7 @@ func TestLocalRead(t *testing.T) {
 	assert.NoError(t, err)
 
 	for id, seriesBlocks := range results {
-		assert.Equal(t, "id", id.String())
+		assert.Equal(t, "id", id)
 		for _, blocks := range seriesBlocks {
 			assert.Equal(t, "namespace", blocks.Namespace.String())
 			blockTags, err := storage.FromIdentTagIteratorToTags(blocks.Tags)

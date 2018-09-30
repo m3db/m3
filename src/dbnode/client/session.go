@@ -972,8 +972,8 @@ func (s *session) writeAttemptWithRLock(
 	// use in the various queues. Tracking per writeAttempt isn't sufficient as
 	// we may enqueue multiple writeStates concurrently depending on retries
 	// and consistency level checks.
-	nsID := s.pools.id.Clone(namespace)
-	tsID := s.pools.id.Clone(id)
+	nsID := s.cloneFinalizable(namespace)
+	tsID := s.cloneFinalizable(id)
 	var tagEncoder serialize.TagEncoder
 	if wType == taggedWriteAttemptType {
 		tagEncoder = s.pools.tagEncoder.Get()
@@ -3022,6 +3022,13 @@ func (s *session) verifyFetchedBlock(block *rpc.Block) error {
 	}
 
 	return nil
+}
+
+func (s *session) cloneFinalizable(id ident.ID) ident.ID {
+	if id.IsNoFinalize() {
+		return id
+	}
+	return s.pools.id.Clone(id)
 }
 
 type reason int
