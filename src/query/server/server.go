@@ -60,6 +60,7 @@ import (
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/pkg/errors"
+	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
@@ -355,11 +356,12 @@ func newDownsampler(
 				SubScope("tag-decoder-pool")))
 
 	downsampler, err := downsample.NewDownsampler(downsample.DownsamplerOptions{
-		Storage:               storage,
-		RulesKVStore:          kvStore,
-		AutoMappingRules:      autoMappingRules,
-		ClockOptions:          clock.NewOptions(),
-		InstrumentOptions:     instrumentOpts,
+		Storage:          storage,
+		RulesKVStore:     kvStore,
+		AutoMappingRules: autoMappingRules,
+		ClockOptions:     clock.NewOptions(),
+		// TODO: remove after https://github.com/m3db/m3/issues/992 is fixed
+		InstrumentOptions:     instrumentOpts.SetMetricsScope(tally.NoopScope),
 		TagEncoderOptions:     tagEncoderOptions,
 		TagDecoderOptions:     tagDecoderOptions,
 		TagEncoderPoolOptions: tagEncoderPoolOptions,
