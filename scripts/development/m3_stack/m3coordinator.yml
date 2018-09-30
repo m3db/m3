@@ -14,13 +14,9 @@ metrics:
 
 clusters:
   - namespaces:
-      - namespace: agg
-        type: aggregated
-        retention: 10h
-        resolution: 15s
-      - namespace: unagg
+      - namespace: prometheus_metrics
         type: unaggregated
-        retention: 10m
+        retention: 48h
     client:
       config:
         service:
