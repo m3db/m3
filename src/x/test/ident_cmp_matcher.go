@@ -21,10 +21,11 @@
 package xtest
 
 import (
-	"github.com/google/go-cmp/cmp"
 	"github.com/m3db/m3x/ident"
+
+	"github.com/google/go-cmp/cmp"
 )
 
-// IdentTransform transforms any ident.ID into ident.BytesID to make it easier for comparison.
+// IdentTransformer transforms any ident.ID into ident.BytesID to make it easier for comparison.
 var IdentTransformer = cmp.Transformer("",
 	func(id ident.ID) ident.BytesID { return ident.BytesID(id.Bytes()) })
