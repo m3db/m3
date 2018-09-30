@@ -58,9 +58,9 @@ import (
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
-	"github.com/uber-go/tally"
 
 	"github.com/pkg/errors"
+	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
