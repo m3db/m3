@@ -22,6 +22,9 @@ if [[ ! -z "${BUILDKTE_GOLANG_IMPORT_PATH:-}" ]] && [[ "$BUILDKTE_GOLANG_IMPORT_
   echo "New \$GOPATH is set to $NEW_GOPATH"
   echo "Build will now be at $NEW_BUILD_CHECKOUT_PATH"
 
+  export PATH=$GOPATH/bin:$PATH
+  echo "PATH is now ${PATH}"
+
   export BUILDKITE_BUILD_CHECKOUT_PATH=$NEW_BUILD_CHECKOUT_PATH
 else
   echo "No \$BUILDKTE_GOLANG_IMPORT_PATH set, skipping..."
