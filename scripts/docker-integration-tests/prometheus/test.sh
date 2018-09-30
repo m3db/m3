@@ -11,6 +11,13 @@ echo "Run m3dbnode and m3coordinator containers"
 docker-compose -f ${COMPOSE_FILE} up -d dbnode01
 docker-compose -f ${COMPOSE_FILE} up -d coordinator01
 
+# think of this as a defer func() in golang
+function defer {
+  docker-compose -f ${COMPOSE_FILE} down || echo "unable to shutdown containers" # CI fails to stop all containers sometimes
+}
+trap defer EXIT
+
+
 echo "Sleeping for a bit to ensure db up"
 sleep 15 # TODO Replace sleeps with logic to determine when to proceed
 
