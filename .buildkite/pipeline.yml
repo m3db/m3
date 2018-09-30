@@ -1,5 +1,5 @@
 steps:
   - name: ":golang:"
     command: "./scripts/buildkite.sh"
-  env:
-    BUILDKTE_GOLANG_IMPORT_PATH: "github.com/m3db/m3"
+    env:
+      BUILDKTE_GOLANG_IMPORT_PATH: "github.com/m3db/m3"
