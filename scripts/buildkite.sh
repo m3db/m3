@@ -8,4 +8,6 @@ which go
 
 make install-ci
 
-make test-ci-big-unit
+make test-ci-integration-dbnode cache_policy=all_metadata
+
+# make test-ci-big-unit
