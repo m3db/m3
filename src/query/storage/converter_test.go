@@ -44,7 +44,7 @@ func verifyExpandSeries(t *testing.T, ctrl *gomock.Controller, num int, pools po
 	testTags := seriesiter.GenerateTag()
 	iters := seriesiter.NewMockSeriesIters(ctrl, testTags, num, 2)
 
-	results, err := SeriesIteratorsToFetchResult(iters, pools)
+	results, err := SeriesIteratorsToFetchResult(iters, pools, true)
 	assert.NoError(t, err)
 
 	require.NotNil(t, results)
@@ -135,7 +135,7 @@ func TestFailingExpandSeriesValidPools(t *testing.T) {
 	mockIters.EXPECT().Len().Return(len(iters)).Times(1)
 	mockIters.EXPECT().Close().Times(1)
 
-	result, err := SeriesIteratorsToFetchResult(mockIters, objectPool)
+	result, err := SeriesIteratorsToFetchResult(mockIters, objectPool, true)
 	require.Nil(t, result)
 	require.EqualError(t, err, "error")
 }

@@ -275,8 +275,11 @@ func decompressConcurrently(
 func SeriesIteratorsToFetchResult(
 	seriesIterators encoding.SeriesIterators,
 	workerPools pool.ObjectPool,
+	cleanupSeriesIters bool,
 ) (*FetchResult, error) {
-	defer seriesIterators.Close()
+	if cleanupSeriesIters {
+		defer seriesIterators.Close()
+	}
 
 	iters := seriesIterators.Iters()
 	iterLength := seriesIterators.Len()
