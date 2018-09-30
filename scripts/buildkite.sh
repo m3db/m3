@@ -4,7 +4,9 @@ set -ex
 
 git submodule update --init
 
+echo $PATH
 eval "$(.ci/gimme.sh 1.10.x)"
+echo $PATH
 
 which go
 
