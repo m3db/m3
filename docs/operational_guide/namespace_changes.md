@@ -55,7 +55,7 @@ These values control how far into the future and the past (compared to the syste
 ```
 bufferPast: 10m
 bufferFuture: 20m
-currentSystemTime: 2:35:00 PM
+currentSystemTime: 2:35:00PM
 ```
 
 Now consider the following writes (all of which arrive at 2:35:00PM system time, but include datapoints with the specified timestamps):
@@ -70,20 +70,23 @@ Now consider the following writes (all of which arrive at 2:35:00PM system time,
 2:55:01PM - Rejected, outside the 20m bufferFuture
 ```
 
-While it may be tempting to configure `bufferPast` and `bufferFuture` to prevent very large values from being rejected, this may cause performance issues. M3DB is a timeseries database that is optimized for realtime data. Out of order writes, as well as writes for times that are very far into the future or past are much more expensive and will cause additional CPU / memory pressure. In addition, M3DB cannot evict a block from memory until it is no longer mutable and large `bufferPast` and `bufferFuture` values effectively increase the amount of time that a block is mutable for which means that it must be kept in memory for a longer period of time.
+While it may be tempting to configure `bufferPast` and `bufferFuture` to very large values to prevent writes from being rejected, this may cause performance issues. M3DB is a timeseries database that is optimized for realtime data. Out of order writes, as well as writes for times that are very far into the future or past are much more expensive and will cause additional CPU / memory pressure. In addition, M3DB cannot evict a block from memory until it is no longer mutable and large `bufferPast` and `bufferFuture` values effectively increase the amount of time that a block is mutable for which means that it must be kept in memory for a longer period of time.
 
 Can be modified without creating a new namespace: `yes`
 
 ### Index Options
 
-<!-- TODO -->
+TODO
+
 ## Namespace Operations
 
-The operations below include sample CURLs, but you can always review the API documentation by navigating to http://<M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>/api/v1/openapi
+The operations below include sample CURLs, but you can always review the API documentation by navigating to
+
+`http://<M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>/api/v1/openapi`
 
 ### Adding a Namespace
 
-Adding a namespace is a simple as using the POST /namespace API on an M3Coordinator instance.
+Adding a namespace is a simple as using the `POST` `api/v1/namespace` API on an M3Coordinator instance.
 
 ```
 curl -X POST <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>api/v1/namespace -d '{
@@ -115,7 +118,7 @@ Adding a namespace does not require restarting M3DB, but will require modifying 
 
 ### Deleting a Namespace
 
-Adding a namespace is a simple as using the DEETE /namespace API on an M3Coordinator instance.
+Deleting a namespace is a simple as using the `DELETE` `/api/v1/namespace` API on an M3Coordinator instance.
 
 curl -X DELETE <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>api/v1/namespace/<NAMESPACE_NAME>
 
@@ -124,3 +127,5 @@ Note that deleting a namespace will not have any effect on the M3DB nodes until 
 ### Modifying a Namespace
 
 There is currently no atomic namespace modification endpoint. Instead, you will need to delete a namespace and then add it back again with the same name, but modified settings. Review the individual namespace settings above to determine whether or not a given setting is safe to modify. For example,it is never safe to modify the blockSize of a namespace.
+
+Also, be very careful not to restart the M3DB nodes after deleting the namespace, but before adding it back. If you do this, the M3DB nodes may detect the existing data files on disk and delete them since they are not configured to retain that namespace.
