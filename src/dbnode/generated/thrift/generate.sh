@@ -8,8 +8,14 @@ docker run --rm hello-world >/dev/null
 
 # generate files using dockerized thrift-gen
 THRIFT_IMAGE_VERSION=${THRIFT_IMAGE_VERSION:-"quay.io/m3db/thrift-gen:0.1.0"}
-docker run --rm -u $(id -u) -v "$(pwd):/data" \
-  "$THRIFT_IMAGE_VERSION" --generateThrift    \
+
+UID_FLAGS="-u $(id -u)"
+if [[ -v BUILDKITE ]]; then
+	UID_FLAGS="-u root"
+fi
+
+docker run --rm -v "$(pwd):/data" $UID_FLAGS    \
+  "$THRIFT_IMAGE_VERSION" --generateThrift      \
   --inputFile /data/rpc.thrift --outputDir /data
 
 # ensure formatting is correct

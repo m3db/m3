@@ -1,0 +1,11 @@
+#!/bin/bash
+
+set +u
+
+echo "--- :golang: Setting up Golang build environment"
+
+if [[ ! -z "${GIMME_GO_VERSION:-}" ]] && [[ "$GIMME_GO_VERSION" != "" ]]; then
+  eval "$(.ci/gimme.sh ${GIMME_GO_VERSION})"
+else
+  echo "No \$GIMME_GO_VERSION set, skipping..."
+fi
