@@ -356,10 +356,11 @@ func newDownsampler(
 				SubScope("tag-decoder-pool")))
 
 	downsampler, err := downsample.NewDownsampler(downsample.DownsamplerOptions{
-		Storage:               storage,
-		RulesKVStore:          kvStore,
-		AutoMappingRules:      autoMappingRules,
-		ClockOptions:          clock.NewOptions(),
+		Storage:          storage,
+		RulesKVStore:     kvStore,
+		AutoMappingRules: autoMappingRules,
+		ClockOptions:     clock.NewOptions(),
+		// TODO: remove after https://github.com/m3db/m3/issues/992 is fixed
 		InstrumentOptions:     instrumentOpts.SetMetricsScope(tally.NoopScope),
 		TagEncoderOptions:     tagEncoderOptions,
 		TagDecoderOptions:     tagDecoderOptions,
