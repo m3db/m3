@@ -79,6 +79,16 @@ func (r *multiResult) FinalResult() (encoding.SeriesIterators, error) {
 	}
 
 	numSeries := len(r.dedupeMap)
+	if numSeries == 0 {
+		return encoding.EmptySeriesIterators, nil
+	}
+
+	// can short-cicuit in this case
+	if len(r.seenIters) == 1 {
+		return r.seenIters[0], nil
+	}
+
+	// otherwise have to create a new seriesiters
 	iter := r.pools.MutableSeriesIterators().Get(numSeries)
 	iter.Reset(numSeries)
 

@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/test/seriesiter"
@@ -36,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/sync"
+	xtest "github.com/m3db/m3x/test"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -207,15 +209,32 @@ func TestLocalWriteAggregatedSuccess(t *testing.T) {
 }
 
 func TestLocalRead(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 	store, sessions := setup(t, ctrl)
 	testTags := seriesiter.GenerateTag()
+
+	mockIter := encoding.NewMockSeriesIterator(ctrl)
+	mockIters := []encoding.SeriesIterator{mockIter}
+	mockMutableIter := encoding.NewMockMutableSeriesIterators(ctrl)
+	mutablePool := encoding.NewMockMutableSeriesIteratorsPool(ctrl)
+	pools := encoding.NewMockIteratorPools(ctrl)
 	sessions.forEach(func(session *client.MockSession) {
 		session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(seriesiter.NewMockSeriesIters(ctrl, testTags, 1, 2), true, nil)
 		session.EXPECT().IteratorPools().
-			Return(nil, nil).AnyTimes()
+			Return(pools, nil).AnyTimes()
+		pools.EXPECT().MutableSeriesIterators().Return(mutablePool).AnyTimes()
+		mutablePool.EXPECT().Get(gomock.Any()).Return(mockMutableIter).AnyTimes()
+		mockMutableIter.EXPECT().Reset(gomock.Any()).AnyTimes()
+		mockMutableIter.EXPECT().SetAt(gomock.Any(), gomock.Any()).AnyTimes()
+		mockMutableIter.EXPECT().Iters().Return(mockIters).AnyTimes()
+		mockMutableIter.EXPECT().Len().Return(1).AnyTimes()
+		mockIter.EXPECT().ID().Return(ident.BytesID([]byte("abc"))).AnyTimes()
+		mockIter.EXPECT().Tags().Return(
+			ident.NewTagsIterator(ident.NewTags(testTags))).AnyTimes()
+		mockIter.EXPECT().Next().Return(false).AnyTimes()
+		mockIter.EXPECT().Err().Return(nil).AnyTimes()
 	})
 
 	searchReq := newFetchReq()
@@ -233,7 +252,10 @@ func TestLocalRead(t *testing.T) {
 func TestLocalReadNoClustersForTimeRangeError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	store, _ := setup(t, ctrl)
+	store, sessions := setup(t, ctrl)
+
+	sessions.unaggregated1MonthRetention.EXPECT().IteratorPools().
+		Return(nil, nil).AnyTimes()
 	searchReq := newFetchReq()
 	searchReq.Start = time.Now().Add(-2 * testRetention)
 	searchReq.End = time.Now()

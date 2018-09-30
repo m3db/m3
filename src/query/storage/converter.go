@@ -204,13 +204,13 @@ func decompressSequentially(
 	iterLength int,
 	iters []encoding.SeriesIterator,
 ) (*FetchResult, error) {
-	seriesList := make([]*ts.Series, iterLength)
-	for i, iter := range iters {
+	seriesList := make([]*ts.Series, 0, len(iters))
+	for _, iter := range iters {
 		series, err := iteratorToTsSeries(iter)
 		if err != nil {
 			return nil, err
 		}
-		seriesList[i] = series
+		seriesList = append(seriesList, series)
 	}
 
 	return &FetchResult{

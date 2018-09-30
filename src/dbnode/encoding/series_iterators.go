@@ -69,3 +69,12 @@ func (iters *seriesIterators) SetAt(idx int, iter SeriesIterator) {
 func (iters *seriesIterators) Reset(size int) {
 	iters.iters = iters.iters[:size]
 }
+
+// EmptySeriesIterators is an empty SeriesIterators.
+var EmptySeriesIterators SeriesIterators = emptyIters{}
+
+type emptyIters struct{}
+
+func (e emptyIters) Iters() []SeriesIterator { return nil }
+func (e emptyIters) Len() int                { return 0 }
+func (e emptyIters) Close()                  {}
