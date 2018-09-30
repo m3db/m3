@@ -9,6 +9,14 @@ echo "Run m3dbnode docker container"
 
 CONTAINER_NAME="m3dbnode-version-${REVISION}"
 docker create --name "${CONTAINER_NAME}" -p 9000:9000 -p 9001:9001 -p 9002:9002 -p 9003:9003 -p 9004:9004 -p 7201:7201 "m3dbnode_integration:${REVISION}"
+
+# think of this as a defer func() in golang
+function defer {
+  echo "Remove docker container"
+  docker rm --force "${CONTAINER_NAME}"
+}
+trap defer EXIT
+
 docker start "${CONTAINER_NAME}"
 if [ $? -ne 0 ]; then
   echo "m3dbnode docker failed to start"
@@ -118,9 +126,3 @@ curl -vvvsSf -X DELETE 0.0.0.0:7201/api/v1/placement
 
 echo "Deleting namespace"
 curl -vvvsSf -X DELETE 0.0.0.0:7201/api/v1/namespace/default
-
-echo "Stop docker container"
-docker stop "${CONTAINER_NAME}"
-
-echo "Remove docker container"
-docker rm "${CONTAINER_NAME}"
