@@ -28,16 +28,17 @@ import (
 )
 
 // CmpMatcher returns a new matcher backed by go-cmp/cmp.Equal.
-func CmpMatcher(x interface{}) gomock.Matcher {
-	return &matcher{x}
+func CmpMatcher(x interface{}, opts ...cmp.Option) gomock.Matcher {
+	return &matcher{x, opts}
 }
 
 type matcher struct {
 	expected interface{}
+	opts     cmp.Options
 }
 
 func (m matcher) Matches(x interface{}) bool {
-	return cmp.Equal(m.expected, x)
+	return cmp.Equal(m.expected, x, m.opts...)
 }
 
 func (m matcher) String() string {
