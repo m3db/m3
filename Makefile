@@ -130,7 +130,7 @@ install-mockgen:
 
 .PHONY: install-retool
 install-retool:
-	@which retool >/dev/null || go get $(retool_package)
+	which retool >/dev/null || go get $(retool_package)
 
 .PHONY: install-codegen-tools
 install-codegen-tools: install-retool
