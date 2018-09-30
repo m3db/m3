@@ -2,7 +2,7 @@ app:
   build: .
   volumes:
     - ./:/go/src/github.com/m3db/m3
-    - /usr/bin/buildkite-agent:/usr/bin/buildkite-agent
+    # - /usr/bin/buildkite-agent:/usr/bin/buildkite-agent
   environment:
     - BUILDKITE_AGENT_ACCESS_TOKEN
     - BUILDKITE_JOB_ID
