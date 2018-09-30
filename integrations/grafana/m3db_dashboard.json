@@ -2680,7 +2680,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(cluster_shards_available{instace=~\"$instance\"})",
+              "expr": "sum(cluster_shards_available{instance=~\"$instance\"})",
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.8040141995856238,
@@ -2688,7 +2688,7 @@
               "refId": "A"
             },
             {
-              "expr": "sum(cluster_shards_initializing{instace=~\"$instance\"})",
+              "expr": "sum(cluster_shards_initializing{instance=~\"$instance\"})",
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.8040141995856238,
@@ -2696,7 +2696,7 @@
               "refId": "B"
             },
             {
-              "expr": "sum(cluster_shards_leaving{instace=~\"$instance\"})",
+              "expr": "sum(cluster_shards_leaving{instance=~\"$instance\"})",
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.8040141995856238,
@@ -3691,7 +3691,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "m3dbclient_stream_from_peers_fetch_blocks_inprogress{instace=~\"$instance\"}",
+              "expr": "m3dbclient_stream_from_peers_fetch_blocks_inprogress{instance=~\"$instance\"}",
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.26636320136208314,
@@ -3777,7 +3777,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "m3dbclient_stream_from_peers_fetch_metadata_peers_inprogress{instace=~\"$instance\"}",
+              "expr": "m3dbclient_stream_from_peers_fetch_metadata_peers_inprogress{instance=~\"$instance\"}",
               "format": "time_series",
               "intervalFactor": 1,
               "key": 0.6565937560035238,
