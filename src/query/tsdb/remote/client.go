@@ -92,7 +92,7 @@ func (c *grpcClient) Fetch(
 		return nil, err
 	}
 
-	return storage.SeriesIteratorsToFetchResult(iters, c.workerPool)
+	return storage.SeriesIteratorsToFetchResult(iters, c.workerPool, true)
 }
 
 func (c *grpcClient) fetchRaw(
@@ -170,7 +170,7 @@ func (c *grpcClient) FetchBlocks(
 		return block.Result{}, err
 	}
 
-	fetchResult, err := storage.SeriesIteratorsToFetchResult(iters, c.workerPool)
+	fetchResult, err := storage.SeriesIteratorsToFetchResult(iters, c.workerPool, true)
 	if err != nil {
 		return block.Result{}, err
 	}

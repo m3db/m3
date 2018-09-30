@@ -66,7 +66,7 @@ func (s *m3storage) Fetch(
 		return nil, err
 	}
 
-	return storage.SeriesIteratorsToFetchResult(raw, s.readWorkerPool)
+	return storage.SeriesIteratorsToFetchResult(raw, s.readWorkerPool, false)
 }
 
 func (s *m3storage) FetchBlocks(
@@ -110,9 +110,19 @@ func (s *m3storage) FetchRaw(
 		namespaces = s.clusters.ClusterNamespaces()
 		now        = time.Now()
 		fetches    = 0
-		result     multiFetchResult
 		wg         sync.WaitGroup
 	)
+	if len(namespaces) == 0 {
+		return nil, noop, fmt.Errorf("no namespaces configured")
+	}
+
+	pools, err := namespaces[0].Session().IteratorPools()
+	if err != nil {
+		return nil, noop, fmt.Errorf("unable to retrieve iterator pools: %v", err)
+	}
+
+	result := newMultiFetchResult(pools)
+
 	for _, namespace := range namespaces {
 		namespace := namespace // Capture var
 
@@ -132,21 +142,24 @@ func (s *m3storage) FetchRaw(
 			iters, _, err := session.FetchTagged(ns, m3query, opts)
 			// Ignore error from getting iterator pools, since operation
 			// will not be dramatically impacted if pools is nil
-			pools, _ := session.IteratorPools()
-			result.setPools(pools)
-			result.add(namespace.Options().Attributes(), iters, err)
+			result.Add(namespace.Options().Attributes(), iters, err)
 			wg.Done()
 		}()
 	}
+
 	if fetches == 0 {
 		return nil, noop, errNoLocalClustersFulfillsQuery
 	}
+
 	wg.Wait()
-	if err := result.err.FinalError(); err != nil {
+
+	iters, err := result.FinalResult()
+	if err != nil {
+		result.Close()
 		return nil, noop, err
 	}
 
-	return result.iterators, result.close, nil
+	return iters, result.Close, nil
 }
 
 func (s *m3storage) FetchTags(

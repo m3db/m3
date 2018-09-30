@@ -21,6 +21,7 @@
 package m3
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -28,27 +29,40 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 )
 
+type multiFetchResult interface {
+	Add(
+		attrs storage.Attributes,
+		iterators encoding.SeriesIterators,
+		err error,
+	)
+
+	FinalResult() (encoding.SeriesIterators, error)
+
+	Close() error
+}
+
 // TODO: use a better seriesIterators merge here
-type multiFetchResult struct {
+type multiResult struct {
 	sync.Mutex
-	sync.Once
-	iterators        encoding.SeriesIterators
-	err              xerrors.MultiError
-	dedupeFirstAttrs storage.Attributes
-	dedupeMap        map[string]multiFetchResultSeries
-	// Need to keep track of seen iterators, otherwise they are not
-	// properly cleaned up and returned to the pool; can also leak
-	// duplciate series iterators.
-	seenIters []encoding.SeriesIterators
-	pools     encoding.IteratorPools
+	dedupeMap map[string][]multiResultSeries
+	seenIters []encoding.SeriesIterators // track known iterators to avoid leaking
+	err       xerrors.MultiError
+
+	pools encoding.IteratorPools
 }
 
-type multiFetchResultSeries struct {
-	idx   int
+func newMultiFetchResult(pools encoding.IteratorPools) multiFetchResult {
+	return &multiResult{
+		pools: pools,
+	}
+}
+
+type multiResultSeries struct {
 	attrs storage.Attributes
+	iter  encoding.SeriesIterator
 }
 
-func (r *multiFetchResult) close() error {
+func (r *multiResult) Close() error {
 	for _, iters := range r.seenIters {
 		iters.Close()
 	}
@@ -56,82 +70,102 @@ func (r *multiFetchResult) close() error {
 	return nil
 }
 
-func (r *multiFetchResult) setPools(pools encoding.IteratorPools) {
+func (r *multiResult) FinalResult() (encoding.SeriesIterators, error) {
 	r.Lock()
-	r.Do(func() {
-		r.pools = pools
-	})
-	r.Unlock()
+	defer r.Unlock()
+	err := r.err.FinalError()
+	if err != nil {
+		return nil, err
+	}
+
+	numSeries := len(r.dedupeMap)
+	if numSeries == 0 {
+		return encoding.EmptySeriesIterators, nil
+	}
+
+	// can short-cicuit in this case
+	if len(r.seenIters) == 1 {
+		return r.seenIters[0], nil
+	}
+
+	// otherwise have to create a new seriesiters
+	iter := r.pools.MutableSeriesIterators().Get(numSeries)
+	iter.Reset(numSeries)
+
+	i := 0
+	for _, res := range r.dedupeMap {
+		if len(res) != 1 {
+			return nil, fmt.Errorf("internal error during result dedupe, expected 1 id, observed: %d", len(res))
+		}
+		iter.SetAt(i, res[0].iter)
+		i++
+	}
+
+	return iter, nil
 }
 
-func (r *multiFetchResult) add(
+func (r *multiResult) Add(
 	attrs storage.Attributes,
 	iterators encoding.SeriesIterators,
 	err error,
 ) {
 	r.Lock()
 	defer r.Unlock()
-	r.seenIters = append(r.seenIters, iterators)
 
 	if err != nil {
 		r.err = r.err.Add(err)
 		return
 	}
 
-	if r.iterators == nil {
-		r.iterators = iterators
-		r.dedupeFirstAttrs = attrs
+	r.seenIters = append(r.seenIters, iterators)
+	if !r.err.Empty() {
+		// don't need to do anything if the final result is going to be an error
 		return
 	}
 
 	iters := iterators.Iters()
-	// Need to dedupe
 	if r.dedupeMap == nil {
-		r.dedupeMap = make(map[string]multiFetchResultSeries, len(iters))
-		for idx, s := range iters {
-			r.dedupeMap[s.ID().String()] = multiFetchResultSeries{
-				idx:   idx,
-				attrs: r.dedupeFirstAttrs,
-			}
-		}
+		r.dedupeMap = make(map[string][]multiResultSeries, len(iters))
 	}
 
-	r.dedupe(attrs, iterators)
+	for _, iter := range iters {
+		id := iter.ID().String()
+		r.dedupeMap[id] = append(r.dedupeMap[id], multiResultSeries{
+			attrs: attrs,
+			iter:  iter,
+		})
+	}
+
+	r.dedupe()
 }
 
-func (r *multiFetchResult) dedupe(
-	attrs storage.Attributes,
-	iterators encoding.SeriesIterators,
-) {
-	iters := iterators.Iters()
-	for _, s := range iters {
-		id := s.ID().String()
-		existing, exists := r.dedupeMap[id]
-		if exists && existing.attrs.Resolution <= attrs.Resolution {
-			// Already exists and resolution of result we are adding is not as precise
+func (r *multiResult) dedupe() {
+	for id, serieses := range r.dedupeMap {
+		if len(serieses) < 2 {
 			continue
 		}
 
-		// Does not exist already or more precise, add result
-		var idx int
-		currentIters := r.iterators.Iters()
-		if !exists {
-			idx = len(currentIters)
-			currentIters = append(currentIters, s)
-		} else {
-			idx = existing.idx
-			currentIters[idx] = s
+		// find max resolution
+		maxIdx := 0
+		maxValue := serieses[0].attrs
+		for i := 1; i < len(serieses); i++ {
+			series := serieses[i].attrs
+			if series.Resolution > maxValue.Resolution {
+				maxIdx = i
+				maxValue = series
+			}
 		}
 
-		var pool encoding.MutableSeriesIteratorsPool
-		if r.pools != nil {
-			pool = r.pools.MutableSeriesIterators()
-		}
+		maxSeries := serieses[maxIdx]
 
-		r.iterators = encoding.NewSeriesIterators(currentIters, pool)
-		r.dedupeMap[id] = multiFetchResultSeries{
-			idx:   idx,
-			attrs: attrs,
+		// reset slice to reuse
+		for idx := range serieses {
+			serieses[idx] = multiResultSeries{}
 		}
+		serieses = serieses[:0]
+
+		// update map with new entry
+		serieses = append(serieses, maxSeries)
+		r.dedupeMap[id] = serieses
 	}
 }
