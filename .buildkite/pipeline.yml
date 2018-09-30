@@ -1,0 +1,3 @@
+steps:
+  - command: "./scripts/buildkite.sh"
+    label: "Unit Test :suitest:"
