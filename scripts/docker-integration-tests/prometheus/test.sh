@@ -105,12 +105,12 @@ ATTEMPTS=6 TIMEOUT=2 retry_with_backoff  \
   '[[ $(curl -sSf 0.0.0.0:9090/api/v1/query?query=prometheus_remote_storage_succeeded_samples_total | jq -r .data.result[].value[1]) -gt 100 ]]'
 
 # Make sure we're proxying writes to the unaggregated namespace
-echo "Wait until data beings being written to remote storage for the unaggregated namespace"
+echo "Wait until data begins being written to remote storage for the unaggregated namespace"
 ATTEMPTS=6 TIMEOUT=2 retry_with_backoff  \
   '[[ $(curl -sSf 0.0.0.0:9090/api/v1/query?query=database_write_tagged_success\\{namespace="unagg"\\} | jq .data.result[0].value[1]) -gt 0 ]]'
 
 # Make sure we're proxying writes to the aggregated namespace
-echo "Wait until data beings being written to remote storage for the aggregated namespace"
+echo "Wait until data begins being written to remote storage for the aggregated namespace"
 ATTEMPTS=6 TIMEOUT=2 retry_with_backoff  \
   '[[ $(curl -sSf 0.0.0.0:9090/api/v1/query?query=database_write_tagged_success\\{namespace="agg"\\} | jq .data.result[0].value[1]) -gt 0 ]]'
 
