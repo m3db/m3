@@ -1,3 +1,5 @@
 steps:
-  - command: "./scripts/buildkite.sh"
-    label: "Unit Test :suitest:"
+  - name: ":golang:"
+    command: "./scripts/buildkite.sh"
+    env:
+      BUILDKTE_GOLANG_IMPORT_PATH: "github.com/m3db/m3"
