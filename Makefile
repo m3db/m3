@@ -68,7 +68,7 @@ setup:
 	mkdir -p $(BUILD)
 
 .PHONY: install-ci
-install-ci: prep-semaphore install-codegen-tools
+install-ci: install-codegen-tools
 	PATH=$(retool_bin_path):$(PATH) dep ensure -v
 
 define SERVICE_RULES
