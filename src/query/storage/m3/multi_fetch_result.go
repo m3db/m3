@@ -22,9 +22,9 @@ package m3
 
 import (
 	"sync"
+	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/query/storage"
 	xerrors "github.com/m3db/m3x/errors"
 )
 
@@ -32,10 +32,10 @@ import (
 type multiFetchResult struct {
 	sync.Mutex
 	sync.Once
-	iterators        encoding.SeriesIterators
-	err              xerrors.MultiError
-	dedupeFirstAttrs storage.Attributes
-	dedupeMap        map[string]multiFetchResultSeries
+	iterators             encoding.SeriesIterators
+	err                   xerrors.MultiError
+	dedupeFirstResolution time.Duration
+	dedupeMap             map[string]multiFetchResultSeries
 	// Need to keep track of seen iterators, otherwise they are not
 	// properly cleaned up and returned to the pool; can also leak
 	// duplciate series iterators.
@@ -44,8 +44,8 @@ type multiFetchResult struct {
 }
 
 type multiFetchResultSeries struct {
-	idx   int
-	attrs storage.Attributes
+	idx        int
+	resolution time.Duration
 }
 
 func (r *multiFetchResult) close() error {
@@ -65,49 +65,50 @@ func (r *multiFetchResult) setPools(pools encoding.IteratorPools) {
 }
 
 func (r *multiFetchResult) add(
-	attrs storage.Attributes,
+	resolution time.Duration,
 	iterators encoding.SeriesIterators,
 	err error,
 ) {
 	r.Lock()
 	defer r.Unlock()
-	r.seenIters = append(r.seenIters, iterators)
 
 	if err != nil {
 		r.err = r.err.Add(err)
 		return
 	}
 
+	r.seenIters = append(r.seenIters, iterators)
+
 	if r.iterators == nil {
 		r.iterators = iterators
-		r.dedupeFirstAttrs = attrs
+		r.dedupeFirstResolution = resolution
 		return
 	}
 
-	iters := iterators.Iters()
-	// Need to dedupe
+	iters := r.iterators.Iters()
+	// Populate the dedupe map with the results from the first iterator batch
 	if r.dedupeMap == nil {
 		r.dedupeMap = make(map[string]multiFetchResultSeries, len(iters))
 		for idx, s := range iters {
 			r.dedupeMap[s.ID().String()] = multiFetchResultSeries{
-				idx:   idx,
-				attrs: r.dedupeFirstAttrs,
+				idx:        idx,
+				resolution: r.dedupeFirstResolution,
 			}
 		}
 	}
 
-	r.dedupe(attrs, iterators)
+	r.dedupe(resolution, iterators)
 }
 
 func (r *multiFetchResult) dedupe(
-	attrs storage.Attributes,
+	resolution time.Duration,
 	iterators encoding.SeriesIterators,
 ) {
 	iters := iterators.Iters()
 	for _, s := range iters {
 		id := s.ID().String()
 		existing, exists := r.dedupeMap[id]
-		if exists && existing.attrs.Resolution <= attrs.Resolution {
+		if exists && existing.resolution <= resolution {
 			// Already exists and resolution of result we are adding is not as precise
 			continue
 		}
@@ -130,8 +131,8 @@ func (r *multiFetchResult) dedupe(
 
 		r.iterators = encoding.NewSeriesIterators(currentIters, pool)
 		r.dedupeMap[id] = multiFetchResultSeries{
-			idx:   idx,
-			attrs: attrs,
+			idx:        idx,
+			resolution: resolution,
 		}
 	}
 }
