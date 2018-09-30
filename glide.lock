@@ -312,7 +312,7 @@ imports:
   - protocol/proto
   - topic
 - name: github.com/m3db/m3x
-  version: 1bcb37ae8e67118c1d99ac31098a683a3a46a68f
+  version: 659975cd3b5b69f112f1b74244b4d8b440888cf4
   vcs: git
   subpackages:
   - checked
