@@ -1,5 +1,6 @@
 steps:
-  - name: ':golang:'
+  - name: ":golang:"
     command: './scripts/buildkite.sh'
-    env:
-      BUILDKTE_GOLANG_IMPORT_PATH: 'github.com/m3db/m3'
+    plugins:
+      docker-compose#v2.5.1:
+        run: app
