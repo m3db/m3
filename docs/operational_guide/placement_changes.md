@@ -54,26 +54,65 @@ This value should be in the form of <M3DB_NODE_LISTEN_PORT> and identifies the p
 
 ### Placement Operations
 
-The instructions below all contain sample curl commands, but you can always review the API documentation at TODO INSTRUCTIONS TO VIEW API DOCS.
+The instructions below all contain sample curl commands, but you can always review the API documentation by navigating to
+
+`http://<M3_COORDINATOR_HOST_NAME>:<CONFIGURED_PORT(default 7201)>/api/v1/openapi`
 
 #### Placement Initialization
-TOOD
+
+Send a POST request to the `/api/v1/placement/init` endpoint
+
+```bash
+curl -X POST localhost:7201/api/v1/placement/init -d '{
+    "num_shards": <DESIRED_NUMBER_OF_SHARDS>,
+    "replication_factor": <DESIRED_REPLICATION_FACTOR>(recommended 3),
+    "instances": [
+        {
+            "id": "<NODE_1_ID>",
+            "isolation_group": "<NODE_1_ISOLATION_GROUP>",
+            "zone": "<ETCD_ZONE>",
+            "weight": <NODE_WEIGHT>,
+            "endpoint": "<NODE_1_HOST_NAME>:<NODE_1_PORT>",
+            "hostname": "<NODE_1_HOST_NAME>",
+            "port": <NODE_1_PORT>
+        },
+        {
+            "id": "<NODE_2_ID>",
+            "isolation_group": "<NODE_2_ISOLATION_GROUP>",
+            "zone": "<ETCD_ZONE>",
+            "weight": <NODE_WEIGHT>,
+            "endpoint": "<NODE_2_HOST_NAME>:<NODE_2_PORT>",
+            "hostname": "<NODE_2_HOST_NAME>",
+            "port": <NODE_2_PORT>
+        },
+        {
+            "id": "<NODE_3_ID>",
+            "isolation_group": "<NODE_3_ISOLATION_GROUP>",
+            "zone": "<ETCD_ZONE>",
+            "weight": <NODE_WEIGHT>,
+            "endpoint": "<NODE_3_HOST_NAME>:<NODE_3_PORT>",
+            "hostname": "<NODE_3_HOST_NAME>",
+            "port": <NODE_3_PORT>
+        },
+    ]
+}'
+```
 
 #### Adding a Node
 
-All you have to do is send a POST request to the /api/v1/placement endpoint
+Send a POST request to the `/api/v1/placement` endpoint
 
-```
-curl -X POST <M3_COORDINATOR_IP_ADDRESS>:<M3_COORDINATOR_LISTEN_ADDRESS_PORT(default 7201)>/api/v1/placement -d '{
+```bash
+curl -X POST <M3_COORDINATOR_HOST_NAME>:<M3_COORDINATOR_PORT(default 7201)>/api/v1/placement -d '{
   "instances": [
     {
       "id": "<NEW_NODE_ID>",
       "isolationGroup": "<NEW_NODE_ISOLATION_GROUP>",
       "zone": "<ETCD_ZONE>",
       "weight": <NODE_WEIGHT>,
-      "endpoint": "<NEW_NODE_ADDRESS>:<NEW_NODE_LISTEN_PORT>(default 9000)",
-      "hostname": "<NEW_NODE_ADDRESS>",
-      "port": <NEW_NODE_LISTEN_PORT>
+      "endpoint": "<NEW_NODE_HOST_NAME>:<NEW_NODE_PORT>(default 9000)",
+      "hostname": "<NEW_NODE_HOST_NAME>",
+      "port": <NEW_NODE_PORT>
     }
   ]
 }'
@@ -81,10 +120,10 @@ curl -X POST <M3_COORDINATOR_IP_ADDRESS>:<M3_COORDINATOR_LISTEN_ADDRESS_PORT(def
 
 #### Removing a Node
 
-All you have to do is send a DELETE request to the /api/v1/placement/<NODE_ID> endpoint.
+Send a DELETE request to the `/api/v1/placement/<NODE_ID>` endpoint.
 
-```
-curl -X DELETE <M3_COORDINATOR_IP_ADDRESS>:<M3_COORDINATOR_LISTEN_ADDRESS_PORT(default 7201)>/api/v1/placement/<NODE_ID>
+```bash
+curl -X DELETE <M3_COORDINATOR_HOST_NAME>:<M3_COORDINATOR_PORT(default 7201)>/api/v1/placement/<NODE_ID>
 ```
 
 #### Replacing a Node
