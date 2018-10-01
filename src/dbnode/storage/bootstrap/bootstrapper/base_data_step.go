@@ -58,10 +58,15 @@ func newBootstrapDataStep(
 
 func (s *bootstrapData) prepare(
 	totalRanges result.ShardTimeRanges,
-) bootstrapStepPreparedResult {
-	return bootstrapStepPreparedResult{
-		currAvailable: s.curr.AvailableData(s.namespace, totalRanges, s.opts),
+) (bootstrapStepPreparedResult, error) {
+	currAvailable, err := s.curr.AvailableData(s.namespace, totalRanges, s.opts)
+	if err != nil {
+		return bootstrapStepPreparedResult{}, err
 	}
+
+	return bootstrapStepPreparedResult{
+		currAvailable: currAvailable,
+	}, nil
 }
 
 func (s *bootstrapData) runCurrStep(

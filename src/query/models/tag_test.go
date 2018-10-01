@@ -113,9 +113,17 @@ func createTags(withName bool) Tags {
 	return tags
 }
 
-func TestTagID(t *testing.T) {
+func TestTagStringID(t *testing.T) {
 	tags := createTags(false)
-	assert.Equal(t, tags.ID(), "t1=v1,t2=v2,")
+	assert.Equal(t, "t1=v1,t2=v2,", tags.StringID())
+}
+
+func TestTagByteID(t *testing.T) {
+	var (
+		tags = createTags(false)
+		b    = tags.WriteBytesID([]byte{})
+	)
+	assert.Equal(t, []byte("t1=v1,t2=v2,"), b)
 }
 
 func TestWithoutName(t *testing.T) {
