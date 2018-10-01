@@ -284,7 +284,8 @@ func (s *m3storage) Write(
 		// Special case single datapoint because it is common and we
 		// can avoid the overhead of a waitgroup, goroutine, multierr,
 		// iterator duplication etc.
-		return s.writeSingle(ctx, query, datapoint, id, tagIter)
+		return s.writeSingle(
+			ctx, query, query.Datapoints[0], id, tagIterator)
 	}
 
 	var (
