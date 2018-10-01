@@ -14,7 +14,7 @@ COORDINATOR_PORT=${COORDINATOR_PORT:-7201}
 DBNODE_PORT=${DBNODE_PORT:-9004}
 COORD_PLACEMENT_ENDPOINT="http://localhost:${COORDINATOR_PORT}/api/v1/placement"
 COORD_NAMESPACE_ENDPOINT="http://localhost:${COORDINATOR_PORT}/api/v1/namespace"
-DBNODE_ENDPOINT="http://localhost:${DBNODE_PORT}:9004/"
+DBNODE_ENDPOINT="http://localhost:${DBNODE_PORT}/health"
 
 HOSTNAME=${HOSTNAME:-$(hostname)}
 
@@ -56,6 +56,13 @@ if [ "$RES" -eq 22 ]; then
 fi
 
 curl -sSf -o "$DBNODE_TMPFILE" "$DBNODE_ENDPOINT"
+RES=$?
+
+if [ "$RES" -ne 0 ]; then
+  echo "Received exit code $RES from curl health"
+  exit 1
+fi
+
 BOOTSTRAPPED=$(jq .bootstrapped < "$DBNODE_TMPFILE")
 if [ "$BOOTSTRAPPED" != "true" ]; then
   echo "Not bootstrapped ($BOOTSTRAPPED)"
