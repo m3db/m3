@@ -280,6 +280,13 @@ func (s *m3storage) Write(
 	id.NoFinalize()
 	tagIterator := storage.TagsToIdentTagIterator(query.Tags)
 
+	if len(query.Datapoints) == 1 {
+		// Special case single datapoint because it is common and we
+		// can avoid the overhead of a waitgroup, goroutine, multierr,
+		// iterator duplication etc.
+		return s.writeSingle(ctx, query, datapoint, id, tagIter)
+	}
+
 	var (
 		wg       sync.WaitGroup
 		multiErr syncMultiErrs
