@@ -3,7 +3,7 @@ FROM golang:1.10-alpine AS builder
 LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
 
 # Install Glide
-RUN apk add --update glide git make bash curl jq
+RUN apk add --update glide git make bash
 
 # Add source code
 RUN mkdir -p /go/src/github.com/m3db/m3
