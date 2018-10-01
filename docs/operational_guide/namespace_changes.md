@@ -32,7 +32,7 @@ Can be modified without creating a new namespace: `yes`
 
 ### repairEnabled
 
-This feature is currently not implemented.
+If enabled, the M3DB nodes will attempt to compare the data they own with the data of their peers and emit metrics about any discrepancies. This feature is experimental and we do not recommend enabling it under any circumstances.
 
 ### retentionOptions
 
