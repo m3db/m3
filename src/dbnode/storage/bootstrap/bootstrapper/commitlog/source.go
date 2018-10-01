@@ -1482,9 +1482,7 @@ func (s *commitLogSource) availability(
 		case shard.Unknown:
 			fallthrough
 		default:
-			errMsg := fmt.Sprintf("unknown shard state: %v", originShardState)
-			s.log.Error(errMsg)
-			return result.ShardTimeRanges{}, errors.New(errMsg)
+			return result.ShardTimeRanges{}, fmt.Errorf("unknown shard state: %v", originShardState)
 		}
 	}
 
