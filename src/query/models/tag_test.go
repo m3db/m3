@@ -116,6 +116,7 @@ func createTags(withName bool) Tags {
 func TestTagID(t *testing.T) {
 	tags := createTags(false)
 	assert.Equal(t, "t1=v1,t2=v2,", tags.ID())
+	assert.Equal(t, tags.IDLen(), len(tags.ID()))
 }
 
 func TestTagIDMarshalTo(t *testing.T) {
@@ -124,6 +125,7 @@ func TestTagIDMarshalTo(t *testing.T) {
 		b    = tags.IDMarshalTo([]byte{})
 	)
 	assert.Equal(t, []byte("t1=v1,t2=v2,"), b)
+	assert.Equal(t, tags.IDLen(), len(b))
 }
 
 func TestWithoutName(t *testing.T) {
