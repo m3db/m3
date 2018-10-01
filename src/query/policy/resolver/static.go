@@ -51,7 +51,7 @@ func (r *staticResolver) Resolve(
 		return nil, err
 	}
 	requests[0] = tsdb.FetchRequest{
-		ID:     tags.StringID(),
+		ID:     tags.ID(),
 		Ranges: ranges,
 	}
 

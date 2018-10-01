@@ -146,8 +146,8 @@ func (m Matchers) ToTags() (Tags, error) {
 	return Normalize(tags), nil
 }
 
-// StringID returns a string representation of the tags
-func (t Tags) StringID() string {
+// ID returns a string representation of the tags
+func (t Tags) ID() string {
 	var (
 		idLen      = t.IDLen()
 		strBuilder = strings.Builder{}
@@ -164,9 +164,9 @@ func (t Tags) StringID() string {
 	return strBuilder.String()
 }
 
-// WriteBytesID writes out the ID representation
+// IDMarshalTo writes out the ID representation
 // of the tags into the provided buffer.
-func (t Tags) WriteBytesID(b []byte) []byte {
+func (t Tags) IDMarshalTo(b []byte) []byte {
 	for _, tag := range t {
 		b = append(b, tag.Name...)
 		b = append(b, eq)

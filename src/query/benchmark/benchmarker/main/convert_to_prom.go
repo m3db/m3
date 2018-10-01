@@ -61,7 +61,7 @@ func calculateCardinality(fromFile string, logger *zap.Logger) (int, error) {
 		tsdb := scanner.Text()
 		ts, _ := marshalTSDBToProm(tsdb)
 		tags := storage.PromLabelsToM3Tags(ts.GetLabels())
-		id := tags.StringID()
+		id := tags.ID()
 		tagsSeen[id]++
 
 		read++

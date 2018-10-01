@@ -269,11 +269,11 @@ func (s *m3storage) Write(
 		return errors.ErrNilWriteQuery
 	}
 
-	// TODO: Consider caching id -> identID (requires setting NoFinalize()).
 	var (
-		// TODO: Pool this once an ident pool is setup.
+		// TODO: Pool this once an ident pool is setup. We will have
+		// to stop calling NoFinalize() below if we do that.
 		buf   = make([]byte, 0, query.Tags.IDLen())
-		idBuf = query.Tags.WriteBytesID(buf)
+		idBuf = query.Tags.IDMarshalTo(buf)
 		id    = ident.BytesID(idBuf)
 	)
 	// Set id to NoFinalize to avoid cloning it in write operations
