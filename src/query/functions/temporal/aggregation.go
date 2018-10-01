@@ -25,6 +25,7 @@ import (
 	"math"
 
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/ts"
 )
 
 const (
@@ -87,8 +88,8 @@ type aggNode struct {
 	aggFunc    func([]float64) float64
 }
 
-func (a *aggNode) Process(values []float64) float64 {
-	return a.aggFunc(values)
+func (a *aggNode) Process(datapoints ts.Datapoints) float64 {
+	return a.aggFunc(datapoints.Values())
 }
 
 func avgOverTime(values []float64) float64 {

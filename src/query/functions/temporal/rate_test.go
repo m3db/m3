@@ -159,7 +159,7 @@ func testRate(t *testing.T, testCases []testRateCase) {
 		t.Run(tt.name, func(t *testing.T) {
 			values, bounds := test.GenerateValuesAndBounds(tt.vals, nil)
 			boundStart := bounds.Start
-			block3 := test.NewBlockFromValues(bounds, values)
+			block3 := test.NewUnconsolidatedBlockFromDatapoints(bounds, values)
 			c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 
 			baseOp, err := NewRateOp([]interface{}{5 * time.Minute}, tt.opType)
@@ -182,7 +182,7 @@ func testRate(t *testing.T, testCases []testRateCase) {
 
 			original := values[0][0]
 			values[0][0] = math.NaN()
-			block1 := test.NewBlockFromValues(models.Bounds{
+			block1 := test.NewUnconsolidatedBlockFromDatapoints(models.Bounds{
 				Start:    bounds.Start.Add(-2 * bounds.Duration),
 				Duration: bounds.Duration,
 				StepSize: bounds.StepSize,
@@ -199,7 +199,7 @@ func testRate(t *testing.T, testCases []testRateCase) {
 			_, exists = bNode.cache.get(boundStart.Add(-1 * bounds.Duration))
 			assert.False(t, exists, "block cached")
 
-			block2 := test.NewBlockFromValues(models.Bounds{
+			block2 := test.NewUnconsolidatedBlockFromDatapoints(models.Bounds{
 				Start:    bounds.Start.Add(-1 * bounds.Duration),
 				Duration: bounds.Duration,
 				StepSize: bounds.StepSize,

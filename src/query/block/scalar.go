@@ -47,6 +47,11 @@ func NewScalar(val float64, bounds models.Bounds) Block {
 	}
 }
 
+// Unconsolidated returns the unconsolidated version for the block
+func (b *Scalar) Unconsolidated() (UnconsolidatedBlock, error) {
+	return nil, fmt.Errorf("unconsolidated view not implemented for scalar block, meta: %s", b.meta)
+}
+
 // StepIter returns a StepIterator
 func (b *Scalar) StepIter() (StepIter, error) {
 	bounds := b.meta.Bounds

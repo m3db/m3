@@ -23,9 +23,9 @@ package temporal
 import (
 	"fmt"
 	"math"
-	"time"
 
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/ts"
 )
 
 const (
@@ -65,39 +65,43 @@ type rateNode struct {
 	isRate     bool
 }
 
-func (r *rateNode) Process(values []float64) float64 {
-	valuesLen := len(values)
+func (r *rateNode) Process(datapoints ts.Datapoints) float64 {
+	valuesLen := len(datapoints)
 	if valuesLen < 2 {
 		return math.NaN()
 	}
 
 	nonNanIdx := valuesLen - 1
 	// find idx for last non-NaN value
-	indexLast := findNonNanIdx(values, nonNanIdx)
+	indexLast := findNonNanIdx(datapoints, nonNanIdx)
 	// if indexLast is 0 then you only have one value and should return a NaN
 	if indexLast < 1 {
 		return math.NaN()
 	}
 
-	nonNanIdx = findNonNanIdx(values, indexLast-1)
+	nonNanIdx = findNonNanIdx(datapoints, indexLast-1)
 	if nonNanIdx == -1 {
 		return math.NaN()
 	}
 
-	previousSample := values[nonNanIdx]
-	lastSample := values[indexLast]
+	previousSample := datapoints[nonNanIdx]
+	lastSample := datapoints[indexLast]
 
 	var resultValue float64
-	if r.isRate && lastSample < previousSample {
+	if r.isRate && lastSample.Value < previousSample.Value {
 		// Counter reset.
-		resultValue = lastSample
+		resultValue = lastSample.Value
 	} else {
-		resultValue = lastSample - previousSample
+		resultValue = lastSample.Value - previousSample.Value
 	}
 
 	if r.isRate {
-		resultValue *= float64(time.Second)
-		resultValue /= float64(r.timeSpec.Step) * float64(indexLast-nonNanIdx)
+		sampledInterval := lastSample.Timestamp.Sub(previousSample.Timestamp)
+		if sampledInterval == 0 {
+			return math.NaN()
+		}
+
+		resultValue /= sampledInterval.Seconds()
 	}
 
 	return resultValue
@@ -105,9 +109,9 @@ func (r *rateNode) Process(values []float64) float64 {
 
 // findNonNanIdx iterates over the values backwards until we find a non-NaN value,
 // then returns its index
-func findNonNanIdx(vals []float64, startingIdx int) int {
+func findNonNanIdx(dps ts.Datapoints, startingIdx int) int {
 	for i := startingIdx; i >= 0; i-- {
-		if !math.IsNaN(vals[i]) {
+		if !math.IsNaN(dps[i].Value) {
 			return i
 		}
 	}
