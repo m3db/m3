@@ -25,6 +25,7 @@ import (
 	"hash/fnv"
 	"regexp"
 	"sort"
+	"strings"
 )
 
 const (
@@ -147,15 +148,22 @@ func (m Matchers) ToTags() (Tags, error) {
 
 // ID returns a string representation of the tags
 func (t Tags) ID() string {
-	b := make([]byte, 0, len(t))
+	idLen := 0
 	for _, tag := range t {
-		b = append(b, tag.Name...)
-		b = append(b, eq)
-		b = append(b, tag.Value...)
-		b = append(b, sep)
+		idLen += len(tag.Name)
+		idLen += len(tag.Value)
 	}
 
-	return string(b)
+	strBuilder := strings.Builder{}
+	strBuilder.Grow(idLen)
+	for _, tag := range t {
+		strBuilder.WriteString(tag.Name)
+		strBuilder.WriteByte(eq)
+		strBuilder.WriteString(tag.Value)
+		strBuilder.WriteByte(sep)
+	}
+
+	return strBuilder.String()
 }
 
 // IDWithExcludes returns a string representation of the tags excluding some tag keys
