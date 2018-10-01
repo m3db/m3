@@ -21,7 +21,6 @@
 package peers
 
 import (
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -756,9 +755,7 @@ func (s *peersSource) peerAvailability(
 			case shard.Unknown:
 				fallthrough
 			default:
-				errMsg := fmt.Sprintf("unknown shard state: %v", shardState)
-				s.log.Error(errMsg)
-				return nil, errors.New(errMsg)
+				return nil, fmt.Errorf("unknown shard state: %v", shardState)
 			}
 		}
 	}

@@ -21,7 +21,6 @@
 package uninitialized
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
@@ -122,11 +121,7 @@ func (s *uninitializedTopologySource) availability(
 			case shard.Unknown:
 				fallthrough
 			default:
-				// TODO(rartoul): Make this a hard error once we refactor the interface to support
-				// returning errors.
-				errMsg := fmt.Sprintf("unknown shard state: %v", shardState)
-				s.opts.InstrumentOptions().Logger().Error(errMsg)
-				return nil, errors.New(errMsg)
+				return nil, fmt.Errof("unknown shard state: %v", shardState)
 			}
 		}
 
