@@ -269,11 +269,16 @@ func (s *m3storage) Write(
 		return errors.ErrNilWriteQuery
 	}
 
-	id := query.Tags.ID()
-	// TODO: Consider caching id -> identID
-	identID := ident.StringID(id)
+	// TODO: Consider caching id -> identID (requires
+	// setting NoFinalize().
+	var (
+		// TODO: Pool this once an ident pool is setup
+		buf   = make([]byte, 0, query.Tags.IDLen())
+		idBuf = query.Tags.WriteBytesID(buf)
+		id    = ident.BytesID(idBuf)
+	)
 	// Set id to NoFinalize to avoid cloning it in write operations
-	identID.NoFinalize()
+	id.NoFinalize()
 	tagIterator := storage.TagsToIdentTagIterator(query.Tags)
 
 	var (
@@ -287,7 +292,7 @@ func (s *m3storage) Write(
 		datapoint := datapoint
 		wg.Add(1)
 		s.writeWorkerPool.Go(func() {
-			if err := s.writeSingle(ctx, query, datapoint, identID, tagIter); err != nil {
+			if err := s.writeSingle(ctx, query, datapoint, id, tagIter); err != nil {
 				multiErr.add(err)
 			}
 
