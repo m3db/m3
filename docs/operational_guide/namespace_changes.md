@@ -82,7 +82,7 @@ TODO
 
 The operations below include sample CURLs, but you can always review the API documentation by navigating to
 
-`http://<M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>/api/v1/openapi`
+`http://<M3_COORDINATOR_HOST_NAME>:<CONFIGURED_PORT(default 7201)>/api/v1/openapi` or our [online API documentation](https://m3db.io/openapi/).
 
 ### Adding a Namespace
 

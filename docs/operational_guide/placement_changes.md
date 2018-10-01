@@ -2,7 +2,7 @@
 
 ## Overview
 
-M3DB was designed from the ground up to a be a distributed / clustered database that is isolation group aware. Clusters will seamlessly scale with your data, and you can start with a cluster as small as 3 nodes and grow it to a size of several hundred nodes with no downtime or expensive migrations.
+M3DB was designed from the ground up to be a distributed (clustered) database that is availability zone or rack aware (by using isolation groups). Clusters will seamlessly scale with your data, and you can start with a small number of nodes and grow it to a size of several hundred nodes with no downtime or expensive migrations.
 
 Before reading the rest of this document, we recommend familiarizing yourself with the [M3DB placement documentation](placement.md)
 
@@ -16,9 +16,9 @@ If the constraints cannot be met, because there are not enough nodes to calculat
 
 In other words, all you have to do is issue the desired instruction and the M3 stack will take care of making sure that your data is distributed with appropriate replication and isolation.
 
-In the case of the M3DB nodes, nodes that have received new shards will immediately begin receiving writes (but not serving reads) for the new shards that they are responsible for. They will also begin streaming in all the data for their newly acquired shards from the peers that already have data for those shards. Once the nodes have finished streaming in the data for the shards that they have acquired, they will mark their status for those shards as `Available` in the placement and begin accepting writes. Simultaneously, the nodes that are losing ownership of any shards will mark their status for those shards as `LEAVING`. Once all the nodes accepting ownership of the new shards have finished streaming data from them, they will relinquish ownership of those shards and remove all the data associated with the shards they lost from memory and from disk.
+In the case of the M3DB nodes, nodes that have received new shards will immediately begin receiving writes (but not serving reads) for the new shards that they are responsible for. They will also begin streaming in all the data for their newly acquired shards from the peers that already have data for those shards. Once the nodes have finished streaming in the data for the shards that they have acquired, they will mark their status for those shards as `Available` in the placement and begin accepting writes. Simultaneously, the nodes that are losing ownership of any shards will mark their status for those shards as `Leaving`. Once all the nodes accepting ownership of the new shards have finished streaming data from them, they will relinquish ownership of those shards and remove all the data associated with the shards they lost from memory and from disk.
 
-M3Coordinator nodes will also pickup the new placement from etcd and alter which M3DB nodes they issue writse and reads to appropriately.
+M3Coordinator nodes will also pickup the new placement from etcd and alter which M3DB nodes they issue writes and reads to appropriately.
 
 ### Understanding the Placement Configuration
 
@@ -30,7 +30,7 @@ This is the identifier for a node in the placement and can be any value that uni
 
 #### Isolation Group
 
-This value controls how nodes that own the same M3DB shards are isolated from each other. For example, in a single datacenter configuration this value could be set to the rack that the M3DB node lives on. As a result, the placement will guarantee that nodes that exist on the same rack do not share any shards, allowing the cluster to survive the failure of an entire rack. Alternatively, if M3DB was deployed in an AWS region, the isolation group could be set to the regions availability zone and that would ensure that the cluster would survive the loss of an entire availability zone.
+This value controls how nodes that own the same M3DB shards are isolated from each other. For example, in a single datacenter configuration this value could be set to the rack that the M3DB node lives on. As a result, the placement will guarantee that nodes that exist on the same rack do not share any shards, allowing the cluster to survive the failure of an entire rack. Alternatively, if M3DB was deployed in an AWS region, the isolation group could be set to the region's availability zone and that would ensure that the cluster would survive the loss of an entire availability zone.
 
 #### Zone
 
@@ -38,7 +38,7 @@ This value controls what etcd zone the M3DB node belongs to.
 
 #### Weight
 
-This value should be an integer and controls how the cluster will weigh the number of shards that an individual node will own. If you're running the M3DB cluster on homogenous hardware, then you probably want to assign all M3DB nodes the same weight so that shards are distributed evenly. On the otherhand, if you're running the cluster on heterogenous hardware, then this value should be higher for nodes with higher resources for whatever the limiting factor is in your cluster setup. For example, if disk space (as opposed to memory or CPU) is the limiting factor in how many shards any given node in your cluster can tolerate, then you could assign a higher value to nodes in your cluster that have larger disks and the placement calcualtions would assign them a higher number of shards.
+This value should be an integer and controls how the cluster will weigh the number of shards that an individual node will own. If you're running the M3DB cluster on homogenous hardware, then you probably want to assign all M3DB nodes the same weight so that shards are distributed evenly. On the otherhand, if you're running the cluster on heterogenous hardware, then this value should be higher for nodes with higher resources for whatever the limiting factor is in your cluster setup. For example, if disk space (as opposed to memory or CPU) is the limiting factor in how many shards any given node in your cluster can tolerate, then you could assign a higher value to nodes in your cluster that have larger disks and the placement calculations would assign them a higher number of shards.
 
 #### Endpoint
 
@@ -56,7 +56,7 @@ This value should be in the form of <M3DB_NODE_LISTEN_PORT> and identifies the p
 
 The instructions below all contain sample curl commands, but you can always review the API documentation by navigating to
 
-`http://<M3_COORDINATOR_HOST_NAME>:<CONFIGURED_PORT(default 7201)>/api/v1/openapi`
+`http://<M3_COORDINATOR_HOST_NAME>:<CONFIGURED_PORT(default 7201)>/api/v1/openapi` or our [online API documentation](https://m3db.io/openapi/).
 
 #### Placement Initialization
 
