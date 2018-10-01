@@ -180,11 +180,10 @@ func (t Tags) WriteBytesID(b []byte) []byte {
 // IDLen returns the length of the ID that would be
 // generated from the tags.
 func (t Tags) IDLen() int {
-	idLen := 0
+	idLen := 2 * len(t) // account for eq and sep
 	for _, tag := range t {
 		idLen += len(tag.Name)
 		idLen += len(tag.Value)
-		idLen += 2 // eq and sep
 	}
 	return idLen
 }
