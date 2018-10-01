@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Namespaces in M3DB are analogous to tables in other databases. Each namespace has a unique name as well as distinct configuration with regards to data retention and blocksize. For more information about namespaces, read our [storage engine documentation](../architecture/engine.md)
+Namespaces in M3DB are analogous to tables in other databases. Each namespace has a unique name as well as distinct configuration with regards to data retention and blocksize. For more information about namespaces, read our [storage engine documentation](../architecture/engine.md).
 
 ## Namespace Configuration
 
@@ -38,7 +38,7 @@ This feature is currently not implemented.
 
 #### retentionPeriod
 
-This controls the duration of time that M3DB will retain data for the namespace. For example, if this is set to 30 days, then data within this namespace will be available for querying up to 30 days after it is written. Note that this retention operates at the block level, not the write level, so its possible for individual datapoints to only be available for less than the specified retention. For example, if the blockSize was set to 24 hour and the retention was set to 30 days then a write tha arrived at the very end of a 24 hour block would only be available for 29 days, but the node itself would always support querying the last 30 days worth of data.
+This controls the duration of time that M3DB will retain data for the namespace. For example, if this is set to 30 days, then data within this namespace will be available for querying up to 30 days after it is written. Note that this retention operates at the block level, not the write level, so its possible for individual datapoints to only be available for less than the specified retention. For example, if the blockSize was set to 24 hour and the retention was set to 30 days then a write that arrived at the very end of a 24 hour block would only be available for 29 days, but the node itself would always support querying the last 30 days worth of data.
 
 Can be modified without creating a new namespace: `yes`
 
