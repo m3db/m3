@@ -57,7 +57,7 @@ func TestDocTest(t *testing.T) {
 	actualMarkdown := readFile(t, testCaseOutputMarkdown)
 	expectedMarkdown := readFile(t, testCaseMarkdown)
 
-	assert.Equal(t, actualScript, expectedScript)
+	assert.Equal(t, string(actualScript), string(expectedScript))
 	assert.Equal(t, expectedMarkdown, actualMarkdown)
 
 	// Remove script and markdown files

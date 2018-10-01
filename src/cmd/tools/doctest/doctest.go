@@ -106,7 +106,8 @@ func bashScript(contents []byte, fileName string) (*regexp.Regexp, error) {
 
 	script.Chmod(0644)
 	script.WriteString("#!/usr/bin/env bash\n\n")
-	script.WriteString("set -xe\n")
+	script.WriteString("set -xe\n\n")
+	script.WriteString("source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/common.sh\n")
 
 	operationRegEx := regexp.MustCompile(operationRegEx)
 	validationRegEx := regexp.MustCompile(validationRegEx)

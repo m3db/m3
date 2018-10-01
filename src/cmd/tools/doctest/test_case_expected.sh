@@ -2,6 +2,8 @@
 
 set -xe
 
+source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/common.sh
+
 Lorem markdownum ac ratis equos: suam ortus laetos temptant locutum puerum:
 dixit ut laniata somno [non](http://www.studiis-quem.io/) corpore.
 
