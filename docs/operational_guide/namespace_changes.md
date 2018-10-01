@@ -1,0 +1,131 @@
+# Namespace Modifications
+
+## Introduction
+
+Namespaces in M3DB are analogous to tables in other databases. Each namespace has a unique name as well as distinct configuration with regards to data retention and blocksize. For more information about namespaces, read our [storage engine documentation](../architecture/engine.md).
+
+## Namespace Configuration
+
+### bootstrapEnabled
+
+This controls whether M3DB will attempt to [bootstrap](bootstrapping.md) the namespace on startup. This value should always be set to `true` unless you have a very good reason to change it as setting it to `false` can cause data loss when restarting nodes.
+
+Can be modified without creating a new namespace: `yes`
+
+### flushEnabled
+
+This controls whether M3DB will periodically flush blocks to disk once they become immutable. This value should always be set to `true` unless you have a very good reason to change it as setting it to `false` will cause increased memory utilization and potential data loss when restarting nodes.
+
+Can be modified without creating a new namespace: `yes`
+
+### writesToCommitlog
+
+This controls whether M3DB will includes writes to this namespace in the commitlog. This value should always be set to `true` unless you have a very good reason to change it as setting it to `false` will cause potential data loss when restarting nodes.
+
+Can be modified without creating a new namespace: `yes`
+
+### snapshotEnabled
+
+This controls whether M3DB will periodically write out [snapshot files](../architecture/commitlogs.md) for this namespace which act as compacted commitlog files. This value should always be set to `true` unless you have a very good reason to change it as setting it to `false` will increasing bootstrapping times (reading commitlog files is slower than reading snapshot files) and increase disk utilization (snapshot files are compressed but commitlog files are uncompressed).
+
+Can be modified without creating a new namespace: `yes`
+
+### repairEnabled
+
+If enabled, the M3DB nodes will attempt to compare the data they own with the data of their peers and emit metrics about any discrepancies. This feature is experimental and we do not recommend enabling it under any circumstances.
+
+### retentionOptions
+
+#### retentionPeriod
+
+This controls the duration of time that M3DB will retain data for the namespace. For example, if this is set to 30 days, then data within this namespace will be available for querying up to 30 days after it is written. Note that this retention operates at the block level, not the write level, so its possible for individual datapoints to only be available for less than the specified retention. For example, if the blockSize was set to 24 hour and the retention was set to 30 days then a write that arrived at the very end of a 24 hour block would only be available for 29 days, but the node itself would always support querying the last 30 days worth of data.
+
+Can be modified without creating a new namespace: `yes`
+
+#### blockSize
+
+This is the most important value to consider when tuning the performance of an M3DB namespace. Read the [storage engine documentation](../architecture/engine.md) for more details, but the basic idea is that larger blockSizes will use more memory, but achieve higher compression. Similarly, smaller blockSizes will use less memory, but have worse compression.
+
+Can be modified without creating a new namespace: `no`
+
+#### bufferFuture and bufferPast
+
+These values control how far into the future and the past (compared to the system time on an M3DB node) writes for the namespace will be accepted. For example, consider the following configuration:
+
+```
+bufferPast: 10m
+bufferFuture: 20m
+currentSystemTime: 2:35:00PM
+```
+
+Now consider the following writes (all of which arrive at 2:35:00PM system time, but include datapoints with the specified timestamps):
+
+```
+2:25:00PM - Accepted, within the 10m bufferPast
+
+2:24:59PM - Rejected, outside the 10m bufferPast
+
+2:55:00PM - Accepted, within the 20m bufferFuture
+
+2:55:01PM - Rejected, outside the 20m bufferFuture
+```
+
+While it may be tempting to configure `bufferPast` and `bufferFuture` to very large values to prevent writes from being rejected, this may cause performance issues. M3DB is a timeseries database that is optimized for realtime data. Out of order writes, as well as writes for times that are very far into the future or past are much more expensive and will cause additional CPU / memory pressure. In addition, M3DB cannot evict a block from memory until it is no longer mutable and large `bufferPast` and `bufferFuture` values effectively increase the amount of time that a block is mutable for which means that it must be kept in memory for a longer period of time.
+
+Can be modified without creating a new namespace: `yes`
+
+### Index Options
+
+TODO
+
+## Namespace Operations
+
+The operations below include sample CURLs, but you can always review the API documentation by navigating to
+
+`http://<M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>/api/v1/openapi`
+
+### Adding a Namespace
+
+Adding a namespace is a simple as using the `POST` `api/v1/namespace` API on an M3Coordinator instance.
+
+```
+curl -X POST <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>api/v1/namespace -d '{
+  "name": "default_unaggregated",
+  "options": {
+    "bootstrapEnabled": true,
+    "flushEnabled": true,
+    "writesToCommitLog": true,
+    "cleanupEnabled": true,
+    "snapshotEnabled": true,
+    "repairEnabled": false,
+    "retentionOptions": {
+      "retentionPeriodDuration": "2d",
+      "blockSizeDuration": "2h",
+      "bufferFutureDuratiom": "10m",
+      "bufferPastDuration": "10m",
+      "blockDataExpiry": true,
+      "blockDataExpiryAfterNotAccessPeriodDuration": "5m"
+    },
+    "indexOptions": {
+      "enabled": true,
+      "blockSizeDuration": "4h"
+    }
+  }
+}'
+```
+
+Adding a namespace does not require restarting M3DB, but will require modifying the M3Coordinator configuration to include the new namespace, and then restarting it.
+
+### Deleting a Namespace
+
+Deleting a namespace is a simple as using the `DELETE` `/api/v1/namespace` API on an M3Coordinator instance.
+
+curl -X DELETE <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>api/v1/namespace/<NAMESPACE_NAME>
+
+Note that deleting a namespace will not have any effect on the M3DB nodes until they are all restarted. In addition, the namespace will need to be removed from the M3Coordinator configuration and then the M3Coordinator node will need to be restarted.
+
+### Modifying a Namespace
+
+There is currently no atomic namespace modification endpoint. Instead, you will need to delete a namespace and then add it back again with the same name, but modified settings. Review the individual namespace settings above to determine whether or not a given setting is safe to modify. For example,it is never safe to modify the blockSize of a namespace.
+
+Also, be very careful not to restart the M3DB nodes after deleting the namespace, but before adding it back. If you do this, the M3DB nodes may detect the existing data files on disk and delete them since they are not configured to retain that namespace.
