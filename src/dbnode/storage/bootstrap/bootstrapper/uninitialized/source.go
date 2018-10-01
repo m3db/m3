@@ -121,7 +121,7 @@ func (s *uninitializedTopologySource) availability(
 			case shard.Unknown:
 				fallthrough
 			default:
-				return nil, fmt.Errof("unknown shard state: %v", shardState)
+				return nil, fmt.Errorf("unknown shard state: %v", shardState)
 			}
 		}
 
