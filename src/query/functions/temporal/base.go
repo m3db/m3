@@ -248,7 +248,7 @@ func (c *baseNode) processSingleRequest(request processRequest) error {
 	for i, m := range seriesMeta {
 		tags := m.Tags.WithoutName()
 		resultSeriesMeta[i].Tags = tags
-		resultSeriesMeta[i].Name = tags.ID()
+		resultSeriesMeta[i].Name = tags.StringID()
 	}
 
 	builder, err := c.controller.BlockBuilder(seriesIter.Meta(), resultSeriesMeta)
