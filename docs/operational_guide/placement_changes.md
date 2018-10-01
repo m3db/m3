@@ -127,6 +127,7 @@ curl -X DELETE <M3_COORDINATOR_HOST_NAME>:<M3_COORDINATOR_PORT(default 7201)>/ap
 ```
 
 #### Replacing a Node
-TODO
+
+Currently, the best way to replace a node (due to hardware failure or any other reason) is to perform a node remove followed by a node add. We will eventually support node replacement as a single operation, but that is currently not implemented.
 
 
