@@ -170,7 +170,7 @@ func SeriesToPromTS(series *ts.Series) prompb.TimeSeries {
 	return prompb.TimeSeries{Labels: labels, Samples: samples}
 }
 
-// TagsToPromLabels converts tags to prometheus labels.TagsToPromLabels.
+// TagsToPromLabels converts tags to prometheus labels.
 func TagsToPromLabels(tags models.Tags) []*prompb.Label {
 	// Perform bulk allocation upfront then convert to pointers afterwards
 	// to reduce total number of allocations. See BenchmarkFetchResultToPromResult
