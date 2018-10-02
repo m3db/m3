@@ -63,9 +63,13 @@ func NewSelectorFromMatrix(n *promql.MatrixSelector) (parser.Params, error) {
 // NewAggregationOperator creates a new aggregation operator based on the type
 func NewAggregationOperator(expr *promql.AggregateExpr) (parser.Params, error) {
 	opType := expr.Op
+	byteMatchers := make([][]byte, len(expr.Grouping))
+	for i, grouping := range expr.Grouping {
+		byteMatchers[i] = []byte(grouping)
+	}
 
 	nodeInformation := aggregation.NodeParams{
-		MatchingTags: expr.Grouping,
+		MatchingTags: byteMatchers,
 		Without:      expr.Without,
 	}
 
@@ -229,7 +233,7 @@ func labelMatchersToModelMatcher(lMatchers []*labels.Matcher) (models.Matchers, 
 			return nil, err
 		}
 
-		match, err := models.NewMatcher(modelType, m.Name, m.Value)
+		match, err := models.NewMatcher(modelType, []byte(m.Name), []byte(m.Value))
 		if err != nil {
 			return nil, err
 		}
@@ -278,9 +282,15 @@ func promMatchingToM3(vectorMatching *promql.VectorMatching) *binary.VectorMatch
 	if vectorMatching == nil {
 		return nil
 	}
+
+	byteMatchers := make([][]byte, len(vectorMatching.MatchingLabels))
+	for i, label := range vectorMatching.MatchingLabels {
+		byteMatchers[i] = []byte(label)
+	}
+
 	return &binary.VectorMatching{
 		Card:           promVectorCardinalityToM3(vectorMatching.Card),
-		MatchingLabels: vectorMatching.MatchingLabels,
+		MatchingLabels: byteMatchers,
 		On:             vectorMatching.On,
 		Include:        vectorMatching.Include,
 	}

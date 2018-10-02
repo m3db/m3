@@ -23,7 +23,6 @@ package promql
 import (
 	"fmt"
 
-	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/parser"
 
 	pql "github.com/prometheus/prometheus/promql"
@@ -200,7 +199,4 @@ func (p *parseState) walk(node pql.Node) error {
 	default:
 		return fmt.Errorf("promql.Walk: unhandled node type %T, %v", node, node)
 	}
-
-	// TODO: This should go away once all cases have been implemented
-	return errors.ErrNotImplemented
 }

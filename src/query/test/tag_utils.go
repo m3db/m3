@@ -18,29 +18,35 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package utils
+package test
 
-import (
-	"math"
-	"testing"
+import "github.com/m3db/m3/src/query/models"
 
-	"github.com/stretchr/testify/assert"
-)
+// StringTagsToTags converts string tags to tags
+func StringTagsToTags(s StringTags) models.Tags {
+	tags := models.Tags{}
+	for _, t := range s {
+		tags = tags.AddTag(models.Tag{Name: []byte(t.N), Value: []byte(t.V)})
+	}
 
-func TestValueToProm(t *testing.T) {
-	assert.Equal(t, FormatFloat(1.0), "1")
-	assert.Equal(t, FormatFloat(1.2), "1.2")
-	assert.Equal(t, FormatFloat(math.NaN()), "NaN")
-	assert.Equal(t, FormatFloat(math.Inf(1)), "+Inf")
-	assert.Equal(t, FormatFloat(math.Inf(-1)), "-Inf")
-	assert.Equal(t, FormatFloat(0.0119311), "0.0119311")
+	return tags
 }
 
-func TestValueToPromBytes(t *testing.T) {
-	assert.Equal(t, FormatFloatToBytes(1.0), []byte("1"))
-	assert.Equal(t, FormatFloatToBytes(1.2), []byte("1.2"))
-	assert.Equal(t, FormatFloatToBytes(math.NaN()), []byte("NaN"))
-	assert.Equal(t, FormatFloatToBytes(math.Inf(1)), []byte("+Inf"))
-	assert.Equal(t, FormatFloatToBytes(math.Inf(-1)), []byte("-Inf"))
-	assert.Equal(t, FormatFloatToBytes(0.0119311), []byte("0.0119311"))
+// StringTagsSliceToTagSlice converts a slice of string tags to a slice of tags
+func StringTagsSliceToTagSlice(s []StringTags) []models.Tags {
+	tags := make([]models.Tags, len(s))
+
+	for i, stringTags := range s {
+		tags[i] = StringTagsToTags(stringTags)
+	}
+
+	return tags
+}
+
+// StringTags is a slice of string tags
+type StringTags []StringTag
+
+// StringTag is a tag containing string key value pairs
+type StringTag struct {
+	N, V string
 }

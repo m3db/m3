@@ -21,6 +21,7 @@
 package binary
 
 import (
+	"fmt"
 	"math"
 	"testing"
 
@@ -91,5 +92,6 @@ func TestAndWithSomeValues(t *testing.T) {
 	expected := values1
 	expected[0][1] = math.NaN()
 	expected[1][0] = math.NaN()
+	fmt.Println(expected, sink.Values)
 	test.EqualsWithNans(t, expected, sink.Values)
 }

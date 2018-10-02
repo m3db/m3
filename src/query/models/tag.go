@@ -29,13 +29,15 @@ import (
 )
 
 const (
-	// MetricName is an internal name used to denote the name of the metric.
-	// TODO: Get these from the storage
-	MetricName = "__name__"
-
 	// Separators for tags
 	sep = byte(',')
 	eq  = byte('=')
+)
+
+var (
+	// MetricName is an internal name used to denote the name of the metric.
+	// TODO: Get these from the storage
+	MetricName = []byte("__name__")
 )
 
 // Tags is a list of key/value metric tag pairs
@@ -119,14 +121,15 @@ func (m *Matcher) String() string {
 func (m *Matcher) Matches(s []byte) bool {
 	switch m.Type {
 	case MatchEqual:
-		return s == m.Value
+		return bytes.Equal(s, m.Value)
 	case MatchNotEqual:
-		return s != m.Value
+		return !bytes.Equal(s, m.Value)
 	case MatchRegexp:
-		return m.re.MatchString(s)
+		return m.re.MatchString(string(s))
 	case MatchNotRegexp:
-		return !m.re.MatchString(s)
+		return !m.re.MatchString(string(s))
 	}
+
 	panic("labels.Matcher.Matches: invalid match type")
 }
 
@@ -162,17 +165,17 @@ func (t Tags) ID() string {
 }
 
 // IDWithExcludes returns a string representation of the tags excluding some tag keys
-func (t Tags) IDWithExcludes(excludeKeys ...string) uint64 {
+func (t Tags) IDWithExcludes(excludeKeys ...[]byte) uint64 {
 	b := make([]byte, 0, len(t))
 	for _, tag := range t {
 		// Always exclude the metric name by default
-		if tag.Name == MetricName {
+		if bytes.Equal(tag.Name, MetricName) {
 			continue
 		}
 
 		found := false
 		for _, n := range excludeKeys {
-			if n == tag.Name {
+			if bytes.Equal(n, tag.Name) {
 				found = true
 				break
 			}
@@ -194,12 +197,12 @@ func (t Tags) IDWithExcludes(excludeKeys ...string) uint64 {
 	return h.Sum64()
 }
 
-func (t Tags) tagSubset(keys []string, include bool) Tags {
+func (t Tags) tagSubset(keys [][]byte, include bool) Tags {
 	tags := make(Tags, 0, len(t))
 	for _, tag := range t {
 		found := false
 		for _, k := range keys {
-			if tag.Name == k {
+			if bytes.Equal(tag.Name, k) {
 				found = true
 				break
 			}
@@ -214,16 +217,16 @@ func (t Tags) tagSubset(keys []string, include bool) Tags {
 }
 
 // TagsWithoutKeys returns only the tags which do not have the given keys
-func (t Tags) TagsWithoutKeys(excludeKeys []string) Tags {
+func (t Tags) TagsWithoutKeys(excludeKeys [][]byte) Tags {
 	return t.tagSubset(excludeKeys, false)
 }
 
 // IDWithKeys returns a string representation of the tags only including the given keys
-func (t Tags) IDWithKeys(includeKeys ...string) uint64 {
+func (t Tags) IDWithKeys(includeKeys ...[]byte) uint64 {
 	b := make([]byte, 0, len(t))
 	for _, tag := range t {
 		for _, k := range includeKeys {
-			if tag.Name == k {
+			if bytes.Equal(tag.Name, k) {
 				b = append(b, tag.Name...)
 				b = append(b, eq)
 				b = append(b, tag.Value...)
@@ -239,54 +242,24 @@ func (t Tags) IDWithKeys(includeKeys ...string) uint64 {
 }
 
 // TagsWithKeys returns only the tags which have the given keys
-func (t Tags) TagsWithKeys(includeKeys []string) Tags {
+func (t Tags) TagsWithKeys(includeKeys [][]byte) Tags {
 	return t.tagSubset(includeKeys, true)
 }
 
 // WithoutName copies the tags excluding the name tag
 func (t Tags) WithoutName() Tags {
-	return t.TagsWithoutKeys([]string{MetricName})
+	return t.TagsWithoutKeys([][]byte{MetricName})
 }
 
 // Get returns the value for the tag with the given name.
-func (t Tags) Get(key string) (string, bool) {
+func (t Tags) Get(key []byte) ([]byte, bool) {
 	for _, tag := range t {
-		if tag.Name == key {
+		if bytes.Equal(tag.Name, key) {
 			return tag.Value, true
 		}
 	}
 
-	return "", false
-}
-
-// FromMap returns new sorted tags from the given map.
-func FromMap(m map[string]string) Tags {
-	l := make(Tags, 0, len(m))
-	for k, v := range m {
-		l = append(l, Tag{Name: k, Value: v})
-	}
-
-	return Normalize(l)
-}
-
-// TagMap returns a tag map of the tags.
-func (t Tags) TagMap() map[string]Tag {
-	m := make(map[string]Tag, len(t))
-	for _, tag := range t {
-		m[tag.Name] = tag
-	}
-
-	return m
-}
-
-// StringMap returns a string map of the tags.
-func (t Tags) StringMap() map[string]string {
-	m := make(map[string]string, len(t))
-	for _, tag := range t {
-		m[tag.Name] = tag.Value
-	}
-
-	return m
+	return []byte{}, false
 }
 
 // Clone returns a copy of the tags

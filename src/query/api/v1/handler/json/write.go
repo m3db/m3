@@ -90,8 +90,13 @@ func newStorageWriteQuery(req *WriteQuery) (*storage.WriteQuery, error) {
 		return nil, err
 	}
 
+	tags := models.Tags{}
+	for n, v := range req.Tags {
+		tags = tags.AddTag(models.Tag{Name: []byte(n), Value: []byte(v)})
+	}
+
 	return &storage.WriteQuery{
-		Tags: models.FromMap(req.Tags),
+		Tags: tags,
 		Datapoints: ts.Datapoints{
 			{
 				Timestamp: parsedTime,

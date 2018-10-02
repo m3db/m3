@@ -77,13 +77,13 @@ func newFetchReq() *storage.FetchQuery {
 	matchers := models.Matchers{
 		{
 			Type:  models.MatchEqual,
-			Name:  "foo",
-			Value: "bar",
+			Name:  []byte("foo"),
+			Value: []byte("bar"),
 		},
 		{
 			Type:  models.MatchEqual,
-			Name:  "biz",
-			Value: "baz",
+			Name:  []byte("biz"),
+			Value: []byte("baz"),
 		},
 	}
 	return &storage.FetchQuery{
@@ -112,7 +112,10 @@ func TestLocalRead(t *testing.T) {
 			assert.Equal(t, "namespace", blocks.Namespace.String())
 			blockTags, err := storage.FromIdentTagIteratorToTags(blocks.Tags)
 			require.NoError(t, err)
-			assert.Equal(t, models.Tags{{"baz", "qux"}, {"foo", "bar"}}, blockTags)
+			assert.Equal(t, models.Tags{
+				{Name: []byte("baz"), Value: []byte("qux")},
+				{Name: []byte("foo"), Value: []byte("bar")},
+			}, blockTags)
 		}
 	}
 }

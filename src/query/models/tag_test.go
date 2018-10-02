@@ -29,7 +29,7 @@ import (
 )
 
 func mustNewMatcher(t *testing.T, mType MatchType, value string) *Matcher {
-	m, err := NewMatcher(mType, "", value)
+	m, err := NewMatcher(mType, []byte{}, []byte(value))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,9 +95,7 @@ func TestMatcher(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		if test.matcher.Matches(test.value) != test.match {
-			t.Fatalf("Unexpected match result for matcher %v and value %q; want %v, got %v", test.matcher, test.value, test.match, !test.match)
-		}
+		assert.Equal(t, test.match, test.matcher.Matches([]byte(test.value)))
 	}
 }
 
@@ -106,9 +104,12 @@ func TestMatchType(t *testing.T) {
 }
 
 func createTags(withName bool) Tags {
-	tags := Tags{{"t1", "v1"}, {"t2", "v2"}}
+	tags := Tags{
+		{Name: []byte("t1"), Value: []byte("v1")},
+		{Name: []byte("t2"), Value: []byte("v2")},
+	}
 	if withName {
-		tags = append(tags, Tag{Name: MetricName, Value: "v0"})
+		tags = append(tags, Tag{Name: MetricName, Value: []byte("v0")})
 	}
 	return tags
 }
@@ -132,15 +133,15 @@ func TestIDWithKeys(t *testing.T) {
 	h := fnv.New64a()
 	h.Write(b)
 
-	idWithKeys := tags.IDWithKeys("t1", "t2", MetricName)
+	idWithKeys := tags.IDWithKeys([]byte("t1"), []byte("t2"), MetricName)
 	assert.Equal(t, h.Sum64(), idWithKeys)
 }
 
 func TestTagsWithKeys(t *testing.T) {
 	tags := createTags(true)
 
-	tagsWithKeys := tags.TagsWithKeys([]string{"t1"})
-	assert.Equal(t, Tags{{"t1", "v1"}}, tagsWithKeys)
+	tagsWithKeys := tags.TagsWithKeys([][]byte{[]byte("t1")})
+	assert.Equal(t, Tags{{Name: []byte("t1"), Value: []byte("v1")}}, tagsWithKeys)
 }
 
 func TestIDWithExcludes(t *testing.T) {
@@ -150,34 +151,48 @@ func TestIDWithExcludes(t *testing.T) {
 	h := fnv.New64a()
 	h.Write(b)
 
-	idWithExcludes := tags.IDWithExcludes("t1")
+	idWithExcludes := tags.IDWithExcludes([]byte("t1"))
 	assert.Equal(t, h.Sum64(), idWithExcludes)
 }
 
 func TestTagsWithExcludes(t *testing.T) {
 	tags := createTags(true)
 
-	tagsWithoutKeys := tags.TagsWithoutKeys([]string{"t1", MetricName})
-	assert.Equal(t, Tags{{"t2", "v2"}}, tagsWithoutKeys)
+	tagsWithoutKeys := tags.TagsWithoutKeys([][]byte{[]byte("t1"), MetricName})
+	assert.Equal(t, Tags{{Name: []byte("t2"), Value: []byte("v2")}}, tagsWithoutKeys)
 }
 
 func TestTagsWithExcludesCustom(t *testing.T) {
-	tags := Tags{{"a", "1"}, {"b", "2"}, {"c", "3"}, {MetricName, "foo"}}
-	tagsWithoutKeys := tags.TagsWithoutKeys([]string{"a", "c", MetricName})
-	assert.Equal(t, Tags{{"b", "2"}}, tagsWithoutKeys)
+	tags := Tags{
+		{Name: []byte("a"), Value: []byte("1")},
+		{Name: []byte("b"), Value: []byte("2")},
+		{Name: []byte("c"), Value: []byte("3")},
+		{Name: MetricName, Value: []byte("foo")},
+	}
+	tagsWithoutKeys := tags.TagsWithoutKeys([][]byte{[]byte("a"), []byte("c"), MetricName})
+	assert.Equal(t, Tags{{Name: []byte("b"), Value: []byte("2")}}, tagsWithoutKeys)
 }
 
 func TestAddTags(t *testing.T) {
 	tags := make(Tags, 0, 4)
 
-	tagToAdd := Tag{"z", "3"}
+	tagToAdd := Tag{Name: []byte("x"), Value: []byte("3")}
 	tags = tags.AddTag(tagToAdd)
 	assert.Equal(t, Tags{tagToAdd}, tags)
 
-	tagsToAdd := Tags{{"a", "1"}, {"b", "2"}, {"c", "3"}}
+	tagsToAdd := Tags{
+		{Name: []byte("a"), Value: []byte("1")},
+		{Name: []byte("b"), Value: []byte("2")},
+		{Name: []byte("z"), Value: []byte("4")},
+	}
 	tags = tags.Add(tagsToAdd)
 
-	expected := Tags{{"a", "1"}, {"b", "2"}, {"c", "3"}, {"z", "3"}}
+	expected := Tags{
+		{Name: []byte("a"), Value: []byte("1")},
+		{Name: []byte("b"), Value: []byte("2")},
+		{Name: []byte("x"), Value: []byte("3")},
+		{Name: []byte("z"), Value: []byte("4")},
+	}
 	assert.Equal(t, expected, tags)
 }
 

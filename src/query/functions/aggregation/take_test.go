@@ -69,7 +69,7 @@ func processTakeOp(t *testing.T, op parser.Params) *executor.SinkNode {
 
 func TestTakeBottomFunctionFilteringWithoutA(t *testing.T) {
 	op, err := NewTakeOp(BottomKType, NodeParams{
-		MatchingTags: []string{"a"}, Without: true, Parameter: 1,
+		MatchingTags: [][]byte{[]byte("a")}, Without: true, Parameter: 1,
 	})
 	require.NoError(t, err)
 	sink := processTakeOp(t, op)
@@ -93,7 +93,7 @@ func TestTakeBottomFunctionFilteringWithoutA(t *testing.T) {
 
 func TestTakeTopFunctionFilteringWithoutA(t *testing.T) {
 	op, err := NewTakeOp(TopKType, NodeParams{
-		MatchingTags: []string{"a"}, Without: true, Parameter: 1,
+		MatchingTags: [][]byte{[]byte("a")}, Without: true, Parameter: 1,
 	})
 	require.NoError(t, err)
 	sink := processTakeOp(t, op)
@@ -117,7 +117,7 @@ func TestTakeTopFunctionFilteringWithoutA(t *testing.T) {
 
 func TestTakeTopFunctionFilteringWithoutALessThanOne(t *testing.T) {
 	op, err := NewTakeOp(TopKType, NodeParams{
-		MatchingTags: []string{"a"}, Without: true, Parameter: -1,
+		MatchingTags: [][]byte{[]byte("a")}, Without: true, Parameter: -1,
 	})
 	require.NoError(t, err)
 	sink := processTakeOp(t, op)

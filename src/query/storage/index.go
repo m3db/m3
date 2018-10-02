@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 )
 
@@ -50,8 +51,8 @@ func FromIdentTagIteratorToTags(identTags ident.TagIterator) (models.Tags, error
 	for identTags.Next() {
 		identTag := identTags.Current()
 		tags = append(tags, models.Tag{
-			Name:  identTag.Name.String(),
-			Value: identTag.Value.String(),
+			Name:  identTag.Name.Bytes(),
+			Value: identTag.Value.Bytes(),
 		})
 	}
 
@@ -66,8 +67,11 @@ func FromIdentTagIteratorToTags(identTags ident.TagIterator) (models.Tags, error
 func TagsToIdentTagIterator(tags models.Tags) ident.TagIterator {
 	identTags := make([]ident.Tag, 0, len(tags))
 
+	//TODO get a checked bytes pool here instead
 	for _, t := range tags {
-		identTags = append(identTags, ident.StringTag(t.Name, t.Value))
+		n := checked.NewBytes(t.Name, checked.NewBytesOptions())
+		v := checked.NewBytes(t.Value, checked.NewBytesOptions())
+		identTags = append(identTags, ident.BinaryTag(n, v))
 	}
 
 	return ident.NewTagsIterator(ident.NewTags(identTags...))
@@ -106,7 +110,7 @@ func matcherToQuery(matcher *models.Matcher) (idx.Query, error) {
 		negate = true
 		fallthrough
 	case models.MatchRegexp:
-		query, err := idx.NewRegexpQuery([]byte(matcher.Name), []byte(matcher.Value))
+		query, err := idx.NewRegexpQuery(matcher.Name, matcher.Value)
 		if err != nil {
 			return idx.Query{}, err
 		}
@@ -120,7 +124,7 @@ func matcherToQuery(matcher *models.Matcher) (idx.Query, error) {
 		negate = true
 		fallthrough
 	case models.MatchEqual:
-		query := idx.NewTermQuery([]byte(matcher.Name), []byte(matcher.Value))
+		query := idx.NewTermQuery(matcher.Name, matcher.Value)
 		if negate {
 			query = idx.NewNegationQuery(query)
 		}

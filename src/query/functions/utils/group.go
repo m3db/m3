@@ -25,23 +25,23 @@ import (
 	"github.com/m3db/m3/src/query/models"
 )
 
-type withKeysID func(tags models.Tags, matchingTags []string) uint64
+type withKeysID func(tags models.Tags, matchingTags [][]byte) uint64
 
-func includeKeysID(tags models.Tags, matchingTags []string) uint64 {
+func includeKeysID(tags models.Tags, matchingTags [][]byte) uint64 {
 	return tags.IDWithKeys(matchingTags...)
 }
 
-func excludeKeysID(tags models.Tags, matchingTags []string) uint64 {
+func excludeKeysID(tags models.Tags, matchingTags [][]byte) uint64 {
 	return tags.IDWithExcludes(matchingTags...)
 }
 
-type withKeysTags func(tags models.Tags, matchingTags []string) models.Tags
+type withKeysTags func(tags models.Tags, matchingTags [][]byte) models.Tags
 
-func includeKeysTags(tags models.Tags, matchingTags []string) models.Tags {
+func includeKeysTags(tags models.Tags, matchingTags [][]byte) models.Tags {
 	return tags.TagsWithKeys(matchingTags)
 }
 
-func excludeKeysTags(tags models.Tags, matchingTags []string) models.Tags {
+func excludeKeysTags(tags models.Tags, matchingTags [][]byte) models.Tags {
 	return tags.TagsWithoutKeys(matchingTags)
 }
 
@@ -50,7 +50,7 @@ func excludeKeysTags(tags models.Tags, matchingTags []string) models.Tags {
 // and a list of corresponding buckets which signify which
 // series are mapped to which grouped outputs
 func GroupSeries(
-	matchingTags []string,
+	matchingTags [][]byte,
 	without bool,
 	opName string,
 	metas []block.SeriesMeta,
