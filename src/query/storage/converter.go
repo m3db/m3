@@ -135,51 +135,80 @@ func TimestampToTime(timestampMS int64) time.Time {
 
 // TimeToTimestamp converts a time.Time to prometheus timestamp
 func TimeToTimestamp(timestamp time.Time) int64 {
+	// Significantly faster than time.Truncate()
 	return timestamp.UnixNano() / int64(time.Millisecond)
 }
 
 // FetchResultToPromResult converts fetch results from M3 to Prometheus result
 func FetchResultToPromResult(result *FetchResult) *prompb.QueryResult {
-	timeseries := make([]*prompb.TimeSeries, 0)
-
+	// Perform bulk allocation upfront then convert to pointers afterwards
+	// to reduce total number of allocations. See BenchmarkFetchResultToPromResult
+	// if modifying.
+	timeseries := make([]prompb.TimeSeries, 0, len(result.SeriesList))
 	for _, series := range result.SeriesList {
 		promTs := SeriesToPromTS(series)
 		timeseries = append(timeseries, promTs)
 	}
 
+	timeSeriesPointers := make([]*prompb.TimeSeries, 0, len(result.SeriesList))
+	for i := range timeseries {
+		timeSeriesPointers = append(timeSeriesPointers, &timeseries[i])
+	}
+
 	return &prompb.QueryResult{
-		Timeseries: timeseries,
+		Timeseries: timeSeriesPointers,
 	}
 }
 
 // SeriesToPromTS converts a series to prometheus timeseries
-func SeriesToPromTS(series *ts.Series) *prompb.TimeSeries {
+func SeriesToPromTS(series *ts.Series) prompb.TimeSeries {
 	labels := TagsToPromLabels(series.Tags)
 	samples := SeriesToPromSamples(series)
-	return &prompb.TimeSeries{Labels: labels, Samples: samples}
+	return prompb.TimeSeries{Labels: labels, Samples: samples}
 }
 
 // TagsToPromLabels converts tags to prometheus labels
 func TagsToPromLabels(tags models.Tags) []*prompb.Label {
-	labels := make([]*prompb.Label, 0, len(tags))
+	// Perform bulk allocation upfront then convert to pointers afterwards
+	// to reduce total number of allocations. See BenchmarkFetchResultToPromResult
+	// if modifying.
+	labels := make([]prompb.Label, 0, len(tags))
 	for _, t := range tags {
-		labels = append(labels, &prompb.Label{Name: t.Name, Value: t.Value})
+		labels = append(labels, prompb.Label{Name: t.Name, Value: t.Value})
 	}
 
-	return labels
+	labelsPointers := make([]*prompb.Label, 0, len(tags))
+	for i := range labels {
+		labelsPointers = append(labelsPointers, &labels[i])
+	}
+
+	return labelsPointers
 }
 
 // SeriesToPromSamples series datapoints to prometheus samples
 func SeriesToPromSamples(series *ts.Series) []*prompb.Sample {
-	samples := make([]*prompb.Sample, series.Len())
-	for i := 0; i < series.Len(); i++ {
-		samples[i] = &prompb.Sample{
-			Timestamp: series.Values().DatapointAt(i).Timestamp.UnixNano() / int64(time.Millisecond),
-			Value:     series.Values().ValueAt(i),
-		}
+	var (
+		seriesLen = series.Len()
+		values    = series.Values()
+		// Perform bulk allocation upfront then convert to pointers afterwards
+		// to reduce total number of allocations. See BenchmarkFetchResultToPromResult
+		// if modifying.
+		samples = make([]prompb.Sample, 0, seriesLen)
+	)
+	for i := 0; i < seriesLen; i++ {
+		dp := values.DatapointAt(i)
+		samples = append(samples, prompb.Sample{
+			Timestamp: TimeToTimestamp(dp.Timestamp),
+			Value:     dp.Value,
+		})
 	}
 
-	return samples
+	samplesPointers := make([]*prompb.Sample, 0, len(samples))
+	for i := range samples {
+		samplesPointers = append(samplesPointers, &samples[i])
+	}
+
+	return samplesPointers
 }
 
 func iteratorToTsSeries(
