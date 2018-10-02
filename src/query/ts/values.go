@@ -46,6 +46,9 @@ type Values interface {
 	// DatapointAt returns the datapoint at the nth element
 	DatapointAt(n int) Datapoint
 
+	// Datapoints returns all the datapoints
+	Datapoints() []Datapoint
+
 	// AlignToBounds returns values aligned to the start time and duration
 	AlignToBounds(bounds models.Bounds) []Datapoints
 }
@@ -67,6 +70,9 @@ func (d Datapoints) ValueAt(n int) float64 { return d[n].Value }
 
 // DatapointAt returns the value at the nth element.
 func (d Datapoints) DatapointAt(n int) Datapoint { return d[n] }
+
+// Datapoints returns all the datapoints.
+func (d Datapoints) Datapoints() []Datapoint { return d }
 
 // Values returns the values representation.
 func (d Datapoints) Values() []float64 {
@@ -136,6 +142,13 @@ func (b *fixedResolutionValues) DatapointAt(point int) Datapoint {
 		Timestamp: b.StartTimeForStep(point),
 		Value:     b.ValueAt(point),
 	}
+}
+func (b *fixedResolutionValues) Datapoints() []Datapoint {
+	datapoints := make([]Datapoint, 0, len(b.values))
+	for i := range b.values {
+		datapoints = append(datapoints, b.DatapointAt(i))
+	}
+	return datapoints
 }
 
 // AlignToBounds returns values aligned to given bounds.

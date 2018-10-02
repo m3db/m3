@@ -188,15 +188,15 @@ func TagsToPromLabels(tags models.Tags) []*prompb.Label {
 // SeriesToPromSamples series datapoints to prometheus samples
 func SeriesToPromSamples(series *ts.Series) []*prompb.Sample {
 	var (
-		seriesLen = series.Len()
-		values    = series.Values()
+		seriesLen  = series.Len()
+		values     = series.Values()
+		datapoints = values.Datapoints()
 		// Perform bulk allocation upfront then convert to pointers afterwards
 		// to reduce total number of allocations. See BenchmarkFetchResultToPromResult
 		// if modifying.
 		samples = make([]prompb.Sample, 0, seriesLen)
 	)
-	for i := 0; i < seriesLen; i++ {
-		dp := values.DatapointAt(i)
+	for _, dp := range datapoints {
 		samples = append(samples, prompb.Sample{
 			Timestamp: TimeToTimestamp(dp.Timestamp),
 			Value:     dp.Value,
