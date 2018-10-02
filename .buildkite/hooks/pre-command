@@ -9,3 +9,6 @@ if [[ ! -z "${GIMME_GO_VERSION:-}" ]] && [[ "$GIMME_GO_VERSION" != "" ]]; then
 else
   echo "No \$GIMME_GO_VERSION set, skipping..."
 fi
+
+echo "---- :buildkite: :codecov: environment variables"
+export CI="true" # required by codecov.sh

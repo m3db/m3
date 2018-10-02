@@ -9,7 +9,7 @@ steps:
     plugins:
       docker-compose#v2.5.1:
         run: app
-  - name: ":docker: + services + metalint"
+  - name: "Integration (Docker), Services, Tools, Metalint"
     command: make install-vendor metalint test-all-gen docker-integration-test tools services
     env:
       CGO_ENABLED: 0
