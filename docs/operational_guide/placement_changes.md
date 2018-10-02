@@ -118,6 +118,8 @@ curl -X POST <M3_COORDINATOR_HOST_NAME>:<M3_COORDINATOR_PORT(default 7201)>/api/
 }'
 ```
 
+After sending the add command you will need to wait for the M3DB cluster to reach the new desired state. You'll know that this has been achieved when the placement shows that all shards for all hosts are in the `Available` state.
+
 #### Removing a Node
 
 Send a DELETE request to the `/api/v1/placement/<NODE_ID>` endpoint.
@@ -125,6 +127,8 @@ Send a DELETE request to the `/api/v1/placement/<NODE_ID>` endpoint.
 ```bash
 curl -X DELETE <M3_COORDINATOR_HOST_NAME>:<M3_COORDINATOR_PORT(default 7201)>/api/v1/placement/<NODE_ID>
 ```
+
+After sending the delete command you will need to wait for the M3DB cluster to reach the new desired state. You'll know that this has been achieved when the placement shows that all shards for all hosts are in the `Available` state.
 
 #### Replacing a Node
 
