@@ -322,5 +322,6 @@ test-all-gen: all-gen
 .PHONY: clean
 clean:
 	@rm -f *.html *.xml *.out *.test
+	@rm -rf $(BUILD)
 
 .DEFAULT_GOAL := all
