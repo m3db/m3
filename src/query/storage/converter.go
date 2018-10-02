@@ -139,7 +139,10 @@ func TimeToTimestamp(timestamp time.Time) int64 {
 	return timestamp.UnixNano() / int64(time.Millisecond)
 }
 
-// FetchResultToPromResult converts fetch results from M3 to Prometheus result
+// FetchResultToPromResult converts fetch results from M3 to Prometheus result.
+// TODO(rartoul): Ideally we would pool all of these intermediary datastructures,
+// but right now its hooked into generated code so accomplishing that would be
+// non-trivial.
 func FetchResultToPromResult(result *FetchResult) *prompb.QueryResult {
 	// Perform bulk allocation upfront then convert to pointers afterwards
 	// to reduce total number of allocations. See BenchmarkFetchResultToPromResult
@@ -160,14 +163,14 @@ func FetchResultToPromResult(result *FetchResult) *prompb.QueryResult {
 	}
 }
 
-// SeriesToPromTS converts a series to prometheus timeseries
+// SeriesToPromTS converts a series to prometheus timeseries.
 func SeriesToPromTS(series *ts.Series) prompb.TimeSeries {
 	labels := TagsToPromLabels(series.Tags)
 	samples := SeriesToPromSamples(series)
 	return prompb.TimeSeries{Labels: labels, Samples: samples}
 }
 
-// TagsToPromLabels converts tags to prometheus labels
+// TagsToPromLabels converts tags to prometheus labels.TagsToPromLabels.
 func TagsToPromLabels(tags models.Tags) []*prompb.Label {
 	// Perform bulk allocation upfront then convert to pointers afterwards
 	// to reduce total number of allocations. See BenchmarkFetchResultToPromResult
@@ -185,7 +188,7 @@ func TagsToPromLabels(tags models.Tags) []*prompb.Label {
 	return labelsPointers
 }
 
-// SeriesToPromSamples series datapoints to prometheus samples
+// SeriesToPromSamples series datapoints to prometheus samples.SeriesToPromSamples.
 func SeriesToPromSamples(series *ts.Series) []*prompb.Sample {
 	var (
 		seriesLen  = series.Len()
