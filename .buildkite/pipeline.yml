@@ -1,11 +1,6 @@
 steps:
-  - name: "Unit"
-    command: make clean install-vendor test-ci-unit
-    plugins:
-      docker-compose#v2.5.1:
-        run: app
-  - name: "Big Unit"
-    command: make clean install-vendor test-ci-big-unit
+  - name: "Unit, Big Unit"
+    command: make clean install-vendor test-ci-unit test-ci-big-unit
     plugins:
       docker-compose#v2.5.1:
         run: app
