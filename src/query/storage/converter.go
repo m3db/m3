@@ -140,9 +140,9 @@ func TimeToTimestamp(timestamp time.Time) int64 {
 }
 
 // FetchResultToPromResult converts fetch results from M3 to Prometheus result.
-// TODO(rartoul): Ideally we would pool all of these intermediary datastructures,
-// but right now its hooked into generated code so accomplishing that would be
-// non-trivial.
+// TODO(rartoul): We should pool all of these intermediary datastructures, or
+// at least the []*prompb.Sample (as thats the most heavily allocated object)
+// since we have full control over the lifecycle.
 func FetchResultToPromResult(result *FetchResult) *prompb.QueryResult {
 	// Perform bulk allocation upfront then convert to pointers afterwards
 	// to reduce total number of allocations. See BenchmarkFetchResultToPromResult
