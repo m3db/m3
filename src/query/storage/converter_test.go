@@ -235,6 +235,7 @@ var (
 	benchResult *prompb.QueryResult
 )
 
+// BenchmarkFetchResultToPromResult-8   	     100	  10563444 ns/op	25368543 B/op	    4443 allocs/op
 func BenchmarkFetchResultToPromResult(b *testing.B) {
 	var (
 		numSeries              = 1000
