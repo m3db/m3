@@ -8,8 +8,6 @@ Before reading the rest of this document, we recommend familiarizing yourself wi
 
 **Note**: The primary limiting factor for the maximum size of an M3DB cluster is the number of shards.  TODO: Explain how to pick an appropriate number of shards and the tradeoff with a (small) linear increase in required node resources with the number of shards.
 
-TODO: Explain that the peers bootstrapped MUST be enabled for placement changes to work.
-
 After performing any of the instructions documented below a new placement will automatically be generated to distribute the shards among the M3DB nodes such that the isolation group and replication factor constraints are met.
 
 If the constraints cannot be met, because there are not enough nodes to calculate a new placement such that each shard is replicated on the desired number of nodes with none of the nodes owning the same shard existing in the same isolation group, then the operation will fail.
@@ -57,6 +55,8 @@ This value should be in the form of <M3DB_NODE_LISTEN_PORT> and identifies the p
 The instructions below all contain sample curl commands, but you can always review the API documentation by navigating to
 
 `http://<M3_COORDINATOR_HOST_NAME>:<CONFIGURED_PORT(default 7201)>/api/v1/openapi` or our [online API documentation](https://m3db.io/openapi/).
+
+**Note**: The [peers bootstrapper](bootstrapping.md) must be configured on all nodes in the M3DB cluster for placement changes to work. The `peers` bootstrapper is enabled by default, so you only need to worry about this if you modified the default bootstrapping configuration
 
 #### Placement Initialization
 
