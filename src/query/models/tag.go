@@ -259,7 +259,7 @@ func (t Tags) Get(key []byte) ([]byte, bool) {
 		}
 	}
 
-	return []byte{}, false
+	return nil, false
 }
 
 // Clone returns a copy of the tags

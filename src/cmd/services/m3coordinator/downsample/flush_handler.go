@@ -117,7 +117,7 @@ func (w *downsamplerFlushHandlerWriter) Write(
 		}
 
 		// Add extra tag since we may need to add an aggregation suffix tag
-		tags := make(models.Tags, 0, expected+1)
+		tags := make(models.Tags, 0, expected)
 		for iter.Next() {
 			name, value := iter.Current()
 			tags = append(tags, models.Tag{Name: name, Value: value})

@@ -26,7 +26,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 )
 
@@ -65,13 +64,13 @@ func FromIdentTagIteratorToTags(identTags ident.TagIterator) (models.Tags, error
 
 // TagsToIdentTagIterator converts coordinator tags to ident tags
 func TagsToIdentTagIterator(tags models.Tags) ident.TagIterator {
-	identTags := make([]ident.Tag, 0, len(tags))
-
 	//TODO get a checked bytes pool here instead
+	identTags := make([]ident.Tag, 0, len(tags))
 	for _, t := range tags {
-		n := checked.NewBytes(t.Name, checked.NewBytesOptions())
-		v := checked.NewBytes(t.Value, checked.NewBytesOptions())
-		identTags = append(identTags, ident.BinaryTag(n, v))
+		identTags = append(identTags, ident.Tag{
+			Name:  ident.BytesID(t.Name),
+			Value: ident.BytesID(t.Value),
+		})
 	}
 
 	return ident.NewTagsIterator(ident.NewTags(identTags...))

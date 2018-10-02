@@ -21,6 +21,7 @@
 package downsample
 
 import (
+	"bytes"
 	"testing"
 	"time"
 
@@ -151,7 +152,7 @@ func testDownsamplerAggregation(
 	for _, metric := range testCounterMetrics {
 		appender.Reset()
 		for name, value := range metric.tags {
-			appender.AddTag(name, value)
+			appender.AddTag([]byte(name), []byte(value))
 		}
 
 		samplesAppender, err := appender.SamplesAppender()
@@ -165,7 +166,7 @@ func testDownsamplerAggregation(
 	for _, metric := range testGaugeMetrics {
 		appender.Reset()
 		for name, value := range metric.tags {
-			appender.AddTag(name, value)
+			appender.AddTag([]byte(name), []byte(value))
 		}
 
 		samplesAppender, err := appender.SamplesAppender()
@@ -192,16 +193,25 @@ func testDownsamplerAggregation(
 	writes := testDownsampler.storage.Writes()
 	for _, metric := range testCounterMetrics {
 		write := mustFindWrite(t, writes, metric.tags["__name__"])
-		assert.Equal(t, metric.tags, write.Tags.StringMap())
+		assert.Equal(t, metric.tags, tagsToStringMap(write.Tags))
 		require.Equal(t, 1, len(write.Datapoints))
 		assert.Equal(t, float64(metric.expected), write.Datapoints[0].Value)
 	}
 	for _, metric := range testGaugeMetrics {
 		write := mustFindWrite(t, writes, metric.tags["__name__"])
-		assert.Equal(t, metric.tags, write.Tags.StringMap())
+		assert.Equal(t, metric.tags, tagsToStringMap(write.Tags))
 		require.Equal(t, 1, len(write.Datapoints))
 		assert.Equal(t, float64(metric.expected), write.Datapoints[0].Value)
 	}
+}
+
+func tagsToStringMap(tags models.Tags) map[string]string {
+	stringMap := make(map[string]string, len(tags))
+	for _, t := range tags {
+		stringMap[string(t.Name)] = string(t.Value)
+	}
+
+	return stringMap
 }
 
 type testDownsampler struct {
@@ -292,7 +302,7 @@ func newTestID(t *testing.T, tags map[string]string) id.ID {
 
 	tagsIter := newTags()
 	for name, value := range tags {
-		tagsIter.append(name, value)
+		tagsIter.append([]byte(name), []byte(value))
 	}
 
 	tagEncoder := tagEncoderPool.Get()
@@ -317,7 +327,7 @@ func mustFindWrite(t *testing.T, writes []*storage.WriteQuery, name string) *sto
 	var write *storage.WriteQuery
 	for _, w := range writes {
 		if t, ok := w.Tags.Get(models.MetricName); ok {
-			if t == name {
+			if bytes.Equal(t, []byte(name)) {
 				write = w
 				break
 			}
