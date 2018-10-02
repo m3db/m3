@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/test/seriesiter"
+	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
@@ -227,5 +228,48 @@ func TestPromReadQueryToM3(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+var (
+	benchResult *prompb.QueryResult
+)
+
+// BenchmarkFetchResultToPromResult-8   	     100	  10563444 ns/op	25368543 B/op	    4443 allocs/op
+func BenchmarkFetchResultToPromResult(b *testing.B) {
+	var (
+		numSeries              = 1000
+		numDatapointsPerSeries = 1000
+		numTagsPerSeries       = 10
+		fr                     = &FetchResult{
+			SeriesList: make(ts.SeriesList, 0, numSeries),
+		}
+	)
+
+	for i := 0; i < numSeries; i++ {
+		values := make(ts.Datapoints, 0, numDatapointsPerSeries)
+		for i := 0; i < numDatapointsPerSeries; i++ {
+			values = append(values, ts.Datapoint{
+				Timestamp: time.Time{},
+				Value:     float64(i),
+			})
+		}
+
+		tags := make(models.Tags, 0, numTagsPerSeries)
+		for i := 0; i < numTagsPerSeries; i++ {
+			tags = append(tags, models.Tag{
+				Name:  fmt.Sprintf("name-%d", i),
+				Value: fmt.Sprintf("value-%d", i),
+			})
+		}
+
+		series := ts.NewSeries(
+			fmt.Sprintf("series-%d", i), values, tags)
+
+		fr.SeriesList = append(fr.SeriesList, series)
+	}
+
+	for i := 0; i < b.N; i++ {
+		benchResult = FetchResultToPromResult(fr)
 	}
 }
