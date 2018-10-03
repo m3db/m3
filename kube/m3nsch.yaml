@@ -56,6 +56,8 @@ kind: Service
 metadata:
   name: m3nsch-agent
 spec:
+  type: ClusterIP
+  clusterIP: None
   ports:
   - name: agent
     port: 2580
@@ -66,11 +68,12 @@ spec:
     component: agent
 ---
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
-  name: m3nsch-server
+  name: m3nsch-agent
 spec:
-  replicas: 1
+  serviceName: m3nsch-agent
+  replicas: 3
   selector:
     matchLabels:
       app: m3nsch
