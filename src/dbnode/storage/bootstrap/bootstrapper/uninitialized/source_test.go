@@ -21,6 +21,7 @@
 package uninitialized
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -68,6 +69,7 @@ func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 		topoState                         *topology.StateSnapshot
 		shardsTimeRangesToBootstrap       result.ShardTimeRanges
 		expectedAvailableShardsTimeRanges result.ShardTimeRanges
+		expectedErr                       error
 	}{
 		// Snould return that it can bootstrap everything because
 		// it's a new namespace.
@@ -86,8 +88,8 @@ func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 			topoState: tu.NewStateSnapshot(1, tu.HostShardStates{
 				tu.SelfID: tu.ShardsRange(0, numShards, shard.Unknown),
 			}),
-			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
-			expectedAvailableShardsTimeRanges: result.ShardTimeRanges{},
+			shardsTimeRangesToBootstrap: shardTimeRangesToBootstrap,
+			expectedErr:                 errors.New("unknown shard state: Unknown"),
 		},
 		// Snould return that it can't bootstrap anything because it's not
 		// a new namespace.
@@ -168,8 +170,8 @@ func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 				notSelfID1: tu.ShardsRange(0, numShards, shard.Available),
 				notSelfID2: tu.ShardsRange(0, numShards, shard.Unknown),
 			}),
-			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
-			expectedAvailableShardsTimeRanges: result.ShardTimeRanges{},
+			shardsTimeRangesToBootstrap: shardTimeRangesToBootstrap,
+			expectedErr:                 errors.New("unknown shard state: Unknown"),
 		},
 	}
 
@@ -177,30 +179,35 @@ func TestUnitializedTopologySourceAvailableDataAndAvailableIndex(t *testing.T) {
 		t.Run(tc.title, func(t *testing.T) {
 
 			var (
-				srcOpts                 = NewOptions().SetInstrumentOptions(instrument.NewOptions())
-				src                     = newTopologyUninitializedSource(srcOpts)
-				runOpts                 = testDefaultRunOpts.SetInitialTopologyState(tc.topoState)
-				dataAvailabilityResult  = src.AvailableData(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
-				indexAvailabilityResult = src.AvailableIndex(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
+				srcOpts = NewOptions().SetInstrumentOptions(instrument.NewOptions())
+				src     = newTopologyUninitializedSource(srcOpts)
+				runOpts = testDefaultRunOpts.SetInitialTopologyState(tc.topoState)
 			)
+			dataAvailabilityResult, dataErr := src.AvailableData(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
+			indexAvailabilityResult, indexErr := src.AvailableIndex(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
 
-			// Make sure AvailableData and AvailableIndex return the correct result
-			require.Equal(t, tc.expectedAvailableShardsTimeRanges, dataAvailabilityResult)
-			require.Equal(t, tc.expectedAvailableShardsTimeRanges, indexAvailabilityResult)
+			if tc.expectedErr != nil {
+				require.Equal(t, tc.expectedErr, dataErr)
+				require.Equal(t, tc.expectedErr, indexErr)
+			} else {
+				// Make sure AvailableData and AvailableIndex return the correct result
+				require.Equal(t, tc.expectedAvailableShardsTimeRanges, dataAvailabilityResult)
+				require.Equal(t, tc.expectedAvailableShardsTimeRanges, indexAvailabilityResult)
 
-			// Make sure ReadData marks anything that AvailableData wouldn't return as unfulfilled
-			dataResult, err := src.ReadData(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
-			require.NoError(t, err)
-			expectedDataUnfulfilled := tc.shardsTimeRangesToBootstrap.Copy()
-			expectedDataUnfulfilled.Subtract(tc.expectedAvailableShardsTimeRanges)
-			require.Equal(t, expectedDataUnfulfilled, dataResult.Unfulfilled())
+				// Make sure ReadData marks anything that AvailableData wouldn't return as unfulfilled
+				dataResult, err := src.ReadData(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
+				require.NoError(t, err)
+				expectedDataUnfulfilled := tc.shardsTimeRangesToBootstrap.Copy()
+				expectedDataUnfulfilled.Subtract(tc.expectedAvailableShardsTimeRanges)
+				require.Equal(t, expectedDataUnfulfilled, dataResult.Unfulfilled())
 
-			// Make sure ReadIndex marks anything that AvailableIndex wouldn't return as unfulfilled
-			indexResult, err := src.ReadIndex(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
-			require.NoError(t, err)
-			expectedIndexUnfulfilled := tc.shardsTimeRangesToBootstrap.Copy()
-			expectedIndexUnfulfilled.Subtract(tc.expectedAvailableShardsTimeRanges)
-			require.Equal(t, expectedIndexUnfulfilled, indexResult.Unfulfilled())
+				// Make sure ReadIndex marks anything that AvailableIndex wouldn't return as unfulfilled
+				indexResult, err := src.ReadIndex(nsMetadata, tc.shardsTimeRangesToBootstrap, runOpts)
+				require.NoError(t, err)
+				expectedIndexUnfulfilled := tc.shardsTimeRangesToBootstrap.Copy()
+				expectedIndexUnfulfilled.Subtract(tc.expectedAvailableShardsTimeRanges)
+				require.Equal(t, expectedIndexUnfulfilled, indexResult.Unfulfilled())
+			}
 		})
 	}
 }

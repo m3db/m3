@@ -82,9 +82,10 @@ func (s *peersSource) AvailableData(
 	nsMetadata namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
-) result.ShardTimeRanges {
-	// TODO: Call validateRunOpts here when we modify this interface
-	// to support returning errors.
+) (result.ShardTimeRanges, error) {
+	if err := s.validateRunOpts(runOpts); err != nil {
+		return nil, err
+	}
 	return s.peerAvailability(nsMetadata, shardsTimeRanges, runOpts)
 }
 
@@ -550,9 +551,10 @@ func (s *peersSource) AvailableIndex(
 	nsMetadata namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
-) result.ShardTimeRanges {
-	// TODO: Call validateRunOpts here when we modify this interface
-	// to support returning errors.
+) (result.ShardTimeRanges, error) {
+	if err := s.validateRunOpts(runOpts); err != nil {
+		return nil, err
+	}
 	return s.peerAvailability(nsMetadata, shardsTimeRanges, runOpts)
 }
 
@@ -711,7 +713,7 @@ func (s *peersSource) peerAvailability(
 	nsMetadata namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
-) result.ShardTimeRanges {
+) (result.ShardTimeRanges, error) {
 	var (
 		peerAvailabilityByShard = map[topology.ShardID]*shardPeerAvailability{}
 		initialTopologyState    = runOpts.InitialTopologyState()
@@ -753,10 +755,7 @@ func (s *peersSource) peerAvailability(
 			case shard.Unknown:
 				fallthrough
 			default:
-				// TODO(rartoul): Make this a hard error once we refactor the interface to support
-				// returning errors.
-				s.log.Errorf("unknown shard state: %v", shardState)
-				return result.ShardTimeRanges{}
+				return nil, fmt.Errorf("unknown shard state: %v", shardState)
 			}
 		}
 	}
@@ -791,7 +790,7 @@ func (s *peersSource) peerAvailability(
 		availableShardTimeRanges[shardIDUint] = shardsTimeRanges[shardIDUint]
 	}
 
-	return availableShardTimeRanges
+	return availableShardTimeRanges, nil
 }
 
 func (s *peersSource) markIndexResultErrorAsUnfulfilled(

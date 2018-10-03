@@ -63,7 +63,7 @@ func TestPeersBootstrapNoneAvailable(t *testing.T) {
 	maxShard := uint32(opts.NumShards()) - uint32(1)
 	start := []services.ServiceInstance{
 		node(t, 0, newClusterShardsRange(minShard, maxShard, shard.Initializing)),
-		node(t, 1, newClusterShardsRange(minShard, maxShard, shard.Unknown)),
+		node(t, 1, newClusterShardsRange(minShard, maxShard, shard.Initializing)),
 	}
 
 	hostShardSets := []topology.HostShardSet{}
@@ -106,11 +106,15 @@ func TestPeersBootstrapNoneAvailable(t *testing.T) {
 
 	// Start both servers "simultaneously"
 	go func() {
-		require.NoError(t, setups[0].startServer())
+		if err := setups[0].startServer(); err != nil {
+			panic(err)
+		}
 		serversAreUp.Done()
 	}()
 	go func() {
-		require.NoError(t, setups[1].startServer())
+		if err := setups[1].startServer(); err != nil {
+			panic(err)
+		}
 		serversAreUp.Done()
 	}()
 
