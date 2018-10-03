@@ -50,14 +50,19 @@ func BuildWorkerPools(
 	cfg config.Configuration,
 	scope tally.Scope,
 ) (xsync.PooledWorkerPool, xsync.PooledWorkerPool, error) {
-	writePoolSize := cfg.WorkerPoolSize
-	if writePoolSize == 0 {
-		writePoolSize = defaultWorkerPoolCount
+	readPoolSize := cfg.ReadWorkerPoolSize
+	if readPoolSize == 0 {
+		readPoolSize = defaultWorkerPoolCount
 	}
 
-	readWorkerPool, err := xsync.NewPooledWorkerPool(writePoolSize, xsync.NewPooledWorkerPoolOptions())
+	readWorkerPool, err := xsync.NewPooledWorkerPool(readPoolSize, xsync.NewPooledWorkerPoolOptions())
 	if err != nil {
 		return nil, nil, err
+	}
+
+	writePoolSize := cfg.WriteWorkerPoolSize
+	if writePoolSize == 0 {
+		writePoolSize = defaultWorkerPoolCount
 	}
 
 	readWorkerPool.Init()

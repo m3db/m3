@@ -65,8 +65,11 @@ type Configuration struct {
 	// Backend is the backend store for query service. We currently support grpc and m3db (default).
 	Backend BackendStorageType `yaml:"backend"`
 
-	// WriteWorkerPoolSize is the size of the worker pool write requests.
-	WorkerPoolSize int `yaml:"workerPoolSize"`
+	// ReadWorkerPoolSize is the size of the worker pool for read requests.
+	ReadWorkerPoolSize int `yaml:"readWorkerPoolSize"`
+
+	// WriteWorkerPoolSize is the size of the worker pool for write requests.
+	WriteWorkerPoolSize int `yaml:"writeWorkerPoolSize"`
 }
 
 // LocalConfiguration is the local embedded configuration if running
