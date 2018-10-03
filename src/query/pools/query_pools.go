@@ -23,12 +23,13 @@ package pools
 import (
 	"io"
 
-	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/serialize"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
+	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
 
@@ -37,7 +38,6 @@ import (
 
 const (
 	// TODO: add capabilities to get this from configs
-	defaultWorkerPoolCount      = 4096
 	replicas                    = 1
 	iteratorPoolSize            = 65536
 	checkedBytesWrapperPoolSize = 65536
@@ -47,26 +47,23 @@ const (
 
 // BuildWorkerPools builds a worker pool
 func BuildWorkerPools(
-	cfg config.Configuration,
+	instrumentOptions instrument.Options,
 	scope tally.Scope,
+	readPoolPolicy, writePoolPolicy xconfig.WorkerPoolPolicy,
 ) (xsync.PooledWorkerPool, xsync.PooledWorkerPool, error) {
-	readPoolSize := cfg.ReadWorkerPoolSize
-	if readPoolSize == 0 {
-		readPoolSize = defaultWorkerPoolCount
-	}
-
-	readWorkerPool, err := xsync.NewPooledWorkerPool(readPoolSize, xsync.NewPooledWorkerPoolOptions())
+	opts, readPoolSize := readPoolPolicy.Options()
+	instrumentOptions.SetMetricsScope(scope.SubScope("read-worker-pool"))
+	opts = opts.SetInstrumentOptions(instrumentOptions)
+	readWorkerPool, err := xsync.NewPooledWorkerPool(readPoolSize, opts)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	writePoolSize := cfg.WriteWorkerPoolSize
-	if writePoolSize == 0 {
-		writePoolSize = defaultWorkerPoolCount
-	}
-
 	readWorkerPool.Init()
-	writeWorkerPool, err := xsync.NewPooledWorkerPool(writePoolSize, xsync.NewPooledWorkerPoolOptions())
+	opts, writePoolSize := writePoolPolicy.Options()
+	instrumentOptions.SetMetricsScope(scope.SubScope("write-worker-pool"))
+	opts = opts.SetInstrumentOptions(instrumentOptions)
+	writeWorkerPool, err := xsync.NewPooledWorkerPool(writePoolSize, opts)
 	if err != nil {
 		return nil, nil, err
 	}

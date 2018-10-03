@@ -67,8 +67,18 @@ clusters:
         type: unaggregated
         retention: 48h
 
-readWorkerPoolSize: 20
-writeWorkerPoolSize: 20
+
+readWorkerPoolPolicy:
+  grow: true
+  size: 100
+  shards: 1000
+  killProbability: 0.3
+
+writeWorkerPoolPolicy:
+  grow: true
+  size: 100
+  shards: 1000
+  killProbability: 0.3
 `
 
 //TODO: Use randomly assigned port here
@@ -216,8 +226,17 @@ rpc:
 
 backend: grpc
 
-readWorkerPoolSize: 20
-writeWorkerPoolSize: 20
+readWorkerPoolPolicy:
+  grow: true
+  size: 100
+  shards: 1000
+  killProbability: 0.3
+
+writeWorkerPoolPolicy:
+  grow: true
+  size: 100
+  shards: 1000
+  killProbability: 0.3
 `
 
 	ctrl := gomock.NewController(xtest.Reporter{T: t})

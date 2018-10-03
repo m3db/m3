@@ -137,7 +137,13 @@ func Run(runOpts RunOptions) {
 		enabled        bool
 	)
 
-	readWorkerPool, writeWorkerPool, err := pools.BuildWorkerPools(cfg, scope)
+	instrumentOptions := instrument.NewOptions().SetZapLogger(logger)
+	readWorkerPool, writeWorkerPool, err := pools.BuildWorkerPools(
+		instrumentOptions,
+		scope,
+		cfg.ReadWorkerPoolOpts,
+		cfg.WriteWorkerPoolOpts,
+	)
 	if err != nil {
 		logger.Fatal("could not create worker pools", zap.Any("error", err))
 	}
@@ -161,6 +167,7 @@ func Run(runOpts RunOptions) {
 			runOpts,
 			cfg,
 			logger,
+			instrumentOptions,
 			readWorkerPool,
 			writeWorkerPool,
 		)
@@ -232,6 +239,7 @@ func newM3DBStorage(
 	runOpts RunOptions,
 	cfg config.Configuration,
 	logger *zap.Logger,
+	instrumentOptions instrument.Options,
 	readWorkerPool xsync.PooledWorkerPool,
 	writeWorkerPool xsync.PooledWorkerPool,
 ) (storage.Storage, clusterclient.Client, downsample.Downsampler, cleanupFn, error) {
@@ -300,7 +308,6 @@ func newM3DBStorage(
 			return nil, nil, nil, nil, err
 		}
 
-		instrumentOptions := instrument.NewOptions().SetZapLogger(logger)
 		downsampler, err = newDownsampler(clusterManagementClient,
 			fanoutStorage, autoMappingRules, instrumentOptions)
 		if err != nil {
@@ -519,7 +526,7 @@ func remoteClient(
 	}
 
 	if remotes := cfg.RPC.RemoteListenAddresses; len(remotes) > 0 {
-		client, err := tsdbRemote.NewGrpcClient(remotes, poolWrapper, readWorkerPool)
+		client, err := tsdbRemote.NewGRPCClient(remotes, poolWrapper, readWorkerPool)
 		if err != nil {
 			return nil, false, err
 		}

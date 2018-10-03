@@ -52,8 +52,8 @@ type grpcClient struct {
 
 const initResultSize = 10
 
-// NewGrpcClient creates grpc client
-func NewGrpcClient(
+// NewGRPCClient creates grpc client
+func NewGRPCClient(
 	addresses []string,
 	poolWrapper *pools.PoolWrapper,
 	readWorkerPool xsync.PooledWorkerPool,
