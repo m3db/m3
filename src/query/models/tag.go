@@ -88,6 +88,7 @@ func (m MatchType) String() string {
 }
 
 // Matcher models the matching of a label.
+// NB: when serialized to JSON these will be base64'd
 type Matcher struct {
 	Type  MatchType `json:"type"`
 	Name  []byte    `json:"name"`

@@ -64,7 +64,7 @@ func FromIdentTagIteratorToTags(identTags ident.TagIterator) (models.Tags, error
 
 // TagsToIdentTagIterator converts coordinator tags to ident tags
 func TagsToIdentTagIterator(tags models.Tags) ident.TagIterator {
-	//TODO get a checked bytes pool here instead
+	//TODO get a tags and tag iterator from an ident.Pool here rather than allocing them here
 	identTags := make([]ident.Tag, 0, len(tags))
 	for _, t := range tags {
 		identTags = append(identTags, ident.Tag{
