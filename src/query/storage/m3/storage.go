@@ -35,7 +35,6 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
 )
 
@@ -45,13 +44,13 @@ var (
 
 type m3storage struct {
 	clusters        Clusters
-	readWorkerPool  pool.ObjectPool
+	readWorkerPool  xsync.PooledWorkerPool
 	writeWorkerPool xsync.PooledWorkerPool
 }
 
 // NewStorage creates a new local m3storage instance.
 // TODO: Consider combining readWorkerPool and writeWorkerPool
-func NewStorage(clusters Clusters, workerPool pool.ObjectPool, writeWorkerPool xsync.PooledWorkerPool) Storage {
+func NewStorage(clusters Clusters, workerPool xsync.PooledWorkerPool, writeWorkerPool xsync.PooledWorkerPool) Storage {
 	return &m3storage{clusters: clusters, readWorkerPool: workerPool, writeWorkerPool: writeWorkerPool}
 }
 

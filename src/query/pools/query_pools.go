@@ -29,18 +29,15 @@ import (
 	"github.com/m3db/m3/src/dbnode/serialize"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
 
 	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 const (
 	// TODO: add capabilities to get this from configs
 	defaultWorkerPoolCount      = 4096
-	defaultWorkerPoolSize       = 20
 	replicas                    = 1
 	iteratorPoolSize            = 65536
 	checkedBytesWrapperPoolSize = 65536
@@ -51,46 +48,26 @@ const (
 // BuildWorkerPools builds a worker pool
 func BuildWorkerPools(
 	cfg config.Configuration,
-	logger *zap.Logger,
 	scope tally.Scope,
-) (pool.ObjectPool, xsync.PooledWorkerPool, instrument.Options, error) {
-	workerPoolCount := cfg.DecompressWorkerPoolCount
-	if workerPoolCount == 0 {
-		workerPoolCount = defaultWorkerPoolCount
-	}
-
-	workerPoolSize := cfg.DecompressWorkerPoolSize
-	if workerPoolSize == 0 {
-		workerPoolSize = defaultWorkerPoolSize
-	}
-
-	instrumentOptions := instrument.NewOptions().
-		SetZapLogger(logger).
-		SetMetricsScope(scope.SubScope("series-decompression-pool"))
-
-	poolOptions := pool.NewObjectPoolOptions().
-		SetSize(workerPoolCount).
-		SetInstrumentOptions(instrumentOptions)
-
-	objectPool := pool.NewObjectPool(poolOptions)
-	objectPool.Init(func() interface{} {
-		workerPool := xsync.NewWorkerPool(workerPoolSize)
-		workerPool.Init()
-		return workerPool
-	})
-
-	writePoolSize := cfg.WriteWorkerPoolSize
+) (xsync.PooledWorkerPool, xsync.PooledWorkerPool, error) {
+	writePoolSize := cfg.WorkerPoolSize
 	if writePoolSize == 0 {
 		writePoolSize = defaultWorkerPoolCount
 	}
 
+	readWorkerPool, err := xsync.NewPooledWorkerPool(writePoolSize, xsync.NewPooledWorkerPoolOptions())
+	if err != nil {
+		return nil, nil, err
+	}
+
+	readWorkerPool.Init()
 	writeWorkerPool, err := xsync.NewPooledWorkerPool(writePoolSize, xsync.NewPooledWorkerPoolOptions())
 	if err != nil {
-		return nil, nil, instrumentOptions, err
+		return nil, nil, err
 	}
 
 	writeWorkerPool.Init()
-	return objectPool, writeWorkerPool, instrumentOptions, nil
+	return readWorkerPool, writeWorkerPool, nil
 }
 
 type sessionPools struct {

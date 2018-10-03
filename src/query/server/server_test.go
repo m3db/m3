@@ -67,9 +67,7 @@ clusters:
         type: unaggregated
         retention: 48h
 
-workerPoolCount: 20
-decompressWorkerPoolSize: 20
-writeWorkerPoolSize: 20
+workerPoolSize: 20
 `
 
 //TODO: Use randomly assigned port here
@@ -217,9 +215,7 @@ rpc:
 
 backend: grpc
 
-workerPoolCount: 20
-decompressWorkerPoolSize: 20
-writeWorkerPoolSize: 20
+workerPoolSize: 20
 `
 
 	ctrl := gomock.NewController(xtest.Reporter{T: t})

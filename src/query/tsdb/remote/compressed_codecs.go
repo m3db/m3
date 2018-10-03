@@ -113,7 +113,9 @@ func compressedTagsFromTagIterator(tagIter ident.TagIterator, encoderPool serial
 		return nil, fmt.Errorf("no refs available to data")
 	}
 
-	return data.Bytes(), nil
+	db := data.Bytes()
+	// Need to copy the encoded bytes to a buffer as the encoder keeps a reference to them
+	return append(make([]byte, 0, len(db)), db...), nil
 }
 
 func buildTags(tagIter ident.TagIterator, iterPools encoding.IteratorPools) ([]byte, error) {

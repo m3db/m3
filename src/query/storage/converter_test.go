@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3/src/query/test/seriesiter"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
 
 	"github.com/golang/mock/gomock"
@@ -41,7 +40,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func verifyExpandSeries(t *testing.T, ctrl *gomock.Controller, num int, pools pool.ObjectPool) {
+func verifyExpandSeries(t *testing.T, ctrl *gomock.Controller, num int, pools xsync.PooledWorkerPool) {
 	testTags := seriesiter.GenerateTag()
 	iters := seriesiter.NewMockSeriesIters(ctrl, testTags, num, 2)
 
@@ -59,7 +58,7 @@ func verifyExpandSeries(t *testing.T, ctrl *gomock.Controller, num int, pools po
 	}
 }
 
-func testExpandSeries(t *testing.T, pools pool.ObjectPool) {
+func testExpandSeries(t *testing.T, pools xsync.PooledWorkerPool) {
 	ctrl := gomock.NewController(t)
 
 	for i := 0; i < 100; i++ {
@@ -71,41 +70,24 @@ func TestExpandSeriesNilPools(t *testing.T) {
 	testExpandSeries(t, nil)
 }
 
-func TestExpandSeriesInvalidPoolType(t *testing.T) {
-	objectPool := pool.NewObjectPool(pool.NewObjectPoolOptions())
-	objectPool.Init(func() interface{} {
-		return ""
-	})
-	testExpandSeries(t, objectPool)
-}
-
 func TestExpandSeriesValidPools(t *testing.T) {
-	objectPool := pool.NewObjectPool(pool.NewObjectPoolOptions())
-	objectPool.Init(func() interface{} {
-		workerPool := xsync.NewWorkerPool(100)
-		workerPool.Init()
-		return workerPool
-	})
-	testExpandSeries(t, objectPool)
+	pool, err := xsync.NewPooledWorkerPool(100, xsync.NewPooledWorkerPoolOptions())
+	require.NoError(t, err)
+	pool.Init()
+	testExpandSeries(t, pool)
 }
 
 func TestExpandSeriesSmallValidPools(t *testing.T) {
-	objectPool := pool.NewObjectPool(pool.NewObjectPoolOptions())
-	objectPool.Init(func() interface{} {
-		workerPool := xsync.NewWorkerPool(2)
-		workerPool.Init()
-		return workerPool
-	})
-	testExpandSeries(t, objectPool)
+	pool, err := xsync.NewPooledWorkerPool(2, xsync.NewPooledWorkerPoolOptions())
+	require.NoError(t, err)
+	pool.Init()
+	testExpandSeries(t, pool)
 }
 
 func TestFailingExpandSeriesValidPools(t *testing.T) {
-	objectPool := pool.NewObjectPool(pool.NewObjectPoolOptions())
-	objectPool.Init(func() interface{} {
-		workerPool := xsync.NewWorkerPool(2)
-		workerPool.Init()
-		return workerPool
-	})
+	pool, err := xsync.NewPooledWorkerPool(2, xsync.NewPooledWorkerPoolOptions())
+	require.NoError(t, err)
+	pool.Init()
 	ctrl := gomock.NewController(t)
 	testTags := seriesiter.GenerateTag()
 	validTagGenerator := func() ident.TagIterator {
@@ -136,7 +118,7 @@ func TestFailingExpandSeriesValidPools(t *testing.T) {
 	mockIters.EXPECT().Len().Return(len(iters)).Times(1)
 	mockIters.EXPECT().Close().Times(1)
 
-	result, err := SeriesIteratorsToFetchResult(mockIters, objectPool, true)
+	result, err := SeriesIteratorsToFetchResult(mockIters, pool, true)
 	require.Nil(t, result)
 	require.EqualError(t, err, "error")
 }
