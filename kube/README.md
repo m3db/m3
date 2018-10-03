@@ -29,7 +29,7 @@ NAME                             READY   STATUS    RESTARTS   AGE
 m3nsch-client-78987775f5-l5pvs   1/1     Running   0          5s
 
 $ kubectlc exec -it m3nsch-client-78987775f5-l5pvs
-/ # ./bin/m3nsch_client -e m3nsch-agent-0:2580,m3nsch-agent-1:2580,m3nsch-agent-2:2580 init -t foo -z default_zone -v default_env -n m3db-cluster
+/ # ./bin/m3nsch_client -e m3nsch-agent-0.m3nsch-agent:2580,m3nsch-agent-1.m3nsch-agent:2580,m3nsch-agent-2.m3nsch-agent:2580 init -t foo -z default_zone -v default_env -n m3db-cluster
 2018/09/30 15:24:16 Go Runtime version: go1.10.2
 2018/09/30 15:24:16 Build Version:      v0.4.5
 2018/09/30 15:24:16 Build Revision:     aa253ca01
