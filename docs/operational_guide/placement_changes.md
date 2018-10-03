@@ -6,7 +6,11 @@ M3DB was designed from the ground up to be a distributed (clustered) database th
 
 Before reading the rest of this document, we recommend familiarizing yourself with the [M3DB placement documentation](placement.md)
 
-**Note**: The primary limiting factor for the maximum size of an M3DB cluster is the number of shards.  TODO: Explain how to pick an appropriate number of shards and the tradeoff with a (small) linear increase in required node resources with the number of shards.
+**Note**: The primary limiting factor for the maximum size of an M3DB cluster is the number of shards. Picking an appropriate number of shards is more of an art than a science, but our recommendation is as follows:
+
+- Resource Constrained / Development clusters: `64 shards`
+- Production clusters: `1024 shards`
+- Production clusters with high-resource nodes (Over 128GiB of ram, etc) and an expected cluster size of several hundred nodes: `4096 shards`
 
 After performing any of the instructions documented below a new placement will automatically be generated to distribute the shards among the M3DB nodes such that the isolation group and replication factor constraints are met.
 
