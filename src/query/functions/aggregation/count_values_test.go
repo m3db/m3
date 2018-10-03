@@ -90,10 +90,10 @@ func processCountValuesOp(
 
 var (
 	simpleMetas = []block.SeriesMeta{
-		{Tags: models.Tags{{Name: "a", Value: "1"}, {Name: "b", Value: "2"}}},
-		{Tags: models.Tags{{Name: "a", Value: "1"}, {Name: "b", Value: "2"}}},
-		{Tags: models.Tags{{Name: "a", Value: "1"}, {Name: "b", Value: "3"}}},
-		{Tags: models.Tags{{Name: "a", Value: "1"}, {Name: "b", Value: "3"}}},
+		{Tags: models.Tags{{Name: []byte("a"), Value: []byte("1")}, {Name: []byte("b"), Value: []byte("2")}}},
+		{Tags: models.Tags{{Name: []byte("a"), Value: []byte("1")}, {Name: []byte("b"), Value: []byte("2")}}},
+		{Tags: models.Tags{{Name: []byte("a"), Value: []byte("1")}, {Name: []byte("b"), Value: []byte("3")}}},
+		{Tags: models.Tags{{Name: []byte("a"), Value: []byte("1")}, {Name: []byte("b"), Value: []byte("3")}}},
 	}
 
 	simpleVals = [][]float64{
@@ -117,14 +117,14 @@ func TestSimpleProcessCountValuesFunctionUnfiltered(t *testing.T) {
 	// Double check expected tags is the same length as expected values
 	require.Equal(t, len(expectedTags), len(expected))
 	assert.Equal(t, bounds, sink.Meta.Bounds)
-	assert.Equal(t, models.Tags{{Name: tagName, Value: "0"}}, sink.Meta.Tags)
+	assert.Equal(t, models.Tags{{Name: []byte(tagName), Value: []byte("0")}}, sink.Meta.Tags)
 	test.CompareValues(t, sink.Metas, tagsToSeriesMeta(expectedTags), sink.Values, expected)
 }
 
 func TestSimpleProcessCountValuesFunctionFilteringWithoutA(t *testing.T) {
 	tagName := "tag-name"
 	op, err := NewCountValuesOp(CountValuesType, NodeParams{
-		MatchingTags: []string{"a"}, Without: true, StringParameter: tagName,
+		MatchingTags: [][]byte{[]byte("a")}, Without: true, StringParameter: tagName,
 	})
 	require.NoError(t, err)
 	sink := processCountValuesOp(t, op, simpleMetas, simpleVals)
@@ -133,28 +133,28 @@ func TestSimpleProcessCountValuesFunctionFilteringWithoutA(t *testing.T) {
 		{math.NaN(), 2, 2, 2, 2},
 	}
 	expectedTags := []models.Tags{
-		{{Name: "b", Value: "2"}},
-		{{Name: "b", Value: "3"}},
+		{{Name: []byte("b"), Value: []byte("2")}},
+		{{Name: []byte("b"), Value: []byte("3")}},
 	}
 
 	// Double check expected tags is the same length as expected values
 	require.Equal(t, len(expectedTags), len(expected))
 	assert.Equal(t, bounds, sink.Meta.Bounds)
-	assert.Equal(t, models.Tags{{Name: tagName, Value: "0"}}, sink.Meta.Tags)
+	assert.Equal(t, models.Tags{{Name: []byte(tagName), Value: []byte("0")}}, sink.Meta.Tags)
 	test.CompareValues(t, sink.Metas, tagsToSeriesMeta(expectedTags), sink.Values, expected)
 }
 
 func TestCustomProcessCountValuesFunctionFilteringWithoutA(t *testing.T) {
 	tagName := "tag-name"
 	op, err := NewCountValuesOp(CountValuesType, NodeParams{
-		MatchingTags: []string{"a"}, Without: true, StringParameter: tagName,
+		MatchingTags: [][]byte{[]byte("a")}, Without: true, StringParameter: tagName,
 	})
 	require.NoError(t, err)
 	ms := []block.SeriesMeta{
-		{Tags: models.Tags{{Name: "a", Value: "1"}, {Name: "b", Value: "2"}}},
-		{Tags: models.Tags{{Name: "a", Value: "1"}, {Name: "b", Value: "2"}}},
-		{Tags: models.Tags{{Name: "a", Value: "1"}, {Name: "b", Value: "3"}}},
-		{Tags: models.Tags{{Name: "a", Value: "1"}, {Name: "b", Value: "3"}}},
+		{Tags: models.Tags{{Name: []byte("a"), Value: []byte("1")}, {Name: []byte("b"), Value: []byte("2")}}},
+		{Tags: models.Tags{{Name: []byte("a"), Value: []byte("1")}, {Name: []byte("b"), Value: []byte("2")}}},
+		{Tags: models.Tags{{Name: []byte("a"), Value: []byte("1")}, {Name: []byte("b"), Value: []byte("3")}}},
+		{Tags: models.Tags{{Name: []byte("a"), Value: []byte("1")}, {Name: []byte("b"), Value: []byte("3")}}},
 	}
 
 	vs := [][]float64{
@@ -178,15 +178,15 @@ func TestCustomProcessCountValuesFunctionFilteringWithoutA(t *testing.T) {
 	}
 
 	expectedTags := []models.Tags{
-		{{Name: "b", Value: "2"}, {Name: tagName, Value: "0"}},
-		{{Name: "b", Value: "2"}, {Name: tagName, Value: "1"}},
-		{{Name: "b", Value: "2"}, {Name: tagName, Value: "2"}},
-		{{Name: "b", Value: "2"}, {Name: tagName, Value: "3"}},
+		{{Name: []byte("b"), Value: []byte("2")}, {Name: []byte(tagName), Value: []byte("0")}},
+		{{Name: []byte("b"), Value: []byte("2")}, {Name: []byte(tagName), Value: []byte("1")}},
+		{{Name: []byte("b"), Value: []byte("2")}, {Name: []byte(tagName), Value: []byte("2")}},
+		{{Name: []byte("b"), Value: []byte("2")}, {Name: []byte(tagName), Value: []byte("3")}},
 
-		{{Name: "b", Value: "3"}, {Name: tagName, Value: "0"}},
-		{{Name: "b", Value: "3"}, {Name: tagName, Value: "1"}},
-		{{Name: "b", Value: "3"}, {Name: tagName, Value: "2"}},
-		{{Name: "b", Value: "3"}, {Name: tagName, Value: "3"}},
+		{{Name: []byte("b"), Value: []byte("3")}, {Name: []byte(tagName), Value: []byte("0")}},
+		{{Name: []byte("b"), Value: []byte("3")}, {Name: []byte(tagName), Value: []byte("1")}},
+		{{Name: []byte("b"), Value: []byte("3")}, {Name: []byte(tagName), Value: []byte("2")}},
+		{{Name: []byte("b"), Value: []byte("3")}, {Name: []byte(tagName), Value: []byte("3")}},
 	}
 
 	// Double check expected tags is the same length as expected values
@@ -199,7 +199,7 @@ func TestCustomProcessCountValuesFunctionFilteringWithoutA(t *testing.T) {
 func TestSimpleProcessCountValuesFunctionFilteringWithA(t *testing.T) {
 	tagName := "0_tag-name"
 	op, err := NewCountValuesOp(CountValuesType, NodeParams{
-		MatchingTags: []string{"a"}, Without: false, StringParameter: tagName,
+		MatchingTags: [][]byte{[]byte("a")}, Without: false, StringParameter: tagName,
 	})
 	require.NoError(t, err)
 	sink := processCountValuesOp(t, op, simpleMetas, simpleVals)
@@ -209,14 +209,15 @@ func TestSimpleProcessCountValuesFunctionFilteringWithA(t *testing.T) {
 	// Double check expected tags is the same length as expected values
 	require.Equal(t, len(expectedTags), len(expected))
 	assert.Equal(t, bounds, sink.Meta.Bounds)
-	assert.Equal(t, models.Tags{{Name: tagName, Value: "0"}, {Name: "a", Value: "1"}}, sink.Meta.Tags)
+	assert.Equal(t, models.Tags{{Name: []byte(tagName), Value: []byte("0")},
+		{Name: []byte("a"), Value: []byte("1")}}, sink.Meta.Tags)
 	test.CompareValues(t, sink.Metas, tagsToSeriesMeta(expectedTags), sink.Values, expected)
 }
 
 func TestProcessCountValuesFunctionFilteringWithoutA(t *testing.T) {
 	tagName := "tag-name"
 	op, err := NewCountValuesOp(CountValuesType, NodeParams{
-		MatchingTags: []string{"a"}, Without: true, StringParameter: tagName,
+		MatchingTags: [][]byte{[]byte("a")}, Without: true, StringParameter: tagName,
 	})
 	require.NoError(t, err)
 	sink := processCountValuesOp(t, op, seriesMetas, v)
@@ -258,42 +259,42 @@ func TestProcessCountValuesFunctionFilteringWithoutA(t *testing.T) {
 
 	expectedTags := []models.Tags{
 		// No shared values between series 1 and 2, but two NaNs
-		{{Name: tagName, Value: "0"}},
-		{{Name: tagName, Value: "6"}},
-		{{Name: tagName, Value: "2"}},
-		{{Name: tagName, Value: "7"}},
-		{{Name: tagName, Value: "3"}},
-		{{Name: tagName, Value: "8"}},
-		{{Name: tagName, Value: "4"}},
-		{{Name: tagName, Value: "9"}},
+		{{Name: []byte(tagName), Value: []byte("0")}},
+		{{Name: []byte(tagName), Value: []byte("6")}},
+		{{Name: []byte(tagName), Value: []byte("2")}},
+		{{Name: []byte(tagName), Value: []byte("7")}},
+		{{Name: []byte(tagName), Value: []byte("3")}},
+		{{Name: []byte(tagName), Value: []byte("8")}},
+		{{Name: []byte(tagName), Value: []byte("4")}},
+		{{Name: []byte(tagName), Value: []byte("9")}},
 
 		// One shared value between series 3, 4 and 5,
-		{{Name: "b", Value: "2"}, {Name: tagName, Value: "10"}},
-		{{Name: "b", Value: "2"}, {Name: tagName, Value: "50"}},
-		{{Name: "b", Value: "2"}, {Name: tagName, Value: "100"}},
-		{{Name: "b", Value: "2"}, {Name: tagName, Value: "20"}},
-		{{Name: "b", Value: "2"}, {Name: tagName, Value: "60"}},
-		{{Name: "b", Value: "2"}, {Name: tagName, Value: "200"}},
-		{{Name: "b", Value: "2"}, {Name: tagName, Value: "30"}},
-		{{Name: "b", Value: "2"}, {Name: tagName, Value: "70"}},
-		{{Name: "b", Value: "2"}, {Name: tagName, Value: "300"}},
-		{{Name: "b", Value: "2"}, {Name: tagName, Value: "40"}},
-		{{Name: "b", Value: "2"}, {Name: tagName, Value: "80"}},
-		{{Name: "b", Value: "2"}, {Name: tagName, Value: "400"}},
-		{{Name: "b", Value: "2"}, {Name: tagName, Value: "90"}},
-		{{Name: "b", Value: "2"}, {Name: tagName, Value: "500"}},
+		{{Name: []byte("b"), Value: []byte("2")}, {Name: []byte(tagName), Value: []byte("10")}},
+		{{Name: []byte("b"), Value: []byte("2")}, {Name: []byte(tagName), Value: []byte("50")}},
+		{{Name: []byte("b"), Value: []byte("2")}, {Name: []byte(tagName), Value: []byte("100")}},
+		{{Name: []byte("b"), Value: []byte("2")}, {Name: []byte(tagName), Value: []byte("20")}},
+		{{Name: []byte("b"), Value: []byte("2")}, {Name: []byte(tagName), Value: []byte("60")}},
+		{{Name: []byte("b"), Value: []byte("2")}, {Name: []byte(tagName), Value: []byte("200")}},
+		{{Name: []byte("b"), Value: []byte("2")}, {Name: []byte(tagName), Value: []byte("30")}},
+		{{Name: []byte("b"), Value: []byte("2")}, {Name: []byte(tagName), Value: []byte("70")}},
+		{{Name: []byte("b"), Value: []byte("2")}, {Name: []byte(tagName), Value: []byte("300")}},
+		{{Name: []byte("b"), Value: []byte("2")}, {Name: []byte(tagName), Value: []byte("40")}},
+		{{Name: []byte("b"), Value: []byte("2")}, {Name: []byte(tagName), Value: []byte("80")}},
+		{{Name: []byte("b"), Value: []byte("2")}, {Name: []byte(tagName), Value: []byte("400")}},
+		{{Name: []byte("b"), Value: []byte("2")}, {Name: []byte(tagName), Value: []byte("90")}},
+		{{Name: []byte("b"), Value: []byte("2")}, {Name: []byte(tagName), Value: []byte("500")}},
 
 		// No shared values in series 6
-		{{Name: "c", Value: "3"}, {Name: tagName, Value: "600"}},
-		{{Name: "c", Value: "3"}, {Name: tagName, Value: "700"}},
-		{{Name: "c", Value: "3"}, {Name: tagName, Value: "800"}},
-		{{Name: "c", Value: "3"}, {Name: tagName, Value: "900"}},
-		{{Name: "c", Value: "3"}, {Name: tagName, Value: "1000"}},
+		{{Name: []byte("c"), Value: []byte("3")}, {Name: []byte(tagName), Value: []byte("600")}},
+		{{Name: []byte("c"), Value: []byte("3")}, {Name: []byte(tagName), Value: []byte("700")}},
+		{{Name: []byte("c"), Value: []byte("3")}, {Name: []byte(tagName), Value: []byte("800")}},
+		{{Name: []byte("c"), Value: []byte("3")}, {Name: []byte(tagName), Value: []byte("900")}},
+		{{Name: []byte("c"), Value: []byte("3")}, {Name: []byte(tagName), Value: []byte("1000")}},
 	}
 
 	// Double check expected tags is the same length as expected values
 	require.Equal(t, len(expectedTags), len(expected))
 	assert.Equal(t, bounds, sink.Meta.Bounds)
-	assert.Equal(t, models.Tags{{Name: "d", Value: "4"}}, sink.Meta.Tags)
+	assert.Equal(t, models.Tags{{Name: []byte("d"), Value: []byte("4")}}, sink.Meta.Tags)
 	test.CompareValues(t, sink.Metas, tagsToSeriesMeta(expectedTags), sink.Values, expected)
 }

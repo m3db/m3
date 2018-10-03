@@ -21,6 +21,7 @@
 package downsample
 
 import (
+	"bytes"
 	"sort"
 
 	"github.com/m3db/m3x/ident"
@@ -31,8 +32,8 @@ const (
 )
 
 type tags struct {
-	names    []string
-	values   []string
+	names    [][]byte
+	values   [][]byte
 	idx      int
 	nameBuf  []byte
 	valueBuf []byte
@@ -46,13 +47,13 @@ var (
 
 func newTags() *tags {
 	return &tags{
-		names:  make([]string, 0, initAllocTagsSliceCapacity),
-		values: make([]string, 0, initAllocTagsSliceCapacity),
+		names:  make([][]byte, 0, initAllocTagsSliceCapacity),
+		values: make([][]byte, 0, initAllocTagsSliceCapacity),
 		idx:    -1,
 	}
 }
 
-func (t *tags) append(name, value string) {
+func (t *tags) append(name, value []byte) {
 	t.names = append(t.names, name)
 	t.values = append(t.values, value)
 }
@@ -67,7 +68,7 @@ func (t *tags) Swap(i, j int) {
 }
 
 func (t *tags) Less(i, j int) bool {
-	return t.names[i] < t.names[j]
+	return bytes.Compare(t.names[i], t.names[j]) == -1
 }
 
 func (t *tags) Next() bool {

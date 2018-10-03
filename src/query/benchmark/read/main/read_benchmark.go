@@ -205,8 +205,8 @@ func generateMatchers() []*prompb.LabelMatcher {
 	for i, id := range ids {
 		matchers[i] = &prompb.LabelMatcher{
 			Type:  prompb.LabelMatcher_EQ,
-			Name:  "eq",
-			Value: id,
+			Name:  []byte("eq"),
+			Value: []byte(id),
 		}
 	}
 	return matchers

@@ -35,7 +35,7 @@ func GeneratePromReadRequest() *prompb.ReadRequest {
 	req := &prompb.ReadRequest{
 		Queries: []*prompb.Query{{
 			Matchers: []*prompb.LabelMatcher{
-				{Type: prompb.LabelMatcher_EQ, Name: "eq", Value: "a"},
+				{Type: prompb.LabelMatcher_EQ, Name: []byte("eq"), Value: []byte("a")},
 			},
 			StartTimestampMs: time.Now().Add(-1*time.Hour*24).UnixNano() / int64(time.Millisecond),
 			EndTimestampMs:   time.Now().UnixNano() / int64(time.Millisecond),

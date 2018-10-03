@@ -51,7 +51,7 @@ func verifyExpandSeries(t *testing.T, ctrl *gomock.Controller, num int, pools po
 	require.NotNil(t, results)
 	require.NotNil(t, results.SeriesList)
 	require.Len(t, results.SeriesList, num)
-	expectedTags := models.Tags{{Name: testTags.Name.String(), Value: testTags.Value.String()}}
+	expectedTags := models.Tags{{Name: testTags.Name.Bytes(), Value: testTags.Value.Bytes()}}
 	for i := 0; i < num; i++ {
 		series := results.SeriesList[i]
 		require.NotNil(t, series)
@@ -141,6 +141,11 @@ func TestFailingExpandSeriesValidPools(t *testing.T) {
 	require.EqualError(t, err, "error")
 }
 
+var (
+	name  = []byte("foo")
+	value = []byte("bar")
+)
+
 func TestPromReadQueryToM3(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -151,54 +156,54 @@ func TestPromReadQueryToM3(t *testing.T) {
 		{
 			name: "single exact match",
 			matchers: []*prompb.LabelMatcher{
-				&prompb.LabelMatcher{Type: prompb.LabelMatcher_EQ, Name: "foo", Value: "bar"},
+				&prompb.LabelMatcher{Type: prompb.LabelMatcher_EQ, Name: name, Value: value},
 			},
 			expected: []*models.Matcher{
-				&models.Matcher{Type: models.MatchEqual, Name: "foo", Value: "bar"},
+				&models.Matcher{Type: models.MatchEqual, Name: name, Value: value},
 			},
 		},
 		{
 			name: "single exact match negated",
 			matchers: []*prompb.LabelMatcher{
-				&prompb.LabelMatcher{Type: prompb.LabelMatcher_NEQ, Name: "foo", Value: "bar"},
+				&prompb.LabelMatcher{Type: prompb.LabelMatcher_NEQ, Name: name, Value: value},
 			},
 			expected: []*models.Matcher{
-				&models.Matcher{Type: models.MatchNotEqual, Name: "foo", Value: "bar"},
+				&models.Matcher{Type: models.MatchNotEqual, Name: name, Value: value},
 			},
 		},
 		{
 			name: "single regexp match",
 			matchers: []*prompb.LabelMatcher{
-				&prompb.LabelMatcher{Type: prompb.LabelMatcher_RE, Name: "foo", Value: "bar"},
+				&prompb.LabelMatcher{Type: prompb.LabelMatcher_RE, Name: name, Value: value},
 			},
 			expected: []*models.Matcher{
-				&models.Matcher{Type: models.MatchRegexp, Name: "foo", Value: "bar"},
+				&models.Matcher{Type: models.MatchRegexp, Name: name, Value: value},
 			},
 		},
 		{
 			name: "single regexp match negated",
 			matchers: []*prompb.LabelMatcher{
-				&prompb.LabelMatcher{Type: prompb.LabelMatcher_NRE, Name: "foo", Value: "bar"},
+				&prompb.LabelMatcher{Type: prompb.LabelMatcher_NRE, Name: name, Value: value},
 			},
 			expected: []*models.Matcher{
-				&models.Matcher{Type: models.MatchNotRegexp, Name: "foo", Value: "bar"},
+				&models.Matcher{Type: models.MatchNotRegexp, Name: name, Value: value},
 			},
 		},
 		{
 			name: "mixed exact match and regexp match",
 			matchers: []*prompb.LabelMatcher{
-				&prompb.LabelMatcher{Type: prompb.LabelMatcher_EQ, Name: "foo", Value: "bar"},
-				&prompb.LabelMatcher{Type: prompb.LabelMatcher_RE, Name: "baz", Value: "qux"},
+				&prompb.LabelMatcher{Type: prompb.LabelMatcher_EQ, Name: name, Value: value},
+				&prompb.LabelMatcher{Type: prompb.LabelMatcher_RE, Name: []byte("baz"), Value: []byte("qux")},
 			},
 			expected: []*models.Matcher{
-				&models.Matcher{Type: models.MatchEqual, Name: "foo", Value: "bar"},
-				&models.Matcher{Type: models.MatchRegexp, Name: "baz", Value: "qux"},
+				&models.Matcher{Type: models.MatchEqual, Name: name, Value: value},
+				&models.Matcher{Type: models.MatchRegexp, Name: []byte("baz"), Value: []byte("qux")},
 			},
 		},
 		{
 			name: "unrecognized matcher type",
 			matchers: []*prompb.LabelMatcher{
-				&prompb.LabelMatcher{Type: prompb.LabelMatcher_Type(math.MaxInt32), Name: "foo", Value: "bar"},
+				&prompb.LabelMatcher{Type: prompb.LabelMatcher_Type(math.MaxInt32), Name: name, Value: value},
 			},
 			expectError: true,
 		},
@@ -258,8 +263,8 @@ func BenchmarkFetchResultToPromResult(b *testing.B) {
 		tags := make(models.Tags, 0, numTagsPerSeries)
 		for i := 0; i < numTagsPerSeries; i++ {
 			tags = append(tags, models.Tag{
-				Name:  fmt.Sprintf("name-%d", i),
-				Value: fmt.Sprintf("value-%d", i),
+				Name:  []byte(fmt.Sprintf("name-%d", i)),
+				Value: []byte(fmt.Sprintf("value-%d", i)),
 			})
 		}
 

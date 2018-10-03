@@ -38,12 +38,12 @@ import (
 
 var (
 	seriesMetas = []block.SeriesMeta{
-		{Tags: models.FromMap(map[string]string{"a": "1", "d": "4"})},
-		{Tags: models.FromMap(map[string]string{"a": "1", "d": "4"})},
-		{Tags: models.FromMap(map[string]string{"a": "1", "b": "2", "d": "4"})},
-		{Tags: models.FromMap(map[string]string{"a": "2", "b": "2", "d": "4"})},
-		{Tags: models.FromMap(map[string]string{"b": "2", "d": "4"})},
-		{Tags: models.FromMap(map[string]string{"c": "3", "d": "4"})},
+		{Tags: test.StringTagsToTags(test.StringTags{{"a", "1"}, {"d", "4"}})},
+		{Tags: test.StringTagsToTags(test.StringTags{{"a", "1"}, {"d", "4"}})},
+		{Tags: test.StringTagsToTags(test.StringTags{{"a", "1"}, {"b", "2"}, {"d", "4"}})},
+		{Tags: test.StringTagsToTags(test.StringTags{{"a", "2"}, {"b", "2"}, {"d", "4"}})},
+		{Tags: test.StringTagsToTags(test.StringTags{{"b", "2"}, {"d", "4"}})},
+		{Tags: test.StringTagsToTags(test.StringTags{{"c", "3"}, {"d", "4"}})},
 	}
 	v = [][]float64{
 		{0, math.NaN(), 2, 3, 4},
@@ -72,7 +72,7 @@ func processAggregationOp(t *testing.T, op parser.Params) *executor.SinkNode {
 
 func TestFunctionFilteringWithA(t *testing.T) {
 	op, err := NewAggregationOp(StandardDeviationType, NodeParams{
-		MatchingTags: []string{"a"}, Without: false,
+		MatchingTags: [][]byte{[]byte("a")}, Without: false,
 	})
 	require.NoError(t, err)
 	sink := processAggregationOp(t, op)
@@ -86,11 +86,11 @@ func TestFunctionFilteringWithA(t *testing.T) {
 	}
 
 	expectedMetas := []block.SeriesMeta{
-		{Name: StandardDeviationType, Tags: models.FromMap(map[string]string{"a": "1"})},
-		{Name: StandardDeviationType, Tags: models.FromMap(map[string]string{"a": "2"})},
-		{Name: StandardDeviationType, Tags: models.FromMap(map[string]string{})},
+		{Name: StandardDeviationType, Tags: models.Tags{{Name: []byte("a"), Value: []byte("1")}}},
+		{Name: StandardDeviationType, Tags: models.Tags{{Name: []byte("a"), Value: []byte("2")}}},
+		{Name: StandardDeviationType, Tags: models.Tags{}},
 	}
-	expectedMetaTags := models.FromMap(map[string]string{})
+	expectedMetaTags := models.Tags{}
 
 	test.CompareValues(t, sink.Metas, expectedMetas, sink.Values, expected)
 	assert.Equal(t, bounds, sink.Meta.Bounds)
@@ -99,7 +99,7 @@ func TestFunctionFilteringWithA(t *testing.T) {
 
 func TestFunctionFilteringWithoutA(t *testing.T) {
 	op, err := NewAggregationOp(StandardDeviationType, NodeParams{
-		MatchingTags: []string{"a"}, Without: true,
+		MatchingTags: [][]byte{[]byte("a")}, Without: true,
 	})
 	require.NoError(t, err)
 	sink := processAggregationOp(t, op)
@@ -113,12 +113,12 @@ func TestFunctionFilteringWithoutA(t *testing.T) {
 	}
 
 	expectedMetas := []block.SeriesMeta{
-		{Name: StandardDeviationType, Tags: models.FromMap(map[string]string{})},
-		{Name: StandardDeviationType, Tags: models.FromMap(map[string]string{"b": "2"})},
-		{Name: StandardDeviationType, Tags: models.FromMap(map[string]string{"c": "3"})},
+		{Name: StandardDeviationType, Tags: models.Tags{}},
+		{Name: StandardDeviationType, Tags: models.Tags{{Name: []byte("b"), Value: []byte("2")}}},
+		{Name: StandardDeviationType, Tags: models.Tags{{Name: []byte("c"), Value: []byte("3")}}},
 	}
-	expectedMetaTags := models.FromMap(map[string]string{"d": "4"})
 
+	expectedMetaTags := models.Tags{{Name: []byte("d"), Value: []byte("4")}}
 	test.CompareValues(t, sink.Metas, expectedMetas, sink.Values, expected)
 	assert.Equal(t, bounds, sink.Meta.Bounds)
 	assert.Equal(t, expectedMetaTags, sink.Meta.Tags)
@@ -126,7 +126,7 @@ func TestFunctionFilteringWithoutA(t *testing.T) {
 
 func TestFunctionFilteringWithD(t *testing.T) {
 	op, err := NewAggregationOp(StandardDeviationType, NodeParams{
-		MatchingTags: []string{"d"}, Without: false,
+		MatchingTags: [][]byte{[]byte("d")}, Without: false,
 	})
 	require.NoError(t, err)
 	sink := processAggregationOp(t, op)
@@ -136,10 +136,10 @@ func TestFunctionFilteringWithD(t *testing.T) {
 	}
 
 	expectedMetas := []block.SeriesMeta{
-		{Name: StandardDeviationType, Tags: models.FromMap(map[string]string{})},
+		{Name: StandardDeviationType, Tags: models.Tags{}},
 	}
-	expectedMetaTags := models.FromMap(map[string]string{"d": "4"})
 
+	expectedMetaTags := models.Tags{{Name: []byte("d"), Value: []byte("4")}}
 	test.CompareValues(t, sink.Metas, expectedMetas, sink.Values, expected)
 	assert.Equal(t, bounds, sink.Meta.Bounds)
 	assert.Equal(t, expectedMetaTags, sink.Meta.Tags)
@@ -147,7 +147,7 @@ func TestFunctionFilteringWithD(t *testing.T) {
 
 func TestFunctionFilteringWithoutD(t *testing.T) {
 	op, err := NewAggregationOp(StandardDeviationType, NodeParams{
-		MatchingTags: []string{"d"}, Without: true,
+		MatchingTags: [][]byte{[]byte("d")}, Without: true,
 	})
 	require.NoError(t, err)
 	sink := processAggregationOp(t, op)
@@ -166,11 +166,11 @@ func TestFunctionFilteringWithoutD(t *testing.T) {
 	}
 
 	expectedMetas := []block.SeriesMeta{
-		{Name: StandardDeviationType, Tags: models.FromMap(map[string]string{"a": "1"})},
-		{Name: StandardDeviationType, Tags: models.FromMap(map[string]string{"a": "1", "b": "2"})},
-		{Name: StandardDeviationType, Tags: models.FromMap(map[string]string{"a": "2", "b": "2"})},
-		{Name: StandardDeviationType, Tags: models.FromMap(map[string]string{"b": "2"})},
-		{Name: StandardDeviationType, Tags: models.FromMap(map[string]string{"c": "3"})},
+		{Name: StandardDeviationType, Tags: test.StringTagsToTags(test.StringTags{{"a", "1"}})},
+		{Name: StandardDeviationType, Tags: test.StringTagsToTags(test.StringTags{{"a", "1"}, {"b", "2"}})},
+		{Name: StandardDeviationType, Tags: test.StringTagsToTags(test.StringTags{{"a", "2"}, {"b", "2"}})},
+		{Name: StandardDeviationType, Tags: test.StringTagsToTags(test.StringTags{{"b", "2"}})},
+		{Name: StandardDeviationType, Tags: test.StringTagsToTags(test.StringTags{{"c", "3"}})},
 	}
 	expectedMetaTags := models.Tags{}
 

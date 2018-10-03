@@ -95,13 +95,13 @@ func newFetchReq() *storage.FetchQuery {
 	matchers := models.Matchers{
 		{
 			Type:  models.MatchEqual,
-			Name:  "foo",
-			Value: "bar",
+			Name:  []byte("foo"),
+			Value: []byte("bar"),
 		},
 		{
 			Type:  models.MatchEqual,
-			Name:  "biz",
-			Value: "baz",
+			Name:  []byte("biz"),
+			Value: []byte("baz"),
 		},
 	}
 	return &storage.FetchQuery{
@@ -112,7 +112,10 @@ func newFetchReq() *storage.FetchQuery {
 }
 
 func newWriteQuery() *storage.WriteQuery {
-	tags := map[string]string{"foo": "bar", "biz": "baz"}
+	tags := models.Tags{
+		{Name: []byte("foo"), Value: []byte("bar")},
+		{Name: []byte("biz"), Value: []byte("baz")},
+	}
 	datapoints := ts.Datapoints{{
 		Timestamp: time.Now(),
 		Value:     1.0,
@@ -122,7 +125,7 @@ func newWriteQuery() *storage.WriteQuery {
 			Value:     2.0,
 		}}
 	return &storage.WriteQuery{
-		Tags:       models.FromMap(tags),
+		Tags:       tags,
 		Unit:       xtime.Millisecond,
 		Datapoints: datapoints,
 	}
@@ -209,7 +212,7 @@ func TestLocalWriteAggregatedSuccess(t *testing.T) {
 }
 
 func TestLocalRead(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 	store, sessions := setup(t, ctrl)
 	testTags := seriesiter.GenerateTag()
@@ -240,13 +243,12 @@ func TestLocalRead(t *testing.T) {
 	searchReq := newFetchReq()
 	results, err := store.Fetch(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
 	assert.NoError(t, err)
-	tags := make(map[string]string, 1)
-	tags[testTags.Name.String()] = testTags.Value.String()
+	tags := models.Tags{{Name: testTags.Name.Bytes(), Value: testTags.Value.Bytes()}}
 	require.NotNil(t, results)
 	require.NotNil(t, results.SeriesList)
 	require.Len(t, results.SeriesList, 1)
 	require.NotNil(t, results.SeriesList[0])
-	assert.Equal(t, models.FromMap(tags), results.SeriesList[0].Tags)
+	assert.Equal(t, tags, results.SeriesList[0].Tags)
 }
 
 func TestLocalReadNoClustersForTimeRangeError(t *testing.T) {
@@ -362,7 +364,7 @@ func TestLocalSearchSuccess(t *testing.T) {
 
 		assert.Equal(t, expected.id, actual.ID)
 		assert.Equal(t, models.Tags{{
-			Name: expected.tagName, Value: expected.tagValue,
+			Name: []byte(expected.tagName), Value: []byte(expected.tagValue),
 		}}, actual.Tags)
 	}
 }

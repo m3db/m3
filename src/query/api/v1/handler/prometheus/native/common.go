@@ -174,8 +174,8 @@ func renderResultsJSON(w io.Writer, series []*ts.Series, params models.RequestPa
 		jw.BeginObjectField("metric")
 		jw.BeginObject()
 		for _, t := range s.Tags {
-			jw.BeginObjectField(t.Name)
-			jw.WriteString(t.Value)
+			jw.BeginObjectField(string(t.Name))
+			jw.WriteString(string(t.Value))
 		}
 		jw.EndObject()
 

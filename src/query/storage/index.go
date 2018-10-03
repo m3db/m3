@@ -50,8 +50,8 @@ func FromIdentTagIteratorToTags(identTags ident.TagIterator) (models.Tags, error
 	for identTags.Next() {
 		identTag := identTags.Current()
 		tags = append(tags, models.Tag{
-			Name:  identTag.Name.String(),
-			Value: identTag.Value.String(),
+			Name:  identTag.Name.Bytes(),
+			Value: identTag.Value.Bytes(),
 		})
 	}
 
@@ -64,10 +64,13 @@ func FromIdentTagIteratorToTags(identTags ident.TagIterator) (models.Tags, error
 
 // TagsToIdentTagIterator converts coordinator tags to ident tags
 func TagsToIdentTagIterator(tags models.Tags) ident.TagIterator {
+	//TODO get a tags and tag iterator from an ident.Pool here rather than allocing them here
 	identTags := make([]ident.Tag, 0, len(tags))
-
 	for _, t := range tags {
-		identTags = append(identTags, ident.StringTag(t.Name, t.Value))
+		identTags = append(identTags, ident.Tag{
+			Name:  ident.BytesID(t.Name),
+			Value: ident.BytesID(t.Value),
+		})
 	}
 
 	return ident.NewTagsIterator(ident.NewTags(identTags...))
@@ -106,7 +109,7 @@ func matcherToQuery(matcher *models.Matcher) (idx.Query, error) {
 		negate = true
 		fallthrough
 	case models.MatchRegexp:
-		query, err := idx.NewRegexpQuery([]byte(matcher.Name), []byte(matcher.Value))
+		query, err := idx.NewRegexpQuery(matcher.Name, matcher.Value)
 		if err != nil {
 			return idx.Query{}, err
 		}
@@ -120,7 +123,7 @@ func matcherToQuery(matcher *models.Matcher) (idx.Query, error) {
 		negate = true
 		fallthrough
 	case models.MatchEqual:
-		query := idx.NewTermQuery([]byte(matcher.Name), []byte(matcher.Value))
+		query := idx.NewTermQuery(matcher.Name, matcher.Value)
 		if negate {
 			query = idx.NewNegationQuery(query)
 		}
