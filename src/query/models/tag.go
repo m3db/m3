@@ -162,9 +162,9 @@ func (t Tags) ID() string {
 
 	strBuilder.Grow(idLen)
 	for _, tag := range t {
-		strBuilder.WriteString(tag.Name)
+		strBuilder.Write(tag.Name)
 		strBuilder.WriteByte(eq)
-		strBuilder.WriteString(tag.Value)
+		strBuilder.Write(tag.Value)
 		strBuilder.WriteByte(sep)
 	}
 

@@ -263,8 +263,8 @@ func BenchmarkFetchResultToPromResult(b *testing.B) {
 		tags := make(models.Tags, 0, numTagsPerSeries)
 		for i := 0; i < numTagsPerSeries; i++ {
 			tags = append(tags, models.Tag{
-				Name:  fmt.Sprintf("name-%d", i),
-				Value: fmt.Sprintf("value-%d", i),
+				Name:  []byte(fmt.Sprintf("name-%d", i)),
+				Value: []byte(fmt.Sprintf("value-%d", i)),
 			})
 		}
 
