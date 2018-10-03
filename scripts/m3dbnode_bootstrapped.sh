@@ -34,7 +34,8 @@ RES=$?
 # bootstrapped if our script makes a bad request and must use caution when
 # modifying the script or the coordinator placement endpoint.
 if [ "$RES" -eq 22 ]; then
-  echo "Received 4xx from coordinator $COORD_PLACEMENT_ENDPOINT"
+  COORD_OUTPUT=$(cat "$COORD_TMPFILE")
+  echo "Received 4xx from coordinator $COORD_PLACEMENT_ENDPOINT: $COORD_OUTPUT"
   exit 0
 fi
 
