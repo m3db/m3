@@ -269,12 +269,24 @@ func (s *m3storage) Write(
 		return errors.ErrNilWriteQuery
 	}
 
-	id := query.Tags.ID()
-	// TODO: Consider caching id -> identID
-	identID := ident.StringID(id)
+	var (
+		// TODO: Pool this once an ident pool is setup. We will have
+		// to stop calling NoFinalize() below if we do that.
+		buf   = make([]byte, 0, query.Tags.IDLen())
+		idBuf = query.Tags.IDMarshalTo(buf)
+		id    = ident.BytesID(idBuf)
+	)
 	// Set id to NoFinalize to avoid cloning it in write operations
-	identID.NoFinalize()
+	id.NoFinalize()
 	tagIterator := storage.TagsToIdentTagIterator(query.Tags)
+
+	if len(query.Datapoints) == 1 {
+		// Special case single datapoint because it is common and we
+		// can avoid the overhead of a waitgroup, goroutine, multierr,
+		// iterator duplication etc.
+		return s.writeSingle(
+			ctx, query, query.Datapoints[0], id, tagIterator)
+	}
 
 	var (
 		wg       sync.WaitGroup
@@ -287,7 +299,7 @@ func (s *m3storage) Write(
 		datapoint := datapoint
 		wg.Add(1)
 		s.writeWorkerPool.Go(func() {
-			if err := s.writeSingle(ctx, query, datapoint, identID, tagIter); err != nil {
+			if err := s.writeSingle(ctx, query, datapoint, id, tagIter); err != nil {
 				multiErr.add(err)
 			}
 

@@ -1,0 +1,10 @@
+{
+  "name": "M3 CI",
+  "steps": [
+    {
+      "type": "script",
+      "name": ":pipeline:",
+      "command": "buildkite-agent pipeline upload"
+    }
+  ]
+}

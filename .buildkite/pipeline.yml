@@ -1,0 +1,29 @@
+steps:
+  - name: "Unit, Big Unit"
+    command: make clean install-vendor test-ci-unit test-ci-big-unit
+    plugins:
+      docker-compose#v2.5.1:
+        run: app
+  - name: "Integration (Docker), Services, Tools, Metalint"
+    command: make install-vendor metalint test-all-gen docker-integration-test tools services
+    env:
+      CGO_ENABLED: 0
+      GIMME_GO_VERSION: 1.10.x
+    plugins:
+        gopath-checkout#v1.0.1:
+          import: github.com/m3db/m3
+  - name: "Integration (All Metadata)"
+    command: make clean install-vendor test-ci-integration-dbnode cache_policy=all_metadata
+    plugins:
+      docker-compose#v2.5.1:
+        run: app
+  - name: "Integration (Recently Read)"
+    command: make clean install-vendor test-ci-integration-dbnode cache_policy=recently_read
+    plugins:
+      docker-compose#v2.5.1:
+        run: app
+  - name: "Integration (LRU)"
+    command: make clean install-vendor test-ci-integration-dbnode cache_policy=lru
+    plugins:
+      docker-compose#v2.5.1:
+        run: app

@@ -26,6 +26,7 @@ import (
 	"hash/fnv"
 	"regexp"
 	"sort"
+	"strings"
 )
 
 const (
@@ -154,7 +155,25 @@ func (m Matchers) ToTags() (Tags, error) {
 
 // ID returns a string representation of the tags
 func (t Tags) ID() string {
-	b := make([]byte, 0, len(t))
+	var (
+		idLen      = t.IDLen()
+		strBuilder = strings.Builder{}
+	)
+
+	strBuilder.Grow(idLen)
+	for _, tag := range t {
+		strBuilder.WriteString(tag.Name)
+		strBuilder.WriteByte(eq)
+		strBuilder.WriteString(tag.Value)
+		strBuilder.WriteByte(sep)
+	}
+
+	return strBuilder.String()
+}
+
+// IDMarshalTo writes out the ID representation
+// of the tags into the provided buffer.
+func (t Tags) IDMarshalTo(b []byte) []byte {
 	for _, tag := range t {
 		b = append(b, tag.Name...)
 		b = append(b, eq)
@@ -162,7 +181,18 @@ func (t Tags) ID() string {
 		b = append(b, sep)
 	}
 
-	return string(b)
+	return b
+}
+
+// IDLen returns the length of the ID that would be
+// generated from the tags.
+func (t Tags) IDLen() int {
+	idLen := 2 * len(t) // account for eq and sep
+	for _, tag := range t {
+		idLen += len(tag.Name)
+		idLen += len(tag.Value)
+	}
+	return idLen
 }
 
 // IDWithExcludes returns a string representation of the tags excluding some tag keys
