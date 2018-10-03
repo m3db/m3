@@ -8,7 +8,7 @@
 # 4. If 1-3 true, check if host reports bootstrapped and exit healthy if so
 #    (fail otherwise).
 
-set -xo pipefail
+set -o pipefail
 
 COORDINATOR_PORT=${COORDINATOR_PORT:-7201}
 DBNODE_PORT=${DBNODE_PORT:-9002}
@@ -34,7 +34,7 @@ RES=$?
 # bootstrapped if our script makes a bad request and must use caution when
 # modifying the script or the coordinator placement endpoint.
 if [ "$RES" -eq 22 ]; then
-  echo "Received 4xx from coordinator"
+  echo "Received 4xx from coordinator $COORD_PLACEMENT_ENDPOINT"
   exit 0
 fi
 
@@ -51,7 +51,7 @@ curl -sSf "$COORD_NAMESPACE_ENDPOINT" >/dev/null
 RES=$?
 
 if [ "$RES" -eq 22 ]; then
-  echo "Received 4xx from namespace endpoint"
+  echo "Received 4xx from namespace endpoint $COORD_NAMESPACE_ENDPOINT"
   exit 0
 fi
 
@@ -59,7 +59,7 @@ curl -sSf -o "$DBNODE_TMPFILE" "$DBNODE_ENDPOINT"
 RES=$?
 
 if [ "$RES" -ne 0 ]; then
-  echo "Received exit code $RES from curl health"
+  echo "Received exit code $RES from curl health $DBNODE_ENDPOINT"
   exit 1
 fi
 
