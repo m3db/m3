@@ -30,13 +30,6 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
-// TopologyMapProvider is an interface that can provide
-// a topology map.
-type TopologyMapProvider interface {
-	// TopologyMap returns a topology map.
-	TopologyMap() (topology.Map, error)
-}
-
 // ProcessProvider constructs a bootstrap process that can execute a
 // bootstrap run.
 type ProcessProvider interface {
@@ -96,10 +89,10 @@ type ProcessOptions interface {
 	CacheSeriesMetadata() bool
 
 	// SetTopologyMapProvider sets the TopologyMapProvider.
-	SetTopologyMapProvider(value TopologyMapProvider) ProcessOptions
+	SetTopologyMapProvider(value topology.MapProvider) ProcessOptions
 
 	// TopologyMapProvider returns the TopologyMapProvider.
-	TopologyMapProvider() TopologyMapProvider
+	TopologyMapProvider() topology.MapProvider
 
 	// SetOrigin sets the origin.
 	SetOrigin(value topology.Host) ProcessOptions

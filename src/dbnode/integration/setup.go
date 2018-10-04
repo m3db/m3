@@ -608,7 +608,7 @@ func (ts *testSetup) maybeResetClients() error {
 	return nil
 }
 
-// Implements bootstrap.TopologyMapProvider and makes sure that the topology
+// Implements topology.MapProvider, and makes sure that the topology
 // map provided always comes from the most recent database in the testSetup
 // since they get\ recreated everytime startServer/stopServer is called and
 // are not available (nil value) after creation but before the first call

@@ -22,14 +22,13 @@ package cluster
 
 import (
 	"github.com/m3db/m3/src/dbnode/storage"
-	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/topology"
 )
 
 // Database is a clustered time series database
 type Database interface {
 	storage.Database
-	bootstrap.TopologyMapProvider
+	topology.MapProvider
 
 	// Topology returns the topology.
 	Topology() topology.Topology

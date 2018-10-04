@@ -94,7 +94,7 @@ type BootstrapPeersConfiguration struct {
 // New creates a bootstrap process based on the bootstrap configuration.
 func (bsc BootstrapConfiguration) New(
 	opts storage.Options,
-	topoMapProvider bootstrap.TopologyMapProvider,
+	topoMapProvider topology.MapProvider,
 	origin topology.Host,
 	adminClient client.AdminClient,
 ) (bootstrap.ProcessProvider, error) {
