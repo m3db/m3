@@ -17,4 +17,7 @@ message PlacementGetResponse {
 
 message PlacementAddRequest {
   repeated placementpb.Instance instances = 1;
+  // By default add requests will only succeed if all instances in the placement
+  // are AVAILABLE for all their shards. force overrides that.
+  bool force = 2;
 }
