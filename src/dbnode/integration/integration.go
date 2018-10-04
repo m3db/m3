@@ -218,7 +218,8 @@ func newDefaultBootstrappableTestSetups(
 		noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
 		var peersBootstrapper bootstrap.BootstrapperProvider
 
-		adminOpts := client.NewAdminOptions()
+		adminOpts := client.NewAdminOptions().
+			SetOrigin(setup.origin)
 		if bootstrapBlocksBatchSize > 0 {
 			adminOpts = adminOpts.SetFetchSeriesBlocksBatchSize(bootstrapBlocksBatchSize)
 		}
@@ -279,7 +280,7 @@ func newDefaultBootstrappableTestSetups(
 			SetTopologyMapProvider(func() (topology.Map, error) {
 				return setup.db.Topology().Get(), nil
 			}).
-			SetOrigin(adminOpts.Origin())
+			SetOrigin(setup.origin)
 		provider, err := bootstrap.NewProcessProvider(fsBootstrapper, processOpts, bsOpts)
 		require.NoError(t, err)
 		setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(provider)
