@@ -77,6 +77,8 @@ var (
 // nowSetterFn is the function that sets the current time
 type nowSetterFn func(t time.Time)
 
+var _ topology.MapProvider = &testSetup{}
+
 type testSetup struct {
 	t    *testing.T
 	opts testOptions
