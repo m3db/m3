@@ -296,7 +296,7 @@ func newDefaultBootstrappableTestSetups(
 		require.NoError(t, err)
 
 		processOpts := bootstrap.NewProcessOptions().
-			SetTopologyMapProvider(&dynamicTopoMapProviderBullshit{setup}).
+			SetTopologyMapProvider(&latestDBTopoMapProvider{setup}).
 			SetOrigin(setup.origin)
 		provider, err := bootstrap.NewProcessProvider(fsBootstrapper, processOpts, bsOpts)
 		require.NoError(t, err)
@@ -318,11 +318,14 @@ func newDefaultBootstrappableTestSetups(
 	}
 }
 
-type dynamicTopoMapProviderBullshit struct {
+// latestDBTopoMapProvider makes sure that the topology map provided always
+// comes from the most recent database in the testSetup since they get
+// recreated everytime startServer/stopServer is called.
+type latestDBTopoMapProvider struct {
 	setup *testSetup
 }
 
-func (d *dynamicTopoMapProviderBullshit) TopologyMap() (topology.Map, error) {
+func (d *latestDBTopoMapProvider) TopologyMap() (topology.Map, error) {
 	return d.setup.db.TopologyMap()
 }
 
