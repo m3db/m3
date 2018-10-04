@@ -141,8 +141,8 @@ func Run(runOpts RunOptions) {
 	readWorkerPool, writeWorkerPool, err := pools.BuildWorkerPools(
 		instrumentOptions,
 		scope,
-		cfg.ReadWorkerPoolOpts,
-		cfg.WriteWorkerPoolOpts,
+		cfg.ReadWorkerPool,
+		cfg.WriteWorkerPool,
 	)
 	if err != nil {
 		logger.Fatal("could not create worker pools", zap.Any("error", err))

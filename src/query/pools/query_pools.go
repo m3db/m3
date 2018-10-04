@@ -52,8 +52,8 @@ func BuildWorkerPools(
 	readPoolPolicy, writePoolPolicy xconfig.WorkerPoolPolicy,
 ) (xsync.PooledWorkerPool, xsync.PooledWorkerPool, error) {
 	opts, readPoolSize := readPoolPolicy.Options()
-	instrumentOptions.SetMetricsScope(scope.SubScope("read-worker-pool"))
-	opts = opts.SetInstrumentOptions(instrumentOptions)
+	opts = opts.SetInstrumentOptions(instrumentOptions.
+		SetMetricsScope(scope.SubScope("read-worker-pool")))
 	readWorkerPool, err := xsync.NewPooledWorkerPool(readPoolSize, opts)
 	if err != nil {
 		return nil, nil, err
@@ -61,8 +61,8 @@ func BuildWorkerPools(
 
 	readWorkerPool.Init()
 	opts, writePoolSize := writePoolPolicy.Options()
-	instrumentOptions.SetMetricsScope(scope.SubScope("write-worker-pool"))
-	opts = opts.SetInstrumentOptions(instrumentOptions)
+	opts = opts.SetInstrumentOptions(instrumentOptions.
+		SetMetricsScope(scope.SubScope("write-worker-pool")))
 	writeWorkerPool, err := xsync.NewPooledWorkerPool(writePoolSize, opts)
 	if err != nil {
 		return nil, nil, err

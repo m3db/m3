@@ -67,10 +67,10 @@ type Configuration struct {
 	Backend BackendStorageType `yaml:"backend"`
 
 	// ReadWorkerPool is the worker pool policy for read requests.
-	ReadWorkerPoolOpts xconfig.WorkerPoolPolicy `yaml:"readWorkerPoolPolicy"`
+	ReadWorkerPool xconfig.WorkerPoolPolicy `yaml:"readWorkerPoolPolicy"`
 
 	// WriteWorkerPool is the worker pool policy for write requests.
-	WriteWorkerPoolOpts xconfig.WorkerPoolPolicy `yaml:"writeWorkerPoolPolicy"`
+	WriteWorkerPool xconfig.WorkerPoolPolicy `yaml:"writeWorkerPoolPolicy"`
 }
 
 // LocalConfiguration is the local embedded configuration if running

@@ -49,9 +49,16 @@ type m3storage struct {
 }
 
 // NewStorage creates a new local m3storage instance.
-// TODO: Consider combining readWorkerPool and writeWorkerPool
-func NewStorage(clusters Clusters, workerPool xsync.PooledWorkerPool, writeWorkerPool xsync.PooledWorkerPool) Storage {
-	return &m3storage{clusters: clusters, readWorkerPool: workerPool, writeWorkerPool: writeWorkerPool}
+func NewStorage(
+	clusters Clusters,
+	readWorkerPool xsync.PooledWorkerPool,
+	writeWorkerPool xsync.PooledWorkerPool,
+) Storage {
+	return &m3storage{
+		clusters:        clusters,
+		readWorkerPool:  readWorkerPool,
+		writeWorkerPool: writeWorkerPool,
+	}
 }
 
 func (s *m3storage) Fetch(
