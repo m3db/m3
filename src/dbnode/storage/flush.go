@@ -103,19 +103,19 @@ func (m *flushManager) Flush(
 	}
 
 	multiErr := xerrors.NewMultiError()
-	// m.setState(flushManagerFlushInProgress)
-	// for _, ns := range namespaces {
-	// 	// Flush first because we will only snapshot if there are no outstanding flushes
-	// 	flushTimes := m.namespaceFlushTimes(ns, tickStart)
-	// 	shardBootstrapTimes, ok := dbBootstrapStateAtTickStart.NamespaceBootstrapStates[ns.ID().String()]
-	// 	if !ok {
-	// 		// Could happen if namespaces are added / removed.
-	// 		multiErr = multiErr.Add(fmt.Errorf(
-	// 			"tried to flush ns: %s, but did not have shard bootstrap times", ns.ID().String()))
-	// 		continue
-	// 	}
-	// 	multiErr = multiErr.Add(m.flushNamespaceWithTimes(ns, shardBootstrapTimes, flushTimes, flush))
-	// }
+	m.setState(flushManagerFlushInProgress)
+	for _, ns := range namespaces {
+		// Flush first because we will only snapshot if there are no outstanding flushes
+		flushTimes := m.namespaceFlushTimes(ns, tickStart)
+		shardBootstrapTimes, ok := dbBootstrapStateAtTickStart.NamespaceBootstrapStates[ns.ID().String()]
+		if !ok {
+			// Could happen if namespaces are added / removed.
+			multiErr = multiErr.Add(fmt.Errorf(
+				"tried to flush ns: %s, but did not have shard bootstrap times", ns.ID().String()))
+			continue
+		}
+		multiErr = multiErr.Add(m.flushNamespaceWithTimes(ns, shardBootstrapTimes, flushTimes, flush))
+	}
 
 	// Perform two separate loops through all the namespaces so that we can emit better
 	// gauges I.E all the flushing for all the namespaces happens at once and then all

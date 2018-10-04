@@ -358,14 +358,14 @@ func TestFlushManagerFlushSnapshot(t *testing.T) {
 		bufferFuture := rOpts.BufferFuture()
 
 		start := retention.FlushTimeStart(ns.Options().RetentionOptions(), now)
-		flushEnd := now.Add(bufferFuture).Truncate(blockSize)
-		num := numIntervals(start, snapshotEnd, blockSize)
+		flushEnd := retention.FlushTimeEnd(ns.Options().RetentionOptions(), now)
+		num := numIntervals(start, flushEnd, blockSize)
 
-		// for i := 0; i < num; i++ {
-		// 	st := start.Add(time.Duration(i) * blockSize)
-		// 	ns.EXPECT().NeedsFlush(st, st).Return(false)
-		// 	ns.EXPECT().Flush(gomock.Any(), gomock.Any(), gomock.Any())
-		// }
+		for i := 0; i < num; i++ {
+			st := start.Add(time.Duration(i) * blockSize)
+			ns.EXPECT().NeedsFlush(st, st).Return(false)
+		}
+
 		snapshotEnd := now.Add(bufferFuture).Truncate(blockSize)
 		num = numIntervals(start, snapshotEnd, blockSize)
 		for i := 0; i < num; i++ {
