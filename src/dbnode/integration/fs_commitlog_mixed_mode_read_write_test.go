@@ -253,7 +253,7 @@ func setCommitLogAndFilesystemBootstrapper(t *testing.T, opts testOptions, setup
 		SetTopologyMapProvider(func() (topology.Map, error) {
 			return setup.db.Topology().Get(), nil
 		}).
-		SetOrigin(adminClient.Origin())
+		SetOrigin(setup.origin)
 	processProvider, err := bootstrap.NewProcessProvider(fsBootstrapper, processOpts, bsOpts)
 	require.NoError(t, err)
 	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(processProvider)

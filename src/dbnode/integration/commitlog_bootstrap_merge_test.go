@@ -146,7 +146,7 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 		SetTopologyMapProvider(func() (topology.Map, error) {
 			return setup.db.Topology().Get(), nil
 		}).
-		SetOrigin(adminClient.Origin())
+		SetOrigin(setup.origin)
 	process, err := bootstrap.NewProcessProvider(
 		fsBootstrapper, processOpts, bsOpts)
 	require.NoError(t, err)

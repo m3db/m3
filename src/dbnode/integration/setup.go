@@ -86,6 +86,7 @@ type testSetup struct {
 	storageOpts    storage.Options
 	fsOpts         fs.Options
 	hostID         string
+	origin         topology.Host
 	topoInit       topology.Initializer
 	shardSet       sharding.ShardSet
 	getNowFn       clock.NowFn
@@ -304,6 +305,7 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		storageOpts:                 storageOpts,
 		fsOpts:                      fsOpts,
 		hostID:                      id,
+		origin:                      newOrigin(id, tchannelNodeAddr),
 		topoInit:                    topoInit,
 		shardSet:                    shardSet,
 		getNowFn:                    getNowFn,
@@ -605,6 +607,10 @@ func (ts *testSetup) maybeResetClients() error {
 	return nil
 }
 
+func newOrigin(id string, tchannelNodeAddr string) topology.Host {
+	return topology.NewHost(id, tchannelNodeAddr)
+}
+
 func newClients(
 	topoInit topology.Initializer,
 	opts testOptions,
@@ -617,8 +623,8 @@ func newClients(
 				SetWriteConsistencyLevel(opts.WriteConsistencyLevel()).
 				SetTopologyInitializer(topoInit)
 
-		origin             = topology.NewHost(id, tchannelNodeAddr)
-		verificationOrigin = topology.NewHost(id+"-verification", tchannelNodeAddr)
+		origin             = newOrigin(id, tchannelNodeAddr)
+		verificationOrigin = newOrigin(id+"-verification", tchannelNodeAddr)
 
 		adminOpts             = clientOpts.(client.AdminOptions).SetOrigin(origin)
 		verificationAdminOpts = adminOpts.SetOrigin(verificationOrigin)

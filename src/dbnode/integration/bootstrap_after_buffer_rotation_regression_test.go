@@ -138,7 +138,7 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 		SetTopologyMapProvider(func() (topology.Map, error) {
 			return setup.db.Topology().Get(), nil
 		}).
-		SetOrigin(adminClient.Origin())
+		SetOrigin(setup.origin)
 
 	processProvider, err := bootstrap.NewProcessProvider(
 		test, processOpts, bootstrapOpts)

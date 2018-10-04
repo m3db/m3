@@ -149,7 +149,7 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 	processOpts := bootstrap.NewProcessOptions().SetTopologyMapProvider(func() (topology.Map, error) {
 		return setup.db.Topology().Get(), nil
 	}).
-		SetOrigin(adminClient.Origin())
+		SetOrigin(setup.origin)
 	process, err := bootstrap.NewProcessProvider(test, processOpts, bootstrapOpts)
 	require.NoError(t, err)
 	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(process)
