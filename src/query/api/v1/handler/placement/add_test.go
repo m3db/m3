@@ -98,7 +98,7 @@ func TestPlacementAddHandler_SafeErr(t *testing.T) {
 	resp = w.Result()
 	body, _ = ioutil.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	assert.Equal(t, `{"error":"instance foo owns 1 shards but 0 available"}`+"\n", string(body))
+	assert.Equal(t, `{"error":"instance foo does not have all shards available"}`+"\n", string(body))
 }
 
 func TestPlacementAddHandler_SafeOK(t *testing.T) {
@@ -139,11 +139,11 @@ func newAvailPlacement() placement.Placement {
 
 func TestValidateNoInitializing(t *testing.T) {
 	p := placement.NewPlacement()
-	assert.NoError(t, validateNoInitializing(p))
+	assert.NoError(t, validateAllAvailable(p))
 
 	p = newAvailPlacement()
-	assert.NoError(t, validateNoInitializing(p))
+	assert.NoError(t, validateAllAvailable(p))
 
 	p = newInitPlacement()
-	assert.Error(t, validateNoInitializing(p))
+	assert.Error(t, validateAllAvailable(p))
 }

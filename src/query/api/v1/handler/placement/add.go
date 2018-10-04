@@ -30,7 +30,6 @@ import (
 	"github.com/m3db/m3/src/query/util/logging"
 	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3cluster/shard"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"go.uber.org/zap"
@@ -48,13 +47,11 @@ const (
 type AddHandler Handler
 
 type unsafeAddError struct {
-	host      string
-	total     int
-	available int
+	host string
 }
 
 func (e unsafeAddError) Error() string {
-	return fmt.Sprintf("instance %s owns %d shards but %d available", e.host, e.total, e.available)
+	return fmt.Sprintf("instance %s does not have all shards available", e.host)
 }
 
 // NewAddHandler returns a new instance of AddHandler.
@@ -128,7 +125,7 @@ func (h *AddHandler) Add(
 			return nil, err
 		}
 
-		if err := validateNoInitializing(curPlacement); err != nil {
+		if err := validateAllAvailable(curPlacement); err != nil {
 			return nil, err
 		}
 	}
@@ -141,15 +138,11 @@ func (h *AddHandler) Add(
 	return newPlacement, nil
 }
 
-func validateNoInitializing(p placement.Placement) error {
+func validateAllAvailable(p placement.Placement) error {
 	for _, inst := range p.Instances() {
-		total := inst.Shards().NumShards()
-		avail := inst.Shards().NumShardsForState(shard.Available)
-		if total != avail {
+		if !inst.IsAvailable() {
 			return unsafeAddError{
-				host:      inst.ID(),
-				total:     total,
-				available: avail,
+				host: inst.ID(),
 			}
 		}
 	}
