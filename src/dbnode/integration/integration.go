@@ -296,7 +296,7 @@ func newDefaultBootstrappableTestSetups(
 		require.NoError(t, err)
 
 		processOpts := bootstrap.NewProcessOptions().
-			SetTopologyMapProvider(&latestDBTopoMapProvider{setup}).
+			SetTopologyMapProvider(setup).
 			SetOrigin(setup.origin)
 		provider, err := bootstrap.NewProcessProvider(fsBootstrapper, processOpts, bsOpts)
 		require.NoError(t, err)
@@ -316,18 +316,6 @@ func newDefaultBootstrappableTestSetups(
 			fn()
 		}
 	}
-}
-
-// latestDBTopoMapProvider makes sure that the topology map provided always
-// comes from the most recent database in the testSetup since they get
-// recreated everytime startServer/stopServer is called and are not available
-// (nil value) after creation but before the first call to startServer.
-type latestDBTopoMapProvider struct {
-	setup *testSetup
-}
-
-func (d *latestDBTopoMapProvider) TopologyMap() (topology.Map, error) {
-	return d.setup.db.TopologyMap()
 }
 
 func writeTestDataToDisk(
