@@ -406,6 +406,7 @@ func Run(runOpts RunOptions) {
 		logger.Fatalf("could not initialize m3db topology: %v", err)
 	}
 
+	origin := topology.NewHost(hostID, "")
 	m3dbClient, err := cfg.Client.NewAdminClient(
 		client.ConfigurationParameters{
 			InstrumentOptions: iopts.
@@ -419,7 +420,7 @@ func Run(runOpts RunOptions) {
 			return opts.SetContextPool(opts.ContextPool()).(client.AdminOptions)
 		},
 		func(opts client.AdminOptions) client.AdminOptions {
-			return opts.SetOrigin(topology.NewHost(hostID, ""))
+			return opts.SetOrigin(origin)
 		})
 	if err != nil {
 		logger.Fatalf("could not create m3db client: %v", err)
@@ -433,32 +434,6 @@ func Run(runOpts RunOptions) {
 	clientAdminOpts := m3dbClient.Options().(client.AdminOptions)
 	kvWatchClientConsistencyLevels(envCfg.KVStore, logger,
 		clientAdminOpts, runtimeOptsMgr)
-
-	// Set bootstrap options
-	bs, err := cfg.Bootstrap.New(opts, m3dbClient)
-	if err != nil {
-		logger.Fatalf("could not create bootstrap process: %v", err)
-	}
-
-	opts = opts.SetBootstrapProcessProvider(bs)
-
-	timeout := bootstrapConfigInitTimeout
-	kvWatchBootstrappers(envCfg.KVStore, logger, timeout, cfg.Bootstrap.Bootstrappers,
-		func(bootstrappers []string) {
-			if len(bootstrappers) == 0 {
-				logger.Errorf("updated bootstrapper list is empty")
-				return
-			}
-
-			cfg.Bootstrap.Bootstrappers = bootstrappers
-			updated, err := cfg.Bootstrap.New(opts, m3dbClient)
-			if err != nil {
-				logger.Errorf("updated bootstrapper list failed: %v", err)
-				return
-			}
-
-			bs.SetBootstrapperProvider(updated.BootstrapperProvider())
-		})
 
 	// Set repair options
 	hostBlockMetadataSlicePool := repair.NewHostBlockMetadataSlicePool(
@@ -505,6 +480,32 @@ func Run(runOpts RunOptions) {
 	if err := db.Open(); err != nil {
 		logger.Fatalf("could not open database: %v", err)
 	}
+
+	// Set bootstrap options
+	bs, err := cfg.Bootstrap.New(opts, db, m3dbClient)
+	if err != nil {
+		logger.Fatalf("could not create bootstrap process: %v", err)
+	}
+
+	opts = opts.SetBootstrapProcessProvider(bs)
+
+	timeout := bootstrapConfigInitTimeout
+	kvWatchBootstrappers(envCfg.KVStore, logger, timeout, cfg.Bootstrap.Bootstrappers,
+		func(bootstrappers []string) {
+			if len(bootstrappers) == 0 {
+				logger.Errorf("updated bootstrapper list is empty")
+				return
+			}
+
+			cfg.Bootstrap.Bootstrappers = bootstrappers
+			updated, err := cfg.Bootstrap.New(opts, m3dbClient)
+			if err != nil {
+				logger.Errorf("updated bootstrapper list failed: %v", err)
+				return
+			}
+
+			bs.SetBootstrapperProvider(updated.BootstrapperProvider())
+		})
 
 	contextPool := opts.ContextPool()
 

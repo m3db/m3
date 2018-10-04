@@ -24,7 +24,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/retention"
@@ -105,12 +104,7 @@ func (b *bootstrapProcessProvider) Provide() (Process, error) {
 }
 
 func (b *bootstrapProcessProvider) newInitialTopologyState() (*topology.StateSnapshot, error) {
-	session, err := b.processOpts.AdminClient().DefaultAdminSession()
-	if err != nil {
-		return nil, err
-	}
-
-	topoMap, err := session.TopologyMap()
+	topoMap, err := b.processOpts.TopologyMapProvider()()
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +112,7 @@ func (b *bootstrapProcessProvider) newInitialTopologyState() (*topology.StateSna
 	var (
 		hostShardSets = topoMap.HostShardSets()
 		topologyState = &topology.StateSnapshot{
-			Origin:           b.processOpts.AdminClient().Options().(client.AdminOptions).Origin(),
+			Origin:           b.processOpts.Origin(),
 			MajorityReplicas: topoMap.MajorityReplicas(),
 			ShardStates:      topology.ShardStates{},
 		}

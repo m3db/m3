@@ -275,7 +275,11 @@ func newDefaultBootstrappableTestSetups(
 		fsBootstrapper, err := bfs.NewFileSystemBootstrapperProvider(bfsOpts, peersBootstrapper)
 		require.NoError(t, err)
 
-		processOpts := bootstrap.NewProcessOptions().SetAdminClient(adminClient)
+		processOpts := bootstrap.NewProcessOptions().
+			SetTopologyMapProvider(func() (topology.Map, error) {
+				return setup.db.Topology().Get(), nil
+			}).
+			SetOrigin(adminOpts.Origin())
 		provider, err := bootstrap.NewProcessProvider(fsBootstrapper, processOpts, bsOpts)
 		require.NoError(t, err)
 		setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(provider)

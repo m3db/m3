@@ -23,13 +23,16 @@ package bootstrap
 import (
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xtime "github.com/m3db/m3x/time"
 )
+
+// TopologyMapProvider is the interface for anythig that
+// can provide a topology map.
+type TopologyMapProvider func() (topology.Map, error)
 
 // ProcessProvider constructs a bootstrap process that can execute a
 // bootstrap run.
@@ -89,11 +92,17 @@ type ProcessOptions interface {
 	// provider should cache series metadata between runs.
 	CacheSeriesMetadata() bool
 
-	// SetAdminClient sets the admin client.
-	SetAdminClient(value client.AdminClient) ProcessOptions
+	// SetTopologyMapProvider sets the TopologyMapProvider.
+	SetTopologyMapProvider(value TopologyMapProvider) ProcessOptions
 
-	// AdminClient returns the admin client.
-	AdminClient() client.AdminClient
+	// TopologyMapProvider returns the TopologyMapProvider.
+	TopologyMapProvider() TopologyMapProvider
+
+	// SetOrigin sets the origin.
+	SetOrigin(value topology.Host) ProcessOptions
+
+	// Origin returns the origin.
+	Origin() topology.Host
 
 	// Validate validates that the ProcessOptions are correct.
 	Validate() error
