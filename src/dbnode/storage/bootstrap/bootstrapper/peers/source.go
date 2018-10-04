@@ -776,10 +776,10 @@ func (s *peersSource) peerAvailability(
 		)
 
 		if available == 0 {
+			// Can't peer bootstrap if there are no available peers.
 			s.log.Debugf(
 				"0 available peers out of %d for shard %d, unable to peer bootstrap",
 				total, shardIDUint)
-			// Can't peer bootstrap if there are no available peers.
 			continue
 		}
 
