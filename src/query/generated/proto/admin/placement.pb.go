@@ -93,8 +93,8 @@ func (m *PlacementGetResponse) GetVersion() int32 {
 
 type PlacementAddRequest struct {
 	Instances []*placementpb.Instance `protobuf:"bytes,1,rep,name=instances" json:"instances,omitempty"`
-	// By default add requests will only succeed if no instances in the placement
-	// are in INITIALIZING state. force overrides that.
+	// By default add requests will only succeed if all instances in the placement
+	// are AVAILABLE for all their shards. force overrides that.
 	Force bool `protobuf:"varint,2,opt,name=force,proto3" json:"force,omitempty"`
 }
 
