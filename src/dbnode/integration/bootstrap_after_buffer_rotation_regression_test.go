@@ -134,7 +134,7 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 	}, bootstrapOpts, bootstrapper)
 
 	processOpts := bootstrap.NewProcessOptions().
-		SetTopologyMapProvider(setup.db).
+		SetTopologyMapProvider(setup).
 		SetOrigin(setup.origin)
 
 	processProvider, err := bootstrap.NewProcessProvider(

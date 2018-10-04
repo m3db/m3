@@ -142,7 +142,7 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 	require.NoError(t, err)
 	// bootstrapper storage opts
 	processOpts := bootstrap.NewProcessOptions().
-		SetTopologyMapProvider(setup.db).
+		SetTopologyMapProvider(setup).
 		SetOrigin(setup.origin)
 	process, err := bootstrap.NewProcessProvider(
 		fsBootstrapper, processOpts, bsOpts)

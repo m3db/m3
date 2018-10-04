@@ -178,7 +178,7 @@ func setupCommitLogBootstrapperWithFSInspection(
 		bclOpts, mustInspectFilesystem(fsOpts), noOpAll)
 	require.NoError(t, err)
 	processOpts := bootstrap.NewProcessOptions().
-		SetTopologyMapProvider(setup.db).
+		SetTopologyMapProvider(setup).
 		SetOrigin(setup.origin)
 	process, err := bootstrap.NewProcessProvider(bs, processOpts, bsOpts)
 	require.NoError(t, err)

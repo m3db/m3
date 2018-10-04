@@ -82,7 +82,7 @@ func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	bs, err := fs.NewFileSystemBootstrapperProvider(bfsOpts, noOpAll)
 	require.NoError(t, err)
 	processOpts := bootstrap.NewProcessOptions().
-		SetTopologyMapProvider(setup.db).
+		SetTopologyMapProvider(setup).
 		SetOrigin(setup.origin)
 	processProvider, err := bootstrap.NewProcessProvider(bs, processOpts, bsOpts)
 	require.NoError(t, err)
