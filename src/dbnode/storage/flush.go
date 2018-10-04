@@ -103,19 +103,19 @@ func (m *flushManager) Flush(
 	}
 
 	multiErr := xerrors.NewMultiError()
-	m.setState(flushManagerFlushInProgress)
-	for _, ns := range namespaces {
-		// Flush first because we will only snapshot if there are no outstanding flushes
-		flushTimes := m.namespaceFlushTimes(ns, tickStart)
-		shardBootstrapTimes, ok := dbBootstrapStateAtTickStart.NamespaceBootstrapStates[ns.ID().String()]
-		if !ok {
-			// Could happen if namespaces are added / removed.
-			multiErr = multiErr.Add(fmt.Errorf(
-				"tried to flush ns: %s, but did not have shard bootstrap times", ns.ID().String()))
-			continue
-		}
-		multiErr = multiErr.Add(m.flushNamespaceWithTimes(ns, shardBootstrapTimes, flushTimes, flush))
-	}
+	// m.setState(flushManagerFlushInProgress)
+	// for _, ns := range namespaces {
+	// 	// Flush first because we will only snapshot if there are no outstanding flushes
+	// 	flushTimes := m.namespaceFlushTimes(ns, tickStart)
+	// 	shardBootstrapTimes, ok := dbBootstrapStateAtTickStart.NamespaceBootstrapStates[ns.ID().String()]
+	// 	if !ok {
+	// 		// Could happen if namespaces are added / removed.
+	// 		multiErr = multiErr.Add(fmt.Errorf(
+	// 			"tried to flush ns: %s, but did not have shard bootstrap times", ns.ID().String()))
+	// 		continue
+	// 	}
+	// 	multiErr = multiErr.Add(m.flushNamespaceWithTimes(ns, shardBootstrapTimes, flushTimes, flush))
+	// }
 
 	// Perform two separate loops through all the namespaces so that we can emit better
 	// gauges I.E all the flushing for all the namespaces happens at once and then all
@@ -123,15 +123,8 @@ func (m *flushManager) Flush(
 	// better semantically because flushing should take priority over snapshotting.
 	m.setState(flushManagerSnapshotInProgress)
 	for _, ns := range namespaces {
-		var (
-			blockSize          = ns.Options().RetentionOptions().BlockSize()
-			snapshotBlockStart = m.snapshotBlockStart(ns, tickStart)
-			prevBlockStart     = snapshotBlockStart.Add(-blockSize)
-		)
-
-		// Only perform snapshots if the previous block (I.E the block directly before
-		// the block that we would snapshot) has been flushed.
-		if !ns.NeedsFlush(prevBlockStart, prevBlockStart) {
+		snapshotBlockStarts := m.namespaceSnapshotTimes(ns, tickStart)
+		for _, snapshotBlockStart := range snapshotBlockStarts {
 			if err := ns.Snapshot(snapshotBlockStart, tickStart, flush); err != nil {
 				detailedErr := fmt.Errorf("namespace %s failed to snapshot data: %v",
 					ns.ID().String(), err)
@@ -198,26 +191,8 @@ func (m *flushManager) setState(state flushManagerState) {
 	m.Unlock()
 }
 
-func (m *flushManager) snapshotBlockStart(ns databaseNamespace, curr time.Time) time.Time {
-	var (
-		rOpts      = ns.Options().RetentionOptions()
-		blockSize  = rOpts.BlockSize()
-		bufferPast = rOpts.BufferPast()
-	)
-	// Only begin snapshotting a new block once the previous one is immutable. I.E if we have
-	// a 2-hour blocksize, and bufferPast is 10 minutes and our blocks are aligned on even hours,
-	// then at:
-	// 		1) 1:30PM we want to snapshot with a 12PM block start and 1:30.Add(-10min).Truncate(2hours) = 12PM
-	// 		2) 1:59PM we want to snapshot with a 12PM block start and 1:59.Add(-10min).Truncate(2hours) = 12PM
-	// 		3) 2:09PM we want to snapshot with a 12PM block start (because the 12PM block can still be receiving
-	// 		   "buffer past" writes) and 2:09.Add(-10min).Truncate(2hours) = 12PM
-	// 		4) 2:10PM we want to snapshot with a 2PM block start (because the 12PM block can no long receive
-	// 		   "buffer past" writes) and 2:10.Add(-10min).Truncate(2hours) = 2PM
-	return curr.Add(-bufferPast).Truncate(blockSize)
-}
-
-func (m *flushManager) flushRange(ropts retention.Options, t time.Time) (time.Time, time.Time) {
-	return retention.FlushTimeStart(ropts, t), retention.FlushTimeEnd(ropts, t)
+func (m *flushManager) flushRange(rOpts retention.Options, t time.Time) (time.Time, time.Time) {
+	return retention.FlushTimeStart(rOpts, t), retention.FlushTimeEnd(rOpts, t)
 }
 
 func (m *flushManager) namespaceFlushTimes(ns databaseNamespace, curr time.Time) []time.Time {
@@ -229,6 +204,28 @@ func (m *flushManager) namespaceFlushTimes(ns databaseNamespace, curr time.Time)
 
 	candidateTimes := timesInRange(earliest, latest, blockSize)
 	return filterTimes(candidateTimes, func(t time.Time) bool {
+		fmt.Println("flush: ", t)
+		return ns.NeedsFlush(t, t)
+	})
+}
+
+func (m *flushManager) namespaceSnapshotTimes(ns databaseNamespace, curr time.Time) []time.Time {
+	var (
+		rOpts     = ns.Options().RetentionOptions()
+		blockSize = rOpts.BlockSize()
+		// Earliest possible snapshottable block is the earliest possible flush
+		// block start which is the first block in the retention period.
+		earliest = retention.FlushTimeStart(rOpts, curr)
+		// Latest possible snapshotting block is either the current block OR the
+		// next block if the current time and bufferFuture configuration would
+		// allow writes to be written into the next block.
+		latest = curr.Add(rOpts.BufferFuture()).Truncate(blockSize)
+	)
+
+	candidateTimes := timesInRange(earliest, latest, blockSize)
+	return filterTimes(candidateTimes, func(t time.Time) bool {
+		// Snapshot anything that is unflushed
+		fmt.Println("snapshot: ", t)
 		return ns.NeedsFlush(t, t)
 	})
 }

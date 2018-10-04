@@ -47,7 +47,7 @@ func timesInRange(startInclusive, endInclusive time.Time, windowSize time.Durati
 		return nil
 	}
 	times := make([]time.Time, 0, ni)
-	for t := endInclusive; !t.Before(startInclusive); t = t.Add(-windowSize) {
+	for t := startInclusive; !t.After(endInclusive); t = t.Add(windowSize) {
 		times = append(times, t)
 	}
 	return times
