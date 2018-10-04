@@ -21,25 +21,23 @@
 package agentmain
 
 import (
-	// pprof import
-	_ "net/http/pprof"
-
 	"net/http"
+	_ "net/http/pprof" // pprof import
 	"os"
 	oexec "os/exec"
 	"strings"
 	"time"
 
-	"github.com/m3db/m3em/agent"
-	"github.com/m3db/m3em/generated/proto/m3em"
-	"github.com/m3db/m3em/os/exec"
-	m3emconfig "github.com/m3db/m3em/services/m3em_agent/config"
-	xgrpc "github.com/m3db/m3em/x/grpc"
-
+	"github.com/m3db/m3/src/m3em/agent"
+	"github.com/m3db/m3/src/m3em/generated/proto/m3em"
+	"github.com/m3db/m3/src/m3em/os/exec"
+	m3emconfig "github.com/m3db/m3/src/m3em/services/m3em_agent/config"
+	xgrpc "github.com/m3db/m3/src/m3em/x/grpc"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 	xtcp "github.com/m3db/m3x/tcp"
+
 	"github.com/pborman/getopt"
 	"github.com/uber-go/tally"
 	"google.golang.org/grpc/credentials"

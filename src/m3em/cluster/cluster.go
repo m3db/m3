@@ -24,8 +24,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/m3db/m3em/node"
-
+	"github.com/m3db/m3/src/m3em/node"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/shard"
 	xerrors "github.com/m3db/m3x/errors"

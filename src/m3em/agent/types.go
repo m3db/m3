@@ -25,9 +25,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/m3db/m3em/generated/proto/m3em"
-	"github.com/m3db/m3em/os/exec"
-
+	"github.com/m3db/m3/src/m3em/generated/proto/m3em"
+	"github.com/m3db/m3/src/m3em/os/exec"
 	xclock "github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 )

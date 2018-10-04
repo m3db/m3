@@ -28,14 +28,14 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/m3db/m3em/build"
-	"github.com/m3db/m3em/generated/proto/m3em"
-	"github.com/m3db/m3em/os/fs"
-
+	"github.com/m3db/m3/src/m3em/build"
+	"github.com/m3db/m3/src/m3em/generated/proto/m3em"
+	"github.com/m3db/m3/src/m3em/os/fs"
 	"github.com/m3db/m3cluster/placement"
 	xclock "github.com/m3db/m3x/clock"
 	xerrors "github.com/m3db/m3x/errors"
 	xlog "github.com/m3db/m3x/log"
+
 	gu "github.com/nu7hatch/gouuid"
 	"google.golang.org/grpc"
 )
@@ -210,6 +210,7 @@ func (i *svcNode) Setup(
 	return nil
 }
 
+// nolint: maligned
 type transferOpts struct {
 	targets   []string
 	fileType  m3em.PushFileType

@@ -28,12 +28,12 @@ import (
 	"os"
 	"testing"
 
-	"github.com/m3db/m3em/build"
-	"github.com/m3db/m3em/generated/proto/m3em"
-	mockfs "github.com/m3db/m3em/os/fs/mocks"
+	"github.com/m3db/m3/src/m3em/build"
+	"github.com/m3db/m3/src/m3em/generated/proto/m3em"
+	mockfs "github.com/m3db/m3/src/m3em/os/fs/mocks"
+	"github.com/m3db/m3cluster/placement"
 
 	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3cluster/placement"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 )

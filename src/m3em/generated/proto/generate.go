@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,7 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-//go:generate protoc --go_out=plugins=grpc:./m3em/. operator.proto
-//go:generate protoc --go_out=plugins=grpc:./heartbeat/. heartbeat.proto
+//go:generate sh -c "$GOPATH/src/$PACKAGE/scripts/proto-gen.sh $PACKAGE/src/m3em/generated/proto"
 
 package generated

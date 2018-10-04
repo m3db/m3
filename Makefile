@@ -50,6 +50,7 @@ SUBDIRS :=    \
 	cmd         \
 	dbnode      \
 	query       \
+	m3em        \
 	m3nsch      \
 	m3ninx      \
 

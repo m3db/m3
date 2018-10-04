@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3x/instrument"
 	xretry "github.com/m3db/m3x/retry"
+
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )

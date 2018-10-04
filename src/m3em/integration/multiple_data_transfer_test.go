@@ -27,7 +27,7 @@ import (
 	"path"
 	"testing"
 
-	"github.com/m3db/m3em/build"
+	"github.com/m3db/m3/src/m3em/build"
 
 	"github.com/stretchr/testify/require"
 )
