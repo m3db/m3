@@ -83,6 +83,7 @@ func NewAggOp(args []interface{}, optype string) (transform.Params, error) {
 		a := aggProcessor{
 			aggFunc: aggregationFunc,
 		}
+
 		return newBaseOp(args, optype, a)
 	}
 

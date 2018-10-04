@@ -155,9 +155,9 @@ func standardRateFunc(
 	resultValue := lastValue - firstVal + counterCorrection
 
 	rangeStart := timeSpec.Start.Add(-1 * (timeSpec.Step + timeWindow))
-	rangeEnd := timeSpec.End.Add(-1 * timeSpec.Step)
-
 	durationToStart := firstTS.Sub(rangeStart).Seconds()
+
+	rangeEnd := timeSpec.End.Add(-1 * timeSpec.Step)
 	durationToEnd := rangeEnd.Sub(lastTS).Seconds()
 
 	sampledInterval := lastTS.Sub(firstTS).Seconds()
