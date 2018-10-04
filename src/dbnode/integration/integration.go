@@ -172,6 +172,10 @@ func newDefaultBootstrappableTestSetups(
 			instanceOpts               = newMultiAddrTestOptions(opts, instance)
 		)
 
+		if finalBootstrapperToUse == "" {
+			finalBootstrapperToUse = uninitialized.UninitializedTopologyBootstrapperName
+		}
+
 		if topologyInitializer == nil {
 			// Setup static topology initializer
 			var (
@@ -224,9 +228,7 @@ func newDefaultBootstrappableTestSetups(
 
 		var (
 			bsOpts            = newDefaulTestResultOptions(setup.storageOpts)
-			finalBootstrapper = uninitialized.NewuninitializedTopologyBootstrapperProvider(
-				uninitialized.NewOptions().
-					SetInstrumentOptions(instrumentOpts), nil)
+			finalBootstrapper bootstrap.BootstrapperProvider
 
 			adminOpts = client.NewAdminOptions().
 					SetTopologyInitializer(topologyInitializer).(client.AdminOptions).
@@ -244,7 +246,9 @@ func newDefaultBootstrappableTestSetups(
 		case bootstrapper.NoOpAllBootstrapperName:
 			finalBootstrapper = bootstrapper.NewNoOpAllBootstrapperProvider()
 		case uninitialized.UninitializedTopologyBootstrapperName:
-			// Default already configured, do nothing
+			uninitialized.NewuninitializedTopologyBootstrapperProvider(
+				uninitialized.NewOptions().
+					SetInstrumentOptions(instrumentOpts), nil)
 		default:
 			panic(fmt.Sprintf(
 				"Unknown final bootstrapper to use: %v", finalBootstrapperToUse))
