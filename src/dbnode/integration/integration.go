@@ -109,6 +109,7 @@ func newMultiAddrAdminClient(
 type bootstrappableTestSetupOptions struct {
 	disablePeersBootstrapper           bool
 	finalBootstrapper                  string
+	useTChannelClientForWriting        bool
 	fetchBlocksMetadataEndpointVersion client.FetchBlocksMetadataEndpointVersion
 	bootstrapBlocksBatchSize           int
 	bootstrapBlocksConcurrency         int
@@ -160,16 +161,17 @@ func newDefaultBootstrappableTestSetups(
 	require.NoError(t, err)
 	for i := 0; i < replicas; i++ {
 		var (
-			instance                   = i
-			usingPeersBootstrapper     = !setupOpts[i].disablePeersBootstrapper
-			finalBootstrapperToUse     = setupOpts[i].finalBootstrapper
-			bootstrapBlocksBatchSize   = setupOpts[i].bootstrapBlocksBatchSize
-			bootstrapBlocksConcurrency = setupOpts[i].bootstrapBlocksConcurrency
-			bootstrapConsistencyLevel  = setupOpts[i].bootstrapConsistencyLevel
-			topologyInitializer        = setupOpts[i].topologyInitializer
-			testStatsReporter          = setupOpts[i].testStatsReporter
-			origin                     topology.Host
-			instanceOpts               = newMultiAddrTestOptions(opts, instance)
+			instance                    = i
+			usingPeersBootstrapper      = !setupOpts[i].disablePeersBootstrapper
+			finalBootstrapperToUse      = setupOpts[i].finalBootstrapper
+			useTChannelClientForWriting = setupOpts[i].useTChannelClientForWriting
+			bootstrapBlocksBatchSize    = setupOpts[i].bootstrapBlocksBatchSize
+			bootstrapBlocksConcurrency  = setupOpts[i].bootstrapBlocksConcurrency
+			bootstrapConsistencyLevel   = setupOpts[i].bootstrapConsistencyLevel
+			topologyInitializer         = setupOpts[i].topologyInitializer
+			testStatsReporter           = setupOpts[i].testStatsReporter
+			origin                      topology.Host
+			instanceOpts                = newMultiAddrTestOptions(opts, instance)
 		)
 
 		if finalBootstrapperToUse == "" {
@@ -204,7 +206,8 @@ func newDefaultBootstrappableTestSetups(
 		}
 
 		instanceOpts = instanceOpts.
-			SetClusterDatabaseTopologyInitializer(topologyInitializer)
+			SetClusterDatabaseTopologyInitializer(topologyInitializer).
+			SetUseTChannelClientForWriting(useTChannelClientForWriting)
 
 		setup, err := newTestSetup(t, instanceOpts, nil)
 		require.NoError(t, err)
