@@ -204,7 +204,6 @@ func (m *flushManager) namespaceFlushTimes(ns databaseNamespace, curr time.Time)
 
 	candidateTimes := timesInRange(earliest, latest, blockSize)
 	return filterTimes(candidateTimes, func(t time.Time) bool {
-		fmt.Println("flush: ", t)
 		return ns.NeedsFlush(t, t)
 	})
 }
