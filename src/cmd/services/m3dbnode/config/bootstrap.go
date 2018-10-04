@@ -172,13 +172,12 @@ func (bsc BootstrapConfiguration) New(
 		}
 	}
 
-	providerOpts := bootstrap.NewProcessOptions()
+	providerOpts := bootstrap.NewProcessOptions().
+		SetTopologyMapProvider(topoMapProvider).
+		SetOrigin(origin)
 	if bsc.CacheSeriesMetadata != nil {
 		providerOpts = providerOpts.SetCacheSeriesMetadata(*bsc.CacheSeriesMetadata)
 	}
-	providerOpts = providerOpts.
-		SetTopologyMapProvider(topoMapProvider).
-		SetOrigin(origin)
 	return bootstrap.NewProcessProvider(bs, providerOpts, rsOpts)
 }
 
