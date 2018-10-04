@@ -35,7 +35,6 @@ import (
 	bfs "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	"github.com/m3db/m3/src/dbnode/topology"
 	xlog "github.com/m3db/m3x/log"
 
 	"github.com/stretchr/testify/require"
@@ -97,9 +96,7 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 	bs, err := bfs.NewFileSystemBootstrapperProvider(bfsOpts, noOpAll)
 	require.NoError(t, err)
 	processOpts := bootstrap.NewProcessOptions().
-		SetTopologyMapProvider(func() (topology.Map, error) {
-			return setup.db.Topology().Get(), nil
-		}).
+		SetTopologyMapProvider(setup.db).
 		SetOrigin(setup.origin)
 	processProvider, err := bootstrap.NewProcessProvider(bs, processOpts, bsOpts)
 	require.NoError(t, err)

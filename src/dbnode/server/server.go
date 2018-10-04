@@ -482,10 +482,7 @@ func Run(runOpts RunOptions) {
 	}
 
 	// Set bootstrap options
-	topoMapProvider := func() (topology.Map, error) {
-		return db.Topology().Get(), nil
-	}
-	bs, err := cfg.Bootstrap.New(opts, topoMapProvider, origin, m3dbClient)
+	bs, err := cfg.Bootstrap.New(opts, db, origin, m3dbClient)
 	if err != nil {
 		logger.Fatalf("could not create bootstrap process: %v", err)
 	}

@@ -34,7 +34,6 @@ import (
 	bcl "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	"github.com/m3db/m3/src/dbnode/topology"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -143,9 +142,7 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 	require.NoError(t, err)
 	// bootstrapper storage opts
 	processOpts := bootstrap.NewProcessOptions().
-		SetTopologyMapProvider(func() (topology.Map, error) {
-			return setup.db.Topology().Get(), nil
-		}).
+		SetTopologyMapProvider(setup.db).
 		SetOrigin(setup.origin)
 	process, err := bootstrap.NewProcessProvider(
 		fsBootstrapper, processOpts, bsOpts)

@@ -104,7 +104,7 @@ func (b *bootstrapProcessProvider) Provide() (Process, error) {
 }
 
 func (b *bootstrapProcessProvider) newInitialTopologyState() (*topology.StateSnapshot, error) {
-	topoMap, err := b.processOpts.TopologyMapProvider()()
+	topoMap, err := b.processOpts.TopologyMapProvider().TopologyMap()
 	if err != nil {
 		return nil, err
 	}

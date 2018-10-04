@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/peers"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/uninitialized"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/cluster"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/topology"
 )
@@ -94,7 +95,7 @@ type BootstrapPeersConfiguration struct {
 // New creates a bootstrap process based on the bootstrap configuration.
 func (bsc BootstrapConfiguration) New(
 	opts storage.Options,
-	topoMapProvider bootstrap.TopologyMapProvider,
+	db cluster.Database,
 	origin topology.Host,
 	adminClient client.AdminClient,
 ) (bootstrap.ProcessProvider, error) {
@@ -173,7 +174,7 @@ func (bsc BootstrapConfiguration) New(
 	}
 
 	providerOpts := bootstrap.NewProcessOptions().
-		SetTopologyMapProvider(topoMapProvider).
+		SetTopologyMapProvider(db).
 		SetOrigin(origin)
 	if bsc.CacheSeriesMetadata != nil {
 		providerOpts = providerOpts.SetCacheSeriesMetadata(*bsc.CacheSeriesMetadata)

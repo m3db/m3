@@ -29,5 +29,9 @@ import (
 type Database interface {
 	storage.Database
 
+	// Topology returns the topology.
 	Topology() topology.Topology
+
+	// TopologyMap returns the topology map.
+	TopologyMap() (topology.Map, error)
 }

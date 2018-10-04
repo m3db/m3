@@ -32,7 +32,6 @@ import (
 	bcl "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
@@ -146,9 +145,8 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 		},
 	}, bootstrapOpts, bootstrapper)
 
-	processOpts := bootstrap.NewProcessOptions().SetTopologyMapProvider(func() (topology.Map, error) {
-		return setup.db.Topology().Get(), nil
-	}).
+	processOpts := bootstrap.NewProcessOptions().
+		SetTopologyMapProvider(setup.db).
 		SetOrigin(setup.origin)
 	process, err := bootstrap.NewProcessProvider(test, processOpts, bootstrapOpts)
 	require.NoError(t, err)

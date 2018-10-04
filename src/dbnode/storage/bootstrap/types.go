@@ -30,8 +30,12 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
-// TopologyMapProvider returns a topology map.
-type TopologyMapProvider func() (topology.Map, error)
+// TopologyMapProvider is an interface that can provide
+// a topology map.
+type TopologyMapProvider interface {
+	// TopologyMap returns a topology map.
+	TopologyMap() (topology.Map, error)
+}
 
 // ProcessProvider constructs a bootstrap process that can execute a
 // bootstrap run.

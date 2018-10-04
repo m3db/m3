@@ -286,9 +286,7 @@ func newDefaultBootstrappableTestSetups(
 		require.NoError(t, err)
 
 		processOpts := bootstrap.NewProcessOptions().
-			SetTopologyMapProvider(func() (topology.Map, error) {
-				return setup.db.Topology().Get(), nil
-			}).
+			SetTopologyMapProvider(setup.db).
 			SetOrigin(setup.origin)
 		provider, err := bootstrap.NewProcessProvider(fsBootstrapper, processOpts, bsOpts)
 		require.NoError(t, err)

@@ -35,7 +35,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3x/ident"
 
@@ -83,9 +82,7 @@ func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	bs, err := fs.NewFileSystemBootstrapperProvider(bfsOpts, noOpAll)
 	require.NoError(t, err)
 	processOpts := bootstrap.NewProcessOptions().
-		SetTopologyMapProvider(func() (topology.Map, error) {
-			return setup.db.Topology().Get(), nil
-		}).
+		SetTopologyMapProvider(setup.db).
 		SetOrigin(setup.origin)
 	processProvider, err := bootstrap.NewProcessProvider(bs, processOpts, bsOpts)
 	require.NoError(t, err)
