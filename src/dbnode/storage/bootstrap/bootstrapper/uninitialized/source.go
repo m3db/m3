@@ -107,6 +107,7 @@ func (s *uninitializedTopologySource) availability(
 		// BUT numLeaving >= numInitializing then it is still not a new namespace.
 		// See the TestUnitializedSourceAvailableDataAndAvailableIndex test for more details.
 		var (
+			numAvailable    = 0
 			numInitializing = 0
 			numLeaving      = 0
 		)
@@ -118,6 +119,7 @@ func (s *uninitializedTopologySource) availability(
 			case shard.Leaving:
 				numLeaving++
 			case shard.Available:
+				numAvailable++
 			case shard.Unknown:
 				fallthrough
 			default:

@@ -148,20 +148,23 @@ type PeerBlocksIter interface {
 type AdminSession interface {
 	Session
 
-	// Origin returns the host that initiated the session
+	// Origin returns the host that initiated the session.
 	Origin() topology.Host
 
-	// Replicas returns the replication factor
+	// Replicas returns the replication factor.
 	Replicas() int
 
-	// TopologyMap returns the current topology map
+	// TopologyMap returns the current topology map. Note that the session
+	// has a separate topology watch than the database itself, so the two
+	// values can be out of sync and this method should not be relied upon
+	// if the current view of the topology as seen by the database is required.
 	TopologyMap() (topology.Map, error)
 
-	// Truncate will truncate the namespace for a given shard
+	// Truncate will truncate the namespace for a given shard.
 	Truncate(namespace ident.ID) (int64, error)
 
 	// FetchBootstrapBlocksFromPeers will fetch the most fulfilled block
-	// for each series using the runtime configurable bootstrap level consistency
+	// for each series using the runtime configurable bootstrap level consistency.
 	FetchBootstrapBlocksFromPeers(
 		namespace namespace.Metadata,
 		shard uint32,
@@ -171,7 +174,7 @@ type AdminSession interface {
 	) (result.ShardResult, error)
 
 	// FetchBootstrapBlocksMetadataFromPeers will fetch the blocks metadata from
-	// available peers using the runtime configurable bootstrap level consistency
+	// available peers using the runtime configurable bootstrap level consistency.
 	FetchBootstrapBlocksMetadataFromPeers(
 		namespace ident.ID,
 		shard uint32,
@@ -181,7 +184,7 @@ type AdminSession interface {
 	) (PeerBlockMetadataIter, error)
 
 	// FetchBlocksMetadataFromPeers will fetch the blocks metadata from
-	// available peers
+	// available peers.
 	FetchBlocksMetadataFromPeers(
 		namespace ident.ID,
 		shard uint32,
@@ -192,7 +195,7 @@ type AdminSession interface {
 	) (PeerBlockMetadataIter, error)
 
 	// FetchBlocksFromPeers will fetch the required blocks from the
-	// peers specified
+	// peers specified.
 	FetchBlocksFromPeers(
 		namespace namespace.Metadata,
 		shard uint32,
