@@ -73,7 +73,7 @@ func (a aggProcessor) Init(op baseOp, controller *transform.Controller, opts tra
 	return &aggNode{
 		controller: controller,
 		op:         op,
-		aggFunc:    aggFuncs[op.operatorType],
+		aggFunc:    a.aggFunc,
 	}
 }
 

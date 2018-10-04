@@ -23,6 +23,7 @@ package temporal
 import (
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/ts"
@@ -53,12 +54,24 @@ type rateProcessor struct {
 }
 
 func (r rateProcessor) Init(op baseOp, controller *transform.Controller, opts transform.Options) Processor {
+	return &rateNode{
+		op:         op,
+		controller: controller,
+		timeSpec:   opts.TimeSpec,
+		isRate:     r.isRate,
+		isCounter:  r.isCounter,
+		rateFn:     r.rateFn,
+	}
+}
+
+// NewRateOp creates a new base temporal transform for rate functions
+func NewRateOp(args []interface{}, optype string) (transform.Params, error) {
 	var (
 		isRate, isCounter bool
 		rateFn            = standardRateFunc
 	)
 
-	switch op.operatorType {
+	switch optype {
 	case IRateType:
 		isRate = true
 		rateFn = irateFunc
@@ -69,30 +82,21 @@ func (r rateProcessor) Init(op baseOp, controller *transform.Controller, opts tr
 		isCounter = true
 	case IncreaseType:
 		isCounter = true
+	case DeltaType:
+	default:
+		return nil, fmt.Errorf("unknown rate type: %s", optype)
 	}
 
-	return &rateNode{
-		op:         op,
-		controller: controller,
-		timeSpec:   opts.TimeSpec,
-		isRate:     isRate,
-		isCounter:  isCounter,
-		rateFn:     rateFn,
+	r := rateProcessor{
+		isRate:    isRate,
+		isCounter: isCounter,
+		rateFn:    rateFn,
 	}
+
+	return newBaseOp(args, optype, r)
 }
 
-// NewRateOp creates a new base temporal transform for rate functions
-func NewRateOp(args []interface{}, optype string) (transform.Params, error) {
-	if optype == IRateType || optype == IDeltaType || optype == RateType ||
-		optype == IncreaseType || optype == DeltaType {
-		r := rateProcessor{}
-		return newBaseOp(args, optype, r)
-	}
-
-	return nil, fmt.Errorf("unknown rate type: %s", optype)
-}
-
-type rateFn func([]float64, bool, bool, transform.TimeSpec) float64
+type rateFn func(ts.Datapoints, bool, bool, transform.TimeSpec, time.Duration) float64
 
 type rateNode struct {
 	op                baseOp
@@ -103,23 +107,25 @@ type rateNode struct {
 }
 
 func (r *rateNode) Process(datapoints ts.Datapoints) float64 {
-	return r.rateFn(datapoints, r.isRate, r.isCounter, r.timeSpec)
+	return r.rateFn(datapoints, r.isRate, r.isCounter, r.timeSpec, r.op.duration)
 }
 
-func standardRateFunc(datapoints ts.Datapoints, isRate, isCounter bool, timeSpec transform.TimeSpec) float64 {
-	var (
-		rangeStart = float64(timeSpec.Start.Unix()) - timeSpec.Step.Seconds()
-		rangeEnd   = float64(timeSpec.End.Unix()) - timeSpec.Step.Seconds()
-
-		counterCorrection   float64
-		firstVal, lastValue float64
-		firstIdx, lastIdx   int
-		foundFirst          bool
-	)
-
+func standardRateFunc(
+	datapoints ts.Datapoints,
+	isRate, isCounter bool,
+	timeSpec transform.TimeSpec,
+	timeWindow time.Duration) float64 {
 	if len(datapoints) < 2 {
 		return math.NaN()
 	}
+
+	var (
+		counterCorrection   float64
+		firstVal, lastValue float64
+		firstIdx, lastIdx   int
+		firstTS, lastTS     time.Time
+		foundFirst          bool
+	)
 
 	for i, dp := range datapoints {
 		if math.IsNaN(dp.Value) {
@@ -128,6 +134,7 @@ func standardRateFunc(datapoints ts.Datapoints, isRate, isCounter bool, timeSpec
 
 		if !foundFirst {
 			firstVal = dp.Value
+			firstTS = dp.Timestamp
 			firstIdx = i
 			foundFirst = true
 		}
@@ -137,6 +144,7 @@ func standardRateFunc(datapoints ts.Datapoints, isRate, isCounter bool, timeSpec
 		}
 
 		lastValue = dp.Value
+		lastTS = dp.Timestamp
 		lastIdx = i
 	}
 
@@ -146,14 +154,14 @@ func standardRateFunc(datapoints ts.Datapoints, isRate, isCounter bool, timeSpec
 
 	resultValue := lastValue - firstVal + counterCorrection
 
-	// Duration between first/last samples and boundary of range.
-	firstTS := float64(timeSpec.Start.Unix()) + (timeSpec.Step.Seconds() * float64(firstIdx))
-	lastTS := float64(timeSpec.Start.Unix()) + (timeSpec.Step.Seconds() * float64(lastIdx))
-	durationToStart := firstTS - rangeStart
-	durationToEnd := rangeEnd - lastTS
+	rangeStart := timeSpec.Start.Add(-1 * (timeSpec.Step + timeWindow))
+	rangeEnd := timeSpec.End.Add(-1 * timeSpec.Step)
 
-	sampledInterval := lastTS - firstTS
-	averageDurationBetweenSamples := sampledInterval / float64(lastIdx)
+	durationToStart := firstTS.Sub(rangeStart).Seconds()
+	durationToEnd := rangeEnd.Sub(lastTS).Seconds()
+
+	sampledInterval := lastTS.Sub(firstTS).Seconds()
+	averageDurationBetweenSamples := sampledInterval / float64(lastIdx-firstIdx)
 
 	if isCounter && resultValue > 0 && firstVal >= 0 {
 		// Counters cannot be negative. If we have any slope at
@@ -190,13 +198,13 @@ func standardRateFunc(datapoints ts.Datapoints, isRate, isCounter bool, timeSpec
 
 	resultValue = resultValue * (extrapolateToInterval / sampledInterval)
 	if isRate {
-		resultValue = resultValue / (float64(timeSpec.End.Unix()) - float64(timeSpec.Start.Unix()))
+		resultValue /= timeWindow.Seconds()
 	}
 
 	return resultValue
 }
 
-func irateFunc(datapoints ts.Datapoints, isRate bool, _ bool, timeSpec transform.TimeSpec) float64 {
+func irateFunc(datapoints ts.Datapoints, isRate bool, _ bool, timeSpec transform.TimeSpec, _ time.Duration) float64 {
 	dpsLen := len(datapoints)
 	if dpsLen < 2 {
 		return math.NaN()
@@ -219,14 +227,14 @@ func irateFunc(datapoints ts.Datapoints, isRate bool, _ bool, timeSpec transform
 	lastSample := datapoints[indexLast]
 
 	var resultValue float64
-	if r.isRate && lastSample.Value < previousSample.Value {
+	if isRate && lastSample.Value < previousSample.Value {
 		// Counter reset.
 		resultValue = lastSample.Value
 	} else {
 		resultValue = lastSample.Value - previousSample.Value
 	}
 
-	if r.isRate {
+	if isRate {
 		sampledInterval := lastSample.Timestamp.Sub(previousSample.Timestamp)
 		if sampledInterval == 0 {
 			return math.NaN()
