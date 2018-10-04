@@ -446,6 +446,21 @@ func TestInstanceIsInitializing(t *testing.T) {
 	assert.False(t, i1.IsInitializing())
 }
 
+func TestInstanceIsAvailable(t *testing.T) {
+	i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Leaving))
+	assert.False(t, i1.IsAvailable())
+
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Initializing))
+	assert.False(t, i1.IsAvailable())
+
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	assert.True(t, i1.IsAvailable())
+
+	i1.SetShards(shard.NewShards(nil))
+	assert.False(t, i1.IsAvailable())
+}
+
 func TestSortInstanceByID(t *testing.T) {
 	i1 := NewEmptyInstance("i1", "", "", "endpoint", 1)
 	i2 := NewEmptyInstance("i2", "", "", "endpoint", 1)

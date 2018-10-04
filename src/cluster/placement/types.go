@@ -101,6 +101,9 @@ type Instance interface {
 	// IsInitializing returns whether the instance contains only initializing shards.
 	IsInitializing() bool
 
+	// IsAvailable returns whether the instance contains only available shards.
+	IsAvailable() bool
+
 	// Clone returns a clone of the Instance.
 	Clone() Instance
 }

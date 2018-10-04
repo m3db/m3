@@ -278,6 +278,16 @@ func (_mr *_MockInstanceRecorder) IsInitializing() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsInitializing")
 }
 
+func (_m *MockInstance) IsAvailable() bool {
+	ret := _m.ctrl.Call(_m, "IsAvailable")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockInstanceRecorder) IsAvailable() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsAvailable")
+}
+
 func (_m *MockInstance) Clone() Instance {
 	ret := _m.ctrl.Call(_m, "Clone")
 	ret0, _ := ret[0].(Instance)

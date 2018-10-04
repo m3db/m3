@@ -563,6 +563,10 @@ func (i *instance) IsInitializing() bool {
 	return i.allShardsInState(shard.Initializing)
 }
 
+func (i *instance) IsAvailable() bool {
+	return i.allShardsInState(shard.Available)
+}
+
 func (i *instance) allShardsInState(s shard.State) bool {
 	ss := i.Shards()
 	numShards := ss.NumShards()
