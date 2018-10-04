@@ -39,7 +39,7 @@ var (
 
 type processOptions struct {
 	cacheSeriesMetadata bool
-	topoMapProvider     topology.TopologyMapProvider
+	topoMapProvider     topology.MapProvider
 	origin              topology.Host
 }
 
@@ -74,13 +74,13 @@ func (o *processOptions) CacheSeriesMetadata() bool {
 	return o.cacheSeriesMetadata
 }
 
-func (o *processOptions) SetTopologyMapProvider(value topology.TopologyMapProvider) ProcessOptions {
+func (o *processOptions) SetTopologyMapProvider(value topology.MapProvider) ProcessOptions {
 	opts := *o
 	opts.topoMapProvider = value
 	return &opts
 }
 
-func (o *processOptions) TopologyMapProvider() topology.TopologyMapProvider {
+func (o *processOptions) TopologyMapProvider() topology.MapProvider {
 	return o.topoMapProvider
 }
 
