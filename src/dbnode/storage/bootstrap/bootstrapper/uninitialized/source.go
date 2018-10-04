@@ -85,8 +85,6 @@ func (s *uninitializedTopologySource) availability(
 		availableShardTimeRanges = result.ShardTimeRanges{}
 	)
 
-	fmt.Println("topoState: ", topoState)
-
 	for shardIDUint := range shardsTimeRanges {
 		shardID := topology.ShardID(shardIDUint)
 		hostShardStates, ok := topoState.ShardStates[shardID]
@@ -136,9 +134,6 @@ func (s *uninitializedTopologySource) availability(
 		// because otherwise you'd have to wait for one entire retention period for the replicaiton
 		// factor to actually increase correctly.
 		shardHasNeverBeenCompletelyInitialized := numInitializing-numLeaving > 0
-		fmt.Println("numAvailable: ", numAvailable)
-		fmt.Println("numInitializing: ", numInitializing)
-		fmt.Println("numLeaving: ", numLeaving)
 		if shardHasNeverBeenCompletelyInitialized {
 			availableShardTimeRanges[shardIDUint] = shardsTimeRanges[shardIDUint]
 		}

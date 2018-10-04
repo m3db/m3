@@ -775,8 +775,6 @@ func (s *peersSource) peerAvailability(
 			available = shardPeers.numAvailablePeers
 		)
 
-		fmt.Println("available: ", available)
-		fmt.Println("total: ", total)
 		if available == 0 {
 			// Can't peer bootstrap if there are no available peers.
 			s.log.Debugf(
