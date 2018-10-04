@@ -107,15 +107,15 @@ func newMultiAddrAdminClient(
 }
 
 type bootstrappableTestSetupOptions struct {
-	disablePeersBootstrapper           bool
 	finalBootstrapper                  string
-	useTChannelClientForWriting        bool
 	fetchBlocksMetadataEndpointVersion client.FetchBlocksMetadataEndpointVersion
 	bootstrapBlocksBatchSize           int
 	bootstrapBlocksConcurrency         int
 	bootstrapConsistencyLevel          topology.ReadConsistencyLevel
 	topologyInitializer                topology.Initializer
 	testStatsReporter                  xmetrics.TestStatsReporter
+	disablePeersBootstrapper           bool
+	useTChannelClientForWriting        bool
 }
 
 type closeFn func()
