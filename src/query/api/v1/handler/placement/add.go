@@ -21,6 +21,7 @@
 package placement
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
@@ -29,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/util/logging"
 	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/placement"
+	"github.com/m3db/m3cluster/shard"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"go.uber.org/zap"
@@ -44,6 +46,15 @@ const (
 
 // AddHandler is the handler for placement adds.
 type AddHandler Handler
+
+type unsafeAddError struct {
+	host       string
+	initShards int
+}
+
+func (e unsafeAddError) Error() string {
+	return fmt.Sprintf("instance %s has %d initializing shards", e.host, e.initShards)
+}
 
 // NewAddHandler returns a new instance of AddHandler.
 func NewAddHandler(client clusterclient.Client, cfg config.Configuration) *AddHandler {
@@ -62,8 +73,12 @@ func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	placement, err := h.Add(r, req)
 	if err != nil {
+		status := http.StatusInternalServerError
+		if _, ok := err.(unsafeAddError); ok {
+			status = http.StatusBadRequest
+		}
 		logger.Error("unable to add placement", zap.Any("error", err))
-		handler.Error(w, err, http.StatusInternalServerError)
+		handler.Error(w, err, status)
 		return
 	}
 
@@ -106,10 +121,34 @@ func (h *AddHandler) Add(
 		return nil, err
 	}
 
+	if !req.Force {
+		curPlacement, _, err := service.Placement()
+		if err != nil {
+			return nil, err
+		}
+
+		if err := validateNoInitializing(curPlacement); err != nil {
+			return nil, err
+		}
+	}
+
 	newPlacement, _, err := service.AddInstances(instances)
 	if err != nil {
 		return nil, err
 	}
 
 	return newPlacement, nil
+}
+
+func validateNoInitializing(p placement.Placement) error {
+	for _, inst := range p.Instances() {
+		numInit := inst.Shards().NumShardsForState(shard.Initializing)
+		if numInit > 0 {
+			return unsafeAddError{
+				host:       inst.ID(),
+				initShards: numInit,
+			}
+		}
+	}
+	return nil
 }
