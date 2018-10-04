@@ -163,10 +163,10 @@ func (bsc BootstrapConfiguration) New(
 				return nil, err
 			}
 		case uninitialized.UninitializedTopologyBootstrapperName:
-			uopts := uninitialized.NewOptions().
+			uOpts := uninitialized.NewOptions().
 				SetResultOptions(rsOpts).
 				SetInstrumentOptions(opts.InstrumentOptions())
-			bs = uninitialized.NewuninitializedTopologyBootstrapperProvider(uopts, bs)
+			bs = uninitialized.NewuninitializedTopologyBootstrapperProvider(uOpts, bs)
 		default:
 			return nil, fmt.Errorf("unknown bootstrapper: %s", bsc.Bootstrappers[i])
 		}
