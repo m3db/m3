@@ -105,9 +105,14 @@ func bashScript(contents []byte, fileName string) (*regexp.Regexp, error) {
 	defer script.Close()
 
 	script.Chmod(0644)
-	script.WriteString("#!/usr/bin/env bash\n\n")
-	script.WriteString("set -xe\n\n")
-	script.WriteString("source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/common.sh\n")
+
+	// todo(braskin): figure out a way to make the script template dynamic
+	scriptTemplate, err := ioutil.ReadFile("script_template.txt")
+	if err != nil {
+		return nil, err
+	}
+
+	script.Write(scriptTemplate)
 
 	operationRegEx := regexp.MustCompile(operationRegEx)
 	validationRegEx := regexp.MustCompile(validationRegEx)

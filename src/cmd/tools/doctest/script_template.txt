@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+set -xe
+
+source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/common.sh
