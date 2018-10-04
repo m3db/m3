@@ -812,3 +812,39 @@ func (m *MockDynamicOptions) HashGen() sharding.HashGen {
 func (mr *MockDynamicOptionsMockRecorder) HashGen() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HashGen", reflect.TypeOf((*MockDynamicOptions)(nil).HashGen))
 }
+
+// MockMapProvider is a mock of MapProvider interface
+type MockMapProvider struct {
+	ctrl     *gomock.Controller
+	recorder *MockMapProviderMockRecorder
+}
+
+// MockMapProviderMockRecorder is the mock recorder for MockMapProvider
+type MockMapProviderMockRecorder struct {
+	mock *MockMapProvider
+}
+
+// NewMockMapProvider creates a new mock instance
+func NewMockMapProvider(ctrl *gomock.Controller) *MockMapProvider {
+	mock := &MockMapProvider{ctrl: ctrl}
+	mock.recorder = &MockMapProviderMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockMapProvider) EXPECT() *MockMapProviderMockRecorder {
+	return m.recorder
+}
+
+// TopologyMap mocks base method
+func (m *MockMapProvider) TopologyMap() (Map, error) {
+	ret := m.ctrl.Call(m, "TopologyMap")
+	ret0, _ := ret[0].(Map)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// TopologyMap indicates an expected call of TopologyMap
+func (mr *MockMapProviderMockRecorder) TopologyMap() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TopologyMap", reflect.TypeOf((*MockMapProvider)(nil).TopologyMap))
+}

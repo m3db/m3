@@ -28,7 +28,6 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
@@ -177,28 +176,52 @@ func (mr *MockProcessOptionsMockRecorder) CacheSeriesMetadata() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CacheSeriesMetadata", reflect.TypeOf((*MockProcessOptions)(nil).CacheSeriesMetadata))
 }
 
-// SetAdminClient mocks base method
-func (m *MockProcessOptions) SetAdminClient(value client.AdminClient) ProcessOptions {
-	ret := m.ctrl.Call(m, "SetAdminClient", value)
+// SetTopologyMapProvider mocks base method
+func (m *MockProcessOptions) SetTopologyMapProvider(value topology.MapProvider) ProcessOptions {
+	ret := m.ctrl.Call(m, "SetTopologyMapProvider", value)
 	ret0, _ := ret[0].(ProcessOptions)
 	return ret0
 }
 
-// SetAdminClient indicates an expected call of SetAdminClient
-func (mr *MockProcessOptionsMockRecorder) SetAdminClient(value interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAdminClient", reflect.TypeOf((*MockProcessOptions)(nil).SetAdminClient), value)
+// SetTopologyMapProvider indicates an expected call of SetTopologyMapProvider
+func (mr *MockProcessOptionsMockRecorder) SetTopologyMapProvider(value interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTopologyMapProvider", reflect.TypeOf((*MockProcessOptions)(nil).SetTopologyMapProvider), value)
 }
 
-// AdminClient mocks base method
-func (m *MockProcessOptions) AdminClient() client.AdminClient {
-	ret := m.ctrl.Call(m, "AdminClient")
-	ret0, _ := ret[0].(client.AdminClient)
+// TopologyMapProvider mocks base method
+func (m *MockProcessOptions) TopologyMapProvider() topology.MapProvider {
+	ret := m.ctrl.Call(m, "TopologyMapProvider")
+	ret0, _ := ret[0].(topology.MapProvider)
 	return ret0
 }
 
-// AdminClient indicates an expected call of AdminClient
-func (mr *MockProcessOptionsMockRecorder) AdminClient() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AdminClient", reflect.TypeOf((*MockProcessOptions)(nil).AdminClient))
+// TopologyMapProvider indicates an expected call of TopologyMapProvider
+func (mr *MockProcessOptionsMockRecorder) TopologyMapProvider() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TopologyMapProvider", reflect.TypeOf((*MockProcessOptions)(nil).TopologyMapProvider))
+}
+
+// SetOrigin mocks base method
+func (m *MockProcessOptions) SetOrigin(value topology.Host) ProcessOptions {
+	ret := m.ctrl.Call(m, "SetOrigin", value)
+	ret0, _ := ret[0].(ProcessOptions)
+	return ret0
+}
+
+// SetOrigin indicates an expected call of SetOrigin
+func (mr *MockProcessOptionsMockRecorder) SetOrigin(value interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetOrigin", reflect.TypeOf((*MockProcessOptions)(nil).SetOrigin), value)
+}
+
+// Origin mocks base method
+func (m *MockProcessOptions) Origin() topology.Host {
+	ret := m.ctrl.Call(m, "Origin")
+	ret0, _ := ret[0].(topology.Host)
+	return ret0
+}
+
+// Origin indicates an expected call of Origin
+func (mr *MockProcessOptionsMockRecorder) Origin() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Origin", reflect.TypeOf((*MockProcessOptions)(nil).Origin))
 }
 
 // Validate mocks base method
