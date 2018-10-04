@@ -33,18 +33,24 @@ import (
 
 var (
 	testID   = ident.StringID("test_id")
-	testTags = models.Tags{
+	testTags = []models.Tag{
 		{Name: []byte("t1"), Value: []byte("v1")},
 		{Name: []byte("t2"), Value: []byte("v2")},
 	}
 	now = time.Now()
 )
 
+func makeTagIter() ident.TagIterator {
+	ts := models.EmptyTags()
+	ts.AddTags(testTags)
+	return TagsToIdentTagIterator(ts)
+}
+
 func TestTagsToIdentTagIterator(t *testing.T) {
-	tagIter := TagsToIdentTagIterator(testTags)
+	tagIter := makeTagIter()
 	defer tagIter.Close()
 
-	tags := make(models.Tags, len(testTags))
+	tags := make([]models.Tag, len(testTags))
 	for i := 0; tagIter.Next(); i++ {
 		tags[i] = models.Tag{
 			Name:  tagIter.Current().Name.Bytes(),
@@ -56,20 +62,23 @@ func TestTagsToIdentTagIterator(t *testing.T) {
 }
 
 func TestFromM3IdentToMetric(t *testing.T) {
-	tagIters := TagsToIdentTagIterator(testTags)
-	metric, err := FromM3IdentToMetric(testID, tagIters)
+	tagIters := makeTagIter()
+	name := []byte("foobarbaz")
+	metric, err := FromM3IdentToMetric(testID, tagIters, models.NewTagOptions().SetMetricName(name))
 	require.NoError(t, err)
 
 	assert.Equal(t, testID.String(), metric.ID)
-	assert.Equal(t, testTags, metric.Tags)
+	assert.Equal(t, testTags, metric.Tags.Tags)
+	assert.Equal(t, name, metric.Tags.Opts.GetMetricName())
 }
 
 func TestFromIdentTagIteratorToTags(t *testing.T) {
-	tagIters := TagsToIdentTagIterator(testTags)
-	tags, err := FromIdentTagIteratorToTags(tagIters)
+	tagIters := makeTagIter()
+	tags, err := FromIdentTagIteratorToTags(tagIters, nil)
 	require.NoError(t, err)
-
-	assert.Equal(t, testTags, tags)
+	require.Equal(t, len(testTags), tags.Len())
+	assert.Equal(t, testTags, tags.Tags)
+	assert.Equal(t, []byte("__name__"), tags.Opts.GetMetricName())
 }
 
 func TestFetchQueryToM3Query(t *testing.T) {

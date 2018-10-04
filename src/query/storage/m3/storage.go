@@ -44,6 +44,7 @@ var (
 )
 
 type m3storage struct {
+	tagOptions      models.TagOptions
 	clusters        Clusters
 	readWorkerPool  pool.ObjectPool
 	writeWorkerPool xsync.PooledWorkerPool
@@ -51,8 +52,18 @@ type m3storage struct {
 
 // NewStorage creates a new local m3storage instance.
 // TODO: Consider combining readWorkerPool and writeWorkerPool
-func NewStorage(clusters Clusters, workerPool pool.ObjectPool, writeWorkerPool xsync.PooledWorkerPool) Storage {
-	return &m3storage{clusters: clusters, readWorkerPool: workerPool, writeWorkerPool: writeWorkerPool}
+func NewStorage(
+	tagOptions models.TagOptions,
+	clusters Clusters,
+	workerPool pool.ObjectPool,
+	writeWorkerPool xsync.PooledWorkerPool,
+) Storage {
+	return &m3storage{
+		tagOptions:      tagOptions,
+		clusters:        clusters,
+		readWorkerPool:  workerPool,
+		writeWorkerPool: writeWorkerPool,
+	}
 }
 
 func (s *m3storage) Fetch(
@@ -66,7 +77,7 @@ func (s *m3storage) Fetch(
 		return nil, err
 	}
 
-	return storage.SeriesIteratorsToFetchResult(raw, s.readWorkerPool, false)
+	return storage.SeriesIteratorsToFetchResult(raw, s.readWorkerPool, false, s.tagOptions)
 }
 
 func (s *m3storage) FetchBlocks(
@@ -236,7 +247,7 @@ func (s *m3storage) fetchTags(
 	var metrics models.Metrics
 	for iter.Next() {
 		_, id, it := iter.Current()
-		m, err := storage.FromM3IdentToMetric(id, it)
+		m, err := storage.FromM3IdentToMetric(id, it, s.tagOptions)
 		if err != nil {
 			return nil, err
 		}

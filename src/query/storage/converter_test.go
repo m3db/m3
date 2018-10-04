@@ -45,17 +45,17 @@ func verifyExpandSeries(t *testing.T, ctrl *gomock.Controller, num int, pools po
 	testTags := seriesiter.GenerateTag()
 	iters := seriesiter.NewMockSeriesIters(ctrl, testTags, num, 2)
 
-	results, err := SeriesIteratorsToFetchResult(iters, pools, true)
+	results, err := SeriesIteratorsToFetchResult(iters, pools, true, nil)
 	assert.NoError(t, err)
 
 	require.NotNil(t, results)
 	require.NotNil(t, results.SeriesList)
 	require.Len(t, results.SeriesList, num)
-	expectedTags := models.Tags{{Name: testTags.Name.Bytes(), Value: testTags.Value.Bytes()}}
+	expectedTags := []models.Tag{{Name: testTags.Name.Bytes(), Value: testTags.Value.Bytes()}}
 	for i := 0; i < num; i++ {
 		series := results.SeriesList[i]
 		require.NotNil(t, series)
-		require.Equal(t, expectedTags, series.Tags)
+		require.Equal(t, expectedTags, series.Tags.Tags)
 	}
 }
 
@@ -136,7 +136,7 @@ func TestFailingExpandSeriesValidPools(t *testing.T) {
 	mockIters.EXPECT().Len().Return(len(iters)).Times(1)
 	mockIters.EXPECT().Close().Times(1)
 
-	result, err := SeriesIteratorsToFetchResult(mockIters, objectPool, true)
+	result, err := SeriesIteratorsToFetchResult(mockIters, objectPool, true, nil)
 	require.Nil(t, result)
 	require.EqualError(t, err, "error")
 }
@@ -260,9 +260,9 @@ func BenchmarkFetchResultToPromResult(b *testing.B) {
 			})
 		}
 
-		tags := make(models.Tags, 0, numTagsPerSeries)
+		tags := models.NewTags(numTagsPerSeries, nil)
 		for i := 0; i < numTagsPerSeries; i++ {
-			tags = append(tags, models.Tag{
+			tags.AddTag(models.Tag{
 				Name:  []byte(fmt.Sprintf("name-%d", i)),
 				Value: []byte(fmt.Sprintf("value-%d", i)),
 			})

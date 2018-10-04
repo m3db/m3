@@ -22,17 +22,17 @@ package test
 
 import "github.com/m3db/m3/src/query/models"
 
-// StringTagsToTags converts string tags to tags
+// StringTagsToTags converts string tags to tags.
 func StringTagsToTags(s StringTags) models.Tags {
-	tags := models.Tags{}
+	tags := models.EmptyTags()
 	for _, t := range s {
-		tags = tags.AddTag(models.Tag{Name: []byte(t.N), Value: []byte(t.V)})
+		tags.AddTag(models.Tag{Name: []byte(t.N), Value: []byte(t.V)})
 	}
 
 	return tags
 }
 
-// StringTagsSliceToTagSlice converts a slice of string tags to a slice of tags
+// StringTagsSliceToTagSlice converts a slice of string tags to a slice of tags.
 func StringTagsSliceToTagSlice(s []StringTags) []models.Tags {
 	tags := make([]models.Tags, len(s))
 
@@ -43,10 +43,31 @@ func StringTagsSliceToTagSlice(s []StringTags) []models.Tags {
 	return tags
 }
 
-// StringTags is a slice of string tags
+// StringTags is a slice of string tags.
 type StringTags []StringTag
 
-// StringTag is a tag containing string key value pairs
+// StringTag is a tag containing string key value pairs.
 type StringTag struct {
 	N, V string
+}
+
+// TagSliceToTags converts a slice of tags to tags.
+func TagSliceToTags(s []models.Tag) models.Tags {
+	tags := models.EmptyTags()
+	for _, t := range s {
+		tags.AddTag(t)
+	}
+
+	return tags
+}
+
+// TagSliceSliceToTagSlice converts a slice of tag slices to a slice of tags.
+func TagSliceSliceToTagSlice(s [][]models.Tag) []models.Tags {
+	tags := make([]models.Tags, len(s))
+
+	for i, t := range s {
+		tags[i] = TagSliceToTags(t)
+	}
+
+	return tags
 }

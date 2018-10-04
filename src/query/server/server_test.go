@@ -67,6 +67,9 @@ clusters:
         type: unaggregated
         retention: 48h
 
+tagOptions:
+  metricName: "foo"
+
 workerPoolCount: 20
 decompressWorkerPoolSize: 20
 writeWorkerPoolSize: 20
@@ -216,6 +219,9 @@ rpc:
     - "127.0.0.1:17202"
 
 backend: grpc
+
+tagOptions:
+  metricName: "bar"
 
 workerPoolCount: 20
 decompressWorkerPoolSize: 20

@@ -84,7 +84,8 @@ func setup(
 	writePool, err := sync.NewPooledWorkerPool(10, sync.NewPooledWorkerPoolOptions())
 	require.NoError(t, err)
 	writePool.Init()
-	storage := NewStorage(clusters, nil, writePool)
+	opts := models.NewTagOptions().SetMetricName([]byte("name"))
+	storage := NewStorage(opts, clusters, nil, writePool)
 	return storage, testSessions{
 		unaggregated1MonthRetention:                unaggregated1MonthRetention,
 		aggregated1MonthRetention1MinuteResolution: aggregated1MonthRetention1MinuteResolution,
@@ -112,10 +113,12 @@ func newFetchReq() *storage.FetchQuery {
 }
 
 func newWriteQuery() *storage.WriteQuery {
-	tags := models.Tags{
+	tags := models.EmptyTags()
+	tags.AddTags([]models.Tag{
 		{Name: []byte("foo"), Value: []byte("bar")},
 		{Name: []byte("biz"), Value: []byte("baz")},
-	}
+	})
+
 	datapoints := ts.Datapoints{{
 		Timestamp: time.Now(),
 		Value:     1.0,
@@ -243,12 +246,13 @@ func TestLocalRead(t *testing.T) {
 	searchReq := newFetchReq()
 	results, err := store.Fetch(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
 	assert.NoError(t, err)
-	tags := models.Tags{{Name: testTags.Name.Bytes(), Value: testTags.Value.Bytes()}}
+	tags := []models.Tag{{Name: testTags.Name.Bytes(), Value: testTags.Value.Bytes()}}
 	require.NotNil(t, results)
 	require.NotNil(t, results.SeriesList)
 	require.Len(t, results.SeriesList, 1)
 	require.NotNil(t, results.SeriesList[0])
-	assert.Equal(t, tags, results.SeriesList[0].Tags)
+	assert.Equal(t, tags, results.SeriesList[0].Tags.Tags)
+	assert.Equal(t, []byte("name"), results.SeriesList[0].Tags.Opts.GetMetricName())
 }
 
 func TestLocalReadNoClustersForTimeRangeError(t *testing.T) {
@@ -363,8 +367,8 @@ func TestLocalSearchSuccess(t *testing.T) {
 		require.True(t, ok)
 
 		assert.Equal(t, expected.id, actual.ID)
-		assert.Equal(t, models.Tags{{
+		assert.Equal(t, []models.Tag{{
 			Name: []byte(expected.tagName), Value: []byte(expected.tagValue),
-		}}, actual.Tags)
+		}}, actual.Tags.Tags)
 	}
 }

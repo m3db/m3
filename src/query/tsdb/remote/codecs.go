@@ -48,8 +48,8 @@ func toTime(t int64) time.Time {
 }
 
 func encodeTags(tags models.Tags) []*rpc.Tag {
-	encodedTags := make([]*rpc.Tag, 0, len(tags))
-	for _, t := range tags {
+	encodedTags := make([]*rpc.Tag, 0, tags.Len())
+	for _, t := range tags.Tags {
 		encodedTags = append(encodedTags, &rpc.Tag{
 			Name:  t.Name,
 			Value: t.Value,
@@ -94,12 +94,13 @@ func EncodeFetchResult(results *storage.FetchResult) *rpc.FetchResponse {
 // DecodeDecompressedFetchResult decodes fetch results from a GRPC-compatible type.
 func DecodeDecompressedFetchResult(
 	name string,
+	tagOptions models.TagOptions,
 	rpcSeries []*rpc.DecompressedSeries,
 ) ([]*ts.Series, error) {
 	tsSeries := make([]*ts.Series, len(rpcSeries))
 	var err error
 	for i, series := range rpcSeries {
-		tsSeries[i], err = decodeTs(name, series)
+		tsSeries[i], err = decodeTs(name, tagOptions, series)
 		if err != nil {
 			return nil, err
 		}
@@ -108,10 +109,13 @@ func DecodeDecompressedFetchResult(
 	return tsSeries, nil
 }
 
-func decodeTags(tags []*rpc.Tag) models.Tags {
-	modelTags := make(models.Tags, len(tags))
-	for i, t := range tags {
-		modelTags[i] = models.Tag{Name: t.GetName(), Value: t.GetValue()}
+func decodeTags(
+	tags []*rpc.Tag,
+	tagOptions models.TagOptions,
+) models.Tags {
+	modelTags := models.NewTags(len(tags), tagOptions)
+	for _, t := range tags {
+		modelTags.AddTag(models.Tag{Name: t.GetName(), Value: t.GetValue()})
 	}
 
 	return modelTags
@@ -119,10 +123,11 @@ func decodeTags(tags []*rpc.Tag) models.Tags {
 
 func decodeTs(
 	name string,
+	tagOptions models.TagOptions,
 	r *rpc.DecompressedSeries,
 ) (*ts.Series, error) {
 	values := decodeRawTs(r)
-	tags := decodeTags(r.GetTags())
+	tags := decodeTags(r.GetTags(), tagOptions)
 	series := ts.NewSeries(name, values, tags)
 	return series, nil
 }

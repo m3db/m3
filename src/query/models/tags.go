@@ -32,7 +32,7 @@ var (
 	defaultOptions = NewTagOptions()
 )
 
-// NewTags builds a tags with the given size and tag options
+// NewTags builds a tags with the given size and tag options.
 func NewTags(size int, opts TagOptions) Tags {
 	if opts == nil {
 		opts = defaultOptions
@@ -45,12 +45,12 @@ func NewTags(size int, opts TagOptions) Tags {
 	}
 }
 
-// EmptyTags returns empty tags
+// EmptyTags returns empty tags with a default tag options.
 func EmptyTags() Tags {
 	return NewTags(0, nil)
 }
 
-// ID returns a string representation of the tags
+// ID returns a string representation of the tags.
 func (t Tags) ID() string {
 	var (
 		idLen      = t.IDLen()
@@ -94,7 +94,7 @@ func (t Tags) IDLen() int {
 	return idLen
 }
 
-// IDWithExcludes returns a string representation of the tags excluding some tag keys
+// IDWithExcludes returns a string representation of the tags excluding some tag keys.
 func (t Tags) IDWithExcludes(excludeKeys ...[]byte) uint64 {
 	b := make([]byte, 0, len(t.Tags))
 	for _, tag := range t.Tags {
@@ -146,12 +146,12 @@ func (t Tags) tagSubset(keys [][]byte, include bool) Tags {
 	return tags
 }
 
-// TagsWithoutKeys returns only the tags which do not have the given keys
+// TagsWithoutKeys returns only the tags which do not have the given keys.
 func (t Tags) TagsWithoutKeys(excludeKeys [][]byte) Tags {
 	return t.tagSubset(excludeKeys, false)
 }
 
-// IDWithKeys returns a string representation of the tags only including the given keys
+// IDWithKeys returns a string representation of the tags only including the given keys.
 func (t Tags) IDWithKeys(includeKeys ...[]byte) uint64 {
 	b := make([]byte, 0, len(t.Tags))
 	for _, tag := range t.Tags {
@@ -171,12 +171,12 @@ func (t Tags) IDWithKeys(includeKeys ...[]byte) uint64 {
 	return h.Sum64()
 }
 
-// TagsWithKeys returns only the tags which have the given keys
+// TagsWithKeys returns only the tags which have the given keys.
 func (t Tags) TagsWithKeys(includeKeys [][]byte) Tags {
 	return t.tagSubset(includeKeys, true)
 }
 
-// WithoutName copies the tags excluding the name tag
+// WithoutName copies the tags excluding the name tag.
 func (t Tags) WithoutName() Tags {
 	return t.TagsWithoutKeys([][]byte{t.Opts.GetMetricName()})
 }
@@ -192,40 +192,43 @@ func (t Tags) Get(key []byte) ([]byte, bool) {
 	return nil, false
 }
 
-// Clone returns a copy of the tags
-func (t Tags) Clone() Tags {
+// Clone returns a pointer to a copy of the tags.
+func (t Tags) Clone() *Tags {
 	// Todo: Pool these
 	clonedTags := make([]Tag, len(t.Tags))
 	copy(clonedTags, t.Tags)
-	return Tags{
+	return &Tags{
 		Tags: clonedTags,
 		Opts: t.Opts,
 	}
 }
 
-// AddTag is used to add a single tag and maintain sorted order
+// AddTag is used to add a single tag and maintain sorted order.
 func (t *Tags) AddTag(tag Tag) Tags {
 	t.Tags = append(t.Tags, tag)
 	t.Normalize()
 	return *t
 }
 
-// SetName sets the metric name
+// SetName sets the metric name.
 func (t *Tags) SetName(value []byte) {
 	t.AddTag(Tag{Name: t.Opts.GetMetricName(), Value: value})
 }
 
-// Name gets the metric name
+// Name gets the metric name.
 func (t Tags) Name() ([]byte, bool) {
 	return t.Get(t.Opts.GetMetricName())
 }
 
-// Add is used to add a list of tags and maintain sorted order
-func (t *Tags) Add(tags []Tag) Tags {
-	for _, tag := range tags {
-		t.Tags = append(t.Tags, tag)
-	}
+// AddTags is used to add a list of tags and maintain sorted order.
+func (t *Tags) AddTags(tags []Tag) Tags {
+	t.Tags = append(t.Tags, tags...)
+	return t.Normalize()
+}
 
+// Add is used to add two tag structures and maintain sorted order.
+func (t *Tags) Add(other Tags) Tags {
+	t.Tags = append(t.Tags, other.Tags...)
 	return t.Normalize()
 }
 
@@ -236,7 +239,7 @@ func (t Tags) Less(i, j int) bool {
 }
 
 // Normalize normalizes the tags by sorting them in place.
-// In future, it might also ensure other things slike uniqueness
+// In future, it might also ensure other things slike uniqueness.
 func (t Tags) Normalize() Tags {
 	sort.Sort(t)
 	return t

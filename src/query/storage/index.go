@@ -30,9 +30,13 @@ import (
 )
 
 // FromM3IdentToMetric converts an M3 ident metric to a coordinator metric
-func FromM3IdentToMetric(identID ident.ID, iterTags ident.TagIterator) (*models.Metric, error) {
+func FromM3IdentToMetric(
+	identID ident.ID,
+	iterTags ident.TagIterator,
+	tagOptions models.TagOptions,
+) (*models.Metric, error) {
 	id := identID.String()
-	tags, err := FromIdentTagIteratorToTags(iterTags)
+	tags, err := FromIdentTagIteratorToTags(iterTags, tagOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -44,29 +48,31 @@ func FromM3IdentToMetric(identID ident.ID, iterTags ident.TagIterator) (*models.
 }
 
 // FromIdentTagIteratorToTags converts ident tags to coordinator tags
-func FromIdentTagIteratorToTags(identTags ident.TagIterator) (models.Tags, error) {
-	tags := make(models.Tags, 0, identTags.Remaining())
-
+func FromIdentTagIteratorToTags(
+	identTags ident.TagIterator,
+	tagOptions models.TagOptions,
+) (models.Tags, error) {
+	tags := models.NewTags(identTags.Remaining(), tagOptions)
 	for identTags.Next() {
 		identTag := identTags.Current()
-		tags = append(tags, models.Tag{
+		tags.AddTag(models.Tag{
 			Name:  identTag.Name.Bytes(),
 			Value: identTag.Value.Bytes(),
 		})
 	}
 
 	if err := identTags.Err(); err != nil {
-		return nil, err
+		return models.EmptyTags(), err
 	}
 
-	return models.Normalize(tags), nil
+	return tags, nil
 }
 
 // TagsToIdentTagIterator converts coordinator tags to ident tags
 func TagsToIdentTagIterator(tags models.Tags) ident.TagIterator {
 	//TODO get a tags and tag iterator from an ident.Pool here rather than allocing them here
-	identTags := make([]ident.Tag, 0, len(tags))
-	for _, t := range tags {
+	identTags := make([]ident.Tag, 0, tags.Len())
+	for _, t := range tags.Tags {
 		identTags = append(identTags, ident.Tag{
 			Name:  ident.BytesID(t.Name),
 			Value: ident.BytesID(t.Value),

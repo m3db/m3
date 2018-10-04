@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -101,16 +102,19 @@ func equalsWithDelta(t *testing.T, expected, actual, delta float64, debugMsg str
 }
 
 type match struct {
-	indices []int
-	metas   block.SeriesMeta
-	values  []float64
+	indices    []int
+	seriesTags []models.Tag
+	name       string
+	values     []float64
 }
 
 type matches []match
 
-func (m matches) Len() int           { return len(m) }
-func (m matches) Less(i, j int) bool { return m[i].metas.Tags.ID() > m[j].metas.Tags.ID() }
-func (m matches) Swap(i, j int)      { m[i], m[j] = m[j], m[i] }
+func (m matches) Len() int      { return len(m) }
+func (m matches) Swap(i, j int) { m[i], m[j] = m[j], m[i] }
+func (m matches) Less(i, j int) bool {
+	return models.Tags{Tags: m[i].seriesTags}.ID() > models.Tags{Tags: m[j].seriesTags}.ID()
+}
 
 // CompareLists compares series meta / index pairs
 func CompareLists(t *testing.T, meta, exMeta []block.SeriesMeta, index, exIndex [][]int) {
@@ -122,8 +126,8 @@ func CompareLists(t *testing.T, meta, exMeta []block.SeriesMeta, index, exIndex 
 	actual := make(matches, len(meta))
 	// build matchers
 	for i := range meta {
-		ex[i] = match{exIndex[i], exMeta[i], []float64{}}
-		actual[i] = match{index[i], meta[i], []float64{}}
+		ex[i] = match{exIndex[i], exMeta[i].Tags.Tags, exMeta[i].Name, []float64{}}
+		actual[i] = match{index[i], meta[i].Tags.Tags, meta[i].Name, []float64{}}
 	}
 	sort.Sort(ex)
 	sort.Sort(actual)
@@ -140,14 +144,15 @@ func CompareValues(t *testing.T, meta, exMeta []block.SeriesMeta, vals, exVals [
 	actual := make(matches, len(meta))
 	// build matchers
 	for i := range meta {
-		ex[i] = match{[]int{}, exMeta[i], exVals[i]}
-		actual[i] = match{[]int{}, meta[i], vals[i]}
+		ex[i] = match{[]int{}, exMeta[i].Tags.Tags, exMeta[i].Name, exVals[i]}
+		actual[i] = match{[]int{}, meta[i].Tags.Tags, exMeta[i].Name, vals[i]}
 	}
 
 	sort.Sort(ex)
 	sort.Sort(actual)
 	for i := range ex {
-		assert.Equal(t, ex[i].metas, actual[i].metas)
+		assert.Equal(t, ex[i].name, actual[i].name)
+		assert.Equal(t, ex[i].seriesTags, actual[i].seriesTags)
 		EqualsWithNansWithDelta(t, ex[i].values, actual[i].values, 0.00001)
 	}
 }

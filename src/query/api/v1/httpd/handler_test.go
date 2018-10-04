@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
 	"github.com/m3db/m3/src/query/executor"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/query/util/logging"
 
@@ -41,6 +42,10 @@ import (
 	"github.com/uber-go/tally"
 )
 
+func makeTagOptions() models.TagOptions {
+	return models.NewTagOptions().SetMetricName([]byte("some_name"))
+}
+
 func TestPromRemoteReadGet(t *testing.T) {
 	logging.InitWithCores(nil)
 
@@ -49,7 +54,7 @@ func TestPromRemoteReadGet(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
 
-	h, err := NewHandler(storage, nil, executor.NewEngine(storage), nil,
+	h, err := NewHandler(storage, makeTagOptions(), nil, executor.NewEngine(storage), nil,
 		config.Configuration{}, nil, tally.NewTestScope("", nil))
 	require.NoError(t, err, "unable to setup handler")
 	err = h.RegisterRoutes()
@@ -66,7 +71,7 @@ func TestPromRemoteReadPost(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
 
-	h, err := NewHandler(storage, nil, executor.NewEngine(storage), nil,
+	h, err := NewHandler(storage, makeTagOptions(), nil, executor.NewEngine(storage), nil,
 		config.Configuration{}, nil, tally.NewTestScope("", nil))
 	require.NoError(t, err, "unable to setup handler")
 	err = h.RegisterRoutes()
@@ -83,7 +88,7 @@ func TestPromNativeReadGet(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
 
-	h, err := NewHandler(storage, nil, executor.NewEngine(storage), nil,
+	h, err := NewHandler(storage, makeTagOptions(), nil, executor.NewEngine(storage), nil,
 		config.Configuration{}, nil, tally.NewTestScope("", nil))
 	require.NoError(t, err, "unable to setup handler")
 	h.RegisterRoutes()
@@ -99,7 +104,7 @@ func TestPromNativeReadPost(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
 
-	h, err := NewHandler(storage, nil, executor.NewEngine(storage), nil,
+	h, err := NewHandler(storage, makeTagOptions(), nil, executor.NewEngine(storage), nil,
 		config.Configuration{}, nil, tally.NewTestScope("", nil))
 	require.NoError(t, err, "unable to setup handler")
 	h.RegisterRoutes()
@@ -115,7 +120,7 @@ func TestJSONWritePost(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
 
-	h, err := NewHandler(storage, nil, executor.NewEngine(storage), nil,
+	h, err := NewHandler(storage, makeTagOptions(), nil, executor.NewEngine(storage), nil,
 		config.Configuration{}, nil, tally.NewTestScope("", nil))
 	require.NoError(t, err, "unable to setup handler")
 	h.RegisterRoutes()
@@ -131,7 +136,7 @@ func TestRoutesGet(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
 
-	h, err := NewHandler(storage, nil, executor.NewEngine(storage), nil,
+	h, err := NewHandler(storage, makeTagOptions(), nil, executor.NewEngine(storage), nil,
 		config.Configuration{}, nil, tally.NewTestScope("", nil))
 	require.NoError(t, err, "unable to setup handler")
 	h.RegisterRoutes()
@@ -164,7 +169,7 @@ func TestHealthGet(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
 
-	h, err := NewHandler(storage, nil, executor.NewEngine(storage), nil,
+	h, err := NewHandler(storage, makeTagOptions(), nil, executor.NewEngine(storage), nil,
 		config.Configuration{}, nil, tally.NewTestScope("", nil))
 	require.NoError(t, err, "unable to setup handler")
 	h.RegisterRoutes()

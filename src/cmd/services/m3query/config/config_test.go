@@ -18,43 +18,30 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package models
+package config
 
 import (
-	"errors"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-var (
-	defaultMetricName = []byte("__name__")
-
-	errNoName = errors.New("metric name is missing or empty")
-)
-
-type tagOptions struct {
-	metricName []byte
+func TestTagOptionsFromEmptyConfig(t *testing.T) {
+	cfg := TagOptionsConfiguration{}
+	opts, err := TagOptionsFromConfig(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, opts)
+	assert.Equal(t, []byte("__name__"), opts.GetMetricName())
 }
 
-// NewTagOptions builds a new tag options with default values.
-func NewTagOptions() TagOptions {
-	return &tagOptions{
-		metricName: defaultMetricName,
+func TestTagOptionsFromConfig(t *testing.T) {
+	name := "foobar"
+	cfg := TagOptionsConfiguration{
+		MetricName: name,
 	}
-}
-
-func (o *tagOptions) Validate() error {
-	if o.GetMetricName() == nil {
-		return errNoName
-	}
-
-	return nil
-}
-
-func (o *tagOptions) SetMetricName(metricName []byte) TagOptions {
-	opts := *o
-	opts.metricName = metricName
-	return &opts
-}
-
-func (o *tagOptions) GetMetricName() []byte {
-	return o.metricName
+	opts, err := TagOptionsFromConfig(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, opts)
+	assert.Equal(t, []byte(name), opts.GetMetricName())
 }

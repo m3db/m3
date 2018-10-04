@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/pools"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
@@ -44,6 +45,7 @@ type Client interface {
 }
 
 type grpcClient struct {
+	tagOptions  models.TagOptions
 	client      rpc.QueryClient
 	connection  *grpc.ClientConn
 	poolWrapper *pools.PoolWrapper
@@ -57,6 +59,7 @@ func NewGrpcClient(
 	addresses []string,
 	poolWrapper *pools.PoolWrapper,
 	workerPool pool.ObjectPool,
+	tagOptions models.TagOptions,
 	additionalDialOpts ...grpc.DialOption,
 ) (Client, error) {
 	if len(addresses) == 0 {
@@ -74,6 +77,7 @@ func NewGrpcClient(
 
 	client := rpc.NewQueryClient(cc)
 	return &grpcClient{
+		tagOptions:  tagOptions,
 		client:      client,
 		connection:  cc,
 		poolWrapper: poolWrapper,
@@ -92,7 +96,7 @@ func (c *grpcClient) Fetch(
 		return nil, err
 	}
 
-	return storage.SeriesIteratorsToFetchResult(iters, c.workerPool, true)
+	return storage.SeriesIteratorsToFetchResult(iters, c.workerPool, true, c.tagOptions)
 }
 
 func (c *grpcClient) fetchRaw(
@@ -170,7 +174,7 @@ func (c *grpcClient) FetchBlocks(
 		return block.Result{}, err
 	}
 
-	fetchResult, err := storage.SeriesIteratorsToFetchResult(iters, c.workerPool, true)
+	fetchResult, err := storage.SeriesIteratorsToFetchResult(iters, c.workerPool, true, c.tagOptions)
 	if err != nil {
 		return block.Result{}, err
 	}

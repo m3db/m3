@@ -24,33 +24,31 @@ import (
 	"regexp"
 )
 
-// Separators for tags
+// Separators for tags.
 const (
 	sep = byte(',')
 	eq  = byte('=')
 )
 
-// TagOptions describes additional options for tags
+// TagOptions describes additional options for tags.
 type TagOptions interface {
-	// Validate validates these tag options
+	// Validate validates these tag options.
 	Validate() error
 
-	// SetMetricName sets the name for the `metric name` metric
+	// SetMetricName sets the name for the `metric name` metric.
 	SetMetricName(metricName []byte) TagOptions
 
-	// GetDefaultName gets the name for the `metric name `metric`
+	// GetDefaultName gets the name for the `metric name `metric`.
 	GetMetricName() []byte
 }
 
-// Tags is a list of key/value metric tag pairs
+// Tags represents a set of tags with options.
 type Tags struct {
 	Opts TagOptions
 	Tags []Tag
-
-	idLen int
 }
 
-// Tag is a key/value metric tag pair
+// Tag is a key/value metric tag pair.
 type Tag struct {
 	Name  []byte
 	Value []byte
@@ -68,7 +66,7 @@ const (
 )
 
 // Matcher models the matching of a label.
-// NB: when serialized to JSON, name and value will be in base64
+// NB: when serialized to JSON, name and value will be in base64.
 type Matcher struct {
 	Type  MatchType `json:"type"`
 	Name  []byte    `json:"name"`
@@ -77,14 +75,14 @@ type Matcher struct {
 	re *regexp.Regexp
 }
 
-// Matchers is a list of individual matchers
+// Matchers is a list of individual matchers.
 type Matchers []*Matcher
 
-// Metric is the individual metric that gets returned from the search endpoint
+// Metric is the individual metric that gets returned from the search endpoint.
 type Metric struct {
 	ID   string
 	Tags Tags
 }
 
-// Metrics is a list of individual metrics
+// Metrics is a list of individual metrics.
 type Metrics []*Metric

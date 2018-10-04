@@ -37,7 +37,7 @@ func (m MatchType) String() string {
 	case MatchNotRegexp:
 		return "!~"
 	default:
-		return "unkown match type"
+		return "unknown match type"
 	}
 }
 

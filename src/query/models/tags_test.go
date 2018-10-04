@@ -29,7 +29,7 @@ import (
 
 func createTags(withName bool) Tags {
 	tags := NewTags(3, nil)
-	tags.Add([]Tag{
+	tags.AddTags([]Tag{
 		{Name: []byte("t1"), Value: []byte("v1")},
 		{Name: []byte("t2"), Value: []byte("v2")},
 	})
@@ -101,7 +101,7 @@ func TestTagsWithExcludes(t *testing.T) {
 
 func TestTagsIDLen(t *testing.T) {
 	tags := NewTags(3, NewTagOptions().SetMetricName([]byte("N")))
-	tags.Add([]Tag{
+	tags.AddTags([]Tag{
 		{Name: []byte("a"), Value: []byte("1")},
 		{Name: []byte("b"), Value: []byte("2")},
 		{Name: []byte("c"), Value: []byte("3")},
@@ -114,7 +114,7 @@ func TestTagsIDLen(t *testing.T) {
 
 func TestTagsWithExcludesCustom(t *testing.T) {
 	tags := NewTags(4, nil)
-	tags.Add([]Tag{
+	tags.AddTags([]Tag{
 		{Name: []byte("a"), Value: []byte("1")},
 		{Name: []byte("b"), Value: []byte("2")},
 		{Name: []byte("c"), Value: []byte("3")},
@@ -138,7 +138,7 @@ func TestAddTags(t *testing.T) {
 		{Name: []byte("z"), Value: []byte("4")},
 	}
 
-	tags.Add(tagsToAdd)
+	tags.AddTags(tagsToAdd)
 	expected := []Tag{
 		{Name: []byte("a"), Value: []byte("1")},
 		{Name: []byte("b"), Value: []byte("2")},
@@ -153,7 +153,7 @@ func TestCloneTags(t *testing.T) {
 	tags := createTags(true)
 	original := createTags(true)
 
-	cloned := tags.Clone()
+	cloned := *tags.Clone()
 	assert.Equal(t, cloned, tags)
 	// mutate cloned and ensure tags is unchanged
 	cloned.Tags = cloned.Tags[1:]
@@ -162,17 +162,19 @@ func TestCloneTags(t *testing.T) {
 }
 
 func TestTagAppend(t *testing.T) {
-	tagsToAdd := []Tag{
-		{Name: []byte("x"), Value: []byte("5")},
-		{Name: []byte("b"), Value: []byte("3")},
-		{Name: []byte("z"), Value: []byte("1")},
-		{Name: []byte("a"), Value: []byte("2")},
-		{Name: []byte("c"), Value: []byte("4")},
-		{Name: []byte("d"), Value: []byte("6")},
-		{Name: []byte("f"), Value: []byte("7")},
+	tagsToAdd := Tags{
+		Tags: []Tag{
+			{Name: []byte("x"), Value: []byte("5")},
+			{Name: []byte("b"), Value: []byte("3")},
+			{Name: []byte("z"), Value: []byte("1")},
+			{Name: []byte("a"), Value: []byte("2")},
+			{Name: []byte("c"), Value: []byte("4")},
+			{Name: []byte("d"), Value: []byte("6")},
+			{Name: []byte("f"), Value: []byte("7")},
+		},
 	}
 
-	tags := NewTags(len(tagsToAdd)-3, nil)
+	tags := NewTags(2, nil)
 	tags = tags.Add(tagsToAdd)
 	expected := []Tag{
 		{Name: []byte("a"), Value: []byte("2")},

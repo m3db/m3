@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
 	"github.com/m3db/m3/src/query/executor"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
 	clusterclient "github.com/m3db/m3cluster/client"
@@ -67,11 +68,13 @@ type Handler struct {
 	embeddedDbCfg *dbconfig.DBConfiguration
 	scope         tally.Scope
 	createdAt     time.Time
+	tagOptions    models.TagOptions
 }
 
 // NewHandler returns a new instance of handler with routes.
 func NewHandler(
 	storage storage.Storage,
+	tagOptions models.TagOptions,
 	downsampler downsample.Downsampler,
 	engine *executor.Engine,
 	clusterClient clusterclient.Client,
@@ -90,6 +93,7 @@ func NewHandler(
 		embeddedDbCfg: embeddedDbCfg,
 		scope:         scope,
 		createdAt:     time.Now(),
+		tagOptions:    tagOptions,
 	}
 	return h, nil
 }
@@ -103,7 +107,7 @@ func (h *Handler) RegisterRoutes() error {
 
 	// Prometheus remote read/write endpoints
 	promRemoteReadHandler := remote.NewPromReadHandler(h.engine, h.scope.Tagged(remoteSource))
-	promRemoteWriteHandler, err := remote.NewPromWriteHandler(h.storage, h.downsampler, h.scope.Tagged(remoteSource))
+	promRemoteWriteHandler, err := remote.NewPromWriteHandler(h.storage, h.downsampler, h.tagOptions, h.scope.Tagged(remoteSource))
 	if err != nil {
 		return err
 	}

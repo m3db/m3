@@ -115,7 +115,7 @@ var unlessTests = []struct {
 		[][]float64{{1, 2}, {10, 20}},
 		test.NewSeriesMeta("a", 2),
 		[][]float64{{3, 4}, {30, 40}},
-		models.Tags{},
+		models.EmptyTags(),
 		[]block.SeriesMeta{},
 		[][]float64{},
 		nil,
@@ -126,7 +126,7 @@ var unlessTests = []struct {
 		[][]float64{{1, 2}, {10, 20}},
 		test.NewSeriesMeta("a", 3),
 		[][]float64{{3, 4}, {30, 40}, {50, 60}},
-		models.Tags{},
+		models.EmptyTags(),
 		[]block.SeriesMeta{},
 		[][]float64{},
 		nil,
@@ -138,7 +138,7 @@ var unlessTests = []struct {
 		test.NewSeriesMeta("a", 3)[1:],
 		[][]float64{{3, 4}, {30, 40}},
 		test.NewSeriesMeta("a", 1)[0].Tags,
-		[]block.SeriesMeta{{Tags: models.Tags{}, Name: "a0"}},
+		[]block.SeriesMeta{{Tags: models.EmptyTags(), Name: "a0"}},
 		[][]float64{{1, 2}},
 		nil,
 	},
@@ -149,7 +149,7 @@ var unlessTests = []struct {
 		test.NewSeriesMeta("a", 4)[1:],
 		[][]float64{{3, 4}, {30, 40}, {300, 400}},
 		test.NewSeriesMeta("a", 1)[0].Tags,
-		[]block.SeriesMeta{{Tags: models.Tags{}, Name: "a0"}},
+		[]block.SeriesMeta{{Tags: models.EmptyTags(), Name: "a0"}},
 		[][]float64{{1, 2}},
 		nil,
 	},
@@ -159,7 +159,7 @@ var unlessTests = []struct {
 		[][]float64{{1, 2}, {10, 20}},
 		test.NewSeriesMeta("b", 2),
 		[][]float64{{3, 4}, {30, 40}},
-		models.Tags{},
+		models.EmptyTags(),
 		test.NewSeriesMeta("a", 2),
 		[][]float64{{1, 2}, {10, 20}},
 		nil,
@@ -170,7 +170,7 @@ var unlessTests = []struct {
 		[][]float64{{1, 2}, {10, 20}},
 		test.NewSeriesMeta("b", 3),
 		[][]float64{{3, 4}, {30, 40}, {300, 400}},
-		models.Tags{},
+		models.EmptyTags(),
 		test.NewSeriesMeta("a", 2),
 		[][]float64{{1, 2}, {10, 20}},
 		nil,
@@ -181,7 +181,7 @@ var unlessTests = []struct {
 		[][]float64{{1, 2}, {10, 20}, {100, 200}},
 		test.NewSeriesMeta("b", 2),
 		[][]float64{{3, 4}, {30, 40}},
-		models.Tags{},
+		models.EmptyTags(),
 		test.NewSeriesMeta("a", 3),
 		[][]float64{{1, 2}, {10, 20}, {100, 200}},
 		nil,
@@ -192,7 +192,7 @@ var unlessTests = []struct {
 		[][]float64{{1, 2, 3}, {10, 20, 30}},
 		test.NewSeriesMeta("b", 2),
 		[][]float64{{3, 4}, {30, 40}},
-		models.Tags{},
+		models.EmptyTags(),
 		[]block.SeriesMeta{},
 		[][]float64{},
 		errMismatchedStepCounts,
@@ -240,7 +240,7 @@ func TestUnless(t *testing.T) {
 			require.NoError(t, err)
 			test.EqualsWithNans(t, tt.expected, sink.Values)
 			meta := sink.Meta
-			assert.Equal(t, tt.expectedShared, meta.Tags)
+			assert.Equal(t, tt.expectedShared.Tags, meta.Tags.Tags)
 			assert.True(t, meta.Bounds.Equals(bounds))
 			assert.Equal(t, tt.expectedMetas, sink.Metas)
 		})

@@ -86,15 +86,15 @@ func TestFunctionFilteringWithA(t *testing.T) {
 	}
 
 	expectedMetas := []block.SeriesMeta{
-		{Name: StandardDeviationType, Tags: models.Tags{{Name: []byte("a"), Value: []byte("1")}}},
-		{Name: StandardDeviationType, Tags: models.Tags{{Name: []byte("a"), Value: []byte("2")}}},
-		{Name: StandardDeviationType, Tags: models.Tags{}},
+		{Name: StandardDeviationType, Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("a"), Value: []byte("1")}})},
+		{Name: StandardDeviationType, Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("a"), Value: []byte("2")}})},
+		{Name: StandardDeviationType, Tags: models.EmptyTags()},
 	}
-	expectedMetaTags := models.Tags{}
+	expectedMetaTags := models.EmptyTags()
 
 	test.CompareValues(t, sink.Metas, expectedMetas, sink.Values, expected)
 	assert.Equal(t, bounds, sink.Meta.Bounds)
-	assert.Equal(t, expectedMetaTags, sink.Meta.Tags)
+	assert.Equal(t, expectedMetaTags.Tags, sink.Meta.Tags.Tags)
 }
 
 func TestFunctionFilteringWithoutA(t *testing.T) {
@@ -113,15 +113,15 @@ func TestFunctionFilteringWithoutA(t *testing.T) {
 	}
 
 	expectedMetas := []block.SeriesMeta{
-		{Name: StandardDeviationType, Tags: models.Tags{}},
-		{Name: StandardDeviationType, Tags: models.Tags{{Name: []byte("b"), Value: []byte("2")}}},
-		{Name: StandardDeviationType, Tags: models.Tags{{Name: []byte("c"), Value: []byte("3")}}},
+		{Name: StandardDeviationType, Tags: models.EmptyTags()},
+		{Name: StandardDeviationType, Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("b"), Value: []byte("2")}})},
+		{Name: StandardDeviationType, Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("c"), Value: []byte("3")}})},
 	}
 
-	expectedMetaTags := models.Tags{{Name: []byte("d"), Value: []byte("4")}}
+	expectedMetaTags := test.TagSliceToTags([]models.Tag{{Name: []byte("d"), Value: []byte("4")}})
 	test.CompareValues(t, sink.Metas, expectedMetas, sink.Values, expected)
 	assert.Equal(t, bounds, sink.Meta.Bounds)
-	assert.Equal(t, expectedMetaTags, sink.Meta.Tags)
+	assert.Equal(t, expectedMetaTags.Tags, sink.Meta.Tags.Tags)
 }
 
 func TestFunctionFilteringWithD(t *testing.T) {
@@ -136,13 +136,13 @@ func TestFunctionFilteringWithD(t *testing.T) {
 	}
 
 	expectedMetas := []block.SeriesMeta{
-		{Name: StandardDeviationType, Tags: models.Tags{}},
+		{Name: StandardDeviationType, Tags: models.EmptyTags()},
 	}
 
-	expectedMetaTags := models.Tags{{Name: []byte("d"), Value: []byte("4")}}
+	expectedMetaTags := test.TagSliceToTags([]models.Tag{{Name: []byte("d"), Value: []byte("4")}})
 	test.CompareValues(t, sink.Metas, expectedMetas, sink.Values, expected)
 	assert.Equal(t, bounds, sink.Meta.Bounds)
-	assert.Equal(t, expectedMetaTags, sink.Meta.Tags)
+	assert.Equal(t, expectedMetaTags.Tags, sink.Meta.Tags.Tags)
 }
 
 func TestFunctionFilteringWithoutD(t *testing.T) {
@@ -172,9 +172,9 @@ func TestFunctionFilteringWithoutD(t *testing.T) {
 		{Name: StandardDeviationType, Tags: test.StringTagsToTags(test.StringTags{{"b", "2"}})},
 		{Name: StandardDeviationType, Tags: test.StringTagsToTags(test.StringTags{{"c", "3"}})},
 	}
-	expectedMetaTags := models.Tags{}
+	expectedMetaTags := models.EmptyTags()
 
 	test.CompareValues(t, sink.Metas, expectedMetas, sink.Values, expected)
 	assert.Equal(t, bounds, sink.Meta.Bounds)
-	assert.Equal(t, expectedMetaTags, sink.Meta.Tags)
+	assert.Equal(t, expectedMetaTags.Tags, sink.Meta.Tags.Tags)
 }

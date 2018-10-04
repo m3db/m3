@@ -147,15 +147,15 @@ func TestQuantileFunctionFilteringWithoutA(t *testing.T) {
 	}
 
 	expectedMetas := []block.SeriesMeta{
-		{Name: QuantileType, Tags: models.Tags{}},
-		{Name: QuantileType, Tags: models.Tags{{Name: []byte("b"), Value: []byte("2")}}},
-		{Name: QuantileType, Tags: models.Tags{{Name: []byte("c"), Value: []byte("3")}}},
+		{Name: QuantileType, Tags: models.EmptyTags()},
+		{Name: QuantileType, Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("b"), Value: []byte("2")}})},
+		{Name: QuantileType, Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("c"), Value: []byte("3")}})},
 	}
-	expectedMetaTags := models.Tags{{Name: []byte("d"), Value: []byte("4")}}
+	expectedMetaTags := test.TagSliceToTags([]models.Tag{{Name: []byte("d"), Value: []byte("4")}})
 
 	test.CompareValues(t, sink.Metas, expectedMetas, sink.Values, expected)
 	assert.Equal(t, bounds, sink.Meta.Bounds)
-	assert.Equal(t, expectedMetaTags, sink.Meta.Tags)
+	assert.Equal(t, expectedMetaTags.Tags, sink.Meta.Tags.Tags)
 }
 
 func TestNans(t *testing.T) {

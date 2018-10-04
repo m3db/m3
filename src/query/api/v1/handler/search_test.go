@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/query/test/seriesiter"
 	"github.com/m3db/m3/src/query/util/logging"
@@ -110,7 +111,8 @@ func TestSearchResponse(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, testID, results.Metrics[0].ID)
-	assert.Equal(t, models.Tags{{Name: []byte("foo"), Value: []byte("bar")}}, results.Metrics[0].Tags)
+	expected := test.TagSliceToTags([]models.Tag{{Name: []byte("foo"), Value: []byte("bar")}})
+	assert.Equal(t, expected.Tags, results.Metrics[0].Tags.Tags)
 }
 
 func TestSearchEndpoint(t *testing.T) {

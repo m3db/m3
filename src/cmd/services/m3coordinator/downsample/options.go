@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/serialize"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3aggregator/aggregator/handler"
@@ -87,6 +88,7 @@ type DownsamplerOptions struct {
 	TagEncoderPoolOptions   pool.ObjectPoolOptions
 	TagDecoderPoolOptions   pool.ObjectPoolOptions
 	OpenTimeout             time.Duration
+	TagOptions              models.TagOptions
 }
 
 // MappingRule is a mapping rule to apply to metrics.
@@ -448,8 +450,8 @@ func (o DownsamplerOptions) newAggregatorFlushManagerAndHandler(
 
 	flushWorkers := xsync.NewWorkerPool(storageFlushConcurrency)
 	flushWorkers.Init()
-	handler := newDownsamplerFlushHandler(o.Storage, pools.encodedTagsIteratorPool,
-		flushWorkers, instrumentOpts)
+	handler := newDownsamplerFlushHandler(o.TagOptions, o.Storage,
+		pools.encodedTagsIteratorPool, flushWorkers, instrumentOpts)
 
 	return flushManager, handler
 }
