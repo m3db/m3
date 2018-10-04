@@ -28,10 +28,10 @@ import (
 	"strings"
 	"time"
 
+	m3emconfig "github.com/m3db/m3/src/cmd/services/m3em_agent/config"
 	"github.com/m3db/m3/src/m3em/agent"
 	"github.com/m3db/m3/src/m3em/generated/proto/m3em"
 	"github.com/m3db/m3/src/m3em/os/exec"
-	m3emconfig "github.com/m3db/m3/src/m3em/services/m3em_agent/config"
 	xgrpc "github.com/m3db/m3/src/m3em/x/grpc"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/instrument"

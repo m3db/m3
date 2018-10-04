@@ -21,7 +21,7 @@
 package main
 
 import (
-	"github.com/m3db/m3/src/m3em/services/m3em_agent/agentmain"
+	"github.com/m3db/m3/src/cmd/services/m3em_agent/agentmain"
 )
 
 func main() {
