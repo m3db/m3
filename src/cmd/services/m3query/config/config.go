@@ -78,6 +78,9 @@ type Configuration struct {
 	// WriteWorkerPool is the worker pool policy for write requests.
 	WriteWorkerPool xconfig.WorkerPoolPolicy `yaml:"writeWorkerPoolPolicy"`
 
+	// TagOptions is the tag configuration options.
+	TagOptions TagOptionsConfiguration `yaml:"tagOptions"`
+
 	// Ingest is the ingest server.
 	Ingest *IngestConfiguration `yaml:"ingest"`
 }
@@ -127,7 +130,7 @@ type RPCConfiguration struct {
 // relevant options.
 type TagOptionsConfiguration struct {
 	// MetricName specifies the tag name that corresponds to the metric's name tag
-	// If not provided, defaults to `__name__`
+	// If not provided, defaults to `__name__`.
 	MetricName string `yaml:"metricName"`
 }
 

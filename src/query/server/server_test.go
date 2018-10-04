@@ -80,7 +80,7 @@ writeWorkerPoolPolicy:
   grow: true
   size: 100
   shards: 1000
-  killProbability: 0.3
+	killProbability: 0.3
 `
 
 //TODO: Use randomly assigned port here
@@ -241,7 +241,10 @@ writeWorkerPoolPolicy:
   grow: true
   size: 100
   shards: 1000
-  killProbability: 0.3
+	killProbability: 0.3
+
+tagOptions:
+  metricName: "bar"
 `
 
 	ctrl := gomock.NewController(xtest.Reporter{T: t})

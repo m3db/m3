@@ -126,7 +126,10 @@ func (w *downsamplerFlushHandlerWriter) Write(
 		tags := models.NewTags(expected, w.tagOptions)
 		for iter.Next() {
 			name, value := iter.Current()
-			tags = tags.AddTag(models.Tag{Name: name, Value: value}.Clone())
+			tags = tags.AddTag(models.Tag{
+				Name:  append([]byte(nil), name...),
+				Value: append([]byte(nil), value...),
+			}).Clone())
 		}
 
 		if len(chunkSuffix) != 0 {

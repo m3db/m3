@@ -180,8 +180,8 @@ func (op *ingestOp) resetTags() error {
 	for op.it.Next() {
 		name, value := op.it.Current()
 		op.q.Tags = op.q.Tags.AddTag(models.Tag{
-			Name:  name,
-			Value: value,
+			Name:  append([]byte(nil), name...),
+			Value: append([]byte(nil), value...),
 		}.Clone())
 	}
 	return op.it.Err()
