@@ -24,133 +24,30 @@ import (
 	"bytes"
 	"fmt"
 	"hash/fnv"
-	"regexp"
 	"sort"
 	"strings"
 )
 
-const (
-	// Separators for tags
-	sep = byte(',')
-	eq  = byte('=')
-)
-
 var (
-	// MetricName is an internal name used to denote the name of the metric.
-	// TODO: Get these from the storage
-	MetricName = []byte("__name__")
+	defaultOptions = NewTagOptions()
 )
 
-// Tags is a list of key/value metric tag pairs
-type Tags []Tag
-
-func (t Tags) Len() int      { return len(t) }
-func (t Tags) Swap(i, j int) { t[i], t[j] = t[j], t[i] }
-func (t Tags) Less(i, j int) bool {
-	return bytes.Compare(t[i].Name, t[j].Name) == -1
-}
-
-// Tag is a key/value metric tag pair
-type Tag struct {
-	Name, Value []byte
-}
-
-// Metric is the individual metric that gets returned from the search endpoint
-type Metric struct {
-	ID   string
-	Tags Tags
-}
-
-// Metrics is a list of individual metrics
-type Metrics []*Metric
-
-// MatchType is an enum for label matching types.
-type MatchType int
-
-// Possible MatchTypes.
-const (
-	MatchEqual MatchType = iota
-	MatchNotEqual
-	MatchRegexp
-	MatchNotRegexp
-)
-
-func (m MatchType) String() string {
-	typeToStr := map[MatchType]string{
-		MatchEqual:     "=",
-		MatchNotEqual:  "!=",
-		MatchRegexp:    "=~",
-		MatchNotRegexp: "!~",
-	}
-	if str, ok := typeToStr[m]; ok {
-		return str
-	}
-	panic("unknown match type")
-}
-
-// Matcher models the matching of a label.
-// NB: when serialized to JSON these will be base64'd
-type Matcher struct {
-	Type  MatchType `json:"type"`
-	Name  []byte    `json:"name"`
-	Value []byte    `json:"value"`
-
-	re *regexp.Regexp
-}
-
-// NewMatcher returns a matcher object.
-func NewMatcher(t MatchType, n, v []byte) (*Matcher, error) {
-	m := &Matcher{
-		Type:  t,
-		Name:  n,
-		Value: v,
-	}
-	if t == MatchRegexp || t == MatchNotRegexp {
-		re, err := regexp.Compile("^(?:" + string(v) + ")$")
-		if err != nil {
-			return nil, err
-		}
-		m.re = re
-	}
-	return m, nil
-}
-
-func (m *Matcher) String() string {
-	return fmt.Sprintf("%s%s%q", m.Name, m.Type, m.Value)
-}
-
-// Matches returns whether the matcher matches the given string value.
-func (m *Matcher) Matches(s []byte) bool {
-	switch m.Type {
-	case MatchEqual:
-		return bytes.Equal(s, m.Value)
-	case MatchNotEqual:
-		return !bytes.Equal(s, m.Value)
-	case MatchRegexp:
-		return m.re.MatchString(string(s))
-	case MatchNotRegexp:
-		return !m.re.MatchString(string(s))
+// NewTags builds a tags with the given size and tag options
+func NewTags(size int, opts TagOptions) Tags {
+	if opts == nil {
+		opts = defaultOptions
 	}
 
-	panic("labels.Matcher.Matches: invalid match type")
+	return Tags{
+		// Todo: Pool these
+		Tags: make([]Tag, 0, size),
+		Opts: opts,
+	}
 }
 
-// Matchers is of matchers
-type Matchers []*Matcher
-
-// ToTags converts Matchers to Tags
-// NB (braskin): this only works for exact matches
-func (m Matchers) ToTags() (Tags, error) {
-	tags := make(Tags, len(m))
-	for i, v := range m {
-		if v.Type != MatchEqual {
-			return nil, fmt.Errorf("illegal match type, got %v, but expecting: %v", v.Type, MatchEqual)
-		}
-
-		tags[i] = Tag{Name: v.Name, Value: v.Value}
-	}
-
-	return Normalize(tags), nil
+// EmptyTags returns empty tags
+func EmptyTags() Tags {
+	return NewTags(0, nil)
 }
 
 // ID returns a string representation of the tags
@@ -161,7 +58,7 @@ func (t Tags) ID() string {
 	)
 
 	strBuilder.Grow(idLen)
-	for _, tag := range t {
+	for _, tag := range t.Tags {
 		strBuilder.Write(tag.Name)
 		strBuilder.WriteByte(eq)
 		strBuilder.Write(tag.Value)
@@ -174,7 +71,7 @@ func (t Tags) ID() string {
 // IDMarshalTo writes out the ID representation
 // of the tags into the provided buffer.
 func (t Tags) IDMarshalTo(b []byte) []byte {
-	for _, tag := range t {
+	for _, tag := range t.Tags {
 		b = append(b, tag.Name...)
 		b = append(b, eq)
 		b = append(b, tag.Value...)
@@ -187,20 +84,22 @@ func (t Tags) IDMarshalTo(b []byte) []byte {
 // IDLen returns the length of the ID that would be
 // generated from the tags.
 func (t Tags) IDLen() int {
-	idLen := 2 * len(t) // account for eq and sep
-	for _, tag := range t {
+	// return t.idLen
+	idLen := 2 * len(t.Tags) // account for eq and sep
+	for _, tag := range t.Tags {
 		idLen += len(tag.Name)
 		idLen += len(tag.Value)
 	}
+
 	return idLen
 }
 
 // IDWithExcludes returns a string representation of the tags excluding some tag keys
 func (t Tags) IDWithExcludes(excludeKeys ...[]byte) uint64 {
-	b := make([]byte, 0, len(t))
-	for _, tag := range t {
+	b := make([]byte, 0, len(t.Tags))
+	for _, tag := range t.Tags {
 		// Always exclude the metric name by default
-		if bytes.Equal(tag.Name, MetricName) {
+		if bytes.Equal(tag.Name, t.Opts.GetMetricName()) {
 			continue
 		}
 
@@ -229,8 +128,8 @@ func (t Tags) IDWithExcludes(excludeKeys ...[]byte) uint64 {
 }
 
 func (t Tags) tagSubset(keys [][]byte, include bool) Tags {
-	tags := make(Tags, 0, len(t))
-	for _, tag := range t {
+	tags := NewTags(len(t.Tags), t.Opts)
+	for _, tag := range t.Tags {
 		found := false
 		for _, k := range keys {
 			if bytes.Equal(tag.Name, k) {
@@ -240,7 +139,7 @@ func (t Tags) tagSubset(keys [][]byte, include bool) Tags {
 		}
 
 		if found == include {
-			tags = append(tags, tag)
+			tags.AddTag(tag)
 		}
 	}
 
@@ -254,8 +153,8 @@ func (t Tags) TagsWithoutKeys(excludeKeys [][]byte) Tags {
 
 // IDWithKeys returns a string representation of the tags only including the given keys
 func (t Tags) IDWithKeys(includeKeys ...[]byte) uint64 {
-	b := make([]byte, 0, len(t))
-	for _, tag := range t {
+	b := make([]byte, 0, len(t.Tags))
+	for _, tag := range t.Tags {
 		for _, k := range includeKeys {
 			if bytes.Equal(tag.Name, k) {
 				b = append(b, tag.Name...)
@@ -279,12 +178,12 @@ func (t Tags) TagsWithKeys(includeKeys [][]byte) Tags {
 
 // WithoutName copies the tags excluding the name tag
 func (t Tags) WithoutName() Tags {
-	return t.TagsWithoutKeys([][]byte{MetricName})
+	return t.TagsWithoutKeys([][]byte{t.Opts.GetMetricName()})
 }
 
 // Get returns the value for the tag with the given name.
 func (t Tags) Get(key []byte) ([]byte, bool) {
-	for _, tag := range t {
+	for _, tag := range t.Tags {
 		if bytes.Equal(tag.Name, key) {
 			return tag.Value, true
 		}
@@ -295,32 +194,54 @@ func (t Tags) Get(key []byte) ([]byte, bool) {
 
 // Clone returns a copy of the tags
 func (t Tags) Clone() Tags {
-	cloned := make(Tags, len(t))
-	copy(cloned, t)
-	return cloned
+	// Todo: Pool these
+	clonedTags := make([]Tag, len(t.Tags))
+	copy(clonedTags, t.Tags)
+	return Tags{
+		Tags: clonedTags,
+		Opts: t.Opts,
+	}
 }
 
 // AddTag is used to add a single tag and maintain sorted order
-func (t Tags) AddTag(tag Tag) Tags {
-	updated := append(t, tag)
-	z := Normalize(updated)
-	return z
+func (t *Tags) AddTag(tag Tag) Tags {
+	t.Tags = append(t.Tags, tag)
+	t.Normalize()
+	return *t
+}
+
+// SetName sets the metric name
+func (t *Tags) SetName(value []byte) {
+	t.AddTag(Tag{Name: t.Opts.GetMetricName(), Value: value})
+}
+
+// Name gets the metric name
+func (t Tags) Name() ([]byte, bool) {
+	return t.Get(t.Opts.GetMetricName())
 }
 
 // Add is used to add a list of tags and maintain sorted order
-func (t Tags) Add(tags Tags) Tags {
-	updated := append(t, tags...)
-	return Normalize(updated)
+func (t *Tags) Add(tags []Tag) Tags {
+	for _, tag := range tags {
+		t.Tags = append(t.Tags, tag)
+	}
+
+	return t.Normalize()
+}
+
+func (t Tags) Len() int      { return len(t.Tags) }
+func (t Tags) Swap(i, j int) { t.Tags[i], t.Tags[j] = t.Tags[j], t.Tags[i] }
+func (t Tags) Less(i, j int) bool {
+	return bytes.Compare(t.Tags[i].Name, t.Tags[j].Name) == -1
 }
 
 // Normalize normalizes the tags by sorting them in place.
-// In future, it might also ensure other things like uniqueness
-func Normalize(tags Tags) Tags {
-	sort.Sort(tags)
-	return tags
+// In future, it might also ensure other things slike uniqueness
+func (t Tags) Normalize() Tags {
+	sort.Sort(t)
+	return t
 }
 
-// EmptyTags returns empty model tags
-func EmptyTags() Tags {
-	return make(Tags, 0)
+func (t Tag) String() string {
+	return fmt.Sprintf("%s: %s", t.Name, t.Value)
 }
