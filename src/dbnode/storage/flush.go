@@ -224,7 +224,6 @@ func (m *flushManager) namespaceSnapshotTimes(ns databaseNamespace, curr time.Ti
 	candidateTimes := timesInRange(earliest, latest, blockSize)
 	return filterTimes(candidateTimes, func(t time.Time) bool {
 		// Snapshot anything that is unflushed
-		fmt.Println("snapshot: ", t)
 		return ns.NeedsFlush(t, t)
 	})
 }
