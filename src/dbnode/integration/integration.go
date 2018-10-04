@@ -320,7 +320,8 @@ func newDefaultBootstrappableTestSetups(
 
 // latestDBTopoMapProvider makes sure that the topology map provided always
 // comes from the most recent database in the testSetup since they get
-// recreated everytime startServer/stopServer is called.
+// recreated everytime startServer/stopServer is called and are not available
+// (nil value) after creation but before the first call to startServer.
 type latestDBTopoMapProvider struct {
 	setup *testSetup
 }

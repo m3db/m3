@@ -299,14 +299,8 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		opts = opts.SetVerifySeriesDebugFilePathPrefix(debugFilePrefix)
 	}
 
-	db, err := cluster.NewDatabase(id, topoInit, storageOpts)
-	if err != nil {
-		return nil, err
-	}
-
 	return &testSetup{
 		t:                           t,
-		db:                          db,
 		opts:                        opts,
 		logger:                      logger,
 		storageOpts:                 storageOpts,
