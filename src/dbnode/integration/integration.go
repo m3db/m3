@@ -222,7 +222,8 @@ func newDefaultBootstrappableTestSetups(
 		var (
 			bsOpts                    = newDefaulTestResultOptions(setup.storageOpts)
 			uninitializedBootstrapper = uninitialized.NewuninitializedTopologyBootstrapperProvider(
-				uninitialized.NewOptions(), nil)
+				uninitialized.NewOptions().
+					SetInstrumentOptions(instrumentOpts), nil)
 			finalBootstrapper bootstrap.BootstrapperProvider
 
 			adminOpts = client.NewAdminOptions().
