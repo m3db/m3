@@ -3,3 +3,14 @@
 set -xe
 
 source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/common.sh
+
+REVISION=$(git rev-parse HEAD)
+
+CONTAINER_NAME="m3dbnode-version-${REVISION}"
+
+# think of this as a defer func() in golang
+function defer {
+  echo "Remove docker container"
+  docker rm --force "${CONTAINER_NAME}"
+}
+trap defer EXIT
