@@ -551,7 +551,6 @@ func (n *dbNamespace) Write(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	Like
 	callStart := n.nowFn()
 	shard, err := n.shardFor(id)
 	if err != nil {
