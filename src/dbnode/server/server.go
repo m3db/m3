@@ -481,7 +481,14 @@ func Run(runOpts RunOptions) {
 		logger.Fatalf("could not open database: %v", err)
 	}
 
-	// Set bootstrap options
+	// Set bootstrap options - We pass the db as the TopologyMapProvider
+	// becaues the clustered database is the component that is responsible
+	// for triggering new bootstraps based on topology changes. As a result
+	// of that, we want to make sure that when the bootstrapping process
+	// needs to capture a topology snapshot to make decisions, it gets it from
+	// the clustered database to ensure that it gets a view that is *at least*
+	// as new as the topology that triggered the bootstrap, if not newer. See
+	// GitHub issue #1013 for more details.
 	bs, err := cfg.Bootstrap.New(opts, db, origin, m3dbClient)
 	if err != nil {
 		logger.Fatalf("could not create bootstrap process: %v", err)
