@@ -505,7 +505,7 @@ func Run(runOpts RunOptions) {
 			}
 
 			cfg.Bootstrap.Bootstrappers = bootstrappers
-			updated, err := cfg.Bootstrap.New(opts, topoMapProvider, origin, m3dbClient)
+			updated, err := cfg.Bootstrap.New(opts, db, origin, m3dbClient)
 			if err != nil {
 				logger.Errorf("updated bootstrapper list failed: %v", err)
 				return
