@@ -173,7 +173,7 @@ func newDefaultBootstrappableTestSetups(
 		)
 
 		if finalBootstrapperToUse == "" {
-			finalBootstrapperToUse = uninitialized.UninitializedTopologyBootstrapperName
+			finalBootstrapperToUse = bootstrapper.NoOpAllBootstrapperName
 		}
 
 		if topologyInitializer == nil {
