@@ -212,7 +212,7 @@ func (m *flushManager) namespaceSnapshotTimes(ns databaseNamespace, curr time.Ti
 	var (
 		rOpts     = ns.Options().RetentionOptions()
 		blockSize = rOpts.BlockSize()
-		// Earliest possible snapshottable block is the earliest possible flush
+		// Earliest possible snapshottable block is the earliest possible flushable
 		// block start which is the first block in the retention period.
 		earliest = retention.FlushTimeStart(rOpts, curr)
 		// Latest possible snapshotting block is either the current block OR the
