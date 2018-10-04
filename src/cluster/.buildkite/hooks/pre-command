@@ -12,3 +12,4 @@ fi
 
 echo "---- :buildkite: :codecov: environment variables"
 export CI="true" # required by codecov.sh
+export CODECOV_TOKEN="$CODECOV_TOKEN_M3CLUSTER"

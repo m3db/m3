@@ -67,8 +67,8 @@ testhtml: test-internal
 
 .PHONY: test-ci-unit
 test-ci-unit: test-internal
-	@which goveralls > /dev/null || go get -u -f github.com/mattn/goveralls
-	goveralls -coverprofile=$(coverfile) -service=travis-ci || echo -e "\x1b[31mCoveralls failed\x1b[m"
+	@which gocov > /dev/null || go get github.com/axw/gocov/gocov
+	$(codecov_push) -f $(coverfile)
 
 .PHONY: install-mockgen
 install-mockgen: install-vendor
