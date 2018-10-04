@@ -29,14 +29,14 @@ import (
 	"testing"
 	"time"
 
-	hb "github.com/m3db/m3em/generated/proto/heartbeat"
-	"github.com/m3db/m3em/generated/proto/m3em"
-	"github.com/m3db/m3em/os/exec"
-	mockexec "github.com/m3db/m3em/os/exec/mocks"
-	xgrpc "github.com/m3db/m3em/x/grpc"
+	hb "github.com/m3db/m3/src/m3em/generated/proto/heartbeat"
+	"github.com/m3db/m3/src/m3em/generated/proto/m3em"
+	"github.com/m3db/m3/src/m3em/os/exec"
+	mockexec "github.com/m3db/m3/src/m3em/os/exec/mocks"
+	xgrpc "github.com/m3db/m3/src/m3em/x/grpc"
+	"github.com/m3db/m3x/instrument"
 
 	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3x/instrument"
 	"github.com/stretchr/testify/require"
 	context "golang.org/x/net/context"
 )

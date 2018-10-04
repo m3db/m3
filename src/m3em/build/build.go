@@ -21,7 +21,7 @@
 package build
 
 import (
-	"github.com/m3db/m3em/os/fs"
+	"github.com/m3db/m3/src/m3em/os/fs"
 )
 
 type svcBuild struct {

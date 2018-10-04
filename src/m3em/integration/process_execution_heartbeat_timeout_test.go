@@ -27,8 +27,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3em/build"
-	"github.com/m3db/m3em/node"
+	"github.com/m3db/m3/src/m3em/build"
+	"github.com/m3db/m3/src/m3em/node"
 
 	"github.com/stretchr/testify/require"
 )

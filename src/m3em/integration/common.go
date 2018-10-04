@@ -31,7 +31,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3em/agent"
+	"github.com/m3db/m3/src/m3em/agent"
 
 	"github.com/stretchr/testify/require"
 )
@@ -44,6 +44,7 @@ const (
 type testProgram []byte
 
 var (
+	// nolint: varcheck
 	shortLivedTestProgram = testProgram([]byte(`#!/usr/bin/env bash
 if [ "$#" -ne 2 ]; then
 	echo "Args: $@" >&2
@@ -52,6 +53,7 @@ if [ "$#" -ne 2 ]; then
 fi
 echo -ne "testing random output"`))
 
+	// nolint: varcheck
 	longRunningTestProgram = testProgram([]byte(`#!/usr/bin/env bash
 	echo -ne "testing random output"
 	while true; do sleep 1; done

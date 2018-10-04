@@ -25,10 +25,10 @@ import (
 	"testing"
 	"time"
 
-	hb "github.com/m3db/m3em/generated/proto/heartbeat"
-	xgrpc "github.com/m3db/m3em/x/grpc"
-
+	hb "github.com/m3db/m3/src/m3em/generated/proto/heartbeat"
+	xgrpc "github.com/m3db/m3/src/m3em/x/grpc"
 	"github.com/m3db/m3x/instrument"
+
 	"github.com/stretchr/testify/require"
 )
 

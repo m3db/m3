@@ -21,7 +21,7 @@
 package fs
 
 import (
-	"github.com/m3db/m3em/checksum"
+	"github.com/m3db/m3/src/m3em/checksum"
 )
 
 type bytesReaderIter struct {

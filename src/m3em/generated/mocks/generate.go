@@ -19,21 +19,12 @@
 // THE SOFTWARE.
 
 // mockgen rules for generating mocks for unexported interfaces (file mode)
-//go:generate sh -c "mockgen -package=build -destination=$GOPATH/src/$PACKAGE/build/mock_build.go -source=$GOPATH/src/$PACKAGE/build/types.go"
-//go:generate sh -c "mockgen -package=fs -destination=$GOPATH/src/$PACKAGE/os/fs/mocks/mock_fs.go -source=$GOPATH/src/$PACKAGE/os/fs/types.go"
-//go:generate sh -c "mockgen -package=exec -destination=$GOPATH/src/$PACKAGE/os/exec/mocks/mock_exec.go -source=$GOPATH/src/$PACKAGE/os/exec/types.go"
+//go:generate sh -c "mockgen -package=build -destination=$GOPATH/src/github.com/m3db/m3/src/m3em/build/build_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/m3em/build/types.go"
+//go:generate sh -c "mockgen -package=fs -destination=$GOPATH/src/github.com/m3db/m3/src/m3em/os/fs/mocks/fs_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/m3em/os/fs/types.go"
+//go:generate sh -c "mockgen -package=exec -destination=$GOPATH/src/github.com/m3db/m3/src/m3em/os/exec/mocks/exec_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/m3em/os/exec/types.go"
 
-// mockgen rules for generating mocks for exported interfaces (reflection mode). TBH this mode is sketch af.
-// (1) node package mocks
-//go:generate sh -c "mockgen -package=node -destination=$GOPATH/src/$PACKAGE/node/mocks/mock_node.go github.com/m3db/m3em/node ServiceNode,Options"
-//- delete the vendor prefix due to https://github.com/golang/mock/issues/30
-//go:generate sed -i "" s@github.com/m3db/m3em/vendor/@@g $GOPATH/src/$PACKAGE/node/mocks/mock_node.go
-// (2) m3em proto package mocks
-//go:generate sh -c "mockgen -package=m3em -destination=$GOPATH/src/$PACKAGE/generated/proto/m3em/mock_m3em.go github.com/m3db/m3em/generated/proto/m3em OperatorClient,Operator_PushFileClient,Operator_PullFileClient,Operator_PullFileServer"
-//- delete the vendor prefix due to https://github.com/golang/mock/issues/30
-//go:generate sed -i "" s@github.com/m3db/m3em/vendor/@@g $GOPATH/src/$PACKAGE/generated/proto/m3em/mock_m3em.go
-//- mockgen creates a circle by importing the package within itself
-//go:generate sed -i "" -e s@m3em\.@@g $GOPATH/src/$PACKAGE/generated/proto/m3em/mock_m3em.go
-//go:generate sed -i "" s@.*m3em.*github.com.*@@g $GOPATH/src/$PACKAGE/generated/proto/m3em/mock_m3em.go
+// mockgen rules for generating mocks for exported interfaces (reflection mode)
+//go:generate sh -c "mockgen -package=node github.com/m3db/m3/src/m3em/node ServiceNode,Options | mockclean -pkg github.com/m3db/m3/src/m3em/node -out $GOPATH/src/github.com/m3db/m3/src/m3em/node/node_mock.go"
+//go:generate sh -c "mockgen -package=m3em github.com/m3db/m3/src/m3em/generated/proto/m3em OperatorClient,Operator_PushFileClient,Operator_PullFileClient,Operator_PullFileServer | mockclean -pkg github.com/m3db/m3/src/m3em/generated/proto/m3em -out $GOPATH/src/github.com/m3db/m3/src/m3em/generated/proto/m3em/m3em_mock.go"
 
 package generated

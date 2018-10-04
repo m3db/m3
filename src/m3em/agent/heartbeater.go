@@ -27,10 +27,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	hb "github.com/m3db/m3em/generated/proto/heartbeat"
-
+	hb "github.com/m3db/m3/src/m3em/generated/proto/heartbeat"
 	xclock "github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
+
 	"google.golang.org/grpc"
 )
 

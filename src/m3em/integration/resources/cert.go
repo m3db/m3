@@ -23,7 +23,7 @@
 package resources
 
 import (
-	xgrpc "github.com/m3db/m3em/x/grpc"
+	xgrpc "github.com/m3db/m3/src/m3em/x/grpc"
 
 	"google.golang.org/grpc/credentials"
 )

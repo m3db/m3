@@ -24,7 +24,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/m3db/m3em/checksum"
+	"github.com/m3db/m3/src/m3em/checksum"
+
 	"github.com/stretchr/testify/require"
 )
 

@@ -24,11 +24,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
-
 	"github.com/m3db/m3x/instrument"
 	xretry "github.com/m3db/m3x/retry"
+
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 func TestConfigurationAssignment(t *testing.T) {

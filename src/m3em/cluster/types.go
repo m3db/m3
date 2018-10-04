@@ -23,9 +23,8 @@ package cluster
 import (
 	"time"
 
-	"github.com/m3db/m3em/build"
-	"github.com/m3db/m3em/node"
-
+	"github.com/m3db/m3/src/m3em/build"
+	"github.com/m3db/m3/src/m3em/node"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3x/instrument"
 	xretry "github.com/m3db/m3x/retry"

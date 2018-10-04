@@ -25,13 +25,12 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/m3db/m3em/build"
-	"github.com/m3db/m3em/node"
-	mocknode "github.com/m3db/m3em/node/mocks"
-
-	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3/src/m3em/build"
+	"github.com/m3db/m3/src/m3em/node"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/shard"
+
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -56,9 +55,9 @@ func newDefaultClusterTestOptions(ctrl *gomock.Controller, psvc placement.Servic
 		SetPlacementService(psvc)
 }
 
-func newMockServiceNode(ctrl *gomock.Controller) *mocknode.MockServiceNode {
+func newMockServiceNode(ctrl *gomock.Controller) *node.MockServiceNode {
 	r := defaultRandomVar
-	node := mocknode.NewMockServiceNode(ctrl)
+	node := node.NewMockServiceNode(ctrl)
 	node.EXPECT().ID().AnyTimes().Return(fmt.Sprintf("%d", r.Int()))
 	node.EXPECT().IsolationGroup().AnyTimes().Return(fmt.Sprintf("%d", r.Int()))
 	node.EXPECT().Endpoint().AnyTimes().Return(fmt.Sprintf("%v:%v", r.Int(), r.Int()))
@@ -148,7 +147,7 @@ func TestClusterUninitializedToSetupTransition(t *testing.T) {
 	// fake placement
 	pi, ok := nodes[0].(placement.Instance)
 	require.True(t, ok)
-	mockNode, ok := nodes[0].(*mocknode.MockServiceNode)
+	mockNode, ok := nodes[0].(*node.MockServiceNode)
 	require.True(t, ok)
 	mockNode.EXPECT().SetShards(gomock.Any())
 	mockPlacement := placement.NewMockPlacement(ctrl)
@@ -228,7 +227,7 @@ func TestClusterSetupAddNodeTransition(t *testing.T) {
 	// fake placement
 	pi, ok := nodes[0].(placement.Instance)
 	require.True(t, ok)
-	mockNode, ok := nodes[0].(*mocknode.MockServiceNode)
+	mockNode, ok := nodes[0].(*node.MockServiceNode)
 	require.True(t, ok)
 	mockNode.EXPECT().SetShards(gomock.Any())
 	mockPlacement := placement.NewMockPlacement(ctrl)
@@ -280,7 +279,7 @@ func TestClusterSetupToStart(t *testing.T) {
 	// fake placement
 	pi, ok := nodes[0].(placement.Instance)
 	require.True(t, ok)
-	mockNode, ok := nodes[0].(*mocknode.MockServiceNode)
+	mockNode, ok := nodes[0].(*node.MockServiceNode)
 	require.True(t, ok)
 	mockNode.EXPECT().SetShards(gomock.Any())
 	mockNode.EXPECT().Start().Return(nil)
@@ -323,7 +322,7 @@ func TestClusterSetupToRemoveNode(t *testing.T) {
 	// fake placement
 	pi, ok := nodes[0].(placement.Instance)
 	require.True(t, ok)
-	mockNode, ok := nodes[0].(*mocknode.MockServiceNode)
+	mockNode, ok := nodes[0].(*node.MockServiceNode)
 	require.True(t, ok)
 	mockNode.EXPECT().SetShards(gomock.Any())
 	mockPlacement := placement.NewMockPlacement(ctrl)
@@ -384,7 +383,7 @@ func TestClusterSetupToReplaceNode(t *testing.T) {
 	// fake placement
 	pi, ok := nodes[0].(placement.Instance)
 	require.True(t, ok)
-	mockNode, ok := nodes[0].(*mocknode.MockServiceNode)
+	mockNode, ok := nodes[0].(*node.MockServiceNode)
 	require.True(t, ok)
 	mockNode.EXPECT().SetShards(gomock.Any())
 	mockPlacement := placement.NewMockPlacement(ctrl)
@@ -413,8 +412,8 @@ func TestClusterSetupToReplaceNode(t *testing.T) {
 		nodes[2].(placement.Instance),
 	}
 	mockPlacement.EXPECT().Instances().Return(replacementInstances).AnyTimes()
-	mockNode1 := nodes[1].(*mocknode.MockServiceNode)
-	mockNode2 := nodes[2].(*mocknode.MockServiceNode)
+	mockNode1 := nodes[1].(*node.MockServiceNode)
+	mockNode2 := nodes[2].(*node.MockServiceNode)
 	mockNode1.EXPECT().SetShards(gomock.Any())
 	mockNode2.EXPECT().SetShards(gomock.Any())
 
@@ -465,7 +464,7 @@ func TestClusterRunningToStop(t *testing.T) {
 	require.Equal(t, ClusterStatusUninitialized, cluster.Status())
 
 	cluster.status = ClusterStatusRunning
-	mockNode, ok := nodes[0].(*mocknode.MockServiceNode)
+	mockNode, ok := nodes[0].(*node.MockServiceNode)
 	require.True(t, ok)
 	mockNode.EXPECT().Stop().Return(nil)
 	usedIDMap := map[string]node.ServiceNode{
