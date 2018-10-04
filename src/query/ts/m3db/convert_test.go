@@ -93,5 +93,8 @@ func TestConversion(t *testing.T) {
 func checkTags(t *testing.T, tags ident.TagIterator) {
 	convertedTags, err := storage.FromIdentTagIteratorToTags(tags)
 	require.NoError(t, err)
-	assert.Equal(t, models.Tags{{"baz", testTags["baz"]}, {"foo", testTags["foo"]}}, convertedTags)
+	assert.Equal(t, models.Tags{
+		{Name: []byte("baz"), Value: []byte(testTags["baz"])},
+		{Name: []byte("foo"), Value: []byte(testTags["foo"])},
+	}, convertedTags)
 }

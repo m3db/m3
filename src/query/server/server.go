@@ -39,9 +39,10 @@ import (
 	m3dbcluster "github.com/m3db/m3/src/query/cluster/m3db"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/policy/filter"
+	"github.com/m3db/m3/src/query/pools"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/fanout"
-	"github.com/m3db/m3/src/query/storage/local"
+	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/storage/remote"
 	"github.com/m3db/m3/src/query/stores/m3db"
 	tsdbRemote "github.com/m3db/m3/src/query/tsdb/remote"
@@ -62,11 +63,6 @@ import (
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
-)
-
-const (
-	defaultWorkerPoolCount = 4096
-	defaultWorkerPoolSize  = 20
 )
 
 var (
@@ -141,10 +137,16 @@ func Run(runOpts RunOptions) {
 		enabled        bool
 	)
 
+	workerPool, writeWorkerPool, instrumentOptions, err := pools.BuildWorkerPools(cfg, logger, scope)
+	if err != nil {
+		logger.Fatal("could not create worker pools", zap.Any("error", err))
+	}
+
 	// For grpc backend, we need to setup only the grpc client and a storage accompanying that client.
 	// For m3db backend, we need to make connections to the m3db cluster which generates a session and use the storage with the session.
 	if cfg.Backend == config.GRPCStorageType {
-		backendStorage, enabled, err = remoteClient(cfg)
+		poolWrapper := pools.NewPoolsWrapper(pools.BuildIteratorPools())
+		backendStorage, enabled, err = remoteClient(cfg, poolWrapper, workerPool)
 		if err != nil {
 			logger.Fatal("unable to setup grpc backend", zap.Error(err))
 		}
@@ -155,7 +157,14 @@ func Run(runOpts RunOptions) {
 		logger.Info("setup grpc backend")
 	} else {
 		var cleanup cleanupFn
-		backendStorage, clusterClient, downsampler, cleanup, err = newM3DBStorage(runOpts, cfg, logger, scope)
+		backendStorage, clusterClient, downsampler, cleanup, err = newM3DBStorage(
+			runOpts,
+			cfg,
+			logger,
+			workerPool,
+			writeWorkerPool,
+			instrumentOptions,
+		)
 		if err != nil {
 			logger.Fatal("unable to setup m3db backend", zap.Error(err))
 		}
@@ -196,18 +205,27 @@ func Run(runOpts RunOptions) {
 		}
 	}()
 
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-
 	var interruptCh <-chan error = make(chan error)
 	if runOpts.InterruptCh != nil {
 		interruptCh = runOpts.InterruptCh
 	}
 
-	select {
-	case <-sigChan:
-	case <-interruptCh:
+	var interruptErr error
+	if runOpts.DBConfig != nil {
+		interruptErr = <-interruptCh
+	} else {
+		// Only use this if running standalone, as otherwise it will
+		// obfuscate signal channel for the db
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+		select {
+		case sig := <-sigChan:
+			interruptErr = fmt.Errorf("%v", sig)
+		case interruptErr = <-interruptCh:
+		}
 	}
+
+	logger.Info(fmt.Sprintf("interrupt: %s", interruptErr))
 }
 
 // make connections to the m3db cluster(s) and generate sessions for those clusters along with the storage
@@ -215,7 +233,9 @@ func newM3DBStorage(
 	runOpts RunOptions,
 	cfg config.Configuration,
 	logger *zap.Logger,
-	scope tally.Scope,
+	workerPool pool.ObjectPool,
+	writeWorkerPool xsync.PooledWorkerPool,
+	instrumentOptions instrument.Options,
 ) (storage.Storage, clusterclient.Client, downsample.Downsampler, cleanupFn, error) {
 	var clusterClientCh <-chan clusterclient.Client
 	if runOpts.ClusterClient != nil {
@@ -251,37 +271,12 @@ func newM3DBStorage(
 		}
 	}
 
-	clusters, err := initClusters(cfg, runOpts.DBClient, logger)
+	clusters, poolWrapper, err := initClusters(cfg, runOpts.DBClient, logger)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
 
-	workerPoolCount := cfg.DecompressWorkerPoolCount
-	if workerPoolCount == 0 {
-		workerPoolCount = defaultWorkerPoolCount
-	}
-
-	workerPoolSize := cfg.DecompressWorkerPoolSize
-	if workerPoolSize == 0 {
-		workerPoolSize = defaultWorkerPoolSize
-	}
-
-	instrumentOptions := instrument.NewOptions().
-		SetZapLogger(logger).
-		SetMetricsScope(scope.SubScope("series-decompression-pool"))
-
-	poolOptions := pool.NewObjectPoolOptions().
-		SetSize(workerPoolCount).
-		SetInstrumentOptions(instrumentOptions)
-
-	objectPool := pool.NewObjectPool(poolOptions)
-	objectPool.Init(func() interface{} {
-		workerPool := xsync.NewWorkerPool(workerPoolSize)
-		workerPool.Init()
-		return workerPool
-	})
-
-	fanoutStorage, storageCleanup, err := newStorages(logger, clusters, cfg, objectPool)
+	fanoutStorage, storageCleanup, err := newStorages(logger, clusters, cfg, poolWrapper, workerPool, writeWorkerPool)
 	if err != nil {
 		return nil, nil, nil, nil, errors.Wrap(err, "unable to set up storages")
 	}
@@ -361,11 +356,12 @@ func newDownsampler(
 				SubScope("tag-decoder-pool")))
 
 	downsampler, err := downsample.NewDownsampler(downsample.DownsamplerOptions{
-		Storage:               storage,
-		RulesKVStore:          kvStore,
-		AutoMappingRules:      autoMappingRules,
-		ClockOptions:          clock.NewOptions(),
-		InstrumentOptions:     instrumentOpts,
+		Storage:          storage,
+		RulesKVStore:     kvStore,
+		AutoMappingRules: autoMappingRules,
+		ClockOptions:     clock.NewOptions(),
+		// TODO: remove after https://github.com/m3db/m3/issues/992 is fixed
+		InstrumentOptions:     instrumentOpts.SetMetricsScope(tally.NoopScope),
 		TagEncoderOptions:     tagEncoderOptions,
 		TagDecoderOptions:     tagDecoderOptions,
 		TagEncoderPoolOptions: tagEncoderPoolOptions,
@@ -379,7 +375,7 @@ func newDownsampler(
 }
 
 func newDownsamplerAutoMappingRules(
-	namespaces []local.ClusterNamespace,
+	namespaces []m3.ClusterNamespace,
 ) ([]downsample.MappingRule, error) {
 	var autoMappingRules []downsample.MappingRule
 	for _, namespace := range namespaces {
@@ -409,19 +405,24 @@ func newDownsamplerAutoMappingRules(
 	return autoMappingRules, nil
 }
 
-func initClusters(cfg config.Configuration, dbClientCh <-chan client.Client, logger *zap.Logger) (local.Clusters, error) {
+func initClusters(
+	cfg config.Configuration,
+	dbClientCh <-chan client.Client,
+	logger *zap.Logger,
+) (m3.Clusters, *pools.PoolWrapper, error) {
 	var (
-		clusters local.Clusters
-		err      error
+		clusters    m3.Clusters
+		poolWrapper *pools.PoolWrapper
+		err         error
 	)
 
 	if len(cfg.Clusters) > 0 {
-		opts := local.ClustersStaticConfigurationOptions{
+		opts := m3.ClustersStaticConfigurationOptions{
 			AsyncSessions: true,
 		}
 		clusters, err = cfg.Clusters.NewClusters(opts)
 		if err != nil {
-			return nil, errors.Wrap(err, "unable to connect to clusters")
+			return nil, nil, errors.Wrap(err, "unable to connect to clusters")
 		}
 	} else {
 		localCfg := cfg.Local
@@ -430,19 +431,29 @@ func initClusters(cfg config.Configuration, dbClientCh <-chan client.Client, log
 		}
 
 		if dbClientCh == nil {
-			return nil, errors.New("no clusters configured and not running local cluster")
+			return nil, nil, errors.New("no clusters configured and not running local cluster")
 		}
+
+		sessionInitChan := make(chan struct{})
 		session := m3db.NewAsyncSession(func() (client.Client, error) {
 			return <-dbClientCh, nil
-		}, nil)
-		clusters, err = local.NewClusters(local.UnaggregatedClusterNamespaceDefinition{
+		}, sessionInitChan)
+
+		clusters, err = m3.NewClusters(m3.UnaggregatedClusterNamespaceDefinition{
 			NamespaceID: ident.StringID(localCfg.Namespace),
 			Session:     session,
 			Retention:   localCfg.Retention,
 		})
+
 		if err != nil {
-			return nil, errors.Wrap(err, "unable to connect to clusters")
+			return nil, nil, errors.Wrap(err, "unable to connect to clusters")
 		}
+
+		poolWrapper = pools.NewAsyncPoolsWrapper()
+		go func() {
+			<-sessionInitChan
+			poolWrapper.Init(session.IteratorPools())
+		}()
 	}
 
 	for _, namespace := range clusters.ClusterNamespaces() {
@@ -450,23 +461,25 @@ func initClusters(cfg config.Configuration, dbClientCh <-chan client.Client, log
 			zap.String("namespace", namespace.NamespaceID().String()))
 	}
 
-	return clusters, nil
+	return clusters, poolWrapper, nil
 }
 
 func newStorages(
 	logger *zap.Logger,
-	clusters local.Clusters,
+	clusters m3.Clusters,
 	cfg config.Configuration,
+	poolWrapper *pools.PoolWrapper,
 	workerPool pool.ObjectPool,
+	writeWorkerPool xsync.PooledWorkerPool,
 ) (storage.Storage, cleanupFn, error) {
 	cleanup := func() error { return nil }
 
-	localStorage := local.NewStorage(clusters, workerPool)
+	localStorage := m3.NewStorage(clusters, workerPool, writeWorkerPool)
 	stores := []storage.Storage{localStorage}
 	remoteEnabled := false
 	if cfg.RPC != nil && cfg.RPC.Enabled {
 		logger.Info("rpc enabled")
-		server, err := startGrpcServer(logger, localStorage, cfg.RPC)
+		server, err := startGrpcServer(logger, localStorage, poolWrapper, cfg.RPC)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -476,7 +489,7 @@ func newStorages(
 			return nil
 		}
 
-		remoteStorage, enabled, err := remoteClient(cfg)
+		remoteStorage, enabled, err := remoteClient(cfg, poolWrapper, workerPool)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -496,13 +509,17 @@ func newStorages(
 	return fanoutStorage, cleanup, nil
 }
 
-func remoteClient(cfg config.Configuration) (storage.Storage, bool, error) {
+func remoteClient(
+	cfg config.Configuration,
+	poolWrapper *pools.PoolWrapper,
+	workerPool pool.ObjectPool,
+) (storage.Storage, bool, error) {
 	if cfg.RPC == nil {
 		return nil, false, nil
 	}
 
 	if remotes := cfg.RPC.RemoteListenAddresses; len(remotes) > 0 {
-		client, err := tsdbRemote.NewGrpcClient(remotes)
+		client, err := tsdbRemote.NewGrpcClient(remotes, poolWrapper, workerPool)
 		if err != nil {
 			return nil, false, err
 		}
@@ -514,9 +531,14 @@ func remoteClient(cfg config.Configuration) (storage.Storage, bool, error) {
 	return nil, false, nil
 }
 
-func startGrpcServer(logger *zap.Logger, storage storage.Storage, cfg *config.RPCConfiguration) (*grpc.Server, error) {
+func startGrpcServer(
+	logger *zap.Logger,
+	storage m3.Storage,
+	poolWrapper *pools.PoolWrapper,
+	cfg *config.RPCConfiguration,
+) (*grpc.Server, error) {
 	logger.Info("creating gRPC server")
-	server := tsdbRemote.CreateNewGrpcServer(storage)
+	server := tsdbRemote.CreateNewGrpcServer(storage, poolWrapper)
 	waitForStart := make(chan struct{})
 	var startErr error
 	go func() {

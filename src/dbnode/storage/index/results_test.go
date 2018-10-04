@@ -21,9 +21,11 @@
 package index
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
+	xtest "github.com/m3db/m3/src/x/test"
 	"github.com/m3db/m3x/ident"
 
 	"github.com/stretchr/testify/require"
@@ -102,18 +104,45 @@ func TestResultsInsertContains(t *testing.T) {
 
 func TestResultsInsertCopies(t *testing.T) {
 	res := NewResults(testOpts)
-	dValid := doc.Document{ID: []byte("abc")}
+	dValid := doc.Document{ID: []byte("abc"), Fields: []doc.Field{
+		doc.Field{Name: []byte("name"), Value: []byte("value")},
+	}}
 	added, size, err := res.Add(dValid)
 	require.NoError(t, err)
 	require.True(t, added)
 	require.Equal(t, 1, size)
 
-	for idx := range dValid.ID {
-		dValid.ID[idx] = byte('a')
+	found := false
+	// our genny generated maps don't provide access to MapEntry directly,
+	// so we iterate over the map to find the added entry. Could avoid this
+	// in the future if we expose `func (m *Map) Entry(k Key) Entry {}`
+	for _, entry := range res.Map().Iter() {
+		// see if this key has the same value as the added document's ID.
+		key := entry.Key().Bytes()
+		if !bytes.Equal(dValid.ID, key) {
+			continue
+		}
+		found = true
+		// ensure the underlying []byte for ID/Fields is at a different address
+		// than the original.
+		require.False(t, xtest.ByteSlicesBackedBySameData(key, dValid.ID))
+		tags := entry.Value().Values()
+		for _, f := range dValid.Fields {
+			fName := f.Name
+			fValue := f.Value
+			for _, tag := range tags {
+				tName := tag.Name.Bytes()
+				tValue := tag.Value.Bytes()
+				if !bytes.Equal(fName, tName) || !bytes.Equal(fValue, tValue) {
+					continue
+				}
+				require.False(t, xtest.ByteSlicesBackedBySameData(fName, tName))
+				require.False(t, xtest.ByteSlicesBackedBySameData(fValue, tValue))
+			}
+		}
 	}
 
-	_, ok := res.Map().Get(ident.StringID("abc"))
-	require.True(t, ok)
+	require.True(t, found)
 }
 
 func TestResultsReset(t *testing.T) {

@@ -47,8 +47,8 @@ const (
 	minBlockSize       = 15 * time.Minute
 	maxBlockSize       = 12 * time.Hour
 	maxPoints          = 100
-	minSuccessfulTests = 8
-	maxFlushWaitTime   = time.Minute
+	minSuccessfulTests = 4
+	maxFlushWaitTime   = 30 * time.Second
 )
 
 // This integration test uses property testing to make sure that the node
@@ -206,11 +206,18 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 					log.Infof("verified data in database equals expected data")
 					if input.waitForFlushFiles {
 						log.Infof("Waiting for data files to be flushed")
-						now := setup.getNowFn()
-						latestFlushTime := now.Truncate(ns1BlockSize).Add(-ns1BlockSize)
-						expectedFlushedData := datapoints.before(latestFlushTime.Add(-bufferPast)).toSeriesMap(ns1BlockSize)
-						err := waitUntilDataFilesFlushed(
-							filePathPrefix, setup.shardSet, nsID, expectedFlushedData, maxFlushWaitTime)
+						var (
+							now                       = setup.getNowFn()
+							endOfLatestFlushableBlock = retention.FlushTimeEnd(ns1ROpts, now).
+								// Add block size because FlushTimeEnd will return the beginning of the
+								// latest flushable block.
+								Add(ns1BlockSize)
+								// Any data that falls within or before the end the last flushable block should
+								// be available on disk.
+							expectedFlushedData = datapoints.before(endOfLatestFlushableBlock).toSeriesMap(ns1BlockSize)
+							err                 = waitUntilDataFilesFlushed(
+								filePathPrefix, setup.shardSet, nsID, expectedFlushedData, maxFlushWaitTime)
+						)
 						if err != nil {
 							return false, fmt.Errorf("error waiting for data files to flush: %s", err)
 						}
@@ -274,8 +281,7 @@ func genPropTestInputs(blockStart time.Time) gopter.Gen {
 		gen.IntRange(1, maxPoints),
 		gen.Bool(),
 		gen.Bool(),
-	).Map(func(val interface{}) propTestInput {
-		inputs := val.([]interface{})
+	).Map(func(inputs []interface{}) propTestInput {
 		return propTestInput{
 			blockSize:            time.Duration(inputs[0].(int64)),
 			bufferPast:           time.Duration(inputs[1].(int64)),

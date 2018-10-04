@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/test/seriesiter"
+	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
@@ -44,13 +45,13 @@ func verifyExpandSeries(t *testing.T, ctrl *gomock.Controller, num int, pools po
 	testTags := seriesiter.GenerateTag()
 	iters := seriesiter.NewMockSeriesIters(ctrl, testTags, num, 2)
 
-	results, err := SeriesIteratorsToFetchResult(iters, ident.StringID("strID"), pools)
+	results, err := SeriesIteratorsToFetchResult(iters, pools, true)
 	assert.NoError(t, err)
 
 	require.NotNil(t, results)
 	require.NotNil(t, results.SeriesList)
 	require.Len(t, results.SeriesList, num)
-	expectedTags := models.Tags{{testTags.Name.String(), testTags.Value.String()}}
+	expectedTags := models.Tags{{Name: testTags.Name.Bytes(), Value: testTags.Value.Bytes()}}
 	for i := 0; i < num; i++ {
 		series := results.SeriesList[i]
 		require.NotNil(t, series)
@@ -135,10 +136,15 @@ func TestFailingExpandSeriesValidPools(t *testing.T) {
 	mockIters.EXPECT().Len().Return(len(iters)).Times(1)
 	mockIters.EXPECT().Close().Times(1)
 
-	result, err := SeriesIteratorsToFetchResult(mockIters, ident.StringID("strID"), objectPool)
+	result, err := SeriesIteratorsToFetchResult(mockIters, objectPool, true)
 	require.Nil(t, result)
 	require.EqualError(t, err, "error")
 }
+
+var (
+	name  = []byte("foo")
+	value = []byte("bar")
+)
 
 func TestPromReadQueryToM3(t *testing.T) {
 	tests := []struct {
@@ -150,54 +156,54 @@ func TestPromReadQueryToM3(t *testing.T) {
 		{
 			name: "single exact match",
 			matchers: []*prompb.LabelMatcher{
-				&prompb.LabelMatcher{Type: prompb.LabelMatcher_EQ, Name: "foo", Value: "bar"},
+				&prompb.LabelMatcher{Type: prompb.LabelMatcher_EQ, Name: name, Value: value},
 			},
 			expected: []*models.Matcher{
-				&models.Matcher{Type: models.MatchEqual, Name: "foo", Value: "bar"},
+				&models.Matcher{Type: models.MatchEqual, Name: name, Value: value},
 			},
 		},
 		{
 			name: "single exact match negated",
 			matchers: []*prompb.LabelMatcher{
-				&prompb.LabelMatcher{Type: prompb.LabelMatcher_NEQ, Name: "foo", Value: "bar"},
+				&prompb.LabelMatcher{Type: prompb.LabelMatcher_NEQ, Name: name, Value: value},
 			},
 			expected: []*models.Matcher{
-				&models.Matcher{Type: models.MatchNotEqual, Name: "foo", Value: "bar"},
+				&models.Matcher{Type: models.MatchNotEqual, Name: name, Value: value},
 			},
 		},
 		{
 			name: "single regexp match",
 			matchers: []*prompb.LabelMatcher{
-				&prompb.LabelMatcher{Type: prompb.LabelMatcher_RE, Name: "foo", Value: "bar"},
+				&prompb.LabelMatcher{Type: prompb.LabelMatcher_RE, Name: name, Value: value},
 			},
 			expected: []*models.Matcher{
-				&models.Matcher{Type: models.MatchRegexp, Name: "foo", Value: "bar"},
+				&models.Matcher{Type: models.MatchRegexp, Name: name, Value: value},
 			},
 		},
 		{
 			name: "single regexp match negated",
 			matchers: []*prompb.LabelMatcher{
-				&prompb.LabelMatcher{Type: prompb.LabelMatcher_NRE, Name: "foo", Value: "bar"},
+				&prompb.LabelMatcher{Type: prompb.LabelMatcher_NRE, Name: name, Value: value},
 			},
 			expected: []*models.Matcher{
-				&models.Matcher{Type: models.MatchNotRegexp, Name: "foo", Value: "bar"},
+				&models.Matcher{Type: models.MatchNotRegexp, Name: name, Value: value},
 			},
 		},
 		{
 			name: "mixed exact match and regexp match",
 			matchers: []*prompb.LabelMatcher{
-				&prompb.LabelMatcher{Type: prompb.LabelMatcher_EQ, Name: "foo", Value: "bar"},
-				&prompb.LabelMatcher{Type: prompb.LabelMatcher_RE, Name: "baz", Value: "qux"},
+				&prompb.LabelMatcher{Type: prompb.LabelMatcher_EQ, Name: name, Value: value},
+				&prompb.LabelMatcher{Type: prompb.LabelMatcher_RE, Name: []byte("baz"), Value: []byte("qux")},
 			},
 			expected: []*models.Matcher{
-				&models.Matcher{Type: models.MatchEqual, Name: "foo", Value: "bar"},
-				&models.Matcher{Type: models.MatchRegexp, Name: "baz", Value: "qux"},
+				&models.Matcher{Type: models.MatchEqual, Name: name, Value: value},
+				&models.Matcher{Type: models.MatchRegexp, Name: []byte("baz"), Value: []byte("qux")},
 			},
 		},
 		{
 			name: "unrecognized matcher type",
 			matchers: []*prompb.LabelMatcher{
-				&prompb.LabelMatcher{Type: prompb.LabelMatcher_Type(math.MaxInt32), Name: "foo", Value: "bar"},
+				&prompb.LabelMatcher{Type: prompb.LabelMatcher_Type(math.MaxInt32), Name: name, Value: value},
 			},
 			expectError: true,
 		},
@@ -227,5 +233,48 @@ func TestPromReadQueryToM3(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+var (
+	benchResult *prompb.QueryResult
+)
+
+// BenchmarkFetchResultToPromResult-8   	     100	  10563444 ns/op	25368543 B/op	    4443 allocs/op
+func BenchmarkFetchResultToPromResult(b *testing.B) {
+	var (
+		numSeries              = 1000
+		numDatapointsPerSeries = 1000
+		numTagsPerSeries       = 10
+		fr                     = &FetchResult{
+			SeriesList: make(ts.SeriesList, 0, numSeries),
+		}
+	)
+
+	for i := 0; i < numSeries; i++ {
+		values := make(ts.Datapoints, 0, numDatapointsPerSeries)
+		for i := 0; i < numDatapointsPerSeries; i++ {
+			values = append(values, ts.Datapoint{
+				Timestamp: time.Time{},
+				Value:     float64(i),
+			})
+		}
+
+		tags := make(models.Tags, 0, numTagsPerSeries)
+		for i := 0; i < numTagsPerSeries; i++ {
+			tags = append(tags, models.Tag{
+				Name:  []byte(fmt.Sprintf("name-%d", i)),
+				Value: []byte(fmt.Sprintf("value-%d", i)),
+			})
+		}
+
+		series := ts.NewSeries(
+			fmt.Sprintf("series-%d", i), values, tags)
+
+		fr.SeriesList = append(fr.SeriesList, series)
+	}
+
+	for i := 0; i < b.N; i++ {
+		benchResult = FetchResultToPromResult(fr)
 	}
 }

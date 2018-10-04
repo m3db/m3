@@ -58,9 +58,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3/src/dbnode/x/mmap"
 	"github.com/m3db/m3/src/dbnode/x/tchannel"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/x/mmap"
 	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3cluster/generated/proto/commonpb"
@@ -80,10 +80,8 @@ import (
 )
 
 const (
-	bootstrapConfigInitTimeout        = 10 * time.Second
-	serverGracefulCloseTimeout        = 10 * time.Second
-	defaultNamespaceResolutionTimeout = time.Minute
-	defaultTopologyResolutionTimeout  = time.Minute
+	bootstrapConfigInitTimeout = 10 * time.Second
+	serverGracefulCloseTimeout = 10 * time.Second
 )
 
 // RunOptions provides options for running the server
@@ -150,12 +148,14 @@ func Run(runOpts RunOptions) {
 	capnslog.SetGlobalLogLevel(capnslog.WARNING)
 
 	// Presence of KV server config indicates embedded etcd cluster
-	if cfg.EnvironmentConfig.SeedNodes != nil {
+	if cfg.EnvironmentConfig.SeedNodes == nil {
+		logger.Info("no seed nodes set, using dedicated etcd cluster")
+	} else {
 		// Default etcd client clusters if not set already
 		clusters := cfg.EnvironmentConfig.Service.ETCDClusters
+		seedNodes := cfg.EnvironmentConfig.SeedNodes.InitialCluster
 		if len(clusters) == 0 {
-			endpoints, err := config.InitialClusterEndpoints(cfg.EnvironmentConfig.SeedNodes.InitialCluster)
-
+			endpoints, err := config.InitialClusterEndpoints(seedNodes)
 			if err != nil {
 				logger.Fatalf("unable to create etcd clusters: %v", err)
 			}
@@ -163,15 +163,25 @@ func Run(runOpts RunOptions) {
 			zone := cfg.EnvironmentConfig.Service.Zone
 
 			logger.Infof("using seed nodes etcd cluster: zone=%s, endpoints=%v", zone, endpoints)
-
 			cfg.EnvironmentConfig.Service.ETCDClusters = []etcd.ClusterConfig{etcd.ClusterConfig{
 				Zone:      zone,
 				Endpoints: endpoints,
 			}}
 		}
 
-		if config.IsSeedNode(cfg.EnvironmentConfig.SeedNodes.InitialCluster, hostID) {
-			logger.Info("is a seed node; starting etcd server")
+		seedNodeHostIDs := make([]string, 0, len(seedNodes))
+		for _, entry := range seedNodes {
+			seedNodeHostIDs = append(seedNodeHostIDs, entry.HostID)
+		}
+		logger.WithFields(
+			xlog.NewField("hostID", hostID),
+			xlog.NewField("seedNodeHostIDs", fmt.Sprintf("%v", seedNodeHostIDs)),
+		).Info("resolving seed node configuration")
+
+		if !config.IsSeedNode(seedNodes, hostID) {
+			logger.Info("not a seed node, using cluster seed nodes")
+		} else {
+			logger.Info("seed node, starting etcd server")
 
 			etcdCfg, err := config.NewEtcdEmbedConfig(cfg)
 			if err != nil {
@@ -366,21 +376,9 @@ func Run(runOpts RunOptions) {
 	if cfg.EnvironmentConfig.Static == nil {
 		logger.Info("creating dynamic config service client with m3cluster")
 
-		namespaceResolutionTimeout := cfg.EnvironmentConfig.NamespaceResolutionTimeout
-		if namespaceResolutionTimeout <= 0 {
-			namespaceResolutionTimeout = defaultNamespaceResolutionTimeout
-		}
-
-		topologyResolutionTimeout := cfg.EnvironmentConfig.TopologyResolutionTimeout
-		if topologyResolutionTimeout <= 0 {
-			topologyResolutionTimeout = defaultTopologyResolutionTimeout
-		}
-
 		envCfg, err = cfg.EnvironmentConfig.Configure(environment.ConfigurationParameters{
-			InstrumentOpts:             iopts,
-			HashingSeed:                cfg.Hashing.Seed,
-			NamespaceResolutionTimeout: namespaceResolutionTimeout,
-			TopologyResolutionTimeout:  topologyResolutionTimeout,
+			InstrumentOpts: iopts,
+			HashingSeed:    cfg.Hashing.Seed,
 		})
 		if err != nil {
 			logger.Fatalf("could not initialize dynamic config: %v", err)

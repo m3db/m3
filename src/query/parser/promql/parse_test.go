@@ -48,7 +48,6 @@ func TestDAGWithCountOp(t *testing.T) {
 	assert.Len(t, edges, 1)
 	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"), "fetch should be the parent")
 	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"), "aggregation should be the child")
-
 }
 
 func TestDAGWithEmptyExpression(t *testing.T) {
@@ -240,13 +239,17 @@ var temporalParseTests = []struct {
 	q            string
 	expectedType string
 }{
-	{"avg_over_time(up[5m])", temporal.AvgTemporalType},
-	{"count_over_time(up[5m])", temporal.CountTemporalType},
-	{"min_over_time(up[5m])", temporal.MinTemporalType},
-	{"max_over_time(up[5m])", temporal.MaxTemporalType},
-	{"sum_over_time(up[5m])", temporal.SumTemporalType},
-	{"stddev_over_time(up[5m])", temporal.StdDevTemporalType},
-	{"stdvar_over_time(up[5m])", temporal.StdVarTemporalType},
+	{"avg_over_time(up[5m])", temporal.AvgType},
+	{"count_over_time(up[5m])", temporal.CountType},
+	{"min_over_time(up[5m])", temporal.MinType},
+	{"max_over_time(up[5m])", temporal.MaxType},
+	{"sum_over_time(up[5m])", temporal.SumType},
+	{"stddev_over_time(up[5m])", temporal.StdDevType},
+	{"stdvar_over_time(up[5m])", temporal.StdVarType},
+	{"irate(up[5m])", temporal.IRateType},
+	{"idelta(up[5m])", temporal.IDeltaType},
+	{"resets(up[5m])", temporal.ResetsType},
+	{"changes(up[5m])", temporal.ChangesType},
 }
 
 func TestTemporalParses(t *testing.T) {

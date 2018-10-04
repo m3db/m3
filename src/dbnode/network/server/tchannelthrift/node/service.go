@@ -73,7 +73,10 @@ var (
 	errIllegalTagValues = errors.New("illegal tag values specified")
 
 	// errRequiresDatapoint raised when a datapoint is not provided
-	errRequiresDatapoint = fmt.Errorf("requires datapoint")
+	errRequiresDatapoint = errors.New("requires datapoint")
+
+	// errNodeIsNotBootstrapped
+	errNodeIsNotBootstrapped = errors.New("node is not bootstrapped")
 )
 
 type serviceMetrics struct {
@@ -231,6 +234,18 @@ func (s *service) Health(ctx thrift.Context) (*rpc.NodeHealthResult_, error) {
 	}
 
 	return health, nil
+}
+
+// Bootstrapped is design to be used with cluster management tools like k8 that expect an endpoint
+// that will return success if the node is healthy/bootstrapped and an error if not. We added this
+// endpoint because while the Health endpoint provides the same information, this endpoint does not
+// require parsing the response to determine if the node is bootstrapped or not.
+func (s *service) Bootstrapped(ctx thrift.Context) (*rpc.NodeBootstrappedResult_, error) {
+	if bootstrapped := s.db.IsBootstrapped(); !bootstrapped {
+		return nil, convert.ToRPCError(errNodeIsNotBootstrapped)
+	}
+
+	return &rpc.NodeBootstrappedResult_{}, nil
 }
 
 func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryResult_, error) {

@@ -32,7 +32,7 @@ import (
 // Handler represents a generic handler for namespace endpoints.
 type Handler struct {
 	// This is used by other namespace Handlers
-	// nolint: structcheck, megacheck
+	// nolint: structcheck, megacheck, unused
 	client clusterclient.Client
 }
 

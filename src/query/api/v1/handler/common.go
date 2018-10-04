@@ -36,12 +36,18 @@ import (
 	"go.uber.org/zap"
 )
 
+// HeaderKeyType is the type for the header key
+type HeaderKeyType int
+
 const (
 	// RoutePrefixV1 is the v1 prefix for all coordinator routes
 	RoutePrefixV1 = "/api/v1"
 
 	durationSuffix = "Duration"
 	nanosSuffix    = "Nanos"
+
+	// HeaderKey is the key which headers will be added to in the request context
+	HeaderKey HeaderKeyType = iota
 )
 
 var (

@@ -375,6 +375,23 @@ definitions:
         type: "string"
       port:
         type: "integer"
+  InstanceRequest:
+    type: "object"
+    properties:
+      id:
+        type: "string"
+      isolationGroup:
+        type: "string"
+      zone:
+        type: "string"
+      weight:
+        type: "integer"
+      endpoint:
+        type: "string"
+      hostname:
+        type: "string"
+      port:
+        type: "integer"
   Shard:
     type: "object"
     properties:
@@ -402,14 +419,14 @@ definitions:
       instances:
         type: "array"
         items:
-          $ref: "#/definitions/Instance"
+          $ref: "#/definitions/InstanceRequest"
   PlacementInitRequest:
     type: "object"
     properties:
       instances:
         type: "array"
         items:
-          $ref: "#/definitions/Instance"
+          $ref: "#/definitions/InstanceRequest"
       numShards:
         type: "integer"
         format: "int32"

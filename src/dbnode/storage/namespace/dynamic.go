@@ -34,7 +34,6 @@ import (
 )
 
 var (
-	errInitTimeOut           = errors.New("timed out waiting for initial value")
 	errRegistryAlreadyClosed = errors.New("registry already closed")
 	errInvalidRegistry       = errors.New("could not parse latest value from config service")
 )
@@ -108,11 +107,10 @@ func newDynamicRegistry(opts DynamicOptions) (Registry, error) {
 	}
 
 	logger := opts.InstrumentOptions().Logger()
-	if err = waitOnInit(watch, opts.InitTimeout()); err != nil {
-		logger.Errorf("dynamic namespace registry initialization timed out in %s: %v",
-			opts.InitTimeout().String(), err)
-		return nil, err
-	}
+	logger.Info(`waiting for dynamic namespace registry initialization.
+		If this takes a long time, make sure that a namespace is configured`)
+	<-watch.C()
+	logger.Info("initial namespace value received")
 
 	initValue := watch.Get()
 	m, err := getMapFromUpdate(initValue)
@@ -236,18 +234,6 @@ func (r *dynamicRegistry) Close() error {
 	r.kvWatch.Close()
 	r.watchable.Close()
 	return nil
-}
-
-func waitOnInit(w kv.ValueWatch, d time.Duration) error {
-	if d <= 0 {
-		return nil
-	}
-	select {
-	case <-w.C():
-		return nil
-	case <-time.After(d):
-		return errInitTimeOut
-	}
 }
 
 func getMapFromUpdate(val kv.Value) (Map, error) {

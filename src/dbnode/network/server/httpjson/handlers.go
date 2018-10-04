@@ -39,7 +39,6 @@ var (
 	errRequestMustBeGet   = xerrors.NewInvalidParamsError(errors.New("request without request params must be GET"))
 	errRequestMustBePost  = xerrors.NewInvalidParamsError(errors.New("request with request params must be POST"))
 	errInvalidRequestBody = xerrors.NewInvalidParamsError(errors.New("request contains an invalid request body"))
-	errEncodeResponseBody = errors.New("failed to encode response body")
 )
 
 type respSuccess struct {
@@ -203,7 +202,7 @@ func RegisterHandlers(mux *http.ServeMux, service interface{}, opts ServerOption
 
 			buff := bytes.NewBuffer(nil)
 			if err := json.NewEncoder(buff).Encode(ret[0].Interface()); err != nil {
-				writeError(w, errEncodeResponseBody)
+				writeError(w, fmt.Errorf("failed to encode response body: %v", err))
 				return
 			}
 

@@ -37,7 +37,7 @@ type Scalar struct {
 }
 
 // NewScalar creates a scalar block containing val over the bounds
-func NewScalar(val float64, bounds Bounds) Block {
+func NewScalar(val float64, bounds models.Bounds) Block {
 	return &Scalar{
 		val: val,
 		meta: Metadata{
@@ -45,6 +45,11 @@ func NewScalar(val float64, bounds Bounds) Block {
 			Tags:   models.EmptyTags(),
 		},
 	}
+}
+
+// Unconsolidated returns the unconsolidated version for the block
+func (b *Scalar) Unconsolidated() (UnconsolidatedBlock, error) {
+	return nil, fmt.Errorf("unconsolidated view not implemented for scalar block, meta: %s", b.meta)
 }
 
 // StepIter returns a StepIterator

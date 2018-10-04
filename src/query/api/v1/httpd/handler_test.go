@@ -32,7 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
 	"github.com/m3db/m3/src/query/executor"
-	"github.com/m3db/m3/src/query/test/local"
+	"github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/query/util/logging"
 
 	"github.com/golang/mock/gomock"
@@ -47,7 +47,7 @@ func TestPromRemoteReadGet(t *testing.T) {
 	req, _ := http.NewRequest("GET", remote.PromReadURL, nil)
 	res := httptest.NewRecorder()
 	ctrl := gomock.NewController(t)
-	storage, _ := local.NewStorageAndSession(t, ctrl)
+	storage, _ := m3.NewStorageAndSession(t, ctrl)
 
 	h, err := NewHandler(storage, nil, executor.NewEngine(storage), nil,
 		config.Configuration{}, nil, tally.NewTestScope("", nil))
@@ -64,7 +64,7 @@ func TestPromRemoteReadPost(t *testing.T) {
 	req, _ := http.NewRequest("POST", remote.PromReadURL, nil)
 	res := httptest.NewRecorder()
 	ctrl := gomock.NewController(t)
-	storage, _ := local.NewStorageAndSession(t, ctrl)
+	storage, _ := m3.NewStorageAndSession(t, ctrl)
 
 	h, err := NewHandler(storage, nil, executor.NewEngine(storage), nil,
 		config.Configuration{}, nil, tally.NewTestScope("", nil))
@@ -81,7 +81,7 @@ func TestPromNativeReadGet(t *testing.T) {
 	req, _ := http.NewRequest("GET", native.PromReadURL, nil)
 	res := httptest.NewRecorder()
 	ctrl := gomock.NewController(t)
-	storage, _ := local.NewStorageAndSession(t, ctrl)
+	storage, _ := m3.NewStorageAndSession(t, ctrl)
 
 	h, err := NewHandler(storage, nil, executor.NewEngine(storage), nil,
 		config.Configuration{}, nil, tally.NewTestScope("", nil))
@@ -97,7 +97,7 @@ func TestPromNativeReadPost(t *testing.T) {
 	req, _ := http.NewRequest("POST", native.PromReadURL, nil)
 	res := httptest.NewRecorder()
 	ctrl := gomock.NewController(t)
-	storage, _ := local.NewStorageAndSession(t, ctrl)
+	storage, _ := m3.NewStorageAndSession(t, ctrl)
 
 	h, err := NewHandler(storage, nil, executor.NewEngine(storage), nil,
 		config.Configuration{}, nil, tally.NewTestScope("", nil))
@@ -113,7 +113,7 @@ func TestJSONWritePost(t *testing.T) {
 	req, _ := http.NewRequest("POST", m3json.WriteJSONURL, nil)
 	res := httptest.NewRecorder()
 	ctrl := gomock.NewController(t)
-	storage, _ := local.NewStorageAndSession(t, ctrl)
+	storage, _ := m3.NewStorageAndSession(t, ctrl)
 
 	h, err := NewHandler(storage, nil, executor.NewEngine(storage), nil,
 		config.Configuration{}, nil, tally.NewTestScope("", nil))
@@ -129,7 +129,7 @@ func TestRoutesGet(t *testing.T) {
 	req, _ := http.NewRequest("GET", routesURL, nil)
 	res := httptest.NewRecorder()
 	ctrl := gomock.NewController(t)
-	storage, _ := local.NewStorageAndSession(t, ctrl)
+	storage, _ := m3.NewStorageAndSession(t, ctrl)
 
 	h, err := NewHandler(storage, nil, executor.NewEngine(storage), nil,
 		config.Configuration{}, nil, tally.NewTestScope("", nil))
@@ -162,7 +162,7 @@ func TestHealthGet(t *testing.T) {
 	req, _ := http.NewRequest("GET", healthURL, nil)
 	res := httptest.NewRecorder()
 	ctrl := gomock.NewController(t)
-	storage, _ := local.NewStorageAndSession(t, ctrl)
+	storage, _ := m3.NewStorageAndSession(t, ctrl)
 
 	h, err := NewHandler(storage, nil, executor.NewEngine(storage), nil,
 		config.Configuration{}, nil, tally.NewTestScope("", nil))

@@ -29,14 +29,14 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 )
 
 const (
-	xTimeUnit = xtime.Millisecond
+	xTimeUnit             = xtime.Millisecond
+	initRawFetchAllocSize = 32
 )
 
 // PromWriteTSToM3 converts a prometheus write query to an M3 one
@@ -135,66 +135,89 @@ func TimestampToTime(timestampMS int64) time.Time {
 
 // TimeToTimestamp converts a time.Time to prometheus timestamp
 func TimeToTimestamp(timestamp time.Time) int64 {
+	// Significantly faster than time.Truncate()
 	return timestamp.UnixNano() / int64(time.Millisecond)
 }
 
-// FetchResultToPromResult converts fetch results from M3 to Prometheus result
+// FetchResultToPromResult converts fetch results from M3 to Prometheus result.
+// TODO(rartoul): We should pool all of these intermediary datastructures, or
+// at least the []*prompb.Sample (as thats the most heavily allocated object)
+// since we have full control over the lifecycle.
 func FetchResultToPromResult(result *FetchResult) *prompb.QueryResult {
-	timeseries := make([]*prompb.TimeSeries, 0)
-
+	// Perform bulk allocation upfront then convert to pointers afterwards
+	// to reduce total number of allocations. See BenchmarkFetchResultToPromResult
+	// if modifying.
+	timeseries := make([]prompb.TimeSeries, 0, len(result.SeriesList))
 	for _, series := range result.SeriesList {
 		promTs := SeriesToPromTS(series)
 		timeseries = append(timeseries, promTs)
 	}
 
+	timeSeriesPointers := make([]*prompb.TimeSeries, 0, len(result.SeriesList))
+	for i := range timeseries {
+		timeSeriesPointers = append(timeSeriesPointers, &timeseries[i])
+	}
+
 	return &prompb.QueryResult{
-		Timeseries: timeseries,
+		Timeseries: timeSeriesPointers,
 	}
 }
 
-// SeriesToPromTS converts a series to prometheus timeseries
-func SeriesToPromTS(series *ts.Series) *prompb.TimeSeries {
+// SeriesToPromTS converts a series to prometheus timeseries.
+func SeriesToPromTS(series *ts.Series) prompb.TimeSeries {
 	labels := TagsToPromLabels(series.Tags)
 	samples := SeriesToPromSamples(series)
-	return &prompb.TimeSeries{Labels: labels, Samples: samples}
+	return prompb.TimeSeries{Labels: labels, Samples: samples}
 }
 
-// TagsToPromLabels converts tags to prometheus labels
+// TagsToPromLabels converts tags to prometheus labels.
 func TagsToPromLabels(tags models.Tags) []*prompb.Label {
-	labels := make([]*prompb.Label, 0, len(tags))
+	// Perform bulk allocation upfront then convert to pointers afterwards
+	// to reduce total number of allocations. See BenchmarkFetchResultToPromResult
+	// if modifying.
+	labels := make([]prompb.Label, 0, len(tags))
 	for _, t := range tags {
-		labels = append(labels, &prompb.Label{Name: t.Name, Value: t.Value})
+		labels = append(labels, prompb.Label{Name: t.Name, Value: t.Value})
 	}
 
-	return labels
+	labelsPointers := make([]*prompb.Label, 0, len(tags))
+	for i := range labels {
+		labelsPointers = append(labelsPointers, &labels[i])
+	}
+
+	return labelsPointers
 }
 
-// SeriesToPromSamples series datapoints to prometheus samples
+// SeriesToPromSamples series datapoints to prometheus samples.SeriesToPromSamples.
 func SeriesToPromSamples(series *ts.Series) []*prompb.Sample {
-	samples := make([]*prompb.Sample, series.Len())
-	for i := 0; i < series.Len(); i++ {
-		samples[i] = &prompb.Sample{
-			Timestamp: series.Values().DatapointAt(i).Timestamp.UnixNano() / int64(time.Millisecond),
-			Value:     series.Values().ValueAt(i),
-		}
+	var (
+		seriesLen  = series.Len()
+		values     = series.Values()
+		datapoints = values.Datapoints()
+		// Perform bulk allocation upfront then convert to pointers afterwards
+		// to reduce total number of allocations. See BenchmarkFetchResultToPromResult
+		// if modifying.
+		samples = make([]prompb.Sample, 0, seriesLen)
+	)
+	for _, dp := range datapoints {
+		samples = append(samples, prompb.Sample{
+			Timestamp: TimeToTimestamp(dp.Timestamp),
+			Value:     dp.Value,
+		})
 	}
 
-	return samples
-}
+	samplesPointers := make([]*prompb.Sample, 0, len(samples))
+	for i := range samples {
+		samplesPointers = append(samplesPointers, &samples[i])
+	}
 
-const (
-	// TODO(arnikola) get from config
-	initRawFetchAllocSize = 32
-)
+	return samplesPointers
+}
 
 func iteratorToTsSeries(
 	iter encoding.SeriesIterator,
-	namespace ident.ID,
 ) (*ts.Series, error) {
-	if namespace == nil {
-		namespace = iter.Namespace()
-	}
-	metric, err := FromM3IdentToMetric(namespace, iter.ID(), iter.Tags())
+	metric, err := FromM3IdentToMetric(iter.ID(), iter.Tags())
 	if err != nil {
 		return nil, err
 	}
@@ -212,15 +235,14 @@ func iteratorToTsSeries(
 func decompressSequentially(
 	iterLength int,
 	iters []encoding.SeriesIterator,
-	namespace ident.ID,
 ) (*FetchResult, error) {
-	seriesList := make([]*ts.Series, iterLength)
-	for i, iter := range iters {
-		series, err := iteratorToTsSeries(iter, namespace)
+	seriesList := make([]*ts.Series, 0, len(iters))
+	for _, iter := range iters {
+		series, err := iteratorToTsSeries(iter)
 		if err != nil {
 			return nil, err
 		}
-		seriesList[i] = series
+		seriesList = append(seriesList, series)
 	}
 
 	return &FetchResult{
@@ -231,7 +253,6 @@ func decompressSequentially(
 func decompressConcurrently(
 	iterLength int,
 	iters []encoding.SeriesIterator,
-	namespace ident.ID,
 	pool xsync.WorkerPool,
 ) (*FetchResult, error) {
 	seriesList := make([]*ts.Series, iterLength)
@@ -258,7 +279,7 @@ func decompressConcurrently(
 				return
 			}
 
-			series, err := iteratorToTsSeries(iter, namespace)
+			series, err := iteratorToTsSeries(iter)
 			if err != nil {
 				// Return the first error that is encountered.
 				select {
@@ -285,23 +306,24 @@ func decompressConcurrently(
 // SeriesIteratorsToFetchResult converts SeriesIterators into a fetch result
 func SeriesIteratorsToFetchResult(
 	seriesIterators encoding.SeriesIterators,
-	namespace ident.ID,
 	workerPools pool.ObjectPool,
+	cleanupSeriesIters bool,
 ) (*FetchResult, error) {
-	defer seriesIterators.Close()
+	if cleanupSeriesIters {
+		defer seriesIterators.Close()
+	}
 
 	iters := seriesIterators.Iters()
 	iterLength := seriesIterators.Len()
-
 	if workerPools == nil {
-		return decompressSequentially(iterLength, iters, namespace)
+		return decompressSequentially(iterLength, iters)
 	}
 
 	pool, ok := workerPools.Get().(xsync.WorkerPool)
 	if !ok {
-		return decompressSequentially(iterLength, iters, namespace)
+		return decompressSequentially(iterLength, iters)
 	}
-	defer workerPools.Put(pool)
 
-	return decompressConcurrently(iterLength, iters, namespace, pool)
+	defer workerPools.Put(pool)
+	return decompressConcurrently(iterLength, iters, pool)
 }

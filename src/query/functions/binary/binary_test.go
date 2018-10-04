@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/functions/utils"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
@@ -500,7 +501,7 @@ func TestSingleSeriesReturnBool(t *testing.T) {
 
 			seriesValues := tt.seriesValues
 			metas := test.NewSeriesMeta("a", len(seriesValues))
-			bounds := block.Bounds{
+			bounds := models.Bounds{
 				Start:    now,
 				Duration: time.Minute * time.Duration(len(seriesValues[0])),
 				StepSize: time.Minute,
@@ -555,7 +556,7 @@ func TestSingleSeriesReturnValues(t *testing.T) {
 
 			seriesValues := tt.seriesValues
 			metas := test.NewSeriesMeta("a", len(seriesValues))
-			bounds := block.Bounds{
+			bounds := models.Bounds{
 				Start:    now,
 				Duration: time.Minute * time.Duration(len(seriesValues[0])),
 				StepSize: time.Minute,
@@ -820,7 +821,7 @@ func TestBothSeries(t *testing.T) {
 
 			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
 			node := op.(baseOp).Node(c, transform.Options{})
-			bounds := block.Bounds{
+			bounds := models.Bounds{
 				Start:    now,
 				Duration: time.Minute * time.Duration(len(tt.lhs[0])),
 				StepSize: time.Minute,

@@ -42,7 +42,7 @@ func TestPlacementAddHandler(t *testing.T) {
 
 	// Test add failure
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/placement/add", strings.NewReader("{\"instances\":[]}"))
+	req := httptest.NewRequest("POST", "/placement", strings.NewReader("{\"instances\":[]}"))
 	require.NotNil(t, req)
 
 	mockPlacementService.EXPECT().AddInstances(gomock.Any()).Return(placement.NewPlacement(), nil, errors.New("no new instances found in the valid zone"))
@@ -55,7 +55,7 @@ func TestPlacementAddHandler(t *testing.T) {
 
 	// Test add success
 	w = httptest.NewRecorder()
-	req = httptest.NewRequest("POST", "/placement/add", strings.NewReader("{\"instances\":[{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234}]}"))
+	req = httptest.NewRequest("POST", "/placement", strings.NewReader("{\"instances\":[{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234}]}"))
 	require.NotNil(t, req)
 
 	mockPlacementService.EXPECT().AddInstances(gomock.Not(nil)).Return(placement.NewPlacement(), nil, nil)

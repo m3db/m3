@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/storage/local"
+	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3x/ident"
@@ -55,11 +55,11 @@ func setup(
 	defer logger.Sync()
 	unaggregated1MonthRetention := client.NewMockSession(ctrl)
 	aggregated1MonthRetention1MinuteResolution := client.NewMockSession(ctrl)
-	clusters, err := local.NewClusters(local.UnaggregatedClusterNamespaceDefinition{
+	clusters, err := m3.NewClusters(m3.UnaggregatedClusterNamespaceDefinition{
 		NamespaceID: ident.StringID("metrics_unaggregated"),
 		Session:     unaggregated1MonthRetention,
 		Retention:   testRetention,
-	}, local.AggregatedClusterNamespaceDefinition{
+	}, m3.AggregatedClusterNamespaceDefinition{
 		NamespaceID: ident.StringID("metrics_aggregated"),
 		Session:     aggregated1MonthRetention1MinuteResolution,
 		Retention:   testRetention,
@@ -77,13 +77,13 @@ func newFetchReq() *storage.FetchQuery {
 	matchers := models.Matchers{
 		{
 			Type:  models.MatchEqual,
-			Name:  "foo",
-			Value: "bar",
+			Name:  []byte("foo"),
+			Value: []byte("bar"),
 		},
 		{
 			Type:  models.MatchEqual,
-			Name:  "biz",
-			Value: "baz",
+			Name:  []byte("biz"),
+			Value: []byte("baz"),
 		},
 	}
 	return &storage.FetchQuery{
@@ -107,12 +107,15 @@ func TestLocalRead(t *testing.T) {
 	assert.NoError(t, err)
 
 	for id, seriesBlocks := range results {
-		assert.Equal(t, "id", id.String())
+		assert.Equal(t, "id", id)
 		for _, blocks := range seriesBlocks {
 			assert.Equal(t, "namespace", blocks.Namespace.String())
 			blockTags, err := storage.FromIdentTagIteratorToTags(blocks.Tags)
 			require.NoError(t, err)
-			assert.Equal(t, models.Tags{{"baz", "qux"}, {"foo", "bar"}}, blockTags)
+			assert.Equal(t, models.Tags{
+				{Name: []byte("baz"), Value: []byte("qux")},
+				{Name: []byte("foo"), Value: []byte("bar")},
+			}, blockTags)
 		}
 	}
 }

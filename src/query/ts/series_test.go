@@ -30,7 +30,10 @@ import (
 )
 
 func TestCreateNewSeries(t *testing.T) {
-	tags := models.Tags{{"foo", "bar"}, {"biz", "baz"}}
+	tags := models.Tags{
+		{Name: []byte("foo"), Value: []byte("bar")},
+		{Name: []byte("biz"), Value: []byte("baz")},
+	}
 	values := NewFixedStepValues(1000, 10000, 1, time.Now())
 	series := NewSeries("metrics", values, tags)
 

@@ -67,7 +67,7 @@ func toComparisonValue(b bool, x float64) float64 {
 }
 
 var (
-	comparisonFuncs = map[string]binaryFunc{
+	comparisonFuncs = map[string]Function{
 		EqType:        func(x, y float64) float64 { return toComparisonValue(x == y, x) },
 		NotEqType:     func(x, y float64) float64 { return toComparisonValue(x != y, x) },
 		GreaterType:   func(x, y float64) float64 { return toComparisonValue(x > y, x) },

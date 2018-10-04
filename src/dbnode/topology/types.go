@@ -21,8 +21,6 @@
 package topology
 
 import (
-	"time"
-
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/services"
@@ -204,12 +202,6 @@ type DynamicOptions interface {
 
 	// InstrumentOptions returns the instrumentation options
 	InstrumentOptions() instrument.Options
-
-	// SetInitTimeout sets the waiting time for dynamic topology to be initialized
-	SetInitTimeout(value time.Duration) DynamicOptions
-
-	// InitTimeout returns the waiting time for dynamic topology to be initialized
-	InitTimeout() time.Duration
 
 	// SetHashGen sets the HashGen function
 	SetHashGen(h sharding.HashGen) DynamicOptions

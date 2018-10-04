@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -123,98 +124,106 @@ func TestAddAtIndicesErrors(t *testing.T) {
 
 var combineMetaAndSeriesMetaTests = []struct {
 	name                                        string
-	tags, otherTags, expectedTags               models.Tags
-	seriesTags, otherSeriesTags                 models.Tags
-	expectedSeriesTags, expectedOtherSeriesTags models.Tags
+	tags, otherTags, expectedTags               test.StringTags
+	seriesTags, otherSeriesTags                 test.StringTags
+	expectedSeriesTags, expectedOtherSeriesTags test.StringTags
 }{
 	{
 		"no right tags",
-		models.Tags{{"a", "b"}},
-		models.Tags{},
-		models.Tags{},
+		test.StringTags{{"a", "b"}},
+		test.StringTags{},
+		test.StringTags{},
 
-		models.Tags{{"c", "d"}},
-		models.Tags{{"1", "2"}},
-		models.Tags{{"a", "b"}, {"c", "d"}},
-		models.Tags{{"1", "2"}},
+		test.StringTags{{"c", "d"}},
+		test.StringTags{{"1", "2"}},
+		test.StringTags{{"a", "b"}, {"c", "d"}},
+		test.StringTags{{"1", "2"}},
 	},
 	{
 		"no left tags",
-		models.Tags{},
-		models.Tags{{"a", "b"}},
-		models.Tags{},
+		test.StringTags{},
+		test.StringTags{{"a", "b"}},
+		test.StringTags{},
 
-		models.Tags{},
-		models.Tags{},
-		models.Tags{},
-		models.Tags{{"a", "b"}},
+		test.StringTags{},
+		test.StringTags{},
+		test.StringTags{},
+		test.StringTags{{"a", "b"}},
 	},
 	{
 		"same tags",
-		models.Tags{{"a", "b"}},
-		models.Tags{{"a", "b"}},
-		models.Tags{{"a", "b"}},
+		test.StringTags{{"a", "b"}},
+		test.StringTags{{"a", "b"}},
+		test.StringTags{{"a", "b"}},
 
-		models.Tags{{"a", "b"}, {"c", "d"}},
-		models.Tags{},
-		models.Tags{{"a", "b"}, {"c", "d"}},
-		models.Tags{},
+		test.StringTags{{"a", "b"}, {"c", "d"}},
+		test.StringTags{},
+		test.StringTags{{"a", "b"}, {"c", "d"}},
+		test.StringTags{},
 	},
 	{
 		"different tags",
-		models.Tags{{"a", "b"}},
-		models.Tags{{"c", "d"}},
-		models.Tags{},
+		test.StringTags{{"a", "b"}},
+		test.StringTags{{"c", "d"}},
+		test.StringTags{},
 
-		models.Tags{{"1", "2"}},
-		models.Tags{{"3", "4"}},
-		models.Tags{{"1", "2"}, {"a", "b"}},
-		models.Tags{{"3", "4"}, {"c", "d"}},
+		test.StringTags{{"1", "2"}},
+		test.StringTags{{"3", "4"}},
+		test.StringTags{{"1", "2"}, {"a", "b"}},
+		test.StringTags{{"3", "4"}, {"c", "d"}},
 	},
 	{
 		"conflicting tags",
-		models.Tags{{"a", "b"}},
-		models.Tags{{"a", "*b"}},
-		models.Tags{},
+		test.StringTags{{"a", "b"}},
+		test.StringTags{{"a", "*b"}},
+		test.StringTags{},
 
-		models.Tags{{"1", "2"}},
-		models.Tags{{"3", "4"}},
-		models.Tags{{"1", "2"}, {"a", "b"}},
-		models.Tags{{"3", "4"}, {"a", "*b"}},
+		test.StringTags{{"1", "2"}},
+		test.StringTags{{"3", "4"}},
+		test.StringTags{{"1", "2"}, {"a", "b"}},
+		test.StringTags{{"3", "4"}, {"a", "*b"}},
 	},
 	{
 		"mixed tags",
-		models.Tags{{"a", "b"}, {"c", "d"}, {"e", "f"}},
-		models.Tags{{"a", "b"}, {"c", "*d"}, {"g", "h"}},
-		models.Tags{{"a", "b"}},
+		test.StringTags{{"a", "b"}, {"c", "d"}, {"e", "f"}},
+		test.StringTags{{"a", "b"}, {"c", "*d"}, {"g", "h"}},
+		test.StringTags{{"a", "b"}},
 
-		models.Tags{{"1", "2"}},
-		models.Tags{{"3", "4"}},
-		models.Tags{{"1", "2"}, {"c", "d"}, {"e", "f"}},
-		models.Tags{{"3", "4"}, {"c", "*d"}, {"g", "h"}},
+		test.StringTags{{"1", "2"}},
+		test.StringTags{{"3", "4"}},
+		test.StringTags{{"1", "2"}, {"c", "d"}, {"e", "f"}},
+		test.StringTags{{"3", "4"}, {"c", "*d"}, {"g", "h"}},
 	},
 }
 
 func TestCombineMetaAndSeriesMeta(t *testing.T) {
 	for _, tt := range combineMetaAndSeriesMetaTests {
 		t.Run(tt.name, func(t *testing.T) {
-			meta, otherMeta := block.Metadata{Tags: tt.tags}, block.Metadata{Tags: tt.otherTags}
+			tags := test.StringTagsToTags(tt.tags)
+			otherTags := test.StringTagsToTags(tt.otherTags)
+			seriesTags := test.StringTagsToTags(tt.seriesTags)
+			expectedTags := test.StringTagsToTags(tt.expectedTags)
+			otherSeriesTags := test.StringTagsToTags(tt.otherSeriesTags)
+			expectedSeriesTags := test.StringTagsToTags(tt.expectedSeriesTags)
+			expectedOtherSeriesTags := test.StringTagsToTags(tt.expectedOtherSeriesTags)
 
-			metas := []block.SeriesMeta{{Tags: tt.seriesTags}, {Tags: tt.seriesTags}}
-			otherMetas := []block.SeriesMeta{{Tags: tt.otherSeriesTags}}
+			meta, otherMeta := block.Metadata{Tags: tags}, block.Metadata{Tags: otherTags}
+
+			metas := []block.SeriesMeta{{Tags: seriesTags}, {Tags: seriesTags}}
+			otherMetas := []block.SeriesMeta{{Tags: otherSeriesTags}}
 
 			meta, seriesMeta, otherSeriesMeta, err := combineMetaAndSeriesMeta(meta, otherMeta, metas, otherMetas)
 			require.NoError(t, err)
-			assert.Equal(t, tt.expectedTags, meta.Tags)
+			assert.Equal(t, expectedTags, meta.Tags)
 
 			require.Equal(t, 2, len(seriesMeta))
 			for _, meta := range seriesMeta {
-				assert.Equal(t, tt.expectedSeriesTags, meta.Tags)
+				assert.Equal(t, expectedSeriesTags, meta.Tags)
 			}
 
 			require.Equal(t, 1, len(otherSeriesMeta))
 			for _, otherMeta := range otherSeriesMeta {
-				assert.Equal(t, tt.expectedOtherSeriesTags, otherMeta.Tags)
+				assert.Equal(t, expectedOtherSeriesTags, otherMeta.Tags)
 			}
 		})
 	}
@@ -223,8 +232,8 @@ func TestCombineMetaAndSeriesMeta(t *testing.T) {
 func TestCombineMetaAndSeriesMetaError(t *testing.T) {
 	now := time.Now()
 	meta, otherMeta :=
-		block.Metadata{Bounds: block.Bounds{Start: now}},
-		block.Metadata{Bounds: block.Bounds{Start: now.Add(2)}}
+		block.Metadata{Bounds: models.Bounds{Start: now}},
+		block.Metadata{Bounds: models.Bounds{Start: now.Add(2)}}
 
 	metas, otherMetas := []block.SeriesMeta{}, []block.SeriesMeta{}
 	_, _, _, err := combineMetaAndSeriesMeta(meta, otherMeta, metas, otherMetas)

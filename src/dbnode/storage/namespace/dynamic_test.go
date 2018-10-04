@@ -54,7 +54,6 @@ func newTestOpts(t *testing.T, ctrl *gomock.Controller, watchable kv.ValueWatcha
 			instrument.NewOptions().
 				SetReportInterval(10 * time.Millisecond).
 				SetMetricsScope(ts)).
-		SetInitTimeout(100 * time.Millisecond).
 		SetConfigServiceClient(mockCSClient)
 
 	return opts
@@ -76,20 +75,6 @@ func currentVersionMetrics(opts DynamicOptions) float64 {
 		return 0.0
 	}
 	return g.Value()
-}
-
-func TestInitializerTimeout(t *testing.T) {
-	defer leaktest.CheckTimeout(t, time.Second)()
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	w := newTestWatchable(t, nil)
-	opts := newTestOpts(t, ctrl, w)
-	init := NewDynamicInitializer(opts)
-	_, err := init.Init()
-	require.Error(t, err)
-	require.Equal(t, errInitTimeOut, err)
 }
 
 func TestInitializerNoTimeout(t *testing.T) {

@@ -27,20 +27,19 @@ import (
 )
 
 type regexpSearcher struct {
-	field, regexp []byte
-	compiled      index.CompiledRegex
+	field    []byte
+	compiled index.CompiledRegex
 }
 
 // NewRegexpSearcher returns a new searcher for finding documents which match the given regular
 // expression.
-func NewRegexpSearcher(field, regexp []byte, compiled index.CompiledRegex) search.Searcher {
+func NewRegexpSearcher(field []byte, compiled index.CompiledRegex) search.Searcher {
 	return &regexpSearcher{
 		field:    field,
-		regexp:   regexp,
 		compiled: compiled,
 	}
 }
 
 func (s *regexpSearcher) Search(r index.Reader) (postings.List, error) {
-	return r.MatchRegexp(s.field, s.regexp, s.compiled)
+	return r.MatchRegexp(s.field, s.compiled)
 }

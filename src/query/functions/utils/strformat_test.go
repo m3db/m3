@@ -35,3 +35,12 @@ func TestValueToProm(t *testing.T) {
 	assert.Equal(t, FormatFloat(math.Inf(-1)), "-Inf")
 	assert.Equal(t, FormatFloat(0.0119311), "0.0119311")
 }
+
+func TestValueToPromBytes(t *testing.T) {
+	assert.Equal(t, FormatFloatToBytes(1.0), []byte("1"))
+	assert.Equal(t, FormatFloatToBytes(1.2), []byte("1.2"))
+	assert.Equal(t, FormatFloatToBytes(math.NaN()), []byte("NaN"))
+	assert.Equal(t, FormatFloatToBytes(math.Inf(1)), []byte("+Inf"))
+	assert.Equal(t, FormatFloatToBytes(math.Inf(-1)), []byte("-Inf"))
+	assert.Equal(t, FormatFloatToBytes(0.0119311), []byte("0.0119311"))
+}

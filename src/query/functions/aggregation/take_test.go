@@ -69,7 +69,7 @@ func processTakeOp(t *testing.T, op parser.Params) *executor.SinkNode {
 
 func TestTakeBottomFunctionFilteringWithoutA(t *testing.T) {
 	op, err := NewTakeOp(BottomKType, NodeParams{
-		MatchingTags: []string{"a"}, Without: true, Parameter: 1,
+		MatchingTags: [][]byte{[]byte("a")}, Without: true, Parameter: 1,
 	})
 	require.NoError(t, err)
 	sink := processTakeOp(t, op)
@@ -93,7 +93,7 @@ func TestTakeBottomFunctionFilteringWithoutA(t *testing.T) {
 
 func TestTakeTopFunctionFilteringWithoutA(t *testing.T) {
 	op, err := NewTakeOp(TopKType, NodeParams{
-		MatchingTags: []string{"a"}, Without: true, Parameter: 1,
+		MatchingTags: [][]byte{[]byte("a")}, Without: true, Parameter: 1,
 	})
 	require.NoError(t, err)
 	sink := processTakeOp(t, op)
@@ -107,6 +107,30 @@ func TestTakeTopFunctionFilteringWithoutA(t *testing.T) {
 		{100, 200, 300, 400, 500},
 		// Taking bottomk(1) of last series, keeping it
 		{600, 700, 800, 900, 1000},
+	}
+
+	// Should have the same metas as when started
+	assert.Equal(t, seriesMetas, sink.Metas)
+	test.EqualsWithNansWithDelta(t, expected, sink.Values, math.Pow10(-5))
+	assert.Equal(t, bounds, sink.Meta.Bounds)
+}
+
+func TestTakeTopFunctionFilteringWithoutALessThanOne(t *testing.T) {
+	op, err := NewTakeOp(TopKType, NodeParams{
+		MatchingTags: [][]byte{[]byte("a")}, Without: true, Parameter: -1,
+	})
+	require.NoError(t, err)
+	sink := processTakeOp(t, op)
+	expected := [][]float64{
+		// Taking bottomk(1) of first two series, keeping both series
+		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		// Taking bottomk(1) of third, fourth, and fifth two series, keeping all series
+		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		// Taking bottomk(1) of last series, keeping it
+		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 	}
 
 	// Should have the same metas as when started

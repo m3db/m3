@@ -33,7 +33,8 @@ cache_policy         ?= recently_read
 BUILD                := $(abspath ./bin)
 GO_BUILD_LDFLAGS_CMD := $(abspath ./.ci/go-build-ldflags.sh) $(m3db_package)
 GO_BUILD_LDFLAGS     := $(shell $(GO_BUILD_LDFLAGS_CMD))
-LINUX_AMD64_ENV      := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
+GO_BUILD_COMMON_ENV  := CGO_ENABLED=0
+LINUX_AMD64_ENV      := GOOS=linux GOARCH=amd64 $(GO_BUILD_COMMON_ENV)
 GO_RELEASER_VERSION  := v0.76.1
 GOMETALINT_VERSION   := v2.0.5
 
@@ -45,6 +46,7 @@ SERVICES :=     \
 	m3query       \
 
 SUBDIRS :=    \
+	x           \
 	cmd         \
 	dbnode      \
 	query       \
@@ -71,7 +73,7 @@ define SERVICE_RULES
 $(SERVICE): setup
 	@echo Building $(SERVICE)
 	[ -d $(m3db_package_path)/$(vendor_prefix) ] || make install-vendor
-	go build -ldflags '$(GO_BUILD_LDFLAGS)' -o $(BUILD)/$(SERVICE) ./src/cmd/services/$(SERVICE)/main/.
+	$(GO_BUILD_COMMON_ENV) go build -ldflags '$(GO_BUILD_LDFLAGS)' -o $(BUILD)/$(SERVICE) ./src/cmd/services/$(SERVICE)/main/.
 
 .PHONY: $(SERVICE)-linux-amd64
 $(SERVICE)-linux-amd64:
@@ -182,8 +184,9 @@ docs-deploy: docs-container
 .PHONY: docker-integration-test
 docker-integration-test:
 	@echo "Running Docker integration test"
-	@./scripts/integration-tests/docker-integration-test.sh
-	@cd scripts/integration-tests/prometheus/ && ./prometheus-integration-test.sh
+	@./scripts/docker-integration-tests/setup.sh
+	@./scripts/docker-integration-tests/simple/test.sh
+	@./scripts/docker-integration-tests/prometheus/test.sh
 
 .PHONY: site-build
 site-build:
@@ -260,7 +263,7 @@ all-gen-$(SUBDIR): thrift-gen-$(SUBDIR) proto-gen-$(SUBDIR) asset-gen-$(SUBDIR) 
 metalint-$(SUBDIR): install-gometalinter install-linter-badtime install-linter-importorder
 	@echo metalinting $(SUBDIR)
 	@(PATH=$(retool_bin_path):$(PATH) $(metalint_check) \
-		src/$(SUBDIR)/$(metalint_config) src/$(SUBDIR)/$(metalint_exclude) src/$(SUBDIR))
+		$(metalint_config) $(metalint_exclude) src/$(SUBDIR))
 
 .PHONY: test-$(SUBDIR)
 test-$(SUBDIR):
@@ -319,5 +322,6 @@ test-all-gen: all-gen
 .PHONY: clean
 clean:
 	@rm -f *.html *.xml *.out *.test
+	@rm -rf $(BUILD)
 
 .DEFAULT_GOAL := all

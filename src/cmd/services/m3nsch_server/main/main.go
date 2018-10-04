@@ -21,6 +21,7 @@
 package main
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -31,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3nsch_server/config"
 	"github.com/m3db/m3/src/cmd/services/m3nsch_server/services"
 	"github.com/m3db/m3/src/cmd/services/m3nsch_server/tcp"
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/m3nsch"
 	"github.com/m3db/m3/src/m3nsch/agent"
 	"github.com/m3db/m3/src/m3nsch/datums"
@@ -83,9 +85,29 @@ func main() {
 		SetMetricsSamplingRate(conf.Metrics.SamplingRate)
 	datumRegistry := datums.NewDefaultRegistry(conf.M3nsch.NumPointsPerDatum)
 	agentOpts := agent.NewOptions(iopts).
-		SetConcurrency(conf.M3nsch.Concurrency) // TODO: also need to SetNewSessionFn()
+		SetConcurrency(conf.M3nsch.Concurrency).
+		SetNewSessionFn(newSessionFn(conf, iopts))
 	agent := agent.New(datumRegistry, agentOpts)
 	ServeGRPCService(listener, agent, scope, logger)
+}
+
+func newSessionFn(conf config.Configuration, iopts instrument.Options) m3nsch.NewSessionFn {
+	return m3nsch.NewSessionFn(func(zone, env string) (client.Session, error) {
+		svc := conf.DBClient.EnvironmentConfig.Service
+		if zone != svc.Zone {
+			return nil, fmt.Errorf("request zone %s did not match config zone %s", zone, svc.Zone)
+		}
+		if env != svc.Env {
+			return nil, fmt.Errorf("request env %s did not match config zone %s", env, svc.Env)
+		}
+		cl, err := conf.DBClient.NewClient(client.ConfigurationParameters{
+			InstrumentOptions: iopts,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return cl.NewSession()
+	})
 }
 
 // StartPProfServer starts a pprof server at specified address, or crashes

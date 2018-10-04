@@ -126,7 +126,7 @@ func (s *fileSystemSource) AvailableData(
 	md namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
-) result.ShardTimeRanges {
+) (result.ShardTimeRanges, error) {
 	return s.availability(md, shardsTimeRanges)
 }
 
@@ -146,7 +146,7 @@ func (s *fileSystemSource) AvailableIndex(
 	md namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
-) result.ShardTimeRanges {
+) (result.ShardTimeRanges, error) {
 	return s.availability(md, shardsTimeRanges)
 }
 
@@ -165,12 +165,12 @@ func (s *fileSystemSource) ReadIndex(
 func (s *fileSystemSource) availability(
 	md namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
-) result.ShardTimeRanges {
+) (result.ShardTimeRanges, error) {
 	result := make(map[uint32]xtime.Ranges)
 	for shard, ranges := range shardsTimeRanges {
 		result[shard] = s.shardAvailability(md.ID(), shard, ranges)
 	}
-	return result
+	return result, nil
 }
 
 func (s *fileSystemSource) shardAvailability(
@@ -220,15 +220,15 @@ func (s *fileSystemSource) enqueueReaders(
 	// Close the readers ch if and only if all readers are enqueued
 	defer close(readersCh)
 
-	indexIncrementalBootstrap := run == bootstrapIndexRunType && runOpts.Incremental()
-	if !indexIncrementalBootstrap {
+	shouldPersistIndexBootstrap := run == bootstrapIndexRunType && s.shouldPersist(runOpts)
+	if !shouldPersistIndexBootstrap {
 		// Normal run, open readers
 		s.enqueueReadersGroupedByBlockSize(ns, run, runOpts,
 			shardsTimeRanges, readerPool, readersCh)
 		return
 	}
 
-	// If the run is an index bootstrap using incremental bootstrapping
+	// If the run is an index bootstrap with the persist configuration enabled
 	// then we need to write out the metadata into FSTs that we store on disk,
 	// to avoid creating any one single huge FST at once we bucket the
 	// shards into number of buckets
@@ -594,10 +594,12 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		}
 	}
 
-	incremental := runOpts.Incremental()
-	noneRemaining := remainingRanges.IsEmpty()
-	if run == bootstrapIndexRunType && incremental && noneRemaining {
-		err := s.incrementalBootstrapIndexSegment(ns, requestedRanges, runResult)
+	var (
+		shouldPersist = s.shouldPersist(runOpts)
+		noneRemaining = remainingRanges.IsEmpty()
+	)
+	if run == bootstrapIndexRunType && shouldPersist && noneRemaining {
+		err := s.persistBootstrapIndexSegment(ns, requestedRanges, runResult)
 		if err != nil {
 			iopts := s.opts.ResultOptions().InstrumentOptions()
 			log := instrument.EmitInvariantViolationAndGetLogger(iopts)
@@ -605,7 +607,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				xlog.NewField("namespace", ns.ID().String()),
 				xlog.NewField("requestedRanges", requestedRanges.String()),
 				xlog.NewField("error", err.Error()),
-			).Error("incremental fs index bootstrap failed")
+			).Error("persist fs index bootstrap failed")
 		}
 	}
 
@@ -755,12 +757,12 @@ func (s *fileSystemSource) readNextEntryAndIndex(
 	return err
 }
 
-func (s *fileSystemSource) incrementalBootstrapIndexSegment(
+func (s *fileSystemSource) persistBootstrapIndexSegment(
 	ns namespace.Metadata,
 	requestedRanges result.ShardTimeRanges,
 	runResult *runResult,
 ) error {
-	// If we're performing an index run in incremental mode
+	// If we're performing an index run with persistence enabled
 	// determine if we covered a full block exactly (which should
 	// occur since we always group readers by block size)
 	min, max := requestedRanges.MinMax()
@@ -839,7 +841,7 @@ func (s *fileSystemSource) incrementalBootstrapIndexSegment(
 	requireFulfilled.Subtract(fulfilled)
 	exactStartEnd := min.Equal(blockStart) && max.Equal(blockStart.Add(blockSize))
 	if !exactStartEnd || !requireFulfilled.IsEmpty() {
-		return fmt.Errorf("incremental fs index bootstrap invalid ranges to persist: expected=%v, actual=%v, fulfilled=%v",
+		return fmt.Errorf("persistent fs index bootstrap invalid ranges to persist: expected=%v, actual=%v, fulfilled=%v",
 			expectedRanges.String(), requestedRanges.String(), fulfilled.String())
 	}
 
@@ -1153,6 +1155,11 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 	}
 
 	return res, nil
+}
+
+func (s *fileSystemSource) shouldPersist(runOpts bootstrap.RunOptions) bool {
+	persistConfig := runOpts.PersistConfig()
+	return persistConfig.Enabled && persistConfig.FileSetType == persist.FileSetFlushType
 }
 
 type timeWindowReaders struct {

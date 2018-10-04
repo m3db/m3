@@ -44,7 +44,7 @@ var aggregationFunctions = map[string]aggregationFn{
 // NodeParams contains additional parameters required for aggregation ops
 type NodeParams struct {
 	// MatchingTags is the set of tags by which the aggregation groups output series
-	MatchingTags []string
+	MatchingTags [][]byte
 	// Without indicates if series should use only the MatchingTags or if MatchingTags
 	// should be excluded from grouping
 	Without bool

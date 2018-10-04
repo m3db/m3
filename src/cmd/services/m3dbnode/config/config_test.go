@@ -26,7 +26,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/dbnode/environment"
-	xtest "github.com/m3db/m3/src/dbnode/x/test"
+	xtest "github.com/m3db/m3/src/x/test"
 	xconfig "github.com/m3db/m3x/config"
 
 	"github.com/stretchr/testify/assert"
@@ -332,8 +332,6 @@ db:
       service: null
       static: null
       seedNodes: null
-      namespaceResolutionTimeout: 0s
-      topologyResolutionTimeout: 0s
     writeConsistencyLevel: 2
     readConsistencyLevel: 2
     connectConsistencyLevel: 0
@@ -577,8 +575,6 @@ db:
         trustedCaFile: ""
         clientCertAuth: false
         autoTls: false
-    namespaceResolutionTimeout: 0s
-    topologyResolutionTimeout: 0s
   hashing:
     seed: 42
   writeNewSeriesAsync: true

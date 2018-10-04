@@ -25,21 +25,34 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/test"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestFlattenMetadata(t *testing.T) {
-	meta := block.Metadata{Tags: models.Tags{{"a", "b"}, {"c", "d"}}}
+	meta := block.Metadata{Tags: models.Tags{
+		{Name: []byte("a"), Value: []byte("b")},
+		{Name: []byte("c"), Value: []byte("d")},
+	}}
+
 	seriesMetas := []block.SeriesMeta{
-		{Name: "foo", Tags: models.Tags{{"e", "f"}}},
-		{Name: "bar", Tags: models.Tags{{"g", "h"}}},
+		{Name: "foo", Tags: models.Tags{{Name: []byte("e"), Value: []byte("f")}}},
+		{Name: "bar", Tags: models.Tags{{Name: []byte("g"), Value: []byte("h")}}},
 	}
 	flattened := FlattenMetadata(meta, seriesMetas)
 
 	expected := []block.SeriesMeta{
-		{Name: "foo", Tags: models.Tags{{"a", "b"}, {"c", "d"}, {"e", "f"}}},
-		{Name: "bar", Tags: models.Tags{{"a", "b"}, {"c", "d"}, {"g", "h"}}},
+		{Name: "foo", Tags: models.Tags{
+			{Name: []byte("a"), Value: []byte("b")},
+			{Name: []byte("c"), Value: []byte("d")},
+			{Name: []byte("e"), Value: []byte("f")},
+		}},
+		{Name: "bar", Tags: models.Tags{
+			{Name: []byte("a"), Value: []byte("b")},
+			{Name: []byte("c"), Value: []byte("d")},
+			{Name: []byte("g"), Value: []byte("h")},
+		}},
 	}
 
 	assert.Equal(t, expected, flattened)
@@ -47,47 +60,47 @@ func TestFlattenMetadata(t *testing.T) {
 
 var dedupeMetadataTests = []struct {
 	name               string
-	metaTags           []models.Tags
-	expectedCommon     models.Tags
-	expectedSeriesTags []models.Tags
+	metaTags           []test.StringTags
+	expectedCommon     test.StringTags
+	expectedSeriesTags []test.StringTags
 }{
 	{
 		"empty metas",
-		[]models.Tags{},
-		models.Tags{},
-		[]models.Tags{},
+		[]test.StringTags{},
+		test.StringTags{},
+		[]test.StringTags{},
 	},
 	{
 		"single metas",
-		[]models.Tags{{{"a", "b"}, {"c", "d"}}},
-		models.Tags{{"a", "b"}, {"c", "d"}},
-		[]models.Tags{{}},
+		[]test.StringTags{{{"a", "b"}, {"c", "d"}}},
+		test.StringTags{{"a", "b"}, {"c", "d"}},
+		[]test.StringTags{{}},
 	},
 	{
 		"one common tag, longer first",
-		[]models.Tags{{{"a", "b"}, {"c", "d"}}, {{"a", "b"}}},
-		models.Tags{{"a", "b"}},
-		[]models.Tags{{{"c", "d"}}, {}},
+		[]test.StringTags{{{"a", "b"}, {"c", "d"}}, {{"a", "b"}}},
+		test.StringTags{{"a", "b"}},
+		[]test.StringTags{{{"c", "d"}}, {}},
 	},
 	{
 		"one common tag, longer second",
-		[]models.Tags{{{"a", "b"}}, {{"a", "b"}, {"c", "d"}}},
-		models.Tags{{"a", "b"}},
-		[]models.Tags{{}, {{"c", "d"}}},
+		[]test.StringTags{{{"a", "b"}}, {{"a", "b"}, {"c", "d"}}},
+		test.StringTags{{"a", "b"}},
+		[]test.StringTags{{}, {{"c", "d"}}},
 	},
 	{
 		"two common tags",
-		[]models.Tags{{{"a", "b"}, {"c", "d"}}, {{"a", "b"},
+		[]test.StringTags{{{"a", "b"}, {"c", "d"}}, {{"a", "b"},
 			{"c", "d"}}, {{"a", "b"}, {"c", "d"}}},
-		models.Tags{{"a", "b"}, {"c", "d"}},
-		[]models.Tags{{}, {}, {}},
+		test.StringTags{{"a", "b"}, {"c", "d"}},
+		[]test.StringTags{{}, {}, {}},
 	},
 	{
 		"no common tags in one series",
-		[]models.Tags{{{"a", "b"}, {"c", "d"}}, {{"a", "b"}, {"c", "d"}},
+		[]test.StringTags{{{"a", "b"}, {"c", "d"}}, {{"a", "b"}, {"c", "d"}},
 			{{"a", "b*"}, {"c*", "d"}}},
-		models.Tags{},
-		[]models.Tags{{{"a", "b"}, {"c", "d"}}, {{"a", "b"},
+		test.StringTags{},
+		[]test.StringTags{{{"a", "b"}, {"c", "d"}}, {{"a", "b"},
 			{"c", "d"}}, {{"a", "b*"}, {"c*", "d"}}},
 	},
 }
@@ -98,18 +111,22 @@ func TestDedupeMetadata(t *testing.T) {
 			metaTags := tt.metaTags
 			numSeries := len(metaTags)
 			seriesMetas := make([]block.SeriesMeta, numSeries)
-			for i, tags := range metaTags {
+			for i, stringTags := range metaTags {
+				tags := test.StringTagsToTags(stringTags)
 				seriesMetas[i] = block.SeriesMeta{Tags: tags}
 			}
 
 			actual, actualSeriesMetas := DedupeMetadata(seriesMetas)
-			assert.Equal(t, tt.expectedCommon, actual)
+			exCommon := test.StringTagsToTags(tt.expectedCommon)
+			assert.Equal(t, exCommon, actual)
 
 			actualTags := make([]models.Tags, numSeries)
 			for i, metas := range actualSeriesMetas {
 				actualTags[i] = metas.Tags
 			}
-			assert.Equal(t, tt.expectedSeriesTags, actualTags)
+
+			exSeriesTags := test.StringTagsSliceToTagSlice(tt.expectedSeriesTags)
+			assert.Equal(t, exSeriesTags, actualTags)
 		})
 	}
 }

@@ -133,7 +133,7 @@ func TestQuantileCreationFn(t *testing.T) {
 
 func TestQuantileFunctionFilteringWithoutA(t *testing.T) {
 	op, err := NewAggregationOp(QuantileType, NodeParams{
-		MatchingTags: []string{"a"}, Without: true, Parameter: 0.6,
+		MatchingTags: [][]byte{[]byte("a")}, Without: true, Parameter: 0.6,
 	})
 	require.NoError(t, err)
 	sink := processAggregationOp(t, op)
@@ -148,10 +148,10 @@ func TestQuantileFunctionFilteringWithoutA(t *testing.T) {
 
 	expectedMetas := []block.SeriesMeta{
 		{Name: QuantileType, Tags: models.Tags{}},
-		{Name: QuantileType, Tags: models.Tags{{Name: "b", Value: "2"}}},
-		{Name: QuantileType, Tags: models.Tags{{Name: "c", Value: "3"}}},
+		{Name: QuantileType, Tags: models.Tags{{Name: []byte("b"), Value: []byte("2")}}},
+		{Name: QuantileType, Tags: models.Tags{{Name: []byte("c"), Value: []byte("3")}}},
 	}
-	expectedMetaTags := models.Tags{{Name: "d", Value: "4"}}
+	expectedMetaTags := models.Tags{{Name: []byte("d"), Value: []byte("4")}}
 
 	test.CompareValues(t, sink.Metas, expectedMetas, sink.Values, expected)
 	assert.Equal(t, bounds, sink.Meta.Bounds)

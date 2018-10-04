@@ -1,6 +1,0 @@
-vendor/
-generated/
-_mock.go
-.pb.go
-index/segment/mem/ids_map_gen.go
-x/bytes/slice_arraypool_gen.go

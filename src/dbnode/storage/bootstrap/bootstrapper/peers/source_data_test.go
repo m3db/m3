@@ -58,11 +58,13 @@ var (
 		return ns
 	}
 
-	testDefaultRunOpts     = bootstrap.NewRunOptions().SetIncremental(false)
-	testIncrementalRunOpts = bootstrap.NewRunOptions().SetIncremental(true)
-	testBlockOpts          = block.NewOptions()
-	testDefaultResultOpts  = result.NewOptions().SetSeriesCachePolicy(series.CacheAll)
-	testDefaultOpts        = NewOptions().
+	testDefaultRunOpts = bootstrap.NewRunOptions().
+				SetPersistConfig(bootstrap.PersistConfig{Enabled: false})
+	testRunOptsWithPersist = bootstrap.NewRunOptions().
+				SetPersistConfig(bootstrap.PersistConfig{Enabled: true})
+	testBlockOpts         = block.NewOptions()
+	testDefaultResultOpts = result.NewOptions().SetSeriesCachePolicy(series.CacheAll)
+	testDefaultOpts       = NewOptions().
 				SetResultOptions(testDefaultResultOpts)
 )
 
@@ -129,13 +131,14 @@ func TestPeersSourceEmptyShardTimeRanges(t *testing.T) {
 		target    = result.ShardTimeRanges{}
 		runOpts   = testDefaultRunOpts.SetInitialTopologyState(&topology.StateSnapshot{})
 	)
-	available := src.AvailableData(nsMetdata, target, runOpts)
-	assert.Equal(t, target, available)
+	available, err := src.AvailableData(nsMetdata, target, runOpts)
+	require.NoError(t, err)
+	require.Equal(t, target, available)
 
 	r, err := src.ReadData(nsMetdata, target, testDefaultRunOpts)
-	assert.NoError(t, err)
-	assert.Equal(t, 0, len(r.ShardResults()))
-	assert.True(t, r.Unfulfilled().IsEmpty())
+	require.NoError(t, err)
+	require.Equal(t, 0, len(r.ShardResults()))
+	require.True(t, r.Unfulfilled().IsEmpty())
 }
 
 func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
@@ -227,7 +230,7 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 	require.Equal(t, ropts.BlockSize(), block.BlockSize())
 }
 
-func TestPeersSourceIncrementalRun(t *testing.T) {
+func TestPeersSourceRunWithPersist(t *testing.T) {
 	for _, cachePolicy := range []series.CachePolicy{
 		series.CacheAllMetadata,
 		series.CacheRecentlyRead,
@@ -397,7 +400,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 			1: xtime.NewRanges(xtime.Range{Start: start, End: end}),
 		}
 
-		r, err := src.ReadData(testNsMd, target, testIncrementalRunOpts)
+		r, err := src.ReadData(testNsMd, target, testRunOptsWithPersist)
 		assert.NoError(t, err)
 
 		require.True(t, r.Unfulfilled()[0].IsEmpty())
@@ -444,7 +447,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 	}
 }
 
-func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
+func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -736,7 +739,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 			AddRange(xtime.Range{Start: midway, End: end}),
 	}
 
-	r, err := src.ReadData(testNsMd, target, testIncrementalRunOpts)
+	r, err := src.ReadData(testNsMd, target, testRunOptsWithPersist)
 	assert.NoError(t, err)
 
 	assert.Equal(t, 0, len(r.ShardResults()))

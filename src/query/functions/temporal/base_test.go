@@ -26,9 +26,11 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
+	"github.com/m3db/m3/src/query/ts"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,20 +39,21 @@ import (
 type processor struct {
 }
 
-func (p *processor) Process(f []float64) float64 {
+func (p *processor) Process(dps ts.Datapoints) float64 {
+	vals := dps.Values()
 	sum := 0.0
-	for _, n := range f {
+	for _, n := range vals {
 		sum += n
 	}
 
 	return sum
 }
 
-func dummyProcessor(_ baseOp, _ *transform.Controller) Processor {
+func dummyProcessor(_ baseOp, _ *transform.Controller, _ transform.Options) Processor {
 	return &processor{}
 }
 
-func compareCacheState(t *testing.T, bNode *baseNode, bounds block.Bounds, state []bool, debugMsg string) {
+func compareCacheState(t *testing.T, bNode *baseNode, bounds models.Bounds, state []bool, debugMsg string) {
 	actualState := make([]bool, len(state))
 	for i := range state {
 		_, exists := bNode.cache.get(bounds.Next(i).Start)
@@ -63,7 +66,7 @@ func compareCacheState(t *testing.T, bNode *baseNode, bounds block.Bounds, state
 func TestBaseWithB0(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 	boundStart := bounds.Start
-	block := test.NewBlockFromValues(bounds, values)
+	block := test.NewUnconsolidatedBlockFromDatapoints(bounds, values)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	baseOp := baseOp{
 		operatorType: "dummy",
@@ -119,7 +122,7 @@ func TestBaseWithB0(t *testing.T) {
 
 func TestBaseWithB1B0(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	blocks := test.NewMultiBlocksFromValues(bounds, values, test.NoopMod, 2)
+	blocks := test.NewMultiUnconsolidatedBlocksFromValues(bounds, values, test.NoopMod, 2)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	baseOp := baseOp{
 		operatorType: "dummy",
@@ -151,7 +154,7 @@ func TestBaseWithB1B0(t *testing.T) {
 
 func TestBaseWithB0B1(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	blocks := test.NewMultiBlocksFromValues(bounds, values, test.NoopMod, 2)
+	blocks := test.NewMultiUnconsolidatedBlocksFromValues(bounds, values, test.NoopMod, 2)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	baseOp := baseOp{
 		operatorType: "dummy",
@@ -183,7 +186,7 @@ func TestBaseWithB0B1(t *testing.T) {
 
 func TestBaseWithB0B1B2(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	blocks := test.NewMultiBlocksFromValues(bounds, values, test.NoopMod, 3)
+	blocks := test.NewMultiUnconsolidatedBlocksFromValues(bounds, values, test.NoopMod, 3)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	baseOp := baseOp{
 		operatorType: "dummy",
@@ -221,7 +224,7 @@ func TestBaseWithB0B1B2(t *testing.T) {
 
 func TestBaseWithB0B2B1(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	blocks := test.NewMultiBlocksFromValues(bounds, values, test.NoopMod, 3)
+	blocks := test.NewMultiUnconsolidatedBlocksFromValues(bounds, values, test.NoopMod, 3)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	baseOp := baseOp{
 		operatorType: "dummy",
@@ -259,7 +262,7 @@ func TestBaseWithB0B2B1(t *testing.T) {
 
 func TestBaseWithB1B0B2(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	blocks := test.NewMultiBlocksFromValues(bounds, values, test.NoopMod, 3)
+	blocks := test.NewMultiUnconsolidatedBlocksFromValues(bounds, values, test.NoopMod, 3)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	baseOp := baseOp{
 		operatorType: "dummy",
@@ -297,7 +300,7 @@ func TestBaseWithB1B0B2(t *testing.T) {
 
 func TestBaseWithB1B2B0(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	blocks := test.NewMultiBlocksFromValues(bounds, values, test.NoopMod, 3)
+	blocks := test.NewMultiUnconsolidatedBlocksFromValues(bounds, values, test.NoopMod, 3)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	baseOp := baseOp{
 		operatorType: "dummy",
@@ -335,7 +338,7 @@ func TestBaseWithB1B2B0(t *testing.T) {
 
 func TestBaseWithB2B0B1(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	blocks := test.NewMultiBlocksFromValues(bounds, values, test.NoopMod, 3)
+	blocks := test.NewMultiUnconsolidatedBlocksFromValues(bounds, values, test.NoopMod, 3)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	baseOp := baseOp{
 		operatorType: "dummy",
@@ -373,7 +376,7 @@ func TestBaseWithB2B0B1(t *testing.T) {
 
 func TestBaseWithB2B1B0(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	blocks := test.NewMultiBlocksFromValues(bounds, values, test.NoopMod, 3)
+	blocks := test.NewMultiUnconsolidatedBlocksFromValues(bounds, values, test.NoopMod, 3)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	baseOp := baseOp{
 		operatorType: "dummy",
@@ -411,7 +414,7 @@ func TestBaseWithB2B1B0(t *testing.T) {
 
 func TestBaseWithSize3B0B1B2B3B4(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
-	blocks := test.NewMultiBlocksFromValues(bounds, values, test.NoopMod, 5)
+	blocks := test.NewMultiUnconsolidatedBlocksFromValues(bounds, values, test.NoopMod, 5)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	baseOp := baseOp{
 		operatorType: "dummy",
@@ -462,14 +465,19 @@ func TestBaseWithSize3B0B1B2B3B4(t *testing.T) {
 func TestSingleProcessRequest(t *testing.T) {
 	values, bounds := test.GenerateValuesAndBounds(nil, nil)
 	boundStart := bounds.Start
-	block2 := test.NewBlockFromValues(bounds, values)
+	b := test.NewUnconsolidatedBlockFromDatapoints(bounds, values)
+	block2, _ := b.Unconsolidated()
 	values = [][]float64{{10, 11, 12, 13, 14}, {15, 16, 17, 18, 19}}
 
-	block1 := test.NewBlockFromValues(block.Bounds{
+	block1Bounds := models.Bounds{
 		Start:    bounds.Start.Add(-1 * bounds.Duration),
 		Duration: bounds.Duration,
 		StepSize: bounds.StepSize,
-	}, values)
+	}
+
+	b = test.NewUnconsolidatedBlockFromDatapoints(block1Bounds, values)
+	block1, _ := b.Unconsolidated()
+
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	baseOp := baseOp{
 		operatorType: "dummy",
@@ -485,7 +493,7 @@ func TestSingleProcessRequest(t *testing.T) {
 		},
 	})
 	bNode := node.(*baseNode)
-	err := bNode.processSingleRequest(processRequest{blk: block2, bounds: bounds, deps: []block.Block{block1}})
+	err := bNode.processSingleRequest(processRequest{blk: block2, bounds: bounds, deps: []block.UnconsolidatedBlock{block1}})
 	assert.NoError(t, err)
 	assert.Len(t, sink.Values, 2, "block processed")
 	// Current Block:     0  1  2  3  4  5

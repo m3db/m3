@@ -28,9 +28,9 @@ import (
 	"testing"
 	"time"
 
-	xtest "github.com/m3db/m3/src/dbnode/x/test"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -111,12 +111,12 @@ func TestRenderResultsJSON(t *testing.T) {
 	params := models.RequestParams{}
 	series := []*ts.Series{
 		ts.NewSeries("foo", ts.NewFixedStepValues(10*time.Second, 2, 1, start), models.Tags{
-			models.Tag{Name: "bar", Value: "baz"},
-			models.Tag{Name: "qux", Value: "qaz"},
+			models.Tag{Name: []byte("bar"), Value: []byte("baz")},
+			models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
 		}),
 		ts.NewSeries("bar", ts.NewFixedStepValues(10*time.Second, 2, 2, start), models.Tags{
-			models.Tag{Name: "baz", Value: "bar"},
-			models.Tag{Name: "qaz", Value: "qux"},
+			models.Tag{Name: []byte("baz"), Value: []byte("bar")},
+			models.Tag{Name: []byte("qaz"), Value: []byte("qux")},
 		}),
 	}
 

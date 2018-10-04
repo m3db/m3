@@ -593,7 +593,7 @@ func mockExtendedHostQueues(
 	s.newHostQueueFn = func(
 		host topology.Host,
 		opts hostQueueOpts,
-	) hostQueue {
+	) (hostQueue, error) {
 		idx := findHostIdxFn(host)
 		hostEnqueues, ok := opsByHost[host.ID()]
 		require.True(t, ok)
@@ -622,6 +622,6 @@ func mockExtendedHostQueues(
 			expectNextEnqueueFn(hostEnqueues.enqueues)
 		}
 		hostQueue.EXPECT().Close()
-		return hostQueue
+		return hostQueue, nil
 	}
 }

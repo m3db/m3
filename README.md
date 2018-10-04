@@ -17,7 +17,7 @@ More information:
 
 ```
 # to build a local m3dbnode process
-make m3dbnode
+make m3dbnode (note that we currently require at least Go 1.10 or higher)
 
 # run it with the sample configuration
 ./bin/m3dbnode -f ./src/dbnode/config/m3dbnode-local-etcd.yml

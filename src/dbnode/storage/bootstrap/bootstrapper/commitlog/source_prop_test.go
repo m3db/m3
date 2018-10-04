@@ -40,7 +40,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	tu "github.com/m3db/m3/src/dbnode/topology/testutil"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
@@ -306,19 +308,31 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 
 			// Determine which shards we need to bootstrap (based on the randomly
 			// generated data)
-			allShards := map[uint32]bool{}
+			var (
+				allShardsMap   = map[uint32]bool{}
+				allShardsSlice = []uint32{}
+			)
 			for _, write := range input.writes {
-				allShards[write.series.Shard] = true
+				shard := write.series.Shard
+				if _, ok := allShardsMap[shard]; !ok {
+					allShardsSlice = append(allShardsSlice, shard)
+				}
+				allShardsMap[shard] = true
 			}
 
 			// Assign the previously-determined bootstrap range to each known shard
 			shardTimeRanges := result.ShardTimeRanges{}
-			for shard := range allShards {
+			for shard := range allShardsMap {
 				shardTimeRanges[shard] = ranges
 			}
 
 			// Perform the bootstrap
-			runOpts := testDefaultRunOpts
+			var (
+				initialTopoState = tu.NewStateSnapshot(1, tu.HostShardStates{
+					tu.SelfID: tu.Shards(allShardsSlice, shard.Available),
+				})
+				runOpts = testDefaultRunOpts.SetInitialTopologyState(initialTopoState)
+			)
 			dataResult, err := source.BootstrapData(nsMeta, shardTimeRanges, runOpts)
 			if err != nil {
 				return false, err
@@ -341,7 +355,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 				return false, err
 			}
 
-			indexResult, err := source.BootstrapIndex(nsMeta, shardTimeRanges, testDefaultRunOpts)
+			indexResult, err := source.BootstrapIndex(nsMeta, shardTimeRanges, runOpts)
 			if err != nil {
 				return false, err
 			}
@@ -440,7 +454,7 @@ func genPropTestInput(
 	ns string,
 ) gopter.Gen {
 	return gen.SliceOfN(numDatapoints, genWrite(start, bufferPast, bufferFuture, ns)).
-		Map(func(val interface{}) propTestInput {
+		Map(func(val []generatedWrite) propTestInput {
 			return propTestInput{
 				currentTime:     start,
 				bufferFuture:    bufferFuture,
@@ -448,7 +462,7 @@ func genPropTestInput(
 				snapshotTime:    snapshotTime,
 				snapshotExists:  snapshotExists,
 				commitLogExists: commitLogExists,
-				writes:          val.([]generatedWrite),
+				writes:          val,
 			}
 		})
 }

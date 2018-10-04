@@ -1,0 +1,5 @@
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus01:9090

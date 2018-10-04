@@ -36,6 +36,11 @@ type columnBlock struct {
 	seriesMeta []SeriesMeta
 }
 
+// Unconsolidated returns the unconsolidated version for the block
+func (c *columnBlock) Unconsolidated() (UnconsolidatedBlock, error) {
+	return nil, fmt.Errorf("unconsolidated view not supported for block, meta: %s", c.meta)
+}
+
 // Meta returns the metadata for the block
 func (c *columnBlock) Meta() Metadata {
 	return c.meta

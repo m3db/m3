@@ -118,6 +118,7 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 	signalCh := make(chan struct{})
 	bootstrapper, err := commitlogBootstrapperProvider.Provide()
 	require.NoError(t, err)
+
 	test := newTestBootstrapperSource(testBootstrapperSourceOptions{
 		readData: func(
 			_ namespace.Metadata,

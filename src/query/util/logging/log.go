@@ -67,7 +67,6 @@ func InitWithCores(cores []zapcore.Core) {
 
 	logger = zap.New(core)
 	defer logger.Sync()
-	logger.Info("constructed a logger")
 }
 
 // NewContext returns a context has a zap logger with the extra fields added

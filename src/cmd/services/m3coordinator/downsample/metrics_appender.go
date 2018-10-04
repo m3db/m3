@@ -48,7 +48,7 @@ type metricsAppenderOptions struct {
 	encodedTagsIteratorPool *encodedTagsIteratorPool
 }
 
-func (a *metricsAppender) AddTag(name, value string) {
+func (a *metricsAppender) AddTag(name, value []byte) {
 	a.tags.append(name, value)
 }
 

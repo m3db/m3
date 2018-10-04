@@ -39,19 +39,17 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 
 	"github.com/couchbase/vellum"
-	vregex "github.com/couchbase/vellum/regexp"
 )
 
 var (
 	errReaderClosed            = errors.New("segment is closed")
+	errReaderNilRegexp         = errors.New("nil regexp provided")
 	errUnsupportedMajorVersion = errors.New("unsupported major version")
 	errDocumentsDataUnset      = errors.New("documents data bytes are not set")
 	errDocumentsIdxUnset       = errors.New("documents index bytes are not set")
 	errPostingsDataUnset       = errors.New("postings data bytes are not set")
 	errFSTTermsDataUnset       = errors.New("fst terms data bytes are not set")
 	errFSTFieldsDataUnset      = errors.New("fst fields data bytes are not set")
-
-	minByteKey = []byte{}
 )
 
 // SegmentData represent the collection of required parameters to construct a Segment.
@@ -297,24 +295,16 @@ func (r *fsSegment) MatchTerm(field []byte, term []byte) (postings.List, error) 
 	return pl, nil
 }
 
-func (r *fsSegment) MatchRegexp(field []byte, regexp []byte, compiled index.CompiledRegex) (postings.List, error) {
+func (r *fsSegment) MatchRegexp(field []byte, compiled index.CompiledRegex) (postings.List, error) {
 	r.RLock()
 	defer r.RUnlock()
 	if r.closed {
 		return nil, errReaderClosed
 	}
 
-	var (
-		re  *vregex.Regexp
-		err error
-	)
-	if compiled.FST != nil {
-		re = compiled.FST
-	} else {
-		re, err = vregex.New(string(regexp))
-		if err != nil {
-			return nil, err
-		}
+	re := compiled.FST
+	if re == nil {
+		return nil, errReaderNilRegexp
 	}
 
 	termsFST, exists, err := r.retrieveTermsFSTWithRLock(field)
@@ -329,9 +319,10 @@ func (r *fsSegment) MatchRegexp(field []byte, regexp []byte, compiled index.Comp
 
 	var (
 		fstCloser     = x.NewSafeCloser(termsFST)
-		pl            = r.opts.PostingsListPool().Get()
-		iter, iterErr = termsFST.Search(re, minByteKey, nil)
+		iter, iterErr = termsFST.Search(re, compiled.PrefixBegin, compiled.PrefixEnd)
 		iterCloser    = x.NewSafeCloser(iter)
+		// NB(prateek): way quicker to union the PLs together at the end, rathen than one at a time.
+		pls []postings.List // TODO: pool this slice allocation
 	)
 	defer func() {
 		iterCloser.Close()
@@ -352,11 +343,13 @@ func (r *fsSegment) MatchRegexp(field []byte, regexp []byte, compiled index.Comp
 		if err != nil {
 			return nil, err
 		}
-		if err := pl.Union(nextPl); err != nil {
-			return nil, err
-		}
-
+		pls = append(pls, nextPl)
 		iterErr = iter.Next()
+	}
+
+	pl, err := roaring.Union(pls)
+	if err != nil {
+		return nil, err
 	}
 
 	if err := iterCloser.Close(); err != nil {
@@ -517,13 +510,13 @@ func (sr *fsSegmentReader) MatchTerm(field []byte, term []byte) (postings.List, 
 	return sr.fsSegment.MatchTerm(field, term)
 }
 
-func (sr *fsSegmentReader) MatchRegexp(field []byte, regexp []byte, compiled index.CompiledRegex) (postings.List, error) {
+func (sr *fsSegmentReader) MatchRegexp(field []byte, compiled index.CompiledRegex) (postings.List, error) {
 	sr.RLock()
 	defer sr.RUnlock()
 	if sr.closed {
 		return nil, errReaderClosed
 	}
-	return sr.fsSegment.MatchRegexp(field, regexp, compiled)
+	return sr.fsSegment.MatchRegexp(field, compiled)
 }
 
 func (sr *fsSegmentReader) MatchAll() (postings.MutableList, error) {

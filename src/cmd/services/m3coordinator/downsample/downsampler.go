@@ -28,7 +28,7 @@ type Downsampler interface {
 // MetricsAppender is a metrics appender that can build a samples
 // appender, only valid to use with a single caller at a time.
 type MetricsAppender interface {
-	AddTag(name, value string)
+	AddTag(name, value []byte)
 	SamplesAppender() (SamplesAppender, error)
 	Reset()
 	Finalize()

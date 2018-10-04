@@ -22,7 +22,6 @@ package promql
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/m3db/m3/src/query/functions"
 	"github.com/m3db/m3/src/query/functions/aggregation"
@@ -64,9 +63,13 @@ func NewSelectorFromMatrix(n *promql.MatrixSelector) (parser.Params, error) {
 // NewAggregationOperator creates a new aggregation operator based on the type
 func NewAggregationOperator(expr *promql.AggregateExpr) (parser.Params, error) {
 	opType := expr.Op
+	byteMatchers := make([][]byte, len(expr.Grouping))
+	for i, grouping := range expr.Grouping {
+		byteMatchers[i] = []byte(grouping)
+	}
 
 	nodeInformation := aggregation.NodeParams{
-		MatchingTags: expr.Grouping,
+		MatchingTags: byteMatchers,
 		Without:      expr.Without,
 	}
 
@@ -76,13 +79,12 @@ func NewAggregationOperator(expr *promql.AggregateExpr) (parser.Params, error) {
 	}
 
 	if op == aggregation.BottomKType || op == aggregation.TopKType {
-		paramString := expr.Param.String()
-		floatParam, err := strconv.ParseFloat(paramString, 64)
+		val, err := resolveScalarArgument(expr.Param)
 		if err != nil {
 			return nil, err
 		}
 
-		nodeInformation.Parameter = floatParam
+		nodeInformation.Parameter = val
 		return aggregation.NewTakeOp(op, nodeInformation)
 	}
 
@@ -149,7 +151,6 @@ func NewBinaryOperator(expr *promql.BinaryExpr, lhs, rhs parser.NodeID) (parser.
 // NewFunctionExpr creates a new function expr based on the type
 func NewFunctionExpr(name string, argValues []interface{}) (parser.Params, error) {
 	switch name {
-
 	case linear.AbsType, linear.CeilType, linear.ExpType, linear.FloorType, linear.LnType,
 		linear.Log10Type, linear.Log2Type, linear.SqrtType:
 		return linear.NewMathOp(name)
@@ -167,10 +168,16 @@ func NewFunctionExpr(name string, argValues []interface{}) (parser.Params, error
 		linear.MinuteType, linear.MonthType, linear.YearType:
 		return linear.NewDateOp(name)
 
-	case temporal.AvgTemporalType, temporal.CountTemporalType, temporal.MinTemporalType,
-		temporal.MaxTemporalType, temporal.SumTemporalType, temporal.StdDevTemporalType,
-		temporal.StdVarTemporalType:
+	case temporal.AvgType, temporal.CountType, temporal.MinType,
+		temporal.MaxType, temporal.SumType, temporal.StdDevType,
+		temporal.StdVarType:
 		return temporal.NewAggOp(argValues, name)
+
+	case temporal.IRateType, temporal.IDeltaType:
+		return temporal.NewRateOp(argValues, name)
+
+	case temporal.ResetsType, temporal.ChangesType:
+		return temporal.NewFunctionOp(argValues, name)
 
 	default:
 		// TODO: handle other types
@@ -226,7 +233,7 @@ func labelMatchersToModelMatcher(lMatchers []*labels.Matcher) (models.Matchers, 
 			return nil, err
 		}
 
-		match, err := models.NewMatcher(modelType, m.Name, m.Value)
+		match, err := models.NewMatcher(modelType, []byte(m.Name), []byte(m.Value))
 		if err != nil {
 			return nil, err
 		}
@@ -275,9 +282,15 @@ func promMatchingToM3(vectorMatching *promql.VectorMatching) *binary.VectorMatch
 	if vectorMatching == nil {
 		return nil
 	}
+
+	byteMatchers := make([][]byte, len(vectorMatching.MatchingLabels))
+	for i, label := range vectorMatching.MatchingLabels {
+		byteMatchers[i] = []byte(label)
+	}
+
 	return &binary.VectorMatching{
 		Card:           promVectorCardinalityToM3(vectorMatching.Card),
-		MatchingLabels: vectorMatching.MatchingLabels,
+		MatchingLabels: byteMatchers,
 		On:             vectorMatching.On,
 		Include:        vectorMatching.Include,
 	}

@@ -30,10 +30,10 @@ type Options interface {
 	// Validate validates the options
 	Validate() error
 
-	// SetResultOptions sets the instrumentation options
+	// SetResultOptions sets the result options
 	SetResultOptions(value result.Options) Options
 
-	// ResultOptions returns the instrumentation options
+	// ResultOptions returns the result options
 	ResultOptions() result.Options
 
 	// SetCommitLogOptions sets the commit log options

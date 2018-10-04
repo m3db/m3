@@ -36,8 +36,10 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -103,11 +105,8 @@ func (s *commitLogSource) AvailableData(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
-) result.ShardTimeRanges {
-	// Commit log bootstrapper is a last ditch effort, so fulfill all
-	// time ranges requested even if not enough data, just to succeed
-	// the bootstrap
-	return shardsTimeRanges
+) (result.ShardTimeRanges, error) {
+	return s.availability(ns, shardsTimeRanges, runOpts)
 }
 
 // ReadData will read a combination of the available snapshot files and commit log files to
@@ -1251,11 +1250,8 @@ func (s *commitLogSource) AvailableIndex(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
-) result.ShardTimeRanges {
-	// Commit log bootstrapper is a last ditch effort, so fulfill all
-	// time ranges requested even if not enough data, just to succeed
-	// the bootstrap
-	return shardsTimeRanges
+) (result.ShardTimeRanges, error) {
+	return s.availability(ns, shardsTimeRanges, runOpts)
 }
 
 func (s *commitLogSource) ReadIndex(
@@ -1426,6 +1422,71 @@ func (s commitLogSource) maybeAddToIndex(
 
 	_, err = segment.Insert(d)
 	return err
+}
+
+// The commitlog bootstrapper determines availability primarily by checking if the
+// origin host has ever reached the "Available" state for the shard that is being
+// bootstrapped. If not, then it can't provide data for that shard because it doesn't
+// have all of it by definition.
+func (s *commitLogSource) availability(
+	ns namespace.Metadata,
+	shardsTimeRanges result.ShardTimeRanges,
+	runOpts bootstrap.RunOptions,
+) (result.ShardTimeRanges, error) {
+	var (
+		topoState                = runOpts.InitialTopologyState()
+		availableShardTimeRanges = result.ShardTimeRanges{}
+	)
+
+	for shardIDUint := range shardsTimeRanges {
+		shardID := topology.ShardID(shardIDUint)
+		hostShardStates, ok := topoState.ShardStates[shardID]
+		if !ok {
+			// This shard was not part of the topology when the bootstrapping
+			// process began.
+			continue
+		}
+
+		originHostShardState, ok := hostShardStates[topology.HostID(topoState.Origin.ID())]
+		if !ok {
+			errMsg := fmt.Sprintf("initial topology state does not contain shard state for origin node and shard: %d", shardIDUint)
+			iOpts := s.opts.CommitLogOptions().InstrumentOptions()
+			invariantLogger := instrument.EmitInvariantViolationAndGetLogger(iOpts)
+			invariantLogger.Error(errMsg)
+			return nil, errors.New(errMsg)
+		}
+
+		originShardState := originHostShardState.ShardState
+		switch originShardState {
+		// In the Initializing state we have to assume that the commit log
+		// is missing data and can't satisfy the bootstrap request.
+		case shard.Initializing:
+		// In the Leaving and Available case, we assume that the commit log contains
+		// all the data required to satisfy the bootstrap request because the node
+		// had (at some point) been completely bootstrapped for the requested shard.
+		// This doesn't mean that the node can't be missing any data or wasn't down
+		// for some period of time and missing writes in a multi-node deployment, it
+		// only means that technically the node has successfully taken ownership of
+		// the data for this shard and made it to a "bootstrapped" state which is
+		// all that is required to maintain our cluster-level consistency guarantees.
+		case shard.Leaving:
+			fallthrough
+		case shard.Available:
+			// Assume that we can bootstrap any requested time range, which is valid as
+			// long as the FS bootstrapper precedes the commit log bootstrapper.
+			// TODO(rartoul): Once we make changes to the bootstrapping interfaces
+			// to distinguish between "unfulfilled" data and "corrupt" data, then
+			// modify this to only say the commit log bootstrapper can fullfil
+			// "unfulfilled" data, but not corrupt data.
+			availableShardTimeRanges[shardIDUint] = shardsTimeRanges[shardIDUint]
+		case shard.Unknown:
+			fallthrough
+		default:
+			return result.ShardTimeRanges{}, fmt.Errorf("unknown shard state: %v", originShardState)
+		}
+	}
+
+	return availableShardTimeRanges, nil
 }
 
 func newReadSeriesPredicate(ns namespace.Metadata) commitlog.SeriesFilterPredicate {

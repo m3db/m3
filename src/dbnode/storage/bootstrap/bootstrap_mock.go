@@ -236,28 +236,28 @@ func (m *MockRunOptions) EXPECT() *MockRunOptionsMockRecorder {
 	return m.recorder
 }
 
-// SetIncremental mocks base method
-func (m *MockRunOptions) SetIncremental(value bool) RunOptions {
-	ret := m.ctrl.Call(m, "SetIncremental", value)
+// SetPersistConfig mocks base method
+func (m *MockRunOptions) SetPersistConfig(value PersistConfig) RunOptions {
+	ret := m.ctrl.Call(m, "SetPersistConfig", value)
 	ret0, _ := ret[0].(RunOptions)
 	return ret0
 }
 
-// SetIncremental indicates an expected call of SetIncremental
-func (mr *MockRunOptionsMockRecorder) SetIncremental(value interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIncremental", reflect.TypeOf((*MockRunOptions)(nil).SetIncremental), value)
+// SetPersistConfig indicates an expected call of SetPersistConfig
+func (mr *MockRunOptionsMockRecorder) SetPersistConfig(value interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPersistConfig", reflect.TypeOf((*MockRunOptions)(nil).SetPersistConfig), value)
 }
 
-// Incremental mocks base method
-func (m *MockRunOptions) Incremental() bool {
-	ret := m.ctrl.Call(m, "Incremental")
-	ret0, _ := ret[0].(bool)
+// PersistConfig mocks base method
+func (m *MockRunOptions) PersistConfig() PersistConfig {
+	ret := m.ctrl.Call(m, "PersistConfig")
+	ret0, _ := ret[0].(PersistConfig)
 	return ret0
 }
 
-// Incremental indicates an expected call of Incremental
-func (mr *MockRunOptionsMockRecorder) Incremental() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Incremental", reflect.TypeOf((*MockRunOptions)(nil).Incremental))
+// PersistConfig indicates an expected call of PersistConfig
+func (mr *MockRunOptionsMockRecorder) PersistConfig() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PersistConfig", reflect.TypeOf((*MockRunOptions)(nil).PersistConfig))
 }
 
 // SetCacheSeriesMetadata mocks base method
@@ -465,10 +465,11 @@ func (mr *MockSourceMockRecorder) Can(strategy interface{}) *gomock.Call {
 }
 
 // AvailableData mocks base method
-func (m *MockSource) AvailableData(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, runOpts RunOptions) result.ShardTimeRanges {
+func (m *MockSource) AvailableData(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, runOpts RunOptions) (result.ShardTimeRanges, error) {
 	ret := m.ctrl.Call(m, "AvailableData", ns, shardsTimeRanges, runOpts)
 	ret0, _ := ret[0].(result.ShardTimeRanges)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // AvailableData indicates an expected call of AvailableData
@@ -490,10 +491,11 @@ func (mr *MockSourceMockRecorder) ReadData(ns, shardsTimeRanges, runOpts interfa
 }
 
 // AvailableIndex mocks base method
-func (m *MockSource) AvailableIndex(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, opts RunOptions) result.ShardTimeRanges {
+func (m *MockSource) AvailableIndex(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, opts RunOptions) (result.ShardTimeRanges, error) {
 	ret := m.ctrl.Call(m, "AvailableIndex", ns, shardsTimeRanges, opts)
 	ret0, _ := ret[0].(result.ShardTimeRanges)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // AvailableIndex indicates an expected call of AvailableIndex

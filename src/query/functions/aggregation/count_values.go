@@ -194,8 +194,8 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 			blockMetas[v+previousBucketBlockIndex] = block.SeriesMeta{
 				Name: n.op.OpType(),
 				Tags: metas[bucketIndex].Tags.Clone().AddTag(models.Tag{
-					Name:  n.op.params.StringParameter,
-					Value: utils.FormatFloat(k),
+					Name:  []byte(n.op.params.StringParameter),
+					Value: utils.FormatFloatToBytes(k),
 				}),
 			}
 		}

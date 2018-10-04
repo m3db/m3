@@ -99,13 +99,21 @@ func (r ShardTimeRanges) AddRanges(other ShardTimeRanges) {
 	}
 }
 
-// ToUnfulfilledResult will return a result that is comprised of wholly
+// ToUnfulfilledDataResult will return a result that is comprised of wholly
 // unfufilled time ranges from the set of shard time ranges.
-func (r ShardTimeRanges) ToUnfulfilledResult() DataBootstrapResult {
+func (r ShardTimeRanges) ToUnfulfilledDataResult() DataBootstrapResult {
 	result := NewDataBootstrapResult()
 	for shard, ranges := range r {
 		result.Add(shard, nil, ranges)
 	}
+	return result
+}
+
+// ToUnfulfilledIndexResult will return a result that is comprised of wholly
+// unfufilled time ranges from the set of shard time ranges.
+func (r ShardTimeRanges) ToUnfulfilledIndexResult() IndexBootstrapResult {
+	result := NewIndexBootstrapResult()
+	result.SetUnfulfilled(r)
 	return result
 }
 

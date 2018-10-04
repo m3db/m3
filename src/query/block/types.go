@@ -22,17 +22,33 @@ package block
 
 import (
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/ts"
 )
 
 // Block represents a group of series across a time bound
 type Block interface {
+	// Unconsolidated returns the unconsolidated version of the block
+	Unconsolidated() (UnconsolidatedBlock, error)
 	// StepIter returns a StepIterator
 	StepIter() (StepIter, error)
 	// SeriesIter returns a SeriesIterator
 	SeriesIter() (SeriesIter, error)
+	// Close frees up any resources
+	Close() error
+}
+
+// UnconsolidatedBlock represents a group of unconsolidated series across a time bound
+type UnconsolidatedBlock interface {
+	// StepIter returns a StepIterator
+	StepIter() (UnconsolidatedStepIter, error)
+	// SeriesIter returns a SeriesIterator
+	SeriesIter() (UnconsolidatedSeriesIter, error)
+	// Consolidate an unconsolidated block
+	Consolidate() (Block, error)
 	// Close frees up any resources
 	Close() error
 }
@@ -43,147 +59,64 @@ type SeriesMeta struct {
 	Name string
 }
 
-// Bounds are the time bounds, start time is inclusive but end is exclusive
-type Bounds struct {
-	Start    time.Time
-	Duration time.Duration
-	StepSize time.Duration
-}
-
-// TimeForIndex returns the start time for a given index assuming a uniform step size
-func (b Bounds) TimeForIndex(idx int) (time.Time, error) {
-	duration := time.Duration(idx) * b.StepSize
-	if b.Steps() == 0 || duration >= b.Duration {
-		return time.Time{}, fmt.Errorf("out of bounds, %d", idx)
-	}
-
-	return b.Start.Add(duration), nil
-}
-
-// End calculates the end time for the block and is exclusive
-func (b Bounds) End() time.Time {
-	return b.Start.Add(b.Duration)
-}
-
-// Steps calculates the number of steps for the bounds
-func (b Bounds) Steps() int {
-	if b.StepSize <= 0 {
-		return 0
-	}
-
-	return int(b.Duration / b.StepSize)
-}
-
-// Contains returns whether the time lies between the bounds.
-func (b Bounds) Contains(t time.Time) bool {
-	diff := b.Start.Sub(t)
-	return diff >= 0 && diff < b.Duration
-}
-
-// Next returns the nth next bound from the current bound
-func (b Bounds) Next(n int) Bounds {
-	return b.nth(n, true)
-}
-
-// Previous returns the nth previous bound from the current bound
-func (b Bounds) Previous(n int) Bounds {
-	return b.nth(n, false)
-}
-
-func (b Bounds) nth(n int, forward bool) Bounds {
-	multiplier := time.Duration(n)
-	if !forward {
-		multiplier *= -1
-	}
-
-	blockDuration := b.Duration
-	start := b.Start.Add(blockDuration * multiplier)
-	return Bounds{
-		Start:    start,
-		Duration: blockDuration,
-		StepSize: b.StepSize,
-	}
-}
-
-// Blocks returns the number of blocks until time t
-func (b Bounds) Blocks(t time.Time) int {
-	return int(b.Start.Sub(t) / b.Duration)
-}
-
-// String representation of the bounds
-func (b Bounds) String() string {
-	return fmt.Sprintf("start: %v, duration: %v, stepSize: %v, steps: %d", b.Start, b.Duration, b.StepSize, b.Steps())
-}
-
-// Nearest returns the nearest bound before the given time
-func (b Bounds) Nearest(t time.Time) Bounds {
-	startTime := b.Start
-	duration := b.Duration
-	endTime := startTime.Add(duration)
-	step := b.StepSize
-	if t.After(startTime) {
-		for endTime.Before(t) {
-			startTime = endTime
-			endTime = endTime.Add(duration)
-		}
-
-		return Bounds{
-			Start:    startTime,
-			Duration: duration,
-			StepSize: step,
-		}
-	}
-
-	for startTime.After(t) {
-		endTime = startTime
-		startTime = startTime.Add(-1 * duration)
-	}
-
-	return Bounds{
-		Start:    startTime,
-		Duration: duration,
-		StepSize: step,
-	}
-}
-
-// Equals is true if two bounds are equal, including stepsize
-func (b Bounds) Equals(other Bounds) bool {
-	if b.StepSize != other.StepSize {
-		return false
-	}
-	return b.Start.Equal(other.Start) && b.Duration == other.Duration
-}
-
 // Iterator is the base iterator
 type Iterator interface {
 	Next() bool
 	Close()
 }
 
-// SeriesIter iterates through a block horizontally
-type SeriesIter interface {
-	Iterator
-	// Current returns the current series for the block
-	Current() (Series, error)
-	// SeriesCount returns the number of series
-	SeriesCount() int
+// MetaIter is implemented by iterators which provide meta information
+type MetaIter interface {
 	// SeriesMeta returns the metadata for each series in the block
 	SeriesMeta() []SeriesMeta
 	// Meta returns the metadata for the block
 	Meta() Metadata
 }
 
+// SeriesMetaIter is implemented by series iterators which provide meta information
+type SeriesMetaIter interface {
+	MetaIter
+	// SeriesCount returns the number of series
+	SeriesCount() int
+}
+
+// SeriesIter iterates through a block horizontally
+type SeriesIter interface {
+	Iterator
+	SeriesMetaIter
+	// Current returns the current series for the block
+	Current() (Series, error)
+}
+
+// UnconsolidatedSeriesIter iterates through a block horizontally
+type UnconsolidatedSeriesIter interface {
+	Iterator
+	SeriesMetaIter
+	// Current returns the current series for the block
+	Current() (UnconsolidatedSeries, error)
+}
+
+// StepMetaIter is implemented by step iterators which provide meta information
+type StepMetaIter interface {
+	MetaIter
+	// StepCount returns the number of steps
+	StepCount() int
+}
+
 // StepIter iterates through a block vertically
 type StepIter interface {
 	Iterator
+	StepMetaIter
 	// Current returns the current step for the block
 	Current() (Step, error)
-	// StepCount returns the number of steps
-	StepCount() int
-	// SeriesMeta returns the metadata for each series in the block
-	SeriesMeta() []SeriesMeta
-	// Meta returns the metadata for the block
-	Meta() Metadata
+}
+
+// UnconsolidatedStepIter iterates through a block vertically
+type UnconsolidatedStepIter interface {
+	Iterator
+	StepMetaIter
+	// Current returns the current step for the block
+	Current() (UnconsolidatedStep, error)
 }
 
 // Step is a single time step within a block
@@ -192,9 +125,15 @@ type Step interface {
 	Values() []float64
 }
 
+// UnconsolidatedStep is a single unconsolidated time step within a block
+type UnconsolidatedStep interface {
+	Time() time.Time
+	Values() []ts.Datapoints
+}
+
 // Metadata is metadata for a block
 type Metadata struct {
-	Bounds Bounds
+	Bounds models.Bounds
 	Tags   models.Tags // Common tags across different series
 }
 
@@ -214,4 +153,18 @@ type Builder interface {
 // Result is the result from a block query
 type Result struct {
 	Blocks []Block
+}
+
+// ConsolidationFunc consolidates a bunch of datapoints into a single float value
+type ConsolidationFunc func(datapoints ts.Datapoints) float64
+
+// TakeLast is a consolidation function which takes the last datapoint which has non nan value
+func TakeLast(values ts.Datapoints) float64 {
+	for i := len(values) - 1; i >= 0; i-- {
+		if !math.IsNaN(values[i].Value) {
+			return values[i].Value
+		}
+	}
+
+	return math.NaN()
 }

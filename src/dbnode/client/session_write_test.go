@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
+	xtest "github.com/m3db/m3/src/x/test"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 	xretry "github.com/m3db/m3x/retry"
@@ -99,6 +100,49 @@ func TestSessionWrite(t *testing.T) {
 	assert.Nil(t, resultErr)
 
 	assert.NoError(t, session.Close())
+}
+
+func TestSessionWriteDoesNotCloneNoFinalize(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	session := newDefaultTestSession(t).(*session)
+	w := newWriteStub()
+	var completionFn completionFn
+	enqueueWg := mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{func(idx int, op op) {
+		completionFn = op.CompletionFn()
+		write, ok := op.(*writeOperation)
+		require.True(t, ok)
+		require.True(t,
+			xtest.ByteSlicesBackedBySameData(
+				w.ns.Bytes(),
+				write.namespace.Bytes()))
+		require.True(t,
+			xtest.ByteSlicesBackedBySameData(
+				w.id.Bytes(),
+				write.request.ID))
+	}})
+
+	require.NoError(t, session.Open())
+
+	// Begin write
+	var resultErr error
+	var writeWg sync.WaitGroup
+	writeWg.Add(1)
+	go func() {
+		resultErr = session.Write(w.ns, w.id, w.t, w.value, w.unit, w.annotation)
+		writeWg.Done()
+	}()
+
+	// Callback
+	enqueueWg.Wait()
+	for i := 0; i < session.state.topoMap.Replicas(); i++ {
+		completionFn(session.state.topoMap.Hosts()[0], nil)
+	}
+
+	writeWg.Wait()
+	require.NoError(t, resultErr)
+	require.NoError(t, session.Close())
 }
 
 func TestSessionWriteBadUnitErr(t *testing.T) {

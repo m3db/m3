@@ -101,7 +101,7 @@ func generateMetaDataWithTagsInRange(fromRange, toRange int) []block.SeriesMeta 
 	meta := make([]block.SeriesMeta, length)
 	for i := 0; i < length; i++ {
 		strIdx := fmt.Sprint(fromRange + i)
-		tags := models.Tags{{strIdx, strIdx}}
+		tags := models.Tags{{Name: []byte(strIdx), Value: []byte(strIdx)}}
 		meta[i] = block.SeriesMeta{
 			Tags: tags,
 			Name: strIdx,
@@ -223,7 +223,7 @@ func TestOrs(t *testing.T) {
 
 			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
 			node := op.(baseOp).Node(c, transform.Options{})
-			bounds := block.Bounds{
+			bounds := models.Bounds{
 				Start:    now,
 				Duration: time.Minute * time.Duration(len(tt.lhs[0])),
 				StepSize: time.Minute,
@@ -233,7 +233,7 @@ func TestOrs(t *testing.T) {
 			err = node.Process(parser.NodeID(0), lhs)
 			require.NoError(t, err)
 
-			bounds = block.Bounds{
+			bounds = models.Bounds{
 				Start:    now,
 				Duration: time.Minute * time.Duration(len(tt.rhs[0])),
 				StepSize: time.Minute,
@@ -255,7 +255,7 @@ func TestOrs(t *testing.T) {
 
 func TestOrsBoundsError(t *testing.T) {
 	tt := orTests[0]
-	bounds := block.Bounds{
+	bounds := models.Bounds{
 		Start:    time.Now(),
 		Duration: time.Minute * time.Duration(len(tt.lhs[0])),
 		StepSize: time.Minute,
@@ -278,7 +278,7 @@ func TestOrsBoundsError(t *testing.T) {
 	err = node.Process(parser.NodeID(0), lhs)
 	require.NoError(t, err)
 
-	differentBounds := block.Bounds{
+	differentBounds := models.Bounds{
 		Start:    bounds.Start.Add(1),
 		Duration: bounds.Duration,
 		StepSize: bounds.StepSize,
@@ -290,8 +290,8 @@ func TestOrsBoundsError(t *testing.T) {
 
 func createSeriesMeta() []block.SeriesMeta {
 	return []block.SeriesMeta{
-		{Tags: models.Tags{{"foo", "bar"}}},
-		{Tags: models.Tags{{"baz", "qux"}}},
+		{Tags: models.Tags{{Name: []byte("foo"), Value: []byte("bar")}}},
+		{Tags: models.Tags{{Name: []byte("baz"), Value: []byte("qux")}}},
 	}
 }
 
@@ -309,15 +309,16 @@ func TestOrCombinedMetadata(t *testing.T) {
 	c, sink := executor.NewControllerWithSink(parser.NodeID(2))
 	node := op.(baseOp).Node(c, transform.Options{})
 
-	bounds := block.Bounds{
+	bounds := models.Bounds{
 		Start:    time.Now(),
 		Duration: time.Minute * 2,
 		StepSize: time.Minute,
 	}
 
+	strTags := test.StringTags{{"a", "b"}, {"c", "d"}, {"e", "f"}}
 	lhsMeta := block.Metadata{
 		Bounds: bounds,
-		Tags:   models.Tags{{"a", "b"}, {"c", "d"}, {"e", "f"}},
+		Tags:   test.StringTagsToTags(strTags),
 	}
 
 	lSeriesMeta := createSeriesMeta()
@@ -329,9 +330,10 @@ func TestOrCombinedMetadata(t *testing.T) {
 	err = node.Process(parser.NodeID(0), lhs)
 	require.NoError(t, err)
 
+	strTags = test.StringTags{{"a", "b"}, {"c", "*d"}, {"g", "h"}}
 	rhsMeta := block.Metadata{
 		Bounds: bounds,
-		Tags:   models.Tags{{"a", "b"}, {"c", "*d"}, {"g", "h"}},
+		Tags:   test.StringTagsToTags(strTags),
 	}
 
 	// NB (arnikola): since common tags for the series differ,
@@ -349,13 +351,19 @@ func TestOrCombinedMetadata(t *testing.T) {
 	test.EqualsWithNans(t, [][]float64{{1, 2}, {10, 20}, {3, 4}, {30, 40}}, sink.Values)
 
 	assert.Equal(t, sink.Meta.Bounds, bounds)
-	assert.Equal(t, sink.Meta.Tags, models.Tags{{"a", "b"}})
+	assert.Equal(t, sink.Meta.Tags, models.Tags{{Name: []byte("a"), Value: []byte("b")}})
 
-	expectedMetas := []block.SeriesMeta{
-		{Tags: models.Tags{{"c", "d"}, {"e", "f"}, {"foo", "bar"}}},
-		{Tags: models.Tags{{"baz", "qux"}, {"c", "d"}, {"e", "f"}}},
-		{Tags: models.Tags{{"c", "*d"}, {"foo", "bar"}, {"g", "h"}}},
-		{Tags: models.Tags{{"baz", "qux"}, {"c", "*d"}, {"g", "h"}}},
+	stringTags := []test.StringTags{
+		{{"c", "d"}, {"e", "f"}, {"foo", "bar"}},
+		{{"baz", "qux"}, {"c", "d"}, {"e", "f"}},
+		{{"c", "*d"}, {"foo", "bar"}, {"g", "h"}},
+		{{"baz", "qux"}, {"c", "*d"}, {"g", "h"}},
+	}
+
+	tags := test.StringTagsSliceToTagSlice(stringTags)
+	expectedMetas := make([]block.SeriesMeta, len(tags))
+	for i, t := range tags {
+		expectedMetas[i] = block.SeriesMeta{Tags: t}
 	}
 
 	assert.Equal(t, expectedMetas, sink.Metas)

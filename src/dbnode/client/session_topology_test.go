@@ -113,7 +113,7 @@ func TestSessionTopologyChangeCreatesNewClosesOldHostQueues(t *testing.T) {
 	session.newHostQueueFn = func(
 		host topology.Host,
 		opts hostQueueOpts,
-	) hostQueue {
+	) (hostQueue, error) {
 		queue := NewMockhostQueue(ctrl)
 		createdQueues.add(host.ID(), queue)
 
@@ -123,7 +123,7 @@ func TestSessionTopologyChangeCreatesNewClosesOldHostQueues(t *testing.T) {
 		queue.EXPECT().Close().Do(func() {
 			closedQueues.add(host.ID(), queue)
 		})
-		return queue
+		return queue, nil
 	}
 
 	require.NoError(t, session.Open())

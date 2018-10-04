@@ -238,7 +238,7 @@ type hostQueueOpts struct {
 type newHostQueueFn func(
 	host topology.Host,
 	hostQueueOpts hostQueueOpts,
-) hostQueue
+) (hostQueue, error)
 
 func newSession(opts Options) (clientSession, error) {
 	topo, err := opts.TopologyInitializer().Init()
@@ -611,7 +611,10 @@ func (s *session) hostQueues(
 			queues = append(queues, existingQueue)
 			continue
 		}
-		newQueue := s.newHostQueue(host, topoMap)
+		newQueue, err := s.newHostQueue(host, topoMap)
+		if err != nil {
+			return nil, 0, 0, err
+		}
 		queues = append(queues, newQueue)
 		newQueues = append(newQueues, newQueue)
 	}
@@ -718,19 +721,21 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 	s.state.replicas = replicas
 	s.state.majority = majority
 
-	// NB(r): Always recreate the fetch batch op array array pool as it must be
-	// the exact length of the queues as we index directly into the return array in
-	// in fetch calls
-	poolOpts := pool.NewObjectPoolOptions().
-		SetSize(s.opts.FetchBatchOpPoolSize()).
-		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
-			s.scope.SubScope("fetch-batch-op-array-array-pool"),
-		))
-	s.pools.fetchBatchOpArrayArray = newFetchBatchOpArrayArrayPool(
-		poolOpts,
-		len(queues),
-		s.opts.FetchBatchOpPoolSize()/len(queues))
-	s.pools.fetchBatchOpArrayArray.Init()
+	// If the number of hostQueues has changed then we need to recreate the fetch
+	// batch op array pool as it must be the exact length of the queues as we index
+	// directly into the return array in fetch calls.
+	if len(queues) != len(prevQueues) {
+		poolOpts := pool.NewObjectPoolOptions().
+			SetSize(s.opts.FetchBatchOpPoolSize()).
+			SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+				s.scope.SubScope("fetch-batch-op-array-array-pool"),
+			))
+		s.pools.fetchBatchOpArrayArray = newFetchBatchOpArrayArrayPool(
+			poolOpts,
+			len(queues),
+			s.opts.FetchBatchOpPoolSize()/len(queues))
+		s.pools.fetchBatchOpArrayArray.Init()
+	}
 
 	if s.pools.multiReaderIteratorArray == nil {
 		s.pools.multiReaderIteratorArray = encoding.NewMultiReaderIteratorArrayPool([]pool.Bucket{
@@ -793,7 +798,7 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 	s.log.Infof("successfully updated topology to %d hosts", topoMap.HostsLen())
 }
 
-func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) hostQueue {
+func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) (hostQueue, error) {
 	// NB(r): Due to hosts being replicas we have:
 	// = replica * numWrites
 	// = total writes to all hosts
@@ -845,15 +850,18 @@ func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) hostQue
 		writeTaggedBatchRawRequestElementArrayPoolOpts, s.opts.WriteBatchSize())
 	writeTaggedBatchRawRequestElementArrayPool.Init()
 
-	hostQueue := s.newHostQueueFn(host, hostQueueOpts{
+	hostQueue, err := s.newHostQueueFn(host, hostQueueOpts{
 		writeBatchRawRequestPool:                   writeBatchRequestPool,
 		writeBatchRawRequestElementArrayPool:       writeBatchRawRequestElementArrayPool,
 		writeTaggedBatchRawRequestPool:             writeTaggedBatchRequestPool,
 		writeTaggedBatchRawRequestElementArrayPool: writeTaggedBatchRawRequestElementArrayPool,
 		opts: s.opts,
 	})
+	if err != nil {
+		return nil, err
+	}
 	hostQueue.Open()
-	return hostQueue
+	return hostQueue, nil
 }
 
 func (s *session) Write(
@@ -964,8 +972,8 @@ func (s *session) writeAttemptWithRLock(
 	// use in the various queues. Tracking per writeAttempt isn't sufficient as
 	// we may enqueue multiple writeStates concurrently depending on retries
 	// and consistency level checks.
-	nsID := s.pools.id.Clone(namespace)
-	tsID := s.pools.id.Clone(id)
+	nsID := s.cloneFinalizable(namespace)
+	tsID := s.cloneFinalizable(id)
 	var tagEncoder serialize.TagEncoder
 	if wType == taggedWriteAttemptType {
 		tagEncoder = s.pools.tagEncoder.Get()
@@ -3014,6 +3022,13 @@ func (s *session) verifyFetchedBlock(block *rpc.Block) error {
 	}
 
 	return nil
+}
+
+func (s *session) cloneFinalizable(id ident.ID) ident.ID {
+	if id.IsNoFinalize() {
+		return id
+	}
+	return s.pools.id.Clone(id)
 }
 
 type reason int

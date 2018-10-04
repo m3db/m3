@@ -6,6 +6,8 @@ coverage:
   status:
     project:
       default: on
+      x:
+        flags: x
       query:
         flags: query
       dbnode:
@@ -29,6 +31,9 @@ coverage:
     m3ninx:
       paths:
         - src/m3ninx/
+    x:
+      paths:
+        - src/x/
 
 comment:
   layout: "header, reach, diff, flags, footer"

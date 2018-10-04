@@ -34,9 +34,9 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
-	remotetest "github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote/test/remote"
-	"github.com/m3db/m3/src/query/generated/proto/rpcpb"
-	"github.com/m3db/m3/src/query/storage/local"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote/test"
+	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
+	"github.com/m3db/m3/src/query/storage/m3"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/ident"
 	xtest "github.com/m3db/m3x/test"
@@ -66,10 +66,15 @@ clusters:
       - namespace: prometheus_metrics
         type: unaggregated
         retention: 48h
+
+workerPoolCount: 20
+decompressWorkerPoolSize: 20
+writeWorkerPoolSize: 20
 `
 
+//TODO: Use randomly assigned port here
 func TestRun(t *testing.T) {
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
 	configFile, close := newTestFile(t, "config.yaml", configYAML)
@@ -106,7 +111,7 @@ func TestRun(t *testing.T) {
 	dbClient := client.NewMockClient(ctrl)
 	dbClient.EXPECT().DefaultSession().Return(session, nil)
 
-	cfg.Clusters[0].NewClientFromConfig = local.NewClientFromConfig(
+	cfg.Clusters[0].NewClientFromConfig = m3.NewClientFromConfig(
 		func(
 			cfg client.Configuration,
 			params client.ConfigurationParameters,
@@ -129,8 +134,8 @@ func TestRun(t *testing.T) {
 	waitForServerHealthy(t, 7201)
 
 	// Send Prometheus write request
-	promReq := remotetest.GeneratePromWriteRequest()
-	promReqBody := remotetest.GeneratePromWriteRequestBody(t, promReq)
+	promReq := test.GeneratePromWriteRequest()
+	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
 	req, err := http.NewRequest(http.MethodPost,
 		"http://127.0.0.1:7201"+remote.PromWriteURL, promReqBody)
 	require.NoError(t, err)
@@ -176,21 +181,17 @@ func waitForServerHealthy(t *testing.T, port int) {
 }
 
 type queryServer struct {
-	writes, reads int
-	mu sync.Mutex
+	reads int
+	mu    sync.Mutex
 }
 
-func (s *queryServer) Fetch(*rpcpb.FetchMessage, rpcpb.Query_FetchServer) error {
+func (s *queryServer) Fetch(
+	*rpc.FetchRequest,
+	rpc.Query_FetchServer,
+) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.reads++
-	return nil
-}
-
-func (s *queryServer) Write(rpcpb.Query_WriteServer) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.writes++
 	return nil
 }
 
@@ -211,13 +212,17 @@ metrics:
   samplingRate: 1.0
 
 rpc:
-  remoteListenAddresses: 
+  remoteListenAddresses:
     - "127.0.0.1:17202"
 
 backend: grpc
+
+workerPoolCount: 20
+decompressWorkerPoolSize: 20
+writeWorkerPoolSize: 20
 `
 
-	ctrl := gomock.NewController(xtest.Reporter{t})
+	ctrl := gomock.NewController(xtest.Reporter{T: t})
 	defer ctrl.Finish()
 
 	port := "127.0.0.1:17202"
@@ -226,7 +231,7 @@ backend: grpc
 	s := grpc.NewServer()
 	defer s.GracefulStop()
 	qs := &queryServer{}
-	rpcpb.RegisterQueryServer(s, qs)
+	rpc.RegisterQueryServer(s, qs)
 	go func() {
 		s.Serve(lis)
 	}()
@@ -255,16 +260,17 @@ backend: grpc
 	// Wait for server to come up
 	waitForServerHealthy(t, 17201)
 
-	// Send Prometheus write request
-	promReq := remotetest.GeneratePromWriteRequest()
-	promReqBody := remotetest.GeneratePromWriteRequestBody(t, promReq)
+	// Send Prometheus read request
+	promReq := test.GeneratePromReadRequest()
+	promReqBody := test.GeneratePromReadRequestBody(t, promReq)
 	req, err := http.NewRequest(http.MethodPost,
-		"http://127.0.0.1:17201"+remote.PromWriteURL, promReqBody)
+		"http://127.0.0.1:17201"+remote.PromReadURL, promReqBody)
 	require.NoError(t, err)
 
 	_, err = http.DefaultClient.Do(req)
 	require.NoError(t, err)
-	assert.Equal(t, qs.writes, 2)
+	assert.Equal(t, qs.reads, 1)
+
 	// Ensure close server performs as expected
 	interruptCh <- fmt.Errorf("interrupt")
 	<-doneCh

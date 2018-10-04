@@ -11,6 +11,11 @@ PROTOC_IMAGE_VERSION=${PROTOC_IMAGE_VERSION:-"znly/protoc:0.2.0"}
 # ensure docker is running
 docker run --rm hello-world >/dev/null
 
+UID_FLAGS="-u $(id -u)"
+if [[ -v BUILDKITE ]]; then
+	UID_FLAGS="-u root"
+fi
+
 PROTO_SRC=$1
 for i in "${GOPATH}/src/${PROTO_SRC}"/*; do
 	if ! [ -d $i ]; then
@@ -23,7 +28,7 @@ for i in "${GOPATH}/src/${PROTO_SRC}"/*; do
 		# need the additional m3db_path mount in docker because it's a symlink on the CI.
 		m3db_path=$(realpath $GOPATH/src/github.com/m3db/m3)
 		docker run --rm -w /src -v $GOPATH/src:/src -v ${m3db_path}:/src/github.com/m3db/m3 \
-	   	-u $(id -u) $PROTOC_IMAGE_VERSION --gogofaster_out=plugins=grpc:/src                \
+	   	$UID_FLAGS $PROTOC_IMAGE_VERSION --gogofaster_out=plugins=grpc:/src           \
 			 -I/src -I/src/github.com/m3db/m3/vendor ${proto_files}
 	fi
 done

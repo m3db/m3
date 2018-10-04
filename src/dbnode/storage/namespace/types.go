@@ -182,10 +182,4 @@ type DynamicOptions interface {
 	// NamespaceRegistryKey returns the kv-store key used for the
 	// NamespaceRegistry
 	NamespaceRegistryKey() string
-
-	// SetInitTimeout sets the waiting time for dynamic topology to be initialized
-	SetInitTimeout(value time.Duration) DynamicOptions
-
-	// InitTimeout returns the waiting time for dynamic topology to be initialized
-	InitTimeout() time.Duration
 }

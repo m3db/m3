@@ -33,9 +33,11 @@ import (
 
 var (
 	testID   = ident.StringID("test_id")
-	testNS   = ident.StringID("test_namespace")
-	testTags = models.Tags{{"t1", "v1"}, {"t2", "v2"}}
-	now      = time.Now()
+	testTags = models.Tags{
+		{Name: []byte("t1"), Value: []byte("v1")},
+		{Name: []byte("t2"), Value: []byte("v2")},
+	}
+	now = time.Now()
 )
 
 func TestTagsToIdentTagIterator(t *testing.T) {
@@ -44,7 +46,10 @@ func TestTagsToIdentTagIterator(t *testing.T) {
 
 	tags := make(models.Tags, len(testTags))
 	for i := 0; tagIter.Next(); i++ {
-		tags[i] = models.Tag{tagIter.Current().Name.String(), tagIter.Current().Value.String()}
+		tags[i] = models.Tag{
+			Name:  tagIter.Current().Name.Bytes(),
+			Value: tagIter.Current().Value.Bytes(),
+		}
 	}
 
 	assert.Equal(t, testTags, tags)
@@ -52,11 +57,10 @@ func TestTagsToIdentTagIterator(t *testing.T) {
 
 func TestFromM3IdentToMetric(t *testing.T) {
 	tagIters := TagsToIdentTagIterator(testTags)
-	metric, err := FromM3IdentToMetric(testNS, testID, tagIters)
+	metric, err := FromM3IdentToMetric(testID, tagIters)
 	require.NoError(t, err)
 
 	assert.Equal(t, testID.String(), metric.ID)
-	assert.Equal(t, testNS.String(), metric.Namespace)
 	assert.Equal(t, testTags, metric.Tags)
 }
 
@@ -80,8 +84,8 @@ func TestFetchQueryToM3Query(t *testing.T) {
 			matchers: models.Matchers{
 				{
 					Type:  models.MatchEqual,
-					Name:  "t1",
-					Value: "v1",
+					Name:  []byte("t1"),
+					Value: []byte("v1"),
 				},
 			},
 		},
@@ -91,8 +95,8 @@ func TestFetchQueryToM3Query(t *testing.T) {
 			matchers: models.Matchers{
 				{
 					Type:  models.MatchNotEqual,
-					Name:  "t1",
-					Value: "v1",
+					Name:  []byte("t1"),
+					Value: []byte("v1"),
 				},
 			},
 		},
@@ -102,8 +106,8 @@ func TestFetchQueryToM3Query(t *testing.T) {
 			matchers: models.Matchers{
 				{
 					Type:  models.MatchRegexp,
-					Name:  "t1",
-					Value: "v1",
+					Name:  []byte("t1"),
+					Value: []byte("v1"),
 				},
 			},
 		},
@@ -113,8 +117,8 @@ func TestFetchQueryToM3Query(t *testing.T) {
 			matchers: models.Matchers{
 				{
 					Type:  models.MatchNotRegexp,
-					Name:  "t1",
-					Value: "v1",
+					Name:  []byte("t1"),
+					Value: []byte("v1"),
 				},
 			},
 		},

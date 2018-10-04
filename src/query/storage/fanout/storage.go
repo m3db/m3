@@ -42,11 +42,19 @@ type fanoutStorage struct {
 }
 
 // NewStorage creates a new fanout Storage instance.
-func NewStorage(stores []storage.Storage, fetchFilter filter.Storage, writeFilter filter.Storage) storage.Storage {
+func NewStorage(
+	stores []storage.Storage,
+	fetchFilter filter.Storage,
+	writeFilter filter.Storage,
+) storage.Storage {
 	return &fanoutStorage{stores: stores, fetchFilter: fetchFilter, writeFilter: writeFilter}
 }
 
-func (s *fanoutStorage) Fetch(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (*storage.FetchResult, error) {
+func (s *fanoutStorage) Fetch(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (*storage.FetchResult, error) {
 	stores := filterStores(s.stores, s.fetchFilter, query)
 	requests := make([]execution.Request, len(stores))
 	for idx, store := range stores {
@@ -59,6 +67,25 @@ func (s *fanoutStorage) Fetch(ctx context.Context, query *storage.FetchQuery, op
 	}
 
 	return handleFetchResponses(requests)
+}
+
+func (s *fanoutStorage) FetchBlocks(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (block.Result, error) {
+	stores := filterStores(s.stores, s.writeFilter, query)
+	blockResult := block.Result{}
+	for _, store := range stores {
+		result, err := store.FetchBlocks(ctx, query, options)
+		if err != nil {
+			return block.Result{}, err
+		}
+
+		blockResult.Blocks = append(blockResult.Blocks, result.Blocks...)
+	}
+
+	return blockResult, nil
 }
 
 func handleFetchResponses(requests []execution.Request) (*storage.FetchResult, error) {
@@ -102,7 +129,13 @@ func (s *fanoutStorage) FetchTags(ctx context.Context, query *storage.FetchQuery
 }
 
 func (s *fanoutStorage) Write(ctx context.Context, query *storage.WriteQuery) error {
+	// TODO: Consider removing this lookup on every write by maintaining different read/write lists
 	stores := filterStores(s.stores, s.writeFilter, query)
+	// short circuit writes
+	if len(stores) == 1 {
+		return stores[0].Write(ctx, query)
+	}
+
 	requests := make([]execution.Request, len(stores))
 	for idx, store := range stores {
 		requests[idx] = newWriteRequest(store, query)
@@ -113,22 +146,6 @@ func (s *fanoutStorage) Write(ctx context.Context, query *storage.WriteQuery) er
 
 func (s *fanoutStorage) Type() storage.Type {
 	return storage.TypeMultiDC
-}
-
-func (s *fanoutStorage) FetchBlocks(
-	ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (block.Result, error) {
-	stores := filterStores(s.stores, s.writeFilter, query)
-	blockResult := block.Result{}
-	for _, store := range stores {
-		result, err := store.FetchBlocks(ctx, query, options)
-		if err != nil {
-			return block.Result{}, err
-		}
-
-		blockResult.Blocks = append(blockResult.Blocks, result.Blocks...)
-	}
-
-	return blockResult, nil
 }
 
 func (s *fanoutStorage) Close() error {

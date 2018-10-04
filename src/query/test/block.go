@@ -26,6 +26,8 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/ts"
 )
 
 // ValueMod can be used to modify provided values for testing
@@ -37,17 +39,53 @@ func NoopMod(v []float64) []float64 {
 }
 
 // NewBlockFromValues creates a new block using the provided values
-func NewBlockFromValues(bounds block.Bounds, seriesValues [][]float64) block.Block {
+func NewBlockFromValues(bounds models.Bounds, seriesValues [][]float64) block.Block {
 	meta := NewSeriesMeta("dummy", len(seriesValues))
 	return NewBlockFromValuesWithSeriesMeta(bounds, meta, seriesValues)
 }
 
-// NewMultiBlocksFromValues creates new blocks using the provided values and a modifier
-func NewMultiBlocksFromValues(bounds block.Bounds, seriesValues [][]float64, valueMod ValueMod, numBlocks int) []block.Block {
+// NewUnconsolidatedBlockFromDatapointsWithMeta creates a new unconsolidated block using the provided values and metadata
+func NewUnconsolidatedBlockFromDatapointsWithMeta(bounds models.Bounds, meta []block.SeriesMeta, seriesValues [][]float64) block.Block {
+	seriesList := make(ts.SeriesList, len(seriesValues))
+	for i, values := range seriesValues {
+		dps := seriesValuesToDatapoints(values, bounds)
+		seriesList[i] = ts.NewSeries(meta[i].Name, dps, meta[i].Tags)
+	}
+
+	b, _ := storage.NewMultiSeriesBlock(seriesList, &storage.FetchQuery{
+		Start:    bounds.Start,
+		End:      bounds.End(),
+		Interval: bounds.StepSize,
+	})
+
+	return storage.NewMultiBlockWrapper(b)
+}
+
+// NewUnconsolidatedBlockFromDatapoints creates a new unconsolidated block using the provided values
+func NewUnconsolidatedBlockFromDatapoints(bounds models.Bounds, seriesValues [][]float64) block.Block {
+	meta := NewSeriesMeta("dummy", len(seriesValues))
+	return NewUnconsolidatedBlockFromDatapointsWithMeta(bounds, meta, seriesValues)
+}
+
+func seriesValuesToDatapoints(values []float64, bounds models.Bounds) ts.Datapoints {
+	dps := make(ts.Datapoints, len(values))
+	for i, v := range values {
+		t, _ := bounds.TimeForIndex(i)
+		dps[i] = ts.Datapoint{
+			Timestamp: t.Add(-1 * time.Microsecond),
+			Value:     v,
+		}
+	}
+
+	return dps
+}
+
+// NewMultiUnconsolidatedBlocksFromValues creates new blocks using the provided values and a modifier
+func NewMultiUnconsolidatedBlocksFromValues(bounds models.Bounds, seriesValues [][]float64, valueMod ValueMod, numBlocks int) []block.Block {
 	meta := NewSeriesMeta("dummy", len(seriesValues))
 	blocks := make([]block.Block, numBlocks)
 	for i := 0; i < numBlocks; i++ {
-		blocks[i] = NewBlockFromValuesWithSeriesMeta(bounds, meta, seriesValues)
+		blocks[i] = NewUnconsolidatedBlockFromDatapointsWithMeta(bounds, meta, seriesValues)
 		// Avoid modifying the first value
 		for i, val := range seriesValues {
 			seriesValues[i] = valueMod(val)
@@ -62,13 +100,14 @@ func NewMultiBlocksFromValues(bounds block.Bounds, seriesValues [][]float64, val
 func NewSeriesMeta(tagPrefix string, count int) []block.SeriesMeta {
 	seriesMeta := make([]block.SeriesMeta, count)
 	for i := range seriesMeta {
-		tags := make(map[string]string)
-		t := fmt.Sprintf("%s%d", tagPrefix, i)
-		tags[models.MetricName] = t
-		tags[t] = t
+		tags := models.Tags{}
+		st := fmt.Sprintf("%s%d", tagPrefix, i)
+		t := []byte(st)
+		tags = tags.AddTag(models.Tag{Name: models.MetricName, Value: t})
+		tags = tags.AddTag(models.Tag{Name: t, Value: t})
 		seriesMeta[i] = block.SeriesMeta{
-			Name: t,
-			Tags: models.FromMap(tags),
+			Name: st,
+			Tags: tags,
 		}
 	}
 	return seriesMeta
@@ -76,7 +115,7 @@ func NewSeriesMeta(tagPrefix string, count int) []block.SeriesMeta {
 
 // NewBlockFromValuesWithSeriesMeta creates a new block using the provided values
 func NewBlockFromValuesWithSeriesMeta(
-	bounds block.Bounds,
+	bounds models.Bounds,
 	seriesMeta []block.SeriesMeta,
 	seriesValues [][]float64,
 ) block.Block {
@@ -103,7 +142,7 @@ func NewBlockFromValuesWithMetaAndSeriesMeta(
 }
 
 // GenerateValuesAndBounds generates a list of sample values and bounds while allowing overrides
-func GenerateValuesAndBounds(vals [][]float64, b *block.Bounds) ([][]float64, block.Bounds) {
+func GenerateValuesAndBounds(vals [][]float64, b *models.Bounds) ([][]float64, models.Bounds) {
 	values := vals
 	if values == nil {
 		values = [][]float64{
@@ -112,10 +151,10 @@ func GenerateValuesAndBounds(vals [][]float64, b *block.Bounds) ([][]float64, bl
 		}
 	}
 
-	var bounds block.Bounds
+	var bounds models.Bounds
 	if b == nil {
 		now := time.Now()
-		bounds = block.Bounds{
+		bounds = models.Bounds{
 			Start:    now,
 			Duration: time.Minute * 5,
 			StepSize: time.Minute,

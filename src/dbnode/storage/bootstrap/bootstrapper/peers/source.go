@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
@@ -48,7 +49,7 @@ type peersSource struct {
 	nowFn clock.NowFn
 }
 
-type incrementalFlush struct {
+type persistenceFlush struct {
 	nsMetadata        namespace.Metadata
 	shard             uint32
 	shardRetrieverMgr block.DatabaseShardBlockRetrieverManager
@@ -81,7 +82,10 @@ func (s *peersSource) AvailableData(
 	nsMetadata namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
-) result.ShardTimeRanges {
+) (result.ShardTimeRanges, error) {
+	if err := s.validateRunOpts(runOpts); err != nil {
+		return nil, err
+	}
 	return s.peerAvailability(nsMetadata, shardsTimeRanges, runOpts)
 }
 
@@ -90,6 +94,10 @@ func (s *peersSource) ReadData(
 	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
 ) (result.DataBootstrapResult, error) {
+	if err := s.validateRunOpts(opts); err != nil {
+		return nil, err
+	}
+
 	if shardsTimeRanges.IsEmpty() {
 		return result.NewDataBootstrapResult(), nil
 	}
@@ -99,19 +107,20 @@ func (s *peersSource) ReadData(
 		blockRetriever    block.DatabaseBlockRetriever
 		shardRetrieverMgr block.DatabaseShardBlockRetrieverManager
 		persistFlush      persist.DataFlush
-		incremental       = false
+		shouldPersist     = false
 		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
+		persistConfig     = opts.PersistConfig()
 	)
-	if opts.Incremental() && seriesCachePolicy != series.CacheAll {
+	if persistConfig.Enabled && seriesCachePolicy != series.CacheAll {
 		retrieverMgr := s.opts.DatabaseBlockRetrieverManager()
 		persistManager := s.opts.PersistManager()
 
 		// Neither of these should ever happen
 		if seriesCachePolicy != series.CacheAll && retrieverMgr == nil {
-			s.log.Fatal("tried to perform incremental flush without retriever manager")
+			s.log.Fatal("tried to perform a bootstrap with persistence without retriever manager")
 		}
 		if seriesCachePolicy != series.CacheAll && persistManager == nil {
-			s.log.Fatal("tried to perform incremental flush without persist manager")
+			s.log.Fatal("tried to perform a bootstrap with persistence without persist manager")
 		}
 
 		s.log.WithFields(
@@ -130,7 +139,7 @@ func (s *peersSource) ReadData(
 
 		defer persist.DoneData()
 
-		incremental = true
+		shouldPersist = true
 		blockRetriever = r
 		shardRetrieverMgr = block.NewDatabaseShardBlockRetrieverManager(r)
 		persistFlush = persist
@@ -147,26 +156,26 @@ func (s *peersSource) ReadData(
 	var (
 		resultLock              sync.Mutex
 		wg                      sync.WaitGroup
-		incrementalWorkerDoneCh = make(chan struct{})
-		incrementalMaxQueue     = s.opts.IncrementalPersistMaxQueueSize()
-		incrementalQueue        = make(chan incrementalFlush, incrementalMaxQueue)
+		persistenceWorkerDoneCh = make(chan struct{})
+		persistenceMaxQueueSize = s.opts.PersistenceMaxQueueSize()
+		persistenceQueue        = make(chan persistenceFlush, persistenceMaxQueueSize)
 		resultOpts              = s.opts.ResultOptions()
 		count                   = len(shardsTimeRanges)
 		concurrency             = s.opts.DefaultShardConcurrency()
 		blockSize               = nsMetadata.Options().RetentionOptions().BlockSize()
 	)
-	if incremental {
-		concurrency = s.opts.IncrementalShardConcurrency()
+	if shouldPersist {
+		concurrency = s.opts.ShardPersistenceConcurrency()
 	}
 
 	s.log.WithFields(
 		xlog.NewField("shards", count),
 		xlog.NewField("concurrency", concurrency),
-		xlog.NewField("incremental", incremental),
+		xlog.NewField("shouldPersist", shouldPersist),
 	).Infof("peers bootstrapper bootstrapping shards for ranges")
-	if incremental {
-		go s.startIncrementalQueueWorkerLoop(
-			incrementalWorkerDoneCh, incrementalQueue, persistFlush, result, &resultLock)
+	if shouldPersist {
+		go s.startPersistenceQueueWorkerLoop(
+			opts, persistenceWorkerDoneCh, persistenceQueue, persistFlush, result, &resultLock)
 	}
 
 	workers := xsync.NewWorkerPool(concurrency)
@@ -177,20 +186,20 @@ func (s *peersSource) ReadData(
 		workers.Go(func() {
 			defer wg.Done()
 			s.fetchBootstrapBlocksFromPeers(shard, ranges, nsMetadata, session,
-				resultOpts, result, &resultLock, incremental, incrementalQueue,
+				resultOpts, result, &resultLock, shouldPersist, persistenceQueue,
 				shardRetrieverMgr, blockSize)
 		})
 	}
 
 	wg.Wait()
-	close(incrementalQueue)
-	if incremental {
-		// Wait for the incrementalQueueWorker to finish incrementally flushing everything
-		<-incrementalWorkerDoneCh
+	close(persistenceQueue)
+	if shouldPersist {
+		// Wait for the persistenceQueueWorker to finish flushing everything
+		<-persistenceWorkerDoneCh
 	}
 
-	if incremental {
-		// Now cache the incremental results
+	if shouldPersist {
+		// Now cache the flushed results
 		err := s.cacheShardIndices(shardsTimeRanges, blockRetriever)
 		if err != nil {
 			return nil, err
@@ -200,37 +209,38 @@ func (s *peersSource) ReadData(
 	return result, nil
 }
 
-// startIncrementalQueueWorkerLoop is meant to be run in its own goroutine, and it creates a worker that
-// loops through the incrementalQueue and performs an incrementalFlush for each entry, ensuring that
-// no more than one incremental flush is ever happening at once. Once the incrementalQueue channel
+// startPersistenceQueueWorkerLoop is meant to be run in its own goroutine, and it creates a worker that
+// loops through the persistenceQueue and performs a flush for each entry, ensuring that
+// no more than one flush is ever happening at once. Once the persistenceQueue channel
 // is closed, and the worker has completed flushing all the remaining entries, it will close the
 // provided doneCh so that callers can block until everything has been successfully flushed.
-func (s *peersSource) startIncrementalQueueWorkerLoop(
+func (s *peersSource) startPersistenceQueueWorkerLoop(
+	opts bootstrap.RunOptions,
 	doneCh chan struct{},
-	incrementalQueue chan incrementalFlush,
+	persistenceQueue chan persistenceFlush,
 	persistFlush persist.DataFlush,
 	bootstrapResult result.DataBootstrapResult,
 	lock *sync.Mutex,
 ) {
-	// If performing an incremental bootstrap then flush one
-	// at a time as shard results are gathered
-	for flush := range incrementalQueue {
-		err := s.incrementalFlush(persistFlush, flush.nsMetadata, flush.shard,
+	// If performing a bootstrap with persistence enabled then flush one
+	// at a time as shard results are gathered.
+	for flush := range persistenceQueue {
+		err := s.flush(opts, persistFlush, flush.nsMetadata, flush.shard,
 			flush.shardRetrieverMgr, flush.shardResult, flush.timeRange)
 		if err == nil {
-			// Safe to add to the shared bootstrap result now
+			// Safe to add to the shared bootstrap result now.
 			lock.Lock()
 			bootstrapResult.Add(flush.shard, flush.shardResult, xtime.Ranges{})
 			lock.Unlock()
 			continue
 		}
 
-		// Remove results and make unfulfilled if an error occurred
+		// Remove results and make unfulfilled if an error occurred.
 		s.log.WithFields(
 			xlog.NewField("error", err.Error()),
-		).Errorf("peers bootstrapper incremental flush encountered error")
+		).Errorf("peers bootstrapper bootstrap with persistence flush encountered error")
 
-		// Make unfulfilled
+		// Make unfulfilled.
 		lock.Lock()
 		bootstrapResult.Add(flush.shard, nil, xtime.NewRanges(flush.timeRange))
 		lock.Unlock()
@@ -240,10 +250,10 @@ func (s *peersSource) startIncrementalQueueWorkerLoop(
 
 // fetchBootstrapBlocksFromPeers loops through all the provided ranges for a given shard and
 // fetches all the bootstrap blocks from the appropriate peers.
-// 		Non-incremental case: Immediately add the results to the bootstrap result
-// 		Incremental case: Don't add the results yet, but push an incrementalFlush into the
-// 						  incremental queue. The incrementalQueue worker will eventually
-// 						  add the results once its performed the incremental flush.
+// 		Persistence enabled case: Immediately add the results to the bootstrap result
+// 		Persistence disabled case: Don't add the results yet, but push a flush into the
+// 						  persistenceQueue. The persistenceQueue worker will eventually
+// 						  add the results once its performed the flush.
 func (s *peersSource) fetchBootstrapBlocksFromPeers(
 	shard uint32,
 	ranges xtime.Ranges,
@@ -252,8 +262,8 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 	bopts result.Options,
 	bootstrapResult result.DataBootstrapResult,
 	lock *sync.Mutex,
-	incremental bool,
-	incrementalQueue chan incrementalFlush,
+	shouldPersist bool,
+	persistenceQueue chan persistenceFlush,
 	shardRetrieverMgr block.DatabaseShardBlockRetrieverManager,
 	blockSize time.Duration,
 ) {
@@ -277,8 +287,8 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 				continue
 			}
 
-			if incremental {
-				incrementalQueue <- incrementalFlush{
+			if shouldPersist {
+				persistenceQueue <- persistenceFlush{
 					nsMetadata:        nsMetadata,
 					shard:             shard,
 					shardRetrieverMgr: shardRetrieverMgr,
@@ -288,7 +298,7 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 				continue
 			}
 
-			// If not waiting to incremental flush, add straight away to bootstrap result
+			// If not waiting to flush, add straight away to bootstrap result
 			lock.Lock()
 			bootstrapResult.Add(shard, shardResult, xtime.Ranges{})
 			lock.Unlock()
@@ -325,10 +335,9 @@ func (s *peersSource) logFetchBootstrapBlocksFromPeersOutcome(
 	}
 }
 
-// incrementalFlush is used to incrementally flush peer-bootstrapped shards
-// to disk as they finish so that we're not (necessarily) holding everything
-// in memory at once.
-// incrementalFlush starts by looping through every block in a timerange for
+// flush is used to flush peer-bootstrapped shards to disk as they finish so
+// that we're not (necessarily) holding everything in memory at once.
+// flush starts by looping through every block in a timerange for
 // a given shard, and then subsequently looping through every series in that
 // shard/block and flushing it to disk. Depending on the series caching policy,
 // the series will either be held in memory, or removed from memory once
@@ -343,7 +352,8 @@ func (s *peersSource) logFetchBootstrapBlocksFromPeersOutcome(
 // (since all their corresponding blocks have been removed anyways) to prevent
 // a huge memory spike caused by adding lots of unused series to the Shard
 // object and then immediately evicting them in the next tick.
-func (s *peersSource) incrementalFlush(
+func (s *peersSource) flush(
+	opts bootstrap.RunOptions,
 	flush persist.DataFlush,
 	nsMetadata namespace.Metadata,
 	shard uint32,
@@ -357,6 +367,7 @@ func (s *peersSource) incrementalFlush(
 		shardRetriever    = shardRetrieverMgr.ShardRetriever(shard)
 		tmpCtx            = context.NewContext()
 		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
+		persistConfig     = opts.PersistConfig()
 	)
 	if seriesCachePolicy == series.CacheAllMetadata && shardRetriever == nil {
 		return fmt.Errorf("shard retriever missing for shard: %d", shard)
@@ -365,6 +376,7 @@ func (s *peersSource) incrementalFlush(
 	for start := tr.Start; start.Before(tr.End); start = start.Add(blockSize) {
 		prepareOpts := persist.DataPrepareOptions{
 			NamespaceMetadata: nsMetadata,
+			FileSetType:       persistConfig.FileSetType,
 			Shard:             shard,
 			BlockStart:        start,
 			// If we've peer bootstrapped this shard/block combination AND the fileset
@@ -422,28 +434,42 @@ func (s *peersSource) incrementalFlush(
 				break
 			}
 
-			switch seriesCachePolicy {
-			case series.CacheAll:
-				// Leave the blocks in the shard result, we need to return all blocks
-				// so we can cache in memory
-			case series.CacheAllMetadata:
-				// NB(r): We can now make the flushed blocks retrievable, note that we
-				// explicitly perform another loop here and lookup the block again
-				// to avoid a large expensive allocation to hold onto the blocks
-				// that we just flushed that would have to be pooled.
-				// We are explicitly trading CPU time here for lower GC pressure.
-				metadata := block.RetrievableBlockMetadata{
-					ID:       s.ID,
-					Length:   bl.Len(),
-					Checksum: checksum,
+			switch persistConfig.FileSetType {
+			case persist.FileSetFlushType:
+				switch seriesCachePolicy {
+				case series.CacheAll:
+					// Leave the blocks in the shard result, we need to return all blocks
+					// so we can cache in memory
+				case series.CacheAllMetadata:
+					// NB(r): We can now make the flushed blocks retrievable, note that we
+					// explicitly perform another loop here and lookup the block again
+					// to avoid a large expensive allocation to hold onto the blocks
+					// that we just flushed that would have to be pooled.
+					// We are explicitly trading CPU time here for lower GC pressure.
+					metadata := block.RetrievableBlockMetadata{
+						ID:       s.ID,
+						Length:   bl.Len(),
+						Checksum: checksum,
+					}
+					bl.ResetRetrievable(start, blockSize, shardRetriever, metadata)
+				default:
+					// Not caching the series or metadata in memory so finalize the block,
+					// better to do this as we loop through to make blocks return to the
+					// pool earlier than at the end of this flush cycle
+					s.Blocks.RemoveBlockAt(start)
+					bl.Close()
 				}
-				bl.ResetRetrievable(start, blockSize, shardRetriever, metadata)
+			case persist.FileSetSnapshotType:
+				// Unlike the FileSetFlushType scenario, in this case the caching
+				// strategy doesn't matter. Even if the LRU/RecentlyRead strategies are
+				// enabled, we still need to keep all the data in memory long enough for it
+				// to be flushed because the snapshot that we wrote out earlier will only ever
+				// be used if the node goes down again before we have a chance to flush the data
+				// from memory AND the commit log bootstrapper is set before the peers bootstrapper
+				// in the bootstrappers configuration.
 			default:
-				// Not caching the series or metadata in memory so finalize the block,
-				// better to do this as we loop through to make blocks return to the
-				// pool earlier than at the end of this flush cycle
-				s.Blocks.RemoveBlockAt(start)
-				bl.Close()
+				// Should never happen
+				return fmt.Errorf("unknown FileSetFileType: %v", persistConfig.FileSetType)
 			}
 		}
 
@@ -460,20 +486,18 @@ func (s *peersSource) incrementalFlush(
 		}
 	}
 
-	if seriesCachePolicy != series.CacheAll && seriesCachePolicy != series.CacheAllMetadata {
-		// TODO: We need this right now because nodes with older versions of M3DB will return an extra
-		// block when requesting bootstrapped blocks. Once all the clusters have been upgraded we can
-		// remove this code.
-		for _, entry := range shardResult.AllSeries().Iter() {
-			s := entry.Value()
-			bl, ok := s.Blocks.BlockAt(tr.End)
-			if !ok {
-				continue
-			}
-			s.Blocks.RemoveBlockAt(tr.End)
-			bl.Close()
-		}
+	// We only want to retain the series metadata in one of three cases:
+	// 	1) CacheAll caching policy (because we're expected to cache everything in memory)
+	// 	2) CacheAllMetadata caching policy (because we're expected to cache all metadata in memory)
+	// 	3) PersistConfig.FileSetType is set to FileSetSnapshotType because that means we're bootstrapping
+	//     an active block that we'll want to perform a flush on later, and we're only flushing here for
+	//     the sake of allowing the commit log bootstrapper to be able to recover this data if the node
+	//     goes down in-between this bootstrapper completing and the subsequent flush.
+	shouldRetainSeriesMetadata := seriesCachePolicy == series.CacheAll ||
+		seriesCachePolicy == series.CacheAllMetadata ||
+		persistConfig.FileSetType == persist.FileSetSnapshotType
 
+	if !shouldRetainSeriesMetadata {
 		// If we're not going to keep all of the data, or at least all of the metadata in memory
 		// then we don't want to keep these series in the shard result. If we leave them in, then
 		// they will all get loaded into the shard object, and then immediately evicted on the next
@@ -497,11 +521,13 @@ func (s *peersSource) incrementalFlush(
 			series.Tags.Finalize()
 		}
 		if numSeriesTriedToRemoveWithRemainingBlocks > 0 {
-			s.log.WithFields(
-				xlog.NewField("start", tr.Start.Unix()),
-				xlog.NewField("end", tr.End.Unix()),
-				xlog.NewField("numTimes", numSeriesTriedToRemoveWithRemainingBlocks),
-			).Error("error tried to remove series that still has blocks")
+			iOpts := s.opts.ResultOptions().InstrumentOptions()
+			instrument.EmitInvariantViolationAndGetLogger(iOpts).
+				WithFields(
+					xlog.NewField("start", tr.Start.Unix()),
+					xlog.NewField("end", tr.End.Unix()),
+					xlog.NewField("numTimes", numSeriesTriedToRemoveWithRemainingBlocks),
+				).Error("error tried to remove series that still has blocks")
 		}
 	}
 
@@ -512,7 +538,7 @@ func (s *peersSource) cacheShardIndices(
 	shardsTimeRanges result.ShardTimeRanges,
 	blockRetriever block.DatabaseBlockRetriever,
 ) error {
-	// Now cache the incremental results
+	// Now cache the flushed results
 	shards := make([]uint32, 0, len(shardsTimeRanges))
 	for shard := range shardsTimeRanges {
 		shards = append(shards, shard)
@@ -525,7 +551,10 @@ func (s *peersSource) AvailableIndex(
 	nsMetadata namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
-) result.ShardTimeRanges {
+) (result.ShardTimeRanges, error) {
+	if err := s.validateRunOpts(runOpts); err != nil {
+		return nil, err
+	}
 	return s.peerAvailability(nsMetadata, shardsTimeRanges, runOpts)
 }
 
@@ -534,6 +563,10 @@ func (s *peersSource) ReadIndex(
 	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
 ) (result.IndexBootstrapResult, error) {
+	if err := s.validateRunOpts(opts); err != nil {
+		return nil, err
+	}
+
 	// FOLLOWUP(r): Try to reuse any metadata fetched during the ReadData(...)
 	// call rather than going to the network again
 	r := result.NewIndexBootstrapResult()
@@ -680,7 +713,7 @@ func (s *peersSource) peerAvailability(
 	nsMetadata namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
-) result.ShardTimeRanges {
+) (result.ShardTimeRanges, error) {
 	var (
 		peerAvailabilityByShard = map[topology.ShardID]*shardPeerAvailability{}
 		initialTopologyState    = runOpts.InitialTopologyState()
@@ -710,20 +743,19 @@ func (s *peersSource) peerAvailability(
 			shardState := hostShardState.ShardState
 
 			switch shardState {
-			// Skip cases - We cannot bootstrap from this host
+			// Don't want to peer bootstrap from a node that has not yet completely
+			// taken ownership of the shard.
 			case shard.Initializing:
-				// Don't want to peer bootstrap from a node that has not yet completely
-				// taken ownership of the shard.
-			case shard.Unknown:
 				// Success cases - We can bootstrap from this host, which is enough to
 				// mark this shard as bootstrappable.
 			case shard.Leaving:
 				fallthrough
 			case shard.Available:
 				shardPeers.numAvailablePeers++
+			case shard.Unknown:
+				fallthrough
 			default:
-				panic(
-					fmt.Sprintf("encountered unknown shard state: %s", shardState.String()))
+				return nil, fmt.Errorf("unknown shard state: %v", shardState)
 			}
 		}
 	}
@@ -758,7 +790,7 @@ func (s *peersSource) peerAvailability(
 		availableShardTimeRanges[shardIDUint] = shardsTimeRanges[shardIDUint]
 	}
 
-	return availableShardTimeRanges
+	return availableShardTimeRanges, nil
 }
 
 func (s *peersSource) markIndexResultErrorAsUnfulfilled(
@@ -783,4 +815,15 @@ func (s *peersSource) markIndexResultErrorAsUnfulfilled(
 		shard: xtime.NewRanges(timeRange),
 	}
 	r.Add(result.IndexBlock{}, unfulfilled)
+}
+
+func (s *peersSource) validateRunOpts(runOpts bootstrap.RunOptions) error {
+	persistConfig := runOpts.PersistConfig()
+	if persistConfig.FileSetType != persist.FileSetFlushType &&
+		persistConfig.FileSetType != persist.FileSetSnapshotType {
+		// Should never happen
+		return fmt.Errorf("unknown persist config fileset file type: %v", persistConfig.FileSetType)
+	}
+
+	return nil
 }

@@ -26,7 +26,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/test/local"
+	"github.com/m3db/m3/src/query/test/m3"
 	"github.com/m3db/m3/src/query/util/logging"
 
 	"github.com/golang/mock/gomock"
@@ -36,8 +36,9 @@ import (
 func TestExecute(t *testing.T) {
 	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
-	store, session := local.NewStorageAndSession(t, ctrl)
+	store, session := m3.NewStorageAndSession(t, ctrl)
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, false, fmt.Errorf("dummy"))
+	session.EXPECT().IteratorPools().Return(nil, nil)
 
 	// Results is closed by execute
 	results := make(chan *storage.QueryResult)

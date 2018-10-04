@@ -21,10 +21,6 @@
 package ts
 
 import (
-	"fmt"
-	"time"
-
-	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
 )
 
@@ -54,63 +50,5 @@ func (s *Series) Len() int { return s.vals.Len() }
 // Values returns the underlying values interface
 func (s *Series) Values() Values { return s.vals }
 
-// Align adjusts the datapoints to start, end and a fixed interval
-func (s *Series) Align(start, end time.Time, interval time.Duration) (*Series, error) {
-	fixedVals, err := alignValues(s.Values(), start, end, interval)
-	if err != nil {
-		return nil, err
-	}
-
-	return NewSeries(s.name, fixedVals, s.Tags), nil
-}
-
-func alignValues(values Values, start, end time.Time, interval time.Duration) (FixedResolutionMutableValues, error) {
-	switch vals := values.(type) {
-	case Datapoints:
-		return RawPointsToFixedStep(vals, start, end, interval)
-	case FixedResolutionMutableValues:
-		// TODO: Align fixed resolution as well once storages can return those directly
-		return vals, nil
-	default:
-		return nil, fmt.Errorf("unknown type: %v", vals)
-	}
-}
-
 // SeriesList represents a slice of series pointers
 type SeriesList []*Series
-
-// Resolution returns the resolution for a fixed step series list. It assumes all underlying series will have the same resolution
-func (seriesList SeriesList) Resolution() (time.Duration, error) {
-	var resolution time.Duration
-	for i, s := range seriesList {
-		fixedRes, ok := s.Values().(FixedResolutionMutableValues)
-		if !ok {
-			return 0, errors.ErrOnlyFixedResSupported
-		}
-
-		if i == 0 {
-			resolution = fixedRes.Resolution()
-		} else {
-			if resolution != fixedRes.Resolution() {
-				return 0, fmt.Errorf("resolution mismatch, r1: %v, r2: %v", resolution, fixedRes.Resolution())
-			}
-		}
-	}
-
-	return resolution, nil
-}
-
-// Align aligns each series to the given start, end and step.
-func (seriesList SeriesList) Align(start, end time.Time, interval time.Duration) (SeriesList, error) {
-	alignedList := make(SeriesList, len(seriesList))
-	for i, s := range seriesList {
-		alignedSeries, err := s.Align(start, end, interval)
-		if err != nil {
-			return nil, err
-		}
-
-		alignedList[i] = alignedSeries
-	}
-
-	return alignedList, nil
-}

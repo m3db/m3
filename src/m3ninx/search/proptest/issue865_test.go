@@ -23,7 +23,6 @@
 package proptest
 
 import (
-	"fmt"
 	"math/rand"
 	"os"
 	"testing"
@@ -31,28 +30,18 @@ import (
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
-	"github.com/m3db/m3/src/m3ninx/index/segment"
-	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
-	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
-	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/m3ninx/search/executor"
 	"github.com/m3db/m3/src/m3ninx/search/query"
 
 	"github.com/leanovate/gopter"
-	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
 	"github.com/stretchr/testify/require"
 )
 
 // NB(prateek): this test simulates the issues described in issue: https://github.com/m3db/m3/issues/865
-// tl;dr - the searcher code assumes the input readers had disjoint doc ID ranges; it caused issues when that
-// was not true.
 
 var (
-	memOptions = mem.NewOptions()
-	fstOptions = fst.NewOptions()
-
 	doc1 = doc.Document{
 		ID: []byte("__name__=node_cpu_seconds_total,cpu=1,instance=m3db-node01:9100,job=node-exporter,mode=system,"),
 		Fields: []doc.Field{
@@ -98,6 +87,8 @@ func TestAnyDistributionOfDocsDoesNotAffectQuery(t *testing.T) {
 	parameters.Rng = rand.New(rand.NewSource(seed))
 	properties := gopter.NewProperties(parameters)
 
+	docMatcher, err := newDocumentIteratorMatcher(doc2)
+	require.NoError(t, err)
 	properties.Property("Any distribution of simple documents does not affect query results", prop.ForAll(
 		func(i propTestInput) (bool, error) {
 			segments := i.generate(t, simpleTestDocs)
@@ -121,21 +112,7 @@ func TestAnyDistributionOfDocsDoesNotAffectQuery(t *testing.T) {
 				return false, err
 			}
 
-			if !d.Next() {
-				return false, fmt.Errorf("unable to find any documents")
-			}
-
-			curr := d.Current()
-			if !curr.Equal(doc2) {
-				return false, fmt.Errorf("returned document [%+v] did not match exepcted document [%+v]",
-					curr, doc2)
-			}
-
-			if d.Next() {
-				return false, fmt.Errorf("found too many documents")
-			}
-
-			if err := d.Err(); err != nil {
+			if err := docMatcher.Matches(d); err != nil {
 				return false, err
 			}
 
@@ -147,105 +124,5 @@ func TestAnyDistributionOfDocsDoesNotAffectQuery(t *testing.T) {
 	reporter := gopter.NewFormatedReporter(true, 160, os.Stdout)
 	if !properties.Run(reporter) {
 		t.Errorf("failed with initial seed: %d", seed)
-	}
-}
-
-func (i propTestInput) generate(t *testing.T, docs []doc.Document) []segment.Segment {
-	var result []segment.Segment
-	for j := 0; j < len(i.segments); j++ {
-		initialOffset := postings.ID(i.segments[j].initialDocIDOffset)
-		s, err := mem.NewSegment(initialOffset, memOptions)
-		require.NoError(t, err)
-		for k := 0; k < len(i.docIds[j]); k++ {
-			idx := i.docIds[j][k]
-			_, err = s.Insert(docs[idx])
-			require.NoError(t, err)
-		}
-
-		if i.segments[j].simpleSegment {
-			result = append(result, s)
-			continue
-		}
-
-		result = append(result, fst.ToTestSegment(t, s, fstOptions))
-	}
-	return result
-}
-
-type propTestInput struct {
-	segments []generatedSegment
-	docIds   [][]int
-}
-
-func genPropTestInput(numDocs int) gopter.Gen {
-	return func(genParams *gopter.GenParameters) *gopter.GenResult {
-		numSegmentsRes, ok := gen.IntRange(1, numDocs)(genParams).Retrieve()
-		if !ok {
-			panic("unable to generate segments")
-		}
-		numSegments := numSegmentsRes.(int)
-
-		docIds := make([]int, 0, numDocs)
-		for i := 0; i < numDocs; i++ {
-			docIds = append(docIds, i)
-		}
-
-		randomIds := randomDocIds(docIds)
-		randomIds.shuffle(genParams.Rng)
-
-		genSegments := make([]generatedSegment, 0, numSegments)
-		partitionedDocs := make([][]int, 0, numSegments)
-		for i := 0; i < numSegments; i++ {
-			partitionedDocs = append(partitionedDocs, []int{})
-			segRes, ok := genSegment()(genParams).Retrieve()
-			if !ok {
-				panic("unable to generate segments")
-			}
-			genSegments = append(genSegments, segRes.(generatedSegment))
-		}
-
-		for i := 0; i < numDocs; i++ {
-			idx := i % numSegments
-			partitionedDocs[idx] = append(partitionedDocs[idx], randomIds[i])
-		}
-
-		result := propTestInput{
-			segments: genSegments,
-			docIds:   partitionedDocs,
-		}
-		if len(genSegments) != len(partitionedDocs) {
-			panic(fmt.Errorf("unequal lengths of segments and docs: %+v", result))
-		}
-
-		return gopter.NewGenResult(result, gopter.NoShrinker)
-	}
-}
-
-func genSegment() gopter.Gen {
-	return gopter.CombineGens(
-		gen.Bool(),         // simple segment
-		gen.IntRange(1, 5), // initial doc id offset
-	).Map(func(val interface{}) generatedSegment {
-		inputs := val.([]interface{})
-		return generatedSegment{
-			simpleSegment:      inputs[0].(bool),
-			initialDocIDOffset: inputs[1].(int),
-		}
-	})
-}
-
-type generatedSegment struct {
-	simpleSegment      bool
-	initialDocIDOffset int
-}
-
-type randomDocIds []int
-
-func (d randomDocIds) shuffle(rng *rand.Rand) {
-	// Start from the last element and swap one by one.
-	// NB: We don't need to run for the first element that's why i > 0
-	for i := len(d) - 1; i > 0; i-- {
-		j := rng.Intn(i)
-		d[i], d[j] = d[j], d[i]
 	}
 }

@@ -1,5 +1,5 @@
-hash: bc8c8f7d91429a979e2745c8507dad93a217e06525e7c0baac753dd8a8477d2e
-updated: 2018-08-30T10:47:26.772333-04:00
+hash: 819e53ce790007654311d180da9a52c45e28be074eefd608adf2e6cbfc67d544
+updated: 2018-09-29T18:58:44.951247-04:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -114,20 +114,18 @@ imports:
 - name: github.com/edsrzf/mmap-go
   version: 0bce6a6887123b67a60366d2c9fe2dfb74289d2e
 - name: github.com/fsnotify/fsnotify
-  version: c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9
+  version: ccc981bf80385c528a65fbfdd49bf2d8da22aa23
 - name: github.com/ghodss/yaml
   version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
 - name: github.com/glycerine/go-unsnap-stream
   version: 9f0cb55181dd3a0a4c168d3dbc72d4aca4853126
 - name: github.com/go-kit/kit
-  version: 9bf23341289dc5ecc1c4bb9dbad72265fbdfdd94
+  version: 9890679578cab201bd981519c97365519193d1ce
   subpackages:
   - log
   - log/level
 - name: github.com/go-logfmt/logfmt
-  version: c2152ce9154221b192a66372715a5330c67dbce3
-- name: github.com/go-stack/stack
-  version: 259ab82a6cad3992b4e21ff5cac294ccb06474bc
+  version: 390ab7935ee28ec6b286364bba9b4dd6410cb3d5
 - name: github.com/gogo/protobuf
   version: 100ba4e885062801d56799d78530b73b178a78f3
   subpackages:
@@ -163,6 +161,8 @@ imports:
   - cmp/internal/diff
   - cmp/internal/function
   - cmp/internal/value
+- name: github.com/google/uuid
+  version: 9b3b1e0f5f99ae461456d768e7d301a7acdaa2d8
 - name: github.com/gorilla/context
   version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
 - name: github.com/gorilla/mux
@@ -176,7 +176,7 @@ imports:
   - runtime/internal
   - utilities
 - name: github.com/hashicorp/hcl
-  version: ef8a98b0bbce4a65b5aa4c368430a80ddc533168
+  version: 65a6292f0157eff210d03ed1bf6c59b190b8b906
   subpackages:
   - hcl/ast
   - hcl/parser
@@ -193,6 +193,12 @@ imports:
   version: 2eee05ed794112d45db504eb05aa693efd2b8b09
 - name: github.com/kr/logfmt
   version: b84e30acd515aadc4b783ad4ff83aff3299bdfe0
+- name: github.com/leanovate/gopter
+  version: f0356731348c8fffa27bab27c37ec8be5b0662c8
+  subpackages:
+  - commands
+  - gen
+  - prop
 - name: github.com/m3db/bitset
   version: 07973db6b78acb62ac207d0538055e874b49d90d
 - name: github.com/m3db/bloom
@@ -306,7 +312,7 @@ imports:
   - protocol/proto
   - topic
 - name: github.com/m3db/m3x
-  version: 76a586220279667a81eaaec4150de182f4d5077c
+  version: 659975cd3b5b69f112f1b74244b4d8b440888cf4
   vcs: git
   subpackages:
   - checked
@@ -314,6 +320,7 @@ imports:
   - close
   - config
   - config/hostid
+  - config/listenaddress
   - context
   - errors
   - ident
@@ -357,11 +364,13 @@ imports:
   subpackages:
   - pbutil
 - name: github.com/mauricelam/genny
-  version: 11e1a0b9d8936dda6aa9b8f4bfeae2a6715ea858
+  version: eb2c5232c885956af3565a20ecf48555cab2b9bc
   subpackages:
   - generic
+- name: github.com/MichaelTJones/pcg
+  version: df440c6ed7ed8897ac98a408365e5e89c7becf1a
 - name: github.com/mitchellh/mapstructure
-  version: f15292f7a699fcc1a38a80977f80a046874ba8ac
+  version: ce2ff0c13ce509e36e9254c08ea0bca90ed5af6c
 - name: github.com/mschoch/smat
   version: 90eadee771aeab36e8bf796039b8c261bebebe4f
 - name: github.com/nightlyone/lockfile
@@ -369,7 +378,7 @@ imports:
 - name: github.com/nu7hatch/gouuid
   version: 179d4d0c4d8d407a32af483c2354df1d2c91e6c3
 - name: github.com/oklog/ulid
-  version: 3928b679b154aad7ea1db5352e4277e4e448b324
+  version: 9bb9776431132f4f0a70d6401b78e2941df45b41
 - name: github.com/opentracing/opentracing-go
   version: 855519783f479520497c6b3445611b05fc42f009
   subpackages:
@@ -377,9 +386,9 @@ imports:
 - name: github.com/pborman/getopt
   version: ec82d864f599c39673eef89f91b93fa5576567a1
 - name: github.com/pborman/uuid
-  version: e790cca94e6cc75c7064b1332e63811d4aae1a53
+  version: adf5a7427709b9deb95d29d3fa8a2bf9cfd388f1
 - name: github.com/pelletier/go-toml
-  version: c2dbbc24a97911339e01bda0b8cabdbd8f13b602
+  version: 78b76feda6f35b2c5c1d283513f6419e59086729
 - name: github.com/philhofer/fwd
   version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
 - name: github.com/pilosa/pilosa
@@ -387,7 +396,7 @@ imports:
   subpackages:
   - roaring
 - name: github.com/pkg/errors
-  version: 816c9085562cd7ee03e7f8188a1cfd942858cded
+  version: c059e472caf75dbe73903f6521a20abac245b17f
 - name: github.com/pkg/profile
   version: 5b67d428864e92711fcbd2f8629456121a56d91f
 - name: github.com/pmezard/go-difflib
@@ -444,7 +453,7 @@ imports:
 - name: github.com/spaolacci/murmur3
   version: 9f5d223c60793748f04a9d5b4b4eacddfc1f755d
 - name: github.com/spf13/afero
-  version: 787d034dfe70e44075ccc060d346146ef53270ad
+  version: d40851caa0d747393da1ffb28f7f9d8b4eeffebd
   subpackages:
   - mem
 - name: github.com/spf13/cast
@@ -454,11 +463,11 @@ imports:
   subpackages:
   - cobra
 - name: github.com/spf13/jwalterweatherman
-  version: 14d3d4c518341bea657dd8a226f5121c0ff8c9f2
+  version: 4a4406e478ca629068e7768fc33f3f044173c0a6
 - name: github.com/spf13/pflag
   version: 4f9190456aed1c2113ca51ea9b89219747458dc1
 - name: github.com/spf13/viper
-  version: 907c19d40d9a6c9bb55f040ff4ae45271a4754b9
+  version: 2c12c60302a5a0e62ee102ca9bc996277c2f64f5
 - name: github.com/stretchr/testify
   version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
   subpackages:
@@ -466,7 +475,7 @@ imports:
   - require
   - suite
 - name: github.com/tinylib/msgp
-  version: 53e4ad1e134ee9b42a7add28ca77177ab17983b3
+  version: f65876d3ea05943d6613bca6b8ed391843044bd4
   subpackages:
   - msgp
 - name: github.com/uber-go/atomic
@@ -588,6 +597,10 @@ imports:
   version: 947dcec5ba9c011838740e680966fd7087a71d0d
   repo: https://github.com/alecthomas/kingpin.git
   vcs: git
+- name: gopkg.in/go-playground/validator.v9
+  version: a021b2ec9a8a8bb970f3f15bc42617cb520e8a64
+  repo: https://github.com/go-playground/validator.git
+  vcs: git
 - name: gopkg.in/validator.v2
   version: 3e4f037f12a1221a0864cf0dd2e81c452ab22448
   repo: https://github.com/go-validator/validator.git
@@ -613,13 +626,3 @@ testImports:
   - currency
 - name: github.com/go-playground/universal-translator
   version: 71201497bace774495daed26a3874fd339e0b538
-- name: github.com/leanovate/gopter
-  version: f778776473e0ef7764e1434dd01a61cc1ec574b4
-  subpackages:
-  - commands
-  - gen
-  - prop
-- name: gopkg.in/go-playground/validator.v9
-  version: a021b2ec9a8a8bb970f3f15bc42617cb520e8a64
-  repo: https://github.com/go-playground/validator.git
-  vcs: git

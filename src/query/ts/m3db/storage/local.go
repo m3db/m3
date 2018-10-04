@@ -28,14 +28,13 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/storage/local"
+	"github.com/m3db/m3/src/query/storage/m3"
 	m3block "github.com/m3db/m3/src/query/ts/m3db"
-	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 )
 
 type localStorage struct {
-	clusters   local.Clusters
+	clusters   m3.Clusters
 	workerPool pool.ObjectPool
 }
 
@@ -44,17 +43,17 @@ var (
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
 	}
 
-	emptySeriesMap map[ident.ID][]m3block.SeriesBlocks
+	emptySeriesMap map[string][]m3block.SeriesBlocks
 )
 
 // nolint: deadcode
-func newStorage(clusters local.Clusters, workerPool pool.ObjectPool) *localStorage {
+func newStorage(clusters m3.Clusters, workerPool pool.ObjectPool) *localStorage {
 	return &localStorage{clusters: clusters, workerPool: workerPool}
 }
 
 // nolint: unparam
 func (s *localStorage) fetchRaw(
-	namespace local.ClusterNamespace,
+	namespace m3.ClusterNamespace,
 	query index.Query,
 	opts index.QueryOptions,
 ) (encoding.SeriesIterators, bool, error) {
@@ -63,12 +62,14 @@ func (s *localStorage) fetchRaw(
 	return session.FetchTagged(namespaceID, query, opts)
 }
 
-// todo(braskin): merge this with Fetch()
+// todo(braskin): merge this with Fetch() and use genny to generate
+// a map that can handle ident.ID as a key so we don't need to
+// allocate a string for each entry.
 func (s *localStorage) fetchBlocks(
 	_ context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
-) (map[ident.ID][]m3block.SeriesBlocks, error) {
+) (map[string][]m3block.SeriesBlocks, error) {
 
 	m3query, err := storage.FetchQueryToM3Query(query)
 	if err != nil {
@@ -107,13 +108,14 @@ func (s *localStorage) Close() error {
 	return nil
 }
 
-func fromNamespaceListToSeriesList(nsList []m3block.NamespaceSeriesList) map[ident.ID][]m3block.SeriesBlocks {
-	seriesList := make(map[ident.ID][]m3block.SeriesBlocks)
+func fromNamespaceListToSeriesList(nsList []m3block.NamespaceSeriesList) map[string][]m3block.SeriesBlocks {
+	seriesList := make(map[string][]m3block.SeriesBlocks)
 
 	for _, ns := range nsList {
 		for _, series := range ns.SeriesList {
-			if _, ok := seriesList[series.ID]; !ok {
-				seriesList[series.ID] = []m3block.SeriesBlocks{
+			idStr := series.ID.String()
+			if _, ok := seriesList[idStr]; !ok {
+				seriesList[idStr] = []m3block.SeriesBlocks{
 					{
 						Blocks:    series.Blocks,
 						ID:        series.ID,
@@ -122,7 +124,7 @@ func fromNamespaceListToSeriesList(nsList []m3block.NamespaceSeriesList) map[ide
 					},
 				}
 			} else {
-				seriesList[series.ID] = append(seriesList[series.ID], series)
+				seriesList[idStr] = append(seriesList[idStr], series)
 			}
 		}
 	}

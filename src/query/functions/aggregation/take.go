@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/functions/utils"
 	"github.com/m3db/m3/src/query/parser"
+	"github.com/m3db/m3/src/query/ts"
 )
 
 const (
@@ -39,7 +40,7 @@ const (
 
 type takeFunc func(values []float64, buckets [][]int) []float64
 
-// NewTakeOp creates a new take operation
+// NewTakeOp creates a new takeK operation
 func NewTakeOp(
 	opType string,
 	params NodeParams,
@@ -49,9 +50,17 @@ func NewTakeOp(
 		return baseOp{}, fmt.Errorf("operator not supported: %s", opType)
 	}
 
-	heap := utils.NewFloatHeap(takeTop, int(params.Parameter))
-	fn := func(values []float64, buckets [][]int) []float64 {
-		return takeFn(heap, values, buckets)
+	var fn takeFunc
+	k := int(params.Parameter)
+	if k < 1 {
+		fn = func(values []float64, buckets [][]int) []float64 {
+			return takeNone(values, buckets)
+		}
+	} else {
+		heap := utils.NewFloatHeap(takeTop, k)
+		fn = func(values []float64, buckets [][]int) []float64 {
+			return takeFn(heap, values, buckets)
+		}
 	}
 
 	return newTakeOp(params, opType, fn), nil
@@ -142,6 +151,12 @@ func (n *takeNode) Process(ID parser.NodeID, b block.Block) error {
 	nextBlock := builder.Build()
 	defer nextBlock.Close()
 	return n.controller.Process(nextBlock)
+}
+
+// shortcut to return empty when taking <= 0 values
+func takeNone(values []float64, buckets [][]int) []float64 {
+	ts.Memset(values, math.NaN())
+	return values
 }
 
 func takeFn(heap utils.FloatHeap, values []float64, buckets [][]int) []float64 {

@@ -61,6 +61,8 @@ your_m3db_user        hard nofile 500000
 your_m3db_user        soft nofile 500000
 ```
 
+Alternatively, if you wish to have `m3dbnode` run under `systemd` you can use our [service example](https://github.com/m3db/m3/tree/master/integrations/systemd/m3dbnode.service) which will set sane defaults.
+
 Before running the process make sure the limits are set, if running manually you can raise the limit for the current user with `ulimit -n 500000`.
 
 ## Config files
@@ -161,7 +163,7 @@ curl -X POST localhost:7201/api/v1/namespace -d '{
     "flushEnabled": true,
     "writesToCommitLog": true,
     "cleanupEnabled": true,
-    "snapshotEnabled": false,
+    "snapshotEnabled": true,
     "repairEnabled": false,
     "retentionOptions": {
       "retentionPeriodDuration": "720h",

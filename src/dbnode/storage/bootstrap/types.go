@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
@@ -68,6 +69,16 @@ type TargetRange struct {
 	RunOptions RunOptions
 }
 
+// PersistConfig is the configuration for a bootstrap with persistence.
+type PersistConfig struct {
+	// If enabled bootstrappers are allowed to write out bootstrapped data
+	// to disk on their own instead of just returning result in-memory.
+	Enabled bool
+	// If enabled, what type of persistence files should be generated during
+	// the process.
+	FileSetType persist.FileSetType
+}
+
 // ProcessOptions is a set of options for a bootstrap provider.
 type ProcessOptions interface {
 	// SetCacheSeriesMetadata sets whether bootstrappers created by this
@@ -90,13 +101,11 @@ type ProcessOptions interface {
 
 // RunOptions is a set of options for a bootstrap run.
 type RunOptions interface {
-	// SetIncremental sets whether this bootstrap should be an incremental
-	// that saves intermediate results to durable storage or not.
-	SetIncremental(value bool) RunOptions
+	// SetPersistConfig sets persistence configuration for this bootstrap.
+	SetPersistConfig(value PersistConfig) RunOptions
 
-	// Incremental returns whether this bootstrap should be an incremental
-	// that saves intermediate results to durable storage or not.
-	Incremental() bool
+	// PersistConfig returns the persistence configuration for this bootstrap.
+	PersistConfig() PersistConfig
 
 	// SetCacheSeriesMetadata sets whether bootstrappers created by this
 	// provider should cache series metadata between runs.
@@ -177,7 +186,7 @@ type Source interface {
 		ns namespace.Metadata,
 		shardsTimeRanges result.ShardTimeRanges,
 		runOpts RunOptions,
-	) result.ShardTimeRanges
+	) (result.ShardTimeRanges, error)
 
 	// ReadData returns raw series for a given set of shards & specified time ranges and
 	// the time ranges it's unable to fulfill. A bootstrapper source should only return
@@ -194,7 +203,7 @@ type Source interface {
 		ns namespace.Metadata,
 		shardsTimeRanges result.ShardTimeRanges,
 		opts RunOptions,
-	) result.ShardTimeRanges
+	) (result.ShardTimeRanges, error)
 
 	// ReadIndex returns series index blocks.
 	ReadIndex(
