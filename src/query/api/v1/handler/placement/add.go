@@ -48,12 +48,13 @@ const (
 type AddHandler Handler
 
 type unsafeAddError struct {
-	host       string
-	initShards int
+	host      string
+	total     int
+	available int
 }
 
 func (e unsafeAddError) Error() string {
-	return fmt.Sprintf("instance %s has %d initializing shards", e.host, e.initShards)
+	return fmt.Sprintf("instance %s owns %d shards but %d available", e.host, e.total, e.available)
 }
 
 // NewAddHandler returns a new instance of AddHandler.
@@ -142,11 +143,13 @@ func (h *AddHandler) Add(
 
 func validateNoInitializing(p placement.Placement) error {
 	for _, inst := range p.Instances() {
-		numInit := inst.Shards().NumShardsForState(shard.Initializing)
-		if numInit > 0 {
+		total := inst.Shards().NumShards()
+		avail := inst.Shards().NumShardsForState(shard.Available)
+		if total != avail {
 			return unsafeAddError{
-				host:       inst.ID(),
-				initShards: numInit,
+				host:      inst.ID(),
+				total:     total,
+				available: avail,
 			}
 		}
 	}

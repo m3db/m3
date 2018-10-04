@@ -98,7 +98,7 @@ func TestPlacementAddHandler_SafeErr(t *testing.T) {
 	resp = w.Result()
 	body, _ = ioutil.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	assert.Equal(t, `{"error":"instance foo has 1 initializing shards"}`+"\n", string(body))
+	assert.Equal(t, `{"error":"instance foo owns 1 shards but 0 available"}`+"\n", string(body))
 }
 
 func TestPlacementAddHandler_SafeOK(t *testing.T) {
