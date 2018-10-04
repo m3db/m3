@@ -12,3 +12,12 @@ fi
 
 echo "---- :buildkite: :codecov: environment variables"
 export CI="true" # required by codecov.sh
+
+echo "---- Parallelism hooks"
+if [[ "$BUILDKITE_PARALLEL_JOB" != "" ]]; then
+  export SPLIT_IDX=${BUILDKITE_PARALLEL_JOB}
+fi
+
+if [[ "$BUILDKITE_PARALLEL_JOB_COUNT" != "" ]]; then
+  export TOTAL_SPLITS=${BUILDKITE_PARALLEL_JOB_COUNT}
+fi
