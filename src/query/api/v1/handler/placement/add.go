@@ -23,6 +23,7 @@ package placement
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
@@ -47,11 +48,11 @@ const (
 type AddHandler Handler
 
 type unsafeAddError struct {
-	host string
+	hosts string
 }
 
 func (e unsafeAddError) Error() string {
-	return fmt.Sprintf("instance %s does not have all shards available", e.host)
+	return fmt.Sprintf("instances [%s] do not have all shards available", e.hosts)
 }
 
 // NewAddHandler returns a new instance of AddHandler.
@@ -139,11 +140,15 @@ func (h *AddHandler) Add(
 }
 
 func validateAllAvailable(p placement.Placement) error {
+	badInsts := []string{}
 	for _, inst := range p.Instances() {
 		if !inst.IsAvailable() {
-			return unsafeAddError{
-				host: inst.ID(),
-			}
+			badInsts = append(badInsts, inst.ID())
+		}
+	}
+	if len(badInsts) > 0 {
+		return unsafeAddError{
+			hosts: strings.Join(badInsts, ","),
 		}
 	}
 	return nil
