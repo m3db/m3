@@ -31,6 +31,7 @@ import (
 	persistfs "github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	bfs "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/peers"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/uninitialized"
@@ -107,6 +108,7 @@ func newMultiAddrAdminClient(
 
 type bootstrappableTestSetupOptions struct {
 	disablePeersBootstrapper           bool
+	finalBootstrapper                  string
 	fetchBlocksMetadataEndpointVersion client.FetchBlocksMetadataEndpointVersion
 	bootstrapBlocksBatchSize           int
 	bootstrapBlocksConcurrency         int
@@ -160,6 +162,7 @@ func newDefaultBootstrappableTestSetups(
 		var (
 			instance                   = i
 			usingPeersBootstrapper     = !setupOpts[i].disablePeersBootstrapper
+			finalBootstrapperToUse     = setupOpts[i].finalBootstrapper
 			bootstrapBlocksBatchSize   = setupOpts[i].bootstrapBlocksBatchSize
 			bootstrapBlocksConcurrency = setupOpts[i].bootstrapBlocksConcurrency
 			bootstrapConsistencyLevel  = setupOpts[i].bootstrapConsistencyLevel
@@ -220,11 +223,10 @@ func newDefaultBootstrappableTestSetups(
 		setup.storageOpts = setup.storageOpts.SetInstrumentOptions(instrumentOpts)
 
 		var (
-			bsOpts                    = newDefaulTestResultOptions(setup.storageOpts)
-			uninitializedBootstrapper = uninitialized.NewuninitializedTopologyBootstrapperProvider(
+			bsOpts            = newDefaulTestResultOptions(setup.storageOpts)
+			finalBootstrapper = uninitialized.NewuninitializedTopologyBootstrapperProvider(
 				uninitialized.NewOptions().
 					SetInstrumentOptions(instrumentOpts), nil)
-			finalBootstrapper bootstrap.BootstrapperProvider
 
 			adminOpts = client.NewAdminOptions().
 					SetTopologyInitializer(topologyInitializer).(client.AdminOptions).
@@ -237,6 +239,16 @@ func newDefaultBootstrappableTestSetups(
 					SetJitter(true)
 			retrier = xretry.NewRetrier(retryOpts)
 		)
+
+		switch finalBootstrapperToUse {
+		case bootstrapper.NoOpAllBootstrapperName:
+			finalBootstrapper = bootstrapper.NewNoOpAllBootstrapperProvider()
+		case uninitialized.UninitializedTopologyBootstrapperName:
+			// Default already configured, do nothing
+		default:
+			panic(fmt.Sprintf(
+				"Unknown final bootstrapper to use: %v", finalBootstrapperToUse))
+		}
 
 		if bootstrapBlocksBatchSize > 0 {
 			adminOpts = adminOpts.SetFetchSeriesBlocksBatchSize(bootstrapBlocksBatchSize)
@@ -266,10 +278,8 @@ func newDefaultBootstrappableTestSetups(
 				SetPersistManager(setup.storageOpts.PersistManager()).
 				SetRuntimeOptionsManager(runtimeOptsMgr)
 
-			finalBootstrapper, err = peers.NewPeersBootstrapperProvider(peersOpts, uninitializedBootstrapper)
+			finalBootstrapper, err = peers.NewPeersBootstrapperProvider(peersOpts, finalBootstrapper)
 			require.NoError(t, err)
-		} else {
-			finalBootstrapper = uninitializedBootstrapper
 		}
 
 		fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
@@ -286,7 +296,7 @@ func newDefaultBootstrappableTestSetups(
 		require.NoError(t, err)
 
 		processOpts := bootstrap.NewProcessOptions().
-			SetTopologyMapProvider(setup.db).
+			SetTopologyMapProvider(&dynamicTopoMapProviderBullshit{setup}).
 			SetOrigin(setup.origin)
 		provider, err := bootstrap.NewProcessProvider(fsBootstrapper, processOpts, bsOpts)
 		require.NoError(t, err)
@@ -306,6 +316,14 @@ func newDefaultBootstrappableTestSetups(
 			fn()
 		}
 	}
+}
+
+type dynamicTopoMapProviderBullshit struct {
+	setup *testSetup
+}
+
+func (d *dynamicTopoMapProviderBullshit) TopologyMap() (topology.Map, error) {
+	return d.setup.db.TopologyMap()
 }
 
 func writeTestDataToDisk(

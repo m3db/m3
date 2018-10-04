@@ -42,6 +42,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/storage/cluster"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
@@ -298,8 +299,14 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		opts = opts.SetVerifySeriesDebugFilePathPrefix(debugFilePrefix)
 	}
 
+	db, err := cluster.NewDatabase(id, topoInit, storageOpts)
+	if err != nil {
+		return nil, err
+	}
+
 	return &testSetup{
 		t:                           t,
+		db:                          db,
 		opts:                        opts,
 		logger:                      logger,
 		storageOpts:                 storageOpts,
@@ -672,25 +679,28 @@ func node(t *testing.T, n int, shards shard.Shards) services.ServiceInstance {
 // newNodes creates a set of testSetups with reasonable defaults
 func newNodes(
 	t *testing.T,
+	numShards int,
 	instances []services.ServiceInstance,
 	nspaces []namespace.Metadata,
 	asyncInserts bool,
 ) (testSetups, topology.Initializer, closeFn) {
+	var (
+		log  = xlog.SimpleLogger
+		opts = newTestOptions(t).
+			SetNamespaces(nspaces).
+			SetTickMinimumInterval(3 * time.Second).
+			SetWriteNewSeriesAsync(asyncInserts).
+			SetNumShards(numShards)
 
-	log := xlog.SimpleLogger
-	opts := newTestOptions(t).
-		SetNamespaces(nspaces).
-		SetTickMinimumInterval(3 * time.Second).
-		SetWriteNewSeriesAsync(asyncInserts)
+		// NB(bl): We set replication to 3 to mimic production. This can be made
+		// into a variable if needed.
+		svc = fake.NewM3ClusterService().
+			SetInstances(instances).
+			SetReplication(services.NewServiceReplication().SetReplicas(3)).
+			SetSharding(services.NewServiceSharding().SetNumShards(numShards))
 
-	// NB(bl): We set replication to 3 to mimic production. This can be made
-	// into a variable if needed.
-	svc := fake.NewM3ClusterService().
-		SetInstances(instances).
-		SetReplication(services.NewServiceReplication().SetReplicas(3)).
-		SetSharding(services.NewServiceSharding().SetNumShards(opts.NumShards()))
-
-	svcs := fake.NewM3ClusterServices()
+		svcs = fake.NewM3ClusterServices()
+	)
 	svcs.RegisterService("m3db", svc)
 
 	topoOpts := topology.NewDynamicOptions().
@@ -699,6 +709,7 @@ func newNodes(
 
 	nodeOpt := bootstrappableTestSetupOptions{
 		disablePeersBootstrapper: true,
+		finalBootstrapper:        bootstrapper.NoOpAllBootstrapperName,
 		topologyInitializer:      topoInit,
 	}
 
