@@ -144,6 +144,18 @@ func (mr *MockServiceNodeMockRecorder) ID() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockServiceNode)(nil).ID))
 }
 
+// IsAvailable mocks base method
+func (m *MockServiceNode) IsAvailable() bool {
+	ret := m.ctrl.Call(m, "IsAvailable")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsAvailable indicates an expected call of IsAvailable
+func (mr *MockServiceNodeMockRecorder) IsAvailable() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsAvailable", reflect.TypeOf((*MockServiceNode)(nil).IsAvailable))
+}
+
 // IsInitializing mocks base method
 func (m *MockServiceNode) IsInitializing() bool {
 	ret := m.ctrl.Call(m, "IsInitializing")
