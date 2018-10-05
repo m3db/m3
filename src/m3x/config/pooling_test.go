@@ -22,24 +22,29 @@ package config
 import (
 	"testing"
 
+	"github.com/m3db/m3x/sync"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestWorkerPoolPolicyConvertsToOptionsDefault(t *testing.T) {
 	wpp := WorkerPoolPolicy{}
 	opts, size := wpp.Options()
+	defaultOpts := sync.NewPooledWorkerPoolOptions()
+
 	assert.False(t, opts.GrowOnDemand())
-	assert.NotZero(t, opts.NumShards())
-	assert.NotZero(t, opts.KillWorkerProbability())
+	assert.Equal(t, defaultOpts.NumShards(), opts.NumShards())
+	assert.Equal(t, defaultOpts.KillWorkerProbability(), opts.KillWorkerProbability())
 	assert.Equal(t, defaultWorkerPoolStaticSize, size)
 }
 
 func TestWorkerPoolPolicyConvertsToOptionsDefaultGrow(t *testing.T) {
 	wpp := WorkerPoolPolicy{GrowOnDemand: true}
 	opts, size := wpp.Options()
+	defaultOpts := sync.NewPooledWorkerPoolOptions()
+
 	assert.True(t, opts.GrowOnDemand())
-	assert.NotZero(t, opts.NumShards())
-	assert.NotZero(t, opts.KillWorkerProbability())
+	assert.Equal(t, defaultOpts.NumShards(), opts.NumShards())
+	assert.Equal(t, defaultGrowKillProbability, opts.KillWorkerProbability())
 	assert.Equal(t, opts.NumShards(), int64(size))
 }
 
