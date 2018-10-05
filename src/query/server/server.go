@@ -121,6 +121,9 @@ func Run(runOpts RunOptions) {
 	if err != nil {
 		logger.Fatal("could not connect to metrics", zap.Any("error", err))
 	}
+	instrumentOptions := instrument.NewOptions().
+		SetMetricsScope(scope).
+		SetZapLogger(logger)
 
 	// Close metrics scope
 	defer func() {
@@ -137,7 +140,7 @@ func Run(runOpts RunOptions) {
 		enabled        bool
 	)
 
-	workerPool, writeWorkerPool, instrumentOptions, err := pools.BuildWorkerPools(cfg, logger, scope)
+	workerPool, writeWorkerPool, err := pools.BuildWorkerPools(cfg, instrumentOptions)
 	if err != nil {
 		logger.Fatal("could not create worker pools", zap.Any("error", err))
 	}

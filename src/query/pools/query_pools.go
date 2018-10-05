@@ -32,9 +32,6 @@ import (
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
-
-	"github.com/uber-go/tally"
-	"go.uber.org/zap"
 )
 
 const (
@@ -51,9 +48,8 @@ const (
 // BuildWorkerPools builds a worker pool
 func BuildWorkerPools(
 	cfg config.Configuration,
-	logger *zap.Logger,
-	scope tally.Scope,
-) (pool.ObjectPool, xsync.PooledWorkerPool, instrument.Options, error) {
+	instrumentOptions instrument.Options,
+) (pool.ObjectPool, xsync.PooledWorkerPool, error) {
 	workerPoolCount := cfg.DecompressWorkerPoolCount
 	if workerPoolCount == 0 {
 		workerPoolCount = defaultWorkerPoolCount
@@ -64,9 +60,9 @@ func BuildWorkerPools(
 		workerPoolSize = defaultWorkerPoolSize
 	}
 
-	instrumentOptions := instrument.NewOptions().
-		SetZapLogger(logger).
-		SetMetricsScope(scope.SubScope("series-decompression-pool"))
+	instrumentOptions = instrumentOptions.SetMetricsScope(
+		instrumentOptions.MetricsScope().SubScope("series-decompression-pool"),
+	)
 
 	poolOptions := pool.NewObjectPoolOptions().
 		SetSize(workerPoolCount).
@@ -86,11 +82,11 @@ func BuildWorkerPools(
 
 	writeWorkerPool, err := xsync.NewPooledWorkerPool(writePoolSize, xsync.NewPooledWorkerPoolOptions())
 	if err != nil {
-		return nil, nil, instrumentOptions, err
+		return nil, nil, err
 	}
 
 	writeWorkerPool.Init()
-	return objectPool, writeWorkerPool, instrumentOptions, nil
+	return objectPool, writeWorkerPool, nil
 }
 
 type sessionPools struct {
