@@ -13,9 +13,9 @@ target_patterns() {
     case $1 in
         'dbnode') echo "^mode|github.com/m3db/m3/src/dbnode|github.com/m3db/m3/src/cmd/services/m3dbnode";;
         'query') echo "^mode|github.com/m3db/m3/src/query|github.com/m3db/m3/src/cmd/services/m3query";;
+        'm3em') echo "^mode|github.com/m3db/m3/src/m3em|github.com/m3db/m3/src/cmd/services/m3em_agent";;
         'm3ninx') echo "^mode|github.com/m3db/m3/src/m3ninx";;
         'm3nsch') echo "^mode|github.com/m3db/m3/src/m3nsch";;
-        'm3em') echo "^mode|github.com/m3db/m3/src/m3em";;
         'x') echo "^mode|github.com/m3db/m3/src/x";;
         *)   echo "unknown key: $1"; exit 1;;
     esac
