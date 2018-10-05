@@ -82,11 +82,11 @@ func TestDiskSnapshotSimple(t *testing.T) {
 	var (
 		currBlock                         = testSetup.getNowFn().Truncate(blockSize)
 		now                               = currBlock.Add(11 * time.Minute)
-		assertTimeAllowsWritesToAllBlocks = func(t time.Time) {
+		assertTimeAllowsWritesToAllBlocks = func(ti time.Time) {
 			// Make sure now is within bufferPast of the previous block
-			require.True(t, now.Before(now.Truncate(blockSize).Add(bufferPast)))
+			require.True(t, ti.Before(ti.Truncate(blockSize).Add(bufferPast)))
 			// Make sure now is within bufferFuture of the next block
-			require.True(t, now.After(now.Truncate(blockSize).Add(blockSize).Add(-bufferFuture)))
+			require.True(t, ti.After(ti.Truncate(blockSize).Add(blockSize).Add(-bufferFuture)))
 		}
 	)
 
@@ -105,7 +105,6 @@ func TestDiskSnapshotSimple(t *testing.T) {
 		}
 	)
 	for _, input := range inputData {
-		// testSetup.setNowFn(input.Start)
 		testData := generate.Block(input)
 		seriesMaps[xtime.ToUnixNano(input.Start.Truncate(blockSize))] = testData
 		for _, ns := range testSetup.namespaces {
@@ -113,40 +112,48 @@ func TestDiskSnapshotSimple(t *testing.T) {
 		}
 	}
 
-	now = testSetup.getNowFn().Add(2 * time.Minute)
-	assertTimeAllowsWritesToAllBlocks(now)
-	testSetup.setNowFn(now)
-
+	// Now that we've completed the writes, we need to make sure that we wait for
+	// the next snapshot to guarantee that it should contain all the writes. We do
+	// this by measuring the current highest snapshot volume index and then updating
+	// the time (to allow another snapshot process to occur due to the configurable
+	// minimum time between snapshots), and then waiting for the snapshot files with
+	// the measure volume index + 1.
 	var (
-		maxWaitTime    = time.Minute
-		filePathPrefix = testSetup.storageOpts.
-				CommitLogOptions().
-				FilesystemOptions().
-				FilePathPrefix()
+		snapshotsToWaitForByNS = make([][]snapshotID, 0, len(testSetup.namespaces))
+		filePathPrefix         = testSetup.storageOpts.
+					CommitLogOptions().
+					FilesystemOptions().
+					FilePathPrefix()
 	)
-
 	for _, ns := range testSetup.namespaces {
-		snapshotsToWaitFor := []snapshotID{
+		snapshotsToWaitForByNS = append(snapshotsToWaitForByNS, []snapshotID{
 			{
 				blockStart: currBlock.Add(-blockSize),
 				minVolume: getLatestSnapshotVolumeIndex(
-					filePathPrefix, shardSet, ns.ID(), currBlock.Add(-blockSize)),
+					filePathPrefix, shardSet, ns.ID(), currBlock.Add(-blockSize)) + 1,
 			},
 			{
 				blockStart: currBlock,
 				minVolume: getLatestSnapshotVolumeIndex(
-					filePathPrefix, shardSet, ns.ID(), currBlock),
+					filePathPrefix, shardSet, ns.ID(), currBlock) + 1,
 			},
 			{
 				blockStart: currBlock.Add(blockSize),
 				minVolume: getLatestSnapshotVolumeIndex(
-					filePathPrefix, shardSet, ns.ID(), currBlock.Add(blockSize)),
+					filePathPrefix, shardSet, ns.ID(), currBlock.Add(blockSize)) + 1,
 			},
-		}
+		})
+	}
 
+	now = testSetup.getNowFn().Add(2 * time.Minute)
+	assertTimeAllowsWritesToAllBlocks(now)
+	testSetup.setNowFn(now)
+
+	maxWaitTime := time.Minute
+	for i, ns := range testSetup.namespaces {
 		log.Info("waiting for snapshot files to flush")
 		require.NoError(t, waitUntilSnapshotFilesFlushed(
-			filePathPrefix, shardSet, ns.ID(), snapshotsToWaitFor, maxWaitTime))
+			filePathPrefix, shardSet, ns.ID(), snapshotsToWaitForByNS[i], maxWaitTime))
 		log.Info("verifying snapshot files")
 		verifySnapshottedDataFiles(t, shardSet, testSetup.storageOpts, ns.ID(), seriesMaps)
 	}
