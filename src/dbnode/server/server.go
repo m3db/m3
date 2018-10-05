@@ -479,7 +479,7 @@ func Run(runOpts RunOptions) {
 	// bootstrapping decisions they are in sync with the clustered database
 	// which is triggering the actual bootstraps. This way, when the clustered
 	// database receives a topology update and decides to kick off a bootstrap,
-	// the bootstrap process will receive a topology map that is at least as
+	// the bootstrap process will receaive a topology map that is at least as
 	// recent as the one that triggered the bootstrap, if not newer.
 	// See GitHub issue #1013 for more details.
 	topoMapProvider := newTopoMapProvider(topo)
