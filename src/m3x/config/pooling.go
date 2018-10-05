@@ -24,6 +24,7 @@ import "github.com/m3db/m3x/sync"
 
 const (
 	defaultWorkerPoolStaticSize = 4096
+	defaultGrowKillProbability  = 0.01
 )
 
 // WorkerPoolPolicy specifies the policy for the worker pool.
@@ -49,6 +50,10 @@ func (w WorkerPoolPolicy) Options() (sync.PooledWorkerPoolOptions, int) {
 	opts = opts.SetGrowOnDemand(grow)
 	if w.KillWorkerProbability != 0 {
 		opts = opts.SetKillWorkerProbability(w.KillWorkerProbability)
+	} else if grow {
+		// NB: if using a growing pool, default kill probability is too low, causing
+		// the pool to quickly grow out of control. Use a higher default kill probability
+		opts = opts.SetKillWorkerProbability(defaultGrowKillProbability)
 	}
 
 	if w.NumShards != 0 {
