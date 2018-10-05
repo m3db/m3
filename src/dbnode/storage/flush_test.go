@@ -22,7 +22,6 @@ package storage
 
 import (
 	"errors"
-	"fmt"
 	"sort"
 	"sync"
 	"testing"
@@ -370,7 +369,6 @@ func TestFlushManagerFlushSnapshot(t *testing.T) {
 		num = numIntervals(start, snapshotEnd, blockSize)
 		for i := 0; i < num; i++ {
 			st := start.Add(time.Duration(i) * blockSize)
-			fmt.Println(st)
 			ns.EXPECT().NeedsFlush(st, st).Return(true)
 			ns.EXPECT().Snapshot(st, now, gomock.Any())
 		}

@@ -86,7 +86,9 @@ func TestDiskSnapshotSimple(t *testing.T) {
 	testSetup.setNowFn(now)
 	maxWaitTime := time.Minute
 	for _, ns := range testSetup.namespaces {
+		log.Debug("waiting for snapshot files to flush")
 		require.NoError(t, waitUntilSnapshotFilesFlushed(filePathPrefix, testSetup.shardSet, ns.ID(), []time.Time{now.Truncate(blockSize)}, maxWaitTime))
+		log.Debug("verifying snapshot files")
 		verifySnapshottedDataFiles(t, testSetup.shardSet, testSetup.storageOpts, ns.ID(), now.Truncate(blockSize), seriesMaps)
 	}
 
@@ -94,13 +96,14 @@ func TestDiskSnapshotSimple(t *testing.T) {
 	newTime := oldTime.Add(blockSize * 2)
 	testSetup.setNowFn(newTime)
 
+	log.Debug("sleeping for 10x minimum tick interval")
 	testSetup.sleepFor10xTickMinimumInterval()
 	for _, ns := range testSetup.namespaces {
-		// Make sure new snapshotfiles are written out
+		log.Debug("waiting for new snapshot files to be written out")
 		require.NoError(t, waitUntilSnapshotFilesFlushed(filePathPrefix, testSetup.shardSet, ns.ID(), []time.Time{newTime.Truncate(blockSize)}, maxWaitTime))
 		for _, shard := range testSetup.shardSet.All() {
+			log.Debug("waiting for old snapshot files to be deleted")
 			waitUntil(func() bool {
-				// Make sure old snapshot files are deleted
 				exists, err := fs.SnapshotFileSetExistsAt(filePathPrefix, ns.ID(), shard.ID(), oldTime.Truncate(blockSize))
 				require.NoError(t, err)
 				return !exists

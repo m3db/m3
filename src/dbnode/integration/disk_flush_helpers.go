@@ -209,11 +209,10 @@ func verifySnapshottedDataFiles(
 	reader, err := fs.NewReader(storageOpts.BytesPool(), fsOpts)
 	require.NoError(t, err)
 	iteratorPool := storageOpts.ReaderIteratorPool()
-	for _, ns := range testNamespaces {
-		for _, seriesList := range seriesMaps {
-			verifyForTime(
-				t, storageOpts, reader, shardSet, iteratorPool, snapshotTime,
-				ns, persist.FileSetSnapshotType, seriesList)
-		}
+	for _, seriesList := range seriesMaps {
+		verifyForTime(
+			t, storageOpts, reader, shardSet, iteratorPool, snapshotTime,
+			namespace, persist.FileSetSnapshotType, seriesList)
 	}
+
 }
