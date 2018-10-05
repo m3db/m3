@@ -22,12 +22,14 @@ package placement
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	clusterclient "github.com/m3db/m3cluster/client"
+	"github.com/m3db/m3cluster/placement"
 
 	"go.uber.org/zap"
 )
@@ -58,9 +60,22 @@ func (h *GetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	placement, version, err := service.Placement()
+	var placement placement.Placement
+	var version int
+	status := http.StatusNotFound
+	if vs := r.FormValue("version"); vs != "" {
+		version, err = strconv.Atoi(vs)
+		if err == nil {
+			placement, err = service.PlacementForVersion(version)
+		} else {
+			status = http.StatusBadRequest
+		}
+	} else {
+		placement, version, err = service.Placement()
+	}
+
 	if err != nil {
-		handler.Error(w, err, http.StatusNotFound)
+		handler.Error(w, err, status)
 		return
 	}
 

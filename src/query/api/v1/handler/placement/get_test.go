@@ -22,6 +22,7 @@ package placement
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -92,6 +93,8 @@ func TestPlacementGetHandler(t *testing.T) {
 		},
 	}
 
+	const placementJSON = "{\"placement\":{\"instances\":{\"host1\":{\"id\":\"host1\",\"isolationGroup\":\"rack1\",\"zone\":\"test\",\"weight\":1,\"endpoint\":\"http://host1:1234\",\"shards\":[],\"shardSetId\":0,\"hostname\":\"host1\",\"port\":1234},\"host2\":{\"id\":\"host2\",\"isolationGroup\":\"rack1\",\"zone\":\"test\",\"weight\":1,\"endpoint\":\"http://host2:1234\",\"shards\":[],\"shardSetId\":0,\"hostname\":\"host2\",\"port\":1234}},\"replicaFactor\":0,\"numShards\":0,\"isSharded\":false,\"cutoverTime\":\"0\",\"isMirrored\":false,\"maxShardSetId\":0},\"version\":%d}"
+
 	placementObj, err := placement.NewPlacementFromProto(placementProto)
 	require.NoError(t, err)
 
@@ -101,7 +104,7 @@ func TestPlacementGetHandler(t *testing.T) {
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "{\"placement\":{\"instances\":{\"host1\":{\"id\":\"host1\",\"isolationGroup\":\"rack1\",\"zone\":\"test\",\"weight\":1,\"endpoint\":\"http://host1:1234\",\"shards\":[],\"shardSetId\":0,\"hostname\":\"host1\",\"port\":1234},\"host2\":{\"id\":\"host2\",\"isolationGroup\":\"rack1\",\"zone\":\"test\",\"weight\":1,\"endpoint\":\"http://host2:1234\",\"shards\":[],\"shardSetId\":0,\"hostname\":\"host2\",\"port\":1234}},\"replicaFactor\":0,\"numShards\":0,\"isSharded\":false,\"cutoverTime\":\"0\",\"isMirrored\":false,\"maxShardSetId\":0},\"version\":0}", string(body))
+	assert.Equal(t, fmt.Sprintf(placementJSON, 0), string(body))
 
 	// Test error case
 	w = httptest.NewRecorder()
@@ -113,4 +116,26 @@ func TestPlacementGetHandler(t *testing.T) {
 
 	resp = w.Result()
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+
+	// With bad version request
+	w = httptest.NewRecorder()
+	req = httptest.NewRequest("GET", "/placement/get?version=foo", nil)
+	require.NotNil(t, req)
+
+	handler.ServeHTTP(w, req)
+	resp = w.Result()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+	// With valid version request
+	w = httptest.NewRecorder()
+	req = httptest.NewRequest("GET", "/placement/get?version=12", nil)
+	require.NotNil(t, req)
+
+	mockPlacementService.EXPECT().PlacementForVersion(12).Return(placementObj, nil)
+
+	handler.ServeHTTP(w, req)
+	resp = w.Result()
+	body, _ = ioutil.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, fmt.Sprintf(placementJSON, 12), string(body))
 }
