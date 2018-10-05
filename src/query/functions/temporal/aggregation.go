@@ -50,7 +50,7 @@ const (
 	// StdVarType calculates the standard variance of all values in the specified interval
 	StdVarType = "stdvar_over_time"
 
-	// StdVarType calculates the standard variance of all values in the specified interval
+	// HoltWintersType produces a smoothed value for time series based on the specified interval
 	HoltWintersType = "holt_winters"
 )
 
@@ -70,7 +70,6 @@ var (
 
 type aggProcessor struct {
 	aggFunc aggFunc
-	sf, tf  float64
 }
 
 func (a aggProcessor) Init(op baseOp, controller *transform.Controller, opts transform.Options) Processor {
@@ -78,8 +77,6 @@ func (a aggProcessor) Init(op baseOp, controller *transform.Controller, opts tra
 		controller: controller,
 		op:         op,
 		aggFunc:    a.aggFunc,
-		sf:         a.sf,
-		tf:         a.tf,
 	}
 }
 
@@ -94,6 +91,7 @@ func NewAggOp(args []interface{}, optype string) (transform.Params, error) {
 	}
 
 	if optype == HoltWintersType {
+		// todo(braskin): move this logic to the parser
 		if len(args) != 3 {
 			return emptyOp, fmt.Errorf("invalid number of args for %s: %d", optype, len(args))
 		}
@@ -121,6 +119,7 @@ func NewAggOp(args []interface{}, optype string) (transform.Params, error) {
 		a := aggProcessor{
 			aggFunc: aggregationFunc,
 		}
+
 		return newBaseOp(args, optype, a)
 	}
 
@@ -148,24 +147,36 @@ func makeHoltWintersFn(sf, tf float64) aggFunc {
 				continue
 			}
 
-			x = sf * val
-
 			if !foundSecond {
 				foundSecond = true
 				secondVal = val
 				b = secondVal - s1
 			}
 
+			// scale the raw value against the smoothing factor.
+			x = sf * val
+
+			// scale the last smoothed value with the trend at this point.
 			b = calcTrendValue(i-1, sf, tf, s0, s1, b)
 			y = (1 - sf) * (s1 + b)
 
 			s0, s1 = s1, x+y
 		}
 
+		// need at least two values to apply a smoothing operation
+		if !foundSecond {
+			return math.NaN()
+		}
+
 		return s1
 	}
 }
 
+// Calculate the trend value at the given index i in raw data d.
+// This is somewhat analogous to the slope of the trend at the given index.
+// The argument "s" is the set of computed smoothed values.
+// The argument "b" is the set of computed trend factors.
+// The argument "d" is the set of raw input values.
 func calcTrendValue(i int, sf, tf, s0, s1, b float64) float64 {
 	if i == 0 {
 		return b

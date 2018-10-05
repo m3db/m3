@@ -38,6 +38,8 @@ import (
 type testCase struct {
 	name           string
 	opType         string
+	sf, tf         float64 // used only for Holt-Winters
+	args           []interface{}
 	vals           [][]float64
 	afterBlockOne  [][]float64
 	afterAllBlocks [][]float64
@@ -47,6 +49,7 @@ var testCases = []testCase{
 	{
 		name:   "avg_over_time",
 		opType: AvgType,
+		args:   []interface{}{5 * time.Minute},
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 2.5},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 7},
@@ -59,6 +62,7 @@ var testCases = []testCase{
 	{
 		name:   "count_over_time",
 		opType: CountType,
+		args:   []interface{}{5 * time.Minute},
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 4},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 5},
@@ -71,6 +75,7 @@ var testCases = []testCase{
 	{
 		name:   "min_over_time",
 		opType: MinType,
+		args:   []interface{}{5 * time.Minute},
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 5},
@@ -83,6 +88,7 @@ var testCases = []testCase{
 	{
 		name:   "max_over_time",
 		opType: MaxType,
+		args:   []interface{}{5 * time.Minute},
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 4},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 9},
@@ -95,6 +101,7 @@ var testCases = []testCase{
 	{
 		name:   "sum_over_time",
 		opType: SumType,
+		args:   []interface{}{5 * time.Minute},
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 10},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 35},
@@ -107,6 +114,7 @@ var testCases = []testCase{
 	{
 		name:   "stddev_over_time",
 		opType: StdDevType,
+		args:   []interface{}{5 * time.Minute},
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1.1180},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1.4142},
@@ -119,6 +127,7 @@ var testCases = []testCase{
 	{
 		name:   "stdvar_over_time",
 		opType: StdVarType,
+		args:   []interface{}{5 * time.Minute},
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1.25},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 2},
@@ -126,6 +135,19 @@ var testCases = []testCase{
 		afterAllBlocks: [][]float64{
 			{2, 2, 2, 2, 2},
 			{2, 2, 2, 2, 2},
+		},
+	},
+	{
+		name:   "holt_winters",
+		opType: HoltWintersType,
+		args:   []interface{}{5 * time.Minute, 0.2, 0.7},
+		afterBlockOne: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 4},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 9},
+		},
+		afterAllBlocks: [][]float64{
+			{4, 3.64, 3.1824, -4.8224, 4},
+			{9, 8.64, 8.1824, 0.1776, 9},
 		},
 	},
 }
@@ -142,6 +164,7 @@ var testCasesNaNs = []testCase{
 	{
 		name:   "avg_over_time",
 		opType: AvgType,
+		args:   []interface{}{5 * time.Minute},
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
@@ -154,6 +177,7 @@ var testCasesNaNs = []testCase{
 	{
 		name:   "count_over_time",
 		opType: CountType,
+		args:   []interface{}{5 * time.Minute},
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
@@ -166,6 +190,7 @@ var testCasesNaNs = []testCase{
 	{
 		name:   "min_over_time",
 		opType: MinType,
+		args:   []interface{}{5 * time.Minute},
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
@@ -178,6 +203,7 @@ var testCasesNaNs = []testCase{
 	{
 		name:   "max_over_time",
 		opType: MaxType,
+		args:   []interface{}{5 * time.Minute},
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
@@ -190,6 +216,7 @@ var testCasesNaNs = []testCase{
 	{
 		name:   "sum_over_time",
 		opType: SumType,
+		args:   []interface{}{5 * time.Minute},
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
@@ -202,6 +229,7 @@ var testCasesNaNs = []testCase{
 	{
 		name:   "stddev_over_time",
 		opType: StdDevType,
+		args:   []interface{}{5 * time.Minute},
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
@@ -214,6 +242,20 @@ var testCasesNaNs = []testCase{
 	{
 		name:   "stdvar_over_time",
 		opType: StdVarType,
+		args:   []interface{}{5 * time.Minute},
+		afterBlockOne: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+		afterAllBlocks: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+	},
+	{
+		name:   "holt_winters",
+		opType: HoltWintersType,
+		args:   []interface{}{5 * time.Minute, 0.5, 0.6},
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
@@ -242,7 +284,7 @@ func testAggregation(t *testing.T, testCases []testCase, vals [][]float64) {
 			block3 := test.NewUnconsolidatedBlockFromDatapoints(bounds, values)
 			c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 
-			baseOp, err := NewAggOp([]interface{}{5 * time.Minute}, tt.opType)
+			baseOp, err := NewAggOp(tt.args, tt.opType)
 			require.NoError(t, err)
 			node := baseOp.Node(c, transform.Options{
 				TimeSpec: transform.TimeSpec{
