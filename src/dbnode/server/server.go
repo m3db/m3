@@ -474,19 +474,20 @@ func Run(runOpts RunOptions) {
 		SetTagEncoderPool(tagEncoderPool).
 		SetTagDecoderPool(tagDecoderPool)
 
-	// Set bootstrap options - We pass the db as the TopologyMapProvider
-	// becaues the clustered database is the component that is responsible
-	// for triggering new bootstraps based on topology changes. As a result
-	// of that, we want to make sure that when the bootstrapping process
-	// needs to capture a topology snapshot to make decisions, it gets it from
-	// the clustered database to ensure that it gets a view that is *at least*
-	// as new as the topology that triggered the bootstrap, if not newer. See
-	// GitHub issue #1013 for more details.
+	// Set bootstrap options
 	clusterTopoWatch, err := topo.Watch()
 	if err != nil {
 		logger.Fatalf("could not create cluster topology watch: %v", err)
 	}
 
+	// We need to create a topology map provider from the same topology
+	// that will be passed to the cluster so that when we make bootstrapping
+	// decisions they are in sync with the clustered database which is triggering
+	// the actual bootstraps. This way, when the clustered database receives a
+	// topology update and decides to kick off a bootstrapm, the bootstrap process
+	// will receive a topology map that is at least as recent as the one that
+	// triggered the bootstrap, if not newer.
+	// See GitHub issue #1013 for more details.
 	topoMapProvider := &topoMapProvider{t: topo}
 	bs, err := cfg.Bootstrap.New(opts, topoMapProvider, origin, m3dbClient)
 	if err != nil {
@@ -1166,5 +1167,5 @@ func (t *topoMapProvider) TopologyMap() (topology.Map, error) {
 		return nil, errors.New("topology map provider has not be set yet")
 	}
 
-	return t.t.Map(), nil
+	return t.t.Get(), nil
 }
