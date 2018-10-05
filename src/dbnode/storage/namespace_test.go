@@ -517,6 +517,18 @@ func TestNamespaceSnapshotShardError(t *testing.T) {
 	require.Error(t, testSnapshotWithShardSnapshotErrs(t, shardMethodResults))
 }
 
+func TestNamespaceSnapshotShardNotBootstrappedBeforeTick(t *testing.T) {
+	shardMethodResults := []snapshotTestCase{
+		snapshotTestCase{
+			isSnapshotting:                false,
+			expectSnapshot:                false,
+			shardBootstrapStateBeforeTick: Bootstrapping,
+			snapshotErr:                   nil,
+		},
+	}
+	require.NoError(t, testSnapshotWithShardSnapshotErrs(t, shardMethodResults))
+}
+
 func testSnapshotWithShardSnapshotErrs(t *testing.T, shardMethodResults []snapshotTestCase) error {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
