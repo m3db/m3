@@ -57,8 +57,6 @@ func TestDiskSnapshotSimple(t *testing.T) {
 	md2, err := namespace.NewMetadata(testNamespaces[1], nOpts)
 	require.NoError(t, err)
 
-	// md1.SetOptions()
-
 	testOpts := newTestOptions(t).
 		SetTickMinimumInterval(time.Second).
 		SetNamespaces([]namespace.Metadata{md1, md2})
@@ -82,13 +80,17 @@ func TestDiskSnapshotSimple(t *testing.T) {
 
 	// Write test data
 	var (
-		currBlock = testSetup.getNowFn().Truncate(blockSize)
-		now       = currBlock.Add(11 * time.Minute)
+		currBlock                         = testSetup.getNowFn().Truncate(blockSize)
+		now                               = currBlock.Add(11 * time.Minute)
+		assertTimeAllowsWritesToAllBlocks = func(t time.Time) {
+			// Make sure now is within bufferPast of the previous block
+			require.True(t, now.Before(now.Truncate(blockSize).Add(bufferPast)))
+			// Make sure now is within bufferFuture of the next block
+			require.True(t, now.After(now.Truncate(blockSize).Add(blockSize).Add(-bufferFuture)))
+		}
 	)
-	// Make sure now is within bufferPast of the previous block
-	require.True(t, now.Before(now.Truncate(blockSize).Add(bufferPast)))
-	// Make sure now is within bufferFuture of the next block
-	require.True(t, now.After(now.Truncate(blockSize).Add(blockSize).Add(-bufferFuture)))
+
+	assertTimeAllowsWritesToAllBlocks(now)
 	testSetup.setNowFn(now)
 
 	var (
@@ -112,11 +114,7 @@ func TestDiskSnapshotSimple(t *testing.T) {
 	}
 
 	now = testSetup.getNowFn().Add(2 * time.Minute)
-	// TODO: Make this a function that can be repeated
-	// Make sure now is within bufferPast of the previous block
-	require.True(t, now.Before(now.Truncate(blockSize).Add(bufferPast)))
-	// Make sure now is within bufferFuture of the next block
-	require.True(t, now.After(now.Truncate(blockSize).Add(blockSize).Add(-bufferFuture)))
+	assertTimeAllowsWritesToAllBlocks(now)
 	testSetup.setNowFn(now)
 
 	var (
