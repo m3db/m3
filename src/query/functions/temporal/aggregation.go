@@ -49,6 +49,9 @@ const (
 
 	// StdVarType calculates the standard variance of all values in the specified interval
 	StdVarType = "stdvar_over_time"
+
+	// StdVarType calculates the standard variance of all values in the specified interval
+	HoltWintersType = "holt_winters"
 )
 
 type aggFunc func([]float64) float64
@@ -67,6 +70,7 @@ var (
 
 type aggProcessor struct {
 	aggFunc aggFunc
+	sf, tf  float64
 }
 
 func (a aggProcessor) Init(op baseOp, controller *transform.Controller, opts transform.Options) Processor {
@@ -74,6 +78,8 @@ func (a aggProcessor) Init(op baseOp, controller *transform.Controller, opts tra
 		controller: controller,
 		op:         op,
 		aggFunc:    a.aggFunc,
+		sf:         a.sf,
+		tf:         a.tf,
 	}
 }
 
@@ -87,13 +93,95 @@ func NewAggOp(args []interface{}, optype string) (transform.Params, error) {
 		return newBaseOp(args, optype, a)
 	}
 
+	if optype == HoltWintersType {
+		if len(args) != 3 {
+			return emptyOp, fmt.Errorf("invalid number of args for %s: %d", optype, len(args))
+		}
+
+		sf, ok := args[1].(float64)
+		if !ok {
+			return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[0], optype)
+		}
+
+		tf, ok := args[2].(float64)
+		if !ok {
+			return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[0], optype)
+		}
+
+		// Sanity check the input.
+		if sf <= 0 || sf >= 1 {
+			return emptyOp, fmt.Errorf("invalid smoothing factor. Expected: 0 < sf < 1, got: %f", sf)
+		}
+
+		if tf <= 0 || tf >= 1 {
+			return emptyOp, fmt.Errorf("invalid trend factor. Expected: 0 < tf < 1, got: %f", tf)
+		}
+
+		aggregationFunc := makeHoltWintersFn(sf, tf)
+		a := aggProcessor{
+			aggFunc: aggregationFunc,
+		}
+		return newBaseOp(args, optype, a)
+	}
+
 	return nil, fmt.Errorf("unknown aggregation type: %s", optype)
+}
+
+func makeHoltWintersFn(sf, tf float64) aggFunc {
+	return func(vals []float64) float64 {
+		var (
+			foundFirst, foundSecond bool
+			secondVal               float64
+			b                       float64
+			x, y                    float64
+			s0, s1                  float64
+		)
+
+		for i, val := range vals {
+			if math.IsNaN(val) {
+				continue
+			}
+
+			if !foundFirst {
+				foundFirst = true
+				s1 = val
+				continue
+			}
+
+			x = sf * val
+
+			if !foundSecond {
+				foundSecond = true
+				secondVal = val
+				b = secondVal - s1
+			}
+
+			b = calcTrendValue(i-1, sf, tf, s0, s1, b)
+			y = (1 - sf) * (s1 + b)
+
+			s0, s1 = s1, x+y
+		}
+
+		return s1
+	}
+}
+
+func calcTrendValue(i int, sf, tf, s0, s1, b float64) float64 {
+	if i == 0 {
+		return b
+	}
+
+	x := tf * (s1 - s0)
+	y := (1 - tf) * b
+
+	return x + y
 }
 
 type aggNode struct {
 	op         baseOp
 	controller *transform.Controller
 	aggFunc    func([]float64) float64
+	sf, tf     float64
 }
 
 func (a *aggNode) Process(datapoints ts.Datapoints) float64 {
