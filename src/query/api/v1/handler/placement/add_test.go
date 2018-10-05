@@ -30,7 +30,6 @@ import (
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3cluster/shard"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -105,46 +104,32 @@ func TestPlacementAddHandler_SafeOK(t *testing.T) {
 	mockClient, mockPlacementService := SetupPlacementTest(t)
 	handler := NewAddHandler(mockClient, config.Configuration{})
 
-	// Test add success
+	// Test add error
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/placement", strings.NewReader("{\"instances\":[{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234}]}"))
 	require.NotNil(t, req)
 
-	mockPlacementService.EXPECT().Placement().Return(placement.NewPlacement(), 0, nil)
+	mockPlacementService.EXPECT().Placement().Return(placement.NewPlacement().SetIsSharded(true), 0, nil)
 	mockPlacementService.EXPECT().AddInstances(gomock.Not(nil)).Return(placement.NewPlacement(), nil, nil)
+	mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0).Return(errors.New("test err"))
 	handler.ServeHTTP(w, req)
 
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	assert.Equal(t, `{"error":"test err"}`+"\n", string(body))
+
+	w = httptest.NewRecorder()
+	req = httptest.NewRequest("POST", "/placement", strings.NewReader("{\"instances\":[{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234}]}"))
+	require.NotNil(t, req)
+
+	mockPlacementService.EXPECT().Placement().Return(placement.NewPlacement().SetIsSharded(true), 0, nil)
+	mockPlacementService.EXPECT().AddInstances(gomock.Not(nil)).Return(placement.NewPlacement(), nil, nil)
+	mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0).Return(nil)
+	handler.ServeHTTP(w, req)
+
+	resp = w.Result()
+	body, _ = ioutil.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "{\"placement\":{\"instances\":{},\"replicaFactor\":0,\"numShards\":0,\"isSharded\":false,\"cutoverTime\":\"0\",\"isMirrored\":false,\"maxShardSetId\":0},\"version\":0}", string(body))
-}
-
-func newPlacement(state shard.State) placement.Placement {
-	shards := shard.NewShards([]shard.Shard{
-		shard.NewShard(1).SetState(state),
-	})
-
-	instA := placement.NewInstance().SetShards(shards).SetID("A")
-	instB := placement.NewInstance().SetShards(shards).SetID("B")
-	return placement.NewPlacement().SetInstances([]placement.Instance{instA, instB})
-}
-
-func newInitPlacement() placement.Placement {
-	return newPlacement(shard.Initializing)
-}
-
-func newAvailPlacement() placement.Placement {
-	return newPlacement(shard.Available)
-}
-
-func TestValidateNoInitializing(t *testing.T) {
-	p := placement.NewPlacement()
-	assert.NoError(t, validateAllAvailable(p))
-
-	p = newAvailPlacement()
-	assert.NoError(t, validateAllAvailable(p))
-
-	p = newInitPlacement()
-	assert.Error(t, validateAllAvailable(p))
+	assert.Equal(t, "{\"placement\":{\"instances\":{},\"replicaFactor\":0,\"numShards\":0,\"isSharded\":true,\"cutoverTime\":\"0\",\"isMirrored\":false,\"maxShardSetId\":0},\"version\":1}", string(body))
 }
