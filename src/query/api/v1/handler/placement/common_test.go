@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3cluster/generated/proto/placementpb"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/shard"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -49,9 +50,10 @@ func TestPlacementService(t *testing.T) {
 	mockClient.EXPECT().Services(gomock.Not(nil)).Return(mockServices, nil)
 	mockServices.EXPECT().PlacementService(gomock.Not(nil), gomock.Not(nil)).Return(mockPlacementService, nil)
 
-	placementService, err := Service(mockClient, http.Header{})
+	placementService, algo, err := ServiceWithAlgo(mockClient, http.Header{})
 	assert.NoError(t, err)
 	assert.NotNil(t, placementService)
+	assert.NotNil(t, algo)
 
 	// Test Services returns error
 	mockClient.EXPECT().Services(gomock.Not(nil)).Return(nil, errors.New("dummy service error"))
@@ -216,4 +218,33 @@ func TestConvertInstancesProto(t *testing.T) {
 		},
 	})
 	require.EqualError(t, err, "invalid proto shard state")
+}
+
+func newPlacement(state shard.State) placement.Placement {
+	shards := shard.NewShards([]shard.Shard{
+		shard.NewShard(1).SetState(state),
+	})
+
+	instA := placement.NewInstance().SetShards(shards).SetID("A")
+	instB := placement.NewInstance().SetShards(shards).SetID("B")
+	return placement.NewPlacement().SetInstances([]placement.Instance{instA, instB})
+}
+
+func newInitPlacement() placement.Placement {
+	return newPlacement(shard.Initializing)
+}
+
+func newAvailPlacement() placement.Placement {
+	return newPlacement(shard.Available)
+}
+
+func TestValidateAllAvailable(t *testing.T) {
+	p := placement.NewPlacement()
+	assert.NoError(t, validateAllAvailable(p))
+
+	p = newAvailPlacement()
+	assert.NoError(t, validateAllAvailable(p))
+
+	p = newInitPlacement()
+	assert.Error(t, validateAllAvailable(p))
 }

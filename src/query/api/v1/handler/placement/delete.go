@@ -30,13 +30,15 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	clusterclient "github.com/m3db/m3cluster/client"
+	"github.com/m3db/m3cluster/placement"
 
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
 )
 
 const (
-	placementIDVar = "id"
+	placementIDVar    = "id"
+	placementForceVar = "force"
 
 	// DeleteHTTPMethod is the HTTP method used with this resource.
 	DeleteHTTPMethod = http.MethodDelete
@@ -67,20 +69,55 @@ func (h *DeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	service, err := Service(h.client, r.Header)
+	force := r.FormValue(placementForceVar) == "true"
+
+	service, algo, err := ServiceWithAlgo(h.client, r.Header)
 	if err != nil {
 		handler.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
-	placement, err := service.RemoveInstances([]string{id})
-	if err != nil {
-		logger.Error("unable to delete placement", zap.Any("error", err))
-		handler.Error(w, err, http.StatusNotFound)
-		return
+	toRemove := []string{id}
+
+	var newPlacement placement.Placement
+	if force {
+		newPlacement, err = service.RemoveInstances(toRemove)
+		if err != nil {
+			logger.Error("unable to delete instances", zap.Any("error", err))
+			handler.Error(w, err, http.StatusNotFound)
+			return
+		}
+	} else {
+		curPlacement, version, err := service.Placement()
+		if err != nil {
+			logger.Error("unable to fetch placement", zap.Error(err))
+			handler.Error(w, err, http.StatusInternalServerError)
+			return
+		}
+
+		if err := validateAllAvailable(curPlacement); err != nil {
+			logger.Info("unable to remove instance, some shards not available", zap.Error(err), zap.String("instance", id))
+			handler.Error(w, err, http.StatusBadRequest)
+			return
+		}
+
+		newPlacement, err = algo.RemoveInstances(curPlacement, toRemove)
+		if err != nil {
+			logger.Info("unable to generate placement with instances removed", zap.String("instance", id), zap.Error(err))
+			handler.Error(w, err, http.StatusBadRequest)
+			return
+		}
+
+		if err := service.CheckAndSet(newPlacement, version); err != nil {
+			logger.Info("unable to remove instance from placement", zap.String("instance", id), zap.Error(err))
+			handler.Error(w, err, http.StatusBadRequest)
+			return
+		}
+
+		newPlacement = newPlacement.SetVersion(version + 1)
 	}
 
-	placementProto, err := placement.Proto()
+	placementProto, err := newPlacement.Proto()
 	if err != nil {
 		logger.Error("unable to get placement protobuf", zap.Any("error", err))
 		handler.Error(w, err, http.StatusInternalServerError)
@@ -89,6 +126,7 @@ func (h *DeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	resp := &admin.PlacementGetResponse{
 		Placement: placementProto,
+		Version:   int32(newPlacement.GetVersion()),
 	}
 
 	handler.WriteProtoMsgJSONResponse(w, resp, logger)
