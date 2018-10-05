@@ -474,19 +474,13 @@ func Run(runOpts RunOptions) {
 		SetTagEncoderPool(tagEncoderPool).
 		SetTagDecoderPool(tagDecoderPool)
 
-	// Set bootstrap options
-	clusterTopoWatch, err := topo.Watch()
-	if err != nil {
-		logger.Fatalf("could not create cluster topology watch: %v", err)
-	}
-
-	// We need to create a topology map provider from the same topology
-	// that will be passed to the cluster so that when we make bootstrapping
-	// decisions they are in sync with the clustered database which is triggering
-	// the actual bootstraps. This way, when the clustered database receives a
-	// topology update and decides to kick off a bootstrap, the bootstrap process
-	// will receive a topology map that is at least as recent as the one that
-	// triggered the bootstrap, if not newer.
+	// Set bootstrap options - We need to create a topology map provider from the
+	// same topology that will be passed to the cluster so that when we make
+	// bootstrapping decisions they are in sync with the clustered database
+	// which is triggering the actual bootstraps. This way, when the clustered
+	// database receives a topology update and decides to kick off a bootstrap,
+	// the bootstrap process will receive a topology map that is at least as
+	// recent as the one that triggered the bootstrap, if not newer.
 	// See GitHub issue #1013 for more details.
 	topoMapProvider := &topoMapProvider{t: topo}
 	bs, err := cfg.Bootstrap.New(opts, topoMapProvider, origin, m3dbClient)
@@ -513,6 +507,11 @@ func Run(runOpts RunOptions) {
 			bs.SetBootstrapperProvider(updated.BootstrapperProvider())
 		})
 
+	// Initialize clustered database
+	clusterTopoWatch, err := topo.Watch()
+	if err != nil {
+		logger.Fatalf("could not create cluster topology watch: %v", err)
+	}
 	db, err := cluster.NewDatabase(hostID, topo, clusterTopoWatch, opts)
 	if err != nil {
 		logger.Fatalf("could not construct database: %v", err)
