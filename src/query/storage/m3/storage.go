@@ -141,7 +141,7 @@ func (s *m3storage) FetchRaw(
 
 	result := newMultiFetchResult(fanout, pools)
 	for _, namespace := range namespaces {
-		namespace := namespace // Capture var
+		namespace := namespace // Capture var)
 
 		wg.Add(1)
 		go func() {
