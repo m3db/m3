@@ -75,7 +75,6 @@ func TestPlacementDeleteHandler_Safe(t *testing.T) {
 	handler := NewDeleteHandler(mockClient, config.Configuration{})
 
 	basePlacement := placement.NewPlacement().
-		SetInstances([]placement.Instance{placement.NewInstance().SetID("a")}).
 		SetIsSharded(true)
 
 	// Test remove absent host
@@ -94,7 +93,9 @@ func TestPlacementDeleteHandler_Safe(t *testing.T) {
 
 	// Test remove host when placement unsafe
 	basePlacement = basePlacement.SetInstances([]placement.Instance{
-		placement.NewInstance().SetID("host1"),
+		placement.NewInstance().SetID("host1").SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(2).SetState(shard.Available),
+		})),
 		placement.NewInstance().SetID("host2").SetShards(shard.NewShards([]shard.Shard{
 			shard.NewShard(1).SetState(shard.Leaving),
 		})),
@@ -114,8 +115,20 @@ func TestPlacementDeleteHandler_Safe(t *testing.T) {
 	assert.Equal(t, `{"error":"instances [host2] do not have all shards available"}`+"\n", string(body))
 
 	// Test OK
-	basePlacement = basePlacement.SetInstances([]placement.Instance{
-		placement.NewInstance().SetID("host1"),
+	basePlacement = basePlacement.SetReplicaFactor(2).SetMaxShardSetID(2).SetInstances([]placement.Instance{
+		placement.NewInstance().SetID("host1").SetIsolationGroup("a").SetWeight(10).
+			SetShards(shard.NewShards([]shard.Shard{
+				shard.NewShard(0).SetState(shard.Available),
+			})),
+		placement.NewInstance().SetID("host2").SetIsolationGroup("b").SetWeight(10).
+			SetShards(shard.NewShards([]shard.Shard{
+				shard.NewShard(0).SetState(shard.Available),
+				shard.NewShard(1).SetState(shard.Available),
+			})),
+		placement.NewInstance().SetID("host3").SetIsolationGroup("c").SetWeight(10).
+			SetShards(shard.NewShards([]shard.Shard{
+				shard.NewShard(1).SetState(shard.Available),
+			})),
 	})
 
 	w = httptest.NewRecorder()
@@ -130,5 +143,9 @@ func TestPlacementDeleteHandler_Safe(t *testing.T) {
 	body, err = ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "{\"placement\":{\"instances\":{},\"replicaFactor\":0,\"numShards\":0,\"isSharded\":true,\"cutoverTime\":\"0\",\"isMirrored\":false,\"maxShardSetId\":0},\"version\":2}", string(body))
+	assert.Equal(t, "{\"placement\":{\"instances\":{\"host1\":{\"id\":\"host1\",\"isolationGroup\":\"a\",\"zone\":\"\",\"weight\":10,\"endpoint\":\"\",\"shards\":[{\"id\":0,\"state\":\"LEAVING\",\"sourceId\":\"\","+
+		"\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"}],\"shardSetId\":0,\"hostname\":\"\",\"port\":0},\"host2\":{\"id\":\"host2\",\"isolationGroup\":\"b\",\"zone\":\"\",\"weight\":10,\"endpoint\":\"\",\"shards\":"+
+		"[{\"id\":0,\"state\":\"AVAILABLE\",\"sourceId\":\"\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"},{\"id\":1,\"state\":\"AVAILABLE\",\"sourceId\":\"\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"}],"+
+		"\"shardSetId\":0,\"hostname\":\"\",\"port\":0},\"host3\":{\"id\":\"host3\",\"isolationGroup\":\"c\",\"zone\":\"\",\"weight\":10,\"endpoint\":\"\",\"shards\":[{\"id\":0,\"state\":\"INITIALIZING\",\"sourceId\":\"host1\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"},"+
+		"{\"id\":1,\"state\":\"AVAILABLE\",\"sourceId\":\"\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"}],\"shardSetId\":0,\"hostname\":\"\",\"port\":0}},\"replicaFactor\":2,\"numShards\":0,\"isSharded\":true,\"cutoverTime\":\"0\",\"isMirrored\":false,\"maxShardSetId\":2},\"version\":2}", string(body))
 }

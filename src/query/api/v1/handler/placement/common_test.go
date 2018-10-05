@@ -242,11 +242,6 @@ func TestValidateAllAvailable(t *testing.T) {
 	p := placement.NewPlacement()
 	assert.NoError(t, validateAllAvailable(p))
 
-	p = p.SetInstances([]placement.Instance{
-		placement.NewInstance().SetID("C"),
-	})
-	assert.NoError(t, validateAllAvailable(p))
-
 	p = newAvailPlacement()
 	assert.NoError(t, validateAllAvailable(p))
 

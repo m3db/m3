@@ -147,9 +147,6 @@ func RegisterRoutes(r *mux.Router, client clusterclient.Client, cfg config.Confi
 func validateAllAvailable(p placement.Placement) error {
 	badInsts := []string{}
 	for _, inst := range p.Instances() {
-		if inst.Shards().NumShards() == 0 {
-			continue
-		}
 		if !inst.IsAvailable() {
 			badInsts = append(badInsts, inst.ID())
 		}
