@@ -47,8 +47,8 @@ var (
 type queryFanoutType uint
 
 const (
-	namespacesCoverAllRetention queryFanoutType = iota
-	namespacesCoverPartialRetention
+	namespaceCoversAllQueryRange queryFanoutType = iota
+	namespaceCoversPartialQueryRange
 )
 
 type m3storage struct {
@@ -368,7 +368,7 @@ func (s *m3storage) resolveClusterNamespacesForQuery(
 	unaggregatedStart := now.Add(-1 * unaggregatedRetention)
 	if !unaggregatedStart.After(start) {
 		// Highest resolution is unaggregated, return if it can fulfill it
-		return namespacesCoverAllRetention, ClusterNamespaces{unaggregated}, nil
+		return namespaceCoversAllQueryRange, ClusterNamespaces{unaggregated}, nil
 	}
 
 	// First determine if any aggregated clusters that can span the whole query
@@ -401,7 +401,7 @@ func (s *m3storage) resolveClusterNamespacesForQuery(
 			result = append(result, n)
 		}
 
-		return namespacesCoverAllRetention, result, nil
+		return namespaceCoversAllQueryRange, result, nil
 	}
 
 	// No complete aggregated namespaces can definitely fulfill the query,
@@ -416,7 +416,7 @@ func (s *m3storage) resolveClusterNamespacesForQuery(
 		// partial aggregated namespaces as well as the unaggregated cluster
 		// as we have no idea who has the longest retention
 		result := append(r.partialAggregated, unaggregated)
-		return namespacesCoverPartialRetention, result, nil
+		return namespaceCoversPartialQueryRange, result, nil
 	}
 
 	// Return the longest retention aggregated namespace and
@@ -453,7 +453,7 @@ func (s *m3storage) resolveClusterNamespacesForQuery(
 		}
 	}
 
-	return namespacesCoverPartialRetention, result, nil
+	return namespaceCoversPartialQueryRange, result, nil
 }
 
 type reusedAggregatedNamespaceSlices struct {

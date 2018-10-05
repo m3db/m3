@@ -132,7 +132,7 @@ func (r *multiResult) FinalResult() (encoding.SeriesIterators, error) {
 
 func (r *multiResult) Add(
 	attrs storage.Attributes,
-	iterators encoding.SeriesIterators,
+	newIterators encoding.SeriesIterators,
 	err error,
 ) {
 	r.Lock()
@@ -147,18 +147,23 @@ func (r *multiResult) Add(
 		// store the first attributes seen
 		r.seenFirstAttrs = attrs
 	}
-	r.seenIters = append(r.seenIters, iterators)
+	r.seenIters = append(r.seenIters, newIterators)
+
+	// Need to check the error to bail early after accumulating the iterators
+	// otherwise when we close the the multi fetch result
 	if !r.err.Empty() {
 		// don't need to do anything if the final result is going to be an error
 		return
 	}
+
 	if len(r.seenIters) < 2 {
-		// don't need to build the de-dupe map until we need to actually need to dedupe
+		// don't need to create the de-dupe map until we need to actually need to
+		// dedupe between two results
 		return
 	}
 
 	if len(r.seenIters) == 2 {
-		// need to build backfill the dedupe map from the first result first
+		// need to backfill the dedupe map from the first result first
 		existing := r.seenIters[0]
 		r.dedupeMap = make(map[string]multiResultSeries, existing.Len())
 		for _, iter := range existing.Iters() {
@@ -170,14 +175,14 @@ func (r *multiResult) Add(
 		}
 	}
 
-	r.dedupe(attrs, iterators)
+	r.dedupe(attrs, newIterators)
 }
 
 func (r *multiResult) dedupe(
 	attrs storage.Attributes,
-	iterators encoding.SeriesIterators,
+	newIterators encoding.SeriesIterators,
 ) {
-	for _, iter := range iterators.Iters() {
+	for _, iter := range newIterators.Iters() {
 		id := iter.ID().String()
 
 		existing, exists := r.dedupeMap[id]
@@ -192,17 +197,17 @@ func (r *multiResult) dedupe(
 
 		var existsBetter bool
 		switch r.fanout {
-		case namespacesCoverAllRetention:
+		case namespaceCoversAllQueryRange:
 			// Already exists and resolution of result we are adding is not as precise
 			existsBetter = existing.attrs.Resolution <= attrs.Resolution
-		case namespacesCoverPartialRetention:
+		case namespaceCoversPartialQueryRange:
 			// Already exists and either has longer retention, or the same retention
 			// and result we are adding is not as precise
-			longerRetention := existing.attrs.Retention > attrs.Retention
-			sameRetentionEqualOrBetterResolution :=
+			existsLongerRetention := existing.attrs.Retention > attrs.Retention
+			existsSameRetentionEqualOrBetterResolution :=
 				existing.attrs.Retention == attrs.Retention &&
 					existing.attrs.Resolution <= attrs.Resolution
-			existsBetter = longerRetention || sameRetentionEqualOrBetterResolution
+			existsBetter = existsLongerRetention || existsSameRetentionEqualOrBetterResolution
 		default:
 			r.err = r.err.Add(fmt.Errorf("unknown query fanout type: %d", r.fanout))
 			return
