@@ -825,6 +825,7 @@ func (n *dbNamespace) Flush(
 		// used to determine if all of the bootstrapped blocks have been merged / drained (ticked)
 		// and are ready to be flushed.
 		shardBootstrapStateBeforeTick, ok := shardBootstrapStatesAtTickStart[shard.ID()]
+		// TODO: Apply this same logic to snapshots?
 		if !ok || shardBootstrapStateBeforeTick != Bootstrapped {
 			// We don't own this shard anymore (!ok) or the shard was not bootstrapped
 			// before the previous tick which means that we have no guarantee that all

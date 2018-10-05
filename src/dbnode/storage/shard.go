@@ -1922,8 +1922,10 @@ func (s *dbShard) FlushState(blockStart time.Time) fileOpState {
 func (s *dbShard) markFlushStateSuccessOrError(blockStart time.Time, err error) error {
 	// Track flush state for block state
 	if err == nil {
+		fmt.Println("mark success")
 		s.markFlushStateSuccess(blockStart)
 	} else {
+		fmt.Println("mark error")
 		s.markFlushStateFail(blockStart)
 	}
 	return err
