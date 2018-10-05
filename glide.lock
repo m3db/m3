@@ -1,5 +1,5 @@
-hash: 847915b5b52a933b8d8a7a4a68c12f3ec0d4bfa6f8cd8cf11ca2ec2a5c4211c1
-updated: 2018-10-03T21:36:12.182003-04:00
+hash: c7d6edc7885c08b5c7ab435fc11c874bce9200ee5187e628778a0c7b2e028d30
+updated: 2018-10-05T17:27:15.235469-04:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -260,16 +260,6 @@ imports:
   - service/r2/store/kv
 - name: github.com/m3db/m3em
   version: ed532baee45a440f0b08b6893c816634c6978d4d
-  subpackages:
-  - build
-  - checksum
-  - cluster
-  - generated/proto/heartbeat
-  - generated/proto/m3em
-  - node
-  - node/mocks
-  - os/fs
-  - x/grpc
 - name: github.com/m3db/m3metrics
   version: b400256bc6da4c10bad5a5f0a11e91bfa095e2e6
   subpackages:
@@ -314,7 +304,7 @@ imports:
   - protocol/proto
   - topic
 - name: github.com/m3db/m3x
-  version: de9a4bbac6b8fc2c1c5bd6041896c510be3928f9
+  version: fc5c28bb09dfe6ba7f79e897021d9b186b5fffc5
   vcs: git
   subpackages:
   - checked

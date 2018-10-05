@@ -67,7 +67,6 @@ clusters:
         type: unaggregated
         retention: 48h
 
-
 readWorkerPoolPolicy:
   grow: true
   size: 100
