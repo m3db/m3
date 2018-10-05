@@ -21,7 +21,9 @@
 package placement
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
@@ -45,6 +47,14 @@ const (
 // AddHandler is the handler for placement adds.
 type AddHandler Handler
 
+type unsafeAddError struct {
+	hosts string
+}
+
+func (e unsafeAddError) Error() string {
+	return fmt.Sprintf("instances [%s] do not have all shards available", e.hosts)
+}
+
 // NewAddHandler returns a new instance of AddHandler.
 func NewAddHandler(client clusterclient.Client, cfg config.Configuration) *AddHandler {
 	return &AddHandler{client: client, cfg: cfg}
@@ -62,8 +72,12 @@ func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	placement, err := h.Add(r, req)
 	if err != nil {
+		status := http.StatusInternalServerError
+		if _, ok := err.(unsafeAddError); ok {
+			status = http.StatusBadRequest
+		}
 		logger.Error("unable to add placement", zap.Any("error", err))
-		handler.Error(w, err, http.StatusInternalServerError)
+		handler.Error(w, err, status)
 		return
 	}
 
@@ -106,10 +120,36 @@ func (h *AddHandler) Add(
 		return nil, err
 	}
 
+	if !req.Force {
+		curPlacement, _, err := service.Placement()
+		if err != nil {
+			return nil, err
+		}
+
+		if err := validateAllAvailable(curPlacement); err != nil {
+			return nil, err
+		}
+	}
+
 	newPlacement, _, err := service.AddInstances(instances)
 	if err != nil {
 		return nil, err
 	}
 
 	return newPlacement, nil
+}
+
+func validateAllAvailable(p placement.Placement) error {
+	badInsts := []string{}
+	for _, inst := range p.Instances() {
+		if !inst.IsAvailable() {
+			badInsts = append(badInsts, inst.ID())
+		}
+	}
+	if len(badInsts) > 0 {
+		return unsafeAddError{
+			hosts: strings.Join(badInsts, ","),
+		}
+	}
+	return nil
 }

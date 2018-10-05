@@ -111,12 +111,12 @@ func TestRenderResultsJSON(t *testing.T) {
 	params := models.RequestParams{}
 	series := []*ts.Series{
 		ts.NewSeries("foo", ts.NewFixedStepValues(10*time.Second, 2, 1, start), models.Tags{
-			models.Tag{Name: "bar", Value: "baz"},
-			models.Tag{Name: "qux", Value: "qaz"},
+			models.Tag{Name: []byte("bar"), Value: []byte("baz")},
+			models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
 		}),
 		ts.NewSeries("bar", ts.NewFixedStepValues(10*time.Second, 2, 2, start), models.Tags{
-			models.Tag{Name: "baz", Value: "bar"},
-			models.Tag{Name: "qaz", Value: "qux"},
+			models.Tag{Name: []byte("baz"), Value: []byte("bar")},
+			models.Tag{Name: []byte("qaz"), Value: []byte("qux")},
 		}),
 	}
 

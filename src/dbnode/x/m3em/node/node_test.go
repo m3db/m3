@@ -24,9 +24,8 @@ import (
 	"testing"
 
 	m3dbrpc "github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
-	"github.com/m3db/m3em/generated/proto/m3em"
-	"github.com/m3db/m3em/node"
-	mocknode "github.com/m3db/m3em/node/mocks"
+	"github.com/m3db/m3/src/m3em/generated/proto/m3em"
+	"github.com/m3db/m3/src/m3em/node"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -52,7 +51,7 @@ func TestHealthEndpoint(t *testing.T) {
 	}, nil)
 
 	opts := newTestOptions()
-	mockNode := mocknode.NewMockServiceNode(ctrl)
+	mockNode := node.NewMockServiceNode(ctrl)
 
 	nodeInterface, err := New(mockNode, opts)
 	require.NoError(t, err)

@@ -52,13 +52,13 @@ func generateSearchReq() *storage.FetchQuery {
 	matchers := models.Matchers{
 		{
 			Type:  models.MatchEqual,
-			Name:  "foo",
-			Value: "bar",
+			Name:  []byte("foo"),
+			Value: []byte("bar"),
 		},
 		{
 			Type:  models.MatchEqual,
-			Name:  "biz",
-			Value: "baz",
+			Name:  []byte("biz"),
+			Value: []byte("baz"),
 		},
 	}
 	return &storage.FetchQuery{
@@ -110,7 +110,7 @@ func TestSearchResponse(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, testID, results.Metrics[0].ID)
-	assert.Equal(t, models.Tags{{Name: "foo", Value: "bar"}}, results.Metrics[0].Tags)
+	assert.Equal(t, models.Tags{{Name: []byte("foo"), Value: []byte("bar")}}, results.Metrics[0].Tags)
 }
 
 func TestSearchEndpoint(t *testing.T) {

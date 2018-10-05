@@ -131,13 +131,14 @@ func TestPeersSourceEmptyShardTimeRanges(t *testing.T) {
 		target    = result.ShardTimeRanges{}
 		runOpts   = testDefaultRunOpts.SetInitialTopologyState(&topology.StateSnapshot{})
 	)
-	available := src.AvailableData(nsMetdata, target, runOpts)
-	assert.Equal(t, target, available)
+	available, err := src.AvailableData(nsMetdata, target, runOpts)
+	require.NoError(t, err)
+	require.Equal(t, target, available)
 
 	r, err := src.ReadData(nsMetdata, target, testDefaultRunOpts)
-	assert.NoError(t, err)
-	assert.Equal(t, 0, len(r.ShardResults()))
-	assert.True(t, r.Unfulfilled().IsEmpty())
+	require.NoError(t, err)
+	require.Equal(t, 0, len(r.ShardResults()))
+	require.True(t, r.Unfulfilled().IsEmpty())
 }
 
 func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {

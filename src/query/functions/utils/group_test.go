@@ -84,7 +84,7 @@ var collectTest = []struct {
 		}),
 	},
 	{
-		"oneMatching",
+		"one matching",
 		[]string{"a"},
 		multiTagsFromMaps([]map[string]string{
 			{"a": "1"},
@@ -245,8 +245,12 @@ func testCollect(t *testing.T, without bool) {
 				metas[i] = block.SeriesMeta{Tags: tagList}
 			}
 
-			buckets, collected := GroupSeries(tt.matching, without, name, metas)
+			match := make([][]byte, len(tt.matching))
+			for i, m := range tt.matching {
+				match[i] = []byte(m)
+			}
 
+			buckets, collected := GroupSeries(match, without, name, metas)
 			expectedTags := tt.withTagsExpectedTags
 			expectedIndicies := tt.withTagsExpectedIndices
 			if without {
@@ -278,7 +282,10 @@ func TestCollectWithoutTags(t *testing.T) {
 func multiTagsFromMaps(tagMaps []map[string]string) []models.Tags {
 	tags := make([]models.Tags, len(tagMaps))
 	for i, m := range tagMaps {
-		tags[i] = models.FromMap(m)
+		tags[i] = models.Tags{}
+		for n, v := range m {
+			tags[i] = tags[i].AddTag(models.Tag{Name: []byte(n), Value: []byte(v)})
+		}
 	}
 
 	return tags

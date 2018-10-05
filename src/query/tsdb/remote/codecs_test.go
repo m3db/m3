@@ -56,8 +56,10 @@ var (
 
 	time1 = "2093-02-06T11:54:48+07:00"
 
-	tags0 = models.Tags{{Name: "a", Value: "b"}, {Name: "c", Value: "d"}}
-	tags1 = models.Tags{{Name: "e", Value: "f"}, {Name: "g", Value: "h"}}
+	tags0 = models.Tags{{Name: []byte("a"), Value: []byte("b")},
+		{Name: []byte("c"), Value: []byte("d")}}
+	tags1 = models.Tags{{Name: []byte("e"), Value: []byte("f")},
+		{Name: []byte("g"), Value: []byte("h")}}
 )
 
 func parseTimes(t *testing.T) (time.Time, time.Time) {
@@ -146,9 +148,9 @@ func readQueriesAreEqual(t *testing.T, this, other *storage.FetchQuery) {
 }
 
 func createStorageFetchQuery(t *testing.T) (*storage.FetchQuery, time.Time, time.Time) {
-	m0, err := models.NewMatcher(models.MatchRegexp, string(name0), string(val0))
+	m0, err := models.NewMatcher(models.MatchRegexp, name0, val0)
 	require.Nil(t, err)
-	m1, err := models.NewMatcher(models.MatchEqual, string(name1), string(val1))
+	m1, err := models.NewMatcher(models.MatchEqual, name1, val1)
 	require.Nil(t, err)
 	start, end := parseTimes(t)
 

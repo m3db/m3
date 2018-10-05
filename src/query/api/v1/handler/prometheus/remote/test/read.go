@@ -43,8 +43,8 @@ func GeneratePromReadRequest() *prompb.ReadRequest {
 				EndTimestampMs:   time.Now().UnixNano() / int64(time.Millisecond),
 				Matchers: []*prompb.LabelMatcher{
 					&prompb.LabelMatcher{
-						Name:  "__name__",
-						Value: "first",
+						Name:  []byte("__name__"),
+						Value: []byte("first"),
 						Type:  prompb.LabelMatcher_EQ,
 					},
 				},

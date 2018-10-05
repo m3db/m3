@@ -23,7 +23,6 @@ package bootstrap
 import (
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
@@ -89,11 +88,17 @@ type ProcessOptions interface {
 	// provider should cache series metadata between runs.
 	CacheSeriesMetadata() bool
 
-	// SetAdminClient sets the admin client.
-	SetAdminClient(value client.AdminClient) ProcessOptions
+	// SetTopologyMapProvider sets the TopologyMapProvider.
+	SetTopologyMapProvider(value topology.MapProvider) ProcessOptions
 
-	// AdminClient returns the admin client.
-	AdminClient() client.AdminClient
+	// TopologyMapProvider returns the TopologyMapProvider.
+	TopologyMapProvider() topology.MapProvider
+
+	// SetOrigin sets the origin.
+	SetOrigin(value topology.Host) ProcessOptions
+
+	// Origin returns the origin.
+	Origin() topology.Host
 
 	// Validate validates that the ProcessOptions are correct.
 	Validate() error
@@ -186,7 +191,7 @@ type Source interface {
 		ns namespace.Metadata,
 		shardsTimeRanges result.ShardTimeRanges,
 		runOpts RunOptions,
-	) result.ShardTimeRanges
+	) (result.ShardTimeRanges, error)
 
 	// ReadData returns raw series for a given set of shards & specified time ranges and
 	// the time ranges it's unable to fulfill. A bootstrapper source should only return
@@ -203,7 +208,7 @@ type Source interface {
 		ns namespace.Metadata,
 		shardsTimeRanges result.ShardTimeRanges,
 		opts RunOptions,
-	) result.ShardTimeRanges
+	) (result.ShardTimeRanges, error)
 
 	// ReadIndex returns series index blocks.
 	ReadIndex(

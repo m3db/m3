@@ -82,9 +82,10 @@ func (s *peersSource) AvailableData(
 	nsMetadata namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
-) result.ShardTimeRanges {
-	// TODO: Call validateRunOpts here when we modify this interface
-	// to support returning errors.
+) (result.ShardTimeRanges, error) {
+	if err := s.validateRunOpts(runOpts); err != nil {
+		return nil, err
+	}
 	return s.peerAvailability(nsMetadata, shardsTimeRanges, runOpts)
 }
 
@@ -550,9 +551,10 @@ func (s *peersSource) AvailableIndex(
 	nsMetadata namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
-) result.ShardTimeRanges {
-	// TODO: Call validateRunOpts here when we modify this interface
-	// to support returning errors.
+) (result.ShardTimeRanges, error) {
+	if err := s.validateRunOpts(runOpts); err != nil {
+		return nil, err
+	}
 	return s.peerAvailability(nsMetadata, shardsTimeRanges, runOpts)
 }
 
@@ -711,7 +713,7 @@ func (s *peersSource) peerAvailability(
 	nsMetadata namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
-) result.ShardTimeRanges {
+) (result.ShardTimeRanges, error) {
 	var (
 		peerAvailabilityByShard = map[topology.ShardID]*shardPeerAvailability{}
 		initialTopologyState    = runOpts.InitialTopologyState()
@@ -753,10 +755,7 @@ func (s *peersSource) peerAvailability(
 			case shard.Unknown:
 				fallthrough
 			default:
-				// TODO(rartoul): Make this a hard error once we refactor the interface to support
-				// returning errors.
-				s.log.Errorf("unknown shard state: %v", shardState)
-				return result.ShardTimeRanges{}
+				return nil, fmt.Errorf("unknown shard state: %v", shardState)
 			}
 		}
 	}
@@ -768,19 +767,27 @@ func (s *peersSource) peerAvailability(
 		availableShardTimeRanges  = result.ShardTimeRanges{}
 	)
 	for shardIDUint := range shardsTimeRanges {
-		shardID := topology.ShardID(shardIDUint)
-		shardPeers := peerAvailabilityByShard[shardID]
+		var (
+			shardID    = topology.ShardID(shardIDUint)
+			shardPeers = peerAvailabilityByShard[shardID]
 
-		total := shardPeers.numPeers
-		available := shardPeers.numAvailablePeers
+			total     = shardPeers.numPeers
+			available = shardPeers.numAvailablePeers
+		)
 
 		if available == 0 {
 			// Can't peer bootstrap if there are no available peers.
+			s.log.Debugf(
+				"0 available peers out of %d for shard %d, unable to peer bootstrap",
+				total, shardIDUint)
 			continue
 		}
 
 		if !topology.ReadConsistencyAchieved(
 			bootstrapConsistencyLevel, majorityReplicas, total, available) {
+			s.log.Debugf(
+				"read consistency of %v not achieved with %d replicas and %d total and %d available, unable to peer bootstrap",
+				bootstrapConsistencyLevel, majorityReplicas, total, available)
 			continue
 		}
 
@@ -791,7 +798,7 @@ func (s *peersSource) peerAvailability(
 		availableShardTimeRanges[shardIDUint] = shardsTimeRanges[shardIDUint]
 	}
 
-	return availableShardTimeRanges
+	return availableShardTimeRanges, nil
 }
 
 func (s *peersSource) markIndexResultErrorAsUnfulfilled(

@@ -37,8 +37,8 @@ import (
 	"github.com/uber-go/tally"
 )
 
-const (
-	aggregationSuffixTag = "agg"
+var (
+	aggregationSuffixTag = []byte("agg")
 )
 
 type downsamplerFlushHandler struct {
@@ -117,14 +117,14 @@ func (w *downsamplerFlushHandlerWriter) Write(
 		}
 
 		// Add extra tag since we may need to add an aggregation suffix tag
-		tags := make(models.Tags, 0, expected+1)
+		tags := make(models.Tags, 0, expected)
 		for iter.Next() {
 			name, value := iter.Current()
-			tags = append(tags, models.Tag{Name: string(name), Value: string(value)})
+			tags = append(tags, models.Tag{Name: name, Value: value})
 		}
-		
+
 		if len(chunkSuffix) != 0 {
-			tags = append(tags, models.Tag{Name: aggregationSuffixTag, Value: string(chunkSuffix)})
+			tags = append(tags, models.Tag{Name: aggregationSuffixTag, Value: chunkSuffix})
 		}
 
 		err := iter.Err()

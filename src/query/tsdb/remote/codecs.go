@@ -51,8 +51,8 @@ func encodeTags(tags models.Tags) []*rpc.Tag {
 	encodedTags := make([]*rpc.Tag, 0, len(tags))
 	for _, t := range tags {
 		encodedTags = append(encodedTags, &rpc.Tag{
-			Name:  []byte(t.Name),
-			Value: []byte(t.Value),
+			Name:  t.Name,
+			Value: t.Value,
 		})
 	}
 
@@ -111,7 +111,7 @@ func DecodeDecompressedFetchResult(
 func decodeTags(tags []*rpc.Tag) models.Tags {
 	modelTags := make(models.Tags, len(tags))
 	for i, t := range tags {
-		modelTags[i] = models.Tag{Name: string(t.GetName()), Value: string(t.GetValue())}
+		modelTags[i] = models.Tag{Name: t.GetName(), Value: t.GetValue()}
 	}
 
 	return modelTags
@@ -166,8 +166,8 @@ func encodeTagMatchers(modelMatchers models.Matchers) (*rpc.TagMatchers, error) 
 		}
 
 		matchers[i] = &rpc.TagMatcher{
-			Name:  []byte(matcher.Name),
-			Value: []byte(matcher.Value),
+			Name:  matcher.Name,
+			Value: matcher.Value,
 			Type:  t,
 		}
 	}
@@ -254,7 +254,7 @@ func decodeTagMatchers(rpcMatchers *rpc.TagMatchers) (models.Matchers, error) {
 	matchers := make([]*models.Matcher, len(tagMatchers))
 	for i, matcher := range tagMatchers {
 		matchType, name, value := models.MatchType(matcher.GetType()), matcher.GetName(), matcher.GetValue()
-		mMatcher, err := models.NewMatcher(matchType, string(name), string(value))
+		mMatcher, err := models.NewMatcher(matchType, name, value)
 		if err != nil {
 			return matchers, err
 		}

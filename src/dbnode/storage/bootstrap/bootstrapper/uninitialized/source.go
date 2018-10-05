@@ -21,6 +21,8 @@
 package uninitialized
 
 import (
+	"fmt"
+
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
@@ -61,7 +63,7 @@ func (s *uninitializedTopologySource) AvailableData(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
-) result.ShardTimeRanges {
+) (result.ShardTimeRanges, error) {
 	return s.availability(ns, shardsTimeRanges, runOpts)
 }
 
@@ -69,7 +71,7 @@ func (s *uninitializedTopologySource) AvailableIndex(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
-) result.ShardTimeRanges {
+) (result.ShardTimeRanges, error) {
 	return s.availability(ns, shardsTimeRanges, runOpts)
 }
 
@@ -77,7 +79,7 @@ func (s *uninitializedTopologySource) availability(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
-) result.ShardTimeRanges {
+) (result.ShardTimeRanges, error) {
 	var (
 		topoState                = runOpts.InitialTopologyState()
 		availableShardTimeRanges = result.ShardTimeRanges{}
@@ -105,6 +107,7 @@ func (s *uninitializedTopologySource) availability(
 		// BUT numLeaving >= numInitializing then it is still not a new namespace.
 		// See the TestUnitializedSourceAvailableDataAndAvailableIndex test for more details.
 		var (
+			numAvailable    = 0
 			numInitializing = 0
 			numLeaving      = 0
 		)
@@ -116,13 +119,11 @@ func (s *uninitializedTopologySource) availability(
 			case shard.Leaving:
 				numLeaving++
 			case shard.Available:
+				numAvailable++
 			case shard.Unknown:
 				fallthrough
 			default:
-				// TODO(rartoul): Make this a hard error once we refactor the interface to support
-				// returning errors.
-				s.opts.InstrumentOptions().Logger().Errorf("unknown shard state: %v", shardState)
-				return result.ShardTimeRanges{}
+				return nil, fmt.Errorf("unknown shard state: %v", shardState)
 			}
 		}
 
@@ -138,7 +139,7 @@ func (s *uninitializedTopologySource) availability(
 		}
 	}
 
-	return availableShardTimeRanges
+	return availableShardTimeRanges, nil
 }
 
 func (s *uninitializedTopologySource) ReadData(
@@ -146,10 +147,12 @@ func (s *uninitializedTopologySource) ReadData(
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
 ) (result.DataBootstrapResult, error) {
-	var (
-		availability = s.availability(ns, shardsTimeRanges, runOpts)
-		missing      = shardsTimeRanges.Copy()
-	)
+	availability, err := s.availability(ns, shardsTimeRanges, runOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	missing := shardsTimeRanges.Copy()
 	missing.Subtract(availability)
 
 	if missing.IsEmpty() {
@@ -164,10 +167,12 @@ func (s *uninitializedTopologySource) ReadIndex(
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
 ) (result.IndexBootstrapResult, error) {
-	var (
-		availability = s.availability(ns, shardsTimeRanges, runOpts)
-		missing      = shardsTimeRanges.Copy()
-	)
+	availability, err := s.availability(ns, shardsTimeRanges, runOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	missing := shardsTimeRanges.Copy()
 	missing.Subtract(availability)
 
 	if missing.IsEmpty() {

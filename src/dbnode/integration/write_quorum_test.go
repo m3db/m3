@@ -230,7 +230,7 @@ func makeTestWrite(
 	require.NoError(t, err)
 
 	nspaces := []namespace.Metadata{md}
-	nodes, topoInit, closeFn := newNodes(t, instances, nspaces, false)
+	nodes, topoInit, closeFn := newNodes(t, numShards, instances, nspaces, false)
 	now := nodes[0].getNowFn()
 
 	for _, node := range nodes {

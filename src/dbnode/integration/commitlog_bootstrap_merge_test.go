@@ -141,9 +141,9 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 	fsBootstrapper, err := fs.NewFileSystemBootstrapperProvider(bfsOpts, commitLogBootstrapper)
 	require.NoError(t, err)
 	// bootstrapper storage opts
-	processOpts := bootstrap.NewProcessOptions().SetAdminClient(
-		setup.m3dbAdminClient,
-	)
+	processOpts := bootstrap.NewProcessOptions().
+		SetTopologyMapProvider(setup).
+		SetOrigin(setup.origin)
 	process, err := bootstrap.NewProcessProvider(
 		fsBootstrapper, processOpts, bsOpts)
 	require.NoError(t, err)

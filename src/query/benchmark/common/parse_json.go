@@ -170,7 +170,12 @@ func id(lowerCaseTags map[string]string, name string) string {
 }
 
 func metricsToPromTS(m Metrics) *prompb.TimeSeries {
-	labels := storage.TagsToPromLabels(models.FromMap(m.Tags))
+	tags := models.Tags{}
+	for n, v := range m.Tags {
+		tags = tags.AddTag(models.Tag{Name: []byte(n), Value: []byte(v)})
+	}
+
+	labels := storage.TagsToPromLabels(tags)
 	samples := metricsPointsToSamples(m.Value, m.Time)
 	return &prompb.TimeSeries{
 		Labels:  labels,

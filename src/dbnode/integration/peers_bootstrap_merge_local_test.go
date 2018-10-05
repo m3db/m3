@@ -58,21 +58,30 @@ func testPeersBootstrapMergeLocal(
 	namesp, err := namespace.NewMetadata(testNamespaces[0],
 		namespace.NewOptions().SetRetentionOptions(retentionOpts))
 	require.NoError(t, err)
-	opts := newTestOptions(t).
-		SetNamespaces([]namespace.Metadata{namesp})
 
-	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
+	var (
+		opts = newTestOptions(t).
+			SetNamespaces([]namespace.Metadata{namesp})
 
-	setupOpts := []bootstrappableTestSetupOptions{
-		{
-			disablePeersBootstrapper: true,
-		},
-		{
-			disablePeersBootstrapper:           false,
-			testStatsReporter:                  reporter,
-			fetchBlocksMetadataEndpointVersion: version,
-		},
-	}
+		reporter = xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
+
+		// Enable useTchannelClientForWriting because this test relies upon being
+		// able to write data to a single node, and the M3DB client does not support
+		// that, but we can accomplish it by using an individual nodes TChannel endpoints.
+		setupOpts = []bootstrappableTestSetupOptions{
+			{
+				disablePeersBootstrapper:    true,
+				useTChannelClientForWriting: true,
+			},
+			{
+				disablePeersBootstrapper:           false,
+				useTChannelClientForWriting:        true,
+				testStatsReporter:                  reporter,
+				fetchBlocksMetadataEndpointVersion: version,
+			},
+		}
+	)
+
 	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
 
@@ -156,14 +165,18 @@ func testPeersBootstrapMergeLocal(
 			time.Sleep(10 * time.Millisecond)
 		}
 
+		<-secondNodeIsUp
+
 		// Progress time before writing data directly to second node
 		setups[1].setNowFn(completeAt)
 
-		<-secondNodeIsUp
 		// Write data that "arrives" at the second node directly
 		err := setups[1].writeBatch(namesp.ID(),
 			directWritesSeriesMaps[xtime.ToUnixNano(now)])
-		require.NoError(t, err)
+		if err != nil {
+			panic(err)
+		}
+
 		doneWriting <- struct{}{}
 	}()
 

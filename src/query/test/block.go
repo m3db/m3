@@ -100,13 +100,14 @@ func NewMultiUnconsolidatedBlocksFromValues(bounds models.Bounds, seriesValues [
 func NewSeriesMeta(tagPrefix string, count int) []block.SeriesMeta {
 	seriesMeta := make([]block.SeriesMeta, count)
 	for i := range seriesMeta {
-		tags := make(map[string]string)
-		t := fmt.Sprintf("%s%d", tagPrefix, i)
-		tags[models.MetricName] = t
-		tags[t] = t
+		tags := models.Tags{}
+		st := fmt.Sprintf("%s%d", tagPrefix, i)
+		t := []byte(st)
+		tags = tags.AddTag(models.Tag{Name: models.MetricName, Value: t})
+		tags = tags.AddTag(models.Tag{Name: t, Value: t})
 		seriesMeta[i] = block.SeriesMeta{
-			Name: t,
-			Tags: models.FromMap(tags),
+			Name: st,
+			Tags: tags,
 		}
 	}
 	return seriesMeta

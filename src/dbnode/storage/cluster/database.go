@@ -131,6 +131,10 @@ func (d *clusterDB) Topology() topology.Topology {
 	return d.topo
 }
 
+func (d *clusterDB) TopologyMap() (topology.Map, error) {
+	return d.topo.Get(), nil
+}
+
 func (d *clusterDB) Open() error {
 	select {
 	case <-d.watch.C():

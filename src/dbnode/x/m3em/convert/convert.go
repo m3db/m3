@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	m3emnode "github.com/m3db/m3/src/dbnode/x/m3em/node"
-	"github.com/m3db/m3em/node"
+	"github.com/m3db/m3/src/m3em/node"
 )
 
 // AsNodes returns casts a slice of ServiceNodes into m3emnode.Nodes

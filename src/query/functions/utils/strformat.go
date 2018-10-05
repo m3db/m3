@@ -24,9 +24,16 @@ import (
 	"strconv"
 )
 
-// FormatFloat applies all shared tags from Metadata to each SeriesMeta
+// FormatFloat converts float values to formatted strings
 func FormatFloat(
 	value float64,
 ) string {
 	return strconv.FormatFloat(value, 'f', -1, 64)
+}
+
+// FormatFloatToBytes converts float values to formatted byte arrays
+func FormatFloatToBytes(
+	value float64,
+) []byte {
+	return strconv.AppendFloat([]byte{}, value, 'f', -1, 64)
 }
