@@ -10,7 +10,7 @@ This project is released under the [Apache License, Version 2.0](LICENSE).
 
 [doc-img]: https://godoc.org/github.com/m3db/m3cluster?status.svg
 [doc]: https://godoc.org/github.com/m3db/m3cluster
-[ci-img]: https://travis-ci.org/m3db/m3cluster.svg?branch=master
-[ci]: https://travis-ci.org/m3db/m3cluster
+[ci-img]: https://badge.buildkite.com/bf88d4e826bced29347a210e540cee0dfa78e2a109cdce2136.svg
+[ci]: https://buildkite.com/m3/m3cluster-ci
 [cov-img]: https://coveralls.io/repos/m3db/m3cluster/badge.svg?branch=master&service=github
 [cov]: https://coveralls.io/github/m3db/m3cluster?branch=master
