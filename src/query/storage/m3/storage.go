@@ -55,6 +55,7 @@ type m3storage struct {
 	clusters        Clusters
 	readWorkerPool  pool.ObjectPool
 	writeWorkerPool xsync.PooledWorkerPool
+	nowFn           func() time.Time
 }
 
 // NewStorage creates a new local m3storage instance.
@@ -68,6 +69,7 @@ func NewStorage(
 		clusters:        clusters,
 		readWorkerPool:  readWorkerPool,
 		writeWorkerPool: writeWorkerPool,
+		nowFn:           time.Now,
 	}
 }
 
@@ -361,20 +363,20 @@ func (s *m3storage) resolveClusterNamespacesForQuery(
 	start time.Time,
 	end time.Time,
 ) (queryFanoutType, ClusterNamespaces, error) {
-	now := time.Now()
+	now := s.nowFn()
 
 	unaggregated := s.clusters.UnaggregatedClusterNamespace()
 	unaggregatedRetention := unaggregated.Options().Attributes().Retention
 	unaggregatedStart := now.Add(-1 * unaggregatedRetention)
-	if !unaggregatedStart.After(start) {
+	if unaggregatedStart.Before(start) || unaggregatedStart.Equal(start) {
 		// Highest resolution is unaggregated, return if it can fulfill it
 		return namespaceCoversAllQueryRange, ClusterNamespaces{unaggregated}, nil
 	}
 
-	// First determine if any aggregated clusters that can span the whole query
-	// range can fulfill the query, if so that's the most optimal strategy, choose
-	// the most granular resolution that can and fan out to any partial
-	// aggregated namespaces that may holder even more granular resolutions
+	// First determine if any aggregated clusters span the whole query range, if
+	// so that's the most optimal strategy, choose the most granular resolution
+	// that can and fan out to any partial aggregated namespaces that may holder
+	// even more granular resolutions
 	var r reusedAggregatedNamespaceSlices
 	r = s.aggregatedNamespaces(r, func(namespace ClusterNamespace) bool {
 		// Include only if can fulfill the entire time range of the query

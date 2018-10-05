@@ -164,21 +164,16 @@ func (r *multiResult) Add(
 
 	if len(r.seenIters) == 2 {
 		// need to backfill the dedupe map from the first result first
-		existing := r.seenIters[0]
-		r.dedupeMap = make(map[string]multiResultSeries, existing.Len())
-		for _, iter := range existing.Iters() {
-			id := iter.ID().String()
-			r.dedupeMap[id] = multiResultSeries{
-				attrs: r.seenFirstAttrs,
-				iter:  iter,
-			}
-		}
+		first := r.seenIters[0]
+		r.dedupeMap = make(map[string]multiResultSeries, first.Len())
+		r.addOrUpdateDedupeMap(r.seenFirstAttrs, first)
 	}
 
-	r.dedupe(attrs, newIterators)
+	// Now de-duplicate
+	r.addOrUpdateDedupeMap(attrs, newIterators)
 }
 
-func (r *multiResult) dedupe(
+func (r *multiResult) addOrUpdateDedupeMap(
 	attrs storage.Attributes,
 	newIterators encoding.SeriesIterators,
 ) {
