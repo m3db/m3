@@ -7,7 +7,7 @@ Changelog
 - **Coordinator**: Add ability for query storage to provide unconsolidated blocks (#929)
 - FIX **Coordinator**: Multi-fetch fixes (#989)
 - FIX **Coordinator**: Disable CGO on linux builds (#969)
-- FIX **Coordinator**: write fanouts with aggregated namespaces (#991)
+- FIX **Coordinator**: Write fanouts with aggregated namespaces (#991)
 - PERF **Coordinator**: Set namespace and ID as NoFinalize (#956)
 - PERF **Coordinator**: Treat Prometheus TagName/Value as []byte instead of String (#1004)
 - PERF **Coordinator**: Improve performance of generatings IDs from tags in M3Coordinator (#1000)
