@@ -23,7 +23,6 @@ package placement
 import (
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
@@ -90,6 +89,7 @@ func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	resp := &admin.PlacementGetResponse{
 		Placement: placementProto,
+		Version:   int32(placement.GetVersion()),
 	}
 
 	handler.WriteProtoMsgJSONResponse(w, resp, logger)
@@ -115,41 +115,39 @@ func (h *AddHandler) Add(
 		return nil, err
 	}
 
-	service, err := Service(h.client, httpReq.Header)
+	service, algo, err := ServiceWithAlgo(h.client, httpReq.Header)
 	if err != nil {
 		return nil, err
 	}
 
-	if !req.Force {
-		curPlacement, _, err := service.Placement()
+	if req.Force {
+		newPlacement, _, err := service.AddInstances(instances)
 		if err != nil {
 			return nil, err
 		}
 
-		if err := validateAllAvailable(curPlacement); err != nil {
-			return nil, err
-		}
+		return newPlacement, nil
 	}
 
-	newPlacement, _, err := service.AddInstances(instances)
+	curPlacement, version, err := service.Placement()
 	if err != nil {
 		return nil, err
 	}
 
-	return newPlacement, nil
-}
+	if err := validateAllAvailable(curPlacement); err != nil {
+		return nil, err
+	}
 
-func validateAllAvailable(p placement.Placement) error {
-	badInsts := []string{}
-	for _, inst := range p.Instances() {
-		if !inst.IsAvailable() {
-			badInsts = append(badInsts, inst.ID())
-		}
+	newPlacement, err := algo.AddInstances(curPlacement, instances)
+	if err != nil {
+		return nil, err
 	}
-	if len(badInsts) > 0 {
-		return unsafeAddError{
-			hosts: strings.Join(badInsts, ","),
-		}
+
+	// Ensure the placement we're updating is still the one on which we validated
+	// all shards are available.
+	if err := service.CheckAndSet(newPlacement, version); err != nil {
+		return nil, err
 	}
-	return nil
+
+	return newPlacement.SetVersion(version + 1), nil
 }

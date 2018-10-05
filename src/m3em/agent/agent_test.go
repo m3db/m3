@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/m3em/os/exec"
 	mockexec "github.com/m3db/m3/src/m3em/os/exec/mocks"
 	xgrpc "github.com/m3db/m3/src/m3em/x/grpc"
+	m3xclock "github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 
 	"github.com/golang/mock/gomock"
@@ -295,6 +296,8 @@ func TestSetupOverrite(t *testing.T) {
 }
 
 func TestClientReconnect(t *testing.T) {
+	t.Skipf("TODO(prateek): investigte flaky test: TestClientReconnect")
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -327,9 +330,10 @@ func TestClientReconnect(t *testing.T) {
 	require.NotNil(t, setupResp)
 
 	// ensure heartbeating has started
-	time.Sleep(time.Second)
-	beats := hbService.heartbeats()
-	require.NotEmpty(t, beats)
+	foundHeartbeats := m3xclock.WaitUntil(func() bool {
+		return len(hbService.heartbeats()) > 0
+	}, 5*time.Second)
+	require.True(t, foundHeartbeats)
 
 	// crash heartbeat server
 	hbServer.Stop()
@@ -345,9 +349,10 @@ func TestClientReconnect(t *testing.T) {
 	defer hbServer.Stop()
 
 	// ensure heartbeating has restarted
-	time.Sleep(2 * time.Second)
-	beats = hbService.heartbeats()
-	require.NotEmpty(t, beats)
+	foundHeartbeats = m3xclock.WaitUntil(func() bool {
+		return len(hbService.heartbeats()) > 0
+	}, 5*time.Second)
+	require.True(t, foundHeartbeats)
 }
 
 func TestPullFile(t *testing.T) {

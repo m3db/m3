@@ -48,8 +48,8 @@ const (
 // BuildWorkerPools builds a worker pool
 func BuildWorkerPools(
 	instrumentOptions instrument.Options,
-	scope tally.Scope,
 	readPoolPolicy, writePoolPolicy xconfig.WorkerPoolPolicy,
+	scope tally.Scope,
 ) (xsync.PooledWorkerPool, xsync.PooledWorkerPool, error) {
 	opts, readPoolSize := readPoolPolicy.Options()
 	opts = opts.SetInstrumentOptions(instrumentOptions.

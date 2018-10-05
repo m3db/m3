@@ -38,9 +38,12 @@ coverage:
     m3nsch:
       paths:
         - src/m3nsch/
+        - src/cmd/services/m3nsch_server
+        - src/cmd/services/m3nsch_client
     m3em:
       paths:
         - src/m3em/
+        - src/cmd/services/m3em_agent
     x:
       paths:
         - src/x/

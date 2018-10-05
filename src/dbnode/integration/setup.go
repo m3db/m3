@@ -445,7 +445,17 @@ func (ts *testSetup) startServer() error {
 		err      error
 	)
 
-	ts.db, err = cluster.NewDatabase(ts.hostID, ts.topoInit, ts.storageOpts)
+	topo, err := ts.topoInit.Init()
+	if err != nil {
+		return err
+	}
+
+	topoWatch, err := topo.Watch()
+	if err != nil {
+		return err
+	}
+
+	ts.db, err = cluster.NewDatabase(ts.hostID, topo, topoWatch, ts.storageOpts)
 	if err != nil {
 		return err
 	}

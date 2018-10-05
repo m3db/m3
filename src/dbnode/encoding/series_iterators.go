@@ -67,6 +67,9 @@ func (iters *seriesIterators) SetAt(idx int, iter SeriesIterator) {
 }
 
 func (iters *seriesIterators) Reset(size int) {
+	for i := range iters.iters {
+		iters.iters[i] = nil
+	}
 	iters.iters = iters.iters[:size]
 }
 

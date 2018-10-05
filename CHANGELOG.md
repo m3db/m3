@@ -1,7 +1,30 @@
 Changelog
 =========
+# 0.4.7 (unreleased)
 
-# 0.4.6 (unreleased)
+# 0.4.6 (2018-10-05)
+- **Coordinator**: Add cluster namespace fanout heuristics supporting queries greater than retention (#908)
+- **Coordinator**: Add ability for query storage to provide unconsolidated blocks (#929)
+- FIX **Coordinator**: Multi-fetch fixes (#989)
+- FIX **Coordinator**: Disable CGO on linux builds (#969)
+- FIX **Coordinator**: Write fanouts with aggregated namespaces (#991)
+- PERF **Coordinator**: Set namespace and ID as NoFinalize (#956)
+- PERF **Coordinator**: Treat Prometheus TagName/Value as []byte instead of String (#1004)
+- PERF **Coordinator**: Improve performance of generatings IDs from tags in M3Coordinator (#1000)
+- PERF **Coordinator**: Significantly improve performance of FetchResultToPromResult and helper functions (#1003)
+- PERF **Coordinator**: Improve M3DB session performance part 2: Dont clone IDs if they are IsNoFinalize() (#986)
+- PERF **Coordinator**: Improve M3DB session performance part 1: Pool goroutines in host queues (#985)
+- PERF **Coordinator**: Use pooling for writes to coordinator (#942)
+- PERF **Coordinator**: Use a better pool size for coordinator writes (#976)
+- PERF **Coordinator**: Avoid duplicate ident.ID conversions (#935)
+- DOCS **DB**: Add placement change operational guide (#998)
+- DOCS **DB**: Add namespace modification operational guide (#995)
+- DOCS **DB**: [integrations] systemd: add config flag to service (#974)
+- DOCS **DB**: Add operational guides for M3DB (topology and bootstrapping) (#924)
+- DOCS **DB**: [integrations] systemd: add systemd unit example (#970)
+- DOCS **DB**: Update bootstrapping operational guide (#967)
+- DOCS **DB**: Timeout topology watch and return better error messages for missing topology / namespaces (#926)
+- DOCS **DB**: Add Prom/Grafana dashboard for M3DB as well as docker-compose for local development of m3-stack (#939)
 
 # 0.4.5 (2018-09-24)
 

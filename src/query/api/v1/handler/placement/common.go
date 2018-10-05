@@ -29,6 +29,7 @@ import (
 	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/generated/proto/placementpb"
 	"github.com/m3db/m3cluster/placement"
+	"github.com/m3db/m3cluster/placement/algo"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
 
@@ -60,9 +61,17 @@ type Handler struct {
 
 // Service gets a placement service from m3cluster client
 func Service(clusterClient clusterclient.Client, headers http.Header) (placement.Service, error) {
+	ps, _, err := ServiceWithAlgo(clusterClient, headers)
+	return ps, err
+}
+
+// ServiceWithAlgo gets a placement service from m3cluster client and
+// additionally returns an algorithm instance for callers that need fine-grained
+// control over placement updates.
+func ServiceWithAlgo(clusterClient clusterclient.Client, headers http.Header) (placement.Service, placement.Algorithm, error) {
 	cs, err := clusterClient.Services(services.NewOverrideOptions())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	serviceName := DefaultServiceName
@@ -85,12 +94,16 @@ func Service(clusterClient clusterclient.Client, headers http.Header) (placement
 		SetEnvironment(serviceEnvironment).
 		SetZone(serviceZone)
 
-	ps, err := cs.PlacementService(sid, placement.NewOptions().SetValidZone(serviceZone))
+	pOpts := placement.NewOptions().SetValidZone(serviceZone)
+
+	ps, err := cs.PlacementService(sid, pOpts)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return ps, nil
+	alg := algo.NewAlgorithm(pOpts)
+
+	return ps, alg, nil
 }
 
 // ConvertInstancesProto converts a slice of protobuf `Instance`s to `placement.Instance`s
@@ -129,4 +142,19 @@ func RegisterRoutes(r *mux.Router, client clusterclient.Client, cfg config.Confi
 	r.HandleFunc(DeleteAllURL, logged(NewDeleteAllHandler(client, cfg)).ServeHTTP).Methods(DeleteAllHTTPMethod)
 	r.HandleFunc(AddURL, logged(NewAddHandler(client, cfg)).ServeHTTP).Methods(AddHTTPMethod)
 	r.HandleFunc(DeleteURL, logged(NewDeleteHandler(client, cfg)).ServeHTTP).Methods(DeleteHTTPMethod)
+}
+
+func validateAllAvailable(p placement.Placement) error {
+	badInsts := []string{}
+	for _, inst := range p.Instances() {
+		if !inst.IsAvailable() {
+			badInsts = append(badInsts, inst.ID())
+		}
+	}
+	if len(badInsts) > 0 {
+		return unsafeAddError{
+			hosts: strings.Join(badInsts, ","),
+		}
+	}
+	return nil
 }
