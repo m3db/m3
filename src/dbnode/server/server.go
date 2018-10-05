@@ -21,6 +21,7 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -473,14 +474,6 @@ func Run(runOpts RunOptions) {
 		SetTagEncoderPool(tagEncoderPool).
 		SetTagDecoderPool(tagDecoderPool)
 
-	db, err := cluster.NewDatabase(hostID, envCfg.TopologyInitializer, opts)
-	if err != nil {
-		logger.Fatalf("could not construct database: %v", err)
-	}
-	if err := db.Open(); err != nil {
-		logger.Fatalf("could not open database: %v", err)
-	}
-
 	// Set bootstrap options - We pass the db as the TopologyMapProvider
 	// becaues the clustered database is the component that is responsible
 	// for triggering new bootstraps based on topology changes. As a result
@@ -489,13 +482,18 @@ func Run(runOpts RunOptions) {
 	// the clustered database to ensure that it gets a view that is *at least*
 	// as new as the topology that triggered the bootstrap, if not newer. See
 	// GitHub issue #1013 for more details.
-	bs, err := cfg.Bootstrap.New(opts, db, origin, m3dbClient)
+	clusterTopoWatch, err := topo.Watch()
+	if err != nil {
+		logger.Fatalf("could not create cluster topology watch: %v", err)
+	}
+
+	topoMapProvider := &topoMapProvider{t: topo}
+	bs, err := cfg.Bootstrap.New(opts, topoMapProvider, origin, m3dbClient)
 	if err != nil {
 		logger.Fatalf("could not create bootstrap process: %v", err)
 	}
 
 	opts = opts.SetBootstrapProcessProvider(bs)
-
 	timeout := bootstrapConfigInitTimeout
 	kvWatchBootstrappers(envCfg.KVStore, logger, timeout, cfg.Bootstrap.Bootstrappers,
 		func(bootstrappers []string) {
@@ -505,7 +503,7 @@ func Run(runOpts RunOptions) {
 			}
 
 			cfg.Bootstrap.Bootstrappers = bootstrappers
-			updated, err := cfg.Bootstrap.New(opts, db, origin, m3dbClient)
+			updated, err := cfg.Bootstrap.New(opts, topoMapProvider, origin, m3dbClient)
 			if err != nil {
 				logger.Errorf("updated bootstrapper list failed: %v", err)
 				return
@@ -513,6 +511,15 @@ func Run(runOpts RunOptions) {
 
 			bs.SetBootstrapperProvider(updated.BootstrapperProvider())
 		})
+
+	db, err := cluster.NewDatabase(hostID, topo, clusterTopoWatch, opts)
+	if err != nil {
+		logger.Fatalf("could not construct database: %v", err)
+	}
+
+	if err := db.Open(); err != nil {
+		logger.Fatalf("could not open database: %v", err)
+	}
 
 	contextPool := opts.ContextPool()
 
@@ -1148,4 +1155,16 @@ func hostSupportsHugeTLB() (bool, error) {
 	}
 	// The warning was probably caused by something else, proceed using HugeTLB
 	return true, nil
+}
+
+type topoMapProvider struct {
+	t topology.Topology
+}
+
+func (t *topoMapProvider) TopologyMap() (topology.Map, error) {
+	if t.t == nil {
+		return nil, errors.New("topology map provider has not be set yet")
+	}
+
+	return t.t.Map(), nil
 }
