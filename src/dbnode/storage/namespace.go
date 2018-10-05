@@ -918,6 +918,11 @@ func (n *dbNamespace) Snapshot(
 		// of shards/blocks that would have been flushed after the next tick.
 		shardBootstrapStateBeforeTick, ok := shardBootstrapStatesAtTickStart[shard.ID()]
 		if !ok || shardBootstrapStateBeforeTick != Bootstrapped {
+			n.log.
+				WithFields(xlog.NewField("shard", shard.ID())).
+				WithFields(xlog.NewField("bootstrapStateBeforeTick", shardBootstrapStateBeforeTick)).
+				WithFields(xlog.NewField("bootstrapStateExists", ok)).
+				Debug("skipping snapshot")
 			continue
 		}
 
