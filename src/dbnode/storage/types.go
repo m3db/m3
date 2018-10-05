@@ -282,7 +282,12 @@ type databaseNamespace interface {
 	) error
 
 	// Snapshot snapshots unflushed in-memory data
-	Snapshot(blockStart, snapshotTime time.Time, flush persist.DataFlush) error
+	Snapshot(
+		blockStart,
+		snapshotTime time.Time,
+		shardBootstrapStatesAtTickStart ShardBootstrapStates,
+		flush persist.DataFlush,
+	) error
 
 	// NeedsFlush returns true if the namespace needs a flush for the
 	// period: [start, end] (both inclusive).

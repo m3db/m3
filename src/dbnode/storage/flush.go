@@ -131,10 +131,24 @@ func (m *flushManager) Flush(
 	fmt.Println("START1")
 	m.setState(flushManagerSnapshotInProgress)
 	for _, ns := range namespaces {
-		snapshotBlockStarts := m.namespaceSnapshotTimes(ns, tickStart)
+		var (
+			snapshotBlockStarts     = m.namespaceSnapshotTimes(ns, tickStart)
+			shardBootstrapTimes, ok = dbBootstrapStateAtTickStart.NamespaceBootstrapStates[ns.ID().String()]
+		)
+
+		if !ok {
+			// Could happen if namespaces are added / removed.
+			multiErr = multiErr.Add(fmt.Errorf(
+				"tried to flush ns: %s, but did not have shard bootstrap times", ns.ID().String()))
+			continue
+		}
+
 		for _, snapshotBlockStart := range snapshotBlockStarts {
 			fmt.Println("snapshotting: ", snapshotBlockStart)
-			if err := ns.Snapshot(snapshotBlockStart, tickStart, flush); err != nil {
+			err := ns.Snapshot(
+				snapshotBlockStart, tickStart, shardBootstrapTimes, flush)
+
+			if err != nil {
 				detailedErr := fmt.Errorf("namespace %s failed to snapshot data: %v",
 					ns.ID().String(), err)
 				multiErr = multiErr.Add(detailedErr)
