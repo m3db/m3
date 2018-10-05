@@ -482,7 +482,7 @@ func Run(runOpts RunOptions) {
 	// the bootstrap process will receive a topology map that is at least as
 	// recent as the one that triggered the bootstrap, if not newer.
 	// See GitHub issue #1013 for more details.
-	topoMapProvider := &topoMapProvider{t: topo}
+	topoMapProvider := newTopoMapProvider(topo)
 	bs, err := cfg.Bootstrap.New(opts, topoMapProvider, origin, m3dbClient)
 	if err != nil {
 		logger.Fatalf("could not create bootstrap process: %v", err)
@@ -1155,6 +1155,10 @@ func hostSupportsHugeTLB() (bool, error) {
 	}
 	// The warning was probably caused by something else, proceed using HugeTLB
 	return true, nil
+}
+
+func newTopoMapProvider(t topology.Topology) *topoMapProvider {
+	return &topoMapProvider{t}
 }
 
 type topoMapProvider struct {
