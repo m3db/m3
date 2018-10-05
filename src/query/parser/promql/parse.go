@@ -123,14 +123,18 @@ func (p *parseState) walk(node pql.Node) error {
 		expressions := n.Args
 		argTypes := n.Func.ArgTypes
 		argValues := make([]interface{}, 0, len(expressions))
-		for i, expr := range expressions {
-			if argTypes[i] == pql.ValueTypeScalar {
+		stringValues := make([]string, 0, len(expressions))
+		for i, argType := range argTypes {
+			expr := expressions[i]
+			if argType == pql.ValueTypeScalar {
 				val, err := resolveScalarArgument(expr)
 				if err != nil {
 					return err
 				}
 
 				argValues = append(argValues, val)
+			} else if argType == pql.ValueTypeString {
+				stringValues = append(stringValues, expr.String())
 			} else {
 				if e, ok := expr.(*pql.MatrixSelector); ok {
 					argValues = append(argValues, e.Range)
@@ -140,10 +144,15 @@ func (p *parseState) walk(node pql.Node) error {
 					return err
 				}
 			}
-
 		}
 
-		op, err := NewFunctionExpr(n.Func.Name, argValues)
+		if n.Func.Variadic == -1 {
+			for _, expression := range expressions[len(argTypes):] {
+				stringValues = append(stringValues, expression.String())
+			}
+		}
+
+		op, err := NewFunctionExpr(n.Func.Name, argValues, stringValues)
 		if err != nil {
 			return err
 		}
