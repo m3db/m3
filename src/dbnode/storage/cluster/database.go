@@ -84,7 +84,8 @@ type clusterDB struct {
 // NewDatabase creates a new clustered time series database
 func NewDatabase(
 	hostID string,
-	topoInit topology.Initializer,
+	topo topology.Topology,
+	topoWatch topology.MapWatch,
 	opts storage.Options,
 ) (Database, error) {
 	instrumentOpts := opts.InstrumentOptions()
@@ -92,19 +93,10 @@ func NewDatabase(
 	m := newDatabaseMetrics(instrumentOpts.MetricsScope().SubScope("cluster"))
 
 	log.Info("cluster database initializing topology")
-	topo, err := topoInit.Init()
-	if err != nil {
-		return nil, err
-	}
-
-	watch, err := topo.Watch()
-	if err != nil {
-		return nil, err
-	}
 
 	// Wait for the topology to be available
 	log.Info("cluster database resolving topology")
-	<-watch.C()
+	<-topoWatch.C()
 	log.Info("cluster database resolved topology")
 
 	d := &clusterDB{
@@ -112,12 +104,12 @@ func NewDatabase(
 		metrics:        m,
 		hostID:         hostID,
 		topo:           topo,
-		watch:          watch,
+		watch:          topoWatch,
 		initializing:   make(map[uint32]shard.Shard),
 		bootstrapCount: make(map[uint32]int),
 	}
 
-	shardSet := d.hostOrEmptyShardSet(watch.Get())
+	shardSet := d.hostOrEmptyShardSet(topoWatch.Get())
 	db, err := newStorageDatabase(shardSet, opts)
 	if err != nil {
 		return nil, err
@@ -129,6 +121,10 @@ func NewDatabase(
 
 func (d *clusterDB) Topology() topology.Topology {
 	return d.topo
+}
+
+func (d *clusterDB) TopologyMap() (topology.Map, error) {
+	return d.topo.Get(), nil
 }
 
 func (d *clusterDB) Open() error {

@@ -42,6 +42,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3/src/dbnode/storage/cluster"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
@@ -76,6 +77,8 @@ var (
 // nowSetterFn is the function that sets the current time
 type nowSetterFn func(t time.Time)
 
+var _ topology.MapProvider = &testSetup{}
+
 type testSetup struct {
 	t    *testing.T
 	opts testOptions
@@ -86,6 +89,7 @@ type testSetup struct {
 	storageOpts    storage.Options
 	fsOpts         fs.Options
 	hostID         string
+	origin         topology.Host
 	topoInit       topology.Initializer
 	shardSet       sharding.ShardSet
 	getNowFn       clock.NowFn
@@ -207,7 +211,8 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		now = t
 		lock.Unlock()
 	}
-	storageOpts = storageOpts.SetClockOptions(storageOpts.ClockOptions().SetNowFn(getNowFn))
+	storageOpts = storageOpts.SetClockOptions(
+		storageOpts.ClockOptions().SetNowFn(getNowFn))
 
 	// Set up file path prefix
 	idx := atomic.AddUint64(&created, 1) - 1
@@ -304,6 +309,7 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		storageOpts:                 storageOpts,
 		fsOpts:                      fsOpts,
 		hostID:                      id,
+		origin:                      newOrigin(id, tchannelNodeAddr),
 		topoInit:                    topoInit,
 		shardSet:                    shardSet,
 		getNowFn:                    getNowFn,
@@ -439,7 +445,17 @@ func (ts *testSetup) startServer() error {
 		err      error
 	)
 
-	ts.db, err = cluster.NewDatabase(ts.hostID, ts.topoInit, ts.storageOpts)
+	topo, err := ts.topoInit.Init()
+	if err != nil {
+		return err
+	}
+
+	topoWatch, err := topo.Watch()
+	if err != nil {
+		return err
+	}
+
+	ts.db, err = cluster.NewDatabase(ts.hostID, topo, topoWatch, ts.storageOpts)
 	if err != nil {
 		return err
 	}
@@ -605,6 +621,19 @@ func (ts *testSetup) maybeResetClients() error {
 	return nil
 }
 
+// Implements topology.MapProvider, and makes sure that the topology
+// map provided always comes from the most recent database in the testSetup
+// since they get\ recreated everytime startServer/stopServer is called and
+// are not available (nil value) after creation but before the first call
+// to startServer.
+func (ts *testSetup) TopologyMap() (topology.Map, error) {
+	return ts.db.TopologyMap()
+}
+
+func newOrigin(id string, tchannelNodeAddr string) topology.Host {
+	return topology.NewHost(id, tchannelNodeAddr)
+}
+
 func newClients(
 	topoInit topology.Initializer,
 	opts testOptions,
@@ -617,8 +646,8 @@ func newClients(
 				SetWriteConsistencyLevel(opts.WriteConsistencyLevel()).
 				SetTopologyInitializer(topoInit)
 
-		origin             = topology.NewHost(id, tchannelNodeAddr)
-		verificationOrigin = topology.NewHost(id+"-verification", tchannelNodeAddr)
+		origin             = newOrigin(id, tchannelNodeAddr)
+		verificationOrigin = newOrigin(id+"-verification", tchannelNodeAddr)
 
 		adminOpts             = clientOpts.(client.AdminOptions).SetOrigin(origin)
 		verificationAdminOpts = adminOpts.SetOrigin(verificationOrigin)
@@ -666,25 +695,28 @@ func node(t *testing.T, n int, shards shard.Shards) services.ServiceInstance {
 // newNodes creates a set of testSetups with reasonable defaults
 func newNodes(
 	t *testing.T,
+	numShards int,
 	instances []services.ServiceInstance,
 	nspaces []namespace.Metadata,
 	asyncInserts bool,
 ) (testSetups, topology.Initializer, closeFn) {
+	var (
+		log  = xlog.SimpleLogger
+		opts = newTestOptions(t).
+			SetNamespaces(nspaces).
+			SetTickMinimumInterval(3 * time.Second).
+			SetWriteNewSeriesAsync(asyncInserts).
+			SetNumShards(numShards)
 
-	log := xlog.SimpleLogger
-	opts := newTestOptions(t).
-		SetNamespaces(nspaces).
-		SetTickMinimumInterval(3 * time.Second).
-		SetWriteNewSeriesAsync(asyncInserts)
+		// NB(bl): We set replication to 3 to mimic production. This can be made
+		// into a variable if needed.
+		svc = fake.NewM3ClusterService().
+			SetInstances(instances).
+			SetReplication(services.NewServiceReplication().SetReplicas(3)).
+			SetSharding(services.NewServiceSharding().SetNumShards(numShards))
 
-	// NB(bl): We set replication to 3 to mimic production. This can be made
-	// into a variable if needed.
-	svc := fake.NewM3ClusterService().
-		SetInstances(instances).
-		SetReplication(services.NewServiceReplication().SetReplicas(3)).
-		SetSharding(services.NewServiceSharding().SetNumShards(opts.NumShards()))
-
-	svcs := fake.NewM3ClusterServices()
+		svcs = fake.NewM3ClusterServices()
+	)
 	svcs.RegisterService("m3db", svc)
 
 	topoOpts := topology.NewDynamicOptions().
@@ -693,6 +725,7 @@ func newNodes(
 
 	nodeOpt := bootstrappableTestSetupOptions{
 		disablePeersBootstrapper: true,
+		finalBootstrapper:        bootstrapper.NoOpAllBootstrapperName,
 		topologyInitializer:      topoInit,
 	}
 

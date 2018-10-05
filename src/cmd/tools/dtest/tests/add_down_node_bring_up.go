@@ -2,7 +2,7 @@ package dtests
 
 import (
 	"github.com/m3db/m3/src/cmd/tools/dtest/harness"
-	"github.com/m3db/m3em/node"
+	"github.com/m3db/m3/src/m3em/node"
 
 	"github.com/spf13/cobra"
 )

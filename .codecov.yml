@@ -14,6 +14,10 @@ coverage:
         flags: dbnode
       m3ninx:
         flags: m3ninx
+      m3nsch:
+        flags: m3nsch
+      m3em:
+        flags: m3em
     patch:
       default: on
     changes:
@@ -31,6 +35,12 @@ coverage:
     m3ninx:
       paths:
         - src/m3ninx/
+    m3nsch:
+      paths:
+        - src/m3nsch/
+    m3em:
+      paths:
+        - src/m3em/
     x:
       paths:
         - src/x/

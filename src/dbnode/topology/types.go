@@ -210,6 +210,13 @@ type DynamicOptions interface {
 	HashGen() sharding.HashGen
 }
 
+// MapProvider is an interface that can provide
+// a topology map.
+type MapProvider interface {
+	// TopologyMap returns a topology map.
+	TopologyMap() (Map, error)
+}
+
 // StateSnapshot represents a snapshot of the state of the topology at a
 // given moment.
 type StateSnapshot struct {

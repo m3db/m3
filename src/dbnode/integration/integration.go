@@ -29,12 +29,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	persistfs "github.com/m3db/m3/src/dbnode/persist/fs"
-	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	bfs "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/peers"
+	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/uninitialized"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/series"
@@ -85,35 +85,12 @@ func newMultiAddrAdminClient(
 	t *testing.T,
 	adminOpts client.AdminOptions,
 	topologyInitializer topology.Initializer,
+	origin topology.Host,
 	instrumentOpts instrument.Options,
-	shardSet sharding.ShardSet,
-	replicas int,
-	instance int,
 ) client.AdminClient {
 	if adminOpts == nil {
 		adminOpts = client.NewAdminOptions()
 	}
-
-	var (
-		start         = multiAddrPortStart
-		hostShardSets []topology.HostShardSet
-		origin        topology.Host
-	)
-	for i := 0; i < replicas; i++ {
-		id := fmt.Sprintf("testhost%d", i)
-		nodeAddr := fmt.Sprintf("127.0.0.1:%d", start+(i*multiAddrPortEach))
-		host := topology.NewHost(id, nodeAddr)
-		if i == instance {
-			origin = host
-		}
-		hostShardSet := topology.NewHostShardSet(host, shardSet)
-		hostShardSets = append(hostShardSets, hostShardSet)
-	}
-
-	staticOptions := topology.NewStaticOptions().
-		SetShardSet(shardSet).
-		SetReplicas(replicas).
-		SetHostShardSets(hostShardSets)
 
 	clientOpts := adminOpts.
 		SetOrigin(origin).
@@ -121,9 +98,6 @@ func newMultiAddrAdminClient(
 		SetClusterConnectConsistencyLevel(topology.ConnectConsistencyLevelAny).
 		SetClusterConnectTimeout(time.Second)
 
-	if topologyInitializer == nil {
-		topologyInitializer = topology.NewStaticInitializer(staticOptions)
-	}
 	clientOpts = clientOpts.SetTopologyInitializer(topologyInitializer)
 
 	adminClient, err := client.NewAdminClient(clientOpts.(client.AdminOptions))
@@ -133,13 +107,15 @@ func newMultiAddrAdminClient(
 }
 
 type bootstrappableTestSetupOptions struct {
-	disablePeersBootstrapper           bool
+	finalBootstrapper                  string
 	fetchBlocksMetadataEndpointVersion client.FetchBlocksMetadataEndpointVersion
 	bootstrapBlocksBatchSize           int
 	bootstrapBlocksConcurrency         int
 	bootstrapConsistencyLevel          topology.ReadConsistencyLevel
 	topologyInitializer                topology.Initializer
 	testStatsReporter                  xmetrics.TestStatsReporter
+	disablePeersBootstrapper           bool
+	useTChannelClientForWriting        bool
 }
 
 type closeFn func()
@@ -164,13 +140,15 @@ func newDefaultBootstrappableTestSetups(
 		setups          []*testSetup
 		cleanupFns      []func()
 		cleanupFnsMutex sync.RWMutex
+
+		appendCleanupFn = func(fn func()) {
+			cleanupFnsMutex.Lock()
+			defer cleanupFnsMutex.Unlock()
+			cleanupFns = append(cleanupFns, fn)
+		}
+		anySetupUsingFetchBlocksMetadataEndpointV1 = false
 	)
-	appendCleanupFn := func(fn func()) {
-		cleanupFnsMutex.Lock()
-		defer cleanupFnsMutex.Unlock()
-		cleanupFns = append(cleanupFns, fn)
-	}
-	anySetupUsingFetchBlocksMetadataEndpointV1 := false
+
 	for i := range setupOpts {
 		v1 := client.FetchBlocksMetadataEndpointV1
 		if setupOpts[i].fetchBlocksMetadataEndpointVersion == v1 {
@@ -178,25 +156,62 @@ func newDefaultBootstrappableTestSetups(
 			break
 		}
 	}
+
+	shardSet, err := newTestShardSet(opts.NumShards())
+	require.NoError(t, err)
 	for i := 0; i < replicas; i++ {
 		var (
-			instance                   = i
-			usingPeersBootstrapper     = !setupOpts[i].disablePeersBootstrapper
-			bootstrapBlocksBatchSize   = setupOpts[i].bootstrapBlocksBatchSize
-			bootstrapBlocksConcurrency = setupOpts[i].bootstrapBlocksConcurrency
-			bootstrapConsistencyLevel  = setupOpts[i].bootstrapConsistencyLevel
-			topologyInitializer        = setupOpts[i].topologyInitializer
-			testStatsReporter          = setupOpts[i].testStatsReporter
-			instanceOpts               = newMultiAddrTestOptions(opts, instance)
+			instance                    = i
+			usingPeersBootstrapper      = !setupOpts[i].disablePeersBootstrapper
+			finalBootstrapperToUse      = setupOpts[i].finalBootstrapper
+			useTChannelClientForWriting = setupOpts[i].useTChannelClientForWriting
+			bootstrapBlocksBatchSize    = setupOpts[i].bootstrapBlocksBatchSize
+			bootstrapBlocksConcurrency  = setupOpts[i].bootstrapBlocksConcurrency
+			bootstrapConsistencyLevel   = setupOpts[i].bootstrapConsistencyLevel
+			topologyInitializer         = setupOpts[i].topologyInitializer
+			testStatsReporter           = setupOpts[i].testStatsReporter
+			origin                      topology.Host
+			instanceOpts                = newMultiAddrTestOptions(opts, instance)
 		)
 
-		if topologyInitializer != nil {
-			instanceOpts = instanceOpts.
-				SetClusterDatabaseTopologyInitializer(topologyInitializer)
+		if finalBootstrapperToUse == "" {
+			finalBootstrapperToUse = bootstrapper.NoOpAllBootstrapperName
 		}
+
+		if topologyInitializer == nil {
+			// Setup static topology initializer
+			var (
+				start         = multiAddrPortStart
+				hostShardSets []topology.HostShardSet
+			)
+
+			for i := 0; i < replicas; i++ {
+				id := fmt.Sprintf("testhost%d", i)
+				nodeAddr := fmt.Sprintf("127.0.0.1:%d", start+(i*multiAddrPortEach))
+				host := topology.NewHost(id, nodeAddr)
+				if i == instance {
+					origin = host
+				}
+				shardSet, err := newTestShardSet(opts.NumShards())
+				require.NoError(t, err)
+				hostShardSet := topology.NewHostShardSet(host, shardSet)
+				hostShardSets = append(hostShardSets, hostShardSet)
+			}
+
+			staticOptions := topology.NewStaticOptions().
+				SetShardSet(shardSet).
+				SetReplicas(replicas).
+				SetHostShardSets(hostShardSets)
+			topologyInitializer = topology.NewStaticInitializer(staticOptions)
+		}
+
+		instanceOpts = instanceOpts.
+			SetClusterDatabaseTopologyInitializer(topologyInitializer).
+			SetUseTChannelClientForWriting(useTChannelClientForWriting)
 
 		setup, err := newTestSetup(t, instanceOpts, nil)
 		require.NoError(t, err)
+		topologyInitializer = setup.topoInit
 
 		// Force correct series cache policy if using V1 version
 		// TODO: Remove once v1 endpoint is gone
@@ -214,35 +229,50 @@ func newDefaultBootstrappableTestSetups(
 		}
 		setup.storageOpts = setup.storageOpts.SetInstrumentOptions(instrumentOpts)
 
-		bsOpts := newDefaulTestResultOptions(setup.storageOpts)
-		noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
-		var peersBootstrapper bootstrap.BootstrapperProvider
+		var (
+			bsOpts            = newDefaulTestResultOptions(setup.storageOpts)
+			finalBootstrapper bootstrap.BootstrapperProvider
 
-		adminOpts := client.NewAdminOptions()
+			adminOpts = client.NewAdminOptions().
+					SetTopologyInitializer(topologyInitializer).(client.AdminOptions).
+					SetOrigin(origin)
+
+				// Prevent integration tests from timing out when a node is down
+			retryOpts = xretry.NewOptions().
+					SetInitialBackoff(1 * time.Millisecond).
+					SetMaxRetries(1).
+					SetJitter(true)
+			retrier = xretry.NewRetrier(retryOpts)
+		)
+
+		switch finalBootstrapperToUse {
+		case bootstrapper.NoOpAllBootstrapperName:
+			finalBootstrapper = bootstrapper.NewNoOpAllBootstrapperProvider()
+		case uninitialized.UninitializedTopologyBootstrapperName:
+			uninitialized.NewuninitializedTopologyBootstrapperProvider(
+				uninitialized.NewOptions().
+					SetInstrumentOptions(instrumentOpts), nil)
+		default:
+			panic(fmt.Sprintf(
+				"Unknown final bootstrapper to use: %v", finalBootstrapperToUse))
+		}
+
 		if bootstrapBlocksBatchSize > 0 {
 			adminOpts = adminOpts.SetFetchSeriesBlocksBatchSize(bootstrapBlocksBatchSize)
 		}
 		if bootstrapBlocksConcurrency > 0 {
 			adminOpts = adminOpts.SetFetchSeriesBlocksBatchConcurrency(bootstrapBlocksConcurrency)
 		}
-		if topologyInitializer != nil {
-			adminOpts = adminOpts.SetTopologyInitializer(topologyInitializer).(client.AdminOptions)
-		}
-
-		// Prevent integration tests from timing out when a node is down
-		retryOpts := xretry.NewOptions().
-			SetInitialBackoff(1 * time.Millisecond).
-			SetMaxRetries(1).
-			SetJitter(true)
-		retrier := xretry.NewRetrier(retryOpts)
 		adminOpts = adminOpts.SetStreamBlocksRetrier(retrier)
 
 		adminClient := newMultiAddrAdminClient(
-			t, adminOpts, topologyInitializer, instrumentOpts, setup.shardSet, replicas, instance)
+			t, adminOpts, topologyInitializer, origin, instrumentOpts)
 		if usingPeersBootstrapper {
-			runtimeOptsMgr := setup.storageOpts.RuntimeOptionsManager()
-			runtimeOpts := runtimeOptsMgr.Get().
-				SetClientBootstrapConsistencyLevel(bootstrapConsistencyLevel)
+			var (
+				runtimeOptsMgr = setup.storageOpts.RuntimeOptionsManager()
+				runtimeOpts    = runtimeOptsMgr.Get().
+						SetClientBootstrapConsistencyLevel(bootstrapConsistencyLevel)
+			)
 			runtimeOptsMgr.Update(runtimeOpts)
 
 			peersOpts := peers.NewOptions().
@@ -255,14 +285,11 @@ func newDefaultBootstrappableTestSetups(
 				SetPersistManager(setup.storageOpts.PersistManager()).
 				SetRuntimeOptionsManager(runtimeOptsMgr)
 
-			peersBootstrapper, err = peers.NewPeersBootstrapperProvider(peersOpts, noOpAll)
+			finalBootstrapper, err = peers.NewPeersBootstrapperProvider(peersOpts, finalBootstrapper)
 			require.NoError(t, err)
-		} else {
-			peersBootstrapper = noOpAll
 		}
 
 		fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
-
 		persistMgr, err := persistfs.NewPersistManager(fsOpts)
 		require.NoError(t, err)
 
@@ -272,12 +299,15 @@ func newDefaultBootstrappableTestSetups(
 			SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager()).
 			SetPersistManager(persistMgr)
 
-		fsBootstrapper, err := bfs.NewFileSystemBootstrapperProvider(bfsOpts, peersBootstrapper)
+		fsBootstrapper, err := bfs.NewFileSystemBootstrapperProvider(bfsOpts, finalBootstrapper)
 		require.NoError(t, err)
 
-		processOpts := bootstrap.NewProcessOptions().SetAdminClient(adminClient)
+		processOpts := bootstrap.NewProcessOptions().
+			SetTopologyMapProvider(setup).
+			SetOrigin(setup.origin)
 		provider, err := bootstrap.NewProcessProvider(fsBootstrapper, processOpts, bsOpts)
 		require.NoError(t, err)
+
 		setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(provider)
 
 		setups = append(setups, setup)

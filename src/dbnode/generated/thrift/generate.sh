@@ -10,7 +10,7 @@ docker run --rm hello-world >/dev/null
 THRIFT_IMAGE_VERSION=${THRIFT_IMAGE_VERSION:-"quay.io/m3db/thrift-gen:0.1.0"}
 
 UID_FLAGS="-u $(id -u)"
-if [[ -v BUILDKITE ]]; then
+if [[ -n "$BUILDKITE" ]]; then
 	UID_FLAGS="-u root"
 fi
 

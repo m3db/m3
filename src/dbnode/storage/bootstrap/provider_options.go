@@ -23,7 +23,7 @@ package bootstrap
 import (
 	"errors"
 
-	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/dbnode/topology"
 )
 
 const (
@@ -33,25 +33,32 @@ const (
 )
 
 var (
-	errAdminClientShouldNotBeNil = errors.New("admin client should not be nil")
+	errTopologyMapProviderShouldNotBeNil = errors.New("topology map provider should not be nil")
+	errOriginShouldNotBeNil              = errors.New("origin should not be nil")
 )
 
 type processOptions struct {
 	cacheSeriesMetadata bool
-	adminClient         client.AdminClient
+	topoMapProvider     topology.MapProvider
+	origin              topology.Host
 }
 
 // NewProcessOptions creates new bootstrap run options
 func NewProcessOptions() ProcessOptions {
 	return &processOptions{
 		cacheSeriesMetadata: defaultCacheSeriesMetadata,
-		adminClient:         nil,
+		topoMapProvider:     nil,
+		origin:              nil,
 	}
 }
 
 func (o *processOptions) Validate() error {
-	if o.adminClient == nil {
-		return errAdminClientShouldNotBeNil
+	if o.topoMapProvider == nil {
+		return errTopologyMapProviderShouldNotBeNil
+	}
+
+	if o.origin == nil {
+		return errOriginShouldNotBeNil
 	}
 
 	return nil
@@ -67,12 +74,22 @@ func (o *processOptions) CacheSeriesMetadata() bool {
 	return o.cacheSeriesMetadata
 }
 
-func (o *processOptions) SetAdminClient(value client.AdminClient) ProcessOptions {
+func (o *processOptions) SetTopologyMapProvider(value topology.MapProvider) ProcessOptions {
 	opts := *o
-	opts.adminClient = value
+	opts.topoMapProvider = value
 	return &opts
 }
 
-func (o *processOptions) AdminClient() client.AdminClient {
-	return o.adminClient
+func (o *processOptions) TopologyMapProvider() topology.MapProvider {
+	return o.topoMapProvider
+}
+
+func (o *processOptions) SetOrigin(value topology.Host) ProcessOptions {
+	opts := *o
+	opts.origin = value
+	return &opts
+}
+
+func (o *processOptions) Origin() topology.Host {
+	return o.origin
 }

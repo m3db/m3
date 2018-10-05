@@ -12,7 +12,7 @@ PROTOC_IMAGE_VERSION=${PROTOC_IMAGE_VERSION:-"znly/protoc:0.2.0"}
 docker run --rm hello-world >/dev/null
 
 UID_FLAGS="-u $(id -u)"
-if [[ -v BUILDKITE ]]; then
+if [[ -n "$BUILDKITE" ]]; then
 	UID_FLAGS="-u root"
 fi
 

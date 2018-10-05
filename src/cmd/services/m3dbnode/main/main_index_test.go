@@ -196,7 +196,6 @@ func TestIndexEnabledServer(t *testing.T) {
 	// Cast to narrower-interface instead of grabbing DefaultSession to make sure
 	// we use the same topology.Map that we validated in waitUntilAllShardsAreAvailable.
 	session := adminSession.(client.Session)
-
 	defer session.Close()
 
 	start := time.Now().Add(-time.Minute)
