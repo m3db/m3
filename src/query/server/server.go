@@ -121,7 +121,9 @@ func Run(runOpts RunOptions) {
 	if err != nil {
 		logger.Fatal("could not connect to metrics", zap.Any("error", err))
 	}
-	instrumentOptions := instrument.NewOptions().SetMetricsScope(scope).SetZapLogger(logger)
+	instrumentOptions := instrument.NewOptions().
+		SetMetricsScope(scope).
+		SetZapLogger(logger)
 
 	// Close metrics scope
 	defer func() {
