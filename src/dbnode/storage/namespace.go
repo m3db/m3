@@ -830,6 +830,11 @@ func (n *dbNamespace) Flush(
 			// before the previous tick which means that we have no guarantee that all
 			// bootstrapped blocks have been rotated out of the series buffer buckets,
 			// so we wait until the next opportunity.
+			n.log.
+				WithFields(xlog.NewField("shard", shard.ID())).
+				WithFields(xlog.NewField("bootstrapStateBeforeTick", shardBootstrapStateBeforeTick)).
+				WithFields(xlog.NewField("bootstrapStateExists", ok)).
+				Debug("skipping snapshot due to shard bootstrap state before tick")
 			continue
 		}
 
@@ -922,7 +927,7 @@ func (n *dbNamespace) Snapshot(
 				WithFields(xlog.NewField("shard", shard.ID())).
 				WithFields(xlog.NewField("bootstrapStateBeforeTick", shardBootstrapStateBeforeTick)).
 				WithFields(xlog.NewField("bootstrapStateExists", ok)).
-				Debug("skipping snapshot")
+				Debug("skipping snapshot due to shard bootstrap state before tick")
 			continue
 		}
 
