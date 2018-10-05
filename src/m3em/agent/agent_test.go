@@ -296,6 +296,8 @@ func TestSetupOverrite(t *testing.T) {
 }
 
 func TestClientReconnect(t *testing.T) {
+	t.Skipf("TODO(prateek): investigte flaky test: TestClientReconnect")
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
