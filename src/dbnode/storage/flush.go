@@ -104,7 +104,6 @@ func (m *flushManager) Flush(
 
 	multiErr := xerrors.NewMultiError()
 	m.setState(flushManagerFlushInProgress)
-	fmt.Println("START")
 	for _, ns := range namespaces {
 		// Flush first because we will only snapshot if there are no outstanding flushes
 		flushTimes := m.namespaceFlushTimes(ns, tickStart)
@@ -117,7 +116,6 @@ func (m *flushManager) Flush(
 		}
 		multiErr = multiErr.Add(m.flushNamespaceWithTimes(ns, shardBootstrapTimes, flushTimes, flush))
 	}
-	fmt.Println("END")
 
 	// Perform two separate loops through all the namespaces so that we can emit better
 	// gauges I.E all the flushing for all the namespaces happens at once and then all
@@ -128,7 +126,6 @@ func (m *flushManager) Flush(
 	// we attempt a flush befor a snapshot as the snapshotting process will attempt to
 	// snapshot any unflushed blocks which would be wasteful if the block is already
 	// flushable.
-	fmt.Println("START1")
 	m.setState(flushManagerSnapshotInProgress)
 	for _, ns := range namespaces {
 		var (
@@ -144,7 +141,6 @@ func (m *flushManager) Flush(
 		}
 
 		for _, snapshotBlockStart := range snapshotBlockStarts {
-			fmt.Println("snapshotting: ", snapshotBlockStart)
 			err := ns.Snapshot(
 				snapshotBlockStart, tickStart, shardBootstrapTimes, flush)
 
@@ -155,7 +151,6 @@ func (m *flushManager) Flush(
 			}
 		}
 	}
-	fmt.Println("END1")
 
 	// mark data flush finished
 	multiErr = multiErr.Add(flush.DoneData())
@@ -262,7 +257,6 @@ func (m *flushManager) flushNamespaceWithTimes(
 ) error {
 	multiErr := xerrors.NewMultiError()
 	for _, t := range times {
-		fmt.Println("flushing: ", t)
 		// NB(xichen): we still want to proceed if a namespace fails to flush its data.
 		// Probably want to emit a counter here, but for now just log it.
 		if err := ns.Flush(t, ShardBootstrapStates, flush); err != nil {
