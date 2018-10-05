@@ -123,7 +123,7 @@ func (m *flushManager) Flush(
 	// better semantically because flushing should take priority over snapshotting.
 	//
 	// In addition, we need to make sure that for any given shard/blockStart combination,
-	// we attempt a flush befor a snapshot as the snapshotting process will attempt to
+	// we attempt a flush before a snapshot as the snapshotting process will attempt to
 	// snapshot any unflushed blocks which would be wasteful if the block is already
 	// flushable.
 	m.setState(flushManagerSnapshotInProgress)
