@@ -115,6 +115,7 @@ func compressedTagsFromTagIterator(tagIter ident.TagIterator, encoderPool serial
 
 	db := data.Bytes()
 	// Need to copy the encoded bytes to a buffer as the encoder keeps a reference to them
+	// TODO(arnikola): pool this when implementing https://github.com/m3db/m3/issues/1015
 	return append(make([]byte, 0, len(db)), db...), nil
 }
 
