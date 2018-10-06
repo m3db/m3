@@ -36,7 +36,7 @@ import (
 
 const (
 	// AggInitURL is the url for the m3agg placement init handler (with the POST method).
-	AggInitURL = handler.RoutePrefixV1 + "/placement/agg/init"
+	AggInitURL = handler.RoutePrefixV1 + "/placement/m3agg/init"
 
 	// AggInitHTTPMethod is the HTTP method used with this resource.
 	AggInitHTTPMethod = http.MethodPost

@@ -22,7 +22,9 @@ package placement
 
 import (
 	"errors"
+	"fmt"
 	"strings"
+	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/util/logging"
@@ -54,6 +56,9 @@ var (
 	errServiceNameIsRequired        = errors.New("service name is required")
 	errServiceEnvironmentIsRequired = errors.New("service environment is required")
 	errServiceZoneIsRequired        = errors.New("service zone is required")
+
+	// AllowedServiceNames is the list of allowed service names
+	AllowedServiceNames = []string{M3DBServiceName, M3AggServiceName}
 )
 
 // Handler represents a generic handler for placement endpoints.
@@ -95,6 +100,11 @@ func ServiceWithAlgo(clusterClient clusterclient.Client, opts ServiceOptions) (p
 		return nil, nil, err
 	}
 
+	if !strSliceContains(AllowedServiceNames, opts.ServiceName) {
+		return nil, nil, fmt.Errorf(
+			"invalid service name: %s, must be one of: %v",
+			opts.ServiceName, AllowedServiceNames)
+	}
 	if opts.ServiceName == "" {
 		return nil, nil, errServiceNameIsRequired
 	}
@@ -110,7 +120,35 @@ func ServiceWithAlgo(clusterClient clusterclient.Client, opts ServiceOptions) (p
 		SetEnvironment(opts.ServiceEnvironment).
 		SetZone(opts.ServiceZone)
 
-	pOpts := placement.NewOptions().SetValidZone(opts.ServiceZone)
+	pOpts := placement.NewOptions().
+		SetValidZone(opts.ServiceZone).
+		SetIsSharded(true).
+		// Can use goal-based placement for both M3DB and
+		SetIsStaged(false).
+		// TODO: make config
+		SetDryrun(false)
+
+	var (
+		// TODO: Make a parameter
+		// TODO: inject / config
+		maxAggregationWindowSize = time.Hour
+		warmupDuration           = 5 * time.Minute
+		now                      = time.Now()
+	)
+	if opts.ServiceName == M3AggServiceName {
+		pOpts = pOpts.
+			SetIsMirrored(true).
+			// TODO(rartoul): Do we need to set placement cutover time? Seems like that would
+			// be covered by shardCutOverNanosFn
+			// Cutovers control when new shards will begin receiving writes, so we set them to take
+			// effect immediately as we're trying to achieve goal-based placement.
+			SetPlacementCutoverNanosFn(immediateTimeNanosFn).
+			SetShardCutoverNanosFn(immediateTimeNanosFn).
+			// Cutoffs control when Leaving shards stop receiving writes.
+			SetShardCutoffNanosFn(newShardCutOffNanosFn(now, maxAggregationWindowSize, warmupDuration)).
+			SetIsShardCutoverFn(newShardCutOverValidationFn(now)).
+			SetIsShardCutoffFn(newShardCutOffValidationFn(now, maxAggregationWindowSize))
+	}
 
 	ps, err := cs.PlacementService(sid, pOpts)
 	if err != nil {
@@ -153,11 +191,64 @@ func ConvertInstancesProto(instancesProto []*placementpb.Instance) ([]placement.
 func RegisterRoutes(r *mux.Router, client clusterclient.Client, cfg config.Configuration) {
 	logged := logging.WithResponseTimeLogging
 
+	// TODO: Register old placement APIs at new and old URLs
 	r.HandleFunc(InitURL, logged(NewInitHandler(client, cfg)).ServeHTTP).Methods(InitHTTPMethod)
 	r.HandleFunc(GetURL, logged(NewGetHandler(client, cfg)).ServeHTTP).Methods(GetHTTPMethod)
 	r.HandleFunc(DeleteAllURL, logged(NewDeleteAllHandler(client, cfg)).ServeHTTP).Methods(DeleteAllHTTPMethod)
 	r.HandleFunc(AddURL, logged(NewAddHandler(client, cfg)).ServeHTTP).Methods(AddHTTPMethod)
 	r.HandleFunc(DeleteURL, logged(NewDeleteHandler(client, cfg)).ServeHTTP).Methods(DeleteHTTPMethod)
+}
+
+// immediateTimeNanosFn returns the earliest possible unix nano timestamp to indicate
+// that changes should take effect immediately.
+func immediateTimeNanosFn() int64 {
+	return 0
+}
+
+// We want to generate a function that will return the cutoff such that it is always at the beginning
+// of an aggregation window size, but also later than or equal to the current time + warmup. We accomplish
+// this by adding the warmup time and the max aggregation window size to the current time, and then truncating
+// to the max aggregation window size. This ensure that we always return a time that is at the beginning of an
+// aggregation window size, but is also later than now.Add(warmup).
+func newShardCutOffNanosFn(now time.Time, maxAggregationWindowSize, warmup time.Duration) placement.TimeNanosFn {
+	return func() int64 {
+		return now.
+			Add(warmup).
+			Add(maxAggregationWindowSize).
+			Truncate(maxAggregationWindowSize).
+			Unix()
+	}
+}
+
+func newShardCutOverValidationFn(now time.Time) placement.ShardValidationFn {
+	return func(s shard.Shard) error {
+		switch s.State() {
+		case shard.Initializing:
+			if s.CutoverNanos() > now.UnixNano() {
+				return fmt.Errorf("could not mark shard %d available before cutover time %v", s.ID(), time.Unix(0, s.CutoverNanos()))
+			}
+			return nil
+		default:
+			return fmt.Errorf("could not mark shard %d available, invalid state %s", s.ID(), s.State().String())
+		}
+	}
+}
+
+func newShardCutOffValidationFn(now time.Time, maxAggregationWindowSize time.Duration) placement.ShardValidationFn {
+	return func(s shard.Shard) error {
+		switch s.State() {
+		case shard.Leaving:
+			// TODO(rartoul): This seems overly cautious, basically it requires an entire maxAggregationWindowSize
+			// to elapse before "leaving" shards can be cleaned up.
+			if s.CutoffNanos() > now.UnixNano()-maxAggregationWindowSize.Nanoseconds() {
+				return fmt.Errorf("could not return leaving shard %d with cutoff time %v, max aggregation window %v",
+					s.ID(), time.Unix(0, s.CutoffNanos()), maxAggregationWindowSize)
+			}
+			return nil
+		default:
+			return fmt.Errorf("could not mark shard %d available, invalid state %s", s.ID(), s.State().String())
+		}
+	}
 }
 
 func validateAllAvailable(p placement.Placement) error {
@@ -173,4 +264,14 @@ func validateAllAvailable(p placement.Placement) error {
 		}
 	}
 	return nil
+}
+
+func strSliceContains(s []string, str string) bool {
+	for _, currStr := range s {
+		if str == currStr {
+			return true
+		}
+	}
+
+	return false
 }
