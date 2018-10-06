@@ -101,11 +101,8 @@ func (h *InitHandler) Init(
 		return nil, err
 	}
 
-	// TODO:
-	// Pass service
-	// Pass environment
-	// Pass zone
-	service, err := Service(h.client, httpReq.Header)
+	service, err := Service(
+		h.client, NewServiceOptions(M3DBServiceName))
 	if err != nil {
 		return nil, err
 	}

@@ -21,7 +21,7 @@
 package placement
 
 import (
-	"net/http"
+	"errors"
 	"strings"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
@@ -37,18 +37,23 @@ import (
 )
 
 const (
+	// M3DBServiceName is the service name for M3DB
+	M3DBServiceName = "m3db"
+	// M3AggServiceName is the service name for M3Agg
+	M3AggServiceName = "m3agg"
+	// TODO: Delete me?
 	// DefaultServiceName is the default service ID name
-	DefaultServiceName = "m3db"
+	DefaultServiceName = M3DBServiceName
 	// DefaultServiceEnvironment is the default service ID environment
 	DefaultServiceEnvironment = "default_env"
 	// DefaultServiceZone is the default service ID zone
 	DefaultServiceZone = "embedded"
-	// HeaderClusterServiceName is the header used to specify the service name.
-	HeaderClusterServiceName = "Cluster-Service-Name"
-	// HeaderClusterEnvironmentName is the header used to specify the environment name.
-	HeaderClusterEnvironmentName = "Cluster-Environment-Name"
-	// HeaderClusterZoneName is the header used to specify the zone name.
-	HeaderClusterZoneName = "Cluster-Zone-Name"
+)
+
+var (
+	errServiceNameIsRequired        = errors.New("service name is required")
+	errServiceEnvironmentIsRequired = errors.New("service environment is required")
+	errServiceZoneIsRequired        = errors.New("service zone is required")
 )
 
 // Handler represents a generic handler for placement endpoints.
@@ -59,42 +64,53 @@ type Handler struct {
 	cfg    config.Configuration
 }
 
+// ServiceOptions are the options for Service.
+type ServiceOptions struct {
+	ServiceName        string
+	ServiceEnvironment string
+	ServiceZone        string
+}
+
+// NewServiceOptions returns a ServiceOptions with default options.
+func NewServiceOptions(serviceName string) ServiceOptions {
+	return ServiceOptions{
+		ServiceName:        serviceName,
+		ServiceEnvironment: DefaultServiceEnvironment,
+		ServiceZone:        DefaultServiceZone,
+	}
+}
+
 // Service gets a placement service from m3cluster client
-func Service(clusterClient clusterclient.Client, headers http.Header) (placement.Service, error) {
-	ps, _, err := ServiceWithAlgo(clusterClient, headers)
+func Service(clusterClient clusterclient.Client, opts ServiceOptions) (placement.Service, error) {
+	ps, _, err := ServiceWithAlgo(clusterClient, opts)
 	return ps, err
 }
 
 // ServiceWithAlgo gets a placement service from m3cluster client and
 // additionally returns an algorithm instance for callers that need fine-grained
 // control over placement updates.
-func ServiceWithAlgo(clusterClient clusterclient.Client, headers http.Header) (placement.Service, placement.Algorithm, error) {
+func ServiceWithAlgo(clusterClient clusterclient.Client, opts ServiceOptions) (placement.Service, placement.Algorithm, error) {
 	cs, err := clusterClient.Services(services.NewOverrideOptions())
 	if err != nil {
 		return nil, nil, err
 	}
 
-	serviceName := DefaultServiceName
-	if v := strings.TrimSpace(headers.Get(HeaderClusterServiceName)); v != "" {
-		serviceName = v
+	if opts.ServiceName == "" {
+		return nil, nil, errServiceNameIsRequired
 	}
-
-	serviceEnvironment := DefaultServiceEnvironment
-	if v := strings.TrimSpace(headers.Get(HeaderClusterEnvironmentName)); v != "" {
-		serviceEnvironment = v
+	if opts.ServiceEnvironment == "" {
+		return nil, nil, errServiceEnvironmentIsRequired
 	}
-
-	serviceZone := DefaultServiceZone
-	if v := strings.TrimSpace(headers.Get(HeaderClusterZoneName)); v != "" {
-		serviceZone = v
+	if opts.ServiceZone == "" {
+		return nil, nil, errServiceZoneIsRequired
 	}
 
 	sid := services.NewServiceID().
-		SetName(serviceName).
-		SetEnvironment(serviceEnvironment).
-		SetZone(serviceZone)
+		SetName(opts.ServiceName).
+		SetEnvironment(opts.ServiceEnvironment).
+		SetZone(opts.ServiceZone)
 
-	pOpts := placement.NewOptions().SetValidZone(serviceZone)
+	pOpts := placement.NewOptions().SetValidZone(opts.ServiceZone)
 
 	ps, err := cs.PlacementService(sid, pOpts)
 	if err != nil {

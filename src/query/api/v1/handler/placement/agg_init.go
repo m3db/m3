@@ -101,7 +101,8 @@ func (h *AggInitHandler) Init(
 		return nil, err
 	}
 
-	service, err := Service(h.client, httpReq.Header)
+	service, err := Service(
+		h.client, NewServiceOptions(M3AggServiceName))
 	if err != nil {
 		return nil, err
 	}

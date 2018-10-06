@@ -54,7 +54,8 @@ func (h *GetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 
-	service, err := Service(h.client, r.Header)
+	service, err := Service(
+		h.client, NewServiceOptions(M3DBServiceName))
 	if err != nil {
 		handler.Error(w, err, http.StatusInternalServerError)
 		return

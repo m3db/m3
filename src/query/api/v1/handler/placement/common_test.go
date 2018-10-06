@@ -22,7 +22,6 @@ package placement
 
 import (
 	"errors"
-	"net/http"
 	"testing"
 
 	"github.com/m3db/m3cluster/client"
@@ -50,21 +49,21 @@ func TestPlacementService(t *testing.T) {
 	mockClient.EXPECT().Services(gomock.Not(nil)).Return(mockServices, nil)
 	mockServices.EXPECT().PlacementService(gomock.Not(nil), gomock.Not(nil)).Return(mockPlacementService, nil)
 
-	placementService, algo, err := ServiceWithAlgo(mockClient, http.Header{})
+	placementService, algo, err := ServiceWithAlgo(mockClient, NewServiceOptions(M3DBServiceName))
 	assert.NoError(t, err)
 	assert.NotNil(t, placementService)
 	assert.NotNil(t, algo)
 
 	// Test Services returns error
 	mockClient.EXPECT().Services(gomock.Not(nil)).Return(nil, errors.New("dummy service error"))
-	placementService, err = Service(mockClient, http.Header{})
+	placementService, err = Service(mockClient, NewServiceOptions(M3DBServiceName))
 	assert.Nil(t, placementService)
 	assert.EqualError(t, err, "dummy service error")
 
 	// Test PlacementService returns error
 	mockClient.EXPECT().Services(gomock.Not(nil)).Return(mockServices, nil)
 	mockServices.EXPECT().PlacementService(gomock.Not(nil), gomock.Not(nil)).Return(nil, errors.New("dummy placement error"))
-	placementService, err = Service(mockClient, http.Header{})
+	placementService, err = Service(mockClient, NewServiceOptions(M3DBServiceName))
 	assert.Nil(t, placementService)
 	assert.EqualError(t, err, "dummy placement error")
 }
@@ -96,13 +95,12 @@ func TestPlacementServiceWithClusterHeaders(t *testing.T) {
 		serviceValue     = "foo_svc"
 		environmentValue = "bar_env"
 		zoneValue        = "baz_zone"
-		headers          = http.Header{}
+		opts             = NewServiceOptions(serviceValue)
 	)
-	headers.Add(HeaderClusterServiceName, serviceValue)
-	headers.Add(HeaderClusterEnvironmentName, environmentValue)
-	headers.Add(HeaderClusterZoneName, zoneValue)
+	opts.ServiceEnvironment = environmentValue
+	opts.ServiceZone = zoneValue
 
-	placementService, err := Service(mockClient, headers)
+	placementService, err := Service(mockClient, opts)
 	assert.NoError(t, err)
 	assert.NotNil(t, placementService)
 

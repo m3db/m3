@@ -115,7 +115,8 @@ func (h *AddHandler) Add(
 		return nil, err
 	}
 
-	service, algo, err := ServiceWithAlgo(h.client, httpReq.Header)
+	service, algo, err := ServiceWithAlgo(
+		h.client, NewServiceOptions(M3DBServiceName))
 	if err != nil {
 		return nil, err
 	}
