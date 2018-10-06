@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/x"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
@@ -44,7 +45,7 @@ var (
 type downsamplerFlushHandler struct {
 	sync.RWMutex
 	storage                 storage.Storage
-	encodedTagsIteratorPool *encodedTagsIteratorPool
+	encodedTagsIteratorPool *x.EncodedTagsIteratorPool
 	workerPool              xsync.WorkerPool
 	instrumentOpts          instrument.Options
 	metrics                 downsamplerFlushHandlerMetrics
@@ -66,7 +67,7 @@ func newDownsamplerFlushHandlerMetrics(
 
 func newDownsamplerFlushHandler(
 	storage storage.Storage,
-	encodedTagsIteratorPool *encodedTagsIteratorPool,
+	encodedTagsIteratorPool *x.EncodedTagsIteratorPool,
 	workerPool xsync.WorkerPool,
 	instrumentOpts instrument.Options,
 ) handler.Handler {

@@ -25,6 +25,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/x"
 	"github.com/m3db/m3/src/dbnode/serialize"
 	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3metrics/matcher"
@@ -45,7 +46,7 @@ type metricsAppenderOptions struct {
 	clockOpts               clock.Options
 	tagEncoder              serialize.TagEncoder
 	matcher                 matcher.Matcher
-	encodedTagsIteratorPool *encodedTagsIteratorPool
+	encodedTagsIteratorPool *x.EncodedTagsIteratorPool
 }
 
 func (a *metricsAppender) AddTag(name, value []byte) {

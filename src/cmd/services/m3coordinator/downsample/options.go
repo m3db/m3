@@ -27,6 +27,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/x"
 	"github.com/m3db/m3/src/dbnode/serialize"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3aggregator/aggregator"
@@ -276,7 +277,7 @@ func (o DownsamplerOptions) newAggregator() (agg, error) {
 type aggPools struct {
 	tagEncoderPool          serialize.TagEncoderPool
 	tagDecoderPool          serialize.TagDecoderPool
-	encodedTagsIteratorPool *encodedTagsIteratorPool
+	encodedTagsIteratorPool *x.EncodedTagsIteratorPool
 }
 
 func (o DownsamplerOptions) newAggregatorPools() aggPools {
@@ -288,7 +289,7 @@ func (o DownsamplerOptions) newAggregatorPools() aggPools {
 		o.TagDecoderPoolOptions)
 	tagDecoderPool.Init()
 
-	encodedTagsIteratorPool := newEncodedTagsIteratorPool(tagDecoderPool,
+	encodedTagsIteratorPool := x.NewEncodedTagsIteratorPool(tagDecoderPool,
 		o.TagDecoderPoolOptions)
 	encodedTagsIteratorPool.Init()
 
