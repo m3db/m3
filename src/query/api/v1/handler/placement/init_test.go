@@ -70,7 +70,7 @@ var (
 	}
 )
 
-func TestPlacementInitHandler(t *testing.T) {
+func TestM3DBPlacementInitHandler(t *testing.T) {
 	mockClient, mockPlacementService := SetupPlacementTest(t)
 	handler := &InitHandler{mockClient, config.Configuration{}}
 
@@ -93,6 +93,42 @@ func TestPlacementInitHandler(t *testing.T) {
 	// Test error response
 	w = httptest.NewRecorder()
 	req = httptest.NewRequest(InitHTTPMethod, M3DBInitURL, strings.NewReader(initTestInvalidRequestBody))
+	require.NotNil(t, req)
+
+	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Not(nil), 64, 2).Return(nil, errors.New("unable to build initial placement"))
+	handler.ServeHTTP(w, req)
+	resp = w.Result()
+	body, err = ioutil.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	assert.Equal(t, initTestInvalidRequestResponse, string(body))
+}
+
+func TestAggPlacementInitHandler(t *testing.T) {
+	var (
+		mockClient, mockPlacementService = SetupPlacementTest(t)
+		handler                          = &InitHandler{mockClient, config.Configuration{}}
+		w                                = httptest.NewRecorder()
+	)
+
+	// Test placement init success
+	req := httptest.NewRequest(InitHTTPMethod, AggInitURL, strings.NewReader(initTestSuccessRequestBody))
+	require.NotNil(t, req)
+
+	newPlacement, err := placement.NewPlacementFromProto(initTestPlacementProto)
+	require.NoError(t, err)
+
+	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Not(nil), 16, 1).Return(newPlacement, nil)
+	handler.ServeHTTP(w, req)
+	resp := w.Result()
+	body, err := ioutil.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, initTestSuccessResponseBody, string(body))
+
+	// Test error response
+	w = httptest.NewRecorder()
+	req = httptest.NewRequest(AggInitHTTPMethod, AggInitURL, strings.NewReader(initTestInvalidRequestBody))
 	require.NotNil(t, req)
 
 	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Not(nil), 64, 2).Return(nil, errors.New("unable to build initial placement"))

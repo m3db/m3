@@ -38,8 +38,12 @@ const (
 	// OldM3DBInitURL is the old url for the placement init handler, maintained for backwards
 	// compatibility. (with the POST method).
 	OldM3DBInitURL = handler.RoutePrefixV1 + "/placement/init"
+
 	// M3DBInitURL is the url for the placement init handler, (with the POST method).
 	M3DBInitURL = handler.RoutePrefixV1 + "/services/m3db/placement/init"
+
+	// M3AggInitURL is the url for the m3agg placement init handler (with the POST method).
+	M3AggInitURL = handler.RoutePrefixV1 + "/services/m3agg/placement/init"
 
 	// InitHTTPMethod is the HTTP method used with this resource.
 	InitHTTPMethod = http.MethodPost
@@ -104,8 +108,13 @@ func (h *InitHandler) Init(
 		return nil, err
 	}
 
+	serviceName, err := parseServiceFromRequest(httpReq)
+	if err != nil {
+		return nil, err
+	}
+
 	service, err := Service(
-		h.client, NewServiceOptions(M3DBServiceName))
+		h.client, NewServiceOptions(serviceName))
 	if err != nil {
 		return nil, err
 	}

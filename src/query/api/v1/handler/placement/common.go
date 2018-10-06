@@ -23,6 +23,7 @@ package placement
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -56,6 +57,7 @@ var (
 	errServiceNameIsRequired        = errors.New("service name is required")
 	errServiceEnvironmentIsRequired = errors.New("service environment is required")
 	errServiceZoneIsRequired        = errors.New("service zone is required")
+	errUnableToParseService         = errors.New("unable to parse service")
 
 	// AllowedServiceNames is the list of allowed service names
 	AllowedServiceNames = []string{M3DBServiceName, M3AggServiceName}
@@ -191,6 +193,7 @@ func ConvertInstancesProto(instancesProto []*placementpb.Instance) ([]placement.
 func RegisterRoutes(r *mux.Router, client clusterclient.Client, cfg config.Configuration) {
 	logged := logging.WithResponseTimeLogging
 
+	// M3DB URLs
 	r.HandleFunc(OldM3DBInitURL, logged(NewInitHandler(client, cfg)).ServeHTTP).Methods(InitHTTPMethod)
 	r.HandleFunc(M3DBInitURL, logged(NewInitHandler(client, cfg)).ServeHTTP).Methods(InitHTTPMethod)
 	r.HandleFunc(OldM3DBGetURL, logged(NewGetHandler(client, cfg)).ServeHTTP).Methods(GetHTTPMethod)
@@ -201,6 +204,9 @@ func RegisterRoutes(r *mux.Router, client clusterclient.Client, cfg config.Confi
 	r.HandleFunc(M3DBAddURL, logged(NewAddHandler(client, cfg)).ServeHTTP).Methods(AddHTTPMethod)
 	r.HandleFunc(OldM3DBDeleteURL, logged(NewDeleteHandler(client, cfg)).ServeHTTP).Methods(DeleteHTTPMethod)
 	r.HandleFunc(M3DBDeleteURL, logged(NewDeleteHandler(client, cfg)).ServeHTTP).Methods(DeleteHTTPMethod)
+
+	// M3Agg URLs
+	r.HandleFunc(M3AggInitURL, logged(NewInitHandler(client, cfg)).ServeHTTP).Methods(InitHTTPMethod)
 }
 
 // immediateTimeNanosFn returns the earliest possible unix nano timestamp to indicate
@@ -278,4 +284,24 @@ func strSliceContains(s []string, str string) bool {
 	}
 
 	return false
+}
+
+func parseServiceFromRequest(r *http.Request) (string, error) {
+	path := r.URL.Path
+	components := strings.Split(path, "/")
+	for i, c := range components {
+		if c == "services" && i+1 < len(components) {
+			service := components[i+1]
+			switch service {
+			case M3DBServiceName:
+				return M3DBServiceName, nil
+			case M3AggServiceName:
+				return M3AggServiceName, nil
+			default:
+				return "", fmt.Errorf("unknown service: %s", service)
+			}
+		}
+	}
+
+	return "", errUnableToParseService
 }
