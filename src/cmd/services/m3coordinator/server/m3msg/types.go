@@ -41,8 +41,12 @@ type CallbackType int
 
 // Supported CallbackTypes.
 const (
-	OnError CallbackType = iota
-	OnSuccess
+	// OnSuccess will mark the call as success.
+	OnSuccess CallbackType = iota
+	// OnNonRetriableError will mark the call as errored but not retriable.
+	OnNonRetriableError
+	// OnRetriableError will mark the call as errored and should be retried.
+	OnRetriableError
 )
 
 // RefCountedCallback wraps a message with a reference count, the message will
@@ -80,7 +84,8 @@ func (r *RefCountedCallback) decRef() {
 
 // Callback performs the callback.
 func (r *RefCountedCallback) Callback(t CallbackType) {
-	if t == OnSuccess {
+	switch t {
+	case OnSuccess, OnNonRetriableError:
 		r.decRef()
 	}
 }
