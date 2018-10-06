@@ -74,9 +74,8 @@ func TestM3msgServerHandlerWithMultipleMetricsPerMessage(t *testing.T) {
 type mockWriter struct {
 	sync.Mutex
 
-	m       map[string]payload
-	enabled bool
-	n       int
+	m map[string]payload
+	n int
 }
 
 func (m *mockWriter) write(
