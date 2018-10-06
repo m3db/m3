@@ -20,6 +20,7 @@
 
 // mockgen rules for generating mocks for exported interfaces (reflection mode).
 //go:generate sh -c "mockgen -package=producer $PACKAGE/producer Message,Producer | mockclean -pkg $PACKAGE/producer -out $GOPATH/src/$PACKAGE/producer/producer_mock.go"
+//go:generate sh -c "mockgen -package=consumer $PACKAGE/consumer Message | mockclean -pkg $PACKAGE/consumer -out $GOPATH/src/$PACKAGE/consumer/consumer_mock.go"
 //go:generate sh -c "mockgen -package=proto $PACKAGE/protocol/proto Encoder,Decoder | mockclean -pkg $PACKAGE/protocol/proto -out $GOPATH/src/$PACKAGE/protocol/proto/proto_mock.go"
 
 // mockgen rules for generating mocks for unexported interfaces (file mode).
