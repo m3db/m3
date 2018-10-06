@@ -104,7 +104,7 @@ func (it *encodedTagsIter) Close() {
 	}
 }
 
-// EncodedTagsIteratorPool is a pool for EncodedTagsIterator.
+// EncodedTagsIteratorPool pools EncodedTagsIterator.
 type EncodedTagsIteratorPool struct {
 	tagDecoderPool serialize.TagDecoderPool
 	pool           pool.ObjectPool
@@ -121,7 +121,7 @@ func NewEncodedTagsIteratorPool(
 	}
 }
 
-// Init initalizes the pool.
+// Init initializes the pool.
 func (p *EncodedTagsIteratorPool) Init() {
 	p.pool.Init(func() interface{} {
 		return NewEncodedTagsIterator(p.tagDecoderPool.Get(), p)
