@@ -1,10 +1,10 @@
-# Namespace Modifications
+# Namespace Configuration
 
 ## Introduction
 
 Namespaces in M3DB are analogous to tables in other databases. Each namespace has a unique name as well as distinct configuration with regards to data retention and blocksize. For more information about namespaces, read our [storage engine documentation](../architecture/engine.md).
 
-## Namespace Configuration
+## Namespace Attributes
 
 ### bootstrapEnabled
 
