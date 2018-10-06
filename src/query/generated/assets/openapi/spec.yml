@@ -22,11 +22,12 @@ tags:
 schemes:
 - "http"
 paths:
-  /namespace:
+  /services/m3db/namespace:
     get:
       tags:
-        - "namespace"
-      summary: "Get namespaces"
+        - "M3DB Namespace"
+        - "M3DB"
+      summary: "Get M3DB namespaces"
       operationId: "namespaceGet"
       consumes:
       - "application/json"
@@ -47,8 +48,9 @@ paths:
             $ref: "#/definitions/GenericError"
     post:
       tags:
-      - "namespace"
-      summary: "Add a namespace"
+      - "M3DB Namespace"
+      - "M3DB"
+      summary: "Add an M3DB namespace"
       operationId: "namespaceAdd"
       consumes:
       - "application/json"
@@ -72,11 +74,12 @@ paths:
           description: ""
           schema:
             $ref: "#/definitions/GenericError"
-  /namespace/{namespaceID}:
+  /services/m3db/namespace/{namespaceID}:
     delete:
       tags:
-      - "namespace"
-      summary: "Delete a namespace"
+      - "M3DB Namespace"
+      - "M3DB"
+      summary: "Delete an M3DB namespace"
       operationId: "namespaceDelete"
       consumes:
       - "application/json"
@@ -104,11 +107,12 @@ paths:
           description: ""
           schema:
             $ref: "#/definitions/GenericError"
-  /placement:
+  /services/m3db/placement:
     get:
       tags:
-      - "placement"
-      summary: "Get the placement"
+      - "M3DB Placement"
+      - "M3DB"
+      summary: "Get the M3DB placement"
       operationId: "placementGet"
       consumes:
       - "application/json"
@@ -125,7 +129,8 @@ paths:
             $ref: "#/definitions/GenericError"
     post:
       tags:
-      - "placement"
+      - "M3DB Placement"
+      - "M3DB"
       summary: "Add an instance to the placement"
       operationId: "placementAdd"
       consumes:
@@ -152,8 +157,9 @@ paths:
             $ref: "#/definitions/GenericError"
     delete:
       tags:
-      - "placement"
-      summary: "Delete the placement"
+      - "M3DB Placement"
+      - "M3DB"
+      summary: "Delete the M3DB placement"
       operationId: "placementDeleteAll"
       consumes:
       - "application/json"
@@ -168,11 +174,79 @@ paths:
           description: ""
           schema:
             $ref: "#/definitions/GenericError"
-  /placement/init:
+  /services/m3agg/placement:
+    get:
+      tags:
+      - "M3Agg Placement"
+      - "M3Agg"
+      summary: "Get the M3Agg placement"
+      operationId: "m3AggplacementGet"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      responses:
+        200:
+          description: ""
+          schema:
+            $ref: "#/definitions/PlacementGetResponse"
+        500:
+          description: ""
+          schema:
+            $ref: "#/definitions/GenericError"
     post:
       tags:
-      - "placement"
-      summary: "Initialize the placement"
+      - "M3Agg Placement"
+      - "M3Agg"
+      summary: "Add an M3Agg instance to the placement"
+      operationId: "m3AggplacementAdd"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "body"
+        in: "body"
+        schema:
+          $ref: "#/definitions/PlacementAddRequest"
+      responses:
+        200:
+          description: ""
+          schema:
+            $ref: "#/definitions/PlacementGetResponse"
+        400:
+          description: ""
+          schema:
+            $ref: "#/definitions/GenericError"
+        500:
+          description: ""
+          schema:
+            $ref: "#/definitions/GenericError"
+    delete:
+      tags:
+      - "M3Agg Placement"
+      - "M3Agg"
+      summary: "Delete the M3Agg placement"
+      operationId: "m3AggPlacementDeleteAll"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      responses:
+        200:
+          description: ""
+          schema:
+            $ref: "#/definitions/DeleteConfirmation"
+        500:
+          description: ""
+          schema:
+            $ref: "#/definitions/GenericError"
+  /services/m3db/placement/init:
+    post:
+      tags:
+      - "M3DB Placement"
+      - "M3DB"
+      summary: "Initialize the M3DB placement"
       operationId: "placementInit"
       consumes:
       - "application/json"
@@ -196,11 +270,41 @@ paths:
           description: ""
           schema:
             $ref: "#/definitions/GenericError"
-  /placement/{instanceID}:
+  /services/m3agg/placement/init:
+    post:
+      tags:
+      - "M3Agg Placement"
+      - "M3Agg"
+      summary: "Initialize the M3Agg placement"
+      operationId: "m3AggPlacementInit"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "body"
+        in: "body"
+        schema:
+          $ref: "#/definitions/PlacementInitRequest"
+      responses:
+        200:
+          description: ""
+          schema:
+            $ref: "#/definitions/PlacementGetResponse"
+        400:
+          description: ""
+          schema:
+            $ref: "#/definitions/GenericError"
+        500:
+          description: ""
+          schema:
+            $ref: "#/definitions/GenericError"
+  /services/m3db/placement/{instanceID}:
     delete:
       tags:
-      - "placement"
-      summary: "Delete an instance from the placement"
+      - "M3DB Placement"
+      - "M3DB"
+      summary: "Delete an M3DB instance from the placement"
       operationId: "placementDelete"
       consumes:
       - "application/json"
@@ -224,10 +328,40 @@ paths:
           description: ""
           schema:
             $ref: "#/definitions/GenericError"
-  /database/create:
+  /services/m3agg/placement/{instanceID}:
+    delete:
+      tags:
+      - "M3Agg Placement"
+      - "M3Agg"
+      summary: "Delete an M3Agg instance from the placement"
+      operationId: "m3aggPlacementDelete"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "instanceID"
+        in: "path"
+        required: true
+        type: "string"
+      responses:
+        200:
+          description: ""
+          schema:
+            $ref: "#/definitions/PlacementGetResponse"
+        400:
+          description: ""
+          schema:
+            $ref: "#/definitions/GenericError"
+        500:
+          description: ""
+          schema:
+            $ref: "#/definitions/GenericError"
+  /services/m3db/database/create:
     post:
       tags:
-      - "database"
+      - "M3DB Database"
+      - "M3DB"
       summary: "Configures M3DB with most options defaulted"
       operationId: "databaseCreate"
       consumes:
