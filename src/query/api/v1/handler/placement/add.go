@@ -36,8 +36,12 @@ import (
 )
 
 const (
-	// AddURL is the url for the placement add handler (with the POST method).
-	AddURL = handler.RoutePrefixV1 + "/placement"
+	// OldM3DBAddURL is the old url for the placement add handler, maintained for
+	// backwards compatibility.
+	OldM3DBAddURL = handler.RoutePrefixV1 + "/placement"
+
+	// M3DBAddURL is the url for the placement add handler (with the POST method).
+	M3DBAddURL = handler.RoutePrefixV1 + "/services/m3db/placement"
 
 	// AddHTTPMethod is the HTTP method used with this resource.
 	AddHTTPMethod = http.MethodPost

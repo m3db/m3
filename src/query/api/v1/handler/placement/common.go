@@ -191,12 +191,16 @@ func ConvertInstancesProto(instancesProto []*placementpb.Instance) ([]placement.
 func RegisterRoutes(r *mux.Router, client clusterclient.Client, cfg config.Configuration) {
 	logged := logging.WithResponseTimeLogging
 
-	// TODO: Register old placement APIs at new and old URLs
-	r.HandleFunc(InitURL, logged(NewInitHandler(client, cfg)).ServeHTTP).Methods(InitHTTPMethod)
-	r.HandleFunc(GetURL, logged(NewGetHandler(client, cfg)).ServeHTTP).Methods(GetHTTPMethod)
-	r.HandleFunc(DeleteAllURL, logged(NewDeleteAllHandler(client, cfg)).ServeHTTP).Methods(DeleteAllHTTPMethod)
-	r.HandleFunc(AddURL, logged(NewAddHandler(client, cfg)).ServeHTTP).Methods(AddHTTPMethod)
-	r.HandleFunc(DeleteURL, logged(NewDeleteHandler(client, cfg)).ServeHTTP).Methods(DeleteHTTPMethod)
+	r.HandleFunc(OldM3DBInitURL, logged(NewInitHandler(client, cfg)).ServeHTTP).Methods(InitHTTPMethod)
+	r.HandleFunc(M3DBInitURL, logged(NewInitHandler(client, cfg)).ServeHTTP).Methods(InitHTTPMethod)
+	r.HandleFunc(OldM3DBGetURL, logged(NewGetHandler(client, cfg)).ServeHTTP).Methods(GetHTTPMethod)
+	r.HandleFunc(M3DBGetURL, logged(NewGetHandler(client, cfg)).ServeHTTP).Methods(GetHTTPMethod)
+	r.HandleFunc(OldM3DBDeleteAllURL, logged(NewDeleteAllHandler(client, cfg)).ServeHTTP).Methods(DeleteAllHTTPMethod)
+	r.HandleFunc(M3DBDeleteAllURL, logged(NewDeleteAllHandler(client, cfg)).ServeHTTP).Methods(DeleteAllHTTPMethod)
+	r.HandleFunc(OldM3DBAddURL, logged(NewAddHandler(client, cfg)).ServeHTTP).Methods(AddHTTPMethod)
+	r.HandleFunc(M3DBAddURL, logged(NewAddHandler(client, cfg)).ServeHTTP).Methods(AddHTTPMethod)
+	r.HandleFunc(OldM3DBDeleteURL, logged(NewDeleteHandler(client, cfg)).ServeHTTP).Methods(DeleteHTTPMethod)
+	r.HandleFunc(M3DBDeleteURL, logged(NewDeleteHandler(client, cfg)).ServeHTTP).Methods(DeleteHTTPMethod)
 }
 
 // immediateTimeNanosFn returns the earliest possible unix nano timestamp to indicate

@@ -35,8 +35,11 @@ import (
 )
 
 const (
-	// InitURL is the url for the placement init handler (with the POST method).
-	InitURL = handler.RoutePrefixV1 + "/placement/init"
+	// OldM3DBInitURL is the old url for the placement init handler, maintained for backwards
+	// compatibility. (with the POST method).
+	OldM3DBInitURL = handler.RoutePrefixV1 + "/placement/init"
+	// M3DBInitURL is the url for the placement init handler, (with the POST method).
+	M3DBInitURL = handler.RoutePrefixV1 + "/services/m3db/placement/init"
 
 	// InitHTTPMethod is the HTTP method used with this resource.
 	InitHTTPMethod = http.MethodPost

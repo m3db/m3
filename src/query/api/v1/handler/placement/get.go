@@ -35,8 +35,12 @@ import (
 )
 
 const (
-	// GetURL is the url for the placement get handler (with the GET method).
-	GetURL = handler.RoutePrefixV1 + "/placement"
+	// OldM3DBGetURL is the old url for the placement get handler, maintained for
+	// backwards compatibility.
+	OldM3DBGetURL = handler.RoutePrefixV1 + "/placement"
+
+	// M3DBGetURL is the url for the placement get handler (with the GET method).
+	M3DBGetURL = handler.RoutePrefixV1 + "/m3db/services/placement"
 
 	// GetHTTPMethod is the HTTP method used with this resource.
 	GetHTTPMethod = http.MethodGet

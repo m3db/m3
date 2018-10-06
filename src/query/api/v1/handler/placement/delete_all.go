@@ -33,8 +33,12 @@ import (
 )
 
 const (
-	// DeleteAllURL is the url for the handler to delete all placements (with the DELETE method).
-	DeleteAllURL = handler.RoutePrefixV1 + "/placement"
+	// OldM3DBDeleteAllURL is the old url for the handler to delete all placements, maintained
+	// for backwards compatibility.
+	OldM3DBDeleteAllURL = handler.RoutePrefixV1 + "/placement"
+
+	// M3DBDeleteAllURL is the url for the handler to delete all placements (with the DELETE method).
+	M3DBDeleteAllURL = handler.RoutePrefixV1 + "/services/m3db/placement"
 
 	// DeleteAllHTTPMethod is the HTTP method used with this resource.
 	DeleteAllHTTPMethod = http.MethodDelete

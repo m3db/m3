@@ -45,8 +45,12 @@ const (
 )
 
 var (
-	// DeleteURL is the url for the placement delete handler.
-	DeleteURL = fmt.Sprintf("%s/placement/{%s}", handler.RoutePrefixV1, placementIDVar)
+	// OldM3DBDeleteURL is the old url for the placement delete handler, maintained
+	// for backwards compatibility.
+	OldM3DBDeleteURL = fmt.Sprintf("%s/placement/{%s}", handler.RoutePrefixV1, placementIDVar)
+
+	// M3DBDeleteURL is the url for the placement delete handler.
+	M3DBDeleteURL = fmt.Sprintf("%s/placement/{%s}", handler.RoutePrefixV1, placementIDVar)
 
 	errEmptyID = errors.New("must specify placement ID to delete")
 )
