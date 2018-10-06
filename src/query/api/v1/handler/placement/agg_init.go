@@ -35,22 +35,22 @@ import (
 )
 
 const (
-	// InitURL is the url for the placement init handler (with the POST method).
-	InitURL = handler.RoutePrefixV1 + "/placement/init"
+	// AggInitURL is the url for the m3agg placement init handler (with the POST method).
+	AggInitURL = handler.RoutePrefixV1 + "/placement/agg/init"
 
-	// InitHTTPMethod is the HTTP method used with this resource.
-	InitHTTPMethod = http.MethodPost
+	// AggInitHTTPMethod is the HTTP method used with this resource.
+	AggInitHTTPMethod = http.MethodPost
 )
 
-// InitHandler is the handler for placement inits.
-type InitHandler Handler
+// AggInitHandler is the handler for m3agg placement inits.
+type AggInitHandler Handler
 
-// NewInitHandler returns a new instance of InitHandler.
-func NewInitHandler(client clusterclient.Client, cfg config.Configuration) *InitHandler {
-	return &InitHandler{client: client, cfg: cfg}
+// NewAggInitHandler returns a new instance of InitHandler.
+func NewAggInitHandler(client clusterclient.Client, cfg config.Configuration) *AggInitHandler {
+	return &AggInitHandler{client: client, cfg: cfg}
 }
 
-func (h *InitHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *AggInitHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 
@@ -81,7 +81,7 @@ func (h *InitHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	handler.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *InitHandler) parseRequest(r *http.Request) (*admin.PlacementInitRequest, *handler.ParseError) {
+func (h *AggInitHandler) parseRequest(r *http.Request) (*admin.PlacementInitRequest, *handler.ParseError) {
 	defer r.Body.Close()
 	initReq := new(admin.PlacementInitRequest)
 	if err := jsonpb.Unmarshal(r.Body, initReq); err != nil {
@@ -91,8 +91,8 @@ func (h *InitHandler) parseRequest(r *http.Request) (*admin.PlacementInitRequest
 	return initReq, nil
 }
 
-// Init initializes a placement.
-func (h *InitHandler) Init(
+// Init initializes an m3agg placement.
+func (h *AggInitHandler) Init(
 	httpReq *http.Request,
 	req *admin.PlacementInitRequest,
 ) (placement.Placement, error) {
@@ -101,10 +101,6 @@ func (h *InitHandler) Init(
 		return nil, err
 	}
 
-	// TODO:
-	// Pass service
-	// Pass environment
-	// Pass zone
 	service, err := Service(h.client, httpReq.Header)
 	if err != nil {
 		return nil, err

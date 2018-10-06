@@ -21,3 +21,9 @@ message PlacementAddRequest {
   // are AVAILABLE for all their shards. force overrides that.
   bool force = 2;
 }
+
+message AggPlacementInitRequest {
+  repeated placementpb.Instance instances = 1;
+  int32 num_shards = 2;
+  int32 replication_factor = 3;
+}

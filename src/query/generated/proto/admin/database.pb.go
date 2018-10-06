@@ -39,6 +39,7 @@
 		PlacementInitRequest
 		PlacementGetResponse
 		PlacementAddRequest
+		AggPlacementInitRequest
 */
 package admin
 
