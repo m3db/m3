@@ -112,7 +112,7 @@ func TestAggPlacementInitHandler(t *testing.T) {
 	)
 
 	// Test placement init success
-	req := httptest.NewRequest(InitHTTPMethod, AggInitURL, strings.NewReader(initTestSuccessRequestBody))
+	req := httptest.NewRequest(InitHTTPMethod, M3AggInitURL, strings.NewReader(initTestSuccessRequestBody))
 	require.NotNil(t, req)
 
 	newPlacement, err := placement.NewPlacementFromProto(initTestPlacementProto)
@@ -128,7 +128,7 @@ func TestAggPlacementInitHandler(t *testing.T) {
 
 	// Test error response
 	w = httptest.NewRecorder()
-	req = httptest.NewRequest(AggInitHTTPMethod, AggInitURL, strings.NewReader(initTestInvalidRequestBody))
+	req = httptest.NewRequest(InitHTTPMethod, M3AggInitURL, strings.NewReader(initTestInvalidRequestBody))
 	require.NotNil(t, req)
 
 	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Not(nil), 64, 2).Return(nil, errors.New("unable to build initial placement"))

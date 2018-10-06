@@ -92,7 +92,7 @@ func TestPlacementServiceWithClusterHeaders(t *testing.T) {
 		})
 
 	var (
-		serviceValue     = "foo_svc"
+		serviceValue     = M3DBServiceName
 		environmentValue = "bar_env"
 		zoneValue        = "baz_zone"
 		opts             = NewServiceOptions(serviceValue)
@@ -101,13 +101,13 @@ func TestPlacementServiceWithClusterHeaders(t *testing.T) {
 	opts.ServiceZone = zoneValue
 
 	placementService, err := Service(mockClient, opts)
-	assert.NoError(t, err)
-	assert.NotNil(t, placementService)
+	require.NoError(t, err)
+	require.NotNil(t, placementService)
 
 	require.NotNil(t, actual)
-	assert.Equal(t, serviceValue, actual.Name())
-	assert.Equal(t, environmentValue, actual.Environment())
-	assert.Equal(t, zoneValue, actual.Zone())
+	require.Equal(t, serviceValue, actual.Name())
+	require.Equal(t, environmentValue, actual.Environment())
+	require.Equal(t, zoneValue, actual.Zone())
 }
 
 func TestConvertInstancesProto(t *testing.T) {
