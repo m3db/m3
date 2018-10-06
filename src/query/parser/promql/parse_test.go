@@ -23,12 +23,11 @@ package promql
 import (
 	"testing"
 
-	"github.com/m3db/m3/src/query/functions/tag"
-
 	"github.com/m3db/m3/src/query/functions"
 	"github.com/m3db/m3/src/query/functions/aggregation"
 	"github.com/m3db/m3/src/query/functions/binary"
 	"github.com/m3db/m3/src/query/functions/linear"
+	"github.com/m3db/m3/src/query/functions/tag"
 	"github.com/m3db/m3/src/query/functions/temporal"
 	"github.com/m3db/m3/src/query/parser"
 
@@ -283,6 +282,7 @@ var tagParseTests = []struct {
 	expectedType string
 }{
 	{`label_join(up, "foo", ",", "s1","s2","s4")`, tag.TagJoinType},
+	{`label_replace(up, "foo", "$1", "tagname","(.*):.*")`, tag.TagReplaceType},
 }
 
 func TestTagParses(t *testing.T) {

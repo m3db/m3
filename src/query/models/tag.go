@@ -307,6 +307,17 @@ func (t Tags) AddTag(tag Tag) Tags {
 	return z
 }
 
+// ReplaceTag is used to replace a single tag's value.
+// NB: if the tag does not exist, this is a noop.
+func (t Tags) ReplaceTag(name, value []byte) {
+	for i, tag := range t {
+		if bytes.Equal(tag.Name, name) {
+			t[i].Value = value
+			return
+		}
+	}
+}
+
 // Add is used to add a list of tags and maintain sorted order
 func (t Tags) Add(tags Tags) Tags {
 	updated := append(t, tags...)

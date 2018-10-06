@@ -36,16 +36,20 @@ func NewTagOp(
 	opType string,
 	params []string,
 ) (parser.Params, error) {
+	var fn tagTransformFunc
+	err := fmt.Errorf("operator not supported: %s", opType)
 	if opType == TagJoinType {
-		fn, err := makeTagJoinFunc(params)
-		if err != nil {
-			return nil, err
-		}
-
-		return newBaseOp(opType, fn), nil
+		fn, err = makeTagJoinFunc(params)
+	}
+	if opType == TagReplaceType {
+		fn, err = makeTagReplaceFunc(params)
 	}
 
-	return baseOp{}, fmt.Errorf("operator not supported: %s", opType)
+	if err != nil {
+		return nil, err
+	}
+
+	return newBaseOp(opType, fn), nil
 }
 
 // baseOp stores required properties for the baseOp
@@ -95,5 +99,6 @@ func (n *baseNode) Process(ID parser.NodeID, b block.Block) error {
 	seriesMeta := it.SeriesMeta()
 
 	n.op.tagFn(&meta, seriesMeta)
+	b.UpdateMetas(meta, seriesMeta)
 	return n.controller.Process(b)
 }

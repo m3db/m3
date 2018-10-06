@@ -76,7 +76,6 @@ func (m *multiBlockWrapper) consolidate() error {
 		}
 
 		m.consolidated = consolidated
-
 	})
 
 	return m.consolidateError
@@ -88,6 +87,19 @@ func (m *multiBlockWrapper) SeriesIter() (block.SeriesIter, error) {
 	}
 
 	return m.consolidated.SeriesIter()
+}
+
+func (m *multiBlockWrapper) UpdateMetas(
+	meta block.Metadata,
+	seriesMetas []block.SeriesMeta,
+) {
+	if m.consolidated != nil {
+		m.consolidated.UpdateMetas(meta, seriesMetas)
+	}
+
+	if m.unconsolidated != nil {
+		m.unconsolidated.UpdateMetas(meta, seriesMetas)
+	}
 }
 
 func (m *multiBlockWrapper) Close() error {
@@ -113,6 +125,15 @@ func NewMultiSeriesBlock(seriesList ts.SeriesList, query *FetchQuery) (block.Unc
 
 func (m multiSeriesBlock) Meta() block.Metadata {
 	return m.meta
+}
+
+func (m multiSeriesBlock) UpdateMetas(
+	meta block.Metadata,
+	seriesMeta []block.SeriesMeta,
+) {
+	// This is not used and due for deletion soon, no need to update
+	// https://github.com/m3db/m3/pull/958
+	panic("unexpected")
 }
 
 func (m multiSeriesBlock) StepCount() int {
@@ -143,6 +164,15 @@ func (m multiSeriesBlock) Consolidate() (block.Block, error) {
 		unconsolidated:    m,
 		consolidationFunc: block.TakeLast,
 	}, nil
+}
+
+func (c *consolidatedBlock) UpdateMetas(
+	meta block.Metadata,
+	seriesMeta []block.SeriesMeta,
+) {
+	// This is not used and due for deletion soon, no need to update
+	// https://github.com/m3db/m3/pull/958
+	panic("unexpected")
 }
 
 // TODO: Actually free up resources

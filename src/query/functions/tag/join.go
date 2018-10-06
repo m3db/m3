@@ -39,7 +39,7 @@ func combineTagsWithSeparator(name []byte, separator []byte, values [][]byte) mo
 	}
 
 	sepLen := len(separator)
-	// initialize length to account for separators
+	// initialize length to account for separators.
 	combinedLength := (l - 1) * sepLen
 	for _, v := range values {
 		combinedLength += len(v)
@@ -83,9 +83,17 @@ func uniqueNameCount(names []string) int {
 	return len(uniqueMap)
 }
 
+// noop.
+func noopFunc(_ *block.Metadata, _ []block.SeriesMeta) {}
+
 func makeTagJoinFunc(params []string) (tagTransformFunc, error) {
-	if len(params) < 3 {
+	if len(params) < 2 {
 		return nil, fmt.Errorf("invalid number of args for tag join: %d", len(params))
+	}
+
+	// return shortcircuting noop function if no joining names are provided.
+	if len(params) == 3 {
+		return noopFunc, nil
 	}
 
 	name := []byte(params[0])
@@ -100,7 +108,7 @@ func makeTagJoinFunc(params []string) (tagTransformFunc, error) {
 		matchingCommonTags := meta.Tags.TagsWithKeys(tagNames)
 		lMatching := len(matchingCommonTags)
 		// Optimization if all joining series are shared by the block,
-		// or if there is only a shared metadata and no single series metas
+		// or if there is only a shared metadata and no single series metas.
 		if lMatching == uniqueTagCount || len(seriesMeta) == 0 {
 			if lMatching > 0 {
 				ordered := tagsInOrder(tagNames, matchingCommonTags)

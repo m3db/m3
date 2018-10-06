@@ -23,12 +23,11 @@ package promql
 import (
 	"fmt"
 
-	"github.com/m3db/m3/src/query/functions/tag"
-
 	"github.com/m3db/m3/src/query/functions"
 	"github.com/m3db/m3/src/query/functions/aggregation"
 	"github.com/m3db/m3/src/query/functions/binary"
 	"github.com/m3db/m3/src/query/functions/linear"
+	"github.com/m3db/m3/src/query/functions/tag"
 	"github.com/m3db/m3/src/query/functions/temporal"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
@@ -174,7 +173,7 @@ func NewFunctionExpr(
 		linear.MinuteType, linear.MonthType, linear.YearType:
 		return linear.NewDateOp(name)
 
-	case tag.TagJoinType:
+	case tag.TagJoinType, tag.TagReplaceType:
 		return tag.NewTagOp(name, stringValues)
 
 	case temporal.AvgType, temporal.CountType, temporal.MinType,

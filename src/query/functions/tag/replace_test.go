@@ -21,11 +21,11 @@
 package tag
 
 import (
+	"regexp"
 	"testing"
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
-	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
@@ -34,34 +34,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCombineSingleTagWithSeparator(t *testing.T) {
-	name := []byte("foo")
-	sep := []byte("@-!-@")
-	vals := [][]byte{
-		[]byte("a"),
-	}
+func TestReplace(t *testing.T) {
+	tags := test.StringTagsToTags(test.StringTags{{N: "a", V: "foo"}, {N: "b", V: "bar"}})
+	regex, err := regexp.Compile("f(.*)o")
+	require.NoError(t, err)
+	tag, found, valid := addTagIfFoundAndValid(tags, []byte("a"),
+		[]byte("new"), []byte("a$1-"), regex)
 
-	combined := combineTagsWithSeparator(name, sep, vals)
-	expected := models.Tag{Name: name, Value: []byte("a")}
-	assert.Equal(t, expected, combined)
+	assert.True(t, found)
+	assert.True(t, valid)
+	assert.Equal(t, []byte("new"), tag.Name)
+	assert.Equal(t, []byte("ao-"), tag.Value)
 }
 
-func TestCombineTagsWithSeparator(t *testing.T) {
-	name := []byte("foo")
-	sep := []byte("-!-")
-	vals := [][]byte{
-		[]byte("a"),
-		[]byte("bcd"),
-		[]byte(""),
-		[]byte("efghijkl"),
-	}
-
-	combined := combineTagsWithSeparator(name, sep, vals)
-	expected := models.Tag{Name: name, Value: []byte("a-!-bcd-!--!-efghijkl")}
-	assert.Equal(t, expected, combined)
-}
-
-var tagJoinFnTests = []struct {
+var tagReplaceFnTests = []struct {
 	name                   string
 	params                 []string
 	metaTags               test.StringTags
@@ -70,60 +56,74 @@ var tagJoinFnTests = []struct {
 	expectedSeriesMetaTags []test.StringTags
 }{
 	{
-		name:                   "no tag matchers",
-		params:                 []string{"n", "-"},
-		metaTags:               test.StringTags{{N: "a", V: "foo"}, {N: "b", V: "bar"}},
-		seriesMetaTags:         []test.StringTags{{{N: "c", V: "baz"}}},
-		expectedMetaTags:       test.StringTags{{N: "a", V: "foo"}, {N: "b", V: "bar"}},
-		expectedSeriesMetaTags: []test.StringTags{{{N: "c", V: "baz"}}},
-	},
-	{
 		name:                   "no tags",
-		params:                 []string{"n", "-", "x", "y"},
+		params:                 []string{"new", "a$1-", "X", "(.*)"},
 		metaTags:               test.StringTags{{N: "a", V: "foo"}, {N: "b", V: "bar"}},
 		seriesMetaTags:         []test.StringTags{{{N: "c", V: "baz"}}},
 		expectedMetaTags:       test.StringTags{{N: "a", V: "foo"}, {N: "b", V: "bar"}},
 		expectedSeriesMetaTags: []test.StringTags{{{N: "c", V: "baz"}}},
 	},
 	{
-		name:                   "only common",
-		params:                 []string{"n", "-", "a", "b"},
+		name:                   "no regex",
+		params:                 []string{"new", "a$1-", "a", "woo(.*)"},
 		metaTags:               test.StringTags{{N: "a", V: "foo"}, {N: "b", V: "bar"}},
 		seriesMetaTags:         []test.StringTags{{{N: "c", V: "baz"}}},
-		expectedMetaTags:       test.StringTags{{N: "a", V: "foo"}, {N: "b", V: "bar"}, {N: "n", V: "foo-bar"}},
+		expectedMetaTags:       test.StringTags{{N: "a", V: "foo"}, {N: "b", V: "bar"}},
 		expectedSeriesMetaTags: []test.StringTags{{{N: "c", V: "baz"}}},
 	},
 	{
-		name:                   "duplicate",
-		params:                 []string{"n", "-", "b", "a", "a", "a"},
+		name:                   "tag in common",
+		params:                 []string{"new", "a$1-", "a", "f(.*)"},
 		metaTags:               test.StringTags{{N: "a", V: "foo"}, {N: "b", V: "bar"}},
 		seriesMetaTags:         []test.StringTags{{{N: "c", V: "baz"}}},
-		expectedMetaTags:       test.StringTags{{N: "a", V: "foo"}, {N: "b", V: "bar"}, {N: "n", V: "bar-foo-foo-foo"}},
+		expectedMetaTags:       test.StringTags{{N: "a", V: "foo"}, {N: "b", V: "bar"}, {N: "new", V: "aoo-"}},
 		expectedSeriesMetaTags: []test.StringTags{{{N: "c", V: "baz"}}},
 	},
 	{
-		name:                   "only series metas",
-		params:                 []string{"n", "-", "c", "c"},
+		name:                   "tag in common replace",
+		params:                 []string{"a", "a$1-", "a", "f(.*)"},
+		metaTags:               test.StringTags{{N: "a", V: "foo"}, {N: "b", V: "bar"}},
+		seriesMetaTags:         []test.StringTags{{{N: "c", V: "baz"}}},
+		expectedMetaTags:       test.StringTags{{N: "a", V: "aoo-"}, {N: "b", V: "bar"}},
+		expectedSeriesMetaTags: []test.StringTags{{{N: "c", V: "baz"}}},
+	},
+	{
+		name:                   "tag in metas, no match",
+		params:                 []string{"c", "a$1-", "c", "badregex"},
 		metaTags:               test.StringTags{{N: "a", V: "foo"}, {N: "b", V: "bar"}},
 		seriesMetaTags:         []test.StringTags{{{N: "c", V: "baz"}}, {{N: "c", V: "qux"}}},
 		expectedMetaTags:       test.StringTags{{N: "a", V: "foo"}, {N: "b", V: "bar"}},
-		expectedSeriesMetaTags: []test.StringTags{{{N: "c", V: "baz"}, {N: "n", V: "baz-baz"}}, {{N: "c", V: "qux"}, {N: "n", V: "qux-qux"}}},
+		expectedSeriesMetaTags: []test.StringTags{{{N: "c", V: "baz"}}, {{N: "c", V: "qux"}}},
 	},
 	{
-		name:             "mixed",
-		params:           []string{"aa", "!", "c", "a", "b"},
+		name:                   "tag in metas, one match",
+		params:                 []string{"A", "a$1-", "c", "q(.*)"},
+		metaTags:               test.StringTags{{N: "a", V: "foo"}, {N: "b", V: "bar"}},
+		seriesMetaTags:         []test.StringTags{{{N: "c", V: "baz"}}, {{N: "c", V: "qux"}}},
+		expectedMetaTags:       test.StringTags{{N: "a", V: "foo"}, {N: "b", V: "bar"}},
+		expectedSeriesMetaTags: []test.StringTags{{{N: "c", V: "baz"}}, {{N: "A", V: "aux-"}, {N: "c", V: "qux"}}},
+	},
+	{
+		name:             "tag in metas, both match",
+		params:           []string{"A", "a$1-", "c", "(.*)"},
 		metaTags:         test.StringTags{{N: "a", V: "foo"}, {N: "b", V: "bar"}},
 		seriesMetaTags:   []test.StringTags{{{N: "c", V: "baz"}}, {{N: "c", V: "qux"}}},
 		expectedMetaTags: test.StringTags{{N: "a", V: "foo"}, {N: "b", V: "bar"}},
-		expectedSeriesMetaTags: []test.StringTags{
-			{{N: "aa", V: "baz!foo!bar"}, {N: "c", V: "baz"}},
-			{{N: "aa", V: "qux!foo!bar"}, {N: "c", V: "qux"}},
-		},
+		expectedSeriesMetaTags: []test.StringTags{{{N: "A", V: "abaz-"}, {N: "c", V: "baz"}},
+			{{N: "A", V: "aqux-"}, {N: "c", V: "qux"}}},
+	},
+	{
+		name:                   "tag in metas, both replace",
+		params:                 []string{"c", "a$1-", "c", "(.*)"},
+		metaTags:               test.StringTags{{N: "a", V: "foo"}, {N: "b", V: "bar"}},
+		seriesMetaTags:         []test.StringTags{{{N: "c", V: "baz"}}, {{N: "c", V: "qux"}}},
+		expectedMetaTags:       test.StringTags{{N: "a", V: "foo"}, {N: "b", V: "bar"}},
+		expectedSeriesMetaTags: []test.StringTags{{{N: "c", V: "abaz-"}}, {{N: "c", V: "aqux-"}}},
 	},
 }
 
-func TestTagJoinFn(t *testing.T) {
-	for _, tt := range tagJoinFnTests {
+func TestTagReplaceFn(t *testing.T) {
+	for _, tt := range tagReplaceFnTests {
 		t.Run(tt.name, func(t *testing.T) {
 			meta := block.Metadata{
 				Tags: test.StringTagsToTags(tt.metaTags),
@@ -134,7 +134,7 @@ func TestTagJoinFn(t *testing.T) {
 				seriesMeta[i] = block.SeriesMeta{Tags: test.StringTagsToTags(t)}
 			}
 
-			f, err := makeTagJoinFunc(tt.params)
+			f, err := makeTagReplaceFunc(tt.params)
 			require.NoError(t, err)
 			require.NotNil(t, f)
 			f(&meta, seriesMeta)
@@ -148,10 +148,10 @@ func TestTagJoinFn(t *testing.T) {
 	}
 }
 
-func TestTagJoinOp(t *testing.T) {
-	for _, tt := range tagJoinFnTests {
+func TestTagReplaceOp(t *testing.T) {
+	for _, tt := range tagReplaceFnTests {
 		t.Run(tt.name, func(t *testing.T) {
-			op, err := NewTagOp(TagJoinType, tt.params)
+			op, err := NewTagOp(TagReplaceType, tt.params)
 			require.NoError(t, err)
 			meta := block.Metadata{
 				Tags: test.StringTagsToTags(tt.metaTags),

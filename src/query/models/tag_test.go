@@ -206,6 +206,28 @@ func TestAddTags(t *testing.T) {
 	assert.Equal(t, expected, tags)
 }
 
+func TestReplaceTags(t *testing.T) {
+	tags := Tags{
+		{Name: []byte("a"), Value: []byte("1")},
+		{Name: []byte("z"), Value: []byte("4")},
+	}
+
+	tags.ReplaceTag([]byte("x"), []byte("!!"))
+	expected := Tags{
+		{Name: []byte("a"), Value: []byte("1")},
+		{Name: []byte("z"), Value: []byte("4")},
+	}
+
+	assert.Equal(t, tags, expected)
+	tags.ReplaceTag([]byte("z"), []byte("!!"))
+	expected = Tags{
+		{Name: []byte("a"), Value: []byte("1")},
+		{Name: []byte("z"), Value: []byte("!!")},
+	}
+
+	assert.Equal(t, expected, tags)
+}
+
 func TestCloneTags(t *testing.T) {
 	tags := createTags(true)
 	original := createTags(true)
