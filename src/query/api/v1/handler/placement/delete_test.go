@@ -43,11 +43,11 @@ func TestPlacementDeleteHandler_Force(t *testing.T) {
 
 	// Test remove success
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("DELETE", "/placement/host1?force=true", nil)
+	req := httptest.NewRequest(DeleteHTTPMethod, "/placement/host1?force=true", nil)
 	req = mux.SetURLVars(req, map[string]string{"id": "host1"})
 	require.NotNil(t, req)
 	mockPlacementService.EXPECT().RemoveInstances([]string{"host1"}).Return(placement.NewPlacement(), nil)
-	handler.ServeHTTP(w, req)
+	handler.ServeHTTP(M3DBServiceName, w, req)
 
 	resp := w.Result()
 	body, err := ioutil.ReadAll(resp.Body)
@@ -57,11 +57,11 @@ func TestPlacementDeleteHandler_Force(t *testing.T) {
 
 	// Test remove failure
 	w = httptest.NewRecorder()
-	req = httptest.NewRequest("DELETE", "/placement/nope?force=true", nil)
+	req = httptest.NewRequest(DeleteHTTPMethod, "/placement/nope?force=true", nil)
 	req = mux.SetURLVars(req, map[string]string{"id": "nope"})
 	require.NotNil(t, req)
 	mockPlacementService.EXPECT().RemoveInstances([]string{"nope"}).Return(placement.NewPlacement(), errors.New("ID does not exist"))
-	handler.ServeHTTP(w, req)
+	handler.ServeHTTP(M3DBServiceName, w, req)
 
 	resp = w.Result()
 	body, err = ioutil.ReadAll(resp.Body)
@@ -79,11 +79,11 @@ func TestPlacementDeleteHandler_Safe(t *testing.T) {
 
 	// Test remove absent host
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("DELETE", "/placement/host1", nil)
+	req := httptest.NewRequest(DeleteHTTPMethod, "/placement/host1", nil)
 	req = mux.SetURLVars(req, map[string]string{"id": "host1"})
 	require.NotNil(t, req)
 	mockPlacementService.EXPECT().Placement().Return(basePlacement, 0, nil)
-	handler.ServeHTTP(w, req)
+	handler.ServeHTTP(M3DBServiceName, w, req)
 
 	resp := w.Result()
 	body, err := ioutil.ReadAll(resp.Body)
@@ -102,11 +102,11 @@ func TestPlacementDeleteHandler_Safe(t *testing.T) {
 	})
 
 	w = httptest.NewRecorder()
-	req = httptest.NewRequest("DELETE", "/placement/host1", nil)
+	req = httptest.NewRequest(DeleteHTTPMethod, "/placement/host1", nil)
 	req = mux.SetURLVars(req, map[string]string{"id": "host1"})
 	require.NotNil(t, req)
 	mockPlacementService.EXPECT().Placement().Return(basePlacement, 0, nil)
-	handler.ServeHTTP(w, req)
+	handler.ServeHTTP(M3DBServiceName, w, req)
 
 	resp = w.Result()
 	body, err = ioutil.ReadAll(resp.Body)
@@ -132,12 +132,12 @@ func TestPlacementDeleteHandler_Safe(t *testing.T) {
 	})
 
 	w = httptest.NewRecorder()
-	req = httptest.NewRequest("DELETE", "/placement/host1", nil)
+	req = httptest.NewRequest(DeleteHTTPMethod, "/placement/host1", nil)
 	req = mux.SetURLVars(req, map[string]string{"id": "host1"})
 	require.NotNil(t, req)
 	mockPlacementService.EXPECT().Placement().Return(basePlacement, 1, nil)
 	mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 1).Return(nil)
-	handler.ServeHTTP(w, req)
+	handler.ServeHTTP(M3DBServiceName, w, req)
 
 	resp = w.Result()
 	body, err = ioutil.ReadAll(resp.Body)

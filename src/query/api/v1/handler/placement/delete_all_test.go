@@ -38,20 +38,20 @@ func TestPlacementDeleteAllHandler(t *testing.T) {
 
 	// Test delete success
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/placement/delete", nil)
+	req := httptest.NewRequest(DeleteAllHTTPMethod, M3DBDeleteAllURL, nil)
 	require.NotNil(t, req)
 	mockPlacementService.EXPECT().Delete()
-	handler.ServeHTTP(w, req)
+	handler.ServeHTTP(M3DBServiceName, w, req)
 
 	resp := w.Result()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 	// Test delete error
 	w = httptest.NewRecorder()
-	req = httptest.NewRequest("POST", "/placement/delete", nil)
+	req = httptest.NewRequest(DeleteAllHTTPMethod, M3DBDeleteAllURL, nil)
 	require.NotNil(t, req)
 	mockPlacementService.EXPECT().Delete().Return(errors.New("error"))
-	handler.ServeHTTP(w, req)
+	handler.ServeHTTP(M3DBServiceName, w, req)
 
 	resp = w.Result()
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)

@@ -39,8 +39,13 @@ const (
 	// backwards compatibility.
 	OldM3DBGetURL = handler.RoutePrefixV1 + "/placement"
 
-	// M3DBGetURL is the url for the placement get handler (with the GET method).
+	// M3DBGetURL is the url for the placement get handler (with the GET method)
+	// for the M3DB service.
 	M3DBGetURL = handler.RoutePrefixV1 + "/m3db/services/placement"
+
+	// M3AggGetURL is the url for the placement get handler (with the GET method)
+	// for the M3Agg service.
+	M3AggGetURL = handler.RoutePrefixV1 + "/m3agg/services/placement"
 
 	// GetHTTPMethod is the HTTP method used with this resource.
 	GetHTTPMethod = http.MethodGet

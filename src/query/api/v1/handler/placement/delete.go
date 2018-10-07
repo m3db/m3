@@ -49,8 +49,11 @@ var (
 	// for backwards compatibility.
 	OldM3DBDeleteURL = fmt.Sprintf("%s/placement/{%s}", handler.RoutePrefixV1, placementIDVar)
 
-	// M3DBDeleteURL is the url for the placement delete handler.
-	M3DBDeleteURL = fmt.Sprintf("%s/placement/{%s}", handler.RoutePrefixV1, placementIDVar)
+	// M3DBDeleteURL is the url for the placement delete handler for the M3DB service.
+	M3DBDeleteURL = fmt.Sprintf("%s/services/m3db/placement/{%s}", handler.RoutePrefixV1, placementIDVar)
+
+	// M3AggDeleteURL is the url for the placement delete handler for the M3Agg service.
+	M3AggDeleteURL = fmt.Sprintf("%s/services/m3agg/placement/{%s}", handler.RoutePrefixV1, placementIDVar)
 
 	errEmptyID = errors.New("must specify placement ID to delete")
 )

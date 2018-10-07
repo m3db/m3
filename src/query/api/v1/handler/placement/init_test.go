@@ -38,6 +38,7 @@ import (
 )
 
 const (
+	// TODO: Undo these
 	initTestSuccessRequestBody  = "{\"instances\": [{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234},{\"id\": \"host2\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host2:1234\",\"hostname\": \"host2\",\"port\": 1234}],\"num_shards\": 16,\"replication_factor\": 1}"
 	initTestSuccessResponseBody = "{\"placement\":{\"instances\":{\"host1\":{\"id\":\"host1\",\"isolationGroup\":\"rack1\",\"zone\":\"test\",\"weight\":1,\"endpoint\":\"http://host1:1234\",\"shards\":[],\"shardSetId\":0,\"hostname\":\"host1\",\"port\":1234},\"host2\":{\"id\":\"host2\",\"isolationGroup\":\"rack1\",\"zone\":\"test\",\"weight\":1,\"endpoint\":\"http://host2:1234\",\"shards\":[],\"shardSetId\":0,\"hostname\":\"host2\",\"port\":1234}},\"replicaFactor\":0,\"numShards\":0,\"isSharded\":false,\"cutoverTime\":\"0\",\"isMirrored\":false,\"maxShardSetId\":0},\"version\":0}"
 
@@ -83,7 +84,7 @@ func TestM3DBPlacementInitHandler(t *testing.T) {
 	require.NoError(t, err)
 
 	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Not(nil), 16, 1).Return(newPlacement, nil)
-	handler.ServeHTTP(w, req)
+	handler.ServeHTTP(M3DBServiceName, w, req)
 	resp := w.Result()
 	body, err := ioutil.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -96,7 +97,7 @@ func TestM3DBPlacementInitHandler(t *testing.T) {
 	require.NotNil(t, req)
 
 	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Not(nil), 64, 2).Return(nil, errors.New("unable to build initial placement"))
-	handler.ServeHTTP(w, req)
+	handler.ServeHTTP(M3DBServiceName, w, req)
 	resp = w.Result()
 	body, err = ioutil.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -119,7 +120,7 @@ func TestAggPlacementInitHandler(t *testing.T) {
 	require.NoError(t, err)
 
 	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Not(nil), 16, 1).Return(newPlacement, nil)
-	handler.ServeHTTP(w, req)
+	handler.ServeHTTP(M3DBServiceName, w, req)
 	resp := w.Result()
 	body, err := ioutil.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -132,7 +133,7 @@ func TestAggPlacementInitHandler(t *testing.T) {
 	require.NotNil(t, req)
 
 	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Not(nil), 64, 2).Return(nil, errors.New("unable to build initial placement"))
-	handler.ServeHTTP(w, req)
+	handler.ServeHTTP(M3DBServiceName, w, req)
 	resp = w.Result()
 	body, err = ioutil.ReadAll(resp.Body)
 	require.NoError(t, err)

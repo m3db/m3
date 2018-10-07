@@ -67,7 +67,7 @@ func TestPlacementGetHandler(t *testing.T) {
 
 	// Test successful get
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/placement/get", nil)
+	req := httptest.NewRequest(GetHTTPMethod, M3DBGetURL, nil)
 	require.NotNil(t, req)
 
 	placementProto := &placementpb.Placement{
@@ -99,7 +99,7 @@ func TestPlacementGetHandler(t *testing.T) {
 	require.NoError(t, err)
 
 	mockPlacementService.EXPECT().Placement().Return(placementObj, 0, nil)
-	handler.ServeHTTP(w, req)
+	handler.ServeHTTP(M3DBServiceName, w, req)
 
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)
@@ -108,32 +108,32 @@ func TestPlacementGetHandler(t *testing.T) {
 
 	// Test error case
 	w = httptest.NewRecorder()
-	req = httptest.NewRequest("GET", "/placement/get", nil)
+	req = httptest.NewRequest(GetHTTPMethod, M3DBGetURL, nil)
 	require.NotNil(t, req)
 
 	mockPlacementService.EXPECT().Placement().Return(nil, 0, errors.New("key not found"))
-	handler.ServeHTTP(w, req)
+	handler.ServeHTTP(M3DBServiceName, w, req)
 
 	resp = w.Result()
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 
 	// With bad version request
 	w = httptest.NewRecorder()
-	req = httptest.NewRequest("GET", "/placement/get?version=foo", nil)
+	req = httptest.NewRequest(GetHTTPMethod, "/placement/get?version=foo", nil)
 	require.NotNil(t, req)
 
-	handler.ServeHTTP(w, req)
+	handler.ServeHTTP(M3DBServiceName, w, req)
 	resp = w.Result()
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 
 	// With valid version request
 	w = httptest.NewRecorder()
-	req = httptest.NewRequest("GET", "/placement/get?version=12", nil)
+	req = httptest.NewRequest(GetHTTPMethod, "/placement/get?version=12", nil)
 	require.NotNil(t, req)
 
 	mockPlacementService.EXPECT().PlacementForVersion(12).Return(placementObj, nil)
 
-	handler.ServeHTTP(w, req)
+	handler.ServeHTTP(M3DBServiceName, w, req)
 	resp = w.Result()
 	body, _ = ioutil.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)

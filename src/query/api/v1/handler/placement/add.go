@@ -40,8 +40,13 @@ const (
 	// backwards compatibility.
 	OldM3DBAddURL = handler.RoutePrefixV1 + "/placement"
 
-	// M3DBAddURL is the url for the placement add handler (with the POST method).
+	// M3DBAddURL is the url for the placement add handler (with the POST method)
+	// for the M3DB service.
 	M3DBAddURL = handler.RoutePrefixV1 + "/services/m3db/placement"
+
+	// M3AggAddURL is the url for the placement add handler (with the POST method)
+	// for the M3Agg service.
+	M3AggAddURL = handler.RoutePrefixV1 + "/services/m3db/placement"
 
 	// AddHTTPMethod is the HTTP method used with this resource.
 	AddHTTPMethod = http.MethodPost
