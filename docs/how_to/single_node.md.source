@@ -14,11 +14,15 @@ To begin, first start up a Docker container with port `7201` (used to manage the
 and port `9003` (used to read and write metrics) exposed. We recommend you create a persistent data
 directory on your host for durability:
 
+```
+docker pull quay.io/m3/m3dbnode:latest
+docker run -p 7201:7201 -p 9003:9003 --name m3db -v $(pwd)/m3db_data:/var/lib/m3db quay.io/m3/m3dbnode:latest
+```
 <operation>
+<validation>
 docker pull quay.io/m3/m3dbnode:latest
 docker create --name "${CONTAINER_NAME}" -p 7201:7201 -p 9003:9003 -p 9002:9002 quay.io/m3/m3dbnode:latest
 docker start "${CONTAINER_NAME}"
-<validation>
 if [ $? -ne 0 ]; then
   echo "m3dbnode docker failed to start"
   docker logs "${CONTAINER_NAME}"

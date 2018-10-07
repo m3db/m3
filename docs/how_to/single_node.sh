@@ -15,8 +15,6 @@ function defer {
 }
 trap defer EXIT
 
-docker pull quay.io/m3/m3dbnode:latest
-docker run -p 7201:7201 -p 9003:9003 --name m3db quay.io/m3/m3dbnode:latest
 
 docker pull quay.io/m3/m3dbnode:latest
 docker create --name "${CONTAINER_NAME}" -p 7201:7201 -p 9003:9003 -p 9002:9002 quay.io/m3/m3dbnode:latest

@@ -16,8 +16,9 @@ directory on your host for durability:
 
 ```
 docker pull quay.io/m3/m3dbnode:latest
-docker run -p 7201:7201 -p 9003:9003 --name m3db quay.io/m3/m3dbnode:latest
+docker run -p 7201:7201 -p 9003:9003 --name m3db -v $(pwd)/m3db_data:/var/lib/m3db quay.io/m3/m3dbnode:latest
 ```
+
 
 <!-- TODO: link to docs containing explanations of what namespaces, the coordinator,
 placements, etc. are -->

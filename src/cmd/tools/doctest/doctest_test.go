@@ -44,14 +44,14 @@ func TestDocTest(t *testing.T) {
 	require.NoError(t, err)
 
 	// create bash script
-	validationRegEx, err := bashScript([]byte(testSourceFile), testCaseOutputSource)
+	validationRegEx, operationRegEx, err := bashScript([]byte(testSourceFile), testCaseOutputSource)
 	require.NoError(t, err)
 
 	expectedScript := readFile(t, testCaseScript)
 	actualScript := readFile(t, testCaseOutputScript)
 
 	// create markdown file
-	err = markdownFile(testSourceFile, testCaseOutputSource, validationRegEx)
+	err = markdownFile(testSourceFile, testCaseOutputSource, validationRegEx, operationRegEx)
 	require.NoError(t, err)
 
 	actualMarkdown := readFile(t, testCaseOutputMarkdown)

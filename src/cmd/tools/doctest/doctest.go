@@ -21,11 +21,13 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
+	"os/exec"
 	"regexp"
 	"strings"
 )
@@ -60,17 +62,17 @@ func main() {
 		log.Fatalf("unable to read source file: %v\n", err)
 	}
 
-	validationRegEx, err := bashScript(f, file)
+	validationRegEx, operationRegEx, err := bashScript(f, file)
 	if err != nil {
 		log.Fatalf("unable to create bash script: %v", err)
 	}
 
-	if err := markdownFile(f, file, validationRegEx); err != nil {
+	if err := markdownFile(f, file, validationRegEx, operationRegEx); err != nil {
 		log.Fatalf("unable to create markdown file: %v", err)
 	}
 }
 
-func markdownFile(contents []byte, fileName string, validationRegEx *regexp.Regexp) error {
+func markdownFile(contents []byte, fileName string, validationRegEx *regexp.Regexp, opRegex *regexp.Regexp) error {
 	// create new markdown file based on name of source file
 	out, err := os.Create(strings.Replace(fileName, ".source", "", -1))
 	if err != nil {
@@ -78,6 +80,21 @@ func markdownFile(contents []byte, fileName string, validationRegEx *regexp.Rege
 	}
 	defer out.Close()
 	out.Chmod(0644)
+
+	// find all of the operations in the source file
+	matches := opRegex.FindAll(contents, 100)
+	for _, match := range matches {
+		validations := validationRegEx.FindAll(match, 100)
+		if len(validations) == 0 {
+			continue
+		}
+
+		f := bytes.Replace(match, validations[0], nil, -1)
+
+		if string(f) == fmt.Sprintf(operationOpen+"\n"+operationClose) {
+			contents = bytes.Replace(contents, match, []byte(""), -1)
+		}
+	}
 
 	// convert tags to markdown syntax
 	OpOpen := regexp.MustCompile(operationOpen)
@@ -95,12 +112,12 @@ func markdownFile(contents []byte, fileName string, validationRegEx *regexp.Rege
 	return nil
 }
 
-func bashScript(contents []byte, fileName string) (*regexp.Regexp, error) {
+func bashScript(contents []byte, fileName string) (*regexp.Regexp, *regexp.Regexp, error) {
 	// create bash script file based on name of source file
 	scriptFileName := fmt.Sprintf("%s%s", strings.Replace(fileName, ".md.source", "", -1), ".sh")
 	script, err := os.Create(scriptFileName)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer script.Close()
 
@@ -109,7 +126,7 @@ func bashScript(contents []byte, fileName string) (*regexp.Regexp, error) {
 	// todo(braskin): figure out a way to make the script template dynamic
 	scriptTemplate, err := ioutil.ReadFile("script_template.txt")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	script.Write(scriptTemplate)
@@ -136,7 +153,13 @@ func bashScript(contents []byte, fileName string) (*regexp.Regexp, error) {
 		}
 	}
 
-	return validationRegEx, nil
+	// make bash script executable
+	cmd := exec.Command("chmod", "+x", scriptFileName)
+	if err := cmd.Run(); err != nil {
+		return nil, nil, err
+	}
+
+	return validationRegEx, operationRegEx, nil
 }
 
 func removeTags(text string, tagNames []string) string {
