@@ -89,9 +89,10 @@ func markdownFile(contents []byte, fileName string, validationRegEx *regexp.Rege
 			continue
 		}
 
-		f := bytes.Replace(match, validations[0], nil, -1)
+		// remove the validations and if the operation block is empty, replace it with nothing
+		noValidationBlock := bytes.Replace(match, validations[0], nil, -1)
 
-		if string(f) == fmt.Sprintf(operationOpen+"\n"+operationClose) {
+		if string(noValidationBlock) == fmt.Sprintf(operationOpen+"\n"+operationClose) {
 			contents = bytes.Replace(contents, match, []byte(""), -1)
 		}
 	}
