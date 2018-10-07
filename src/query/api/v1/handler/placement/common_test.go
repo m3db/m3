@@ -39,183 +39,189 @@ func TestPlacementService(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockClient := client.NewMockClient(ctrl)
-	require.NotNil(t, mockClient)
-	mockServices := services.NewMockServices(ctrl)
-	require.NotNil(t, mockServices)
-	mockPlacementService := placement.NewMockService(ctrl)
-	require.NotNil(t, mockPlacementService)
+	runForAllAllowedServices(func(serviceName string) {
+		mockClient := client.NewMockClient(ctrl)
+		require.NotNil(t, mockClient)
+		mockServices := services.NewMockServices(ctrl)
+		require.NotNil(t, mockServices)
+		mockPlacementService := placement.NewMockService(ctrl)
+		require.NotNil(t, mockPlacementService)
 
-	mockClient.EXPECT().Services(gomock.Not(nil)).Return(mockServices, nil)
-	mockServices.EXPECT().PlacementService(gomock.Not(nil), gomock.Not(nil)).Return(mockPlacementService, nil)
+		mockClient.EXPECT().Services(gomock.Not(nil)).Return(mockServices, nil)
+		mockServices.EXPECT().PlacementService(gomock.Not(nil), gomock.Not(nil)).Return(mockPlacementService, nil)
 
-	placementService, algo, err := ServiceWithAlgo(mockClient, NewServiceOptions(M3DBServiceName))
-	assert.NoError(t, err)
-	assert.NotNil(t, placementService)
-	assert.NotNil(t, algo)
+		placementService, algo, err := ServiceWithAlgo(mockClient, NewServiceOptions(M3DBServiceName))
+		assert.NoError(t, err)
+		assert.NotNil(t, placementService)
+		assert.NotNil(t, algo)
 
-	// Test Services returns error
-	mockClient.EXPECT().Services(gomock.Not(nil)).Return(nil, errors.New("dummy service error"))
-	placementService, err = Service(mockClient, NewServiceOptions(M3DBServiceName))
-	assert.Nil(t, placementService)
-	assert.EqualError(t, err, "dummy service error")
+		// Test Services returns error
+		mockClient.EXPECT().Services(gomock.Not(nil)).Return(nil, errors.New("dummy service error"))
+		placementService, err = Service(mockClient, NewServiceOptions(M3DBServiceName))
+		assert.Nil(t, placementService)
+		assert.EqualError(t, err, "dummy service error")
 
-	// Test PlacementService returns error
-	mockClient.EXPECT().Services(gomock.Not(nil)).Return(mockServices, nil)
-	mockServices.EXPECT().PlacementService(gomock.Not(nil), gomock.Not(nil)).Return(nil, errors.New("dummy placement error"))
-	placementService, err = Service(mockClient, NewServiceOptions(M3DBServiceName))
-	assert.Nil(t, placementService)
-	assert.EqualError(t, err, "dummy placement error")
+		// Test PlacementService returns error
+		mockClient.EXPECT().Services(gomock.Not(nil)).Return(mockServices, nil)
+		mockServices.EXPECT().PlacementService(gomock.Not(nil), gomock.Not(nil)).Return(nil, errors.New("dummy placement error"))
+		placementService, err = Service(mockClient, NewServiceOptions(M3DBServiceName))
+		assert.Nil(t, placementService)
+		assert.EqualError(t, err, "dummy placement error")
+	})
 }
 
 func TestPlacementServiceWithClusterHeaders(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockClient := client.NewMockClient(ctrl)
-	require.NotNil(t, mockClient)
-	mockServices := services.NewMockServices(ctrl)
-	require.NotNil(t, mockServices)
-	mockPlacementService := placement.NewMockService(ctrl)
-	require.NotNil(t, mockPlacementService)
+	runForAllAllowedServices(func(serviceName string) {
+		mockClient := client.NewMockClient(ctrl)
+		require.NotNil(t, mockClient)
+		mockServices := services.NewMockServices(ctrl)
+		require.NotNil(t, mockServices)
+		mockPlacementService := placement.NewMockService(ctrl)
+		require.NotNil(t, mockPlacementService)
 
-	mockClient.EXPECT().Services(gomock.Not(nil)).Return(mockServices, nil)
+		mockClient.EXPECT().Services(gomock.Not(nil)).Return(mockServices, nil)
 
-	var actual services.ServiceID
-	mockServices.EXPECT().PlacementService(gomock.Not(nil), gomock.Not(nil)).
-		DoAndReturn(func(
-			serviceID services.ServiceID,
-			_ placement.Options,
-		) (placement.Service, error) {
-			actual = serviceID
-			return mockPlacementService, nil
-		})
+		var actual services.ServiceID
+		mockServices.EXPECT().PlacementService(gomock.Not(nil), gomock.Not(nil)).
+			DoAndReturn(func(
+				serviceID services.ServiceID,
+				_ placement.Options,
+			) (placement.Service, error) {
+				actual = serviceID
+				return mockPlacementService, nil
+			})
 
-	var (
-		serviceValue     = M3DBServiceName
-		environmentValue = "bar_env"
-		zoneValue        = "baz_zone"
-		opts             = NewServiceOptions(serviceValue)
-	)
-	opts.ServiceEnvironment = environmentValue
-	opts.ServiceZone = zoneValue
+		var (
+			serviceValue     = M3DBServiceName
+			environmentValue = "bar_env"
+			zoneValue        = "baz_zone"
+			opts             = NewServiceOptions(serviceValue)
+		)
+		opts.ServiceEnvironment = environmentValue
+		opts.ServiceZone = zoneValue
 
-	placementService, err := Service(mockClient, opts)
-	require.NoError(t, err)
-	require.NotNil(t, placementService)
+		placementService, err := Service(mockClient, opts)
+		require.NoError(t, err)
+		require.NotNil(t, placementService)
 
-	require.NotNil(t, actual)
-	require.Equal(t, serviceValue, actual.Name())
-	require.Equal(t, environmentValue, actual.Environment())
-	require.Equal(t, zoneValue, actual.Zone())
+		require.NotNil(t, actual)
+		require.Equal(t, serviceValue, actual.Name())
+		require.Equal(t, environmentValue, actual.Environment())
+		require.Equal(t, zoneValue, actual.Zone())
+	})
 }
 
 func TestConvertInstancesProto(t *testing.T) {
-	instances, err := ConvertInstancesProto([]*placementpb.Instance{})
-	require.NoError(t, err)
-	require.Equal(t, 0, len(instances))
+	runForAllAllowedServices(func(serviceName string) {
+		instances, err := ConvertInstancesProto([]*placementpb.Instance{})
+		require.NoError(t, err)
+		require.Equal(t, 0, len(instances))
 
-	instances, err = ConvertInstancesProto([]*placementpb.Instance{
-		&placementpb.Instance{
-			Id:             "i1",
-			IsolationGroup: "r1",
-			Weight:         1,
-			Endpoint:       "i1:1234",
-			Hostname:       "i1",
-			Port:           1234,
-		},
-	})
-	require.NoError(t, err)
-	require.Equal(t, 1, len(instances))
-	require.Equal(t, "Instance[ID=i1, IsolationGroup=r1, Zone=, Weight=1, Endpoint=i1:1234, Hostname=i1, Port=1234, ShardSetID=0, Shards=[Initializing=[], Available=[], Leaving=[]]]", instances[0].String())
+		instances, err = ConvertInstancesProto([]*placementpb.Instance{
+			&placementpb.Instance{
+				Id:             "i1",
+				IsolationGroup: "r1",
+				Weight:         1,
+				Endpoint:       "i1:1234",
+				Hostname:       "i1",
+				Port:           1234,
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, 1, len(instances))
+		require.Equal(t, "Instance[ID=i1, IsolationGroup=r1, Zone=, Weight=1, Endpoint=i1:1234, Hostname=i1, Port=1234, ShardSetID=0, Shards=[Initializing=[], Available=[], Leaving=[]]]", instances[0].String())
 
-	instances, err = ConvertInstancesProto([]*placementpb.Instance{
-		&placementpb.Instance{
-			Id:             "i1",
-			IsolationGroup: "r1",
-			Weight:         1,
-			Endpoint:       "i1:1234",
-			Hostname:       "i1",
-			Port:           1234,
-			ShardSetId:     1,
-			Shards: []*placementpb.Shard{
-				&placementpb.Shard{
-					Id:       1,
-					State:    placementpb.ShardState_AVAILABLE,
-					SourceId: "s1",
-				},
-				&placementpb.Shard{
-					Id:       2,
-					State:    placementpb.ShardState_AVAILABLE,
-					SourceId: "s1",
-				},
-			},
-		},
-		&placementpb.Instance{
-			Id:             "i2",
-			IsolationGroup: "r1",
-			Weight:         1,
-			Endpoint:       "i2:1234",
-			Hostname:       "i2",
-			Port:           1234,
-			ShardSetId:     1,
-			Shards: []*placementpb.Shard{
-				&placementpb.Shard{
-					Id:       1,
-					State:    placementpb.ShardState_AVAILABLE,
-					SourceId: "s2",
-				},
-				&placementpb.Shard{
-					Id:       1,
-					State:    placementpb.ShardState_AVAILABLE,
-					SourceId: "s2",
+		instances, err = ConvertInstancesProto([]*placementpb.Instance{
+			&placementpb.Instance{
+				Id:             "i1",
+				IsolationGroup: "r1",
+				Weight:         1,
+				Endpoint:       "i1:1234",
+				Hostname:       "i1",
+				Port:           1234,
+				ShardSetId:     1,
+				Shards: []*placementpb.Shard{
+					&placementpb.Shard{
+						Id:       1,
+						State:    placementpb.ShardState_AVAILABLE,
+						SourceId: "s1",
+					},
+					&placementpb.Shard{
+						Id:       2,
+						State:    placementpb.ShardState_AVAILABLE,
+						SourceId: "s1",
+					},
 				},
 			},
-		},
-		&placementpb.Instance{
-			Id:             "i3",
-			IsolationGroup: "r2",
-			Weight:         2,
-			Endpoint:       "i3:1234",
-			Hostname:       "i3",
-			Port:           1234,
-			ShardSetId:     2,
-			Shards: []*placementpb.Shard{
-				&placementpb.Shard{
-					Id:           1,
-					State:        placementpb.ShardState_INITIALIZING,
-					SourceId:     "s1",
-					CutoverNanos: 2,
-					CutoffNanos:  3,
+			&placementpb.Instance{
+				Id:             "i2",
+				IsolationGroup: "r1",
+				Weight:         1,
+				Endpoint:       "i2:1234",
+				Hostname:       "i2",
+				Port:           1234,
+				ShardSetId:     1,
+				Shards: []*placementpb.Shard{
+					&placementpb.Shard{
+						Id:       1,
+						State:    placementpb.ShardState_AVAILABLE,
+						SourceId: "s2",
+					},
+					&placementpb.Shard{
+						Id:       1,
+						State:    placementpb.ShardState_AVAILABLE,
+						SourceId: "s2",
+					},
 				},
 			},
-		},
-	})
-	require.NoError(t, err)
-	require.Equal(t, 3, len(instances))
-	require.Equal(t, "Instance[ID=i1, IsolationGroup=r1, Zone=, Weight=1, Endpoint=i1:1234, Hostname=i1, Port=1234, ShardSetID=1, Shards=[Initializing=[], Available=[1 2], Leaving=[]]]", instances[0].String())
-	require.Equal(t, "Instance[ID=i2, IsolationGroup=r1, Zone=, Weight=1, Endpoint=i2:1234, Hostname=i2, Port=1234, ShardSetID=1, Shards=[Initializing=[], Available=[1], Leaving=[]]]", instances[1].String())
-	require.Equal(t, "Instance[ID=i3, IsolationGroup=r2, Zone=, Weight=2, Endpoint=i3:1234, Hostname=i3, Port=1234, ShardSetID=2, Shards=[Initializing=[1], Available=[], Leaving=[]]]", instances[2].String())
+			&placementpb.Instance{
+				Id:             "i3",
+				IsolationGroup: "r2",
+				Weight:         2,
+				Endpoint:       "i3:1234",
+				Hostname:       "i3",
+				Port:           1234,
+				ShardSetId:     2,
+				Shards: []*placementpb.Shard{
+					&placementpb.Shard{
+						Id:           1,
+						State:        placementpb.ShardState_INITIALIZING,
+						SourceId:     "s1",
+						CutoverNanos: 2,
+						CutoffNanos:  3,
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, 3, len(instances))
+		require.Equal(t, "Instance[ID=i1, IsolationGroup=r1, Zone=, Weight=1, Endpoint=i1:1234, Hostname=i1, Port=1234, ShardSetID=1, Shards=[Initializing=[], Available=[1 2], Leaving=[]]]", instances[0].String())
+		require.Equal(t, "Instance[ID=i2, IsolationGroup=r1, Zone=, Weight=1, Endpoint=i2:1234, Hostname=i2, Port=1234, ShardSetID=1, Shards=[Initializing=[], Available=[1], Leaving=[]]]", instances[1].String())
+		require.Equal(t, "Instance[ID=i3, IsolationGroup=r2, Zone=, Weight=2, Endpoint=i3:1234, Hostname=i3, Port=1234, ShardSetID=2, Shards=[Initializing=[1], Available=[], Leaving=[]]]", instances[2].String())
 
-	_, err = ConvertInstancesProto([]*placementpb.Instance{
-		&placementpb.Instance{
-			Id:             "i1",
-			IsolationGroup: "r1",
-			Weight:         1,
-			Endpoint:       "i1:1234",
-			Hostname:       "i1",
-			Port:           1234,
-			ShardSetId:     1,
-			Shards: []*placementpb.Shard{
-				&placementpb.Shard{
-					Id:       1,
-					State:    9999,
-					SourceId: "s1",
+		_, err = ConvertInstancesProto([]*placementpb.Instance{
+			&placementpb.Instance{
+				Id:             "i1",
+				IsolationGroup: "r1",
+				Weight:         1,
+				Endpoint:       "i1:1234",
+				Hostname:       "i1",
+				Port:           1234,
+				ShardSetId:     1,
+				Shards: []*placementpb.Shard{
+					&placementpb.Shard{
+						Id:       1,
+						State:    9999,
+						SourceId: "s1",
+					},
 				},
 			},
-		},
+		})
+		require.EqualError(t, err, "invalid proto shard state")
 	})
-	require.EqualError(t, err, "invalid proto shard state")
 }
 
 func newPlacement(state shard.State) placement.Placement {
