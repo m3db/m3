@@ -134,7 +134,7 @@ func (p *parseState) walk(node pql.Node) error {
 
 				argValues = append(argValues, val)
 			} else if argType == pql.ValueTypeString {
-				stringValues = append(stringValues, expr.String())
+				stringValues = append(stringValues, expr.(*pql.StringLiteral).Val)
 			} else {
 				if e, ok := expr.(*pql.MatrixSelector); ok {
 					argValues = append(argValues, e.Range)
@@ -147,8 +147,11 @@ func (p *parseState) walk(node pql.Node) error {
 		}
 
 		if n.Func.Variadic == -1 {
-			for _, expression := range expressions[len(argTypes):] {
-				stringValues = append(stringValues, expression.String())
+			l := len(argTypes)
+			for _, expr := range expressions[l:] {
+				if argTypes[l-1] == pql.ValueTypeString {
+					stringValues = append(stringValues, expr.(*pql.StringLiteral).Val)
+				}
 			}
 		}
 

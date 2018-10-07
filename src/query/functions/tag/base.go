@@ -99,6 +99,10 @@ func (n *baseNode) Process(ID parser.NodeID, b block.Block) error {
 	seriesMeta := it.SeriesMeta()
 
 	n.op.tagFn(&meta, seriesMeta)
-	b.UpdateMetas(meta, seriesMeta)
+	err = b.UpdateMetas(meta, seriesMeta)
+	if err != nil {
+		return err
+	}
+
 	return n.controller.Process(b)
 }

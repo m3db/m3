@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"errors"
 	"sync"
 	"time"
 
@@ -92,14 +93,18 @@ func (m *multiBlockWrapper) SeriesIter() (block.SeriesIter, error) {
 func (m *multiBlockWrapper) UpdateMetas(
 	meta block.Metadata,
 	seriesMetas []block.SeriesMeta,
-) {
+) error {
 	if m.consolidated != nil {
-		m.consolidated.UpdateMetas(meta, seriesMetas)
+		if err := m.consolidated.UpdateMetas(meta, seriesMetas); err != nil {
+			return err
+		}
 	}
 
 	if m.unconsolidated != nil {
-		m.unconsolidated.UpdateMetas(meta, seriesMetas)
+		return m.unconsolidated.UpdateMetas(meta, seriesMetas)
 	}
+
+	return nil
 }
 
 func (m *multiBlockWrapper) Close() error {
@@ -130,10 +135,17 @@ func (m multiSeriesBlock) Meta() block.Metadata {
 func (m multiSeriesBlock) UpdateMetas(
 	meta block.Metadata,
 	seriesMeta []block.SeriesMeta,
-) {
-	// This is not used and due for deletion soon, no need to update
-	// https://github.com/m3db/m3/pull/958
-	panic("unexpected")
+) error {
+	if len(seriesMeta) != len(m.seriesList) {
+		return errors.New("mismatched meta size")
+	}
+
+	m.meta = meta
+	for i, meta := range seriesMeta {
+		m.seriesList[i].Tags = meta.Tags
+	}
+
+	return nil
 }
 
 func (m multiSeriesBlock) StepCount() int {
@@ -169,10 +181,8 @@ func (m multiSeriesBlock) Consolidate() (block.Block, error) {
 func (c *consolidatedBlock) UpdateMetas(
 	meta block.Metadata,
 	seriesMeta []block.SeriesMeta,
-) {
-	// This is not used and due for deletion soon, no need to update
-	// https://github.com/m3db/m3/pull/958
-	panic("unexpected")
+) error {
+	return c.unconsolidated.UpdateMetas(meta, seriesMeta)
 }
 
 // TODO: Actually free up resources
