@@ -65,6 +65,8 @@ const (
 	HeaderClusterEnvironmentName = "Cluster-Environment-Name"
 	// HeaderClusterZoneName is the header used to specify the zone name.
 	HeaderClusterZoneName = "Cluster-Zone-Name"
+	// HeaderDryRun is the header used to specify whether this should be a dry run.
+	HeaderDryRun = "Dry-Run"
 )
 
 var (
@@ -95,6 +97,8 @@ type ServiceOptions struct {
 	ServiceZone        string
 
 	M3Agg *M3AggServiceOptions
+
+	DryRun bool
 }
 
 // M3AggServiceOptions contains the service options that are
@@ -110,6 +114,8 @@ func NewServiceOptions(serviceName string) ServiceOptions {
 		ServiceName:        serviceName,
 		ServiceEnvironment: DefaultServiceEnvironment,
 		ServiceZone:        DefaultServiceZone,
+
+		DryRun: false,
 	}
 }
 
@@ -122,6 +128,9 @@ func NewServiceOptionsFromHeaders(serviceName string, headers http.Header) Servi
 	}
 	if v := strings.TrimSpace(headers.Get(HeaderClusterZoneName)); v != "" {
 		opts.ServiceZone = v
+	}
+	if v := strings.TrimSpace(headers.Get(HeaderDryRun)); v == "true" {
+		opts.DryRun = true
 	}
 	return opts
 }
@@ -181,8 +190,7 @@ func ServiceWithAlgo(clusterClient clusterclient.Client, opts ServiceOptions) (p
 		SetIsSharded(true).
 		// Can use goal-based placement for both M3DB and M3Agg
 		SetIsStaged(false).
-		// TODO: make config
-		SetDryrun(false)
+		SetDryrun(opts.DryRun)
 
 	if opts.ServiceName == M3AggServiceName {
 		var (
