@@ -35,9 +35,9 @@ import (
 )
 
 const (
-	// OldM3DBGetURL is the old url for the placement get handler, maintained for
+	// DeprecatedM3DBGetURL is the old url for the placement get handler, maintained for
 	// backwards compatibility.
-	OldM3DBGetURL = handler.RoutePrefixV1 + "/placement"
+	DeprecatedM3DBGetURL = handler.RoutePrefixV1 + "/placement"
 
 	// M3DBGetURL is the url for the placement get handler (with the GET method)
 	// for the M3DB service.
@@ -66,7 +66,8 @@ func (h *GetHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *htt
 		opts   = NewServiceOptionsFromHeaders(serviceName, r.Header)
 	)
 
-	if serviceName == M3AggServiceName {
+	switch serviceName {
+	case M3AggServiceName:
 		// Use default M3Agg values because we're getting the placement
 		// so the specific values don't matter.
 		opts = NewServiceOptionsWithDefaultM3AggValues(r.Header)

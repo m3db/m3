@@ -36,9 +36,9 @@ import (
 )
 
 const (
-	// OldM3DBInitURL is the old url for the placement init handler, maintained for backwards
+	// DeprecatedM3DBInitURL is the old url for the placement init handler, maintained for backwards
 	// compatibility. (with the POST method).
-	OldM3DBInitURL = handler.RoutePrefixV1 + "/placement/init"
+	DeprecatedM3DBInitURL = handler.RoutePrefixV1 + "/placement/init"
 
 	// M3DBInitURL is the url for the placement init handler, (with the POST method).
 	M3DBInitURL = handler.RoutePrefixV1 + "/services/m3db/placement/init"
@@ -111,8 +111,9 @@ func (h *InitHandler) Init(
 	}
 
 	serviceOpts := NewServiceOptionsFromHeaders(serviceName, httpReq.Header)
-	if serviceName == M3AggServiceName {
-		if req.MaxAggregationWindowSizeNanos == 0 || req.WarmupDurationNanos == 0 {
+	switch serviceName {
+	case M3AggServiceName:
+		if req.MaxAggregationWindowSizeNanos <= 0 || req.WarmupDurationNanos <= 0 {
 			return nil, errAggWindowAndWarmupMustBeSet
 		}
 		serviceOpts.M3Agg = &M3AggServiceOptions{

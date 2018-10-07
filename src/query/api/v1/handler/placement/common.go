@@ -253,31 +253,31 @@ func ConvertInstancesProto(instancesProto []*placementpb.Instance) ([]placement.
 func RegisterRoutes(r *mux.Router, client clusterclient.Client, cfg config.Configuration) {
 	// Init
 	initFn := applyMiddleware(NewInitHandler(client, cfg).ServeHTTP)
-	r.HandleFunc(OldM3DBInitURL, initFn).Methods(InitHTTPMethod)
+	r.HandleFunc(DeprecatedM3DBInitURL, initFn).Methods(InitHTTPMethod)
 	r.HandleFunc(M3DBInitURL, initFn).Methods(InitHTTPMethod)
 	r.HandleFunc(M3AggInitURL, initFn).Methods(InitHTTPMethod)
 
 	// Get
 	getFn := applyMiddleware(NewGetHandler(client, cfg).ServeHTTP)
-	r.HandleFunc(OldM3DBGetURL, getFn).Methods(GetHTTPMethod)
+	r.HandleFunc(DeprecatedM3DBGetURL, getFn).Methods(GetHTTPMethod)
 	r.HandleFunc(M3DBGetURL, getFn).Methods(GetHTTPMethod)
 	r.HandleFunc(M3AggGetURL, getFn).Methods(GetHTTPMethod)
 
 	// Delete all
 	deleteAllFn := applyMiddleware(NewDeleteAllHandler(client, cfg).ServeHTTP)
-	r.HandleFunc(OldM3DBDeleteAllURL, deleteAllFn).Methods(DeleteAllHTTPMethod)
+	r.HandleFunc(DeprecatedM3DBDeleteAllURL, deleteAllFn).Methods(DeleteAllHTTPMethod)
 	r.HandleFunc(M3DBDeleteAllURL, deleteAllFn).Methods(DeleteAllHTTPMethod)
 	r.HandleFunc(M3AggDeleteAllURL, deleteAllFn).Methods(DeleteAllHTTPMethod)
 
 	// Add
 	addFn := applyMiddleware(NewAddHandler(client, cfg).ServeHTTP)
-	r.HandleFunc(OldM3DBAddURL, addFn).Methods(AddHTTPMethod)
+	r.HandleFunc(DeprecatedM3DBAddURL, addFn).Methods(AddHTTPMethod)
 	r.HandleFunc(M3DBAddURL, addFn).Methods(AddHTTPMethod)
 	r.HandleFunc(M3AggAddURL, addFn).Methods(AddHTTPMethod)
 
 	// Delete
 	deleteFn := applyMiddleware(NewDeleteHandler(client, cfg).ServeHTTP)
-	r.HandleFunc(OldM3DBDeleteURL, deleteFn).Methods(DeleteHTTPMethod)
+	r.HandleFunc(DeprecatedM3DBDeleteURL, deleteFn).Methods(DeleteHTTPMethod)
 	r.HandleFunc(M3DBDeleteURL, deleteFn).Methods(DeleteHTTPMethod)
 	r.HandleFunc(M3AggDeleteURL, deleteFn).Methods(DeleteHTTPMethod)
 }

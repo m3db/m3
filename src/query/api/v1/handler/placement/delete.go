@@ -45,9 +45,9 @@ const (
 )
 
 var (
-	// OldM3DBDeleteURL is the old url for the placement delete handler, maintained
+	// DeprecatedM3DBDeleteURL is the old url for the placement delete handler, maintained
 	// for backwards compatibility.
-	OldM3DBDeleteURL = fmt.Sprintf("%s/placement/{%s}", handler.RoutePrefixV1, placementIDVar)
+	DeprecatedM3DBDeleteURL = fmt.Sprintf("%s/placement/{%s}", handler.RoutePrefixV1, placementIDVar)
 
 	// M3DBDeleteURL is the url for the placement delete handler for the M3DB service.
 	M3DBDeleteURL = fmt.Sprintf("%s/services/m3db/placement/{%s}", handler.RoutePrefixV1, placementIDVar)
@@ -84,7 +84,8 @@ func (h *DeleteHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *
 		opts  = NewServiceOptionsFromHeaders(serviceName, r.Header)
 	)
 
-	if serviceName == M3AggServiceName {
+	switch serviceName {
+	case M3AggServiceName:
 		// Use default M3Agg values because we're deleting the placement
 		// so the specific values don't matter.
 		opts = NewServiceOptionsWithDefaultM3AggValues(r.Header)

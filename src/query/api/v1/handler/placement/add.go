@@ -38,9 +38,9 @@ import (
 )
 
 const (
-	// OldM3DBAddURL is the old url for the placement add handler, maintained for
+	// DeprecatedM3DBAddURL is the old url for the placement add handler, maintained for
 	// backwards compatibility.
-	OldM3DBAddURL = handler.RoutePrefixV1 + "/placement"
+	DeprecatedM3DBAddURL = handler.RoutePrefixV1 + "/placement"
 
 	// M3DBAddURL is the url for the placement add handler (with the POST method)
 	// for the M3DB service.
@@ -48,7 +48,7 @@ const (
 
 	// M3AggAddURL is the url for the placement add handler (with the POST method)
 	// for the M3Agg service.
-	M3AggAddURL = handler.RoutePrefixV1 + "/services/m3db/placement"
+	M3AggAddURL = handler.RoutePrefixV1 + "/services/m3agg/placement"
 
 	// AddHTTPMethod is the HTTP method used with this resource.
 	AddHTTPMethod = http.MethodPost
@@ -132,8 +132,9 @@ func (h *AddHandler) Add(
 	}
 
 	serviceOpts := NewServiceOptionsFromHeaders(serviceName, httpReq.Header)
-	if serviceName == M3AggServiceName {
-		if req.MaxAggregationWindowSizeNanos == 0 || req.WarmupDurationNanos == 0 {
+	switch serviceName {
+	case M3AggServiceName:
+		if req.MaxAggregationWindowSizeNanos <= 0 || req.WarmupDurationNanos <= 0 {
 			return nil, errAggWindowAndWarmupMustBeSet
 		}
 		serviceOpts.M3Agg = &M3AggServiceOptions{
