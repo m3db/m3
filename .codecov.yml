@@ -8,6 +8,8 @@ coverage:
       default: on
       x:
         flags: x
+      collector:
+        flags: collector
       query:
         flags: query
       dbnode:
@@ -24,6 +26,9 @@ coverage:
       default: off
 
   flags:
+    collector:
+      paths:
+        - src/collector/
     query:
       paths:
         - src/query/

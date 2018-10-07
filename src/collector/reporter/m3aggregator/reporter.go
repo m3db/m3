@@ -27,8 +27,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	creporter "github.com/m3db/m3/src/collector/reporter"
 	"github.com/m3db/m3aggregator/client"
-	creporter "github.com/m3db/m3collector/reporter"
 	"github.com/m3db/m3metrics/matcher"
 	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric/id"
