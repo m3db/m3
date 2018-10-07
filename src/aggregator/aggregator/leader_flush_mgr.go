@@ -24,7 +24,7 @@ import (
 	"sync"
 	"time"
 
-	schema "github.com/m3db/m3aggregator/generated/proto/flush"
+	schema "github.com/m3db/m3/src/aggregator/generated/proto/flush"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/log"
 	xsync "github.com/m3db/m3x/sync"

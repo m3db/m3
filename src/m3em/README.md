@@ -3,7 +3,7 @@ m3em [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![Coverage Status][
 
 `m3em` (pronounced `meme`) is an acronym for M3 Environment Manager. [ccm](https://github.com/pcmanus/ccm)`:C* :: m3em:m3db`. Unlike `ccm`, `m3em` permits remote host operations.
 
-The goal of `m3em` is to make it easy to create, manage and destroy services across hosts. It is meant for testing clustered services like [m3db](https://github.com/m3db/m3db) and [m3aggregator](https://github.com/m3db/m3aggregator) .
+The goal of `m3em` is to make it easy to create, manage and destroy services across hosts. It is meant for testing clustered services like [m3db](https://github.com/m3db/m3) and [m3aggregator](https://github.com/m3db/m3aggregator) .
 
 [doc-img]: https://godoc.org/github.com/m3db/m3em?status.svg
 [doc]: https://godoc.org/github.com/m3db/m3em
@@ -21,7 +21,7 @@ There are two primary components in m3em:
 (2) `m3em_agent`: process running on remote hosts. It's responsible for process lifecycle, heartbeating back to the coordinating host.
 
 ## Usage Example
-- For API usage, refer `tools/dtest` in [M3DB](https://github.com/m3db/m3db)
+- For API usage, refer `tools/dtest` in [M3DB](https://github.com/m3db/m3)
 
 ### m3em_agent
 

@@ -27,8 +27,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3aggregator/aggregation"
-	"github.com/m3db/m3aggregator/aggregator"
+	"github.com/m3db/m3/src/aggregator/aggregation"
+	"github.com/m3db/m3/src/aggregator/aggregator"
 	maggregation "github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric"

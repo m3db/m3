@@ -21,7 +21,7 @@
 package router
 
 import (
-	"github.com/m3db/m3aggregator/aggregator/handler/common"
+	"github.com/m3db/m3/src/aggregator/aggregator/handler/common"
 	"github.com/m3db/m3msg/producer"
 )
 

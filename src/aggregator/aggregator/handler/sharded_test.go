@@ -23,9 +23,9 @@ package handler
 import (
 	"testing"
 
-	"github.com/m3db/m3aggregator/aggregator/handler/router"
-	"github.com/m3db/m3aggregator/aggregator/handler/writer"
-	"github.com/m3db/m3aggregator/sharding"
+	"github.com/m3db/m3/src/aggregator/aggregator/handler/router"
+	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
+	"github.com/m3db/m3/src/aggregator/sharding"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"

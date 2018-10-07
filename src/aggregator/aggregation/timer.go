@@ -21,7 +21,7 @@
 package aggregation
 
 import (
-	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
+	"github.com/m3db/m3/src/aggregator/aggregation/quantile/cm"
 	"github.com/m3db/m3metrics/aggregation"
 )
 

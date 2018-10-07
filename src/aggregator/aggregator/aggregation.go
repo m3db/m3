@@ -21,7 +21,7 @@
 package aggregator
 
 import (
-	"github.com/m3db/m3aggregator/aggregation"
+	"github.com/m3db/m3/src/aggregator/aggregation"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 )
 

@@ -23,7 +23,7 @@ package aggregator
 import (
 	"testing"
 
-	"github.com/m3db/m3aggregator/runtime"
+	"github.com/m3db/m3/src/aggregator/runtime"
 	"github.com/m3db/m3x/pool"
 
 	"github.com/stretchr/testify/require"

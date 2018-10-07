@@ -36,7 +36,7 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 	xlog "github.com/m3db/m3x/log"
 
-	gu "github.com/nu7hatch/gouuid"
+	uuid "github.com/satori/go.uuid"
 	"google.golang.org/grpc"
 )
 
@@ -78,10 +78,7 @@ func New(
 		return nil, err
 	}
 
-	uuid, err := gu.NewV4()
-	if err != nil {
-		return nil, err
-	}
+	uuid := uuid.NewV4().Bytes()
 
 	var (
 		retNode = &svcNode{

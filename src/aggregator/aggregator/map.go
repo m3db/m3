@@ -27,9 +27,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3aggregator/hash"
-	"github.com/m3db/m3aggregator/rate"
-	"github.com/m3db/m3aggregator/runtime"
+	"github.com/m3db/m3/src/aggregator/hash"
+	"github.com/m3db/m3/src/aggregator/rate"
+	"github.com/m3db/m3/src/aggregator/runtime"
 	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/aggregated"
@@ -54,7 +54,7 @@ var (
 type metricCategory int
 
 const (
-	// nolint: megacheck
+	// nolint
 	unknownMetricCategory metricCategory = iota
 	untimedMetric
 	forwardedMetric
@@ -90,6 +90,7 @@ func newMetricMapMetrics(scope tally.Scope) metricMapMetrics {
 
 // NB(xichen): use a type-specific list for hashedEntry if the conversion
 // overhead between interface{} and hashedEntry becomes a problem.
+// nolint: maligned
 type metricMap struct {
 	sync.RWMutex
 

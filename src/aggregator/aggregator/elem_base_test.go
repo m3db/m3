@@ -24,7 +24,7 @@ import (
 	"strings"
 	"testing"
 
-	raggregation "github.com/m3db/m3aggregator/aggregation"
+	raggregation "github.com/m3db/m3/src/aggregator/aggregation"
 	maggregation "github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/id"

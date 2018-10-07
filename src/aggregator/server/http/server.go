@@ -24,7 +24,7 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/m3db/m3aggregator/aggregator"
+	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3x/pprof"
 	xserver "github.com/m3db/m3x/server"
 )

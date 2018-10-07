@@ -25,7 +25,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/m3db/m3aggregator/aggregator"
+	"github.com/m3db/m3/src/aggregator/aggregator"
 	xsync "github.com/m3db/m3x/sync"
 )
 

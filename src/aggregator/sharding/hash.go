@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/m3db/m3metrics/metric/id"
+
 	"github.com/spaolacci/murmur3"
 )
 

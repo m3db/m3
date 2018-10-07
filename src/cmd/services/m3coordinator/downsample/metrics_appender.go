@@ -25,8 +25,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3metrics/matcher"
 	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3x/clock"

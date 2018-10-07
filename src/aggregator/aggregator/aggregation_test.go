@@ -23,8 +23,8 @@ package aggregator
 import (
 	"testing"
 
-	"github.com/m3db/m3aggregator/aggregation"
-	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
+	"github.com/m3db/m3/src/aggregator/aggregation"
+	"github.com/m3db/m3/src/aggregator/aggregation/quantile/cm"
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 

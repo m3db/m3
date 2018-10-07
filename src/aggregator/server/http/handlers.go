@@ -27,7 +27,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/m3db/m3aggregator/aggregator"
+	"github.com/m3db/m3/src/aggregator/aggregator"
 	xerrors "github.com/m3db/m3x/errors"
 )
 

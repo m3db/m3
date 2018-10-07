@@ -27,8 +27,8 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/m3db/m3aggregator/aggregator"
-	httpserver "github.com/m3db/m3aggregator/server/http"
+	"github.com/m3db/m3/src/aggregator/aggregator"
+	httpserver "github.com/m3db/m3/src/aggregator/server/http"
 )
 
 // aggregatorClient interacts with aggregator instances via aggregator endpoints.
@@ -56,7 +56,7 @@ type client struct {
 // newAggregatorClient creates a new aggregator client.
 func newAggregatorClient(httpClient *http.Client) aggregatorClient {
 	return &client{
-		httpClient: httpClient,
+		httpClient:  httpClient,
 		doRequestFn: httpClient.Do,
 	}
 }

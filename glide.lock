@@ -197,7 +197,7 @@ imports:
 - name: github.com/kr/logfmt
   version: b84e30acd515aadc4b783ad4ff83aff3299bdfe0
 - name: github.com/leanovate/gopter
-  version: f0356731348c8fffa27bab27c37ec8be5b0662c8
+  version: e2604588f4db2d2e5eb78ae75d615516f55873e3
   subpackages:
   - commands
   - gen
@@ -259,10 +259,8 @@ imports:
   - service/r2
   - service/r2/store
   - service/r2/store/kv
-- name: github.com/m3db/m3em
-  version: ed532baee45a440f0b08b6893c816634c6978d4d
 - name: github.com/m3db/m3metrics
-  version: b400256bc6da4c10bad5a5f0a11e91bfa095e2e6
+  version: 5c6aed344a0c209277d36334f0a824d9f3bb835b
   subpackages:
   - aggregation
   - encoding
@@ -361,7 +359,7 @@ imports:
   subpackages:
   - pbutil
 - name: github.com/mauricelam/genny
-  version: 9d8700bcc567cd22ea2ef42ce5835a9c80296c4a
+  version: eb2c5232c885956af3565a20ecf48555cab2b9bc
   subpackages:
   - generic
 - name: github.com/MichaelTJones/pcg
@@ -504,7 +502,7 @@ imports:
   subpackages:
   - codec
 - name: github.com/willf/bitset
-  version: 988f4f24992fc745de53c42df0da6581e42a6686
+  version: e553b05586428962bf7058d1044519d87ca72d74
 - name: github.com/xiang90/probing
   version: 07dd2e8dfe18522e9c447ba95f2fe95262f63bb2
 - name: go.uber.org/atomic

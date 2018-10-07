@@ -25,10 +25,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
-	"github.com/m3db/m3aggregator/aggregator/handler"
-	"github.com/m3db/m3aggregator/client"
-	"github.com/m3db/m3aggregator/runtime"
+	"github.com/m3db/m3/src/aggregator/aggregation/quantile/cm"
+	"github.com/m3db/m3/src/aggregator/aggregator/handler"
+	"github.com/m3db/m3/src/aggregator/client"
+	"github.com/m3db/m3/src/aggregator/runtime"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 

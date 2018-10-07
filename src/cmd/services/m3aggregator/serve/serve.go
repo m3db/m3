@@ -23,9 +23,9 @@ package serve
 import (
 	"fmt"
 
-	"github.com/m3db/m3aggregator/aggregator"
-	httpserver "github.com/m3db/m3aggregator/server/http"
-	rawtcpserver "github.com/m3db/m3aggregator/server/rawtcp"
+	"github.com/m3db/m3/src/aggregator/aggregator"
+	httpserver "github.com/m3db/m3/src/aggregator/server/http"
+	rawtcpserver "github.com/m3db/m3/src/aggregator/server/rawtcp"
 )
 
 // Serve starts serving RPC traffic.

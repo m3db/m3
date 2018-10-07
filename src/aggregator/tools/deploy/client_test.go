@@ -28,8 +28,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/m3db/m3aggregator/aggregator"
-	httpserver "github.com/m3db/m3aggregator/server/http"
+	"github.com/m3db/m3/src/aggregator/aggregator"
+	httpserver "github.com/m3db/m3/src/aggregator/server/http"
 
 	"github.com/stretchr/testify/require"
 )

@@ -25,12 +25,14 @@
 package mocks
 
 import (
-	context "context"
-	gomock "github.com/golang/mock/gomock"
-	models "github.com/m3db/m3/src/query/models"
-	tsdb "github.com/m3db/m3/src/query/tsdb"
-	reflect "reflect"
-	time "time"
+	"context"
+	"reflect"
+	"time"
+
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/tsdb"
+
+	"github.com/golang/mock/gomock"
 )
 
 // MockPolicyResolver is a mock of PolicyResolver interface

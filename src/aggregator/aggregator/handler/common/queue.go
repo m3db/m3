@@ -92,6 +92,7 @@ type Queue interface {
 	Close()
 }
 
+// nolint: maligned
 type queue struct {
 	sync.RWMutex
 

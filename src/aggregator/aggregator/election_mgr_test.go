@@ -29,7 +29,7 @@ import (
 	"testing"
 	"time"
 
-	schema "github.com/m3db/m3aggregator/generated/proto/flush"
+	schema "github.com/m3db/m3/src/aggregator/generated/proto/flush"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/services/leader/campaign"
