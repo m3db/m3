@@ -49,9 +49,10 @@ const (
 	defaultNamespace     = "integration"
 	defaultNamespacesKey = "namespaces"
 	defaultRuleSetKeyFmt = "rulesets/%s"
-	defaultRuleSetKey    = "rulesets/integration"
-	defaultNamespaceTag  = "namespace"
-	defaultNameTag       = "name"
+	// nolint: varcheck
+	defaultRuleSetKey   = "rulesets/integration"
+	defaultNamespaceTag = "namespace"
+	defaultNameTag      = "name"
 )
 
 func defaultStagedPlacementProto() (*placementpb.PlacementSnapshots, error) {
