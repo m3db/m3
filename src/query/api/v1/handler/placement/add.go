@@ -55,7 +55,7 @@ const (
 )
 
 var (
-	errAggWindowAndWarmupMustBeSet = errors.New("max aggregation window size and warmup duration msut be larger than zero")
+	errAggWindowAndWarmupMustBeSet = errors.New("max aggregation window size and warmup duration must be larger than zero")
 )
 
 // AddHandler is the handler for placement adds.

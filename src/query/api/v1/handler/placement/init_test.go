@@ -62,21 +62,29 @@ var (
 	}
 )
 
-func TestM3DBPlacementInitHandler(t *testing.T) {
+func TestPlacementInitHandler(t *testing.T) {
 	runForAllAllowedServices(func(serviceName string) {
 		mockClient, mockPlacementService := SetupPlacementTest(t)
 		handler := &InitHandler{mockClient, config.Configuration{}}
 
 		// Test placement init success
-		w := httptest.NewRecorder()
-		req := httptest.NewRequest(InitHTTPMethod, M3DBInitURL, strings.NewReader("{\"instances\": [{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234},{\"id\": \"host2\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host2:1234\",\"hostname\": \"host2\",\"port\": 1234}],\"num_shards\": 16,\"replication_factor\": 1}"))
+		var (
+			w   = httptest.NewRecorder()
+			req *http.Request
+		)
+		if serviceName == M3AggServiceName {
+			req = httptest.NewRequest(InitHTTPMethod, M3DBInitURL, strings.NewReader("{\"instances\": [{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234},{\"id\": \"host2\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host2:1234\",\"hostname\": \"host2\",\"port\": 1234}],\"num_shards\": 16,\"replication_factor\": 1, \"max_aggregation_window_size_nanos\": 1000000, \"warmup_duration_nanos\": 1000000}"))
+		} else {
+			req = httptest.NewRequest(InitHTTPMethod, M3DBInitURL, strings.NewReader("{\"instances\": [{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234},{\"id\": \"host2\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host2:1234\",\"hostname\": \"host2\",\"port\": 1234}],\"num_shards\": 16,\"replication_factor\": 1}"))
+		}
+
 		require.NotNil(t, req)
 
 		newPlacement, err := placement.NewPlacementFromProto(initTestPlacementProto)
 		require.NoError(t, err)
 
 		mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Not(nil), 16, 1).Return(newPlacement, nil)
-		handler.ServeHTTP(M3DBServiceName, w, req)
+		handler.ServeHTTP(serviceName, w, req)
 		resp := w.Result()
 		body, err := ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)
@@ -85,11 +93,15 @@ func TestM3DBPlacementInitHandler(t *testing.T) {
 
 		// Test error response
 		w = httptest.NewRecorder()
-		req = httptest.NewRequest(InitHTTPMethod, M3DBInitURL, strings.NewReader("{\"instances\": [{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"host1:1234\",\"hostname\": \"host1\",\"port\": 1234},{\"id\": \"host2\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host2:1234\",\"hostname\": \"host2\",\"port\": 1234}],\"num_shards\": 64,\"replication_factor\": 2}"))
+		if serviceName == M3AggServiceName {
+			req = httptest.NewRequest(InitHTTPMethod, M3DBInitURL, strings.NewReader("{\"instances\": [{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"host1:1234\",\"hostname\": \"host1\",\"port\": 1234},{\"id\": \"host2\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host2:1234\",\"hostname\": \"host2\",\"port\": 1234}],\"num_shards\": 64,\"replication_factor\": 2, \"max_aggregation_window_size_nanos\": 1000000, \"warmup_duration_nanos\": 1000000}"))
+		} else {
+			req = httptest.NewRequest(InitHTTPMethod, M3DBInitURL, strings.NewReader("{\"instances\": [{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"host1:1234\",\"hostname\": \"host1\",\"port\": 1234},{\"id\": \"host2\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host2:1234\",\"hostname\": \"host2\",\"port\": 1234}],\"num_shards\": 64,\"replication_factor\": 2}"))
+		}
 		require.NotNil(t, req)
 
 		mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Not(nil), 64, 2).Return(nil, errors.New("unable to build initial placement"))
-		handler.ServeHTTP(M3DBServiceName, w, req)
+		handler.ServeHTTP(serviceName, w, req)
 		resp = w.Result()
 		body, err = ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)

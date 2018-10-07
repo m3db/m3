@@ -43,8 +43,15 @@ func TestPlacementAddHandler_Force(t *testing.T) {
 		handler := NewAddHandler(mockClient, config.Configuration{})
 
 		// Test add failure
-		w := httptest.NewRecorder()
-		req := httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader("{\"force\": true, \"instances\":[]}"))
+		var (
+			w   = httptest.NewRecorder()
+			req *http.Request
+		)
+		if serviceName == M3AggServiceName {
+			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader("{\"force\": true, \"instances\":[], \"max_aggregation_window_size_nanos\": 1000000, \"warmup_duration_nanos\": 1000000}"))
+		} else {
+			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader("{\"force\": true, \"instances\":[]}"))
+		}
 		require.NotNil(t, req)
 
 		mockPlacementService.EXPECT().AddInstances(gomock.Any()).Return(placement.NewPlacement(), nil, errors.New("no new instances found in the valid zone"))
@@ -57,7 +64,11 @@ func TestPlacementAddHandler_Force(t *testing.T) {
 
 		// Test add success
 		w = httptest.NewRecorder()
-		req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader("{\"force\": true, \"instances\":[{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234}]}"))
+		if serviceName == M3AggServiceName {
+			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader("{\"force\": true, \"instances\":[{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234}], \"max_aggregation_window_size_nanos\": 1000000, \"warmup_duration_nanos\": 1000000}"))
+		} else {
+			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader("{\"force\": true, \"instances\":[{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234}]}"))
+		}
 		require.NotNil(t, req)
 
 		mockPlacementService.EXPECT().AddInstances(gomock.Not(nil)).Return(placement.NewPlacement(), nil, nil)
@@ -77,8 +88,15 @@ func TestPlacementAddHandler_SafeErr(t *testing.T) {
 		handler := NewAddHandler(mockClient, config.Configuration{})
 
 		// Test add failure
-		w := httptest.NewRecorder()
-		req := httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader("{\"instances\":[]}"))
+		var (
+			w   = httptest.NewRecorder()
+			req *http.Request
+		)
+		if serviceName == M3AggServiceName {
+			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader("{\"instances\":[], \"max_aggregation_window_size_nanos\": 1000000, \"warmup_duration_nanos\": 1000000}"))
+		} else {
+			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader("{\"instances\":[]}"))
+		}
 		require.NotNil(t, req)
 
 		mockPlacementService.EXPECT().Placement().Return(placement.NewPlacement(), 0, errors.New("no new instances found in the valid zone"))
@@ -92,7 +110,11 @@ func TestPlacementAddHandler_SafeErr(t *testing.T) {
 
 		// Current placement has initializing shards
 		w = httptest.NewRecorder()
-		req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader("{\"instances\":[{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234}]}"))
+		if serviceName == M3AggServiceName {
+			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader("{\"instances\":[{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234}], \"max_aggregation_window_size_nanos\": 1000000, \"warmup_duration_nanos\": 1000000}"))
+		} else {
+			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader("{\"instances\":[{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234}]}"))
+		}
 		require.NotNil(t, req)
 
 		mockPlacementService.EXPECT().Placement().Return(newInitPlacement(), 0, nil)
@@ -112,8 +134,15 @@ func TestPlacementAddHandler_SafeOK(t *testing.T) {
 		handler := NewAddHandler(mockClient, config.Configuration{})
 
 		// Test add error
-		w := httptest.NewRecorder()
-		req := httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader("{\"instances\":[{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234}]}"))
+		var (
+			w   = httptest.NewRecorder()
+			req *http.Request
+		)
+		if serviceName == M3AggServiceName {
+			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader("{\"instances\":[{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234}], \"max_aggregation_window_size_nanos\": 1000000, \"warmup_duration_nanos\": 1000000}"))
+		} else {
+			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader("{\"instances\":[{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234}]}"))
+		}
 		require.NotNil(t, req)
 
 		var (
@@ -142,7 +171,11 @@ func TestPlacementAddHandler_SafeOK(t *testing.T) {
 		require.Equal(t, `{"error":"test err"}`+"\n", string(body))
 
 		w = httptest.NewRecorder()
-		req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader("{\"instances\":[{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234}]}"))
+		if serviceName == M3AggServiceName {
+			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader("{\"instances\":[{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234}], \"max_aggregation_window_size_nanos\": 1000000, \"warmup_duration_nanos\": 1000000}"))
+		} else {
+			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader("{\"instances\":[{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234}]}"))
+		}
 		require.NotNil(t, req)
 
 		mockPlacementService.EXPECT().Placement().Return(existingPlacement, 0, nil)
