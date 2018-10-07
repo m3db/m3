@@ -45,13 +45,16 @@ const (
 	M3DBServiceName = "m3db"
 	// M3AggServiceName is the service name for M3Agg
 	M3AggServiceName = "m3agg"
-	// TODO: Delete me?
-	// DefaultServiceName is the default service ID name
-	DefaultServiceName = M3DBServiceName
+
 	// DefaultServiceEnvironment is the default service ID environment
 	DefaultServiceEnvironment = "default_env"
 	// DefaultServiceZone is the default service ID zone
 	DefaultServiceZone = "embedded"
+
+	// HeaderClusterEnvironmentName is the header used to specify the environment name.
+	HeaderClusterEnvironmentName = "Cluster-Environment-Name"
+	// HeaderClusterZoneName is the header used to specify the zone name.
+	HeaderClusterZoneName = "Cluster-Zone-Name"
 )
 
 var (
@@ -86,6 +89,19 @@ func NewServiceOptions(serviceName string) ServiceOptions {
 		ServiceEnvironment: DefaultServiceEnvironment,
 		ServiceZone:        DefaultServiceZone,
 	}
+}
+
+// NewServiceOptionsFromHeaders returns a ServiceOptions based on the
+// provided headers, if present.
+func NewServiceOptionsFromHeaders(serviceName string, headers http.Header) ServiceOptions {
+	opts := NewServiceOptions(serviceName)
+	if v := strings.TrimSpace(headers.Get(HeaderClusterEnvironmentName)); v != "" {
+		opts.ServiceEnvironment = v
+	}
+	if v := strings.TrimSpace(headers.Get(HeaderClusterZoneName)); v != "" {
+		opts.ServiceZone = v
+	}
+	return opts
 }
 
 // Service gets a placement service from m3cluster client

@@ -110,7 +110,8 @@ func (h *InitHandler) Init(
 	}
 
 	service, err := Service(
-		h.client, NewServiceOptions(serviceName))
+		h.client,
+		NewServiceOptionsFromHeaders(serviceName, httpReq.Header))
 	if err != nil {
 		return nil, err
 	}

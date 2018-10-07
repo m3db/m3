@@ -62,7 +62,8 @@ func (h *DeleteAllHandler) ServeHTTP(serviceName string, w http.ResponseWriter, 
 	logger := logging.WithContext(ctx)
 
 	service, err := Service(
-		h.client, NewServiceOptions(serviceName))
+		h.client,
+		NewServiceOptionsFromHeaders(serviceName, r.Header))
 	if err != nil {
 		handler.Error(w, err, http.StatusInternalServerError)
 		return

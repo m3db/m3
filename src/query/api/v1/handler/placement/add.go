@@ -126,7 +126,8 @@ func (h *AddHandler) Add(
 	}
 
 	service, algo, err := ServiceWithAlgo(
-		h.client, NewServiceOptions(serviceName))
+		h.client,
+		NewServiceOptionsFromHeaders(serviceName, httpReq.Header))
 	if err != nil {
 		return nil, err
 	}

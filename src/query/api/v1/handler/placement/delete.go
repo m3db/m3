@@ -79,7 +79,8 @@ func (h *DeleteHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *
 	force := r.FormValue(placementForceVar) == "true"
 
 	service, algo, err := ServiceWithAlgo(
-		h.client, NewServiceOptions(M3DBServiceName))
+		h.client,
+		NewServiceOptionsFromHeaders(M3DBServiceName, r.Header))
 	if err != nil {
 		handler.Error(w, err, http.StatusInternalServerError)
 		return

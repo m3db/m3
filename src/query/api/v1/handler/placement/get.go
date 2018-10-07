@@ -64,7 +64,8 @@ func (h *GetHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *htt
 	logger := logging.WithContext(ctx)
 
 	service, err := Service(
-		h.client, NewServiceOptions(serviceName))
+		h.client,
+		NewServiceOptionsFromHeaders(serviceName, r.Header))
 	if err != nil {
 		handler.Error(w, err, http.StatusInternalServerError)
 		return
