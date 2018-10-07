@@ -25,8 +25,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/m3db/m3/src/cmd/services/m3coordinator/x"
 	"github.com/m3db/m3/src/dbnode/serialize"
+	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
@@ -48,7 +48,7 @@ var (
 
 func isRollupID(
 	sortedTagPairs []byte,
-	iteratorPool *x.EncodedTagsIteratorPool,
+	iteratorPool *xserialize.EncodedTagsIteratorPool,
 ) bool {
 	iter := iteratorPool.Get()
 	iter.Reset(sortedTagPairs)
@@ -208,7 +208,7 @@ func (p *rollupIDProviderPool) Put(v *rollupIDProvider) {
 
 func resolveEncodedTagsNameTag(
 	id []byte,
-	iterPool *x.EncodedTagsIteratorPool,
+	iterPool *xserialize.EncodedTagsIteratorPool,
 	nameTag []byte,
 ) ([]byte, error) {
 	// ID is always the encoded tags for downsampling IDs
