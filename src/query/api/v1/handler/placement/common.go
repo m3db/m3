@@ -40,6 +40,16 @@ import (
 	"github.com/gorilla/mux"
 )
 
+type allowedServiceNamesSet map[string]bool
+
+func (a allowedServiceNamesSet) String() []string {
+	s := make([]string, 0, len(a))
+	for key := range a {
+		s = append(s, key)
+	}
+	return s
+}
+
 const (
 	// M3DBServiceName is the service name for M3DB
 	M3DBServiceName = "m3db"
@@ -63,8 +73,10 @@ var (
 	errServiceZoneIsRequired        = errors.New("service zone is required")
 	errUnableToParseService         = errors.New("unable to parse service")
 
-	// AllowedServiceNames is the list of allowed service names
-	AllowedServiceNames = []string{M3DBServiceName, M3AggServiceName}
+	allowedServiceNames = allowedServiceNamesSet{
+		M3DBServiceName:  true,
+		M3AggServiceName: true,
+	}
 )
 
 // Handler represents a generic handler for placement endpoints.
@@ -119,10 +131,10 @@ func ServiceWithAlgo(clusterClient clusterclient.Client, opts ServiceOptions) (p
 		return nil, nil, err
 	}
 
-	if !strSliceContains(AllowedServiceNames, opts.ServiceName) {
+	if _, ok := allowedServiceNames[opts.ServiceName]; !ok {
 		return nil, nil, fmt.Errorf(
-			"invalid service name: %s, must be one of: %v",
-			opts.ServiceName, AllowedServiceNames)
+			"invalid service name: %s, must be one of: %s",
+			opts.ServiceName, allowedServiceNames.String())
 	}
 	if opts.ServiceName == "" {
 		return nil, nil, errServiceNameIsRequired
@@ -306,16 +318,6 @@ func validateAllAvailable(p placement.Placement) error {
 	return nil
 }
 
-func strSliceContains(s []string, str string) bool {
-	for _, currStr := range s {
-		if str == currStr {
-			return true
-		}
-	}
-
-	return false
-}
-
 // ServeHTTPWithService is the interface for serving HTTP requests after
 // parsing the service name from the URL.
 type ServeHTTPWithService interface {
@@ -323,7 +325,7 @@ type ServeHTTPWithService interface {
 }
 
 func applyMiddleware(f func(serviceName string, w http.ResponseWriter, r *http.Request)) func(w http.ResponseWriter, r *http.Request) {
-	return logging.WithServiceNameResponseTimeLogging(
+	return logging.WithResponseTimeLoggingFunc(
 		parseServiceMiddleware(
 			f))
 }

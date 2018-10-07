@@ -13,10 +13,12 @@ info:
 host: "hostname:7201"
 basePath: "/api/v1"
 tags:
-- name: "namespace"
+- name: "M3DB Namespace"
   description: "Configuring M3DB namespaces"
-- name: "placement"
-  description: "Configuring M3DB placement"
+- name: "M3DB Placement"
+  description: "Configuring M3DB placements"
+  - name: "M3Agg Placement"
+  description: "Configuring M3Agg placements"
 - name: "database"
   description: "Database-wide functions"
 schemes:
