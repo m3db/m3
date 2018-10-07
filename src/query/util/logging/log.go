@@ -109,7 +109,7 @@ func WithContext(ctx context.Context) *zap.Logger {
 
 // WithResponseTimeLogging wraps around the given handler, providing response time logging
 func WithResponseTimeLogging(next http.Handler) http.Handler {
-	return http.HandlerFunc(WithResponseTimeLoggingFunc(next.ServeHTTP))
+	return WithResponseTimeLoggingFunc(next.ServeHTTP)
 }
 
 // WithResponseTimeLoggingFunc wraps around the http request handler function,
