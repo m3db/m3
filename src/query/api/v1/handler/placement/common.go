@@ -40,9 +40,9 @@ import (
 	"github.com/gorilla/mux"
 )
 
-type allowedServiceNamesSet map[string]bool
+type allowedServicesSet map[string]bool
 
-func (a allowedServiceNamesSet) String() []string {
+func (a allowedServicesSet) String() []string {
 	s := make([]string, 0, len(a))
 	for key := range a {
 		s = append(s, key)
@@ -73,7 +73,7 @@ var (
 	errServiceZoneIsRequired        = errors.New("service zone is required")
 	errUnableToParseService         = errors.New("unable to parse service")
 
-	allowedServiceNames = allowedServiceNamesSet{
+	allowedServices = allowedServicesSet{
 		M3DBServiceName:  true,
 		M3AggServiceName: true,
 	}
@@ -131,10 +131,10 @@ func ServiceWithAlgo(clusterClient clusterclient.Client, opts ServiceOptions) (p
 		return nil, nil, err
 	}
 
-	if _, ok := allowedServiceNames[opts.ServiceName]; !ok {
+	if _, ok := allowedServices[opts.ServiceName]; !ok {
 		return nil, nil, fmt.Errorf(
 			"invalid service name: %s, must be one of: %s",
-			opts.ServiceName, allowedServiceNames.String())
+			opts.ServiceName, allowedServices.String())
 	}
 	if opts.ServiceName == "" {
 		return nil, nil, errServiceNameIsRequired

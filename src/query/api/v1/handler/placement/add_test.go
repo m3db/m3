@@ -37,99 +37,127 @@ import (
 )
 
 func TestPlacementAddHandler_Force(t *testing.T) {
-	mockClient, mockPlacementService := SetupPlacementTest(t)
-	handler := NewAddHandler(mockClient, config.Configuration{})
+	runForAllAllowedServices(func(serviceName string) {
 
-	// Test add failure
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader("{\"force\": true, \"instances\":[]}"))
-	require.NotNil(t, req)
+		mockClient, mockPlacementService := SetupPlacementTest(t)
+		handler := NewAddHandler(mockClient, config.Configuration{})
 
-	mockPlacementService.EXPECT().AddInstances(gomock.Any()).Return(placement.NewPlacement(), nil, errors.New("no new instances found in the valid zone"))
-	handler.ServeHTTP(M3DBServiceName, w, req)
+		// Test add failure
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader("{\"force\": true, \"instances\":[]}"))
+		require.NotNil(t, req)
 
-	resp := w.Result()
-	body, _ := ioutil.ReadAll(resp.Body)
-	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-	assert.Equal(t, "{\"error\":\"no new instances found in the valid zone\"}\n", string(body))
+		mockPlacementService.EXPECT().AddInstances(gomock.Any()).Return(placement.NewPlacement(), nil, errors.New("no new instances found in the valid zone"))
+		handler.ServeHTTP(serviceName, w, req)
 
-	// Test add success
-	w = httptest.NewRecorder()
-	req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader("{\"force\": true, \"instances\":[{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234}]}"))
-	require.NotNil(t, req)
+		resp := w.Result()
+		body, _ := ioutil.ReadAll(resp.Body)
+		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+		assert.Equal(t, "{\"error\":\"no new instances found in the valid zone\"}\n", string(body))
 
-	mockPlacementService.EXPECT().AddInstances(gomock.Not(nil)).Return(placement.NewPlacement(), nil, nil)
-	handler.ServeHTTP(M3DBServiceName, w, req)
+		// Test add success
+		w = httptest.NewRecorder()
+		req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader("{\"force\": true, \"instances\":[{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234}]}"))
+		require.NotNil(t, req)
 
-	resp = w.Result()
-	body, _ = ioutil.ReadAll(resp.Body)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "{\"placement\":{\"instances\":{},\"replicaFactor\":0,\"numShards\":0,\"isSharded\":false,\"cutoverTime\":\"0\",\"isMirrored\":false,\"maxShardSetId\":0},\"version\":0}", string(body))
+		mockPlacementService.EXPECT().AddInstances(gomock.Not(nil)).Return(placement.NewPlacement(), nil, nil)
+		handler.ServeHTTP(serviceName, w, req)
+
+		resp = w.Result()
+		body, _ = ioutil.ReadAll(resp.Body)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, "{\"placement\":{\"instances\":{},\"replicaFactor\":0,\"numShards\":0,\"isSharded\":false,\"cutoverTime\":\"0\",\"isMirrored\":false,\"maxShardSetId\":0},\"version\":0}", string(body))
+
+	})
 }
 
 func TestPlacementAddHandler_SafeErr(t *testing.T) {
-	mockClient, mockPlacementService := SetupPlacementTest(t)
-	handler := NewAddHandler(mockClient, config.Configuration{})
+	runForAllAllowedServices(func(serviceName string) {
+		mockClient, mockPlacementService := SetupPlacementTest(t)
+		handler := NewAddHandler(mockClient, config.Configuration{})
 
-	// Test add failure
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader("{\"instances\":[]}"))
-	require.NotNil(t, req)
+		// Test add failure
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader("{\"instances\":[]}"))
+		require.NotNil(t, req)
 
-	mockPlacementService.EXPECT().Placement().Return(placement.NewPlacement(), 0, errors.New("no new instances found in the valid zone"))
-	mockPlacementService.EXPECT().AddInstances(gomock.Any()).Return(placement.NewPlacement(), nil, errors.New("no new instances found in the valid zone"))
-	handler.ServeHTTP(M3DBServiceName, w, req)
+		mockPlacementService.EXPECT().Placement().Return(placement.NewPlacement(), 0, errors.New("no new instances found in the valid zone"))
+		mockPlacementService.EXPECT().AddInstances(gomock.Any()).Return(placement.NewPlacement(), nil, errors.New("no new instances found in the valid zone"))
+		handler.ServeHTTP(serviceName, w, req)
 
-	resp := w.Result()
-	body, _ := ioutil.ReadAll(resp.Body)
-	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-	assert.Equal(t, "{\"error\":\"no new instances found in the valid zone\"}\n", string(body))
+		resp := w.Result()
+		body, _ := ioutil.ReadAll(resp.Body)
+		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+		assert.Equal(t, "{\"error\":\"no new instances found in the valid zone\"}\n", string(body))
 
-	// Current placement has initializing shards
-	w = httptest.NewRecorder()
-	req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader("{\"instances\":[{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234}]}"))
-	require.NotNil(t, req)
+		// Current placement has initializing shards
+		w = httptest.NewRecorder()
+		req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader("{\"instances\":[{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234}]}"))
+		require.NotNil(t, req)
 
-	mockPlacementService.EXPECT().Placement().Return(newInitPlacement(), 0, nil)
-	mockPlacementService.EXPECT().AddInstances(gomock.Not(nil)).Return(placement.NewPlacement(), nil, nil)
-	handler.ServeHTTP(M3DBServiceName, w, req)
+		mockPlacementService.EXPECT().Placement().Return(newInitPlacement(), 0, nil)
+		mockPlacementService.EXPECT().AddInstances(gomock.Not(nil)).Return(placement.NewPlacement(), nil, nil)
+		handler.ServeHTTP(serviceName, w, req)
 
-	resp = w.Result()
-	body, _ = ioutil.ReadAll(resp.Body)
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	assert.Equal(t, `{"error":"instances [A,B] do not have all shards available"}`+"\n", string(body))
+		resp = w.Result()
+		body, _ = ioutil.ReadAll(resp.Body)
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		assert.Equal(t, `{"error":"instances [A,B] do not have all shards available"}`+"\n", string(body))
+	})
 }
 
 func TestPlacementAddHandler_SafeOK(t *testing.T) {
-	mockClient, mockPlacementService := SetupPlacementTest(t)
-	handler := NewAddHandler(mockClient, config.Configuration{})
+	runForAllAllowedServices(func(serviceName string) {
+		mockClient, mockPlacementService := SetupPlacementTest(t)
+		handler := NewAddHandler(mockClient, config.Configuration{})
 
-	// Test add error
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader("{\"instances\":[{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234}]}"))
-	require.NotNil(t, req)
+		// Test add error
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader("{\"instances\":[{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234}]}"))
+		require.NotNil(t, req)
 
-	mockPlacementService.EXPECT().Placement().Return(placement.NewPlacement().SetIsSharded(true), 0, nil)
-	mockPlacementService.EXPECT().AddInstances(gomock.Not(nil)).Return(placement.NewPlacement(), nil, nil)
-	mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0).Return(errors.New("test err"))
-	handler.ServeHTTP(M3DBServiceName, w, req)
+		var (
+			existingPlacement = placement.NewPlacement().
+						SetIsSharded(true)
+			newPlacement = placement.NewPlacement().
+					SetIsSharded(true)
+		)
 
-	resp := w.Result()
-	body, _ := ioutil.ReadAll(resp.Body)
-	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-	assert.Equal(t, `{"error":"test err"}`+"\n", string(body))
+		if serviceName == M3AggServiceName {
+			existingPlacement = existingPlacement.
+				SetIsMirrored(true).
+				SetReplicaFactor(1)
+			newPlacement = newPlacement.
+				SetIsMirrored(true).
+				SetReplicaFactor(1)
+		}
+		mockPlacementService.EXPECT().Placement().Return(existingPlacement, 0, nil)
+		mockPlacementService.EXPECT().AddInstances(gomock.Not(nil)).Return(newPlacement, nil, nil)
+		mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0).Return(errors.New("test err"))
+		handler.ServeHTTP(serviceName, w, req)
 
-	w = httptest.NewRecorder()
-	req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader("{\"instances\":[{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234}]}"))
-	require.NotNil(t, req)
+		resp := w.Result()
+		body, _ := ioutil.ReadAll(resp.Body)
+		require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+		require.Equal(t, `{"error":"test err"}`+"\n", string(body))
 
-	mockPlacementService.EXPECT().Placement().Return(placement.NewPlacement().SetIsSharded(true), 0, nil)
-	mockPlacementService.EXPECT().AddInstances(gomock.Not(nil)).Return(placement.NewPlacement(), nil, nil)
-	mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0).Return(nil)
-	handler.ServeHTTP(M3DBServiceName, w, req)
+		w = httptest.NewRecorder()
+		req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader("{\"instances\":[{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234}]}"))
+		require.NotNil(t, req)
 
-	resp = w.Result()
-	body, _ = ioutil.ReadAll(resp.Body)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "{\"placement\":{\"instances\":{},\"replicaFactor\":0,\"numShards\":0,\"isSharded\":true,\"cutoverTime\":\"0\",\"isMirrored\":false,\"maxShardSetId\":0},\"version\":1}", string(body))
+		mockPlacementService.EXPECT().Placement().Return(existingPlacement, 0, nil)
+		mockPlacementService.EXPECT().AddInstances(gomock.Not(nil)).Return(newPlacement, nil, nil)
+		mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0).Return(nil)
+		handler.ServeHTTP(serviceName, w, req)
+
+		resp = w.Result()
+		body, _ = ioutil.ReadAll(resp.Body)
+
+		if serviceName == M3AggServiceName {
+			require.Equal(t, "{\"placement\":{\"instances\":{},\"replicaFactor\":1,\"numShards\":0,\"isSharded\":true,\"cutoverTime\":\"0\",\"isMirrored\":true,\"maxShardSetId\":0},\"version\":1}", string(body))
+		} else {
+			require.Equal(t, "{\"placement\":{\"instances\":{},\"replicaFactor\":0,\"numShards\":0,\"isSharded\":true,\"cutoverTime\":\"0\",\"isMirrored\":false,\"maxShardSetId\":0},\"version\":1}", string(body))
+		}
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+	})
 }

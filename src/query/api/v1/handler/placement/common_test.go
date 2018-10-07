@@ -246,3 +246,9 @@ func TestValidateAllAvailable(t *testing.T) {
 	p = newInitPlacement()
 	assert.Error(t, validateAllAvailable(p))
 }
+
+func runForAllAllowedServices(f func(service string)) {
+	for service := range allowedServices {
+		f(service)
+	}
+}

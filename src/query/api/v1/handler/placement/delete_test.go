@@ -38,114 +38,121 @@ import (
 )
 
 func TestPlacementDeleteHandler_Force(t *testing.T) {
-	mockClient, mockPlacementService := SetupPlacementTest(t)
-	handler := NewDeleteHandler(mockClient, config.Configuration{})
+	runForAllAllowedServices(func(serviceName string) {
+		mockClient, mockPlacementService := SetupPlacementTest(t)
+		handler := NewDeleteHandler(mockClient, config.Configuration{})
 
-	// Test remove success
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest(DeleteHTTPMethod, "/placement/host1?force=true", nil)
-	req = mux.SetURLVars(req, map[string]string{"id": "host1"})
-	require.NotNil(t, req)
-	mockPlacementService.EXPECT().RemoveInstances([]string{"host1"}).Return(placement.NewPlacement(), nil)
-	handler.ServeHTTP(M3DBServiceName, w, req)
+		// Test remove success
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(DeleteHTTPMethod, "/placement/host1?force=true", nil)
+		req = mux.SetURLVars(req, map[string]string{"id": "host1"})
+		require.NotNil(t, req)
+		mockPlacementService.EXPECT().RemoveInstances([]string{"host1"}).Return(placement.NewPlacement(), nil)
+		handler.ServeHTTP(serviceName, w, req)
 
-	resp := w.Result()
-	body, err := ioutil.ReadAll(resp.Body)
-	assert.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "{\"placement\":{\"instances\":{},\"replicaFactor\":0,\"numShards\":0,\"isSharded\":false,\"cutoverTime\":\"0\",\"isMirrored\":false,\"maxShardSetId\":0},\"version\":0}", string(body))
+		resp := w.Result()
+		body, err := ioutil.ReadAll(resp.Body)
+		assert.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, "{\"placement\":{\"instances\":{},\"replicaFactor\":0,\"numShards\":0,\"isSharded\":false,\"cutoverTime\":\"0\",\"isMirrored\":false,\"maxShardSetId\":0},\"version\":0}", string(body))
 
-	// Test remove failure
-	w = httptest.NewRecorder()
-	req = httptest.NewRequest(DeleteHTTPMethod, "/placement/nope?force=true", nil)
-	req = mux.SetURLVars(req, map[string]string{"id": "nope"})
-	require.NotNil(t, req)
-	mockPlacementService.EXPECT().RemoveInstances([]string{"nope"}).Return(placement.NewPlacement(), errors.New("ID does not exist"))
-	handler.ServeHTTP(M3DBServiceName, w, req)
+		// Test remove failure
+		w = httptest.NewRecorder()
+		req = httptest.NewRequest(DeleteHTTPMethod, "/placement/nope?force=true", nil)
+		req = mux.SetURLVars(req, map[string]string{"id": "nope"})
+		require.NotNil(t, req)
+		mockPlacementService.EXPECT().RemoveInstances([]string{"nope"}).Return(placement.NewPlacement(), errors.New("ID does not exist"))
+		handler.ServeHTTP(serviceName, w, req)
 
-	resp = w.Result()
-	body, err = ioutil.ReadAll(resp.Body)
-	assert.NoError(t, err)
-	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
-	assert.Equal(t, "{\"error\":\"ID does not exist\"}\n", string(body))
+		resp = w.Result()
+		body, err = ioutil.ReadAll(resp.Body)
+		assert.NoError(t, err)
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+		assert.Equal(t, "{\"error\":\"ID does not exist\"}\n", string(body))
+	})
 }
 
 func TestPlacementDeleteHandler_Safe(t *testing.T) {
-	mockClient, mockPlacementService := SetupPlacementTest(t)
-	handler := NewDeleteHandler(mockClient, config.Configuration{})
+	runForAllAllowedServices(func(serviceName string) {
+		var (
+			mockClient, mockPlacementService = SetupPlacementTest(t)
+			handler                          = NewDeleteHandler(mockClient, config.Configuration{})
 
-	basePlacement := placement.NewPlacement().
-		SetIsSharded(true)
+			basePlacement = placement.NewPlacement().
+					SetIsSharded(true)
 
-	// Test remove absent host
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest(DeleteHTTPMethod, "/placement/host1", nil)
-	req = mux.SetURLVars(req, map[string]string{"id": "host1"})
-	require.NotNil(t, req)
-	mockPlacementService.EXPECT().Placement().Return(basePlacement, 0, nil)
-	handler.ServeHTTP(M3DBServiceName, w, req)
+			// Test remove absent host
+			w   = httptest.NewRecorder()
+			req = httptest.NewRequest(DeleteHTTPMethod, "/placement/host1", nil)
+		)
 
-	resp := w.Result()
-	body, err := ioutil.ReadAll(resp.Body)
-	assert.NoError(t, err)
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	assert.Equal(t, `{"error":"instance host1 does not exist in placement"}`+"\n", string(body))
+		req = mux.SetURLVars(req, map[string]string{"id": "host1"})
+		require.NotNil(t, req)
+		mockPlacementService.EXPECT().Placement().Return(basePlacement, 0, nil)
+		handler.ServeHTTP(serviceName, w, req)
 
-	// Test remove host when placement unsafe
-	basePlacement = basePlacement.SetInstances([]placement.Instance{
-		placement.NewInstance().SetID("host1").SetShards(shard.NewShards([]shard.Shard{
-			shard.NewShard(2).SetState(shard.Available),
-		})),
-		placement.NewInstance().SetID("host2").SetShards(shard.NewShards([]shard.Shard{
-			shard.NewShard(1).SetState(shard.Leaving),
-		})),
+		resp := w.Result()
+		body, err := ioutil.ReadAll(resp.Body)
+		assert.NoError(t, err)
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		assert.Equal(t, `{"error":"instance host1 does not exist in placement"}`+"\n", string(body))
+
+		// Test remove host when placement unsafe
+		basePlacement = basePlacement.SetInstances([]placement.Instance{
+			placement.NewInstance().SetID("host1").SetShards(shard.NewShards([]shard.Shard{
+				shard.NewShard(2).SetState(shard.Available),
+			})),
+			placement.NewInstance().SetID("host2").SetShards(shard.NewShards([]shard.Shard{
+				shard.NewShard(1).SetState(shard.Leaving),
+			})),
+		})
+
+		w = httptest.NewRecorder()
+		req = httptest.NewRequest(DeleteHTTPMethod, "/placement/host1", nil)
+		req = mux.SetURLVars(req, map[string]string{"id": "host1"})
+		require.NotNil(t, req)
+		mockPlacementService.EXPECT().Placement().Return(basePlacement, 0, nil)
+		handler.ServeHTTP(serviceName, w, req)
+
+		resp = w.Result()
+		body, err = ioutil.ReadAll(resp.Body)
+		assert.NoError(t, err)
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		assert.Equal(t, `{"error":"instances [host2] do not have all shards available"}`+"\n", string(body))
+
+		// Test OK
+		basePlacement = basePlacement.SetReplicaFactor(2).SetMaxShardSetID(2).SetInstances([]placement.Instance{
+			placement.NewInstance().SetID("host1").SetIsolationGroup("a").SetWeight(10).
+				SetShards(shard.NewShards([]shard.Shard{
+					shard.NewShard(0).SetState(shard.Available),
+				})),
+			placement.NewInstance().SetID("host2").SetIsolationGroup("b").SetWeight(10).
+				SetShards(shard.NewShards([]shard.Shard{
+					shard.NewShard(0).SetState(shard.Available),
+					shard.NewShard(1).SetState(shard.Available),
+				})),
+			placement.NewInstance().SetID("host3").SetIsolationGroup("c").SetWeight(10).
+				SetShards(shard.NewShards([]shard.Shard{
+					shard.NewShard(1).SetState(shard.Available),
+				})),
+		})
+
+		w = httptest.NewRecorder()
+		req = httptest.NewRequest(DeleteHTTPMethod, "/placement/host1", nil)
+		req = mux.SetURLVars(req, map[string]string{"id": "host1"})
+		require.NotNil(t, req)
+		mockPlacementService.EXPECT().Placement().Return(basePlacement, 1, nil)
+		mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 1).Return(nil)
+		handler.ServeHTTP(serviceName, w, req)
+
+		resp = w.Result()
+		body, err = ioutil.ReadAll(resp.Body)
+		assert.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, "{\"placement\":{\"instances\":{\"host1\":{\"id\":\"host1\",\"isolationGroup\":\"a\",\"zone\":\"\",\"weight\":10,\"endpoint\":\"\",\"shards\":[{\"id\":0,\"state\":\"LEAVING\",\"sourceId\":\"\","+
+			"\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"}],\"shardSetId\":0,\"hostname\":\"\",\"port\":0},\"host2\":{\"id\":\"host2\",\"isolationGroup\":\"b\",\"zone\":\"\",\"weight\":10,\"endpoint\":\"\",\"shards\":"+
+			"[{\"id\":0,\"state\":\"AVAILABLE\",\"sourceId\":\"\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"},{\"id\":1,\"state\":\"AVAILABLE\",\"sourceId\":\"\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"}],"+
+			"\"shardSetId\":0,\"hostname\":\"\",\"port\":0},\"host3\":{\"id\":\"host3\",\"isolationGroup\":\"c\",\"zone\":\"\",\"weight\":10,\"endpoint\":\"\",\"shards\":[{\"id\":0,\"state\":\"INITIALIZING\",\"sourceId\":\"host1\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"},"+
+			"{\"id\":1,\"state\":\"AVAILABLE\",\"sourceId\":\"\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"}],\"shardSetId\":0,\"hostname\":\"\",\"port\":0}},\"replicaFactor\":2,\"numShards\":0,\"isSharded\":true,\"cutoverTime\":\"0\",\"isMirrored\":false,\"maxShardSetId\":2},\"version\":2}", string(body))
 	})
-
-	w = httptest.NewRecorder()
-	req = httptest.NewRequest(DeleteHTTPMethod, "/placement/host1", nil)
-	req = mux.SetURLVars(req, map[string]string{"id": "host1"})
-	require.NotNil(t, req)
-	mockPlacementService.EXPECT().Placement().Return(basePlacement, 0, nil)
-	handler.ServeHTTP(M3DBServiceName, w, req)
-
-	resp = w.Result()
-	body, err = ioutil.ReadAll(resp.Body)
-	assert.NoError(t, err)
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	assert.Equal(t, `{"error":"instances [host2] do not have all shards available"}`+"\n", string(body))
-
-	// Test OK
-	basePlacement = basePlacement.SetReplicaFactor(2).SetMaxShardSetID(2).SetInstances([]placement.Instance{
-		placement.NewInstance().SetID("host1").SetIsolationGroup("a").SetWeight(10).
-			SetShards(shard.NewShards([]shard.Shard{
-				shard.NewShard(0).SetState(shard.Available),
-			})),
-		placement.NewInstance().SetID("host2").SetIsolationGroup("b").SetWeight(10).
-			SetShards(shard.NewShards([]shard.Shard{
-				shard.NewShard(0).SetState(shard.Available),
-				shard.NewShard(1).SetState(shard.Available),
-			})),
-		placement.NewInstance().SetID("host3").SetIsolationGroup("c").SetWeight(10).
-			SetShards(shard.NewShards([]shard.Shard{
-				shard.NewShard(1).SetState(shard.Available),
-			})),
-	})
-
-	w = httptest.NewRecorder()
-	req = httptest.NewRequest(DeleteHTTPMethod, "/placement/host1", nil)
-	req = mux.SetURLVars(req, map[string]string{"id": "host1"})
-	require.NotNil(t, req)
-	mockPlacementService.EXPECT().Placement().Return(basePlacement, 1, nil)
-	mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 1).Return(nil)
-	handler.ServeHTTP(M3DBServiceName, w, req)
-
-	resp = w.Result()
-	body, err = ioutil.ReadAll(resp.Body)
-	assert.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "{\"placement\":{\"instances\":{\"host1\":{\"id\":\"host1\",\"isolationGroup\":\"a\",\"zone\":\"\",\"weight\":10,\"endpoint\":\"\",\"shards\":[{\"id\":0,\"state\":\"LEAVING\",\"sourceId\":\"\","+
-		"\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"}],\"shardSetId\":0,\"hostname\":\"\",\"port\":0},\"host2\":{\"id\":\"host2\",\"isolationGroup\":\"b\",\"zone\":\"\",\"weight\":10,\"endpoint\":\"\",\"shards\":"+
-		"[{\"id\":0,\"state\":\"AVAILABLE\",\"sourceId\":\"\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"},{\"id\":1,\"state\":\"AVAILABLE\",\"sourceId\":\"\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"}],"+
-		"\"shardSetId\":0,\"hostname\":\"\",\"port\":0},\"host3\":{\"id\":\"host3\",\"isolationGroup\":\"c\",\"zone\":\"\",\"weight\":10,\"endpoint\":\"\",\"shards\":[{\"id\":0,\"state\":\"INITIALIZING\",\"sourceId\":\"host1\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"},"+
-		"{\"id\":1,\"state\":\"AVAILABLE\",\"sourceId\":\"\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"}],\"shardSetId\":0,\"hostname\":\"\",\"port\":0}},\"replicaFactor\":2,\"numShards\":0,\"isSharded\":true,\"cutoverTime\":\"0\",\"isMirrored\":false,\"maxShardSetId\":2},\"version\":2}", string(body))
 }
