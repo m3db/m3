@@ -60,12 +60,19 @@ func NewGetHandler(client clusterclient.Client, cfg config.Configuration) *GetHa
 }
 
 func (h *GetHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	logger := logging.WithContext(ctx)
+	var (
+		ctx    = r.Context()
+		logger = logging.WithContext(ctx)
+		opts   = NewServiceOptionsFromHeaders(serviceName, r.Header)
+	)
 
-	service, err := Service(
-		h.client,
-		NewServiceOptionsFromHeaders(serviceName, r.Header))
+	if serviceName == M3AggServiceName {
+		// Use default M3Agg values because we're getting the placement
+		// so the specific values don't matter.
+		opts = NewServiceOptionsWithDefaultM3AggValues(r.Header)
+	}
+
+	service, err := Service(h.client, opts)
 	if err != nil {
 		handler.Error(w, err, http.StatusInternalServerError)
 		return

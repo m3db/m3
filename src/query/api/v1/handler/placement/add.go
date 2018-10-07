@@ -21,8 +21,10 @@
 package placement
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
@@ -50,6 +52,10 @@ const (
 
 	// AddHTTPMethod is the HTTP method used with this resource.
 	AddHTTPMethod = http.MethodPost
+)
+
+var (
+	errAggWindowAndWarmupMustBeSet = errors.New("max aggregation window size and warmup duration msut be larger than zero")
 )
 
 // AddHandler is the handler for placement adds.
@@ -125,9 +131,17 @@ func (h *AddHandler) Add(
 		return nil, err
 	}
 
-	service, algo, err := ServiceWithAlgo(
-		h.client,
-		NewServiceOptionsFromHeaders(serviceName, httpReq.Header))
+	serviceOpts := NewServiceOptionsFromHeaders(serviceName, httpReq.Header)
+	if serviceName == M3AggServiceName {
+		if req.MaxAggregationWindowSizeNanos == 0 || req.WarmupDurationNanos == 0 {
+			return nil, errAggWindowAndWarmupMustBeSet
+		}
+		serviceOpts.M3Agg = &M3AggServiceOptions{
+			MaxAggregationWindowSize: time.Duration(req.MaxAggregationWindowSizeNanos),
+			WarmupDuration:           time.Duration(req.WarmupDurationNanos),
+		}
+	}
+	service, algo, err := ServiceWithAlgo(h.client, serviceOpts)
 	if err != nil {
 		return nil, err
 	}

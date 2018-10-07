@@ -22,6 +22,7 @@ package placement
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
@@ -109,9 +110,18 @@ func (h *InitHandler) Init(
 		return nil, err
 	}
 
-	service, err := Service(
-		h.client,
-		NewServiceOptionsFromHeaders(serviceName, httpReq.Header))
+	serviceOpts := NewServiceOptionsFromHeaders(serviceName, httpReq.Header)
+	if serviceName == M3AggServiceName {
+		if req.MaxAggregationWindowSizeNanos == 0 || req.WarmupDurationNanos == 0 {
+			return nil, errAggWindowAndWarmupMustBeSet
+		}
+		serviceOpts.M3Agg = &M3AggServiceOptions{
+			MaxAggregationWindowSize: time.Duration(req.MaxAggregationWindowSizeNanos),
+			WarmupDuration:           time.Duration(req.WarmupDurationNanos),
+		}
+	}
+
+	service, err := Service(h.client, serviceOpts)
 	if err != nil {
 		return nil, err
 	}

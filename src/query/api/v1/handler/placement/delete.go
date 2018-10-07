@@ -67,20 +67,30 @@ func NewDeleteHandler(client clusterclient.Client, cfg config.Configuration) *De
 }
 
 func (h *DeleteHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	logger := logging.WithContext(ctx)
-	id := mux.Vars(r)[placementIDVar]
+	var (
+		ctx    = r.Context()
+		logger = logging.WithContext(ctx)
+		id     = mux.Vars(r)[placementIDVar]
+	)
+
 	if id == "" {
 		logger.Error("no placement ID provided to delete", zap.Any("error", errEmptyID))
 		handler.Error(w, errEmptyID, http.StatusBadRequest)
 		return
 	}
 
-	force := r.FormValue(placementForceVar) == "true"
+	var (
+		force = r.FormValue(placementForceVar) == "true"
+		opts  = NewServiceOptionsFromHeaders(serviceName, r.Header)
+	)
 
-	service, algo, err := ServiceWithAlgo(
-		h.client,
-		NewServiceOptionsFromHeaders(M3DBServiceName, r.Header))
+	if serviceName == M3AggServiceName {
+		// Use default M3Agg values because we're deleting the placement
+		// so the specific values don't matter.
+		opts = NewServiceOptionsWithDefaultM3AggValues(r.Header)
+	}
+
+	service, algo, err := ServiceWithAlgo(h.client, opts)
 	if err != nil {
 		handler.Error(w, err, http.StatusInternalServerError)
 		return

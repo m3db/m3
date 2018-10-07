@@ -72,6 +72,7 @@ var (
 	errServiceEnvironmentIsRequired = errors.New("service environment is required")
 	errServiceZoneIsRequired        = errors.New("service zone is required")
 	errUnableToParseService         = errors.New("unable to parse service")
+	errM3AggServiceOptionsRequired  = errors.New("m3agg service options are required")
 
 	allowedServices = allowedServicesSet{
 		M3DBServiceName:  true,
@@ -92,6 +93,15 @@ type ServiceOptions struct {
 	ServiceName        string
 	ServiceEnvironment string
 	ServiceZone        string
+
+	M3Agg *M3AggServiceOptions
+}
+
+// M3AggServiceOptions contains the service options that are
+// specific to the M3Agg service.
+type M3AggServiceOptions struct {
+	MaxAggregationWindowSize time.Duration
+	WarmupDuration           time.Duration
 }
 
 // NewServiceOptions returns a ServiceOptions with default options.
@@ -112,6 +122,18 @@ func NewServiceOptionsFromHeaders(serviceName string, headers http.Header) Servi
 	}
 	if v := strings.TrimSpace(headers.Get(HeaderClusterZoneName)); v != "" {
 		opts.ServiceZone = v
+	}
+	return opts
+}
+
+// NewServiceOptionsWithDefaultM3AggValues returns a ServiceOptions with
+// default M3Agg values to be used in the situation where the M3Agg values
+// don't matter.
+func NewServiceOptionsWithDefaultM3AggValues(headers http.Header) ServiceOptions {
+	opts := NewServiceOptionsFromHeaders(M3AggServiceName, headers)
+	opts.M3Agg = &M3AggServiceOptions{
+		MaxAggregationWindowSize: time.Hour,
+		WarmupDuration:           5 * time.Minute,
 	}
 	return opts
 }
@@ -145,6 +167,9 @@ func ServiceWithAlgo(clusterClient clusterclient.Client, opts ServiceOptions) (p
 	if opts.ServiceZone == "" {
 		return nil, nil, errServiceZoneIsRequired
 	}
+	if opts.ServiceName == M3AggServiceName && opts.M3Agg == nil {
+		return nil, nil, errM3AggServiceOptionsRequired
+	}
 
 	sid := services.NewServiceID().
 		SetName(opts.ServiceName).
@@ -154,19 +179,17 @@ func ServiceWithAlgo(clusterClient clusterclient.Client, opts ServiceOptions) (p
 	pOpts := placement.NewOptions().
 		SetValidZone(opts.ServiceZone).
 		SetIsSharded(true).
-		// Can use goal-based placement for both M3DB and
+		// Can use goal-based placement for both M3DB and M3Agg
 		SetIsStaged(false).
 		// TODO: make config
 		SetDryrun(false)
 
-	var (
-		// TODO: Make a parameter
-		// TODO: inject / config
-		maxAggregationWindowSize = time.Hour
-		warmupDuration           = 5 * time.Minute
-		now                      = time.Now()
-	)
 	if opts.ServiceName == M3AggServiceName {
+		var (
+			maxAggregationWindowSize = opts.M3Agg.MaxAggregationWindowSize
+			warmupDuration           = opts.M3Agg.WarmupDuration
+			now                      = time.Now()
+		)
 		pOpts = pOpts.
 			SetIsMirrored(true).
 			// TODO(rartoul): Do we need to set placement cutover time? Seems like that would
