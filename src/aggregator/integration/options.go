@@ -23,9 +23,9 @@ package integration
 import (
 	"time"
 
-	"github.com/m3db/m3aggregator/aggregator"
-	aggclient "github.com/m3db/m3aggregator/client"
-	"github.com/m3db/m3aggregator/sharding"
+	"github.com/m3db/m3/src/aggregator/aggregator"
+	aggclient "github.com/m3db/m3/src/aggregator/client"
+	"github.com/m3db/m3/src/aggregator/sharding"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3metrics/aggregation"
@@ -190,6 +190,7 @@ type testServerOptions interface {
 	DiscardNaNAggregatedValues() bool
 }
 
+// nolint: maligned
 type serverOptions struct {
 	clockOpts                   clock.Options
 	instrumentOpts              instrument.Options

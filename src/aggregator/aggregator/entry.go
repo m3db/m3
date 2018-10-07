@@ -27,9 +27,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3aggregator/bitset"
-	"github.com/m3db/m3aggregator/rate"
-	"github.com/m3db/m3aggregator/runtime"
+	"github.com/m3db/m3/src/aggregator/bitset"
+	"github.com/m3db/m3/src/aggregator/rate"
+	"github.com/m3db/m3/src/aggregator/runtime"
 	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric"
@@ -153,6 +153,7 @@ func newEntryMetrics(scope tally.Scope) entryMetrics {
 // TODO(xichen): make the access time per aggregation key for entries associated
 // with forwarded metrics so we can reclaim aggregation elements associated with
 // individual aggregation keys even though the entry is still active.
+// nolint: maligned
 type Entry struct {
 	sync.RWMutex
 

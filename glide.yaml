@@ -22,11 +22,11 @@ import:
       - services
       - integration/etcd
 
-  - package: github.com/m3db/m3em
-    version: ed532baee45a440f0b08b6893c816634c6978d4d
+  - package: github.com/m3db/m3msg
+    version: 4680d9b45286826f87b134a4559b11d795786eaf
 
-  - package: github.com/m3db/m3aggregator
-    version: 6f59918fe3791a3df0dc146ea492593925809c3e
+  - package: github.com/m3db/m3metrics
+    version: 5c6aed344a0c209277d36334f0a824d9f3bb835b
 
   - package: github.com/m3db/m3ctl
     version: acc762bfdd42ecb192d34e48fa7ca1fd7ee088ac
@@ -43,8 +43,17 @@ import:
   - package: github.com/m3db/stackadler32
     version: bfebcd73ef6ffe0ee30489227f0330c39064b674
 
+  - package: github.com/willf/bitset
+    version: e553b05586428962bf7058d1044519d87ca72d74
+
   - package: github.com/cespare/xxhash
     version: 48099fad606eafc26e3a569fad19ff510fff4df6
+
+  - package: github.com/coreos/etcd
+    version: 3.2.10
+
+  - package: github.com/pkg/errors
+    version: ^0.8
 
   - package: github.com/apache/thrift
     version: 0.9.3-pool-read-binary-2
@@ -60,13 +69,12 @@ import:
 
   - package: github.com/golang/protobuf
     version: ^1.1.0
-
     subpackages:
       - proto
       - ptypes/timestamp
 
   - package: github.com/gogo/protobuf
-    version: 0.4
+    version: ^1
 
   - package: go.uber.org/zap
     version: f85c78b1dd998214c5f2138155b320a4a43fbe36
@@ -155,11 +163,6 @@ import:
     repo: https://github.com/alecthomas/kingpin.git
     vcs: git
 
-  - package: github.com/m3db/m3metrics
-    version: b400256bc6da4c10bad5a5f0a11e91bfa095e2e6
-    subpackages:
-      - policy
-
   - package: github.com/pkg/profile
     version: 5b67d428864e92711fcbd2f8629456121a56d91f
 
@@ -225,8 +228,11 @@ import:
     repo: https://github.com/go-yaml/yaml.git
     vcs: git
 
+  - package: github.com/mauricelam/genny
+    version: eb2c5232c885956af3565a20ecf48555cab2b9bc
+
   - package: github.com/leanovate/gopter
-    version: f0356731348c8fffa27bab27c37ec8be5b0662c8
+    version: e2604588f4db2d2e5eb78ae75d615516f55873e3
 
 testImport:
   - package: github.com/fortytw2/leaktest

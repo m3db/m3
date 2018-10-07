@@ -67,6 +67,7 @@ func newAggregatorShardMetrics(scope tally.Scope) aggregatorShardMetrics {
 	}
 }
 
+// nolint: maligned
 type aggregatorShard struct {
 	sync.RWMutex
 

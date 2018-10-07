@@ -30,8 +30,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3aggregator/aggregation"
-	aggclient "github.com/m3db/m3aggregator/client"
+	"github.com/m3db/m3/src/aggregator/aggregation"
+	aggclient "github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3cluster/placement"
 	maggregation "github.com/m3db/m3metrics/aggregation"

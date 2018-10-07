@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"sync"
 
-	aggr "github.com/m3db/m3aggregator/aggregator"
+	aggr "github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/aggregated"

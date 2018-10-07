@@ -20,7 +20,7 @@
 
 package router
 
-import "github.com/m3db/m3aggregator/aggregator/handler/common"
+import "github.com/m3db/m3/src/aggregator/aggregator/handler/common"
 
 // Router routes data to the corresponding backends.
 type Router interface {

@@ -8,6 +8,8 @@ coverage:
       default: on
       x:
         flags: x
+      aggregator:
+        flags: aggregator
       collector:
         flags: collector
       query:
@@ -29,6 +31,10 @@ coverage:
     collector:
       paths:
         - src/collector/
+    aggregator:
+      paths:
+        - src/aggregator/
+        - src/cmd/services/m3aggregator
     query:
       paths:
         - src/query/

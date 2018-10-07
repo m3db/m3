@@ -24,8 +24,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3aggregator/aggregator/handler/common"
-	"github.com/m3db/m3aggregator/aggregator/handler/router"
+	"github.com/m3db/m3/src/aggregator/aggregator/handler/common"
+	"github.com/m3db/m3/src/aggregator/aggregator/handler/router"
 	"github.com/m3db/m3cluster/generated/proto/commonpb"
 	"github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3metrics/encoding/msgpack"

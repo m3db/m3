@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3aggregator/sharding"
+	"github.com/m3db/m3/src/aggregator/sharding"
 	m3clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/mem"

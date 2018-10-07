@@ -21,8 +21,8 @@
 package trafficcontrol
 
 import (
-	"github.com/m3db/m3aggregator/aggregator/handler/common"
-	"github.com/m3db/m3aggregator/aggregator/handler/router"
+	"github.com/m3db/m3/src/aggregator/aggregator/handler/common"
+	"github.com/m3db/m3/src/aggregator/aggregator/handler/router"
 
 	"github.com/uber-go/tally"
 )

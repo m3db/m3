@@ -24,8 +24,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/m3db/m3aggregator/client"
-	"github.com/m3db/m3aggregator/hash"
+	"github.com/m3db/m3/src/aggregator/client"
+	"github.com/m3db/m3/src/aggregator/hash"
 	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/aggregated"
@@ -130,6 +130,7 @@ func newForwardedWriterMetrics(scope tally.Scope) forwardedWriterMetrics {
 // make sure that the list of forwarded metric values can be uniquely
 // associated with the (shard, listID) combination, which is used for value
 // deduplication during leadership re-elections on the destination server.
+// nolint: maligned
 type forwardedWriter struct {
 	shard  uint32
 	client client.AdminClient

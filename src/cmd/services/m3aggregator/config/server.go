@@ -23,8 +23,8 @@ package config
 import (
 	"time"
 
-	"github.com/m3db/m3aggregator/server/http"
-	"github.com/m3db/m3aggregator/server/rawtcp"
+	"github.com/m3db/m3/src/aggregator/server/http"
+	"github.com/m3db/m3/src/aggregator/server/rawtcp"
 	"github.com/m3db/m3metrics/encoding/msgpack"
 	"github.com/m3db/m3metrics/encoding/protobuf"
 	"github.com/m3db/m3x/instrument"

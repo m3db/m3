@@ -25,8 +25,8 @@ import (
 	"testing"
 	"time"
 
-	raggregation "github.com/m3db/m3aggregator/aggregation"
-	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
+	raggregation "github.com/m3db/m3/src/aggregator/aggregation"
+	"github.com/m3db/m3/src/aggregator/aggregation/quantile/cm"
 	maggregation "github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/id"

@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3aggregator/aggregator/capture"
+	"github.com/m3db/m3/src/aggregator/aggregator/capture"
 	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/encoding"
 	"github.com/m3db/m3metrics/encoding/msgpack"

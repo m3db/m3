@@ -24,8 +24,8 @@ import (
 	"math"
 	"time"
 
-	"github.com/m3db/m3aggregator/aggregator"
-	"github.com/m3db/m3aggregator/runtime"
+	"github.com/m3db/m3/src/aggregator/aggregator"
+	"github.com/m3db/m3/src/aggregator/runtime"
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/kv"
 	kvutil "github.com/m3db/m3cluster/kv/util"

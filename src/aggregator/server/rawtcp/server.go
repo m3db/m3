@@ -29,8 +29,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3aggregator/aggregator"
-	"github.com/m3db/m3aggregator/rate"
+	"github.com/m3db/m3/src/aggregator/aggregator"
+	"github.com/m3db/m3/src/aggregator/rate"
 	"github.com/m3db/m3metrics/encoding"
 	"github.com/m3db/m3metrics/encoding/migration"
 	"github.com/m3db/m3metrics/encoding/msgpack"

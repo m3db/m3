@@ -24,9 +24,9 @@ import (
 	"errors"
 	"math/rand"
 
-	"github.com/m3db/m3aggregator/aggregator/handler/common"
-	"github.com/m3db/m3aggregator/aggregator/handler/router"
-	"github.com/m3db/m3aggregator/sharding"
+	"github.com/m3db/m3/src/aggregator/aggregator/handler/common"
+	"github.com/m3db/m3/src/aggregator/aggregator/handler/router"
+	"github.com/m3db/m3/src/aggregator/sharding"
 	"github.com/m3db/m3metrics/encoding/msgpack"
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/id"

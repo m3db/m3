@@ -23,18 +23,16 @@ package aggregator
 import (
 	"testing"
 
-	"github.com/m3db/m3metrics/metadata"
-	"github.com/m3db/m3metrics/metric/aggregated"
-
-	"github.com/stretchr/testify/require"
-
-	"github.com/m3db/m3aggregator/client"
+	"github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3metrics/aggregation"
+	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
 

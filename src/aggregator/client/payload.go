@@ -29,7 +29,7 @@ import (
 type payloadType int
 
 const (
-	// nolint: megacheck
+	// nolint
 	unknownPayloadType payloadType = iota
 	untimedType
 	forwardedType

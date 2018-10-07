@@ -23,8 +23,8 @@ package router
 import (
 	"testing"
 
-	"github.com/m3db/m3aggregator/aggregator/handler/common"
-	"github.com/m3db/m3aggregator/sharding"
+	"github.com/m3db/m3/src/aggregator/aggregator/handler/common"
+	"github.com/m3db/m3/src/aggregator/sharding"
 	"github.com/m3db/m3metrics/encoding/msgpack"
 
 	"github.com/golang/mock/gomock"

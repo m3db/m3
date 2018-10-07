@@ -21,7 +21,7 @@
 package filter
 
 import (
-	"github.com/m3db/m3aggregator/sharding"
+	"github.com/m3db/m3/src/aggregator/sharding"
 	"github.com/m3db/m3msg/producer"
 )
 

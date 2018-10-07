@@ -23,8 +23,8 @@ package router
 import (
 	"fmt"
 
-	"github.com/m3db/m3aggregator/aggregator/handler/common"
-	"github.com/m3db/m3aggregator/sharding"
+	"github.com/m3db/m3/src/aggregator/aggregator/handler/common"
+	"github.com/m3db/m3/src/aggregator/sharding"
 
 	"github.com/uber-go/tally"
 )

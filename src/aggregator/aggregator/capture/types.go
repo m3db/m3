@@ -21,7 +21,7 @@
 package capture
 
 import (
-	aggr "github.com/m3db/m3aggregator/aggregator"
+	aggr "github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 )

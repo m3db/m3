@@ -24,7 +24,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/m3db/m3aggregator/aggregator/handler/writer"
+	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
 	"github.com/m3db/m3metrics/metric/aggregated"
 
 	"github.com/golang/mock/gomock"
