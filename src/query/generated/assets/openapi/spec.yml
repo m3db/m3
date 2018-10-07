@@ -210,7 +210,7 @@ paths:
       - name: "body"
         in: "body"
         schema:
-          $ref: "#/definitions/PlacementAddRequest"
+          $ref: "#/definitions/PlacementAddRequestM3Agg"
       responses:
         200:
           description: ""
@@ -287,7 +287,7 @@ paths:
       - name: "body"
         in: "body"
         schema:
-          $ref: "#/definitions/PlacementInitRequest"
+          $ref: "#/definitions/PlacementInitRequestM3Agg"
       responses:
         200:
           description: ""
@@ -556,6 +556,19 @@ definitions:
         type: "array"
         items:
           $ref: "#/definitions/InstanceRequest"
+  PlacementAddRequestM3Agg:
+    type: "object"
+    properties:
+      instances:
+        type: "array"
+        items:
+          $ref: "#/definitions/InstanceRequest"
+      maxAggregationWindowSize:
+        type: "integer"
+        format: "uint64"
+      warmupDuration:
+        type: "integer"
+        format: "uint64"
   PlacementInitRequest:
     type: "object"
     properties:
@@ -569,6 +582,25 @@ definitions:
       replicationFactor:
         type: "integer"
         format: "int32"
+  PlacementInitRequestM3Agg:
+    type: "object"
+    properties:
+      instances:
+        type: "array"
+        items:
+          $ref: "#/definitions/InstanceRequest"
+      numShards:
+        type: "integer"
+        format: "int32"
+      replicationFactor:
+        type: "integer"
+        format: "int32"
+      maxAggregationWindowSize:
+        type: "integer"
+        format: "uint64"
+      warmupDuration:
+        type: "integer"
+        format: "uint64"
   GenericError:
     type: "object"
     properties:
