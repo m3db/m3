@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/util/logging"
 	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/generated/proto/placementpb"
@@ -194,19 +195,19 @@ func RegisterRoutes(r *mux.Router, client clusterclient.Client, cfg config.Confi
 	logged := logging.WithResponseTimeLogging
 
 	// M3DB URLs
-	r.HandleFunc(OldM3DBInitURL, logged(NewInitHandler(client, cfg)).ServeHTTP).Methods(InitHTTPMethod)
-	r.HandleFunc(M3DBInitURL, logged(NewInitHandler(client, cfg)).ServeHTTP).Methods(InitHTTPMethod)
-	r.HandleFunc(OldM3DBGetURL, logged(NewGetHandler(client, cfg)).ServeHTTP).Methods(GetHTTPMethod)
-	r.HandleFunc(M3DBGetURL, logged(NewGetHandler(client, cfg)).ServeHTTP).Methods(GetHTTPMethod)
-	r.HandleFunc(OldM3DBDeleteAllURL, logged(NewDeleteAllHandler(client, cfg)).ServeHTTP).Methods(DeleteAllHTTPMethod)
-	r.HandleFunc(M3DBDeleteAllURL, logged(NewDeleteAllHandler(client, cfg)).ServeHTTP).Methods(DeleteAllHTTPMethod)
-	r.HandleFunc(OldM3DBAddURL, logged(NewAddHandler(client, cfg)).ServeHTTP).Methods(AddHTTPMethod)
-	r.HandleFunc(M3DBAddURL, logged(NewAddHandler(client, cfg)).ServeHTTP).Methods(AddHTTPMethod)
-	r.HandleFunc(OldM3DBDeleteURL, logged(NewDeleteHandler(client, cfg)).ServeHTTP).Methods(DeleteHTTPMethod)
-	r.HandleFunc(M3DBDeleteURL, logged(NewDeleteHandler(client, cfg)).ServeHTTP).Methods(DeleteHTTPMethod)
+	r.HandleFunc(OldM3DBInitURL, applyMiddleware(NewInitHandler(client, cfg).ServeHTTP)).Methods(InitHTTPMethod)
+	r.HandleFunc(M3DBInitURL, applyMiddleware(NewInitHandler(client, cfg).ServeHTTP)).Methods(InitHTTPMethod)
+	r.HandleFunc(OldM3DBGetURL, applyMiddleware(NewGetHandler(client, cfg).ServeHTTP)).Methods(GetHTTPMethod)
+	r.HandleFunc(M3DBGetURL, applyMiddleware(NewGetHandler(client, cfg).ServeHTTP)).Methods(GetHTTPMethod)
+	r.HandleFunc(OldM3DBDeleteAllURL, applyMiddleware(NewDeleteAllHandler(client, cfg).ServeHTTP)).Methods(DeleteAllHTTPMethod)
+	r.HandleFunc(M3DBDeleteAllURL, applyMiddleware(NewDeleteAllHandler(client, cfg).ServeHTTP)).Methods(DeleteAllHTTPMethod)
+	r.HandleFunc(OldM3DBAddURL, applyMiddleware(NewAddHandler(client, cfg).ServeHTTP)).Methods(AddHTTPMethod)
+	r.HandleFunc(M3DBAddURL, applyMiddleware(NewAddHandler(client, cfg).ServeHTTP)).Methods(AddHTTPMethod)
+	r.HandleFunc(OldM3DBDeleteURL, applyMiddleware(NewDeleteHandler(client, cfg).ServeHTTP)).Methods(DeleteHTTPMethod)
+	r.HandleFunc(M3DBDeleteURL, applyMiddleware(NewDeleteHandler(client, cfg).ServeHTTP)).Methods(DeleteHTTPMethod)
 
 	// M3Agg URLs
-	r.HandleFunc(M3AggInitURL, logged(NewInitHandler(client, cfg)).ServeHTTP).Methods(InitHTTPMethod)
+	r.HandleFunc(M3AggInitURL, applyMiddleware(NewInitHandler(client, cfg).ServeHTTP)).Methods(InitHTTPMethod)
 }
 
 // immediateTimeNanosFn returns the earliest possible unix nano timestamp to indicate
@@ -284,6 +285,32 @@ func strSliceContains(s []string, str string) bool {
 	}
 
 	return false
+}
+
+// ServeHTTPWithService is the interface for serving HTTP requests after
+// parsing the service name from the URL.
+type ServeHTTPWithService interface {
+	ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request)
+}
+
+func applyMiddleware(f func(serviceName string, w http.ResponseWriter, r *http.Request)) func(w http.ResponseWriter, r *http.Request) {
+	return logging.WithServiceNameResponseTimeLogging(
+		parseServiceMiddleware(
+			f))
+}
+
+func parseServiceMiddleware(
+	next func(serviceName string, w http.ResponseWriter, r *http.Request),
+) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		serviceName, err := parseServiceFromRequest(r)
+		if err != nil {
+			handler.Error(w, err, http.StatusBadRequest)
+			return
+		}
+
+		next(serviceName, w, r)
+	}
 }
 
 func parseServiceFromRequest(r *http.Request) (string, error) {

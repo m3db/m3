@@ -63,7 +63,7 @@ func NewAddHandler(client clusterclient.Client, cfg config.Configuration) *AddHa
 	return &AddHandler{client: client, cfg: cfg}
 }
 
-func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *AddHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 
@@ -73,7 +73,7 @@ func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	placement, err := h.Add(r, req)
+	placement, err := h.Add(serviceName, r, req)
 	if err != nil {
 		status := http.StatusInternalServerError
 		if _, ok := err.(unsafeAddError); ok {
@@ -111,6 +111,7 @@ func (h *AddHandler) parseRequest(r *http.Request) (*admin.PlacementAddRequest, 
 
 // Add adds a placement.
 func (h *AddHandler) Add(
+	serviceName string,
 	httpReq *http.Request,
 	req *admin.PlacementAddRequest,
 ) (placement.Placement, error) {
@@ -120,7 +121,7 @@ func (h *AddHandler) Add(
 	}
 
 	service, algo, err := ServiceWithAlgo(
-		h.client, NewServiceOptions(M3DBServiceName))
+		h.client, NewServiceOptions(serviceName))
 	if err != nil {
 		return nil, err
 	}

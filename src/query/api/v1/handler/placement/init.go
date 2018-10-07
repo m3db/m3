@@ -57,7 +57,7 @@ func NewInitHandler(client clusterclient.Client, cfg config.Configuration) *Init
 	return &InitHandler{client: client, cfg: cfg}
 }
 
-func (h *InitHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *InitHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 
@@ -67,7 +67,7 @@ func (h *InitHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	placement, err := h.Init(r, req)
+	placement, err := h.Init(serviceName, r, req)
 	if err != nil {
 		logger.Error("unable to initialize placement", zap.Any("error", err))
 		handler.Error(w, err, http.StatusInternalServerError)
@@ -100,15 +100,11 @@ func (h *InitHandler) parseRequest(r *http.Request) (*admin.PlacementInitRequest
 
 // Init initializes a placement.
 func (h *InitHandler) Init(
+	serviceName string,
 	httpReq *http.Request,
 	req *admin.PlacementInitRequest,
 ) (placement.Placement, error) {
 	instances, err := ConvertInstancesProto(req.Instances)
-	if err != nil {
-		return nil, err
-	}
-
-	serviceName, err := parseServiceFromRequest(httpReq)
 	if err != nil {
 		return nil, err
 	}

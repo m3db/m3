@@ -33,8 +33,8 @@ var (
 	ErrInvalidParams = errors.New("invalid request params")
 )
 
-// Error will serve an HTTP error
 func Error(w http.ResponseWriter, err error, code int) {
+	// Error will serve an HTTP error
 	w.WriteHeader(code)
 	json.NewEncoder(w).Encode(struct {
 		Error string `json:"error"`

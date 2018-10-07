@@ -123,3 +123,22 @@ func WithResponseTimeLogging(next http.Handler) http.Handler {
 		}
 	})
 }
+
+// WithServiceNameResponseTimeLogging wraps around the given handler, providing response time logging
+func WithServiceNameResponseTimeLogging(
+	next func(w http.ResponseWriter, r *http.Request),
+) func(w http.ResponseWriter, r *http.Request) {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		startTime := time.Now()
+		rqCtx := NewContextWithGeneratedID(r.Context())
+		logger := WithContext(rqCtx)
+
+		// Propagate the context with the reqId
+		next(w, r.WithContext(rqCtx))
+		endTime := time.Now()
+		d := endTime.Sub(startTime)
+		if d > time.Second {
+			logger.Info("finished handling request", zap.Time("time", endTime), zap.Duration("response", d), zap.String("url", r.URL.RequestURI()))
+		}
+	})
+}

@@ -54,12 +54,12 @@ func NewGetHandler(client clusterclient.Client, cfg config.Configuration) *GetHa
 	return &GetHandler{client: client, cfg: cfg}
 }
 
-func (h *GetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *GetHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 
 	service, err := Service(
-		h.client, NewServiceOptions(M3DBServiceName))
+		h.client, NewServiceOptions(serviceName))
 	if err != nil {
 		handler.Error(w, err, http.StatusInternalServerError)
 		return

@@ -63,7 +63,7 @@ func NewDeleteHandler(client clusterclient.Client, cfg config.Configuration) *De
 	return &DeleteHandler{client: client, cfg: cfg}
 }
 
-func (h *DeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *DeleteHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 	id := mux.Vars(r)[placementIDVar]
