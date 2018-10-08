@@ -75,6 +75,19 @@ func (mr *MockCommitLogMockRecorder) Open() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockCommitLog)(nil).Open))
 }
 
+// Rotate mocks base method
+func (m *MockCommitLog) Rotate() (File, error) {
+	ret := m.ctrl.Call(m, "Rotate")
+	ret0, _ := ret[0].(File)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Rotate indicates an expected call of Rotate
+func (mr *MockCommitLogMockRecorder) Rotate() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Rotate", reflect.TypeOf((*MockCommitLog)(nil).Rotate))
+}
+
 // Write mocks base method
 func (m *MockCommitLog) Write(ctx context.Context, series Series, datapoint ts.Datapoint, unit time0.Unit, annotation ts.Annotation) error {
 	ret := m.ctrl.Call(m, "Write", ctx, series, datapoint, unit, annotation)
