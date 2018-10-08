@@ -35,208 +35,52 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type testCase struct {
-	name           string
-	opType         string
-	sf, tf         float64 // used only for Holt-Winters
-	args           []interface{}
-	vals           [][]float64
-	afterBlockOne  [][]float64
-	afterAllBlocks [][]float64
-}
-
-var testCases = []testCase{
+var holtWintersTestCases = []testCase{
 	{
-		name:   "avg_over_time",
-		opType: AvgType,
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 2.5},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 7},
-		},
-		afterAllBlocks: [][]float64{
-			{2, 2, 2, 2, 2},
-			{7, 7, 7, 7, 7},
-		},
-	},
-	{
-		name:   "count_over_time",
-		opType: CountType,
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 4},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 5},
-		},
-		afterAllBlocks: [][]float64{
-			{5, 5, 5, 5, 5},
-			{5, 5, 5, 5, 5},
-		},
-	},
-	{
-		name:   "min_over_time",
-		opType: MinType,
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 5},
-		},
-		afterAllBlocks: [][]float64{
-			{0, 0, 0, 0, 0},
-			{5, 5, 5, 5, 5},
-		},
-	},
-	{
-		name:   "max_over_time",
-		opType: MaxType,
+		name:   "holt_winters",
+		opType: HoltWintersType,
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 4},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 9},
 		},
 		afterAllBlocks: [][]float64{
-			{4, 4, 4, 4, 4},
-			{9, 9, 9, 9, 9},
-		},
-	},
-	{
-		name:   "sum_over_time",
-		opType: SumType,
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 10},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 35},
-		},
-		afterAllBlocks: [][]float64{
-			{10, 10, 10, 10, 10},
-			{35, 35, 35, 35, 35},
-		},
-	},
-	{
-		name:   "stddev_over_time",
-		opType: StdDevType,
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1.1180},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1.4142},
-		},
-		afterAllBlocks: [][]float64{
-			{1.4142, 1.4142, 1.4142, 1.4142, 1.4142},
-			{1.4142, 1.4142, 1.4142, 1.4142, 1.4142},
-		},
-	},
-	{
-		name:   "stdvar_over_time",
-		opType: StdVarType,
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 1.25},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 2},
-		},
-		afterAllBlocks: [][]float64{
-			{2, 2, 2, 2, 2},
-			{2, 2, 2, 2, 2},
+			{4, 3.64, 3.1824, -4.8224, 4},
+			{9, 8.64, 8.1824, 0.1776, 9},
 		},
 	},
 }
 
-func TestAggregation(t *testing.T) {
+var holtWintersTestCasesNaNs = []testCase{
+	{
+		name:   "holt_winters all NaNs",
+		opType: HoltWintersType,
+		afterBlockOne: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+		afterAllBlocks: [][]float64{
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
+		},
+	},
+}
+
+func TestHoltWintersBlocks(t *testing.T) {
 	v := [][]float64{
 		{0, 1, 2, 3, 4},
 		{5, 6, 7, 8, 9},
 	}
-	testAggregation(t, testCases, v)
-}
+	testHoltWinters(t, holtWintersTestCases, v)
 
-var testCasesNaNs = []testCase{
-	{
-		name:   "avg_over_time",
-		opType: AvgType,
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-		afterAllBlocks: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-	},
-	{
-		name:   "count_over_time",
-		opType: CountType,
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-		afterAllBlocks: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-	},
-	{
-		name:   "min_over_time",
-		opType: MinType,
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-		afterAllBlocks: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-	},
-	{
-		name:   "max_over_time",
-		opType: MaxType,
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-		afterAllBlocks: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-	},
-	{
-		name:   "sum_over_time",
-		opType: SumType,
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-		afterAllBlocks: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-	},
-	{
-		name:   "stddev_over_time",
-		opType: StdDevType,
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-		afterAllBlocks: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-	},
-	{
-		name:   "stdvar_over_time",
-		opType: StdVarType,
-		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-		afterAllBlocks: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
-		},
-	},
-}
-
-func TestAggregationAllNaNs(t *testing.T) {
-	v := [][]float64{
+	v = [][]float64{
 		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 		{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 	}
-	testAggregation(t, testCasesNaNs, v)
+	testHoltWinters(t, holtWintersTestCasesNaNs, v)
 }
 
 // B1 has NaN in first series, first position
-func testAggregation(t *testing.T, testCases []testCase, vals [][]float64) {
+func testHoltWinters(t *testing.T, testCases []testCase, vals [][]float64) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			values, bounds := test.GenerateValuesAndBounds(vals, nil)
@@ -244,7 +88,7 @@ func testAggregation(t *testing.T, testCases []testCase, vals [][]float64) {
 			block3 := test.NewUnconsolidatedBlockFromDatapoints(bounds, values)
 			c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 
-			baseOp, err := NewAggOp([]interface{}{5 * time.Minute}, tt.opType)
+			baseOp, err := NewHoltWintersOp([]interface{}{5 * time.Minute, 0.2, 0.7}, tt.opType)
 			require.NoError(t, err)
 			node := baseOp.Node(c, transform.Options{
 				TimeSpec: transform.TimeSpec{
@@ -309,7 +153,14 @@ func testAggregation(t *testing.T, testCases []testCase, vals [][]float64) {
 	}
 }
 
-func TestUnknownAggregation(t *testing.T) {
-	_, err := NewAggOp([]interface{}{5 * time.Minute}, "unknown_agg_func")
+func TestUnknownHoltWintersAggregation(t *testing.T) {
+	_, err := NewHoltWintersOp([]interface{}{5 * time.Minute}, "unknown_agg_func")
 	require.Error(t, err)
+}
+
+func TestHoltWinters(t *testing.T) {
+	holtWintersFn := makeHoltWintersFn(0.2, 0.6)
+	val := holtWintersFn([]float64{math.NaN(), 1, math.NaN(), 5, 10, 15, math.NaN(), math.NaN()})
+
+	test.EqualsWithNansWithDelta(t, 13.6559, val, 0.0001)
 }

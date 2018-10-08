@@ -49,11 +49,6 @@ const (
 
 	// StdVarType calculates the standard variance of all values in the specified interval.
 	StdVarType = "stdvar_over_time"
-
-	// HoltWintersType produces a smoothed value for time series based on the specified interval.
-	// The algorithm used comes from https://en.wikipedia.org/wiki/Exponential_smoothing#Double_exponential_smoothing.
-	// Holt-Winters should only be used with gauges.
-	HoltWintersType = "holt_winters"
 )
 
 type aggFunc func([]float64) float64
@@ -92,112 +87,13 @@ func NewAggOp(args []interface{}, optype string) (transform.Params, error) {
 		return newBaseOp(args, optype, a)
 	}
 
-	if optype == HoltWintersType {
-		// todo(braskin): move this logic to the parser.
-		if len(args) != 3 {
-			return emptyOp, fmt.Errorf("invalid number of args for %s: %d", optype, len(args))
-		}
-
-		sf, ok := args[1].(float64)
-		if !ok {
-			return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[0], optype)
-		}
-
-		tf, ok := args[2].(float64)
-		if !ok {
-			return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[0], optype)
-		}
-
-		// Sanity check the input.
-		if sf <= 0 || sf >= 1 {
-			return emptyOp, fmt.Errorf("invalid smoothing factor. Expected: 0 < sf < 1, got: %f", sf)
-		}
-
-		if tf <= 0 || tf >= 1 {
-			return emptyOp, fmt.Errorf("invalid trend factor. Expected: 0 < tf < 1, got: %f", tf)
-		}
-
-		aggregationFunc := makeHoltWintersFn(sf, tf)
-		a := aggProcessor{
-			aggFunc: aggregationFunc,
-		}
-
-		return newBaseOp(args, optype, a)
-	}
-
 	return nil, fmt.Errorf("unknown aggregation type: %s", optype)
-}
-
-func makeHoltWintersFn(sf, tf float64) aggFunc {
-	return func(vals []float64) float64 {
-		var (
-			foundFirst, foundSecond         bool
-			secondVal                       float64
-			trendVal                        float64
-			scaledSmoothVal, scaledTrendVal float64
-			prev, curr                      float64
-			idx                             int
-		)
-
-		for _, val := range vals {
-			if math.IsNaN(val) {
-				continue
-			}
-
-			if !foundFirst {
-				foundFirst = true
-				curr = val
-				idx++
-				continue
-			}
-
-			if !foundSecond {
-				foundSecond = true
-				secondVal = val
-				trendVal = secondVal - curr
-			}
-
-			// scale the raw value against the smoothing factor.
-			scaledSmoothVal = sf * val
-
-			// scale the last smoothed value with the trend at this point.
-			trendVal = calcTrendValue(idx-1, sf, tf, prev, curr, trendVal)
-			scaledTrendVal = (1 - sf) * (curr + trendVal)
-
-			prev, curr = curr, scaledSmoothVal+scaledTrendVal
-			idx++
-		}
-
-		// need at least two values to apply a smoothing operation.
-		if !foundSecond {
-			return math.NaN()
-		}
-
-		return curr
-	}
-}
-
-// Calculate the trend value at the given index i in raw data d.
-// This is somewhat analogous to the slope of the trend at the given index.
-// The argument "s" is the set of computed smoothed values.
-// The argument "b" is the set of computed trend factors.
-// The argument "d" is the set of raw input values.
-func calcTrendValue(i int, sf, tf, s0, s1, b float64) float64 {
-	if i == 0 {
-		return b
-	}
-
-	x := tf * (s1 - s0)
-	y := (1 - tf) * b
-
-	return x + y
 }
 
 type aggNode struct {
 	op         baseOp
 	controller *transform.Controller
 	aggFunc    func([]float64) float64
-	sf, tf     float64
 }
 
 func (a *aggNode) Process(datapoints ts.Datapoints) float64 {
