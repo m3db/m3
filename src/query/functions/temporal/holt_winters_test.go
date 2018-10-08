@@ -37,8 +37,7 @@ import (
 
 var holtWintersTestCases = []testCase{
 	{
-		name:   "holt_winters",
-		opType: HoltWintersType,
+		name: "holt_winters",
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 4},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 9},
@@ -52,8 +51,7 @@ var holtWintersTestCases = []testCase{
 
 var holtWintersTestCasesNaNs = []testCase{
 	{
-		name:   "holt_winters all NaNs",
-		opType: HoltWintersType,
+		name: "holt_winters all NaNs",
 		afterBlockOne: [][]float64{
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
 			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), math.NaN()},
@@ -88,7 +86,7 @@ func testHoltWinters(t *testing.T, testCases []testCase, vals [][]float64) {
 			block3 := test.NewUnconsolidatedBlockFromDatapoints(bounds, values)
 			c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 
-			baseOp, err := NewHoltWintersOp([]interface{}{5 * time.Minute, 0.2, 0.7}, tt.opType)
+			baseOp, err := NewHoltWintersOp([]interface{}{5 * time.Minute, 0.2, 0.7})
 			require.NoError(t, err)
 			node := baseOp.Node(c, transform.Options{
 				TimeSpec: transform.TimeSpec{
@@ -151,11 +149,6 @@ func testHoltWinters(t *testing.T, testCases []testCase, vals [][]float64) {
 			assert.Len(t, blks, 0)
 		})
 	}
-}
-
-func TestUnknownHoltWintersAggregation(t *testing.T) {
-	_, err := NewHoltWintersOp([]interface{}{5 * time.Minute}, "unknown_agg_func")
-	require.Error(t, err)
 }
 
 func TestHoltWinters(t *testing.T) {

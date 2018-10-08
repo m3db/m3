@@ -38,8 +38,6 @@ import (
 type testCase struct {
 	name           string
 	opType         string
-	sf, tf         float64 // used only for Holt-Winters
-	args           []interface{}
 	vals           [][]float64
 	afterBlockOne  [][]float64
 	afterAllBlocks [][]float64

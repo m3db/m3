@@ -35,41 +35,37 @@ const (
 )
 
 // NewHoltWintersOp creates a new base Holt-Winters transform with a specified node.
-func NewHoltWintersOp(args []interface{}, optype string) (transform.Params, error) {
-	if optype == HoltWintersType {
-		// todo(braskin): move this logic to the parser.
-		if len(args) != 3 {
-			return emptyOp, fmt.Errorf("invalid number of args for %s: %d", optype, len(args))
-		}
-
-		sf, ok := args[1].(float64)
-		if !ok {
-			return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[0], optype)
-		}
-
-		tf, ok := args[2].(float64)
-		if !ok {
-			return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[0], optype)
-		}
-
-		// Sanity check the input.
-		if sf <= 0 || sf >= 1 {
-			return emptyOp, fmt.Errorf("invalid smoothing factor. Expected: 0 < sf < 1, got: %f", sf)
-		}
-
-		if tf <= 0 || tf >= 1 {
-			return emptyOp, fmt.Errorf("invalid trend factor. Expected: 0 < tf < 1, got: %f", tf)
-		}
-
-		aggregationFunc := makeHoltWintersFn(sf, tf)
-		a := aggProcessor{
-			aggFunc: aggregationFunc,
-		}
-
-		return newBaseOp(args, optype, a)
+func NewHoltWintersOp(args []interface{}) (transform.Params, error) {
+	// todo(braskin): move this logic to the parser.
+	if len(args) != 3 {
+		return emptyOp, fmt.Errorf("invalid number of args for %s: %d", HoltWintersType, len(args))
 	}
 
-	return nil, fmt.Errorf("expected Holt-Winters type, instead got: %s", optype)
+	sf, ok := args[1].(float64)
+	if !ok {
+		return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[0], HoltWintersType)
+	}
+
+	tf, ok := args[2].(float64)
+	if !ok {
+		return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[0], HoltWintersType)
+	}
+
+	// Sanity check the input.
+	if sf <= 0 || sf >= 1 {
+		return emptyOp, fmt.Errorf("invalid smoothing factor. Expected: 0 < sf < 1, got: %f", sf)
+	}
+
+	if tf <= 0 || tf >= 1 {
+		return emptyOp, fmt.Errorf("invalid trend factor. Expected: 0 < tf < 1, got: %f", tf)
+	}
+
+	aggregationFunc := makeHoltWintersFn(sf, tf)
+	a := aggProcessor{
+		aggFunc: aggregationFunc,
+	}
+
+	return newBaseOp(args, HoltWintersType, a)
 }
 
 func makeHoltWintersFn(sf, tf float64) aggFunc {
