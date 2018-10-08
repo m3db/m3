@@ -24,6 +24,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3x/instrument"
+
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
 )
@@ -38,14 +40,20 @@ connectionWriteBufferSize: 200
 connectionReadBufferSize: 300
 encoder:
   maxMessageSize: 100
+  bytesPool:
+    watermark:
+      low: 0.001
 decoder:
   maxMessageSize: 200
+  bytesPool:
+    watermark:
+      high: 0.002
 `
 
 	var cfg Configuration
 	require.NoError(t, yaml.Unmarshal([]byte(str), &cfg))
 
-	opts := cfg.NewOptions(nil)
+	opts := cfg.NewOptions(instrument.NewOptions())
 	require.Equal(t, 5, opts.MessagePoolOptions().Size())
 	require.Equal(t, 100*time.Millisecond, opts.AckFlushInterval())
 	require.Equal(t, 100, opts.AckBufferSize())
@@ -55,5 +63,5 @@ decoder:
 	require.NotNil(t, opts.EncoderOptions().BytesPool())
 	require.Equal(t, 200, opts.DecoderOptions().MaxMessageSize())
 	require.NotNil(t, opts.EncoderOptions().BytesPool())
-	require.Nil(t, opts.InstrumentOptions())
+	require.Equal(t, instrument.NewOptions(), opts.InstrumentOptions())
 }

@@ -32,12 +32,12 @@ import (
 )
 
 func TestBaseEncodeDecodeRoundTripWithoutPool(t *testing.T) {
-	enc := NewEncoder(NewOptions().SetBytesPool(nil)).(*encoder)
+	enc := NewEncoder(NewOptions()).(*encoder)
 	require.Equal(t, 4, len(enc.buffer))
 	require.Equal(t, 4, cap(enc.buffer))
 	require.Empty(t, enc.Bytes())
 	r := bytes.NewReader(nil)
-	dec := NewDecoder(r, NewOptions().SetBytesPool(nil)).(*decoder)
+	dec := NewDecoder(r, NewOptions()).(*decoder)
 	require.Equal(t, 4, len(dec.buffer))
 	require.Equal(t, 4, cap(dec.buffer))
 	encodeMsg := msgpb.Message{
