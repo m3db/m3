@@ -45,7 +45,7 @@ type metricsAppenderOptions struct {
 	clockOpts               clock.Options
 	tagEncoder              serialize.TagEncoder
 	matcher                 matcher.Matcher
-	encodedTagsIteratorPool *serialize.MetricTagsIteratorPool
+	encodedTagsIteratorPool serialize.MetricTagsIteratorPool
 }
 
 func (a *metricsAppender) AddTag(name, value []byte) {

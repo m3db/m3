@@ -47,7 +47,7 @@ var (
 
 func isRollupID(
 	sortedTagPairs []byte,
-	iteratorPool *serialize.MetricTagsIteratorPool,
+	iteratorPool serialize.MetricTagsIteratorPool,
 ) bool {
 	iter := iteratorPool.Get()
 	iter.Reset(sortedTagPairs)
@@ -207,7 +207,7 @@ func (p *rollupIDProviderPool) Put(v *rollupIDProvider) {
 
 func resolveEncodedTagsNameTag(
 	id []byte,
-	iterPool *serialize.MetricTagsIteratorPool,
+	iterPool serialize.MetricTagsIteratorPool,
 	nameTag []byte,
 ) ([]byte, error) {
 	// ID is always the encoded tags for downsampling IDs

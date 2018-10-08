@@ -276,7 +276,7 @@ func (o DownsamplerOptions) newAggregator() (agg, error) {
 type aggPools struct {
 	tagEncoderPool          serialize.TagEncoderPool
 	tagDecoderPool          serialize.TagDecoderPool
-	encodedTagsIteratorPool *serialize.MetricTagsIteratorPool
+	encodedTagsIteratorPool serialize.MetricTagsIteratorPool
 }
 
 func (o DownsamplerOptions) newAggregatorPools() aggPools {
@@ -288,7 +288,7 @@ func (o DownsamplerOptions) newAggregatorPools() aggPools {
 		o.TagDecoderPoolOptions)
 	tagDecoderPool.Init()
 
-	encodedTagsIteratorPool := serialize.NewEncodedTagsIteratorPool(tagDecoderPool,
+	encodedTagsIteratorPool := serialize.NewMetricTagsIteratorPool(tagDecoderPool,
 		o.TagDecoderPoolOptions)
 	encodedTagsIteratorPool.Init()
 
