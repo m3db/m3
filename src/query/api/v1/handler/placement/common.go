@@ -423,12 +423,6 @@ func validateAllAvailable(p placement.Placement) error {
 	return nil
 }
 
-// ServeHTTPWithService is the interface for serving HTTP requests after
-// parsing the service name from the URL.
-type ServeHTTPWithService interface {
-	ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request)
-}
-
 func applyMiddleware(f func(serviceName string, w http.ResponseWriter, r *http.Request)) func(w http.ResponseWriter, r *http.Request) {
 	return logging.WithResponseTimeLoggingFunc(
 		parseServiceMiddleware(
