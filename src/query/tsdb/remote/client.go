@@ -32,7 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/pools"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3x/pool"
+	xsync "github.com/m3db/m3x/sync"
 
 	"google.golang.org/grpc"
 )
@@ -44,19 +44,19 @@ type Client interface {
 }
 
 type grpcClient struct {
-	client      rpc.QueryClient
-	connection  *grpc.ClientConn
-	poolWrapper *pools.PoolWrapper
-	workerPool  pool.ObjectPool
+	client         rpc.QueryClient
+	connection     *grpc.ClientConn
+	poolWrapper    *pools.PoolWrapper
+	readWorkerPool xsync.PooledWorkerPool
 }
 
 const initResultSize = 10
 
-// NewGrpcClient creates grpc client
-func NewGrpcClient(
+// NewGRPCClient creates grpc client
+func NewGRPCClient(
 	addresses []string,
 	poolWrapper *pools.PoolWrapper,
-	workerPool pool.ObjectPool,
+	readWorkerPool xsync.PooledWorkerPool,
 	additionalDialOpts ...grpc.DialOption,
 ) (Client, error) {
 	if len(addresses) == 0 {
@@ -74,10 +74,10 @@ func NewGrpcClient(
 
 	client := rpc.NewQueryClient(cc)
 	return &grpcClient{
-		client:      client,
-		connection:  cc,
-		poolWrapper: poolWrapper,
-		workerPool:  workerPool,
+		client:         client,
+		connection:     cc,
+		poolWrapper:    poolWrapper,
+		readWorkerPool: readWorkerPool,
 	}, nil
 }
 
@@ -92,7 +92,7 @@ func (c *grpcClient) Fetch(
 		return nil, err
 	}
 
-	return storage.SeriesIteratorsToFetchResult(iters, c.workerPool, true)
+	return storage.SeriesIteratorsToFetchResult(iters, c.readWorkerPool, true)
 }
 
 func (c *grpcClient) fetchRaw(
@@ -170,7 +170,7 @@ func (c *grpcClient) FetchBlocks(
 		return block.Result{}, err
 	}
 
-	fetchResult, err := storage.SeriesIteratorsToFetchResult(iters, c.workerPool, true)
+	fetchResult, err := storage.SeriesIteratorsToFetchResult(iters, c.readWorkerPool, true)
 	if err != nil {
 		return block.Result{}, err
 	}
