@@ -133,8 +133,8 @@ type M3AggServiceOptions struct {
 	WarmupDuration           time.Duration
 }
 
-// NewServiceOptions returns a ServiceOptions based on the
-// provided headers, if present.
+// NewServiceOptions returns a ServiceOptions based on the provided
+// values.
 func NewServiceOptions(
 	serviceName string, headers http.Header, m3AggOpts *M3AggServiceOptions) ServiceOptions {
 	opts := ServiceOptions{
