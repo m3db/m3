@@ -203,7 +203,7 @@ func Run(runOpts RunOptions) {
 		defer cleanup()
 	}
 
-	engine := executor.NewEngine(backendStorage)
+	engine := executor.NewEngine(backendStorage, scope.SubScope("engine"))
 
 	handler, err := httpd.NewHandler(backendStorage, tagOptions, downsampler, engine,
 		m3dbClusters, clusterClient, cfg, runOpts.DBConfig, scope)

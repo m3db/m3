@@ -31,6 +31,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/uber-go/tally"
 )
 
 func TestExecute(t *testing.T) {
@@ -44,7 +45,7 @@ func TestExecute(t *testing.T) {
 	results := make(chan *storage.QueryResult)
 	closing := make(chan bool)
 
-	engine := NewEngine(store)
+	engine := NewEngine(store, tally.NewTestScope("test", nil))
 	go engine.Execute(context.TODO(), &storage.FetchQuery{}, &EngineOptions{}, closing, results)
 	<-results
 	assert.Equal(t, len(engine.tracker.queries), 1)
