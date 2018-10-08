@@ -131,12 +131,12 @@ func NewAggOp(args []interface{}, optype string) (transform.Params, error) {
 func makeHoltWintersFn(sf, tf float64) aggFunc {
 	return func(vals []float64) float64 {
 		var (
-			foundFirst, foundSecond bool
-			secondVal               float64
-			b                       float64
-			x, y                    float64
-			s0, s1                  float64
-			idx                     int
+			foundFirst, foundSecond         bool
+			secondVal                       float64
+			trendVal                        float64
+			scaledSmoothVal, scaledTrendVal float64
+			prev, curr                      float64
+			idx                             int
 		)
 
 		for _, val := range vals {
@@ -146,7 +146,7 @@ func makeHoltWintersFn(sf, tf float64) aggFunc {
 
 			if !foundFirst {
 				foundFirst = true
-				s1 = val
+				curr = val
 				idx++
 				continue
 			}
@@ -154,17 +154,17 @@ func makeHoltWintersFn(sf, tf float64) aggFunc {
 			if !foundSecond {
 				foundSecond = true
 				secondVal = val
-				b = secondVal - s1
+				trendVal = secondVal - curr
 			}
 
 			// scale the raw value against the smoothing factor.
-			x = sf * val
+			scaledSmoothVal = sf * val
 
 			// scale the last smoothed value with the trend at this point.
-			b = calcTrendValue(idx-1, sf, tf, s0, s1, b)
-			y = (1 - sf) * (s1 + b)
+			trendVal = calcTrendValue(idx-1, sf, tf, prev, curr, trendVal)
+			scaledTrendVal = (1 - sf) * (curr + trendVal)
 
-			s0, s1 = s1, x+y
+			prev, curr = curr, scaledSmoothVal+scaledTrendVal
 			idx++
 		}
 
@@ -173,7 +173,7 @@ func makeHoltWintersFn(sf, tf float64) aggFunc {
 			return math.NaN()
 		}
 
-		return s1
+		return curr
 	}
 }
 

@@ -356,7 +356,7 @@ func TestUnknownAggregation(t *testing.T) {
 
 func TestHoltWinters(t *testing.T) {
 	holtWintersFn := makeHoltWintersFn(0.2, 0.6)
-	val := holtWintersFn([]float64{1, math.NaN(), 5, 10, 15})
+	val := holtWintersFn([]float64{math.NaN(), 1, math.NaN(), 5, 10, 15, math.NaN(), math.NaN()})
 
 	test.EqualsWithNansWithDelta(t, 13.6559, val, 0.0001)
 }
