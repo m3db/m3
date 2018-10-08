@@ -1,5 +1,5 @@
 hash: c7d6edc7885c08b5c7ab435fc11c874bce9200ee5187e628778a0c7b2e028d30
-updated: 2018-10-05T17:27:15.235469-04:00
+updated: 2018-10-08T12:03:37.468013-04:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -160,6 +160,7 @@ imports:
   version: 3af367b6b30c263d47e8895973edcca9a49cf029
   subpackages:
   - cmp
+  - cmp/cmpopts
   - cmp/internal/diff
   - cmp/internal/function
   - cmp/internal/value
@@ -265,6 +266,7 @@ imports:
   subpackages:
   - aggregation
   - encoding
+  - encoding/migration
   - encoding/msgpack
   - encoding/protobuf
   - errors
@@ -295,6 +297,7 @@ imports:
 - name: github.com/m3db/m3msg
   version: 4680d9b45286826f87b134a4559b11d795786eaf
   subpackages:
+  - consumer
   - generated/proto/msgpb
   - generated/proto/topicpb
   - producer
@@ -319,10 +322,12 @@ imports:
   - ident/testutil
   - instrument
   - log
+  - net
   - pool
   - process
   - resource
   - retry
+  - server
   - sync
   - tcp
   - test
@@ -380,7 +385,7 @@ imports:
 - name: github.com/pborman/uuid
   version: adf5a7427709b9deb95d29d3fa8a2bf9cfd388f1
 - name: github.com/pelletier/go-buffruneio
-  version: e2f66f8164ca709d4c21e815860afd2024e9b894
+  version: de1592c34d9c6055a32fc9ebe2b3ee50ca468ebe
 - name: github.com/pelletier/go-toml
   version: 3b00596b2e9ee541bbd72dc50cc0c60e2b46c69c
 - name: github.com/philhofer/fwd
@@ -469,7 +474,7 @@ imports:
   - require
   - suite
 - name: github.com/tinylib/msgp
-  version: 53e4ad1e134ee9b42a7add28ca77177ab17983b3
+  version: f65876d3ea05943d6613bca6b8ed391843044bd4
   subpackages:
   - msgp
 - name: github.com/uber-go/atomic

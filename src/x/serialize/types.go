@@ -22,6 +22,7 @@ package serialize
 
 import (
 	"github.com/m3db/m3/src/dbnode/x/xpool"
+	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 )
@@ -131,4 +132,11 @@ type TagSerializationLimits interface {
 
 	// MaxTagLiteralLength returns the maximum length of a tag Name/Value.
 	MaxTagLiteralLength() uint16
+}
+
+// MetricTagsIterator iterates over a set of tags.
+type MetricTagsIterator interface {
+	id.ID
+	id.SortedTagIterator
+	NumTags() int
 }
