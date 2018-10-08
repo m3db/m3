@@ -84,7 +84,6 @@ func (t Tags) IDMarshalTo(b []byte) []byte {
 // IDLen returns the length of the ID that would be
 // generated from the tags.
 func (t Tags) IDLen() int {
-	// return t.idLen
 	idLen := 2 * t.Len() // account for eq and sep
 	for _, tag := range t.Tags {
 		idLen += len(tag.Name)
