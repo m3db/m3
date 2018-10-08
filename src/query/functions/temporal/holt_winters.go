@@ -43,12 +43,12 @@ func NewHoltWintersOp(args []interface{}) (transform.Params, error) {
 
 	sf, ok := args[1].(float64)
 	if !ok {
-		return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[0], HoltWintersType)
+		return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[1], HoltWintersType)
 	}
 
 	tf, ok := args[2].(float64)
 	if !ok {
-		return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[0], HoltWintersType)
+		return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[2], HoltWintersType)
 	}
 
 	// Sanity check the input.
