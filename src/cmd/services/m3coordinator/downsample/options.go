@@ -274,9 +274,9 @@ func (o DownsamplerOptions) newAggregator() (agg, error) {
 }
 
 type aggPools struct {
-	tagEncoderPool          serialize.TagEncoderPool
-	tagDecoderPool          serialize.TagDecoderPool
-	encodedTagsIteratorPool serialize.MetricTagsIteratorPool
+	tagEncoderPool         serialize.TagEncoderPool
+	tagDecoderPool         serialize.TagDecoderPool
+	metricTagsIteratorPool serialize.MetricTagsIteratorPool
 }
 
 func (o DownsamplerOptions) newAggregatorPools() aggPools {
@@ -288,14 +288,14 @@ func (o DownsamplerOptions) newAggregatorPools() aggPools {
 		o.TagDecoderPoolOptions)
 	tagDecoderPool.Init()
 
-	encodedTagsIteratorPool := serialize.NewMetricTagsIteratorPool(tagDecoderPool,
+	metricTagsIteratorPool := serialize.NewMetricTagsIteratorPool(tagDecoderPool,
 		o.TagDecoderPoolOptions)
-	encodedTagsIteratorPool.Init()
+	metricTagsIteratorPool.Init()
 
 	return aggPools{
-		tagEncoderPool:          tagEncoderPool,
-		tagDecoderPool:          tagDecoderPool,
-		encodedTagsIteratorPool: encodedTagsIteratorPool,
+		tagEncoderPool:         tagEncoderPool,
+		tagDecoderPool:         tagDecoderPool,
+		metricTagsIteratorPool: metricTagsIteratorPool,
 	}
 }
 
@@ -306,7 +306,7 @@ func (o DownsamplerOptions) newAggregatorRulesOptions(pools aggPools) rules.Opti
 	}
 
 	sortedTagIteratorFn := func(tagPairs []byte) id.SortedTagIterator {
-		it := pools.encodedTagsIteratorPool.Get()
+		it := pools.metricTagsIteratorPool.Get()
 		it.Reset(tagPairs)
 		return it
 	}
@@ -314,7 +314,7 @@ func (o DownsamplerOptions) newAggregatorRulesOptions(pools aggPools) rules.Opti
 	tagsFilterOpts := filters.TagsFilterOptions{
 		NameTagKey: nameTag,
 		NameAndTagsFn: func(id []byte) ([]byte, []byte, error) {
-			name, err := resolveEncodedTagsNameTag(id, pools.encodedTagsIteratorPool,
+			name, err := resolveEncodedTagsNameTag(id, pools.metricTagsIteratorPool,
 				nameTag)
 			if err != nil {
 				return nil, nil, err
@@ -327,7 +327,7 @@ func (o DownsamplerOptions) newAggregatorRulesOptions(pools aggPools) rules.Opti
 	}
 
 	isRollupIDFn := func(name []byte, tags []byte) bool {
-		return isRollupID(tags, pools.encodedTagsIteratorPool)
+		return isRollupID(tags, pools.metricTagsIteratorPool)
 	}
 
 	newRollupIDProviderPool := newRollupIDProviderPool(pools.tagEncoderPool,
@@ -448,7 +448,7 @@ func (o DownsamplerOptions) newAggregatorFlushManagerAndHandler(
 
 	flushWorkers := xsync.NewWorkerPool(storageFlushConcurrency)
 	flushWorkers.Init()
-	handler := newDownsamplerFlushHandler(o.Storage, pools.encodedTagsIteratorPool,
+	handler := newDownsamplerFlushHandler(o.Storage, pools.metricTagsIteratorPool,
 		flushWorkers, instrumentOpts)
 
 	return flushManager, handler

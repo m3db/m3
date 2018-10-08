@@ -11,11 +11,11 @@ import (
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/instrument"
 	xsync "github.com/m3db/m3x/sync"
-	"github.com/uber-go/tally"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 func TestDownsamplerFlushHandlerCopiesTags(t *testing.T) {

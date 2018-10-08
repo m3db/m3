@@ -40,12 +40,12 @@ type metricsAppender struct {
 }
 
 type metricsAppenderOptions struct {
-	agg                     aggregator.Aggregator
-	defaultStagedMetadatas  []metadata.StagedMetadatas
-	clockOpts               clock.Options
-	tagEncoder              serialize.TagEncoder
-	matcher                 matcher.Matcher
-	encodedTagsIteratorPool serialize.MetricTagsIteratorPool
+	agg                    aggregator.Aggregator
+	defaultStagedMetadatas []metadata.StagedMetadatas
+	clockOpts              clock.Options
+	tagEncoder             serialize.TagEncoder
+	matcher                matcher.Matcher
+	metricTagsIteratorPool serialize.MetricTagsIteratorPool
 }
 
 func (a *metricsAppender) AddTag(name, value []byte) {
@@ -71,7 +71,7 @@ func (a *metricsAppender) SamplesAppender() (SamplesAppender, error) {
 	unownedID := data.Bytes()
 
 	// Match policies and rollups and build samples appender
-	id := a.encodedTagsIteratorPool.Get()
+	id := a.metricTagsIteratorPool.Get()
 	id.Reset(unownedID)
 	now := time.Now()
 	nowNanos := now.UnixNano()
