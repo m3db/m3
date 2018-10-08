@@ -253,6 +253,7 @@ var temporalParseTests = []struct {
 	{"increase(up[5m])", temporal.IncreaseType},
 	{"resets(up[5m])", temporal.ResetsType},
 	{"changes(up[5m])", temporal.ChangesType},
+	{"holt_winters(up[5m], 0.2, 0.3)", temporal.HoltWintersType},
 }
 
 func TestTemporalParses(t *testing.T) {
