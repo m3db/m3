@@ -30,6 +30,7 @@ import (
 
 // TagJoinType joins the values of given tags using a given separator
 // and adds them to a given destination tag. It can combine any number of tags.
+// NB: This will override an existing tag if the given tag exists in the tag list.
 const TagJoinType = "label_join"
 
 func combineTagsWithSeparator(name []byte, separator []byte, values [][]byte) models.Tag {
@@ -112,8 +113,9 @@ func makeTagJoinFunc(params []string) (tagTransformFunc, error) {
 		if lMatching == uniqueTagCount || len(seriesMeta) == 0 {
 			if lMatching > 0 {
 				ordered := tagsInOrder(tagNames, matchingCommonTags)
-				meta.Tags = meta.Tags.AddTag(combineTagsWithSeparator(name, sep, ordered))
+				meta.Tags = meta.Tags.AddOrUpdateTag(combineTagsWithSeparator(name, sep, ordered))
 			}
+
 			return
 		}
 
@@ -122,7 +124,8 @@ func makeTagJoinFunc(params []string) (tagTransformFunc, error) {
 			seriesTags = seriesTags.Add(matchingCommonTags)
 			if len(seriesTags) > 0 {
 				ordered := tagsInOrder(tagNames, seriesTags)
-				seriesMeta[i].Tags = seriesMeta[i].Tags.AddTag(combineTagsWithSeparator(name, sep, ordered))
+				seriesMeta[i].Tags = seriesMeta[i].Tags.
+					AddOrUpdateTag(combineTagsWithSeparator(name, sep, ordered))
 			}
 		}
 	}, nil

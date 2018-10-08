@@ -120,6 +120,17 @@ var tagJoinFnTests = []struct {
 			{{N: "aa", V: "qux!foo!bar"}, {N: "c", V: "qux"}},
 		},
 	},
+	{
+		name:             "mixed with replace",
+		params:           []string{"c", "!", "c", "a", "b"},
+		metaTags:         test.StringTags{{N: "a", V: "foo"}, {N: "b", V: "bar"}},
+		seriesMetaTags:   []test.StringTags{{{N: "c", V: "baz"}}, {{N: "c", V: "qux"}}},
+		expectedMetaTags: test.StringTags{{N: "a", V: "foo"}, {N: "b", V: "bar"}},
+		expectedSeriesMetaTags: []test.StringTags{
+			{{N: "c", V: "baz!foo!bar"}},
+			{{N: "c", V: "qux!foo!bar"}},
+		},
+	},
 }
 
 func TestTagJoinFn(t *testing.T) {

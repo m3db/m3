@@ -21,7 +21,6 @@
 package tag
 
 import (
-	"bytes"
 	"fmt"
 	"regexp"
 
@@ -72,7 +71,6 @@ func makeTagReplaceFunc(params []string) (tagTransformFunc, error) {
 	destinationName := []byte(params[0])
 	destinationValRegex := []byte(params[1])
 	sourceName := []byte(params[2])
-	replace := bytes.Equal(sourceName, destinationName)
 
 	return func(meta *block.Metadata, seriesMeta []block.SeriesMeta) {
 		// Optimization if all joining series are shared by the block,
@@ -86,11 +84,7 @@ func makeTagReplaceFunc(params []string) (tagTransformFunc, error) {
 		)
 		if len(seriesMeta) == 0 || found {
 			if valid {
-				if replace {
-					meta.Tags.ReplaceTag(sourceName, tag.Value)
-				} else {
-					meta.Tags = meta.Tags.AddTag(tag)
-				}
+				meta.Tags = meta.Tags.AddOrUpdateTag(tag)
 			}
 
 			// NB: If the tag exists in shared block tag list, it cannot also exist
@@ -107,11 +101,7 @@ func makeTagReplaceFunc(params []string) (tagTransformFunc, error) {
 				destinationValRegex,
 				regex,
 			); valid {
-				if replace {
-					seriesMeta[i].Tags.ReplaceTag(sourceName, tag.Value)
-				} else {
-					seriesMeta[i].Tags = seriesMeta[i].Tags.AddTag(tag)
-				}
+				seriesMeta[i].Tags = seriesMeta[i].Tags.AddOrUpdateTag(tag)
 			}
 		}
 	}, nil
