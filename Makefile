@@ -49,6 +49,7 @@ SERVICES :=     \
 SUBDIRS :=    \
 	x           \
 	cmd         \
+	collector   \
 	dbnode      \
 	query       \
 	m3em        \

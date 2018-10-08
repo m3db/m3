@@ -9,8 +9,8 @@ steps:
     plugins:
       docker-compose#v2.5.1:
         run: app
-  - name: "Integration (m3em), Codegen"
-    command: make clean install-vendor test-ci-integration-m3em test-all-gen
+  - name: "Integration (collector, m3em), Codegen"
+    command: make clean install-vendor test-ci-integration-collector test-ci-integration-m3em test-all-gen
     env:
       CGO_ENABLED: 0
       GIMME_GO_VERSION: 1.10.x
