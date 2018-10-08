@@ -42,7 +42,18 @@ func newTestDatabase(
 	topoInit topology.Initializer,
 ) (Database, error) {
 	opts := storage.NewOptions()
-	return NewDatabase(hostid, topoInit, opts)
+
+	topo, err := topoInit.Init()
+	if err != nil {
+		return nil, err
+	}
+
+	watch, err := topo.Watch()
+	if err != nil {
+		return nil, err
+	}
+
+	return NewDatabase(hostid, topo, watch, opts)
 }
 
 func TestDatabaseOpenClose(t *testing.T) {

@@ -8,18 +8,27 @@ coverage:
       default: on
       x:
         flags: x
+      collector:
+        flags: collector
       query:
         flags: query
       dbnode:
         flags: dbnode
       m3ninx:
         flags: m3ninx
+      m3nsch:
+        flags: m3nsch
+      m3em:
+        flags: m3em
     patch:
       default: on
     changes:
       default: off
 
   flags:
+    collector:
+      paths:
+        - src/collector/
     query:
       paths:
         - src/query/
@@ -31,6 +40,15 @@ coverage:
     m3ninx:
       paths:
         - src/m3ninx/
+    m3nsch:
+      paths:
+        - src/m3nsch/
+        - src/cmd/services/m3nsch_server
+        - src/cmd/services/m3nsch_client
+    m3em:
+      paths:
+        - src/m3em/
+        - src/cmd/services/m3em_agent
     x:
       paths:
         - src/x/

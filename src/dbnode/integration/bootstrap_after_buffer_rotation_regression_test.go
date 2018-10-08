@@ -133,9 +133,10 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 		},
 	}, bootstrapOpts, bootstrapper)
 
-	processOpts := bootstrap.NewProcessOptions().SetAdminClient(
-		setup.m3dbAdminClient,
-	)
+	processOpts := bootstrap.NewProcessOptions().
+		SetTopologyMapProvider(setup).
+		SetOrigin(setup.origin)
+
 	processProvider, err := bootstrap.NewProcessProvider(
 		test, processOpts, bootstrapOpts)
 	require.NoError(t, err)

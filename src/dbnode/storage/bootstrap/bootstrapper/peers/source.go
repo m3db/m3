@@ -767,19 +767,27 @@ func (s *peersSource) peerAvailability(
 		availableShardTimeRanges  = result.ShardTimeRanges{}
 	)
 	for shardIDUint := range shardsTimeRanges {
-		shardID := topology.ShardID(shardIDUint)
-		shardPeers := peerAvailabilityByShard[shardID]
+		var (
+			shardID    = topology.ShardID(shardIDUint)
+			shardPeers = peerAvailabilityByShard[shardID]
 
-		total := shardPeers.numPeers
-		available := shardPeers.numAvailablePeers
+			total     = shardPeers.numPeers
+			available = shardPeers.numAvailablePeers
+		)
 
 		if available == 0 {
 			// Can't peer bootstrap if there are no available peers.
+			s.log.Debugf(
+				"0 available peers out of %d for shard %d, unable to peer bootstrap",
+				total, shardIDUint)
 			continue
 		}
 
 		if !topology.ReadConsistencyAchieved(
 			bootstrapConsistencyLevel, majorityReplicas, total, available) {
+			s.log.Debugf(
+				"read consistency of %v not achieved with %d replicas and %d total and %d available, unable to peer bootstrap",
+				bootstrapConsistencyLevel, majorityReplicas, total, available)
 			continue
 		}
 

@@ -36,13 +36,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPlacementAddHandler(t *testing.T) {
+func TestPlacementAddHandler_Force(t *testing.T) {
 	mockClient, mockPlacementService := SetupPlacementTest(t)
 	handler := NewAddHandler(mockClient, config.Configuration{})
 
 	// Test add failure
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/placement", strings.NewReader("{\"instances\":[]}"))
+	req := httptest.NewRequest("POST", "/placement", strings.NewReader("{\"force\": true, \"instances\":[]}"))
 	require.NotNil(t, req)
 
 	mockPlacementService.EXPECT().AddInstances(gomock.Any()).Return(placement.NewPlacement(), nil, errors.New("no new instances found in the valid zone"))
@@ -55,7 +55,7 @@ func TestPlacementAddHandler(t *testing.T) {
 
 	// Test add success
 	w = httptest.NewRecorder()
-	req = httptest.NewRequest("POST", "/placement", strings.NewReader("{\"instances\":[{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234}]}"))
+	req = httptest.NewRequest("POST", "/placement", strings.NewReader("{\"force\": true, \"instances\":[{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234}]}"))
 	require.NotNil(t, req)
 
 	mockPlacementService.EXPECT().AddInstances(gomock.Not(nil)).Return(placement.NewPlacement(), nil, nil)
@@ -65,4 +65,71 @@ func TestPlacementAddHandler(t *testing.T) {
 	body, _ = ioutil.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, "{\"placement\":{\"instances\":{},\"replicaFactor\":0,\"numShards\":0,\"isSharded\":false,\"cutoverTime\":\"0\",\"isMirrored\":false,\"maxShardSetId\":0},\"version\":0}", string(body))
+}
+
+func TestPlacementAddHandler_SafeErr(t *testing.T) {
+	mockClient, mockPlacementService := SetupPlacementTest(t)
+	handler := NewAddHandler(mockClient, config.Configuration{})
+
+	// Test add failure
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/placement", strings.NewReader("{\"instances\":[]}"))
+	require.NotNil(t, req)
+
+	mockPlacementService.EXPECT().Placement().Return(placement.NewPlacement(), 0, errors.New("no new instances found in the valid zone"))
+	mockPlacementService.EXPECT().AddInstances(gomock.Any()).Return(placement.NewPlacement(), nil, errors.New("no new instances found in the valid zone"))
+	handler.ServeHTTP(w, req)
+
+	resp := w.Result()
+	body, _ := ioutil.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	assert.Equal(t, "{\"error\":\"no new instances found in the valid zone\"}\n", string(body))
+
+	// Current placement has initializing shards
+	w = httptest.NewRecorder()
+	req = httptest.NewRequest("POST", "/placement", strings.NewReader("{\"instances\":[{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234}]}"))
+	require.NotNil(t, req)
+
+	mockPlacementService.EXPECT().Placement().Return(newInitPlacement(), 0, nil)
+	mockPlacementService.EXPECT().AddInstances(gomock.Not(nil)).Return(placement.NewPlacement(), nil, nil)
+	handler.ServeHTTP(w, req)
+
+	resp = w.Result()
+	body, _ = ioutil.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	assert.Equal(t, `{"error":"instances [A,B] do not have all shards available"}`+"\n", string(body))
+}
+
+func TestPlacementAddHandler_SafeOK(t *testing.T) {
+	mockClient, mockPlacementService := SetupPlacementTest(t)
+	handler := NewAddHandler(mockClient, config.Configuration{})
+
+	// Test add error
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/placement", strings.NewReader("{\"instances\":[{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234}]}"))
+	require.NotNil(t, req)
+
+	mockPlacementService.EXPECT().Placement().Return(placement.NewPlacement().SetIsSharded(true), 0, nil)
+	mockPlacementService.EXPECT().AddInstances(gomock.Not(nil)).Return(placement.NewPlacement(), nil, nil)
+	mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0).Return(errors.New("test err"))
+	handler.ServeHTTP(w, req)
+
+	resp := w.Result()
+	body, _ := ioutil.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	assert.Equal(t, `{"error":"test err"}`+"\n", string(body))
+
+	w = httptest.NewRecorder()
+	req = httptest.NewRequest("POST", "/placement", strings.NewReader("{\"instances\":[{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234}]}"))
+	require.NotNil(t, req)
+
+	mockPlacementService.EXPECT().Placement().Return(placement.NewPlacement().SetIsSharded(true), 0, nil)
+	mockPlacementService.EXPECT().AddInstances(gomock.Not(nil)).Return(placement.NewPlacement(), nil, nil)
+	mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0).Return(nil)
+	handler.ServeHTTP(w, req)
+
+	resp = w.Result()
+	body, _ = ioutil.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "{\"placement\":{\"instances\":{},\"replicaFactor\":0,\"numShards\":0,\"isSharded\":true,\"cutoverTime\":\"0\",\"isMirrored\":false,\"maxShardSetId\":0},\"version\":1}", string(body))
 }

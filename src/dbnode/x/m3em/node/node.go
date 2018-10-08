@@ -26,7 +26,7 @@ import (
 
 	m3dbrpc "github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	m3dbchannel "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/node/channel"
-	"github.com/m3db/m3em/node"
+	"github.com/m3db/m3/src/m3em/node"
 
 	tchannel "github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"

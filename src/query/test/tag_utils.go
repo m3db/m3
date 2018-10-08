@@ -20,11 +20,13 @@
 
 package test
 
-import "github.com/m3db/m3/src/query/models"
+import (
+	"github.com/m3db/m3/src/query/models"
+)
 
 // StringTagsToTags converts string tags to tags.
 func StringTagsToTags(s StringTags) models.Tags {
-	tags := models.EmptyTags()
+	tags := models.NewTags(len(s), models.NewTagOptions())
 	for _, t := range s {
 		tags.AddTag(models.Tag{Name: []byte(t.N), Value: []byte(t.V)})
 	}

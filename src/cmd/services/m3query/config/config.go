@@ -116,7 +116,7 @@ type RPCConfiguration struct {
 // relevant options.
 type TagOptionsConfiguration struct {
 	// MetricName specifies the tag name that corresponds to the metric's name tag
-	// Defaults to __name__ for Prometheus.
+	// If not provided, defaults to `__name__`
 	MetricName string `yaml:"metricName"`
 }
 

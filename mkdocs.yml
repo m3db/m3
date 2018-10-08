@@ -62,7 +62,9 @@ pages:
     - "M3DB Cluster Deployment, Manually": "how_to/cluster_hard_way.md"
     - "M3DB on Kubernetes": "how_to/kubernetes.md"
   - "Operational Guides":
-    - "Placement / Topology": "operational_guide/placement.md"
+    - "Placement/Topology": "operational_guide/placement.md"
+    - "Placement/Topology Configuration": "operational_guide/placement_configuration.md"
+    - "Namespace Configuration": "operational_guide/namespace_configuration.md"
     - "Bootstrapping": "operational_guide/bootstrapping.md"
   - "Integrations":
     - "Prometheus": "integrations/prometheus.md"

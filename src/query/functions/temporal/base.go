@@ -44,12 +44,11 @@ type baseOp struct {
 	operatorType string
 	duration     time.Duration
 	processorFn  MakeProcessor
-	aggFunc      aggFunc
 }
 
 // skipping lint check for a single operator type since we will be adding more
 // nolint : unparam
-func newBaseOp(args []interface{}, operatorType string, processorFn MakeProcessor, aggFunc aggFunc) (baseOp, error) {
+func newBaseOp(args []interface{}, operatorType string, processorFn MakeProcessor) (baseOp, error) {
 	if len(args) != 1 {
 		return emptyOp, fmt.Errorf("invalid number of args for %s: %d", operatorType, len(args))
 	}
@@ -63,7 +62,6 @@ func newBaseOp(args []interface{}, operatorType string, processorFn MakeProcesso
 		operatorType: operatorType,
 		processorFn:  processorFn,
 		duration:     duration,
-		aggFunc:      aggFunc,
 	}, nil
 }
 
@@ -83,7 +81,7 @@ func (o baseOp) Node(controller *transform.Controller, opts transform.Options) t
 		controller:    controller,
 		cache:         newBlockCache(o, opts),
 		op:            o,
-		processor:     o.processorFn(o, controller, opts),
+		processor:     o.processorFn.Init(o, controller, opts),
 		transformOpts: opts,
 	}
 }
@@ -364,7 +362,9 @@ type Processor interface {
 }
 
 // MakeProcessor is a way to create a transform
-type MakeProcessor func(op baseOp, controller *transform.Controller, opts transform.Options) Processor
+type MakeProcessor interface {
+	Init(op baseOp, controller *transform.Controller, opts transform.Options) Processor
+}
 
 type processRequest struct {
 	blk    block.UnconsolidatedBlock

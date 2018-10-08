@@ -21,6 +21,7 @@
 package placement
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
@@ -45,6 +46,14 @@ const (
 // AddHandler is the handler for placement adds.
 type AddHandler Handler
 
+type unsafeAddError struct {
+	hosts string
+}
+
+func (e unsafeAddError) Error() string {
+	return fmt.Sprintf("instances [%s] do not have all shards available", e.hosts)
+}
+
 // NewAddHandler returns a new instance of AddHandler.
 func NewAddHandler(client clusterclient.Client, cfg config.Configuration) *AddHandler {
 	return &AddHandler{client: client, cfg: cfg}
@@ -62,8 +71,12 @@ func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	placement, err := h.Add(r, req)
 	if err != nil {
+		status := http.StatusInternalServerError
+		if _, ok := err.(unsafeAddError); ok {
+			status = http.StatusBadRequest
+		}
 		logger.Error("unable to add placement", zap.Any("error", err))
-		handler.Error(w, err, http.StatusInternalServerError)
+		handler.Error(w, err, status)
 		return
 	}
 
@@ -76,6 +89,7 @@ func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	resp := &admin.PlacementGetResponse{
 		Placement: placementProto,
+		Version:   int32(placement.GetVersion()),
 	}
 
 	handler.WriteProtoMsgJSONResponse(w, resp, logger)
@@ -101,15 +115,39 @@ func (h *AddHandler) Add(
 		return nil, err
 	}
 
-	service, err := Service(h.client, httpReq.Header)
+	service, algo, err := ServiceWithAlgo(h.client, httpReq.Header)
 	if err != nil {
 		return nil, err
 	}
 
-	newPlacement, _, err := service.AddInstances(instances)
+	if req.Force {
+		newPlacement, _, err := service.AddInstances(instances)
+		if err != nil {
+			return nil, err
+		}
+
+		return newPlacement, nil
+	}
+
+	curPlacement, version, err := service.Placement()
 	if err != nil {
 		return nil, err
 	}
 
-	return newPlacement, nil
+	if err := validateAllAvailable(curPlacement); err != nil {
+		return nil, err
+	}
+
+	newPlacement, err := algo.AddInstances(curPlacement, instances)
+	if err != nil {
+		return nil, err
+	}
+
+	// Ensure the placement we're updating is still the one on which we validated
+	// all shards are available.
+	if err := service.CheckAndSet(newPlacement, version); err != nil {
+		return nil, err
+	}
+
+	return newPlacement.SetVersion(version + 1), nil
 }

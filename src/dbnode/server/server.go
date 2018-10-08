@@ -21,6 +21,7 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -406,6 +407,7 @@ func Run(runOpts RunOptions) {
 		logger.Fatalf("could not initialize m3db topology: %v", err)
 	}
 
+	origin := topology.NewHost(hostID, "")
 	m3dbClient, err := cfg.Client.NewAdminClient(
 		client.ConfigurationParameters{
 			InstrumentOptions: iopts.
@@ -419,7 +421,7 @@ func Run(runOpts RunOptions) {
 			return opts.SetContextPool(opts.ContextPool()).(client.AdminOptions)
 		},
 		func(opts client.AdminOptions) client.AdminOptions {
-			return opts.SetOrigin(topology.NewHost(hostID, ""))
+			return opts.SetOrigin(origin)
 		})
 	if err != nil {
 		logger.Fatalf("could not create m3db client: %v", err)
@@ -433,32 +435,6 @@ func Run(runOpts RunOptions) {
 	clientAdminOpts := m3dbClient.Options().(client.AdminOptions)
 	kvWatchClientConsistencyLevels(envCfg.KVStore, logger,
 		clientAdminOpts, runtimeOptsMgr)
-
-	// Set bootstrap options
-	bs, err := cfg.Bootstrap.New(opts, m3dbClient)
-	if err != nil {
-		logger.Fatalf("could not create bootstrap process: %v", err)
-	}
-
-	opts = opts.SetBootstrapProcessProvider(bs)
-
-	timeout := bootstrapConfigInitTimeout
-	kvWatchBootstrappers(envCfg.KVStore, logger, timeout, cfg.Bootstrap.Bootstrappers,
-		func(bootstrappers []string) {
-			if len(bootstrappers) == 0 {
-				logger.Errorf("updated bootstrapper list is empty")
-				return
-			}
-
-			cfg.Bootstrap.Bootstrappers = bootstrappers
-			updated, err := cfg.Bootstrap.New(opts, m3dbClient)
-			if err != nil {
-				logger.Errorf("updated bootstrapper list failed: %v", err)
-				return
-			}
-
-			bs.SetBootstrapperProvider(updated.BootstrapperProvider())
-		})
 
 	// Set repair options
 	hostBlockMetadataSlicePool := repair.NewHostBlockMetadataSlicePool(
@@ -498,10 +474,49 @@ func Run(runOpts RunOptions) {
 		SetTagEncoderPool(tagEncoderPool).
 		SetTagDecoderPool(tagDecoderPool)
 
-	db, err := cluster.NewDatabase(hostID, envCfg.TopologyInitializer, opts)
+	// Set bootstrap options - We need to create a topology map provider from the
+	// same topology that will be passed to the cluster so that when we make
+	// bootstrapping decisions they are in sync with the clustered database
+	// which is triggering the actual bootstraps. This way, when the clustered
+	// database receives a topology update and decides to kick off a bootstrap,
+	// the bootstrap process will receaive a topology map that is at least as
+	// recent as the one that triggered the bootstrap, if not newer.
+	// See GitHub issue #1013 for more details.
+	topoMapProvider := newTopoMapProvider(topo)
+	bs, err := cfg.Bootstrap.New(opts, topoMapProvider, origin, m3dbClient)
+	if err != nil {
+		logger.Fatalf("could not create bootstrap process: %v", err)
+	}
+
+	opts = opts.SetBootstrapProcessProvider(bs)
+	timeout := bootstrapConfigInitTimeout
+	kvWatchBootstrappers(envCfg.KVStore, logger, timeout, cfg.Bootstrap.Bootstrappers,
+		func(bootstrappers []string) {
+			if len(bootstrappers) == 0 {
+				logger.Errorf("updated bootstrapper list is empty")
+				return
+			}
+
+			cfg.Bootstrap.Bootstrappers = bootstrappers
+			updated, err := cfg.Bootstrap.New(opts, topoMapProvider, origin, m3dbClient)
+			if err != nil {
+				logger.Errorf("updated bootstrapper list failed: %v", err)
+				return
+			}
+
+			bs.SetBootstrapperProvider(updated.BootstrapperProvider())
+		})
+
+	// Initialize clustered database
+	clusterTopoWatch, err := topo.Watch()
+	if err != nil {
+		logger.Fatalf("could not create cluster topology watch: %v", err)
+	}
+	db, err := cluster.NewDatabase(hostID, topo, clusterTopoWatch, opts)
 	if err != nil {
 		logger.Fatalf("could not construct database: %v", err)
 	}
+
 	if err := db.Open(); err != nil {
 		logger.Fatalf("could not open database: %v", err)
 	}
@@ -1140,4 +1155,20 @@ func hostSupportsHugeTLB() (bool, error) {
 	}
 	// The warning was probably caused by something else, proceed using HugeTLB
 	return true, nil
+}
+
+func newTopoMapProvider(t topology.Topology) *topoMapProvider {
+	return &topoMapProvider{t}
+}
+
+type topoMapProvider struct {
+	t topology.Topology
+}
+
+func (t *topoMapProvider) TopologyMap() (topology.Map, error) {
+	if t.t == nil {
+		return nil, errors.New("topology map provider has not be set yet")
+	}
+
+	return t.t.Get(), nil
 }

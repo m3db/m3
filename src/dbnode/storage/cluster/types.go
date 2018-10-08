@@ -28,6 +28,8 @@ import (
 // Database is a clustered time series database
 type Database interface {
 	storage.Database
+	topology.MapProvider
 
+	// Topology returns the topology.
 	Topology() topology.Topology
 }

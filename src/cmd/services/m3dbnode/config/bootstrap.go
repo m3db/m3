@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/uninitialized"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/topology"
 )
 
 var (
@@ -93,6 +94,8 @@ type BootstrapPeersConfiguration struct {
 // New creates a bootstrap process based on the bootstrap configuration.
 func (bsc BootstrapConfiguration) New(
 	opts storage.Options,
+	topoMapProvider topology.MapProvider,
+	origin topology.Host,
 	adminClient client.AdminClient,
 ) (bootstrap.ProcessProvider, error) {
 	if err := ValidateBootstrappersOrder(bsc.Bootstrappers); err != nil {
@@ -160,20 +163,21 @@ func (bsc BootstrapConfiguration) New(
 				return nil, err
 			}
 		case uninitialized.UninitializedTopologyBootstrapperName:
-			uopts := uninitialized.NewOptions().
+			uOpts := uninitialized.NewOptions().
 				SetResultOptions(rsOpts).
 				SetInstrumentOptions(opts.InstrumentOptions())
-			bs = uninitialized.NewuninitializedTopologyBootstrapperProvider(uopts, bs)
+			bs = uninitialized.NewuninitializedTopologyBootstrapperProvider(uOpts, bs)
 		default:
 			return nil, fmt.Errorf("unknown bootstrapper: %s", bsc.Bootstrappers[i])
 		}
 	}
 
-	providerOpts := bootstrap.NewProcessOptions()
+	providerOpts := bootstrap.NewProcessOptions().
+		SetTopologyMapProvider(topoMapProvider).
+		SetOrigin(origin)
 	if bsc.CacheSeriesMetadata != nil {
 		providerOpts = providerOpts.SetCacheSeriesMetadata(*bsc.CacheSeriesMetadata)
 	}
-	providerOpts = providerOpts.SetAdminClient(adminClient)
 	return bootstrap.NewProcessProvider(bs, providerOpts, rsOpts)
 }
 

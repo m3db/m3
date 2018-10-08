@@ -1,28 +1,44 @@
 steps:
-  - name: "Unit, Big Unit"
-    command: make clean install-vendor test-ci-unit test-ci-big-unit
+  - name: "Unit"
+    command: make clean install-vendor test-ci-unit
     plugins:
       docker-compose#v2.5.1:
         run: app
-  - name: "Integration (Docker), Services, Tools, Metalint"
-    command: make install-vendor metalint test-all-gen docker-integration-test tools services
+  - name: "Big Unit"
+    command: make clean install-vendor test-ci-big-unit
+    plugins:
+      docker-compose#v2.5.1:
+        run: app
+  - name: "Integration (collector, m3em), Codegen"
+    command: make clean install-vendor test-ci-integration-collector test-ci-integration-m3em test-all-gen
     env:
       CGO_ENABLED: 0
       GIMME_GO_VERSION: 1.10.x
     plugins:
         gopath-checkout#v1.0.1:
           import: github.com/m3db/m3
-  - name: "Integration (All Metadata)"
+  - name: "Integration (:docker:), Services, Tools, Metalint"
+    command: make install-vendor metalint docker-integration-test tools services
+    env:
+      CGO_ENABLED: 0
+      GIMME_GO_VERSION: 1.10.x
+    plugins:
+        gopath-checkout#v1.0.1:
+          import: github.com/m3db/m3
+  - label: "Integration (All Metadata) %n"
+    parallelism: 2
     command: make clean install-vendor test-ci-integration-dbnode cache_policy=all_metadata
     plugins:
       docker-compose#v2.5.1:
         run: app
-  - name: "Integration (Recently Read)"
+  - name: "Integration (Recently Read) %n"
+    parallelism: 2
     command: make clean install-vendor test-ci-integration-dbnode cache_policy=recently_read
     plugins:
       docker-compose#v2.5.1:
         run: app
-  - name: "Integration (LRU)"
+  - name: "Integration (LRU) %n"
+    parallelism: 2
     command: make clean install-vendor test-ci-integration-dbnode cache_policy=lru
     plugins:
       docker-compose#v2.5.1:

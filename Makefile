@@ -41,15 +41,18 @@ GOMETALINT_VERSION   := v2.0.5
 SERVICES :=     \
 	m3dbnode      \
 	m3coordinator \
+	m3query       \
+	m3em_agent    \
 	m3nsch_server \
 	m3nsch_client \
-	m3query       \
 
 SUBDIRS :=    \
 	x           \
 	cmd         \
+	collector   \
 	dbnode      \
 	query       \
+	m3em        \
 	m3nsch      \
 	m3ninx      \
 

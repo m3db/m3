@@ -21,6 +21,7 @@
 package downsample
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 
@@ -97,6 +98,10 @@ func (l *localLeaderService) Leader(electionID string) (string, error) {
 		return "", fmt.Errorf("no such campaign: %s", electionID)
 	}
 	return leader, nil
+}
+
+func (l *localLeaderService) Observe(electionID string) (<-chan string, error) {
+	return nil, errors.New("unimplemented")
 }
 
 func (l *localLeaderService) Close() error {

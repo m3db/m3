@@ -1,10 +1,10 @@
-# Namespace Modifications
+# Namespace Configuration
 
 ## Introduction
 
 Namespaces in M3DB are analogous to tables in other databases. Each namespace has a unique name as well as distinct configuration with regards to data retention and blocksize. For more information about namespaces, read our [storage engine documentation](../architecture/engine.md).
 
-## Namespace Configuration
+## Namespace Attributes
 
 ### bootstrapEnabled
 
@@ -82,7 +82,7 @@ TODO
 
 The operations below include sample CURLs, but you can always review the API documentation by navigating to
 
-`http://<M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>/api/v1/openapi`
+`http://<M3_COORDINATOR_HOST_NAME>:<CONFIGURED_PORT(default 7201)>/api/v1/openapi` or our [online API documentation](https://m3db.io/openapi/).
 
 ### Adding a Namespace
 
@@ -120,7 +120,7 @@ Adding a namespace does not require restarting M3DB, but will require modifying 
 
 Deleting a namespace is a simple as using the `DELETE` `/api/v1/namespace` API on an M3Coordinator instance.
 
-curl -X DELETE <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>api/v1/namespace/<NAMESPACE_NAME>
+`curl -X DELETE <M3_COORDINATOR_IP_ADDRESS>:<CONFIGURED_PORT(default 7201)>/api/v1/namespace/<NAMESPACE_NAME>`
 
 Note that deleting a namespace will not have any effect on the M3DB nodes until they are all restarted. In addition, the namespace will need to be removed from the M3Coordinator configuration and then the M3Coordinator node will need to be restarted.
 
