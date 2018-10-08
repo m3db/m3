@@ -24,11 +24,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
-	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/placement"
 
 	"go.uber.org/zap"
@@ -55,25 +53,19 @@ const (
 type GetHandler Handler
 
 // NewGetHandler returns a new instance of GetHandler.
-func NewGetHandler(client clusterclient.Client, cfg config.Configuration) *GetHandler {
-	return &GetHandler{client: client, cfg: cfg}
+func NewGetHandler(opts HandlerOptions) *GetHandler {
+	return &GetHandler{opts}
 }
 
 func (h *GetHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
 		logger = logging.WithContext(ctx)
-		opts   = NewServiceOptionsFromHeaders(serviceName, r.Header)
+		opts   = NewServiceOptions(
+			serviceName, r.Header, h.M3AggServiceOptions)
 	)
 
-	switch serviceName {
-	case M3AggServiceName:
-		// Use default M3Agg values because we're getting the placement
-		// so the specific values don't matter.
-		opts = NewServiceOptionsWithDefaultM3AggValues(r.Header)
-	}
-
-	service, err := Service(h.client, opts)
+	service, err := Service(h.ClusterClient, opts)
 	if err != nil {
 		handler.Error(w, err, http.StatusInternalServerError)
 		return

@@ -34,8 +34,12 @@ import (
 
 func TestPlacementDeleteAllHandler(t *testing.T) {
 	runForAllAllowedServices(func(serviceName string) {
-		mockClient, mockPlacementService := SetupPlacementTest(t)
-		handler := NewDeleteAllHandler(mockClient, config.Configuration{})
+		var (
+			mockClient, mockPlacementService = SetupPlacementTest(t)
+			handlerOpts                      = NewHandlerOptions(
+				mockClient, config.Configuration{}, nil)
+			handler = NewDeleteAllHandler(handlerOpts)
+		)
 
 		// Test delete success
 		w := httptest.NewRecorder()

@@ -63,8 +63,12 @@ func SetupPlacementTest(t *testing.T) (*client.MockClient, *placement.MockServic
 
 func TestPlacementGetHandler(t *testing.T) {
 	runForAllAllowedServices(func(serviceName string) {
-		mockClient, mockPlacementService := SetupPlacementTest(t)
-		handler := NewGetHandler(mockClient, config.Configuration{})
+		var (
+			mockClient, mockPlacementService = SetupPlacementTest(t)
+			handlerOpts                      = NewHandlerOptions(
+				mockClient, config.Configuration{}, nil)
+			handler = NewGetHandler(handlerOpts)
+		)
 
 		// Test successful get
 		w := httptest.NewRecorder()

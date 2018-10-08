@@ -25,11 +25,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
-	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/placement"
 
 	"github.com/gorilla/mux"
@@ -62,8 +60,8 @@ var (
 type DeleteHandler Handler
 
 // NewDeleteHandler returns a new instance of DeleteHandler.
-func NewDeleteHandler(client clusterclient.Client, cfg config.Configuration) *DeleteHandler {
-	return &DeleteHandler{client: client, cfg: cfg}
+func NewDeleteHandler(opts HandlerOptions) *DeleteHandler {
+	return &DeleteHandler{opts}
 }
 
 func (h *DeleteHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
@@ -81,17 +79,11 @@ func (h *DeleteHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *
 
 	var (
 		force = r.FormValue(placementForceVar) == "true"
-		opts  = NewServiceOptionsFromHeaders(serviceName, r.Header)
+		opts  = NewServiceOptions(
+			serviceName, r.Header, h.M3AggServiceOptions)
 	)
 
-	switch serviceName {
-	case M3AggServiceName:
-		// Use default M3Agg values because we're deleting the placement
-		// so the specific values don't matter.
-		opts = NewServiceOptionsWithDefaultM3AggValues(r.Header)
-	}
-
-	service, algo, err := ServiceWithAlgo(h.client, opts)
+	service, algo, err := ServiceWithAlgo(h.ClusterClient, opts)
 	if err != nil {
 		handler.Error(w, err, http.StatusInternalServerError)
 		return

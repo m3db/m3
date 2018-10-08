@@ -24,10 +24,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/util/logging"
-	clusterclient "github.com/m3db/m3cluster/client"
 
 	"go.uber.org/zap"
 )
@@ -53,25 +51,19 @@ const (
 type DeleteAllHandler Handler
 
 // NewDeleteAllHandler returns a new instance of DeleteAllHandler.
-func NewDeleteAllHandler(client clusterclient.Client, cfg config.Configuration) *DeleteAllHandler {
-	return &DeleteAllHandler{client: client, cfg: cfg}
+func NewDeleteAllHandler(opts HandlerOptions) *DeleteAllHandler {
+	return &DeleteAllHandler{opts}
 }
 
 func (h *DeleteAllHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
 		logger = logging.WithContext(ctx)
-		opts   = NewServiceOptionsFromHeaders(serviceName, r.Header)
+		opts   = NewServiceOptions(
+			serviceName, r.Header, h.M3AggServiceOptions)
 	)
 
-	switch serviceName {
-	case M3AggServiceName:
-		// Use default M3Agg values because we're deleting the placement
-		// so the specific values don't matter.
-		opts = NewServiceOptionsWithDefaultM3AggValues(r.Header)
-	}
-
-	service, err := Service(h.client, opts)
+	service, err := Service(h.ClusterClient, opts)
 	if err != nil {
 		handler.Error(w, err, http.StatusInternalServerError)
 		return

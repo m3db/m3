@@ -50,21 +50,24 @@ func TestPlacementService(t *testing.T) {
 		mockClient.EXPECT().Services(gomock.Not(nil)).Return(mockServices, nil)
 		mockServices.EXPECT().PlacementService(gomock.Not(nil), gomock.Not(nil)).Return(mockPlacementService, nil)
 
-		placementService, algo, err := ServiceWithAlgo(mockClient, NewServiceOptions(M3DBServiceName))
+		placementService, algo, err := ServiceWithAlgo(
+			mockClient, NewServiceOptions(M3DBServiceName, nil, nil))
 		assert.NoError(t, err)
 		assert.NotNil(t, placementService)
 		assert.NotNil(t, algo)
 
 		// Test Services returns error
 		mockClient.EXPECT().Services(gomock.Not(nil)).Return(nil, errors.New("dummy service error"))
-		placementService, err = Service(mockClient, NewServiceOptions(M3DBServiceName))
+		placementService, err = Service(
+			mockClient, NewServiceOptions(M3DBServiceName, nil, nil))
 		assert.Nil(t, placementService)
 		assert.EqualError(t, err, "dummy service error")
 
 		// Test PlacementService returns error
 		mockClient.EXPECT().Services(gomock.Not(nil)).Return(mockServices, nil)
 		mockServices.EXPECT().PlacementService(gomock.Not(nil), gomock.Not(nil)).Return(nil, errors.New("dummy placement error"))
-		placementService, err = Service(mockClient, NewServiceOptions(M3DBServiceName))
+		placementService, err = Service(
+			mockClient, NewServiceOptions(M3DBServiceName, nil, nil))
 		assert.Nil(t, placementService)
 		assert.EqualError(t, err, "dummy placement error")
 	})
@@ -98,7 +101,7 @@ func TestPlacementServiceWithClusterHeaders(t *testing.T) {
 			serviceValue     = M3DBServiceName
 			environmentValue = "bar_env"
 			zoneValue        = "baz_zone"
-			opts             = NewServiceOptions(serviceValue)
+			opts             = NewServiceOptions(serviceValue, nil, nil)
 		)
 		opts.ServiceEnvironment = environmentValue
 		opts.ServiceZone = zoneValue

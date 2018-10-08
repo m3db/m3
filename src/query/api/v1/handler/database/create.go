@@ -124,7 +124,8 @@ func NewCreateHandler(
 	embeddedDbCfg *dbconfig.DBConfiguration,
 ) http.Handler {
 	return &createHandler{
-		placementInitHandler:   placement.NewInitHandler(client, cfg),
+		placementInitHandler: placement.NewInitHandler(
+			placement.HandlerOptions{ClusterClient: client, Config: cfg}),
 		namespaceAddHandler:    namespace.NewAddHandler(client),
 		namespaceDeleteHandler: namespace.NewDeleteHandler(client),
 		embeddedDbCfg:          embeddedDbCfg,

@@ -64,8 +64,12 @@ var (
 
 func TestPlacementInitHandler(t *testing.T) {
 	runForAllAllowedServices(func(serviceName string) {
-		mockClient, mockPlacementService := SetupPlacementTest(t)
-		handler := &InitHandler{mockClient, config.Configuration{}}
+		var (
+			mockClient, mockPlacementService = SetupPlacementTest(t)
+			handlerOpts                      = NewHandlerOptions(
+				mockClient, config.Configuration{}, nil)
+			handler = NewInitHandler(handlerOpts)
+		)
 
 		// Test placement init success
 		var (
@@ -83,6 +87,7 @@ func TestPlacementInitHandler(t *testing.T) {
 		newPlacement, err := placement.NewPlacementFromProto(initTestPlacementProto)
 		require.NoError(t, err)
 
+		// mockPlacementService.EXPECT().Placement().Return(nil, nil)
 		mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Not(nil), 16, 1).Return(newPlacement, nil)
 		handler.ServeHTTP(serviceName, w, req)
 		resp := w.Result()
@@ -106,6 +111,6 @@ func TestPlacementInitHandler(t *testing.T) {
 		body, err = ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-		assert.Equal(t, `{"error":"unable to build initial placement"}\n`, string(body))
+		assert.Equal(t, "{\"error\":\"unable to build initial placement\"}\n", string(body))
 	})
 }

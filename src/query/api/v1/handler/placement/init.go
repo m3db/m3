@@ -22,13 +22,10 @@ package placement
 
 import (
 	"net/http"
-	"time"
 
-	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
-	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/placement"
 
 	"github.com/gogo/protobuf/jsonpb"
@@ -54,8 +51,8 @@ const (
 type InitHandler Handler
 
 // NewInitHandler returns a new instance of InitHandler.
-func NewInitHandler(client clusterclient.Client, cfg config.Configuration) *InitHandler {
-	return &InitHandler{client: client, cfg: cfg}
+func NewInitHandler(opts HandlerOptions) *InitHandler {
+	return &InitHandler{opts}
 }
 
 func (h *InitHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
@@ -110,19 +107,10 @@ func (h *InitHandler) Init(
 		return nil, err
 	}
 
-	serviceOpts := NewServiceOptionsFromHeaders(serviceName, httpReq.Header)
-	switch serviceName {
-	case M3AggServiceName:
-		if req.MaxAggregationWindowSizeNanos <= 0 || req.WarmupDurationNanos <= 0 {
-			return nil, errAggWindowAndWarmupMustBeSet
-		}
-		serviceOpts.M3Agg = &M3AggServiceOptions{
-			MaxAggregationWindowSize: time.Duration(req.MaxAggregationWindowSizeNanos),
-			WarmupDuration:           time.Duration(req.WarmupDurationNanos),
-		}
-	}
+	serviceOpts := NewServiceOptions(
+		serviceName, httpReq.Header, h.M3AggServiceOptions)
 
-	service, err := Service(h.client, serviceOpts)
+	service, err := Service(h.ClusterClient, serviceOpts)
 	if err != nil {
 		return nil, err
 	}

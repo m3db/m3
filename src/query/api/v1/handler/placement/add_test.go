@@ -38,9 +38,12 @@ import (
 
 func TestPlacementAddHandler_Force(t *testing.T) {
 	runForAllAllowedServices(func(serviceName string) {
-
-		mockClient, mockPlacementService := SetupPlacementTest(t)
-		handler := NewAddHandler(mockClient, config.Configuration{})
+		var (
+			mockClient, mockPlacementService = SetupPlacementTest(t)
+			handlerOpts                      = NewHandlerOptions(
+				mockClient, config.Configuration{}, nil)
+			handler = NewAddHandler(handlerOpts)
+		)
 
 		// Test add failure
 		var (
@@ -60,7 +63,7 @@ func TestPlacementAddHandler_Force(t *testing.T) {
 		resp := w.Result()
 		body, _ := ioutil.ReadAll(resp.Body)
 		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-		assert.Equal(t, `{"error":"no new instances found in the valid zone"}\n`, string(body))
+		assert.Equal(t, "{\"error\":\"no new instances found in the valid zone\"}\n", string(body))
 
 		// Test add success
 		w = httptest.NewRecorder()
@@ -84,8 +87,12 @@ func TestPlacementAddHandler_Force(t *testing.T) {
 
 func TestPlacementAddHandler_SafeErr(t *testing.T) {
 	runForAllAllowedServices(func(serviceName string) {
-		mockClient, mockPlacementService := SetupPlacementTest(t)
-		handler := NewAddHandler(mockClient, config.Configuration{})
+		var (
+			mockClient, mockPlacementService = SetupPlacementTest(t)
+			handlerOpts                      = NewHandlerOptions(
+				mockClient, config.Configuration{}, nil)
+			handler = NewAddHandler(handlerOpts)
+		)
 
 		// Test add failure
 		var (
@@ -106,7 +113,7 @@ func TestPlacementAddHandler_SafeErr(t *testing.T) {
 		resp := w.Result()
 		body, _ := ioutil.ReadAll(resp.Body)
 		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-		assert.Equal(t, `{"error":"no new instances found in the valid zone"}\n`, string(body))
+		assert.Equal(t, "{\"error\":\"no new instances found in the valid zone\"}\n", string(body))
 
 		// Current placement has initializing shards
 		w = httptest.NewRecorder()
@@ -130,8 +137,12 @@ func TestPlacementAddHandler_SafeErr(t *testing.T) {
 
 func TestPlacementAddHandler_SafeOK(t *testing.T) {
 	runForAllAllowedServices(func(serviceName string) {
-		mockClient, mockPlacementService := SetupPlacementTest(t)
-		handler := NewAddHandler(mockClient, config.Configuration{})
+		var (
+			mockClient, mockPlacementService = SetupPlacementTest(t)
+			handlerOpts                      = NewHandlerOptions(
+				mockClient, config.Configuration{}, nil)
+			handler = NewAddHandler(handlerOpts)
+		)
 
 		// Test add error
 		var (

@@ -67,6 +67,9 @@ const (
 	HeaderClusterZoneName = "Cluster-Zone-Name"
 	// HeaderDryRun is the header used to specify whether this should be a dry run.
 	HeaderDryRun = "Dry-Run"
+
+	defaultM3AggMaxAggregationWindowSize = 5 * time.Minute
+	defaultM3AggWarmupDuration           = time.Minute
 )
 
 var (
@@ -82,12 +85,32 @@ var (
 	}
 )
 
-// Handler represents a generic handler for placement endpoints.
-type Handler struct {
+// HandlerOptions is the options struct for the handler.
+type HandlerOptions struct {
 	// This is used by other placement Handlers
 	// nolint: structcheck
-	client clusterclient.Client
-	cfg    config.Configuration
+	ClusterClient clusterclient.Client
+	Config        config.Configuration
+
+	M3AggServiceOptions *M3AggServiceOptions
+}
+
+// NewHandlerOptions is the constructor function for HandlerOptions.
+func NewHandlerOptions(
+	client clusterclient.Client,
+	cfg config.Configuration,
+	M3AggOpts *M3AggServiceOptions,
+) HandlerOptions {
+	return HandlerOptions{
+		ClusterClient:       client,
+		Config:              cfg,
+		M3AggServiceOptions: M3AggOpts,
+	}
+}
+
+// Handler represents a generic handler for placement endpoints.
+type Handler struct {
+	HandlerOptions
 }
 
 // ServiceOptions are the options for Service.
@@ -108,21 +131,23 @@ type M3AggServiceOptions struct {
 	WarmupDuration           time.Duration
 }
 
-// NewServiceOptions returns a ServiceOptions with default options.
-func NewServiceOptions(serviceName string) ServiceOptions {
-	return ServiceOptions{
+// NewServiceOptions returns a ServiceOptions based on the
+// provided headers, if present.
+func NewServiceOptions(
+	serviceName string, headers http.Header, M3AggOpts *M3AggServiceOptions) ServiceOptions {
+	opts := ServiceOptions{
 		ServiceName:        serviceName,
 		ServiceEnvironment: DefaultServiceEnvironment,
 		ServiceZone:        DefaultServiceZone,
 
 		DryRun: false,
-	}
-}
 
-// NewServiceOptionsFromHeaders returns a ServiceOptions based on the
-// provided headers, if present.
-func NewServiceOptionsFromHeaders(serviceName string, headers http.Header) ServiceOptions {
-	opts := NewServiceOptions(serviceName)
+		M3Agg: &M3AggServiceOptions{
+			MaxAggregationWindowSize: defaultM3AggMaxAggregationWindowSize,
+			WarmupDuration:           defaultM3AggWarmupDuration,
+		},
+	}
+
 	if v := strings.TrimSpace(headers.Get(HeaderClusterEnvironmentName)); v != "" {
 		opts.ServiceEnvironment = v
 	}
@@ -132,18 +157,19 @@ func NewServiceOptionsFromHeaders(serviceName string, headers http.Header) Servi
 	if v := strings.TrimSpace(headers.Get(HeaderDryRun)); v == "true" {
 		opts.DryRun = true
 	}
-	return opts
-}
 
-// NewServiceOptionsWithDefaultM3AggValues returns a ServiceOptions with
-// default M3Agg values to be used in the situation where the M3Agg values
-// don't matter.
-func NewServiceOptionsWithDefaultM3AggValues(headers http.Header) ServiceOptions {
-	opts := NewServiceOptionsFromHeaders(M3AggServiceName, headers)
-	opts.M3Agg = &M3AggServiceOptions{
-		MaxAggregationWindowSize: time.Hour,
-		WarmupDuration:           5 * time.Minute,
+	if M3AggOpts != nil {
+		if M3AggOpts.MaxAggregationWindowSize > 0 &&
+			M3AggOpts.MaxAggregationWindowSize > defaultM3AggMaxAggregationWindowSize {
+			opts.M3Agg.MaxAggregationWindowSize = M3AggOpts.MaxAggregationWindowSize
+		}
+
+		if M3AggOpts.WarmupDuration > 0 &&
+			M3AggOpts.MaxAggregationWindowSize > defaultM3AggWarmupDuration {
+			opts.M3Agg.WarmupDuration = M3AggOpts.MaxAggregationWindowSize
+		}
 	}
+
 	return opts
 }
 
@@ -188,8 +214,8 @@ func ServiceWithAlgo(clusterClient clusterclient.Client, opts ServiceOptions) (p
 	pOpts := placement.NewOptions().
 		SetValidZone(opts.ServiceZone).
 		SetIsSharded(true).
-		// Can use goal-based placement for both M3DB and M3Agg
-		SetIsStaged(false).
+		// M3Agg expected a staged placement.
+		SetIsStaged(true).
 		SetDryrun(opts.DryRun)
 
 	if opts.ServiceName == M3AggServiceName {
@@ -250,33 +276,33 @@ func ConvertInstancesProto(instancesProto []*placementpb.Instance) ([]placement.
 }
 
 // RegisterRoutes registers the placement routes
-func RegisterRoutes(r *mux.Router, client clusterclient.Client, cfg config.Configuration) {
+func RegisterRoutes(r *mux.Router, opts HandlerOptions) {
 	// Init
-	initFn := applyMiddleware(NewInitHandler(client, cfg).ServeHTTP)
+	initFn := applyMiddleware(NewInitHandler(opts).ServeHTTP)
 	r.HandleFunc(DeprecatedM3DBInitURL, initFn).Methods(InitHTTPMethod)
 	r.HandleFunc(M3DBInitURL, initFn).Methods(InitHTTPMethod)
 	r.HandleFunc(M3AggInitURL, initFn).Methods(InitHTTPMethod)
 
 	// Get
-	getFn := applyMiddleware(NewGetHandler(client, cfg).ServeHTTP)
+	getFn := applyMiddleware(NewGetHandler(opts).ServeHTTP)
 	r.HandleFunc(DeprecatedM3DBGetURL, getFn).Methods(GetHTTPMethod)
 	r.HandleFunc(M3DBGetURL, getFn).Methods(GetHTTPMethod)
 	r.HandleFunc(M3AggGetURL, getFn).Methods(GetHTTPMethod)
 
 	// Delete all
-	deleteAllFn := applyMiddleware(NewDeleteAllHandler(client, cfg).ServeHTTP)
+	deleteAllFn := applyMiddleware(NewDeleteAllHandler(opts).ServeHTTP)
 	r.HandleFunc(DeprecatedM3DBDeleteAllURL, deleteAllFn).Methods(DeleteAllHTTPMethod)
 	r.HandleFunc(M3DBDeleteAllURL, deleteAllFn).Methods(DeleteAllHTTPMethod)
 	r.HandleFunc(M3AggDeleteAllURL, deleteAllFn).Methods(DeleteAllHTTPMethod)
 
 	// Add
-	addFn := applyMiddleware(NewAddHandler(client, cfg).ServeHTTP)
+	addFn := applyMiddleware(NewAddHandler(opts).ServeHTTP)
 	r.HandleFunc(DeprecatedM3DBAddURL, addFn).Methods(AddHTTPMethod)
 	r.HandleFunc(M3DBAddURL, addFn).Methods(AddHTTPMethod)
 	r.HandleFunc(M3AggAddURL, addFn).Methods(AddHTTPMethod)
 
 	// Delete
-	deleteFn := applyMiddleware(NewDeleteHandler(client, cfg).ServeHTTP)
+	deleteFn := applyMiddleware(NewDeleteHandler(opts).ServeHTTP)
 	r.HandleFunc(DeprecatedM3DBDeleteURL, deleteFn).Methods(DeleteHTTPMethod)
 	r.HandleFunc(M3DBDeleteURL, deleteFn).Methods(DeleteHTTPMethod)
 	r.HandleFunc(M3AggDeleteURL, deleteFn).Methods(DeleteHTTPMethod)
@@ -321,8 +347,6 @@ func newShardCutOffValidationFn(now time.Time, maxAggregationWindowSize time.Dur
 	return func(s shard.Shard) error {
 		switch s.State() {
 		case shard.Leaving:
-			// TODO(rartoul): This seems overly cautious, basically it requires an entire maxAggregationWindowSize
-			// to elapse before "leaving" shards can be cleaned up.
 			if s.CutoffNanos() > now.UnixNano()-maxAggregationWindowSize.Nanoseconds() {
 				return fmt.Errorf("could not return leaving shard %d with cutoff time %v, max aggregation window %v",
 					s.ID(), time.Unix(0, s.CutoffNanos()), maxAggregationWindowSize)

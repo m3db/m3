@@ -40,7 +40,7 @@ import (
 func TestPlacementDeleteHandler_Force(t *testing.T) {
 	runForAllAllowedServices(func(serviceName string) {
 		mockClient, mockPlacementService := SetupPlacementTest(t)
-		handler := NewDeleteHandler(mockClient, config.Configuration{})
+		handler := NewDeleteHandler(NewHandlerOptions(mockClient, config.Configuration{}, nil))
 
 		// Test remove success
 		w := httptest.NewRecorder()
@@ -80,7 +80,9 @@ func TestPlacementDeleteHandler_Safe(t *testing.T) {
 		}
 		var (
 			mockClient, mockPlacementService = SetupPlacementTest(t)
-			handler                          = NewDeleteHandler(mockClient, config.Configuration{})
+			handlerOpts                      = NewHandlerOptions(
+				mockClient, config.Configuration{}, nil)
+			handler = NewDeleteHandler(handlerOpts)
 
 			basePlacement = placement.NewPlacement().
 					SetIsSharded(true)

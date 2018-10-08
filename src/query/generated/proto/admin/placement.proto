@@ -26,6 +26,6 @@ message PlacementAddRequest {
   bool force = 2;
 
   // M3Agg placements only
-  uint64 max_aggregation_window_size_nanos = 3;
-  uint64 warmup_duration_nanos = 4;
+  uint64 max_aggregation_window_size_nanos = 4;
+  uint64 warmup_duration_nanos = 5;
 }
