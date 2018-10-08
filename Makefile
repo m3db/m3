@@ -264,9 +264,10 @@ license-gen-$(SUBDIR): install-codegen-tools
 	@find $(SELF_DIR)/src/$(SUBDIR) -name '*.go' | PATH=$(retool_bin_path):$(PATH) xargs -I{} update-license {}
 
 .PHONY: all-gen-$(SUBDIR)
-# NB(prateek): order matters here, mock-gen needs to be last because we sometimes
-# generate mocks for thrift/proto generated code.
-all-gen-$(SUBDIR): thrift-gen-$(SUBDIR) proto-gen-$(SUBDIR) asset-gen-$(SUBDIR) genny-gen-$(SUBDIR) mock-gen-$(SUBDIR) license-gen-$(SUB)
+# NB(prateek): order matters here, mock-gen needs to be after proto/thrift because we sometimes
+# generate mocks for thrift/proto generated code. Similarly, license-gen needs to be last because
+# we make header changes.
+all-gen-$(SUBDIR): thrift-gen-$(SUBDIR) proto-gen-$(SUBDIR) asset-gen-$(SUBDIR) genny-gen-$(SUBDIR) mock-gen-$(SUBDIR) license-gen-$(SUBDIR)
 
 .PHONY: metalint-$(SUBDIR)
 metalint-$(SUBDIR): install-gometalinter install-linter-badtime install-linter-importorder
