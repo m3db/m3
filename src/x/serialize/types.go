@@ -140,3 +140,10 @@ type MetricTagsIterator interface {
 	id.SortedTagIterator
 	NumTags() int
 }
+
+// MetricTagsIteratorPool pools MetricTagsIterator.
+type MetricTagsIteratorPool interface {
+	Init()
+	Get() MetricTagsIterator
+	Put(iter MetricTagsIterator)
+}

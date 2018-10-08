@@ -44,11 +44,11 @@ var (
 
 type downsamplerFlushHandler struct {
 	sync.RWMutex
-	storage                 storage.Storage
-	encodedTagsIteratorPool *serialize.MetricTagsIteratorPool
-	workerPool              xsync.WorkerPool
-	instrumentOpts          instrument.Options
-	metrics                 downsamplerFlushHandlerMetrics
+	storage                storage.Storage
+	metricTagsIteratorPool serialize.MetricTagsIteratorPool
+	workerPool             xsync.WorkerPool
+	instrumentOpts         instrument.Options
+	metrics                downsamplerFlushHandlerMetrics
 }
 
 type downsamplerFlushHandlerMetrics struct {
@@ -67,17 +67,17 @@ func newDownsamplerFlushHandlerMetrics(
 
 func newDownsamplerFlushHandler(
 	storage storage.Storage,
-	encodedTagsIteratorPool *serialize.MetricTagsIteratorPool,
+	metricTagsIteratorPool serialize.MetricTagsIteratorPool,
 	workerPool xsync.WorkerPool,
 	instrumentOpts instrument.Options,
 ) handler.Handler {
 	scope := instrumentOpts.MetricsScope().SubScope("downsampler-flush-handler")
 	return &downsamplerFlushHandler{
-		storage:                 storage,
-		encodedTagsIteratorPool: encodedTagsIteratorPool,
-		workerPool:              workerPool,
-		instrumentOpts:          instrumentOpts,
-		metrics:                 newDownsamplerFlushHandlerMetrics(scope),
+		storage:                storage,
+		metricTagsIteratorPool: metricTagsIteratorPool,
+		workerPool:             workerPool,
+		instrumentOpts:         instrumentOpts,
+		metrics:                newDownsamplerFlushHandlerMetrics(scope),
 	}
 }
 
@@ -108,7 +108,7 @@ func (w *downsamplerFlushHandlerWriter) Write(
 
 		logger := w.handler.instrumentOpts.Logger()
 
-		iter := w.handler.encodedTagsIteratorPool.Get()
+		iter := w.handler.metricTagsIteratorPool.Get()
 		iter.Reset(mp.ChunkedID.Data)
 
 		expected := iter.NumTags()
@@ -121,7 +121,10 @@ func (w *downsamplerFlushHandlerWriter) Write(
 		tags := make(models.Tags, 0, expected)
 		for iter.Next() {
 			name, value := iter.Current()
-			tags = append(tags, models.Tag{Name: name, Value: value})
+			tags = append(tags, models.Tag{
+				Name:  append([]byte(nil), name...),
+				Value: append([]byte(nil), value...),
+			})
 		}
 
 		if len(chunkSuffix) != 0 {
