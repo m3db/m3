@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -263,7 +262,7 @@ func decompressSequentially(
 func decompressConcurrently(
 	iterLength int,
 	iters []encoding.SeriesIterator,
-	pool xsync.WorkerPool,
+	readWorkerPool xsync.PooledWorkerPool,
 	tagOptions models.TagOptions,
 ) (*FetchResult, error) {
 	seriesList := make([]*ts.Series, iterLength)
@@ -284,7 +283,7 @@ func decompressConcurrently(
 	for i, iter := range iters {
 		i := i
 		iter := iter
-		pool.Go(func() {
+		readWorkerPool.Go(func() {
 			defer wg.Done()
 			if stopped() {
 				return
@@ -303,6 +302,7 @@ func decompressConcurrently(
 			seriesList[i] = series
 		})
 	}
+
 	wg.Wait()
 	close(errorCh)
 	if err := <-errorCh; err != nil {
@@ -317,7 +317,7 @@ func decompressConcurrently(
 // SeriesIteratorsToFetchResult converts SeriesIterators into a fetch result
 func SeriesIteratorsToFetchResult(
 	seriesIterators encoding.SeriesIterators,
-	workerPools pool.ObjectPool,
+	readWorkerPool xsync.PooledWorkerPool,
 	cleanupSeriesIters bool,
 	tagOptions models.TagOptions,
 ) (*FetchResult, error) {
@@ -327,15 +327,9 @@ func SeriesIteratorsToFetchResult(
 
 	iters := seriesIterators.Iters()
 	iterLength := seriesIterators.Len()
-	if workerPools == nil {
+	if readWorkerPool == nil {
 		return decompressSequentially(iterLength, iters, tagOptions)
 	}
 
-	pool, ok := workerPools.Get().(xsync.WorkerPool)
-	if !ok {
-		return decompressSequentially(iterLength, iters, tagOptions)
-	}
-
-	defer workerPools.Put(pool)
-	return decompressConcurrently(iterLength, iters, pool, tagOptions)
+	return decompressConcurrently(iterLength, iters, readWorkerPool, tagOptions)
 }

@@ -33,7 +33,7 @@ import (
 	"github.com/m3db/m3/src/query/pools"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3x/pool"
+	xsync "github.com/m3db/m3x/sync"
 
 	"google.golang.org/grpc"
 )
@@ -45,20 +45,20 @@ type Client interface {
 }
 
 type grpcClient struct {
-	tagOptions  models.TagOptions
-	client      rpc.QueryClient
-	connection  *grpc.ClientConn
-	poolWrapper *pools.PoolWrapper
-	workerPool  pool.ObjectPool
+	tagOptions     models.TagOptions
+	client         rpc.QueryClient
+	connection     *grpc.ClientConn
+	poolWrapper    *pools.PoolWrapper
+	readWorkerPool xsync.PooledWorkerPool
 }
 
 const initResultSize = 10
 
-// NewGrpcClient creates grpc client
-func NewGrpcClient(
+// NewGRPCClient creates grpc client
+func NewGRPCClient(
 	addresses []string,
 	poolWrapper *pools.PoolWrapper,
-	workerPool pool.ObjectPool,
+	readWorkerPool xsync.PooledWorkerPool,
 	tagOptions models.TagOptions,
 	additionalDialOpts ...grpc.DialOption,
 ) (Client, error) {
@@ -77,11 +77,11 @@ func NewGrpcClient(
 
 	client := rpc.NewQueryClient(cc)
 	return &grpcClient{
-		tagOptions:  tagOptions,
-		client:      client,
-		connection:  cc,
-		poolWrapper: poolWrapper,
-		workerPool:  workerPool,
+		tagOptions:     tagOptions,
+		client:         client,
+		connection:     cc,
+		poolWrapper:    poolWrapper,
+		readWorkerPool: readWorkerPool,
 	}, nil
 }
 
@@ -96,7 +96,7 @@ func (c *grpcClient) Fetch(
 		return nil, err
 	}
 
-	return storage.SeriesIteratorsToFetchResult(iters, c.workerPool, true, c.tagOptions)
+	return storage.SeriesIteratorsToFetchResult(iters, c.readWorkerPool, true, c.tagOptions)
 }
 
 func (c *grpcClient) fetchRaw(
@@ -174,7 +174,12 @@ func (c *grpcClient) FetchBlocks(
 		return block.Result{}, err
 	}
 
-	fetchResult, err := storage.SeriesIteratorsToFetchResult(iters, c.workerPool, true, c.tagOptions)
+	fetchResult, err := storage.SeriesIteratorsToFetchResult(
+		iters,
+		c.readWorkerPool,
+		true,
+		c.tagOptions,
+	)
 	if err != nil {
 		return block.Result{}, err
 	}

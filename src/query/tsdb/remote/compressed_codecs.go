@@ -28,12 +28,12 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
-	"github.com/m3db/m3/src/dbnode/serialize"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/query/errors"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
+	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
@@ -113,7 +113,10 @@ func compressedTagsFromTagIterator(tagIter ident.TagIterator, encoderPool serial
 		return nil, fmt.Errorf("no refs available to data")
 	}
 
-	return data.Bytes(), nil
+	db := data.Bytes()
+	// Need to copy the encoded bytes to a buffer as the encoder keeps a reference to them
+	// TODO(arnikola): pool this when implementing https://github.com/m3db/m3/issues/1015
+	return append(make([]byte, 0, len(db)), db...), nil
 }
 
 func buildTags(tagIter ident.TagIterator, iterPools encoding.IteratorPools) ([]byte, error) {

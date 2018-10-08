@@ -25,9 +25,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/m3db/m3/src/dbnode/serialize"
+	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3metrics/metric/id"
-	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 
@@ -46,118 +45,9 @@ var (
 	errNoMetricNameTag = errors.New("no metric name tag found")
 )
 
-type encodedTagsIterator interface {
-	id.ID
-	id.SortedTagIterator
-	NumTags() int
-}
-
-type encodedTagsIter struct {
-	tagDecoder serialize.TagDecoder
-	bytes      checked.Bytes
-	pool       *encodedTagsIteratorPool
-}
-
-func newEncodedTagsIterator(
-	tagDecoder serialize.TagDecoder,
-	pool *encodedTagsIteratorPool,
-) encodedTagsIterator {
-	return &encodedTagsIter{
-		tagDecoder: tagDecoder,
-		bytes:      checked.NewBytes(nil, nil),
-		pool:       pool,
-	}
-}
-
-// Reset resets the iterator.
-func (it *encodedTagsIter) Reset(sortedTagPairs []byte) {
-	it.bytes.IncRef()
-	it.bytes.Reset(sortedTagPairs)
-	it.tagDecoder.Reset(it.bytes)
-}
-
-// Bytes returns the underlying bytes.
-func (it *encodedTagsIter) Bytes() []byte {
-	return it.bytes.Bytes()
-}
-
-func (it *encodedTagsIter) NumTags() int {
-	return it.tagDecoder.Len()
-}
-
-// TagValue returns the value for a tag value.
-func (it *encodedTagsIter) TagValue(tagName []byte) ([]byte, bool) {
-	iter := it.tagDecoder.Duplicate()
-	defer iter.Close()
-
-	for iter.Next() {
-		tag := iter.Current()
-		if bytes.Equal(tagName, tag.Name.Bytes()) {
-			return tag.Value.Bytes(), true
-		}
-	}
-	return nil, false
-}
-
-// Next returns true if there are more tag names and values.
-func (it *encodedTagsIter) Next() bool {
-	return it.tagDecoder.Next()
-}
-
-// Current returns the current tag name and value.
-func (it *encodedTagsIter) Current() ([]byte, []byte) {
-	tag := it.tagDecoder.Current()
-	return tag.Name.Bytes(), tag.Value.Bytes()
-}
-
-// Err returns any errors encountered.
-func (it *encodedTagsIter) Err() error {
-	return it.tagDecoder.Err()
-}
-
-// Close closes the iterator.
-func (it *encodedTagsIter) Close() {
-	it.bytes.Reset(nil)
-	it.bytes.DecRef()
-	it.tagDecoder.Reset(it.bytes)
-
-	if it.pool != nil {
-		it.pool.Put(it)
-	}
-}
-
-type encodedTagsIteratorPool struct {
-	tagDecoderPool serialize.TagDecoderPool
-	pool           pool.ObjectPool
-}
-
-func newEncodedTagsIteratorPool(
-	tagDecoderPool serialize.TagDecoderPool,
-	opts pool.ObjectPoolOptions,
-) *encodedTagsIteratorPool {
-	return &encodedTagsIteratorPool{
-		tagDecoderPool: tagDecoderPool,
-		pool:           pool.NewObjectPool(opts),
-	}
-}
-
-func (p *encodedTagsIteratorPool) Init() {
-	p.pool.Init(func() interface{} {
-		return newEncodedTagsIterator(p.tagDecoderPool.Get(), p)
-	})
-}
-
-func (p *encodedTagsIteratorPool) Get() encodedTagsIterator {
-	return p.pool.Get().(*encodedTagsIter)
-}
-
-func (p *encodedTagsIteratorPool) Put(v encodedTagsIterator) {
-	p.pool.Put(v)
-}
-
 func isRollupID(
 	sortedTagPairs []byte,
-	iteratorPool *encodedTagsIteratorPool,
+	iteratorPool *serialize.MetricTagsIteratorPool,
 ) bool {
 	iter := iteratorPool.Get()
 	iter.Reset(sortedTagPairs)
@@ -317,7 +207,7 @@ func (p *rollupIDProviderPool) Put(v *rollupIDProvider) {
 
 func resolveEncodedTagsNameTag(
 	id []byte,
-	iterPool *encodedTagsIteratorPool,
+	iterPool *serialize.MetricTagsIteratorPool,
 	nameTag []byte,
 ) ([]byte, error) {
 	// ID is always the encoded tags for downsampling IDs

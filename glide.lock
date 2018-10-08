@@ -1,5 +1,5 @@
-hash: 847915b5b52a933b8d8a7a4a68c12f3ec0d4bfa6f8cd8cf11ca2ec2a5c4211c1
-updated: 2018-10-03T21:36:12.182003-04:00
+hash: c7d6edc7885c08b5c7ab435fc11c874bce9200ee5187e628778a0c7b2e028d30
+updated: 2018-10-08T12:03:37.468013-04:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -114,18 +114,20 @@ imports:
 - name: github.com/edsrzf/mmap-go
   version: 0bce6a6887123b67a60366d2c9fe2dfb74289d2e
 - name: github.com/fsnotify/fsnotify
-  version: ccc981bf80385c528a65fbfdd49bf2d8da22aa23
+  version: c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9
 - name: github.com/ghodss/yaml
   version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
 - name: github.com/glycerine/go-unsnap-stream
   version: 9f0cb55181dd3a0a4c168d3dbc72d4aca4853126
 - name: github.com/go-kit/kit
-  version: 9890679578cab201bd981519c97365519193d1ce
+  version: 04dd4f741c6e76cc170a4d7913f4c625952e6f58
   subpackages:
   - log
   - log/level
 - name: github.com/go-logfmt/logfmt
   version: 390ab7935ee28ec6b286364bba9b4dd6410cb3d5
+- name: github.com/go-stack/stack
+  version: 54be5f394ed2c3e19dac9134a40a95ba5a017f7b
 - name: github.com/gogo/protobuf
   version: 100ba4e885062801d56799d78530b73b178a78f3
   subpackages:
@@ -158,6 +160,7 @@ imports:
   version: 3af367b6b30c263d47e8895973edcca9a49cf029
   subpackages:
   - cmp
+  - cmp/cmpopts
   - cmp/internal/diff
   - cmp/internal/function
   - cmp/internal/value
@@ -176,7 +179,7 @@ imports:
   - runtime/internal
   - utilities
 - name: github.com/hashicorp/hcl
-  version: 65a6292f0157eff210d03ed1bf6c59b190b8b906
+  version: 7fa7fff964d035e8a162cce3a164b3ad02ad651b
   subpackages:
   - hcl/ast
   - hcl/parser
@@ -258,21 +261,12 @@ imports:
   - service/r2/store/kv
 - name: github.com/m3db/m3em
   version: ed532baee45a440f0b08b6893c816634c6978d4d
-  subpackages:
-  - build
-  - checksum
-  - cluster
-  - generated/proto/heartbeat
-  - generated/proto/m3em
-  - node
-  - node/mocks
-  - os/fs
-  - x/grpc
 - name: github.com/m3db/m3metrics
   version: b400256bc6da4c10bad5a5f0a11e91bfa095e2e6
   subpackages:
   - aggregation
   - encoding
+  - encoding/migration
   - encoding/msgpack
   - encoding/protobuf
   - errors
@@ -303,6 +297,7 @@ imports:
 - name: github.com/m3db/m3msg
   version: 4680d9b45286826f87b134a4559b11d795786eaf
   subpackages:
+  - consumer
   - generated/proto/msgpb
   - generated/proto/topicpb
   - producer
@@ -312,7 +307,7 @@ imports:
   - protocol/proto
   - topic
 - name: github.com/m3db/m3x
-  version: 659975cd3b5b69f112f1b74244b4d8b440888cf4
+  version: fc5c28bb09dfe6ba7f79e897021d9b186b5fffc5
   vcs: git
   subpackages:
   - checked
@@ -327,10 +322,12 @@ imports:
   - ident/testutil
   - instrument
   - log
+  - net
   - pool
   - process
   - resource
   - retry
+  - server
   - sync
   - tcp
   - test
@@ -358,27 +355,27 @@ imports:
 - name: github.com/m3db/stackmurmur3
   version: 744c0229c12ed0e4f8cb9d081a2692b3300bf705
 - name: github.com/magiconair/properties
-  version: c2353362d570a7bfa228149c62842019201cfb71
+  version: b3b15ef068fd0b17ddf408a23669f20811d194d2
 - name: github.com/matttproud/golang_protobuf_extensions
   version: c12348ce28de40eed0136aa2b644d0ee0650e56c
   subpackages:
   - pbutil
 - name: github.com/mauricelam/genny
-  version: eb2c5232c885956af3565a20ecf48555cab2b9bc
+  version: 9d8700bcc567cd22ea2ef42ce5835a9c80296c4a
   subpackages:
   - generic
 - name: github.com/MichaelTJones/pcg
   version: df440c6ed7ed8897ac98a408365e5e89c7becf1a
 - name: github.com/mitchellh/mapstructure
-  version: ce2ff0c13ce509e36e9254c08ea0bca90ed5af6c
+  version: 53818660ed4955e899c0bcafa97299a388bd7c8e
 - name: github.com/mschoch/smat
   version: 90eadee771aeab36e8bf796039b8c261bebebe4f
 - name: github.com/nightlyone/lockfile
-  version: 0ad87eef1443f64d3d8c50da647e2b1552851124
+  version: 1d49c987357a327b5b03aa84cbddd582c328615d
 - name: github.com/nu7hatch/gouuid
   version: 179d4d0c4d8d407a32af483c2354df1d2c91e6c3
 - name: github.com/oklog/ulid
-  version: 9bb9776431132f4f0a70d6401b78e2941df45b41
+  version: 66bb6560562feca7045b23db1ae85b01260f87c5
 - name: github.com/opentracing/opentracing-go
   version: 855519783f479520497c6b3445611b05fc42f009
   subpackages:
@@ -387,8 +384,10 @@ imports:
   version: ec82d864f599c39673eef89f91b93fa5576567a1
 - name: github.com/pborman/uuid
   version: adf5a7427709b9deb95d29d3fa8a2bf9cfd388f1
+- name: github.com/pelletier/go-buffruneio
+  version: de1592c34d9c6055a32fc9ebe2b3ee50ca468ebe
 - name: github.com/pelletier/go-toml
-  version: 78b76feda6f35b2c5c1d283513f6419e59086729
+  version: 3b00596b2e9ee541bbd72dc50cc0c60e2b46c69c
 - name: github.com/philhofer/fwd
   version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
 - name: github.com/pilosa/pilosa
@@ -396,7 +395,7 @@ imports:
   subpackages:
   - roaring
 - name: github.com/pkg/errors
-  version: c059e472caf75dbe73903f6521a20abac245b17f
+  version: 248dadf4e9068a0b3e79f02ed0a610d935de5302
 - name: github.com/pkg/profile
   version: 5b67d428864e92711fcbd2f8629456121a56d91f
 - name: github.com/pmezard/go-difflib
@@ -453,17 +452,17 @@ imports:
 - name: github.com/spaolacci/murmur3
   version: 9f5d223c60793748f04a9d5b4b4eacddfc1f755d
 - name: github.com/spf13/afero
-  version: d40851caa0d747393da1ffb28f7f9d8b4eeffebd
+  version: 36f8810e2e3d7eeac4ac05b57f65690fbfba62a2
   subpackages:
   - mem
 - name: github.com/spf13/cast
-  version: 8965335b8c7107321228e3e3702cab9832751bac
+  version: ce135a4ebeee6cfe9a26c93ee0d37825f26113c7
 - name: github.com/spf13/cobra
   version: 7c674d9e72017ed25f6d2b5e497a1368086b6a6f
   subpackages:
   - cobra
 - name: github.com/spf13/jwalterweatherman
-  version: 4a4406e478ca629068e7768fc33f3f044173c0a6
+  version: fa7ca7e836cf3a8bb4ebf799f472c12d7e903d66
 - name: github.com/spf13/pflag
   version: 4f9190456aed1c2113ca51ea9b89219747458dc1
 - name: github.com/spf13/viper
@@ -543,7 +542,7 @@ imports:
   - lex/httplex
   - trace
 - name: golang.org/x/sync
-  version: 1d60e4601c6fd243af51cc01ddf169918a5407ca
+  version: 450f422ab23cf9881c94e2db30cac0eb1b7cf80c
   subpackages:
   - errgroup
 - name: golang.org/x/sys

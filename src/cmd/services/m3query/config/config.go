@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3"
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
+	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/config/listenaddress"
 	"github.com/m3db/m3x/instrument"
 )
@@ -66,18 +67,14 @@ type Configuration struct {
 	// Backend is the backend store for query service. We currently support grpc and m3db (default).
 	Backend BackendStorageType `yaml:"backend"`
 
-	// DecompressWorkerPoolCount is the number of decompression worker pools.
-	DecompressWorkerPoolCount int `yaml:"workerPoolCount"`
-
 	// TagOptions is the tag configuration options.
 	TagOptions TagOptionsConfiguration `yaml:"tagOptions"`
 
-	// DecompressWorkerPoolSize is the size of the worker pool given to each
-	// fetch request.
-	DecompressWorkerPoolSize int `yaml:"decompressWorkerPoolSize"`
+	// ReadWorkerPool is the worker pool policy for read requests.
+	ReadWorkerPool xconfig.WorkerPoolPolicy `yaml:"readWorkerPoolPolicy"`
 
-	// WriteWorkerPoolSize is the size of the worker pool write requests.
-	WriteWorkerPoolSize int `yaml:"writeWorkerPoolSize"`
+	// WriteWorkerPool is the worker pool policy for write requests.
+	WriteWorkerPool xconfig.WorkerPoolPolicy `yaml:"writeWorkerPoolPolicy"`
 }
 
 // LocalConfiguration is the local embedded configuration if running
