@@ -23,6 +23,7 @@ package placement
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
@@ -54,7 +55,7 @@ type GetHandler Handler
 
 // NewGetHandler returns a new instance of GetHandler.
 func NewGetHandler(opts HandlerOptions) *GetHandler {
-	return &GetHandler{opts}
+	return &GetHandler{HandlerOptions: opts, nowFn: time.Now}
 }
 
 func (h *GetHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
@@ -65,7 +66,7 @@ func (h *GetHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *htt
 			serviceName, r.Header, h.M3AggServiceOptions)
 	)
 
-	service, err := Service(h.ClusterClient, opts)
+	service, err := Service(h.ClusterClient, opts, h.nowFn())
 	if err != nil {
 		handler.Error(w, err, http.StatusInternalServerError)
 		return

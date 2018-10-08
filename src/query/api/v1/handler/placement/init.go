@@ -22,6 +22,7 @@ package placement
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
@@ -52,7 +53,7 @@ type InitHandler Handler
 
 // NewInitHandler returns a new instance of InitHandler.
 func NewInitHandler(opts HandlerOptions) *InitHandler {
-	return &InitHandler{opts}
+	return &InitHandler{HandlerOptions: opts, nowFn: time.Now}
 }
 
 func (h *InitHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
@@ -110,7 +111,7 @@ func (h *InitHandler) Init(
 	serviceOpts := NewServiceOptions(
 		serviceName, httpReq.Header, h.M3AggServiceOptions)
 
-	service, err := Service(h.ClusterClient, serviceOpts)
+	service, err := Service(h.ClusterClient, serviceOpts, h.nowFn())
 	if err != nil {
 		return nil, err
 	}

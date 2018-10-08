@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
@@ -68,7 +69,7 @@ func (e unsafeAddError) Error() string {
 
 // NewAddHandler returns a new instance of AddHandler.
 func NewAddHandler(opts HandlerOptions) *AddHandler {
-	return &AddHandler{opts}
+	return &AddHandler{HandlerOptions: opts, nowFn: time.Now}
 }
 
 func (h *AddHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
@@ -130,7 +131,7 @@ func (h *AddHandler) Add(
 
 	serviceOpts := NewServiceOptions(
 		serviceName, httpReq.Header, h.M3AggServiceOptions)
-	service, algo, err := ServiceWithAlgo(h.ClusterClient, serviceOpts)
+	service, algo, err := ServiceWithAlgo(h.ClusterClient, serviceOpts, h.nowFn())
 	if err != nil {
 		return nil, err
 	}

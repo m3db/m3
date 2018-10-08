@@ -23,6 +23,7 @@ package placement
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/util/logging"
@@ -52,7 +53,7 @@ type DeleteAllHandler Handler
 
 // NewDeleteAllHandler returns a new instance of DeleteAllHandler.
 func NewDeleteAllHandler(opts HandlerOptions) *DeleteAllHandler {
-	return &DeleteAllHandler{opts}
+	return &DeleteAllHandler{HandlerOptions: opts, nowFn: time.Now}
 }
 
 func (h *DeleteAllHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
@@ -63,7 +64,7 @@ func (h *DeleteAllHandler) ServeHTTP(serviceName string, w http.ResponseWriter, 
 			serviceName, r.Header, h.M3AggServiceOptions)
 	)
 
-	service, err := Service(h.ClusterClient, opts)
+	service, err := Service(h.ClusterClient, opts, h.nowFn())
 	if err != nil {
 		handler.Error(w, err, http.StatusInternalServerError)
 		return

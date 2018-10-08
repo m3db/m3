@@ -27,6 +27,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3cluster/placement"
@@ -44,6 +45,7 @@ func TestPlacementAddHandler_Force(t *testing.T) {
 				mockClient, config.Configuration{}, nil)
 			handler = NewAddHandler(handlerOpts)
 		)
+		handler.nowFn = func() time.Time { return time.Unix(0, 0) }
 
 		// Test add failure
 		var (
@@ -143,6 +145,7 @@ func TestPlacementAddHandler_SafeOK(t *testing.T) {
 				mockClient, config.Configuration{}, nil)
 			handler = NewAddHandler(handlerOpts)
 		)
+		handler.nowFn = func() time.Time { return time.Unix(0, 0) }
 
 		// Test add error
 		var (

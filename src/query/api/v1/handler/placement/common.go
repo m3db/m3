@@ -111,6 +111,8 @@ func NewHandlerOptions(
 // Handler represents a generic handler for placement endpoints.
 type Handler struct {
 	HandlerOptions
+
+	nowFn func() time.Time
 }
 
 // ServiceOptions are the options for Service.
@@ -174,15 +176,23 @@ func NewServiceOptions(
 }
 
 // Service gets a placement service from m3cluster client
-func Service(clusterClient clusterclient.Client, opts ServiceOptions) (placement.Service, error) {
-	ps, _, err := ServiceWithAlgo(clusterClient, opts)
+func Service(
+	clusterClient clusterclient.Client,
+	opts ServiceOptions,
+	now time.Time,
+) (placement.Service, error) {
+	ps, _, err := ServiceWithAlgo(clusterClient, opts, now)
 	return ps, err
 }
 
 // ServiceWithAlgo gets a placement service from m3cluster client and
 // additionally returns an algorithm instance for callers that need fine-grained
 // control over placement updates.
-func ServiceWithAlgo(clusterClient clusterclient.Client, opts ServiceOptions) (placement.Service, placement.Algorithm, error) {
+func ServiceWithAlgo(
+	clusterClient clusterclient.Client,
+	opts ServiceOptions,
+	now time.Time,
+) (placement.Service, placement.Algorithm, error) {
 	cs, err := clusterClient.Services(services.NewOverrideOptions())
 	if err != nil {
 		return nil, nil, err
@@ -222,7 +232,6 @@ func ServiceWithAlgo(clusterClient clusterclient.Client, opts ServiceOptions) (p
 		var (
 			maxAggregationWindowSize = opts.M3Agg.MaxAggregationWindowSize
 			warmupDuration           = opts.M3Agg.WarmupDuration
-			now                      = time.Now()
 			// For now these are not configurable, but we include them to
 			// make the code match r2admin for ease of debugging / migration.
 			// Leaving this as an empty struct will have the effect of causing
