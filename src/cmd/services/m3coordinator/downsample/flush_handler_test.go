@@ -1,6 +1,7 @@
 package downsample
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/m3db/m3/src/query/storage/mock"
@@ -71,11 +72,13 @@ func TestDownsamplerFlushHandlerCopiesTags(t *testing.T) {
 	writes := store.Writes()
 	require.Equal(t, 1, len(writes))
 
-	// Ensure tag pointers _DO_NOT_ match
+	// Ensure tag pointers _DO_NOT_ match but equal to same content
 	tags := writes[0].Tags
 	require.Equal(t, 1, len(tags))
 
 	tag := tags[0]
+	assert.True(t, bytes.Equal(tagName, tag.Name))
+	assert.True(t, bytes.Equal(tagValue, tag.Value))
 	assert.False(t, xtest.ByteSlicesBackedBySameData(tagName, tag.Name))
 	assert.False(t, xtest.ByteSlicesBackedBySameData(tagValue, tag.Value))
 }
