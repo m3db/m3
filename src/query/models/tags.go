@@ -85,7 +85,7 @@ func (t Tags) IDMarshalTo(b []byte) []byte {
 // generated from the tags.
 func (t Tags) IDLen() int {
 	// return t.idLen
-	idLen := 2 * len(t.Tags) // account for eq and sep
+	idLen := 2 * t.Len() // account for eq and sep
 	for _, tag := range t.Tags {
 		idLen += len(tag.Name)
 		idLen += len(tag.Value)
@@ -128,7 +128,7 @@ func (t Tags) IDWithExcludes(excludeKeys ...[]byte) uint64 {
 }
 
 func (t Tags) tagSubset(keys [][]byte, include bool) Tags {
-	tags := NewTags(len(t.Tags), t.Opts)
+	tags := NewTags(t.Len(), t.Opts)
 	for _, tag := range t.Tags {
 		found := false
 		for _, k := range keys {
@@ -153,7 +153,7 @@ func (t Tags) TagsWithoutKeys(excludeKeys [][]byte) Tags {
 
 // IDWithKeys returns a string representation of the tags only including the given keys.
 func (t Tags) IDWithKeys(includeKeys ...[]byte) uint64 {
-	b := make([]byte, 0, len(t.Tags))
+	b := make([]byte, 0, t.Len())
 	for _, tag := range t.Tags {
 		for _, k := range includeKeys {
 			if bytes.Equal(tag.Name, k) {

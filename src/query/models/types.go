@@ -76,7 +76,7 @@ type Matcher struct {
 }
 
 // Matchers is a list of individual matchers.
-type Matchers []*Matcher
+type Matchers []Matcher
 
 // Metric is the individual metric that gets returned from the search endpoint.
 type Metric struct {
@@ -85,4 +85,4 @@ type Metric struct {
 }
 
 // Metrics is a list of individual metrics.
-type Metrics []*Metric
+type Metrics []Metric

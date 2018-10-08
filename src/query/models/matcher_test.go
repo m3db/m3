@@ -27,7 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newMatcher(t *testing.T, mType MatchType, value string) *Matcher {
+func newMatcher(t *testing.T, mType MatchType, value string) Matcher {
 	m, err := NewMatcher(mType, []byte{}, []byte(value))
 	require.NoError(t, err)
 	require.NotNil(t, m)
@@ -37,7 +37,7 @@ func newMatcher(t *testing.T, mType MatchType, value string) *Matcher {
 
 func TestMatcher(t *testing.T) {
 	tests := []struct {
-		matcher *Matcher
+		matcher Matcher
 		value   string
 		match   bool
 	}{

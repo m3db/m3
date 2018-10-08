@@ -537,7 +537,7 @@ func TestLocalSearchSuccess(t *testing.T) {
 		expected[f.id] = f
 	}
 
-	actual := make(map[string]*models.Metric)
+	actual := make(map[string]models.Metric)
 	for _, m := range result.Metrics {
 		actual[m.ID] = m
 	}

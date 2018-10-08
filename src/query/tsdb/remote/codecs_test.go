@@ -156,7 +156,7 @@ func createStorageFetchQuery(t *testing.T) (*storage.FetchQuery, time.Time, time
 	require.Nil(t, err)
 	start, end := parseTimes(t)
 
-	matchers := []*models.Matcher{m0, m1}
+	matchers := []models.Matcher{m0, m1}
 	return &storage.FetchQuery{
 		TagMatchers: matchers,
 		Start:       start,

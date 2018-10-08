@@ -109,10 +109,10 @@ func PromMatchersToM3(matchers []*prompb.LabelMatcher) (models.Matchers, error) 
 }
 
 // PromMatcherToM3 converts a prometheus label matcher to m3 matcher
-func PromMatcherToM3(matcher *prompb.LabelMatcher) (*models.Matcher, error) {
+func PromMatcherToM3(matcher *prompb.LabelMatcher) (models.Matcher, error) {
 	matchType, err := PromTypeToM3(matcher.Type)
 	if err != nil {
-		return nil, err
+		return models.Matcher{}, err
 	}
 
 	return models.NewMatcher(matchType, matcher.Name, matcher.Value)

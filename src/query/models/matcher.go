@@ -42,8 +42,8 @@ func (m MatchType) String() string {
 }
 
 // NewMatcher returns a matcher object.
-func NewMatcher(t MatchType, n, v []byte) (*Matcher, error) {
-	m := &Matcher{
+func NewMatcher(t MatchType, n, v []byte) (Matcher, error) {
+	m := Matcher{
 		Type:  t,
 		Name:  n,
 		Value: v,
@@ -52,7 +52,7 @@ func NewMatcher(t MatchType, n, v []byte) (*Matcher, error) {
 	if t == MatchRegexp || t == MatchNotRegexp {
 		re, err := regexp.Compile("^(?:" + string(v) + ")$")
 		if err != nil {
-			return nil, err
+			return Matcher{}, err
 		}
 
 		m.re = re

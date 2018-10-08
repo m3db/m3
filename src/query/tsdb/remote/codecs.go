@@ -256,7 +256,7 @@ func DecodeFetchRequest(
 
 func decodeTagMatchers(rpcMatchers *rpc.TagMatchers) (models.Matchers, error) {
 	tagMatchers := rpcMatchers.GetTagMatchers()
-	matchers := make([]*models.Matcher, len(tagMatchers))
+	matchers := make([]models.Matcher, len(tagMatchers))
 	for i, matcher := range tagMatchers {
 		matchType, name, value := models.MatchType(matcher.GetType()), matcher.GetName(), matcher.GetValue()
 		mMatcher, err := models.NewMatcher(matchType, name, value)

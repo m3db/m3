@@ -34,14 +34,14 @@ func FromM3IdentToMetric(
 	identID ident.ID,
 	iterTags ident.TagIterator,
 	tagOptions models.TagOptions,
-) (*models.Metric, error) {
+) (models.Metric, error) {
 	id := identID.String()
 	tags, err := FromIdentTagIteratorToTags(iterTags, tagOptions)
 	if err != nil {
-		return nil, err
+		return models.Metric{}, err
 	}
 
-	return &models.Metric{
+	return models.Metric{
 		ID:   id,
 		Tags: tags,
 	}, nil
@@ -107,7 +107,7 @@ func FetchQueryToM3Query(fetchQuery *FetchQuery) (index.Query, error) {
 	return index.Query{Query: q}, nil
 }
 
-func matcherToQuery(matcher *models.Matcher) (idx.Query, error) {
+func matcherToQuery(matcher models.Matcher) (idx.Query, error) {
 	negate := false
 	switch matcher.Type {
 	// Support for Regexp types
