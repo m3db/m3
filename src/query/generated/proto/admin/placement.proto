@@ -8,10 +8,6 @@ message PlacementInitRequest {
   repeated placementpb.Instance instances = 1;
   int32 num_shards = 2;
   int32 replication_factor = 3;
-
-  // M3Agg placements only
-  uint64 max_aggregation_window_size_nanos = 4;
-  uint64 warmup_duration_nanos = 5;
 }
 
 message PlacementGetResponse {
@@ -24,8 +20,4 @@ message PlacementAddRequest {
   // By default add requests will only succeed if all instances in the placement
   // are AVAILABLE for all their shards. force overrides that.
   bool force = 2;
-
-  // M3Agg placements only
-  uint64 max_aggregation_window_size_nanos = 4;
-  uint64 warmup_duration_nanos = 5;
 }
