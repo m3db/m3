@@ -99,12 +99,12 @@ type HandlerOptions struct {
 func NewHandlerOptions(
 	client clusterclient.Client,
 	cfg config.Configuration,
-	M3AggOpts *M3AggServiceOptions,
+	m3AggOpts *M3AggServiceOptions,
 ) HandlerOptions {
 	return HandlerOptions{
 		ClusterClient:       client,
 		Config:              cfg,
-		M3AggServiceOptions: M3AggOpts,
+		M3AggServiceOptions: m3AggOpts,
 	}
 }
 
@@ -134,7 +134,7 @@ type M3AggServiceOptions struct {
 // NewServiceOptions returns a ServiceOptions based on the
 // provided headers, if present.
 func NewServiceOptions(
-	serviceName string, headers http.Header, M3AggOpts *M3AggServiceOptions) ServiceOptions {
+	serviceName string, headers http.Header, m3AggOpts *M3AggServiceOptions) ServiceOptions {
 	opts := ServiceOptions{
 		ServiceName:        serviceName,
 		ServiceEnvironment: DefaultServiceEnvironment,
@@ -158,15 +158,15 @@ func NewServiceOptions(
 		opts.DryRun = true
 	}
 
-	if M3AggOpts != nil {
-		if M3AggOpts.MaxAggregationWindowSize > 0 &&
-			M3AggOpts.MaxAggregationWindowSize > defaultM3AggMaxAggregationWindowSize {
-			opts.M3Agg.MaxAggregationWindowSize = M3AggOpts.MaxAggregationWindowSize
+	if m3AggOpts != nil {
+		if m3AggOpts.MaxAggregationWindowSize > 0 &&
+			m3AggOpts.MaxAggregationWindowSize > defaultM3AggMaxAggregationWindowSize {
+			opts.M3Agg.MaxAggregationWindowSize = m3AggOpts.MaxAggregationWindowSize
 		}
 
-		if M3AggOpts.WarmupDuration > 0 &&
-			M3AggOpts.MaxAggregationWindowSize > defaultM3AggWarmupDuration {
-			opts.M3Agg.WarmupDuration = M3AggOpts.MaxAggregationWindowSize
+		if m3AggOpts.WarmupDuration > 0 &&
+			m3AggOpts.MaxAggregationWindowSize > defaultM3AggWarmupDuration {
+			opts.M3Agg.WarmupDuration = m3AggOpts.MaxAggregationWindowSize
 		}
 	}
 
