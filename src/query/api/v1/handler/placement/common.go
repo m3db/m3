@@ -214,7 +214,7 @@ func ServiceWithAlgo(clusterClient clusterclient.Client, opts ServiceOptions) (p
 	pOpts := placement.NewOptions().
 		SetValidZone(opts.ServiceZone).
 		SetIsSharded(true).
-		// M3Agg expected a staged placement.
+		// M3Agg expects a staged placement.
 		SetIsStaged(true).
 		SetDryrun(opts.DryRun)
 
@@ -223,15 +223,25 @@ func ServiceWithAlgo(clusterClient clusterclient.Client, opts ServiceOptions) (p
 			maxAggregationWindowSize = opts.M3Agg.MaxAggregationWindowSize
 			warmupDuration           = opts.M3Agg.WarmupDuration
 			now                      = time.Now()
+			// For now these are not configurable, but we include them to
+			// make the code match r2admin for ease of debugging / migration.
+			// Leaving this as an empty struct will have the effect of causing
+			// clients to begin sending writes to the new shards as soon as
+			// possible which is the desired behavior.
+			placementCutoverOpts = placementCutoverOpts{}
 		)
 		pOpts = pOpts.
 			SetIsMirrored(true).
-			// TODO(rartoul): Do we need to set placement cutover time? Seems like that would
-			// be covered by shardCutOverNanosFn
-			// Cutovers control when new shards will begin receiving writes, so we set them to take
-			// effect immediately as we're trying to achieve goal-based placement.
-			SetPlacementCutoverNanosFn(immediateTimeNanosFn).
-			SetShardCutoverNanosFn(immediateTimeNanosFn).
+			// placementCutover controls when the new placement will begin to be considered
+			// the new placement. Since we're trying to do goal-based placement, we set it
+			// such that it takes effect immediately.
+			SetPlacementCutoverNanosFn(newPlacementCutoverNanosFn(
+				now, placementCutoverOpts)).
+			// shardCutover controls when the clients (who have received the new placement)
+			// will begin dual-writing to the new shards. We could set it to take effect
+			// immediately, but right now we use the same logic as r2admin for consistency.
+			SetShardCutoverNanosFn(newShardCutoverNanosFn(
+				now, maxAggregationWindowSize, warmupDuration, placementCutoverOpts)).
 			// Cutoffs control when Leaving shards stop receiving writes.
 			SetShardCutoffNanosFn(newShardCutOffNanosFn(now, maxAggregationWindowSize, warmupDuration)).
 			SetIsShardCutoverFn(newShardCutOverValidationFn(now)).
@@ -308,12 +318,6 @@ func RegisterRoutes(r *mux.Router, opts HandlerOptions) {
 	r.HandleFunc(M3AggDeleteURL, deleteFn).Methods(DeleteHTTPMethod)
 }
 
-// immediateTimeNanosFn returns the earliest possible unix nano timestamp to indicate
-// that changes should take effect immediately.
-func immediateTimeNanosFn() int64 {
-	return 0
-}
-
 // We want to generate a function that will return the cutoff such that it is always at the beginning
 // of an aggregation window size, but also later than or equal to the current time + warmup. We accomplish
 // this by adding the warmup time and the max aggregation window size to the current time, and then truncating
@@ -355,6 +359,46 @@ func newShardCutOffValidationFn(now time.Time, maxAggregationWindowSize time.Dur
 		default:
 			return fmt.Errorf("could not mark shard %d available, invalid state %s", s.ID(), s.State().String())
 		}
+	}
+}
+
+type placementCutoverOpts struct {
+	maxPositiveSkew  time.Duration
+	maxNegativeSkew  time.Duration
+	propagationDelay time.Duration
+}
+
+func placementCutoverTime(
+	now time.Time, opts placementCutoverOpts) time.Time {
+	return now.
+		Add(opts.maxPositiveSkew).
+		Add(opts.maxNegativeSkew).
+		Add(opts.propagationDelay)
+}
+
+func newPlacementCutoverNanosFn(
+	now time.Time, cutoverOpts placementCutoverOpts) placement.TimeNanosFn {
+	return func() int64 {
+		return placementCutoverTime(now, cutoverOpts).UnixNano()
+	}
+}
+
+func newShardCutoverNanosFn(
+	now time.Time,
+	maxAggregationWindowSize,
+	warmUpDuration time.Duration,
+	cutoverOpts placementCutoverOpts,
+) placement.TimeNanosFn {
+	return func() int64 {
+		var (
+			windowSize = maxAggregationWindowSize
+			cutover    = placementCutoverTime(now, cutoverOpts).Add(warmUpDuration)
+			truncated  = cutover.Truncate(windowSize)
+		)
+		if truncated.Before(cutover) {
+			return truncated.Add(windowSize).UnixNano()
+		}
+		return truncated.UnixNano()
 	}
 }
 
