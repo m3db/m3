@@ -63,7 +63,7 @@ var (
 
 type commitLogWriter interface {
 	// Open opens the commit log for writing data
-	Open(start time.Time, duration time.Duration) error
+	Open(start time.Time, duration time.Duration) (File, error)
 
 	// Write will write an entry in the commit log for a given series
 	Write(
@@ -123,19 +123,19 @@ func newCommitLogWriter(
 	}
 }
 
-func (w *writer) Open(start time.Time, duration time.Duration) error {
+func (w *writer) Open(start time.Time, duration time.Duration) (File, error) {
 	if w.isOpen() {
-		return errCommitLogWriterAlreadyOpen
+		return File{}, errCommitLogWriterAlreadyOpen
 	}
 
 	commitLogsDir := fs.CommitLogsDirPath(w.filePathPrefix)
 	if err := os.MkdirAll(commitLogsDir, w.newDirectoryMode); err != nil {
-		return err
+		return File{}, err
 	}
 
 	filePath, index, err := fs.NextCommitLogsFile(w.filePathPrefix, start)
 	if err != nil {
-		return err
+		return File{}, err
 	}
 	logInfo := schema.LogInfo{
 		Start:    start.UnixNano(),
@@ -144,23 +144,28 @@ func (w *writer) Open(start time.Time, duration time.Duration) error {
 	}
 	w.logEncoder.Reset()
 	if err := w.logEncoder.EncodeLogInfo(logInfo); err != nil {
-		return err
+		return File{}, err
 	}
 	fd, err := fs.OpenWritable(filePath, w.newFileMode)
 	if err != nil {
-		return err
+		return File{}, err
 	}
 
 	w.chunkWriter.fd = fd
 	w.buffer.Reset(w.chunkWriter)
 	if err := w.write(w.logEncoder.Bytes()); err != nil {
 		w.Close()
-		return err
+		return File{}, err
 	}
 
 	w.start = start
 	w.duration = duration
-	return nil
+	return File{
+		FilePath: filePath,
+		Start:    start,
+		Duration: duration,
+		Index:    int64(index),
+	}, nil
 }
 
 func (w *writer) isOpen() bool {

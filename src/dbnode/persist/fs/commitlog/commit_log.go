@@ -166,7 +166,7 @@ func NewCommitLog(opts Options) (CommitLog, error) {
 
 func (l *commitLog) Open() error {
 	// Open the buffered commit log writer
-	if err := l.openWriter(l.nowFn()); err != nil {
+	if _, err := l.openWriter(l.nowFn()); err != nil {
 		return err
 	}
 
@@ -252,8 +252,8 @@ func (l *commitLog) write() {
 		)
 
 		if isRotationPending || isWriteForNextCommitLogFile {
-			if err := l.openWriter(now); err != nil {
-
+			file, err := l.openWriter(now)
+			if err != nil {
 				l.metrics.errors.Inc(1)
 				l.metrics.openErrors.Inc(1)
 				l.log.Errorf("failed to open commit log: %v", err)
@@ -270,7 +270,7 @@ func (l *commitLog) write() {
 			}
 
 			// TODO: Fill in the file struct
-			l.rotationComplete <- rotationResult{file: File{}}
+			l.rotationComplete <- rotationResult{file: file}
 		}
 
 		err := l.writer.Write(write.series,
@@ -329,7 +329,7 @@ func (l *commitLog) onFlush(err error) {
 	l.metrics.flushDone.Inc(1)
 }
 
-func (l *commitLog) openWriter(now time.Time) error {
+func (l *commitLog) openWriter(now time.Time) (File, error) {
 	if l.writer != nil {
 		if err := l.writer.Close(); err != nil {
 			l.metrics.closeErrors.Inc(1)
@@ -347,13 +347,14 @@ func (l *commitLog) openWriter(now time.Time) error {
 	blockSize := l.opts.BlockSize()
 	start := now.Truncate(blockSize)
 
-	if err := l.writer.Open(start, blockSize); err != nil {
-		return err
+	file, err := l.writer.Open(start, blockSize)
+	if err != nil {
+		return file, err
 	}
 
 	l.writerExpireAt = start.Add(blockSize)
 
-	return nil
+	return file, nil
 }
 
 func (l *commitLog) Write(
