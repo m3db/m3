@@ -95,7 +95,7 @@ func (t Tags) IDLen() int {
 
 // IDWithExcludes returns a string representation of the tags excluding some tag keys.
 func (t Tags) IDWithExcludes(excludeKeys ...[]byte) uint64 {
-	b := make([]byte, 0, len(t.Tags))
+	b := make([]byte, 0, t.Len())
 	for _, tag := range t.Tags {
 		// Always exclude the metric name by default
 		if bytes.Equal(tag.Name, t.Opts.GetMetricName()) {
@@ -194,7 +194,7 @@ func (t Tags) Get(key []byte) ([]byte, bool) {
 // Clone returns a pointer to a copy of the tags.
 func (t Tags) Clone() *Tags {
 	// Todo: Pool these
-	clonedTags := make([]Tag, len(t.Tags))
+	clonedTags := make([]Tag, t.Len())
 	copy(clonedTags, t.Tags)
 	return &Tags{
 		Tags: clonedTags,
