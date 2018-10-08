@@ -234,9 +234,6 @@ func ServiceWithAlgo(
 			warmupDuration           = opts.M3Agg.WarmupDuration
 			// For now these are not configurable, but we include them to
 			// make the code match r2admin for ease of debugging / migration.
-			// Leaving this as an empty struct will have the effect of causing
-			// clients to begin sending writes to the new shards as soon as
-			// possible which is the desired behavior.
 			placementCutoverOpts = placementCutoverOpts{}
 		)
 		pOpts = pOpts.
