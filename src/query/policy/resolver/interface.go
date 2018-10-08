@@ -36,6 +36,7 @@ type PolicyResolver interface {
 	// may still be no data retained for the range in the given storage policy.
 	Resolve(
 		ctx context.Context,
+		tagOptions models.TagOptions,
 		tagMatchers models.Matchers,
 		startTime, endTime time.Time,
 	) ([]tsdb.FetchRequest, error)

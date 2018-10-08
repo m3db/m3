@@ -40,13 +40,14 @@ func NewStaticResolver(sp policy.StoragePolicy) PolicyResolver {
 
 func (r *staticResolver) Resolve(
 	// Context needed here to satisfy PolicyResolver interface
-	ctx context.Context, // nolint: unparam
+	_ context.Context,
+	tagOptions models.TagOptions,
 	tagMatchers models.Matchers,
 	startTime, endTime time.Time,
 ) ([]tsdb.FetchRequest, error) {
 	ranges := tsdb.NewSingleRangeRequest("", startTime, endTime, r.sp).Ranges
 	requests := make([]tsdb.FetchRequest, 1)
-	tags, err := tagMatchers.ToTags()
+	tags, err := tagMatchers.ToTags(tagOptions)
 	if err != nil {
 		return nil, err
 	}

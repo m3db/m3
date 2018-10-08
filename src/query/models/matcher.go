@@ -48,13 +48,16 @@ func NewMatcher(t MatchType, n, v []byte) (*Matcher, error) {
 		Name:  n,
 		Value: v,
 	}
+
 	if t == MatchRegexp || t == MatchNotRegexp {
 		re, err := regexp.Compile("^(?:" + string(v) + ")$")
 		if err != nil {
 			return nil, err
 		}
+
 		m.re = re
 	}
+
 	return m, nil
 }
 
@@ -80,9 +83,11 @@ func (m *Matcher) Matches(s []byte) bool {
 
 // ToTags converts Matchers to Tags
 // NB (braskin): this only works for exact matches
-func (m Matchers) ToTags() (Tags, error) {
+func (m Matchers) ToTags(
+	tagOptions TagOptions,
+) (Tags, error) {
 	// todo: nil is good here?
-	tags := NewTags(len(m), nil)
+	tags := NewTags(len(m), tagOptions)
 	for _, v := range m {
 		if v.Type != MatchEqual {
 			return Tags{}, fmt.Errorf("illegal match type, got %v, but expecting: %v", v.Type, MatchEqual)
