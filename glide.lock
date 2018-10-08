@@ -1,5 +1,5 @@
-hash: 847915b5b52a933b8d8a7a4a68c12f3ec0d4bfa6f8cd8cf11ca2ec2a5c4211c1
-updated: 2018-10-03T21:36:12.182003-04:00
+hash: cc96f3a73ed0d6ffd5ee974dcf04740e0a7335918f3d127d012fe4b1b2b2a2f2
+updated: 2018-10-08T00:24:41.204771092-04:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -88,13 +88,15 @@ imports:
   - wal
   - wal/walpb
 - name: github.com/coreos/go-semver
-  version: 568e959cd89871e61434c1143528d9162da89ef2
+  version: 8ab6407b697782a06568d4b7f1db25550ec2e4c6
   subpackages:
   - semver
 - name: github.com/coreos/go-systemd
   version: 48702e0da86bd25e76cfef347e2adeb434a0d0a6
   subpackages:
+  - daemon
   - journal
+  - util
 - name: github.com/coreos/pkg
   version: 97fdf19511ea361ae1c100dd393cc47f8dcfa1e1
   subpackages:
@@ -113,14 +115,16 @@ imports:
   version: d2709f9f1f31ebcda9651b03077758c1f3a0018c
 - name: github.com/edsrzf/mmap-go
   version: 0bce6a6887123b67a60366d2c9fe2dfb74289d2e
+- name: github.com/facebookgo/clock
+  version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/fsnotify/fsnotify
   version: ccc981bf80385c528a65fbfdd49bf2d8da22aa23
 - name: github.com/ghodss/yaml
-  version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
+  version: 0ca9ea5df5451ffdf184b4428c902747c2c11cd7
 - name: github.com/glycerine/go-unsnap-stream
   version: 9f0cb55181dd3a0a4c168d3dbc72d4aca4853126
 - name: github.com/go-kit/kit
-  version: 9890679578cab201bd981519c97365519193d1ce
+  version: bd9859ee65bb1743c72811a5dca2a330a4e0d957
   subpackages:
   - log
   - log/level
@@ -158,6 +162,7 @@ imports:
   version: 3af367b6b30c263d47e8895973edcca9a49cf029
   subpackages:
   - cmp
+  - cmp/cmpopts
   - cmp/internal/diff
   - cmp/internal/function
   - cmp/internal/value
@@ -166,7 +171,7 @@ imports:
 - name: github.com/gorilla/context
   version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
 - name: github.com/gorilla/mux
-  version: e3702bed27f0d39777b0b37b664b6280e8ef8fbf
+  version: 53c1911da2b537f792e7cafcb446b05ffe33b996
 - name: github.com/grpc-ecosystem/go-grpc-prometheus
   version: 6b7015e65d366bf3f19b2b2a000a831940f0f7e0
 - name: github.com/grpc-ecosystem/grpc-gateway
@@ -205,49 +210,13 @@ imports:
   version: 47fe1193cdb900de7193d1f3d26ea9b2cbf6fb31
 - name: github.com/m3db/m3aggregator
   version: 6f59918fe3791a3df0dc146ea492593925809c3e
-  subpackages:
-  - aggregation
-  - aggregation/quantile/cm
-  - aggregator
-  - aggregator/handler
-  - aggregator/handler/common
-  - aggregator/handler/filter
-  - aggregator/handler/router
-  - aggregator/handler/router/trafficcontrol
-  - aggregator/handler/writer
-  - bitset
-  - client
-  - generated/proto/flush
-  - hash
-  - rate
-  - runtime
-  - sharding
 - name: github.com/m3db/m3cluster
   version: b3db8dcb85c34fbd02a7721f6c0639d6e96c6fbe
   subpackages:
   - client
-  - client/etcd
-  - etcd/watchmanager
-  - generated/proto/commonpb
-  - generated/proto/metadatapb
-  - generated/proto/placementpb
   - integration/etcd
   - kv
-  - kv/etcd
-  - kv/mem
-  - kv/util
-  - kv/util/runtime
-  - placement
-  - placement/algo
-  - placement/selector
-  - placement/service
-  - placement/storage
   - services
-  - services/heartbeat/etcd
-  - services/leader
-  - services/leader/campaign
-  - services/leader/election
-  - shard
 - name: github.com/m3db/m3ctl
   version: acc762bfdd42ecb192d34e48fa7ca1fd7ee088ac
   subpackages:
@@ -256,23 +225,12 @@ imports:
   - service/r2
   - service/r2/store
   - service/r2/store/kv
-- name: github.com/m3db/m3em
-  version: ed532baee45a440f0b08b6893c816634c6978d4d
-  subpackages:
-  - build
-  - checksum
-  - cluster
-  - generated/proto/heartbeat
-  - generated/proto/m3em
-  - node
-  - node/mocks
-  - os/fs
-  - x/grpc
 - name: github.com/m3db/m3metrics
   version: b400256bc6da4c10bad5a5f0a11e91bfa095e2e6
   subpackages:
   - aggregation
   - encoding
+  - encoding/migration
   - encoding/msgpack
   - encoding/protobuf
   - errors
@@ -283,34 +241,25 @@ imports:
   - generated/proto/policypb
   - generated/proto/rulepb
   - generated/proto/transformationpb
-  - matcher
-  - matcher/cache
   - metadata
   - metric
   - metric/aggregated
   - metric/id
-  - metric/id/m3
   - metric/unaggregated
   - pipeline
   - pipeline/applied
   - policy
   - rules
-  - rules/store/kv
   - rules/view
   - rules/view/changes
   - transformation
   - x/bytes
 - name: github.com/m3db/m3msg
-  version: 4680d9b45286826f87b134a4559b11d795786eaf
+  version: 743c7f8aef28365f39a49293f978b55e1e339141
   subpackages:
+  - consumer
   - generated/proto/msgpb
-  - generated/proto/topicpb
-  - producer
-  - producer/buffer
-  - producer/config
-  - producer/writer
   - protocol/proto
-  - topic
 - name: github.com/m3db/m3x
   version: 659975cd3b5b69f112f1b74244b4d8b440888cf4
   vcs: git
@@ -318,22 +267,16 @@ imports:
   - checked
   - clock
   - close
-  - config
-  - config/hostid
-  - config/listenaddress
-  - context
   - errors
   - ident
-  - ident/testutil
   - instrument
   - log
+  - net
   - pool
   - process
   - resource
   - retry
-  - sync
-  - tcp
-  - test
+  - server
   - time
   - watch
 - name: github.com/m3db/prometheus_client_golang
@@ -363,14 +306,8 @@ imports:
   version: c12348ce28de40eed0136aa2b644d0ee0650e56c
   subpackages:
   - pbutil
-- name: github.com/mauricelam/genny
-  version: eb2c5232c885956af3565a20ecf48555cab2b9bc
-  subpackages:
-  - generic
-- name: github.com/MichaelTJones/pcg
-  version: df440c6ed7ed8897ac98a408365e5e89c7becf1a
 - name: github.com/mitchellh/mapstructure
-  version: ce2ff0c13ce509e36e9254c08ea0bca90ed5af6c
+  version: 3536a929edddb9a5b34bd6861dc4a9647cb459fe
 - name: github.com/mschoch/smat
   version: 90eadee771aeab36e8bf796039b8c261bebebe4f
 - name: github.com/nightlyone/lockfile
@@ -378,7 +315,7 @@ imports:
 - name: github.com/nu7hatch/gouuid
   version: 179d4d0c4d8d407a32af483c2354df1d2c91e6c3
 - name: github.com/oklog/ulid
-  version: 9bb9776431132f4f0a70d6401b78e2941df45b41
+  version: d41f57c8729afa1d190d738e8510d39c0abe0794
 - name: github.com/opentracing/opentracing-go
   version: 855519783f479520497c6b3445611b05fc42f009
   subpackages:
@@ -388,7 +325,7 @@ imports:
 - name: github.com/pborman/uuid
   version: adf5a7427709b9deb95d29d3fa8a2bf9cfd388f1
 - name: github.com/pelletier/go-toml
-  version: 78b76feda6f35b2c5c1d283513f6419e59086729
+  version: 81a861c69d25a841d0c4394f0e6f84bc8c5afae0
 - name: github.com/philhofer/fwd
   version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
 - name: github.com/pilosa/pilosa
@@ -396,7 +333,7 @@ imports:
   subpackages:
   - roaring
 - name: github.com/pkg/errors
-  version: c059e472caf75dbe73903f6521a20abac245b17f
+  version: 645ef00459ed84a119197bfb8d8205042c6df63d
 - name: github.com/pkg/profile
   version: 5b67d428864e92711fcbd2f8629456121a56d91f
 - name: github.com/pmezard/go-difflib
@@ -408,7 +345,7 @@ imports:
   subpackages:
   - prometheus
 - name: github.com/prometheus/client_model
-  version: fa8ad6fec33561be4280a8f0514318c79d7f6cb6
+  version: 6f3806018612930941127f2a7c6c453ba2c527d2
   subpackages:
   - go
 - name: github.com/prometheus/common
@@ -463,7 +400,7 @@ imports:
   subpackages:
   - cobra
 - name: github.com/spf13/jwalterweatherman
-  version: 4a4406e478ca629068e7768fc33f3f044173c0a6
+  version: 103a6da826d08544f49833dabd4f1cdf8a1038bb
 - name: github.com/spf13/pflag
   version: 4f9190456aed1c2113ca51ea9b89219747458dc1
 - name: github.com/spf13/viper
@@ -521,7 +458,7 @@ imports:
   - internal/exit
   - zapcore
 - name: golang.org/x/crypto
-  version: 1351f936d976c60a0a48d728281922cf63eafb8d
+  version: 9419663f5a44be8b34ca85f08abc5fe1be11f8a3
   subpackages:
   - bcrypt
   - blowfish
@@ -547,7 +484,7 @@ imports:
   subpackages:
   - errgroup
 - name: golang.org/x/sys
-  version: d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03
+  version: e48874b42435b4347fc52bdee0424a52abc974d7
   subpackages:
   - unix
 - name: golang.org/x/text
@@ -616,8 +553,6 @@ imports:
   repo: https://github.com/go-yaml/yaml.git
   vcs: git
 testImports:
-- name: github.com/facebookgo/clock
-  version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/fortytw2/leaktest
   version: b433bbd6d743c1854040b39062a3916ed5f78fe8
 - name: github.com/go-playground/locales
