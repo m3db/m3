@@ -22,8 +22,8 @@ import:
   - services
   - integration/etcd
 
-- package: github.com/m3db/m3em
-  version: ed532baee45a440f0b08b6893c816634c6978d4d
+- package: github.com/m3db/m3msg
+  version: 743c7f8aef28365f39a49293f978b55e1e339141
 
 - package: github.com/m3db/m3aggregator
   version: 6f59918fe3791a3df0dc146ea492593925809c3e
@@ -52,6 +52,9 @@ import:
   - lib/go/thrift
   repo: https://github.com/m3db/thrift
   vcs: git
+
+- package: github.com/coreos/etcd
+  version: 3.2.10
 
 - package: github.com/golang/mock
   version: ^1
@@ -88,7 +91,7 @@ import:
   vcs: git
 
 - package: github.com/uber-go/tally
-  version: ^3.3.6
+  version: ^3.3.7
 
 - package: golang.org/x/net
   version: ab5485076ff3407ad2d02db054635913f017b0ed
@@ -121,6 +124,12 @@ import:
 - package: github.com/satori/go.uuid
   version: ^1.2.0
 
+- package: github.com/pborman/uuid
+  version: ^1.1.0
+
+- package: github.com/nu7hatch/gouuid
+  version: 179d4d0c4d8d407a32af483c2354df1d2c91e6c3
+
 - package: github.com/couchbase/vellum
   repo:    https://github.com/m3db/vellum
   version: 51c732079c882f52f8e6af889d99ac2a1611d5e4
@@ -146,9 +155,6 @@ import:
 
 - package: github.com/gorilla/mux
   version: ^1.6.0
-
-- package: github.com/pborman/uuid
-  version: ^1.1.0
 
 - package: gopkg.in/alecthomas/kingpin.v2
   version: ^2.2.6
@@ -225,8 +231,14 @@ import:
   repo: https://github.com/go-yaml/yaml.git
   vcs: git
 
+- package: github.com/pkg/errors
+  version: ^0.8
+
 - package: github.com/leanovate/gopter
   version: f0356731348c8fffa27bab27c37ec8be5b0662c8
+
+- package: github.com/facebookgo/clock
+  version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 
 testImport:
 - package: github.com/fortytw2/leaktest
