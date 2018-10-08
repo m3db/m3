@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/x/common"
 	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
@@ -36,7 +37,6 @@ import (
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/retry"
 	xsync "github.com/m3db/m3x/sync"
-	xtime "github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
 )
@@ -87,7 +87,6 @@ func NewIngester(
 				it: serialize.NewMetricTagsIterator(tagDecoder, nil),
 				p:  p,
 				m:  m,
-				c:  context.TODO(),
 			}
 			op.attemptFn = op.attempt
 			op.ingestFn = op.ingest
@@ -102,6 +101,7 @@ func NewIngester(
 
 // Ingest ingests a metric asynchronously with callback.
 func (i *Ingester) Ingest(
+	ctx context.Context,
 	id []byte,
 	metricTime time.Time,
 	value float64,
@@ -109,6 +109,7 @@ func (i *Ingester) Ingest(
 	callback *m3msg.RefCountedCallback,
 ) {
 	op := i.p.Get().(*ingestOp)
+	op.c = ctx
 	op.id = id
 	op.metricTime = metricTime
 	op.value = value
@@ -123,10 +124,10 @@ type ingestOp struct {
 	it        id.SortedTagIterator
 	p         pool.ObjectPool
 	m         ingestMetrics
-	c         context.Context
 	attemptFn retry.Fn
 	ingestFn  func()
 
+	c          context.Context
 	id         []byte
 	metricTime time.Time
 	value      float64
@@ -166,8 +167,7 @@ func (op *ingestOp) resetWriteQuery() error {
 		return err
 	}
 	op.resetDataPoints()
-	op.q.Raw = string(op.id)
-	op.q.Unit = xtime.Millisecond
+	op.q.Unit = common.SanitizeUnitForM3DB(op.sp.Resolution().Precision)
 	op.q.Attributes.MetricsType = storage.AggregatedMetricsType
 	op.q.Attributes.Resolution = op.sp.Resolution().Window
 	op.q.Attributes.Retention = op.sp.Retention().Duration()

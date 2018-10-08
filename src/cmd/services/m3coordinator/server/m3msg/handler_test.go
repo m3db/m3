@@ -21,6 +21,7 @@
 package m3msg
 
 import (
+	"context"
 	"net"
 	"sync"
 	"testing"
@@ -100,6 +101,7 @@ type mockWriter struct {
 }
 
 func (m *mockWriter) write(
+	ctx context.Context,
 	name []byte,
 	metricTime time.Time,
 	value float64,

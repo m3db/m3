@@ -65,7 +65,7 @@ func TestIngest(t *testing.T) {
 	callback.IncRef()
 
 	m.EXPECT().Ack()
-	ingester.Ingest(id, metricTime, val, sp, callback)
+	ingester.Ingest(context.TODO(), id, metricTime, val, sp, callback)
 
 	for appender.cnt() != 1 {
 		time.Sleep(100 * time.Millisecond)
@@ -85,7 +85,6 @@ func TestIngest(t *testing.T) {
 					Value:     val,
 				},
 			},
-			Raw: string(id),
 			Tags: models.Tags{
 				models.Tag{
 					Name:  []byte("__name__"),
@@ -96,7 +95,7 @@ func TestIngest(t *testing.T) {
 					Value: []byte("bar"),
 				},
 			},
-			Unit: xtime.Millisecond,
+			Unit: xtime.Second,
 		},
 		*appender.received[0],
 	)

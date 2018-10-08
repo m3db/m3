@@ -214,11 +214,15 @@ func Run(runOpts RunOptions) {
 	}()
 
 	if cfg.Ingest != nil {
-		ingester, err := cfg.Ingest.Ingester.NewIngester(backendStorage, instrumentOptions)
+		subScope := scope.SubScope("ingest")
+		ingester, err := cfg.Ingest.Ingester.NewIngester(backendStorage, instrumentOptions.SetMetricsScope(subScope))
 		if err != nil {
 			logger.Fatal("unable to create ingester", zap.Error(err))
 		}
-		server, err := cfg.Ingest.M3Msg.NewServer(ingester.Ingest, instrumentOptions)
+		server, err := cfg.Ingest.M3Msg.NewServer(
+			ingester.Ingest,
+			instrumentOptions.SetMetricsScope(subScope),
+		)
 		if err != nil {
 			logger.Fatal("unable to create m3msg server", zap.Error(err))
 		}

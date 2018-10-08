@@ -21,6 +21,7 @@
 package m3msg
 
 import (
+	"context"
 	"sync/atomic"
 	"time"
 
@@ -30,6 +31,7 @@ import (
 
 // WriteFn is the function that writes a metric.
 type WriteFn func(
+	ctx context.Context,
 	id []byte,
 	metricTime time.Time,
 	value float64,
