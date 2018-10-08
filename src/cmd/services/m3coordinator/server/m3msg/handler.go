@@ -23,6 +23,7 @@ package m3msg
 import (
 	"bytes"
 	"io"
+	"time"
 
 	"github.com/m3db/m3metrics/encoding/msgpack"
 	"github.com/m3db/m3msg/consumer"
@@ -145,7 +146,7 @@ func (h *perConsumerHandler) processMessage(
 		// TODO: Consider incrementing a wait group for each write and wait on
 		// shut down to reduce the number of messages being retried by m3msg.
 		r.IncRef()
-		h.writeFn(m.ID, m.TimeNanos, m.Value, sp, r)
+		h.writeFn(m.ID, time.Unix(0, m.TimeNanos), m.Value, sp, r)
 	}
 	r.decRef()
 	if err := h.it.Err(); err != nil && err != io.EOF {

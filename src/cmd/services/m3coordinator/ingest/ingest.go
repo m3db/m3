@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/retry"
 	xsync "github.com/m3db/m3x/sync"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
 )
@@ -70,7 +71,7 @@ type Ingester struct {
 
 // NewIngester creates an ingester.
 func NewIngester(
-	opts *Options,
+	opts Options,
 ) *Ingester {
 	retrier := retry.NewRetrier(opts.RetryOptions)
 	m := newIngestMetrics(opts.InstrumentOptions.MetricsScope())
@@ -86,6 +87,7 @@ func NewIngester(
 				it: serialize.NewMetricTagsIterator(tagDecoder, nil),
 				p:  p,
 				m:  m,
+				c:  context.TODO(),
 			}
 			op.attemptFn = op.attempt
 			op.ingestFn = op.ingest
@@ -101,14 +103,14 @@ func NewIngester(
 // Ingest ingests a metric asynchronously with callback.
 func (i *Ingester) Ingest(
 	id []byte,
-	metricTimeNanos int64,
+	metricTime time.Time,
 	value float64,
 	sp policy.StoragePolicy,
 	callback *m3msg.RefCountedCallback,
 ) {
 	op := i.p.Get().(*ingestOp)
 	op.id = id
-	op.metricTimeNanos = metricTimeNanos
+	op.metricTime = metricTime
 	op.value = value
 	op.sp = sp
 	op.callback = callback
@@ -121,15 +123,16 @@ type ingestOp struct {
 	it        id.SortedTagIterator
 	p         pool.ObjectPool
 	m         ingestMetrics
+	c         context.Context
 	attemptFn retry.Fn
 	ingestFn  func()
 
-	id              []byte
-	metricTimeNanos int64
-	value           float64
-	sp              policy.StoragePolicy
-	callback        *m3msg.RefCountedCallback
-	q               storage.WriteQuery
+	id         []byte
+	metricTime time.Time
+	value      float64
+	sp         policy.StoragePolicy
+	callback   *m3msg.RefCountedCallback
+	q          storage.WriteQuery
 }
 
 func (op *ingestOp) ingest() {
@@ -155,12 +158,7 @@ func (op *ingestOp) ingest() {
 }
 
 func (op *ingestOp) attempt() error {
-	return op.s.Write(
-		// NB: No timeout is needed for this as the m3db client has a timeout
-		// configured to it.
-		context.Background(),
-		&op.q,
-	)
+	return op.s.Write(op.c, &op.q)
 }
 
 func (op *ingestOp) resetWriteQuery() error {
@@ -169,7 +167,7 @@ func (op *ingestOp) resetWriteQuery() error {
 	}
 	op.resetDataPoints()
 	op.q.Raw = string(op.id)
-	op.q.Unit = op.sp.Resolution().Precision
+	op.q.Unit = xtime.Millisecond
 	op.q.Attributes.MetricsType = storage.AggregatedMetricsType
 	op.q.Attributes.Resolution = op.sp.Resolution().Window
 	op.q.Attributes.Retention = op.sp.Retention().Duration()
@@ -181,7 +179,10 @@ func (op *ingestOp) resetTags() error {
 	op.q.Tags = op.q.Tags[:0]
 	for op.it.Next() {
 		name, value := op.it.Current()
-		op.q.Tags = append(op.q.Tags, models.Tag{Name: name, Value: value})
+		op.q.Tags = append(op.q.Tags, models.Tag{
+			Name:  append([]byte(nil), name...),
+			Value: append([]byte(nil), value...),
+		})
 	}
 	return op.it.Err()
 }
@@ -190,6 +191,6 @@ func (op *ingestOp) resetDataPoints() {
 	if len(op.q.Datapoints) != 1 {
 		op.q.Datapoints = make(ts.Datapoints, 1)
 	}
-	op.q.Datapoints[0].Timestamp = time.Unix(0, op.metricTimeNanos)
+	op.q.Datapoints[0].Timestamp = op.metricTime
 	op.q.Datapoints[0].Value = op.value
 }

@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3x/instrument"
 	xsync "github.com/m3db/m3x/sync"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
 )
@@ -142,7 +143,7 @@ func (w *downsamplerFlushHandlerWriter) Write(
 				Timestamp: time.Unix(0, mp.TimeNanos),
 				Value:     mp.Value,
 			}},
-			Unit: mp.StoragePolicy.Resolution().Precision,
+			Unit: xtime.Millisecond,
 			Attributes: storage.Attributes{
 				MetricsType: storage.AggregatedMetricsType,
 				Retention:   mp.StoragePolicy.Retention().Duration(),

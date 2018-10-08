@@ -83,8 +83,8 @@ type IngestConfiguration struct {
 	// Ingester is the configuration for storage based ingester.
 	Ingester ingest.Configuration `yaml:"ingester"`
 
-	// M3msg is the configuration for m3msg server.
-	M3msg m3msg.Configuration `yaml:"m3msg"`
+	// M3Msg is the configuration for m3msg server.
+	M3Msg m3msg.Configuration `yaml:"m3msg"`
 }
 
 // LocalConfiguration is the local embedded configuration if running

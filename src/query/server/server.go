@@ -218,7 +218,7 @@ func Run(runOpts RunOptions) {
 		if err != nil {
 			logger.Fatal("unable to create ingester", zap.Error(err))
 		}
-		server, err := cfg.Ingest.M3msg.NewServer(ingester.Ingest, instrumentOptions)
+		server, err := cfg.Ingest.M3Msg.NewServer(ingester.Ingest, instrumentOptions)
 		if err != nil {
 			logger.Fatal("unable to create m3msg server", zap.Error(err))
 		}

@@ -22,6 +22,7 @@ package m3msg
 
 import (
 	"sync/atomic"
+	"time"
 
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3msg/consumer"
@@ -30,7 +31,7 @@ import (
 // WriteFn is the function that writes a metric.
 type WriteFn func(
 	id []byte,
-	metricTimeNanos int64,
+	metricTime time.Time,
 	value float64,
 	sp policy.StoragePolicy,
 	callback *RefCountedCallback,

@@ -45,7 +45,7 @@ func (cfg Configuration) NewIngester(
 	if err != nil {
 		return nil, err
 	}
-	return NewIngester(opts), nil
+	return NewIngester(*opts), nil
 }
 
 func (cfg Configuration) newOptions(
