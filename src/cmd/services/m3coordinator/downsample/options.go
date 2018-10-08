@@ -27,7 +27,6 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3aggregator/aggregator"

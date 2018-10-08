@@ -30,9 +30,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
-	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/dbnode/topology"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
+	"github.com/m3db/m3/src/x/serialize"
 	xm3test "github.com/m3db/m3/src/x/test"
 	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
