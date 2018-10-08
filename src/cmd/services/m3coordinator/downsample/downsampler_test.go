@@ -318,7 +318,7 @@ func newTestID(t *testing.T, tags map[string]string) id.ID {
 
 	tagDecoder := tagDecoderPool.Get()
 
-	iter := serialize.NewEncodedTagsIterator(tagDecoder, nil)
+	iter := serialize.NewMetricTagsIterator(tagDecoder, nil)
 	iter.Reset(data.Bytes())
 	return iter
 }

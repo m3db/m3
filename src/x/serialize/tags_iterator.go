@@ -23,51 +23,43 @@ package serialize
 import (
 	"bytes"
 
-	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
 )
 
-// EncodedTagsIterator iterates over a set of tags.
-type EncodedTagsIterator interface {
-	id.ID
-	id.SortedTagIterator
-	NumTags() int
-}
-
-type encodedTagsIter struct {
+type metricTagsIter struct {
 	tagDecoder TagDecoder
 	bytes      checked.Bytes
-	pool       *EncodedTagsIteratorPool
+	pool       *MetricTagsIteratorPool
 }
 
-// NewEncodedTagsIterator creates an EncodedTagsIterator.
-func NewEncodedTagsIterator(
+// NewMetricTagsIterator creates a MetricTagsIterator.
+func NewMetricTagsIterator(
 	tagDecoder TagDecoder,
-	pool *EncodedTagsIteratorPool,
-) EncodedTagsIterator {
-	return &encodedTagsIter{
+	pool *MetricTagsIteratorPool,
+) MetricTagsIterator {
+	return &metricTagsIter{
 		tagDecoder: tagDecoder,
 		bytes:      checked.NewBytes(nil, nil),
 		pool:       pool,
 	}
 }
 
-func (it *encodedTagsIter) Reset(sortedTagPairs []byte) {
+func (it *metricTagsIter) Reset(sortedTagPairs []byte) {
 	it.bytes.IncRef()
 	it.bytes.Reset(sortedTagPairs)
 	it.tagDecoder.Reset(it.bytes)
 }
 
-func (it *encodedTagsIter) Bytes() []byte {
+func (it *metricTagsIter) Bytes() []byte {
 	return it.bytes.Bytes()
 }
 
-func (it *encodedTagsIter) NumTags() int {
+func (it *metricTagsIter) NumTags() int {
 	return it.tagDecoder.Len()
 }
 
-func (it *encodedTagsIter) TagValue(tagName []byte) ([]byte, bool) {
+func (it *metricTagsIter) TagValue(tagName []byte) ([]byte, bool) {
 	iter := it.tagDecoder.Duplicate()
 	defer iter.Close()
 
@@ -80,20 +72,20 @@ func (it *encodedTagsIter) TagValue(tagName []byte) ([]byte, bool) {
 	return nil, false
 }
 
-func (it *encodedTagsIter) Next() bool {
+func (it *metricTagsIter) Next() bool {
 	return it.tagDecoder.Next()
 }
 
-func (it *encodedTagsIter) Current() ([]byte, []byte) {
+func (it *metricTagsIter) Current() ([]byte, []byte) {
 	tag := it.tagDecoder.Current()
 	return tag.Name.Bytes(), tag.Value.Bytes()
 }
 
-func (it *encodedTagsIter) Err() error {
+func (it *metricTagsIter) Err() error {
 	return it.tagDecoder.Err()
 }
 
-func (it *encodedTagsIter) Close() {
+func (it *metricTagsIter) Close() {
 	it.bytes.Reset(nil)
 	it.bytes.DecRef()
 	it.tagDecoder.Reset(it.bytes)
@@ -103,36 +95,36 @@ func (it *encodedTagsIter) Close() {
 	}
 }
 
-// EncodedTagsIteratorPool pools EncodedTagsIterator.
-type EncodedTagsIteratorPool struct {
+// MetricTagsIteratorPool pools MetricTagsIterator.
+type MetricTagsIteratorPool struct {
 	tagDecoderPool TagDecoderPool
 	pool           pool.ObjectPool
 }
 
-// NewEncodedTagsIteratorPool creates an EncodedTagsIteratorPool.
+// NewEncodedTagsIteratorPool creates a MetricTagsIteratorPool.
 func NewEncodedTagsIteratorPool(
 	tagDecoderPool TagDecoderPool,
 	opts pool.ObjectPoolOptions,
-) *EncodedTagsIteratorPool {
-	return &EncodedTagsIteratorPool{
+) *MetricTagsIteratorPool {
+	return &MetricTagsIteratorPool{
 		tagDecoderPool: tagDecoderPool,
 		pool:           pool.NewObjectPool(opts),
 	}
 }
 
 // Init initializes the pool.
-func (p *EncodedTagsIteratorPool) Init() {
+func (p *MetricTagsIteratorPool) Init() {
 	p.pool.Init(func() interface{} {
-		return NewEncodedTagsIterator(p.tagDecoderPool.Get(), p)
+		return NewMetricTagsIterator(p.tagDecoderPool.Get(), p)
 	})
 }
 
-// Get provides an EncodedTagsIterator from the pool.
-func (p *EncodedTagsIteratorPool) Get() EncodedTagsIterator {
-	return p.pool.Get().(*encodedTagsIter)
+// Get provides a MetricTagsIterator from the pool.
+func (p *MetricTagsIteratorPool) Get() MetricTagsIterator {
+	return p.pool.Get().(*metricTagsIter)
 }
 
-// Put returns an EncodedTagsIterator to the pool.
-func (p *EncodedTagsIteratorPool) Put(v EncodedTagsIterator) {
+// Put returns a MetricTagsIterator to the pool.
+func (p *MetricTagsIteratorPool) Put(v MetricTagsIterator) {
 	p.pool.Put(v)
 }
