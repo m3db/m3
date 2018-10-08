@@ -18,12 +18,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package xserialize
+package serialize
 
 import (
 	"bytes"
 
-	"github.com/m3db/m3/src/dbnode/serialize"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
@@ -37,14 +36,14 @@ type EncodedTagsIterator interface {
 }
 
 type encodedTagsIter struct {
-	tagDecoder serialize.TagDecoder
+	tagDecoder TagDecoder
 	bytes      checked.Bytes
 	pool       *EncodedTagsIteratorPool
 }
 
 // NewEncodedTagsIterator creates an EncodedTagsIterator.
 func NewEncodedTagsIterator(
-	tagDecoder serialize.TagDecoder,
+	tagDecoder TagDecoder,
 	pool *EncodedTagsIteratorPool,
 ) EncodedTagsIterator {
 	return &encodedTagsIter{
@@ -106,13 +105,13 @@ func (it *encodedTagsIter) Close() {
 
 // EncodedTagsIteratorPool pools EncodedTagsIterator.
 type EncodedTagsIteratorPool struct {
-	tagDecoderPool serialize.TagDecoderPool
+	tagDecoderPool TagDecoderPool
 	pool           pool.ObjectPool
 }
 
 // NewEncodedTagsIteratorPool creates an EncodedTagsIteratorPool.
 func NewEncodedTagsIteratorPool(
-	tagDecoderPool serialize.TagDecoderPool,
+	tagDecoderPool TagDecoderPool,
 	opts pool.ObjectPoolOptions,
 ) *EncodedTagsIteratorPool {
 	return &EncodedTagsIteratorPool{

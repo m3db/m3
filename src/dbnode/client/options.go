@@ -31,7 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
-	"github.com/m3db/m3/src/dbnode/serialize"
+	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"

@@ -28,7 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
-	"github.com/m3db/m3/src/dbnode/serialize"
+	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/test"

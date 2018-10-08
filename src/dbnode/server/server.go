@@ -49,7 +49,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ratelimit"
 	"github.com/m3db/m3/src/dbnode/retention"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
-	"github.com/m3db/m3/src/dbnode/serialize"
+	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/cluster"

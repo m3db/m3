@@ -25,7 +25,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/serialize"
+	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/mock"
@@ -319,7 +319,7 @@ func newTestID(t *testing.T, tags map[string]string) id.ID {
 
 	tagDecoder := tagDecoderPool.Get()
 
-	iter := xserialize.NewEncodedTagsIterator(tagDecoder, nil)
+	iter := serialize.NewEncodedTagsIterator(tagDecoder, nil)
 	iter.Reset(data.Bytes())
 	return iter
 }

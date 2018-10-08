@@ -45,7 +45,7 @@ var (
 type downsamplerFlushHandler struct {
 	sync.RWMutex
 	storage                 storage.Storage
-	encodedTagsIteratorPool *xserialize.EncodedTagsIteratorPool
+	encodedTagsIteratorPool *serialize.EncodedTagsIteratorPool
 	workerPool              xsync.WorkerPool
 	instrumentOpts          instrument.Options
 	metrics                 downsamplerFlushHandlerMetrics
@@ -67,7 +67,7 @@ func newDownsamplerFlushHandlerMetrics(
 
 func newDownsamplerFlushHandler(
 	storage storage.Storage,
-	encodedTagsIteratorPool *xserialize.EncodedTagsIteratorPool,
+	encodedTagsIteratorPool *serialize.EncodedTagsIteratorPool,
 	workerPool xsync.WorkerPool,
 	instrumentOpts instrument.Options,
 ) handler.Handler {
