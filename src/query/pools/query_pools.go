@@ -23,21 +23,21 @@ package pools
 import (
 	"io"
 
-	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/serialize"
+	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
+
+	"github.com/uber-go/tally"
 )
 
 const (
 	// TODO: add capabilities to get this from configs
-	defaultWorkerPoolCount      = 4096
-	defaultWorkerPoolSize       = 20
 	replicas                    = 1
 	iteratorPoolSize            = 65536
 	checkedBytesWrapperPoolSize = 65536
@@ -47,46 +47,29 @@ const (
 
 // BuildWorkerPools builds a worker pool
 func BuildWorkerPools(
-	cfg config.Configuration,
 	instrumentOptions instrument.Options,
-) (pool.ObjectPool, xsync.PooledWorkerPool, error) {
-	workerPoolCount := cfg.DecompressWorkerPoolCount
-	if workerPoolCount == 0 {
-		workerPoolCount = defaultWorkerPoolCount
+	readPoolPolicy, writePoolPolicy xconfig.WorkerPoolPolicy,
+	scope tally.Scope,
+) (xsync.PooledWorkerPool, xsync.PooledWorkerPool, error) {
+	opts, readPoolSize := readPoolPolicy.Options()
+	opts = opts.SetInstrumentOptions(instrumentOptions.
+		SetMetricsScope(scope.SubScope("read-worker-pool")))
+	readWorkerPool, err := xsync.NewPooledWorkerPool(readPoolSize, opts)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	workerPoolSize := cfg.DecompressWorkerPoolSize
-	if workerPoolSize == 0 {
-		workerPoolSize = defaultWorkerPoolSize
-	}
-
-	instrumentOptions = instrumentOptions.SetMetricsScope(
-		instrumentOptions.MetricsScope().SubScope("series-decompression-pool"),
-	)
-
-	poolOptions := pool.NewObjectPoolOptions().
-		SetSize(workerPoolCount).
-		SetInstrumentOptions(instrumentOptions)
-
-	objectPool := pool.NewObjectPool(poolOptions)
-	objectPool.Init(func() interface{} {
-		workerPool := xsync.NewWorkerPool(workerPoolSize)
-		workerPool.Init()
-		return workerPool
-	})
-
-	writePoolSize := cfg.WriteWorkerPoolSize
-	if writePoolSize == 0 {
-		writePoolSize = defaultWorkerPoolCount
-	}
-
-	writeWorkerPool, err := xsync.NewPooledWorkerPool(writePoolSize, xsync.NewPooledWorkerPoolOptions())
+	readWorkerPool.Init()
+	opts, writePoolSize := writePoolPolicy.Options()
+	opts = opts.SetInstrumentOptions(instrumentOptions.
+		SetMetricsScope(scope.SubScope("write-worker-pool")))
+	writeWorkerPool, err := xsync.NewPooledWorkerPool(writePoolSize, opts)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	writeWorkerPool.Init()
-	return objectPool, writeWorkerPool, nil
+	return readWorkerPool, writeWorkerPool, nil
 }
 
 type sessionPools struct {
