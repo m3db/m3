@@ -126,7 +126,7 @@ func (h *perConsumerHandler) processMessage(
 	msg consumer.Message,
 ) {
 	r := NewRefCountedCallback(msg)
-	r.incRef()
+	r.IncRef()
 
 	// Decode the bytes in the message.
 	h.r.Reset(msg.Bytes())
@@ -144,7 +144,7 @@ func (h *perConsumerHandler) processMessage(
 
 		// TODO: Consider incrementing a wait group for each write and wait on
 		// shut down to reduce the number of messages being retried by m3msg.
-		r.incRef()
+		r.IncRef()
 		h.writeFn(m.ID, m.TimeNanos, m.Value, sp, r)
 	}
 	r.decRef()

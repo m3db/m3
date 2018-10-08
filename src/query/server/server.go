@@ -213,6 +213,21 @@ func Run(runOpts RunOptions) {
 		}
 	}()
 
+	if cfg.Ingest != nil {
+		ingester, err := cfg.Ingest.Ingester.NewIngester(backendStorage, instrumentOptions)
+		if err != nil {
+			logger.Fatal("unable to create ingester", zap.Error(err))
+		}
+		server, err := cfg.Ingest.M3msg.NewServer(ingester.Ingest, instrumentOptions)
+		if err != nil {
+			logger.Fatal("unable to create m3msg server", zap.Error(err))
+		}
+		if err := server.ListenAndServe(); err != nil {
+			logger.Fatal("unable to listen on ingest server", zap.Error(err))
+		}
+		defer server.Close()
+	}
+
 	var interruptCh <-chan error = make(chan error)
 	if runOpts.InterruptCh != nil {
 		interruptCh = runOpts.InterruptCh

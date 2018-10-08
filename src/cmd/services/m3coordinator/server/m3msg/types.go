@@ -64,8 +64,8 @@ func NewRefCountedCallback(msg consumer.Message) *RefCountedCallback {
 	}
 }
 
-// incRef increments the ref count.
-func (r *RefCountedCallback) incRef() {
+// IncRef increments the ref count.
+func (r *RefCountedCallback) IncRef() {
 	atomic.AddInt32(&r.ref, 1)
 }
 
