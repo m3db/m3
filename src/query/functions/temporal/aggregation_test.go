@@ -353,3 +353,10 @@ func TestUnknownAggregation(t *testing.T) {
 	_, err := NewAggOp([]interface{}{5 * time.Minute}, "unknown_agg_func")
 	require.Error(t, err)
 }
+
+func TestHoltWinters(t *testing.T) {
+	holtWintersFn := makeHoltWintersFn(0.2, 0.6)
+	val := holtWintersFn([]float64{1, math.NaN(), 5, 10, 15})
+
+	test.EqualsWithNansWithDelta(t, 13.6559, val, 0.0001)
+}

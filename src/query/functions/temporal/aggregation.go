@@ -29,28 +29,30 @@ import (
 )
 
 const (
-	// AvgType calculates the average of all values in the specified interval
+	// AvgType calculates the average of all values in the specified interval.
 	AvgType = "avg_over_time"
 
-	// CountType calculates count of all values in the specified interval
+	// CountType calculates count of all values in the specified interval.
 	CountType = "count_over_time"
 
-	// MinType calculates the minimum of all values in the specified interval
+	// MinType calculates the minimum of all values in the specified interval.
 	MinType = "min_over_time"
 
-	// MaxType calculates the maximum of all values in the specified interval
+	// MaxType calculates the maximum of all values in the specified interval.
 	MaxType = "max_over_time"
 
-	// SumType calculates the sum of all values in the specified interval
+	// SumType calculates the sum of all values in the specified interval.
 	SumType = "sum_over_time"
 
-	// StdDevType calculates the standard deviation of all values in the specified interval
+	// StdDevType calculates the standard deviation of all values in the specified interval.
 	StdDevType = "stddev_over_time"
 
-	// StdVarType calculates the standard variance of all values in the specified interval
+	// StdVarType calculates the standard variance of all values in the specified interval.
 	StdVarType = "stdvar_over_time"
 
-	// HoltWintersType produces a smoothed value for time series based on the specified interval
+	// HoltWintersType produces a smoothed value for time series based on the specified interval.
+	// The algorithm used comes from https://en.wikipedia.org/wiki/Exponential_smoothing#Double_exponential_smoothing.
+	// Holt-Winters should only be used with gauges.
 	HoltWintersType = "holt_winters"
 )
 
@@ -80,7 +82,7 @@ func (a aggProcessor) Init(op baseOp, controller *transform.Controller, opts tra
 	}
 }
 
-// NewAggOp creates a new base temporal transform with a specified node
+// NewAggOp creates a new base temporal transform with a specified node.
 func NewAggOp(args []interface{}, optype string) (transform.Params, error) {
 	if aggregationFunc, ok := aggFuncs[optype]; ok {
 		a := aggProcessor{
@@ -91,7 +93,7 @@ func NewAggOp(args []interface{}, optype string) (transform.Params, error) {
 	}
 
 	if optype == HoltWintersType {
-		// todo(braskin): move this logic to the parser
+		// todo(braskin): move this logic to the parser.
 		if len(args) != 3 {
 			return emptyOp, fmt.Errorf("invalid number of args for %s: %d", optype, len(args))
 		}
@@ -134,9 +136,10 @@ func makeHoltWintersFn(sf, tf float64) aggFunc {
 			b                       float64
 			x, y                    float64
 			s0, s1                  float64
+			idx                     int
 		)
 
-		for i, val := range vals {
+		for _, val := range vals {
 			if math.IsNaN(val) {
 				continue
 			}
@@ -144,6 +147,7 @@ func makeHoltWintersFn(sf, tf float64) aggFunc {
 			if !foundFirst {
 				foundFirst = true
 				s1 = val
+				idx++
 				continue
 			}
 
@@ -157,13 +161,14 @@ func makeHoltWintersFn(sf, tf float64) aggFunc {
 			x = sf * val
 
 			// scale the last smoothed value with the trend at this point.
-			b = calcTrendValue(i-1, sf, tf, s0, s1, b)
+			b = calcTrendValue(idx-1, sf, tf, s0, s1, b)
 			y = (1 - sf) * (s1 + b)
 
 			s0, s1 = s1, x+y
+			idx++
 		}
 
-		// need at least two values to apply a smoothing operation
+		// need at least two values to apply a smoothing operation.
 		if !foundSecond {
 			return math.NaN()
 		}
