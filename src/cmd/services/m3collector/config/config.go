@@ -21,8 +21,6 @@
 package config
 
 import (
-	"go.uber.org/zap"
-
 	"github.com/m3db/m3aggregator/client"
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3metrics/matcher"
@@ -31,6 +29,8 @@ import (
 	"github.com/m3db/m3x/config/listenaddress"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
+
+	"go.uber.org/zap"
 )
 
 // Configuration is configuration for the collector.

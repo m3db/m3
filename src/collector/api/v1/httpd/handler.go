@@ -72,11 +72,11 @@ func (h *Handler) Router() *mux.Router {
 // RegisterRoutes registers all http routes.
 func (h *Handler) RegisterRoutes() error {
 	// Report handler
-	reportHandler := jsonhandler.NewReportJSONHandler(h.reporter, h.encoderPool,
+	reportHandler := jsonhandler.NewReportHandler(h.reporter, h.encoderPool,
 		h.decoderPool, h.instrumentOpts)
 	h.router.
-		Handle(jsonhandler.ReportJSONURL, reportHandler).
-		Methods(jsonhandler.JSONReportHTTPMethod)
+		Handle(jsonhandler.ReportURL, reportHandler).
+		Methods(jsonhandler.ReportHTTPMethod)
 
 	h.registerHealthEndpoints()
 
