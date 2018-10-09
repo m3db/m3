@@ -49,7 +49,7 @@ type baseOp struct {
 // skipping lint check for a single operator type since we will be adding more
 // nolint : unparam
 func newBaseOp(args []interface{}, operatorType string, processorFn MakeProcessor) (baseOp, error) {
-	if operatorType != HoltWintersType {
+	if operatorType != HoltWintersType && operatorType != PredictLinearType {
 		if len(args) != 1 {
 			return emptyOp, fmt.Errorf("invalid number of args for %s: %d", operatorType, len(args))
 		}
