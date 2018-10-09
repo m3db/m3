@@ -77,6 +77,8 @@ const (
 
 	defaultM3AggMaxAggregationWindowSize = 5 * time.Minute
 	defaultM3AggWarmupDuration           = time.Minute
+
+	m3AggregatorPlacementNamespace = "/placement"
 )
 
 var (
@@ -209,7 +211,18 @@ func ServiceWithAlgo(
 	opts ServiceOptions,
 	now time.Time,
 ) (placement.Service, placement.Algorithm, error) {
-	cs, err := clusterClient.Services(services.NewOverrideOptions())
+
+	overrides := services.NewOverrideOptions()
+	switch opts.ServiceName {
+	case M3AggregatorServiceName:
+		overrides = overrides.
+			SetNamespaceOptions(
+				overrides.NamespaceOptions().
+					SetPlacementNamespace(m3AggregatorPlacementNamespace),
+			)
+	}
+
+	cs, err := clusterClient.Services(overrides)
 	if err != nil {
 		return nil, nil, err
 	}
