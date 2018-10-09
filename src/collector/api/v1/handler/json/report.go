@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 
 	"github.com/m3db/m3/src/collector/reporter"
@@ -36,11 +37,11 @@ import (
 )
 
 const (
-	// ReportJSONURL is the url for the report json handler
-	ReportJSONURL = handler.RoutePrefixV1 + "/json/report"
+	// ReportURL is the url for the report json handler
+	ReportURL = handler.RoutePrefixV1 + "/json/report"
 
-	// JSONReportHTTPMethod is the HTTP method used with this resource.
-	JSONReportHTTPMethod = http.MethodPost
+	// ReportHTTPMethod is the HTTP method used with this resource.
+	ReportHTTPMethod = http.MethodPost
 
 	counterType = "counter"
 	gaugeType   = "gauge"
@@ -51,22 +52,21 @@ var (
 	errEncoderNoBytes = errors.New("tags encoder has no access to bytes")
 )
 
-// ReportJSONHandler represents a handler for the report json endpoint
-type ReportJSONHandler struct {
+type reportHandler struct {
 	reporter       reporter.Reporter
 	encoderPool    serialize.TagEncoderPool
 	decoderPool    serialize.TagDecoderPool
 	instrumentOpts instrument.Options
 }
 
-// NewReportJSONHandler returns a new instance of handler.
-func NewReportJSONHandler(
+// NewReportHandler returns a new instance of the report handler.
+func NewReportHandler(
 	reporter reporter.Reporter,
 	encoderPool serialize.TagEncoderPool,
 	decoderPool serialize.TagDecoderPool,
 	instrumentOpts instrument.Options,
 ) http.Handler {
-	return &ReportJSONHandler{
+	return &reportHandler{
 		reporter:       reporter,
 		encoderPool:    encoderPool,
 		decoderPool:    decoderPool,
@@ -74,24 +74,24 @@ func NewReportJSONHandler(
 	}
 }
 
-// ReportRequest represents the report request from the caller.
-type ReportRequest struct {
-	Metrics []MetricValue `json:"metrics"`
+// reportRequest represents the report request from the caller.
+type reportRequest struct {
+	Metrics []metricValue `json:"metrics"`
 }
 
-// MetricValue is a reportable metric value.
-type MetricValue struct {
+// metricValue is a reportable metric value.
+type metricValue struct {
 	Type  string            `json:"type" validate:"nonzero"`
 	Tags  map[string]string `json:"tags" validate:"nonzero"`
 	Value float64           `json:"value" validate:"nonzero"`
 }
 
-// ReportResponse represents the report response.
-type ReportResponse struct {
+// reportResponse represents the report response.
+type reportResponse struct {
 	Reported int `json:"reported"`
 }
 
-func (h *ReportJSONHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *reportHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	req, err := h.parseRequest(r)
 	if err != nil {
 		handler.Error(w, err.Inner(), err.Code())
@@ -111,11 +111,11 @@ func (h *ReportJSONHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	resp := &ReportResponse{Reported: len(req.Metrics)}
+	resp := &reportResponse{Reported: len(req.Metrics)}
 	handler.WriteJSONResponse(w, resp, h.instrumentOpts.ZapLogger())
 }
 
-func (h *ReportJSONHandler) parseRequest(r *http.Request) (*ReportRequest, *handler.ParseError) {
+func (h *reportHandler) parseRequest(r *http.Request) (*reportRequest, *handler.ParseError) {
 	body := r.Body
 	if r.Body == nil {
 		err := fmt.Errorf("empty request body")
@@ -124,15 +124,15 @@ func (h *ReportJSONHandler) parseRequest(r *http.Request) (*ReportRequest, *hand
 
 	defer body.Close()
 
-	req := new(ReportRequest)
+	req := new(reportRequest)
 	if err := json.NewDecoder(body).Decode(req); err != nil {
-		return nil, handler.NewParseError(err, http.StatusInternalServerError)
+		return nil, handler.NewParseError(err, http.StatusBadRequest)
 	}
 
 	return req, nil
 }
 
-func (h *ReportJSONHandler) newMetricID(metric MetricValue) (id.ID, *handler.ParseError) {
+func (h *reportHandler) newMetricID(metric metricValue) (id.ID, *handler.ParseError) {
 	tags := make(models.Tags, 0, len(metric.Tags))
 	for n, v := range metric.Tags {
 		tags = tags.AddTag(models.Tag{Name: []byte(n), Value: []byte(v)})
@@ -160,20 +160,28 @@ func (h *ReportJSONHandler) newMetricID(metric MetricValue) (id.ID, *handler.Par
 	return metricTagsIter, nil
 }
 
-func (h *ReportJSONHandler) reportMetric(id id.ID, metric MetricValue) *handler.ParseError {
+func (h *reportHandler) reportMetric(id id.ID, metric metricValue) *handler.ParseError {
 	var err error
 	switch metric.Type {
 	case counterType:
-		err = h.reporter.ReportCounter(id, int64(metric.Value))
+		roundedValue := math.Ceil(metric.Value)
+		if roundedValue != metric.Value {
+			// Not an int
+			badReqErr := fmt.Errorf("counter value not a float: %v", metric.Value)
+			return handler.NewParseError(badReqErr, http.StatusBadRequest)
+		}
+
+		err = h.reporter.ReportCounter(id, int64(roundedValue))
 	case gaugeType:
 		err = h.reporter.ReportGauge(id, metric.Value)
 	case timerType:
 		err = h.reporter.ReportBatchTimer(id, []float64{metric.Value})
 	default:
-		err = fmt.Errorf("invalid metric type: %s", metric.Type)
+		badReqErr := fmt.Errorf("invalid metric type: %s", metric.Type)
+		return handler.NewParseError(badReqErr, http.StatusBadRequest)
 	}
 	if err != nil {
-		return handler.NewParseError(err, http.StatusBadRequest)
+		return handler.NewParseError(err, http.StatusInternalServerError)
 	}
 	return nil
 }

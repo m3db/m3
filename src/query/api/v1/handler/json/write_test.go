@@ -70,7 +70,9 @@ func TestJSONWrite(t *testing.T) {
 	jsonWrite := &WriteJSONHandler{store: storage}
 
 	jsonReq := generateJSONWriteRequest()
-	req, _ := http.NewRequest("POST", WriteJSONURL, strings.NewReader(jsonReq))
+	req, err := http.NewRequest(JSONWriteHTTPMethod, WriteJSONURL,
+		strings.NewReader(jsonReq))
+	require.NoError(t, err)
 
 	r, rErr := jsonWrite.parseRequest(req)
 	require.Nil(t, rErr, "unable to parse request")

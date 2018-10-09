@@ -108,8 +108,10 @@ func Run(runOpts RunOptions) {
 				SubScope("tag-decoder-pool")))
 	tagEncoderPool := serialize.NewTagEncoderPool(tagEncoderOptions,
 		tagEncoderPoolOptions)
+	tagEncoderPool.Init()
 	tagDecoderPool := serialize.NewTagDecoderPool(tagDecoderOptions,
 		tagDecoderPoolOptions)
+	tagDecoderPool.Init()
 
 	handler, err := httpd.NewHandler(reporter, tagEncoderPool,
 		tagDecoderPool, instrumentOpts)
