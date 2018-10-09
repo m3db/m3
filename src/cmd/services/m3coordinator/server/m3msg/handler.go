@@ -34,8 +34,6 @@ import (
 	"github.com/uber-go/tally"
 )
 
-var ctx = context.TODO()
-
 // Options for the ingest handler.
 type Options struct {
 	InstrumentOptions         instrument.Options
@@ -86,6 +84,7 @@ func (h *handler) Handle(c consumer.Consumer) {
 
 func (h *handler) newPerConsumerHandler() *perConsumerHandler {
 	return &perConsumerHandler{
+		ctx:     context.Background(),
 		writeFn: h.writeFn,
 		logger:  h.logger,
 		m:       h.m,
@@ -96,6 +95,7 @@ func (h *handler) newPerConsumerHandler() *perConsumerHandler {
 
 type perConsumerHandler struct {
 	// Per server variables, shared across consumers/connections.
+	ctx     context.Context
 	writeFn WriteFn
 	logger  log.Logger
 	m       handlerMetrics
@@ -149,7 +149,7 @@ func (h *perConsumerHandler) processMessage(
 		// TODO: Consider incrementing a wait group for each write and wait on
 		// shut down to reduce the number of messages being retried by m3msg.
 		r.IncRef()
-		h.writeFn(ctx, m.ID, time.Unix(0, m.TimeNanos), m.Value, sp, r)
+		h.writeFn(h.ctx, m.ID, time.Unix(0, m.TimeNanos), m.Value, sp, r)
 	}
 	r.decRef()
 	if err := h.it.Err(); err != nil && err != io.EOF {

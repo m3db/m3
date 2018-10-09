@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package common
+package convert
 
 import (
 	"testing"
@@ -29,11 +29,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSanitizeUnitForM3DB(t *testing.T) {
+func TestUnitForM3DB(t *testing.T) {
 	for u := byte(0); u <= byte(xtime.Year); u++ {
 		unit := xtime.Unit(u)
 		if unit == xtime.None {
-			require.Equal(t, xtime.Nanosecond, SanitizeUnitForM3DB(unit))
+			require.Equal(t, xtime.Nanosecond, UnitForM3DB(unit))
 			continue
 		}
 
@@ -42,14 +42,14 @@ func TestSanitizeUnitForM3DB(t *testing.T) {
 
 		switch {
 		case time.Duration(dur)%time.Second == 0:
-			require.Equal(t, xtime.Second, SanitizeUnitForM3DB(unit))
+			require.Equal(t, xtime.Second, UnitForM3DB(unit))
 			unit = xtime.Second
 		case time.Duration(dur)%time.Millisecond == 0:
-			require.Equal(t, xtime.Millisecond, SanitizeUnitForM3DB(unit))
+			require.Equal(t, xtime.Millisecond, UnitForM3DB(unit))
 		case time.Duration(dur)%time.Microsecond == 0:
-			require.Equal(t, xtime.Microsecond, SanitizeUnitForM3DB(unit))
+			require.Equal(t, xtime.Microsecond, UnitForM3DB(unit))
 		default:
-			require.Equal(t, xtime.Nanosecond, SanitizeUnitForM3DB(unit))
+			require.Equal(t, xtime.Nanosecond, UnitForM3DB(unit))
 		}
 	}
 }

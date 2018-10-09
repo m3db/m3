@@ -18,14 +18,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package common
+package convert
 
 import xtime "github.com/m3db/m3x/time"
 
-// SanitizeUnitForM3DB sanitizes a time unit into one that is suitable for m3db.
+// UnitForM3DB converts a time unit into one that is suitable for m3db.
 // The is done in a explicit way for better performance and the logic is
 // ensured though unit test.
-func SanitizeUnitForM3DB(unit xtime.Unit) xtime.Unit {
+func UnitForM3DB(unit xtime.Unit) xtime.Unit {
 	switch unit {
 	case xtime.Second, xtime.Minute, xtime.Hour, xtime.Day, xtime.Year:
 		return xtime.Second

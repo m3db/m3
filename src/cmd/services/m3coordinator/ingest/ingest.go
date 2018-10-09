@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
-	"github.com/m3db/m3/src/x/common"
+	"github.com/m3db/m3/src/x/convert"
 	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
@@ -167,7 +167,7 @@ func (op *ingestOp) resetWriteQuery() error {
 		return err
 	}
 	op.resetDataPoints()
-	op.q.Unit = common.SanitizeUnitForM3DB(op.sp.Resolution().Precision)
+	op.q.Unit = convert.UnitForM3DB(op.sp.Resolution().Precision)
 	op.q.Attributes.MetricsType = storage.AggregatedMetricsType
 	op.q.Attributes.Resolution = op.sp.Resolution().Window
 	op.q.Attributes.Retention = op.sp.Retention().Duration()

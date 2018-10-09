@@ -45,13 +45,13 @@ func (cfg Configuration) NewIngester(
 	if err != nil {
 		return nil, err
 	}
-	return NewIngester(*opts), nil
+	return NewIngester(opts), nil
 }
 
 func (cfg Configuration) newOptions(
 	appender storage.Appender,
 	instrumentOptions instrument.Options,
-) (*Options, error) {
+) (Options, error) {
 	scope := instrumentOptions.MetricsScope().Tagged(
 		map[string]string{"component": "ingester"},
 	)
@@ -61,7 +61,7 @@ func (cfg Configuration) newOptions(
 			SetInstrumentOptions(instrumentOptions),
 	)
 	if err != nil {
-		return nil, err
+		return Options{}, err
 	}
 
 	workers.Init()
@@ -73,13 +73,12 @@ func (cfg Configuration) newOptions(
 					SubScope("tag-decoder-pool"))),
 	)
 	tagDecoderPool.Init()
-	opts := Options{
+	return Options{
 		Appender:          appender,
 		Workers:           workers,
 		PoolOptions:       cfg.OpPool.NewObjectPoolOptions(instrumentOptions),
 		TagDecoderPool:    tagDecoderPool,
 		RetryOptions:      cfg.Retry.NewOptions(scope),
 		InstrumentOptions: instrumentOptions,
-	}
-	return &opts, nil
+	}, nil
 }
