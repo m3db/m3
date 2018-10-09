@@ -46,15 +46,15 @@ var (
 
 	// DeprecatedM3DBAddURL is the old url for the placement add handler, maintained for
 	// backwards compatibility.
-	DeprecatedM3DBAddURL = path.Join(handler.RoutePrefixV1, "/placement")
+	DeprecatedM3DBAddURL = path.Join(handler.RoutePrefixV1, PlacementPathName)
 
 	// M3DBAddURL is the url for the placement add handler (with the POST method)
 	// for the M3DB service.
-	M3DBAddURL = path.Join(handler.RoutePrefixV1, ServicesPathName, M3DBServiceName, PlacementPathName)
+	M3DBAddURL = path.Join(handler.RoutePrefixV1, M3DBServicePlacementPathName)
 
 	// M3AggAddURL is the url for the placement add handler (with the POST method)
 	// for the M3Agg service.
-	M3AggAddURL = path.Join(handler.RoutePrefixV1, ServicesPathName, M3AggServiceName, PlacementPathName)
+	M3AggAddURL = path.Join(handler.RoutePrefixV1, M3AggServicePlacementPathName)
 )
 
 // AddHandler is the handler for placement adds.

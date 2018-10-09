@@ -46,11 +46,11 @@ var (
 
 	// M3DBGetURL is the url for the placement get handler (with the GET method)
 	// for the M3DB service.
-	M3DBGetURL = path.Join(handler.RoutePrefixV1, ServicesPathName, M3DBServiceName, PlacementPathName)
+	M3DBGetURL = path.Join(handler.RoutePrefixV1, M3DBServicePlacementPathName)
 
 	// M3AggGetURL is the url for the placement get handler (with the GET method)
 	// for the M3Agg service.
-	M3AggGetURL = path.Join(handler.RoutePrefixV1, ServicesPathName, M3AggServiceName, PlacementPathName)
+	M3AggGetURL = path.Join(handler.RoutePrefixV1, M3AggServicePlacementPathName)
 )
 
 // GetHandler is the handler for placement gets.

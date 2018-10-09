@@ -52,10 +52,10 @@ var (
 	DeprecatedM3DBDeleteURL = path.Join(handler.RoutePrefixV1, PlacementPathName, placementIDPath)
 
 	// M3DBDeleteURL is the url for the placement delete handler for the M3DB service.
-	M3DBDeleteURL = path.Join(handler.RoutePrefixV1, ServicesPathName, M3DBServiceName, PlacementPathName, placementIDPath)
+	M3DBDeleteURL = path.Join(handler.RoutePrefixV1, M3DBServicePlacementPathName, placementIDPath)
 
 	// M3AggDeleteURL is the url for the placement delete handler for the M3Agg service.
-	M3AggDeleteURL = path.Join(handler.RoutePrefixV1, ServicesPathName, M3AggServiceName, PlacementPathName, placementIDPath)
+	M3AggDeleteURL = path.Join(handler.RoutePrefixV1, M3AggServicePlacementPathName, placementIDPath)
 
 	errEmptyID = errors.New("must specify placement ID to delete")
 )

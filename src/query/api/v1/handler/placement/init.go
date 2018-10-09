@@ -44,10 +44,10 @@ var (
 	DeprecatedM3DBInitURL = path.Join(handler.RoutePrefixV1, PlacementPathName, initPathName)
 
 	// M3DBInitURL is the url for the placement init handler, (with the POST method).
-	M3DBInitURL = path.Join(handler.RoutePrefixV1, ServicesPathName, M3DBServiceName, PlacementPathName, initPathName)
+	M3DBInitURL = path.Join(handler.RoutePrefixV1, M3DBServicePlacementPathName, initPathName)
 
 	// M3AggInitURL is the url for the m3agg placement init handler (with the POST method).
-	M3AggInitURL = path.Join(handler.RoutePrefixV1, ServicesPathName, M3AggServiceName, PlacementPathName, initPathName)
+	M3AggInitURL = path.Join(handler.RoutePrefixV1, M3AggServicePlacementPathName, initPathName)
 
 	// InitHTTPMethod is the HTTP method used with this resource.
 	InitHTTPMethod = http.MethodPost

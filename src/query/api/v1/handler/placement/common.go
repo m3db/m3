@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"path"
 	"strings"
 	"time"
 
@@ -87,6 +88,11 @@ var (
 		M3DBServiceName:  true,
 		M3AggServiceName: true,
 	}
+
+	// M3DBServicePlacementPathName is the M3DB service placement API path.
+	M3DBServicePlacementPathName = path.Join(ServicesPathName, M3DBServiceName, PlacementPathName)
+	// M3AggServicePlacementPathName is the M3Agg service placement API path.
+	M3AggServicePlacementPathName = path.Join(ServicesPathName, M3AggServiceName, PlacementPathName)
 )
 
 // HandlerOptions is the options struct for the handler.
