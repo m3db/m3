@@ -24,12 +24,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"path"
+	"time"
 
-	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
-	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/placement"
 
 	"github.com/gorilla/mux"
@@ -45,8 +45,17 @@ const (
 )
 
 var (
-	// DeleteURL is the url for the placement delete handler.
-	DeleteURL = fmt.Sprintf("%s/placement/{%s}", handler.RoutePrefixV1, placementIDVar)
+	placementIDPath = fmt.Sprintf("{%s}", placementIDVar)
+
+	// DeprecatedM3DBDeleteURL is the old url for the placement delete handler, maintained
+	// for backwards compatibility.
+	DeprecatedM3DBDeleteURL = path.Join(handler.RoutePrefixV1, PlacementPathName, placementIDPath)
+
+	// M3DBDeleteURL is the url for the placement delete handler for the M3DB service.
+	M3DBDeleteURL = path.Join(handler.RoutePrefixV1, M3DBServicePlacementPathName, placementIDPath)
+
+	// M3AggDeleteURL is the url for the placement delete handler for the M3Agg service.
+	M3AggDeleteURL = path.Join(handler.RoutePrefixV1, M3AggServicePlacementPathName, placementIDPath)
 
 	errEmptyID = errors.New("must specify placement ID to delete")
 )
@@ -55,23 +64,30 @@ var (
 type DeleteHandler Handler
 
 // NewDeleteHandler returns a new instance of DeleteHandler.
-func NewDeleteHandler(client clusterclient.Client, cfg config.Configuration) *DeleteHandler {
-	return &DeleteHandler{client: client, cfg: cfg}
+func NewDeleteHandler(opts HandlerOptions) *DeleteHandler {
+	return &DeleteHandler{HandlerOptions: opts, nowFn: time.Now}
 }
 
-func (h *DeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	logger := logging.WithContext(ctx)
-	id := mux.Vars(r)[placementIDVar]
+func (h *DeleteHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		logger = logging.WithContext(ctx)
+		id     = mux.Vars(r)[placementIDVar]
+	)
+
 	if id == "" {
 		logger.Error("no placement ID provided to delete", zap.Any("error", errEmptyID))
 		handler.Error(w, errEmptyID, http.StatusBadRequest)
 		return
 	}
 
-	force := r.FormValue(placementForceVar) == "true"
+	var (
+		force = r.FormValue(placementForceVar) == "true"
+		opts  = NewServiceOptions(
+			serviceName, r.Header, h.M3AggServiceOptions)
+	)
 
-	service, algo, err := ServiceWithAlgo(h.client, r.Header)
+	service, algo, err := ServiceWithAlgo(h.ClusterClient, opts, h.nowFn())
 	if err != nil {
 		handler.Error(w, err, http.StatusInternalServerError)
 		return

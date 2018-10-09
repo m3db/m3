@@ -109,17 +109,25 @@ func WithContext(ctx context.Context) *zap.Logger {
 
 // WithResponseTimeLogging wraps around the given handler, providing response time logging
 func WithResponseTimeLogging(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return WithResponseTimeLoggingFunc(next.ServeHTTP)
+}
+
+// WithResponseTimeLoggingFunc wraps around the http request handler function,
+// providing response time logging.
+func WithResponseTimeLoggingFunc(
+	next func(w http.ResponseWriter, r *http.Request),
+) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		startTime := time.Now()
 		rqCtx := NewContextWithGeneratedID(r.Context())
 		logger := WithContext(rqCtx)
 
 		// Propagate the context with the reqId
-		next.ServeHTTP(w, r.WithContext(rqCtx))
+		next(w, r.WithContext(rqCtx))
 		endTime := time.Now()
 		d := endTime.Sub(startTime)
 		if d > time.Second {
 			logger.Info("finished handling request", zap.Time("time", endTime), zap.Duration("response", d), zap.String("url", r.URL.RequestURI()))
 		}
-	})
+	}
 }

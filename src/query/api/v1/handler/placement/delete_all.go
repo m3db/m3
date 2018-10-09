@@ -23,36 +23,51 @@ package placement
 import (
 	"encoding/json"
 	"net/http"
+	"path"
+	"time"
 
-	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/util/logging"
-	clusterclient "github.com/m3db/m3cluster/client"
 
 	"go.uber.org/zap"
 )
 
 const (
-	// DeleteAllURL is the url for the handler to delete all placements (with the DELETE method).
-	DeleteAllURL = handler.RoutePrefixV1 + "/placement"
-
 	// DeleteAllHTTPMethod is the HTTP method used with this resource.
 	DeleteAllHTTPMethod = http.MethodDelete
+)
+
+var (
+	// DeprecatedM3DBDeleteAllURL is the old url for the handler to delete all placements, maintained
+	// for backwards compatibility.
+	DeprecatedM3DBDeleteAllURL = path.Join(handler.RoutePrefixV1, PlacementPathName)
+
+	// M3DBDeleteAllURL is the url for the handler to delete all placements (with the DELETE method)
+	// for the M3DB service.
+	M3DBDeleteAllURL = path.Join(handler.RoutePrefixV1, M3DBServicePlacementPathName)
+
+	// M3AggDeleteAllURL is the url for the handler to delete all placements (with the DELETE method)
+	// for the M3Agg service.
+	M3AggDeleteAllURL = path.Join(handler.RoutePrefixV1, M3AggServicePlacementPathName)
 )
 
 // DeleteAllHandler is the handler to delete all placements.
 type DeleteAllHandler Handler
 
 // NewDeleteAllHandler returns a new instance of DeleteAllHandler.
-func NewDeleteAllHandler(client clusterclient.Client, cfg config.Configuration) *DeleteAllHandler {
-	return &DeleteAllHandler{client: client, cfg: cfg}
+func NewDeleteAllHandler(opts HandlerOptions) *DeleteAllHandler {
+	return &DeleteAllHandler{HandlerOptions: opts, nowFn: time.Now}
 }
 
-func (h *DeleteAllHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	logger := logging.WithContext(ctx)
+func (h *DeleteAllHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		logger = logging.WithContext(ctx)
+		opts   = NewServiceOptions(
+			serviceName, r.Header, h.M3AggServiceOptions)
+	)
 
-	service, err := Service(h.client, r.Header)
+	service, err := Service(h.ClusterClient, opts, h.nowFn())
 	if err != nil {
 		handler.Error(w, err, http.StatusInternalServerError)
 		return

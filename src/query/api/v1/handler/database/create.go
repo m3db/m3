@@ -124,7 +124,8 @@ func NewCreateHandler(
 	embeddedDbCfg *dbconfig.DBConfiguration,
 ) http.Handler {
 	return &createHandler{
-		placementInitHandler:   placement.NewInitHandler(client, cfg),
+		placementInitHandler: placement.NewInitHandler(
+			placement.HandlerOptions{ClusterClient: client, Config: cfg}),
 		namespaceAddHandler:    namespace.NewAddHandler(client),
 		namespaceDeleteHandler: namespace.NewDeleteHandler(client),
 		embeddedDbCfg:          embeddedDbCfg,
@@ -149,7 +150,7 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	initPlacement, err := h.placementInitHandler.Init(r, placementRequest)
+	initPlacement, err := h.placementInitHandler.Init(placement.M3DBServiceName, r, placementRequest)
 	if err != nil {
 		// Attempt to delete the namespace that was just created to maintain idempotency
 		err = h.namespaceDeleteHandler.Delete(namespaceRequest.Name)

@@ -23,12 +23,12 @@ package placement
 import (
 	"fmt"
 	"net/http"
+	"path"
+	"time"
 
-	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
-	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/placement"
 
 	"github.com/gogo/protobuf/jsonpb"
@@ -36,11 +36,22 @@ import (
 )
 
 const (
-	// AddURL is the url for the placement add handler (with the POST method).
-	AddURL = handler.RoutePrefixV1 + "/placement"
-
 	// AddHTTPMethod is the HTTP method used with this resource.
 	AddHTTPMethod = http.MethodPost
+)
+
+var (
+	// DeprecatedM3DBAddURL is the old url for the placement add handler, maintained for
+	// backwards compatibility.
+	DeprecatedM3DBAddURL = path.Join(handler.RoutePrefixV1, PlacementPathName)
+
+	// M3DBAddURL is the url for the placement add handler (with the POST method)
+	// for the M3DB service.
+	M3DBAddURL = path.Join(handler.RoutePrefixV1, M3DBServicePlacementPathName)
+
+	// M3AggAddURL is the url for the placement add handler (with the POST method)
+	// for the M3Agg service.
+	M3AggAddURL = path.Join(handler.RoutePrefixV1, M3AggServicePlacementPathName)
 )
 
 // AddHandler is the handler for placement adds.
@@ -55,11 +66,11 @@ func (e unsafeAddError) Error() string {
 }
 
 // NewAddHandler returns a new instance of AddHandler.
-func NewAddHandler(client clusterclient.Client, cfg config.Configuration) *AddHandler {
-	return &AddHandler{client: client, cfg: cfg}
+func NewAddHandler(opts HandlerOptions) *AddHandler {
+	return &AddHandler{HandlerOptions: opts, nowFn: time.Now}
 }
 
-func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *AddHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 
@@ -69,7 +80,7 @@ func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	placement, err := h.Add(r, req)
+	placement, err := h.Add(serviceName, r, req)
 	if err != nil {
 		status := http.StatusInternalServerError
 		if _, ok := err.(unsafeAddError); ok {
@@ -107,6 +118,7 @@ func (h *AddHandler) parseRequest(r *http.Request) (*admin.PlacementAddRequest, 
 
 // Add adds a placement.
 func (h *AddHandler) Add(
+	serviceName string,
 	httpReq *http.Request,
 	req *admin.PlacementAddRequest,
 ) (placement.Placement, error) {
@@ -115,7 +127,9 @@ func (h *AddHandler) Add(
 		return nil, err
 	}
 
-	service, algo, err := ServiceWithAlgo(h.client, httpReq.Header)
+	serviceOpts := NewServiceOptions(
+		serviceName, httpReq.Header, h.M3AggServiceOptions)
+	service, algo, err := ServiceWithAlgo(h.ClusterClient, serviceOpts, h.nowFn())
 	if err != nil {
 		return nil, err
 	}
