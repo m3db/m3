@@ -23,6 +23,7 @@ package main
 import (
 	"io/ioutil"
 	"os"
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -43,8 +44,11 @@ func TestDocTest(t *testing.T) {
 	testSourceFile, err := ioutil.ReadFile(testCaseSource)
 	require.NoError(t, err)
 
+	operationRegEx := regexp.MustCompile(operationRegEx)
+	validationRegEx := regexp.MustCompile(validationRegEx)
+
 	// create bash script
-	validationRegEx, operationRegEx, err := bashScript([]byte(testSourceFile), testCaseOutputSource)
+	err = bashScript([]byte(testSourceFile), testCaseOutputSource, operationRegEx, validationRegEx)
 	require.NoError(t, err)
 
 	expectedScript := readFile(t, testCaseScript)

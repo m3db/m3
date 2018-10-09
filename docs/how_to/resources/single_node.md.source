@@ -18,10 +18,24 @@ directory on your host for durability:
 docker pull quay.io/m3/m3dbnode:latest
 docker run -p 7201:7201 -p 9003:9003 --name m3db -v $(pwd)/m3db_data:/var/lib/m3db quay.io/m3/m3dbnode:latest
 ```
+<operation>
+<validation>
+docker pull quay.io/m3/m3dbnode:latest
+docker create --name "${CONTAINER_NAME}" -p 7201:7201 -p 9003:9003 -p 9002:9002 quay.io/m3/m3dbnode:latest
+docker start "${CONTAINER_NAME}"
+if [ $? -ne 0 ]; then
+  echo "m3dbnode docker failed to start"
+  docker logs "${CONTAINER_NAME}"
+  exit 1
+fi
 
+sleep 5
+echo "checking uptime of coordinator service"
+ATTEMPTS=6 TIMEOUT=1 retry_with_backoff  \
+  '[ "$(curl -sSf 0.0.0.0:7201/health | jq .uptime)" ]'
+</validation></operation>
 
-<!-- TODO: link to docs containing explanations of what namespaces, the coordinator,
-placements, etc. are -->
+Additionally, here are some more operational guides for [namespace configuration](https://m3db.github.io/m3/operational_guide/namespace_configuration/) and [placements](https://m3db.github.io/m3/operational_guide/placement/).
 
 <!-- TODO: add something about how this is in no way a recommended production deployment guide,
 and write a guide for what is considered a production-ready deployment (this is in the works) -->
@@ -30,13 +44,21 @@ Next, create an initial namespace for your metrics in the database:
 
 <!-- TODO: link to config reference docs once available -->
 
-```json
+<operation_json>
 curl -X POST http://localhost:7201/api/v1/database/create -d '{
   "type": "local",
   "namespaceName": "default",
   "retentionTime": "48h"
 }'
-```
+<validation>
+echo "check placement info"
+ATTEMPTS=6 TIMEOUT=1 retry_with_backoff  \
+  '[ "$(curl -sSf 0.0.0.0:7201/api/v1/placement | jq .placement.instances.m3db_local.id)" == \"m3db_local\" ]'
+
+echo "sleep until bootstrapped"
+ATTEMPTS=6 TIMEOUT=2 retry_with_backoff  \
+  '[ "$(curl -sSf 0.0.0.0:9002/health | jq .bootstrapped)" == true ]'
+</validation></operation_json>
 
 Shortly after, you should see your node complete bootstrapping! Don't worry if you see warnings or
 errors related to a local cache file, such as `[W] could not load cache from file
@@ -59,7 +81,7 @@ going to `localhost:7201/api/v1/openapi` in your browser.
 ![OpenAPI Doc](redoc_screenshot.png)
 
 Now you can experiment with writing tagged metrics:
-```json
+<operation_json>
 curl -vvvsS -X POST http://localhost:9003/writetagged -d '{
   "namespace": "default",
   "id": "foo",
@@ -79,10 +101,10 @@ curl -vvvsS -X POST http://localhost:9003/writetagged -d '{
   }
 }
 '
-```
+</operation_json>
 
 And reading the metrics you've written:
-```json
+<operation_json>
 curl -sSf -X POST http://localhost:9003/query -d '{
   "namespace": "default",
   "query": {
@@ -94,6 +116,54 @@ curl -sSf -X POST http://localhost:9003/query -d '{
   "rangeStart": 0,
   "rangeEnd": '"$(date "+%s")"'
 }' | jq .
+<validation>
+echo "Read data"
+queryResult=$(curl -sSf -X POST localhost:9003/query -d '{
+  "namespace": "default",
+  "query": {
+    "regexp": {
+      "field": "city",
+      "regexp": ".*"
+    }
+  },
+  "rangeStart": 0,
+  "rangeEnd":'"$(date +"%s")"'
+}' | jq '.results | length')
+
+if [ "$queryResult" -lt 1 ]; then
+  echo "Result not found"
+  exit 1
+else
+  echo "Result found"
+fi
+</validation></operation_json>
+
+You should see something like the following get returned:
+```
+{
+  "results": [
+    {
+      "id": "foo",
+      "tags": [
+        {
+          "name": "city",
+          "value": "new_york"
+        },
+        {
+          "name": "endpoint",
+          "value": "/request"
+        }
+      ],
+      "datapoints": [
+        {
+          "timestamp": 1527039389,
+          "value": 42.123456789
+        }
+      ]
+    }
+  ],
+  "exhaustive": true
+}
 ```
 
 ## Integrations
