@@ -26,7 +26,7 @@ metrics:
     reportingInterval: 1s
   m3:
     hostPort: 127.0.0.1:5000  # local collector host port for m3 metrics
-    service: m3aggregator
+    service: m3agg
     env: test
     includeHost: true
   samplingRate: 0.01
@@ -94,7 +94,7 @@ kvClient:
   etcd:
     env: default_env
     zone: embedded
-    service: m3aggregator
+    service: m3agg
     cacheDir: /var/lib/m3kv
     etcdClusters:
       - zone: embedded
@@ -103,8 +103,7 @@ kvClient:
 
 runtimeOptions:
   kvConfig:
-    namespace: /m3aggregator
-    environment: test
+    environment: default_env
   writeValuesPerMetricLimitPerSecondKey: write-values-per-metric-limit-per-second
   writeValuesPerMetricLimitPerSecond: 0
   writeNewMetricLimitClusterPerSecondKey: write-new-metric-limit-cluster-per-second
@@ -141,7 +140,10 @@ aggregator:
         - count: 1024
           capacity: 64
   client:
+    short_a
+    hist_a
     placementKV:
+      namespace: m3agg_placement_ns
       zone: embedded
       environment: default_env
     placementWatcher:
@@ -176,8 +178,7 @@ aggregator:
       maxReconnectDuration: 1m
   placementManager:
     kvConfig:
-      namespace: /m3aggregator
-      environment: test
+      environment: default_env
     placementWatcher:
       key: placement
       initWatchTimeout: 10s
@@ -187,8 +188,7 @@ aggregator:
   resignTimeout: 1m
   flushTimesManager:
     kvConfig:
-      namespace: /m3aggregator
-      environment: test
+      environment: default_env
     flushTimesKeyFmt: shardset/%d/flush
     flushTimesPersistRetrier:
       initialBackoff: 100ms
@@ -201,8 +201,8 @@ aggregator:
       resignTimeout: 10s
       ttlSeconds: 10
     serviceID:
-      name: m3aggregator
-      environment: test
+      name: m3agg
+      environment: default_env
     electionKeyFmt: shardset/%d/lock
     campaignRetrier:
       initialBackoff: 100ms

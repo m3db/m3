@@ -204,7 +204,15 @@ func ServiceWithAlgo(
 	opts ServiceOptions,
 	now time.Time,
 ) (placement.Service, placement.Algorithm, error) {
-	cs, err := clusterClient.Services(services.NewOverrideOptions())
+	overrides := services.NewOverrideOptions()
+	if opts.ServiceName == M3AggServiceName {
+		overrides = services.NewOverrideOptions().
+			SetNamespaceOptions(
+				overrides.NamespaceOptions().
+					SetPlacementNamespace("m3agg_placement_ns"),
+			)
+	}
+	cs, err := clusterClient.Services(overrides)
 	if err != nil {
 		return nil, nil, err
 	}
