@@ -85,7 +85,13 @@ func TestExpandSeriesSmallValidPools(t *testing.T) {
 }
 
 func TestFailingExpandSeriesValidPools(t *testing.T) {
-	pool, err := xsync.NewPooledWorkerPool(2, xsync.NewPooledWorkerPoolOptions())
+	var (
+		numValidSeries = 8
+		numValues      = 2
+		poolSize       = 2
+		numUncalled    = 10
+	)
+	pool, err := xsync.NewPooledWorkerPool(poolSize, xsync.NewPooledWorkerPoolOptions())
 	require.NoError(t, err)
 	pool.Init()
 	ctrl := gomock.NewController(t)
@@ -94,12 +100,13 @@ func TestFailingExpandSeriesValidPools(t *testing.T) {
 		return seriesiter.GenerateSingleSampleTagIterator(ctrl, testTags)
 	}
 
-	iters := seriesiter.NewMockSeriesIterSlice(ctrl, validTagGenerator, 8, 2)
-	// Add 3 failing iterators, despite the pool having size 2; there can be
-	// slight timing inconsistencies which can sometimes cause.
+	iters := seriesiter.NewMockSeriesIterSlice(ctrl, validTagGenerator, numValidSeries, numValues)
+	// Add poolSize + 1 failing iterators; there can be slight timing
+	// inconsistencies which can sometimes cause failures in this test
+	// as one of the `uncalled` iterators gets unexpectedly used.
 	// This is not a big issue in practice, as all it means is one further
 	// iterator is expanded before erroring out.
-	for i := 0; i < 3; i++ {
+	for i := 0; i < poolSize+1; i++ {
 		invalidIter := encoding.NewMockSeriesIterator(ctrl)
 		invalidIter.EXPECT().ID().Return(ident.StringID("foo")).Times(1)
 
@@ -112,7 +119,7 @@ func TestFailingExpandSeriesValidPools(t *testing.T) {
 		iters = append(iters, invalidIter)
 	}
 
-	for i := 0; i < 10; i++ {
+	for i := 0; i < numUncalled; i++ {
 		uncalledIter := encoding.NewMockSeriesIterator(ctrl)
 		iters = append(iters, uncalledIter)
 	}
