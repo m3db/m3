@@ -89,7 +89,7 @@ func TestPlacementDeleteHandler_Safe(t *testing.T) {
 			req = httptest.NewRequest(DeleteHTTPMethod, "/placement/host1", nil)
 		)
 		handler.nowFn = func() time.Time { return time.Unix(0, 0) }
-		if serviceName == M3AggServiceName {
+		if serviceName == M3AggregatorServiceName {
 			basePlacement = basePlacement.
 				SetIsMirrored(true)
 		}
@@ -144,7 +144,7 @@ func TestPlacementDeleteHandler_Safe(t *testing.T) {
 					shard.NewShard(1).SetState(shard.Available),
 				})),
 		})
-		if serviceName == M3AggServiceName {
+		if serviceName == M3AggregatorServiceName {
 			// Need to be mirrored in M3Agg case
 			basePlacement.SetReplicaFactor(1).SetMaxShardSetID(2).SetInstances([]placement.Instance{
 				placement.NewInstance().SetID("host1").SetIsolationGroup("a").SetWeight(10).SetShardSetID(0).
@@ -169,7 +169,7 @@ func TestPlacementDeleteHandler_Safe(t *testing.T) {
 		resp = w.Result()
 		body, err = ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)
-		if serviceName == M3AggServiceName {
+		if serviceName == M3AggregatorServiceName {
 			require.Equal(t, "{\"placement\":{\"instances\":{\"host1\":{\"id\":\"host1\",\"isolationGroup\":\"a\",\"zone\":\"\",\"weight\":10,\"endpoint\":\"\",\"shards\":[{\"id\":0,\"state\":\"LEAVING\",\"sourceId\":\"\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"300000000000\"}],\"shardSetId\":0,\"hostname\":\"\",\"port\":0},\"host2\":{\"id\":\"host2\",\"isolationGroup\":\"b\",\"zone\":\"\",\"weight\":10,\"endpoint\":\"\",\"shards\":[{\"id\":0,\"state\":\"INITIALIZING\",\"sourceId\":\"host1\",\"cutoverNanos\":\"300000000000\",\"cutoffNanos\":\"0\"},{\"id\":1,\"state\":\"AVAILABLE\",\"sourceId\":\"\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"}],\"shardSetId\":1,\"hostname\":\"\",\"port\":0}},\"replicaFactor\":1,\"numShards\":0,\"isSharded\":true,\"cutoverTime\":\"0\",\"isMirrored\":true,\"maxShardSetId\":2},\"version\":2}", string(body))
 		} else {
 			require.Equal(t, "{\"placement\":{\"instances\":{\"host1\":{\"id\":\"host1\",\"isolationGroup\":\"a\",\"zone\":\"\",\"weight\":10,\"endpoint\":\"\",\"shards\":[{\"id\":0,\"state\":\"LEAVING\",\"sourceId\":\"\","+

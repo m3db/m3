@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/net/http"
 	xerrors "github.com/m3db/m3x/errors"
 
 	"github.com/golang/protobuf/proto"
@@ -92,20 +93,20 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	req, rErr := h.parseRequest(r)
 	if rErr != nil {
 		h.promWriteMetrics.writeErrorsClient.Inc(1)
-		handler.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 	if err := h.write(r.Context(), req); err != nil {
 		h.promWriteMetrics.writeErrorsServer.Inc(1)
 		logging.WithContext(r.Context()).Error("Write error", zap.Any("err", err))
-		handler.Error(w, err, http.StatusInternalServerError)
+		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
 	h.promWriteMetrics.writeSuccess.Inc(1)
 }
 
-func (h *PromWriteHandler) parseRequest(r *http.Request) (*prompb.WriteRequest, *handler.ParseError) {
+func (h *PromWriteHandler) parseRequest(r *http.Request) (*prompb.WriteRequest, *xhttp.ParseError) {
 	reqBuf, err := prometheus.ParsePromCompressedRequest(r)
 	if err != nil {
 		return nil, err
@@ -113,7 +114,7 @@ func (h *PromWriteHandler) parseRequest(r *http.Request) (*prompb.WriteRequest, 
 
 	var req prompb.WriteRequest
 	if err := proto.Unmarshal(reqBuf, &req); err != nil {
-		return nil, handler.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
 	return &req, nil

@@ -18,66 +18,55 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package handler
+package xhttp
 
 import (
 	"encoding/json"
-	"errors"
-	"fmt"
+	"math"
 	"net/http"
-	"strings"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 )
 
-var (
-	// ErrInvalidParams is returned when input parameters are invalid
-	ErrInvalidParams = errors.New("invalid request params")
-)
-
-// Error will serve an HTTP error
-func Error(w http.ResponseWriter, err error, code int) {
-	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(struct {
-		Error string `json:"error"`
+func TestWriteJSONResponse(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	WriteJSONResponse(recorder, struct {
+		Foo string `json:"foo"`
 	}{
-		Error: err.Error(),
-	})
+		Foo: "bar",
+	}, zap.NewNop())
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Equal(t, `{"foo":"bar"}`, recorder.Body.String())
 }
 
-// ParseError is the error from parsing requests
-type ParseError struct {
-	inner error
-	code  int
+func TestWriteJSONResponseError(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	WriteJSONResponse(recorder, math.Inf(1), zap.NewNop())
+
+	assertWroteJSONError(t, recorder, http.StatusInternalServerError)
 }
 
-// NewParseError creates a new parse error
-func NewParseError(inner error, code int) *ParseError {
-	return &ParseError{inner, code}
+func TestWriteUninitializedResponse(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	WriteUninitializedResponse(recorder, zap.NewNop())
+
+	assertWroteJSONError(t, recorder, http.StatusServiceUnavailable)
 }
 
-// Error returns the error string
-func (e *ParseError) Error() string {
-	return fmt.Sprintf("err: %s, code: %d", e.inner.Error(), e.code)
-}
-
-// Inner returns the error object
-func (e *ParseError) Inner() error {
-	return e.inner
-}
-
-// Code returns the parse error type
-func (e *ParseError) Code() int {
-	return e.code
-}
-
-// IsInvalidParams returns true if this is an invalid params error
-func IsInvalidParams(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	if strings.HasPrefix(err.Error(), ErrInvalidParams.Error()) {
-		return true
-	}
-
-	return false
+func assertWroteJSONError(
+	t *testing.T,
+	recorder *httptest.ResponseRecorder,
+	code int,
+) {
+	assert.Equal(t, code, recorder.Code)
+	var resp errorResponse
+	err := json.NewDecoder(recorder.Body).Decode(&resp)
+	require.NoError(t, err)
+	assert.NotEqual(t, "", resp.Error)
 }

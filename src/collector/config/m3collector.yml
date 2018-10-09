@@ -31,7 +31,7 @@ reporter:
   matcher:
     initWatchTimeout: 10s
     rulesKVConfig:
-      namespace: /r2/rules
+      namespace: /rules
     namespacesKey: namespaces
     ruleSetKeyFmt: rulesets/%s
     namespaceTag: application
@@ -46,9 +46,9 @@ reporter:
 
   client:
     placementKV:
-      namespace: /r2/m3aggregator
+      namespace: /placement
     placementWatcher:
-      key: placement
+      key: m3aggregator
       initWatchTimeout: 10s
     hashType: murmur32
     shardCutoverWarmupDuration: 1h

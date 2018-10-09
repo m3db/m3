@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/net/http"
 	"github.com/m3db/m3cluster/placement"
 
 	"github.com/gogo/protobuf/jsonpb"
@@ -67,21 +68,21 @@ func (h *InitHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *ht
 
 	req, rErr := h.parseRequest(r)
 	if rErr != nil {
-		handler.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 
 	placement, err := h.Init(serviceName, r, req)
 	if err != nil {
 		logger.Error("unable to initialize placement", zap.Any("error", err))
-		handler.Error(w, err, http.StatusInternalServerError)
+		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
 	placementProto, err := placement.Proto()
 	if err != nil {
 		logger.Error("unable to get placement protobuf", zap.Any("error", err))
-		handler.Error(w, err, http.StatusInternalServerError)
+		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
@@ -89,14 +90,14 @@ func (h *InitHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *ht
 		Placement: placementProto,
 	}
 
-	handler.WriteProtoMsgJSONResponse(w, resp, logger)
+	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *InitHandler) parseRequest(r *http.Request) (*admin.PlacementInitRequest, *handler.ParseError) {
+func (h *InitHandler) parseRequest(r *http.Request) (*admin.PlacementInitRequest, *xhttp.ParseError) {
 	defer r.Body.Close()
 	initReq := new(admin.PlacementInitRequest)
 	if err := jsonpb.Unmarshal(r.Body, initReq); err != nil {
-		return nil, handler.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
 	return initReq, nil

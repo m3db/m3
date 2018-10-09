@@ -29,8 +29,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/net/http"
 	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/generated/proto/placementpb"
 	"github.com/m3db/m3cluster/placement"
@@ -54,8 +54,8 @@ func (a allowedServicesSet) String() []string {
 const (
 	// M3DBServiceName is the service name for M3DB.
 	M3DBServiceName = "m3db"
-	// M3AggServiceName is the service name for M3Agg.
-	M3AggServiceName = "m3agg"
+	// M3AggregatorServiceName is the service name for M3Aggregator.
+	M3AggregatorServiceName = "m3aggregator"
 	// ServicesPathName is the services part of the API path.
 	ServicesPathName = "services"
 	// PlacementPathName is the placement part of the API path.
@@ -85,14 +85,14 @@ var (
 	errM3AggServiceOptionsRequired  = errors.New("m3agg service options are required")
 
 	allowedServices = allowedServicesSet{
-		M3DBServiceName:  true,
-		M3AggServiceName: true,
+		M3DBServiceName:         true,
+		M3AggregatorServiceName: true,
 	}
 
 	// M3DBServicePlacementPathName is the M3DB service placement API path.
 	M3DBServicePlacementPathName = path.Join(ServicesPathName, M3DBServiceName, PlacementPathName)
 	// M3AggServicePlacementPathName is the M3Agg service placement API path.
-	M3AggServicePlacementPathName = path.Join(ServicesPathName, M3AggServiceName, PlacementPathName)
+	M3AggServicePlacementPathName = path.Join(ServicesPathName, M3AggregatorServiceName, PlacementPathName)
 )
 
 // HandlerOptions is the options struct for the handler.
@@ -223,7 +223,7 @@ func ServiceWithAlgo(
 	if opts.ServiceZone == "" {
 		return nil, nil, errServiceZoneIsRequired
 	}
-	if opts.ServiceName == M3AggServiceName && opts.M3Agg == nil {
+	if opts.ServiceName == M3AggregatorServiceName && opts.M3Agg == nil {
 		return nil, nil, errM3AggServiceOptionsRequired
 	}
 
@@ -237,7 +237,7 @@ func ServiceWithAlgo(
 		SetIsSharded(true).
 		SetDryrun(opts.DryRun)
 
-	if opts.ServiceName == M3AggServiceName {
+	if opts.ServiceName == M3AggregatorServiceName {
 		var (
 			maxAggregationWindowSize = opts.M3Agg.MaxAggregationWindowSize
 			warmupDuration           = opts.M3Agg.WarmupDuration
@@ -467,7 +467,7 @@ func parseServiceMiddleware(
 	return func(w http.ResponseWriter, r *http.Request) {
 		serviceName, err := parseServiceFromRequest(r)
 		if err != nil {
-			handler.Error(w, err, http.StatusBadRequest)
+			xhttp.Error(w, err, http.StatusBadRequest)
 			return
 		}
 
@@ -484,8 +484,8 @@ func parseServiceFromRequest(r *http.Request) (string, error) {
 			switch service {
 			case M3DBServiceName:
 				return M3DBServiceName, nil
-			case M3AggServiceName:
-				return M3AggServiceName, nil
+			case M3AggregatorServiceName:
+				return M3AggregatorServiceName, nil
 			default:
 				return "", fmt.Errorf("unknown service: %s", service)
 			}

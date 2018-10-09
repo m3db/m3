@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/net/http"
 	"github.com/m3db/m3cluster/placement"
 
 	"github.com/gogo/protobuf/jsonpb"
@@ -76,7 +77,7 @@ func (h *AddHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *htt
 
 	req, rErr := h.parseRequest(r)
 	if rErr != nil {
-		handler.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 
@@ -87,14 +88,14 @@ func (h *AddHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *htt
 			status = http.StatusBadRequest
 		}
 		logger.Error("unable to add placement", zap.Any("error", err))
-		handler.Error(w, err, status)
+		xhttp.Error(w, err, status)
 		return
 	}
 
 	placementProto, err := placement.Proto()
 	if err != nil {
 		logger.Error("unable to get placement protobuf", zap.Any("error", err))
-		handler.Error(w, err, http.StatusInternalServerError)
+		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
@@ -103,14 +104,14 @@ func (h *AddHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *htt
 		Version:   int32(placement.GetVersion()),
 	}
 
-	handler.WriteProtoMsgJSONResponse(w, resp, logger)
+	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *AddHandler) parseRequest(r *http.Request) (*admin.PlacementAddRequest, *handler.ParseError) {
+func (h *AddHandler) parseRequest(r *http.Request) (*admin.PlacementAddRequest, *xhttp.ParseError) {
 	defer r.Body.Close()
 	addReq := new(admin.PlacementAddRequest)
 	if err := jsonpb.Unmarshal(r.Body, addReq); err != nil {
-		return nil, handler.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
 	return addReq, nil

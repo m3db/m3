@@ -76,7 +76,7 @@ func TestPlacementInitHandler(t *testing.T) {
 			w   = httptest.NewRecorder()
 			req *http.Request
 		)
-		if serviceName == M3AggServiceName {
+		if serviceName == M3AggregatorServiceName {
 			req = httptest.NewRequest(InitHTTPMethod, M3DBInitURL, strings.NewReader(`{"instances": [{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234},{"id": "host2","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host2:1234","hostname": "host2","port": 1234}],"num_shards": 16,"replication_factor": 1}`))
 		} else {
 			req = httptest.NewRequest(InitHTTPMethod, M3DBInitURL, strings.NewReader(`{"instances": [{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234},{"id": "host2","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host2:1234","hostname": "host2","port": 1234}],"num_shards": 16,"replication_factor": 1}`))
@@ -97,7 +97,7 @@ func TestPlacementInitHandler(t *testing.T) {
 
 		// Test error response
 		w = httptest.NewRecorder()
-		if serviceName == M3AggServiceName {
+		if serviceName == M3AggregatorServiceName {
 			req = httptest.NewRequest(InitHTTPMethod, M3DBInitURL, strings.NewReader(`{"instances": [{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "host1:1234","hostname": "host1","port": 1234},{"id": "host2","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host2:1234","hostname": "host2","port": 1234}],"num_shards": 64,"replication_factor": 2}`))
 		} else {
 			req = httptest.NewRequest(InitHTTPMethod, M3DBInitURL, strings.NewReader(`{"instances": [{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "host1:1234","hostname": "host1","port": 1234},{"id": "host2","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host2:1234","hostname": "host2","port": 1234}],"num_shards": 64,"replication_factor": 2}`))

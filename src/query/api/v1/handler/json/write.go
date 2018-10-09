@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/net/http"
 	xtime "github.com/m3db/m3x/time"
 
 	"go.uber.org/zap"
@@ -68,19 +69,19 @@ type WriteQuery struct {
 func (h *WriteJSONHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	req, rErr := h.parseRequest(r)
 	if rErr != nil {
-		handler.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 
 	writeQuery, err := newStorageWriteQuery(req)
 	if err != nil {
 		logging.WithContext(r.Context()).Error("Parsing error", zap.Any("err", err))
-		handler.Error(w, err, http.StatusInternalServerError)
+		xhttp.Error(w, err, http.StatusInternalServerError)
 	}
 
 	if err := h.store.Write(r.Context(), writeQuery); err != nil {
 		logging.WithContext(r.Context()).Error("Write error", zap.Any("err", err))
-		handler.Error(w, err, http.StatusInternalServerError)
+		xhttp.Error(w, err, http.StatusInternalServerError)
 	}
 }
 
@@ -108,18 +109,18 @@ func newStorageWriteQuery(req *WriteQuery) (*storage.WriteQuery, error) {
 	}, nil
 }
 
-func (h *WriteJSONHandler) parseRequest(r *http.Request) (*WriteQuery, *handler.ParseError) {
+func (h *WriteJSONHandler) parseRequest(r *http.Request) (*WriteQuery, *xhttp.ParseError) {
 	body := r.Body
 	if r.Body == nil {
 		err := fmt.Errorf("empty request body")
-		return nil, handler.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
 	defer body.Close()
 
 	js, err := ioutil.ReadAll(body)
 	if err != nil {
-		return nil, handler.NewParseError(err, http.StatusInternalServerError)
+		return nil, xhttp.NewParseError(err, http.StatusInternalServerError)
 	}
 
 	var writeQuery *WriteQuery

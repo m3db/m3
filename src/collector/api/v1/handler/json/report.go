@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/x/net/http"
 	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3x/instrument"
@@ -94,45 +95,44 @@ type reportResponse struct {
 func (h *reportHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	req, err := h.parseRequest(r)
 	if err != nil {
-		handler.Error(w, err.Inner(), err.Code())
+		xhttp.Error(w, err.Inner(), err.Code())
 		return
 	}
 
 	for _, metric := range req.Metrics {
 		id, err := h.newMetricID(metric)
 		if err != nil {
-			handler.Error(w, err.Inner(), err.Code())
+			xhttp.Error(w, err.Inner(), err.Code())
 			return
 		}
 
 		if err := h.reportMetric(id, metric); err != nil {
-			handler.Error(w, err.Inner(), err.Code())
+			xhttp.Error(w, err.Inner(), err.Code())
 			return
 		}
 	}
 
 	resp := &reportResponse{Reported: len(req.Metrics)}
-	handler.WriteJSONResponse(w, resp, h.instrumentOpts.ZapLogger())
+	xhttp.WriteJSONResponse(w, resp, h.instrumentOpts.ZapLogger())
 }
 
-func (h *reportHandler) parseRequest(r *http.Request) (*reportRequest, *handler.ParseError) {
-	body := r.Body
+func (h *reportHandler) parseRequest(r *http.Request) (*reportRequest, *xhttp.ParseError) {
 	if r.Body == nil {
 		err := fmt.Errorf("empty request body")
-		return nil, handler.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
-	defer body.Close()
+	defer r.Body.Close()
 
 	req := new(reportRequest)
-	if err := json.NewDecoder(body).Decode(req); err != nil {
-		return nil, handler.NewParseError(err, http.StatusBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
 	return req, nil
 }
 
-func (h *reportHandler) newMetricID(metric metricValue) (id.ID, *handler.ParseError) {
+func (h *reportHandler) newMetricID(metric metricValue) (id.ID, *xhttp.ParseError) {
 	tags := make(models.Tags, 0, len(metric.Tags))
 	for n, v := range metric.Tags {
 		tags = tags.AddTag(models.Tag{Name: []byte(n), Value: []byte(v)})
@@ -141,15 +141,16 @@ func (h *reportHandler) newMetricID(metric metricValue) (id.ID, *handler.ParseEr
 	tagsIter := storage.TagsToIdentTagIterator(tags)
 
 	encoder := h.encoderPool.Get()
+	encoder.Reset()
 	defer encoder.Finalize()
 
 	if err := encoder.Encode(tagsIter); err != nil {
-		return nil, handler.NewParseError(err, http.StatusInternalServerError)
+		return nil, xhttp.NewParseError(err, http.StatusInternalServerError)
 	}
 
 	data, ok := encoder.Data()
 	if !ok {
-		return nil, handler.NewParseError(errEncoderNoBytes, http.StatusInternalServerError)
+		return nil, xhttp.NewParseError(errEncoderNoBytes, http.StatusInternalServerError)
 	}
 
 	// Take a copy of the pooled encoder's bytes
@@ -160,7 +161,7 @@ func (h *reportHandler) newMetricID(metric metricValue) (id.ID, *handler.ParseEr
 	return metricTagsIter, nil
 }
 
-func (h *reportHandler) reportMetric(id id.ID, metric metricValue) *handler.ParseError {
+func (h *reportHandler) reportMetric(id id.ID, metric metricValue) *xhttp.ParseError {
 	var err error
 	switch metric.Type {
 	case counterType:
@@ -168,7 +169,7 @@ func (h *reportHandler) reportMetric(id id.ID, metric metricValue) *handler.Pars
 		if roundedValue != metric.Value {
 			// Not an int
 			badReqErr := fmt.Errorf("counter value not a float: %v", metric.Value)
-			return handler.NewParseError(badReqErr, http.StatusBadRequest)
+			return xhttp.NewParseError(badReqErr, http.StatusBadRequest)
 		}
 
 		err = h.reporter.ReportCounter(id, int64(roundedValue))
@@ -178,10 +179,10 @@ func (h *reportHandler) reportMetric(id id.ID, metric metricValue) *handler.Pars
 		err = h.reporter.ReportBatchTimer(id, []float64{metric.Value})
 	default:
 		badReqErr := fmt.Errorf("invalid metric type: %s", metric.Type)
-		return handler.NewParseError(badReqErr, http.StatusBadRequest)
+		return xhttp.NewParseError(badReqErr, http.StatusBadRequest)
 	}
 	if err != nil {
-		return handler.NewParseError(err, http.StatusInternalServerError)
+		return xhttp.NewParseError(err, http.StatusInternalServerError)
 	}
 	return nil
 }
