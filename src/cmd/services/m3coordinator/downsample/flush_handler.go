@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/x/convert"
 	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3x/instrument"
@@ -145,7 +146,7 @@ func (w *downsamplerFlushHandlerWriter) Write(
 				Timestamp: time.Unix(0, mp.TimeNanos),
 				Value:     mp.Value,
 			}},
-			Unit: mp.StoragePolicy.Resolution().Precision,
+			Unit: convert.UnitForM3DB(mp.StoragePolicy.Resolution().Precision),
 			Attributes: storage.Attributes{
 				MetricsType: storage.AggregatedMetricsType,
 				Retention:   mp.StoragePolicy.Retention().Duration(),

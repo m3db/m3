@@ -62,80 +62,86 @@ func SetupPlacementTest(t *testing.T) (*client.MockClient, *placement.MockServic
 }
 
 func TestPlacementGetHandler(t *testing.T) {
-	mockClient, mockPlacementService := SetupPlacementTest(t)
-	handler := NewGetHandler(mockClient, config.Configuration{})
+	runForAllAllowedServices(func(serviceName string) {
+		var (
+			mockClient, mockPlacementService = SetupPlacementTest(t)
+			handlerOpts                      = NewHandlerOptions(
+				mockClient, config.Configuration{}, nil)
+			handler = NewGetHandler(handlerOpts)
+		)
 
-	// Test successful get
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/placement/get", nil)
-	require.NotNil(t, req)
+		// Test successful get
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(GetHTTPMethod, M3DBGetURL, nil)
+		require.NotNil(t, req)
 
-	placementProto := &placementpb.Placement{
-		Instances: map[string]*placementpb.Instance{
-			"host1": &placementpb.Instance{
-				Id:             "host1",
-				IsolationGroup: "rack1",
-				Zone:           "test",
-				Weight:         1,
-				Endpoint:       "http://host1:1234",
-				Hostname:       "host1",
-				Port:           1234,
+		placementProto := &placementpb.Placement{
+			Instances: map[string]*placementpb.Instance{
+				"host1": &placementpb.Instance{
+					Id:             "host1",
+					IsolationGroup: "rack1",
+					Zone:           "test",
+					Weight:         1,
+					Endpoint:       "http://host1:1234",
+					Hostname:       "host1",
+					Port:           1234,
+				},
+				"host2": &placementpb.Instance{
+					Id:             "host2",
+					IsolationGroup: "rack1",
+					Zone:           "test",
+					Weight:         1,
+					Endpoint:       "http://host2:1234",
+					Hostname:       "host2",
+					Port:           1234,
+				},
 			},
-			"host2": &placementpb.Instance{
-				Id:             "host2",
-				IsolationGroup: "rack1",
-				Zone:           "test",
-				Weight:         1,
-				Endpoint:       "http://host2:1234",
-				Hostname:       "host2",
-				Port:           1234,
-			},
-		},
-	}
+		}
 
-	const placementJSON = "{\"placement\":{\"instances\":{\"host1\":{\"id\":\"host1\",\"isolationGroup\":\"rack1\",\"zone\":\"test\",\"weight\":1,\"endpoint\":\"http://host1:1234\",\"shards\":[],\"shardSetId\":0,\"hostname\":\"host1\",\"port\":1234},\"host2\":{\"id\":\"host2\",\"isolationGroup\":\"rack1\",\"zone\":\"test\",\"weight\":1,\"endpoint\":\"http://host2:1234\",\"shards\":[],\"shardSetId\":0,\"hostname\":\"host2\",\"port\":1234}},\"replicaFactor\":0,\"numShards\":0,\"isSharded\":false,\"cutoverTime\":\"0\",\"isMirrored\":false,\"maxShardSetId\":0},\"version\":%d}"
+		const placementJSON = `{"placement":{"instances":{"host1":{"id":"host1","isolationGroup":"rack1","zone":"test","weight":1,"endpoint":"http://host1:1234","shards":[],"shardSetId":0,"hostname":"host1","port":1234},"host2":{"id":"host2","isolationGroup":"rack1","zone":"test","weight":1,"endpoint":"http://host2:1234","shards":[],"shardSetId":0,"hostname":"host2","port":1234}},"replicaFactor":0,"numShards":0,"isSharded":false,"cutoverTime":"0","isMirrored":false,"maxShardSetId":0},"version":%d}`
 
-	placementObj, err := placement.NewPlacementFromProto(placementProto)
-	require.NoError(t, err)
+		placementObj, err := placement.NewPlacementFromProto(placementProto)
+		require.NoError(t, err)
 
-	mockPlacementService.EXPECT().Placement().Return(placementObj, 0, nil)
-	handler.ServeHTTP(w, req)
+		mockPlacementService.EXPECT().Placement().Return(placementObj, 0, nil)
+		handler.ServeHTTP(serviceName, w, req)
 
-	resp := w.Result()
-	body, _ := ioutil.ReadAll(resp.Body)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, fmt.Sprintf(placementJSON, 0), string(body))
+		resp := w.Result()
+		body, _ := ioutil.ReadAll(resp.Body)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, fmt.Sprintf(placementJSON, 0), string(body))
 
-	// Test error case
-	w = httptest.NewRecorder()
-	req = httptest.NewRequest("GET", "/placement/get", nil)
-	require.NotNil(t, req)
+		// Test error case
+		w = httptest.NewRecorder()
+		req = httptest.NewRequest(GetHTTPMethod, M3DBGetURL, nil)
+		require.NotNil(t, req)
 
-	mockPlacementService.EXPECT().Placement().Return(nil, 0, errors.New("key not found"))
-	handler.ServeHTTP(w, req)
+		mockPlacementService.EXPECT().Placement().Return(nil, 0, errors.New("key not found"))
+		handler.ServeHTTP(serviceName, w, req)
 
-	resp = w.Result()
-	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+		resp = w.Result()
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 
-	// With bad version request
-	w = httptest.NewRecorder()
-	req = httptest.NewRequest("GET", "/placement/get?version=foo", nil)
-	require.NotNil(t, req)
+		// With bad version request
+		w = httptest.NewRecorder()
+		req = httptest.NewRequest(GetHTTPMethod, "/placement/get?version=foo", nil)
+		require.NotNil(t, req)
 
-	handler.ServeHTTP(w, req)
-	resp = w.Result()
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		handler.ServeHTTP(serviceName, w, req)
+		resp = w.Result()
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 
-	// With valid version request
-	w = httptest.NewRecorder()
-	req = httptest.NewRequest("GET", "/placement/get?version=12", nil)
-	require.NotNil(t, req)
+		// With valid version request
+		w = httptest.NewRecorder()
+		req = httptest.NewRequest(GetHTTPMethod, "/placement/get?version=12", nil)
+		require.NotNil(t, req)
 
-	mockPlacementService.EXPECT().PlacementForVersion(12).Return(placementObj, nil)
+		mockPlacementService.EXPECT().PlacementForVersion(12).Return(placementObj, nil)
 
-	handler.ServeHTTP(w, req)
-	resp = w.Result()
-	body, _ = ioutil.ReadAll(resp.Body)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, fmt.Sprintf(placementJSON, 12), string(body))
+		handler.ServeHTTP(serviceName, w, req)
+		resp = w.Result()
+		body, _ = ioutil.ReadAll(resp.Body)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, fmt.Sprintf(placementJSON, 12), string(body))
+	})
 }

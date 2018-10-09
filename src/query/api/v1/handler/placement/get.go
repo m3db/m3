@@ -22,39 +22,54 @@ package placement
 
 import (
 	"net/http"
+	"path"
 	"strconv"
+	"time"
 
-	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
-	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/placement"
 
 	"go.uber.org/zap"
 )
 
 const (
-	// GetURL is the url for the placement get handler (with the GET method).
-	GetURL = handler.RoutePrefixV1 + "/placement"
-
 	// GetHTTPMethod is the HTTP method used with this resource.
 	GetHTTPMethod = http.MethodGet
+)
+
+var (
+	// DeprecatedM3DBGetURL is the old url for the placement get handler, maintained for
+	// backwards compatibility.
+	DeprecatedM3DBGetURL = path.Join(handler.RoutePrefixV1, PlacementPathName)
+
+	// M3DBGetURL is the url for the placement get handler (with the GET method)
+	// for the M3DB service.
+	M3DBGetURL = path.Join(handler.RoutePrefixV1, M3DBServicePlacementPathName)
+
+	// M3AggGetURL is the url for the placement get handler (with the GET method)
+	// for the M3Agg service.
+	M3AggGetURL = path.Join(handler.RoutePrefixV1, M3AggServicePlacementPathName)
 )
 
 // GetHandler is the handler for placement gets.
 type GetHandler Handler
 
 // NewGetHandler returns a new instance of GetHandler.
-func NewGetHandler(client clusterclient.Client, cfg config.Configuration) *GetHandler {
-	return &GetHandler{client: client, cfg: cfg}
+func NewGetHandler(opts HandlerOptions) *GetHandler {
+	return &GetHandler{HandlerOptions: opts, nowFn: time.Now}
 }
 
-func (h *GetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	logger := logging.WithContext(ctx)
+func (h *GetHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		logger = logging.WithContext(ctx)
+		opts   = NewServiceOptions(
+			serviceName, r.Header, h.M3AggServiceOptions)
+	)
 
-	service, err := Service(h.client, r.Header)
+	service, err := Service(h.ClusterClient, opts, h.nowFn())
 	if err != nil {
 		handler.Error(w, err, http.StatusInternalServerError)
 		return

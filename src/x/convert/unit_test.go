@@ -18,47 +18,45 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package placement
+package convert
 
 import (
-	"errors"
-	"net/http"
-	"net/http/httptest"
 	"testing"
+	"time"
 
-	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	xtime "github.com/m3db/m3x/time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestPlacementDeleteAllHandler(t *testing.T) {
-	runForAllAllowedServices(func(serviceName string) {
-		var (
-			mockClient, mockPlacementService = SetupPlacementTest(t)
-			handlerOpts                      = NewHandlerOptions(
-				mockClient, config.Configuration{}, nil)
-			handler = NewDeleteAllHandler(handlerOpts)
-		)
+func TestUnitForM3DB(t *testing.T) {
+	for u := byte(0); u <= byte(xtime.Year); u++ {
+		unit := xtime.Unit(u)
+		if unit == xtime.None {
+			require.Equal(t, xtime.Nanosecond, UnitForM3DB(unit))
+			continue
+		}
 
-		// Test delete success
-		w := httptest.NewRecorder()
-		req := httptest.NewRequest(DeleteAllHTTPMethod, M3DBDeleteAllURL, nil)
-		require.NotNil(t, req)
-		mockPlacementService.EXPECT().Delete()
-		handler.ServeHTTP(serviceName, w, req)
+		dur, err := unit.Value()
+		require.NoError(t, err)
 
-		resp := w.Result()
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		switch {
+		case time.Duration(dur)%time.Second == 0:
+			require.Equal(t, xtime.Second, UnitForM3DB(unit))
+			unit = xtime.Second
+		case time.Duration(dur)%time.Millisecond == 0:
+			require.Equal(t, xtime.Millisecond, UnitForM3DB(unit))
+		case time.Duration(dur)%time.Microsecond == 0:
+			require.Equal(t, xtime.Microsecond, UnitForM3DB(unit))
+		default:
+			require.Equal(t, xtime.Nanosecond, UnitForM3DB(unit))
+		}
+	}
+}
 
-		// Test delete error
-		w = httptest.NewRecorder()
-		req = httptest.NewRequest(DeleteAllHTTPMethod, M3DBDeleteAllURL, nil)
-		require.NotNil(t, req)
-		mockPlacementService.EXPECT().Delete().Return(errors.New("error"))
-		handler.ServeHTTP(serviceName, w, req)
-
-		resp = w.Result()
-		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-	})
+func TestMakeSureAllUnitsAreChecked(t *testing.T) {
+	// NB: This test is to make sure whenever new unit type was added to m3x
+	// we can catch it and add to the sanitize function.
+	unit := xtime.Unit(byte(xtime.Year) + 1)
+	require.False(t, unit.IsValid())
 }
