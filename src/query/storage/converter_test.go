@@ -93,9 +93,13 @@ func TestFailingExpandSeriesValidPools(t *testing.T) {
 	validTagGenerator := func() ident.TagIterator {
 		return seriesiter.GenerateSingleSampleTagIterator(ctrl, testTags)
 	}
-	iters := seriesiter.NewMockSeriesIterSlice(ctrl, validTagGenerator, 4, 2)
-	invalidIters := make([]encoding.SeriesIterator, 2)
-	for i := 0; i < 2; i++ {
+
+	iters := seriesiter.NewMockSeriesIterSlice(ctrl, validTagGenerator, 8, 2)
+	// Add 3 failing iterators, despite the pool having size 2; there can be
+	// slight timing inconsistencies which can sometimes cause.
+	// This is not a big issue in practice, as all it means is one further
+	// iterator is expanded before erroring out.
+	for i := 0; i < 3; i++ {
 		invalidIter := encoding.NewMockSeriesIterator(ctrl)
 		invalidIter.EXPECT().ID().Return(ident.StringID("foo")).Times(1)
 
@@ -105,9 +109,9 @@ func TestFailingExpandSeriesValidPools(t *testing.T) {
 		tags.EXPECT().Err().Return(errors.New("error")).MaxTimes(1)
 		invalidIter.EXPECT().Tags().Return(tags).MaxTimes(1)
 
-		invalidIters[i] = invalidIter
+		iters = append(iters, invalidIter)
 	}
-	iters = append(iters, invalidIters...)
+
 	for i := 0; i < 10; i++ {
 		uncalledIter := encoding.NewMockSeriesIterator(ctrl)
 		iters = append(iters, uncalledIter)
