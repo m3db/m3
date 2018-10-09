@@ -306,32 +306,52 @@ func ConvertInstancesProto(instancesProto []*placementpb.Instance) ([]placement.
 // RegisterRoutes registers the placement routes
 func RegisterRoutes(r *mux.Router, opts HandlerOptions) {
 	// Init
-	initFn := applyMiddleware(NewInitHandler(opts).ServeHTTP)
-	r.HandleFunc(DeprecatedM3DBInitURL, initFn).Methods(InitHTTPMethod)
+	var (
+		initHandler      = NewInitHandler(opts)
+		deprecatedInitFn = applyDeprecatedMiddleware(initHandler.ServeHTTP)
+		initFn           = applyMiddleware(initHandler.ServeHTTP)
+	)
+	r.HandleFunc(DeprecatedM3DBInitURL, deprecatedInitFn).Methods(InitHTTPMethod)
 	r.HandleFunc(M3DBInitURL, initFn).Methods(InitHTTPMethod)
 	r.HandleFunc(M3AggInitURL, initFn).Methods(InitHTTPMethod)
 
 	// Get
-	getFn := applyMiddleware(NewGetHandler(opts).ServeHTTP)
-	r.HandleFunc(DeprecatedM3DBGetURL, getFn).Methods(GetHTTPMethod)
+	var (
+		getHandler      = NewGetHandler(opts)
+		deprecatedGetFn = applyDeprecatedMiddleware(getHandler.ServeHTTP)
+		getFn           = applyMiddleware(getHandler.ServeHTTP)
+	)
+	r.HandleFunc(DeprecatedM3DBGetURL, deprecatedGetFn).Methods(GetHTTPMethod)
 	r.HandleFunc(M3DBGetURL, getFn).Methods(GetHTTPMethod)
 	r.HandleFunc(M3AggGetURL, getFn).Methods(GetHTTPMethod)
 
 	// Delete all
-	deleteAllFn := applyMiddleware(NewDeleteAllHandler(opts).ServeHTTP)
-	r.HandleFunc(DeprecatedM3DBDeleteAllURL, deleteAllFn).Methods(DeleteAllHTTPMethod)
+	var (
+		deleteAllHandler      = NewDeleteAllHandler(opts)
+		deprecatedDeleteAllFn = applyDeprecatedMiddleware(deleteAllHandler.ServeHTTP)
+		deleteAllFn           = applyMiddleware(deleteAllHandler.ServeHTTP)
+	)
+	r.HandleFunc(DeprecatedM3DBDeleteAllURL, deprecatedDeleteAllFn).Methods(DeleteAllHTTPMethod)
 	r.HandleFunc(M3DBDeleteAllURL, deleteAllFn).Methods(DeleteAllHTTPMethod)
 	r.HandleFunc(M3AggDeleteAllURL, deleteAllFn).Methods(DeleteAllHTTPMethod)
 
 	// Add
-	addFn := applyMiddleware(NewAddHandler(opts).ServeHTTP)
-	r.HandleFunc(DeprecatedM3DBAddURL, addFn).Methods(AddHTTPMethod)
+	var (
+		addHandler      = NewAddHandler(opts)
+		deprecatedAddFn = applyDeprecatedMiddleware(addHandler.ServeHTTP)
+		addFn           = applyMiddleware(addHandler.ServeHTTP)
+	)
+	r.HandleFunc(DeprecatedM3DBAddURL, deprecatedAddFn).Methods(AddHTTPMethod)
 	r.HandleFunc(M3DBAddURL, addFn).Methods(AddHTTPMethod)
 	r.HandleFunc(M3AggAddURL, addFn).Methods(AddHTTPMethod)
 
 	// Delete
-	deleteFn := applyMiddleware(NewDeleteHandler(opts).ServeHTTP)
-	r.HandleFunc(DeprecatedM3DBDeleteURL, deleteFn).Methods(DeleteHTTPMethod)
+	var (
+		deleteHandler      = NewDeleteHandler(opts)
+		deprecatedDeleteFn = applyDeprecatedMiddleware(deleteHandler.ServeHTTP)
+		deleteFn           = applyMiddleware(deleteHandler.ServeHTTP)
+	)
+	r.HandleFunc(DeprecatedM3DBDeleteURL, deprecatedDeleteFn).Methods(DeleteHTTPMethod)
 	r.HandleFunc(M3DBDeleteURL, deleteFn).Methods(DeleteHTTPMethod)
 	r.HandleFunc(M3AggDeleteURL, deleteFn).Methods(DeleteHTTPMethod)
 }
@@ -432,6 +452,13 @@ func applyMiddleware(f func(serviceName string, w http.ResponseWriter, r *http.R
 	return logging.WithResponseTimeLoggingFunc(
 		parseServiceMiddleware(
 			f))
+}
+
+func applyDeprecatedMiddleware(f func(serviceName string, w http.ResponseWriter, r *http.Request)) func(w http.ResponseWriter, r *http.Request) {
+	return logging.WithResponseTimeLoggingFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			f(M3DBServiceName, w, r)
+		})
 }
 
 func parseServiceMiddleware(
