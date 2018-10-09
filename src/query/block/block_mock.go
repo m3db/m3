@@ -106,10 +106,11 @@ func (mr *MockBlockMockRecorder) Unconsolidated() *gomock.Call {
 }
 
 // UpdateMetas mocks base method
-func (m *MockBlock) UpdateMetas(arg0 Metadata, arg1 []SeriesMeta) error {
+func (m *MockBlock) UpdateMetas(arg0 Metadata, arg1 []SeriesMeta) (Block, error) {
 	ret := m.ctrl.Call(m, "UpdateMetas", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(Block)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // UpdateMetas indicates an expected call of UpdateMetas
