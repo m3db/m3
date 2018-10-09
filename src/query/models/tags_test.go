@@ -152,7 +152,7 @@ func TestCloneTags(t *testing.T) {
 	tags := createTags(true)
 	original := createTags(true)
 
-	cloned := *tags.Clone()
+	cloned := tags.Clone()
 	assert.Equal(t, cloned, tags)
 	// mutate cloned and ensure tags is unchanged
 	cloned.Tags = cloned.Tags[1:]

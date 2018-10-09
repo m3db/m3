@@ -192,11 +192,11 @@ func (t Tags) Get(key []byte) ([]byte, bool) {
 }
 
 // Clone returns a pointer to a copy of the tags.
-func (t Tags) Clone() *Tags {
+func (t Tags) Clone() Tags {
 	// Todo: Pool these
 	clonedTags := make([]Tag, t.Len())
 	copy(clonedTags, t.Tags)
-	return &Tags{
+	return Tags{
 		Tags: clonedTags,
 		Opts: t.Opts,
 	}
