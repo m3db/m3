@@ -30,13 +30,13 @@ import (
 type metricTagsIter struct {
 	tagDecoder TagDecoder
 	bytes      checked.Bytes
-	pool       *MetricTagsIteratorPool
+	pool       MetricTagsIteratorPool
 }
 
 // NewMetricTagsIterator creates a MetricTagsIterator.
 func NewMetricTagsIterator(
 	tagDecoder TagDecoder,
-	pool *MetricTagsIteratorPool,
+	pool MetricTagsIteratorPool,
 ) MetricTagsIterator {
 	return &metricTagsIter{
 		tagDecoder: tagDecoder,
@@ -95,36 +95,35 @@ func (it *metricTagsIter) Close() {
 	}
 }
 
-// MetricTagsIteratorPool pools MetricTagsIterator.
-type MetricTagsIteratorPool struct {
+type metricTagsIteratorPool struct {
 	tagDecoderPool TagDecoderPool
 	pool           pool.ObjectPool
 }
 
-// NewEncodedTagsIteratorPool creates a MetricTagsIteratorPool.
-func NewEncodedTagsIteratorPool(
+// NewMetricTagsIteratorPool creates a MetricTagsIteratorPool.
+func NewMetricTagsIteratorPool(
 	tagDecoderPool TagDecoderPool,
 	opts pool.ObjectPoolOptions,
-) *MetricTagsIteratorPool {
-	return &MetricTagsIteratorPool{
+) MetricTagsIteratorPool {
+	return &metricTagsIteratorPool{
 		tagDecoderPool: tagDecoderPool,
 		pool:           pool.NewObjectPool(opts),
 	}
 }
 
 // Init initializes the pool.
-func (p *MetricTagsIteratorPool) Init() {
+func (p *metricTagsIteratorPool) Init() {
 	p.pool.Init(func() interface{} {
 		return NewMetricTagsIterator(p.tagDecoderPool.Get(), p)
 	})
 }
 
 // Get provides a MetricTagsIterator from the pool.
-func (p *MetricTagsIteratorPool) Get() MetricTagsIterator {
+func (p *metricTagsIteratorPool) Get() MetricTagsIterator {
 	return p.pool.Get().(*metricTagsIter)
 }
 
 // Put returns a MetricTagsIterator to the pool.
-func (p *MetricTagsIteratorPool) Put(v MetricTagsIterator) {
+func (p *metricTagsIteratorPool) Put(v MetricTagsIterator) {
 	p.pool.Put(v)
 }

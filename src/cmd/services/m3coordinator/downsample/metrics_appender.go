@@ -25,8 +25,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3metrics/matcher"
 	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3x/clock"
@@ -40,12 +40,12 @@ type metricsAppender struct {
 }
 
 type metricsAppenderOptions struct {
-	agg                     aggregator.Aggregator
-	defaultStagedMetadatas  []metadata.StagedMetadatas
-	clockOpts               clock.Options
-	tagEncoder              serialize.TagEncoder
-	matcher                 matcher.Matcher
-	encodedTagsIteratorPool *serialize.MetricTagsIteratorPool
+	agg                    aggregator.Aggregator
+	defaultStagedMetadatas []metadata.StagedMetadatas
+	clockOpts              clock.Options
+	tagEncoder             serialize.TagEncoder
+	matcher                matcher.Matcher
+	metricTagsIteratorPool serialize.MetricTagsIteratorPool
 }
 
 func (a *metricsAppender) AddTag(name, value []byte) {
@@ -71,7 +71,7 @@ func (a *metricsAppender) SamplesAppender() (SamplesAppender, error) {
 	unownedID := data.Bytes()
 
 	// Match policies and rollups and build samples appender
-	id := a.encodedTagsIteratorPool.Get()
+	id := a.metricTagsIteratorPool.Get()
 	id.Reset(unownedID)
 	now := time.Now()
 	nowNanos := now.UnixNano()
