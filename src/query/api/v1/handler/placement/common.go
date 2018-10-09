@@ -122,6 +122,7 @@ func NewHandlerOptions(
 type Handler struct {
 	HandlerOptions
 
+	// nolint: structcheck
 	nowFn func() time.Time
 }
 

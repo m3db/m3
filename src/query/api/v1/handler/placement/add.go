@@ -21,7 +21,6 @@
 package placement
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"path"
@@ -42,8 +41,6 @@ const (
 )
 
 var (
-	errAggWindowAndWarmupMustBeSet = errors.New("max aggregation window size and warmup duration must be larger than zero")
-
 	// DeprecatedM3DBAddURL is the old url for the placement add handler, maintained for
 	// backwards compatibility.
 	DeprecatedM3DBAddURL = path.Join(handler.RoutePrefixV1, PlacementPathName)
