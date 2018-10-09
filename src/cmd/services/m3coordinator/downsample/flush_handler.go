@@ -125,11 +125,11 @@ func (w *downsamplerFlushHandlerWriter) Write(
 		tags := models.NewTags(expected, w.tagOptions)
 		for iter.Next() {
 			name, value := iter.Current()
-			tags.AddTag(models.Tag{Name: name, Value: value})
+			tags = tags.AddTag(models.Tag{Name: name, Value: value})
 		}
 
 		if len(chunkSuffix) != 0 {
-			tags.AddTag(models.Tag{Name: aggregationSuffixTag, Value: chunkSuffix})
+			tags = tags.AddTag(models.Tag{Name: aggregationSuffixTag, Value: chunkSuffix})
 		}
 
 		err := iter.Err()
