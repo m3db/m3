@@ -206,6 +206,13 @@ type databaseNamespaceIndexStatusMetrics struct {
 }
 
 func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databaseNamespaceMetrics {
+	const (
+		// NB: tally.Timer when backed by a Prometheus Summary type is *very* expensive
+		// for high frequency measurements. Overriding sampling rate for writes to avoid this issue.
+		// TODO: make tally.Timers default to Prom Histograms instead of Summary. And update the dashboard
+		// to reflect this.
+		overrideWriteSamplingRate = 0.01
+	)
 	shardsScope := scope.SubScope("dbnamespace").SubScope("shards")
 	tickScope := scope.SubScope("tick")
 	indexTickScope := tickScope.SubScope("index")
@@ -216,8 +223,8 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 		flush:               instrument.NewMethodMetrics(scope, "flush", samplingRate),
 		flushIndex:          instrument.NewMethodMetrics(scope, "flushIndex", samplingRate),
 		snapshot:            instrument.NewMethodMetrics(scope, "snapshot", samplingRate),
-		write:               instrument.NewMethodMetrics(scope, "write", samplingRate),
-		writeTagged:         instrument.NewMethodMetrics(scope, "write-tagged", samplingRate),
+		write:               instrument.NewMethodMetrics(scope, "write", overrideWriteSamplingRate),
+		writeTagged:         instrument.NewMethodMetrics(scope, "write-tagged", overrideWriteSamplingRate),
 		read:                instrument.NewMethodMetrics(scope, "read", samplingRate),
 		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", samplingRate),
 		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", samplingRate),
