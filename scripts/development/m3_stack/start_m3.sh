@@ -3,7 +3,17 @@
 set -xe
 
 echo "Bringing up nodes in the backgorund with docker compose, remember to run ./stop.sh when done"
-docker-compose -f docker-compose.yml up -d --renew-anon-volumes
+docker-compose -f docker-compose.yml up m3db_seed -d --renew-anon-volumes
+
+if [[ "$multi_db_node" = true ]] ; then
+    docker-compose -f docker-compose.yml up m3db_data01 -d --renew-anon-volumes
+    docker-compose -f docker-compose.yml up m3db_data02 -d --renew-anon-volumes
+fi
+
+docker-compose -f docker-compose.yml up coordinator01 -d --renew-anon-volumes
+docker-compose -f docker-compose.yml up prometheus01 -d --renew-anon-volumes
+docker-compose -f docker-compose.yml up grafana2 -d --renew-anon-volumes
+
 echo "Nodes online"
 
 echo "Initializing namespace"
@@ -37,39 +47,57 @@ echo "Validating namespace"
 echo "Done validating namespace"
 
 echo "Initializing topology"
-curl -vvvsSf -X POST localhost:7201/api/v1/placement/init -d '{
-    "num_shards": 64,
-    "replication_factor": 3,
-    "instances": [
-        {
-            "id": "m3db_seed",
-            "isolation_group": "rack-a",
-            "zone": "embedded",
-            "weight": 1024,
-            "endpoint": "m3db_seed:9000",
-            "hostname": "m3db_seed",
-            "port": 9000
-        },
-        {
-            "id": "m3db_data01",
-            "isolation_group": "rack-b",
-            "zone": "embedded",
-            "weight": 1024,
-            "endpoint": "m3db_data01:9000",
-            "hostname": "m3db_data01",
-            "port": 9000
-        },
-        {
-            "id": "m3db_data02",
-            "isolation_group": "rack-c",
-            "zone": "embedded",
-            "weight": 1024,
-            "endpoint": "m3db_data02:9000",
-            "hostname": "m3db_data02",
-            "port": 9000
-        }
-    ]
-}'
+if [[ "$multi_db_node" = true ]] ; then
+    curl -vvvsSf -X POST localhost:7201/api/v1/placement/init -d '{
+        "num_shards": 64,
+        "replication_factor": 3,
+        "instances": [
+            {
+                "id": "m3db_seed",
+                "isolation_group": "rack-a",
+                "zone": "embedded",
+                "weight": 1024,
+                "endpoint": "m3db_seed:9000",
+                "hostname": "m3db_seed",
+                "port": 9000
+            },
+            {
+                "id": "m3db_data01",
+                "isolation_group": "rack-b",
+                "zone": "embedded",
+                "weight": 1024,
+                "endpoint": "m3db_data01:9000",
+                "hostname": "m3db_data01",
+                "port": 9000
+            },
+            {
+                "id": "m3db_data02",
+                "isolation_group": "rack-c",
+                "zone": "embedded",
+                "weight": 1024,
+                "endpoint": "m3db_data02:9000",
+                "hostname": "m3db_data02",
+                "port": 9000
+            }
+        ]
+    }'
+else
+    curl -vvvsSf -X POST localhost:7201/api/v1/placement/init -d '{
+        "num_shards": 64,
+        "replication_factor": 3,
+        "instances": [
+            {
+                "id": "m3db_seed",
+                "isolation_group": "rack-a",
+                "zone": "embedded",
+                "weight": 1024,
+                "endpoint": "m3db_seed:9000",
+                "hostname": "m3db_seed",
+                "port": 9000
+            }
+        ]
+    }'
+fi
 echo "Done initializing topology"
 
 echo "Validating topology"

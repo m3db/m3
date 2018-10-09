@@ -1,0 +1,268 @@
+# Copyright (c) 2017 Uber Technologies, Inc.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+
+logging:
+  level: info
+
+metrics:
+  scope:
+    reportingInterval: 1s
+  m3:
+    hostPort: 127.0.0.1:5000  # local collector host port for m3 metrics
+    service: m3aggregator
+    env: test
+    includeHost: true
+  samplingRate: 0.01
+  extended: moderate
+
+rawtcp:
+  listenAddress: 0.0.0.0:6000
+  keepAliveEnabled: true
+  keepAlivePeriod: 1m
+  retry:
+    initialBackoff: 5ms
+    backoffFactor: 2.0
+    maxBackoff: 1s
+    forever: true
+    jitter: true
+  readBufferSize: 1440
+  msgpackIterator:
+    ignoreHigherVersion: false
+    readerBufferSize: 1440
+    largeFloatsSize: 1024
+    largeFloatsPool:
+      buckets:
+        - count: 1024
+          capacity: 2048
+        - count: 512
+          capacity: 4096
+        - count: 256
+          capacity: 8192
+        - count: 128
+          capacity: 16384
+        - count: 64
+          capacity: 32768
+        - count: 32
+          capacity: 65536
+      watermark:
+        low: 0.001
+        high: 0.002
+  protobufIterator:
+    initBufferSize: 1440
+    maxMessageSize: 50000000  # max message size is 50MB
+    bytesPool:
+      buckets:
+        - count: 1024
+          capacity: 2048
+        - count: 512
+          capacity: 4096
+        - count: 256
+          capacity: 8192
+        - count: 128
+          capacity: 16384
+        - count: 64
+          capacity: 32768
+        - count: 32
+          capacity: 65536
+      watermark:
+        low: 0.001
+        high: 0.002
+
+http:
+  listenAddress: 0.0.0.0:6001
+  readTimeout: 45s
+  writeTimeout: 45s
+
+kvClient:
+  etcd:
+    env: default_env
+    zone: embedded
+    service: m3aggregator
+    cacheDir: /var/lib/m3kv
+    etcdClusters:
+      - zone: embedded
+        endpoints:
+          - m3db_seed:2379
+
+runtimeOptions:
+  kvConfig:
+    namespace: /m3aggregator
+    environment: test
+  writeValuesPerMetricLimitPerSecondKey: write-values-per-metric-limit-per-second
+  writeValuesPerMetricLimitPerSecond: 0
+  writeNewMetricLimitClusterPerSecondKey: write-new-metric-limit-cluster-per-second
+  writeNewMetricLimitClusterPerSecond: 0
+  writeNewMetricNoLimitWarmupDuration: 0
+
+aggregator:
+  metricPrefix: stats.
+  aggregationTypes:
+    counterTransformFnType: empty
+    timerTransformFnType: suffix
+    gaugeTransformFnType: empty
+    aggregationTypesPool:
+      size: 1024
+    quantilesPool:
+      buckets:
+        - count: 256
+          capacity: 4
+        - count: 128
+          capacity: 8
+  stream:
+    eps: 0.001
+    capacity: 32
+    streamPool:
+      size: 4096
+    samplePool:
+      size: 4096
+    floatsPool:
+      buckets:
+        - count: 4096
+          capacity: 16
+        - count: 2048
+          capacity: 32
+        - count: 1024
+          capacity: 64
+  client:
+    placementKV:
+      zone: embedded
+      environment: default_env
+    placementWatcher:
+      key: m3agg
+      initWatchTimeout: 15s
+    hashType: murmur32
+    shardCutoverWarmupDuration: 10m
+    shardCutoffLingerDuration: 1m
+    encoder:
+      initBufferSize: 100
+      maxMessageSize: 50000000
+      bytesPool:
+        buckets:
+          - capacity: 16
+            count: 10
+          - capacity: 32
+            count: 20
+        watermark:
+          low: 0.001
+          high: 0.01
+    flushSize: 1440
+    maxTimerBatchSize: 140
+    queueSize: 1000
+    queueDropType: oldest
+    connection:
+      connectionTimeout: 1s
+      connectionKeepAlive: true
+      writeTimeout: 1s
+      initReconnectThreshold: 2
+      maxReconnectThreshold: 5000
+      reconnectThresholdMultiplier: 2
+      maxReconnectDuration: 1m
+  placementManager:
+    kvConfig:
+      namespace: /m3aggregator
+      environment: test
+    placementWatcher:
+      key: placement
+      initWatchTimeout: 10s
+  hashType: murmur32
+  bufferDurationBeforeShardCutover: 10m
+  bufferDurationAfterShardCutoff: 10m
+  resignTimeout: 1m
+  flushTimesManager:
+    kvConfig:
+      namespace: /m3aggregator
+      environment: test
+    flushTimesKeyFmt: shardset/%d/flush
+    flushTimesPersistRetrier:
+      initialBackoff: 100ms
+      backoffFactor: 2.0
+      maxBackoff: 2s
+      maxRetries: 3
+  electionManager:
+    election:
+      leaderTimeout: 10s
+      resignTimeout: 10s
+      ttlSeconds: 10
+    serviceID:
+      name: m3aggregator
+      environment: test
+    electionKeyFmt: shardset/%d/lock
+    campaignRetrier:
+      initialBackoff: 100ms
+      backoffFactor: 2.0
+      maxBackoff: 2s
+      forever: true
+      jitter: true
+    changeRetrier:
+      initialBackoff: 100ms
+      backoffFactor: 2.0
+      maxBackoff: 5s
+      forever: true
+      jitter: true
+    resignRetrier:
+      initialBackoff: 100ms
+      backoffFactor: 2.0
+      maxBackoff: 5s
+      forever: true
+      jitter: true
+    campaignStateCheckInterval: 1s
+    shardCutoffCheckOffset: 30s
+  flushManager:
+    checkEvery: 1s
+    jitterEnabled: true
+    maxJitters:
+      - flushInterval: 5s
+        maxJitterPercent: 1.0
+      - flushInterval: 10s
+        maxJitterPercent: 0.5
+      - flushInterval: 1m
+        maxJitterPercent: 0.5
+      - flushInterval: 10m
+        maxJitterPercent: 0.5
+      - flushInterval: 1h
+        maxJitterPercent: 0.25
+    numWorkersPerCPU: 0.5
+    flushTimesPersistEvery: 10s
+    maxBufferSize: 5m
+    forcedFlushWindowSize: 10s
+  flush:
+    handlers:
+      - staticBackend:
+          type: logging
+      - staticBackend:
+          type: blackhole
+  forwarding:
+    maxSingleDelay: 5s
+  entryTTL: 6h
+  entryCheckInterval: 10m
+  maxTimerBatchSizePerWrite: 140
+  defaultStoragePolicies:
+    - 10s:2d
+    - 1m:40d
+  maxNumCachedSourceSets: 2
+  discardNaNAggregatedValues: true
+  entryPool:
+    size: 4096
+  counterElemPool:
+    size: 4096
+  timerElemPool:
+    size: 4096
+  gaugeElemPool:
+    size: 4096
