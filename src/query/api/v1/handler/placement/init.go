@@ -50,6 +50,9 @@ var (
 	// M3AggInitURL is the url for the m3agg placement init handler (with the POST method).
 	M3AggInitURL = path.Join(handler.RoutePrefixV1, M3AggServicePlacementPathName, initPathName)
 
+	// M3CoordinatorInitURL is the url for the m3agg placement init handler (with the POST method).
+	M3CoordinatorInitURL = path.Join(handler.RoutePrefixV1, M3CoordinatorServicePlacementPathName, initPathName)
+
 	// InitHTTPMethod is the HTTP method used with this resource.
 	InitHTTPMethod = http.MethodPost
 )

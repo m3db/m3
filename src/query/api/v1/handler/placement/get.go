@@ -52,6 +52,10 @@ var (
 	// M3AggGetURL is the url for the placement get handler (with the GET method)
 	// for the M3Agg service.
 	M3AggGetURL = path.Join(handler.RoutePrefixV1, M3AggServicePlacementPathName)
+
+	// M3CoordinatorGetURL is the url for the placement get handler (with the GET method)
+	// for the M3Coordinator service.
+	M3CoordinatorGetURL = path.Join(handler.RoutePrefixV1, M3CoordinatorServicePlacementPathName)
 )
 
 // GetHandler is the handler for placement gets.
