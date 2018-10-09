@@ -140,6 +140,10 @@ func (h *Handler) RegisterRoutes() error {
 }
 
 func (h *Handler) m3AggServiceOptions() *placement.M3AggServiceOptions {
+	if h.clusters == nil {
+		return nil
+	}
+
 	maxResolution := time.Duration(0)
 	for _, ns := range h.clusters.ClusterNamespaces() {
 		resolution := ns.Options().Attributes().Resolution
