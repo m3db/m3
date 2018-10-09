@@ -51,14 +51,18 @@ func (a allowedServicesSet) String() []string {
 }
 
 const (
-	// M3DBServiceName is the service name for M3DB
+	// M3DBServiceName is the service name for M3DB.
 	M3DBServiceName = "m3db"
-	// M3AggServiceName is the service name for M3Agg
+	// M3AggServiceName is the service name for M3Agg.
 	M3AggServiceName = "m3agg"
+	// ServicesPathName is the services part of the API path.
+	ServicesPathName = "services"
+	// PlacementPathName is the placement part of the API path.
+	PlacementPathName = "placement"
 
-	// DefaultServiceEnvironment is the default service ID environment
+	// DefaultServiceEnvironment is the default service ID environment.
 	DefaultServiceEnvironment = "default_env"
-	// DefaultServiceZone is the default service ID zone
+	// DefaultServiceZone is the default service ID zone.
 	DefaultServiceZone = "embedded"
 
 	// HeaderClusterEnvironmentName is the header used to specify the environment name.
@@ -224,8 +228,6 @@ func ServiceWithAlgo(
 	pOpts := placement.NewOptions().
 		SetValidZone(opts.ServiceZone).
 		SetIsSharded(true).
-		// M3Agg expects a staged placement.
-		SetIsStaged(true).
 		SetDryrun(opts.DryRun)
 
 	if opts.ServiceName == M3AggServiceName {
@@ -234,10 +236,12 @@ func ServiceWithAlgo(
 			warmupDuration           = opts.M3Agg.WarmupDuration
 			// For now these are not configurable, but we include them to
 			// make the code match r2admin for ease of debugging / migration.
-			placementCutoverOpts = placementCutoverOpts{}
+			placementCutoverOpts = m3aggregatorPlacementOpts{}
 		)
 		pOpts = pOpts.
+			// M3Agg expects a mirrored and staged placement.
 			SetIsMirrored(true).
+			SetIsStaged(true).
 			// placementCutover controls when the new placement will begin to be considered
 			// the new placement. Since we're trying to do goal-based placement, we set it
 			// such that it takes effect immediately.
@@ -249,7 +253,8 @@ func ServiceWithAlgo(
 			SetShardCutoverNanosFn(newShardCutoverNanosFn(
 				now, maxAggregationWindowSize, warmupDuration, placementCutoverOpts)).
 			// Cutoffs control when Leaving shards stop receiving writes.
-			SetShardCutoffNanosFn(newShardCutOffNanosFn(now, maxAggregationWindowSize, warmupDuration)).
+			SetShardCutoffNanosFn(newShardCutOffNanosFn(
+				now, maxAggregationWindowSize, warmupDuration, placementCutoverOpts)).
 			SetIsShardCutoverFn(newShardCutOverValidationFn(now)).
 			SetIsShardCutoffFn(newShardCutOffValidationFn(now, maxAggregationWindowSize))
 	}
@@ -324,18 +329,45 @@ func RegisterRoutes(r *mux.Router, opts HandlerOptions) {
 	r.HandleFunc(M3AggDeleteURL, deleteFn).Methods(DeleteHTTPMethod)
 }
 
-// We want to generate a function that will return the cutoff such that it is always at the beginning
-// of an aggregation window size, but also later than or equal to the current time + warmup. We accomplish
-// this by adding the warmup time and the max aggregation window size to the current time, and then truncating
-// to the max aggregation window size. This ensure that we always return a time that is at the beginning of an
-// aggregation window size, but is also later than now.Add(warmup).
-func newShardCutOffNanosFn(now time.Time, maxAggregationWindowSize, warmup time.Duration) placement.TimeNanosFn {
+func newPlacementCutoverNanosFn(
+	now time.Time, cutoverOpts m3aggregatorPlacementOpts) placement.TimeNanosFn {
 	return func() int64 {
-		return now.
-			Add(warmup).
-			Add(maxAggregationWindowSize).
-			Truncate(maxAggregationWindowSize).
-			Unix()
+		return placementCutoverTime(now, cutoverOpts).UnixNano()
+	}
+}
+
+func placementCutoverTime(
+	now time.Time, opts m3aggregatorPlacementOpts) time.Time {
+	return now.
+		Add(opts.maxPositiveSkew).
+		Add(opts.maxNegativeSkew).
+		Add(opts.propagationDelay)
+}
+
+func newShardCutOffNanosFn(
+	now time.Time,
+	maxAggregationWindowSize,
+	warmup time.Duration,
+	cutoverOpts m3aggregatorPlacementOpts) placement.TimeNanosFn {
+	return newShardCutoverNanosFn(
+		now, maxAggregationWindowSize, warmup, cutoverOpts)
+}
+
+func newShardCutoverNanosFn(
+	now time.Time,
+	maxAggregationWindowSize,
+	warmUpDuration time.Duration,
+	cutoverOpts m3aggregatorPlacementOpts) placement.TimeNanosFn {
+	return func() int64 {
+		var (
+			windowSize = maxAggregationWindowSize
+			cutover    = placementCutoverTime(now, cutoverOpts).Add(warmUpDuration)
+			truncated  = cutover.Truncate(windowSize)
+		)
+		if truncated.Before(cutover) {
+			return truncated.Add(windowSize).UnixNano()
+		}
+		return truncated.UnixNano()
 	}
 }
 
@@ -368,44 +400,10 @@ func newShardCutOffValidationFn(now time.Time, maxAggregationWindowSize time.Dur
 	}
 }
 
-type placementCutoverOpts struct {
+type m3aggregatorPlacementOpts struct {
 	maxPositiveSkew  time.Duration
 	maxNegativeSkew  time.Duration
 	propagationDelay time.Duration
-}
-
-func placementCutoverTime(
-	now time.Time, opts placementCutoverOpts) time.Time {
-	return now.
-		Add(opts.maxPositiveSkew).
-		Add(opts.maxNegativeSkew).
-		Add(opts.propagationDelay)
-}
-
-func newPlacementCutoverNanosFn(
-	now time.Time, cutoverOpts placementCutoverOpts) placement.TimeNanosFn {
-	return func() int64 {
-		return placementCutoverTime(now, cutoverOpts).UnixNano()
-	}
-}
-
-func newShardCutoverNanosFn(
-	now time.Time,
-	maxAggregationWindowSize,
-	warmUpDuration time.Duration,
-	cutoverOpts placementCutoverOpts,
-) placement.TimeNanosFn {
-	return func() int64 {
-		var (
-			windowSize = maxAggregationWindowSize
-			cutover    = placementCutoverTime(now, cutoverOpts).Add(warmUpDuration)
-			truncated  = cutover.Truncate(windowSize)
-		)
-		if truncated.Before(cutover) {
-			return truncated.Add(windowSize).UnixNano()
-		}
-		return truncated.UnixNano()
-	}
 }
 
 func validateAllAvailable(p placement.Placement) error {

@@ -23,6 +23,7 @@ package placement
 import (
 	"encoding/json"
 	"net/http"
+	"path"
 	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
@@ -32,20 +33,22 @@ import (
 )
 
 const (
+	// DeleteAllHTTPMethod is the HTTP method used with this resource.
+	DeleteAllHTTPMethod = http.MethodDelete
+)
+
+var (
 	// DeprecatedM3DBDeleteAllURL is the old url for the handler to delete all placements, maintained
 	// for backwards compatibility.
-	DeprecatedM3DBDeleteAllURL = handler.RoutePrefixV1 + "/placement"
+	DeprecatedM3DBDeleteAllURL = path.Join(handler.RoutePrefixV1, PlacementPathName)
 
 	// M3DBDeleteAllURL is the url for the handler to delete all placements (with the DELETE method)
 	// for the M3DB service.
-	M3DBDeleteAllURL = handler.RoutePrefixV1 + "/services/m3db/placement"
+	M3DBDeleteAllURL = path.Join(handler.RoutePrefixV1, ServicesPathName, M3DBServiceName, PlacementPathName)
 
 	// M3AggDeleteAllURL is the url for the handler to delete all placements (with the DELETE method)
 	// for the M3Agg service.
-	M3AggDeleteAllURL = handler.RoutePrefixV1 + "/services/m3agg/placement"
-
-	// DeleteAllHTTPMethod is the HTTP method used with this resource.
-	DeleteAllHTTPMethod = http.MethodDelete
+	M3AggDeleteAllURL = path.Join(handler.RoutePrefixV1, ServicesPathName, M3AggServiceName, PlacementPathName)
 )
 
 // DeleteAllHandler is the handler to delete all placements.

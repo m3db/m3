@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"path"
 	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
@@ -36,24 +37,24 @@ import (
 )
 
 const (
-	// DeprecatedM3DBAddURL is the old url for the placement add handler, maintained for
-	// backwards compatibility.
-	DeprecatedM3DBAddURL = handler.RoutePrefixV1 + "/placement"
-
-	// M3DBAddURL is the url for the placement add handler (with the POST method)
-	// for the M3DB service.
-	M3DBAddURL = handler.RoutePrefixV1 + "/services/m3db/placement"
-
-	// M3AggAddURL is the url for the placement add handler (with the POST method)
-	// for the M3Agg service.
-	M3AggAddURL = handler.RoutePrefixV1 + "/services/m3agg/placement"
-
 	// AddHTTPMethod is the HTTP method used with this resource.
 	AddHTTPMethod = http.MethodPost
 )
 
 var (
 	errAggWindowAndWarmupMustBeSet = errors.New("max aggregation window size and warmup duration must be larger than zero")
+
+	// DeprecatedM3DBAddURL is the old url for the placement add handler, maintained for
+	// backwards compatibility.
+	DeprecatedM3DBAddURL = path.Join(handler.RoutePrefixV1, "/placement")
+
+	// M3DBAddURL is the url for the placement add handler (with the POST method)
+	// for the M3DB service.
+	M3DBAddURL = path.Join(handler.RoutePrefixV1, ServicesPathName, M3DBServiceName, PlacementPathName)
+
+	// M3AggAddURL is the url for the placement add handler (with the POST method)
+	// for the M3Agg service.
+	M3AggAddURL = path.Join(handler.RoutePrefixV1, ServicesPathName, M3AggServiceName, PlacementPathName)
 )
 
 // AddHandler is the handler for placement adds.

@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"path"
 	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
@@ -44,15 +45,17 @@ const (
 )
 
 var (
+	placementIDPath = fmt.Sprintf("{%s}", placementIDVar)
+
 	// DeprecatedM3DBDeleteURL is the old url for the placement delete handler, maintained
 	// for backwards compatibility.
-	DeprecatedM3DBDeleteURL = fmt.Sprintf("%s/placement/{%s}", handler.RoutePrefixV1, placementIDVar)
+	DeprecatedM3DBDeleteURL = path.Join(handler.RoutePrefixV1, PlacementPathName, placementIDPath)
 
 	// M3DBDeleteURL is the url for the placement delete handler for the M3DB service.
-	M3DBDeleteURL = fmt.Sprintf("%s/services/m3db/placement/{%s}", handler.RoutePrefixV1, placementIDVar)
+	M3DBDeleteURL = path.Join(handler.RoutePrefixV1, ServicesPathName, M3DBServiceName, PlacementPathName, placementIDPath)
 
 	// M3AggDeleteURL is the url for the placement delete handler for the M3Agg service.
-	M3AggDeleteURL = fmt.Sprintf("%s/services/m3agg/placement/{%s}", handler.RoutePrefixV1, placementIDVar)
+	M3AggDeleteURL = path.Join(handler.RoutePrefixV1, ServicesPathName, M3AggServiceName, PlacementPathName, placementIDPath)
 
 	errEmptyID = errors.New("must specify placement ID to delete")
 )

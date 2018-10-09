@@ -27,6 +27,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3cluster/placement"
@@ -74,10 +75,6 @@ func TestPlacementDeleteHandler_Force(t *testing.T) {
 
 func TestPlacementDeleteHandler_Safe(t *testing.T) {
 	runForAllAllowedServices(func(serviceName string) {
-		if serviceName == M3AggServiceName {
-			// TODO(rartoul): Make this test pass for M3Agg
-			return
-		}
 		var (
 			mockClient, mockPlacementService = SetupPlacementTest(t)
 			handlerOpts                      = NewHandlerOptions(
@@ -91,8 +88,10 @@ func TestPlacementDeleteHandler_Safe(t *testing.T) {
 			w   = httptest.NewRecorder()
 			req = httptest.NewRequest(DeleteHTTPMethod, "/placement/host1", nil)
 		)
+		handler.nowFn = func() time.Time { return time.Unix(0, 0) }
 		if serviceName == M3AggServiceName {
-			basePlacement = basePlacement.SetIsMirrored(true)
+			basePlacement = basePlacement.
+				SetIsMirrored(true)
 		}
 
 		req = mux.SetURLVars(req, map[string]string{"id": "host1"})
@@ -147,15 +146,13 @@ func TestPlacementDeleteHandler_Safe(t *testing.T) {
 		})
 		if serviceName == M3AggServiceName {
 			// Need to be mirrored in M3Agg case
-			basePlacement.SetReplicaFactor(2).SetMaxShardSetID(2).SetInstances([]placement.Instance{
-				placement.NewInstance().SetID("host1").SetIsolationGroup("a").SetWeight(10).
+			basePlacement.SetReplicaFactor(1).SetMaxShardSetID(2).SetInstances([]placement.Instance{
+				placement.NewInstance().SetID("host1").SetIsolationGroup("a").SetWeight(10).SetShardSetID(0).
 					SetShards(shard.NewShards([]shard.Shard{
 						shard.NewShard(0).SetState(shard.Available),
-						shard.NewShard(1).SetState(shard.Available),
 					})),
-				placement.NewInstance().SetID("host2").SetIsolationGroup("b").SetWeight(10).
+				placement.NewInstance().SetID("host2").SetIsolationGroup("b").SetWeight(10).SetShardSetID(1).
 					SetShards(shard.NewShards([]shard.Shard{
-						shard.NewShard(0).SetState(shard.Available),
 						shard.NewShard(1).SetState(shard.Available),
 					})),
 			})
@@ -172,10 +169,14 @@ func TestPlacementDeleteHandler_Safe(t *testing.T) {
 		resp = w.Result()
 		body, err = ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)
-		require.Equal(t, "{\"placement\":{\"instances\":{\"host1\":{\"id\":\"host1\",\"isolationGroup\":\"a\",\"zone\":\"\",\"weight\":10,\"endpoint\":\"\",\"shards\":[{\"id\":0,\"state\":\"LEAVING\",\"sourceId\":\"\","+
-			"\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"}],\"shardSetId\":0,\"hostname\":\"\",\"port\":0},\"host2\":{\"id\":\"host2\",\"isolationGroup\":\"b\",\"zone\":\"\",\"weight\":10,\"endpoint\":\"\",\"shards\":"+
-			"[{\"id\":0,\"state\":\"AVAILABLE\",\"sourceId\":\"\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"},{\"id\":1,\"state\":\"AVAILABLE\",\"sourceId\":\"\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"}],"+
-			"\"shardSetId\":0,\"hostname\":\"\",\"port\":0},\"host3\":{\"id\":\"host3\",\"isolationGroup\":\"c\",\"zone\":\"\",\"weight\":10,\"endpoint\":\"\",\"shards\":[{\"id\":0,\"state\":\"INITIALIZING\",\"sourceId\":\"host1\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"},"+
-			"{\"id\":1,\"state\":\"AVAILABLE\",\"sourceId\":\"\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"}],\"shardSetId\":0,\"hostname\":\"\",\"port\":0}},\"replicaFactor\":2,\"numShards\":0,\"isSharded\":true,\"cutoverTime\":\"0\",\"isMirrored\":false,\"maxShardSetId\":2},\"version\":2}", string(body))
+		if serviceName == M3AggServiceName {
+			require.Equal(t, "{\"placement\":{\"instances\":{\"host1\":{\"id\":\"host1\",\"isolationGroup\":\"a\",\"zone\":\"\",\"weight\":10,\"endpoint\":\"\",\"shards\":[{\"id\":0,\"state\":\"LEAVING\",\"sourceId\":\"\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"300\"}],\"shardSetId\":0,\"hostname\":\"\",\"port\":0},\"host2\":{\"id\":\"host2\",\"isolationGroup\":\"b\",\"zone\":\"\",\"weight\":10,\"endpoint\":\"\",\"shards\":[{\"id\":0,\"state\":\"INITIALIZING\",\"sourceId\":\"host1\",\"cutoverNanos\":\"300000000000\",\"cutoffNanos\":\"0\"},{\"id\":1,\"state\":\"AVAILABLE\",\"sourceId\":\"\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"}],\"shardSetId\":1,\"hostname\":\"\",\"port\":0}},\"replicaFactor\":1,\"numShards\":0,\"isSharded\":true,\"cutoverTime\":\"0\",\"isMirrored\":true,\"maxShardSetId\":2},\"version\":2}", string(body))
+		} else {
+			require.Equal(t, "{\"placement\":{\"instances\":{\"host1\":{\"id\":\"host1\",\"isolationGroup\":\"a\",\"zone\":\"\",\"weight\":10,\"endpoint\":\"\",\"shards\":[{\"id\":0,\"state\":\"LEAVING\",\"sourceId\":\"\","+
+				"\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"}],\"shardSetId\":0,\"hostname\":\"\",\"port\":0},\"host2\":{\"id\":\"host2\",\"isolationGroup\":\"b\",\"zone\":\"\",\"weight\":10,\"endpoint\":\"\",\"shards\":"+
+				"[{\"id\":0,\"state\":\"AVAILABLE\",\"sourceId\":\"\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"},{\"id\":1,\"state\":\"AVAILABLE\",\"sourceId\":\"\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"}],"+
+				"\"shardSetId\":0,\"hostname\":\"\",\"port\":0},\"host3\":{\"id\":\"host3\",\"isolationGroup\":\"c\",\"zone\":\"\",\"weight\":10,\"endpoint\":\"\",\"shards\":[{\"id\":0,\"state\":\"INITIALIZING\",\"sourceId\":\"host1\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"},"+
+				"{\"id\":1,\"state\":\"AVAILABLE\",\"sourceId\":\"\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"}],\"shardSetId\":0,\"hostname\":\"\",\"port\":0}},\"replicaFactor\":2,\"numShards\":0,\"isSharded\":true,\"cutoverTime\":\"0\",\"isMirrored\":false,\"maxShardSetId\":2},\"version\":2}", string(body))
+		}
 	})
 }

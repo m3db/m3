@@ -22,6 +22,7 @@ package placement
 
 import (
 	"net/http"
+	"path"
 	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
@@ -34,15 +35,19 @@ import (
 )
 
 const (
+	initPathName = "init"
+)
+
+var (
 	// DeprecatedM3DBInitURL is the old url for the placement init handler, maintained for backwards
 	// compatibility. (with the POST method).
-	DeprecatedM3DBInitURL = handler.RoutePrefixV1 + "/placement/init"
+	DeprecatedM3DBInitURL = path.Join(handler.RoutePrefixV1, PlacementPathName, initPathName)
 
 	// M3DBInitURL is the url for the placement init handler, (with the POST method).
-	M3DBInitURL = handler.RoutePrefixV1 + "/services/m3db/placement/init"
+	M3DBInitURL = path.Join(handler.RoutePrefixV1, ServicesPathName, M3DBServiceName, PlacementPathName, initPathName)
 
 	// M3AggInitURL is the url for the m3agg placement init handler (with the POST method).
-	M3AggInitURL = handler.RoutePrefixV1 + "/services/m3agg/placement/init"
+	M3AggInitURL = path.Join(handler.RoutePrefixV1, ServicesPathName, M3AggServiceName, PlacementPathName, initPathName)
 
 	// InitHTTPMethod is the HTTP method used with this resource.
 	InitHTTPMethod = http.MethodPost

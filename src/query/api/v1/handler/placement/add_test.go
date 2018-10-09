@@ -53,7 +53,7 @@ func TestPlacementAddHandler_Force(t *testing.T) {
 			req *http.Request
 		)
 		if serviceName == M3AggServiceName {
-			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"force": true, "instances":[], "max_aggregation_window_size_nanos": 1000000, "warmup_duration_nanos": 1000000}`))
+			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"force": true, "instances":[]}`))
 		} else {
 			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"force": true, "instances":[]}`))
 		}
@@ -64,13 +64,13 @@ func TestPlacementAddHandler_Force(t *testing.T) {
 
 		resp := w.Result()
 		body, _ := ioutil.ReadAll(resp.Body)
-		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 		assert.Equal(t, "{\"error\":\"no new instances found in the valid zone\"}\n", string(body))
+		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 
 		// Test add success
 		w = httptest.NewRecorder()
 		if serviceName == M3AggServiceName {
-			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"force": true, "instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}], "max_aggregation_window_size_nanos": 1000000, "warmup_duration_nanos": 1000000}`))
+			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"force": true, "instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}]}`))
 		} else {
 			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"force": true, "instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}]}`))
 		}
@@ -81,8 +81,8 @@ func TestPlacementAddHandler_Force(t *testing.T) {
 
 		resp = w.Result()
 		body, _ = ioutil.ReadAll(resp.Body)
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		assert.Equal(t, `{"placement":{"instances":{},"replicaFactor":0,"numShards":0,"isSharded":false,"cutoverTime":"0","isMirrored":false,"maxShardSetId":0},"version":0}`, string(body))
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 	})
 }
@@ -102,7 +102,7 @@ func TestPlacementAddHandler_SafeErr(t *testing.T) {
 			req *http.Request
 		)
 		if serviceName == M3AggServiceName {
-			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"instances":[], "max_aggregation_window_size_nanos": 1000000, "warmup_duration_nanos": 1000000}`))
+			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"instances":[]}`))
 		} else {
 			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"instances":[]}`))
 		}
@@ -120,7 +120,7 @@ func TestPlacementAddHandler_SafeErr(t *testing.T) {
 		// Current placement has initializing shards
 		w = httptest.NewRecorder()
 		if serviceName == M3AggServiceName {
-			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}], "max_aggregation_window_size_nanos": 1000000, "warmup_duration_nanos": 1000000}`))
+			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}]}`))
 		} else {
 			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}]}`))
 		}
@@ -153,7 +153,7 @@ func TestPlacementAddHandler_SafeOK(t *testing.T) {
 			req *http.Request
 		)
 		if serviceName == M3AggServiceName {
-			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}], "max_aggregation_window_size_nanos": 1000000, "warmup_duration_nanos": 1000000}`))
+			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}]}`))
 		} else {
 			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}]}`))
 		}
@@ -186,7 +186,7 @@ func TestPlacementAddHandler_SafeOK(t *testing.T) {
 
 		w = httptest.NewRecorder()
 		if serviceName == M3AggServiceName {
-			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}], "max_aggregation_window_size_nanos": 1000000, "warmup_duration_nanos": 1000000}`))
+			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}]}`))
 		} else {
 			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}]}`))
 		}

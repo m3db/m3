@@ -22,6 +22,7 @@ package placement
 
 import (
 	"net/http"
+	"path"
 	"strconv"
 	"time"
 
@@ -34,20 +35,22 @@ import (
 )
 
 const (
+	// GetHTTPMethod is the HTTP method used with this resource.
+	GetHTTPMethod = http.MethodGet
+)
+
+var (
 	// DeprecatedM3DBGetURL is the old url for the placement get handler, maintained for
 	// backwards compatibility.
-	DeprecatedM3DBGetURL = handler.RoutePrefixV1 + "/placement"
+	DeprecatedM3DBGetURL = path.Join(handler.RoutePrefixV1, PlacementPathName)
 
 	// M3DBGetURL is the url for the placement get handler (with the GET method)
 	// for the M3DB service.
-	M3DBGetURL = handler.RoutePrefixV1 + "/m3db/services/placement"
+	M3DBGetURL = path.Join(handler.RoutePrefixV1, ServicesPathName, M3DBServiceName, PlacementPathName)
 
 	// M3AggGetURL is the url for the placement get handler (with the GET method)
 	// for the M3Agg service.
-	M3AggGetURL = handler.RoutePrefixV1 + "/m3agg/services/placement"
-
-	// GetHTTPMethod is the HTTP method used with this resource.
-	GetHTTPMethod = http.MethodGet
+	M3AggGetURL = path.Join(handler.RoutePrefixV1, ServicesPathName, M3AggServiceName, PlacementPathName)
 )
 
 // GetHandler is the handler for placement gets.
