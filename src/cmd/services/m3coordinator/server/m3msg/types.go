@@ -21,7 +21,9 @@
 package m3msg
 
 import (
+	"context"
 	"sync/atomic"
+	"time"
 
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3msg/consumer"
@@ -29,8 +31,9 @@ import (
 
 // WriteFn is the function that writes a metric.
 type WriteFn func(
+	ctx context.Context,
 	id []byte,
-	metricTimeNanos int64,
+	metricTime time.Time,
 	value float64,
 	sp policy.StoragePolicy,
 	callback *RefCountedCallback,
@@ -64,8 +67,8 @@ func NewRefCountedCallback(msg consumer.Message) *RefCountedCallback {
 	}
 }
 
-// incRef increments the ref count.
-func (r *RefCountedCallback) incRef() {
+// IncRef increments the ref count.
+func (r *RefCountedCallback) IncRef() {
 	atomic.AddInt32(&r.ref, 1)
 }
 

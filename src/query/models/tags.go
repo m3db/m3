@@ -191,13 +191,21 @@ func (t Tags) Get(key []byte) ([]byte, bool) {
 	return nil, false
 }
 
-// Clone returns a pointer to a copy of the tags.
+// Clone returns a copy of the tags.
 func (t Tags) Clone() Tags {
 	// Todo: Pool these
 	clonedTags := make([]Tag, t.Len())
 	copy(clonedTags, t.Tags)
 	return Tags{
 		Tags: clonedTags,
+		Opts: t.Opts,
+	}
+}
+
+// Reset resets the tag list to empty
+func (t Tags) Reset() Tags {
+	return Tags{
+		Tags: t.Tags[:0],
 		Opts: t.Opts,
 	}
 }
@@ -245,4 +253,17 @@ func (t Tags) Normalize() Tags {
 
 func (t Tag) String() string {
 	return fmt.Sprintf("%s: %s", t.Name, t.Value)
+}
+
+// Clone returns a copy of the tag.
+func (t Tag) Clone() Tag {
+	// Todo: Pool these
+	clonedName := make([]byte, len(t.Name))
+	clonedVal := make([]byte, len(t.Value))
+	copy(clonedName, t.Name)
+	copy(clonedVal, t.Value)
+	return Tag{
+		Name:  clonedName,
+		Value: clonedVal,
+	}
 }

@@ -23,6 +23,8 @@ package config
 import (
 	"time"
 
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3"
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
@@ -75,6 +77,18 @@ type Configuration struct {
 
 	// WriteWorkerPool is the worker pool policy for write requests.
 	WriteWorkerPool xconfig.WorkerPoolPolicy `yaml:"writeWorkerPoolPolicy"`
+
+	// Ingest is the ingest server.
+	Ingest *IngestConfiguration `yaml:"ingest"`
+}
+
+// IngestConfiguration is the configuration for ingestion server.
+type IngestConfiguration struct {
+	// Ingester is the configuration for storage based ingester.
+	Ingester ingest.Configuration `yaml:"ingester"`
+
+	// M3Msg is the configuration for m3msg server.
+	M3Msg m3msg.Configuration `yaml:"m3msg"`
 }
 
 // LocalConfiguration is the local embedded configuration if running

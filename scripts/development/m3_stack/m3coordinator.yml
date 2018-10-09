@@ -45,3 +45,18 @@ clusters:
         jitter: true
       backgroundHealthCheckFailLimit: 4
       backgroundHealthCheckFailThrottleFactor: 0.5
+
+ingest:
+  ingester:
+    workerPoolSize: 100
+    opPool:
+      size: 100
+    retry:
+      maxRetries: 3
+      jitter: true
+  m3msg:
+    server:
+      listenAddress: 0.0.0.0:7507
+      retry:
+        maxBackoff: 10s
+        jitter: true

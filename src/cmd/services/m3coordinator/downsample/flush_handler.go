@@ -25,12 +25,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/aggregator/aggregator/handler"
+	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/x/convert"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3aggregator/aggregator/handler"
-	"github.com/m3db/m3aggregator/aggregator/handler/writer"
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3x/instrument"
 	xsync "github.com/m3db/m3x/sync"
@@ -44,12 +45,12 @@ var (
 
 type downsamplerFlushHandler struct {
 	sync.RWMutex
-	storage                 storage.Storage
-	encodedTagsIteratorPool *serialize.MetricTagsIteratorPool
-	workerPool              xsync.WorkerPool
-	instrumentOpts          instrument.Options
-	metrics                 downsamplerFlushHandlerMetrics
-	tagOptions              models.TagOptions
+	storage                storage.Storage
+	metricTagsIteratorPool serialize.MetricTagsIteratorPool
+	workerPool             xsync.WorkerPool
+	instrumentOpts         instrument.Options
+	metrics                downsamplerFlushHandlerMetrics
+	tagOptions             models.TagOptions
 }
 
 type downsamplerFlushHandlerMetrics struct {
@@ -69,18 +70,18 @@ func newDownsamplerFlushHandlerMetrics(
 func newDownsamplerFlushHandler(
 	tagOptions models.TagOptions,
 	storage storage.Storage,
-	encodedTagsIteratorPool *serialize.MetricTagsIteratorPool,
+	metricTagsIteratorPool serialize.MetricTagsIteratorPool,
 	workerPool xsync.WorkerPool,
 	instrumentOpts instrument.Options,
 ) handler.Handler {
 	scope := instrumentOpts.MetricsScope().SubScope("downsampler-flush-handler")
 	return &downsamplerFlushHandler{
-		storage:                 storage,
-		encodedTagsIteratorPool: encodedTagsIteratorPool,
-		workerPool:              workerPool,
-		instrumentOpts:          instrumentOpts,
-		metrics:                 newDownsamplerFlushHandlerMetrics(scope),
-		tagOptions:              tagOptions,
+		storage:                storage,
+		metricTagsIteratorPool: metricTagsIteratorPool,
+		workerPool:             workerPool,
+		instrumentOpts:         instrumentOpts,
+		metrics:                newDownsamplerFlushHandlerMetrics(scope),
+		tagOptions:             tagOptions,
 	}
 }
 
@@ -113,7 +114,7 @@ func (w *downsamplerFlushHandlerWriter) Write(
 
 		logger := w.handler.instrumentOpts.Logger()
 
-		iter := w.handler.encodedTagsIteratorPool.Get()
+		iter := w.handler.metricTagsIteratorPool.Get()
 		iter.Reset(mp.ChunkedID.Data)
 
 		expected := iter.NumTags()
@@ -125,11 +126,11 @@ func (w *downsamplerFlushHandlerWriter) Write(
 		tags := models.NewTags(expected, w.tagOptions)
 		for iter.Next() {
 			name, value := iter.Current()
-			tags = tags.AddTag(models.Tag{Name: name, Value: value})
+			tags = tags.AddTag(models.Tag{Name: name, Value: value}.Clone())
 		}
 
 		if len(chunkSuffix) != 0 {
-			tags = tags.AddTag(models.Tag{Name: aggregationSuffixTag, Value: chunkSuffix})
+			tags = tags.AddTag(models.Tag{Name: aggregationSuffixTag, Value: chunkSuffix}.Clone())
 		}
 
 		err := iter.Err()
@@ -146,7 +147,7 @@ func (w *downsamplerFlushHandlerWriter) Write(
 				Timestamp: time.Unix(0, mp.TimeNanos),
 				Value:     mp.Value,
 			}},
-			Unit: mp.StoragePolicy.Resolution().Precision,
+			Unit: convert.UnitForM3DB(mp.StoragePolicy.Resolution().Precision),
 			Attributes: storage.Attributes{
 				MetricsType: storage.AggregatedMetricsType,
 				Retention:   mp.StoragePolicy.Retention().Duration(),

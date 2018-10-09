@@ -1,3 +1,0 @@
-(vendor/)
-(mock_.*.go)
-(*.pb.go)

@@ -23,6 +23,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"log"
 	"math/rand"
 	"net/http"
 	"os"
@@ -156,6 +157,10 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("could not create tag options", zap.Error(err))
 	}
 
+	var (
+		m3dbClusters    m3.Clusters
+		m3dbPoolWrapper *pools.PoolWrapper
+	)
 	// For grpc backend, we need to setup only the grpc client and a storage accompanying that client.
 	// For m3db backend, we need to make connections to the m3db cluster which generates a session and use the storage with the session.
 	if cfg.Backend == config.GRPCStorageType {
@@ -175,12 +180,19 @@ func Run(runOpts RunOptions) {
 
 		logger.Info("setup grpc backend")
 	} else {
+		m3dbClusters, m3dbPoolWrapper, err = initClusters(cfg, runOpts.DBClient, logger)
+		if err != nil {
+			log.Fatalf("unable to init clusters: %v", err)
+		}
+
 		var cleanup cleanupFn
 		backendStorage, clusterClient, downsampler, cleanup, err = newM3DBStorage(
 			runOpts,
 			cfg,
 			tagOptions,
 			logger,
+			m3dbClusters,
+			m3dbPoolWrapper,
 			instrumentOptions,
 			readWorkerPool,
 			writeWorkerPool,
@@ -194,7 +206,7 @@ func Run(runOpts RunOptions) {
 	engine := executor.NewEngine(backendStorage)
 
 	handler, err := httpd.NewHandler(backendStorage, tagOptions, downsampler, engine,
-		clusterClient, cfg, runOpts.DBConfig, scope)
+		m3dbClusters, clusterClient, cfg, runOpts.DBConfig, scope)
 	if err != nil {
 		logger.Fatal("unable to set up handlers", zap.Error(err))
 	}
@@ -225,6 +237,24 @@ func Run(runOpts RunOptions) {
 		}
 	}()
 
+	if cfg.Ingest != nil {
+		ingester, err := cfg.Ingest.Ingester.NewIngester(backendStorage, instrumentOptions)
+		if err != nil {
+			logger.Fatal("unable to create ingester", zap.Error(err))
+		}
+		server, err := cfg.Ingest.M3Msg.NewServer(
+			ingester.Ingest,
+			instrumentOptions.SetMetricsScope(scope.SubScope("m3msg")),
+		)
+		if err != nil {
+			logger.Fatal("unable to create m3msg server", zap.Error(err))
+		}
+		if err := server.ListenAndServe(); err != nil {
+			logger.Fatal("unable to listen on ingest server", zap.Error(err))
+		}
+		defer server.Close()
+	}
+
 	var interruptCh <-chan error = make(chan error)
 	if runOpts.InterruptCh != nil {
 		interruptCh = runOpts.InterruptCh
@@ -254,6 +284,8 @@ func newM3DBStorage(
 	cfg config.Configuration,
 	tagOptions models.TagOptions,
 	logger *zap.Logger,
+	clusters m3.Clusters,
+	poolWrapper *pools.PoolWrapper,
 	instrumentOptions instrument.Options,
 	readWorkerPool xsync.PooledWorkerPool,
 	writeWorkerPool xsync.PooledWorkerPool,
@@ -290,11 +322,6 @@ func newM3DBStorage(
 			clusterClientSendableCh <- clusterManagementClient
 			clusterClientCh = clusterClientSendableCh
 		}
-	}
-
-	clusters, poolWrapper, err := initClusters(cfg, runOpts.DBClient, logger)
-	if err != nil {
-		return nil, nil, nil, nil, err
 	}
 
 	fanoutStorage, storageCleanup, err := newStorages(

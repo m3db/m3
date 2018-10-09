@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/util/logging"
 	clusterclient "github.com/m3db/m3cluster/client"
 
@@ -63,6 +64,7 @@ type Handler struct {
 	storage       storage.Storage
 	downsampler   downsample.Downsampler
 	engine        *executor.Engine
+	clusters      m3.Clusters
 	clusterClient clusterclient.Client
 	config        config.Configuration
 	embeddedDbCfg *dbconfig.DBConfiguration
@@ -77,6 +79,7 @@ func NewHandler(
 	tagOptions models.TagOptions,
 	downsampler downsample.Downsampler,
 	engine *executor.Engine,
+	m3dbClusters m3.Clusters,
 	clusterClient clusterclient.Client,
 	cfg config.Configuration,
 	embeddedDbCfg *dbconfig.DBConfiguration,
@@ -88,6 +91,7 @@ func NewHandler(
 		storage:       storage,
 		downsampler:   downsampler,
 		engine:        engine,
+		clusters:      m3dbClusters,
 		clusterClient: clusterClient,
 		config:        cfg,
 		embeddedDbCfg: embeddedDbCfg,
@@ -121,7 +125,13 @@ func (h *Handler) RegisterRoutes() error {
 	h.Router.HandleFunc(m3json.WriteJSONURL, logged(m3json.NewWriteJSONHandler(h.storage)).ServeHTTP).Methods(m3json.JSONWriteHTTPMethod)
 
 	if h.clusterClient != nil {
-		placement.RegisterRoutes(h.Router, h.clusterClient, h.config)
+		placementOpts := placement.HandlerOptions{
+			ClusterClient:       h.clusterClient,
+			Config:              h.config,
+			M3AggServiceOptions: h.m3AggServiceOptions(),
+		}
+
+		placement.RegisterRoutes(h.Router, placementOpts)
 		namespace.RegisterRoutes(h.Router, h.clusterClient)
 		database.RegisterRoutes(h.Router, h.clusterClient, h.config, h.embeddedDbCfg)
 	}
@@ -131,6 +141,28 @@ func (h *Handler) RegisterRoutes() error {
 	h.registerRoutesEndpoint()
 
 	return nil
+}
+
+func (h *Handler) m3AggServiceOptions() *placement.M3AggServiceOptions {
+	if h.clusters == nil {
+		return nil
+	}
+
+	maxResolution := time.Duration(0)
+	for _, ns := range h.clusters.ClusterNamespaces() {
+		resolution := ns.Options().Attributes().Resolution
+		if resolution > maxResolution {
+			maxResolution = resolution
+		}
+	}
+
+	if maxResolution == 0 {
+		return nil
+	}
+
+	return &placement.M3AggServiceOptions{
+		MaxAggregationWindowSize: maxResolution,
+	}
 }
 
 // Endpoints useful for profiling the service

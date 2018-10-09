@@ -41,6 +41,7 @@ GOMETALINT_VERSION   := v2.0.5
 SERVICES :=     \
 	m3dbnode      \
 	m3coordinator \
+	m3aggregator  \
 	m3query       \
 	m3em_agent    \
 	m3nsch_server \
@@ -55,15 +56,16 @@ SUBDIRS :=    \
 	m3em        \
 	m3nsch      \
 	m3ninx      \
+	aggregator  \
 
-TOOLS :=            \
-	read_ids          \
-	read_index_ids    \
-	read_data_files   \
-	read_index_files  \
-	clone_fileset     \
-	dtest             \
-	verify_commitlogs \
+TOOLS :=               \
+	read_ids             \
+	read_index_ids       \
+	read_data_files      \
+	read_index_files     \
+	clone_fileset        \
+	dtest                \
+	verify_commitlogs    \
 	verify_index_files
 
 .PHONY: setup
@@ -186,7 +188,7 @@ docs-deploy: docs-container
 
 .PHONY: docker-integration-test
 docker-integration-test:
-	@echo "Running Docker integration test"
+	@echo "--- Running Docker integration test"
 	@./scripts/docker-integration-tests/setup.sh
 	@./scripts/docker-integration-tests/simple/test.sh
 	@./scripts/docker-integration-tests/prometheus/test.sh
@@ -202,15 +204,9 @@ SUBDIR_TARGETS :=     \
 	proto-gen           \
 	asset-gen           \
 	genny-gen           \
+	license-gen         \
 	all-gen             \
 	metalint
-
-define SUBDIR_TARGET_RULE
-.PHONY: $(SUBDIR_TARGET)
-$(SUBDIR_TARGET): $(foreach SUBDIR,$(SUBDIRS),$(SUBDIR_TARGET)-$(SUBDIR))
-endef
-
-$(foreach SUBDIR_TARGET,$(SUBDIR_TARGETS),$(eval $(SUBDIR_TARGET_RULE)))
 
 .PHONY: test-ci-unit
 test-ci-unit: test-base
@@ -229,44 +225,44 @@ define SUBDIR_RULES
 
 .PHONY: mock-gen-$(SUBDIR)
 mock-gen-$(SUBDIR): install-codegen-tools install-mockgen
-	@echo Generating mocks $(SUBDIR)
+	@echo "--- Generating mocks $(SUBDIR)"
 	@[ ! -d src/$(SUBDIR)/$(mocks_rules_dir) ] || \
 		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(mocks_output_dir) src/$(SUBDIR)/$(mocks_rules_dir)
 
 .PHONY: thrift-gen-$(SUBDIR)
 thrift-gen-$(SUBDIR): install-codegen-tools
-	@echo Generating thrift files $(SUBDIR)
+	@echo "--- Generating thrift files $(SUBDIR)"
 	@[ ! -d src/$(SUBDIR)/$(thrift_rules_dir) ] || \
 		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(thrift_output_dir) src/$(SUBDIR)/$(thrift_rules_dir)
 
 .PHONY: proto-gen-$(SUBDIR)
 proto-gen-$(SUBDIR): install-codegen-tools
-	@echo Generating protobuf files $(SUBDIR)
+	@echo "--- Generating protobuf files $(SUBDIR)"
 	@[ ! -d src/$(SUBDIR)/$(proto_rules_dir) ] || \
 		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(proto_output_dir) src/$(SUBDIR)/$(proto_rules_dir)
 
 .PHONY: asset-gen-$(SUBDIR)
 asset-gen-$(SUBDIR): install-codegen-tools
-	@echo Generating asset files $(SUBDIR)
+	@echo "--- Generating asset files $(SUBDIR)"
 	@[ ! -d src/$(SUBDIR)/$(assets_rules_dir) ] || \
 		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(assets_output_dir) src/$(SUBDIR)/$(assets_rules_dir)
 
 .PHONY: genny-gen-$(SUBDIR)
 genny-gen-$(SUBDIR): install-codegen-tools
-	@echo Generating genny files $(SUBDIR)
+	@echo "--- Generating genny files $(SUBDIR)"
 	@[ ! -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk ] || \
 		PATH=$(retool_bin_path):$(PATH) make -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk genny-all
 
-.PHONY: all-gen-$(SUBDIR)
-# NB(prateek): order matters here, mock-gen needs to be last because we sometimes
-# generate mocks for thrift/proto generated code.
-all-gen-$(SUBDIR): thrift-gen-$(SUBDIR) proto-gen-$(SUBDIR) asset-gen-$(SUBDIR) genny-gen-$(SUBDIR) mock-gen-$(SUBDIR)
+.PHONY: license-gen-$(SUBDIR)
+license-gen-$(SUBDIR): install-codegen-tools
+	@echo "--- Updating license in files $(SUBDIR)"
+	@find $(SELF_DIR)/src/$(SUBDIR) -name '*.go' | PATH=$(retool_bin_path):$(PATH) xargs -I{} update-license {}
 
-.PHONY: metalint-$(SUBDIR)
-metalint-$(SUBDIR): install-gometalinter install-linter-badtime install-linter-importorder
-	@echo metalinting $(SUBDIR)
-	@(PATH=$(retool_bin_path):$(PATH) $(metalint_check) \
-		$(metalint_config) $(metalint_exclude) src/$(SUBDIR))
+.PHONY: all-gen-$(SUBDIR)
+# NB(prateek): order matters here, mock-gen needs to be after proto/thrift because we sometimes
+# generate mocks for thrift/proto generated code. Similarly, license-gen needs to be last because
+# we make header changes.
+all-gen-$(SUBDIR): thrift-gen-$(SUBDIR) proto-gen-$(SUBDIR) asset-gen-$(SUBDIR) genny-gen-$(SUBDIR) mock-gen-$(SUBDIR) license-gen-$(SUBDIR)
 
 .PHONY: test-$(SUBDIR)
 test-$(SUBDIR):
@@ -296,25 +292,52 @@ test-single-integration-$(SUBDIR):
 
 .PHONY: test-ci-unit-$(SUBDIR)
 test-ci-unit-$(SUBDIR):
-	@echo test-ci-unit $(SUBDIR)
+	@echo "--- test-ci-unit $(SUBDIR)"
 	SRC_ROOT=./src/$(SUBDIR) make test-base
+	@echo "--- uploading coverage report"
 	$(codecov_push) -f $(coverfile) -F $(SUBDIR)
 
 .PHONY: test-ci-big-unit-$(SUBDIR)
 test-ci-big-unit-$(SUBDIR):
-	@echo test-ci-big-unit $(SUBDIR)
+	@echo "--- test-ci-big-unit $(SUBDIR)"
 	SRC_ROOT=./src/$(SUBDIR) make test-big-base
+	@echo "--- uploading coverage report"
 	$(codecov_push) -f $(coverfile) -F $(SUBDIR)
 
 .PHONY: test-ci-integration-$(SUBDIR)
 test-ci-integration-$(SUBDIR):
-	@echo test-ci-integration $(SUBDIR)
+	@echo "--- test-ci-integration $(SUBDIR)"
 	SRC_ROOT=./src/$(SUBDIR) INTEGRATION_TIMEOUT=4m TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
+	@echo "--- uploading coverage report"
 	$(codecov_push) -f $(coverfile) -F $(SUBDIR)
+
+.PHONY: metalint-$(SUBDIR)
+metalint-$(SUBDIR): install-gometalinter install-linter-badtime install-linter-importorder
+	@echo "--- metalinting $(SUBDIR)"
+	@(PATH=$(retool_bin_path):$(PATH) $(metalint_check) \
+		$(metalint_config) $(metalint_exclude) src/$(SUBDIR))
 
 endef
 
+# generate targets for each SUBDIR in SUBDIRS based on the rules specified above.
 $(foreach SUBDIR,$(SUBDIRS),$(eval $(SUBDIR_RULES)))
+
+define SUBDIR_TARGET_RULE
+.PHONY: $(SUBDIR_TARGET)
+$(SUBDIR_TARGET): $(foreach SUBDIR,$(SUBDIRS),$(SUBDIR_TARGET)-$(SUBDIR))
+endef
+
+# generate targets across SUBDIRS for each SUBDIR_TARGET. i.e. generate rules
+# which allow `make all-gen` to invoke `make all-gen-dbnode all-gen-coordinator ...`
+# NB: we skip metalint explicity as the default target below requires less invocations
+# of metalint and finishes faster.
+$(foreach SUBDIR_TARGET, $(filter-out metalint,$(SUBDIR_TARGETS)), $(eval $(SUBDIR_TARGET_RULE)))
+
+.PHONY: metalint
+metalint: install-gometalinter install-linter-badtime install-linter-importorder
+	@echo "--- metalinting src/"
+	@(PATH=$(retool_bin_path):$(PATH) $(metalint_check) \
+		$(metalint_config) $(metalint_exclude) src/)
 
 # Tests that all currently generated types match their contents if they were regenerated
 .PHONY: test-all-gen
