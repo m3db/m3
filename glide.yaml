@@ -22,9 +22,6 @@ import:
       - services
       - integration/etcd
 
-  - package: github.com/m3db/m3msg
-    version: 4680d9b45286826f87b134a4559b11d795786eaf
-
   - package: github.com/m3db/m3metrics
     version: 5c6aed344a0c209277d36334f0a824d9f3bb835b
 
