@@ -28,14 +28,13 @@ import (
 )
 
 func createTags(withName bool) Tags {
-	tags := NewTags(3, nil)
-	tags.AddTags([]Tag{
+	tags := NewTags(3, nil).AddTags([]Tag{
 		{Name: []byte("t1"), Value: []byte("v1")},
 		{Name: []byte("t2"), Value: []byte("v2")},
 	})
 
 	if withName {
-		tags.SetName([]byte("v0"))
+		tags = tags.SetName([]byte("v0"))
 	}
 
 	return tags
@@ -101,20 +100,20 @@ func TestTagsWithExcludes(t *testing.T) {
 
 func TestTagsIDLen(t *testing.T) {
 	tags := NewTags(3, NewTagOptions().SetMetricName([]byte("N")))
-	tags.AddTags([]Tag{
+	tags = tags.AddTags([]Tag{
 		{Name: []byte("a"), Value: []byte("1")},
 		{Name: []byte("b"), Value: []byte("2")},
 		{Name: []byte("c"), Value: []byte("3")},
 	})
 
-	tags.SetName([]byte("9"))
+	tags = tags.SetName([]byte("9"))
 	idLen := len("a:1,b:2,c:3,N:9,")
 	assert.Equal(t, idLen, tags.IDLen())
 }
 
 func TestTagsWithExcludesCustom(t *testing.T) {
 	tags := NewTags(4, nil)
-	tags.AddTags([]Tag{
+	tags = tags.AddTags([]Tag{
 		{Name: []byte("a"), Value: []byte("1")},
 		{Name: []byte("b"), Value: []byte("2")},
 		{Name: []byte("c"), Value: []byte("3")},
@@ -129,7 +128,7 @@ func TestAddTags(t *testing.T) {
 	tags := NewTags(4, nil)
 
 	tagToAdd := Tag{Name: []byte("x"), Value: []byte("3")}
-	tags.AddTag(tagToAdd)
+	tags = tags.AddTag(tagToAdd)
 	assert.Equal(t, []Tag{tagToAdd}, tags.Tags)
 
 	tagsToAdd := []Tag{
@@ -138,7 +137,7 @@ func TestAddTags(t *testing.T) {
 		{Name: []byte("z"), Value: []byte("4")},
 	}
 
-	tags.AddTags(tagsToAdd)
+	tags = tags.AddTags(tagsToAdd)
 	expected := []Tag{
 		{Name: []byte("a"), Value: []byte("1")},
 		{Name: []byte("b"), Value: []byte("2")},

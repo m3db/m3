@@ -41,8 +41,7 @@ var (
 )
 
 func makeTagIter() ident.TagIterator {
-	ts := models.EmptyTags()
-	ts.AddTags(testTags)
+	ts := models.EmptyTags().AddTags(testTags)
 	return TagsToIdentTagIterator(ts)
 }
 

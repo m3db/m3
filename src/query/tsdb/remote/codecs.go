@@ -115,7 +115,7 @@ func decodeTags(
 ) models.Tags {
 	modelTags := models.NewTags(len(tags), tagOptions)
 	for _, t := range tags {
-		modelTags.AddTag(models.Tag{Name: t.GetName(), Value: t.GetValue()})
+		modelTags = modelTags.AddTag(models.Tag{Name: t.GetName(), Value: t.GetValue()})
 	}
 
 	return modelTags

@@ -30,8 +30,7 @@ import (
 )
 
 func TestCreateNewSeries(t *testing.T) {
-	tags := models.EmptyTags()
-	tags.AddTags([]models.Tag{
+	tags := models.EmptyTags().AddTags([]models.Tag{
 		{Name: []byte("foo"), Value: []byte("bar")},
 		{Name: []byte("biz"), Value: []byte("baz")},
 	})

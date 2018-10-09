@@ -138,7 +138,7 @@ func (t Tags) tagSubset(keys [][]byte, include bool) Tags {
 		}
 
 		if found == include {
-			tags.AddTag(tag)
+			tags = tags.AddTag(tag)
 		}
 	}
 
@@ -203,15 +203,14 @@ func (t Tags) Clone() *Tags {
 }
 
 // AddTag is used to add a single tag and maintain sorted order.
-func (t *Tags) AddTag(tag Tag) Tags {
+func (t Tags) AddTag(tag Tag) Tags {
 	t.Tags = append(t.Tags, tag)
-	t.Normalize()
-	return *t
+	return t.Normalize()
 }
 
 // SetName sets the metric name.
-func (t *Tags) SetName(value []byte) {
-	t.AddTag(Tag{Name: t.Opts.GetMetricName(), Value: value})
+func (t Tags) SetName(value []byte) Tags {
+	return t.AddTag(Tag{Name: t.Opts.GetMetricName(), Value: value})
 }
 
 // Name gets the metric name.
@@ -220,13 +219,13 @@ func (t Tags) Name() ([]byte, bool) {
 }
 
 // AddTags is used to add a list of tags and maintain sorted order.
-func (t *Tags) AddTags(tags []Tag) Tags {
+func (t Tags) AddTags(tags []Tag) Tags {
 	t.Tags = append(t.Tags, tags...)
 	return t.Normalize()
 }
 
 // Add is used to add two tag structures and maintain sorted order.
-func (t *Tags) Add(other Tags) Tags {
+func (t Tags) Add(other Tags) Tags {
 	t.Tags = append(t.Tags, other.Tags...)
 	return t.Normalize()
 }

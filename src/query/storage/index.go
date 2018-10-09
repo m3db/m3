@@ -55,7 +55,7 @@ func FromIdentTagIteratorToTags(
 	tags := models.NewTags(identTags.Remaining(), tagOptions)
 	for identTags.Next() {
 		identTag := identTags.Current()
-		tags.AddTag(models.Tag{
+		tags = tags.AddTag(models.Tag{
 			Name:  identTag.Name.Bytes(),
 			Value: identTag.Value.Bytes(),
 		})

@@ -112,12 +112,12 @@ func combineMetaAndSeriesMeta(
 		name := string(t.Name)
 		if otherTag, ok := otherTags[name]; ok {
 			if bytes.Equal(t.Value, otherTag.Value) {
-				tags.AddTag(t)
+				tags = tags.AddTag(t)
 			} else {
 				// If both metas have the same common tag  with different
 				// values explicitly add it to each seriesMeta.
-				metaTagsToAdd.AddTag(t)
-				otherMetaTagsToAdd.AddTag(otherTag)
+				metaTagsToAdd = metaTagsToAdd.AddTag(t)
+				otherMetaTagsToAdd = otherMetaTagsToAdd.AddTag(otherTag)
 			}
 
 			// NB(arnikola): delete common tag from otherTags as it
@@ -125,14 +125,14 @@ func combineMetaAndSeriesMeta(
 			delete(otherTags, name)
 		} else {
 			// Tag does not exist on otherMeta explicitly add it to each seriesMeta
-			metaTagsToAdd.AddTag(t)
+			metaTagsToAdd = metaTagsToAdd.AddTag(t)
 		}
 	}
 
 	// Iterate over otherMeta common tags and explicitly add
 	// remaining tags to otherSeriesMeta
 	for _, otherTag := range otherTags {
-		otherMetaTagsToAdd.AddTag(otherTag)
+		otherMetaTagsToAdd = otherMetaTagsToAdd.AddTag(otherTag)
 	}
 
 	// Set common tags

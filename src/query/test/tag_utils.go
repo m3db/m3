@@ -28,7 +28,7 @@ import (
 func StringTagsToTags(s StringTags) models.Tags {
 	tags := models.NewTags(len(s), models.NewTagOptions())
 	for _, t := range s {
-		tags.AddTag(models.Tag{Name: []byte(t.N), Value: []byte(t.V)})
+		tags = tags.AddTag(models.Tag{Name: []byte(t.N), Value: []byte(t.V)})
 	}
 
 	return tags
@@ -57,7 +57,7 @@ type StringTag struct {
 func TagSliceToTags(s []models.Tag) models.Tags {
 	tags := models.EmptyTags()
 	for _, t := range s {
-		tags.AddTag(t)
+		tags = tags.AddTag(t)
 	}
 
 	return tags
