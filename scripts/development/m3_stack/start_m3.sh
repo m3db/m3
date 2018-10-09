@@ -3,16 +3,19 @@
 set -xe
 
 echo "Bringing up nodes in the backgorund with docker compose, remember to run ./stop.sh when done"
-docker-compose -f docker-compose.yml up m3db_seed -d --renew-anon-volumes
+docker-compose -f docker-compose.yml up -d --renew-anon-volumes coordinator01
+docker-compose -f docker-compose.yml up -d --renew-anon-volumes m3db_seed
+docker-compose -f docker-compose.yml up -d --renew-anon-volumes prometheus01
+docker-compose -f docker-compose.yml up -d --renew-anon-volumes grafana2
 
 if [[ "$multi_db_node" = true ]] ; then
-    docker-compose -f docker-compose.yml up m3db_data01 -d --renew-anon-volumes
-    docker-compose -f docker-compose.yml up m3db_data02 -d --renew-anon-volumes
+    docker-compose -f docker-compose.yml up -d --renew-anon-volumes m3db_data01
+    docker-compose -f docker-compose.yml up -d --renew-anon-volumes m3db_data02
 fi
 
-docker-compose -f docker-compose.yml up coordinator01 -d --renew-anon-volumes
-docker-compose -f docker-compose.yml up prometheus01 -d --renew-anon-volumes
-docker-compose -f docker-compose.yml up grafana2 -d --renew-anon-volumes
+
+echo "Sleeping to wait for nodes to initialize"
+sleep 10
 
 echo "Nodes online"
 
