@@ -41,6 +41,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/net/http"
 	clusterclient "github.com/m3db/m3cluster/client"
 
 	"github.com/gorilla/mux"
@@ -191,7 +192,7 @@ func (h *Handler) registerRoutesEndpoint() {
 				return nil
 			})
 		if err != nil {
-			handler.Error(w, err, http.StatusInternalServerError)
+			xhttp.Error(w, err, http.StatusInternalServerError)
 			return
 		}
 		json.NewEncoder(w).Encode(struct {
