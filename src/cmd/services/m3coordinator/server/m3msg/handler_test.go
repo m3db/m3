@@ -21,9 +21,11 @@
 package m3msg
 
 import (
+	"context"
 	"net"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3metrics/encoding/msgpack"
 	"github.com/m3db/m3metrics/metric/aggregated"
@@ -99,8 +101,9 @@ type mockWriter struct {
 }
 
 func (m *mockWriter) write(
+	ctx context.Context,
 	name []byte,
-	metricTime int64,
+	metricTime time.Time,
 	value float64,
 	sp policy.StoragePolicy,
 	callbackable *RefCountedCallback,
@@ -127,7 +130,7 @@ func (m *mockWriter) ingested() int {
 
 type payload struct {
 	id         string
-	metricTime int64
+	metricTime time.Time
 	value      float64
 	sp         policy.StoragePolicy
 }

@@ -108,7 +108,6 @@ type Querier interface {
 
 // WriteQuery represents the input timeseries that is written to M3DB
 type WriteQuery struct {
-	Raw        string
 	Tags       models.Tags
 	Datapoints ts.Datapoints
 	Unit       xtime.Unit
@@ -117,7 +116,7 @@ type WriteQuery struct {
 }
 
 func (q *WriteQuery) String() string {
-	return q.Raw
+	return q.Tags.ID()
 }
 
 // Appender provides batched appends against a storage.

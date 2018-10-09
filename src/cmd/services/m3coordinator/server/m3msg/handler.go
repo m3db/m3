@@ -22,7 +22,9 @@ package m3msg
 
 import (
 	"bytes"
+	"context"
 	"io"
+	"time"
 
 	"github.com/m3db/m3metrics/encoding/msgpack"
 	"github.com/m3db/m3msg/consumer"
@@ -82,6 +84,7 @@ func (h *handler) Handle(c consumer.Consumer) {
 
 func (h *handler) newPerConsumerHandler() *perConsumerHandler {
 	return &perConsumerHandler{
+		ctx:     context.Background(),
 		writeFn: h.writeFn,
 		logger:  h.logger,
 		m:       h.m,
@@ -92,6 +95,7 @@ func (h *handler) newPerConsumerHandler() *perConsumerHandler {
 
 type perConsumerHandler struct {
 	// Per server variables, shared across consumers/connections.
+	ctx     context.Context
 	writeFn WriteFn
 	logger  log.Logger
 	m       handlerMetrics
@@ -126,7 +130,7 @@ func (h *perConsumerHandler) processMessage(
 	msg consumer.Message,
 ) {
 	r := NewRefCountedCallback(msg)
-	r.incRef()
+	r.IncRef()
 
 	// Decode the bytes in the message.
 	h.r.Reset(msg.Bytes())
@@ -144,8 +148,8 @@ func (h *perConsumerHandler) processMessage(
 
 		// TODO: Consider incrementing a wait group for each write and wait on
 		// shut down to reduce the number of messages being retried by m3msg.
-		r.incRef()
-		h.writeFn(m.ID, m.TimeNanos, m.Value, sp, r)
+		r.IncRef()
+		h.writeFn(h.ctx, m.ID, time.Unix(0, m.TimeNanos), m.Value, sp, r)
 	}
 	r.decRef()
 	if err := h.it.Err(); err != nil && err != io.EOF {
