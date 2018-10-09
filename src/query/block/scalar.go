@@ -55,10 +55,12 @@ func (b *Scalar) Unconsolidated() (UnconsolidatedBlock, error) {
 // UpdateMetas updates this blocks metadata, and the metadatas for each series.
 func (b *Scalar) UpdateMetas(
 	meta Metadata,
-	seriesMetas []SeriesMeta,
-) error {
-	b.meta = meta
-	return nil
+	_ []SeriesMeta,
+) (Block, error) {
+	return &Scalar{
+		val:  b.val,
+		meta: meta,
+	}, nil
 }
 
 // StepIter returns a StepIterator

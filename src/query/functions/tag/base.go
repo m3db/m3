@@ -28,21 +28,25 @@ import (
 	"github.com/m3db/m3/src/query/parser"
 )
 
-// Applies the given transform to block tags and series tags
+// Applies the given transform to block tags and series tags.
 type tagTransformFunc func(*block.Metadata, []block.SeriesMeta)
 
-// NewTagOp creates a new aggregation operation
+// NewTagOp creates a new tag transform operation.
 func NewTagOp(
 	opType string,
 	params []string,
 ) (parser.Params, error) {
-	var fn tagTransformFunc
-	err := fmt.Errorf("operator not supported: %s", opType)
-	if opType == TagJoinType {
+	var (
+		fn  tagTransformFunc
+		err error
+	)
+	switch opType {
+	case TagJoinType:
 		fn, err = makeTagJoinFunc(params)
-	}
-	if opType == TagReplaceType {
+	case TagReplaceType:
 		fn, err = makeTagReplaceFunc(params)
+	default:
+		return nil, fmt.Errorf("operator not supported: %s", opType)
 	}
 
 	if err != nil {
@@ -58,17 +62,17 @@ type baseOp struct {
 	tagFn  tagTransformFunc
 }
 
-// OpType for the operator
+// OpType for the operator.
 func (o baseOp) OpType() string {
 	return o.opType
 }
 
-// String representation
+// String representation.
 func (o baseOp) String() string {
 	return fmt.Sprintf("type: %s", o.OpType())
 }
 
-// Node creates an execution node
+// Node creates a tag execution node.
 func (o baseOp) Node(controller *transform.Controller, _ transform.Options) transform.OpNode {
 	return &baseNode{
 		op:         o,
@@ -88,7 +92,7 @@ type baseNode struct {
 	controller *transform.Controller
 }
 
-// Process the block
+// Process the block.
 func (n *baseNode) Process(ID parser.NodeID, b block.Block) error {
 	it, err := b.StepIter()
 	if err != nil {
@@ -99,10 +103,10 @@ func (n *baseNode) Process(ID parser.NodeID, b block.Block) error {
 	seriesMeta := it.SeriesMeta()
 
 	n.op.tagFn(&meta, seriesMeta)
-	err = b.UpdateMetas(meta, seriesMeta)
+	bl, err := b.UpdateMetas(meta, seriesMeta)
 	if err != nil {
 		return err
 	}
 
-	return n.controller.Process(b)
+	return n.controller.Process(bl)
 }

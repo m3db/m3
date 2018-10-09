@@ -234,7 +234,7 @@ func (f *lazyBlock) SeriesIter() (block.SeriesIter, error) {
 func (f *lazyBlock) UpdateMetas(
 	meta block.Metadata,
 	seriesMetas []block.SeriesMeta,
-) error {
+) (block.Block, error) {
 	return f.rawBlock.UpdateMetas(meta, seriesMetas)
 }
 

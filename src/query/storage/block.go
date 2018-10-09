@@ -93,18 +93,33 @@ func (m *multiBlockWrapper) SeriesIter() (block.SeriesIter, error) {
 func (m *multiBlockWrapper) UpdateMetas(
 	meta block.Metadata,
 	seriesMetas []block.SeriesMeta,
-) error {
+) (block.Block, error) {
+	var (
+		consolidated   block.Block
+		unconsolidated block.UnconsolidatedBlock
+		err            error
+	)
 	if m.consolidated != nil {
-		if err := m.consolidated.UpdateMetas(meta, seriesMetas); err != nil {
-			return err
-		}
+		consolidated, err = m.consolidated.UpdateMetas(meta, seriesMetas)
+	}
+
+	if err != nil {
+		return nil, err
 	}
 
 	if m.unconsolidated != nil {
-		return m.unconsolidated.UpdateMetas(meta, seriesMetas)
+		unconsolidated, err = m.unconsolidated.UpdateMetas(meta, seriesMetas)
 	}
 
-	return nil
+	if err != nil {
+		return nil, err
+	}
+
+	return &multiBlockWrapper{
+		unconsolidated:   unconsolidated,
+		consolidated:     consolidated,
+		consolidateError: m.consolidateError,
+	}, nil
 }
 
 func (m *multiBlockWrapper) Close() error {
@@ -125,6 +140,7 @@ func NewMultiSeriesBlock(seriesList ts.SeriesList, query *FetchQuery) (block.Unc
 			StepSize: query.Interval,
 		},
 	}
+
 	return multiSeriesBlock{seriesList: seriesList, meta: meta}, nil
 }
 
@@ -135,17 +151,21 @@ func (m multiSeriesBlock) Meta() block.Metadata {
 func (m multiSeriesBlock) UpdateMetas(
 	meta block.Metadata,
 	seriesMeta []block.SeriesMeta,
-) error {
+) (block.UnconsolidatedBlock, error) {
 	if len(seriesMeta) != len(m.seriesList) {
-		return errors.New("mismatched meta size")
+		return nil, errors.New("mismatched meta size")
 	}
 
-	m.meta = meta
+	block := multiSeriesBlock{
+		meta:       meta,
+		seriesList: m.seriesList,
+	}
+
 	for i, meta := range seriesMeta {
-		m.seriesList[i].Tags = meta.Tags
+		block.seriesList[i].Tags = meta.Tags
 	}
 
-	return nil
+	return block, nil
 }
 
 func (m multiSeriesBlock) StepCount() int {
@@ -181,8 +201,16 @@ func (m multiSeriesBlock) Consolidate() (block.Block, error) {
 func (c *consolidatedBlock) UpdateMetas(
 	meta block.Metadata,
 	seriesMeta []block.SeriesMeta,
-) error {
-	return c.unconsolidated.UpdateMetas(meta, seriesMeta)
+) (block.Block, error) {
+	unconsolidated, err := c.unconsolidated.UpdateMetas(meta, seriesMeta)
+	if err != nil {
+		return nil, err
+	}
+
+	return &consolidatedBlock{
+		unconsolidated:    unconsolidated,
+		consolidationFunc: c.consolidationFunc,
+	}, nil
 }
 
 // TODO: Actually free up resources

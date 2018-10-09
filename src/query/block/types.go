@@ -38,7 +38,7 @@ type Block interface {
 	// SeriesIter returns a SeriesIterator
 	SeriesIter() (SeriesIter, error)
 	// UpdateMetas updates this blocks metadata, and the metadatas for each series.
-	UpdateMetas(Metadata, []SeriesMeta) error
+	UpdateMetas(Metadata, []SeriesMeta) (Block, error)
 	// Close frees up any resources
 	Close() error
 }
@@ -52,7 +52,7 @@ type UnconsolidatedBlock interface {
 	// Consolidate an unconsolidated block
 	Consolidate() (Block, error)
 	// UpdateMetas updates this blocks metadata, and the metadatas for each series.
-	UpdateMetas(Metadata, []SeriesMeta) error
+	UpdateMetas(Metadata, []SeriesMeta) (UnconsolidatedBlock, error)
 	// Close frees up any resources
 	Close() error
 }

@@ -69,10 +69,12 @@ func (c *columnBlock) SeriesIter() (SeriesIter, error) {
 func (c *columnBlock) UpdateMetas(
 	meta Metadata,
 	seriesMetas []SeriesMeta,
-) error {
-	c.meta = meta
-	c.seriesMeta = seriesMetas
-	return nil
+) (Block, error) {
+	return &columnBlock{
+		columns:    c.columns,
+		meta:       meta,
+		seriesMeta: seriesMetas,
+	}, nil
 }
 
 // TODO: allow series iteration
