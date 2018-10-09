@@ -138,8 +138,8 @@ func Run(runOpts RunOptions) {
 
 	go func() {
 		logger.Info("starting server", zap.String("address", listenAddress))
-		if err := srv.ListenAndServe(); err != nil {
-			logger.Error("server error while listening",
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Fatal("server error while listening",
 				zap.String("address", listenAddress), zap.Error(err))
 		}
 	}()
