@@ -77,7 +77,6 @@ func NewLinearRegressionOp(args []interface{}, optype string) (transform.Params,
 
 	default:
 		return nil, fmt.Errorf("unknown linear regression type: %s", optype)
-
 	}
 
 	l := linearRegressionProcessor{
@@ -103,6 +102,7 @@ func (l linearRegressionNode) Process(dps ts.Datapoints) float64 {
 
 	if l.op.operatorType == PredictLinearType {
 		slope, intercept = linearRegression(dps, l.timeSpec.End)
+		fmt.Printf("end: %s", l.timeSpec.End.String())
 		return slope*l.duration + intercept
 	}
 
@@ -112,14 +112,24 @@ func (l linearRegressionNode) Process(dps ts.Datapoints) float64 {
 
 // linearRegression performs a least-square linear regression analysis on the
 // provided datapoints. It returns the slope, and the intercept value at the
-// provided time.
-func linearRegression(dps ts.Datapoints, interceptTime time.Time) (slope, intercept float64) {
+// provided time. The algorithm we use comes from https://en.wikipedia.org/wiki/Simple_linear_regression.
+func linearRegression(dps ts.Datapoints, interceptTime time.Time) (float64, float64) {
+	var back int
+	for i := dps.Len() - 1; i >= 0; i-- {
+		if math.IsNaN(dps[i].Value) {
+			continue
+		}
+
+		back = i
+		break
+	}
+
 	var (
 		n            float64
 		sumX, sumY   float64
 		sumXY, sumX2 float64
 
-		foundFirst, foundSecond bool
+		nonNaNCount int
 	)
 
 	for _, dp := range dps {
@@ -127,18 +137,19 @@ func linearRegression(dps ts.Datapoints, interceptTime time.Time) (slope, interc
 			continue
 		}
 
-		if !foundFirst {
-			foundFirst = true
+		if nonNaNCount == 0 {
 			if interceptTime.IsZero() {
+				// set interceptTime as timestamp of first non-NaN dp
+				fmt.Println("shouldnt get here")
 				interceptTime = dp.Timestamp
+
+			} else {
+				interceptTime = dps[back].Timestamp
 			}
-
-			continue
+			// fmt.Printf("time: %s", interceptTime.String())
 		}
 
-		if !foundSecond {
-			foundSecond = true
-		}
+		nonNaNCount++
 
 		// convert to milliseconds
 		x := float64(dp.Timestamp.Sub(interceptTime).Nanoseconds()/1000000) / 1e3
@@ -149,15 +160,16 @@ func linearRegression(dps ts.Datapoints, interceptTime time.Time) (slope, interc
 		sumX2 += x * x
 	}
 
-	if !foundSecond {
+	// need at least 2 non-NaN values to calculate slope and intercept
+	if nonNaNCount == 1 {
 		return math.NaN(), math.NaN()
 	}
 
 	covXY := sumXY - sumX*sumY/n
 	varX := sumX2 - sumX*sumX/n
 
-	slope = covXY / varX
-	intercept = sumY/n - slope*sumX/n
+	slope := covXY / varX
+	intercept := sumY/n - slope*sumX/n
 
 	return slope, intercept
 }
