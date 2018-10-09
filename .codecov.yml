@@ -31,6 +31,7 @@ coverage:
     collector:
       paths:
         - src/collector/
+        - src/cmd/services/m3collector/
     aggregator:
       paths:
         - src/aggregator/

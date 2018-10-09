@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
 )
@@ -59,7 +60,7 @@ func (h *SearchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	query, rErr := h.parseBody(r)
 	if rErr != nil {
 		logger.Error("unable to parse request", zap.Any("error", rErr))
-		Error(w, rErr.Inner(), rErr.Code())
+		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 	opts := h.parseURLParams(r)
@@ -67,23 +68,23 @@ func (h *SearchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	results, err := h.search(r.Context(), query, opts)
 	if err != nil {
 		logger.Error("unable to fetch data", zap.Any("error", err))
-		Error(w, err, http.StatusBadRequest)
+		xhttp.Error(w, err, http.StatusBadRequest)
 		return
 	}
 
-	WriteJSONResponse(w, results, logger)
+	xhttp.WriteJSONResponse(w, results, logger)
 }
 
-func (h *SearchHandler) parseBody(r *http.Request) (*storage.FetchQuery, *ParseError) {
+func (h *SearchHandler) parseBody(r *http.Request) (*storage.FetchQuery, *xhttp.ParseError) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		return nil, NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 	defer r.Body.Close()
 
 	var fetchQuery storage.FetchQuery
 	if err := json.Unmarshal(body, &fetchQuery); err != nil {
-		return nil, NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
 	return &fetchQuery, nil

@@ -43,6 +43,7 @@ SERVICES :=     \
 	m3coordinator \
 	m3aggregator  \
 	m3query       \
+	m3collector   \
 	m3em_agent    \
 	m3nsch_server \
 	m3nsch_client \

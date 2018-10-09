@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/net/http"
 	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/generated/proto/placementpb"
 
@@ -139,14 +140,14 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	namespaceRequest, placementRequest, rErr := h.parseRequest(r)
 	if rErr != nil {
 		logger.Error("unable to parse request", zap.Any("error", rErr))
-		handler.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 
 	nsRegistry, err := h.namespaceAddHandler.Add(namespaceRequest)
 	if err != nil {
 		logger.Error("unable to add namespace", zap.Any("error", err))
-		handler.Error(w, err, http.StatusInternalServerError)
+		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
@@ -156,19 +157,19 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		err = h.namespaceDeleteHandler.Delete(namespaceRequest.Name)
 		if err != nil {
 			logger.Error("unable to delete namespace we just added", zap.Any("error", err))
-			handler.Error(w, err, http.StatusInternalServerError)
+			xhttp.Error(w, err, http.StatusInternalServerError)
 			return
 		}
 
 		logger.Error("unable to add namespace", zap.Any("error", err))
-		handler.Error(w, err, http.StatusInternalServerError)
+		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
 	placementProto, err := initPlacement.Proto()
 	if err != nil {
 		logger.Error("unable to get placement protobuf", zap.Any("error", err))
-		handler.Error(w, err, http.StatusInternalServerError)
+		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
@@ -181,37 +182,37 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	handler.WriteProtoMsgJSONResponse(w, resp, logger)
+	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *createHandler) parseRequest(r *http.Request) (*admin.NamespaceAddRequest, *admin.PlacementInitRequest, *handler.ParseError) {
+func (h *createHandler) parseRequest(r *http.Request) (*admin.NamespaceAddRequest, *admin.PlacementInitRequest, *xhttp.ParseError) {
 	defer r.Body.Close()
-	rBody, err := handler.DurationToNanosBytes(r.Body)
+	rBody, err := xhttp.DurationToNanosBytes(r.Body)
 	if err != nil {
-		return nil, nil, handler.NewParseError(err, http.StatusBadRequest)
+		return nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
 	dbCreateReq := new(admin.DatabaseCreateRequest)
 	if err := jsonpb.Unmarshal(bytes.NewReader(rBody), dbCreateReq); err != nil {
-		return nil, nil, handler.NewParseError(err, http.StatusBadRequest)
+		return nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
 	// Required fields
 	if util.HasEmptyString(dbCreateReq.NamespaceName, dbCreateReq.Type) {
-		return nil, nil, handler.NewParseError(errMissingRequiredField, http.StatusBadRequest)
+		return nil, nil, xhttp.NewParseError(errMissingRequiredField, http.StatusBadRequest)
 	}
 
 	if dbType(dbCreateReq.Type) == dbTypeCluster && len(dbCreateReq.Hosts) == 0 {
-		return nil, nil, handler.NewParseError(errMissingRequiredField, http.StatusBadRequest)
+		return nil, nil, xhttp.NewParseError(errMissingRequiredField, http.StatusBadRequest)
 	}
 
 	namespaceAddRequest, err := defaultedNamespaceAddRequest(dbCreateReq)
 	if err != nil {
-		return nil, nil, handler.NewParseError(err, http.StatusBadRequest)
+		return nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 	placementInitRequest, err := defaultedPlacementInitRequest(dbCreateReq, h.embeddedDbCfg)
 	if err != nil {
-		return nil, nil, handler.NewParseError(err, http.StatusBadRequest)
+		return nil, nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
 	return namespaceAddRequest, placementInitRequest, nil

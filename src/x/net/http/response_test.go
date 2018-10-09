@@ -18,54 +18,54 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package openapi
+package xhttp
 
 import (
+	"encoding/json"
+	"math"
 	"net/http"
+	"net/http/httptest"
+	"testing"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
-	assets "github.com/m3db/m3/src/query/generated/assets/openapi"
-	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
-
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
-const (
-	// URL is the url for the OpenAPI handler.
-	URL = handler.RoutePrefixV1 + "/openapi"
+func TestWriteJSONResponse(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	WriteJSONResponse(recorder, struct {
+		Foo string `json:"foo"`
+	}{
+		Foo: "bar",
+	}, zap.NewNop())
 
-	// HTTPMethod is the HTTP method used with this resource.
-	HTTPMethod = http.MethodGet
-
-	docPath = "/index.html"
-)
-
-var (
-	// StaticURLPrefix is the url prefix for openapi specs.
-	StaticURLPrefix = URL + "/static/"
-)
-
-// DocHandler handles serving the OpenAPI doc.
-type DocHandler struct{}
-
-// ServeHTTP serves the OpenAPI doc.
-func (h *DocHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	logger := logging.WithContext(ctx)
-
-	doc, err := assets.FSByte(false, docPath)
-
-	if err != nil {
-		logger.Error("unable to load doc", zap.Any("error", err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
-		return
-	}
-
-	w.Write(doc)
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Equal(t, `{"foo":"bar"}`, recorder.Body.String())
 }
 
-// StaticHandler is the handler for serving static assets (including OpenAPI specs).
-func StaticHandler() http.Handler {
-	return http.StripPrefix(StaticURLPrefix, http.FileServer(assets.FS(false)))
+func TestWriteJSONResponseError(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	WriteJSONResponse(recorder, math.Inf(1), zap.NewNop())
+
+	assertWroteJSONError(t, recorder, http.StatusInternalServerError)
+}
+
+func TestWriteUninitializedResponse(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	WriteUninitializedResponse(recorder, zap.NewNop())
+
+	assertWroteJSONError(t, recorder, http.StatusServiceUnavailable)
+}
+
+func assertWroteJSONError(
+	t *testing.T,
+	recorder *httptest.ResponseRecorder,
+	code int,
+) {
+	assert.Equal(t, code, recorder.Code)
+	var resp errorResponse
+	err := json.NewDecoder(recorder.Body).Decode(&resp)
+	require.NoError(t, err)
+	assert.NotEqual(t, "", resp.Error)
 }

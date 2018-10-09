@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
 )
@@ -69,13 +70,13 @@ func (h *DeleteAllHandler) ServeHTTP(serviceName string, w http.ResponseWriter, 
 
 	service, err := Service(h.ClusterClient, opts, h.nowFn())
 	if err != nil {
-		handler.Error(w, err, http.StatusInternalServerError)
+		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
 	if err := service.Delete(); err != nil {
 		logger.Error("unable to delete placement", zap.Any("error", err))
-		handler.Error(w, err, http.StatusInternalServerError)
+		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 

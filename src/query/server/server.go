@@ -214,13 +214,12 @@ func Run(runOpts RunOptions) {
 		if err := srv.Shutdown(ctx); err != nil {
 			logger.Error("error closing server", zap.Error(err))
 		}
-
 	}()
 
 	go func() {
 		logger.Info("starting server", zap.String("address", listenAddress))
-		if err := srv.ListenAndServe(); err != nil {
-			logger.Error("server error while listening",
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Fatal("server error while listening",
 				zap.String("address", listenAddress), zap.Error(err))
 		}
 	}()
@@ -263,7 +262,7 @@ func Run(runOpts RunOptions) {
 		}
 	}
 
-	logger.Info(fmt.Sprintf("interrupt: %s", interruptErr))
+	logger.Info("interrupt", zap.String("cause", interruptErr.Error()))
 }
 
 // make connections to the m3db cluster(s) and generate sessions for those clusters along with the storage

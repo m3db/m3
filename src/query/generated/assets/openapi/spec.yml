@@ -176,11 +176,11 @@ paths:
           description: ""
           schema:
             $ref: "#/definitions/GenericError"
-  /services/m3agg/placement:
+  /services/m3aggregator/placement:
     get:
       tags:
-      - "M3Agg Placement"
-      - "M3Agg"
+      - "M3Aggregator Placement"
+      - "M3Aggregator"
       summary: "Get the M3Agg placement"
       operationId: "m3AggplacementGet"
       consumes:
@@ -198,8 +198,8 @@ paths:
             $ref: "#/definitions/GenericError"
     post:
       tags:
-      - "M3Agg Placement"
-      - "M3Agg"
+      - "M3Aggregator Placement"
+      - "M3Aggregator"
       summary: "Add an M3Agg instance to the placement"
       operationId: "m3AggplacementAdd"
       consumes:
@@ -226,8 +226,8 @@ paths:
             $ref: "#/definitions/GenericError"
     delete:
       tags:
-      - "M3Agg Placement"
-      - "M3Agg"
+      - "M3Aggregator Placement"
+      - "M3Aggregator"
       summary: "Delete the M3Agg placement"
       operationId: "m3AggPlacementDeleteAll"
       consumes:
@@ -272,11 +272,11 @@ paths:
           description: ""
           schema:
             $ref: "#/definitions/GenericError"
-  /services/m3agg/placement/init:
+  /services/m3aggregator/placement/init:
     post:
       tags:
-      - "M3Agg Placement"
-      - "M3Agg"
+      - "M3Aggregator Placement"
+      - "M3Aggregator"
       summary: "Initialize the M3Agg placement"
       operationId: "m3AggPlacementInit"
       consumes:
@@ -330,11 +330,11 @@ paths:
           description: ""
           schema:
             $ref: "#/definitions/GenericError"
-  /services/m3agg/placement/{instanceID}:
+  /services/m3aggregator/placement/{instanceID}:
     delete:
       tags:
-      - "M3Agg Placement"
-      - "M3Agg"
+      - "M3Aggregator Placement"
+      - "M3Aggregator"
       summary: "Delete an M3Agg instance from the placement"
       operationId: "m3aggPlacementDelete"
       consumes:

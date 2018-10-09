@@ -18,54 +18,43 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package openapi
+package handler
 
 import (
+	"context"
 	"net/http"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
-	assets "github.com/m3db/m3/src/query/generated/assets/openapi"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
-
-	"go.uber.org/zap"
 )
 
-const (
-	// URL is the url for the OpenAPI handler.
-	URL = handler.RoutePrefixV1 + "/openapi"
-
-	// HTTPMethod is the HTTP method used with this resource.
-	HTTPMethod = http.MethodGet
-
-	docPath = "/index.html"
-)
-
-var (
-	// StaticURLPrefix is the url prefix for openapi specs.
-	StaticURLPrefix = URL + "/static/"
-)
-
-// DocHandler handles serving the OpenAPI doc.
-type DocHandler struct{}
-
-// ServeHTTP serves the OpenAPI doc.
-func (h *DocHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+// CloseWatcher watches for CloseNotify and context timeout. It is best effort and may sometimes not close the channel relying on gc
+func CloseWatcher(ctx context.Context, w http.ResponseWriter) (<-chan bool, <-chan bool) {
+	closing := make(chan bool)
 	logger := logging.WithContext(ctx)
+	var doneChan <-chan bool
+	if notifier, ok := w.(http.CloseNotifier); ok {
+		done := make(chan bool)
 
-	doc, err := assets.FSByte(false, docPath)
-
-	if err != nil {
-		logger.Error("unable to load doc", zap.Any("error", err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
-		return
+		notify := notifier.CloseNotify()
+		go func() {
+			// Wait for either the request to finish
+			// or for the client to disconnect
+			select {
+			case <-done:
+			case <-notify:
+				logger.Warn("connection closed by client")
+				close(closing)
+			case <-ctx.Done():
+				// We only care about the time out case and not other cancellations
+				if ctx.Err() == context.DeadlineExceeded {
+					logger.Warn("request timed out")
+				}
+				close(closing)
+			}
+			close(done)
+		}()
+		doneChan = done
 	}
 
-	w.Write(doc)
-}
-
-// StaticHandler is the handler for serving static assets (including OpenAPI specs).
-func StaticHandler() http.Handler {
-	return http.StripPrefix(StaticURLPrefix, http.FileServer(assets.FS(false)))
+	return doneChan, closing
 }
