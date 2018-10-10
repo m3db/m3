@@ -89,3 +89,4 @@ logging:
     - stdout
   errorOutputPaths:
     - stderr
+

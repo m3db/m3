@@ -211,7 +211,6 @@ func ServiceWithAlgo(
 	opts ServiceOptions,
 	now time.Time,
 ) (placement.Service, placement.Algorithm, error) {
-
 	overrides := services.NewOverrideOptions()
 	switch opts.ServiceName {
 	case M3AggregatorServiceName:

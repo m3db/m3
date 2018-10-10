@@ -2,13 +2,42 @@
 
 set -xe
 
+DOCKER_ARGS="-d --renew-anon-volumes"
+if [[ "$FORCE_BUILD" = true ]] ; then
+    DOCKER_ARGS="--build -d --renew-anon-volumes"
+fi
+
 echo "Bringing up nodes in the backgorund with docker compose, remember to run ./stop.sh when done"
-docker-compose -f docker-compose.yml up -d --renew-anon-volumes
+docker-compose -f docker-compose.yml up $DOCKER_ARGS m3coordinator01
+docker-compose -f docker-compose.yml up $DOCKER_ARGS m3db_seed
+docker-compose -f docker-compose.yml up $DOCKER_ARGS prometheus01
+docker-compose -f docker-compose.yml up $DOCKER_ARGS grafana
+
+if [[ "$MULTI_DB_NODE" = true ]] ; then
+    echo "Running multi node"
+    docker-compose -f docker-compose.yml up $DOCKER_ARGS m3db_data01
+    docker-compose -f docker-compose.yml up $DOCKER_ARGS m3db_data02
+else
+    echo "Running single node"
+fi
+
+if [[ "$AGGREGATOR_PIPELINE" = true ]]; then
+    echo "Running aggregator pipeline"
+    docker-compose -f docker-compose.yml up $DOCKER_ARGS m3aggregator01
+    docker-compose -f docker-compose.yml up $DOCKER_ARGS m3collector01
+else
+    echo "Not running aggregator pipeline"
+fi
+
+
+echo "Sleeping to wait for nodes to initialize"
+sleep 10
+
 echo "Nodes online"
 
-echo "Initializing namespace"
+echo "Initializing namespaces"
 curl -vvvsSf -X POST localhost:7201/api/v1/namespace -d '{
-  "name": "prometheus_metrics",
+  "name": "metrics_0_30m",
   "options": {
     "bootstrapEnabled": true,
     "flushEnabled": true,
@@ -17,102 +46,164 @@ curl -vvvsSf -X POST localhost:7201/api/v1/namespace -d '{
     "snapshotEnabled": true,
     "repairEnabled": false,
     "retentionOptions": {
-      "retentionPeriodNanos": 172800000000000,
-      "blockSizeNanos": 7200000000000,
-      "bufferFutureNanos": 600000000000,
-      "bufferPastNanos": 600000000000,
+      "retentionPeriodDuration": "30m",
+      "blockSizeDuration": "10m",
+      "bufferFutureDuration": "5m",
+      "bufferPastDuration": "5m",
       "blockDataExpiry": true,
-      "blockDataExpiryAfterNotAccessPeriodNanos": 300000000000
+      "blockDataExpiryAfterNotAccessPeriodDuration": "5m"
     },
     "indexOptions": {
       "enabled": true,
-      "blockSizeNanos": 7200000000000
+      "blockSizeDuration": "10m"
     }
   }
 }'
-echo "Done initializing namespace"
+curl -vvvsSf -X POST localhost:7201/api/v1/namespace -d '{
+  "name": "metrics_10s_48h",
+  "options": {
+    "bootstrapEnabled": true,
+    "flushEnabled": true,
+    "writesToCommitLog": true,
+    "cleanupEnabled": true,
+    "snapshotEnabled": true,
+    "repairEnabled": false,
+    "retentionOptions": {
+      "retentionPeriodDuration": "48h",
+      "blockSizeDuration": "4h",
+      "bufferFutureDuration": "10m",
+      "bufferPastDuration": "10m",
+      "blockDataExpiry": true,
+      "blockDataExpiryAfterNotAccessPeriodDuration": "5m"
+    },
+    "indexOptions": {
+      "enabled": true,
+      "blockSizeDuration": "4h"
+    }
+  }
+}'
+echo "Done initializing namespaces"
 
 echo "Validating namespace"
-[ "$(curl -sSf localhost:7201/api/v1/namespace | jq .registry.namespaces.prometheus_metrics.indexOptions.enabled)" == true ]
+[ "$(curl -sSf localhost:7201/api/v1/namespace | jq .registry.namespaces.metrics_0_30m.indexOptions.enabled)" == true ]
+[ "$(curl -sSf localhost:7201/api/v1/namespace | jq .registry.namespaces.metrics_10s_48h.indexOptions.enabled)" == true ]
 echo "Done validating namespace"
 
-echo "Initializing M3DB topology"
-curl -vvvsSf -X POST localhost:7201/api/v1/placement/init -d '{
-    "num_shards": 64,
-    "replication_factor": 3,
-    "instances": [
-        {
-            "id": "m3db_seed",
-            "isolation_group": "rack-a",
-            "zone": "embedded",
-            "weight": 1024,
-            "endpoint": "m3db_seed:9000",
-            "hostname": "m3db_seed",
-            "port": 9000
-        },
-        {
-            "id": "m3db_data01",
-            "isolation_group": "rack-b",
-            "zone": "embedded",
-            "weight": 1024,
-            "endpoint": "m3db_data01:9000",
-            "hostname": "m3db_data01",
-            "port": 9000
-        },
-        {
-            "id": "m3db_data02",
-            "isolation_group": "rack-c",
-            "zone": "embedded",
-            "weight": 1024,
-            "endpoint": "m3db_data02:9000",
-            "hostname": "m3db_data02",
-            "port": 9000
-        }
-    ]
-}'
-echo "Done initializing M3DB topology"
+echo "Initializing topology"
+if [[ "$MULTI_DB_NODE" = true ]] ; then
+    curl -vvvsSf -X POST localhost:7201/api/v1/placement/init -d '{
+        "num_shards": 64,
+        "replication_factor": 3,
+        "instances": [
+            {
+                "id": "m3db_seed",
+                "isolation_group": "rack-a",
+                "zone": "embedded",
+                "weight": 1024,
+                "endpoint": "m3db_seed:9000",
+                "hostname": "m3db_seed",
+                "port": 9000
+            },
+            {
+                "id": "m3db_data01",
+                "isolation_group": "rack-b",
+                "zone": "embedded",
+                "weight": 1024,
+                "endpoint": "m3db_data01:9000",
+                "hostname": "m3db_data01",
+                "port": 9000
+            },
+            {
+                "id": "m3db_data02",
+                "isolation_group": "rack-c",
+                "zone": "embedded",
+                "weight": 1024,
+                "endpoint": "m3db_data02:9000",
+                "hostname": "m3db_data02",
+                "port": 9000
+            }
+        ]
+    }'
+else
+    curl -vvvsSf -X POST localhost:7201/api/v1/placement/init -d '{
+        "num_shards": 64,
+        "replication_factor": 1,
+        "instances": [
+            {
+                "id": "m3db_seed",
+                "isolation_group": "rack-a",
+                "zone": "embedded",
+                "weight": 1024,
+                "endpoint": "m3db_seed:9000",
+                "hostname": "m3db_seed",
+                "port": 9000
+            }
+        ]
+    }'
+fi
 
 echo "Validating topology"
 [ "$(curl -sSf localhost:7201/api/v1/placement | jq .placement.instances.m3db_seed.id)" == '"m3db_seed"' ]
 echo "Done validating topology"
 
-echo "Initializing M3Coordinator topology"
-curl -vvvsSf -X POST localhost:7201/api/v1/services/m3coordinator/placement/init -d '{
-    "instances": [
-        {
-            "id": "coordinator01",
-            "zone": "embedded",
-            "endpoint": "coordinator01:7507",
-            "hostname": "coordinator01",
-            "port": 7507
+if [[ "$AGGREGATOR_PIPELINE" = true ]]; then
+    curl -vvvsSf -X POST localhost:7201/api/v1/services/m3aggregator/placement/init -d '{
+        "num_shards": 64,
+        "replication_factor": 1,
+        "instances": [
+            {
+                "id": "m3aggregator01:6000",
+                "isolation_group": "rack-a",
+                "zone": "embedded",
+                "weight": 1024,
+                "endpoint": "m3aggregator01:6000",
+                "hostname": "m3aggregator01",
+                "port": 6000
+            }
+        ]
+    }'
+
+    echo "Initializing M3Coordinator topology"
+    curl -vvvsSf -X POST localhost:7201/api/v1/services/m3coordinator/placement/init -d '{
+        "instances": [
+            {
+                "id": "m3coordinator01",
+                "zone": "embedded",
+                "endpoint": "m3coordinator01:7507",
+                "hostname": "m3coordinator01",
+                "port": 7507
+            }
+        ]
+    }'
+    echo "Done initializing M3Coordinator topology"
+
+    echo "Validating M3Coordinator topology"
+    [ "$(curl -sSf localhost:7201/api/v1/services/m3coordinator/placement | jq .placement.instances.m3coordinator01.id)" == '"m3coordinator01"' ]
+    echo "Done validating topology"
+
+    # Do this after placement for m3coordinator is created.
+    echo "Initializing m3msg topic for ingestion"
+    curl -vvvsSf -X POST localhost:7201/api/v1/topic/init -d '{
+        "numberOfShards": 64
+    }'
+
+    echo "Adding m3coordinator as a consumer to the topic"
+    curl -vvvsSf -X POST localhost:7201/api/v1/topic -d '{
+        "consumerService": {
+                "serviceId": {
+                "name": "m3coordinator",
+                "environment": "default_env",
+                "zone": "embedded"
+            },
+            "consumptionType": "SHARED",
+            "messageTtlNanos": "600000000000"
         }
-    ]
-}'
-echo "Done initializing M3Coordinator topology"
+    }' # msgs will be discarded after 600000000000ns = 10mins
 
-echo "Validating M3Coordinator topology"
-[ "$(curl -sSf localhost:7201/api/v1/services/m3coordinator/placement | jq .placement.instances.coordinator01.id)" == '"coordinator01"' ]
-echo "Done validating topology"
-
-# Do this after placement for m3coordinator is created.
-echo "Initializing m3msg topic for ingestion"
-curl -vvvsSf -X POST localhost:7201/api/v1/topic/init -d '{
-  "numberOfShards": 64
-}'
-
-echo "Adding m3coordinator as a consumer to the topic"
-curl -vvvsSf -X POST localhost:7201/api/v1/topic -d '{
-  "consumerService": {
-    "serviceId": {
-      "name": "m3coordinator",
-      "environment": "default_env",
-      "zone": "embedded"
-    },
-    "consumptionType": "SHARED",
-    "messageTtlNanos": "600000000000"
-  }
-}'
-# msgs will be discarded after 600000000000ns = 10mins
+    # May not necessarily flush
+    echo "Sending unaggregated metric to m3collector"
+    curl http://localhost:7206/api/v1/json/report -X POST -d '{"metrics":[{"type":"gauge","value":42,"tags":{"__name__":"foo_metric","foo":"bar"}}]}'
+fi
 
 echo "Prometheus available at localhost:9090"
 echo "Grafana available at localhost:3000"
