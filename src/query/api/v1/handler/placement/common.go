@@ -508,14 +508,10 @@ func parseServiceFromRequest(r *http.Request) (string, error) {
 	for i, c := range components {
 		if c == "services" && i+1 < len(components) {
 			service := components[i+1]
-			switch service {
-			case M3DBServiceName:
-				return M3DBServiceName, nil
-			case M3AggregatorServiceName:
-				return M3AggregatorServiceName, nil
-			default:
-				return "", fmt.Errorf("unknown service: %s", service)
+			if _, ok := allowedServices[service]; ok {
+				return service, nil
 			}
+			return "", fmt.Errorf("unknown service: %s", service)
 		}
 	}
 
