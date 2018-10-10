@@ -40,24 +40,24 @@ var testLinearRegressionCases = []testCase{
 		name:   "predict_linear",
 		opType: PredictLinearType,
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 2.5},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 7},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 16.6666},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 21.6666},
 		},
 		afterAllBlocks: [][]float64{
-			{2, 2, 2, 2, 2},
-			{7, 7, 7, 7, 7},
+			{2, -4.3333, -3.8333, 2, 11.6666},
+			{7, 0.6666, 1.1666, 7, 16.6666},
 		},
 	},
 	{
 		name:   "deriv",
 		opType: DerivType,
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 4},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 5},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 0.0166},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 0.0166},
 		},
 		afterAllBlocks: [][]float64{
-			{5, 5, 5, 5, 5},
-			{5, 5, 5, 5, 5},
+			{0, -0.0083, -0.0083, 0, 0.0166},
+			{0, -0.0083, -0.0083, 0, 0.0166},
 		},
 	},
 }
@@ -75,32 +75,32 @@ var testLinearRegressionCasesSomeNaNs = []testCase{
 		name:   "predict_linear some NaNs",
 		opType: PredictLinearType,
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 2.5},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 7},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 16.6666},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 21.6666},
 		},
 		afterAllBlocks: [][]float64{
-			{2, 2, 2, 2, 2},
-			{7, 7, 7, 7, 7},
+			{16.6666, -2.5, -1.9231, 11.6666, 11.6666},
+			{7, -5.1666, -5.1666, 7, 16.6666},
 		},
 	},
 	{
 		name:   "deriv some NaNs",
 		opType: DerivType,
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 4},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 5},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 0.01666},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 0.01666},
 		},
 		afterAllBlocks: [][]float64{
-			{5, 5, 5, 5, 5},
-			{5, 5, 5, 5, 5},
+			{0.0166, -0.0058, -0.0058, 0.0166, 0.0166},
+			{0, -0.0166, -0.0166, 0, 0.0166},
 		},
 	},
 }
 
 func TestLinearRegressionWithSomeNaNs(t *testing.T) {
 	v := [][]float64{
-		{0, 1, 2, 3, 4},
-		{5, 6, 7, 8, 9},
+		{math.NaN(), 1, 2, 3, math.NaN()},
+		{5, 6, math.NaN(), 8, 9},
 	}
 	testLinearRegression(t, testLinearRegressionCasesSomeNaNs, v)
 }

@@ -256,6 +256,8 @@ var temporalParseTests = []struct {
 	{"resets(up[5m])", temporal.ResetsType},
 	{"changes(up[5m])", temporal.ChangesType},
 	{"holt_winters(up[5m], 0.2, 0.3)", temporal.HoltWintersType},
+	{"predict_linear(up[5m], 100)", temporal.PredictLinearType},
+	{"deriv(up[5m])", temporal.DerivType},
 }
 
 func TestTemporalParses(t *testing.T) {

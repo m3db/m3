@@ -102,7 +102,6 @@ func (l linearRegressionNode) Process(dps ts.Datapoints) float64 {
 
 	if l.op.operatorType == PredictLinearType {
 		slope, intercept = linearRegression(dps, l.timeSpec.End)
-		fmt.Printf("end: %s", l.timeSpec.End.String())
 		return slope*l.duration + intercept
 	}
 
@@ -114,16 +113,6 @@ func (l linearRegressionNode) Process(dps ts.Datapoints) float64 {
 // provided datapoints. It returns the slope, and the intercept value at the
 // provided time. The algorithm we use comes from https://en.wikipedia.org/wiki/Simple_linear_regression.
 func linearRegression(dps ts.Datapoints, interceptTime time.Time) (float64, float64) {
-	var back int
-	for i := dps.Len() - 1; i >= 0; i-- {
-		if math.IsNaN(dps[i].Value) {
-			continue
-		}
-
-		back = i
-		break
-	}
-
 	var (
 		n            float64
 		sumX, sumY   float64
@@ -140,13 +129,8 @@ func linearRegression(dps ts.Datapoints, interceptTime time.Time) (float64, floa
 		if nonNaNCount == 0 {
 			if interceptTime.IsZero() {
 				// set interceptTime as timestamp of first non-NaN dp
-				fmt.Println("shouldnt get here")
 				interceptTime = dp.Timestamp
-
-			} else {
-				interceptTime = dps[back].Timestamp
 			}
-			// fmt.Printf("time: %s", interceptTime.String())
 		}
 
 		nonNaNCount++
