@@ -58,7 +58,7 @@ func ReadLogInfo(filePath string, opts Options) (time.Time, time.Duration, int64
 
 	fd, err = os.Open(filePath)
 	if err != nil {
-		return time.Time{}, 0, 0, openError(err)
+		return time.Time{}, 0, 0, fsError(err)
 	}
 
 	chunkReader := newChunkReader(opts.FlushSize())
