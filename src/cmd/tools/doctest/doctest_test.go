@@ -23,6 +23,7 @@ package main
 import (
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"regexp"
 	"testing"
 
@@ -44,18 +45,20 @@ func TestDocTest(t *testing.T) {
 	testSourceFile, err := ioutil.ReadFile(testCaseSource)
 	require.NoError(t, err)
 
+	fileDir := filepath.Dir(testCaseOutputSource)
+
 	operationRegEx := regexp.MustCompile(operationRegEx)
 	validationRegEx := regexp.MustCompile(validationRegEx)
 
 	// create bash script
-	err = bashScript([]byte(testSourceFile), testCaseOutputSource, operationRegEx, validationRegEx)
+	err = bashScript([]byte(testSourceFile), fileDir, testCaseOutputSource, operationRegEx, validationRegEx)
 	require.NoError(t, err)
 
 	expectedScript := readFile(t, testCaseScript)
 	actualScript := readFile(t, testCaseOutputScript)
 
 	// create markdown file
-	err = markdownFile(testSourceFile, testCaseOutputSource, validationRegEx, operationRegEx)
+	err = markdownFile(testSourceFile, fileDir, testCaseOutputSource, validationRegEx, operationRegEx)
 	require.NoError(t, err)
 
 	actualMarkdown := readFile(t, testCaseOutputMarkdown)

@@ -28,7 +28,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -49,6 +49,7 @@ const (
 
 var (
 	file           string
+	destDir        string
 	markdown, bash bool
 
 	goPath = build.Default.GOPATH + "/src/"
@@ -56,12 +57,23 @@ var (
 
 func init() {
 	flag.StringVar(&file, "file", "", "File to be parsed")
+	flag.StringVar(&destDir, "dest", "", "Directory where the output will be saved")
+
 	flag.BoolVar(&markdown, "markdown", true, "generate a markdown file based on the source (default=true)")
 	flag.BoolVar(&bash, "bash", true, "generate a bash script based on the source (default=true)")
 }
 
 func main() {
 	flag.Parse()
+
+	// this is not ideal
+	if file == "" {
+		panic("'file' flag is required")
+	}
+
+	if destDir == "" {
+		destDir = filepath.Dir(file)
+	}
 
 	f, err := ioutil.ReadFile(file)
 	if err != nil {
@@ -72,21 +84,22 @@ func main() {
 	validationRegEx := regexp.MustCompile(validationRegEx)
 
 	if bash {
-		if err := bashScript(f, file, operationRegEx, validationRegEx); err != nil {
+		if err := bashScript(f, destDir, file, operationRegEx, validationRegEx); err != nil {
 			log.Fatalf("unable to create bash script: %v", err)
 		}
 	}
 
 	if markdown {
-		if err := markdownFile(f, file, validationRegEx, operationRegEx); err != nil {
+		if err := markdownFile(f, destDir, file, validationRegEx, operationRegEx); err != nil {
 			log.Fatalf("unable to create markdown file: %v", err)
 		}
 	}
 }
 
-func markdownFile(contents []byte, fileName string, validationRegEx *regexp.Regexp, opRegex *regexp.Regexp) error {
+func markdownFile(contents []byte, destDir, fileName string, validationRegEx *regexp.Regexp, opRegex *regexp.Regexp) error {
 	// create new markdown file based on name of source file
-	mdFile, err := os.Create(strings.Replace(fileName, ".source", "", -1))
+	mdFileName := destDir + "/" + strings.Replace(filepath.Base(fileName), ".source", "", -1)
+	mdFile, err := os.Create(mdFileName)
 	if err != nil {
 		return err
 	}
@@ -129,16 +142,14 @@ func markdownFile(contents []byte, fileName string, validationRegEx *regexp.Rege
 	return nil
 }
 
-func bashScript(contents []byte, fileName string, operationRegEx, validationRegEx *regexp.Regexp) error {
+func bashScript(contents []byte, destDir, fileName string, operationRegEx, validationRegEx *regexp.Regexp) error {
 	// create bash script file based on name of source file
-	scriptFileName := fmt.Sprintf("%s%s", strings.Replace(fileName, ".md.source", "", -1), ".sh")
-	script, err := os.Create(scriptFileName)
+	scriptFileName := destDir + "/" + strings.Replace(filepath.Base(fileName), ".md.source", ".sh", -1)
+	script, err := os.OpenFile(scriptFileName, os.O_RDWR|os.O_CREATE, 0755)
 	if err != nil {
 		return err
 	}
 	defer script.Close()
-
-	script.Chmod(0644)
 
 	// todo(braskin): figure out a way to make the script template dynamic
 	scriptTemplate, err := ioutil.ReadFile("script_template.txt")
@@ -169,12 +180,6 @@ func bashScript(contents []byte, fileName string, operationRegEx, validationRegE
 			validation := removeTags(string(validationRaw), []string{validationOpen, validationClose})
 			script.WriteString(validation)
 		}
-	}
-
-	// make bash script executable
-	cmd := exec.Command("chmod", "+x", scriptFileName)
-	if err := cmd.Run(); err != nil {
-		return err
 	}
 
 	return nil
