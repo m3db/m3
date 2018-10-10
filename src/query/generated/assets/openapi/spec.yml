@@ -354,7 +354,7 @@ paths:
       - name: "body"
         in: "body"
         schema:
-          $ref: "#/definitions/PlacementInitRequest"
+          $ref: "#/definitions/PlacementInitRequestM3Coordinator"
       responses:
         200:
           description: ""
@@ -694,6 +694,13 @@ definitions:
       replicationFactor:
         type: "integer"
         format: "int32"
+  PlacementInitRequestM3Coordinator:
+    type: "object"
+    properties:
+      instances:
+        type: "array"
+        items:
+          $ref: "#/definitions/InstanceRequest"
   GenericError:
     type: "object"
     properties:

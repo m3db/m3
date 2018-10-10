@@ -257,7 +257,8 @@ func ServiceWithAlgo(
 
 	switch opts.ServiceName {
 	case M3CoordinatorServiceName:
-		pOpts = pOpts.SetIsSharded(false)
+		pOpts = pOpts.
+			SetIsSharded(false)
 	case M3AggregatorServiceName:
 		var (
 			maxAggregationWindowSize = opts.M3Agg.MaxAggregationWindowSize

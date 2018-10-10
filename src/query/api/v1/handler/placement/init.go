@@ -125,8 +125,14 @@ func (h *InitHandler) Init(
 		return nil, err
 	}
 
+	replicationFactor := int(req.ReplicationFactor)
+	switch serviceName {
+	case M3CoordinatorServiceName:
+		// M3Coordinator placements are stateless
+		replicationFactor = 1
+	}
 	placement, err := service.BuildInitialPlacement(instances,
-		int(req.NumShards), int(req.ReplicationFactor))
+		int(req.NumShards), replicationFactor)
 	if err != nil {
 		return nil, err
 	}
