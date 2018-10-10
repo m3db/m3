@@ -254,7 +254,7 @@ func (r *reader) readLoop() {
 				}
 
 				r.decoderQueues[0] <- decoderArg{
-					bytes: data,
+					bytes: nil,
 					err:   err,
 				}
 				continue
@@ -387,7 +387,9 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 }
 
 func (r *reader) handleDecoderLoopIterationEnd(arg decoderArg, outBuf chan<- readResponse, response readResponse, err error) {
-	arg.bufPool <- arg.bytes
+	if arg.bytes != nil {
+		arg.bufPool <- arg.bytes
+	}
 	if arg.err != nil {
 		fmt.Println("decoder loop: ", err)
 	}

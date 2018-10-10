@@ -191,18 +191,18 @@ var genOpenCommand = gen.Const(&commands.ProtoCommand{
 		if err != nil {
 			return err
 		}
-		cLog := s.cLog.(*commitLog)
-		cLog.newCommitLogWriterFn = func(flushFn flushFn, opts Options) commitLogWriter {
-			fmt.Println("a")
-			wIface := newCommitLogWriter(flushFn, opts)
-			fmt.Println("b")
-			w := wIface.(*writer)
-			fmt.Println("c")
-			w.chunkWriter = &corruptingChunkWriter{w.chunkWriter.(*chunkWriter)}
-			fmt.Println("d")
-			return w
-			// return newCommitLogWriter(flushFn, opts)
 
+		if s.shouldCorrupt {
+			cLog := s.cLog.(*commitLog)
+			cLog.newCommitLogWriterFn = func(flushFn flushFn, opts Options) commitLogWriter {
+				wIface := newCommitLogWriter(flushFn, opts)
+				w := wIface.(*writer)
+				w.chunkWriter = &corruptingChunkWriter{
+					chunkWriter:           w.chunkWriter.(*chunkWriter),
+					corruptionProbability: s.corruptionProbability,
+				}
+				return w
+			}
 		}
 		return s.cLog.Open()
 	},
@@ -317,27 +317,38 @@ type clState struct {
 	open          bool
 	cLog          CommitLog
 	pendingWrites []generatedWrite
+	// Whether the test should corrupt the commit log.
+	shouldCorrupt bool
+	// If the test should corrupt the commit log, what is the probability of
+	// corruption for any given write.
+	corruptionProbability float64
 }
 
 // generator for commit log write
 func genState(basePath string, t *testing.T) gopter.Gen {
-	return gen.Identifier().
+	return gopter.CombineGens(gen.Identifier(), gen.Bool(), gen.Float64Range(0, 1)).
 		MapResult(func(r *gopter.GenResult) *gopter.GenResult {
 			iface, ok := r.Retrieve()
 			if !ok {
 				return gopter.NewEmptyResult(reflect.PtrTo(reflect.TypeOf(clState{})))
 			}
-			p, ok := iface.(string)
+			p, ok := iface.([]interface{})
 			if !ok {
 				return gopter.NewEmptyResult(reflect.PtrTo(reflect.TypeOf(clState{})))
 			}
-			initPath := path.Join(basePath, p)
-			result := newInitState(initPath, t)
+
+			var (
+				initPath              = path.Join(basePath, p[0].(string))
+				shouldCorrupt         = p[1].(bool)
+				corruptionProbability = p[2].(float64)
+				result                = newInitState(t, initPath, shouldCorrupt, corruptionProbability)
+			)
 			return gopter.NewGenResult(result, gopter.NoShrinker)
 		})
 }
 
-func newInitState(dir string, t *testing.T) *clState {
+func newInitState(
+	t *testing.T, dir string, shouldCorrupt bool, corruptionProbability float64) *clState {
 	opts := NewOptions().
 		SetStrategy(StrategyWriteBehind).
 		SetFlushInterval(defaultTestFlushInterval).
@@ -348,8 +359,10 @@ func newInitState(dir string, t *testing.T) *clState {
 	fsOpts := opts.FilesystemOptions().SetFilePathPrefix(dir)
 	opts = opts.SetFilesystemOptions(fsOpts)
 	return &clState{
-		basePath: dir,
-		opts:     opts,
+		basePath:              dir,
+		opts:                  opts,
+		shouldCorrupt:         shouldCorrupt,
+		corruptionProbability: corruptionProbability,
 	}
 }
 

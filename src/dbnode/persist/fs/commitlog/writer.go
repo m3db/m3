@@ -25,6 +25,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"math/rand"
 	"os"
 	"time"
@@ -186,7 +187,8 @@ type fd interface {
 }
 
 type corruptingFd struct {
-	f fd
+	f                     fd
+	corruptionProbability float64
 }
 
 func (c *corruptingFd) Sync() error {
@@ -194,7 +196,8 @@ func (c *corruptingFd) Sync() error {
 }
 
 func (c *corruptingFd) Write(p []byte) (int, error) {
-	if rand.Intn(100) <= 20 {
+	threshold := uint64(c.corruptionProbability * float64(math.MaxUint64))
+	if rand.Uint64() <= threshold {
 		var (
 			byteStart  int
 			byteOffset int
@@ -223,11 +226,15 @@ type chunkWriterIface interface {
 }
 
 type corruptingChunkWriter struct {
-	chunkWriter *chunkWriter
+	chunkWriter           *chunkWriter
+	corruptionProbability float64
 }
 
 func (c *corruptingChunkWriter) Reset(f fd) {
-	c.chunkWriter.fd = &corruptingFd{f}
+	c.chunkWriter.fd = &corruptingFd{
+		f: f,
+		corruptionProbability: c.corruptionProbability,
+	}
 }
 
 func (c *corruptingChunkWriter) Write(p []byte) (int, error) {
