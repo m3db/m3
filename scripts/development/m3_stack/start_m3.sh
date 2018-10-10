@@ -47,7 +47,7 @@ curl -vvvsSf -X POST localhost:7201/api/v1/namespace -d '{
     "repairEnabled": false,
     "retentionOptions": {
       "retentionPeriodDuration": "30m",
-      "blockSizeDuration": "5m",
+      "blockSizeDuration": "10m",
       "bufferFutureDuration": "5m",
       "bufferPastDuration": "5m",
       "blockDataExpiry": true,
@@ -55,7 +55,7 @@ curl -vvvsSf -X POST localhost:7201/api/v1/namespace -d '{
     },
     "indexOptions": {
       "enabled": true,
-      "blockSizeDuration": "5m"
+      "blockSizeDuration": "10m"
     }
   }
 }'
