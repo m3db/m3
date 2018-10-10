@@ -34,7 +34,6 @@ import (
 	"github.com/m3db/m3msg/topic"
 
 	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -70,7 +69,7 @@ func TestPlacementInitHandler(t *testing.T) {
 	resp := w.Result()
 	body, err := ioutil.ReadAll(resp.Body)
 	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	var respProto admin.TopicGetResponse
 	require.NoError(t, jsonUnmarshaler.Unmarshal(bytes.NewBuffer(body), &respProto))
@@ -97,6 +96,6 @@ func TestPlacementInitHandler(t *testing.T) {
 	resp = w.Result()
 	body, err = ioutil.ReadAll(resp.Body)
 	require.NoError(t, err)
-	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-	assert.Equal(t, "{\"error\":\"init error\"}\n", string(body))
+	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	require.Equal(t, "{\"error\":\"init error\"}\n", string(body))
 }
