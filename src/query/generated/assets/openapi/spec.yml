@@ -17,7 +17,7 @@ tags:
   description: "Configuring M3DB namespaces"
 - name: "M3DB Placement"
   description: "Configuring M3DB placements"
-  - name: "M3Agg Placement"
+- name: "M3Aggregator Placement"
   description: "Configuring M3Agg placements"
 - name: "database"
   description: "Database-wide functions"
