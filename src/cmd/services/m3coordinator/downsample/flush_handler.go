@@ -68,10 +68,10 @@ func newDownsamplerFlushHandlerMetrics(
 }
 
 func newDownsamplerFlushHandler(
-	tagOptions models.TagOptions,
 	storage storage.Storage,
 	metricTagsIteratorPool serialize.MetricTagsIteratorPool,
 	workerPool xsync.WorkerPool,
+	tagOptions models.TagOptions,
 	instrumentOpts instrument.Options,
 ) handler.Handler {
 	scope := instrumentOpts.MetricsScope().SubScope("downsampler-flush-handler")

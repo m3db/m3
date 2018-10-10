@@ -52,8 +52,8 @@ func TestDownsamplerFlushHandlerCopiesTags(t *testing.T) {
 
 	instrumentOpts := instrument.NewOptions()
 
-	handler := newDownsamplerFlushHandler(models.NewTagOptions(), store,
-		pool, workers, instrumentOpts)
+	handler := newDownsamplerFlushHandler(store, pool,
+		workers, models.NewTagOptions(), instrumentOpts)
 	writer, err := handler.NewWriter(tally.NoopScope)
 	require.NoError(t, err)
 

@@ -450,8 +450,8 @@ func (o DownsamplerOptions) newAggregatorFlushManagerAndHandler(
 
 	flushWorkers := xsync.NewWorkerPool(storageFlushConcurrency)
 	flushWorkers.Init()
-	handler := newDownsamplerFlushHandler(o.TagOptions, o.Storage,
-		pools.metricTagsIteratorPool, flushWorkers, instrumentOpts)
+	handler := newDownsamplerFlushHandler(o.Storage, pools.metricTagsIteratorPool,
+		flushWorkers, o.TagOptions, instrumentOpts)
 
 	return flushManager, handler
 }
