@@ -24,6 +24,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -40,9 +41,11 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
-const defaultDecodeEntryBufSize = 1024
-const decoderInBufChanSize = 1000
-const decoderOutBufChanSize = 1000
+var (
+	defaultDecodeEntryBufSize = 1024
+	decoderInBufChanSize      = 1000
+	decoderOutBufChanSize     = 1000
+)
 
 var (
 	emptyLogInfo schema.LogInfo
@@ -171,6 +174,7 @@ func (r *reader) Open(filePath string) (time.Time, time.Duration, int64, error) 
 	r.chunkReader.reset(fd)
 	info, err := r.readInfo()
 	if err != nil {
+		fmt.Println("read info error :(")
 		r.Close()
 		return timeZero, 0, 0, err
 	}
@@ -384,6 +388,9 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 
 func (r *reader) handleDecoderLoopIterationEnd(arg decoderArg, outBuf chan<- readResponse, response readResponse, err error) {
 	arg.bufPool <- arg.bytes
+	if arg.err != nil {
+		fmt.Println("decoder loop: ", err)
+	}
 	if outBuf != nil {
 		response.resultErr = err
 		outBuf <- response
@@ -486,8 +493,10 @@ func (r *reader) readChunk(buf []byte) ([]byte, error) {
 func (r *reader) readInfo() (schema.LogInfo, error) {
 	data, err := r.readChunk([]byte{})
 	if err != nil {
+		fmt.Println("FAIL")
 		return emptyLogInfo, err
 	}
+	fmt.Println("SUCCESS")
 	r.infoDecoderStream.Reset(data)
 	r.infoDecoder.Reset(r.infoDecoderStream)
 	logInfo, err := r.infoDecoder.DecodeLogInfo()

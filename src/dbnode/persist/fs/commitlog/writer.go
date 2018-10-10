@@ -24,6 +24,8 @@ import (
 	"bufio"
 	"encoding/binary"
 	"errors"
+	"fmt"
+	"math/rand"
 	"os"
 	"time"
 
@@ -80,6 +82,166 @@ type commitLogWriter interface {
 	Close() error
 }
 
+// type concurrentWriter struct {
+// 	w *writer
+// 	sync.Mutex
+// }
+
+// func (w *concurrentWriter) Open(start time.Time, duration time.Duration) error {
+// 	w.Lock()
+// 	defer w.Unlock()
+// 	return w.w.Open(start, duration)
+// }
+
+// func (w *concurrentWriter) Write(
+// 	series Series,
+// 	datapoint ts.Datapoint,
+// 	unit xtime.Unit,
+// 	annotation ts.Annotation,
+// ) error {
+// 	w.Lock()
+// 	defer w.Unlock()
+// 	return w.w.Write(series, datapoint, unit, annotation)
+// }
+
+// func (w *concurrentWriter) write(p []byte) error {
+// 	w.Lock()
+// 	defer w.Unlock()
+// 	return w.w.write(p)
+// }
+
+// func (w *concurrentWriter) Flush() error {
+// 	w.Lock()
+// 	defer w.Unlock()
+// 	return w.w.Flush()
+// }
+
+// func (w *concurrentWriter) Close() error {
+// 	w.Lock()
+// 	defer w.Unlock()
+// 	return w.w.Close()
+// }
+
+// type bufioWriterIface interface {
+// 	Reset(w io.Writer)
+// 	Flush() error
+// 	Write(p []byte) (int, error)
+// 	Available() int
+// 	Buffered() int
+// }
+
+// type corruptingWriter struct {
+// 	b *bufio.Writer
+// 	sync.Mutex
+// }
+
+// func (c *corruptingWriter) Reset(w io.Writer) {
+// 	c.Lock()
+// 	defer c.Unlock()
+// 	c.b.Reset(w)
+// }
+
+// func (c *corruptingWriter) Flush() error {
+// 	c.Lock()
+// 	defer c.Unlock()
+// 	return c.b.Flush()
+// }
+
+// func (c *corruptingWriter) Write(p []byte) (int, error) {
+// 	c.Lock()
+// 	defer c.Unlock()
+// 	if rand.Intn(100) <= 2 {
+// 		var (
+// 			byteStart  int
+// 			byteOffset int
+// 		)
+// 		if len(p) > 1 {
+// 			byteStart = rand.Intn(len(p) - 1)
+// 			byteOffset = rand.Intn(len(p) - 1 - byteStart)
+// 		}
+
+// 		if byteStart >= 0 && byteStart+byteOffset < len(p) {
+// 			copy(p[byteStart:byteStart+byteOffset], make([]byte, byteOffset))
+// 		}
+// 	}
+// 	return c.b.Write(p)
+// }
+
+// func (c *corruptingWriter) Available() int {
+// 	c.Lock()
+// 	defer c.Unlock()
+// 	return c.b.Available()
+// }
+
+// func (c *corruptingWriter) Buffered() int {
+// 	c.Lock()
+// 	defer c.Unlock()
+// 	return c.b.Buffered()
+// }
+
+type fd interface {
+	Sync() error
+	Write(p []byte) (int, error)
+	Close() error
+}
+
+type corruptingFd struct {
+	f fd
+}
+
+func (c *corruptingFd) Sync() error {
+	return c.f.Sync()
+}
+
+func (c *corruptingFd) Write(p []byte) (int, error) {
+	if rand.Intn(100) <= 20 {
+		var (
+			byteStart  int
+			byteOffset int
+		)
+		if len(p) > 1 {
+			byteStart = rand.Intn(len(p) - 1)
+			byteOffset = rand.Intn(len(p) - 1 - byteStart)
+		}
+
+		if byteStart >= 0 && byteStart+byteOffset < len(p) {
+			copy(p[byteStart:byteStart+byteOffset], make([]byte, byteOffset))
+		}
+	}
+	return c.f.Write(p)
+}
+
+func (c *corruptingFd) Close() error {
+	return c.f.Close()
+}
+
+type chunkWriterIface interface {
+	Reset(f fd)
+	Write(p []byte) (int, error)
+	Close() error
+	IsOpen() bool
+}
+
+type corruptingChunkWriter struct {
+	chunkWriter *chunkWriter
+}
+
+func (c *corruptingChunkWriter) Reset(f fd) {
+	c.chunkWriter.fd = &corruptingFd{f}
+}
+
+func (c *corruptingChunkWriter) Write(p []byte) (int, error) {
+	return c.chunkWriter.Write(p)
+}
+
+func (c *corruptingChunkWriter) Close() error {
+	return c.chunkWriter.Close()
+}
+
+func (c *corruptingChunkWriter) IsOpen() bool {
+	return c.chunkWriter.IsOpen()
+}
+
 type flushFn func(err error)
 
 type writer struct {
@@ -89,7 +251,7 @@ type writer struct {
 	nowFn              clock.NowFn
 	start              time.Time
 	duration           time.Duration
-	chunkWriter        *chunkWriter
+	chunkWriter        chunkWriterIface
 	chunkReserveHeader []byte
 	buffer             *bufio.Writer
 	sizeBuffer         []byte
@@ -125,16 +287,20 @@ func newCommitLogWriter(
 
 func (w *writer) Open(start time.Time, duration time.Duration) error {
 	if w.isOpen() {
+		fmt.Println("w")
 		return errCommitLogWriterAlreadyOpen
 	}
 
 	commitLogsDir := fs.CommitLogsDirPath(w.filePathPrefix)
 	if err := os.MkdirAll(commitLogsDir, w.newDirectoryMode); err != nil {
+		fmt.Println("wt")
 		return err
 	}
+	fmt.Println("wtf")
 
 	filePath, index, err := fs.NextCommitLogsFile(w.filePathPrefix, start)
 	if err != nil {
+		fmt.Println("wtf1")
 		return err
 	}
 	logInfo := schema.LogInfo{
@@ -144,16 +310,21 @@ func (w *writer) Open(start time.Time, duration time.Duration) error {
 	}
 	w.logEncoder.Reset()
 	if err := w.logEncoder.EncodeLogInfo(logInfo); err != nil {
+		fmt.Println("wtf2")
 		return err
 	}
+	fmt.Println("wtf3")
 	fd, err := fs.OpenWritable(filePath, w.newFileMode)
 	if err != nil {
+		fmt.Println("wtf4")
 		return err
 	}
+	fmt.Println("wtf5")
 
-	w.chunkWriter.fd = fd
+	w.chunkWriter.Reset(fd)
 	w.buffer.Reset(w.chunkWriter)
 	if err := w.write(w.logEncoder.Bytes()); err != nil {
+		fmt.Println("wtf6")
 		w.Close()
 		return err
 	}
@@ -164,7 +335,7 @@ func (w *writer) Open(start time.Time, duration time.Duration) error {
 }
 
 func (w *writer) isOpen() bool {
-	return w.chunkWriter.fd != nil
+	return w.chunkWriter.IsOpen()
 }
 
 func (w *writer) Write(
@@ -242,14 +413,19 @@ func (w *writer) Close() error {
 		return nil
 	}
 
+	fmt.Println(1)
 	if err := w.Flush(); err != nil {
+		fmt.Println(2)
 		return err
 	}
-	if err := w.chunkWriter.fd.Close(); err != nil {
+	fmt.Println(3)
+	if err := w.chunkWriter.Close(); err != nil {
+		fmt.Println(4)
 		return err
 	}
+	fmt.Println(5)
 
-	w.chunkWriter.fd = nil
+	w.chunkWriter.Reset(nil)
 	w.start = timeZero
 	w.duration = 0
 	w.seen.ClearAll()
@@ -278,7 +454,7 @@ func (w *writer) write(data []byte) error {
 }
 
 type chunkWriter struct {
-	fd      *os.File
+	fd      fd
 	flushFn flushFn
 	buff    []byte
 	fsync   bool
@@ -290,6 +466,18 @@ func newChunkWriter(flushFn flushFn, fsync bool) *chunkWriter {
 		buff:    make([]byte, chunkHeaderLen),
 		fsync:   fsync,
 	}
+}
+
+func (w *chunkWriter) Reset(f fd) {
+	w.fd = f
+}
+
+func (w *chunkWriter) Close() error {
+	return w.fd.Close()
+}
+
+func (w *chunkWriter) IsOpen() bool {
+	return w.fd != nil
 }
 
 func (w *chunkWriter) Write(p []byte) (int, error) {
