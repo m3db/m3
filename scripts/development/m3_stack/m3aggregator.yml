@@ -131,7 +131,6 @@ aggregator:
       key: m3aggregator
       initWatchTimeout: 15s
     hashType: murmur32
-    shardCutoverWarmupDuration: 10m
     shardCutoffLingerDuration: 1m
     encoder:
       initBufferSize: 100
