@@ -710,3 +710,23 @@ func TestCleanupManagerCommitLogTimesMultiNS(t *testing.T) {
 	require.True(t, contains(filesToCleanup, time10))
 	require.True(t, contains(filesToCleanup, time20))
 }
+
+func TestCleanupManagerDeletesCorruptCommitLogFiles(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		_, mgr = newCleanupManagerCommitLogTimesTest(t, ctrl)
+		err    = errors.New("some_error")
+	)
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
+		return []commitlog.File{
+			commitlog.File{Start: time10, Error: err},
+		}, nil
+	}
+
+	filesToCleanup, err := mgr.commitLogTimes(currentTime)
+	require.NoError(t, err)
+
+	require.True(t, contains(filesToCleanup, time10))
+}

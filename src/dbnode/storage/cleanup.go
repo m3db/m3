@@ -289,9 +289,21 @@ func (m *cleanupManager) commitLogTimes(t time.Time) ([]commitlog.File, error) {
 		return nil, err
 	}
 
-	shouldCleanupFile := func(start time.Time, duration time.Duration) (bool, error) {
+	shouldCleanupFile := func(f commitlog.File) (bool, error) {
+		if f.Error != nil {
+			// If we were unable to read the commit log files info header, then we're forced to assume
+			// that the file is corrupt and remove it. This can happen in situations where M3DB experiences
+			// sudden shutdown.
+			m.opts.InstrumentOptions().Logger().Errorf(
+				"encountered err: %v reading commit log file: %v info during cleanup, marking file for deletion",
+				f.Error, f.FilePath)
+			return true, nil
+		}
+
 		for _, ns := range namespaces {
 			var (
+				start                      = f.Start
+				duration                   = f.Duration
 				ropts                      = ns.Options().RetentionOptions()
 				nsBlocksStart, nsBlocksEnd = commitLogNamespaceBlockTimes(start, duration, ropts)
 				needsFlush                 = ns.NeedsFlush(nsBlocksStart, nsBlocksEnd)

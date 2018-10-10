@@ -30,12 +30,17 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 )
 
+type openError error
+
 // File represents a commit log file and its associated metadata.
 type File struct {
 	FilePath string
 	Start    time.Time
 	Duration time.Duration
 	Index    int64
+	// Contains any errors encountered (except for filesystem errors) when trying
+	// to read the files log info.
+	Error error
 }
 
 // ReadLogInfo reads the commit log info out of a commitlog file
@@ -50,7 +55,7 @@ func ReadLogInfo(filePath string, opts Options) (time.Time, time.Duration, int64
 
 	fd, err = os.Open(filePath)
 	if err != nil {
-		return time.Time{}, 0, 0, err
+		return time.Time{}, 0, 0, openError(err)
 	}
 
 	chunkReader := newChunkReader(opts.FlushSize())
@@ -90,17 +95,24 @@ func Files(opts Options) ([]File, error) {
 
 	commitLogFiles := make([]File, 0, len(filePaths))
 	for _, filePath := range filePaths {
+		file := File{
+			FilePath: filePath,
+		}
+
 		start, duration, index, err := ReadLogInfo(filePath, opts)
-		if err != nil {
+		if _, ok := err.(openError); ok {
 			return nil, err
 		}
 
-		commitLogFiles = append(commitLogFiles, File{
-			FilePath: filePath,
-			Start:    start,
-			Duration: duration,
-			Index:    index,
-		})
+		if err != nil {
+			file.Error = err
+		} else {
+			file.Start = start
+			file.Duration = duration
+			file.Index = index
+		}
+
+		commitLogFiles = append(commitLogFiles, file)
 	}
 
 	sort.Slice(commitLogFiles, func(i, j int) bool {
