@@ -5,6 +5,7 @@ metrics:
   scope:
     prefix: m3aggregator
   prometheus:
+    onError: none
     handlerPath: /metrics
   sanitization: prometheus
   samplingRate: 1.0
@@ -82,6 +83,7 @@ kvClient:
 runtimeOptions:
   kvConfig:
     environment: default_env
+    zone: embedded
   writeValuesPerMetricLimitPerSecondKey: write-values-per-metric-limit-per-second
   writeValuesPerMetricLimitPerSecond: 0
   writeNewMetricLimitClusterPerSecondKey: write-new-metric-limit-cluster-per-second
@@ -89,6 +91,9 @@ runtimeOptions:
   writeNewMetricNoLimitWarmupDuration: 0
 
 aggregator:
+  hostID:
+    resolver: environment
+    envVarName: M3AGGREGATOR_HOST_ID
   metricPrefix: ""
   aggregationTypes:
     counterTransformFnType: empty
@@ -154,9 +159,11 @@ aggregator:
       maxReconnectDuration: 1m
   placementManager:
     kvConfig:
+      namespace: /placement
       environment: default_env
+      zone: embedded
     placementWatcher:
-      key: placement
+      key: m3aggregator
       initWatchTimeout: 10s
   hashType: murmur32
   bufferDurationBeforeShardCutover: 10m
@@ -165,6 +172,7 @@ aggregator:
   flushTimesManager:
     kvConfig:
       environment: default_env
+      zone: embedded
     flushTimesKeyFmt: shardset/%d/flush
     flushTimesPersistRetrier:
       initialBackoff: 100ms
@@ -179,6 +187,7 @@ aggregator:
     serviceID:
       name: m3aggregator
       environment: default_env
+      zone: embedded
     electionKeyFmt: shardset/%d/lock
     campaignRetrier:
       initialBackoff: 100ms

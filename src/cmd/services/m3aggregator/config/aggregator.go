@@ -43,6 +43,7 @@ import (
 	"github.com/m3db/m3metrics/pipeline/applied"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/clock"
+	"github.com/m3db/m3x/config/hostid"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/retry"
@@ -56,6 +57,9 @@ var (
 
 // AggregatorConfiguration contains aggregator configuration.
 type AggregatorConfiguration struct {
+	// HostID is the local host ID configuration.
+	HostID *hostid.Configuration `yaml:"hostID"`
+
 	// AggregationTypes configs the aggregation types.
 	AggregationTypes aggregation.TypesConfiguration `yaml:"aggregationTypes"`
 
@@ -193,7 +197,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	opts = opts.SetAdminClient(adminClient)
 
 	// Set instance id.
-	instanceID, err := instanceID(address)
+	instanceID, err := c.newInstanceID(address)
 	if err != nil {
 		return nil, err
 	}
@@ -352,6 +356,27 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	opts = opts.SetEntryPool(entryPool)
 	entryPool.Init(func() *aggregator.Entry { return aggregator.NewEntry(nil, runtimeOpts, opts) })
 	return opts, nil
+}
+
+func (c *AggregatorConfiguration) newInstanceID(address string) (string, error) {
+	var (
+		hostName string
+		err      error
+	)
+	if c.HostID != nil {
+		hostName, err = c.HostID.Resolve()
+	} else {
+		hostName, err = os.Hostname()
+	}
+	if err != nil {
+		return "", fmt.Errorf("error determining host name: %v", err)
+	}
+
+	_, port, err := net.SplitHostPort(address)
+	if err != nil {
+		return "", fmt.Errorf("error parsing server address %s: %v", address, err)
+	}
+	return net.JoinHostPort(hostName, port), nil
 }
 
 func bufferForPastTimedMetricFn(buffer time.Duration) aggregator.BufferForPastTimedMetricFn {
@@ -730,16 +755,4 @@ func setMetricPrefix(
 		return opts
 	}
 	return fn([]byte(str))
-}
-
-func instanceID(address string) (string, error) {
-	hostName, err := os.Hostname()
-	if err != nil {
-		return "", fmt.Errorf("error determining host name: %v", err)
-	}
-	_, port, err := net.SplitHostPort(address)
-	if err != nil {
-		return "", fmt.Errorf("error parsing server address %s: %v", address, err)
-	}
-	return net.JoinHostPort(hostName, port), nil
 }

@@ -6,6 +6,7 @@ metrics:
   scope:
     prefix: collector
   prometheus:
+    onError: none
     handlerPath: /metrics
     listenAddress: 0.0.0.0:7207 # until https://github.com/m3db/m3/issues/682 is resolved
   sanitization: prometheus
