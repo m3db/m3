@@ -1,36 +1,19 @@
-# Copyright (c) 2017 Uber Technologies, Inc.
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-# THE SOFTWARE.
-
 logging:
   level: info
 
 metrics:
   scope:
-    reportingInterval: 1s
-  m3:
-    hostPort: 127.0.0.1:5000  # local collector host port for m3 metrics
-    service: m3aggregator
-    env: test
-    includeHost: true
-  samplingRate: 0.01
-  extended: moderate
+    prefix: m3aggregator
+  prometheus:
+    handlerPath: /metrics
+  sanitization: prometheus
+  samplingRate: 1.0
+  extended: none
+
+http:
+  listenAddress: 0.0.0.0:6001
+  readTimeout: 60s
+  writeTimeout: 60s
 
 rawtcp:
   listenAddress: 0.0.0.0:6000
@@ -85,15 +68,20 @@ rawtcp:
         low: 0.001
         high: 0.002
 
-http:
-  listenAddress: 0.0.0.0:6001
-  readTimeout: 45s
-  writeTimeout: 45s
+kvClient:
+  etcd:
+    env: default_env
+    zone: embedded
+    service: m3aggregator
+    cacheDir: /var/lib/m3kv
+    etcdClusters:
+      - zone: embedded
+        endpoints:
+          - m3db_seed:2379
 
 runtimeOptions:
   kvConfig:
-    namespace: /m3aggregator
-    environment: test
+    environment: default_env
   writeValuesPerMetricLimitPerSecondKey: write-values-per-metric-limit-per-second
   writeValuesPerMetricLimitPerSecond: 0
   writeNewMetricLimitClusterPerSecondKey: write-new-metric-limit-cluster-per-second
@@ -101,7 +89,7 @@ runtimeOptions:
   writeNewMetricNoLimitWarmupDuration: 0
 
 aggregator:
-  metricPrefix: stats.
+  metricPrefix: ""
   aggregationTypes:
     counterTransformFnType: empty
     timerTransformFnType: suffix
@@ -131,11 +119,11 @@ aggregator:
           capacity: 64
   client:
     placementKV:
-      zone: testZone
-      environment: testEnvironment
-      namespace: testNamespace
+      namespace: /placement
+      zone: embedded
+      environment: default_env
     placementWatcher:
-      key: testWatchKey
+      key: m3aggregator
       initWatchTimeout: 15s
     hashType: murmur32
     shardCutoverWarmupDuration: 10m
@@ -166,8 +154,7 @@ aggregator:
       maxReconnectDuration: 1m
   placementManager:
     kvConfig:
-      namespace: /m3aggregator
-      environment: test
+      environment: default_env
     placementWatcher:
       key: placement
       initWatchTimeout: 10s
@@ -177,8 +164,7 @@ aggregator:
   resignTimeout: 1m
   flushTimesManager:
     kvConfig:
-      namespace: /m3aggregator
-      environment: test
+      environment: default_env
     flushTimesKeyFmt: shardset/%d/flush
     flushTimesPersistRetrier:
       initialBackoff: 100ms
@@ -192,7 +178,7 @@ aggregator:
       ttlSeconds: 10
     serviceID:
       name: m3aggregator
-      environment: test
+      environment: default_env
     electionKeyFmt: shardset/%d/lock
     campaignRetrier:
       initialBackoff: 100ms
@@ -245,7 +231,6 @@ aggregator:
   maxTimerBatchSizePerWrite: 140
   defaultStoragePolicies:
     - 10s:2d
-    - 1m:40d
   maxNumCachedSourceSets: 2
   discardNaNAggregatedValues: true
   entryPool:

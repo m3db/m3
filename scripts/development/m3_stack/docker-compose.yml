@@ -8,7 +8,7 @@ services:
       dockerfile: ./docker/m3dbnode/Dockerfile
     image: m3dbnode01:latest
     volumes:
-      - "./dbnode_config.yml:/etc/m3dbnode/m3dbnode.yml"
+      - "./m3dbnode.yml:/etc/m3dbnode/m3dbnode.yml"
     environment:
       - M3DB_HOST_ID=m3db_seed
   m3db_data01:
@@ -19,7 +19,7 @@ services:
       dockerfile: ./docker/m3dbnode/Dockerfile
     image: m3dbnode02:latest
     volumes:
-      - "./dbnode_config.yml:/etc/m3dbnode/m3dbnode.yml"
+      - "./m3dbnode.yml:/etc/m3dbnode/m3dbnode.yml"
     environment:
       - M3DB_HOST_ID=m3db_data01
   m3db_data02:
@@ -30,19 +30,19 @@ services:
       dockerfile: ./docker/m3dbnode/Dockerfile
     image: m3dbnode03:latest
     volumes:
-      - "./dbnode_config.yml:/etc/m3dbnode/m3dbnode.yml"
+      - "./m3dbnode.yml:/etc/m3dbnode/m3dbnode.yml"
     environment:
       - M3DB_HOST_ID=m3db_data02
-  m3agg01:
+  m3aggregator01:
     networks:
       - backend
     build:
       context: ../../../
-      dockerfile: ./docker/m3agg/Dockerfile
-    image: m3agg01:latest
+      dockerfile: ./docker/m3aggregator/Dockerfile
+    image: m3aggregator01:latest
     volumes:
-      - "./m3agg_config.yml:/etc/m3aggregator/m3aggregator.yml"
-  coordinator01:
+      - "./m3aggregator.yml:/etc/m3aggregator/m3aggregator.yml"
+  m3coordinator01:
     expose:
       - "7201"
       - "7203"
@@ -59,6 +59,19 @@ services:
     image: m3coordinator01:latest
     volumes:
       - "./:/etc/m3coordinator/"
+  m3collector01:
+    expose:
+      - "7206"
+      - "7207"
+    ports:
+      - "0.0.0.0:7206:7206"
+      - "0.0.0.0:7207:7207"
+    networks:
+      - backend
+    build:
+      context: ../../../
+      dockerfile: ./docker/m3collector/Dockerfile
+    image: m3collector01:latest
   prometheus01:
     expose:
       - "9090"
@@ -69,7 +82,7 @@ services:
     image: prom/prometheus:latest
     volumes:
       - "./:/etc/prometheus/"
-  grafana2:
+  grafana:
     build:
       context: ../../../
       dockerfile: ./docker/grafana/Dockerfile

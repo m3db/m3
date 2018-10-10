@@ -8,14 +8,25 @@ if [[ "$FORCE_BUILD" = true ]] ; then
 fi
 
 echo "Bringing up nodes in the backgorund with docker compose, remember to run ./stop.sh when done"
-docker-compose -f docker-compose.yml up $DOCKER_ARGS coordinator01
+docker-compose -f docker-compose.yml up $DOCKER_ARGS m3coordinator01
 docker-compose -f docker-compose.yml up $DOCKER_ARGS m3db_seed
 docker-compose -f docker-compose.yml up $DOCKER_ARGS prometheus01
-docker-compose -f docker-compose.yml up $DOCKER_ARGS grafana2
+docker-compose -f docker-compose.yml up $DOCKER_ARGS grafana
 
 if [[ "$MULTI_DB_NODE" = true ]] ; then
+    echo "Running multi node"
     docker-compose -f docker-compose.yml up $DOCKER_ARGS m3db_data01
     docker-compose -f docker-compose.yml up $DOCKER_ARGS m3db_data02
+else
+    echo "Running single node"
+fi
+
+if [[ "$AGGREGATOR_PIPELINE" = true ]]; then
+    echo "Running aggregator pipeline"
+    docker-compose -f docker-compose.yml up $DOCKER_ARGS m3aggregator01
+    docker-compose -f docker-compose.yml up $DOCKER_ARGS m3collector01
+else
+    echo "Not running aggregator pipeline"
 fi
 
 
@@ -55,7 +66,7 @@ echo "Validating namespace"
 echo "Done validating namespace"
 
 echo "Initializing topology"
-if [[ "$multi_db_node" = true ]] ; then
+if [[ "$MULTI_DB_NODE" = true ]] ; then
     curl -vvvsSf -X POST localhost:7201/api/v1/placement/init -d '{
         "num_shards": 64,
         "replication_factor": 3,
@@ -108,21 +119,23 @@ else
 fi
 echo "Done initializing topology"
 
-curl -vvvsSf -X POST localhost:7201/api/v1/services/m3agg/placement/init -d '{
+if [[ "$AGGREGATOR_PIPELINE" = true ]]; then
+    curl -vvvsSf -X POST localhost:7201/api/v1/services/m3aggregator/placement/init -d '{
         "num_shards": 64,
         "replication_factor": 1,
         "instances": [
             {
-                "id": "m3agg01",
+                "id": "m3aggregator01",
                 "isolation_group": "rack-a",
                 "zone": "embedded",
                 "weight": 1024,
-                "endpoint": "m3agg01:6000",
-                "hostname": "m3agg01",
+                "endpoint": "m3aggregator01:6000",
+                "hostname": "m3aggregator01",
                 "port": 6000
             }
         ]
     }'
+fi
 
 echo "Validating topology"
 [ "$(curl -sSf localhost:7201/api/v1/placement | jq .placement.instances.m3db_seed.id)" == '"m3db_seed"' ]

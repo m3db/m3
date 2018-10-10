@@ -74,8 +74,10 @@ func Run(runOpts RunOptions) {
 		fmt.Fprintf(os.Stderr, "unable to create logger: %v", err)
 		os.Exit(1)
 	}
+
 	defer logger.Sync()
 
+	logger.Info("creating metrics scope")
 	scope, closer, err := cfg.Metrics.NewRootScope()
 	if err != nil {
 		logger.Fatal("could not connect to metrics", zap.Error(err))
@@ -86,11 +88,13 @@ func Run(runOpts RunOptions) {
 		SetMetricsScope(scope).
 		SetZapLogger(logger)
 
+	logger.Info("creating etcd client")
 	clusterClient, err := cfg.Etcd.NewClient(instrumentOpts)
 	if err != nil {
 		logger.Fatal("could not create etcd client", zap.Error(err))
 	}
 
+	logger.Info("creating reporter")
 	reporter, err := newReporter(cfg.Reporter, clusterClient, instrumentOpts)
 	if err != nil {
 		logger.Fatal("could not create reporter", zap.Error(err))
@@ -113,6 +117,7 @@ func Run(runOpts RunOptions) {
 		tagDecoderPoolOptions)
 	tagDecoderPool.Init()
 
+	logger.Info("creating http handlers and registering routes")
 	handler, err := httpd.NewHandler(reporter, tagEncoderPool,
 		tagDecoderPool, instrumentOpts)
 	if err != nil {
@@ -173,27 +178,33 @@ func newReporter(
 	instrumentOpts instrument.Options,
 ) (reporter.Reporter, error) {
 	scope := instrumentOpts.MetricsScope()
+	logger := instrumentOpts.ZapLogger()
 	clockOpts := cfg.Clock.NewOptions()
 
+	logger.Info("creating metrics matcher cache")
 	cache := cfg.Cache.NewCache(clockOpts,
 		instrumentOpts.SetMetricsScope(scope.SubScope("cache")))
 
+	logger.Info("creating metrics matcher")
 	matcher, err := cfg.Matcher.NewMatcher(cache, clusterClient, clockOpts,
 		instrumentOpts.SetMetricsScope(scope.SubScope("matcher")))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create matcher: %v", err)
 	}
 
+	logger.Info("creating aggregator client")
 	aggClient, err := cfg.Client.NewClient(clusterClient, clockOpts,
 		instrumentOpts.SetMetricsScope(scope.SubScope("backend")))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create agg tier client: %v", err)
 	}
 
+	logger.Info("connecting to aggregator cluster")
 	if err := aggClient.Init(); err != nil {
 		return nil, fmt.Errorf("unable to initialize agg tier client: %v", err)
 	}
 
+	logger.Info("creating aggregator reporter")
 	reporterOpts := m3aggregator.NewReporterOptions().
 		SetClockOptions(clockOpts).
 		SetInstrumentOptions(instrumentOpts)

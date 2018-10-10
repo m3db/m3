@@ -73,6 +73,7 @@ const (
 	// HeaderDryRun is the header used to specify whether this should be a dry run.
 	HeaderDryRun = "Dry-Run"
 
+	defaultM3AggPlacementKey             = "/placement"
 	defaultM3AggMaxAggregationWindowSize = 5 * time.Minute
 	defaultM3AggWarmupDuration           = time.Minute
 )
@@ -205,11 +206,11 @@ func ServiceWithAlgo(
 	now time.Time,
 ) (placement.Service, placement.Algorithm, error) {
 	overrides := services.NewOverrideOptions()
-	if opts.ServiceName == M3AggServiceName {
+	if opts.ServiceName == M3AggregatorServiceName {
 		overrides = services.NewOverrideOptions().
 			SetNamespaceOptions(
 				overrides.NamespaceOptions().
-					SetPlacementNamespace("m3agg_placement_ns"),
+					SetPlacementNamespace(defaultM3AggPlacementKey),
 			)
 	}
 	cs, err := clusterClient.Services(overrides)
