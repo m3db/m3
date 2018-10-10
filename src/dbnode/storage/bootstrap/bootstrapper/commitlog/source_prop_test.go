@@ -282,6 +282,29 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 				if err != nil {
 					return false, err
 				}
+
+				if input.includeCorruptedCommitlogFile {
+					// Write out an additional commit log file with a corrupt info header to
+					// make sure that the commitlog source skips it.
+					commitLogFiles, err := commitlog.Files(commitLogOpts)
+					if err != nil {
+						return false, err
+					}
+
+					if len(commitLogFiles) > 0 {
+						lastCommitLogFile := commitLogFiles[len(commitLogFiles)-1]
+						nextCommitLogFile, _, err := fs.NextCommitLogsFile(
+							commitLogOpts.FilesystemOptions().FilePathPrefix(), lastCommitLogFile.Start)
+						if err != nil {
+							return false, err
+						}
+
+						err = ioutil.WriteFile(nextCommitLogFile, []byte("corruption"), 0644)
+						if err != nil {
+							return false, err
+						}
+					}
+				}
 			}
 
 			// Instantiate a commitlog source
@@ -385,13 +408,14 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 }
 
 type propTestInput struct {
-	currentTime     time.Time
-	snapshotTime    time.Time
-	snapshotExists  bool
-	commitLogExists bool
-	bufferPast      time.Duration
-	bufferFuture    time.Duration
-	writes          []generatedWrite
+	currentTime                   time.Time
+	snapshotTime                  time.Time
+	snapshotExists                bool
+	commitLogExists               bool
+	bufferPast                    time.Duration
+	bufferFuture                  time.Duration
+	writes                        []generatedWrite
+	includeCorruptedCommitlogFile bool
 }
 
 type generatedWrite struct {
@@ -411,19 +435,20 @@ func (w generatedWrite) String() string {
 func genPropTestInputs(nsMeta namespace.Metadata, blockStart time.Time) gopter.Gen {
 	curriedGenPropTestInput := func(input interface{}) gopter.Gen {
 		var (
-			inputs          = input.([]interface{})
-			snapshotTime    = inputs[0].(time.Time)
-			snapshotExists  = inputs[1].(bool)
-			commitLogExists = inputs[2].(bool)
-			bufferPast      = time.Duration(inputs[3].(int64))
-			bufferFuture    = time.Duration(inputs[4].(int64))
-			numDatapoints   = inputs[5].(int)
+			inputs                        = input.([]interface{})
+			snapshotTime                  = inputs[0].(time.Time)
+			snapshotExists                = inputs[1].(bool)
+			commitLogExists               = inputs[2].(bool)
+			bufferPast                    = time.Duration(inputs[3].(int64))
+			bufferFuture                  = time.Duration(inputs[4].(int64))
+			numDatapoints                 = inputs[5].(int)
+			includeCorruptedCommitlogFile = inputs[6].(bool)
 		)
 
 		return genPropTestInput(
 			blockStart, bufferPast, bufferFuture,
 			snapshotTime, snapshotExists, commitLogExists,
-			numDatapoints, nsMeta.ID().String())
+			numDatapoints, nsMeta.ID().String(), includeCorruptedCommitlogFile)
 	}
 
 	return gopter.CombineGens(
@@ -440,6 +465,9 @@ func genPropTestInputs(nsMeta namespace.Metadata, blockStart time.Time) gopter.G
 		gen.Int64Range(0, int64(blockSize)),
 		// Run iterations of the test with between 0 and 100 datapoints
 		gen.IntRange(0, 100),
+		// Whether the test should generate an additional corrupt commitlog file
+		// to ensure the commit log bootstrapper skips it correctly.
+		gen.Bool(),
 	).FlatMap(curriedGenPropTestInput, reflect.TypeOf(propTestInput{}))
 }
 
@@ -452,6 +480,7 @@ func genPropTestInput(
 	commitLogExists bool,
 	numDatapoints int,
 	ns string,
+	includeCorruptedCommitlogFile bool,
 ) gopter.Gen {
 	return gen.SliceOfN(numDatapoints, genWrite(start, bufferPast, bufferFuture, ns)).
 		Map(func(val []generatedWrite) propTestInput {
@@ -463,6 +492,7 @@ func genPropTestInput(
 				snapshotExists:  snapshotExists,
 				commitLogExists: commitLogExists,
 				writes:          val,
+				includeCorruptedCommitlogFile: includeCorruptedCommitlogFile,
 			}
 		})
 }

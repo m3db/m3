@@ -30,7 +30,13 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 )
 
-type fsError error
+type fsError struct {
+	err error
+}
+
+func (e fsError) Error() string {
+	return e.err.Error()
+}
 
 // File represents a commit log file and its associated metadata.
 type File struct {
@@ -58,7 +64,7 @@ func ReadLogInfo(filePath string, opts Options) (time.Time, time.Duration, int64
 
 	fd, err = os.Open(filePath)
 	if err != nil {
-		return time.Time{}, 0, 0, fsError(err)
+		return time.Time{}, 0, 0, fsError{err}
 	}
 
 	chunkReader := newChunkReader(opts.FlushSize())
@@ -80,7 +86,7 @@ func ReadLogInfo(filePath string, opts Options) (time.Time, time.Duration, int64
 	err = fd.Close()
 	fd = nil
 	if err != nil {
-		return time.Time{}, 0, 0, fsError(err)
+		return time.Time{}, 0, 0, fsError{err}
 	}
 
 	return time.Unix(0, logInfo.Start), time.Duration(logInfo.Duration), logInfo.Index, decoderErr
