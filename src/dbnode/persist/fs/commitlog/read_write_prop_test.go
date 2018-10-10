@@ -24,6 +24,8 @@ package commitlog
 import (
 	"fmt"
 	"io/ioutil"
+	"math"
+	"math/rand"
 	"os"
 	"path"
 	"reflect"
@@ -139,13 +141,12 @@ func TestCommitLogPropTest(t *testing.T) {
 	defer os.RemoveAll(basePath)
 
 	parameters := gopter.DefaultTestParameters()
-	parameters.MinSuccessfulTests = 40
+	parameters.MinSuccessfulTests = 20
 	properties := gopter.NewProperties(parameters)
 
 	comms := clCommandFunctor(basePath, t)
 	properties.Property("CommitLog System", commands.Prop(comms))
 	properties.TestingRun(t)
-	panic("wtf")
 }
 
 // clCommandFunctor is a var which implements the command.Commands interface,
@@ -229,9 +230,6 @@ var genCloseCommand = gen.Const(&commands.ProtoCommand{
 	},
 	RunFunc: func(q commands.SystemUnderTest) commands.Result {
 		s := q.(*clState)
-		// s.cLog.Close()
-		// TODO: Fix me
-		// return nil
 		return s.cLog.Close()
 	},
 	NextStateFunc: func(state commands.State) commands.State {
@@ -270,28 +268,15 @@ var genWriteBehindCommand = gen.SliceOfN(10, genWrite()).
 				s := q.(*clState)
 				ctx := context.NewContext()
 				defer ctx.Close()
-				// if rand.Intn(100) <= 50 {
-				// 	writer := s.cLog.(*commitLog).writer
-				// 	err := writer.write([]byte("non-sense"))
-				// 	if err != nil {
-				// 		return err
-				// 	}
-				// }
+
 				for _, w := range writes {
 					err := s.cLog.Write(ctx, w.series, w.datapoint, w.unit, w.annotation)
 					if err != nil {
 						return err
 					}
-					// if rand.Intn(100) <= 5 {
-					// 	writer := s.cLog.(*commitLog).writer.(*concurrentWriter)
-					// 	err := writer.write([]byte("non-sense"))
-					// 	if err != nil {
-					// 		return err
-					// 	}
-					// }
 				}
+
 				return nil
-				// return s.cLog.Write(ctx, w.series, w.datapoint, w.unit, w.annotation)
 			},
 			NextStateFunc: func(state commands.State) commands.State {
 				s := state.(*clState)
@@ -375,9 +360,10 @@ func (s *clState) writesArePresent(writes ...generatedWrite) error {
 	}
 	iter, err := NewIterator(iterOpts)
 	if err != nil {
-		// TODO: Fix me
-		return nil
-		// return err
+		if s.shouldCorrupt {
+			return nil
+		}
+		return err
 	}
 
 	defer iter.Close()
@@ -399,12 +385,14 @@ func (s *clState) writesArePresent(writes ...generatedWrite) error {
 		}
 		count++
 	}
-	if err := iter.Err(); err != nil {
+
+	if s.shouldCorrupt {
 		return nil
-		// return fmt.Errorf("failed after reading %d datapoints: %v", count, err)
 	}
 
-	return nil
+	if err := iter.Err(); err != nil {
+		return fmt.Errorf("failed after reading %d datapoints: %v", count, err)
+	}
 
 	missingErr := fmt.Errorf("writesOnDisk: %+v, writes: %+v", writesOnDisk, writes)
 	for _, w := range writes {
@@ -503,4 +491,60 @@ func uniqueID(ns, s string) uint64 {
 
 	nsMap[s] = idx
 	return idx
+}
+
+type corruptingFd struct {
+	f                     fd
+	corruptionProbability float64
+}
+
+func (c *corruptingFd) Sync() error {
+	return c.f.Sync()
+}
+
+func (c *corruptingFd) Write(p []byte) (int, error) {
+	threshold := uint64(c.corruptionProbability * float64(math.MaxUint64))
+	if rand.Uint64() <= threshold {
+		var (
+			byteStart  int
+			byteOffset int
+		)
+		if len(p) > 1 {
+			byteStart = rand.Intn(len(p) - 1)
+			byteOffset = rand.Intn(len(p) - 1 - byteStart)
+		}
+
+		if byteStart >= 0 && byteStart+byteOffset < len(p) {
+			copy(p[byteStart:byteStart+byteOffset], make([]byte, byteOffset))
+		}
+	}
+	return c.f.Write(p)
+}
+
+func (c *corruptingFd) Close() error {
+	return c.f.Close()
+}
+
+type corruptingChunkWriter struct {
+	chunkWriter           *chunkWriter
+	corruptionProbability float64
+}
+
+func (c *corruptingChunkWriter) Reset(f fd) {
+	c.chunkWriter.fd = &corruptingFd{
+		f: f,
+		corruptionProbability: c.corruptionProbability,
+	}
+}
+
+func (c *corruptingChunkWriter) Write(p []byte) (int, error) {
+	return c.chunkWriter.Write(p)
+}
+
+func (c *corruptingChunkWriter) Close() error {
+	return c.chunkWriter.Close()
+}
+
+func (c *corruptingChunkWriter) IsOpen() bool {
+	return c.chunkWriter.IsOpen()
 }

@@ -22,7 +22,6 @@ package commitlog
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -154,18 +153,13 @@ func NewCommitLog(opts Options) (CommitLog, error) {
 }
 
 func (l *commitLog) Open() error {
-	fmt.Println(1)
 	// Open the buffered commit log writer
 	if err := l.openWriter(l.nowFn()); err != nil {
-		panic(err)
-		fmt.Println(2)
 		return err
 	}
 
-	fmt.Println(3)
 	// Flush the info header to ensure we can write to disk
 	if err := l.writer.Flush(); err != nil {
-		fmt.Println(4)
 		return err
 	}
 
@@ -174,12 +168,10 @@ func (l *commitLog) Open() error {
 	// https://github.com/apache/cassandra/blob/6dfc1e7eeba539774784dfd650d3e1de6785c938/conf/cassandra.yaml#L232
 	// Right now it is a large amount of coordination to implement something similar.
 	l.commitLogFailFn = func(err error) {
-		fmt.Println(5)
 		l.log.Fatalf("fatal commit log error: %v", err)
 	}
 
 	// Asynchronously write
-	fmt.Println("GO write!")
 	go l.write()
 
 	if flushInterval := l.opts.FlushInterval(); flushInterval > 0 {
@@ -230,7 +222,6 @@ func (l *commitLog) flushEvery(interval time.Duration) {
 }
 
 func (l *commitLog) write() {
-	fmt.Println("starting loop")
 	for write := range l.writes {
 		// For writes requiring acks add to pending acks
 		if write.completionFn != nil {
@@ -272,8 +263,6 @@ func (l *commitLog) write() {
 		}
 		l.metrics.success.Inc(1)
 	}
-
-	fmt.Println("out of loop")
 
 	l.Lock()
 	defer l.Unlock()
@@ -324,26 +313,18 @@ func (l *commitLog) openWriter(now time.Time) error {
 			// If we failed to close then create a new commit log writer
 			l.writer = nil
 		}
-		// TODO: Fix me
-		// l.writer = nil
 	}
 
 	if l.writer == nil {
-		fmt.Println(":/")
 		l.writer = l.newCommitLogWriterFn(l.onFlush, l.opts)
 	}
 
 	blockSize := l.opts.BlockSize()
 	start := now.Truncate(blockSize)
 
-	fmt.Println(":)")
 	if err := l.writer.Open(start, blockSize); err != nil {
-		fmt.Println(":)1")
-		fmt.Println(err)
-		panic(err)
 		return err
 	}
-	fmt.Println(":)2")
 
 	l.writerExpireAt = start.Add(blockSize)
 
