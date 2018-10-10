@@ -38,8 +38,11 @@ type File struct {
 	Start    time.Time
 	Duration time.Duration
 	Index    int64
-	// Contains any errors encountered (except for filesystem errors) when trying
-	// to read the files log info.
+	// Contains any errors encountered when trying to read the commitlogs file info. We
+	// attempt to not include filesystem errors in this field, but that is accomplished
+	// on a best-effort basis and it is possible for this field to contain an error that
+	// is the result of a filesystem / O.S / hardware issue as opposed to an actually
+	// corrupt file.
 	Error error
 }
 
