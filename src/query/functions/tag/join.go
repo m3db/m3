@@ -24,6 +24,8 @@ import (
 	"bytes"
 	"fmt"
 
+	"github.com/m3db/m3/src/query/functions/utils"
+
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 )
@@ -39,24 +41,7 @@ func combineTagsWithSeparator(name []byte, separator []byte, values [][]byte) mo
 		return models.Tag{Name: name, Value: values[0]}
 	}
 
-	sepLen := len(separator)
-	// initialize length to account for separators.
-	combinedLength := (l - 1) * sepLen
-	for _, v := range values {
-		combinedLength += len(v)
-	}
-
-	b := make([]byte, combinedLength)
-	idx := 0
-	for i, v := range values {
-		copy(b[idx:], v)
-		idx += len(v)
-		if i < l {
-			copy(b[idx:], separator)
-			idx += sepLen
-		}
-	}
-
+	b := bytes.Join(values, separator)
 	return models.Tag{Name: name, Value: b}
 }
 
@@ -75,15 +60,6 @@ func tagsInOrder(names [][]byte, tags models.Tags) [][]byte {
 	return orderedTags
 }
 
-func uniqueNameCount(names []string) int {
-	uniqueMap := make(map[string]struct{}, len(names))
-	for _, s := range names {
-		uniqueMap[s] = struct{}{}
-	}
-
-	return len(uniqueMap)
-}
-
 // noop.
 func noopFunc(_ *block.Metadata, _ []block.SeriesMeta) {}
 
@@ -100,7 +76,7 @@ func makeTagJoinFunc(params []string) (tagTransformFunc, error) {
 	name := []byte(params[0])
 	sep := []byte(params[1])
 	tagNames := make([][]byte, len(params)-2)
-	uniqueTagCount := uniqueNameCount(params[2:])
+	uniqueTagCount := utils.UniqueCount(params[2:])
 	for i, tag := range params[2:] {
 		tagNames[i] = ([]byte(tag))
 	}

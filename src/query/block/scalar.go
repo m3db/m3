@@ -52,8 +52,8 @@ func (b *Scalar) Unconsolidated() (UnconsolidatedBlock, error) {
 	return nil, fmt.Errorf("unconsolidated view not implemented for scalar block, meta: %s", b.meta)
 }
 
-// UpdateMetas updates this blocks metadata, and the metadatas for each series.
-func (b *Scalar) UpdateMetas(
+// WithMetadata updates this blocks metadata, and the metadatas for each series.
+func (b *Scalar) WithMetadata(
 	meta Metadata,
 	_ []SeriesMeta,
 ) (Block, error) {

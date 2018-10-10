@@ -50,10 +50,11 @@ func NewMultiBlockWrapper(unconsolidatedBlock block.UnconsolidatedBlock) block.B
 }
 
 type multiBlockWrapper struct {
-	unconsolidated   block.UnconsolidatedBlock
-	consolidated     block.Block
 	consolidateError error
 	once             sync.Once
+	mu               sync.RWMutex
+	consolidated     block.Block
+	unconsolidated   block.UnconsolidatedBlock
 }
 
 func (m *multiBlockWrapper) Unconsolidated() (block.UnconsolidatedBlock, error) {
@@ -70,13 +71,16 @@ func (m *multiBlockWrapper) StepIter() (block.StepIter, error) {
 
 func (m *multiBlockWrapper) consolidate() error {
 	m.once.Do(func() {
+		m.mu.Lock()
 		consolidated, err := m.unconsolidated.Consolidate()
 		if err != nil {
 			m.consolidateError = err
+			m.mu.Unlock()
 			return
 		}
 
 		m.consolidated = consolidated
+		m.mu.Unlock()
 	})
 
 	return m.consolidateError
@@ -90,7 +94,7 @@ func (m *multiBlockWrapper) SeriesIter() (block.SeriesIter, error) {
 	return m.consolidated.SeriesIter()
 }
 
-func (m *multiBlockWrapper) UpdateMetas(
+func (m *multiBlockWrapper) WithMetadata(
 	meta block.Metadata,
 	seriesMetas []block.SeriesMeta,
 ) (block.Block, error) {
@@ -99,8 +103,11 @@ func (m *multiBlockWrapper) UpdateMetas(
 		unconsolidated block.UnconsolidatedBlock
 		err            error
 	)
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	if m.consolidated != nil {
-		consolidated, err = m.consolidated.UpdateMetas(meta, seriesMetas)
+		consolidated, err = m.consolidated.WithMetadata(meta, seriesMetas)
 	}
 
 	if err != nil {
@@ -108,7 +115,7 @@ func (m *multiBlockWrapper) UpdateMetas(
 	}
 
 	if m.unconsolidated != nil {
-		unconsolidated, err = m.unconsolidated.UpdateMetas(meta, seriesMetas)
+		unconsolidated, err = m.unconsolidated.WithMetadata(meta, seriesMetas)
 	}
 
 	if err != nil {
@@ -148,7 +155,7 @@ func (m multiSeriesBlock) Meta() block.Metadata {
 	return m.meta
 }
 
-func (m multiSeriesBlock) UpdateMetas(
+func (m multiSeriesBlock) WithMetadata(
 	meta block.Metadata,
 	seriesMeta []block.SeriesMeta,
 ) (block.UnconsolidatedBlock, error) {
@@ -198,11 +205,11 @@ func (m multiSeriesBlock) Consolidate() (block.Block, error) {
 	}, nil
 }
 
-func (c *consolidatedBlock) UpdateMetas(
+func (c *consolidatedBlock) WithMetadata(
 	meta block.Metadata,
 	seriesMeta []block.SeriesMeta,
 ) (block.Block, error) {
-	unconsolidated, err := c.unconsolidated.UpdateMetas(meta, seriesMeta)
+	unconsolidated, err := c.unconsolidated.WithMetadata(meta, seriesMeta)
 	if err != nil {
 		return nil, err
 	}

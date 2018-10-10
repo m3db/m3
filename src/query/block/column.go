@@ -66,7 +66,7 @@ func (c *columnBlock) SeriesIter() (SeriesIter, error) {
 	return newColumnBlockSeriesIter(c.columns, c.meta, c.seriesMeta), nil
 }
 
-func (c *columnBlock) UpdateMetas(
+func (c *columnBlock) WithMetadata(
 	meta Metadata,
 	seriesMetas []SeriesMeta,
 ) (Block, error) {

@@ -121,6 +121,17 @@ var tagJoinFnTests = []struct {
 		},
 	},
 	{
+		name:             "mixed with duplicates",
+		params:           []string{"aa", "!", "c", "a", "b", "c", "a", "c"},
+		metaTags:         test.StringTags{{N: "a", V: "foo"}, {N: "b", V: "bar"}},
+		seriesMetaTags:   []test.StringTags{{{N: "c", V: "baz"}}, {{N: "c", V: "qux"}}},
+		expectedMetaTags: test.StringTags{{N: "a", V: "foo"}, {N: "b", V: "bar"}},
+		expectedSeriesMetaTags: []test.StringTags{
+			{{N: "aa", V: "baz!foo!bar!baz!foo!baz"}, {N: "c", V: "baz"}},
+			{{N: "aa", V: "qux!foo!bar!qux!foo!qux"}, {N: "c", V: "qux"}},
+		},
+	},
+	{
 		name:             "mixed with replace",
 		params:           []string{"c", "!", "c", "a", "b"},
 		metaTags:         test.StringTags{{N: "a", V: "foo"}, {N: "b", V: "bar"}},
