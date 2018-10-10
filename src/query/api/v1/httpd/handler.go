@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
+	"github.com/m3db/m3/src/query/api/v1/handler/topic"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
@@ -131,6 +132,7 @@ func (h *Handler) RegisterRoutes() error {
 		placement.RegisterRoutes(h.Router, placementOpts)
 		namespace.RegisterRoutes(h.Router, h.clusterClient)
 		database.RegisterRoutes(h.Router, h.clusterClient, h.config, h.embeddedDbCfg)
+		topic.RegisterRoutes(h.Router, h.clusterClient, h.config)
 	}
 
 	h.registerHealthEndpoints()
