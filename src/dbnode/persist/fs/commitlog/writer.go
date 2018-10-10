@@ -80,14 +80,8 @@ type commitLogWriter interface {
 	Close() error
 }
 
-type fd interface {
-	Sync() error
-	Write(p []byte) (int, error)
-	Close() error
-}
-
 type chunkWriterIface interface {
-	reset(f fd)
+	reset(f fs.FD)
 	Write(p []byte) (int, error)
 	close() error
 	isOpen() bool
@@ -291,7 +285,7 @@ func (w *writer) write(data []byte) error {
 }
 
 type chunkWriter struct {
-	fd      fd
+	fd      fs.FD
 	flushFn flushFn
 	buff    []byte
 	fsync   bool
@@ -305,7 +299,7 @@ func newChunkWriter(flushFn flushFn, fsync bool) *chunkWriter {
 	}
 }
 
-func (w *chunkWriter) reset(f fd) {
+func (w *chunkWriter) reset(f fs.FD) {
 	w.fd = f
 }
 

@@ -24,8 +24,6 @@ package commitlog
 import (
 	"fmt"
 	"io/ioutil"
-	"math"
-	"math/rand"
 	"os"
 	"path"
 	"reflect"
@@ -33,7 +31,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/ts"
+	xtest "github.com/m3db/m3/src/x/test"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
@@ -493,52 +493,16 @@ func uniqueID(ns, s string) uint64 {
 	return idx
 }
 
-// corruptingFd implements the fd interface and can corrupt all writes issued
-// to it based on a configurable probability.
-type corruptingFd struct {
-	f                     fd
-	corruptionProbability float64
-}
-
-func (c *corruptingFd) Sync() error {
-	return c.f.Sync()
-}
-
-func (c *corruptingFd) Write(p []byte) (int, error) {
-	threshold := uint64(c.corruptionProbability * float64(math.MaxUint64))
-	if rand.Uint64() <= threshold {
-		var (
-			byteStart  int
-			byteOffset int
-		)
-		if len(p) > 1 {
-			byteStart = rand.Intn(len(p) - 1)
-			byteOffset = rand.Intn(len(p) - 1 - byteStart)
-		}
-
-		if byteStart >= 0 && byteStart+byteOffset < len(p) {
-			copy(p[byteStart:byteStart+byteOffset], make([]byte, byteOffset))
-		}
-	}
-	return c.f.Write(p)
-}
-
-func (c *corruptingFd) Close() error {
-	return c.f.Close()
-}
-
-// corruptingFd implements the chunkWriter interface and can corrupt all writes issued
+// corruptingChunkWriter implements the chunkWriter interface and can corrupt all writes issued
 // to it based on a configurable probability.
 type corruptingChunkWriter struct {
 	chunkWriter           *chunkWriter
 	corruptionProbability float64
 }
 
-func (c *corruptingChunkWriter) reset(f fd) {
-	c.chunkWriter.fd = &corruptingFd{
-		f: f,
-		corruptionProbability: c.corruptionProbability,
-	}
+func (c *corruptingChunkWriter) reset(f fs.FD) {
+	c.chunkWriter.fd = xtest.NewCorruptingFD(
+		f, c.corruptionProbability)
 }
 
 func (c *corruptingChunkWriter) Write(p []byte) (int, error) {

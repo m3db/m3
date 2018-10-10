@@ -460,3 +460,13 @@ type BlockRetrieverOptions interface {
 	// IdentifierPool returns the identifierPool
 	IdentifierPool() ident.Pool
 }
+
+// FD is the interface implemented by *os.File.
+type FD interface {
+	// Write bytes to the file descriptor.
+	Write(p []byte) (int, error)
+	// Sync fsyncs the file descriptor ensuring all writes have made it to disk.
+	Sync() error
+	// Close the file descriptor.
+	Close() error
+}
