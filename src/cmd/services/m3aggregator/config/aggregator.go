@@ -64,16 +64,16 @@ type AggregatorConfiguration struct {
 	AggregationTypes aggregation.TypesConfiguration `yaml:"aggregationTypes"`
 
 	// Common metric prefix.
-	MetricPrefix string `yaml:"metricPrefix"`
+	MetricPrefix *string `yaml:"metricPrefix"`
 
 	// Counter metric prefix.
-	CounterPrefix string `yaml:"counterPrefix"`
+	CounterPrefix *string `yaml:"counterPrefix"`
 
 	// Timer metric prefix.
-	TimerPrefix string `yaml:"timerPrefix"`
+	TimerPrefix *string `yaml:"timerPrefix"`
 
 	// Gauge metric prefix.
-	GaugePrefix string `yaml:"gaugePrefix"`
+	GaugePrefix *string `yaml:"gaugePrefix"`
 
 	// Stream configuration for computing quantiles.
 	Stream streamConfiguration `yaml:"stream"`
@@ -748,11 +748,11 @@ type metricPrefixSetter func(b []byte) aggregator.Options
 
 func setMetricPrefix(
 	opts aggregator.Options,
-	str string,
+	str *string,
 	fn metricPrefixSetter,
 ) aggregator.Options {
-	if str == "" {
+	if str == nil {
 		return opts
 	}
-	return fn([]byte(str))
+	return fn([]byte(*str))
 }

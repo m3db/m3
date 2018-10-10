@@ -35,9 +35,9 @@ sleep 10
 
 echo "Nodes online"
 
-echo "Initializing namespace"
+echo "Initializing namespaces"
 curl -vvvsSf -X POST localhost:7201/api/v1/namespace -d '{
-  "name": "prometheus_metrics",
+  "name": "metrics_0_30m",
   "options": {
     "bootstrapEnabled": true,
     "flushEnabled": true,
@@ -46,23 +46,47 @@ curl -vvvsSf -X POST localhost:7201/api/v1/namespace -d '{
     "snapshotEnabled": true,
     "repairEnabled": false,
     "retentionOptions": {
-      "retentionPeriodNanos": 172800000000000,
-      "blockSizeNanos": 7200000000000,
-      "bufferFutureNanos": 600000000000,
-      "bufferPastNanos": 600000000000,
+      "retentionPeriodDuration": "30m",
+      "blockSizeDuration": "5m",
+      "bufferFutureDuration": "5m",
+      "bufferPastDuration": "5m",
       "blockDataExpiry": true,
-      "blockDataExpiryAfterNotAccessPeriodNanos": 300000000000
+      "blockDataExpiryAfterNotAccessPeriodDuration": "5m"
     },
     "indexOptions": {
       "enabled": true,
-      "blockSizeNanos": 7200000000000
+      "blockSizeDuration": "5m"
     }
   }
 }'
-echo "Done initializing namespace"
+curl -vvvsSf -X POST localhost:7201/api/v1/namespace -d '{
+  "name": "metrics_10s_48h",
+  "options": {
+    "bootstrapEnabled": true,
+    "flushEnabled": true,
+    "writesToCommitLog": true,
+    "cleanupEnabled": true,
+    "snapshotEnabled": true,
+    "repairEnabled": false,
+    "retentionOptions": {
+      "retentionPeriodDuration": "48h",
+      "blockSizeDuration": "4h",
+      "bufferFutureDuration": "10m",
+      "bufferPastDuration": "10m",
+      "blockDataExpiry": true,
+      "blockDataExpiryAfterNotAccessPeriodDuration": "5m"
+    },
+    "indexOptions": {
+      "enabled": true,
+      "blockSizeDuration": "4h"
+    }
+  }
+}'
+echo "Done initializing namespaces"
 
 echo "Validating namespace"
-[ "$(curl -sSf localhost:7201/api/v1/namespace | jq .registry.namespaces.prometheus_metrics.indexOptions.enabled)" == true ]
+[ "$(curl -sSf localhost:7201/api/v1/namespace | jq .registry.namespaces.metrics_0_30m.indexOptions.enabled)" == true ]
+[ "$(curl -sSf localhost:7201/api/v1/namespace | jq .registry.namespaces.metrics_10s_48h.indexOptions.enabled)" == true ]
 echo "Done validating namespace"
 
 echo "Initializing topology"
@@ -143,10 +167,10 @@ if [[ "$AGGREGATOR_PIPELINE" = true ]]; then
     curl -vvvsSf -X POST localhost:7201/api/v1/services/m3coordinator/placement/init -d '{
         "instances": [
             {
-                "id": "coordinator01",
+                "id": "m3coordinator01",
                 "zone": "embedded",
-                "endpoint": "coordinator01:7507",
-                "hostname": "coordinator01",
+                "endpoint": "m3coordinator01:7507",
+                "hostname": "m3coordinator01",
                 "port": 7507
             }
         ]
@@ -154,7 +178,7 @@ if [[ "$AGGREGATOR_PIPELINE" = true ]]; then
     echo "Done initializing M3Coordinator topology"
 
     echo "Validating M3Coordinator topology"
-    [ "$(curl -sSf localhost:7201/api/v1/services/m3coordinator/placement | jq .placement.instances.coordinator01.id)" == '"coordinator01"' ]
+    [ "$(curl -sSf localhost:7201/api/v1/services/m3coordinator/placement | jq .placement.instances.m3coordinator01.id)" == '"m3coordinator01"' ]
     echo "Done validating topology"
 
     # Do this after placement for m3coordinator is created.

@@ -95,6 +95,9 @@ aggregator:
     resolver: environment
     envVarName: M3AGGREGATOR_HOST_ID
   metricPrefix: ""
+  counterPrefix: ""
+  timerPrefix: ""
+  gaugePrefix: ""
   aggregationTypes:
     counterTransformFnType: empty
     timerTransformFnType: suffix
@@ -227,11 +230,40 @@ aggregator:
     maxBufferSize: 5m
     forcedFlushWindowSize: 10s
   flush:
+    writer:
+      maxBufferSize: 1440
+      encodingTimeSamplingRate: 0.01
+      bufferedEncoderPool:
+        size: 16384
     handlers:
-      - staticBackend:
-          type: logging
-      - staticBackend:
-          type: blackhole
+      - dynamicBackend:
+          name: m3msg
+          hashType: murmur32
+          totalShards: 64
+          producer:
+            buffer:
+              maxBufferSize: 1000000000 # max buffer before m3msg start dropping data.
+            writer:
+              topicName: aggregated_metrics
+              topicServiceOverride:
+                zone: embedded
+                environment: default_env
+              messageRetry:
+                initialBackoff: 1m
+                maxBackoff: 2m
+              messageQueueNewWritesScanInterval: 1s
+              ackErrorRetry:
+                initialBackoff: 2s
+                maxBackoff: 10s
+              connection:
+                dialTimeout: 5s
+                writeTimeout: 5s
+                retry:
+                  initialBackoff: 1s
+                  maxBackoff: 10s
+                flushInterval: 1s
+                writeBufferSize: 16384
+                readBufferSize: 256
   forwarding:
     maxSingleDelay: 5s
   entryTTL: 6h
