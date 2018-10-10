@@ -782,6 +782,14 @@ func (s *commitLogSource) newReadCommitLogPred(
 	// that has a snapshot more recent than the global minimum. If we use an array for fast-access this could
 	// be a small win in terms of memory utilization.
 	return func(f commitlog.File) bool {
+		if f.Error != nil {
+			s.log.
+				Errorf(
+					"opting to skip commit log: %s due to corruption, err: %v",
+					f.FilePath, f.Error)
+			return false
+		}
+
 		_, ok := commitlogFilesPresentBeforeStart[f.FilePath]
 		if !ok {
 			// If the file wasn't on disk before the node started then it only contains
