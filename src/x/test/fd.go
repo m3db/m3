@@ -62,7 +62,7 @@ func (c *CorruptingFD) Write(p []byte) (int, error) {
 	return c.fd.Write(p)
 }
 
-// SYNC fsyncs the underlying f.d.
+// Sync fsyncs the underlying f.d.
 func (c *CorruptingFD) Sync() error {
 	return c.fd.Sync()
 }
