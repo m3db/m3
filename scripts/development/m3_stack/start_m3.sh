@@ -117,7 +117,10 @@ else
         ]
     }'
 fi
-echo "Done initializing topology"
+
+echo "Validating topology"
+[ "$(curl -sSf localhost:7201/api/v1/placement | jq .placement.instances.m3db_seed.id)" == '"m3db_seed"' ]
+echo "Done validating topology"
 
 if [[ "$AGGREGATOR_PIPELINE" = true ]]; then
     curl -vvvsSf -X POST localhost:7201/api/v1/services/m3aggregator/placement/init -d '{
@@ -135,11 +138,48 @@ if [[ "$AGGREGATOR_PIPELINE" = true ]]; then
             }
         ]
     }'
-fi
 
-echo "Validating topology"
-[ "$(curl -sSf localhost:7201/api/v1/placement | jq .placement.instances.m3db_seed.id)" == '"m3db_seed"' ]
-echo "Done validating topology"
+    echo "Initializing M3Coordinator topology"
+    curl -vvvsSf -X POST localhost:7201/api/v1/services/m3coordinator/placement/init -d '{
+        "instances": [
+            {
+                "id": "coordinator01",
+                "zone": "embedded",
+                "endpoint": "coordinator01:7507",
+                "hostname": "coordinator01",
+                "port": 7507
+            }
+        ]
+    }'
+    echo "Done initializing M3Coordinator topology"
+
+    echo "Validating M3Coordinator topology"
+    [ "$(curl -sSf localhost:7201/api/v1/services/m3coordinator/placement | jq .placement.instances.coordinator01.id)" == '"coordinator01"' ]
+    echo "Done validating topology"
+
+    # Do this after placement for m3coordinator is created.
+    echo "Initializing m3msg topic for ingestion"
+    curl -vvvsSf -X POST localhost:7201/api/v1/topic/init -d '{
+        "numberOfShards": 64
+    }'
+
+    echo "Adding m3coordinator as a consumer to the topic"
+    curl -vvvsSf -X POST localhost:7201/api/v1/topic -d '{
+        "consumerService": {
+                "serviceId": {
+                "name": "m3coordinator",
+                "environment": "default_env",
+                "zone": "embedded"
+            },
+            "consumptionType": "SHARED",
+            "messageTtlNanos": "600000000000"
+        }
+    }' # msgs will be discarded after 600000000000ns = 10mins
+
+    # May not necessarily flush
+    echo "Sending unaggregated metric to m3collector"
+    curl http://localhost:7206/api/v1/json/report -X POST -d '{"metrics":[{"type":"gauge","value":42,"tags":{"__name__":"foo_metric","foo":"bar"}}]}'
+fi
 
 echo "Prometheus available at localhost:9090"
 echo "Grafana available at localhost:3000"

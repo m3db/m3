@@ -58,6 +58,9 @@ var (
 	// M3AggDeleteURL is the url for the placement delete handler for the M3Agg service.
 	M3AggDeleteURL = path.Join(handler.RoutePrefixV1, M3AggServicePlacementPathName, placementIDPath)
 
+	// M3CoordinatorDeleteURL is the url for the placement delete handler for the M3Coordinator service.
+	M3CoordinatorDeleteURL = path.Join(handler.RoutePrefixV1, M3CoordinatorServicePlacementPathName, placementIDPath)
+
 	errEmptyID = errors.New("must specify placement ID to delete")
 )
 
@@ -96,6 +99,11 @@ func (h *DeleteHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *
 
 	toRemove := []string{id}
 
+	switch serviceName {
+	case M3CoordinatorServiceName:
+		// There are no unsafe placement changes because M3Coordinator is stateless
+		force = true
+	}
 	var newPlacement placement.Placement
 	if force {
 		newPlacement, err = service.RemoveInstances(toRemove)

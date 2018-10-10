@@ -176,6 +176,73 @@ paths:
           description: ""
           schema:
             $ref: "#/definitions/GenericError"
+  /services/m3coordinator/placement:
+    get:
+      tags:
+      - "M3Coordinator Placement"
+      - "M3Coordinator"
+      summary: "Get the M3Coordinator placement"
+      operationId: "placementGet"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      responses:
+        200:
+          description: ""
+          schema:
+            $ref: "#/definitions/PlacementGetResponse"
+        500:
+          description: ""
+          schema:
+            $ref: "#/definitions/GenericError"
+    post:
+      tags:
+      - "M3Coordinator Placement"
+      - "M3Coordinator"
+      summary: "Add an instance to the placement"
+      operationId: "placementAdd"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "body"
+        in: "body"
+        schema:
+          $ref: "#/definitions/PlacementAddRequest"
+      responses:
+        200:
+          description: ""
+          schema:
+            $ref: "#/definitions/PlacementGetResponse"
+        400:
+          description: ""
+          schema:
+            $ref: "#/definitions/GenericError"
+        500:
+          description: ""
+          schema:
+            $ref: "#/definitions/GenericError"
+    delete:
+      tags:
+      - "M3Coordinator Placement"
+      - "M3Coordinator"
+      summary: "Delete the M3Coordinator placement"
+      operationId: "placementDeleteAll"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      responses:
+        200:
+          description: ""
+          schema:
+            $ref: "#/definitions/DeleteConfirmation"
+        500:
+          description: ""
+          schema:
+            $ref: "#/definitions/GenericError"
   /services/m3aggregator/placement:
     get:
       tags:
@@ -272,6 +339,35 @@ paths:
           description: ""
           schema:
             $ref: "#/definitions/GenericError"
+  /services/m3coordinator/placement/init:
+    post:
+      tags:
+      - "M3Coordinator Placement"
+      - "M3Coordinator"
+      summary: "Initialize the M3Coordinator placement"
+      operationId: "placementInit"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "body"
+        in: "body"
+        schema:
+          $ref: "#/definitions/PlacementInitRequestM3Coordinator"
+      responses:
+        200:
+          description: ""
+          schema:
+            $ref: "#/definitions/PlacementGetResponse"
+        400:
+          description: ""
+          schema:
+            $ref: "#/definitions/GenericError"
+        500:
+          description: ""
+          schema:
+            $ref: "#/definitions/GenericError"
   /services/m3aggregator/placement/init:
     post:
       tags:
@@ -307,6 +403,35 @@ paths:
       - "M3DB Placement"
       - "M3DB"
       summary: "Delete an M3DB instance from the placement"
+      operationId: "placementDelete"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "instanceID"
+        in: "path"
+        required: true
+        type: "string"
+      responses:
+        200:
+          description: ""
+          schema:
+            $ref: "#/definitions/PlacementGetResponse"
+        400:
+          description: ""
+          schema:
+            $ref: "#/definitions/GenericError"
+        500:
+          description: ""
+          schema:
+            $ref: "#/definitions/GenericError"
+  /services/m3coordinator/placement/{instanceID}:
+    delete:
+      tags:
+      - "M3Coordinator Placement"
+      - "M3Coordinator"
+      summary: "Delete an M3Coordinator instance from the placement"
       operationId: "placementDelete"
       consumes:
       - "application/json"
@@ -528,6 +653,19 @@ definitions:
         type: "string"
       port:
         type: "integer"
+  InstanceRequestM3Coordinator:
+    type: "object"
+    properties:
+      id:
+        type: "string"
+      zone:
+        type: "string"
+      endpoint:
+        type: "string"
+      hostname:
+        type: "string"
+      port:
+        type: "integer"
   Shard:
     type: "object"
     properties:
@@ -569,6 +707,13 @@ definitions:
       replicationFactor:
         type: "integer"
         format: "int32"
+  PlacementInitRequestM3Coordinator:
+    type: "object"
+    properties:
+      instances:
+        type: "array"
+        items:
+          $ref: "#/definitions/InstanceRequest"
   GenericError:
     type: "object"
     properties:

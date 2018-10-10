@@ -56,6 +56,8 @@ const (
 	M3DBServiceName = "m3db"
 	// M3AggregatorServiceName is the service name for M3Aggregator.
 	M3AggregatorServiceName = "m3aggregator"
+	// M3CoordinatorServiceName is the service name for M3Coordinator.
+	M3CoordinatorServiceName = "m3coordinator"
 	// ServicesPathName is the services part of the API path.
 	ServicesPathName = "services"
 	// PlacementPathName is the placement part of the API path.
@@ -73,9 +75,10 @@ const (
 	// HeaderDryRun is the header used to specify whether this should be a dry run.
 	HeaderDryRun = "Dry-Run"
 
-	defaultM3AggPlacementKey             = "/placement"
 	defaultM3AggMaxAggregationWindowSize = 5 * time.Minute
 	defaultM3AggWarmupDuration           = time.Minute
+
+	m3AggregatorPlacementNamespace = "/placement"
 )
 
 var (
@@ -86,14 +89,17 @@ var (
 	errM3AggServiceOptionsRequired  = errors.New("m3agg service options are required")
 
 	allowedServices = allowedServicesSet{
-		M3DBServiceName:         true,
-		M3AggregatorServiceName: true,
+		M3DBServiceName:          true,
+		M3AggregatorServiceName:  true,
+		M3CoordinatorServiceName: true,
 	}
 
 	// M3DBServicePlacementPathName is the M3DB service placement API path.
 	M3DBServicePlacementPathName = path.Join(ServicesPathName, M3DBServiceName, PlacementPathName)
 	// M3AggServicePlacementPathName is the M3Agg service placement API path.
 	M3AggServicePlacementPathName = path.Join(ServicesPathName, M3AggregatorServiceName, PlacementPathName)
+	// M3CoordinatorServicePlacementPathName is the M3Coordinator service placement API path.
+	M3CoordinatorServicePlacementPathName = path.Join(ServicesPathName, M3CoordinatorServiceName, PlacementPathName)
 )
 
 // HandlerOptions is the options struct for the handler.
@@ -206,13 +212,15 @@ func ServiceWithAlgo(
 	now time.Time,
 ) (placement.Service, placement.Algorithm, error) {
 	overrides := services.NewOverrideOptions()
-	if opts.ServiceName == M3AggregatorServiceName {
-		overrides = services.NewOverrideOptions().
+	switch opts.ServiceName {
+	case M3AggregatorServiceName:
+		overrides = overrides.
 			SetNamespaceOptions(
 				overrides.NamespaceOptions().
-					SetPlacementNamespace(defaultM3AggPlacementKey),
+					SetPlacementNamespace(m3AggregatorPlacementNamespace),
 			)
 	}
+
 	cs, err := clusterClient.Services(overrides)
 	if err != nil {
 		return nil, nil, err
@@ -246,7 +254,11 @@ func ServiceWithAlgo(
 		SetIsSharded(true).
 		SetDryrun(opts.DryRun)
 
-	if opts.ServiceName == M3AggregatorServiceName {
+	switch opts.ServiceName {
+	case M3CoordinatorServiceName:
+		pOpts = pOpts.
+			SetIsSharded(false)
+	case M3AggregatorServiceName:
 		var (
 			maxAggregationWindowSize = opts.M3Agg.MaxAggregationWindowSize
 			warmupDuration           = opts.M3Agg.WarmupDuration
@@ -323,6 +335,7 @@ func RegisterRoutes(r *mux.Router, opts HandlerOptions) {
 	r.HandleFunc(DeprecatedM3DBInitURL, deprecatedInitFn).Methods(InitHTTPMethod)
 	r.HandleFunc(M3DBInitURL, initFn).Methods(InitHTTPMethod)
 	r.HandleFunc(M3AggInitURL, initFn).Methods(InitHTTPMethod)
+	r.HandleFunc(M3CoordinatorInitURL, initFn).Methods(InitHTTPMethod)
 
 	// Get
 	var (
@@ -333,6 +346,7 @@ func RegisterRoutes(r *mux.Router, opts HandlerOptions) {
 	r.HandleFunc(DeprecatedM3DBGetURL, deprecatedGetFn).Methods(GetHTTPMethod)
 	r.HandleFunc(M3DBGetURL, getFn).Methods(GetHTTPMethod)
 	r.HandleFunc(M3AggGetURL, getFn).Methods(GetHTTPMethod)
+	r.HandleFunc(M3CoordinatorGetURL, getFn).Methods(GetHTTPMethod)
 
 	// Delete all
 	var (
@@ -343,6 +357,7 @@ func RegisterRoutes(r *mux.Router, opts HandlerOptions) {
 	r.HandleFunc(DeprecatedM3DBDeleteAllURL, deprecatedDeleteAllFn).Methods(DeleteAllHTTPMethod)
 	r.HandleFunc(M3DBDeleteAllURL, deleteAllFn).Methods(DeleteAllHTTPMethod)
 	r.HandleFunc(M3AggDeleteAllURL, deleteAllFn).Methods(DeleteAllHTTPMethod)
+	r.HandleFunc(M3CoordinatorDeleteAllURL, getFn).Methods(GetHTTPMethod)
 
 	// Add
 	var (
@@ -353,6 +368,7 @@ func RegisterRoutes(r *mux.Router, opts HandlerOptions) {
 	r.HandleFunc(DeprecatedM3DBAddURL, deprecatedAddFn).Methods(AddHTTPMethod)
 	r.HandleFunc(M3DBAddURL, addFn).Methods(AddHTTPMethod)
 	r.HandleFunc(M3AggAddURL, addFn).Methods(AddHTTPMethod)
+	r.HandleFunc(M3CoordinatorAddURL, getFn).Methods(GetHTTPMethod)
 
 	// Delete
 	var (
@@ -363,6 +379,7 @@ func RegisterRoutes(r *mux.Router, opts HandlerOptions) {
 	r.HandleFunc(DeprecatedM3DBDeleteURL, deprecatedDeleteFn).Methods(DeleteHTTPMethod)
 	r.HandleFunc(M3DBDeleteURL, deleteFn).Methods(DeleteHTTPMethod)
 	r.HandleFunc(M3AggDeleteURL, deleteFn).Methods(DeleteHTTPMethod)
+	r.HandleFunc(M3CoordinatorDeleteURL, getFn).Methods(GetHTTPMethod)
 }
 
 func newPlacementCutoverNanosFn(
@@ -490,14 +507,10 @@ func parseServiceFromRequest(r *http.Request) (string, error) {
 	for i, c := range components {
 		if c == "services" && i+1 < len(components) {
 			service := components[i+1]
-			switch service {
-			case M3DBServiceName:
-				return M3DBServiceName, nil
-			case M3AggregatorServiceName:
-				return M3AggregatorServiceName, nil
-			default:
-				return "", fmt.Errorf("unknown service: %s", service)
+			if _, ok := allowedServices[service]; ok {
+				return service, nil
 			}
+			return "", fmt.Errorf("unknown service: %s", service)
 		}
 	}
 

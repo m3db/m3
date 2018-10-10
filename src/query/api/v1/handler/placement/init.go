@@ -50,6 +50,9 @@ var (
 	// M3AggInitURL is the url for the m3agg placement init handler (with the POST method).
 	M3AggInitURL = path.Join(handler.RoutePrefixV1, M3AggServicePlacementPathName, initPathName)
 
+	// M3CoordinatorInitURL is the url for the m3agg placement init handler (with the POST method).
+	M3CoordinatorInitURL = path.Join(handler.RoutePrefixV1, M3CoordinatorServicePlacementPathName, initPathName)
+
 	// InitHTTPMethod is the HTTP method used with this resource.
 	InitHTTPMethod = http.MethodPost
 )
@@ -122,8 +125,14 @@ func (h *InitHandler) Init(
 		return nil, err
 	}
 
+	replicationFactor := int(req.ReplicationFactor)
+	switch serviceName {
+	case M3CoordinatorServiceName:
+		// M3Coordinator placements are stateless
+		replicationFactor = 1
+	}
 	placement, err := service.BuildInitialPlacement(instances,
-		int(req.NumShards), int(req.ReplicationFactor))
+		int(req.NumShards), replicationFactor)
 	if err != nil {
 		return nil, err
 	}
