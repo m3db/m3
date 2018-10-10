@@ -36,7 +36,7 @@ echo "Validating namespace"
 [ "$(curl -sSf localhost:7201/api/v1/namespace | jq .registry.namespaces.prometheus_metrics.indexOptions.enabled)" == true ]
 echo "Done validating namespace"
 
-echo "Initializing topology"
+echo "Initializing M3DB topology"
 curl -vvvsSf -X POST localhost:7201/api/v1/placement/init -d '{
     "num_shards": 64,
     "replication_factor": 3,
@@ -70,10 +70,28 @@ curl -vvvsSf -X POST localhost:7201/api/v1/placement/init -d '{
         }
     ]
 }'
-echo "Done initializing topology"
+echo "Done initializing M3DB topology"
 
 echo "Validating topology"
 [ "$(curl -sSf localhost:7201/api/v1/placement | jq .placement.instances.m3db_seed.id)" == '"m3db_seed"' ]
+echo "Done validating topology"
+
+echo "Initializing M3Coordinator topology"
+curl -vvvsSf -X POST localhost:7201/api/v1/services/m3coordinator/placement/init -d '{
+    "instances": [
+        {
+            "id": "coordinator01",
+            "zone": "embedded",
+            "endpoint": "coordinator01:7507",
+            "hostname": "coordinator01",
+            "port": 7507
+        }
+    ]
+}'
+echo "Done initializing M3Coordinator topology"
+
+echo "Validating M3Coordinator topology"
+[ "$(curl -sSf localhost:7201/api/v1/services/m3coordinator/placement | jq .placement.instances.coordinator01.id)" == '"coordinator01"' ]
 echo "Done validating topology"
 
 echo "Prometheus available at localhost:9090"
