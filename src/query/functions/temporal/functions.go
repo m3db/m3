@@ -23,6 +23,7 @@ package temporal
 import (
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/ts"
@@ -79,7 +80,7 @@ type functionNode struct {
 	comparisonFunc comparisonFunc
 }
 
-func (f *functionNode) Process(datapoints ts.Datapoints) float64 {
+func (f *functionNode) Process(datapoints ts.Datapoints, _ time.Time) float64 {
 	if len(datapoints) == 0 {
 		return math.NaN()
 	}

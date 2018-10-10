@@ -299,6 +299,7 @@ func (c *baseNode) processSingleRequest(request processRequest) error {
 			values = append(values, val)
 			newVal := math.NaN()
 			alignedTime, _ := bounds.TimeForIndex(i)
+			// fmt.Println("align: ", alignedTime.String())
 			oldestDatapointTimestamp := alignedTime.Add(-1 * aggDuration)
 			// Remove the older values from slice as newer values are pushed in.
 			// TODO: Consider using a rotating slice since this is inefficient
@@ -320,7 +321,7 @@ func (c *baseNode) processSingleRequest(request processRequest) error {
 					flattenedValues = append(flattenedValues, dps[idx:]...)
 				}
 
-				newVal = c.processor.Process(flattenedValues)
+				newVal = c.processor.Process(flattenedValues, alignedTime)
 			}
 
 			builder.AppendValue(i, newVal)
@@ -360,7 +361,7 @@ func (c *baseNode) sweep(processedKeys []bool, maxBlocks int) {
 
 // Processor is implemented by the underlying transforms
 type Processor interface {
-	Process(values ts.Datapoints) float64
+	Process(values ts.Datapoints, alignedTime time.Time) float64
 }
 
 // MakeProcessor is a way to create a transform

@@ -71,10 +71,6 @@ func NewLinearRegressionOp(args []interface{}, optype string) (transform.Params,
 		}
 
 	case DerivType:
-		if len(args) != 1 {
-			return emptyOp, fmt.Errorf("invalid number of args for %s: %d", DerivType, len(args))
-		}
-
 	default:
 		return nil, fmt.Errorf("unknown linear regression type: %s", optype)
 	}
@@ -93,7 +89,7 @@ type linearRegressionNode struct {
 	duration   float64
 }
 
-func (l linearRegressionNode) Process(dps ts.Datapoints) float64 {
+func (l linearRegressionNode) Process(dps ts.Datapoints, alignedTime time.Time) float64 {
 	if dps.Len() < 2 {
 		return math.NaN()
 	}
@@ -101,7 +97,7 @@ func (l linearRegressionNode) Process(dps ts.Datapoints) float64 {
 	var slope, intercept float64
 
 	if l.op.operatorType == PredictLinearType {
-		slope, intercept = linearRegression(dps, l.timeSpec.End)
+		slope, intercept = linearRegression(dps, alignedTime)
 		return slope*l.duration + intercept
 	}
 

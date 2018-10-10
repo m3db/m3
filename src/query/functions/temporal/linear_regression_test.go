@@ -40,12 +40,12 @@ var testLinearRegressionCases = []testCase{
 		name:   "predict_linear",
 		opType: PredictLinearType,
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 16.6666},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 21.6666},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 5.6666},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 10.6666},
 		},
 		afterAllBlocks: [][]float64{
-			{2, -4.3333, -3.8333, 2, 11.6666},
-			{7, 0.6666, 1.1666, 7, 16.6666},
+			{2, 0.1666, 0.1666, 2, 5.6666},
+			{7, 5.1666, 5.1666, 7, 10.6666},
 		},
 	},
 	{
@@ -75,12 +75,12 @@ var testLinearRegressionCasesSomeNaNs = []testCase{
 		name:   "predict_linear some NaNs",
 		opType: PredictLinearType,
 		afterBlockOne: [][]float64{
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 16.6666},
-			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 21.6666},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 5.6666},
+			{math.NaN(), math.NaN(), math.NaN(), math.NaN(), 10.6666},
 		},
 		afterAllBlocks: [][]float64{
-			{16.6666, -2.5, -1.9231, 11.6666, 11.6666},
-			{7, -5.1666, -5.1666, 7, 16.6666},
+			{6.6666, 0.6153, 0.8461, 4.6666, 5.6666},
+			{7, 3.8333, 2.8333, 7, 10.6666},
 		},
 	},
 	{
