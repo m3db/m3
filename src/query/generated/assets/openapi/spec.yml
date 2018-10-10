@@ -653,6 +653,19 @@ definitions:
         type: "string"
       port:
         type: "integer"
+  InstanceRequestM3Coordinator:
+    type: "object"
+    properties:
+      id:
+        type: "string"
+      zone:
+        type: "string"
+      endpoint:
+        type: "string"
+      hostname:
+        type: "string"
+      port:
+        type: "integer"
   Shard:
     type: "object"
     properties:
