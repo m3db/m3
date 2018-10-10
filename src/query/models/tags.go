@@ -193,19 +193,14 @@ func (t Tags) Get(key []byte) ([]byte, bool) {
 
 // Clone returns a copy of the tags.
 func (t Tags) Clone() Tags {
-	// Todo: Pool these
+	// TODO: Pool these
 	clonedTags := make([]Tag, t.Len())
-	copy(clonedTags, t.Tags)
+	for i, tag := range t.Tags {
+		clonedTags[i] = tag.Clone()
+	}
+
 	return Tags{
 		Tags: clonedTags,
-		Opts: t.Opts,
-	}
-}
-
-// Reset resets the tag list to empty
-func (t Tags) Reset() Tags {
-	return Tags{
-		Tags: t.Tags[:0],
 		Opts: t.Opts,
 	}
 }
@@ -218,7 +213,7 @@ func (t Tags) AddTag(tag Tag) Tags {
 
 // SetName sets the metric name.
 func (t Tags) SetName(value []byte) Tags {
-	return t.AddTag(Tag{Name: t.Opts.GetMetricName(), Value: value})
+	return t.AddOrUpdateTag(Tag{Name: t.Opts.GetMetricName(), Value: value})
 }
 
 // Name gets the metric name.
@@ -230,6 +225,20 @@ func (t Tags) Name() ([]byte, bool) {
 func (t Tags) AddTags(tags []Tag) Tags {
 	t.Tags = append(t.Tags, tags...)
 	return t.Normalize()
+}
+
+// AddOrUpdateTag is used to add a single tag and maintain sorted order,
+// or to replace the value of an existing tag.
+func (t Tags) AddOrUpdateTag(tag Tag) Tags {
+	tags := t.Tags
+	for i, tt := range tags {
+		if bytes.Equal(tag.Name, tt.Name) {
+			tags[i].Value = tag.Value
+			return t
+		}
+	}
+
+	return t.AddTag(tag)
 }
 
 // Add is used to add two tag structures and maintain sorted order.

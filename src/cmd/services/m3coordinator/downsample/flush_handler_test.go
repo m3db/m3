@@ -95,7 +95,7 @@ func TestDownsamplerFlushHandlerCopiesTags(t *testing.T) {
 	require.Equal(t, 1, len(writes))
 
 	// Ensure tag pointers _DO_NOT_ match but equal to same content
-	tags := writes[0].Tags.Clone().Tags
+	tags := writes[0].Tags.Tags
 	require.Equal(t, 1, len(tags))
 
 	tag := tags[0]

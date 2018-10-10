@@ -21,8 +21,13 @@
 package models
 
 import (
+	"bytes"
 	"hash/fnv"
+	"reflect"
 	"testing"
+	"unsafe"
+
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -118,8 +123,8 @@ func TestTagsWithExcludesCustom(t *testing.T) {
 		{Name: []byte("b"), Value: []byte("2")},
 		{Name: []byte("c"), Value: []byte("3")},
 	})
-	tags.SetName([]byte("foo"))
 
+	tags.SetName([]byte("foo"))
 	tagsWithoutKeys := tags.TagsWithoutKeys([][]byte{[]byte("a"), []byte("c"), tags.Opts.GetMetricName()})
 	assert.Equal(t, []Tag{{Name: []byte("b"), Value: []byte("2")}}, tagsWithoutKeys.Tags)
 }
@@ -148,16 +153,66 @@ func TestAddTags(t *testing.T) {
 	assert.Equal(t, expected, tags.Tags)
 }
 
+func TestUpdateName(t *testing.T) {
+	name := []byte("!")
+	tags := NewTags(1, NewTagOptions().SetMetricName(name))
+	actual, found := tags.Get(name)
+	assert.False(t, found)
+	assert.Nil(t, actual)
+
+	value := []byte("n")
+	tags = tags.SetName(value)
+	actual, found = tags.Get(name)
+	assert.True(t, found)
+	assert.Equal(t, value, actual)
+
+	value2 := []byte("abc")
+	tags = tags.SetName(value2)
+	actual, found = tags.Get(name)
+	assert.True(t, found)
+	assert.Equal(t, value2, actual)
+}
+
+func TestAddOrUpdateTags(t *testing.T) {
+	tags := EmptyTags().AddTags([]Tag{
+		{Name: []byte("a"), Value: []byte("1")},
+		{Name: []byte("z"), Value: []byte("4")},
+	})
+
+	tags = tags.AddOrUpdateTag(Tag{Name: []byte("x"), Value: []byte("!!")})
+	expected := EmptyTags().AddTags([]Tag{
+		{Name: []byte("a"), Value: []byte("1")},
+		{Name: []byte("x"), Value: []byte("!!")},
+		{Name: []byte("z"), Value: []byte("4")},
+	})
+
+	assert.Equal(t, tags, expected)
+	tags = tags.AddOrUpdateTag(Tag{Name: []byte("z"), Value: []byte("?")})
+	expected = EmptyTags().AddTags([]Tag{
+		{Name: []byte("a"), Value: []byte("1")},
+		{Name: []byte("x"), Value: []byte("!!")},
+		{Name: []byte("z"), Value: []byte("?")},
+	})
+	assert.Equal(t, expected, tags)
+}
+
 func TestCloneTags(t *testing.T) {
 	tags := createTags(true)
-	original := createTags(true)
-
 	cloned := tags.Clone()
-	assert.Equal(t, cloned, tags)
-	// mutate cloned and ensure tags is unchanged
-	cloned.Tags = cloned.Tags[1:]
-	assert.NotEqual(t, cloned, tags)
-	assert.Equal(t, original, tags)
+
+	assert.Equal(t, cloned.Opts, tags.Opts)
+	assert.Equal(t, cloned.Tags, tags.Tags)
+	aHeader := (*reflect.SliceHeader)(unsafe.Pointer(&cloned.Tags))
+	bHeader := (*reflect.SliceHeader)(unsafe.Pointer(&tags.Tags))
+	assert.False(t, aHeader.Data == bHeader.Data)
+
+	// Assert tag backing slice pointers do not match, but content is equal
+	tn, tv := tags.Tags[0].Name, tags.Tags[0].Value
+	cn, cv := cloned.Tags[0].Name, cloned.Tags[0].Value
+	assert.True(t, bytes.Equal(tn, cn))
+	assert.True(t, bytes.Equal(tv, cv))
+	assert.False(t, xtest.ByteSlicesBackedBySameData(tn, cn))
+	assert.False(t, xtest.ByteSlicesBackedBySameData(tv, cv))
 }
 
 func TestTagAppend(t *testing.T) {
