@@ -50,6 +50,10 @@ var (
 	// M3AggDeleteAllURL is the url for the handler to delete all placements (with the DELETE method)
 	// for the M3Agg service.
 	M3AggDeleteAllURL = path.Join(handler.RoutePrefixV1, M3AggServicePlacementPathName)
+
+	// M3CoordinatorDeleteAllURL is the url for the handler to delete all placements (with the DELETE method)
+	// for the M3Coordinator service.
+	M3CoordinatorDeleteAllURL = path.Join(handler.RoutePrefixV1, M3CoordinatorServicePlacementPathName)
 )
 
 // DeleteAllHandler is the handler to delete all placements.

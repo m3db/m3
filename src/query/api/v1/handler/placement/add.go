@@ -53,6 +53,10 @@ var (
 	// M3AggAddURL is the url for the placement add handler (with the POST method)
 	// for the M3Agg service.
 	M3AggAddURL = path.Join(handler.RoutePrefixV1, M3AggServicePlacementPathName)
+
+	// M3CoordinatorAddURL is the url for the placement add handler (with the POST method)
+	// for the M3Coordinator service.
+	M3CoordinatorAddURL = path.Join(handler.RoutePrefixV1, M3CoordinatorServicePlacementPathName)
 )
 
 // AddHandler is the handler for placement adds.
