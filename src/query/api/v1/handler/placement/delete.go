@@ -99,6 +99,11 @@ func (h *DeleteHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *
 
 	toRemove := []string{id}
 
+	switch serviceName {
+	case M3CoordinatorServiceName:
+		// There are no unsafe placement changes because M3Coordinator is stateless
+		force = true
+	}
 	var newPlacement placement.Placement
 	if force {
 		newPlacement, err = service.RemoveInstances(toRemove)

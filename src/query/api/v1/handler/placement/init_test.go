@@ -104,7 +104,16 @@ func TestPlacementInitHandler(t *testing.T) {
 		}
 		require.NotNil(t, req)
 
-		mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Not(nil), 64, 2).Return(nil, errors.New("unable to build initial placement"))
+		switch serviceName {
+		case M3CoordinatorServiceName:
+			mockPlacementService.EXPECT().
+				BuildInitialPlacement(gomock.Not(nil), 64, 1).
+				Return(nil, errors.New("unable to build initial placement"))
+		default:
+			mockPlacementService.EXPECT().
+				BuildInitialPlacement(gomock.Not(nil), 64, 2).
+				Return(nil, errors.New("unable to build initial placement"))
+		}
 		handler.ServeHTTP(serviceName, w, req)
 		resp = w.Result()
 		body, err = ioutil.ReadAll(resp.Body)
