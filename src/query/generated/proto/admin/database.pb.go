@@ -28,6 +28,7 @@
 		github.com/m3db/m3/src/query/generated/proto/admin/database.proto
 		github.com/m3db/m3/src/query/generated/proto/admin/namespace.proto
 		github.com/m3db/m3/src/query/generated/proto/admin/placement.proto
+		github.com/m3db/m3/src/query/generated/proto/admin/topic.proto
 
 	It has these top-level messages:
 		DatabaseCreateRequest
@@ -39,6 +40,9 @@
 		PlacementInitRequest
 		PlacementGetResponse
 		PlacementAddRequest
+		TopicGetResponse
+		TopicInitRequest
+		TopicAddRequest
 */
 package admin
 

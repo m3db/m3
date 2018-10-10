@@ -94,6 +94,26 @@ echo "Validating M3Coordinator topology"
 [ "$(curl -sSf localhost:7201/api/v1/services/m3coordinator/placement | jq .placement.instances.coordinator01.id)" == '"coordinator01"' ]
 echo "Done validating topology"
 
+# Do this after placement for m3coordinator is created.
+echo "Initializing m3msg topic for ingestion"
+curl -vvvsSf -X POST localhost:7201/api/v1/topic/init -d '{
+  "numberOfShards": 64
+}'
+
+echo "Adding m3coordinator as a consumer to the topic"
+curl -vvvsSf -X POST localhost:7201/api/v1/topic -d '{
+  "consumerService": {
+    "serviceId": {
+      "name": "m3coordinator",
+      "environment": "default_env",
+      "zone": "embedded"
+    },
+    "consumptionType": "SHARED",
+    "messageTtlNanos": "600000000000"
+  }
+}'
+# msgs will be discarded after 600000000000ns = 10mins
+
 echo "Prometheus available at localhost:9090"
 echo "Grafana available at localhost:3000"
 echo "Run ./stop.sh to shutdown nodes when done"
