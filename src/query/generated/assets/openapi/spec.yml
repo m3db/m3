@@ -19,8 +19,8 @@ tags:
   description: "Configuring M3DB placements"
 - name: "M3Aggregator Placement"
   description: "Configuring M3Aggregator placements"
-- name: "database"
-  description: "Database-wide functions"
+- name: "M3DB Database"
+  description: "M3DB Database-wide functions"
 schemes:
 - "http"
 paths:
