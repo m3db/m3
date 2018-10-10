@@ -41,6 +41,7 @@ import (
 )
 
 var (
+	// var instead of const so we can modify them in tests.
 	defaultDecodeEntryBufSize = 1024
 	decoderInBufChanSize      = 1000
 	decoderOutBufChanSize     = 1000

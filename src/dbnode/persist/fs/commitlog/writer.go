@@ -87,10 +87,10 @@ type fd interface {
 }
 
 type chunkWriterIface interface {
-	Reset(f fd)
+	reset(f fd)
 	Write(p []byte) (int, error)
-	Close() error
-	IsOpen() bool
+	close() error
+	isOpen() bool
 }
 
 type flushFn func(err error)
@@ -164,7 +164,7 @@ func (w *writer) Open(start time.Time, duration time.Duration) error {
 		return err
 	}
 
-	w.chunkWriter.Reset(fd)
+	w.chunkWriter.reset(fd)
 	w.buffer.Reset(w.chunkWriter)
 	if err := w.write(w.logEncoder.Bytes()); err != nil {
 		w.Close()
@@ -177,7 +177,7 @@ func (w *writer) Open(start time.Time, duration time.Duration) error {
 }
 
 func (w *writer) isOpen() bool {
-	return w.chunkWriter.IsOpen()
+	return w.chunkWriter.isOpen()
 }
 
 func (w *writer) Write(
@@ -258,11 +258,11 @@ func (w *writer) Close() error {
 	if err := w.Flush(); err != nil {
 		return err
 	}
-	if err := w.chunkWriter.Close(); err != nil {
+	if err := w.chunkWriter.close(); err != nil {
 		return err
 	}
 
-	w.chunkWriter.Reset(nil)
+	w.chunkWriter.reset(nil)
 	w.start = timeZero
 	w.duration = 0
 	w.seen.ClearAll()
@@ -305,15 +305,15 @@ func newChunkWriter(flushFn flushFn, fsync bool) *chunkWriter {
 	}
 }
 
-func (w *chunkWriter) Reset(f fd) {
+func (w *chunkWriter) reset(f fd) {
 	w.fd = f
 }
 
-func (w *chunkWriter) Close() error {
+func (w *chunkWriter) close() error {
 	return w.fd.Close()
 }
 
-func (w *chunkWriter) IsOpen() bool {
+func (w *chunkWriter) isOpen() bool {
 	return w.fd != nil
 }
 

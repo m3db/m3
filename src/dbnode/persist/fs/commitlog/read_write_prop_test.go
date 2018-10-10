@@ -493,6 +493,8 @@ func uniqueID(ns, s string) uint64 {
 	return idx
 }
 
+// corruptingFd implements the fd interface and can corrupt all writes issued
+// to it based on a configurable probability.
 type corruptingFd struct {
 	f                     fd
 	corruptionProbability float64
@@ -525,12 +527,14 @@ func (c *corruptingFd) Close() error {
 	return c.f.Close()
 }
 
+// corruptingFd implements the chunkWriter interface and can corrupt all writes issued
+// to it based on a configurable probability.
 type corruptingChunkWriter struct {
 	chunkWriter           *chunkWriter
 	corruptionProbability float64
 }
 
-func (c *corruptingChunkWriter) Reset(f fd) {
+func (c *corruptingChunkWriter) reset(f fd) {
 	c.chunkWriter.fd = &corruptingFd{
 		f: f,
 		corruptionProbability: c.corruptionProbability,
@@ -541,10 +545,10 @@ func (c *corruptingChunkWriter) Write(p []byte) (int, error) {
 	return c.chunkWriter.Write(p)
 }
 
-func (c *corruptingChunkWriter) Close() error {
-	return c.chunkWriter.Close()
+func (c *corruptingChunkWriter) close() error {
+	return c.chunkWriter.close()
 }
 
-func (c *corruptingChunkWriter) IsOpen() bool {
-	return c.chunkWriter.IsOpen()
+func (c *corruptingChunkWriter) isOpen() bool {
+	return c.chunkWriter.isOpen()
 }
