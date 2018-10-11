@@ -592,7 +592,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 		return shardResult, err
 	}
 
-	s.log.Infof(
+	s.log.Debugf(
 		"reading snapshot for shard: %d and blockStart: %s and volume: %d",
 		shard, blockStart.String(), mostRecentCompleteSnapshot.ID.VolumeIndex)
 	for {
