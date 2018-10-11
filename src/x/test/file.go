@@ -27,7 +27,7 @@ import (
 	"github.com/m3db/m3/src/x/os"
 )
 
-// corruptingFile implements the FD interface and can corrupt all writes issued
+// corruptingFile implements the xos.File interface and can corrupt all writes issued
 // to it based on a configurable probability.
 type corruptingFile struct {
 	fd                    xos.File
@@ -35,7 +35,7 @@ type corruptingFile struct {
 	rng                   *rand.Rand
 }
 
-// NewCorruptingFile creates a new corrupting FD.
+// NewCorruptingFile creates a new corrupting file.
 func NewCorruptingFile(
 	fd xos.File,
 	corruptionProbability float64,
@@ -48,7 +48,7 @@ func NewCorruptingFile(
 	}
 }
 
-// Write to the underlying f.d with a chance of corrupting it.
+// Write to the underlying file with a chance of corrupting it.
 func (c *corruptingFile) Write(p []byte) (int, error) {
 	threshold := uint64(c.corruptionProbability * float64(math.MaxUint64))
 	if c.rng.Uint64() <= threshold {
@@ -68,12 +68,12 @@ func (c *corruptingFile) Write(p []byte) (int, error) {
 	return c.fd.Write(p)
 }
 
-// Sync fsyncs the underlying f.d.
+// Sync fsyncs the underlying file.
 func (c *corruptingFile) Sync() error {
 	return c.fd.Sync()
 }
 
-// Close the underlying f.d.
+// Close the underlying file.
 func (c *corruptingFile) Close() error {
 	return c.fd.Close()
 }
