@@ -32,6 +32,7 @@ import (
 type CorruptingFD struct {
 	fd                    xos.File
 	corruptionProbability float64
+	rng                   *rand.Rand
 }
 
 // NewCorruptingFD creates a new corrupting FD.
@@ -43,13 +44,14 @@ func NewCorruptingFD(
 	return &CorruptingFD{
 		fd: fd,
 		corruptionProbability: corruptionProbability,
+		rng: rand.New(rand.NewSource(seed)),
 	}
 }
 
 // Write to the underlying f.d with a chance of corrupting it.
 func (c *CorruptingFD) Write(p []byte) (int, error) {
 	threshold := uint64(c.corruptionProbability * float64(math.MaxUint64))
-	if rand.Uint64() <= threshold {
+	if c.rng.Uint64() <= threshold {
 		var (
 			byteStart  int
 			byteOffset int
