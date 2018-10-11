@@ -337,6 +337,17 @@ func (s *commitLogSource) ReadData(
 	}
 	s.log.Infof("done merging..., took: %s", time.Since(mergeStart).String())
 
+	couldObtainDataFromPeers := s.couldObtainDataFromPeers(
+		shardsTimeRanges, runOpts)
+	if encounteredCorruptData && couldObtainDataFromPeers {
+		// If we encountered any corrupt data and there is a possibility of the
+		// peers bootstrapper being able to correct it, mark the entire range
+		// as unfulfilled so Peers bootstrapper can attempt a repair, but keep
+		// the data we read from the commit log as well in case the peers
+		// bootstrapper is unable to satisfy the bootstrap because all peers are
+		// down or if the commitlog contained data that the peers do not have.
+		bootstrapResult.SetUnfulfilled(shardsTimeRanges)
+	}
 	return bootstrapResult, nil
 }
 
@@ -1513,6 +1524,8 @@ func (s *commitLogSource) couldObtainDataFromPeers(
 	runOpts bootstrap.RunOptions,
 ) bool {
 	// TODO: Refactor InitialTopologyState to store Replicas along with MajorityReplicas
+	// TODO: Actually also need to check the shard state of the peers too because if they're
+	// not available we can't get data from them.
 	initialTopologyState := runOpts.InitialTopologyState()
 	if initialTopologyState.MajorityReplicas > 1 {
 		return true
