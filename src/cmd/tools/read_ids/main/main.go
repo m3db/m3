@@ -86,7 +86,7 @@ func main() {
 		log.Infof("reading ids for shard %d", shard)
 		var (
 			total     int
-			pageToken *int64
+			pageToken []byte
 			retrier   = xretry.NewRetrier(xretry.NewOptions().
 					SetBackoffFactor(2).
 					SetMaxRetries(3).
@@ -99,7 +99,7 @@ func main() {
 		// Declare before loop to avoid redeclaring each iteration
 		attemptFn := func() error {
 			tctx, _ := thrift.NewContext(60 * time.Second)
-			req := rpc.NewFetchBlocksMetadataRawRequest()
+			req := rpc.NewFetchBlocksMetadataRawV2Request()
 			req.NameSpace = ident.StringID(namespace).Bytes()
 			req.Shard = int32(shard)
 			req.RangeStart = 0
@@ -109,7 +109,7 @@ func main() {
 			req.IncludeSizes = &optionIncludeSizes
 			req.IncludeChecksums = &optionIncludeChecksums
 
-			result, err := client.FetchBlocksMetadataRaw(tctx, req)
+			result, err := client.FetchBlocksMetadataRawV2(tctx, req)
 			if err != nil {
 				return err
 			}
@@ -118,8 +118,7 @@ func main() {
 				// Create space on the heap for the page token and take it's
 				// address to avoid having to keep the entire result around just
 				// for the page token
-				resultPageToken := *result.NextPageToken
-				pageToken = &resultPageToken
+				pageToken = append([]byte(nil), result.NextPageToken...)
 			} else {
 				// No further results
 				moreResults = false
