@@ -27,21 +27,21 @@ import (
 	"github.com/m3db/m3/src/x/os"
 )
 
-// CorruptingFD implements the FD interface and can corrupt all writes issued
+// corruptingFile implements the FD interface and can corrupt all writes issued
 // to it based on a configurable probability.
-type CorruptingFD struct {
+type corruptingFile struct {
 	fd                    xos.File
 	corruptionProbability float64
 	rng                   *rand.Rand
 }
 
-// NewCorruptingFD creates a new corrupting FD.
-func NewCorruptingFD(
+// NewCorruptingFile creates a new corrupting FD.
+func NewCorruptingFile(
 	fd xos.File,
 	corruptionProbability float64,
 	seed int64,
-) *CorruptingFD {
-	return &CorruptingFD{
+) xos.File {
+	return &corruptingFile{
 		fd: fd,
 		corruptionProbability: corruptionProbability,
 		rng: rand.New(rand.NewSource(seed)),
@@ -49,7 +49,7 @@ func NewCorruptingFD(
 }
 
 // Write to the underlying f.d with a chance of corrupting it.
-func (c *CorruptingFD) Write(p []byte) (int, error) {
+func (c *corruptingFile) Write(p []byte) (int, error) {
 	threshold := uint64(c.corruptionProbability * float64(math.MaxUint64))
 	if c.rng.Uint64() <= threshold {
 		var (
@@ -69,11 +69,11 @@ func (c *CorruptingFD) Write(p []byte) (int, error) {
 }
 
 // Sync fsyncs the underlying f.d.
-func (c *CorruptingFD) Sync() error {
+func (c *corruptingFile) Sync() error {
 	return c.fd.Sync()
 }
 
 // Close the underlying f.d.
-func (c *CorruptingFD) Close() error {
+func (c *corruptingFile) Close() error {
 	return c.fd.Close()
 }

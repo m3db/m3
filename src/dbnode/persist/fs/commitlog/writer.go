@@ -294,7 +294,7 @@ type fsChunkWriter struct {
 	fsync   bool
 }
 
-func newChunkWriter(flushFn flushFn, fsync bool) *fsChunkWriter {
+func newChunkWriter(flushFn flushFn, fsync bool) chunkWriter {
 	return &fsChunkWriter{
 		flushFn: flushFn,
 		buff:    make([]byte, chunkHeaderLen),

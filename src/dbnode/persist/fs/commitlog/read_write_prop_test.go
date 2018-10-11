@@ -528,7 +528,7 @@ func newCorruptingChunkWriter(
 	chunkWriter *fsChunkWriter,
 	corruptionProbability float64,
 	seed int64,
-) *corruptingChunkWriter {
+) chunkWriter {
 	return &corruptingChunkWriter{
 		chunkWriter:           chunkWriter,
 		corruptionProbability: corruptionProbability,
@@ -537,7 +537,7 @@ func newCorruptingChunkWriter(
 }
 
 func (c *corruptingChunkWriter) reset(f xos.File) {
-	c.chunkWriter.fd = xtest.NewCorruptingFD(
+	c.chunkWriter.fd = xtest.NewCorruptingFile(
 		f, c.corruptionProbability, c.seed)
 }
 
