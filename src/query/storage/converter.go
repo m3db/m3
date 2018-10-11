@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"bytes"
 	"fmt"
 	"sync"
 	"time"
@@ -54,15 +55,30 @@ func PromWriteTSToM3(
 	}
 }
 
+// The default name for the name tag in Prometheus metrics.
+// This can be overwritten by setting tagOptions in the config
+var (
+	promDefaultName = []byte("__name__")
+)
+
 // PromLabelsToM3Tags converts Prometheus labels to M3 tags
 func PromLabelsToM3Tags(
 	labels []*prompb.Label,
 	tagOptions models.TagOptions,
 ) models.Tags {
 	tags := models.NewTags(len(labels), tagOptions)
-	tagList := make([]models.Tag, len(labels))
-	for i, label := range labels {
-		tagList[i] = models.Tag{Name: label.Name, Value: label.Value}
+	tagList := make([]models.Tag, 0, len(labels))
+	for _, label := range labels {
+		// If this label corresponds to the Prometheus name,
+		// instead set it as the given name tag from the config file.
+		if bytes.Equal(promDefaultName, label.Name) {
+			tags = tags.SetName(label.Value)
+		} else {
+			tagList = append(tagList, models.Tag{
+				Name:  label.Name,
+				Value: label.Value,
+			})
+		}
 	}
 
 	return tags.AddTags(tagList)
@@ -79,7 +95,7 @@ func PromSamplesToM3Datapoints(samples []*prompb.Sample) ts.Datapoints {
 	return datapoints
 }
 
-// PromReadQueryToM3 converts a prometheus read query to m3 ready query
+// PromReadQueryToM3 converts a prometheus read query to m3 read query
 func PromReadQueryToM3(query *prompb.Query) (*FetchQuery, error) {
 	tagMatchers, err := PromMatchersToM3(query.Matchers)
 	if err != nil {

@@ -122,7 +122,7 @@ func newTestStorage(t *testing.T, clusters Clusters) storage.Storage {
 	require.NoError(t, err)
 	writePool.Init()
 	opts := models.NewTagOptions().SetMetricName([]byte("name"))
-	storage := NewStorage(opts, clusters, nil, writePool)
+	storage := NewStorage(clusters, nil, writePool, opts)
 	return storage
 }
 
@@ -268,7 +268,7 @@ func TestLocalRead(t *testing.T) {
 	require.Len(t, results.SeriesList, 1)
 	require.NotNil(t, results.SeriesList[0])
 	assert.Equal(t, tags, results.SeriesList[0].Tags.Tags)
-	assert.Equal(t, []byte("name"), results.SeriesList[0].Tags.Opts.GetMetricName())
+	assert.Equal(t, []byte("name"), results.SeriesList[0].Tags.Opts.MetricName())
 }
 
 func TestLocalReadExceedsRetention(t *testing.T) {

@@ -106,23 +106,41 @@ func NewHandler(
 func (h *Handler) RegisterRoutes() error {
 	logged := logging.WithResponseTimeLogging
 
-	h.Router.HandleFunc(openapi.URL, logged(&openapi.DocHandler{}).ServeHTTP).Methods(openapi.HTTPMethod)
+	h.Router.HandleFunc(openapi.URL,
+		logged(&openapi.DocHandler{}).ServeHTTP,
+	).Methods(openapi.HTTPMethod)
 	h.Router.PathPrefix(openapi.StaticURLPrefix).Handler(logged(openapi.StaticHandler()))
 
 	// Prometheus remote read/write endpoints
 	promRemoteReadHandler := remote.NewPromReadHandler(h.engine, h.scope.Tagged(remoteSource))
-	promRemoteWriteHandler, err := remote.NewPromWriteHandler(h.storage, h.downsampler, h.tagOptions, h.scope.Tagged(remoteSource))
+	promRemoteWriteHandler, err := remote.NewPromWriteHandler(
+		h.storage,
+		h.downsampler,
+		h.tagOptions,
+		h.scope.Tagged(remoteSource),
+	)
 	if err != nil {
 		return err
 	}
 
-	h.Router.HandleFunc(remote.PromReadURL, logged(promRemoteReadHandler).ServeHTTP).Methods(remote.PromReadHTTPMethod)
-	h.Router.HandleFunc(remote.PromWriteURL, logged(promRemoteWriteHandler).ServeHTTP).Methods(remote.PromWriteHTTPMethod)
-	h.Router.HandleFunc(native.PromReadURL, logged(native.NewPromReadHandler(h.engine)).ServeHTTP).Methods(native.PromReadHTTPMethod)
+	h.Router.HandleFunc(
+		remote.PromReadURL,
+		logged(promRemoteReadHandler).ServeHTTP,
+	).Methods(remote.PromReadHTTPMethod)
+	h.Router.HandleFunc(remote.PromWriteURL,
+		logged(promRemoteWriteHandler).ServeHTTP,
+	).Methods(remote.PromWriteHTTPMethod)
+	h.Router.HandleFunc(native.PromReadURL,
+		logged(native.NewPromReadHandler(h.engine, h.tagOptions)).ServeHTTP,
+	).Methods(native.PromReadHTTPMethod)
 
 	// Native M3 search and write endpoints
-	h.Router.HandleFunc(handler.SearchURL, logged(handler.NewSearchHandler(h.storage)).ServeHTTP).Methods(handler.SearchHTTPMethod)
-	h.Router.HandleFunc(m3json.WriteJSONURL, logged(m3json.NewWriteJSONHandler(h.storage)).ServeHTTP).Methods(m3json.JSONWriteHTTPMethod)
+	h.Router.HandleFunc(handler.SearchURL,
+		logged(handler.NewSearchHandler(h.storage)).ServeHTTP,
+	).Methods(handler.SearchHTTPMethod)
+	h.Router.HandleFunc(m3json.WriteJSONURL,
+		logged(m3json.NewWriteJSONHandler(h.storage)).ServeHTTP,
+	).Methods(m3json.JSONWriteHTTPMethod)
 
 	if h.clusterClient != nil {
 		placementOpts := placement.HandlerOptions{

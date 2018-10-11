@@ -93,7 +93,7 @@ func (m Matchers) ToTags(
 			return Tags{}, fmt.Errorf("illegal match type, got %v, but expecting: %v", v.Type, MatchEqual)
 		}
 
-		tags = tags.AddTag(Tag{Name: v.Name, Value: v.Value})
+		tags = tags.AddTag(Tag{Name: v.Name, Value: v.Value}).Clone()
 	}
 
 	return tags, nil

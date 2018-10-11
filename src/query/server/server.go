@@ -535,10 +535,10 @@ func newStorages(
 	cleanup := func() error { return nil }
 
 	localStorage := m3.NewStorage(
-		tagOptions,
 		clusters,
 		readWorkerPool,
 		writeWorkerPool,
+		tagOptions,
 	)
 	stores := []storage.Storage{localStorage}
 	remoteEnabled := false

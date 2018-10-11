@@ -104,9 +104,9 @@ func TestDecodeFetchResult(t *testing.T) {
 	assert.Equal(t, name, tsSeries[0].Name())
 	assert.Equal(t, name, tsSeries[1].Name())
 	assert.Equal(t, tags0.Tags, tsSeries[0].Tags.Tags)
-	assert.Equal(t, metricName, tsSeries[0].Tags.Opts.GetMetricName())
+	assert.Equal(t, metricName, tsSeries[0].Tags.Opts.MetricName())
 	assert.Equal(t, tags1.Tags, tsSeries[1].Tags.Tags)
-	assert.Equal(t, metricName, tsSeries[1].Tags.Opts.GetMetricName())
+	assert.Equal(t, metricName, tsSeries[1].Tags.Opts.MetricName())
 
 	assert.Equal(t, len(valList0), tsSeries[0].Len())
 	assert.Equal(t, len(valList1), tsSeries[1].Len())

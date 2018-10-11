@@ -98,7 +98,7 @@ func (t Tags) IDWithExcludes(excludeKeys ...[]byte) uint64 {
 	b := make([]byte, 0, t.Len())
 	for _, tag := range t.Tags {
 		// Always exclude the metric name by default
-		if bytes.Equal(tag.Name, t.Opts.GetMetricName()) {
+		if bytes.Equal(tag.Name, t.Opts.MetricName()) {
 			continue
 		}
 
@@ -177,7 +177,7 @@ func (t Tags) TagsWithKeys(includeKeys [][]byte) Tags {
 
 // WithoutName copies the tags excluding the name tag.
 func (t Tags) WithoutName() Tags {
-	return t.TagsWithoutKeys([][]byte{t.Opts.GetMetricName()})
+	return t.TagsWithoutKeys([][]byte{t.Opts.MetricName()})
 }
 
 // Get returns the value for the tag with the given name.
@@ -213,12 +213,12 @@ func (t Tags) AddTag(tag Tag) Tags {
 
 // SetName sets the metric name.
 func (t Tags) SetName(value []byte) Tags {
-	return t.AddOrUpdateTag(Tag{Name: t.Opts.GetMetricName(), Value: value})
+	return t.AddOrUpdateTag(Tag{Name: t.Opts.MetricName(), Value: value})
 }
 
 // Name gets the metric name.
 func (t Tags) Name() ([]byte, bool) {
-	return t.Get(t.Opts.GetMetricName())
+	return t.Get(t.Opts.MetricName())
 }
 
 // AddTags is used to add a list of tags and maintain sorted order.

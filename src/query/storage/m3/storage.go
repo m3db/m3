@@ -60,10 +60,10 @@ type m3storage struct {
 
 // NewStorage creates a new local m3storage instance.
 func NewStorage(
-	tagOptions models.TagOptions,
 	clusters Clusters,
 	readWorkerPool xsync.PooledWorkerPool,
 	writeWorkerPool xsync.PooledWorkerPool,
+	tagOptions models.TagOptions,
 ) Storage {
 	return &m3storage{
 		tagOptions:      tagOptions,

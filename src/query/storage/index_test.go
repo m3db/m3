@@ -68,7 +68,7 @@ func TestFromM3IdentToMetric(t *testing.T) {
 
 	assert.Equal(t, testID.String(), metric.ID)
 	assert.Equal(t, testTags, metric.Tags.Tags)
-	assert.Equal(t, name, metric.Tags.Opts.GetMetricName())
+	assert.Equal(t, name, metric.Tags.Opts.MetricName())
 }
 
 func TestFromIdentTagIteratorToTags(t *testing.T) {
@@ -77,7 +77,7 @@ func TestFromIdentTagIteratorToTags(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, len(testTags), tags.Len())
 	assert.Equal(t, testTags, tags.Tags)
-	assert.Equal(t, []byte("__name__"), tags.Opts.GetMetricName())
+	assert.Equal(t, []byte("__name__"), tags.Opts.MetricName())
 }
 
 func TestFetchQueryToM3Query(t *testing.T) {

@@ -32,7 +32,7 @@ func TestTagOptionsFromEmptyConfig(t *testing.T) {
 	opts, err := TagOptionsFromConfig(cfg)
 	require.NoError(t, err)
 	require.NotNil(t, opts)
-	assert.Equal(t, []byte("__name__"), opts.GetMetricName())
+	assert.Equal(t, []byte("__name__"), opts.MetricName())
 }
 
 func TestTagOptionsFromConfig(t *testing.T) {
@@ -43,5 +43,5 @@ func TestTagOptionsFromConfig(t *testing.T) {
 	opts, err := TagOptionsFromConfig(cfg)
 	require.NoError(t, err)
 	require.NotNil(t, opts)
-	assert.Equal(t, []byte(name), opts.GetMetricName())
+	assert.Equal(t, []byte(name), opts.MetricName())
 }

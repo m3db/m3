@@ -38,8 +38,8 @@ type TagOptions interface {
 	// SetMetricName sets the name for the `metric name` metric.
 	SetMetricName(metricName []byte) TagOptions
 
-	// GetDefaultName gets the name for the `metric name `metric`.
-	GetMetricName() []byte
+	// MetricName gets the name for the `metric name `metric`.
+	MetricName() []byte
 }
 
 // Tags represents a set of tags with options.

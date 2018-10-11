@@ -18,43 +18,17 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package models
+package utils
 
 import (
-	"errors"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-var (
-	defaultMetricName = []byte("__name__")
-
-	errNoName = errors.New("metric name is missing or empty")
-)
-
-type tagOptions struct {
-	metricName []byte
-}
-
-// NewTagOptions builds a new tag options with default values.
-func NewTagOptions() TagOptions {
-	return &tagOptions{
-		metricName: defaultMetricName,
-	}
-}
-
-func (o *tagOptions) Validate() error {
-	if o.MetricName() == nil {
-		return errNoName
-	}
-
-	return nil
-}
-
-func (o *tagOptions) SetMetricName(metricName []byte) TagOptions {
-	opts := *o
-	opts.metricName = metricName
-	return &opts
-}
-
-func (o *tagOptions) MetricName() []byte {
-	return o.metricName
+func TestUniqueCount(t *testing.T) {
+	assert.Equal(t, 0, UniqueCount([]string{}))
+	assert.Equal(t, 3, UniqueCount([]string{"a", "b", "c"}))
+	assert.Equal(t, 2, UniqueCount([]string{"a", "b", "a"}))
+	assert.Equal(t, 1, UniqueCount([]string{"a", "a", "a"}))
 }

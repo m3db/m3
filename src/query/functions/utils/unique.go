@@ -18,43 +18,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package models
+package utils
 
-import (
-	"errors"
-)
-
-var (
-	defaultMetricName = []byte("__name__")
-
-	errNoName = errors.New("metric name is missing or empty")
-)
-
-type tagOptions struct {
-	metricName []byte
-}
-
-// NewTagOptions builds a new tag options with default values.
-func NewTagOptions() TagOptions {
-	return &tagOptions{
-		metricName: defaultMetricName,
-	}
-}
-
-func (o *tagOptions) Validate() error {
-	if o.MetricName() == nil {
-		return errNoName
+// UniqueCount calculates the number of unique strings in a given slice.
+func UniqueCount(names []string) int {
+	uniqueMap := make(map[string]struct{}, len(names))
+	for _, s := range names {
+		uniqueMap[s] = struct{}{}
 	}
 
-	return nil
-}
-
-func (o *tagOptions) SetMetricName(metricName []byte) TagOptions {
-	opts := *o
-	opts.metricName = metricName
-	return &opts
-}
-
-func (o *tagOptions) MetricName() []byte {
-	return o.metricName
+	return len(uniqueMap)
 }

@@ -74,7 +74,7 @@ func TestIDWithKeys(t *testing.T) {
 	h := fnv.New64a()
 	h.Write(b)
 
-	idWithKeys := tags.IDWithKeys([]byte("t1"), []byte("t2"), tags.Opts.GetMetricName())
+	idWithKeys := tags.IDWithKeys([]byte("t1"), []byte("t2"), tags.Opts.MetricName())
 	assert.Equal(t, h.Sum64(), idWithKeys)
 }
 
@@ -99,7 +99,7 @@ func TestIDWithExcludes(t *testing.T) {
 func TestTagsWithExcludes(t *testing.T) {
 	tags := createTags(true)
 
-	tagsWithoutKeys := tags.TagsWithoutKeys([][]byte{[]byte("t1"), tags.Opts.GetMetricName()})
+	tagsWithoutKeys := tags.TagsWithoutKeys([][]byte{[]byte("t1"), tags.Opts.MetricName()})
 	assert.Equal(t, []Tag{{Name: []byte("t2"), Value: []byte("v2")}}, tagsWithoutKeys.Tags)
 }
 
@@ -125,7 +125,7 @@ func TestTagsWithExcludesCustom(t *testing.T) {
 	})
 
 	tags.SetName([]byte("foo"))
-	tagsWithoutKeys := tags.TagsWithoutKeys([][]byte{[]byte("a"), []byte("c"), tags.Opts.GetMetricName()})
+	tagsWithoutKeys := tags.TagsWithoutKeys([][]byte{[]byte("a"), []byte("c"), tags.Opts.MetricName()})
 	assert.Equal(t, []Tag{{Name: []byte("b"), Value: []byte("2")}}, tagsWithoutKeys.Tags)
 }
 
