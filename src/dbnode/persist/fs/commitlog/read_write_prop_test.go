@@ -32,8 +32,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/x/os"
 	xtest "github.com/m3db/m3/src/x/test"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
@@ -124,7 +124,7 @@ func TestCommitLogReadWrite(t *testing.T) {
 }
 
 func TestCommitLogPropTest(t *testing.T) {
-	// Temporarily reduce size of buffered channels to increase change of
+	// Temporarily reduce size of buffered channels to increase chance of
 	// catching deadlock issues.
 	var (
 		oldDecoderInBufChanSize  = decoderInBufChanSize
@@ -501,7 +501,7 @@ type corruptingChunkWriter struct {
 	corruptionProbability float64
 }
 
-func (c *corruptingChunkWriter) reset(f fs.FD) {
+func (c *corruptingChunkWriter) reset(f xos.File) {
 	c.chunkWriter.fd = xtest.NewCorruptingFD(
 		f, c.corruptionProbability)
 }

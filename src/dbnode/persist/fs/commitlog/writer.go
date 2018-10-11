@@ -24,6 +24,7 @@ import (
 	"bufio"
 	"encoding/binary"
 	"errors"
+	"io"
 	"os"
 	"time"
 
@@ -34,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/x/os"
 	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
@@ -80,9 +82,10 @@ type commitLogWriter interface {
 	Close() error
 }
 
-type chunkWriterIface interface {
-	reset(f fs.FD)
-	Write(p []byte) (int, error)
+type chunkWriter interface {
+	io.Writer
+
+	reset(f xos.File)
 	close() error
 	isOpen() bool
 }
@@ -96,7 +99,7 @@ type writer struct {
 	nowFn              clock.NowFn
 	start              time.Time
 	duration           time.Duration
-	chunkWriter        chunkWriterIface
+	chunkWriter        chunkWriter
 	chunkReserveHeader []byte
 	buffer             *bufio.Writer
 	sizeBuffer         []byte
@@ -284,34 +287,34 @@ func (w *writer) write(data []byte) error {
 	return err
 }
 
-type chunkWriter struct {
-	fd      fs.FD
+type fsChunkWriter struct {
+	fd      xos.File
 	flushFn flushFn
 	buff    []byte
 	fsync   bool
 }
 
-func newChunkWriter(flushFn flushFn, fsync bool) *chunkWriter {
-	return &chunkWriter{
+func newChunkWriter(flushFn flushFn, fsync bool) *fsChunkWriter {
+	return &fsChunkWriter{
 		flushFn: flushFn,
 		buff:    make([]byte, chunkHeaderLen),
 		fsync:   fsync,
 	}
 }
 
-func (w *chunkWriter) reset(f fs.FD) {
+func (w *fsChunkWriter) reset(f xos.File) {
 	w.fd = f
 }
 
-func (w *chunkWriter) close() error {
+func (w *fsChunkWriter) close() error {
 	return w.fd.Close()
 }
 
-func (w *chunkWriter) isOpen() bool {
+func (w *fsChunkWriter) isOpen() bool {
 	return w.fd != nil
 }
 
-func (w *chunkWriter) Write(p []byte) (int, error) {
+func (w *fsChunkWriter) Write(p []byte) (int, error) {
 	size := len(p)
 
 	sizeStart, sizeEnd :=
