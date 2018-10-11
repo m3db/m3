@@ -24,18 +24,22 @@ import (
 	"math"
 	"math/rand"
 
-	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/x/os"
 )
 
 // CorruptingFD implements the FD interface and can corrupt all writes issued
 // to it based on a configurable probability.
 type CorruptingFD struct {
-	fd                    fs.FD
+	fd                    xos.File
 	corruptionProbability float64
 }
 
 // NewCorruptingFD creates a new corrupting FD.
-func NewCorruptingFD(fd fs.FD, corruptionProbability float64) *CorruptingFD {
+func NewCorruptingFD(
+	fd xos.File,
+	corruptionProbability float64,
+	seed int64,
+) *CorruptingFD {
 	return &CorruptingFD{
 		fd: fd,
 		corruptionProbability: corruptionProbability,

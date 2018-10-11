@@ -123,6 +123,12 @@ func TestCommitLogReadWrite(t *testing.T) {
 	require.Equal(t, len(writes), i)
 }
 
+// TestCommitLogPropTest property tests the commitlog by performing various
+// operations (Open, Write, Close) in various orders, and then ensuring that
+// all the data can be read back. In addition, in some runs it will arbitrarily
+// (based on a randomly generate probability) corrupt any bytes written to disk by
+// the commitlog to ensure that the commitlog reader is resilient to arbitrarily
+// corrupted files and will not deadlock / panic.
 func TestCommitLogPropTest(t *testing.T) {
 	// Temporarily reduce size of buffered channels to increase chance of
 	// catching deadlock issues.
@@ -141,19 +147,25 @@ func TestCommitLogPropTest(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(basePath)
 
-	parameters := gopter.DefaultTestParameters()
+	var (
+		seed       = time.Now().Unix()
+		parameters = gopter.DefaultTestParametersWithSeed(seed)
+		reporter   = gopter.NewFormatedReporter(true, 160, os.Stdout)
+	)
 	parameters.MinSuccessfulTests = 20
 	properties := gopter.NewProperties(parameters)
 
-	comms := clCommandFunctor(basePath, t)
+	comms := clCommandFunctor(t, basePath, seed)
 	properties.Property("CommitLog System", commands.Prop(comms))
-	properties.TestingRun(t)
+	if !properties.Run(reporter) {
+		t.Errorf("failed with initial seed: %d", seed)
+	}
 }
 
 // clCommandFunctor is a var which implements the command.Commands interface,
 // i.e. is responsible for creating/destroying the system under test and generating
 // commands and initial states (clState)
-func clCommandFunctor(basePath string, t *testing.T) *commands.ProtoCommands {
+func clCommandFunctor(t *testing.T, basePath string, seed int64) *commands.ProtoCommands {
 	return &commands.ProtoCommands{
 		NewSystemUnderTestFunc: func(initialState commands.State) commands.SystemUnderTest {
 			return initialState
@@ -165,7 +177,7 @@ func clCommandFunctor(basePath string, t *testing.T) *commands.ProtoCommands {
 			}
 			os.RemoveAll(state.opts.FilesystemOptions().FilePathPrefix())
 		},
-		InitialStateGen: genState(basePath, t),
+		InitialStateGen: genState(t, basePath, seed),
 		InitialPreConditionFunc: func(state commands.State) bool {
 			if state == nil {
 				return false
@@ -200,8 +212,9 @@ var genOpenCommand = gen.Const(&commands.ProtoCommand{
 				wIface := newCommitLogWriter(flushFn, opts)
 				w := wIface.(*writer)
 				w.chunkWriter = &corruptingChunkWriter{
-					chunkWriter:           w.chunkWriter.(*chunkWriter),
+					chunkWriter:           w.chunkWriter.(*fsChunkWriter),
 					corruptionProbability: s.corruptionProbability,
+					seed: s.seed,
 				}
 				return w
 			}
@@ -308,10 +321,12 @@ type clState struct {
 	// If the test should corrupt the commit log, what is the probability of
 	// corruption for any given write.
 	corruptionProbability float64
+	// Seed for use with all RNGs so that runs are reproducible.
+	seed int64
 }
 
 // generator for commit log write
-func genState(basePath string, t *testing.T) gopter.Gen {
+func genState(t *testing.T, basePath string, seed int64) gopter.Gen {
 	return gopter.CombineGens(gen.Identifier(), gen.Bool(), gen.Float64Range(0, 1)).
 		MapResult(func(r *gopter.GenResult) *gopter.GenResult {
 			iface, ok := r.Retrieve()
@@ -327,14 +342,20 @@ func genState(basePath string, t *testing.T) gopter.Gen {
 				initPath              = path.Join(basePath, p[0].(string))
 				shouldCorrupt         = p[1].(bool)
 				corruptionProbability = p[2].(float64)
-				result                = newInitState(t, initPath, shouldCorrupt, corruptionProbability)
+				result                = newInitState(
+					t, initPath, shouldCorrupt, corruptionProbability, seed)
 			)
 			return gopter.NewGenResult(result, gopter.NoShrinker)
 		})
 }
 
 func newInitState(
-	t *testing.T, dir string, shouldCorrupt bool, corruptionProbability float64) *clState {
+	t *testing.T,
+	dir string,
+	shouldCorrupt bool,
+	corruptionProbability float64,
+	seed int64,
+) *clState {
 	opts := NewOptions().
 		SetStrategy(StrategyWriteBehind).
 		SetFlushInterval(defaultTestFlushInterval).
@@ -349,6 +370,7 @@ func newInitState(
 		opts:                  opts,
 		shouldCorrupt:         shouldCorrupt,
 		corruptionProbability: corruptionProbability,
+		seed: seed,
 	}
 }
 
@@ -497,13 +519,14 @@ func uniqueID(ns, s string) uint64 {
 // corruptingChunkWriter implements the chunkWriter interface and can corrupt all writes issued
 // to it based on a configurable probability.
 type corruptingChunkWriter struct {
-	chunkWriter           *chunkWriter
+	chunkWriter           *fsChunkWriter
 	corruptionProbability float64
+	seed                  int64
 }
 
 func (c *corruptingChunkWriter) reset(f xos.File) {
 	c.chunkWriter.fd = xtest.NewCorruptingFD(
-		f, c.corruptionProbability)
+		f, c.corruptionProbability, c.seed)
 }
 
 func (c *corruptingChunkWriter) Write(p []byte) (int, error) {
