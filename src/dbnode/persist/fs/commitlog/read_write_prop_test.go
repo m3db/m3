@@ -211,11 +211,11 @@ var genOpenCommand = gen.Const(&commands.ProtoCommand{
 			cLog.newCommitLogWriterFn = func(flushFn flushFn, opts Options) commitLogWriter {
 				wIface := newCommitLogWriter(flushFn, opts)
 				w := wIface.(*writer)
-				w.chunkWriter = &corruptingChunkWriter{
-					chunkWriter:           w.chunkWriter.(*fsChunkWriter),
-					corruptionProbability: s.corruptionProbability,
-					seed: s.seed,
-				}
+				w.chunkWriter = newCorruptingChunkWriter(
+					w.chunkWriter.(*fsChunkWriter),
+					s.corruptionProbability,
+					s.seed,
+				)
 				return w
 			}
 		}
@@ -522,6 +522,18 @@ type corruptingChunkWriter struct {
 	chunkWriter           *fsChunkWriter
 	corruptionProbability float64
 	seed                  int64
+}
+
+func newCorruptingChunkWriter(
+	chunkWriter *fsChunkWriter,
+	corruptionProbability float64,
+	seed int64,
+) *corruptingChunkWriter {
+	return &corruptingChunkWriter{
+		chunkWriter:           chunkWriter,
+		corruptionProbability: corruptionProbability,
+		seed: seed,
+	}
 }
 
 func (c *corruptingChunkWriter) reset(f xos.File) {
