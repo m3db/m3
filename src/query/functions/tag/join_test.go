@@ -159,7 +159,7 @@ func TestTagJoinFn(t *testing.T) {
 			f, err := makeTagJoinFunc(tt.params)
 			require.NoError(t, err)
 			require.NotNil(t, f)
-			f(&meta, seriesMeta)
+			meta, seriesMeta = f(meta, seriesMeta)
 
 			assert.Equal(t, test.StringTagsToTags(tt.expectedMetaTags), meta.Tags)
 			require.Equal(t, len(tt.expectedSeriesMetaTags), len(seriesMeta))

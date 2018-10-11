@@ -59,8 +59,13 @@ func tagsInOrder(names [][]byte, tags models.Tags) [][]byte {
 	return orderedTags
 }
 
-// noop.
-func noopFunc(_ *block.Metadata, _ []block.SeriesMeta) {}
+// ident function.
+func identFunc(
+	m block.Metadata,
+	sm []block.SeriesMeta,
+) (block.Metadata, []block.SeriesMeta) {
+	return m, sm
+}
 
 func makeTagJoinFunc(params []string) (tagTransformFunc, error) {
 	if len(params) < 2 {
@@ -69,7 +74,7 @@ func makeTagJoinFunc(params []string) (tagTransformFunc, error) {
 
 	// return shortcircuting noop function if no joining names are provided.
 	if len(params) == 3 {
-		return noopFunc, nil
+		return identFunc, nil
 	}
 
 	name := []byte(params[0])
@@ -80,7 +85,10 @@ func makeTagJoinFunc(params []string) (tagTransformFunc, error) {
 		tagNames[i] = ([]byte(tag))
 	}
 
-	return func(meta *block.Metadata, seriesMeta []block.SeriesMeta) {
+	return func(
+		meta block.Metadata,
+		seriesMeta []block.SeriesMeta,
+	) (block.Metadata, []block.SeriesMeta) {
 		matchingCommonTags := meta.Tags.TagsWithKeys(tagNames)
 		lMatching := len(matchingCommonTags)
 		// Optimization if all joining series are shared by the block,
@@ -91,7 +99,7 @@ func makeTagJoinFunc(params []string) (tagTransformFunc, error) {
 				meta.Tags = meta.Tags.AddOrUpdateTag(combineTagsWithSeparator(name, sep, ordered))
 			}
 
-			return
+			return meta, seriesMeta
 		}
 
 		for i, meta := range seriesMeta {
@@ -103,5 +111,7 @@ func makeTagJoinFunc(params []string) (tagTransformFunc, error) {
 					AddOrUpdateTag(combineTagsWithSeparator(name, sep, ordered))
 			}
 		}
+
+		return meta, seriesMeta
 	}, nil
 }

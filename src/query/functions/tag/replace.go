@@ -67,7 +67,10 @@ func makeTagReplaceFunc(params []string) (tagTransformFunc, error) {
 	destinationValRegex := []byte(params[1])
 	sourceName := []byte(params[2])
 
-	return func(meta *block.Metadata, seriesMeta []block.SeriesMeta) {
+	return func(
+		meta block.Metadata,
+		seriesMeta []block.SeriesMeta,
+	) (block.Metadata, []block.SeriesMeta) {
 		// Optimization if all joining series are shared by the block,
 		// or if there is only a shared metadata and no single series metas.
 		val, found := meta.Tags.Get(sourceName)
@@ -87,11 +90,11 @@ func makeTagReplaceFunc(params []string) (tagTransformFunc, error) {
 				meta.Tags = meta.Tags.AddOrUpdateTag(tag)
 			}
 
-			return
+			return meta, seriesMeta
 		}
 
 		if len(seriesMeta) == 0 {
-			return
+			return meta, seriesMeta
 		}
 
 		for i, meta := range seriesMeta {
@@ -110,5 +113,7 @@ func makeTagReplaceFunc(params []string) (tagTransformFunc, error) {
 				seriesMeta[i].Tags = seriesMeta[i].Tags.AddOrUpdateTag(tag)
 			}
 		}
+
+		return meta, seriesMeta
 	}, nil
 }

@@ -29,7 +29,10 @@ import (
 )
 
 // Applies the given transform to block tags and series tags.
-type tagTransformFunc func(*block.Metadata, []block.SeriesMeta)
+type tagTransformFunc func(
+	block.Metadata,
+	[]block.SeriesMeta,
+) (block.Metadata, []block.SeriesMeta)
 
 // NewTagOp creates a new tag transform operation.
 func NewTagOp(
@@ -102,7 +105,7 @@ func (n *baseNode) Process(ID parser.NodeID, b block.Block) error {
 	meta := it.Meta()
 	seriesMeta := it.SeriesMeta()
 
-	n.op.tagFn(&meta, seriesMeta)
+	meta, seriesMeta = n.op.tagFn(meta, seriesMeta)
 	bl, err := b.WithMetadata(meta, seriesMeta)
 	if err != nil {
 		return err
