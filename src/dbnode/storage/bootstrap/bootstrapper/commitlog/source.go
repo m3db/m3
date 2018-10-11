@@ -185,8 +185,9 @@ func (s *commitLogSource) ReadData(
 	}
 
 	var (
-		fsOpts         = s.opts.CommitLogOptions().FilesystemOptions()
-		filePathPrefix = fsOpts.FilePathPrefix()
+		encounteredCorruptData = false
+		fsOpts                 = s.opts.CommitLogOptions().FilesystemOptions()
+		filePathPrefix         = fsOpts.FilePathPrefix()
 	)
 
 	// Determine which snapshot files are available.
@@ -242,9 +243,12 @@ func (s *commitLogSource) ReadData(
 		s.log.Infof("datapointsRead: %d", datapointsRead)
 	}()
 
-	iter, err := s.newIteratorFn(iterOpts)
+	iter, corruptFiles, err := s.newIteratorFn(iterOpts)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create commit log iterator: %v", err)
+	}
+	if len(corruptFiles) > 0 {
+		encounteredCorruptData = true
 	}
 
 	defer iter.Close()
@@ -683,7 +687,7 @@ func (s *commitLogSource) newReadCommitLogPredBasedOnAvailableSnapshotFiles(
 	shardsTimeRanges result.ShardTimeRanges,
 	snapshotFilesByShard map[uint32]fs.FileSetFilesSlice,
 ) (
-	func(f commitlog.File) bool,
+	commitlog.FileFilterPredicate,
 	map[xtime.UnixNano]map[uint32]fs.FileSetFile,
 	error,
 ) {
@@ -740,7 +744,7 @@ func (s *commitLogSource) newReadCommitLogPredBasedOnAvailableSnapshotFiles(
 func (s *commitLogSource) newReadCommitLogPred(
 	ns namespace.Metadata,
 	minimumMostRecentSnapshotTimeByBlock map[xtime.UnixNano]time.Time,
-) func(f commitlog.File) bool {
+) commitlog.FileFilterPredicate {
 	var (
 		rOpts                            = ns.Options().RetentionOptions()
 		blockSize                        = rOpts.BlockSize()
@@ -782,13 +786,13 @@ func (s *commitLogSource) newReadCommitLogPred(
 	// we need to read, but we can still skip datapoints from the commitlog itself that belong to a shard
 	// that has a snapshot more recent than the global minimum. If we use an array for fast-access this could
 	// be a small win in terms of memory utilization.
-	return func(f commitlog.File) bool {
+	return func(f commitlog.File) (bool, bool) {
 		if f.Error != nil {
 			s.log.
 				Errorf(
 					"opting to skip commit log: %s due to corruption, err: %v",
 					f.FilePath, f.Error)
-			return false
+			return false, true
 		}
 
 		_, ok := commitlogFilesPresentBeforeStart[f.FilePath]
@@ -796,7 +800,7 @@ func (s *commitLogSource) newReadCommitLogPred(
 			// If the file wasn't on disk before the node started then it only contains
 			// writes that are already in memory (and in-fact the file may be actively
 			// being written to.)
-			return false
+			return false, false
 		}
 
 		for _, rangeToCheck := range rangesToCheck {
@@ -810,7 +814,7 @@ func (s *commitLogSource) newReadCommitLogPred(
 					Infof(
 						"opting to read commit log: %s with start: %s and duration: %s",
 						f.FilePath, f.Start.String(), f.Duration.String())
-				return true
+				return true, false
 			}
 		}
 
@@ -818,7 +822,7 @@ func (s *commitLogSource) newReadCommitLogPred(
 			Infof(
 				"opting to skip commit log: %s with start: %s and duration: %s",
 				f.FilePath, f.Start.String(), f.Duration.String())
-		return false
+		return false, false
 	}
 }
 
@@ -1277,8 +1281,9 @@ func (s *commitLogSource) ReadIndex(
 	}
 
 	var (
-		fsOpts         = s.opts.CommitLogOptions().FilesystemOptions()
-		filePathPrefix = fsOpts.FilePathPrefix()
+		encounteredCorruptData = false
+		fsOpts                 = s.opts.CommitLogOptions().FilesystemOptions()
+		filePathPrefix         = fsOpts.FilePathPrefix()
 	)
 
 	// Determine which snapshot files are available.
@@ -1350,10 +1355,14 @@ func (s *commitLogSource) ReadIndex(
 
 	// Next, read all of the data from the commit log files that wasn't covered
 	// by the snapshot files.
-	iter, err := s.newIteratorFn(iterOpts)
+	iter, corruptFiles, err := s.newIteratorFn(iterOpts)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create commit log iterator: %v", err)
 	}
+	if len(corruptFiles) > 0 {
+		encounteredCorruptData = true
+	}
+
 	defer iter.Close()
 
 	for iter.Next() {

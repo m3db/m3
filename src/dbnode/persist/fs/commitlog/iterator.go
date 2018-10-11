@@ -78,7 +78,7 @@ func NewIterator(iterOpts IteratorOpts) (iter Iterator, corruptFiles []string, e
 	if err != nil {
 		return nil, nil, err
 	}
-	filteredFiles := filterFiles(opts, files, iterOpts.FileFilterPredicate)
+	filteredFiles, corruptFiles := filterFiles(opts, files, iterOpts.FileFilterPredicate)
 
 	scope := iops.MetricsScope()
 	return &iterator{
@@ -90,7 +90,7 @@ func NewIterator(iterOpts IteratorOpts) (iter Iterator, corruptFiles []string, e
 		log:        iops.Logger(),
 		files:      filteredFiles,
 		seriesPred: iterOpts.SeriesFilterPredicate,
-	}, nil, nil
+	}, corruptFiles, nil
 }
 
 func (i *iterator) Next() bool {
@@ -190,14 +190,22 @@ func (i *iterator) nextReader() bool {
 	return true
 }
 
-func filterFiles(opts Options, files []File, predicate FileFilterPredicate) []File {
-	filteredFiles := make([]File, 0, len(files))
+func filterFiles(opts Options, files []File, predicate FileFilterPredicate) ([]File, []string) {
+	var (
+		filtered = make([]File, 0, len(files))
+		corrupt  = make([]string, 0, len(files))
+	)
+
 	for _, f := range files {
-		if predicate(f) {
-			filteredFiles = append(filteredFiles, f)
+		shouldRead, isCorrupt := predicate(f)
+		if shouldRead {
+			filtered = append(filtered, f)
+		}
+		if isCorrupt {
+			corrupt = append(corrupt, f.FilePath)
 		}
 	}
-	return filteredFiles
+	return filtered, corrupt
 }
 
 func (i *iterator) closeAndResetReader() error {
