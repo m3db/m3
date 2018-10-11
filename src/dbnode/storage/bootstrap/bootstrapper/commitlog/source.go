@@ -55,7 +55,8 @@ var (
 
 const encoderChanBufSize = 1000
 
-type newIteratorFn func(opts commitlog.IteratorOpts) (commitlog.Iterator, error)
+type newIteratorFn func(opts commitlog.IteratorOpts) (
+	iter commitlog.Iterator, corruptFiles []string, err error)
 type snapshotFilesFn func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error)
 type newReaderFn func(bytesPool pool.CheckedBytesPool, opts fs.Options) (fs.DataFileSetReader, error)
 
@@ -1497,21 +1498,17 @@ func (s *commitLogSource) availability(
 	return availableShardTimeRanges, nil
 }
 
-func (s *commitLogSource) isOnlyNodeInPlacement(
+func (s *commitLogSource) couldObtainDataFromPeers(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
-) (bool, error) {
-	var (
-	// topoState                = runOpts.InitialTopologyState()
-	// availableShardTimeRanges = result.ShardTimeRanges{}
-	)
-
-	for shardIDUint := range shardsTimeRanges {
-
+) bool {
+	// TODO: Refactor InitialTopologyState to store Replicas along with MajorityReplicas
+	initialTopologyState := runOpts.InitialTopologyState()
+	if initialTopologyState.MajorityReplicas > 1 {
+		return true
 	}
-
-	return true, nil
+	return false
 }
 
 func newReadSeriesPredicate(ns namespace.Metadata) commitlog.SeriesFilterPredicate {
