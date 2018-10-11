@@ -72,8 +72,7 @@ type TargetRange struct {
 type PersistConfig struct {
 	// If enabled bootstrappers are allowed to write out bootstrapped data
 	// to disk on their own instead of just returning result in-memory.
-	DataEnabled  bool
-	IndexEnabled bool
+	Enable bool
 	// If enabled, what type of persistence files should be generated during
 	// the process.
 	FileSetType persist.FileSetType
