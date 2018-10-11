@@ -248,7 +248,6 @@ func (s *commitLogSource) ReadData(
 		return nil, fmt.Errorf("unable to create commit log iterator: %v", err)
 	}
 	if len(corruptFiles) > 0 {
-		fmt.Println("yolo")
 		encounteredCorruptData = true
 	}
 
@@ -1558,10 +1557,8 @@ func (s *commitLogSource) couldObtainDataFromPeers(
 	// not available we can't get data from them.
 	initialTopologyState := runOpts.InitialTopologyState()
 	if initialTopologyState.MajorityReplicas > 1 {
-		fmt.Println("could get from peers: ", true)
 		return true
 	}
-	fmt.Println("could get from peers: ", false)
 	return false
 }
 
