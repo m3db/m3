@@ -307,7 +307,13 @@ func (s *commitLogSource) ReadData(
 	}
 
 	if iterErr := iter.Err(); iterErr != nil {
-		return nil, iterErr
+		// Log the error and mark that we encountered corrupt data, but don't
+		// return the error because we want to give the peers bootstrapper the
+		// opportunity to repair the data instead of failing the bootstrap
+		// altogether.
+		s.log.Errorf(
+			"error in commitlog iterator: %v", iterErr)
+		encounteredCorruptData = true
 	}
 
 	for _, encoderChan := range encoderChans {
@@ -333,12 +339,13 @@ func (s *commitLogSource) ReadData(
 		shardDataByShard,
 	)
 	if err != nil {
+		// TODO: Should probably not return this error?
 		return nil, err
 	}
 	s.log.Infof("done merging..., took: %s", time.Since(mergeStart).String())
 
 	couldObtainDataFromPeers := s.couldObtainDataFromPeers(
-		shardsTimeRanges, runOpts)
+		ns, shardsTimeRanges, runOpts)
 	if encounteredCorruptData && couldObtainDataFromPeers {
 		// If we encountered any corrupt data and there is a possibility of the
 		// peers bootstrapper being able to correct it, mark the entire range
@@ -1349,6 +1356,7 @@ func (s *commitLogSource) ReadIndex(
 			ns.ID(), shard, true, tr, blockSize, snapshotFilesByShard[shard],
 			mostRecentCompleteSnapshotByBlockShard)
 		if err != nil {
+			// TODO: Probably should not return an error here
 			return nil, err
 		}
 
@@ -1384,6 +1392,16 @@ func (s *commitLogSource) ReadIndex(
 			indexResults, indexOptions, indexBlockSize, resultOptions)
 	}
 
+	if iterErr := iter.Err(); iterErr != nil {
+		// Log the error and mark that we encountered corrupt data, but don't
+		// return the error because we want to give the peers bootstrapper the
+		// opportunity to repair the data instead of failing the bootstrap
+		// altogether.
+		s.log.Errorf(
+			"error in commitlog iterator: %v", iterErr)
+		encounteredCorruptData = true
+	}
+
 	// If all successful then we mark each index block as fulfilled
 	for _, block := range indexResult.IndexResults() {
 		blockRange := xtime.Range{
@@ -1409,6 +1427,17 @@ func (s *commitLogSource) ReadIndex(
 		}
 	}
 
+	couldObtainDataFromPeers := s.couldObtainDataFromPeers(
+		ns, shardsTimeRanges, opts)
+	if encounteredCorruptData && couldObtainDataFromPeers {
+		// If we encountered any corrupt data and there is a possibility of the
+		// peers bootstrapper being able to correct it, mark the entire range
+		// as unfulfilled so Peers bootstrapper can attempt a repair, but keep
+		// the data we read from the commit log as well in case the peers
+		// bootstrapper is unable to satisfy the bootstrap because all peers are
+		// down or if the commitlog contained data that the peers do not have.
+		indexResult.SetUnfulfilled(shardsTimeRanges)
+	}
 	return indexResult, nil
 }
 

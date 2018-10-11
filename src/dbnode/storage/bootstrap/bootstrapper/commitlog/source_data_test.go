@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
@@ -49,8 +50,9 @@ import (
 )
 
 var (
-	testNamespaceID       = ident.StringID("testnamespace")
-	testDefaultRunOpts    = bootstrap.NewRunOptions()
+	testNamespaceID    = ident.StringID("testnamespace")
+	testDefaultRunOpts = bootstrap.NewRunOptions().
+				SetInitialTopologyState(&topology.StateSnapshot{})
 	minCommitLogRetention = 10 * time.Minute
 )
 
@@ -111,8 +113,8 @@ func TestReadErrorOnNewIteratorError(t *testing.T) {
 	opts := testDefaultOpts
 	src := newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
 
-	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, error) {
-		return nil, fmt.Errorf("an error")
+	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, []string, error) {
+		return nil, nil, fmt.Errorf("an error")
 	}
 
 	ranges := xtime.Ranges{}
@@ -157,8 +159,8 @@ func TestReadOrderedValues(t *testing.T) {
 		// "baz" is in shard 2 and should not be returned
 		{baz, start.Add(4 * time.Minute), 1.0, xtime.Second, nil},
 	}
-	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, error) {
-		return newTestCommitLogIterator(values, nil), nil
+	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, []string, error) {
+		return newTestCommitLogIterator(values, nil), nil, nil
 	}
 
 	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
@@ -199,8 +201,8 @@ func TestReadUnorderedValues(t *testing.T) {
 		{foo, start.Add(3 * time.Minute), 4.0, xtime.Second, nil},
 		{foo, start, 5.0, xtime.Second, nil},
 	}
-	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, error) {
-		return newTestCommitLogIterator(values, nil), nil
+	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, []string, error) {
+		return newTestCommitLogIterator(values, nil), nil, nil
 	}
 
 	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
@@ -245,8 +247,8 @@ func TestReadHandlesDifferentSeriesWithIdenticalUniqueIndex(t *testing.T) {
 		{foo, start, 1.0, xtime.Second, nil},
 		{bar, start, 2.0, xtime.Second, nil},
 	}
-	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, error) {
-		return newTestCommitLogIterator(values, nil), nil
+	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, []string, error) {
+		return newTestCommitLogIterator(values, nil), nil, nil
 	}
 
 	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
@@ -286,8 +288,8 @@ func TestReadTrimsToRanges(t *testing.T) {
 		{foo, start.Add(1 * time.Minute), 3.0, xtime.Nanosecond, nil},
 		{foo, end.Truncate(blockSize).Add(blockSize).Add(time.Nanosecond), 4.0, xtime.Nanosecond, nil},
 	}
-	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, error) {
-		return newTestCommitLogIterator(values, nil), nil
+	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, []string, error) {
+		return newTestCommitLogIterator(values, nil), nil, nil
 	}
 
 	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
@@ -334,8 +336,8 @@ func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
 		End:   end,
 	})
 
-	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, error) {
-		return newTestCommitLogIterator(commitLogValues, nil), nil
+	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, []string, error) {
+		return newTestCommitLogIterator(commitLogValues, nil), nil, nil
 	}
 	src.snapshotFilesFn = func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error) {
 		return fs.FileSetFilesSlice{

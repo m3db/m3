@@ -117,8 +117,8 @@ func testBootstrapIndex(t *testing.T, bootstrapDataFirst bool) {
 		{someOtherNamespace, start.Add(dataBlockSize), 1.0, xtime.Second, nil},
 	}
 
-	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, error) {
-		return newTestCommitLogIterator(values, nil), nil
+	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, []string, error) {
+		return newTestCommitLogIterator(values, nil), nil, nil
 	}
 
 	ranges := xtime.Ranges{}
@@ -195,8 +195,8 @@ func testBootstrapIndex(t *testing.T, bootstrapDataFirst bool) {
 			otherNamespaceValues = append(otherNamespaceValues, value)
 		}
 	}
-	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, error) {
-		return newTestCommitLogIterator(otherNamespaceValues, nil), nil
+	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, []string, error) {
+		return newTestCommitLogIterator(otherNamespaceValues, nil), nil, nil
 	}
 
 	res, err = src.ReadIndex(md2, targetRanges, testDefaultRunOpts)
@@ -212,8 +212,8 @@ func testBootstrapIndex(t *testing.T, bootstrapDataFirst bool) {
 
 	// Update the iterator function to return no values (since this namespace has no data)
 	// because the real commit log reader does this (via the ReadSeries predicate).
-	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, error) {
-		return newTestCommitLogIterator([]testValue{}, nil), nil
+	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, []string, error) {
+		return newTestCommitLogIterator([]testValue{}, nil), nil, nil
 	}
 
 	res, err = src.ReadIndex(md3, targetRanges, testDefaultRunOpts)
@@ -253,8 +253,8 @@ func TestBootstrapIndexEmptyShardTimeRanges(t *testing.T) {
 	require.NoError(t, err)
 
 	values := []testValue{}
-	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, error) {
-		return newTestCommitLogIterator(values, nil), nil
+	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, []string, error) {
+		return newTestCommitLogIterator(values, nil), nil, nil
 	}
 
 	res, err := src.ReadIndex(md, result.ShardTimeRanges{}, testDefaultRunOpts)
