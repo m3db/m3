@@ -1497,6 +1497,23 @@ func (s *commitLogSource) availability(
 	return availableShardTimeRanges, nil
 }
 
+func (s *commitLogSource) isOnlyNodeInPlacement(
+	ns namespace.Metadata,
+	shardsTimeRanges result.ShardTimeRanges,
+	runOpts bootstrap.RunOptions,
+) (bool, error) {
+	var (
+	// topoState                = runOpts.InitialTopologyState()
+	// availableShardTimeRanges = result.ShardTimeRanges{}
+	)
+
+	for shardIDUint := range shardsTimeRanges {
+
+	}
+
+	return true, nil
+}
+
 func newReadSeriesPredicate(ns namespace.Metadata) commitlog.SeriesFilterPredicate {
 	nsID := ns.ID()
 	return func(id ident.ID, namespace ident.ID) bool {
