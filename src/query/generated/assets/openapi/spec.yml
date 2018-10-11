@@ -17,10 +17,10 @@ tags:
   description: "Configuring M3DB namespaces"
 - name: "M3DB Placement"
   description: "Configuring M3DB placements"
-  - name: "M3Agg Placement"
-  description: "Configuring M3Agg placements"
-- name: "database"
-  description: "Database-wide functions"
+- name: "M3Aggregator Placement"
+  description: "Configuring M3Aggregator placements"
+- name: "M3DB Database"
+  description: "M3DB Database-wide functions"
 schemes:
 - "http"
 paths:
