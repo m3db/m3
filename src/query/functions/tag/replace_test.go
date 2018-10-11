@@ -38,10 +38,9 @@ func TestReplace(t *testing.T) {
 	tags := test.StringTagsToTags(test.StringTags{{N: "a", V: "foo"}, {N: "b", V: "bar"}})
 	regex, err := regexp.Compile("f(.*)o")
 	require.NoError(t, err)
-	tag, found, valid := addTagIfFoundAndValid(tags, []byte("a"),
+	tag, valid := addTagIfFoundAndValid(tags, []byte("foo"),
 		[]byte("new"), []byte("a$1-"), regex)
 
-	assert.True(t, found)
 	assert.True(t, valid)
 	assert.Equal(t, []byte("new"), tag.Name)
 	assert.Equal(t, []byte("ao-"), tag.Value)

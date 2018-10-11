@@ -39,23 +39,18 @@ const TagReplaceType = "label_replace"
 // does not contain the source tag name, regardless of if the value matches the regex.
 func addTagIfFoundAndValid(
 	tags models.Tags,
-	sourceName []byte,
+	val []byte,
 	destinationName []byte,
 	destinationValRegex []byte,
 	regex *regexp.Regexp,
-) (models.Tag, bool, bool) {
-	val, found := tags.Get(sourceName)
-	if !found {
-		return models.Tag{}, false, false
-	}
-
+) (models.Tag, bool) {
 	indices := regex.FindSubmatchIndex(val)
 	if indices == nil {
-		return models.Tag{}, true, false
+		return models.Tag{}, false
 	}
 
 	destinationVal := regex.Expand([]byte{}, destinationValRegex, val, indices)
-	return models.Tag{Name: destinationName, Value: destinationVal}, true, true
+	return models.Tag{Name: destinationName, Value: destinationVal}, true
 }
 
 func makeTagReplaceFunc(params []string) (tagTransformFunc, error) {
@@ -75,28 +70,39 @@ func makeTagReplaceFunc(params []string) (tagTransformFunc, error) {
 	return func(meta *block.Metadata, seriesMeta []block.SeriesMeta) {
 		// Optimization if all joining series are shared by the block,
 		// or if there is only a shared metadata and no single series metas.
-		tag, found, valid := addTagIfFoundAndValid(
-			meta.Tags,
-			sourceName,
-			destinationName,
-			destinationValRegex,
-			regex,
-		)
-		if len(seriesMeta) == 0 || found {
-			if valid {
-				meta.Tags = meta.Tags.AddOrUpdateTag(tag)
-			}
+		val, found := meta.Tags.Get(sourceName)
+		if found {
+			tag, valid := addTagIfFoundAndValid(
+				meta.Tags,
+				val,
+				destinationName,
+				destinationValRegex,
+				regex,
+			)
 
 			// NB: If the tag exists in shared block tag list, it cannot also exist
 			// in the tag lists for the series metadatas, so it's valid to short
 			// circuit here.
+			if valid {
+				meta.Tags = meta.Tags.AddOrUpdateTag(tag)
+			}
+
+			return
+		}
+
+		if len(seriesMeta) == 0 {
 			return
 		}
 
 		for i, meta := range seriesMeta {
-			if tag, _, valid := addTagIfFoundAndValid(
+			val, found := meta.Tags.Get(sourceName)
+			if !found {
+				continue
+			}
+
+			if tag, valid := addTagIfFoundAndValid(
 				meta.Tags,
-				sourceName,
+				val,
 				destinationName,
 				destinationValRegex,
 				regex,

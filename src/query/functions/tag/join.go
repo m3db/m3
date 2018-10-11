@@ -24,9 +24,8 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/m3db/m3/src/query/functions/utils"
-
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/functions/utils"
 	"github.com/m3db/m3/src/query/models"
 )
 
