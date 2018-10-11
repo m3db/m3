@@ -40,9 +40,12 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
-const defaultDecodeEntryBufSize = 1024
-const decoderInBufChanSize = 1000
-const decoderOutBufChanSize = 1000
+var (
+	// var instead of const so we can modify them in tests.
+	defaultDecodeEntryBufSize = 1024
+	decoderInBufChanSize      = 1000
+	decoderOutBufChanSize     = 1000
+)
 
 var (
 	emptyLogInfo schema.LogInfo
@@ -250,7 +253,7 @@ func (r *reader) readLoop() {
 				}
 
 				r.decoderQueues[0] <- decoderArg{
-					bytes: data,
+					bytes: nil,
 					err:   err,
 				}
 				continue
@@ -383,7 +386,9 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 }
 
 func (r *reader) handleDecoderLoopIterationEnd(arg decoderArg, outBuf chan<- readResponse, response readResponse, err error) {
-	arg.bufPool <- arg.bytes
+	if arg.bytes != nil {
+		arg.bufPool <- arg.bytes
+	}
 	if outBuf != nil {
 		response.resultErr = err
 		outBuf <- response
