@@ -1,4 +1,3 @@
-// +build big
 //
 // Copyright (c) 2017 Uber Technologies, Inc.
 //
@@ -285,7 +284,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 
 				if input.includeCorruptedCommitlogFile {
 					// Write out an additional commit log file with a corrupt info header to
-					// make sure that the commitlog source skips it.
+					// make sure that the commitlog source skips it in the single node scenario.
 					commitLogFiles, err := commitlog.Files(commitLogOpts)
 					if err != nil {
 						return false, err
