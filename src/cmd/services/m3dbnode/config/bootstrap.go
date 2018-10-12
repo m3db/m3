@@ -140,7 +140,8 @@ func (bsc BootstrapConfiguration) New(
 		case commitlog.CommitLogBootstrapperName:
 			cOpts := commitlog.NewOptions().
 				SetResultOptions(rsOpts).
-				SetCommitLogOptions(opts.CommitLogOptions())
+				SetCommitLogOptions(opts.CommitLogOptions()).
+				SetRuntimeOptionsManager(opts.RuntimeOptionsManager())
 
 			inspection, err := fs.InspectFilesystem(fsOpts)
 			if err != nil {

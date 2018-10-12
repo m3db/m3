@@ -43,6 +43,7 @@ var (
 	errAdminClientNotSet                 = errors.New("admin client not set")
 	errInvalidFetchBlocksMetadataVersion = errors.New("invalid fetch blocks metadata endpoint version")
 	errPersistManagerNotSet              = errors.New("persist manager not set")
+	errRuntimeOptionsManagerNotSet       = errors.New("runtime options manager not set")
 )
 
 type options struct {
@@ -77,6 +78,9 @@ func (o *options) Validate() error {
 	}
 	if o.persistManager == nil {
 		return errPersistManagerNotSet
+	}
+	if o.runtimeOptionsManager == nil {
+		return errRuntimeOptionsManagerNotSet
 	}
 	return nil
 }

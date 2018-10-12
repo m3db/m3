@@ -345,8 +345,12 @@ func (s *commitLogSource) ReadData(
 	}
 	s.log.Infof("done merging..., took: %s", time.Since(mergeStart).String())
 
-	couldObtainDataFromPeers := s.couldObtainDataFromPeers(
+	couldObtainDataFromPeers, err := s.couldObtainDataFromPeers(
 		ns, shardsTimeRanges, runOpts)
+	if err != nil {
+		return nil, err
+	}
+
 	if encounteredCorruptData && couldObtainDataFromPeers {
 		// If we encountered any corrupt data and there is a possibility of the
 		// peers bootstrapper being able to correct it, mark the entire range
@@ -1420,8 +1424,12 @@ func (s *commitLogSource) ReadIndex(
 		}
 	}
 
-	couldObtainDataFromPeers := s.couldObtainDataFromPeers(
+	couldObtainDataFromPeers, err := s.couldObtainDataFromPeers(
 		ns, shardsTimeRanges, opts)
+	if err != nil {
+		return nil, err
+	}
+
 	if encounteredCorruptData && couldObtainDataFromPeers {
 		// If we encountered any corrupt data and there is a possibility of the
 		// peers bootstrapper being able to correct it, mark the entire range
@@ -1553,15 +1561,60 @@ func (s *commitLogSource) couldObtainDataFromPeers(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
-) bool {
-	// TODO: Refactor InitialTopologyState to store Replicas along with MajorityReplicas
-	// TODO: Actually also need to check the shard state of the peers too because if they're
-	// not available we can't get data from them.
-	initialTopologyState := runOpts.InitialTopologyState()
-	if initialTopologyState.MajorityReplicas > 1 {
-		return true
+) (bool, error) {
+	var (
+		initialTopologyState      = runOpts.InitialTopologyState()
+		majorityReplicas          = initialTopologyState.MajorityReplicas
+		runtimeOpts               = s.opts.RuntimeOptionsManager().Get()
+		bootstrapConsistencyLevel = runtimeOpts.ClientBootstrapConsistencyLevel()
+	)
+
+	for shardIDUint := range shardsTimeRanges {
+		shardID := topology.ShardID(shardIDUint)
+		hostShardStates, ok := initialTopologyState.ShardStates[shardID]
+		if !ok {
+			// This shard was not part of the topology when the bootstrapping process began.
+			continue
+		}
+
+		var (
+			numPeers          = len(hostShardStates)
+			numAvailablePeers = 0
+		)
+		for _, hostShardState := range hostShardStates {
+			if hostShardState.Host.ID() == initialTopologyState.Origin.ID() {
+				// Don't take self into account
+				continue
+			}
+
+			shardState := hostShardState.ShardState
+			switch shardState {
+			// Don't want to peer bootstrap from a node that has not yet completely
+			// taken ownership of the shard.
+			case shard.Initializing:
+				// Success cases - We can bootstrap from this host, which is enough to
+				// mark this shard as bootstrappable.
+			case shard.Leaving:
+				fallthrough
+			case shard.Available:
+				numAvailablePeers++
+			case shard.Unknown:
+				fallthrough
+			default:
+				return false, fmt.Errorf("unknown shard state: %v", shardState)
+			}
+		}
+
+		if topology.ReadConsistencyAchieved(
+			bootstrapConsistencyLevel, majorityReplicas, numPeers, numAvailablePeers) {
+			// If we can achieve read consistency for any shard than we return true because
+			// we can't make any shard-by-shard distinction due to the fact that any given
+			// commitlog can contain writes for any shard.
+			return true, nil
+		}
 	}
-	return false
+
+	return false, nil
 }
 
 func newReadSeriesPredicate(ns namespace.Metadata) commitlog.SeriesFilterPredicate {
