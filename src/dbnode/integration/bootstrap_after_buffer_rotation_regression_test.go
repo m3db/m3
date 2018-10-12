@@ -108,7 +108,8 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 	bootstrapOpts := newDefaulTestResultOptions(setup.storageOpts)
 	bootstrapCommitlogOpts := bcl.NewOptions().
 		SetResultOptions(bootstrapOpts).
-		SetCommitLogOptions(commitLogOpts)
+		SetCommitLogOptions(commitLogOpts).
+		SetRuntimeManager(runtime.runtime.NewOptionsManager())
 	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
 	commitlogBootstrapperProvider, err := bcl.NewCommitLogBootstrapperProvider(
 		bootstrapCommitlogOpts, mustInspectFilesystem(fsOpts), nil)

@@ -173,7 +173,8 @@ func setupCommitLogBootstrapperWithFSInspection(
 	bsOpts := newDefaulTestResultOptions(setup.storageOpts)
 	bclOpts := bcl.NewOptions().
 		SetResultOptions(bsOpts).
-		SetCommitLogOptions(commitLogOpts)
+		SetCommitLogOptions(commitLogOpts).
+		SetRuntimeManager(runtime.runtime.NewOptionsManager())
 	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
 	bs, err := bcl.NewCommitLogBootstrapperProvider(
 		bclOpts, mustInspectFilesystem(fsOpts), noOpAll)
