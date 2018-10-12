@@ -356,11 +356,8 @@ func (m *cleanupManager) commitLogTimes(t time.Time) ([]commitLogFileWithErrorAn
 				"encountered err: %v reading commit log file: %v info during cleanup, marking file for deletion",
 				errorWithPath.Error(), errorWithPath.Path())
 
-			filesToCleanup = append(filesToCleanup, commitLogFileWithErrorAndPath{
-				f:    f,
-				path: errorWithPath.Path(),
-				err:  err,
-			})
+			filesToCleanup = append(filesToCleanup, newCommitLogFileWithErrorAndPath(
+				f, errorWithPath.Path(), err))
 			continue
 		}
 
@@ -370,20 +367,12 @@ func (m *cleanupManager) commitLogTimes(t time.Time) ([]commitLogFileWithErrorAn
 		}
 
 		if shouldDelete {
-			filesToCleanup = append(filesToCleanup, commitLogFileWithErrorAndPath{
-				f:    f,
-				path: f.FilePath,
-			})
+			filesToCleanup = append(filesToCleanup, newCommitLogFileWithErrorAndPath(
+				f, f.FilePath, nil))
 		}
 	}
 
 	return filesToCleanup, nil
-}
-
-type commitLogFileWithErrorAndPath struct {
-	f    commitlog.File
-	path string
-	err  error
 }
 
 // commitLogNamespaceBlockTimes returns the range of namespace block starts for which the
@@ -422,4 +411,19 @@ func (m *cleanupManager) cleanupCommitLogs(filesToCleanup []commitLogFileWithErr
 		filesToDelete = append(filesToDelete, f.path)
 	}
 	return m.deleteFilesFn(filesToDelete)
+}
+
+type commitLogFileWithErrorAndPath struct {
+	f    commitlog.File
+	path string
+	err  error
+}
+
+func newCommitLogFileWithErrorAndPath(
+	f commitlog.File, path string, err error) commitLogFileWithErrorAndPath {
+	return commitLogFileWithErrorAndPath{
+		f:    f,
+		path: path,
+		err:  err,
+	}
 }

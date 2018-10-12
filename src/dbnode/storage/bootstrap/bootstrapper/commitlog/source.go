@@ -350,7 +350,7 @@ func (s *commitLogSource) ReadData(
 	if encounteredCorruptData && couldObtainDataFromPeers {
 		// If we encountered any corrupt data and there is a possibility of the
 		// peers bootstrapper being able to correct it, mark the entire range
-		// as unfulfilled so Peers bootstrapper can attempt a repair, but keep
+		// as unfulfilled so the peers bootstrapper can attempt a repair, but keep
 		// the data we read from the commit log as well in case the peers
 		// bootstrapper is unable to satisfy the bootstrap because all peers are
 		// down or if the commitlog contained data that the peers do not have.
@@ -1349,7 +1349,6 @@ func (s *commitLogSource) ReadIndex(
 			ns.ID(), shard, true, tr, blockSize, snapshotFilesByShard[shard],
 			mostRecentCompleteSnapshotByBlockShard)
 		if err != nil {
-			// TODO: Probably should not return an error here
 			return nil, err
 		}
 
@@ -1426,7 +1425,7 @@ func (s *commitLogSource) ReadIndex(
 	if encounteredCorruptData && couldObtainDataFromPeers {
 		// If we encountered any corrupt data and there is a possibility of the
 		// peers bootstrapper being able to correct it, mark the entire range
-		// as unfulfilled so Peers bootstrapper can attempt a repair, but keep
+		// as unfulfilled so the peers bootstrapper can attempt a repair, but keep
 		// the data we read from the commit log as well in case the peers
 		// bootstrapper is unable to satisfy the bootstrap because all peers are
 		// down or if the commitlog contained data that the peers do not have.
