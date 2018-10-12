@@ -73,9 +73,11 @@ func TestCleanupManagerCleanup(t *testing.T) {
 		mgr.opts.CommitLogOptions().
 			SetBlockSize(rOpts.BlockSize()))
 
-	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
-		return []commitlog.File{
-			commitlog.File{FilePath: "foo", Start: timeFor(14400)},
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.FileOrError, error) {
+		return []commitlog.FileOrError{
+			commitlog.NewFileOrError(
+				commitlog.File{FilePath: "foo", Start: timeFor(14400)},
+				nil, "foo"),
 		}, nil
 	}
 	var deletedFiles []string
@@ -478,11 +480,17 @@ func TestCleanupManagerCommitLogTimesAllFlushed(t *testing.T) {
 	defer ctrl.Finish()
 
 	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
-	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
-		return []commitlog.File{
-			commitlog.File{Start: time10, Duration: commitLogBlockSize},
-			commitlog.File{Start: time20, Duration: commitLogBlockSize},
-			commitlog.File{Start: time30, Duration: commitLogBlockSize},
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.FileOrError, error) {
+		return []commitlog.FileOrError{
+			commitlog.NewFileOrError(
+				commitlog.File{Start: time10, Duration: commitLogBlockSize},
+				nil, ""),
+			commitlog.NewFileOrError(
+				commitlog.File{Start: time20, Duration: commitLogBlockSize},
+				nil, ""),
+			commitlog.NewFileOrError(
+				commitlog.File{Start: time30, Duration: commitLogBlockSize},
+				nil, ""),
 		}, nil
 	}
 
@@ -505,11 +513,17 @@ func TestCleanupManagerCommitLogTimesMiddlePendingFlush(t *testing.T) {
 	defer ctrl.Finish()
 
 	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
-	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
-		return []commitlog.File{
-			commitlog.File{Start: time10, Duration: commitLogBlockSize},
-			commitlog.File{Start: time20, Duration: commitLogBlockSize},
-			commitlog.File{Start: time30, Duration: commitLogBlockSize},
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.FileOrError, error) {
+		return []commitlog.FileOrError{
+			commitlog.NewFileOrError(
+				commitlog.File{Start: time10, Duration: commitLogBlockSize},
+				nil, ""),
+			commitlog.NewFileOrError(
+				commitlog.File{Start: time20, Duration: commitLogBlockSize},
+				nil, ""),
+			commitlog.NewFileOrError(
+				commitlog.File{Start: time30, Duration: commitLogBlockSize},
+				nil, ""),
 		}, nil
 	}
 
@@ -533,11 +547,17 @@ func TestCleanupManagerCommitLogTimesStartPendingFlush(t *testing.T) {
 	defer ctrl.Finish()
 
 	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
-	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
-		return []commitlog.File{
-			commitlog.File{Start: time10, Duration: commitLogBlockSize},
-			commitlog.File{Start: time20, Duration: commitLogBlockSize},
-			commitlog.File{Start: time30, Duration: commitLogBlockSize},
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.FileOrError, error) {
+		return []commitlog.FileOrError{
+			commitlog.NewFileOrError(
+				commitlog.File{Start: time10, Duration: commitLogBlockSize},
+				nil, ""),
+			commitlog.NewFileOrError(
+				commitlog.File{Start: time20, Duration: commitLogBlockSize},
+				nil, ""),
+			commitlog.NewFileOrError(
+				commitlog.File{Start: time30, Duration: commitLogBlockSize},
+				nil, ""),
 		}, nil
 	}
 
@@ -562,11 +582,17 @@ func TestCleanupManagerCommitLogTimesAllPendingFlush(t *testing.T) {
 	defer ctrl.Finish()
 
 	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
-	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
-		return []commitlog.File{
-			commitlog.File{Start: time10, Duration: commitLogBlockSize},
-			commitlog.File{Start: time20, Duration: commitLogBlockSize},
-			commitlog.File{Start: time30, Duration: commitLogBlockSize},
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.FileOrError, error) {
+		return []commitlog.FileOrError{
+			commitlog.NewFileOrError(
+				commitlog.File{Start: time10, Duration: commitLogBlockSize},
+				nil, ""),
+			commitlog.NewFileOrError(
+				commitlog.File{Start: time20, Duration: commitLogBlockSize},
+				nil, ""),
+			commitlog.NewFileOrError(
+				commitlog.File{Start: time30, Duration: commitLogBlockSize},
+				nil, ""),
 		}, nil
 	}
 
@@ -587,9 +613,9 @@ func timeFor(s int64) time.Time {
 	return time.Unix(s, 0)
 }
 
-func contains(arr []commitlog.File, t time.Time) bool {
+func contains(arr []commitLogFileWithErrorAndPath, t time.Time) bool {
 	for _, at := range arr {
-		if at.Start.Equal(t) {
+		if at.f.Start.Equal(t) {
 			return true
 		}
 	}
@@ -605,11 +631,17 @@ func TestCleanupManagerCommitLogTimesAllPendingFlushButHaveSnapshot(t *testing.T
 		currentTime        = timeFor(50)
 		commitLogBlockSize = 10 * time.Second
 	)
-	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
-		return []commitlog.File{
-			commitlog.File{Start: time10, Duration: commitLogBlockSize},
-			commitlog.File{Start: time20, Duration: commitLogBlockSize},
-			commitlog.File{Start: time30, Duration: commitLogBlockSize},
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.FileOrError, error) {
+		return []commitlog.FileOrError{
+			commitlog.NewFileOrError(
+				commitlog.File{Start: time10, Duration: commitLogBlockSize},
+				nil, ""),
+			commitlog.NewFileOrError(
+				commitlog.File{Start: time20, Duration: commitLogBlockSize},
+				nil, ""),
+			commitlog.NewFileOrError(
+				commitlog.File{Start: time30, Duration: commitLogBlockSize},
+				nil, ""),
 		}, nil
 	}
 
@@ -646,9 +678,11 @@ func TestCleanupManagerCommitLogTimesHandlesIsCapturedBySnapshotError(t *testing
 	defer ctrl.Finish()
 
 	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
-	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
-		return []commitlog.File{
-			commitlog.File{Start: time30, Duration: commitLogBlockSize},
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.FileOrError, error) {
+		return []commitlog.FileOrError{
+			commitlog.NewFileOrError(
+				commitlog.File{Start: time30, Duration: commitLogBlockSize},
+				nil, ""),
 		}, nil
 	}
 
@@ -667,11 +701,17 @@ func TestCleanupManagerCommitLogTimesMultiNS(t *testing.T) {
 	defer ctrl.Finish()
 
 	ns1, ns2, mgr := newCleanupManagerCommitLogTimesTestMultiNS(t, ctrl)
-	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
-		return []commitlog.File{
-			commitlog.File{Start: time10, Duration: commitLogBlockSize},
-			commitlog.File{Start: time20, Duration: commitLogBlockSize},
-			commitlog.File{Start: time30, Duration: commitLogBlockSize},
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.FileOrError, error) {
+		return []commitlog.FileOrError{
+			commitlog.NewFileOrError(
+				commitlog.File{Start: time10, Duration: commitLogBlockSize},
+				nil, ""),
+			commitlog.NewFileOrError(
+				commitlog.File{Start: time20, Duration: commitLogBlockSize},
+				nil, ""),
+			commitlog.NewFileOrError(
+				commitlog.File{Start: time30, Duration: commitLogBlockSize},
+				nil, ""),
 		}, nil
 	}
 
@@ -719,9 +759,11 @@ func TestCleanupManagerDeletesCorruptCommitLogFiles(t *testing.T) {
 		_, mgr = newCleanupManagerCommitLogTimesTest(t, ctrl)
 		err    = errors.New("some_error")
 	)
-	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
-		return []commitlog.File{
-			commitlog.File{Start: time10, Error: err},
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.FileOrError, error) {
+		return []commitlog.FileOrError{
+			commitlog.NewFileOrError(
+				commitlog.File{Start: time10, Duration: commitLogBlockSize},
+				err, ""),
 		}, nil
 	}
 

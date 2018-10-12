@@ -58,10 +58,10 @@ func timesInRange(startInclusive, endInclusive time.Time, windowSize time.Durati
 // filterCommitLogFiles returns the values in the slice `files` which
 // satisfy the provided predicate.
 func filterCommitLogFiles(
-	files []commitlog.File,
-	predicate func(f commitlog.File) (bool, error),
-) ([]commitlog.File, error) {
-	filtered := make([]commitlog.File, 0, len(files))
+	files []commitlog.FileOrError,
+	predicate func(f commitlog.FileOrError) (bool, error),
+) ([]commitlog.FileOrError, error) {
+	filtered := make([]commitlog.FileOrError, 0, len(files))
 	for _, f := range files {
 		passed, err := predicate(f)
 		if err != nil {

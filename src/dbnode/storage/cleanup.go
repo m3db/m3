@@ -35,7 +35,7 @@ import (
 	"github.com/uber-go/tally"
 )
 
-type commitLogFilesFn func(commitlog.Options) ([]commitlog.File, error)
+type commitLogFilesFn func(commitlog.Options) ([]commitlog.FileOrError, error)
 
 type deleteFilesFn func(files []string) error
 
@@ -269,7 +269,7 @@ func (m *cleanupManager) cleanupNamespaceSnapshotFiles(earliestToRetain time.Tim
 
 // commitLogTimes returns the earliest time before which the commit logs are expired,
 // as well as a list of times we need to clean up commit log files for.
-func (m *cleanupManager) commitLogTimes(t time.Time) ([]commitlog.File, error) {
+func (m *cleanupManager) commitLogTimes(t time.Time) ([]commitLogFileWithErrorAndPath, error) {
 	// NB(prateek): this logic of polling the namespaces across the commit log's entire
 	// retention history could get expensive if commit logs are retained for long periods.
 	// e.g. if we retain them for 40 days, with a block 2 hours; then every time
@@ -290,16 +290,6 @@ func (m *cleanupManager) commitLogTimes(t time.Time) ([]commitlog.File, error) {
 	}
 
 	shouldCleanupFile := func(f commitlog.File) (bool, error) {
-		if f.Error != nil {
-			// If we were unable to read the commit log files info header, then we're forced to assume
-			// that the file is corrupt and remove it. This can happen in situations where M3DB experiences
-			// sudden shutdown.
-			m.opts.InstrumentOptions().Logger().Errorf(
-				"encountered err: %v reading commit log file: %v info during cleanup, marking file for deletion",
-				f.Error, f.FilePath)
-			return true, nil
-		}
-
 		for _, ns := range namespaces {
 			var (
 				start                      = f.Start
@@ -328,6 +318,8 @@ func (m *cleanupManager) commitLogTimes(t time.Time) ([]commitlog.File, error) {
 			isCapturedBySnapshot, err := ns.IsCapturedBySnapshot(
 				nsBlocksStart, nsBlocksEnd, start.Add(duration))
 			if err != nil {
+				// Return error because we don't want to proceed since this is not a commitlog
+				// file specific issue.
 				return false, err
 			}
 
@@ -344,7 +336,54 @@ func (m *cleanupManager) commitLogTimes(t time.Time) ([]commitlog.File, error) {
 		return true, nil
 	}
 
-	return filterCommitLogFiles(files, shouldCleanupFile)
+	filesToCleanup := make([]commitLogFileWithErrorAndPath, 0, len(files))
+	for _, fileOrErr := range files {
+		f, err := fileOrErr.File()
+
+		if err != nil {
+			// If we were unable to read the commit log files info header, then we're forced to assume
+			// that the file is corrupt and remove it. This can happen in situations where M3DB experiences
+			// sudden shutdown.
+			errorWithPath, ok := err.(commitlog.ErrorWithPath)
+			if !ok {
+				m.opts.InstrumentOptions().Logger().Errorf(
+					"commitlog file error did not contain path: %v", err)
+				// Continue because we want to try and clean up the remining files instead of erroring out.
+				continue
+			}
+
+			m.opts.InstrumentOptions().Logger().Errorf(
+				"encountered err: %v reading commit log file: %v info during cleanup, marking file for deletion",
+				errorWithPath.Error(), errorWithPath.Path())
+
+			filesToCleanup = append(filesToCleanup, commitLogFileWithErrorAndPath{
+				f:    f,
+				path: errorWithPath.Path(),
+				err:  err,
+			})
+			continue
+		}
+
+		shouldDelete, err := shouldCleanupFile(f)
+		if err != nil {
+			return nil, err
+		}
+
+		if shouldDelete {
+			filesToCleanup = append(filesToCleanup, commitLogFileWithErrorAndPath{
+				f:    f,
+				path: f.FilePath,
+			})
+		}
+	}
+
+	return filesToCleanup, nil
+}
+
+type commitLogFileWithErrorAndPath struct {
+	f    commitlog.File
+	path string
+	err  error
 }
 
 // commitLogNamespaceBlockTimes returns the range of namespace block starts for which the
@@ -377,10 +416,10 @@ func commitLogNamespaceBlockTimes(
 	return earliest, latest
 }
 
-func (m *cleanupManager) cleanupCommitLogs(filesToCleanup []commitlog.File) error {
+func (m *cleanupManager) cleanupCommitLogs(filesToCleanup []commitLogFileWithErrorAndPath) error {
 	filesToDelete := make([]string, 0, len(filesToCleanup))
 	for _, f := range filesToCleanup {
-		filesToDelete = append(filesToDelete, f.FilePath)
+		filesToDelete = append(filesToDelete, f.path)
 	}
 	return m.deleteFilesFn(filesToDelete)
 }

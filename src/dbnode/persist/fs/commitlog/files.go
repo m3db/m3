@@ -73,7 +73,8 @@ func (f FileOrError) File() (File, error) {
 	return f.f, f.e
 }
 
-func newFileOrError(f File, e error, path string) FileOrError {
+// NewFileOrError creates a new FileOrError.
+func NewFileOrError(f File, e error, path string) FileOrError {
 	if e != nil {
 		e = newErrorWithPath(e, path)
 	}
@@ -166,7 +167,7 @@ func Files(opts Options) ([]FileOrError, error) {
 			file.Index = index
 		}
 
-		commitLogFiles = append(commitLogFiles, newFileOrError(
+		commitLogFiles = append(commitLogFiles, NewFileOrError(
 			file, err, filePath))
 	}
 
