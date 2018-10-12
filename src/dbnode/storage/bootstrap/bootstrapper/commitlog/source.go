@@ -345,21 +345,16 @@ func (s *commitLogSource) ReadData(
 	}
 	s.log.Infof("done merging..., took: %s", time.Since(mergeStart).String())
 
-	couldObtainDataFromPeers, err := s.couldObtainDataFromPeers(
-		ns, shardsTimeRanges, runOpts)
+	shouldReturnUnfulfilled, err := s.shouldReturnUnfulfilled(
+		encounteredCorruptData, ns, shardsTimeRanges, runOpts)
 	if err != nil {
 		return nil, err
 	}
 
-	if encounteredCorruptData && couldObtainDataFromPeers {
-		// If we encountered any corrupt data and there is a possibility of the
-		// peers bootstrapper being able to correct it, mark the entire range
-		// as unfulfilled so the peers bootstrapper can attempt a repair, but keep
-		// the data we read from the commit log as well in case the peers
-		// bootstrapper is unable to satisfy the bootstrap because all peers are
-		// down or if the commitlog contained data that the peers do not have.
+	if shouldReturnUnfulfilled {
 		bootstrapResult.SetUnfulfilled(shardsTimeRanges)
 	}
+
 	return bootstrapResult, nil
 }
 
@@ -1424,22 +1419,45 @@ func (s *commitLogSource) ReadIndex(
 		}
 	}
 
-	couldObtainDataFromPeers, err := s.couldObtainDataFromPeers(
-		ns, shardsTimeRanges, opts)
+	shouldReturnUnfulfilled, err := s.shouldReturnUnfulfilled(
+		encounteredCorruptData, ns, shardsTimeRanges, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	if encounteredCorruptData && couldObtainDataFromPeers {
-		// If we encountered any corrupt data and there is a possibility of the
-		// peers bootstrapper being able to correct it, mark the entire range
-		// as unfulfilled so the peers bootstrapper can attempt a repair, but keep
-		// the data we read from the commit log as well in case the peers
-		// bootstrapper is unable to satisfy the bootstrap because all peers are
-		// down or if the commitlog contained data that the peers do not have.
+	if shouldReturnUnfulfilled {
 		indexResult.SetUnfulfilled(shardsTimeRanges)
 	}
 	return indexResult, nil
+}
+
+// If we encountered any corrupt data and there is a possibility of the
+// peers bootstrapper being able to correct it, we want to mark the entire range
+// as unfulfilled so the peers bootstrapper can attempt a repair, but keep
+// the data we read from the commit log as well in case the peers
+// bootstrapper is unable to satisfy the bootstrap because all peers are
+// down or if the commitlog contained data that the peers do not have.
+func (s commitLogSource) shouldReturnUnfulfilled(
+	encounteredCorruptData bool,
+	ns namespace.Metadata,
+	shardsTimeRanges result.ShardTimeRanges,
+	opts bootstrap.RunOptions,
+) (bool, error) {
+	if !s.opts.ReturnUnfulfilledForCorruptCommitlogFiles() {
+		return false, nil
+	}
+
+	if !encounteredCorruptData {
+		return false, nil
+	}
+
+	couldObtainDataFromPeers, err := s.couldObtainDataFromPeers(
+		ns, shardsTimeRanges, opts)
+	if err != nil {
+		return false, err
+	}
+
+	return couldObtainDataFromPeers, nil
 }
 
 func (s commitLogSource) maybeAddToIndex(
@@ -1605,9 +1623,6 @@ func (s *commitLogSource) couldObtainDataFromPeers(
 			}
 		}
 
-		fmt.Println("majority: ", majorityReplicas)
-		fmt.Println("numPeers: ", numPeers)
-		fmt.Println("numAvailablePeers: ", numAvailablePeers)
 		if topology.ReadConsistencyAchieved(
 			bootstrapConsistencyLevel, majorityReplicas, numPeers, numAvailablePeers) {
 			// If we can achieve read consistency for any shard than we return true because

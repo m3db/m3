@@ -29,8 +29,9 @@ import (
 )
 
 const (
-	defaultEncodingConcurrency   = 4
-	defaultMergeShardConcurrency = 4
+	defaultEncodingConcurrency                       = 4
+	defaultMergeShardConcurrency                     = 4
+	defaultReturnUnfulfilledForCorruptCommitlogFiles = true
 )
 
 var (
@@ -40,20 +41,22 @@ var (
 )
 
 type options struct {
-	resultOpts            result.Options
-	commitLogOpts         commitlog.Options
-	encodingConcurrency   int
-	mergeShardConcurrency int
-	runtimeOptsMgr        runtime.OptionsManager
+	resultOpts                                result.Options
+	commitLogOpts                             commitlog.Options
+	encodingConcurrency                       int
+	mergeShardConcurrency                     int
+	runtimeOptsMgr                            runtime.OptionsManager
+	returnUnfulfilledForCorruptCommitlogFiles bool
 }
 
 // NewOptions creates new bootstrap options
 func NewOptions() Options {
 	return &options{
-		resultOpts:            result.NewOptions(),
-		commitLogOpts:         commitlog.NewOptions(),
-		encodingConcurrency:   defaultEncodingConcurrency,
-		mergeShardConcurrency: defaultMergeShardConcurrency,
+		resultOpts:                                result.NewOptions(),
+		commitLogOpts:                             commitlog.NewOptions(),
+		encodingConcurrency:                       defaultEncodingConcurrency,
+		mergeShardConcurrency:                     defaultMergeShardConcurrency,
+		returnUnfulfilledForCorruptCommitlogFiles: defaultReturnUnfulfilledForCorruptCommitlogFiles,
 	}
 }
 
@@ -118,4 +121,14 @@ func (o *options) SetRuntimeOptionsManager(value runtime.OptionsManager) Options
 
 func (o *options) RuntimeOptionsManager() runtime.OptionsManager {
 	return o.runtimeOptsMgr
+}
+
+func (o *options) SetReturnUnfulfilledForCorruptCommitlogFiles(value bool) Options {
+	opts := *o
+	opts.returnUnfulfilledForCorruptCommitlogFiles = value
+	return &opts
+}
+
+func (o *options) ReturnUnfulfilledForCorruptCommitlogFiles() bool {
+	return o.returnUnfulfilledForCorruptCommitlogFiles
 }
