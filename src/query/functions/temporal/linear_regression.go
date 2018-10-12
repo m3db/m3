@@ -119,10 +119,10 @@ func (l linearRegressionNode) Process(dps ts.Datapoints, evaluationTime time.Tim
 // provided time. The algorithm we use comes from https://en.wikipedia.org/wiki/Simple_linear_regression.
 func linearRegression(dps ts.Datapoints, interceptTime time.Time, isDeriv bool) (float64, float64) {
 	var (
-		n                    float64
-		sumTimeDiff, sumVals float64
-		sumXY, sumX2         float64
-		valueCount           int
+		n                                   float64
+		sumTimeDiff, sumVals                float64
+		sumTimeDiffVals, sumTimeDiffSquared float64
+		valueCount                          int
 	)
 
 	for _, dp := range dps {
@@ -140,8 +140,8 @@ func linearRegression(dps ts.Datapoints, interceptTime time.Time, isDeriv bool) 
 		n += 1.0
 		sumVals += dp.Value
 		sumTimeDiff += timeDiff
-		sumXY += timeDiff * dp.Value
-		sumX2 += timeDiff * timeDiff
+		sumTimeDiffVals += timeDiff * dp.Value
+		sumTimeDiffSquared += timeDiff * timeDiff
 	}
 
 	// need at least 2 non-NaN values to calculate slope and intercept
@@ -149,8 +149,8 @@ func linearRegression(dps ts.Datapoints, interceptTime time.Time, isDeriv bool) 
 		return math.NaN(), math.NaN()
 	}
 
-	covXY := sumXY - sumTimeDiff*sumVals/n
-	varX := sumX2 - sumTimeDiff*sumTimeDiff/n
+	covXY := sumTimeDiffVals - sumTimeDiff*sumVals/n
+	varX := sumTimeDiffSquared - sumTimeDiff*sumTimeDiff/n
 
 	slope := covXY / varX
 	intercept := sumVals/n - slope*sumTimeDiff/n
