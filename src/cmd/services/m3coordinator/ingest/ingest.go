@@ -176,13 +176,13 @@ func (op *ingestOp) resetWriteQuery() error {
 
 func (op *ingestOp) resetTags() error {
 	op.it.Reset(op.id)
-	op.q.Tags = op.q.Tags[:0]
+	op.q.Tags.Tags = op.q.Tags.Tags[:0]
 	for op.it.Next() {
 		name, value := op.it.Current()
-		op.q.Tags = append(op.q.Tags, models.Tag{
-			Name:  append([]byte(nil), name...),
-			Value: append([]byte(nil), value...),
-		})
+		op.q.Tags = op.q.Tags.AddTag(models.Tag{
+			Name:  name,
+			Value: value,
+		}.Clone())
 	}
 	return op.it.Err()
 }

@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/net/http"
 	clusterclient "github.com/m3db/m3cluster/client"
 
 	"github.com/gorilla/mux"
@@ -68,7 +69,7 @@ func (h *DeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimSpace(mux.Vars(r)[namespaceIDVar])
 	if id == "" {
 		logger.Error("no namespace ID to delete", zap.Any("error", errEmptyID))
-		handler.Error(w, errEmptyID, http.StatusBadRequest)
+		xhttp.Error(w, errEmptyID, http.StatusBadRequest)
 		return
 	}
 
@@ -76,9 +77,9 @@ func (h *DeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		logger.Error("unable to delete namespace", zap.Any("error", err))
 		if err == errNamespaceNotFound {
-			handler.Error(w, err, http.StatusNotFound)
+			xhttp.Error(w, err, http.StatusNotFound)
 		} else {
-			handler.Error(w, err, http.StatusInternalServerError)
+			xhttp.Error(w, err, http.StatusInternalServerError)
 		}
 		return
 	}

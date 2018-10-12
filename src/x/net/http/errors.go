@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package handler
+package xhttp
 
 import (
 	"encoding/json"
@@ -33,14 +33,14 @@ var (
 	ErrInvalidParams = errors.New("invalid request params")
 )
 
+type errorResponse struct {
+	Error string `json:"error"`
+}
+
 // Error will serve an HTTP error
 func Error(w http.ResponseWriter, err error, code int) {
 	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(struct {
-		Error string `json:"error"`
-	}{
-		Error: err.Error(),
-	})
+	json.NewEncoder(w).Encode(errorResponse{Error: err.Error()})
 }
 
 // ParseError is the error from parsing requests

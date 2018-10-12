@@ -30,14 +30,14 @@ scrape_configs:
 
   - job_name: 'coordinator'
     static_configs:
-      - targets: ['coordinator01:7203']
+      - targets: ['m3coordinator01:7203']
 
   - job_name: 'dbnode'
     static_configs:
       - targets: ['m3db_seed:7203', 'm3db_data01:7203', 'm3db_data02:7203']
 
 remote_read:
-  - url: http://coordinator01:7201/api/v1/prom/remote/read
+  - url: http://m3coordinator01:7201/api/v1/prom/remote/read
 
 remote_write:
-  - url: http://coordinator01:7201/api/v1/prom/remote/write
+  - url: http://m3coordinator01:7201/api/v1/prom/remote/write

@@ -38,8 +38,11 @@ import (
 )
 
 // NewSelectorFromVector creates a new fetchop
-func NewSelectorFromVector(n *promql.VectorSelector) (parser.Params, error) {
-	matchers, err := labelMatchersToModelMatcher(n.LabelMatchers)
+func NewSelectorFromVector(
+	n *promql.VectorSelector,
+	tagOpts models.TagOptions,
+) (parser.Params, error) {
+	matchers, err := labelMatchersToModelMatcher(n.LabelMatchers, tagOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -52,13 +55,21 @@ func NewSelectorFromVector(n *promql.VectorSelector) (parser.Params, error) {
 }
 
 // NewSelectorFromMatrix creates a new fetchop
-func NewSelectorFromMatrix(n *promql.MatrixSelector) (parser.Params, error) {
-	matchers, err := labelMatchersToModelMatcher(n.LabelMatchers)
+func NewSelectorFromMatrix(
+	n *promql.MatrixSelector,
+	tagOpts models.TagOptions,
+) (parser.Params, error) {
+	matchers, err := labelMatchersToModelMatcher(n.LabelMatchers, tagOpts)
 	if err != nil {
 		return nil, err
 	}
 
-	return functions.FetchOp{Name: n.Name, Offset: n.Offset, Matchers: matchers, Range: n.Range}, nil
+	return functions.FetchOp{
+		Name:     n.Name,
+		Offset:   n.Offset,
+		Matchers: matchers,
+		Range:    n.Range,
+	}, nil
 }
 
 // NewAggregationOperator creates a new aggregation operator based on the type
@@ -237,7 +248,12 @@ func getBinaryOpType(opType promql.ItemType) string {
 	}
 }
 
-func labelMatchersToModelMatcher(lMatchers []*labels.Matcher) (models.Matchers, error) {
+const promDefaultName = "__name__"
+
+func labelMatchersToModelMatcher(
+	lMatchers []*labels.Matcher,
+	tagOpts models.TagOptions,
+) (models.Matchers, error) {
 	matchers := make(models.Matchers, len(lMatchers))
 	for i, m := range lMatchers {
 		modelType, err := promTypeToM3(m.Type)
@@ -245,7 +261,14 @@ func labelMatchersToModelMatcher(lMatchers []*labels.Matcher) (models.Matchers, 
 			return nil, err
 		}
 
-		match, err := models.NewMatcher(modelType, []byte(m.Name), []byte(m.Value))
+		var name []byte
+		if m.Name == promDefaultName {
+			name = tagOpts.MetricName()
+		} else {
+			name = []byte(m.Name)
+		}
+
+		match, err := models.NewMatcher(modelType, name, []byte(m.Value))
 		if err != nil {
 			return nil, err
 		}

@@ -65,6 +65,7 @@ func HashFunc(on bool, names ...[]byte) func(models.Tags) uint64 {
 	if on {
 		return func(tags models.Tags) uint64 { return tags.IDWithKeys(names...) }
 	}
+
 	return func(tags models.Tags) uint64 { return tags.IDWithExcludes(names...) }
 }
 
@@ -80,8 +81,8 @@ var (
 )
 
 func tagMap(t models.Tags) map[string]models.Tag {
-	m := make(map[string]models.Tag, len(t))
-	for _, tag := range t {
+	m := make(map[string]models.Tag, t.Len())
+	for _, tag := range t.Tags {
 		m[string(tag.Name)] = tag
 	}
 
@@ -103,20 +104,20 @@ func combineMetaAndSeriesMeta(
 	leftTags := meta.Tags
 	otherTags := tagMap(otherMeta.Tags)
 
-	metaTagsToAdd := make(models.Tags, 0, len(leftTags))
-	otherMetaTagsToAdd := make(models.Tags, 0, len(otherTags))
-	tags := models.EmptyTags()
+	metaTagsToAdd := models.NewTags(leftTags.Len(), leftTags.Opts)
+	otherMetaTagsToAdd := models.NewTags(len(otherTags), leftTags.Opts)
+	tags := models.NewTags(leftTags.Len(), leftTags.Opts)
 
-	for _, t := range leftTags {
+	for _, t := range leftTags.Tags {
 		name := string(t.Name)
 		if otherTag, ok := otherTags[name]; ok {
 			if bytes.Equal(t.Value, otherTag.Value) {
-				tags = append(tags, t)
+				tags = tags.AddTag(t)
 			} else {
 				// If both metas have the same common tag  with different
 				// values explicitly add it to each seriesMeta.
-				metaTagsToAdd = append(metaTagsToAdd, t)
-				otherMetaTagsToAdd = append(otherMetaTagsToAdd, otherTag)
+				metaTagsToAdd = metaTagsToAdd.AddTag(t)
+				otherMetaTagsToAdd = otherMetaTagsToAdd.AddTag(otherTag)
 			}
 
 			// NB(arnikola): delete common tag from otherTags as it
@@ -124,14 +125,14 @@ func combineMetaAndSeriesMeta(
 			delete(otherTags, name)
 		} else {
 			// Tag does not exist on otherMeta explicitly add it to each seriesMeta
-			metaTagsToAdd = append(metaTagsToAdd, t)
+			metaTagsToAdd = metaTagsToAdd.AddTag(t)
 		}
 	}
 
 	// Iterate over otherMeta common tags and explicitly add
 	// remaining tags to otherSeriesMeta
 	for _, otherTag := range otherTags {
-		otherMetaTagsToAdd = append(otherMetaTagsToAdd, otherTag)
+		otherMetaTagsToAdd = otherMetaTagsToAdd.AddTag(otherTag)
 	}
 
 	// Set common tags

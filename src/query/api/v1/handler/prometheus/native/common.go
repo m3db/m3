@@ -27,7 +27,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/functions/utils"
@@ -36,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/json"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
 )
@@ -80,38 +80,38 @@ func parseDuration(r *http.Request, key string) (time.Duration, error) {
 }
 
 // parseParams parses all params from the GET request
-func parseParams(r *http.Request) (models.RequestParams, *handler.ParseError) {
+func parseParams(r *http.Request) (models.RequestParams, *xhttp.ParseError) {
 	params := models.RequestParams{
 		Now: time.Now(),
 	}
 
 	t, err := prometheus.ParseRequestTimeout(r)
 	if err != nil {
-		return params, handler.NewParseError(err, http.StatusBadRequest)
+		return params, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 	params.Timeout = t
 
 	start, err := parseTime(r, startParam)
 	if err != nil {
-		return params, handler.NewParseError(fmt.Errorf(formatErrStr, startParam, err), http.StatusBadRequest)
+		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, startParam, err), http.StatusBadRequest)
 	}
 	params.Start = start
 
 	end, err := parseTime(r, endParam)
 	if err != nil {
-		return params, handler.NewParseError(fmt.Errorf(formatErrStr, endParam, err), http.StatusBadRequest)
+		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, endParam, err), http.StatusBadRequest)
 	}
 	params.End = end
 
 	step, err := parseDuration(r, stepParam)
 	if err != nil {
-		return params, handler.NewParseError(fmt.Errorf(formatErrStr, stepParam, err), http.StatusBadRequest)
+		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, stepParam, err), http.StatusBadRequest)
 	}
 	params.Step = step
 
 	query, err := parseQuery(r)
 	if err != nil {
-		return params, handler.NewParseError(fmt.Errorf(formatErrStr, queryParam, err), http.StatusBadRequest)
+		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, queryParam, err), http.StatusBadRequest)
 	}
 	params.Query = query
 
@@ -173,7 +173,7 @@ func renderResultsJSON(w io.Writer, series []*ts.Series, params models.RequestPa
 		jw.BeginObject()
 		jw.BeginObjectField("metric")
 		jw.BeginObject()
-		for _, t := range s.Tags {
+		for _, t := range s.Tags.Tags {
 			jw.BeginObjectField(string(t.Name))
 			jw.WriteString(string(t.Value))
 		}

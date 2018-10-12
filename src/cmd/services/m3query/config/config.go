@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3"
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	xconfig "github.com/m3db/m3x/config"
@@ -32,13 +33,13 @@ import (
 	"github.com/m3db/m3x/instrument"
 )
 
-// BackendStorageType is an enum for different backends
+// BackendStorageType is an enum for different backends.
 type BackendStorageType string
 
 const (
-	// GRPCStorageType is for backends which only support grpc endpoints
+	// GRPCStorageType is for backends which only support grpc endpoints.
 	GRPCStorageType BackendStorageType = "grpc"
-	// M3DBStorageType is for m3db backend
+	// M3DBStorageType is for m3db backend.
 	M3DBStorageType BackendStorageType = "m3db"
 )
 
@@ -67,6 +68,9 @@ type Configuration struct {
 
 	// Backend is the backend store for query service. We currently support grpc and m3db (default).
 	Backend BackendStorageType `yaml:"backend"`
+
+	// TagOptions is the tag configuration options.
+	TagOptions TagOptionsConfiguration `yaml:"tagOptions"`
 
 	// ReadWorkerPool is the worker pool policy for read requests.
 	ReadWorkerPool xconfig.WorkerPoolPolicy `yaml:"readWorkerPoolPolicy"`
@@ -116,4 +120,28 @@ type RPCConfiguration struct {
 	// RemoteListenAddresses is the remote listen addresses to call for remote
 	// coordinator calls.
 	RemoteListenAddresses []string `yaml:"remoteListenAddresses"`
+}
+
+// TagOptionsConfiguration is the configuration for shared tag options
+// Currently only name, but can expand to cover deduplication settings, or other
+// relevant options.
+type TagOptionsConfiguration struct {
+	// MetricName specifies the tag name that corresponds to the metric's name tag
+	// If not provided, defaults to `__name__`
+	MetricName string `yaml:"metricName"`
+}
+
+// TagOptionsFromConfig translates tag option configuration into tag options.
+func TagOptionsFromConfig(cfg TagOptionsConfiguration) (models.TagOptions, error) {
+	opts := models.NewTagOptions()
+	name := cfg.MetricName
+	if name != "" {
+		opts = opts.SetMetricName([]byte(name))
+	}
+
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+
+	return opts, nil
 }

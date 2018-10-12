@@ -37,10 +37,13 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
+	"github.com/m3db/m3/src/query/api/v1/handler/topic"
 	"github.com/m3db/m3/src/query/executor"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/net/http"
 	clusterclient "github.com/m3db/m3cluster/client"
 
 	"github.com/gorilla/mux"
@@ -69,11 +72,13 @@ type Handler struct {
 	embeddedDbCfg *dbconfig.DBConfiguration
 	scope         tally.Scope
 	createdAt     time.Time
+	tagOptions    models.TagOptions
 }
 
 // NewHandler returns a new instance of handler with routes.
 func NewHandler(
 	storage storage.Storage,
+	tagOptions models.TagOptions,
 	downsampler downsample.Downsampler,
 	engine *executor.Engine,
 	m3dbClusters m3.Clusters,
@@ -94,6 +99,7 @@ func NewHandler(
 		embeddedDbCfg: embeddedDbCfg,
 		scope:         scope,
 		createdAt:     time.Now(),
+		tagOptions:    tagOptions,
 	}
 	return h, nil
 }
@@ -102,23 +108,41 @@ func NewHandler(
 func (h *Handler) RegisterRoutes() error {
 	logged := logging.WithResponseTimeLogging
 
-	h.Router.HandleFunc(openapi.URL, logged(&openapi.DocHandler{}).ServeHTTP).Methods(openapi.HTTPMethod)
+	h.Router.HandleFunc(openapi.URL,
+		logged(&openapi.DocHandler{}).ServeHTTP,
+	).Methods(openapi.HTTPMethod)
 	h.Router.PathPrefix(openapi.StaticURLPrefix).Handler(logged(openapi.StaticHandler()))
 
 	// Prometheus remote read/write endpoints
 	promRemoteReadHandler := remote.NewPromReadHandler(h.engine, h.scope.Tagged(remoteSource))
-	promRemoteWriteHandler, err := remote.NewPromWriteHandler(h.storage, h.downsampler, h.scope.Tagged(remoteSource))
+	promRemoteWriteHandler, err := remote.NewPromWriteHandler(
+		h.storage,
+		h.downsampler,
+		h.tagOptions,
+		h.scope.Tagged(remoteSource),
+	)
 	if err != nil {
 		return err
 	}
 
-	h.Router.HandleFunc(remote.PromReadURL, logged(promRemoteReadHandler).ServeHTTP).Methods(remote.PromReadHTTPMethod)
-	h.Router.HandleFunc(remote.PromWriteURL, logged(promRemoteWriteHandler).ServeHTTP).Methods(remote.PromWriteHTTPMethod)
-	h.Router.HandleFunc(native.PromReadURL, logged(native.NewPromReadHandler(h.engine)).ServeHTTP).Methods(native.PromReadHTTPMethod)
+	h.Router.HandleFunc(
+		remote.PromReadURL,
+		logged(promRemoteReadHandler).ServeHTTP,
+	).Methods(remote.PromReadHTTPMethod)
+	h.Router.HandleFunc(remote.PromWriteURL,
+		logged(promRemoteWriteHandler).ServeHTTP,
+	).Methods(remote.PromWriteHTTPMethod)
+	h.Router.HandleFunc(native.PromReadURL,
+		logged(native.NewPromReadHandler(h.engine, h.tagOptions)).ServeHTTP,
+	).Methods(native.PromReadHTTPMethod)
 
 	// Native M3 search and write endpoints
-	h.Router.HandleFunc(handler.SearchURL, logged(handler.NewSearchHandler(h.storage)).ServeHTTP).Methods(handler.SearchHTTPMethod)
-	h.Router.HandleFunc(m3json.WriteJSONURL, logged(m3json.NewWriteJSONHandler(h.storage)).ServeHTTP).Methods(m3json.JSONWriteHTTPMethod)
+	h.Router.HandleFunc(handler.SearchURL,
+		logged(handler.NewSearchHandler(h.storage)).ServeHTTP,
+	).Methods(handler.SearchHTTPMethod)
+	h.Router.HandleFunc(m3json.WriteJSONURL,
+		logged(m3json.NewWriteJSONHandler(h.storage)).ServeHTTP,
+	).Methods(m3json.JSONWriteHTTPMethod)
 
 	if h.clusterClient != nil {
 		placementOpts := placement.HandlerOptions{
@@ -130,6 +154,7 @@ func (h *Handler) RegisterRoutes() error {
 		placement.RegisterRoutes(h.Router, placementOpts)
 		namespace.RegisterRoutes(h.Router, h.clusterClient)
 		database.RegisterRoutes(h.Router, h.clusterClient, h.config, h.embeddedDbCfg)
+		topic.RegisterRoutes(h.Router, h.clusterClient, h.config)
 	}
 
 	h.registerHealthEndpoints()
@@ -191,7 +216,7 @@ func (h *Handler) registerRoutesEndpoint() {
 				return nil
 			})
 		if err != nil {
-			handler.Error(w, err, http.StatusInternalServerError)
+			xhttp.Error(w, err, http.StatusInternalServerError)
 			return
 		}
 		json.NewEncoder(w).Encode(struct {

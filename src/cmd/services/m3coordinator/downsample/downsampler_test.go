@@ -206,8 +206,8 @@ func testDownsamplerAggregation(
 }
 
 func tagsToStringMap(tags models.Tags) map[string]string {
-	stringMap := make(map[string]string, len(tags))
-	for _, t := range tags {
+	stringMap := make(map[string]string, tags.Len())
+	for _, t := range tags.Tags {
 		stringMap[string(t.Name)] = string(t.Value)
 	}
 
@@ -326,7 +326,7 @@ func newTestID(t *testing.T, tags map[string]string) id.ID {
 func mustFindWrite(t *testing.T, writes []*storage.WriteQuery, name string) *storage.WriteQuery {
 	var write *storage.WriteQuery
 	for _, w := range writes {
-		if t, ok := w.Tags.Get(models.MetricName); ok {
+		if t, ok := w.Tags.Get([]byte("__name__")); ok {
 			if bytes.Equal(t, []byte(name)) {
 				write = w
 				break

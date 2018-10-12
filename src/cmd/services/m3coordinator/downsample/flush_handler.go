@@ -50,6 +50,7 @@ type downsamplerFlushHandler struct {
 	workerPool             xsync.WorkerPool
 	instrumentOpts         instrument.Options
 	metrics                downsamplerFlushHandlerMetrics
+	tagOptions             models.TagOptions
 }
 
 type downsamplerFlushHandlerMetrics struct {
@@ -70,6 +71,7 @@ func newDownsamplerFlushHandler(
 	storage storage.Storage,
 	metricTagsIteratorPool serialize.MetricTagsIteratorPool,
 	workerPool xsync.WorkerPool,
+	tagOptions models.TagOptions,
 	instrumentOpts instrument.Options,
 ) handler.Handler {
 	scope := instrumentOpts.MetricsScope().SubScope("downsampler-flush-handler")
@@ -79,6 +81,7 @@ func newDownsamplerFlushHandler(
 		workerPool:             workerPool,
 		instrumentOpts:         instrumentOpts,
 		metrics:                newDownsamplerFlushHandlerMetrics(scope),
+		tagOptions:             tagOptions,
 	}
 }
 
@@ -86,8 +89,9 @@ func (h *downsamplerFlushHandler) NewWriter(
 	scope tally.Scope,
 ) (writer.Writer, error) {
 	return &downsamplerFlushHandlerWriter{
-		ctx:     context.Background(),
-		handler: h,
+		tagOptions: h.tagOptions,
+		ctx:        context.Background(),
+		handler:    h,
 	}, nil
 }
 
@@ -95,9 +99,10 @@ func (h *downsamplerFlushHandler) Close() {
 }
 
 type downsamplerFlushHandlerWriter struct {
-	wg      sync.WaitGroup
-	ctx     context.Context
-	handler *downsamplerFlushHandler
+	tagOptions models.TagOptions
+	wg         sync.WaitGroup
+	ctx        context.Context
+	handler    *downsamplerFlushHandler
 }
 
 func (w *downsamplerFlushHandlerWriter) Write(
@@ -118,18 +123,14 @@ func (w *downsamplerFlushHandlerWriter) Write(
 			expected++
 		}
 
-		// Add extra tag since we may need to add an aggregation suffix tag
-		tags := make(models.Tags, 0, expected)
+		tags := models.NewTags(expected, w.tagOptions)
 		for iter.Next() {
 			name, value := iter.Current()
-			tags = append(tags, models.Tag{
-				Name:  append([]byte(nil), name...),
-				Value: append([]byte(nil), value...),
-			})
+			tags = tags.AddTag(models.Tag{Name: name, Value: value}.Clone())
 		}
 
 		if len(chunkSuffix) != 0 {
-			tags = append(tags, models.Tag{Name: aggregationSuffixTag, Value: chunkSuffix})
+			tags = tags.AddTag(models.Tag{Name: aggregationSuffixTag, Value: chunkSuffix}.Clone())
 		}
 
 		err := iter.Err()
@@ -141,7 +142,7 @@ func (w *downsamplerFlushHandlerWriter) Write(
 		}
 
 		err = w.handler.storage.Write(w.ctx, &storage.WriteQuery{
-			Tags: models.Normalize(tags),
+			Tags: tags,
 			Datapoints: ts.Datapoints{ts.Datapoint{
 				Timestamp: time.Unix(0, mp.TimeNanos),
 				Value:     mp.Value,

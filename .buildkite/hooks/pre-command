@@ -10,10 +10,10 @@ else
   echo "No \$GIMME_GO_VERSION set, skipping..."
 fi
 
-echo "---- :buildkite: :codecov: environment variables"
+echo "--- :buildkite: :codecov: environment variables"
 export CI="true" # required by codecov.sh
 
-echo "---- Parallelism hooks"
+echo "--- Parallelism hooks"
 if [[ "$BUILDKITE_PARALLEL_JOB" != "" ]]; then
   export SPLIT_IDX=${BUILDKITE_PARALLEL_JOB}
 fi

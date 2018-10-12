@@ -23,29 +23,32 @@ package promql
 import (
 	"fmt"
 
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 
 	pql "github.com/prometheus/prometheus/promql"
 )
 
 type promParser struct {
-	expr pql.Expr
+	expr    pql.Expr
+	tagOpts models.TagOptions
 }
 
 // Parse takes a promQL string and converts parses it into a DAG
-func Parse(q string) (parser.Parser, error) {
+func Parse(q string, tagOpts models.TagOptions) (parser.Parser, error) {
 	expr, err := pql.ParseExpr(q)
 	if err != nil {
 		return nil, err
 	}
 
 	return &promParser{
-		expr: expr,
+		expr:    expr,
+		tagOpts: tagOpts,
 	}, nil
 }
 
 func (p *promParser) DAG() (parser.Nodes, parser.Edges, error) {
-	state := &parseState{}
+	state := &parseState{tagOpts: p.tagOpts}
 	err := state.walk(p.expr)
 	if err != nil {
 		return nil, nil, err
@@ -61,6 +64,7 @@ func (p *promParser) String() string {
 type parseState struct {
 	edges      parser.Edges
 	transforms parser.Nodes
+	tagOpts    models.TagOptions
 }
 
 func (p *parseState) lastTransformID() parser.NodeID {
@@ -102,7 +106,7 @@ func (p *parseState) walk(node pql.Node) error {
 		return nil
 
 	case *pql.MatrixSelector:
-		operation, err := NewSelectorFromMatrix(n)
+		operation, err := NewSelectorFromMatrix(n, p.tagOpts)
 		if err != nil {
 			return err
 		}
@@ -111,7 +115,7 @@ func (p *parseState) walk(node pql.Node) error {
 		return nil
 
 	case *pql.VectorSelector:
-		operation, err := NewSelectorFromVector(n)
+		operation, err := NewSelectorFromVector(n, p.tagOpts)
 		if err != nil {
 			return err
 		}

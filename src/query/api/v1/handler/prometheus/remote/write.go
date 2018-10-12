@@ -30,8 +30,10 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/net/http"
 	xerrors "github.com/m3db/m3x/errors"
 
 	"github.com/golang/protobuf/proto"
@@ -56,21 +58,25 @@ type PromWriteHandler struct {
 	store            storage.Storage
 	downsampler      downsample.Downsampler
 	promWriteMetrics promWriteMetrics
+	tagOptions       models.TagOptions
 }
 
 // NewPromWriteHandler returns a new instance of handler.
 func NewPromWriteHandler(
 	store storage.Storage,
 	downsampler downsample.Downsampler,
+	tagOptions models.TagOptions,
 	scope tally.Scope,
 ) (http.Handler, error) {
 	if store == nil && downsampler == nil {
 		return nil, errNoStorageOrDownsampler
 	}
+
 	return &PromWriteHandler{
 		store:            store,
 		downsampler:      downsampler,
 		promWriteMetrics: newPromWriteMetrics(scope),
+		tagOptions:       tagOptions,
 	}, nil
 }
 
@@ -92,20 +98,20 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	req, rErr := h.parseRequest(r)
 	if rErr != nil {
 		h.promWriteMetrics.writeErrorsClient.Inc(1)
-		handler.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 	if err := h.write(r.Context(), req); err != nil {
 		h.promWriteMetrics.writeErrorsServer.Inc(1)
 		logging.WithContext(r.Context()).Error("Write error", zap.Any("err", err))
-		handler.Error(w, err, http.StatusInternalServerError)
+		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
 	h.promWriteMetrics.writeSuccess.Inc(1)
 }
 
-func (h *PromWriteHandler) parseRequest(r *http.Request) (*prompb.WriteRequest, *handler.ParseError) {
+func (h *PromWriteHandler) parseRequest(r *http.Request) (*prompb.WriteRequest, *xhttp.ParseError) {
 	reqBuf, err := prometheus.ParsePromCompressedRequest(r)
 	if err != nil {
 		return nil, err
@@ -113,7 +119,7 @@ func (h *PromWriteHandler) parseRequest(r *http.Request) (*prompb.WriteRequest, 
 
 	var req prompb.WriteRequest
 	if err := proto.Unmarshal(reqBuf, &req); err != nil {
-		return nil, handler.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
 	return &req, nil
@@ -169,7 +175,7 @@ func (h *PromWriteHandler) writeUnaggregated(
 		// of incoming request to determine concurrency (some level of control).
 		wg.Add(1)
 		go func() {
-			write := storage.PromWriteTSToM3(t)
+			write := storage.PromWriteTSToM3(t, h.tagOptions)
 			write.Attributes = storage.Attributes{
 				MetricsType: storage.UnaggregatedMetricsType,
 			}

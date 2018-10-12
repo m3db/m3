@@ -26,7 +26,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/x/net/http"
 
 	"github.com/golang/snappy"
 )
@@ -38,26 +38,26 @@ const (
 )
 
 // ParsePromCompressedRequest parses a snappy compressed request from Prometheus
-func ParsePromCompressedRequest(r *http.Request) ([]byte, *handler.ParseError) {
+func ParsePromCompressedRequest(r *http.Request) ([]byte, *xhttp.ParseError) {
 	body := r.Body
 	if r.Body == nil {
 		err := fmt.Errorf("empty request body")
-		return nil, handler.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 	defer body.Close()
 	compressed, err := ioutil.ReadAll(body)
 
 	if err != nil {
-		return nil, handler.NewParseError(err, http.StatusInternalServerError)
+		return nil, xhttp.NewParseError(err, http.StatusInternalServerError)
 	}
 
 	if len(compressed) == 0 {
-		return nil, handler.NewParseError(fmt.Errorf("empty request body"), http.StatusBadRequest)
+		return nil, xhttp.NewParseError(fmt.Errorf("empty request body"), http.StatusBadRequest)
 	}
 
 	reqBuf, err := snappy.Decode(nil, compressed)
 	if err != nil {
-		return nil, handler.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
 	return reqBuf, nil
@@ -72,11 +72,11 @@ func ParseRequestTimeout(r *http.Request) (time.Duration, error) {
 
 	duration, err := time.ParseDuration(timeout)
 	if err != nil {
-		return 0, fmt.Errorf("%s: invalid 'timeout': %v", handler.ErrInvalidParams, err)
+		return 0, fmt.Errorf("%s: invalid 'timeout': %v", xhttp.ErrInvalidParams, err)
 	}
 
 	if duration > maxTimeout {
-		return 0, fmt.Errorf("%s: invalid 'timeout': greater than %v", handler.ErrInvalidParams, maxTimeout)
+		return 0, fmt.Errorf("%s: invalid 'timeout': greater than %v", xhttp.ErrInvalidParams, maxTimeout)
 	}
 
 	return duration, nil

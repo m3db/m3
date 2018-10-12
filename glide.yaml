@@ -29,7 +29,7 @@ import:
     version: acc762bfdd42ecb192d34e48fa7ca1fd7ee088ac
 
   - package: github.com/m3db/m3msg
-    version: 4851e2719e06b15f1fc247e1d00339192963990e
+    version: bb2c675f58f01d487fc0a64aa6c864bc1cc541c9
 
   - package: github.com/m3db/bitset
     version: 07973db6b78acb62ac207d0538055e874b49d90d

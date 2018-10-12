@@ -21,96 +21,27 @@
 package models
 
 import (
+	"bytes"
 	"hash/fnv"
+	"reflect"
 	"testing"
+	"unsafe"
+
+	xtest "github.com/m3db/m3/src/x/test"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-func mustNewMatcher(t *testing.T, mType MatchType, value string) *Matcher {
-	m, err := NewMatcher(mType, []byte{}, []byte(value))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return m
-}
-
-func TestMatcher(t *testing.T) {
-	tests := []struct {
-		matcher *Matcher
-		value   string
-		match   bool
-	}{
-		{
-			matcher: mustNewMatcher(t, MatchEqual, "bar"),
-			value:   "bar",
-			match:   true,
-		},
-		{
-			matcher: mustNewMatcher(t, MatchEqual, "bar"),
-			value:   "foo-bar",
-			match:   false,
-		},
-		{
-			matcher: mustNewMatcher(t, MatchNotEqual, "bar"),
-			value:   "bar",
-			match:   false,
-		},
-		{
-			matcher: mustNewMatcher(t, MatchNotEqual, "bar"),
-			value:   "foo-bar",
-			match:   true,
-		},
-		{
-			matcher: mustNewMatcher(t, MatchRegexp, "bar"),
-			value:   "bar",
-			match:   true,
-		},
-		{
-			matcher: mustNewMatcher(t, MatchRegexp, "bar"),
-			value:   "foo-bar",
-			match:   false,
-		},
-		{
-			matcher: mustNewMatcher(t, MatchRegexp, ".*bar"),
-			value:   "foo-bar",
-			match:   true,
-		},
-		{
-			matcher: mustNewMatcher(t, MatchNotRegexp, "bar"),
-			value:   "bar",
-			match:   false,
-		},
-		{
-			matcher: mustNewMatcher(t, MatchNotRegexp, "bar"),
-			value:   "foo-bar",
-			match:   true,
-		},
-		{
-			matcher: mustNewMatcher(t, MatchNotRegexp, ".*bar"),
-			value:   "foo-bar",
-			match:   false,
-		},
-	}
-
-	for _, test := range tests {
-		assert.Equal(t, test.match, test.matcher.Matches([]byte(test.value)))
-	}
-}
-
-func TestMatchType(t *testing.T) {
-	require.Equal(t, MatchEqual.String(), "=")
-}
-
 func createTags(withName bool) Tags {
-	tags := Tags{
+	tags := NewTags(3, nil).AddTags([]Tag{
 		{Name: []byte("t1"), Value: []byte("v1")},
 		{Name: []byte("t2"), Value: []byte("v2")},
-	}
+	})
+
 	if withName {
-		tags = append(tags, Tag{Name: MetricName, Value: []byte("v0")})
+		tags = tags.SetName([]byte("v0"))
 	}
+
 	return tags
 }
 
@@ -139,11 +70,11 @@ func TestWithoutName(t *testing.T) {
 func TestIDWithKeys(t *testing.T) {
 	tags := createTags(true)
 
-	b := []byte("t1=v1,t2=v2,__name__=v0,")
+	b := []byte("__name__=v0,t1=v1,t2=v2,")
 	h := fnv.New64a()
 	h.Write(b)
 
-	idWithKeys := tags.IDWithKeys([]byte("t1"), []byte("t2"), MetricName)
+	idWithKeys := tags.IDWithKeys([]byte("t1"), []byte("t2"), tags.Opts.MetricName())
 	assert.Equal(t, h.Sum64(), idWithKeys)
 }
 
@@ -151,7 +82,7 @@ func TestTagsWithKeys(t *testing.T) {
 	tags := createTags(true)
 
 	tagsWithKeys := tags.TagsWithKeys([][]byte{[]byte("t1")})
-	assert.Equal(t, Tags{{Name: []byte("t1"), Value: []byte("v1")}}, tagsWithKeys)
+	assert.Equal(t, []Tag{{Name: []byte("t1"), Value: []byte("v1")}}, tagsWithKeys.Tags)
 }
 
 func TestIDWithExcludes(t *testing.T) {
@@ -168,76 +99,146 @@ func TestIDWithExcludes(t *testing.T) {
 func TestTagsWithExcludes(t *testing.T) {
 	tags := createTags(true)
 
-	tagsWithoutKeys := tags.TagsWithoutKeys([][]byte{[]byte("t1"), MetricName})
-	assert.Equal(t, Tags{{Name: []byte("t2"), Value: []byte("v2")}}, tagsWithoutKeys)
+	tagsWithoutKeys := tags.TagsWithoutKeys([][]byte{[]byte("t1"), tags.Opts.MetricName()})
+	assert.Equal(t, []Tag{{Name: []byte("t2"), Value: []byte("v2")}}, tagsWithoutKeys.Tags)
 }
 
-func TestTagsWithExcludesCustom(t *testing.T) {
-	tags := Tags{
+func TestTagsIDLen(t *testing.T) {
+	tags := NewTags(3, NewTagOptions().SetMetricName([]byte("N")))
+	tags = tags.AddTags([]Tag{
 		{Name: []byte("a"), Value: []byte("1")},
 		{Name: []byte("b"), Value: []byte("2")},
 		{Name: []byte("c"), Value: []byte("3")},
-		{Name: MetricName, Value: []byte("foo")},
-	}
-	tagsWithoutKeys := tags.TagsWithoutKeys([][]byte{[]byte("a"), []byte("c"), MetricName})
-	assert.Equal(t, Tags{{Name: []byte("b"), Value: []byte("2")}}, tagsWithoutKeys)
+	})
+
+	tags = tags.SetName([]byte("9"))
+	idLen := len("a:1,b:2,c:3,N:9,")
+	assert.Equal(t, idLen, tags.IDLen())
+}
+
+func TestTagsWithExcludesCustom(t *testing.T) {
+	tags := NewTags(4, nil)
+	tags = tags.AddTags([]Tag{
+		{Name: []byte("a"), Value: []byte("1")},
+		{Name: []byte("b"), Value: []byte("2")},
+		{Name: []byte("c"), Value: []byte("3")},
+	})
+
+	tags.SetName([]byte("foo"))
+	tagsWithoutKeys := tags.TagsWithoutKeys([][]byte{[]byte("a"), []byte("c"), tags.Opts.MetricName()})
+	assert.Equal(t, []Tag{{Name: []byte("b"), Value: []byte("2")}}, tagsWithoutKeys.Tags)
 }
 
 func TestAddTags(t *testing.T) {
-	tags := make(Tags, 0, 4)
+	tags := NewTags(4, nil)
 
 	tagToAdd := Tag{Name: []byte("x"), Value: []byte("3")}
 	tags = tags.AddTag(tagToAdd)
-	assert.Equal(t, Tags{tagToAdd}, tags)
+	assert.Equal(t, []Tag{tagToAdd}, tags.Tags)
 
-	tagsToAdd := Tags{
+	tagsToAdd := []Tag{
 		{Name: []byte("a"), Value: []byte("1")},
 		{Name: []byte("b"), Value: []byte("2")},
 		{Name: []byte("z"), Value: []byte("4")},
 	}
-	tags = tags.Add(tagsToAdd)
 
-	expected := Tags{
+	tags = tags.AddTags(tagsToAdd)
+	expected := []Tag{
 		{Name: []byte("a"), Value: []byte("1")},
 		{Name: []byte("b"), Value: []byte("2")},
 		{Name: []byte("x"), Value: []byte("3")},
 		{Name: []byte("z"), Value: []byte("4")},
 	}
-	assert.Equal(t, expected, tags)
+
+	assert.Equal(t, expected, tags.Tags)
+}
+
+func TestUpdateName(t *testing.T) {
+	name := []byte("!")
+	tags := NewTags(1, NewTagOptions().SetMetricName(name))
+	actual, found := tags.Get(name)
+	assert.False(t, found)
+	assert.Nil(t, actual)
+
+	value := []byte("n")
+	tags = tags.SetName(value)
+	actual, found = tags.Get(name)
+	assert.True(t, found)
+	assert.Equal(t, value, actual)
+
+	value2 := []byte("abc")
+	tags = tags.SetName(value2)
+	actual, found = tags.Get(name)
+	assert.True(t, found)
+	assert.Equal(t, value2, actual)
 }
 
 func TestAddOrUpdateTags(t *testing.T) {
-	tags := Tags{
+	tags := EmptyTags().AddTags([]Tag{
 		{Name: []byte("a"), Value: []byte("1")},
 		{Name: []byte("z"), Value: []byte("4")},
-	}
+	})
 
 	tags = tags.AddOrUpdateTag(Tag{Name: []byte("x"), Value: []byte("!!")})
-	expected := Tags{
+	expected := EmptyTags().AddTags([]Tag{
 		{Name: []byte("a"), Value: []byte("1")},
 		{Name: []byte("x"), Value: []byte("!!")},
 		{Name: []byte("z"), Value: []byte("4")},
-	}
+	})
 
 	assert.Equal(t, tags, expected)
 	tags = tags.AddOrUpdateTag(Tag{Name: []byte("z"), Value: []byte("?")})
-	expected = Tags{
+	expected = EmptyTags().AddTags([]Tag{
 		{Name: []byte("a"), Value: []byte("1")},
 		{Name: []byte("x"), Value: []byte("!!")},
 		{Name: []byte("z"), Value: []byte("?")},
-	}
-
+	})
 	assert.Equal(t, expected, tags)
 }
 
 func TestCloneTags(t *testing.T) {
 	tags := createTags(true)
-	original := createTags(true)
-
 	cloned := tags.Clone()
-	assert.Equal(t, cloned, tags)
-	// mutate cloned and ensure tags is unchanged
-	cloned = cloned[1:]
-	assert.NotEqual(t, cloned, tags)
-	assert.Equal(t, original, tags)
+
+	assert.Equal(t, cloned.Opts, tags.Opts)
+	assert.Equal(t, cloned.Tags, tags.Tags)
+	aHeader := (*reflect.SliceHeader)(unsafe.Pointer(&cloned.Tags))
+	bHeader := (*reflect.SliceHeader)(unsafe.Pointer(&tags.Tags))
+	assert.False(t, aHeader.Data == bHeader.Data)
+
+	// Assert tag backing slice pointers do not match, but content is equal
+	tn, tv := tags.Tags[0].Name, tags.Tags[0].Value
+	cn, cv := cloned.Tags[0].Name, cloned.Tags[0].Value
+	assert.True(t, bytes.Equal(tn, cn))
+	assert.True(t, bytes.Equal(tv, cv))
+	assert.False(t, xtest.ByteSlicesBackedBySameData(tn, cn))
+	assert.False(t, xtest.ByteSlicesBackedBySameData(tv, cv))
+}
+
+func TestTagAppend(t *testing.T) {
+	tagsToAdd := Tags{
+		Tags: []Tag{
+			{Name: []byte("x"), Value: []byte("5")},
+			{Name: []byte("b"), Value: []byte("3")},
+			{Name: []byte("z"), Value: []byte("1")},
+			{Name: []byte("a"), Value: []byte("2")},
+			{Name: []byte("c"), Value: []byte("4")},
+			{Name: []byte("d"), Value: []byte("6")},
+			{Name: []byte("f"), Value: []byte("7")},
+		},
+	}
+
+	tags := NewTags(2, nil)
+	tags = tags.Add(tagsToAdd)
+	expected := []Tag{
+		{Name: []byte("a"), Value: []byte("2")},
+		{Name: []byte("b"), Value: []byte("3")},
+		{Name: []byte("c"), Value: []byte("4")},
+		{Name: []byte("d"), Value: []byte("6")},
+		{Name: []byte("f"), Value: []byte("7")},
+		{Name: []byte("x"), Value: []byte("5")},
+		{Name: []byte("z"), Value: []byte("1")},
+	}
+
+	assert.Equal(t, expected, tags.Tags)
 }

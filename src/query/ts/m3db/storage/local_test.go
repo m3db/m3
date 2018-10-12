@@ -110,12 +110,12 @@ func TestLocalRead(t *testing.T) {
 		assert.Equal(t, "id", id)
 		for _, blocks := range seriesBlocks {
 			assert.Equal(t, "namespace", blocks.Namespace.String())
-			blockTags, err := storage.FromIdentTagIteratorToTags(blocks.Tags)
+			blockTags, err := storage.FromIdentTagIteratorToTags(blocks.Tags, nil)
 			require.NoError(t, err)
-			assert.Equal(t, models.Tags{
+			assert.Equal(t, []models.Tag{
 				{Name: []byte("baz"), Value: []byte("qux")},
 				{Name: []byte("foo"), Value: []byte("bar")},
-			}, blockTags)
+			}, blockTags.Tags)
 		}
 	}
 }

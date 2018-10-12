@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/httpd"
 	m3dbcluster "github.com/m3db/m3/src/query/cluster/m3db"
 	"github.com/m3db/m3/src/query/executor"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/policy/filter"
 	"github.com/m3db/m3/src/query/pools"
 	"github.com/m3db/m3/src/query/storage"
@@ -148,7 +149,12 @@ func Run(runOpts RunOptions) {
 		scope,
 	)
 	if err != nil {
-		logger.Fatal("could not create worker pools", zap.Any("error", err))
+		logger.Fatal("could not create worker pools", zap.Error(err))
+	}
+
+	tagOptions, err := config.TagOptionsFromConfig(cfg.TagOptions)
+	if err != nil {
+		logger.Fatal("could not create tag options", zap.Error(err))
 	}
 
 	var (
@@ -159,7 +165,12 @@ func Run(runOpts RunOptions) {
 	// For m3db backend, we need to make connections to the m3db cluster which generates a session and use the storage with the session.
 	if cfg.Backend == config.GRPCStorageType {
 		poolWrapper := pools.NewPoolsWrapper(pools.BuildIteratorPools())
-		backendStorage, enabled, err = remoteClient(cfg, poolWrapper, readWorkerPool)
+		backendStorage, enabled, err = remoteClient(
+			cfg,
+			tagOptions,
+			poolWrapper,
+			readWorkerPool,
+		)
 		if err != nil {
 			logger.Fatal("unable to setup grpc backend", zap.Error(err))
 		}
@@ -178,6 +189,7 @@ func Run(runOpts RunOptions) {
 		backendStorage, clusterClient, downsampler, cleanup, err = newM3DBStorage(
 			runOpts,
 			cfg,
+			tagOptions,
 			logger,
 			m3dbClusters,
 			m3dbPoolWrapper,
@@ -193,7 +205,7 @@ func Run(runOpts RunOptions) {
 
 	engine := executor.NewEngine(backendStorage)
 
-	handler, err := httpd.NewHandler(backendStorage, downsampler, engine,
+	handler, err := httpd.NewHandler(backendStorage, tagOptions, downsampler, engine,
 		m3dbClusters, clusterClient, cfg, runOpts.DBConfig, scope)
 	if err != nil {
 		logger.Fatal("unable to set up handlers", zap.Error(err))
@@ -214,33 +226,40 @@ func Run(runOpts RunOptions) {
 		if err := srv.Shutdown(ctx); err != nil {
 			logger.Error("error closing server", zap.Error(err))
 		}
-
 	}()
 
 	go func() {
 		logger.Info("starting server", zap.String("address", listenAddress))
-		if err := srv.ListenAndServe(); err != nil {
-			logger.Error("server error while listening",
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Fatal("server error while listening",
 				zap.String("address", listenAddress), zap.Error(err))
 		}
 	}()
 
 	if cfg.Ingest != nil {
+		logger.Info("starting m3msg server ")
 		ingester, err := cfg.Ingest.Ingester.NewIngester(backendStorage, instrumentOptions)
 		if err != nil {
 			logger.Fatal("unable to create ingester", zap.Error(err))
 		}
+
 		server, err := cfg.Ingest.M3Msg.NewServer(
 			ingester.Ingest,
 			instrumentOptions.SetMetricsScope(scope.SubScope("m3msg")),
 		)
+
 		if err != nil {
 			logger.Fatal("unable to create m3msg server", zap.Error(err))
 		}
+
 		if err := server.ListenAndServe(); err != nil {
 			logger.Fatal("unable to listen on ingest server", zap.Error(err))
 		}
+
+		logger.Info("started m3msg server ")
 		defer server.Close()
+	} else {
+		logger.Info("no m3msg server configured")
 	}
 
 	var interruptCh <-chan error = make(chan error)
@@ -263,13 +282,14 @@ func Run(runOpts RunOptions) {
 		}
 	}
 
-	logger.Info(fmt.Sprintf("interrupt: %s", interruptErr))
+	logger.Info("interrupt", zap.String("cause", interruptErr.Error()))
 }
 
 // make connections to the m3db cluster(s) and generate sessions for those clusters along with the storage
 func newM3DBStorage(
 	runOpts RunOptions,
 	cfg config.Configuration,
+	tagOptions models.TagOptions,
 	logger *zap.Logger,
 	clusters m3.Clusters,
 	poolWrapper *pools.PoolWrapper,
@@ -311,7 +331,15 @@ func newM3DBStorage(
 		}
 	}
 
-	fanoutStorage, storageCleanup, err := newStorages(logger, clusters, cfg, poolWrapper, readWorkerPool, writeWorkerPool)
+	fanoutStorage, storageCleanup, err := newStorages(
+		logger,
+		clusters,
+		cfg,
+		tagOptions,
+		poolWrapper,
+		readWorkerPool,
+		writeWorkerPool,
+	)
 	if err != nil {
 		return nil, nil, nil, nil, errors.Wrap(err, "unable to set up storages")
 	}
@@ -338,7 +366,7 @@ func newM3DBStorage(
 		}
 
 		downsampler, err = newDownsampler(clusterManagementClient,
-			fanoutStorage, autoMappingRules, instrumentOptions)
+			fanoutStorage, autoMappingRules, tagOptions, instrumentOptions)
 		if err != nil {
 			return nil, nil, nil, nil, err
 		}
@@ -367,6 +395,7 @@ func newDownsampler(
 	clusterManagementClient clusterclient.Client,
 	storage storage.Storage,
 	autoMappingRules []downsample.MappingRule,
+	tagOptions models.TagOptions,
 	instrumentOpts instrument.Options,
 ) (downsample.Downsampler, error) {
 	if clusterManagementClient == nil {
@@ -402,6 +431,7 @@ func newDownsampler(
 		TagDecoderOptions:     tagDecoderOptions,
 		TagEncoderPoolOptions: tagEncoderPoolOptions,
 		TagDecoderPoolOptions: tagDecoderPoolOptions,
+		TagOptions:            tagOptions,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to create downsampler")
@@ -504,13 +534,19 @@ func newStorages(
 	logger *zap.Logger,
 	clusters m3.Clusters,
 	cfg config.Configuration,
+	tagOptions models.TagOptions,
 	poolWrapper *pools.PoolWrapper,
 	readWorkerPool xsync.PooledWorkerPool,
 	writeWorkerPool xsync.PooledWorkerPool,
 ) (storage.Storage, cleanupFn, error) {
 	cleanup := func() error { return nil }
 
-	localStorage := m3.NewStorage(clusters, readWorkerPool, writeWorkerPool)
+	localStorage := m3.NewStorage(
+		clusters,
+		readWorkerPool,
+		writeWorkerPool,
+		tagOptions,
+	)
 	stores := []storage.Storage{localStorage}
 	remoteEnabled := false
 	if cfg.RPC != nil && cfg.RPC.Enabled {
@@ -525,7 +561,12 @@ func newStorages(
 			return nil
 		}
 
-		remoteStorage, enabled, err := remoteClient(cfg, poolWrapper, readWorkerPool)
+		remoteStorage, enabled, err := remoteClient(
+			cfg,
+			tagOptions,
+			poolWrapper,
+			readWorkerPool,
+		)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -547,6 +588,7 @@ func newStorages(
 
 func remoteClient(
 	cfg config.Configuration,
+	tagOptions models.TagOptions,
 	poolWrapper *pools.PoolWrapper,
 	readWorkerPool xsync.PooledWorkerPool,
 ) (storage.Storage, bool, error) {
@@ -555,7 +597,12 @@ func remoteClient(
 	}
 
 	if remotes := cfg.RPC.RemoteListenAddresses; len(remotes) > 0 {
-		client, err := tsdbRemote.NewGRPCClient(remotes, poolWrapper, readWorkerPool)
+		client, err := tsdbRemote.NewGRPCClient(
+			remotes,
+			poolWrapper,
+			readWorkerPool,
+			tagOptions,
+		)
 		if err != nil {
 			return nil, false, err
 		}

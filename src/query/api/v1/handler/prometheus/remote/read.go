@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/net/http"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/snappy"
@@ -82,14 +83,14 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	req, rErr := h.parseRequest(r)
 
 	if rErr != nil {
-		handler.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 
 	timeout, err := prometheus.ParseRequestTimeout(r)
 	if err != nil {
 		h.promReadMetrics.fetchErrorsClient.Inc(1)
-		handler.Error(w, err, http.StatusBadRequest)
+		xhttp.Error(w, err, http.StatusBadRequest)
 		return
 	}
 
@@ -97,7 +98,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.promReadMetrics.fetchErrorsServer.Inc(1)
 		logger.Error("unable to fetch data", zap.Any("error", err))
-		handler.Error(w, err, http.StatusInternalServerError)
+		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
@@ -109,7 +110,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.promReadMetrics.fetchErrorsServer.Inc(1)
 		logger.Error("unable to marshal read results to protobuf", zap.Any("error", err))
-		handler.Error(w, err, http.StatusInternalServerError)
+		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
@@ -120,14 +121,14 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if _, err := w.Write(compressed); err != nil {
 		h.promReadMetrics.fetchErrorsServer.Inc(1)
 		logger.Error("unable to encode read results to snappy", zap.Any("err", err))
-		handler.Error(w, err, http.StatusInternalServerError)
+		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
 	h.promReadMetrics.fetchSuccess.Inc(1)
 }
 
-func (h *PromReadHandler) parseRequest(r *http.Request) (*prompb.ReadRequest, *handler.ParseError) {
+func (h *PromReadHandler) parseRequest(r *http.Request) (*prompb.ReadRequest, *xhttp.ParseError) {
 	reqBuf, err := prometheus.ParsePromCompressedRequest(r)
 	if err != nil {
 		return nil, err
@@ -135,7 +136,7 @@ func (h *PromReadHandler) parseRequest(r *http.Request) (*prompb.ReadRequest, *h
 
 	var req prompb.ReadRequest
 	if err := proto.Unmarshal(reqBuf, &req); err != nil {
-		return nil, handler.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
 	return &req, nil
