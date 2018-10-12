@@ -299,7 +299,6 @@ func (c *baseNode) processSingleRequest(request processRequest) error {
 			values = append(values, val)
 			newVal := math.NaN()
 			alignedTime, _ := bounds.TimeForIndex(i)
-			// fmt.Println("align: ", alignedTime.String())
 			oldestDatapointTimestamp := alignedTime.Add(-1 * aggDuration)
 			// Remove the older values from slice as newer values are pushed in.
 			// TODO: Consider using a rotating slice since this is inefficient

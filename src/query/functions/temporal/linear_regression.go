@@ -40,7 +40,8 @@ const (
 )
 
 type linearRegressionProcessor struct {
-	duration float64
+	fn      linearRegFn
+	isDeriv bool
 }
 
 func (l linearRegressionProcessor) Init(op baseOp, controller *transform.Controller, opts transform.Options) Processor {
@@ -48,15 +49,18 @@ func (l linearRegressionProcessor) Init(op baseOp, controller *transform.Control
 		op:         op,
 		controller: controller,
 		timeSpec:   opts.TimeSpec,
-		duration:   l.duration,
+		fn:         l.fn,
+		isDeriv:    l.isDeriv,
 	}
 }
+
+type linearRegFn func(float64, float64) float64
 
 // NewLinearRegressionOp creates a new base temporal transform for linear regression functions
 func NewLinearRegressionOp(args []interface{}, optype string) (transform.Params, error) {
 	var (
-		duration float64
-		ok       bool
+		fn      linearRegFn
+		isDeriv bool
 	)
 
 	switch optype {
@@ -65,18 +69,29 @@ func NewLinearRegressionOp(args []interface{}, optype string) (transform.Params,
 			return emptyOp, fmt.Errorf("invalid number of args for %s: %d", PredictLinearType, len(args))
 		}
 
-		duration, ok = args[1].(float64)
+		duration, ok := args[1].(float64)
 		if !ok {
 			return emptyOp, fmt.Errorf("unable to cast to scalar argument: %v for %s", args[1], PredictLinearType)
 		}
 
+		fn = func(slope, intercept float64) float64 {
+			return slope*duration + intercept
+		}
+
 	case DerivType:
+		fn = func(slope, _ float64) float64 {
+			return slope
+		}
+
+		isDeriv = true
+
 	default:
 		return nil, fmt.Errorf("unknown linear regression type: %s", optype)
 	}
 
 	l := linearRegressionProcessor{
-		duration: duration,
+		fn:      fn,
+		isDeriv: isDeriv,
 	}
 
 	return newBaseOp(args, optype, l)
@@ -86,35 +101,30 @@ type linearRegressionNode struct {
 	op         baseOp
 	controller *transform.Controller
 	timeSpec   transform.TimeSpec
-	duration   float64
+	fn         linearRegFn
+	isDeriv    bool
 }
 
-func (l linearRegressionNode) Process(dps ts.Datapoints, alignedTime time.Time) float64 {
+func (l linearRegressionNode) Process(dps ts.Datapoints, evaluationTime time.Time) float64 {
 	if dps.Len() < 2 {
 		return math.NaN()
 	}
 
-	var slope, intercept float64
+	slope, intercept := linearRegression(dps, evaluationTime, l.isDeriv)
 
-	if l.op.operatorType == PredictLinearType {
-		slope, intercept = linearRegression(dps, alignedTime)
-		return slope*l.duration + intercept
-	}
-
-	slope, _ = linearRegression(dps, time.Time{})
-	return slope
+	return l.fn(slope, intercept)
 }
 
 // linearRegression performs a least-square linear regression analysis on the
 // provided datapoints. It returns the slope, and the intercept value at the
 // provided time. The algorithm we use comes from https://en.wikipedia.org/wiki/Simple_linear_regression.
-func linearRegression(dps ts.Datapoints, interceptTime time.Time) (float64, float64) {
+func linearRegression(dps ts.Datapoints, interceptTime time.Time, isDeriv bool) (float64, float64) {
 	var (
 		n            float64
 		sumX, sumY   float64
 		sumXY, sumX2 float64
 
-		nonNaNCount int
+		valueCount int
 	)
 
 	for _, dp := range dps {
@@ -122,17 +132,14 @@ func linearRegression(dps ts.Datapoints, interceptTime time.Time) (float64, floa
 			continue
 		}
 
-		if nonNaNCount == 0 {
-			if interceptTime.IsZero() {
-				// set interceptTime as timestamp of first non-NaN dp
-				interceptTime = dp.Timestamp
-			}
+		if valueCount == 0 && isDeriv {
+			// set interceptTime as timestamp of first non-NaN dp
+			interceptTime = dp.Timestamp
 		}
 
-		nonNaNCount++
+		valueCount++
 
-		// convert to milliseconds
-		x := float64(dp.Timestamp.Sub(interceptTime).Nanoseconds()/1000000) / 1e3
+		x := float64(dp.Timestamp.Sub(interceptTime).Seconds())
 		n += 1.0
 		sumY += dp.Value
 		sumX += x
@@ -141,7 +148,7 @@ func linearRegression(dps ts.Datapoints, interceptTime time.Time) (float64, floa
 	}
 
 	// need at least 2 non-NaN values to calculate slope and intercept
-	if nonNaNCount == 1 {
+	if valueCount == 1 {
 		return math.NaN(), math.NaN()
 	}
 
