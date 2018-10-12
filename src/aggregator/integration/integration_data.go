@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/aggregated"
-	"github.com/m3db/m3metrics/metric/id"
 	metricid "github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/pipeline/applied"
@@ -733,7 +732,7 @@ func (mu metricUnion) Type() metric.Type {
 	}
 }
 
-func (mu metricUnion) ID() id.RawID {
+func (mu metricUnion) ID() metricid.RawID {
 	switch mu.category {
 	case untimedMetric:
 		return mu.untimed.ID

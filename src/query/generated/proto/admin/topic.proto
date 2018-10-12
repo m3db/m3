@@ -1,0 +1,17 @@
+syntax = "proto3";
+package admin;
+
+import "github.com/m3db/m3msg/generated/proto/topicpb/topic.proto";
+
+message TopicGetResponse {
+  topicpb.Topic topic = 1;
+  uint32 version = 2;
+}
+
+message TopicInitRequest {
+  uint32 number_of_shards = 1;
+}
+
+message TopicAddRequest {
+  topicpb.ConsumerService consumer_service = 1;
+}

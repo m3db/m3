@@ -226,33 +226,40 @@ func Run(runOpts RunOptions) {
 		if err := srv.Shutdown(ctx); err != nil {
 			logger.Error("error closing server", zap.Error(err))
 		}
-
 	}()
 
 	go func() {
 		logger.Info("starting server", zap.String("address", listenAddress))
-		if err := srv.ListenAndServe(); err != nil {
-			logger.Error("server error while listening",
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Fatal("server error while listening",
 				zap.String("address", listenAddress), zap.Error(err))
 		}
 	}()
 
 	if cfg.Ingest != nil {
+		logger.Info("starting m3msg server ")
 		ingester, err := cfg.Ingest.Ingester.NewIngester(backendStorage, instrumentOptions)
 		if err != nil {
 			logger.Fatal("unable to create ingester", zap.Error(err))
 		}
+
 		server, err := cfg.Ingest.M3Msg.NewServer(
 			ingester.Ingest,
 			instrumentOptions.SetMetricsScope(scope.SubScope("m3msg")),
 		)
+
 		if err != nil {
 			logger.Fatal("unable to create m3msg server", zap.Error(err))
 		}
+
 		if err := server.ListenAndServe(); err != nil {
 			logger.Fatal("unable to listen on ingest server", zap.Error(err))
 		}
+
+		logger.Info("started m3msg server ")
 		defer server.Close()
+	} else {
+		logger.Info("no m3msg server configured")
 	}
 
 	var interruptCh <-chan error = make(chan error)
@@ -275,7 +282,7 @@ func Run(runOpts RunOptions) {
 		}
 	}
 
-	logger.Info(fmt.Sprintf("interrupt: %s", interruptErr))
+	logger.Info("interrupt", zap.String("cause", interruptErr.Error()))
 }
 
 // make connections to the m3db cluster(s) and generate sessions for those clusters along with the storage

@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/net/http"
 
 	"go.uber.org/zap"
 )
@@ -87,7 +88,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	params, rErr := parseParams(r)
 	if rErr != nil {
-		handler.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 
@@ -98,7 +99,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	result, err := h.read(ctx, w, params)
 	if err != nil {
 		logger.Error("unable to fetch data", zap.Error(err))
-		handler.Error(w, err, http.StatusBadRequest)
+		xhttp.Error(w, err, http.StatusBadRequest)
 		return
 	}
 

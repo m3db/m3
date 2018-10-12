@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/net/http"
 	clusterclient "github.com/m3db/m3cluster/client"
 
 	"github.com/gogo/protobuf/jsonpb"
@@ -59,14 +60,14 @@ func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	md, rErr := h.parseRequest(r)
 	if rErr != nil {
 		logger.Error("unable to parse request", zap.Any("error", rErr))
-		handler.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 
 	nsRegistry, err := h.Add(md)
 	if err != nil {
 		logger.Error("unable to get namespace", zap.Any("error", err))
-		handler.Error(w, err, http.StatusBadRequest)
+		xhttp.Error(w, err, http.StatusBadRequest)
 		return
 	}
 
@@ -74,19 +75,19 @@ func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Registry: &nsRegistry,
 	}
 
-	handler.WriteProtoMsgJSONResponse(w, resp, logger)
+	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *AddHandler) parseRequest(r *http.Request) (*admin.NamespaceAddRequest, *handler.ParseError) {
+func (h *AddHandler) parseRequest(r *http.Request) (*admin.NamespaceAddRequest, *xhttp.ParseError) {
 	defer r.Body.Close()
-	rBody, err := handler.DurationToNanosBytes(r.Body)
+	rBody, err := xhttp.DurationToNanosBytes(r.Body)
 	if err != nil {
-		return nil, handler.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
 	addReq := new(admin.NamespaceAddRequest)
 	if err := jsonpb.Unmarshal(bytes.NewReader(rBody), addReq); err != nil {
-		return nil, handler.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
 	return addReq, nil

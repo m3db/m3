@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/net/http"
 	"github.com/m3db/m3cluster/placement"
 
 	"github.com/gogo/protobuf/jsonpb"
@@ -49,6 +50,9 @@ var (
 	// M3AggInitURL is the url for the m3agg placement init handler (with the POST method).
 	M3AggInitURL = path.Join(handler.RoutePrefixV1, M3AggServicePlacementPathName, initPathName)
 
+	// M3CoordinatorInitURL is the url for the m3agg placement init handler (with the POST method).
+	M3CoordinatorInitURL = path.Join(handler.RoutePrefixV1, M3CoordinatorServicePlacementPathName, initPathName)
+
 	// InitHTTPMethod is the HTTP method used with this resource.
 	InitHTTPMethod = http.MethodPost
 )
@@ -67,21 +71,21 @@ func (h *InitHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *ht
 
 	req, rErr := h.parseRequest(r)
 	if rErr != nil {
-		handler.Error(w, rErr.Inner(), rErr.Code())
+		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 
 	placement, err := h.Init(serviceName, r, req)
 	if err != nil {
 		logger.Error("unable to initialize placement", zap.Any("error", err))
-		handler.Error(w, err, http.StatusInternalServerError)
+		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
 	placementProto, err := placement.Proto()
 	if err != nil {
 		logger.Error("unable to get placement protobuf", zap.Any("error", err))
-		handler.Error(w, err, http.StatusInternalServerError)
+		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
@@ -89,14 +93,14 @@ func (h *InitHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *ht
 		Placement: placementProto,
 	}
 
-	handler.WriteProtoMsgJSONResponse(w, resp, logger)
+	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *InitHandler) parseRequest(r *http.Request) (*admin.PlacementInitRequest, *handler.ParseError) {
+func (h *InitHandler) parseRequest(r *http.Request) (*admin.PlacementInitRequest, *xhttp.ParseError) {
 	defer r.Body.Close()
 	initReq := new(admin.PlacementInitRequest)
 	if err := jsonpb.Unmarshal(r.Body, initReq); err != nil {
-		return nil, handler.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
 	return initReq, nil
@@ -121,8 +125,14 @@ func (h *InitHandler) Init(
 		return nil, err
 	}
 
+	replicationFactor := int(req.ReplicationFactor)
+	switch serviceName {
+	case M3CoordinatorServiceName:
+		// M3Coordinator placements are stateless
+		replicationFactor = 1
+	}
 	placement, err := service.BuildInitialPlacement(instances,
-		int(req.NumShards), int(req.ReplicationFactor))
+		int(req.NumShards), replicationFactor)
 	if err != nil {
 		return nil, err
 	}

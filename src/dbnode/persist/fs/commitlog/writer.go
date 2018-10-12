@@ -24,6 +24,7 @@ import (
 	"bufio"
 	"encoding/binary"
 	"errors"
+	"io"
 	"os"
 	"time"
 
@@ -34,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/dbnode/ts"
+	"github.com/m3db/m3/src/x/os"
 	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
@@ -80,6 +82,14 @@ type commitLogWriter interface {
 	Close() error
 }
 
+type chunkWriter interface {
+	io.Writer
+
+	reset(f xos.File)
+	close() error
+	isOpen() bool
+}
+
 type flushFn func(err error)
 
 type writer struct {
@@ -89,7 +99,7 @@ type writer struct {
 	nowFn              clock.NowFn
 	start              time.Time
 	duration           time.Duration
-	chunkWriter        *chunkWriter
+	chunkWriter        chunkWriter
 	chunkReserveHeader []byte
 	buffer             *bufio.Writer
 	sizeBuffer         []byte
@@ -151,7 +161,7 @@ func (w *writer) Open(start time.Time, duration time.Duration) error {
 		return err
 	}
 
-	w.chunkWriter.fd = fd
+	w.chunkWriter.reset(fd)
 	w.buffer.Reset(w.chunkWriter)
 	if err := w.write(w.logEncoder.Bytes()); err != nil {
 		w.Close()
@@ -164,7 +174,7 @@ func (w *writer) Open(start time.Time, duration time.Duration) error {
 }
 
 func (w *writer) isOpen() bool {
-	return w.chunkWriter.fd != nil
+	return w.chunkWriter.isOpen()
 }
 
 func (w *writer) Write(
@@ -245,11 +255,11 @@ func (w *writer) Close() error {
 	if err := w.Flush(); err != nil {
 		return err
 	}
-	if err := w.chunkWriter.fd.Close(); err != nil {
+	if err := w.chunkWriter.close(); err != nil {
 		return err
 	}
 
-	w.chunkWriter.fd = nil
+	w.chunkWriter.reset(nil)
 	w.start = timeZero
 	w.duration = 0
 	w.seen.ClearAll()
@@ -277,22 +287,34 @@ func (w *writer) write(data []byte) error {
 	return err
 }
 
-type chunkWriter struct {
-	fd      *os.File
+type fsChunkWriter struct {
+	fd      xos.File
 	flushFn flushFn
 	buff    []byte
 	fsync   bool
 }
 
-func newChunkWriter(flushFn flushFn, fsync bool) *chunkWriter {
-	return &chunkWriter{
+func newChunkWriter(flushFn flushFn, fsync bool) chunkWriter {
+	return &fsChunkWriter{
 		flushFn: flushFn,
 		buff:    make([]byte, chunkHeaderLen),
 		fsync:   fsync,
 	}
 }
 
-func (w *chunkWriter) Write(p []byte) (int, error) {
+func (w *fsChunkWriter) reset(f xos.File) {
+	w.fd = f
+}
+
+func (w *fsChunkWriter) close() error {
+	return w.fd.Close()
+}
+
+func (w *fsChunkWriter) isOpen() bool {
+	return w.fd != nil
+}
+
+func (w *fsChunkWriter) Write(p []byte) (int, error) {
 	size := len(p)
 
 	sizeStart, sizeEnd :=

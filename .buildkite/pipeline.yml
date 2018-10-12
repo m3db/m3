@@ -1,3 +1,7 @@
+common: &common
+  agents:
+    queue: monorepo
+
 steps:
   - name: "Codegen"
     command: make clean install-vendor test-all-gen
@@ -7,16 +11,19 @@ steps:
     plugins:
         gopath-checkout#v1.0.1:
           import: github.com/m3db/m3
+    <<: *common
   - name: "Unit"
     command: make clean install-vendor test-ci-unit
     plugins:
       docker-compose#v2.5.1:
         run: app
+    <<: *common
   - name: "Big Unit"
     command: make clean install-vendor test-ci-big-unit
     plugins:
       docker-compose#v2.5.1:
         run: app
+    <<: *common
   - name: "Integration (:docker:), Services, Tools, Metalint"
     command: make install-vendor metalint docker-integration-test tools services
     env:
@@ -25,26 +32,31 @@ steps:
     plugins:
         gopath-checkout#v1.0.1:
           import: github.com/m3db/m3
+    <<: *common
   - label: "Integration (dbnode All Metadata) %n"
     parallelism: 2
     command: make clean install-vendor test-ci-integration-dbnode cache_policy=all_metadata
     plugins:
       docker-compose#v2.5.1:
         run: app
+    <<: *common
   - name: "Integration (dbnode Recently Read) %n"
     parallelism: 2
     command: make clean install-vendor test-ci-integration-dbnode cache_policy=recently_read
     plugins:
       docker-compose#v2.5.1:
         run: app
+    <<: *common
   - name: "Integration (dbnode LRU) %n"
     parallelism: 2
     command: make clean install-vendor test-ci-integration-dbnode cache_policy=lru
     plugins:
       docker-compose#v2.5.1:
         run: app
+    <<: *common
   - label: "Integration (collector, m3em, agg)"
     command: make clean install-vendor test-ci-integration-collector test-ci-integration-m3em test-ci-integration-aggregator
     plugins:
       docker-compose#v2.5.1:
         run: app
+    <<: *common
