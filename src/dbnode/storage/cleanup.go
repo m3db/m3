@@ -373,8 +373,11 @@ func (m *cleanupManager) commitLogTimes(t time.Time) ([]commitLogFileWithErrorAn
 				"encountered err: %v reading commit log file: %v info during cleanup, marking file for deletion",
 				errorWithPath.Error(), errorWithPath.Path())
 
-			filesToCleanup = append(filesToCleanup, newCommitLogFileWithErrorAndPath(
-				f, errorWithPath.Path(), err))
+			// TODO(rartoul): Leave this out until we have a way of distinguishing between a corrupt commit
+			// log file and the commit log file that is actively being written to (which may still be missing
+			// the header): https://github.com/m3db/m3/issues/1078
+			// filesToCleanup = append(filesToCleanup, newCommitLogFileWithErrorAndPath(
+			// 	f, errorWithPath.Path(), err))
 			continue
 		}
 

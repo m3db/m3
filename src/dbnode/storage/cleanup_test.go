@@ -752,6 +752,10 @@ func TestCleanupManagerCommitLogTimesMultiNS(t *testing.T) {
 }
 
 func TestCleanupManagerDeletesCorruptCommitLogFiles(t *testing.T) {
+	// TODO(rartoul): Re-enable this once https://github.com/m3db/m3/issues/1078
+	// is resolved.
+	t.Skip()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
