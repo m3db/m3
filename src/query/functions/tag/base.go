@@ -43,6 +43,7 @@ func NewTagOp(
 		fn  tagTransformFunc
 		err error
 	)
+
 	switch opType {
 	case TagJoinType:
 		fn, err = makeTagJoinFunc(params)
