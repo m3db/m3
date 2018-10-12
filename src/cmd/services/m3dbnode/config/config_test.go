@@ -368,6 +368,7 @@ db:
     fs:
       numProcessorsPerCPU: 0.125
     peers: null
+    commitlog: null
     cacheSeriesMetadata: null
   blockRetrieve: null
   cache:
