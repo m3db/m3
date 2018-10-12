@@ -47,6 +47,7 @@ import (
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
+	"github.com/uber-go/tally"
 )
 
 var (
@@ -70,6 +71,38 @@ type commitLogSource struct {
 	newIteratorFn   newIteratorFn
 	snapshotFilesFn snapshotFilesFn
 	newReaderFn     newReaderFn
+
+	metrics commitLogSourceDataAndIndexMetrics
+}
+
+type commitLogSourceDataAndIndexMetrics struct {
+	data  commitLogSourceMetrics
+	index commitLogSourceMetrics
+}
+
+func newCommitLogSourceDataAndIndexMetrics(scope tally.Scope) commitLogSourceDataAndIndexMetrics {
+	return commitLogSourceDataAndIndexMetrics{
+		data:  newCommitLogSourceMetrics(scope),
+		index: newCommitLogSourceMetrics(scope),
+	}
+}
+
+type commitLogSourceMetrics struct {
+	corruptCommitlogFile          tally.Counter
+	readingSnapshots              tally.Gauge
+	readingCommitlogs             tally.Gauge
+	mergingSnapshotsAndCommitlogs tally.Gauge
+}
+
+func newCommitLogSourceMetrics(scope tally.Scope) commitLogSourceMetrics {
+	statusScope := scope.SubScope("status")
+	clScope := scope.SubScope("commitlog")
+	return commitLogSourceMetrics{
+		corruptCommitlogFile:          clScope.Counter("corrupt"),
+		readingSnapshots:              statusScope.Gauge("reading-snapshots"),
+		readingCommitlogs:             statusScope.Gauge("reading-commitlogs"),
+		mergingSnapshotsAndCommitlogs: statusScope.Gauge("merging-snapshots-and-commitlogs"),
+	}
 }
 
 type encoder struct {
@@ -78,6 +111,12 @@ type encoder struct {
 }
 
 func newCommitLogSource(opts Options, inspection fs.Inspection) bootstrap.Source {
+	scope := opts.
+		ResultOptions().
+		InstrumentOptions().
+		MetricsScope().
+		SubScope("bootstrapper-commitlog")
+
 	return &commitLogSource{
 		opts: opts,
 		log: opts.
@@ -91,6 +130,8 @@ func newCommitLogSource(opts Options, inspection fs.Inspection) bootstrap.Source
 		newIteratorFn:   commitlog.NewIterator,
 		snapshotFilesFn: fs.SnapshotFiles,
 		newReaderFn:     fs.NewReader,
+
+		metrics: newCommitLogSourceDataAndIndexMetrics(scope),
 	}
 }
 
@@ -248,7 +289,7 @@ func (s *commitLogSource) ReadData(
 		return nil, fmt.Errorf("unable to create commit log iterator: %v", err)
 	}
 	if len(corruptFiles) > 0 {
-		s.logCorruptFiles(corruptFiles)
+		s.logAndEmitCorruptFiles(corruptFiles, true)
 		encounteredCorruptData = true
 	}
 
@@ -281,6 +322,7 @@ func (s *commitLogSource) ReadData(
 	}
 
 	// Read / M3TSZ encode all the datapoints in the commit log that we need to read.
+	s.metrics.data.readingCommitlogs.Update(1)
 	for iter.Next() {
 		series, dp, unit, annotation := iter.Current()
 		if !s.shouldEncodeForData(shardDataByShard, blockSize, series, dp.Timestamp) {
@@ -306,6 +348,7 @@ func (s *commitLogSource) ReadData(
 			blockStart: dp.Timestamp.Truncate(blockSize),
 		}
 	}
+	s.metrics.data.readingCommitlogs.Update(0)
 
 	if iterErr := iter.Err(); iterErr != nil {
 		// Log the error and mark that we encountered corrupt data, but don't
@@ -314,6 +357,7 @@ func (s *commitLogSource) ReadData(
 		// altogether.
 		s.log.Errorf(
 			"error in commitlog iterator: %v", iterErr)
+		s.metrics.data.corruptCommitlogFile.Inc(1)
 		encounteredCorruptData = true
 	}
 
@@ -330,6 +374,7 @@ func (s *commitLogSource) ReadData(
 	// the data that is available in the snapshot files.
 	mergeStart := time.Now()
 	s.log.Infof("starting merge...")
+	s.metrics.data.mergingSnapshotsAndCommitlogs.Update(1)
 	bootstrapResult, err := s.mergeAllShardsCommitLogEncodersAndSnapshots(
 		ns,
 		shardsTimeRanges,
@@ -339,8 +384,8 @@ func (s *commitLogSource) ReadData(
 		blockSize,
 		shardDataByShard,
 	)
+	s.metrics.data.mergingSnapshotsAndCommitlogs.Update(0)
 	if err != nil {
-		// TODO: Should probably not return this error?
 		return nil, err
 	}
 	s.log.Infof("done merging..., took: %s", time.Since(mergeStart).String())
@@ -1343,11 +1388,13 @@ func (s *commitLogSource) ReadIndex(
 	)
 
 	// Start by reading any available snapshot files.
+	s.metrics.index.readingSnapshots.Update(1)
 	for shard, tr := range shardsTimeRanges {
 		shardResult, err := s.bootstrapShardSnapshots(
 			ns.ID(), shard, true, tr, blockSize, snapshotFilesByShard[shard],
 			mostRecentCompleteSnapshotByBlockShard)
 		if err != nil {
+			s.metrics.index.readingSnapshots.Update(0)
 			return nil, err
 		}
 
@@ -1362,6 +1409,7 @@ func (s *commitLogSource) ReadIndex(
 			}
 		}
 	}
+	s.metrics.index.readingSnapshots.Update(0)
 
 	// Next, read all of the data from the commit log files that wasn't covered
 	// by the snapshot files.
@@ -1370,7 +1418,7 @@ func (s *commitLogSource) ReadIndex(
 		return nil, fmt.Errorf("unable to create commit log iterator: %v", err)
 	}
 	if len(corruptFiles) > 0 {
-		s.logCorruptFiles(corruptFiles)
+		s.logAndEmitCorruptFiles(corruptFiles, false)
 		encounteredCorruptData = true
 	}
 
@@ -1392,6 +1440,7 @@ func (s *commitLogSource) ReadIndex(
 		s.log.Errorf(
 			"error in commitlog iterator: %v", iterErr)
 		encounteredCorruptData = true
+		s.metrics.index.corruptCommitlogFile.Inc(1)
 	}
 
 	// If all successful then we mark each index block as fulfilled
@@ -1501,12 +1550,18 @@ func (s commitLogSource) maybeAddToIndex(
 	return err
 }
 
-func (s *commitLogSource) logCorruptFiles(corruptFiles []commitlog.ErrorWithPath) {
+func (s *commitLogSource) logAndEmitCorruptFiles(
+	corruptFiles []commitlog.ErrorWithPath, isData bool) {
 	for _, f := range corruptFiles {
 		s.log.
 			Errorf(
 				"opting to skip commit log: %s due to corruption, err: %v",
 				f.Path, f.Error)
+		if isData {
+			s.metrics.data.corruptCommitlogFile.Inc(1)
+		} else {
+			s.metrics.index.corruptCommitlogFile.Inc(1)
+		}
 	}
 }
 
