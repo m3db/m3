@@ -218,11 +218,6 @@ imports:
   version: 07973db6b78acb62ac207d0538055e874b49d90d
 - name: github.com/m3db/bloom
   version: 47fe1193cdb900de7193d1f3d26ea9b2cbf6fb31
-- name: github.com/m3db/m3aggregator
-  version: 6f59918fe3791a3df0dc146ea492593925809c3e
-  subpackages:
-  - client
-  - sharding
 - name: github.com/m3db/m3cluster
   version: b3db8dcb85c34fbd02a7721f6c0639d6e96c6fbe
   subpackages:
