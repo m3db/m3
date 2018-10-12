@@ -248,12 +248,7 @@ func (s *commitLogSource) ReadData(
 		return nil, fmt.Errorf("unable to create commit log iterator: %v", err)
 	}
 	if len(corruptFiles) > 0 {
-		for _, f := range corruptFiles {
-			s.log.
-				Errorf(
-					"opting to skip commit log: %s due to corruption, err: %v",
-					f.Path, f.Error)
-		}
+		s.logCorruptFiles(corruptFiles)
 		encounteredCorruptData = true
 	}
 
@@ -1377,13 +1372,7 @@ func (s *commitLogSource) ReadIndex(
 		return nil, fmt.Errorf("unable to create commit log iterator: %v", err)
 	}
 	if len(corruptFiles) > 0 {
-		for _, f := range corruptFiles {
-			s.log.
-				Errorf(
-					"opting to skip commit log: %s due to corruption, err: %v",
-					f.Path, f.Error)
-		}
-
+		s.logCorruptFiles(corruptFiles)
 		encounteredCorruptData = true
 	}
 
@@ -1485,6 +1474,15 @@ func (s commitLogSource) maybeAddToIndex(
 
 	_, err = segment.Insert(d)
 	return err
+}
+
+func (s *commitLogSource) logCorruptFiles(corruptFiles []commitlog.ErrorWithPath) {
+	for _, f := range corruptFiles {
+		s.log.
+			Errorf(
+				"opting to skip commit log: %s due to corruption, err: %v",
+				f.Path, f.Error)
+	}
 }
 
 // The commitlog bootstrapper determines availability primarily by checking if the
