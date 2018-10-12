@@ -25,7 +25,7 @@ import (
 	"hash/adler32"
 	"time"
 
-	aggclient "github.com/m3db/m3aggregator/client"
+	aggclient "github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3cluster/generated/proto/placementpb"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/placement"
