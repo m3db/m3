@@ -45,9 +45,9 @@ const (
 type serviceFn func(clusterClient clusterclient.Client) (topic.Service, error)
 
 // Handler represents a generic handler for topic endpoints.
+// nolint: structcheck
 type Handler struct {
 	// This is used by other topic Handlers
-	// nolint: structcheck
 	client clusterclient.Client
 	cfg    config.Configuration
 

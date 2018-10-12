@@ -133,11 +133,10 @@ func (h *reportHandler) parseRequest(r *http.Request) (*reportRequest, *xhttp.Pa
 }
 
 func (h *reportHandler) newMetricID(metric metricValue) (id.ID, *xhttp.ParseError) {
-	tags := make(models.Tags, 0, len(metric.Tags))
+	tags := models.NewTags(len(metric.Tags), models.NewTagOptions())
 	for n, v := range metric.Tags {
 		tags = tags.AddTag(models.Tag{Name: []byte(n), Value: []byte(v)})
 	}
-	tags = models.Normalize(tags)
 	tagsIter := storage.TagsToIdentTagIterator(tags)
 
 	encoder := h.encoderPool.Get()
