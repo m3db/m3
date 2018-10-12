@@ -291,7 +291,7 @@ func TestTagParses(t *testing.T) {
 	for _, tt := range tagParseTests {
 		t.Run(tt.q, func(t *testing.T) {
 			q := tt.q
-			p, err := Parse(q)
+			p, err := Parse(q, models.NewTagOptions())
 			require.NoError(t, err)
 			transforms, edges, err := p.DAG()
 			require.NoError(t, err)

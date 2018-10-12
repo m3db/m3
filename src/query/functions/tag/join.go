@@ -49,7 +49,7 @@ func combineTagsWithSeparator(name []byte, separator []byte, values [][]byte) mo
 func tagsInOrder(names [][]byte, tags models.Tags) [][]byte {
 	orderedTags := make([][]byte, 0, len(names))
 	for _, name := range names {
-		for _, tag := range tags {
+		for _, tag := range tags.Tags {
 			if bytes.Equal(name, tag.Name) {
 				orderedTags = append(orderedTags, tag.Value)
 			}
@@ -90,7 +90,7 @@ func makeTagJoinFunc(params []string) (tagTransformFunc, error) {
 		seriesMeta []block.SeriesMeta,
 	) (block.Metadata, []block.SeriesMeta) {
 		matchingCommonTags := meta.Tags.TagsWithKeys(tagNames)
-		lMatching := len(matchingCommonTags)
+		lMatching := len(matchingCommonTags.Tags)
 		// Optimization if all joining series are shared by the block,
 		// or if there is only a shared metadata and no single series metas.
 		if lMatching == uniqueTagCount || len(seriesMeta) == 0 {
@@ -103,9 +103,10 @@ func makeTagJoinFunc(params []string) (tagTransformFunc, error) {
 		}
 
 		for i, meta := range seriesMeta {
+
 			seriesTags := meta.Tags.TagsWithKeys(tagNames)
 			seriesTags = seriesTags.Add(matchingCommonTags)
-			if len(seriesTags) > 0 {
+			if seriesTags.Len() > 0 {
 				ordered := tagsInOrder(tagNames, seriesTags)
 				seriesMeta[i].Tags = seriesMeta[i].Tags.
 					AddOrUpdateTag(combineTagsWithSeparator(name, sep, ordered))
