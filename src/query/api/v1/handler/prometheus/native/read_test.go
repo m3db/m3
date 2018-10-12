@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/mock"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/util/logging"
@@ -45,7 +46,11 @@ func TestPromRead(t *testing.T) {
 	mockStorage := mock.NewMockStorage()
 	mockStorage.SetFetchBlocksResult(block.Result{Blocks: []block.Block{b}}, nil)
 
-	promRead := &PromReadHandler{engine: executor.NewEngine(mockStorage)}
+	promRead := &PromReadHandler{
+		engine:  executor.NewEngine(mockStorage),
+		tagOpts: models.NewTagOptions(),
+	}
+
 	req, _ := http.NewRequest("GET", PromReadURL, nil)
 	req.URL.RawQuery = defaultParams().Encode()
 

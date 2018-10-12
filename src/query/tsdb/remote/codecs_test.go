@@ -30,6 +30,7 @@ import (
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/util/logging"
 
 	"github.com/stretchr/testify/assert"
@@ -56,10 +57,8 @@ var (
 
 	time1 = "2093-02-06T11:54:48+07:00"
 
-	tags0 = models.Tags{{Name: []byte("a"), Value: []byte("b")},
-		{Name: []byte("c"), Value: []byte("d")}}
-	tags1 = models.Tags{{Name: []byte("e"), Value: []byte("f")},
-		{Name: []byte("g"), Value: []byte("h")}}
+	tags0 = test.StringTagsToTags(test.StringTags{{N: "a", V: "b"}, {N: "c", V: "d"}})
+	tags1 = test.StringTagsToTags(test.StringTags{{N: "e", V: "f"}, {N: "g", V: "h"}})
 )
 
 func parseTimes(t *testing.T) (time.Time, time.Time) {
@@ -97,14 +96,17 @@ func createRPCSeries() []*rpc.DecompressedSeries {
 func TestDecodeFetchResult(t *testing.T) {
 	rpcSeries := createRPCSeries()
 	name := "name"
+	metricName := []byte("!")
 
-	tsSeries, err := DecodeDecompressedFetchResult(name, rpcSeries)
+	tsSeries, err := DecodeDecompressedFetchResult(name, models.NewTagOptions().SetMetricName(metricName), rpcSeries)
 	assert.NoError(t, err)
 	assert.Len(t, tsSeries, 3)
 	assert.Equal(t, name, tsSeries[0].Name())
 	assert.Equal(t, name, tsSeries[1].Name())
-	assert.Equal(t, models.Tags(tags0), tsSeries[0].Tags)
-	assert.Equal(t, models.Tags(tags1), tsSeries[1].Tags)
+	assert.Equal(t, tags0.Tags, tsSeries[0].Tags.Tags)
+	assert.Equal(t, metricName, tsSeries[0].Tags.Opts.MetricName())
+	assert.Equal(t, tags1.Tags, tsSeries[1].Tags.Tags)
+	assert.Equal(t, metricName, tsSeries[1].Tags.Opts.MetricName())
 
 	assert.Equal(t, len(valList0), tsSeries[0].Len())
 	assert.Equal(t, len(valList1), tsSeries[1].Len())
@@ -154,7 +156,7 @@ func createStorageFetchQuery(t *testing.T) (*storage.FetchQuery, time.Time, time
 	require.Nil(t, err)
 	start, end := parseTimes(t)
 
-	matchers := []*models.Matcher{m0, m1}
+	matchers := []models.Matcher{m0, m1}
 	return &storage.FetchQuery{
 		TagMatchers: matchers,
 		Start:       start,

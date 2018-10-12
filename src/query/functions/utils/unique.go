@@ -18,26 +18,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package ts
+package utils
 
-import (
-	"testing"
-	"time"
+// UniqueCount calculates the number of unique strings in a given slice.
+func UniqueCount(names []string) int {
+	uniqueMap := make(map[string]struct{}, len(names))
+	for _, s := range names {
+		uniqueMap[s] = struct{}{}
+	}
 
-	"github.com/m3db/m3/src/query/models"
-
-	"github.com/stretchr/testify/assert"
-)
-
-func TestCreateNewSeries(t *testing.T) {
-	tags := models.EmptyTags().AddTags([]models.Tag{
-		{Name: []byte("foo"), Value: []byte("bar")},
-		{Name: []byte("biz"), Value: []byte("baz")},
-	})
-	values := NewFixedStepValues(1000, 10000, 1, time.Now())
-	series := NewSeries("metrics", values, tags)
-
-	assert.Equal(t, "metrics", series.Name())
-	assert.Equal(t, 10000, series.Len())
-	assert.Equal(t, 1.0, series.Values().ValueAt(0))
+	return len(uniqueMap)
 }

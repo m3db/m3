@@ -101,7 +101,7 @@ func generateMetaDataWithTagsInRange(fromRange, toRange int) []block.SeriesMeta 
 	meta := make([]block.SeriesMeta, length)
 	for i := 0; i < length; i++ {
 		strIdx := fmt.Sprint(fromRange + i)
-		tags := models.Tags{{Name: []byte(strIdx), Value: []byte(strIdx)}}
+		tags := test.TagSliceToTags([]models.Tag{{Name: []byte(strIdx), Value: []byte(strIdx)}})
 		meta[i] = block.SeriesMeta{
 			Tags: tags,
 			Name: strIdx,
@@ -290,8 +290,8 @@ func TestOrsBoundsError(t *testing.T) {
 
 func createSeriesMeta() []block.SeriesMeta {
 	return []block.SeriesMeta{
-		{Tags: models.Tags{{Name: []byte("foo"), Value: []byte("bar")}}},
-		{Tags: models.Tags{{Name: []byte("baz"), Value: []byte("qux")}}},
+		{Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("foo"), Value: []byte("bar")}})},
+		{Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("baz"), Value: []byte("qux")}})},
 	}
 }
 
@@ -351,7 +351,8 @@ func TestOrCombinedMetadata(t *testing.T) {
 	test.EqualsWithNans(t, [][]float64{{1, 2}, {10, 20}, {3, 4}, {30, 40}}, sink.Values)
 
 	assert.Equal(t, sink.Meta.Bounds, bounds)
-	assert.Equal(t, sink.Meta.Tags, models.Tags{{Name: []byte("a"), Value: []byte("b")}})
+	exTags := test.TagSliceToTags([]models.Tag{{Name: []byte("a"), Value: []byte("b")}})
+	assert.Equal(t, exTags.Tags, sink.Meta.Tags.Tags)
 
 	stringTags := []test.StringTags{
 		{{"c", "d"}, {"e", "f"}, {"foo", "bar"}},

@@ -24,6 +24,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/test"
 
 	"github.com/stretchr/testify/require"
@@ -72,7 +73,7 @@ var scalarResolverTests = []struct {
 func TestScalarResolver(t *testing.T) {
 	for _, tt := range scalarResolverTests {
 		t.Run(tt.funcString, func(t *testing.T) {
-			parsed, err := Parse(tt.funcString)
+			parsed, err := Parse(tt.funcString, models.NewTagOptions())
 			require.NoError(t, err)
 			expr := parsed.(*promParser).expr
 			actual, err := resolveScalarArgument(expr)
