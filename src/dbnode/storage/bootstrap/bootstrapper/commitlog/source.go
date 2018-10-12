@@ -56,7 +56,7 @@ var (
 const encoderChanBufSize = 1000
 
 type newIteratorFn func(opts commitlog.IteratorOpts) (
-	iter commitlog.Iterator, corruptFiles []string, err error)
+	iter commitlog.Iterator, corruptFiles []commitlog.ErrorWithPath, err error)
 type snapshotFilesFn func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error)
 type newReaderFn func(bytesPool pool.CheckedBytesPool, opts fs.Options) (fs.DataFileSetReader, error)
 
@@ -248,6 +248,12 @@ func (s *commitLogSource) ReadData(
 		return nil, fmt.Errorf("unable to create commit log iterator: %v", err)
 	}
 	if len(corruptFiles) > 0 {
+		for _, f := range corruptFiles {
+			s.log.
+				Errorf(
+					"opting to skip commit log: %s due to corruption, err: %v",
+					f.Path, f.Error)
+		}
 		encounteredCorruptData = true
 	}
 
@@ -804,21 +810,13 @@ func (s *commitLogSource) newReadCommitLogPred(
 	// we need to read, but we can still skip datapoints from the commitlog itself that belong to a shard
 	// that has a snapshot more recent than the global minimum. If we use an array for fast-access this could
 	// be a small win in terms of memory utilization.
-	return func(f commitlog.File) (bool, bool) {
-		if f.Error != nil {
-			s.log.
-				Errorf(
-					"opting to skip commit log: %s due to corruption, err: %v",
-					f.FilePath, f.Error)
-			return false, true
-		}
-
+	return func(f commitlog.File) bool {
 		_, ok := commitlogFilesPresentBeforeStart[f.FilePath]
 		if !ok {
 			// If the file wasn't on disk before the node started then it only contains
 			// writes that are already in memory (and in-fact the file may be actively
 			// being written to.)
-			return false, false
+			return false
 		}
 
 		for _, rangeToCheck := range rangesToCheck {
@@ -832,7 +830,7 @@ func (s *commitLogSource) newReadCommitLogPred(
 					Infof(
 						"opting to read commit log: %s with start: %s and duration: %s",
 						f.FilePath, f.Start.String(), f.Duration.String())
-				return true, false
+				return true
 			}
 		}
 
@@ -840,7 +838,7 @@ func (s *commitLogSource) newReadCommitLogPred(
 			Infof(
 				"opting to skip commit log: %s with start: %s and duration: %s",
 				f.FilePath, f.Start.String(), f.Duration.String())
-		return false, false
+		return false
 	}
 }
 
@@ -1379,6 +1377,13 @@ func (s *commitLogSource) ReadIndex(
 		return nil, fmt.Errorf("unable to create commit log iterator: %v", err)
 	}
 	if len(corruptFiles) > 0 {
+		for _, f := range corruptFiles {
+			s.log.
+				Errorf(
+					"opting to skip commit log: %s due to corruption, err: %v",
+					f.Path, f.Error)
+		}
+
 		encounteredCorruptData = true
 	}
 

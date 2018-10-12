@@ -40,7 +40,7 @@ import (
 func TestFiles(t *testing.T) {
 	// TODO(r): Find some time/people to help investigate this flakey test.
 	t.Skip()
-	
+
 	dir, err := ioutil.TempDir("", "commitlogs")
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
@@ -58,7 +58,10 @@ func TestFiles(t *testing.T) {
 
 	// Make sure its sorted
 	var lastFileStart time.Time
-	for _, file := range files {
+	for _, fileOrError := range files {
+		file, err := fileOrError.File()
+		require.NoError(t, err)
+
 		require.Equal(t, 10*time.Minute, file.Duration)
 		require.Equal(t, int64(0), file.Index)
 		require.True(t, strings.Contains(file.FilePath, dir))
