@@ -1605,6 +1605,9 @@ func (s *commitLogSource) couldObtainDataFromPeers(
 			}
 		}
 
+		fmt.Println("majority: ", majorityReplicas)
+		fmt.Println("numPeers: ", numPeers)
+		fmt.Println("numAvailablePeers: ", numAvailablePeers)
 		if topology.ReadConsistencyAchieved(
 			bootstrapConsistencyLevel, majorityReplicas, numPeers, numAvailablePeers) {
 			// If we can achieve read consistency for any shard than we return true because

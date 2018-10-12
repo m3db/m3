@@ -1,3 +1,4 @@
+// +build big
 //
 // Copyright (c) 2017 Uber Technologies, Inc.
 //
@@ -292,7 +293,12 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 					}
 
 					if len(commitLogFiles) > 0 {
-						lastCommitLogFile := commitLogFiles[len(commitLogFiles)-1]
+						lastCommitLogFileOrErr := commitLogFiles[len(commitLogFiles)-1]
+						lastCommitLogFile, err := lastCommitLogFileOrErr.File()
+						if err != nil {
+							return false, err
+						}
+
 						nextCommitLogFile, _, err := fs.NextCommitLogsFile(
 							fsOpts.FilePathPrefix(), lastCommitLogFile.Start)
 						if err != nil {
@@ -352,7 +358,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			// Perform the bootstrap
 			var initialTopoState *topology.StateSnapshot
 			if input.multiNodeCluster {
-				initialTopoState = tu.NewStateSnapshot(3, tu.HostShardStates{
+				initialTopoState = tu.NewStateSnapshot(2, tu.HostShardStates{
 					tu.SelfID:   tu.Shards(allShardsSlice, shard.Available),
 					"not-self1": tu.Shards(allShardsSlice, shard.Available),
 					"not-self2": tu.Shards(allShardsSlice, shard.Available),

@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
@@ -84,7 +85,8 @@ func testOptions() Options {
 	return opts.SetResultOptions(ropts.SetDatabaseBlockOptions(rlopts.
 		SetEncoderPool(encoderPool).
 		SetReaderIteratorPool(readerIteratorPool).
-		SetMultiReaderIteratorPool(multiReaderIteratorPool)))
+		SetMultiReaderIteratorPool(multiReaderIteratorPool))).
+		SetRuntimeOptionsManager(runtime.NewOptionsManager())
 }
 
 func TestAvailableEmptyRangeError(t *testing.T) {
@@ -113,7 +115,7 @@ func TestReadErrorOnNewIteratorError(t *testing.T) {
 	opts := testDefaultOpts
 	src := newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
 
-	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, []string, error) {
+	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, []commitlog.ErrorWithPath, error) {
 		return nil, nil, fmt.Errorf("an error")
 	}
 
@@ -159,7 +161,7 @@ func TestReadOrderedValues(t *testing.T) {
 		// "baz" is in shard 2 and should not be returned
 		{baz, start.Add(4 * time.Minute), 1.0, xtime.Second, nil},
 	}
-	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, []string, error) {
+	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, []commitlog.ErrorWithPath, error) {
 		return newTestCommitLogIterator(values, nil), nil, nil
 	}
 
@@ -201,7 +203,7 @@ func TestReadUnorderedValues(t *testing.T) {
 		{foo, start.Add(3 * time.Minute), 4.0, xtime.Second, nil},
 		{foo, start, 5.0, xtime.Second, nil},
 	}
-	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, []string, error) {
+	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, []commitlog.ErrorWithPath, error) {
 		return newTestCommitLogIterator(values, nil), nil, nil
 	}
 
@@ -247,7 +249,7 @@ func TestReadHandlesDifferentSeriesWithIdenticalUniqueIndex(t *testing.T) {
 		{foo, start, 1.0, xtime.Second, nil},
 		{bar, start, 2.0, xtime.Second, nil},
 	}
-	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, []string, error) {
+	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, []commitlog.ErrorWithPath, error) {
 		return newTestCommitLogIterator(values, nil), nil, nil
 	}
 
@@ -288,7 +290,7 @@ func TestReadTrimsToRanges(t *testing.T) {
 		{foo, start.Add(1 * time.Minute), 3.0, xtime.Nanosecond, nil},
 		{foo, end.Truncate(blockSize).Add(blockSize).Add(time.Nanosecond), 4.0, xtime.Nanosecond, nil},
 	}
-	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, []string, error) {
+	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, []commitlog.ErrorWithPath, error) {
 		return newTestCommitLogIterator(values, nil), nil, nil
 	}
 
@@ -336,7 +338,7 @@ func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
 		End:   end,
 	})
 
-	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, []string, error) {
+	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, []commitlog.ErrorWithPath, error) {
 		return newTestCommitLogIterator(commitLogValues, nil), nil, nil
 	}
 	src.snapshotFilesFn = func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error) {
