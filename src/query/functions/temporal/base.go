@@ -360,7 +360,7 @@ func (c *baseNode) sweep(processedKeys []bool, maxBlocks int) {
 
 // Processor is implemented by the underlying transforms
 type Processor interface {
-	Process(values ts.Datapoints, alignedTime time.Time) float64
+	Process(values ts.Datapoints, evaluationTime time.Time) float64
 }
 
 // MakeProcessor is a way to create a transform
