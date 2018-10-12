@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	persistfs "github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
+	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper"
 	bcl "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
@@ -226,7 +227,7 @@ func setCommitLogAndFilesystemBootstrapper(t *testing.T, opts testOptions, setup
 	bclOpts := bcl.NewOptions().
 		SetResultOptions(bsOpts).
 		SetCommitLogOptions(commitLogOpts).
-		SetRuntimeManager(runtime.runtime.NewOptionsManager())
+		SetRuntimeOptionsManager(runtime.NewOptionsManager())
 
 	commitLogBootstrapper, err := bcl.NewCommitLogBootstrapperProvider(
 		bclOpts, mustInspectFilesystem(fsOpts), noOpAll)
