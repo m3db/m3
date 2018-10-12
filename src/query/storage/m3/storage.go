@@ -51,6 +51,7 @@ const (
 )
 
 type m3storage struct {
+	tagOptions      models.TagOptions
 	clusters        Clusters
 	readWorkerPool  xsync.PooledWorkerPool
 	writeWorkerPool xsync.PooledWorkerPool
@@ -62,8 +63,10 @@ func NewStorage(
 	clusters Clusters,
 	readWorkerPool xsync.PooledWorkerPool,
 	writeWorkerPool xsync.PooledWorkerPool,
+	tagOptions models.TagOptions,
 ) Storage {
 	return &m3storage{
+		tagOptions:      tagOptions,
 		clusters:        clusters,
 		readWorkerPool:  readWorkerPool,
 		writeWorkerPool: writeWorkerPool,
@@ -82,7 +85,7 @@ func (s *m3storage) Fetch(
 		return nil, err
 	}
 
-	return storage.SeriesIteratorsToFetchResult(raw, s.readWorkerPool, false)
+	return storage.SeriesIteratorsToFetchResult(raw, s.readWorkerPool, false, s.tagOptions)
 }
 
 func (s *m3storage) FetchBlocks(
@@ -229,7 +232,7 @@ func (s *m3storage) fetchTags(
 	var metrics models.Metrics
 	for iter.Next() {
 		_, id, it := iter.Current()
-		m, err := storage.FromM3IdentToMetric(id, it)
+		m, err := storage.FromM3IdentToMetric(id, it, s.tagOptions)
 		if err != nil {
 			return nil, err
 		}

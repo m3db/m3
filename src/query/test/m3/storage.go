@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/client"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3x/ident"
@@ -58,6 +59,7 @@ func NewStorageAndSession(
 	writePool, err := sync.NewPooledWorkerPool(10, sync.NewPooledWorkerPoolOptions())
 	require.NoError(t, err)
 	writePool.Init()
-	storage := m3.NewStorage(clusters, nil, writePool)
+	tagOptions := models.NewTagOptions().SetMetricName([]byte("name"))
+	storage := m3.NewStorage(clusters, nil, writePool, tagOptions)
 	return storage, session
 }

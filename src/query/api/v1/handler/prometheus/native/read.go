@@ -57,7 +57,8 @@ var (
 
 // PromReadHandler represents a handler for prometheus read endpoint.
 type PromReadHandler struct {
-	engine *executor.Engine
+	engine  *executor.Engine
+	tagOpts models.TagOptions
 }
 
 // ReadResponse is the response that gets returned to the user
@@ -71,8 +72,14 @@ type blockWithMeta struct {
 }
 
 // NewPromReadHandler returns a new instance of handler.
-func NewPromReadHandler(engine *executor.Engine) http.Handler {
-	return &PromReadHandler{engine: engine}
+func NewPromReadHandler(
+	engine *executor.Engine,
+	tagOpts models.TagOptions,
+) http.Handler {
+	return &PromReadHandler{
+		engine:  engine,
+		tagOpts: tagOpts,
+	}
 }
 
 func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -102,7 +109,11 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	renderResultsJSON(w, result, params)
 }
 
-func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, params models.RequestParams) ([]*ts.Series, error) {
+func (h *PromReadHandler) read(
+	reqCtx context.Context,
+	w http.ResponseWriter,
+	params models.RequestParams,
+) ([]*ts.Series, error) {
 	ctx, cancel := context.WithTimeout(reqCtx, params.Timeout)
 	defer cancel()
 
@@ -112,7 +123,7 @@ func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, pa
 	opts.AbortCh = abortCh
 
 	// TODO: Capture timing
-	parser, err := promql.Parse(params.Query)
+	parser, err := promql.Parse(params.Query, h.tagOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -257,7 +268,12 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 	return seriesList, nil
 }
 
-func insertSortedBlock(b block.Block, blockList []blockWithMeta, stepCount, seriesCount int) ([]blockWithMeta, error) {
+func insertSortedBlock(
+	b block.Block,
+	blockList []blockWithMeta,
+	stepCount,
+	seriesCount int,
+) ([]blockWithMeta, error) {
 	blockSeriesIter, err := b.SeriesIter()
 	if err != nil {
 		return nil, err

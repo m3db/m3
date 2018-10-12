@@ -67,6 +67,9 @@ clusters:
         type: unaggregated
         retention: 48h
 
+tagOptions:
+  metricName: "_new"
+
 readWorkerPoolPolicy:
   grow: true
   size: 100
@@ -77,7 +80,7 @@ writeWorkerPoolPolicy:
   grow: true
   size: 100
   shards: 1000
-  killProbability: 0.3
+	killProbability: 0.3
 `
 
 //TODO: Use randomly assigned port here
@@ -98,7 +101,7 @@ func TestRun(t *testing.T) {
 	session := client.NewMockSession(ctrl)
 	for _, value := range []float64{1, 2} {
 		session.EXPECT().WriteTagged(ident.NewIDMatcher("prometheus_metrics"),
-			ident.NewIDMatcher("__name__=first,biz=baz,foo=bar,"),
+			ident.NewIDMatcher("_new=first,biz=baz,foo=bar,"),
 			gomock.Any(),
 			gomock.Any(),
 			value,
@@ -107,7 +110,7 @@ func TestRun(t *testing.T) {
 	}
 	for _, value := range []float64{3, 4} {
 		session.EXPECT().WriteTagged(ident.NewIDMatcher("prometheus_metrics"),
-			ident.NewIDMatcher("__name__=second,bar=baz,foo=qux,"),
+			ident.NewIDMatcher("_new=second,bar=baz,foo=qux,"),
 			gomock.Any(),
 			gomock.Any(),
 			value,
@@ -225,6 +228,9 @@ rpc:
 
 backend: grpc
 
+tagOptions:
+  metricName: "bar"
+
 readWorkerPoolPolicy:
   grow: true
   size: 100
@@ -235,7 +241,10 @@ writeWorkerPoolPolicy:
   grow: true
   size: 100
   shards: 1000
-  killProbability: 0.3
+	killProbability: 0.3
+
+tagOptions:
+  metricName: "bar"
 `
 
 	ctrl := gomock.NewController(xtest.Reporter{T: t})

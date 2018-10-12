@@ -18,26 +18,30 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package ts
+package config
 
 import (
 	"testing"
-	"time"
-
-	"github.com/m3db/m3/src/query/models"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestCreateNewSeries(t *testing.T) {
-	tags := models.EmptyTags().AddTags([]models.Tag{
-		{Name: []byte("foo"), Value: []byte("bar")},
-		{Name: []byte("biz"), Value: []byte("baz")},
-	})
-	values := NewFixedStepValues(1000, 10000, 1, time.Now())
-	series := NewSeries("metrics", values, tags)
+func TestTagOptionsFromEmptyConfig(t *testing.T) {
+	cfg := TagOptionsConfiguration{}
+	opts, err := TagOptionsFromConfig(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, opts)
+	assert.Equal(t, []byte("__name__"), opts.MetricName())
+}
 
-	assert.Equal(t, "metrics", series.Name())
-	assert.Equal(t, 10000, series.Len())
-	assert.Equal(t, 1.0, series.Values().ValueAt(0))
+func TestTagOptionsFromConfig(t *testing.T) {
+	name := "foobar"
+	cfg := TagOptionsConfiguration{
+		MetricName: name,
+	}
+	opts, err := TagOptionsFromConfig(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, opts)
+	assert.Equal(t, []byte(name), opts.MetricName())
 }

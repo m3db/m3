@@ -18,26 +18,43 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package ts
+package models
 
 import (
-	"testing"
-	"time"
-
-	"github.com/m3db/m3/src/query/models"
-
-	"github.com/stretchr/testify/assert"
+	"errors"
 )
 
-func TestCreateNewSeries(t *testing.T) {
-	tags := models.EmptyTags().AddTags([]models.Tag{
-		{Name: []byte("foo"), Value: []byte("bar")},
-		{Name: []byte("biz"), Value: []byte("baz")},
-	})
-	values := NewFixedStepValues(1000, 10000, 1, time.Now())
-	series := NewSeries("metrics", values, tags)
+var (
+	defaultMetricName = []byte("__name__")
 
-	assert.Equal(t, "metrics", series.Name())
-	assert.Equal(t, 10000, series.Len())
-	assert.Equal(t, 1.0, series.Values().ValueAt(0))
+	errNoName = errors.New("metric name is missing or empty")
+)
+
+type tagOptions struct {
+	metricName []byte
+}
+
+// NewTagOptions builds a new tag options with default values.
+func NewTagOptions() TagOptions {
+	return &tagOptions{
+		metricName: defaultMetricName,
+	}
+}
+
+func (o *tagOptions) Validate() error {
+	if o.MetricName() == nil {
+		return errNoName
+	}
+
+	return nil
+}
+
+func (o *tagOptions) SetMetricName(metricName []byte) TagOptions {
+	opts := *o
+	opts.metricName = metricName
+	return &opts
+}
+
+func (o *tagOptions) MetricName() []byte {
+	return o.metricName
 }

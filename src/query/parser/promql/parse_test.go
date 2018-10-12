@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/query/functions/binary"
 	"github.com/m3db/m3/src/query/functions/linear"
 	"github.com/m3db/m3/src/query/functions/temporal"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 
 	"github.com/stretchr/testify/assert"
@@ -36,7 +37,7 @@ import (
 
 func TestDAGWithCountOp(t *testing.T) {
 	q := "count(http_requests_total{method=\"GET\"} offset 5m) by (service)"
-	p, err := Parse(q)
+	p, err := Parse(q, models.NewTagOptions())
 	require.NoError(t, err)
 	transforms, edges, err := p.DAG()
 	require.NoError(t, err)
@@ -52,13 +53,13 @@ func TestDAGWithCountOp(t *testing.T) {
 
 func TestDAGWithEmptyExpression(t *testing.T) {
 	q := ""
-	_, err := Parse(q)
+	_, err := Parse(q, models.NewTagOptions())
 	require.Error(t, err)
 }
 
 func TestDAGWithFakeOp(t *testing.T) {
 	q := "fake(http_requests_total{method=\"GET\"})"
-	_, err := Parse(q)
+	_, err := Parse(q, models.NewTagOptions())
 	require.Error(t, err)
 }
 
@@ -84,7 +85,7 @@ func TestAggregateParses(t *testing.T) {
 	for _, tt := range aggregateParseTests {
 		t.Run(tt.q, func(t *testing.T) {
 			q := tt.q
-			p, err := Parse(q)
+			p, err := Parse(q, models.NewTagOptions())
 			require.NoError(t, err)
 			transforms, edges, err := p.DAG()
 			require.NoError(t, err)
@@ -132,7 +133,7 @@ func TestLinearParses(t *testing.T) {
 	for _, tt := range linearParseTests {
 		t.Run(tt.q, func(t *testing.T) {
 			q := tt.q
-			p, err := Parse(q)
+			p, err := Parse(q, models.NewTagOptions())
 			require.NoError(t, err)
 			transforms, edges, err := p.DAG()
 			require.NoError(t, err)
@@ -178,7 +179,8 @@ var binaryParseTests = []struct {
 func TestBinaryParses(t *testing.T) {
 	for _, tt := range binaryParseTests {
 		t.Run(tt.q, func(t *testing.T) {
-			p, err := Parse(tt.q)
+			p, err := Parse(tt.q, models.NewTagOptions())
+
 			require.NoError(t, err)
 			transforms, edges, err := p.DAG()
 			require.NoError(t, err)
@@ -199,7 +201,7 @@ func TestBinaryParses(t *testing.T) {
 }
 
 func TestParenPrecedenceParses(t *testing.T) {
-	p, err := Parse("(5^(up-6))")
+	p, err := Parse("(5^(up-6))", models.NewTagOptions())
 	require.NoError(t, err)
 	transforms, edges, err := p.DAG()
 	require.NoError(t, err)
@@ -260,7 +262,7 @@ func TestTemporalParses(t *testing.T) {
 	for _, tt := range temporalParseTests {
 		t.Run(tt.q, func(t *testing.T) {
 			q := tt.q
-			p, err := Parse(q)
+			p, err := Parse(q, models.NewTagOptions())
 			require.NoError(t, err)
 			transforms, edges, err := p.DAG()
 			require.NoError(t, err)
@@ -278,6 +280,6 @@ func TestTemporalParses(t *testing.T) {
 
 func TestFailedTemporalParse(t *testing.T) {
 	q := "unknown_over_time(http_requests_total[5m])"
-	_, err := Parse(q)
+	_, err := Parse(q, models.NewTagOptions())
 	require.Error(t, err)
 }

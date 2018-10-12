@@ -91,7 +91,7 @@ func newStorageWriteQuery(req *WriteQuery) (*storage.WriteQuery, error) {
 		return nil, err
 	}
 
-	tags := make(models.Tags, 0, len(req.Tags))
+	tags := models.NewTags(len(req.Tags), nil)
 	for n, v := range req.Tags {
 		tags = tags.AddTag(models.Tag{Name: []byte(n), Value: []byte(v)})
 	}

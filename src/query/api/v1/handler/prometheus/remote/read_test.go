@@ -31,6 +31,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/x/metrics"
 	"github.com/m3db/m3/src/query/executor"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/m3"
@@ -105,7 +106,7 @@ func TestQueryMatchMustBeEqual(t *testing.T) {
 	matchers, err := storage.PromMatchersToM3(req.Queries[0].Matchers)
 	require.NoError(t, err)
 
-	_, err = matchers.ToTags()
+	_, err = matchers.ToTags(models.NewTagOptions())
 	assert.NoError(t, err)
 }
 

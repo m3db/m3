@@ -86,13 +86,15 @@ func TestIngest(t *testing.T) {
 				},
 			},
 			Tags: models.Tags{
-				models.Tag{
-					Name:  []byte("__name__"),
-					Value: []byte("foo"),
-				},
-				models.Tag{
-					Name:  []byte("app"),
-					Value: []byte("bar"),
+				Tags: []models.Tag{
+					models.Tag{
+						Name:  []byte("__name__"),
+						Value: []byte("foo"),
+					},
+					models.Tag{
+						Name:  []byte("app"),
+						Value: []byte("bar"),
+					},
 				},
 			},
 			Unit: xtime.Second,

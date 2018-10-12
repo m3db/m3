@@ -47,12 +47,12 @@ func DedupeMetadata(
 		return models.EmptyTags(), seriesMeta
 	}
 
-	commonKeys := make([][]byte, 0, len(seriesMeta[0].Tags))
-	commonTags := make(map[string][]byte, len(seriesMeta[0].Tags))
+	commonKeys := make([][]byte, 0, seriesMeta[0].Tags.Len())
+	commonTags := make(map[string][]byte, seriesMeta[0].Tags.Len())
 	// For each tag in the first series, read through list of seriesMetas;
 	// if key not found or value differs, this is not a shared tag
 	var distinct bool
-	for _, t := range seriesMeta[0].Tags {
+	for _, t := range seriesMeta[0].Tags.Tags {
 		distinct = false
 		for _, metas := range seriesMeta[1:] {
 			if val, ok := metas.Tags.Get(t.Name); ok {
@@ -77,7 +77,7 @@ func DedupeMetadata(
 		seriesMeta[i].Tags = meta.Tags.TagsWithoutKeys(commonKeys)
 	}
 
-	tags := make(models.Tags, 0, len(commonTags))
+	tags := models.NewTags(len(commonTags), seriesMeta[0].Tags.Opts)
 	for n, v := range commonTags {
 		tags = tags.AddTag(models.Tag{Name: []byte(n), Value: v})
 	}

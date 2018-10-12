@@ -49,7 +49,7 @@ var collectTest = []struct {
 			{"c": "d"},
 		}),
 		[][]int{{0, 1, 2, 3, 4, 5}},
-		[]models.Tags{{}},
+		[]models.Tags{models.EmptyTags()},
 		[][]int{{0}, {1}, {2}, {3}, {4}, {5}},
 		multiTagsFromMaps([]map[string]string{
 			{"a": "1"},
@@ -282,7 +282,7 @@ func TestCollectWithoutTags(t *testing.T) {
 func multiTagsFromMaps(tagMaps []map[string]string) []models.Tags {
 	tags := make([]models.Tags, len(tagMaps))
 	for i, m := range tagMaps {
-		tags[i] = models.Tags{}
+		tags[i] = models.EmptyTags()
 		for n, v := range m {
 			tags[i] = tags[i].AddTag(models.Tag{Name: []byte(n), Value: []byte(v)})
 		}

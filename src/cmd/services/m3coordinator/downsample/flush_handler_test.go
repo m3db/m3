@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/mock"
 	"github.com/m3db/m3/src/x/serialize"
 	xtest "github.com/m3db/m3/src/x/test"
@@ -51,7 +52,8 @@ func TestDownsamplerFlushHandlerCopiesTags(t *testing.T) {
 
 	instrumentOpts := instrument.NewOptions()
 
-	handler := newDownsamplerFlushHandler(store, pool, workers, instrumentOpts)
+	handler := newDownsamplerFlushHandler(store, pool,
+		workers, models.NewTagOptions(), instrumentOpts)
 	writer, err := handler.NewWriter(tally.NoopScope)
 	require.NoError(t, err)
 
@@ -93,7 +95,7 @@ func TestDownsamplerFlushHandlerCopiesTags(t *testing.T) {
 	require.Equal(t, 1, len(writes))
 
 	// Ensure tag pointers _DO_NOT_ match but equal to same content
-	tags := writes[0].Tags
+	tags := writes[0].Tags.Tags
 	require.Equal(t, 1, len(tags))
 
 	tag := tags[0]

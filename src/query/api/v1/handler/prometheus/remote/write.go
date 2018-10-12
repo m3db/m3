@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/generated/proto/prompb"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/net/http"
@@ -57,21 +58,25 @@ type PromWriteHandler struct {
 	store            storage.Storage
 	downsampler      downsample.Downsampler
 	promWriteMetrics promWriteMetrics
+	tagOptions       models.TagOptions
 }
 
 // NewPromWriteHandler returns a new instance of handler.
 func NewPromWriteHandler(
 	store storage.Storage,
 	downsampler downsample.Downsampler,
+	tagOptions models.TagOptions,
 	scope tally.Scope,
 ) (http.Handler, error) {
 	if store == nil && downsampler == nil {
 		return nil, errNoStorageOrDownsampler
 	}
+
 	return &PromWriteHandler{
 		store:            store,
 		downsampler:      downsampler,
 		promWriteMetrics: newPromWriteMetrics(scope),
+		tagOptions:       tagOptions,
 	}, nil
 }
 
@@ -170,7 +175,7 @@ func (h *PromWriteHandler) writeUnaggregated(
 		// of incoming request to determine concurrency (some level of control).
 		wg.Add(1)
 		go func() {
-			write := storage.PromWriteTSToM3(t)
+			write := storage.PromWriteTSToM3(t, h.tagOptions)
 			write.Attributes = storage.Attributes{
 				MetricsType: storage.UnaggregatedMetricsType,
 			}
