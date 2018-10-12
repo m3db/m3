@@ -143,7 +143,7 @@ func (m *cleanupManager) Cleanup(t time.Time) error {
 			"encountered errors when cleaning up commit logs for commitLogFiles %v: %v",
 			filesToCleanup, err))
 	}
-	m.metrics.deletedCommitlogFile.Inc(len(filesToCleanup))
+	m.metrics.deletedCommitlogFile.Inc(int64(len(filesToCleanup)))
 
 	return multiErr.FinalError()
 }
