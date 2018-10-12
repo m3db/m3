@@ -53,7 +53,22 @@ type cleanupManager struct {
 	deleteFilesFn               deleteFilesFn
 	deleteInactiveDirectoriesFn deleteInactiveDirectoriesFn
 	cleanupInProgress           bool
-	status                      tally.Gauge
+	metrics                     cleanupManagerMetrics
+}
+
+type cleanupManagerMetrics struct {
+	status               tally.Gauge
+	corruptCommitlogFile tally.Counter
+	deletedCommitlogFile tally.Counter
+}
+
+func newCleanupManagerMetrics(scope tally.Scope) cleanupManagerMetrics {
+	clScope := scope.SubScope("commitlog")
+	return cleanupManagerMetrics{
+		status:               scope.Gauge("cleanup"),
+		corruptCommitlogFile: clScope.Counter("corrupt"),
+		deletedCommitlogFile: clScope.Counter("deleted"),
+	}
 }
 
 func newCleanupManager(database database, scope tally.Scope) databaseCleanupManager {
@@ -70,7 +85,7 @@ func newCleanupManager(database database, scope tally.Scope) databaseCleanupMana
 		commitLogFilesFn:            commitlog.Files,
 		deleteFilesFn:               fs.DeleteFiles,
 		deleteInactiveDirectoriesFn: fs.DeleteInactiveDirectories,
-		status: scope.Gauge("cleanup"),
+		metrics:                     newCleanupManagerMetrics(scope),
 	}
 }
 
@@ -128,6 +143,7 @@ func (m *cleanupManager) Cleanup(t time.Time) error {
 			"encountered errors when cleaning up commit logs for commitLogFiles %v: %v",
 			filesToCleanup, err))
 	}
+	m.metrics.deletedCommitlogFile.Inc(len(filesToCleanup))
 
 	return multiErr.FinalError()
 }
@@ -138,9 +154,9 @@ func (m *cleanupManager) Report() {
 	m.RUnlock()
 
 	if cleanupInProgress {
-		m.status.Update(1)
+		m.metrics.status.Update(1)
 	} else {
-		m.status.Update(0)
+		m.metrics.status.Update(0)
 	}
 }
 
@@ -341,6 +357,7 @@ func (m *cleanupManager) commitLogTimes(t time.Time) ([]commitLogFileWithErrorAn
 		f, err := fileOrErr.File()
 
 		if err != nil {
+			m.metrics.corruptCommitlogFile.Inc(1)
 			// If we were unable to read the commit log files info header, then we're forced to assume
 			// that the file is corrupt and remove it. This can happen in situations where M3DB experiences
 			// sudden shutdown.
