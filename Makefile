@@ -132,13 +132,13 @@ install-mockgen:
 
 .PHONY: install-retool
 install-retool:
-	@which retool >/dev/null || go get $(retool_package)
+    which retool || go get $(retool_package)
 
 .PHONY: install-codegen-tools
 install-codegen-tools: install-retool
-	@echo "Installing retool dependencies"
-	@retool sync >/dev/null 2>/dev/null
-	@retool build >/dev/null 2>/dev/null
+    echo "Installing retool dependencies"
+    retool sync
+    retool build
 
 .PHONY: install-gometalinter
 install-gometalinter:
