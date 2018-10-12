@@ -5,8 +5,8 @@
       "Commit": "5539dc14dc6c62b10c1bb1412bbdf08e7fda85bb"
     },
     {
-      "Repository": "github.com/m3db/build-tools/utilities/mockclean",
-      "Commit": "3e9c30b229f100027d742104ad6d6b2d968374bd"
+      "Repository": "github.com/m3db/build-tools/utilities/genclean",
+      "Commit": "3414a73aff9004cba439f1657dcd70c514d2b67a"
     },
     {
       "Repository": "github.com/mjibson/esc",

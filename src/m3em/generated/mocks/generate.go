@@ -24,7 +24,7 @@
 //go:generate sh -c "mockgen -package=exec -destination=$GOPATH/src/github.com/m3db/m3/src/m3em/os/exec/mocks/exec_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/m3em/os/exec/types.go"
 
 // mockgen rules for generating mocks for exported interfaces (reflection mode)
-//go:generate sh -c "mockgen -package=node github.com/m3db/m3/src/m3em/node ServiceNode,Options | mockclean -pkg github.com/m3db/m3/src/m3em/node -out $GOPATH/src/github.com/m3db/m3/src/m3em/node/node_mock.go"
-//go:generate sh -c "mockgen -package=m3em github.com/m3db/m3/src/m3em/generated/proto/m3em OperatorClient,Operator_PushFileClient,Operator_PullFileClient,Operator_PullFileServer | mockclean -pkg github.com/m3db/m3/src/m3em/generated/proto/m3em -out $GOPATH/src/github.com/m3db/m3/src/m3em/generated/proto/m3em/m3em_mock.go"
+//go:generate sh -c "mockgen -package=node github.com/m3db/m3/src/m3em/node ServiceNode,Options | genclean -pkg github.com/m3db/m3/src/m3em/node -out $GOPATH/src/github.com/m3db/m3/src/m3em/node/node_mock.go"
+//go:generate sh -c "mockgen -package=m3em github.com/m3db/m3/src/m3em/generated/proto/m3em OperatorClient,Operator_PushFileClient,Operator_PullFileClient,Operator_PullFileServer | genclean -pkg github.com/m3db/m3/src/m3em/generated/proto/m3em -out $GOPATH/src/github.com/m3db/m3/src/m3em/generated/proto/m3em/m3em_mock.go"
 
 package generated

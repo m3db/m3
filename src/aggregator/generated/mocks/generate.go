@@ -19,13 +19,13 @@
 // THE SOFTWARE.
 
 // mockgen rules for generating mocks for exported interfaces (reflection mode).
-//go:generate sh -c "mockgen -package=aggregator github.com/m3db/m3/src/aggregator/aggregator ElectionManager,FlushTimesManager,PlacementManager | mockclean -pkg github.com/m3db/m3/src/aggregator/aggregator -out $GOPATH/src/github.com/m3db/m3/src/aggregator/aggregator/aggregator_mock.go"
-//go:generate sh -c "mockgen -package=client github.com/m3db/m3/src/aggregator/client Client,AdminClient | mockclean -pkg github.com/m3db/m3/src/aggregator/client -out $GOPATH/src/github.com/m3db/m3/src/aggregator/client/client_mock.go"
-//go:generate sh -c "mockgen -package=handler github.com/m3db/m3/src/aggregator/aggregator/handler Handler | mockclean -pkg github.com/m3db/m3/src/aggregator/aggregator/handler -out $GOPATH/src/github.com/m3db/m3/src/aggregator/aggregator/handler/handler_mock.go"
-//go:generate sh -c "mockgen -package=writer github.com/m3db/m3/src/aggregator/aggregator/handler/writer Writer | mockclean -pkg github.com/m3db/m3/src/aggregator/aggregator/handler/writer -out $GOPATH/src/github.com/m3db/m3/src/aggregator/aggregator/handler/writer/writer_mock.go"
-//go:generate sh -c "mockgen -package=common github.com/m3db/m3/src/aggregator/aggregator/handler/common Queue | mockclean -pkg github.com/m3db/m3/src/aggregator/aggregator/handler/common -out $GOPATH/src/github.com/m3db/m3/src/aggregator/aggregator/handler/common/common_mock.go"
-//go:generate sh -c "mockgen -package=router github.com/m3db/m3/src/aggregator/aggregator/handler/router Router | mockclean -pkg github.com/m3db/m3/src/aggregator/aggregator/handler/router -out $GOPATH/src/github.com/m3db/m3/src/aggregator/aggregator/handler/router/router_mock.go"
-//go:generate sh -c "mockgen -package=runtime github.com/m3db/m3/src/aggregator/runtime OptionsWatcher | mockclean -pkg github.com/m3db/m3/src/aggregator/runtime -out $GOPATH/src/github.com/m3db/m3/src/aggregator/runtime/runtime_mock.go"
+//go:generate sh -c "mockgen -package=aggregator github.com/m3db/m3/src/aggregator/aggregator ElectionManager,FlushTimesManager,PlacementManager | genclean -pkg github.com/m3db/m3/src/aggregator/aggregator -out $GOPATH/src/github.com/m3db/m3/src/aggregator/aggregator/aggregator_mock.go"
+//go:generate sh -c "mockgen -package=client github.com/m3db/m3/src/aggregator/client Client,AdminClient | genclean -pkg github.com/m3db/m3/src/aggregator/client -out $GOPATH/src/github.com/m3db/m3/src/aggregator/client/client_mock.go"
+//go:generate sh -c "mockgen -package=handler github.com/m3db/m3/src/aggregator/aggregator/handler Handler | genclean -pkg github.com/m3db/m3/src/aggregator/aggregator/handler -out $GOPATH/src/github.com/m3db/m3/src/aggregator/aggregator/handler/handler_mock.go"
+//go:generate sh -c "mockgen -package=writer github.com/m3db/m3/src/aggregator/aggregator/handler/writer Writer | genclean -pkg github.com/m3db/m3/src/aggregator/aggregator/handler/writer -out $GOPATH/src/github.com/m3db/m3/src/aggregator/aggregator/handler/writer/writer_mock.go"
+//go:generate sh -c "mockgen -package=common github.com/m3db/m3/src/aggregator/aggregator/handler/common Queue | genclean -pkg github.com/m3db/m3/src/aggregator/aggregator/handler/common -out $GOPATH/src/github.com/m3db/m3/src/aggregator/aggregator/handler/common/common_mock.go"
+//go:generate sh -c "mockgen -package=router github.com/m3db/m3/src/aggregator/aggregator/handler/router Router | genclean -pkg github.com/m3db/m3/src/aggregator/aggregator/handler/router -out $GOPATH/src/github.com/m3db/m3/src/aggregator/aggregator/handler/router/router_mock.go"
+//go:generate sh -c "mockgen -package=runtime github.com/m3db/m3/src/aggregator/runtime OptionsWatcher | genclean -pkg github.com/m3db/m3/src/aggregator/runtime -out $GOPATH/src/github.com/m3db/m3/src/aggregator/runtime/runtime_mock.go"
 
 // mockgen rules for generating mocks for unexported interfaces (file mode).
 //go:generate sh -c "mockgen -package=aggregator -destination=$GOPATH/src/github.com/m3db/m3/src/aggregator/aggregator/flush_mgr_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/aggregator/aggregator/flush_mgr.go"

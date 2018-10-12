@@ -26,7 +26,7 @@ autogen_cleanup() {
     find $DIR -type f -name "*.go" -exec /bin/bash -c 'add_license $0' {} \;
 }
 
-mocks_cleanup_helper() {
+gen_cleanup_helper() {
     local FILE=$0
     local DIR=$(dirname $FILE)
     add_license $FILE
@@ -42,28 +42,20 @@ mocks_cleanup_helper() {
     # Strip GOPATH from the source file path
     sed "s|Source: $GOPATH/src/\(.*\.go\)|Source: \1|" $FILE > $FILE.tmp && mv $FILE.tmp $FILE
 
-    # NB(prateek): running mockclean makes mock-gen idempotent.
-    # NB(xichen): mockclean should be run after the vendor path is stripped.
+    # NB(prateek): running genclean makes mock-gen idempotent.
+    # NB(xichen): genclean should be run after the vendor path is stripped.
     basePkg=$(echo $DIR | sed -e "s@${GOPATH}/src/@@g")
-    mockclean -pkg $basePkg -out $FILE -in $FILE
+    genclean -pkg $basePkg -out $FILE -in $FILE
     gofmt -w $FILE
 }
 
-export -f mocks_cleanup_helper
+export -f gen_cleanup_helper
 
-mocks_cleanup() {
-    local MOCK_PATTERN=$1
+gen_cleanup() {
+    local PATTERN=$1
     for DIR in $SRC;
     do
-        find $DIR -name "$MOCK_PATTERN" -type f -exec /bin/bash -c 'mocks_cleanup_helper $0' {} \;
-    done
-}
-
-generics_cleanup() {
-    local GEN_FILES_PATTERN=$1
-    for DIR in $SRC;
-    do
-        find $DIR -name "$GEN_FILES_PATTERN" -type f -exec /bin/bash -c 'add_license $0' {} \;
+        find $DIR -name "$PATTERN" -type f -exec /bin/bash -c 'gen_cleanup_helper $0' {} \;
     done
 }
 
@@ -83,9 +75,9 @@ fi
 go generate $PACKAGE/$2
 
 if [[ "$2" = *"generated/mocks"* ]]; then
-    mocks_cleanup "*_mock.go"
+    gen_cleanup "*_mock.go"
 elif [[ "$2" = *"generated/generics"* ]]; then
-    generics_cleanup "*.gen.go"
+    gen_cleanup "*.gen.go"
 else
     autogen_cleanup $1
 fi
