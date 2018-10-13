@@ -6,7 +6,7 @@
     },
     {
       "Repository": "github.com/m3db/build-tools/utilities/genclean",
-      "Commit": "3414a73aff9004cba439f1657dcd70c514d2b67a"
+      "Commit": "edd1bdd1df8ac1a71d4783178fce9791fa363dfa"
     },
     {
       "Repository": "github.com/mjibson/esc",
