@@ -191,6 +191,9 @@ func NewFunctionExpr(name string, argValues []interface{}) (parser.Params, error
 		temporal.DeltaType:
 		return temporal.NewRateOp(argValues, name)
 
+	case temporal.PredictLinearType, temporal.DerivType:
+		return temporal.NewLinearRegressionOp(argValues, name)
+
 	case temporal.ResetsType, temporal.ChangesType:
 		return temporal.NewFunctionOp(argValues, name)
 

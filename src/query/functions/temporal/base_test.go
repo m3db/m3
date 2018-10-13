@@ -43,7 +43,7 @@ func (p processor) Init(op baseOp, controller *transform.Controller, opts transf
 	return &p
 }
 
-func (p *processor) Process(dps ts.Datapoints) float64 {
+func (p *processor) Process(dps ts.Datapoints, _ time.Time) float64 {
 	vals := dps.Values()
 	sum := 0.0
 	for _, n := range vals {
