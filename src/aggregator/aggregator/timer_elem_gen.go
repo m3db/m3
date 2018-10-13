@@ -26,23 +26,15 @@ package aggregator
 
 import (
 	"fmt"
-
 	"math"
-
 	"sync"
-
 	"time"
 
 	maggregation "github.com/m3db/m3metrics/aggregation"
-
 	"github.com/m3db/m3metrics/metric/id"
-
 	"github.com/m3db/m3metrics/metric/unaggregated"
-
 	"github.com/m3db/m3metrics/pipeline/applied"
-
 	"github.com/m3db/m3metrics/policy"
-
 	"github.com/m3db/m3metrics/transformation"
 
 	"github.com/willf/bitset"

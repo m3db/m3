@@ -26,11 +26,8 @@ package client
 
 import (
 	"fmt"
-
 	"runtime/debug"
-
 	"sync"
-
 	"testing"
 
 	"github.com/stretchr/testify/require"

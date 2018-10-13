@@ -24,7 +24,9 @@
 
 package fst
 
-import "github.com/m3db/m3/src/m3ninx/doc"
+import (
+	"github.com/m3db/m3/src/m3ninx/doc"
+)
 
 // Copyright (c) 2018 Uber Technologies, Inc.
 //

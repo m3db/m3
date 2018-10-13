@@ -26,7 +26,6 @@ package storage
 
 import (
 	"github.com/m3db/m3x/ident"
-
 	"github.com/m3db/m3x/pool"
 
 	"github.com/cespare/xxhash"

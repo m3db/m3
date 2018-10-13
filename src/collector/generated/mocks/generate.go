@@ -19,6 +19,6 @@
 // THE SOFTWARE.
 
 // mockgen rules for generating mocks for exported interfaces (reflection mode).
-//go:generate sh -c "mockgen -package=reporter github.com/m3db/m3/src/collector/reporter Reporter | mockclean -pkg github.com/m3db/m3/src/collector/reporter -out $GOPATH/src/github.com/m3db/m3/src/collector/reporter/reporter_mock.go"
+//go:generate sh -c "mockgen -package=reporter github.com/m3db/m3/src/collector/reporter Reporter | genclean -pkg github.com/m3db/m3/src/collector/reporter -out $GOPATH/src/github.com/m3db/m3/src/collector/reporter/reporter_mock.go"
 
 package mocks
