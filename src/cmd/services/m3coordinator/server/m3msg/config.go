@@ -21,8 +21,8 @@
 package m3msg
 
 import (
+	"github.com/m3db/m3/src/msg/consumer"
 	"github.com/m3db/m3metrics/encoding/msgpack"
-	"github.com/m3db/m3msg/consumer"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/server"
 )

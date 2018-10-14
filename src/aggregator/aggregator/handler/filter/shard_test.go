@@ -24,7 +24,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/aggregator/sharding"
-	"github.com/m3db/m3msg/producer"
+	"github.com/m3db/m3/src/msg/producer"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"

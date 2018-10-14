@@ -20,6 +20,7 @@ target_patterns() {
         'm3ninx') echo "^mode|github.com/m3db/m3/src/m3ninx";;
         'm3nsch') echo "^mode|github.com/m3db/m3/src/m3nsch";;
         'x') echo "^mode|github.com/m3db/m3/src/x";;
+        'msg') echo "^mode|github.com/m3db/m3/src/msg";;
         *)   echo "unknown key: $1"; exit 1;;
     esac
 }

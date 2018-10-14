@@ -1,3 +1,0 @@
-[submodule ".ci"]
-	path = .ci
-	url = https://github.com/m3db/ci-scripts

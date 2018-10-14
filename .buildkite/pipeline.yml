@@ -54,8 +54,8 @@ steps:
       docker-compose#v2.5.1:
         run: app
     <<: *common
-  - label: "Integration (collector, m3em, agg)"
-    command: make clean install-vendor test-ci-integration-collector test-ci-integration-m3em test-ci-integration-aggregator
+  - label: "Integration (collector, m3em, agg, msg)"
+    command: make clean install-vendor test-ci-integration-collector test-ci-integration-m3em test-ci-integration-aggregator test-ci-integration-msg
     plugins:
       docker-compose#v2.5.1:
         run: app

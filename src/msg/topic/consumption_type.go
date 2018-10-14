@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/m3db/m3msg/generated/proto/topicpb"
+	"github.com/m3db/m3/src/msg/generated/proto/topicpb"
 )
 
 var (

@@ -23,7 +23,7 @@ package config
 import (
 	"time"
 
-	"github.com/m3db/m3msg/producer/buffer"
+	"github.com/m3db/m3/src/msg/producer/buffer"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/retry"
 )

@@ -20,7 +20,7 @@
 
 package writer
 
-import "github.com/m3db/m3msg/generated/proto/msgpb"
+import "github.com/m3db/m3/src/msg/generated/proto/msgpb"
 
 // metadata is the metadata for a message.
 type metadata struct {
