@@ -50,6 +50,7 @@ SERVICES :=     \
 
 SUBDIRS :=    \
 	x           \
+	msg         \
 	cmd         \
 	collector   \
 	dbnode      \

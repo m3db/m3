@@ -19,14 +19,14 @@
 // THE SOFTWARE.
 
 // mockgen rules for generating mocks for exported interfaces (reflection mode).
-//go:generate sh -c "mockgen -package=producer $PACKAGE/producer Message,Producer | mockclean -pkg $PACKAGE/producer -out $GOPATH/src/$PACKAGE/producer/producer_mock.go"
-//go:generate sh -c "mockgen -package=consumer $PACKAGE/consumer Message | mockclean -pkg $PACKAGE/consumer -out $GOPATH/src/$PACKAGE/consumer/consumer_mock.go"
-//go:generate sh -c "mockgen -package=proto $PACKAGE/protocol/proto Encoder,Decoder | mockclean -pkg $PACKAGE/protocol/proto -out $GOPATH/src/$PACKAGE/protocol/proto/proto_mock.go"
-//go:generate sh -c "mockgen -package=topic $PACKAGE/topic Service | mockclean -pkg $PACKAGE/topic -out $GOPATH/src/$PACKAGE/topic/topic_mock.go"
+//go:generate sh -c "mockgen -package=producer github.com/m3db/m3/src/msg/producer Message,Producer | genclean -pkg github.com/m3db/m3/src/msg/producer -out $GOPATH/src/github.com/m3db/m3/src/msg/producer/producer_mock.go"
+//go:generate sh -c "mockgen -package=consumer github.com/m3db/m3/src/msg/consumer Message | genclean -pkg github.com/m3db/m3/src/msg/consumer -out $GOPATH/src/github.com/m3db/m3/src/msg/consumer/consumer_mock.go"
+//go:generate sh -c "mockgen -package=proto github.com/m3db/m3/src/msg/protocol/proto Encoder,Decoder | genclean -pkg github.com/m3db/m3/src/msg/protocol/proto -out $GOPATH/src/github.com/m3db/m3/src/msg/protocol/proto/proto_mock.go"
+//go:generate sh -c "mockgen -package=topic github.com/m3db/m3/src/msg/topic Service | genclean -pkg github.com/m3db/m3/src/msg/topic -out $GOPATH/src/github.com/m3db/m3/src/msg/topic/topic_mock.go"
 
 // mockgen rules for generating mocks for unexported interfaces (file mode).
-//go:generate sh -c "mockgen -package=writer -destination=$GOPATH/src/$PACKAGE/producer/writer/consumer_service_writer_mock.go -source=$GOPATH/src/$PACKAGE/producer/writer/consumer_service_writer.go"
-//go:generate sh -c "mockgen -package=writer -destination=$GOPATH/src/$PACKAGE/producer/writer/router_mock.go -source=$GOPATH/src/$PACKAGE/producer/writer/router.go"
-//go:generate sh -c "mockgen -package=writer -destination=$GOPATH/src/$PACKAGE/producer/writer/shard_writer_mock.go -source=$GOPATH/src/$PACKAGE/producer/writer/shard_writer.go"
+//go:generate sh -c "mockgen -package=writer -destination=$GOPATH/src/github.com/m3db/m3/src/msg/producer/writer/consumer_service_writer_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/msg/producer/writer/consumer_service_writer.go"
+//go:generate sh -c "mockgen -package=writer -destination=$GOPATH/src/github.com/m3db/m3/src/msg/producer/writer/router_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/msg/producer/writer/router.go"
+//go:generate sh -c "mockgen -package=writer -destination=$GOPATH/src/github.com/m3db/m3/src/msg/producer/writer/shard_writer_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/msg/producer/writer/shard_writer.go"
 
 package mocks

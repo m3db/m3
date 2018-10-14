@@ -24,7 +24,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/m3db/m3msg/protocol/proto"
+	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/server"

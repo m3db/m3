@@ -25,7 +25,7 @@ package integration
 import (
 	"testing"
 
-	"github.com/m3db/m3msg/topic"
+	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3x/test"
 
 	"github.com/fortytw2/leaktest"

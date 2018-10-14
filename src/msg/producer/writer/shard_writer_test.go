@@ -26,11 +26,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
+	"github.com/m3db/m3/src/msg/producer"
+	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/shard"
-	"github.com/m3db/m3msg/generated/proto/msgpb"
-	"github.com/m3db/m3msg/producer"
-	"github.com/m3db/m3msg/protocol/proto"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"

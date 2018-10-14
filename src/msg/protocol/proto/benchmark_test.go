@@ -24,7 +24,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/m3db/m3msg/generated/proto/msgpb"
+	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
 )
 
 func BenchmarkBaseEncodeDecodeRoundTrip(b *testing.B) {

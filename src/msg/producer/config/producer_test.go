@@ -23,10 +23,10 @@ package config
 import (
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3x/instrument"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
 )

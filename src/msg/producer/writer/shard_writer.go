@@ -23,8 +23,8 @@ package writer
 import (
 	"sync"
 
+	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3msg/producer"
 	"github.com/m3db/m3x/log"
 
 	"go.uber.org/atomic"
@@ -119,21 +119,22 @@ func (w *sharedShardWriter) SetMessageTTLNanos(value int64) {
 	w.mw.SetMessageTTLNanos(value)
 }
 
+// nolint: maligned
 type replicatedShardWriter struct {
 	sync.RWMutex
 
 	shard          uint32
 	numberOfShards uint32
 	mPool          messagePool
+	ackRouter      ackRouter
 	opts           Options
 	logger         log.Logger
+	m              messageWriterMetrics
 
-	ackRouter       ackRouter
-	replicaID       uint32
-	messageTTLNanos int64
 	messageWriters  map[string]messageWriter
+	messageTTLNanos int64
+	replicaID       uint32
 	isClosed        bool
-	m               messageWriterMetrics
 }
 
 func newReplicatedShardWriter(

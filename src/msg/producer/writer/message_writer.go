@@ -27,8 +27,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3msg/producer"
-	"github.com/m3db/m3msg/protocol/proto"
+	"github.com/m3db/m3/src/msg/producer"
+	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/retry"

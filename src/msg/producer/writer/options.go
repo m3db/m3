@@ -23,9 +23,9 @@ package writer
 import (
 	"time"
 
+	"github.com/m3db/m3/src/msg/protocol/proto"
+	"github.com/m3db/m3/src/msg/topic"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3msg/protocol/proto"
-	"github.com/m3db/m3msg/topic"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/retry"
