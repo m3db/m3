@@ -136,7 +136,7 @@ func linearRegression(dps ts.Datapoints, interceptTime time.Time, isDeriv bool) 
 		}
 
 		valueCount++
-		timeDiff := float64(dp.Timestamp.Sub(interceptTime).Seconds())
+		timeDiff := dp.Timestamp.Sub(interceptTime).Seconds()
 		n += 1.0
 		sumVals += dp.Value
 		sumTimeDiff += timeDiff
