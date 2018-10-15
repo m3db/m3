@@ -37,7 +37,7 @@ setup:
 
 .PHONY: lint
 lint:
-	@which golint > /dev/null || go get -u github.com/golang/lint/golint
+	@which golint > /dev/null || go get -u golang.org/x/lint/golint
 	$(VENDOR_ENV) $(lint_check)
 
 .PHONY: metalint
