@@ -269,9 +269,13 @@ func TestReadNoCheckpointFile(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NoError(t, w.Close())
 
-	shardDir := ShardDataDirPath(filePathPrefix, testNs1ID, shard)
-	checkpointFile := filesetPathFromTime(shardDir, testWriterStart, checkpointFileSuffix)
-	require.True(t, mustFileExists(t, checkpointFile))
+	var (
+		shardDir       = ShardDataDirPath(filePathPrefix, testNs1ID, shard)
+		checkpointFile = filesetPathFromTime(shardDir, testWriterStart, checkpointFileSuffix)
+	)
+	exists, err := CompleteCheckpointFileExists(checkpointFile)
+	require.NoError(t, err)
+	require.True(t, exists)
 	os.Remove(checkpointFile)
 
 	r := newTestReader(t, filePathPrefix)
