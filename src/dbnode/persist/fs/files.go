@@ -40,6 +40,7 @@ import (
 	xclose "github.com/m3db/m3x/close"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/instrument"
 )
 
 var timeZero time.Time
@@ -1143,8 +1144,12 @@ func CompleteCheckpointFileExists(filePath string) (bool, error) {
 // FileExists returns whether a file at the given path exists.
 func FileExists(filePath string) (bool, error) {
 	if strings.Contains(filePath, checkpointFileSuffix) {
+		// Existence of a checkpoint file needs to be verified using the function
+		// CompleteCheckpointFileExists instead to ensure that it has been
+		// completely written out.
 		return false, fmt.Errorf(
-			"tried to use FileExists to verify existence of checkpoint file: %s", filePath)
+			"%s tried to use FileExists to verify existence of checkpoint file: %s",
+			instrument.InvariantViolatedMetricName, filePath)
 	}
 
 	_, err := os.Stat(filePath)
