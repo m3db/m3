@@ -187,7 +187,7 @@ func clCommandFunctor(t *testing.T, basePath string, seed int64) *commands.Proto
 			return ok
 		},
 		GenCommandFunc: func(state commands.State) gopter.Gen {
-			return gen.OneGenOf(genOpenCommand, genCloseCommand, genWriteBehindCommand)
+			return gen.OneGenOf(genOpenCommand, genCloseCommand, genWriteBehindCommand, genActiveLogsCommand)
 		},
 	}
 }
@@ -309,6 +309,40 @@ var genWriteBehindCommand = gen.SliceOfN(10, genWrite()).
 			},
 		}
 	})
+
+var genActiveLogsCommand = gen.Const(&commands.ProtoCommand{
+	Name: "ActiveLogs",
+	PreConditionFunc: func(state commands.State) bool {
+		return state.(*clState).open
+	},
+	RunFunc: func(q commands.SystemUnderTest) commands.Result {
+		s := q.(*clState)
+
+		logs, err := s.cLog.ActiveLogs()
+		if err != nil {
+			return err
+		}
+
+		if len(logs) != 1 {
+			return fmt.Errorf("ActiveLogs did not return exactly one log file: %v", logs)
+		}
+
+		return nil
+	},
+	NextStateFunc: func(state commands.State) commands.State {
+		s := state.(*clState)
+		return s
+	},
+	PostConditionFunc: func(state commands.State, result commands.Result) *gopter.PropResult {
+		if result == nil {
+			return &gopter.PropResult{Status: gopter.PropTrue}
+		}
+		return &gopter.PropResult{
+			Status: gopter.PropFalse,
+			Error:  result.(error),
+		}
+	},
+})
 
 // clState holds the expected state (i.e. its the commands.State), and we use it as the SystemUnderTest
 type clState struct {

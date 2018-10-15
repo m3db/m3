@@ -64,6 +64,9 @@ type CommitLog interface {
 
 	// Close the commit log
 	Close() error
+
+	// ActiveLogs returns a slice of the active commitlogs.
+	ActiveLogs() ([]File, error)
 }
 
 // Iterator provides an iterator for commit logs
