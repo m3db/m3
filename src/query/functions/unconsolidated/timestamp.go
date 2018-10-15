@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package unconsolidatedfunc
+package unconsolidated
 
 import (
 	"fmt"
@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/parser"
+	"github.com/m3db/m3db/src/query/ts"
 )
 
 const (
@@ -108,14 +109,14 @@ func (n *timestampNode) Process(ID parser.NodeID, b block.Block) error {
 			return err
 		}
 
-		var values []float64
-		for _, dps := range step.Values() {
+		values := make([]float64, len(step.Values()))
+		ts.Memset(values, math.NaN())
+		for i, dps := range step.Values() {
 			if len(dps) == 0 {
-				values = append(values, math.NaN())
 				continue
 			}
 
-			values = append(values, float64(dps[len(dps)-1].Timestamp.Unix()))
+			values[i] = float64(dps[len(dps)-1].Timestamp.Unix())
 		}
 
 		for _, value := range values {

@@ -64,7 +64,7 @@ func (b *Scalar) StepIter() (StepIter, error) {
 	}, nil
 }
 
-// ScalarFunc determines whether to return a constant or time t in seconds
+// ScalarFunc determines the function to apply to generate the value at each step
 type ScalarFunc func(t time.Time) float64
 
 // SeriesIter returns a SeriesIterator
@@ -72,13 +72,10 @@ func (b *Scalar) SeriesIter() (SeriesIter, error) {
 	bounds := b.meta.Bounds
 	steps := bounds.Steps()
 	vals := make([]float64, steps)
+	t := bounds.Start
 	for i := range vals {
-		t, err := bounds.TimeForIndex(i)
-		if err != nil {
-			return nil, err
-		}
-
 		vals[i] = b.s(t)
+		t = t.Add(bounds.StepSize)
 	}
 
 	return &scalarSeriesIter{
@@ -92,12 +89,7 @@ func (b *Scalar) SeriesIter() (SeriesIter, error) {
 func (b *Scalar) Close() error { return nil }
 
 // Value returns the value for the scalar block
-func (b *Scalar) Value(idx int) float64 {
-	var t time.Time
-	if idx != -1 {
-		t, _ = b.meta.Bounds.TimeForIndex(idx)
-	}
-
+func (b *Scalar) Value(t time.Time) float64 {
 	return b.s(t)
 }
 

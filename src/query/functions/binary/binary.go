@@ -51,7 +51,7 @@ func processBinary(
 			return nil, errLeftScalar
 		}
 
-		lVal := scalarL.Value(-1)
+		lVal := scalarL.Value(time.Time{})
 
 		// rhs is a series; use rhs metadata and series meta
 		if !params.RIsScalar {
@@ -79,8 +79,8 @@ func processBinary(
 		}
 
 		return block.NewScalar(
-			func(_ time.Time) float64 {
-				return fn(lVal, scalarR.Value(-1))
+			func(t time.Time) float64 {
+				return fn(lVal, scalarR.Value(t))
 			},
 			lIter.Meta().Bounds,
 		), nil
@@ -92,7 +92,7 @@ func processBinary(
 			return nil, errRightScalar
 		}
 
-		rVal := scalarR.Value(-1)
+		rVal := scalarR.Value(time.Time{})
 		// lhs is a series; use lhs metadata and series meta
 		return processSingleBlock(
 			lhs,

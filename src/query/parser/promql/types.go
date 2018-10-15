@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3/src/query/functions/linear"
 	"github.com/m3db/m3/src/query/functions/scalar"
 	"github.com/m3db/m3/src/query/functions/temporal"
-	"github.com/m3db/m3/src/query/functions/unconsolidatedfunc"
+	"github.com/m3db/m3/src/query/functions/unconsolidated"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/parser/common"
@@ -203,8 +203,8 @@ func NewFunctionExpr(name string, argValues []interface{}) (parser.Params, error
 	case temporal.ResetsType, temporal.ChangesType:
 		return temporal.NewFunctionOp(argValues, name)
 
-	case unconsolidatedfunc.TimestampType:
-		return unconsolidatedfunc.NewTimestampOp(name)
+	case unconsolidated.TimestampType:
+		return unconsolidated.NewTimestampOp(name)
 
 	case scalar.TimeType:
 		return scalar.NewScalarOp(func(t time.Time) float64 { return float64(t.Unix()) }, scalar.TimeType)
