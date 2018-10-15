@@ -1535,13 +1535,10 @@ func (s commitLogSource) shouldReturnUnfulfilled(
 		return false, nil
 	}
 
-	couldObtainDataFromPeers, err := s.couldObtainDataFromPeers(
+	areShardsReplicated := s.areShardsReplicated(
 		ns, shardsTimeRanges, opts)
-	if err != nil {
-		return false, err
-	}
 
-	return couldObtainDataFromPeers, nil
+	return areShardsReplicated, nil
 }
 
 func (s commitLogSource) maybeAddToIndex(
@@ -1665,7 +1662,7 @@ func (s *commitLogSource) availability(
 	return availableShardTimeRanges, nil
 }
 
-func (s *commitLogSource) couldObtainDataFromPeers(
+func (s *commitLogSource) areShardsReplicated(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
@@ -1675,6 +1672,13 @@ func (s *commitLogSource) couldObtainDataFromPeers(
 		majorityReplicas     = initialTopologyState.MajorityReplicas
 	)
 
+	// In any situation where we could actually stream data from our peers
+	// the replication factor would be 2 or larger which means that the
+	// value of majorityReplicas would be 2 or larger also. This heuristic can
+	// only be used to infer whether the replication factor is 1 or larger, but
+	// cannot be used to determine what the actual replication factor is in all
+	// situations because it can be ambiguous. For example, both R.F 2 and 3 will
+	// have majority replica values of 2.
 	return majorityReplicas > 1
 }
 
