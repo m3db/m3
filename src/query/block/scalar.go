@@ -64,6 +64,7 @@ func (b *Scalar) StepIter() (StepIter, error) {
 	}, nil
 }
 
+// ScalarFunc determines whether to return a constant or time t in seconds
 type ScalarFunc func(t time.Time) float64
 
 // SeriesIter returns a SeriesIterator
@@ -133,12 +134,10 @@ func (it *scalarStepIter) Current() (Step, error) {
 		return nil, err
 	}
 
-	step := &scalarStep{
+	return &scalarStep{
 		vals: []float64{it.s(t)},
 		time: t,
-	}
-
-	return step, nil
+	}, nil
 }
 
 type scalarStep struct {

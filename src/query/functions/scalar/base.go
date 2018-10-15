@@ -98,8 +98,6 @@ func (n *baseNode) Execute(ctx context.Context) error {
 		}
 	}
 
-	// iter, _ := block.StepIter()
-
 	if err := n.controller.Process(block); err != nil {
 		block.Close()
 		// Fail on first error
