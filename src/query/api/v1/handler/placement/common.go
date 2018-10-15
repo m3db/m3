@@ -75,8 +75,11 @@ const (
 	// HeaderDryRun is the header used to specify whether this should be a dry run.
 	HeaderDryRun = "Dry-Run"
 
-	defaultM3AggMaxAggregationWindowSize = 5 * time.Minute
-	defaultM3AggWarmupDuration           = time.Minute
+	defaultM3AggMaxAggregationWindowSize = time.Minute
+	// defaultM3AggWarmupDuration configures the buffer to account for the delay
+	// of propagating aggregator placement to clients, usually needed when there is
+	// a large amount of clients sending traffic to m3aggregator.
+	defaultM3AggWarmupDuration = 0
 
 	m3AggregatorPlacementNamespace = "/placement"
 )
@@ -179,13 +182,11 @@ func NewServiceOptions(
 	}
 
 	if m3AggOpts != nil {
-		if m3AggOpts.MaxAggregationWindowSize > 0 &&
-			m3AggOpts.MaxAggregationWindowSize > defaultM3AggMaxAggregationWindowSize {
+		if m3AggOpts.MaxAggregationWindowSize > 0 {
 			opts.M3Agg.MaxAggregationWindowSize = m3AggOpts.MaxAggregationWindowSize
 		}
 
-		if m3AggOpts.WarmupDuration > 0 &&
-			m3AggOpts.MaxAggregationWindowSize > defaultM3AggWarmupDuration {
+		if m3AggOpts.WarmupDuration > 0 {
 			opts.M3Agg.WarmupDuration = m3AggOpts.MaxAggregationWindowSize
 		}
 	}

@@ -358,6 +358,7 @@ func (mgr *electionManager) Open(shardSetID uint32) error {
 	go mgr.campaignLoop(campaignStateWatch)
 	go mgr.reportMetrics()
 
+	mgr.logger.Info("election manager opened successfully")
 	return nil
 }
 
@@ -582,7 +583,7 @@ func (mgr *electionManager) checkCampaignStateLoop() {
 				continue
 			}
 			newState := newCampaignState(enabled)
-			currState := mgr.campaignStateWatchable.Get().(campaignState)
+			currState := mgr.campaignState()
 			if currState == newState {
 				continue
 			}
@@ -626,9 +627,11 @@ func (mgr *electionManager) campaignIsEnabled() (bool, error) {
 	// If the current instance is not found in the placement, campaigning is disabled.
 	shards, err := mgr.placementManager.Shards()
 	if err == ErrInstanceNotFoundInPlacement {
+		mgr.logger.Warnf("campaign is not enabled, %v", ErrInstanceNotFoundInPlacement)
 		return false, nil
 	}
 	if err != nil {
+		mgr.logger.Warnf("campaign is not enabled, %v", err)
 		return false, err
 	}
 
@@ -658,6 +661,7 @@ func (mgr *electionManager) campaignIsEnabled() (bool, error) {
 	// incomplele data before shards are cut over.
 	if noCutoverShards {
 		mgr.metrics.campaignCheckNoCutoverShards.Inc(1)
+		mgr.logger.Warnf("campaign is not enabled, no cutover shards")
 		return false, nil
 	}
 
@@ -689,6 +693,7 @@ func (mgr *electionManager) campaignIsEnabled() (bool, error) {
 				}
 			}
 			if allFlushed {
+				mgr.logger.Warnf("campaign is not enabled, all shards cutoff")
 				return false, nil
 			}
 		}
@@ -699,6 +704,7 @@ func (mgr *electionManager) campaignIsEnabled() (bool, error) {
 			multiErr = multiErr.Add(err)
 			mgr.metrics.campaignCheckReplacementInstanceErrors.Inc(1)
 		} else if hasReplacementInstance {
+			mgr.logger.Warnf("campaign is not enabled, there is a replacement instance")
 			mgr.metrics.campaignCheckHasReplacementInstance.Inc(1)
 			return false, nil
 		}
