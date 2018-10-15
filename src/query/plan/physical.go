@@ -54,7 +54,7 @@ func NewPhysicalPlan(lp LogicalPlan, storage storage.Storage, params models.Requ
 		steps:    cloned.Steps,
 		pipeline: cloned.Pipeline,
 		TimeSpec: transform.TimeSpec{
-			Start: params.Start,
+			Start: params.Start.Add(-1 * models.LookbackDelta),
 			End:   params.ExclusiveEnd(),
 			Now:   params.Now,
 			Step:  params.Step,
