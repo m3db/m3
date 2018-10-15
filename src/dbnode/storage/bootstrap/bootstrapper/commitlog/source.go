@@ -1669,60 +1669,13 @@ func (s *commitLogSource) couldObtainDataFromPeers(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
-) (bool, error) {
+) bool {
 	var (
-		initialTopologyState      = runOpts.InitialTopologyState()
-		majorityReplicas          = initialTopologyState.MajorityReplicas
-		runtimeOpts               = s.opts.RuntimeOptionsManager().Get()
-		bootstrapConsistencyLevel = runtimeOpts.ClientBootstrapConsistencyLevel()
+		initialTopologyState = runOpts.InitialTopologyState()
+		majorityReplicas     = initialTopologyState.MajorityReplicas
 	)
 
-	for shardIDUint := range shardsTimeRanges {
-		shardID := topology.ShardID(shardIDUint)
-		hostShardStates, ok := initialTopologyState.ShardStates[shardID]
-		if !ok {
-			// This shard was not part of the topology when the bootstrapping process began.
-			continue
-		}
-
-		var (
-			numPeers          = len(hostShardStates)
-			numAvailablePeers = 0
-		)
-		for _, hostShardState := range hostShardStates {
-			if hostShardState.Host.ID() == initialTopologyState.Origin.ID() {
-				// Don't take self into account
-				continue
-			}
-
-			shardState := hostShardState.ShardState
-			switch shardState {
-			// Don't want to peer bootstrap from a node that has not yet completely
-			// taken ownership of the shard.
-			case shard.Initializing:
-				// Success cases - We can bootstrap from this host, which is enough to
-				// mark this shard as bootstrappable.
-			case shard.Leaving:
-				fallthrough
-			case shard.Available:
-				numAvailablePeers++
-			case shard.Unknown:
-				fallthrough
-			default:
-				return false, fmt.Errorf("unknown shard state: %v", shardState)
-			}
-		}
-
-		if topology.ReadConsistencyAchieved(
-			bootstrapConsistencyLevel, majorityReplicas, numPeers, numAvailablePeers) {
-			// If we can achieve read consistency for any shard than we return true because
-			// we can't make any shard-by-shard distinction due to the fact that any given
-			// commitlog can contain writes for any shard.
-			return true, nil
-		}
-	}
-
-	return false, nil
+	return majorityReplicas > 1
 }
 
 func newReadSeriesPredicate(ns namespace.Metadata) commitlog.SeriesFilterPredicate {
