@@ -1142,6 +1142,11 @@ func CompleteCheckpointFileExists(filePath string) (bool, error) {
 
 // FileExists returns whether a file at the given path exists.
 func FileExists(filePath string) (bool, error) {
+	if strings.Contains(filePath, checkpointFileSuffix) {
+		return false, fmt.Errorf(
+			"tried to use FileExists to verify existence of checkpoint file: %s", filePath)
+	}
+
 	_, err := os.Stat(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
