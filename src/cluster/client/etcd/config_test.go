@@ -94,7 +94,7 @@ m3sd:
 		ClusterConfig{
 			Zone:      "z1",
 			Endpoints: []string{"etcd1:2379", "etcd2:2379"},
-			KeepAlive: keepAliveConfig{
+			KeepAlive: &keepAliveConfig{
 				Enabled: true,
 				Period:  10 * time.Second,
 				Jitter:  5 * time.Second,
@@ -122,11 +122,19 @@ m3sd:
 	require.Equal(t, 10*time.Second, *cfg.SDConfig.InitTimeout)
 
 	opts := cfg.NewOptions()
-	cluster, exists := opts.ClusterForZone("z1")
+	cluster1, exists := opts.ClusterForZone("z1")
 	require.True(t, exists)
-	keepAliveOpts := cluster.KeepAliveOptions()
+	keepAliveOpts := cluster1.KeepAliveOptions()
 	require.Equal(t, true, keepAliveOpts.KeepAliveEnabled())
 	require.Equal(t, 10*time.Second, keepAliveOpts.KeepAlivePeriod())
 	require.Equal(t, 5*time.Second, keepAliveOpts.KeepAlivePeriodMaxJitter())
 	require.Equal(t, time.Second, keepAliveOpts.KeepAliveTimeout())
+
+	cluster2, exists := opts.ClusterForZone("z2")
+	require.True(t, exists)
+	keepAliveOpts = cluster2.KeepAliveOptions()
+	require.Equal(t, true, keepAliveOpts.KeepAliveEnabled())
+	require.Equal(t, 5*time.Minute, keepAliveOpts.KeepAlivePeriod())
+	require.Equal(t, 5*time.Minute, keepAliveOpts.KeepAlivePeriodMaxJitter())
+	require.Equal(t, 20*time.Second, keepAliveOpts.KeepAliveTimeout())
 }
