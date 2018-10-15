@@ -52,6 +52,8 @@ const (
 
 	commitLogComponentPosition    = 2
 	indexFileSetComponentPosition = 2
+
+	completeCheckpointFileSize = 4 // bytes
 )
 
 var (
@@ -468,7 +470,7 @@ func forEachInfoFile(
 			digestsFilePath = filesetPathFromTimeAndIndex(dir, t, volume, digestFileSuffix)
 			infoFilePath = filesetPathFromTimeAndIndex(dir, t, volume, infoFileSuffix)
 		}
-		checkpointExists, err := FileExists(checkpointFilePath)
+		checkpointExists, err := CompleteCheckpointFileExists(checkpointFilePath)
 		if err != nil {
 			continue
 		}
@@ -1035,7 +1037,7 @@ func CommitLogsDirPath(prefix string) string {
 func DataFileSetExistsAt(filePathPrefix string, namespace ident.ID, shard uint32, blockStart time.Time) (bool, error) {
 	shardDir := ShardDataDirPath(filePathPrefix, namespace, shard)
 	checkpointPath := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
-	return FileExists(checkpointPath)
+	return CompleteCheckpointFileExists(checkpointPath)
 }
 
 // SnapshotFileSetExistsAt determines whether snapshot fileset files exist for the given namespace, shard, and block start time.
@@ -1124,6 +1126,20 @@ func NextIndexSnapshotFileIndex(filePathPrefix string, namespace ident.ID, block
 	}
 
 	return currentSnapshotIndex + 1, nil
+}
+
+// CompleteCheckpointFileExists returns whether a checkpoint file exists, and if so,
+// is it complete.
+func CompleteCheckpointFileExists(filePath string) (bool, error) {
+	f, err := os.Stat(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	return f.Size() == completeCheckpointFileSize, nil
 }
 
 // FileExists returns whether a file at the given path exists.
