@@ -23,6 +23,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"math/rand"
 	"net/http"
@@ -63,6 +64,8 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/uber-go/tally"
+	"github.com/uber/jaeger-client-go"
+	jaegerconfig "github.com/uber/jaeger-client-go/config"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
@@ -134,6 +137,13 @@ func Run(runOpts RunOptions) {
 			logger.Error("unable to close metrics scope", zap.Error(err))
 		}
 	}()
+
+	traceCloser, err := initJaeger("m3query")
+	if err != nil {
+		logger.Fatal("could not create jaeger", zap.Error(err))
+	}
+
+	defer traceCloser.Close()
 
 	var (
 		backendStorage storage.Storage
@@ -634,4 +644,19 @@ func startGrpcServer(
 	}()
 	<-waitForStart
 	return server, startErr
+}
+
+// initJaeger returns an instance of Jaeger Tracer that samples 100% of traces and logs all spans to stdout.
+func initJaeger(service string) (io.Closer, error) {
+	cfg := &jaegerconfig.Configuration{
+		Sampler: &jaegerconfig.SamplerConfig{
+			Type:  "const",
+			Param: 1,
+		},
+		Reporter: &jaegerconfig.ReporterConfig{
+			LogSpans: true,
+		},
+	}
+
+	return cfg.InitGlobalTracer(service, jaegerconfig.Logger(jaeger.StdLogger))
 }
