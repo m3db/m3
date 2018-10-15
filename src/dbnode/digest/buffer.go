@@ -26,8 +26,8 @@ import (
 )
 
 const (
-	// digest size is 4 bytes
-	digestLen = 4
+	// DigestLenBytes is the length of generated digests in bytes.
+	DigestLenBytes = 4
 )
 
 var (
@@ -40,7 +40,7 @@ type Buffer []byte
 
 // NewBuffer creates a new digest buffer.
 func NewBuffer() Buffer {
-	return make([]byte, digestLen)
+	return make([]byte, DigestLenBytes)
 }
 
 // WriteDigest writes a digest to the buffer.
@@ -71,5 +71,5 @@ func (b Buffer) ReadDigestFromFile(fd *os.File) (uint32, error) {
 
 // ToBuffer converts a byte slice to a digest buffer.
 func ToBuffer(buf []byte) Buffer {
-	return Buffer(buf[:digestLen])
+	return Buffer(buf[:DigestLenBytes])
 }

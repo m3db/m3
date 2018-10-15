@@ -41,7 +41,8 @@ import (
 )
 
 const (
-	checkpointFileSizeBytes = 4
+	// CheckpointFileSizeBytes is the expected size of a valid checkpoint file.
+	CheckpointFileSizeBytes = 4
 )
 
 var (

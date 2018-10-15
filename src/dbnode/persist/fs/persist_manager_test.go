@@ -55,7 +55,7 @@ func TestPersistenceManagerPrepareDataFileExistsNoDelete(t *testing.T) {
 		blockStart         = time.Unix(1000, 0)
 		shardDir           = createDataShardDir(t, pm.filePathPrefix, testNs1ID, shard)
 		checkpointFilePath = filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
-		checkpointFileBuf  = make([]byte, checkpointFileSizeBytes)
+		checkpointFileBuf  = make([]byte, CheckpointFileSizeBytes)
 	)
 	createFile(t, checkpointFilePath, checkpointFileBuf)
 
@@ -102,7 +102,7 @@ func TestPersistenceManagerPrepareDataFileExistsWithDelete(t *testing.T) {
 	var (
 		shardDir           = createDataShardDir(t, pm.filePathPrefix, testNs1ID, shard)
 		checkpointFilePath = filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
-		checkpointFileBuf  = make([]byte, checkpointFileSizeBytes)
+		checkpointFileBuf  = make([]byte, CheckpointFileSizeBytes)
 	)
 	createFile(t, checkpointFilePath, checkpointFileBuf)
 

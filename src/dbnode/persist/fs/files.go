@@ -1140,7 +1140,7 @@ func CompleteCheckpointFileExists(filePath string) (bool, error) {
 
 	// Make sure the checkpoint file was completely written out and its
 	// not just an empty file.
-	return f.Size() == checkpointFileSizeBytes, nil
+	return f.Size() == CheckpointFileSizeBytes, nil
 }
 
 // FileExists returns whether a file at the given path exists.
