@@ -78,7 +78,13 @@ func TestPlacementDeleteHandler_Safe(t *testing.T) {
 		var (
 			mockClient, mockPlacementService = SetupPlacementTest(t)
 			handlerOpts                      = NewHandlerOptions(
-				mockClient, config.Configuration{}, nil)
+				mockClient,
+				config.Configuration{},
+				&M3AggServiceOptions{
+					WarmupDuration:           time.Minute,
+					MaxAggregationWindowSize: 5 * time.Minute,
+				},
+			)
 			handler = NewDeleteHandler(handlerOpts)
 
 			basePlacement = placement.NewPlacement().
