@@ -318,6 +318,32 @@ func TestFileExists(t *testing.T) {
 	require.False(t, mustFileExists(t, infoFilePath))
 }
 
+func TestCompleteCheckpointFileExists(t *testing.T) {
+	var (
+		dir                = createTempDir(t)
+		shard              = uint32(10)
+		start              = time.Now()
+		shardDir           = ShardDataDirPath(dir, testNs1ID, shard)
+		checkpointFilePath = filesetPathFromTime(shardDir, start, checkpointFileSuffix)
+		err                = os.MkdirAll(shardDir, defaultNewDirectoryMode)
+
+		validCheckpointFileBuf   = make([]byte, checkpointFileSizeBytes)
+		invalidCheckpointFileBuf = make([]byte, checkpointFileSizeBytes+1)
+	)
+	defer os.RemoveAll(dir)
+	require.NoError(t, err)
+
+	createDataFile(t, shardDir, start, checkpointFileSuffix, invalidCheckpointFileBuf)
+	exists, err := CompleteCheckpointFileExists(checkpointFilePath)
+	require.NoError(t, err)
+	require.False(t, exists)
+
+	createDataFile(t, shardDir, start, checkpointFileSuffix, validCheckpointFileBuf)
+	exists, err = CompleteCheckpointFileExists(checkpointFilePath)
+	require.NoError(t, err)
+	require.True(t, exists)
+}
+
 func TestShardDirPath(t *testing.T) {
 	require.Equal(t, "foo/bar/data/testNs/12", ShardDataDirPath("foo/bar", testNs1ID, 12))
 	require.Equal(t, "foo/bar/data/testNs/12", ShardDataDirPath("foo/bar/", testNs1ID, 12))
