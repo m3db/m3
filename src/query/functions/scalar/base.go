@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package functions
+package scalar
 
 import (
 	"context"
@@ -32,26 +32,33 @@ import (
 	"go.uber.org/zap"
 )
 
-// ScalarType is a scalar series
-const ScalarType = "scalar"
+const (
+	// ScalarType is a scalar series
+	ScalarType = "scalar"
 
-type scalarOp struct {
-	val float64
+	// TimeType returns the number of seconds since January 1, 1970 UTC.
+	// Note that this does not actually return the current time, but the time at which the expression is to be evaluated.
+	TimeType = "time"
+)
+
+type baseOp struct {
+	fn           block.ScalarFunc
+	operatorType string
 }
 
-func (o scalarOp) OpType() string {
-	return ScalarType
+func (o baseOp) OpType() string {
+	return o.operatorType
 }
 
-func (o scalarOp) String() string {
-	return fmt.Sprintf("type: %s. val: %f", o.OpType(), o.val)
+func (o baseOp) String() string {
+	return fmt.Sprintf("type: %s.", o.OpType())
 }
 
-func (o scalarOp) Node(
+func (o baseOp) Node(
 	controller *transform.Controller,
 	options transform.Options,
 ) parser.Source {
-	return &scalarNode{
+	return &baseNode{
 		op: o, controller: controller,
 		timespec: options.TimeSpec,
 		debug:    options.Debug,
@@ -59,23 +66,30 @@ func (o scalarOp) Node(
 }
 
 // NewScalarOp creates a new scalar op
-func NewScalarOp(val float64) parser.Params {
-	return &scalarOp{val}
+func NewScalarOp(fn block.ScalarFunc, opType string) (parser.Params, error) {
+	if opType != ScalarType && opType != TimeType {
+		return nil, fmt.Errorf("unknown scalar type: %s", opType)
+	}
+
+	return &baseOp{
+		fn:           fn,
+		operatorType: opType,
+	}, nil
 }
 
 // scalarNode is the execution node
-type scalarNode struct {
-	op         scalarOp
+type baseNode struct {
+	op         baseOp
 	controller *transform.Controller
 	timespec   transform.TimeSpec
 	debug      bool
 }
 
 // Execute runs the scalar node operation
-func (n *scalarNode) Execute(ctx context.Context) error {
+func (n *baseNode) Execute(ctx context.Context) error {
 	bounds := n.timespec.Bounds()
 
-	block := block.NewScalar(n.op.val, bounds)
+	block := block.NewScalar(n.op.fn, bounds)
 	if n.debug {
 		// Ignore any errors
 		iter, _ := block.StepIter()

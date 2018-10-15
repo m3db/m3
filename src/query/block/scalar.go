@@ -32,14 +32,14 @@ import (
 // allowing them to treat this as a regular block, while at the same time
 // having an option to optimize by accessing the scalar value directly instead
 type Scalar struct {
-	val  float64
 	meta Metadata
+	s    ScalarFunc
 }
 
 // NewScalar creates a scalar block containing val over the bounds
-func NewScalar(val float64, bounds models.Bounds) Block {
+func NewScalar(s ScalarFunc, bounds models.Bounds) Block {
 	return &Scalar{
-		val: val,
+		s: s,
 		meta: Metadata{
 			Bounds: bounds,
 			Tags:   models.EmptyTags(),
@@ -57,23 +57,27 @@ func (b *Scalar) StepIter() (StepIter, error) {
 	bounds := b.meta.Bounds
 	steps := bounds.Steps()
 	return &scalarStepIter{
-		meta: b.meta,
-		step: scalarStep{
-			vals: []float64{b.val},
-		},
+		meta:    b.meta,
+		s:       b.s,
 		numVals: steps,
 		idx:     -1,
 	}, nil
 }
+
+// ScalarFunc determines the function to apply to generate the value at each step
+type ScalarFunc func(t time.Time) float64
 
 // SeriesIter returns a SeriesIterator
 func (b *Scalar) SeriesIter() (SeriesIter, error) {
 	bounds := b.meta.Bounds
 	steps := bounds.Steps()
 	vals := make([]float64, steps)
+	t := bounds.Start
 	for i := range vals {
-		vals[i] = b.val
+		vals[i] = b.s(t)
+		t = t.Add(bounds.StepSize)
 	}
+
 	return &scalarSeriesIter{
 		meta: b.meta,
 		vals: vals,
@@ -85,11 +89,13 @@ func (b *Scalar) SeriesIter() (SeriesIter, error) {
 func (b *Scalar) Close() error { return nil }
 
 // Value returns the value for the scalar block
-func (b *Scalar) Value() float64 { return b.val }
+func (b *Scalar) Value(t time.Time) float64 {
+	return b.s(t)
+}
 
 type scalarStepIter struct {
+	s            ScalarFunc
 	meta         Metadata
-	step         scalarStep
 	numVals, idx int
 }
 
@@ -107,8 +113,6 @@ func (it *scalarStepIter) Meta() Metadata           { return it.meta }
 
 func (it *scalarStepIter) Next() bool {
 	it.idx++
-	bounds := it.meta.Bounds
-	it.step.time = bounds.Start.Add(time.Duration(it.idx) * bounds.StepSize)
 	return it.idx < it.numVals
 }
 
@@ -116,7 +120,16 @@ func (it *scalarStepIter) Current() (Step, error) {
 	if it.idx >= it.numVals || it.idx < 0 {
 		return nil, fmt.Errorf("invalid scalar index: %d, numVals: %d", it.idx, it.numVals)
 	}
-	return &it.step, nil
+
+	t, err := it.Meta().Bounds.TimeForIndex(it.idx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &scalarStep{
+		vals: []float64{it.s(t)},
+		time: t,
+	}, nil
 }
 
 type scalarStep struct {

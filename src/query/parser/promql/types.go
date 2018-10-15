@@ -22,12 +22,15 @@ package promql
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/m3db/m3/src/query/functions"
 	"github.com/m3db/m3/src/query/functions/aggregation"
 	"github.com/m3db/m3/src/query/functions/binary"
 	"github.com/m3db/m3/src/query/functions/linear"
+	"github.com/m3db/m3/src/query/functions/scalar"
 	"github.com/m3db/m3/src/query/functions/temporal"
+	"github.com/m3db/m3/src/query/functions/unconsolidated"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/parser/common"
@@ -138,8 +141,11 @@ func getAggOpType(opType promql.ItemType) string {
 }
 
 // NewScalarOperator creates a new scalar operator
-func NewScalarOperator(expr *promql.NumberLiteral) parser.Params {
-	return functions.NewScalarOp(expr.Val)
+func NewScalarOperator(expr *promql.NumberLiteral) (parser.Params, error) {
+	return scalar.NewScalarOp(
+		func(_ time.Time) float64 { return expr.Val },
+		scalar.ScalarType,
+	)
 }
 
 // NewBinaryOperator creates a new binary operator based on the type
@@ -196,6 +202,12 @@ func NewFunctionExpr(name string, argValues []interface{}) (parser.Params, error
 
 	case temporal.ResetsType, temporal.ChangesType:
 		return temporal.NewFunctionOp(argValues, name)
+
+	case unconsolidated.TimestampType:
+		return unconsolidated.NewTimestampOp(name)
+
+	case scalar.TimeType:
+		return scalar.NewScalarOp(func(t time.Time) float64 { return float64(t.Unix()) }, scalar.TimeType)
 
 	default:
 		// TODO: handle other types

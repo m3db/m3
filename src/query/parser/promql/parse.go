@@ -23,6 +23,7 @@ package promql
 import (
 	"fmt"
 
+	"github.com/m3db/m3/src/query/functions/scalar"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 
@@ -153,10 +154,12 @@ func (p *parseState) walk(node pql.Node) error {
 		}
 
 		opTransform := parser.NewTransformFromOperation(op, p.transformLen())
-		p.edges = append(p.edges, parser.Edge{
-			ParentID: p.lastTransformID(),
-			ChildID:  opTransform.ID,
-		})
+		if op.OpType() != scalar.TimeType {
+			p.edges = append(p.edges, parser.Edge{
+				ParentID: p.lastTransformID(),
+				ChildID:  opTransform.ID,
+			})
+		}
 		p.transforms = append(p.transforms, opTransform)
 		return nil
 
@@ -191,7 +194,11 @@ func (p *parseState) walk(node pql.Node) error {
 		return nil
 
 	case *pql.NumberLiteral:
-		op := NewScalarOperator(n)
+		op, err := NewScalarOperator(n)
+		if err != nil {
+			return err
+		}
+
 		opTransform := parser.NewTransformFromOperation(op, p.transformLen())
 		p.transforms = append(p.transforms, opTransform)
 		return nil
