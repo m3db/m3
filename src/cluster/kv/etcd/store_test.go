@@ -21,22 +21,31 @@
 package etcd
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
+	"os"
+	"path"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/coreos/etcd/clientv3"
-	"github.com/coreos/etcd/integration"
-	"github.com/golang/protobuf/proto"
 	"github.com/m3db/m3cluster/generated/proto/kvtest"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/mocks"
+	xclock "github.com/m3db/m3x/clock"
 
+	"github.com/coreos/etcd/clientv3"
+	"github.com/coreos/etcd/integration"
+	"github.com/coreos/pkg/capnslog"
+	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/context"
 )
+
+func init() {
+	capnslog.SetGlobalLogLevel(capnslog.WARNING)
+}
 
 func TestValue(t *testing.T) {
 	v1 := newValue(nil, 2, 100)
@@ -618,6 +627,79 @@ func TestDelete_UpdateCache(t *testing.T) {
 	require.Equal(t, 1, len(store.cacheUpdatedCh))
 }
 
+func TestDelete_UpdateWatcherCache(t *testing.T) {
+	ec, opts, closeFn := testStore(t)
+	defer closeFn()
+
+	setStore, err := NewStore(ec, ec, opts)
+	require.NoError(t, err)
+
+	setClient := setStore.(*client)
+	version, err := setClient.Set("foo", genProto("bar1"))
+	require.NoError(t, err)
+	require.Equal(t, 1, version)
+
+	setV, err := setClient.Get("foo")
+	require.NoError(t, err)
+	verifyValue(t, setV, "bar1", 1)
+	require.Equal(t, 1, len(setClient.cache.Values))
+	require.Equal(t, 1, len(setClient.cacheUpdatedCh))
+
+	// drain the notification to ensure set received update
+	<-setClient.cacheUpdatedCh
+
+	// make a custom cache path for the get client
+	clientCachePath, err := ioutil.TempDir("", "client-cache-dir")
+	require.NoError(t, err)
+	defer os.RemoveAll(clientCachePath)
+
+	getStore, err := NewStore(ec, ec, opts.SetCacheFileFn(func(ns string) string {
+		nsFile := path.Join(clientCachePath, fmt.Sprintf("%s.json", ns))
+		return nsFile
+	}))
+	require.NoError(t, err)
+	getClient := getStore.(*client)
+
+	getW, err := getClient.Watch("foo")
+	require.NoError(t, err)
+	<-getW.C()
+	verifyValue(t, getW.Get(), "bar1", 1)
+	require.True(t, xclock.WaitUntil(func() bool {
+		return 1 == len(getClient.cache.Values)
+	}, 2*time.Second))
+
+	var (
+		originalBytes []byte
+	)
+	require.True(t, xclock.WaitUntil(func() bool {
+		originalBytes, err = readCacheJSON(clientCachePath)
+		return err == nil
+	}, 2*time.Second))
+
+	setV, err = setClient.Delete("foo")
+	require.NoError(t, err)
+	verifyValue(t, setV, "bar1", 1)
+
+	// make sure the cache is cleaned up on set client
+	require.Equal(t, 0, len(setClient.cache.Values))
+	require.Equal(t, 1, len(setClient.cacheUpdatedCh))
+
+	// make sure the cache is cleaned up on get client (mem and disk)
+	var (
+		updatedBytes []byte
+	)
+	require.True(t, xclock.WaitUntil(func() bool {
+		if len(getClient.cache.Values) != 0 {
+			return false
+		}
+		updatedBytes, err = readCacheJSON(clientCachePath)
+		if err != nil {
+			return false
+		}
+		return !bytes.Equal(updatedBytes, originalBytes)
+	}, 2*time.Second), "did not observe any invalidation of the cache file")
+}
+
 func TestDelete_TriggerWatch(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
@@ -651,6 +733,172 @@ func TestDelete_TriggerWatch(t *testing.T) {
 
 	<-vw.C()
 	verifyValue(t, vw.Get(), "bar3", 1)
+}
+
+func TestStaleDelete__FromGet(t *testing.T) {
+	// in this test we ensure clients who did not receive a delete for a key in
+	// their caches, evict the value in their cache the next time they communicate
+	// with an etcd which is unaware of the key (e.g. it's been compacted).
+
+	// first, we find the bytes required to be created in the cache file
+	serverCachePath, err := ioutil.TempDir("", "server-cache-dir")
+	require.NoError(t, err)
+	defer os.RemoveAll(serverCachePath)
+	ec, opts, closeFn := testStore(t)
+
+	setStore, err := NewStore(ec, ec, opts.SetCacheFileFn(func(ns string) string {
+		return path.Join(serverCachePath, fmt.Sprintf("%s.json", ns))
+	}))
+	require.NoError(t, err)
+
+	setClient := setStore.(*client)
+	version, err := setClient.Set("foo", genProto("bar1"))
+	require.NoError(t, err)
+	require.Equal(t, 1, version)
+
+	setV, err := setClient.Get("foo")
+	require.NoError(t, err)
+	verifyValue(t, setV, "bar1", 1)
+	require.Equal(t, 1, len(setClient.cache.Values))
+
+	// drain the notification to ensure set received update
+	var (
+		fileName   string
+		cacheBytes []byte
+	)
+	require.True(t, xclock.WaitUntil(func() bool {
+		fileName, cacheBytes, err = readCacheJSONAndFilename(serverCachePath)
+		return err == nil
+	}, 2*time.Second), "timed out waiting to read cache file")
+	closeFn()
+
+	// make a new etcd cluster (to mimic the case where etcd has deleted and compacted
+	// the value).
+	newServerCachePath, err := ioutil.TempDir("", "new-server-cache-dir")
+	require.NoError(t, err)
+	defer os.RemoveAll(newServerCachePath)
+
+	// write the cache file with correct contents in the new location
+	f, err := os.Create(path.Join(newServerCachePath, fileName))
+	require.NoError(t, err)
+	_, err = f.Write(cacheBytes)
+	require.NoError(t, err)
+	require.NoError(t, f.Sync())
+	require.NoError(t, f.Close())
+
+	require.True(t, xclock.WaitUntil(func() bool {
+		_, newBytes, err := readCacheJSONAndFilename(newServerCachePath)
+		return err == nil && bytes.Equal(cacheBytes, newBytes)
+	}, 2*time.Second), "timed out waiting to flush new cache file")
+
+	// create new etcd cluster
+	ec2, opts, closeFn2 := testStore(t)
+	defer closeFn2()
+	getStore, err := NewStore(ec2, ec2, opts.SetCacheFileFn(func(ns string) string {
+		nsFile := path.Join(newServerCachePath, fmt.Sprintf("%s.json", ns))
+		return nsFile
+	}))
+	require.NoError(t, err)
+	getClient := getStore.(*client)
+
+	require.True(t, xclock.WaitUntil(func() bool {
+		return 1 == len(getClient.cache.Values)
+	}, 2*time.Second), "timed out waiting for client to read values from cache")
+
+	// get value and ensure it's not able to serve the read
+	v, err := getClient.Get("foo")
+	require.Error(t, kv.ErrNotFound)
+	require.Nil(t, v)
+
+	require.True(t, xclock.WaitUntil(func() bool {
+		_, updatedBytes, err := readCacheJSONAndFilename(newServerCachePath)
+		return err == nil && !bytes.Equal(cacheBytes, updatedBytes)
+	}, 2*time.Second), "timed out waiting to flush cache file delete")
+}
+
+func TestStaleDelete__FromWatch(t *testing.T) {
+	// in this test we ensure clients who did not receive a delete for a key in
+	// their caches, evict the value in their cache the next time they communicate
+	// with an etcd which is unaware of the key (e.g. it's been compacted).
+
+	// first, we find the bytes required to be created in the cache file
+	serverCachePath, err := ioutil.TempDir("", "server-cache-dir")
+	require.NoError(t, err)
+	defer os.RemoveAll(serverCachePath)
+	ec, opts, closeFn := testStore(t)
+
+	setStore, err := NewStore(ec, ec, opts.SetCacheFileFn(func(ns string) string {
+		return path.Join(serverCachePath, fmt.Sprintf("%s.json", ns))
+	}))
+	require.NoError(t, err)
+
+	setClient := setStore.(*client)
+	version, err := setClient.Set("foo", genProto("bar1"))
+	require.NoError(t, err)
+	require.Equal(t, 1, version)
+
+	setV, err := setClient.Get("foo")
+	require.NoError(t, err)
+	verifyValue(t, setV, "bar1", 1)
+	require.Equal(t, 1, len(setClient.cache.Values))
+
+	// drain the notification to ensure set received update
+	var (
+		fileName   string
+		cacheBytes []byte
+	)
+	require.True(t, xclock.WaitUntil(func() bool {
+		fileName, cacheBytes, err = readCacheJSONAndFilename(serverCachePath)
+		return err == nil
+	}, 2*time.Second), "timed out waiting to read cache file")
+	closeFn()
+
+	// make a new etcd cluster (to mimic the case where etcd has deleted and compacted
+	// the value).
+	newServerCachePath, err := ioutil.TempDir("", "new-server-cache-dir")
+	require.NoError(t, err)
+	defer os.RemoveAll(newServerCachePath)
+
+	// write the cache file with correct contents in the new location
+	f, err := os.Create(path.Join(newServerCachePath, fileName))
+	require.NoError(t, err)
+	_, err = f.Write(cacheBytes)
+	require.NoError(t, err)
+	require.NoError(t, f.Sync())
+	require.NoError(t, f.Close())
+
+	require.True(t, xclock.WaitUntil(func() bool {
+		_, newBytes, err := readCacheJSONAndFilename(newServerCachePath)
+		return err == nil && bytes.Equal(cacheBytes, newBytes)
+	}, 2*time.Second), "timed out waiting to flush new cache file")
+
+	// create new etcd cluster
+	ec2, opts, closeFn2 := testStore(t)
+	defer closeFn2()
+	getStore, err := NewStore(ec2, ec2, opts.SetCacheFileFn(func(ns string) string {
+		nsFile := path.Join(newServerCachePath, fmt.Sprintf("%s.json", ns))
+		return nsFile
+	}))
+	require.NoError(t, err)
+	getClient := getStore.(*client)
+
+	require.True(t, xclock.WaitUntil(func() bool {
+		return 1 == len(getClient.cache.Values)
+	}, 2*time.Second), "timed out waiting for client to read values from cache")
+	require.Equal(t, 1, len(getClient.cache.Values))
+
+	// get value and ensure it's not able to serve the read
+	w, err := getClient.Watch("foo")
+	require.NoError(t, err)
+	require.NotNil(t, w)
+	require.Nil(t, w.Get())
+
+	require.True(t, xclock.WaitUntil(func() bool {
+		_, updatedBytes, err := readCacheJSONAndFilename(newServerCachePath)
+		return err == nil && !bytes.Equal(cacheBytes, updatedBytes)
+	}, 2*time.Second), "timed out waiting to flush cache file delete")
+	require.Equal(t, 0, len(getClient.cache.Values))
+	require.Nil(t, w.Get())
 }
 
 func TestTxn(t *testing.T) {
@@ -848,4 +1096,30 @@ func testStore(t *testing.T) (*clientv3.Client, Options, func()) {
 		SetPrefix("test")
 
 	return ec, opts, closer
+}
+
+func readCacheJSONAndFilename(dirPath string) (string, []byte, error) {
+	files, err := ioutil.ReadDir(dirPath)
+	if err != nil {
+		return "", nil, err
+	}
+	if len(files) != 1 {
+		return "", nil, fmt.Errorf("expected 1 file, found files: %+v", files)
+	}
+	fileName := files[0].Name()
+	filepath := path.Join(dirPath, fileName)
+	f, err := os.Open(filepath)
+	if err != nil {
+		return "", nil, err
+	}
+	b, err := ioutil.ReadAll(f)
+	if err != nil {
+		return "", nil, err
+	}
+	return fileName, b, nil
+}
+
+func readCacheJSON(dirPath string) ([]byte, error) {
+	_, b, err := readCacheJSONAndFilename(dirPath)
+	return b, err
 }

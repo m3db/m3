@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3cluster/client"
+	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3x/instrument"
 )
 
@@ -41,8 +42,11 @@ type EmbeddedKV interface {
 
 	// ConfigServiceClient returns a m3cluster wrapper
 	// around the embedded KV.
-	ConfigServiceClient() (client.Client, error)
+	ConfigServiceClient(fns ...ClientOptFn) (client.Client, error)
 }
+
+// ClientOptFn updates etcdclient.Option with any custom configs.
+type ClientOptFn func(etcdclient.Options) etcdclient.Options
 
 // Options specify the knobs to control the embedded KV.
 type Options interface {
