@@ -69,16 +69,15 @@ func newPropTestCleanupMgr(
 		n         = numIntervals(oldest, newest, blockSize)
 		currStart = oldest
 	)
-	cm.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.FileOrError, error) {
-		files := make([]commitlog.FileOrError, 0, n)
+	cm.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, []commitlog.ErrorWithPath, error) {
+		files := make([]commitlog.File, 0, n)
 		for i := 0; i < n; i++ {
-			files = append(files, commitlog.NewFileOrError(
-				commitlog.File{
-					Start:    currStart,
-					Duration: blockSize,
-				}, nil, "path"))
+			files = append(files, commitlog.File{
+				Start:    currStart,
+				Duration: blockSize,
+			})
 		}
-		return files, nil
+		return files, nil, nil
 	}
 
 	return cm

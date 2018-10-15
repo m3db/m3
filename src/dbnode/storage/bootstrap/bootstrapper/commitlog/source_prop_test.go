@@ -1,5 +1,3 @@
-// +build big
-//
 // Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -71,7 +69,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			namespace.NewOptions().IndexOptions().SetEnabled(true),
 		)
 	)
-	parameters.MinSuccessfulTests = 80
+	parameters.MinSuccessfulTests = 40
 	parameters.Rng.Seed(seed)
 	nsMeta, err := namespace.NewMetadata(testNamespaceID, nsOpts)
 	require.NoError(t, err)
@@ -287,14 +285,16 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 				if input.includeCorruptedCommitlogFile {
 					// Write out an additional commit log file with a corrupt info header to
 					// make sure that the commitlog source skips it in the single node scenario.
-					commitLogFiles, err := commitlog.Files(commitLogOpts)
+					commitLogFiles, corruptFiles, err := commitlog.Files(commitLogOpts)
 					if err != nil {
 						return false, err
 					}
+					if len(corruptFiles) > 0 {
+						return false, fmt.Errorf("found corrupt commit log files: %v", corruptFiles)
+					}
 
 					if len(commitLogFiles) > 0 {
-						lastCommitLogFileOrErr := commitLogFiles[len(commitLogFiles)-1]
-						lastCommitLogFile, err := lastCommitLogFileOrErr.File()
+						lastCommitLogFile := commitLogFiles[len(commitLogFiles)-1]
 						if err != nil {
 							return false, err
 						}
@@ -380,9 +380,12 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 				values = append(values, testValue{write.series, write.datapoint.Timestamp, write.datapoint.Value, write.unit, write.annotation})
 			}
 
-			commitLogFiles, err := commitlog.Files(commitLogOpts)
+			commitLogFiles, corruptFiles, err := commitlog.Files(commitLogOpts)
 			if err != nil {
 				return false, err
+			}
+			if len(corruptFiles) > 0 && !input.includeCorruptedCommitlogFile {
+				return false, fmt.Errorf("found corrupt commit log files: %v", corruptFiles)
 			}
 
 			commitLogFilesExist := len(commitLogFiles) > 0

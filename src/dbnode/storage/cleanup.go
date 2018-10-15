@@ -35,7 +35,7 @@ import (
 	"github.com/uber-go/tally"
 )
 
-type commitLogFilesFn func(commitlog.Options) ([]commitlog.FileOrError, error)
+type commitLogFilesFn func(commitlog.Options) ([]commitlog.File, []commitlog.ErrorWithPath, error)
 
 type deleteFilesFn func(files []string) error
 
@@ -296,7 +296,7 @@ func (m *cleanupManager) commitLogTimes(t time.Time) ([]commitLogFileWithErrorAn
 	// are only retained for a period of 1-2 days (at most), after we which we'd live we with the
 	// data loss.
 
-	files, err := m.commitLogFilesFn(m.opts.CommitLogOptions())
+	files, corruptFiles, err := m.commitLogFilesFn(m.opts.CommitLogOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -353,34 +353,7 @@ func (m *cleanupManager) commitLogTimes(t time.Time) ([]commitLogFileWithErrorAn
 	}
 
 	filesToCleanup := make([]commitLogFileWithErrorAndPath, 0, len(files))
-	for _, fileOrErr := range files {
-		f, err := fileOrErr.File()
-
-		if err != nil {
-			m.metrics.corruptCommitlogFile.Inc(1)
-			// If we were unable to read the commit log files info header, then we're forced to assume
-			// that the file is corrupt and remove it. This can happen in situations where M3DB experiences
-			// sudden shutdown.
-			errorWithPath, ok := err.(commitlog.ErrorWithPath)
-			if !ok {
-				m.opts.InstrumentOptions().Logger().Errorf(
-					"commitlog file error did not contain path: %v", err)
-				// Continue because we want to try and clean up the remining files instead of erroring out.
-				continue
-			}
-
-			m.opts.InstrumentOptions().Logger().Errorf(
-				"encountered err: %v reading commit log file: %v info during cleanup, marking file for deletion",
-				errorWithPath.Error(), errorWithPath.Path())
-
-			// TODO(rartoul): Leave this out until we have a way of distinguishing between a corrupt commit
-			// log file and the commit log file that is actively being written to (which may still be missing
-			// the header): https://github.com/m3db/m3/issues/1078
-			// filesToCleanup = append(filesToCleanup, newCommitLogFileWithErrorAndPath(
-			// 	f, errorWithPath.Path(), err))
-			continue
-		}
-
+	for _, f := range files {
 		shouldDelete, err := shouldCleanupFile(f)
 		if err != nil {
 			return nil, err
@@ -390,6 +363,21 @@ func (m *cleanupManager) commitLogTimes(t time.Time) ([]commitLogFileWithErrorAn
 			filesToCleanup = append(filesToCleanup, newCommitLogFileWithErrorAndPath(
 				f, f.FilePath, nil))
 		}
+	}
+
+	for _, errorWithPath := range corruptFiles {
+		m.metrics.corruptCommitlogFile.Inc(1)
+		// If we were unable to read the commit log files info header, then we're forced to assume
+		// that the file is corrupt and remove it. This can happen in situations where M3DB experiences
+		// sudden shutdown.
+		m.opts.InstrumentOptions().Logger().Errorf(
+			"encountered err: %v reading commit log file: %v info during cleanup, marking file for deletion",
+			errorWithPath.Error(), errorWithPath.Path())
+		// TODO(rartoul): Leave this out until we have a way of distinguishing between a corrupt commit
+		// log file and the commit log file that is actively being written to (which may still be missing
+		// the header): https://github.com/m3db/m3/issues/1078
+		// filesToCleanup = append(filesToCleanup, newCommitLogFileWithErrorAndPath(
+		// 	f, errorWithPath.Path(), err))
 	}
 
 	return filesToCleanup, nil
