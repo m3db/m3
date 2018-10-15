@@ -30,31 +30,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 )
 
-type fsError struct {
-	err error
-}
-
-func (e fsError) Error() string {
-	return e.err.Error()
-}
-
-// ErrorWithPath is an error that includes the path of the file that
-// had the error.
-type ErrorWithPath struct {
-	err  error
-	path string
-}
-
-// Error returns the error.
-func (e ErrorWithPath) Error() string {
-	return e.err.Error()
-}
-
-// Path returns the path of hte file that the error is associated with.
-func (e ErrorWithPath) Path() string {
-	return e.path
-}
-
 // FileOrError is a union/option type that returns an error if there was
 // any issue reading the commitlog info, or a File if there was not. Its
 // purpose is to force callers to handle the error.
@@ -91,13 +66,6 @@ type File struct {
 	Start    time.Time
 	Duration time.Duration
 	Index    int64
-}
-
-func newErrorWithPath(err error, path string) ErrorWithPath {
-	return ErrorWithPath{
-		err:  err,
-		path: path,
-	}
 }
 
 // ReadLogInfo reads the commit log info out of a commitlog file
@@ -177,4 +145,36 @@ func Files(opts Options) ([]FileOrError, error) {
 	})
 
 	return commitLogFiles, nil
+}
+
+// ErrorWithPath is an error that includes the path of the file that
+// had the error.
+type ErrorWithPath struct {
+	err  error
+	path string
+}
+
+// Error returns the error.
+func (e ErrorWithPath) Error() string {
+	return e.err.Error()
+}
+
+// Path returns the path of hte file that the error is associated with.
+func (e ErrorWithPath) Path() string {
+	return e.path
+}
+
+func newErrorWithPath(err error, path string) ErrorWithPath {
+	return ErrorWithPath{
+		err:  err,
+		path: path,
+	}
+}
+
+type fsError struct {
+	err error
+}
+
+func (e fsError) Error() string {
+	return e.err.Error()
 }
