@@ -596,6 +596,16 @@ func contains(arr []commitLogFileWithErrorAndPath, t time.Time) bool {
 	return false
 }
 
+func containsCorrupt(arr []commitLogFileWithErrorAndPath, path string) bool {
+	for _, f := range arr {
+		if f.path == path {
+			return true
+		}
+	}
+
+	return false
+}
+
 func TestCleanupManagerCommitLogTimesAllPendingFlushButHaveSnapshot(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -722,15 +732,15 @@ func TestCleanupManagerDeletesCorruptCommitLogFiles(t *testing.T) {
 	var (
 		_, mgr = newCleanupManagerCommitLogTimesTest(t, ctrl)
 		err    = errors.New("some_error")
+		path   = "path"
 	)
 	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, []commitlog.ErrorWithPath, error) {
-		return []commitlog.File{
-			commitlog.File{Start: time10, Duration: commitLogBlockSize},
-		}, nil, nil
+		return []commitlog.File{}, []commitlog.ErrorWithPath{
+			commitlog.NewErrorWithPath(err, path),
+		}, nil
 	}
 
 	filesToCleanup, err := mgr.commitLogTimes(currentTime)
 	require.NoError(t, err)
-
-	require.True(t, contains(filesToCleanup, time10))
+	require.True(t, containsCorrupt(filesToCleanup, path))
 }

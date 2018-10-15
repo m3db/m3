@@ -101,7 +101,7 @@ func Files(opts Options) ([]File, []ErrorWithPath, error) {
 		}
 
 		if err != nil {
-			errorsWithPath = append(errorsWithPath, newErrorWithPath(
+			errorsWithPath = append(errorsWithPath, NewErrorWithPath(
 				err, filePath))
 			continue
 		}
@@ -145,7 +145,7 @@ func (e ErrorWithPath) Path() string {
 	return e.path
 }
 
-func newErrorWithPath(err error, path string) ErrorWithPath {
+func NewErrorWithPath(err error, path string) ErrorWithPath {
 	return ErrorWithPath{
 		err:  err,
 		path: path,

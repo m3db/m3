@@ -377,7 +377,7 @@ func (m *cleanupManager) commitLogTimes(t time.Time) ([]commitLogFileWithErrorAn
 		// log file and the commit log file that is actively being written to (which may still be missing
 		// the header): https://github.com/m3db/m3/issues/1078
 		// filesToCleanup = append(filesToCleanup, newCommitLogFileWithErrorAndPath(
-		// 	f, errorWithPath.Path(), err))
+		// 	commitlog.File{}, errorWithPath.Path(), err))
 	}
 
 	return filesToCleanup, nil
