@@ -145,6 +145,7 @@ func (e ErrorWithPath) Path() string {
 	return e.path
 }
 
+// NewErrorWithPath creates a new ErrorWithPath.
 func NewErrorWithPath(err error, path string) ErrorWithPath {
 	return ErrorWithPath{
 		err:  err,
