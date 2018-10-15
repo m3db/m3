@@ -52,8 +52,6 @@ const (
 
 	commitLogComponentPosition    = 2
 	indexFileSetComponentPosition = 2
-
-	completeCheckpointFileSize = 4 // bytes
 )
 
 var (
@@ -1139,7 +1137,7 @@ func CompleteCheckpointFileExists(filePath string) (bool, error) {
 		return false, err
 	}
 
-	return f.Size() == completeCheckpointFileSize, nil
+	return f.Size() == checkpointFileSizeBytes, nil
 }
 
 // FileExists returns whether a file at the given path exists.

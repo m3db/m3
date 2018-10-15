@@ -50,13 +50,14 @@ func TestPersistenceManagerPrepareDataFileExistsNoDelete(t *testing.T) {
 	pm, _, _ := testDataPersistManager(t, ctrl)
 	defer os.RemoveAll(pm.filePathPrefix)
 
-	shard := uint32(0)
-	blockStart := time.Unix(1000, 0)
-	shardDir := createDataShardDir(t, pm.filePathPrefix, testNs1ID, shard)
-	checkpointFilePath := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
-	f, err := os.Create(checkpointFilePath)
-	require.NoError(t, err)
-	f.Close()
+	var (
+		shard              = uint32(0)
+		blockStart         = time.Unix(1000, 0)
+		shardDir           = createDataShardDir(t, pm.filePathPrefix, testNs1ID, shard)
+		checkpointFilePath = filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
+		checkpointFileBuf  = make([]byte, checkpointFileSizeBytes)
+	)
+	createFile(t, checkpointFilePath, checkpointFileBuf)
 
 	flush, err := pm.StartDataPersist()
 	require.NoError(t, err)
@@ -83,8 +84,10 @@ func TestPersistenceManagerPrepareDataFileExistsWithDelete(t *testing.T) {
 	pm, writer, _ := testDataPersistManager(t, ctrl)
 	defer os.RemoveAll(pm.filePathPrefix)
 
-	shard := uint32(0)
-	blockStart := time.Unix(1000, 0)
+	var (
+		shard      = uint32(0)
+		blockStart = time.Unix(1000, 0)
+	)
 
 	writerOpts := xtest.CmpMatcher(DataWriterOpenOptions{
 		Identifier: FileSetFileIdentifier{
@@ -96,11 +99,12 @@ func TestPersistenceManagerPrepareDataFileExistsWithDelete(t *testing.T) {
 	}, m3test.IdentTransformer)
 	writer.EXPECT().Open(writerOpts).Return(nil)
 
-	shardDir := createDataShardDir(t, pm.filePathPrefix, testNs1ID, shard)
-	checkpointFilePath := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
-	f, err := os.Create(checkpointFilePath)
-	require.NoError(t, err)
-	f.Close()
+	var (
+		shardDir           = createDataShardDir(t, pm.filePathPrefix, testNs1ID, shard)
+		checkpointFilePath = filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
+		checkpointFileBuf  = make([]byte, checkpointFileSizeBytes)
+	)
+	createFile(t, checkpointFilePath, checkpointFileBuf)
 
 	flush, err := pm.StartDataPersist()
 	require.NoError(t, err)

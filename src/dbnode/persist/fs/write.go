@@ -40,6 +40,10 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
+const (
+	checkpointFileSizeBytes = 4
+)
+
 var (
 	errWriterEncodeTagsDataNotAccessible = errors.New(
 		"failed to encode tags: cannot get data")

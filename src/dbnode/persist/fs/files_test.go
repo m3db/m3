@@ -282,24 +282,27 @@ func TestTimeAndVolumeIndexFromFileSetFilename(t *testing.T) {
 }
 
 func TestFileExists(t *testing.T) {
-	dir := createTempDir(t)
-	defer os.RemoveAll(dir)
 
-	shard := uint32(10)
-	start := time.Now()
-	shardDir := ShardDataDirPath(dir, testNs1ID, shard)
-	err := os.MkdirAll(shardDir, defaultNewDirectoryMode)
+	var (
+		dir               = createTempDir(t)
+		shard             = uint32(10)
+		start             = time.Now()
+		shardDir          = ShardDataDirPath(dir, testNs1ID, shard)
+		checkpointFileBuf = make([]byte, checkpointFileSizeBytes)
+		err               = os.MkdirAll(shardDir, defaultNewDirectoryMode)
+	)
+	defer os.RemoveAll(dir)
 	require.NoError(t, err)
 
 	infoFilePath := filesetPathFromTime(shardDir, start, infoFileSuffix)
-	createDataFile(t, shardDir, start, infoFileSuffix, nil)
+	createDataFile(t, shardDir, start, infoFileSuffix, checkpointFileBuf)
 	require.True(t, mustFileExists(t, infoFilePath))
 	exists, err := DataFileSetExistsAt(dir, testNs1ID, uint32(shard), start)
 	require.NoError(t, err)
 	require.False(t, exists)
 
 	checkpointFilePath := filesetPathFromTime(shardDir, start, checkpointFileSuffix)
-	createDataFile(t, shardDir, start, checkpointFileSuffix, nil)
+	createDataFile(t, shardDir, start, checkpointFileSuffix, checkpointFileBuf)
 	require.True(t, mustFileExists(t, checkpointFilePath))
 	exists, err = DataFileSetExistsAt(dir, testNs1ID, uint32(shard), start)
 	require.NoError(t, err)
