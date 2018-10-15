@@ -41,6 +41,8 @@ var (
 
 	errCommitLogClosed = errors.New("commit log is closed")
 
+	errCommitLogAlreadyOpen = errors.New("commit log is already open")
+
 	timeZero = time.Time{}
 )
 
@@ -83,6 +85,8 @@ type commitLog struct {
 	writerExpireAt time.Time
 	closed         bool
 	closeErr       chan error
+
+	activeFile *File
 
 	metrics commitLogMetrics
 }
@@ -155,8 +159,11 @@ func NewCommitLog(opts Options) (CommitLog, error) {
 }
 
 func (l *commitLog) Open() error {
+	l.Lock()
+	defer l.Unlock()
+
 	// Open the buffered commit log writer
-	if err := l.openWriter(l.nowFn()); err != nil {
+	if err := l.openWriterWithLock(l.nowFn()); err != nil {
 		return err
 	}
 
@@ -182,6 +189,21 @@ func (l *commitLog) Open() error {
 	}
 
 	return nil
+}
+
+func (l *commitLog) ActiveLogs() ([]File, error) {
+	l.Lock()
+	defer l.Unlock()
+
+	if l.closed {
+		return nil, errCommitLogClosed
+	}
+
+	if l.writer == nil || l.activeFile == nil {
+		return nil, nil
+	}
+
+	return []File{*l.activeFile}, nil
 }
 
 func (l *commitLog) flushEvery(interval time.Duration) {
@@ -237,8 +259,11 @@ func (l *commitLog) write() {
 		}
 
 		if now := l.nowFn(); !now.Before(l.writerExpireAt) {
-			if err := l.openWriter(now); err != nil {
+			l.Lock()
+			err := l.openWriterWithLock(now)
+			l.Unlock()
 
+			if err != nil {
 				l.metrics.errors.Inc(1)
 				l.metrics.openErrors.Inc(1)
 				l.log.Errorf("failed to open commit log: %v", err)
@@ -307,7 +332,7 @@ func (l *commitLog) onFlush(err error) {
 	l.metrics.flushDone.Inc(1)
 }
 
-func (l *commitLog) openWriter(now time.Time) error {
+func (l *commitLog) openWriterWithLock(now time.Time) error {
 	if l.writer != nil {
 		if err := l.writer.Close(); err != nil {
 			l.metrics.closeErrors.Inc(1)
@@ -325,10 +350,12 @@ func (l *commitLog) openWriter(now time.Time) error {
 	blockSize := l.opts.BlockSize()
 	start := now.Truncate(blockSize)
 
-	if err := l.writer.Open(start, blockSize); err != nil {
+	file, err := l.writer.Open(start, blockSize)
+	if err != nil {
 		return err
 	}
 
+	l.activeFile = &file
 	l.writerExpireAt = start.Add(blockSize)
 
 	return nil

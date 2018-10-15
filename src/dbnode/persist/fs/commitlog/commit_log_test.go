@@ -153,7 +153,7 @@ func snapshotCounterValue(
 }
 
 type mockCommitLogWriter struct {
-	openFn  func(start time.Time, duration time.Duration) error
+	openFn  func(start time.Time, duration time.Duration) (File, error)
 	writeFn func(Series, ts.Datapoint, xtime.Unit, ts.Annotation) error
 	flushFn func() error
 	closeFn func() error
@@ -161,8 +161,8 @@ type mockCommitLogWriter struct {
 
 func newMockCommitLogWriter() *mockCommitLogWriter {
 	return &mockCommitLogWriter{
-		openFn: func(start time.Time, duration time.Duration) error {
-			return nil
+		openFn: func(start time.Time, duration time.Duration) (File, error) {
+			return File{}, nil
 		},
 		writeFn: func(Series, ts.Datapoint, xtime.Unit, ts.Annotation) error {
 			return nil
@@ -176,7 +176,7 @@ func newMockCommitLogWriter() *mockCommitLogWriter {
 	}
 }
 
-func (w *mockCommitLogWriter) Open(start time.Time, duration time.Duration) error {
+func (w *mockCommitLogWriter) Open(start time.Time, duration time.Duration) (File, error) {
 	return w.openFn(start, duration)
 }
 
@@ -681,11 +681,11 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 	}
 
 	var opens int64
-	writer.openFn = func(start time.Time, duration time.Duration) error {
+	writer.openFn = func(start time.Time, duration time.Duration) (File, error) {
 		if atomic.AddInt64(&opens, 1) >= 2 {
-			return fmt.Errorf("an error")
+			return File{}, fmt.Errorf("an error")
 		}
-		return nil
+		return File{}, nil
 	}
 
 	writer.flushFn = func() error {
@@ -730,11 +730,11 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 	writer := newMockCommitLogWriter()
 
 	var opens int64
-	writer.openFn = func(start time.Time, duration time.Duration) error {
+	writer.openFn = func(start time.Time, duration time.Duration) (File, error) {
 		if atomic.AddInt64(&opens, 1) >= 2 {
-			return fmt.Errorf("an error")
+			return File{}, fmt.Errorf("an error")
 		}
-		return nil
+		return File{}, nil
 	}
 
 	writer.flushFn = func() error {
@@ -826,6 +826,24 @@ func TestCommitLogFailOnFlushError(t *testing.T) {
 	flushErrors, ok := snapshotCounterValue(scope, "commitlog.writes.flush-errors")
 	require.True(t, ok)
 	require.Equal(t, int64(1), flushErrors.Value())
+}
+
+func TestCommitLogActiveLogs(t *testing.T) {
+	opts, _ := newTestOptions(t, overrides{
+		strategy: StrategyWriteBehind,
+	})
+	defer cleanup(t, opts)
+
+	commitLog := newTestCommitLog(t, opts)
+	commitLog.Open()
+	logs, err := commitLog.ActiveLogs()
+	require.NoError(t, err)
+	require.Equal(t, 1, len(logs))
+
+	// Close the commit log and consequently flush
+	require.NoError(t, commitLog.Close())
+	_, err = commitLog.ActiveLogs()
+	require.Error(t, err)
 }
 
 var (
