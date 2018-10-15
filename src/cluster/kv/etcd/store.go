@@ -167,6 +167,7 @@ func (c *client) get(key string) (kv.Value, error) {
 	}
 
 	if r.Count == 0 {
+		c.deleteCache(key) // delete cache entry if it exists
 		return nil, kv.ErrNotFound
 	}
 
@@ -389,10 +390,11 @@ func (c *client) getFromKVStore(key string) (kv.Value, error) {
 func (c *client) getFromEtcdEvents(key string, events []*clientv3.Event) kv.Value {
 	lastEvent := events[len(events)-1]
 	if lastEvent.Type == clientv3.EventTypeDelete {
+		c.deleteCache(key)
 		return nil
 	}
-	nv := newValue(lastEvent.Kv.Value, lastEvent.Kv.Version, lastEvent.Kv.ModRevision)
 
+	nv := newValue(lastEvent.Kv.Value, lastEvent.Kv.Version, lastEvent.Kv.ModRevision)
 	c.mergeCache(key, nv)
 	return nv
 }
@@ -549,11 +551,16 @@ func (c *client) Delete(key string) (kv.Value, error) {
 
 func (c *client) deleteCache(key string) {
 	c.cache.Lock()
+	defer c.cache.Unlock()
+
+	// only do a delete if we actually need to
+	_, found := c.cache.Values[key]
+	if !found {
+		return
+	}
 
 	delete(c.cache.Values, key)
 	c.notifyCacheUpdate()
-
-	c.cache.Unlock()
 }
 
 func (c *client) getCache(key string) (kv.Value, bool) {

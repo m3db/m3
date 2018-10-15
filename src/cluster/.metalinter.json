@@ -5,17 +5,19 @@
       "Pattern": "PATH:LINE:COL:MESSAGE"
     }
   },
-  "Enable":
-    [ "deadcode"
-    , "varcheck"
-    , "structcheck"
-    , "goconst"
-    , "ineffassign"
-    , "unconvert"
-    , "misspell"
-    , "unparam"
-    , "megacheck"
-    , "badtime" ],
+  "Enable": [
+    "deadcode",
+    "varcheck",
+    "golint",
+    "structcheck",
+    "goconst",
+    "ineffassign",
+    "unconvert",
+    "misspell",
+    "unparam",
+    "megacheck",
+    "badtime"
+  ],
   "Deadline": "3m",
   "EnableGC": true
 }

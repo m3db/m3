@@ -133,7 +133,7 @@ func (e *embeddedKV) Endpoints() []string {
 	return addresses
 }
 
-func (e *embeddedKV) ConfigServiceClient() (client.Client, error) {
+func (e *embeddedKV) ConfigServiceClient(fns ...ClientOptFn) (client.Client, error) {
 	eopts := etcdclient.NewOptions().
 		SetInstrumentOptions(e.opts.InstrumentOptions()).
 		SetServicesOptions(services.NewOptions().SetInitTimeout(e.opts.InitTimeout())).
@@ -143,5 +143,8 @@ func (e *embeddedKV) ConfigServiceClient() (client.Client, error) {
 		SetService(e.opts.ServiceID()).
 		SetEnv(e.opts.Environment()).
 		SetZone(e.opts.Zone())
+	for _, fn := range fns {
+		eopts = fn(eopts)
+	}
 	return etcdclient.NewConfigServiceClient(eopts)
 }

@@ -35,11 +35,6 @@ VENDOR_ENV      := GO15VENDOREXPERIMENT=1
 setup:
 	mkdir -p $(BUILD)
 
-.PHONY: lint
-lint:
-	@which golint > /dev/null || go get -u golang.org/x/lint/golint
-	$(VENDOR_ENV) $(lint_check)
-
 .PHONY: metalint
 metalint: install-metalinter install-linter-badtime
 	@($(metalint_check) $(metalint_config) $(metalint_exclude) && echo "metalinted successfully!") || (echo "metalinter failed" && exit 1)
@@ -67,7 +62,6 @@ testhtml: test-internal
 
 .PHONY: test-ci-unit
 test-ci-unit: test-internal
-	@which gocov > /dev/null || go get github.com/axw/gocov/gocov
 	$(codecov_push) -f $(coverfile)
 
 .PHONY: install-mockgen
@@ -109,7 +103,7 @@ clean:
 	@rm -f *.html *.xml *.out *.test
 
 .PHONY: all
-all: lint metalint test-ci-unit
+all: metalint test-ci-unit
 	@echo make all successfully finished
 
 .DEFAULT_GOAL := all
