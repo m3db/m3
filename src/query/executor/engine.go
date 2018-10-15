@@ -136,21 +136,21 @@ func (e *Engine) Execute(ctx context.Context, query *storage.FetchQuery, opts *E
 func (e *Engine) ExecuteExpr(ctx context.Context, parser parser.Parser, opts *EngineOptions, params models.RequestParams, results chan Query) {
 	defer close(results)
 
-	req, reqCtx := newRequest(ctx, e, params)
+	req := newRequest(e, params)
 	defer req.finish()
-	nodes, edges, err := req.compile(reqCtx, parser)
+	nodes, edges, err := req.compile(ctx, parser)
 	if err != nil {
 		results <- Query{Err: err}
 		return
 	}
 
-	pp, err := req.plan(reqCtx, nodes, edges)
+	pp, err := req.plan(ctx, nodes, edges)
 	if err != nil {
 		results <- Query{Err: err}
 		return
 	}
 
-	state, err := req.execute(reqCtx, pp)
+	state, err := req.execute(ctx, pp)
 	// free up resources
 	if err != nil {
 		results <- Query{Err: err}
@@ -159,7 +159,7 @@ func (e *Engine) ExecuteExpr(ctx context.Context, parser parser.Parser, opts *En
 
 	result := state.resultNode
 	results <- Query{Result: result}
-	if err := state.Execute(reqCtx); err != nil {
+	if err := state.Execute(ctx); err != nil {
 		result.abort(err)
 	} else {
 		result.done()
