@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/query/functions/aggregation"
 	"github.com/m3db/m3/src/query/functions/binary"
 	"github.com/m3db/m3/src/query/functions/linear"
+	"github.com/m3db/m3/src/query/functions/scalar"
 	"github.com/m3db/m3/src/query/functions/temporal"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
@@ -149,6 +150,18 @@ func TestLinearParses(t *testing.T) {
 	}
 }
 
+func TestTimeTypeParse(t *testing.T) {
+	q := "time()"
+	p, err := Parse(q, models.NewTagOptions())
+	require.NoError(t, err)
+	transforms, edges, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 1)
+	assert.Equal(t, transforms[0].Op.OpType(), scalar.TimeType)
+	assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
+	assert.Len(t, edges, 0)
+}
+
 var binaryParseTests = []struct {
 	q                string
 	LHSType, RHSType string
@@ -156,19 +169,19 @@ var binaryParseTests = []struct {
 }{
 	// Arithmetic
 	{"up / up", functions.FetchType, functions.FetchType, binary.DivType},
-	{"up ^ 10", functions.FetchType, functions.ScalarType, binary.ExpType},
-	{"10 - up", functions.ScalarType, functions.FetchType, binary.MinusType},
-	{"10 + 10", functions.ScalarType, functions.ScalarType, binary.PlusType},
+	{"up ^ 10", functions.FetchType, scalar.ScalarType, binary.ExpType},
+	{"10 - up", scalar.ScalarType, functions.FetchType, binary.MinusType},
+	{"10 + 10", scalar.ScalarType, scalar.ScalarType, binary.PlusType},
 	{"up % up", functions.FetchType, functions.FetchType, binary.ModType},
-	{"up * 10", functions.FetchType, functions.ScalarType, binary.MultiplyType},
+	{"up * 10", functions.FetchType, scalar.ScalarType, binary.MultiplyType},
 
 	// Equality
 	{"up == up", functions.FetchType, functions.FetchType, binary.EqType},
-	{"up != 10", functions.FetchType, functions.ScalarType, binary.NotEqType},
+	{"up != 10", functions.FetchType, scalar.ScalarType, binary.NotEqType},
 	{"up > up", functions.FetchType, functions.FetchType, binary.GreaterType},
-	{"10 < up", functions.ScalarType, functions.FetchType, binary.LesserType},
-	{"up >= 10", functions.FetchType, functions.ScalarType, binary.GreaterEqType},
-	{"up <= 10", functions.FetchType, functions.ScalarType, binary.LesserEqType},
+	{"10 < up", scalar.ScalarType, functions.FetchType, binary.LesserType},
+	{"up >= 10", functions.FetchType, scalar.ScalarType, binary.GreaterEqType},
+	{"up <= 10", functions.FetchType, scalar.ScalarType, binary.LesserEqType},
 
 	// Logical
 	{"up and up", functions.FetchType, functions.FetchType, binary.AndType},
@@ -207,13 +220,13 @@ func TestParenPrecedenceParses(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, transforms, 5)
 	// 5
-	assert.Equal(t, transforms[0].Op.OpType(), functions.ScalarType)
+	assert.Equal(t, transforms[0].Op.OpType(), scalar.ScalarType)
 	assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
 	// up
 	assert.Equal(t, transforms[1].Op.OpType(), functions.FetchType)
 	assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
 	// 6
-	assert.Equal(t, transforms[2].Op.OpType(), functions.ScalarType)
+	assert.Equal(t, transforms[2].Op.OpType(), scalar.ScalarType)
 	assert.Equal(t, transforms[2].ID, parser.NodeID("2"))
 	// -
 	assert.Equal(t, transforms[3].Op.OpType(), binary.MinusType)
