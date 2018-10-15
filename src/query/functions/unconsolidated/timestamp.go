@@ -27,7 +27,7 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/parser"
-	"github.com/m3db/m3db/src/query/ts"
+	"github.com/m3db/m3/src/query/ts"
 )
 
 const (
