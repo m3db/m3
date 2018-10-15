@@ -30,36 +30,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 )
 
-// FileOrError is a union/option type that returns an error if there was
-// any issue reading the commitlog info, or a File if there was not. Its
-// purpose is to force callers to handle the error.
-type FileOrError struct {
-	f File
-	// Contains any errors encountered when trying to read the commitlogs file info. We
-	// attempt to not include filesystem errors in this field, but that is accomplished
-	// on a best-effort basis and it is possible for this field to contain an error that
-	// is the result of a filesystem / O.S / hardware issue as opposed to an actually
-	// corrupt file.
-	e error
-}
-
-// File returns a File if the commitlog info was read, or an error otherwise.
-func (f FileOrError) File() (File, error) {
-	return f.f, f.e
-}
-
-// NewFileOrError creates a new FileOrError.
-func NewFileOrError(f File, e error, path string) FileOrError {
-	if e != nil {
-		e = newErrorWithPath(e, path)
-	}
-
-	return FileOrError{
-		f: f,
-		e: e,
-	}
-}
-
 // File represents a commit log file and its associated metadata.
 type File struct {
 	FilePath string
@@ -110,15 +80,16 @@ func ReadLogInfo(filePath string, opts Options) (time.Time, time.Duration, int64
 
 // Files returns a slice of all available commit log files on disk along with
 // their associated metadata.
-func Files(opts Options) ([]FileOrError, error) {
+func Files(opts Options) ([]File, []ErrorWithPath, error) {
 	commitLogsDir := fs.CommitLogsDirPath(
 		opts.FilesystemOptions().FilePathPrefix())
 	filePaths, err := fs.SortedCommitLogFiles(commitLogsDir)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	commitLogFiles := make([]FileOrError, 0, len(filePaths))
+	commitLogFiles := make([]File, 0, len(filePaths))
+	errorsWithPath := make([]ErrorWithPath, 0)
 	for _, filePath := range filePaths {
 		file := File{
 			FilePath: filePath,
@@ -126,7 +97,13 @@ func Files(opts Options) ([]FileOrError, error) {
 
 		start, duration, index, err := ReadLogInfo(filePath, opts)
 		if _, ok := err.(fsError); ok {
-			return nil, err
+			return nil, nil, err
+		}
+
+		if err != nil {
+			errorsWithPath = append(errorsWithPath, newErrorWithPath(
+				err, filePath))
+			continue
 		}
 
 		if err == nil {
@@ -135,16 +112,20 @@ func Files(opts Options) ([]FileOrError, error) {
 			file.Index = index
 		}
 
-		commitLogFiles = append(commitLogFiles, NewFileOrError(
-			file, err, filePath))
+		commitLogFiles = append(commitLogFiles, File{
+			FilePath: filePath,
+			Start:    start,
+			Duration: duration,
+			Index:    index,
+		})
 	}
 
 	sort.Slice(commitLogFiles, func(i, j int) bool {
 		// Sorting is best effort here since we may not know the start.
-		return commitLogFiles[i].f.Start.Before(commitLogFiles[j].f.Start)
+		return commitLogFiles[i].Start.Before(commitLogFiles[j].Start)
 	})
 
-	return commitLogFiles, nil
+	return commitLogFiles, errorsWithPath, nil
 }
 
 // ErrorWithPath is an error that includes the path of the file that

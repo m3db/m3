@@ -52,16 +52,14 @@ func TestFiles(t *testing.T) {
 		opts.FilesystemOptions().
 			SetFilePathPrefix(dir),
 	)
-	files, err := Files(opts)
+	files, corruptFiles, err := Files(opts)
 	require.NoError(t, err)
+	require.True(t, len(corruptFiles) == 0)
 	require.True(t, len(files) >= minNumBlocks)
 
 	// Make sure its sorted
 	var lastFileStart time.Time
-	for _, fileOrError := range files {
-		file, err := fileOrError.File()
-		require.NoError(t, err)
-
+	for _, file := range files {
 		require.Equal(t, 10*time.Minute, file.Duration)
 		require.Equal(t, int64(0), file.Index)
 		require.True(t, strings.Contains(file.FilePath, dir))
