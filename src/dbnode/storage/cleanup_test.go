@@ -722,10 +722,6 @@ func TestCleanupManagerCommitLogTimesMultiNS(t *testing.T) {
 }
 
 func TestCleanupManagerDeletesCorruptCommitLogFiles(t *testing.T) {
-	// TODO(rartoul): Re-enable this once https://github.com/m3db/m3/issues/1078
-	// is resolved.
-	t.Skip()
-
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -743,6 +739,29 @@ func TestCleanupManagerDeletesCorruptCommitLogFiles(t *testing.T) {
 	filesToCleanup, err := mgr.commitLogTimes(currentTime)
 	require.NoError(t, err)
 	require.True(t, containsCorrupt(filesToCleanup, path))
+}
+
+func TestCleanupManagerIgnoresActiveCommitLogFiles(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		_, mgr = newCleanupManagerCommitLogTimesTest(t, ctrl)
+		err    = errors.New("some_error")
+		path   = "path"
+	)
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, []commitlog.ErrorWithPath, error) {
+		return []commitlog.File{}, []commitlog.ErrorWithPath{
+			commitlog.NewErrorWithPath(err, path),
+		}, nil
+	}
+	mgr.activeCommitlogs = newFakeActiveLogs([]commitlog.File{
+		{FilePath: path},
+	})
+
+	filesToCleanup, err := mgr.commitLogTimes(currentTime)
+	require.NoError(t, err)
+	require.Empty(t, filesToCleanup, path)
 }
 
 type fakeActiveLogs struct {
