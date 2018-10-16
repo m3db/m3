@@ -253,6 +253,12 @@ func TestSimpleReadWrite(t *testing.T) {
 	readTestData(t, r, 0, testWriterStart, entries)
 }
 
+func TestCheckpointFileSizeBytesSize(t *testing.T) {
+	// These values need to match so that the logic for determining whether
+	// a checkpoint file is complete or not remains correct.
+	require.Equal(t, digest.DigestLenBytes, CheckpointFileSizeBytes)
+}
+
 func TestDuplicateWrite(t *testing.T) {
 	dir := createTempDir(t)
 	filePathPrefix := filepath.Join(dir, "")

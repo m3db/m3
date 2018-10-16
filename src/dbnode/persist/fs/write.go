@@ -40,6 +40,11 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
+const (
+	// CheckpointFileSizeBytes is the expected size of a valid checkpoint file.
+	CheckpointFileSizeBytes = 4
+)
+
 var (
 	errWriterEncodeTagsDataNotAccessible = errors.New(
 		"failed to encode tags: cannot get data")
