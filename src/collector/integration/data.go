@@ -23,9 +23,9 @@ package integration
 import (
 	"bytes"
 
-	"github.com/m3db/m3metrics/metadata"
-	"github.com/m3db/m3metrics/metric/id"
-	"github.com/m3db/m3metrics/metric/unaggregated"
+	"github.com/m3db/m3/src/metrics/metadata"
+	"github.com/m3db/m3/src/metrics/metric/id"
+	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 )
 
 type idGenerator func(int) id.ID

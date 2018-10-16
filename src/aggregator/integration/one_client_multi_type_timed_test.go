@@ -27,10 +27,10 @@ import (
 	"testing"
 	"time"
 
+	maggregation "github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/metadata"
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3cluster/placement"
-	maggregation "github.com/m3db/m3metrics/aggregation"
-	"github.com/m3db/m3metrics/metadata"
-	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/clock"
 	xtime "github.com/m3db/m3x/time"
 

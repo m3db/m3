@@ -21,7 +21,7 @@
 package kv
 
 import (
-	"github.com/m3db/m3metrics/rules"
+	"github.com/m3db/m3/src/metrics/rules"
 )
 
 // StoreOptions provide a set of options for KV-backed rules store.

@@ -24,11 +24,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3metrics/aggregation"
-	"github.com/m3db/m3metrics/pipeline"
-	"github.com/m3db/m3metrics/pipeline/applied"
-	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3metrics/transformation"
+	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/pipeline"
+	"github.com/m3db/m3/src/metrics/pipeline/applied"
+	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/metrics/transformation"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"

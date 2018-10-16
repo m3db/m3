@@ -23,8 +23,8 @@ package changes
 import (
 	"testing"
 
-	"github.com/m3db/m3metrics/rules/view"
-	"github.com/m3db/m3metrics/x/bytes"
+	"github.com/m3db/m3/src/metrics/rules/view"
+	"github.com/m3db/m3/src/metrics/x/bytes"
 
 	"github.com/stretchr/testify/require"
 )

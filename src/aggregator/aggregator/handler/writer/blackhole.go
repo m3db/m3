@@ -21,7 +21,7 @@
 package writer
 
 import (
-	"github.com/m3db/m3metrics/metric/aggregated"
+	"github.com/m3db/m3/src/metrics/metric/aggregated"
 )
 
 type blackholeWriter struct{}

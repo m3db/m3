@@ -25,8 +25,8 @@ import (
 
 	"github.com/m3db/m3/src/aggregator/server/http"
 	"github.com/m3db/m3/src/aggregator/server/rawtcp"
-	"github.com/m3db/m3metrics/encoding/msgpack"
-	"github.com/m3db/m3metrics/encoding/protobuf"
+	"github.com/m3db/m3/src/metrics/encoding/msgpack"
+	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/retry"

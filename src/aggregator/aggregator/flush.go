@@ -23,8 +23,8 @@ package aggregator
 import (
 	"time"
 
-	"github.com/m3db/m3metrics/metric/id"
-	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3/src/metrics/metric/id"
+	"github.com/m3db/m3/src/metrics/policy"
 )
 
 // flushingMetricList periodically flushes metrics stored in the list for a given shard.

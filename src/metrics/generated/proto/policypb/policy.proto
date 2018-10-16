@@ -20,11 +20,11 @@
 
 syntax = "proto3";
 
-option go_package = "github.com/m3db/m3metrics/generated/proto/policypb";
+option go_package = "github.com/m3db/m3/src/metrics/generated/proto/policypb";
 
 package policypb;
 
-import "github.com/m3db/m3metrics/generated/proto/aggregationpb/aggregation.proto";
+import "github.com/m3db/m3/src/metrics/generated/proto/aggregationpb/aggregation.proto";
 
 message Resolution {
   int64 window_size = 1;

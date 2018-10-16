@@ -23,9 +23,9 @@ package protobuf
 import (
 	"testing"
 
-	"github.com/m3db/m3metrics/generated/proto/aggregationpb"
-	"github.com/m3db/m3metrics/generated/proto/metricpb"
-	"github.com/m3db/m3metrics/generated/proto/pipelinepb"
+	"github.com/m3db/m3/src/metrics/generated/proto/aggregationpb"
+	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
+	"github.com/m3db/m3/src/metrics/generated/proto/pipelinepb"
 
 	"github.com/stretchr/testify/require"
 )

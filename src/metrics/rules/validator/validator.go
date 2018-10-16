@@ -24,15 +24,15 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/m3db/m3metrics/aggregation"
-	merrors "github.com/m3db/m3metrics/errors"
-	"github.com/m3db/m3metrics/filters"
-	"github.com/m3db/m3metrics/metric"
-	mpipeline "github.com/m3db/m3metrics/pipeline"
-	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3metrics/rules"
-	"github.com/m3db/m3metrics/rules/validator/namespace"
-	"github.com/m3db/m3metrics/rules/view"
+	"github.com/m3db/m3/src/metrics/aggregation"
+	merrors "github.com/m3db/m3/src/metrics/errors"
+	"github.com/m3db/m3/src/metrics/filters"
+	"github.com/m3db/m3/src/metrics/metric"
+	mpipeline "github.com/m3db/m3/src/metrics/pipeline"
+	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/metrics/rules"
+	"github.com/m3db/m3/src/metrics/rules/validator/namespace"
+	"github.com/m3db/m3/src/metrics/rules/view"
 )
 
 var (

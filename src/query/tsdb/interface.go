@@ -23,7 +23,7 @@ package tsdb
 import (
 	"time"
 
-	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3/src/metrics/policy"
 	xtime "github.com/m3db/m3x/time"
 )
 

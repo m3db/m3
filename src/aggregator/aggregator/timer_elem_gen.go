@@ -30,12 +30,12 @@ import (
 	"sync"
 	"time"
 
-	maggregation "github.com/m3db/m3metrics/aggregation"
-	"github.com/m3db/m3metrics/metric/id"
-	"github.com/m3db/m3metrics/metric/unaggregated"
-	"github.com/m3db/m3metrics/pipeline/applied"
-	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3metrics/transformation"
+	maggregation "github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/metric/id"
+	"github.com/m3db/m3/src/metrics/metric/unaggregated"
+	"github.com/m3db/m3/src/metrics/pipeline/applied"
+	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/metrics/transformation"
 
 	"github.com/willf/bitset"
 )

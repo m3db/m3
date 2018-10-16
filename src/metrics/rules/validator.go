@@ -20,7 +20,7 @@
 
 package rules
 
-import "github.com/m3db/m3metrics/rules/view"
+import "github.com/m3db/m3/src/metrics/rules/view"
 
 // Validator validates a ruleset.
 type Validator interface {

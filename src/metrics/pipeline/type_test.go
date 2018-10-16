@@ -24,11 +24,11 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/m3db/m3metrics/aggregation"
-	"github.com/m3db/m3metrics/generated/proto/pipelinepb"
-	"github.com/m3db/m3metrics/generated/proto/transformationpb"
-	"github.com/m3db/m3metrics/transformation"
-	"github.com/m3db/m3metrics/x/bytes"
+	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/generated/proto/pipelinepb"
+	"github.com/m3db/m3/src/metrics/generated/proto/transformationpb"
+	"github.com/m3db/m3/src/metrics/transformation"
+	"github.com/m3db/m3/src/metrics/x/bytes"
 
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"

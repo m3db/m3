@@ -24,12 +24,12 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/m3db/m3metrics/aggregation"
-	"github.com/m3db/m3metrics/filters"
-	"github.com/m3db/m3metrics/metric"
-	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3metrics/rules/validator/namespace"
-	"github.com/m3db/m3metrics/rules/validator/namespace/static"
+	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/filters"
+	"github.com/m3db/m3/src/metrics/metric"
+	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/metrics/rules/validator/namespace"
+	"github.com/m3db/m3/src/metrics/rules/validator/namespace/static"
 )
 
 const (

@@ -26,12 +26,12 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/metadata"
+	"github.com/m3db/m3/src/metrics/metric/id"
+	"github.com/m3db/m3/src/metrics/metric/id/m3"
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3cluster/kv/mem"
-	"github.com/m3db/m3metrics/aggregation"
-	"github.com/m3db/m3metrics/metadata"
-	"github.com/m3db/m3metrics/metric/id"
-	"github.com/m3db/m3metrics/metric/id/m3"
-	"github.com/m3db/m3metrics/policy"
 
 	"github.com/stretchr/testify/require"
 )

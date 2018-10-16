@@ -21,9 +21,9 @@
 package server
 
 import (
-	"github.com/m3db/m3metrics/encoding/protobuf"
-	"github.com/m3db/m3metrics/metadata"
-	"github.com/m3db/m3metrics/metric/unaggregated"
+	"github.com/m3db/m3/src/metrics/encoding/protobuf"
+	"github.com/m3db/m3/src/metrics/metadata"
+	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3x/instrument"
 	xserver "github.com/m3db/m3x/server"
 )

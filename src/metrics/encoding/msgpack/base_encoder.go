@@ -21,9 +21,9 @@
 package msgpack
 
 import (
-	"github.com/m3db/m3metrics/aggregation"
-	"github.com/m3db/m3metrics/metric/id"
-	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/metric/id"
+	"github.com/m3db/m3/src/metrics/policy"
 )
 
 type encodeVarintFn func(value int64)

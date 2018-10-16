@@ -25,10 +25,10 @@ import (
 	"io"
 	"math"
 
-	"github.com/m3db/m3metrics/metric"
-	"github.com/m3db/m3metrics/metric/id"
-	"github.com/m3db/m3metrics/metric/unaggregated"
-	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3/src/metrics/metric"
+	"github.com/m3db/m3/src/metrics/metric/id"
+	"github.com/m3db/m3/src/metrics/metric/unaggregated"
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3x/pool"
 )
 

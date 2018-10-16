@@ -21,8 +21,8 @@
 package view
 
 import (
-	"github.com/m3db/m3metrics/pipeline"
-	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3/src/metrics/pipeline"
+	"github.com/m3db/m3/src/metrics/policy"
 )
 
 // RollupTarget is a rollup target model.

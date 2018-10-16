@@ -23,8 +23,8 @@ package rules
 import (
 	"testing"
 
-	"github.com/m3db/m3metrics/generated/proto/rulepb"
-	"github.com/m3db/m3metrics/rules/view"
+	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
+	"github.com/m3db/m3/src/metrics/rules/view"
 
 	"github.com/stretchr/testify/require"
 )

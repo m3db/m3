@@ -24,10 +24,10 @@ import (
 	"errors"
 	"fmt"
 
-	merrors "github.com/m3db/m3metrics/errors"
-	"github.com/m3db/m3metrics/filters"
-	"github.com/m3db/m3metrics/generated/proto/rulepb"
-	"github.com/m3db/m3metrics/rules/view"
+	merrors "github.com/m3db/m3/src/metrics/errors"
+	"github.com/m3db/m3/src/metrics/filters"
+	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
+	"github.com/m3db/m3/src/metrics/rules/view"
 
 	"github.com/pborman/uuid"
 )

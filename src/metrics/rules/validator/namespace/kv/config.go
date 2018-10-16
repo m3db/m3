@@ -23,9 +23,9 @@ package kv
 import (
 	"time"
 
+	"github.com/m3db/m3/src/metrics/rules/validator/namespace"
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3metrics/rules/validator/namespace"
 )
 
 // NamespaceValidatorConfiguration configures a KV-backed namespace validator.

@@ -20,13 +20,13 @@
 
 syntax = "proto3";
 
-option go_package = "github.com/m3db/m3metrics/generated/proto/rulepb";
+option go_package = "github.com/m3db/m3/src/metrics/generated/proto/rulepb";
 
 package rulepb;
 
-import "github.com/m3db/m3metrics/generated/proto/aggregationpb/aggregation.proto";
-import "github.com/m3db/m3metrics/generated/proto/pipelinepb/pipeline.proto";
-import "github.com/m3db/m3metrics/generated/proto/policypb/policy.proto";
+import "github.com/m3db/m3/src/metrics/generated/proto/aggregationpb/aggregation.proto";
+import "github.com/m3db/m3/src/metrics/generated/proto/pipelinepb/pipeline.proto";
+import "github.com/m3db/m3/src/metrics/generated/proto/policypb/policy.proto";
 
 message MappingRuleSnapshot {
   string name = 1;

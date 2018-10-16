@@ -21,8 +21,8 @@
 package msgpack
 
 import (
-	"github.com/m3db/m3metrics/metric/unaggregated"
-	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3/src/metrics/metric/unaggregated"
+	"github.com/m3db/m3/src/metrics/policy"
 )
 
 // Various object-level encoding functions to facilitate testing.

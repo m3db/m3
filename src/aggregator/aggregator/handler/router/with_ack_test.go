@@ -24,8 +24,8 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/aggregator/aggregator/handler/common"
+	"github.com/m3db/m3/src/metrics/encoding/msgpack"
 	"github.com/m3db/m3/src/msg/producer"
-	"github.com/m3db/m3metrics/encoding/msgpack"
 
 	"github.com/stretchr/testify/require"
 )

@@ -25,8 +25,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/consumer"
-	"github.com/m3db/m3metrics/policy"
 )
 
 // WriteFn is the function that writes a metric.

@@ -23,13 +23,13 @@ package validator
 import (
 	"testing"
 
+	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/filters"
+	"github.com/m3db/m3/src/metrics/metric"
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/mem"
-	"github.com/m3db/m3metrics/aggregation"
-	"github.com/m3db/m3metrics/filters"
-	"github.com/m3db/m3metrics/metric"
-	"github.com/m3db/m3metrics/policy"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"

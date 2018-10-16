@@ -27,12 +27,12 @@ import (
 
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
+	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/x/convert"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3x/instrument"
 	xsync "github.com/m3db/m3x/sync"
 

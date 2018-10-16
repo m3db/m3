@@ -19,9 +19,9 @@
 // THE SOFTWARE.
 
 // mockgen rules for generating mocks for exported interfaces (reflection mode).
-//go:generate sh -c "mockgen -package=id $PACKAGE/metric/id ID | mockclean -pkg $PACKAGE/metric/id -out $GOPATH/src/$PACKAGE/metric/id/id_mock.go"
-//go:generate sh -c "mockgen -package=matcher $PACKAGE/matcher Matcher | mockclean -pkg $PACKAGE/matcher -out $GOPATH/src/$PACKAGE/matcher/matcher_mock.go"
-//go:generate sh -c "mockgen -package=protobuf $PACKAGE/encoding/protobuf UnaggregatedEncoder | mockclean -pkg $PACKAGE/encoding/protobuf -out $GOPATH/src/$PACKAGE/encoding/protobuf/protobuf_mock.go"
-//go:generate sh -c "mockgen -package=rules $PACKAGE/rules Store| mockclean -pkg $PACKAGE/rules -out $GOPATH/src/$PACKAGE/rules/store_mock.go"
+//go:generate sh -c "mockgen -package=id github.com/m3db/m3/src/metrics/metric/id ID | genclean -pkg github.com/m3db/m3/src/metrics/metric/id -out $GOPATH/src/github.com/m3db/m3/src/metrics/metric/id/id_mock.go"
+//go:generate sh -c "mockgen -package=matcher github.com/m3db/m3/src/metrics/matcher Matcher | genclean -pkg github.com/m3db/m3/src/metrics/matcher -out $GOPATH/src/github.com/m3db/m3/src/metrics/matcher/matcher_mock.go"
+//go:generate sh -c "mockgen -package=protobuf github.com/m3db/m3/src/metrics/encoding/protobuf UnaggregatedEncoder | genclean -pkg github.com/m3db/m3/src/metrics/encoding/protobuf -out $GOPATH/src/github.com/m3db/m3/src/metrics/encoding/protobuf/protobuf_mock.go"
+//go:generate sh -c "mockgen -package=rules github.com/m3db/m3/src/metrics/rules Store | genclean -pkg github.com/m3db/m3/src/metrics/rules -out $GOPATH/src/github.com/m3db/m3/src/metrics/rules/rules_mock.go"
 
 package mocks

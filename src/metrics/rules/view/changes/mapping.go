@@ -20,7 +20,7 @@
 
 package changes
 
-import "github.com/m3db/m3metrics/rules/view"
+import "github.com/m3db/m3/src/metrics/rules/view"
 
 // MappingRuleChange is a mapping rule diff.
 type MappingRuleChange struct {

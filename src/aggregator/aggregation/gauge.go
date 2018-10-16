@@ -23,7 +23,7 @@ package aggregation
 import (
 	"math"
 
-	"github.com/m3db/m3metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/aggregation"
 )
 
 const (

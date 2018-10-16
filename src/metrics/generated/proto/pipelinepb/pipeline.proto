@@ -20,13 +20,13 @@
 
 syntax = "proto3";
 
-option go_package = "github.com/m3db/m3metrics/generated/proto/pipelinepb";
+option go_package = "github.com/m3db/m3/src/metrics/generated/proto/pipelinepb";
 
 package pipelinepb;
 
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
-import "github.com/m3db/m3metrics/generated/proto/aggregationpb/aggregation.proto";
-import "github.com/m3db/m3metrics/generated/proto/transformationpb/transformation.proto";
+import "github.com/m3db/m3/src/metrics/generated/proto/aggregationpb/aggregation.proto";
+import "github.com/m3db/m3/src/metrics/generated/proto/transformationpb/transformation.proto";
 
 message AggregationOp {
   aggregationpb.AggregationType type = 1;

@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3metrics/generated/proto/policypb"
+	"github.com/m3db/m3/src/metrics/generated/proto/policypb"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"

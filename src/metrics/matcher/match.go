@@ -21,9 +21,9 @@
 package matcher
 
 import (
-	"github.com/m3db/m3metrics/matcher/cache"
-	"github.com/m3db/m3metrics/metric/id"
-	"github.com/m3db/m3metrics/rules"
+	"github.com/m3db/m3/src/metrics/matcher/cache"
+	"github.com/m3db/m3/src/metrics/metric/id"
+	"github.com/m3db/m3/src/metrics/rules"
 )
 
 // Matcher matches rules against metric IDs.

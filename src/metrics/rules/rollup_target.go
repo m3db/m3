@@ -24,11 +24,11 @@ import (
 	"errors"
 	"sort"
 
-	"github.com/m3db/m3metrics/generated/proto/rulepb"
-	"github.com/m3db/m3metrics/pipeline"
-	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3metrics/rules/view"
-	"github.com/m3db/m3metrics/x/bytes"
+	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
+	"github.com/m3db/m3/src/metrics/pipeline"
+	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/metrics/rules/view"
+	"github.com/m3db/m3/src/metrics/x/bytes"
 )
 
 var (

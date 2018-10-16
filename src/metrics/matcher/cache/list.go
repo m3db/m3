@@ -25,7 +25,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3metrics/rules"
+	"github.com/m3db/m3/src/metrics/rules"
 )
 
 // element is a list element

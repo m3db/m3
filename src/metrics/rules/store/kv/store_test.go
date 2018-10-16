@@ -26,14 +26,14 @@ import (
 	"testing"
 	"time"
 
+	merrors "github.com/m3db/m3/src/metrics/errors"
+	"github.com/m3db/m3/src/metrics/generated/proto/aggregationpb"
+	"github.com/m3db/m3/src/metrics/generated/proto/pipelinepb"
+	"github.com/m3db/m3/src/metrics/generated/proto/policypb"
+	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
+	"github.com/m3db/m3/src/metrics/rules"
+	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3cluster/kv/mem"
-	merrors "github.com/m3db/m3metrics/errors"
-	"github.com/m3db/m3metrics/generated/proto/aggregationpb"
-	"github.com/m3db/m3metrics/generated/proto/pipelinepb"
-	"github.com/m3db/m3metrics/generated/proto/policypb"
-	"github.com/m3db/m3metrics/generated/proto/rulepb"
-	"github.com/m3db/m3metrics/rules"
-	"github.com/m3db/m3metrics/rules/view"
 
 	"github.com/stretchr/testify/require"
 )
