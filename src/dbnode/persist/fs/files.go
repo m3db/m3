@@ -1130,6 +1130,12 @@ func NextIndexSnapshotFileIndex(filePathPrefix string, namespace ident.ID, block
 // CompleteCheckpointFileExists returns whether a checkpoint file exists, and if so,
 // is it complete.
 func CompleteCheckpointFileExists(filePath string) (bool, error) {
+	if !strings.Contains(filePath, checkpointFileSuffix) {
+		return false, fmt.Errorf(
+			"%s tried to use CompleteCheckpointFileExists to verify existence of checkpoint file: %s",
+			instrument.InvariantViolatedMetricName, filePath)
+	}
+
 	f, err := os.Stat(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {

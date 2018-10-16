@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/instrument"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -342,6 +343,10 @@ func TestCompleteCheckpointFileExists(t *testing.T) {
 	exists, err = CompleteCheckpointFileExists(checkpointFilePath)
 	require.NoError(t, err)
 	require.True(t, exists)
+
+	exists, err = CompleteCheckpointFileExists("some-arbitrary-file")
+	require.Contains(t, err.Error(), instrument.InvariantViolatedMetricName)
+	require.False(t, exists)
 }
 
 func TestShardDirPath(t *testing.T) {
