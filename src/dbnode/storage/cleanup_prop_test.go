@@ -60,7 +60,7 @@ func newPropTestCleanupMgr(
 	db.EXPECT().Options().Return(opts).AnyTimes()
 	db.EXPECT().GetOwnedNamespaces().Return(ns, nil).AnyTimes()
 	scope := tally.NoopScope
-	cmIface := newCleanupManager(db, scope)
+	cmIface := newCleanupManager(db, newNoopFakeActiveLogs(), scope)
 	cm := cmIface.(*cleanupManager)
 
 	var (
