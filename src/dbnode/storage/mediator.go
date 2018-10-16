@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 
 	"github.com/uber-go/tally"
 )
@@ -79,10 +80,10 @@ type mediator struct {
 	closedCh chan struct{}
 }
 
-func newMediator(database database, opts Options) (databaseMediator, error) {
+func newMediator(database database, commitlog commitlog.CommitLog, opts Options) (databaseMediator, error) {
 	scope := opts.InstrumentOptions().MetricsScope()
-	d := &mediator{
-		database: database,
+	d := &mediator
+		database:  database,
 		opts:     opts,
 		nowFn:    opts.ClockOptions().NowFn(),
 		sleepFn:  time.Sleep,
