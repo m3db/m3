@@ -41,10 +41,18 @@ type deleteFilesFn func(files []string) error
 
 type deleteInactiveDirectoriesFn func(parentDirPath string, activeDirNames []string) error
 
+// Narrow interface so as not to expose all the functionality of the commitlog
+// to the cleanup manager.
+type activeCommitlogs interface {
+	ActiveLogs() ([]commitlog.File, error)
+}
+
 type cleanupManager struct {
 	sync.RWMutex
 
-	database                    database
+	database         database
+	activeCommitlogs activeCommitlogs
+
 	opts                        Options
 	nowFn                       clock.NowFn
 	filePathPrefix              string
@@ -71,13 +79,16 @@ func newCleanupManagerMetrics(scope tally.Scope) cleanupManagerMetrics {
 	}
 }
 
-func newCleanupManager(database database, scope tally.Scope) databaseCleanupManager {
+func newCleanupManager(
+	database database, activeLogs activeCommitlogs, scope tally.Scope) databaseCleanupManager {
 	opts := database.Options()
 	filePathPrefix := opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	commitLogsDir := fs.CommitLogsDirPath(filePathPrefix)
 
 	return &cleanupManager{
-		database:                    database,
+		database:         database,
+		activeCommitlogs: activeLogs,
+
 		opts:                        opts,
 		nowFn:                       opts.ClockOptions().NowFn(),
 		filePathPrefix:              filePathPrefix,
