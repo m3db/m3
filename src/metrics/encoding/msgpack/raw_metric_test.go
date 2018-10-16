@@ -26,9 +26,9 @@ import (
 	"io"
 	"testing"
 
-	"github.com/m3db/m3metrics/metric/aggregated"
-	"github.com/m3db/m3metrics/metric/id"
-	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3/src/metrics/metric/aggregated"
+	"github.com/m3db/m3/src/metrics/metric/id"
+	"github.com/m3db/m3/src/metrics/policy"
 
 	"github.com/stretchr/testify/require"
 )

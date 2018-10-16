@@ -25,10 +25,10 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/m3db/m3metrics/encoding"
-	"github.com/m3db/m3metrics/generated/proto/metricpb"
-	"github.com/m3db/m3metrics/metric/aggregated"
-	"github.com/m3db/m3metrics/metric/unaggregated"
+	"github.com/m3db/m3/src/metrics/encoding"
+	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
+	"github.com/m3db/m3/src/metrics/metric/aggregated"
+	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3x/pool"
 )
 

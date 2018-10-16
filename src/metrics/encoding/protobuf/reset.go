@@ -20,7 +20,7 @@
 
 package protobuf
 
-import "github.com/m3db/m3metrics/generated/proto/metricpb"
+import "github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 
 // resetMetricWithMetadatasProto resets the metric with metadatas proto, and
 // in particular message fields that are slices because the `Unmarshal` generated

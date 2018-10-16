@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/m3db/m3metrics/generated/proto/transformationpb"
+	"github.com/m3db/m3/src/metrics/generated/proto/transformationpb"
 )
 
 // Type defines a transformation function.

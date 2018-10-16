@@ -25,11 +25,11 @@ import (
 	"io"
 	"net"
 
-	"github.com/m3db/m3metrics/encoding"
-	"github.com/m3db/m3metrics/encoding/migration"
-	"github.com/m3db/m3metrics/encoding/protobuf"
-	"github.com/m3db/m3metrics/metadata"
-	"github.com/m3db/m3metrics/metric/unaggregated"
+	"github.com/m3db/m3/src/metrics/encoding"
+	"github.com/m3db/m3/src/metrics/encoding/migration"
+	"github.com/m3db/m3/src/metrics/encoding/protobuf"
+	"github.com/m3db/m3/src/metrics/metadata"
+	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3x/log"
 	xserver "github.com/m3db/m3x/server"
 )

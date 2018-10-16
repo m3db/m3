@@ -1,7 +1,12 @@
-m3x_package            := github.com/m3db/m3x
-m3x_package_path       := $(gopath_prefix)/$(m3x_package)
-m3x_package_min_ver    := 29bc232d9ad2e6c4a1804ccce095bb730fb1c6bc
-m3metrics_package_path := $(gopath_prefix)/$(m3metrics_package)
+SELF_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
+include $(SELF_DIR)/../../.ci/common.mk
+
+gopath_prefix        := $(GOPATH)/src
+m3metrics_package       := github.com/m3db/m3/src/metrics
+m3metrics_package_path  := $(gopath_prefix)/$(m3metrics_package)
+m3x_package          := github.com/m3db/m3x
+m3x_package_path     := $(gopath_prefix)/$(m3x_package)
+m3x_package_min_ver  := 76a586220279667a81eaaec4150de182f4d5077c
 
 .PHONY: install-m3x-repo
 install-m3x-repo: install-glide install-generics-bin
@@ -20,19 +25,9 @@ install-m3x-repo: install-glide install-generics-bin
 .PHONY: genny-all
 genny-all: genny-map-all
 
-# Tests that all currently generated types match their contents if they were regenerated
-.PHONY: test-genny-all
-test-genny-all: test-genny-map-all
-
 # Map generation rule for all generated maps
 .PHONY: genny-map-all
 genny-map-all: genny-map-matcher-cache-elem genny-map-matcher-namespace-results genny-map-matcher-namespace-rule-sets genny-map-matcher-rule-namespaces
-
-# Tests that all currently generated maps match their contents if they were regenerated
-.PHONY: test-genny-map-all
-test-genny-map-all: genny-map-all
-	@test "$(shell git diff --shortstat 2>/dev/null)" = "" || (git diff --no-color && echo "Check git status, there are dirty files" && exit 1)
-	@test "$(shell git status --porcelain 2>/dev/null | grep "^??")" = "" || (git status --porcelain && echo "Check git status, there are untracked files" && exit 1)
 
 # Map generation rule for matcher/cache/elemMap
 .PHONY: genny-map-matcher-cache-elem

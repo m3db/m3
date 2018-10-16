@@ -20,7 +20,7 @@
 
 syntax = "proto3";
 
-option go_package = "github.com/m3db/m3metrics/generated/proto/rulepb";
+option go_package = "github.com/m3db/m3/src/metrics/generated/proto/rulepb";
 
 package rulepb;
 

@@ -21,8 +21,8 @@
 package msgpack
 
 import (
-	"github.com/m3db/m3metrics/metric/aggregated"
-	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3/src/metrics/metric/aggregated"
+	"github.com/m3db/m3/src/metrics/policy"
 )
 
 type encodeRawMetricWithStoragePolicyFn func(data []byte, p policy.StoragePolicy)

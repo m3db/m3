@@ -27,7 +27,7 @@ package reporter
 import (
 	"reflect"
 
-	"github.com/m3db/m3metrics/metric/id"
+	"github.com/m3db/m3/src/metrics/metric/id"
 
 	"github.com/golang/mock/gomock"
 )

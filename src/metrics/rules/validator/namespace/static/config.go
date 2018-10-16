@@ -21,7 +21,7 @@
 package static
 
 import (
-	"github.com/m3db/m3metrics/rules/validator/namespace"
+	"github.com/m3db/m3/src/metrics/rules/validator/namespace"
 )
 
 // NamespaceValidatorConfiguration configures a static namespace validator.

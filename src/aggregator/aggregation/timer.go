@@ -22,7 +22,7 @@ package aggregation
 
 import (
 	"github.com/m3db/m3/src/aggregator/aggregation/quantile/cm"
-	"github.com/m3db/m3metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/aggregation"
 )
 
 // Timer aggregates timer values. Timer APIs are not thread-safe.

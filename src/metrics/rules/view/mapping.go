@@ -21,8 +21,8 @@
 package view
 
 import (
-	"github.com/m3db/m3metrics/aggregation"
-	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/policy"
 )
 
 // MappingRule is a mapping rule model at a given point in time.

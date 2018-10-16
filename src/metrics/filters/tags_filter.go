@@ -26,8 +26,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/m3db/m3metrics/errors"
-	"github.com/m3db/m3metrics/metric/id"
+	"github.com/m3db/m3/src/metrics/errors"
+	"github.com/m3db/m3/src/metrics/metric/id"
 )
 
 const (

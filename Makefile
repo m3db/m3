@@ -51,6 +51,7 @@ SERVICES :=     \
 SUBDIRS :=    \
 	x           \
 	msg         \
+	metrics     \
 	cmd         \
 	collector   \
 	dbnode      \

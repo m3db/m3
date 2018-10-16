@@ -24,8 +24,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/m3db/m3metrics/metric/aggregated"
-	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3/src/metrics/metric/aggregated"
+	"github.com/m3db/m3/src/metrics/policy"
 )
 
 // aggregatedIterator is an iterator for decoding aggregated metrics.

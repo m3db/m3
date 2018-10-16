@@ -25,13 +25,13 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/m3db/m3metrics/aggregation"
-	"github.com/m3db/m3metrics/filters"
-	"github.com/m3db/m3metrics/metadata"
-	"github.com/m3db/m3metrics/metric"
-	metricID "github.com/m3db/m3metrics/metric/id"
-	mpipeline "github.com/m3db/m3metrics/pipeline"
-	"github.com/m3db/m3metrics/pipeline/applied"
+	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/filters"
+	"github.com/m3db/m3/src/metrics/metadata"
+	"github.com/m3db/m3/src/metrics/metric"
+	metricID "github.com/m3db/m3/src/metrics/metric/id"
+	mpipeline "github.com/m3db/m3/src/metrics/pipeline"
+	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	xerrors "github.com/m3db/m3x/errors"
 )
 

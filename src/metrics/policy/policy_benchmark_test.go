@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/aggregation"
 	xtime "github.com/m3db/m3x/time"
 )
 

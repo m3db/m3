@@ -20,7 +20,7 @@
 
 package aggregation
 
-import "github.com/m3db/m3metrics/aggregation"
+import "github.com/m3db/m3/src/metrics/aggregation"
 
 var (
 	defaultOptions Options

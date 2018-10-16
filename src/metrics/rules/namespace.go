@@ -24,8 +24,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/m3db/m3metrics/generated/proto/rulepb"
-	"github.com/m3db/m3metrics/rules/view"
+	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
+	"github.com/m3db/m3/src/metrics/rules/view"
 	xerrors "github.com/m3db/m3x/errors"
 )
 

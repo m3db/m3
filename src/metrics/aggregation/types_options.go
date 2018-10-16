@@ -25,7 +25,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3x/pool"
 )
 

@@ -28,12 +28,12 @@ import (
 	"net/http"
 
 	"github.com/m3db/m3/src/collector/reporter"
+	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/x/net/http"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3x/instrument"
 )
 

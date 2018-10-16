@@ -28,9 +28,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3metrics/aggregation"
-	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3x/clock"
 
 	"github.com/stretchr/testify/require"

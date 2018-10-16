@@ -23,7 +23,7 @@ package metric
 import (
 	"testing"
 
-	"github.com/m3db/m3metrics/generated/proto/metricpb"
+	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
 
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"

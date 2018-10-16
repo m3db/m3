@@ -25,9 +25,9 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/m3db/m3metrics/aggregation"
-	"github.com/m3db/m3metrics/generated/proto/policypb"
-	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/generated/proto/policypb"
+	"github.com/m3db/m3/src/metrics/policy"
 )
 
 var (

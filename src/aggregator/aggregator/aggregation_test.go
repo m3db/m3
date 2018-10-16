@@ -25,8 +25,8 @@ import (
 
 	"github.com/m3db/m3/src/aggregator/aggregation"
 	"github.com/m3db/m3/src/aggregator/aggregation/quantile/cm"
-	"github.com/m3db/m3metrics/metric"
-	"github.com/m3db/m3metrics/metric/unaggregated"
+	"github.com/m3db/m3/src/metrics/metric"
+	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 
 	"github.com/stretchr/testify/require"
 )

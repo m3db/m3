@@ -23,12 +23,12 @@ package applied
 import (
 	"testing"
 
-	"github.com/m3db/m3metrics/aggregation"
-	"github.com/m3db/m3metrics/generated/proto/aggregationpb"
-	"github.com/m3db/m3metrics/generated/proto/pipelinepb"
-	"github.com/m3db/m3metrics/generated/proto/transformationpb"
-	"github.com/m3db/m3metrics/pipeline"
-	"github.com/m3db/m3metrics/transformation"
+	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/generated/proto/aggregationpb"
+	"github.com/m3db/m3/src/metrics/generated/proto/pipelinepb"
+	"github.com/m3db/m3/src/metrics/generated/proto/transformationpb"
+	"github.com/m3db/m3/src/metrics/pipeline"
+	"github.com/m3db/m3/src/metrics/transformation"
 
 	"github.com/stretchr/testify/require"
 )

@@ -22,8 +22,8 @@ package capture
 
 import (
 	aggr "github.com/m3db/m3/src/aggregator/aggregator"
-	"github.com/m3db/m3metrics/metric/aggregated"
-	"github.com/m3db/m3metrics/metric/unaggregated"
+	"github.com/m3db/m3/src/metrics/metric/aggregated"
+	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 )
 
 // Aggregator provide an aggregator for testing purposes.

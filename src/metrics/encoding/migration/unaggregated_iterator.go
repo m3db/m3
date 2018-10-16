@@ -23,9 +23,9 @@ package migration
 import (
 	"fmt"
 
-	"github.com/m3db/m3metrics/encoding"
-	"github.com/m3db/m3metrics/encoding/msgpack"
-	"github.com/m3db/m3metrics/encoding/protobuf"
+	"github.com/m3db/m3/src/metrics/encoding"
+	"github.com/m3db/m3/src/metrics/encoding/msgpack"
+	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 )
 
 // UnaggregatedIterator decodes unaggregated metrics.

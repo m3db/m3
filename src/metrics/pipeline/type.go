@@ -27,10 +27,10 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/m3db/m3metrics/aggregation"
-	"github.com/m3db/m3metrics/generated/proto/pipelinepb"
-	"github.com/m3db/m3metrics/transformation"
-	xbytes "github.com/m3db/m3metrics/x/bytes"
+	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/generated/proto/pipelinepb"
+	"github.com/m3db/m3/src/metrics/transformation"
+	xbytes "github.com/m3db/m3/src/metrics/x/bytes"
 )
 
 var (

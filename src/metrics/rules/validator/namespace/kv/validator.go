@@ -26,9 +26,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/metrics/rules/validator/namespace"
 	"github.com/m3db/m3cluster/kv"
 	kvutil "github.com/m3db/m3cluster/kv/util"
-	"github.com/m3db/m3metrics/rules/validator/namespace"
 	"github.com/m3db/m3x/log"
 )
 

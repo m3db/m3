@@ -27,7 +27,7 @@ package client
 import (
 	"reflect"
 
-	"github.com/m3db/m3metrics/encoding/protobuf"
+	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 
 	"github.com/golang/mock/gomock"
 )

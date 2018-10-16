@@ -2,6 +2,7 @@
 _gen.go
 _gen_test.go
 _mock.go
+_string.go
 generated/
 mocks/
 vendor/

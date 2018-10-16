@@ -26,10 +26,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3metrics/aggregation"
-	"github.com/m3db/m3metrics/metadata"
-	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3metrics/rules"
+	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/metadata"
+	"github.com/m3db/m3/src/metrics/policy"
+	"github.com/m3db/m3/src/metrics/rules"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"

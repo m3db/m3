@@ -20,13 +20,13 @@
 
 syntax = "proto3";
 
-option go_package = "github.com/m3db/m3metrics/generated/proto/metricpb";
+option go_package = "github.com/m3db/m3/src/metrics/generated/proto/metricpb";
 
 package metricpb;
 
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
-import "github.com/m3db/m3metrics/generated/proto/metricpb/metric.proto";
-import "github.com/m3db/m3metrics/generated/proto/metricpb/metadata.proto";
+import "github.com/m3db/m3/src/metrics/generated/proto/metricpb/metric.proto";
+import "github.com/m3db/m3/src/metrics/generated/proto/metricpb/metadata.proto";
 
 message CounterWithMetadatas {
   Counter counter = 1 [(gogoproto.nullable) = false];

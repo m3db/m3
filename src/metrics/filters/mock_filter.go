@@ -23,7 +23,7 @@ package filters
 import (
 	"strings"
 
-	"github.com/m3db/m3metrics/metric/id"
+	"github.com/m3db/m3/src/metrics/metric/id"
 )
 
 const (

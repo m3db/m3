@@ -20,7 +20,7 @@
 
 package changes
 
-import "github.com/m3db/m3metrics/rules/view"
+import "github.com/m3db/m3/src/metrics/rules/view"
 
 // RollupRuleChange is a rollup rule diff.
 type RollupRuleChange struct {

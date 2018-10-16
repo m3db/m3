@@ -30,9 +30,9 @@ import (
 
 	"github.com/m3db/m3/src/aggregator/aggregator/handler"
 	"github.com/m3db/m3/src/aggregator/aggregator/handler/writer"
-	"github.com/m3db/m3metrics/metric/aggregated"
-	metricid "github.com/m3db/m3metrics/metric/id"
-	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3/src/metrics/metric/aggregated"
+	metricid "github.com/m3db/m3/src/metrics/metric/id"
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/log"
 

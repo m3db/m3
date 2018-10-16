@@ -29,7 +29,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3metrics/rules"
+	"github.com/m3db/m3/src/metrics/rules"
 	"github.com/m3db/m3x/clock"
 
 	"github.com/stretchr/testify/require"

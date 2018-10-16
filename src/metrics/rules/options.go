@@ -21,8 +21,8 @@
 package rules
 
 import (
-	"github.com/m3db/m3metrics/filters"
-	"github.com/m3db/m3metrics/metric/id"
+	"github.com/m3db/m3/src/metrics/filters"
+	"github.com/m3db/m3/src/metrics/metric/id"
 )
 
 // Options provide a set of options for rule matching.

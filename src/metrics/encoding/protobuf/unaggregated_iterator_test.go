@@ -26,9 +26,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/m3db/m3metrics/encoding"
-	"github.com/m3db/m3metrics/metric/aggregated"
-	"github.com/m3db/m3metrics/metric/unaggregated"
+	"github.com/m3db/m3/src/metrics/encoding"
+	"github.com/m3db/m3/src/metrics/metric/aggregated"
+	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"

@@ -24,7 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/m3db/m3metrics/generated/proto/aggregationpb"
+	"github.com/m3db/m3/src/metrics/generated/proto/aggregationpb"
 )
 
 const (

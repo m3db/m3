@@ -20,7 +20,7 @@
 
 package writer
 
-import "github.com/m3db/m3metrics/metric/aggregated"
+import "github.com/m3db/m3/src/metrics/metric/aggregated"
 
 // Writer writes aggregated metrics alongside their policies.
 type Writer interface {

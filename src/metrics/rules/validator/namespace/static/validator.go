@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/m3db/m3metrics/rules/validator/namespace"
+	"github.com/m3db/m3/src/metrics/rules/validator/namespace"
 )
 
 // ValidationResult is the validation result.
