@@ -30,13 +30,12 @@ import (
 	"github.com/m3db/m3/src/query/storage/mock"
 	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3cluster/kv/mem"
-	"github.com/m3db/m3ctl/service/r2/store"
-	r2kv "github.com/m3db/m3ctl/service/r2/store/kv"
 	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/generated/proto/rulepb"
 	"github.com/m3db/m3metrics/matcher"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3metrics/rules"
 	ruleskv "github.com/m3db/m3metrics/rules/store/kv"
 	"github.com/m3db/m3metrics/rules/view"
 	"github.com/m3db/m3x/clock"
@@ -74,7 +73,9 @@ func TestDownsamplerAggregationWithRulesStore(t *testing.T) {
 	rulesStore := testDownsampler.rulesStore
 
 	// Create rules
-	_, err := rulesStore.CreateNamespace("default", store.NewUpdateOptions())
+	nss, err := rulesStore.ReadNamespaces()
+	require.NoError(t, err)
+	_, err = nss.AddNamespace("default", testUpdateMetadata())
 	require.NoError(t, err)
 
 	rule := view.MappingRule{
@@ -84,8 +85,12 @@ func TestDownsamplerAggregationWithRulesStore(t *testing.T) {
 		AggregationID:   aggregation.MustCompressTypes(testAggregationType),
 		StoragePolicies: testAggregationStoragePolicies,
 	}
-	_, err = rulesStore.CreateMappingRule("default", rule,
-		store.NewUpdateOptions())
+
+	rs := rules.NewEmptyRuleSet("default", testUpdateMetadata())
+	_, err = rs.AddMappingRule(rule, testUpdateMetadata())
+	require.NoError(t, err)
+
+	err = rulesStore.WriteAll(nss, rs)
 	require.NoError(t, err)
 
 	logger := testDownsampler.instrumentOpts.Logger().
@@ -219,7 +224,7 @@ type testDownsampler struct {
 	downsampler    Downsampler
 	matcher        matcher.Matcher
 	storage        mock.Storage
-	rulesStore     store.Store
+	rulesStore     rules.Store
 	instrumentOpts instrument.Options
 }
 
@@ -250,13 +255,9 @@ func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampl
 	require.NoError(t, err)
 
 	rulesetKeyFmt := matcherOpts.RuleSetKeyFn()([]byte("%s"))
-	rulesStorageOpts := ruleskv.NewStoreOptions(matcherOpts.NamespacesKey(),
+	rulesStoreOpts := ruleskv.NewStoreOptions(matcherOpts.NamespacesKey(),
 		rulesetKeyFmt, nil)
-	rulesStorage := ruleskv.NewStore(rulesKVStore, rulesStorageOpts)
-
-	storeOpts := r2kv.NewStoreOptions().
-		SetRuleUpdatePropagationDelay(0)
-	rulesStore := r2kv.NewStore(rulesStorage, storeOpts)
+	rulesStore := ruleskv.NewStore(rulesKVStore, rulesStoreOpts)
 
 	tagEncoderOptions := serialize.NewTagEncoderOptions()
 	tagDecoderOptions := serialize.NewTagDecoderOptions()
@@ -336,4 +337,8 @@ func mustFindWrite(t *testing.T, writes []*storage.WriteQuery, name string) *sto
 
 	require.NotNil(t, write)
 	return write
+}
+
+func testUpdateMetadata() rules.UpdateMetadata {
+	return rules.NewRuleSetUpdateHelper(0).NewUpdateMetadata(time.Now().UnixNano(), "test")
 }
