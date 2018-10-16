@@ -68,7 +68,7 @@ func TestCleanupManagerCleanup(t *testing.T) {
 	}
 	db := newMockdatabase(ctrl, namespaces...)
 	db.EXPECT().GetOwnedNamespaces().Return(namespaces, nil).AnyTimes()
-	mgr := newCleanupManager(db, tally.NoopScope).(*cleanupManager)
+	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
 	mgr.opts = mgr.opts.SetCommitLogOptions(
 		mgr.opts.CommitLogOptions().
 			SetBlockSize(rOpts.BlockSize()))
@@ -116,7 +116,7 @@ func TestCleanupManagerNamespaceCleanup(t *testing.T) {
 	db := newMockdatabase(ctrl, ns)
 	db.EXPECT().GetOwnedNamespaces().Return(nses, nil).AnyTimes()
 
-	mgr := newCleanupManager(db, tally.NoopScope).(*cleanupManager)
+	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
 	idx.EXPECT().CleanupExpiredFileSets(ts).Return(nil)
 	require.NoError(t, mgr.Cleanup(ts))
 }
@@ -140,7 +140,7 @@ func TestCleanupManagerDoesntNeedCleanup(t *testing.T) {
 	}
 	db := newMockdatabase(ctrl, namespaces...)
 	db.EXPECT().GetOwnedNamespaces().Return(namespaces, nil).AnyTimes()
-	mgr := newCleanupManager(db, tally.NoopScope).(*cleanupManager)
+	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
 	mgr.opts = mgr.opts.SetCommitLogOptions(
 		mgr.opts.CommitLogOptions().
 			SetBlockSize(rOpts.BlockSize()))
@@ -175,7 +175,7 @@ func TestCleanupDataAndSnapshotFileSetFiles(t *testing.T) {
 
 	db := newMockdatabase(ctrl, namespaces...)
 	db.EXPECT().GetOwnedNamespaces().Return(namespaces, nil).AnyTimes()
-	mgr := newCleanupManager(db, tally.NoopScope).(*cleanupManager)
+	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
 
 	require.NoError(t, mgr.Cleanup(ts))
 }
@@ -204,7 +204,7 @@ func TestDeleteInactiveDataAndSnapshotFileSetFiles(t *testing.T) {
 
 	db := newMockdatabase(ctrl, namespaces...)
 	db.EXPECT().GetOwnedNamespaces().Return(namespaces, nil).AnyTimes()
-	mgr := newCleanupManager(db, tally.NoopScope).(*cleanupManager)
+	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
 
 	deleteInactiveDirectoriesCalls := []deleteInactiveDirectoriesCall{}
 	deleteInactiveDirectoriesFn := func(parentDirPath string, activeDirNames []string) error {
@@ -257,7 +257,7 @@ func TestCleanupManagerPropagatesGetOwnedNamespacesError(t *testing.T) {
 	db.EXPECT().Terminate().Return(nil)
 	db.EXPECT().GetOwnedNamespaces().Return(nil, errDatabaseIsClosed).AnyTimes()
 
-	mgr := newCleanupManager(db, tally.NoopScope).(*cleanupManager)
+	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
 	require.NoError(t, db.Open())
 	require.NoError(t, db.Terminate())
 
@@ -436,7 +436,7 @@ func newCleanupManagerCommitLogTimesTest(t *testing.T, ctrl *gomock.Controller) 
 	ns.EXPECT().Options().Return(no).AnyTimes()
 
 	db := newMockdatabase(ctrl, ns)
-	mgr := newCleanupManager(db, tally.NoopScope).(*cleanupManager)
+	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
 
 	mgr.opts = mgr.opts.SetCommitLogOptions(
 		mgr.opts.CommitLogOptions().
@@ -465,7 +465,7 @@ func newCleanupManagerCommitLogTimesTestMultiNS(
 	ns2.EXPECT().Options().Return(no).AnyTimes()
 
 	db := newMockdatabase(ctrl, ns1, ns2)
-	mgr := newCleanupManager(db, tally.NoopScope).(*cleanupManager)
+	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
 
 	mgr.opts = mgr.opts.SetCommitLogOptions(
 		mgr.opts.CommitLogOptions().
@@ -743,4 +743,22 @@ func TestCleanupManagerDeletesCorruptCommitLogFiles(t *testing.T) {
 	filesToCleanup, err := mgr.commitLogTimes(currentTime)
 	require.NoError(t, err)
 	require.True(t, containsCorrupt(filesToCleanup, path))
+}
+
+type fakeActiveLogs struct {
+	activeLogs []commitlog.File
+}
+
+func (f fakeActiveLogs) ActiveLogs() ([]commitlog.File, error) {
+	return f.activeLogs, nil
+}
+
+func newNoopFakeActiveLogs() fakeActiveLogs {
+	return newFakeActiveLogs(nil)
+}
+
+func newFakeActiveLogs(activeLogs []commitlog.File) fakeActiveLogs {
+	return fakeActiveLogs{
+		activeLogs: activeLogs,
+	}
 }

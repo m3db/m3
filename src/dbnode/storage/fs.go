@@ -70,13 +70,13 @@ type fileSystemManager struct {
 
 func newFileSystemManager(
 	database database,
-	commitlog commitlog.CommitLog,
+	commitLog commitlog.CommitLog,
 	opts Options,
 ) databaseFileSystemManager {
 	instrumentOpts := opts.InstrumentOptions()
 	scope := instrumentOpts.MetricsScope().SubScope("fs")
 	fm := newFlushManager(database, scope)
-	cm := newCleanupManager(database, scope)
+	cm := newCleanupManager(database, commitLog, scope)
 
 	return &fileSystemManager{
 		databaseFlushManager:   fm,
