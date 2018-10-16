@@ -25,8 +25,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/services/leader/campaign"
+	"github.com/m3db/m3/src/cluster/services"
+	"github.com/m3db/m3/src/cluster/services/leader/campaign"
 )
 
 // localLeaderService provides a mocked out local leader service so that

@@ -25,9 +25,10 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/m3db/m3/src/cluster/services"
+	"github.com/m3db/m3/src/cluster/services/leader/campaign"
+
 	"github.com/coreos/etcd/clientv3"
-	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/services/leader/campaign"
 )
 
 const (

@@ -23,11 +23,11 @@ package services
 import (
 	"time"
 
-	"github.com/m3db/m3cluster/generated/proto/metadatapb"
-	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3cluster/services/leader/campaign"
-	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3/src/cluster/generated/proto/metadatapb"
+	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/services/leader/campaign"
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3x/instrument"
 	xwatch "github.com/m3db/m3x/watch"
 )

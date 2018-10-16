@@ -26,8 +26,8 @@ import (
 	"time"
 
 	schema "github.com/m3db/m3/src/aggregator/generated/proto/flush"
-	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3cluster/kv/mem"
+	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/kv/mem"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"

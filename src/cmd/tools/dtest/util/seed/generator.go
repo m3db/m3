@@ -25,9 +25,9 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/sharding"
-	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
 )

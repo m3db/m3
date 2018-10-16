@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
@@ -38,7 +39,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
-	"github.com/m3db/m3cluster/shard"
 	xclock "github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"

@@ -21,8 +21,8 @@
 package client
 
 import (
-	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/services"
 )
 
 // Client is the base interface into the cluster management system, providing

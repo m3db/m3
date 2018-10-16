@@ -25,10 +25,10 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/m3em/build"
 	"github.com/m3db/m3/src/m3em/node"
-	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3cluster/shard"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"

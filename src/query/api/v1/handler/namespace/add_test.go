@@ -27,7 +27,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/m3db/m3cluster/kv"
+	"github.com/m3db/m3/src/cluster/kv"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"

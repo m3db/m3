@@ -28,12 +28,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
+	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3cluster/client"
-	"github.com/m3db/m3cluster/generated/proto/placementpb"
-	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3cluster/services"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"

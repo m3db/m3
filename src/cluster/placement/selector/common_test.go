@@ -23,8 +23,8 @@ package selector
 import (
 	"testing"
 
-	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/shard"
 
 	"github.com/stretchr/testify/require"
 )

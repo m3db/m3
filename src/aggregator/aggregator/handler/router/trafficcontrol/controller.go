@@ -23,8 +23,8 @@ package trafficcontrol
 import (
 	"time"
 
-	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3cluster/kv/util"
+	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/kv/util"
 	"github.com/m3db/m3x/watch"
 
 	"go.uber.org/atomic"

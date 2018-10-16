@@ -27,6 +27,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
@@ -35,8 +37,6 @@ import (
 	"github.com/m3db/m3/src/metrics/pipeline"
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
-	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	xtime "github.com/m3db/m3x/time"

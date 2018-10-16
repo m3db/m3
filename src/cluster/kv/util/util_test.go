@@ -24,11 +24,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3cluster/generated/proto/commonpb"
-	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3cluster/kv/mem"
+	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
+	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/kv/mem"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -67,8 +66,8 @@ func TestBoolFromValue(t *testing.T) {
 			require.Error(t, err)
 			continue
 		}
-		assert.NoError(t, err)
-		assert.Equal(t, test.expectedVal, v)
+		require.NoError(t, err)
+		require.Equal(t, test.expectedVal, v)
 	}
 
 	// Invalid updates should return an error.
@@ -76,7 +75,7 @@ func TestBoolFromValue(t *testing.T) {
 	_, err := BoolFromValue(
 		mem.NewValue(0, &commonpb.BoolProto{Value: false}), "key", defaultValue, opts,
 	)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestFloat64FromValue(t *testing.T) {
@@ -111,11 +110,11 @@ func TestFloat64FromValue(t *testing.T) {
 	for _, test := range tests {
 		v, err := Float64FromValue(test.input, "key", defaultValue, nil)
 		if test.expectedErr {
-			assert.Error(t, err)
+			require.Error(t, err)
 			continue
 		}
-		assert.NoError(t, err)
-		assert.Equal(t, test.expectedVal, v)
+		require.NoError(t, err)
+		require.Equal(t, test.expectedVal, v)
 	}
 
 	// Invalid updates should return an error.
@@ -123,7 +122,7 @@ func TestFloat64FromValue(t *testing.T) {
 	_, err := Float64FromValue(
 		mem.NewValue(0, &commonpb.Float64Proto{Value: 1.24}), "key", defaultValue, opts,
 	)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestInt64FromValue(t *testing.T) {
@@ -158,11 +157,11 @@ func TestInt64FromValue(t *testing.T) {
 	for _, test := range tests {
 		v, err := Int64FromValue(test.input, "key", defaultValue, nil)
 		if test.expectedErr {
-			assert.Error(t, err)
+			require.Error(t, err)
 			continue
 		}
-		assert.NoError(t, err)
-		assert.Equal(t, test.expectedVal, v)
+		require.NoError(t, err)
+		require.Equal(t, test.expectedVal, v)
 	}
 
 	// Invalid updates should return an error.
@@ -170,7 +169,7 @@ func TestInt64FromValue(t *testing.T) {
 	_, err := Int64FromValue(
 		mem.NewValue(0, &commonpb.Int64Proto{Value: 22}), "key", defaultValue, opts,
 	)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestTimeFromValue(t *testing.T) {
@@ -209,11 +208,11 @@ func TestTimeFromValue(t *testing.T) {
 	for _, test := range tests {
 		v, err := TimeFromValue(test.input, "key", defaultValue, nil)
 		if test.expectedErr {
-			assert.Error(t, err)
+			require.Error(t, err)
 			continue
 		}
-		assert.NoError(t, err)
-		assert.Equal(t, test.expectedVal.Unix(), v.Unix())
+		require.NoError(t, err)
+		require.Equal(t, test.expectedVal.Unix(), v.Unix())
 	}
 
 	// Invalid updates should return an error.
@@ -224,7 +223,7 @@ func TestTimeFromValue(t *testing.T) {
 		defaultValue,
 		opts,
 	)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestStringFromValue(t *testing.T) {
@@ -259,11 +258,11 @@ func TestStringFromValue(t *testing.T) {
 	for _, test := range tests {
 		v, err := StringFromValue(test.input, "key", defaultValue, nil)
 		if test.expectedErr {
-			assert.Error(t, err)
+			require.Error(t, err)
 			continue
 		}
-		assert.NoError(t, err)
-		assert.Equal(t, test.expectedVal, v)
+		require.NoError(t, err)
+		require.Equal(t, test.expectedVal, v)
 	}
 
 	// Invalid updates should return an error.
@@ -271,7 +270,7 @@ func TestStringFromValue(t *testing.T) {
 	_, err := StringFromValue(
 		mem.NewValue(0, &commonpb.StringProto{Value: "abc"}), "key", defaultValue, opts,
 	)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestStringArrayFromValue(t *testing.T) {
@@ -306,11 +305,11 @@ func TestStringArrayFromValue(t *testing.T) {
 	for _, test := range tests {
 		v, err := StringArrayFromValue(test.input, "key", defaultValue, nil)
 		if test.expectedErr {
-			assert.Error(t, err)
+			require.Error(t, err)
 			continue
 		}
-		assert.NoError(t, err)
-		assert.Equal(t, test.expectedVal, v)
+		require.NoError(t, err)
+		require.Equal(t, test.expectedVal, v)
 	}
 
 	// Invalid updates should return an error.
@@ -318,5 +317,5 @@ func TestStringArrayFromValue(t *testing.T) {
 	_, err := StringArrayFromValue(
 		mem.NewValue(0, &commonpb.StringArrayProto{Values: []string{"abc"}}), "key", defaultValue, opts,
 	)
-	assert.Error(t, err)
+	require.Error(t, err)
 }

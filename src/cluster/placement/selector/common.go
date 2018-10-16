@@ -23,7 +23,7 @@ package selector
 import (
 	"errors"
 
-	"github.com/m3db/m3cluster/placement"
+	"github.com/m3db/m3/src/cluster/placement"
 )
 
 var (

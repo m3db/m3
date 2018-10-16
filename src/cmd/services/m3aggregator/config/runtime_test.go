@@ -26,10 +26,10 @@ import (
 
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	"github.com/m3db/m3/src/aggregator/runtime"
-	"github.com/m3db/m3cluster/client"
-	"github.com/m3db/m3cluster/generated/proto/commonpb"
-	"github.com/m3db/m3cluster/kv/mem"
-	"github.com/m3db/m3cluster/placement"
+	"github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
+	"github.com/m3db/m3/src/cluster/kv/mem"
+	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3x/log"
 
 	"github.com/golang/mock/gomock"

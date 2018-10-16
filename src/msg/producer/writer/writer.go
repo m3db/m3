@@ -25,9 +25,9 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/msg/topic"
-	"github.com/m3db/m3cluster/services"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/watch"

@@ -24,8 +24,8 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3x/clock"
 
 	"github.com/uber-go/tally"

@@ -25,13 +25,13 @@ import (
 	"io/ioutil"
 	"time"
 
+	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
+	"github.com/m3db/m3/src/cluster/placement"
 	m3emnode "github.com/m3db/m3/src/dbnode/x/m3em/node"
 	"github.com/m3db/m3/src/m3em/cluster"
 	"github.com/m3db/m3/src/m3em/generated/proto/m3em"
 	"github.com/m3db/m3/src/m3em/node"
 	"github.com/m3db/m3/src/m3em/x/grpc"
-	etcdclient "github.com/m3db/m3cluster/client/etcd"
-	"github.com/m3db/m3cluster/placement"
 	xconfig "github.com/m3db/m3x/config"
 	xlog "github.com/m3db/m3x/log"
 

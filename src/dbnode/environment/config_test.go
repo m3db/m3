@@ -24,11 +24,11 @@ import (
 	"testing"
 	"time"
 
+	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
+	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
-	etcdclient "github.com/m3db/m3cluster/client/etcd"
-	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3x/instrument"
 
 	"github.com/stretchr/testify/assert"

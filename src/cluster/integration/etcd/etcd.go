@@ -29,9 +29,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m3db/m3cluster/client"
-	etcdclient "github.com/m3db/m3cluster/client/etcd"
-	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3/src/cluster/client"
+	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
+	"github.com/m3db/m3/src/cluster/services"
 	xclock "github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/errors"
 

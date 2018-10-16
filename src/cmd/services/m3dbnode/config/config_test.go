@@ -535,11 +535,7 @@ db:
         - 1.1.1.1:2379
         - 1.1.1.2:2379
         - 1.1.1.3:2379
-        keepAlive:
-          enabled: false
-          period: 0s
-          jitter: 0s
-          timeout: 0s
+        keepAlive: null
         tls: null
       m3sd:
         initTimeout: null

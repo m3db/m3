@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
 	"github.com/m3db/m3/src/metrics/matcher"
@@ -37,7 +38,6 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/mock"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"

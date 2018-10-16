@@ -26,12 +26,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/shard"
 	m3dbruntime "github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
 	tu "github.com/m3db/m3/src/dbnode/topology/testutil"
-	"github.com/m3db/m3cluster/shard"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"

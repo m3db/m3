@@ -21,9 +21,9 @@
 package topic
 
 import (
-	"github.com/m3db/m3cluster/client"
-	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/services"
 )
 
 // Topic defines the topic of messages.

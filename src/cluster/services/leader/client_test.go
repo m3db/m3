@@ -26,9 +26,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/services/leader/campaign"
-	"github.com/m3db/m3cluster/services/leader/election"
+	"github.com/m3db/m3/src/cluster/services"
+	"github.com/m3db/m3/src/cluster/services/leader/campaign"
+	"github.com/m3db/m3/src/cluster/services/leader/election"
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/integration"

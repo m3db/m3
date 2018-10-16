@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -35,7 +36,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"

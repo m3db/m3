@@ -23,7 +23,7 @@ package leader
 import (
 	"errors"
 
-	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3/src/cluster/services"
 )
 
 var (

@@ -25,8 +25,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
-	"github.com/m3db/m3cluster/kv"
 	xlog "github.com/m3db/m3x/log"
 	xwatch "github.com/m3db/m3x/watch"
 

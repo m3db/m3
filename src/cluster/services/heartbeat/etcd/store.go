@@ -27,17 +27,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/m3db/m3cluster/etcd/watchmanager"
-	"github.com/m3db/m3cluster/generated/proto/placementpb"
-	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3/src/cluster/etcd/watchmanager"
+	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
+	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/retry"
 	"github.com/m3db/m3x/watch"
 
 	"github.com/coreos/etcd/clientv3"
+	"github.com/golang/protobuf/proto"
 	"github.com/uber-go/tally"
 	"golang.org/x/net/context"
 )

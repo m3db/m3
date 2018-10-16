@@ -24,7 +24,7 @@ import (
 	"errors"
 	"math"
 
-	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3x/ident"
 
 	"github.com/spaolacci/murmur3"

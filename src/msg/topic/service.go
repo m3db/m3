@@ -23,7 +23,7 @@ package topic
 import (
 	"errors"
 
-	"github.com/m3db/m3cluster/kv"
+	"github.com/m3db/m3/src/cluster/kv"
 )
 
 var (

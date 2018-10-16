@@ -25,13 +25,13 @@ import (
 	"fmt"
 	"net/http"
 
+	clusterclient "github.com/m3db/m3/src/cluster/client"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/net/http"
-	clusterclient "github.com/m3db/m3cluster/client"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"go.uber.org/zap"

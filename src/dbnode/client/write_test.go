@@ -25,9 +25,9 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/m3db/m3/src/cluster/shard"
 	tterrors "github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3cluster/shard"
 	xerrors "github.com/m3db/m3x/errors"
 
 	"github.com/golang/mock/gomock"

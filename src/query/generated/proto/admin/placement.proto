@@ -2,7 +2,7 @@
 syntax = "proto3";
 package admin;
 
-import "github.com/m3db/m3cluster/generated/proto/placementpb/placement.proto";
+import "github.com/m3db/m3/src/cluster/generated/proto/placementpb/placement.proto";
 
 message PlacementInitRequest {
   repeated placementpb.Instance instances = 1;

@@ -24,10 +24,10 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/m3db/m3cluster/client"
-	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/services"
 	xwatch "github.com/m3db/m3x/watch"
 
 	"github.com/golang/protobuf/proto"

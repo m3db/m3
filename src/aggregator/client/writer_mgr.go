@@ -25,7 +25,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/m3db/m3cluster/placement"
+	"github.com/m3db/m3/src/cluster/placement"
 	xerrors "github.com/m3db/m3x/errors"
 
 	"github.com/uber-go/tally"

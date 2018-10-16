@@ -24,9 +24,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3cluster/mocks"
-	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3/src/cluster/mocks"
+	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/services"
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/integration"

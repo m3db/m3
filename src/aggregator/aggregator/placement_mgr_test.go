@@ -24,9 +24,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3cluster/generated/proto/placementpb"
-	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3cluster/placement"
+	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
+	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/placement"
 
 	"github.com/stretchr/testify/require"
 )

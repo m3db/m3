@@ -23,8 +23,8 @@ package etcd
 import (
 	"time"
 
-	"github.com/m3db/m3cluster/client"
-	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3x/instrument"
 )
 

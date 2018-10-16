@@ -1,8 +1,0 @@
-steps:
-  - name: Unit
-    command: ./.buildkite/test.sh
-    plugins:
-      docker-compose#v2.5.1:
-        run: app
-        config: .buildkite/docker-compose.yml
-        workdir: /go/src/github.com/m3db/m3cluster

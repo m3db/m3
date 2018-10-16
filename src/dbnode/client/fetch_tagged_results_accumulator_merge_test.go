@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/network/server/tchannelthrift/convert"
@@ -32,7 +33,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology/testutil"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
-	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 

@@ -15,13 +15,6 @@ import:
       - watch
       - ident
 
-  - package: github.com/m3db/m3cluster
-    version: b3db8dcb85c34fbd02a7721f6c0639d6e96c6fbe
-    subpackages:
-      - client
-      - services
-      - integration/etcd
-
   - package: github.com/m3db/bitset
     version: 07973db6b78acb62ac207d0538055e874b49d90d
 

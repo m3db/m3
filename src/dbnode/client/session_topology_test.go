@@ -25,10 +25,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/services"
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/integration/fake"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/shard"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"

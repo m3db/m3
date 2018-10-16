@@ -25,11 +25,11 @@ import (
 	"path"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/net/http"
-	"github.com/m3db/m3cluster/placement"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"go.uber.org/zap"

@@ -23,8 +23,8 @@ package integration
 import (
 	"testing"
 
-	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/services/leader"
+	"github.com/m3db/m3/src/cluster/services"
+	"github.com/m3db/m3/src/cluster/services/leader"
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/integration"

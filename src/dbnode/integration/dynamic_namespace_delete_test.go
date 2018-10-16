@@ -26,10 +26,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/integration/etcd"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
-	"github.com/m3db/m3cluster/integration/etcd"
 	"github.com/m3db/m3x/instrument"
 	xtime "github.com/m3db/m3x/time"
 
