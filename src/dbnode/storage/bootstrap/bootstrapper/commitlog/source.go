@@ -47,7 +47,6 @@ import (
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
-
 	"github.com/uber-go/tally"
 )
 
@@ -74,66 +73,6 @@ type commitLogSource struct {
 	newReaderFn     newReaderFn
 
 	metrics commitLogSourceDataAndIndexMetrics
-}
-
-type commitLogSourceDataAndIndexMetrics struct {
-	data  commitLogSourceMetrics
-	index commitLogSourceMetrics
-}
-
-func newCommitLogSourceDataAndIndexMetrics(scope tally.Scope) commitLogSourceDataAndIndexMetrics {
-	return commitLogSourceDataAndIndexMetrics{
-		data:  newCommitLogSourceMetrics(scope),
-		index: newCommitLogSourceMetrics(scope),
-	}
-}
-
-type commitLogSourceMetrics struct {
-	corruptCommitlogFile          tally.Counter
-	readingSnapshots              tally.Gauge
-	readingCommitlogs             tally.Gauge
-	mergingSnapshotsAndCommitlogs tally.Gauge
-}
-
-func (m commitLogSourceMetrics) emitReadingSnapshots() func() {
-	return m.gaugeLoop(m.readingSnapshots)
-}
-
-func (m commitLogSourceMetrics) emitReadingCommitlogs() func() {
-	return m.gaugeLoop(m.readingCommitlogs)
-}
-
-func (m commitLogSourceMetrics) emitMergingSnapshotsAndCommitlogs() func() {
-	return m.gaugeLoop(m.mergingSnapshotsAndCommitlogs)
-}
-
-func (m commitLogSourceMetrics) gaugeLoop(g tally.Gauge) func() {
-	doneCh := make(chan struct{})
-	go func() {
-		for {
-			select {
-			case <-doneCh:
-				g.Update(0)
-				return
-			default:
-				g.Update(1)
-				time.Sleep(time.Second)
-			}
-		}
-	}()
-
-	return func() { close(doneCh) }
-}
-
-func newCommitLogSourceMetrics(scope tally.Scope) commitLogSourceMetrics {
-	statusScope := scope.SubScope("status")
-	clScope := scope.SubScope("commitlog")
-	return commitLogSourceMetrics{
-		corruptCommitlogFile:          clScope.Counter("corrupt"),
-		readingSnapshots:              statusScope.Gauge("reading-snapshots"),
-		readingCommitlogs:             statusScope.Gauge("reading-commitlogs"),
-		mergingSnapshotsAndCommitlogs: statusScope.Gauge("merging-snapshots-and-commitlogs"),
-	}
 }
 
 type encoder struct {
@@ -1744,5 +1683,71 @@ func newIOReadersFromEncodersAndBlock(
 func (ir ioReaders) close() {
 	for _, r := range ir {
 		r.(xio.SegmentReader).Finalize()
+	}
+}
+
+type commitLogSourceDataAndIndexMetrics struct {
+	data  commitLogSourceMetrics
+	index commitLogSourceMetrics
+}
+
+func newCommitLogSourceDataAndIndexMetrics(scope tally.Scope) commitLogSourceDataAndIndexMetrics {
+	return commitLogSourceDataAndIndexMetrics{
+		data: newCommitLogSourceMetrics(scope.Tagged(map[string]string{
+			"source_type": "data",
+		})),
+		index: newCommitLogSourceMetrics(scope.Tagged(map[string]string{
+			"source_type": "index",
+		})),
+	}
+}
+
+type commitLogSourceMetrics struct {
+	corruptCommitlogFile          tally.Counter
+	readingSnapshots              tally.Gauge
+	readingCommitlogs             tally.Gauge
+	mergingSnapshotsAndCommitlogs tally.Gauge
+}
+
+func (m commitLogSourceMetrics) emitReadingSnapshots() gaugeLoopCloserFn {
+	return m.gaugeLoop(m.readingSnapshots)
+}
+
+func (m commitLogSourceMetrics) emitReadingCommitlogs() gaugeLoopCloserFn {
+	return m.gaugeLoop(m.readingCommitlogs)
+}
+
+func (m commitLogSourceMetrics) emitMergingSnapshotsAndCommitlogs() gaugeLoopCloserFn {
+	return m.gaugeLoop(m.mergingSnapshotsAndCommitlogs)
+}
+
+type gaugeLoopCloserFn func()
+
+func (m commitLogSourceMetrics) gaugeLoop(g tally.Gauge) gaugeLoopCloserFn {
+	doneCh := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-doneCh:
+				g.Update(0)
+				return
+			default:
+				g.Update(1)
+				time.Sleep(time.Second)
+			}
+		}
+	}()
+
+	return func() { close(doneCh) }
+}
+
+func newCommitLogSourceMetrics(scope tally.Scope) commitLogSourceMetrics {
+	statusScope := scope.SubScope("status")
+	clScope := scope.SubScope("commitlog")
+	return commitLogSourceMetrics{
+		corruptCommitlogFile:          clScope.Counter("corrupt"),
+		readingSnapshots:              statusScope.Gauge("reading-snapshots"),
+		readingCommitlogs:             statusScope.Gauge("reading-commitlogs"),
+		mergingSnapshotsAndCommitlogs: statusScope.Gauge("merging-snapshots-and-commitlogs"),
 	}
 }
