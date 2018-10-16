@@ -41,8 +41,6 @@ var (
 
 	errCommitLogClosed = errors.New("commit log is closed")
 
-	errCommitLogAlreadyOpen = errors.New("commit log is already open")
-
 	timeZero = time.Time{}
 )
 
