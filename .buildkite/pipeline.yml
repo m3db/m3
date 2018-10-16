@@ -3,7 +3,7 @@ common: &common
     queue: monorepo
   retry:
     # Automatically retry failures one time.
-    automatic: true
+    automatic:
       limit: 1
     # Allow manual retries.
     manual: true
