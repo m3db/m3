@@ -110,13 +110,12 @@ func createTestCommitLogFiles(
 	}
 	// Commit log writer is asynchronous and performs batching so getting the exact number
 	// of files that we want is tricky. The implementation below loops infinitely, writing
-	// a single datapoint and increasing the time after each iteration until numBlocks
-	// files are on disk. After that, it terminates, and the final batch flush from calling
-	// commitlog.Close() will generate the last file.
+	// a single datapoint and increasing the time after each iteration until minNumBlocks
+	// files are on disk.
 	for {
 		files, err := fs.SortedCommitLogFiles(commitLogsDir)
 		require.NoError(t, err)
-		if len(files) == minNumBlocks {
+		if len(files) >= minNumBlocks {
 			break
 		}
 		err = commitLog.Write(context.NewContext(), series, ts.Datapoint{}, xtime.Second, nil)
