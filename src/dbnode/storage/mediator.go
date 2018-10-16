@@ -92,7 +92,7 @@ func newMediator(database database, commitlog commitlog.CommitLog, opts Options)
 		closedCh: make(chan struct{}),
 	}
 
-	fsm := newFileSystemManager(database, opts)
+	fsm := newFileSystemManager(database, commitlog, opts)
 	d.databaseFileSystemManager = fsm
 
 	d.databaseRepairer = newNoopDatabaseRepairer()
