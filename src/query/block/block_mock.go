@@ -105,6 +105,19 @@ func (mr *MockBlockMockRecorder) Unconsolidated() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Unconsolidated", reflect.TypeOf((*MockBlock)(nil).Unconsolidated))
 }
 
+// WithMetadata mocks base method
+func (m *MockBlock) WithMetadata(arg0 Metadata, arg1 []SeriesMeta) (Block, error) {
+	ret := m.ctrl.Call(m, "WithMetadata", arg0, arg1)
+	ret0, _ := ret[0].(Block)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// WithMetadata indicates an expected call of WithMetadata
+func (mr *MockBlockMockRecorder) WithMetadata(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WithMetadata", reflect.TypeOf((*MockBlock)(nil).WithMetadata), arg0, arg1)
+}
+
 // MockStepIter is a mock of StepIter interface
 type MockStepIter struct {
 	ctrl     *gomock.Controller

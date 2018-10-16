@@ -54,7 +54,9 @@ func (s *SinkNode) Process(ID parser.NodeID, block block.Block) error {
 		return err
 	}
 
+	anySeries := false
 	for iter.Next() {
+		anySeries = true
 		val, err := iter.Current()
 		if err != nil {
 			return err
@@ -66,6 +68,10 @@ func (s *SinkNode) Process(ID parser.NodeID, block block.Block) error {
 		}
 		s.Values = append(s.Values, values)
 		s.Metas = append(s.Metas, val.Meta)
+	}
+
+	if !anySeries {
+		s.Metas = iter.SeriesMeta()
 	}
 
 	s.Meta = iter.Meta()

@@ -52,6 +52,17 @@ func (b *Scalar) Unconsolidated() (UnconsolidatedBlock, error) {
 	return nil, fmt.Errorf("unconsolidated view not implemented for scalar block, meta: %s", b.meta)
 }
 
+// WithMetadata updates this blocks metadata, and the metadatas for each series.
+func (b *Scalar) WithMetadata(
+	meta Metadata,
+	_ []SeriesMeta,
+) (Block, error) {
+	return &Scalar{
+		meta: meta,
+		s:    b.s,
+	}, nil
+}
+
 // StepIter returns a StepIterator
 func (b *Scalar) StepIter() (StepIter, error) {
 	bounds := b.meta.Bounds

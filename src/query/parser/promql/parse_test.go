@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/query/functions/binary"
 	"github.com/m3db/m3/src/query/functions/linear"
 	"github.com/m3db/m3/src/query/functions/scalar"
+	"github.com/m3db/m3/src/query/functions/tag"
 	"github.com/m3db/m3/src/query/functions/temporal"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
@@ -275,6 +276,34 @@ var temporalParseTests = []struct {
 
 func TestTemporalParses(t *testing.T) {
 	for _, tt := range temporalParseTests {
+		t.Run(tt.q, func(t *testing.T) {
+			q := tt.q
+			p, err := Parse(q, models.NewTagOptions())
+			require.NoError(t, err)
+			transforms, edges, err := p.DAG()
+			require.NoError(t, err)
+			assert.Len(t, transforms, 2)
+			assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
+			assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
+			assert.Equal(t, transforms[1].Op.OpType(), tt.expectedType)
+			assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
+			assert.Len(t, edges, 1)
+			assert.Equal(t, edges[0].ParentID, parser.NodeID("0"))
+			assert.Equal(t, edges[0].ChildID, parser.NodeID("1"))
+		})
+	}
+}
+
+var tagParseTests = []struct {
+	q            string
+	expectedType string
+}{
+	{`label_join(up, "foo", ",", "s1","s2","s4")`, tag.TagJoinType},
+	{`label_replace(up, "foo", "$1", "tagname","(.*):.*")`, tag.TagReplaceType},
+}
+
+func TestTagParses(t *testing.T) {
+	for _, tt := range tagParseTests {
 		t.Run(tt.q, func(t *testing.T) {
 			q := tt.q
 			p, err := Parse(q, models.NewTagOptions())

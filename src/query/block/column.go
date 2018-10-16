@@ -66,6 +66,17 @@ func (c *columnBlock) SeriesIter() (SeriesIter, error) {
 	return newColumnBlockSeriesIter(c.columns, c.meta, c.seriesMeta), nil
 }
 
+func (c *columnBlock) WithMetadata(
+	meta Metadata,
+	seriesMetas []SeriesMeta,
+) (Block, error) {
+	return &columnBlock{
+		columns:    c.columns,
+		meta:       meta,
+		seriesMeta: seriesMetas,
+	}, nil
+}
+
 // TODO: allow series iteration
 // SeriesMeta returns the metadata for each series in the block
 func (c *columnBlock) SeriesMeta() []SeriesMeta {
