@@ -82,8 +82,8 @@ type mediator struct {
 
 func newMediator(database database, commitlog commitlog.CommitLog, opts Options) (databaseMediator, error) {
 	scope := opts.InstrumentOptions().MetricsScope()
-	d := &mediator
-		database:  database,
+	d := &mediator{
+		database: database,
 		opts:     opts,
 		nowFn:    opts.ClockOptions().NowFn(),
 		sleepFn:  time.Sleep,
