@@ -80,14 +80,14 @@ func newCleanupManagerMetrics(scope tally.Scope) cleanupManagerMetrics {
 }
 
 func newCleanupManager(
-	database database, activeLogs activeCommitlogs, scope tally.Scope) databaseCleanupManager {
+	database database, scope tally.Scope) databaseCleanupManager {
 	opts := database.Options()
 	filePathPrefix := opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	commitLogsDir := fs.CommitLogsDirPath(filePathPrefix)
 
 	return &cleanupManager{
-		database:         database,
-		activeCommitlogs: activeLogs,
+		database: database,
+		// activeCommitlogs: activeLogs,
 
 		opts:                        opts,
 		nowFn:                       opts.ClockOptions().NowFn(),
