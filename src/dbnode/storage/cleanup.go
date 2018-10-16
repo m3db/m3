@@ -315,8 +315,18 @@ func (m *cleanupManager) commitLogTimes(t time.Time) ([]commitLogFileWithErrorAn
 	if err != nil {
 		return nil, err
 	}
+	activeCommitlogs, err := m.activeCommitlogs.ActiveLogs()
+	if err != nil {
+		return nil, err
+	}
 
 	shouldCleanupFile := func(f commitlog.File) (bool, error) {
+		if commitlogsContainPath(activeCommitlogs, f.FilePath) {
+			// An active commitlog should never satisfy all of the constraints
+			// for deleting a commitlog, but skip them for posterity.
+			return false, nil
+		}
+
 		for _, ns := range namespaces {
 			var (
 				start                      = f.Start
@@ -377,6 +387,12 @@ func (m *cleanupManager) commitLogTimes(t time.Time) ([]commitLogFileWithErrorAn
 	}
 
 	for _, errorWithPath := range corruptFiles {
+		if commitlogsContainPath(activeCommitlogs, errorWithPath.Path()) {
+			// Skip active commit log files as they may appear corrupt due to the
+			// header info not being written out yet.
+			continue
+		}
+
 		m.metrics.corruptCommitlogFile.Inc(1)
 		// If we were unable to read the commit log files info header, then we're forced to assume
 		// that the file is corrupt and remove it. This can happen in situations where M3DB experiences
@@ -384,11 +400,8 @@ func (m *cleanupManager) commitLogTimes(t time.Time) ([]commitLogFileWithErrorAn
 		m.opts.InstrumentOptions().Logger().Errorf(
 			"encountered err: %v reading commit log file: %v info during cleanup, marking file for deletion",
 			errorWithPath.Error(), errorWithPath.Path())
-		// TODO(rartoul): Leave this out until we have a way of distinguishing between a corrupt commit
-		// log file and the commit log file that is actively being written to (which may still be missing
-		// the header): https://github.com/m3db/m3/issues/1078
-		// filesToCleanup = append(filesToCleanup, newCommitLogFileWithErrorAndPath(
-		// 	commitlog.File{}, errorWithPath.Path(), err))
+		filesToCleanup = append(filesToCleanup, newCommitLogFileWithErrorAndPath(
+			commitlog.File{}, errorWithPath.Path(), err))
 	}
 
 	return filesToCleanup, nil
@@ -445,4 +458,14 @@ func newCommitLogFileWithErrorAndPath(
 		path: path,
 		err:  err,
 	}
+}
+
+func commitlogsContainPath(commitlogs []commitlog.File, path string) bool {
+	for _, f := range commitlogs {
+		if path == f.FilePath {
+			return true
+		}
+	}
+
+	return false
 }
