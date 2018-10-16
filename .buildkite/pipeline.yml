@@ -22,8 +22,6 @@ steps:
         gopath-checkout#v1.0.1:
           import: github.com/m3db/m3
     <<: *common
-    retry:
-      automatic: true
   - name: "Unit"
     command: make clean install-vendor test-ci-unit
     plugins:
