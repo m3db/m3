@@ -24,7 +24,9 @@
 
 package index
 
-import "github.com/m3db/m3x/ident"
+import (
+	"github.com/m3db/m3x/ident"
+)
 
 // Copyright (c) 2018 Uber Technologies, Inc.
 //

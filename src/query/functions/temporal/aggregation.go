@@ -23,6 +23,7 @@ package temporal
 import (
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/ts"
@@ -96,7 +97,7 @@ type aggNode struct {
 	aggFunc    func([]float64) float64
 }
 
-func (a *aggNode) Process(datapoints ts.Datapoints) float64 {
+func (a *aggNode) Process(datapoints ts.Datapoints, _ time.Time) float64 {
 	return a.aggFunc(datapoints.Values())
 }
 

@@ -8,6 +8,10 @@ coverage:
       default: on
       x:
         flags: x
+      msg:
+        flags: msg
+      metrics:
+        flags: metrics
       aggregator:
         flags: aggregator
       collector:
@@ -59,6 +63,12 @@ coverage:
     x:
       paths:
         - src/x/
+    msg:
+      paths:
+        - src/msg/
+    metrics:
+      paths:
+        - src/metrics/
 
 comment:
   layout: "header, reach, diff, flags, footer"

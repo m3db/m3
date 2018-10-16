@@ -22,15 +22,6 @@ import:
       - services
       - integration/etcd
 
-  - package: github.com/m3db/m3metrics
-    version: 5c6aed344a0c209277d36334f0a824d9f3bb835b
-
-  - package: github.com/m3db/m3ctl
-    version: acc762bfdd42ecb192d34e48fa7ca1fd7ee088ac
-
-  - package: github.com/m3db/m3msg
-    version: bb2c675f58f01d487fc0a64aa6c864bc1cc541c9
-
   - package: github.com/m3db/bitset
     version: 07973db6b78acb62ac207d0538055e874b49d90d
 
@@ -192,6 +183,9 @@ import:
   # END_PROMETHEUS_DEPS
 
   # START_TALLY_PROMETHEUS_DEPS
+  - package: github.com/m3db/prometheus_client_golang
+    version: 8ae269d24972b8695572fa6b2e3718b5ea82d6b4
+
   - package: github.com/m3db/prometheus_client_model
     version: 8b2299a4bf7d7fc10835527021716d4b4a6e8700
 

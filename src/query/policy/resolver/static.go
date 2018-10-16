@@ -24,9 +24,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/tsdb"
-	"github.com/m3db/m3metrics/policy"
 )
 
 type staticResolver struct {

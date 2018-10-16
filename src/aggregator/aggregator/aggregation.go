@@ -22,7 +22,7 @@ package aggregator
 
 import (
 	"github.com/m3db/m3/src/aggregator/aggregation"
-	"github.com/m3db/m3metrics/metric/unaggregated"
+	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 )
 
 // counterAggregation is a counter aggregation.

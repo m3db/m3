@@ -23,7 +23,7 @@ package aggregation
 import (
 	"testing"
 
-	"github.com/m3db/m3metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/aggregation"
 
 	"github.com/stretchr/testify/require"
 )

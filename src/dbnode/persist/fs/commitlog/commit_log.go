@@ -88,13 +88,14 @@ type commitLog struct {
 }
 
 type commitLogMetrics struct {
-	queued      tally.Gauge
-	success     tally.Counter
-	errors      tally.Counter
-	openErrors  tally.Counter
-	closeErrors tally.Counter
-	flushErrors tally.Counter
-	flushDone   tally.Counter
+	queued        tally.Gauge
+	queueCapacity tally.Gauge
+	success       tally.Counter
+	errors        tally.Counter
+	openErrors    tally.Counter
+	closeErrors   tally.Counter
+	flushErrors   tally.Counter
+	flushDone     tally.Counter
 }
 
 type valueType int
@@ -132,13 +133,14 @@ func NewCommitLog(opts Options) (CommitLog, error) {
 		writes:               make(chan commitLogWrite, opts.BacklogQueueSize()),
 		closeErr:             make(chan error),
 		metrics: commitLogMetrics{
-			queued:      scope.Gauge("writes.queued"),
-			success:     scope.Counter("writes.success"),
-			errors:      scope.Counter("writes.errors"),
-			openErrors:  scope.Counter("writes.open-errors"),
-			closeErrors: scope.Counter("writes.close-errors"),
-			flushErrors: scope.Counter("writes.flush-errors"),
-			flushDone:   scope.Counter("writes.flush-done"),
+			queued:        scope.Gauge("writes.queued"),
+			queueCapacity: scope.Gauge("writes.queue-capacity"),
+			success:       scope.Counter("writes.success"),
+			errors:        scope.Counter("writes.errors"),
+			openErrors:    scope.Counter("writes.open-errors"),
+			closeErrors:   scope.Counter("writes.close-errors"),
+			flushErrors:   scope.Counter("writes.flush-errors"),
+			flushDone:     scope.Counter("writes.flush-done"),
 		},
 	}
 
@@ -189,6 +191,7 @@ func (l *commitLog) flushEvery(interval time.Duration) {
 
 	for {
 		l.metrics.queued.Update(float64(len(l.writes)))
+		l.metrics.queueCapacity.Update(float64(cap(l.writes)))
 
 		sleepFor := interval
 

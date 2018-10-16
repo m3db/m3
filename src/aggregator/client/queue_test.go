@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3metrics/encoding/protobuf"
+	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

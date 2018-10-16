@@ -27,9 +27,9 @@ package client
 import (
 	"reflect"
 
-	"github.com/m3db/m3metrics/metadata"
-	"github.com/m3db/m3metrics/metric/aggregated"
-	"github.com/m3db/m3metrics/metric/unaggregated"
+	"github.com/m3db/m3/src/metrics/metadata"
+	"github.com/m3db/m3/src/metrics/metric/aggregated"
+	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 
 	"github.com/golang/mock/gomock"
 )

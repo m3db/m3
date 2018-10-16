@@ -23,13 +23,13 @@ package integration
 import (
 	"time"
 
+	aggclient "github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/collector/integration/server"
 	aggreporter "github.com/m3db/m3/src/collector/reporter/m3aggregator"
-	aggclient "github.com/m3db/m3aggregator/client"
+	"github.com/m3db/m3/src/metrics/matcher"
+	"github.com/m3db/m3/src/metrics/matcher/cache"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/mem"
-	"github.com/m3db/m3metrics/matcher"
-	"github.com/m3db/m3metrics/matcher/cache"
 	"github.com/m3db/m3x/instrument"
 )
 

@@ -22,7 +22,7 @@ package serialize
 
 import (
 	"github.com/m3db/m3/src/dbnode/x/xpool"
-	"github.com/m3db/m3metrics/metric/id"
+	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 )

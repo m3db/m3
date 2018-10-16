@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/instrument"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -282,31 +283,70 @@ func TestTimeAndVolumeIndexFromFileSetFilename(t *testing.T) {
 }
 
 func TestFileExists(t *testing.T) {
-	dir := createTempDir(t)
-	defer os.RemoveAll(dir)
 
-	shard := uint32(10)
-	start := time.Now()
-	shardDir := ShardDataDirPath(dir, testNs1ID, shard)
-	err := os.MkdirAll(shardDir, defaultNewDirectoryMode)
+	var (
+		dir               = createTempDir(t)
+		shard             = uint32(10)
+		start             = time.Now()
+		shardDir          = ShardDataDirPath(dir, testNs1ID, shard)
+		checkpointFileBuf = make([]byte, CheckpointFileSizeBytes)
+		err               = os.MkdirAll(shardDir, defaultNewDirectoryMode)
+	)
+	defer os.RemoveAll(dir)
 	require.NoError(t, err)
 
 	infoFilePath := filesetPathFromTime(shardDir, start, infoFileSuffix)
-	createDataFile(t, shardDir, start, infoFileSuffix, nil)
+	createDataFile(t, shardDir, start, infoFileSuffix, checkpointFileBuf)
 	require.True(t, mustFileExists(t, infoFilePath))
 	exists, err := DataFileSetExistsAt(dir, testNs1ID, uint32(shard), start)
 	require.NoError(t, err)
 	require.False(t, exists)
 
 	checkpointFilePath := filesetPathFromTime(shardDir, start, checkpointFileSuffix)
-	createDataFile(t, shardDir, start, checkpointFileSuffix, nil)
-	require.True(t, mustFileExists(t, checkpointFilePath))
+	createDataFile(t, shardDir, start, checkpointFileSuffix, checkpointFileBuf)
 	exists, err = DataFileSetExistsAt(dir, testNs1ID, uint32(shard), start)
 	require.NoError(t, err)
 	require.True(t, exists)
 
+	exists, err = CompleteCheckpointFileExists(checkpointFilePath)
+	require.NoError(t, err)
+	require.True(t, exists)
+
+	_, err = FileExists(checkpointFilePath)
+	require.Error(t, err)
+
 	os.Remove(infoFilePath)
 	require.False(t, mustFileExists(t, infoFilePath))
+}
+
+func TestCompleteCheckpointFileExists(t *testing.T) {
+	var (
+		dir                = createTempDir(t)
+		shard              = uint32(10)
+		start              = time.Now()
+		shardDir           = ShardDataDirPath(dir, testNs1ID, shard)
+		checkpointFilePath = filesetPathFromTime(shardDir, start, checkpointFileSuffix)
+		err                = os.MkdirAll(shardDir, defaultNewDirectoryMode)
+
+		validCheckpointFileBuf   = make([]byte, CheckpointFileSizeBytes)
+		invalidCheckpointFileBuf = make([]byte, CheckpointFileSizeBytes+1)
+	)
+	defer os.RemoveAll(dir)
+	require.NoError(t, err)
+
+	createDataFile(t, shardDir, start, checkpointFileSuffix, invalidCheckpointFileBuf)
+	exists, err := CompleteCheckpointFileExists(checkpointFilePath)
+	require.NoError(t, err)
+	require.False(t, exists)
+
+	createDataFile(t, shardDir, start, checkpointFileSuffix, validCheckpointFileBuf)
+	exists, err = CompleteCheckpointFileExists(checkpointFilePath)
+	require.NoError(t, err)
+	require.True(t, exists)
+
+	exists, err = CompleteCheckpointFileExists("some-arbitrary-file")
+	require.Contains(t, err.Error(), instrument.InvariantViolatedMetricName)
+	require.False(t, exists)
 }
 
 func TestShardDirPath(t *testing.T) {

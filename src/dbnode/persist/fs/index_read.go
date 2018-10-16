@@ -138,7 +138,7 @@ func (r *indexReader) Open(
 }
 
 func (r *indexReader) readCheckpointFile(filePath string) error {
-	exists, err := FileExists(filePath)
+	exists, err := CompleteCheckpointFileExists(filePath)
 	if err != nil {
 		return err
 	}

@@ -22,9 +22,9 @@ package downsample
 
 import (
 	"github.com/m3db/m3/src/aggregator/aggregator"
-	"github.com/m3db/m3metrics/metadata"
-	"github.com/m3db/m3metrics/metric"
-	"github.com/m3db/m3metrics/metric/unaggregated"
+	"github.com/m3db/m3/src/metrics/metadata"
+	"github.com/m3db/m3/src/metrics/metric"
+	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	xerrors "github.com/m3db/m3x/errors"
 )
 

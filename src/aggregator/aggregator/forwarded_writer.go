@@ -26,10 +26,10 @@ import (
 
 	"github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/aggregator/hash"
-	"github.com/m3db/m3metrics/metadata"
-	"github.com/m3db/m3metrics/metric"
-	"github.com/m3db/m3metrics/metric/aggregated"
-	"github.com/m3db/m3metrics/metric/id"
+	"github.com/m3db/m3/src/metrics/metadata"
+	"github.com/m3db/m3/src/metrics/metric"
+	"github.com/m3db/m3/src/metrics/metric/aggregated"
+	"github.com/m3db/m3/src/metrics/metric/id"
 	xerrors "github.com/m3db/m3x/errors"
 
 	"github.com/uber-go/tally"

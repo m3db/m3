@@ -24,13 +24,13 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/m3db/m3/src/metrics/metric/aggregated"
+	"github.com/m3db/m3/src/metrics/metric/id"
+	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/mock"
 	"github.com/m3db/m3/src/x/serialize"
 	xtest "github.com/m3db/m3/src/x/test"
-	"github.com/m3db/m3metrics/metric/aggregated"
-	"github.com/m3db/m3metrics/metric/id"
-	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/instrument"
 	xsync "github.com/m3db/m3x/sync"
 

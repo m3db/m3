@@ -248,7 +248,7 @@ func (r *reader) Status() DataFileSetReaderStatus {
 }
 
 func (r *reader) readCheckpointFile(filePath string) error {
-	exists, err := FileExists(filePath)
+	exists, err := CompleteCheckpointFileExists(filePath)
 	if err != nil {
 		return err
 	}

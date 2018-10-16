@@ -20,7 +20,7 @@
 
 package sharding
 
-import "github.com/m3db/m3metrics/metric/id"
+import "github.com/m3db/m3/src/metrics/metric/id"
 
 var (
 	// NoShardingSharderID is the sharder id used where no sharding is applicable.

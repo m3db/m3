@@ -41,13 +41,9 @@ var (
 )
 
 func TestScalarBlock(t *testing.T) {
-	block := NewScalar(val, bounds)
+	block := NewScalar(func(_ time.Time) float64 { return val }, bounds)
 
-	if scalar, ok := block.(*Scalar); !ok {
-		require.FailNow(t, "unexpected type for new scalar blocks")
-	} else {
-		assert.Equal(t, val, scalar.Value())
-	}
+	require.IsType(t, block, &Scalar{})
 
 	stepIter, err := block.StepIter()
 	require.NoError(t, err)

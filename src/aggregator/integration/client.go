@@ -25,14 +25,14 @@ import (
 	"net"
 	"time"
 
-	"github.com/m3db/m3metrics/encoding"
-	"github.com/m3db/m3metrics/encoding/msgpack"
-	"github.com/m3db/m3metrics/encoding/protobuf"
-	"github.com/m3db/m3metrics/metadata"
-	"github.com/m3db/m3metrics/metric"
-	"github.com/m3db/m3metrics/metric/aggregated"
-	"github.com/m3db/m3metrics/metric/unaggregated"
-	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3/src/metrics/encoding"
+	"github.com/m3db/m3/src/metrics/encoding/msgpack"
+	"github.com/m3db/m3/src/metrics/encoding/protobuf"
+	"github.com/m3db/m3/src/metrics/metadata"
+	"github.com/m3db/m3/src/metrics/metric"
+	"github.com/m3db/m3/src/metrics/metric/aggregated"
+	"github.com/m3db/m3/src/metrics/metric/unaggregated"
+	"github.com/m3db/m3/src/metrics/policy"
 )
 
 // TODO(xichen): replace client with the actual aggregation server client.

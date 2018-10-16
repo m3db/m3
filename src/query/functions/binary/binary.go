@@ -21,6 +21,8 @@
 package binary
 
 import (
+	"time"
+
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
 	"github.com/m3db/m3/src/query/functions/utils"
@@ -49,7 +51,7 @@ func processBinary(
 			return nil, errLeftScalar
 		}
 
-		lVal := scalarL.Value()
+		lVal := scalarL.Value(time.Time{})
 
 		// rhs is a series; use rhs metadata and series meta
 		if !params.RIsScalar {
@@ -77,7 +79,9 @@ func processBinary(
 		}
 
 		return block.NewScalar(
-			fn(lVal, scalarR.Value()),
+			func(t time.Time) float64 {
+				return fn(lVal, scalarR.Value(t))
+			},
 			lIter.Meta().Bounds,
 		), nil
 	}
@@ -88,7 +92,7 @@ func processBinary(
 			return nil, errRightScalar
 		}
 
-		rVal := scalarR.Value()
+		rVal := scalarR.Value(time.Time{})
 		// lhs is a series; use lhs metadata and series meta
 		return processSingleBlock(
 			lhs,

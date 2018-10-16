@@ -106,7 +106,7 @@ type rateNode struct {
 	rateFn            rateFn
 }
 
-func (r *rateNode) Process(datapoints ts.Datapoints) float64 {
+func (r *rateNode) Process(datapoints ts.Datapoints, _ time.Time) float64 {
 	return r.rateFn(datapoints, r.isRate, r.isCounter, r.timeSpec, r.op.duration)
 }
 

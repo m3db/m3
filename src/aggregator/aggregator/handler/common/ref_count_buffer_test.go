@@ -23,7 +23,7 @@ package common
 import (
 	"testing"
 
-	"github.com/m3db/m3metrics/encoding/msgpack"
+	"github.com/m3db/m3/src/metrics/encoding/msgpack"
 
 	"github.com/stretchr/testify/require"
 )

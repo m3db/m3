@@ -1,5 +1,5 @@
-hash: 710eb152ed998ed2cc0169b508f6849dc03da7ee2ab344ca5c1f5cee340e4985
-updated: 2018-10-09T18:04:25.235127-04:00
+hash: 2dbbe850b8116a94286716e248b0d7220be2218f472e6439cd422bd6e61015f0
+updated: 2018-10-16T12:07:37.410812-04:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -218,11 +218,6 @@ imports:
   version: 07973db6b78acb62ac207d0538055e874b49d90d
 - name: github.com/m3db/bloom
   version: 47fe1193cdb900de7193d1f3d26ea9b2cbf6fb31
-- name: github.com/m3db/m3aggregator
-  version: 6f59918fe3791a3df0dc146ea492593925809c3e
-  subpackages:
-  - client
-  - sharding
 - name: github.com/m3db/m3cluster
   version: b3db8dcb85c34fbd02a7721f6c0639d6e96c6fbe
   subpackages:
@@ -249,59 +244,6 @@ imports:
   - services/leader/campaign
   - services/leader/election
   - shard
-- name: github.com/m3db/m3ctl
-  version: acc762bfdd42ecb192d34e48fa7ca1fd7ee088ac
-  subpackages:
-  - auth
-  - service
-  - service/r2
-  - service/r2/store
-  - service/r2/store/kv
-- name: github.com/m3db/m3metrics
-  version: 5c6aed344a0c209277d36334f0a824d9f3bb835b
-  subpackages:
-  - aggregation
-  - encoding
-  - encoding/migration
-  - encoding/msgpack
-  - encoding/protobuf
-  - errors
-  - filters
-  - generated/proto/aggregationpb
-  - generated/proto/metricpb
-  - generated/proto/pipelinepb
-  - generated/proto/policypb
-  - generated/proto/rulepb
-  - generated/proto/transformationpb
-  - matcher
-  - matcher/cache
-  - metadata
-  - metric
-  - metric/aggregated
-  - metric/id
-  - metric/id/m3
-  - metric/unaggregated
-  - pipeline
-  - pipeline/applied
-  - policy
-  - rules
-  - rules/store/kv
-  - rules/view
-  - rules/view/changes
-  - transformation
-  - x/bytes
-- name: github.com/m3db/m3msg
-  version: bb2c675f58f01d487fc0a64aa6c864bc1cc541c9
-  subpackages:
-  - consumer
-  - generated/proto/msgpb
-  - generated/proto/topicpb
-  - producer
-  - producer/buffer
-  - producer/config
-  - producer/writer
-  - protocol/proto
-  - topic
 - name: github.com/m3db/m3x
   version: fc5c28bb09dfe6ba7f79e897021d9b186b5fffc5
   vcs: git
@@ -624,9 +566,3 @@ testImports:
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/fortytw2/leaktest
   version: b433bbd6d743c1854040b39062a3916ed5f78fe8
-- name: github.com/go-playground/locales
-  version: 1e5f1161c6416a5ff48840eb8724a394e48cc534
-  subpackages:
-  - currency
-- name: github.com/go-playground/universal-translator
-  version: 71201497bace774495daed26a3874fd339e0b538

@@ -25,13 +25,14 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/leanovate/gopter"
-	"github.com/leanovate/gopter/gen"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
 	"github.com/m3db/m3/src/m3ninx/postings"
+
+	"github.com/leanovate/gopter"
+	"github.com/leanovate/gopter/gen"
 	"github.com/stretchr/testify/require"
 )
 

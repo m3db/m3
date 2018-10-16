@@ -40,6 +40,7 @@ import (
 	xclose "github.com/m3db/m3x/close"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/instrument"
 )
 
 var timeZero time.Time
@@ -468,7 +469,7 @@ func forEachInfoFile(
 			digestsFilePath = filesetPathFromTimeAndIndex(dir, t, volume, digestFileSuffix)
 			infoFilePath = filesetPathFromTimeAndIndex(dir, t, volume, infoFileSuffix)
 		}
-		checkpointExists, err := FileExists(checkpointFilePath)
+		checkpointExists, err := CompleteCheckpointFileExists(checkpointFilePath)
 		if err != nil {
 			continue
 		}
@@ -1035,7 +1036,7 @@ func CommitLogsDirPath(prefix string) string {
 func DataFileSetExistsAt(filePathPrefix string, namespace ident.ID, shard uint32, blockStart time.Time) (bool, error) {
 	shardDir := ShardDataDirPath(filePathPrefix, namespace, shard)
 	checkpointPath := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
-	return FileExists(checkpointPath)
+	return CompleteCheckpointFileExists(checkpointPath)
 }
 
 // SnapshotFileSetExistsAt determines whether snapshot fileset files exist for the given namespace, shard, and block start time.
@@ -1126,8 +1127,39 @@ func NextIndexSnapshotFileIndex(filePathPrefix string, namespace ident.ID, block
 	return currentSnapshotIndex + 1, nil
 }
 
+// CompleteCheckpointFileExists returns whether a checkpoint file exists, and if so,
+// is it complete.
+func CompleteCheckpointFileExists(filePath string) (bool, error) {
+	if !strings.Contains(filePath, checkpointFileSuffix) {
+		return false, fmt.Errorf(
+			"%s tried to use CompleteCheckpointFileExists to verify existence of non checkpoint file: %s",
+			instrument.InvariantViolatedMetricName, filePath)
+	}
+
+	f, err := os.Stat(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	// Make sure the checkpoint file was completely written out and its
+	// not just an empty file.
+	return f.Size() == CheckpointFileSizeBytes, nil
+}
+
 // FileExists returns whether a file at the given path exists.
 func FileExists(filePath string) (bool, error) {
+	if strings.Contains(filePath, checkpointFileSuffix) {
+		// Existence of a checkpoint file needs to be verified using the function
+		// CompleteCheckpointFileExists instead to ensure that it has been
+		// completely written out.
+		return false, fmt.Errorf(
+			"%s tried to use FileExists to verify existence of checkpoint file: %s",
+			instrument.InvariantViolatedMetricName, filePath)
+	}
+
 	_, err := os.Stat(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {

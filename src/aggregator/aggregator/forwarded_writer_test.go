@@ -24,12 +24,12 @@ import (
 	"testing"
 
 	"github.com/m3db/m3/src/aggregator/client"
-	"github.com/m3db/m3metrics/aggregation"
-	"github.com/m3db/m3metrics/metadata"
-	"github.com/m3db/m3metrics/metric"
-	"github.com/m3db/m3metrics/metric/aggregated"
-	"github.com/m3db/m3metrics/metric/id"
-	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3/src/metrics/aggregation"
+	"github.com/m3db/m3/src/metrics/metadata"
+	"github.com/m3db/m3/src/metrics/metric"
+	"github.com/m3db/m3/src/metrics/metric/aggregated"
+	"github.com/m3db/m3/src/metrics/metric/id"
+	"github.com/m3db/m3/src/metrics/policy"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
