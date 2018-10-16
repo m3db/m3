@@ -10,10 +10,10 @@ These ports will not open until a namespace and placement have been created and 
 
 Double check your configuration against the [bootstrapping guide](../operational_guide/bootstrapping.md). The nodes will log what bootstrapper they are using and what time range they are using it for.
 
-If you don't seem to be using the filesystem bootstrapper, ensure that snapshotting is enabled for your namespace.
+If you're using the commitlog bootstrapper, and it seems to be slow, ensure that snapshotting is enabled for your namespace. Enabling snapshotting will require a node restart to take effect.
 
-If your node has been unable to snapshot for a long period of time, and is stuck in the commitlog bootstrapper, the peers bootstrapper may help as it uses less memory. This will only work if you have other nodes with replicas to peer bootstrap from.
+If an m3db node hasn't been able to snapshot for awhile, or is stuck in the commitlog bootstrapping phase for a long time due to accumulating a large number of commitlogs, consider using the peers bootstrapper. In situations where a large number of commitlogs need to be read, the peers bootstrapper will outperform the commitlog bootstrapper (faster and less memory usage) due to the fact that it will receive already-compressed data from its peers. Keep in mind that this will only work with a replication factor of 3 or larger and if the nodes peers are healthy and bootstrapped. Review the [bootstrapping guide](../operational_guide/bootstrapping.md) for more information.
 
-## Things aren't scaling well and there are weird memory issues
+## Nodes a crashing with memory allocation errors, but there's plenty of available memory
 
 Ensure you've set `vm.max_map_count` to something like 262,144 using sysctl. Find out more in the [Clustering the Hard Way](../how_to/cluster_hard_way.md#kernel) document.
