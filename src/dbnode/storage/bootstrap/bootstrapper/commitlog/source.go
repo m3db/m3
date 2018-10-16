@@ -196,10 +196,13 @@ func (s *commitLogSource) ReadData(
 	}
 
 	var (
+		// Emit bootstrapping gauge for duration of ReadData
+		doneBootstrapping      = s.metrics.data.emitBootstrapping
 		encounteredCorruptData = false
 		fsOpts                 = s.opts.CommitLogOptions().FilesystemOptions()
 		filePathPrefix         = fsOpts.FilePathPrefix()
 	)
+	defer doneBootstrapping()
 
 	// Determine which snapshot files are available.
 	snapshotFilesByShard, err := s.snapshotFilesByShard(
@@ -292,7 +295,6 @@ func (s *commitLogSource) ReadData(
 	}
 
 	// Read / M3TSZ encode all the datapoints in the commit log that we need to read.
-	doneReadingCommitlogs := s.metrics.data.emitReadingCommitlogs()
 	for iter.Next() {
 		series, dp, unit, annotation := iter.Current()
 		if !s.shouldEncodeForData(shardDataByShard, blockSize, series, dp.Timestamp) {
@@ -318,7 +320,6 @@ func (s *commitLogSource) ReadData(
 			blockStart: dp.Timestamp.Truncate(blockSize),
 		}
 	}
-	doneReadingCommitlogs()
 
 	if iterErr := iter.Err(); iterErr != nil {
 		// Log the error and mark that we encountered corrupt data, but don't
@@ -343,10 +344,7 @@ func (s *commitLogSource) ReadData(
 	// Merge all the different encoders from the commit log that we created with
 	// the data that is available in the snapshot files.
 	s.log.Infof("starting merge...")
-	var (
-		mergeStart  = time.Now()
-		doneMerging = s.metrics.data.emitMergingSnapshotsAndCommitlogs()
-	)
+	mergeStart := time.Now()
 	bootstrapResult, err := s.mergeAllShardsCommitLogEncodersAndSnapshots(
 		ns,
 		shardsTimeRanges,
@@ -356,7 +354,6 @@ func (s *commitLogSource) ReadData(
 		blockSize,
 		shardDataByShard,
 	)
-	doneMerging()
 	if err != nil {
 		return nil, err
 	}
@@ -1308,10 +1305,13 @@ func (s *commitLogSource) ReadIndex(
 	}
 
 	var (
+		// Emit bootstrapping gauge for duration of ReadIndex
+		doneReadingIndex       = s.metrics.index.emitBootstrapping()
 		encounteredCorruptData = false
 		fsOpts                 = s.opts.CommitLogOptions().FilesystemOptions()
 		filePathPrefix         = fsOpts.FilePathPrefix()
 	)
+	defer doneReadingIndex()
 
 	// Determine which snapshot files are available.
 	snapshotFilesByShard, err := s.snapshotFilesByShard(
@@ -1360,13 +1360,11 @@ func (s *commitLogSource) ReadIndex(
 	)
 
 	// Start by reading any available snapshot files.
-	doneReadingSnapshots := s.metrics.index.emitReadingSnapshots()
 	for shard, tr := range shardsTimeRanges {
 		shardResult, err := s.bootstrapShardSnapshots(
 			ns.ID(), shard, true, tr, blockSize, snapshotFilesByShard[shard],
 			mostRecentCompleteSnapshotByBlockShard)
 		if err != nil {
-			doneReadingSnapshots()
 			return nil, err
 		}
 
@@ -1381,7 +1379,6 @@ func (s *commitLogSource) ReadIndex(
 			}
 		}
 	}
-	doneReadingSnapshots()
 
 	// Next, read all of the data from the commit log files that wasn't covered
 	// by the snapshot files.
@@ -1396,7 +1393,6 @@ func (s *commitLogSource) ReadIndex(
 
 	defer iter.Close()
 
-	doneReadingCommitlogs := s.metrics.index.emitReadingCommitlogs()
 	for iter.Next() {
 		series, dp, _, _ := iter.Current()
 
@@ -1404,7 +1400,6 @@ func (s *commitLogSource) ReadIndex(
 			series.ID, series.Tags, series.Shard, highestShard, dp.Timestamp, bootstrapRangesByShard,
 			indexResults, indexOptions, indexBlockSize, resultOptions)
 	}
-	doneReadingCommitlogs()
 
 	if iterErr := iter.Err(); iterErr != nil {
 		// Log the error and mark that we encountered corrupt data, but don't
@@ -1703,36 +1698,22 @@ func newCommitLogSourceDataAndIndexMetrics(scope tally.Scope) commitLogSourceDat
 }
 
 type commitLogSourceMetrics struct {
-	corruptCommitlogFile          tally.Counter
-	readingSnapshots              tally.Gauge
-	readingCommitlogs             tally.Gauge
-	mergingSnapshotsAndCommitlogs tally.Gauge
-}
-
-func (m commitLogSourceMetrics) emitReadingSnapshots() gaugeLoopCloserFn {
-	return m.gaugeLoop(m.readingSnapshots)
-}
-
-func (m commitLogSourceMetrics) emitReadingCommitlogs() gaugeLoopCloserFn {
-	return m.gaugeLoop(m.readingCommitlogs)
-}
-
-func (m commitLogSourceMetrics) emitMergingSnapshotsAndCommitlogs() gaugeLoopCloserFn {
-	return m.gaugeLoop(m.mergingSnapshotsAndCommitlogs)
+	corruptCommitlogFile tally.Counter
+	bootstrapping        tally.Gauge
 }
 
 type gaugeLoopCloserFn func()
 
-func (m commitLogSourceMetrics) gaugeLoop(g tally.Gauge) gaugeLoopCloserFn {
+func (m commitLogSourceMetrics) emitBootstrapping() gaugeLoopCloserFn {
 	doneCh := make(chan struct{})
 	go func() {
 		for {
 			select {
 			case <-doneCh:
-				g.Update(0)
+				m.bootstrapping.Update(0)
 				return
 			default:
-				g.Update(1)
+				m.bootstrapping.Update(1)
 				time.Sleep(time.Second)
 			}
 		}
@@ -1742,12 +1723,8 @@ func (m commitLogSourceMetrics) gaugeLoop(g tally.Gauge) gaugeLoopCloserFn {
 }
 
 func newCommitLogSourceMetrics(scope tally.Scope) commitLogSourceMetrics {
-	statusScope := scope.SubScope("status")
-	clScope := scope.SubScope("commitlog")
 	return commitLogSourceMetrics{
-		corruptCommitlogFile:          clScope.Counter("corrupt"),
-		readingSnapshots:              statusScope.Gauge("reading-snapshots"),
-		readingCommitlogs:             statusScope.Gauge("reading-commitlogs"),
-		mergingSnapshotsAndCommitlogs: statusScope.Gauge("merging-snapshots-and-commitlogs"),
+		corruptCommitlogFile: scope.SubScope("commitlog").Counter("corrupt"),
+		bootstrapping:        scope.SubScope("status").Gauge("bootstrapping"),
 	}
 }
