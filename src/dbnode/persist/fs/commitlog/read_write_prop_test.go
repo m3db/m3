@@ -87,8 +87,9 @@ func TestCommitLogReadWrite(t *testing.T) {
 		FileFilterPredicate:   ReadAllPredicate(),
 		SeriesFilterPredicate: ReadAllSeriesPredicate(),
 	}
-	iter, err := NewIterator(iterOpts)
+	iter, corruptFiles, err := NewIterator(iterOpts)
 	require.NoError(t, err)
+	require.True(t, len(corruptFiles) == 0)
 	defer iter.Close()
 
 	// Convert the writes to be in-order, but keyed by series ID because the
@@ -381,7 +382,9 @@ func (s *clState) writesArePresent(writes ...generatedWrite) error {
 		FileFilterPredicate:   ReadAllPredicate(),
 		SeriesFilterPredicate: ReadAllSeriesPredicate(),
 	}
-	iter, err := NewIterator(iterOpts)
+	// Based on the corruption type this could return some corrupt files
+	// or it could not, so we don't check it.
+	iter, _, err := NewIterator(iterOpts)
 	if err != nil {
 		if s.shouldCorrupt {
 			return nil

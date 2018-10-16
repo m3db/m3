@@ -38,23 +38,24 @@ import (
 )
 
 func TestFiles(t *testing.T) {
-	// TODO(r): Find some time/people to help investigate this flakey test.
-	t.Skip()
-	
 	dir, err := ioutil.TempDir("", "commitlogs")
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
 
 	createTestCommitLogFiles(t, dir, 10*time.Minute, 5)
 
-	opts := NewOptions()
+	var (
+		minNumBlocks = 5
+		opts         = NewOptions()
+	)
 	opts = opts.SetFilesystemOptions(
 		opts.FilesystemOptions().
 			SetFilePathPrefix(dir),
 	)
-	files, err := Files(opts)
+	files, corruptFiles, err := Files(opts)
 	require.NoError(t, err)
-	require.Equal(t, 5, len(files))
+	require.True(t, len(corruptFiles) == 0)
+	require.True(t, len(files) >= minNumBlocks)
 
 	// Make sure its sorted
 	var lastFileStart time.Time
@@ -71,12 +72,12 @@ func TestFiles(t *testing.T) {
 	}
 }
 
-// createTestCommitLogFiles creates the specified number of commit log files
-// on disk with the appropriate block size. Commit log files will be valid
-// and contain readable metadata.
+// createTestCommitLogFiles creates at least the specified number of commit log files
+// on disk with the appropriate block size. Commit log files will be valid and contain
+// readable metadata.
 func createTestCommitLogFiles(
-	t *testing.T, filePathPrefix string, blockSize time.Duration, numBlocks int) {
-	require.True(t, numBlocks >= 2)
+	t *testing.T, filePathPrefix string, blockSize time.Duration, minNumBlocks int) {
+	require.True(t, minNumBlocks >= 2)
 
 	var (
 		nowLock = sync.RWMutex{}
@@ -109,13 +110,12 @@ func createTestCommitLogFiles(
 	}
 	// Commit log writer is asynchronous and performs batching so getting the exact number
 	// of files that we want is tricky. The implementation below loops infinitely, writing
-	// a single datapoint and increasing the time after each iteration until numBlocks -1
-	// files are on disk. After that, it terminates, and the final batch flush from calling
-	// commitlog.Close() will generate the last file.
+	// a single datapoint and increasing the time after each iteration until minNumBlocks
+	// files are on disk.
 	for {
 		files, err := fs.SortedCommitLogFiles(commitLogsDir)
 		require.NoError(t, err)
-		if len(files) == numBlocks-1 {
+		if len(files) >= minNumBlocks {
 			break
 		}
 		err = commitLog.Write(context.NewContext(), series, ts.Datapoint{}, xtime.Second, nil)
@@ -126,5 +126,5 @@ func createTestCommitLogFiles(
 	require.NoError(t, commitLog.Close())
 	files, err := fs.SortedCommitLogFiles(commitLogsDir)
 	require.NoError(t, err)
-	require.Equal(t, numBlocks, len(files))
+	require.True(t, len(files) >= minNumBlocks)
 }

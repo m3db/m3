@@ -73,10 +73,10 @@ func TestCleanupManagerCleanup(t *testing.T) {
 		mgr.opts.CommitLogOptions().
 			SetBlockSize(rOpts.BlockSize()))
 
-	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, []commitlog.ErrorWithPath, error) {
 		return []commitlog.File{
-			commitlog.File{FilePath: "foo", Start: timeFor(14400)},
-		}, nil
+			{FilePath: "foo", Start: timeFor(14400)},
+		}, nil, nil
 	}
 	var deletedFiles []string
 	mgr.deleteFilesFn = func(files []string) error {
@@ -478,12 +478,12 @@ func TestCleanupManagerCommitLogTimesAllFlushed(t *testing.T) {
 	defer ctrl.Finish()
 
 	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
-	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, []commitlog.ErrorWithPath, error) {
 		return []commitlog.File{
 			commitlog.File{Start: time10, Duration: commitLogBlockSize},
 			commitlog.File{Start: time20, Duration: commitLogBlockSize},
 			commitlog.File{Start: time30, Duration: commitLogBlockSize},
-		}, nil
+		}, nil, nil
 	}
 
 	gomock.InOrder(
@@ -505,12 +505,12 @@ func TestCleanupManagerCommitLogTimesMiddlePendingFlush(t *testing.T) {
 	defer ctrl.Finish()
 
 	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
-	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, []commitlog.ErrorWithPath, error) {
 		return []commitlog.File{
 			commitlog.File{Start: time10, Duration: commitLogBlockSize},
 			commitlog.File{Start: time20, Duration: commitLogBlockSize},
 			commitlog.File{Start: time30, Duration: commitLogBlockSize},
-		}, nil
+		}, nil, nil
 	}
 
 	ns.EXPECT().IsCapturedBySnapshot(
@@ -533,12 +533,12 @@ func TestCleanupManagerCommitLogTimesStartPendingFlush(t *testing.T) {
 	defer ctrl.Finish()
 
 	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
-	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, []commitlog.ErrorWithPath, error) {
 		return []commitlog.File{
 			commitlog.File{Start: time10, Duration: commitLogBlockSize},
 			commitlog.File{Start: time20, Duration: commitLogBlockSize},
 			commitlog.File{Start: time30, Duration: commitLogBlockSize},
-		}, nil
+		}, nil, nil
 	}
 
 	ns.EXPECT().IsCapturedBySnapshot(
@@ -562,12 +562,12 @@ func TestCleanupManagerCommitLogTimesAllPendingFlush(t *testing.T) {
 	defer ctrl.Finish()
 
 	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
-	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, []commitlog.ErrorWithPath, error) {
 		return []commitlog.File{
 			commitlog.File{Start: time10, Duration: commitLogBlockSize},
 			commitlog.File{Start: time20, Duration: commitLogBlockSize},
 			commitlog.File{Start: time30, Duration: commitLogBlockSize},
-		}, nil
+		}, nil, nil
 	}
 
 	ns.EXPECT().IsCapturedBySnapshot(
@@ -587,12 +587,22 @@ func timeFor(s int64) time.Time {
 	return time.Unix(s, 0)
 }
 
-func contains(arr []commitlog.File, t time.Time) bool {
+func contains(arr []commitLogFileWithErrorAndPath, t time.Time) bool {
 	for _, at := range arr {
-		if at.Start.Equal(t) {
+		if at.f.Start.Equal(t) {
 			return true
 		}
 	}
+	return false
+}
+
+func containsCorrupt(arr []commitLogFileWithErrorAndPath, path string) bool {
+	for _, f := range arr {
+		if f.path == path {
+			return true
+		}
+	}
+
 	return false
 }
 
@@ -605,12 +615,12 @@ func TestCleanupManagerCommitLogTimesAllPendingFlushButHaveSnapshot(t *testing.T
 		currentTime        = timeFor(50)
 		commitLogBlockSize = 10 * time.Second
 	)
-	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, []commitlog.ErrorWithPath, error) {
 		return []commitlog.File{
 			commitlog.File{Start: time10, Duration: commitLogBlockSize},
 			commitlog.File{Start: time20, Duration: commitLogBlockSize},
 			commitlog.File{Start: time30, Duration: commitLogBlockSize},
-		}, nil
+		}, nil, nil
 	}
 
 	gomock.InOrder(
@@ -646,10 +656,10 @@ func TestCleanupManagerCommitLogTimesHandlesIsCapturedBySnapshotError(t *testing
 	defer ctrl.Finish()
 
 	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
-	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, []commitlog.ErrorWithPath, error) {
 		return []commitlog.File{
 			commitlog.File{Start: time30, Duration: commitLogBlockSize},
-		}, nil
+		}, nil, nil
 	}
 
 	gomock.InOrder(
@@ -667,12 +677,12 @@ func TestCleanupManagerCommitLogTimesMultiNS(t *testing.T) {
 	defer ctrl.Finish()
 
 	ns1, ns2, mgr := newCleanupManagerCommitLogTimesTestMultiNS(t, ctrl)
-	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, []commitlog.ErrorWithPath, error) {
 		return []commitlog.File{
 			commitlog.File{Start: time10, Duration: commitLogBlockSize},
 			commitlog.File{Start: time20, Duration: commitLogBlockSize},
 			commitlog.File{Start: time30, Duration: commitLogBlockSize},
-		}, nil
+		}, nil, nil
 	}
 
 	// ns1 is flushed for time10->time20 and time20->time30.
@@ -709,4 +719,28 @@ func TestCleanupManagerCommitLogTimesMultiNS(t *testing.T) {
 	// time so the file needs to be retained.
 	require.True(t, contains(filesToCleanup, time10))
 	require.True(t, contains(filesToCleanup, time20))
+}
+
+func TestCleanupManagerDeletesCorruptCommitLogFiles(t *testing.T) {
+	// TODO(rartoul): Re-enable this once https://github.com/m3db/m3/issues/1078
+	// is resolved.
+	t.Skip()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		_, mgr = newCleanupManagerCommitLogTimesTest(t, ctrl)
+		err    = errors.New("some_error")
+		path   = "path"
+	)
+	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, []commitlog.ErrorWithPath, error) {
+		return []commitlog.File{}, []commitlog.ErrorWithPath{
+			commitlog.NewErrorWithPath(err, path),
+		}, nil
+	}
+
+	filesToCleanup, err := mgr.commitLogTimes(currentTime)
+	require.NoError(t, err)
+	require.True(t, containsCorrupt(filesToCleanup, path))
 }

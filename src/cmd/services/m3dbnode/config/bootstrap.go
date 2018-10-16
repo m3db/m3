@@ -56,6 +56,9 @@ type BootstrapConfiguration struct {
 	// Peers bootstrapper configuration.
 	Peers *BootstrapPeersConfiguration `yaml:"peers"`
 
+	// Commitlog bootstrapper configuration.
+	Commitlog *BootstrapCommitlogConfiguration `yaml:"commitlog"`
+
 	// CacheSeriesMetadata determines whether individual bootstrappers cache
 	// series metadata across all calls (namespaces / shards / blocks).
 	CacheSeriesMetadata *bool `yaml:"cacheSeriesMetadata"`
@@ -89,6 +92,17 @@ type BootstrapPeersConfiguration struct {
 	// FetchBlocksMetadataEndpointVersion is the endpoint to use when fetching blocks metadata.
 	// TODO: Remove once v1 endpoint no longer required.
 	FetchBlocksMetadataEndpointVersion client.FetchBlocksMetadataEndpointVersion `yaml:"fetchBlocksMetadataEndpointVersion"`
+}
+
+// BootstrapCommitlogConfiguration specifies config for the commitlog bootstrapper.
+type BootstrapCommitlogConfiguration struct {
+	// ReturnUnfulfilledForCorruptCommitlogFiles controls whether the commitlog bootstrapper
+	// will return unfulfilled for all shard time ranges when it encounters a corrupt commit
+	// file. Note that regardless of this value, the commitlog bootstrapper will still try and
+	// read all the uncorrupted commitlog files and return as much data as it can, but setting
+	// this to true allows the node to attempt a repair if the peers bootstrapper is configured
+	// after the commitlog bootstrapper.
+	ReturnUnfulfilledForCorruptCommitlogFiles bool `yaml:"returnUnfulfilledForCorruptCommitlogFiles"`
 }
 
 // New creates a bootstrap process based on the bootstrap configuration.
@@ -140,7 +154,8 @@ func (bsc BootstrapConfiguration) New(
 		case commitlog.CommitLogBootstrapperName:
 			cOpts := commitlog.NewOptions().
 				SetResultOptions(rsOpts).
-				SetCommitLogOptions(opts.CommitLogOptions())
+				SetCommitLogOptions(opts.CommitLogOptions()).
+				SetRuntimeOptionsManager(opts.RuntimeOptionsManager())
 
 			inspection, err := fs.InspectFilesystem(fsOpts)
 			if err != nil {

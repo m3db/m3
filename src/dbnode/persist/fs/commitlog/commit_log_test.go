@@ -302,8 +302,9 @@ func assertCommitLogWritesByIterating(t *testing.T, l *commitLog, writes []testW
 		FileFilterPredicate:   ReadAllPredicate(),
 		SeriesFilterPredicate: ReadAllSeriesPredicate(),
 	}
-	iter, err := NewIterator(iterOpts)
+	iter, corruptFiles, err := NewIterator(iterOpts)
 	require.NoError(t, err)
+	require.Equal(t, 0, len(corruptFiles))
 	defer iter.Close()
 
 	// Convert the writes to be in-order, but keyed by series ID because the
@@ -425,8 +426,10 @@ func TestReadCommitLogMissingMetadata(t *testing.T) {
 		FileFilterPredicate:   ReadAllPredicate(),
 		SeriesFilterPredicate: ReadAllSeriesPredicate(),
 	}
-	iter, err := NewIterator(iterOpts)
+	iter, corruptFiles, err := NewIterator(iterOpts)
 	require.NoError(t, err)
+	require.Equal(t, 0, len(corruptFiles))
+
 	for iter.Next() {
 		require.NoError(t, iter.Err())
 	}
@@ -526,8 +529,10 @@ func TestCommitLogIteratorUsesPredicateFilter(t *testing.T) {
 		FileFilterPredicate:   commitLogPredicate,
 		SeriesFilterPredicate: ReadAllSeriesPredicate(),
 	}
-	iter, err := NewIterator(iterOpts)
+	iter, corruptFiles, err := NewIterator(iterOpts)
 	require.NoError(t, err)
+	require.Equal(t, 0, len(corruptFiles))
+
 	iterStruct := iter.(*iterator)
 	require.True(t, len(iterStruct.files) == 2)
 }

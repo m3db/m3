@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/topology"
 	tu "github.com/m3db/m3/src/dbnode/topology/testutil"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3cluster/shard"
@@ -70,7 +71,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			namespace.NewOptions().IndexOptions().SetEnabled(true),
 		)
 	)
-	parameters.MinSuccessfulTests = 80
+	parameters.MinSuccessfulTests = 40
 	parameters.Rng.Seed(seed)
 	nsMeta, err := namespace.NewMetadata(testNamespaceID, nsOpts)
 	require.NoError(t, err)
@@ -282,6 +283,36 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 				if err != nil {
 					return false, err
 				}
+
+				if input.includeCorruptedCommitlogFile {
+					// Write out an additional commit log file with a corrupt info header to
+					// make sure that the commitlog source skips it in the single node scenario.
+					commitLogFiles, corruptFiles, err := commitlog.Files(commitLogOpts)
+					if err != nil {
+						return false, err
+					}
+					if len(corruptFiles) > 0 {
+						return false, fmt.Errorf("found corrupt commit log files: %v", corruptFiles)
+					}
+
+					if len(commitLogFiles) > 0 {
+						lastCommitLogFile := commitLogFiles[len(commitLogFiles)-1]
+						if err != nil {
+							return false, err
+						}
+
+						nextCommitLogFile, _, err := fs.NextCommitLogsFile(
+							fsOpts.FilePathPrefix(), lastCommitLogFile.Start)
+						if err != nil {
+							return false, err
+						}
+
+						err = ioutil.WriteFile(nextCommitLogFile, []byte("corruption"), 0644)
+						if err != nil {
+							return false, err
+						}
+					}
+				}
 			}
 
 			// Instantiate a commitlog source
@@ -327,12 +358,19 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			}
 
 			// Perform the bootstrap
-			var (
+			var initialTopoState *topology.StateSnapshot
+			if input.multiNodeCluster {
+				initialTopoState = tu.NewStateSnapshot(2, tu.HostShardStates{
+					tu.SelfID:   tu.Shards(allShardsSlice, shard.Available),
+					"not-self1": tu.Shards(allShardsSlice, shard.Available),
+					"not-self2": tu.Shards(allShardsSlice, shard.Available),
+				})
+			} else {
 				initialTopoState = tu.NewStateSnapshot(1, tu.HostShardStates{
 					tu.SelfID: tu.Shards(allShardsSlice, shard.Available),
 				})
-				runOpts = testDefaultRunOpts.SetInitialTopologyState(initialTopoState)
-			)
+			}
+			runOpts := testDefaultRunOpts.SetInitialTopologyState(initialTopoState)
 			dataResult, err := source.BootstrapData(nsMeta, shardTimeRanges, runOpts)
 			if err != nil {
 				return false, err
@@ -344,11 +382,28 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 				values = append(values, testValue{write.series, write.datapoint.Timestamp, write.datapoint.Value, write.unit, write.annotation})
 			}
 
-			if !dataResult.Unfulfilled().IsEmpty() {
-				return false, fmt.Errorf(
-					"data result unfulfilled should be empty but was: %s",
-					dataResult.Unfulfilled().String(),
-				)
+			commitLogFiles, corruptFiles, err := commitlog.Files(commitLogOpts)
+			if err != nil {
+				return false, err
+			}
+			if len(corruptFiles) > 0 && !input.includeCorruptedCommitlogFile {
+				return false, fmt.Errorf("found corrupt commit log files: %v", corruptFiles)
+			}
+
+			commitLogFilesExist := len(commitLogFiles) > 0
+			// In the multi-node setup we want to return unfulfilled if there are any corrupt files, but
+			// we always want to return fulfilled in the single node setup.
+			if input.multiNodeCluster && input.includeCorruptedCommitlogFile && commitLogFilesExist {
+				if dataResult.Unfulfilled().IsEmpty() {
+					return false, fmt.Errorf(
+						"data result unfulfilled should not be empty in multi node cluster but was")
+				}
+			} else {
+				if !dataResult.Unfulfilled().IsEmpty() {
+					return false, fmt.Errorf(
+						"data result unfulfilled in single node cluster should be empty but was: %s",
+						dataResult.Unfulfilled().String())
+				}
 			}
 			err = verifyShardResultsAreCorrect(values, blockSize, dataResult.ShardResults(), bootstrapOpts)
 			if err != nil {
@@ -367,11 +422,19 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 				return false, err
 			}
 
-			if !indexResult.Unfulfilled().IsEmpty() {
-				return false, fmt.Errorf(
-					"index result unfulfilled should be empty but was: %s",
-					indexResult.Unfulfilled().String(),
-				)
+			// In the multi-node setup we want to return unfulfilled if there are any corrupt files, but
+			// we always want to return fulfilled in the single node setup.
+			if input.multiNodeCluster && input.includeCorruptedCommitlogFile && commitLogFilesExist {
+				if indexResult.Unfulfilled().IsEmpty() {
+					return false, fmt.Errorf(
+						"index result unfulfilled should not be empty in multi node cluster but was")
+				}
+			} else {
+				if !indexResult.Unfulfilled().IsEmpty() {
+					return false, fmt.Errorf(
+						"index result unfulfilled in single node cluster should be empty but was: %s",
+						indexResult.Unfulfilled().String())
+				}
 			}
 
 			return true, nil
@@ -385,13 +448,15 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 }
 
 type propTestInput struct {
-	currentTime     time.Time
-	snapshotTime    time.Time
-	snapshotExists  bool
-	commitLogExists bool
-	bufferPast      time.Duration
-	bufferFuture    time.Duration
-	writes          []generatedWrite
+	currentTime                   time.Time
+	snapshotTime                  time.Time
+	snapshotExists                bool
+	commitLogExists               bool
+	bufferPast                    time.Duration
+	bufferFuture                  time.Duration
+	writes                        []generatedWrite
+	includeCorruptedCommitlogFile bool
+	multiNodeCluster              bool
 }
 
 type generatedWrite struct {
@@ -411,19 +476,21 @@ func (w generatedWrite) String() string {
 func genPropTestInputs(nsMeta namespace.Metadata, blockStart time.Time) gopter.Gen {
 	curriedGenPropTestInput := func(input interface{}) gopter.Gen {
 		var (
-			inputs          = input.([]interface{})
-			snapshotTime    = inputs[0].(time.Time)
-			snapshotExists  = inputs[1].(bool)
-			commitLogExists = inputs[2].(bool)
-			bufferPast      = time.Duration(inputs[3].(int64))
-			bufferFuture    = time.Duration(inputs[4].(int64))
-			numDatapoints   = inputs[5].(int)
+			inputs                        = input.([]interface{})
+			snapshotTime                  = inputs[0].(time.Time)
+			snapshotExists                = inputs[1].(bool)
+			commitLogExists               = inputs[2].(bool)
+			bufferPast                    = time.Duration(inputs[3].(int64))
+			bufferFuture                  = time.Duration(inputs[4].(int64))
+			numDatapoints                 = inputs[5].(int)
+			includeCorruptedCommitlogFile = inputs[6].(bool)
+			multiNodeCluster              = inputs[7].(bool)
 		)
 
 		return genPropTestInput(
 			blockStart, bufferPast, bufferFuture,
 			snapshotTime, snapshotExists, commitLogExists,
-			numDatapoints, nsMeta.ID().String())
+			numDatapoints, nsMeta.ID().String(), includeCorruptedCommitlogFile, multiNodeCluster)
 	}
 
 	return gopter.CombineGens(
@@ -440,6 +507,12 @@ func genPropTestInputs(nsMeta namespace.Metadata, blockStart time.Time) gopter.G
 		gen.Int64Range(0, int64(blockSize)),
 		// Run iterations of the test with between 0 and 100 datapoints
 		gen.IntRange(0, 100),
+		// Whether the test should generate an additional corrupt commitlog file
+		// to ensure the commit log bootstrapper skips it correctly.
+		gen.Bool(),
+		// Whether the test should simulate the InitialTopologyState to mimic a
+		// multi node cluster or not.
+		gen.Bool(),
 	).FlatMap(curriedGenPropTestInput, reflect.TypeOf(propTestInput{}))
 }
 
@@ -452,6 +525,8 @@ func genPropTestInput(
 	commitLogExists bool,
 	numDatapoints int,
 	ns string,
+	includeCorruptedCommitlogFile bool,
+	multiNodeCluster bool,
 ) gopter.Gen {
 	return gen.SliceOfN(numDatapoints, genWrite(start, bufferPast, bufferFuture, ns)).
 		Map(func(val []generatedWrite) propTestInput {
@@ -463,6 +538,8 @@ func genPropTestInput(
 				snapshotExists:  snapshotExists,
 				commitLogExists: commitLogExists,
 				writes:          val,
+				includeCorruptedCommitlogFile: includeCorruptedCommitlogFile,
+				multiNodeCluster:              multiNodeCluster,
 			}
 		})
 }

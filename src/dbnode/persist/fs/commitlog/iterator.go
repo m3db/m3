@@ -69,14 +69,14 @@ func ReadAllPredicate() FileFilterPredicate {
 }
 
 // NewIterator creates a new commit log iterator
-func NewIterator(iterOpts IteratorOpts) (Iterator, error) {
+func NewIterator(iterOpts IteratorOpts) (iter Iterator, corruptFiles []ErrorWithPath, err error) {
 	opts := iterOpts.CommitLogOptions
 	iops := opts.InstrumentOptions()
 	iops = iops.SetMetricsScope(iops.MetricsScope().SubScope("iterator"))
 
-	files, err := Files(opts)
+	files, corruptFiles, err := Files(opts)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	filteredFiles := filterFiles(opts, files, iterOpts.FileFilterPredicate)
 
@@ -90,7 +90,7 @@ func NewIterator(iterOpts IteratorOpts) (Iterator, error) {
 		log:        iops.Logger(),
 		files:      filteredFiles,
 		seriesPred: iterOpts.SeriesFilterPredicate,
-	}, nil
+	}, corruptFiles, nil
 }
 
 func (i *iterator) Next() bool {
@@ -191,13 +191,13 @@ func (i *iterator) nextReader() bool {
 }
 
 func filterFiles(opts Options, files []File, predicate FileFilterPredicate) []File {
-	filteredFiles := make([]File, 0, len(files))
+	filtered := make([]File, 0, len(files))
 	for _, f := range files {
 		if predicate(f) {
-			filteredFiles = append(filteredFiles, f)
+			filtered = append(filtered, f)
 		}
 	}
-	return filteredFiles
+	return filtered
 }
 
 func (i *iterator) closeAndResetReader() error {

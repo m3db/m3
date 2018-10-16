@@ -69,7 +69,7 @@ func newPropTestCleanupMgr(
 		n         = numIntervals(oldest, newest, blockSize)
 		currStart = oldest
 	)
-	cm.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, error) {
+	cm.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, []commitlog.ErrorWithPath, error) {
 		files := make([]commitlog.File, 0, n)
 		for i := 0; i < n; i++ {
 			files = append(files, commitlog.File{
@@ -77,7 +77,7 @@ func newPropTestCleanupMgr(
 				Duration: blockSize,
 			})
 		}
-		return files, nil
+		return files, nil, nil
 	}
 
 	return cm
@@ -105,11 +105,19 @@ func TestPropertyCommitLogNotCleanedForUnflushedData(t *testing.T) {
 			if err != nil {
 				return false, err
 			}
-			for _, f := range filesToCleanup {
-				s, e := commitLogNamespaceBlockTimes(f.Start, f.Duration, ns.ropts)
-				needsFlush := ns.NeedsFlush(s, e)
-				isCapturedBySnapshot, err := ns.IsCapturedBySnapshot(s, e, f.Start.Add(f.Duration))
+			for _, file := range filesToCleanup {
+				if file.err != nil {
+					continue
+				}
+
+				var (
+					f                         = file.f
+					s, e                      = commitLogNamespaceBlockTimes(f.Start, f.Duration, ns.ropts)
+					needsFlush                = ns.NeedsFlush(s, e)
+					isCapturedBySnapshot, err = ns.IsCapturedBySnapshot(s, e, f.Start.Add(f.Duration))
+				)
 				require.NoError(t, err)
+
 				if needsFlush && !isCapturedBySnapshot {
 					return false, fmt.Errorf("trying to cleanup commit log at %v, but ns needsFlush; (range: %v, %v)",
 						f.Start.String(), s.String(), e.String())
@@ -141,7 +149,12 @@ func TestPropertyCommitLogNotCleanedForUnflushedDataMultipleNs(t *testing.T) {
 			if err != nil {
 				return false, err
 			}
-			for _, f := range filesToCleanup {
+			for _, file := range filesToCleanup {
+				if file.err != nil {
+					continue
+				}
+
+				f := file.f
 				for _, ns := range nses {
 					s, e := commitLogNamespaceBlockTimes(f.Start, f.Duration, ns.ropts)
 					needsFlush := ns.NeedsFlush(s, e)

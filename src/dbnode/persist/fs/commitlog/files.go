@@ -50,7 +50,7 @@ func ReadLogInfo(filePath string, opts Options) (time.Time, time.Duration, int64
 
 	fd, err = os.Open(filePath)
 	if err != nil {
-		return time.Time{}, 0, 0, err
+		return time.Time{}, 0, 0, fsError{err}
 	}
 
 	chunkReader := newChunkReader(opts.FlushSize())
@@ -72,7 +72,7 @@ func ReadLogInfo(filePath string, opts Options) (time.Time, time.Duration, int64
 	err = fd.Close()
 	fd = nil
 	if err != nil {
-		return time.Time{}, 0, 0, err
+		return time.Time{}, 0, 0, fsError{err}
 	}
 
 	return time.Unix(0, logInfo.Start), time.Duration(logInfo.Duration), logInfo.Index, decoderErr
@@ -80,19 +80,36 @@ func ReadLogInfo(filePath string, opts Options) (time.Time, time.Duration, int64
 
 // Files returns a slice of all available commit log files on disk along with
 // their associated metadata.
-func Files(opts Options) ([]File, error) {
+func Files(opts Options) ([]File, []ErrorWithPath, error) {
 	commitLogsDir := fs.CommitLogsDirPath(
 		opts.FilesystemOptions().FilePathPrefix())
 	filePaths, err := fs.SortedCommitLogFiles(commitLogsDir)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	commitLogFiles := make([]File, 0, len(filePaths))
+	errorsWithPath := make([]ErrorWithPath, 0)
 	for _, filePath := range filePaths {
+		file := File{
+			FilePath: filePath,
+		}
+
 		start, duration, index, err := ReadLogInfo(filePath, opts)
+		if _, ok := err.(fsError); ok {
+			return nil, nil, err
+		}
+
 		if err != nil {
-			return nil, err
+			errorsWithPath = append(errorsWithPath, NewErrorWithPath(
+				err, filePath))
+			continue
+		}
+
+		if err == nil {
+			file.Start = start
+			file.Duration = duration
+			file.Index = index
 		}
 
 		commitLogFiles = append(commitLogFiles, File{
@@ -104,8 +121,42 @@ func Files(opts Options) ([]File, error) {
 	}
 
 	sort.Slice(commitLogFiles, func(i, j int) bool {
+		// Sorting is best effort here since we may not know the start.
 		return commitLogFiles[i].Start.Before(commitLogFiles[j].Start)
 	})
 
-	return commitLogFiles, nil
+	return commitLogFiles, errorsWithPath, nil
+}
+
+// ErrorWithPath is an error that includes the path of the file that
+// had the error.
+type ErrorWithPath struct {
+	err  error
+	path string
+}
+
+// Error returns the error.
+func (e ErrorWithPath) Error() string {
+	return e.err.Error()
+}
+
+// Path returns the path of hte file that the error is associated with.
+func (e ErrorWithPath) Path() string {
+	return e.path
+}
+
+// NewErrorWithPath creates a new ErrorWithPath.
+func NewErrorWithPath(err error, path string) ErrorWithPath {
+	return ErrorWithPath{
+		err:  err,
+		path: path,
+	}
+}
+
+type fsError struct {
+	err error
+}
+
+func (e fsError) Error() string {
+	return e.err.Error()
 }

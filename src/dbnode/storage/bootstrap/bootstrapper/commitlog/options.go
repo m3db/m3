@@ -24,33 +24,39 @@ import (
 	"errors"
 
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 )
 
 const (
-	defaultEncodingConcurrency   = 4
-	defaultMergeShardConcurrency = 4
+	defaultEncodingConcurrency                       = 4
+	defaultMergeShardConcurrency                     = 4
+	defaultReturnUnfulfilledForCorruptCommitlogFiles = true
 )
 
 var (
 	errEncodingConcurrencyPositive   = errors.New("encoding concurrency must be positive")
 	errMergeShardConcurrencyPositive = errors.New("merge shard concurrency must be positive")
+	errRuntimeOptsMgrNotSet          = errors.New("runtime options manager is not set")
 )
 
 type options struct {
-	resultOpts            result.Options
-	commitLogOpts         commitlog.Options
-	encodingConcurrency   int
-	mergeShardConcurrency int
+	resultOpts                                result.Options
+	commitLogOpts                             commitlog.Options
+	encodingConcurrency                       int
+	mergeShardConcurrency                     int
+	runtimeOptsMgr                            runtime.OptionsManager
+	returnUnfulfilledForCorruptCommitlogFiles bool
 }
 
 // NewOptions creates new bootstrap options
 func NewOptions() Options {
 	return &options{
-		resultOpts:            result.NewOptions(),
-		commitLogOpts:         commitlog.NewOptions(),
-		encodingConcurrency:   defaultEncodingConcurrency,
-		mergeShardConcurrency: defaultMergeShardConcurrency,
+		resultOpts:                                result.NewOptions(),
+		commitLogOpts:                             commitlog.NewOptions(),
+		encodingConcurrency:                       defaultEncodingConcurrency,
+		mergeShardConcurrency:                     defaultMergeShardConcurrency,
+		returnUnfulfilledForCorruptCommitlogFiles: defaultReturnUnfulfilledForCorruptCommitlogFiles,
 	}
 }
 
@@ -60,6 +66,9 @@ func (o *options) Validate() error {
 	}
 	if o.mergeShardConcurrency <= 0 {
 		return errMergeShardConcurrencyPositive
+	}
+	if o.runtimeOptsMgr == nil {
+		return errRuntimeOptsMgrNotSet
 	}
 	return o.commitLogOpts.Validate()
 }
@@ -102,4 +111,24 @@ func (o *options) SetMergeShardsConcurrency(value int) Options {
 
 func (o *options) MergeShardsConcurrency() int {
 	return o.mergeShardConcurrency
+}
+
+func (o *options) SetRuntimeOptionsManager(value runtime.OptionsManager) Options {
+	opts := *o
+	opts.runtimeOptsMgr = value
+	return &opts
+}
+
+func (o *options) RuntimeOptionsManager() runtime.OptionsManager {
+	return o.runtimeOptsMgr
+}
+
+func (o *options) SetReturnUnfulfilledForCorruptCommitlogFiles(value bool) Options {
+	opts := *o
+	opts.returnUnfulfilledForCorruptCommitlogFiles = value
+	return &opts
+}
+
+func (o *options) ReturnUnfulfilledForCorruptCommitlogFiles() bool {
+	return o.returnUnfulfilledForCorruptCommitlogFiles
 }

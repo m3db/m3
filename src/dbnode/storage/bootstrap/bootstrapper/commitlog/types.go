@@ -22,6 +22,7 @@ package commitlog
 
 import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 )
 
@@ -53,4 +54,18 @@ type Options interface {
 
 	// MergeShardConcurrency returns the concurrency for merging shards
 	MergeShardsConcurrency() int
+
+	// SetReturnUnfulfilledForCorruptCommitlogFiles sets whether the bootstrapper
+	// should return unfulfilled if it encounters corrupt commitlog files.
+	SetReturnUnfulfilledForCorruptCommitlogFiles(value bool) Options
+
+	// ReturnUnfulfilledForCorruptCommitlogFiles returns whether the bootstrapper
+	// should return unfulfilled if it encounters corrupt commitlog files.
+	ReturnUnfulfilledForCorruptCommitlogFiles() bool
+
+	// SetRuntimeOptionsManagers sets the RuntimeOptionsManager.
+	SetRuntimeOptionsManager(value runtime.OptionsManager) Options
+
+	// RuntimeOptionsManagers returns the RuntimeOptionsManager.
+	RuntimeOptionsManager() runtime.OptionsManager
 }
