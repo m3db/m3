@@ -10,6 +10,7 @@ common: &common
 
 # Environment variables to apply to all steps.
 env:
+  # Per-step
   BUILDKITE_TIMEOUT: 20 # Minutes
 
 steps:
