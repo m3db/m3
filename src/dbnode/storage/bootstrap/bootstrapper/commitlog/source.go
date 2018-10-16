@@ -198,12 +198,12 @@ func (s *commitLogSource) ReadData(
 
 	var (
 		// Emit bootstrapping gauge for duration of ReadData
-		doneBootstrapping      = s.metrics.data.emitBootstrapping
+		doneReadingData        = s.metrics.data.emitBootstrapping()
 		encounteredCorruptData = false
 		fsOpts                 = s.opts.CommitLogOptions().FilesystemOptions()
 		filePathPrefix         = fsOpts.FilePathPrefix()
 	)
-	defer doneBootstrapping()
+	defer doneReadingData()
 
 	// Determine which snapshot files are available.
 	snapshotFilesByShard, err := s.snapshotFilesByShard(
