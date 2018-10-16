@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	xlog "github.com/m3db/m3x/log"
 )
 
@@ -69,6 +70,7 @@ type fileSystemManager struct {
 
 func newFileSystemManager(
 	database database,
+	commitlog commitlog.CommitLog,
 	opts Options,
 ) databaseFileSystemManager {
 	instrumentOpts := opts.InstrumentOptions()
