@@ -24,8 +24,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/m3db/m3cluster/generated/proto/kvtest"
-	"github.com/m3db/m3cluster/kv"
+	"github.com/m3db/m3/src/cluster/generated/proto/kvtest"
+	"github.com/m3db/m3/src/cluster/kv"
+
 	"github.com/stretchr/testify/require"
 )
 

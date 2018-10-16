@@ -24,7 +24,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/m3db/m3cluster/client"
+	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3x/instrument"
 )
 

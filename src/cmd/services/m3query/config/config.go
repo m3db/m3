@@ -23,11 +23,11 @@ package config
 import (
 	"time"
 
+	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3"
-	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/config/listenaddress"
 	"github.com/m3db/m3x/instrument"

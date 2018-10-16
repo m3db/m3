@@ -26,6 +26,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
+	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/errors"
 	"github.com/m3db/m3/src/metrics/filters"
@@ -36,8 +38,6 @@ import (
 	"github.com/m3db/m3/src/metrics/rules/validator/namespace/kv"
 	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3/src/metrics/transformation"
-	"github.com/m3db/m3cluster/generated/proto/commonpb"
-	"github.com/m3db/m3cluster/kv/mem"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/stretchr/testify/require"

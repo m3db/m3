@@ -21,10 +21,10 @@
 package config
 
 import (
+	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/msg/producer/buffer"
 	"github.com/m3db/m3/src/msg/producer/writer"
-	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3x/instrument"
 )
 

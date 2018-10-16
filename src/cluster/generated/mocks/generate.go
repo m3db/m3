@@ -18,12 +18,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// mockgen rules for generating mocks using reflection mode
-//go:generate sh -c "mockgen -package=client -destination=$GOPATH/src/$PACKAGE/client/client_mock.go $PACKAGE/client Client"
+// mockgen rules for generating mocks for exported interfaces (reflection mode).
+//go:generate sh -c "mockgen -package=client github.com/m3db/m3/src/cluster/client Client | genclean -pkg github.com/m3db/m3/src/cluster/client -out $GOPATH/src/github.com/m3db/m3/src/cluster/client/client_mock.go"
 
-// mockgen rules for generating mocks using file mode
-//go:generate sh -c "mockgen -package=placement -destination=$GOPATH/src/$PACKAGE/placement/placement_mock.go -source=$GOPATH/src/$PACKAGE/placement/types.go"
-//go:generate sh -c "mockgen -package=services -destination=$GOPATH/src/$PACKAGE/services/services_mock.go -source=$GOPATH/src/$PACKAGE/services/types.go"
-//go:generate sh -c "mockgen -package=kv -destination=$GOPATH/src/$PACKAGE/kv/store_mock.go -source=$GOPATH/src/$PACKAGE/kv/types.go"
+// mockgen rules for generating mocks for unexported interfaces (file mode).
+//go:generate sh -c "mockgen -package=placement -destination=$GOPATH/src/github.com/m3db/m3/src/cluster/placement/placement_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/cluster/placement/types.go"
+//go:generate sh -c "mockgen -package=services -destination=$GOPATH/src/github.com/m3db/m3/src/cluster/services/services_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/cluster/services/types.go"
+//go:generate sh -c "mockgen -package=kv -destination=$GOPATH/src/github.com/m3db/m3/src/cluster/kv/kv_mock.go -source=$GOPATH/src/github.com/m3db/m3/src/cluster/kv/types.go"
 
 package mocks

@@ -26,10 +26,10 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/id/m3"
-	"github.com/m3db/m3cluster/kv/mem"
 
 	"github.com/stretchr/testify/require"
 )

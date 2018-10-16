@@ -25,9 +25,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
-	"github.com/m3db/m3cluster/client"
-	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3x/instrument"
 	xtime "github.com/m3db/m3x/time"
 

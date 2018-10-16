@@ -27,14 +27,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/services"
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/topology/testutil"
-	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/shard"
 	xlog "github.com/m3db/m3x/log"
 
 	"github.com/stretchr/testify/require"

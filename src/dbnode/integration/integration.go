@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	persistfs "github.com/m3db/m3/src/dbnode/persist/fs"
@@ -41,7 +42,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/dbnode/topology/testutil"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
-	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 	xretry "github.com/m3db/m3x/retry"

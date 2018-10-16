@@ -26,10 +26,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3cluster/shard"
 	xlog "github.com/m3db/m3x/log"
 
 	"github.com/uber-go/tally"

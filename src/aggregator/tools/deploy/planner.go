@@ -25,7 +25,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3x/errors"
 	xsync "github.com/m3db/m3x/sync"
 )

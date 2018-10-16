@@ -25,13 +25,13 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/metrics/encoding"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
-	"github.com/m3db/m3cluster/placement"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/log"
 

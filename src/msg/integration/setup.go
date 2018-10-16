@@ -27,17 +27,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/kv/mem"
+	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/placement/service"
+	"github.com/m3db/m3/src/cluster/placement/storage"
+	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/msg/consumer"
 	"github.com/m3db/m3/src/msg/producer"
 	"github.com/m3db/m3/src/msg/producer/config"
 	"github.com/m3db/m3/src/msg/topic"
-	"github.com/m3db/m3cluster/client"
-	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3cluster/kv/mem"
-	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3cluster/placement/service"
-	"github.com/m3db/m3cluster/placement/storage"
-	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"
 	xsync "github.com/m3db/m3x/sync"
@@ -546,7 +546,7 @@ writer:
   messageQueueNewWritesScanInterval: 10ms
   messageQueueFullScanInterval: 50ms
   closeCheckInterval: 200ms
-  ackErrorRetry: 
+  ackErrorRetry:
     initialBackoff: 20ms
     maxBackoff: 50ms
   connection:

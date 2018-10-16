@@ -21,7 +21,7 @@
 package testutil
 
 import (
-	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3/src/cluster/shard"
 )
 
 // Uint32Range returns a slice of all values between [from, to].

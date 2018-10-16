@@ -23,7 +23,7 @@ package runtime
 import (
 	"time"
 
-	"github.com/m3db/m3cluster/kv"
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3x/instrument"
 )
 

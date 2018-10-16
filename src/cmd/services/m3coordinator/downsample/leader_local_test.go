@@ -23,8 +23,8 @@ package downsample
 import (
 	"testing"
 
-	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/services/leader/campaign"
+	"github.com/m3db/m3/src/cluster/services"
+	"github.com/m3db/m3/src/cluster/services/leader/campaign"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

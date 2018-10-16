@@ -23,6 +23,7 @@ package validator
 import (
 	"errors"
 
+	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/filters"
 	"github.com/m3db/m3/src/metrics/metric"
@@ -31,7 +32,6 @@ import (
 	"github.com/m3db/m3/src/metrics/rules/validator/namespace"
 	"github.com/m3db/m3/src/metrics/rules/validator/namespace/kv"
 	"github.com/m3db/m3/src/metrics/rules/validator/namespace/static"
-	"github.com/m3db/m3cluster/client"
 )
 
 var (

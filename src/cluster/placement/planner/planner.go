@@ -23,7 +23,7 @@ package planner
 import (
 	"sort"
 
-	"github.com/m3db/m3cluster/placement"
+	"github.com/m3db/m3/src/cluster/placement"
 )
 
 // shardAwareDeploymentPlanner plans the deployment so that as many instances can be deployed

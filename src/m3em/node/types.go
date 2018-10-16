@@ -23,10 +23,10 @@ package node
 import (
 	"time"
 
+	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/m3em/build"
 	hb "github.com/m3db/m3/src/m3em/generated/proto/heartbeat"
 	"github.com/m3db/m3/src/m3em/generated/proto/m3em"
-	"github.com/m3db/m3cluster/placement"
 	xclock "github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	xretry "github.com/m3db/m3x/retry"

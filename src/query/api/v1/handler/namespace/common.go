@@ -23,11 +23,11 @@ package namespace
 import (
 	"fmt"
 
+	clusterclient "github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/query/util/logging"
-	clusterclient "github.com/m3db/m3cluster/client"
-	"github.com/m3db/m3cluster/kv"
 
 	"github.com/gorilla/mux"
 )

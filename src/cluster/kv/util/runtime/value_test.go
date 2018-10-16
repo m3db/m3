@@ -25,9 +25,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3cluster/generated/proto/commonpb"
-	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3cluster/kv/mem"
+	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
+	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/watch"
 

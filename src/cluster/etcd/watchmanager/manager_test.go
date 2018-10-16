@@ -26,13 +26,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3cluster/mocks"
-	"github.com/uber-go/tally"
+	"github.com/m3db/m3/src/cluster/mocks"
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/integration"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 	"golang.org/x/net/context"
 )
 

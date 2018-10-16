@@ -23,8 +23,8 @@ package rules
 import (
 	"bytes"
 
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/metrics/metadata"
-	"github.com/m3db/m3cluster/kv"
 )
 
 var (

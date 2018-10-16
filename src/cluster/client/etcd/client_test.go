@@ -23,8 +23,8 @@ package etcd
 import (
 	"testing"
 
-	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/services"
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/integration"

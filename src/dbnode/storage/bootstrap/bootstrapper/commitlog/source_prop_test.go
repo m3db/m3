@@ -32,6 +32,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
@@ -42,7 +43,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	tu "github.com/m3db/m3/src/dbnode/topology/testutil"
 	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"

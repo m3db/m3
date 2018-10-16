@@ -23,7 +23,7 @@ package config
 import (
 	"testing"
 
-	"github.com/m3db/m3cluster/client"
+	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3x/instrument"
 
 	"github.com/golang/mock/gomock"

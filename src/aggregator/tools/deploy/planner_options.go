@@ -21,7 +21,7 @@
 package deploy
 
 import (
-	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3/src/cluster/services"
 	xsync "github.com/m3db/m3x/sync"
 )
 

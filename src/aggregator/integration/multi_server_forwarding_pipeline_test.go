@@ -32,6 +32,8 @@ import (
 
 	"github.com/m3db/m3/src/aggregator/aggregation"
 	aggclient "github.com/m3db/m3/src/aggregator/client"
+	"github.com/m3db/m3/src/cluster/kv/mem"
+	"github.com/m3db/m3/src/cluster/placement"
 	maggregation "github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric"
@@ -40,8 +42,6 @@ import (
 	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/transformation"
-	"github.com/m3db/m3cluster/kv/mem"
-	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"

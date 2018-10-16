@@ -30,10 +30,10 @@ import (
 	"time"
 
 	schema "github.com/m3db/m3/src/aggregator/generated/proto/flush"
-	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/services/leader/campaign"
-	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/services"
+	"github.com/m3db/m3/src/cluster/services/leader/campaign"
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3x/retry"
 
 	"github.com/golang/mock/gomock"

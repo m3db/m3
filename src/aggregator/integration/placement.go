@@ -23,9 +23,9 @@ package integration
 import (
 	"math"
 
-	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/shard"
 )
 
 type placementInstanceConfig struct {

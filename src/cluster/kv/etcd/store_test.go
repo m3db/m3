@@ -30,9 +30,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3cluster/generated/proto/kvtest"
-	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3cluster/mocks"
+	"github.com/m3db/m3/src/cluster/generated/proto/kvtest"
+	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/mocks"
 	xclock "github.com/m3db/m3x/clock"
 
 	"github.com/coreos/etcd/clientv3"

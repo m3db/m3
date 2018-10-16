@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
 	hjcluster "github.com/m3db/m3/src/dbnode/network/server/httpjson/cluster"
 	hjnode "github.com/m3db/m3/src/dbnode/network/server/httpjson/node"
@@ -35,7 +36,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3cluster/shard"
 )
 
 // newTestShardSet creates a default shard set

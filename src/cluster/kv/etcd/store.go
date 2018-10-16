@@ -27,8 +27,8 @@ import (
 	"os"
 	"sync"
 
-	"github.com/m3db/m3cluster/etcd/watchmanager"
-	"github.com/m3db/m3cluster/kv"
+	"github.com/m3db/m3/src/cluster/etcd/watchmanager"
+	"github.com/m3db/m3/src/cluster/kv"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/retry"

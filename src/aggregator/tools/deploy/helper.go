@@ -27,7 +27,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3cluster/placement"
+	"github.com/m3db/m3/src/cluster/placement"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/retry"

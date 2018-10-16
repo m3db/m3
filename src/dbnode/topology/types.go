@@ -21,10 +21,10 @@
 package topology
 
 import (
+	"github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/services"
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/sharding"
-	"github.com/m3db/m3cluster/client"
-	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 )

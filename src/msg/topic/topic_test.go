@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3/src/cluster/services"
 
 	"github.com/stretchr/testify/require"
 )

@@ -32,6 +32,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -48,7 +49,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/checked"
 	xclose "github.com/m3db/m3x/close"
 	"github.com/m3db/m3x/context"

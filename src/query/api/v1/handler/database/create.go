@@ -30,6 +30,8 @@ import (
 	"strings"
 	"time"
 
+	clusterclient "github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	dbnamespace "github.com/m3db/m3/src/dbnode/storage/namespace"
@@ -40,8 +42,6 @@ import (
 	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/net/http"
-	clusterclient "github.com/m3db/m3cluster/client"
-	"github.com/m3db/m3cluster/generated/proto/placementpb"
 
 	"github.com/golang/protobuf/jsonpb"
 	"go.uber.org/zap"

@@ -23,9 +23,9 @@ package placement
 import (
 	"time"
 
-	"github.com/m3db/m3cluster/generated/proto/placementpb"
-	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
+	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 

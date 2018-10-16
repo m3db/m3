@@ -27,8 +27,8 @@ package writer
 import (
 	"reflect"
 
+	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/msg/producer"
-	"github.com/m3db/m3cluster/placement"
 
 	"github.com/golang/mock/gomock"
 )

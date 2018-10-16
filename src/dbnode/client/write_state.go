@@ -24,9 +24,9 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3cluster/shard"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"

@@ -25,8 +25,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3cluster/placement/algo"
+	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/placement/algo"
 )
 
 var (

@@ -29,10 +29,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/services"
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/shard"
 	xclock "github.com/m3db/m3x/clock"
 	xtime "github.com/m3db/m3x/time"
 

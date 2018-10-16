@@ -23,11 +23,11 @@ package uninitialized
 import (
 	"fmt"
 
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/topology"
-	"github.com/m3db/m3cluster/shard"
 )
 
 // The purpose of the unitializedSource is to succeed bootstraps for any

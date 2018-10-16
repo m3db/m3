@@ -21,7 +21,7 @@
 package algo
 
 import (
-	"github.com/m3db/m3cluster/placement"
+	"github.com/m3db/m3/src/cluster/placement"
 )
 
 // NewAlgorithm returns a placement algorithm with given options

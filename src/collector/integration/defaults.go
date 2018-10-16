@@ -26,6 +26,10 @@ import (
 	"time"
 
 	aggclient "github.com/m3db/m3/src/aggregator/client"
+	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
+	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/filters"
 	"github.com/m3db/m3/src/metrics/generated/proto/pipelinepb"
@@ -35,10 +39,6 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/id/m3"
 	"github.com/m3db/m3/src/metrics/rules"
-	"github.com/m3db/m3cluster/generated/proto/placementpb"
-	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/pool"
 )
 

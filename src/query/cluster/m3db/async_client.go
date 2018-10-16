@@ -25,9 +25,9 @@ import (
 	"fmt"
 	"sync"
 
-	clusterclient "github.com/m3db/m3cluster/client"
-	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3cluster/services"
+	clusterclient "github.com/m3db/m3/src/cluster/client"
+	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/services"
 )
 
 const (

@@ -29,8 +29,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/services/leader/campaign"
+	"github.com/m3db/m3/src/cluster/services"
+	"github.com/m3db/m3/src/cluster/services/leader/campaign"
 	"github.com/m3db/m3x/clock"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/log"

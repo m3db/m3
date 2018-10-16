@@ -26,9 +26,9 @@ import (
 	"github.com/m3db/m3/src/aggregator/aggregator"
 	aggclient "github.com/m3db/m3/src/aggregator/client"
 	"github.com/m3db/m3/src/aggregator/sharding"
+	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/metrics/aggregation"
-	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 )

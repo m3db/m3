@@ -26,11 +26,11 @@ import (
 	_ "net/http/pprof" // pprof: for debug listen server if configured
 	"os"
 
+	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/dbnode/client"
 	dbserver "github.com/m3db/m3/src/dbnode/server"
 	coordinatorserver "github.com/m3db/m3/src/query/server"
-	clusterclient "github.com/m3db/m3cluster/client"
 	xconfig "github.com/m3db/m3x/config"
 )
 

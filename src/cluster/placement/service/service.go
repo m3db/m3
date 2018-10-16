@@ -23,10 +23,10 @@ package service
 import (
 	"fmt"
 
-	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3cluster/placement/algo"
-	"github.com/m3db/m3cluster/placement/selector"
-	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/placement/algo"
+	"github.com/m3db/m3/src/cluster/placement/selector"
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3x/log"
 )
 

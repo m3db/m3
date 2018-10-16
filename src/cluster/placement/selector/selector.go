@@ -21,7 +21,7 @@
 package selector
 
 import (
-	"github.com/m3db/m3cluster/placement"
+	"github.com/m3db/m3/src/cluster/placement"
 )
 
 // NewInstanceSelector creates an instance selector.

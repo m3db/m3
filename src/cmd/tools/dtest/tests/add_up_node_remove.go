@@ -21,8 +21,8 @@
 package dtests
 
 import (
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/cmd/tools/dtest/harness"
-	"github.com/m3db/m3cluster/shard"
 	xclock "github.com/m3db/m3x/clock"
 
 	"github.com/spf13/cobra"

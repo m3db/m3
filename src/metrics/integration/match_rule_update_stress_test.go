@@ -29,6 +29,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/kv"
+	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/metrics/aggregation"
 	"github.com/m3db/m3/src/metrics/filters"
 	"github.com/m3db/m3/src/metrics/generated/proto/pipelinepb"
@@ -41,8 +43,6 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/id/m3"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/rules"
-	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3x/pool"
 
 	"github.com/golang/protobuf/proto"

@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/kv/mem"
 	merrors "github.com/m3db/m3/src/metrics/errors"
 	"github.com/m3db/m3/src/metrics/generated/proto/aggregationpb"
 	"github.com/m3db/m3/src/metrics/generated/proto/pipelinepb"
@@ -33,7 +34,6 @@ import (
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
 	"github.com/m3db/m3/src/metrics/rules"
 	"github.com/m3db/m3/src/metrics/rules/view"
-	"github.com/m3db/m3cluster/kv/mem"
 
 	"github.com/stretchr/testify/require"
 )

@@ -28,9 +28,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
+	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3cluster/generated/proto/placementpb"
-	"github.com/m3db/m3cluster/placement"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"

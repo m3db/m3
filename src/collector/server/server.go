@@ -28,12 +28,12 @@ import (
 	"os/signal"
 	"syscall"
 
+	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cmd/services/m3collector/config"
 	"github.com/m3db/m3/src/collector/api/v1/httpd"
 	"github.com/m3db/m3/src/collector/reporter"
 	"github.com/m3db/m3/src/collector/reporter/m3aggregator"
 	"github.com/m3db/m3/src/x/serialize"
-	clusterclient "github.com/m3db/m3cluster/client"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"

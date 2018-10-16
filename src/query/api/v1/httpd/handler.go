@@ -26,6 +26,7 @@ import (
 	"net/http/pprof"
 	"time"
 
+	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
@@ -44,7 +45,6 @@ import (
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/net/http"
-	clusterclient "github.com/m3db/m3cluster/client"
 
 	"github.com/gorilla/mux"
 	"github.com/uber-go/tally"

@@ -29,8 +29,8 @@ import (
 	"reflect"
 
 	"github.com/m3db/m3/src/aggregator/generated/proto/flush"
-	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3x/watch"
 
 	"github.com/golang/mock/gomock"

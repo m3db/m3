@@ -21,7 +21,7 @@
 package aggregator
 
 import (
-	"github.com/m3db/m3cluster/kv"
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/retry"

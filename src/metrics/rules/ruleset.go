@@ -27,13 +27,13 @@ import (
 	"sort"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/kv"
 	merrors "github.com/m3db/m3/src/metrics/errors"
 	"github.com/m3db/m3/src/metrics/filters"
 	"github.com/m3db/m3/src/metrics/generated/proto/rulepb"
 	metricID "github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/rules/view"
 	"github.com/m3db/m3/src/metrics/rules/view/changes"
-	"github.com/m3db/m3cluster/kv"
 	xerrors "github.com/m3db/m3x/errors"
 
 	"github.com/pborman/uuid"

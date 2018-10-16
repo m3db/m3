@@ -21,7 +21,7 @@
 package producer
 
 import (
-	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3/src/cluster/services"
 )
 
 // FinalizeReason defines the reason why the message is being finalized by Producer.

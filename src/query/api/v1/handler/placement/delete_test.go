@@ -29,9 +29,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3cluster/shard"
 
 	"github.com/golang/mock/gomock"
 	"github.com/gorilla/mux"

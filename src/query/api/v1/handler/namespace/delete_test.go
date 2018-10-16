@@ -26,8 +26,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/m3db/m3/src/cluster/kv"
 	nsproto "github.com/m3db/m3/src/dbnode/generated/proto/namespace"
-	"github.com/m3db/m3cluster/kv"
 
 	"github.com/golang/mock/gomock"
 	"github.com/gorilla/mux"

@@ -29,6 +29,7 @@ import (
 	"time"
 
 	aggclient "github.com/m3db/m3/src/aggregator/client"
+	"github.com/m3db/m3/src/cluster/kv"
 	aggserver "github.com/m3db/m3/src/collector/integration/server"
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/matcher"
@@ -37,7 +38,6 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
 	"github.com/m3db/m3/src/metrics/policy"
-	"github.com/m3db/m3cluster/kv"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
