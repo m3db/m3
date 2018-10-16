@@ -665,8 +665,10 @@ func TestDelete_UpdateWatcherCache(t *testing.T) {
 	<-getW.C()
 	verifyValue(t, getW.Get(), "bar1", 1)
 	require.True(t, xclock.WaitUntil(func() bool {
+		getClient.cache.RLock()
+		defer getClient.cache.RUnlock()
 		return 1 == len(getClient.cache.Values)
-	}, 2*time.Second))
+	}, time.Minute))
 
 	var (
 		originalBytes []byte
@@ -674,7 +676,7 @@ func TestDelete_UpdateWatcherCache(t *testing.T) {
 	require.True(t, xclock.WaitUntil(func() bool {
 		originalBytes, err = readCacheJSON(clientCachePath)
 		return err == nil
-	}, 2*time.Second))
+	}, time.Minute))
 
 	setV, err = setClient.Delete("foo")
 	require.NoError(t, err)
@@ -689,6 +691,8 @@ func TestDelete_UpdateWatcherCache(t *testing.T) {
 		updatedBytes []byte
 	)
 	require.True(t, xclock.WaitUntil(func() bool {
+		getClient.cache.RLock()
+		defer getClient.cache.RUnlock()
 		if len(getClient.cache.Values) != 0 {
 			return false
 		}
@@ -697,7 +701,7 @@ func TestDelete_UpdateWatcherCache(t *testing.T) {
 			return false
 		}
 		return !bytes.Equal(updatedBytes, originalBytes)
-	}, 2*time.Second), "did not observe any invalidation of the cache file")
+	}, time.Minute), "did not observe any invalidation of the cache file")
 }
 
 func TestDelete_TriggerWatch(t *testing.T) {
@@ -768,8 +772,11 @@ func TestStaleDelete__FromGet(t *testing.T) {
 	)
 	require.True(t, xclock.WaitUntil(func() bool {
 		fileName, cacheBytes, err = readCacheJSONAndFilename(serverCachePath)
+		if len(cacheBytes) == 0 {
+			return false
+		}
 		return err == nil
-	}, 2*time.Second), "timed out waiting to read cache file")
+	}, time.Minute), "timed out waiting to read cache file")
 	closeFn()
 
 	// make a new etcd cluster (to mimic the case where etcd has deleted and compacted
@@ -789,7 +796,7 @@ func TestStaleDelete__FromGet(t *testing.T) {
 	require.True(t, xclock.WaitUntil(func() bool {
 		_, newBytes, err := readCacheJSONAndFilename(newServerCachePath)
 		return err == nil && bytes.Equal(cacheBytes, newBytes)
-	}, 2*time.Second), "timed out waiting to flush new cache file")
+	}, time.Minute), "timed out waiting to flush new cache file")
 
 	// create new etcd cluster
 	ec2, opts, closeFn2 := testStore(t)
@@ -802,8 +809,10 @@ func TestStaleDelete__FromGet(t *testing.T) {
 	getClient := getStore.(*client)
 
 	require.True(t, xclock.WaitUntil(func() bool {
+		getClient.cache.RLock()
+		defer getClient.cache.RUnlock()
 		return 1 == len(getClient.cache.Values)
-	}, 2*time.Second), "timed out waiting for client to read values from cache")
+	}, time.Minute), "timed out waiting for client to read values from cache")
 
 	// get value and ensure it's not able to serve the read
 	v, err := getClient.Get("foo")
@@ -813,7 +822,7 @@ func TestStaleDelete__FromGet(t *testing.T) {
 	require.True(t, xclock.WaitUntil(func() bool {
 		_, updatedBytes, err := readCacheJSONAndFilename(newServerCachePath)
 		return err == nil && !bytes.Equal(cacheBytes, updatedBytes)
-	}, 2*time.Second), "timed out waiting to flush cache file delete")
+	}, time.Minute), "timed out waiting to flush cache file delete")
 }
 
 func TestStaleDelete__FromWatch(t *testing.T) {
@@ -850,7 +859,7 @@ func TestStaleDelete__FromWatch(t *testing.T) {
 	require.True(t, xclock.WaitUntil(func() bool {
 		fileName, cacheBytes, err = readCacheJSONAndFilename(serverCachePath)
 		return err == nil
-	}, 2*time.Second), "timed out waiting to read cache file")
+	}, time.Minute), "timed out waiting to read cache file")
 	closeFn()
 
 	// make a new etcd cluster (to mimic the case where etcd has deleted and compacted
@@ -870,7 +879,7 @@ func TestStaleDelete__FromWatch(t *testing.T) {
 	require.True(t, xclock.WaitUntil(func() bool {
 		_, newBytes, err := readCacheJSONAndFilename(newServerCachePath)
 		return err == nil && bytes.Equal(cacheBytes, newBytes)
-	}, 2*time.Second), "timed out waiting to flush new cache file")
+	}, time.Minute), "timed out waiting to flush new cache file")
 
 	// create new etcd cluster
 	ec2, opts, closeFn2 := testStore(t)
@@ -883,8 +892,10 @@ func TestStaleDelete__FromWatch(t *testing.T) {
 	getClient := getStore.(*client)
 
 	require.True(t, xclock.WaitUntil(func() bool {
+		getClient.cache.RLock()
+		defer getClient.cache.RUnlock()
 		return 1 == len(getClient.cache.Values)
-	}, 2*time.Second), "timed out waiting for client to read values from cache")
+	}, time.Minute), "timed out waiting for client to read values from cache")
 	require.Equal(t, 1, len(getClient.cache.Values))
 
 	// get value and ensure it's not able to serve the read
@@ -896,7 +907,7 @@ func TestStaleDelete__FromWatch(t *testing.T) {
 	require.True(t, xclock.WaitUntil(func() bool {
 		_, updatedBytes, err := readCacheJSONAndFilename(newServerCachePath)
 		return err == nil && !bytes.Equal(cacheBytes, updatedBytes)
-	}, 2*time.Second), "timed out waiting to flush cache file delete")
+	}, time.Minute), "timed out waiting to flush cache file delete")
 	require.Equal(t, 0, len(getClient.cache.Values))
 	require.Nil(t, w.Get())
 }
