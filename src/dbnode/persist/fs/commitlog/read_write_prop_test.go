@@ -1,4 +1,3 @@
-// +build big
 //
 // Copyright (c) 2018 Uber Technologies, Inc.
 //
@@ -23,6 +22,7 @@
 package commitlog
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -220,7 +220,12 @@ var genOpenCommand = gen.Const(&commands.ProtoCommand{
 				return w
 			}
 		}
-		return s.cLog.Open()
+		err = s.cLog.Open()
+		if err != nil {
+			return err
+		}
+		s.open = true
+		return nil
 	},
 	NextStateFunc: func(state commands.State) commands.State {
 		s := state.(*clState)
@@ -245,12 +250,16 @@ var genCloseCommand = gen.Const(&commands.ProtoCommand{
 	},
 	RunFunc: func(q commands.SystemUnderTest) commands.Result {
 		s := q.(*clState)
-		return s.cLog.Close()
+		err := s.cLog.Close()
+		if err != nil {
+			return err
+		}
+		s.open = false
+		return nil
 	},
 	NextStateFunc: func(state commands.State) commands.State {
 		s := state.(*clState)
 		s.open = false
-		s.cLog = nil
 		return s
 	},
 	PostConditionFunc: func(state commands.State, result commands.Result) *gopter.PropResult {
@@ -313,12 +322,23 @@ var genWriteBehindCommand = gen.SliceOfN(10, genWrite()).
 var genActiveLogsCommand = gen.Const(&commands.ProtoCommand{
 	Name: "ActiveLogs",
 	PreConditionFunc: func(state commands.State) bool {
-		return state.(*clState).open
+		return true
 	},
 	RunFunc: func(q commands.SystemUnderTest) commands.Result {
 		s := q.(*clState)
 
+		if s.cLog == nil {
+			return nil
+		}
+
 		logs, err := s.cLog.ActiveLogs()
+		if !s.open {
+			if err != errCommitLogClosed {
+				return errors.New("did not receive commit log closed error")
+			}
+			return nil
+		}
+
 		if err != nil {
 			return err
 		}
