@@ -25,9 +25,6 @@ import:
   - package: github.com/m3db/m3metrics
     version: 5c6aed344a0c209277d36334f0a824d9f3bb835b
 
-  - package: github.com/m3db/m3ctl
-    version: acc762bfdd42ecb192d34e48fa7ca1fd7ee088ac
-
   - package: github.com/m3db/bitset
     version: 07973db6b78acb62ac207d0538055e874b49d90d
 
