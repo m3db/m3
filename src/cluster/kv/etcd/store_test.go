@@ -773,10 +773,7 @@ func TestStaleDelete__FromGet(t *testing.T) {
 	)
 	require.True(t, xclock.WaitUntil(func() bool {
 		fileName, cacheBytes, err = readCacheJSONAndFilename(serverCachePath)
-		if len(cacheBytes) == 0 {
-			return false
-		}
-		return err == nil
+		return err == nil && isValidJSON(cacheBytes)
 	}, time.Minute), "timed out waiting to read cache file")
 	closeFn()
 
