@@ -269,3 +269,10 @@ func decodeTagMatchers(rpcMatchers *rpc.TagMatchers) (models.Matchers, error) {
 
 	return models.Matchers(matchers), nil
 }
+
+// DecodeSearchRequest decodes rpc search request to read query and read options
+func DecodeSearchRequest(
+	req *rpc.SearchRequest,
+) (*storage.FetchQuery, error) {
+	return &storage.FetchQuery{}, nil
+}

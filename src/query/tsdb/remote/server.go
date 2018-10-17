@@ -25,6 +25,7 @@ import (
 
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/pools"
+	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/query/util/logging"
 
@@ -76,7 +77,7 @@ func (s *grpcServer) Fetch(
 	logger := logging.WithContext(ctx)
 	storeQuery, err := DecodeFetchRequest(message)
 	if err != nil {
-		logger.Error("unable to decode fetch query", zap.Any("error", err))
+		logger.Error("unable to decode fetch query", zap.Error(err))
 		return err
 	}
 
@@ -109,6 +110,52 @@ func (s *grpcServer) Fetch(
 	err = stream.Send(response)
 	if err != nil {
 		logger.Error("unable to send fetch result", zap.Error(err))
+	}
+
+	return err
+}
+
+func (s *grpcServer) Search(
+	message *rpc.SearchRequest,
+	stream rpc.Query_SearchServer,
+) error {
+	var err error
+
+	ctx := RetrieveMetadata(stream.Context())
+	logger := logging.WithContext(ctx)
+	searchQuery, err := DecodeSearchRequest(message)
+	if err != nil {
+		logger.Error("unable to decode search query", zap.Error(err))
+		return err
+	}
+
+	results, err := s.storage.FetchTags(ctx, searchQuery, storage.NewFetchOptions())
+	if err != nil {
+		logger.Error("unable to search tags", zap.Error(err))
+		return err
+	}
+
+	available, pools, err, poolCh, errCh := s.poolWrapper.IteratorPools()
+	if err != nil {
+		return err
+	}
+
+	if !available {
+		select {
+		case pools = <-poolCh:
+		case err = <-errCh:
+			return err
+		}
+	}
+
+	response, err := EncodeToCompressedSearchResult(results, pools)
+	if err != nil {
+		logger.Error("unable to encode search result", zap.Error(err))
+	}
+
+	err = stream.SendMsg(response)
+	if err != nil {
+		logger.Error("unable to send search result", zap.Error(err))
 	}
 
 	return err

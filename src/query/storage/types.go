@@ -82,6 +82,14 @@ type FetchOptions struct {
 	KillChan chan struct{}
 }
 
+// NewFetchOptions creates a new fetch options.
+func NewFetchOptions() *FetchOptions {
+	return &FetchOptions{
+		Limit:    0,
+		KillChan: make(chan struct{}),
+	}
+}
+
 // Querier handles queries against a storage.
 type Querier interface {
 	// Fetch fetches timeseries data based on a query
