@@ -343,11 +343,8 @@ func (s *peersSource) logFetchBootstrapBlocksFromPeersOutcome(
 // the series will either be held in memory, or removed from memory once
 // flushing has completed.
 // Once everything has been flushed to disk then depending on the series
-// caching policy the function is either done, or in the case of the
-// CacheAllMetadata policy we loop through every series and make every block
-// retrievable (so that we can retrieve data for the blocks that we're caching
-// the metadata for).
-// In addition, if the caching policy is not CacheAll or CacheAllMetadata, then
+// caching policy the function is either done.
+// In addition, if the caching policy is not CacheAll, then
 // at the end we remove all the series objects from the shard result as well
 // (since all their corresponding blocks have been removed anyways) to prevent
 // a huge memory spike caused by adding lots of unused series to the Shard
@@ -364,14 +361,10 @@ func (s *peersSource) flush(
 	var (
 		ropts             = nsMetadata.Options().RetentionOptions()
 		blockSize         = ropts.BlockSize()
-		shardRetriever    = shardRetrieverMgr.ShardRetriever(shard)
 		tmpCtx            = context.NewContext()
 		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
 		persistConfig     = opts.PersistConfig()
 	)
-	if seriesCachePolicy == series.CacheAllMetadata && shardRetriever == nil {
-		return fmt.Errorf("shard retriever missing for shard: %d", shard)
-	}
 
 	for start := tr.Start; start.Before(tr.End); start = start.Add(blockSize) {
 		prepareOpts := persist.DataPrepareOptions{
@@ -440,18 +433,6 @@ func (s *peersSource) flush(
 				case series.CacheAll:
 					// Leave the blocks in the shard result, we need to return all blocks
 					// so we can cache in memory
-				case series.CacheAllMetadata:
-					// NB(r): We can now make the flushed blocks retrievable, note that we
-					// explicitly perform another loop here and lookup the block again
-					// to avoid a large expensive allocation to hold onto the blocks
-					// that we just flushed that would have to be pooled.
-					// We are explicitly trading CPU time here for lower GC pressure.
-					metadata := block.RetrievableBlockMetadata{
-						ID:       s.ID,
-						Length:   bl.Len(),
-						Checksum: checksum,
-					}
-					bl.ResetRetrievable(start, blockSize, shardRetriever, metadata)
 				default:
 					// Not caching the series or metadata in memory so finalize the block,
 					// better to do this as we loop through to make blocks return to the
@@ -486,15 +467,13 @@ func (s *peersSource) flush(
 		}
 	}
 
-	// We only want to retain the series metadata in one of three cases:
+	// We only want to retain the series metadata in one of two cases:
 	// 	1) CacheAll caching policy (because we're expected to cache everything in memory)
-	// 	2) CacheAllMetadata caching policy (because we're expected to cache all metadata in memory)
-	// 	3) PersistConfig.FileSetType is set to FileSetSnapshotType because that means we're bootstrapping
+	// 	2) PersistConfig.FileSetType is set to FileSetSnapshotType because that means we're bootstrapping
 	//     an active block that we'll want to perform a flush on later, and we're only flushing here for
 	//     the sake of allowing the commit log bootstrapper to be able to recover this data if the node
 	//     goes down in-between this bootstrapper completing and the subsequent flush.
 	shouldRetainSeriesMetadata := seriesCachePolicy == series.CacheAll ||
-		seriesCachePolicy == series.CacheAllMetadata ||
 		persistConfig.FileSetType == persist.FileSetSnapshotType
 
 	if !shouldRetainSeriesMetadata {

@@ -140,8 +140,6 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 		switch {
 		case cachePolicy == CacheAll:
 			// No-op, block metadata should have been in-memory
-		case cachePolicy == CacheAllMetadata:
-			// No-op, block metadata should have been in-memory
 		case r.retriever != nil:
 			// Try to stream from disk
 			if r.retriever.IsBlockRetrievable(blockAt) {
@@ -212,8 +210,6 @@ func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 		}
 		switch {
 		case cachePolicy == CacheAll:
-			// No-op, block metadata should have been in-memory
-		case cachePolicy == CacheAllMetadata:
 			// No-op, block metadata should have been in-memory
 		case r.retriever != nil:
 			// Try to stream from disk

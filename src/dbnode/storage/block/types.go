@@ -168,10 +168,6 @@ type DatabaseBlock interface {
 	// merged during Stream().
 	HasMergeTarget() bool
 
-	// IsRetrieved returns whether the block is already retrieved. Only
-	// meaningful in the context of the CacheAllMetadata series caching policy.
-	IsRetrieved() bool
-
 	// WasRetrievedFromDisk returns whether the block was retrieved from storage.
 	WasRetrievedFromDisk() bool
 

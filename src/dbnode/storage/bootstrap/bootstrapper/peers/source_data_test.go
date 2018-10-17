@@ -232,7 +232,6 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 
 func TestPeersSourceRunWithPersist(t *testing.T) {
 	for _, cachePolicy := range []series.CachePolicy{
-		series.CacheAllMetadata,
 		series.CacheRecentlyRead,
 	} {
 		ctrl := gomock.NewController(t)
@@ -406,36 +405,9 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		require.True(t, r.Unfulfilled()[0].IsEmpty())
 		require.True(t, r.Unfulfilled()[1].IsEmpty())
 
-		if cachePolicy == series.CacheAllMetadata {
-			assert.Equal(t, 2, len(r.ShardResults()))
-			require.NotNil(t, r.ShardResults()[0])
-			require.NotNil(t, r.ShardResults()[1])
-
-			block, ok := r.ShardResults()[0].BlockAt(ident.StringID("foo"), start)
-			require.True(t, ok)
-			fooBlockChecksum, err := fooBlock.Checksum()
-			require.NoError(t, err)
-			assertBlockChecksum(t, fooBlockChecksum, block)
-			assert.False(t, block.IsRetrieved())
-
-			block, ok = r.ShardResults()[0].BlockAt(ident.StringID("bar"), start.Add(ropts.BlockSize()))
-			require.True(t, ok)
-			barBlockChecksum, err := barBlock.Checksum()
-			require.NoError(t, err)
-			assertBlockChecksum(t, barBlockChecksum, block)
-			assert.False(t, block.IsRetrieved())
-
-			block, ok = r.ShardResults()[1].BlockAt(ident.StringID("baz"), start)
-			require.True(t, ok)
-			bazBlockChecksum, err := bazBlock.Checksum()
-			require.NoError(t, err)
-			assertBlockChecksum(t, bazBlockChecksum, block)
-			assert.False(t, block.IsRetrieved())
-		} else {
-			assert.Equal(t, 0, len(r.ShardResults()))
-			require.Nil(t, r.ShardResults()[0])
-			require.Nil(t, r.ShardResults()[1])
-		}
+		assert.Equal(t, 0, len(r.ShardResults()))
+		require.Nil(t, r.ShardResults()[0])
+		require.Nil(t, r.ShardResults()[1])
 
 		assert.Equal(t, map[string]int{
 			"foo": 1, "bar": 1, "baz": 1,

@@ -506,15 +506,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			if shardRetrieverMgr != nil {
 				shardRetriever = shardRetrieverMgr.ShardRetriever(shard)
 			}
-			if seriesCachePolicy == series.CacheAllMetadata && shardRetriever == nil {
-				s.log.WithFields(
-					xlog.NewField("has-shard-retriever-mgr", shardRetrieverMgr != nil),
-					xlog.NewField("has-shard-retriever", shardRetriever != nil),
-				).Errorf("shard retriever missing for shard: %d", shard)
-				s.markRunResultErrorsAndUnfulfilled(runResult, requestedRanges,
-					remainingRanges, timesWithErrors)
-				return
-			}
 		}
 
 		for _, r := range readers {
@@ -558,8 +549,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 					switch seriesCachePolicy {
 					case series.CacheAll:
 						validateErr = r.Validate()
-					case series.CacheAllMetadata:
-						validateErr = r.ValidateMetadata()
 					default:
 						err = fmt.Errorf("invalid series cache policy: %s", seriesCachePolicy.String())
 					}
@@ -639,15 +628,11 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 		id          ident.ID
 		tagsIter    ident.TagIterator
 		data        checked.Bytes
-		length      int
-		checksum    uint32
 		err         error
 	)
 	switch seriesCachePolicy {
 	case series.CacheAll:
-		id, tagsIter, data, checksum, err = r.Read()
-	case series.CacheAllMetadata:
-		id, tagsIter, length, checksum, err = r.ReadMetadata()
+		id, tagsIter, data, _, err = r.Read()
 	default:
 		err = fmt.Errorf("invalid series cache policy: %s", seriesCachePolicy.String())
 	}
@@ -683,13 +668,6 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 	case series.CacheAll:
 		seg := ts.NewSegment(data, nil, ts.FinalizeHead)
 		seriesBlock.Reset(blockStart, blockSize, seg)
-	case series.CacheAllMetadata:
-		metadata := block.RetrievableBlockMetadata{
-			ID:       id,
-			Length:   length,
-			Checksum: checksum,
-		}
-		seriesBlock.ResetRetrievable(blockStart, blockSize, shardRetriever, metadata)
 	default:
 		return fmt.Errorf("invalid series cache policy: %s", seriesCachePolicy.String())
 	}
@@ -914,7 +892,6 @@ func (s *fileSystemSource) read(
 	runOpts bootstrap.RunOptions,
 ) (*runResult, error) {
 	var (
-		nsID              = md.ID()
 		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
 		blockRetriever    block.DatabaseBlockRetriever
 		res               *runResult
@@ -958,13 +935,6 @@ func (s *fileSystemSource) read(
 		switch seriesCachePolicy {
 		case series.CacheAll:
 			// No checks necessary
-		case series.CacheAllMetadata:
-			// Need to check block retriever available
-			if blockRetriever == nil {
-				return nil, fmt.Errorf(
-					"missing block retriever when using series cache metadata for namespace: %s",
-					nsID.String())
-			}
 		default:
 			// Unless we're caching all series (or all series metadata) in memory, we
 			// return just the availability of the files we have

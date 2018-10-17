@@ -304,34 +304,6 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	require.True(t, exists)
 }
 
-func TestSeriesTickNotRetrieved(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	opts := newSeriesTestOptions().
-		SetCachePolicy(CacheAllMetadata)
-	ropts := opts.RetentionOptions()
-	curr := time.Now().Truncate(ropts.BlockSize())
-	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
-	}))
-	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	blockRetriever := NewMockQueryableBlockRetriever(ctrl)
-	series.blockRetriever = blockRetriever
-	_, err := series.Bootstrap(nil)
-	assert.NoError(t, err)
-
-	b := block.NewMockDatabaseBlock(ctrl)
-	b.EXPECT().StartTime().Return(curr)
-	b.EXPECT().IsRetrieved().Return(false).AnyTimes()
-
-	series.blocks.AddBlock(b)
-
-	tickResult, err := series.Tick()
-	require.NoError(t, err)
-	require.Equal(t, 1, tickResult.UnwiredBlocks)
-}
-
 func TestSeriesTickRecentlyRead(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -470,76 +442,6 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	require.Equal(t, 1, tickResult.PendingMergeBlocks)
 	_, expiredBlockExists = series.blocks.BlockAt(curr.Add(-2 * retentionPeriod))
 	require.Equal(t, false, expiredBlockExists)
-}
-
-func TestSeriesTickCacheAllMetadata(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	opts := newSeriesTestOptions()
-	opts = opts.
-		SetCachePolicy(CacheAllMetadata).
-		SetRetentionOptions(opts.RetentionOptions().SetBlockDataExpiryAfterNotAccessedPeriod(10 * time.Minute))
-	ropts := opts.RetentionOptions()
-	curr := time.Now().Truncate(ropts.BlockSize())
-	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
-	}))
-	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	blockRetriever := NewMockQueryableBlockRetriever(ctrl)
-	series.blockRetriever = blockRetriever
-	_, err := series.Bootstrap(nil)
-	assert.NoError(t, err)
-
-	blockSize := time.Second * 1337
-
-	// Test case where block has been read within expiry period - won't be reset to only have metadata
-	b := block.NewMockDatabaseBlock(ctrl)
-	b.EXPECT().StartTime().Return(curr)
-	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
-	b.EXPECT().HasMergeTarget().Return(true)
-	b.EXPECT().LastReadTime().Return(
-		curr.Add(-opts.RetentionOptions().BlockDataExpiryAfterNotAccessedPeriod() / 2))
-	series.blocks.AddBlock(b)
-
-	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(true)
-
-	tickResult, err := series.Tick()
-	require.NoError(t, err)
-	require.Equal(t, 0, tickResult.UnwiredBlocks)
-	require.Equal(t, 1, tickResult.PendingMergeBlocks)
-
-	// Test case where block has not been read within expiry period - will be reset to only have metadata
-	b = block.NewMockDatabaseBlock(ctrl)
-	b.EXPECT().BlockSize().Return(blockSize)
-	b.EXPECT().StartTime().Return(curr)
-	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
-	b.EXPECT().LastReadTime().Return(
-		curr.Add(-opts.RetentionOptions().BlockDataExpiryAfterNotAccessedPeriod() * 2))
-	b.EXPECT().Len().Return(1)
-	b.EXPECT().Checksum().Return(uint32(0), nil)
-	b.EXPECT().ResetRetrievable(curr, blockSize, blockRetriever, gomock.Any()).Return()
-	series.blocks.AddBlock(b)
-
-	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(true)
-
-	tickResult, err = series.Tick()
-	require.NoError(t, err)
-	require.Equal(t, 1, tickResult.UnwiredBlocks)
-	require.Equal(t, 0, tickResult.PendingMergeBlocks)
-
-	// Test case where block is not flushed yet (not retrievable) - won't be reset to only have metadata
-	b = block.NewMockDatabaseBlock(ctrl)
-	b.EXPECT().StartTime().Return(curr)
-	b.EXPECT().HasMergeTarget().Return(true)
-	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
-	series.blocks.AddBlock(b)
-	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(false)
-
-	tickResult, err = series.Tick()
-	require.NoError(t, err)
-	require.Equal(t, 0, tickResult.UnwiredBlocks)
-	require.Equal(t, 1, tickResult.PendingMergeBlocks)
 }
 
 func TestSeriesTickCacheNone(t *testing.T) {
