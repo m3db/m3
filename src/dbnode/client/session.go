@@ -1656,19 +1656,7 @@ type peers struct {
 	peers            []peer
 	shard            uint32
 	majorityReplicas int
-	selfExcluded     bool
 	selfHostShardSet topology.HostShardSet
-}
-
-func (p peers) selfExcludedAndSelfHasShardAvailable() bool {
-	if !p.selfExcluded {
-		return false
-	}
-	state, err := p.selfHostShardSet.ShardSet().LookupStateByID(p.shard)
-	if err != nil {
-		return false
-	}
-	return state == shard.Available
 }
 
 func (s *session) peersForShard(shard uint32) (peers, error) {
@@ -1683,8 +1671,6 @@ func (s *session) peersForShard(shard uint32) (peers, error) {
 	)
 	err := s.state.topoMap.RouteShardForEach(shard, func(idx int, host topology.Host) {
 		if s.origin != nil && s.origin.ID() == host.ID() {
-			// Don't include the origin host
-			result.selfExcluded = true
 			// Include the origin host shard set for help determining quorum
 			hostShardSet, ok := s.state.topoMap.LookupHostShardSet(host.ID())
 			if !ok {
@@ -1931,13 +1917,6 @@ func (s *session) streamBlocksMetadataFromPeers(
 		responded int32
 		success   int32
 	)
-	if peers.selfExcludedAndSelfHasShardAvailable() {
-		// If we excluded ourselves from fetching, we basically treat ourselves
-		// as a successful peer response since we can bootstrap from ourselves
-		// just fine
-		enqueued++
-		success++
-	}
 
 	progress.metadataFetches.Update(float64(pending))
 	for idx, peer := range peers.peers {
@@ -2692,12 +2671,6 @@ func (s *session) selectPeersFromPerPeerBlockMetadatas(
 		majority := peers.majorityReplicas
 		enqueued := len(peers.peers)
 		success := 0
-		if peers.selfExcludedAndSelfHasShardAvailable() {
-			// If we excluded ourselves from fetching, we basically treat ourselves
-			// as a successful peer response since our copy counts towards quorum
-			enqueued++
-			success++
-		}
 
 		errMsg := "all retries failed for streaming blocks from peers"
 		fanoutFetchState := currBlock.reattempt.fanoutFetchState
