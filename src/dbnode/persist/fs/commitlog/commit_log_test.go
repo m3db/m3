@@ -835,7 +835,18 @@ func TestCommitLogActiveLogs(t *testing.T) {
 	defer cleanup(t, opts)
 
 	commitLog := newTestCommitLog(t, opts)
-	commitLog.Open()
+
+	writer := newMockCommitLogWriter()
+	writer.flushFn = func() error {
+		return nil
+	}
+	commitLog.newCommitLogWriterFn = func(
+		_ flushFn,
+		_ Options,
+	) commitLogWriter {
+		return writer
+	}
+
 	logs, err := commitLog.ActiveLogs()
 	require.NoError(t, err)
 	require.Equal(t, 1, len(logs))
