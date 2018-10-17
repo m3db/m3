@@ -22,6 +22,7 @@ package etcd
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -858,7 +859,9 @@ func TestStaleDelete__FromWatch(t *testing.T) {
 	)
 	require.True(t, xclock.WaitUntil(func() bool {
 		fileName, cacheBytes, err = readCacheJSONAndFilename(serverCachePath)
-		return err == nil
+		// Need to make sure it is valid JSON to ensure we're not reading the
+		// bytes before they've been completely written out.
+		return err == nil && isValidJSON(cacheBytes)
 	}, time.Minute), "timed out waiting to read cache file")
 	closeFn()
 
@@ -878,7 +881,7 @@ func TestStaleDelete__FromWatch(t *testing.T) {
 
 	require.True(t, xclock.WaitUntil(func() bool {
 		_, newBytes, err := readCacheJSONAndFilename(newServerCachePath)
-		return err == nil && bytes.Equal(cacheBytes, newBytes)
+		return err == nil && bytes.Equal(cacheBytes, newBytes) && isValidJSON(newBytes)
 	}, time.Minute), "timed out waiting to flush new cache file")
 
 	// create new etcd cluster
@@ -910,6 +913,11 @@ func TestStaleDelete__FromWatch(t *testing.T) {
 	}, time.Minute), "timed out waiting to flush cache file delete")
 	require.Equal(t, 0, len(getClient.cache.Values))
 	require.Nil(t, w.Get())
+}
+
+func isValidJSON(b []byte) bool {
+	var j interface{}
+	return json.Unmarshal(b, &j) == nil
 }
 
 func TestTxn(t *testing.T) {
