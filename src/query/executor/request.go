@@ -60,7 +60,7 @@ func (s State) String() string {
 }
 
 func (s State) durationString() string {
-	return fmt.Sprint("%s_duration_seconds", s)
+	return fmt.Sprintf("%s_duration_seconds", s)
 }
 
 // Request represents a single request.
