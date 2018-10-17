@@ -25,7 +25,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -35,6 +34,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/gorilla/mux"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -121,8 +121,8 @@ func TestPlacementDeleteHandler_Safe(t *testing.T) {
 		case M3CoordinatorServiceName:
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 		default:
-			require.True(t, strings.Contains(string(body), "instance host1 does not exist"))
-			require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+			assert.Contains(t, string(body), "instance host1 not found in placement")
+			assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 		}
 
 		// Test remove host when placement unsafe

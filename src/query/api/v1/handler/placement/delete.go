@@ -126,6 +126,14 @@ func (h *DeleteHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *
 			return
 		}
 
+		_, ok := curPlacement.Instance(id)
+		if !ok {
+			logger.Info("instance not found in placement", zap.String("instance", id))
+			err := fmt.Errorf("instance %s not found in placement", id)
+			xhttp.Error(w, err, http.StatusNotFound)
+			return
+		}
+
 		newPlacement, err = algo.RemoveInstances(curPlacement, toRemove)
 		if err != nil {
 			logger.Info("unable to generate placement with instances removed", zap.String("instance", id), zap.Error(err))
