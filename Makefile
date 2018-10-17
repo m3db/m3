@@ -35,7 +35,7 @@ GO_BUILD_LDFLAGS_CMD := $(abspath ./.ci/go-build-ldflags.sh) $(m3db_package)
 GO_BUILD_LDFLAGS     := $(shell $(GO_BUILD_LDFLAGS_CMD))
 GO_BUILD_COMMON_ENV  := CGO_ENABLED=0
 LINUX_AMD64_ENV      := GOOS=linux GOARCH=amd64 $(GO_BUILD_COMMON_ENV)
-GO_RELEASER_VERSION  := v0.76.1
+GO_RELEASER_VERSION  := v0commit.76.1
 GOMETALINT_VERSION   := v2.0.5
 
 SERVICES :=     \

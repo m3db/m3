@@ -26,33 +26,33 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 )
 
-// Options represents the options for bootstrapping from commit logs
+// Options represents the options for bootstrapping from commit logs.
 type Options interface {
-	// Validate validates the options
+	// Validate validates the options.
 	Validate() error
 
-	// SetResultOptions sets the result options
+	// SetResultOptions sets the result options.
 	SetResultOptions(value result.Options) Options
 
-	// ResultOptions returns the result options
+	// ResultOptions returns the result options.
 	ResultOptions() result.Options
 
-	// SetCommitLogOptions sets the commit log options
+	// SetCommitLogOptions sets the commit log options.
 	SetCommitLogOptions(value commitlog.Options) Options
 
-	// CommitLogOptions returns the commit log options
+	// CommitLogOptions returns the commit log options.
 	CommitLogOptions() commitlog.Options
 
-	// SetEncodingConcurrency sets the concurrency for encoding
+	// SetEncodingConcurrency sets the concurrency for encoding.
 	SetEncodingConcurrency(value int) Options
 
-	// EncodingConcurrency returns the concurrency for encoding
+	// EncodingConcurrency returns the concurrency for encoding.
 	EncodingConcurrency() int
 
-	// SetMergeShardConcurrency sets the concurrency for merging shards
+	// SetMergeShardConcurrency sets the concurrency for merging shards.
 	SetMergeShardsConcurrency(value int) Options
 
-	// MergeShardConcurrency returns the concurrency for merging shards
+	// MergeShardConcurrency returns the concurrency for merging shards.
 	MergeShardsConcurrency() int
 
 	// SetReturnUnfulfilledForCorruptCommitlogFiles sets whether the bootstrapper

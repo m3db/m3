@@ -33,27 +33,30 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
-// Strategy describes the commit log writing strategy
+// Strategy describes the commit log writing strategy.
 type Strategy int
 
 const (
 	// StrategyWriteWait describes the strategy that waits
 	// for the buffered commit log chunk that contains a write to flush
-	// before acknowledging a write
+	// before acknowledging a write.
 	StrategyWriteWait Strategy = iota
 
 	// StrategyWriteBehind describes the strategy that does not wait
 	// for the buffered commit log chunk that contains a write to flush
-	// before acknowledging a write
+	// before acknowledging a write.
 	StrategyWriteBehind
 )
 
-// CommitLog provides a synchronized commit log
+// CommitLog provides a synchronized commit log.
 type CommitLog interface {
-	// Open the commit log
+	// Open the commit log.
 	Open() error
 
-	// Write will write an entry in the commit log for a given series
+	// Rotate the commit log.
+	Rotate() (File, error)
+
+	// Write will write an entry in the commit log for a given series.
 	Write(
 		ctx context.Context,
 		series Series,
@@ -62,116 +65,116 @@ type CommitLog interface {
 		annotation ts.Annotation,
 	) error
 
-	// Close the commit log
+	// Close the commit log.
 	Close() error
 
 	// ActiveLogs returns a slice of the active commitlogs.
 	ActiveLogs() ([]File, error)
 }
 
-// Iterator provides an iterator for commit logs
+// Iterator provides an iterator for commit logs.
 type Iterator interface {
-	// Next returns whether the iterator has the next value
+	// Next returns whether the iterator has the next value.
 	Next() bool
 
-	// Current returns the current commit log entry
+	// Current returns the current commit log entry.
 	Current() (Series, ts.Datapoint, xtime.Unit, ts.Annotation)
 
-	// Err returns an error if an error occurred
+	// Err returns an error if an error occurred.
 	Err() error
 
-	// Close the iterator
+	// Close the iterator.
 	Close()
 }
 
-// IteratorOpts is a struct that contains coptions for the Iterator
+// IteratorOpts is a struct that contains coptions for the Iterator.
 type IteratorOpts struct {
 	CommitLogOptions      Options
 	FileFilterPredicate   FileFilterPredicate
 	SeriesFilterPredicate SeriesFilterPredicate
 }
 
-// Series describes a series in the commit log
+// Series describes a series in the commit log.
 type Series struct {
-	// UniqueIndex is the unique index assigned to this series
+	// UniqueIndex is the unique index assigned to this series.
 	UniqueIndex uint64
 
-	// Namespace is the namespace the series belongs to
+	// Namespace is the namespace the series belongs to.
 	Namespace ident.ID
 
-	// ID is the series identifier
+	// ID is the series identifier.
 	ID ident.ID
 
-	// Tags are the series tags
+	// Tags are the series tags.
 	Tags ident.Tags // FOLLOWUP(prateek): wire Tags to commit log writer
 
-	// Shard is the shard the series belongs to
+	// Shard is the shard the series belongs to.
 	Shard uint32
 }
 
-// Options represents the options for the commit log
+// Options represents the options for the commit log.
 type Options interface {
-	// Validate validates the Options
+	// Validate validates the Options.
 	Validate() error
 
-	// SetClockOptions sets the clock options
+	// SetClockOptions sets the clock options.
 	SetClockOptions(value clock.Options) Options
 
-	// ClockOptions returns the clock options
+	// ClockOptions returns the clock options.
 	ClockOptions() clock.Options
 
-	// SetInstrumentOptions sets the instrumentation options
+	// SetInstrumentOptions sets the instrumentation options.
 	SetInstrumentOptions(value instrument.Options) Options
 
-	// InstrumentOptions returns the instrumentation options
+	// InstrumentOptions returns the instrumentation options.
 	InstrumentOptions() instrument.Options
 
-	// SetBlockSize sets the block size
+	// SetBlockSize sets the block size.
 	SetBlockSize(value time.Duration) Options
 
-	// BlockSize returns the block size
+	// BlockSize returns the block size.
 	BlockSize() time.Duration
 
-	// SetFilesystemOptions sets the filesystem options
+	// SetFilesystemOptions sets the filesystem options.
 	SetFilesystemOptions(value fs.Options) Options
 
-	// FilesystemOptions returns the filesystem options
+	// FilesystemOptions returns the filesystem options.
 	FilesystemOptions() fs.Options
 
-	// SetFlushSize sets the flush size
+	// SetFlushSize sets the flush size.
 	SetFlushSize(value int) Options
 
-	// FlushSize returns the flush size
+	// FlushSize returns the flush size.
 	FlushSize() int
 
-	// SetStrategy sets the strategy
+	// SetStrategy sets the strategy.
 	SetStrategy(value Strategy) Options
 
-	// Strategy returns the strategy
+	// Strategy returns the strategy.
 	Strategy() Strategy
 
-	// SetFlushInterval sets the flush interval
+	// SetFlushInterval sets the flush interval.
 	SetFlushInterval(value time.Duration) Options
 
-	// FlushInterval returns the flush interval
+	// FlushInterval returns the flush interval.
 	FlushInterval() time.Duration
 
-	// SetBacklogQueueSize sets the backlog queue size
+	// SetBacklogQueueSize sets the backlog queue size.
 	SetBacklogQueueSize(value int) Options
 
-	// BacklogQueueSize returns the backlog queue size
+	// BacklogQueueSize returns the backlog queue size.
 	BacklogQueueSize() int
 
-	// SetBytesPool sets the checked bytes pool
+	// SetBytesPool sets the checked bytes pool.
 	SetBytesPool(value pool.CheckedBytesPool) Options
 
-	// BytesPool returns the checked bytes pool
+	// BytesPool returns the checked bytes pool.
 	BytesPool() pool.CheckedBytesPool
 
-	// SetReadConcurrency sets the concurrency of the reader
+	// SetReadConcurrency sets the concurrency of the reader.
 	SetReadConcurrency(concurrency int) Options
 
-	// ReadConcurrency returns the concurrency of the reader
+	// ReadConcurrency returns the concurrency of the reader.
 	ReadConcurrency() int
 
 	// SetIdentifierPool sets the IdentifierPool to use for pooling identifiers.
@@ -182,7 +185,7 @@ type Options interface {
 }
 
 // FileFilterPredicate is a predicate that allows the caller to determine
-// which commitlogs the iterator should read from
+// which commitlogs the iterator should read from.
 type FileFilterPredicate func(f File) bool
 
 // SeriesFilterPredicate is a predicate that determines whether datapoints for a given series

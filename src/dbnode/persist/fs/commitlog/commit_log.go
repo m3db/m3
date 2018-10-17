@@ -22,12 +22,15 @@ package commitlog
 
 import (
 	"errors"
+	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 
@@ -39,7 +42,9 @@ var (
 	// when the queue is full
 	ErrCommitLogQueueFull = errors.New("commit log queue is full")
 
-	errCommitLogClosed = errors.New("commit log is closed")
+	errCommitLogClosed        = errors.New("commit log is closed")
+	errRotationAlreadyPending = fmt.Errorf(
+		"%s rotation: rotation already pending", instrument.InvariantViolatedMetricName)
 
 	timeZero = time.Time{}
 )
@@ -59,6 +64,11 @@ type writeCommitLogFn func(
 type commitLogFailFn func(err error)
 
 type completionFn func(err error)
+
+type rotationResult struct {
+	file File
+	err  error
+}
 
 type commitLog struct {
 	sync.RWMutex
@@ -87,6 +97,9 @@ type commitLog struct {
 	activeFile *File
 
 	metrics commitLogMetrics
+
+	rotationPending  int64
+	rotationComplete chan rotationResult
 }
 
 type commitLogMetrics struct {
@@ -144,6 +157,8 @@ func NewCommitLog(opts Options) (CommitLog, error) {
 			flushErrors:   scope.Counter("writes.flush-errors"),
 			flushDone:     scope.Counter("writes.flush-done"),
 		},
+
+		rotationComplete: make(chan rotationResult),
 	}
 
 	switch opts.Strategy() {
@@ -161,7 +176,7 @@ func (l *commitLog) Open() error {
 	defer l.Unlock()
 
 	// Open the buffered commit log writer
-	if err := l.openWriterWithLock(l.nowFn()); err != nil {
+	if _, err := l.openWriterWithLock(l.nowFn()); err != nil {
 		return err
 	}
 
@@ -187,6 +202,23 @@ func (l *commitLog) Open() error {
 	}
 
 	return nil
+}
+
+func (l *commitLog) Rotate() (File, error) {
+	l.Lock()
+	defer l.Unlock()
+
+	if l.isRotationPending() {
+		// Should never happen
+		return File{}, errRotationAlreadyPending
+	}
+
+	l.setRotationPending()
+	result := <-l.rotationComplete
+
+	// Goroutine that performs the rotation will take care of clearing the rotationPending
+	// status.
+	return result.file, result.err
 }
 
 func (l *commitLog) ActiveLogs() ([]File, error) {
@@ -256,11 +288,15 @@ func (l *commitLog) write() {
 			continue
 		}
 
-		if now := l.nowFn(); !now.Before(l.writerExpireAt) {
+		var (
+			isRotationPending           = l.isRotationPending()
+			now                         = l.nowFn()
+			isWriteForNextCommitLogFile = !now.Before(l.writerExpireAt)
+		)
+		if isRotationPending || isWriteForNextCommitLogFile {
 			l.Lock()
-			err := l.openWriterWithLock(now)
+			file, err := l.openWriterWithLock(now)
 			l.Unlock()
-
 			if err != nil {
 				l.metrics.errors.Inc(1)
 				l.metrics.openErrors.Inc(1)
@@ -271,6 +307,11 @@ func (l *commitLog) write() {
 				}
 
 				continue
+			}
+
+			if isRotationPending {
+				// TODO: Done?
+				l.rotationComplete <- rotationResult{file: file}
 			}
 		}
 
@@ -330,7 +371,7 @@ func (l *commitLog) onFlush(err error) {
 	l.metrics.flushDone.Inc(1)
 }
 
-func (l *commitLog) openWriterWithLock(now time.Time) error {
+func (l *commitLog) openWriterWithLock(now time.Time) (File, error) {
 	if l.writer != nil {
 		if err := l.writer.Close(); err != nil {
 			l.metrics.closeErrors.Inc(1)
@@ -350,13 +391,13 @@ func (l *commitLog) openWriterWithLock(now time.Time) error {
 
 	file, err := l.writer.Open(start, blockSize)
 	if err != nil {
-		return err
+		return File{}, err
 	}
 
 	l.activeFile = &file
 	l.writerExpireAt = start.Add(blockSize)
 
-	return nil
+	return file, nil
 }
 
 func (l *commitLog) Write(
@@ -471,4 +512,14 @@ func (l *commitLog) Close() error {
 
 	// Receive the result of closing the writer from asynchronous writer
 	return <-l.closeErr
+}
+
+func (l *commitLog) setRotationPending() {
+	atomic.StoreInt64(&l.rotationPending, 1)
+}
+func (l *commitLog) clearRotationPending() {
+	atomic.StoreInt64(&l.rotationPending, 0)
+}
+func (l *commitLog) isRotationPending() bool {
+	return atomic.LoadInt64(&l.rotationPending) == 1
 }
