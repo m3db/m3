@@ -211,6 +211,9 @@ func NewFunctionExpr(
 	case temporal.ResetsType, temporal.ChangesType:
 		return temporal.NewFunctionOp(argValues, name)
 
+	case linear.SortType, linear.SortDescType:
+		return linear.NewSortOp(name)
+
 	case unconsolidated.TimestampType:
 		return unconsolidated.NewTimestampOp(name)
 

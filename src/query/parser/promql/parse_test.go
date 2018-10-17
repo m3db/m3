@@ -129,6 +129,9 @@ var linearParseTests = []struct {
 	{"minute(up)", linear.MinuteType},
 	{"month(up)", linear.MonthType},
 	{"year(up)", linear.YearType},
+
+	{"sort(up)", linear.SortType},
+	{"sort_desc(up)", linear.SortDescType},
 }
 
 func TestLinearParses(t *testing.T) {
