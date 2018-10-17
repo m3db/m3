@@ -263,13 +263,6 @@ func (b *dbBlock) HasMergeTarget() bool {
 	return hasMergeTarget
 }
 
-func (b *dbBlock) IsRetrieved() bool {
-	b.RLock()
-	retrieved := b.retriever == nil
-	b.RUnlock()
-	return retrieved
-}
-
 func (b *dbBlock) WasRetrievedFromDisk() bool {
 	b.RLock()
 	wasRetrieved := b.wasRetrievedFromDisk

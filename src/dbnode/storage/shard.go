@@ -1737,9 +1737,9 @@ func (s *dbShard) Bootstrap(
 			// them for insertion.
 			// FOLLOWUP(r): Audit places that keep refs to the ID from a
 			// bootstrap result, newShardEntry copies it but some of the
-			// bootstrapped blocks when using all_metadata and perhaps
-			// another series cache policy keeps refs to the ID with
-			// retrieveID, so for now these IDs will be garbage collected)
+			// bootstrapped blocks when using certain series cache policies
+			// keeps refs to the ID with retrieveID, so for now these IDs will
+			// be garbage collected)
 			dbBlocks.Tags.Finalize()
 		}
 

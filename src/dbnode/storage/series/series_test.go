@@ -279,12 +279,10 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	blockStart := curr.Add(-ropts.RetentionPeriod()).Add(-ropts.BlockSize())
 	b := block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(blockStart)
-	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
 	b.EXPECT().Close()
 	series.blocks.AddBlock(b)
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
-	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
 	series.blocks.AddBlock(b)
 	require.Equal(t, blockStart, series.blocks.MinTime())
 	require.Equal(t, 2, series.blocks.Len())
@@ -326,7 +324,6 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	// Test case where block has been read within expiry period - won't be removed
 	b := block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
-	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
 	b.EXPECT().LastReadTime().Return(
 		curr.Add(-opts.RetentionOptions().BlockDataExpiryAfterNotAccessedPeriod() / 2))
 	b.EXPECT().HasMergeTarget().Return(true)
@@ -342,7 +339,6 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	// Test case where block has not been read within expiry period - will be removed
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
-	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
 	b.EXPECT().LastReadTime().Return(
 		curr.Add(-opts.RetentionOptions().BlockDataExpiryAfterNotAccessedPeriod() * 2))
 	b.EXPECT().Close().Return()
@@ -359,7 +355,6 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
 	b.EXPECT().HasMergeTarget().Return(true)
-	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
 	series.blocks.AddBlock(b)
 	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(false)
 
@@ -392,7 +387,6 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	// Test case where block was not retrieved from disk - Will be removed
 	b := block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
-	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
 	b.EXPECT().WasRetrievedFromDisk().Return(false)
 	b.EXPECT().Close().Return()
 	series.blocks.AddBlock(b)
@@ -407,7 +401,6 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	// Test case where block was retrieved from disk - Will not be removed
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
-	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
 	b.EXPECT().HasMergeTarget().Return(true)
 	b.EXPECT().WasRetrievedFromDisk().Return(true)
 	series.blocks.AddBlock(b)
@@ -422,7 +415,6 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	// Test case where block is not flushed yet (not retrievable) - Will not be removed
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
-	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
 	b.EXPECT().HasMergeTarget().Return(true)
 	series.blocks.AddBlock(b)
 	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(false)
@@ -430,7 +422,6 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	// Test case where block was retrieved from disk and is out of retention. Will be removed, but not closed.
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr.Add(-2 * retentionPeriod))
-	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
 	b.EXPECT().WasRetrievedFromDisk().Return(true)
 	series.blocks.AddBlock(b)
 	_, expiredBlockExists := series.blocks.BlockAt(curr.Add(-2 * retentionPeriod))

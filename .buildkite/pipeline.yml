@@ -44,13 +44,6 @@ steps:
         gopath-checkout#v1.0.1:
           import: github.com/m3db/m3
     <<: *common
-  - label: "Integration (dbnode All Metadata) %n"
-    parallelism: 2
-    command: make clean install-vendor test-ci-integration-dbnode cache_policy=all_metadata
-    plugins:
-      docker-compose#v2.5.1:
-        run: app
-    <<: *common
   - name: "Integration (dbnode Recently Read) %n"
     parallelism: 2
     command: make clean install-vendor test-ci-integration-dbnode cache_policy=recently_read
