@@ -57,17 +57,20 @@ func setupServer(t *testing.T) *httptest.Server {
 		FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, false, fmt.Errorf("not initialized"))
 	storage := test.NewSlowStorage(lstore, 10*time.Millisecond)
-	engine := executor.NewEngine(storage)
-	promRead := &PromReadHandler{engine: engine, promReadMetrics: promReadTestMetrics}
+	promRead := readHandler(storage)
 	server := httptest.NewServer(test.NewSlowHandler(promRead, 10*time.Millisecond))
 	return server
+}
+
+func readHandler(store storage.Storage) *PromReadHandler {
+	return &PromReadHandler{engine: executor.NewEngine(store, tally.NewTestScope("test", nil)), promReadMetrics: promReadTestMetrics}
 }
 
 func TestPromReadParsing(t *testing.T) {
 	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
-	promRead := &PromReadHandler{engine: executor.NewEngine(storage), promReadMetrics: promReadTestMetrics}
+	promRead := &PromReadHandler{engine: executor.NewEngine(storage, tally.NewTestScope("test", nil)), promReadMetrics: promReadTestMetrics}
 	req, _ := http.NewRequest("POST", PromReadURL, test.GeneratePromReadBody(t))
 
 	r, err := promRead.parseRequest(req)
@@ -79,7 +82,7 @@ func TestPromReadParsingBad(t *testing.T) {
 	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
-	promRead := &PromReadHandler{engine: executor.NewEngine(storage), promReadMetrics: promReadTestMetrics}
+	promRead := readHandler(storage)
 	req, _ := http.NewRequest("POST", PromReadURL, strings.NewReader("bad body"))
 	_, err := promRead.parseRequest(req)
 	require.NotNil(t, err, "unable to parse request")
@@ -93,7 +96,7 @@ func TestPromReadStorageWithFetchError(t *testing.T) {
 		Return(nil, true, fmt.Errorf("unable to get data"))
 	session.EXPECT().IteratorPools().
 		Return(nil, nil)
-	promRead := &PromReadHandler{engine: executor.NewEngine(storage), promReadMetrics: promReadTestMetrics}
+	promRead := readHandler(storage)
 	req := test.GeneratePromReadRequest()
 	_, err := promRead.read(context.TODO(), httptest.NewRecorder(), req, time.Hour)
 	require.NotNil(t, err, "unable to read from storage")
@@ -150,7 +153,7 @@ func TestReadErrorMetricsCount(t *testing.T) {
 	defer closer.Close()
 	readMetrics := newPromReadMetrics(scope)
 
-	promRead := &PromReadHandler{engine: executor.NewEngine(storage), promReadMetrics: readMetrics}
+	promRead := &PromReadHandler{engine: executor.NewEngine(storage, scope), promReadMetrics: readMetrics}
 	req, _ := http.NewRequest("POST", PromReadURL, test.GeneratePromReadBody(t))
 	promRead.ServeHTTP(httptest.NewRecorder(), req)
 

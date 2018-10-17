@@ -35,6 +35,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 func TestPromRead(t *testing.T) {
@@ -47,7 +48,7 @@ func TestPromRead(t *testing.T) {
 	mockStorage.SetFetchBlocksResult(block.Result{Blocks: []block.Block{b}}, nil)
 
 	promRead := &PromReadHandler{
-		engine:  executor.NewEngine(mockStorage),
+		engine:  executor.NewEngine(mockStorage, tally.NewTestScope("test", nil)),
 		tagOpts: models.NewTagOptions(),
 	}
 
