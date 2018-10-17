@@ -94,10 +94,11 @@ message M3Segment {
 }
 
 message SearchRequest {
-	bytes target                = 1;
-	SearchType type             = 2;
-	repeated bytes targetTags   = 3;
-	map<string, bytes> metadata = 4;
+	oneof matchers {
+		TagMatchers tagMatchers = 1;
+	}
+	SearchType type           = 2;
+	repeated bytes targetTags = 3;
 }
 
 enum SearchType {
@@ -108,10 +109,9 @@ enum SearchType {
 }
 
 message SearchResponse {
-	uint32 hits                    = 1;
 	oneof tags {
-		M3TagProperties compressed   = 2;
-		TagProperties decompressed   = 3;
+		M3TagProperties compressed = 1;
+		TagProperties decompressed = 2;
 	}
 }
 
