@@ -383,18 +383,6 @@ func (mr *MockDatabaseBlockMockRecorder) HasMergeTarget() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasMergeTarget", reflect.TypeOf((*MockDatabaseBlock)(nil).HasMergeTarget))
 }
 
-// IsRetrieved mocks base method
-func (m *MockDatabaseBlock) IsRetrieved() bool {
-	ret := m.ctrl.Call(m, "IsRetrieved")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// IsRetrieved indicates an expected call of IsRetrieved
-func (mr *MockDatabaseBlockMockRecorder) IsRetrieved() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsRetrieved", reflect.TypeOf((*MockDatabaseBlock)(nil).IsRetrieved))
-}
-
 // WasRetrievedFromDisk mocks base method
 func (m *MockDatabaseBlock) WasRetrievedFromDisk() bool {
 	ret := m.ctrl.Call(m, "WasRetrievedFromDisk")
