@@ -96,24 +96,6 @@ func NewDatabaseBlock(
 	return b
 }
 
-// NewRetrievableDatabaseBlock creates a new retrievable DatabaseBlock instance.
-func NewRetrievableDatabaseBlock(
-	start time.Time,
-	blockSize time.Duration,
-	retriever DatabaseShardBlockRetriever,
-	metadata RetrievableBlockMetadata,
-	opts Options,
-) DatabaseBlock {
-	b := &dbBlock{
-		opts:           opts,
-		startUnixNanos: start.UnixNano(),
-		blockSize:      blockSize,
-		closed:         false,
-	}
-	b.resetRetrievableWithLock(retriever, metadata)
-	return b
-}
-
 func (b *dbBlock) StartTime() time.Time {
 	b.RLock()
 	start := b.startWithRLock()
@@ -183,26 +165,6 @@ func (b *dbBlock) Checksum() (uint32, error) {
 	}
 
 	return b.checksum, nil
-}
-
-func (b *dbBlock) OnRetrieveBlock(
-	id ident.ID,
-	_ ident.TagIterator,
-	startTime time.Time,
-	segment ts.Segment,
-) {
-	b.Lock()
-	defer b.Unlock()
-
-	if b.closed ||
-		!id.Equal(b.retrieveID) ||
-		!startTime.Equal(b.startWithRLock()) {
-		return
-	}
-
-	b.resetSegmentWithLock(segment)
-	b.retrieveID = id
-	b.wasRetrievedFromDisk = true
 }
 
 func (b *dbBlock) Stream(blocker context.Context) (xio.BlockReader, error) {
@@ -296,18 +258,6 @@ func (b *dbBlock) Reset(start time.Time, blockSize time.Duration, segment ts.Seg
 	b.resetSegmentWithLock(segment)
 }
 
-func (b *dbBlock) ResetRetrievable(
-	start time.Time,
-	blockSize time.Duration,
-	retriever DatabaseShardBlockRetriever,
-	metadata RetrievableBlockMetadata,
-) {
-	b.Lock()
-	defer b.Unlock()
-	b.resetNewBlockStartWithLock(start, blockSize)
-	b.resetRetrievableWithLock(retriever, metadata)
-}
-
 func (b *dbBlock) streamWithRLock(ctx context.Context) (xio.BlockReader, error) {
 	start := b.startWithRLock()
 
@@ -367,17 +317,6 @@ func (b *dbBlock) resetSegmentWithLock(seg ts.Segment) {
 	b.length = seg.Len()
 	b.checksum = digest.SegmentChecksum(seg)
 	b.retrieveID = nil
-	b.wasRetrievedFromDisk = false
-}
-
-func (b *dbBlock) resetRetrievableWithLock(
-	retriever DatabaseShardBlockRetriever,
-	metadata RetrievableBlockMetadata,
-) {
-	b.segment = ts.Segment{}
-	b.length = metadata.Length
-	b.checksum = metadata.Checksum
-	b.retrieveID = metadata.ID
 	b.wasRetrievedFromDisk = false
 }
 

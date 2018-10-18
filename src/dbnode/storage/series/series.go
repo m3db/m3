@@ -520,21 +520,8 @@ func (s *dbSeries) OnRetrieveBlock(
 	}
 
 	b = s.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-	metadata := block.RetrievableBlockMetadata{
-		ID:       s.id,
-		Length:   segment.Len(),
-		Checksum: digest.SegmentChecksum(segment),
-	}
 	blockSize := s.opts.RetentionOptions().BlockSize()
-	b.ResetRetrievable(startTime, blockSize, s.blockRetriever, metadata)
-	// Use s.id instead of id here, because id is finalized by the context whereas
-	// we rely on the G.C to reclaim s.id. This is important because the block will
-	// hold onto the id ref, and (if the LRU caching policy is enabled) the shard
-	// will need it later when the WiredList calls its OnEvictedFromWiredList method.
-	// Also note that ResetRetrievable will mark the block as not retrieved from disk,
-	// but OnRetrieveBlock will then properly mark it as retrieved from disk so subsequent
-	// calls to WasRetrievedFromDisk will return true.
-	b.OnRetrieveBlock(s.id, tags, startTime, segment)
+	b.Reset(startTime, blockSize, segment)
 
 	// NB(r): Blocks retrieved have been triggered by a read, so set the last
 	// read time as now so caching policies are followed.

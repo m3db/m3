@@ -265,16 +265,6 @@ func (m *MockDatabaseBlock) EXPECT() *MockDatabaseBlockMockRecorder {
 	return m.recorder
 }
 
-// OnRetrieveBlock mocks base method
-func (m *MockDatabaseBlock) OnRetrieveBlock(id ident.ID, tags ident.TagIterator, startTime time.Time, segment ts.Segment) {
-	m.ctrl.Call(m, "OnRetrieveBlock", id, tags, startTime, segment)
-}
-
-// OnRetrieveBlock indicates an expected call of OnRetrieveBlock
-func (mr *MockDatabaseBlockMockRecorder) OnRetrieveBlock(id, tags, startTime, segment interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnRetrieveBlock", reflect.TypeOf((*MockDatabaseBlock)(nil).OnRetrieveBlock), id, tags, startTime, segment)
-}
-
 // StartTime mocks base method
 func (m *MockDatabaseBlock) StartTime() time.Time {
 	ret := m.ctrl.Call(m, "StartTime")

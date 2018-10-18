@@ -135,8 +135,6 @@ type NewDatabaseBlockFn func() DatabaseBlock
 
 // DatabaseBlock is the interface for a DatabaseBlock
 type DatabaseBlock interface {
-	OnRetrieveBlock
-
 	// StartTime returns the start time of the block.
 	StartTime() time.Time
 
@@ -173,14 +171,6 @@ type DatabaseBlock interface {
 
 	// Reset resets the block start time, duration, and the segment.
 	Reset(startTime time.Time, blockSize time.Duration, segment ts.Segment)
-
-	// ResetRetrievable resets the block to become retrievable.
-	ResetRetrievable(
-		startTime time.Time,
-		blockSize time.Duration,
-		retriever DatabaseShardBlockRetriever,
-		metadata RetrievableBlockMetadata,
-	)
 
 	// Discard closes the block, but returns the (unfinalized) segment.
 	Discard() ts.Segment
