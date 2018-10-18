@@ -384,7 +384,7 @@ func TestReadCommitLogMissingMetadata(t *testing.T) {
 	// Replace bitset in writer with one that configurably returns true or false
 	// depending on the series
 	commitLog := newTestCommitLog(t, opts)
-	writer := commitLog.writer.(*writer)
+	writer := commitLog.writerState.writer.(*writer)
 
 	bitSet := bitset.NewBitSet(0)
 
@@ -754,10 +754,10 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 	wg := setupCloseOnFail(t, commitLog)
 
 	func() {
-		commitLog.RLock()
-		defer commitLog.RUnlock()
+		commitLog.writerState.Lock()
+		defer commitLog.writerState.Unlock()
 		// Expire the writer so it requires a new open
-		commitLog.writerExpireAt = timeZero
+		commitLog.writerState.writerExpireAt = timeZero
 	}()
 
 	writes := []testWrite{
