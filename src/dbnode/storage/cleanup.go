@@ -297,24 +297,30 @@ func (m *cleanupManager) cleanupNamespaceSnapshotFiles(earliestToRetain time.Tim
 // commitLogTimes returns the earliest time before which the commit logs are expired,
 // as well as a list of times we need to clean up commit log files for.
 func (m *cleanupManager) commitLogTimes(t time.Time) ([]commitLogFileWithErrorAndPath, error) {
-	// NB(prateek): this logic of polling the namespaces across the commit log's entire
-	// retention history could get expensive if commit logs are retained for long periods.
-	// e.g. if we retain them for 40 days, with a block 2 hours; then every time
-	// we try to flush we are going to be polling each namespace, for each shard, for 480
-	// distinct blockstarts. Say we have 2 namespaces, each with 8192 shards, that's ~10M map lookups.
-	// If we cared about 100% correctness, we would optimize this by retaining a smarter data
-	// structure (e.g. interval tree), but for our use-case, it's safe to assume that commit logs
-	// are only retained for a period of 1-2 days (at most), after we which we'd live we with the
-	// data loss.
-
-	files, corruptFiles, err := m.commitLogFilesFn(m.opts.CommitLogOptions())
-	if err != nil {
-		return nil, err
-	}
 	namespaces, err := m.database.GetOwnedNamespaces()
 	if err != nil {
 		return nil, err
 	}
+
+	// We list the commit log files on disk before we determine what the currently active commitlog
+	// is to ensure that the logic remains correct even if the commitlog is rotated while this
+	// function is executing. For example, imagine the following commitlogs are on disk:
+	//
+	// [time1, time2, time3]
+	//
+	// If we call ActiveLogs first then it will return time3. Next, the commit log file rotates, and
+	// after that we call commitLogFilesFn which returns: [time1, time2, time3, time4]. In this scenario
+	// we would be allowed to commitlog files 1,2, and 4 which is not the desired behavior. Instead, we
+	// list the commitlogs on disk first (which returns time1, time2, and time3) and *then* check what
+	// the active file is. If the commitlog has not rotated, then ActiveLogs() will return time3 which
+	// we will correctly avoid deleting, and if the commitlog has rotated, then ActiveLogs() will return
+	// time4 which we wouldn't consider deleting anyways because it wasn't returned from the first call
+	// to commitLogFilesFn.
+	files, corruptFiles, err := m.commitLogFilesFn(m.opts.CommitLogOptions())
+	if err != nil {
+		return nil, err
+	}
+
 	activeCommitlogs, err := m.activeCommitlogs.ActiveLogs()
 	if err != nil {
 		return nil, err
