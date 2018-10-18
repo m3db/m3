@@ -70,7 +70,7 @@ type commitLog struct {
 	closeErr chan error
 
 	// TODO(r): replace buffered channel with concurrent striped
-	// circular buffer to avoid central write lock contention
+	// circular buffer to avoid central write lock contention.
 	writes chan commitLogWrite
 
 	opts  Options
