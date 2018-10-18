@@ -55,7 +55,6 @@ type dbBlock struct {
 
 	mergeTarget DatabaseBlock
 
-	retriever  DatabaseShardBlockRetriever
 	retrieveID ident.ID
 
 	onEvicted OnEvictedFromWiredList
@@ -270,14 +269,6 @@ func (b *dbBlock) WasRetrievedFromDisk() bool {
 	return wasRetrieved
 }
 
-func (b *dbBlock) IsCachedBlock() bool {
-	b.RLock()
-	retrieved := b.retriever == nil
-	wasRetrieved := b.wasRetrievedFromDisk
-	b.RUnlock()
-	return !retrieved || wasRetrieved
-}
-
 func (b *dbBlock) Merge(other DatabaseBlock) error {
 	b.Lock()
 	if b.wasRetrievedFromDisk || other.WasRetrievedFromDisk() {
@@ -320,36 +311,24 @@ func (b *dbBlock) ResetRetrievable(
 func (b *dbBlock) streamWithRLock(ctx context.Context) (xio.BlockReader, error) {
 	start := b.startWithRLock()
 
-	// If the block retrieve ID is set then it must be retrieved
-	var (
-		blockReader xio.BlockReader
-		err         error
-	)
-	if b.retriever != nil {
-		blockReader, err = b.retriever.Stream(ctx, b.retrieveID, start, b)
-		if err != nil {
-			return xio.EmptyBlockReader, err
-		}
-	} else {
-		// Take a copy to avoid heavy depends on cycle
-		segmentReader := b.opts.SegmentReaderPool().Get()
-		data := b.opts.BytesPool().Get(b.segment.Len())
-		data.IncRef()
-		if b.segment.Head != nil {
-			data.AppendAll(b.segment.Head.Bytes())
-		}
-		if b.segment.Tail != nil {
-			data.AppendAll(b.segment.Tail.Bytes())
-		}
-		data.DecRef()
-		segmentReader.Reset(ts.NewSegment(data, nil, ts.FinalizeHead))
-		ctx.RegisterFinalizer(segmentReader)
+	// Take a copy to avoid heavy depends on cycle
+	segmentReader := b.opts.SegmentReaderPool().Get()
+	data := b.opts.BytesPool().Get(b.segment.Len())
+	data.IncRef()
+	if b.segment.Head != nil {
+		data.AppendAll(b.segment.Head.Bytes())
+	}
+	if b.segment.Tail != nil {
+		data.AppendAll(b.segment.Tail.Bytes())
+	}
+	data.DecRef()
+	segmentReader.Reset(ts.NewSegment(data, nil, ts.FinalizeHead))
+	ctx.RegisterFinalizer(segmentReader)
 
-		blockReader = xio.BlockReader{
-			SegmentReader: segmentReader,
-			Start:         start,
-			BlockSize:     b.blockSize,
-		}
+	blockReader := xio.BlockReader{
+		SegmentReader: segmentReader,
+		Start:         start,
+		BlockSize:     b.blockSize,
 	}
 
 	return blockReader, nil
@@ -387,8 +366,6 @@ func (b *dbBlock) resetSegmentWithLock(seg ts.Segment) {
 	b.segment = seg
 	b.length = seg.Len()
 	b.checksum = digest.SegmentChecksum(seg)
-
-	b.retriever = nil
 	b.retrieveID = nil
 	b.wasRetrievedFromDisk = false
 }
@@ -400,8 +377,6 @@ func (b *dbBlock) resetRetrievableWithLock(
 	b.segment = ts.Segment{}
 	b.length = metadata.Length
 	b.checksum = metadata.Checksum
-
-	b.retriever = retriever
 	b.retrieveID = metadata.ID
 	b.wasRetrievedFromDisk = false
 }

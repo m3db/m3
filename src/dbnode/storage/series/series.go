@@ -333,7 +333,7 @@ func (s *dbSeries) FetchBlocksMetadata(
 		if !start.Before(t.Add(blockSize)) || !t.Before(end) {
 			continue
 		}
-		if !opts.IncludeCachedBlocks && b.IsCachedBlock() {
+		if !opts.IncludeCachedBlocks && b.WasRetrievedFromDisk() {
 			// Do not include cached blocks if not specified to, this is
 			// to avoid high amounts of duplication if a significant number of
 			// blocks are cached in memory when returning blocks metadata

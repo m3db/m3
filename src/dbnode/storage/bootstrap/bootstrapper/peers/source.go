@@ -342,8 +342,6 @@ func (s *peersSource) logFetchBootstrapBlocksFromPeersOutcome(
 // shard/block and flushing it to disk. Depending on the series caching policy,
 // the series will either be held in memory, or removed from memory once
 // flushing has completed.
-// Once everything has been flushed to disk then depending on the series
-// caching policy the function is either done.
 // In addition, if the caching policy is not CacheAll, then
 // at the end we remove all the series objects from the shard result as well
 // (since all their corresponding blocks have been removed anyways) to prevent

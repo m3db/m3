@@ -171,11 +171,6 @@ type DatabaseBlock interface {
 	// WasRetrievedFromDisk returns whether the block was retrieved from storage.
 	WasRetrievedFromDisk() bool
 
-	// IsCachedBlock returns whether the block is not retrieved, or rather
-	// only the metadata is currently available, or whether it was retrieved
-	// from storage to serve as a memory cached block for reads.
-	IsCachedBlock() bool
-
 	// Reset resets the block start time, duration, and the segment.
 	Reset(startTime time.Time, blockSize time.Duration, segment ts.Segment)
 
