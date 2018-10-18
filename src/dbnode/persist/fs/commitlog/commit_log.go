@@ -267,7 +267,7 @@ func (l *commitLog) write() {
 	// is guaranteed to still be present), but it does need to acquire an exclusive lock when the writer
 	// is opened, closed, or set to nil (any operation that could change the pointer value of
 	// writerState.writer or writerState.activeFile). In other words, this function can be thought of
-	// as having an implied read lock at all times that is occassionally upgraded to an exclusive lock
+	// as having an implied read lock at all times that is occasionally upgraded to an exclusive lock
 	// for the purpose of mutating the writerState.
 	for write := range l.writes {
 		// For writes requiring acks add to pending acks
