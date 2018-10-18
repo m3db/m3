@@ -199,7 +199,8 @@ func NewFunctionExpr(
 		return p, true, err
 
 	case tag.TagJoinType, tag.TagReplaceType:
-		return tag.NewTagOp(name, stringValues)
+		p, err = tag.NewTagOp(name, stringValues)
+		return p, true, err
 
 	case temporal.AvgType, temporal.CountType, temporal.MinType,
 		temporal.MaxType, temporal.SumType, temporal.StdDevType,

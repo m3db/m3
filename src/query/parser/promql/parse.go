@@ -160,7 +160,7 @@ func (p *parseState) walk(node pql.Node) error {
 			}
 		}
 
-		op, ok, err := NewFunctionExpr(n.Func.Name, argValues)
+		op, ok, err := NewFunctionExpr(n.Func.Name, argValues, stringValues)
 		if err != nil {
 			return err
 		}
