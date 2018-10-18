@@ -53,8 +53,8 @@ func createExamples() []testSample {
 	now := time.Time{}
 	samples := []testSample{
 		{
-			input:    generateDatapoints(now, []int{0, 10, 18, 28}),
-			expected: [][]float64{{0}, {1}, {2}, {3}},
+			input:    generateDatapoints(now, []int{-1, 0, 10, 18, 28, 38}),
+			expected: [][]float64{{0, 1}, {2}, {3}, {4}},
 			bounds: models.Bounds{
 				Start:    now,
 				Duration: 40 * time.Second,
