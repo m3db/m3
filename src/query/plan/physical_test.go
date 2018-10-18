@@ -74,11 +74,11 @@ func TestShiftTime(t *testing.T) {
 	start := time.Now().Add(-1 * time.Hour)
 	p, err := NewPhysicalPlan(lp, nil, models.RequestParams{Now: now, Start: start})
 	require.NoError(t, err)
-	assert.Equal(t, p.TimeSpec.Start, start)
+	assert.Equal(t, p.TimeSpec.Start, start.Add(-1*models.LookbackDelta))
 	fetchTransform = parser.NewTransformFromOperation(functions.FetchOp{Offset: time.Minute, Range: time.Hour}, 1)
 	transforms = parser.Nodes{fetchTransform, countTransform}
 	lp, _ = NewLogicalPlan(transforms, edges)
 	p, err = NewPhysicalPlan(lp, nil, models.RequestParams{Now: now, Start: start})
 	require.NoError(t, err)
-	assert.Equal(t, p.TimeSpec.Start, start.Add(-1*(time.Minute+time.Hour)), "start time offset by fetch")
+	assert.Equal(t, p.TimeSpec.Start, start.Add(-1*(time.Minute+time.Hour+models.LookbackDelta)), "start time offset by fetch")
 }
