@@ -20,14 +20,6 @@
 
 package linear
 
-import (
-	"fmt"
-
-	"github.com/m3db/m3/src/query/block"
-	"github.com/m3db/m3/src/query/executor/transform"
-	"github.com/m3db/m3/src/query/parser"
-)
-
 const (
 	// NB: Because Prometheus's sort and sort_desc only look at the last value,
 	// these functions are essentially noops in M3 as we don't support instant queries.
@@ -38,54 +30,3 @@ const (
 	// SortDescType is the same as sort, but sorts in descending order.
 	SortDescType = "sort_desc"
 )
-
-// NewSortOp creates a new sort operation
-func NewSortOp(opType string) (parser.Params, error) {
-	if opType != SortType && opType != SortDescType {
-		return sortOp{}, fmt.Errorf("operator not supported: %s", opType)
-	}
-
-	return newSortOp(opType), nil
-}
-
-// sortOp stores required properties for sort ops
-type sortOp struct {
-	opType string
-}
-
-// OpType for the operator
-func (o sortOp) OpType() string {
-	return o.opType
-}
-
-// String representation
-func (o sortOp) String() string {
-	return fmt.Sprintf("type: %s", o.OpType())
-}
-
-func newSortOp(opType string) sortOp {
-	return sortOp{
-		opType: opType,
-	}
-}
-
-// Node creates an execution node
-func (o sortOp) Node(
-	controller *transform.Controller,
-	_ transform.Options,
-) transform.OpNode {
-	return &sortNode{
-		op:         o,
-		controller: controller,
-	}
-}
-
-type sortNode struct {
-	op         sortOp
-	controller *transform.Controller
-}
-
-// Process the block
-func (n *sortNode) Process(_ parser.NodeID, b block.Block) error {
-	return n.controller.Process(b)
-}
