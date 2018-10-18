@@ -61,12 +61,12 @@ func NewMatcher(t MatchType, n, v []byte) (Matcher, error) {
 	return m, nil
 }
 
-func (m *Matcher) String() string {
+func (m Matcher) String() string {
 	return fmt.Sprintf("%s%s%q", m.Name, m.Type, m.Value)
 }
 
 // Matches returns whether the matcher matches the given string value.
-func (m *Matcher) Matches(s []byte) bool {
+func (m Matcher) Matches(s []byte) bool {
 	switch m.Type {
 	case MatchEqual:
 		return bytes.Equal(s, m.Value)
