@@ -21,11 +21,8 @@
 package ts
 
 import (
-	"fmt"
-	"math"
 	"time"
 
-	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
 )
 
@@ -84,7 +81,7 @@ func (d Datapoints) Values() []float64 {
 	return values
 }
 
-// AlignToBounds returns values aligned to given bounds.
+// AlignToBounds returns values aligned to given bounds. To belong to a step, values should be <= stepTime and not stale
 func (d Datapoints) AlignToBounds(bounds models.Bounds) []Datapoints {
 	numDatapoints := d.Len()
 	steps := bounds.Steps()
@@ -93,14 +90,25 @@ func (d Datapoints) AlignToBounds(bounds models.Bounds) []Datapoints {
 	stepSize := bounds.StepSize
 	t := bounds.Start
 	for i := 0; i < steps; i++ {
-		startIdx := dpIdx
-		for dpIdx < numDatapoints && d[dpIdx].Timestamp.Before(t) {
+		singleStepValues := make(Datapoints, 0)
+
+		for dpIdx < numDatapoints && !d[dpIdx].Timestamp.After(t) {
+			point := d[dpIdx]
+			// Skip stale values
+			if t.Sub(point.Timestamp) > models.LookbackDelta {
+				continue
+			}
+
+			singleStepValues = append(singleStepValues, point)
 			dpIdx++
 		}
 
-		singleStepValues := make(Datapoints, dpIdx-startIdx)
-		for i := startIdx; i < dpIdx; i++ {
-			singleStepValues[i-startIdx] = d[i]
+		// If no point found for this interval, reuse the last point as long as its not stale
+		if len(singleStepValues) == 0 && dpIdx > 0 {
+			prevPoint := d[dpIdx-1]
+			if t.Sub(prevPoint.Timestamp) <= models.LookbackDelta {
+				singleStepValues = Datapoints{prevPoint}
+			}
 		}
 
 		stepValues[i] = singleStepValues
@@ -202,51 +210,4 @@ func newFixedStepValues(resolution time.Duration, numSteps int, initialValue flo
 		startTime:  startTime,
 		values:     values,
 	}
-}
-
-// RawPointsToFixedStep converts raw datapoints into the interval required within the bounds specified. For every time step, it finds the closest point.
-func RawPointsToFixedStep(datapoints Datapoints, start time.Time, end time.Time, interval time.Duration) (FixedResolutionMutableValues, error) {
-	if end.Before(start) {
-		return nil, fmt.Errorf("start cannot be after end, start: %v, end: %v", start, end)
-	}
-
-	if interval == 0 {
-		return nil, errors.ErrZeroInterval
-	}
-
-	var numSteps int
-	if end.Equal(start) {
-		numSteps = 1
-	} else {
-		numSteps = int(end.Sub(start) / interval)
-	}
-
-	fixStepValues := newFixedStepValues(interval, numSteps, math.NaN(), start)
-	fixedResIdx := 0
-	dpIdx := 0
-	numPoints := len(datapoints)
-	for t := start; !t.After(end) && fixedResIdx < numSteps; t = t.Add(interval) {
-		// Find first datapoint not before time t
-		for ; dpIdx < numPoints; dpIdx++ {
-			if !datapoints.DatapointAt(dpIdx).Timestamp.Before(t) {
-				break
-			}
-		}
-
-		// fixStepValues is initialized with NaNs so we can prematurely exit here
-		if dpIdx >= numPoints {
-			break
-		}
-
-		// If datapoint aligns to the time or its the first datapoint then take that
-		if datapoints.DatapointAt(dpIdx).Timestamp == t || dpIdx == 0 {
-			fixStepValues.values[fixedResIdx] = datapoints.ValueAt(dpIdx)
-		} else {
-			fixStepValues.values[fixedResIdx] = datapoints.ValueAt(dpIdx - 1)
-		}
-
-		fixedResIdx++
-	}
-
-	return fixStepValues, nil
 }

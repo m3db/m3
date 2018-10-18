@@ -73,7 +73,9 @@ func NewPhysicalPlan(lp LogicalPlan, storage storage.Storage, params models.Requ
 }
 
 func (p PhysicalPlan) shiftTime() PhysicalPlan {
-	var maxOffset, maxRange time.Duration
+	var maxRange time.Duration
+	// Start offset with lookback
+	maxOffset := models.LookbackDelta
 	for _, transformID := range p.pipeline {
 		node := p.steps[transformID]
 		boundOp, ok := node.Transform.Op.(transform.BoundOp)
@@ -82,8 +84,8 @@ func (p PhysicalPlan) shiftTime() PhysicalPlan {
 		}
 
 		spec := boundOp.Bounds()
-		if spec.Offset > maxOffset {
-			maxOffset = spec.Offset
+		if spec.Offset+models.LookbackDelta > maxOffset {
+			maxOffset = spec.Offset + models.LookbackDelta
 		}
 
 		if spec.Range > maxRange {

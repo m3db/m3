@@ -24,6 +24,11 @@ import (
 	"time"
 )
 
+// LookbackDelta determines the time since the last sample after which a time
+// series is considered stale (inclusive).
+// TODO: Make this configurable
+var LookbackDelta = time.Minute
+
 // RequestParams represents the params from the request
 type RequestParams struct {
 	Start time.Time
