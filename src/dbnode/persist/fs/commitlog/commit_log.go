@@ -175,11 +175,10 @@ func (l *commitLog) Open() error {
 
 	// Open the buffered commit log writer
 	l.writerState.Lock()
+	defer l.writerState.Unlock()
 	if err := l.openWriterWithLock(l.nowFn()); err != nil {
-		l.writerState.Unlock()
 		return err
 	}
-	l.writerState.Unlock()
 
 	// Flush the info header to ensure we can write to disk
 	if err := l.writerState.writer.Flush(); err != nil {
