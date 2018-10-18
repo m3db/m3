@@ -151,6 +151,30 @@ func TestLinearParses(t *testing.T) {
 	}
 }
 
+var sortTests = []struct {
+	q            string
+	expectedType string
+}{
+	{"sort(up)", linear.SortType},
+	{"sort_desc(up)", linear.SortDescType},
+}
+
+func TestSort(t *testing.T) {
+	for _, tt := range sortTests {
+		t.Run(tt.q, func(t *testing.T) {
+			q := tt.q
+			p, err := Parse(q, models.NewTagOptions())
+			require.NoError(t, err)
+			transforms, edges, err := p.DAG()
+			require.NoError(t, err)
+			assert.Len(t, transforms, 1)
+			assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
+			assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
+			assert.Len(t, edges, 0)
+		})
+	}
+}
+
 func TestTimeTypeParse(t *testing.T) {
 	q := "time()"
 	p, err := Parse(q, models.NewTagOptions())
