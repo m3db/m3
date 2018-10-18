@@ -81,7 +81,7 @@ func (d Datapoints) Values() []float64 {
 	return values
 }
 
-// AlignToBounds returns values aligned to given bounds.
+// AlignToBounds returns values aligned to given bounds. To belong to a step, values should be <= stepTime and not stale
 func (d Datapoints) AlignToBounds(bounds models.Bounds) []Datapoints {
 	numDatapoints := d.Len()
 	steps := bounds.Steps()
@@ -90,20 +90,23 @@ func (d Datapoints) AlignToBounds(bounds models.Bounds) []Datapoints {
 	stepSize := bounds.StepSize
 	t := bounds.Start
 	for i := 0; i < steps; i++ {
-		startIdx := dpIdx
-		for dpIdx < numDatapoints && d[dpIdx].Timestamp.Before(t) {
-			dpIdx++
-		}
+		singleStepValues := make(Datapoints, 0)
 
-		singleStepValues := make(Datapoints, dpIdx-startIdx)
-		for i := startIdx; i < dpIdx; i++ {
-			singleStepValues[i-startIdx] = d[i]
+		for dpIdx < numDatapoints && !d[dpIdx].Timestamp.After(t) {
+			point := d[dpIdx]
+			// Skip stale values
+			if t.Sub(point.Timestamp) > models.LookbackDelta {
+				continue
+			}
+
+			singleStepValues = append(singleStepValues, point)
+			dpIdx++
 		}
 
 		// If no point found for this interval, reuse the last point as long as its not stale
 		if len(singleStepValues) == 0 && dpIdx > 0 {
 			prevPoint := d[dpIdx-1]
-			if t.Sub(prevPoint.Timestamp) < models.LookbackDelta {
+			if t.Sub(prevPoint.Timestamp) <= models.LookbackDelta {
 				singleStepValues = Datapoints{prevPoint}
 			}
 		}
