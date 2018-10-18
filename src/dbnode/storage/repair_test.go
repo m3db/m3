@@ -292,7 +292,7 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 	)
 	session.EXPECT().
 		FetchBlocksMetadataFromPeers(namespace, shardID, start, end,
-			rpOpts.RepairConsistencyLevel(), gomock.Any(), client.FetchBlocksMetadataEndpointV2).
+			rpOpts.RepairConsistencyLevel(), gomock.Any()).
 		Return(peerIter, nil)
 
 	var (

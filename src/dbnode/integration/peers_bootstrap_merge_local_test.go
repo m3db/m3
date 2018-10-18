@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
@@ -37,17 +36,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TODO(rartoul): Delete this once we've tested V2 in prod
 func TestPeersBootstrapMergeLocal(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
 
-	testPeersBootstrapMergeLocal(t, client.FetchBlocksMetadataEndpointV1)
-}
-
-func testPeersBootstrapMergeLocal(
-	t *testing.T, version client.FetchBlocksMetadataEndpointVersion) {
 	// Test setups
 	log := xlog.SimpleLogger
 	retentionOpts := retention.NewOptions().
@@ -74,10 +67,9 @@ func testPeersBootstrapMergeLocal(
 				useTChannelClientForWriting: true,
 			},
 			{
-				disablePeersBootstrapper:           false,
-				useTChannelClientForWriting:        true,
-				testStatsReporter:                  reporter,
-				fetchBlocksMetadataEndpointVersion: version,
+				disablePeersBootstrapper:    false,
+				useTChannelClientForWriting: true,
+				testStatsReporter:           reporter,
 			},
 		}
 	)

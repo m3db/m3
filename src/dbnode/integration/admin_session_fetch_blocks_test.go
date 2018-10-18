@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
@@ -105,9 +104,8 @@ func testSetupMetadatas(
 	// FetchMetadataBlocksFromPeers/FetchBlocksFromPeers
 	adminClient := testSetup.m3dbVerificationAdminClient
 	level := topology.ReadConsistencyLevelMajority
-	version := client.FetchBlocksMetadataEndpointV2
 	metadatasByShard, err := m3dbClientFetchBlocksMetadata(adminClient,
-		namespace, testSetup.shardSet.AllIDs(), start, end, level, version)
+		namespace, testSetup.shardSet.AllIDs(), start, end, level)
 	require.NoError(t, err)
 	return metadatasByShard
 }

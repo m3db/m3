@@ -189,11 +189,11 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 	mockAdminSession := client.NewMockAdminSession(ctrl)
 	mockAdminSession.EXPECT().
 		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(nsMetadata),
-			uint32(0), start, end, gomock.Any(), client.FetchBlocksMetadataEndpointV1).
+			uint32(0), start, end, gomock.Any()).
 		Return(goodResult, nil)
 	mockAdminSession.EXPECT().
 		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(nsMetadata),
-			uint32(1), start, end, gomock.Any(), client.FetchBlocksMetadataEndpointV1).
+			uint32(1), start, end, gomock.Any()).
 		Return(nil, badErr)
 
 	mockAdminClient := client.NewMockAdminClient(ctrl)
@@ -267,19 +267,19 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		mockAdminSession := client.NewMockAdminSession(ctrl)
 		mockAdminSession.EXPECT().
 			FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNsMd),
-				uint32(0), start, start.Add(blockSize), gomock.Any(), client.FetchBlocksMetadataEndpointV1).
+				uint32(0), start, start.Add(blockSize), gomock.Any()).
 			Return(shard0ResultBlock1, nil)
 		mockAdminSession.EXPECT().
 			FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNsMd),
-				uint32(0), start.Add(blockSize), start.Add(blockSize*2), gomock.Any(), client.FetchBlocksMetadataEndpointV1).
+				uint32(0), start.Add(blockSize), start.Add(blockSize*2), gomock.Any()).
 			Return(shard0ResultBlock2, nil)
 		mockAdminSession.EXPECT().
 			FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNsMd),
-				uint32(1), start, start.Add(blockSize), gomock.Any(), client.FetchBlocksMetadataEndpointV1).
+				uint32(1), start, start.Add(blockSize), gomock.Any()).
 			Return(shard1ResultBlock1, nil)
 		mockAdminSession.EXPECT().
 			FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNsMd),
-				uint32(1), start.Add(blockSize), start.Add(blockSize*2), gomock.Any(), client.FetchBlocksMetadataEndpointV1).
+				uint32(1), start.Add(blockSize), start.Add(blockSize*2), gomock.Any()).
 			Return(shard1ResultBlock2, nil)
 
 		mockAdminClient := client.NewMockAdminClient(ctrl)
@@ -511,7 +511,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 		mockAdminSession.EXPECT().
 			FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNsMd),
 				key.shard, time.Unix(0, key.start), time.Unix(0, key.end),
-				gomock.Any(), client.FetchBlocksMetadataEndpointV1).
+				gomock.Any()).
 			Return(result, nil)
 	}
 

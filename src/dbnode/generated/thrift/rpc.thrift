@@ -53,8 +53,6 @@ service Node {
 	FetchBatchRawResult fetchBatchRaw(1: FetchBatchRawRequest req) throws (1: Error err)
 	FetchBlocksRawResult fetchBlocksRaw(1: FetchBlocksRawRequest req) throws (1: Error err)
 
-	// TODO(rartoul): Delete this once we delete the V1 code path
-	FetchBlocksMetadataRawResult fetchBlocksMetadataRaw(1: FetchBlocksMetadataRawRequest req) throws (1: Error err)
 	FetchBlocksMetadataRawV2Result fetchBlocksMetadataRawV2(1: FetchBlocksMetadataRawV2Request req) throws (1: Error err)
 	void writeBatchRaw(1: WriteBatchRawRequest req) throws (1: WriteBatchRawErrors err)
 	void writeTaggedBatchRaw(1: WriteTaggedBatchRawRequest req) throws (1: WriteBatchRawErrors err)
@@ -189,41 +187,6 @@ struct Block {
 struct Tag {
   1: required string name
   2: required string value
-}
-
-// TODO(rartoul): Delete this once we delete the V1 code path
-struct FetchBlocksMetadataRawRequest {
-	1: required binary nameSpace
-	2: required i32 shard
-	3: required i64 rangeStart
-	4: required i64 rangeEnd
-	5: required i64 limit
-	6: optional i64 pageToken
-	7: optional bool includeSizes
-	8: optional bool includeChecksums
-	9: optional bool includeLastRead
-}
-
-// TODO(rartoul): Delete this once we delete the V1 code path
-struct FetchBlocksMetadataRawResult {
-	1: required list<BlocksMetadata> elements
-	2: optional i64 nextPageToken
-}
-
-// TODO(rartoul): Delete this once we delete the V1 code path
-struct BlocksMetadata {
-	1: required binary id
-	2: required list<BlockMetadata> blocks
-}
-
-// TODO(rartoul): Delete this once we delete the V1 code path
-struct BlockMetadata {
-	1: optional Error err
-	2: required i64 start
-	3: optional i64 size
-	4: optional i64 checksum
-	5: optional i64 lastRead
-	6: optional TimeType lastReadTimeType = TimeType.UNIX_SECONDS
 }
 
 struct FetchBlocksMetadataRawV2Request {

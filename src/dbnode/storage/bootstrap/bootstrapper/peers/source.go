@@ -272,10 +272,9 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 		currRange := it.Value()
 
 		for blockStart := currRange.Start; blockStart.Before(currRange.End); blockStart = blockStart.Add(blockSize) {
-			version := s.opts.FetchBlocksMetadataEndpointVersion()
 			blockEnd := blockStart.Add(blockSize)
 			shardResult, err := session.FetchBootstrapBlocksFromPeers(
-				nsMetadata, shard, blockStart, blockEnd, bopts, version)
+				nsMetadata, shard, blockStart, blockEnd, bopts)
 
 			s.logFetchBootstrapBlocksFromPeersOutcome(shard, shardResult, err)
 
@@ -564,7 +563,6 @@ func (s *peersSource) ReadIndex(
 		dataBlockSize = ns.Options().RetentionOptions().BlockSize()
 		resultOpts    = s.opts.ResultOptions()
 		idxOpts       = ns.Options().IndexOptions()
-		version       = s.opts.FetchBlocksMetadataEndpointVersion()
 		resultLock    = &sync.Mutex{}
 		wg            sync.WaitGroup
 	)
@@ -600,7 +598,7 @@ func (s *peersSource) ReadIndex(
 					}
 
 					metadata, err := session.FetchBootstrapBlocksMetadataFromPeers(ns.ID(),
-						shard, currRange.Start, currRange.End, resultOpts, version)
+						shard, currRange.Start, currRange.End, resultOpts)
 					if err != nil {
 						// Make this period unfulfilled
 						markUnfulfilled(err)

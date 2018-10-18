@@ -193,7 +193,6 @@ func m3dbClientFetchBlocksMetadata(
 	shards []uint32,
 	start, end time.Time,
 	consistencyLevel topology.ReadConsistencyLevel,
-	version client.FetchBlocksMetadataEndpointVersion,
 ) (map[uint32][]block.ReplicaMetadata, error) {
 	session, err := c.DefaultAdminSession()
 	if err != nil {
@@ -212,7 +211,7 @@ func m3dbClientFetchBlocksMetadata(
 
 		var metadatas []block.ReplicaMetadata
 		iter, err := session.FetchBlocksMetadataFromPeers(namespace,
-			shardID, start, end, consistencyLevel, result.NewOptions(), version)
+			shardID, start, end, consistencyLevel, result.NewOptions())
 		if err != nil {
 			return nil, err
 		}

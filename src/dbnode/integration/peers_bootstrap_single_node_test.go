@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
@@ -55,7 +54,7 @@ func TestPeersBootstrapSingleNode(t *testing.T) {
 		SetNamespaces([]namespace.Metadata{namesp})
 
 	setupOpts := []bootstrappableTestSetupOptions{
-		{disablePeersBootstrapper: false, fetchBlocksMetadataEndpointVersion: client.FetchBlocksMetadataEndpointV1},
+		{disablePeersBootstrapper: false},
 	}
 	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
