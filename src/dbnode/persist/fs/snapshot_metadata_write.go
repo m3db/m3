@@ -20,9 +20,18 @@
 
 package fs
 
-type snapshotMetadataReader struct {
+import "os"
+
+type snapshotMetadataWriter struct {
+	opts Options
 }
 
-func (s *snapshotMetadataReader) Read(id SnapshotMetadataIdentifier) {
+func (s *snapshotMetadataWriter) Write(id SnapshotMetadataIdentifier) error {
+	// TODO
+	shardDir := ""
+	if err := os.MkdirAll(shardDir, s.opts.NewDirectoryMode()); err != nil {
+		return err
+	}
 
+	return nil
 }
