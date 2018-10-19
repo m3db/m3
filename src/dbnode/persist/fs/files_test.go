@@ -298,7 +298,27 @@ func TestSnapshotMetadataFilePathFromIdentifier(t *testing.T) {
 
 	var (
 		expected = "/var/lib/m3db/snapshots/some_namespace/snapshot-bf58eb3e-0582-42ee-83b2-d098c206260e-10-metadata.db"
-		actual   = snapshotMetadataFilePathFromIdentfier(prefix, namespace, id)
+		actual   = snapshotMetadataFilePathFromIdentifier(prefix, namespace, id)
+	)
+	require.Equal(t, expected, actual)
+}
+
+func TestSnapshotMetadataCheckpointFilePathFromIdentifier(t *testing.T) {
+	idUUID, err := uuid.Parse("bf58eb3e-0582-42ee-83b2-d098c206260e")
+	require.NoError(t, err)
+
+	var (
+		prefix    = "/var/lib/m3db"
+		namespace = ident.StringID("some_namespace")
+		id        = SnapshotMetadataIdentifier{
+			Index: 10,
+			ID:    idUUID,
+		}
+	)
+
+	var (
+		expected = "/var/lib/m3db/snapshots/some_namespace/snapshot-bf58eb3e-0582-42ee-83b2-d098c206260e-10-metadata-checkpoint.db"
+		actual   = snapshotMetadataCheckpointFilePathFromIdentifier(prefix, namespace, id)
 	)
 	require.Equal(t, expected, actual)
 }
