@@ -1229,19 +1229,19 @@ func snapshotIndexSegmentFilePathFromTimeAndIndex(
 	return filesetPathFromTimeAndIndex(prefix, t, snapshotIndex, suffix)
 }
 
-func snapshotMetadataFilePathFromIdentifier(prefix string, namespace ident.ID, id SnapshotMetadataIdentifier) string {
-	namespacePath := NamespaceSnapshotsDirPath(prefix, namespace)
+func snapshotMetadataFilePathFromIdentifier(prefix string, id SnapshotMetadataIdentifier) string {
 	return path.Join(
-		namespacePath,
+		prefix,
+		snapshotDirName,
 		fmt.Sprintf(
 			"%s-%s-%d-%s%s",
 			snapshotFilePrefix, id.ID.String(), id.Index, metadataFileSuffix, fileSuffix))
 }
 
-func snapshotMetadataCheckpointFilePathFromIdentifier(prefix string, namespace ident.ID, id SnapshotMetadataIdentifier) string {
-	namespacePath := NamespaceSnapshotsDirPath(prefix, namespace)
+func snapshotMetadataCheckpointFilePathFromIdentifier(prefix string, id SnapshotMetadataIdentifier) string {
 	return path.Join(
-		namespacePath,
+		prefix,
+		snapshotDirName,
 		fmt.Sprintf(
 			"%s-%s-%d-%s-%s%s",
 			snapshotFilePrefix, id.ID.String(), id.Index, metadataFileSuffix, checkpointFileSuffix, fileSuffix))

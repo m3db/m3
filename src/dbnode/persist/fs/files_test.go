@@ -288,17 +288,16 @@ func TestSnapshotMetadataFilePathFromIdentifier(t *testing.T) {
 	require.NoError(t, err)
 
 	var (
-		prefix    = "/var/lib/m3db"
-		namespace = ident.StringID("some_namespace")
-		id        = SnapshotMetadataIdentifier{
+		prefix = "/var/lib/m3db"
+		id     = SnapshotMetadataIdentifier{
 			Index: 10,
 			ID:    idUUID,
 		}
 	)
 
 	var (
-		expected = "/var/lib/m3db/snapshots/some_namespace/snapshot-bf58eb3e-0582-42ee-83b2-d098c206260e-10-metadata.db"
-		actual   = snapshotMetadataFilePathFromIdentifier(prefix, namespace, id)
+		expected = "/var/lib/m3db/snapshots/snapshot-bf58eb3e-0582-42ee-83b2-d098c206260e-10-metadata.db"
+		actual   = snapshotMetadataFilePathFromIdentifier(prefix, id)
 	)
 	require.Equal(t, expected, actual)
 }
@@ -308,17 +307,16 @@ func TestSnapshotMetadataCheckpointFilePathFromIdentifier(t *testing.T) {
 	require.NoError(t, err)
 
 	var (
-		prefix    = "/var/lib/m3db"
-		namespace = ident.StringID("some_namespace")
-		id        = SnapshotMetadataIdentifier{
+		prefix = "/var/lib/m3db"
+		id     = SnapshotMetadataIdentifier{
 			Index: 10,
 			ID:    idUUID,
 		}
 	)
 
 	var (
-		expected = "/var/lib/m3db/snapshots/some_namespace/snapshot-bf58eb3e-0582-42ee-83b2-d098c206260e-10-metadata-checkpoint.db"
-		actual   = snapshotMetadataCheckpointFilePathFromIdentifier(prefix, namespace, id)
+		expected = "/var/lib/m3db/snapshots/snapshot-bf58eb3e-0582-42ee-83b2-d098c206260e-10-metadata-checkpoint.db"
+		actual   = snapshotMetadataCheckpointFilePathFromIdentifier(prefix, id)
 	)
 	require.Equal(t, expected, actual)
 }
