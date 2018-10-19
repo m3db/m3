@@ -71,7 +71,8 @@ type commitLog struct {
 
 	// TODO(r): replace buffered channel with concurrent striped
 	// circular buffer to avoid central write lock contention.
-	writes chan commitLogWrite
+	writes          chan commitLogWrite
+	pendingFlushFns []completionFn
 
 	opts  Options
 	nowFn clock.NowFn
@@ -86,8 +87,7 @@ type commitLog struct {
 
 type flushState struct {
 	sync.RWMutex
-	lastFlushAt     time.Time
-	pendingFlushFns []completionFn
+	lastFlushAt time.Time
 }
 
 type writerState struct {
@@ -273,7 +273,7 @@ func (l *commitLog) write() {
 	for write := range l.writes {
 		// For writes requiring acks add to pending acks
 		if write.completionFn != nil {
-			l.flushState.pendingFlushFns = append(l.flushState.pendingFlushFns, write.completionFn)
+			l.pendingFlushFns = append(l.pendingFlushFns, write.completionFn)
 		}
 
 		if write.valueType == flushValueType {
@@ -344,16 +344,16 @@ func (l *commitLog) onFlush(err error) {
 	// before "write()" begins on "Open()" and there are no other
 	// accessors of "pendingFlushFns" so it is safe to read and mutate
 	// without a lock here
-	if len(l.flushState.pendingFlushFns) == 0 {
+	if len(l.pendingFlushFns) == 0 {
 		l.metrics.flushDone.Inc(1)
 		return
 	}
 
-	for i := range l.flushState.pendingFlushFns {
-		l.flushState.pendingFlushFns[i](err)
-		l.flushState.pendingFlushFns[i] = nil
+	for i := range l.pendingFlushFns {
+		l.pendingFlushFns[i](err)
+		l.pendingFlushFns[i] = nil
 	}
-	l.flushState.pendingFlushFns = l.flushState.pendingFlushFns[:0]
+	l.pendingFlushFns = l.pendingFlushFns[:0]
 	l.metrics.flushDone.Inc(1)
 }
 
