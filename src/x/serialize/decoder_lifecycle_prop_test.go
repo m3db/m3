@@ -85,7 +85,7 @@ type systemAndResult struct {
 func TestDecoderLifecycle(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
 	seed := time.Now().UnixNano()
-	parameters.MinSuccessfulTests = 1000
+	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 40
 	parameters.Rng = rand.New(rand.NewSource(seed))
 	properties := gopter.NewProperties(parameters)
