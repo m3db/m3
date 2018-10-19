@@ -95,10 +95,14 @@ message M3Segment {
 
 message SearchRequest {
 	oneof matchers {
-		TagMatchers tagMatchers     = 1;
+		TagMatchers tagMatchers    = 1;
 	}
-	SearchType type               = 2;
-	repeated bytes filterNameTags = 3;
+	SearchType type              = 2;
+	SearchRequestOptions options = 3;
+}
+
+message SearchRequestOptions {
+	repeated bytes filterNameTags = 1;
 }
 
 enum SearchType {
@@ -130,6 +134,5 @@ message TagProperties {
 
 message TagProperty {
 	bytes key             = 1;
-	uint32 weight         = 2;
-	repeated bytes values = 3;
+	repeated bytes values = 2;
 }

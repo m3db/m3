@@ -23,6 +23,7 @@ package m3
 import (
 	"context"
 
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	genericstorage "github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3x/ident"
@@ -43,18 +44,48 @@ type Storage interface {
 
 // Querier handles queries against an M3 instance.
 type Querier interface {
-	// FetchRaw fetches timeseries data based on a query
-	FetchRaw(
+	// FetchCompressed fetches timeseries data based on a query
+	FetchCompressed(
 		ctx context.Context,
 		query *genericstorage.FetchQuery,
 		options *genericstorage.FetchOptions,
 	) (encoding.SeriesIterators, Cleanup, error)
-
-	SearchRaw(
+	// SearchCompressed fetches matching tags based on a query
+	SearchCompressed(
 		ctx context.Context,
 		query *genericstorage.FetchQuery,
 		options *genericstorage.FetchOptions,
 	) ([]MultiTagResult, Cleanup, error)
+}
+
+// MultiFetchResult is a deduping accumalator for series iterators
+// that allows merging using a given strategy
+type MultiFetchResult interface {
+	// Add adds series iterators with corresponding attributes to the accumulator
+	Add(
+		attrs genericstorage.Attributes,
+		iterators encoding.SeriesIterators,
+		err error,
+	)
+	// FinalResult returns a series iterators object containing
+	// deduplciated series values
+	FinalResult() (encoding.SeriesIterators, error)
+	// Close releases all resources held by this accumulator
+	Close() error
+}
+
+// MultiFetchTagsResult is a deduping accumalator for tag iterators
+type MultiFetchTagsResult interface {
+	// Add adds tagged ID iterators to the accumulator
+	Add(
+		newIterator client.TaggedIDsIterator,
+		err error,
+	)
+	// FinalResult returns a deduped list of tag iterators with
+	// corresponding series ids
+	FinalResult() ([]MultiTagResult, error)
+	// Close releases all resources held by this accumulator
+	Close() error
 }
 
 // MultiTagResult represents a tag iterator with its string ID

@@ -59,8 +59,8 @@ func encodeTags(tags models.Tags) []*rpc.Tag {
 	return encodedTags
 }
 
-// EncodeFetchResult encodes fetch result to rpc response
-func EncodeFetchResult(results *storage.FetchResult) *rpc.FetchResponse {
+// encodeFetchResult  encodes fetch result to rpc response
+func encodeFetchResult(results *storage.FetchResult) *rpc.FetchResponse {
 	series := make([]*rpc.Series, len(results.SeriesList))
 	for i, result := range results.SeriesList {
 		vLen := result.Len()
@@ -91,8 +91,8 @@ func EncodeFetchResult(results *storage.FetchResult) *rpc.FetchResponse {
 	}
 }
 
-// DecodeDecompressedFetchResult decodes fetch results from a GRPC-compatible type.
-func DecodeDecompressedFetchResult(
+// decodeDecompressedFetchResult decodes fetch results from a GRPC-compatible type.
+func decodeDecompressedFetchResult(
 	name string,
 	tagOptions models.TagOptions,
 	rpcSeries []*rpc.DecompressedSeries,
@@ -144,8 +144,8 @@ func decodeRawTs(r *rpc.DecompressedSeries) ts.Datapoints {
 	return datapoints
 }
 
-// EncodeFetchRequest encodes fetch request into rpc FetchRequest
-func EncodeFetchRequest(
+// encodeFetchRequest encodes fetch request into rpc FetchRequest
+func encodeFetchRequest(
 	query *storage.FetchQuery,
 ) (*rpc.FetchRequest, error) {
 	matchers, err := encodeTagMatchers(query.TagMatchers)
@@ -197,8 +197,8 @@ func encodeMatcherTypeToProto(t models.MatchType) (rpc.MatcherType, error) {
 	}
 }
 
-// EncodeMetadata creates a context that propagates request metadata as well as requestID
-func EncodeMetadata(ctx context.Context, requestID string) context.Context {
+// encodeMetadata creates a context that propagates request metadata as well as requestID
+func encodeMetadata(ctx context.Context, requestID string) context.Context {
 	if ctx == nil {
 		return ctx
 	}
@@ -224,8 +224,8 @@ func convertHeaderToMetaWithID(headers http.Header, requestID string) metadata.M
 	return meta
 }
 
-// RetrieveMetadata creates a context with propagated request metadata as well as requestID
-func RetrieveMetadata(streamCtx context.Context) context.Context {
+// creates a context with propagated request metadata as well as requestID
+func retrieveMetadata(streamCtx context.Context) context.Context {
 	md, ok := metadata.FromIncomingContext(streamCtx)
 	id := "unknown"
 	if ok {
@@ -238,8 +238,7 @@ func RetrieveMetadata(streamCtx context.Context) context.Context {
 	return logging.NewContextWithID(streamCtx, id)
 }
 
-// DecodeFetchRequest decodes rpc fetch request to read query and read options
-func DecodeFetchRequest(
+func decodeFetchRequest(
 	req *rpc.FetchRequest,
 ) (*storage.FetchQuery, error) {
 	tags, err := decodeTagMatchers(req.GetTagMatchers())
@@ -268,18 +267,4 @@ func decodeTagMatchers(rpcMatchers *rpc.TagMatchers) (models.Matchers, error) {
 	}
 
 	return models.Matchers(matchers), nil
-}
-
-// DecodeSearchRequest decodes rpc search request to read query and read options
-func DecodeSearchRequest(
-	req *rpc.SearchRequest,
-) (*storage.FetchQuery, [][]byte, error) {
-	matchers, err := decodeTagMatchers(req.GetTagMatchers())
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return &storage.FetchQuery{
-		TagMatchers: matchers,
-	}, req.GetFilterNameTags(), nil
 }

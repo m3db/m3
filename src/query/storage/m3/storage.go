@@ -78,7 +78,7 @@ func (s *m3storage) Fetch(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (*storage.FetchResult, error) {
-	raw, cleanup, err := s.FetchRaw(ctx, query, options)
+	raw, cleanup, err := s.FetchCompressed(ctx, query, options)
 	defer cleanup()
 	if err != nil {
 		return nil, err
@@ -100,7 +100,7 @@ func (s *m3storage) FetchBlocks(
 	return storage.FetchResultToBlockResult(fetchResult, query)
 }
 
-func (s *m3storage) FetchRaw(
+func (s *m3storage) FetchCompressed(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
@@ -173,7 +173,7 @@ func (s *m3storage) FetchTags(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (*storage.SearchResults, error) {
-	tagResult, cleanup, err := s.SearchRaw(ctx, query, options)
+	tagResult, cleanup, err := s.SearchCompressed(ctx, query, options)
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +194,7 @@ func (s *m3storage) FetchTags(
 	}, nil
 }
 
-func (s *m3storage) SearchRaw(
+func (s *m3storage) SearchCompressed(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
@@ -216,7 +216,7 @@ func (s *m3storage) SearchRaw(
 	var (
 		m3opts     = storage.FetchOptionsToM3Options(options, query)
 		namespaces = s.clusters.ClusterNamespaces()
-		result     = newMultiFetchtagResult()
+		result     = NewMultiFetchTagsResult()
 		wg         sync.WaitGroup
 	)
 
@@ -232,14 +232,14 @@ func (s *m3storage) SearchRaw(
 			session := namespace.Session()
 			namespaceID := namespace.NamespaceID()
 			iter, _, err := session.FetchTaggedIDs(namespaceID, m3query, m3opts)
-			result.add(iter, err)
+			result.Add(iter, err)
 			wg.Done()
 		}()
 	}
 
 	wg.Wait()
-	tagResult, err := result.finalResult()
-	return tagResult, result.close, err
+	tagResult, err := result.FinalResult()
+	return tagResult, result.Close, err
 }
 
 func (s *m3storage) Write(

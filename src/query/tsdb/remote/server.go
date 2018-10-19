@@ -22,8 +22,8 @@ package remote
 
 import (
 	"net"
+	"time"
 
-	"github.com/m3db/m3/src/dbnode/encoding"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/pools"
 	"github.com/m3db/m3/src/query/storage"
@@ -33,6 +33,8 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
+
+const poolTimeout = time.Second * 10
 
 // TODO: add metrics
 type grpcServer struct {
@@ -69,50 +71,37 @@ func StartNewGrpcServer(
 	return server.Serve(lis)
 }
 
-func (s *grpcServer) getPools() (encoding.IteratorPools, error) {
-	available, pools, err, poolCh, errCh := s.poolWrapper.IteratorPools()
-	if err != nil {
-		return nil, err
-	}
-
-	if !available {
-		select {
-		case pools = <-poolCh:
-		case err = <-errCh:
-			return nil, err
-		}
-	}
-
-	return pools, err
-}
-
 // Fetch reads decompressed series from m3 storage
 func (s *grpcServer) Fetch(
 	message *rpc.FetchRequest,
 	stream rpc.Query_FetchServer,
 ) error {
-	ctx := RetrieveMetadata(stream.Context())
+	ctx := retrieveMetadata(stream.Context())
 	logger := logging.WithContext(ctx)
-	storeQuery, err := DecodeFetchRequest(message)
+	storeQuery, err := decodeFetchRequest(message)
 	if err != nil {
 		logger.Error("unable to decode fetch query", zap.Error(err))
 		return err
 	}
 
-	result, cleanup, err := s.storage.FetchRaw(ctx, storeQuery, storage.NewFetchOptions())
+	result, cleanup, err := s.storage.FetchCompressed(
+		ctx,
+		storeQuery,
+		storage.NewFetchOptions(),
+	)
 	defer cleanup()
 	if err != nil {
 		logger.Error("unable to fetch local query", zap.Error(err))
 		return err
 	}
 
-	pools, err := s.getPools()
+	pools, err := s.poolWrapper.WaitForIteratorPools(poolTimeout)
 	if err != nil {
 		logger.Error("unable to get pools", zap.Error(err))
 		return err
 	}
 
-	response, err := EncodeToCompressedFetchResult(result, pools)
+	response, err := encodeToCompressedFetchResult(result, pools)
 	if err != nil {
 		logger.Error("unable to compress query", zap.Error(err))
 		return err
@@ -132,30 +121,35 @@ func (s *grpcServer) Search(
 ) error {
 	var err error
 
-	ctx := RetrieveMetadata(stream.Context())
+	ctx := retrieveMetadata(stream.Context())
 	logger := logging.WithContext(ctx)
-	searchQuery, filterTagNames, err := DecodeSearchRequest(message)
+	searchQuery, filterTagNames, err := decodeSearchRequest(message)
 	if err != nil {
 		logger.Error("unable to decode search query", zap.Error(err))
 		return err
 	}
 
-	results, cleanup, err := s.storage.SearchRaw(ctx, searchQuery, storage.NewFetchOptions())
+	results, cleanup, err := s.storage.SearchCompressed(
+		ctx,
+		searchQuery,
+		storage.NewFetchOptions(),
+	)
 	defer cleanup()
 	if err != nil {
 		logger.Error("unable to search tags", zap.Error(err))
 		return err
 	}
 
-	pools, err := s.getPools()
+	pools, err := s.poolWrapper.WaitForIteratorPools(poolTimeout)
 	if err != nil {
 		logger.Error("unable to get pools", zap.Error(err))
 		return err
 	}
 
-	response, err := EncodeToCompressedSearchResult(filterTagNames, results, pools)
+	response, err := encodeToCompressedSearchResult(filterTagNames, results, pools)
 	if err != nil {
 		logger.Error("unable to encode search result", zap.Error(err))
+		return err
 	}
 
 	err = stream.SendMsg(response)

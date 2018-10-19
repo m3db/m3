@@ -22,7 +22,6 @@ package remote
 
 import (
 	"context"
-	"fmt"
 	"io"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -104,14 +103,19 @@ func (c *grpcClient) fetchRaw(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (encoding.SeriesIterators, error) {
-	request, err := EncodeFetchRequest(query)
+	pools, err := c.poolWrapper.WaitForIteratorPools(poolTimeout)
+	if err != nil {
+		return nil, err
+	}
+
+	request, err := encodeFetchRequest(query)
 	if err != nil {
 		return nil, err
 	}
 
 	// Send the id from the client to the remote server so that provides logging
 	id := logging.ReadContextID(ctx)
-	mdCtx := EncodeMetadata(ctx, id)
+	mdCtx := encodeMetadata(ctx, id)
 	fetchClient, err := c.client.Fetch(mdCtx, request)
 	if err != nil {
 		return nil, err
@@ -136,20 +140,7 @@ func (c *grpcClient) fetchRaw(
 			return nil, err
 		}
 
-		available, pools, err, poolCh, errCh := c.poolWrapper.IteratorPools()
-		if err != nil {
-			return nil, err
-		}
-
-		if !available {
-			select {
-			case pools = <-poolCh:
-			case err = <-errCh:
-				return nil, err
-			}
-		}
-
-		iters, err := DecodeCompressedFetchResponse(result, pools)
+		iters, err := decodeCompressedFetchResponse(result, pools)
 		if err != nil {
 			return nil, err
 		}
@@ -197,7 +188,63 @@ func (c *grpcClient) FetchTags(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (*storage.SearchResults, error) {
-	return nil, fmt.Errorf("remote fetch tags endpoint not supported")
+	pools, err := c.poolWrapper.WaitForIteratorPools(poolTimeout)
+	if err != nil {
+		return nil, err
+	}
+
+	request, err := encodeSearchRequest(query)
+	if err != nil {
+		return nil, err
+	}
+
+	// Send the id from the client to the remote server so that provides logging
+	id := logging.ReadContextID(ctx)
+	// TODO ARNIKOLA BEFORE YOU COMMIT IF THIS IS IN THE PR YOU'VE BEEN BAD
+	// ADD RELEVANT FIELDS TO THE METADATA
+	mdCtx := encodeMetadata(ctx, id)
+	fetchClient, err := c.client.Search(mdCtx, request)
+	if err != nil {
+		return nil, err
+	}
+
+	defer fetchClient.CloseSend()
+	metrics := make(models.Metrics, 0, initResultSize)
+	for {
+		select {
+		// If query is killed during gRPC streaming, close the channel
+		case <-options.KillChan:
+			return nil, errors.ErrQueryInterrupted
+		default:
+		}
+
+		received, err := fetchClient.Recv()
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		response, err := decodeSearchResponse(received, pools)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, r := range response {
+			m, err := storage.FromM3IdentToMetric(r.ID, r.Iter, c.tagOptions)
+			if err != nil {
+				return nil, err
+			}
+
+			metrics = append(metrics, m)
+		}
+	}
+
+	return &storage.SearchResults{
+		Metrics: metrics,
+	}, nil
 }
 
 // Close closes the underlying connection

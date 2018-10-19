@@ -36,14 +36,15 @@ type multiSearchResult struct {
 	err       xerrors.MultiError
 }
 
-func newMultiFetchtagResult() *multiSearchResult {
+// NewMultiFetchTagsResult builds a new multi fetch tags result
+func NewMultiFetchTagsResult() MultiFetchTagsResult {
 	return &multiSearchResult{
 		dedupeMap: make(map[string]MultiTagResult, initSize),
 		seenIters: make([]client.TaggedIDsIterator, 0, initSize),
 	}
 }
 
-func (r *multiSearchResult) close() error {
+func (r *multiSearchResult) Close() error {
 	r.Lock()
 	defer r.Unlock()
 	for _, iters := range r.seenIters {
@@ -57,7 +58,7 @@ func (r *multiSearchResult) close() error {
 	return nil
 }
 
-func (r *multiSearchResult) finalResult() ([]MultiTagResult, error) {
+func (r *multiSearchResult) FinalResult() ([]MultiTagResult, error) {
 	r.Lock()
 	defer r.Unlock()
 
@@ -74,7 +75,7 @@ func (r *multiSearchResult) finalResult() ([]MultiTagResult, error) {
 	return result, nil
 }
 
-func (r *multiSearchResult) add(
+func (r *multiSearchResult) Add(
 	newIterator client.TaggedIDsIterator,
 	err error,
 ) {
