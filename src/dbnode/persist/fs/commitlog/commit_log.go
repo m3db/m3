@@ -62,6 +62,7 @@ type completionFn func(err error)
 
 type commitLog struct {
 	writerState writerState
+	flushState  flushState
 	closedState closedState
 	// Associated with the closedState, but stored separately since
 	// it does not require the closedState lock to be acquired before
@@ -93,7 +94,6 @@ type writerState struct {
 	sync.RWMutex
 	writer         commitLogWriter
 	writerExpireAt time.Time
-	lastFlushAt    time.Time
 	activeFile     *File
 }
 
@@ -241,7 +241,7 @@ func (l *commitLog) flushEvery(interval time.Duration) {
 		time.Sleep(sleepFor)
 
 		l.writerState.RLock()
-		lastFlushAt := l.writerState.lastFlushAt
+		lastFlushAt := l.flushState.lastFlushAt
 		l.writerState.RUnlock()
 
 		if sinceFlush := l.nowFn().Sub(lastFlushAt); sinceFlush < interval {
@@ -327,7 +327,7 @@ func (l *commitLog) write() {
 
 func (l *commitLog) onFlush(err error) {
 	l.writerState.Lock()
-	l.writerState.lastFlushAt = l.nowFn()
+	l.flushState.lastFlushAt = l.nowFn()
 	l.writerState.Unlock()
 
 	if err != nil {
