@@ -224,34 +224,14 @@ func (d *decoder) Close() {
 }
 
 func (d *decoder) Duplicate() ident.TagIterator {
-	copy := newTagDecoder(d.opts, d.pool).(*decoder)
+	iter := d.pool.Get()
 	if d.checkedData == nil {
-		return copy
+		return iter
 	}
-	d.checkedData.IncRef()
-	copy.checkedData = d.checkedData
-	copy.data = d.data
-	copy.length = d.length
-	copy.remaining = d.remaining
-	copy.err = d.err
-
-	d.currentTagName.IncRef()
-	if b := d.currentTagName.Bytes(); b != nil {
-		copy.currentTagName.IncRef()
-		copy.currentTagName.Reset(b)
-		copy.currentTagName.DecRef()
-		copy.checkedData.IncRef()
+	iter.Reset(d.checkedData)
+	currentRemaining := d.Remaining()
+	for iter.Remaining() != currentRemaining {
+		iter.Next()
 	}
-	d.currentTagName.DecRef()
-
-	d.currentTagValue.IncRef()
-	if b := d.currentTagValue.Bytes(); b != nil {
-		copy.currentTagValue.IncRef()
-		copy.currentTagValue.Reset(b)
-		copy.currentTagValue.DecRef()
-		copy.checkedData.IncRef()
-	}
-	d.currentTagValue.DecRef()
-
-	return copy
+	return iter
 }

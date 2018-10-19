@@ -308,7 +308,7 @@ func TestDecodeDuplicateLifecycleMocks(t *testing.T) {
 }
 
 func newTestTagDecoder() TagDecoder {
-	return newTagDecoder(testDecodeOpts, nil)
+	return newTagDecoder(testDecodeOpts, newTestTagDecoderPool())
 }
 
 func wrapAsCheckedBytes(b []byte) checked.Bytes {
