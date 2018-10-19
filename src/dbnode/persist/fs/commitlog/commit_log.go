@@ -61,9 +61,33 @@ type commitLogFailFn func(err error)
 type completionFn func(err error)
 
 type commitLog struct {
+	// The commitlog has three different locks that it maintains for various purposes:
+	//
+	// 1) The closedState lock is acquired and held for any actions taking place that
+	// the commitlog must remain open for the duration of (or for changing the state
+	// of the commitlog to closed).
+	//
+	// 2) The writerState lock needs to be held when any operations on the underlying
+	// writer variables need to be changed. In addition, while the readLoop does not
+	// need to acquire a lock to read those variables (because it is the sole mutator),
+	// any code outside of that goroutien needs to acquire a read lock to read that state.
+	//
+	// 3) The flushState is only used for reading and writing the lastFlushAt variable. This
+	// has its own lock for two reasons. The first is that if it was shared with the writerState
+	// it would experience a high amount of contention. Second, the onFlush callback is handled
+	// asynchronously from the rest of the commitlog code in this file (since it is called by)
+	// the commitlogWriter, and as a result it is very easy to write code that unintentionally
+	// deadlocks when the flushState shares a lock with the writerState.
+	//
+	// The scope of the flushState lock is very limited and is hidden behind helper methods for
+	// getting and setting the value of lastFlushAt. The closedState and writerState require more
+	// consideration for use and the code must be structured such that the closedState lock is
+	// always acquired before the writerState lock. In addition, these two pieces of state cannot
+	// share a single lock because the closedState lock sometimes needs to be held for a long
+	// period of which time should not block writes.
+	closedState closedState
 	writerState writerState
 	flushState  flushState
-	closedState closedState
 	// Associated with the closedState, but stored separately since
 	// it does not require the closedState lock to be acquired before
 	// being accessed.
@@ -85,9 +109,24 @@ type commitLog struct {
 	metrics commitLogMetrics
 }
 
+// Use the helper methods when interacting with this struct, the mutex
+// should never be manually interacted with.
 type flushState struct {
 	sync.RWMutex
 	lastFlushAt time.Time
+}
+
+func (f *flushState) setLastFlushAt(t time.Time) {
+	f.Lock()
+	f.lastFlushAt = t
+	f.Unlock()
+}
+
+func (f *flushState) getLastFlushAt() time.Time {
+	f.RLock()
+	lastFlush := f.lastFlushAt
+	f.RUnlock()
+	return lastFlush
 }
 
 type writerState struct {
@@ -240,10 +279,7 @@ func (l *commitLog) flushEvery(interval time.Duration) {
 
 		time.Sleep(sleepFor)
 
-		l.writerState.RLock()
-		lastFlushAt := l.flushState.lastFlushAt
-		l.writerState.RUnlock()
-
+		lastFlushAt := l.flushState.getLastFlushAt()
 		if sinceFlush := l.nowFn().Sub(lastFlushAt); sinceFlush < interval {
 			// Flushed already recently, sleep until we would next consider flushing
 			sleepForOverride = interval - sinceFlush
@@ -326,9 +362,7 @@ func (l *commitLog) write() {
 }
 
 func (l *commitLog) onFlush(err error) {
-	l.writerState.Lock()
-	l.flushState.lastFlushAt = l.nowFn()
-	l.writerState.Unlock()
+	l.flushState.setLastFlushAt(l.nowFn())
 
 	if err != nil {
 		l.metrics.errors.Inc(1)

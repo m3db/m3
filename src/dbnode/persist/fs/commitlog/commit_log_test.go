@@ -156,6 +156,7 @@ type mockCommitLogWriter struct {
 	openFn  func(start time.Time, duration time.Duration) (File, error)
 	writeFn func(Series, ts.Datapoint, xtime.Unit, ts.Annotation) error
 	flushFn func() error
+	syncFn  func() error
 	closeFn func() error
 }
 
@@ -168,6 +169,9 @@ func newMockCommitLogWriter() *mockCommitLogWriter {
 			return nil
 		},
 		flushFn: func() error {
+			return nil
+		},
+		syncFn: func() error {
 			return nil
 		},
 		closeFn: func() error {
@@ -191,6 +195,10 @@ func (w *mockCommitLogWriter) Write(
 
 func (w *mockCommitLogWriter) Flush() error {
 	return w.flushFn()
+}
+
+func (w *mockCommitLogWriter) Sync() error {
+	return w.syncFn()
 }
 
 func (w *mockCommitLogWriter) Close() error {
@@ -855,6 +863,69 @@ func TestCommitLogActiveLogs(t *testing.T) {
 	require.NoError(t, commitLog.Close())
 	_, err = commitLog.ActiveLogs()
 	require.Error(t, err)
+}
+
+func TestCommitLogActiveLogsConcurrency(t *testing.T) {
+	opts, _ := newTestOptions(t, overrides{
+		strategy: StrategyWriteBehind,
+	})
+	opts = opts.SetBlockSize(1 * time.Millisecond)
+	defer cleanup(t, opts)
+
+	var (
+		doneCh    = make(chan struct{})
+		commitLog = newTestCommitLog(t, opts)
+	)
+
+	// One goroutine continuously writing
+	go func() {
+		for {
+			select {
+			case <-doneCh:
+				return
+			default:
+				time.Sleep(time.Millisecond)
+				err := commitLog.Write(
+					context.NewContext(),
+					testSeries(0, "foo.bar", testTags1, 127),
+					ts.Datapoint{},
+					xtime.Second,
+					nil)
+				if err == errCommitLogClosed {
+					return
+				}
+				if err != nil {
+					panic(err)
+				}
+			}
+		}
+	}()
+
+	// One goroutine continuously checking active logs
+	go func() {
+		var (
+			lastSeenFile string
+			numFilesSeen int
+		)
+		for numFilesSeen < 10 {
+			time.Sleep(100 * time.Millisecond)
+			logs, err := commitLog.ActiveLogs()
+			if err != nil {
+				panic(err)
+			}
+			require.Equal(t, 1, len(logs))
+			if logs[0].FilePath != lastSeenFile {
+				fmt.Println(logs[0].FilePath)
+				lastSeenFile = logs[0].FilePath
+				numFilesSeen++
+			}
+		}
+		close(doneCh)
+	}()
+
+	<-doneCh
+
+	require.NoError(t, commitLog.Close())
 }
 
 var (
