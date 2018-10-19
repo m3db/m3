@@ -23,19 +23,59 @@ package m3
 import (
 	"sync"
 
-	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/dbnode/client"
 	xerrors "github.com/m3db/m3x/errors"
 )
 
-type multiFetchTagsResult struct {
+const initSize = 10
+
+type multiSearchResult struct {
 	sync.Mutex
-	result    *storage.SearchResults
+	seenIters []client.TaggedIDsIterator // track known iterators to avoid leaking
+	dedupeMap map[string]MultiTagResult
 	err       xerrors.MultiError
-	dedupeMap map[string]struct{}
 }
 
-func (r *multiFetchTagsResult) add(
-	result *storage.SearchResults,
+func newMultiFetchtagResult() *multiSearchResult {
+	return &multiSearchResult{
+		dedupeMap: make(map[string]MultiTagResult, initSize),
+		seenIters: make([]client.TaggedIDsIterator, 0, initSize),
+	}
+}
+
+func (r *multiSearchResult) close() error {
+	r.Lock()
+	defer r.Unlock()
+	for _, iters := range r.seenIters {
+		iters.Finalize()
+	}
+
+	r.seenIters = nil
+	r.dedupeMap = nil
+	r.err = xerrors.NewMultiError()
+
+	return nil
+}
+
+func (r *multiSearchResult) finalResult() ([]MultiTagResult, error) {
+	r.Lock()
+	defer r.Unlock()
+
+	err := r.err.FinalError()
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]MultiTagResult, 0, len(r.dedupeMap))
+	for _, it := range r.dedupeMap {
+		result = append(result, it)
+	}
+
+	return result, nil
+}
+
+func (r *multiSearchResult) add(
+	newIterator client.TaggedIDsIterator,
 	err error,
 ) {
 	r.Lock()
@@ -46,29 +86,27 @@ func (r *multiFetchTagsResult) add(
 		return
 	}
 
-	if r.result == nil {
-		r.result = result
+	r.seenIters = append(r.seenIters, newIterator)
+	// Need to check the error to bail early after accumulating the iterators
+	// otherwise when we close the the multi fetch result
+	if !r.err.Empty() {
+		// don't need to do anything if the final result is going to be an error
 		return
 	}
 
-	// Need to dedupe
-	if r.dedupeMap == nil {
-		r.dedupeMap = make(map[string]struct{}, len(r.result.Metrics))
-		for _, s := range r.result.Metrics {
-			r.dedupeMap[s.ID] = struct{}{}
+	for newIterator.Next() {
+		_, ident, tagIter := newIterator.Current()
+		id := ident.String()
+		_, exists := r.dedupeMap[id]
+		if !exists {
+			r.dedupeMap[id] = MultiTagResult{
+				id:   ident,
+				iter: tagIter,
+			}
 		}
 	}
 
-	for _, s := range result.Metrics {
-		id := s.ID
-		_, exists := r.dedupeMap[id]
-		if exists {
-			// Already exists
-			continue
-		}
-
-		// Does not exist already, add result
-		r.result.Metrics = append(r.result.Metrics, s)
-		r.dedupeMap[id] = struct{}{}
+	if err := newIterator.Err(); err != nil {
+		r.err = r.err.Add(err)
 	}
 }

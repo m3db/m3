@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	genericstorage "github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3x/ident"
 )
 
 // Cleanup is a cleanup function to be called after resources are freed
@@ -48,4 +49,16 @@ type Querier interface {
 		query *genericstorage.FetchQuery,
 		options *genericstorage.FetchOptions,
 	) (encoding.SeriesIterators, Cleanup, error)
+
+	SearchRaw(
+		ctx context.Context,
+		query *genericstorage.FetchQuery,
+		options *genericstorage.FetchOptions,
+	) ([]MultiTagResult, Cleanup, error)
+}
+
+// MultiTagResult represents a tag iterator with its string ID
+type MultiTagResult struct {
+	id   ident.ID
+	iter ident.TagIterator
 }

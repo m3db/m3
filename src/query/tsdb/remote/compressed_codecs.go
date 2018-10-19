@@ -33,7 +33,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/query/errors"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
-	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
@@ -446,7 +446,7 @@ func DecodeCompressedFetchResponse(
 
 // EncodeToCompressedSearchResult encodes SearchResults to a compressed search result
 func EncodeToCompressedSearchResult(
-	results *storage.SearchResults,
+	results []m3.MultiTagResult,
 	iterPools encoding.IteratorPools,
 ) (*rpc.SearchResponse, error) {
 	return nil, nil

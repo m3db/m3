@@ -5,7 +5,7 @@ package rpc;
 option go_package = "rpcpb";
 
 service Query {
-	rpc Fetch(FetchRequest) returns (stream FetchResponse);
+	rpc Fetch(FetchRequest)   returns (stream FetchResponse);
 
 	rpc Search(SearchRequest) returns (stream SearchResponse);
 }
@@ -95,10 +95,10 @@ message M3Segment {
 
 message SearchRequest {
 	oneof matchers {
-		TagMatchers tagMatchers = 1;
+		TagMatchers tagMatchers     = 1;
 	}
-	SearchType type           = 2;
-	repeated bytes targetTags = 3;
+	SearchType type               = 2;
+	repeated bytes filterNameTags = 3;
 }
 
 enum SearchType {

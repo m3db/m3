@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
@@ -174,80 +173,76 @@ func (s *m3storage) FetchTags(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (*storage.SearchResults, error) {
-	// Check if the query was interrupted.
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case <-options.KillChan:
-		return nil, errors.ErrQueryInterrupted
-	default:
-	}
-
-	m3query, err := storage.FetchQueryToM3Query(query)
+	tagResult, cleanup, err := s.SearchRaw(ctx, query, options)
 	if err != nil {
 		return nil, err
 	}
 
-	var (
-		opts       = storage.FetchOptionsToM3Options(options, query)
-		namespaces = s.clusters.ClusterNamespaces()
-		result     multiFetchTagsResult
-		wg         sync.WaitGroup
-	)
-	if len(namespaces) == 0 {
-		return nil, errNoNamespacesConfigured
-	}
+	metrics := make(models.Metrics, len(tagResult))
+	for i, result := range tagResult {
+		id := result.id
+		it := result.iter
 
-	for _, namespace := range namespaces {
-		namespace := namespace // Capture var
-
-		wg.Add(1)
-		go func() {
-			result.add(s.fetchTags(namespace, m3query, opts))
-			wg.Done()
-		}()
-	}
-
-	wg.Wait()
-	if err := result.err.FinalError(); err != nil {
-		return nil, err
-	}
-	return result.result, nil
-}
-
-func (s *m3storage) fetchTags(
-	namespace ClusterNamespace,
-	query index.Query,
-	opts index.QueryOptions,
-) (*storage.SearchResults, error) {
-	namespaceID := namespace.NamespaceID()
-	session := namespace.Session()
-
-	// TODO (juchan): Handle second return param
-	iter, _, err := session.FetchTaggedIDs(namespaceID, query, opts)
-	if err != nil {
-		return nil, err
-	}
-
-	var metrics models.Metrics
-	for iter.Next() {
-		_, id, it := iter.Current()
 		m, err := storage.FromM3IdentToMetric(id, it, s.tagOptions)
 		if err != nil {
 			return nil, err
 		}
 
-		metrics = append(metrics, m)
+		metrics[i] = m
 	}
 
-	if err := iter.Err(); err != nil {
-		return nil, err
-	}
-
-	iter.Finalize()
+	cleanup()
 	return &storage.SearchResults{
 		Metrics: metrics,
 	}, nil
+}
+
+func (s *m3storage) SearchRaw(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) ([]MultiTagResult, Cleanup, error) {
+	// Check if the query was interrupted.
+	select {
+	case <-ctx.Done():
+		return nil, noop, ctx.Err()
+	case <-options.KillChan:
+		return nil, noop, errors.ErrQueryInterrupted
+	default:
+	}
+
+	m3query, err := storage.FetchQueryToM3Query(query)
+	if err != nil {
+		return nil, noop, err
+	}
+
+	var (
+		m3opts     = storage.FetchOptionsToM3Options(options, query)
+		namespaces = s.clusters.ClusterNamespaces()
+		result     = newMultiFetchtagResult()
+		wg         sync.WaitGroup
+	)
+
+	if len(namespaces) == 0 {
+		return nil, noop, errNoNamespacesConfigured
+	}
+
+	wg.Add(len(namespaces))
+	for _, namespace := range namespaces {
+		namespace := namespace // Capture var
+
+		go func() {
+			session := namespace.Session()
+			namespaceID := namespace.NamespaceID()
+			iter, _, err := session.FetchTaggedIDs(namespaceID, m3query, m3opts)
+			result.add(iter, err)
+			wg.Done()
+		}()
+	}
+
+	wg.Wait()
+	tagResult, err := result.finalResult()
+	return tagResult, result.close, err
 }
 
 func (s *m3storage) Write(

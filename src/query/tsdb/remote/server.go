@@ -23,6 +23,7 @@ package remote
 import (
 	"net"
 
+	"github.com/m3db/m3/src/dbnode/encoding"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/pools"
 	"github.com/m3db/m3/src/query/storage"
@@ -68,6 +69,23 @@ func StartNewGrpcServer(
 	return server.Serve(lis)
 }
 
+func (s *grpcServer) getPools() (encoding.IteratorPools, error) {
+	available, pools, err, poolCh, errCh := s.poolWrapper.IteratorPools()
+	if err != nil {
+		return nil, err
+	}
+
+	if !available {
+		select {
+		case pools = <-poolCh:
+		case err = <-errCh:
+			return nil, err
+		}
+	}
+
+	return pools, err
+}
+
 // Fetch reads decompressed series from m3 storage
 func (s *grpcServer) Fetch(
 	message *rpc.FetchRequest,
@@ -81,24 +99,17 @@ func (s *grpcServer) Fetch(
 		return err
 	}
 
-	result, cleanup, err := s.storage.FetchRaw(ctx, storeQuery, nil)
+	result, cleanup, err := s.storage.FetchRaw(ctx, storeQuery, storage.NewFetchOptions())
 	defer cleanup()
 	if err != nil {
 		logger.Error("unable to fetch local query", zap.Error(err))
 		return err
 	}
 
-	available, pools, err, poolCh, errCh := s.poolWrapper.IteratorPools()
+	pools, err := s.getPools()
 	if err != nil {
+		logger.Error("unable to get pools", zap.Error(err))
 		return err
-	}
-
-	if !available {
-		select {
-		case pools = <-poolCh:
-		case err = <-errCh:
-			return err
-		}
 	}
 
 	response, err := EncodeToCompressedFetchResult(result, pools)
@@ -129,23 +140,17 @@ func (s *grpcServer) Search(
 		return err
 	}
 
-	results, err := s.storage.FetchTags(ctx, searchQuery, storage.NewFetchOptions())
+	results, cleanup, err := s.storage.SearchRaw(ctx, searchQuery, storage.NewFetchOptions())
+	defer cleanup()
 	if err != nil {
 		logger.Error("unable to search tags", zap.Error(err))
 		return err
 	}
 
-	available, pools, err, poolCh, errCh := s.poolWrapper.IteratorPools()
+	pools, err := s.getPools()
 	if err != nil {
+		logger.Error("unable to get pools", zap.Error(err))
 		return err
-	}
-
-	if !available {
-		select {
-		case pools = <-poolCh:
-		case err = <-errCh:
-			return err
-		}
 	}
 
 	response, err := EncodeToCompressedSearchResult(results, pools)
