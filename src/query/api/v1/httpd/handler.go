@@ -23,7 +23,7 @@ package httpd
 import (
 	"encoding/json"
 	"net/http"
-	_ "net/http/pprof"
+	_ "net/http/pprof" // needed for pprof handler registration
 	"time"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
