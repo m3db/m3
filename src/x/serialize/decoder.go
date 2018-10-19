@@ -37,6 +37,7 @@ var (
 type decoder struct {
 	checkedData checked.Bytes
 	data        []byte
+	nextCalls   int
 	length      int
 	remaining   int
 	err         error
@@ -99,6 +100,7 @@ func (d *decoder) Reset(b checked.Bytes) {
 
 func (d *decoder) Next() bool {
 	d.releaseCurrent()
+	d.nextCalls++
 	if d.err != nil || d.remaining <= 0 {
 		return false
 	}
@@ -206,6 +208,7 @@ func (d *decoder) resetForReuse() {
 	d.data = nil
 	d.err = nil
 	d.remaining = 0
+	d.nextCalls = 0
 	if d.checkedData != nil {
 		d.checkedData.DecRef()
 		if d.checkedData.NumRef() == 0 {
@@ -229,8 +232,7 @@ func (d *decoder) Duplicate() ident.TagIterator {
 		return iter
 	}
 	iter.Reset(d.checkedData)
-	currentRemaining := d.Remaining()
-	for iter.Remaining() != currentRemaining {
+	for i := 0; i < d.nextCalls; i++ {
 		iter.Next()
 	}
 	return iter

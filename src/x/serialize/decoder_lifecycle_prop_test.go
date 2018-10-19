@@ -85,7 +85,7 @@ type systemAndResult struct {
 func TestDecoderLifecycle(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
 	seed := time.Now().UnixNano()
-	parameters.MinSuccessfulTests = 100
+	parameters.MinSuccessfulTests = 1000
 	parameters.MaxSize = 40
 	parameters.Rng = rand.New(rand.NewSource(seed))
 	properties := gopter.NewProperties(parameters)
@@ -391,16 +391,16 @@ func validateNumReferences(decState *multiDecoderState, sys *multiDecoderSystem)
 				return nil
 			}
 			if dec.checkedData != nil {
-				return fmt.Errorf("expected nil, observed %p references in [state = %s]", dec.checkedData, state)
+				return fmt.Errorf("expected nil, observed %p references in [state = %s]", dec.checkedData, decState)
 			}
 		}
 		// i.e. decoder is not closed, so we should have a reference
 		if dec.checkedData == nil && numRefs != 0 {
-			return fmt.Errorf("expected %d num ref, observed nil in [state = %s]", numRefs, state)
+			return fmt.Errorf("expected %d num ref, observed nil in [state = %s]", numRefs, decState)
 		}
 		if dec.checkedData.NumRef() != numRefs {
 			return fmt.Errorf("expected %d num ref, observed %d num ref in [state = %s]", numRefs,
-				dec.checkedData.NumRef(), state)
+				dec.checkedData.NumRef(), decState)
 		}
 		// all good
 		return nil
@@ -472,7 +472,7 @@ func (d *decoderState) hasCurrentTagsReference() bool {
 		d.numNextCalls <= d.numTags
 }
 
-func (d *decoderState) numRemaining() int {
+func (d decoderState) numRemaining() int {
 	if d.closed {
 		return 0
 	}
@@ -483,7 +483,7 @@ func (d *decoderState) numRemaining() int {
 	return 0
 }
 
-func (d *multiDecoderState) String() string {
+func (d multiDecoderState) String() string {
 	var buf bytes.Buffer
 
 	buf.WriteString(fmt.Sprintf("[ numRefs=%d, tags=[%s], primary=%s ",
