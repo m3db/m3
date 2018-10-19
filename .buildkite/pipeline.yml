@@ -65,14 +65,9 @@ steps:
       docker-compose#v2.5.1:
         run: app
     <<: *common
-  - label: "Integration (collector, aggregator, m3em)"
-    command: make clean install-vendor test-ci-integration-collector test-ci-integration-aggregator test-ci-integration-m3em
-    plugins:
-      docker-compose#v2.5.1:
-        run: app
-    <<: *common
-  - label: "Integration (cluster, msg, metrics)"
-    command: make clean install-vendor test-ci-integration-cluster test-ci-integration-msg test-ci-integration-metrics
+  - label: "Integration (collector, aggregator, m3em, cluster, msg, metrics) %n"
+    parallelism: 2
+    command: make clean install-vendor test-ci-integration-collector test-ci-integration-aggregator test-ci-integration-m3em test-ci-integration-cluster test-ci-integration-msg test-ci-integration-metrics
     plugins:
       docker-compose#v2.5.1:
         run: app

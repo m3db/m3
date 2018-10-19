@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3x/checked"
+	xtest "github.com/m3db/m3x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -73,7 +74,7 @@ func TestEmptyTagValueDecode(t *testing.T) {
 	require.True(t, d.Next())
 	tag := d.Current()
 	require.Equal(t, "a", tag.Name.String())
-	require.Equal(t, mapEmptyTagValueToSpaceHack.String(), tag.Value.String())
+	require.Equal(t, "", tag.Value.String())
 	require.False(t, d.Next())
 	require.NoError(t, d.Err())
 }
@@ -252,7 +253,7 @@ func TestDecodeDuplicateIteration(t *testing.T) {
 }
 
 func TestDecodeDuplicateLifecycleMocks(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	rawData := testTagDecoderBytesRaw()
@@ -307,7 +308,7 @@ func TestDecodeDuplicateLifecycleMocks(t *testing.T) {
 }
 
 func newTestTagDecoder() TagDecoder {
-	return newTagDecoder(testDecodeOpts, nil)
+	return newTagDecoder(testDecodeOpts, newTestTagDecoderPool())
 }
 
 func wrapAsCheckedBytes(b []byte) checked.Bytes {

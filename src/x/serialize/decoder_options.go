@@ -26,9 +26,12 @@ import (
 )
 
 const (
-	// defaultCheckBytesWrapperPoolSize is the default size of the checked.Bytes
-	// wrapper pool.
-	defaultCheckBytesWrapperPoolSize = 4096
+	// defaultCheckBytesWrapperPoolSize is the default size of the checked.Bytes wrapper pool.
+	defaultCheckBytesWrapperPoolSize = 16384
+	// defaultCheckBytesWrapperPoolLowWatermark is the default low watermark of the checked.Bytes wrapper pool.
+	defaultCheckBytesWrapperPoolLowWatermark = 0.7
+	// defaultCheckBytesWrapperPoolHighWatermark is the default high watermark of the checked.Bytes wrapper pool.
+	defaultCheckBytesWrapperPoolHighWatermark = 1.0
 )
 
 type decodeOpts struct {
@@ -39,7 +42,10 @@ type decodeOpts struct {
 // NewTagDecoderOptions returns a new TagDecoderOptions.
 func NewTagDecoderOptions() TagDecoderOptions {
 	pool := xpool.NewCheckedBytesWrapperPool(
-		pool.NewObjectPoolOptions().SetSize(defaultCheckBytesWrapperPoolSize))
+		pool.NewObjectPoolOptions().
+			SetSize(defaultCheckBytesWrapperPoolSize).
+			SetRefillLowWatermark(defaultCheckBytesWrapperPoolLowWatermark).
+			SetRefillHighWatermark(defaultCheckBytesWrapperPoolHighWatermark))
 	pool.Init()
 	return &decodeOpts{
 		wrapperPool: pool,

@@ -40,17 +40,28 @@ type decoder struct {
 	length      int
 	remaining   int
 	err         error
-	hasCurrent  bool
-	current     ident.Tag
+
+	current         ident.Tag
+	currentTagName  checked.Bytes
+	currentTagValue checked.Bytes
 
 	opts TagDecoderOptions
 	pool TagDecoderPool
 }
 
 func newTagDecoder(opts TagDecoderOptions, pool TagDecoderPool) TagDecoder {
+	tagName := opts.CheckedBytesWrapperPool().Get(nil)
+	tagValue := opts.CheckedBytesWrapperPool().Get(nil)
+	tag := ident.Tag{
+		Name:  ident.BinaryID(tagName),
+		Value: ident.BinaryID(tagValue),
+	}
 	return &decoder{
-		opts: opts,
-		pool: pool,
+		opts:            opts,
+		pool:            pool,
+		current:         tag,
+		currentTagName:  tagName,
+		currentTagValue: tagValue,
 	}
 }
 
@@ -92,15 +103,12 @@ func (d *decoder) Next() bool {
 		return false
 	}
 
-	t, err := d.decodeTag()
-	if err != nil {
+	if err := d.decodeTag(); err != nil {
 		d.err = err
 		return false
 	}
 
 	d.remaining--
-	d.current = t
-	d.hasCurrent = true
 	return true
 }
 
@@ -112,48 +120,47 @@ func (d *decoder) CurrentIndex() int {
 	return d.Len() - d.Remaining()
 }
 
-func (d *decoder) decodeTag() (ident.Tag, error) {
-	name, err := d.decodeID()
-	if err != nil {
-		return ident.Tag{}, err
+func (d *decoder) decodeTag() error {
+	if err := d.decodeIDInto(d.currentTagName); err != nil {
+		return err
 	}
-	if len(name.Bytes()) == 0 {
-		return ident.Tag{}, errEmptyTagNameLiteral
-	}
-
-	value, err := d.decodeID()
-	if err != nil {
-		name.Finalize()
-		return ident.Tag{}, err
-	}
-	if len(value.Bytes()) == 0 {
-		value = mapEmptyTagValueToSpaceHack
+	// safe to call Bytes() as d.current.Name has inc'd a ref
+	if len(d.currentTagName.Bytes()) == 0 {
+		d.releaseCurrent()
+		return errEmptyTagNameLiteral
 	}
 
-	return ident.Tag{Name: name, Value: value}, nil
+	if err := d.decodeIDInto(d.currentTagValue); err != nil {
+		d.releaseCurrent()
+		return err
+	}
+
+	return nil
 }
 
-func (d *decoder) decodeID() (ident.ID, error) {
+func (d *decoder) decodeIDInto(b checked.Bytes) error {
 	l, err := d.decodeUInt16()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if limit := d.opts.TagSerializationLimits().MaxTagLiteralLength(); l > limit {
-		return nil, fmt.Errorf("tag literal too long [ limit = %d, observed = %d ]", limit, int(l))
+		return fmt.Errorf("tag literal too long [ limit = %d, observed = %d ]", limit, int(l))
 	}
 
 	if len(d.data) < int(l) {
-		return nil, errInvalidByteStreamIDDecoding
+		return errInvalidByteStreamIDDecoding
 	}
 
 	// incRef to indicate another checked.Bytes has a
 	// reference to the original bytes
 	d.checkedData.IncRef()
-	b := d.opts.CheckedBytesWrapperPool().Get(d.data[:l])
+	b.IncRef()
+	b.Reset(d.data[:l])
+	b.DecRef()
 	d.data = d.data[l:]
 
-	return ident.BinaryID(b), nil
+	return nil
 }
 
 func (d *decoder) decodeUInt16() (uint16, error) {
@@ -170,20 +177,6 @@ func (d *decoder) Err() error {
 	return d.err
 }
 
-func (d *decoder) releaseCurrent() {
-	if n := d.current.Name; n != nil {
-		n.Finalize()
-		d.checkedData.DecRef() // indicate we've released the extra ref
-		d.current.Name = nil
-	}
-	if v := d.current.Value; v != nil {
-		v.Finalize()
-		d.checkedData.DecRef() // indicate we've released the extra ref
-		d.current.Value = nil
-	}
-	d.hasCurrent = false
-}
-
 func (d *decoder) Len() int {
 	return d.length
 }
@@ -192,19 +185,34 @@ func (d *decoder) Remaining() int {
 	return d.remaining
 }
 
+func (d *decoder) releaseCurrent() {
+	d.currentTagName.IncRef()
+	if b := d.currentTagName.Bytes(); b != nil {
+		d.checkedData.DecRef()
+	}
+	d.currentTagName.Reset(nil)
+	d.currentTagName.DecRef()
+
+	d.currentTagValue.IncRef()
+	if b := d.currentTagValue.Bytes(); b != nil {
+		d.checkedData.DecRef()
+	}
+	d.currentTagValue.Reset(nil)
+	d.currentTagValue.DecRef()
+}
+
 func (d *decoder) resetForReuse() {
 	d.releaseCurrent()
 	d.data = nil
 	d.err = nil
 	d.remaining = 0
-	if d.checkedData == nil {
-		return
+	if d.checkedData != nil {
+		d.checkedData.DecRef()
+		if d.checkedData.NumRef() == 0 {
+			d.checkedData.Finalize()
+		}
+		d.checkedData = nil
 	}
-	d.checkedData.DecRef()
-	if d.checkedData.NumRef() == 0 {
-		d.checkedData.Finalize()
-	}
-	d.checkedData = nil
 }
 
 func (d *decoder) Close() {
@@ -215,21 +223,15 @@ func (d *decoder) Close() {
 	d.pool.Put(d)
 }
 
-func (d *decoder) cloneCurrent() ident.Tag {
-	name := d.opts.CheckedBytesWrapperPool().Get(d.current.Name.Bytes())
-	d.checkedData.IncRef()
-	value := d.opts.CheckedBytesWrapperPool().Get(d.current.Value.Bytes())
-	d.checkedData.IncRef()
-	return ident.BinaryTag(name, value)
-}
-
 func (d *decoder) Duplicate() ident.TagIterator {
-	copy := *d
-	if copy.hasCurrent {
-		copy.current = d.cloneCurrent()
+	iter := d.pool.Get()
+	if d.checkedData == nil {
+		return iter
 	}
-	if copy.checkedData != nil {
-		copy.checkedData.IncRef()
+	iter.Reset(d.checkedData)
+	currentRemaining := d.Remaining()
+	for iter.Remaining() != currentRemaining {
+		iter.Next()
 	}
-	return &copy
+	return iter
 }

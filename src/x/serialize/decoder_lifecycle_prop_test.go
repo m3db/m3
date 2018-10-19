@@ -172,7 +172,7 @@ var currentCmd = &commands.ProtoCommand{
 		decState := state.(*multiDecoderState)
 		res := result.(*systemAndResult).result.(ident.Tag)
 		if !decState.primary.hasCurrentTagsReference() {
-			if res.Name != nil || res.Value != nil {
+			if res.Name.Bytes() != nil || res.Value.Bytes() != nil {
 				return &gopter.PropResult{
 					Status: gopter.PropError,
 					Error: fmt.Errorf("received not nil tags for closed state [ tag = %+v, state = [%s] ]",
