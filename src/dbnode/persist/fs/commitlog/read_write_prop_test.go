@@ -610,3 +610,7 @@ func (c *corruptingChunkWriter) close() error {
 func (c *corruptingChunkWriter) isOpen() bool {
 	return c.chunkWriter.isOpen()
 }
+
+func (c *corruptingChunkWriter) sync() error {
+	return c.chunkWriter.sync()
+}
