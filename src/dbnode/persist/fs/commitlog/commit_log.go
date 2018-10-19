@@ -68,23 +68,27 @@ type commitLog struct {
 	// of the commitlog to closed).
 	//
 	// 2) The writerState lock needs to be held when any operations on the underlying
-	// writer variables need to be changed. In addition, while the readLoop does not
-	// need to acquire a lock to read those variables (because it is the sole mutator),
-	// any code outside of that goroutien needs to acquire a read lock to read that state.
+	// writer variables need to be changed (during file rotation, for example). In addition,
+	// while the readLoop does not need to acquire a lock to read those variables (because it
+	// is the sole mutator), any code outside of that goroutine needs to acquire a read lock
+	// to read that state.
 	//
 	// 3) The flushState is only used for reading and writing the lastFlushAt variable. This
 	// has its own lock for two reasons. The first is that if it was shared with the writerState
-	// it would experience a high amount of contention. Second, the onFlush callback is handled
-	// asynchronously from the rest of the commitlog code in this file (since it is called by)
-	// the commitlogWriter, and as a result it is very easy to write code that unintentionally
-	// deadlocks when the flushState shares a lock with the writerState.
+	// it would experience a high amount of contention. Second, the control flow of the onFlush
+	// callback (which acquires this lock) is difficult to reason about from the perspective of
+	// the commitlog itself because the callback is called by the writer. As a result, if the
+	// flushState shared a lock with the writerState, any code that called one of: writer.Write,
+	// writer.Flush, or writer.Sync could (undeterministically) deadlock. As a result it is very
+	// easy to write code that unintentionally deadlocks when the flushState shares a lock with
+	// the writerState.
 	//
 	// The scope of the flushState lock is very limited and is hidden behind helper methods for
 	// getting and setting the value of lastFlushAt. The closedState and writerState require more
 	// consideration for use and the code must be structured such that the closedState lock is
 	// always acquired before the writerState lock. In addition, these two pieces of state cannot
 	// share a single lock because the closedState lock sometimes needs to be held for a long
-	// period of which time should not block writes.
+	// period of time which would delay writes.
 	closedState closedState
 	writerState writerState
 	flushState  flushState
@@ -110,7 +114,7 @@ type commitLog struct {
 }
 
 // Use the helper methods when interacting with this struct, the mutex
-// should never be manually interacted with.
+// should never need to be manually interacted with.
 type flushState struct {
 	sync.RWMutex
 	lastFlushAt time.Time
@@ -313,8 +317,11 @@ func (l *commitLog) write() {
 		}
 
 		if write.valueType == flushValueType {
-			// TODO(rartoul): Consider replacing this with a call to Sync() once we have time to do
-			// benchmarking.
+			// TODO(rartoul): This should probably be replaced with a call to Sync() as the expectation
+			// is that the commitlog will actually FSync the data at regular intervals, whereas Flush
+			// just ensures that the writers buffer flushes to the chunkWriter (creating a new chunk), but
+			// does not guarantee that the O.S isn't still buffering the data. Leaving as is for now as making
+			// this change will require extensive benchmarking in production clusters.
 			l.writerState.writer.Flush()
 			continue
 		}
