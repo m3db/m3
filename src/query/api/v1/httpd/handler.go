@@ -23,7 +23,7 @@ package httpd
 import (
 	"encoding/json"
 	"net/http"
-	"net/http/pprof"
+	_ "net/http/pprof" // needed for pprof handler registration
 	"time"
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
@@ -52,7 +52,6 @@ import (
 
 const (
 	healthURL = "/health"
-	pprofURL  = "/debug/pprof/profile"
 	routesURL = "/routes"
 )
 
@@ -199,7 +198,7 @@ func (h *Handler) registerHealthEndpoints() {
 
 // Endpoints useful for profiling the service
 func (h *Handler) registerProfileEndpoints() {
-	h.Router.HandleFunc(pprofURL, pprof.Profile)
+	h.Router.PathPrefix("/debug/pprof/").Handler(http.DefaultServeMux)
 }
 
 // Endpoints useful for viewing routes directory
