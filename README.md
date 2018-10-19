@@ -115,6 +115,6 @@ This project is released under the [Apache License, Version 2.0](LICENSE).
 
 [doc-img]: https://godoc.org/github.com/m3db/m3?status.svg
 [doc]: https://godoc.org/github.com/m3db/m3
-[ci-img]: https://semaphoreci.com/api/v1/m3db/m3/branches/master/shields_badge.svg
-[ci]: https://semaphoreci.com/m3db/m3
+[ci-img]: https://badge.buildkite.com/6a2d61d43ebff20a6adf5de5dc3946f0d484c04200b62e0bee.svg
+[ci]: https://buildkite.com/m3/m3-monorepo-ci
 [gitter-img]: https://badges.gitter.im/m3db.png
