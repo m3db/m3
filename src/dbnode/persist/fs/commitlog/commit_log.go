@@ -61,7 +61,6 @@ type commitLogFailFn func(err error)
 type completionFn func(err error)
 
 type commitLog struct {
-	flushState  flushState
 	writerState writerState
 	closedState closedState
 	// Associated with the closedState, but stored separately since
@@ -94,6 +93,7 @@ type writerState struct {
 	sync.RWMutex
 	writer         commitLogWriter
 	writerExpireAt time.Time
+	lastFlushAt    time.Time
 	activeFile     *File
 }
 
@@ -240,9 +240,9 @@ func (l *commitLog) flushEvery(interval time.Duration) {
 
 		time.Sleep(sleepFor)
 
-		l.flushState.RLock()
-		lastFlushAt := l.flushState.lastFlushAt
-		l.flushState.RUnlock()
+		l.writerState.RLock()
+		lastFlushAt := l.writerState.lastFlushAt
+		l.writerState.RUnlock()
 
 		if sinceFlush := l.nowFn().Sub(lastFlushAt); sinceFlush < interval {
 			// Flushed already recently, sleep until we would next consider flushing
@@ -326,9 +326,9 @@ func (l *commitLog) write() {
 }
 
 func (l *commitLog) onFlush(err error) {
-	l.flushState.Lock()
-	l.flushState.lastFlushAt = l.nowFn()
-	l.flushState.Unlock()
+	l.writerState.Lock()
+	l.writerState.lastFlushAt = l.nowFn()
+	l.writerState.Unlock()
 
 	if err != nil {
 		l.metrics.errors.Inc(1)
