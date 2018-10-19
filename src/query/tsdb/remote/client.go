@@ -200,8 +200,7 @@ func (c *grpcClient) FetchTags(
 
 	// Send the id from the client to the remote server so that provides logging
 	id := logging.ReadContextID(ctx)
-	// TODO ARNIKOLA BEFORE YOU COMMIT IF THIS IS IN THE PR YOU'VE BEEN BAD
-	// ADD RELEVANT FIELDS TO THE METADATA
+	// TODO: add relevant fields to the metadata
 	mdCtx := encodeMetadata(ctx, id)
 	fetchClient, err := c.client.Search(mdCtx, request)
 	if err != nil {
@@ -227,19 +226,12 @@ func (c *grpcClient) FetchTags(
 			return nil, err
 		}
 
-		response, err := decodeSearchResponse(received, pools)
+		m, err := decodeSearchResponse(received, pools, c.tagOptions)
 		if err != nil {
 			return nil, err
 		}
 
-		for _, r := range response {
-			m, err := storage.FromM3IdentToMetric(r.ID, r.Iter, c.tagOptions)
-			if err != nil {
-				return nil, err
-			}
-
-			metrics = append(metrics, m)
-		}
+		metrics = append(metrics, m...)
 	}
 
 	return &storage.SearchResults{

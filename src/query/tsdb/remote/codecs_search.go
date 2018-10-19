@@ -23,6 +23,8 @@ package remote
 import (
 	"bytes"
 
+	"github.com/m3db/m3/src/query/models"
+
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/errors"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
@@ -122,7 +124,7 @@ func encodeToCompressedSearchResult(
 func decodeDecompressedSearchResponse(
 	response *rpc.TagProperties,
 	pools encoding.IteratorPools,
-) ([]m3.MultiTagResult, error) {
+) (models.Metrics, error) {
 	return nil, errors.ErrNotImplemented
 }
 
@@ -164,9 +166,25 @@ func decodeCompressedSearchResponse(
 func decodeSearchResponse(
 	response *rpc.SearchResponse,
 	pools encoding.IteratorPools,
-) ([]m3.MultiTagResult, error) {
+	tagOptions models.TagOptions,
+) (models.Metrics, error) {
 	if compressed := response.GetCompressed(); compressed != nil {
-		return decodeCompressedSearchResponse(compressed, pools)
+		results, err := decodeCompressedSearchResponse(compressed, pools)
+		if err != nil {
+			return nil, err
+		}
+
+		metrics := make(models.Metrics, len(results))
+		for i, r := range results {
+			m, err := storage.FromM3IdentToMetric(r.ID, r.Iter, tagOptions)
+			if err != nil {
+				return nil, err
+			}
+
+			metrics[i] = m
+		}
+
+		return metrics, nil
 	}
 
 	if decompressed := response.GetDecompressed(); decompressed != nil {

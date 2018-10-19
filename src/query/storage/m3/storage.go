@@ -174,6 +174,7 @@ func (s *m3storage) FetchTags(
 	options *storage.FetchOptions,
 ) (*storage.SearchResults, error) {
 	tagResult, cleanup, err := s.SearchCompressed(ctx, query, options)
+	defer cleanup()
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +189,6 @@ func (s *m3storage) FetchTags(
 		metrics[i] = m
 	}
 
-	cleanup()
 	return &storage.SearchResults{
 		Metrics: metrics,
 	}, nil
