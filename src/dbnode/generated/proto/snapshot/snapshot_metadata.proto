@@ -1,0 +1,9 @@
+syntax = "proto3";
+package snapshot;
+
+message Metadata {
+  int64 snapshotTime = 1;
+  int64 snapshotIndex = 2;
+  bytes snapshotID = 3;
+  bytes commitlogIdentifier = 4;
+}
