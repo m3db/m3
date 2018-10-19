@@ -134,6 +134,10 @@ func Run(runOpts RunOptions) {
 		os.Exit(1)
 	}
 
+	if err := validateProcessLimits(); err != nil {
+		logger.Warnf("%v", err)
+	}
+
 	debug.SetGCPercent(cfg.GCPercentage)
 
 	scope, _, err := cfg.Metrics.NewRootScope()
