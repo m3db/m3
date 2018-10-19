@@ -46,7 +46,7 @@ Build m3coordinator binary:
 
 Run m3coordinator binary:
 
-    $ ./bin/m3coordinator --config.file docker/coordinator.yml
+    $ ./bin/m3coordinator -f src/query/config/m3query-dev-etcd.yml
 
 Run Prometheus Docker image:
 
