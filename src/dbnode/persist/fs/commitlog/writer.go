@@ -75,7 +75,15 @@ type commitLogWriter interface {
 		annotation ts.Annotation,
 	) error
 
-	// Flush will flush the contents to the disk, useful when first testing if first commit log is writable
+	// Sync will ensure that all writes that have been issued to the writer have been
+	// FSync'd to disk.
+	Sync() error
+
+	// Flush will flush any data in the writers buffer to the chunkWriter, essentially forcing
+	// a new chunk to be created. Only guarantees that the data is FSync'd to disk if the
+	// StrategyWriteWait is enabled.
+	// TODO(rartoul): Consider deleting this once we have time to do some performance benchmarking
+	// with using Sync instead.
 	Flush() error
 
 	// Close the reader
@@ -88,6 +96,7 @@ type chunkWriter interface {
 	reset(f xos.File)
 	close() error
 	isOpen() bool
+	sync() error
 }
 
 type flushFn func(err error)
@@ -248,6 +257,18 @@ func (w *writer) Write(
 	return nil
 }
 
+func (w *writer) Sync() error {
+	if err := w.Flush(); err != nil {
+		return err
+	}
+
+	if err := w.chunkWriter.sync(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (w *writer) Flush() error {
 	return w.buffer.Flush()
 }
@@ -319,6 +340,10 @@ func (w *fsChunkWriter) isOpen() bool {
 	return w.fd != nil
 }
 
+func (w *fsChunkWriter) sync() error {
+	return w.fd.Sync()
+}
+
 func (w *fsChunkWriter) Write(p []byte) (int, error) {
 	size := len(p)
 
@@ -356,7 +381,7 @@ func (w *fsChunkWriter) Write(p []byte) (int, error) {
 
 	// Fsync if required to
 	if w.fsync {
-		err = w.fd.Sync()
+		err = w.sync()
 	}
 
 	// Fire flush callback

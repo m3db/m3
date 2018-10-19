@@ -180,8 +180,9 @@ func (l *commitLog) Open() error {
 		return err
 	}
 
-	// Flush the info header to ensure we can write to disk
-	if err := l.writerState.writer.Flush(); err != nil {
+	// Sync the info header to ensure we can write to disk and make sure that we can at least
+	// read the info about the commitlog file later.
+	if err := l.writerState.writer.Sync(); err != nil {
 		return err
 	}
 
@@ -276,6 +277,8 @@ func (l *commitLog) write() {
 		}
 
 		if write.valueType == flushValueType {
+			// TODO(rartoul): Consider replacing this with a call to Sync() once we have time to do
+			// benchmarking.
 			l.writerState.writer.Flush()
 			continue
 		}
