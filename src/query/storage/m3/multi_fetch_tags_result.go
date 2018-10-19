@@ -100,8 +100,8 @@ func (r *multiSearchResult) add(
 		_, exists := r.dedupeMap[id]
 		if !exists {
 			r.dedupeMap[id] = MultiTagResult{
-				id:   ident,
-				iter: tagIter,
+				ID:   ident,
+				Iter: tagIter,
 			}
 		}
 	}

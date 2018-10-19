@@ -21,6 +21,7 @@
 package remote
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"sync"
@@ -444,10 +445,89 @@ func DecodeCompressedFetchResponse(
 	), nil
 }
 
+func filterTagIterators(
+	filterTagNames [][]byte,
+	iter ident.TagIterator,
+) (ident.TagIterator, error) {
+	tags := ident.NewTags()
+	for iter.Next() {
+		tag := iter.Current()
+		tagName := tag.Name.Bytes()
+		for _, filter := range filterTagNames {
+			if bytes.Equal(filter, tagName) {
+				tags.Append(tag)
+			}
+		}
+	}
+
+	if err := iter.Err(); err != nil {
+		return nil, err
+	}
+
+	return ident.NewTagsIterator(tags), nil
+}
+
+func multiTagResultsToM3TagProperties(
+	filterTagNames [][]byte,
+	results []m3.MultiTagResult,
+	encoderPool serialize.TagEncoderPool,
+) (*rpc.M3TagProperties, error) {
+	props := make([]rpc.M3TagProperty, len(results))
+	filter := len(filterTagNames) > 0
+	for i, result := range results {
+		filtered := result.Iter
+		var err error
+		if filter {
+			filtered, err = filterTagIterators(filterTagNames, result.Iter)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		tags, err := compressedTagsFromTagIterator(filtered, encoderPool)
+		if err != nil {
+			return nil, err
+		}
+
+		props[i] = rpc.M3TagProperty{
+			Id:             result.ID.Bytes(),
+			CompressedTags: tags,
+		}
+	}
+
+	pprops := make([]*rpc.M3TagProperty, len(props))
+	for i, prop := range props {
+		pprops[i] = &prop
+	}
+
+	return &rpc.M3TagProperties{
+		Properties: pprops,
+	}, nil
+}
+
 // EncodeToCompressedSearchResult encodes SearchResults to a compressed search result
 func EncodeToCompressedSearchResult(
+	filterTagNames [][]byte,
 	results []m3.MultiTagResult,
 	iterPools encoding.IteratorPools,
 ) (*rpc.SearchResponse, error) {
-	return nil, nil
+	if iterPools == nil {
+		return nil, errors.ErrCannotEncodeCompressedTags
+	}
+
+	encoderPool := iterPools.TagEncoder()
+	if encoderPool == nil {
+		return nil, errors.ErrCannotEncodeCompressedTags
+	}
+
+	compressedTags, err := multiTagResultsToM3TagProperties(filterTagNames, results, encoderPool)
+	if err != nil {
+		return nil, err
+	}
+
+	return &rpc.SearchResponse{
+		Value: &rpc.SearchResponse_Compressed{
+			Compressed: compressedTags,
+		},
+	}, nil
 }

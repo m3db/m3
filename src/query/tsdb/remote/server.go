@@ -134,7 +134,7 @@ func (s *grpcServer) Search(
 
 	ctx := RetrieveMetadata(stream.Context())
 	logger := logging.WithContext(ctx)
-	searchQuery, err := DecodeSearchRequest(message)
+	searchQuery, filterTagNames, err := DecodeSearchRequest(message)
 	if err != nil {
 		logger.Error("unable to decode search query", zap.Error(err))
 		return err
@@ -153,7 +153,7 @@ func (s *grpcServer) Search(
 		return err
 	}
 
-	response, err := EncodeToCompressedSearchResult(results, pools)
+	response, err := EncodeToCompressedSearchResult(filterTagNames, results, pools)
 	if err != nil {
 		logger.Error("unable to encode search result", zap.Error(err))
 	}

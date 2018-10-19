@@ -59,6 +59,8 @@ type Querier interface {
 
 // MultiTagResult represents a tag iterator with its string ID
 type MultiTagResult struct {
-	id   ident.ID
-	iter ident.TagIterator
+	// ID is the series ID
+	ID ident.ID
+	// Iter is the tag iterator for the series
+	Iter ident.TagIterator
 }

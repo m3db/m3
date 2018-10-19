@@ -109,7 +109,7 @@ enum SearchType {
 }
 
 message SearchResponse {
-	oneof tags {
+	oneof value {
 		M3TagProperties compressed = 1;
 		TagProperties decompressed = 2;
 	}
@@ -120,9 +120,8 @@ message M3TagProperties {
 }
 
 message M3TagProperty {
-	bytes namespace      = 1;
-	bytes id             = 2;
-	bytes compressedTags = 3;
+	bytes id             = 1;
+	bytes compressedTags = 2;
 }
 
 message TagProperties {

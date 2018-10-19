@@ -180,10 +180,7 @@ func (s *m3storage) FetchTags(
 
 	metrics := make(models.Metrics, len(tagResult))
 	for i, result := range tagResult {
-		id := result.id
-		it := result.iter
-
-		m, err := storage.FromM3IdentToMetric(id, it, s.tagOptions)
+		m, err := storage.FromM3IdentToMetric(result.ID, result.Iter, s.tagOptions)
 		if err != nil {
 			return nil, err
 		}
