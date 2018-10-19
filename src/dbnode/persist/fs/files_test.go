@@ -33,6 +33,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/retention"
@@ -280,6 +281,26 @@ func TestTimeAndVolumeIndexFromFileSetFilename(t *testing.T) {
 	require.Equal(t, exp.i, i)
 	require.NoError(t, err)
 	require.Equal(t, filesetPathFromTimeAndIndex("foo/bar", exp.t, exp.i, "data"), validName)
+}
+
+func TestSnapshotMetadataFilePathFromIdentifier(t *testing.T) {
+	idUUID, err := uuid.Parse("bf58eb3e-0582-42ee-83b2-d098c206260e")
+	require.NoError(t, err)
+
+	var (
+		prefix    = "/var/lib/m3db"
+		namespace = ident.StringID("some_namespace")
+		id        = SnapshotMetadataIdentifier{
+			Index: 10,
+			ID:    idUUID,
+		}
+	)
+
+	var (
+		expected = "/var/lib/m3db/snapshots/some_namespace/snapshot-bf58eb3e-0582-42ee-83b2-d098c206260e-10-metadata.db"
+		actual   = snapshotMetadataFilePathFromIdentfier(prefix, namespace, id)
+	)
+	require.Equal(t, expected, actual)
 }
 
 func TestFileExists(t *testing.T) {

@@ -31,6 +31,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/generated/proto/index"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -169,6 +170,13 @@ func (f FileSetFilesSlice) sortByTimeAndVolumeIndexAscending() {
 
 		return f[i].ID.BlockStart.Before(f[j].ID.BlockStart)
 	})
+}
+
+// SnapshotMetadataIdentifier is an identifier for a snapshot metadata file
+type SnapshotMetadataIdentifier struct {
+	Index int64
+	// TODO: Use non-broken library
+	ID uuid.UUID
 }
 
 // NewFileSetFile creates a new FileSet file
@@ -1219,4 +1227,13 @@ func snapshotIndexSegmentFilePathFromTimeAndIndex(
 ) string {
 	suffix := filesetIndexSegmentFileSuffixFromTime(t, segmentIndex, segmentFileType)
 	return filesetPathFromTimeAndIndex(prefix, t, snapshotIndex, suffix)
+}
+
+func snapshotMetadataFilePathFromIdentfier(prefix string, namespace ident.ID, id SnapshotMetadataIdentifier) string {
+	namespacePath := NamespaceSnapshotsDirPath(prefix, namespace)
+	return path.Join(
+		namespacePath,
+		fmt.Sprintf(
+			"%s-%s-%d-%s%s",
+			snapshotFilePrefix, id.ID.String(), id.Index, metadataFileSuffix, fileSuffix))
 }

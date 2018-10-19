@@ -21,6 +21,8 @@
 package fs
 
 const (
+	snapshotFilePrefix = "snapshot"
+
 	infoFileSuffix           = "info"
 	indexFileSuffix          = "index"
 	summariesFileSuffix      = "summaries"
@@ -28,6 +30,7 @@ const (
 	dataFileSuffix           = "data"
 	digestFileSuffix         = "digest"
 	checkpointFileSuffix     = "checkpoint"
+	metadataFileSuffix       = "metadata"
 	filesetFilePrefix        = "fileset"
 	commitLogFilePrefix      = "commitlog"
 	segmentFileSetFilePrefix = "segment"
