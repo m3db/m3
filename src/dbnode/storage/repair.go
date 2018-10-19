@@ -108,7 +108,7 @@ func (r shardRepairer) Repair(
 		IncludeSizes:     true,
 		IncludeChecksums: true,
 	}
-	localMetadata, _, err := shard.FetchBlocksMetadata(ctx, start, end, math.MaxInt64, 0, opts)
+	localMetadata, _, err := shard.FetchBlocksMetadataV2(ctx, start, end, math.MaxInt64, PageToken{}, opts)
 	if err != nil {
 		return repair.MetadataComparisonResult{}, err
 	}

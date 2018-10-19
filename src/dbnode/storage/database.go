@@ -575,25 +575,6 @@ func (d *db) FetchBlocks(
 	return n.FetchBlocks(ctx, shardID, id, starts)
 }
 
-func (d *db) FetchBlocksMetadata(
-	ctx context.Context,
-	namespace ident.ID,
-	shardID uint32,
-	start, end time.Time,
-	limit int64,
-	pageToken int64,
-	opts block.FetchBlocksMetadataOptions,
-) (block.FetchBlocksMetadataResults, *int64, error) {
-	n, err := d.namespaceFor(namespace)
-	if err != nil {
-		d.metrics.unknownNamespaceFetchBlocksMetadata.Inc(1)
-		return nil, nil, xerrors.NewInvalidParamsError(err)
-	}
-
-	return n.FetchBlocksMetadata(ctx, shardID, start, end, limit,
-		pageToken, opts)
-}
-
 func (d *db) FetchBlocksMetadataV2(
 	ctx context.Context,
 	namespace ident.ID,

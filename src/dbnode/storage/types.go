@@ -131,19 +131,6 @@ type Database interface {
 	// FetchBlocksMetadata retrieves blocks metadata for a given shard, returns the
 	// fetched block metadata results, the next page token, and any error encountered.
 	// If we have fetched all the block metadata, we return nil as the next page token.
-	FetchBlocksMetadata(
-		ctx context.Context,
-		namespace ident.ID,
-		shard uint32,
-		start, end time.Time,
-		limit int64,
-		pageToken int64,
-		opts block.FetchBlocksMetadataOptions,
-	) (block.FetchBlocksMetadataResults, *int64, error)
-
-	// FetchBlocksMetadata retrieves blocks metadata for a given shard, returns the
-	// fetched block metadata results, the next page token, and any error encountered.
-	// If we have fetched all the block metadata, we return nil as the next page token.
 	FetchBlocksMetadataV2(
 		ctx context.Context,
 		namespace ident.ID,
@@ -269,16 +256,6 @@ type databaseNamespace interface {
 		starts []time.Time,
 	) ([]block.FetchBlockResult, error)
 
-	// FetchBlocksMetadata retrieves the blocks metadata.
-	FetchBlocksMetadata(
-		ctx context.Context,
-		shardID uint32,
-		start, end time.Time,
-		limit int64,
-		pageToken int64,
-		opts block.FetchBlocksMetadataOptions,
-	) (block.FetchBlocksMetadataResults, *int64, error)
-
 	// FetchBlocksMetadata retrieves blocks metadata.
 	FetchBlocksMetadataV2(
 		ctx context.Context,
@@ -393,15 +370,6 @@ type databaseShard interface {
 		id ident.ID,
 		starts []time.Time,
 	) ([]block.FetchBlockResult, error)
-
-	// FetchBlocksMetadata retrieves the blocks metadata.
-	FetchBlocksMetadata(
-		ctx context.Context,
-		start, end time.Time,
-		limit int64,
-		pageToken int64,
-		opts block.FetchBlocksMetadataOptions,
-	) (block.FetchBlocksMetadataResults, *int64, error)
 
 	// FetchBlocksMetadataV2 retrieves blocks metadata.
 	FetchBlocksMetadataV2(

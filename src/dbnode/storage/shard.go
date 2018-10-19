@@ -1436,33 +1436,6 @@ func (s *dbShard) fetchActiveBlocksMetadata(
 	return res, nextIndexCursor, loopErr
 }
 
-func (s *dbShard) FetchBlocksMetadata(
-	ctx context.Context,
-	start, end time.Time,
-	limit int64,
-	pageToken int64,
-	opts block.FetchBlocksMetadataOptions,
-) (block.FetchBlocksMetadataResults, *int64, error) {
-	switch s.opts.SeriesCachePolicy() {
-	case series.CacheAll:
-	default:
-		// If not using CacheAll then calling the v1
-		// API will only return active block metadata (mutable and cached)
-		// hence this call is invalid
-		return nil, nil, fmt.Errorf(
-			"fetch blocks metadata v1 endpoint invalid with cache policy: %s",
-			s.opts.SeriesCachePolicy().String())
-	}
-
-	// For v1 endpoint we always include cached blocks
-	seriesFetchBlocksMetadataOpts := series.FetchBlocksMetadataOptions{
-		FetchBlocksMetadataOptions: opts,
-		IncludeCachedBlocks:        true,
-	}
-	return s.fetchActiveBlocksMetadata(ctx, start, end,
-		limit, pageToken, seriesFetchBlocksMetadataOpts)
-}
-
 func (s *dbShard) FetchBlocksMetadataV2(
 	ctx context.Context,
 	start, end time.Time,

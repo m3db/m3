@@ -42,64 +42,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestShardFetchBlocksMetadata(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	opts := testDatabaseOptions()
-	ctx := opts.ContextPool().Get()
-	defer ctx.Close()
-
-	shard := testDatabaseShard(t, opts)
-	defer shard.Close()
-	start := time.Now()
-	end := start.Add(defaultTestRetentionOpts.BlockSize())
-
-	var ids []ident.ID
-	fetchOpts := block.FetchBlocksMetadataOptions{
-		IncludeSizes:     true,
-		IncludeChecksums: true,
-		IncludeLastRead:  true,
-	}
-	seriesFetchOpts := series.FetchBlocksMetadataOptions{
-		FetchBlocksMetadataOptions: fetchOpts,
-		IncludeCachedBlocks:        true,
-	}
-	lastRead := time.Now().Add(-time.Minute)
-	for i := 0; i < 10; i++ {
-		id := ident.StringID(fmt.Sprintf("foo.%d", i))
-		tags := ident.NewTags(
-			ident.StringTag("aaa", "bbb"),
-			ident.StringTag("ccc", "ddd"),
-		)
-		tagsIter := ident.NewTagsIterator(tags)
-		series := addMockSeries(ctrl, shard, id, tags, uint64(i))
-		if i == 2 {
-			series.EXPECT().
-				FetchBlocksMetadata(gomock.Not(nil), start, end, seriesFetchOpts).
-				Return(block.NewFetchBlocksMetadataResult(id, tagsIter,
-					block.NewFetchBlockMetadataResults()), nil)
-		} else if i > 2 && i <= 7 {
-			ids = append(ids, id)
-			blocks := block.NewFetchBlockMetadataResults()
-			at := start.Add(time.Duration(i))
-			blocks.Add(block.NewFetchBlockMetadataResult(at, 0, nil, lastRead, nil))
-			series.EXPECT().
-				FetchBlocksMetadata(gomock.Not(nil), start, end, seriesFetchOpts).
-				Return(block.NewFetchBlocksMetadataResult(id, tagsIter,
-					blocks), nil)
-		}
-	}
-
-	res, nextPageToken, err := shard.FetchBlocksMetadata(ctx, start, end, 5, 2, fetchOpts)
-	require.NoError(t, err)
-	require.Equal(t, len(ids), len(res.Results()))
-	require.Equal(t, int64(8), *nextPageToken)
-	for i := 0; i < len(res.Results()); i++ {
-		require.Equal(t, ids[i], res.Results()[i].ID)
-	}
-}
-
 func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyCacheAll(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
