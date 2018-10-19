@@ -131,12 +131,8 @@ type pools struct {
 	checkedBytesWrapper     xpool.CheckedBytesWrapperPool
 	segmentsArray           segmentsArrayPool
 	writeBatchPooledReqPool *writeBatchPooledReqPool
-	blockMetadata           tchannelthrift.BlockMetadataPool
 	blockMetadataV2         tchannelthrift.BlockMetadataV2Pool
-	blockMetadataSlice      tchannelthrift.BlockMetadataSlicePool
 	blockMetadataV2Slice    tchannelthrift.BlockMetadataV2SlicePool
-	blocksMetadata          tchannelthrift.BlocksMetadataPool
-	blocksMetadataSlice     tchannelthrift.BlocksMetadataSlicePool
 }
 
 // ensure `pools` matches a required conversion interface
@@ -195,12 +191,8 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 			id:                      db.Options().IdentifierPool(),
 			segmentsArray:           segmentPool,
 			writeBatchPooledReqPool: writeBatchPooledReqPool,
-			blockMetadata:           opts.BlockMetadataPool(),
 			blockMetadataV2:         opts.BlockMetadataV2Pool(),
-			blockMetadataSlice:      opts.BlockMetadataSlicePool(),
 			blockMetadataV2Slice:    opts.BlockMetadataV2SlicePool(),
-			blocksMetadata:          opts.BlocksMetadataPool(),
-			blocksMetadataSlice:     opts.BlocksMetadataSlicePool(),
 		},
 		health: &rpc.NodeHealthResult_{
 			Ok:           true,
@@ -597,110 +589,6 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 	s.metrics.fetchBlocks.ReportSuccess(s.nowFn().Sub(callStart))
 
 	return res, nil
-}
-
-func (s *service) FetchBlocksMetadataRaw(tctx thrift.Context, req *rpc.FetchBlocksMetadataRawRequest) (*rpc.FetchBlocksMetadataRawResult_, error) {
-	if s.db.IsOverloaded() {
-		s.metrics.overloadRejected.Inc(1)
-		return nil, tterrors.NewInternalError(errServerIsOverloaded)
-	}
-
-	callStart := s.nowFn()
-	ctx := tchannelthrift.Context(tctx)
-
-	start := time.Unix(0, req.RangeStart)
-	end := time.Unix(0, req.RangeEnd)
-
-	if req.Limit <= 0 {
-		s.metrics.fetchBlocksMetadata.ReportSuccess(s.nowFn().Sub(callStart))
-		return nil, nil
-	}
-
-	var pageToken int64
-	if req.PageToken != nil {
-		pageToken = *req.PageToken
-	}
-
-	var opts block.FetchBlocksMetadataOptions
-	if req.IncludeSizes != nil {
-		opts.IncludeSizes = *req.IncludeSizes
-	}
-	if req.IncludeChecksums != nil {
-		opts.IncludeChecksums = *req.IncludeChecksums
-	}
-	if req.IncludeLastRead != nil {
-		opts.IncludeLastRead = *req.IncludeLastRead
-	}
-
-	nsID := s.newID(ctx, req.NameSpace)
-
-	fetched, nextPageToken, err := s.db.FetchBlocksMetadata(ctx, nsID,
-		uint32(req.Shard), start, end, req.Limit, pageToken, opts)
-	if err != nil {
-		s.metrics.fetchBlocksMetadata.ReportError(s.nowFn().Sub(callStart))
-		return nil, convert.ToRPCError(err)
-	}
-	ctx.RegisterCloser(fetched)
-
-	fetchedResults := fetched.Results()
-	result := rpc.NewFetchBlocksMetadataRawResult_()
-	result.NextPageToken = nextPageToken
-	result.Elements = s.pools.blocksMetadataSlice.Get()
-
-	// NB(xichen): register a closer with context so objects are returned to pool
-	// when we are done using them
-	ctx.RegisterFinalizer(s.newCloseableMetadataResult(result))
-
-	for _, fetchedMetadata := range fetchedResults {
-		blocksMetadata := s.pools.blocksMetadata.Get()
-		blocksMetadata.ID = fetchedMetadata.ID.Bytes()
-		fetchedMetadataBlocks := fetchedMetadata.Blocks.Results()
-		blocksMetadata.Blocks = s.pools.blockMetadataSlice.Get()
-
-		for _, fetchedMetadataBlock := range fetchedMetadataBlocks {
-			blockMetadata := s.pools.blockMetadata.Get()
-
-			blockMetadata.Start = fetchedMetadataBlock.Start.UnixNano()
-
-			if opts.IncludeSizes {
-				size := fetchedMetadataBlock.Size
-				blockMetadata.Size = &size
-			} else {
-				blockMetadata.Size = nil
-			}
-
-			checksum := fetchedMetadataBlock.Checksum
-			if opts.IncludeChecksums && checksum != nil {
-				value := int64(*checksum)
-				blockMetadata.Checksum = &value
-			} else {
-				blockMetadata.Checksum = nil
-			}
-
-			if opts.IncludeLastRead {
-				lastRead := fetchedMetadataBlock.LastRead.UnixNano()
-				blockMetadata.LastRead = &lastRead
-				blockMetadata.LastReadTimeType = rpc.TimeType_UNIX_NANOSECONDS
-			} else {
-				blockMetadata.LastRead = nil
-				blockMetadata.LastReadTimeType = rpc.TimeType(0)
-			}
-
-			if err := fetchedMetadataBlock.Err; err != nil {
-				blockMetadata.Err = convert.ToRPCError(err)
-			} else {
-				blockMetadata.Err = nil
-			}
-
-			blocksMetadata.Blocks = append(blocksMetadata.Blocks, blockMetadata)
-		}
-
-		result.Elements = append(result.Elements, blocksMetadata)
-	}
-
-	s.metrics.fetchBlocksMetadata.ReportSuccess(s.nowFn().Sub(callStart))
-
-	return result, nil
 }
 
 func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBlocksMetadataRawV2Request) (*rpc.FetchBlocksMetadataRawV2Result_, error) {
@@ -1290,28 +1178,6 @@ func (s *service) newPooledTagsDecoder(
 		return decoder, nil
 	}
 	return s.newTagsDecoder(ctx, encodedTags)
-}
-
-func (s *service) newCloseableMetadataResult(
-	res *rpc.FetchBlocksMetadataRawResult_,
-) closeableMetadataResult {
-	return closeableMetadataResult{s: s, result: res}
-}
-
-type closeableMetadataResult struct {
-	s      *service
-	result *rpc.FetchBlocksMetadataRawResult_
-}
-
-func (c closeableMetadataResult) Finalize() {
-	for _, blocksMetadata := range c.result.Elements {
-		for _, blockMetadata := range blocksMetadata.Blocks {
-			c.s.pools.blockMetadata.Put(blockMetadata)
-		}
-		c.s.pools.blockMetadataSlice.Put(blocksMetadata.Blocks)
-		c.s.pools.blocksMetadata.Put(blocksMetadata)
-	}
-	c.s.pools.blocksMetadataSlice.Put(c.result.Elements)
 }
 
 func (s *service) newCloseableMetadataV2Result(
