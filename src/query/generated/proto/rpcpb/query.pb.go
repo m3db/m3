@@ -41,13 +41,15 @@
 		M3CompressedValuesReplica
 		M3Segments
 		M3Segment
-		SearchRequest
 		SearchRequestOptions
-		SearchResponse
-		M3TagProperties
+		SearchRequest
 		M3TagProperty
-		TagProperties
+		M3TagProperties
 		TagProperty
+		TagProperties
+		SearchResponse
+		CompleteTagsRequest
+		CompleteTagsResponse
 */
 package rpcpb
 
@@ -642,6 +644,22 @@ func (m *M3Segment) GetBlockSize() int64 {
 	return 0
 }
 
+type SearchRequestOptions struct {
+	FilterNameTags [][]byte `protobuf:"bytes,1,rep,name=filterNameTags" json:"filterNameTags,omitempty"`
+}
+
+func (m *SearchRequestOptions) Reset()                    { *m = SearchRequestOptions{} }
+func (m *SearchRequestOptions) String() string            { return proto.CompactTextString(m) }
+func (*SearchRequestOptions) ProtoMessage()               {}
+func (*SearchRequestOptions) Descriptor() ([]byte, []int) { return fileDescriptorQuery, []int{13} }
+
+func (m *SearchRequestOptions) GetFilterNameTags() [][]byte {
+	if m != nil {
+		return m.FilterNameTags
+	}
+	return nil
+}
+
 type SearchRequest struct {
 	// Types that are valid to be assigned to Matchers:
 	//	*SearchRequest_TagMatchers
@@ -653,7 +671,7 @@ type SearchRequest struct {
 func (m *SearchRequest) Reset()                    { *m = SearchRequest{} }
 func (m *SearchRequest) String() string            { return proto.CompactTextString(m) }
 func (*SearchRequest) ProtoMessage()               {}
-func (*SearchRequest) Descriptor() ([]byte, []int) { return fileDescriptorQuery, []int{13} }
+func (*SearchRequest) Descriptor() ([]byte, []int) { return fileDescriptorQuery, []int{14} }
 
 type isSearchRequest_Matchers interface {
 	isSearchRequest_Matchers()
@@ -750,143 +768,28 @@ func _SearchRequest_OneofSizer(msg proto.Message) (n int) {
 	return n
 }
 
-type SearchRequestOptions struct {
-	FilterNameTags [][]byte `protobuf:"bytes,1,rep,name=filterNameTags" json:"filterNameTags,omitempty"`
+type M3TagProperty struct {
+	Id             []byte `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	CompressedTags []byte `protobuf:"bytes,2,opt,name=compressedTags,proto3" json:"compressedTags,omitempty"`
 }
 
-func (m *SearchRequestOptions) Reset()                    { *m = SearchRequestOptions{} }
-func (m *SearchRequestOptions) String() string            { return proto.CompactTextString(m) }
-func (*SearchRequestOptions) ProtoMessage()               {}
-func (*SearchRequestOptions) Descriptor() ([]byte, []int) { return fileDescriptorQuery, []int{14} }
+func (m *M3TagProperty) Reset()                    { *m = M3TagProperty{} }
+func (m *M3TagProperty) String() string            { return proto.CompactTextString(m) }
+func (*M3TagProperty) ProtoMessage()               {}
+func (*M3TagProperty) Descriptor() ([]byte, []int) { return fileDescriptorQuery, []int{15} }
 
-func (m *SearchRequestOptions) GetFilterNameTags() [][]byte {
+func (m *M3TagProperty) GetId() []byte {
 	if m != nil {
-		return m.FilterNameTags
+		return m.Id
 	}
 	return nil
 }
 
-type SearchResponse struct {
-	// Types that are valid to be assigned to Value:
-	//	*SearchResponse_Compressed
-	//	*SearchResponse_Decompressed
-	Value isSearchResponse_Value `protobuf_oneof:"value"`
-}
-
-func (m *SearchResponse) Reset()                    { *m = SearchResponse{} }
-func (m *SearchResponse) String() string            { return proto.CompactTextString(m) }
-func (*SearchResponse) ProtoMessage()               {}
-func (*SearchResponse) Descriptor() ([]byte, []int) { return fileDescriptorQuery, []int{15} }
-
-type isSearchResponse_Value interface {
-	isSearchResponse_Value()
-	MarshalTo([]byte) (int, error)
-	Size() int
-}
-
-type SearchResponse_Compressed struct {
-	Compressed *M3TagProperties `protobuf:"bytes,1,opt,name=compressed,oneof"`
-}
-type SearchResponse_Decompressed struct {
-	Decompressed *TagProperties `protobuf:"bytes,2,opt,name=decompressed,oneof"`
-}
-
-func (*SearchResponse_Compressed) isSearchResponse_Value()   {}
-func (*SearchResponse_Decompressed) isSearchResponse_Value() {}
-
-func (m *SearchResponse) GetValue() isSearchResponse_Value {
+func (m *M3TagProperty) GetCompressedTags() []byte {
 	if m != nil {
-		return m.Value
+		return m.CompressedTags
 	}
 	return nil
-}
-
-func (m *SearchResponse) GetCompressed() *M3TagProperties {
-	if x, ok := m.GetValue().(*SearchResponse_Compressed); ok {
-		return x.Compressed
-	}
-	return nil
-}
-
-func (m *SearchResponse) GetDecompressed() *TagProperties {
-	if x, ok := m.GetValue().(*SearchResponse_Decompressed); ok {
-		return x.Decompressed
-	}
-	return nil
-}
-
-// XXX_OneofFuncs is for the internal use of the proto package.
-func (*SearchResponse) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
-	return _SearchResponse_OneofMarshaler, _SearchResponse_OneofUnmarshaler, _SearchResponse_OneofSizer, []interface{}{
-		(*SearchResponse_Compressed)(nil),
-		(*SearchResponse_Decompressed)(nil),
-	}
-}
-
-func _SearchResponse_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
-	m := msg.(*SearchResponse)
-	// value
-	switch x := m.Value.(type) {
-	case *SearchResponse_Compressed:
-		_ = b.EncodeVarint(1<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.Compressed); err != nil {
-			return err
-		}
-	case *SearchResponse_Decompressed:
-		_ = b.EncodeVarint(2<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.Decompressed); err != nil {
-			return err
-		}
-	case nil:
-	default:
-		return fmt.Errorf("SearchResponse.Value has unexpected type %T", x)
-	}
-	return nil
-}
-
-func _SearchResponse_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
-	m := msg.(*SearchResponse)
-	switch tag {
-	case 1: // value.compressed
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(M3TagProperties)
-		err := b.DecodeMessage(msg)
-		m.Value = &SearchResponse_Compressed{msg}
-		return true, err
-	case 2: // value.decompressed
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(TagProperties)
-		err := b.DecodeMessage(msg)
-		m.Value = &SearchResponse_Decompressed{msg}
-		return true, err
-	default:
-		return false, nil
-	}
-}
-
-func _SearchResponse_OneofSizer(msg proto.Message) (n int) {
-	m := msg.(*SearchResponse)
-	// value
-	switch x := m.Value.(type) {
-	case *SearchResponse_Compressed:
-		s := proto.Size(x.Compressed)
-		n += proto.SizeVarint(1<<3 | proto.WireBytes)
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case *SearchResponse_Decompressed:
-		s := proto.Size(x.Decompressed)
-		n += proto.SizeVarint(2<<3 | proto.WireBytes)
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case nil:
-	default:
-		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
-	}
-	return n
 }
 
 type M3TagProperties struct {
@@ -905,26 +808,26 @@ func (m *M3TagProperties) GetProperties() []*M3TagProperty {
 	return nil
 }
 
-type M3TagProperty struct {
-	Id             []byte `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	CompressedTags []byte `protobuf:"bytes,2,opt,name=compressedTags,proto3" json:"compressedTags,omitempty"`
+type TagProperty struct {
+	Key    []byte   `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	Values [][]byte `protobuf:"bytes,2,rep,name=values" json:"values,omitempty"`
 }
 
-func (m *M3TagProperty) Reset()                    { *m = M3TagProperty{} }
-func (m *M3TagProperty) String() string            { return proto.CompactTextString(m) }
-func (*M3TagProperty) ProtoMessage()               {}
-func (*M3TagProperty) Descriptor() ([]byte, []int) { return fileDescriptorQuery, []int{17} }
+func (m *TagProperty) Reset()                    { *m = TagProperty{} }
+func (m *TagProperty) String() string            { return proto.CompactTextString(m) }
+func (*TagProperty) ProtoMessage()               {}
+func (*TagProperty) Descriptor() ([]byte, []int) { return fileDescriptorQuery, []int{17} }
 
-func (m *M3TagProperty) GetId() []byte {
+func (m *TagProperty) GetKey() []byte {
 	if m != nil {
-		return m.Id
+		return m.Key
 	}
 	return nil
 }
 
-func (m *M3TagProperty) GetCompressedTags() []byte {
+func (m *TagProperty) GetValues() [][]byte {
 	if m != nil {
-		return m.CompressedTags
+		return m.Values
 	}
 	return nil
 }
@@ -945,28 +848,251 @@ func (m *TagProperties) GetProperties() []*TagProperty {
 	return nil
 }
 
-type TagProperty struct {
-	Key    []byte   `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
-	Values [][]byte `protobuf:"bytes,2,rep,name=values" json:"values,omitempty"`
+type SearchResponse struct {
+	// Types that are valid to be assigned to Value:
+	//	*SearchResponse_Decompressed
+	//	*SearchResponse_Compressed
+	Value isSearchResponse_Value `protobuf_oneof:"value"`
 }
 
-func (m *TagProperty) Reset()                    { *m = TagProperty{} }
-func (m *TagProperty) String() string            { return proto.CompactTextString(m) }
-func (*TagProperty) ProtoMessage()               {}
-func (*TagProperty) Descriptor() ([]byte, []int) { return fileDescriptorQuery, []int{19} }
+func (m *SearchResponse) Reset()                    { *m = SearchResponse{} }
+func (m *SearchResponse) String() string            { return proto.CompactTextString(m) }
+func (*SearchResponse) ProtoMessage()               {}
+func (*SearchResponse) Descriptor() ([]byte, []int) { return fileDescriptorQuery, []int{19} }
 
-func (m *TagProperty) GetKey() []byte {
+type isSearchResponse_Value interface {
+	isSearchResponse_Value()
+	MarshalTo([]byte) (int, error)
+	Size() int
+}
+
+type SearchResponse_Decompressed struct {
+	Decompressed *TagProperties `protobuf:"bytes,1,opt,name=decompressed,oneof"`
+}
+type SearchResponse_Compressed struct {
+	Compressed *M3TagProperties `protobuf:"bytes,2,opt,name=compressed,oneof"`
+}
+
+func (*SearchResponse_Decompressed) isSearchResponse_Value() {}
+func (*SearchResponse_Compressed) isSearchResponse_Value()   {}
+
+func (m *SearchResponse) GetValue() isSearchResponse_Value {
 	if m != nil {
-		return m.Key
+		return m.Value
 	}
 	return nil
 }
 
-func (m *TagProperty) GetValues() [][]byte {
-	if m != nil {
-		return m.Values
+func (m *SearchResponse) GetDecompressed() *TagProperties {
+	if x, ok := m.GetValue().(*SearchResponse_Decompressed); ok {
+		return x.Decompressed
 	}
 	return nil
+}
+
+func (m *SearchResponse) GetCompressed() *M3TagProperties {
+	if x, ok := m.GetValue().(*SearchResponse_Compressed); ok {
+		return x.Compressed
+	}
+	return nil
+}
+
+// XXX_OneofFuncs is for the internal use of the proto package.
+func (*SearchResponse) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
+	return _SearchResponse_OneofMarshaler, _SearchResponse_OneofUnmarshaler, _SearchResponse_OneofSizer, []interface{}{
+		(*SearchResponse_Decompressed)(nil),
+		(*SearchResponse_Compressed)(nil),
+	}
+}
+
+func _SearchResponse_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
+	m := msg.(*SearchResponse)
+	// value
+	switch x := m.Value.(type) {
+	case *SearchResponse_Decompressed:
+		_ = b.EncodeVarint(1<<3 | proto.WireBytes)
+		if err := b.EncodeMessage(x.Decompressed); err != nil {
+			return err
+		}
+	case *SearchResponse_Compressed:
+		_ = b.EncodeVarint(2<<3 | proto.WireBytes)
+		if err := b.EncodeMessage(x.Compressed); err != nil {
+			return err
+		}
+	case nil:
+	default:
+		return fmt.Errorf("SearchResponse.Value has unexpected type %T", x)
+	}
+	return nil
+}
+
+func _SearchResponse_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
+	m := msg.(*SearchResponse)
+	switch tag {
+	case 1: // value.decompressed
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		msg := new(TagProperties)
+		err := b.DecodeMessage(msg)
+		m.Value = &SearchResponse_Decompressed{msg}
+		return true, err
+	case 2: // value.compressed
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		msg := new(M3TagProperties)
+		err := b.DecodeMessage(msg)
+		m.Value = &SearchResponse_Compressed{msg}
+		return true, err
+	default:
+		return false, nil
+	}
+}
+
+func _SearchResponse_OneofSizer(msg proto.Message) (n int) {
+	m := msg.(*SearchResponse)
+	// value
+	switch x := m.Value.(type) {
+	case *SearchResponse_Decompressed:
+		s := proto.Size(x.Decompressed)
+		n += proto.SizeVarint(1<<3 | proto.WireBytes)
+		n += proto.SizeVarint(uint64(s))
+		n += s
+	case *SearchResponse_Compressed:
+		s := proto.Size(x.Compressed)
+		n += proto.SizeVarint(2<<3 | proto.WireBytes)
+		n += proto.SizeVarint(uint64(s))
+		n += s
+	case nil:
+	default:
+		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
+	}
+	return n
+}
+
+type CompleteTagsRequest struct {
+	Query   []byte                `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
+	Type    SearchType            `protobuf:"varint,2,opt,name=type,proto3,enum=rpc.SearchType" json:"type,omitempty"`
+	Options *SearchRequestOptions `protobuf:"bytes,3,opt,name=options" json:"options,omitempty"`
+}
+
+func (m *CompleteTagsRequest) Reset()                    { *m = CompleteTagsRequest{} }
+func (m *CompleteTagsRequest) String() string            { return proto.CompactTextString(m) }
+func (*CompleteTagsRequest) ProtoMessage()               {}
+func (*CompleteTagsRequest) Descriptor() ([]byte, []int) { return fileDescriptorQuery, []int{20} }
+
+func (m *CompleteTagsRequest) GetQuery() []byte {
+	if m != nil {
+		return m.Query
+	}
+	return nil
+}
+
+func (m *CompleteTagsRequest) GetType() SearchType {
+	if m != nil {
+		return m.Type
+	}
+	return SearchType_DEFAULT
+}
+
+func (m *CompleteTagsRequest) GetOptions() *SearchRequestOptions {
+	if m != nil {
+		return m.Options
+	}
+	return nil
+}
+
+type CompleteTagsResponse struct {
+	// Types that are valid to be assigned to Value:
+	//	*CompleteTagsResponse_Decompressed
+	Value isCompleteTagsResponse_Value `protobuf_oneof:"value"`
+}
+
+func (m *CompleteTagsResponse) Reset()                    { *m = CompleteTagsResponse{} }
+func (m *CompleteTagsResponse) String() string            { return proto.CompactTextString(m) }
+func (*CompleteTagsResponse) ProtoMessage()               {}
+func (*CompleteTagsResponse) Descriptor() ([]byte, []int) { return fileDescriptorQuery, []int{21} }
+
+type isCompleteTagsResponse_Value interface {
+	isCompleteTagsResponse_Value()
+	MarshalTo([]byte) (int, error)
+	Size() int
+}
+
+type CompleteTagsResponse_Decompressed struct {
+	Decompressed *TagProperties `protobuf:"bytes,1,opt,name=decompressed,oneof"`
+}
+
+func (*CompleteTagsResponse_Decompressed) isCompleteTagsResponse_Value() {}
+
+func (m *CompleteTagsResponse) GetValue() isCompleteTagsResponse_Value {
+	if m != nil {
+		return m.Value
+	}
+	return nil
+}
+
+func (m *CompleteTagsResponse) GetDecompressed() *TagProperties {
+	if x, ok := m.GetValue().(*CompleteTagsResponse_Decompressed); ok {
+		return x.Decompressed
+	}
+	return nil
+}
+
+// XXX_OneofFuncs is for the internal use of the proto package.
+func (*CompleteTagsResponse) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
+	return _CompleteTagsResponse_OneofMarshaler, _CompleteTagsResponse_OneofUnmarshaler, _CompleteTagsResponse_OneofSizer, []interface{}{
+		(*CompleteTagsResponse_Decompressed)(nil),
+	}
+}
+
+func _CompleteTagsResponse_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
+	m := msg.(*CompleteTagsResponse)
+	// value
+	switch x := m.Value.(type) {
+	case *CompleteTagsResponse_Decompressed:
+		_ = b.EncodeVarint(1<<3 | proto.WireBytes)
+		if err := b.EncodeMessage(x.Decompressed); err != nil {
+			return err
+		}
+	case nil:
+	default:
+		return fmt.Errorf("CompleteTagsResponse.Value has unexpected type %T", x)
+	}
+	return nil
+}
+
+func _CompleteTagsResponse_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
+	m := msg.(*CompleteTagsResponse)
+	switch tag {
+	case 1: // value.decompressed
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		msg := new(TagProperties)
+		err := b.DecodeMessage(msg)
+		m.Value = &CompleteTagsResponse_Decompressed{msg}
+		return true, err
+	default:
+		return false, nil
+	}
+}
+
+func _CompleteTagsResponse_OneofSizer(msg proto.Message) (n int) {
+	m := msg.(*CompleteTagsResponse)
+	// value
+	switch x := m.Value.(type) {
+	case *CompleteTagsResponse_Decompressed:
+		s := proto.Size(x.Decompressed)
+		n += proto.SizeVarint(1<<3 | proto.WireBytes)
+		n += proto.SizeVarint(uint64(s))
+		n += s
+	case nil:
+	default:
+		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
+	}
+	return n
 }
 
 func init() {
@@ -983,13 +1109,15 @@ func init() {
 	proto.RegisterType((*M3CompressedValuesReplica)(nil), "rpc.M3CompressedValuesReplica")
 	proto.RegisterType((*M3Segments)(nil), "rpc.M3Segments")
 	proto.RegisterType((*M3Segment)(nil), "rpc.M3Segment")
-	proto.RegisterType((*SearchRequest)(nil), "rpc.SearchRequest")
 	proto.RegisterType((*SearchRequestOptions)(nil), "rpc.SearchRequestOptions")
-	proto.RegisterType((*SearchResponse)(nil), "rpc.SearchResponse")
-	proto.RegisterType((*M3TagProperties)(nil), "rpc.M3TagProperties")
+	proto.RegisterType((*SearchRequest)(nil), "rpc.SearchRequest")
 	proto.RegisterType((*M3TagProperty)(nil), "rpc.M3TagProperty")
-	proto.RegisterType((*TagProperties)(nil), "rpc.TagProperties")
+	proto.RegisterType((*M3TagProperties)(nil), "rpc.M3TagProperties")
 	proto.RegisterType((*TagProperty)(nil), "rpc.TagProperty")
+	proto.RegisterType((*TagProperties)(nil), "rpc.TagProperties")
+	proto.RegisterType((*SearchResponse)(nil), "rpc.SearchResponse")
+	proto.RegisterType((*CompleteTagsRequest)(nil), "rpc.CompleteTagsRequest")
+	proto.RegisterType((*CompleteTagsResponse)(nil), "rpc.CompleteTagsResponse")
 	proto.RegisterEnum("rpc.MatcherType", MatcherType_name, MatcherType_value)
 	proto.RegisterEnum("rpc.SearchType", SearchType_name, SearchType_value)
 }
@@ -1007,6 +1135,7 @@ const _ = grpc.SupportPackageIsVersion4
 type QueryClient interface {
 	Fetch(ctx context.Context, in *FetchRequest, opts ...grpc.CallOption) (Query_FetchClient, error)
 	Search(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (Query_SearchClient, error)
+	CompleteTags(ctx context.Context, in *CompleteTagsRequest, opts ...grpc.CallOption) (Query_CompleteTagsClient, error)
 }
 
 type queryClient struct {
@@ -1081,11 +1210,44 @@ func (x *querySearchClient) Recv() (*SearchResponse, error) {
 	return m, nil
 }
 
+func (c *queryClient) CompleteTags(ctx context.Context, in *CompleteTagsRequest, opts ...grpc.CallOption) (Query_CompleteTagsClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_Query_serviceDesc.Streams[2], c.cc, "/rpc.Query/CompleteTags", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &queryCompleteTagsClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type Query_CompleteTagsClient interface {
+	Recv() (*CompleteTagsResponse, error)
+	grpc.ClientStream
+}
+
+type queryCompleteTagsClient struct {
+	grpc.ClientStream
+}
+
+func (x *queryCompleteTagsClient) Recv() (*CompleteTagsResponse, error) {
+	m := new(CompleteTagsResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // Server API for Query service
 
 type QueryServer interface {
 	Fetch(*FetchRequest, Query_FetchServer) error
 	Search(*SearchRequest, Query_SearchServer) error
+	CompleteTags(*CompleteTagsRequest, Query_CompleteTagsServer) error
 }
 
 func RegisterQueryServer(s *grpc.Server, srv QueryServer) {
@@ -1134,6 +1296,27 @@ func (x *querySearchServer) Send(m *SearchResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 
+func _Query_CompleteTags_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(CompleteTagsRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(QueryServer).CompleteTags(m, &queryCompleteTagsServer{stream})
+}
+
+type Query_CompleteTagsServer interface {
+	Send(*CompleteTagsResponse) error
+	grpc.ServerStream
+}
+
+type queryCompleteTagsServer struct {
+	grpc.ServerStream
+}
+
+func (x *queryCompleteTagsServer) Send(m *CompleteTagsResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
 var _Query_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "rpc.Query",
 	HandlerType: (*QueryServer)(nil),
@@ -1147,6 +1330,11 @@ var _Query_serviceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "Search",
 			Handler:       _Query_Search_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "CompleteTags",
+			Handler:       _Query_CompleteTags_Handler,
 			ServerStreams: true,
 		},
 	},
@@ -1641,6 +1829,32 @@ func (m *M3Segment) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
+func (m *SearchRequestOptions) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *SearchRequestOptions) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.FilterNameTags) > 0 {
+		for _, b := range m.FilterNameTags {
+			dAtA[i] = 0xa
+			i++
+			i = encodeVarintQuery(dAtA, i, uint64(len(b)))
+			i += copy(dAtA[i:], b)
+		}
+	}
+	return i, nil
+}
+
 func (m *SearchRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -1695,115 +1909,6 @@ func (m *SearchRequest_TagMatchers) MarshalTo(dAtA []byte) (int, error) {
 	}
 	return i, nil
 }
-func (m *SearchRequestOptions) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *SearchRequestOptions) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if len(m.FilterNameTags) > 0 {
-		for _, b := range m.FilterNameTags {
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintQuery(dAtA, i, uint64(len(b)))
-			i += copy(dAtA[i:], b)
-		}
-	}
-	return i, nil
-}
-
-func (m *SearchResponse) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *SearchResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if m.Value != nil {
-		nn11, err := m.Value.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += nn11
-	}
-	return i, nil
-}
-
-func (m *SearchResponse_Compressed) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	if m.Compressed != nil {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintQuery(dAtA, i, uint64(m.Compressed.Size()))
-		n12, err := m.Compressed.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n12
-	}
-	return i, nil
-}
-func (m *SearchResponse_Decompressed) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	if m.Decompressed != nil {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintQuery(dAtA, i, uint64(m.Decompressed.Size()))
-		n13, err := m.Decompressed.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n13
-	}
-	return i, nil
-}
-func (m *M3TagProperties) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *M3TagProperties) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if len(m.Properties) > 0 {
-		for _, msg := range m.Properties {
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintQuery(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n
-		}
-	}
-	return i, nil
-}
-
 func (m *M3TagProperty) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -1834,7 +1939,7 @@ func (m *M3TagProperty) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
-func (m *TagProperties) Marshal() (dAtA []byte, err error) {
+func (m *M3TagProperties) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalTo(dAtA)
@@ -1844,7 +1949,7 @@ func (m *TagProperties) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *TagProperties) MarshalTo(dAtA []byte) (int, error) {
+func (m *M3TagProperties) MarshalTo(dAtA []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -1896,6 +2001,167 @@ func (m *TagProperty) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
+func (m *TagProperties) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *TagProperties) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Properties) > 0 {
+		for _, msg := range m.Properties {
+			dAtA[i] = 0xa
+			i++
+			i = encodeVarintQuery(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	return i, nil
+}
+
+func (m *SearchResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *SearchResponse) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Value != nil {
+		nn11, err := m.Value.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += nn11
+	}
+	return i, nil
+}
+
+func (m *SearchResponse_Decompressed) MarshalTo(dAtA []byte) (int, error) {
+	i := 0
+	if m.Decompressed != nil {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintQuery(dAtA, i, uint64(m.Decompressed.Size()))
+		n12, err := m.Decompressed.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n12
+	}
+	return i, nil
+}
+func (m *SearchResponse_Compressed) MarshalTo(dAtA []byte) (int, error) {
+	i := 0
+	if m.Compressed != nil {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintQuery(dAtA, i, uint64(m.Compressed.Size()))
+		n13, err := m.Compressed.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n13
+	}
+	return i, nil
+}
+func (m *CompleteTagsRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *CompleteTagsRequest) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Query) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintQuery(dAtA, i, uint64(len(m.Query)))
+		i += copy(dAtA[i:], m.Query)
+	}
+	if m.Type != 0 {
+		dAtA[i] = 0x10
+		i++
+		i = encodeVarintQuery(dAtA, i, uint64(m.Type))
+	}
+	if m.Options != nil {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintQuery(dAtA, i, uint64(m.Options.Size()))
+		n14, err := m.Options.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n14
+	}
+	return i, nil
+}
+
+func (m *CompleteTagsResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *CompleteTagsResponse) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Value != nil {
+		nn15, err := m.Value.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += nn15
+	}
+	return i, nil
+}
+
+func (m *CompleteTagsResponse_Decompressed) MarshalTo(dAtA []byte) (int, error) {
+	i := 0
+	if m.Decompressed != nil {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintQuery(dAtA, i, uint64(m.Decompressed.Size()))
+		n16, err := m.Decompressed.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n16
+	}
+	return i, nil
+}
 func encodeVarintQuery(dAtA []byte, offset int, v uint64) int {
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
@@ -2125,6 +2391,18 @@ func (m *M3Segment) Size() (n int) {
 	return n
 }
 
+func (m *SearchRequestOptions) Size() (n int) {
+	var l int
+	_ = l
+	if len(m.FilterNameTags) > 0 {
+		for _, b := range m.FilterNameTags {
+			l = len(b)
+			n += 1 + l + sovQuery(uint64(l))
+		}
+	}
+	return n
+}
+
 func (m *SearchRequest) Size() (n int) {
 	var l int
 	_ = l
@@ -2150,57 +2428,6 @@ func (m *SearchRequest_TagMatchers) Size() (n int) {
 	}
 	return n
 }
-func (m *SearchRequestOptions) Size() (n int) {
-	var l int
-	_ = l
-	if len(m.FilterNameTags) > 0 {
-		for _, b := range m.FilterNameTags {
-			l = len(b)
-			n += 1 + l + sovQuery(uint64(l))
-		}
-	}
-	return n
-}
-
-func (m *SearchResponse) Size() (n int) {
-	var l int
-	_ = l
-	if m.Value != nil {
-		n += m.Value.Size()
-	}
-	return n
-}
-
-func (m *SearchResponse_Compressed) Size() (n int) {
-	var l int
-	_ = l
-	if m.Compressed != nil {
-		l = m.Compressed.Size()
-		n += 1 + l + sovQuery(uint64(l))
-	}
-	return n
-}
-func (m *SearchResponse_Decompressed) Size() (n int) {
-	var l int
-	_ = l
-	if m.Decompressed != nil {
-		l = m.Decompressed.Size()
-		n += 1 + l + sovQuery(uint64(l))
-	}
-	return n
-}
-func (m *M3TagProperties) Size() (n int) {
-	var l int
-	_ = l
-	if len(m.Properties) > 0 {
-		for _, e := range m.Properties {
-			l = e.Size()
-			n += 1 + l + sovQuery(uint64(l))
-		}
-	}
-	return n
-}
-
 func (m *M3TagProperty) Size() (n int) {
 	var l int
 	_ = l
@@ -2215,7 +2442,7 @@ func (m *M3TagProperty) Size() (n int) {
 	return n
 }
 
-func (m *TagProperties) Size() (n int) {
+func (m *M3TagProperties) Size() (n int) {
 	var l int
 	_ = l
 	if len(m.Properties) > 0 {
@@ -2239,6 +2466,81 @@ func (m *TagProperty) Size() (n int) {
 			l = len(b)
 			n += 1 + l + sovQuery(uint64(l))
 		}
+	}
+	return n
+}
+
+func (m *TagProperties) Size() (n int) {
+	var l int
+	_ = l
+	if len(m.Properties) > 0 {
+		for _, e := range m.Properties {
+			l = e.Size()
+			n += 1 + l + sovQuery(uint64(l))
+		}
+	}
+	return n
+}
+
+func (m *SearchResponse) Size() (n int) {
+	var l int
+	_ = l
+	if m.Value != nil {
+		n += m.Value.Size()
+	}
+	return n
+}
+
+func (m *SearchResponse_Decompressed) Size() (n int) {
+	var l int
+	_ = l
+	if m.Decompressed != nil {
+		l = m.Decompressed.Size()
+		n += 1 + l + sovQuery(uint64(l))
+	}
+	return n
+}
+func (m *SearchResponse_Compressed) Size() (n int) {
+	var l int
+	_ = l
+	if m.Compressed != nil {
+		l = m.Compressed.Size()
+		n += 1 + l + sovQuery(uint64(l))
+	}
+	return n
+}
+func (m *CompleteTagsRequest) Size() (n int) {
+	var l int
+	_ = l
+	l = len(m.Query)
+	if l > 0 {
+		n += 1 + l + sovQuery(uint64(l))
+	}
+	if m.Type != 0 {
+		n += 1 + sovQuery(uint64(m.Type))
+	}
+	if m.Options != nil {
+		l = m.Options.Size()
+		n += 1 + l + sovQuery(uint64(l))
+	}
+	return n
+}
+
+func (m *CompleteTagsResponse) Size() (n int) {
+	var l int
+	_ = l
+	if m.Value != nil {
+		n += m.Value.Size()
+	}
+	return n
+}
+
+func (m *CompleteTagsResponse_Decompressed) Size() (n int) {
+	var l int
+	_ = l
+	if m.Decompressed != nil {
+		l = m.Decompressed.Size()
+		n += 1 + l + sovQuery(uint64(l))
 	}
 	return n
 }
@@ -3696,6 +3998,85 @@ func (m *M3Segment) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *SearchRequestOptions) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowQuery
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: SearchRequestOptions: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: SearchRequestOptions: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field FilterNameTags", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowQuery
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthQuery
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.FilterNameTags = append(m.FilterNameTags, make([]byte, postIndex-iNdEx))
+			copy(m.FilterNameTags[len(m.FilterNameTags)-1], dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipQuery(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *SearchRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -3806,280 +4187,6 @@ func (m *SearchRequest) Unmarshal(dAtA []byte) error {
 				m.Options = &SearchRequestOptions{}
 			}
 			if err := m.Options.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipQuery(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthQuery
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *SearchRequestOptions) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowQuery
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: SearchRequestOptions: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: SearchRequestOptions: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field FilterNameTags", wireType)
-			}
-			var byteLen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowQuery
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				byteLen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if byteLen < 0 {
-				return ErrInvalidLengthQuery
-			}
-			postIndex := iNdEx + byteLen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.FilterNameTags = append(m.FilterNameTags, make([]byte, postIndex-iNdEx))
-			copy(m.FilterNameTags[len(m.FilterNameTags)-1], dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipQuery(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthQuery
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *SearchResponse) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowQuery
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: SearchResponse: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: SearchResponse: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Compressed", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowQuery
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthQuery
-			}
-			postIndex := iNdEx + msglen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			v := &M3TagProperties{}
-			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			m.Value = &SearchResponse_Compressed{v}
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Decompressed", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowQuery
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthQuery
-			}
-			postIndex := iNdEx + msglen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			v := &TagProperties{}
-			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			m.Value = &SearchResponse_Decompressed{v}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipQuery(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthQuery
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *M3TagProperties) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowQuery
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: M3TagProperties: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: M3TagProperties: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Properties", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowQuery
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthQuery
-			}
-			postIndex := iNdEx + msglen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Properties = append(m.Properties, &M3TagProperty{})
-			if err := m.Properties[len(m.Properties)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -4216,7 +4323,7 @@ func (m *M3TagProperty) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *TagProperties) Unmarshal(dAtA []byte) error {
+func (m *M3TagProperties) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -4239,10 +4346,10 @@ func (m *TagProperties) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: TagProperties: wiretype end group for non-group")
+			return fmt.Errorf("proto: M3TagProperties: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: TagProperties: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: M3TagProperties: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -4271,7 +4378,7 @@ func (m *TagProperties) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Properties = append(m.Properties, &TagProperty{})
+			m.Properties = append(m.Properties, &M3TagProperty{})
 			if err := m.Properties[len(m.Properties)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
@@ -4407,6 +4514,416 @@ func (m *TagProperty) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *TagProperties) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowQuery
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: TagProperties: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: TagProperties: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Properties", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowQuery
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthQuery
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Properties = append(m.Properties, &TagProperty{})
+			if err := m.Properties[len(m.Properties)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipQuery(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *SearchResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowQuery
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: SearchResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: SearchResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Decompressed", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowQuery
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthQuery
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &TagProperties{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Value = &SearchResponse_Decompressed{v}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Compressed", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowQuery
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthQuery
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &M3TagProperties{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Value = &SearchResponse_Compressed{v}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipQuery(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *CompleteTagsRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowQuery
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: CompleteTagsRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: CompleteTagsRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Query", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowQuery
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthQuery
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Query = append(m.Query[:0], dAtA[iNdEx:postIndex]...)
+			if m.Query == nil {
+				m.Query = []byte{}
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Type", wireType)
+			}
+			m.Type = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowQuery
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Type |= (SearchType(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Options", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowQuery
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthQuery
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Options == nil {
+				m.Options = &SearchRequestOptions{}
+			}
+			if err := m.Options.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipQuery(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *CompleteTagsResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowQuery
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: CompleteTagsResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: CompleteTagsResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Decompressed", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowQuery
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthQuery
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &TagProperties{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Value = &CompleteTagsResponse_Decompressed{v}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipQuery(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func skipQuery(dAtA []byte) (n int, err error) {
 	l := len(dAtA)
 	iNdEx := 0
@@ -4517,65 +5034,68 @@ func init() {
 }
 
 var fileDescriptorQuery = []byte{
-	// 948 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x56, 0x5d, 0x6e, 0xdb, 0x46,
-	0x10, 0x16, 0x45, 0x49, 0x96, 0x46, 0x3f, 0x56, 0x27, 0x41, 0xa3, 0x04, 0x86, 0x60, 0x30, 0x85,
-	0x6b, 0xb8, 0x80, 0xe4, 0x4a, 0x46, 0xff, 0x80, 0xa6, 0x95, 0x1b, 0xc5, 0x2e, 0x10, 0xdb, 0xc9,
-	0x8a, 0x29, 0x8c, 0x22, 0x0f, 0x5d, 0x51, 0x53, 0x99, 0x88, 0x28, 0x32, 0xe4, 0xaa, 0x88, 0x7a,
-	0x85, 0xbe, 0xf4, 0x1e, 0x7d, 0xed, 0x21, 0xfa, 0xd8, 0x23, 0x14, 0xee, 0x45, 0x0a, 0x2e, 0x97,
-	0x22, 0x29, 0xba, 0x40, 0xde, 0x76, 0xbe, 0xf9, 0x66, 0x77, 0x66, 0xf8, 0xed, 0x2c, 0xe1, 0xc9,
-	0xdc, 0x16, 0x37, 0xab, 0x69, 0xcf, 0x72, 0x9d, 0xbe, 0x33, 0x9c, 0x4d, 0xfb, 0xce, 0xb0, 0x1f,
-	0xf8, 0x56, 0xff, 0xed, 0x8a, 0xfc, 0x75, 0x7f, 0x4e, 0x4b, 0xf2, 0xb9, 0xa0, 0x59, 0xdf, 0xf3,
-	0x5d, 0xe1, 0xf6, 0x7d, 0xcf, 0xf2, 0xa6, 0x91, 0xaf, 0x27, 0x11, 0xd4, 0x7d, 0xcf, 0x32, 0xde,
-	0x41, 0xe3, 0x19, 0x09, 0xeb, 0x86, 0xd1, 0xdb, 0x15, 0x05, 0x02, 0xef, 0x43, 0x39, 0x10, 0xdc,
-	0x17, 0x1d, 0x6d, 0x5f, 0x3b, 0xd4, 0x59, 0x64, 0x60, 0x1b, 0x74, 0x5a, 0xce, 0x3a, 0x45, 0x89,
-	0x85, 0x4b, 0x3c, 0x81, 0xba, 0xe0, 0xf3, 0x0b, 0x2e, 0xac, 0x1b, 0xf2, 0x83, 0x8e, 0xbe, 0xaf,
-	0x1d, 0xd6, 0x07, 0xed, 0x9e, 0xef, 0x59, 0x3d, 0x33, 0xc1, 0xcf, 0x0b, 0x2c, 0x4d, 0x3b, 0x05,
-	0xa8, 0x3a, 0x6a, 0x6d, 0x7c, 0x0b, 0xf5, 0x14, 0x13, 0x3f, 0xcd, 0x6e, 0xa8, 0xed, 0xeb, 0x87,
-	0xf5, 0xc1, 0xee, 0xd6, 0x86, 0x99, 0xdd, 0x8c, 0xd7, 0x00, 0x89, 0x0b, 0x11, 0x4a, 0x4b, 0xee,
-	0x90, 0x4c, 0xbc, 0xc1, 0xe4, 0x3a, 0xac, 0xe6, 0x17, 0xbe, 0x58, 0x91, 0xcc, 0xbc, 0xc1, 0x22,
-	0x03, 0x3f, 0x82, 0x92, 0x58, 0x7b, 0x24, 0x93, 0x6e, 0xa9, 0xa4, 0xd5, 0x2e, 0xe6, 0xda, 0x23,
-	0x26, 0xbd, 0xc6, 0x09, 0x34, 0x55, 0x67, 0x02, 0xcf, 0x5d, 0x06, 0x84, 0x8f, 0xa1, 0x12, 0x90,
-	0x6f, 0x53, 0x9c, 0x5c, 0x5d, 0x06, 0x4e, 0x24, 0xc4, 0x94, 0xcb, 0xf8, 0x53, 0x83, 0x4a, 0x04,
-	0xe1, 0xc7, 0x50, 0x72, 0x48, 0x70, 0x99, 0x50, 0x7d, 0x70, 0x2f, 0xc5, 0xbe, 0x20, 0xc1, 0x67,
-	0x5c, 0x70, 0x26, 0x09, 0xf8, 0x35, 0x34, 0x66, 0x64, 0xb9, 0x8e, 0xe7, 0x53, 0x10, 0x50, 0xd4,
-	0xe6, 0xfa, 0xe0, 0x81, 0x0c, 0x78, 0x9a, 0x72, 0x44, 0xc1, 0xe7, 0x05, 0x96, 0xa1, 0xe3, 0x97,
-	0x00, 0xa9, 0x60, 0x3d, 0x15, 0x7c, 0x31, 0xfc, 0x2e, 0x1f, 0x9c, 0x22, 0x9f, 0xee, 0xa8, 0xfe,
-	0x18, 0xd7, 0xd0, 0xca, 0xa6, 0x86, 0x2d, 0x28, 0xda, 0x33, 0xd5, 0xcc, 0xa2, 0x3d, 0xc3, 0x3d,
-	0xa8, 0x49, 0x2d, 0x98, 0xb6, 0x43, 0x4a, 0x08, 0x09, 0x80, 0x1d, 0xd8, 0xa1, 0xe5, 0x4c, 0xfa,
-	0x74, 0xe9, 0x8b, 0x4d, 0x63, 0x0a, 0x98, 0xaf, 0x01, 0x7b, 0x00, 0xe1, 0x29, 0x9e, 0x6b, 0x2f,
-	0x45, 0xdc, 0xcf, 0x56, 0x54, 0x70, 0x0c, 0xb3, 0x14, 0x03, 0xf7, 0xa0, 0x24, 0xf8, 0x3c, 0xe8,
-	0x14, 0x25, 0xb3, 0x1a, 0xcb, 0x82, 0x49, 0xd4, 0xf8, 0x06, 0x6a, 0x9b, 0xb0, 0x30, 0x51, 0x61,
-	0x3b, 0x14, 0x08, 0xee, 0x78, 0x4a, 0xc5, 0x09, 0x90, 0x55, 0x84, 0xa6, 0x14, 0x61, 0xf4, 0x41,
-	0x37, 0xf9, 0xfc, 0xfd, 0x25, 0x64, 0xbc, 0x03, 0xcc, 0x37, 0x17, 0x0f, 0xa0, 0x95, 0x54, 0x6a,
-	0x86, 0xf9, 0x46, 0x3b, 0x6d, 0xa1, 0xf8, 0x15, 0x54, 0x7d, 0xf2, 0x16, 0xb6, 0xc5, 0xe3, 0x8a,
-	0xba, 0xb9, 0xef, 0xf5, 0x43, 0x78, 0x4e, 0xc0, 0x22, 0x1a, 0xdb, 0xf0, 0x8d, 0x73, 0x78, 0xf8,
-	0xbf, 0x34, 0xfc, 0x04, 0xaa, 0x01, 0xcd, 0x1d, 0x4a, 0x9a, 0xba, 0xab, 0x36, 0x9e, 0x28, 0x98,
-	0x6d, 0x08, 0xc6, 0x4f, 0x00, 0x09, 0x8e, 0x07, 0x50, 0x71, 0xc8, 0x9f, 0xd3, 0x4c, 0xe9, 0xb5,
-	0x95, 0x0d, 0x64, 0xca, 0x8b, 0x47, 0x50, 0x5d, 0x2d, 0x15, 0xb3, 0x98, 0xfa, 0x6e, 0x09, 0x73,
-	0xe3, 0x37, 0x5c, 0xa8, 0x6d, 0xe0, 0xb0, 0xb9, 0x37, 0xc4, 0x63, 0x49, 0xc9, 0x75, 0x88, 0x09,
-	0x6e, 0x2f, 0x54, 0x6f, 0xe5, 0x3a, 0x2b, 0x34, 0x7d, 0x5b, 0x68, 0x7b, 0x50, 0x9b, 0x2e, 0x5c,
-	0xeb, 0xcd, 0xc4, 0xfe, 0x95, 0x3a, 0xa5, 0xc8, 0xbb, 0x01, 0x8c, 0x3f, 0x34, 0x68, 0x4e, 0x88,
-	0xfb, 0xc9, 0x3c, 0x3b, 0xd9, 0x1e, 0x2b, 0xef, 0x33, 0xa7, 0xf0, 0xb1, 0x9a, 0x10, 0x45, 0x39,
-	0x21, 0x76, 0xd5, 0xd5, 0x0d, 0xf7, 0x4d, 0x06, 0x04, 0x0e, 0x61, 0xc7, 0xf5, 0x84, 0xed, 0x2e,
-	0xe3, 0xf1, 0xf7, 0x30, 0xc5, 0x53, 0xe7, 0x5f, 0x45, 0x04, 0x16, 0x33, 0x33, 0x13, 0xf0, 0x09,
-	0xdc, 0xbf, 0x8b, 0x1c, 0xca, 0xe8, 0x67, 0x7b, 0x21, 0xc8, 0xbf, 0xe4, 0x0e, 0x29, 0x19, 0xe9,
-	0xa1, 0x8c, 0xb2, 0xa8, 0xf1, 0x9b, 0x16, 0xde, 0xda, 0x68, 0x03, 0x35, 0xa3, 0x3e, 0xcb, 0xcc,
-	0x82, 0xa8, 0xda, 0xfb, 0xea, 0xfb, 0x98, 0x7c, 0xfe, 0xc2, 0x77, 0x3d, 0xf2, 0x45, 0x6e, 0x10,
-	0xe0, 0x17, 0x77, 0x8e, 0x20, 0x8c, 0xfb, 0x94, 0x89, 0xcb, 0x30, 0x93, 0x11, 0x32, 0x86, 0xdd,
-	0xad, 0x33, 0x70, 0x00, 0xe0, 0x6d, 0x2c, 0x25, 0x48, 0xcc, 0x65, 0xb3, 0x66, 0x29, 0x96, 0x71,
-	0x06, 0xcd, 0x8c, 0x33, 0x37, 0x88, 0xf2, 0x97, 0xac, 0x78, 0xd7, 0x25, 0x33, 0x46, 0xd0, 0xcc,
-	0x66, 0x73, 0x7c, 0x47, 0x36, 0xed, 0xad, 0x0a, 0xb3, 0xb9, 0x7c, 0x2e, 0x9f, 0xa8, 0x4d, 0x26,
-	0x6d, 0xd0, 0xdf, 0xd0, 0x5a, 0xa5, 0x12, 0x2e, 0xf1, 0x43, 0xa8, 0xc8, 0xe2, 0xa3, 0x6b, 0xdc,
-	0x60, 0xca, 0x3a, 0x7a, 0x0d, 0xf5, 0xd4, 0x83, 0x82, 0x35, 0x28, 0x8f, 0x5f, 0xbe, 0x1a, 0x3d,
-	0x6f, 0x17, 0xb0, 0x01, 0xd5, 0xcb, 0x2b, 0x33, 0xb2, 0x34, 0x04, 0xa8, 0xb0, 0xf1, 0xd9, 0xf8,
-	0xfa, 0x45, 0xbb, 0x88, 0x4d, 0xa8, 0x5d, 0x5e, 0x99, 0xca, 0xd4, 0x43, 0xd7, 0xf8, 0xfa, 0xfb,
-	0x89, 0x39, 0x69, 0x97, 0x94, 0x4b, 0x99, 0xe5, 0xa3, 0x03, 0x80, 0x44, 0x8c, 0x58, 0x87, 0x9d,
-	0xa7, 0xe3, 0x67, 0xa3, 0x57, 0xcf, 0xcd, 0x76, 0x21, 0x34, 0xcc, 0xd1, 0xd9, 0xe5, 0xe8, 0x62,
-	0xdc, 0xd6, 0x06, 0x4b, 0x28, 0xbf, 0x0c, 0xdf, 0x7b, 0x3c, 0x86, 0xb2, 0x7c, 0xca, 0xf0, 0x03,
-	0x59, 0x6e, 0xfa, 0xc1, 0x7f, 0x84, 0x69, 0x28, 0x52, 0xd1, 0xb1, 0x86, 0xc3, 0xf0, 0x15, 0x0b,
-	0x8f, 0x40, 0xcc, 0x8b, 0xfa, 0xd1, 0xbd, 0x0c, 0x16, 0x07, 0x9d, 0x3e, 0xf8, 0xeb, 0xb6, 0xab,
-	0xfd, 0x7d, 0xdb, 0xd5, 0xfe, 0xb9, 0xed, 0x6a, 0xbf, 0xff, 0xdb, 0x2d, 0xfc, 0x58, 0x96, 0x7f,
-	0x1d, 0xd3, 0x8a, 0xfc, 0xe1, 0x18, 0xfe, 0x17, 0x00, 0x00, 0xff, 0xff, 0x5a, 0xc9, 0xa5, 0x6f,
-	0xb2, 0x08, 0x00, 0x00,
+	// 1003 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x56, 0xcd, 0x6e, 0x23, 0x45,
+	0x10, 0xce, 0x78, 0x6c, 0xc7, 0x2e, 0xff, 0xc4, 0x54, 0x22, 0xd6, 0x89, 0x22, 0x2b, 0xea, 0x45,
+	0x21, 0x0a, 0x92, 0x1d, 0xec, 0x15, 0x7f, 0x12, 0x0b, 0x0e, 0xeb, 0x4d, 0x90, 0xd6, 0xc9, 0x6e,
+	0x7b, 0x16, 0x05, 0xb4, 0x07, 0xda, 0xe3, 0xc6, 0x19, 0xad, 0xc7, 0x33, 0x3b, 0xd3, 0x46, 0x6b,
+	0xee, 0x9c, 0xb8, 0xf0, 0x1e, 0x5c, 0xe1, 0x1d, 0x38, 0xf2, 0x08, 0x28, 0xbc, 0x08, 0x9a, 0x9e,
+	0x9e, 0x3f, 0xdb, 0xa0, 0x95, 0x10, 0xb7, 0xae, 0xaa, 0xaf, 0xab, 0xab, 0xbe, 0xfe, 0xa6, 0x7a,
+	0xe0, 0xe1, 0xd4, 0x12, 0xb7, 0x8b, 0x71, 0xdb, 0x74, 0xec, 0x8e, 0xdd, 0x9b, 0x8c, 0x3b, 0x76,
+	0xaf, 0xe3, 0x7b, 0x66, 0xe7, 0xd5, 0x82, 0x7b, 0xcb, 0xce, 0x94, 0xcf, 0xb9, 0xc7, 0x04, 0x9f,
+	0x74, 0x5c, 0xcf, 0x11, 0x4e, 0xc7, 0x73, 0x4d, 0x77, 0x1c, 0xc6, 0xda, 0xd2, 0x83, 0xba, 0xe7,
+	0x9a, 0xe4, 0x35, 0x54, 0x1f, 0x73, 0x61, 0xde, 0x52, 0xfe, 0x6a, 0xc1, 0x7d, 0x81, 0x7b, 0x50,
+	0xf0, 0x05, 0xf3, 0x44, 0x53, 0x3b, 0xd2, 0x4e, 0x74, 0x1a, 0x1a, 0xd8, 0x00, 0x9d, 0xcf, 0x27,
+	0xcd, 0x9c, 0xf4, 0x05, 0x4b, 0x7c, 0x00, 0x15, 0xc1, 0xa6, 0x43, 0x26, 0xcc, 0x5b, 0xee, 0xf9,
+	0x4d, 0xfd, 0x48, 0x3b, 0xa9, 0x74, 0x1b, 0x6d, 0xcf, 0x35, 0xdb, 0x46, 0xe2, 0xbf, 0xdc, 0xa2,
+	0x69, 0xd8, 0x39, 0x40, 0xc9, 0x56, 0x6b, 0xf2, 0x39, 0x54, 0x52, 0x48, 0x7c, 0x3f, 0x9b, 0x50,
+	0x3b, 0xd2, 0x4f, 0x2a, 0xdd, 0x9d, 0x95, 0x84, 0x99, 0x6c, 0xe4, 0x05, 0x40, 0x12, 0x42, 0x84,
+	0xfc, 0x9c, 0xd9, 0x5c, 0x16, 0x5e, 0xa5, 0x72, 0x1d, 0x74, 0xf3, 0x3d, 0x9b, 0x2d, 0xb8, 0xac,
+	0xbc, 0x4a, 0x43, 0x03, 0xdf, 0x81, 0xbc, 0x58, 0xba, 0x5c, 0x16, 0x5d, 0x57, 0x45, 0xab, 0x2c,
+	0xc6, 0xd2, 0xe5, 0x54, 0x46, 0xc9, 0x03, 0xa8, 0x29, 0x66, 0x7c, 0xd7, 0x99, 0xfb, 0x1c, 0xef,
+	0x43, 0xd1, 0xe7, 0x9e, 0xc5, 0xa3, 0xe2, 0x2a, 0x72, 0xe3, 0x48, 0xba, 0xa8, 0x0a, 0x91, 0x5f,
+	0x35, 0x28, 0x86, 0x2e, 0x7c, 0x17, 0xf2, 0x36, 0x17, 0x4c, 0x16, 0x54, 0xe9, 0xee, 0xa6, 0xd0,
+	0x43, 0x2e, 0xd8, 0x84, 0x09, 0x46, 0x25, 0x00, 0x3f, 0x85, 0xea, 0x84, 0x9b, 0x8e, 0xed, 0x7a,
+	0xdc, 0xf7, 0x79, 0x48, 0x73, 0xa5, 0x7b, 0x4f, 0x6e, 0x78, 0x94, 0x0a, 0x84, 0x9b, 0x2f, 0xb7,
+	0x68, 0x06, 0x8e, 0x1f, 0x03, 0xa4, 0x36, 0xeb, 0xa9, 0xcd, 0xc3, 0xde, 0x17, 0xeb, 0x9b, 0x53,
+	0xe0, 0xf3, 0x6d, 0xc5, 0x0f, 0xb9, 0x81, 0x7a, 0xb6, 0x34, 0xac, 0x43, 0xce, 0x9a, 0x28, 0x32,
+	0x73, 0xd6, 0x04, 0x0f, 0xa1, 0x2c, 0xb5, 0x60, 0x58, 0x36, 0x57, 0x42, 0x48, 0x1c, 0xd8, 0x84,
+	0x6d, 0x3e, 0x9f, 0xc8, 0x98, 0x2e, 0x63, 0x91, 0x49, 0xc6, 0x80, 0xeb, 0x3d, 0x60, 0x1b, 0x20,
+	0x38, 0xc5, 0x75, 0xac, 0xb9, 0x88, 0xf8, 0xac, 0x87, 0x0d, 0x47, 0x6e, 0x9a, 0x42, 0xe0, 0x21,
+	0xe4, 0x05, 0x9b, 0xfa, 0xcd, 0x9c, 0x44, 0x96, 0x22, 0x59, 0x50, 0xe9, 0x25, 0x9f, 0x41, 0x39,
+	0xde, 0x16, 0x14, 0x2a, 0x2c, 0x9b, 0xfb, 0x82, 0xd9, 0xae, 0x52, 0x71, 0xe2, 0xc8, 0x2a, 0x42,
+	0x53, 0x8a, 0x20, 0x1d, 0xd0, 0x0d, 0x36, 0x7d, 0x73, 0x09, 0x91, 0xd7, 0x80, 0xeb, 0xe4, 0xe2,
+	0x31, 0xd4, 0x93, 0x4e, 0x8d, 0xa0, 0xde, 0x30, 0xd3, 0x8a, 0x17, 0x3f, 0x81, 0x92, 0xc7, 0xdd,
+	0x99, 0x65, 0xb2, 0xa8, 0xa3, 0xd6, 0xda, 0x7d, 0x7d, 0x15, 0x9c, 0xe3, 0xd3, 0x10, 0x46, 0x63,
+	0x3c, 0xb9, 0x84, 0xfd, 0x7f, 0x84, 0xe1, 0x7b, 0x50, 0xf2, 0xf9, 0xd4, 0xe6, 0x09, 0xa9, 0x3b,
+	0x2a, 0xf1, 0x48, 0xb9, 0x69, 0x0c, 0x20, 0xdf, 0x02, 0x24, 0x7e, 0x3c, 0x86, 0xa2, 0xcd, 0xbd,
+	0x29, 0x9f, 0x28, 0xbd, 0xd6, 0xb3, 0x1b, 0xa9, 0x8a, 0xe2, 0x29, 0x94, 0x16, 0x73, 0x85, 0xcc,
+	0xa5, 0xee, 0x2d, 0x41, 0xc6, 0x71, 0xe2, 0x40, 0x39, 0x76, 0x07, 0xe4, 0xde, 0x72, 0x16, 0x49,
+	0x4a, 0xae, 0x03, 0x9f, 0x60, 0xd6, 0x4c, 0x71, 0x2b, 0xd7, 0x59, 0xa1, 0xe9, 0xab, 0x42, 0x3b,
+	0x84, 0xf2, 0x78, 0xe6, 0x98, 0x2f, 0x47, 0xd6, 0x0f, 0xbc, 0x99, 0x0f, 0xa3, 0xb1, 0x83, 0x3c,
+	0x84, 0xbd, 0x11, 0x67, 0x5e, 0x3c, 0xce, 0xae, 0x5d, 0x61, 0x39, 0x73, 0x79, 0x31, 0xdf, 0x59,
+	0x33, 0xc1, 0xbd, 0x2b, 0x66, 0x73, 0x75, 0x31, 0x7a, 0x70, 0x31, 0x59, 0x2f, 0xf9, 0x45, 0x83,
+	0x5a, 0x26, 0xc1, 0xea, 0x9c, 0xd3, 0xde, 0x68, 0xce, 0xe1, 0x7d, 0x35, 0x61, 0x72, 0x72, 0xc2,
+	0xec, 0xa8, 0x4f, 0x3f, 0xc8, 0x9b, 0x0c, 0x18, 0xec, 0xc1, 0xb6, 0x13, 0xd6, 0xa7, 0x3e, 0xda,
+	0xfd, 0x14, 0x2e, 0xdb, 0x00, 0x8d, 0x90, 0x99, 0x09, 0x7a, 0x01, 0xb5, 0x61, 0xcf, 0x60, 0xd3,
+	0xa7, 0x9e, 0xe3, 0x72, 0x4f, 0x2c, 0xd7, 0xbe, 0xd9, 0x75, 0x3d, 0xe6, 0x36, 0xe9, 0x91, 0x0c,
+	0x60, 0x27, 0x9d, 0x28, 0x90, 0x72, 0x17, 0xc0, 0x8d, 0x2d, 0xa5, 0x25, 0x54, 0x17, 0x9d, 0x3a,
+	0x92, 0xa6, 0x50, 0xe4, 0x43, 0x39, 0xd1, 0xe3, 0x6a, 0x1a, 0xa0, 0xbf, 0xe4, 0x4b, 0x55, 0x4e,
+	0xb0, 0xc4, 0xb7, 0xa1, 0x28, 0x3f, 0x9f, 0x50, 0xf5, 0x55, 0xaa, 0x2c, 0xd2, 0x87, 0x5a, 0xf6,
+	0xf4, 0xb3, 0x0d, 0xa7, 0xc7, 0xa4, 0x6f, 0x3c, 0xfb, 0x27, 0x2d, 0x98, 0x60, 0x21, 0x73, 0x6a,
+	0x5e, 0x7f, 0xb4, 0x32, 0x56, 0xc3, 0xbb, 0xc3, 0x95, 0x34, 0x9b, 0x26, 0xea, 0x07, 0x99, 0x89,
+	0x1a, 0x8e, 0xe3, 0xbd, 0xb5, 0xe6, 0xff, 0x65, 0x9c, 0xfe, 0xa8, 0xc1, 0x6e, 0xf0, 0x8d, 0xce,
+	0xb8, 0x90, 0xc2, 0x4a, 0xbd, 0xae, 0xf2, 0x05, 0x56, 0xa4, 0x84, 0xc6, 0xff, 0xa7, 0x16, 0xf2,
+	0x35, 0xec, 0x65, 0xcb, 0xf8, 0xaf, 0xd4, 0xc4, 0x2d, 0x9e, 0xbe, 0x80, 0x4a, 0xea, 0xcd, 0xc4,
+	0x32, 0x14, 0x06, 0xcf, 0x9e, 0xf7, 0x9f, 0x34, 0xb6, 0xb0, 0x0a, 0xa5, 0xab, 0x6b, 0x23, 0xb4,
+	0x34, 0x04, 0x28, 0xd2, 0xc1, 0xc5, 0xe0, 0xe6, 0x69, 0x23, 0x87, 0x35, 0x28, 0x5f, 0x5d, 0x1b,
+	0xca, 0xd4, 0x83, 0xd0, 0xe0, 0xe6, 0xcb, 0x91, 0x31, 0x6a, 0xe4, 0x55, 0x48, 0x99, 0x85, 0xd3,
+	0x63, 0x80, 0x84, 0x01, 0xac, 0xc0, 0xf6, 0xa3, 0xc1, 0xe3, 0xfe, 0xf3, 0x27, 0x46, 0x63, 0x2b,
+	0x30, 0x8c, 0xfe, 0xc5, 0x55, 0x7f, 0x38, 0x68, 0x68, 0xdd, 0xdf, 0x34, 0x28, 0x3c, 0x93, 0x24,
+	0x9e, 0x41, 0x41, 0x3e, 0xd7, 0xf8, 0x96, 0xec, 0x22, 0xfd, 0x53, 0x73, 0x80, 0x69, 0x57, 0x48,
+	0xc1, 0x99, 0x86, 0xbd, 0xe0, 0xa5, 0x0e, 0xce, 0x40, 0x5c, 0xa7, 0xf2, 0x60, 0x37, 0xe3, 0x8b,
+	0x37, 0x0d, 0xa0, 0x9a, 0x66, 0x14, 0x9b, 0x12, 0xb6, 0xe1, 0xae, 0x0f, 0xf6, 0x37, 0x44, 0xa2,
+	0x34, 0xe7, 0xf7, 0x7e, 0xbf, 0x6b, 0x69, 0x7f, 0xdc, 0xb5, 0xb4, 0x3f, 0xef, 0x5a, 0xda, 0xcf,
+	0x7f, 0xb5, 0xb6, 0xbe, 0x29, 0xc8, 0x1f, 0xb4, 0x71, 0x51, 0xfe, 0x9b, 0xf5, 0xfe, 0x0e, 0x00,
+	0x00, 0xff, 0xff, 0xaa, 0xc4, 0x5e, 0x0b, 0xdd, 0x09, 0x00, 0x00,
 }

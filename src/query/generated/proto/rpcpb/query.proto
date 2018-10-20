@@ -5,9 +5,10 @@ package rpc;
 option go_package = "rpcpb";
 
 service Query {
-	rpc Fetch(FetchRequest)   returns (stream FetchResponse);
+	rpc Fetch(FetchRequest)               returns (stream FetchResponse);
 
-	rpc Search(SearchRequest) returns (stream SearchResponse);
+	rpc Search(SearchRequest)             returns (stream SearchResponse);
+	rpc CompleteTags(CompleteTagsRequest) returns (stream CompleteTagsResponse);
 }
 
 message FetchRequest {
@@ -93,14 +94,6 @@ message M3Segment {
 	int64 blockSize = 4;
 }
 
-message SearchRequest {
-	oneof matchers {
-		TagMatchers tagMatchers    = 1;
-	}
-	SearchType type              = 2;
-	SearchRequestOptions options = 3;
-}
-
 message SearchRequestOptions {
 	repeated bytes filterNameTags = 1;
 }
@@ -112,15 +105,12 @@ enum SearchType {
 	TAGNAME = 1;
 }
 
-message SearchResponse {
-	oneof value {
-		M3TagProperties compressed = 1;
-		TagProperties decompressed = 2;
+message SearchRequest {
+	oneof matchers {
+		TagMatchers tagMatchers    = 1;
 	}
-}
-
-message M3TagProperties {
-	repeated M3TagProperty properties = 1;
+	SearchType type              = 2;
+	SearchRequestOptions options = 3;
 }
 
 message M3TagProperty {
@@ -128,11 +118,34 @@ message M3TagProperty {
 	bytes compressedTags = 2;
 }
 
-message TagProperties {
-	repeated TagProperty properties = 1;
+message M3TagProperties {
+	repeated M3TagProperty properties = 1;
 }
 
 message TagProperty {
 	bytes key             = 1;
 	repeated bytes values = 2;
+}
+
+message TagProperties {
+	repeated TagProperty properties = 1;
+}
+
+message SearchResponse {
+	oneof value {
+		TagProperties decompressed = 1;
+		M3TagProperties compressed = 2;
+	}
+}
+
+message CompleteTagsRequest {
+	bytes query                  = 1;
+	SearchType type              = 2;
+	SearchRequestOptions options = 3;
+}
+
+message CompleteTagsResponse {
+	oneof value {
+		TagProperties decompressed = 1;
+	}
 }
