@@ -67,7 +67,6 @@ var (
 	// ErrOnlyFixedResSupported is an error returned we try to get step size for variable resolution
 	ErrOnlyFixedResSupported = errors.New("only fixed resolution supported")
 
-	// ErrUnexpectedGRPCSearchResponseType is an error returned when rpc search response type is
-	// neither compressed nor decompressed
-	ErrUnexpectedGRPCSearchResponseType = errors.New("unexpected grpc search response type")
+	// ErrUnexpectedGRPCResponseType is an error returned when rpc response type is unhandled
+	ErrUnexpectedGRPCResponseType = errors.New("unexpected grpc response type")
 )

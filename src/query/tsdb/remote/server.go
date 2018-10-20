@@ -24,6 +24,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/m3db/m3/src/query/errors"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/pools"
 	"github.com/m3db/m3/src/query/storage"
@@ -123,7 +124,7 @@ func (s *grpcServer) Search(
 
 	ctx := retrieveMetadata(stream.Context())
 	logger := logging.WithContext(ctx)
-	searchQuery, filterTagNames, err := decodeSearchRequest(message)
+	searchQuery, filterNameTags, err := decodeSearchRequest(message)
 	if err != nil {
 		logger.Error("unable to decode search query", zap.Error(err))
 		return err
@@ -146,7 +147,7 @@ func (s *grpcServer) Search(
 		return err
 	}
 
-	response, err := encodeToCompressedSearchResult(filterTagNames, results, pools)
+	response, err := encodeToCompressedSearchResult(filterNameTags, results, pools)
 	if err != nil {
 		logger.Error("unable to encode search result", zap.Error(err))
 		return err
@@ -158,4 +159,11 @@ func (s *grpcServer) Search(
 	}
 
 	return err
+}
+
+func (s *grpcServer) CompleteTags(
+	message *rpc.CompleteTagsRequest,
+	stream rpc.Query_CompleteTagsServer,
+) error {
+	return errors.ErrNotImplemented
 }

@@ -144,8 +144,13 @@ message CompleteTagsRequest {
 	SearchRequestOptions options = 3;
 }
 
+message TagNames {
+	repeated bytes names = 1;
+}
+
 message CompleteTagsResponse {
 	oneof value {
-		TagProperties decompressed = 1;
+		TagProperties default = 1;
+		TagNames namesOnly    = 2;
 	}
 }

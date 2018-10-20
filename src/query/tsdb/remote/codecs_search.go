@@ -34,14 +34,14 @@ import (
 )
 
 func filterTagIterators(
-	filterTagNames [][]byte,
+	filterNameTags [][]byte,
 	iter ident.TagIterator,
 ) (ident.TagIterator, error) {
 	tags := ident.NewTags()
 	for iter.Next() {
 		tag := iter.Current()
 		tagName := tag.Name.Bytes()
-		for _, filter := range filterTagNames {
+		for _, filter := range filterNameTags {
 			if bytes.Equal(filter, tagName) {
 				tags.Append(tag)
 			}
@@ -56,17 +56,17 @@ func filterTagIterators(
 }
 
 func multiTagResultsToM3TagProperties(
-	filterTagNames [][]byte,
+	filterNameTags [][]byte,
 	results []m3.MultiTagResult,
 	encoderPool serialize.TagEncoderPool,
 ) (*rpc.M3TagProperties, error) {
 	props := make([]rpc.M3TagProperty, len(results))
-	filter := len(filterTagNames) > 0
+	filter := len(filterNameTags) > 0
 	for i, result := range results {
 		filtered := result.Iter
 		var err error
 		if filter {
-			filtered, err = filterTagIterators(filterTagNames, result.Iter)
+			filtered, err = filterTagIterators(filterNameTags, result.Iter)
 			if err != nil {
 				return nil, err
 			}
@@ -95,7 +95,7 @@ func multiTagResultsToM3TagProperties(
 
 // encodeToCompressedSearchResult encodes SearchResults to a compressed search result
 func encodeToCompressedSearchResult(
-	filterTagNames [][]byte,
+	filterNameTags [][]byte,
 	results []m3.MultiTagResult,
 	pools encoding.IteratorPools,
 ) (*rpc.SearchResponse, error) {
@@ -108,7 +108,7 @@ func encodeToCompressedSearchResult(
 		return nil, errors.ErrCannotEncodeCompressedTags
 	}
 
-	compressedTags, err := multiTagResultsToM3TagProperties(filterTagNames, results, encoderPool)
+	compressedTags, err := multiTagResultsToM3TagProperties(filterNameTags, results, encoderPool)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +190,7 @@ func decodeSearchResponse(
 		return decodeDecompressedSearchResponse(decompressed, pools)
 	}
 
-	return nil, errors.ErrUnexpectedGRPCSearchResponseType
+	return nil, errors.ErrUnexpectedGRPCResponseType
 }
 
 // encodeSearchRequest encodes search request into rpc SearchRequest

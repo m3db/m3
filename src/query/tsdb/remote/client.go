@@ -202,12 +202,12 @@ func (c *grpcClient) FetchTags(
 	id := logging.ReadContextID(ctx)
 	// TODO: add relevant fields to the metadata
 	mdCtx := encodeMetadata(ctx, id)
-	fetchClient, err := c.client.Search(mdCtx, request)
+	searchClient, err := c.client.Search(mdCtx, request)
 	if err != nil {
 		return nil, err
 	}
 
-	defer fetchClient.CloseSend()
+	defer searchClient.CloseSend()
 	metrics := make(models.Metrics, 0, initResultSize)
 	for {
 		select {
@@ -217,7 +217,7 @@ func (c *grpcClient) FetchTags(
 		default:
 		}
 
-		received, err := fetchClient.Recv()
+		received, err := searchClient.Recv()
 		if err == io.EOF {
 			break
 		}
@@ -237,6 +237,65 @@ func (c *grpcClient) FetchTags(
 	return &storage.SearchResults{
 		Metrics: metrics,
 	}, nil
+}
+
+// CompleteTags returns autocompleted tags
+func (c *grpcClient) CompleteTags(
+	ctx context.Context,
+	query *storage.CompleteTagsQuery,
+	options *storage.FetchOptions,
+) (*storage.CompleteTagsResult, error) {
+	request, err := encodeCompleteTagsRequest(query)
+	if err != nil {
+		return nil, err
+	}
+
+	// Send the id from the client to the remote server so that provides logging
+	id := logging.ReadContextID(ctx)
+	// TODO: add relevant fields to the metadata
+	mdCtx := encodeMetadata(ctx, id)
+	completeTagsClient, err := c.client.CompleteTags(mdCtx, request)
+	if err != nil {
+		return nil, err
+	}
+
+	defer completeTagsClient.CloseSend()
+	var accumulatedTags *storage.CompleteTagsResult
+	for {
+		select {
+		// If query is killed during gRPC streaming, close the channel
+		case <-options.KillChan:
+			return nil, errors.ErrQueryInterrupted
+		default:
+		}
+
+		received, err := completeTagsClient.Recv()
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		result, err := decodeCompleteTagsResponse(received)
+		if err != nil {
+			return nil, err
+		}
+
+		if accumulatedTags == nil {
+			accumulatedTags = result
+		} else {
+			err = accumulatedTags.MergeWith(result)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	// Sort tags in the result post-merge.
+	accumulatedTags.Finalize()
+	return accumulatedTags, nil
 }
 
 // Close closes the underlying connection
