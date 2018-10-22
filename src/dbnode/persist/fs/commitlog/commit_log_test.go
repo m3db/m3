@@ -155,8 +155,7 @@ func snapshotCounterValue(
 type mockCommitLogWriter struct {
 	openFn  func(start time.Time, duration time.Duration) (File, error)
 	writeFn func(Series, ts.Datapoint, xtime.Unit, ts.Annotation) error
-	flushFn func() error
-	syncFn  func() error
+	flushFn func(sync bool) error
 	closeFn func() error
 }
 
@@ -168,10 +167,7 @@ func newMockCommitLogWriter() *mockCommitLogWriter {
 		writeFn: func(Series, ts.Datapoint, xtime.Unit, ts.Annotation) error {
 			return nil
 		},
-		flushFn: func() error {
-			return nil
-		},
-		syncFn: func() error {
+		flushFn: func(sync bool) error {
 			return nil
 		},
 		closeFn: func() error {
@@ -193,12 +189,8 @@ func (w *mockCommitLogWriter) Write(
 	return w.writeFn(series, datapoint, unit, annotation)
 }
 
-func (w *mockCommitLogWriter) Flush() error {
-	return w.flushFn()
-}
-
-func (w *mockCommitLogWriter) Sync() error {
-	return w.syncFn()
+func (w *mockCommitLogWriter) Flush(sync bool) error {
+	return w.flushFn(sync)
 }
 
 func (w *mockCommitLogWriter) Close() error {
@@ -696,7 +688,7 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 		return File{}, nil
 	}
 
-	writer.flushFn = func() error {
+	writer.flushFn = func(bool) error {
 		commitLog.onFlush(nil)
 		return nil
 	}
@@ -745,7 +737,7 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 		return File{}, nil
 	}
 
-	writer.flushFn = func() error {
+	writer.flushFn = func(bool) error {
 		commitLog.onFlush(nil)
 		return nil
 	}
@@ -796,7 +788,7 @@ func TestCommitLogFailOnFlushError(t *testing.T) {
 	writer := newMockCommitLogWriter()
 
 	var flushes int64
-	writer.flushFn = func() error {
+	writer.flushFn = func(bool) error {
 		if atomic.AddInt64(&flushes, 1) >= 2 {
 			commitLog.onFlush(fmt.Errorf("an error"))
 		} else {
@@ -843,7 +835,7 @@ func TestCommitLogActiveLogs(t *testing.T) {
 	commitLog := newTestCommitLog(t, opts)
 
 	writer := newMockCommitLogWriter()
-	writer.flushFn = func() error {
+	writer.flushFn = func(bool) error {
 		return nil
 	}
 	commitLog.newCommitLogWriterFn = func(

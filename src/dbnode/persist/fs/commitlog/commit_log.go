@@ -231,7 +231,7 @@ func (l *commitLog) Open() error {
 
 	// Sync the info header to ensure we can write to disk and make sure that we can at least
 	// read the info about the commitlog file later.
-	if err := l.writerState.writer.Sync(); err != nil {
+	if err := l.writerState.writer.Flush(true); err != nil {
 		return err
 	}
 
@@ -335,12 +335,7 @@ func (l *commitLog) flushEvery(interval time.Duration) {
 func (l *commitLog) write() {
 	for write := range l.writes {
 		if write.eventType == flushEventType {
-			// TODO(rartoul): This should probably be replaced with a call to Sync() as the expectation
-			// is that the commitlog will actually FSync the data at regular intervals, whereas Flush
-			// just ensures that the writers buffer flushes to the chunkWriter (creating a new chunk), but
-			// does not guarantee that the O.S isn't still buffering the data. Leaving as is for now as making
-			// this change will require extensive benchmarking in production clusters.
-			l.writerState.writer.Flush()
+			l.writerState.writer.Flush(false)
 			continue
 		}
 

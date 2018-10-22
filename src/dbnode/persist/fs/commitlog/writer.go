@@ -75,16 +75,9 @@ type commitLogWriter interface {
 		annotation ts.Annotation,
 	) error
 
-	// Sync will ensure that all writes that have been issued to the writer have been
-	// FSync'd to disk.
-	Sync() error
-
 	// Flush will flush any data in the writers buffer to the chunkWriter, essentially forcing
-	// a new chunk to be created. Only guarantees that the data is FSync'd to disk if the
-	// StrategyWriteWait is enabled.
-	// TODO(rartoul): Consider deleting this once we have time to do some performance benchmarking
-	// with using Sync instead.
-	Flush() error
+	// a new chunk to be created. Optionally forces the data to be FSync'd to disk.
+	Flush(sync bool) error
 
 	// Close the reader
 	Close() error
@@ -257,11 +250,20 @@ func (w *writer) Write(
 	return nil
 }
 
-func (w *writer) Sync() error {
-	if err := w.Flush(); err != nil {
+func (w *writer) Flush(sync bool) error {
+	err := w.buffer.Flush()
+	if err != nil {
 		return err
 	}
 
+	if !sync {
+		return nil
+	}
+
+	return w.sync()
+}
+
+func (w *writer) sync() error {
 	if err := w.chunkWriter.sync(); err != nil {
 		return err
 	}
@@ -269,16 +271,12 @@ func (w *writer) Sync() error {
 	return nil
 }
 
-func (w *writer) Flush() error {
-	return w.buffer.Flush()
-}
-
 func (w *writer) Close() error {
 	if !w.isOpen() {
 		return nil
 	}
 
-	if err := w.Flush(); err != nil {
+	if err := w.Flush(true); err != nil {
 		return err
 	}
 	if err := w.chunkWriter.close(); err != nil {
