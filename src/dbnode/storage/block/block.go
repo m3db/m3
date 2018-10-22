@@ -55,7 +55,7 @@ type dbBlock struct {
 
 	mergeTarget DatabaseBlock
 
-	retrieveID ident.ID
+	seriesID ident.ID
 
 	onEvicted OnEvictedFromWiredList
 
@@ -258,6 +258,15 @@ func (b *dbBlock) Reset(start time.Time, blockSize time.Duration, segment ts.Seg
 	b.resetSegmentWithLock(segment)
 }
 
+func (b *dbBlock) ResetFromDisk(start time.Time, blockSize time.Duration, segment ts.Segment, id ident.ID) {
+	b.Lock()
+	defer b.Unlock()
+	b.resetNewBlockStartWithLock(start, blockSize)
+	// resetSegmentWithLock sets seriesID to nil
+	b.resetSegmentWithLock(segment)
+	b.seriesID = id
+}
+
 func (b *dbBlock) streamWithRLock(ctx context.Context) (xio.BlockReader, error) {
 	start := b.startWithRLock()
 
@@ -316,7 +325,7 @@ func (b *dbBlock) resetSegmentWithLock(seg ts.Segment) {
 	b.segment = seg
 	b.length = seg.Len()
 	b.checksum = digest.SegmentChecksum(seg)
-	b.retrieveID = nil
+	b.seriesID = nil
 	b.wasRetrievedFromDisk = false
 }
 
@@ -407,7 +416,7 @@ func (b *dbBlock) setEnteredListAtUnixNano(value int64) {
 // wiredListEntry is a snapshot of a subset of the block's state that the WiredList
 // uses to determine if a block is eligible for inclusion in the WiredList.
 type wiredListEntry struct {
-	retrieveID           ident.ID
+	seriesID             ident.ID
 	startTime            time.Time
 	closed               bool
 	wasRetrievedFromDisk bool
@@ -419,7 +428,7 @@ func (b *dbBlock) wiredListEntry() wiredListEntry {
 	b.RLock()
 	result := wiredListEntry{
 		closed:               b.closed,
-		retrieveID:           b.retrieveID,
+		seriesID:             b.seriesID,
 		wasRetrievedFromDisk: b.wasRetrievedFromDisk,
 		startTime:            b.startWithRLock(),
 	}

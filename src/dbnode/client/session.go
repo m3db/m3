@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -1957,7 +1956,7 @@ func (s *session) streamBlocksMetadataFromPeers(
 			}
 			for condition() {
 				var err error
-				currPageToken, err = s.streamBlocksMetadataFromPeerV2(namespace, shardID,
+				currPageToken, err = s.streamBlocksMetadataFromPeer(namespace, shardID,
 					peer, start, end, currPageToken, metadataCh, resultOpts, progress)
 
 				// Set error or success if err is nil
@@ -1987,16 +1986,12 @@ func (s *session) streamBlocksMetadataFromPeers(
 		atomic.LoadInt32(&responded), int32(len(errors)), errors)
 }
 
-// pageToken is just an opaque type that needs to be downcasted to expected
-// page token type, this makes it easy to use the page token across the two
-// versions
-// TODO(r): Delete this once we delete the V1 code path
-type pageToken interface{}
+type pageToken []byte
 
-// streamBlocksMetadataFromPeerV2 has several heap allocated anonymous
+// streamBlocksMetadataFromPeer has several heap allocated anonymous
 // function, however, they're only allocated once per peer/shard combination
 // for the entire peer bootstrapping process so performance is acceptable
-func (s *session) streamBlocksMetadataFromPeerV2(
+func (s *session) streamBlocksMetadataFromPeer(
 	namespace ident.ID,
 	shard uint32,
 	peer peer,
@@ -2006,17 +2001,6 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 	resultOpts result.Options,
 	progress *streamFromPeersMetrics,
 ) (pageToken, error) {
-	var pageToken []byte
-	if startPageToken != nil {
-		var ok bool
-		pageToken, ok = startPageToken.([]byte)
-		if !ok {
-			err := fmt.Errorf("unexpected start page token type: %s",
-				reflect.TypeOf(startPageToken).Elem().String())
-			return nil, xerrors.NewNonRetryableError(err)
-		}
-	}
-
 	var (
 		optionIncludeSizes     = true
 		optionIncludeChecksums = true
@@ -2049,7 +2033,7 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 		req.RangeStart = start.UnixNano()
 		req.RangeEnd = end.UnixNano()
 		req.Limit = int64(s.streamBlocksBatchSize)
-		req.PageToken = pageToken
+		req.PageToken = startPageToken
 		req.IncludeSizes = &optionIncludeSizes
 		req.IncludeChecksums = &optionIncludeChecksums
 		req.IncludeLastRead = &optionIncludeLastRead
@@ -2067,7 +2051,7 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 		if result.NextPageToken != nil {
 			// Reset pageToken + copy new pageToken into previously allocated memory,
 			// extending as necessary
-			pageToken = append(pageToken[:0], result.NextPageToken...)
+			startPageToken = append(startPageToken[:0], result.NextPageToken...)
 		} else {
 			// No further results
 			moreResults = false
@@ -2160,7 +2144,7 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 
 	for moreResults {
 		if err := s.streamBlocksRetrier.Attempt(fetchFn); err != nil {
-			return pageToken, err
+			return startPageToken, err
 		}
 	}
 	return nil, nil

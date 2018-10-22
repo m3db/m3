@@ -1781,7 +1781,7 @@ func (c MockTChanNodes) expectFetchMetadataAndReturn(
 	opts AdminOptions,
 ) {
 	for _, client := range c {
-		expectFetchMetadataAndReturnV2(client, result, opts)
+		expectFetchMetadataAndReturn(client, result, opts)
 	}
 }
 
@@ -1949,7 +1949,7 @@ func expectedReqsAndResultFromBlocks(
 	return clientsExpectReqs, clientsBlocksResult
 }
 
-func expectFetchMetadataAndReturnV2(
+func expectFetchMetadataAndReturn(
 	client *rpc.MockTChanNode,
 	result []testBlocksMetadata,
 	opts AdminOptions,
@@ -1990,7 +1990,7 @@ func expectFetchMetadataAndReturnV2(
 			isV2:         true,
 		}
 		if i != 0 {
-			matcher.pageTokenV2 = []byte(fmt.Sprintf("token_%d", i))
+			matcher.pageToken = []byte(fmt.Sprintf("token_%d", i))
 		}
 
 		call := client.EXPECT().FetchBlocksMetadataRawV2(gomock.Any(), matcher).Return(ret, nil)
@@ -2003,7 +2003,7 @@ func expectFetchMetadataAndReturnV2(
 type fetchMetadataReqMatcher struct {
 	shard        int32
 	limit        int64
-	pageTokenV2  []byte
+	pageToken    []byte
 	includeSizes *bool
 	isV2         bool
 }
@@ -2022,7 +2022,7 @@ func (m *fetchMetadataReqMatcher) Matches(x interface{}) bool {
 		return false
 	}
 
-	if m.pageTokenV2 == nil {
+	if m.pageToken == nil {
 		if req.PageToken != nil {
 			return false
 		}
@@ -2030,7 +2030,7 @@ func (m *fetchMetadataReqMatcher) Matches(x interface{}) bool {
 		if req.PageToken == nil {
 			return false
 		}
-		if !bytes.Equal(req.PageToken, m.pageTokenV2) {
+		if !bytes.Equal(req.PageToken, m.pageToken) {
 			return false
 		}
 	}

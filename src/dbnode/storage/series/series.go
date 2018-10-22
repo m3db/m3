@@ -521,7 +521,7 @@ func (s *dbSeries) OnRetrieveBlock(
 
 	b = s.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 	blockSize := s.opts.RetentionOptions().BlockSize()
-	b.Reset(startTime, blockSize, segment)
+	b.ResetFromDisk(startTime, blockSize, segment, s.id)
 
 	// NB(r): Blocks retrieved have been triggered by a read, so set the last
 	// read time as now so caching policies are followed.

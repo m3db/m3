@@ -235,20 +235,6 @@ func (mr *MockDatabaseMockRecorder) FetchBlocks(ctx, namespace, shard, id, start
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocks", reflect.TypeOf((*MockDatabase)(nil).FetchBlocks), ctx, namespace, shard, id, starts)
 }
 
-// FetchBlocksMetadata mocks base method
-func (m *MockDatabase) FetchBlocksMetadata(ctx context.Context, namespace ident.ID, shard uint32, start, end time.Time, limit, pageToken int64, opts block.FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResults, *int64, error) {
-	ret := m.ctrl.Call(m, "FetchBlocksMetadata", ctx, namespace, shard, start, end, limit, pageToken, opts)
-	ret0, _ := ret[0].(block.FetchBlocksMetadataResults)
-	ret1, _ := ret[1].(*int64)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-// FetchBlocksMetadata indicates an expected call of FetchBlocksMetadata
-func (mr *MockDatabaseMockRecorder) FetchBlocksMetadata(ctx, namespace, shard, start, end, limit, pageToken, opts interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksMetadata", reflect.TypeOf((*MockDatabase)(nil).FetchBlocksMetadata), ctx, namespace, shard, start, end, limit, pageToken, opts)
-}
-
 // FetchBlocksMetadataV2 mocks base method
 func (m *MockDatabase) FetchBlocksMetadataV2(ctx context.Context, namespace ident.ID, shard uint32, start, end time.Time, limit int64, pageToken PageToken, opts block.FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResults, PageToken, error) {
 	ret := m.ctrl.Call(m, "FetchBlocksMetadataV2", ctx, namespace, shard, start, end, limit, pageToken, opts)
@@ -515,20 +501,6 @@ func (m *Mockdatabase) FetchBlocks(ctx context.Context, namespace ident.ID, shar
 // FetchBlocks indicates an expected call of FetchBlocks
 func (mr *MockdatabaseMockRecorder) FetchBlocks(ctx, namespace, shard, id, starts interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocks", reflect.TypeOf((*Mockdatabase)(nil).FetchBlocks), ctx, namespace, shard, id, starts)
-}
-
-// FetchBlocksMetadata mocks base method
-func (m *Mockdatabase) FetchBlocksMetadata(ctx context.Context, namespace ident.ID, shard uint32, start, end time.Time, limit, pageToken int64, opts block.FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResults, *int64, error) {
-	ret := m.ctrl.Call(m, "FetchBlocksMetadata", ctx, namespace, shard, start, end, limit, pageToken, opts)
-	ret0, _ := ret[0].(block.FetchBlocksMetadataResults)
-	ret1, _ := ret[1].(*int64)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-// FetchBlocksMetadata indicates an expected call of FetchBlocksMetadata
-func (mr *MockdatabaseMockRecorder) FetchBlocksMetadata(ctx, namespace, shard, start, end, limit, pageToken, opts interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksMetadata", reflect.TypeOf((*Mockdatabase)(nil).FetchBlocksMetadata), ctx, namespace, shard, start, end, limit, pageToken, opts)
 }
 
 // FetchBlocksMetadataV2 mocks base method
@@ -907,20 +879,6 @@ func (mr *MockdatabaseNamespaceMockRecorder) FetchBlocks(ctx, shardID, id, start
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocks", reflect.TypeOf((*MockdatabaseNamespace)(nil).FetchBlocks), ctx, shardID, id, starts)
 }
 
-// FetchBlocksMetadata mocks base method
-func (m *MockdatabaseNamespace) FetchBlocksMetadata(ctx context.Context, shardID uint32, start, end time.Time, limit, pageToken int64, opts block.FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResults, *int64, error) {
-	ret := m.ctrl.Call(m, "FetchBlocksMetadata", ctx, shardID, start, end, limit, pageToken, opts)
-	ret0, _ := ret[0].(block.FetchBlocksMetadataResults)
-	ret1, _ := ret[1].(*int64)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-// FetchBlocksMetadata indicates an expected call of FetchBlocksMetadata
-func (mr *MockdatabaseNamespaceMockRecorder) FetchBlocksMetadata(ctx, shardID, start, end, limit, pageToken, opts interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksMetadata", reflect.TypeOf((*MockdatabaseNamespace)(nil).FetchBlocksMetadata), ctx, shardID, start, end, limit, pageToken, opts)
-}
-
 // FetchBlocksMetadataV2 mocks base method
 func (m *MockdatabaseNamespace) FetchBlocksMetadataV2(ctx context.Context, shardID uint32, start, end time.Time, limit int64, pageToken PageToken, opts block.FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResults, PageToken, error) {
 	ret := m.ctrl.Call(m, "FetchBlocksMetadataV2", ctx, shardID, start, end, limit, pageToken, opts)
@@ -1270,20 +1228,6 @@ func (m *MockdatabaseShard) FetchBlocks(ctx context.Context, id ident.ID, starts
 // FetchBlocks indicates an expected call of FetchBlocks
 func (mr *MockdatabaseShardMockRecorder) FetchBlocks(ctx, id, starts interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocks", reflect.TypeOf((*MockdatabaseShard)(nil).FetchBlocks), ctx, id, starts)
-}
-
-// FetchBlocksMetadata mocks base method
-func (m *MockdatabaseShard) FetchBlocksMetadata(ctx context.Context, start, end time.Time, limit, pageToken int64, opts block.FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResults, *int64, error) {
-	ret := m.ctrl.Call(m, "FetchBlocksMetadata", ctx, start, end, limit, pageToken, opts)
-	ret0, _ := ret[0].(block.FetchBlocksMetadataResults)
-	ret1, _ := ret[1].(*int64)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-// FetchBlocksMetadata indicates an expected call of FetchBlocksMetadata
-func (mr *MockdatabaseShardMockRecorder) FetchBlocksMetadata(ctx, start, end, limit, pageToken, opts interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksMetadata", reflect.TypeOf((*MockdatabaseShard)(nil).FetchBlocksMetadata), ctx, start, end, limit, pageToken, opts)
 }
 
 // FetchBlocksMetadataV2 mocks base method

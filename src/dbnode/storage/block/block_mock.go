@@ -395,6 +395,16 @@ func (mr *MockDatabaseBlockMockRecorder) Reset(startTime, blockSize, segment int
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockDatabaseBlock)(nil).Reset), startTime, blockSize, segment)
 }
 
+// ResetFromDisk mocks base method
+func (m *MockDatabaseBlock) ResetFromDisk(startTime time.Time, blockSize time.Duration, segment ts.Segment, id ident.ID) {
+	m.ctrl.Call(m, "ResetFromDisk", startTime, blockSize, segment, id)
+}
+
+// ResetFromDisk indicates an expected call of ResetFromDisk
+func (mr *MockDatabaseBlockMockRecorder) ResetFromDisk(startTime, blockSize, segment, id interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetFromDisk", reflect.TypeOf((*MockDatabaseBlock)(nil).ResetFromDisk), startTime, blockSize, segment, id)
+}
+
 // Discard mocks base method
 func (m *MockDatabaseBlock) Discard() ts.Segment {
 	ret := m.ctrl.Call(m, "Discard")

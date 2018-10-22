@@ -172,6 +172,14 @@ type DatabaseBlock interface {
 	// Reset resets the block start time, duration, and the segment.
 	Reset(startTime time.Time, blockSize time.Duration, segment ts.Segment)
 
+	// ResetFromDisk resets the block start time, duration, segment, and id.
+	ResetFromDisk(
+		startTime time.Time,
+		blockSize time.Duration,
+		segment ts.Segment,
+		id ident.ID,
+	)
+
 	// Discard closes the block, but returns the (unfinalized) segment.
 	Discard() ts.Segment
 
