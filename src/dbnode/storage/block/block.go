@@ -55,8 +55,7 @@ type dbBlock struct {
 
 	mergeTarget DatabaseBlock
 
-	retriever  DatabaseShardBlockRetriever
-	retrieveID ident.ID
+	seriesID ident.ID
 
 	onEvicted OnEvictedFromWiredList
 
@@ -94,24 +93,6 @@ func NewDatabaseBlock(
 	if segment.Len() > 0 {
 		b.resetSegmentWithLock(segment)
 	}
-	return b
-}
-
-// NewRetrievableDatabaseBlock creates a new retrievable DatabaseBlock instance.
-func NewRetrievableDatabaseBlock(
-	start time.Time,
-	blockSize time.Duration,
-	retriever DatabaseShardBlockRetriever,
-	metadata RetrievableBlockMetadata,
-	opts Options,
-) DatabaseBlock {
-	b := &dbBlock{
-		opts:           opts,
-		startUnixNanos: start.UnixNano(),
-		blockSize:      blockSize,
-		closed:         false,
-	}
-	b.resetRetrievableWithLock(retriever, metadata)
 	return b
 }
 
@@ -186,26 +167,6 @@ func (b *dbBlock) Checksum() (uint32, error) {
 	return b.checksum, nil
 }
 
-func (b *dbBlock) OnRetrieveBlock(
-	id ident.ID,
-	_ ident.TagIterator,
-	startTime time.Time,
-	segment ts.Segment,
-) {
-	b.Lock()
-	defer b.Unlock()
-
-	if b.closed ||
-		!id.Equal(b.retrieveID) ||
-		!startTime.Equal(b.startWithRLock()) {
-		return
-	}
-
-	b.resetSegmentWithLock(segment)
-	b.retrieveID = id
-	b.wasRetrievedFromDisk = true
-}
-
 func (b *dbBlock) Stream(blocker context.Context) (xio.BlockReader, error) {
 	lockUpgraded := false
 
@@ -263,26 +224,11 @@ func (b *dbBlock) HasMergeTarget() bool {
 	return hasMergeTarget
 }
 
-func (b *dbBlock) IsRetrieved() bool {
-	b.RLock()
-	retrieved := b.retriever == nil
-	b.RUnlock()
-	return retrieved
-}
-
 func (b *dbBlock) WasRetrievedFromDisk() bool {
 	b.RLock()
 	wasRetrieved := b.wasRetrievedFromDisk
 	b.RUnlock()
 	return wasRetrieved
-}
-
-func (b *dbBlock) IsCachedBlock() bool {
-	b.RLock()
-	retrieved := b.retriever == nil
-	wasRetrieved := b.wasRetrievedFromDisk
-	b.RUnlock()
-	return !retrieved || wasRetrieved
 }
 
 func (b *dbBlock) Merge(other DatabaseBlock) error {
@@ -312,51 +258,36 @@ func (b *dbBlock) Reset(start time.Time, blockSize time.Duration, segment ts.Seg
 	b.resetSegmentWithLock(segment)
 }
 
-func (b *dbBlock) ResetRetrievable(
-	start time.Time,
-	blockSize time.Duration,
-	retriever DatabaseShardBlockRetriever,
-	metadata RetrievableBlockMetadata,
-) {
+func (b *dbBlock) ResetFromDisk(start time.Time, blockSize time.Duration, segment ts.Segment, id ident.ID) {
 	b.Lock()
 	defer b.Unlock()
 	b.resetNewBlockStartWithLock(start, blockSize)
-	b.resetRetrievableWithLock(retriever, metadata)
+	// resetSegmentWithLock sets seriesID to nil
+	b.resetSegmentWithLock(segment)
+	b.seriesID = id
 }
 
 func (b *dbBlock) streamWithRLock(ctx context.Context) (xio.BlockReader, error) {
 	start := b.startWithRLock()
 
-	// If the block retrieve ID is set then it must be retrieved
-	var (
-		blockReader xio.BlockReader
-		err         error
-	)
-	if b.retriever != nil {
-		blockReader, err = b.retriever.Stream(ctx, b.retrieveID, start, b)
-		if err != nil {
-			return xio.EmptyBlockReader, err
-		}
-	} else {
-		// Take a copy to avoid heavy depends on cycle
-		segmentReader := b.opts.SegmentReaderPool().Get()
-		data := b.opts.BytesPool().Get(b.segment.Len())
-		data.IncRef()
-		if b.segment.Head != nil {
-			data.AppendAll(b.segment.Head.Bytes())
-		}
-		if b.segment.Tail != nil {
-			data.AppendAll(b.segment.Tail.Bytes())
-		}
-		data.DecRef()
-		segmentReader.Reset(ts.NewSegment(data, nil, ts.FinalizeHead))
-		ctx.RegisterFinalizer(segmentReader)
+	// Take a copy to avoid heavy depends on cycle
+	segmentReader := b.opts.SegmentReaderPool().Get()
+	data := b.opts.BytesPool().Get(b.segment.Len())
+	data.IncRef()
+	if b.segment.Head != nil {
+		data.AppendAll(b.segment.Head.Bytes())
+	}
+	if b.segment.Tail != nil {
+		data.AppendAll(b.segment.Tail.Bytes())
+	}
+	data.DecRef()
+	segmentReader.Reset(ts.NewSegment(data, nil, ts.FinalizeHead))
+	ctx.RegisterFinalizer(segmentReader)
 
-		blockReader = xio.BlockReader{
-			SegmentReader: segmentReader,
-			Start:         start,
-			BlockSize:     b.blockSize,
-		}
+	blockReader := xio.BlockReader{
+		SegmentReader: segmentReader,
+		Start:         start,
+		BlockSize:     b.blockSize,
 	}
 
 	return blockReader, nil
@@ -394,22 +325,7 @@ func (b *dbBlock) resetSegmentWithLock(seg ts.Segment) {
 	b.segment = seg
 	b.length = seg.Len()
 	b.checksum = digest.SegmentChecksum(seg)
-
-	b.retriever = nil
-	b.retrieveID = nil
-	b.wasRetrievedFromDisk = false
-}
-
-func (b *dbBlock) resetRetrievableWithLock(
-	retriever DatabaseShardBlockRetriever,
-	metadata RetrievableBlockMetadata,
-) {
-	b.segment = ts.Segment{}
-	b.length = metadata.Length
-	b.checksum = metadata.Checksum
-
-	b.retriever = retriever
-	b.retrieveID = metadata.ID
+	b.seriesID = nil
 	b.wasRetrievedFromDisk = false
 }
 
@@ -500,7 +416,7 @@ func (b *dbBlock) setEnteredListAtUnixNano(value int64) {
 // wiredListEntry is a snapshot of a subset of the block's state that the WiredList
 // uses to determine if a block is eligible for inclusion in the WiredList.
 type wiredListEntry struct {
-	retrieveID           ident.ID
+	seriesID             ident.ID
 	startTime            time.Time
 	closed               bool
 	wasRetrievedFromDisk bool
@@ -512,7 +428,7 @@ func (b *dbBlock) wiredListEntry() wiredListEntry {
 	b.RLock()
 	result := wiredListEntry{
 		closed:               b.closed,
-		retrieveID:           b.retrieveID,
+		seriesID:             b.seriesID,
 		wasRetrievedFromDisk: b.wasRetrievedFromDisk,
 		startTime:            b.startWithRLock(),
 	}

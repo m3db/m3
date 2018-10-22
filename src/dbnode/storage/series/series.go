@@ -202,12 +202,6 @@ func (s *dbSeries) updateBlocksWithLock() (updateBlocksResult, error) {
 			continue
 		}
 
-		if cachePolicy == CacheAllMetadata && !currBlock.IsRetrieved() {
-			// Already unwired
-			result.UnwiredBlocks++
-			continue
-		}
-
 		// Potentially unwire
 		var unwired, shouldUnwire bool
 		// IsBlockRetrievable makes sure that the block has been flushed. This
@@ -217,9 +211,6 @@ func (s *dbSeries) updateBlocksWithLock() (updateBlocksResult, error) {
 			switch cachePolicy {
 			case CacheNone:
 				shouldUnwire = true
-			case CacheAllMetadata:
-				// Apply RecentlyRead logic (CacheAllMetadata is being removed soon)
-				fallthrough
 			case CacheRecentlyRead:
 				sinceLastRead := now.Sub(currBlock.LastReadTime())
 				shouldUnwire = sinceLastRead >= wiredTimeout
@@ -235,29 +226,9 @@ func (s *dbSeries) updateBlocksWithLock() (updateBlocksResult, error) {
 		}
 
 		if shouldUnwire {
-			switch cachePolicy {
-			case CacheAllMetadata:
-				// Keep the metadata but remove contents
-
-				// NB(r): Each block needs shared ref to the series ID
-				// or else each block needs to have a copy of the ID
-				id := s.id
-				checksum, err := currBlock.Checksum()
-				if err != nil {
-					return result, err
-				}
-				metadata := block.RetrievableBlockMetadata{
-					ID:       id,
-					Length:   currBlock.Len(),
-					Checksum: checksum,
-				}
-				currBlock.ResetRetrievable(start, currBlock.BlockSize(), retriever, metadata)
-			default:
-				// Remove the block and it will be looked up later
-				s.blocks.RemoveBlockAt(start)
-				currBlock.Close()
-			}
-
+			// Remove the block and it will be looked up later
+			s.blocks.RemoveBlockAt(start)
+			currBlock.Close()
 			unwired = true
 			result.madeUnwiredBlocks++
 		}
@@ -362,7 +333,7 @@ func (s *dbSeries) FetchBlocksMetadata(
 		if !start.Before(t.Add(blockSize)) || !t.Before(end) {
 			continue
 		}
-		if !opts.IncludeCachedBlocks && b.IsCachedBlock() {
+		if !opts.IncludeCachedBlocks && b.WasRetrievedFromDisk() {
 			// Do not include cached blocks if not specified to, this is
 			// to avoid high amounts of duplication if a significant number of
 			// blocks are cached in memory when returning blocks metadata
@@ -549,21 +520,8 @@ func (s *dbSeries) OnRetrieveBlock(
 	}
 
 	b = s.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-	metadata := block.RetrievableBlockMetadata{
-		ID:       s.id,
-		Length:   segment.Len(),
-		Checksum: digest.SegmentChecksum(segment),
-	}
 	blockSize := s.opts.RetentionOptions().BlockSize()
-	b.ResetRetrievable(startTime, blockSize, s.blockRetriever, metadata)
-	// Use s.id instead of id here, because id is finalized by the context whereas
-	// we rely on the G.C to reclaim s.id. This is important because the block will
-	// hold onto the id ref, and (if the LRU caching policy is enabled) the shard
-	// will need it later when the WiredList calls its OnEvictedFromWiredList method.
-	// Also note that ResetRetrievable will mark the block as not retrieved from disk,
-	// but OnRetrieveBlock will then properly mark it as retrieved from disk so subsequent
-	// calls to WasRetrievedFromDisk will return true.
-	b.OnRetrieveBlock(s.id, tags, startTime, segment)
+	b.ResetFromDisk(startTime, blockSize, segment, s.id)
 
 	// NB(r): Blocks retrieved have been triggered by a read, so set the last
 	// read time as now so caching policies are followed.

@@ -642,27 +642,6 @@ func (n *dbNamespace) FetchBlocks(
 	return res, err
 }
 
-func (n *dbNamespace) FetchBlocksMetadata(
-	ctx context.Context,
-	shardID uint32,
-	start, end time.Time,
-	limit int64,
-	pageToken int64,
-	opts block.FetchBlocksMetadataOptions,
-) (block.FetchBlocksMetadataResults, *int64, error) {
-	callStart := n.nowFn()
-	shard, err := n.readableShardAt(shardID)
-	if err != nil {
-		n.metrics.fetchBlocksMetadata.ReportError(n.nowFn().Sub(callStart))
-		return nil, nil, err
-	}
-
-	res, nextPageToken, err := shard.FetchBlocksMetadata(ctx, start, end, limit,
-		pageToken, opts)
-	n.metrics.fetchBlocksMetadata.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
-	return res, nextPageToken, err
-}
-
 func (n *dbNamespace) FetchBlocksMetadataV2(
 	ctx context.Context,
 	shardID uint32,

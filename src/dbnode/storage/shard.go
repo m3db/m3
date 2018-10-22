@@ -911,9 +911,6 @@ func (s *dbShard) ReadEncoded(
 		case series.CacheAll:
 			// No-op, would be in memory if cached
 			return nil, nil
-		case series.CacheAllMetadata:
-			// No-op, would be in memory if metadata cached
-			return nil, nil
 		}
 	} else if err != nil {
 		return nil, err
@@ -1367,9 +1364,6 @@ func (s *dbShard) FetchBlocks(
 		case series.CacheAll:
 			// No-op, would be in memory if cached
 			return nil, nil
-		case series.CacheAllMetadata:
-			// No-op, would be in memory if metadata cached
-			return nil, nil
 		}
 	} else if err != nil {
 		return nil, err
@@ -1442,35 +1436,6 @@ func (s *dbShard) fetchActiveBlocksMetadata(
 	return res, nextIndexCursor, loopErr
 }
 
-func (s *dbShard) FetchBlocksMetadata(
-	ctx context.Context,
-	start, end time.Time,
-	limit int64,
-	pageToken int64,
-	opts block.FetchBlocksMetadataOptions,
-) (block.FetchBlocksMetadataResults, *int64, error) {
-	switch s.opts.SeriesCachePolicy() {
-	case series.CacheAll:
-	case series.CacheAllMetadata:
-	default:
-		// If not using CacheAll or CacheAllMetadata then calling the v1
-		// API will only return active block metadata (mutable and cached)
-		// hence this call is invalid
-		return nil, nil, fmt.Errorf(
-			"fetch blocks metadata v1 endpoint invalid with cache policy: %s",
-			s.opts.SeriesCachePolicy().String())
-	}
-
-	// For v1 endpoint we always include cached blocks because when using
-	// CacheAllMetadata the blocks will appear cached
-	seriesFetchBlocksMetadataOpts := series.FetchBlocksMetadataOptions{
-		FetchBlocksMetadataOptions: opts,
-		IncludeCachedBlocks:        true,
-	}
-	return s.fetchActiveBlocksMetadata(ctx, start, end,
-		limit, pageToken, seriesFetchBlocksMetadataOpts)
-}
-
 func (s *dbShard) FetchBlocksMetadataV2(
 	ctx context.Context,
 	start, end time.Time,
@@ -1489,7 +1454,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 	flushedPhase := token.FlushedSeriesPhase
 
 	cachePolicy := s.opts.SeriesCachePolicy()
-	if cachePolicy == series.CacheAll || cachePolicy == series.CacheAllMetadata {
+	if cachePolicy == series.CacheAll {
 		// If we are using a series cache policy that caches all block metadata
 		// in memory then we only ever perform the active phase as all metadata
 		// is actively held in memory
@@ -1497,8 +1462,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 		if activePhase != nil {
 			indexCursor = activePhase.IndexCursor
 		}
-		// We always include cached blocks because when using
-		// CacheAllMetadata the blocks will appear cached
+		// We always include cached blocks
 		seriesFetchBlocksMetadataOpts := series.FetchBlocksMetadataOptions{
 			FetchBlocksMetadataOptions: opts,
 			IncludeCachedBlocks:        true,
@@ -1746,9 +1710,9 @@ func (s *dbShard) Bootstrap(
 			// them for insertion.
 			// FOLLOWUP(r): Audit places that keep refs to the ID from a
 			// bootstrap result, newShardEntry copies it but some of the
-			// bootstrapped blocks when using all_metadata and perhaps
-			// another series cache policy keeps refs to the ID with
-			// retrieveID, so for now these IDs will be garbage collected)
+			// bootstrapped blocks when using certain series cache policies
+			// keeps refs to the ID with seriesID, so for now these IDs will
+			// be garbage collected)
 			dbBlocks.Tags.Finalize()
 		}
 

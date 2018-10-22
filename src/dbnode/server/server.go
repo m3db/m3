@@ -454,23 +454,8 @@ func Run(runOpts RunOptions) {
 			SetHostBlockMetadataSlicePool(hostBlockMetadataSlicePool))
 
 	// Set tchannelthrift options
-	blockMetadataPool := tchannelthrift.NewBlockMetadataPool(
-		poolOptions(policy.BlockMetadataPool, scope.SubScope("block-metadata-pool")))
-	blockMetadataSlicePool := tchannelthrift.NewBlockMetadataSlicePool(
-		capacityPoolOptions(policy.BlockMetadataSlicePool, scope.SubScope("block-metadata-slice-pool")),
-		policy.BlockMetadataSlicePool.Capacity)
-	blocksMetadataPool := tchannelthrift.NewBlocksMetadataPool(
-		poolOptions(policy.BlocksMetadataPool, scope.SubScope("blocks-metadata-pool")))
-	blocksMetadataSlicePool := tchannelthrift.NewBlocksMetadataSlicePool(
-		capacityPoolOptions(policy.BlocksMetadataSlicePool, scope.SubScope("blocks-metadata-slice-pool")),
-		policy.BlocksMetadataSlicePool.Capacity)
-
 	ttopts := tchannelthrift.NewOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
-		SetBlockMetadataPool(blockMetadataPool).
-		SetBlockMetadataSlicePool(blockMetadataSlicePool).
-		SetBlocksMetadataPool(blocksMetadataPool).
-		SetBlocksMetadataSlicePool(blocksMetadataSlicePool).
 		SetTagEncoderPool(tagEncoderPool).
 		SetTagDecoderPool(tagDecoderPool)
 

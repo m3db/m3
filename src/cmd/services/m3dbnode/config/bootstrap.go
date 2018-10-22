@@ -53,9 +53,6 @@ type BootstrapConfiguration struct {
 	// Filesystem bootstrapper configuration.
 	Filesystem *BootstrapFilesystemConfiguration `yaml:"fs"`
 
-	// Peers bootstrapper configuration.
-	Peers *BootstrapPeersConfiguration `yaml:"peers"`
-
 	// Commitlog bootstrapper configuration.
 	Commitlog *BootstrapCommitlogConfiguration `yaml:"commitlog"`
 
@@ -72,26 +69,10 @@ func (bsc BootstrapConfiguration) fsNumProcessors() int {
 	return int(math.Ceil(float64(runtime.NumCPU()) * np))
 }
 
-// TODO: Remove once v1 endpoint no longer required.
-func (bsc BootstrapConfiguration) peersFetchBlocksMetadataEndpointVersion() client.FetchBlocksMetadataEndpointVersion {
-	version := client.FetchBlocksMetadataEndpointDefault
-	if peersCfg := bsc.Peers; peersCfg != nil {
-		version = peersCfg.FetchBlocksMetadataEndpointVersion
-	}
-	return version
-}
-
 // BootstrapFilesystemConfiguration specifies config for the fs bootstrapper.
 type BootstrapFilesystemConfiguration struct {
 	// NumProcessorsPerCPU is the number of processors per CPU.
 	NumProcessorsPerCPU float64 `yaml:"numProcessorsPerCPU" validate:"min=0.0"`
-}
-
-// BootstrapPeersConfiguration specifies config for the peers bootstrapper.
-type BootstrapPeersConfiguration struct {
-	// FetchBlocksMetadataEndpointVersion is the endpoint to use when fetching blocks metadata.
-	// TODO: Remove once v1 endpoint no longer required.
-	FetchBlocksMetadataEndpointVersion client.FetchBlocksMetadataEndpointVersion `yaml:"fetchBlocksMetadataEndpointVersion"`
 }
 
 // BootstrapCommitlogConfiguration specifies config for the commitlog bootstrapper.
@@ -171,7 +152,6 @@ func (bsc BootstrapConfiguration) New(
 				SetAdminClient(adminClient).
 				SetPersistManager(opts.PersistManager()).
 				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager()).
-				SetFetchBlocksMetadataEndpointVersion(bsc.peersFetchBlocksMetadataEndpointVersion()).
 				SetRuntimeOptionsManager(opts.RuntimeOptionsManager())
 			bs, err = peers.NewPeersBootstrapperProvider(pOpts, bs)
 			if err != nil {

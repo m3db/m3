@@ -32,7 +32,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
-	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index"
@@ -247,72 +246,6 @@ func TestNamespaceFetchBlocksShardOwned(t *testing.T) {
 
 	shard.EXPECT().IsBootstrapped().Return(false)
 	_, err = ns.FetchBlocks(ctx, testShardIDs[0].ID(), ident.StringID("foo"), nil)
-	require.Error(t, err)
-	require.True(t, xerrors.IsRetryableError(err))
-	require.Equal(t, errShardNotBootstrappedToRead, xerrors.GetInnerRetryableError(err))
-}
-
-func TestNamespaceFetchBlocksMetadataShardNotOwned(t *testing.T) {
-	ctx := context.NewContext()
-	defer ctx.Close()
-
-	ns, closer := newTestNamespace(t)
-	defer closer()
-
-	for i := range ns.shards {
-		ns.shards[i] = nil
-	}
-	start := time.Now()
-	end := start.Add(time.Hour)
-	opts := block.FetchBlocksMetadataOptions{
-		IncludeSizes:     true,
-		IncludeChecksums: true,
-		IncludeLastRead:  true,
-	}
-	_, _, err := ns.FetchBlocksMetadata(ctx, testShardIDs[0].ID(), start, end, 100, 0, opts)
-	require.True(t, xerrors.IsRetryableError(err))
-	require.Equal(t, "not responsible for shard 0", err.Error())
-}
-
-func TestNamespaceFetchBlocksMetadataShardOwned(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	ctx := context.NewContext()
-	defer ctx.Close()
-
-	var (
-		start         = time.Now()
-		end           = start.Add(time.Hour)
-		limit         = int64(100)
-		pageToken     = int64(0)
-		nextPageToken = int64(100)
-		opts          = block.FetchBlocksMetadataOptions{
-			IncludeSizes:     true,
-			IncludeChecksums: true,
-			IncludeLastRead:  true,
-		}
-	)
-
-	ns, closer := newTestNamespace(t)
-	defer closer()
-
-	shard := NewMockdatabaseShard(ctrl)
-	shard.EXPECT().
-		FetchBlocksMetadata(ctx, start, end, limit, pageToken, opts).
-		Return(nil, &nextPageToken, nil)
-	ns.shards[testShardIDs[0].ID()] = shard
-
-	shard.EXPECT().IsBootstrapped().Return(true)
-	res, npt, err := ns.FetchBlocksMetadata(ctx, testShardIDs[0].ID(),
-		start, end, limit, pageToken, opts)
-	require.Nil(t, res)
-	require.Equal(t, npt, &nextPageToken)
-	require.NoError(t, err)
-
-	shard.EXPECT().IsBootstrapped().Return(false)
-	_, _, err = ns.FetchBlocksMetadata(ctx, testShardIDs[0].ID(),
-		start, end, limit, pageToken, opts)
 	require.Error(t, err)
 	require.True(t, xerrors.IsRetryableError(err))
 	require.Equal(t, errShardNotBootstrappedToRead, xerrors.GetInnerRetryableError(err))

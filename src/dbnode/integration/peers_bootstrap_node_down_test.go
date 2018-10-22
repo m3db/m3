@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
@@ -35,17 +34,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TODO(rartoul): Delete this once we've tested V2 in prod
 func TestPeersBootstrapNodeDown(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
 
-	testPeersBootstrapNodeDown(t, client.FetchBlocksMetadataEndpointV1)
-}
-
-func testPeersBootstrapNodeDown(
-	t *testing.T, version client.FetchBlocksMetadataEndpointVersion) {
 	// Test setups
 	log := xlog.SimpleLogger
 	retentionOpts := retention.NewOptions().
@@ -63,7 +56,7 @@ func testPeersBootstrapNodeDown(
 	setupOpts := []bootstrappableTestSetupOptions{
 		{disablePeersBootstrapper: true},
 		{disablePeersBootstrapper: true},
-		{disablePeersBootstrapper: false, fetchBlocksMetadataEndpointVersion: version},
+		{disablePeersBootstrapper: false},
 	}
 	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()

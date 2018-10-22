@@ -769,21 +769,6 @@ func (b *dbBufferBucket) merge() (mergeResult, error) {
 	encoder := bopts.EncoderPool().Get()
 	encoder.Reset(b.start, bopts.DatabaseBlockAllocSize())
 
-	// If we have to merge bootstrapped from disk during a merge then this
-	// can make ticking very slow, ensure to notify this bug
-	if len(b.bootstrapped) > 0 {
-		unretrieved := 0
-		for i := range b.bootstrapped {
-			if !b.bootstrapped[i].IsRetrieved() {
-				unretrieved++
-			}
-		}
-		if unretrieved > 0 {
-			log := b.opts.InstrumentOptions().Logger()
-			log.Warnf("buffer merging %d unretrieved blocks", unretrieved)
-		}
-	}
-
 	var (
 		start   = b.start
 		readers = make([]xio.SegmentReader, 0, len(b.encoders)+len(b.bootstrapped))

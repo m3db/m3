@@ -135,8 +135,6 @@ type NewDatabaseBlockFn func() DatabaseBlock
 
 // DatabaseBlock is the interface for a DatabaseBlock
 type DatabaseBlock interface {
-	OnRetrieveBlock
-
 	// StartTime returns the start time of the block.
 	StartTime() time.Time
 
@@ -168,27 +166,18 @@ type DatabaseBlock interface {
 	// merged during Stream().
 	HasMergeTarget() bool
 
-	// IsRetrieved returns whether the block is already retrieved. Only
-	// meaningful in the context of the CacheAllMetadata series caching policy.
-	IsRetrieved() bool
-
 	// WasRetrievedFromDisk returns whether the block was retrieved from storage.
 	WasRetrievedFromDisk() bool
-
-	// IsCachedBlock returns whether the block is not retrieved, or rather
-	// only the metadata is currently available, or whether it was retrieved
-	// from storage to serve as a memory cached block for reads.
-	IsCachedBlock() bool
 
 	// Reset resets the block start time, duration, and the segment.
 	Reset(startTime time.Time, blockSize time.Duration, segment ts.Segment)
 
-	// ResetRetrievable resets the block to become retrievable.
-	ResetRetrievable(
+	// ResetFromDisk resets the block start time, duration, segment, and id.
+	ResetFromDisk(
 		startTime time.Time,
 		blockSize time.Duration,
-		retriever DatabaseShardBlockRetriever,
-		metadata RetrievableBlockMetadata,
+		segment ts.Segment,
+		id ident.ID,
 	)
 
 	// Discard closes the block, but returns the (unfinalized) segment.

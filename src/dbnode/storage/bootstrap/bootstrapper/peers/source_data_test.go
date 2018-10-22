@@ -189,11 +189,11 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 	mockAdminSession := client.NewMockAdminSession(ctrl)
 	mockAdminSession.EXPECT().
 		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(nsMetadata),
-			uint32(0), start, end, gomock.Any(), client.FetchBlocksMetadataEndpointV1).
+			uint32(0), start, end, gomock.Any()).
 		Return(goodResult, nil)
 	mockAdminSession.EXPECT().
 		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(nsMetadata),
-			uint32(1), start, end, gomock.Any(), client.FetchBlocksMetadataEndpointV1).
+			uint32(1), start, end, gomock.Any()).
 		Return(nil, badErr)
 
 	mockAdminClient := client.NewMockAdminClient(ctrl)
@@ -232,7 +232,6 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 
 func TestPeersSourceRunWithPersist(t *testing.T) {
 	for _, cachePolicy := range []series.CachePolicy{
-		series.CacheAllMetadata,
 		series.CacheRecentlyRead,
 	} {
 		ctrl := gomock.NewController(t)
@@ -268,19 +267,19 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		mockAdminSession := client.NewMockAdminSession(ctrl)
 		mockAdminSession.EXPECT().
 			FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNsMd),
-				uint32(0), start, start.Add(blockSize), gomock.Any(), client.FetchBlocksMetadataEndpointV1).
+				uint32(0), start, start.Add(blockSize), gomock.Any()).
 			Return(shard0ResultBlock1, nil)
 		mockAdminSession.EXPECT().
 			FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNsMd),
-				uint32(0), start.Add(blockSize), start.Add(blockSize*2), gomock.Any(), client.FetchBlocksMetadataEndpointV1).
+				uint32(0), start.Add(blockSize), start.Add(blockSize*2), gomock.Any()).
 			Return(shard0ResultBlock2, nil)
 		mockAdminSession.EXPECT().
 			FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNsMd),
-				uint32(1), start, start.Add(blockSize), gomock.Any(), client.FetchBlocksMetadataEndpointV1).
+				uint32(1), start, start.Add(blockSize), gomock.Any()).
 			Return(shard1ResultBlock1, nil)
 		mockAdminSession.EXPECT().
 			FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNsMd),
-				uint32(1), start.Add(blockSize), start.Add(blockSize*2), gomock.Any(), client.FetchBlocksMetadataEndpointV1).
+				uint32(1), start.Add(blockSize), start.Add(blockSize*2), gomock.Any()).
 			Return(shard1ResultBlock2, nil)
 
 		mockAdminClient := client.NewMockAdminClient(ctrl)
@@ -406,36 +405,9 @@ func TestPeersSourceRunWithPersist(t *testing.T) {
 		require.True(t, r.Unfulfilled()[0].IsEmpty())
 		require.True(t, r.Unfulfilled()[1].IsEmpty())
 
-		if cachePolicy == series.CacheAllMetadata {
-			assert.Equal(t, 2, len(r.ShardResults()))
-			require.NotNil(t, r.ShardResults()[0])
-			require.NotNil(t, r.ShardResults()[1])
-
-			block, ok := r.ShardResults()[0].BlockAt(ident.StringID("foo"), start)
-			require.True(t, ok)
-			fooBlockChecksum, err := fooBlock.Checksum()
-			require.NoError(t, err)
-			assertBlockChecksum(t, fooBlockChecksum, block)
-			assert.False(t, block.IsRetrieved())
-
-			block, ok = r.ShardResults()[0].BlockAt(ident.StringID("bar"), start.Add(ropts.BlockSize()))
-			require.True(t, ok)
-			barBlockChecksum, err := barBlock.Checksum()
-			require.NoError(t, err)
-			assertBlockChecksum(t, barBlockChecksum, block)
-			assert.False(t, block.IsRetrieved())
-
-			block, ok = r.ShardResults()[1].BlockAt(ident.StringID("baz"), start)
-			require.True(t, ok)
-			bazBlockChecksum, err := bazBlock.Checksum()
-			require.NoError(t, err)
-			assertBlockChecksum(t, bazBlockChecksum, block)
-			assert.False(t, block.IsRetrieved())
-		} else {
-			assert.Equal(t, 0, len(r.ShardResults()))
-			require.Nil(t, r.ShardResults()[0])
-			require.Nil(t, r.ShardResults()[1])
-		}
+		assert.Equal(t, 0, len(r.ShardResults()))
+		require.Nil(t, r.ShardResults()[0])
+		require.Nil(t, r.ShardResults()[1])
 
 		assert.Equal(t, map[string]int{
 			"foo": 1, "bar": 1, "baz": 1,
@@ -539,7 +511,7 @@ func TestPeersSourceMarksUnfulfilledOnPersistenceErrors(t *testing.T) {
 		mockAdminSession.EXPECT().
 			FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNsMd),
 				key.shard, time.Unix(0, key.start), time.Unix(0, key.end),
-				gomock.Any(), client.FetchBlocksMetadataEndpointV1).
+				gomock.Any()).
 			Return(result, nil)
 	}
 

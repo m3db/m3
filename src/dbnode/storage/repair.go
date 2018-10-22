@@ -108,7 +108,7 @@ func (r shardRepairer) Repair(
 		IncludeSizes:     true,
 		IncludeChecksums: true,
 	}
-	localMetadata, _, err := shard.FetchBlocksMetadata(ctx, start, end, math.MaxInt64, 0, opts)
+	localMetadata, _, err := shard.FetchBlocksMetadataV2(ctx, start, end, math.MaxInt64, PageToken{}, opts)
 	if err != nil {
 		return repair.MetadataComparisonResult{}, err
 	}
@@ -123,7 +123,7 @@ func (r shardRepairer) Repair(
 	// Add peer metadata
 	level := r.rpopts.RepairConsistencyLevel()
 	peerIter, err := session.FetchBlocksMetadataFromPeers(namespace, shard.ID(), start, end,
-		level, result.NewOptions(), client.FetchBlocksMetadataEndpointV2)
+		level, result.NewOptions())
 	if err != nil {
 		return repair.MetadataComparisonResult{}, err
 	}

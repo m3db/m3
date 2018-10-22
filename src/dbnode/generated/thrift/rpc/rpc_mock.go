@@ -205,19 +205,6 @@ func (mr *MockTChanNodeMockRecorder) FetchBatchRaw(ctx, req interface{}) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBatchRaw", reflect.TypeOf((*MockTChanNode)(nil).FetchBatchRaw), ctx, req)
 }
 
-// FetchBlocksMetadataRaw mocks base method
-func (m *MockTChanNode) FetchBlocksMetadataRaw(ctx thrift.Context, req *FetchBlocksMetadataRawRequest) (*FetchBlocksMetadataRawResult_, error) {
-	ret := m.ctrl.Call(m, "FetchBlocksMetadataRaw", ctx, req)
-	ret0, _ := ret[0].(*FetchBlocksMetadataRawResult_)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FetchBlocksMetadataRaw indicates an expected call of FetchBlocksMetadataRaw
-func (mr *MockTChanNodeMockRecorder) FetchBlocksMetadataRaw(ctx, req interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksMetadataRaw", reflect.TypeOf((*MockTChanNode)(nil).FetchBlocksMetadataRaw), ctx, req)
-}
-
 // FetchBlocksMetadataRawV2 mocks base method
 func (m *MockTChanNode) FetchBlocksMetadataRawV2(ctx thrift.Context, req *FetchBlocksMetadataRawV2Request) (*FetchBlocksMetadataRawV2Result_, error) {
 	ret := m.ctrl.Call(m, "FetchBlocksMetadataRawV2", ctx, req)

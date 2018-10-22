@@ -279,12 +279,10 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	blockStart := curr.Add(-ropts.RetentionPeriod()).Add(-ropts.BlockSize())
 	b := block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(blockStart)
-	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
 	b.EXPECT().Close()
 	series.blocks.AddBlock(b)
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
-	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
 	series.blocks.AddBlock(b)
 	require.Equal(t, blockStart, series.blocks.MinTime())
 	require.Equal(t, 2, series.blocks.Len())
@@ -302,34 +300,6 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	require.Equal(t, curr, series.blocks.MinTime())
 	_, exists := series.blocks.AllBlocks()[xtime.ToUnixNano(curr)]
 	require.True(t, exists)
-}
-
-func TestSeriesTickNotRetrieved(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	opts := newSeriesTestOptions().
-		SetCachePolicy(CacheAllMetadata)
-	ropts := opts.RetentionOptions()
-	curr := time.Now().Truncate(ropts.BlockSize())
-	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
-	}))
-	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	blockRetriever := NewMockQueryableBlockRetriever(ctrl)
-	series.blockRetriever = blockRetriever
-	_, err := series.Bootstrap(nil)
-	assert.NoError(t, err)
-
-	b := block.NewMockDatabaseBlock(ctrl)
-	b.EXPECT().StartTime().Return(curr)
-	b.EXPECT().IsRetrieved().Return(false).AnyTimes()
-
-	series.blocks.AddBlock(b)
-
-	tickResult, err := series.Tick()
-	require.NoError(t, err)
-	require.Equal(t, 1, tickResult.UnwiredBlocks)
 }
 
 func TestSeriesTickRecentlyRead(t *testing.T) {
@@ -354,7 +324,6 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	// Test case where block has been read within expiry period - won't be removed
 	b := block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
-	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
 	b.EXPECT().LastReadTime().Return(
 		curr.Add(-opts.RetentionOptions().BlockDataExpiryAfterNotAccessedPeriod() / 2))
 	b.EXPECT().HasMergeTarget().Return(true)
@@ -370,7 +339,6 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	// Test case where block has not been read within expiry period - will be removed
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
-	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
 	b.EXPECT().LastReadTime().Return(
 		curr.Add(-opts.RetentionOptions().BlockDataExpiryAfterNotAccessedPeriod() * 2))
 	b.EXPECT().Close().Return()
@@ -387,7 +355,6 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
 	b.EXPECT().HasMergeTarget().Return(true)
-	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
 	series.blocks.AddBlock(b)
 	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(false)
 
@@ -420,7 +387,6 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	// Test case where block was not retrieved from disk - Will be removed
 	b := block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
-	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
 	b.EXPECT().WasRetrievedFromDisk().Return(false)
 	b.EXPECT().Close().Return()
 	series.blocks.AddBlock(b)
@@ -435,7 +401,6 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	// Test case where block was retrieved from disk - Will not be removed
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
-	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
 	b.EXPECT().HasMergeTarget().Return(true)
 	b.EXPECT().WasRetrievedFromDisk().Return(true)
 	series.blocks.AddBlock(b)
@@ -450,7 +415,6 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	// Test case where block is not flushed yet (not retrievable) - Will not be removed
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
-	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
 	b.EXPECT().HasMergeTarget().Return(true)
 	series.blocks.AddBlock(b)
 	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(false)
@@ -458,7 +422,6 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	// Test case where block was retrieved from disk and is out of retention. Will be removed, but not closed.
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr.Add(-2 * retentionPeriod))
-	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
 	b.EXPECT().WasRetrievedFromDisk().Return(true)
 	series.blocks.AddBlock(b)
 	_, expiredBlockExists := series.blocks.BlockAt(curr.Add(-2 * retentionPeriod))
@@ -470,76 +433,6 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	require.Equal(t, 1, tickResult.PendingMergeBlocks)
 	_, expiredBlockExists = series.blocks.BlockAt(curr.Add(-2 * retentionPeriod))
 	require.Equal(t, false, expiredBlockExists)
-}
-
-func TestSeriesTickCacheAllMetadata(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	opts := newSeriesTestOptions()
-	opts = opts.
-		SetCachePolicy(CacheAllMetadata).
-		SetRetentionOptions(opts.RetentionOptions().SetBlockDataExpiryAfterNotAccessedPeriod(10 * time.Minute))
-	ropts := opts.RetentionOptions()
-	curr := time.Now().Truncate(ropts.BlockSize())
-	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
-	}))
-	series := NewDatabaseSeries(ident.StringID("foo"), ident.Tags{}, opts).(*dbSeries)
-	blockRetriever := NewMockQueryableBlockRetriever(ctrl)
-	series.blockRetriever = blockRetriever
-	_, err := series.Bootstrap(nil)
-	assert.NoError(t, err)
-
-	blockSize := time.Second * 1337
-
-	// Test case where block has been read within expiry period - won't be reset to only have metadata
-	b := block.NewMockDatabaseBlock(ctrl)
-	b.EXPECT().StartTime().Return(curr)
-	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
-	b.EXPECT().HasMergeTarget().Return(true)
-	b.EXPECT().LastReadTime().Return(
-		curr.Add(-opts.RetentionOptions().BlockDataExpiryAfterNotAccessedPeriod() / 2))
-	series.blocks.AddBlock(b)
-
-	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(true)
-
-	tickResult, err := series.Tick()
-	require.NoError(t, err)
-	require.Equal(t, 0, tickResult.UnwiredBlocks)
-	require.Equal(t, 1, tickResult.PendingMergeBlocks)
-
-	// Test case where block has not been read within expiry period - will be reset to only have metadata
-	b = block.NewMockDatabaseBlock(ctrl)
-	b.EXPECT().BlockSize().Return(blockSize)
-	b.EXPECT().StartTime().Return(curr)
-	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
-	b.EXPECT().LastReadTime().Return(
-		curr.Add(-opts.RetentionOptions().BlockDataExpiryAfterNotAccessedPeriod() * 2))
-	b.EXPECT().Len().Return(1)
-	b.EXPECT().Checksum().Return(uint32(0), nil)
-	b.EXPECT().ResetRetrievable(curr, blockSize, blockRetriever, gomock.Any()).Return()
-	series.blocks.AddBlock(b)
-
-	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(true)
-
-	tickResult, err = series.Tick()
-	require.NoError(t, err)
-	require.Equal(t, 1, tickResult.UnwiredBlocks)
-	require.Equal(t, 0, tickResult.PendingMergeBlocks)
-
-	// Test case where block is not flushed yet (not retrievable) - won't be reset to only have metadata
-	b = block.NewMockDatabaseBlock(ctrl)
-	b.EXPECT().StartTime().Return(curr)
-	b.EXPECT().HasMergeTarget().Return(true)
-	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
-	series.blocks.AddBlock(b)
-	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(false)
-
-	tickResult, err = series.Tick()
-	require.NoError(t, err)
-	require.Equal(t, 0, tickResult.UnwiredBlocks)
-	require.Equal(t, 1, tickResult.PendingMergeBlocks)
 }
 
 func TestSeriesTickCacheNone(t *testing.T) {
@@ -710,7 +603,7 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 	b.EXPECT().Checksum().Return(expectedChecksum, nil)
 	expectedLastRead := time.Now()
 	b.EXPECT().LastReadTime().Return(expectedLastRead)
-	b.EXPECT().IsCachedBlock().Return(false)
+	b.EXPECT().WasRetrievedFromDisk().Return(false)
 	blocks[xtime.ToUnixNano(starts[0])] = b
 	blocks[xtime.ToUnixNano(starts[3])] = nil
 
