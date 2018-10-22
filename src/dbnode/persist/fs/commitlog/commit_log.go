@@ -334,11 +334,6 @@ func (l *commitLog) flushEvery(interval time.Duration) {
 
 func (l *commitLog) write() {
 	for write := range l.writes {
-		// For writes requiring acks add to pending acks
-		if write.eventType == writeEventType && write.callbackFn != nil {
-			l.pendingFlushFns = append(l.pendingFlushFns, write.callbackFn)
-		}
-
 		if write.eventType == flushEventType {
 			// TODO(rartoul): This should probably be replaced with a call to Sync() as the expectation
 			// is that the commitlog will actually FSync the data at regular intervals, whereas Flush
@@ -358,6 +353,11 @@ func (l *commitLog) write() {
 				},
 			})
 			continue
+		}
+
+		// For writes requiring acks add to pending acks
+		if write.eventType == writeEventType && write.callbackFn != nil {
+			l.pendingFlushFns = append(l.pendingFlushFns, write.callbackFn)
 		}
 
 		if now := l.nowFn(); !now.Before(l.writerState.writerExpireAt) {
