@@ -61,37 +61,21 @@ type commitLogFailFn func(err error)
 type completionFn func(f File, err error)
 
 type commitLog struct {
-	// The commitlog has three different locks that it maintains for various purposes:
+	// The commitlog has two different locks that it maintains:
 	//
 	// 1) The closedState lock is acquired and held for any actions taking place that
 	// the commitlog must remain open for the duration of (or for changing the state
 	// of the commitlog to closed).
 	//
-	// 2) The writerState lock needs to be held when any operations on the underlying
-	// writer variables need to be changed (during file rotation, for example). In addition,
-	// while the readLoop does not need to acquire a lock to read those variables (because it
-	// is the sole mutator), any code outside of that goroutine needs to acquire a read lock
-	// to read that state.
 	//
-	// 3) The flushState is only used for reading and writing the lastFlushAt variable. This
-	// has its own lock for two reasons. The first is that if it was shared with the writerState
-	// it would experience a high amount of contention. Second, the control flow of the onFlush
-	// callback (which acquires this lock) is difficult to reason about from the perspective of
-	// the commitlog itself because the callback is called by the writer. As a result, if the
-	// flushState shared a lock with the writerState, any code that called one of: writer.Write,
-	// writer.Flush, or writer.Sync could (undeterministically) deadlock. As a result it is very
-	// easy to write code that unintentionally deadlocks when the flushState shares a lock with
-	// the writerState.
-	//
-	// The scope of the flushState lock is very limited and is hidden behind helper methods for
-	// getting and setting the value of lastFlushAt. The closedState and writerState require more
-	// consideration for use and the code must be structured such that the closedState lock is
-	// always acquired before the writerState lock. In addition, these two pieces of state cannot
-	// share a single lock because the closedState lock sometimes needs to be held for a long
-	// period of time which would delay writes.
+	// 2) The flushState is only used for reading and writing the lastFlushAt variable. The scope
+	// of the flushState lock is very limited and is hidden behind helper methods for getting and
+	// setting the value of lastFlushAt.
 	closedState closedState
-	writerState writerState
 	flushState  flushState
+
+	writerState writerState
+
 	// Associated with the closedState, but stored separately since
 	// it does not require the closedState lock to be acquired before
 	// being accessed.
