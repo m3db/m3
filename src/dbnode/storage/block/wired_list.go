@@ -290,9 +290,10 @@ func (l *WiredList) insertAfter(v, at DatabaseBlock) {
 					xlog.NewField("blockStart", entry.startTime),
 					xlog.NewField("closed", entry.closed),
 					xlog.NewField("wasRetrievedFromDisk", entry.wasRetrievedFromDisk),
-				).Errorf("wired list tried to close a block that was not from disk")
+				).Errorf("wired list entry does not have seriesID set")
+			} else {
+				onEvict.OnEvictedFromWiredList(entry.seriesID, entry.startTime)
 			}
-			onEvict.OnEvictedFromWiredList(entry.seriesID, entry.startTime)
 		}
 
 		// bl.CloseIfFromDisk() will return the block to the pool. In order to avoid
