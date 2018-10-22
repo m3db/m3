@@ -285,7 +285,7 @@ func flushUntilDone(l *commitLog, wg *sync.WaitGroup) {
 	blockWg.Add(1)
 	go func() {
 		for atomic.LoadUint64(&done) == 0 {
-			l.writes <- commitLogWrite{valueType: flushValueType}
+			l.writes <- commitLogWrite{eventType: flushEventType}
 			time.Sleep(time.Millisecond)
 		}
 		blockWg.Done()
