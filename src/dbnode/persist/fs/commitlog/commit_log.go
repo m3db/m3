@@ -246,11 +246,7 @@ func (l *commitLog) ActiveLogs() ([]File, error) {
 	l.writes <- commitLogWrite{
 		valueType: activeLogsValueType,
 		completionFn: func(f File, e error) {
-			if e != nil {
-				err = e
-				return
-			}
-
+			err = e
 			file = f
 			wg.Done()
 		},
