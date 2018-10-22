@@ -58,7 +58,7 @@ type writeCommitLogFn func(
 ) error
 type commitLogFailFn func(err error)
 
-type completionFn func(err error)
+type completionFn func(f File, err error)
 
 type commitLog struct {
 	// The commitlog has three different locks that it maintains for various purposes:
@@ -134,7 +134,6 @@ func (f *flushState) getLastFlushAt() time.Time {
 }
 
 type writerState struct {
-	sync.RWMutex
 	writer         commitLogWriter
 	writerExpireAt time.Time
 	activeFile     *File
@@ -162,6 +161,7 @@ type valueType int
 const (
 	writeValueType valueType = iota
 	flushValueType
+	activeLogsValueType
 )
 
 type commitLogWrite struct {
@@ -217,9 +217,7 @@ func (l *commitLog) Open() error {
 	defer l.closedState.Unlock()
 
 	// Open the buffered commit log writer
-	l.writerState.Lock()
-	defer l.writerState.Unlock()
-	if err := l.openWriterWithLock(l.nowFn()); err != nil {
+	if err := l.openWriter(l.nowFn()); err != nil {
 		return err
 	}
 
@@ -256,13 +254,28 @@ func (l *commitLog) ActiveLogs() ([]File, error) {
 		return nil, errCommitLogClosed
 	}
 
-	l.writerState.RLock()
-	defer l.writerState.RUnlock()
-	if l.writerState.writer == nil || l.writerState.activeFile == nil {
-		return nil, nil
+	var (
+		err  error
+		file File
+		wg   = sync.WaitGroup{}
+	)
+	wg.Add(1)
+
+	l.writes <- commitLogWrite{
+		valueType: activeLogsValueType,
+		completionFn: func(f File, e error) {
+			if e != nil {
+				err = e
+				return
+			}
+
+			file = f
+			wg.Done()
+		},
 	}
 
-	return []File{*l.writerState.activeFile}, nil
+	wg.Wait()
+	return []File{file}, err
 }
 
 func (l *commitLog) flushEvery(interval time.Duration) {
@@ -312,7 +325,7 @@ func (l *commitLog) write() {
 	// for the purpose of mutating the writerState.
 	for write := range l.writes {
 		// For writes requiring acks add to pending acks
-		if write.completionFn != nil {
+		if write.valueType == writeValueType && write.completionFn != nil {
 			l.pendingFlushFns = append(l.pendingFlushFns, write.completionFn)
 		}
 
@@ -326,11 +339,13 @@ func (l *commitLog) write() {
 			continue
 		}
 
-		if now := l.nowFn(); !now.Before(l.writerState.writerExpireAt) {
-			l.writerState.Lock()
-			err := l.openWriterWithLock(now)
-			l.writerState.Unlock()
+		if write.valueType == activeLogsValueType {
+			write.completionFn(*l.writerState.activeFile, nil)
+			continue
+		}
 
+		if now := l.nowFn(); !now.Before(l.writerState.writerExpireAt) {
+			err := l.openWriter(now)
 			if err != nil {
 				l.metrics.errors.Inc(1)
 				l.metrics.openErrors.Inc(1)
@@ -360,10 +375,8 @@ func (l *commitLog) write() {
 		l.metrics.success.Inc(1)
 	}
 
-	l.writerState.Lock()
 	writer := l.writerState.writer
 	l.writerState.writer = nil
-	l.writerState.Unlock()
 
 	l.closeErr <- writer.Close()
 }
@@ -391,7 +404,7 @@ func (l *commitLog) onFlush(err error) {
 	}
 
 	for i := range l.pendingFlushFns {
-		l.pendingFlushFns[i](err)
+		l.pendingFlushFns[i](File{}, err)
 		l.pendingFlushFns[i] = nil
 	}
 	l.pendingFlushFns = l.pendingFlushFns[:0]
@@ -399,7 +412,7 @@ func (l *commitLog) onFlush(err error) {
 }
 
 // writerState lock must be held for the duration of this function call.
-func (l *commitLog) openWriterWithLock(now time.Time) error {
+func (l *commitLog) openWriter(now time.Time) error {
 	if l.writerState.writer != nil {
 		if err := l.writerState.writer.Close(); err != nil {
 			l.metrics.closeErrors.Inc(1)
@@ -458,7 +471,7 @@ func (l *commitLog) writeWait(
 
 	wg.Add(1)
 
-	completion := func(err error) {
+	completion := func(_ File, err error) {
 		result = err
 		wg.Done()
 	}

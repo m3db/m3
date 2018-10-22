@@ -762,8 +762,6 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 	wg := setupCloseOnFail(t, commitLog)
 
 	func() {
-		commitLog.writerState.Lock()
-		defer commitLog.writerState.Unlock()
 		// Expire the writer so it requires a new open
 		commitLog.writerState.writerExpireAt = timeZero
 	}()
