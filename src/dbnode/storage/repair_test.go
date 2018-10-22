@@ -263,7 +263,7 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 
 	any := gomock.Any()
 	shard.EXPECT().
-		FetchBlocksMetadataV2(any, start, end, any, int64(0), fetchOpts).
+		FetchBlocksMetadataV2(any, start, end, any, PageToken{}, fetchOpts).
 		Return(expectedResults, nil, nil)
 	shard.EXPECT().ID().Return(shardID).AnyTimes()
 
