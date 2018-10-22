@@ -310,8 +310,8 @@ func (m *cleanupManager) commitLogTimes(t time.Time) ([]commitLogFileWithErrorAn
 	//
 	// If we call ActiveLogs first then it will return time3. Next, the commit log file rotates, and
 	// after that we call commitLogFilesFn which returns: [time1, time2, time3, time4]. In this scenario
-	// we would be allowed to commitlog files 1,2, and 4 which is not the desired behavior. Instead, we
-	// list the commitlogs on disk first (which returns time1, time2, and time3) and *then* check what
+	// we would be allowed to delete commitlog files 1,2, and 4 which is not the desired behavior. Instead,
+	// we list the commitlogs on disk first (which returns time1, time2, and time3) and *then* check what
 	// the active file is. If the commitlog has not rotated, then ActiveLogs() will return time3 which
 	// we will correctly avoid deleting, and if the commitlog has rotated, then ActiveLogs() will return
 	// time4 which we wouldn't consider deleting anyways because it wasn't returned from the first call

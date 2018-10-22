@@ -913,7 +913,6 @@ func TestCommitLogActiveLogsConcurrency(t *testing.T) {
 			}
 			require.Equal(t, 1, len(logs))
 			if logs[0].FilePath != lastSeenFile {
-				fmt.Println(logs[0].FilePath)
 				lastSeenFile = logs[0].FilePath
 				numFilesSeen++
 			}

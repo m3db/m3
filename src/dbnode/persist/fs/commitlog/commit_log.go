@@ -58,7 +58,7 @@ type writeCommitLogFn func(
 ) error
 type commitLogFailFn func(err error)
 
-type completionFn func(f File, err error)
+type valueTypeFn func(f File, err error)
 
 type commitLog struct {
 	// The commitlog has two different locks that it maintains:
@@ -82,7 +82,7 @@ type commitLog struct {
 	closeErr chan error
 
 	writes          chan commitLogWrite
-	pendingFlushFns []completionFn
+	pendingFlushFns []valueTypeFn
 
 	opts  Options
 	nowFn clock.NowFn
@@ -149,11 +149,11 @@ const (
 type commitLogWrite struct {
 	valueType valueType
 
-	series       Series
-	datapoint    ts.Datapoint
-	unit         xtime.Unit
-	annotation   ts.Annotation
-	completionFn completionFn
+	series      Series
+	datapoint   ts.Datapoint
+	unit        xtime.Unit
+	annotation  ts.Annotation
+	valueTypeFn valueTypeFn
 }
 
 // NewCommitLog creates a new commit log
@@ -245,7 +245,7 @@ func (l *commitLog) ActiveLogs() ([]File, error) {
 
 	l.writes <- commitLogWrite{
 		valueType: activeLogsValueType,
-		completionFn: func(f File, e error) {
+		valueTypeFn: func(f File, e error) {
 			err = e
 			file = f
 			wg.Done()
@@ -296,8 +296,8 @@ func (l *commitLog) flushEvery(interval time.Duration) {
 func (l *commitLog) write() {
 	for write := range l.writes {
 		// For writes requiring acks add to pending acks
-		if write.valueType == writeValueType && write.completionFn != nil {
-			l.pendingFlushFns = append(l.pendingFlushFns, write.completionFn)
+		if write.valueType == writeValueType && write.valueTypeFn != nil {
+			l.pendingFlushFns = append(l.pendingFlushFns, write.valueTypeFn)
 		}
 
 		if write.valueType == flushValueType {
@@ -311,7 +311,7 @@ func (l *commitLog) write() {
 		}
 
 		if write.valueType == activeLogsValueType {
-			write.completionFn(*l.writerState.activeFile, nil)
+			write.valueTypeFn(*l.writerState.activeFile, nil)
 			continue
 		}
 
@@ -448,11 +448,11 @@ func (l *commitLog) writeWait(
 	}
 
 	write := commitLogWrite{
-		series:       series,
-		datapoint:    datapoint,
-		unit:         unit,
-		annotation:   annotation,
-		completionFn: completion,
+		series:      series,
+		datapoint:   datapoint,
+		unit:        unit,
+		annotation:  annotation,
+		valueTypeFn: completion,
 	}
 
 	enqueued := false
