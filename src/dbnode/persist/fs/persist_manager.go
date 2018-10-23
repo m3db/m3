@@ -402,7 +402,7 @@ func (pm *persistManager) PrepareData(opts persist.DataPrepareOptions) (persist.
 		// a monotonically increasing number to avoid collisions.
 		// instrument.
 		iopts := pm.opts.InstrumentOptions()
-		l := instrument.EmitAndLogInvariantViolation(iopts, func(l log.Logger) {
+		instrument.EmitAndLogInvariantViolation(iopts, func(l xlog.Logger) {
 			l.WithFields(
 				xlog.NewField("blockStart", blockStart.String()),
 				xlog.NewField("fileSetType", opts.FileSetType.String()),
