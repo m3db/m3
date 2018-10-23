@@ -855,69 +855,6 @@ func TestCommitLogActiveLogs(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestCommitLogActiveLogsConcurrency(t *testing.T) {
-	t.Skip()
-	opts, _ := newTestOptions(t, overrides{
-		strategy: StrategyWriteBehind,
-	})
-	opts = opts.SetBlockSize(1 * time.Millisecond)
-	defer cleanup(t, opts)
-
-	var (
-		doneCh    = make(chan struct{})
-		commitLog = newTestCommitLog(t, opts)
-	)
-
-	// One goroutine continuously writing
-	go func() {
-		for {
-			select {
-			case <-doneCh:
-				return
-			default:
-				time.Sleep(time.Millisecond)
-				err := commitLog.Write(
-					context.NewContext(),
-					testSeries(0, "foo.bar", testTags1, 127),
-					ts.Datapoint{},
-					xtime.Second,
-					nil)
-				if err == errCommitLogClosed {
-					return
-				}
-				if err != nil {
-					panic(err)
-				}
-			}
-		}
-	}()
-
-	// One goroutine continuously checking active logs
-	go func() {
-		var (
-			lastSeenFile string
-			numFilesSeen int
-		)
-		for numFilesSeen < 10 {
-			time.Sleep(100 * time.Millisecond)
-			logs, err := commitLog.ActiveLogs()
-			if err != nil {
-				panic(err)
-			}
-			require.Equal(t, 1, len(logs))
-			if logs[0].FilePath != lastSeenFile {
-				lastSeenFile = logs[0].FilePath
-				numFilesSeen++
-			}
-		}
-		close(doneCh)
-	}()
-
-	<-doneCh
-
-	require.NoError(t, commitLog.Close())
-}
-
 var (
 	testTag1 = ident.StringTag("name1", "val1")
 	testTag2 = ident.StringTag("name2", "val2")
