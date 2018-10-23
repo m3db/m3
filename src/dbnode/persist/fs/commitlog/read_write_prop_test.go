@@ -23,6 +23,7 @@
 package commitlog
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -187,7 +188,7 @@ func clCommandFunctor(t *testing.T, basePath string, seed int64) *commands.Proto
 			return ok
 		},
 		GenCommandFunc: func(state commands.State) gopter.Gen {
-			return gen.OneGenOf(genOpenCommand, genCloseCommand, genWriteBehindCommand)
+			return gen.OneGenOf(genOpenCommand, genCloseCommand, genWriteBehindCommand, genActiveLogsCommand)
 		},
 	}
 }
@@ -220,7 +221,12 @@ var genOpenCommand = gen.Const(&commands.ProtoCommand{
 				return w
 			}
 		}
-		return s.cLog.Open()
+		err = s.cLog.Open()
+		if err != nil {
+			return err
+		}
+		s.open = true
+		return nil
 	},
 	NextStateFunc: func(state commands.State) commands.State {
 		s := state.(*clState)
@@ -245,12 +251,16 @@ var genCloseCommand = gen.Const(&commands.ProtoCommand{
 	},
 	RunFunc: func(q commands.SystemUnderTest) commands.Result {
 		s := q.(*clState)
-		return s.cLog.Close()
+		err := s.cLog.Close()
+		if err != nil {
+			return err
+		}
+		s.open = false
+		return nil
 	},
 	NextStateFunc: func(state commands.State) commands.State {
 		s := state.(*clState)
 		s.open = false
-		s.cLog = nil
 		return s
 	},
 	PostConditionFunc: func(state commands.State, result commands.Result) *gopter.PropResult {
@@ -309,6 +319,51 @@ var genWriteBehindCommand = gen.SliceOfN(10, genWrite()).
 			},
 		}
 	})
+
+var genActiveLogsCommand = gen.Const(&commands.ProtoCommand{
+	Name: "ActiveLogs",
+	PreConditionFunc: func(state commands.State) bool {
+		return true
+	},
+	RunFunc: func(q commands.SystemUnderTest) commands.Result {
+		s := q.(*clState)
+
+		if s.cLog == nil {
+			return nil
+		}
+
+		logs, err := s.cLog.ActiveLogs()
+		if !s.open {
+			if err != errCommitLogClosed {
+				return errors.New("did not receive commit log closed error")
+			}
+			return nil
+		}
+
+		if err != nil {
+			return err
+		}
+
+		if len(logs) != 1 {
+			return fmt.Errorf("ActiveLogs did not return exactly one log file: %v", logs)
+		}
+
+		return nil
+	},
+	NextStateFunc: func(state commands.State) commands.State {
+		s := state.(*clState)
+		return s
+	},
+	PostConditionFunc: func(state commands.State, result commands.Result) *gopter.PropResult {
+		if result == nil {
+			return &gopter.PropResult{Status: gopter.PropTrue}
+		}
+		return &gopter.PropResult{
+			Status: gopter.PropFalse,
+			Error:  result.(error),
+		}
+	},
+})
 
 // clState holds the expected state (i.e. its the commands.State), and we use it as the SystemUnderTest
 type clState struct {
@@ -554,4 +609,8 @@ func (c *corruptingChunkWriter) close() error {
 
 func (c *corruptingChunkWriter) isOpen() bool {
 	return c.chunkWriter.isOpen()
+}
+
+func (c *corruptingChunkWriter) sync() error {
+	return c.chunkWriter.sync()
 }

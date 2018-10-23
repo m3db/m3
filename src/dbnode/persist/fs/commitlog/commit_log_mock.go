@@ -99,6 +99,19 @@ func (mr *MockCommitLogMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockCommitLog)(nil).Close))
 }
 
+// ActiveLogs mocks base method
+func (m *MockCommitLog) ActiveLogs() ([]File, error) {
+	ret := m.ctrl.Call(m, "ActiveLogs")
+	ret0, _ := ret[0].([]File)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ActiveLogs indicates an expected call of ActiveLogs
+func (mr *MockCommitLogMockRecorder) ActiveLogs() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ActiveLogs", reflect.TypeOf((*MockCommitLog)(nil).ActiveLogs))
+}
+
 // MockIterator is a mock of Iterator interface
 type MockIterator struct {
 	ctrl     *gomock.Controller

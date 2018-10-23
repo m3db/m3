@@ -65,7 +65,7 @@ var (
 
 type commitLogWriter interface {
 	// Open opens the commit log for writing data
-	Open(start time.Time, duration time.Duration) error
+	Open(start time.Time, duration time.Duration) (File, error)
 
 	// Write will write an entry in the commit log for a given series
 	Write(
@@ -75,8 +75,9 @@ type commitLogWriter interface {
 		annotation ts.Annotation,
 	) error
 
-	// Flush will flush the contents to the disk, useful when first testing if first commit log is writable
-	Flush() error
+	// Flush will flush any data in the writers buffer to the chunkWriter, essentially forcing
+	// a new chunk to be created. Optionally forces the data to be FSync'd to disk.
+	Flush(sync bool) error
 
 	// Close the reader
 	Close() error
@@ -88,6 +89,7 @@ type chunkWriter interface {
 	reset(f xos.File)
 	close() error
 	isOpen() bool
+	sync() error
 }
 
 type flushFn func(err error)
@@ -133,19 +135,19 @@ func newCommitLogWriter(
 	}
 }
 
-func (w *writer) Open(start time.Time, duration time.Duration) error {
+func (w *writer) Open(start time.Time, duration time.Duration) (File, error) {
 	if w.isOpen() {
-		return errCommitLogWriterAlreadyOpen
+		return File{}, errCommitLogWriterAlreadyOpen
 	}
 
 	commitLogsDir := fs.CommitLogsDirPath(w.filePathPrefix)
 	if err := os.MkdirAll(commitLogsDir, w.newDirectoryMode); err != nil {
-		return err
+		return File{}, err
 	}
 
 	filePath, index, err := fs.NextCommitLogsFile(w.filePathPrefix, start)
 	if err != nil {
-		return err
+		return File{}, err
 	}
 	logInfo := schema.LogInfo{
 		Start:    start.UnixNano(),
@@ -154,23 +156,28 @@ func (w *writer) Open(start time.Time, duration time.Duration) error {
 	}
 	w.logEncoder.Reset()
 	if err := w.logEncoder.EncodeLogInfo(logInfo); err != nil {
-		return err
+		return File{}, err
 	}
 	fd, err := fs.OpenWritable(filePath, w.newFileMode)
 	if err != nil {
-		return err
+		return File{}, err
 	}
 
 	w.chunkWriter.reset(fd)
 	w.buffer.Reset(w.chunkWriter)
 	if err := w.write(w.logEncoder.Bytes()); err != nil {
 		w.Close()
-		return err
+		return File{}, err
 	}
 
 	w.start = start
 	w.duration = duration
-	return nil
+	return File{
+		FilePath: filePath,
+		Start:    start,
+		Duration: duration,
+		Index:    int64(index),
+	}, nil
 }
 
 func (w *writer) isOpen() bool {
@@ -243,8 +250,25 @@ func (w *writer) Write(
 	return nil
 }
 
-func (w *writer) Flush() error {
-	return w.buffer.Flush()
+func (w *writer) Flush(sync bool) error {
+	err := w.buffer.Flush()
+	if err != nil {
+		return err
+	}
+
+	if !sync {
+		return nil
+	}
+
+	return w.sync()
+}
+
+func (w *writer) sync() error {
+	if err := w.chunkWriter.sync(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (w *writer) Close() error {
@@ -252,7 +276,7 @@ func (w *writer) Close() error {
 		return nil
 	}
 
-	if err := w.Flush(); err != nil {
+	if err := w.Flush(true); err != nil {
 		return err
 	}
 	if err := w.chunkWriter.close(); err != nil {
@@ -314,6 +338,10 @@ func (w *fsChunkWriter) isOpen() bool {
 	return w.fd != nil
 }
 
+func (w *fsChunkWriter) sync() error {
+	return w.fd.Sync()
+}
+
 func (w *fsChunkWriter) Write(p []byte) (int, error) {
 	size := len(p)
 
@@ -351,7 +379,7 @@ func (w *fsChunkWriter) Write(p []byte) (int, error) {
 
 	// Fsync if required to
 	if w.fsync {
-		err = w.fd.Sync()
+		err = w.sync()
 	}
 
 	// Fire flush callback

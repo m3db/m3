@@ -154,6 +154,16 @@ func TestDiskCleanupMultipleNamespace(t *testing.T) {
 	// Move now forward by 12 hours, and see if the expected files have been deleted
 	testSetup.setNowFn(end)
 
+	// This isn't great, but right now the commitlog will only ever rotate when writes
+	// are received, so we need to issue a write after changing the time to force the
+	// commitlog rotation. This won't be required once we tie commitlog rotation into
+	// the snapshotting process.
+	testSetup.writeBatch(testNamespaces[0], generate.Block(generate.BlockConfig{
+		IDs:       []string{"foo"},
+		NumPoints: 1,
+		Start:     end,
+	}))
+
 	// Check if expected files have been deleted
 	log.Infof("waiting until data is cleaned up")
 	waitTimeout := 60 * time.Second

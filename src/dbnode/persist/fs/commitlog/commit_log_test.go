@@ -153,21 +153,21 @@ func snapshotCounterValue(
 }
 
 type mockCommitLogWriter struct {
-	openFn  func(start time.Time, duration time.Duration) error
+	openFn  func(start time.Time, duration time.Duration) (File, error)
 	writeFn func(Series, ts.Datapoint, xtime.Unit, ts.Annotation) error
-	flushFn func() error
+	flushFn func(sync bool) error
 	closeFn func() error
 }
 
 func newMockCommitLogWriter() *mockCommitLogWriter {
 	return &mockCommitLogWriter{
-		openFn: func(start time.Time, duration time.Duration) error {
-			return nil
+		openFn: func(start time.Time, duration time.Duration) (File, error) {
+			return File{}, nil
 		},
 		writeFn: func(Series, ts.Datapoint, xtime.Unit, ts.Annotation) error {
 			return nil
 		},
-		flushFn: func() error {
+		flushFn: func(sync bool) error {
 			return nil
 		},
 		closeFn: func() error {
@@ -176,7 +176,7 @@ func newMockCommitLogWriter() *mockCommitLogWriter {
 	}
 }
 
-func (w *mockCommitLogWriter) Open(start time.Time, duration time.Duration) error {
+func (w *mockCommitLogWriter) Open(start time.Time, duration time.Duration) (File, error) {
 	return w.openFn(start, duration)
 }
 
@@ -189,8 +189,8 @@ func (w *mockCommitLogWriter) Write(
 	return w.writeFn(series, datapoint, unit, annotation)
 }
 
-func (w *mockCommitLogWriter) Flush() error {
-	return w.flushFn()
+func (w *mockCommitLogWriter) Flush(sync bool) error {
+	return w.flushFn(sync)
 }
 
 func (w *mockCommitLogWriter) Close() error {
@@ -277,7 +277,7 @@ func flushUntilDone(l *commitLog, wg *sync.WaitGroup) {
 	blockWg.Add(1)
 	go func() {
 		for atomic.LoadUint64(&done) == 0 {
-			l.writes <- commitLogWrite{valueType: flushValueType}
+			l.writes <- commitLogWrite{eventType: flushEventType}
 			time.Sleep(time.Millisecond)
 		}
 		blockWg.Done()
@@ -384,7 +384,7 @@ func TestReadCommitLogMissingMetadata(t *testing.T) {
 	// Replace bitset in writer with one that configurably returns true or false
 	// depending on the series
 	commitLog := newTestCommitLog(t, opts)
-	writer := commitLog.writer.(*writer)
+	writer := commitLog.writerState.writer.(*writer)
 
 	bitSet := bitset.NewBitSet(0)
 
@@ -681,14 +681,14 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 	}
 
 	var opens int64
-	writer.openFn = func(start time.Time, duration time.Duration) error {
+	writer.openFn = func(start time.Time, duration time.Duration) (File, error) {
 		if atomic.AddInt64(&opens, 1) >= 2 {
-			return fmt.Errorf("an error")
+			return File{}, fmt.Errorf("an error")
 		}
-		return nil
+		return File{}, nil
 	}
 
-	writer.flushFn = func() error {
+	writer.flushFn = func(bool) error {
 		commitLog.onFlush(nil)
 		return nil
 	}
@@ -730,14 +730,14 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 	writer := newMockCommitLogWriter()
 
 	var opens int64
-	writer.openFn = func(start time.Time, duration time.Duration) error {
+	writer.openFn = func(start time.Time, duration time.Duration) (File, error) {
 		if atomic.AddInt64(&opens, 1) >= 2 {
-			return fmt.Errorf("an error")
+			return File{}, fmt.Errorf("an error")
 		}
-		return nil
+		return File{}, nil
 	}
 
-	writer.flushFn = func() error {
+	writer.flushFn = func(bool) error {
 		commitLog.onFlush(nil)
 		return nil
 	}
@@ -754,10 +754,8 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 	wg := setupCloseOnFail(t, commitLog)
 
 	func() {
-		commitLog.RLock()
-		defer commitLog.RUnlock()
 		// Expire the writer so it requires a new open
-		commitLog.writerExpireAt = timeZero
+		commitLog.writerState.writerExpireAt = timeZero
 	}()
 
 	writes := []testWrite{
@@ -790,7 +788,7 @@ func TestCommitLogFailOnFlushError(t *testing.T) {
 	writer := newMockCommitLogWriter()
 
 	var flushes int64
-	writer.flushFn = func() error {
+	writer.flushFn = func(bool) error {
 		if atomic.AddInt64(&flushes, 1) >= 2 {
 			commitLog.onFlush(fmt.Errorf("an error"))
 		} else {
@@ -826,6 +824,35 @@ func TestCommitLogFailOnFlushError(t *testing.T) {
 	flushErrors, ok := snapshotCounterValue(scope, "commitlog.writes.flush-errors")
 	require.True(t, ok)
 	require.Equal(t, int64(1), flushErrors.Value())
+}
+
+func TestCommitLogActiveLogs(t *testing.T) {
+	opts, _ := newTestOptions(t, overrides{
+		strategy: StrategyWriteBehind,
+	})
+	defer cleanup(t, opts)
+
+	commitLog := newTestCommitLog(t, opts)
+
+	writer := newMockCommitLogWriter()
+	writer.flushFn = func(bool) error {
+		return nil
+	}
+	commitLog.newCommitLogWriterFn = func(
+		_ flushFn,
+		_ Options,
+	) commitLogWriter {
+		return writer
+	}
+
+	logs, err := commitLog.ActiveLogs()
+	require.NoError(t, err)
+	require.Equal(t, 1, len(logs))
+
+	// Close the commit log and consequently flush
+	require.NoError(t, commitLog.Close())
+	_, err = commitLog.ActiveLogs()
+	require.Error(t, err)
 }
 
 var (

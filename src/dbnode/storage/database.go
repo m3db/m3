@@ -188,7 +188,8 @@ func NewDatabase(
 		return nil, err
 	}
 
-	mediator, err := newMediator(d, opts.SetInstrumentOptions(databaseIOpts))
+	mediator, err := newMediator(
+		d, commitLog, opts.SetInstrumentOptions(databaseIOpts))
 	if err != nil {
 		return nil, err
 	}

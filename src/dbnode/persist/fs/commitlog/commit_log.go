@@ -22,6 +22,7 @@ package commitlog
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -56,35 +57,73 @@ type writeCommitLogFn func(
 	unit xtime.Unit,
 	annotation ts.Annotation,
 ) error
+
 type commitLogFailFn func(err error)
 
-type completionFn func(err error)
-
 type commitLog struct {
-	sync.RWMutex
+	// The commitlog has two different locks that it maintains:
+	//
+	// 1) The closedState lock is acquired and held for any actions taking place that
+	// the commitlog must remain open for the duration of (or for changing the state
+	// of the commitlog to closed).
+	//
+	//
+	// 2) The flushState is only used for reading and writing the lastFlushAt variable. The scope
+	// of the flushState lock is very limited and is hidden behind helper methods for getting and
+	// setting the value of lastFlushAt.
+	closedState closedState
+	flushState  flushState
+
+	writerState writerState
+
+	// Associated with the closedState, but stored separately since
+	// it does not require the closedState lock to be acquired before
+	// being accessed.
+	closeErr chan error
+
+	writes          chan commitLogWrite
+	pendingFlushFns []callbackFn
+
 	opts  Options
 	nowFn clock.NowFn
-
-	log xlog.Logger
+	log   xlog.Logger
 
 	newCommitLogWriterFn newCommitLogWriterFn
 	writeFn              writeCommitLogFn
 	commitLogFailFn      commitLogFailFn
-	writer               commitLogWriter
-
-	// TODO(r): replace buffered channel with concurrent striped
-	// circular buffer to avoid central write lock contention
-	writes chan commitLogWrite
-
-	flushMutex      sync.RWMutex
-	lastFlushAt     time.Time
-	pendingFlushFns []completionFn
-
-	writerExpireAt time.Time
-	closed         bool
-	closeErr       chan error
 
 	metrics commitLogMetrics
+}
+
+// Use the helper methods when interacting with this struct, the mutex
+// should never need to be manually interacted with.
+type flushState struct {
+	sync.RWMutex
+	lastFlushAt time.Time
+}
+
+func (f *flushState) setLastFlushAt(t time.Time) {
+	f.Lock()
+	f.lastFlushAt = t
+	f.Unlock()
+}
+
+func (f *flushState) getLastFlushAt() time.Time {
+	f.RLock()
+	lastFlush := f.lastFlushAt
+	f.RUnlock()
+	return lastFlush
+}
+
+type writerState struct {
+	writer         commitLogWriter
+	writerExpireAt time.Time
+	activeFile     *File
+}
+
+type closedState struct {
+	sync.RWMutex
+	closed bool
 }
 
 type commitLogMetrics struct {
@@ -98,22 +137,49 @@ type commitLogMetrics struct {
 	flushDone     tally.Counter
 }
 
-type valueType int
+type eventType int
 
 // nolint: varcheck, unused
 const (
-	writeValueType valueType = iota
-	flushValueType
+	writeEventType eventType = iota
+	flushEventType
+	activeLogsEventType
 )
 
-type commitLogWrite struct {
-	valueType valueType
+type callbackFn func(callbackResult)
 
-	series       Series
-	datapoint    ts.Datapoint
-	unit         xtime.Unit
-	annotation   ts.Annotation
-	completionFn completionFn
+type callbackResult struct {
+	eventType  eventType
+	err        error
+	activeLogs activeLogsCallbackResult
+}
+
+type activeLogsCallbackResult struct {
+	file *File
+}
+
+func (r callbackResult) activeLogsCallbackResult() (activeLogsCallbackResult, error) {
+	if r.eventType != activeLogsEventType {
+		return activeLogsCallbackResult{}, fmt.Errorf(
+			"wrong event type: expected %d but got %d",
+			activeLogsEventType, r.eventType)
+	}
+
+	if r.err != nil {
+		return activeLogsCallbackResult{}, nil
+	}
+
+	return r.activeLogs, nil
+}
+
+type commitLogWrite struct {
+	eventType eventType
+
+	series     Series
+	datapoint  ts.Datapoint
+	unit       xtime.Unit
+	annotation ts.Annotation
+	callbackFn callbackFn
 }
 
 // NewCommitLog creates a new commit log
@@ -155,13 +221,17 @@ func NewCommitLog(opts Options) (CommitLog, error) {
 }
 
 func (l *commitLog) Open() error {
+	l.closedState.Lock()
+	defer l.closedState.Unlock()
+
 	// Open the buffered commit log writer
 	if err := l.openWriter(l.nowFn()); err != nil {
 		return err
 	}
 
-	// Flush the info header to ensure we can write to disk
-	if err := l.writer.Flush(); err != nil {
+	// Sync the info header to ensure we can write to disk and make sure that we can at least
+	// read the info about the commitlog file later.
+	if err := l.writerState.writer.Flush(true); err != nil {
 		return err
 	}
 
@@ -184,6 +254,47 @@ func (l *commitLog) Open() error {
 	return nil
 }
 
+func (l *commitLog) ActiveLogs() ([]File, error) {
+	l.closedState.RLock()
+	defer l.closedState.RUnlock()
+
+	if l.closedState.closed {
+		return nil, errCommitLogClosed
+	}
+
+	var (
+		err   error
+		files []File
+		wg    = sync.WaitGroup{}
+	)
+	wg.Add(1)
+
+	l.writes <- commitLogWrite{
+		eventType: activeLogsEventType,
+		callbackFn: func(r callbackResult) {
+			defer wg.Done()
+
+			result, e := r.activeLogsCallbackResult()
+			if e != nil {
+				err = e
+				return
+			}
+
+			if result.file != nil {
+				files = append(files, *result.file)
+			}
+		},
+	}
+
+	wg.Wait()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return files, nil
+}
+
 func (l *commitLog) flushEvery(interval time.Duration) {
 	// Periodically flush the underlying commit log writer to cover
 	// the case when writes stall for a considerable time
@@ -202,10 +313,7 @@ func (l *commitLog) flushEvery(interval time.Duration) {
 
 		time.Sleep(sleepFor)
 
-		l.flushMutex.RLock()
-		lastFlushAt := l.lastFlushAt
-		l.flushMutex.RUnlock()
-
+		lastFlushAt := l.flushState.getLastFlushAt()
 		if sinceFlush := l.nowFn().Sub(lastFlushAt); sinceFlush < interval {
 			// Flushed already recently, sleep until we would next consider flushing
 			sleepForOverride = interval - sinceFlush
@@ -213,32 +321,43 @@ func (l *commitLog) flushEvery(interval time.Duration) {
 		}
 
 		// Request a flush
-		l.RLock()
-		if l.closed {
-			l.RUnlock()
+		l.closedState.RLock()
+		if l.closedState.closed {
+			l.closedState.RUnlock()
 			return
 		}
 
-		l.writes <- commitLogWrite{valueType: flushValueType}
-		l.RUnlock()
+		l.writes <- commitLogWrite{eventType: flushEventType}
+		l.closedState.RUnlock()
 	}
 }
 
 func (l *commitLog) write() {
 	for write := range l.writes {
-		// For writes requiring acks add to pending acks
-		if write.completionFn != nil {
-			l.pendingFlushFns = append(l.pendingFlushFns, write.completionFn)
-		}
-
-		if write.valueType == flushValueType {
-			l.writer.Flush()
+		if write.eventType == flushEventType {
+			l.writerState.writer.Flush(false)
 			continue
 		}
 
-		if now := l.nowFn(); !now.Before(l.writerExpireAt) {
-			if err := l.openWriter(now); err != nil {
+		if write.eventType == activeLogsEventType {
+			write.callbackFn(callbackResult{
+				eventType: write.eventType,
+				err:       nil,
+				activeLogs: activeLogsCallbackResult{
+					file: l.writerState.activeFile,
+				},
+			})
+			continue
+		}
 
+		// For writes requiring acks add to pending acks
+		if write.eventType == writeEventType && write.callbackFn != nil {
+			l.pendingFlushFns = append(l.pendingFlushFns, write.callbackFn)
+		}
+
+		if now := l.nowFn(); !now.Before(l.writerState.writerExpireAt) {
+			err := l.openWriter(now)
+			if err != nil {
 				l.metrics.errors.Inc(1)
 				l.metrics.openErrors.Inc(1)
 				l.log.Errorf("failed to open commit log: %v", err)
@@ -251,7 +370,7 @@ func (l *commitLog) write() {
 			}
 		}
 
-		err := l.writer.Write(write.series,
+		err := l.writerState.writer.Write(write.series,
 			write.datapoint, write.unit, write.annotation)
 
 		if err != nil {
@@ -267,18 +386,14 @@ func (l *commitLog) write() {
 		l.metrics.success.Inc(1)
 	}
 
-	l.Lock()
-	defer l.Unlock()
+	writer := l.writerState.writer
+	l.writerState.writer = nil
 
-	writer := l.writer
-	l.writer = nil
 	l.closeErr <- writer.Close()
 }
 
 func (l *commitLog) onFlush(err error) {
-	l.flushMutex.Lock()
-	l.lastFlushAt = l.nowFn()
-	l.flushMutex.Unlock()
+	l.flushState.setLastFlushAt(l.nowFn())
 
 	if err != nil {
 		l.metrics.errors.Inc(1)
@@ -300,36 +415,42 @@ func (l *commitLog) onFlush(err error) {
 	}
 
 	for i := range l.pendingFlushFns {
-		l.pendingFlushFns[i](err)
+		l.pendingFlushFns[i](callbackResult{
+			eventType: flushEventType,
+			err:       err,
+		})
 		l.pendingFlushFns[i] = nil
 	}
 	l.pendingFlushFns = l.pendingFlushFns[:0]
 	l.metrics.flushDone.Inc(1)
 }
 
+// writerState lock must be held for the duration of this function call.
 func (l *commitLog) openWriter(now time.Time) error {
-	if l.writer != nil {
-		if err := l.writer.Close(); err != nil {
+	if l.writerState.writer != nil {
+		if err := l.writerState.writer.Close(); err != nil {
 			l.metrics.closeErrors.Inc(1)
 			l.log.Errorf("failed to close commit log: %v", err)
 
 			// If we failed to close then create a new commit log writer
-			l.writer = nil
+			l.writerState.writer = nil
 		}
 	}
 
-	if l.writer == nil {
-		l.writer = l.newCommitLogWriterFn(l.onFlush, l.opts)
+	if l.writerState.writer == nil {
+		l.writerState.writer = l.newCommitLogWriterFn(l.onFlush, l.opts)
 	}
 
 	blockSize := l.opts.BlockSize()
 	start := now.Truncate(blockSize)
 
-	if err := l.writer.Open(start, blockSize); err != nil {
+	file, err := l.writerState.writer.Open(start, blockSize)
+	if err != nil {
 		return err
 	}
 
-	l.writerExpireAt = start.Add(blockSize)
+	l.writerState.activeFile = &file
+	l.writerState.writerExpireAt = start.Add(blockSize)
 
 	return nil
 }
@@ -351,9 +472,9 @@ func (l *commitLog) writeWait(
 	unit xtime.Unit,
 	annotation ts.Annotation,
 ) error {
-	l.RLock()
-	if l.closed {
-		l.RUnlock()
+	l.closedState.RLock()
+	if l.closedState.closed {
+		l.closedState.RUnlock()
 		return errCommitLogClosed
 	}
 
@@ -364,17 +485,17 @@ func (l *commitLog) writeWait(
 
 	wg.Add(1)
 
-	completion := func(err error) {
-		result = err
+	completion := func(r callbackResult) {
+		result = r.err
 		wg.Done()
 	}
 
 	write := commitLogWrite{
-		series:       series,
-		datapoint:    datapoint,
-		unit:         unit,
-		annotation:   annotation,
-		completionFn: completion,
+		series:     series,
+		datapoint:  datapoint,
+		unit:       unit,
+		annotation: annotation,
+		callbackFn: completion,
 	}
 
 	enqueued := false
@@ -385,7 +506,7 @@ func (l *commitLog) writeWait(
 	default:
 	}
 
-	l.RUnlock()
+	l.closedState.RUnlock()
 
 	if !enqueued {
 		return ErrCommitLogQueueFull
@@ -403,9 +524,9 @@ func (l *commitLog) writeBehind(
 	unit xtime.Unit,
 	annotation ts.Annotation,
 ) error {
-	l.RLock()
-	if l.closed {
-		l.RUnlock()
+	l.closedState.RLock()
+	if l.closedState.closed {
+		l.closedState.RUnlock()
 		return errCommitLogClosed
 	}
 
@@ -424,7 +545,7 @@ func (l *commitLog) writeBehind(
 	default:
 	}
 
-	l.RUnlock()
+	l.closedState.RUnlock()
 
 	if !enqueued {
 		return ErrCommitLogQueueFull
@@ -434,15 +555,15 @@ func (l *commitLog) writeBehind(
 }
 
 func (l *commitLog) Close() error {
-	l.Lock()
-	if l.closed {
-		l.Unlock()
+	l.closedState.Lock()
+	if l.closedState.closed {
+		l.closedState.Unlock()
 		return nil
 	}
 
-	l.closed = true
+	l.closedState.closed = true
 	close(l.writes)
-	l.Unlock()
+	l.closedState.Unlock()
 
 	// Receive the result of closing the writer from asynchronous writer
 	return <-l.closeErr
