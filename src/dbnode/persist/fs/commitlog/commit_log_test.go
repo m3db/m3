@@ -856,6 +856,7 @@ func TestCommitLogActiveLogs(t *testing.T) {
 }
 
 func TestCommitLogActiveLogsConcurrency(t *testing.T) {
+	t.Skip()
 	opts, _ := newTestOptions(t, overrides{
 		strategy: StrategyWriteBehind,
 	})
