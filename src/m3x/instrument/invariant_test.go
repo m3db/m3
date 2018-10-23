@@ -59,6 +59,18 @@ func TestEmitAndLogInvariantViolationDoesNotPanicIfEnvNotSet(t *testing.T) {
 	})
 }
 
+func TestErrorfDoesNotPanicIfEnvNotSet(t *testing.T) {
+	var (
+		format      = "some error format: %s"
+		err_msg     = "error message"
+		expectedErr = fmt.Errorf("invariant_violated: some error format: error message")
+	)
+	require.NotPanics(t, func() {
+		require.Equal(
+			t, expectedErr, instrument.InvariantErrorf(format, err_msg))
+	})
+}
+
 func TestEmitInvariantViolationPanicsIfEnvSet(t *testing.T) {
 	defer setShouldPanicEnvironmentVariable()()
 
@@ -76,6 +88,13 @@ func TestEmitAndLogInvariantViolationPanicsIfEnvSet(t *testing.T) {
 		instrument.EmitAndLogInvariantViolation(opts, func(l log.Logger) {
 			l.Error("some_error")
 		})
+	})
+}
+
+func TestErrorfPanicsIfEnvSet(t *testing.T) {
+	defer setShouldPanicEnvironmentVariable()()
+	require.Panics(t, func() {
+		instrument.InvariantErrorf("some_error")
 	})
 }
 
