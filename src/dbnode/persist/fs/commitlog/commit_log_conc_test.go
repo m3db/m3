@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3x/context"
 	xtime "github.com/m3db/m3x/time"
+
 	"github.com/stretchr/testify/require"
 )
 
