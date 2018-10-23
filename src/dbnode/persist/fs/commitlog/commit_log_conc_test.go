@@ -62,6 +62,9 @@ func TestCommitLogActiveLogsConcurrency(t *testing.T) {
 				if err == errCommitLogClosed {
 					return
 				}
+				if err == ErrCommitLogQueueFull {
+					continue
+				}
 				if err != nil {
 					panic(err)
 				}
