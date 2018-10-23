@@ -20,7 +20,12 @@
 
 package instrument
 
-import "github.com/m3db/m3x/log"
+import (
+	"os"
+	"strings"
+
+	"github.com/m3db/m3x/log"
+)
 
 const (
 	// InvariantViolatedMetricName is the name of the metric emitted upon
@@ -36,31 +41,45 @@ const (
 	// used when generating errors/log statements pertaining to the violation
 	// of an invariant.
 	InvariantViolatedLogFieldValue = InvariantViolatedMetricName
+
+	// ShouldPanicEnvironmentVariableName is the name of the environment variable
+	// that must be set to "true" in order for the invariant violated functions
+	// to panic after logging / emitting metrics. Should only be set in test
+	// environments.
+	ShouldPanicEnvironmentVariableName = "PANIC_ON_INVARIANT_VIOLATED"
 )
 
 // EmitInvariantViolation emits a metric to indicate a system invariant has
 // been violated. Users of this method are expected to monitor/alert off this
 // metric to ensure they're notified when such an event occurs. Further, they
 // should log further information to aid diagnostics of the system invariant
-// violated at the callsite of the violation.
+// violated at the callsite of the violation. Optionally panics if the
+// ShouldPanicEnvironmentVariableName is set to "true".
 func EmitInvariantViolation(opts Options) {
 	// NB(prateek): there's no need to cache this metric. It should be never
 	// be called in production systems unless something is seriously messed
 	// up. At which point, the extra map alloc should be of no concern.
 	opts.MetricsScope().Counter(InvariantViolatedMetricName).Inc(1)
+
+	panicIfEnvSet()
 }
 
-// InvariantViolationLogger returns a logger which users are expected to use to log
-// more information to aid diagnostics of the system invariant violated at the callsite
-// of the violation.
-func InvariantViolationLogger(opts Options) log.Logger {
-	return opts.Logger().WithFields(
-		log.NewField(InvariantViolatedLogFieldName, InvariantViolatedLogFieldValue))
-}
-
-// EmitInvariantViolationAndGetLogger invokes EmitInvariantViolation(opts) and returns
-// the result of InvariantViolationLogger(opts).
-func EmitInvariantViolationAndGetLogger(opts Options) log.Logger {
+// EmitAndLogInvariantViolation calls EmitInvariantViolation and then calls the provided function
+// with a supplied logger that is pre-configured with an invariant violated field. Optionally panics
+// if the ShouldPanicEnvironmentVariableName is set to "true".
+func EmitAndLogInvariantViolation(opts Options, f func(l log.Logger)) {
 	EmitInvariantViolation(opts)
-	return InvariantViolationLogger(opts)
+
+	logger := opts.Logger().WithFields(
+		log.NewField(InvariantViolatedLogFieldName, InvariantViolatedLogFieldValue))
+	f(logger)
+
+	panicIfEnvSet()
+}
+
+func panicIfEnvSet() {
+	envIsSet := strings.ToLower(os.Getenv(ShouldPanicEnvironmentVariableName)) == "true"
+	if envIsSet {
+		panic("invariant violation detected")
+	}
 }

@@ -22,8 +22,12 @@ package instrument_test
 
 import (
 	"fmt"
+	"os"
+	"testing"
 
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/log"
+	"github.com/stretchr/testify/require"
 
 	"github.com/uber-go/tally"
 )
@@ -37,4 +41,50 @@ func ExampleInvariantViolatedMetricInvocation() {
 	counter := counters[instrument.InvariantViolatedMetricName+"+"]
 	fmt.Println(counter.Name(), counter.Value())
 	// Output: invariant_violated 1
+}
+
+func TestEmitInvariantViolationDoesNotPanicIfEnvNotSet(t *testing.T) {
+	opts := instrument.NewOptions()
+	require.NotPanics(t, func() {
+		instrument.EmitInvariantViolation(opts)
+	})
+}
+
+func TestEmitAndLogInvariantViolationDoesNotPanicIfEnvNotSet(t *testing.T) {
+	opts := instrument.NewOptions()
+	require.NotPanics(t, func() {
+		instrument.EmitAndLogInvariantViolation(opts, func(l log.Logger) {
+			l.Error("some_error")
+		})
+	})
+}
+
+func TestEmitInvariantViolationPanicsIfEnvSet(t *testing.T) {
+	defer setShouldPanicEnvironmentVariable()()
+
+	opts := instrument.NewOptions()
+	require.Panics(t, func() {
+		instrument.EmitInvariantViolation(opts)
+	})
+}
+
+func TestEmitAndLogInvariantViolationPanicsIfEnvSet(t *testing.T) {
+	defer setShouldPanicEnvironmentVariable()()
+
+	opts := instrument.NewOptions()
+	require.Panics(t, func() {
+		instrument.EmitAndLogInvariantViolation(opts, func(l log.Logger) {
+			l.Error("some_error")
+		})
+	})
+}
+
+type cleanupFn func()
+
+func setShouldPanicEnvironmentVariable() cleanupFn {
+	restoreValue := os.Getenv(instrument.ShouldPanicEnvironmentVariableName)
+	os.Setenv(instrument.ShouldPanicEnvironmentVariableName, "true")
+	return cleanupFn(func() {
+		os.Setenv(instrument.ShouldPanicEnvironmentVariableName, restoreValue)
+	})
 }
