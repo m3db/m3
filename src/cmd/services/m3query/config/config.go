@@ -43,6 +43,12 @@ const (
 	M3DBStorageType BackendStorageType = "m3db"
 )
 
+// defaultLimitsConfiguration is applied if `limits` isn't specified.
+var defaultLimitsConfiguration = &LimitsConfiguration{
+	// this is sufficient for 1 day span / 1s step, or 60 days with a 1m step.
+	MaxComputedDatapoints: 86400,
+}
+
 // Configuration is the configuration for the query service.
 type Configuration struct {
 	// Metrics configuration.
@@ -80,6 +86,14 @@ type Configuration struct {
 
 	// Ingest is the ingest server.
 	Ingest *IngestConfiguration `yaml:"ingest"`
+
+	// Limits specifies limits on per-query resource usage.
+	Limits LimitsConfiguration `yaml:"limits"`
+}
+
+// LimitsConfiguration represents limitations on per-query resource usage. Zero or negative values imply no limit.
+type LimitsConfiguration struct {
+	MaxComputedDatapoints int64 `yaml:"maxComputedDatapoints"`
 }
 
 // IngestConfiguration is the configuration for ingestion server.

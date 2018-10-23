@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"sort"
 
+	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
@@ -57,8 +58,9 @@ var (
 
 // PromReadHandler represents a handler for prometheus read endpoint.
 type PromReadHandler struct {
-	engine  *executor.Engine
-	tagOpts models.TagOptions
+	engine    *executor.Engine
+	tagOpts   models.TagOptions
+	limitsCfg *config.LimitsConfiguration
 }
 
 // ReadResponse is the response that gets returned to the user
@@ -75,10 +77,12 @@ type blockWithMeta struct {
 func NewPromReadHandler(
 	engine *executor.Engine,
 	tagOpts models.TagOptions,
-) http.Handler {
+	limitsCfg *config.LimitsConfiguration,
+) *PromReadHandler {
 	return &PromReadHandler{
-		engine:  engine,
-		tagOpts: tagOpts,
+		engine:    engine,
+		tagOpts:   tagOpts,
+		limitsCfg: limitsCfg,
 	}
 }
 
@@ -94,6 +98,11 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if params.Debug {
 		logger.Info("Request params", zap.Any("params", params))
+	}
+
+	if err := h.validateRequest(&params); err != nil {
+		xhttp.Error(w, err, http.StatusBadRequest)
+		return
 	}
 
 	result, err := h.read(ctx, w, params)
@@ -194,6 +203,23 @@ func (h *PromReadHandler) read(
 	}
 
 	return sortedBlocksToSeriesList(sortedBlockList)
+}
+
+func (h *PromReadHandler) validateRequest(params *models.RequestParams) error {
+	// Impose a rough limit on the number of returned time series. This is intended to prevent things like
+	// querying from the beginning of time with a 1s step size.
+	// Approach taken directly from prom.
+	numSteps := int64(params.End.Sub(params.Start) / params.Step)
+	if h.limitsCfg.MaxComputedDatapoints > 0 && numSteps > h.limitsCfg.MaxComputedDatapoints {
+		return fmt.Errorf(
+			"querying from %v to %v with step size %v would result in too many datapoints "+
+				"(end - start / step > %d). Either decrease the query resolution (?step=XX), decrease the time window, " +
+				"or increase the limit (`limits.maxComputedDatapoints`)",
+			params.Start, params.End, params.Step, h.limitsCfg.MaxComputedDatapoints,
+		)
+	}
+
+	return nil
 }
 
 func drainResultChan(resultsChan chan executor.Query) {
