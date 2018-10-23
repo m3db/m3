@@ -48,19 +48,7 @@ func TestDiskCleanup(t *testing.T) {
 	retentionPeriod := md.Options().RetentionOptions().RetentionPeriod()
 	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 
-	// Start the server
-	log := testSetup.storageOpts.InstrumentOptions().Logger()
-	log.Debug("disk cleanup test")
-	require.NoError(t, testSetup.startServer())
-	log.Debug("server is now up")
-
-	// Stop the server
-	defer func() {
-		require.NoError(t, testSetup.stopServer())
-		log.Debug("server is now down")
-	}()
-
-	// Now create some fileset files and commit logs
+	// Create some fileset files and commit logs
 	var (
 		shard         = uint32(0)
 		numTimes      = 10
@@ -83,6 +71,17 @@ func TestDiskCleanup(t *testing.T) {
 			t, testSetup, commitLogOpts,
 			data, ns1, clTime, false)
 	}
+
+	// Now start the server
+	log := testSetup.storageOpts.InstrumentOptions().Logger()
+	log.Debug("disk cleanup test")
+	require.NoError(t, testSetup.startServer())
+	log.Debug("server is now up")
+
+	defer func() {
+		require.NoError(t, testSetup.stopServer())
+		log.Debug("server is now down")
+	}()
 
 	// Move now forward by retentionPeriod + 2 * blockSize so fileset files
 	// and commit logs at now will be deleted

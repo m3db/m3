@@ -105,9 +105,6 @@ var (
 	// errUnableToEncodeTags is raised when the server is unable to encode provided tags
 	// to be sent over the wire.
 	errUnableToEncodeTags = errors.New("unable to include tags")
-	// errNoTopologyMap is returned when the session does not have a topology. Should never happen
-	// in practice.
-	errNoTopologyMap = instrument.InvariantErrorf("session does not have a topology map")
 )
 
 // sessionState is volatile state that is protected by a
@@ -1575,7 +1572,7 @@ func (s *session) TopologyMap() (topology.Map, error) {
 	}
 	if topoMap == nil {
 		// Should never happen.
-		return nil, errNoTopologyMap
+		return nil, instrument.InvariantErrorf("session does not have a topology map")
 	}
 
 	return topoMap, nil
