@@ -1,5 +1,5 @@
-hash: 0d0e018e8d993d4a2bcb12c426e444f6b3c7070d3acf6fbe7fcc3140064b6215
-updated: 2018-10-16T13:52:30.938944-04:00
+hash: 0000fe8733516071e59b7535e7895ba5bb3cab4ddd8bf33fad336891d208cbb2
+updated: 2018-10-23T16:05:36.710376-04:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -219,7 +219,7 @@ imports:
 - name: github.com/m3db/bloom
   version: 47fe1193cdb900de7193d1f3d26ea9b2cbf6fb31
 - name: github.com/m3db/m3x
-  version: fc5c28bb09dfe6ba7f79e897021d9b186b5fffc5
+  version: 9b5fa04ace6d5ab3ee82e33fb54eda6ab040e2be
   vcs: git
   subpackages:
   - checked
