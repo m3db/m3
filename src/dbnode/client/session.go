@@ -107,7 +107,7 @@ var (
 	errUnableToEncodeTags = errors.New("unable to include tags")
 	// errNoTopologyMap is returned when the session does not have a topology. Should never happen
 	// in practice.
-	errNoTopologyMap = fmt.Errorf("%s session does not have a topology map", instrument.InvariantViolatedMetricName)
+	errNoTopologyMap = instrument.InvariantErrorf("session does not have a topology map")
 )
 
 // sessionState is volatile state that is protected by a

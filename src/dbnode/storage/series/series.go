@@ -567,11 +567,13 @@ func (s *dbSeries) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 	if ok {
 		if !block.WasRetrievedFromDisk() {
 			// Should never happen - invalid application state could cause data loss
-			instrument.EmitInvariantViolationAndGetLogger(
-				s.opts.InstrumentOptions()).WithFields(
-				xlog.NewField("id", id.String()),
-				xlog.NewField("blockStart", blockStart),
-			).Errorf("tried to evict block that was not retrieved from disk")
+			instrument.EmitAndLogInvariantViolation(
+				s.opts.InstrumentOptions(), func(l xlog.Logger) {
+					l.WithFields(
+						xlog.NewField("id", id.String()),
+						xlog.NewField("blockStart", blockStart),
+					).Errorf("tried to evict block that was not retrieved from disk")
+				})
 			return
 		}
 

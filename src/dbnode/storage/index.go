@@ -933,13 +933,17 @@ func (i *nsIndex) Close() error {
 
 func (i *nsIndex) missingBlockInvariantError(t xtime.UnixNano) error {
 	err := fmt.Errorf("index query did not find block %d despite seeing it in slice", t)
-	instrument.EmitInvariantViolationAndGetLogger(i.opts.InstrumentOptions()).Errorf(err.Error())
+	instrument.EmitAndLogInvariantViolation(i.opts.InstrumentOptions(), func(l xlog.Logger) {
+		l.Errorf(err.Error())
+	})
 	return err
 }
 
 func (i *nsIndex) unableToAllocBlockInvariantError(err error) error {
 	ierr := fmt.Errorf("index unable to allocate block: %v", err)
-	instrument.EmitInvariantViolationAndGetLogger(i.opts.InstrumentOptions()).Errorf(ierr.Error())
+	instrument.EmitAndLogInvariantViolation(i.opts.InstrumentOptions(), func(l xlog.Logger) {
+		l.Errorf(ierr.Error())
+	})
 	return ierr
 }
 
