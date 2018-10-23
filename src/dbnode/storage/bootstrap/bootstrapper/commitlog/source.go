@@ -743,7 +743,7 @@ func (s *commitLogSource) newReadCommitLogPredBasedOnAvailableSnapshotFiles(
 			if mostRecent.CachedSnapshotTime.IsZero() {
 				// Should never happen.
 				return nil, nil, instrument.InvariantErrorf(
-					"%s shard: %d and block: %s had zero value for most recent snapshot time",
+					"shard: %d and block: %s had zero value for most recent snapshot time",
 					shard, block.ToTime().String())
 			}
 
