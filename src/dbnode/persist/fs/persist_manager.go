@@ -402,15 +402,17 @@ func (pm *persistManager) PrepareData(opts persist.DataPrepareOptions) (persist.
 		// a monotonically increasing number to avoid collisions.
 		// instrument.
 		iopts := pm.opts.InstrumentOptions()
-		l := instrument.EmitInvariantViolationAndGetLogger(iopts)
-		l.WithFields(
-			xlog.NewField("blockStart", blockStart.String()),
-			xlog.NewField("fileSetType", opts.FileSetType.String()),
-			xlog.NewField("volumeIndex", volumeIndex),
-			xlog.NewField("snapshotStart", snapshotTime.String()),
-			xlog.NewField("namespace", nsID.String()),
-			xlog.NewField("shard", shard),
-		).Errorf("prepared writing fileset volume that already exists")
+		instrument.EmitAndLogInvariantViolation(iopts, func(l xlog.Logger) {
+			l.WithFields(
+				xlog.NewField("blockStart", blockStart.String()),
+				xlog.NewField("fileSetType", opts.FileSetType.String()),
+				xlog.NewField("volumeIndex", volumeIndex),
+				xlog.NewField("snapshotStart", snapshotTime.String()),
+				xlog.NewField("namespace", nsID.String()),
+				xlog.NewField("shard", shard),
+			).Errorf("prepared writing fileset volume that already exists")
+		})
+
 		return prepared, errPersistManagerFileSetAlreadyExists
 	}
 

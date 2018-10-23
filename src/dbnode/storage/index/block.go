@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"
+	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -527,26 +528,34 @@ func (b *block) writeBatchErrorInvalidState(state blockState) error {
 		return errUnableToWriteBlockSealed
 	default: // should never happen
 		err := fmt.Errorf(errUnableToWriteBlockUnknownStateFmtString, state)
-		instrument.EmitInvariantViolationAndGetLogger(b.opts.InstrumentOptions()).Errorf(err.Error())
+		instrument.EmitAndLogInvariantViolation(b.opts.InstrumentOptions(), func(l xlog.Logger) {
+			l.Errorf(err.Error())
+		})
 		return err
 	}
 }
 
 func (b *block) unknownWriteBatchInvariantError(err error) error {
 	wrappedErr := fmt.Errorf("unexpected non-BatchPartialError from m3ninx InsertBatch: %v", err)
-	instrument.EmitInvariantViolationAndGetLogger(b.opts.InstrumentOptions()).Errorf(wrappedErr.Error())
+	instrument.EmitAndLogInvariantViolation(b.opts.InstrumentOptions(), func(l xlog.Logger) {
+		l.Errorf(wrappedErr.Error())
+	})
 	return wrappedErr
 }
 
 func (b *block) bootstrappingSealedMutableSegmentInvariant(err error) error {
 	wrapped := fmt.Errorf("internal error: bootstrapping a mutable segment already marked sealed: %v", err)
-	instrument.EmitInvariantViolationAndGetLogger(b.opts.InstrumentOptions()).Errorf(wrapped.Error())
+	instrument.EmitAndLogInvariantViolation(b.opts.InstrumentOptions(), func(l xlog.Logger) {
+		l.Errorf(wrapped.Error())
+	})
 	return wrapped
 }
 
 func (b *block) openBlockHasNilActiveSegmentInvariantErrorWithRLock() error {
 	err := fmt.Errorf("internal error: block has open block state [%v] has nil active segment", b.state)
-	instrument.EmitInvariantViolationAndGetLogger(b.opts.InstrumentOptions()).Errorf(err.Error())
+	instrument.EmitAndLogInvariantViolation(b.opts.InstrumentOptions(), func(l xlog.Logger) {
+		l.Errorf(err.Error())
+	})
 	return err
 }
 

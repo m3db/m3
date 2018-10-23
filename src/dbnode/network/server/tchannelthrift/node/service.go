@@ -447,16 +447,18 @@ func (s *service) encodeTags(
 	if err := enc.Encode(tags); err != nil {
 		// should never happen
 		err = xerrors.NewRenamedError(err, fmt.Errorf("unable to encode tags"))
-		l := instrument.EmitInvariantViolationAndGetLogger(s.opts.InstrumentOptions())
-		l.Error(err.Error())
+		instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(), func(l log.Logger) {
+			l.Error(err.Error())
+		})
 		return nil, err
 	}
 	encodedTags, ok := enc.Data()
 	if !ok {
 		// should never happen
 		err := fmt.Errorf("unable to encode tags: unable to unwrap bytes")
-		l := instrument.EmitInvariantViolationAndGetLogger(s.opts.InstrumentOptions())
-		l.Error(err.Error())
+		instrument.EmitAndLogInvariantViolation(s.opts.InstrumentOptions(), func(l log.Logger) {
+			l.Error(err.Error())
+		})
 		return nil, err
 	}
 	return encodedTags, nil

@@ -498,12 +498,13 @@ func (s *peersSource) flush(
 		}
 		if numSeriesTriedToRemoveWithRemainingBlocks > 0 {
 			iOpts := s.opts.ResultOptions().InstrumentOptions()
-			instrument.EmitInvariantViolationAndGetLogger(iOpts).
-				WithFields(
+			instrument.EmitAndLogInvariantViolation(iOpts, func(l xlog.Logger) {
+				l.WithFields(
 					xlog.NewField("start", tr.Start.Unix()),
 					xlog.NewField("end", tr.End.Unix()),
 					xlog.NewField("numTimes", numSeriesTriedToRemoveWithRemainingBlocks),
 				).Error("error tried to remove series that still has blocks")
+			})
 		}
 	}
 

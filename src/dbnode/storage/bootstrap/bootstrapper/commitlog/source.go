@@ -742,9 +742,9 @@ func (s *commitLogSource) newReadCommitLogPredBasedOnAvailableSnapshotFiles(
 
 			if mostRecent.CachedSnapshotTime.IsZero() {
 				// Should never happen.
-				return nil, nil, fmt.Errorf(
-					"%s shard: %d and block: %s had zero value for most recent snapshot time",
-					instrument.InvariantViolatedMetricName, shard, block.ToTime().String())
+				return nil, nil, instrument.InvariantErrorf(
+					"shard: %d and block: %s had zero value for most recent snapshot time",
+					shard, block.ToTime().String())
 			}
 
 			s.log.Debugf(
@@ -1232,9 +1232,10 @@ func (s *commitLogSource) mergeSeries(
 				// Should never happen because we would have called
 				// Blocks.RemoveBlockAt() above.
 				iOpts := s.opts.CommitLogOptions().InstrumentOptions()
-				invariantLogger := instrument.EmitInvariantViolationAndGetLogger(iOpts)
-				invariantLogger.Errorf(
-					"tried to merge block that should have been removed, blockStart: %d", startNano)
+				instrument.EmitAndLogInvariantViolation(iOpts, func(l xlog.Logger) {
+					l.Errorf(
+						"tried to merge block that should have been removed, blockStart: %d", startNano)
+				})
 				continue
 			}
 
@@ -1559,8 +1560,9 @@ func (s *commitLogSource) availability(
 		if !ok {
 			errMsg := fmt.Sprintf("initial topology state does not contain shard state for origin node and shard: %d", shardIDUint)
 			iOpts := s.opts.CommitLogOptions().InstrumentOptions()
-			invariantLogger := instrument.EmitInvariantViolationAndGetLogger(iOpts)
-			invariantLogger.Error(errMsg)
+			instrument.EmitAndLogInvariantViolation(iOpts, func(l xlog.Logger) {
+				l.Error(errMsg)
+			})
 			return nil, errors.New(errMsg)
 		}
 
