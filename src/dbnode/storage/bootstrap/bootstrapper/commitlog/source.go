@@ -262,6 +262,7 @@ func (s *commitLogSource) ReadData(
 	if err != nil {
 		return nil, fmt.Errorf("unable to create commit log iterator: %v", err)
 	}
+
 	if len(corruptFiles) > 0 {
 		s.logAndEmitCorruptFiles(corruptFiles, true)
 		encounteredCorruptData = true
@@ -1522,8 +1523,7 @@ func (s *commitLogSource) logAndEmitCorruptFiles(
 	for _, f := range corruptFiles {
 		s.log.
 			Errorf(
-				"opting to skip commit log: %s due to corruption, err: %v",
-				f.Path, f.Error)
+				"opting to skip commit log due to corruption: %s", f.Error())
 		if isData {
 			s.metrics.data.corruptCommitlogFile.Inc(1)
 		} else {
