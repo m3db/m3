@@ -85,8 +85,8 @@ func TestNoopTracker(t *testing.T) {
 	tracker := NewNoopTracker()
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("input %v", test.input), func(t *testing.T) {
-			require.Equal(t, 0, tracker.Add(test.input))
-			require.Equal(t, 0, tracker.Current())
+			require.Equal(t, Cost(0), tracker.Add(test.input))
+			require.Equal(t, Cost(0), tracker.Current())
 		})
 	}
 }

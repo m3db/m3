@@ -3,9 +3,11 @@ package cost
 import (
 	"fmt"
 
-	"code.uber.internal/infra/statsdex/x/errors"
+	"golang.org/x/text/language"
+	"golang.org/x/text/message"
 
-	"github.com/dustin/go-humanize"
+	"github.com/m3db/m3x/errors"
+
 	"github.com/uber-go/tally"
 )
 
@@ -104,19 +106,21 @@ func (e Enforcer) checkLimit(cost Cost, limit Limit) error {
 		return nil
 	}
 
+	p := message.NewPrinter(language.Make("en"))
+
 	e.metrics.overLimitAndEnabled.Inc(1)
 	var innerErr error
 	if e.costMsg == "" {
 		innerErr = fmt.Errorf(
 			defaultCostExceededErrorFmt,
-			humanize.Commaf(float64(cost)),
-			humanize.Commaf(float64(limit.Threshold)),
+			p.Sprintf("%s", float64(cost)),
+			p.Sprintf("%s", float64(limit.Threshold)),
 		)
 	} else {
 		innerErr = fmt.Errorf(
 			customCostExceededErrorFmt,
-			humanize.Commaf(float64(cost)),
-			humanize.Commaf(float64(limit.Threshold)),
+			p.Sprintf("%s", float64(cost)),
+			p.Sprintf("%s", float64(limit.Threshold)),
 			e.costMsg,
 		)
 	}
