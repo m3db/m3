@@ -22,6 +22,7 @@ package commitlog
 
 import (
 	"encoding/binary"
+	"fmt"
 	"os"
 	"sort"
 	"time"
@@ -137,10 +138,10 @@ type ErrorWithPath struct {
 
 // Error returns the error.
 func (e ErrorWithPath) Error() string {
-	return e.err.Error()
+	return fmt.Sprintf("%s: %s", e.path, e.err)
 }
 
-// Path returns the path of hte file that the error is associated with.
+// Path returns the path of the file that the error is associated with.
 func (e ErrorWithPath) Path() string {
 	return e.path
 }

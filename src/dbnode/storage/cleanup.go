@@ -404,8 +404,8 @@ func (m *cleanupManager) commitLogTimes(t time.Time) ([]commitLogFileWithErrorAn
 		// that the file is corrupt and remove it. This can happen in situations where M3DB experiences
 		// sudden shutdown.
 		m.opts.InstrumentOptions().Logger().Errorf(
-			"encountered err: %v reading commit log file: %v info during cleanup, marking file for deletion",
-			errorWithPath.Error(), errorWithPath.Path())
+			"encountered corrupt commitlog file during cleanup, marking file for deletion: %s",
+			errorWithPath.Error())
 		filesToCleanup = append(filesToCleanup, newCommitLogFileWithErrorAndPath(
 			commitlog.File{}, errorWithPath.Path(), err))
 	}

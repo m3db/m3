@@ -390,10 +390,19 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 				return false, fmt.Errorf("found corrupt commit log files: %v", corruptFiles)
 			}
 
-			commitLogFilesExist := len(commitLogFiles) > 0
-			// In the multi-node setup we want to return unfulfilled if there are any corrupt files, but
-			// we always want to return fulfilled in the single node setup.
-			if input.multiNodeCluster && input.includeCorruptedCommitlogFile && commitLogFilesExist {
+			var (
+				commitLogFilesExist = len(commitLogFiles) > 0
+				// In the multi-node setup we want to return unfulfilled if there are any corrupt files, but
+				// we always want to return fulfilled in the single node setup. In addition, the source will not
+				// return unfulfilled in the presence of corrupt files if the range we request it to bootstrap
+				// is empty so we need to handle that case too.
+				shouldReturnUnfulfilled = input.multiNodeCluster &&
+					input.includeCorruptedCommitlogFile &&
+					commitLogFilesExist &&
+					!shardTimeRanges.IsEmpty()
+			)
+
+			if shouldReturnUnfulfilled {
 				if dataResult.Unfulfilled().IsEmpty() {
 					return false, fmt.Errorf(
 						"data result unfulfilled should not be empty in multi node cluster but was")
@@ -422,9 +431,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 				return false, err
 			}
 
-			// In the multi-node setup we want to return unfulfilled if there are any corrupt files, but
-			// we always want to return fulfilled in the single node setup.
-			if input.multiNodeCluster && input.includeCorruptedCommitlogFile && commitLogFilesExist {
+			if shouldReturnUnfulfilled {
 				if indexResult.Unfulfilled().IsEmpty() {
 					return false, fmt.Errorf(
 						"index result unfulfilled should not be empty in multi node cluster but was")
