@@ -130,33 +130,36 @@ func (q *WriteQuery) String() string {
 // CompleteTagsQuery represents a query that returns an autocompleted
 // set of tags that exist in the db
 type CompleteTagsQuery struct {
-	Query            []byte
+	TagMatchers      models.Matchers
 	FilterNameTags   [][]byte
 	CompleteNameOnly bool
 }
 
 func (q *CompleteTagsQuery) String() string {
 	if q.CompleteNameOnly {
-		return fmt.Sprintf("completing tag name for query %s", q.Query)
+		return fmt.Sprintf("completing tag name for query %s", q.TagMatchers)
 	}
 
-	return fmt.Sprintf("completing tag values for query %s", q.Query)
+	return fmt.Sprintf("completing tag values for query %s", q.TagMatchers)
 }
 
 // CompletedTag is an autocompleted tag with a name and a list of possible values
 type CompletedTag struct {
-	merged  bool
-	Name    []byte
-	Values  [][]byte
-	seenMap map[string]struct{}
+	Name   []byte
+	Values [][]byte
 }
 
 // CompleteTagsResult represents a set of autocompleted tag names and values
 type CompleteTagsResult struct {
 	CompleteNameOnly bool
-	merged           bool
 	CompletedTags    []CompletedTag
-	seenMap          map[string]int
+}
+
+// CompleteTagsResultBuilder is a builder that accumulates and deduplicates
+// incoming CompleteTagsResult values
+type CompleteTagsResultBuilder interface {
+	Add(*CompleteTagsResult) error
+	Build() CompleteTagsResult
 }
 
 // Appender provides batched appends against a storage.

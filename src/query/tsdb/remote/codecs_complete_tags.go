@@ -76,15 +76,22 @@ func decodeCompleteTagsResponse(
 func encodeCompleteTagsRequest(
 	query *storage.CompleteTagsQuery,
 ) (*rpc.CompleteTagsRequest, error) {
-	searchType := rpc.SearchType_DEFAULT
+	completionType := rpc.CompleteTagsType_DEFAULT
 	if query.CompleteNameOnly {
-		searchType = rpc.SearchType_TAGNAME
+		completionType = rpc.CompleteTagsType_TAGNAME
+	}
+
+	matchers, err := encodeTagMatchers(query.TagMatchers)
+	if err != nil {
+		return nil, err
 	}
 
 	return &rpc.CompleteTagsRequest{
-		Query: query.Query,
-		Type:  searchType,
-		Options: &rpc.SearchRequestOptions{
+		Matchers: &rpc.CompleteTagsRequest_TagMatchers{
+			TagMatchers: matchers,
+		},
+		Options: &rpc.CompleteTagsRequestOptions{
+			Type:           completionType,
 			FilterNameTags: query.FilterNameTags,
 		},
 	}, nil

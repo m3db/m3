@@ -244,10 +244,10 @@ func (c *grpcClient) CompleteTags(
 	ctx context.Context,
 	query *storage.CompleteTagsQuery,
 	options *storage.FetchOptions,
-) (*storage.CompleteTagsResult, error) {
+) (storage.CompleteTagsResult, error) {
 	request, err := encodeCompleteTagsRequest(query)
 	if err != nil {
-		return nil, err
+		return storage.CompleteTagsResult{}, err
 	}
 
 	// Send the id from the client to the remote server so that provides logging
@@ -256,16 +256,16 @@ func (c *grpcClient) CompleteTags(
 	mdCtx := encodeMetadata(ctx, id)
 	completeTagsClient, err := c.client.CompleteTags(mdCtx, request)
 	if err != nil {
-		return nil, err
+		return storage.CompleteTagsResult{}, err
 	}
 
 	defer completeTagsClient.CloseSend()
-	var accumulatedTags *storage.CompleteTagsResult
+	var accumulatedTags storage.CompleteTagsResultBuilder
 	for {
 		select {
 		// If query is killed during gRPC streaming, close the channel
 		case <-options.KillChan:
-			return nil, errors.ErrQueryInterrupted
+			return storage.CompleteTagsResult{}, errors.ErrQueryInterrupted
 		default:
 		}
 
@@ -275,27 +275,26 @@ func (c *grpcClient) CompleteTags(
 		}
 
 		if err != nil {
-			return nil, err
+			return storage.CompleteTagsResult{}, err
 		}
 
 		result, err := decodeCompleteTagsResponse(received)
 		if err != nil {
-			return nil, err
+			return storage.CompleteTagsResult{}, err
 		}
 
 		if accumulatedTags == nil {
-			accumulatedTags = result
-		} else {
-			err = accumulatedTags.MergeWith(result)
-			if err != nil {
-				return nil, err
-			}
+			accumulatedTags = storage.NewCompleteTagsResultBuilder(result.CompleteNameOnly)
+		}
+
+		err = accumulatedTags.Add(result)
+		if err != nil {
+			return storage.CompleteTagsResult{}, err
 		}
 	}
 
 	// Sort tags in the result post-merge.
-	accumulatedTags.Finalize()
-	return accumulatedTags, nil
+	return accumulatedTags.Build(), nil
 }
 
 // Close closes the underlying connection

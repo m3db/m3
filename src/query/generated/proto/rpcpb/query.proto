@@ -94,23 +94,10 @@ message M3Segment {
 	int64 blockSize = 4;
 }
 
-message SearchRequestOptions {
-	repeated bytes filterNameTags = 1;
-}
-
-enum SearchType {
-	// Requests tag names and values
-	DEFAULT = 0;
-	// Requests tag names only
-	TAGNAME = 1;
-}
-
 message SearchRequest {
 	oneof matchers {
-		TagMatchers tagMatchers    = 1;
+		TagMatchers tagMatchers = 1;
 	}
-	SearchType type              = 2;
-	SearchRequestOptions options = 3;
 }
 
 message M3TagProperty {
@@ -138,10 +125,23 @@ message SearchResponse {
 	}
 }
 
+enum CompleteTagsType {
+	// Requests tag names and values
+	DEFAULT = 0;
+	// Requests tag names only
+	TAGNAME = 1;
+}
+
+message CompleteTagsRequestOptions {
+	CompleteTagsType type         = 1;
+	repeated bytes filterNameTags = 2;
+}
+
 message CompleteTagsRequest {
-	bytes query                  = 1;
-	SearchType type              = 2;
-	SearchRequestOptions options = 3;
+	oneof matchers {
+		TagMatchers tagMatchers          = 1;
+	}
+	CompleteTagsRequestOptions options = 2;
 }
 
 message TagNames {

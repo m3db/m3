@@ -98,3 +98,13 @@ func (m Matchers) ToTags(
 
 	return tags, nil
 }
+
+func (m Matchers) String() string {
+	var buffer bytes.Buffer
+	for _, match := range m {
+		buffer.WriteString(match.String())
+		buffer.WriteByte(sep)
+	}
+
+	return buffer.String()
+}

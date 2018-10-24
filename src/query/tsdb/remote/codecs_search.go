@@ -21,8 +21,6 @@
 package remote
 
 import (
-	"bytes"
-
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/errors"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
@@ -30,49 +28,15 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/storage/m3"
 	"github.com/m3db/m3/src/x/serialize"
-	"github.com/m3db/m3x/ident"
 )
 
-func filterTagIterators(
-	filterNameTags [][]byte,
-	iter ident.TagIterator,
-) (ident.TagIterator, error) {
-	tags := ident.NewTags()
-	for iter.Next() {
-		tag := iter.Current()
-		tagName := tag.Name.Bytes()
-		for _, filter := range filterNameTags {
-			if bytes.Equal(filter, tagName) {
-				tags.Append(tag)
-			}
-		}
-	}
-
-	if err := iter.Err(); err != nil {
-		return nil, err
-	}
-
-	return ident.NewTagsIterator(tags), nil
-}
-
 func multiTagResultsToM3TagProperties(
-	filterNameTags [][]byte,
 	results []m3.MultiTagResult,
 	encoderPool serialize.TagEncoderPool,
 ) (*rpc.M3TagProperties, error) {
 	props := make([]rpc.M3TagProperty, len(results))
-	filter := len(filterNameTags) > 0
 	for i, result := range results {
-		filtered := result.Iter
-		var err error
-		if filter {
-			filtered, err = filterTagIterators(filterNameTags, result.Iter)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		tags, err := compressedTagsFromTagIterator(filtered, encoderPool)
+		tags, err := compressedTagsFromTagIterator(result.Iter, encoderPool)
 		if err != nil {
 			return nil, err
 		}
@@ -95,7 +59,6 @@ func multiTagResultsToM3TagProperties(
 
 // encodeToCompressedSearchResult encodes SearchResults to a compressed search result
 func encodeToCompressedSearchResult(
-	filterNameTags [][]byte,
 	results []m3.MultiTagResult,
 	pools encoding.IteratorPools,
 ) (*rpc.SearchResponse, error) {
@@ -108,7 +71,7 @@ func encodeToCompressedSearchResult(
 		return nil, errors.ErrCannotEncodeCompressedTags
 	}
 
-	compressedTags, err := multiTagResultsToM3TagProperties(filterNameTags, results, encoderPool)
+	compressedTags, err := multiTagResultsToM3TagProperties(results, encoderPool)
 	if err != nil {
 		return nil, err
 	}
@@ -212,14 +175,13 @@ func encodeSearchRequest(
 // decodeSearchRequest decodes rpc search request to read query and read options
 func decodeSearchRequest(
 	req *rpc.SearchRequest,
-) (*storage.FetchQuery, [][]byte, error) {
+) (*storage.FetchQuery, error) {
 	matchers, err := decodeTagMatchers(req.GetTagMatchers())
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	opts := req.GetOptions()
 	return &storage.FetchQuery{
 		TagMatchers: matchers,
-	}, opts.GetFilterNameTags(), nil
+	}, nil
 }
