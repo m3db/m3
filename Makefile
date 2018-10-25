@@ -138,8 +138,8 @@ install-mockgen:
 install-retool:
 	@which retool >/dev/null || go get $(retool_package)
 
-.PHONY: install-codegen-tools
-install-codegen-tools: install-retool
+.PHONY: install-tools
+install-tools: install-retool
 	@echo "Installing retool dependencies"
 	@retool sync >/dev/null 2>/dev/null
 	@retool build >/dev/null 2>/dev/null
@@ -229,38 +229,38 @@ test-ci-integration:
 define SUBDIR_RULES
 
 .PHONY: mock-gen-$(SUBDIR)
-mock-gen-$(SUBDIR): install-codegen-tools install-mockgen
+mock-gen-$(SUBDIR): install-tools install-mockgen
 	@echo "--- Generating mocks $(SUBDIR)"
 	@[ ! -d src/$(SUBDIR)/$(mocks_rules_dir) ] || \
 		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(mocks_output_dir) src/$(SUBDIR)/$(mocks_rules_dir)
 
 .PHONY: thrift-gen-$(SUBDIR)
-thrift-gen-$(SUBDIR): install-codegen-tools
+thrift-gen-$(SUBDIR): install-tools
 	@echo "--- Generating thrift files $(SUBDIR)"
 	@[ ! -d src/$(SUBDIR)/$(thrift_rules_dir) ] || \
 		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(thrift_output_dir) src/$(SUBDIR)/$(thrift_rules_dir)
 
 .PHONY: proto-gen-$(SUBDIR)
-proto-gen-$(SUBDIR): install-codegen-tools
+proto-gen-$(SUBDIR): install-tools
 	@echo "--- Generating protobuf files $(SUBDIR)"
 	@[ ! -d src/$(SUBDIR)/$(proto_rules_dir) ] || \
 		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(proto_output_dir) src/$(SUBDIR)/$(proto_rules_dir)
 
 .PHONY: asset-gen-$(SUBDIR)
-asset-gen-$(SUBDIR): install-codegen-tools
+asset-gen-$(SUBDIR): install-tools
 	@echo "--- Generating asset files $(SUBDIR)"
 	@[ ! -d src/$(SUBDIR)/$(assets_rules_dir) ] || \
 		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(assets_output_dir) src/$(SUBDIR)/$(assets_rules_dir)
 
 .PHONY: genny-gen-$(SUBDIR)
-genny-gen-$(SUBDIR): install-codegen-tools
+genny-gen-$(SUBDIR): install-tools
 	@echo "--- Generating genny files $(SUBDIR)"
 	@[ ! -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk ] || \
 		PATH=$(retool_bin_path):$(PATH) make -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk genny-all
 	@PATH=$(retool_bin_path):$(PATH) bash -c "source ./scripts/auto-gen-helpers.sh && gen_cleanup_dir '*_gen.go' $(SELF_DIR)/src/$(SUBDIR)/"
 
 .PHONY: license-gen-$(SUBDIR)
-license-gen-$(SUBDIR): install-codegen-tools
+license-gen-$(SUBDIR): install-tools
 	@echo "--- Updating license in files $(SUBDIR)"
 	@find $(SELF_DIR)/src/$(SUBDIR) -name '*.go' | PATH=$(retool_bin_path):$(PATH) xargs -I{} update-license {}
 
@@ -350,6 +350,16 @@ metalint: install-gometalinter install-linter-badtime install-linter-importorder
 test-all-gen: all-gen
 	@test "$(shell git diff --exit-code --shortstat 2>/dev/null)" = "" || (git diff --exit-code && echo "Check git status, there are dirty files" && exit 1)
 	@test "$(shell git status --exit-code --porcelain 2>/dev/null | grep "^??")" = "" || (git status --exit-code --porcelain && echo "Check git status, there are untracked files" && exit 1)
+
+# Runs a fossa license report
+.PHONY: fossa
+fossa: install-tools
+	PATH=$(retool_bin_path):$(PATH) fossa --option allow-nested-vendor:true --option allow-deep-vendor:true
+
+# Waits for the result of a fossa test and exits success if pass or fail if fails
+.PHONY: fossa-test
+fossa-test: fossa
+	PATH=$(retool_bin_path):$(PATH) fossa test
 
 .PHONY: clean
 clean:

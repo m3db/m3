@@ -65,3 +65,9 @@ steps:
       docker-compose#v2.5.1:
         run: app
     <<: *common
+  - label: "FOSSA license scan"
+    # TODO: Once reliably passing, use `fossa-test` instead of `fossa` to fail builds
+    command: make clean install-vendor fossa
+    plugins:
+      docker-compose#v2.5.1:
+        run: app
