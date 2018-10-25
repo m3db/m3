@@ -30,6 +30,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/metrics/encoding"
 	"github.com/m3db/m3/src/metrics/encoding/migration"
@@ -39,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 
 	"github.com/golang/mock/gomock"
@@ -752,6 +754,28 @@ func TestWriterCloseAlreadyClosed(t *testing.T) {
 	w := newInstanceWriter(testPlacementInstance, testOptions()).(*writer)
 	w.closed = true
 	require.Equal(t, errInstanceWriterClosed, w.Close())
+}
+
+func TestWriterCloseNotBlockingOnDraining(t *testing.T) {
+	var (
+		opts = testOptions().SetInstanceQueueSize(200)
+		w    = newInstanceWriter(testPlacementInstance, opts).(*writer)
+	)
+	w.queue.(*queue).writeFn = func([]byte) error {
+		time.Sleep(time.Second)
+		return nil
+	}
+	data := []byte("foo")
+	for i := 0; i < opts.InstanceQueueSize(); i++ {
+		require.NoError(t, w.queue.Enqueue(testNewBuffer(data)))
+	}
+
+	go w.Close()
+	require.True(t, clock.WaitUntil(func() bool {
+		w.Lock()
+		defer w.Unlock()
+		return w.closed
+	}, 10*time.Second))
 }
 
 func TestWriterCloseSuccess(t *testing.T) {

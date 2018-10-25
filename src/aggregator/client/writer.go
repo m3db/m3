@@ -147,10 +147,19 @@ func (w *writer) Close() error {
 		return errInstanceWriterClosed
 	}
 	w.closed = true
-	if err := w.flushWithLock(); err != nil {
+
+	err := w.flushWithLock()
+	if err != nil {
 		w.metrics.flushErrors.Inc(1)
+		w.log.Errorf("error flushing writer, %v", err)
 	}
-	return w.queue.Close()
+	go func() {
+		if err := w.queue.Close(); err != nil {
+			w.log.Errorf("error closing queue, %v", err)
+		}
+	}()
+
+	return err
 }
 
 func (w *writer) encodeWithLock(

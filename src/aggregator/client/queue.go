@@ -101,7 +101,7 @@ type instanceQueue interface {
 	// Enqueue enqueues a data buffer.
 	Enqueue(buf protobuf.Buffer) error
 
-	// Close closes the queue.
+	// Close closes the queue, it blocks until the queue is drained.
 	Close() error
 }
 
