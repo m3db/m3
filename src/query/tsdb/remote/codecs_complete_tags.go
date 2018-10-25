@@ -42,14 +42,14 @@ func decodeTagNamesOnly(
 }
 
 func decodeTagProperties(
-	response *rpc.TagProperties,
+	response *rpc.TagValues,
 ) *storage.CompleteTagsResult {
-	props := response.GetProperties()
-	tags := make([]storage.CompletedTag, len(props))
-	for i, prop := range props {
+	values := response.GetValues()
+	tags := make([]storage.CompletedTag, len(values))
+	for i, value := range values {
 		tags[i] = storage.CompletedTag{
-			Name:   prop.GetKey(),
-			Values: prop.GetValues(),
+			Name:   value.GetKey(),
+			Values: value.GetValues(),
 		}
 	}
 

@@ -110,8 +110,8 @@ message M3TagProperties {
 }
 
 message TagProperty {
-	bytes key             = 1;
-	repeated bytes values = 2;
+	bytes key    = 1;
+	bytes values = 2;
 }
 
 message TagProperties {
@@ -148,9 +148,18 @@ message TagNames {
 	repeated bytes names = 1;
 }
 
+message TagValue {
+	bytes key             = 1;
+	repeated bytes values = 2;
+}
+
+message TagValues {
+	repeated TagValue values = 1;
+}
+
 message CompleteTagsResponse {
 	oneof value {
-		TagProperties default = 1;
-		TagNames namesOnly    = 2;
+		TagValues default  = 1;
+		TagNames namesOnly = 2;
 	}
 }
