@@ -72,11 +72,11 @@ func (b *completeTagsResultBuilder) Add(tagResult *CompleteTagsResult) error {
 	return nil
 }
 
-type alphabeticalTagSort []CompletedTag
+type completedTagsByName []CompletedTag
 
-func (s alphabeticalTagSort) Len() int      { return len(s) }
-func (s alphabeticalTagSort) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
-func (s alphabeticalTagSort) Less(i, j int) bool {
+func (s completedTagsByName) Len() int      { return len(s) }
+func (s completedTagsByName) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+func (s completedTagsByName) Less(i, j int) bool {
 	return bytes.Compare(s[i].Name, s[j].Name) == -1
 }
 
@@ -87,7 +87,7 @@ func (b *completeTagsResultBuilder) Build() CompleteTagsResult {
 			result = append(result, CompletedTag{Name: []byte(name)})
 		}
 
-		sort.Sort(alphabeticalTagSort(result))
+		sort.Sort(completedTagsByName(result))
 		return CompleteTagsResult{
 			CompleteNameOnly: true,
 			CompletedTags:    result,
@@ -101,7 +101,7 @@ func (b *completeTagsResultBuilder) Build() CompleteTagsResult {
 		})
 	}
 
-	sort.Sort(alphabeticalTagSort(result))
+	sort.Sort(completedTagsByName(result))
 	return CompleteTagsResult{
 		CompleteNameOnly: false,
 		CompletedTags:    result,
@@ -122,11 +122,11 @@ func (b *completedTagBuilder) add(values [][]byte) {
 	}
 }
 
-type alphabeticalValueSort [][]byte
+type tagValuesByName [][]byte
 
-func (s alphabeticalValueSort) Len() int      { return len(s) }
-func (s alphabeticalValueSort) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
-func (s alphabeticalValueSort) Less(i, j int) bool {
+func (s tagValuesByName) Len() int      { return len(s) }
+func (s tagValuesByName) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+func (s tagValuesByName) Less(i, j int) bool {
 	return bytes.Compare(s[i], s[j]) == -1
 }
 
@@ -136,6 +136,6 @@ func (b *completedTagBuilder) build() [][]byte {
 		result = append(result, []byte(v))
 	}
 
-	sort.Sort(alphabeticalValueSort(result))
+	sort.Sort(tagValuesByName(result))
 	return result
 }
