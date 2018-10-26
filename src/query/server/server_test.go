@@ -35,10 +35,12 @@ import (
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote/test"
+	"github.com/m3db/m3/src/query/cost"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/storage/m3"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/instrument"
 	xtest "github.com/m3db/m3x/test"
 
 	"github.com/golang/mock/gomock"
@@ -318,4 +320,56 @@ writeWorkerPoolPolicy:
 	// Ensure close server performs as expected
 	interruptCh <- fmt.Errorf("interrupt")
 	<-doneCh
+}
+
+func TestNewPerQueryEnforcer(t *testing.T) {
+	type testContext struct {
+		Global cost.ChainedEnforcer
+		Query  cost.ChainedEnforcer
+		Block  cost.ChainedEnforcer
+	}
+
+	setup := func(t *testing.T, globalLimit, queryLimit int) testContext {
+		cfg := &config.Configuration{
+			Limits: config.LimitsConfiguration{
+				Global: config.GlobalLimitsConfiguration{
+					MaxFetchedDatapoints: 100,
+				},
+				PerQuery: config.PerQueryLimitsConfiguration{
+					MaxFetchedDatapoints: 10,
+				},
+			},
+		}
+
+		global, err := newPerQueryEnforcer(cfg, instrument.NewOptions())
+		require.NoError(t, err)
+
+		queryLvl := global.Child(cost.QueryLevel)
+		blockLvl := queryLvl.Child(cost.BlockLevel)
+
+		return testContext{
+			Global: global,
+			Query:  queryLvl,
+			Block:  blockLvl,
+		}
+	}
+
+	tctx := setup(t, 100, 10)
+
+	// spot check that limits are setup properly for each level
+	r := tctx.Block.Add(11)
+	require.Error(t, r.Error)
+
+	floatsEqual := func(f1, f2 float64) {
+		assert.InDelta(t, f1, f2, 0.0000001)
+	}
+
+	floatsEqual(float64(r.Cost), 11)
+
+	r, _ = tctx.Query.State()
+	floatsEqual(float64(r.Cost), 11)
+
+	r, _ = tctx.Global.State()
+	floatsEqual(float64(r.Cost), 11)
+	require.NoError(t, r.Error)
 }

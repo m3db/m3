@@ -55,7 +55,7 @@ type enforcer struct {
 	tracker Tracker
 
 	costMsg string
-	metrics enforcerMetrics
+	metrics EnforcerReporter
 }
 
 // NewEnforcer returns a new enforcer for cost limits.
@@ -64,28 +64,36 @@ func NewEnforcer(m LimitManager, t Tracker, opts EnforcerOptions) Enforcer {
 		opts = NewEnforcerOptions()
 	}
 
+	reporter := opts.Reporter()
+	if reporter == nil {
+		reporter = newEnforcerMetrics(opts.InstrumentOptions().MetricsScope(), opts.ValueBuckets())
+	}
+
 	return &enforcer{
 		LimitManager: m,
 		tracker:      t,
 		costMsg:      opts.CostExceededMessage(),
-		metrics:      newEnforcerMetrics(opts.InstrumentOptions().MetricsScope(), opts.ValueBuckets()),
+		metrics:      reporter,
 	}
+}
+
+func (e *enforcer) Reporter() EnforcerReporter {
+	return e.metrics
 }
 
 // Add adds the cost of an operation to the enforcer's current total. If the operation exceeds
 // the enforcer's limit the enforcer will return a CostLimit error in addition to the new total.
 func (e *enforcer) Add(cost Cost) Report {
+	e.metrics.ReportCost(cost)
 	current := e.tracker.Add(cost)
+	e.metrics.ReportCurrent(current)
 
 	limit := e.Limit()
 	overLimit := e.checkLimit(current, limit)
 
 	if overLimit != nil {
 		// Emit metrics on number of operations that are over the limit even when not enabled.
-		e.metrics.overLimit.Inc(1)
-		if limit.Enabled {
-			e.metrics.overLimitAndEnabled.Inc(1)
-		}
+		e.metrics.ReportOverLimit(limit.Enabled)
 	}
 
 	return Report{
@@ -151,9 +159,54 @@ func NoopEnforcer() Enforcer {
 	return noopEnforcer
 }
 
+// An EnforcerReporter is a listener for Enforcer events.
+type EnforcerReporter interface {
+
+	// ReportCost is called on every call to Enforcer#Add with the added cost
+	ReportCost(c Cost)
+
+	// ReportCurrent reports the current total on every call to Enforcer#Add
+	ReportCurrent(c Cost)
+
+	// ReportOverLimit is called every time an enforcer goes over its limit. enabled is true if the limit manager
+	// says the limit is currently enabled.
+	ReportOverLimit(enabled bool)
+}
+
+type noopEnforcerReporter struct{}
+
+func (noopEnforcerReporter) ReportCost(c Cost) {
+}
+
+func (noopEnforcerReporter) ReportCurrent(c Cost) {
+}
+
+func (noopEnforcerReporter) ReportOverLimit(enabled bool) {
+}
+
+// NoopEnforcerReporter returns an EnforcerReporter which does nothing on all events.
+func NoopEnforcerReporter() EnforcerReporter {
+	return noopEnforcerReporter{}
+}
+
 type enforcerMetrics struct {
 	overLimit           tally.Counter
 	overLimitAndEnabled tally.Counter
+}
+
+func (em enforcerMetrics) ReportCurrent(c Cost) {
+}
+
+func (em enforcerMetrics) ReportCost(c Cost) {
+
+}
+
+func (em enforcerMetrics) ReportOverLimit(enabled bool) {
+	if enabled {
+		em.overLimitAndEnabled.Inc(1)
+	} else {
+		em.overLimit.Inc(1)
+	}
 }
 
 func newEnforcerMetrics(s tally.Scope, b tally.ValueBuckets) enforcerMetrics {

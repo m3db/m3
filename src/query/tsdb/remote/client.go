@@ -188,7 +188,7 @@ func (c *grpcClient) FetchBlocks(
 		return block.Result{}, err
 	}
 
-	res, err := storage.FetchResultToBlockResult(fetchResult, query)
+	res, err := storage.FetchResultToBlockResult(fetchResult, query, options.Enforcer)
 	if err != nil {
 		return block.Result{}, err
 	}

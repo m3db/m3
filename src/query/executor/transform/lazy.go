@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 )
 
@@ -31,7 +32,7 @@ type sinkNode struct {
 	block block.Block
 }
 
-func (s *sinkNode) Process(ID parser.NodeID, block block.Block) error {
+func (s *sinkNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, block block.Block) error {
 	s.block = block
 	return nil
 }
@@ -44,9 +45,7 @@ type lazyNode struct {
 
 // NewLazyNode creates a new wrapper around a function fNode to make it support lazy initialization
 func NewLazyNode(node OpNode, controller *Controller) (OpNode, *Controller) {
-	c := &Controller{
-		ID: controller.ID,
-	}
+	c := &Controller{ID: controller.ID}
 
 	sink := &sinkNode{}
 	controller.AddTransform(sink)
@@ -58,14 +57,15 @@ func NewLazyNode(node OpNode, controller *Controller) (OpNode, *Controller) {
 	}, c
 }
 
-func (f *lazyNode) Process(ID parser.NodeID, block block.Block) error {
+func (f *lazyNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, block block.Block) error {
 	b := &lazyBlock{
 		rawBlock: block,
 		lazyNode: f,
+		queryCtx: queryCtx,
 		ID:       ID,
 	}
 
-	return f.controller.Process(b)
+	return f.controller.Process(queryCtx, b)
 }
 
 type stepIter struct {
@@ -137,9 +137,11 @@ func (s *seriesIter) Next() bool {
 }
 
 type lazyBlock struct {
-	mu             sync.Mutex
-	rawBlock       block.Block
-	lazyNode       *lazyNode
+	mu       sync.Mutex
+	rawBlock block.Block
+	lazyNode *lazyNode
+
+	queryCtx       *models.QueryContext
 	ID             parser.NodeID
 	processedBlock block.Block
 	processError   error
@@ -243,7 +245,7 @@ func (f *lazyBlock) Close() error {
 }
 
 func (f *lazyBlock) process() error {
-	err := f.lazyNode.fNode.Process(f.ID, f.rawBlock)
+	err := f.lazyNode.fNode.Process(f.queryCtx, f.ID, f.rawBlock)
 	if err != nil {
 		f.processError = err
 		return err

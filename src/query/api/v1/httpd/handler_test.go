@@ -31,6 +31,7 @@ import (
 	m3json "github.com/m3db/m3/src/query/api/v1/handler/json"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
+	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -48,7 +49,7 @@ func makeTagOptions() models.TagOptions {
 }
 
 func setupHandler(store storage.Storage) (*Handler, error) {
-	return NewHandler(store, makeTagOptions(), nil, executor.NewEngine(store, tally.NewTestScope("test", nil)), nil, nil,
+	return NewHandler(store, makeTagOptions(), nil, executor.NewEngine(store, tally.NewTestScope("test", nil), cost.NoopChainedEnforcer()), nil, nil,
 		config.Configuration{}, nil, tally.NewTestScope("", nil))
 }
 

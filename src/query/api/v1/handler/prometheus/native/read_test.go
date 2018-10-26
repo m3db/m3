@@ -32,6 +32,7 @@ import (
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/mock"
@@ -126,9 +127,10 @@ func newTestSetup() *testSetup {
 	return &testSetup{
 		Storage: mockStorage,
 		Handler: NewPromReadHandler(
-			executor.NewEngine(mockStorage, tally.NewTestScope("test", nil)),
+			executor.NewEngine(mockStorage, tally.NewTestScope("test", nil), cost.NoopChainedEnforcer()),
 			models.NewTagOptions(),
 			&config.LimitsConfiguration{},
+			tally.NoopScope,
 		),
 	}
 }
@@ -136,7 +138,9 @@ func newTestSetup() *testSetup {
 func TestPromReadHandler_ServeHTTP_maxComputedDatapoints(t *testing.T) {
 	setup := newTestSetup()
 	setup.Handler.limitsCfg = &config.LimitsConfiguration{
-		MaxComputedDatapoints: 3599,
+		PerQuery: config.PerQueryLimitsConfiguration{
+			MaxComputedDatapoints: 3599,
+		},
 	}
 
 	params := defaultParams()
@@ -245,7 +249,9 @@ func TestPromReadHandler_validateRequest(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			setup := newTestSetup()
 			setup.Handler.limitsCfg = &config.LimitsConfiguration{
-				MaxComputedDatapoints: tc.Max,
+				PerQuery: config.PerQueryLimitsConfiguration{
+					MaxComputedDatapoints: tc.Max,
+				},
 			}
 
 			err := setup.Handler.validateRequest(tc.Params)

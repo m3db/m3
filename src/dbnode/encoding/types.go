@@ -203,7 +203,7 @@ type SeriesIteratorOptions struct {
 	IterateEqualTimestampStrategy IterateEqualTimestampStrategy
 }
 
-// SeriesIterators is a collection of SeriesIterator that can close all iterators
+// SeriesIterators is a collection of SeriesIterator that can close all iterators, with optional pooling.
 type SeriesIterators interface {
 	// Iters returns the array of series iterators
 	Iters() []SeriesIterator
@@ -213,6 +213,9 @@ type SeriesIterators interface {
 
 	// Close closes all iterators contained
 	Close()
+
+	// Pool returns the pool used for these SeriesIterators.
+	Pool() MutableSeriesIteratorsPool
 }
 
 // MutableSeriesIterators is a mutable SeriesIterators

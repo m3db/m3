@@ -38,6 +38,10 @@ func (iters *seriesIterators) Iters() []SeriesIterator {
 	return iters.iters
 }
 
+func (iters *seriesIterators) Pool() MutableSeriesIteratorsPool {
+	return iters.pool
+}
+
 func (iters *seriesIterators) Close() {
 	if iters.closed {
 		return
@@ -78,6 +82,7 @@ var EmptySeriesIterators SeriesIterators = emptyIters{}
 
 type emptyIters struct{}
 
-func (e emptyIters) Iters() []SeriesIterator { return nil }
-func (e emptyIters) Len() int                { return 0 }
-func (e emptyIters) Close()                  {}
+func (e emptyIters) Iters() []SeriesIterator          { return nil }
+func (e emptyIters) Len() int                         { return 0 }
+func (e emptyIters) Close()                           {}
+func (e emptyIters) Pool() MutableSeriesIteratorsPool { return nil }

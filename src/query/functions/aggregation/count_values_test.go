@@ -83,7 +83,7 @@ func processCountValuesOp(
 	bl := test.NewBlockFromValuesWithSeriesMeta(bounds, metas, vals)
 	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 	node := op.(countValuesOp).Node(c, transform.Options{})
-	err := node.Process(parser.NodeID(0), bl)
+	err := node.Process(models.NoopQueryContext(), parser.NodeID(0), bl)
 	require.NoError(t, err)
 	return sink
 }

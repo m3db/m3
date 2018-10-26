@@ -25,6 +25,7 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/plan"
 	"github.com/m3db/m3/src/query/storage"
@@ -184,10 +185,13 @@ func (s *ExecutionState) createNode(
 }
 
 // Execute the sources in parallel and return the first error
-func (s *ExecutionState) Execute(ctx context.Context) error {
+func (s *ExecutionState) Execute(ctx context.Context, queryCtx *models.QueryContext) error {
 	requests := make([]execution.Request, len(s.sources))
 	for idx, source := range s.sources {
-		requests[idx] = sourceRequest{source}
+		requests[idx] = sourceRequest{
+			source:   source,
+			queryCtx: queryCtx,
+		}
 	}
 
 	return execution.ExecuteParallel(ctx, requests)
@@ -199,9 +203,10 @@ func (s *ExecutionState) String() string {
 }
 
 type sourceRequest struct {
-	source parser.Source
+	source   parser.Source
+	queryCtx *models.QueryContext
 }
 
 func (s sourceRequest) Process(ctx context.Context) error {
-	return s.source.Execute(ctx)
+	return s.source.Execute(ctx, s.queryCtx)
 }

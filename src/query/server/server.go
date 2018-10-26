@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -40,6 +41,7 @@ import (
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/query/api/v1/httpd"
 	m3dbcluster "github.com/m3db/m3/src/query/cluster/m3db"
+	qcost "github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/policy/filter"
@@ -51,6 +53,7 @@ import (
 	"github.com/m3db/m3/src/query/stores/m3db"
 	tsdbRemote "github.com/m3db/m3/src/query/tsdb/remote"
 	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/x/cost"
 	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3x/clock"
 	xconfig "github.com/m3db/m3x/config"
@@ -202,7 +205,12 @@ func Run(runOpts RunOptions) {
 		defer cleanup()
 	}
 
-	engine := executor.NewEngine(backendStorage, scope.SubScope("engine"))
+	perQueryEnforcer, err := newPerQueryEnforcer(&cfg, instrumentOptions)
+	if err != nil {
+		logger.Fatal("unable to setup perQueryEnforcer", zap.Error(err))
+	}
+
+	engine := executor.NewEngine(backendStorage, scope.SubScope("engine"), perQueryEnforcer)
 
 	handler, err := httpd.NewHandler(backendStorage, tagOptions, downsampler, engine,
 		m3dbClusters, clusterClient, cfg, runOpts.DBConfig, scope)
@@ -282,6 +290,106 @@ func Run(runOpts RunOptions) {
 	}
 
 	logger.Info("interrupt", zap.String("cause", interruptErr.Error()))
+}
+
+type globalReporter struct {
+	Datapoints        tally.Gauge
+	DatapointsCounter tally.Counter
+}
+
+func newGlobalReporter(s tally.Scope) globalReporter {
+	return globalReporter{
+		Datapoints:        s.Gauge("datapoints"),
+		DatapointsCounter: s.Counter("datapoints_counter"),
+	}
+}
+
+func (gr globalReporter) ReportCurrent(c cost.Cost) {
+	gr.Datapoints.Update(float64(c))
+}
+
+func (gr globalReporter) ReportCost(c cost.Cost) {
+	if c > 0 {
+		gr.DatapointsCounter.Inc(int64(c))
+	}
+}
+
+func (globalReporter) ReportOverLimit(enabled bool) {
+}
+
+func newPerQueryReporter(scope tally.Scope) *perQueryReporter {
+	return &perQueryReporter{
+		mu:            &sync.Mutex{},
+		maxDatapoints: 0,
+		queryHisto: scope.Histogram("datapoints_histo",
+			tally.MustMakeExponentialValueBuckets(10.0, 10.0, 6)),
+	}
+}
+
+type perQueryReporter struct {
+	mu            *sync.Mutex
+	maxDatapoints cost.Cost
+
+	queryHisto tally.Histogram
+}
+
+func (perQueryReporter) ReportCost(c cost.Cost) {
+}
+
+func (perQueryReporter) ReportCurrent(c cost.Cost) {
+}
+
+func (perQueryReporter) ReportOverLimit(enabled bool) {
+}
+
+// OnChildRelease takes the max of the current cost for this query and the previously recorded cost
+func (pr *perQueryReporter) OnChildRelease(curCost cost.Cost) {
+	pr.mu.Lock()
+	if curCost > pr.maxDatapoints {
+		pr.maxDatapoints = curCost
+	}
+	pr.mu.Unlock()
+}
+
+// OnRelease records the maximum cost seen by this reporter.
+func (pr *perQueryReporter) OnRelease(curCost cost.Cost) {
+	pr.mu.Lock()
+	pr.queryHisto.RecordValue(float64(pr.maxDatapoints))
+	pr.mu.Unlock()
+}
+
+func newPerQueryEnforcer(cfg *config.Configuration, instrumentOptions instrument.Options) (qcost.ChainedEnforcer, error) {
+	costScope := instrumentOptions.MetricsScope().SubScope("cost")
+	costIops := instrumentOptions.SetMetricsScope(costScope)
+	limitMgr := cost.NewStaticLimitManager(cfg.Limits.Global.AsLimitManagerOptions().SetInstrumentOptions(costIops))
+	tracker := cost.NewTracker()
+
+	globalEnforcer := cost.NewEnforcer(limitMgr, tracker,
+		cost.NewEnforcerOptions().SetReporter(
+			newGlobalReporter(costScope.SubScope("global")),
+		).SetCostExceededMessage("limits.global.maxDatapointMemoryBytes exceeded"),
+	)
+
+	queryEnforcerOpts := cost.NewEnforcerOptions().SetCostExceededMessage("limits.perQuery.maxDatapointMemoryBytes exceeded").
+		SetInstrumentOptions(costIops).
+		SetReporter(newPerQueryReporter(instrumentOptions.MetricsScope().SubScope("query")))
+
+	queryEnforcer := cost.NewEnforcer(
+		cost.NewStaticLimitManager(cfg.Limits.PerQuery.AsLimitManagerOptions()),
+		cost.NewTracker(),
+		queryEnforcerOpts)
+
+	blockEnforcer := cost.NewEnforcer(
+		cost.NewStaticLimitManager(cost.NewLimitManagerOptions().SetDefaultLimit(cost.Limit{Enabled: false})),
+		cost.NewTracker(),
+		nil,
+	)
+
+	return qcost.NewChainedEnforcer(qcost.GlobalLevel, []cost.Enforcer{
+		globalEnforcer,
+		queryEnforcer,
+		blockEnforcer,
+	})
 }
 
 // make connections to the m3db cluster(s) and generate sessions for those clusters along with the storage

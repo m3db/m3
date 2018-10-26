@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/models"
 )
 
 const (
@@ -81,7 +82,7 @@ func buildArithmeticFunction(
 	}
 
 	// Build the binary processing step
-	return func(lhs, rhs block.Block, controller *transform.Controller) (block.Block, error) {
-		return processBinary(lhs, rhs, params, controller, false, fn)
+	return func(queryCtx *models.QueryContext, lhs, rhs block.Block, controller *transform.Controller) (block.Block, error) {
+		return processBinary(queryCtx, lhs, rhs, params, controller, false, fn)
 	}, true
 }

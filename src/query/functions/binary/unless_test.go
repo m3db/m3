@@ -222,7 +222,7 @@ func TestUnless(t *testing.T) {
 			}
 
 			lhs := test.NewBlockFromValuesWithSeriesMeta(bounds, tt.lhsMeta, tt.lhs)
-			err = node.Process(parser.NodeID(0), lhs)
+			err = node.Process(models.NoopQueryContext(), parser.NodeID(0), lhs)
 			require.NoError(t, err)
 			bounds = models.Bounds{
 				Start:    now,
@@ -231,7 +231,7 @@ func TestUnless(t *testing.T) {
 			}
 
 			rhs := test.NewBlockFromValuesWithSeriesMeta(bounds, tt.rhsMeta, tt.rhs)
-			err = node.Process(parser.NodeID(1), rhs)
+			err = node.Process(models.NoopQueryContext(), parser.NodeID(1), rhs)
 			if tt.err != nil {
 				require.EqualError(t, err, tt.err.Error())
 				return

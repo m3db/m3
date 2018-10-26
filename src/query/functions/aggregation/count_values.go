@@ -140,7 +140,7 @@ func processBlockBucketAtColumn(
 }
 
 // Process the block
-func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
+func (n *countValuesNode) Process(queryCtx *models.QueryContext, ID parser.NodeID, b block.Block) error {
 	stepIter, err := b.StepIter()
 	if err != nil {
 		return err
@@ -210,7 +210,7 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 	metaTags, flattenedMeta := utils.DedupeMetadata(blockMetas)
 	meta.Tags = metaTags
 
-	builder, err := n.controller.BlockBuilder(meta, flattenedMeta)
+	builder, err := n.controller.BlockBuilder(queryCtx, meta, flattenedMeta)
 	if err != nil {
 		return err
 	}
@@ -231,7 +231,7 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 
 	nextBlock := builder.Build()
 	defer nextBlock.Close()
-	return n.controller.Process(nextBlock)
+	return n.controller.Process(queryCtx, nextBlock)
 }
 
 // pads vals with enough NaNs to match size

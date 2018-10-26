@@ -68,4 +68,5 @@ type Enforcer interface {
 	State() (Report, Limit)
 	Limit() Limit
 	Clone() Enforcer
+	Reporter() EnforcerReporter
 }

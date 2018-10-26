@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/models"
 )
 
 const (
@@ -98,7 +99,7 @@ func buildComparisonFunction(
 		return nil, false
 	}
 
-	return func(lhs, rhs block.Block, controller *transform.Controller) (block.Block, error) {
-		return processBinary(lhs, rhs, params, controller, true, fn)
+	return func(queryCtx *models.QueryContext, lhs, rhs block.Block, controller *transform.Controller) (block.Block, error) {
+		return processBinary(queryCtx, lhs, rhs, params, controller, true, fn)
 	}, true
 }

@@ -25,9 +25,12 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
+
+	"github.com/uber-go/tally"
 )
 
 // ValueMod can be used to modify provided values for testing
@@ -130,7 +133,7 @@ func NewBlockFromValuesWithMetaAndSeriesMeta(
 	seriesMeta []block.SeriesMeta,
 	seriesValues [][]float64,
 ) block.Block {
-	columnBuilder := block.NewColumnBlockBuilder(meta, seriesMeta)
+	columnBuilder := block.NewColumnBlockBuilder(meta, seriesMeta, models.NewQueryContext(tally.NoopScope, cost.NoopChainedEnforcer()))
 	columnBuilder.AddCols(len(seriesValues[0]))
 	for _, seriesVal := range seriesValues {
 		for idx, val := range seriesVal {

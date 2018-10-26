@@ -21,8 +21,10 @@
 package config
 
 import (
+	"fmt"
 	"testing"
 
+	"github.com/m3db/m3/src/x/cost"
 	xconfig "github.com/m3db/m3x/config"
 
 	"github.com/stretchr/testify/assert"
@@ -49,12 +51,82 @@ func TestTagOptionsFromConfig(t *testing.T) {
 	assert.Equal(t, []byte(name), opts.MetricName())
 }
 
+func TestLimitsConfiguration_AsLimitManagerOptions(t *testing.T) {
+	cases := []struct {
+		Input interface {
+			AsLimitManagerOptions() cost.LimitManagerOptions
+		}
+		ExpectedDefault int64
+	}{{
+		Input: &PerQueryLimitsConfiguration{
+			MaxFetchedDatapoints: 5,
+		},
+		ExpectedDefault: 5,
+	}, {
+		Input: &GlobalLimitsConfiguration{
+			MaxFetchedDatapoints: 6,
+		},
+		ExpectedDefault: 6,
+	}}
+
+	for _, tc := range cases {
+		t.Run(fmt.Sprintf("type_%T", tc.Input), func(t *testing.T) {
+			res := tc.Input.AsLimitManagerOptions()
+			assert.Equal(t, cost.Limit{
+				Threshold: cost.Cost(tc.ExpectedDefault),
+				Enabled:   true,
+			}, res.DefaultLimit())
+		})
+	}
+}
+
+func TestToLimitManagerOptions(t *testing.T) {
+	cases := []struct {
+		Name          string
+		Input         int64
+		ExpectedLimit cost.Limit
+	}{{
+		Name:  "negative is disabled",
+		Input: -5,
+		ExpectedLimit: cost.Limit{
+			Threshold: cost.Cost(-5),
+			Enabled:   false,
+		},
+	}, {
+		Name:  "zero is disabled",
+		Input: 0,
+		ExpectedLimit: cost.Limit{
+			Threshold: cost.Cost(0),
+			Enabled:   false,
+		},
+	}, {
+		Name:  "positive is enabled",
+		Input: 5,
+		ExpectedLimit: cost.Limit{
+			Threshold: cost.Cost(5),
+			Enabled:   true,
+		},
+	}}
+
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			assert.Equal(t, tc.ExpectedLimit, toLimitManagerOptions(tc.Input).DefaultLimit())
+		})
+	}
+}
+
 func TestConfigLoading(t *testing.T) {
 	var cfg Configuration
 	require.NoError(t, xconfig.LoadFile(&cfg, "./testdata/sample_config.yml", xconfig.Options{}))
 
 	assert.Equal(t, &LimitsConfiguration{
-		MaxComputedDatapoints: 12000,
+		PerQuery: PerQueryLimitsConfiguration{
+			MaxComputedDatapoints: 12000,
+			MaxFetchedDatapoints:  11000,
+		},
+		Global: GlobalLimitsConfiguration{
+			MaxFetchedDatapoints: 13000,
+		},
 	}, &cfg.Limits)
 	// TODO: assert on more fields here.
 }
@@ -87,8 +159,9 @@ func TestConfigValidation(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			cfg := baseCfg(t)
 			cfg.Limits = LimitsConfiguration{
-				MaxComputedDatapoints: 5,
-			}
+				PerQuery: PerQueryLimitsConfiguration{
+					MaxComputedDatapoints: tc.Limit,
+				}}
 
 			assert.NoError(t, validator.Validate(cfg))
 		})

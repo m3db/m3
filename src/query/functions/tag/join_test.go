@@ -184,10 +184,10 @@ func TestTagJoinOp(t *testing.T) {
 				seriesMeta[i] = block.SeriesMeta{Tags: test.StringTagsToTags(t)}
 			}
 
-			bl := block.NewColumnBlockBuilder(meta, seriesMeta).Build()
+			bl := block.NewColumnBlockBuilder(meta, seriesMeta, models.NoopQueryContext()).Build()
 			c, sink := executor.NewControllerWithSink(parser.NodeID(1))
 			node := op.(baseOp).Node(c, transform.Options{})
-			err = node.Process(parser.NodeID(0), bl)
+			err = node.Process(models.NoopQueryContext(), parser.NodeID(0), bl)
 			require.NoError(t, err)
 
 			assert.Equal(t, test.StringTagsToTags(tt.expectedMetaTags), sink.Meta.Tags)

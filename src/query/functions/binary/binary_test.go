@@ -116,10 +116,10 @@ func TestScalars(t *testing.T) {
 			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
 			node := op.(baseOp).Node(c, transform.Options{})
 
-			err = node.Process(parser.NodeID(0), block.NewScalar(func(_ time.Time) float64 { return tt.lVal }, bounds))
+			err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block.NewScalar(func(_ time.Time) float64 { return tt.lVal }, bounds))
 			require.NoError(t, err)
 
-			err = node.Process(parser.NodeID(1), block.NewScalar(func(_ time.Time) float64 { return tt.rVal }, bounds))
+			err = node.Process(models.NoopQueryContext(), parser.NodeID(1), block.NewScalar(func(_ time.Time) float64 { return tt.rVal }, bounds))
 			require.NoError(t, err)
 
 			expected := [][]float64{{
@@ -160,10 +160,10 @@ func TestScalarsReturnBoolFalse(t *testing.T) {
 			c, sink := executor.NewControllerWithSink(parser.NodeID(2))
 			node := op.(baseOp).Node(c, transform.Options{})
 
-			err = node.Process(parser.NodeID(0), block.NewScalar(func(_ time.Time) float64 { return tt.lVal }, bounds))
+			err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block.NewScalar(func(_ time.Time) float64 { return tt.lVal }, bounds))
 			require.NoError(t, err)
 
-			err = node.Process(parser.NodeID(1), block.NewScalar(func(_ time.Time) float64 { return tt.rVal }, bounds))
+			err = node.Process(models.NoopQueryContext(), parser.NodeID(1), block.NewScalar(func(_ time.Time) float64 { return tt.rVal }, bounds))
 
 			if tt.opType == EqType || tt.opType == NotEqType ||
 				tt.opType == GreaterType || tt.opType == LesserType ||
@@ -510,16 +510,16 @@ func TestSingleSeriesReturnBool(t *testing.T) {
 			series := test.NewBlockFromValuesWithSeriesMeta(bounds, metas, seriesValues)
 			// Set the series and scalar blocks on the correct sides
 			if tt.seriesLeft {
-				err = node.Process(parser.NodeID(0), series)
+				err = node.Process(models.NoopQueryContext(), parser.NodeID(0), series)
 				require.NoError(t, err)
 
-				err = node.Process(parser.NodeID(1), block.NewScalar(func(_ time.Time) float64 { return tt.scalarVal }, bounds))
+				err = node.Process(models.NoopQueryContext(), parser.NodeID(1), block.NewScalar(func(_ time.Time) float64 { return tt.scalarVal }, bounds))
 				require.NoError(t, err)
 			} else {
-				err = node.Process(parser.NodeID(0), block.NewScalar(func(_ time.Time) float64 { return tt.scalarVal }, bounds))
+				err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block.NewScalar(func(_ time.Time) float64 { return tt.scalarVal }, bounds))
 				require.NoError(t, err)
 
-				err = node.Process(parser.NodeID(1), series)
+				err = node.Process(models.NoopQueryContext(), parser.NodeID(1), series)
 				require.NoError(t, err)
 			}
 
@@ -565,16 +565,16 @@ func TestSingleSeriesReturnValues(t *testing.T) {
 			series := test.NewBlockFromValuesWithSeriesMeta(bounds, metas, seriesValues)
 			// Set the series and scalar blocks on the correct sides
 			if tt.seriesLeft {
-				err = node.Process(parser.NodeID(0), series)
+				err = node.Process(models.NoopQueryContext(), parser.NodeID(0), series)
 				require.NoError(t, err)
 
-				err = node.Process(parser.NodeID(1), block.NewScalar(func(_ time.Time) float64 { return tt.scalarVal }, bounds))
+				err = node.Process(models.NoopQueryContext(), parser.NodeID(1), block.NewScalar(func(_ time.Time) float64 { return tt.scalarVal }, bounds))
 				require.NoError(t, err)
 			} else {
-				err = node.Process(parser.NodeID(0), block.NewScalar(func(_ time.Time) float64 { return tt.scalarVal }, bounds))
+				err = node.Process(models.NoopQueryContext(), parser.NodeID(0), block.NewScalar(func(_ time.Time) float64 { return tt.scalarVal }, bounds))
 				require.NoError(t, err)
 
-				err = node.Process(parser.NodeID(1), series)
+				err = node.Process(models.NoopQueryContext(), parser.NodeID(1), series)
 				require.NoError(t, err)
 			}
 
@@ -827,10 +827,10 @@ func TestBothSeries(t *testing.T) {
 				StepSize: time.Minute,
 			}
 
-			err = node.Process(parser.NodeID(0), test.NewBlockFromValuesWithSeriesMeta(bounds, tt.lhsMeta, tt.lhs))
+			err = node.Process(models.NoopQueryContext(), parser.NodeID(0), test.NewBlockFromValuesWithSeriesMeta(bounds, tt.lhsMeta, tt.lhs))
 			require.NoError(t, err)
 
-			err = node.Process(parser.NodeID(1), test.NewBlockFromValuesWithSeriesMeta(bounds, tt.rhsMeta, tt.rhs))
+			err = node.Process(models.NoopQueryContext(), parser.NodeID(1), test.NewBlockFromValuesWithSeriesMeta(bounds, tt.rhsMeta, tt.rhs))
 			require.NoError(t, err)
 
 			test.EqualsWithNans(t, tt.expected, sink.Values)

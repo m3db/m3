@@ -95,12 +95,8 @@ func TestFailingExpandSeriesValidPools(t *testing.T) {
 	require.NoError(t, err)
 	pool.Init()
 	ctrl := gomock.NewController(t)
-	testTags := seriesiter.GenerateTag()
-	validTagGenerator := func() ident.TagIterator {
-		return seriesiter.GenerateSingleSampleTagIterator(ctrl, testTags)
-	}
 
-	iters := seriesiter.NewMockSeriesIterSlice(ctrl, validTagGenerator, numValidSeries, numValues)
+	iters := seriesiter.NewMockSeriesIterSlice(ctrl, seriesiter.NewMockValidTagGenerator(ctrl), numValidSeries, numValues)
 	// Add poolSize + 1 failing iterators; there can be slight timing
 	// inconsistencies which can sometimes cause failures in this test
 	// as one of the `uncalled` iterators gets unexpectedly used.
@@ -275,4 +271,21 @@ func BenchmarkFetchResultToPromResult(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		benchResult = FetchResultToPromResult(fr)
 	}
+}
+
+func TestIteratorToTsSeries(t *testing.T) {
+	t.Run("errors on iterator error", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockIter := encoding.NewMockSeriesIterator(ctrl)
+
+		expectedErr := errors.New("expected")
+		mockIter.EXPECT().Err().Return(expectedErr)
+
+		mockIter = seriesiter.NewMockSeriesIteratorFromBase(mockIter, seriesiter.NewMockValidTagGenerator(ctrl), 1)
+
+		dps, err := iteratorToTsSeries(mockIter, models.NewTagOptions())
+
+		assert.Nil(t, dps)
+		assert.EqualError(t, err, expectedErr.Error())
+	})
 }

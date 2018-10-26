@@ -26,9 +26,12 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
 	xtime "github.com/m3db/m3x/time"
+
+	"github.com/uber-go/tally"
 )
 
 // Type describes the type of storage
@@ -83,12 +86,15 @@ type FetchOptions struct {
 	// Limit is the maximum number of series to return.
 	Limit     int
 	BlockType models.FetchedBlockType
+	Enforcer  cost.ChainedEnforcer
+	Scope     tally.Scope
 }
 
 // NewFetchOptions creates a new fetch options.
 func NewFetchOptions() *FetchOptions {
 	return &FetchOptions{
-		Limit: 0,
+		Limit:    0,
+		Enforcer: cost.NoopChainedEnforcer(),
 	}
 }
 

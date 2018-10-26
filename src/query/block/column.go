@@ -23,11 +23,19 @@ package block
 import (
 	"fmt"
 	"time"
+
+	"github.com/m3db/m3/src/query/cost"
+	"github.com/m3db/m3/src/query/models"
+	xcost "github.com/m3db/m3/src/x/cost"
+
+	"github.com/uber-go/tally"
 )
 
 // ColumnBlockBuilder builds a block optimized for column iteration
 type ColumnBlockBuilder struct {
-	block *columnBlock
+	block           *columnBlock
+	enforcer        cost.ChainedEnforcer
+	blockDatapoints tally.Counter
 }
 
 type columnBlock struct {
@@ -160,8 +168,10 @@ func NewColStep(t time.Time, values []float64) Step {
 }
 
 // NewColumnBlockBuilder creates a new column block builder
-func NewColumnBlockBuilder(meta Metadata, seriesMeta []SeriesMeta) Builder {
+func NewColumnBlockBuilder(meta Metadata, seriesMeta []SeriesMeta, queryCtx *models.QueryContext) Builder {
 	return ColumnBlockBuilder{
+		enforcer:        queryCtx.Enforcer.Child(cost.BlockLevel),
+		blockDatapoints: queryCtx.Scope.Tagged(map[string]string{"type": "generated"}).Counter("datapoints"),
 		block: &columnBlock{
 			meta:       meta,
 			seriesMeta: seriesMeta,
@@ -176,6 +186,13 @@ func (cb ColumnBlockBuilder) AppendValue(idx int, value float64) error {
 		return fmt.Errorf("idx out of range for append: %d", idx)
 	}
 
+	r := cb.enforcer.Add(1)
+	if r.Error != nil {
+		return r.Error
+	}
+
+	cb.blockDatapoints.Inc(1)
+
 	columns[idx].Values = append(columns[idx].Values, value)
 	return nil
 }
@@ -186,6 +203,13 @@ func (cb ColumnBlockBuilder) AppendValues(idx int, values []float64) error {
 	if len(columns) <= idx {
 		return fmt.Errorf("idx out of range for append: %d", idx)
 	}
+
+	r := cb.enforcer.Add(xcost.Cost(len(values)))
+	if r.Error != nil {
+		return r.Error
+	}
+
+	cb.blockDatapoints.Inc(int64(len(values)))
 
 	columns[idx].Values = append(columns[idx].Values, values...)
 	return nil
@@ -201,7 +225,7 @@ func (cb ColumnBlockBuilder) AddCols(num int) error {
 // Build extracts the block
 // TODO: Return an immutable copy
 func (cb ColumnBlockBuilder) Build() Block {
-	return cb.block
+	return NewAccountedBlock(cb.block, cb.enforcer)
 }
 
 type column struct {

@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/x/metrics"
+	"github.com/m3db/m3/src/query/cost"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -63,14 +64,14 @@ func setupServer(t *testing.T) *httptest.Server {
 }
 
 func readHandler(store storage.Storage) *PromReadHandler {
-	return &PromReadHandler{engine: executor.NewEngine(store, tally.NewTestScope("test", nil)), promReadMetrics: promReadTestMetrics}
+	return &PromReadHandler{engine: executor.NewEngine(store, tally.NewTestScope("test", nil), cost.NoopChainedEnforcer()), promReadMetrics: promReadTestMetrics}
 }
 
 func TestPromReadParsing(t *testing.T) {
 	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
 	storage, _ := m3.NewStorageAndSession(t, ctrl)
-	promRead := &PromReadHandler{engine: executor.NewEngine(storage, tally.NewTestScope("test", nil)), promReadMetrics: promReadTestMetrics}
+	promRead := &PromReadHandler{engine: executor.NewEngine(storage, tally.NewTestScope("test", nil), cost.NoopChainedEnforcer()), promReadMetrics: promReadTestMetrics}
 	req, _ := http.NewRequest("POST", PromReadURL, test.GeneratePromReadBody(t))
 
 	r, err := promRead.parseRequest(req)
@@ -153,7 +154,7 @@ func TestReadErrorMetricsCount(t *testing.T) {
 	defer closer.Close()
 	readMetrics := newPromReadMetrics(scope)
 
-	promRead := &PromReadHandler{engine: executor.NewEngine(storage, scope), promReadMetrics: readMetrics}
+	promRead := &PromReadHandler{engine: executor.NewEngine(storage, scope, cost.NoopChainedEnforcer()), promReadMetrics: readMetrics}
 	req, _ := http.NewRequest("POST", PromReadURL, test.GeneratePromReadBody(t))
 	promRead.ServeHTTP(httptest.NewRecorder(), req)
 

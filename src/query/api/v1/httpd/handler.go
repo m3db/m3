@@ -142,7 +142,7 @@ func (h *Handler) RegisterRoutes() error {
 		return err
 	}
 
-	nativePromReadHandler := native.NewPromReadHandler(h.engine, h.tagOptions, &h.config.Limits)
+	nativePromReadHandler := native.NewPromReadHandler(h.engine, h.tagOptions, &h.config.Limits, h.scope)
 
 	h.router.HandleFunc(remote.PromReadURL,
 		logged(promRemoteReadHandler).ServeHTTP,

@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/m3"
+	"github.com/m3db/m3/src/x/cost"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/config/listenaddress"
 	"github.com/m3db/m3x/instrument"
@@ -43,12 +44,6 @@ const (
 	// M3DBStorageType is for m3db backend.
 	M3DBStorageType BackendStorageType = "m3db"
 )
-
-// defaultLimitsConfiguration is applied if `limits` isn't specified.
-var defaultLimitsConfiguration = &LimitsConfiguration{
-	// this is sufficient for 1 day span / 1s step, or 60 days with a 1m step.
-	MaxComputedDatapoints: 86400,
-}
 
 // Configuration is the configuration for the query service.
 type Configuration struct {
@@ -119,9 +114,46 @@ type FilterConfiguration struct {
 	CompleteTags Filter `yaml:"completeTags"`
 }
 
-// LimitsConfiguration represents limitations on per-query resource usage. Zero or negative values imply no limit.
+// LimitsConfiguration represents limitations on resource usage in the query instance. Limits are split between per-query
+// and global limits.
 type LimitsConfiguration struct {
+	Global   GlobalLimitsConfiguration   `yaml:"global"`
+	PerQuery PerQueryLimitsConfiguration `yaml:"perQuery"`
+}
+
+// GlobalLimitsConfiguration represents limits on resource usage across a query instance. Zero or negative values imply no limit.
+type GlobalLimitsConfiguration struct {
+
+	// MaxFetchedDatapoints limits the total number of datapoints actually fetched by all queries at any given time.
+	MaxFetchedDatapoints int64 `yaml:"maxFetchedDatapoints"`
+}
+
+// AsLimitManagerOptions converts this configuration to cost.LimitManagerOptions for MaxFetchedDatapoints.
+func (l *GlobalLimitsConfiguration) AsLimitManagerOptions() cost.LimitManagerOptions {
+	return toLimitManagerOptions(l.MaxFetchedDatapoints)
+}
+
+// PerQueryLimitsConfiguration represents limits on resource usage within a single query. Zero or negative values imply no limit.
+type PerQueryLimitsConfiguration struct {
+
+	// MaxComputedDatapoints limits the number of datapoints that can be returned by a query. It's determined purely
+	// from the size of the time range and the step size (end - start / step).
 	MaxComputedDatapoints int64 `yaml:"maxComputedDatapoints"`
+
+	// MaxFetchedDatapoints limits the number of datapoints actually used by a given query.
+	MaxFetchedDatapoints int64 `yaml:"maxFetchedDatapoints"`
+}
+
+// AsLimitManagerOptions converts this configuration to cost.LimitManagerOptions for MaxFetchedDatapoints.
+func (l *PerQueryLimitsConfiguration) AsLimitManagerOptions() cost.LimitManagerOptions {
+	return toLimitManagerOptions(l.MaxFetchedDatapoints)
+}
+
+func toLimitManagerOptions(limit int64) cost.LimitManagerOptions {
+	return cost.NewLimitManagerOptions().SetDefaultLimit(cost.Limit{
+		Threshold: cost.Cost(limit),
+		Enabled:   limit > 0,
+	})
 }
 
 // IngestConfiguration is the configuration for ingestion server.

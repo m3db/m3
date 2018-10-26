@@ -22,6 +22,7 @@ package transform
 
 import (
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 )
 
@@ -36,10 +37,10 @@ func (t *Controller) AddTransform(node OpNode) {
 	t.transforms = append(t.transforms, node)
 }
 
-// Process performs processing on the underlying transforms.
-func (t *Controller) Process(block block.Block) error {
+// Process performs processing on the underlying transforms
+func (t *Controller) Process(queryCtx *models.QueryContext, block block.Block) error {
 	for _, ts := range t.transforms {
-		err := ts.Process(t.ID, block)
+		err := ts.Process(queryCtx, t.ID, block)
 		if err != nil {
 			return err
 		}
@@ -48,12 +49,12 @@ func (t *Controller) Process(block block.Block) error {
 	return nil
 }
 
-// BlockBuilder returns a BlockBuilder instance with associated metadata.
+// BlockBuilder returns a BlockBuilder instance with associated metadata
 func (t *Controller) BlockBuilder(
+	queryCtx *models.QueryContext,
 	blockMeta block.Metadata,
-	seriesMeta []block.SeriesMeta,
-) (block.Builder, error) {
-	return block.NewColumnBlockBuilder(blockMeta, seriesMeta), nil
+	seriesMeta []block.SeriesMeta) (block.Builder, error) {
+	return block.NewColumnBlockBuilder(blockMeta, seriesMeta, queryCtx), nil
 }
 
 // HasMultipleOperations returns true if there are multiple operations.

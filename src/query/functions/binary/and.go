@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/models"
 )
 
 // AndType uses values from left hand side for which there is a value in right hand side with exactly matching label sets.
@@ -32,13 +33,14 @@ import (
 const AndType = "and"
 
 func makeAndBlock(
+	queryCtx *models.QueryContext,
 	lIter, rIter block.StepIter,
 	controller *transform.Controller,
 	matching *VectorMatching,
 ) (block.Block, error) {
 	lMeta, rSeriesMeta := lIter.Meta(), rIter.SeriesMeta()
 
-	builder, err := controller.BlockBuilder(lMeta, rSeriesMeta)
+	builder, err := controller.BlockBuilder(queryCtx, lMeta, rSeriesMeta)
 	if err != nil {
 		return nil, err
 	}

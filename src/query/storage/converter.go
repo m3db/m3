@@ -252,6 +252,10 @@ func iteratorToTsSeries(
 		datapoints = append(datapoints, ts.Datapoint{Timestamp: dp.Timestamp, Value: dp.Value})
 	}
 
+	if err := iter.Err(); err != nil {
+		return nil, err
+	}
+
 	return ts.NewSeries(metric.ID, datapoints, metric.Tags), nil
 }
 

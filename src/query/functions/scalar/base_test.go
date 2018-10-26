@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/query/executor/transform"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/parser"
 	"github.com/m3db/m3/src/query/test"
 	"github.com/m3db/m3/src/query/test/executor"
@@ -51,7 +52,7 @@ func TestScalarTime(t *testing.T) {
 			Step:  step,
 		},
 	})
-	err := node.Execute(context.Background())
+	err := node.Execute(context.Background(), models.NoopQueryContext())
 	require.NoError(t, err)
 	assert.Len(t, sink.Values, 1)
 

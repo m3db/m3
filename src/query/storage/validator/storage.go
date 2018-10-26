@@ -71,7 +71,7 @@ func (s *debugStorage) FetchBlocks(
 		return block.Result{}, err
 	}
 
-	return storage.FetchResultToBlockResult(fetchResult, query)
+	return storage.FetchResultToBlockResult(fetchResult, query, options.Enforcer)
 }
 
 // PromResultToSeriesList converts a prom result to a series list
