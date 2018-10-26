@@ -30,26 +30,31 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/json"
 	"github.com/m3db/m3/src/x/net/http"
+
+	"github.com/prometheus/common/route"
 )
 
 const (
+	nameReplace         = "name"
 	queryParam          = "query"
 	filterNameTagsParam = "tag"
 	formatErrStr        = "error parsing param: %s, error: %v"
 )
 
 // parseParamsToQuery parses all params from the GET request
-func parseParamsToQuery(r *http.Request) (storage.CompleteTagsQuery, *xhttp.ParseError) {
+func parseParamsToQuery(
+	r *http.Request,
+) (*storage.CompleteTagsQuery, *xhttp.ParseError) {
 	tagQuery := storage.CompleteTagsQuery{}
 
 	query, err := parseQuery(r)
 	if err != nil {
-		return tagQuery, xhttp.NewParseError(fmt.Errorf(formatErrStr, queryParam, err), http.StatusBadRequest)
+		return nil, xhttp.NewParseError(fmt.Errorf(formatErrStr, queryParam, err), http.StatusBadRequest)
 	}
 
 	matchers, err := models.MatchersFromString(query)
 	if err != nil {
-		return tagQuery, xhttp.NewParseError(err, http.StatusBadRequest)
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
 	tagQuery.TagMatchers = matchers
@@ -63,7 +68,7 @@ func parseParamsToQuery(r *http.Request) (storage.CompleteTagsQuery, *xhttp.Pars
 		case "tagNamesOnly":
 			tagQuery.CompleteNameOnly = true
 		default:
-			return tagQuery, xhttp.NewParseError(errors.ErrInvalidResultParamError, http.StatusBadRequest)
+			return nil, xhttp.NewParseError(errors.ErrInvalidResultParamError, http.StatusBadRequest)
 		}
 	}
 
@@ -73,7 +78,25 @@ func parseParamsToQuery(r *http.Request) (storage.CompleteTagsQuery, *xhttp.Pars
 		tagQuery.FilterNameTags[i] = []byte(f)
 	}
 
-	return tagQuery, nil
+	return &tagQuery, nil
+}
+
+func parseTagValuesToQuery(
+	r *http.Request,
+) *storage.CompleteTagsQuery {
+	ctx := r.Context()
+	name := route.Param(ctx, nameReplace)
+	return &storage.CompleteTagsQuery{
+		CompleteNameOnly: true,
+		FilterNameTags:   [][]byte{},
+		TagMatchers: models.Matchers{
+			models.Matcher{
+				Type:  models.MatchEqual,
+				Name:  []byte(name),
+				Value: []byte{},
+			},
+		},
+	}
 }
 
 func parseQuery(r *http.Request) (string, error) {
@@ -143,7 +166,7 @@ func renderDefaultResultsJSON(
 
 func renderResultsJSON(
 	w io.Writer,
-	result storage.CompleteTagsResult,
+	result *storage.CompleteTagsResult,
 ) error {
 	results := result.CompletedTags
 	if result.CompleteNameOnly {
