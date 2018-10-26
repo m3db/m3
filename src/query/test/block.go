@@ -130,7 +130,7 @@ func NewBlockFromValuesWithMetaAndSeriesMeta(
 	seriesMeta []block.SeriesMeta,
 	seriesValues [][]float64,
 ) block.Block {
-	columnBuilder := block.NewColumnBlockBuilder(meta, seriesMeta)
+	columnBuilder := block.NewColumnBlockBuilder(models.NoopQueryContext(), meta, seriesMeta)
 
 	if err := columnBuilder.AddCols(len(seriesValues[0])); err != nil {
 		panic(err)

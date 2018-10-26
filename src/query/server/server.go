@@ -248,7 +248,12 @@ func Run(runOpts RunOptions) {
 		defer cleanup()
 	}
 
-	engine := executor.NewEngine(backendStorage, scope.SubScope("engine"), *cfg.LookbackDuration)
+	perQueryEnforcer, err := newConfiguredChainedEnforcer(&cfg, instrumentOptions)
+	if err != nil {
+		logger.Fatal("unable to setup perQueryEnforcer", zap.Error(err))
+	}
+
+	engine := executor.NewEngine(backendStorage, scope.SubScope("engine"), *cfg.LookbackDuration, perQueryEnforcer)
 
 	downsamplerAndWriter, err := newDownsamplerAndWriter(backendStorage, downsampler)
 	if err != nil {
