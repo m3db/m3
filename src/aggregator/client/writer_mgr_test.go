@@ -24,8 +24,10 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3x/clock"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -84,7 +86,37 @@ func TestWriterManagerRemoveInstancesSuccess(t *testing.T) {
 	toRemove := append([]placement.Instance{nonexistent, testPlacementInstance})
 	require.NoError(t, mgr.RemoveInstances(toRemove))
 	require.Equal(t, 0, len(mgr.writers))
-	require.True(t, w.closed)
+	require.True(t, clock.WaitUntil(func() bool {
+		w.Lock()
+		defer w.Unlock()
+		return w.closed
+	}, 3*time.Second))
+}
+
+func TestWriterManagerRemoveInstancesNonBlocking(t *testing.T) {
+	var (
+		opts = testOptions().SetInstanceQueueSize(200)
+		mgr  = newInstanceWriterManager(opts).(*writerManager)
+	)
+	require.NoError(t, mgr.AddInstances([]placement.Instance{testPlacementInstance}))
+	require.Equal(t, 1, len(mgr.writers))
+	w := mgr.writers[testPlacementInstance.ID()].instanceWriter.(*writer)
+
+	w.queue.(*queue).writeFn = func([]byte) error {
+		time.Sleep(time.Second)
+		return nil
+	}
+	data := []byte("foo")
+	for i := 0; i < opts.InstanceQueueSize(); i++ {
+		require.NoError(t, w.queue.Enqueue(testNewBuffer(data)))
+	}
+
+	go mgr.RemoveInstances([]placement.Instance{testPlacementInstance})
+	require.True(t, clock.WaitUntil(func() bool {
+		mgr.Lock()
+		defer mgr.Unlock()
+		return len(mgr.writers) == 0
+	}, 3*time.Second))
 }
 
 func TestWriterManagerWriteUntimedClosed(t *testing.T) {
@@ -223,7 +255,15 @@ func TestWriterManagerCloseSuccess(t *testing.T) {
 	require.NoError(t, mgr.AddInstances([]placement.Instance{testPlacementInstance}))
 	require.NoError(t, mgr.Close())
 	require.True(t, mgr.closed)
-	for _, w := range mgr.writers {
-		require.True(t, w.instanceWriter.(*writer).closed)
-	}
+	require.True(t, clock.WaitUntil(func() bool {
+		for _, w := range mgr.writers {
+			wr := w.instanceWriter.(*writer)
+			wr.Lock()
+			defer wr.Unlock()
+			if !wr.closed {
+				return false
+			}
+		}
+		return true
+	}, 3*time.Second))
 }

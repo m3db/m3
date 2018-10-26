@@ -30,6 +30,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/metrics/encoding"
 	"github.com/m3db/m3/src/metrics/encoding/migration"
@@ -39,6 +40,7 @@ import (
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
 	"github.com/m3db/m3/src/metrics/metric/id"
 	"github.com/m3db/m3/src/metrics/metric/unaggregated"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 
 	"github.com/golang/mock/gomock"
@@ -1049,7 +1051,12 @@ func TestRefCountedWriter(t *testing.T) {
 
 	require.False(t, w.instanceWriter.(*writer).closed)
 	w.DecRef()
-	require.True(t, w.instanceWriter.(*writer).closed)
+	require.True(t, clock.WaitUntil(func() bool {
+		wr := w.instanceWriter.(*writer)
+		wr.Lock()
+		defer wr.Unlock()
+		return wr.closed
+	}, 3*time.Second))
 }
 
 func cloneMetric(m unaggregated.MetricUnion) unaggregated.MetricUnion {
