@@ -86,7 +86,11 @@ func TestWriterManagerRemoveInstancesSuccess(t *testing.T) {
 	toRemove := append([]placement.Instance{nonexistent, testPlacementInstance})
 	require.NoError(t, mgr.RemoveInstances(toRemove))
 	require.Equal(t, 0, len(mgr.writers))
-	require.True(t, w.closed)
+	require.True(t, clock.WaitUntil(func() bool {
+		w.Lock()
+		defer w.Unlock()
+		return w.closed
+	}, 3*time.Second))
 }
 
 func TestWriterManagerRemoveInstancesNonBlocking(t *testing.T) {
@@ -251,7 +255,15 @@ func TestWriterManagerCloseSuccess(t *testing.T) {
 	require.NoError(t, mgr.AddInstances([]placement.Instance{testPlacementInstance}))
 	require.NoError(t, mgr.Close())
 	require.True(t, mgr.closed)
-	for _, w := range mgr.writers {
-		require.True(t, w.instanceWriter.(*writer).closed)
-	}
+	require.True(t, clock.WaitUntil(func() bool {
+		for _, w := range mgr.writers {
+			wr := w.instanceWriter.(*writer)
+			wr.Lock()
+			defer wr.Unlock()
+			if !wr.closed {
+				return false
+			}
+		}
+		return true
+	}, 3*time.Second))
 }
