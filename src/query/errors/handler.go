@@ -31,4 +31,7 @@ var (
 	ErrBatchQuery = errors.New("batch queries are currently not supported")
 	// ErrNoQueryFound is returned when a target is not found
 	ErrNoQueryFound = errors.New("no query found")
+	// ErrInvalidResultParamError is returned when result field for complete tag request
+	// is an unexpected value
+	ErrInvalidResultParamError = errors.New("invalid 'result' type for complete tag request")
 )

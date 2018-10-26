@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/tags"
 	"github.com/m3db/m3/src/query/api/v1/handler/topic"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
@@ -142,6 +143,10 @@ func (h *Handler) RegisterRoutes() error {
 	h.Router.HandleFunc(m3json.WriteJSONURL,
 		logged(m3json.NewWriteJSONHandler(h.storage)).ServeHTTP,
 	).Methods(m3json.JSONWriteHTTPMethod)
+
+	h.Router.HandleFunc(tags.SearchTagsURL,
+		logged(tags.NewCompleteTagsHandler(h.storage)).ServeHTTP,
+	).Methods(tags.SearchTagsHTTPMethod)
 
 	if h.clusterClient != nil {
 		placementOpts := placement.HandlerOptions{
