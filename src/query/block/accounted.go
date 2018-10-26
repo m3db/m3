@@ -18,32 +18,27 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package config
+package block
 
-import (
-	"fmt"
-	"path/filepath"
-	"testing"
+import "github.com/m3db/m3/src/query/cost"
 
-	"github.com/m3db/m3/src/cmd/services/m3query/config"
-	xconfig "github.com/m3db/m3x/config"
+// AccountedBlock is a wrapper for a block which enforces limits on the number of datapoints used by the block.
+type AccountedBlock struct {
+	Block
 
-	"github.com/stretchr/testify/require"
-)
+	enforcer cost.ChainedEnforcer
+}
 
-// TestProvidedConfigFiles ensures that the files in this directly are all valid, and will load.
-func TestProvidedConfigFiles(t *testing.T) {
-	cfgFiles, err := filepath.Glob("./*.yml")
-	require.NoError(t, err)
-	require.True(t, len(cfgFiles) > 0,
-		"expected some config files in this directory. Move or remove this test if this is no longer true.")
-
-	for _, fname := range cfgFiles {
-		t.Run(fmt.Sprintf("load %s", filepath.Base(fname)), func(t *testing.T) {
-			var cfg config.Configuration
-			require.NoError(t, xconfig.LoadFile(&cfg, fname, xconfig.Options{
-				DisableValidate: false,
-			}))
-		})
+// NewAccountedBlock wraps the given block and enforces datapoint limits.
+func NewAccountedBlock(wrapped Block, enforcer cost.ChainedEnforcer) *AccountedBlock {
+	return &AccountedBlock{
+		Block:    wrapped,
+		enforcer: enforcer,
 	}
+}
+
+// Close closes the block, and marks the number of datapoints used by this block as finished.
+func (ab *AccountedBlock) Close() error {
+	ab.enforcer.Close()
+	return ab.Block.Close()
 }

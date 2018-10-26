@@ -118,7 +118,7 @@ func NewPromReadHandler(
 		timeoutOps:      timeoutOpts,
 	}
 
-	h.promReadMetrics.maxDatapoints.Update(float64(limitsCfg.MaxComputedDatapoints))
+	h.promReadMetrics.maxDatapoints.Update(float64(limitsCfg.MaxComputedDatapoints()))
 	return h
 }
 
@@ -178,6 +178,9 @@ func (h *PromReadHandler) ServeHTTPWithEngine(
 		return nil, emptyReqParams, &RespError{Err: err, Code: http.StatusInternalServerError}
 	}
 
+	// TODO: Support multiple result types
+	w.Header().Set("Content-Type", "application/json")
+
 	return result, params, nil
 }
 
@@ -186,12 +189,13 @@ func (h *PromReadHandler) validateRequest(params *models.RequestParams) error {
 	// querying from the beginning of time with a 1s step size.
 	// Approach taken directly from prom.
 	numSteps := int64(params.End.Sub(params.Start) / params.Step)
-	if h.limitsCfg.MaxComputedDatapoints > 0 && numSteps > h.limitsCfg.MaxComputedDatapoints {
+	maxComputedDatapoints := h.limitsCfg.MaxComputedDatapoints()
+	if maxComputedDatapoints > 0 && numSteps > maxComputedDatapoints {
 		return fmt.Errorf(
 			"querying from %v to %v with step size %v would result in too many datapoints "+
 				"(end - start / step > %d). Either decrease the query resolution (?step=XX), decrease the time window, "+
 				"or increase the limit (`limits.maxComputedDatapoints`)",
-			params.Start, params.End, params.Step, h.limitsCfg.MaxComputedDatapoints,
+			params.Start, params.End, params.Step, maxComputedDatapoints,
 		)
 	}
 

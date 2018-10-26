@@ -51,4 +51,8 @@ clusters:
       backgroundHealthCheckFailThrottleFactor: 0.5
 
 limits:
-  maxComputedDatapoints: 12000
+  perQuery:
+    maxComputedDatapoints: 12000
+    maxFetchedDatapoints: 11000
+  global:
+    maxFetchedDatapoints: 13000
