@@ -110,6 +110,13 @@ type Querier interface {
 		query *FetchQuery,
 		options *FetchOptions,
 	) (*SearchResults, error)
+
+	// CompleteTags returns autocompleted tag results
+	CompleteTags(
+		ctx context.Context,
+		query *CompleteTagsQuery,
+		options *FetchOptions,
+	) (*CompleteTagsResult, error)
 }
 
 // WriteQuery represents the input timeseries that is written to the db

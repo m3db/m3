@@ -128,6 +128,22 @@ func (s *fanoutStorage) FetchTags(ctx context.Context, query *storage.FetchQuery
 	return result, nil
 }
 
+func (s *fanoutStorage) CompleteTags(
+	ctx context.Context,
+	query *storage.CompleteTagsQuery,
+	options *storage.FetchOptions,
+) (*storage.CompleteTagsResult, error) {
+	for _, store := range s.stores {
+		// TODO: once complete tags enabled locally,
+		// this should aggregate and merge results from all storages
+		if store.Type() == storage.TypeRemoteDC {
+			return store.CompleteTags(ctx, query, options)
+		}
+	}
+
+	return nil, errors.ErrNotImplemented
+}
+
 func (s *fanoutStorage) Write(ctx context.Context, query *storage.WriteQuery) error {
 	// TODO: Consider removing this lookup on every write by maintaining different read/write lists
 	stores := filterStores(s.stores, s.writeFilter, query)
