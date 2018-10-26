@@ -133,15 +133,27 @@ func (s *fanoutStorage) CompleteTags(
 	query *storage.CompleteTagsQuery,
 	options *storage.FetchOptions,
 ) (*storage.CompleteTagsResult, error) {
+	var accumulatedTags storage.CompleteTagsResultBuilder
+
 	for _, store := range s.stores {
 		// TODO: once complete tags enabled locally,
-		// this should aggregate and merge results from all storages
+		// this should aggregate and merge results from all storages.
 		if store.Type() == storage.TypeRemoteDC {
-			return store.CompleteTags(ctx, query, options)
+			result, err := store.CompleteTags(ctx, query, options)
+			if err != nil {
+				return nil, err
+			}
+
+			if accumulatedTags == nil {
+				accumulatedTags = storage.NewCompleteTagsResultBuilder(result.CompleteNameOnly)
+			}
+
+			accumulatedTags.Add(result)
 		}
 	}
 
-	return nil, errors.ErrNotImplemented
+	built := accumulatedTags.Build()
+	return &built, nil
 }
 
 func (s *fanoutStorage) Write(ctx context.Context, query *storage.WriteQuery) error {

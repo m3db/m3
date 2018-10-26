@@ -135,9 +135,9 @@ func (q *WriteQuery) String() string {
 // CompleteTagsQuery represents a query that returns an autocompleted
 // set of tags that exist in the db
 type CompleteTagsQuery struct {
-	TagMatchers      models.Matchers
-	FilterNameTags   [][]byte
 	CompleteNameOnly bool
+	FilterNameTags   [][]byte
+	TagMatchers      models.Matchers
 }
 
 func (q *CompleteTagsQuery) String() string {
