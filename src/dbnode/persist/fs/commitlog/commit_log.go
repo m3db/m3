@@ -412,7 +412,8 @@ func (l *commitLog) write() {
 		var (
 			now                         = l.nowFn()
 			isWriteForNextCommitLogFile = !now.Before(l.writerState.writerExpireAt)
-			shouldRotate                = write.eventType == rotateLogsEventType || isWriteForNextCommitLogFile
+			isRotateLogsEvent           = write.eventType == rotateLogsEventType
+			shouldRotate                = isRotateLogsEvent || isWriteForNextCommitLogFile
 			afterRotateFn               = func(file File, err error) {
 				if write.eventType == rotateLogsEventType {
 					write.callbackFn(callbackResult{
@@ -425,6 +426,7 @@ func (l *commitLog) write() {
 				}
 			}
 		)
+
 		if shouldRotate {
 			file, err := l.openWriter(now)
 			if err != nil {
@@ -440,6 +442,10 @@ func (l *commitLog) write() {
 				continue
 			}
 			afterRotateFn(file, err)
+		}
+
+		if isRotateLogsEvent {
+			continue
 		}
 
 		err := l.writerState.writer.Write(write.series,

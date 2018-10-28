@@ -283,7 +283,6 @@ func (w *writer) Close() error {
 		return err
 	}
 
-	w.chunkWriter.reset(nil)
 	w.start = timeZero
 	w.duration = 0
 	w.seen.ClearAll()
@@ -331,7 +330,9 @@ func (w *fsChunkWriter) reset(f xos.File) {
 }
 
 func (w *fsChunkWriter) close() error {
-	return w.fd.Close()
+	err := w.fd.Close()
+	w.fd = nil
+	return err
 }
 
 func (w *fsChunkWriter) isOpen() bool {

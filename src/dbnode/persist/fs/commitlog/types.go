@@ -67,6 +67,10 @@ type CommitLog interface {
 
 	// ActiveLogs returns a slice of the active commitlogs.
 	ActiveLogs() ([]File, error)
+
+	// RotateLogs rotates the commitlog and returns the File that represents
+	// the new commitlog file.
+	RotateLogs() (File, error)
 }
 
 // Iterator provides an iterator for commit logs
