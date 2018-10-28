@@ -12,5 +12,5 @@ It's important to note that `doctest` reads from our `.md.source` files so users
 To run the script, you can use `go run` and pass in a file to the `--file` flag. In the below example, the bash script and markdown file will be named `single_node.sh` and `single_node.md` respectively.
 
 ```
-go run markdown_parse.go --file=$GOPATH/src/github.com/m3db/m3/docs/how_to/single_node.md.source
+go run doctest.go --file=$GOPATH/src/github.com/m3db/m3/docs/how_to/resources/single_node.md.source
 ```
