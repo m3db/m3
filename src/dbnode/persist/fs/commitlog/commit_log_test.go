@@ -879,16 +879,19 @@ func TestCommitLogRotateLogs(t *testing.T) {
 		{testSeries(2, "foo.qux", testTags3, 291), alignedStart.Add(2 * time.Second), 789.123, xtime.Millisecond, nil, nil},
 	}
 
-	for _, write := range writes {
+	for i, write := range writes {
 		// Set clock to align with the write
 		clock.Add(write.t.Sub(clock.Now()))
 
 		// Write entry
 		wg := writeCommitLogs(t, scope, commitLog, []testWrite{write})
 
-		// TODO: Assert on file
-		_, err := commitLog.RotateLogs()
+		file, err := commitLog.RotateLogs()
 		require.NoError(t, err)
+		require.Equal(t, file.Start, alignedStart)
+		require.Equal(t, file.Duration, opts.BlockSize())
+		require.Equal(t, file.Index, int64(i+1))
+		require.Contains(t, file.FilePath, "commitlog-0")
 
 		// Flush until finished, this is required as timed flusher not active when clock is mocked
 		flushUntilDone(commitLog, wg)
