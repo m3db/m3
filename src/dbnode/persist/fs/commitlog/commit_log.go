@@ -144,6 +144,7 @@ const (
 	writeEventType eventType = iota
 	flushEventType
 	activeLogsEventType
+	rotateLogsEventType
 )
 
 type callbackFn func(callbackResult)
@@ -152,10 +153,15 @@ type callbackResult struct {
 	eventType  eventType
 	err        error
 	activeLogs activeLogsCallbackResult
+	rotateLogs rotateLogsResult
 }
 
 type activeLogsCallbackResult struct {
 	file *File
+}
+
+type rotateLogsResult struct {
+	file File
 }
 
 func (r callbackResult) activeLogsCallbackResult() (activeLogsCallbackResult, error) {
@@ -170,6 +176,20 @@ func (r callbackResult) activeLogsCallbackResult() (activeLogsCallbackResult, er
 	}
 
 	return r.activeLogs, nil
+}
+
+func (r callbackResult) rotateLogsResult() (rotateLogsResult, error) {
+	if r.eventType != rotateLogsEventType {
+		return rotateLogsResult{}, fmt.Errorf(
+			"wrong event type: expected %d but got %d",
+			rotateLogsEventType, r.eventType)
+	}
+
+	if r.err != nil {
+		return rotateLogsResult{}, nil
+	}
+
+	return r.rotateLogs, nil
 }
 
 type commitLogWrite struct {
@@ -225,7 +245,7 @@ func (l *commitLog) Open() error {
 	defer l.closedState.Unlock()
 
 	// Open the buffered commit log writer
-	if err := l.openWriter(l.nowFn()); err != nil {
+	if _, err := l.openWriter(l.nowFn()); err != nil {
 		return err
 	}
 
@@ -295,6 +315,40 @@ func (l *commitLog) ActiveLogs() ([]File, error) {
 	return files, nil
 }
 
+func (l *commitLog) RotateLogs() (File, error) {
+	l.closedState.RLock()
+	defer l.closedState.RUnlock()
+
+	if l.closedState.closed {
+		return File{}, errCommitLogClosed
+	}
+
+	var (
+		err  error
+		file File
+		wg   = sync.WaitGroup{}
+	)
+	wg.Add(1)
+
+	l.writes <- commitLogWrite{
+		eventType: rotateLogsEventType,
+		callbackFn: func(r callbackResult) {
+			defer wg.Done()
+
+			result, e := r.rotateLogsResult()
+			file, err = result.file, e
+		},
+	}
+
+	wg.Wait()
+
+	if err != nil {
+		return File{}, err
+	}
+
+	return file, nil
+}
+
 func (l *commitLog) flushEvery(interval time.Duration) {
 	// Periodically flush the underlying commit log writer to cover
 	// the case when writes stall for a considerable time
@@ -355,8 +409,24 @@ func (l *commitLog) write() {
 			l.pendingFlushFns = append(l.pendingFlushFns, write.callbackFn)
 		}
 
-		if now := l.nowFn(); !now.Before(l.writerState.writerExpireAt) {
-			err := l.openWriter(now)
+		var (
+			now                         = l.nowFn()
+			isWriteForNextCommitLogFile = !now.Before(l.writerState.writerExpireAt)
+			shouldRotate                = write.eventType == rotateLogsEventType || isWriteForNextCommitLogFile
+			afterRotateFn               = func(file File, err error) {
+				if write.eventType == rotateLogsEventType {
+					write.callbackFn(callbackResult{
+						eventType: write.eventType,
+						err:       err,
+						rotateLogs: rotateLogsResult{
+							file: file,
+						},
+					})
+				}
+			}
+		)
+		if shouldRotate {
+			file, err := l.openWriter(now)
 			if err != nil {
 				l.metrics.errors.Inc(1)
 				l.metrics.openErrors.Inc(1)
@@ -366,8 +436,10 @@ func (l *commitLog) write() {
 					l.commitLogFailFn(err)
 				}
 
+				afterRotateFn(file, err)
 				continue
 			}
+			afterRotateFn(file, err)
 		}
 
 		err := l.writerState.writer.Write(write.series,
@@ -426,7 +498,7 @@ func (l *commitLog) onFlush(err error) {
 }
 
 // writerState lock must be held for the duration of this function call.
-func (l *commitLog) openWriter(now time.Time) error {
+func (l *commitLog) openWriter(now time.Time) (File, error) {
 	if l.writerState.writer != nil {
 		if err := l.writerState.writer.Close(); err != nil {
 			l.metrics.closeErrors.Inc(1)
@@ -446,13 +518,13 @@ func (l *commitLog) openWriter(now time.Time) error {
 
 	file, err := l.writerState.writer.Open(start, blockSize)
 	if err != nil {
-		return err
+		return File{}, err
 	}
 
 	l.writerState.activeFile = &file
 	l.writerState.writerExpireAt = start.Add(blockSize)
 
-	return nil
+	return file, nil
 }
 
 func (l *commitLog) Write(
