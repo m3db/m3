@@ -394,8 +394,6 @@ var genRotateLogsCommand = gen.Const(&commands.ProtoCommand{
 			return err
 		}
 
-		// TODO: Assert File is not a empty thing
-
 		return nil
 	},
 	NextStateFunc: func(state commands.State) commands.State {
