@@ -285,7 +285,7 @@ func (l *commitLog) ActiveLogs() ([]File, error) {
 	var (
 		err   error
 		files []File
-		wg    = sync.WaitGroup{}
+		wg    sync.WaitGroup
 	)
 	wg.Add(1)
 
