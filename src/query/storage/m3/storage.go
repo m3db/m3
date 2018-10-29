@@ -160,6 +160,17 @@ func (s *m3storage) FetchRaw(
 
 	wg.Wait()
 
+	// Slow request
+	//time.Sleep(20 * time.Second)
+	// Check if the query was interrupted.
+	select {
+	case <-ctx.Done():
+		return nil, noop, ctx.Err()
+	case <-options.KillChan:
+		return nil, noop, errors.ErrQueryInterrupted
+	default:
+	}
+
 	iters, err := result.FinalResult()
 	if err != nil {
 		result.Close()

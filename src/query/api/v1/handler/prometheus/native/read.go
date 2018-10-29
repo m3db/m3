@@ -128,8 +128,7 @@ func (h *PromReadHandler) read(
 
 	opts := &executor.EngineOptions{}
 	// Detect clients closing connections
-	abortCh, _ := handler.CloseWatcher(ctx, w)
-	opts.AbortCh = abortCh
+	handler.CloseWatcher(ctx, cancel, w)
 
 	// TODO: Capture timing
 	parser, err := promql.Parse(params.Query, h.tagOpts)
@@ -213,7 +212,7 @@ func (h *PromReadHandler) validateRequest(params *models.RequestParams) error {
 	if h.limitsCfg.MaxComputedDatapoints > 0 && numSteps > h.limitsCfg.MaxComputedDatapoints {
 		return fmt.Errorf(
 			"querying from %v to %v with step size %v would result in too many datapoints "+
-				"(end - start / step > %d). Either decrease the query resolution (?step=XX), decrease the time window, " +
+				"(end - start / step > %d). Either decrease the query resolution (?step=XX), decrease the time window, "+
 				"or increase the limit (`limits.maxComputedDatapoints`)",
 			params.Start, params.End, params.Step, h.limitsCfg.MaxComputedDatapoints,
 		)
