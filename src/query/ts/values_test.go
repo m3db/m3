@@ -102,6 +102,16 @@ func createExamples() []testSample {
 			},
 			description: "third interval has repeated datapoint",
 		},
+		{
+			input:    generateDatapoints(now.Add(-10*time.Minute), []int{-1, 0, 10, 18, 28, 38}),
+			expected: [][]float64{{}, {}, {}, {}},
+			bounds: models.Bounds{
+				Start:    now,
+				Duration: 40 * time.Second,
+				StepSize: 10 * time.Second,
+			},
+			description: "skip really old datapoints",
+		},
 	}
 	return samples
 }
