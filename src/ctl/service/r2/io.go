@@ -28,7 +28,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/m3db/m3metrics/rules/view/changes"
+	"github.com/m3db/m3/src/metrics/rules/view/changes"
 
 	validator "gopkg.in/go-playground/validator.v9"
 )

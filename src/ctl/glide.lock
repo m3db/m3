@@ -1,5 +1,5 @@
-hash: ec48fe1a733b21470b5278b90f2840d56d381d3ebf434300be8fbc62746b2469
-updated: 2018-08-15T15:57:21.988995415-04:00
+hash: a3bc31056f5227f10e9890dcd5c1fed4ee7dd460a2a32778715917686ac6879c
+updated: 2018-10-29T13:34:52.22873-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -7,6 +7,8 @@ imports:
   - lib/go/thrift
 - name: github.com/beorn7/perks
   version: 4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9
+  subpackages:
+  - quantile
 - name: github.com/coreos/etcd
   version: 694728c496e22dfa5719c78ff23cc982e15bcb2f
   subpackages:
@@ -22,8 +24,6 @@ imports:
   version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
 - name: github.com/go-ole/go-ole
   version: de8695c8edbf8236f30d6e1376e20b198a028d42
-  subpackages:
-  - oleutil
 - name: github.com/go-playground/locales
   version: 1e5f1161c6416a5ff48840eb8724a394e48cc534
   subpackages:
@@ -31,7 +31,7 @@ imports:
 - name: github.com/go-playground/universal-translator
   version: 71201497bace774495daed26a3874fd339e0b538
 - name: github.com/gogo/protobuf
-  version: 100ba4e885062801d56799d78530b73b178a78f3
+  version: 636bf0302bc95575d69441b25a2603156ffdddf1
   subpackages:
   - gogoproto
   - proto
@@ -49,6 +49,8 @@ imports:
   - ptypes/any
   - ptypes/duration
   - ptypes/timestamp
+- name: github.com/google/uuid
+  version: 9b3b1e0f5f99ae461456d768e7d301a7acdaa2d8
 - name: github.com/gorilla/context
   version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
 - name: github.com/gorilla/mux
@@ -57,60 +59,57 @@ imports:
   version: 6b7015e65d366bf3f19b2b2a000a831940f0f7e0
 - name: github.com/grpc-ecosystem/grpc-gateway
   version: 84398b94e188ee336f307779b57b3aa91af7063c
-- name: github.com/m3db/m3cluster
-  version: 53fc512c11e1ed03db2d65dac4c139a3c2ff2eda
+- name: github.com/m3db/m3
+  version: 16e2dfb2206a8ead03f733a7032b1bc2b83d4b93
   subpackages:
-  - client
-  - client/etcd
-  - etcd/watchmanager
-  - generated/proto/commonpb
-  - generated/proto/metadatapb
-  - generated/proto/placementpb
-  - kv
-  - kv/etcd
-  - kv/util
-  - kv/util/runtime
-  - placement
-  - placement/algo
-  - placement/selector
-  - placement/service
-  - placement/storage
-  - services
-  - services/heartbeat/etcd
-  - services/leader
-  - services/leader/campaign
-  - services/leader/election
-  - shard
-- name: github.com/m3db/m3metrics
-  version: dcfe68fe112095f688cbaa1b0aa4c4ac65922e84
-  subpackages:
-  - aggregation
-  - errors
-  - filters
-  - generated/proto/aggregationpb
-  - generated/proto/metricpb
-  - generated/proto/pipelinepb
-  - generated/proto/policypb
-  - generated/proto/rulepb
-  - generated/proto/transformationpb
-  - metadata
-  - metric
-  - metric/id
-  - pipeline
-  - pipeline/applied
-  - policy
-  - rules
-  - rules/store/kv
-  - rules/validator
-  - rules/validator/namespace
-  - rules/validator/namespace/kv
-  - rules/validator/namespace/static
-  - rules/view
-  - rules/view/changes
-  - transformation
-  - x/bytes
+  - src/cluster/client
+  - src/cluster/client/etcd
+  - src/cluster/etcd/watchmanager
+  - src/cluster/generated/proto/commonpb
+  - src/cluster/generated/proto/metadatapb
+  - src/cluster/generated/proto/placementpb
+  - src/cluster/kv
+  - src/cluster/kv/etcd
+  - src/cluster/kv/util
+  - src/cluster/kv/util/runtime
+  - src/cluster/placement
+  - src/cluster/placement/algo
+  - src/cluster/placement/selector
+  - src/cluster/placement/service
+  - src/cluster/placement/storage
+  - src/cluster/services
+  - src/cluster/services/heartbeat/etcd
+  - src/cluster/services/leader
+  - src/cluster/services/leader/campaign
+  - src/cluster/services/leader/election
+  - src/cluster/shard
+  - src/metrics/aggregation
+  - src/metrics/errors
+  - src/metrics/filters
+  - src/metrics/generated/proto/aggregationpb
+  - src/metrics/generated/proto/metricpb
+  - src/metrics/generated/proto/pipelinepb
+  - src/metrics/generated/proto/policypb
+  - src/metrics/generated/proto/rulepb
+  - src/metrics/generated/proto/transformationpb
+  - src/metrics/metadata
+  - src/metrics/metric
+  - src/metrics/metric/id
+  - src/metrics/pipeline
+  - src/metrics/pipeline/applied
+  - src/metrics/policy
+  - src/metrics/rules
+  - src/metrics/rules/store/kv
+  - src/metrics/rules/validator
+  - src/metrics/rules/validator/namespace
+  - src/metrics/rules/validator/namespace/kv
+  - src/metrics/rules/validator/namespace/static
+  - src/metrics/rules/view
+  - src/metrics/rules/view/changes
+  - src/metrics/transformation
+  - src/metrics/x/bytes
 - name: github.com/m3db/m3x
-  version: a5cc485300c733558a25e1e6c5e9dcf4dbc241c4
+  version: 943173a151c8a6b2da1f93f814c27c4e4a1e2050
   subpackages:
   - checked
   - clock
@@ -121,13 +120,36 @@ imports:
   - log
   - pool
   - process
+  - resource
   - retry
+  - sync
   - time
   - watch
+- name: github.com/m3db/prometheus_client_golang
+  version: 8ae269d24972b8695572fa6b2e3718b5ea82d6b4
+  subpackages:
+  - prometheus
+  - prometheus/promhttp
+- name: github.com/m3db/prometheus_client_model
+  version: 8b2299a4bf7d7fc10835527021716d4b4a6e8700
+  subpackages:
+  - go
+- name: github.com/m3db/prometheus_common
+  version: 25aaa3dff79bb48116615ebe1dea6a494b74ce77
+  subpackages:
+  - expfmt
+  - internal/bitbucket.org/ww/goautoneg
+  - model
+- name: github.com/m3db/prometheus_procfs
+  version: 1878d9fbb537119d24b21ca07effd591627cd160
 - name: github.com/matttproud/golang_protobuf_extensions
   version: c12348ce28de40eed0136aa2b644d0ee0650e56c
+  subpackages:
+  - pbutil
+- name: github.com/MichaelTJones/pcg
+  version: df440c6ed7ed8897ac98a408365e5e89c7becf1a
 - name: github.com/pborman/uuid
-  version: e790cca94e6cc75c7064b1332e63811d4aae1a53
+  version: adf5a7427709b9deb95d29d3fa8a2bf9cfd388f1
 - name: github.com/prometheus/client_golang
   version: c5b7fccd204277076155f10851dad72b76a49317
 - name: github.com/prometheus/client_model
@@ -142,13 +164,6 @@ imports:
   - fs
 - name: github.com/shirou/gopsutil
   version: b62e301a8b9958eebb7299683eb57fab229a9501
-  subpackages:
-  - cpu
-  - host
-  - internal/common
-  - mem
-  - net
-  - process
 - name: github.com/shirou/w32
   version: bb4de0191aa41b5507caa14b0650cdbddcd9280b
 - name: github.com/StackExchange/wmi
@@ -162,14 +177,16 @@ imports:
   - m3/customtransports
   - m3/thrift
   - m3/thriftudp
+  - multi
+  - prometheus
 - name: github.com/willf/bitset
-  version: 988f4f24992fc745de53c42df0da6581e42a6686
+  version: e553b05586428962bf7058d1044519d87ca72d74
 - name: go.uber.org/atomic
   version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
-  version: ff33455a0e382e8a81d14dd7c922020b6b5e7982
+  version: f85c78b1dd998214c5f2138155b320a4a43fbe36
   subpackages:
   - buffer
   - internal/bufferpool
@@ -223,7 +240,8 @@ imports:
 - name: gopkg.in/validator.v2
   version: 3e4f037f12a1221a0864cf0dd2e81c452ab22448
 - name: gopkg.in/yaml.v2
-  version: a83829b6f1293c91addabc89d0571c246397bbf4
+  version: 5420a8b6744d3b0345ab293f6fcba19c978f1183
+  repo: https://github.com/go-yaml/yaml.git
 testImports:
 - name: github.com/davecgh/go-spew
   version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d

@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/m3db/m3metrics/rules/view"
+	"github.com/m3db/m3/src/metrics/rules/view"
 
 	"github.com/gorilla/mux"
 )
