@@ -872,7 +872,7 @@ func TestCommitLogRotateLogs(t *testing.T) {
 	)
 	require.True(t, time.Second < blockSize)
 
-	// Writes spaced apart by block size
+	// Writes spaced such that they should appear within the same commitlog block.
 	writes := []testWrite{
 		{testSeries(0, "foo.bar", testTags1, 127), alignedStart, 123.456, xtime.Millisecond, nil, nil},
 		{testSeries(1, "foo.baz", testTags2, 150), alignedStart.Add(1 * time.Second), 456.789, xtime.Millisecond, nil, nil},
@@ -880,10 +880,10 @@ func TestCommitLogRotateLogs(t *testing.T) {
 	}
 
 	for i, write := range writes {
-		// Set clock to align with the write
+		// Set clock to align with the write.
 		clock.Add(write.t.Sub(clock.Now()))
 
-		// Write entry
+		// Write entry.
 		wg := writeCommitLogs(t, scope, commitLog, []testWrite{write})
 
 		file, err := commitLog.RotateLogs()
@@ -897,16 +897,16 @@ func TestCommitLogRotateLogs(t *testing.T) {
 		flushUntilDone(commitLog, wg)
 	}
 
-	// Ensure files present for each block size time window
+	// Ensure files present for each call to RotateLogs().
 	fsopts := opts.FilesystemOptions()
 	files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
 	require.NoError(t, err)
 	require.Equal(t, len(files), len(writes)+1) // +1 to account for the initial file
 
-	// Close and consequently flush
+	// Close and consequently flush.
 	require.NoError(t, commitLog.Close())
 
-	// Assert write flushed by reading the commit log
+	// Assert write flushed by reading the commit log.
 	assertCommitLogWritesByIterating(t, commitLog, writes)
 }
 
