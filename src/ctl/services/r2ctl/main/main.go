@@ -55,7 +55,7 @@ func main() {
 	}
 
 	var cfg config.Configuration
-	if err := xconfig.LoadFile(&cfg, *configFile); err != nil {
+	if err := xconfig.LoadFile(&cfg, *configFile, xconfig.Options{}); err != nil {
 		fmt.Printf("error loading config file: %v\n", err)
 		os.Exit(1)
 	}

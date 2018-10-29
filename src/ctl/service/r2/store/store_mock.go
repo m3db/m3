@@ -24,8 +24,8 @@
 package store
 
 import (
-	"github.com/m3db/m3metrics/rules/view"
-	"github.com/m3db/m3metrics/rules/view/changes"
+	"github.com/m3db/m3/src/metrics/rules/view"
+	"github.com/m3db/m3/src/metrics/rules/view/changes"
 
 	"github.com/golang/mock/gomock"
 )
