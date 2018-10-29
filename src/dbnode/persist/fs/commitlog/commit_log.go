@@ -326,7 +326,7 @@ func (l *commitLog) RotateLogs() (File, error) {
 	var (
 		err  error
 		file File
-		wg   = sync.WaitGroup{}
+		wg   sync.WaitGroup
 	)
 	wg.Add(1)
 
