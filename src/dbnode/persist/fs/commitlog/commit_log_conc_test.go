@@ -33,10 +33,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestCommitLogActiveLogsConcurrency makes sure that the
+// ActiveLogs() API behaves correctly even while concurrent
+// writes are going on.
 func TestCommitLogActiveLogsConcurrency(t *testing.T) {
-	opts, _ := newTestOptions(t, overrides{
-		strategy: StrategyWriteBehind,
-	})
+	var (
+		opts, _ = newTestOptions(t, overrides{
+			strategy: StrategyWriteBehind,
+		})
+		numFilesRequired = 10
+	)
+
 	opts = opts.SetBlockSize(1 * time.Millisecond)
 	defer cleanup(t, opts)
 
@@ -45,7 +52,7 @@ func TestCommitLogActiveLogsConcurrency(t *testing.T) {
 		commitLog = newTestCommitLog(t, opts)
 	)
 
-	// One goroutine continuously writing
+	// One goroutine continuously writing.
 	go func() {
 		for {
 			select {
@@ -72,13 +79,13 @@ func TestCommitLogActiveLogsConcurrency(t *testing.T) {
 		}
 	}()
 
-	// One goroutine continuously checking active logs
+	// One goroutine continuously checking active logs.
 	go func() {
 		var (
 			lastSeenFile string
 			numFilesSeen int
 		)
-		for numFilesSeen < 10 {
+		for numFilesSeen < numFilesRequired {
 			time.Sleep(100 * time.Millisecond)
 			logs, err := commitLog.ActiveLogs()
 			if err != nil {
@@ -87,6 +94,77 @@ func TestCommitLogActiveLogsConcurrency(t *testing.T) {
 			require.Equal(t, 1, len(logs))
 			if logs[0].FilePath != lastSeenFile {
 				lastSeenFile = logs[0].FilePath
+				numFilesSeen++
+			}
+		}
+		close(doneCh)
+	}()
+
+	<-doneCh
+
+	require.NoError(t, commitLog.Close())
+}
+
+// TestCommitLogRotateLogsConcurrency makes sure that the
+// RotateLogs() API behaves correctly even while concurrent
+// writes are going on.
+func TestCommitLogRotateLogsConcurrency(t *testing.T) {
+	var (
+		opts, _ = newTestOptions(t, overrides{
+			strategy: StrategyWriteBehind,
+		})
+		numFilesRequired = 10
+	)
+
+	opts = opts.SetBlockSize(1 * time.Millisecond)
+	defer cleanup(t, opts)
+
+	var (
+		doneCh    = make(chan struct{})
+		commitLog = newTestCommitLog(t, opts)
+	)
+
+	// One goroutine continuously writing.
+	go func() {
+		for {
+			select {
+			case <-doneCh:
+				return
+			default:
+				time.Sleep(time.Millisecond)
+				err := commitLog.Write(
+					context.NewContext(),
+					testSeries(0, "foo.bar", testTags1, 127),
+					ts.Datapoint{},
+					xtime.Second,
+					nil)
+				if err == errCommitLogClosed {
+					return
+				}
+				if err == ErrCommitLogQueueFull {
+					continue
+				}
+				if err != nil {
+					panic(err)
+				}
+			}
+		}
+	}()
+
+	// One goroutine continuously rotating logs.
+	go func() {
+		var (
+			lastSeenFile string
+			numFilesSeen int
+		)
+		for numFilesSeen < numFilesRequired {
+			time.Sleep(100 * time.Millisecond)
+			file, err := commitLog.RotateLogs()
+			if err != nil {
+				panic(err)
+			}
+			if file.FilePath != lastSeenFile {
+				lastSeenFile = file.FilePath
 				numFilesSeen++
 			}
 		}
