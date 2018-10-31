@@ -39,8 +39,6 @@ type Engine struct {
 
 // EngineOptions can be used to pass custom flags to engine
 type EngineOptions struct {
-	// AbortCh is a channel that signals when results are no longer desired by the caller.
-	AbortCh <-chan bool
 }
 
 // Query is the result after execution
