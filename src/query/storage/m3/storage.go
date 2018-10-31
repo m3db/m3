@@ -110,8 +110,6 @@ func (s *m3storage) FetchRaw(
 	select {
 	case <-ctx.Done():
 		return nil, noop, ctx.Err()
-	case <-options.KillChan:
-		return nil, noop, errors.ErrQueryInterrupted
 	default:
 	}
 
@@ -160,6 +158,13 @@ func (s *m3storage) FetchRaw(
 
 	wg.Wait()
 
+	// Check if the query was interrupted.
+	select {
+	case <-ctx.Done():
+		return nil, noop, ctx.Err()
+	default:
+	}
+
 	iters, err := result.FinalResult()
 	if err != nil {
 		result.Close()
@@ -178,8 +183,6 @@ func (s *m3storage) FetchTags(
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	case <-options.KillChan:
-		return nil, errors.ErrQueryInterrupted
 	default:
 	}
 

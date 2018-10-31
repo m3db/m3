@@ -78,8 +78,7 @@ func (q *FetchQuery) String() string {
 
 // FetchOptions represents the options for fetch query
 type FetchOptions struct {
-	Limit    int
-	KillChan chan struct{}
+	Limit int
 }
 
 // Querier handles queries against a storage.
