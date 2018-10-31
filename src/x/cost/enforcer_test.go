@@ -6,8 +6,6 @@ import (
 	"testing"
 	"time"
 
-	xerrors "github.com/m3db/m3x/errors"
-
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
 	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/stretchr/testify/assert"
@@ -70,8 +68,7 @@ func TestEnforcer(t *testing.T) {
 			require.Equal(t, test.expected, report.Cost)
 
 			if test.exceededThreshold {
-				require.Error(t, report.Error)
-				require.True(t, xerrors.IsCostLimit(report.Error))
+				require.EqualError(t, report.Error, costExceededError(msg, 13, Limit{Threshold: 10}).Error())
 			} else {
 				require.NoError(t, report.Error)
 			}
@@ -83,8 +80,7 @@ func TestEnforcer(t *testing.T) {
 	require.Equal(t, Cost(13), report.Cost)
 	require.Equal(t, Cost(10), limit.Threshold)
 	require.True(t, limit.Enabled)
-	require.Error(t, report.Error)
-	require.True(t, xerrors.IsCostLimit(report.Error))
+	require.EqualError(t, report.Error, costExceededError(msg, 13, Limit{Threshold: 10}).Error())
 
 	// The error message should end with the message provided in the options.
 	require.True(t, strings.HasSuffix(report.Error.Error(), msg))
@@ -106,8 +102,7 @@ func TestEnforcer(t *testing.T) {
 	report, err = e.Add(testCostable(5))
 	require.NoError(t, err)
 	require.NoError(t, err)
-	require.Error(t, report.Error)
-	require.True(t, xerrors.IsCostLimit(report.Error))
+	require.EqualError(t, report.Error, costExceededError(msg, 21, Limit{Threshold: 20}).Error())
 	require.Equal(t, Cost(21), report.Cost)
 
 	// When the enforcer is disabled any input above the threshold should become legal.

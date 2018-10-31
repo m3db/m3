@@ -6,8 +6,6 @@ import (
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 
-	"github.com/m3db/m3x/errors"
-
 	"github.com/uber-go/tally"
 )
 
@@ -106,25 +104,33 @@ func (e Enforcer) checkLimit(cost Cost, limit Limit) error {
 		return nil
 	}
 
+	e.metrics.overLimitAndEnabled.Inc(1)
+
+	if e.costMsg == "" {
+		return defaultCostExceededError(cost, limit)
+	}
+	return costExceededError(e.costMsg, cost, limit)
+}
+
+func defaultCostExceededError(cost Cost, limit Limit) error {
 	p := message.NewPrinter(language.Make("en"))
 
-	e.metrics.overLimitAndEnabled.Inc(1)
-	var innerErr error
-	if e.costMsg == "" {
-		innerErr = fmt.Errorf(
-			defaultCostExceededErrorFmt,
-			p.Sprintf("%s", float64(cost)),
-			p.Sprintf("%s", float64(limit.Threshold)),
-		)
-	} else {
-		innerErr = fmt.Errorf(
-			customCostExceededErrorFmt,
-			p.Sprintf("%s", float64(cost)),
-			p.Sprintf("%s", float64(limit.Threshold)),
-			e.costMsg,
-		)
-	}
-	return errors.NewCostLimitError(innerErr)
+	return fmt.Errorf(
+		defaultCostExceededErrorFmt,
+		p.Sprintf("%v", float64(cost)),
+		p.Sprintf("%v", float64(limit.Threshold)),
+	)
+}
+
+func costExceededError(customMessage string, cost Cost, limit Limit) error {
+	p := message.NewPrinter(language.Make("en"))
+
+	return fmt.Errorf(
+		customCostExceededErrorFmt,
+		p.Sprintf("%v", float64(cost)),
+		p.Sprintf("%v", float64(limit.Threshold)),
+		customMessage,
+	)
 }
 
 // NoopEnforcer returns a new Enforcer that always returns a current cost of 0 and
