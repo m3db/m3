@@ -159,7 +159,7 @@ type agg struct {
 // Configuration configurates a downsampler.
 type Configuration struct {
 	// AggregationTypes configs the aggregation types.
-	AggregationTypes *aggregation.TypesConfiguration
+	AggregationTypes *aggregation.TypesConfiguration `yaml:"aggregationTypes"`
 
 	// Pool of counter elements.
 	CounterElemPool pool.ObjectPoolConfiguration `yaml:"counterElemPool"`
