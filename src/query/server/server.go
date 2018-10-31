@@ -365,7 +365,7 @@ func newM3DBStorage(
 			return nil, nil, nil, nil, err
 		}
 
-		downsampler, err = newDownsampler(clusterManagementClient,
+		downsampler, err = newDownsampler(cfg.Downsample, clusterManagementClient,
 			fanoutStorage, autoMappingRules, tagOptions, instrumentOptions)
 		if err != nil {
 			return nil, nil, nil, nil, err
@@ -392,6 +392,7 @@ func newM3DBStorage(
 }
 
 func newDownsampler(
+	cfg downsample.Configuration,
 	clusterManagementClient clusterclient.Client,
 	storage storage.Storage,
 	autoMappingRules []downsample.MappingRule,
@@ -420,7 +421,7 @@ func newDownsampler(
 			SetMetricsScope(instrumentOpts.MetricsScope().
 				SubScope("tag-decoder-pool")))
 
-	downsampler, err := downsample.NewDownsampler(downsample.DownsamplerOptions{
+	downsampler, err := cfg.NewDownsampler(downsample.DownsamplerOptions{
 		Storage:          storage,
 		RulesKVStore:     kvStore,
 		AutoMappingRules: autoMappingRules,

@@ -46,24 +46,9 @@ type downsampler struct {
 	agg  agg
 }
 
-// NewDownsampler returns a new downsampler.
-func NewDownsampler(
-	opts DownsamplerOptions,
-) (Downsampler, error) {
-	agg, err := opts.newAggregator()
-	if err != nil {
-		return nil, err
-	}
-
-	return &downsampler{
-		opts: opts,
-		agg:  agg,
-	}, nil
-}
-
 func (d *downsampler) NewMetricsAppender() MetricsAppender {
 	return newMetricsAppender(metricsAppenderOptions{
-		agg: d.agg.aggregator,
+		agg:                    d.agg.aggregator,
 		defaultStagedMetadatas: d.agg.defaultStagedMetadatas,
 		clockOpts:              d.agg.clockOpts,
 		tagEncoder:             d.agg.pools.tagEncoderPool.Get(),
@@ -75,7 +60,7 @@ func (d *downsampler) NewMetricsAppender() MetricsAppender {
 func newMetricsAppender(opts metricsAppenderOptions) *metricsAppender {
 	return &metricsAppender{
 		metricsAppenderOptions: opts,
-		tags:                 newTags(),
-		multiSamplesAppender: newMultiSamplesAppender(),
+		tags:                   newTags(),
+		multiSamplesAppender:   newMultiSamplesAppender(),
 	}
 }
