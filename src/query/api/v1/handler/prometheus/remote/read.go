@@ -162,7 +162,7 @@ func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, r 
 	opts := &executor.EngineOptions{}
 	// Detect clients closing connections
 	handler.CloseWatcher(ctx, cancel, w)
-	go h.engine.Execute(ctx, query, opts, nil, results)
+	go h.engine.Execute(ctx, query, opts, results)
 
 	promResults := make([]*prompb.QueryResult, 0, 1)
 	for result := range results {

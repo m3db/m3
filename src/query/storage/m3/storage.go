@@ -160,8 +160,6 @@ func (s *m3storage) FetchRaw(
 
 	wg.Wait()
 
-	// Slow request
-	//time.Sleep(20 * time.Second)
 	// Check if the query was interrupted.
 	select {
 	case <-ctx.Done():
