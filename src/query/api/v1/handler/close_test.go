@@ -30,7 +30,7 @@ import (
 )
 
 func TestCloseWatcher(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Microsecond)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
 	w := httptest.NewRecorder()
 	CloseWatcher(ctx, cancel, w)
 	assert.Nil(t, ctx.Err())
