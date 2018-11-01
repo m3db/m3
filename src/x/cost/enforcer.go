@@ -32,6 +32,11 @@ type Report struct {
 	Error error
 }
 
+type EnforcerIF interface {
+	Add(op Cost) Report
+	State() (Report, Limit)
+}
+
 // Enforcer enforces cost limits for operations.
 type Enforcer struct {
 	LimitManager
@@ -57,21 +62,17 @@ func NewEnforcer(m LimitManager, t Tracker, opts EnforcerOptions) *Enforcer {
 
 // Add adds the cost of an operation to the enforcer's current total. If the operation exceeds
 // the enforcer's limit the enforcer will return a CostLimit error in addition to the new total.
-func (e Enforcer) Add(op Costable) (Report, error) {
-	cost, err := op.Cost()
-	if err != nil {
-		return Report{}, fmt.Errorf("unable to calculate cost of operation: %v", err)
-	}
-	e.metrics.cost.RecordValue(float64(cost))
+func (e *Enforcer) Add(cost Cost) Report {
+	//e.metrics.cost.RecordValue(float64(cost))
 	current := e.tracker.Add(cost)
 	return Report{
 		Cost:  current,
 		Error: e.checkLimit(current, e.Limit()),
-	}, nil
+	}
 }
 
 // State returns the current state of the enforcer.
-func (e Enforcer) State() (Report, Limit) {
+func (e *Enforcer) State() (Report, Limit) {
 	cost := e.tracker.Current()
 	l := e.Limit()
 	err := e.checkLimit(cost, l)
@@ -84,8 +85,8 @@ func (e Enforcer) State() (Report, Limit) {
 
 // Clone clones the current Enforcer. The new Enforcer uses the same Estimator and LimitManager
 // as e buts its Tracker is independent.
-func (e Enforcer) Clone() Enforcer {
-	return Enforcer{
+func (e *Enforcer) Clone() *Enforcer {
+	return &Enforcer{
 		LimitManager: e.LimitManager,
 		tracker:      NewTracker(),
 		costMsg:      e.costMsg,
@@ -93,7 +94,7 @@ func (e Enforcer) Clone() Enforcer {
 	}
 }
 
-func (e Enforcer) checkLimit(cost Cost, limit Limit) error {
+func (e *Enforcer) checkLimit(cost Cost, limit Limit) error {
 	if cost < limit.Threshold {
 		return nil
 	}
@@ -140,14 +141,12 @@ func NoopEnforcer() *Enforcer {
 }
 
 type enforcerMetrics struct {
-	cost                tally.Histogram
 	overLimit           tally.Counter
 	overLimitAndEnabled tally.Counter
 }
 
 func newEnforcerMetrics(s tally.Scope, b tally.ValueBuckets) enforcerMetrics {
 	return enforcerMetrics{
-		cost:                s.Histogram("estimate", b),
 		overLimit:           s.Counter("over-limit"),
 		overLimitAndEnabled: s.Counter("over-limit-and-enabled"),
 	}

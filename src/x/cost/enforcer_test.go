@@ -19,27 +19,27 @@ const (
 
 func TestEnforcer(t *testing.T) {
 	tests := []struct {
-		input             Costable
+		input             Cost
 		expected          Cost
 		exceededThreshold bool
 	}{
 		{
-			input:             testCostable(0),
+			input:             Cost(0),
 			expected:          0,
 			exceededThreshold: false,
 		},
 		{
-			input:             testCostable(1),
+			input:             Cost(1),
 			expected:          1,
 			exceededThreshold: false,
 		},
 		{
-			input:             testCostable(3),
+			input:             Cost(3),
 			expected:          4,
 			exceededThreshold: false,
 		},
 		{
-			input:             testCostable(9),
+			input:             Cost(9),
 			expected:          13,
 			exceededThreshold: true,
 		},
@@ -63,8 +63,7 @@ func TestEnforcer(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("input %v", test.input), func(t *testing.T) {
-			report, err := e.Add(test.input)
-			require.NoError(t, err)
+			report := e.Add(test.input)
 			require.Equal(t, test.expected, report.Cost)
 
 			if test.exceededThreshold {
@@ -94,12 +93,12 @@ func TestEnforcer(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	report, err = e.Add(testCostable(3))
+	report = e.Add(Cost(3))
 	require.NoError(t, err)
 	require.NoError(t, err)
 	require.Equal(t, Cost(16), report.Cost)
 
-	report, err = e.Add(testCostable(5))
+	report = e.Add(Cost(5))
 	require.NoError(t, err)
 	require.NoError(t, err)
 	require.EqualError(t, report.Error, costExceededError(msg, 21, Limit{Threshold: 20}).Error())
@@ -114,7 +113,7 @@ func TestEnforcer(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	report, err = e.Add(testCostable(2))
+	report = e.Add(Cost(2))
 	require.NoError(t, err)
 	require.NoError(t, err)
 	require.Equal(t, Cost(23), report.Cost)
@@ -144,8 +143,7 @@ func TestEnforcerClone(t *testing.T) {
 
 	e := NewEnforcer(m, NewTracker(), nil)
 
-	report, err := e.Add(testCostable(10))
-	require.NoError(t, err)
+	report := e.Add(Cost(10))
 	require.Equal(t, Cost(10), report.Cost)
 	require.NoError(t, report.Error)
 
@@ -159,12 +157,12 @@ func TestEnforcerClone(t *testing.T) {
 	require.True(t, limit.Enabled)
 
 	// Subsequent calls to Add on each enforcer should be independent.
-	report, err = e.Add(testCostable(10))
+	report = e.Add(Cost(10))
 	require.NoError(t, err)
 	require.NoError(t, err)
 	require.Equal(t, Cost(20), report.Cost)
 
-	report, err = clone.Add(testCostable(5))
+	report = clone.Add(Cost(5))
 	require.NoError(t, err)
 	require.NoError(t, err)
 	require.Equal(t, Cost(5), report.Cost)
@@ -192,13 +190,13 @@ func TestEnforcerClone(t *testing.T) {
 
 func TestNoopEnforcer(t *testing.T) {
 	tests := []struct {
-		input Costable
+		input Cost
 	}{
 		{
-			input: testCostable(0),
+			input: Cost(0),
 		},
 		{
-			input: testCostable(10),
+			input: Cost(10),
 		},
 	}
 
@@ -209,14 +207,9 @@ func TestNoopEnforcer(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("input %v", test.input), func(t *testing.T) {
-			report, err := e.Add(test.input)
-			require.NoError(t, err)
+			report := e.Add(test.input)
 			assert.Equal(t, Cost(0), report.Cost)
 			assert.NoError(t, report.Error)
 		})
 	}
 }
-
-type testCostable float64
-
-func (c testCostable) Cost() (Cost, error) { return Cost(c), nil }
