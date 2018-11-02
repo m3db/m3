@@ -1,0 +1,63 @@
+// Copyright (c) 2018 Uber Technologies, Inc.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
+package fs
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+)
+
+func TestSnapshotMetadataWriteAndRead(t *testing.T) {
+	var (
+		dir            = createTempDir(t)
+		filePathPrefix = filepath.Join(dir, "")
+		opts           = testDefaultOpts.
+				SetFilePathPrefix(filePathPrefix)
+		snapshotMetadataIdentifier = SnapshotMetadataIdentifier{
+			Index: 0,
+			ID:    uuid.MustParse("6645a373-bf82-42e7-84a6-f8452b137549"),
+		}
+		commitlogIdentifier = []byte("commitlog_id")
+	)
+	defer func() {
+		os.RemoveAll(dir)
+	}()
+
+	writer := NewSnapshotMetadataWriter(opts)
+	err := writer.Write(SnapshotMetadataWriteArgs{
+		ID:                  snapshotMetadataIdentifier,
+		CommitlogIdentifier: commitlogIdentifier,
+	})
+	require.NoError(t, err)
+
+	reader := NewSnapshotMetadataReader(opts)
+	snapshotMetadata, err := reader.Read(snapshotMetadataIdentifier)
+	require.NoError(t, err)
+
+	require.Equal(t, SnapshotMetadata{
+		ID:                  snapshotMetadataIdentifier,
+		CommitlogIdentifier: commitlogIdentifier,
+	}, snapshotMetadata)
+}

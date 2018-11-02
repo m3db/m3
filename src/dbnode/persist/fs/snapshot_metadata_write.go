@@ -28,17 +28,27 @@ import (
 	"github.com/m3db/m3/src/dbnode/generated/proto/snapshot"
 )
 
-type snapshotMetadataWriter struct {
+// NewSnapshotMetadataWriter constructs a new snapshot metadata writer.
+func NewSnapshotMetadataWriter(opts Options) *SnapshotMetadataWriter {
+	return &SnapshotMetadataWriter{
+		opts: opts,
+	}
+}
+
+// SnapshotMetadataWriter is a writer for SnapshotMetadata.
+type SnapshotMetadataWriter struct {
 	opts Options
 }
 
-type snapshotMetadataWriteArgs struct {
+// SnapshotMetadataWriteArgs are the arguments for SnapshotMetadataWriter.Write.
+// TODO: Fix me to use SnapshotMetadata
+type SnapshotMetadataWriteArgs struct {
 	ID SnapshotMetadataIdentifier
 	// TODO: Fix me
 	CommitlogIdentifier []byte
 }
 
-func (w *snapshotMetadataWriter) Write(args snapshotMetadataWriteArgs) error {
+func (w *SnapshotMetadataWriter) Write(args SnapshotMetadataWriteArgs) error {
 	var (
 		prefix       = w.opts.FilePathPrefix()
 		snapshotsDir = SnapshotsDirPath(prefix)
@@ -57,10 +67,10 @@ func (w *snapshotMetadataWriter) Write(args snapshotMetadataWriteArgs) error {
 	if err != nil {
 		return err
 	}
-	defer metadataFile.Close()
 
 	metadataFdWithDigest := digest.NewFdWithDigestWriter(w.opts.WriterBufferSize())
 	metadataFdWithDigest.Reset(metadataFile)
+	defer metadataFdWithDigest.Close()
 
 	metadataBytes, err := (&snapshot.Metadata{
 		SnapshotIndex:       args.ID.Index,
@@ -81,6 +91,11 @@ func (w *snapshotMetadataWriter) Write(args snapshotMetadataWriteArgs) error {
 			written, len(metadataBytes))
 	}
 
+	err = metadataFdWithDigest.Flush()
+	if err != nil {
+		return err
+	}
+
 	// Sync the file and its parent to ensure they're actually written out.
 	err = metadataFile.Sync()
 	if err != nil {
@@ -98,10 +113,8 @@ func (w *snapshotMetadataWriter) Write(args snapshotMetadataWriteArgs) error {
 	}
 	defer checkpointFile.Close()
 
-	checkpointFdWithDigest := digest.NewFdWithDigestContentsWriter(w.opts.WriterBufferSize())
-	checkpointFdWithDigest.Reset(metadataFile)
-
-	err = checkpointFdWithDigest.WriteDigests(metadataFdWithDigest.Digest().Sum32())
+	err = digest.NewBuffer().WriteDigestToFile(
+		checkpointFile, metadataFdWithDigest.Digest().Sum32())
 	if err != nil {
 		return err
 	}
@@ -116,5 +129,6 @@ func (w *snapshotMetadataWriter) Write(args snapshotMetadataWriteArgs) error {
 		return err
 	}
 
+	fmt.Println("wrote: ", checkpointPath)
 	return nil
 }

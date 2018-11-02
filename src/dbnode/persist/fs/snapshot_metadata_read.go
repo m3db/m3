@@ -24,30 +24,38 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/google/uuid"
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/generated/proto/snapshot"
-	"github.com/m3db/m3x/ident"
 )
 
-type snapshotMetadataReader struct {
+// NewSnapshotMetadataReader returns a new SnapshotMetadataReader.
+func NewSnapshotMetadataReader(opts Options) *SnapshotMetadataReader {
+	return &SnapshotMetadataReader{
+		opts: opts,
+	}
+}
+
+// SnapshotMetadataReader is a reader for SnapshotMetadata.
+type SnapshotMetadataReader struct {
 	opts Options
 }
 
 // TODO: Move me
 type SnapshotMetadata struct {
-	Index uint64
-	ID    ident.ID
+	ID SnapshotMetadataIdentifier
 	// TODO: Fix me
 	CommitlogIdentifier []byte
 }
 
-func (w *snapshotMetadataReader) Read(id SnapshotMetadataIdentifier) (SnapshotMetadata, error) {
+func (w *SnapshotMetadataReader) Read(id SnapshotMetadataIdentifier) (SnapshotMetadata, error) {
 	var (
 		prefix         = w.opts.FilePathPrefix()
 		checkpointPath = snapshotMetadataCheckpointFilePathFromIdentifier(prefix, id)
 		metadataPath   = snapshotMetadataFilePathFromIdentifier(prefix, id)
 	)
 
+	fmt.Println("Reading: ", checkpointPath)
 	expectedDigest, err := readCheckpointFile(checkpointPath, digest.NewBuffer())
 	if err != nil {
 		return SnapshotMetadata{}, err
@@ -88,9 +96,16 @@ func (w *snapshotMetadataReader) Read(id SnapshotMetadataIdentifier) (SnapshotMe
 		return SnapshotMetadata{}, err
 	}
 
+	parsedUUID, err := uuid.ParseBytes(protoMetadata.SnapshotID)
+	if err != nil {
+		return SnapshotMetadata{}, err
+	}
+
 	return SnapshotMetadata{
-		Index:               uint64(protoMetadata.SnapshotIndex),
-		ID:                  ident.BytesID(protoMetadata.SnapshotID),
+		ID: SnapshotMetadataIdentifier{
+			Index: protoMetadata.SnapshotIndex,
+			ID:    parsedUUID,
+		},
 		CommitlogIdentifier: protoMetadata.CommitlogIdentifier,
 	}, nil
 }
