@@ -1010,7 +1010,7 @@ func NamespaceDataDirPath(prefix string, namespace ident.ID) string {
 
 // NamespaceSnapshotsDirPath returns the path to the snapshots directory for a given namespace.
 func NamespaceSnapshotsDirPath(prefix string, namespace ident.ID) string {
-	return path.Join(prefix, snapshotDirName, namespace.String())
+	return path.Join(SnapshotsDirPath(prefix), namespace.String())
 }
 
 // NamespaceIndexDataDirPath returns the path to the data directory for a given namespace.
@@ -1021,6 +1021,11 @@ func NamespaceIndexDataDirPath(prefix string, namespace ident.ID) string {
 // NamespaceIndexSnapshotDirPath returns the path to the data directory for a given namespace.
 func NamespaceIndexSnapshotDirPath(prefix string, namespace ident.ID) string {
 	return path.Join(prefix, indexDirName, snapshotDirName, namespace.String())
+}
+
+// SnapshotsDirPath returns the path to the snapshots directory.
+func SnapshotsDirPath(prefix string) string {
+	return path.Join(prefix, snapshotDirName)
 }
 
 // ShardDataDirPath returns the path to the data directory for a given shard.

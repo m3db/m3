@@ -20,16 +20,99 @@
 
 package fs
 
-import "os"
+import (
+	"fmt"
+	"os"
+
+	"github.com/m3db/m3/src/dbnode/digest"
+	"github.com/m3db/m3/src/dbnode/generated/proto/snapshot"
+)
 
 type snapshotMetadataWriter struct {
 	opts Options
 }
 
-func (s *snapshotMetadataWriter) Write(id SnapshotMetadataIdentifier) error {
-	// TODO
-	shardDir := ""
-	if err := os.MkdirAll(shardDir, s.opts.NewDirectoryMode()); err != nil {
+type snapshotMetadataWriteArgs struct {
+	ID SnapshotMetadataIdentifier
+	// TODO: Fix me
+	CommitlogIdentifier []byte
+}
+
+func (w *snapshotMetadataWriter) Write(args snapshotMetadataWriteArgs) error {
+	var (
+		prefix       = w.opts.FilePathPrefix()
+		snapshotsDir = SnapshotsDirPath(prefix)
+	)
+	if err := os.MkdirAll(snapshotsDir, w.opts.NewDirectoryMode()); err != nil {
+		return err
+	}
+	snapshotsDirFile, err := os.Open(snapshotsDir)
+	if err != nil {
+		return err
+	}
+	defer snapshotsDirFile.Close()
+
+	metadataPath := snapshotMetadataFilePathFromIdentifier(prefix, args.ID)
+	metadataFile, err := OpenWritable(metadataPath, w.opts.NewFileMode())
+	if err != nil {
+		return err
+	}
+	defer metadataFile.Close()
+
+	metadataFdWithDigest := digest.NewFdWithDigestWriter(w.opts.WriterBufferSize())
+	metadataFdWithDigest.Reset(metadataFile)
+
+	metadataBytes, err := (&snapshot.Metadata{
+		SnapshotIndex:       args.ID.Index,
+		SnapshotID:          []byte(args.ID.ID.String()),
+		CommitlogIdentifier: args.CommitlogIdentifier,
+	}).Marshal()
+	if err != nil {
+		return err
+	}
+
+	written, err := metadataFdWithDigest.Write(metadataBytes)
+	if err != nil {
+		return err
+	}
+	if written != len(metadataBytes) {
+		// Should never happen
+		return fmt.Errorf("did not complete writing metadata bytes, should have written: %d but wrote: %d bytes",
+			written, len(metadataBytes))
+	}
+
+	// Sync the file and its parent to ensure they're actually written out.
+	err = metadataFile.Sync()
+	if err != nil {
+		return err
+	}
+	err = snapshotsDirFile.Sync()
+	if err != nil {
+		return err
+	}
+
+	checkpointPath := snapshotMetadataCheckpointFilePathFromIdentifier(prefix, args.ID)
+	checkpointFile, err := OpenWritable(checkpointPath, w.opts.NewFileMode())
+	if err != nil {
+		return err
+	}
+	defer checkpointFile.Close()
+
+	checkpointFdWithDigest := digest.NewFdWithDigestContentsWriter(w.opts.WriterBufferSize())
+	checkpointFdWithDigest.Reset(metadataFile)
+
+	err = checkpointFdWithDigest.WriteDigests(metadataFdWithDigest.Digest().Sum32())
+	if err != nil {
+		return err
+	}
+
+	// Sync the file and its parent to ensure they're actually written out.
+	err = checkpointFile.Sync()
+	if err != nil {
+		return err
+	}
+	err = snapshotsDirFile.Sync()
+	if err != nil {
 		return err
 	}
 
