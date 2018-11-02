@@ -20,9 +20,77 @@
 
 package fs
 
+import (
+	"fmt"
+	"os"
+
+	"github.com/m3db/m3/src/dbnode/digest"
+	"github.com/m3db/m3/src/dbnode/generated/proto/snapshot"
+	"github.com/m3db/m3x/ident"
+)
+
 type snapshotMetadataReader struct {
+	opts Options
 }
 
-func (s *snapshotMetadataReader) Read(id SnapshotMetadataIdentifier) {
+// TODO: Move me
+type SnapshotMetadata struct {
+	Index uint64
+	ID    ident.ID
+	// TODO: Fix me
+	CommitlogIdentifier []byte
+}
 
+func (w *snapshotMetadataReader) Read(id SnapshotMetadataIdentifier) (SnapshotMetadata, error) {
+	var (
+		prefix         = w.opts.FilePathPrefix()
+		checkpointPath = snapshotMetadataCheckpointFilePathFromIdentifier(prefix, id)
+		metadataPath   = snapshotMetadataFilePathFromIdentifier(prefix, id)
+	)
+
+	expectedDigest, err := readCheckpointFile(checkpointPath, digest.NewBuffer())
+	if err != nil {
+		return SnapshotMetadata{}, err
+	}
+
+	metadataFile, err := os.Open(metadataPath)
+	if err != nil {
+		return SnapshotMetadata{}, err
+	}
+
+	metadataReader := digest.NewFdWithDigestReader(w.opts.InfoReaderBufferSize())
+	metadataReader.Reset(metadataFile)
+
+	metadataFileInfo, err := metadataFile.Stat()
+	if err != nil {
+		return SnapshotMetadata{}, err
+	}
+
+	var (
+		size = metadataFileInfo.Size()
+		buf  = make([]byte, int(size))
+	)
+	n, err := metadataReader.ReadAllAndValidate(buf, expectedDigest)
+	if err != nil {
+		return SnapshotMetadata{}, err
+	}
+
+	if int64(n) != size {
+		// Should never happen
+		return SnapshotMetadata{}, fmt.Errorf("read: %d bytes of metadata file, but expected: %d",
+			n, size)
+	}
+
+	protoMetadata := &snapshot.Metadata{}
+	// TODO: Need to subslice?
+	err = protoMetadata.Unmarshal(buf[:n])
+	if err != nil {
+		return SnapshotMetadata{}, err
+	}
+
+	return SnapshotMetadata{
+		Index:               uint64(protoMetadata.SnapshotIndex),
+		ID:                  ident.BytesID(protoMetadata.SnapshotID),
+		CommitlogIdentifier: protoMetadata.CommitlogIdentifier,
+	}, nil
 }
