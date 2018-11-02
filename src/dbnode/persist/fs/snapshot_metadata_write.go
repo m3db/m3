@@ -32,12 +32,18 @@ import (
 func NewSnapshotMetadataWriter(opts Options) *SnapshotMetadataWriter {
 	return &SnapshotMetadataWriter{
 		opts: opts,
+
+		metadataFdWithDigest: digest.NewFdWithDigestWriter(opts.WriterBufferSize()),
+		digestBuf:            digest.NewBuffer(),
 	}
 }
 
 // SnapshotMetadataWriter is a writer for SnapshotMetadata.
 type SnapshotMetadataWriter struct {
 	opts Options
+
+	metadataFdWithDigest digest.FdWithDigestWriter
+	digestBuf            digest.Buffer
 }
 
 // SnapshotMetadataWriteArgs are the arguments for SnapshotMetadataWriter.Write.
@@ -68,9 +74,8 @@ func (w *SnapshotMetadataWriter) Write(args SnapshotMetadataWriteArgs) error {
 		return err
 	}
 
-	metadataFdWithDigest := digest.NewFdWithDigestWriter(w.opts.WriterBufferSize())
-	metadataFdWithDigest.Reset(metadataFile)
-	defer metadataFdWithDigest.Close()
+	w.metadataFdWithDigest.Reset(metadataFile)
+	defer w.metadataFdWithDigest.Close()
 
 	metadataBytes, err := (&snapshot.Metadata{
 		SnapshotIndex:       args.ID.Index,
@@ -81,7 +86,7 @@ func (w *SnapshotMetadataWriter) Write(args SnapshotMetadataWriteArgs) error {
 		return err
 	}
 
-	written, err := metadataFdWithDigest.Write(metadataBytes)
+	written, err := w.metadataFdWithDigest.Write(metadataBytes)
 	if err != nil {
 		return err
 	}
@@ -91,7 +96,7 @@ func (w *SnapshotMetadataWriter) Write(args SnapshotMetadataWriteArgs) error {
 			written, len(metadataBytes))
 	}
 
-	err = metadataFdWithDigest.Flush()
+	err = w.metadataFdWithDigest.Flush()
 	if err != nil {
 		return err
 	}
@@ -113,8 +118,9 @@ func (w *SnapshotMetadataWriter) Write(args SnapshotMetadataWriteArgs) error {
 	}
 	defer checkpointFile.Close()
 
-	err = digest.NewBuffer().WriteDigestToFile(
-		checkpointFile, metadataFdWithDigest.Digest().Sum32())
+	// digestBuf does not need to be reset.
+	err = w.digestBuf.WriteDigestToFile(
+		checkpointFile, w.metadataFdWithDigest.Digest().Sum32())
 	if err != nil {
 		return err
 	}

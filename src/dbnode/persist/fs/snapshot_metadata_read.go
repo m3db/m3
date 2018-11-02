@@ -33,12 +33,16 @@ import (
 func NewSnapshotMetadataReader(opts Options) *SnapshotMetadataReader {
 	return &SnapshotMetadataReader{
 		opts: opts,
+
+		metadataReader: digest.NewFdWithDigestReader(opts.InfoReaderBufferSize()),
 	}
 }
 
 // SnapshotMetadataReader is a reader for SnapshotMetadata.
 type SnapshotMetadataReader struct {
 	opts Options
+
+	metadataReader digest.FdWithDigestReader
 }
 
 // TODO: Move me
@@ -65,8 +69,7 @@ func (w *SnapshotMetadataReader) Read(id SnapshotMetadataIdentifier) (SnapshotMe
 		return SnapshotMetadata{}, err
 	}
 
-	metadataReader := digest.NewFdWithDigestReader(w.opts.InfoReaderBufferSize())
-	metadataReader.Reset(metadataFile)
+	w.metadataReader.Reset(metadataFile)
 
 	metadataFileInfo, err := metadataFile.Stat()
 	if err != nil {
@@ -77,7 +80,7 @@ func (w *SnapshotMetadataReader) Read(id SnapshotMetadataIdentifier) (SnapshotMe
 		size = metadataFileInfo.Size()
 		buf  = make([]byte, int(size))
 	)
-	n, err := metadataReader.ReadAllAndValidate(buf, expectedDigest)
+	n, err := w.metadataReader.ReadAllAndValidate(buf, expectedDigest)
 	if err != nil {
 		return SnapshotMetadata{}, err
 	}

@@ -35,29 +35,37 @@ func TestSnapshotMetadataWriteAndRead(t *testing.T) {
 		filePathPrefix = filepath.Join(dir, "")
 		opts           = testDefaultOpts.
 				SetFilePathPrefix(filePathPrefix)
-		snapshotMetadataIdentifier = SnapshotMetadataIdentifier{
-			Index: 0,
-			ID:    uuid.MustParse("6645a373-bf82-42e7-84a6-f8452b137549"),
-		}
 		commitlogIdentifier = []byte("commitlog_id")
+		numMetadataFiles    = 10
 	)
 	defer func() {
 		os.RemoveAll(dir)
 	}()
 
-	writer := NewSnapshotMetadataWriter(opts)
-	err := writer.Write(SnapshotMetadataWriteArgs{
-		ID:                  snapshotMetadataIdentifier,
-		CommitlogIdentifier: commitlogIdentifier,
-	})
-	require.NoError(t, err)
+	var (
+		reader = NewSnapshotMetadataReader(opts)
+		writer = NewSnapshotMetadataWriter(opts)
+	)
+	for i := 0; i < numMetadataFiles; i++ {
+		var (
+			snapshotMetadataIdentifier = SnapshotMetadataIdentifier{
+				Index: int64(i),
+				ID:    uuid.MustParse("6645a373-bf82-42e7-84a6-f8452b137549"),
+			}
+		)
 
-	reader := NewSnapshotMetadataReader(opts)
-	snapshotMetadata, err := reader.Read(snapshotMetadataIdentifier)
-	require.NoError(t, err)
+		err := writer.Write(SnapshotMetadataWriteArgs{
+			ID:                  snapshotMetadataIdentifier,
+			CommitlogIdentifier: commitlogIdentifier,
+		})
+		require.NoError(t, err)
 
-	require.Equal(t, SnapshotMetadata{
-		ID:                  snapshotMetadataIdentifier,
-		CommitlogIdentifier: commitlogIdentifier,
-	}, snapshotMetadata)
+		snapshotMetadata, err := reader.Read(snapshotMetadataIdentifier)
+		require.NoError(t, err)
+
+		require.Equal(t, SnapshotMetadata{
+			ID:                  snapshotMetadataIdentifier,
+			CommitlogIdentifier: commitlogIdentifier,
+		}, snapshotMetadata)
+	}
 }
