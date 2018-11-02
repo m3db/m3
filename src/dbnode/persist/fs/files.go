@@ -172,12 +172,14 @@ func (f FileSetFilesSlice) sortByTimeAndVolumeIndexAscending() {
 	})
 }
 
-// TODO: Comment
-type SnapshotMetadataFile struct {
-	ID                 SnapshotMetadataIdentifier
-	Metadata           SnapshotMetadata
-	MetadataFilePath   string
-	CheckpointFilePath string
+// SnapshotMetadata represents a SnapshotMetadata file, along with its checkpoint file,
+// as well as all the information contained within the metadata file and paths to the
+// physical files on disk.
+type SnapshotMetadata struct {
+	ID                  SnapshotMetadataIdentifier
+	CommitlogIdentifier []byte
+	MetadataFilePath    string
+	CheckpointFilePath  string
 }
 
 // SnapshotMetadataErrorWithPaths contains an error that occurred while trying to
@@ -648,7 +650,7 @@ func ReadIndexInfoFiles(
 
 // TODO: Comment
 func SortedSnapshotMetadataFiles(opts Options) (
-	[]SnapshotMetadataFile, []SnapshotMetadataErrorWithPaths, error) {
+	[]SnapshotMetadata, []SnapshotMetadataErrorWithPaths, error) {
 	var (
 		prefix           = opts.FilePathPrefix()
 		snapshotsDirPath = SnapshotDirPath(prefix)
@@ -671,7 +673,7 @@ func SortedSnapshotMetadataFiles(opts Options) (
 
 	var (
 		reader          = NewSnapshotMetadataReader(opts)
-		metadataFiles   = []SnapshotMetadataFile{}
+		metadatas       = []SnapshotMetadata{}
 		errorsWithPaths = []SnapshotMetadataErrorWithPaths{}
 	)
 	for _, file := range metadataFilePaths {
@@ -693,21 +695,16 @@ func SortedSnapshotMetadataFiles(opts Options) (
 				MetadataFilePath:   snapshotMetadataFilePathFromIdentifier(prefix, id),
 				CheckpointFilePath: snapshotMetadataCheckpointFilePathFromIdentifier(prefix, id),
 			})
+			continue
 		}
 
-		metadataFiles = append(metadataFiles, SnapshotMetadataFile{
-			ID:       id,
-			Metadata: metadata,
-			// TODO: Probably don't need to recalculate theses
-			MetadataFilePath:   snapshotMetadataFilePathFromIdentifier(prefix, id),
-			CheckpointFilePath: snapshotMetadataCheckpointFilePathFromIdentifier(prefix, id),
-		})
+		metadatas = append(metadatas, metadata)
 	}
 
-	sort.Slice(metadataFiles, func(i, j int) bool {
-		return metadataFiles[i].ID.Index < metadataFiles[j].ID.Index
+	sort.Slice(metadatas, func(i, j int) bool {
+		return metadatas[i].ID.Index < metadatas[j].ID.Index
 	})
-	return metadataFiles, errorsWithPaths, nil
+	return metadatas, errorsWithPaths, nil
 }
 
 // SnapshotFiles returns a slice of all the names for all the fileset files

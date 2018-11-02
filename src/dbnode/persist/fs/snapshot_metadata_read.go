@@ -45,13 +45,6 @@ type SnapshotMetadataReader struct {
 	metadataReader digest.FdWithDigestReader
 }
 
-// TODO: Move me
-type SnapshotMetadata struct {
-	ID SnapshotMetadataIdentifier
-	// TODO: Fix me
-	CommitlogIdentifier []byte
-}
-
 func (w *SnapshotMetadataReader) Read(id SnapshotMetadataIdentifier) (SnapshotMetadata, error) {
 	var (
 		prefix         = w.opts.FilePathPrefix()
@@ -109,5 +102,7 @@ func (w *SnapshotMetadataReader) Read(id SnapshotMetadataIdentifier) (SnapshotMe
 			ID:    parsedUUID,
 		},
 		CommitlogIdentifier: protoMetadata.CommitlogIdentifier,
+		MetadataFilePath:    snapshotMetadataFilePathFromIdentifier(prefix, id),
+		CheckpointFilePath:  snapshotMetadataCheckpointFilePathFromIdentifier(prefix, id),
 	}, nil
 }

@@ -602,6 +602,7 @@ func TestSnapshotMetadataFiles(t *testing.T) {
 	require.Empty(t, errorsWithpaths)
 	require.Empty(t, metadataFiles)
 
+	// Write out a bunch of metadata files along with their corresponding checkpoints.
 	for i := 0; i < numMetadataFiles; i++ {
 		snapshotMetadataIdentifier := SnapshotMetadataIdentifier{
 			Index: int64(i),
@@ -622,6 +623,10 @@ func TestSnapshotMetadataFiles(t *testing.T) {
 		require.Equal(t, SnapshotMetadata{
 			ID:                  snapshotMetadataIdentifier,
 			CommitlogIdentifier: commitlogIdentifier,
+			MetadataFilePath: snapshotMetadataFilePathFromIdentifier(
+				filePathPrefix, snapshotMetadataIdentifier),
+			CheckpointFilePath: snapshotMetadataCheckpointFilePathFromIdentifier(
+				filePathPrefix, snapshotMetadataIdentifier),
 		}, snapshotMetadata)
 
 		// Corrupt the last file.
@@ -634,7 +639,7 @@ func TestSnapshotMetadataFiles(t *testing.T) {
 	metadataFiles, errorsWithpaths, err = SortedSnapshotMetadataFiles(opts)
 	require.NoError(t, err)
 	require.Len(t, errorsWithpaths, 1)
-	require.Len(t, metadataFiles, numMetadataFiles)
+	require.Len(t, metadataFiles, numMetadataFiles-1)
 
 	// Assert that they're sorted.
 	for i, file := range metadataFiles {

@@ -66,6 +66,10 @@ func TestSnapshotMetadataWriteAndRead(t *testing.T) {
 		require.Equal(t, SnapshotMetadata{
 			ID:                  snapshotMetadataIdentifier,
 			CommitlogIdentifier: commitlogIdentifier,
+			MetadataFilePath: snapshotMetadataFilePathFromIdentifier(
+				filePathPrefix, snapshotMetadataIdentifier),
+			CheckpointFilePath: snapshotMetadataCheckpointFilePathFromIdentifier(
+				filePathPrefix, snapshotMetadataIdentifier),
 		}, snapshotMetadata)
 	}
 }
