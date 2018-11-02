@@ -301,7 +301,7 @@ func TestSnapshotMetadataFilePathFromIdentifierRoundTrip(t *testing.T) {
 	)
 	require.Equal(t, expected, actual)
 
-	idFromPath, err := snapshotIdentifierFromMetadataFilePath(expected)
+	idFromPath, err := snapshotMetadataIdentifierFromFilePath(expected)
 	require.NoError(t, err)
 	require.Equal(t, id, idFromPath)
 }
@@ -324,7 +324,7 @@ func TestSnapshotMetadataCheckpointFilePathFromIdentifierRoundTrip(t *testing.T)
 	)
 	require.Equal(t, expected, actual)
 
-	idFromPath, err := snapshotIdentifierFromMetadataFilePath(expected)
+	idFromPath, err := snapshotMetadataIdentifierFromFilePath(expected)
 	require.NoError(t, err)
 	require.Equal(t, id, idFromPath)
 }

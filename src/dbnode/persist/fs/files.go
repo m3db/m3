@@ -172,9 +172,21 @@ func (f FileSetFilesSlice) sortByTimeAndVolumeIndexAscending() {
 	})
 }
 
+// TODO: Comment
 type SnapshotMetadataFile struct {
 	ID                 SnapshotMetadataIdentifier
 	Metadata           SnapshotMetadata
+	MetadataFilePath   string
+	CheckpointFilePath string
+}
+
+// SnapshotMetadataErrorWithPaths contains an error that occurred while trying to
+// read a snapshot metadata file, as well as paths for the metadata file path and
+// the checkpoint file path so that they can be cleaned up. The checkpoint file may
+// not exist if only the metadata file was written out (due to sudden node failure)
+// or if the metadata file name was structured incorrectly (should never happen.)
+type SnapshotMetadataErrorWithPaths struct {
+	Error              error
 	MetadataFilePath   string
 	CheckpointFilePath string
 }
@@ -634,19 +646,66 @@ func ReadIndexInfoFiles(
 	return infoFileResults
 }
 
-// func SnapshotMetadataFiles(filePathPrefix string) ([]SnapshotMetadataFile, error) {
-// 	snapshotsDirPath := SnapshotDirPath(filePathPrefix)
-// 	// TODO: Maybe look at metadata files instead for better cleanup
-// 	checkpointFiles, err := filepath.Glob(
-// 		fmt.Sprintf("*.%s%s"),
-// 		checkpointFileSuffix, fileSuffix)
+// TODO: Comment
+func SnapshotMetadataFiles(opts Options) (
+	[]SnapshotMetadataFile, []SnapshotMetadataErrorWithPaths, error) {
+	var (
+		prefix           = opts.FilePathPrefix()
+		snapshotsDirPath = SnapshotDirPath(prefix)
+	)
 
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	// Glob for metadata files directly instead of their checkpoint files.
+	// In the happy case this makes no difference, but in situations where
+	// the metadata file exists but the checkpoint file does not (due to sudden
+	// not failure) this strategy allows us to still cleanup the metadata file
+	// whereas if we looked for checkpoint files directly the dangling metadata
+	// file would hang around forever.
+	checkpointFiles, err := filepath.Glob(
+		path.Join(
+			snapshotsDirPath,
+			fmt.Sprintf("*.%s%s", metadataFileSuffix, fileSuffix)))
 
-// 	// snapshotIdentifierFromFilename
-// }
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var (
+		reader          = NewSnapshotMetadataReader(opts)
+		metadataFiles   = []SnapshotMetadataFile{}
+		errorsWithPaths = []SnapshotMetadataErrorWithPaths{}
+	)
+	for _, file := range checkpointFiles {
+		id, err := snapshotMetadataIdentifierFromFilePath(file)
+		if err != nil {
+			// TODO: Emit a log
+			errorsWithPaths = append(errorsWithPaths, SnapshotMetadataErrorWithPaths{
+				Error:            err,
+				MetadataFilePath: file,
+				// Can't construct checkpoint file path without ID
+			})
+			continue
+		}
+
+		metadata, err := reader.Read(id)
+		if err != nil {
+			errorsWithPaths = append(errorsWithPaths, SnapshotMetadataErrorWithPaths{
+				Error:              err,
+				MetadataFilePath:   snapshotMetadataFilePathFromIdentifier(prefix, id),
+				CheckpointFilePath: snapshotMetadataCheckpointFilePathFromIdentifier(prefix, id),
+			})
+		}
+
+		metadataFiles = append(metadataFiles, SnapshotMetadataFile{
+			ID:       id,
+			Metadata: metadata,
+			// TODO: Probably don't need to recalculate theses
+			MetadataFilePath:   snapshotMetadataFilePathFromIdentifier(prefix, id),
+			CheckpointFilePath: snapshotMetadataCheckpointFilePathFromIdentifier(prefix, id),
+		})
+	}
+
+	return metadataFiles, errorsWithPaths, nil
+}
 
 // SnapshotFiles returns a slice of all the names for all the fileset files
 // for a given namespace and shard combination.
@@ -1278,7 +1337,7 @@ func sanitizeUUID(uuid string) string {
 	return strings.Replace(uuid, separator, "_", -1)
 }
 
-func snapshotIdentifierFromMetadataFilePath(filePath string) (SnapshotMetadataIdentifier, error) {
+func snapshotMetadataIdentifierFromFilePath(filePath string) (SnapshotMetadataIdentifier, error) {
 	_, fileName := path.Split(filePath)
 	if fileName == "" {
 		return SnapshotMetadataIdentifier{}, fmt.Errorf(
