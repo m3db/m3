@@ -172,6 +172,13 @@ func (f FileSetFilesSlice) sortByTimeAndVolumeIndexAscending() {
 	})
 }
 
+type SnapshotMetadataFile struct {
+	ID                 SnapshotMetadataIdentifier
+	Metadata           SnapshotMetadata
+	MetadataFilePath   string
+	CheckpointFilePath string
+}
+
 // SnapshotMetadataIdentifier is an identifier for a snapshot metadata file
 type SnapshotMetadataIdentifier struct {
 	Index int64
@@ -626,6 +633,20 @@ func ReadIndexInfoFiles(
 		})
 	return infoFileResults
 }
+
+// func SnapshotMetadataFiles(filePathPrefix string) ([]SnapshotMetadataFile, error) {
+// 	snapshotsDirPath := SnapshotDirPath(filePathPrefix)
+// 	// TODO: Maybe look at metadata files instead for better cleanup
+// 	checkpointFiles, err := filepath.Glob(
+// 		fmt.Sprintf("*.%s%s"),
+// 		checkpointFileSuffix, fileSuffix)
+
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	// snapshotIdentifierFromFilename
+// }
 
 // SnapshotFiles returns a slice of all the names for all the fileset files
 // for a given namespace and shard combination.
@@ -1240,7 +1261,7 @@ func snapshotMetadataFilePathFromIdentifier(prefix string, id SnapshotMetadataId
 		snapshotDirName,
 		fmt.Sprintf(
 			"%s-%s-%d-%s%s",
-			snapshotFilePrefix, id.ID.String(), id.Index, metadataFileSuffix, fileSuffix))
+			snapshotFilePrefix, sanitizeUUID(id.ID.String()), id.Index, metadataFileSuffix, fileSuffix))
 }
 
 func snapshotMetadataCheckpointFilePathFromIdentifier(prefix string, id SnapshotMetadataIdentifier) string {
@@ -1249,5 +1270,53 @@ func snapshotMetadataCheckpointFilePathFromIdentifier(prefix string, id Snapshot
 		snapshotDirName,
 		fmt.Sprintf(
 			"%s-%s-%d-%s-%s%s",
-			snapshotFilePrefix, id.ID.String(), id.Index, metadataFileSuffix, checkpointFileSuffix, fileSuffix))
+			snapshotFilePrefix, sanitizeUUID(id.ID.String()), id.Index, metadataFileSuffix, checkpointFileSuffix, fileSuffix))
+}
+
+func sanitizeUUID(uuid string) string {
+	// TODO: Constantize as UUIDSeparator
+	return strings.Replace(uuid, separator, "_", -1)
+}
+
+func snapshotIdentifierFromMetadataFilePath(filePath string) (SnapshotMetadataIdentifier, error) {
+	_, fileName := path.Split(filePath)
+	if fileName == "" {
+		return SnapshotMetadataIdentifier{}, fmt.Errorf(
+			"splitting: %s created empty filename", filePath)
+	}
+
+	var (
+		splitFileName    = strings.Split(fileName, separator)
+		isCheckpointFile = strings.Contains(fileName, checkpointFileSuffix)
+	)
+	// TODO: Constantize 4 and 5
+	if len(splitFileName) != 4 &&
+		// Snapshot metadata checkpoint files contain one extra separator.
+		!(isCheckpointFile && len(splitFileName) == 5) {
+		return SnapshotMetadataIdentifier{}, fmt.Errorf(
+			"invalid snapshot metadata file name: %s", filePath)
+	}
+
+	index, err := strconv.Atoi(splitFileName[2])
+	if err != nil {
+		return SnapshotMetadataIdentifier{}, fmt.Errorf(
+			"invalid snapshot metadata file name, unable to parse index: %s", filePath)
+	}
+
+	var (
+		uuidWithUnderscores = splitFileName[1]
+		// TODO: Constantize
+		uuidWithDashes = strings.Replace(uuidWithUnderscores, "_", separator, -1)
+	)
+
+	id, err := uuid.Parse(uuidWithDashes)
+	if err != nil {
+		return SnapshotMetadataIdentifier{}, fmt.Errorf(
+			"invalid snapshot metadata file name, unable to parse ID: %s", filePath)
+	}
+
+	return SnapshotMetadataIdentifier{
+		Index: int64(index),
+		ID:    id,
+	}, nil
 }

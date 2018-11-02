@@ -283,7 +283,7 @@ func TestTimeAndVolumeIndexFromFileSetFilename(t *testing.T) {
 	require.Equal(t, filesetPathFromTimeAndIndex("foo/bar", exp.t, exp.i, "data"), validName)
 }
 
-func TestSnapshotMetadataFilePathFromIdentifier(t *testing.T) {
+func TestSnapshotMetadataFilePathFromIdentifierRoundTrip(t *testing.T) {
 	idUUID, err := uuid.Parse("bf58eb3e-0582-42ee-83b2-d098c206260e")
 	require.NoError(t, err)
 
@@ -296,13 +296,17 @@ func TestSnapshotMetadataFilePathFromIdentifier(t *testing.T) {
 	)
 
 	var (
-		expected = "/var/lib/m3db/snapshots/snapshot-bf58eb3e-0582-42ee-83b2-d098c206260e-10-metadata.db"
+		expected = "/var/lib/m3db/snapshots/snapshot-bf58eb3e_0582_42ee_83b2_d098c206260e-10-metadata.db"
 		actual   = snapshotMetadataFilePathFromIdentifier(prefix, id)
 	)
 	require.Equal(t, expected, actual)
+
+	idFromPath, err := snapshotIdentifierFromMetadataFilePath(expected)
+	require.NoError(t, err)
+	require.Equal(t, id, idFromPath)
 }
 
-func TestSnapshotMetadataCheckpointFilePathFromIdentifier(t *testing.T) {
+func TestSnapshotMetadataCheckpointFilePathFromIdentifierRoundTrip(t *testing.T) {
 	idUUID, err := uuid.Parse("bf58eb3e-0582-42ee-83b2-d098c206260e")
 	require.NoError(t, err)
 
@@ -315,10 +319,14 @@ func TestSnapshotMetadataCheckpointFilePathFromIdentifier(t *testing.T) {
 	)
 
 	var (
-		expected = "/var/lib/m3db/snapshots/snapshot-bf58eb3e-0582-42ee-83b2-d098c206260e-10-metadata-checkpoint.db"
+		expected = "/var/lib/m3db/snapshots/snapshot-bf58eb3e_0582_42ee_83b2_d098c206260e-10-metadata-checkpoint.db"
 		actual   = snapshotMetadataCheckpointFilePathFromIdentifier(prefix, id)
 	)
 	require.Equal(t, expected, actual)
+
+	idFromPath, err := snapshotIdentifierFromMetadataFilePath(expected)
+	require.NoError(t, err)
+	require.Equal(t, id, idFromPath)
 }
 
 func TestFileExists(t *testing.T) {
