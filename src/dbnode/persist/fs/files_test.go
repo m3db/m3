@@ -579,6 +579,69 @@ func TestNextSnapshotFileSetVolumeIndex(t *testing.T) {
 	}
 }
 
+// TestSnapshotMetadataFiles tests the SnapshotMetadataFiles function by writing out
+// a number of valid snapshot metadata files (along with their checkpoint files), as
+// well as one invalid / corrupt one, and then asserts that the correct number of valid
+// and corrupt files are returned.
+func TestSnapshotMetadataFiles(t *testing.T) {
+	var (
+		dir            = createTempDir(t)
+		filePathPrefix = filepath.Join(dir, "")
+		opts           = testDefaultOpts.
+				SetFilePathPrefix(filePathPrefix)
+		commitlogIdentifier = []byte("commitlog_id")
+		numMetadataFiles    = 10
+	)
+	defer func() {
+		os.RemoveAll(dir)
+	}()
+
+	// Shoulld be no files before we write them out.
+	metadataFiles, errorsWithpaths, err := SortedSnapshotMetadataFiles(opts)
+	require.NoError(t, err)
+	require.Empty(t, errorsWithpaths)
+	require.Empty(t, metadataFiles)
+
+	for i := 0; i < numMetadataFiles; i++ {
+		snapshotMetadataIdentifier := SnapshotMetadataIdentifier{
+			Index: int64(i),
+			ID:    uuid.MustParse("6645a373-bf82-42e7-84a6-f8452b137549"),
+		}
+
+		writer := NewSnapshotMetadataWriter(opts)
+		err := writer.Write(SnapshotMetadataWriteArgs{
+			ID:                  snapshotMetadataIdentifier,
+			CommitlogIdentifier: commitlogIdentifier,
+		})
+		require.NoError(t, err)
+
+		reader := NewSnapshotMetadataReader(opts)
+		snapshotMetadata, err := reader.Read(snapshotMetadataIdentifier)
+		require.NoError(t, err)
+
+		require.Equal(t, SnapshotMetadata{
+			ID:                  snapshotMetadataIdentifier,
+			CommitlogIdentifier: commitlogIdentifier,
+		}, snapshotMetadata)
+
+		// Corrupt the last file.
+		if i == numMetadataFiles-1 {
+			os.Remove(snapshotMetadataCheckpointFilePathFromIdentifier(
+				filePathPrefix, snapshotMetadataIdentifier))
+		}
+	}
+
+	metadataFiles, errorsWithpaths, err = SortedSnapshotMetadataFiles(opts)
+	require.NoError(t, err)
+	require.Len(t, errorsWithpaths, 1)
+	require.Len(t, metadataFiles, numMetadataFiles)
+
+	// Assert that they're sorted.
+	for i, file := range metadataFiles {
+		require.Equal(t, int64(i), file.ID.Index)
+	}
+}
+
 func TestNextIndexFileSetVolumeIndex(t *testing.T) {
 	// Make empty directory
 	dir := createTempDir(t)

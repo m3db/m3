@@ -647,7 +647,7 @@ func ReadIndexInfoFiles(
 }
 
 // TODO: Comment
-func SnapshotMetadataFiles(opts Options) (
+func SortedSnapshotMetadataFiles(opts Options) (
 	[]SnapshotMetadataFile, []SnapshotMetadataErrorWithPaths, error) {
 	var (
 		prefix           = opts.FilePathPrefix()
@@ -660,10 +660,10 @@ func SnapshotMetadataFiles(opts Options) (
 	// not failure) this strategy allows us to still cleanup the metadata file
 	// whereas if we looked for checkpoint files directly the dangling metadata
 	// file would hang around forever.
-	checkpointFiles, err := filepath.Glob(
+	metadataFilePaths, err := filepath.Glob(
 		path.Join(
 			snapshotsDirPath,
-			fmt.Sprintf("*.%s%s", metadataFileSuffix, fileSuffix)))
+			fmt.Sprintf("*%s%s%s", separator, metadataFileSuffix, fileSuffix)))
 
 	if err != nil {
 		return nil, nil, err
@@ -674,7 +674,7 @@ func SnapshotMetadataFiles(opts Options) (
 		metadataFiles   = []SnapshotMetadataFile{}
 		errorsWithPaths = []SnapshotMetadataErrorWithPaths{}
 	)
-	for _, file := range checkpointFiles {
+	for _, file := range metadataFilePaths {
 		id, err := snapshotMetadataIdentifierFromFilePath(file)
 		if err != nil {
 			// TODO: Emit a log
@@ -704,6 +704,9 @@ func SnapshotMetadataFiles(opts Options) (
 		})
 	}
 
+	sort.Slice(metadataFiles, func(i, j int) bool {
+		return metadataFiles[i].ID.Index < metadataFiles[j].ID.Index
+	})
 	return metadataFiles, errorsWithPaths, nil
 }
 
