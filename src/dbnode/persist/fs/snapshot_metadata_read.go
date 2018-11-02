@@ -55,7 +55,6 @@ func (w *SnapshotMetadataReader) Read(id SnapshotMetadataIdentifier) (SnapshotMe
 		metadataPath   = snapshotMetadataFilePathFromIdentifier(prefix, id)
 	)
 
-	fmt.Println("Reading: ", checkpointPath)
 	expectedDigest, err := readCheckpointFile(checkpointPath, digest.NewBuffer())
 	if err != nil {
 		return SnapshotMetadata{}, err

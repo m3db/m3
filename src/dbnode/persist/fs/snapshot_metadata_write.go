@@ -129,6 +129,5 @@ func (w *SnapshotMetadataWriter) Write(args SnapshotMetadataWriteArgs) error {
 		return err
 	}
 
-	fmt.Println("wrote: ", checkpointPath)
 	return nil
 }
