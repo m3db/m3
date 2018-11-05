@@ -1170,6 +1170,21 @@ func NextCommitLogsFile(prefix string, start time.Time) (string, int, error) {
 	}
 }
 
+// NextSnapshotMetadataFileIndex returns the next snapshot metadata file index.
+func NextSnapshotMetadataFileIndex(opts Options) (int64, error) {
+	// We can ignore any SnapshotMetadataErrorsWithpaths that are returned because even if a corrupt
+	// snapshot metadata file exists with the next index that we want to return from this function,
+	// every snapshot metadata has its own UUID so there will never be a collision with a corrupt file
+	// anyways and we can ignore them entirely when considering what the next index should be.
+	snapshotMetadataFiles, _, err := SortedSnapshotMetadataFiles(opts)
+	if err != nil {
+		return 0, err
+	}
+
+	lastSnapshotMetadataFile := snapshotMetadataFiles[len(snapshotMetadataFiles)-1]
+	return lastSnapshotMetadataFile.ID.Index + 1, nil
+}
+
 // NextSnapshotFileSetVolumeIndex returns the next snapshot file set index for a given
 // namespace/shard/blockStart combination.
 func NextSnapshotFileSetVolumeIndex(filePathPrefix string, namespace ident.ID, shard uint32, blockStart time.Time) (int, error) {

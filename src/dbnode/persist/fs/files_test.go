@@ -579,11 +579,11 @@ func TestNextSnapshotFileSetVolumeIndex(t *testing.T) {
 	}
 }
 
-// TestSnapshotMetadataFiles tests the SnapshotMetadataFiles function by writing out
+// TestSortedSnapshotMetadataFiles tests the SortedSnapshotMetadataFiles function by writing out
 // a number of valid snapshot metadata files (along with their checkpoint files), as
 // well as one invalid / corrupt one, and then asserts that the correct number of valid
 // and corrupt files are returned.
-func TestSnapshotMetadataFiles(t *testing.T) {
+func TestSortedSnapshotMetadataFiles(t *testing.T) {
 	var (
 		dir            = createTempDir(t)
 		filePathPrefix = filepath.Join(dir, "")
@@ -648,6 +648,54 @@ func TestSnapshotMetadataFiles(t *testing.T) {
 	for i, file := range metadataFiles {
 		require.Equal(t, int64(i), file.ID.Index)
 	}
+}
+
+// TestNextSnapshotMetadataFileIndex tests the NextSnapshotMetadataFileIndex function by
+// writing out a number of SnapshotMetadata files and then ensuring that the NextSnapshotMetadataFileIndex
+// function returns the correct next index.
+func TestNextSnapshotMetadataFileIndex(t *testing.T) {
+	var (
+		dir            = createTempDir(t)
+		filePathPrefix = filepath.Join(dir, "")
+		opts           = testDefaultOpts.
+				SetFilePathPrefix(filePathPrefix)
+		commitlogIdentifier = []byte("commitlog_id")
+		numMetadataFiles    = 10
+	)
+	defer func() {
+		os.RemoveAll(dir)
+	}()
+
+	// Shoulld be no files before we write them out.
+	metadataFiles, errorsWithpaths, err := SortedSnapshotMetadataFiles(opts)
+	require.NoError(t, err)
+	require.Empty(t, errorsWithpaths)
+	require.Empty(t, metadataFiles)
+
+	writer := NewSnapshotMetadataWriter(opts)
+	// Write out a bunch of metadata files along with their corresponding checkpoints.
+	for i := 0; i < numMetadataFiles; i++ {
+		snapshotUUID := uuid.Parse("6645a373-bf82-42e7-84a6-f8452b137549")
+		require.NotNil(t, snapshotUUID)
+
+		snapshotMetadataIdentifier := SnapshotMetadataIdentifier{
+			Index: int64(i),
+			UUID:  snapshotUUID,
+		}
+
+		err := writer.Write(SnapshotMetadataWriteArgs{
+			ID:                  snapshotMetadataIdentifier,
+			CommitlogIdentifier: commitlogIdentifier,
+		})
+		require.NoError(t, err)
+	}
+
+	nextIdx, err := NextSnapshotMetadataFileIndex(opts)
+	require.NoError(t, err)
+	// Snapshot metadata file indices are zero-based so if we wrote out
+	// numMetadataFiles, then the last index should be numMetadataFiles-1
+	// and the next one should be numMetadataFiles.
+	require.Equal(t, int64(numMetadataFiles), nextIdx)
 }
 
 func TestNextIndexFileSetVolumeIndex(t *testing.T) {
