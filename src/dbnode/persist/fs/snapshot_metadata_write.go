@@ -47,10 +47,8 @@ type SnapshotMetadataWriter struct {
 }
 
 // SnapshotMetadataWriteArgs are the arguments for SnapshotMetadataWriter.Write.
-// TODO: Fix me to use SnapshotMetadata
 type SnapshotMetadataWriteArgs struct {
-	ID SnapshotMetadataIdentifier
-	// TODO: Fix me
+	ID                  SnapshotMetadataIdentifier
 	CommitlogIdentifier []byte
 }
 
