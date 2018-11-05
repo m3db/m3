@@ -647,7 +647,11 @@ func ReadIndexInfoFiles(
 	return infoFileResults
 }
 
-// TODO: Comment
+// SortedSnapshotMetadataFiles returns a slice of all the SnapshotMetadata files that are on disk, as well
+// as any files that it encountered errors for (corrupt, missing checkpoints, etc) which facilitates
+// cleanup of corrupt files. []SnapshotMetadata will be sorted by index (i.e the chronological order
+// in which the snapshots were taken), but []SnapshotMetadataErrorWithPaths will not be in any particular
+// order.
 func SortedSnapshotMetadataFiles(opts Options) (
 	[]SnapshotMetadata, []SnapshotMetadataErrorWithPaths, error) {
 	var (
@@ -678,7 +682,6 @@ func SortedSnapshotMetadataFiles(opts Options) (
 	for _, file := range metadataFilePaths {
 		id, err := snapshotMetadataIdentifierFromFilePath(file)
 		if err != nil {
-			// TODO: Emit a log
 			errorsWithPaths = append(errorsWithPaths, SnapshotMetadataErrorWithPaths{
 				Error:            err,
 				MetadataFilePath: file,
