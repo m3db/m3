@@ -40,7 +40,13 @@ const (
 	anyNumbersPattern               = "[0-9]*"
 	anyLowerCaseCharsNumbersPattern = "[a-z0-9]*"
 
-	separator            = "-"
+	separator = "-"
+	// Used as the separator for UUIDs in filenames because re-using "-" would break
+	// our existing separation logic.
+	sanitizedUUIDSeparator = "_"
+	// Used to restore "sanitized" UUIDs to their original forms for parsing purposes.
+	unsanitizedUUIDSeparator = "-"
+
 	infoFilePattern      = filesetFilePrefix + separator + anyNumbersPattern + separator + infoFileSuffix + fileSuffix
 	filesetFilePattern   = filesetFilePrefix + separator + anyNumbersPattern + separator + anyLowerCaseCharsPattern + fileSuffix
 	commitLogFilePattern = commitLogFilePrefix + separator + anyNumbersPattern + separator + anyNumbersPattern + fileSuffix
