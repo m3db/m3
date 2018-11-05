@@ -91,9 +91,9 @@ func (w *SnapshotMetadataReader) Read(id SnapshotMetadataIdentifier) (SnapshotMe
 		return SnapshotMetadata{}, err
 	}
 
-	parsedUUID, err := uuid.ParseBytes(protoMetadata.SnapshotID)
+	parsedUUID, err := uuid.ParseBytes(protoMetadata.SnapshotUUID)
 	if err != nil {
-		return SnapshotMetadata{}, fmt.Errorf("unable to parse UUID: %v, err: %v", protoMetadata.SnapshotID, err)
+		return SnapshotMetadata{}, fmt.Errorf("unable to parse UUID: %v, err: %v", protoMetadata.SnapshotUUID, err)
 	}
 
 	return SnapshotMetadata{

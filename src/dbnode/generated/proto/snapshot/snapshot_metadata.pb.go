@@ -50,23 +50,15 @@ var _ = math.Inf
 const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
 type Metadata struct {
-	SnapshotTime        int64  `protobuf:"varint,1,opt,name=snapshotTime,proto3" json:"snapshotTime,omitempty"`
-	SnapshotIndex       int64  `protobuf:"varint,2,opt,name=snapshotIndex,proto3" json:"snapshotIndex,omitempty"`
-	SnapshotID          []byte `protobuf:"bytes,3,opt,name=snapshotID,proto3" json:"snapshotID,omitempty"`
-	CommitlogIdentifier []byte `protobuf:"bytes,4,opt,name=commitlogIdentifier,proto3" json:"commitlogIdentifier,omitempty"`
+	SnapshotIndex       int64  `protobuf:"varint,1,opt,name=snapshotIndex,proto3" json:"snapshotIndex,omitempty"`
+	SnapshotUUID        []byte `protobuf:"bytes,2,opt,name=snapshotUUID,proto3" json:"snapshotUUID,omitempty"`
+	CommitlogIdentifier []byte `protobuf:"bytes,3,opt,name=commitlogIdentifier,proto3" json:"commitlogIdentifier,omitempty"`
 }
 
 func (m *Metadata) Reset()                    { *m = Metadata{} }
 func (m *Metadata) String() string            { return proto.CompactTextString(m) }
 func (*Metadata) ProtoMessage()               {}
 func (*Metadata) Descriptor() ([]byte, []int) { return fileDescriptorSnapshotMetadata, []int{0} }
-
-func (m *Metadata) GetSnapshotTime() int64 {
-	if m != nil {
-		return m.SnapshotTime
-	}
-	return 0
-}
 
 func (m *Metadata) GetSnapshotIndex() int64 {
 	if m != nil {
@@ -75,9 +67,9 @@ func (m *Metadata) GetSnapshotIndex() int64 {
 	return 0
 }
 
-func (m *Metadata) GetSnapshotID() []byte {
+func (m *Metadata) GetSnapshotUUID() []byte {
 	if m != nil {
-		return m.SnapshotID
+		return m.SnapshotUUID
 	}
 	return nil
 }
@@ -107,24 +99,19 @@ func (m *Metadata) MarshalTo(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if m.SnapshotTime != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintSnapshotMetadata(dAtA, i, uint64(m.SnapshotTime))
-	}
 	if m.SnapshotIndex != 0 {
-		dAtA[i] = 0x10
+		dAtA[i] = 0x8
 		i++
 		i = encodeVarintSnapshotMetadata(dAtA, i, uint64(m.SnapshotIndex))
 	}
-	if len(m.SnapshotID) > 0 {
-		dAtA[i] = 0x1a
+	if len(m.SnapshotUUID) > 0 {
+		dAtA[i] = 0x12
 		i++
-		i = encodeVarintSnapshotMetadata(dAtA, i, uint64(len(m.SnapshotID)))
-		i += copy(dAtA[i:], m.SnapshotID)
+		i = encodeVarintSnapshotMetadata(dAtA, i, uint64(len(m.SnapshotUUID)))
+		i += copy(dAtA[i:], m.SnapshotUUID)
 	}
 	if len(m.CommitlogIdentifier) > 0 {
-		dAtA[i] = 0x22
+		dAtA[i] = 0x1a
 		i++
 		i = encodeVarintSnapshotMetadata(dAtA, i, uint64(len(m.CommitlogIdentifier)))
 		i += copy(dAtA[i:], m.CommitlogIdentifier)
@@ -144,13 +131,10 @@ func encodeVarintSnapshotMetadata(dAtA []byte, offset int, v uint64) int {
 func (m *Metadata) Size() (n int) {
 	var l int
 	_ = l
-	if m.SnapshotTime != 0 {
-		n += 1 + sovSnapshotMetadata(uint64(m.SnapshotTime))
-	}
 	if m.SnapshotIndex != 0 {
 		n += 1 + sovSnapshotMetadata(uint64(m.SnapshotIndex))
 	}
-	l = len(m.SnapshotID)
+	l = len(m.SnapshotUUID)
 	if l > 0 {
 		n += 1 + l + sovSnapshotMetadata(uint64(l))
 	}
@@ -205,25 +189,6 @@ func (m *Metadata) Unmarshal(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field SnapshotTime", wireType)
-			}
-			m.SnapshotTime = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowSnapshotMetadata
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.SnapshotTime |= (int64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 2:
-			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field SnapshotIndex", wireType)
 			}
 			m.SnapshotIndex = 0
@@ -241,9 +206,9 @@ func (m *Metadata) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
-		case 3:
+		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field SnapshotID", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field SnapshotUUID", wireType)
 			}
 			var byteLen int
 			for shift := uint(0); ; shift += 7 {
@@ -267,12 +232,12 @@ func (m *Metadata) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.SnapshotID = append(m.SnapshotID[:0], dAtA[iNdEx:postIndex]...)
-			if m.SnapshotID == nil {
-				m.SnapshotID = []byte{}
+			m.SnapshotUUID = append(m.SnapshotUUID[:0], dAtA[iNdEx:postIndex]...)
+			if m.SnapshotUUID == nil {
+				m.SnapshotUUID = []byte{}
 			}
 			iNdEx = postIndex
-		case 4:
+		case 3:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field CommitlogIdentifier", wireType)
 			}
@@ -434,19 +399,18 @@ func init() {
 }
 
 var fileDescriptorSnapshotMetadata = []byte{
-	// 211 bytes of a gzipped FileDescriptorProto
+	// 198 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0xf2, 0x4b, 0xcf, 0x2c, 0xc9,
 	0x28, 0x4d, 0xd2, 0x4b, 0xce, 0xcf, 0xd5, 0xcf, 0x35, 0x4e, 0x49, 0xd2, 0xcf, 0x35, 0xd6, 0x2f,
 	0x2e, 0x4a, 0xd6, 0x4f, 0x49, 0xca, 0xcb, 0x4f, 0x49, 0xd5, 0x4f, 0x4f, 0xcd, 0x4b, 0x2d, 0x4a,
 	0x2c, 0x49, 0x4d, 0xd1, 0x2f, 0x28, 0xca, 0x2f, 0xc9, 0xd7, 0x2f, 0xce, 0x4b, 0x2c, 0x28, 0xce,
 	0xc8, 0x2f, 0x81, 0x33, 0xe2, 0x73, 0x53, 0x4b, 0x12, 0x53, 0x12, 0x4b, 0x12, 0xf5, 0xc0, 0x0a,
-	0x84, 0x38, 0x60, 0x12, 0x4a, 0xcb, 0x18, 0xb9, 0x38, 0x7c, 0xa1, 0x92, 0x42, 0x4a, 0x5c, 0x3c,
-	0x30, 0x89, 0x90, 0xcc, 0xdc, 0x54, 0x09, 0x46, 0x05, 0x46, 0x0d, 0xe6, 0x20, 0x14, 0x31, 0x21,
-	0x15, 0x2e, 0x5e, 0x18, 0xdf, 0x33, 0x2f, 0x25, 0xb5, 0x42, 0x82, 0x09, 0xac, 0x08, 0x55, 0x50,
-	0x48, 0x8e, 0x8b, 0x0b, 0x2e, 0xe0, 0x22, 0xc1, 0xac, 0xc0, 0xa8, 0xc1, 0x13, 0x84, 0x24, 0x22,
-	0x64, 0xc0, 0x25, 0x9c, 0x9c, 0x9f, 0x9b, 0x9b, 0x59, 0x92, 0x93, 0x9f, 0xee, 0x99, 0x92, 0x9a,
-	0x57, 0x92, 0x99, 0x96, 0x99, 0x5a, 0x24, 0xc1, 0x02, 0x56, 0x88, 0x4d, 0xca, 0x49, 0xe0, 0xc4,
-	0x23, 0x39, 0xc6, 0x0b, 0x8f, 0xe4, 0x18, 0x1f, 0x3c, 0x92, 0x63, 0x9c, 0xf0, 0x58, 0x8e, 0x21,
-	0x89, 0x0d, 0xec, 0x17, 0x63, 0x40, 0x00, 0x00, 0x00, 0xff, 0xff, 0xe4, 0x6f, 0xe0, 0x37, 0x1d,
-	0x01, 0x00, 0x00,
+	0x84, 0x38, 0x60, 0x12, 0x4a, 0x6d, 0x8c, 0x5c, 0x1c, 0xbe, 0x50, 0x49, 0x21, 0x15, 0x2e, 0x5e,
+	0x98, 0x84, 0x67, 0x5e, 0x4a, 0x6a, 0x85, 0x04, 0xa3, 0x02, 0xa3, 0x06, 0x73, 0x10, 0xaa, 0xa0,
+	0x90, 0x12, 0x17, 0x0f, 0x4c, 0x20, 0x34, 0xd4, 0xd3, 0x45, 0x82, 0x49, 0x81, 0x51, 0x83, 0x27,
+	0x08, 0x45, 0x4c, 0xc8, 0x80, 0x4b, 0x38, 0x39, 0x3f, 0x37, 0x37, 0xb3, 0x24, 0x27, 0x3f, 0xdd,
+	0x33, 0x25, 0x35, 0xaf, 0x24, 0x33, 0x2d, 0x33, 0xb5, 0x48, 0x82, 0x19, 0xac, 0x14, 0x9b, 0x94,
+	0x93, 0xc0, 0x89, 0x47, 0x72, 0x8c, 0x17, 0x1e, 0xc9, 0x31, 0x3e, 0x78, 0x24, 0xc7, 0x38, 0xe1,
+	0xb1, 0x1c, 0x43, 0x12, 0x1b, 0xd8, 0xad, 0xc6, 0x80, 0x00, 0x00, 0x00, 0xff, 0xff, 0x6e, 0x28,
+	0xe8, 0xc4, 0xfd, 0x00, 0x00, 0x00,
 }
