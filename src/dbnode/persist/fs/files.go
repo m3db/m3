@@ -41,6 +41,7 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
+
 	"github.com/pborman/uuid"
 )
 

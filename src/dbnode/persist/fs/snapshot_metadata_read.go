@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/generated/proto/snapshot"
+
 	"github.com/pborman/uuid"
 )
 
