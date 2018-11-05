@@ -25,7 +25,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/google/uuid"
+	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,10 +47,13 @@ func TestSnapshotMetadataWriteAndRead(t *testing.T) {
 		writer = NewSnapshotMetadataWriter(opts)
 	)
 	for i := 0; i < numMetadataFiles; i++ {
+		snapshotUUID := uuid.Parse("6645a373-bf82-42e7-84a6-f8452b137549")
+		require.NotNil(t, snapshotUUID)
+
 		var (
 			snapshotMetadataIdentifier = SnapshotMetadataIdentifier{
 				Index: int64(i),
-				ID:    uuid.MustParse("6645a373-bf82-42e7-84a6-f8452b137549"),
+				UUID:  snapshotUUID,
 			}
 		)
 

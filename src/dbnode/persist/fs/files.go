@@ -31,7 +31,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/generated/proto/index"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -42,6 +41,7 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
+	"github.com/pborman/uuid"
 )
 
 var timeZero time.Time
@@ -196,8 +196,7 @@ type SnapshotMetadataErrorWithPaths struct {
 // SnapshotMetadataIdentifier is an identifier for a snapshot metadata file
 type SnapshotMetadataIdentifier struct {
 	Index int64
-	// TODO: Use non-broken library
-	ID uuid.UUID
+	UUID  uuid.UUID
 }
 
 // NewFileSetFile creates a new FileSet file
@@ -1320,7 +1319,7 @@ func snapshotMetadataFilePathFromIdentifier(prefix string, id SnapshotMetadataId
 		snapshotDirName,
 		fmt.Sprintf(
 			"%s-%s-%d-%s%s",
-			snapshotFilePrefix, sanitizeUUID(id.ID.String()), id.Index, metadataFileSuffix, fileSuffix))
+			snapshotFilePrefix, sanitizeUUID(id.UUID.String()), id.Index, metadataFileSuffix, fileSuffix))
 }
 
 func snapshotMetadataCheckpointFilePathFromIdentifier(prefix string, id SnapshotMetadataIdentifier) string {
@@ -1329,7 +1328,7 @@ func snapshotMetadataCheckpointFilePathFromIdentifier(prefix string, id Snapshot
 		snapshotDirName,
 		fmt.Sprintf(
 			"%s-%s-%d-%s-%s%s",
-			snapshotFilePrefix, sanitizeUUID(id.ID.String()), id.Index, metadataFileSuffix, checkpointFileSuffix, fileSuffix))
+			snapshotFilePrefix, sanitizeUUID(id.UUID.String()), id.Index, metadataFileSuffix, checkpointFileSuffix, fileSuffix))
 }
 
 func sanitizeUUID(uuid string) string {
@@ -1368,14 +1367,14 @@ func snapshotMetadataIdentifierFromFilePath(filePath string) (SnapshotMetadataId
 		uuidWithDashes = strings.Replace(uuidWithUnderscores, "_", separator, -1)
 	)
 
-	id, err := uuid.Parse(uuidWithDashes)
-	if err != nil {
+	id := uuid.Parse(uuidWithDashes)
+	if id == nil {
 		return SnapshotMetadataIdentifier{}, fmt.Errorf(
-			"invalid snapshot metadata file name, unable to parse ID: %s", filePath)
+			"invalid snapshot metadata file name, unable to parse UUID: %s", filePath)
 	}
 
 	return SnapshotMetadataIdentifier{
 		Index: int64(index),
-		ID:    id,
+		UUID:  id,
 	}, nil
 }

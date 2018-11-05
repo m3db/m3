@@ -33,13 +33,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
+	"github.com/pborman/uuid"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -284,14 +284,14 @@ func TestTimeAndVolumeIndexFromFileSetFilename(t *testing.T) {
 }
 
 func TestSnapshotMetadataFilePathFromIdentifierRoundTrip(t *testing.T) {
-	idUUID, err := uuid.Parse("bf58eb3e-0582-42ee-83b2-d098c206260e")
-	require.NoError(t, err)
+	idUUID := uuid.Parse("bf58eb3e-0582-42ee-83b2-d098c206260e")
+	require.NotNil(t, idUUID)
 
 	var (
 		prefix = "/var/lib/m3db"
 		id     = SnapshotMetadataIdentifier{
 			Index: 10,
-			ID:    idUUID,
+			UUID:  idUUID,
 		}
 	)
 
@@ -307,14 +307,14 @@ func TestSnapshotMetadataFilePathFromIdentifierRoundTrip(t *testing.T) {
 }
 
 func TestSnapshotMetadataCheckpointFilePathFromIdentifierRoundTrip(t *testing.T) {
-	idUUID, err := uuid.Parse("bf58eb3e-0582-42ee-83b2-d098c206260e")
-	require.NoError(t, err)
+	idUUID := uuid.Parse("bf58eb3e-0582-42ee-83b2-d098c206260e")
+	require.NotNil(t, idUUID)
 
 	var (
 		prefix = "/var/lib/m3db"
 		id     = SnapshotMetadataIdentifier{
 			Index: 10,
-			ID:    idUUID,
+			UUID:  idUUID,
 		}
 	)
 
@@ -604,9 +604,12 @@ func TestSnapshotMetadataFiles(t *testing.T) {
 
 	// Write out a bunch of metadata files along with their corresponding checkpoints.
 	for i := 0; i < numMetadataFiles; i++ {
+		snapshotUUID := uuid.Parse("6645a373-bf82-42e7-84a6-f8452b137549")
+		require.NotNil(t, snapshotUUID)
+
 		snapshotMetadataIdentifier := SnapshotMetadataIdentifier{
 			Index: int64(i),
-			ID:    uuid.MustParse("6645a373-bf82-42e7-84a6-f8452b137549"),
+			UUID:  snapshotUUID,
 		}
 
 		writer := NewSnapshotMetadataWriter(opts)

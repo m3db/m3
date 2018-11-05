@@ -24,9 +24,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/google/uuid"
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/generated/proto/snapshot"
+	"github.com/pborman/uuid"
 )
 
 // NewSnapshotMetadataReader returns a new SnapshotMetadataReader.
@@ -93,13 +93,13 @@ func (w *SnapshotMetadataReader) Read(id SnapshotMetadataIdentifier) (SnapshotMe
 
 	parsedUUID, err := uuid.ParseBytes(protoMetadata.SnapshotID)
 	if err != nil {
-		return SnapshotMetadata{}, err
+		return SnapshotMetadata{}, fmt.Errorf("unable to parse UUID: %v, err: %v", protoMetadata.SnapshotID, err)
 	}
 
 	return SnapshotMetadata{
 		ID: SnapshotMetadataIdentifier{
 			Index: protoMetadata.SnapshotIndex,
-			ID:    parsedUUID,
+			UUID:  parsedUUID,
 		},
 		CommitlogIdentifier: protoMetadata.CommitlogIdentifier,
 		MetadataFilePath:    snapshotMetadataFilePathFromIdentifier(prefix, id),
