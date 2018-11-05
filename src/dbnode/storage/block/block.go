@@ -265,6 +265,7 @@ func (b *dbBlock) ResetFromDisk(start time.Time, blockSize time.Duration, segmen
 	// resetSegmentWithLock sets seriesID to nil
 	b.resetSegmentWithLock(segment)
 	b.seriesID = id
+	b.wasRetrievedFromDisk = true
 }
 
 func (b *dbBlock) streamWithRLock(ctx context.Context) (xio.BlockReader, error) {
