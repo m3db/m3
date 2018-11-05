@@ -54,6 +54,11 @@ const (
 
 	commitLogComponentPosition    = 2
 	indexFileSetComponentPosition = 2
+
+	numComponentsSnapshotMetadataFile           = 4
+	numComponentsSnapshotMetadataCheckpointFile = 5
+	snapshotMetadataUUIDComponentPosition       = 1
+	snapshotMetadataIndexComponentPosition      = 2
 )
 
 var (
@@ -1358,22 +1363,21 @@ func snapshotMetadataIdentifierFromFilePath(filePath string) (SnapshotMetadataId
 		splitFileName    = strings.Split(fileName, separator)
 		isCheckpointFile = strings.Contains(fileName, checkpointFileSuffix)
 	)
-	// TODO: Constantize 4 and 5
-	if len(splitFileName) != 4 &&
+	if len(splitFileName) != numComponentsSnapshotMetadataFile &&
 		// Snapshot metadata checkpoint files contain one extra separator.
-		!(isCheckpointFile && len(splitFileName) == 5) {
+		!(isCheckpointFile && len(splitFileName) == numComponentsSnapshotMetadataCheckpointFile) {
 		return SnapshotMetadataIdentifier{}, fmt.Errorf(
 			"invalid snapshot metadata file name: %s", filePath)
 	}
 
-	index, err := strconv.Atoi(splitFileName[2])
+	index, err := strconv.Atoi(splitFileName[snapshotMetadataIndexComponentPosition])
 	if err != nil {
 		return SnapshotMetadataIdentifier{}, fmt.Errorf(
 			"invalid snapshot metadata file name, unable to parse index: %s", filePath)
 	}
 
 	var (
-		sanitizedUUID   = splitFileName[1]
+		sanitizedUUID   = splitFileName[snapshotMetadataUUIDComponentPosition]
 		unsanitizedUUID = unsanitizeUUID(sanitizedUUID)
 	)
 
