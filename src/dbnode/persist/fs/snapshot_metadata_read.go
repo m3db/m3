@@ -85,7 +85,6 @@ func (w *SnapshotMetadataReader) Read(id SnapshotMetadataIdentifier) (SnapshotMe
 	}
 
 	protoMetadata := &snapshot.Metadata{}
-	// TODO: Need to subslice?
 	err = protoMetadata.Unmarshal(buf[:n])
 	if err != nil {
 		return SnapshotMetadata{}, err

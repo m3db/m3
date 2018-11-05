@@ -101,12 +101,8 @@ func (w *SnapshotMetadataWriter) Write(args SnapshotMetadataWriteArgs) error {
 		return err
 	}
 
-	// Sync the file and its parent to ensure they're actually written out.
-	err = metadataFile.Sync()
-	if err != nil {
-		return err
-	}
-	err = snapshotsDirFile.Sync()
+	// Ensure the file is written out.
+	err = w.sync(metadataFile, snapshotsDirFile)
 	if err != nil {
 		return err
 	}
@@ -125,12 +121,24 @@ func (w *SnapshotMetadataWriter) Write(args SnapshotMetadataWriteArgs) error {
 		return err
 	}
 
-	// Sync the file and its parent to ensure they're actually written out.
-	err = checkpointFile.Sync()
+	// Ensure the file is written out.
+	err = w.sync(checkpointFile, snapshotsDirFile)
 	if err != nil {
 		return err
 	}
-	err = snapshotsDirFile.Sync()
+
+	return nil
+}
+
+// sync ensures that the provided file is persisted to disk by syncing it, as well
+// as its parent directory (ensuring the file is discoverable in the parent inode.)
+func (w *SnapshotMetadataWriter) sync(file, parent *os.File) error {
+	err := file.Sync()
+	if err != nil {
+		return err
+	}
+
+	err = parent.Sync()
 	if err != nil {
 		return err
 	}
