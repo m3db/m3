@@ -611,16 +611,26 @@ func TestDatabaseNamespaceIndexFunctions(t *testing.T) {
 	ns.EXPECT().BootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
 	require.NoError(t, d.Open())
 
-	ctx := context.NewContext()
+	var (
+		namespace = ident.StringID("testns")
+		ctx       = context.NewContext()
+		id        = ident.StringID("foo")
+		tagsIter  = ident.EmptyTagIterator
+		series    = commitlog.Series{
+			ID:        id,
+			Tags:      ident.Tags{},
+			Namespace: namespace,
+		}
+	)
 	ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("foo"), gomock.Any(),
-		time.Time{}, 1.0, xtime.Second, nil).Return(commitlog.Series{}, nil)
-	require.NoError(t, d.WriteTagged(ctx, ident.StringID("testns"),
-		ident.StringID("foo"), ident.EmptyTagIterator, time.Time{},
+		time.Time{}, 1.0, xtime.Second, nil).Return(series, nil)
+	require.NoError(t, d.WriteTagged(ctx, namespace,
+		id, tagsIter, time.Time{},
 		1.0, xtime.Second, nil))
 
 	ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("foo"), gomock.Any(),
-		time.Time{}, 1.0, xtime.Second, nil).Return(commitlog.Series{}, fmt.Errorf("random err"))
-	require.Error(t, d.WriteTagged(ctx, ident.StringID("testns"),
+		time.Time{}, 1.0, xtime.Second, nil).Return(series, fmt.Errorf("random err"))
+	require.Error(t, d.WriteTagged(ctx, namespace,
 		ident.StringID("foo"), ident.EmptyTagIterator, time.Time{},
 		1.0, xtime.Second, nil))
 
