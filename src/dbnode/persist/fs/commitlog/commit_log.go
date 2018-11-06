@@ -45,7 +45,10 @@ var (
 	timeZero = time.Time{}
 )
 
+// WritesBatch is a batch of Write.
 type WritesBatch []Write
+
+// Write is a write for the commitlog.
 type Write struct {
 	Series     Series
 	Datapoint  ts.Datapoint

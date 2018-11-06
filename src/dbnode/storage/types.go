@@ -103,6 +103,13 @@ type Database interface {
 		annotation []byte,
 	) error
 
+	// WriteTaggedBatch is the same as WriteTagged, but in batch.
+	WriteTaggedBatch(
+		ctx context.Context,
+		namespace ident.ID,
+		writes commitlog.WritesBatch,
+	) error
+
 	// QueryIDs resolves the given query into known IDs.
 	QueryIDs(
 		ctx context.Context,
