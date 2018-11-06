@@ -388,6 +388,7 @@ func (l *commitLog) flushEvery(interval time.Duration) {
 }
 
 func (l *commitLog) write() {
+outer:
 	for write := range l.writes {
 		if write.eventType == flushEventType {
 			l.writerState.writer.Flush(false)
@@ -456,7 +457,7 @@ func (l *commitLog) write() {
 					l.commitLogFailFn(err)
 				}
 
-				continue
+				break outer
 			}
 		}
 		l.metrics.success.Inc(1)
@@ -546,6 +547,13 @@ func (l *commitLog) Write(
 			Annotation: annotation,
 		},
 	})
+}
+
+func (l *commitLog) WriteBatch(
+	ctx context.Context,
+	writes WritesBatch,
+) error {
+	return l.writeFn(ctx, writes)
 }
 
 func (l *commitLog) writeWait(
