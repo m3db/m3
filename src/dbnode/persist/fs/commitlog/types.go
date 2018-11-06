@@ -62,6 +62,12 @@ type CommitLog interface {
 		annotation ts.Annotation,
 	) error
 
+	// WriteBatch is the same as Write, but in batch.
+	WriteBatch(
+		ctx context.Context,
+		writes WritesBatch,
+	) error
+
 	// Close the commit log
 	Close() error
 
@@ -107,7 +113,9 @@ type Series struct {
 	ID ident.ID
 
 	// Tags are the series tags
-	Tags ident.Tags // FOLLOWUP(prateek): wire Tags to commit log writer
+	Tags ident.Tags
+
+	TagIter ident.TagIterator
 
 	// Shard is the shard the series belongs to
 	Shard uint32

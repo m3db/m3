@@ -548,6 +548,13 @@ func (l *commitLog) Write(
 	})
 }
 
+func (l *commitLog) WriteBatch(
+	ctx context.Context,
+	writes WritesBatch,
+) error {
+	return l.writeFn(ctx, writes)
+}
+
 func (l *commitLog) writeWait(
 	ctx context.Context,
 	writes WritesBatch,

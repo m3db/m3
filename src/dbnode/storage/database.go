@@ -531,6 +531,39 @@ func (d *db) WriteTagged(
 	return d.commitLog.Write(ctx, series, dp, unit, annotation)
 }
 
+func (d *db) WriteTaggedBatch(
+	ctx context.Context,
+	namespace ident.ID,
+	writes commitlog.WritesBatch,
+) error {
+	n, err := d.namespaceFor(namespace)
+	if err != nil {
+		d.metrics.unknownNamespaceWriteTagged.Inc(1)
+		return err
+	}
+
+	for i, write := range writes {
+		series, err := n.WriteTagged(
+			ctx,
+			write.Series.ID,
+			write.Series.TagIter,
+			write.Datapoint.Timestamp,
+			write.Datapoint.Value,
+			write.Unit,
+			write.Annotation,
+		)
+		if err == commitlog.ErrCommitLogQueueFull {
+			d.errors.Record(1)
+		}
+		if err != nil {
+			return err
+		}
+		writes[i].Series = series
+	}
+
+	return d.commitLog.WriteBatch(ctx, writes)
+}
+
 func (d *db) QueryIDs(
 	ctx context.Context,
 	namespace ident.ID,
