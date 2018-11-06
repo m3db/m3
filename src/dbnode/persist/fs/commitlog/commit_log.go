@@ -47,10 +47,10 @@ var (
 
 type WritesBatch []Write
 type Write struct {
-	series     Series
-	datapoint  ts.Datapoint
-	unit       xtime.Unit
-	annotation ts.Annotation
+	Series     Series
+	Datapoint  ts.Datapoint
+	Unit       xtime.Unit
+	Annotation ts.Annotation
 }
 
 type newCommitLogWriterFn func(
@@ -60,10 +60,7 @@ type newCommitLogWriterFn func(
 
 type writeCommitLogFn func(
 	ctx context.Context,
-	series Series,
-	datapoint ts.Datapoint,
-	unit xtime.Unit,
-	annotation ts.Annotation,
+	writes WritesBatch,
 ) error
 
 type commitLogFailFn func(err error)
@@ -449,8 +446,8 @@ func (l *commitLog) write() {
 
 		for i := 0; i < len(write.writesBatch); i++ {
 			write := write.writesBatch[i]
-			err := l.writerState.writer.Write(write.series,
-				write.datapoint, write.unit, write.annotation)
+			err := l.writerState.writer.Write(write.Series,
+				write.Datapoint, write.Unit, write.Annotation)
 			if err != nil {
 				l.metrics.errors.Inc(1)
 				l.log.Errorf("failed to write to commit log: %v", err)
@@ -541,15 +538,19 @@ func (l *commitLog) Write(
 	unit xtime.Unit,
 	annotation ts.Annotation,
 ) error {
-	return l.writeFn(ctx, series, datapoint, unit, annotation)
+	return l.writeFn(ctx, WritesBatch{
+		Write{
+			Series:     series,
+			Datapoint:  datapoint,
+			Unit:       unit,
+			Annotation: annotation,
+		},
+	})
 }
 
 func (l *commitLog) writeWait(
 	ctx context.Context,
-	series Series,
-	datapoint ts.Datapoint,
-	unit xtime.Unit,
-	annotation ts.Annotation,
+	writes WritesBatch,
 ) error {
 	l.closedState.RLock()
 	if l.closedState.closed {
@@ -570,15 +571,8 @@ func (l *commitLog) writeWait(
 	}
 
 	write := commitLogWrite{
-		writesBatch: []Write{
-			{
-				series:     series,
-				datapoint:  datapoint,
-				unit:       unit,
-				annotation: annotation,
-			},
-		},
-		callbackFn: completion,
+		writesBatch: writes,
+		callbackFn:  completion,
 	}
 
 	enqueued := false
@@ -602,10 +596,7 @@ func (l *commitLog) writeWait(
 
 func (l *commitLog) writeBehind(
 	ctx context.Context,
-	series Series,
-	datapoint ts.Datapoint,
-	unit xtime.Unit,
-	annotation ts.Annotation,
+	writes WritesBatch,
 ) error {
 	l.closedState.RLock()
 	if l.closedState.closed {
@@ -614,14 +605,7 @@ func (l *commitLog) writeBehind(
 	}
 
 	write := commitLogWrite{
-		writesBatch: []Write{
-			{
-				series:     series,
-				datapoint:  datapoint,
-				unit:       unit,
-				annotation: annotation,
-			},
-		},
+		writesBatch: writes,
 	}
 
 	enqueued := false
