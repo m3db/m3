@@ -62,6 +62,12 @@ type CommitLog interface {
 		annotation ts.Annotation,
 	) error
 
+	// Write does the same thing as Write, but in batches.
+	WriteBatch(
+		ctx context.Context,
+		writes WritesBatch,
+	) error
+
 	// Close the commit log
 	Close() error
 
