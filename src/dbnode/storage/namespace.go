@@ -420,7 +420,7 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 		} else {
 			bootstrapEnabled := n.nopts.BootstrapEnabled()
 			n.shards[shard] = newDatabaseShard(n.metadata, shard, n.blockRetriever,
-				n.namespaceReaderMgr, n.increasingIndex, n.commitLogWriter, n.reverseIndex,
+				n.namespaceReaderMgr, n.increasingIndex, n.reverseIndex,
 				bootstrapEnabled, n.opts, n.seriesOpts)
 			n.metrics.shards.add.Inc(1)
 		}
@@ -564,7 +564,7 @@ func (n *dbNamespace) Write(
 		n.metrics.write.ReportError(n.nowFn().Sub(callStart))
 		return err
 	}
-	err = shard.Write(ctx, id, timestamp, value, unit, annotation)
+	_, err = shard.Write(ctx, id, timestamp, value, unit, annotation)
 	n.metrics.write.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return err
 }
@@ -588,7 +588,7 @@ func (n *dbNamespace) WriteTagged(
 		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
 		return err
 	}
-	err = shard.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
+	_, err = shard.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
 	n.metrics.writeTagged.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return err
 }
@@ -1180,7 +1180,7 @@ func (n *dbNamespace) initShards(needBootstrap bool) {
 	dbShards := make([]databaseShard, n.shardSet.Max()+1)
 	for _, shard := range shards {
 		dbShards[shard] = newDatabaseShard(n.metadata, shard, n.blockRetriever,
-			n.namespaceReaderMgr, n.increasingIndex, n.commitLogWriter, n.reverseIndex,
+			n.namespaceReaderMgr, n.increasingIndex, n.reverseIndex,
 			needBootstrap, n.opts, n.seriesOpts)
 	}
 	n.shards = dbShards

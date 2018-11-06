@@ -345,7 +345,7 @@ type databaseShard interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
-	) error
+	) (commitlog.Series, error)
 
 	// WriteTagged values to the shard for an ID
 	WriteTagged(
@@ -356,7 +356,7 @@ type databaseShard interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
-	) error
+	) (commitlog.Series, error)
 
 	ReadEncoded(
 		ctx context.Context,

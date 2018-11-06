@@ -1181,10 +1181,11 @@ func (mr *MockdatabaseShardMockRecorder) Tick(c, tickStart interface{}) *gomock.
 }
 
 // Write mocks base method
-func (m *MockdatabaseShard) Write(ctx context.Context, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+func (m *MockdatabaseShard) Write(ctx context.Context, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) (commitlog.Series, error) {
 	ret := m.ctrl.Call(m, "Write", ctx, id, timestamp, value, unit, annotation)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(commitlog.Series)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Write indicates an expected call of Write
@@ -1193,10 +1194,11 @@ func (mr *MockdatabaseShardMockRecorder) Write(ctx, id, timestamp, value, unit, 
 }
 
 // WriteTagged mocks base method
-func (m *MockdatabaseShard) WriteTagged(ctx context.Context, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+func (m *MockdatabaseShard) WriteTagged(ctx context.Context, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) (commitlog.Series, error) {
 	ret := m.ctrl.Call(m, "WriteTagged", ctx, id, tags, timestamp, value, unit, annotation)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(commitlog.Series)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // WriteTagged indicates an expected call of WriteTagged
