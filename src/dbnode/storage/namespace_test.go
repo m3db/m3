@@ -141,7 +141,7 @@ func TestNamespaceWriteShardNotOwned(t *testing.T) {
 	for i := range ns.shards {
 		ns.shards[i] = nil
 	}
-	err := ns.Write(ctx, ident.StringID("foo"), time.Now(), 0.0, xtime.Second, nil)
+	_, err := ns.Write(ctx, ident.StringID("foo"), time.Now(), 0.0, xtime.Second, nil)
 	require.Error(t, err)
 	require.True(t, xerrors.IsRetryableError(err))
 	require.Equal(t, "not responsible for shard 0", err.Error())
@@ -166,7 +166,8 @@ func TestNamespaceWriteShardOwned(t *testing.T) {
 	shard.EXPECT().Write(ctx, id, ts, val, unit, ant).Return(commitlog.Series{}, nil)
 	ns.shards[testShardIDs[0].ID()] = shard
 
-	require.NoError(t, ns.Write(ctx, id, ts, val, unit, ant))
+	_, err := ns.Write(ctx, id, ts, val, unit, ant)
+	require.NoError(t, err)
 }
 
 func TestNamespaceReadEncodedShardNotOwned(t *testing.T) {
@@ -1031,7 +1032,7 @@ func TestNamespaceIndexInsert(t *testing.T) {
 		ts, 1.0, xtime.Second, nil).Return(commitlog.Series{}, nil)
 	ns.shards[testShardIDs[0].ID()] = shard
 
-	err := ns.WriteTagged(ctx, ident.StringID("a"),
+	_, err := ns.WriteTagged(ctx, ident.StringID("a"),
 		ident.EmptyTagIterator, ts, 1.0, xtime.Second, nil)
 	require.NoError(t, err)
 

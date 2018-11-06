@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
@@ -612,13 +613,13 @@ func TestDatabaseNamespaceIndexFunctions(t *testing.T) {
 
 	ctx := context.NewContext()
 	ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("foo"), gomock.Any(),
-		time.Time{}, 1.0, xtime.Second, nil).Return(nil)
+		time.Time{}, 1.0, xtime.Second, nil).Return(commitlog.Series{}, nil)
 	require.NoError(t, d.WriteTagged(ctx, ident.StringID("testns"),
 		ident.StringID("foo"), ident.EmptyTagIterator, time.Time{},
 		1.0, xtime.Second, nil))
 
 	ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("foo"), gomock.Any(),
-		time.Time{}, 1.0, xtime.Second, nil).Return(fmt.Errorf("random err"))
+		time.Time{}, 1.0, xtime.Second, nil).Return(commitlog.Series{}, fmt.Errorf("random err"))
 	require.Error(t, d.WriteTagged(ctx, ident.StringID("testns"),
 		ident.StringID("foo"), ident.EmptyTagIterator, time.Time{},
 		1.0, xtime.Second, nil))
