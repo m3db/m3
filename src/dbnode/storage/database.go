@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xcounter"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/context"
@@ -490,11 +491,16 @@ func (d *db) Write(
 		return err
 	}
 
-	_, err = n.Write(ctx, id, timestamp, value, unit, annotation)
+	series, err := n.Write(ctx, id, timestamp, value, unit, annotation)
 	if err == commitlog.ErrCommitLogQueueFull {
 		d.errors.Record(1)
 	}
-	return err
+	if err != nil {
+		return err
+	}
+
+	dp := ts.Datapoint{Timestamp: timestamp, Value: value}
+	return d.commitLog.Write(ctx, series, dp, unit, annotation)
 }
 
 func (d *db) WriteTagged(
@@ -513,11 +519,16 @@ func (d *db) WriteTagged(
 		return err
 	}
 
-	_, err = n.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
+	series, err := n.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
 	if err == commitlog.ErrCommitLogQueueFull {
 		d.errors.Record(1)
 	}
-	return err
+	if err != nil {
+		return err
+	}
+
+	dp := ts.Datapoint{Timestamp: timestamp, Value: value}
+	return d.commitLog.Write(ctx, series, dp, unit, annotation)
 }
 
 func (d *db) QueryIDs(
