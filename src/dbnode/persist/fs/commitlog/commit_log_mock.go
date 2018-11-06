@@ -87,6 +87,18 @@ func (mr *MockCommitLogMockRecorder) Write(ctx, series, datapoint, unit, annotat
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MockCommitLog)(nil).Write), ctx, series, datapoint, unit, annotation)
 }
 
+// WriteBatch mocks base method
+func (m *MockCommitLog) WriteBatch(ctx context.Context, writes WritesBatch) error {
+	ret := m.ctrl.Call(m, "WriteBatch", ctx, writes)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WriteBatch indicates an expected call of WriteBatch
+func (mr *MockCommitLogMockRecorder) WriteBatch(ctx, writes interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatch", reflect.TypeOf((*MockCommitLog)(nil).WriteBatch), ctx, writes)
+}
+
 // Close mocks base method
 func (m *MockCommitLog) Close() error {
 	ret := m.ctrl.Call(m, "Close")

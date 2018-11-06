@@ -196,6 +196,18 @@ func (mr *MockDatabaseMockRecorder) WriteTagged(ctx, namespace, id, tags, timest
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*MockDatabase)(nil).WriteTagged), ctx, namespace, id, tags, timestamp, value, unit, annotation)
 }
 
+// WriteTaggedBatch mocks base method
+func (m *MockDatabase) WriteTaggedBatch(ctx context.Context, namespace ident.ID, writes commitlog.WritesBatch) error {
+	ret := m.ctrl.Call(m, "WriteTaggedBatch", ctx, namespace, writes)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WriteTaggedBatch indicates an expected call of WriteTaggedBatch
+func (mr *MockDatabaseMockRecorder) WriteTaggedBatch(ctx, namespace, writes interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTaggedBatch", reflect.TypeOf((*MockDatabase)(nil).WriteTaggedBatch), ctx, namespace, writes)
+}
+
 // QueryIDs mocks base method
 func (m *MockDatabase) QueryIDs(ctx context.Context, namespace ident.ID, query index.Query, opts index.QueryOptions) (index.QueryResults, error) {
 	ret := m.ctrl.Call(m, "QueryIDs", ctx, namespace, query, opts)
@@ -462,6 +474,18 @@ func (m *Mockdatabase) WriteTagged(ctx context.Context, namespace, id ident.ID, 
 // WriteTagged indicates an expected call of WriteTagged
 func (mr *MockdatabaseMockRecorder) WriteTagged(ctx, namespace, id, tags, timestamp, value, unit, annotation interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*Mockdatabase)(nil).WriteTagged), ctx, namespace, id, tags, timestamp, value, unit, annotation)
+}
+
+// WriteTaggedBatch mocks base method
+func (m *Mockdatabase) WriteTaggedBatch(ctx context.Context, namespace ident.ID, writes commitlog.WritesBatch) error {
+	ret := m.ctrl.Call(m, "WriteTaggedBatch", ctx, namespace, writes)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WriteTaggedBatch indicates an expected call of WriteTaggedBatch
+func (mr *MockdatabaseMockRecorder) WriteTaggedBatch(ctx, namespace, writes interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTaggedBatch", reflect.TypeOf((*Mockdatabase)(nil).WriteTaggedBatch), ctx, namespace, writes)
 }
 
 // QueryIDs mocks base method
