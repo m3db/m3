@@ -45,6 +45,14 @@ var (
 	timeZero = time.Time{}
 )
 
+type WritesBatch []Write
+type Write struct {
+	series     Series
+	datapoint  ts.Datapoint
+	unit       xtime.Unit
+	annotation ts.Annotation
+}
+
 type newCommitLogWriterFn func(
 	flushFn flushFn,
 	opts Options,
@@ -193,13 +201,9 @@ func (r callbackResult) rotateLogsResult() (rotateLogsResult, error) {
 }
 
 type commitLogWrite struct {
-	eventType eventType
-
-	series     Series
-	datapoint  ts.Datapoint
-	unit       xtime.Unit
-	annotation ts.Annotation
-	callbackFn callbackFn
+	eventType   eventType
+	writesBatch WritesBatch
+	callbackFn  callbackFn
 }
 
 // NewCommitLog creates a new commit log
@@ -443,18 +447,20 @@ func (l *commitLog) write() {
 			}
 		}
 
-		err := l.writerState.writer.Write(write.series,
-			write.datapoint, write.unit, write.annotation)
+		for i := 0; i < len(write.writesBatch); i++ {
+			write := write.writesBatch[i]
+			err := l.writerState.writer.Write(write.series,
+				write.datapoint, write.unit, write.annotation)
+			if err != nil {
+				l.metrics.errors.Inc(1)
+				l.log.Errorf("failed to write to commit log: %v", err)
 
-		if err != nil {
-			l.metrics.errors.Inc(1)
-			l.log.Errorf("failed to write to commit log: %v", err)
+				if l.commitLogFailFn != nil {
+					l.commitLogFailFn(err)
+				}
 
-			if l.commitLogFailFn != nil {
-				l.commitLogFailFn(err)
+				continue
 			}
-
-			continue
 		}
 		l.metrics.success.Inc(1)
 	}
@@ -564,10 +570,14 @@ func (l *commitLog) writeWait(
 	}
 
 	write := commitLogWrite{
-		series:     series,
-		datapoint:  datapoint,
-		unit:       unit,
-		annotation: annotation,
+		writesBatch: []Write{
+			{
+				series:     series,
+				datapoint:  datapoint,
+				unit:       unit,
+				annotation: annotation,
+			},
+		},
 		callbackFn: completion,
 	}
 
@@ -604,10 +614,14 @@ func (l *commitLog) writeBehind(
 	}
 
 	write := commitLogWrite{
-		series:     series,
-		datapoint:  datapoint,
-		unit:       unit,
-		annotation: annotation,
+		writesBatch: []Write{
+			{
+				series:     series,
+				datapoint:  datapoint,
+				unit:       unit,
+				annotation: annotation,
+			},
+		},
 	}
 
 	enqueued := false
