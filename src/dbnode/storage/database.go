@@ -490,7 +490,7 @@ func (d *db) Write(
 		return err
 	}
 
-	err = n.Write(ctx, id, timestamp, value, unit, annotation)
+	_, err = n.Write(ctx, id, timestamp, value, unit, annotation)
 	if err == commitlog.ErrCommitLogQueueFull {
 		d.errors.Record(1)
 	}
@@ -513,7 +513,7 @@ func (d *db) WriteTagged(
 		return err
 	}
 
-	err = n.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
+	_, err = n.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
 	if err == commitlog.ErrCommitLogQueueFull {
 		d.errors.Record(1)
 	}
