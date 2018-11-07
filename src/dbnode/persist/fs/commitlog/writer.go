@@ -21,6 +21,8 @@
 package commitlog
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"io"
@@ -102,9 +104,11 @@ type writer struct {
 	duration           time.Duration
 	chunkWriter        chunkWriter
 	chunkReserveHeader []byte
-	buffer             *msgpack.FixedSizeBuffer
+	buffer             *bufio.Writer
+	sizeBuffer         []byte
 	seen               *bitset.BitSet
 	logEncoder         *msgpack.Encoder
+	logEncoderBuff     *bytes.Buffer
 	metadataEncoder    *msgpack.Encoder
 	tagEncoder         serialize.TagEncoder
 	tagSliceIter       ident.TagsIterator
@@ -115,6 +119,7 @@ func newCommitLogWriter(
 	opts Options,
 ) commitLogWriter {
 	shouldFsync := opts.Strategy() == StrategyWriteWait
+
 	return &writer{
 		filePathPrefix:     opts.FilesystemOptions().FilePathPrefix(),
 		newFileMode:        opts.FilesystemOptions().NewFileMode(),
@@ -122,9 +127,11 @@ func newCommitLogWriter(
 		nowFn:              opts.ClockOptions().NowFn(),
 		chunkWriter:        newChunkWriter(flushFn, shouldFsync),
 		chunkReserveHeader: make([]byte, chunkHeaderLen),
-		buffer:             msgpack.NewFixedSizeBuffer(opts.FlushSize()),
+		buffer:             bufio.NewWriterSize(nil, opts.FlushSize()),
+		sizeBuffer:         make([]byte, binary.MaxVarintLen64),
 		seen:               bitset.NewBitSet(defaultBitSetLength),
 		logEncoder:         msgpack.NewEncoder(),
+		logEncoderBuff:     bytes.NewBuffer(make([]byte, 0, 4096)),
 		metadataEncoder:    msgpack.NewEncoder(),
 		tagEncoder:         opts.FilesystemOptions().TagEncoderPool().Get(),
 		tagSliceIter:       ident.NewTagsIterator(ident.Tags{}),
@@ -161,7 +168,10 @@ func (w *writer) Open(start time.Time, duration time.Duration) (File, error) {
 
 	w.chunkWriter.reset(fd)
 	w.buffer.Reset(w.chunkWriter)
-	w.buffer.AppendBytes(w.logEncoder.Bytes())
+	if err := w.write(w.logEncoder.Bytes()); err != nil {
+		w.Close()
+		return File{}, err
+	}
 
 	w.start = start
 	w.duration = duration
@@ -228,7 +238,11 @@ func (w *writer) Write(
 	logEntry.Value = datapoint.Value
 	logEntry.Unit = uint32(unit)
 	logEntry.Annotation = annotation
-	if err := msgpack.EncodeLogEntryFast(w.buffer, logEntry); err != nil {
+	w.logEncoderBuff.Reset()
+	if err := msgpack.EncodeLogEntryFast(w.logEncoderBuff, logEntry); err != nil {
+		return err
+	}
+	if err := w.write(w.logEncoderBuff.Bytes()); err != nil {
 		return err
 	}
 
@@ -276,6 +290,27 @@ func (w *writer) Close() error {
 	w.duration = 0
 	w.seen.ClearAll()
 	return nil
+}
+
+func (w *writer) write(data []byte) error {
+	dataLen := len(data)
+	sizeLen := binary.PutUvarint(w.sizeBuffer, uint64(dataLen))
+	totalLen := sizeLen + dataLen
+
+	// Avoid writing across the checksum boundary if we can avoid it
+	if w.buffer.Buffered() > 0 && totalLen > w.buffer.Available() {
+		if err := w.buffer.Flush(); err != nil {
+			return err
+		}
+		return w.write(data)
+	}
+
+	// Write size and then data
+	if _, err := w.buffer.Write(w.sizeBuffer[:sizeLen]); err != nil {
+		return err
+	}
+	_, err := w.buffer.Write(data)
+	return err
 }
 
 type fsChunkWriter struct {

@@ -21,6 +21,7 @@
 package msgpack
 
 import (
+	"bytes"
 	"errors"
 	"testing"
 
@@ -176,9 +177,9 @@ func TestEncodeLogEntry(t *testing.T) {
 }
 
 func TestEncodeLogEntryFast(t *testing.T) {
-	buff := NewFixedSizeBuffer(1024)
-	require.NoError(t, EncodeLogEntryFast(buff, testLogEntry))
-	actual := buff.Unwritten()
+	buffer := bytes.NewBuffer(make([]byte, 0, 4096))
+	require.NoError(t, EncodeLogEntryFast(buffer, testLogEntry))
+	actual := buffer.Bytes()
 
 	enc := NewEncoder()
 	enc.EncodeLogEntry(testLogEntry)
