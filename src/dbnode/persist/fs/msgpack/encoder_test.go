@@ -21,7 +21,6 @@
 package msgpack
 
 import (
-	"bytes"
 	"errors"
 	"testing"
 
@@ -177,15 +176,14 @@ func TestEncodeLogEntry(t *testing.T) {
 }
 
 func TestEncodeLogEntryFast(t *testing.T) {
-	buffer := bytes.NewBuffer(make([]byte, 0, 4096))
-	require.NoError(t, EncodeLogEntryFast(buffer, testLogEntry))
-	actual := buffer.Bytes()
+	buffer, err := EncodeLogEntryFast(nil, testLogEntry)
+	require.NoError(t, err)
 
 	enc := NewEncoder()
 	enc.EncodeLogEntry(testLogEntry)
 	expected := enc.Bytes()
 
-	require.Equal(t, expected, actual)
+	require.Equal(t, expected, buffer)
 }
 
 func TestEncodeLogMetadata(t *testing.T) {

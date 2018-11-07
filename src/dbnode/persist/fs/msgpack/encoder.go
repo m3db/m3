@@ -321,41 +321,26 @@ func (enc *Encoder) encodeArrayLen(value int) {
 
 // EncodeLogEntryFast encodes a commit log entry without buffering
 // for faster encoding.
-func EncodeLogEntryFast(b *bytes.Buffer, entry schema.LogEntry) error {
+func EncodeLogEntryFast(b []byte, entry schema.LogEntry) ([]byte, error) {
 	if logEntryHeaderErr != nil {
-		return logEntryHeaderErr
+		return nil, logEntryHeaderErr
 	}
-	_, err := b.Write(logEntryHeader)
-	if err != nil {
-		return err
-	}
-	if err := encodeVarUint64(b, entry.Index); err != nil {
-		return err
-	}
-	if err := encodeVarInt64(b, entry.Create); err != nil {
-		return err
-	}
-	if err := encodeBytes(b, entry.Metadata); err != nil {
-		return err
-	}
-	if err := encodeVarInt64(b, entry.Timestamp); err != nil {
-		return err
-	}
-	if err := encodeFloat64(b, entry.Value); err != nil {
-		return err
-	}
-	if err := encodeVarUint64(b, uint64(entry.Unit)); err != nil {
-		return err
-	}
-	if err := encodeBytes(b, entry.Annotation); err != nil {
-		return err
-	}
-	return nil
+	b = append(b, logEntryHeader...)
+	b = encodeVarUint64(b, entry.Index)
+	b = encodeVarInt64(b, entry.Create)
+	b = encodeBytes(b, entry.Metadata)
+	b = encodeVarInt64(b, entry.Timestamp)
+	b = encodeFloat64(b, entry.Value)
+	b = encodeVarUint64(b, uint64(entry.Unit))
+	b = encodeBytes(b, entry.Annotation)
+	return b, nil
 }
 
-func encodeVarUint64(b *bytes.Buffer, v uint64) error {
+func encodeVarUint64(b []byte, v uint64) []byte {
 	if v <= math.MaxInt8 {
-		return b.WriteByte(byte(v))
+		b, buf := growAndReturn(b, 1)
+		buf[0] = byte(v)
+		return b
 	}
 	if v <= math.MaxUint8 {
 		return write1(b, codes.Uint8, v)
@@ -369,12 +354,14 @@ func encodeVarUint64(b *bytes.Buffer, v uint64) error {
 	return write8(b, codes.Uint64, v)
 }
 
-func encodeVarInt64(b *bytes.Buffer, v int64) error {
+func encodeVarInt64(b []byte, v int64) []byte {
 	if v >= 0 {
 		return encodeVarUint64(b, uint64(v))
 	}
 	if v >= int64(int8(codes.NegFixedNumLow)) {
-		return b.WriteByte(byte(v))
+		b, buff := growAndReturn(b, 1)
+		buff[0] = byte(v)
+		return b
 	}
 	if v >= math.MinInt8 {
 		return write1(b, codes.Int8, uint64(v))
@@ -388,22 +375,22 @@ func encodeVarInt64(b *bytes.Buffer, v int64) error {
 	return write8(b, codes.Int64, uint64(v))
 }
 
-func encodeFloat64(b *bytes.Buffer, n float64) error {
+func encodeFloat64(b []byte, n float64) []byte {
 	return write8(b, codes.Double, math.Float64bits(n))
 }
 
-func encodeBytes(b *bytes.Buffer, data []byte) error {
+func encodeBytes(b []byte, data []byte) []byte {
 	if data == nil {
-		return b.WriteByte(codes.Nil)
+		b, buf := growAndReturn(b, 1)
+		buf[0] = codes.Nil
+		return b
 	}
-	if err := encodeBytesLen(b, len(data)); err != nil {
-		return err
-	}
-	_, err := b.Write(data)
-	return err
+	b = encodeBytesLen(b, len(data))
+	b = append(b, data...)
+	return b
 }
 
-func encodeBytesLen(b *bytes.Buffer, l int) error {
+func encodeBytesLen(b []byte, l int) []byte {
 	if l < 256 {
 		return write1(b, codes.Bin8, uint64(l))
 	}
@@ -413,75 +400,52 @@ func encodeBytesLen(b *bytes.Buffer, l int) error {
 	return write4(b, codes.Bin32, uint64(l))
 }
 
-func write1(b *bytes.Buffer, code byte, n uint64) error {
-	if err := b.WriteByte(code); err != nil {
-		return err
-	}
-	if err := b.WriteByte(byte(n)); err != nil {
-		return err
-	}
-	return nil
+func write1(b []byte, code byte, n uint64) []byte {
+	b, buf := growAndReturn(b, 2)
+	buf[0] = code
+	buf[1] = byte(n)
+	return b
 }
 
-func write2(b *bytes.Buffer, code byte, n uint64) error {
-	if err := b.WriteByte(code); err != nil {
-		return err
-	}
-	if err := b.WriteByte(byte(n >> 8)); err != nil {
-		return err
-	}
-	if err := b.WriteByte(byte(n)); err != nil {
-		return err
-	}
-	return nil
+func write2(b []byte, code byte, n uint64) []byte {
+	b, buf := growAndReturn(b, 3)
+	buf[0] = code
+	buf[1] = byte(n >> 8)
+	buf[2] = byte(n)
+	return b
 }
 
-func write4(b *bytes.Buffer, code byte, n uint64) error {
-	if err := b.WriteByte(code); err != nil {
-		return err
-	}
-	if err := b.WriteByte(byte(n >> 24)); err != nil {
-		return err
-	}
-	if err := b.WriteByte(byte(n >> 16)); err != nil {
-		return err
-	}
-	if err := b.WriteByte(byte(n >> 8)); err != nil {
-		return err
-	}
-	if err := b.WriteByte(byte(n)); err != nil {
-		return err
-	}
-	return nil
+func write4(b []byte, code byte, n uint64) []byte {
+	b, buf := growAndReturn(b, 5)
+	buf[0] = code
+	buf[1] = byte(n >> 24)
+	buf[2] = byte(n >> 16)
+	buf[3] = byte(n >> 8)
+	buf[4] = byte(n)
+	return b
 }
 
-func write8(b *bytes.Buffer, code byte, n uint64) error {
-	if err := b.WriteByte(code); err != nil {
-		return err
+func write8(b []byte, code byte, n uint64) []byte {
+	b, buf := growAndReturn(b, 9)
+	buf[0] = code
+	buf[1] = byte(n >> 56)
+	buf[2] = byte(n >> 48)
+	buf[3] = byte(n >> 40)
+	buf[4] = byte(n >> 32)
+	buf[5] = byte(n >> 24)
+	buf[6] = byte(n >> 16)
+	buf[7] = byte(n >> 8)
+	buf[8] = byte(n)
+	return b
+}
+
+func growAndReturn(b []byte, n int) ([]byte, []byte) {
+	if cap(b)-len(b) < n {
+		newCapacity := 2 * (len(b) + n)
+		newBuff := make([]byte, len(b), newCapacity)
+		copy(newBuff, b)
+		b = newBuff
 	}
-	if err := b.WriteByte(byte(n >> 56)); err != nil {
-		return err
-	}
-	if err := b.WriteByte(byte(n >> 48)); err != nil {
-		return err
-	}
-	if err := b.WriteByte(byte(n >> 40)); err != nil {
-		return err
-	}
-	if err := b.WriteByte(byte(n >> 32)); err != nil {
-		return err
-	}
-	if err := b.WriteByte(byte(n >> 24)); err != nil {
-		return err
-	}
-	if err := b.WriteByte(byte(n >> 16)); err != nil {
-		return err
-	}
-	if err := b.WriteByte(byte(n >> 8)); err != nil {
-		return err
-	}
-	if err := b.WriteByte(byte(n)); err != nil {
-		return err
-	}
-	return nil
+	ret := b[:len(b)+n]
+	return ret, ret[len(b):]
 }

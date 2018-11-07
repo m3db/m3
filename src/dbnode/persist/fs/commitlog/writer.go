@@ -22,7 +22,6 @@ package commitlog
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"io"
@@ -108,7 +107,7 @@ type writer struct {
 	sizeBuffer         []byte
 	seen               *bitset.BitSet
 	logEncoder         *msgpack.Encoder
-	logEncoderBuff     *bytes.Buffer
+	logEncoderBuff     []byte
 	metadataEncoder    *msgpack.Encoder
 	tagEncoder         serialize.TagEncoder
 	tagSliceIter       ident.TagsIterator
@@ -131,7 +130,7 @@ func newCommitLogWriter(
 		sizeBuffer:         make([]byte, binary.MaxVarintLen64),
 		seen:               bitset.NewBitSet(defaultBitSetLength),
 		logEncoder:         msgpack.NewEncoder(),
-		logEncoderBuff:     bytes.NewBuffer(make([]byte, 0, 4096)),
+		logEncoderBuff:     make([]byte, 0, 16384),
 		metadataEncoder:    msgpack.NewEncoder(),
 		tagEncoder:         opts.FilesystemOptions().TagEncoderPool().Get(),
 		tagSliceIter:       ident.NewTagsIterator(ident.Tags{}),
@@ -238,11 +237,15 @@ func (w *writer) Write(
 	logEntry.Value = datapoint.Value
 	logEntry.Unit = uint32(unit)
 	logEntry.Annotation = annotation
-	w.logEncoderBuff.Reset()
-	if err := msgpack.EncodeLogEntryFast(w.logEncoderBuff, logEntry); err != nil {
+
+	w.logEncoderBuff = w.logEncoderBuff[:0]
+
+	var err error
+	w.logEncoderBuff, err = msgpack.EncodeLogEntryFast(w.logEncoderBuff, logEntry)
+	if err != nil {
 		return err
 	}
-	if err := w.write(w.logEncoderBuff.Bytes()); err != nil {
+	if err := w.write(w.logEncoderBuff); err != nil {
 		return err
 	}
 
