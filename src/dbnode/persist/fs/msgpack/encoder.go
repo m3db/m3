@@ -21,11 +21,16 @@
 package msgpack
 
 import (
+	"bufio"
 	"bytes"
+	"encoding/binary"
+	"io"
+	"math"
 
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 
 	"gopkg.in/vmihailenco/msgpack.v2"
+	"gopkg.in/vmihailenco/msgpack.v2/codes"
 )
 
 type encodeVersionFn func(value int)
@@ -315,4 +320,179 @@ func (enc *Encoder) encodeArrayLen(value int) {
 		return
 	}
 	enc.err = enc.enc.EncodeArrayLen(value)
+}
+
+type FixedSizeBuffer struct {
+	sizeBackingBuffer [binary.MaxVarintLen64]byte
+	sizeBuffer        []byte
+	writer            *bufio.Writer
+	data              []byte
+}
+
+func NewFixedSizeBuffer(size int) *FixedSizeBuffer {
+	b := &FixedSizeBuffer{
+		writer: bufio.NewWriterSize(nil, size),
+		data:   make([]byte, 0, size),
+	}
+	b.sizeBuffer = b.sizeBackingBuffer[:]
+	return b
+}
+
+func (b *FixedSizeBuffer) Reset(w io.Writer) {
+	b.writer.Reset(w)
+	b.data = b.data[:0]
+}
+
+func (b *FixedSizeBuffer) Flush() error {
+	return b.writer.Flush()
+}
+
+func (b *FixedSizeBuffer) AppendBytes(elems []byte) {
+	b.data = append(b.data, elems...)
+}
+
+func (b *FixedSizeBuffer) AppendByte(elem byte) {
+	b.data = append(b.data, elem)
+}
+
+func (b *FixedSizeBuffer) Unwritten() []byte {
+	return b.data
+}
+
+func (b *FixedSizeBuffer) Write() error {
+	dataLen := len(b.data)
+	sizeLen := binary.PutUvarint(b.sizeBuffer, uint64(dataLen))
+	totalLen := sizeLen + dataLen
+
+	// Avoid writing across the writer boundary if we can avoid it
+	if b.writer.Buffered() > 0 && totalLen > b.writer.Available() {
+		if err := b.writer.Flush(); err != nil {
+			return err
+		}
+		return b.Write()
+	}
+
+	// Write size and then data
+	if _, err := b.writer.Write(b.sizeBuffer[:sizeLen]); err != nil {
+		return err
+	}
+	_, err := b.writer.Write(b.data)
+	return err
+}
+
+// EncodeLogEntryFast encodes a commit log entry without buffering
+// for faster encoding.
+func EncodeLogEntryFast(b *FixedSizeBuffer, entry schema.LogEntry) error {
+	if logEntryHeaderErr != nil {
+		return logEntryHeaderErr
+	}
+	b.AppendBytes(logEntryHeader)
+	encodeVarUint64(b, entry.Index)
+	encodeVarInt64(b, entry.Create)
+	encodeBytes(b, entry.Metadata)
+	encodeVarInt64(b, entry.Timestamp)
+	encodeFloat64(b, entry.Value)
+	encodeVarUint64(b, uint64(entry.Unit))
+	encodeBytes(b, entry.Annotation)
+	return nil
+}
+
+func encodeVarUint64(b *FixedSizeBuffer, v uint64) {
+	if v <= math.MaxInt8 {
+		b.AppendByte(byte(v))
+		return
+	}
+	if v <= math.MaxUint8 {
+		write1(b, codes.Uint8, v)
+		return
+	}
+	if v <= math.MaxUint16 {
+		write2(b, codes.Uint16, v)
+		return
+	}
+	if v <= math.MaxUint32 {
+		write4(b, codes.Uint32, v)
+		return
+	}
+	write8(b, codes.Uint64, v)
+}
+
+func encodeVarInt64(b *FixedSizeBuffer, v int64) {
+	if v >= 0 {
+		encodeVarUint64(b, uint64(v))
+		return
+	}
+	if v >= int64(int8(codes.NegFixedNumLow)) {
+		b.AppendByte(byte(v))
+		return
+	}
+	if v >= math.MinInt8 {
+		write1(b, codes.Int8, uint64(v))
+		return
+	}
+	if v >= math.MinInt16 {
+		write2(b, codes.Int16, uint64(v))
+		return
+	}
+	if v >= math.MinInt32 {
+		write4(b, codes.Int32, uint64(v))
+		return
+	}
+	write8(b, codes.Int64, uint64(v))
+}
+
+func encodeFloat64(b *FixedSizeBuffer, n float64) {
+	write8(b, codes.Double, math.Float64bits(n))
+}
+
+func encodeBytes(b *FixedSizeBuffer, data []byte) {
+	if data == nil {
+		b.AppendByte(codes.Nil)
+		return
+	}
+	encodeBytesLen(b, len(data))
+	b.AppendBytes(data)
+}
+
+func encodeBytesLen(b *FixedSizeBuffer, l int) {
+	if l < 256 {
+		write1(b, codes.Bin8, uint64(l))
+		return
+	}
+	if l < 65536 {
+		write2(b, codes.Bin16, uint64(l))
+		return
+	}
+	write4(b, codes.Bin32, uint64(l))
+}
+
+func write1(b *FixedSizeBuffer, code byte, n uint64) {
+	b.AppendByte(code)
+	b.AppendByte(byte(n))
+}
+
+func write2(b *FixedSizeBuffer, code byte, n uint64) {
+	b.AppendByte(code)
+	b.AppendByte(byte(n >> 8))
+	b.AppendByte(byte(n))
+}
+
+func write4(b *FixedSizeBuffer, code byte, n uint64) {
+	b.AppendByte(code)
+	b.AppendByte(byte(n >> 24))
+	b.AppendByte(byte(n >> 16))
+	b.AppendByte(byte(n >> 8))
+	b.AppendByte(byte(n))
+}
+
+func write8(b *FixedSizeBuffer, code byte, n uint64) {
+	b.AppendByte(code)
+	b.AppendByte(byte(n >> 56))
+	b.AppendByte(byte(n >> 48))
+	b.AppendByte(byte(n >> 40))
+	b.AppendByte(byte(n >> 32))
+	b.AppendByte(byte(n >> 24))
+	b.AppendByte(byte(n >> 16))
+	b.AppendByte(byte(n >> 8))
+	b.AppendByte(byte(n))
 }

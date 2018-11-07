@@ -21,7 +21,6 @@
 package commitlog
 
 import (
-	"bufio"
 	"encoding/binary"
 	"errors"
 	"io"
@@ -103,8 +102,7 @@ type writer struct {
 	duration           time.Duration
 	chunkWriter        chunkWriter
 	chunkReserveHeader []byte
-	buffer             *bufio.Writer
-	sizeBuffer         []byte
+	buffer             *msgpack.FixedSizeBuffer
 	seen               *bitset.BitSet
 	logEncoder         *msgpack.Encoder
 	metadataEncoder    *msgpack.Encoder
@@ -117,7 +115,6 @@ func newCommitLogWriter(
 	opts Options,
 ) commitLogWriter {
 	shouldFsync := opts.Strategy() == StrategyWriteWait
-
 	return &writer{
 		filePathPrefix:     opts.FilesystemOptions().FilePathPrefix(),
 		newFileMode:        opts.FilesystemOptions().NewFileMode(),
@@ -125,8 +122,7 @@ func newCommitLogWriter(
 		nowFn:              opts.ClockOptions().NowFn(),
 		chunkWriter:        newChunkWriter(flushFn, shouldFsync),
 		chunkReserveHeader: make([]byte, chunkHeaderLen),
-		buffer:             bufio.NewWriterSize(nil, opts.FlushSize()),
-		sizeBuffer:         make([]byte, binary.MaxVarintLen64),
+		buffer:             msgpack.NewFixedSizeBuffer(opts.FlushSize()),
 		seen:               bitset.NewBitSet(defaultBitSetLength),
 		logEncoder:         msgpack.NewEncoder(),
 		metadataEncoder:    msgpack.NewEncoder(),
@@ -165,10 +161,7 @@ func (w *writer) Open(start time.Time, duration time.Duration) (File, error) {
 
 	w.chunkWriter.reset(fd)
 	w.buffer.Reset(w.chunkWriter)
-	if err := w.write(w.logEncoder.Bytes()); err != nil {
-		w.Close()
-		return File{}, err
-	}
+	w.buffer.AppendBytes(w.logEncoder.Bytes())
 
 	w.start = start
 	w.duration = duration
@@ -235,11 +228,7 @@ func (w *writer) Write(
 	logEntry.Value = datapoint.Value
 	logEntry.Unit = uint32(unit)
 	logEntry.Annotation = annotation
-	w.logEncoder.Reset()
-	if err := w.logEncoder.EncodeLogEntry(logEntry); err != nil {
-		return err
-	}
-	if err := w.write(w.logEncoder.Bytes()); err != nil {
+	if err := msgpack.EncodeLogEntryFast(w.buffer, logEntry); err != nil {
 		return err
 	}
 
@@ -287,27 +276,6 @@ func (w *writer) Close() error {
 	w.duration = 0
 	w.seen.ClearAll()
 	return nil
-}
-
-func (w *writer) write(data []byte) error {
-	dataLen := len(data)
-	sizeLen := binary.PutUvarint(w.sizeBuffer, uint64(dataLen))
-	totalLen := sizeLen + dataLen
-
-	// Avoid writing across the checksum boundary if we can avoid it
-	if w.buffer.Buffered() > 0 && totalLen > w.buffer.Available() {
-		if err := w.buffer.Flush(); err != nil {
-			return err
-		}
-		return w.write(data)
-	}
-
-	// Write size and then data
-	if _, err := w.buffer.Write(w.sizeBuffer[:sizeLen]); err != nil {
-		return err
-	}
-	_, err := w.buffer.Write(data)
-	return err
 }
 
 type fsChunkWriter struct {
