@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -677,4 +678,22 @@ func TestDatabaseSeriesBlocksReset(t *testing.T) {
 	require.Equal(t, 0, len(blocks.elems))
 	require.True(t, blocks.min.Equal(time.Time{}))
 	require.True(t, blocks.max.Equal(time.Time{}))
+}
+
+func TestBlockResetFromDisk(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	bl := testDatabaseBlock(ctrl)
+	now := time.Now()
+	blockSize := 2 * time.Hour
+	id := ident.StringID("testID")
+	segment := ts.Segment{}
+	bl.ResetFromDisk(now, blockSize, segment, id)
+
+	assert.True(t, now.Equal(bl.StartTime()))
+	assert.Equal(t, blockSize, bl.BlockSize())
+	assert.Equal(t, segment, bl.segment)
+	assert.Equal(t, id, bl.seriesID)
+	assert.True(t, bl.WasRetrievedFromDisk())
 }
