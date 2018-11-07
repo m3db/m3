@@ -258,63 +258,6 @@ func TestLogEntryRoundtrip(t *testing.T) {
 	require.Equal(t, testLogEntry, res)
 }
 
-func BenchmarkLogEntryDecoder(b *testing.B) {
-	// Copy so we don't mutate global state
-	logEntry := testLogEntry
-	logEntry.Metadata = nil
-	logEntry.Annotation = nil
-	var (
-		enc    = NewEncoder()
-		dec    = NewDecoder(nil)
-		stream = NewDecoderStream(nil)
-		err    error
-	)
-
-	require.NoError(b, enc.EncodeLogEntry(logEntry))
-	buf := enc.Bytes()
-	for n := 0; n < b.N; n++ {
-		stream.Reset(buf)
-		dec.Reset(stream)
-		_, err = dec.DecodeLogEntry()
-		if err != nil {
-			panic(err)
-		}
-	}
-}
-
-var benchmarkBuf []byte
-
-func BenchmarkLogEntryEncoderFast(b *testing.B) {
-	var (
-		logEntry = testLogEntry
-		err      error
-	)
-	benchmarkBuf = []byte{}
-
-	for n := 0; n < b.N; n++ {
-		benchmarkBuf, err = EncodeLogEntryFast(benchmarkBuf[:0], logEntry)
-		if err != nil {
-			panic(err)
-		}
-	}
-}
-
-func BenchmarkLogEntryEncoder(b *testing.B) {
-	logEntry := testLogEntry
-	var (
-		enc = NewEncoder()
-		err error
-	)
-
-	for n := 0; n < b.N; n++ {
-		enc.EncodeLogEntry(logEntry)
-		if err != nil {
-			panic(err)
-		}
-		benchmarkBuf = enc.Bytes()
-	}
-}
-
 func TestLogEntryRoundtripUniqueIndexAndRemaining(t *testing.T) {
 	var (
 		enc = NewEncoder()
