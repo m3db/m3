@@ -175,6 +175,17 @@ func TestEncodeLogEntry(t *testing.T) {
 	require.Equal(t, expected, *actual)
 }
 
+func TestEncodeLogEntryFast(t *testing.T) {
+	buffer, err := EncodeLogEntryFast(nil, testLogEntry)
+	require.NoError(t, err)
+
+	enc := NewEncoder()
+	enc.EncodeLogEntry(testLogEntry)
+	expected := enc.Bytes()
+
+	require.Equal(t, expected, buffer)
+}
+
 func TestEncodeLogMetadata(t *testing.T) {
 	enc, actual := testCapturingEncoder(t)
 	require.NoError(t, enc.EncodeLogMetadata(testLogMetadata))

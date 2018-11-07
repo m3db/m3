@@ -107,6 +107,7 @@ type writer struct {
 	sizeBuffer         []byte
 	seen               *bitset.BitSet
 	logEncoder         *msgpack.Encoder
+	logEncoderBuff     []byte
 	metadataEncoder    *msgpack.Encoder
 	tagEncoder         serialize.TagEncoder
 	tagSliceIter       ident.TagsIterator
@@ -129,6 +130,7 @@ func newCommitLogWriter(
 		sizeBuffer:         make([]byte, binary.MaxVarintLen64),
 		seen:               bitset.NewBitSet(defaultBitSetLength),
 		logEncoder:         msgpack.NewEncoder(),
+		logEncoderBuff:     make([]byte, 0, 16384),
 		metadataEncoder:    msgpack.NewEncoder(),
 		tagEncoder:         opts.FilesystemOptions().TagEncoderPool().Get(),
 		tagSliceIter:       ident.NewTagsIterator(ident.Tags{}),
@@ -235,11 +237,15 @@ func (w *writer) Write(
 	logEntry.Value = datapoint.Value
 	logEntry.Unit = uint32(unit)
 	logEntry.Annotation = annotation
-	w.logEncoder.Reset()
-	if err := w.logEncoder.EncodeLogEntry(logEntry); err != nil {
+
+	w.logEncoderBuff = w.logEncoderBuff[:0]
+
+	var err error
+	w.logEncoderBuff, err = msgpack.EncodeLogEntryFast(w.logEncoderBuff, logEntry)
+	if err != nil {
 		return err
 	}
-	if err := w.write(w.logEncoder.Bytes()); err != nil {
+	if err := w.write(w.logEncoderBuff); err != nil {
 		return err
 	}
 

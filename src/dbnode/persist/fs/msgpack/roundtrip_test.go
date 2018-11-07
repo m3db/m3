@@ -282,6 +282,39 @@ func BenchmarkLogEntryDecoder(b *testing.B) {
 	}
 }
 
+var benchmarkBuf []byte
+
+func BenchmarkLogEntryEncoderFast(b *testing.B) {
+	var (
+		logEntry = testLogEntry
+		err      error
+	)
+	benchmarkBuf = []byte{}
+
+	for n := 0; n < b.N; n++ {
+		benchmarkBuf, err = EncodeLogEntryFast(benchmarkBuf[:0], logEntry)
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+func BenchmarkLogEntryEncoder(b *testing.B) {
+	logEntry := testLogEntry
+	var (
+		enc = NewEncoder()
+		err error
+	)
+
+	for n := 0; n < b.N; n++ {
+		enc.EncodeLogEntry(logEntry)
+		if err != nil {
+			panic(err)
+		}
+		benchmarkBuf = enc.Bytes()
+	}
+}
+
 func TestLogEntryRoundtripUniqueIndexAndRemaining(t *testing.T) {
 	var (
 		enc = NewEncoder()
