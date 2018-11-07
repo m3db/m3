@@ -323,8 +323,9 @@ func (enc *Encoder) encodeArrayLen(value int) {
 // functions that bypass the msgpack encoding library. This results in a lot of code duplication
 // for this one path, but we pay the price because this is the most frequently called function
 // in M3DB and it directly applies back-pressure on every part of the system. As a result, almost
-// any performance gains that can be had in this function are worth it. Please run all the benchmarks
-// in encoder_bench.go before making any changes.
+// any performance gains that can be had in this function are worth it. Please run the
+// BenchmarkLogEntryEncoderFast benchmark before making changes as a small degradation in this
+// functions performance can have a substantial impact on M3DB.
 func EncodeLogEntryFast(b []byte, entry schema.LogEntry) ([]byte, error) {
 	if logEntryHeaderErr != nil {
 		return nil, logEntryHeaderErr
