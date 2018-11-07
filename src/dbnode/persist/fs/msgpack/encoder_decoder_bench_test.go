@@ -27,10 +27,7 @@ import (
 )
 
 func BenchmarkLogEntryDecoder(b *testing.B) {
-	// Copy so we don't mutate global state
 	logEntry := testLogEntry
-	logEntry.Metadata = nil
-	logEntry.Annotation = nil
 	var (
 		enc    = NewEncoder()
 		dec    = NewDecoder(nil)
