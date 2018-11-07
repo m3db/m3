@@ -337,11 +337,6 @@ func write2(b []byte, code byte, n uint64) []byte {
 	return b
 }
 
-func write4(b []byte, code byte, n uint64) []byte {
-	b, buf := growAndReturn(b, 5)
-	buf[0] = code
-	buf[1] = byte(n >> 24)
-	buf[2] = byte(n >> 16)
 	buf[3] = byte(n >> 8)
 	buf[4] = byte(n)
 	return b
