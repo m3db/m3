@@ -43,7 +43,7 @@ import (
 // any performance gains that can be had in this function are worth it.
 //
 // Before modifying this function, please run the BenchmarkLogEntryEncoderFast benchmark as a small
-// degration in this functions performance can have a substantial impact on M3DB.
+// degradation in this functions performance can have a substantial impact on M3DB.
 func EncodeLogEntryFast(b []byte, entry schema.LogEntry) ([]byte, error) {
 	if logEntryHeaderErr != nil {
 		return nil, logEntryHeaderErr
