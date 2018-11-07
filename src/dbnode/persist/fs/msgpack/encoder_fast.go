@@ -24,6 +24,7 @@ import (
 	"math"
 
 	"github.com/m3db/m3/src/dbnode/persist/schema"
+
 	"gopkg.in/vmihailenco/msgpack.v2/codes"
 )
 
