@@ -28,7 +28,9 @@ import (
 )
 
 // WriteBatch is a batch of Writes.
-type WriteBatch []Write
+type WriteBatch struct {
+	Writes []Write
+}
 
 // Write is a write for the commitlog.
 type Write struct {

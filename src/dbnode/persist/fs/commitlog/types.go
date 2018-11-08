@@ -85,7 +85,7 @@ type Iterator interface {
 	Next() bool
 
 	// Current returns the current commit log entry
-	Current() (Series, ts.Datapoint, xtime.Unit, ts.Annotation)
+	Current() (ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation)
 
 	// Err returns an error if an error occurred
 	Err() error

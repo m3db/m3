@@ -436,8 +436,8 @@ func (l *commitLog) write() {
 			}
 		}
 
-		for i := 0; i < len(write.writeBatch); i++ {
-			write := write.writeBatch[i]
+		for i := 0; i < len(write.writeBatch.Writes); i++ {
+			write := write.writeBatch.Writes[i]
 			err := l.writerState.writer.Write(write.Series,
 				write.Datapoint, write.Unit, write.Annotation)
 			if err != nil {
@@ -534,11 +534,13 @@ func (l *commitLog) Write(
 	annotation ts.Annotation,
 ) error {
 	return l.writeFn(ctx, ts.WriteBatch{
-		Write{
-			Series:     series,
-			Datapoint:  datapoint,
-			Unit:       unit,
-			Annotation: annotation,
+		Writes: []ts.Write{
+			{
+				Series:     series,
+				Datapoint:  datapoint,
+				Unit:       unit,
+				Annotation: annotation,
+			},
 		},
 	})
 }
