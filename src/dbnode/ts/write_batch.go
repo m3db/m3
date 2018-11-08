@@ -114,7 +114,7 @@ func (b *writeBatch) Iter() WriteBatchIter {
 
 	return &writeBatchIter{
 		writes:  b.writes,
-		iterPos: 0,
+		iterPos: -1,
 	}
 }
 

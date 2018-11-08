@@ -21,6 +21,8 @@
 package ts
 
 import (
+	"bytes"
+	"fmt"
 	"testing"
 	"time"
 
@@ -39,39 +41,48 @@ var (
 	namespace = ident.StringID("namespace")
 	numShards = 10
 	shardFn   = sharding.NewHashFn(numShards, 0)
+	writes    = []testWrite{
+		{
+			id: ident.StringID("series1"),
+			tagIter: ident.NewTagsIterator(ident.NewTags(
+				ident.Tag{
+					Name:  ident.StringID("name1"),
+					Value: ident.StringID("value1"),
+				})),
+			timestamp:  time.Now(),
+			value:      0,
+			unit:       xtime.Nanosecond,
+			annotation: []byte("annotation1"),
+		},
+		{
+			id: ident.StringID("series2"),
+			tagIter: ident.NewTagsIterator(ident.NewTags(
+				ident.Tag{
+					Name:  ident.StringID("name2"),
+					Value: ident.StringID("value2"),
+				})),
+			timestamp:  time.Now(),
+			value:      1,
+			unit:       xtime.Nanosecond,
+			annotation: []byte("annotation2s"),
+		},
+	}
 )
 
 type testWrite struct {
 	id         ident.ID
+	tagIter    ident.TagIterator
 	timestamp  time.Time
 	value      float64
 	unit       xtime.Unit
 	annotation []byte
 }
 
-func TestBatchWriter(t *testing.T) {
-	var (
-		batchWriter = NewWriteBatch(batchSize, maxBatchSize, namespace, shardFn)
-		writes      = []testWrite{
-			{
-				id:         ident.StringID("series1"),
-				timestamp:  time.Now(),
-				value:      0,
-				unit:       xtime.Nanosecond,
-				annotation: []byte("annotation1"),
-			},
-			{
-				id:         ident.StringID("series2"),
-				timestamp:  time.Now(),
-				value:      1,
-				unit:       xtime.Nanosecond,
-				annotation: []byte("annotation2s"),
-			},
-		}
-	)
+func TestBatchWriterAddAndIter(t *testing.T) {
+	writeBatch := NewWriteBatch(batchSize, maxBatchSize, namespace, shardFn)
 
 	for _, write := range writes {
-		batchWriter.Add(
+		writeBatch.Add(
 			write.id,
 			write.timestamp,
 			write.value,
@@ -80,10 +91,39 @@ func TestBatchWriter(t *testing.T) {
 	}
 
 	// Make sure they're sorted
+	assertSorted(t, writes, writeBatch)
+
+	// Make sure all the data is there
+	assertDataPresent(t, writes, writeBatch)
+}
+
+func TestBatchWriterAddTaggedAndIter(t *testing.T) {
+	writeBatch := NewWriteBatch(batchSize, maxBatchSize, namespace, shardFn)
+
+	for _, write := range writes {
+		writeBatch.AddTagged(
+			write.id,
+			write.tagIter,
+			write.timestamp,
+			write.value,
+			write.unit,
+			write.annotation)
+	}
+
+	// Make sure they're sorted
+	assertSorted(t, writes, writeBatch)
+
+	// Make sure all the data is there
+	assertDataPresent(t, writes, writeBatch)
+}
+
+func assertSorted(t *testing.T, writes []testWrite, batchWriter WriteBatch) {
+	// Make sure they're sorted
 	var (
 		iter      = batchWriter.Iter()
 		lastShard = uint32(0)
 	)
+
 	for iter.Next() {
 		var (
 			curr      = iter.Current()
@@ -93,18 +133,31 @@ func TestBatchWriter(t *testing.T) {
 		require.True(t, currShard >= lastShard)
 		lastShard = currShard
 	}
+}
 
-	// Make sure all the data is there
+func assertDataPresent(t *testing.T, writes []testWrite, batchWriter WriteBatch) {
 	for _, write := range writes {
-		iter := batchWriter.Iter()
+		var (
+			iter  = batchWriter.Iter()
+			found = false
+		)
+
 		for iter.Next() {
-			currSeries := iter.Current().Write.Series
+			var (
+				currWrite  = iter.Current().Write
+				currSeries = currWrite.Series
+			)
+
 			if currSeries.ID.Equal(write.id) {
-
-				continue
+				require.Equal(t, write.timestamp, currWrite.Datapoint.Timestamp)
+				require.Equal(t, write.value, currWrite.Datapoint.Value)
+				require.Equal(t, write.unit, currWrite.Unit)
+				require.True(t, bytes.Equal(write.annotation, currWrite.Annotation))
+				found = true
+				break
 			}
-
 		}
-	}
 
+		require.True(t, found, fmt.Sprintf("expected to find series: %s", write.id))
+	}
 }
