@@ -200,12 +200,12 @@ func (r *reader) Read() (
 	if r.nextIndex == 0 {
 		err := r.startBackgroundWorkers()
 		if err != nil {
-			return Series{}, ts.Datapoint{}, xtime.Unit(0), ts.Annotation(nil), err
+			return ts.Series{}, ts.Datapoint{}, xtime.Unit(0), ts.Annotation(nil), err
 		}
 	}
 	rr, ok := <-r.outChan
 	if !ok {
-		return Series{}, ts.Datapoint{}, xtime.Unit(0), ts.Annotation(nil), io.EOF
+		return ts.Series{}, ts.Datapoint{}, xtime.Unit(0), ts.Annotation(nil), io.EOF
 	}
 	r.nextIndex++
 	return rr.series, rr.datapoint, rr.unit, rr.annotation, rr.resultErr
@@ -444,7 +444,7 @@ func (r *reader) decodeAndHandleMetadata(
 		}
 	}
 
-	metadata := Series{
+	metadata := ts.Series{
 		UniqueIndex: entry.Index,
 		ID:          ident.BinaryID(id),
 		Namespace:   ident.BinaryID(namespace),
