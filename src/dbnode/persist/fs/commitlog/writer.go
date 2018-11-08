@@ -54,6 +54,8 @@ const (
 		chunkHeaderChecksumDataLen
 
 	defaultBitSetLength = 65536
+
+	defaultEncoderBuffSize = 16384
 )
 
 var (
@@ -95,22 +97,22 @@ type chunkWriter interface {
 type flushFn func(err error)
 
 type writer struct {
-	filePathPrefix     string
-	newFileMode        os.FileMode
-	newDirectoryMode   os.FileMode
-	nowFn              clock.NowFn
-	start              time.Time
-	duration           time.Duration
-	chunkWriter        chunkWriter
-	chunkReserveHeader []byte
-	buffer             *bufio.Writer
-	sizeBuffer         []byte
-	seen               *bitset.BitSet
-	logEncoder         *msgpack.Encoder
-	logEncoderBuff     []byte
-	metadataEncoder    *msgpack.Encoder
-	tagEncoder         serialize.TagEncoder
-	tagSliceIter       ident.TagsIterator
+	filePathPrefix      string
+	newFileMode         os.FileMode
+	newDirectoryMode    os.FileMode
+	nowFn               clock.NowFn
+	start               time.Time
+	duration            time.Duration
+	chunkWriter         chunkWriter
+	chunkReserveHeader  []byte
+	buffer              *bufio.Writer
+	sizeBuffer          []byte
+	seen                *bitset.BitSet
+	logEncoder          *msgpack.Encoder
+	logEncoderBuff      []byte
+	metadataEncoderBuff []byte
+	tagEncoder          serialize.TagEncoder
+	tagSliceIter        ident.TagsIterator
 }
 
 func newCommitLogWriter(
@@ -120,20 +122,20 @@ func newCommitLogWriter(
 	shouldFsync := opts.Strategy() == StrategyWriteWait
 
 	return &writer{
-		filePathPrefix:     opts.FilesystemOptions().FilePathPrefix(),
-		newFileMode:        opts.FilesystemOptions().NewFileMode(),
-		newDirectoryMode:   opts.FilesystemOptions().NewDirectoryMode(),
-		nowFn:              opts.ClockOptions().NowFn(),
-		chunkWriter:        newChunkWriter(flushFn, shouldFsync),
-		chunkReserveHeader: make([]byte, chunkHeaderLen),
-		buffer:             bufio.NewWriterSize(nil, opts.FlushSize()),
-		sizeBuffer:         make([]byte, binary.MaxVarintLen64),
-		seen:               bitset.NewBitSet(defaultBitSetLength),
-		logEncoder:         msgpack.NewEncoder(),
-		logEncoderBuff:     make([]byte, 0, 16384),
-		metadataEncoder:    msgpack.NewEncoder(),
-		tagEncoder:         opts.FilesystemOptions().TagEncoderPool().Get(),
-		tagSliceIter:       ident.NewTagsIterator(ident.Tags{}),
+		filePathPrefix:      opts.FilesystemOptions().FilePathPrefix(),
+		newFileMode:         opts.FilesystemOptions().NewFileMode(),
+		newDirectoryMode:    opts.FilesystemOptions().NewDirectoryMode(),
+		nowFn:               opts.ClockOptions().NowFn(),
+		chunkWriter:         newChunkWriter(flushFn, shouldFsync),
+		chunkReserveHeader:  make([]byte, chunkHeaderLen),
+		buffer:              bufio.NewWriterSize(nil, opts.FlushSize()),
+		sizeBuffer:          make([]byte, binary.MaxVarintLen64),
+		seen:                bitset.NewBitSet(defaultBitSetLength),
+		logEncoder:          msgpack.NewEncoder(),
+		logEncoderBuff:      make([]byte, 0, defaultEncoderBuffSize),
+		metadataEncoderBuff: make([]byte, 0, defaultEncoderBuffSize),
+		tagEncoder:          opts.FilesystemOptions().TagEncoderPool().Get(),
+		tagSliceIter:        ident.NewTagsIterator(ident.Tags{}),
 	}
 }
 
@@ -226,11 +228,15 @@ func (w *writer) Write(
 		metadata.Namespace = series.Namespace.Bytes()
 		metadata.Shard = series.Shard
 		metadata.EncodedTags = encodedTags
-		w.metadataEncoder.Reset()
-		if err := w.metadataEncoder.EncodeLogMetadata(metadata); err != nil {
+
+		w.metadataEncoderBuff = w.metadataEncoderBuff[:0]
+		var err error
+
+		w.metadataEncoderBuff, err = msgpack.EncodeLogMetadataFast(w.metadataEncoderBuff, metadata)
+		if err != nil {
 			return err
 		}
-		logEntry.Metadata = w.metadataEncoder.Bytes()
+		logEntry.Metadata = w.metadataEncoderBuff
 	}
 
 	logEntry.Timestamp = datapoint.Timestamp.UnixNano()
