@@ -388,15 +388,6 @@ func (l *commitLog) flushEvery(interval time.Duration) {
 }
 
 func (l *commitLog) write() {
-	handleWriteErr := func(err error) {
-		l.metrics.errors.Inc(1)
-		l.log.Errorf("failed to write to commit log: %v", err)
-
-		if l.commitLogFailFn != nil {
-			l.commitLogFailFn(err)
-		}
-	}
-
 	for write := range l.writes {
 		if write.eventType == flushEventType {
 			l.writerState.writer.Flush(false)
@@ -460,7 +451,7 @@ func (l *commitLog) write() {
 			err := l.writerState.writer.Write(write.Series,
 				write.Datapoint, write.Unit, write.Annotation)
 			if err != nil {
-				handleWriteErr(err)
+				l.handleWriteErr(err)
 				continue
 			}
 			numWritesSuccess++
@@ -471,7 +462,7 @@ func (l *commitLog) write() {
 				err := l.writerState.writer.Write(write.Series,
 					write.Datapoint, write.Unit, write.Annotation)
 				if err != nil {
-					handleWriteErr(err)
+					l.handleWriteErr(err)
 					continue
 				}
 				numWritesSuccess++
@@ -666,4 +657,13 @@ func (l *commitLog) Close() error {
 
 	// Receive the result of closing the writer from asynchronous writer
 	return <-l.closeErr
+}
+
+func (l *commitLog) handleWriteErr(err error) {
+	l.metrics.errors.Inc(1)
+	l.log.Errorf("failed to write to commit log: %v", err)
+
+	if l.commitLogFailFn != nil {
+		l.commitLogFailFn(err)
+	}
 }
