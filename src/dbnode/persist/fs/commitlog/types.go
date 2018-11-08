@@ -56,7 +56,7 @@ type CommitLog interface {
 	// Write will write an entry in the commit log for a given series
 	Write(
 		ctx context.Context,
-		series Series,
+		series ts.Series,
 		datapoint ts.Datapoint,
 		unit xtime.Unit,
 		annotation ts.Annotation,
@@ -99,26 +99,6 @@ type IteratorOpts struct {
 	CommitLogOptions      Options
 	FileFilterPredicate   FileFilterPredicate
 	SeriesFilterPredicate SeriesFilterPredicate
-}
-
-// Series describes a series in the commit log
-type Series struct {
-	// UniqueIndex is the unique index assigned to this series
-	UniqueIndex uint64
-
-	// Namespace is the namespace the series belongs to
-	Namespace ident.ID
-
-	// ID is the series identifier
-	ID ident.ID
-
-	// Tags are the series tags
-	Tags ident.Tags
-
-	TagIter ident.TagIterator
-
-	// Shard is the shard the series belongs to
-	Shard uint32
 }
 
 // Options represents the options for the commit log

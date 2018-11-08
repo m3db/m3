@@ -34,7 +34,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/generated/proto/pagetoken"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
-	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -750,7 +749,7 @@ func (s *dbShard) WriteTagged(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-) (commitlog.Series, error) {
+) (ts.Series, error) {
 	return s.writeAndIndex(ctx, id, tags, timestamp,
 		value, unit, annotation, true)
 }
@@ -762,7 +761,7 @@ func (s *dbShard) Write(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-) (commitlog.Series, error) {
+) (ts.Series, error) {
 	return s.writeAndIndex(ctx, id, ident.EmptyTagIterator, timestamp,
 		value, unit, annotation, false)
 }
@@ -776,11 +775,11 @@ func (s *dbShard) writeAndIndex(
 	unit xtime.Unit,
 	annotation []byte,
 	shouldReverseIndex bool,
-) (commitlog.Series, error) {
+) (ts.Series, error) {
 	// Prepare write
 	entry, opts, err := s.tryRetrieveWritableSeries(id)
 	if err != nil {
-		return commitlog.Series{}, err
+		return ts.Series{}, err
 	}
 
 	writable := entry != nil
@@ -796,7 +795,7 @@ func (s *dbShard) writeAndIndex(
 			},
 		})
 		if err != nil {
-			return commitlog.Series{}, err
+			return ts.Series{}, err
 		}
 
 		// Wait for the insert to be batched together and inserted
@@ -805,7 +804,7 @@ func (s *dbShard) writeAndIndex(
 		// Retrieve the inserted entry
 		entry, err = s.writableSeries(id, tags)
 		if err != nil {
-			return commitlog.Series{}, err
+			return ts.Series{}, err
 		}
 		writable = true
 
@@ -839,7 +838,7 @@ func (s *dbShard) writeAndIndex(
 		// release the reference we got on entry from `writableSeries`
 		entry.DecrementReaderWriterCount()
 		if err != nil {
-			return commitlog.Series{}, err
+			return ts.Series{}, err
 		}
 	} else {
 		// This is an asynchronous insert and write
@@ -858,7 +857,7 @@ func (s *dbShard) writeAndIndex(
 			},
 		})
 		if err != nil {
-			return commitlog.Series{}, err
+			return ts.Series{}, err
 		}
 		// NB(r): Make sure to use the copied ID which will eventually
 		// be set to the newly series inserted ID.
@@ -871,7 +870,7 @@ func (s *dbShard) writeAndIndex(
 	}
 
 	// Write commit log
-	series := commitlog.Series{
+	series := ts.Series{
 		UniqueIndex: commitLogSeriesUniqueIndex,
 		Namespace:   s.namespace.ID(),
 		ID:          commitLogSeriesID,

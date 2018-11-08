@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
-	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
@@ -60,7 +59,7 @@ var (
 type commitLogWriter interface {
 	Write(
 		ctx context.Context,
-		series commitlog.Series,
+		series ts.Series,
 		datapoint ts.Datapoint,
 		unit xtime.Unit,
 		annotation ts.Annotation,
@@ -69,7 +68,7 @@ type commitLogWriter interface {
 
 type commitLogWriterFn func(
 	ctx context.Context,
-	series commitlog.Series,
+	series ts.Series,
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
 	annotation ts.Annotation,
@@ -77,7 +76,7 @@ type commitLogWriterFn func(
 
 func (fn commitLogWriterFn) Write(
 	ctx context.Context,
-	series commitlog.Series,
+	series ts.Series,
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
 	annotation ts.Annotation,
@@ -87,7 +86,7 @@ func (fn commitLogWriterFn) Write(
 
 var commitLogWriteNoOp = commitLogWriter(commitLogWriterFn(func(
 	ctx context.Context,
-	series commitlog.Series,
+	series ts.Series,
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
 	annotation ts.Annotation,
@@ -557,12 +556,12 @@ func (n *dbNamespace) Write(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-) (commitlog.Series, error) {
+) (ts.Series, error) {
 	callStart := n.nowFn()
 	shard, err := n.shardFor(id)
 	if err != nil {
 		n.metrics.write.ReportError(n.nowFn().Sub(callStart))
-		return commitlog.Series{}, err
+		return ts.Series{}, err
 	}
 	series, err := shard.Write(ctx, id, timestamp, value, unit, annotation)
 	n.metrics.write.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
@@ -577,16 +576,16 @@ func (n *dbNamespace) WriteTagged(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-) (commitlog.Series, error) {
+) (ts.Series, error) {
 	callStart := n.nowFn()
 	if n.reverseIndex == nil { // only happens if indexing is enabled.
 		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
-		return commitlog.Series{}, errNamespaceIndexingDisabled
+		return ts.Series{}, errNamespaceIndexingDisabled
 	}
 	shard, err := n.shardFor(id)
 	if err != nil {
 		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
-		return commitlog.Series{}, err
+		return ts.Series{}, err
 	}
 	series, err := shard.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
 	n.metrics.writeTagged.ReportSuccessOrError(err, n.nowFn().Sub(callStart))

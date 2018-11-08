@@ -22,7 +22,29 @@ package ts
 
 import (
 	"time"
+
+	"github.com/m3db/m3x/ident"
 )
+
+// Series describes a series in the commit log
+type Series struct {
+	// UniqueIndex is the unique index assigned to this series
+	UniqueIndex uint64
+
+	// Namespace is the namespace the series belongs to
+	Namespace ident.ID
+
+	// ID is the series identifier
+	ID ident.ID
+
+	// Tags are the series tags
+	Tags ident.Tags
+
+	TagIter ident.TagIterator
+
+	// Shard is the shard the series belongs to
+	Shard uint32
+}
 
 // A Datapoint is a single data value reported at a given time.
 type Datapoint struct {

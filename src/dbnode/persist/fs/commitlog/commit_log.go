@@ -530,7 +530,7 @@ func (l *commitLog) openWriter(now time.Time) (File, error) {
 
 func (l *commitLog) Write(
 	ctx context.Context,
-	series Series,
+	series ts.Series,
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
 	annotation ts.Annotation,

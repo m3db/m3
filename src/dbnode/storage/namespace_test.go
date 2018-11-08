@@ -29,7 +29,6 @@ import (
 
 	"github.com/m3db/m3/src/cluster/shard"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
-	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/sharding"
@@ -163,7 +162,7 @@ func TestNamespaceWriteShardOwned(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
 	shard := NewMockdatabaseShard(ctrl)
-	shard.EXPECT().Write(ctx, id, ts, val, unit, ant).Return(commitlog.Series{}, nil)
+	shard.EXPECT().Write(ctx, id, ts, val, unit, ant).Return(ts.Series{}, nil)
 	ns.shards[testShardIDs[0].ID()] = shard
 
 	_, err := ns.Write(ctx, id, ts, val, unit, ant)
@@ -1029,7 +1028,7 @@ func TestNamespaceIndexInsert(t *testing.T) {
 
 	shard := NewMockdatabaseShard(ctrl)
 	shard.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
-		ts, 1.0, xtime.Second, nil).Return(commitlog.Series{}, nil)
+		ts, 1.0, xtime.Second, nil).Return(ts.Series{}, nil)
 	ns.shards[testShardIDs[0].ID()] = shard
 
 	_, err := ns.WriteTagged(ctx, ident.StringID("a"),

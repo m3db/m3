@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xcounter"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/context"
@@ -228,7 +229,7 @@ type databaseNamespace interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
-	) (commitlog.Series, error)
+	) (ts.Series, error)
 
 	// WriteTagged values to the namespace for an ID
 	WriteTagged(
@@ -239,7 +240,7 @@ type databaseNamespace interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
-	) (commitlog.Series, error)
+	) (ts.Series, error)
 
 	// QueryIDs resolves the given query into known IDs.
 	QueryIDs(
@@ -352,7 +353,7 @@ type databaseShard interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
-	) (commitlog.Series, error)
+	) (ts.Series, error)
 
 	// WriteTagged values to the shard for an ID
 	WriteTagged(
@@ -363,7 +364,7 @@ type databaseShard interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
-	) (commitlog.Series, error)
+	) (ts.Series, error)
 
 	ReadEncoded(
 		ctx context.Context,

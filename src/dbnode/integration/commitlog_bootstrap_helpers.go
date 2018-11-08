@@ -179,7 +179,7 @@ func writeCommitLogDataBase(
 		for _, point := range points {
 			series, ok := seriesLookup[point.ID.String()]
 			require.True(t, ok)
-			cId := commitlog.Series{
+			cId := ts.Series{
 				Namespace:   namespace.ID(),
 				Shard:       shardSet.Lookup(point.ID),
 				ID:          point.ID,

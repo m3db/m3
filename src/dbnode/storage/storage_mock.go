@@ -42,6 +42,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xcounter"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/context"
@@ -841,9 +842,9 @@ func (mr *MockdatabaseNamespaceMockRecorder) Tick(c, tickStart interface{}) *gom
 }
 
 // Write mocks base method
-func (m *MockdatabaseNamespace) Write(ctx context.Context, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) (commitlog.Series, error) {
+func (m *MockdatabaseNamespace) Write(ctx context.Context, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) (ts.Series, error) {
 	ret := m.ctrl.Call(m, "Write", ctx, id, timestamp, value, unit, annotation)
-	ret0, _ := ret[0].(commitlog.Series)
+	ret0, _ := ret[0].(ts.Series)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -854,9 +855,9 @@ func (mr *MockdatabaseNamespaceMockRecorder) Write(ctx, id, timestamp, value, un
 }
 
 // WriteTagged mocks base method
-func (m *MockdatabaseNamespace) WriteTagged(ctx context.Context, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) (commitlog.Series, error) {
+func (m *MockdatabaseNamespace) WriteTagged(ctx context.Context, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) (ts.Series, error) {
 	ret := m.ctrl.Call(m, "WriteTagged", ctx, id, tags, timestamp, value, unit, annotation)
-	ret0, _ := ret[0].(commitlog.Series)
+	ret0, _ := ret[0].(ts.Series)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1207,9 +1208,9 @@ func (mr *MockdatabaseShardMockRecorder) Tick(c, tickStart interface{}) *gomock.
 }
 
 // Write mocks base method
-func (m *MockdatabaseShard) Write(ctx context.Context, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) (commitlog.Series, error) {
+func (m *MockdatabaseShard) Write(ctx context.Context, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) (ts.Series, error) {
 	ret := m.ctrl.Call(m, "Write", ctx, id, timestamp, value, unit, annotation)
-	ret0, _ := ret[0].(commitlog.Series)
+	ret0, _ := ret[0].(ts.Series)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1220,9 +1221,9 @@ func (mr *MockdatabaseShardMockRecorder) Write(ctx, id, timestamp, value, unit, 
 }
 
 // WriteTagged mocks base method
-func (m *MockdatabaseShard) WriteTagged(ctx context.Context, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) (commitlog.Series, error) {
+func (m *MockdatabaseShard) WriteTagged(ctx context.Context, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) (ts.Series, error) {
 	ret := m.ctrl.Call(m, "WriteTagged", ctx, id, tags, timestamp, value, unit, annotation)
-	ret0, _ := ret[0].(commitlog.Series)
+	ret0, _ := ret[0].(ts.Series)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
