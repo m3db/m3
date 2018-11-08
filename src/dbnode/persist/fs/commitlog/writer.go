@@ -145,7 +145,7 @@ func (w *writer) Open(start time.Time, duration time.Duration) (File, error) {
 	}
 
 	// Reset buffers since they will grow 2x on demand so we want to make sure that
-	// an exception case does not cause them to remain oversized forever.
+	// one exceptionally large write does not cause them to remain oversized forever.
 	if cap(w.logEncoderBuff) != defaultEncoderBuffSize {
 		w.logEncoderBuff = make([]byte, 0, defaultEncoderBuffSize)
 	}
