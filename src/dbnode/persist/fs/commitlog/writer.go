@@ -238,10 +238,8 @@ func (w *writer) Write(
 		metadata.Shard = series.Shard
 		metadata.EncodedTags = encodedTags
 
-		w.metadataEncoderBuff = w.metadataEncoderBuff[:0]
 		var err error
-
-		w.metadataEncoderBuff, err = msgpack.EncodeLogMetadataFast(w.metadataEncoderBuff, metadata)
+		w.metadataEncoderBuff, err = msgpack.EncodeLogMetadataFast(w.metadataEncoderBuff[:0], metadata)
 		if err != nil {
 			return err
 		}
@@ -253,13 +251,12 @@ func (w *writer) Write(
 	logEntry.Unit = uint32(unit)
 	logEntry.Annotation = annotation
 
-	w.logEncoderBuff = w.logEncoderBuff[:0]
-
 	var err error
-	w.logEncoderBuff, err = msgpack.EncodeLogEntryFast(w.logEncoderBuff, logEntry)
+	w.logEncoderBuff, err = msgpack.EncodeLogEntryFast(w.logEncoderBuff[:0], logEntry)
 	if err != nil {
 		return err
 	}
+
 	if err := w.write(w.logEncoderBuff); err != nil {
 		return err
 	}
