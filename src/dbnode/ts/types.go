@@ -24,7 +24,19 @@ import (
 	"time"
 
 	"github.com/m3db/m3x/ident"
+	xtime "github.com/m3db/m3x/time"
 )
+
+// WriteBatch is a batch of Writes.
+type WriteBatch []Write
+
+// Write is a write for the commitlog.
+type Write struct {
+	Series     Series
+	Datapoint  Datapoint
+	Unit       xtime.Unit
+	Annotation Annotation
+}
 
 // Series describes a series in the commit log
 type Series struct {

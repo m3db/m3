@@ -534,7 +534,7 @@ func (d *db) WriteTagged(
 func (d *db) WriteTaggedBatch(
 	ctx context.Context,
 	namespace ident.ID,
-	writes commitlog.WritesBatch,
+	writes ts.WriteBatch,
 ) error {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {

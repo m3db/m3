@@ -108,7 +108,7 @@ type Database interface {
 	WriteTaggedBatch(
 		ctx context.Context,
 		namespace ident.ID,
-		writes commitlog.WritesBatch,
+		writes ts.WriteBatch,
 	) error
 
 	// QueryIDs resolves the given query into known IDs.

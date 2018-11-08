@@ -65,7 +65,7 @@ type CommitLog interface {
 	// WriteBatch is the same as Write, but in batch.
 	WriteBatch(
 		ctx context.Context,
-		writes WritesBatch,
+		writes ts.WriteBatch,
 	) error
 
 	// Close the commit log
