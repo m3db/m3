@@ -24,7 +24,6 @@ import (
 	"math"
 
 	"github.com/m3db/m3/src/dbnode/persist/schema"
-
 	"gopkg.in/vmihailenco/msgpack.v2/codes"
 )
 
@@ -81,6 +80,17 @@ func EncodeLogMetadataFast(b []byte, entry schema.LogMetadata) ([]byte, error) {
 	b = encodeBytes(b, entry.EncodedTags)
 
 	return b, nil
+}
+
+func growAndReturn(b []byte, n int) ([]byte, []byte) {
+	if cap(b)-len(b) < n {
+		newCapacity := 2 * (len(b) + n)
+		newBuff := make([]byte, len(b), newCapacity)
+		copy(newBuff, b)
+		b = newBuff
+	}
+	ret := b[:len(b)+n]
+	return ret, ret[len(b):]
 }
 
 // encodeVarUint64 is used in EncodeLogEntryFast which is a very hot path.
@@ -299,8 +309,9 @@ func encodeBytes(b []byte, data []byte) []byte {
 	return b
 }
 
-// encodeBytesLen is not used, it is left here to demonstrate what a manually inlined
-// version of this function should look like.
+/*
+These functions are not used, but are left here to demonstrate what the manually
+// inlined versions of these functions should look like.
 func encodeBytesLen(b []byte, l int) []byte {
 	if l < 256 {
 		return write1(b, codes.Bin8, uint64(l))
@@ -311,8 +322,6 @@ func encodeBytesLen(b []byte, l int) []byte {
 	return write4(b, codes.Bin32, uint64(l))
 }
 
-// write1 is not used, it is left here to demonstrate what a manually inlined
-// version of this function should look like.
 func write1(b []byte, code byte, n uint64) []byte {
 	b, buf := growAndReturn(b, 2)
 	buf[0] = code
@@ -320,8 +329,6 @@ func write1(b []byte, code byte, n uint64) []byte {
 	return b
 }
 
-// write2 is not used, it is left here to demonstrate what a manually inlined
-// version of this function should look like.
 func write2(b []byte, code byte, n uint64) []byte {
 	b, buf := growAndReturn(b, 3)
 	buf[0] = code
@@ -330,8 +337,6 @@ func write2(b []byte, code byte, n uint64) []byte {
 	return b
 }
 
-// write4 is not used, it is left here to demonstrate what a manually inlined
-// version of this function should look like.
 func write4(b []byte, code byte, n uint64) []byte {
 	b, buf := growAndReturn(b, 5)
 	buf[0] = code
@@ -342,8 +347,6 @@ func write4(b []byte, code byte, n uint64) []byte {
 	return b
 }
 
-// write8 is not used, it is left here to demonstrate what a manually inlined
-// version of this function should look like.
 func write8(b []byte, code byte, n uint64) []byte {
 	b, buf := growAndReturn(b, 9)
 	buf[0] = code
@@ -357,14 +360,4 @@ func write8(b []byte, code byte, n uint64) []byte {
 	buf[8] = byte(n)
 	return b
 }
-
-func growAndReturn(b []byte, n int) ([]byte, []byte) {
-	if cap(b)-len(b) < n {
-		newCapacity := 2 * (len(b) + n)
-		newBuff := make([]byte, len(b), newCapacity)
-		copy(newBuff, b)
-		b = newBuff
-	}
-	ret := b[:len(b)+n]
-	return ret, ret[len(b):]
-}
+*/
