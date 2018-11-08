@@ -27,36 +27,6 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
-type AppenderWrite struct {
-	Write   Write
-	TagIter ident.TagIterator
-}
-
-type Appender interface {
-	// stoes an AppenderWrite internalally for each of these
-	Add(
-		namespace ident.ID,
-		id ident.ID,
-		tags ident.TagIterator,
-		timestamp time.Time,
-		value float64,
-		unit xtime.Unit,
-		annotation []byte,
-	)
-}
-
-// Not Exposed to users
-type WriteBatch interface {
-	Appender
-	Writes() []AppenderWrite
-	UpdateSeries(i int, series Series)
-}
-
-// WriteBatch is a batch of Writes.
-type WriteBatch struct {
-	Writes []Write
-}
-
 // Write is a write for the commitlog.
 type Write struct {
 	Series     Series
