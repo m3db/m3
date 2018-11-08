@@ -289,13 +289,12 @@ func encodeBytes(b []byte, data []byte) []byte {
 	if l < 256 {
 		b, buf = growAndReturn(b, 2)
 		buf[0] = codes.Bin8
-		buf[1] = byte(uint64(l))
+		buf[1] = byte(v)
 	} else if l < 65536 {
 		b, buf = growAndReturn(b, 3)
 		buf[0] = codes.Bin16
 		buf[1] = byte(v >> 8)
 		buf[2] = byte(v)
-		return b
 	} else {
 		b, buf = growAndReturn(b, 5)
 		buf[0] = codes.Bin32
