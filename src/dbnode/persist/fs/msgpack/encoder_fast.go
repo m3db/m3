@@ -49,6 +49,8 @@ func EncodeLogEntryFast(b []byte, entry schema.LogEntry) ([]byte, error) {
 		return nil, logEntryHeaderErr
 	}
 
+	// TODO(rartoul): Can optimize this further by storing the version as part of the
+	// info for the commit log file itself, instead of in every entry.
 	b = append(b, logEntryHeader...)
 	b = encodeVarUint64(b, entry.Index)
 	b = encodeVarInt64(b, entry.Create)
@@ -57,6 +59,24 @@ func EncodeLogEntryFast(b []byte, entry schema.LogEntry) ([]byte, error) {
 	b = encodeFloat64(b, entry.Value)
 	b = encodeVarUint64(b, uint64(entry.Unit))
 	b = encodeBytes(b, entry.Annotation)
+
+	return b, nil
+}
+
+// EncodeLogMetadataFast is the same as EncodeLogEntryFast except for the metadata
+// entries instead of the data entries.
+func EncodeLogMetadataFast(b []byte, entry schema.LogMetadata) ([]byte, error) {
+	if logMetadataHeaderErr != nil {
+		return nil, logMetadataHeaderErr
+	}
+
+	// TODO(rartoul): Can optimize this further by storing the version as part of the
+	// info for the commit log file itself, instead of in every entry.
+	b = append(b, logMetadataHeader...)
+	b = encodeBytes(b, entry.ID)
+	b = encodeBytes(b, entry.Namespace)
+	b = encodeVarUint64(b, uint64(entry.Shard))
+	b = encodeBytes(b, entry.EncodedTags)
 
 	return b, nil
 }

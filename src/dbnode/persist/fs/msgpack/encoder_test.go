@@ -193,6 +193,17 @@ func TestEncodeLogMetadata(t *testing.T) {
 	require.Equal(t, expected, *actual)
 }
 
+func TestEncodeLogMetadataFast(t *testing.T) {
+	buffer, err := EncodeLogMetadataFast(nil, testLogMetadata)
+	require.NoError(t, err)
+
+	enc := NewEncoder()
+	enc.EncodeLogMetadata(testLogMetadata)
+	expected := enc.Bytes()
+
+	require.Equal(t, expected, buffer)
+}
+
 func TestEncodeVarintError(t *testing.T) {
 	enc, _ := testCapturingEncoder(t)
 	enc.encodeVarintFn = func(value int64) { enc.err = errTestVarint }

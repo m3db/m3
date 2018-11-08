@@ -115,6 +115,9 @@ var (
 
 	logEntryHeader    []byte
 	logEntryHeaderErr error
+
+	logMetadataHeader    []byte
+	logMetadataHeaderErr error
 )
 
 func numFieldsForType(objType objectType) (min, curr int) {
@@ -168,9 +171,15 @@ func init() {
 	encoder := NewEncoder()
 	encoder.encodeRootObject(logEntryVersion, logEntryType)
 	encoder.encodeNumObjectFieldsForFn(logEntryType)
-
 	logEntryHeader = encoder.Bytes()
 	logEntryHeaderErr = encoder.err
+
+	// Populate the fixed commit log metadata header
+	encoder = NewEncoder()
+	encoder.encodeRootObject(logMetadataVersion, logMetadataType)
+	encoder.encodeNumObjectFieldsForFn(logMetadataType)
+	logMetadataHeader = encoder.Bytes()
+	logMetadataHeaderErr = encoder.err
 }
 
 func mustBeGreaterThanOrEqual(x, y int) {
