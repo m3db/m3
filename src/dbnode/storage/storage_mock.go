@@ -198,7 +198,7 @@ func (mr *MockDatabaseMockRecorder) WriteTagged(ctx, namespace, id, tags, timest
 }
 
 // WriteTaggedBatch mocks base method
-func (m *MockDatabase) WriteTaggedBatch(ctx context.Context, namespace ident.ID, writes commitlog.WritesBatch) error {
+func (m *MockDatabase) WriteTaggedBatch(ctx context.Context, namespace ident.ID, writes ts.WriteBatch) error {
 	ret := m.ctrl.Call(m, "WriteTaggedBatch", ctx, namespace, writes)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -478,7 +478,7 @@ func (mr *MockdatabaseMockRecorder) WriteTagged(ctx, namespace, id, tags, timest
 }
 
 // WriteTaggedBatch mocks base method
-func (m *Mockdatabase) WriteTaggedBatch(ctx context.Context, namespace ident.ID, writes commitlog.WritesBatch) error {
+func (m *Mockdatabase) WriteTaggedBatch(ctx context.Context, namespace ident.ID, writes ts.WriteBatch) error {
 	ret := m.ctrl.Call(m, "WriteTaggedBatch", ctx, namespace, writes)
 	ret0, _ := ret[0].(error)
 	return ret0

@@ -76,7 +76,7 @@ func (mr *MockCommitLogMockRecorder) Open() *gomock.Call {
 }
 
 // Write mocks base method
-func (m *MockCommitLog) Write(ctx context.Context, series Series, datapoint ts.Datapoint, unit time0.Unit, annotation ts.Annotation) error {
+func (m *MockCommitLog) Write(ctx context.Context, series ts.Series, datapoint ts.Datapoint, unit time0.Unit, annotation ts.Annotation) error {
 	ret := m.ctrl.Call(m, "Write", ctx, series, datapoint, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -88,7 +88,7 @@ func (mr *MockCommitLogMockRecorder) Write(ctx, series, datapoint, unit, annotat
 }
 
 // WriteBatch mocks base method
-func (m *MockCommitLog) WriteBatch(ctx context.Context, writes WritesBatch) error {
+func (m *MockCommitLog) WriteBatch(ctx context.Context, writes ts.WriteBatch) error {
 	ret := m.ctrl.Call(m, "WriteBatch", ctx, writes)
 	ret0, _ := ret[0].(error)
 	return ret0
