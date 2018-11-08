@@ -144,6 +144,15 @@ func (w *writer) Open(start time.Time, duration time.Duration) (File, error) {
 		return File{}, errCommitLogWriterAlreadyOpen
 	}
 
+	// Reset buffers since they will grow 2x on demand so we want to make sure that
+	// an exception case does not cause them to remain oversized forever.
+	if cap(w.logEncoderBuff) != defaultEncoderBuffSize {
+		w.logEncoderBuff = make([]byte, 0, defaultEncoderBuffSize)
+	}
+	if cap(w.metadataEncoderBuff) != defaultEncoderBuffSize {
+		w.metadataEncoderBuff = make([]byte, 0, defaultEncoderBuffSize)
+	}
+
 	commitLogsDir := fs.CommitLogsDirPath(w.filePathPrefix)
 	if err := os.MkdirAll(commitLogsDir, w.newDirectoryMode); err != nil {
 		return File{}, err
