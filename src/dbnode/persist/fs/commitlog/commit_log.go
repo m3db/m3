@@ -52,10 +52,18 @@ type newCommitLogWriterFn func(
 
 type writeCommitLogFn func(
 	ctx context.Context,
-	writes ts.WriteBatch,
+	writes writeOrWriteBatch,
 ) error
 
 type commitLogFailFn func(err error)
+
+// writeOrWriteBatch is a union type of write or writeBatch so that
+// we can handle both cases without having to allocate as slice of size
+// 1 to handle a single write.
+type writeOrWriteBatch struct {
+	write      ts.Write
+	writeBatch ts.WriteBatch
+}
 
 type commitLog struct {
 	// The commitlog has two different locks that it maintains:
@@ -191,7 +199,7 @@ func (r callbackResult) rotateLogsResult() (rotateLogsResult, error) {
 
 type commitLogWrite struct {
 	eventType  eventType
-	writeBatch ts.WriteBatch
+	write      writeOrWriteBatch
 	callbackFn callbackFn
 }
 
@@ -380,6 +388,15 @@ func (l *commitLog) flushEvery(interval time.Duration) {
 }
 
 func (l *commitLog) write() {
+	handleWriteErr := func(err error) {
+		l.metrics.errors.Inc(1)
+		l.log.Errorf("failed to write to commit log: %v", err)
+
+		if l.commitLogFailFn != nil {
+			l.commitLogFailFn(err)
+		}
+	}
+
 	for write := range l.writes {
 		if write.eventType == flushEventType {
 			l.writerState.writer.Flush(false)
@@ -436,25 +453,32 @@ func (l *commitLog) write() {
 			}
 		}
 
-		for i := 0; i < len(write.writeBatch.Writes); i++ {
-			write := write.writeBatch.Writes[i]
+		numWritesSuccess := int64(0)
+		if write.write.writeBatch.Writes == nil {
+			// Handle individual write case
+			write := write.write.write
 			err := l.writerState.writer.Write(write.Series,
 				write.Datapoint, write.Unit, write.Annotation)
 			if err != nil {
-				l.metrics.errors.Inc(1)
-				l.log.Errorf("failed to write to commit log: %v", err)
-
-		if err != nil {
-			l.metrics.errors.Inc(1)
-			l.log.Errorf("failed to write to commit log: %v", err)
-
-			if l.commitLogFailFn != nil {
-				l.commitLogFailFn(err)
+				handleWriteErr(err)
+				continue
 			}
-
-			continue
+			numWritesSuccess++
+		} else {
+			// Handle write batch case
+			for i := 0; i < len(write.write.writeBatch.Writes); i++ {
+				write := write.write.writeBatch.Writes[i]
+				err := l.writerState.writer.Write(write.Series,
+					write.Datapoint, write.Unit, write.Annotation)
+				if err != nil {
+					handleWriteErr(err)
+					continue
+				}
+				numWritesSuccess++
+			}
 		}
-		l.metrics.success.Inc(1)
+
+		l.metrics.success.Inc(numWritesSuccess)
 	}
 
 	writer := l.writerState.writer
@@ -533,14 +557,12 @@ func (l *commitLog) Write(
 	unit xtime.Unit,
 	annotation ts.Annotation,
 ) error {
-	return l.writeFn(ctx, ts.WriteBatch{
-		Writes: []ts.Write{
-			{
-				Series:     series,
-				Datapoint:  datapoint,
-				Unit:       unit,
-				Annotation: annotation,
-			},
+	return l.writeFn(ctx, writeOrWriteBatch{
+		write: ts.Write{
+			Series:     series,
+			Datapoint:  datapoint,
+			Unit:       unit,
+			Annotation: annotation,
 		},
 	})
 }
@@ -549,12 +571,14 @@ func (l *commitLog) WriteBatch(
 	ctx context.Context,
 	writes ts.WriteBatch,
 ) error {
-	return l.writeFn(ctx, writes)
+	return l.writeFn(ctx, writeOrWriteBatch{
+		writeBatch: writes,
+	})
 }
 
 func (l *commitLog) writeWait(
 	ctx context.Context,
-	writes ts.WriteBatch,
+	write writeOrWriteBatch,
 ) error {
 	l.closedState.RLock()
 	if l.closedState.closed {
@@ -574,15 +598,15 @@ func (l *commitLog) writeWait(
 		wg.Done()
 	}
 
-	write := commitLogWrite{
-		writeBatch: writes,
+	writeToEnqueue := commitLogWrite{
+		write:      write,
 		callbackFn: completion,
 	}
 
 	enqueued := false
 
 	select {
-	case l.writes <- write:
+	case l.writes <- writeToEnqueue:
 		enqueued = true
 	default:
 	}
@@ -600,7 +624,7 @@ func (l *commitLog) writeWait(
 
 func (l *commitLog) writeBehind(
 	ctx context.Context,
-	writes ts.WriteBatch,
+	write writeOrWriteBatch,
 ) error {
 	l.closedState.RLock()
 	if l.closedState.closed {
@@ -608,14 +632,14 @@ func (l *commitLog) writeBehind(
 		return errCommitLogClosed
 	}
 
-	write := commitLogWrite{
-		writeBatch: writes,
+	writeToEnqueue := commitLogWrite{
+		write: write,
 	}
 
 	enqueued := false
 
 	select {
-	case l.writes <- write:
+	case l.writes <- writeToEnqueue:
 		enqueued = true
 	default:
 	}
