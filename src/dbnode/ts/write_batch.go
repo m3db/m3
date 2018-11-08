@@ -21,6 +21,7 @@
 package ts
 
 import (
+	"sort"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/sharding"
@@ -28,13 +29,14 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
-type batchWriter struct {
+type writeBatch struct {
 	// The maximum batch size that will be allowed to be retained in a call to
 	// Reset().
-	maxBatchSize int
-	writes       []BatchWriterWrite
-	ns           ident.ID
-	shardFn      sharding.HashFn
+	maxBatchSize    int
+	writes          []BatchWriterWrite
+	writesAreSorted bool
+	ns              ident.ID
+	shardFn         sharding.HashFn
 }
 
 type writeBatchIter struct {
@@ -42,16 +44,21 @@ type writeBatchIter struct {
 	iterPos int
 }
 
-func NewBatchWriter(batchSize int, ns ident.ID, shardFn sharding.HashFn) *batchWriter {
-	return &batchWriter{
-		// TODO: Pool me
+// NewWriteBatch creates a new WriteBatch.
+func NewWriteBatch(
+	batchSize int,
+	maxBatchSize int,
+	ns ident.ID,
+	shardFn sharding.HashFn,
+) WriteBatch {
+	return &writeBatch{
 		writes:  make([]BatchWriterWrite, 0, batchSize),
 		ns:      ns,
 		shardFn: shardFn,
 	}
 }
 
-func (b *batchWriter) Add(
+func (b *writeBatch) Add(
 	id ident.ID,
 	timestamp time.Time,
 	value float64,
@@ -64,7 +71,7 @@ func (b *batchWriter) Add(
 	b.writes = append(b.writes, write)
 }
 
-func (b *batchWriter) AddTagged(
+func (b *writeBatch) AddTagged(
 	id ident.ID,
 	tagIter ident.TagIterator,
 	timestamp time.Time,
@@ -78,7 +85,7 @@ func (b *batchWriter) AddTagged(
 	b.writes = append(b.writes, write)
 }
 
-func (b *batchWriter) Reset(
+func (b *writeBatch) Reset(
 	batchSize int,
 	ns ident.ID,
 	shardFn sharding.HashFn,
@@ -95,7 +102,16 @@ func (b *batchWriter) Reset(
 	b.shardFn = shardFn
 }
 
-func (b *batchWriter) Iter() WriteBatchIter {
+func (b *writeBatch) Iter() WriteBatchIter {
+	if !b.writesAreSorted {
+		// Sort by shard so that callers can perform per-shard operations
+		// more efficiently.
+		sort.Slice(b.writes, func(i, j int) bool {
+			return b.writes[i].Write.Series.Shard < b.writes[j].Write.Series.Shard
+		})
+		b.writesAreSorted = true
+	}
+
 	return &writeBatchIter{
 		writes:  b.writes,
 		iterPos: 0,
@@ -119,6 +135,8 @@ func (i *writeBatchIter) UpdateSeries(s Series) {
 	i.writes[i.iterPos].Write.Series = s
 }
 
+// BatchWriterWrite represents a write that was added to the
+// BatchWriter.
 type BatchWriterWrite struct {
 	Write   Write
 	TagIter ident.TagIterator
@@ -149,10 +167,10 @@ func newBatchWriterWrite(
 	}
 }
 
+// BatchWriter is the interface that is used for preparing a batch of
+// writes.
 type BatchWriter interface {
-	// stoes an AppenderWrite internalally for each of these
 	Add(
-		namespace ident.ID,
 		id ident.ID,
 		timestamp time.Time,
 		value float64,
@@ -161,7 +179,6 @@ type BatchWriter interface {
 	)
 
 	AddTagged(
-		namespace ident.ID,
 		id ident.ID,
 		tags ident.TagIterator,
 		timestamp time.Time,
@@ -171,8 +188,11 @@ type BatchWriter interface {
 	)
 }
 
-// Not Exposed to users
-type WriteBatchIface interface {
+// WriteBatch is the interface that supports adding writes to the batch,
+// as well as iterating through the batched writes and resetting the
+// struct (for pooling).
+type WriteBatch interface {
+	BatchWriter
 	Iter() WriteBatchIter
 	Reset(
 		batchSize int,
@@ -181,13 +201,11 @@ type WriteBatchIface interface {
 	)
 }
 
+// WriteBatchIter is an iterator for a given WriteBatch allowing the
+// caller to iterate through the writes, as well as update the current
+// series.
 type WriteBatchIter interface {
 	Current() BatchWriterWrite
 	UpdateSeries(Series)
 	Next() bool
-}
-
-// WriteBatch is a batch of Writes.
-type WriteBatch struct {
-	Writes []Write
 }
