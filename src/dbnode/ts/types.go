@@ -49,8 +49,6 @@ type Series struct {
 	// Tags are the series tags
 	Tags ident.Tags
 
-	TagIter ident.TagIterator
-
 	// Shard is the shard the series belongs to
 	Shard uint32
 }

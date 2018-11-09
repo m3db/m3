@@ -531,6 +531,21 @@ func (d *db) WriteTagged(
 	return d.commitLog.Write(ctx, series, dp, unit, annotation)
 }
 
+func (d *db) WriteTaggedBatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error) {
+	n, err := d.namespaceFor(namespace)
+	if err != nil {
+		// TODO: Fix metric
+		d.metrics.unknownNamespaceWriteTagged.Inc(1)
+		return nil, err
+	}
+
+	var (
+		nsID        = n.ID()
+		batchWriter = ts.NewWriteBatch(batchSize, 100000, nsID, d.shardSet.Lookup)
+	)
+	return batchWriter, nil
+}
+
 func (d *db) WriteTaggedBatch(
 	ctx context.Context,
 	namespace ident.ID,
@@ -542,15 +557,18 @@ func (d *db) WriteTaggedBatch(
 		return err
 	}
 
-	for i, write := range writes {
+	iter := writes.Iter()
+	for iter.Next() {
+		write := iter.Current()
+
 		series, err := n.WriteTagged(
 			ctx,
-			write.Series.ID,
-			write.Series.TagIter,
-			write.Datapoint.Timestamp,
-			write.Datapoint.Value,
-			write.Unit,
-			write.Annotation,
+			write.Write.Series.ID,
+			write.TagIter,
+			write.Write.Datapoint.Timestamp,
+			write.Write.Datapoint.Value,
+			write.Write.Unit,
+			write.Write.Annotation,
 		)
 		if err == commitlog.ErrCommitLogQueueFull {
 			d.errors.Record(1)
@@ -558,7 +576,7 @@ func (d *db) WriteTaggedBatch(
 		if err != nil {
 			return err
 		}
-		writes[i].Series = series
+		iter.UpdateSeries(series)
 	}
 
 	return d.commitLog.WriteBatch(ctx, writes)

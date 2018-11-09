@@ -445,7 +445,7 @@ func (l *commitLog) write() {
 		}
 
 		numWritesSuccess := int64(0)
-		if write.write.writeBatch.Writes == nil {
+		if write.write.writeBatch == nil {
 			// Handle individual write case
 			write := write.write.write
 			err := l.writerState.writer.Write(write.Series,
@@ -457,8 +457,9 @@ func (l *commitLog) write() {
 			numWritesSuccess++
 		} else {
 			// Handle write batch case
-			for i := 0; i < len(write.write.writeBatch.Writes); i++ {
-				write := write.write.writeBatch.Writes[i]
+			iter := write.write.writeBatch.Iter()
+			for iter.Next() {
+				write := iter.Current().Write
 				err := l.writerState.writer.Write(write.Series,
 					write.Datapoint, write.Unit, write.Annotation)
 				if err != nil {
