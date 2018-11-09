@@ -117,6 +117,71 @@ func TestBatchWriterAddTaggedAndIter(t *testing.T) {
 	assertDataPresent(t, writes, writeBatch)
 }
 
+func TestBatchWriterUpdateSeries(t *testing.T) {
+	writeBatch := NewWriteBatch(batchSize, maxBatchSize, namespace, shardFn)
+
+	for _, write := range writes {
+		writeBatch.AddTagged(
+			write.id,
+			write.tagIter,
+			write.timestamp,
+			write.value,
+			write.unit,
+			write.annotation)
+	}
+
+	// Update the series
+	var (
+		iter = writeBatch.Iter()
+		i    = 0
+	)
+	for iter.Next() {
+		var (
+			currWrite  = iter.Current().Write
+			currSeries = currWrite.Series
+			newSeries  = currSeries
+		)
+		newSeries.ID = ident.StringID(string(i))
+
+		iter.UpdateSeries(newSeries)
+	}
+
+	// Assert the series have been updated
+	iter = writeBatch.Iter()
+	for iter.Next() {
+		var (
+			currWrite  = iter.Current().Write
+			currSeries = currWrite.Series
+		)
+		require.True(t, ident.StringID(string(i)).Equal(currSeries.ID))
+	}
+}
+
+func TestWriteBatchReset(t *testing.T) {
+	var (
+		numResets  = 10
+		writeBatch = NewWriteBatch(batchSize, maxBatchSize, namespace, shardFn)
+	)
+
+	for i := 0; i < numResets; i++ {
+		writeBatch.Reset(batchSize, namespace, shardFn)
+		for _, write := range writes {
+			writeBatch.Add(
+				write.id,
+				write.timestamp,
+				write.value,
+				write.unit,
+				write.annotation)
+		}
+
+		// Make sure they're sorted
+		assertSorted(t, writes, writeBatch)
+
+		// Make sure all the data is there
+		assertDataPresent(t, writes, writeBatch)
+	}
+}
+
 func assertSorted(t *testing.T, writes []testWrite, batchWriter WriteBatch) {
 	// Make sure they're sorted
 	var (
