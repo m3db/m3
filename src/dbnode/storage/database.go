@@ -167,6 +167,7 @@ func NewDatabase(
 				SetRefillLowWatermark(0.1).
 				SetRefillHighWatermark(0.1)),
 	}
+	d.writeBatchPool.Init()
 
 	databaseIOpts := iopts.SetMetricsScope(scope)
 
