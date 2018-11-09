@@ -52,9 +52,10 @@ func NewWriteBatch(
 	shardFn sharding.HashFn,
 ) WriteBatch {
 	return &writeBatch{
-		writes:  make([]BatchWriterWrite, 0, batchSize),
-		ns:      ns,
-		shardFn: shardFn,
+		maxBatchSize: maxBatchSize,
+		writes:       make([]BatchWriterWrite, 0, batchSize),
+		ns:           ns,
+		shardFn:      shardFn,
 	}
 }
 
