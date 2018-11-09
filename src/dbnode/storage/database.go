@@ -41,6 +41,7 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
+	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
@@ -96,6 +97,8 @@ type db struct {
 	errors       xcounter.FrequencyCounter
 	errWindow    time.Duration
 	errThreshold int64
+
+	writeBatchPool *writeBatchPool
 }
 
 type databaseMetrics struct {
@@ -157,6 +160,12 @@ func NewDatabase(
 		errors:       xcounter.NewFrequencyCounter(opts.ErrorCounterOptions()),
 		errWindow:    opts.ErrorWindowForLoad(),
 		errThreshold: opts.ErrorThresholdForLoad(),
+
+		writeBatchPool: newWriteBatchPool(
+			pool.NewObjectPoolOptions().
+				SetSize(1000).
+				SetRefillLowWatermark(0.1).
+				SetRefillHighWatermark(0.1)),
 	}
 
 	databaseIOpts := iopts.SetMetricsScope(scope)
@@ -541,8 +550,9 @@ func (d *db) WriteTaggedBatchWriter(namespace ident.ID, batchSize int) (ts.Batch
 
 	var (
 		nsID        = n.ID()
-		batchWriter = ts.NewWriteBatch(batchSize, 100000, nsID, d.shardSet.Lookup)
+		batchWriter = d.writeBatchPool.Get()
 	)
+	batchWriter.Reset(batchSize, nsID, d.shardSet.Lookup)
 	return batchWriter, nil
 }
 
@@ -579,7 +589,10 @@ func (d *db) WriteTaggedBatch(
 		iter.UpdateSeries(series)
 	}
 
-	return d.commitLog.WriteBatch(ctx, writes)
+	err = d.commitLog.WriteBatch(ctx, writes)
+	d.writeBatchPool.Put(writes)
+
+	return err
 }
 
 func (d *db) QueryIDs(
@@ -768,4 +781,28 @@ func (m metadatas) String() (string, error) {
 	}
 	buf.WriteRune(']')
 	return buf.String(), nil
+}
+
+type writeBatchPool struct {
+	pool pool.ObjectPool
+}
+
+func newWriteBatchPool(opts pool.ObjectPoolOptions) *writeBatchPool {
+	p := pool.NewObjectPool(opts)
+	return &writeBatchPool{pool: p}
+}
+
+func (p *writeBatchPool) Init() {
+	p.pool.Init(func() interface{} {
+		return ts.NewWriteBatch(1000, 10000, nil, nil)
+	})
+}
+
+func (p *writeBatchPool) Get() ts.WriteBatch {
+	w := p.pool.Get().(ts.WriteBatch)
+	return w
+}
+
+func (p *writeBatchPool) Put(w ts.WriteBatch) {
+	p.pool.Put(w)
 }
