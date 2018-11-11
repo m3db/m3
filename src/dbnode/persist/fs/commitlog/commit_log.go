@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
@@ -98,6 +99,8 @@ type commitLog struct {
 	commitLogFailFn      commitLogFailFn
 
 	metrics commitLogMetrics
+
+	queued int64
 }
 
 // Use the helper methods when interacting with this struct, the mutex
@@ -356,7 +359,7 @@ func (l *commitLog) flushEvery(interval time.Duration) {
 	var sleepForOverride time.Duration
 
 	for {
-		l.metrics.queued.Update(float64(len(l.writes)))
+		l.metrics.queued.Update(float64(atomic.LoadInt64(&l.queued)))
 		l.metrics.queueCapacity.Update(float64(cap(l.writes)))
 
 		sleepFor := interval
@@ -445,7 +448,9 @@ func (l *commitLog) write() {
 		}
 
 		numWritesSuccess := int64(0)
+		numDequeued := 0
 		if write.write.writeBatch == nil {
+			numDequeued = 1
 			// Handle individual write case
 			write := write.write.write
 			err := l.writerState.writer.Write(write.Series,
@@ -456,8 +461,10 @@ func (l *commitLog) write() {
 			}
 			numWritesSuccess++
 		} else {
+			iter := write.write.writeBatch.Iter()
+			numDequeued = len(iter)
 			// Handle write batch case
-			for _, writeBatch := range write.write.writeBatch.Iter() {
+			for _, writeBatch := range iter {
 				write := writeBatch.Write
 				err := l.writerState.writer.Write(write.Series,
 					write.Datapoint, write.Unit, write.Annotation)
@@ -471,6 +478,7 @@ func (l *commitLog) write() {
 			write.write.writeBatch.Finalize()
 		}
 
+		atomic.AddInt64(&l.queued, int64(-numDequeued))
 		l.metrics.success.Inc(numWritesSuccess)
 	}
 
@@ -631,6 +639,11 @@ func (l *commitLog) writeBehind(
 
 	enqueued := false
 
+	numEnqueued := 1
+	if writeToEnqueue.write.writeBatch != nil {
+		numEnqueued = len(writeToEnqueue.write.writeBatch.Iter())
+	}
+
 	select {
 	case l.writes <- writeToEnqueue:
 		enqueued = true
@@ -643,6 +656,7 @@ func (l *commitLog) writeBehind(
 		return ErrCommitLogQueueFull
 	}
 
+	atomic.AddInt64(&l.queued, int64(numEnqueued))
 	return nil
 }
 
