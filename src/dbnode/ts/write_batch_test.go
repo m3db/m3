@@ -90,9 +90,6 @@ func TestBatchWriterAddAndIter(t *testing.T) {
 			write.annotation)
 	}
 
-	// Make sure they're sorted
-	assertSorted(t, writes, writeBatch)
-
 	// Make sure all the data is there
 	assertDataPresent(t, writes, writeBatch)
 }
@@ -110,52 +107,49 @@ func TestBatchWriterAddTaggedAndIter(t *testing.T) {
 			write.annotation)
 	}
 
-	// Make sure they're sorted
-	assertSorted(t, writes, writeBatch)
-
 	// Make sure all the data is there
 	assertDataPresent(t, writes, writeBatch)
 }
 
-func TestBatchWriterUpdateSeries(t *testing.T) {
-	writeBatch := NewWriteBatch(batchSize, maxBatchSize, namespace, shardFn)
+// func TestBatchWriterUpdateSeries(t *testing.T) {
+// 	writeBatch := NewWriteBatch(batchSize, maxBatchSize, namespace, shardFn)
 
-	for _, write := range writes {
-		writeBatch.AddTagged(
-			write.id,
-			write.tagIter,
-			write.timestamp,
-			write.value,
-			write.unit,
-			write.annotation)
-	}
+// 	for _, write := range writes {
+// 		writeBatch.AddTagged(
+// 			write.id,
+// 			write.tagIter,
+// 			write.timestamp,
+// 			write.value,
+// 			write.unit,
+// 			write.annotation)
+// 	}
 
-	// Update the series
-	var (
-		iter = writeBatch.Iter()
-		i    = 0
-	)
-	for iter.Next() {
-		var (
-			currWrite  = iter.Current().Write
-			currSeries = currWrite.Series
-			newSeries  = currSeries
-		)
-		newSeries.ID = ident.StringID(string(i))
+// 	// Update the series
+// 	var (
+// 		iter = writeBatch.Iter()
+// 		i    = 0
+// 	)
+// 	for iter.Next() {
+// 		var (
+// 			currWrite  = iter.Current().Write
+// 			currSeries = currWrite.Series
+// 			newSeries  = currSeries
+// 		)
+// 		newSeries.ID = ident.StringID(string(i))
 
-		iter.UpdateSeries(newSeries)
-	}
+// 		iter.UpdateSeries(newSeries)
+// 	}
 
-	// Assert the series have been updated
-	iter = writeBatch.Iter()
-	for iter.Next() {
-		var (
-			currWrite  = iter.Current().Write
-			currSeries = currWrite.Series
-		)
-		require.True(t, ident.StringID(string(i)).Equal(currSeries.ID))
-	}
-}
+// 	// Assert the series have been updated
+// 	iter = writeBatch.Iter()
+// 	for iter.Next() {
+// 		var (
+// 			currWrite  = iter.Current().Write
+// 			currSeries = currWrite.Series
+// 		)
+// 		require.True(t, ident.StringID(string(i)).Equal(currSeries.ID))
+// 	}
+// }
 
 func TestWriteBatchReset(t *testing.T) {
 	var (
@@ -174,29 +168,8 @@ func TestWriteBatchReset(t *testing.T) {
 				write.annotation)
 		}
 
-		// Make sure they're sorted
-		assertSorted(t, writes, writeBatch)
-
 		// Make sure all the data is there
 		assertDataPresent(t, writes, writeBatch)
-	}
-}
-
-func assertSorted(t *testing.T, writes []testWrite, batchWriter WriteBatch) {
-	// Make sure they're sorted
-	var (
-		iter      = batchWriter.Iter()
-		lastShard = uint32(0)
-	)
-
-	for iter.Next() {
-		var (
-			curr      = iter.Current()
-			currShard = curr.Write.Series.Shard
-		)
-
-		require.True(t, currShard >= lastShard)
-		lastShard = currShard
 	}
 }
 
@@ -207,9 +180,9 @@ func assertDataPresent(t *testing.T, writes []testWrite, batchWriter WriteBatch)
 			found = false
 		)
 
-		for iter.Next() {
+		for _, currWriteBatch := range iter {
 			var (
-				currWrite  = iter.Current().Write
+				currWrite  = currWriteBatch.Write
 				currSeries = currWrite.Series
 			)
 

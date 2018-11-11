@@ -21,7 +21,6 @@
 package ts
 
 import (
-	"sort"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/sharding"
@@ -32,16 +31,10 @@ import (
 type writeBatch struct {
 	// The maximum batch size that will be allowed to be retained in a call to
 	// Reset().
-	maxBatchSize    int
-	writes          []BatchWriterWrite
-	writesAreSorted bool
-	ns              ident.ID
-	shardFn         sharding.HashFn
-}
-
-type writeBatchIter struct {
-	writes  []BatchWriterWrite
-	iterPos int
+	maxBatchSize int
+	writes       []BatchWrite
+	ns           ident.ID
+	finalizeFn   func(WriteBatch)
 }
 
 // NewWriteBatch creates a new WriteBatch.
@@ -49,13 +42,13 @@ func NewWriteBatch(
 	batchSize int,
 	maxBatchSize int,
 	ns ident.ID,
-	shardFn sharding.HashFn,
+	finalizeFn func(WriteBatch),
 ) WriteBatch {
 	return &writeBatch{
 		maxBatchSize: maxBatchSize,
-		writes:       make([]BatchWriterWrite, 0, batchSize),
+		writes:       make([]BatchWrite, 0, batchSize),
 		ns:           ns,
-		shardFn:      shardFn,
+		finalizeFn:   finalizeFn,
 	}
 }
 
@@ -68,7 +61,6 @@ func (b *writeBatch) Add(
 ) {
 	write := newBatchWriterWrite(
 		b.ns, id, nil, timestamp, value, unit, annotation)
-	write.Write.Series.Shard = b.shardFn(id)
 	b.writes = append(b.writes, write)
 }
 
@@ -82,7 +74,6 @@ func (b *writeBatch) AddTagged(
 ) {
 	write := newBatchWriterWrite(
 		b.ns, id, tagIter, timestamp, value, unit, annotation)
-	write.Write.Series.Shard = b.shardFn(id)
 	b.writes = append(b.writes, write)
 }
 
@@ -91,54 +82,28 @@ func (b *writeBatch) Reset(
 	ns ident.ID,
 	shardFn sharding.HashFn,
 ) {
-	var writes []BatchWriterWrite
+	var writes []BatchWrite
 	if batchSize > cap(b.writes) || cap(b.writes) > b.maxBatchSize {
-		writes = make([]BatchWriterWrite, 0, batchSize)
+		writes = make([]BatchWrite, 0, batchSize)
 	} else {
 		writes = b.writes[:0]
 	}
 
 	b.writes = writes
 	b.ns = ns
-	b.shardFn = shardFn
 }
 
-func (b *writeBatch) Iter() WriteBatchIter {
-	if !b.writesAreSorted {
-		// Sort by shard so that callers can perform per-shard operations
-		// more efficiently.
-		sort.Slice(b.writes, func(i, j int) bool {
-			return b.writes[i].Write.Series.Shard < b.writes[j].Write.Series.Shard
-		})
-		b.writesAreSorted = true
-	}
-
-	return &writeBatchIter{
-		writes:  b.writes,
-		iterPos: -1,
-	}
+func (b *writeBatch) Iter() []BatchWrite {
+	return b.writes
 }
 
-func (i *writeBatchIter) Current() BatchWriterWrite {
-	return i.writes[i.iterPos]
+func (b *writeBatch) Finalize() {
+	b.finalizeFn(b)
 }
 
-func (i *writeBatchIter) Next() bool {
-	if i.iterPos < len(i.writes)-1 {
-		i.iterPos++
-		return true
-	}
-
-	return false
-}
-
-func (i *writeBatchIter) UpdateSeries(s Series) {
-	i.writes[i.iterPos].Write.Series = s
-}
-
-// BatchWriterWrite represents a write that was added to the
+// BatchWrite represents a write that was added to the
 // BatchWriter.
-type BatchWriterWrite struct {
+type BatchWrite struct {
 	Write   Write
 	TagIter ident.TagIterator
 }
@@ -151,8 +116,8 @@ func newBatchWriterWrite(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-) BatchWriterWrite {
-	return BatchWriterWrite{
+) BatchWrite {
+	return BatchWrite{
 		Write: Write{
 			Series: Series{
 				ID: id,
@@ -194,19 +159,12 @@ type BatchWriter interface {
 // struct (for pooling).
 type WriteBatch interface {
 	BatchWriter
-	Iter() WriteBatchIter
+	// Can't use a real iterator pattern here as it slows things down.
+	Iter() []BatchWrite
 	Reset(
 		batchSize int,
 		ns ident.ID,
 		shardFn sharding.HashFn,
 	)
-}
-
-// WriteBatchIter is an iterator for a given WriteBatch allowing the
-// caller to iterate through the writes, as well as update the current
-// series.
-type WriteBatchIter interface {
-	Current() BatchWriterWrite
-	UpdateSeries(Series)
-	Next() bool
+	Finalize()
 }

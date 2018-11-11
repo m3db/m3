@@ -569,9 +569,7 @@ func (d *db) WriteTaggedBatch(
 	}
 
 	iter := writes.Iter()
-	for iter.Next() {
-		write := iter.Current()
-
+	for i, write := range iter {
 		series, err := n.WriteTagged(
 			ctx,
 			write.Write.Series.ID,
@@ -587,11 +585,11 @@ func (d *db) WriteTaggedBatch(
 		if err != nil {
 			return err
 		}
-		iter.UpdateSeries(series)
+
+		iter[i].Write.Series = series
 	}
 
 	err = d.commitLog.WriteBatch(ctx, writes)
-	d.writeBatchPool.Put(writes)
 
 	return err
 }
@@ -795,7 +793,7 @@ func newWriteBatchPool(opts pool.ObjectPoolOptions) *writeBatchPool {
 
 func (p *writeBatchPool) Init() {
 	p.pool.Init(func() interface{} {
-		return ts.NewWriteBatch(1000, 10000, nil, nil)
+		return ts.NewWriteBatch(1000, 10000, nil, p.Put)
 	})
 }
 

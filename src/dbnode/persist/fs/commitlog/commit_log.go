@@ -457,9 +457,8 @@ func (l *commitLog) write() {
 			numWritesSuccess++
 		} else {
 			// Handle write batch case
-			iter := write.write.writeBatch.Iter()
-			for iter.Next() {
-				write := iter.Current().Write
+			for _, writeBatch := range write.write.writeBatch.Iter() {
+				write := writeBatch.Write
 				err := l.writerState.writer.Write(write.Series,
 					write.Datapoint, write.Unit, write.Annotation)
 				if err != nil {
@@ -468,6 +467,8 @@ func (l *commitLog) write() {
 				}
 				numWritesSuccess++
 			}
+
+			write.write.writeBatch.Finalize()
 		}
 
 		l.metrics.success.Inc(numWritesSuccess)
