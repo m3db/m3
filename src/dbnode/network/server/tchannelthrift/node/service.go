@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/serialize"
@@ -832,6 +833,11 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 		retryableErrors    int
 		nonRetryableErrors int
 	)
+	batchWriter, err := s.db.BatchWriter(nsID, len(req.Elements))
+	if err != nil {
+		return err
+	}
+
 	for i, elem := range req.Elements {
 		unit, unitErr := convert.ToUnit(elem.Datapoint.TimestampTimeType)
 		if unitErr != nil {
@@ -848,21 +854,19 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 		}
 
 		seriesID := s.newPooledID(ctx, elem.ID, pooledReq)
-		if err = s.db.Write(
-			ctx, nsID, seriesID,
+		batchWriter.Add(
+			seriesID,
 			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
-			elem.Datapoint.Value, unit, elem.Datapoint.Annotation,
-		); err != nil && xerrors.IsInvalidParams(err) {
-			nonRetryableErrors++
-			errs = append(errs, tterrors.NewBadRequestWriteBatchRawError(i, err))
-		} else if err != nil {
-			retryableErrors++
-			errs = append(errs, tterrors.NewWriteBatchRawError(i, err))
-		} else {
-			success++
-		}
+			elem.Datapoint.Value,
+			unit,
+			elem.Datapoint.Annotation,
+		)
 	}
 
+	err = s.db.WriteBatch(ctx, nsID, batchWriter.(ts.WriteBatch))
+	if err != nil {
+		return err
+	}
 	s.metrics.writeBatchRaw.ReportSuccess(success)
 	s.metrics.writeBatchRaw.ReportRetryableErrors(retryableErrors)
 	s.metrics.writeBatchRaw.ReportNonRetryableErrors(nonRetryableErrors)

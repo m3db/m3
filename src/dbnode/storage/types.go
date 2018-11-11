@@ -92,6 +92,13 @@ type Database interface {
 		annotation []byte,
 	) error
 
+	// WriteBatch is the same as Write, but in batch.
+	WriteBatch(
+		ctx context.Context,
+		namespace ident.ID,
+		writes ts.WriteBatch,
+	) error
+
 	// WriteTagged values to the database for an ID
 	WriteTagged(
 		ctx context.Context,
@@ -104,7 +111,7 @@ type Database interface {
 		annotation []byte,
 	) error
 
-	WriteTaggedBatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error)
+	BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error)
 
 	// WriteTaggedBatch is the same as WriteTagged, but in batch.
 	WriteTaggedBatch(

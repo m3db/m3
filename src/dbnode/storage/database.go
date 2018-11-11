@@ -513,6 +513,42 @@ func (d *db) Write(
 	return d.commitLog.Write(ctx, series, dp, unit, annotation)
 }
 
+func (d *db) WriteBatch(
+	ctx context.Context,
+	namespace ident.ID,
+	writes ts.WriteBatch,
+) error {
+	n, err := d.namespaceFor(namespace)
+	if err != nil {
+		d.metrics.unknownNamespaceWriteTagged.Inc(1)
+		return err
+	}
+
+	iter := writes.Iter()
+	for i, write := range iter {
+		series, err := n.Write(
+			ctx,
+			write.Write.Series.ID,
+			write.Write.Datapoint.Timestamp,
+			write.Write.Datapoint.Value,
+			write.Write.Unit,
+			write.Write.Annotation,
+		)
+		if err == commitlog.ErrCommitLogQueueFull {
+			d.errors.Record(1)
+		}
+		if err != nil {
+			return err
+		}
+
+		iter[i].Write.Series = series
+	}
+
+	err = d.commitLog.WriteBatch(ctx, writes)
+
+	return err
+}
+
 func (d *db) WriteTagged(
 	ctx context.Context,
 	namespace ident.ID,
@@ -541,7 +577,7 @@ func (d *db) WriteTagged(
 	return d.commitLog.Write(ctx, series, dp, unit, annotation)
 }
 
-func (d *db) WriteTaggedBatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error) {
+func (d *db) BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error) {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		// TODO: Fix metric
