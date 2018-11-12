@@ -120,14 +120,14 @@ type Database interface {
 	WriteBatch(
 		ctx context.Context,
 		namespace ident.ID,
-		writes ts.WriteBatch,
+		writes ts.BatchWriter,
 	) (error, []IndexedError)
 
 	// WriteTaggedBatch is the same as WriteTagged, but in batch.
 	WriteTaggedBatch(
 		ctx context.Context,
 		namespace ident.ID,
-		writes ts.WriteBatch,
+		writes ts.BatchWriter,
 	) (error, []IndexedError)
 
 	// QueryIDs resolves the given query into known IDs.

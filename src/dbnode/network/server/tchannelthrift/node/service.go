@@ -959,7 +959,7 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 			elem.Datapoint.Annotation)
 	}
 
-	err, writeErrs := s.db.WriteTaggedBatch(ctx, nsID, batchWriter.(ts.WriteBatch))
+	err, writeErrs := s.db.WriteTaggedBatch(ctx, nsID, batchWriter)
 	if err != nil {
 		return err
 	}

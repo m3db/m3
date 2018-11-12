@@ -47,17 +47,21 @@ import (
 )
 
 var (
-	// errDatabaseAlreadyOpen raised when trying to open a database that is already open
+	// errDatabaseAlreadyOpen raised when trying to open a database that is already open.
 	errDatabaseAlreadyOpen = errors.New("database is already open")
 
-	// errDatabaseNotOpen raised when trying to close a database that is not open
+	// errDatabaseNotOpen raised when trying to close a database that is not open.
 	errDatabaseNotOpen = errors.New("database is not open")
 
-	// errDatabaseAlreadyClosed raised when trying to open a database that is already closed
+	// errDatabaseAlreadyClosed raised when trying to open a database that is already closed.
 	errDatabaseAlreadyClosed = errors.New("database is already closed")
 
-	// errDatabaseIsClosed raised when trying to perform an action that requires an open database
+	// errDatabaseIsClosed raised when trying to perform an action that requires an open database.
 	errDatabaseIsClosed = errors.New("database is closed")
+
+	// errWriterDoesNotImplementWriteBatch is raised when the provided ts.BatchWriter does not implement
+	// ts.WriteBatch.
+	errWriterDoesNotImplementWriteBatch = errors.New("provided writer does not implement ts.WriteBatch")
 )
 
 type databaseState int
@@ -132,7 +136,7 @@ func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
 	}
 }
 
-// NewDatabase creates a new time series database
+// NewDatabase creates a new time series database.
 func NewDatabase(
 	shardSet sharding.ShardSet,
 	opts Options,
@@ -559,25 +563,30 @@ func (d *db) BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, err
 func (d *db) WriteBatch(
 	ctx context.Context,
 	namespace ident.ID,
-	writes ts.WriteBatch,
+	writer ts.BatchWriter,
 ) (error, []IndexedError) {
-	return d.writeBatch(ctx, namespace, writes, false)
+	return d.writeBatch(ctx, namespace, writer, false)
 }
 
 func (d *db) WriteTaggedBatch(
 	ctx context.Context,
 	namespace ident.ID,
-	writes ts.WriteBatch,
+	writer ts.BatchWriter,
 ) (error, []IndexedError) {
-	return d.writeBatch(ctx, namespace, writes, true)
+	return d.writeBatch(ctx, namespace, writer, true)
 }
 
 func (d *db) writeBatch(
 	ctx context.Context,
 	namespace ident.ID,
-	writes ts.WriteBatch,
+	writer ts.BatchWriter,
 	tagged bool,
 ) (error, []IndexedError) {
+	writes, ok := writer.(ts.WriteBatch)
+	if !ok {
+		return errWriterDoesNotImplementWriteBatch, nil
+	}
+
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		if tagged {
