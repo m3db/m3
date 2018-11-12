@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"sync"
@@ -653,6 +654,52 @@ func TestDatabaseNamespaceIndexFunctions(t *testing.T) {
 	require.NoError(t, d.Close())
 }
 
+func TestDatabaseWriteBatchNoNamespace(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := newTestDatabase(t, ctrl, BootstrapNotStarted)
+	defer func() {
+		close(mapCh)
+	}()
+	require.NoError(t, d.Open())
+
+	var (
+		notExistNamespace = ident.StringID("not-exist-namespace")
+		batchSize         = 100
+	)
+	_, err := d.BatchWriter(notExistNamespace, batchSize)
+	require.Error(t, err)
+
+	err, _ = d.WriteBatch(nil, notExistNamespace, nil)
+	require.Error(t, err)
+
+	require.NoError(t, d.Close())
+}
+
+func TestDatabaseWriteTaggedBatchNoNamespace(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := newTestDatabase(t, ctrl, BootstrapNotStarted)
+	defer func() {
+		close(mapCh)
+	}()
+	require.NoError(t, d.Open())
+
+	var (
+		notExistNamespace = ident.StringID("not-exist-namespace")
+		batchSize         = 100
+	)
+	_, err := d.BatchWriter(notExistNamespace, batchSize)
+	require.Error(t, err)
+
+	err, _ = d.WriteTaggedBatch(nil, notExistNamespace, nil)
+	require.Error(t, err)
+
+	require.NoError(t, d.Close())
+}
+
 func TestDatabaseWriteBatch(t *testing.T) {
 	testDatabaseWriteBatch(t, false)
 }
@@ -684,16 +731,20 @@ func testDatabaseWriteBatch(t *testing.T, tagged bool) {
 	)
 
 	writesBySeries := map[string][]struct {
-		t time.Time
-		v float64
+		t   time.Time
+		v   float64
+		err error
 	}{
 		"foo": {
-			{time.Time{}.Add(10 * time.Second), 1.0},
-			{time.Time{}.Add(20 * time.Second), 2.0},
+			{t: time.Time{}.Add(10 * time.Second), v: 1.0},
+			{t: time.Time{}.Add(20 * time.Second), v: 2.0},
 		},
 		"bar": {
-			{time.Time{}.Add(20 * time.Second), 3.0},
-			{time.Time{}.Add(30 * time.Second), 4.0},
+			{t: time.Time{}.Add(20 * time.Second), v: 3.0},
+			{t: time.Time{}.Add(30 * time.Second), v: 4.0},
+		},
+		"error": {
+			{err: errors.New("some-error")},
 		},
 	}
 
@@ -711,7 +762,7 @@ func testDatabaseWriteBatch(t *testing.T, tagged bool) {
 						ID:        ident.StringID(series + "-updated"),
 						Namespace: namespace,
 						Tags:      ident.Tags{},
-					}, nil)
+					}, w.err)
 			} else {
 				batchWriter.Add(i, ident.StringID(series), w.t, w.v, xtime.Second, nil)
 				ns.EXPECT().Write(ctx, ident.NewIDMatcher(series),
@@ -720,7 +771,7 @@ func testDatabaseWriteBatch(t *testing.T, tagged bool) {
 						ID:        ident.StringID(series + "-updated"),
 						Namespace: namespace,
 						Tags:      ident.Tags{},
-					}, nil)
+					}, w.err)
 			}
 			i++
 		}
@@ -734,7 +785,8 @@ func testDatabaseWriteBatch(t *testing.T, tagged bool) {
 	}
 
 	require.NoError(t, err)
-	require.Nil(t, writeErrs)
+	require.Equal(t, 1, len(writeErrs))
+	require.Equal(t, i-1, writeErrs[0].Index)
 	require.NoError(t, d.Close())
 }
 
