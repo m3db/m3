@@ -4,5 +4,5 @@ package snapshot;
 message Metadata {
   int64 snapshotIndex = 1;
   bytes snapshotUUID = 2;
-  bytes commitlogIdentifier = 3;
+  bytes commitlogID = 3;
 }

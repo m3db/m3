@@ -76,9 +76,9 @@ func (w *SnapshotMetadataWriter) Write(args SnapshotMetadataWriteArgs) error {
 	defer w.metadataFdWithDigest.Close()
 
 	metadataBytes, err := (&snapshot.Metadata{
-		SnapshotIndex:       args.ID.Index,
-		SnapshotUUID:        []byte(args.ID.UUID.String()),
-		CommitlogIdentifier: args.CommitlogIdentifier,
+		SnapshotIndex: args.ID.Index,
+		SnapshotUUID:  []byte(args.ID.UUID.String()),
+		CommitlogID:   args.CommitlogIdentifier,
 	}).Marshal()
 	if err != nil {
 		return err

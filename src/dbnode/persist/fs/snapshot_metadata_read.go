@@ -101,7 +101,7 @@ func (w *SnapshotMetadataReader) Read(id SnapshotMetadataIdentifier) (SnapshotMe
 			Index: protoMetadata.SnapshotIndex,
 			UUID:  parsedUUID,
 		},
-		CommitlogIdentifier: protoMetadata.CommitlogIdentifier,
+		CommitlogIdentifier: protoMetadata.CommitlogID,
 		MetadataFilePath:    snapshotMetadataFilePathFromIdentifier(prefix, id),
 		CheckpointFilePath:  snapshotMetadataCheckpointFilePathFromIdentifier(prefix, id),
 	}, nil
