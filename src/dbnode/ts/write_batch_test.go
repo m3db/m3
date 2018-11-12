@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -79,7 +80,7 @@ type testWrite struct {
 }
 
 func TestBatchWriterAddAndIter(t *testing.T) {
-	writeBatch := NewWriteBatch(batchSize, maxBatchSize, namespace, shardFn)
+	writeBatch := NewWriteBatch(batchSize, maxBatchSize, namespace, nil)
 
 	for _, write := range writes {
 		writeBatch.Add(
@@ -95,7 +96,7 @@ func TestBatchWriterAddAndIter(t *testing.T) {
 }
 
 func TestBatchWriterAddTaggedAndIter(t *testing.T) {
-	writeBatch := NewWriteBatch(batchSize, maxBatchSize, namespace, shardFn)
+	writeBatch := NewWriteBatch(batchSize, maxBatchSize, namespace, nil)
 
 	for _, write := range writes {
 		writeBatch.AddTagged(
@@ -111,50 +112,73 @@ func TestBatchWriterAddTaggedAndIter(t *testing.T) {
 	assertDataPresent(t, writes, writeBatch)
 }
 
-// func TestBatchWriterUpdateSeries(t *testing.T) {
-// 	writeBatch := NewWriteBatch(batchSize, maxBatchSize, namespace, shardFn)
+func TestBatchWriterSetSeries(t *testing.T) {
+	writeBatch := NewWriteBatch(batchSize, maxBatchSize, namespace, nil)
 
-// 	for _, write := range writes {
-// 		writeBatch.AddTagged(
-// 			write.id,
-// 			write.tagIter,
-// 			write.timestamp,
-// 			write.value,
-// 			write.unit,
-// 			write.annotation)
-// 	}
+	for _, write := range writes {
+		writeBatch.AddTagged(
+			write.id,
+			write.tagIter,
+			write.timestamp,
+			write.value,
+			write.unit,
+			write.annotation)
+	}
 
-// 	// Update the series
-// 	var (
-// 		iter = writeBatch.Iter()
-// 		i    = 0
-// 	)
-// 	for iter.Next() {
-// 		var (
-// 			currWrite  = iter.Current().Write
-// 			currSeries = currWrite.Series
-// 			newSeries  = currSeries
-// 		)
-// 		newSeries.ID = ident.StringID(string(i))
+	// Update the series
+	iter := writeBatch.Iter()
+	for i, curr := range iter {
+		var (
+			currWrite  = curr.Write
+			currSeries = currWrite.Series
+			newSeries  = currSeries
+		)
+		newSeries.ID = ident.StringID(string(i))
 
-// 		iter.UpdateSeries(newSeries)
-// 	}
+		writeBatch.SetSeries(i, newSeries)
+	}
 
-// 	// Assert the series have been updated
-// 	iter = writeBatch.Iter()
-// 	for iter.Next() {
-// 		var (
-// 			currWrite  = iter.Current().Write
-// 			currSeries = currWrite.Series
-// 		)
-// 		require.True(t, ident.StringID(string(i)).Equal(currSeries.ID))
-// 	}
-// }
+	// Assert the series have been updated
+	iter = writeBatch.Iter()
+	for i, curr := range iter {
+		var (
+			currWrite  = curr.Write
+			currSeries = currWrite.Series
+		)
+		require.True(t, ident.StringID(string(i)).Equal(currSeries.ID))
+	}
+}
+
+func TestBatchWriterSetError(t *testing.T) {
+	writeBatch := NewWriteBatch(batchSize, maxBatchSize, namespace, nil)
+
+	for _, write := range writes {
+		writeBatch.AddTagged(
+			write.id,
+			write.tagIter,
+			write.timestamp,
+			write.value,
+			write.unit,
+			write.annotation)
+	}
+
+	// Update the series
+	iter := writeBatch.Iter()
+	for i := range iter {
+		writeBatch.SetError(i, fmt.Errorf(string(i)))
+	}
+
+	// Assert the errors have been set
+	iter = writeBatch.Iter()
+	for i, curr := range iter {
+		require.Equal(t, string(i), curr.Err.Error())
+	}
+}
 
 func TestWriteBatchReset(t *testing.T) {
 	var (
 		numResets  = 10
-		writeBatch = NewWriteBatch(batchSize, maxBatchSize, namespace, shardFn)
+		writeBatch = NewWriteBatch(batchSize, maxBatchSize, namespace, nil)
 	)
 
 	for i := 0; i < numResets; i++ {

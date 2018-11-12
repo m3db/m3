@@ -97,6 +97,14 @@ func (b *writeBatch) Iter() []BatchWrite {
 	return b.writes
 }
 
+func (b *writeBatch) SetSeries(idx int, series Series) {
+	b.writes[idx].Write.Series = series
+}
+
+func (b *writeBatch) SetError(idx int, err error) {
+	b.writes[idx].Err = err
+}
+
 func (b *writeBatch) Finalize() {
 	b.finalizeFn(b)
 }
@@ -106,6 +114,7 @@ func (b *writeBatch) Finalize() {
 type BatchWrite struct {
 	Write   Write
 	TagIter ident.TagIterator
+	Err     error
 }
 
 func newBatchWriterWrite(
@@ -130,6 +139,7 @@ func newBatchWriterWrite(
 			Annotation: annotation,
 		},
 		TagIter: tagsIter,
+		Err:     nil,
 	}
 }
 
@@ -161,6 +171,8 @@ type WriteBatch interface {
 	BatchWriter
 	// Can't use a real iterator pattern here as it slows things down.
 	Iter() []BatchWrite
+	SetSeries(idx int, series Series)
+	SetError(idx int, err error)
 	Reset(
 		batchSize int,
 		ns ident.ID,
