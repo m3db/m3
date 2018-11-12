@@ -653,6 +653,91 @@ func TestDatabaseNamespaceIndexFunctions(t *testing.T) {
 	require.NoError(t, d.Close())
 }
 
+func TestDatabaseWriteBatch(t *testing.T) {
+	testDatabaseWriteBatch(t, false)
+}
+
+func TestDatabaseWriteTaggedBatch(t *testing.T) {
+	testDatabaseWriteBatch(t, true)
+}
+
+func testDatabaseWriteBatch(t *testing.T, tagged bool) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := newTestDatabase(t, ctrl, BootstrapNotStarted)
+	defer func() {
+		close(mapCh)
+	}()
+
+	ns := dbAddNewMockNamespace(ctrl, d, "testns")
+	ns.EXPECT().GetOwnedShards().Return([]databaseShard{}).AnyTimes()
+	ns.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	ns.EXPECT().BootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
+	ns.EXPECT().Close().Return(nil).Times(1)
+	require.NoError(t, d.Open())
+
+	var (
+		namespace = ident.StringID("testns")
+		ctx       = context.NewContext()
+		tagsIter  = ident.EmptyTagIterator
+	)
+
+	writesBySeries := map[string][]struct {
+		t time.Time
+		v float64
+	}{
+		"foo": {
+			{time.Time{}.Add(10 * time.Second), 1.0},
+			{time.Time{}.Add(20 * time.Second), 2.0},
+		},
+		"bar": {
+			{time.Time{}.Add(20 * time.Second), 3.0},
+			{time.Time{}.Add(30 * time.Second), 4.0},
+		},
+	}
+
+	batchWriter, err := d.BatchWriter(namespace, 10)
+	require.NoError(t, err)
+
+	i := 0
+	for series, writes := range writesBySeries {
+		for _, w := range writes {
+			if tagged {
+				batchWriter.AddTagged(i, ident.StringID(series), tagsIter, w.t, w.v, xtime.Second, nil)
+				ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher(series), gomock.Any(),
+					w.t, w.v, xtime.Second, nil).Return(
+					ts.Series{
+						ID:        ident.StringID(series + "-updated"),
+						Namespace: namespace,
+						Tags:      ident.Tags{},
+					}, nil)
+			} else {
+				batchWriter.Add(i, ident.StringID(series), w.t, w.v, xtime.Second, nil)
+				ns.EXPECT().Write(ctx, ident.NewIDMatcher(series),
+					w.t, w.v, xtime.Second, nil).Return(
+					ts.Series{
+						ID:        ident.StringID(series + "-updated"),
+						Namespace: namespace,
+						Tags:      ident.Tags{},
+					}, nil)
+			}
+			i++
+		}
+	}
+
+	var writeErrs []IndexedError
+	if tagged {
+		err, writeErrs = d.WriteTaggedBatch(ctx, namespace, batchWriter.(ts.WriteBatch))
+	} else {
+		err, writeErrs = d.WriteBatch(ctx, namespace, batchWriter.(ts.WriteBatch))
+	}
+
+	require.NoError(t, err)
+	require.Nil(t, writeErrs)
+	require.NoError(t, d.Close())
+}
+
 func TestDatabaseBootstrapState(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
