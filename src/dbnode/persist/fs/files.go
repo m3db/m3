@@ -1354,8 +1354,11 @@ func snapshotMetadataFilePathFromIdentifier(prefix string, id SnapshotMetadataId
 		prefix,
 		snapshotDirName,
 		fmt.Sprintf(
-			"%s-%s-%d-%s%s",
-			snapshotFilePrefix, sanitizeUUID(id.UUID.String()), id.Index, metadataFileSuffix, fileSuffix))
+			"%s%s%s%s%d%s%s%s",
+			snapshotFilePrefix, separator,
+			sanitizeUUID(id.UUID.String()), separator,
+			id.Index, separator,
+			metadataFileSuffix, fileSuffix))
 }
 
 func snapshotMetadataCheckpointFilePathFromIdentifier(prefix string, id SnapshotMetadataIdentifier) string {
@@ -1363,8 +1366,12 @@ func snapshotMetadataCheckpointFilePathFromIdentifier(prefix string, id Snapshot
 		prefix,
 		snapshotDirName,
 		fmt.Sprintf(
-			"%s-%s-%d-%s-%s%s",
-			snapshotFilePrefix, sanitizeUUID(id.UUID.String()), id.Index, metadataFileSuffix, checkpointFileSuffix, fileSuffix))
+			"%s%s%s%s%d%s%s%s%s%s",
+			snapshotFilePrefix, separator,
+			sanitizeUUID(id.UUID.String()), separator,
+			id.Index, separator,
+			metadataFileSuffix, separator,
+			checkpointFileSuffix, fileSuffix))
 }
 
 // sanitizeUUID replaces all instances of separator ("-") with uuidSeparator ("_") in the provided
@@ -1398,7 +1405,7 @@ func snapshotMetadataIdentifierFromFilePath(filePath string) (SnapshotMetadataId
 			"invalid snapshot metadata file name: %s", filePath)
 	}
 
-	index, err := strconv.Atoi(splitFileName[snapshotMetadataIndexComponentPosition])
+	index, err := strconv.ParseInt(splitFileName[snapshotMetadataIndexComponentPosition], 10, 64)
 	if err != nil {
 		return SnapshotMetadataIdentifier{}, fmt.Errorf(
 			"invalid snapshot metadata file name, unable to parse index: %s", filePath)
@@ -1416,7 +1423,7 @@ func snapshotMetadataIdentifierFromFilePath(filePath string) (SnapshotMetadataId
 	}
 
 	return SnapshotMetadataIdentifier{
-		Index: int64(index),
+		Index: index,
 		UUID:  id,
 	}, nil
 }
