@@ -160,9 +160,8 @@ func NewDatabase(
 		errWindow:    opts.ErrorWindowForLoad(),
 		errThreshold: opts.ErrorThresholdForLoad(),
 
-		// writeBatchPool: opts,
+		writeBatchPool: opts.WriteBatchPool(),
 	}
-	d.writeBatchPool.Init()
 
 	databaseIOpts := iopts.SetMetricsScope(scope)
 
