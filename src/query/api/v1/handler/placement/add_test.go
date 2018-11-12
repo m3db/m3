@@ -154,7 +154,7 @@ func TestPlacementAddHandler_SafeOK(t *testing.T) {
 		)
 		switch serviceName {
 		case M3AggregatorServiceName:
-			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}]}`))
+			req = httptest.NewRequest(AddHTTPMethod, M3AggAddURL, strings.NewReader(`{"instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}]}`))
 		default:
 			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}]}`))
 		}
