@@ -24,9 +24,8 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
-
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/net/http"

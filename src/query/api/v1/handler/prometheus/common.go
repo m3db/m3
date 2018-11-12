@@ -27,7 +27,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gorilla/mux"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
@@ -35,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/x/net/http"
 
 	"github.com/golang/snappy"
+	"github.com/gorilla/mux"
 )
 
 const (
