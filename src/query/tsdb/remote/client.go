@@ -114,6 +114,7 @@ func (c *grpcClient) fetchRaw(
 	}
 
 	// Send the id from the client to the remote server so that provides logging
+	// TODO: replace id propagation with opentracing
 	id := logging.ReadContextID(ctx)
 	mdCtx := encodeMetadata(ctx, id)
 	fetchClient, err := c.client.Fetch(mdCtx, request)
@@ -199,6 +200,7 @@ func (c *grpcClient) FetchTags(
 	}
 
 	// Send the id from the client to the remote server so that provides logging
+	// TODO: replace id propagation with opentracing
 	id := logging.ReadContextID(ctx)
 	// TODO: add relevant fields to the metadata
 	mdCtx := encodeMetadata(ctx, id)
@@ -251,6 +253,7 @@ func (c *grpcClient) CompleteTags(
 	}
 
 	// Send the id from the client to the remote server so that provides logging
+	// TODO: replace id propagation with opentracing
 	id := logging.ReadContextID(ctx)
 	// TODO: add relevant fields to the metadata
 	mdCtx := encodeMetadata(ctx, id)

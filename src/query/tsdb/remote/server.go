@@ -85,10 +85,16 @@ func (s *grpcServer) Fetch(
 		return err
 	}
 
+	opts := storage.NewFetchOptions()
+	go func() {
+		<-ctx.Done()
+		opts.KillChan <- struct{}{}
+	}()
+
 	result, cleanup, err := s.storage.FetchCompressed(
 		ctx,
 		storeQuery,
-		storage.NewFetchOptions(),
+		opts,
 	)
 	defer cleanup()
 	if err != nil {
@@ -130,10 +136,16 @@ func (s *grpcServer) Search(
 		return err
 	}
 
+	opts := storage.NewFetchOptions()
+	go func() {
+		<-ctx.Done()
+		opts.KillChan <- struct{}{}
+	}()
+
 	results, cleanup, err := s.storage.SearchCompressed(
 		ctx,
 		searchQuery,
-		storage.NewFetchOptions(),
+		opts,
 	)
 	defer cleanup()
 	if err != nil {
