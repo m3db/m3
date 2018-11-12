@@ -296,7 +296,7 @@ func TestSnapshotMetadataFilePathFromIdentifierRoundTrip(t *testing.T) {
 	)
 
 	var (
-		expected = "/var/lib/m3db/snapshots/snapshot-bf58eb3e_0582_42ee_83b2_d098c206260e-10-metadata.db"
+		expected = "/var/lib/m3db/snapshots/snapshot-bf58eb3e058242ee83b2d098c206260e-10-metadata.db"
 		actual   = snapshotMetadataFilePathFromIdentifier(prefix, id)
 	)
 	require.Equal(t, expected, actual)
@@ -319,7 +319,7 @@ func TestSnapshotMetadataCheckpointFilePathFromIdentifierRoundTrip(t *testing.T)
 	)
 
 	var (
-		expected = "/var/lib/m3db/snapshots/snapshot-bf58eb3e_0582_42ee_83b2_d098c206260e-10-metadata-checkpoint.db"
+		expected = "/var/lib/m3db/snapshots/snapshot-bf58eb3e058242ee83b2d098c206260e-10-metadata-checkpoint.db"
 		actual   = snapshotMetadataCheckpointFilePathFromIdentifier(prefix, id)
 	)
 	require.Equal(t, expected, actual)
@@ -327,6 +327,13 @@ func TestSnapshotMetadataCheckpointFilePathFromIdentifierRoundTrip(t *testing.T)
 	idFromPath, err := snapshotMetadataIdentifierFromFilePath(expected)
 	require.NoError(t, err)
 	require.Equal(t, id, idFromPath)
+}
+
+func TestSanitizedUUIDsCanBeParsed(t *testing.T) {
+	uuidString := "bf58eb3e-0582-42ee-83b2-d098c206260e"
+	parsedUUID, ok := parseUUID(sanitizeUUID(uuidString))
+	require.True(t, ok)
+	require.Equal(t, uuidString, parsedUUID.String())
 }
 
 func TestFileExists(t *testing.T) {

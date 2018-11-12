@@ -1374,17 +1374,16 @@ func snapshotMetadataCheckpointFilePathFromIdentifier(prefix string, id Snapshot
 			checkpointFileSuffix, fileSuffix))
 }
 
-// sanitizeUUID replaces all instances of separator ("-") with uuidSeparator ("_") in the provided
-// uuid string. If we did not do this, then when we tried to split up filenames based on the separator
-// every "piece" of the UUID would be included as a separate fragment from the name when instead we want
-// to treat the entire UUID as one "piece" of the name.
+// sanitizeUUID strips all instances of separator ("-") in the provided UUID string. This prevents us from
+// treating every "piece" of the UUID as a separate fragment of the name when we split filepaths by
+// separator. This works because the UUID library can still parse stripped UUID strings.
 func sanitizeUUID(uuid string) string {
-	return strings.Replace(uuid, separator, sanitizedUUIDSeparator, -1)
+	return strings.Replace(uuid, separator, "", -1)
 }
 
-// Undoes the effect of sanitizeUUID.
-func unsanitizeUUID(uuid string) string {
-	return strings.Replace(uuid, sanitizedUUIDSeparator, unsanitizedUUIDSeparator, -1)
+func parseUUID(sanitizedUUID string) (uuid.UUID, bool) {
+	parsed := uuid.Parse(sanitizedUUID)
+	return parsed, parsed != nil
 }
 
 func snapshotMetadataIdentifierFromFilePath(filePath string) (SnapshotMetadataIdentifier, error) {
@@ -1411,13 +1410,9 @@ func snapshotMetadataIdentifierFromFilePath(filePath string) (SnapshotMetadataId
 			"invalid snapshot metadata file name, unable to parse index: %s", filePath)
 	}
 
-	var (
-		sanitizedUUID   = splitFileName[snapshotMetadataUUIDComponentPosition]
-		unsanitizedUUID = unsanitizeUUID(sanitizedUUID)
-	)
-
-	id := uuid.Parse(unsanitizedUUID)
-	if id == nil {
+	sanitizedUUID := splitFileName[snapshotMetadataUUIDComponentPosition]
+	id, ok := parseUUID(sanitizedUUID)
+	if !ok {
 		return SnapshotMetadataIdentifier{}, fmt.Errorf(
 			"invalid snapshot metadata file name, unable to parse UUID: %s", filePath)
 	}
