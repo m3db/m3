@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/generated/proto/snapshot"
 )
@@ -75,11 +76,11 @@ func (w *SnapshotMetadataWriter) Write(args SnapshotMetadataWriteArgs) error {
 	w.metadataFdWithDigest.Reset(metadataFile)
 	defer w.metadataFdWithDigest.Close()
 
-	metadataBytes, err := (&snapshot.Metadata{
+	metadataBytes, err := proto.Marshal(&snapshot.Metadata{
 		SnapshotIndex: args.ID.Index,
 		SnapshotUUID:  []byte(args.ID.UUID.String()),
 		CommitlogID:   args.CommitlogIdentifier,
-	}).Marshal()
+	})
 	if err != nil {
 		return err
 	}
