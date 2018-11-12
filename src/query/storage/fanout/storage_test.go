@@ -127,19 +127,6 @@ func setupFanoutWrite(t *testing.T, output bool, errs ...error) storage.Storage 
 	return store
 }
 
-func setupFanoutCompleteTags(t *testing.T, output bool, errs ...error) storage.Storage {
-	setup()
-	ctrl := gomock.NewController(t)
-	store1, _ := m3.NewStorageAndSession(t, ctrl)
-	store2, _ := m3.NewStorageAndSession(t, ctrl)
-
-	stores := []storage.Storage{
-		store1, store2,
-	}
-	store := NewStorage(stores, filterFunc(output), filterFunc(output), filterCompleteTagsFunc(output))
-	return store
-}
-
 func TestFanoutReadEmpty(t *testing.T) {
 	store := setupFanoutRead(t, false)
 	res, err := store.Fetch(context.TODO(), nil, nil)
