@@ -27,7 +27,11 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/generated/proto/snapshot"
+
+	xerrors "github.com/m3db/m3x/errors"
 )
+
+type cleanupFn func() error
 
 // NewSnapshotMetadataWriter constructs a new snapshot metadata writer.
 func NewSnapshotMetadataWriter(opts Options) *SnapshotMetadataWriter {
@@ -53,11 +57,34 @@ type SnapshotMetadataWriteArgs struct {
 	CommitlogIdentifier []byte
 }
 
-func (w *SnapshotMetadataWriter) Write(args SnapshotMetadataWriteArgs) error {
+func (w *SnapshotMetadataWriter) Write(args SnapshotMetadataWriteArgs) (finalErr error) {
 	var (
 		prefix       = w.opts.FilePathPrefix()
 		snapshotsDir = SnapshotsDirPath(prefix)
+
+		// Set this up so that we can defer cleanup functions without ignoring
+		// the errors.
+		cleanupFns   = []cleanupFn{}
+		deferCleanup = func(f cleanupFn) {
+			cleanupFns = append(cleanupFns, f)
+		}
 	)
+	defer func() {
+		multiErr := xerrors.MultiError{}
+		if finalErr != nil {
+			multiErr = multiErr.Add(finalErr)
+		}
+
+		for _, f := range cleanupFns {
+			err := f()
+			if err != nil {
+				multiErr = multiErr.Add(err)
+			}
+		}
+
+		finalErr = multiErr.FinalError()
+	}()
+
 	if err := os.MkdirAll(snapshotsDir, w.opts.NewDirectoryMode()); err != nil {
 		return err
 	}
@@ -65,7 +92,7 @@ func (w *SnapshotMetadataWriter) Write(args SnapshotMetadataWriteArgs) error {
 	if err != nil {
 		return err
 	}
-	defer snapshotsDirFile.Close()
+	deferCleanup(snapshotsDirFile.Close)
 
 	metadataPath := snapshotMetadataFilePathFromIdentifier(prefix, args.ID)
 	metadataFile, err := OpenWritable(metadataPath, w.opts.NewFileMode())
@@ -74,7 +101,7 @@ func (w *SnapshotMetadataWriter) Write(args SnapshotMetadataWriteArgs) error {
 	}
 
 	w.metadataFdWithDigest.Reset(metadataFile)
-	defer w.metadataFdWithDigest.Close()
+	deferCleanup(w.metadataFdWithDigest.Close)
 
 	metadataBytes, err := proto.Marshal(&snapshot.Metadata{
 		SnapshotIndex: args.ID.Index,
@@ -111,7 +138,7 @@ func (w *SnapshotMetadataWriter) Write(args SnapshotMetadataWriteArgs) error {
 	if err != nil {
 		return err
 	}
-	defer checkpointFile.Close()
+	deferCleanup(checkpointFile.Close)
 
 	// digestBuf does not need to be reset.
 	err = w.digestBuf.WriteDigestToFile(
