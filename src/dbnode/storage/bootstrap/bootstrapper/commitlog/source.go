@@ -1619,7 +1619,7 @@ func (s *commitLogSource) areShardsReplicated(
 	return majorityReplicas > 1
 }
 
-func newReadSeriesPredicate(ns namespace.Metadata) ts.SeriesFilterPredicate {
+func newReadSeriesPredicate(ns namespace.Metadata) commitlog.SeriesFilterPredicate {
 	nsID := ns.ID()
 	return func(id ident.ID, namespace ident.ID) bool {
 		return nsID.Equal(namespace)
