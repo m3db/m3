@@ -24,6 +24,13 @@ import (
 	"github.com/m3db/m3x/pool"
 )
 
+const (
+	// defaultWritePoolMaxBatchSize is the default maximum size for a writeBatch that the pool
+	// will allow to remain in the pool. Any batches larger than that will be discarded to prevent
+	// excessive memory use forever in the case of an exceptionally large batch write.
+	defaultMaxBatchSize = 100000
+)
+
 // WriteBatchPool is a pool of WriteBatch.
 type WriteBatchPool struct {
 	pool pool.ObjectPool
@@ -34,9 +41,14 @@ type WriteBatchPool struct {
 }
 
 // NewWriteBatchPool constructs a new WriteBatchPool.
-func NewWriteBatchPool(opts pool.ObjectPoolOptions, maxBatchSize int) *WriteBatchPool {
+func NewWriteBatchPool(opts pool.ObjectPoolOptions, maxBatchSize *int) *WriteBatchPool {
+	batchSize := defaultMaxBatchSize
+	if maxBatchSize != nil {
+		batchSize = *maxBatchSize
+	}
+
 	p := pool.NewObjectPool(opts)
-	return &WriteBatchPool{pool: p, maxBatchSize: maxBatchSize}
+	return &WriteBatchPool{pool: p, maxBatchSize: batchSize}
 }
 
 // Init initializes a WriteBatchPool.

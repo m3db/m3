@@ -103,54 +103,54 @@ type PoolingPolicy struct {
 	// The policy for the TagDecoderPool.
 	TagDecoderPool PoolPolicy `yaml:"tagDecoderPool"`
 
-	// The policy for the WriteBatchPool
-	WriteBatchPool PoolPolicy `yaml:"writeBatchPool"`
+	// The policy for the WriteBatchPool.
+	WriteBatchPool WriteBatchPoolPolicy `yaml:"writeBatchPool"`
 }
 
 // PoolPolicy specifies a single pool policy.
 type PoolPolicy struct {
-	// The size of the pool
+	// The size of the pool.
 	Size int `yaml:"size"`
 
-	// The low watermark to start refilling the pool, if zero none
+	// The low watermark to start refilling the pool, if zero none.
 	RefillLowWaterMark float64 `yaml:"lowWatermark" validate:"min=0.0,max=1.0"`
 
-	// The high watermark to stop refilling the pool, if zero none
+	// The high watermark to stop refilling the pool, if zero none.
 	RefillHighWaterMark float64 `yaml:"highWatermark" validate:"min=0.0,max=1.0"`
 }
 
 // CapacityPoolPolicy specifies a single pool policy that has a
 // per element capacity.
 type CapacityPoolPolicy struct {
-	// The size of the pool
+	// The size of the pool.
 	Size int `yaml:"size"`
 
-	// The capacity of items in the pool
+	// The capacity of items in the pool.
 	Capacity int `yaml:"capacity"`
 
-	// The low watermark to start refilling the pool, if zero none
+	// The low watermark to start refilling the pool, if zero none.
 	RefillLowWaterMark float64 `yaml:"lowWatermark" validate:"min=0.0,max=1.0"`
 
-	// The high watermark to stop refilling the pool, if zero none
+	// The high watermark to stop refilling the pool, if zero none.
 	RefillHighWaterMark float64 `yaml:"highWatermark" validate:"min=0.0,max=1.0"`
 }
 
 // MaxCapacityPoolPolicy specifies a single pool policy that has a
 // per element capacity, and a maximum allowed capacity as well.
 type MaxCapacityPoolPolicy struct {
-	// The size of the pool
+	// The size of the pool.
 	Size int `yaml:"size"`
 
-	// The capacity of items in the pool
+	// The capacity of items in the pool.
 	Capacity int `yaml:"capacity"`
 
-	// The max capacity of items in the pool
+	// The max capacity of items in the pool.
 	MaxCapacity int `yaml:"maxCapacity"`
 
-	// The low watermark to start refilling the pool, if zero none
+	// The low watermark to start refilling the pool, if zero none.
 	RefillLowWaterMark float64 `yaml:"lowWatermark" validate:"min=0.0,max=1.0"`
 
-	// The high watermark to stop refilling the pool, if zero none
+	// The high watermark to stop refilling the pool, if zero none.
 	RefillHighWaterMark float64 `yaml:"highWatermark" validate:"min=0.0,max=1.0"`
 }
 
@@ -160,15 +160,15 @@ type BucketPoolPolicy struct {
 	Buckets []CapacityPoolPolicy `yaml:"buckets"`
 }
 
-// ContextPoolPolicy specifies the policy for the context pool
+// ContextPoolPolicy specifies the policy for the context pool.
 type ContextPoolPolicy struct {
 	// The size of the pool
 	Size int `yaml:"size"`
 
-	// The low watermark to start refilling the pool, if zero none
+	// The low watermark to start refilling the pool, if zero none.
 	RefillLowWaterMark float64 `yaml:"lowWatermark" validate:"min=0.0,max=1.0"`
 
-	// The high watermark to stop refilling the pool, if zero none
+	// The high watermark to stop refilling the pool, if zero none.
 	RefillHighWaterMark float64 `yaml:"highWatermark" validate:"min=0.0,max=1.0"`
 
 	// The maximum allowable size for a slice of finalizers that the
@@ -178,7 +178,17 @@ type ContextPoolPolicy struct {
 	MaxFinalizerCapacity int `yaml:"maxFinalizerCapacity" validate:"min=0"`
 }
 
-// PoolPolicy returns the PoolPolicy that is represented by the ContextPoolPolicy
+// WriteBatchPoolPolicy specifies the pooling policy for the WriteBatch pool.
+type WriteBatchPoolPolicy struct {
+	// MaxBatchSize controls the maximum size that a pooled WriteBatch can grow to
+	// and still remain in the pool.
+	MaxBatchSize *int
+
+	// Pool is the Pooling Policy for the WriteBatch pool.
+	Pool PoolPolicy
+}
+
+// PoolPolicy returns the PoolPolicy that is represented by the ContextPoolPolicy.
 func (c ContextPoolPolicy) PoolPolicy() PoolPolicy {
 	return PoolPolicy{
 		Size:                c.Size,
@@ -188,7 +198,7 @@ func (c ContextPoolPolicy) PoolPolicy() PoolPolicy {
 }
 
 // MaxFinalizerCapacityWithDefault returns the maximum finalizer capacity and
-// fallsback to the default value if its not set
+// fallsback to the default value if its not set.
 func (c ContextPoolPolicy) MaxFinalizerCapacityWithDefault() int {
 	if c.MaxFinalizerCapacity == 0 {
 		return defaultMaxFinalizerCapacity

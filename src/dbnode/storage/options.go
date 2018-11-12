@@ -72,11 +72,6 @@ const (
 
 	// defaultMinSnapshotInterval is the default minimum interval that must elapse between snapshots
 	defaultMinSnapshotInterval = time.Minute
-
-	// defaultWritePoolMaxBatchSize is the default maximum size for a writeBatch that the pool
-	// will allow to remain in the pool. Any batches larger than that will be discarded to prevent
-	// excessive memory use forever in the case of an exceptionally large batch write.
-	defaultWritePoolMaxBatchSize = 100000
 )
 
 var (
@@ -167,7 +162,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 	queryIDsWorkerPool := xsync.NewWorkerPool(int(math.Ceil(float64(runtime.NumCPU()) / 2)))
 	queryIDsWorkerPool.Init()
 
-	writeBatchPool := ts.NewWriteBatchPool(poolOpts, defaultWritePoolMaxBatchSize)
+	writeBatchPool := ts.NewWriteBatchPool(poolOpts, nil)
 	writeBatchPool.Init()
 
 	o := &options{

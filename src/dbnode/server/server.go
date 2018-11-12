@@ -938,6 +938,14 @@ func withEncodingAndPoolingOptions(
 	multiIteratorPool := encoding.NewMultiReaderIteratorPool(
 		poolOptions(policy.IteratorPool, scope.SubScope("multi-iterator-pool")))
 
+	var writeBatchPoolMaxBatchSize *int
+	if policy.WriteBatchPool.MaxBatchSize != nil {
+		writeBatchPoolMaxBatchSize = policy.WriteBatchPool.MaxBatchSize
+	}
+	writeBatchPool := ts.NewWriteBatchPool(
+		poolOptions(policy.WriteBatchPool.Pool, scope.SubScope("write-batch-pool")),
+		writeBatchPoolMaxBatchSize)
+
 	identifierPool := ident.NewPool(bytesPool, ident.PoolOptions{
 		IDPoolOptions:           poolOptions(policy.IdentifierPool, scope.SubScope("identifier-pool")),
 		TagsPoolOptions:         maxCapacityPoolOptions(policy.TagsPool, scope.SubScope("tags-pool")),
@@ -976,6 +984,8 @@ func withEncodingAndPoolingOptions(
 		return iter
 	})
 
+	writeBatchPool.Init()
+
 	opts = opts.
 		SetBytesPool(bytesPool).
 		SetContextPool(contextPool).
@@ -984,7 +994,8 @@ func withEncodingAndPoolingOptions(
 		SetMultiReaderIteratorPool(multiIteratorPool).
 		SetIdentifierPool(identifierPool).
 		SetFetchBlockMetadataResultsPool(fetchBlockMetadataResultsPool).
-		SetFetchBlocksMetadataResultsPool(fetchBlocksMetadataResultsPool)
+		SetFetchBlocksMetadataResultsPool(fetchBlocksMetadataResultsPool).
+		SetWriteBatchPool(writeBatchPool)
 
 	blockOpts := opts.DatabaseBlockOptions().
 		SetDatabaseBlockAllocSize(policy.BlockAllocSize).
