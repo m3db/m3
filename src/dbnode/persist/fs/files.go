@@ -668,7 +668,7 @@ func SortedSnapshotMetadataFiles(opts Options) (
 	// Glob for metadata files directly instead of their checkpoint files.
 	// In the happy case this makes no difference, but in situations where
 	// the metadata file exists but the checkpoint file does not (due to sudden
-	// not failure) this strategy allows us to still cleanup the metadata file
+	// node failure) this strategy allows us to still cleanup the metadata file
 	// whereas if we looked for checkpoint files directly the dangling metadata
 	// file would hang around forever.
 	metadataFilePaths, err := filepath.Glob(
@@ -696,11 +696,23 @@ func SortedSnapshotMetadataFiles(opts Options) (
 			continue
 		}
 
+		if file != snapshotMetadataFilePathFromIdentifier(prefix, id) {
+			// Should never happen
+			errorsWithPaths = append(errorsWithPaths, SnapshotMetadataErrorWithPaths{
+				Error: instrument.InvariantErrorf(
+					"actual snapshot metadata filepath: %s and generated filepath: %s do not match",
+					file, snapshotMetadataFilePathFromIdentifier(prefix, id)),
+				MetadataFilePath: file,
+				// Can't construct checkpoint file path without ID
+			})
+			continue
+		}
+
 		metadata, err := reader.Read(id)
 		if err != nil {
 			errorsWithPaths = append(errorsWithPaths, SnapshotMetadataErrorWithPaths{
 				Error:              err,
-				MetadataFilePath:   snapshotMetadataFilePathFromIdentifier(prefix, id),
+				MetadataFilePath:   file,
 				CheckpointFilePath: snapshotMetadataCheckpointFilePathFromIdentifier(prefix, id),
 			})
 			continue
