@@ -52,6 +52,14 @@ import (
 // PageToken is an opaque paging token.
 type PageToken []byte
 
+// IndexedError represents an error associated with the index
+// of the value in the provided collection that generated the
+// error.
+type IndexedError struct {
+	Index int
+	Err   error
+}
+
 // Database is a time series database
 type Database interface {
 	// Options returns the database options
@@ -81,6 +89,10 @@ type Database interface {
 	// the GC to do so.
 	Terminate() error
 
+	// BatchWriter returns a batch writer for the provided namespace that can
+	// be used to issue a batch of writes to eithe WriteBatch or WriteTaggedBatch.
+	BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error)
+
 	// Write value to the database for an ID
 	Write(
 		ctx context.Context,
@@ -97,7 +109,7 @@ type Database interface {
 		ctx context.Context,
 		namespace ident.ID,
 		writes ts.WriteBatch,
-	) error
+	) (error, []IndexedError)
 
 	// WriteTagged values to the database for an ID
 	WriteTagged(
@@ -111,14 +123,12 @@ type Database interface {
 		annotation []byte,
 	) error
 
-	BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error)
-
 	// WriteTaggedBatch is the same as WriteTagged, but in batch.
 	WriteTaggedBatch(
 		ctx context.Context,
 		namespace ident.ID,
 		writes ts.WriteBatch,
-	) error
+	) (error, []IndexedError)
 
 	// QueryIDs resolves the given query into known IDs.
 	QueryIDs(

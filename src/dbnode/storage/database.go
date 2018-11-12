@@ -513,42 +513,6 @@ func (d *db) Write(
 	return d.commitLog.Write(ctx, series, dp, unit, annotation)
 }
 
-func (d *db) WriteBatch(
-	ctx context.Context,
-	namespace ident.ID,
-	writes ts.WriteBatch,
-) error {
-	n, err := d.namespaceFor(namespace)
-	if err != nil {
-		d.metrics.unknownNamespaceWriteTagged.Inc(1)
-		return err
-	}
-
-	iter := writes.Iter()
-	for i, write := range iter {
-		series, err := n.Write(
-			ctx,
-			write.Write.Series.ID,
-			write.Write.Datapoint.Timestamp,
-			write.Write.Datapoint.Value,
-			write.Write.Unit,
-			write.Write.Annotation,
-		)
-		if err == commitlog.ErrCommitLogQueueFull {
-			d.errors.Record(1)
-		}
-		if err != nil {
-			return err
-		}
-
-		iter[i].Write.Series = series
-	}
-
-	err = d.commitLog.WriteBatch(ctx, writes)
-
-	return err
-}
-
 func (d *db) WriteTagged(
 	ctx context.Context,
 	namespace ident.ID,
@@ -593,41 +557,84 @@ func (d *db) BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, err
 	return batchWriter, nil
 }
 
+func (d *db) WriteBatch(
+	ctx context.Context,
+	namespace ident.ID,
+	writes ts.WriteBatch,
+) (error, []IndexedError) {
+	return d.writeBatch(ctx, namespace, writes, false)
+}
+
 func (d *db) WriteTaggedBatch(
 	ctx context.Context,
 	namespace ident.ID,
 	writes ts.WriteBatch,
-) error {
+) (error, []IndexedError) {
+	return d.writeBatch(ctx, namespace, writes, true)
+}
+
+func (d *db) writeBatch(
+	ctx context.Context,
+	namespace ident.ID,
+	writes ts.WriteBatch,
+	tagged bool,
+) (error, []IndexedError) {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceWriteTagged.Inc(1)
-		return err
+		return err, nil
 	}
 
-	iter := writes.Iter()
+	var (
+		iter      = writes.Iter()
+		writeErrs []IndexedError
+	)
 	for i, write := range iter {
-		series, err := n.WriteTagged(
-			ctx,
-			write.Write.Series.ID,
-			write.TagIter,
-			write.Write.Datapoint.Timestamp,
-			write.Write.Datapoint.Value,
-			write.Write.Unit,
-			write.Write.Annotation,
+		var (
+			series ts.Series
+			err    error
 		)
+
+		if tagged {
+			series, err = n.WriteTagged(
+				ctx,
+				write.Write.Series.ID,
+				write.TagIter,
+				write.Write.Datapoint.Timestamp,
+				write.Write.Datapoint.Value,
+				write.Write.Unit,
+				write.Write.Annotation,
+			)
+		} else {
+			series, err = n.Write(
+				ctx,
+				write.Write.Series.ID,
+				write.Write.Datapoint.Timestamp,
+				write.Write.Datapoint.Value,
+				write.Write.Unit,
+				write.Write.Annotation,
+			)
+		}
+
 		if err == commitlog.ErrCommitLogQueueFull {
 			d.errors.Record(1)
 		}
 		if err != nil {
-			return err
+			writeErrs = append(writeErrs, IndexedError{
+				// Return errors with the original index provided by the caller so they
+				// can associate the error with the write that caused it.
+				Index: write.OriginalIndex,
+				Err:   err,
+			})
+			continue
 		}
 
-		iter[i].Write.Series = series
+		writes.SetSeries(i, series)
 	}
 
 	err = d.commitLog.WriteBatch(ctx, writes)
 
-	return err
+	return err, writeErrs
 }
 
 func (d *db) QueryIDs(

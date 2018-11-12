@@ -825,14 +825,15 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 	pooledReq.writeReq = req
 	ctx.RegisterFinalizer(pooledReq)
 
-	nsID := s.newPooledID(ctx, req.NameSpace, pooledReq)
-
 	var (
+		nsID = s.newPooledID(ctx, req.NameSpace, pooledReq)
+
 		errs               []*rpc.WriteBatchRawError
 		success            int
 		retryableErrors    int
 		nonRetryableErrors int
 	)
+
 	batchWriter, err := s.db.BatchWriter(nsID, len(req.Elements))
 	if err != nil {
 		return err
@@ -855,6 +856,7 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 
 		seriesID := s.newPooledID(ctx, elem.ID, pooledReq)
 		batchWriter.Add(
+			i,
 			seriesID,
 			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
 			elem.Datapoint.Value,
@@ -863,10 +865,27 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 		)
 	}
 
-	err = s.db.WriteBatch(ctx, nsID, batchWriter.(ts.WriteBatch))
+	err, writeErrs := s.db.WriteBatch(ctx, nsID, batchWriter.(ts.WriteBatch))
 	if err != nil {
 		return err
 	}
+
+	for _, indexedErr := range writeErrs {
+		if err != nil && xerrors.IsInvalidParams(indexedErr.Err) {
+			nonRetryableErrors++
+			errs = append(
+				errs,
+				tterrors.NewBadRequestWriteBatchRawError(indexedErr.Index, indexedErr.Err))
+		} else if err != nil {
+			retryableErrors++
+			errs = append(
+				errs,
+				tterrors.NewWriteBatchRawError(indexedErr.Index, indexedErr.Err))
+		} else {
+			success++
+		}
+	}
+
 	s.metrics.writeBatchRaw.ReportSuccess(success)
 	s.metrics.writeBatchRaw.ReportRetryableErrors(retryableErrors)
 	s.metrics.writeBatchRaw.ReportNonRetryableErrors(nonRetryableErrors)
@@ -893,14 +912,20 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 	pooledReq.writeTaggedReq = req
 	ctx.RegisterFinalizer(pooledReq)
 
-	nsID := s.newPooledID(ctx, req.NameSpace, pooledReq)
-
 	var (
+		nsID = s.newPooledID(ctx, req.NameSpace, pooledReq)
+
 		errs               []*rpc.WriteBatchRawError
 		success            int
 		retryableErrors    int
 		nonRetryableErrors int
 	)
+
+	batchWriter, err := s.db.BatchWriter(nsID, len(req.Elements))
+	if err != nil {
+		return err
+	}
+
 	for i, elem := range req.Elements {
 		unit, unitErr := convert.ToUnit(elem.Datapoint.TimestampTimeType)
 		if unitErr != nil {
@@ -924,16 +949,32 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 		}
 
 		seriesID := s.newPooledID(ctx, elem.ID, pooledReq)
-		if err = s.db.WriteTagged(
-			ctx, nsID, seriesID, dec,
+		batchWriter.AddTagged(
+			i,
+			seriesID,
+			dec,
 			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
-			elem.Datapoint.Value, unit, elem.Datapoint.Annotation,
-		); err != nil && xerrors.IsInvalidParams(err) {
+			elem.Datapoint.Value,
+			unit,
+			elem.Datapoint.Annotation)
+	}
+
+	err, writeErrs := s.db.WriteBatch(ctx, nsID, batchWriter.(ts.WriteBatch))
+	if err != nil {
+		return err
+	}
+
+	for _, indexedErr := range writeErrs {
+		if err != nil && xerrors.IsInvalidParams(indexedErr.Err) {
 			nonRetryableErrors++
-			errs = append(errs, tterrors.NewBadRequestWriteBatchRawError(i, err))
+			errs = append(
+				errs,
+				tterrors.NewBadRequestWriteBatchRawError(indexedErr.Index, indexedErr.Err))
 		} else if err != nil {
 			retryableErrors++
-			errs = append(errs, tterrors.NewWriteBatchRawError(i, err))
+			errs = append(
+				errs,
+				tterrors.NewWriteBatchRawError(indexedErr.Index, indexedErr.Err))
 		} else {
 			success++
 		}

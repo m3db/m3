@@ -82,8 +82,9 @@ type testWrite struct {
 func TestBatchWriterAddAndIter(t *testing.T) {
 	writeBatch := NewWriteBatch(batchSize, maxBatchSize, namespace, nil)
 
-	for _, write := range writes {
+	for i, write := range writes {
 		writeBatch.Add(
+			i,
 			write.id,
 			write.timestamp,
 			write.value,
@@ -98,8 +99,9 @@ func TestBatchWriterAddAndIter(t *testing.T) {
 func TestBatchWriterAddTaggedAndIter(t *testing.T) {
 	writeBatch := NewWriteBatch(batchSize, maxBatchSize, namespace, nil)
 
-	for _, write := range writes {
+	for i, write := range writes {
 		writeBatch.AddTagged(
+			i,
 			write.id,
 			write.tagIter,
 			write.timestamp,
@@ -115,8 +117,9 @@ func TestBatchWriterAddTaggedAndIter(t *testing.T) {
 func TestBatchWriterSetSeries(t *testing.T) {
 	writeBatch := NewWriteBatch(batchSize, maxBatchSize, namespace, nil)
 
-	for _, write := range writes {
+	for i, write := range writes {
 		writeBatch.AddTagged(
+			i,
 			write.id,
 			write.tagIter,
 			write.timestamp,
@@ -149,32 +152,6 @@ func TestBatchWriterSetSeries(t *testing.T) {
 	}
 }
 
-func TestBatchWriterSetError(t *testing.T) {
-	writeBatch := NewWriteBatch(batchSize, maxBatchSize, namespace, nil)
-
-	for _, write := range writes {
-		writeBatch.AddTagged(
-			write.id,
-			write.tagIter,
-			write.timestamp,
-			write.value,
-			write.unit,
-			write.annotation)
-	}
-
-	// Update the series
-	iter := writeBatch.Iter()
-	for i := range iter {
-		writeBatch.SetError(i, fmt.Errorf(string(i)))
-	}
-
-	// Assert the errors have been set
-	iter = writeBatch.Iter()
-	for i, curr := range iter {
-		require.Equal(t, string(i), curr.Err.Error())
-	}
-}
-
 func TestWriteBatchReset(t *testing.T) {
 	var (
 		numResets  = 10
@@ -185,6 +162,7 @@ func TestWriteBatchReset(t *testing.T) {
 		writeBatch.Reset(batchSize, namespace, shardFn)
 		for _, write := range writes {
 			writeBatch.Add(
+				i,
 				write.id,
 				write.timestamp,
 				write.value,

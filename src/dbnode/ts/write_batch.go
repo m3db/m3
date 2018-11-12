@@ -53,6 +53,7 @@ func NewWriteBatch(
 }
 
 func (b *writeBatch) Add(
+	originalIndex int,
 	id ident.ID,
 	timestamp time.Time,
 	value float64,
@@ -60,11 +61,12 @@ func (b *writeBatch) Add(
 	annotation []byte,
 ) {
 	write := newBatchWriterWrite(
-		b.ns, id, nil, timestamp, value, unit, annotation)
+		originalIndex, b.ns, id, nil, timestamp, value, unit, annotation)
 	b.writes = append(b.writes, write)
 }
 
 func (b *writeBatch) AddTagged(
+	originalIndex int,
 	id ident.ID,
 	tagIter ident.TagIterator,
 	timestamp time.Time,
@@ -73,7 +75,7 @@ func (b *writeBatch) AddTagged(
 	annotation []byte,
 ) {
 	write := newBatchWriterWrite(
-		b.ns, id, tagIter, timestamp, value, unit, annotation)
+		originalIndex, b.ns, id, tagIter, timestamp, value, unit, annotation)
 	b.writes = append(b.writes, write)
 }
 
@@ -101,10 +103,6 @@ func (b *writeBatch) SetSeries(idx int, series Series) {
 	b.writes[idx].Write.Series = series
 }
 
-func (b *writeBatch) SetError(idx int, err error) {
-	b.writes[idx].Err = err
-}
-
 func (b *writeBatch) Finalize() {
 	b.finalizeFn(b)
 }
@@ -112,12 +110,13 @@ func (b *writeBatch) Finalize() {
 // BatchWrite represents a write that was added to the
 // BatchWriter.
 type BatchWrite struct {
-	Write   Write
-	TagIter ident.TagIterator
-	Err     error
+	Write         Write
+	TagIter       ident.TagIterator
+	OriginalIndex int
 }
 
 func newBatchWriterWrite(
+	originalIndex int,
 	namespace ident.ID,
 	id ident.ID,
 	tagsIter ident.TagIterator,
@@ -138,8 +137,8 @@ func newBatchWriterWrite(
 			Unit:       unit,
 			Annotation: annotation,
 		},
-		TagIter: tagsIter,
-		Err:     nil,
+		TagIter:       tagsIter,
+		OriginalIndex: originalIndex,
 	}
 }
 
@@ -147,6 +146,7 @@ func newBatchWriterWrite(
 // writes.
 type BatchWriter interface {
 	Add(
+		originalIndex int,
 		id ident.ID,
 		timestamp time.Time,
 		value float64,
@@ -155,6 +155,7 @@ type BatchWriter interface {
 	)
 
 	AddTagged(
+		originalIndex int,
 		id ident.ID,
 		tags ident.TagIterator,
 		timestamp time.Time,
@@ -172,7 +173,6 @@ type WriteBatch interface {
 	// Can't use a real iterator pattern here as it slows things down.
 	Iter() []BatchWrite
 	SetSeries(idx int, series Series)
-	SetError(idx int, err error)
 	Reset(
 		batchSize int,
 		ns ident.ID,
