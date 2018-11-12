@@ -89,10 +89,6 @@ type Database interface {
 	// the GC to do so.
 	Terminate() error
 
-	// BatchWriter returns a batch writer for the provided namespace that can
-	// be used to issue a batch of writes to eithe WriteBatch or WriteTaggedBatch.
-	BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error)
-
 	// Write value to the database for an ID
 	Write(
 		ctx context.Context,
@@ -103,13 +99,6 @@ type Database interface {
 		unit xtime.Unit,
 		annotation []byte,
 	) error
-
-	// WriteBatch is the same as Write, but in batch.
-	WriteBatch(
-		ctx context.Context,
-		namespace ident.ID,
-		writes ts.WriteBatch,
-	) (error, []IndexedError)
 
 	// WriteTagged values to the database for an ID
 	WriteTagged(
@@ -122,6 +111,17 @@ type Database interface {
 		unit xtime.Unit,
 		annotation []byte,
 	) error
+
+	// BatchWriter returns a batch writer for the provided namespace that can
+	// be used to issue a batch of writes to eithe WriteBatch or WriteTaggedBatch.
+	BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error)
+
+	// WriteBatch is the same as Write, but in batch.
+	WriteBatch(
+		ctx context.Context,
+		namespace ident.ID,
+		writes ts.WriteBatch,
+	) (error, []IndexedError)
 
 	// WriteTaggedBatch is the same as WriteTagged, but in batch.
 	WriteTaggedBatch(
