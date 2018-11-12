@@ -18,13 +18,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package tags
+package remote
 
 import (
 	"context"
 	"net/http"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/net/http"
@@ -34,7 +35,7 @@ import (
 
 const (
 	// TagValuesURL is the url for tag values.
-	TagValuesURL = handler.RoutePrefixV1 + "/:" + nameReplace + "/values"
+	TagValuesURL = handler.RoutePrefixV1 + "/{" + prometheus.NameReplace + "}/values"
 
 	// TagValuesHTTPMethod is the HTTP method used with this resource.
 	TagValuesHTTPMethod = http.MethodGet
@@ -54,7 +55,7 @@ type TagValuesResponse struct {
 func NewTagValuesHandler(
 	storage storage.Storage,
 ) http.Handler {
-	return &CompleteTagsHandler{
+	return &TagValuesHandler{
 		storage: storage,
 	}
 }
@@ -65,7 +66,13 @@ func (h *TagValuesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	query := parseTagValuesToQuery(r)
+	query, err := prometheus.ParseTagValuesToQuery(r)
+	if err != nil {
+		logger.Error("unable to parse tag values to query", zap.Error(err))
+		xhttp.Error(w, err, http.StatusBadRequest)
+		return
+	}
+
 	opts := storage.NewFetchOptions()
 	result, err := h.storage.CompleteTags(ctx, query, opts)
 	if err != nil {
@@ -75,5 +82,5 @@ func (h *TagValuesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// TODO: Support multiple result types
-	renderResultsJSON(w, result)
+	prometheus.RenderSearchResultsJSON(w, result)
 }

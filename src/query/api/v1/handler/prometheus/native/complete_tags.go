@@ -18,11 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package tags
+package native
 
 import (
 	"context"
 	"net/http"
+
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
 
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/storage"
@@ -60,7 +62,7 @@ func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	query, rErr := parseParamsToQuery(r)
+	query, rErr := prometheus.ParseSearchParamsToQuery(r)
 	if rErr != nil {
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
@@ -75,5 +77,5 @@ func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// TODO: Support multiple result types
-	renderResultsJSON(w, result)
+	prometheus.RenderSearchResultsJSON(w, result)
 }

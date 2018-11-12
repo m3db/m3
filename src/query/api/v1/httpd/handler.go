@@ -38,7 +38,6 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/tags"
 	"github.com/m3db/m3/src/query/api/v1/handler/topic"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
@@ -145,12 +144,12 @@ func (h *Handler) RegisterRoutes() error {
 	).Methods(m3json.JSONWriteHTTPMethod)
 
 	// Tag completion endpoints
-	h.Router.HandleFunc(tags.CompleteTagsURL,
-		logged(tags.NewCompleteTagsHandler(h.storage)).ServeHTTP,
-	).Methods(tags.CompleteTagsHTTPMethod)
-	h.Router.HandleFunc(tags.TagValuesURL,
-		logged(tags.NewTagValuesHandler(h.storage)).ServeHTTP,
-	).Methods(tags.TagValuesHTTPMethod)
+	h.Router.HandleFunc(native.CompleteTagsURL,
+		logged(native.NewCompleteTagsHandler(h.storage)).ServeHTTP,
+	).Methods(native.CompleteTagsHTTPMethod)
+	h.Router.HandleFunc(remote.TagValuesURL,
+		logged(remote.NewTagValuesHandler(h.storage)).ServeHTTP,
+	).Methods(remote.TagValuesHTTPMethod)
 
 	if h.clusterClient != nil {
 		placementOpts := placement.HandlerOptions{

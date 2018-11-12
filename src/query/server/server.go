@@ -582,7 +582,7 @@ func newStorages(
 		readFilter = filter.AllowAll
 	}
 
-	fanoutStorage := fanout.NewStorage(stores, readFilter, filter.LocalOnly)
+	fanoutStorage := fanout.NewStorage(stores, readFilter, filter.LocalOnly, filter.RemoteOnly)
 	return fanoutStorage, cleanup, nil
 }
 
