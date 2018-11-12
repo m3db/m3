@@ -22,7 +22,7 @@ More information:
 make m3dbnode (note that we currently require at least Go 1.10 or higher)
 
 # run it with the sample configuration
-./bin/m3dbnode -f ./src/dbnode/config/m3dbnode-local-etcd.yml
+./bin/m3dbnode -f ./src/dbnode/example/m3db-node-config.yaml
 ```
 
 To cross-compile and build for Linux AMD64 build with `make m3dbnode-linux-amd64`.
@@ -90,7 +90,7 @@ produce a lightweight production image from a single Dockerfile. Accordingly, it
 17.05 or later to build.
 
 ```
-docker build -t m3dbnode:$(git rev-parse head) .
+docker build -f docker/m3dbnode/Dockerfile -t m3dbnode:$(git rev-parse head) .
 docker run --name m3dbnode m3dbnode:$(git rev-parse head)
 ```
 
@@ -98,7 +98,7 @@ If you wish to build an image with the source code included you can stop the bui
 `builder` stage:
 
 ```
-docker build -t m3dbnode:$(git rev-parse head) --target builder .
+docker build -f docker/m3dbnode/Dockerfile -t m3dbnode:$(git rev-parse head) --target builder .
 ```
 
 ## Configuration
