@@ -606,7 +606,13 @@ func (l *commitLog) writeWait(
 		callbackFn: completion,
 	}
 
-	enqueued := false
+	var (
+		enqueued    = false
+		numEnqueued = 1
+	)
+	if writeToEnqueue.write.writeBatch != nil {
+		numEnqueued = len(writeToEnqueue.write.writeBatch.Iter())
+	}
 
 	select {
 	case l.writes <- writeToEnqueue:
@@ -620,6 +626,7 @@ func (l *commitLog) writeWait(
 		return ErrCommitLogQueueFull
 	}
 
+	atomic.AddInt64(&l.queued, int64(numEnqueued))
 	wg.Wait()
 
 	return result
@@ -639,9 +646,10 @@ func (l *commitLog) writeBehind(
 		write: write,
 	}
 
-	enqueued := false
-
-	numEnqueued := 1
+	var (
+		enqueued    = false
+		numEnqueued = 1
+	)
 	if writeToEnqueue.write.writeBatch != nil {
 		numEnqueued = len(writeToEnqueue.write.writeBatch.Iter())
 	}
