@@ -702,8 +702,8 @@ func SortedSnapshotMetadataFiles(opts Options) (
 				Error: instrument.InvariantErrorf(
 					"actual snapshot metadata filepath: %s and generated filepath: %s do not match",
 					file, snapshotMetadataFilePathFromIdentifier(prefix, id)),
-				MetadataFilePath: file,
-				// Can't construct checkpoint file path without ID
+				MetadataFilePath:   file,
+				CheckpointFilePath: snapshotMetadataCheckpointFilePathFromIdentifier(prefix, id),
 			})
 			continue
 		}
