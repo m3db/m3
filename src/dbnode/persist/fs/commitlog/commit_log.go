@@ -450,8 +450,8 @@ func (l *commitLog) write() {
 		numWritesSuccess := int64(0)
 		numDequeued := 0
 		if write.write.writeBatch == nil {
-			numDequeued = 1
 			// Handle individual write case
+			numDequeued = 1
 			write := write.write.write
 			err := l.writerState.writer.Write(write.Series,
 				write.Datapoint, write.Unit, write.Annotation)
@@ -461,9 +461,10 @@ func (l *commitLog) write() {
 			}
 			numWritesSuccess++
 		} else {
+			// Handle write batch case
 			iter := write.write.writeBatch.Iter()
 			numDequeued = len(iter)
-			// Handle write batch case
+
 			for _, writeBatch := range iter {
 				write := writeBatch.Write
 				err := l.writerState.writer.Write(write.Series,
@@ -475,6 +476,7 @@ func (l *commitLog) write() {
 				numWritesSuccess++
 			}
 
+			// Return the write batch to the pool.
 			write.write.writeBatch.Finalize()
 		}
 
