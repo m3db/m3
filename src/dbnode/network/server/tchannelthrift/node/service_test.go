@@ -1278,11 +1278,15 @@ func TestServiceWriteBatchRaw(t *testing.T) {
 		{"foo", time.Now().Truncate(time.Second), 12.34},
 		{"bar", time.Now().Truncate(time.Second), 42.42},
 	}
-	for _, w := range values {
-		mockDB.EXPECT().
-			Write(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(w.id), w.t, w.v, xtime.Second, nil).
-			Return(nil)
-	}
+
+	writeBatch := ts.NewWriteBatch(len(values), 10, ident.StringID(nsID), nil)
+	mockDB.EXPECT().
+		BatchWriter(ident.NewIDMatcher(nsID), len(values)).
+		Return(writeBatch, nil)
+
+	mockDB.EXPECT().
+		WriteBatch(ctx, ident.NewIDMatcher(nsID), writeBatch).
+		Return(nil, nil)
 
 	var elements []*rpc.WriteBatchRawRequestElement
 	for _, w := range values {
@@ -1338,13 +1342,15 @@ func TestServiceWriteTaggedBatchRaw(t *testing.T) {
 		{"foo", "a|b", time.Now().Truncate(time.Second), 12.34},
 		{"bar", "c|dd", time.Now().Truncate(time.Second), 42.42},
 	}
-	for _, w := range values {
-		mockDB.EXPECT().
-			WriteTagged(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(w.id),
-				mockDecoder,
-				w.t, w.v, xtime.Second, nil).
-			Return(nil)
-	}
+
+	writeBatch := ts.NewWriteBatch(len(values), 10, ident.StringID(nsID), nil)
+	mockDB.EXPECT().
+		BatchWriter(ident.NewIDMatcher(nsID), len(values)).
+		Return(writeBatch, nil)
+
+	mockDB.EXPECT().
+		WriteTaggedBatch(ctx, ident.NewIDMatcher(nsID), writeBatch).
+		Return(nil, nil)
 
 	var elements []*rpc.WriteTaggedBatchRawRequestElement
 	for _, w := range values {
