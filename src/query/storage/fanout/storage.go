@@ -36,9 +36,10 @@ import (
 )
 
 type fanoutStorage struct {
-	stores      []storage.Storage
-	fetchFilter filter.Storage
-	writeFilter filter.Storage
+	stores             []storage.Storage
+	fetchFilter        filter.Storage
+	writeFilter        filter.Storage
+	completeTagsFilter filter.StorageCompleteTags
 }
 
 // NewStorage creates a new fanout Storage instance.
@@ -46,8 +47,14 @@ func NewStorage(
 	stores []storage.Storage,
 	fetchFilter filter.Storage,
 	writeFilter filter.Storage,
+	completeTagsFilter filter.StorageCompleteTags,
 ) storage.Storage {
-	return &fanoutStorage{stores: stores, fetchFilter: fetchFilter, writeFilter: writeFilter}
+	return &fanoutStorage{
+		stores:             stores,
+		fetchFilter:        fetchFilter,
+		writeFilter:        writeFilter,
+		completeTagsFilter: completeTagsFilter,
+	}
 }
 
 func (s *fanoutStorage) Fetch(
@@ -111,7 +118,11 @@ func handleFetchResponses(requests []execution.Request) (*storage.FetchResult, e
 	return result, nil
 }
 
-func (s *fanoutStorage) FetchTags(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (*storage.SearchResults, error) {
+func (s *fanoutStorage) FetchTags(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) (*storage.SearchResults, error) {
 	var metrics models.Metrics
 
 	stores := filterStores(s.stores, s.fetchFilter, query)
@@ -134,22 +145,18 @@ func (s *fanoutStorage) CompleteTags(
 	options *storage.FetchOptions,
 ) (*storage.CompleteTagsResult, error) {
 	var accumulatedTags storage.CompleteTagsResultBuilder
-
-	for _, store := range s.stores {
-		// TODO: once complete tags enabled locally,
-		// this should aggregate and merge results from all storages.
-		if store.Type() == storage.TypeRemoteDC {
-			result, err := store.CompleteTags(ctx, query, options)
-			if err != nil {
-				return nil, err
-			}
-
-			if accumulatedTags == nil {
-				accumulatedTags = storage.NewCompleteTagsResultBuilder(result.CompleteNameOnly)
-			}
-
-			accumulatedTags.Add(result)
+	stores := filterCompleteTagsStores(s.stores, s.completeTagsFilter, *query)
+	for _, store := range stores {
+		result, err := store.CompleteTags(ctx, query, options)
+		if err != nil {
+			return nil, err
 		}
+
+		if accumulatedTags == nil {
+			accumulatedTags = storage.NewCompleteTagsResultBuilder(result.CompleteNameOnly)
+		}
+
+		accumulatedTags.Add(result)
 	}
 
 	built := accumulatedTags.Build()
@@ -181,7 +188,8 @@ func (s *fanoutStorage) Close() error {
 	for idx, store := range s.stores {
 		// Keep going on error to close all storages
 		if err := store.Close(); err != nil {
-			logging.WithContext(context.Background()).Error("unable to close storage", zap.Int("store", int(store.Type())), zap.Int("index", idx))
+			logging.WithContext(context.Background()).Error("unable to close storage",
+				zap.Int("store", int(store.Type())), zap.Int("index", idx))
 			lastErr = err
 		}
 	}
@@ -189,13 +197,33 @@ func (s *fanoutStorage) Close() error {
 	return lastErr
 }
 
-func filterStores(stores []storage.Storage, filterPolicy filter.Storage, query storage.Query) []storage.Storage {
-	filtered := make([]storage.Storage, 0)
+func filterStores(
+	stores []storage.Storage,
+	filterPolicy filter.Storage,
+	query storage.Query,
+) []storage.Storage {
+	filtered := make([]storage.Storage, 0, len(stores))
 	for _, s := range stores {
 		if filterPolicy(query, s) {
 			filtered = append(filtered, s)
 		}
 	}
+
+	return filtered
+}
+
+func filterCompleteTagsStores(
+	stores []storage.Storage,
+	filterPolicy filter.StorageCompleteTags,
+	query storage.CompleteTagsQuery,
+) []storage.Storage {
+	filtered := make([]storage.Storage, 0, len(stores))
+	for _, s := range stores {
+		if filterPolicy(query, s) {
+			filtered = append(filtered, s)
+		}
+	}
+
 	return filtered
 }
 
@@ -206,7 +234,11 @@ type fetchRequest struct {
 	result  *storage.FetchResult
 }
 
-func newFetchRequest(store storage.Storage, query *storage.FetchQuery, options *storage.FetchOptions) execution.Request {
+func newFetchRequest(
+	store storage.Storage,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) execution.Request {
 	return &fetchRequest{
 		store:   store,
 		query:   query,

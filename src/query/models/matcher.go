@@ -118,9 +118,10 @@ func matcherFromString(s string) (Matcher, error) {
 	if len(ss) > 2 {
 		return Matcher{}, errors.New("invalid arg length for matcher")
 	}
+	fmt.Println(l)
 
-	if l == 0 {
-		return Matcher{}, nil
+	if l == 0 || len(ss[0]) == 0 {
+		return Matcher{}, errors.New("empty matcher")
 	}
 
 	if l == 1 {
@@ -141,13 +142,14 @@ func matcherFromString(s string) (Matcher, error) {
 // MatchersFromString parses a string into Matchers
 // TODO: make this more robust, handle types other than MatchEqual
 func MatchersFromString(s string) (Matchers, error) {
-	split := strings.Split(s, " ")
+	split := strings.Fields(s)
 	matchers := make(Matchers, len(split))
 	for i, ss := range split {
 		matcher, err := matcherFromString(ss)
 		if err != nil {
 			return nil, err
 		}
+		fmt.Println(matcher)
 
 		matchers[i] = matcher
 	}

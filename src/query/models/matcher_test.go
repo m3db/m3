@@ -109,3 +109,43 @@ func TestMatcher_String(t *testing.T) {
 func TestMatchType(t *testing.T) {
 	require.Equal(t, MatchEqual.String(), "=")
 }
+
+func TestMatchersFromEmptyString(t *testing.T) {
+	matchers, err := MatchersFromString("")
+	assert.NoError(t, err)
+	assert.Len(t, matchers, 0)
+}
+
+func TestMatchersFromStringErrors(t *testing.T) {
+	_, err := MatchersFromString(":")
+	assert.Error(t, err)
+	_, err = MatchersFromString(":aa")
+	assert.Error(t, err)
+}
+
+func TestValidMatchersFromString(t *testing.T) {
+	m, err := MatchersFromString("a:")
+	assert.NoError(t, err)
+	expected := Matchers{{
+		Name:  []byte("a"),
+		Value: []byte{},
+		Type:  MatchEqual,
+	}}
+
+	assert.Equal(t, expected, m)
+
+	m, err = MatchersFromString("a:aa")
+	expected[0].Value = []byte("aa")
+	assert.NoError(t, err)
+	assert.Equal(t, expected, m)
+
+	m, err = MatchersFromString("a:aa      b:c")
+	expected = append(expected, Matcher{
+		Name:  []byte("b"),
+		Value: []byte("c"),
+		Type:  MatchEqual,
+	})
+
+	assert.NoError(t, err)
+	assert.Equal(t, expected, m)
+}
