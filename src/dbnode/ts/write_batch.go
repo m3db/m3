@@ -107,14 +107,6 @@ func (b *writeBatch) Finalize() {
 	b.finalizeFn(b)
 }
 
-// BatchWrite represents a write that was added to the
-// BatchWriter.
-type BatchWrite struct {
-	Write         Write
-	TagIter       ident.TagIterator
-	OriginalIndex int
-}
-
 func newBatchWriterWrite(
 	originalIndex int,
 	namespace ident.ID,
@@ -141,43 +133,4 @@ func newBatchWriterWrite(
 		TagIter:       tagsIter,
 		OriginalIndex: originalIndex,
 	}
-}
-
-// BatchWriter is the interface that is used for preparing a batch of
-// writes.
-type BatchWriter interface {
-	Add(
-		originalIndex int,
-		id ident.ID,
-		timestamp time.Time,
-		value float64,
-		unit xtime.Unit,
-		annotation []byte,
-	)
-
-	AddTagged(
-		originalIndex int,
-		id ident.ID,
-		tags ident.TagIterator,
-		timestamp time.Time,
-		value float64,
-		unit xtime.Unit,
-		annotation []byte,
-	)
-}
-
-// WriteBatch is the interface that supports adding writes to the batch,
-// as well as iterating through the batched writes and resetting the
-// struct (for pooling).
-type WriteBatch interface {
-	BatchWriter
-	// Can't use a real iterator pattern here as it slows things down.
-	Iter() []BatchWrite
-	SetSeries(idx int, series Series)
-	Reset(
-		batchSize int,
-		ns ident.ID,
-		shardFn sharding.HashFn,
-	)
-	Finalize()
 }

@@ -34,74 +34,77 @@ const (
 
 // PoolingPolicy specifies the pooling policy.
 type PoolingPolicy struct {
-	// The initial alloc size for a block
+	// The initial alloc size for a block.
 	BlockAllocSize int `yaml:"blockAllocSize"`
 
 	// The general pool type (currently only supported: simple).
 	Type PoolingType `yaml:"type"`
 
-	// The Bytes pool buckets to use
+	// The Bytes pool buckets to use.
 	BytesPool BucketPoolPolicy `yaml:"bytesPool"`
 
-	// The policy for the Closers pool
+	// The policy for the Closers pool.
 	ClosersPool PoolPolicy `yaml:"closersPool"`
 
-	// The policy for the Context pool
+	// The policy for the Context pool.
 	ContextPool ContextPoolPolicy `yaml:"contextPool"`
 
-	// The policy for the DatabaseSeries pool
+	// The policy for the DatabaseSeries pool.
 	SeriesPool PoolPolicy `yaml:"seriesPool"`
 
-	// The policy for the DatabaseBlock pool
+	// The policy for the DatabaseBlock pool.
 	BlockPool PoolPolicy `yaml:"blockPool"`
 
-	// The policy for the Encoder pool
+	// The policy for the Encoder pool.
 	EncoderPool PoolPolicy `yaml:"encoderPool"`
 
-	// The policy for the Iterator pool
+	// The policy for the Iterator pool.
 	IteratorPool PoolPolicy `yaml:"iteratorPool"`
 
-	// The policy for the Segment Reader pool
+	// The policy for the Segment Reader pool.
 	SegmentReaderPool PoolPolicy `yaml:"segmentReaderPool"`
 
-	// The policy for the Identifier pool
+	// The policy for the Identifier pool.
 	IdentifierPool PoolPolicy `yaml:"identifierPool"`
 
-	// The policy for the FetchBlockMetadataResult pool
+	// The policy for the FetchBlockMetadataResult pool.
 	FetchBlockMetadataResultsPool CapacityPoolPolicy `yaml:"fetchBlockMetadataResultsPool"`
 
-	// The policy for the FetchBlocksMetadataResults pool
+	// The policy for the FetchBlocksMetadataResults pool.
 	FetchBlocksMetadataResultsPool CapacityPoolPolicy `yaml:"fetchBlocksMetadataResultsPool"`
 
-	// The policy for the HostBlockMetadataSlice pool
+	// The policy for the HostBlockMetadataSlice pool.
 	HostBlockMetadataSlicePool CapacityPoolPolicy `yaml:"hostBlockMetadataSlicePool"`
 
-	// The policy for the BlockMetadat pool
+	// The policy for the BlockMetadat pool.
 	BlockMetadataPool PoolPolicy `yaml:"blockMetadataPool"`
 
-	// The policy for the BlockMetadataSlice pool
+	// The policy for the BlockMetadataSlice pool.
 	BlockMetadataSlicePool CapacityPoolPolicy `yaml:"blockMetadataSlicePool"`
 
-	// The policy for the BlocksMetadata pool
+	// The policy for the BlocksMetadata pool.
 	BlocksMetadataPool PoolPolicy `yaml:"blocksMetadataPool"`
 
-	// The policy for the BlocksMetadataSlice pool
+	// The policy for the BlocksMetadataSlice pool.
 	BlocksMetadataSlicePool CapacityPoolPolicy `yaml:"blocksMetadataSlicePool"`
 
-	// The policy for the tags pool
+	// The policy for the tags pool.
 	TagsPool MaxCapacityPoolPolicy `yaml:"tagsPool"`
 
-	// The policy for the tags iterator pool
+	// The policy for the tags iterator pool.
 	TagsIteratorPool PoolPolicy `yaml:"tagIteratorPool"`
 
-	// The policy for the index.ResultsPool
+	// The policy for the index.ResultsPool.
 	IndexResultsPool PoolPolicy `yaml:"indexResultsPool"`
 
-	// The policy for the TagEncoderPool
+	// The policy for the TagEncoderPool.
 	TagEncoderPool PoolPolicy `yaml:"tagEncoderPool"`
 
-	// The policy for the TagDecoderPool
+	// The policy for the TagDecoderPool.
 	TagDecoderPool PoolPolicy `yaml:"tagDecoderPool"`
+
+	// The policy for the WriteBatchPool
+	WriteBatchPool PoolPolicy `yaml:"writeBatchPool"`
 }
 
 // PoolPolicy specifies a single pool policy.

@@ -41,7 +41,6 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
@@ -98,7 +97,7 @@ type db struct {
 	errWindow    time.Duration
 	errThreshold int64
 
-	writeBatchPool *writeBatchPool
+	writeBatchPool *ts.WriteBatchPool
 }
 
 type databaseMetrics struct {
@@ -161,11 +160,7 @@ func NewDatabase(
 		errWindow:    opts.ErrorWindowForLoad(),
 		errThreshold: opts.ErrorThresholdForLoad(),
 
-		writeBatchPool: newWriteBatchPool(
-			pool.NewObjectPoolOptions().
-				SetSize(1000).
-				SetRefillLowWatermark(0.1).
-				SetRefillHighWatermark(0.1)),
+		// writeBatchPool: opts,
 	}
 	d.writeBatchPool.Init()
 
@@ -823,28 +818,4 @@ func (m metadatas) String() (string, error) {
 	}
 	buf.WriteRune(']')
 	return buf.String(), nil
-}
-
-type writeBatchPool struct {
-	pool pool.ObjectPool
-}
-
-func newWriteBatchPool(opts pool.ObjectPoolOptions) *writeBatchPool {
-	p := pool.NewObjectPool(opts)
-	return &writeBatchPool{pool: p}
-}
-
-func (p *writeBatchPool) Init() {
-	p.pool.Init(func() interface{} {
-		return ts.NewWriteBatch(1000, 10000, nil, p.Put)
-	})
-}
-
-func (p *writeBatchPool) Get() ts.WriteBatch {
-	w := p.pool.Get().(ts.WriteBatch)
-	return w
-}
-
-func (p *writeBatchPool) Put(w ts.WriteBatch) {
-	p.pool.Put(w)
 }
