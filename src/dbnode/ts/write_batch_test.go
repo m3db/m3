@@ -80,7 +80,7 @@ type testWrite struct {
 }
 
 func TestBatchWriterAddAndIter(t *testing.T) {
-	writeBatch := NewWriteBatch(batchSize, maxBatchSize, namespace, nil)
+	writeBatch := NewWriteBatch(batchSize, namespace, nil)
 
 	for i, write := range writes {
 		writeBatch.Add(
@@ -97,7 +97,7 @@ func TestBatchWriterAddAndIter(t *testing.T) {
 }
 
 func TestBatchWriterAddTaggedAndIter(t *testing.T) {
-	writeBatch := NewWriteBatch(batchSize, maxBatchSize, namespace, nil)
+	writeBatch := NewWriteBatch(batchSize, namespace, nil)
 
 	for i, write := range writes {
 		writeBatch.AddTagged(
@@ -115,7 +115,7 @@ func TestBatchWriterAddTaggedAndIter(t *testing.T) {
 }
 
 func TestBatchWriterSetSeries(t *testing.T) {
-	writeBatch := NewWriteBatch(batchSize, maxBatchSize, namespace, nil)
+	writeBatch := NewWriteBatch(batchSize, namespace, nil)
 
 	for i, write := range writes {
 		writeBatch.AddTagged(
@@ -155,7 +155,7 @@ func TestBatchWriterSetSeries(t *testing.T) {
 func TestWriteBatchReset(t *testing.T) {
 	var (
 		numResets  = 10
-		writeBatch = NewWriteBatch(batchSize, maxBatchSize, namespace, nil)
+		writeBatch = NewWriteBatch(batchSize, namespace, nil)
 	)
 
 	for i := 0; i < numResets; i++ {

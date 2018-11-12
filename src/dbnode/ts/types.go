@@ -90,6 +90,9 @@ type WriteBatch interface {
 		shardFn sharding.HashFn,
 	)
 	Finalize()
+
+	// Returns the WriteBatch's internal capacity.
+	cap() int
 }
 
 // BatchWriter is the interface that is used for preparing a batch of

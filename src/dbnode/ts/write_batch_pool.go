@@ -54,7 +54,7 @@ func NewWriteBatchPool(opts pool.ObjectPoolOptions, maxBatchSize *int) *WriteBat
 // Init initializes a WriteBatchPool.
 func (p *WriteBatchPool) Init() {
 	p.pool.Init(func() interface{} {
-		return NewWriteBatch(1000, p.maxBatchSize, nil, p.Put)
+		return NewWriteBatch(1000, nil, p.Put)
 	})
 }
 
@@ -66,5 +66,10 @@ func (p *WriteBatchPool) Get() WriteBatch {
 
 // Put stores a WriteBatch in the pool.
 func (p *WriteBatchPool) Put(w WriteBatch) {
+	if w.cap() > p.maxBatchSize {
+		// WriteBatch has grown too large to remain in the pool.
+		return
+	}
+
 	p.pool.Put(w)
 }

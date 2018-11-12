@@ -29,26 +29,21 @@ import (
 )
 
 type writeBatch struct {
-	// The maximum batch size that will be allowed to be retained in a call to
-	// Reset().
-	maxBatchSize int
-	writes       []BatchWrite
-	ns           ident.ID
-	finalizeFn   func(WriteBatch)
+	writes     []BatchWrite
+	ns         ident.ID
+	finalizeFn func(WriteBatch)
 }
 
 // NewWriteBatch creates a new WriteBatch.
 func NewWriteBatch(
 	batchSize int,
-	maxBatchSize int,
 	ns ident.ID,
 	finalizeFn func(WriteBatch),
 ) WriteBatch {
 	return &writeBatch{
-		maxBatchSize: maxBatchSize,
-		writes:       make([]BatchWrite, 0, batchSize),
-		ns:           ns,
-		finalizeFn:   finalizeFn,
+		writes:     make([]BatchWrite, 0, batchSize),
+		ns:         ns,
+		finalizeFn: finalizeFn,
 	}
 }
 
@@ -85,7 +80,7 @@ func (b *writeBatch) Reset(
 	shardFn sharding.HashFn,
 ) {
 	var writes []BatchWrite
-	if batchSize > cap(b.writes) || cap(b.writes) > b.maxBatchSize {
+	if batchSize > cap(b.writes) {
 		writes = make([]BatchWrite, 0, batchSize)
 	} else {
 		writes = b.writes[:0]
@@ -105,6 +100,10 @@ func (b *writeBatch) SetSeries(idx int, series Series) {
 
 func (b *writeBatch) Finalize() {
 	b.finalizeFn(b)
+}
+
+func (b *writeBatch) cap() int {
+	return cap(b.writes)
 }
 
 func newBatchWriterWrite(
