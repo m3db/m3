@@ -843,6 +843,12 @@ type Options interface {
 
 	// QueryIDsWorkerPool returns the QueryIDs worker pool.
 	QueryIDsWorkerPool() xsync.WorkerPool
+
+	// SetWriteBatchPool sets the WriteBatch pool.
+	SetWriteBatchPool(value *ts.WriteBatchPool) Options
+
+	// WriteBatchPool returns the WriteBatch pool.
+	WriteBatchPool() *ts.WriteBatchPool
 }
 
 // DatabaseBootstrapState stores a snapshot of the bootstrap state for all shards across all
