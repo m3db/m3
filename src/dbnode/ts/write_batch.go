@@ -128,7 +128,8 @@ func newBatchWriterWrite(
 	return BatchWrite{
 		Write: Write{
 			Series: Series{
-				ID: id,
+				ID:        id,
+				Namespace: namespace,
 			},
 			Datapoint: Datapoint{
 				Timestamp: timestamp,

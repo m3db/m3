@@ -189,6 +189,7 @@ func assertDataPresent(t *testing.T, writes []testWrite, batchWriter WriteBatch)
 			)
 
 			if currSeries.ID.Equal(write.id) {
+				require.Equal(t, namespace, currWrite.Series.Namespace)
 				require.Equal(t, write.timestamp, currWrite.Datapoint.Timestamp)
 				require.Equal(t, write.value, currWrite.Datapoint.Value)
 				require.Equal(t, write.unit, currWrite.Unit)
