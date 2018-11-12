@@ -104,6 +104,9 @@ type databaseMetrics struct {
 	unknownNamespaceRead                tally.Counter
 	unknownNamespaceWrite               tally.Counter
 	unknownNamespaceWriteTagged         tally.Counter
+	unknownNamespaceBatchWriter         tally.Counter
+	unknownNamespaceWriteBatch          tally.Counter
+	unknownNamespaceWriteTaggedBatch    tally.Counter
 	unknownNamespaceFetchBlocks         tally.Counter
 	unknownNamespaceFetchBlocksMetadata tally.Counter
 	unknownNamespaceQueryIDs            tally.Counter
@@ -118,6 +121,9 @@ func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
 		unknownNamespaceRead:                unknownNamespaceScope.Counter("read"),
 		unknownNamespaceWrite:               unknownNamespaceScope.Counter("write"),
 		unknownNamespaceWriteTagged:         unknownNamespaceScope.Counter("write-tagged"),
+		unknownNamespaceBatchWriter:         unknownNamespaceScope.Counter("batch-writer"),
+		unknownNamespaceWriteBatch:          unknownNamespaceScope.Counter("write-batch"),
+		unknownNamespaceWriteTaggedBatch:    unknownNamespaceScope.Counter("write-tagged-batch"),
 		unknownNamespaceFetchBlocks:         unknownNamespaceScope.Counter("fetch-blocks"),
 		unknownNamespaceFetchBlocksMetadata: unknownNamespaceScope.Counter("fetch-blocks-metadata"),
 		unknownNamespaceQueryIDs:            unknownNamespaceScope.Counter("query-ids"),
@@ -538,8 +544,7 @@ func (d *db) WriteTagged(
 func (d *db) BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error) {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
-		// TODO: Fix metric
-		d.metrics.unknownNamespaceWriteTagged.Inc(1)
+		d.metrics.unknownNamespaceBatchWriter.Inc(1)
 		return nil, err
 	}
 
@@ -575,7 +580,11 @@ func (d *db) writeBatch(
 ) (error, []IndexedError) {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
-		d.metrics.unknownNamespaceWriteTagged.Inc(1)
+		if tagged {
+			d.metrics.unknownNamespaceWriteTaggedBatch.Inc(1)
+		} else {
+			d.metrics.unknownNamespaceWriteBatch.Inc(1)
+		}
 		return err, nil
 	}
 
