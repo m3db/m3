@@ -26,7 +26,6 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/generated/proto/snapshot"
-
 	xerrors "github.com/m3db/m3x/errors"
 
 	"github.com/gogo/protobuf/proto"
