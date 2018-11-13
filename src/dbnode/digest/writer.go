@@ -30,6 +30,8 @@ import (
 type FdWithDigestWriter interface {
 	FdWithDigest
 	io.Writer
+
+	Flush() error
 }
 
 type fdWithDigestWriter struct {
@@ -69,6 +71,11 @@ func (w *fdWithDigestWriter) Close() error {
 		return err
 	}
 	return w.FdWithDigest.Close()
+}
+
+// Flush flushes what's remaining in the buffered writes.
+func (w *fdWithDigestWriter) Flush() error {
+	return w.writer.Flush()
 }
 
 // FdWithDigestContentsWriter provides additional functionality of writing a digest to the underlying file.
