@@ -447,8 +447,11 @@ func (l *commitLog) write() {
 			}
 		}
 
-		numWritesSuccess := int64(0)
-		numDequeued := 0
+		var (
+			numWritesSuccess = int64(0)
+			numDequeued      = 0
+		)
+
 		if write.write.writeBatch == nil {
 			// Handle individual write case
 			numDequeued = 1

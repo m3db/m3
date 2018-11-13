@@ -564,7 +564,7 @@ func (d *db) WriteBatch(
 	ctx context.Context,
 	namespace ident.ID,
 	writer ts.BatchWriter,
-) (error, []IndexedError) {
+) ([]IndexedError, error) {
 	return d.writeBatch(ctx, namespace, writer, false)
 }
 
@@ -572,7 +572,7 @@ func (d *db) WriteTaggedBatch(
 	ctx context.Context,
 	namespace ident.ID,
 	writer ts.BatchWriter,
-) (error, []IndexedError) {
+) ([]IndexedError, error) {
 	return d.writeBatch(ctx, namespace, writer, true)
 }
 
@@ -581,10 +581,10 @@ func (d *db) writeBatch(
 	namespace ident.ID,
 	writer ts.BatchWriter,
 	tagged bool,
-) (error, []IndexedError) {
+) ([]IndexedError, error) {
 	writes, ok := writer.(ts.WriteBatch)
 	if !ok {
-		return errWriterDoesNotImplementWriteBatch, nil
+		return nil, errWriterDoesNotImplementWriteBatch
 	}
 
 	n, err := d.namespaceFor(namespace)
@@ -594,7 +594,7 @@ func (d *db) writeBatch(
 		} else {
 			d.metrics.unknownNamespaceWriteBatch.Inc(1)
 		}
-		return err, nil
+		return nil, err
 	}
 
 	var (
@@ -646,7 +646,7 @@ func (d *db) writeBatch(
 
 	err = d.commitLog.WriteBatch(ctx, writes)
 
-	return err, writeErrs
+	return writeErrs, err
 }
 
 func (d *db) QueryIDs(

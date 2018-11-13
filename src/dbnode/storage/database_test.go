@@ -671,7 +671,7 @@ func TestDatabaseWriteBatchNoNamespace(t *testing.T) {
 	_, err := d.BatchWriter(notExistNamespace, batchSize)
 	require.Error(t, err)
 
-	err, _ = d.WriteBatch(nil, notExistNamespace, nil)
+	_, err = d.WriteBatch(nil, notExistNamespace, nil)
 	require.Error(t, err)
 
 	require.NoError(t, d.Close())
@@ -694,7 +694,7 @@ func TestDatabaseWriteTaggedBatchNoNamespace(t *testing.T) {
 	_, err := d.BatchWriter(notExistNamespace, batchSize)
 	require.Error(t, err)
 
-	err, _ = d.WriteTaggedBatch(nil, notExistNamespace, nil)
+	_, err = d.WriteTaggedBatch(nil, notExistNamespace, nil)
 	require.Error(t, err)
 
 	require.NoError(t, d.Close())
@@ -779,9 +779,9 @@ func testDatabaseWriteBatch(t *testing.T, tagged bool) {
 
 	var writeErrs []IndexedError
 	if tagged {
-		err, writeErrs = d.WriteTaggedBatch(ctx, namespace, batchWriter.(ts.WriteBatch))
+		writeErrs, err = d.WriteTaggedBatch(ctx, namespace, batchWriter.(ts.WriteBatch))
 	} else {
-		err, writeErrs = d.WriteBatch(ctx, namespace, batchWriter.(ts.WriteBatch))
+		writeErrs, err = d.WriteBatch(ctx, namespace, batchWriter.(ts.WriteBatch))
 	}
 
 	require.NoError(t, err)

@@ -211,10 +211,10 @@ func (mr *MockDatabaseMockRecorder) BatchWriter(namespace, batchSize interface{}
 }
 
 // WriteBatch mocks base method
-func (m *MockDatabase) WriteBatch(ctx context.Context, namespace ident.ID, writes ts.BatchWriter) (error, []IndexedError) {
+func (m *MockDatabase) WriteBatch(ctx context.Context, namespace ident.ID, writes ts.BatchWriter) ([]IndexedError, error) {
 	ret := m.ctrl.Call(m, "WriteBatch", ctx, namespace, writes)
-	ret0, _ := ret[0].(error)
-	ret1, _ := ret[1].([]IndexedError)
+	ret0, _ := ret[0].([]IndexedError)
+	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
@@ -224,10 +224,10 @@ func (mr *MockDatabaseMockRecorder) WriteBatch(ctx, namespace, writes interface{
 }
 
 // WriteTaggedBatch mocks base method
-func (m *MockDatabase) WriteTaggedBatch(ctx context.Context, namespace ident.ID, writes ts.BatchWriter) (error, []IndexedError) {
+func (m *MockDatabase) WriteTaggedBatch(ctx context.Context, namespace ident.ID, writes ts.BatchWriter) ([]IndexedError, error) {
 	ret := m.ctrl.Call(m, "WriteTaggedBatch", ctx, namespace, writes)
-	ret0, _ := ret[0].(error)
-	ret1, _ := ret[1].([]IndexedError)
+	ret0, _ := ret[0].([]IndexedError)
+	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
@@ -518,10 +518,10 @@ func (mr *MockdatabaseMockRecorder) BatchWriter(namespace, batchSize interface{}
 }
 
 // WriteBatch mocks base method
-func (m *Mockdatabase) WriteBatch(ctx context.Context, namespace ident.ID, writes ts.BatchWriter) (error, []IndexedError) {
+func (m *Mockdatabase) WriteBatch(ctx context.Context, namespace ident.ID, writes ts.BatchWriter) ([]IndexedError, error) {
 	ret := m.ctrl.Call(m, "WriteBatch", ctx, namespace, writes)
-	ret0, _ := ret[0].(error)
-	ret1, _ := ret[1].([]IndexedError)
+	ret0, _ := ret[0].([]IndexedError)
+	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
@@ -531,10 +531,10 @@ func (mr *MockdatabaseMockRecorder) WriteBatch(ctx, namespace, writes interface{
 }
 
 // WriteTaggedBatch mocks base method
-func (m *Mockdatabase) WriteTaggedBatch(ctx context.Context, namespace ident.ID, writes ts.BatchWriter) (error, []IndexedError) {
+func (m *Mockdatabase) WriteTaggedBatch(ctx context.Context, namespace ident.ID, writes ts.BatchWriter) ([]IndexedError, error) {
 	ret := m.ctrl.Call(m, "WriteTaggedBatch", ctx, namespace, writes)
-	ret0, _ := ret[0].(error)
-	ret1, _ := ret[1].([]IndexedError)
+	ret0, _ := ret[0].([]IndexedError)
+	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
