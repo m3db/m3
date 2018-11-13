@@ -869,17 +869,17 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 		return err
 	}
 
-	for _, indexedErr := range writeErrs {
-		if err != nil && xerrors.IsInvalidParams(indexedErr.Err) {
+	for _, writeErr := range writeErrs {
+		if writeErr.Err != nil && xerrors.IsInvalidParams(writeErr.Err) {
 			nonRetryableErrors++
 			errs = append(
 				errs,
-				tterrors.NewBadRequestWriteBatchRawError(indexedErr.Index, indexedErr.Err))
-		} else if err != nil {
+				tterrors.NewBadRequestWriteBatchRawError(writeErr.Index, writeErr.Err))
+		} else if writeErr.Err != nil {
 			retryableErrors++
 			errs = append(
 				errs,
-				tterrors.NewWriteBatchRawError(indexedErr.Index, indexedErr.Err))
+				tterrors.NewWriteBatchRawError(writeErr.Index, writeErr.Err))
 		}
 	}
 
