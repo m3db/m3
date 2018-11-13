@@ -829,7 +829,6 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 		nsID = s.newPooledID(ctx, req.NameSpace, pooledReq)
 
 		errs               []*rpc.WriteBatchRawError
-		success            int
 		retryableErrors    int
 		nonRetryableErrors int
 	)
@@ -914,7 +913,6 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 		nsID = s.newPooledID(ctx, req.NameSpace, pooledReq)
 
 		errs               []*rpc.WriteBatchRawError
-		success            int
 		retryableErrors    int
 		nonRetryableErrors int
 	)
