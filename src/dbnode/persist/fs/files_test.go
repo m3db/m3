@@ -330,10 +330,12 @@ func TestSnapshotMetadataCheckpointFilePathFromIdentifierRoundTrip(t *testing.T)
 }
 
 func TestSanitizedUUIDsCanBeParsed(t *testing.T) {
-	uuidString := "bf58eb3e-0582-42ee-83b2-d098c206260e"
-	parsedUUID, ok := parseUUID(sanitizeUUID(uuidString))
+	u := uuid.Parse("bf58eb3e-0582-42ee-83b2-d098c206260e")
+	require.NotNil(t, u)
+
+	parsedUUID, ok := parseUUID(sanitizeUUID(u))
 	require.True(t, ok)
-	require.Equal(t, uuidString, parsedUUID.String())
+	require.Equal(t, u.String(), parsedUUID.String())
 }
 
 func TestFileExists(t *testing.T) {

@@ -1356,7 +1356,7 @@ func snapshotMetadataFilePathFromIdentifier(prefix string, id SnapshotMetadataId
 		fmt.Sprintf(
 			"%s%s%s%s%d%s%s%s",
 			snapshotFilePrefix, separator,
-			sanitizeUUID(id.UUID.String()), separator,
+			sanitizeUUID(id.UUID), separator,
 			id.Index, separator,
 			metadataFileSuffix, fileSuffix))
 }
@@ -1368,7 +1368,7 @@ func snapshotMetadataCheckpointFilePathFromIdentifier(prefix string, id Snapshot
 		fmt.Sprintf(
 			"%s%s%s%s%d%s%s%s%s%s",
 			snapshotFilePrefix, separator,
-			sanitizeUUID(id.UUID.String()), separator,
+			sanitizeUUID(id.UUID), separator,
 			id.Index, separator,
 			metadataFileSuffix, separator,
 			checkpointFileSuffix, fileSuffix))
@@ -1377,8 +1377,8 @@ func snapshotMetadataCheckpointFilePathFromIdentifier(prefix string, id Snapshot
 // sanitizeUUID strips all instances of separator ("-") in the provided UUID string. This prevents us from
 // treating every "piece" of the UUID as a separate fragment of the name when we split filepaths by
 // separator. This works because the UUID library can still parse stripped UUID strings.
-func sanitizeUUID(uuid string) string {
-	return strings.Replace(uuid, separator, "", -1)
+func sanitizeUUID(u uuid.UUID) string {
+	return strings.Replace(u.String(), separator, "", -1)
 }
 
 func parseUUID(sanitizedUUID string) (uuid.UUID, bool) {
