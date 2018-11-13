@@ -159,5 +159,6 @@ func (h *AddHandler) Add(
 		return nil, err
 	}
 
+	// TODO(schallert): change after https://github.com/m3db/m3/issues/1165
 	return newPlacement.SetVersion(version + 1), nil
 }

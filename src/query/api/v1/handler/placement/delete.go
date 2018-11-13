@@ -147,6 +147,7 @@ func (h *DeleteHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *
 			return
 		}
 
+		// TODO(schallert): change after https://github.com/m3db/m3/issues/1165
 		newPlacement = newPlacement.SetVersion(version + 1)
 	}
 

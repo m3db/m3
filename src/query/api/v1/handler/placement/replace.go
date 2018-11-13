@@ -157,5 +157,6 @@ func (h *ReplaceHandler) Replace(
 		return nil, err
 	}
 
+	// TODO(schallert): change once https://github.com/m3db/m3/issues/1165 fixed.
 	return newPlacement.SetVersion(version + 1), nil
 }
