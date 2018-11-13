@@ -185,7 +185,7 @@ func TestPlacementAddHandler_SafeOK(t *testing.T) {
 		}
 		mockPlacementService.EXPECT().Placement().Return(existingPlacement, 0, nil)
 		mockPlacementService.EXPECT().AddInstances(gomock.Not(nil)).Return(newPlacement, nil, nil)
-		mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0).Return(errors.New("test err"))
+		mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0).Return(0, errors.New("test err"))
 		handler.ServeHTTP(serviceName, w, req)
 
 		resp := w.Result()
@@ -203,7 +203,7 @@ func TestPlacementAddHandler_SafeOK(t *testing.T) {
 
 		mockPlacementService.EXPECT().Placement().Return(existingPlacement, 0, nil)
 		mockPlacementService.EXPECT().AddInstances(gomock.Not(nil)).Return(newPlacement, nil, nil)
-		mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0).Return(nil)
+		mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0).Return(1, nil)
 		handler.ServeHTTP(serviceName, w, req)
 
 		resp = w.Result()

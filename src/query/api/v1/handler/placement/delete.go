@@ -141,14 +141,14 @@ func (h *DeleteHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *
 			return
 		}
 
-		if err := service.CheckAndSet(newPlacement, version); err != nil {
+		version, err = service.CheckAndSet(newPlacement, version)
+		if err != nil {
 			logger.Info("unable to remove instance from placement", zap.String("instance", id), zap.Error(err))
 			xhttp.Error(w, err, http.StatusBadRequest)
 			return
 		}
 
-		// TODO(schallert): change after https://github.com/m3db/m3/issues/1165
-		newPlacement = newPlacement.SetVersion(version + 1)
+		newPlacement = newPlacement.SetVersion(version)
 	}
 
 	placementProto, err := newPlacement.Proto()

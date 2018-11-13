@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/cluster/placement"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -42,10 +43,11 @@ func TestStorageWithSinglePlacement(t *testing.T) {
 		SetShards([]uint32{}).
 		SetReplicaFactor(0)
 
-	err = ps.SetIfNotExist(p)
+	version, err := ps.SetIfNotExist(p)
+	assert.Equal(t, 1, version)
 	require.NoError(t, err)
 
-	err = ps.SetIfNotExist(p)
+	_, err = ps.SetIfNotExist(p)
 	require.Error(t, err)
 	require.Equal(t, kv.ErrAlreadyExists, err)
 
@@ -64,10 +66,11 @@ func TestStorageWithSinglePlacement(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, pGet, h)
 
-	err = ps.CheckAndSet(p, v)
+	version, err = ps.CheckAndSet(p, v)
 	require.NoError(t, err)
+	assert.Equal(t, 2, version)
 
-	err = ps.CheckAndSet(p, v)
+	_, err = ps.CheckAndSet(p, v)
 	require.Error(t, err)
 	require.Equal(t, kv.ErrVersionMismatch, err)
 
@@ -83,8 +86,9 @@ func TestStorageWithSinglePlacement(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, kv.ErrNotFound, err)
 
-	err = ps.SetIfNotExist(p)
+	version, err = ps.SetIfNotExist(p)
 	require.NoError(t, err)
+	assert.Equal(t, 1, version)
 
 	pGet, v, err = ps.Placement()
 	require.NoError(t, err)
@@ -109,10 +113,11 @@ func TestStorageWithPlacementSnapshots(t *testing.T) {
 		SetReplicaFactor(0).
 		SetCutoverNanos(100)
 
-	err := ps.SetIfNotExist(p)
+	version, err := ps.SetIfNotExist(p)
 	require.NoError(t, err)
+	assert.Equal(t, 1, version)
 
-	err = ps.SetIfNotExist(p)
+	_, err = ps.SetIfNotExist(p)
 	require.Error(t, err)
 
 	pGet1, v, err := ps.Placement()
@@ -130,14 +135,15 @@ func TestStorageWithPlacementSnapshots(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, pGet1, h)
 
-	err = ps.CheckAndSet(p, v)
+	_, err = ps.CheckAndSet(p, v)
 	require.Error(t, err)
 
 	p = p.SetCutoverNanos(p.CutoverNanos() + 1)
-	err = ps.CheckAndSet(p, v)
+	version, err = ps.CheckAndSet(p, v)
 	require.NoError(t, err)
+	assert.Equal(t, 2, version)
 
-	err = ps.CheckAndSet(p.Clone().SetCutoverNanos(p.CutoverNanos()+1), v)
+	_, err = ps.CheckAndSet(p.Clone().SetCutoverNanos(p.CutoverNanos()+1), v)
 	require.Error(t, err)
 	require.Equal(t, kv.ErrVersionMismatch, err)
 
@@ -162,8 +168,9 @@ func TestStorageWithPlacementSnapshots(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, kv.ErrNotFound, err)
 
-	err = ps.SetIfNotExist(p)
+	version, err = ps.SetIfNotExist(p)
 	require.NoError(t, err)
+	assert.Equal(t, 1, version)
 
 	pGet3, v, err := ps.Placement()
 	require.NoError(t, err)
@@ -180,23 +187,26 @@ func TestCheckAndSetProto(t *testing.T) {
 		SetShards([]uint32{}).
 		SetReplicaFactor(0)
 
-	err := ps.SetIfNotExist(p)
+	version, err := ps.SetIfNotExist(p)
 	require.NoError(t, err)
+	assert.Equal(t, 1, version)
 
 	newProto, v, err := ps.Proto()
 	require.NoError(t, err)
 	require.Equal(t, 1, v)
 
-	err = ps.CheckAndSetProto(newProto, 2)
+	_, err = ps.CheckAndSetProto(newProto, 2)
 	require.Error(t, err)
 
-	err = ps.CheckAndSetProto(newProto, 1)
+	version, err = ps.CheckAndSetProto(newProto, 1)
 	require.NoError(t, err)
+	assert.Equal(t, 2, version)
 
 	require.NoError(t, ps.Delete())
 
-	err = ps.CheckAndSetProto(newProto, 0)
+	version, err = ps.CheckAndSetProto(newProto, 0)
 	require.NoError(t, err)
+	assert.Equal(t, 1, version)
 }
 
 func TestDryrun(t *testing.T) {
@@ -209,20 +219,22 @@ func TestDryrun(t *testing.T) {
 		SetShards([]uint32{}).
 		SetReplicaFactor(0)
 
-	err := dryrunPS.SetIfNotExist(p)
+	version, err := dryrunPS.SetIfNotExist(p)
 	require.NoError(t, err)
+	assert.Equal(t, 0, version)
 
 	_, _, err = ps.Placement()
 	require.Error(t, err)
 
-	err = ps.SetIfNotExist(p)
+	version, err = ps.SetIfNotExist(p)
 	require.NoError(t, err)
+	assert.Equal(t, 1, version)
 
 	_, v, err := ps.Placement()
 	require.NoError(t, err)
 	require.Equal(t, 1, v)
 
-	err = dryrunPS.CheckAndSet(p, 1)
+	_, err = dryrunPS.CheckAndSet(p, 1)
 	require.NoError(t, err)
 
 	_, v, _ = ps.Placement()

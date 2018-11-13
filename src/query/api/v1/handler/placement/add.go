@@ -155,10 +155,10 @@ func (h *AddHandler) Add(
 
 	// Ensure the placement we're updating is still the one on which we validated
 	// all shards are available.
-	if err := service.CheckAndSet(newPlacement, version); err != nil {
+	version, err = service.CheckAndSet(newPlacement, version)
+	if err != nil {
 		return nil, err
 	}
 
-	// TODO(schallert): change after https://github.com/m3db/m3/issues/1165
-	return newPlacement.SetVersion(version + 1), nil
+	return newPlacement.SetVersion(version), nil
 }

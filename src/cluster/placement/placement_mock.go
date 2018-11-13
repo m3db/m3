@@ -1608,10 +1608,11 @@ func (m *MockStorage) EXPECT() *MockStorageMockRecorder {
 }
 
 // Set mocks base method
-func (m *MockStorage) Set(p Placement) error {
+func (m *MockStorage) Set(p Placement) (int, error) {
 	ret := m.ctrl.Call(m, "Set", p)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Set indicates an expected call of Set
@@ -1620,10 +1621,11 @@ func (mr *MockStorageMockRecorder) Set(p interface{}) *gomock.Call {
 }
 
 // CheckAndSet mocks base method
-func (m *MockStorage) CheckAndSet(p Placement, version int) error {
+func (m *MockStorage) CheckAndSet(p Placement, version int) (int, error) {
 	ret := m.ctrl.Call(m, "CheckAndSet", p, version)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // CheckAndSet indicates an expected call of CheckAndSet
@@ -1632,10 +1634,11 @@ func (mr *MockStorageMockRecorder) CheckAndSet(p, version interface{}) *gomock.C
 }
 
 // SetIfNotExist mocks base method
-func (m *MockStorage) SetIfNotExist(p Placement) error {
+func (m *MockStorage) SetIfNotExist(p Placement) (int, error) {
 	ret := m.ctrl.Call(m, "SetIfNotExist", p)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // SetIfNotExist indicates an expected call of SetIfNotExist
@@ -1683,10 +1686,11 @@ func (mr *MockStorageMockRecorder) Delete() *gomock.Call {
 }
 
 // SetProto mocks base method
-func (m *MockStorage) SetProto(p proto.Message) error {
+func (m *MockStorage) SetProto(p proto.Message) (int, error) {
 	ret := m.ctrl.Call(m, "SetProto", p)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // SetProto indicates an expected call of SetProto
@@ -1695,10 +1699,11 @@ func (mr *MockStorageMockRecorder) SetProto(p interface{}) *gomock.Call {
 }
 
 // CheckAndSetProto mocks base method
-func (m *MockStorage) CheckAndSetProto(p proto.Message, version int) error {
+func (m *MockStorage) CheckAndSetProto(p proto.Message, version int) (int, error) {
 	ret := m.ctrl.Call(m, "CheckAndSetProto", p, version)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // CheckAndSetProto indicates an expected call of CheckAndSetProto
@@ -1757,10 +1762,11 @@ func (m *MockService) EXPECT() *MockServiceMockRecorder {
 }
 
 // Set mocks base method
-func (m *MockService) Set(p Placement) error {
+func (m *MockService) Set(p Placement) (int, error) {
 	ret := m.ctrl.Call(m, "Set", p)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Set indicates an expected call of Set
@@ -1769,10 +1775,11 @@ func (mr *MockServiceMockRecorder) Set(p interface{}) *gomock.Call {
 }
 
 // CheckAndSet mocks base method
-func (m *MockService) CheckAndSet(p Placement, version int) error {
+func (m *MockService) CheckAndSet(p Placement, version int) (int, error) {
 	ret := m.ctrl.Call(m, "CheckAndSet", p, version)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // CheckAndSet indicates an expected call of CheckAndSet
@@ -1781,10 +1788,11 @@ func (mr *MockServiceMockRecorder) CheckAndSet(p, version interface{}) *gomock.C
 }
 
 // SetIfNotExist mocks base method
-func (m *MockService) SetIfNotExist(p Placement) error {
+func (m *MockService) SetIfNotExist(p Placement) (int, error) {
 	ret := m.ctrl.Call(m, "SetIfNotExist", p)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // SetIfNotExist indicates an expected call of SetIfNotExist
@@ -1832,10 +1840,11 @@ func (mr *MockServiceMockRecorder) Delete() *gomock.Call {
 }
 
 // SetProto mocks base method
-func (m *MockService) SetProto(p proto.Message) error {
+func (m *MockService) SetProto(p proto.Message) (int, error) {
 	ret := m.ctrl.Call(m, "SetProto", p)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // SetProto indicates an expected call of SetProto
@@ -1844,10 +1853,11 @@ func (mr *MockServiceMockRecorder) SetProto(p interface{}) *gomock.Call {
 }
 
 // CheckAndSetProto mocks base method
-func (m *MockService) CheckAndSetProto(p proto.Message, version int) error {
+func (m *MockService) CheckAndSetProto(p proto.Message, version int) (int, error) {
 	ret := m.ctrl.Call(m, "CheckAndSetProto", p, version)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // CheckAndSetProto indicates an expected call of CheckAndSetProto

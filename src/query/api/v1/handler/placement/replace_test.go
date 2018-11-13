@@ -192,7 +192,7 @@ func testPlacementReplaceHandlerSafeOk(t *testing.T, serviceName string) {
 	`)
 
 	mockPlacementService.EXPECT().Placement().Return(pl, 1, nil)
-	mockPlacementService.EXPECT().CheckAndSet(matcher, 1)
+	mockPlacementService.EXPECT().CheckAndSet(matcher, 1).Return(2, nil)
 	handler.ServeHTTP(serviceName, w, req)
 
 	resp := w.Result()

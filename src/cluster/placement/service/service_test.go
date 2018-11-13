@@ -404,7 +404,7 @@ func TestMarkShard(t *testing.T) {
 		SetShards([]uint32{1, 2, 3, 4, 5, 6}).
 		SetReplicaFactor(2).
 		SetIsSharded(true)
-	err := ms.SetIfNotExist(p)
+	_, err := ms.SetIfNotExist(p)
 	assert.NoError(t, err)
 
 	ps := NewPlacementService(ms, placement.NewOptions().SetValidZone("z1"))
@@ -459,7 +459,7 @@ func TestMarkInstance(t *testing.T) {
 		SetShards([]uint32{1, 2, 3, 4, 5, 6}).
 		SetReplicaFactor(2).
 		SetIsSharded(true)
-	err := ms.SetIfNotExist(p)
+	_, err := ms.SetIfNotExist(p)
 	assert.NoError(t, err)
 
 	ps := NewPlacementService(ms, placement.NewOptions().SetValidZone("z1"))
@@ -927,17 +927,17 @@ func NewMockStorage() placement.Storage {
 	return &mockStorage{}
 }
 
-func (ms *mockStorage) Set(p placement.Placement) error {
+func (ms *mockStorage) Set(p placement.Placement) (int, error) {
 	ms.Lock()
 	defer ms.Unlock()
 
 	ms.p = p
 	ms.version++
 
-	return nil
+	return ms.version, nil
 }
 
-func (ms *mockStorage) CheckAndSet(p placement.Placement, v int) error {
+func (ms *mockStorage) CheckAndSet(p placement.Placement, v int) (int, error) {
 	ms.Lock()
 	defer ms.Unlock()
 
@@ -945,23 +945,23 @@ func (ms *mockStorage) CheckAndSet(p placement.Placement, v int) error {
 		ms.p = p
 		ms.version++
 	} else {
-		return errors.New("wrong version")
+		return 0, errors.New("wrong version")
 	}
 
-	return nil
+	return ms.version, nil
 }
 
-func (ms *mockStorage) SetIfNotExist(p placement.Placement) error {
+func (ms *mockStorage) SetIfNotExist(p placement.Placement) (int, error) {
 	ms.Lock()
 	defer ms.Unlock()
 
 	if ms.p != nil {
-		return errors.New("placement already exist")
+		return 0, errors.New("placement already exist")
 	}
 
 	ms.p = p
 	ms.version = 1
-	return nil
+	return ms.version, nil
 }
 
 func (ms *mockStorage) Delete() error {
@@ -988,12 +988,12 @@ func (ms *mockStorage) Placement() (placement.Placement, int, error) {
 	return nil, 0, kv.ErrNotFound
 }
 
-func (ms *mockStorage) CheckAndSetProto(p proto.Message, v int) error {
-	return errors.New("not implemented")
+func (ms *mockStorage) CheckAndSetProto(p proto.Message, v int) (int, error) {
+	return 0, errors.New("not implemented")
 }
 
-func (ms *mockStorage) SetProto(p proto.Message) error {
-	return errors.New("not implemented")
+func (ms *mockStorage) SetProto(p proto.Message) (int, error) {
+	return 0, errors.New("not implemented")
 }
 
 func (ms *mockStorage) Proto() (proto.Message, int, error) {

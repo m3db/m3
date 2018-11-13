@@ -85,7 +85,8 @@ func (ps *placementService) BuildInitialPlacement(
 		return nil, err
 	}
 
-	return p, ps.SetIfNotExist(p)
+	_, err = ps.SetIfNotExist(p)
+	return p, err
 }
 
 func (ps *placementService) AddReplica() (placement.Placement, error) {
@@ -102,7 +103,8 @@ func (ps *placementService) AddReplica() (placement.Placement, error) {
 		return nil, err
 	}
 
-	return p, ps.CheckAndSet(p, v)
+	_, err = ps.CheckAndSet(p, v)
+	return p, err
 }
 
 func (ps *placementService) AddInstances(
@@ -134,7 +136,8 @@ func (ps *placementService) AddInstances(
 		addingInstances[i] = addingInstance
 	}
 
-	return p, addingInstances, ps.CheckAndSet(p, v)
+	_, err = ps.CheckAndSet(p, v)
+	return p, addingInstances, err
 }
 
 func (ps *placementService) RemoveInstances(instanceIDs []string) (placement.Placement, error) {
@@ -151,7 +154,8 @@ func (ps *placementService) RemoveInstances(instanceIDs []string) (placement.Pla
 		return nil, err
 	}
 
-	return p, ps.CheckAndSet(p, v)
+	_, err = ps.CheckAndSet(p, v)
+	return p, err
 }
 
 func (ps *placementService) ReplaceInstances(
@@ -185,7 +189,8 @@ func (ps *placementService) ReplaceInstances(
 		addedInstances = append(addedInstances, addedInstance)
 	}
 
-	return p, addedInstances, ps.CheckAndSet(p, v)
+	_, err = ps.CheckAndSet(p, v)
+	return p, addedInstances, err
 }
 
 func (ps *placementService) MarkShardsAvailable(instanceID string, shardIDs ...uint32) error {
@@ -202,7 +207,8 @@ func (ps *placementService) MarkShardsAvailable(instanceID string, shardIDs ...u
 		return err
 	}
 
-	return ps.CheckAndSet(p, v)
+	_, err = ps.CheckAndSet(p, v)
+	return err
 }
 
 func (ps *placementService) MarkAllShardsAvailable() (placement.Placement, error) {
@@ -223,7 +229,8 @@ func (ps *placementService) MarkAllShardsAvailable() (placement.Placement, error
 		return nil, err
 	}
 
-	return p, ps.CheckAndSet(p, v)
+	_, err = ps.CheckAndSet(p, v)
+	return p, err
 }
 
 func (ps *placementService) MarkInstanceAvailable(instanceID string) error {
@@ -251,5 +258,6 @@ func (ps *placementService) MarkInstanceAvailable(instanceID string) error {
 		return err
 	}
 
-	return ps.CheckAndSet(p, v)
+	_, err = ps.CheckAndSet(p, v)
+	return err
 }
