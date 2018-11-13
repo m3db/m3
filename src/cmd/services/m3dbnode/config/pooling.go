@@ -182,14 +182,14 @@ type ContextPoolPolicy struct {
 type WriteBatchPoolPolicy struct {
 	// InitialBatchSize controls the initial batch size for each WriteBatch when
 	// the pool is being constructed / refilled.
-	InitialBatchSize *int
+	InitialBatchSize *int `yaml:"initialBatchSize"`
 
 	// MaxBatchSize controls the maximum size that a pooled WriteBatch can grow to
 	// and still remain in the pool.
-	MaxBatchSize *int
+	MaxBatchSize *int `yaml:"maxBatchSize"`
 
 	// Pool is the Pooling Policy for the WriteBatch pool.
-	Pool PoolPolicy
+	Pool PoolPolicy `yaml:"pool"`
 }
 
 // PoolPolicy returns the PoolPolicy that is represented by the ContextPoolPolicy.

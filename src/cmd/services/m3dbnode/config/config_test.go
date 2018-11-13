@@ -206,6 +206,13 @@ db:
             size: 8192
             lowWatermark: 0.01
             highWatermark: 0.02
+        writeBatchPool:
+            initialBatchSize: 1024
+            maxBatchSize: 100000
+            pool:
+              size: 8192
+              lowWatermark: 0.01
+              highWatermark: 0.02
         identifierPool:
             size: 9437184
             lowWatermark: 0.01
@@ -522,6 +529,13 @@ db:
       size: 8192
       lowWatermark: 0.01
       highWatermark: 0.02
+    writeBatchPool:
+      initialBatchSize: 1024
+      maxBatchSize: 100000
+      pool:
+        size: 8192
+        lowWatermark: 0.01
+        highWatermark: 0.02
   config:
     service:
       zone: embedded
