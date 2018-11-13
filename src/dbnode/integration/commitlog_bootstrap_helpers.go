@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
@@ -156,7 +157,7 @@ func writeCommitLogDataBase(
 		if specifiedTS != nil {
 			s.setNowFn(*specifiedTS)
 		} else {
-			s.setNowFn(ts.ToTime())
+			s.setNowFn(currTs.ToTime())
 		}
 
 		ctx := context.NewContext()
