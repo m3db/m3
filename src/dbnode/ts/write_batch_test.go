@@ -22,6 +22,7 @@ package ts
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -128,7 +129,7 @@ func TestBatchWriterSetSeries(t *testing.T) {
 			write.annotation)
 	}
 
-	// Update the series
+	// Set the outcome
 	iter := writeBatch.Iter()
 	for i, curr := range iter {
 		var (
@@ -138,7 +139,11 @@ func TestBatchWriterSetSeries(t *testing.T) {
 		)
 		newSeries.ID = ident.StringID(string(i))
 
-		writeBatch.SetSeries(i, newSeries)
+		var err error
+		if i == len(iter)-1 {
+			err = errors.New("some-error")
+		}
+		writeBatch.SetOutcome(i, newSeries, err)
 	}
 
 	// Assert the series have been updated
@@ -149,6 +154,11 @@ func TestBatchWriterSetSeries(t *testing.T) {
 			currSeries = currWrite.Series
 		)
 		require.True(t, ident.StringID(string(i)).Equal(currSeries.ID))
+		if i == len(iter)-1 {
+			require.Equal(t, errors.New("some-error"), curr.Err)
+		} else {
+			require.NoError(t, curr.Err)
+		}
 	}
 }
 

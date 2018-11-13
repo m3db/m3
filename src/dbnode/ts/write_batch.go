@@ -94,8 +94,9 @@ func (b *writeBatch) Iter() []BatchWrite {
 	return b.writes
 }
 
-func (b *writeBatch) SetSeries(idx int, series Series) {
+func (b *writeBatch) SetOutcome(idx int, series Series, err error) {
 	b.writes[idx].Write.Series = series
+	b.writes[idx].Err = err
 }
 
 func (b *writeBatch) Finalize() {

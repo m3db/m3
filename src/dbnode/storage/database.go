@@ -638,10 +638,14 @@ func (d *db) writeBatch(
 				Index: write.OriginalIndex,
 				Err:   err,
 			})
-			continue
 		}
 
-		writes.SetSeries(i, series)
+		// Need to set the outcome in the success case so the commitlog gets the updated
+		// series object which contains identifiers (like the series ID) whose lifecycle
+		// live longer than the span of this request, making them safe for use by the async
+		// commitlog. Need to set the outcome in the error case so that the commitlog knows
+		// to skip this entry.
+		writes.SetOutcome(i, series, err)
 	}
 
 	err = d.commitLog.WriteBatch(ctx, writes)

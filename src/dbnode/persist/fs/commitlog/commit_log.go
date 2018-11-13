@@ -469,6 +469,16 @@ func (l *commitLog) write() {
 			numDequeued = len(iter)
 
 			for _, writeBatch := range iter {
+				if writeBatch.Err != nil {
+					// This entry was not written successfully to the in-memory datastructures so
+					// we should not persist it to the commitlog. This is important to maintain
+					// consistency and the integrity of M3DB's business logic, but also because if
+					// the write does not succeed to the in-memory datastructures then we don't have
+					// access to long-lived identifiers like the seriesID (which is pooled) so
+					// attempting to write would cause pooling / lifecycle issues as well.
+					continue
+				}
+
 				write := writeBatch.Write
 				err := l.writerState.writer.Write(write.Series,
 					write.Datapoint, write.Unit, write.Annotation)

@@ -42,6 +42,7 @@ type BatchWrite struct {
 	Write         Write
 	TagIter       ident.TagIterator
 	OriginalIndex int
+	Err           error
 }
 
 // Series describes a series in the commit log
@@ -83,7 +84,7 @@ type WriteBatch interface {
 	BatchWriter
 	// Can't use a real iterator pattern here as it slows things down.
 	Iter() []BatchWrite
-	SetSeries(idx int, series Series)
+	SetOutcome(idx int, series Series, err error)
 	Reset(
 		batchSize int,
 		ns ident.ID,
