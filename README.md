@@ -22,7 +22,7 @@ More information:
 make m3dbnode (note that we currently require at least Go 1.10 or higher)
 
 # run it with the sample configuration
-./bin/m3dbnode -f ./src/dbnode/example/m3db-node-config.yaml
+./bin/m3dbnode -f ./src/dbnode/config/m3dbnode-local-etcd.yml
 ```
 
 To cross-compile and build for Linux AMD64 build with `make m3dbnode-linux-amd64`.

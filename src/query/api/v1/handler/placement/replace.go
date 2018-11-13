@@ -45,6 +45,14 @@ const (
 var (
 	// M3DBReplaceURL is the url for the m3db replace handler (method POST).
 	M3DBReplaceURL = path.Join(handler.RoutePrefixV1, M3DBServicePlacementPathName, replacePathName)
+
+	// M3AggReplaceURL is the url for the m3aggregator replace handler (method
+	// POST).
+	M3AggReplaceURL = path.Join(handler.RoutePrefixV1, M3AggregatorServiceName, replacePathName)
+
+	// M3CoordinatorReplaceURL is the url for the m3coordinator replace handler
+	// (method POST).
+	M3CoordinatorReplaceURL = path.Join(handler.RoutePrefixV1, M3CoordinatorServiceName, replacePathName)
 )
 
 // ReplaceHandler is the type for placement replaces.
@@ -71,14 +79,14 @@ func (h *ReplaceHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r 
 		if _, ok := err.(unsafeAddError); ok {
 			status = http.StatusBadRequest
 		}
-		logger.Error("unable to replace instance", zap.Any("error", err))
+		logger.Error("unable to replace instance", zap.Error(err))
 		xhttp.Error(w, err, status)
 		return
 	}
 
 	placementProto, err := placement.Proto()
 	if err != nil {
-		logger.Error("unable to get placement protobuf", zap.Any("error", err))
+		logger.Error("unable to get placement protobuf", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
@@ -108,7 +116,6 @@ func (h *ReplaceHandler) Replace(
 	httpReq *http.Request,
 	req *admin.PlacementReplaceRequest,
 ) (placement.Placement, error) {
-
 	candidates, err := ConvertInstancesProto(req.Candidates)
 	if err != nil {
 		return nil, err
@@ -122,11 +129,7 @@ func (h *ReplaceHandler) Replace(
 
 	if req.Force {
 		newPlacement, _, err := service.ReplaceInstances(req.LeavingInstanceIDs, candidates)
-		if err != nil {
-			return nil, err
-		}
-
-		return newPlacement, nil
+		return newPlacement, err
 	}
 
 	curPlacement, version, err := service.Placement()
@@ -135,17 +138,21 @@ func (h *ReplaceHandler) Replace(
 	}
 
 	// M3Coordinator isn't sharded, can't check if its shards are available.
-	if serviceName != M3CoordinatorServiceName {
+	if !isStateless(serviceName) {
 		if err := validateAllAvailable(curPlacement); err != nil {
 			return nil, err
 		}
 	}
 
+	// We use the algorithm directly so that we can CheckAndSet on the placement
+	// to make "atomic" forward progress.
 	newPlacement, err := algo.ReplaceInstances(curPlacement, req.LeavingInstanceIDs, candidates)
 	if err != nil {
 		return nil, err
 	}
 
+	// Ensure the placement we're updating is still the one on which we validated
+	// all shards are available.
 	if err := service.CheckAndSet(newPlacement, version); err != nil {
 		return nil, err
 	}

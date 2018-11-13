@@ -388,6 +388,8 @@ func RegisterRoutes(r *mux.Router, opts HandlerOptions) {
 		replaceFn      = applyMiddleware(replaceHandler.ServeHTTP)
 	)
 	r.HandleFunc(M3DBReplaceURL, replaceFn).Methods(ReplaceHTTPMethod)
+	r.HandleFunc(M3AggReplaceURL, replaceFn).Methods(ReplaceHTTPMethod)
+	r.HandleFunc(M3CoordinatorReplaceURL, replaceFn).Methods(ReplaceHTTPMethod)
 }
 
 func newPlacementCutoverNanosFn(
@@ -531,4 +533,12 @@ func parseServiceFromRequest(r *http.Request) (string, error) {
 	}
 
 	return "", errUnableToParseService
+}
+
+func isStateless(serviceName string) bool {
+	switch serviceName {
+	case M3CoordinatorServiceName:
+		return true
+	}
+	return false
 }
