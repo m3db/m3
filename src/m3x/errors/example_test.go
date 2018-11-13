@@ -28,7 +28,7 @@ import (
 )
 
 func ExampleMultiError() {
-	mutliErr := errors.NewMultiError()
+	multiErr := errors.NewMultiError()
 
 	for i := 0; i < 3; i++ {
 		// Perform some work which may fail.
@@ -36,14 +36,20 @@ func ExampleMultiError() {
 
 		if err != nil {
 			// Add returns a new MultiError.
-			mutliErr = mutliErr.Add(err)
+			multiErr = multiErr.Add(err)
 		}
 	}
 
-	if err := mutliErr.FinalError(); err != nil {
+	if err := multiErr.FinalError(); err != nil {
 		msg := strings.Replace(err.Error(), "\n", "; ", -1)
 		fmt.Println(msg)
 	}
 
-	// Output: error 0; error 1; error 2
+	if err := multiErr.LastError(); err != nil {
+		fmt.Println(err)
+	}
+
+	// Output:
+	// error 0; error 1; error 2
+	// error 2
 }

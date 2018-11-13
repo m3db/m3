@@ -74,6 +74,7 @@ func TestWrapf(t *testing.T) {
 func TestMultiErrorNoError(t *testing.T) {
 	err := NewMultiError()
 	require.Nil(t, err.FinalError())
+	require.Nil(t, err.LastError())
 	require.Equal(t, "", err.Error())
 	require.True(t, err.Empty())
 	require.Equal(t, 0, err.NumErrors())
@@ -85,6 +86,9 @@ func TestMultiErrorOneError(t *testing.T) {
 	final := err.FinalError()
 	require.NotNil(t, final)
 	require.Equal(t, "foo", final.Error())
+	last := err.LastError()
+	require.NotNil(t, last)
+	require.Equal(t, "foo", last.Error())
 	require.False(t, err.Empty())
 	require.Equal(t, 1, err.NumErrors())
 }
@@ -98,6 +102,9 @@ func TestMultiErrorMultipleErrors(t *testing.T) {
 	final := err.FinalError()
 	require.NotNil(t, final)
 	require.Equal(t, final.Error(), "foo\nbar\nbaz")
+	last := err.LastError()
+	require.NotNil(t, last)
+	require.Equal(t, last.Error(), "baz")
 	require.False(t, err.Empty())
 	require.Equal(t, 3, err.NumErrors())
 }
