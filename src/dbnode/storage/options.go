@@ -162,7 +162,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 	queryIDsWorkerPool := xsync.NewWorkerPool(int(math.Ceil(float64(runtime.NumCPU()) / 2)))
 	queryIDsWorkerPool.Init()
 
-	writeBatchPool := ts.NewWriteBatchPool(poolOpts, nil)
+	writeBatchPool := ts.NewWriteBatchPool(poolOpts, nil, nil)
 	writeBatchPool.Init()
 
 	o := &options{

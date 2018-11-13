@@ -180,6 +180,10 @@ type ContextPoolPolicy struct {
 
 // WriteBatchPoolPolicy specifies the pooling policy for the WriteBatch pool.
 type WriteBatchPoolPolicy struct {
+	// InitialBatchSize controls the initial batch size for each WriteBatch when
+	// the pool is being constructed / refilled.
+	InitialBatchSize *int
+
 	// MaxBatchSize controls the maximum size that a pooled WriteBatch can grow to
 	// and still remain in the pool.
 	MaxBatchSize *int
