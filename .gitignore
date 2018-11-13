@@ -10,6 +10,7 @@
 *.cov
 *.html
 *.tmp
+.DS_Store
 test.log
 
 # glide manages this
@@ -46,4 +47,3 @@ site/
 !m3db.io/**/vendor
 # Automatically populated from asset sources
 m3db.io/openapi
-
