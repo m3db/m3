@@ -344,7 +344,7 @@ paths:
       tags:
       - "M3DB Placement"
       - "M3DB"
-      summary: "Replace an M3DB instance"
+      summary: "Replace an M3DB instance in the placement"
       operationId: "placementReplace"
       consumes:
       - "application/json"
