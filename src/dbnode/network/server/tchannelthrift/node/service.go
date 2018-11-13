@@ -881,12 +881,10 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 			errs = append(
 				errs,
 				tterrors.NewWriteBatchRawError(indexedErr.Index, indexedErr.Err))
-		} else {
-			success++
 		}
 	}
 
-	s.metrics.writeBatchRaw.ReportSuccess(success)
+	s.metrics.writeBatchRaw.ReportSuccess(len(req.Elements) - len(writeErrs))
 	s.metrics.writeBatchRaw.ReportRetryableErrors(retryableErrors)
 	s.metrics.writeBatchRaw.ReportNonRetryableErrors(nonRetryableErrors)
 	s.metrics.writeBatchRaw.ReportLatency(s.nowFn().Sub(callStart))
@@ -975,12 +973,10 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 			errs = append(
 				errs,
 				tterrors.NewWriteBatchRawError(indexedErr.Index, indexedErr.Err))
-		} else {
-			success++
 		}
 	}
 
-	s.metrics.writeTaggedBatchRaw.ReportSuccess(success)
+	s.metrics.writeTaggedBatchRaw.ReportSuccess(len(req.Elements) - len(writeErrs))
 	s.metrics.writeTaggedBatchRaw.ReportRetryableErrors(retryableErrors)
 	s.metrics.writeTaggedBatchRaw.ReportNonRetryableErrors(nonRetryableErrors)
 	s.metrics.writeTaggedBatchRaw.ReportLatency(s.nowFn().Sub(callStart))
