@@ -1279,7 +1279,7 @@ func TestServiceWriteBatchRaw(t *testing.T) {
 		{"bar", time.Now().Truncate(time.Second), 42.42},
 	}
 
-	writeBatch := ts.NewWriteBatch(len(values), 10, ident.StringID(nsID), nil)
+	writeBatch := ts.NewWriteBatch(len(values), ident.StringID(nsID), nil)
 	mockDB.EXPECT().
 		BatchWriter(ident.NewIDMatcher(nsID), len(values)).
 		Return(writeBatch, nil)
@@ -1343,7 +1343,7 @@ func TestServiceWriteTaggedBatchRaw(t *testing.T) {
 		{"bar", "c|dd", time.Now().Truncate(time.Second), 42.42},
 	}
 
-	writeBatch := ts.NewWriteBatch(len(values), 10, ident.StringID(nsID), nil)
+	writeBatch := ts.NewWriteBatch(len(values), ident.StringID(nsID), nil)
 	mockDB.EXPECT().
 		BatchWriter(ident.NewIDMatcher(nsID), len(values)).
 		Return(writeBatch, nil)
