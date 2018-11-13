@@ -59,7 +59,7 @@ func (s *storage) CheckAndSetProto(p proto.Message, version int) (int, error) {
 
 	if s.opts.Dryrun() {
 		s.logger.Info("this is a dryrun, the operation is not persisted")
-		return 0, nil
+		return errorVersionValue, nil
 	}
 	return s.store.CheckAndSet(s.key, version, p)
 }

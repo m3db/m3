@@ -86,7 +86,10 @@ func (ps *placementService) BuildInitialPlacement(
 	}
 
 	_, err = ps.SetIfNotExist(p)
-	return p, err
+	if err != nil {
+		return nil, err
+	}
+	return p, nil
 }
 
 func (ps *placementService) AddReplica() (placement.Placement, error) {
@@ -104,7 +107,10 @@ func (ps *placementService) AddReplica() (placement.Placement, error) {
 	}
 
 	_, err = ps.CheckAndSet(p, v)
-	return p, err
+	if err != nil {
+		return nil, err
+	}
+	return p, nil
 }
 
 func (ps *placementService) AddInstances(
@@ -137,7 +143,10 @@ func (ps *placementService) AddInstances(
 	}
 
 	_, err = ps.CheckAndSet(p, v)
-	return p, addingInstances, err
+	if err != nil {
+		return nil, nil, err
+	}
+	return p, addingInstances, nil
 }
 
 func (ps *placementService) RemoveInstances(instanceIDs []string) (placement.Placement, error) {
@@ -155,7 +164,10 @@ func (ps *placementService) RemoveInstances(instanceIDs []string) (placement.Pla
 	}
 
 	_, err = ps.CheckAndSet(p, v)
-	return p, err
+	if err != nil {
+		return nil, err
+	}
+	return p, nil
 }
 
 func (ps *placementService) ReplaceInstances(
@@ -190,7 +202,10 @@ func (ps *placementService) ReplaceInstances(
 	}
 
 	_, err = ps.CheckAndSet(p, v)
-	return p, addedInstances, err
+	if err != nil {
+		return nil, nil, err
+	}
+	return p, addedInstances, nil
 }
 
 func (ps *placementService) MarkShardsAvailable(instanceID string, shardIDs ...uint32) error {
@@ -230,7 +245,10 @@ func (ps *placementService) MarkAllShardsAvailable() (placement.Placement, error
 	}
 
 	_, err = ps.CheckAndSet(p, v)
-	return p, err
+	if err != nil {
+		return nil, err
+	}
+	return p, nil
 }
 
 func (ps *placementService) MarkInstanceAvailable(instanceID string) error {
