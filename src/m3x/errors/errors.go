@@ -247,12 +247,20 @@ func (e MultiError) Add(err error) MultiError {
 	return me
 }
 
-// FinalError returns the final error if any.
+// FinalError returns all concatenated error messages if any.
 func (e MultiError) FinalError() error {
 	if e.err == nil {
 		return nil
 	}
 	return e
+}
+
+// LastError returns the last received error if any.
+func (e MultiError) LastError() error {
+	if e.err == nil {
+		return nil
+	}
+	return e.err
 }
 
 // NumErrors returns the total number of errors.
