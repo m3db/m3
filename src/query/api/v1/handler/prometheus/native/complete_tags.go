@@ -61,7 +61,7 @@ func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	query, rErr := prometheus.ParseSearchParamsToQuery(r)
+	query, rErr := prometheus.ParseTagCompletionParamsToQuery(r)
 	if rErr != nil {
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
@@ -76,5 +76,5 @@ func (h *CompleteTagsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// TODO: Support multiple result types
-	prometheus.RenderSearchResultsJSON(w, result)
+	prometheus.RenderTagCompletionResultsJSON(w, result)
 }

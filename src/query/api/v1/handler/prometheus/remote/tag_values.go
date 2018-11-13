@@ -35,7 +35,8 @@ import (
 
 const (
 	// TagValuesURL is the url for tag values.
-	TagValuesURL = handler.RoutePrefixV1 + "/{" + prometheus.NameReplace + "}/values"
+	TagValuesURL = handler.RoutePrefixV1 +
+		"/label/{" + prometheus.NameReplace + "}/values"
 
 	// TagValuesHTTPMethod is the HTTP method used with this resource.
 	TagValuesHTTPMethod = http.MethodGet
@@ -82,5 +83,5 @@ func (h *TagValuesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// TODO: Support multiple result types
-	prometheus.RenderSearchResultsJSON(w, result)
+	prometheus.RenderTagCompletionResultsJSON(w, result)
 }

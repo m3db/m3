@@ -94,13 +94,13 @@ func ParseRequestTimeout(r *http.Request) (time.Duration, error) {
 	return duration, nil
 }
 
-// ParseSearchParamsToQuery parses all params from the GET request
-func ParseSearchParamsToQuery(
+// ParseTagCompletionParamsToQuery parses all params from the GET request
+func ParseTagCompletionParamsToQuery(
 	r *http.Request,
 ) (*storage.CompleteTagsQuery, *xhttp.ParseError) {
 	tagQuery := storage.CompleteTagsQuery{}
 
-	query, err := parseSearchQuery(r)
+	query, err := parseTagCompletionQuery(r)
 	if err != nil {
 		return nil, xhttp.NewParseError(fmt.Errorf(errFormatStr, queryParam, err), http.StatusBadRequest)
 	}
@@ -134,7 +134,7 @@ func ParseSearchParamsToQuery(
 	return &tagQuery, nil
 }
 
-func parseSearchQuery(r *http.Request) (string, error) {
+func parseTagCompletionQuery(r *http.Request) (string, error) {
 	queries, ok := r.URL.Query()[queryParam]
 	if !ok || len(queries) == 0 || queries[0] == "" {
 		return "", errors.ErrNoQueryFound
@@ -172,7 +172,7 @@ func ParseTagValuesToQuery(
 	}, nil
 }
 
-func renderNameOnlySearchResultsJSON(
+func renderNameOnlyTagCompletionResultsJSON(
 	w io.Writer,
 	results []storage.CompletedTag,
 ) error {
@@ -188,7 +188,7 @@ func renderNameOnlySearchResultsJSON(
 	return jw.Close()
 }
 
-func renderDefaultSearchResultsJSON(
+func renderDefaultTagCompletionResultsJSON(
 	w io.Writer,
 	results []storage.CompletedTag,
 ) error {
@@ -223,15 +223,15 @@ func renderDefaultSearchResultsJSON(
 	return jw.Close()
 }
 
-// RenderSearchResultsJSON renders search results to json format
-func RenderSearchResultsJSON(
+// RenderTagCompletionResultsJSON renders search results to json format
+func RenderTagCompletionResultsJSON(
 	w io.Writer,
 	result *storage.CompleteTagsResult,
 ) error {
 	results := result.CompletedTags
 	if result.CompleteNameOnly {
-		return renderNameOnlySearchResultsJSON(w, results)
+		return renderNameOnlyTagCompletionResultsJSON(w, results)
 	}
 
-	return renderDefaultSearchResultsJSON(w, results)
+	return renderDefaultTagCompletionResultsJSON(w, results)
 }
