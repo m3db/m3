@@ -152,7 +152,7 @@ func writeCommitLogDataBase(
 	)
 
 	// Write out commit log data
-	for ts, blk := range data {
+	for currTs, blk := range data {
 		if specifiedTS != nil {
 			s.setNowFn(*specifiedTS)
 		} else {
@@ -163,7 +163,7 @@ func writeCommitLogDataBase(
 		defer ctx.Close()
 
 		m := map[xtime.UnixNano]generate.SeriesBlock{
-			ts: blk,
+			currTs: blk,
 		}
 
 		points := generate.

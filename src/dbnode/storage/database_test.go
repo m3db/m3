@@ -730,51 +730,63 @@ func testDatabaseWriteBatch(t *testing.T, tagged bool) {
 		tagsIter  = ident.EmptyTagIterator
 	)
 
-	writesBySeries := map[string][]struct {
-		t   time.Time
-		v   float64
-		err error
+	writes := []struct {
+		series string
+		t      time.Time
+		v      float64
+		err    error
 	}{
-		"foo": {
-			{t: time.Time{}.Add(10 * time.Second), v: 1.0},
-			{t: time.Time{}.Add(20 * time.Second), v: 2.0},
+		{
+			series: "foo",
+			t:      time.Time{}.Add(10 * time.Second),
+			v:      1.0,
 		},
-		"bar": {
-			{t: time.Time{}.Add(20 * time.Second), v: 3.0},
-			{t: time.Time{}.Add(30 * time.Second), v: 4.0},
+		{
+			series: "foo",
+			t:      time.Time{}.Add(20 * time.Second),
+			v:      2.0,
 		},
-		"error": {
-			{err: errors.New("some-error")},
+		{
+			series: "bar",
+			t:      time.Time{}.Add(20 * time.Second),
+			v:      3.0,
+		},
+		{
+			series: "bar",
+			t:      time.Time{}.Add(30 * time.Second),
+			v:      4.0,
+		},
+		{
+			series: "error-series",
+			err:    errors.New("some-error"),
 		},
 	}
 
 	batchWriter, err := d.BatchWriter(namespace, 10)
 	require.NoError(t, err)
 
-	i := 0
-	for series, writes := range writesBySeries {
-		for _, w := range writes {
-			if tagged {
-				batchWriter.AddTagged(i, ident.StringID(series), tagsIter, w.t, w.v, xtime.Second, nil)
-				ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher(series), gomock.Any(),
-					w.t, w.v, xtime.Second, nil).Return(
-					ts.Series{
-						ID:        ident.StringID(series + "-updated"),
-						Namespace: namespace,
-						Tags:      ident.Tags{},
-					}, w.err)
-			} else {
-				batchWriter.Add(i, ident.StringID(series), w.t, w.v, xtime.Second, nil)
-				ns.EXPECT().Write(ctx, ident.NewIDMatcher(series),
-					w.t, w.v, xtime.Second, nil).Return(
-					ts.Series{
-						ID:        ident.StringID(series + "-updated"),
-						Namespace: namespace,
-						Tags:      ident.Tags{},
-					}, w.err)
-			}
-			i++
+	var i int
+	for _, write := range writes {
+		if tagged {
+			batchWriter.AddTagged(i, ident.StringID(write.series), tagsIter, write.t, write.v, xtime.Second, nil)
+			ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher(write.series), gomock.Any(),
+				write.t, write.v, xtime.Second, nil).Return(
+				ts.Series{
+					ID:        ident.StringID(write.series + "-updated"),
+					Namespace: namespace,
+					Tags:      ident.Tags{},
+				}, write.err)
+		} else {
+			batchWriter.Add(i, ident.StringID(write.series), write.t, write.v, xtime.Second, nil)
+			ns.EXPECT().Write(ctx, ident.NewIDMatcher(write.series),
+				write.t, write.v, xtime.Second, nil).Return(
+				ts.Series{
+					ID:        ident.StringID(write.series + "-updated"),
+					Namespace: namespace,
+					Tags:      ident.Tags{},
+				}, write.err)
 		}
+		i++
 	}
 
 	var writeErrs []IndexedError
