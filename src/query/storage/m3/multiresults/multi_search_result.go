@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package m3
+package multiresults
 
 import (
 	"sync"
@@ -27,14 +27,21 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 )
 
-type multiFetchTagsResult struct {
+type seen struct{}
+
+type multiSearchResult struct {
 	sync.Mutex
 	result    *storage.SearchResults
 	err       xerrors.MultiError
-	dedupeMap map[string]struct{}
+	dedupeMap *multiSearchResultMap
 }
 
-func (r *multiFetchTagsResult) add(
+// NewMultiSearchResultBuilder returns a new multi search result builder
+func NewMultiSearchResultBuilder() MultiSearchResultBuilder {
+	return &multiSearchResult{}
+}
+
+func (r *multiSearchResult) Add(
 	result *storage.SearchResults,
 	err error,
 ) {
@@ -53,15 +60,17 @@ func (r *multiFetchTagsResult) add(
 
 	// Need to dedupe
 	if r.dedupeMap == nil {
-		r.dedupeMap = make(map[string]struct{}, len(r.result.Metrics))
+		r.dedupeMap = newMultiSearchResultMap(multiSearchResultMapOptions{
+			InitialSize: len(r.result.Metrics),
+		})
 		for _, s := range r.result.Metrics {
-			r.dedupeMap[s.ID] = struct{}{}
+			r.dedupeMap.Set(s.ID, seen{})
 		}
 	}
 
 	for _, s := range result.Metrics {
 		id := s.ID
-		_, exists := r.dedupeMap[id]
+		_, exists := r.dedupeMap.Get(id)
 		if exists {
 			// Already exists
 			continue
@@ -69,6 +78,16 @@ func (r *multiFetchTagsResult) add(
 
 		// Does not exist already, add result
 		r.result.Metrics = append(r.result.Metrics, s)
-		r.dedupeMap[id] = struct{}{}
+		r.dedupeMap.Set(id, seen{})
 	}
 }
+
+func (r *multiSearchResult) Build() (*storage.SearchResults, error) {
+	if err := r.err.FinalError(); err != nil {
+		return nil, err
+	}
+
+	return r.result, nil
+}
+
+func (r *multiSearchResult) Close() error { return nil }

@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/multiresults"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3x/ident"
 	xsync "github.com/m3db/m3x/sync"
@@ -41,13 +42,6 @@ import (
 
 var (
 	errNoNamespacesConfigured = goerrors.New("no namespaces configured")
-)
-
-type queryFanoutType uint
-
-const (
-	namespaceCoversAllQueryRange queryFanoutType = iota
-	namespaceCoversPartialQueryRange
 )
 
 type m3storage struct {
@@ -140,7 +134,7 @@ func (s *m3storage) FetchRaw(
 		return nil, noop, fmt.Errorf("unable to retrieve iterator pools: %v", err)
 	}
 
-	result := newMultiFetchResult(fanout, pools)
+	result := multiresults.NewMultiFetchResultBuilder(fanout, pools)
 	for _, namespace := range namespaces {
 		namespace := namespace // Capture var)
 
@@ -165,7 +159,7 @@ func (s *m3storage) FetchRaw(
 	default:
 	}
 
-	iters, err := result.FinalResult()
+	iters, err := result.Build()
 	if err != nil {
 		result.Close()
 		return nil, noop, err
@@ -194,7 +188,7 @@ func (s *m3storage) FetchTags(
 	var (
 		opts       = storage.FetchOptionsToM3Options(options, query)
 		namespaces = s.clusters.ClusterNamespaces()
-		result     multiFetchTagsResult
+		result     = multiresults.NewMultiSearchResultBuilder()
 		wg         sync.WaitGroup
 	)
 	if len(namespaces) == 0 {
@@ -206,16 +200,13 @@ func (s *m3storage) FetchTags(
 
 		wg.Add(1)
 		go func() {
-			result.add(s.fetchTags(namespace, m3query, opts))
+			result.Add(s.fetchTags(namespace, m3query, opts))
 			wg.Done()
 		}()
 	}
 
 	wg.Wait()
-	if err := result.err.FinalError(); err != nil {
-		return nil, err
-	}
-	return result.result, nil
+	return result.Build()
 }
 
 func (s *m3storage) fetchTags(
@@ -366,7 +357,7 @@ func (s *m3storage) writeSingle(
 func (s *m3storage) resolveClusterNamespacesForQuery(
 	start time.Time,
 	end time.Time,
-) (queryFanoutType, ClusterNamespaces, error) {
+) (multiresults.QueryFanoutType, ClusterNamespaces, error) {
 	now := s.nowFn()
 
 	unaggregated := s.clusters.UnaggregatedClusterNamespace()
@@ -374,7 +365,7 @@ func (s *m3storage) resolveClusterNamespacesForQuery(
 	unaggregatedStart := now.Add(-1 * unaggregatedRetention)
 	if unaggregatedStart.Before(start) || unaggregatedStart.Equal(start) {
 		// Highest resolution is unaggregated, return if it can fulfill it
-		return namespaceCoversAllQueryRange, ClusterNamespaces{unaggregated}, nil
+		return multiresults.NamespaceCoversAllQueryRange, ClusterNamespaces{unaggregated}, nil
 	}
 
 	// First determine if any aggregated clusters span the whole query range, if
@@ -407,7 +398,7 @@ func (s *m3storage) resolveClusterNamespacesForQuery(
 			result = append(result, n)
 		}
 
-		return namespaceCoversAllQueryRange, result, nil
+		return multiresults.NamespaceCoversAllQueryRange, result, nil
 	}
 
 	// No complete aggregated namespaces can definitely fulfill the query,
@@ -422,7 +413,7 @@ func (s *m3storage) resolveClusterNamespacesForQuery(
 		// partial aggregated namespaces as well as the unaggregated cluster
 		// as we have no idea who has the longest retention
 		result := append(r.partialAggregated, unaggregated)
-		return namespaceCoversPartialQueryRange, result, nil
+		return multiresults.NamespaceCoversPartialQueryRange, result, nil
 	}
 
 	// Return the longest retention aggregated namespace and
@@ -459,7 +450,7 @@ func (s *m3storage) resolveClusterNamespacesForQuery(
 		}
 	}
 
-	return namespaceCoversPartialQueryRange, result, nil
+	return multiresults.NamespaceCoversPartialQueryRange, result, nil
 }
 
 type reusedAggregatedNamespaceSlices struct {
