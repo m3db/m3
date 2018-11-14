@@ -101,7 +101,7 @@ func (s *storage) Set(p placement.Placement) (placement.Placement, error) {
 		return nil, err
 	}
 
-	return p.SetVersion(v), nil
+	return p.Clone().SetVersion(v), nil
 }
 
 func (s *storage) CheckAndSet(p placement.Placement, version int) (placement.Placement, error) {
@@ -129,7 +129,7 @@ func (s *storage) CheckAndSet(p placement.Placement, version int) (placement.Pla
 		return nil, err
 	}
 
-	return p.SetVersion(v), nil
+	return p.Clone().SetVersion(v), nil
 }
 
 func (s *storage) SetIfNotExist(p placement.Placement) (placement.Placement, error) {
@@ -156,7 +156,7 @@ func (s *storage) SetIfNotExist(p placement.Placement) (placement.Placement, err
 		return nil, err
 	}
 
-	return p.SetVersion(v), nil
+	return p.Clone().SetVersion(v), nil
 }
 
 func (s *storage) Delete() error {

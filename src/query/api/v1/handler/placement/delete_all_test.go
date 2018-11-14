@@ -26,6 +26,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 
 	"github.com/stretchr/testify/assert"
@@ -33,9 +34,12 @@ import (
 )
 
 func TestPlacementDeleteAllHandler(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	runForAllAllowedServices(func(serviceName string) {
 		var (
-			mockClient, mockPlacementService = SetupPlacementTest(t)
+			mockClient, mockPlacementService = SetupPlacementTest(t, ctrl)
 			handlerOpts                      = NewHandlerOptions(
 				mockClient, config.Configuration{}, nil)
 			handler = NewDeleteAllHandler(handlerOpts)

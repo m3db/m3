@@ -21,7 +21,6 @@
 package placement
 
 import (
-	"fmt"
 	"net/http"
 	"path"
 	"time"
@@ -145,8 +144,6 @@ func (h *AddHandler) Add(
 		return nil, err
 	}
 
-	fmt.Println("CUR1", curPlacement.GetVersion())
-
 	if err := validateAllAvailable(curPlacement); err != nil {
 		return nil, err
 	}
@@ -155,8 +152,6 @@ func (h *AddHandler) Add(
 	if err != nil {
 		return nil, err
 	}
-
-	fmt.Println("CUR2", curPlacement.GetVersion(), newPlacement.GetVersion())
 
 	// Ensure the placement we're updating is still the one on which we validated
 	// all shards are available.

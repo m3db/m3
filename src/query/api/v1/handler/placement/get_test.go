@@ -60,8 +60,11 @@ func SetupPlacementTest(t *testing.T, ctrl *gomock.Controller) (*client.MockClie
 
 func TestPlacementGetHandler(t *testing.T) {
 	runForAllAllowedServices(func(serviceName string) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
 		var (
-			mockClient, mockPlacementService = SetupPlacementTest(t)
+			mockClient, mockPlacementService = SetupPlacementTest(t, ctrl)
 			handlerOpts                      = NewHandlerOptions(
 				mockClient, config.Configuration{}, nil)
 			handler = NewGetHandler(handlerOpts)
@@ -100,7 +103,7 @@ func TestPlacementGetHandler(t *testing.T) {
 		placementObj, err := placement.NewPlacementFromProto(placementProto)
 		require.NoError(t, err)
 
-		mockPlacementService.EXPECT().Placement().Return(placementObj, 0, nil)
+		mockPlacementService.EXPECT().Placement().Return(placementObj, nil)
 		handler.ServeHTTP(serviceName, w, req)
 
 		resp := w.Result()
@@ -113,7 +116,7 @@ func TestPlacementGetHandler(t *testing.T) {
 		req = httptest.NewRequest(GetHTTPMethod, M3DBGetURL, nil)
 		require.NotNil(t, req)
 
-		mockPlacementService.EXPECT().Placement().Return(nil, 0, errors.New("key not found"))
+		mockPlacementService.EXPECT().Placement().Return(nil, errors.New("key not found"))
 		handler.ServeHTTP(serviceName, w, req)
 
 		resp = w.Result()
@@ -133,7 +136,7 @@ func TestPlacementGetHandler(t *testing.T) {
 		req = httptest.NewRequest(GetHTTPMethod, "/placement/get?version=12", nil)
 		require.NotNil(t, req)
 
-		mockPlacementService.EXPECT().PlacementForVersion(12).Return(placementObj, nil)
+		mockPlacementService.EXPECT().PlacementForVersion(12).Return(placementObj.Clone().SetVersion(12), nil)
 
 		handler.ServeHTTP(serviceName, w, req)
 		resp = w.Result()
