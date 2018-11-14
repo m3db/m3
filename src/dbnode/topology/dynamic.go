@@ -179,7 +179,8 @@ func (t *dynamicTopology) MarkShardsAvailable(
 	if err != nil {
 		return err
 	}
-	return ps.MarkShardsAvailable(instanceID, shardIDs...)
+	_, err = ps.MarkShardsAvailable(instanceID, shardIDs...)
+	return err
 }
 
 func getMapFromUpdate(data interface{}, hashGen sharding.HashGen) (Map, error) {

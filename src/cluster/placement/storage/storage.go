@@ -116,7 +116,7 @@ func (s *storage) CheckAndSet(p placement.Placement, version int) (placement.Pla
 
 	if s.opts.Dryrun() {
 		s.logger.Info("this is a dryrun, the operation is not persisted")
-		return nil, nil
+		return p, nil
 	}
 
 	v, err := s.store.CheckAndSet(

@@ -1958,20 +1958,34 @@ func (mr *MockServiceMockRecorder) ReplaceInstances(leavingInstanceIDs, candidat
 }
 
 // MarkShardsAvailable mocks base method
-func (m *MockService) MarkShardsAvailable(instanceID string, shardIDs ...uint32) error {
+func (m *MockService) MarkShardsAvailable(instanceID string, shardIDs ...uint32) (Placement, error) {
 	varargs := []interface{}{instanceID}
 	for _, a := range shardIDs {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "MarkShardsAvailable", varargs...)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // MarkShardsAvailable indicates an expected call of MarkShardsAvailable
 func (mr *MockServiceMockRecorder) MarkShardsAvailable(instanceID interface{}, shardIDs ...interface{}) *gomock.Call {
 	varargs := append([]interface{}{instanceID}, shardIDs...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkShardsAvailable", reflect.TypeOf((*MockService)(nil).MarkShardsAvailable), varargs...)
+}
+
+// MarkInstanceAvailable mocks base method
+func (m *MockService) MarkInstanceAvailable(instanceID string) (Placement, error) {
+	ret := m.ctrl.Call(m, "MarkInstanceAvailable", instanceID)
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MarkInstanceAvailable indicates an expected call of MarkInstanceAvailable
+func (mr *MockServiceMockRecorder) MarkInstanceAvailable(instanceID interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkInstanceAvailable", reflect.TypeOf((*MockService)(nil).MarkInstanceAvailable), instanceID)
 }
 
 // MarkAllShardsAvailable mocks base method
@@ -1985,18 +1999,6 @@ func (m *MockService) MarkAllShardsAvailable() (Placement, error) {
 // MarkAllShardsAvailable indicates an expected call of MarkAllShardsAvailable
 func (mr *MockServiceMockRecorder) MarkAllShardsAvailable() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkAllShardsAvailable", reflect.TypeOf((*MockService)(nil).MarkAllShardsAvailable))
-}
-
-// MarkInstanceAvailable mocks base method
-func (m *MockService) MarkInstanceAvailable(instanceID string) error {
-	ret := m.ctrl.Call(m, "MarkInstanceAvailable", instanceID)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// MarkInstanceAvailable indicates an expected call of MarkInstanceAvailable
-func (mr *MockServiceMockRecorder) MarkInstanceAvailable(instanceID interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkInstanceAvailable", reflect.TypeOf((*MockService)(nil).MarkInstanceAvailable), instanceID)
 }
 
 // MockAlgorithm is a mock of Algorithm interface
