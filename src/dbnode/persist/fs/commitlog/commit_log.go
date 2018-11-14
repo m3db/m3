@@ -89,6 +89,7 @@ type commitLog struct {
 
 	writes          chan commitLogWrite
 	pendingFlushFns []callbackFn
+	maxQueueSize    int64
 
 	opts  Options
 	nowFn clock.NowFn
@@ -221,7 +222,8 @@ func NewCommitLog(opts Options) (CommitLog, error) {
 		nowFn:                opts.ClockOptions().NowFn(),
 		log:                  iopts.Logger(),
 		newCommitLogWriterFn: newCommitLogWriter,
-		writes:               make(chan commitLogWrite, opts.BacklogQueueSize()),
+		writes:               make(chan commitLogWrite, opts.BacklogQueueChannelSize()),
+		maxQueueSize:         int64(opts.BacklogQueueSize()),
 		closeErr:             make(chan error),
 		metrics: commitLogMetrics{
 			numWritesInQueue: scope.Gauge("writes.queued"),
@@ -625,32 +627,24 @@ func (l *commitLog) writeWait(
 		callbackFn: completion,
 	}
 
-	var (
-		enqueued     = false
-		numToEnqueue = int64(1)
-	)
+	numToEnqueue := int64(1)
 	if writeToEnqueue.write.writeBatch != nil {
 		numToEnqueue = int64(len(writeToEnqueue.write.writeBatch.Iter()))
 	}
 
+	// Best-effort check. In theory queue limit can be exceeded, but not by much.
 	numEnqueued := atomic.LoadInt64(&l.numWritesInQueue)
-	// TODO: Fix
-	if numToEnqueue+numEnqueued > 100 {
-
+	if numToEnqueue+numEnqueued > l.maxQueueSize {
+		return ErrCommitLogQueueFull
 	}
-	select {
-	case l.writes <- writeToEnqueue:
-		enqueued = true
-	default:
+
+	l.writes <- commitLogWrite{
+		write:      write,
+		callbackFn: completion,
 	}
 
 	l.closedState.RUnlock()
 
-	if !enqueued {
-		return ErrCommitLogQueueFull
-	}
-
-	atomic.AddInt64(&l.numWritesInQueue, int64(numToEnqueue))
 	wg.Wait()
 
 	return result
@@ -666,31 +660,24 @@ func (l *commitLog) writeBehind(
 		return errCommitLogClosed
 	}
 
-	writeToEnqueue := commitLogWrite{
+	numToEnqueue := int64(1)
+	if write.writeBatch != nil {
+		numToEnqueue = int64(len(write.writeBatch.Iter()))
+	}
+
+	// Best-effort check. In theory queue limit can be exceeded, but not by much.
+	numEnqueued := atomic.LoadInt64(&l.numWritesInQueue)
+	if numToEnqueue+numEnqueued > l.maxQueueSize {
+		return ErrCommitLogQueueFull
+	}
+	atomic.AddInt64(&l.numWritesInQueue, int64(numToEnqueue))
+
+	l.writes <- commitLogWrite{
 		write: write,
-	}
-
-	var (
-		enqueued    = false
-		numEnqueued = 1
-	)
-	if writeToEnqueue.write.writeBatch != nil {
-		numEnqueued = len(writeToEnqueue.write.writeBatch.Iter())
-	}
-
-	select {
-	case l.writes <- writeToEnqueue:
-		enqueued = true
-	default:
 	}
 
 	l.closedState.RUnlock()
 
-	if !enqueued {
-		return ErrCommitLogQueueFull
-	}
-
-	atomic.AddInt64(&l.numWritesInQueue, int64(numEnqueued))
 	return nil
 }
 

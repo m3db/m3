@@ -50,11 +50,8 @@ const (
 	defaultReadConcurrency = 4
 
 	// MaximumQueueSizeQueueChannelSizeRatio is the maximum ratio between the
-	// backlog queue size and backlog queue channel size. This value can be
-	// interpreted as: "as long the batches being written to the commitlog
-	// queue are at least as large as this ratio, the queue limit will kick
-	// into effect before the channel runs out of space."
-	MaximumQueueSizeQueueChannelSizeRatio = 16.0
+	// backlog queue size and backlog queue channel size.
+	MaximumQueueSizeQueueChannelSizeRatio = 8.0
 )
 
 var (
