@@ -95,7 +95,7 @@ func createRPCSeries() []*rpc.DecompressedSeries {
 
 func TestDecodeFetchResult(t *testing.T) {
 	rpcSeries := createRPCSeries()
-	name := "name"
+	name := []byte("name")
 	metricName := []byte("!")
 
 	tsSeries, err := DecodeDecompressedFetchResult(name, models.NewTagOptions().SetMetricName(metricName), rpcSeries)

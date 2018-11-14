@@ -103,8 +103,8 @@ func TestMatcher_String(t *testing.T) {
 	m := newMatcher(t, MatchEqual, "foo")
 	m.Name = []byte(`key`)
 
-	assert.Equal(t,  `key="foo"`, fmt.Sprintf("%s", m))
-	assert.Equal(t,  `key="foo"`, fmt.Sprintf("%s", &m))
+	assert.Equal(t, `key="foo"`, fmt.Sprintf("%s", m))
+	assert.Equal(t, `key="foo"`, fmt.Sprintf("%s", &m))
 }
 
 func TestMatchType(t *testing.T) {

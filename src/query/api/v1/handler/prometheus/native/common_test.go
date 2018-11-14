@@ -111,14 +111,16 @@ func TestRenderResultsJSON(t *testing.T) {
 	buffer := bytes.NewBuffer(nil)
 	params := models.RequestParams{}
 	series := []*ts.Series{
-		ts.NewSeries("foo", ts.NewFixedStepValues(10*time.Second, 2, 1, start), test.TagSliceToTags([]models.Tag{
-			models.Tag{Name: []byte("bar"), Value: []byte("baz")},
-			models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
-		})),
-		ts.NewSeries("bar", ts.NewFixedStepValues(10*time.Second, 2, 2, start), test.TagSliceToTags([]models.Tag{
-			models.Tag{Name: []byte("baz"), Value: []byte("bar")},
-			models.Tag{Name: []byte("qaz"), Value: []byte("qux")},
-		})),
+		ts.NewSeries([]byte("foo"),
+			ts.NewFixedStepValues(10*time.Second, 2, 1, start), test.TagSliceToTags([]models.Tag{
+				models.Tag{Name: []byte("bar"), Value: []byte("baz")},
+				models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
+			})),
+		ts.NewSeries([]byte("bar"),
+			ts.NewFixedStepValues(10*time.Second, 2, 2, start), test.TagSliceToTags([]models.Tag{
+				models.Tag{Name: []byte("baz"), Value: []byte("bar")},
+				models.Tag{Name: []byte("qaz"), Value: []byte("qux")},
+			})),
 	}
 
 	renderResultsJSON(buffer, series, params)

@@ -75,7 +75,7 @@ func EncodeFetchResult(results *storage.FetchResult) *rpc.FetchResponse {
 
 		series[i] = &rpc.Series{
 			Meta: &rpc.SeriesMetadata{
-				Id: []byte(result.Name()),
+				Id: result.Name(),
 			},
 			Value: &rpc.Series_Decompressed{
 				Decompressed: &rpc.DecompressedSeries{
@@ -93,7 +93,7 @@ func EncodeFetchResult(results *storage.FetchResult) *rpc.FetchResponse {
 
 // DecodeDecompressedFetchResult decodes fetch results from a GRPC-compatible type.
 func DecodeDecompressedFetchResult(
-	name string,
+	name []byte,
 	tagOptions models.TagOptions,
 	rpcSeries []*rpc.DecompressedSeries,
 ) ([]*ts.Series, error) {
@@ -122,7 +122,7 @@ func decodeTags(
 }
 
 func decodeTs(
-	name string,
+	name []byte,
 	tagOptions models.TagOptions,
 	r *rpc.DecompressedSeries,
 ) (*ts.Series, error) {
