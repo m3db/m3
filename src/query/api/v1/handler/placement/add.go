@@ -139,7 +139,7 @@ func (h *AddHandler) Add(
 		return newPlacement, nil
 	}
 
-	curPlacement, version, err := service.Placement()
+	curPlacement, err := service.Placement()
 	if err != nil {
 		return nil, err
 	}
@@ -155,10 +155,5 @@ func (h *AddHandler) Add(
 
 	// Ensure the placement we're updating is still the one on which we validated
 	// all shards are available.
-	version, err = service.CheckAndSet(newPlacement, version)
-	if err != nil {
-		return nil, err
-	}
-
-	return newPlacement.SetVersion(version), nil
+	return service.CheckAndSet(newPlacement, curPlacement.GetVersion())
 }

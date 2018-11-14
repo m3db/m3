@@ -113,7 +113,7 @@ func (h *DeleteHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *
 			return
 		}
 	} else {
-		curPlacement, version, err := service.Placement()
+		curPlacement, err := service.Placement()
 		if err != nil {
 			logger.Error("unable to fetch placement", zap.Error(err))
 			xhttp.Error(w, err, http.StatusInternalServerError)
@@ -141,14 +141,12 @@ func (h *DeleteHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *
 			return
 		}
 
-		version, err = service.CheckAndSet(newPlacement, version)
+		newPlacement, err = service.CheckAndSet(newPlacement, curPlacement.GetVersion())
 		if err != nil {
 			logger.Info("unable to remove instance from placement", zap.String("instance", id), zap.Error(err))
 			xhttp.Error(w, err, http.StatusBadRequest)
 			return
 		}
-
-		newPlacement = newPlacement.SetVersion(version)
 	}
 
 	placementProto, err := newPlacement.Proto()
