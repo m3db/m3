@@ -100,7 +100,7 @@ type commitLog struct {
 
 	metrics commitLogMetrics
 
-	queued int64
+	numWritesInQueue int64
 }
 
 // Use the helper methods when interacting with this struct, the mutex
@@ -135,14 +135,15 @@ type closedState struct {
 }
 
 type commitLogMetrics struct {
-	queued        tally.Gauge
-	queueCapacity tally.Gauge
-	success       tally.Counter
-	errors        tally.Counter
-	openErrors    tally.Counter
-	closeErrors   tally.Counter
-	flushErrors   tally.Counter
-	flushDone     tally.Counter
+	numWritesInQueue tally.Gauge
+	queueLength      tally.Gauge
+	queueCapacity    tally.Gauge
+	success          tally.Counter
+	errors           tally.Counter
+	openErrors       tally.Counter
+	closeErrors      tally.Counter
+	flushErrors      tally.Counter
+	flushDone        tally.Counter
 }
 
 type eventType int
@@ -223,14 +224,15 @@ func NewCommitLog(opts Options) (CommitLog, error) {
 		writes:               make(chan commitLogWrite, opts.BacklogQueueSize()),
 		closeErr:             make(chan error),
 		metrics: commitLogMetrics{
-			queued:        scope.Gauge("writes.queued"),
-			queueCapacity: scope.Gauge("writes.queue-capacity"),
-			success:       scope.Counter("writes.success"),
-			errors:        scope.Counter("writes.errors"),
-			openErrors:    scope.Counter("writes.open-errors"),
-			closeErrors:   scope.Counter("writes.close-errors"),
-			flushErrors:   scope.Counter("writes.flush-errors"),
-			flushDone:     scope.Counter("writes.flush-done"),
+			numWritesInQueue: scope.Gauge("writes.queued"),
+			queueLength:      scope.Gauge("writes.queue-length"),
+			queueCapacity:    scope.Gauge("writes.queue-capacity"),
+			success:          scope.Counter("writes.success"),
+			errors:           scope.Counter("writes.errors"),
+			openErrors:       scope.Counter("writes.open-errors"),
+			closeErrors:      scope.Counter("writes.close-errors"),
+			flushErrors:      scope.Counter("writes.flush-errors"),
+			flushDone:        scope.Counter("writes.flush-done"),
 		},
 	}
 
@@ -359,7 +361,11 @@ func (l *commitLog) flushEvery(interval time.Duration) {
 	var sleepForOverride time.Duration
 
 	for {
-		l.metrics.queued.Update(float64(atomic.LoadInt64(&l.queued)))
+		// The number of actual metrics / writes in the queue.
+		l.metrics.numWritesInQueue.Update(float64(atomic.LoadInt64(&l.numWritesInQueue)))
+		// The current length of the queue, different from number of writes due to each
+		// item in the queue could (potentially) be a batch of many writes.
+		l.metrics.queueLength.Update(float64(len(l.writes)))
 		l.metrics.queueCapacity.Update(float64(cap(l.writes)))
 
 		sleepFor := interval
@@ -493,7 +499,7 @@ func (l *commitLog) write() {
 			write.write.writeBatch.Finalize()
 		}
 
-		atomic.AddInt64(&l.queued, int64(-numDequeued))
+		atomic.AddInt64(&l.numWritesInQueue, int64(-numDequeued))
 		l.metrics.success.Inc(numWritesSuccess)
 	}
 
@@ -620,13 +626,18 @@ func (l *commitLog) writeWait(
 	}
 
 	var (
-		enqueued    = false
-		numEnqueued = 1
+		enqueued     = false
+		numToEnqueue = int64(1)
 	)
 	if writeToEnqueue.write.writeBatch != nil {
-		numEnqueued = len(writeToEnqueue.write.writeBatch.Iter())
+		numToEnqueue = int64(len(writeToEnqueue.write.writeBatch.Iter()))
 	}
 
+	numEnqueued := atomic.LoadInt64(&l.numWritesInQueue)
+	// TODO: Fix
+	if numToEnqueue+numEnqueued > 100 {
+
+	}
 	select {
 	case l.writes <- writeToEnqueue:
 		enqueued = true
@@ -639,7 +650,7 @@ func (l *commitLog) writeWait(
 		return ErrCommitLogQueueFull
 	}
 
-	atomic.AddInt64(&l.queued, int64(numEnqueued))
+	atomic.AddInt64(&l.numWritesInQueue, int64(numToEnqueue))
 	wg.Wait()
 
 	return result
@@ -679,7 +690,7 @@ func (l *commitLog) writeBehind(
 		return ErrCommitLogQueueFull
 	}
 
-	atomic.AddInt64(&l.queued, int64(numEnqueued))
+	atomic.AddInt64(&l.numWritesInQueue, int64(numEnqueued))
 	return nil
 }
 

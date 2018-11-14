@@ -322,6 +322,22 @@ func Run(runOpts RunOptions) {
 			cfg.CommitLog.Queue.CalculationType)
 	}
 
+	var commitLogQueueChannelSize int
+	if cfg.CommitLog.QueueChannel != nil {
+		specified := cfg.CommitLog.QueueChannel.Size
+		switch cfg.CommitLog.Queue.CalculationType {
+		case config.CalculationTypeFixed:
+			commitLogQueueChannelSize = specified
+		case config.CalculationTypePerCPU:
+			commitLogQueueChannelSize = specified * runtime.NumCPU()
+		default:
+			logger.Fatalf("unknown commit log queue channel size type: %v",
+				cfg.CommitLog.Queue.CalculationType)
+		}
+	} else {
+		commitLogQueueChannelSize = int(float64(commitLogQueueSize) / commitlog.MaximumQueueSizeQueueChannelSizeRatio)
+	}
+
 	opts = opts.SetCommitLogOptions(opts.CommitLogOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetFilesystemOptions(fsopts).
@@ -329,6 +345,7 @@ func Run(runOpts RunOptions) {
 		SetFlushSize(cfg.CommitLog.FlushMaxBytes).
 		SetFlushInterval(cfg.CommitLog.FlushEvery).
 		SetBacklogQueueSize(commitLogQueueSize).
+		SetBacklogQueueChannelSize(commitLogQueueChannelSize).
 		SetBlockSize(cfg.CommitLog.BlockSize))
 
 	// Set the series cache policy
