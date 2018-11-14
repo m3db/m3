@@ -91,7 +91,7 @@ func (h *GetHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *htt
 			status = http.StatusBadRequest
 		}
 	} else {
-		placement, version, err = service.Placement()
+		placement, err = service.Placement()
 	}
 
 	if err != nil {
@@ -108,7 +108,7 @@ func (h *GetHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *htt
 
 	resp := &admin.PlacementGetResponse{
 		Placement: placementProto,
-		Version:   int32(version),
+		Version:   int32(placement.GetVersion()),
 	}
 
 	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)

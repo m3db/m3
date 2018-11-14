@@ -164,9 +164,11 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 	}
 
 	// If there is no checkpoint file, don't read the data files.
-	if err := r.readCheckpointFile(checkpointFilepath); err != nil {
+	digest, err := readCheckpointFile(checkpointFilepath, r.digestBuf)
+	if err != nil {
 		return err
 	}
+	r.expectedDigestOfDigest = digest
 
 	var infoFd, digestFd *os.File
 	err = openFiles(os.Open, map[string]**os.File{
@@ -245,27 +247,6 @@ func (r *reader) Status() DataFileSetReaderStatus {
 		Shard:      r.shard,
 		BlockStart: r.start,
 	}
-}
-
-func (r *reader) readCheckpointFile(filePath string) error {
-	exists, err := CompleteCheckpointFileExists(filePath)
-	if err != nil {
-		return err
-	}
-	if !exists {
-		return ErrCheckpointFileNotFound
-	}
-	fd, err := os.Open(filePath)
-	if err != nil {
-		return err
-	}
-	defer fd.Close()
-	digest, err := r.digestBuf.ReadDigestFromFile(fd)
-	if err != nil {
-		return err
-	}
-	r.expectedDigestOfDigest = digest
-	return nil
 }
 
 func (r *reader) readDigest() error {
@@ -512,6 +493,27 @@ func (r *reader) Close() error {
 	r.indexEntriesByOffsetAsc = indexEntriesByOffsetAsc
 
 	return multiErr.FinalError()
+}
+
+func readCheckpointFile(filePath string, digestBuf digest.Buffer) (uint32, error) {
+	exists, err := CompleteCheckpointFileExists(filePath)
+	if err != nil {
+		return 0, err
+	}
+	if !exists {
+		return 0, ErrCheckpointFileNotFound
+	}
+	fd, err := os.Open(filePath)
+	if err != nil {
+		return 0, err
+	}
+	defer fd.Close()
+	digest, err := digestBuf.ReadDigestFromFile(fd)
+	if err != nil {
+		return 0, err
+	}
+
+	return digest, nil
 }
 
 // indexEntriesByOffsetAsc implements sort.Sort

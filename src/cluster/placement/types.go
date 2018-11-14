@@ -440,17 +440,17 @@ const (
 // Storage provides read and write access to placement.
 type Storage interface {
 	// Set writes a placement.
-	Set(p Placement) error
+	Set(p Placement) (Placement, error)
 
 	// CheckAndSet writes a placement if the current version
 	// matches the expected version.
-	CheckAndSet(p Placement, version int) error
+	CheckAndSet(p Placement, version int) (Placement, error)
 
 	// SetIfNotExist writes a placement.
-	SetIfNotExist(p Placement) error
+	SetIfNotExist(p Placement) (Placement, error)
 
-	// Placement reads placement and version.
-	Placement() (Placement, int, error)
+	// Placement reads placement.
+	Placement() (Placement, error)
 
 	// Watch returns a watch for the placement updates.
 	Watch() (Watch, error)
@@ -459,11 +459,11 @@ type Storage interface {
 	Delete() error
 
 	// SetProto sets the proto as the placement.
-	SetProto(p proto.Message) error
+	SetProto(p proto.Message) (int, error)
 
 	// CheckAndSetProto writes a proto if the current version
 	// matches the expected version.
-	CheckAndSetProto(p proto.Message, version int) error
+	CheckAndSetProto(p proto.Message, version int) (int, error)
 
 	// Proto returns the placement proto.
 	Proto() (proto.Message, int, error)

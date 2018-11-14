@@ -87,7 +87,7 @@ func (r *multiResult) Build() (encoding.SeriesIterators, error) {
 	r.Lock()
 	defer r.Unlock()
 
-	err := r.err.FinalError()
+	err := r.err.LastError()
 	if err != nil {
 		return nil, err
 	}

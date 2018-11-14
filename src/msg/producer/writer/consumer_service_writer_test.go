@@ -96,7 +96,8 @@ func TestConsumerServiceWriterWithSharedConsumerWithNonShardedPlacement(t *testi
 				SetEndpoint("addr3"),
 		}).
 		SetIsSharded(false)
-	require.NoError(t, ps.Set(p1))
+	_, err = ps.Set(p1)
+	require.NoError(t, err)
 
 	for {
 		lock.Lock()
@@ -146,7 +147,8 @@ func TestConsumerServiceWriterWithSharedConsumerWithNonShardedPlacement(t *testi
 				SetEndpoint("addr2"),
 		}).
 		SetIsSharded(false)
-	require.NoError(t, ps.Set(p2))
+	_, err = ps.Set(p2)
+	require.NoError(t, err)
 
 	for {
 		lock.Lock()
@@ -232,7 +234,8 @@ func TestConsumerServiceWriterWithSharedConsumerWithShardedPlacement(t *testing.
 		SetShards([]uint32{0, 1, 2}).
 		SetReplicaFactor(2).
 		SetIsSharded(true)
-	require.NoError(t, ps.Set(p1))
+	_, err = ps.Set(p1)
+	require.NoError(t, err)
 
 	for {
 		lock.Lock()
@@ -286,7 +289,8 @@ func TestConsumerServiceWriterWithSharedConsumerWithShardedPlacement(t *testing.
 		SetShards([]uint32{0, 1, 2}).
 		SetReplicaFactor(1).
 		SetIsSharded(true)
-	require.NoError(t, ps.Set(p2))
+	_, err = ps.Set(p2)
+	require.NoError(t, err)
 
 	for {
 		lock.Lock()
@@ -347,7 +351,8 @@ func TestConsumerServiceWriterWithReplicatedConsumerWithShardedPlacement(t *test
 		SetShards([]uint32{0, 1}).
 		SetReplicaFactor(2).
 		SetIsSharded(true)
-	require.NoError(t, ps.Set(p1))
+	_, err = ps.Set(p1)
+	require.NoError(t, err)
 
 	opts := testOptions().SetServiceDiscovery(sd)
 	w, err := newConsumerServiceWriter(cs, 2, opts)
@@ -425,7 +430,8 @@ func TestConsumerServiceWriterWithReplicatedConsumerWithShardedPlacement(t *test
 		SetShards([]uint32{0, 1}).
 		SetReplicaFactor(1).
 		SetIsSharded(true)
-	require.NoError(t, ps.Set(p2))
+	_, err = ps.Set(p2)
+	require.NoError(t, err)
 
 	for {
 		lock.Lock()

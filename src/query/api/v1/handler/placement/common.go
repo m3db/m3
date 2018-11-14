@@ -381,6 +381,15 @@ func RegisterRoutes(r *mux.Router, opts HandlerOptions) {
 	r.HandleFunc(M3DBDeleteURL, deleteFn).Methods(DeleteHTTPMethod)
 	r.HandleFunc(M3AggDeleteURL, deleteFn).Methods(DeleteHTTPMethod)
 	r.HandleFunc(M3CoordinatorDeleteURL, getFn).Methods(GetHTTPMethod)
+
+	// Replace
+	var (
+		replaceHandler = NewReplaceHandler(opts)
+		replaceFn      = applyMiddleware(replaceHandler.ServeHTTP)
+	)
+	r.HandleFunc(M3DBReplaceURL, replaceFn).Methods(ReplaceHTTPMethod)
+	r.HandleFunc(M3AggReplaceURL, replaceFn).Methods(ReplaceHTTPMethod)
+	r.HandleFunc(M3CoordinatorReplaceURL, replaceFn).Methods(ReplaceHTTPMethod)
 }
 
 func newPlacementCutoverNanosFn(
@@ -460,6 +469,14 @@ type m3aggregatorPlacementOpts struct {
 	propagationDelay time.Duration
 }
 
+type unsafeAddError struct {
+	hosts string
+}
+
+func (e unsafeAddError) Error() string {
+	return fmt.Sprintf("instances [%s] do not have all shards available", e.hosts)
+}
+
 func validateAllAvailable(p placement.Placement) error {
 	badInsts := []string{}
 	for _, inst := range p.Instances() {
@@ -516,4 +533,12 @@ func parseServiceFromRequest(r *http.Request) (string, error) {
 	}
 
 	return "", errUnableToParseService
+}
+
+func isStateless(serviceName string) bool {
+	switch serviceName {
+	case M3CoordinatorServiceName:
+		return true
+	}
+	return false
 }

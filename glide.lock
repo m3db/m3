@@ -1,5 +1,5 @@
-hash: e18d8ec10bc3e1cefa5c87365838c7c97ba003d552733931b5e4b9a2515d4235
-updated: 2018-10-23T16:48:16.261449-04:00
+hash: 760468137d3b67dc5978441265e564f5afe9f526fb4c556464eb3a4505df8dbc
+updated: 2018-11-14T14:03:59.559765-05:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -219,7 +219,7 @@ imports:
 - name: github.com/m3db/bloom
   version: 47fe1193cdb900de7193d1f3d26ea9b2cbf6fb31
 - name: github.com/m3db/m3x
-  version: 943173a151c8a6b2da1f93f814c27c4e4a1e2050
+  version: 4f657299af578e9aa28c557075c7307d4b756378
   vcs: git
   subpackages:
   - checked
@@ -296,7 +296,7 @@ imports:
 - name: github.com/pborman/uuid
   version: adf5a7427709b9deb95d29d3fa8a2bf9cfd388f1
 - name: github.com/pelletier/go-buffruneio
-  version: de1592c34d9c6055a32fc9ebe2b3ee50ca468ebe
+  version: e2f66f8164ca709d4c21e815860afd2024e9b894
 - name: github.com/pelletier/go-toml
   version: 3b00596b2e9ee541bbd72dc50cc0c60e2b46c69c
 - name: github.com/philhofer/fwd
@@ -385,7 +385,7 @@ imports:
   - require
   - suite
 - name: github.com/tinylib/msgp
-  version: f65876d3ea05943d6613bca6b8ed391843044bd4
+  version: 53e4ad1e134ee9b42a7add28ca77177ab17983b3
   subpackages:
   - msgp
 - name: github.com/uber-go/atomic

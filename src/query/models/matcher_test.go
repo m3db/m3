@@ -21,7 +21,6 @@
 package models
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -103,8 +102,8 @@ func TestMatcher_String(t *testing.T) {
 	m := newMatcher(t, MatchEqual, "foo")
 	m.Name = []byte(`key`)
 
-	assert.Equal(t, `key="foo"`, fmt.Sprintf("%s", m))
-	assert.Equal(t, `key="foo"`, fmt.Sprintf("%s", &m))
+	assert.Equal(t, `key="foo"`, m.String())
+	assert.Equal(t, `key="foo"`, (&m).String())
 }
 
 func TestMatchType(t *testing.T) {

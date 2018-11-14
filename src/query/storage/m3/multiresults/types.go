@@ -21,8 +21,10 @@
 package multiresults
 
 import (
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3x/ident"
 )
 
 // QueryFanoutType dictates the fanout range tyoe of a multi fetch merge
@@ -34,29 +36,40 @@ const (
 	NamespaceCoversPartialQueryRange
 )
 
-// MultiFetchResultBuilder is a builder for combining series iterators with a strategy
+// MultiFetchResultBuilder is a deduping accumalator for series iterators
+// that allows merging using a given strategy
 type MultiFetchResultBuilder interface {
-	// Add adds series iterators to the builder
+	// Add adds series iterators with corresponding attributes to the accumulator
 	Add(
 		attrs storage.Attributes,
 		iterators encoding.SeriesIterators,
 		err error,
 	)
-	// Build builds a combined set of series iterators
+	// Build returns a series iterators object containing
+	// deduplciated series values
 	Build() (encoding.SeriesIterators, error)
+	// Close releases all resources held by this accumulator
+	Close() error
+}
+
+// MultiSearchResultBuilder is a deduping accumalator for tag iterators
+type MultiSearchResultBuilder interface {
+	// Add adds tagged ID iterators to the accumulator
+	Add(
+		newIterator client.TaggedIDsIterator,
+		err error,
+	)
+	// Build returns a deduped list of tag iterators with
+	// corresponding series ids
+	Build() ([]MultiTagResult, error)
 	// Close releases resources held by the builder
 	Close() error
 }
 
-// MultiSearchResultBuilder is a builder for combining search results
-type MultiSearchResultBuilder interface {
-	// Add adds series iterators to the builder
-	Add(
-		result *storage.SearchResults,
-		err error,
-	)
-	// Build builds a combined set of series iterators
-	Build() (*storage.SearchResults, error)
-	// Close releases resources held by the builder
-	Close() error
+// MultiTagResult represents a tag iterator with its string ID
+type MultiTagResult struct {
+	// ID is the series ID
+	ID ident.ID
+	// Iter is the tag iterator for the series
+	Iter ident.TagIterator
 }

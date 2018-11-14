@@ -40,7 +40,10 @@ import (
 
 func TestPlacementDeleteHandler_Force(t *testing.T) {
 	runForAllAllowedServices(func(serviceName string) {
-		mockClient, mockPlacementService := SetupPlacementTest(t)
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockClient, mockPlacementService := SetupPlacementTest(t, ctrl)
 		handler := NewDeleteHandler(NewHandlerOptions(mockClient, config.Configuration{}, nil))
 
 		// Test remove success
@@ -75,89 +78,157 @@ func TestPlacementDeleteHandler_Force(t *testing.T) {
 
 func TestPlacementDeleteHandler_Safe(t *testing.T) {
 	runForAllAllowedServices(func(serviceName string) {
-		var (
-			mockClient, mockPlacementService = SetupPlacementTest(t)
-			handlerOpts                      = NewHandlerOptions(
-				mockClient,
-				config.Configuration{},
-				&M3AggServiceOptions{
-					WarmupDuration:           time.Minute,
-					MaxAggregationWindowSize: 5 * time.Minute,
-				},
-			)
-			handler = NewDeleteHandler(handlerOpts)
+		t.Run(serviceName, func(t *testing.T) {
+			testDeleteHandlerSafe(t, serviceName)
+		})
+	})
+}
 
-			basePlacement = placement.NewPlacement().
-					SetIsSharded(true)
+func testDeleteHandlerSafe(t *testing.T, serviceName string) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-			// Test remove absent host
-			w   = httptest.NewRecorder()
-			req = httptest.NewRequest(DeleteHTTPMethod, "/placement/host1", nil)
+	var (
+		mockClient, mockPlacementService = SetupPlacementTest(t, ctrl)
+		handlerOpts                      = NewHandlerOptions(
+			mockClient,
+			config.Configuration{},
+			&M3AggServiceOptions{
+				WarmupDuration:           time.Minute,
+				MaxAggregationWindowSize: 5 * time.Minute,
+			},
 		)
-		handler.nowFn = func() time.Time { return time.Unix(0, 0) }
+		handler = NewDeleteHandler(handlerOpts)
 
-		switch serviceName {
-		case M3CoordinatorServiceName:
-			basePlacement = basePlacement.
-				SetIsSharded(false).
-				SetReplicaFactor(1)
-			mockPlacementService.EXPECT().
-				RemoveInstances([]string{"host1"}).
-				Return(placement.NewPlacement(), nil)
-		case M3AggregatorServiceName:
-			basePlacement = basePlacement.
-				SetIsMirrored(true)
-		}
+		basePlacement = placement.NewPlacement().
+				SetIsSharded(true)
 
+		// Test remove absent host
+		w   = httptest.NewRecorder()
+		req = httptest.NewRequest(DeleteHTTPMethod, "/placement/host1", nil)
+	)
+	handler.nowFn = func() time.Time { return time.Unix(0, 0) }
+
+	switch serviceName {
+	case M3CoordinatorServiceName:
+		basePlacement = basePlacement.
+			SetIsSharded(false).
+			SetReplicaFactor(1)
+		mockPlacementService.EXPECT().
+			RemoveInstances([]string{"host1"}).
+			Return(placement.NewPlacement(), nil)
+	case M3AggregatorServiceName:
+		basePlacement = basePlacement.
+			SetIsMirrored(true)
+	}
+
+	req = mux.SetURLVars(req, map[string]string{"id": "host1"})
+	require.NotNil(t, req)
+	if !isStateless(serviceName) {
+		mockPlacementService.EXPECT().Placement().Return(basePlacement, nil)
+	}
+	handler.ServeHTTP(serviceName, w, req)
+
+	resp := w.Result()
+	body, err := ioutil.ReadAll(resp.Body)
+	require.NoError(t, err)
+	switch serviceName {
+	case M3CoordinatorServiceName:
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+	default:
+		assert.Contains(t, string(body), "instance host1 not found in placement")
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	}
+
+	// Test remove host when placement unsafe
+	basePlacement = basePlacement.SetInstances([]placement.Instance{
+		placement.NewInstance().SetID("host1").SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(2).SetState(shard.Available),
+		})),
+		placement.NewInstance().SetID("host2").SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(1).SetState(shard.Leaving),
+		})),
+	})
+
+	switch serviceName {
+	case M3CoordinatorServiceName:
+		// M3Coordinator placement changes are alway safe because it is stateless
+	default:
+		w = httptest.NewRecorder()
+		req = httptest.NewRequest(DeleteHTTPMethod, "/placement/host1", nil)
 		req = mux.SetURLVars(req, map[string]string{"id": "host1"})
 		require.NotNil(t, req)
-		mockPlacementService.EXPECT().Placement().Return(basePlacement, 0, nil)
+		mockPlacementService.EXPECT().Placement().Return(basePlacement, nil)
 		handler.ServeHTTP(serviceName, w, req)
 
-		resp := w.Result()
-		body, err := ioutil.ReadAll(resp.Body)
+		resp = w.Result()
+		body, err = ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)
-		switch serviceName {
-		case M3CoordinatorServiceName:
-			require.Equal(t, http.StatusOK, resp.StatusCode)
-		default:
-			assert.Contains(t, string(body), "instance host1 not found in placement")
-			assert.Equal(t, http.StatusNotFound, resp.StatusCode)
-		}
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		require.Equal(t, `{"error":"instances [host2] do not have all shards available"}`+"\n", string(body))
+	}
 
-		// Test remove host when placement unsafe
-		basePlacement = basePlacement.SetInstances([]placement.Instance{
-			placement.NewInstance().SetID("host1").SetShards(shard.NewShards([]shard.Shard{
-				shard.NewShard(2).SetState(shard.Available),
+	// Test OK
+	basePlacement = basePlacement.SetReplicaFactor(2).SetMaxShardSetID(2).SetInstances([]placement.Instance{
+		placement.NewInstance().SetID("host1").SetIsolationGroup("a").SetWeight(10).
+			SetShards(shard.NewShards([]shard.Shard{
+				shard.NewShard(0).SetState(shard.Available),
 			})),
-			placement.NewInstance().SetID("host2").SetShards(shard.NewShards([]shard.Shard{
-				shard.NewShard(1).SetState(shard.Leaving),
+		placement.NewInstance().SetID("host2").SetIsolationGroup("b").SetWeight(10).
+			SetShards(shard.NewShards([]shard.Shard{
+				shard.NewShard(0).SetState(shard.Available),
+				shard.NewShard(1).SetState(shard.Available),
 			})),
-		})
+		placement.NewInstance().SetID("host3").SetIsolationGroup("c").SetWeight(10).
+			SetShards(shard.NewShards([]shard.Shard{
+				shard.NewShard(1).SetState(shard.Available),
+			})),
+	})
 
-		switch serviceName {
-		case M3CoordinatorServiceName:
-			// M3Coordinator placement changes are alway safe because it is stateless
-		default:
-			w = httptest.NewRecorder()
-			req = httptest.NewRequest(DeleteHTTPMethod, "/placement/host1", nil)
-			req = mux.SetURLVars(req, map[string]string{"id": "host1"})
-			require.NotNil(t, req)
-			mockPlacementService.EXPECT().Placement().Return(basePlacement, 0, nil)
-			handler.ServeHTTP(serviceName, w, req)
+	var returnPlacement placement.Placement
 
-			resp = w.Result()
-			body, err = ioutil.ReadAll(resp.Body)
-			require.NoError(t, err)
-			require.Equal(t, http.StatusBadRequest, resp.StatusCode)
-			require.Equal(t, `{"error":"instances [host2] do not have all shards available"}`+"\n", string(body))
-		}
-
-		// Test OK
-		basePlacement = basePlacement.SetReplicaFactor(2).SetMaxShardSetID(2).SetInstances([]placement.Instance{
-			placement.NewInstance().SetID("host1").SetIsolationGroup("a").SetWeight(10).
+	switch serviceName {
+	case M3CoordinatorServiceName:
+		basePlacement.
+			SetIsSharded(false).
+			SetReplicaFactor(1).
+			SetShards(nil).
+			SetInstances([]placement.Instance{placement.NewInstance().SetID("host1")})
+		mockPlacementService.EXPECT().
+			RemoveInstances([]string{"host1"}).
+			Return(placement.NewPlacement(), nil)
+	case M3AggregatorServiceName:
+		// Need to be mirrored in M3Agg case
+		basePlacement.SetReplicaFactor(1).SetMaxShardSetID(2).SetInstances([]placement.Instance{
+			placement.NewInstance().SetID("host1").SetIsolationGroup("a").SetWeight(10).SetShardSetID(0).
 				SetShards(shard.NewShards([]shard.Shard{
 					shard.NewShard(0).SetState(shard.Available),
+				})),
+			placement.NewInstance().SetID("host2").SetIsolationGroup("b").SetWeight(10).SetShardSetID(1).
+				SetShards(shard.NewShards([]shard.Shard{
+					shard.NewShard(1).SetState(shard.Available),
+				})),
+		})
+
+		returnPlacement = basePlacement.Clone().SetInstances([]placement.Instance{
+			placement.NewInstance().SetID("host1").SetIsolationGroup("a").SetWeight(10).SetShardSetID(0).
+				SetShards(shard.NewShards([]shard.Shard{
+					shard.NewShard(0).SetState(shard.Leaving).
+						SetCutoffNanos(300000000000),
+				})),
+			placement.NewInstance().SetID("host2").SetIsolationGroup("b").SetWeight(10).SetShardSetID(1).
+				SetShards(shard.NewShards([]shard.Shard{
+					shard.NewShard(0).SetState(shard.Initializing).
+						SetCutoverNanos(300000000000).
+						SetSourceID("host1"),
+					shard.NewShard(1).SetState(shard.Available),
+				})),
+		}).SetVersion(2)
+	case M3DBServiceName:
+		returnPlacement = basePlacement.Clone().SetInstances([]placement.Instance{
+			placement.NewInstance().SetID("host1").SetIsolationGroup("a").SetWeight(10).
+				SetShards(shard.NewShards([]shard.Shard{
+					shard.NewShard(0).SetState(shard.Leaving),
 				})),
 			placement.NewInstance().SetID("host2").SetIsolationGroup("b").SetWeight(10).
 				SetShards(shard.NewShards([]shard.Shard{
@@ -166,56 +237,33 @@ func TestPlacementDeleteHandler_Safe(t *testing.T) {
 				})),
 			placement.NewInstance().SetID("host3").SetIsolationGroup("c").SetWeight(10).
 				SetShards(shard.NewShards([]shard.Shard{
+					shard.NewShard(0).SetState(shard.Initializing).SetSourceID("host1"),
 					shard.NewShard(1).SetState(shard.Available),
 				})),
-		})
+		}).SetVersion(2)
+	}
 
-		switch serviceName {
-		case M3CoordinatorServiceName:
-			basePlacement.
-				SetIsSharded(false).
-				SetReplicaFactor(1).
-				SetShards(nil).
-				SetInstances([]placement.Instance{placement.NewInstance().SetID("host1")})
-			mockPlacementService.EXPECT().
-				RemoveInstances([]string{"host1"}).
-				Return(placement.NewPlacement(), nil)
-		case M3AggregatorServiceName:
-			// Need to be mirrored in M3Agg case
-			basePlacement.SetReplicaFactor(1).SetMaxShardSetID(2).SetInstances([]placement.Instance{
-				placement.NewInstance().SetID("host1").SetIsolationGroup("a").SetWeight(10).SetShardSetID(0).
-					SetShards(shard.NewShards([]shard.Shard{
-						shard.NewShard(0).SetState(shard.Available),
-					})),
-				placement.NewInstance().SetID("host2").SetIsolationGroup("b").SetWeight(10).SetShardSetID(1).
-					SetShards(shard.NewShards([]shard.Shard{
-						shard.NewShard(1).SetState(shard.Available),
-					})),
-			})
-		}
+	w = httptest.NewRecorder()
+	req = httptest.NewRequest(DeleteHTTPMethod, "/placement/host1", nil)
+	req = mux.SetURLVars(req, map[string]string{"id": "host1"})
+	require.NotNil(t, req)
 
-		w = httptest.NewRecorder()
-		req = httptest.NewRequest(DeleteHTTPMethod, "/placement/host1", nil)
-		req = mux.SetURLVars(req, map[string]string{"id": "host1"})
-		require.NotNil(t, req)
-		mockPlacementService.EXPECT().Placement().Return(basePlacement, 1, nil)
-		mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 1).Return(nil)
-		handler.ServeHTTP(serviceName, w, req)
+	if !isStateless(serviceName) {
+		mockPlacementService.EXPECT().Placement().Return(basePlacement, nil)
+		mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0).Return(returnPlacement, nil)
+	}
 
-		resp = w.Result()
-		body, err = ioutil.ReadAll(resp.Body)
-		require.NoError(t, err)
-		switch serviceName {
-		case M3CoordinatorServiceName:
-			require.Equal(t, `{"placement":{"instances":{},"replicaFactor":0,"numShards":0,"isSharded":false,"cutoverTime":"0","isMirrored":false,"maxShardSetId":0},"version":0}`, string(body))
-		case M3AggregatorServiceName:
-			require.Equal(t, "{\"placement\":{\"instances\":{\"host1\":{\"id\":\"host1\",\"isolationGroup\":\"a\",\"zone\":\"\",\"weight\":10,\"endpoint\":\"\",\"shards\":[{\"id\":0,\"state\":\"LEAVING\",\"sourceId\":\"\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"300000000000\"}],\"shardSetId\":0,\"hostname\":\"\",\"port\":0},\"host2\":{\"id\":\"host2\",\"isolationGroup\":\"b\",\"zone\":\"\",\"weight\":10,\"endpoint\":\"\",\"shards\":[{\"id\":0,\"state\":\"INITIALIZING\",\"sourceId\":\"host1\",\"cutoverNanos\":\"300000000000\",\"cutoffNanos\":\"0\"},{\"id\":1,\"state\":\"AVAILABLE\",\"sourceId\":\"\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"}],\"shardSetId\":1,\"hostname\":\"\",\"port\":0}},\"replicaFactor\":1,\"numShards\":0,\"isSharded\":true,\"cutoverTime\":\"0\",\"isMirrored\":true,\"maxShardSetId\":2},\"version\":2}", string(body))
-		default:
-			require.Equal(t, "{\"placement\":{\"instances\":{\"host1\":{\"id\":\"host1\",\"isolationGroup\":\"a\",\"zone\":\"\",\"weight\":10,\"endpoint\":\"\",\"shards\":[{\"id\":0,\"state\":\"LEAVING\",\"sourceId\":\"\","+
-				"\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"}],\"shardSetId\":0,\"hostname\":\"\",\"port\":0},\"host2\":{\"id\":\"host2\",\"isolationGroup\":\"b\",\"zone\":\"\",\"weight\":10,\"endpoint\":\"\",\"shards\":"+
-				"[{\"id\":0,\"state\":\"AVAILABLE\",\"sourceId\":\"\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"},{\"id\":1,\"state\":\"AVAILABLE\",\"sourceId\":\"\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"}],"+
-				"\"shardSetId\":0,\"hostname\":\"\",\"port\":0},\"host3\":{\"id\":\"host3\",\"isolationGroup\":\"c\",\"zone\":\"\",\"weight\":10,\"endpoint\":\"\",\"shards\":[{\"id\":0,\"state\":\"INITIALIZING\",\"sourceId\":\"host1\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"},"+
-				"{\"id\":1,\"state\":\"AVAILABLE\",\"sourceId\":\"\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"}],\"shardSetId\":0,\"hostname\":\"\",\"port\":0}},\"replicaFactor\":2,\"numShards\":0,\"isSharded\":true,\"cutoverTime\":\"0\",\"isMirrored\":false,\"maxShardSetId\":2},\"version\":2}", string(body))
-		}
-	})
+	handler.ServeHTTP(serviceName, w, req)
+
+	resp = w.Result()
+	body, err = ioutil.ReadAll(resp.Body)
+	require.NoError(t, err)
+	switch serviceName {
+	case M3CoordinatorServiceName:
+		require.Equal(t, `{"placement":{"instances":{},"replicaFactor":0,"numShards":0,"isSharded":false,"cutoverTime":"0","isMirrored":false,"maxShardSetId":0},"version":0}`, string(body))
+	case M3AggregatorServiceName:
+		require.Equal(t, `{"placement":{"instances":{"host1":{"id":"host1","isolationGroup":"a","zone":"","weight":10,"endpoint":"","shards":[{"id":0,"state":"LEAVING","sourceId":"","cutoverNanos":"0","cutoffNanos":"300000000000"}],"shardSetId":0,"hostname":"","port":0},"host2":{"id":"host2","isolationGroup":"b","zone":"","weight":10,"endpoint":"","shards":[{"id":0,"state":"INITIALIZING","sourceId":"host1","cutoverNanos":"300000000000","cutoffNanos":"0"},{"id":1,"state":"AVAILABLE","sourceId":"","cutoverNanos":"0","cutoffNanos":"0"}],"shardSetId":1,"hostname":"","port":0}},"replicaFactor":1,"numShards":0,"isSharded":true,"cutoverTime":"0","isMirrored":true,"maxShardSetId":2},"version":2}`, string(body))
+	default:
+		require.Equal(t, `{"placement":{"instances":{"host1":{"id":"host1","isolationGroup":"a","zone":"","weight":10,"endpoint":"","shards":[{"id":0,"state":"LEAVING","sourceId":"","cutoverNanos":"0","cutoffNanos":"0"}],"shardSetId":0,"hostname":"","port":0},"host2":{"id":"host2","isolationGroup":"b","zone":"","weight":10,"endpoint":"","shards":[{"id":0,"state":"AVAILABLE","sourceId":"","cutoverNanos":"0","cutoffNanos":"0"},{"id":1,"state":"AVAILABLE","sourceId":"","cutoverNanos":"0","cutoffNanos":"0"}],"shardSetId":0,"hostname":"","port":0},"host3":{"id":"host3","isolationGroup":"c","zone":"","weight":10,"endpoint":"","shards":[{"id":0,"state":"INITIALIZING","sourceId":"host1","cutoverNanos":"0","cutoffNanos":"0"},{"id":1,"state":"AVAILABLE","sourceId":"","cutoverNanos":"0","cutoffNanos":"0"}],"shardSetId":0,"hostname":"","port":0}},"replicaFactor":2,"numShards":0,"isSharded":true,"cutoverTime":"0","isMirrored":false,"maxShardSetId":2},"version":2}`, string(body))
+	}
 }

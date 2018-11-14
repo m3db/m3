@@ -55,7 +55,7 @@ genny-map-multi-result-series: install-m3x-repo
 genny-map-multi-search-result: install-m3x-repo
 	cd $(m3x_package_path) && make byteshashmap-gen \
 		pkg=multiresults \
-		value_type=seen \
+		value_type=MultiTagResult \
 		target_package=$(multiresult_package) \
 		rename_type_prefix=multiSearchResult \
 		rename_constructor=newMultiSearchResultMap \

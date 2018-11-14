@@ -292,25 +292,25 @@ func (s *m3ClusterPlacementService) MarkInstanceAvailable(
 	return fmt.Errorf("not implemented")
 }
 func (s *m3ClusterPlacementService) Placement() (
-	placement.Placement, int, error,
+	placement.Placement, error,
 ) {
-	return nil, 0, fmt.Errorf("not implemented")
+	return nil, fmt.Errorf("not implemented")
 }
 func (s *m3ClusterPlacementService) Set(
 	p placement.Placement,
-) error {
-	return fmt.Errorf("not implemented")
+) (placement.Placement, error) {
+	return nil, fmt.Errorf("not implemented")
 }
 func (s *m3ClusterPlacementService) SetIfNotExist(
 	p placement.Placement,
-) error {
-	return fmt.Errorf("not implemented")
+) (placement.Placement, error) {
+	return nil, fmt.Errorf("not implemented")
 }
 func (s *m3ClusterPlacementService) CheckAndSet(
 	p placement.Placement,
 	v int,
-) error {
-	return fmt.Errorf("not implemented")
+) (placement.Placement, error) {
+	return nil, fmt.Errorf("not implemented")
 }
 func (s *m3ClusterPlacementService) Delete() error {
 	return fmt.Errorf("not implemented")
@@ -321,11 +321,11 @@ func (s *m3ClusterPlacementService) PlacementProto() (proto.Message, int, error)
 func (s *m3ClusterPlacementService) SetPlacementProto(p proto.Message) error {
 	return fmt.Errorf("not implemented")
 }
-func (s *m3ClusterPlacementService) CheckAndSetProto(p proto.Message, version int) error {
-	return fmt.Errorf("not implemented")
+func (s *m3ClusterPlacementService) CheckAndSetProto(p proto.Message, version int) (int, error) {
+	return 0, fmt.Errorf("not implemented")
 }
-func (s *m3ClusterPlacementService) SetProto(p proto.Message) error {
-	return fmt.Errorf("not implemented")
+func (s *m3ClusterPlacementService) SetProto(p proto.Message) (int, error) {
+	return 0, fmt.Errorf("not implemented")
 }
 func (s *m3ClusterPlacementService) Proto() (proto.Message, int, error) {
 	return nil, 0, fmt.Errorf("not implemented")

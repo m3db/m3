@@ -115,7 +115,7 @@ type multiSearchResultMapEntry struct {
 	// key is used to check equality on lookups to resolve collisions
 	key _multiSearchResultMapKey
 	// value type stored
-	value seen
+	value MultiTagResult
 }
 
 type _multiSearchResultMapKey struct {
@@ -129,7 +129,7 @@ func (e multiSearchResultMapEntry) Key() []byte {
 }
 
 // Value returns the map entry value.
-func (e multiSearchResultMapEntry) Value() seen {
+func (e multiSearchResultMapEntry) Value() MultiTagResult {
 	return e.value
 }
 
@@ -161,7 +161,7 @@ func (m *multiSearchResultMap) removeMapKey(hash multiSearchResultMapHash, key _
 }
 
 // Get returns a value in the map for an identifier if found.
-func (m *multiSearchResultMap) Get(k []byte) (seen, bool) {
+func (m *multiSearchResultMap) Get(k []byte) (MultiTagResult, bool) {
 	hash := m.hash(k)
 	for entry, ok := m.lookup[hash]; ok; entry, ok = m.lookup[hash] {
 		if m.equals(entry.key.key, k) {
@@ -170,12 +170,12 @@ func (m *multiSearchResultMap) Get(k []byte) (seen, bool) {
 		// Linear probe to "next" to this entry (really a rehash)
 		hash++
 	}
-	var empty seen
+	var empty MultiTagResult
 	return empty, false
 }
 
 // Set will set the value for an identifier.
-func (m *multiSearchResultMap) Set(k []byte, v seen) {
+func (m *multiSearchResultMap) Set(k []byte, v MultiTagResult) {
 	m.set(k, v, _multiSearchResultMapKeyOptions{
 		copyKey:     true,
 		finalizeKey: m.finalize != nil,
@@ -191,7 +191,7 @@ type multiSearchResultMapSetUnsafeOptions struct {
 
 // SetUnsafe will set the value for an identifier with unsafe options for how
 // the map treats the key.
-func (m *multiSearchResultMap) SetUnsafe(k []byte, v seen, opts multiSearchResultMapSetUnsafeOptions) {
+func (m *multiSearchResultMap) SetUnsafe(k []byte, v MultiTagResult, opts multiSearchResultMapSetUnsafeOptions) {
 	m.set(k, v, _multiSearchResultMapKeyOptions{
 		copyKey:     !opts.NoCopyKey,
 		finalizeKey: !opts.NoFinalizeKey,
@@ -203,7 +203,7 @@ type _multiSearchResultMapKeyOptions struct {
 	finalizeKey bool
 }
 
-func (m *multiSearchResultMap) set(k []byte, v seen, opts _multiSearchResultMapKeyOptions) {
+func (m *multiSearchResultMap) set(k []byte, v MultiTagResult, opts _multiSearchResultMapKeyOptions) {
 	hash := m.hash(k)
 	for entry, ok := m.lookup[hash]; ok; entry, ok = m.lookup[hash] {
 		if m.equals(entry.key.key, k) {

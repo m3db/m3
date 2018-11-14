@@ -481,7 +481,8 @@ func mirrorFromPlacement(p placement.Placement) (placement.Placement, error) {
 		SetCutoverNanos(p.CutoverNanos()).
 		SetIsSharded(true).
 		SetIsMirrored(true).
-		SetMaxShardSetID(p.MaxShardSetID()), nil
+		SetMaxShardSetID(p.MaxShardSetID()).
+		SetVersion(p.GetVersion()), nil
 }
 
 // placementFromMirror duplicates the shards for each shard set id and assign
@@ -520,7 +521,8 @@ func placementFromMirror(
 		SetCutoverNanos(mirror.CutoverNanos()).
 		SetIsMirrored(true).
 		SetIsSharded(true).
-		SetMaxShardSetID(mirror.MaxShardSetID()), nil
+		SetMaxShardSetID(mirror.MaxShardSetID()).
+		SetVersion(mirror.GetVersion()), nil
 }
 
 func instancesFromMirror(

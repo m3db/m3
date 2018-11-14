@@ -86,7 +86,7 @@ func testGoodWorkflow(t *testing.T, ps placement.Service) {
 		assert.NoError(t, err)
 	}
 
-	s, _, err := ps.Placement()
+	s, err := ps.Placement()
 	assert.NoError(t, err)
 	assert.Equal(t, 3, s.NumInstances())
 	_, exist := s.Instance("i21")
@@ -125,7 +125,7 @@ func testGoodWorkflow(t *testing.T, ps placement.Service) {
 	_, ai, err = ps.AddInstances(instances)
 	assert.NoError(t, err)
 	assertPlacementInstanceEqualExceptShards(t, i41, ai[0])
-	s, _, err = ps.Placement()
+	s, err = ps.Placement()
 	assert.NoError(t, err)
 	// Instance added from least weighted isolation group.
 	_, exist = s.Instance("i41")
@@ -404,13 +404,13 @@ func TestMarkShard(t *testing.T) {
 		SetShards([]uint32{1, 2, 3, 4, 5, 6}).
 		SetReplicaFactor(2).
 		SetIsSharded(true)
-	err := ms.SetIfNotExist(p)
+	_, err := ms.SetIfNotExist(p)
 	assert.NoError(t, err)
 
 	ps := NewPlacementService(ms, placement.NewOptions().SetValidZone("z1"))
 	err = ps.MarkShardsAvailable("i5", 1)
 	assert.NoError(t, err)
-	p, _, err = ms.Placement()
+	p, err = ms.Placement()
 	assert.NoError(t, err)
 	assert.NoError(t, placement.Validate(p))
 	for _, instance := range p.Instances() {
@@ -459,7 +459,7 @@ func TestMarkInstance(t *testing.T) {
 		SetShards([]uint32{1, 2, 3, 4, 5, 6}).
 		SetReplicaFactor(2).
 		SetIsSharded(true)
-	err := ms.SetIfNotExist(p)
+	_, err := ms.SetIfNotExist(p)
 	assert.NoError(t, err)
 
 	ps := NewPlacementService(ms, placement.NewOptions().SetValidZone("z1"))
@@ -927,41 +927,41 @@ func NewMockStorage() placement.Storage {
 	return &mockStorage{}
 }
 
-func (ms *mockStorage) Set(p placement.Placement) error {
+func (ms *mockStorage) Set(p placement.Placement) (placement.Placement, error) {
 	ms.Lock()
 	defer ms.Unlock()
 
-	ms.p = p
 	ms.version++
+	ms.p = p.SetVersion(ms.version)
 
-	return nil
+	return ms.p, nil
 }
 
-func (ms *mockStorage) CheckAndSet(p placement.Placement, v int) error {
+func (ms *mockStorage) CheckAndSet(p placement.Placement, v int) (placement.Placement, error) {
 	ms.Lock()
 	defer ms.Unlock()
 
 	if ms.version == v {
-		ms.p = p
 		ms.version++
+		ms.p = p.SetVersion(ms.version)
 	} else {
-		return errors.New("wrong version")
+		return nil, errors.New("wrong version")
 	}
 
-	return nil
+	return ms.p, nil
 }
 
-func (ms *mockStorage) SetIfNotExist(p placement.Placement) error {
+func (ms *mockStorage) SetIfNotExist(p placement.Placement) (placement.Placement, error) {
 	ms.Lock()
 	defer ms.Unlock()
 
 	if ms.p != nil {
-		return errors.New("placement already exist")
+		return nil, errors.New("placement already exist")
 	}
 
-	ms.p = p
 	ms.version = 1
-	return nil
+	ms.p = p.SetVersion(ms.version)
+	return ms.p, nil
 }
 
 func (ms *mockStorage) Delete() error {
@@ -977,23 +977,23 @@ func (ms *mockStorage) Delete() error {
 	return nil
 }
 
-func (ms *mockStorage) Placement() (placement.Placement, int, error) {
+func (ms *mockStorage) Placement() (placement.Placement, error) {
 	ms.Lock()
 	defer ms.Unlock()
 
 	if ms.p != nil {
-		return ms.p, ms.version, nil
+		return ms.p, nil
 	}
 
-	return nil, 0, kv.ErrNotFound
+	return nil, kv.ErrNotFound
 }
 
-func (ms *mockStorage) CheckAndSetProto(p proto.Message, v int) error {
-	return errors.New("not implemented")
+func (ms *mockStorage) CheckAndSetProto(p proto.Message, v int) (int, error) {
+	return 0, errors.New("not implemented")
 }
 
-func (ms *mockStorage) SetProto(p proto.Message) error {
-	return errors.New("not implemented")
+func (ms *mockStorage) SetProto(p proto.Message) (int, error) {
+	return 0, errors.New("not implemented")
 }
 
 func (ms *mockStorage) Proto() (proto.Message, int, error) {
@@ -1012,7 +1012,7 @@ func markAllInstancesAvailable(
 	t *testing.T,
 	ps placement.Service,
 ) {
-	p, _, err := ps.Placement()
+	p, err := ps.Placement()
 	require.NoError(t, err)
 	for _, i := range p.Instances() {
 		if len(i.Shards().ShardsForState(shard.Initializing)) == 0 {

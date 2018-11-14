@@ -29,67 +29,64 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/generated/proto/admin"
 	"github.com/m3db/m3/src/query/util/logging"
-	"github.com/m3db/m3/src/x/net/http"
+	xhttp "github.com/m3db/m3/src/x/net/http"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"go.uber.org/zap"
 )
 
 const (
-	// AddHTTPMethod is the HTTP method used with this resource.
-	AddHTTPMethod = http.MethodPost
+	// ReplaceHTTPMethod is the HTTP method for the the replace endpoint.
+	ReplaceHTTPMethod = http.MethodPost
+
+	replacePathName = "replace"
 )
 
 var (
-	// DeprecatedM3DBAddURL is the old url for the placement add handler, maintained for
-	// backwards compatibility.
-	DeprecatedM3DBAddURL = path.Join(handler.RoutePrefixV1, PlacementPathName)
+	// M3DBReplaceURL is the url for the m3db replace handler (method POST).
+	M3DBReplaceURL = path.Join(handler.RoutePrefixV1, M3DBServicePlacementPathName, replacePathName)
 
-	// M3DBAddURL is the url for the placement add handler (with the POST method)
-	// for the M3DB service.
-	M3DBAddURL = path.Join(handler.RoutePrefixV1, M3DBServicePlacementPathName)
+	// M3AggReplaceURL is the url for the m3aggregator replace handler (method
+	// POST).
+	M3AggReplaceURL = path.Join(handler.RoutePrefixV1, M3AggregatorServiceName, replacePathName)
 
-	// M3AggAddURL is the url for the placement add handler (with the POST method)
-	// for the M3Agg service.
-	M3AggAddURL = path.Join(handler.RoutePrefixV1, M3AggServicePlacementPathName)
-
-	// M3CoordinatorAddURL is the url for the placement add handler (with the POST method)
-	// for the M3Coordinator service.
-	M3CoordinatorAddURL = path.Join(handler.RoutePrefixV1, M3CoordinatorServicePlacementPathName)
+	// M3CoordinatorReplaceURL is the url for the m3coordinator replace handler
+	// (method POST).
+	M3CoordinatorReplaceURL = path.Join(handler.RoutePrefixV1, M3CoordinatorServiceName, replacePathName)
 )
 
-// AddHandler is the handler for placement adds.
-type AddHandler Handler
+// ReplaceHandler is the type for placement replaces.
+type ReplaceHandler Handler
 
-// NewAddHandler returns a new instance of AddHandler.
-func NewAddHandler(opts HandlerOptions) *AddHandler {
-	return &AddHandler{HandlerOptions: opts, nowFn: time.Now}
+// NewReplaceHandler returns a new ReplaceHandler.
+func NewReplaceHandler(opts HandlerOptions) *ReplaceHandler {
+	return &ReplaceHandler{HandlerOptions: opts, nowFn: time.Now}
 }
 
-func (h *AddHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
+func (h *ReplaceHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 
-	req, rErr := h.parseRequest(r)
-	if rErr != nil {
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
+	req, pErr := h.parseRequest(r)
+	if pErr != nil {
+		xhttp.Error(w, pErr.Inner(), pErr.Code())
 		return
 	}
 
-	placement, err := h.Add(serviceName, r, req)
+	placement, err := h.Replace(serviceName, r, req)
 	if err != nil {
 		status := http.StatusInternalServerError
 		if _, ok := err.(unsafeAddError); ok {
 			status = http.StatusBadRequest
 		}
-		logger.Error("unable to add placement", zap.Any("error", err))
+		logger.Error("unable to replace instance", zap.Error(err))
 		xhttp.Error(w, err, status)
 		return
 	}
 
 	placementProto, err := placement.Proto()
 	if err != nil {
-		logger.Error("unable to get placement protobuf", zap.Any("error", err))
+		logger.Error("unable to get placement protobuf", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
@@ -102,41 +99,37 @@ func (h *AddHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *htt
 	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *AddHandler) parseRequest(r *http.Request) (*admin.PlacementAddRequest, *xhttp.ParseError) {
+func (h *ReplaceHandler) parseRequest(r *http.Request) (*admin.PlacementReplaceRequest, *xhttp.ParseError) {
 	defer r.Body.Close()
-	addReq := new(admin.PlacementAddRequest)
-	if err := jsonpb.Unmarshal(r.Body, addReq); err != nil {
+
+	req := &admin.PlacementReplaceRequest{}
+	if err := jsonpb.Unmarshal(r.Body, req); err != nil {
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
-	return addReq, nil
+	return req, nil
 }
 
-// Add adds a placement.
-func (h *AddHandler) Add(
+// Replace replaces instances.
+func (h *ReplaceHandler) Replace(
 	serviceName string,
 	httpReq *http.Request,
-	req *admin.PlacementAddRequest,
+	req *admin.PlacementReplaceRequest,
 ) (placement.Placement, error) {
-	instances, err := ConvertInstancesProto(req.Instances)
+	candidates, err := ConvertInstancesProto(req.Candidates)
 	if err != nil {
 		return nil, err
 	}
 
-	serviceOpts := NewServiceOptions(
-		serviceName, httpReq.Header, h.M3AggServiceOptions)
+	serviceOpts := NewServiceOptions(serviceName, httpReq.Header, h.M3AggServiceOptions)
 	service, algo, err := ServiceWithAlgo(h.ClusterClient, serviceOpts, h.nowFn())
 	if err != nil {
 		return nil, err
 	}
 
 	if req.Force {
-		newPlacement, _, err := service.AddInstances(instances)
-		if err != nil {
-			return nil, err
-		}
-
-		return newPlacement, nil
+		newPlacement, _, err := service.ReplaceInstances(req.LeavingInstanceIDs, candidates)
+		return newPlacement, err
 	}
 
 	curPlacement, err := service.Placement()
@@ -144,11 +137,16 @@ func (h *AddHandler) Add(
 		return nil, err
 	}
 
-	if err := validateAllAvailable(curPlacement); err != nil {
-		return nil, err
+	// M3Coordinator isn't sharded, can't check if its shards are available.
+	if !isStateless(serviceName) {
+		if err := validateAllAvailable(curPlacement); err != nil {
+			return nil, err
+		}
 	}
 
-	newPlacement, err := algo.AddInstances(curPlacement, instances)
+	// We use the algorithm directly so that we can CheckAndSet on the placement
+	// to make "atomic" forward progress.
+	newPlacement, err := algo.ReplaceInstances(curPlacement, req.LeavingInstanceIDs, candidates)
 	if err != nil {
 		return nil, err
 	}

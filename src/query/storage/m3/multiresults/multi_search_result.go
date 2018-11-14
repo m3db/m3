@@ -23,26 +23,62 @@ package multiresults
 import (
 	"sync"
 
-	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/dbnode/client"
 	xerrors "github.com/m3db/m3x/errors"
 )
 
-type seen struct{}
+const initSize = 10
 
 type multiSearchResult struct {
 	sync.Mutex
-	result    *storage.SearchResults
-	err       xerrors.MultiError
+	seenIters []client.TaggedIDsIterator // track known iterators to avoid leaking
 	dedupeMap *multiSearchResultMap
+	err       xerrors.MultiError
 }
 
-// NewMultiSearchResultBuilder returns a new multi search result builder
+// NewMultiSearchResultBuilder builds a new multi fetch tags result
 func NewMultiSearchResultBuilder() MultiSearchResultBuilder {
-	return &multiSearchResult{}
+	return &multiSearchResult{
+		dedupeMap: newMultiSearchResultMap(multiSearchResultMapOptions{
+			InitialSize: initSize,
+		}),
+		seenIters: make([]client.TaggedIDsIterator, 0, initSize),
+	}
+}
+
+func (r *multiSearchResult) Close() error {
+	r.Lock()
+	defer r.Unlock()
+	for _, iters := range r.seenIters {
+		iters.Finalize()
+	}
+
+	r.seenIters = nil
+	r.dedupeMap = nil
+	r.err = xerrors.NewMultiError()
+
+	return nil
+}
+
+func (r *multiSearchResult) Build() ([]MultiTagResult, error) {
+	r.Lock()
+	defer r.Unlock()
+
+	err := r.err.FinalError()
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]MultiTagResult, 0, r.dedupeMap.Len())
+	for _, it := range r.dedupeMap.Iter() {
+		result = append(result, it.Value())
+	}
+
+	return result, nil
 }
 
 func (r *multiSearchResult) Add(
-	result *storage.SearchResults,
+	newIterator client.TaggedIDsIterator,
 	err error,
 ) {
 	r.Lock()
@@ -53,41 +89,27 @@ func (r *multiSearchResult) Add(
 		return
 	}
 
-	if r.result == nil {
-		r.result = result
+	r.seenIters = append(r.seenIters, newIterator)
+	// Need to check the error to bail early after accumulating the iterators
+	// otherwise when we close the the multi fetch result
+	if !r.err.Empty() {
+		// don't need to do anything if the final result is going to be an error
 		return
 	}
 
-	// Need to dedupe
-	if r.dedupeMap == nil {
-		r.dedupeMap = newMultiSearchResultMap(multiSearchResultMapOptions{
-			InitialSize: len(r.result.Metrics),
-		})
-		for _, s := range r.result.Metrics {
-			r.dedupeMap.Set(s.ID, seen{})
-		}
-	}
-
-	for _, s := range result.Metrics {
-		id := s.ID
+	for newIterator.Next() {
+		_, ident, tagIter := newIterator.Current()
+		id := ident.Bytes()
 		_, exists := r.dedupeMap.Get(id)
-		if exists {
-			// Already exists
-			continue
+		if !exists {
+			r.dedupeMap.Set(id, MultiTagResult{
+				ID:   ident,
+				Iter: tagIter,
+			})
 		}
-
-		// Does not exist already, add result
-		r.result.Metrics = append(r.result.Metrics, s)
-		r.dedupeMap.Set(id, seen{})
-	}
-}
-
-func (r *multiSearchResult) Build() (*storage.SearchResults, error) {
-	if err := r.err.FinalError(); err != nil {
-		return nil, err
 	}
 
-	return r.result, nil
+	if err := newIterator.Err(); err != nil {
+		r.err = r.err.Add(err)
+	}
 }
-
-func (r *multiSearchResult) Close() error { return nil }
