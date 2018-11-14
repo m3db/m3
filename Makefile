@@ -31,6 +31,7 @@ vendor_prefix        := vendor
 cache_policy         ?= recently_read
 
 BUILD                := $(abspath ./bin)
+VENDOR               := $(m3db_package_path)/$(vendor_prefix)
 GO_BUILD_LDFLAGS_CMD := $(abspath ./.ci/go-build-ldflags.sh) $(m3db_package)
 GO_BUILD_LDFLAGS     := $(shell $(GO_BUILD_LDFLAGS_CMD))
 GO_BUILD_COMMON_ENV  := CGO_ENABLED=0
@@ -81,7 +82,7 @@ define SERVICE_RULES
 .PHONY: $(SERVICE)
 $(SERVICE): setup
 	@echo Building $(SERVICE)
-	[ -d $(m3db_package_path)/$(vendor_prefix) ] || make install-vendor
+	[ -d $(VENDOR) ] || make install-vendor
 	$(GO_BUILD_COMMON_ENV) go build -ldflags '$(GO_BUILD_LDFLAGS)' -o $(BUILD)/$(SERVICE) ./src/cmd/services/$(SERVICE)/main/.
 
 .PHONY: $(SERVICE)-linux-amd64
@@ -354,5 +355,6 @@ test-all-gen: all-gen
 clean:
 	@rm -f *.html *.xml *.out *.test
 	@rm -rf $(BUILD)
+	@rm -rf $(VENDOR)
 
 .DEFAULT_GOAL := all
