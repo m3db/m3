@@ -23,6 +23,7 @@ package remote
 import (
 	"context"
 	"io"
+	"sync"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
@@ -49,6 +50,9 @@ type grpcClient struct {
 	connection     *grpc.ClientConn
 	poolWrapper    *pools.PoolWrapper
 	readWorkerPool xsync.PooledWorkerPool
+	once           sync.Once
+	pools          encoding.IteratorPools
+	poolErr        error
 }
 
 const initResultSize = 10
@@ -98,12 +102,20 @@ func (c *grpcClient) Fetch(
 	return storage.SeriesIteratorsToFetchResult(iters, c.readWorkerPool, true, c.tagOptions)
 }
 
+func (c *grpcClient) waitForPools() (encoding.IteratorPools, error) {
+	c.once.Do(func() {
+		c.pools, c.poolErr = c.poolWrapper.WaitForIteratorPools(poolTimeout)
+	})
+
+	return c.pools, c.poolErr
+}
+
 func (c *grpcClient) fetchRaw(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (encoding.SeriesIterators, error) {
-	pools, err := c.poolWrapper.WaitForIteratorPools(poolTimeout)
+	pools, err := c.waitForPools()
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +201,7 @@ func (c *grpcClient) FetchTags(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (*storage.SearchResults, error) {
-	pools, err := c.poolWrapper.WaitForIteratorPools(poolTimeout)
+	pools, err := c.waitForPools()
 	if err != nil {
 		return nil, err
 	}
