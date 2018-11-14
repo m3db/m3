@@ -28,7 +28,7 @@ import (
 
 type completeTagsResultBuilder struct {
 	nameOnly    bool
-	tagBuilders map[string]completedTagBuilder
+	tagBuilders *multiCompleteTagsMap
 }
 
 // NewCompleteTagsResultBuilder creates a new complete tags result builder.
@@ -48,24 +48,28 @@ func (b *completeTagsResultBuilder) Add(tagResult *CompleteTagsResult) error {
 
 	completedTags := tagResult.CompletedTags
 	if b.tagBuilders == nil {
-		b.tagBuilders = make(map[string]completedTagBuilder, len(completedTags))
+		b.tagBuilders = newMultiCompleteTagsMap(multiCompleteTagsMapOptions{
+			InitialSize: len(completedTags),
+		})
 	}
 
 	if nameOnly {
 		for _, tag := range completedTags {
-			b.tagBuilders[string(tag.Name)] = completedTagBuilder{}
+			b.tagBuilders.Set(tag.Name, completedTagBuilder{})
 		}
 
 		return nil
 	}
 
 	for _, tag := range completedTags {
-		if builder, exists := b.tagBuilders[string(tag.Name)]; exists {
+		name := tag.Name
+		if builder, exists := b.tagBuilders.Get(name); exists {
 			builder.add(tag.Values)
+			b.tagBuilders.Set(name, builder)
 		} else {
 			builder := completedTagBuilder{}
 			builder.add(tag.Values)
-			b.tagBuilders[string(tag.Name)] = builder
+			b.tagBuilders.Set(name, builder)
 		}
 	}
 
@@ -81,11 +85,18 @@ func (s completedTagsByName) Less(i, j int) bool {
 }
 
 func (b *completeTagsResultBuilder) Build() CompleteTagsResult {
-	result := make([]CompletedTag, 0, len(b.tagBuilders))
+	if b.tagBuilders == nil {
+		return CompleteTagsResult{
+			CompleteNameOnly: b.nameOnly,
+			CompletedTags:    []CompletedTag(nil),
+		}
+	}
+
+	result := make([]CompletedTag, 0, b.tagBuilders.Len())
 	if b.nameOnly {
-		for name := range b.tagBuilders {
+		for _, entry := range b.tagBuilders.Iter() {
 			result = append(result, CompletedTag{
-				Name:   []byte(name),
+				Name:   entry.Key(),
 				Values: [][]byte{},
 			})
 		}
@@ -97,9 +108,10 @@ func (b *completeTagsResultBuilder) Build() CompleteTagsResult {
 		}
 	}
 
-	for name, builder := range b.tagBuilders {
+	for _, entry := range b.tagBuilders.Iter() {
+		builder := entry.Value()
 		result = append(result, CompletedTag{
-			Name:   []byte(name),
+			Name:   entry.Key(),
 			Values: builder.build(),
 		})
 	}
@@ -112,16 +124,18 @@ func (b *completeTagsResultBuilder) Build() CompleteTagsResult {
 }
 
 type completedTagBuilder struct {
-	seenMap map[string]struct{}
+	seenMap *multiCompleteTagValuesMap
 }
 
 func (b *completedTagBuilder) add(values [][]byte) {
 	if b.seenMap == nil {
-		b.seenMap = make(map[string]struct{}, len(values))
+		b.seenMap = newMultiCompleteTagValuesMap(multiCompleteTagValuesMapOptions{
+			InitialSize: len(values),
+		})
 	}
 
 	for _, val := range values {
-		b.seenMap[string(val)] = struct{}{}
+		b.seenMap.Set(val, seen{})
 	}
 }
 
@@ -134,9 +148,13 @@ func (s tagValuesByName) Less(i, j int) bool {
 }
 
 func (b *completedTagBuilder) build() [][]byte {
-	result := make([][]byte, 0, len(b.seenMap))
-	for v := range b.seenMap {
-		result = append(result, []byte(v))
+	if b.seenMap == nil {
+		return [][]byte{}
+	}
+
+	result := make([][]byte, 0, b.seenMap.Len())
+	for _, seen := range b.seenMap.Iter() {
+		result = append(result, seen.Key())
 	}
 
 	sort.Sort(tagValuesByName(result))

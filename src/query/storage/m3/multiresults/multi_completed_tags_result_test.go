@@ -38,6 +38,13 @@ func strsToBytes(str []string) [][]byte {
 }
 
 func mapToCompletedTag(nameOnly bool, m map[string][]string) CompleteTagsResult {
+	if len(m) == 0 {
+		return CompleteTagsResult{
+			CompleteNameOnly: nameOnly,
+			CompletedTags:    []CompletedTag(nil),
+		}
+	}
+
 	tags := make([]CompletedTag, 0, len(m))
 	for k, v := range m {
 		tags = append(tags, CompletedTag{
@@ -98,7 +105,7 @@ func TestMergeEmptyCompletedTagResult(t *testing.T) {
 		actual := builder.Build()
 		expected := CompleteTagsResult{
 			CompleteNameOnly: nameOnly,
-			CompletedTags:    []CompletedTag{},
+			CompletedTags:    []CompletedTag(nil),
 		}
 
 		assert.Equal(t, expected, actual)
@@ -196,12 +203,6 @@ func TestMergeCompletedTagResult(t *testing.T) {
 				}
 
 				expected := mapToCompletedTag(nameOnly, exResult)
-				for _, tags := range expected.CompletedTags {
-					for _, val := range tags.Values {
-						fmt.Println(string(tags.Name), string(val))
-					}
-				}
-
 				assert.Equal(t, expected, actual)
 			})
 		}
