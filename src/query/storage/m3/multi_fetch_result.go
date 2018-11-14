@@ -29,18 +29,6 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 )
 
-type multiFetchResult interface {
-	Add(
-		attrs storage.Attributes,
-		iterators encoding.SeriesIterators,
-		err error,
-	)
-
-	FinalResult() (encoding.SeriesIterators, error)
-
-	Close() error
-}
-
 // TODO: use a better seriesIterators merge here
 type multiResult struct {
 	sync.Mutex
@@ -57,7 +45,7 @@ type multiResult struct {
 func newMultiFetchResult(
 	fanout queryFanoutType,
 	pools encoding.IteratorPools,
-) multiFetchResult {
+) MultiFetchResult {
 	return &multiResult{
 		fanout: fanout,
 		pools:  pools,

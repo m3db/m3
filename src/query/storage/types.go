@@ -81,6 +81,13 @@ type FetchOptions struct {
 	Limit int
 }
 
+// NewFetchOptions creates a new fetch options.
+func NewFetchOptions() *FetchOptions {
+	return &FetchOptions{
+		Limit: 0,
+	}
+}
+
 // Querier handles queries against a storage.
 type Querier interface {
 	// Fetch fetches timeseries data based on a query
@@ -105,7 +112,7 @@ type Querier interface {
 	) (*SearchResults, error)
 }
 
-// WriteQuery represents the input timeseries that is written to M3DB
+// WriteQuery represents the input timeseries that is written to the db
 type WriteQuery struct {
 	Tags       models.Tags
 	Datapoints ts.Datapoints
@@ -116,6 +123,41 @@ type WriteQuery struct {
 
 func (q *WriteQuery) String() string {
 	return q.Tags.ID()
+}
+
+// CompleteTagsQuery represents a query that returns an autocompleted
+// set of tags that exist in the db
+type CompleteTagsQuery struct {
+	TagMatchers      models.Matchers
+	FilterNameTags   [][]byte
+	CompleteNameOnly bool
+}
+
+func (q *CompleteTagsQuery) String() string {
+	if q.CompleteNameOnly {
+		return fmt.Sprintf("completing tag name for query %s", q.TagMatchers)
+	}
+
+	return fmt.Sprintf("completing tag values for query %s", q.TagMatchers)
+}
+
+// CompletedTag is an autocompleted tag with a name and a list of possible values
+type CompletedTag struct {
+	Name   []byte
+	Values [][]byte
+}
+
+// CompleteTagsResult represents a set of autocompleted tag names and values
+type CompleteTagsResult struct {
+	CompleteNameOnly bool
+	CompletedTags    []CompletedTag
+}
+
+// CompleteTagsResultBuilder is a builder that accumulates and deduplicates
+// incoming CompleteTagsResult values
+type CompleteTagsResultBuilder interface {
+	Add(*CompleteTagsResult) error
+	Build() CompleteTagsResult
 }
 
 // Appender provides batched appends against a storage.

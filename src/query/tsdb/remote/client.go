@@ -22,8 +22,8 @@ package remote
 
 import (
 	"context"
-	"fmt"
 	"io"
+	"sync"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
@@ -50,6 +50,9 @@ type grpcClient struct {
 	connection     *grpc.ClientConn
 	poolWrapper    *pools.PoolWrapper
 	readWorkerPool xsync.PooledWorkerPool
+	once           sync.Once
+	pools          encoding.IteratorPools
+	poolErr        error
 }
 
 const initResultSize = 10
@@ -99,19 +102,33 @@ func (c *grpcClient) Fetch(
 	return storage.SeriesIteratorsToFetchResult(iters, c.readWorkerPool, true, c.tagOptions)
 }
 
+func (c *grpcClient) waitForPools() (encoding.IteratorPools, error) {
+	c.once.Do(func() {
+		c.pools, c.poolErr = c.poolWrapper.WaitForIteratorPools(poolTimeout)
+	})
+
+	return c.pools, c.poolErr
+}
+
 func (c *grpcClient) fetchRaw(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (encoding.SeriesIterators, error) {
-	request, err := EncodeFetchRequest(query)
+	pools, err := c.waitForPools()
+	if err != nil {
+		return nil, err
+	}
+
+	request, err := encodeFetchRequest(query)
 	if err != nil {
 		return nil, err
 	}
 
 	// Send the id from the client to the remote server so that provides logging
+	// TODO: replace id propagation with opentracing
 	id := logging.ReadContextID(ctx)
-	mdCtx := EncodeMetadata(ctx, id)
+	mdCtx := encodeMetadata(ctx, id)
 	fetchClient, err := c.client.Fetch(mdCtx, request)
 	if err != nil {
 		return nil, err
@@ -136,20 +153,7 @@ func (c *grpcClient) fetchRaw(
 			return nil, err
 		}
 
-		available, pools, err, poolCh, errCh := c.poolWrapper.IteratorPools()
-		if err != nil {
-			return nil, err
-		}
-
-		if !available {
-			select {
-			case pools = <-poolCh:
-			case err = <-errCh:
-				return nil, err
-			}
-		}
-
-		iters, err := DecodeCompressedFetchResponse(result, pools)
+		iters, err := decodeCompressedFetchResponse(result, pools)
 		if err != nil {
 			return nil, err
 		}
@@ -197,7 +201,115 @@ func (c *grpcClient) FetchTags(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (*storage.SearchResults, error) {
-	return nil, fmt.Errorf("remote fetch tags endpoint not supported")
+	pools, err := c.waitForPools()
+	if err != nil {
+		return nil, err
+	}
+
+	request, err := encodeSearchRequest(query)
+	if err != nil {
+		return nil, err
+	}
+
+	// Send the id from the client to the remote server so that provides logging
+	// TODO: replace id propagation with opentracing
+	id := logging.ReadContextID(ctx)
+	// TODO: add relevant fields to the metadata
+	mdCtx := encodeMetadata(ctx, id)
+	searchClient, err := c.client.Search(mdCtx, request)
+	if err != nil {
+		return nil, err
+	}
+
+	defer searchClient.CloseSend()
+	metrics := make(models.Metrics, 0, initResultSize)
+	for {
+		select {
+		// If query is killed during gRPC streaming, close the channel
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+
+		received, err := searchClient.Recv()
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		m, err := decodeSearchResponse(received, pools, c.tagOptions)
+		if err != nil {
+			return nil, err
+		}
+
+		metrics = append(metrics, m...)
+	}
+
+	return &storage.SearchResults{
+		Metrics: metrics,
+	}, nil
+}
+
+// CompleteTags returns autocompleted tags
+func (c *grpcClient) CompleteTags(
+	ctx context.Context,
+	query *storage.CompleteTagsQuery,
+	options *storage.FetchOptions,
+) (storage.CompleteTagsResult, error) {
+	request, err := encodeCompleteTagsRequest(query)
+	if err != nil {
+		return storage.CompleteTagsResult{}, err
+	}
+
+	// Send the id from the client to the remote server so that provides logging
+	// TODO: replace id propagation with opentracing
+	id := logging.ReadContextID(ctx)
+	// TODO: add relevant fields to the metadata
+	mdCtx := encodeMetadata(ctx, id)
+	completeTagsClient, err := c.client.CompleteTags(mdCtx, request)
+	if err != nil {
+		return storage.CompleteTagsResult{}, err
+	}
+
+	defer completeTagsClient.CloseSend()
+	var accumulatedTags storage.CompleteTagsResultBuilder
+	for {
+		select {
+		// If query is killed during gRPC streaming, close the channel
+		case <-ctx.Done():
+			return storage.CompleteTagsResult{}, ctx.Err()
+		default:
+		}
+
+		received, err := completeTagsClient.Recv()
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			return storage.CompleteTagsResult{}, err
+		}
+
+		result, err := decodeCompleteTagsResponse(received)
+		if err != nil {
+			return storage.CompleteTagsResult{}, err
+		}
+
+		if accumulatedTags == nil {
+			accumulatedTags = storage.NewCompleteTagsResultBuilder(result.CompleteNameOnly)
+		}
+
+		err = accumulatedTags.Add(result)
+		if err != nil {
+			return storage.CompleteTagsResult{}, err
+		}
+	}
+
+	// Sort tags in the result post-merge.
+	return accumulatedTags.Build(), nil
 }
 
 // Close closes the underlying connection

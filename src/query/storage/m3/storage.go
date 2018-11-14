@@ -79,7 +79,7 @@ func (s *m3storage) Fetch(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (*storage.FetchResult, error) {
-	raw, cleanup, err := s.FetchRaw(ctx, query, options)
+	raw, cleanup, err := s.FetchCompressed(ctx, query, options)
 	defer cleanup()
 	if err != nil {
 		return nil, err
@@ -101,7 +101,7 @@ func (s *m3storage) FetchBlocks(
 	return storage.FetchResultToBlockResult(fetchResult, query)
 }
 
-func (s *m3storage) FetchRaw(
+func (s *m3storage) FetchCompressed(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
@@ -179,43 +179,72 @@ func (s *m3storage) FetchTags(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (*storage.SearchResults, error) {
+	tagResult, cleanup, err := s.SearchCompressed(ctx, query, options)
+	defer cleanup()
+	if err != nil {
+		return nil, err
+	}
+
+	metrics := make(models.Metrics, len(tagResult))
+	for i, result := range tagResult {
+		m, err := storage.FromM3IdentToMetric(result.ID, result.Iter, s.tagOptions)
+		if err != nil {
+			return nil, err
+		}
+
+		metrics[i] = m
+	}
+
+	return &storage.SearchResults{
+		Metrics: metrics,
+	}, nil
+}
+
+func (s *m3storage) SearchCompressed(
+	ctx context.Context,
+	query *storage.FetchQuery,
+	options *storage.FetchOptions,
+) ([]MultiTagResult, Cleanup, error) {
 	// Check if the query was interrupted.
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nil, nil, ctx.Err()
 	default:
 	}
 
 	m3query, err := storage.FetchQueryToM3Query(query)
 	if err != nil {
-		return nil, err
+		return nil, noop, err
 	}
 
 	var (
-		opts       = storage.FetchOptionsToM3Options(options, query)
+		m3opts     = storage.FetchOptionsToM3Options(options, query)
 		namespaces = s.clusters.ClusterNamespaces()
-		result     multiFetchTagsResult
+		result     = NewMultiFetchTagsResult()
 		wg         sync.WaitGroup
 	)
+
 	if len(namespaces) == 0 {
-		return nil, errNoNamespacesConfigured
+		return nil, noop, errNoNamespacesConfigured
 	}
 
+	wg.Add(len(namespaces))
 	for _, namespace := range namespaces {
 		namespace := namespace // Capture var
 
-		wg.Add(1)
 		go func() {
-			result.add(s.fetchTags(namespace, m3query, opts))
+			session := namespace.Session()
+			namespaceID := namespace.NamespaceID()
+			iter, _, err := session.FetchTaggedIDs(namespaceID, m3query, m3opts)
+			result.Add(iter, err)
 			wg.Done()
 		}()
 	}
 
 	wg.Wait()
-	if err := result.err.LastError(); err != nil {
-		return nil, err
-	}
-	return result.result, nil
+
+	tagResult, err := result.FinalResult()
+	return tagResult, result.Close, err
 }
 
 func (s *m3storage) fetchTags(

@@ -192,8 +192,8 @@ func waitForServerHealthy(t *testing.T, port int) {
 }
 
 type queryServer struct {
-	reads int
-	mu    sync.Mutex
+	reads, searches, tagCompletes int
+	mu                            sync.Mutex
 }
 
 func (s *queryServer) Fetch(
@@ -203,6 +203,26 @@ func (s *queryServer) Fetch(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.reads++
+	return nil
+}
+
+func (s *queryServer) Search(
+	*rpc.SearchRequest,
+	rpc.Query_SearchServer,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.searches++
+	return nil
+}
+
+func (s *queryServer) CompleteTags(
+	*rpc.CompleteTagsRequest,
+	rpc.Query_CompleteTagsServer,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.tagCompletes++
 	return nil
 }
 
