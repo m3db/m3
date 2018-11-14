@@ -163,11 +163,7 @@ func (ps *placementService) RemoveInstances(instanceIDs []string) (placement.Pla
 		return nil, err
 	}
 
-	_, err = ps.CheckAndSet(p, p.GetVersion())
-	if err != nil {
-		return nil, err
-	}
-	return p, nil
+	return ps.CheckAndSet(p, p.GetVersion())
 }
 
 func (ps *placementService) ReplaceInstances(
@@ -201,7 +197,7 @@ func (ps *placementService) ReplaceInstances(
 		addedInstances = append(addedInstances, addedInstance)
 	}
 
-	_, err = ps.CheckAndSet(p, p.GetVersion())
+	p, err = ps.CheckAndSet(p, p.GetVersion())
 	if err != nil {
 		return nil, nil, err
 	}
