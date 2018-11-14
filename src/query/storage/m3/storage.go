@@ -212,7 +212,7 @@ func (s *m3storage) FetchTags(
 	}
 
 	wg.Wait()
-	if err := result.err.FinalError(); err != nil {
+	if err := result.err.LastError(); err != nil {
 		return nil, err
 	}
 	return result.result, nil
@@ -308,7 +308,7 @@ func (s *m3storage) Write(
 	}
 
 	wg.Wait()
-	return multiErr.finalError()
+	return multiErr.lastError()
 }
 
 func (s *m3storage) Type() storage.Type {

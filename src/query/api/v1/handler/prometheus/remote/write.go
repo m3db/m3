@@ -191,8 +191,7 @@ func (h *PromWriteHandler) writeUnaggregated(
 	}
 
 	wg.Wait()
-
-	return multiErr.FinalError()
+	return multiErr.LastError()
 }
 
 func (h *PromWriteHandler) writeAggregated(
@@ -224,6 +223,5 @@ func (h *PromWriteHandler) writeAggregated(
 	}
 
 	metricsAppender.Finalize()
-
-	return multiErr.FinalError()
+	return multiErr.LastError()
 }

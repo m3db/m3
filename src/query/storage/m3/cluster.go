@@ -295,7 +295,7 @@ func (c *clusters) Close() error {
 
 	wg.Wait()
 
-	return syncMultiErrs.finalError()
+	return syncMultiErrs.lastError()
 }
 
 type clusterNamespace struct {
@@ -373,8 +373,11 @@ func (errs *syncMultiErrs) add(err error) {
 	errs.Unlock()
 }
 
-func (errs *syncMultiErrs) finalError() error {
+func (errs *syncMultiErrs) lastError() error {
 	errs.Lock()
 	defer errs.Unlock()
-	return errs.multiErr.FinalError()
+	// TODO: consider taking a debug param when building a syncMultiErrs
+	// which would determine wether to return only the last error message
+	// or the consolidated list of errors.
+	return errs.multiErr.LastError()
 }
