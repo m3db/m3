@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
+	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
@@ -279,7 +280,6 @@ func (s *m3storage) fetchTags(
 	return &storage.SearchResults{
 		Metrics: metrics,
 	}, nil
->>>>>>> master
 }
 
 func (s *m3storage) Write(
