@@ -124,7 +124,9 @@ func testDeleteHandlerSafe(t *testing.T, serviceName string) {
 
 	req = mux.SetURLVars(req, map[string]string{"id": "host1"})
 	require.NotNil(t, req)
-	mockPlacementService.EXPECT().Placement().Return(basePlacement, nil)
+	if !isStateless(serviceName) {
+		mockPlacementService.EXPECT().Placement().Return(basePlacement, nil)
+	}
 	handler.ServeHTTP(serviceName, w, req)
 
 	resp := w.Result()
@@ -183,6 +185,8 @@ func testDeleteHandlerSafe(t *testing.T, serviceName string) {
 			})),
 	})
 
+	var returnPlacement placement.Placement
+
 	switch serviceName {
 	case M3CoordinatorServiceName:
 		basePlacement.
@@ -205,14 +209,50 @@ func testDeleteHandlerSafe(t *testing.T, serviceName string) {
 					shard.NewShard(1).SetState(shard.Available),
 				})),
 		})
+
+		returnPlacement = basePlacement.Clone().SetInstances([]placement.Instance{
+			placement.NewInstance().SetID("host1").SetIsolationGroup("a").SetWeight(10).SetShardSetID(0).
+				SetShards(shard.NewShards([]shard.Shard{
+					shard.NewShard(0).SetState(shard.Leaving).
+						SetCutoffNanos(300000000000),
+				})),
+			placement.NewInstance().SetID("host2").SetIsolationGroup("b").SetWeight(10).SetShardSetID(1).
+				SetShards(shard.NewShards([]shard.Shard{
+					shard.NewShard(0).SetState(shard.Initializing).
+						SetCutoverNanos(300000000000).
+						SetSourceID("host1"),
+					shard.NewShard(1).SetState(shard.Available),
+				})),
+		}).SetVersion(2)
+	case M3DBServiceName:
+		returnPlacement = basePlacement.Clone().SetInstances([]placement.Instance{
+			placement.NewInstance().SetID("host1").SetIsolationGroup("a").SetWeight(10).
+				SetShards(shard.NewShards([]shard.Shard{
+					shard.NewShard(0).SetState(shard.Leaving),
+				})),
+			placement.NewInstance().SetID("host2").SetIsolationGroup("b").SetWeight(10).
+				SetShards(shard.NewShards([]shard.Shard{
+					shard.NewShard(0).SetState(shard.Available),
+					shard.NewShard(1).SetState(shard.Available),
+				})),
+			placement.NewInstance().SetID("host3").SetIsolationGroup("c").SetWeight(10).
+				SetShards(shard.NewShards([]shard.Shard{
+					shard.NewShard(0).SetState(shard.Initializing).SetSourceID("host1"),
+					shard.NewShard(1).SetState(shard.Available),
+				})),
+		}).SetVersion(2)
 	}
 
 	w = httptest.NewRecorder()
 	req = httptest.NewRequest(DeleteHTTPMethod, "/placement/host1", nil)
 	req = mux.SetURLVars(req, map[string]string{"id": "host1"})
 	require.NotNil(t, req)
-	mockPlacementService.EXPECT().Placement().Return(basePlacement, nil)
-	mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0).Return(basePlacement, nil)
+
+	if !isStateless(serviceName) {
+		mockPlacementService.EXPECT().Placement().Return(basePlacement, nil)
+		mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0).Return(returnPlacement, nil)
+	}
+
 	handler.ServeHTTP(serviceName, w, req)
 
 	resp = w.Result()
@@ -222,12 +262,8 @@ func testDeleteHandlerSafe(t *testing.T, serviceName string) {
 	case M3CoordinatorServiceName:
 		require.Equal(t, `{"placement":{"instances":{},"replicaFactor":0,"numShards":0,"isSharded":false,"cutoverTime":"0","isMirrored":false,"maxShardSetId":0},"version":0}`, string(body))
 	case M3AggregatorServiceName:
-		require.Equal(t, "{\"placement\":{\"instances\":{\"host1\":{\"id\":\"host1\",\"isolationGroup\":\"a\",\"zone\":\"\",\"weight\":10,\"endpoint\":\"\",\"shards\":[{\"id\":0,\"state\":\"LEAVING\",\"sourceId\":\"\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"300000000000\"}],\"shardSetId\":0,\"hostname\":\"\",\"port\":0},\"host2\":{\"id\":\"host2\",\"isolationGroup\":\"b\",\"zone\":\"\",\"weight\":10,\"endpoint\":\"\",\"shards\":[{\"id\":0,\"state\":\"INITIALIZING\",\"sourceId\":\"host1\",\"cutoverNanos\":\"300000000000\",\"cutoffNanos\":\"0\"},{\"id\":1,\"state\":\"AVAILABLE\",\"sourceId\":\"\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"}],\"shardSetId\":1,\"hostname\":\"\",\"port\":0}},\"replicaFactor\":1,\"numShards\":0,\"isSharded\":true,\"cutoverTime\":\"0\",\"isMirrored\":true,\"maxShardSetId\":2},\"version\":2}", string(body))
+		require.Equal(t, `{"placement":{"instances":{"host1":{"id":"host1","isolationGroup":"a","zone":"","weight":10,"endpoint":"","shards":[{"id":0,"state":"LEAVING","sourceId":"","cutoverNanos":"0","cutoffNanos":"300000000000"}],"shardSetId":0,"hostname":"","port":0},"host2":{"id":"host2","isolationGroup":"b","zone":"","weight":10,"endpoint":"","shards":[{"id":0,"state":"INITIALIZING","sourceId":"host1","cutoverNanos":"300000000000","cutoffNanos":"0"},{"id":1,"state":"AVAILABLE","sourceId":"","cutoverNanos":"0","cutoffNanos":"0"}],"shardSetId":1,"hostname":"","port":0}},"replicaFactor":1,"numShards":0,"isSharded":true,"cutoverTime":"0","isMirrored":true,"maxShardSetId":2},"version":2}`, string(body))
 	default:
-		require.Equal(t, "{\"placement\":{\"instances\":{\"host1\":{\"id\":\"host1\",\"isolationGroup\":\"a\",\"zone\":\"\",\"weight\":10,\"endpoint\":\"\",\"shards\":[{\"id\":0,\"state\":\"LEAVING\",\"sourceId\":\"\","+
-			"\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"}],\"shardSetId\":0,\"hostname\":\"\",\"port\":0},\"host2\":{\"id\":\"host2\",\"isolationGroup\":\"b\",\"zone\":\"\",\"weight\":10,\"endpoint\":\"\",\"shards\":"+
-			"[{\"id\":0,\"state\":\"AVAILABLE\",\"sourceId\":\"\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"},{\"id\":1,\"state\":\"AVAILABLE\",\"sourceId\":\"\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"}],"+
-			"\"shardSetId\":0,\"hostname\":\"\",\"port\":0},\"host3\":{\"id\":\"host3\",\"isolationGroup\":\"c\",\"zone\":\"\",\"weight\":10,\"endpoint\":\"\",\"shards\":[{\"id\":0,\"state\":\"INITIALIZING\",\"sourceId\":\"host1\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"},"+
-			"{\"id\":1,\"state\":\"AVAILABLE\",\"sourceId\":\"\",\"cutoverNanos\":\"0\",\"cutoffNanos\":\"0\"}],\"shardSetId\":0,\"hostname\":\"\",\"port\":0}},\"replicaFactor\":2,\"numShards\":0,\"isSharded\":true,\"cutoverTime\":\"0\",\"isMirrored\":false,\"maxShardSetId\":2},\"version\":2}", string(body))
+		require.Equal(t, `{"placement":{"instances":{"host1":{"id":"host1","isolationGroup":"a","zone":"","weight":10,"endpoint":"","shards":[{"id":0,"state":"LEAVING","sourceId":"","cutoverNanos":"0","cutoffNanos":"0"}],"shardSetId":0,"hostname":"","port":0},"host2":{"id":"host2","isolationGroup":"b","zone":"","weight":10,"endpoint":"","shards":[{"id":0,"state":"AVAILABLE","sourceId":"","cutoverNanos":"0","cutoffNanos":"0"},{"id":1,"state":"AVAILABLE","sourceId":"","cutoverNanos":"0","cutoffNanos":"0"}],"shardSetId":0,"hostname":"","port":0},"host3":{"id":"host3","isolationGroup":"c","zone":"","weight":10,"endpoint":"","shards":[{"id":0,"state":"INITIALIZING","sourceId":"host1","cutoverNanos":"0","cutoffNanos":"0"},{"id":1,"state":"AVAILABLE","sourceId":"","cutoverNanos":"0","cutoffNanos":"0"}],"shardSetId":0,"hostname":"","port":0}},"replicaFactor":2,"numShards":0,"isSharded":true,"cutoverTime":"0","isMirrored":false,"maxShardSetId":2},"version":2}`, string(body))
 	}
 }
