@@ -252,8 +252,7 @@ func iteratorToTsSeries(
 		datapoints = append(datapoints, ts.Datapoint{Timestamp: dp.Timestamp, Value: dp.Value})
 	}
 
-	// TODO ARNIKOLA CHECK
-	return ts.NewSeries(string(metric.ID), datapoints, metric.Tags), nil
+	return ts.NewSeries(metric.ID, datapoints, metric.Tags), nil
 }
 
 // Fall back to sequential decompression if unable to decompress concurrently
