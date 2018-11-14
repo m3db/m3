@@ -39,8 +39,11 @@ import (
 
 func TestPlacementAddHandler_Force(t *testing.T) {
 	runForAllAllowedServices(func(serviceName string) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
 		var (
-			mockClient, mockPlacementService = SetupPlacementTest(t)
+			mockClient, mockPlacementService = SetupPlacementTest(t, ctrl)
 			handlerOpts                      = NewHandlerOptions(
 				mockClient, config.Configuration{}, nil)
 			handler = NewAddHandler(handlerOpts)
@@ -89,8 +92,11 @@ func TestPlacementAddHandler_Force(t *testing.T) {
 
 func TestPlacementAddHandler_SafeErr(t *testing.T) {
 	runForAllAllowedServices(func(serviceName string) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
 		var (
-			mockClient, mockPlacementService = SetupPlacementTest(t)
+			mockClient, mockPlacementService = SetupPlacementTest(t, ctrl)
 			handlerOpts                      = NewHandlerOptions(
 				mockClient, config.Configuration{}, nil)
 			handler = NewAddHandler(handlerOpts)
@@ -102,14 +108,13 @@ func TestPlacementAddHandler_SafeErr(t *testing.T) {
 			req *http.Request
 		)
 		if serviceName == M3AggregatorServiceName {
-			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"instances":[]}`))
+			req = httptest.NewRequest(AddHTTPMethod, M3AggAddURL, strings.NewReader(`{"instances":[]}`))
 		} else {
 			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"instances":[]}`))
 		}
 		require.NotNil(t, req)
 
-		mockPlacementService.EXPECT().Placement().Return(placement.NewPlacement(), 0, errors.New("no new instances found in the valid zone"))
-		mockPlacementService.EXPECT().AddInstances(gomock.Any()).Return(placement.NewPlacement(), nil, errors.New("no new instances found in the valid zone"))
+		mockPlacementService.EXPECT().Placement().Return(placement.NewPlacement(), errors.New("no new instances found in the valid zone"))
 		handler.ServeHTTP(serviceName, w, req)
 
 		resp := w.Result()
@@ -120,14 +125,13 @@ func TestPlacementAddHandler_SafeErr(t *testing.T) {
 		// Current placement has initializing shards
 		w = httptest.NewRecorder()
 		if serviceName == M3AggregatorServiceName {
-			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}]}`))
+			req = httptest.NewRequest(AddHTTPMethod, M3AggAddURL, strings.NewReader(`{"instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}]}`))
 		} else {
 			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}]}`))
 		}
 		require.NotNil(t, req)
 
-		mockPlacementService.EXPECT().Placement().Return(newInitPlacement(), 0, nil)
-		mockPlacementService.EXPECT().AddInstances(gomock.Not(nil)).Return(placement.NewPlacement(), nil, nil)
+		mockPlacementService.EXPECT().Placement().Return(newInitPlacement(), nil)
 		handler.ServeHTTP(serviceName, w, req)
 
 		resp = w.Result()
@@ -139,8 +143,11 @@ func TestPlacementAddHandler_SafeErr(t *testing.T) {
 
 func TestPlacementAddHandler_SafeOK(t *testing.T) {
 	runForAllAllowedServices(func(serviceName string) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
 		var (
-			mockClient, mockPlacementService = SetupPlacementTest(t)
+			mockClient, mockPlacementService = SetupPlacementTest(t, ctrl)
 			handlerOpts                      = NewHandlerOptions(
 				mockClient, config.Configuration{}, nil)
 			handler = NewAddHandler(handlerOpts)
@@ -183,9 +190,9 @@ func TestPlacementAddHandler_SafeOK(t *testing.T) {
 				SetIsMirrored(true).
 				SetReplicaFactor(1)
 		}
-		mockPlacementService.EXPECT().Placement().Return(existingPlacement, 0, nil)
-		mockPlacementService.EXPECT().AddInstances(gomock.Not(nil)).Return(newPlacement, nil, nil)
-		mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0).Return(errors.New("test err"))
+
+		mockPlacementService.EXPECT().Placement().Return(existingPlacement, nil)
+		mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0).Return(nil, errors.New("test err"))
 		handler.ServeHTTP(serviceName, w, req)
 
 		resp := w.Result()
@@ -195,15 +202,32 @@ func TestPlacementAddHandler_SafeOK(t *testing.T) {
 
 		w = httptest.NewRecorder()
 		if serviceName == M3AggregatorServiceName {
-			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}]}`))
+			req = httptest.NewRequest(AddHTTPMethod, M3AggAddURL, strings.NewReader(`{"instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}]}`))
 		} else {
 			req = httptest.NewRequest(AddHTTPMethod, M3DBAddURL, strings.NewReader(`{"instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}]}`))
 		}
 		require.NotNil(t, req)
 
-		mockPlacementService.EXPECT().Placement().Return(existingPlacement, 0, nil)
-		mockPlacementService.EXPECT().AddInstances(gomock.Not(nil)).Return(newPlacement, nil, nil)
-		mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0).Return(nil)
+		newInst := placement.NewInstance().
+			SetID("host1").
+			SetIsolationGroup("rack1").
+			SetZone("test").
+			SetWeight(1).
+			SetEndpoint("http://host1:1234").
+			SetHostname("host1").
+			SetPort(1234)
+
+		returnPlacement := newPlacement.Clone().SetInstances([]placement.Instance{
+			newInst,
+		})
+
+		mockPlacementService.EXPECT().Placement().Return(existingPlacement, nil)
+
+		if serviceName == M3CoordinatorServiceName {
+			mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0).Return(returnPlacement.SetVersion(1), nil)
+		} else {
+			mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0).Return(existingPlacement.Clone().SetVersion(1), nil)
+		}
 		handler.ServeHTTP(serviceName, w, req)
 
 		resp = w.Result()

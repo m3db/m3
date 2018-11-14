@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/cluster/placement"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -42,16 +43,16 @@ func TestStorageWithSinglePlacement(t *testing.T) {
 		SetShards([]uint32{}).
 		SetReplicaFactor(0)
 
-	err = ps.SetIfNotExist(p)
+	pGet, err := ps.SetIfNotExist(p)
+	assert.Equal(t, 1, pGet.GetVersion())
 	require.NoError(t, err)
 
-	err = ps.SetIfNotExist(p)
+	_, err = ps.SetIfNotExist(p)
 	require.Error(t, err)
 	require.Equal(t, kv.ErrAlreadyExists, err)
 
-	pGet, v, err := ps.Placement()
+	pGet, err = ps.Placement()
 	require.NoError(t, err)
-	require.Equal(t, 1, v)
 	require.Equal(t, p.SetVersion(1), pGet)
 
 	_, err = ps.PlacementForVersion(0)
@@ -64,31 +65,33 @@ func TestStorageWithSinglePlacement(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, pGet, h)
 
-	err = ps.CheckAndSet(p, v)
+	pGet, err = ps.CheckAndSet(p, pGet.GetVersion())
 	require.NoError(t, err)
+	assert.Equal(t, 2, pGet.GetVersion())
 
-	err = ps.CheckAndSet(p, v)
+	_, err = ps.CheckAndSet(p, pGet.GetVersion()-1)
 	require.Error(t, err)
 	require.Equal(t, kv.ErrVersionMismatch, err)
 
-	pGet, v, err = ps.Placement()
+	pGet, err = ps.Placement()
 	require.NoError(t, err)
-	require.Equal(t, 2, v)
+	require.Equal(t, 2, pGet.GetVersion())
 	require.Equal(t, p.SetVersion(2), pGet)
 
 	err = ps.Delete()
 	require.NoError(t, err)
 
-	_, _, err = ps.Placement()
+	_, err = ps.Placement()
 	require.Error(t, err)
 	require.Equal(t, kv.ErrNotFound, err)
 
-	err = ps.SetIfNotExist(p)
+	pGet, err = ps.SetIfNotExist(p)
 	require.NoError(t, err)
+	assert.Equal(t, 1, pGet.GetVersion())
 
-	pGet, v, err = ps.Placement()
+	pGet, err = ps.Placement()
 	require.NoError(t, err)
-	require.Equal(t, 1, v)
+	require.Equal(t, 1, pGet.GetVersion())
 	require.Equal(t, p.SetVersion(1), pGet)
 
 	proto, v, err := ps.Proto()
@@ -109,15 +112,16 @@ func TestStorageWithPlacementSnapshots(t *testing.T) {
 		SetReplicaFactor(0).
 		SetCutoverNanos(100)
 
-	err := ps.SetIfNotExist(p)
+	pGet1, err := ps.SetIfNotExist(p)
 	require.NoError(t, err)
+	assert.Equal(t, 1, pGet1.GetVersion())
 
-	err = ps.SetIfNotExist(p)
+	_, err = ps.SetIfNotExist(p)
 	require.Error(t, err)
 
-	pGet1, v, err := ps.Placement()
+	pGet1, err = ps.Placement()
 	require.NoError(t, err)
-	require.Equal(t, 1, v)
+	require.Equal(t, 1, pGet1.GetVersion())
 	require.Equal(t, p.SetVersion(1), pGet1)
 
 	_, err = ps.PlacementForVersion(0)
@@ -130,20 +134,21 @@ func TestStorageWithPlacementSnapshots(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, pGet1, h)
 
-	err = ps.CheckAndSet(p, v)
+	_, err = ps.CheckAndSet(p, pGet1.GetVersion())
 	require.Error(t, err)
 
 	p = p.SetCutoverNanos(p.CutoverNanos() + 1)
-	err = ps.CheckAndSet(p, v)
+	pGet2, err := ps.CheckAndSet(p, pGet1.GetVersion())
 	require.NoError(t, err)
+	assert.Equal(t, 2, pGet2.GetVersion())
 
-	err = ps.CheckAndSet(p.Clone().SetCutoverNanos(p.CutoverNanos()+1), v)
+	_, err = ps.CheckAndSet(p.Clone().SetCutoverNanos(p.CutoverNanos()+1), pGet1.GetVersion()-1)
 	require.Error(t, err)
 	require.Equal(t, kv.ErrVersionMismatch, err)
 
-	pGet2, v, err := ps.Placement()
+	pGet2, err = ps.Placement()
 	require.NoError(t, err)
-	require.Equal(t, 2, v)
+	require.Equal(t, 2, pGet2.GetVersion())
 	require.Equal(t, p.SetVersion(2), pGet2)
 
 	newProto, v, err := ps.Proto()
@@ -158,16 +163,17 @@ func TestStorageWithPlacementSnapshots(t *testing.T) {
 	err = ps.Delete()
 	require.NoError(t, err)
 
-	_, _, err = ps.Placement()
+	_, err = ps.Placement()
 	require.Error(t, err)
 	require.Equal(t, kv.ErrNotFound, err)
 
-	err = ps.SetIfNotExist(p)
+	pGet2, err = ps.SetIfNotExist(p)
 	require.NoError(t, err)
+	assert.Equal(t, 1, pGet2.GetVersion())
 
-	pGet3, v, err := ps.Placement()
+	pGet3, err := ps.Placement()
 	require.NoError(t, err)
-	require.Equal(t, 1, v)
+	require.Equal(t, 1, pGet3.GetVersion())
 	require.Equal(t, p.SetVersion(1), pGet3)
 }
 
@@ -180,23 +186,26 @@ func TestCheckAndSetProto(t *testing.T) {
 		SetShards([]uint32{}).
 		SetReplicaFactor(0)
 
-	err := ps.SetIfNotExist(p)
+	pGet, err := ps.SetIfNotExist(p)
 	require.NoError(t, err)
+	assert.Equal(t, 1, pGet.GetVersion())
 
 	newProto, v, err := ps.Proto()
 	require.NoError(t, err)
 	require.Equal(t, 1, v)
 
-	err = ps.CheckAndSetProto(newProto, 2)
+	_, err = ps.CheckAndSetProto(newProto, 2)
 	require.Error(t, err)
 
-	err = ps.CheckAndSetProto(newProto, 1)
+	version, err := ps.CheckAndSetProto(newProto, 1)
 	require.NoError(t, err)
+	assert.Equal(t, 2, version)
 
 	require.NoError(t, ps.Delete())
 
-	err = ps.CheckAndSetProto(newProto, 0)
+	version, err = ps.CheckAndSetProto(newProto, 0)
 	require.NoError(t, err)
+	assert.Equal(t, 1, version)
 }
 
 func TestDryrun(t *testing.T) {
@@ -209,40 +218,42 @@ func TestDryrun(t *testing.T) {
 		SetShards([]uint32{}).
 		SetReplicaFactor(0)
 
-	err := dryrunPS.SetIfNotExist(p)
+	dryPGet, err := dryrunPS.SetIfNotExist(p)
 	require.NoError(t, err)
+	assert.Equal(t, 0, dryPGet.GetVersion())
 
-	_, _, err = ps.Placement()
+	_, err = ps.Placement()
 	require.Error(t, err)
 
-	err = ps.SetIfNotExist(p)
+	pGet, err := ps.SetIfNotExist(p)
+	require.NoError(t, err)
+	assert.Equal(t, 1, pGet.GetVersion())
+
+	pGet, err = ps.Placement()
+	require.NoError(t, err)
+	require.Equal(t, 1, pGet.GetVersion())
+
+	_, err = dryrunPS.CheckAndSet(p, 1)
 	require.NoError(t, err)
 
-	_, v, err := ps.Placement()
-	require.NoError(t, err)
-	require.Equal(t, 1, v)
-
-	err = dryrunPS.CheckAndSet(p, 1)
-	require.NoError(t, err)
-
-	_, v, _ = ps.Placement()
-	require.Equal(t, 1, v)
+	pGet, _ = ps.Placement()
+	require.Equal(t, 1, pGet.GetVersion())
 
 	err = dryrunPS.Delete()
 	require.NoError(t, err)
 
-	_, v, err = ps.Placement()
+	pGet, err = ps.Placement()
 	require.NoError(t, err)
-	require.Equal(t, 1, v)
+	require.Equal(t, 1, pGet.GetVersion())
 
-	_, v, err = dryrunPS.Placement()
+	dryPGet, err = dryrunPS.Placement()
 	require.NoError(t, err)
-	require.Equal(t, 1, v)
+	require.Equal(t, 1, dryPGet.GetVersion())
 
 	err = ps.Delete()
 	require.NoError(t, err)
 
-	_, _, err = dryrunPS.Placement()
+	_, err = dryrunPS.Placement()
 	require.Error(t, err)
 }
 

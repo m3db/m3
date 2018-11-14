@@ -132,7 +132,7 @@ func (h *ReplaceHandler) Replace(
 		return newPlacement, err
 	}
 
-	curPlacement, version, err := service.Placement()
+	curPlacement, err := service.Placement()
 	if err != nil {
 		return nil, err
 	}
@@ -153,10 +153,5 @@ func (h *ReplaceHandler) Replace(
 
 	// Ensure the placement we're updating is still the one on which we validated
 	// all shards are available.
-	if err := service.CheckAndSet(newPlacement, version); err != nil {
-		return nil, err
-	}
-
-	// TODO(schallert): change once https://github.com/m3db/m3/issues/1165 fixed.
-	return newPlacement.SetVersion(version + 1), nil
+	return service.CheckAndSet(newPlacement, curPlacement.GetVersion())
 }

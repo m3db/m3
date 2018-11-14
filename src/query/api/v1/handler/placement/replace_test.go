@@ -44,25 +44,34 @@ func newReplaceRequest(body string) *http.Request {
 
 func TestPlacementReplaceHandler_Force(t *testing.T) {
 	runForAllAllowedServices(func(s string) {
-		testPlacementReplaceHandlerForce(t, s)
+		t.Run(s, func(t *testing.T) {
+			testPlacementReplaceHandlerForce(t, s)
+		})
 	})
 }
 
 func TestPlacementReplaceHandler_Safe_Err(t *testing.T) {
 	runForAllAllowedServices(func(s string) {
-		testPlacementReplaceHandlerSafeErr(t, s)
+		t.Run(s, func(t *testing.T) {
+			testPlacementReplaceHandlerSafeErr(t, s)
+		})
 	})
 }
 
 func TestPlacementReplaceHandler_Safe_Ok(t *testing.T) {
 	runForAllAllowedServices(func(s string) {
-		testPlacementReplaceHandlerSafeOk(t, s)
+		t.Run(s, func(t *testing.T) {
+			testPlacementReplaceHandlerSafeOk(t, s)
+		})
 	})
 }
 
 func testPlacementReplaceHandlerForce(t *testing.T, serviceName string) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	var (
-		mockClient, mockPlacementService = SetupPlacementTest(t)
+		mockClient, mockPlacementService = SetupPlacementTest(t, ctrl)
 		handlerOpts                      = NewHandlerOptions(mockClient, config.Configuration{}, nil)
 		handler                          = NewReplaceHandler(handlerOpts)
 	)
@@ -90,8 +99,11 @@ func testPlacementReplaceHandlerForce(t *testing.T, serviceName string) {
 }
 
 func testPlacementReplaceHandlerSafeErr(t *testing.T, serviceName string) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	var (
-		mockClient, mockPlacementService = SetupPlacementTest(t)
+		mockClient, mockPlacementService = SetupPlacementTest(t, ctrl)
 		handlerOpts                      = NewHandlerOptions(mockClient, config.Configuration{}, nil)
 		handler                          = NewReplaceHandler(handlerOpts)
 	)
@@ -100,9 +112,10 @@ func testPlacementReplaceHandlerSafeErr(t *testing.T, serviceName string) {
 	w := httptest.NewRecorder()
 	req := newReplaceRequest("{}")
 
-	mockPlacementService.EXPECT().Placement().Return(newInitPlacement(), 0, nil)
+	mockPlacementService.EXPECT().Placement().Return(newInitPlacement(), nil)
 	if serviceName == M3CoordinatorServiceName {
-		mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0)
+		mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0).
+			Return(newInitPlacement().SetVersion(1), nil)
 	}
 	handler.ServeHTTP(serviceName, w, req)
 
@@ -146,8 +159,11 @@ func newPlacementReplaceMatcher() gomock.Matcher {
 }
 
 func testPlacementReplaceHandlerSafeOk(t *testing.T, serviceName string) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	var (
-		mockClient, mockPlacementService = SetupPlacementTest(t)
+		mockClient, mockPlacementService = SetupPlacementTest(t, ctrl)
 		handlerOpts                      = NewHandlerOptions(mockClient, config.Configuration{}, nil)
 		handler                          = NewReplaceHandler(handlerOpts)
 	)
@@ -174,7 +190,7 @@ func testPlacementReplaceHandlerSafeOk(t *testing.T, serviceName string) {
 		}
 		instances[i] = newInst
 	}
-	pl = pl.SetInstances(instances)
+	pl = pl.SetInstances(instances).SetVersion(1)
 
 	w := httptest.NewRecorder()
 	req := newReplaceRequest(`
@@ -191,8 +207,38 @@ func testPlacementReplaceHandlerSafeOk(t *testing.T, serviceName string) {
 	}
 	`)
 
-	mockPlacementService.EXPECT().Placement().Return(pl, 1, nil)
-	mockPlacementService.EXPECT().CheckAndSet(matcher, 1)
+	mockPlacementService.EXPECT().Placement().Return(pl.Clone(), nil)
+
+	returnPl := pl.Clone()
+
+	newInst := placement.NewInstance().
+		SetID("C").
+		SetZone("z1").
+		SetIsolationGroup("r1").
+		SetWeight(1)
+
+	if !isStateless(serviceName) {
+		newInst = newInst.SetShards(shard.NewShards([]shard.Shard{
+			shard.NewShard(1).
+				SetState(shard.Initializing).
+				SetSourceID("A"),
+		}))
+	}
+
+	instances = append(returnPl.Instances(), newInst)
+
+	instances[0].Shards().Remove(1)
+	instances[0].Shards().Add(shard.NewShard(1).SetState(shard.Leaving))
+
+	if isStateless(serviceName) {
+		instances = instances[1:]
+	}
+
+	returnPl = returnPl.
+		SetInstances(instances).
+		SetVersion(2)
+
+	mockPlacementService.EXPECT().CheckAndSet(matcher, 1).Return(returnPl, nil)
 	handler.ServeHTTP(serviceName, w, req)
 
 	resp := w.Result()

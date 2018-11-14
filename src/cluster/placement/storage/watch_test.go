@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/cluster/placement"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -41,15 +42,17 @@ func TestPlacementWatch(t *testing.T) {
 		SetInstances([]placement.Instance{}).
 		SetShards([]uint32{}).
 		SetReplicaFactor(0)
-	err = ps.Set(p)
+	pGet, err := ps.Set(p)
 	require.NoError(t, err)
+	assert.Equal(t, 1, pGet.GetVersion())
 	<-w.C()
 	p, err = w.Get()
 	require.NoError(t, err)
 	require.Equal(t, p.SetVersion(1), p)
 
-	err = ps.Set(p)
+	pGet, err = ps.Set(p)
 	require.NoError(t, err)
+	assert.Equal(t, 2, pGet.GetVersion())
 	<-w.C()
 	p, err = w.Get()
 	require.NoError(t, err)
@@ -61,7 +64,8 @@ func TestPlacementWatch(t *testing.T) {
 	_, err = w.Get()
 	require.Error(t, err)
 
-	err = ps.SetIfNotExist(p)
+	pGet, err = ps.SetIfNotExist(p)
+	assert.Equal(t, 1, pGet.GetVersion())
 	require.NoError(t, err)
 	<-w.C()
 	p, err = w.Get()

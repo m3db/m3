@@ -122,7 +122,7 @@ func (c *svcCluster) Placement() placement.Placement {
 
 func (c *svcCluster) initWithLock() error {
 	psvc := c.placementSvc
-	_, _, err := psvc.Placement()
+	_, err := psvc.Placement()
 	if err != nil { // attempt to retrieve current placement
 		c.logger.Infof("unable to retrieve existing placement, skipping delete attempt")
 	} else {

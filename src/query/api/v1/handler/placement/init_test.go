@@ -64,8 +64,11 @@ var (
 
 func TestPlacementInitHandler(t *testing.T) {
 	runForAllAllowedServices(func(serviceName string) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
 		var (
-			mockClient, mockPlacementService = SetupPlacementTest(t)
+			mockClient, mockPlacementService = SetupPlacementTest(t, ctrl)
 			handlerOpts                      = NewHandlerOptions(
 				mockClient, config.Configuration{}, nil)
 			handler = NewInitHandler(handlerOpts)
