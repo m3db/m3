@@ -49,6 +49,10 @@ const (
 	defaultTimeout = time.Second * 15
 )
 
+var (
+	matchValues = []byte("*")
+)
+
 // ParsePromCompressedRequest parses a snappy compressed request from Prometheus
 func ParsePromCompressedRequest(r *http.Request) ([]byte, *xhttp.ParseError) {
 	body := r.Body
@@ -166,7 +170,7 @@ func ParseTagValuesToQuery(
 			models.Matcher{
 				Type:  models.MatchEqual,
 				Name:  nameBytes,
-				Value: []byte{},
+				Value: matchValues,
 			},
 		},
 	}, nil
