@@ -241,8 +241,45 @@ func (s *m3storage) SearchCompressed(
 	}
 
 	wg.Wait()
+
 	tagResult, err := result.FinalResult()
 	return tagResult, result.Close, err
+}
+
+func (s *m3storage) fetchTags(
+	namespace ClusterNamespace,
+	query index.Query,
+	opts index.QueryOptions,
+) (*storage.SearchResults, error) {
+	namespaceID := namespace.NamespaceID()
+	session := namespace.Session()
+
+	// TODO (juchan): Handle second return param
+	iter, _, err := session.FetchTaggedIDs(namespaceID, query, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	var metrics models.Metrics
+	for iter.Next() {
+		_, id, it := iter.Current()
+		m, err := storage.FromM3IdentToMetric(id, it, s.tagOptions)
+		if err != nil {
+			return nil, err
+		}
+
+		metrics = append(metrics, m)
+	}
+
+	if err := iter.Err(); err != nil {
+		return nil, err
+	}
+
+	iter.Finalize()
+	return &storage.SearchResults{
+		Metrics: metrics,
+	}, nil
+>>>>>>> master
 }
 
 func (s *m3storage) Write(
@@ -300,7 +337,7 @@ func (s *m3storage) Write(
 	}
 
 	wg.Wait()
-	return multiErr.finalError()
+	return multiErr.lastError()
 }
 
 func (s *m3storage) Type() storage.Type {
