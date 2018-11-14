@@ -29,8 +29,6 @@ import (
 	"github.com/m3db/m3/src/cluster/placement"
 	"github.com/m3db/m3/src/cluster/services"
 	xwatch "github.com/m3db/m3x/watch"
-
-	"github.com/golang/protobuf/proto"
 )
 
 // NB(r): once a lot more feature complete move this to the m3cluster repository
@@ -240,95 +238,19 @@ func NewM3ClusterPlacementService() M3ClusterPlacementService {
 }
 
 type m3ClusterPlacementService struct {
+	placement.Service
+
 	markedAvailable map[string][]uint32
 }
 
 func (s *m3ClusterPlacementService) InstanceShardsMarkedAvailable() map[string][]uint32 {
 	return s.markedAvailable
 }
-func (s *m3ClusterPlacementService) BuildInitialPlacement(
-	instances []placement.Instance, numShards int, rf int,
-) (placement.Placement, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-func (s *m3ClusterPlacementService) AddReplica() (
-	placement.Placement, error,
-) {
-	return nil, fmt.Errorf("not implemented")
-}
-func (s *m3ClusterPlacementService) AddInstances(
-	candidates []placement.Instance,
-) (placement.Placement, []placement.Instance, error) {
-	return nil, nil, fmt.Errorf("not implemented")
-}
-func (s *m3ClusterPlacementService) RemoveInstances(
-	leavingInstanceIDs []string,
-) (placement.Placement, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-func (s *m3ClusterPlacementService) ReplaceInstances(
-	leavingInstanceIDs []string, candidates []placement.Instance,
-) (placement.Placement, []placement.Instance, error) {
-	return nil, nil, fmt.Errorf("not implemented")
-}
 func (s *m3ClusterPlacementService) MarkShardsAvailable(
 	instanceID string, shardIDs ...uint32,
-) error {
+) (placement.Placement, error) {
 	s.markedAvailable[instanceID] = append(s.markedAvailable[instanceID], shardIDs...)
-	return nil
-}
-func (s *m3ClusterPlacementService) MarkAllShardsAvailable() (placement.Placement, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-func (s *m3ClusterPlacementService) Watch() (placement.Watch, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-func (s *m3ClusterPlacementService) PlacementForVersion(version int) (placement.Placement, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-func (s *m3ClusterPlacementService) MarkInstanceAvailable(
-	instanceID string,
-) error {
-	return fmt.Errorf("not implemented")
-}
-func (s *m3ClusterPlacementService) Placement() (
-	placement.Placement, error,
-) {
-	return nil, fmt.Errorf("not implemented")
-}
-func (s *m3ClusterPlacementService) Set(
-	p placement.Placement,
-) (placement.Placement, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-func (s *m3ClusterPlacementService) SetIfNotExist(
-	p placement.Placement,
-) (placement.Placement, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-func (s *m3ClusterPlacementService) CheckAndSet(
-	p placement.Placement,
-	v int,
-) (placement.Placement, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-func (s *m3ClusterPlacementService) Delete() error {
-	return fmt.Errorf("not implemented")
-}
-func (s *m3ClusterPlacementService) PlacementProto() (proto.Message, int, error) {
-	return nil, 0, fmt.Errorf("not implemented")
-}
-func (s *m3ClusterPlacementService) SetPlacementProto(p proto.Message) error {
-	return fmt.Errorf("not implemented")
-}
-func (s *m3ClusterPlacementService) CheckAndSetProto(p proto.Message, version int) (int, error) {
-	return 0, fmt.Errorf("not implemented")
-}
-func (s *m3ClusterPlacementService) SetProto(p proto.Message) (int, error) {
-	return 0, fmt.Errorf("not implemented")
-}
-func (s *m3ClusterPlacementService) Proto() (proto.Message, int, error) {
-	return nil, 0, fmt.Errorf("not implemented")
+	return nil, nil
 }
 
 // NewM3ClusterService creates a new fake m3cluster service
