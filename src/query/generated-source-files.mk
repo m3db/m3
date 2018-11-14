@@ -30,8 +30,42 @@ genny-all: genny-map-all
 # Map generation rule for all generated maps
 .PHONY: genny-map-all
 genny-map-all: \
+	genny-map-multi-complete-tags \
+	genny-map-multi-complete-tag-values \
 	genny-map-multi-result-series \
 	genny-map-multi-search-result
+
+# Map generation rule for query/multiCompleteTags
+.PHONY: genny-map-multi-complete-tags
+genny-map-multi-complete-tags: install-m3x-repo
+	cd $(m3x_package_path) && make byteshashmap-gen \
+		pkg=multiresults \
+		value_type=completedTagBuilder \
+		target_package=$(multiresult_package) \
+		rename_type_prefix=multiCompleteTags \
+		rename_constructor=newMultiCompleteTagsMap \
+		rename_constructor_options=multiCompleteTagsMapOptions
+	# Rename both generated map and constructor files
+	mv -f $(multiresult_package_path)/map_gen.go \
+		$(multiresult_package_path)/multi_complete_tags_map_gen.go
+	mv -f $(multiresult_package_path)/new_map_gen.go \
+		$(multiresult_package_path)/multi_complete_tags_new_map_gen.go
+
+# Map generation rule for query/multiCompleteTagValues
+.PHONY: genny-map-multi-complete-tag-values
+genny-map-multi-complete-tag-values: install-m3x-repo
+	cd $(m3x_package_path) && make byteshashmap-gen \
+		pkg=multiresults \
+		value_type=seen \
+		target_package=$(multiresult_package) \
+		rename_type_prefix=multiCompleteTagValues \
+		rename_constructor=newMultiCompleteTagValuesMap \
+		rename_constructor_options=multiCompleteTagValuesMapOptions
+	# Rename both generated map and constructor files
+	mv -f $(multiresult_package_path)/map_gen.go \
+		$(multiresult_package_path)/multi_complete_tag_values_map_gen.go
+	mv -f $(multiresult_package_path)/new_map_gen.go \
+		$(multiresult_package_path)/multi_complete_tag_values_new_map_gen.go
 
 # Map generation rule for query/multiResultSeries
 .PHONY: genny-map-multi-result-series

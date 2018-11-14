@@ -109,8 +109,7 @@ func combineMetaAndSeriesMeta(
 	tags := models.NewTags(leftTags.Len(), leftTags.Opts)
 
 	for _, t := range leftTags.Tags {
-		name := string(t.Name)
-		if otherTag, ok := otherTags[name]; ok {
+		if otherTag, ok := otherTags[string(t.Name)]; ok {
 			if bytes.Equal(t.Value, otherTag.Value) {
 				tags = tags.AddTag(t)
 			} else {
@@ -122,7 +121,7 @@ func combineMetaAndSeriesMeta(
 
 			// NB(arnikola): delete common tag from otherTags as it
 			// has already been handled
-			delete(otherTags, name)
+			delete(otherTags, string(t.Name))
 		} else {
 			// Tag does not exist on otherMeta explicitly add it to each seriesMeta
 			metaTagsToAdd = metaTagsToAdd.AddTag(t)

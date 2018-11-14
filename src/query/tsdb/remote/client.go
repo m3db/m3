@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/pools"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/multiresults"
 	"github.com/m3db/m3/src/query/util/logging"
 	xsync "github.com/m3db/m3x/sync"
 
@@ -258,10 +259,10 @@ func (c *grpcClient) CompleteTags(
 	ctx context.Context,
 	query *storage.CompleteTagsQuery,
 	options *storage.FetchOptions,
-) (storage.CompleteTagsResult, error) {
+) (multiresults.CompleteTagsResult, error) {
 	request, err := encodeCompleteTagsRequest(query)
 	if err != nil {
-		return storage.CompleteTagsResult{}, err
+		return multiresults.CompleteTagsResult{}, err
 	}
 
 	// Send the id from the client to the remote server so that provides logging
@@ -271,16 +272,16 @@ func (c *grpcClient) CompleteTags(
 	mdCtx := encodeMetadata(ctx, id)
 	completeTagsClient, err := c.client.CompleteTags(mdCtx, request)
 	if err != nil {
-		return storage.CompleteTagsResult{}, err
+		return multiresults.CompleteTagsResult{}, err
 	}
 
 	defer completeTagsClient.CloseSend()
-	var accumulatedTags storage.CompleteTagsResultBuilder
+	var accumulatedTags multiresults.CompleteTagsResultBuilder
 	for {
 		select {
 		// If query is killed during gRPC streaming, close the channel
 		case <-ctx.Done():
-			return storage.CompleteTagsResult{}, ctx.Err()
+			return multiresults.CompleteTagsResult{}, ctx.Err()
 		default:
 		}
 
@@ -290,21 +291,21 @@ func (c *grpcClient) CompleteTags(
 		}
 
 		if err != nil {
-			return storage.CompleteTagsResult{}, err
+			return multiresults.CompleteTagsResult{}, err
 		}
 
 		result, err := decodeCompleteTagsResponse(received)
 		if err != nil {
-			return storage.CompleteTagsResult{}, err
+			return multiresults.CompleteTagsResult{}, err
 		}
 
 		if accumulatedTags == nil {
-			accumulatedTags = storage.NewCompleteTagsResultBuilder(result.CompleteNameOnly)
+			accumulatedTags = multiresults.NewCompleteTagsResultBuilder(result.CompleteNameOnly)
 		}
 
 		err = accumulatedTags.Add(result)
 		if err != nil {
-			return storage.CompleteTagsResult{}, err
+			return multiresults.CompleteTagsResult{}, err
 		}
 	}
 

@@ -141,25 +141,6 @@ func (q *CompleteTagsQuery) String() string {
 	return fmt.Sprintf("completing tag values for query %s", q.TagMatchers)
 }
 
-// CompletedTag is an autocompleted tag with a name and a list of possible values
-type CompletedTag struct {
-	Name   []byte
-	Values [][]byte
-}
-
-// CompleteTagsResult represents a set of autocompleted tag names and values
-type CompleteTagsResult struct {
-	CompleteNameOnly bool
-	CompletedTags    []CompletedTag
-}
-
-// CompleteTagsResultBuilder is a builder that accumulates and deduplicates
-// incoming CompleteTagsResult values
-type CompleteTagsResultBuilder interface {
-	Add(*CompleteTagsResult) error
-	Build() CompleteTagsResult
-}
-
 // Appender provides batched appends against a storage.
 type Appender interface {
 	// Write value to the database for an ID
