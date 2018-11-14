@@ -84,8 +84,7 @@ type FetchOptions struct {
 // NewFetchOptions creates a new fetch options.
 func NewFetchOptions() *FetchOptions {
 	return &FetchOptions{
-		Limit:    0,
-		KillChan: make(chan struct{}),
+		Limit: 0,
 	}
 }
 

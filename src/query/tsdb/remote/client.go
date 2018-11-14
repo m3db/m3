@@ -226,8 +226,8 @@ func (c *grpcClient) FetchTags(
 	for {
 		select {
 		// If query is killed during gRPC streaming, close the channel
-		case <-options.KillChan:
-			return nil, errors.ErrQueryInterrupted
+		case <-ctx.Done():
+			return nil, ctx.Err()
 		default:
 		}
 
@@ -279,8 +279,8 @@ func (c *grpcClient) CompleteTags(
 	for {
 		select {
 		// If query is killed during gRPC streaming, close the channel
-		case <-options.KillChan:
-			return storage.CompleteTagsResult{}, errors.ErrQueryInterrupted
+		case <-ctx.Done():
+			return storage.CompleteTagsResult{}, ctx.Err()
 		default:
 		}
 
