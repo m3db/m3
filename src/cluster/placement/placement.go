@@ -238,7 +238,8 @@ func (p *placement) Clone() Placement {
 		SetIsSharded(p.IsSharded()).
 		SetIsMirrored(p.IsMirrored()).
 		SetCutoverNanos(p.CutoverNanos()).
-		SetMaxShardSetID(p.MaxShardSetID())
+		SetMaxShardSetID(p.MaxShardSetID()).
+		SetVersion(p.GetVersion())
 }
 
 // Placements represents a list of placements.

@@ -59,8 +59,9 @@ func (s *storage) CheckAndSetProto(p proto.Message, version int) (int, error) {
 
 	if s.opts.Dryrun() {
 		s.logger.Info("this is a dryrun, the operation is not persisted")
-		return errorVersionValue, nil
+		return version + 1, nil
 	}
+
 	return s.store.CheckAndSet(s.key, version, p)
 }
 
@@ -80,65 +81,82 @@ func (s *storage) Proto() (proto.Message, int, error) {
 	return s.helper.PlacementProto()
 }
 
-func (s *storage) Set(p placement.Placement) (int, error) {
+func (s *storage) Set(p placement.Placement) (placement.Placement, error) {
 	if err := placement.Validate(p); err != nil {
-		return errorVersionValue, err
+		return nil, err
 	}
 
 	placementProto, err := s.helper.GenerateProto(p)
 	if err != nil {
-		return errorVersionValue, err
+		return nil, err
 	}
 
 	if s.opts.Dryrun() {
 		s.logger.Info("this is a dryrun, the operation is not persisted")
-		return p.GetVersion(), nil
+		return p, nil
 	}
 
-	return s.store.Set(s.key, placementProto)
+	v, err := s.store.Set(s.key, placementProto)
+	if err != nil {
+		return nil, err
+	}
+
+	return p.SetVersion(v), nil
 }
 
-func (s *storage) CheckAndSet(p placement.Placement, version int) (int, error) {
+func (s *storage) CheckAndSet(p placement.Placement, version int) (placement.Placement, error) {
 	if err := placement.Validate(p); err != nil {
-		return errorVersionValue, err
+		return nil, err
 	}
 
 	placementProto, err := s.helper.GenerateProto(p)
 	if err != nil {
-		return errorVersionValue, err
+		return nil, err
 	}
 
 	if s.opts.Dryrun() {
 		s.logger.Info("this is a dryrun, the operation is not persisted")
-		return p.GetVersion(), nil
+		return nil, nil
 	}
 
-	return s.store.CheckAndSet(
+	v, err := s.store.CheckAndSet(
 		s.key,
 		version,
 		placementProto,
 	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return p.SetVersion(v), nil
 }
 
-func (s *storage) SetIfNotExist(p placement.Placement) (int, error) {
+func (s *storage) SetIfNotExist(p placement.Placement) (placement.Placement, error) {
 	if err := placement.Validate(p); err != nil {
-		return errorVersionValue, err
+		return nil, err
 	}
 
 	placementProto, err := s.helper.GenerateProto(p)
 	if err != nil {
-		return errorVersionValue, err
+		return nil, err
 	}
 
 	if s.opts.Dryrun() {
 		s.logger.Info("this is a dryrun, the operation is not persisted")
-		return p.GetVersion(), nil
+		return p, nil
 	}
 
-	return s.store.SetIfNotExists(
+	v, err := s.store.SetIfNotExists(
 		s.key,
 		placementProto,
 	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return p.SetVersion(v), nil
 }
 
 func (s *storage) Delete() error {
@@ -151,8 +169,9 @@ func (s *storage) Delete() error {
 	return err
 }
 
-func (s *storage) Placement() (placement.Placement, int, error) {
-	return s.helper.Placement()
+func (s *storage) Placement() (placement.Placement, error) {
+	p, _, err := s.helper.Placement()
+	return p, err
 }
 
 func (s *storage) Watch() (placement.Watch, error) {
