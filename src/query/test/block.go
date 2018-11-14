@@ -101,7 +101,7 @@ func NewSeriesMeta(tagPrefix string, count int) []block.SeriesMeta {
 	seriesMeta := make([]block.SeriesMeta, count)
 	for i := range seriesMeta {
 		tags := models.EmptyTags()
-		st := fmt.Sprintf("%s%d", tagPrefix, i)
+		st := []byte(fmt.Sprintf("%s%d", tagPrefix, i))
 		t := []byte(st)
 		tags = tags.AddTag(models.Tag{Name: []byte("__name__"), Value: t})
 		tags = tags.AddTag(models.Tag{Name: t, Value: t})

@@ -115,7 +115,7 @@ type WriteQuery struct {
 }
 
 func (q *WriteQuery) String() string {
-	return q.Tags.ID()
+	return string(q.Tags.ID())
 }
 
 // Appender provides batched appends against a storage.
