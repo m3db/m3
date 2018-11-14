@@ -21,3 +21,9 @@ message PlacementAddRequest {
   // are AVAILABLE for all their shards. force overrides that.
   bool force = 2;
 }
+
+message PlacementReplaceRequest {
+  repeated string leavingInstanceIDs = 1;
+  repeated placementpb.Instance candidates = 2;
+  bool force = 3;
+}

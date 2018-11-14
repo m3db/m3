@@ -188,7 +188,13 @@ func clCommandFunctor(t *testing.T, basePath string, seed int64) *commands.Proto
 			return ok
 		},
 		GenCommandFunc: func(state commands.State) gopter.Gen {
-			return gen.OneGenOf(genOpenCommand, genCloseCommand, genWriteBehindCommand, genActiveLogsCommand)
+			return gen.OneGenOf(
+				genOpenCommand,
+				genCloseCommand,
+				genWriteBehindCommand,
+				genActiveLogsCommand,
+				genRotateLogsCommand,
+			)
 		},
 	}
 }
@@ -346,6 +352,47 @@ var genActiveLogsCommand = gen.Const(&commands.ProtoCommand{
 
 		if len(logs) != 1 {
 			return fmt.Errorf("ActiveLogs did not return exactly one log file: %v", logs)
+		}
+
+		return nil
+	},
+	NextStateFunc: func(state commands.State) commands.State {
+		s := state.(*clState)
+		return s
+	},
+	PostConditionFunc: func(state commands.State, result commands.Result) *gopter.PropResult {
+		if result == nil {
+			return &gopter.PropResult{Status: gopter.PropTrue}
+		}
+		return &gopter.PropResult{
+			Status: gopter.PropFalse,
+			Error:  result.(error),
+		}
+	},
+})
+
+var genRotateLogsCommand = gen.Const(&commands.ProtoCommand{
+	Name: "RotateLogs",
+	PreConditionFunc: func(state commands.State) bool {
+		return true
+	},
+	RunFunc: func(q commands.SystemUnderTest) commands.Result {
+		s := q.(*clState)
+
+		if s.cLog == nil {
+			return nil
+		}
+
+		_, err := s.cLog.RotateLogs()
+		if !s.open {
+			if err != errCommitLogClosed {
+				return errors.New("did not receive commit log closed error")
+			}
+			return nil
+		}
+
+		if err != nil {
+			return err
 		}
 
 		return nil

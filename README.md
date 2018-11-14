@@ -6,8 +6,10 @@ Distributed TSDB and Query Engine, Prometheus Sidecar, Metrics Aggregator, and m
 
 More information:
 - [Documentation](https://m3db.github.io/m3/)
-- [Developers](https://github.com/m3db/m3/blob/master/DEVELOPER.md)
+- [Developer: Getting Started](https://github.com/m3db/m3/blob/master/DEVELOPER.md)
 - [Gitter (chat channel)](https://gitter.im/m3db/Lobby)
+- [Forum (Google Group)](https://groups.google.com/forum/#!forum/m3db)
+- [Twitter](https://twitter.com/m3db_io)
 
 ## Test it out
 
@@ -88,7 +90,7 @@ produce a lightweight production image from a single Dockerfile. Accordingly, it
 17.05 or later to build.
 
 ```
-docker build -t m3dbnode:$(git rev-parse head) .
+docker build -f docker/m3dbnode/Dockerfile -t m3dbnode:$(git rev-parse head) .
 docker run --name m3dbnode m3dbnode:$(git rev-parse head)
 ```
 
@@ -96,7 +98,7 @@ If you wish to build an image with the source code included you can stop the bui
 `builder` stage:
 
 ```
-docker build -t m3dbnode:$(git rev-parse head) --target builder .
+docker build -f docker/m3dbnode/Dockerfile -t m3dbnode:$(git rev-parse head) --target builder .
 ```
 
 ## Configuration

@@ -42,6 +42,7 @@ import (
 	"github.com/m3db/m3/src/metrics/matcher/cache"
 	"github.com/m3db/m3/src/metrics/metadata"
 	"github.com/m3db/m3/src/metrics/metric/id"
+	"github.com/m3db/m3/src/metrics/pipeline/applied"
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/metrics/rules"
 	"github.com/m3db/m3/src/query/models"
@@ -155,7 +156,37 @@ type agg struct {
 	pools                  aggPools
 }
 
-func (o DownsamplerOptions) newAggregator() (agg, error) {
+// Configuration configurates a downsampler.
+type Configuration struct {
+	// AggregationTypes configs the aggregation types.
+	AggregationTypes *aggregation.TypesConfiguration `yaml:"aggregationTypes"`
+
+	// Pool of counter elements.
+	CounterElemPool pool.ObjectPoolConfiguration `yaml:"counterElemPool"`
+
+	// Pool of timer elements.
+	TimerElemPool pool.ObjectPoolConfiguration `yaml:"timerElemPool"`
+
+	// Pool of gauge elements.
+	GaugeElemPool pool.ObjectPoolConfiguration `yaml:"gaugeElemPool"`
+}
+
+// NewDownsampler returns a new downsampler.
+func (cfg Configuration) NewDownsampler(
+	opts DownsamplerOptions,
+) (Downsampler, error) {
+	agg, err := cfg.newAggregator(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return &downsampler{
+		opts: opts,
+		agg:  agg,
+	}, nil
+}
+
+func (cfg Configuration) newAggregator(o DownsamplerOptions) (agg, error) {
 	// Validate options first.
 	if err := o.validate(); err != nil {
 		return agg{}, err
@@ -166,6 +197,7 @@ func (o DownsamplerOptions) newAggregator() (agg, error) {
 		rulesStore              = o.RulesKVStore
 		clockOpts               = o.ClockOptions
 		instrumentOpts          = o.InstrumentOptions
+		scope                   = instrumentOpts.MetricsScope()
 		openTimeout             = defaultOpenTimeout
 		defaultStagedMetadatas  []metadata.StagedMetadatas
 	)
@@ -185,13 +217,6 @@ func (o DownsamplerOptions) newAggregator() (agg, error) {
 
 	pools := o.newAggregatorPools()
 	ruleSetOpts := o.newAggregatorRulesOptions(pools)
-
-	// Use default aggregation types, in future we can provide more configurability
-	var defaultAggregationTypes aggregation.TypesConfiguration
-	aggTypeOpts, err := defaultAggregationTypes.NewOptions(instrumentOpts)
-	if err != nil {
-		return agg{}, err
-	}
 
 	matcher, err := o.newAggregatorMatcher(clockOpts, instrumentOpts,
 		ruleSetOpts, rulesStore)
@@ -237,7 +262,6 @@ func (o DownsamplerOptions) newAggregator() (agg, error) {
 	aggregatorOpts := aggregator.NewOptions().
 		SetClockOptions(clockOpts).
 		SetInstrumentOptions(instrumentOpts).
-		SetAggregationTypesOptions(aggTypeOpts).
 		SetMetricPrefix(nil).
 		SetCounterPrefix(nil).
 		SetGaugePrefix(nil).
@@ -248,6 +272,68 @@ func (o DownsamplerOptions) newAggregator() (agg, error) {
 		SetElectionManager(electionManager).
 		SetFlushManager(flushManager).
 		SetFlushHandler(flushHandler)
+
+	if cfg.AggregationTypes != nil {
+		aggTypeOpts, err := cfg.AggregationTypes.NewOptions(instrumentOpts)
+		if err != nil {
+			return agg{}, err
+		}
+		aggregatorOpts = aggregatorOpts.SetAggregationTypesOptions(aggTypeOpts)
+	}
+
+	// Set counter elem pool.
+	counterElemPoolOpts := cfg.CounterElemPool.NewObjectPoolOptions(
+		instrumentOpts.SetMetricsScope(scope.SubScope("counter-elem-pool")),
+	)
+	counterElemPool := aggregator.NewCounterElemPool(counterElemPoolOpts)
+	aggregatorOpts = aggregatorOpts.SetCounterElemPool(counterElemPool)
+	counterElemPool.Init(func() *aggregator.CounterElem {
+		return aggregator.MustNewCounterElem(
+			nil,
+			policy.EmptyStoragePolicy,
+			aggregation.DefaultTypes,
+			applied.DefaultPipeline,
+			0,
+			aggregator.WithPrefixWithSuffix,
+			aggregatorOpts,
+		)
+	})
+
+	// Set timer elem pool.
+	timerElemPoolOpts := cfg.TimerElemPool.NewObjectPoolOptions(
+		instrumentOpts.SetMetricsScope(scope.SubScope("timer-elem-pool")),
+	)
+	timerElemPool := aggregator.NewTimerElemPool(timerElemPoolOpts)
+	aggregatorOpts = aggregatorOpts.SetTimerElemPool(timerElemPool)
+	timerElemPool.Init(func() *aggregator.TimerElem {
+		return aggregator.MustNewTimerElem(
+			nil,
+			policy.EmptyStoragePolicy,
+			aggregation.DefaultTypes,
+			applied.DefaultPipeline,
+			0,
+			aggregator.WithPrefixWithSuffix,
+			aggregatorOpts,
+		)
+	})
+
+	// Set gauge elem pool.
+	gaugeElemPoolOpts := cfg.GaugeElemPool.NewObjectPoolOptions(
+		instrumentOpts.SetMetricsScope(scope.SubScope("gauge-elem-pool")),
+	)
+	gaugeElemPool := aggregator.NewGaugeElemPool(gaugeElemPoolOpts)
+	aggregatorOpts = aggregatorOpts.SetGaugeElemPool(gaugeElemPool)
+	gaugeElemPool.Init(func() *aggregator.GaugeElem {
+		return aggregator.MustNewGaugeElem(
+			nil,
+			policy.EmptyStoragePolicy,
+			aggregation.DefaultTypes,
+			applied.DefaultPipeline,
+			0,
+			aggregator.WithPrefixWithSuffix,
+			aggregatorOpts,
+		)
+	})
 
 	aggregatorInstance := aggregator.NewAggregator(aggregatorOpts)
 	if err := aggregatorInstance.Open(); err != nil {

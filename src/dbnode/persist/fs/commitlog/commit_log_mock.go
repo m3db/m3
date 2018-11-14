@@ -112,6 +112,19 @@ func (mr *MockCommitLogMockRecorder) ActiveLogs() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ActiveLogs", reflect.TypeOf((*MockCommitLog)(nil).ActiveLogs))
 }
 
+// RotateLogs mocks base method
+func (m *MockCommitLog) RotateLogs() (File, error) {
+	ret := m.ctrl.Call(m, "RotateLogs")
+	ret0, _ := ret[0].(File)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RotateLogs indicates an expected call of RotateLogs
+func (mr *MockCommitLogMockRecorder) RotateLogs() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RotateLogs", reflect.TypeOf((*MockCommitLog)(nil).RotateLogs))
+}
+
 // MockIterator is a mock of Iterator interface
 type MockIterator struct {
 	ctrl     *gomock.Controller

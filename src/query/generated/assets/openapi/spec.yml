@@ -339,6 +339,35 @@ paths:
           description: ""
           schema:
             $ref: "#/definitions/GenericError"
+  /services/m3db/placement/replace:
+    post:
+      tags:
+      - "M3DB Placement"
+      - "M3DB"
+      summary: "Replace an M3DB instance in the placement"
+      operationId: "placementReplace"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "body"
+        in: "body"
+        schema:
+          $ref: "#/definitions/PlacementReplaceRequest"
+      responses:
+        200:
+          description: ""
+          schema:
+            $ref: "#/definitions/PlacementGetResponse"
+        400:
+          description: ""
+          schema:
+            $ref: "#/definitions/GenericError"
+        500:
+          description: ""
+          schema:
+            $ref: "#/definitions/GenericError"
   /services/m3coordinator/placement/init:
     post:
       tags:
@@ -368,6 +397,35 @@ paths:
           description: ""
           schema:
             $ref: "#/definitions/GenericError"
+  /services/m3coordinator/placement/replace:
+    post:
+      tags:
+      - "M3Coordinator Placement"
+      - "M3Coordinator"
+      summary: "Replace an M3Coordinator"
+      operationId: "placementReplace"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "body"
+        in: "body"
+        schema:
+          $ref: "#/definitions/PlacementReplaceRequest"
+      responses:
+        200:
+          description: ""
+          schema:
+            $ref: "#/definitions/PlacementGetResponse"
+        400:
+          description: ""
+          schema:
+            $ref: "#/definitions/GenericError"
+        500:
+          description: ""
+          schema:
+            $ref: "#/definitions/GenericError"
   /services/m3aggregator/placement/init:
     post:
       tags:
@@ -384,6 +442,35 @@ paths:
         in: "body"
         schema:
           $ref: "#/definitions/PlacementInitRequest"
+      responses:
+        200:
+          description: ""
+          schema:
+            $ref: "#/definitions/PlacementGetResponse"
+        400:
+          description: ""
+          schema:
+            $ref: "#/definitions/GenericError"
+        500:
+          description: ""
+          schema:
+            $ref: "#/definitions/GenericError"
+  /services/m3aggregator/placement/replace:
+    post:
+      tags:
+      - "M3Aggregator Placement"
+      - "M3Aggregator"
+      summary: "Replace an M3Aggregator"
+      operationId: "m3AggPlacementReplace"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "body"
+        in: "body"
+        schema:
+          $ref: "#/definitions/PlacementReplaceRequest"
       responses:
         200:
           description: ""
@@ -694,6 +781,8 @@ definitions:
         type: "array"
         items:
           $ref: "#/definitions/InstanceRequest"
+      force:
+        type: "boolean"
   PlacementInitRequest:
     type: "object"
     properties:
@@ -707,6 +796,19 @@ definitions:
       replicationFactor:
         type: "integer"
         format: "int32"
+  PlacementReplaceRequest:
+    type: "object"
+    properties:
+      leavingInstanceIDs:
+        type: "array"
+        items:
+          type: "string"
+      candidates:
+        type: "array"
+        items:
+          $ref: "#/definitions/InstanceRequest"
+      force:
+        type: "boolean"
   PlacementInitRequestM3Coordinator:
     type: "object"
     properties:

@@ -24,6 +24,7 @@ import (
 	"time"
 
 	etcdclient "github.com/m3db/m3/src/cluster/client/etcd"
+	"github.com/m3db/m3/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/ingest"
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
 	"github.com/m3db/m3/src/query/models"
@@ -42,6 +43,12 @@ const (
 	// M3DBStorageType is for m3db backend.
 	M3DBStorageType BackendStorageType = "m3db"
 )
+
+// defaultLimitsConfiguration is applied if `limits` isn't specified.
+var defaultLimitsConfiguration = &LimitsConfiguration{
+	// this is sufficient for 1 day span / 1s step, or 60 days with a 1m step.
+	MaxComputedDatapoints: 86400,
+}
 
 // Configuration is the configuration for the query service.
 type Configuration struct {
@@ -78,8 +85,19 @@ type Configuration struct {
 	// WriteWorkerPool is the worker pool policy for write requests.
 	WriteWorkerPool xconfig.WorkerPoolPolicy `yaml:"writeWorkerPoolPolicy"`
 
+	// Downsample configurates how the metrics should be downsampled.
+	Downsample downsample.Configuration `yaml:"downsample"`
+
 	// Ingest is the ingest server.
 	Ingest *IngestConfiguration `yaml:"ingest"`
+
+	// Limits specifies limits on per-query resource usage.
+	Limits LimitsConfiguration `yaml:"limits"`
+}
+
+// LimitsConfiguration represents limitations on per-query resource usage. Zero or negative values imply no limit.
+type LimitsConfiguration struct {
+	MaxComputedDatapoints int64 `yaml:"maxComputedDatapoints"`
 }
 
 // IngestConfiguration is the configuration for ingestion server.

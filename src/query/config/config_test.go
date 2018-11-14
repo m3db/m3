@@ -17,34 +17,34 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
+//
 
-package handler
+package config
 
 import (
-	"context"
-	"net/http"
+	"fmt"
+	"path/filepath"
+	"testing"
 
-	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/m3db/m3/src/cmd/services/m3query/config"
+	xconfig "github.com/m3db/m3x/config"
+
+	"github.com/stretchr/testify/require"
 )
 
-// CloseWatcher watches for CloseNotify and context timeout. It is best effort and may sometimes not close the channel relying on gc
-func CloseWatcher(ctx context.Context, cancel context.CancelFunc, w http.ResponseWriter) {
-	logger := logging.WithContext(ctx)
-	if notifier, ok := w.(http.CloseNotifier); ok {
-		notify := notifier.CloseNotify()
-		go func() {
-			// Wait for either the request to finish
-			// or for the client to disconnect
-			select {
-			case <-notify:
-				logger.Warn("connection closed by client")
-				cancel()
-			case <-ctx.Done():
-				// We only care about the time out case and not other cancellations
-				if ctx.Err() == context.DeadlineExceeded {
-					logger.Warn("request timed out")
-				}
-			}
-		}()
+// TestProvidedConfigFiles ensures that the files in this directly are all valid, and will load.
+func TestProvidedConfigFiles(t *testing.T) {
+	cfgFiles, err := filepath.Glob("./*.yml")
+	require.NoError(t, err)
+	require.True(t, len(cfgFiles) > 0,
+		"expected some config files in this directory. Move or remove this test if this is no longer true.")
+
+	for _, fname := range cfgFiles {
+		t.Run(fmt.Sprintf("load %s", filepath.Base(fname)), func(t *testing.T) {
+			var cfg config.Configuration
+			require.NoError(t, xconfig.LoadFile(&cfg, fname, xconfig.Options{
+				DisableValidate: false,
+			}))
+		})
 	}
 }

@@ -64,10 +64,10 @@ The instructions below all contain sample curl commands, but you can always revi
 
 #### Placement Initialization
 
-Send a POST request to the `/api/v1/placement/init` endpoint
+Send a POST request to the `/api/v1/services/m3db/placement/init` endpoint
 
 ```bash
-curl -X POST localhost:7201/api/v1/placement/init -d '{
+curl -X POST localhost:7201/api/v1/services/m3db/placement/init -d '{
     "num_shards": <DESIRED_NUMBER_OF_SHARDS>,
     "replication_factor": <DESIRED_REPLICATION_FACTOR>(recommended 3),
     "instances": [
@@ -104,10 +104,10 @@ curl -X POST localhost:7201/api/v1/placement/init -d '{
 
 #### Adding a Node
 
-Send a POST request to the `/api/v1/placement` endpoint
+Send a POST request to the `/api/v1/services/m3db/placement` endpoint
 
 ```bash
-curl -X POST <M3_COORDINATOR_HOST_NAME>:<M3_COORDINATOR_PORT(default 7201)>/api/v1/placement -d '{
+curl -X POST <M3_COORDINATOR_HOST_NAME>:<M3_COORDINATOR_PORT(default 7201)>/api/v1/services/m3db/placement -d '{
   "instances": [
     {
       "id": "<NEW_NODE_ID>",
@@ -126,16 +126,31 @@ After sending the add command you will need to wait for the M3DB cluster to reac
 
 #### Removing a Node
 
-Send a DELETE request to the `/api/v1/placement/<NODE_ID>` endpoint.
+Send a DELETE request to the `/api/v1/services/m3db/placement/<NODE_ID>` endpoint.
 
 ```bash
-curl -X DELETE <M3_COORDINATOR_HOST_NAME>:<M3_COORDINATOR_PORT(default 7201)>/api/v1/placement/<NODE_ID>
+curl -X DELETE <M3_COORDINATOR_HOST_NAME>:<M3_COORDINATOR_PORT(default 7201)>/api/v1/services/m3db/placement/<NODE_ID>
 ```
 
 After sending the delete command you will need to wait for the M3DB cluster to reach the new desired state. You'll know that this has been achieved when the placement shows that all shards for all hosts are in the `Available` state.
 
 #### Replacing a Node
 
-Currently, the best way to replace a node (due to hardware failure or any other reason) is to perform a node remove followed by a node add. We will eventually support node replacement as a single operation, but that is currently not implemented.
+Send a POST request to the `/api/v1/services/m3db/placement/replace` endpoint containing hosts to replace and candidates to replace it with.
 
-
+```bash
+curl -X POST <M3_COORDINATOR_HOST_NAME>:<M3_COORDINATOR_PORT(default 7201)>/api/v1/services/m3db/placement/replace -d '{
+    "leavingInstanceIDs": ["<OLD_NODE_ID>"],
+    "candidates": [
+        {
+          "id": "<NEW_NODE_ID>",
+          "isolationGroup": "<NEW_NODE_ISOLATION_GROUP>",
+          "zone": "<ETCD_ZONE>",
+          "weight": <NODE_WEIGHT>,
+          "endpoint": "<NEW_NODE_HOST_NAME>:<NEW_NODE_PORT>(default 9000)",
+          "hostname": "<NEW_NODE_HOST_NAME>",
+          "port": <NEW_NODE_PORT>
+        }
+    ]
+}'
+```

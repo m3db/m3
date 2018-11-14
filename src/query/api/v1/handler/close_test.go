@@ -22,29 +22,18 @@ package handler
 
 import (
 	"context"
-	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
 
-	"github.com/m3db/m3/src/query/util/logging"
+	"github.com/stretchr/testify/assert"
 )
 
-// CloseWatcher watches for CloseNotify and context timeout. It is best effort and may sometimes not close the channel relying on gc
-func CloseWatcher(ctx context.Context, cancel context.CancelFunc, w http.ResponseWriter) {
-	logger := logging.WithContext(ctx)
-	if notifier, ok := w.(http.CloseNotifier); ok {
-		notify := notifier.CloseNotify()
-		go func() {
-			// Wait for either the request to finish
-			// or for the client to disconnect
-			select {
-			case <-notify:
-				logger.Warn("connection closed by client")
-				cancel()
-			case <-ctx.Done():
-				// We only care about the time out case and not other cancellations
-				if ctx.Err() == context.DeadlineExceeded {
-					logger.Warn("request timed out")
-				}
-			}
-		}()
-	}
+func TestCloseWatcher(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	w := httptest.NewRecorder()
+	CloseWatcher(ctx, cancel, w)
+	assert.Nil(t, ctx.Err())
+	time.Sleep(100 * time.Millisecond)
+	assert.NotNil(t, ctx.Err())
 }

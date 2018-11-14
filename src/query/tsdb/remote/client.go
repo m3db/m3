@@ -139,8 +139,8 @@ func (c *grpcClient) fetchRaw(
 	for {
 		select {
 		// If query is killed during gRPC streaming, close the channel
-		case <-options.KillChan:
-			return nil, errors.ErrQueryInterrupted
+		case <-ctx.Done():
+			return nil, ctx.Err()
 		default:
 		}
 

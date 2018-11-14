@@ -109,8 +109,6 @@ func (s *m3storage) FetchCompressed(
 	select {
 	case <-ctx.Done():
 		return nil, noop, ctx.Err()
-	case <-options.KillChan:
-		return nil, noop, errors.ErrQueryInterrupted
 	default:
 	}
 
@@ -159,6 +157,13 @@ func (s *m3storage) FetchCompressed(
 
 	wg.Wait()
 
+	// Check if the query was interrupted.
+	select {
+	case <-ctx.Done():
+		return nil, noop, ctx.Err()
+	default:
+	}
+
 	iters, err := result.FinalResult()
 	if err != nil {
 		result.Close()
@@ -202,9 +207,7 @@ func (s *m3storage) SearchCompressed(
 	// Check if the query was interrupted.
 	select {
 	case <-ctx.Done():
-		return nil, noop, ctx.Err()
-	case <-options.KillChan:
-		return nil, noop, errors.ErrQueryInterrupted
+		return nil, nil, ctx.Err()
 	default:
 	}
 

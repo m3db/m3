@@ -270,7 +270,8 @@ func newTestDownsampler(t *testing.T, opts testDownsamplerOptions) testDownsampl
 			SetMetricsScope(instrumentOpts.MetricsScope().
 				SubScope("tag-decoder-pool")))
 
-	instance, err := NewDownsampler(DownsamplerOptions{
+	var cfg Configuration
+	instance, err := cfg.NewDownsampler(DownsamplerOptions{
 		Storage:               storage,
 		RulesKVStore:          rulesKVStore,
 		AutoMappingRules:      opts.autoMappingRules,

@@ -43,10 +43,8 @@ func TestExecute(t *testing.T) {
 
 	// Results is closed by execute
 	results := make(chan *storage.QueryResult)
-	closing := make(chan bool)
-
 	engine := NewEngine(store, tally.NewTestScope("test", nil))
-	go engine.Execute(context.TODO(), &storage.FetchQuery{}, &EngineOptions{}, closing, results)
-	<-results
-	assert.Equal(t, len(engine.tracker.queries), 1)
+	go engine.Execute(context.TODO(), &storage.FetchQuery{}, &EngineOptions{}, results)
+	res := <-results
+	assert.NotNil(t, res.Err)
 }

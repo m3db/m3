@@ -262,3 +262,18 @@ func runForAllAllowedServices(f func(service string)) {
 		f(service)
 	}
 }
+
+func TestIsStateless(t *testing.T) {
+	for _, s := range []string{
+		M3CoordinatorServiceName,
+	} {
+		assert.True(t, isStateless(s))
+	}
+
+	for _, s := range []string{
+		M3AggregatorServiceName,
+		M3DBServiceName,
+	} {
+		assert.False(t, isStateless(s))
+	}
+}

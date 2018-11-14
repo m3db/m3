@@ -109,8 +109,16 @@ const (
 	currNumLogMetadataFields          = 3
 )
 
-var minNumObjectFields []int
-var currNumObjectFields []int
+var (
+	minNumObjectFields  []int
+	currNumObjectFields []int
+
+	logEntryHeader    []byte
+	logEntryHeaderErr error
+
+	logMetadataHeader    []byte
+	logMetadataHeaderErr error
+)
 
 func numFieldsForType(objType objectType) (min, curr int) {
 	return minNumObjectFields[int(objType)-1], currNumObjectFields[int(objType)-1]
@@ -158,6 +166,20 @@ func init() {
 	setCurrNumObjectFieldsForType(logInfoType, currNumLogInfoFields)
 	setCurrNumObjectFieldsForType(logEntryType, currNumLogEntryFields)
 	setCurrNumObjectFieldsForType(logMetadataType, currNumLogMetadataFields)
+
+	// Populate the fixed commit log entry header
+	encoder := NewEncoder()
+	encoder.encodeRootObject(logEntryVersion, logEntryType)
+	encoder.encodeNumObjectFieldsForFn(logEntryType)
+	logEntryHeader = encoder.Bytes()
+	logEntryHeaderErr = encoder.err
+
+	// Populate the fixed commit log metadata header
+	encoder = NewEncoder()
+	encoder.encodeRootObject(logMetadataVersion, logMetadataType)
+	encoder.encodeNumObjectFieldsForFn(logMetadataType)
+	logMetadataHeader = encoder.Bytes()
+	logMetadataHeaderErr = encoder.err
 }
 
 func mustBeGreaterThanOrEqual(x, y int) {

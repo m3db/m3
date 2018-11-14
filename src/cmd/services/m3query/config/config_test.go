@@ -23,8 +23,11 @@ package config
 import (
 	"testing"
 
+	xconfig "github.com/m3db/m3x/config"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/validator.v2"
 )
 
 func TestTagOptionsFromEmptyConfig(t *testing.T) {
@@ -44,4 +47,50 @@ func TestTagOptionsFromConfig(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, opts)
 	assert.Equal(t, []byte(name), opts.MetricName())
+}
+
+func TestConfigLoading(t *testing.T) {
+	var cfg Configuration
+	require.NoError(t, xconfig.LoadFile(&cfg, "./testdata/sample_config.yml", xconfig.Options{}))
+
+	assert.Equal(t, &LimitsConfiguration{
+		MaxComputedDatapoints: 12000,
+	}, &cfg.Limits)
+	// TODO: assert on more fields here.
+}
+
+func TestConfigValidation(t *testing.T) {
+	baseCfg := func(t *testing.T) *Configuration {
+		var cfg Configuration
+		require.NoError(t, xconfig.LoadFile(&cfg, "./testdata/sample_config.yml", xconfig.Options{}),
+			"sample configuration is no longer valid or loadable. Fix it up to provide a base config here")
+
+		return &cfg
+	}
+
+	// limits configuration
+	limitsCfgCases := []struct {
+		Name  string
+		Limit int64
+	}{{
+		Name:  "empty LimitsConfiguration is valid (implies disabled)",
+		Limit: 0,
+	}, {
+		Name:  "LimitsConfiguration with positive limit is valid",
+		Limit: 5,
+	}, {}, {
+		Name:  "LimitsConfiguration with negative limit is valid (implies disabled)",
+		Limit: -5,
+	}}
+
+	for _, tc := range limitsCfgCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			cfg := baseCfg(t)
+			cfg.Limits = LimitsConfiguration{
+				MaxComputedDatapoints: 5,
+			}
+
+			assert.NoError(t, validator.Validate(cfg))
+		})
+	}
 }

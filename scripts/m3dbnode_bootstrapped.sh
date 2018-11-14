@@ -48,11 +48,23 @@ if [ "$RES" -ne 0 ]; then
   exit 0
 fi
 
-curl -sSf "$COORD_NAMESPACE_ENDPOINT" >/dev/null
+curl -sSf -o "$COORD_TMPFILE" "$COORD_NAMESPACE_ENDPOINT"
 RES=$?
 
 if [ "$RES" -eq 22 ]; then
   echo "Received 4xx from namespace endpoint $COORD_NAMESPACE_ENDPOINT"
+  exit 0
+fi
+
+# If there IS a placement but NO namespace, then the dbnode will respond
+# connection refused (until https://github.com/m3db/m3/issues/996 is addressed)
+# and the health script would fail hereafter. However, if there's no namespaces
+# then we want to consider the node healthy because it just doesn't have
+# anything to do. So before we ask the dbnode for its health, check if there's
+# no namespaces to begin with, and if so exit 0.
+NS_COUNT=$(jq '.registry.namespaces | length' < "$COORD_TMPFILE")
+if [ "$NS_COUNT" -eq 0 ]; then
+  echo "No namespaces in cluster"
   exit 0
 fi
 

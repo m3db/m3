@@ -94,13 +94,13 @@ func (d Datapoints) AlignToBounds(bounds models.Bounds) []Datapoints {
 
 		for dpIdx < numDatapoints && !d[dpIdx].Timestamp.After(t) {
 			point := d[dpIdx]
+			dpIdx++
 			// Skip stale values
 			if t.Sub(point.Timestamp) > models.LookbackDelta {
 				continue
 			}
 
 			singleStepValues = append(singleStepValues, point)
-			dpIdx++
 		}
 
 		// If no point found for this interval, reuse the last point as long as its not stale
