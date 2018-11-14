@@ -39,8 +39,11 @@ import (
 
 func TestPlacementAddHandler_Force(t *testing.T) {
 	runForAllAllowedServices(func(serviceName string) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
 		var (
-			mockClient, mockPlacementService = SetupPlacementTest(t)
+			mockClient, mockPlacementService = SetupPlacementTest(t, ctrl)
 			handlerOpts                      = NewHandlerOptions(
 				mockClient, config.Configuration{}, nil)
 			handler = NewAddHandler(handlerOpts)
@@ -89,8 +92,11 @@ func TestPlacementAddHandler_Force(t *testing.T) {
 
 func TestPlacementAddHandler_SafeErr(t *testing.T) {
 	runForAllAllowedServices(func(serviceName string) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
 		var (
-			mockClient, mockPlacementService = SetupPlacementTest(t)
+			mockClient, mockPlacementService = SetupPlacementTest(t, ctrl)
 			handlerOpts                      = NewHandlerOptions(
 				mockClient, config.Configuration{}, nil)
 			handler = NewAddHandler(handlerOpts)
@@ -108,7 +114,7 @@ func TestPlacementAddHandler_SafeErr(t *testing.T) {
 		}
 		require.NotNil(t, req)
 
-		mockPlacementService.EXPECT().Placement().Return(placement.NewPlacement(), 0, errors.New("no new instances found in the valid zone"))
+		mockPlacementService.EXPECT().Placement().Return(placement.NewPlacement(), errors.New("no new instances found in the valid zone"))
 		mockPlacementService.EXPECT().AddInstances(gomock.Any()).Return(placement.NewPlacement(), nil, errors.New("no new instances found in the valid zone"))
 		handler.ServeHTTP(serviceName, w, req)
 
@@ -126,7 +132,7 @@ func TestPlacementAddHandler_SafeErr(t *testing.T) {
 		}
 		require.NotNil(t, req)
 
-		mockPlacementService.EXPECT().Placement().Return(newInitPlacement(), 0, nil)
+		mockPlacementService.EXPECT().Placement().Return(newInitPlacement(), nil)
 		mockPlacementService.EXPECT().AddInstances(gomock.Not(nil)).Return(placement.NewPlacement(), nil, nil)
 		handler.ServeHTTP(serviceName, w, req)
 
@@ -139,8 +145,11 @@ func TestPlacementAddHandler_SafeErr(t *testing.T) {
 
 func TestPlacementAddHandler_SafeOK(t *testing.T) {
 	runForAllAllowedServices(func(serviceName string) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
 		var (
-			mockClient, mockPlacementService = SetupPlacementTest(t)
+			mockClient, mockPlacementService = SetupPlacementTest(t, ctrl)
 			handlerOpts                      = NewHandlerOptions(
 				mockClient, config.Configuration{}, nil)
 			handler = NewAddHandler(handlerOpts)
@@ -183,9 +192,9 @@ func TestPlacementAddHandler_SafeOK(t *testing.T) {
 				SetIsMirrored(true).
 				SetReplicaFactor(1)
 		}
-		mockPlacementService.EXPECT().Placement().Return(existingPlacement, 0, nil)
+		mockPlacementService.EXPECT().Placement().Return(existingPlacement, nil)
 		mockPlacementService.EXPECT().AddInstances(gomock.Not(nil)).Return(newPlacement, nil, nil)
-		mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0).Return(0, errors.New("test err"))
+		mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0).Return(nil, errors.New("test err"))
 		handler.ServeHTTP(serviceName, w, req)
 
 		resp := w.Result()
@@ -201,9 +210,9 @@ func TestPlacementAddHandler_SafeOK(t *testing.T) {
 		}
 		require.NotNil(t, req)
 
-		mockPlacementService.EXPECT().Placement().Return(existingPlacement, 0, nil)
+		mockPlacementService.EXPECT().Placement().Return(existingPlacement, nil)
 		mockPlacementService.EXPECT().AddInstances(gomock.Not(nil)).Return(newPlacement, nil, nil)
-		mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0).Return(1, nil)
+		mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0).Return(newPlacement.SetVersion(1), nil)
 		handler.ServeHTTP(serviceName, w, req)
 
 		resp = w.Result()

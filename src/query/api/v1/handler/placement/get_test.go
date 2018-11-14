@@ -40,11 +40,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func SetupPlacementTest(t *testing.T) (*client.MockClient, *placement.MockService) {
+func SetupPlacementTest(t *testing.T, ctrl *gomock.Controller) (*client.MockClient, *placement.MockService) {
 	logging.InitWithCores(nil)
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 
 	mockClient := client.NewMockClient(ctrl)
 	require.NotNil(t, mockClient)

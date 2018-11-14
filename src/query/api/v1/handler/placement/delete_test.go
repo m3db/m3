@@ -111,7 +111,7 @@ func TestPlacementDeleteHandler_Safe(t *testing.T) {
 
 		req = mux.SetURLVars(req, map[string]string{"id": "host1"})
 		require.NotNil(t, req)
-		mockPlacementService.EXPECT().Placement().Return(basePlacement, 0, nil)
+		mockPlacementService.EXPECT().Placement().Return(basePlacement, nil)
 		handler.ServeHTTP(serviceName, w, req)
 
 		resp := w.Result()
@@ -143,7 +143,7 @@ func TestPlacementDeleteHandler_Safe(t *testing.T) {
 			req = httptest.NewRequest(DeleteHTTPMethod, "/placement/host1", nil)
 			req = mux.SetURLVars(req, map[string]string{"id": "host1"})
 			require.NotNil(t, req)
-			mockPlacementService.EXPECT().Placement().Return(basePlacement, 0, nil)
+			mockPlacementService.EXPECT().Placement().Return(basePlacement, nil)
 			handler.ServeHTTP(serviceName, w, req)
 
 			resp = w.Result()
@@ -198,7 +198,7 @@ func TestPlacementDeleteHandler_Safe(t *testing.T) {
 		req = httptest.NewRequest(DeleteHTTPMethod, "/placement/host1", nil)
 		req = mux.SetURLVars(req, map[string]string{"id": "host1"})
 		require.NotNil(t, req)
-		mockPlacementService.EXPECT().Placement().Return(basePlacement, 1, nil)
+		mockPlacementService.EXPECT().Placement().Return(basePlacement, nil)
 		mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 1).Return(2, nil)
 		handler.ServeHTTP(serviceName, w, req)
 

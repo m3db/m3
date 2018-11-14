@@ -100,7 +100,7 @@ func testPlacementReplaceHandlerSafeErr(t *testing.T, serviceName string) {
 	w := httptest.NewRecorder()
 	req := newReplaceRequest("{}")
 
-	mockPlacementService.EXPECT().Placement().Return(newInitPlacement(), 0, nil)
+	mockPlacementService.EXPECT().Placement().Return(newInitPlacement(), nil)
 	if serviceName == M3CoordinatorServiceName {
 		mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0)
 	}
@@ -191,7 +191,7 @@ func testPlacementReplaceHandlerSafeOk(t *testing.T, serviceName string) {
 	}
 	`)
 
-	mockPlacementService.EXPECT().Placement().Return(pl, 1, nil)
+	mockPlacementService.EXPECT().Placement().Return(pl, nil)
 	mockPlacementService.EXPECT().CheckAndSet(matcher, 1).Return(2, nil)
 	handler.ServeHTTP(serviceName, w, req)
 

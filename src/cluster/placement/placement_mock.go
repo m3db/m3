@@ -1608,9 +1608,9 @@ func (m *MockStorage) EXPECT() *MockStorageMockRecorder {
 }
 
 // Set mocks base method
-func (m *MockStorage) Set(p Placement) (int, error) {
+func (m *MockStorage) Set(p Placement) (Placement, error) {
 	ret := m.ctrl.Call(m, "Set", p)
-	ret0, _ := ret[0].(int)
+	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1621,9 +1621,9 @@ func (mr *MockStorageMockRecorder) Set(p interface{}) *gomock.Call {
 }
 
 // CheckAndSet mocks base method
-func (m *MockStorage) CheckAndSet(p Placement, version int) (int, error) {
+func (m *MockStorage) CheckAndSet(p Placement, version int) (Placement, error) {
 	ret := m.ctrl.Call(m, "CheckAndSet", p, version)
-	ret0, _ := ret[0].(int)
+	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1634,9 +1634,9 @@ func (mr *MockStorageMockRecorder) CheckAndSet(p, version interface{}) *gomock.C
 }
 
 // SetIfNotExist mocks base method
-func (m *MockStorage) SetIfNotExist(p Placement) (int, error) {
+func (m *MockStorage) SetIfNotExist(p Placement) (Placement, error) {
 	ret := m.ctrl.Call(m, "SetIfNotExist", p)
-	ret0, _ := ret[0].(int)
+	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1647,12 +1647,11 @@ func (mr *MockStorageMockRecorder) SetIfNotExist(p interface{}) *gomock.Call {
 }
 
 // Placement mocks base method
-func (m *MockStorage) Placement() (Placement, int, error) {
+func (m *MockStorage) Placement() (Placement, error) {
 	ret := m.ctrl.Call(m, "Placement")
 	ret0, _ := ret[0].(Placement)
-	ret1, _ := ret[1].(int)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Placement indicates an expected call of Placement
@@ -1762,9 +1761,9 @@ func (m *MockService) EXPECT() *MockServiceMockRecorder {
 }
 
 // Set mocks base method
-func (m *MockService) Set(p Placement) (int, error) {
+func (m *MockService) Set(p Placement) (Placement, error) {
 	ret := m.ctrl.Call(m, "Set", p)
-	ret0, _ := ret[0].(int)
+	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1775,9 +1774,9 @@ func (mr *MockServiceMockRecorder) Set(p interface{}) *gomock.Call {
 }
 
 // CheckAndSet mocks base method
-func (m *MockService) CheckAndSet(p Placement, version int) (int, error) {
+func (m *MockService) CheckAndSet(p Placement, version int) (Placement, error) {
 	ret := m.ctrl.Call(m, "CheckAndSet", p, version)
-	ret0, _ := ret[0].(int)
+	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1788,9 +1787,9 @@ func (mr *MockServiceMockRecorder) CheckAndSet(p, version interface{}) *gomock.C
 }
 
 // SetIfNotExist mocks base method
-func (m *MockService) SetIfNotExist(p Placement) (int, error) {
+func (m *MockService) SetIfNotExist(p Placement) (Placement, error) {
 	ret := m.ctrl.Call(m, "SetIfNotExist", p)
-	ret0, _ := ret[0].(int)
+	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1801,12 +1800,11 @@ func (mr *MockServiceMockRecorder) SetIfNotExist(p interface{}) *gomock.Call {
 }
 
 // Placement mocks base method
-func (m *MockService) Placement() (Placement, int, error) {
+func (m *MockService) Placement() (Placement, error) {
 	ret := m.ctrl.Call(m, "Placement")
 	ret0, _ := ret[0].(Placement)
-	ret1, _ := ret[1].(int)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Placement indicates an expected call of Placement
