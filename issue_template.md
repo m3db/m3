@@ -2,11 +2,14 @@
 
 ## General Issues
 
+General issues are any non-performance related issues (data integrity, ease of use, error messages, configuration, documentation, etc).
+
 Please provide the following information along with a description of the issue that you're experiencing:
 
 1. What service is experiencing the issue? (M3Coordinator, M3DB, M3Aggregator, etc)
 2. What is the configuration of the service? Please include any YAML files, as well as namespace / placement configuration (with any sensitive information anonymized if necessary).
 3. How are you using the service? For example, are you performing read/writes to the service via Prometheus, or are you using a custom script?
+4. Is there a reliable way to reproduce the behavior? If so, please provide detailed instructions.
 
 ## Performance issues
 
@@ -23,22 +26,26 @@ In addition to the above information, CPU and heap profiles are always greatly a
 
 ### CPU / Heap Profiles
 
-CPU and heap profiles increase our ability to debug performance issues. All our services run with the [net/http/pprof](https://golang.org/pkg/net/http/pprof/) server enabled by default.
+CPU and heap profiles are critical to helping us debug performance issues. All our services run with the [net/http/pprof](https://golang.org/pkg/net/http/pprof/) server enabled by default.
 
-Instructions for obtaining CPU / heap profiles for various services are below.
+Instructions for obtaining CPU / heap profiles for various services are below, please attach these profiles to the issue whenever possible.
 
 #### M3Coordinator
 
 CPU
-`go tool pprof <HOST_NAME>:<PORT(default 7201)>/debug/pprof/profile?seconds=5`
+`curl <HOST_NAME>:<PORT(default 7201)>/debug/pprof/profile?seconds=5 > m3coord_cpu.out`
 
 Heap
-`go tool pprof <HOST_NAME>:<PORT(default 7201)>/debug/pprof/heap`
+`curl <HOST_NAME>:<PORT(default 7201)>/debug/pprof/heap > m3coord_heap.out`
 
 #### M3DB
 
 CPU
-`go tool pprof <HOST_NAME>:<PORT(default 9004)>/debug/pprof/profile?seconds=5`
+`curl <HOST_NAME>:<PORT(default 9004)>/debug/pprof/profile?seconds=5 > m3db_cpu.out`
 
-HEAP
-`go tool pprof <HOST_NAME>:<PORT(default 9004)>/debug/pprof/heap`
+Heap
+`curl <HOST_NAME>:<PORT(default 9004)>/debug/pprof/heap -> m3db_heap.out`
+
+### M3DB Grafana Dashboard Screenshots
+
+If the service experiencing performance issues is M3DB and you're monitoring it using Prometheus, any screenshots you could provide using [this](https://grafana.com/dashboards/8126) dashboard would be helpful.
