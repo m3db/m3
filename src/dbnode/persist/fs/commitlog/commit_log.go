@@ -632,13 +632,17 @@ func (l *commitLog) writeWait(
 		numToEnqueue = int64(len(writeToEnqueue.write.writeBatch.Iter()))
 	}
 
-	// Best-effort check. In theory queue limit can be exceeded, but not by much.
-	numEnqueued := atomic.LoadInt64(&l.numWritesInQueue)
-	if numToEnqueue+numEnqueued > l.maxQueueSize {
+	// Optimistically increment the number of enqueued writes.
+	numEnqueued := atomic.AddInt64(&l.numWritesInQueue, int64(numToEnqueue))
+
+	// If we exceeded the limit, decrement the number of enqueued writes and bail.
+	if numEnqueued > l.maxQueueSize {
+		atomic.AddInt64(&l.numWritesInQueue, int64(-numToEnqueue))
 		l.closedState.RUnlock()
 		return ErrCommitLogQueueFull
 	}
 
+	// Otherwise submit the write.
 	l.writes <- commitLogWrite{
 		write:      write,
 		callbackFn: completion,
@@ -666,14 +670,17 @@ func (l *commitLog) writeBehind(
 		numToEnqueue = int64(len(write.writeBatch.Iter()))
 	}
 
-	// Best-effort check. In theory queue limit can be exceeded, but not by much.
-	numEnqueued := atomic.LoadInt64(&l.numWritesInQueue)
-	if numToEnqueue+numEnqueued > l.maxQueueSize {
+	// Optimistically increment the number of enqueued writes.
+	numEnqueued := atomic.AddInt64(&l.numWritesInQueue, int64(numToEnqueue))
+
+	// If we exceeded the limit, decrement the number of enqueued writes and bail.
+	if numEnqueued > l.maxQueueSize {
+		atomic.AddInt64(&l.numWritesInQueue, int64(-numToEnqueue))
 		l.closedState.RUnlock()
 		return ErrCommitLogQueueFull
 	}
-	atomic.AddInt64(&l.numWritesInQueue, int64(numToEnqueue))
 
+	// Otherwise submit the write.
 	l.writes <- commitLogWrite{
 		write: write,
 	}
