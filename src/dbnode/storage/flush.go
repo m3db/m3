@@ -55,17 +55,19 @@ type flushManager struct {
 	database database
 	opts     Options
 	pm       persist.Manager
-	// isFlushingOrSnapshotting is used to protect the flush manager against
-	// concurrent use, while flushInProgress and snapshotInProgress are more
+
+	// state is used to protect the flush manager against concurrent use,
+	// while isFlushing, isSnapshotting, and isIndexFlushing are more
 	// granular and are used for emitting granular gauges.
 	state           flushManagerState
 	isFlushing      tally.Gauge
 	isSnapshotting  tally.Gauge
 	isIndexFlushing tally.Gauge
-
 	// This is a "debug" metric for making sure that the snapshotting process
 	// is not overly aggressive.
 	maxBlocksSnapshottedByNamespace tally.Gauge
+
+	lastSuccessfulSnapshotStartTime time.Time
 }
 
 func newFlushManager(database database, scope tally.Scope) databaseFlushManager {
@@ -164,6 +166,10 @@ func (m *flushManager) Flush(
 
 	// mark data flush finished
 	multiErr = multiErr.Add(flush.DoneData())
+
+	if multiErr.NumErrors() == 0 {
+		m.lastSuccessfulSnapshotStartTime = tickStart
+	}
 
 	// flush index data
 	// create index-flusher
@@ -278,4 +284,8 @@ func (m *flushManager) flushNamespaceWithTimes(
 		}
 	}
 	return multiErr.FinalError()
+}
+
+func (m *flushManager) LastSuccessfulSnapshotStartTime() (time.Time, bool) {
+	return m.lastSuccessfulSnapshotStartTime, !m.lastSuccessfulSnapshotStartTime.IsZero()
 }

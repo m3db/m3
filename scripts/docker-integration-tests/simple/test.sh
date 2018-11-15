@@ -35,7 +35,7 @@ curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/namespace -d '{
     "flushEnabled": true,
     "writesToCommitLog": true,
     "cleanupEnabled": true,
-    "snapshotEnabled": false,
+    "snapshotEnabled": true,
     "repairEnabled": false,
     "retentionOptions": {
       "retentionPeriodNanos": 172800000000000,

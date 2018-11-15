@@ -534,6 +534,10 @@ type databaseFlushManager interface {
 	// Flush flushes in-memory data to persistent storage.
 	Flush(tickStart time.Time, dbBootstrapStateAtTickStart DatabaseBootstrapState) error
 
+	// LastSuccessfulSnapshotStartTime returns the start time of the last successful snapshot,
+	// if any.
+	LastSuccessfulSnapshotStartTime() (time.Time, bool)
+
 	// Report reports runtime information
 	Report()
 }
@@ -576,6 +580,10 @@ type databaseFileSystemManager interface {
 
 	// Report reports runtime information
 	Report()
+
+	// LastSuccessfulSnapshotStartTime returns the start time of the last successful snapshot,
+	// if any.
+	LastSuccessfulSnapshotStartTime() (time.Time, bool)
 }
 
 // databaseShardRepairer repairs in-memory data for a shard
@@ -643,6 +651,10 @@ type databaseMediator interface {
 
 	// Report reports runtime information
 	Report()
+
+	// LastSuccessfulSnapshotStartTime returns the start time of the last successful snapshot,
+	// if any.
+	LastSuccessfulSnapshotStartTime() (time.Time, bool)
 }
 
 // databaseNamespaceWatch watches for namespace updates.

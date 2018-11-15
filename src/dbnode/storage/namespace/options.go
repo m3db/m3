@@ -34,7 +34,7 @@ const (
 	defaultFlushEnabled = true
 
 	// Namespace requires snapshotting disabled by default
-	defaultSnapshotEnabled = false
+	defaultSnapshotEnabled = true
 
 	// Namespace writes go to commit logs by default
 	defaultWritesToCommitLog = true

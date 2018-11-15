@@ -280,7 +280,9 @@ func (d *clusterDB) analyzeAndReportShardStates() {
 		return
 	}
 
-	// Count if initializing shards have bootstrapped in all namespaces
+	// Count if initializing shards have bootstrapped in all namespaces. This
+	// check is redundant with the database check below, but we do it for
+	// posterity.
 	namespaces := d.Database.Namespaces()
 	for _, n := range namespaces {
 		for _, s := range n.Shards() {
@@ -293,6 +295,10 @@ func (d *clusterDB) analyzeAndReportShardStates() {
 			d.bootstrapCount[s.ID()]++
 		}
 	}
+
+	// TODO(rartoul): Make sure the database has durably persisted everything
+	// since the last change.
+	// d.IsBootstrappedAndDurable()
 
 	var markAvailable []uint32
 	for id := range d.initializing {

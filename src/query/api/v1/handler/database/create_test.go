@@ -136,7 +136,7 @@ func TestLocalType(t *testing.T) {
 							"blockDataExpiry": true,
 							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
 						},
-						"snapshotEnabled": false,
+						"snapshotEnabled": true,
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
@@ -237,7 +237,7 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 							"blockDataExpiry": true,
 							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
 						},
-						"snapshotEnabled": false,
+						"snapshotEnabled": true,
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "10800000000000"
@@ -341,7 +341,7 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 							"blockDataExpiry": true,
 							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
 						},
-						"snapshotEnabled": false,
+						"snapshotEnabled": true,
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "%d"
@@ -452,7 +452,7 @@ func TestClusterTypeHosts(t *testing.T) {
 							"blockDataExpiry": true,
 							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
 						},
-						"snapshotEnabled": false,
+						"snapshotEnabled": true,
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
@@ -573,7 +573,7 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 							"blockDataExpiry": true,
 							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
 						},
-						"snapshotEnabled": false,
+						"snapshotEnabled": true,
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"

@@ -83,15 +83,18 @@ type db struct {
 	nowFn clock.NowFn
 
 	nsWatch    databaseNamespaceWatch
-	shardSet   sharding.ShardSet
 	namespaces *databaseNamespacesMap
-	commitLog  commitlog.CommitLog
+
+	commitLog commitlog.CommitLog
 
 	state    databaseState
 	mediator databaseMediator
 
 	created    uint64
 	bootstraps int
+
+	shardSet           sharding.ShardSet
+	shardSetAssignedAt time.Time
 
 	scope   tally.Scope
 	metrics databaseMetrics
@@ -357,10 +360,13 @@ func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 	d.Lock()
 	defer d.Unlock()
 	d.shardSet = shardSet
+	d.shardSetAssignedAt = d.nowFn()
+
 	for _, elem := range d.namespaces.Iter() {
 		ns := elem.Value()
 		ns.AssignShardSet(shardSet)
 	}
+
 	d.queueBootstrapWithLock()
 }
 
@@ -738,6 +744,18 @@ func (d *db) Bootstrap() error {
 
 func (d *db) IsBootstrapped() bool {
 	return d.mediator.IsBootstrapped()
+}
+
+func (d *db) IsBootstrappedAndDurable() bool {
+	isBootstrapped := d.mediator.IsBootstrapped()
+
+	lastSnapshot, ok := d.mediator.LastSuccessfulSnapshotStartTime()
+	if !ok {
+		return false
+	}
+	isDurable := lastSnapshot.After(d.shardSetAssignedAt)
+
+	return isBootstrapped && isDurable
 }
 
 func (d *db) Repair() error {
