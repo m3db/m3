@@ -27,7 +27,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
@@ -41,8 +40,6 @@ const (
 
 var (
 	namespace = ident.StringID("namespace")
-	numShards = 10
-	shardFn   = sharding.NewHashFn(numShards, 0)
 	writes    = []testWrite{
 		{
 			id: ident.StringID("series1"),
@@ -169,7 +166,7 @@ func TestWriteBatchReset(t *testing.T) {
 	)
 
 	for i := 0; i < numResets; i++ {
-		writeBatch.Reset(batchSize, namespace, shardFn)
+		writeBatch.Reset(batchSize, namespace)
 		for _, write := range writes {
 			writeBatch.Add(
 				i,
