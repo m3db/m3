@@ -100,6 +100,8 @@ func (b *writeBatch) SetOutcome(idx int, series Series, err error) {
 }
 
 func (b *writeBatch) Finalize() {
+	b.ns = nil
+	b.writes = b.writes[:0]
 	b.finalizeFn(b)
 }
 
