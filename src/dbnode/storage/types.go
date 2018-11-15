@@ -52,12 +52,11 @@ import (
 // PageToken is an opaque paging token.
 type PageToken []byte
 
-// IndexedError represents an error associated with the index
-// of the value in the provided collection that generated the
-// error.
-type IndexedError struct {
-	Index int
-	Err   error
+// IndexedErrorHandler can handle individual errors based on their index. It
+// is used primarily in cases where we need to handle errors in batches, but
+// want to avoid an intermediary allocation of []error.
+type IndexedErrorHandler interface {
+	HandleError(index int, err error)
 }
 
 // Database is a time series database
@@ -121,14 +120,16 @@ type Database interface {
 		ctx context.Context,
 		namespace ident.ID,
 		writes ts.BatchWriter,
-	) ([]IndexedError, error)
+		errHandler IndexedErrorHandler,
+	) error
 
 	// WriteTaggedBatch is the same as WriteTagged, but in batch.
 	WriteTaggedBatch(
 		ctx context.Context,
 		namespace ident.ID,
 		writes ts.BatchWriter,
-	) ([]IndexedError, error)
+		errHandler IndexedErrorHandler,
+	) error
 
 	// QueryIDs resolves the given query into known IDs.
 	QueryIDs(

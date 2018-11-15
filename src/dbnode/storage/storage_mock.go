@@ -55,6 +55,39 @@ import (
 	"github.com/golang/mock/gomock"
 )
 
+// MockIndexedErrorHandler is a mock of IndexedErrorHandler interface
+type MockIndexedErrorHandler struct {
+	ctrl     *gomock.Controller
+	recorder *MockIndexedErrorHandlerMockRecorder
+}
+
+// MockIndexedErrorHandlerMockRecorder is the mock recorder for MockIndexedErrorHandler
+type MockIndexedErrorHandlerMockRecorder struct {
+	mock *MockIndexedErrorHandler
+}
+
+// NewMockIndexedErrorHandler creates a new mock instance
+func NewMockIndexedErrorHandler(ctrl *gomock.Controller) *MockIndexedErrorHandler {
+	mock := &MockIndexedErrorHandler{ctrl: ctrl}
+	mock.recorder = &MockIndexedErrorHandlerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockIndexedErrorHandler) EXPECT() *MockIndexedErrorHandlerMockRecorder {
+	return m.recorder
+}
+
+// HandleError mocks base method
+func (m *MockIndexedErrorHandler) HandleError(index int, err error) {
+	m.ctrl.Call(m, "HandleError", index, err)
+}
+
+// HandleError indicates an expected call of HandleError
+func (mr *MockIndexedErrorHandlerMockRecorder) HandleError(index, err interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HandleError", reflect.TypeOf((*MockIndexedErrorHandler)(nil).HandleError), index, err)
+}
+
 // MockDatabase is a mock of Database interface
 type MockDatabase struct {
 	ctrl     *gomock.Controller
@@ -211,29 +244,27 @@ func (mr *MockDatabaseMockRecorder) BatchWriter(namespace, batchSize interface{}
 }
 
 // WriteBatch mocks base method
-func (m *MockDatabase) WriteBatch(ctx context.Context, namespace ident.ID, writes ts.BatchWriter) ([]IndexedError, error) {
-	ret := m.ctrl.Call(m, "WriteBatch", ctx, namespace, writes)
-	ret0, _ := ret[0].([]IndexedError)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+func (m *MockDatabase) WriteBatch(ctx context.Context, namespace ident.ID, writes ts.BatchWriter, errHandler IndexedErrorHandler) error {
+	ret := m.ctrl.Call(m, "WriteBatch", ctx, namespace, writes, errHandler)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // WriteBatch indicates an expected call of WriteBatch
-func (mr *MockDatabaseMockRecorder) WriteBatch(ctx, namespace, writes interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatch", reflect.TypeOf((*MockDatabase)(nil).WriteBatch), ctx, namespace, writes)
+func (mr *MockDatabaseMockRecorder) WriteBatch(ctx, namespace, writes, errHandler interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatch", reflect.TypeOf((*MockDatabase)(nil).WriteBatch), ctx, namespace, writes, errHandler)
 }
 
 // WriteTaggedBatch mocks base method
-func (m *MockDatabase) WriteTaggedBatch(ctx context.Context, namespace ident.ID, writes ts.BatchWriter) ([]IndexedError, error) {
-	ret := m.ctrl.Call(m, "WriteTaggedBatch", ctx, namespace, writes)
-	ret0, _ := ret[0].([]IndexedError)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+func (m *MockDatabase) WriteTaggedBatch(ctx context.Context, namespace ident.ID, writes ts.BatchWriter, errHandler IndexedErrorHandler) error {
+	ret := m.ctrl.Call(m, "WriteTaggedBatch", ctx, namespace, writes, errHandler)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // WriteTaggedBatch indicates an expected call of WriteTaggedBatch
-func (mr *MockDatabaseMockRecorder) WriteTaggedBatch(ctx, namespace, writes interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTaggedBatch", reflect.TypeOf((*MockDatabase)(nil).WriteTaggedBatch), ctx, namespace, writes)
+func (mr *MockDatabaseMockRecorder) WriteTaggedBatch(ctx, namespace, writes, errHandler interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTaggedBatch", reflect.TypeOf((*MockDatabase)(nil).WriteTaggedBatch), ctx, namespace, writes, errHandler)
 }
 
 // QueryIDs mocks base method
@@ -518,29 +549,27 @@ func (mr *MockdatabaseMockRecorder) BatchWriter(namespace, batchSize interface{}
 }
 
 // WriteBatch mocks base method
-func (m *Mockdatabase) WriteBatch(ctx context.Context, namespace ident.ID, writes ts.BatchWriter) ([]IndexedError, error) {
-	ret := m.ctrl.Call(m, "WriteBatch", ctx, namespace, writes)
-	ret0, _ := ret[0].([]IndexedError)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+func (m *Mockdatabase) WriteBatch(ctx context.Context, namespace ident.ID, writes ts.BatchWriter, errHandler IndexedErrorHandler) error {
+	ret := m.ctrl.Call(m, "WriteBatch", ctx, namespace, writes, errHandler)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // WriteBatch indicates an expected call of WriteBatch
-func (mr *MockdatabaseMockRecorder) WriteBatch(ctx, namespace, writes interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatch", reflect.TypeOf((*Mockdatabase)(nil).WriteBatch), ctx, namespace, writes)
+func (mr *MockdatabaseMockRecorder) WriteBatch(ctx, namespace, writes, errHandler interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatch", reflect.TypeOf((*Mockdatabase)(nil).WriteBatch), ctx, namespace, writes, errHandler)
 }
 
 // WriteTaggedBatch mocks base method
-func (m *Mockdatabase) WriteTaggedBatch(ctx context.Context, namespace ident.ID, writes ts.BatchWriter) ([]IndexedError, error) {
-	ret := m.ctrl.Call(m, "WriteTaggedBatch", ctx, namespace, writes)
-	ret0, _ := ret[0].([]IndexedError)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+func (m *Mockdatabase) WriteTaggedBatch(ctx context.Context, namespace ident.ID, writes ts.BatchWriter, errHandler IndexedErrorHandler) error {
+	ret := m.ctrl.Call(m, "WriteTaggedBatch", ctx, namespace, writes, errHandler)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // WriteTaggedBatch indicates an expected call of WriteTaggedBatch
-func (mr *MockdatabaseMockRecorder) WriteTaggedBatch(ctx, namespace, writes interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTaggedBatch", reflect.TypeOf((*Mockdatabase)(nil).WriteTaggedBatch), ctx, namespace, writes)
+func (mr *MockdatabaseMockRecorder) WriteTaggedBatch(ctx, namespace, writes, errHandler interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTaggedBatch", reflect.TypeOf((*Mockdatabase)(nil).WriteTaggedBatch), ctx, namespace, writes, errHandler)
 }
 
 // QueryIDs mocks base method

@@ -564,27 +564,30 @@ func (d *db) WriteBatch(
 	ctx context.Context,
 	namespace ident.ID,
 	writer ts.BatchWriter,
-) ([]IndexedError, error) {
-	return d.writeBatch(ctx, namespace, writer, false)
+	errHandler IndexedErrorHandler,
+) error {
+	return d.writeBatch(ctx, namespace, writer, errHandler, false)
 }
 
 func (d *db) WriteTaggedBatch(
 	ctx context.Context,
 	namespace ident.ID,
 	writer ts.BatchWriter,
-) ([]IndexedError, error) {
-	return d.writeBatch(ctx, namespace, writer, true)
+	errHandler IndexedErrorHandler,
+) error {
+	return d.writeBatch(ctx, namespace, writer, errHandler, true)
 }
 
 func (d *db) writeBatch(
 	ctx context.Context,
 	namespace ident.ID,
 	writer ts.BatchWriter,
+	errHandler IndexedErrorHandler,
 	tagged bool,
-) ([]IndexedError, error) {
+) error {
 	writes, ok := writer.(ts.WriteBatch)
 	if !ok {
-		return nil, errWriterDoesNotImplementWriteBatch
+		return errWriterDoesNotImplementWriteBatch
 	}
 
 	n, err := d.namespaceFor(namespace)
@@ -594,13 +597,10 @@ func (d *db) writeBatch(
 		} else {
 			d.metrics.unknownNamespaceWriteBatch.Inc(1)
 		}
-		return nil, err
+		return err
 	}
 
-	var (
-		iter      = writes.Iter()
-		writeErrs []IndexedError
-	)
+	iter := writes.Iter()
 	for i, write := range iter {
 		var (
 			series ts.Series
@@ -632,12 +632,9 @@ func (d *db) writeBatch(
 			d.errors.Record(1)
 		}
 		if err != nil {
-			writeErrs = append(writeErrs, IndexedError{
-				// Return errors with the original index provided by the caller so they
-				// can associate the error with the write that caused it.
-				Index: write.OriginalIndex,
-				Err:   err,
-			})
+			// Return errors with the original index provided by the caller so they
+			// can associate the error with the write that caused it.
+			errHandler.HandleError(write.OriginalIndex, err)
 		}
 
 		// Need to set the outcome in the success case so the commitlog gets the updated
@@ -650,7 +647,7 @@ func (d *db) writeBatch(
 
 	err = d.commitLog.WriteBatch(ctx, writes)
 
-	return writeErrs, err
+	return err
 }
 
 func (d *db) QueryIDs(

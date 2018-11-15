@@ -671,7 +671,7 @@ func TestDatabaseWriteBatchNoNamespace(t *testing.T) {
 	_, err := d.BatchWriter(notExistNamespace, batchSize)
 	require.Error(t, err)
 
-	_, err = d.WriteBatch(nil, notExistNamespace, nil)
+	err = d.WriteBatch(nil, notExistNamespace, nil, nil)
 	require.Error(t, err)
 
 	require.NoError(t, d.Close())
@@ -694,7 +694,7 @@ func TestDatabaseWriteTaggedBatchNoNamespace(t *testing.T) {
 	_, err := d.BatchWriter(notExistNamespace, batchSize)
 	require.Error(t, err)
 
-	_, err = d.WriteTaggedBatch(nil, notExistNamespace, nil)
+	err = d.WriteTaggedBatch(nil, notExistNamespace, nil, nil)
 	require.Error(t, err)
 
 	require.NoError(t, d.Close())
@@ -706,6 +706,19 @@ func TestDatabaseWriteBatch(t *testing.T) {
 
 func TestDatabaseWriteTaggedBatch(t *testing.T) {
 	testDatabaseWriteBatch(t, true)
+}
+
+type fakeIndexedErrorHandler struct {
+	errs []indexedErr
+}
+
+func (f *fakeIndexedErrorHandler) HandleError(index int, err error) {
+	f.errs = append(f.errs, indexedErr{index, err})
+}
+
+type indexedErr struct {
+	index int
+	err   error
 }
 
 func testDatabaseWriteBatch(t *testing.T, tagged bool) {
@@ -767,8 +780,11 @@ func testDatabaseWriteBatch(t *testing.T, tagged bool) {
 
 	var i int
 	for _, write := range writes {
+		// Write with the provided index as i*2 so we can assert later that the
+		// ErrorHandler is called with the provided index, not the actual position
+		// in the WriteBatch slice.
 		if tagged {
-			batchWriter.AddTagged(i, ident.StringID(write.series), tagsIter, write.t, write.v, xtime.Second, nil)
+			batchWriter.AddTagged(i*2, ident.StringID(write.series), tagsIter, write.t, write.v, xtime.Second, nil)
 			ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher(write.series), gomock.Any(),
 				write.t, write.v, xtime.Second, nil).Return(
 				ts.Series{
@@ -777,7 +793,7 @@ func testDatabaseWriteBatch(t *testing.T, tagged bool) {
 					Tags:      ident.Tags{},
 				}, write.err)
 		} else {
-			batchWriter.Add(i, ident.StringID(write.series), write.t, write.v, xtime.Second, nil)
+			batchWriter.Add(i*2, ident.StringID(write.series), write.t, write.v, xtime.Second, nil)
 			ns.EXPECT().Write(ctx, ident.NewIDMatcher(write.series),
 				write.t, write.v, xtime.Second, nil).Return(
 				ts.Series{
@@ -789,16 +805,18 @@ func testDatabaseWriteBatch(t *testing.T, tagged bool) {
 		i++
 	}
 
-	var writeErrs []IndexedError
+	errHandler := &fakeIndexedErrorHandler{}
 	if tagged {
-		writeErrs, err = d.WriteTaggedBatch(ctx, namespace, batchWriter.(ts.WriteBatch))
+		err = d.WriteTaggedBatch(ctx, namespace, batchWriter.(ts.WriteBatch), errHandler)
 	} else {
-		writeErrs, err = d.WriteBatch(ctx, namespace, batchWriter.(ts.WriteBatch))
+		err = d.WriteBatch(ctx, namespace, batchWriter.(ts.WriteBatch), errHandler)
 	}
 
 	require.NoError(t, err)
-	require.Equal(t, 1, len(writeErrs))
-	require.Equal(t, i-1, writeErrs[0].Index)
+	require.Len(t, errHandler.errs, 1)
+	// Make sure it calls the error handler with the "original" provided index, not the position
+	// of the write in the WriteBatch slice.
+	require.Equal(t, (i-1)*2, errHandler.errs[0].index)
 	require.NoError(t, d.Close())
 }
 

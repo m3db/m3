@@ -436,6 +436,30 @@ func (mr *MockOptionsMockRecorder) BacklogQueueSize() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BacklogQueueSize", reflect.TypeOf((*MockOptions)(nil).BacklogQueueSize))
 }
 
+// SetBacklogQueueChannelSize mocks base method
+func (m *MockOptions) SetBacklogQueueChannelSize(value int) Options {
+	ret := m.ctrl.Call(m, "SetBacklogQueueChannelSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBacklogQueueChannelSize indicates an expected call of SetBacklogQueueChannelSize
+func (mr *MockOptionsMockRecorder) SetBacklogQueueChannelSize(value interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBacklogQueueChannelSize", reflect.TypeOf((*MockOptions)(nil).SetBacklogQueueChannelSize), value)
+}
+
+// BacklogQueueChannelSize mocks base method
+func (m *MockOptions) BacklogQueueChannelSize() int {
+	ret := m.ctrl.Call(m, "BacklogQueueChannelSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// BacklogQueueChannelSize indicates an expected call of BacklogQueueChannelSize
+func (mr *MockOptionsMockRecorder) BacklogQueueChannelSize() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BacklogQueueChannelSize", reflect.TypeOf((*MockOptions)(nil).BacklogQueueChannelSize))
+}
+
 // SetBytesPool mocks base method
 func (m *MockOptions) SetBytesPool(value pool.CheckedBytesPool) Options {
 	ret := m.ctrl.Call(m, "SetBytesPool", value)
