@@ -191,7 +191,7 @@ type CommitLogPolicy struct {
 	// modify the Queue size instead which maps directly to the number of writes. This
 	// works in most cases because the default size of the QueueChannel should be large
 	// enough for almost all workloads assuming a reasonable batch size is used.
-	QueueChannel *CommitLogQueuePolicy `yaml:"queueChannel" validate:"nonzero"`
+	QueueChannel *CommitLogQueuePolicy `yaml:"queueChannel"`
 
 	// The commit log block size.
 	BlockSize time.Duration `yaml:"blockSize" validate:"nonzero"`
