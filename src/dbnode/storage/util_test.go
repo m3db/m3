@@ -94,11 +94,11 @@ func TestTimesInRange(t *testing.T) {
 	require.Equal(t, []time.Time{timeFor(2)},
 		timesInRange(timeFor(2), timeFor(2), w))
 
-	// [0, 9] with a gap of 3 ==> [0, 3, 6, 9]
+	// [0, 9] with a gap of 3 ==> [9, 6, 3, 0]
 	require.Equal(t, []time.Time{timeFor(9), timeFor(6), timeFor(3), timeFor(0)},
 		timesInRange(timeFor(0), timeFor(9), 3*w))
 
-	// [1, 9] with a gap of 3 ==> [1, 4, 7]
+	// [1, 9] with a gap of 3 ==> [9, 6, 3]
 	require.Equal(t, []time.Time{timeFor(9), timeFor(6), timeFor(3)},
 		timesInRange(timeFor(1), timeFor(9), 3*w))
 
