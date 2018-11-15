@@ -1,7 +1,7 @@
 # Media
 
 # Blogs
-- [M3: Uber’s Open Source, Large-scale Metrics Platform for Prometheus]() By Rob Skillington - Aug 7, 2018.
+- [M3: Uber’s Open Source, Large-scale Metrics Platform for Prometheus](https://eng.uber.com/m3/) By Rob Skillington - Aug 7, 2018.
 
 # Recorded Talks
 - [Panel Discussion: Prometheus Long-Term Storage Approaches](https://youtu.be/VvJx0WTiGcA?t=23530) including highlights of M3 stack by Nikunj Agarwal - Aug 9, 2018.
