@@ -62,17 +62,22 @@ type flushManager struct {
 	isFlushing      tally.Gauge
 	isSnapshotting  tally.Gauge
 	isIndexFlushing tally.Gauge
+
+	// This is a "debug" metric for making sure that the snapshotting process
+	// is not overly aggressive.
+	maxBlocksSnapshottedByNamespace tally.Gauge
 }
 
 func newFlushManager(database database, scope tally.Scope) databaseFlushManager {
 	opts := database.Options()
 	return &flushManager{
-		database:        database,
-		opts:            opts,
-		pm:              opts.PersistManager(),
-		isFlushing:      scope.Gauge("flush"),
-		isSnapshotting:  scope.Gauge("snapshot"),
-		isIndexFlushing: scope.Gauge("index-flush"),
+		database:                        database,
+		opts:                            opts,
+		pm:                              opts.PersistManager(),
+		isFlushing:                      scope.Gauge("flush"),
+		isSnapshotting:                  scope.Gauge("snapshot"),
+		isIndexFlushing:                 scope.Gauge("index-flush"),
+		maxBlocksSnapshottedByNamespace: scope.Gauge("max-blocks-snapshotted-by-namespace"),
 	}
 }
 
@@ -102,6 +107,15 @@ func (m *flushManager) Flush(
 		return err
 	}
 
+	// Perform two separate loops through all the namespaces so that we can emit better
+	// gauges I.E all the flushing for all the namespaces happens at once and then all
+	// the snapshotting for all the namespaces happens at once. This is also slightly
+	// better semantically because flushing should take priority over snapshotting.
+	//
+	// In addition, we need to make sure that for any given shard/blockStart combination,
+	// we attempt a flush before a snapshot as the snapshotting process will attempt to
+	// snapshot any unflushed blocks which would be wasteful if the block is already
+	// flushable.
 	multiErr := xerrors.NewMultiError()
 	m.setState(flushManagerFlushInProgress)
 	for _, ns := range namespaces {
@@ -117,16 +131,8 @@ func (m *flushManager) Flush(
 		multiErr = multiErr.Add(m.flushNamespaceWithTimes(ns, shardBootstrapTimes, flushTimes, flush))
 	}
 
-	// Perform two separate loops through all the namespaces so that we can emit better
-	// gauges I.E all the flushing for all the namespaces happens at once and then all
-	// the snapshotting for all the namespaces happens at once. This is also slightly
-	// better semantically because flushing should take priority over snapshotting.
-	//
-	// In addition, we need to make sure that for any given shard/blockStart combination,
-	// we attempt a flush before a snapshot as the snapshotting process will attempt to
-	// snapshot any unflushed blocks which would be wasteful if the block is already
-	// flushable.
 	m.setState(flushManagerSnapshotInProgress)
+	maxBlocksSnapshottedByNamespace := 0
 	for _, ns := range namespaces {
 		var (
 			snapshotBlockStarts     = m.namespaceSnapshotTimes(ns, tickStart)
@@ -140,6 +146,9 @@ func (m *flushManager) Flush(
 			continue
 		}
 
+		if len(snapshotBlockStarts) > maxBlocksSnapshottedByNamespace {
+			maxBlocksSnapshottedByNamespace = len(snapshotBlockStarts)
+		}
 		for _, snapshotBlockStart := range snapshotBlockStarts {
 			err := ns.Snapshot(
 				snapshotBlockStart, tickStart, shardBootstrapTimes, flush)
@@ -151,6 +160,7 @@ func (m *flushManager) Flush(
 			}
 		}
 	}
+	m.maxBlocksSnapshottedByNamespace.Update(float64(maxBlocksSnapshottedByNamespace))
 
 	// mark data flush finished
 	multiErr = multiErr.Add(flush.DoneData())
