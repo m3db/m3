@@ -23,7 +23,6 @@ package ts
 import (
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -77,7 +76,6 @@ func (b *writeBatch) AddTagged(
 func (b *writeBatch) Reset(
 	batchSize int,
 	ns ident.ID,
-	shardFn sharding.HashFn,
 ) {
 	var writes []BatchWrite
 	if batchSize > cap(b.writes) {

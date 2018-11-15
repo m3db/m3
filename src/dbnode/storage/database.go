@@ -556,7 +556,7 @@ func (d *db) BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, err
 		nsID        = n.ID()
 		batchWriter = d.writeBatchPool.Get()
 	)
-	batchWriter.Reset(batchSize, nsID, d.shardSet.Lookup)
+	batchWriter.Reset(batchSize, nsID)
 	return batchWriter, nil
 }
 

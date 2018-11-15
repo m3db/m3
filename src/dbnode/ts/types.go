@@ -23,7 +23,6 @@ package ts
 import (
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -86,11 +85,7 @@ type WriteBatch interface {
 	// Can't use a real iterator pattern here as it slows things down.
 	Iter() []BatchWrite
 	SetOutcome(idx int, series Series, err error)
-	Reset(
-		batchSize int,
-		ns ident.ID,
-		shardFn sharding.HashFn,
-	)
+	Reset(batchSize int, ns ident.ID)
 	Finalize()
 
 	// Returns the WriteBatch's internal capacity. Used by the pool to throw
