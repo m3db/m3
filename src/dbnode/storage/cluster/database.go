@@ -296,9 +296,9 @@ func (d *clusterDB) analyzeAndReportShardStates() {
 		}
 	}
 
-	// TODO(rartoul): Make sure the database has durably persisted everything
-	// since the last change.
-	// d.IsBootstrappedAndDurable()
+	if !d.IsBootstrappedAndDurable() {
+		return
+	}
 
 	var markAvailable []uint32
 	for id := range d.initializing {

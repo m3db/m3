@@ -175,6 +175,11 @@ type Database interface {
 	// IsBootstrapped determines whether the database is bootstrapped.
 	IsBootstrapped() bool
 
+	// IsBootstrappedAndDurable determines whether the database is bootstrapped,
+	// and durable, meaning that it could recover all data in memory using only
+	// the local disk.
+	IsBootstrappedAndDurable() bool
+
 	// IsOverloaded determines whether the database is overloaded
 	IsOverloaded() bool
 

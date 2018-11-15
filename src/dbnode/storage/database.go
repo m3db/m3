@@ -749,11 +749,11 @@ func (d *db) IsBootstrapped() bool {
 func (d *db) IsBootstrappedAndDurable() bool {
 	isBootstrapped := d.mediator.IsBootstrapped()
 
-	lastSnapshot, ok := d.mediator.LastSuccessfulSnapshotStartTime()
+	lastSnapshotStartTime, ok := d.mediator.LastSuccessfulSnapshotStartTime()
 	if !ok {
 		return false
 	}
-	isDurable := lastSnapshot.After(d.shardSetAssignedAt)
+	isDurable := lastSnapshotStartTime.After(d.shardSetAssignedAt)
 
 	return isBootstrapped && isDurable
 }

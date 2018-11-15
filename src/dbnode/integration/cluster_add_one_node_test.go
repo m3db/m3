@@ -218,6 +218,12 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 	waitUntilHasBootstrappedShardsExactly(setups[1].db, testutil.Uint32Range(midShard+1, maxShard))
 
 	log.Debug("waiting for shards to be marked initialized")
+	for _, setup := range setups {
+		// Move time forward slightly so the database can determine that a snapshot
+		// has started and completed since the topology change. See
+		// Database.IsBootstrappedAndDurable method for more information.
+		setup.setNowFn(now.Add(time.Second))
+	}
 	allMarkedAvailable := func(
 		fakePlacementService fake.M3ClusterPlacementService,
 		instanceID string,
