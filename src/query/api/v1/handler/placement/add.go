@@ -96,7 +96,7 @@ func (h *AddHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *htt
 
 	resp := &admin.PlacementGetResponse{
 		Placement: placementProto,
-		Version:   int32(placement.GetVersion()),
+		Version:   int32(placement.Version()),
 	}
 
 	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
@@ -155,5 +155,5 @@ func (h *AddHandler) Add(
 
 	// Ensure the placement we're updating is still the one on which we validated
 	// all shards are available.
-	return service.CheckAndSet(newPlacement, curPlacement.GetVersion())
+	return service.CheckAndSet(newPlacement, curPlacement.Version())
 }

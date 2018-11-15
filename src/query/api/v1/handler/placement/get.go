@@ -108,7 +108,7 @@ func (h *GetHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *htt
 
 	resp := &admin.PlacementGetResponse{
 		Placement: placementProto,
-		Version:   int32(placement.GetVersion()),
+		Version:   int32(placement.Version()),
 	}
 
 	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)

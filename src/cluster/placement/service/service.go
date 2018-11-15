@@ -103,7 +103,7 @@ func (ps *placementService) AddReplica() (placement.Placement, error) {
 		return nil, err
 	}
 
-	return ps.CheckAndSet(tempPlacement, curPlacement.GetVersion())
+	return ps.CheckAndSet(tempPlacement, curPlacement.Version())
 }
 
 func (ps *placementService) AddInstances(
@@ -136,7 +136,7 @@ func (ps *placementService) AddInstances(
 		addingInstances[i] = addingInstance
 	}
 
-	newPlacement, err := ps.CheckAndSet(tempPlacement, curPlacement.GetVersion())
+	newPlacement, err := ps.CheckAndSet(tempPlacement, curPlacement.Version())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -158,7 +158,7 @@ func (ps *placementService) RemoveInstances(instanceIDs []string) (placement.Pla
 		return nil, err
 	}
 
-	return ps.CheckAndSet(tempPlacement, curPlacement.GetVersion())
+	return ps.CheckAndSet(tempPlacement, curPlacement.Version())
 }
 
 func (ps *placementService) ReplaceInstances(
@@ -193,7 +193,7 @@ func (ps *placementService) ReplaceInstances(
 		addedInstances = append(addedInstances, addedInstance)
 	}
 
-	newPlacement, err := ps.CheckAndSet(tempPlacement, curPlacement.GetVersion())
+	newPlacement, err := ps.CheckAndSet(tempPlacement, curPlacement.Version())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -215,7 +215,7 @@ func (ps *placementService) MarkShardsAvailable(instanceID string, shardIDs ...u
 		return nil, err
 	}
 
-	return ps.CheckAndSet(tempPlacement, curPlacement.GetVersion())
+	return ps.CheckAndSet(tempPlacement, curPlacement.Version())
 }
 
 func (ps *placementService) MarkInstanceAvailable(instanceID string) (placement.Placement, error) {
@@ -244,7 +244,7 @@ func (ps *placementService) MarkInstanceAvailable(instanceID string) (placement.
 		return nil, err
 	}
 
-	return ps.CheckAndSet(tempPlacement, curPlacement.GetVersion())
+	return ps.CheckAndSet(tempPlacement, curPlacement.Version())
 }
 
 func (ps *placementService) MarkAllShardsAvailable() (placement.Placement, error) {
@@ -265,5 +265,5 @@ func (ps *placementService) MarkAllShardsAvailable() (placement.Placement, error
 		return nil, err
 	}
 
-	return ps.CheckAndSet(tempPlacement, curPlacement.GetVersion())
+	return ps.CheckAndSet(tempPlacement, curPlacement.Version())
 }

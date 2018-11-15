@@ -44,7 +44,7 @@ func TestStorageWithSinglePlacement(t *testing.T) {
 		SetReplicaFactor(0)
 
 	pGet, err := ps.SetIfNotExist(p)
-	assert.Equal(t, 1, pGet.GetVersion())
+	assert.Equal(t, 1, pGet.Version())
 	require.NoError(t, err)
 
 	_, err = ps.SetIfNotExist(p)
@@ -65,17 +65,17 @@ func TestStorageWithSinglePlacement(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, pGet, h)
 
-	pGet, err = ps.CheckAndSet(p, pGet.GetVersion())
+	pGet, err = ps.CheckAndSet(p, pGet.Version())
 	require.NoError(t, err)
-	assert.Equal(t, 2, pGet.GetVersion())
+	assert.Equal(t, 2, pGet.Version())
 
-	_, err = ps.CheckAndSet(p, pGet.GetVersion()-1)
+	_, err = ps.CheckAndSet(p, pGet.Version()-1)
 	require.Error(t, err)
 	require.Equal(t, kv.ErrVersionMismatch, err)
 
 	pGet, err = ps.Placement()
 	require.NoError(t, err)
-	require.Equal(t, 2, pGet.GetVersion())
+	require.Equal(t, 2, pGet.Version())
 	require.Equal(t, p.SetVersion(2), pGet)
 
 	err = ps.Delete()
@@ -87,11 +87,11 @@ func TestStorageWithSinglePlacement(t *testing.T) {
 
 	pGet, err = ps.SetIfNotExist(p)
 	require.NoError(t, err)
-	assert.Equal(t, 1, pGet.GetVersion())
+	assert.Equal(t, 1, pGet.Version())
 
 	pGet, err = ps.Placement()
 	require.NoError(t, err)
-	require.Equal(t, 1, pGet.GetVersion())
+	require.Equal(t, 1, pGet.Version())
 	require.Equal(t, p.SetVersion(1), pGet)
 
 	proto, v, err := ps.Proto()
@@ -114,14 +114,14 @@ func TestStorageWithPlacementSnapshots(t *testing.T) {
 
 	pGet1, err := ps.SetIfNotExist(p)
 	require.NoError(t, err)
-	assert.Equal(t, 1, pGet1.GetVersion())
+	assert.Equal(t, 1, pGet1.Version())
 
 	_, err = ps.SetIfNotExist(p)
 	require.Error(t, err)
 
 	pGet1, err = ps.Placement()
 	require.NoError(t, err)
-	require.Equal(t, 1, pGet1.GetVersion())
+	require.Equal(t, 1, pGet1.Version())
 	require.Equal(t, p.SetVersion(1), pGet1)
 
 	_, err = ps.PlacementForVersion(0)
@@ -134,21 +134,21 @@ func TestStorageWithPlacementSnapshots(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, pGet1, h)
 
-	_, err = ps.CheckAndSet(p, pGet1.GetVersion())
+	_, err = ps.CheckAndSet(p, pGet1.Version())
 	require.Error(t, err)
 
 	p = p.SetCutoverNanos(p.CutoverNanos() + 1)
-	pGet2, err := ps.CheckAndSet(p, pGet1.GetVersion())
+	pGet2, err := ps.CheckAndSet(p, pGet1.Version())
 	require.NoError(t, err)
-	assert.Equal(t, 2, pGet2.GetVersion())
+	assert.Equal(t, 2, pGet2.Version())
 
-	_, err = ps.CheckAndSet(p.Clone().SetCutoverNanos(p.CutoverNanos()+1), pGet1.GetVersion()-1)
+	_, err = ps.CheckAndSet(p.Clone().SetCutoverNanos(p.CutoverNanos()+1), pGet1.Version()-1)
 	require.Error(t, err)
 	require.Equal(t, kv.ErrVersionMismatch, err)
 
 	pGet2, err = ps.Placement()
 	require.NoError(t, err)
-	require.Equal(t, 2, pGet2.GetVersion())
+	require.Equal(t, 2, pGet2.Version())
 	require.Equal(t, p.SetVersion(2), pGet2)
 
 	newProto, v, err := ps.Proto()
@@ -169,11 +169,11 @@ func TestStorageWithPlacementSnapshots(t *testing.T) {
 
 	pGet2, err = ps.SetIfNotExist(p)
 	require.NoError(t, err)
-	assert.Equal(t, 1, pGet2.GetVersion())
+	assert.Equal(t, 1, pGet2.Version())
 
 	pGet3, err := ps.Placement()
 	require.NoError(t, err)
-	require.Equal(t, 1, pGet3.GetVersion())
+	require.Equal(t, 1, pGet3.Version())
 	require.Equal(t, p.SetVersion(1), pGet3)
 }
 
@@ -188,7 +188,7 @@ func TestCheckAndSetProto(t *testing.T) {
 
 	pGet, err := ps.SetIfNotExist(p)
 	require.NoError(t, err)
-	assert.Equal(t, 1, pGet.GetVersion())
+	assert.Equal(t, 1, pGet.Version())
 
 	newProto, v, err := ps.Proto()
 	require.NoError(t, err)
@@ -220,35 +220,35 @@ func TestDryrun(t *testing.T) {
 
 	dryPGet, err := dryrunPS.SetIfNotExist(p)
 	require.NoError(t, err)
-	assert.Equal(t, 0, dryPGet.GetVersion())
+	assert.Equal(t, 0, dryPGet.Version())
 
 	_, err = ps.Placement()
 	require.Error(t, err)
 
 	pGet, err := ps.SetIfNotExist(p)
 	require.NoError(t, err)
-	assert.Equal(t, 1, pGet.GetVersion())
+	assert.Equal(t, 1, pGet.Version())
 
 	pGet, err = ps.Placement()
 	require.NoError(t, err)
-	require.Equal(t, 1, pGet.GetVersion())
+	require.Equal(t, 1, pGet.Version())
 
 	_, err = dryrunPS.CheckAndSet(p, 1)
 	require.NoError(t, err)
 
 	pGet, _ = ps.Placement()
-	require.Equal(t, 1, pGet.GetVersion())
+	require.Equal(t, 1, pGet.Version())
 
 	err = dryrunPS.Delete()
 	require.NoError(t, err)
 
 	pGet, err = ps.Placement()
 	require.NoError(t, err)
-	require.Equal(t, 1, pGet.GetVersion())
+	require.Equal(t, 1, pGet.Version())
 
 	dryPGet, err = dryrunPS.Placement()
 	require.NoError(t, err)
-	require.Equal(t, 1, dryPGet.GetVersion())
+	require.Equal(t, 1, dryPGet.Version())
 
 	err = ps.Delete()
 	require.NoError(t, err)

@@ -169,9 +169,9 @@ type Placement interface {
 	// String returns a description of the placement
 	String() string
 
-	// GetVersion() returns the version of the placement retreived from the
+	// Version() returns the version of the placement retreived from the
 	// backing MVCC store.
-	GetVersion() int
+	Version() int
 
 	// SetVersion() sets the version of the placement object. Since version
 	// is determined by the backing MVCC store, calling this method has no

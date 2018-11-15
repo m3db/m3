@@ -193,7 +193,7 @@ func (p *placement) SetCutoverNanos(cutoverNanos int64) Placement {
 	return p
 }
 
-func (p *placement) GetVersion() int {
+func (p *placement) Version() int {
 	return p.version
 }
 
@@ -239,7 +239,7 @@ func (p *placement) Clone() Placement {
 		SetIsMirrored(p.IsMirrored()).
 		SetCutoverNanos(p.CutoverNanos()).
 		SetMaxShardSetID(p.MaxShardSetID()).
-		SetVersion(p.GetVersion())
+		SetVersion(p.Version())
 }
 
 // Placements represents a list of placements.
