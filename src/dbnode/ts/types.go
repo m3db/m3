@@ -93,7 +93,8 @@ type WriteBatch interface {
 	)
 	Finalize()
 
-	// Returns the WriteBatch's internal capacity.
+	// Returns the WriteBatch's internal capacity. Used by the pool to throw
+	// away batches that have grown too large.
 	cap() int
 }
 
