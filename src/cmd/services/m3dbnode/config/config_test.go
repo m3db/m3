@@ -396,6 +396,7 @@ db:
     queue:
       calculationType: fixed
       size: 2097152
+    queueChannel: null
     blockSize: 10m0s
   repair:
     enabled: false
