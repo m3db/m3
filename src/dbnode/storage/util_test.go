@@ -77,14 +77,14 @@ func TestTimesInRange(t *testing.T) {
 		}
 		timesForN = func(i, j int64) []time.Time {
 			times := make([]time.Time, 0, j-i+1)
-			for k := i; k <= j; k++ {
+			for k := j; k >= i; k-- {
 				times = append(times, timeFor(k))
 			}
 			return times
 		}
 	)
 	// [0, 2] with a gap of 1 ==> [0, 1, 2]
-	require.Equal(t, []time.Time{timeFor(0), timeFor(1), timeFor(2)},
+	require.Equal(t, []time.Time{timeFor(2), timeFor(1), timeFor(0)},
 		timesInRange(timeFor(0), timeFor(2), w))
 
 	// [2, 1] with a gap of 1 ==> empty result
@@ -95,13 +95,13 @@ func TestTimesInRange(t *testing.T) {
 		timesInRange(timeFor(2), timeFor(2), w))
 
 	// [0, 9] with a gap of 3 ==> [0, 3, 6, 9]
-	require.Equal(t, []time.Time{timeFor(0), timeFor(3), timeFor(6), timeFor(9)},
+	require.Equal(t, []time.Time{timeFor(9), timeFor(6), timeFor(3), timeFor(0)},
 		timesInRange(timeFor(0), timeFor(9), 3*w))
 
 	// [1, 9] with a gap of 3 ==> [1, 4, 7]
-	require.Equal(t, []time.Time{timeFor(1), timeFor(4), timeFor(7)},
+	require.Equal(t, []time.Time{timeFor(9), timeFor(6), timeFor(3)},
 		timesInRange(timeFor(1), timeFor(9), 3*w))
 
-	// [1, 100] with a gap of 1 ==> [1, ..., 99, 100]
+	// [1, 100] with a gap of 1 ==> [100, 99, ..., 1]
 	require.Equal(t, timesForN(1, 100), timesInRange(timeFor(1), timeFor(100), w))
 }
