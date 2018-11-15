@@ -372,10 +372,17 @@ func (d *db) ShardSet() sharding.ShardSet {
 }
 
 func (d *db) queueBootstrapWithLock() {
-	// NB(r): Trigger another bootstrap, if already bootstrapping this will
-	// enqueue a new bootstrap to execute before the current bootstrap
-	// completes
+	// Only perform a bootstrap if at least one bootstrap has already occurred. This enables
+	// the ability to open the clustered database and assign shardsets to the non-clustered
+	// database when it receives an initial topology (as well as topology changes) without
+	// triggering a bootstrap until an external call initiates a bootstrap with an initial
+	// call to Bootstrap(). After that initial bootstrap, the clustered database will keep
+	// the non-clustered database bootstrapped by assign it shardsets which will trigger new
+	// bootstraps since d.bootstraps > 0 will be true.
 	if d.bootstraps > 0 {
+		// NB(r): Trigger another bootstrap, if already bootstrapping this will
+		// enqueue a new bootstrap to execute before the current bootstrap
+		// completes.
 		go func() {
 			if err := d.mediator.Bootstrap(); err != nil {
 				d.log.Errorf("error while bootstrapping: %v", err)
