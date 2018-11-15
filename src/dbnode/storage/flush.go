@@ -236,7 +236,9 @@ func (m *flushManager) namespaceSnapshotTimes(ns databaseNamespace, curr time.Ti
 		earliest = retention.FlushTimeStart(rOpts, curr)
 		// Latest possible snapshotting block is either the current block OR the
 		// next block if the current time and bufferFuture configuration would
-		// allow writes to be written into the next block.
+		// allow writes to be written into the next block. Note that "current time"
+		// here is defined as "tick start time" because all the guarantees about
+		// snapshotting are based around the tick start time, now the current time.
 		latest = curr.Add(rOpts.BufferFuture()).Truncate(blockSize)
 	)
 
