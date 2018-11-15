@@ -112,7 +112,7 @@ type Database interface {
 	) error
 
 	// BatchWriter returns a batch writer for the provided namespace that can
-	// be used to issue a batch of writes to eithe WriteBatch or WriteTaggedBatch.
+	// be used to issue a batch of writes to either WriteBatch or WriteTaggedBatch.
 	BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error)
 
 	// WriteBatch is the same as Write, but in batch.
