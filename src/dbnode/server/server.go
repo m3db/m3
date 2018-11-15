@@ -955,9 +955,9 @@ func withEncodingAndPoolingOptions(
 	multiIteratorPool := encoding.NewMultiReaderIteratorPool(
 		poolOptions(policy.IteratorPool, scope.SubScope("multi-iterator-pool")))
 
-	var writeBatchPoolInitialPoolSize *int
+	var writeBatchPoolInitialBatchSize *int
 	if policy.WriteBatchPool.InitialBatchSize != nil {
-		writeBatchPoolInitialPoolSize = policy.WriteBatchPool.InitialBatchSize
+		writeBatchPoolInitialBatchSize = policy.WriteBatchPool.InitialBatchSize
 	}
 	var writeBatchPoolMaxBatchSize *int
 	if policy.WriteBatchPool.MaxBatchSize != nil {
@@ -965,7 +965,7 @@ func withEncodingAndPoolingOptions(
 	}
 	writeBatchPool := ts.NewWriteBatchPool(
 		poolOptions(policy.WriteBatchPool.Pool, scope.SubScope("write-batch-pool")),
-		writeBatchPoolInitialPoolSize,
+		writeBatchPoolInitialBatchSize,
 		writeBatchPoolMaxBatchSize)
 
 	identifierPool := ident.NewPool(bytesPool, ident.PoolOptions{
