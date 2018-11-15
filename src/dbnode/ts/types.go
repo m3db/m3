@@ -45,21 +45,22 @@ type BatchWrite struct {
 	Err           error
 }
 
-// Series describes a series in the commit log
+// Series describes a series.
 type Series struct {
-	// UniqueIndex is the unique index assigned to this series
+	// UniqueIndex is the unique index assigned to this series (only valid
+	// on a per-process basis).
 	UniqueIndex uint64
 
-	// Namespace is the namespace the series belongs to
+	// Namespace is the namespace the series belongs to.
 	Namespace ident.ID
 
-	// ID is the series identifier
+	// ID is the series identifier.
 	ID ident.ID
 
-	// Tags are the series tags
+	// Tags are the series tags.
 	Tags ident.Tags
 
-	// Shard is the shard the series belongs to
+	// Shard is the shard the series belongs to.
 	Shard uint32
 }
 
