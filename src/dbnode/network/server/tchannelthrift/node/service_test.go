@@ -1285,8 +1285,8 @@ func TestServiceWriteBatchRaw(t *testing.T) {
 		Return(writeBatch, nil)
 
 	mockDB.EXPECT().
-		WriteBatch(ctx, ident.NewIDMatcher(nsID), writeBatch).
-		Return(nil, nil)
+		WriteBatch(ctx, ident.NewIDMatcher(nsID), writeBatch, gomock.Any()).
+		Return(nil)
 
 	var elements []*rpc.WriteBatchRawRequestElement
 	for _, w := range values {
@@ -1349,8 +1349,8 @@ func TestServiceWriteTaggedBatchRaw(t *testing.T) {
 		Return(writeBatch, nil)
 
 	mockDB.EXPECT().
-		WriteTaggedBatch(ctx, ident.NewIDMatcher(nsID), writeBatch).
-		Return(nil, nil)
+		WriteTaggedBatch(ctx, ident.NewIDMatcher(nsID), writeBatch, gomock.Any()).
+		Return(nil)
 
 	var elements []*rpc.WriteTaggedBatchRawRequestElement
 	for _, w := range values {
