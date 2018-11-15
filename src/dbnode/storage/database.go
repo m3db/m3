@@ -645,9 +645,7 @@ func (d *db) writeBatch(
 		writes.SetOutcome(i, series, err)
 	}
 
-	err = d.commitLog.WriteBatch(ctx, writes)
-
-	return err
+	return d.commitLog.WriteBatch(ctx, writes)
 }
 
 func (d *db) QueryIDs(
