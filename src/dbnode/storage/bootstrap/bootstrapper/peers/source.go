@@ -111,7 +111,9 @@ func (s *peersSource) ReadData(
 		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
 		persistConfig     = opts.PersistConfig()
 	)
-	if persistConfig.Enabled && seriesCachePolicy != series.CacheAll {
+	if persistConfig.Enabled &&
+		seriesCachePolicy != series.CacheAll &&
+		persistConfig.FileSetType == persist.FileSetFlushType {
 		retrieverMgr := s.opts.DatabaseBlockRetrieverManager()
 		persistManager := s.opts.PersistManager()
 
@@ -355,12 +357,25 @@ func (s *peersSource) flush(
 	shardResult result.ShardResult,
 	tr xtime.Range,
 ) error {
+	persistConfig := opts.PersistConfig()
+	if persistConfig.FileSetType != persist.FileSetFlushType {
+		// Should never happen.
+		iOpts := s.opts.ResultOptions().InstrumentOptions()
+		instrument.EmitAndLogInvariantViolation(iOpts, func(l xlog.Logger) {
+			l.WithFields(
+				xlog.NewField("namespace", nsMetadata.ID().String()),
+				xlog.NewField("filesetType", persistConfig.FileSetType),
+			).Error("error tried to persist data in peers bootstrapper with non-flush fileset type")
+		})
+		return instrument.InvariantErrorf(
+			"tried to flush with unexpected fileset type: %v", persistConfig.FileSetType)
+	}
+
 	var (
 		ropts             = nsMetadata.Options().RetentionOptions()
 		blockSize         = ropts.BlockSize()
 		tmpCtx            = context.NewContext()
 		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
-		persistConfig     = opts.PersistConfig()
 	)
 
 	for start := tr.Start; start.Before(tr.End); start = start.Add(blockSize) {
@@ -424,31 +439,12 @@ func (s *peersSource) flush(
 				break
 			}
 
-			switch persistConfig.FileSetType {
-			case persist.FileSetFlushType:
-				switch seriesCachePolicy {
-				case series.CacheAll:
-					// Leave the blocks in the shard result, we need to return all blocks
-					// so we can cache in memory
-				default:
-					// Not caching the series or metadata in memory so finalize the block,
-					// better to do this as we loop through to make blocks return to the
-					// pool earlier than at the end of this flush cycle
-					s.Blocks.RemoveBlockAt(start)
-					bl.Close()
-				}
-			case persist.FileSetSnapshotType:
-				// Unlike the FileSetFlushType scenario, in this case the caching
-				// strategy doesn't matter. Even if the LRU/RecentlyRead strategies are
-				// enabled, we still need to keep all the data in memory long enough for it
-				// to be flushed because the snapshot that we wrote out earlier will only ever
-				// be used if the node goes down again before we have a chance to flush the data
-				// from memory AND the commit log bootstrapper is set before the peers bootstrapper
-				// in the bootstrappers configuration.
-			default:
-				// Should never happen
-				return fmt.Errorf("unknown FileSetFileType: %v", persistConfig.FileSetType)
-			}
+			// Now that we've persisted the data to disk, we can finalize the block,
+			// as there is no need to keep it in memory. We do this here becasue it
+			// is better to do this as we loop to make blocks return to the pool earlier
+			// than all at once the end of this flush cycle.
+			s.Blocks.RemoveBlockAt(start)
+			bl.Close()
 		}
 
 		// Always close before attempting to check if block error occurred,
@@ -464,14 +460,9 @@ func (s *peersSource) flush(
 		}
 	}
 
-	// We only want to retain the series metadata in one of two cases:
-	// 	1) CacheAll caching policy (because we're expected to cache everything in memory)
-	// 	2) PersistConfig.FileSetType is set to FileSetSnapshotType because that means we're bootstrapping
-	//     an active block that we'll want to perform a flush on later, and we're only flushing here for
-	//     the sake of allowing the commit log bootstrapper to be able to recover this data if the node
-	//     goes down in-between this bootstrapper completing and the subsequent flush.
-	shouldRetainSeriesMetadata := seriesCachePolicy == series.CacheAll ||
-		persistConfig.FileSetType == persist.FileSetSnapshotType
+	// We only want to retain the series metadata if we're using the CacheAll caching policy
+	// because we're expected to cache everything in memory in that case.
+	shouldRetainSeriesMetadata := seriesCachePolicy == series.CacheAll
 
 	if !shouldRetainSeriesMetadata {
 		// If we're not going to keep all of the data, or at least all of the metadata in memory
