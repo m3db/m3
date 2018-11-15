@@ -74,7 +74,7 @@ func (h *GetHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *htt
 			serviceName, r.Header, h.M3AggServiceOptions)
 	)
 
-	service, err := Service(h.ClusterClient, opts, h.nowFn())
+	service, err := Service(h.ClusterClient, opts, h.nowFn(), nil)
 	if err != nil {
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return

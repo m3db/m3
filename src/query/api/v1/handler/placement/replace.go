@@ -122,7 +122,7 @@ func (h *ReplaceHandler) Replace(
 	}
 
 	serviceOpts := NewServiceOptions(serviceName, httpReq.Header, h.M3AggServiceOptions)
-	service, algo, err := ServiceWithAlgo(h.ClusterClient, serviceOpts, h.nowFn())
+	service, algo, err := ServiceWithAlgo(h.ClusterClient, serviceOpts, h.nowFn(), nil)
 	if err != nil {
 		return nil, err
 	}

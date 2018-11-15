@@ -30,7 +30,10 @@ import (
 
 	"github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/generated/proto/placementpb"
+	"github.com/m3db/m3/src/cluster/kv/mem"
 	"github.com/m3db/m3/src/cluster/placement"
+	"github.com/m3db/m3/src/cluster/placement/service"
+	"github.com/m3db/m3/src/cluster/placement/storage"
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/util/logging"
@@ -56,6 +59,30 @@ func SetupPlacementTest(t *testing.T, ctrl *gomock.Controller) (*client.MockClie
 	mockServices.EXPECT().PlacementService(gomock.Any(), gomock.Any()).Return(mockPlacementService, nil).AnyTimes()
 
 	return mockClient, mockPlacementService
+}
+
+func setupPlacementTest(t *testing.T, ctrl *gomock.Controller, initPlacement placement.Placement) *client.MockClient {
+	logging.InitWithCores(nil)
+
+	mockClient := client.NewMockClient(ctrl)
+	require.NotNil(t, mockClient)
+
+	mockServices := services.NewMockServices(ctrl)
+	require.NotNil(t, mockServices)
+
+	mockClient.EXPECT().Services(gomock.Any()).Return(mockServices, nil).AnyTimes()
+	mockServices.EXPECT().PlacementService(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ interface{}, opts placement.Options) (placement.Service, error) {
+			ps := service.NewPlacementService(storage.NewPlacementStorage(mem.NewStore(), "", opts), opts)
+			if initPlacement != nil {
+				_, err := ps.Set(initPlacement)
+				require.NoError(t, err)
+			}
+			return ps, nil
+		},
+	).AnyTimes()
+
+	return mockClient
 }
 
 func TestPlacementGetHandler(t *testing.T) {

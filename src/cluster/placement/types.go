@@ -321,8 +321,11 @@ type StagedPlacement interface {
 // TimeNanosFn returns the time in the format of Unix nanoseconds.
 type TimeNanosFn func() int64
 
-// ShardValidationFn validates the shard.
-type ShardValidationFn func(s shard.Shard) error
+// ShardValidateFn validates the shard.
+type ShardValidateFn func(s shard.Shard) error
+
+// ValidateFn validates the placement.
+type ValidateFn func(p Placement) error
 
 // Options is the interface for placement options.
 type Options interface {
@@ -408,16 +411,24 @@ type Options interface {
 	SetShardCutoffNanosFn(fn TimeNanosFn) Options
 
 	// IsShardCutoverFn returns the validation function for shard cutover.
-	IsShardCutoverFn() ShardValidationFn
+	IsShardCutoverFn() ShardValidateFn
 
 	// SetIsShardCutoverFn sets the validation function for shard cutover.
-	SetIsShardCutoverFn(fn ShardValidationFn) Options
+	SetIsShardCutoverFn(fn ShardValidateFn) Options
 
 	// IsShardCutoffFn returns the validation function for shard cutoff.
-	IsShardCutoffFn() ShardValidationFn
+	IsShardCutoffFn() ShardValidateFn
 
 	// SetIsShardCutoffFn sets the validation function for shard cutoff.
-	SetIsShardCutoffFn(fn ShardValidationFn) Options
+	SetIsShardCutoffFn(fn ShardValidateFn) Options
+
+	// ValidateFnBeforeUpdate returns the validate function to be applied before
+	// a placement update.
+	ValidateFnBeforeUpdate() ValidateFn
+
+	// SetValidateFnBeforeUpdate sets the validate function to be applied before
+	// a placement update.
+	SetValidateFnBeforeUpdate(fn ValidateFn) Options
 
 	// NowFn returns the function to get time now.
 	NowFn() clock.NowFn

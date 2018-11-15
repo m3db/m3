@@ -91,7 +91,7 @@ func (h *DeleteHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *
 			serviceName, r.Header, h.M3AggServiceOptions)
 	)
 
-	service, algo, err := ServiceWithAlgo(h.ClusterClient, opts, h.nowFn())
+	service, algo, err := ServiceWithAlgo(h.ClusterClient, opts, h.nowFn(), nil)
 	if err != nil {
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return

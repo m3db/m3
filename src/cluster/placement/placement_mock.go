@@ -602,16 +602,16 @@ func (mr *MockPlacementMockRecorder) String() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "String", reflect.TypeOf((*MockPlacement)(nil).String))
 }
 
-// GetVersion mocks base method
-func (m *MockPlacement) GetVersion() int {
-	ret := m.ctrl.Call(m, "GetVersion")
+// Version mocks base method
+func (m *MockPlacement) Version() int {
+	ret := m.ctrl.Call(m, "Version")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-// GetVersion indicates an expected call of GetVersion
-func (mr *MockPlacementMockRecorder) GetVersion() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVersion", reflect.TypeOf((*MockPlacement)(nil).GetVersion))
+// Version indicates an expected call of Version
+func (mr *MockPlacementMockRecorder) Version() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Version", reflect.TypeOf((*MockPlacement)(nil).Version))
 }
 
 // SetVersion mocks base method
@@ -1513,9 +1513,9 @@ func (mr *MockOptionsMockRecorder) SetShardCutoffNanosFn(fn interface{}) *gomock
 }
 
 // IsShardCutoverFn mocks base method
-func (m *MockOptions) IsShardCutoverFn() ShardValidationFn {
+func (m *MockOptions) IsShardCutoverFn() ShardValidateFn {
 	ret := m.ctrl.Call(m, "IsShardCutoverFn")
-	ret0, _ := ret[0].(ShardValidationFn)
+	ret0, _ := ret[0].(ShardValidateFn)
 	return ret0
 }
 
@@ -1525,7 +1525,7 @@ func (mr *MockOptionsMockRecorder) IsShardCutoverFn() *gomock.Call {
 }
 
 // SetIsShardCutoverFn mocks base method
-func (m *MockOptions) SetIsShardCutoverFn(fn ShardValidationFn) Options {
+func (m *MockOptions) SetIsShardCutoverFn(fn ShardValidateFn) Options {
 	ret := m.ctrl.Call(m, "SetIsShardCutoverFn", fn)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1537,9 +1537,9 @@ func (mr *MockOptionsMockRecorder) SetIsShardCutoverFn(fn interface{}) *gomock.C
 }
 
 // IsShardCutoffFn mocks base method
-func (m *MockOptions) IsShardCutoffFn() ShardValidationFn {
+func (m *MockOptions) IsShardCutoffFn() ShardValidateFn {
 	ret := m.ctrl.Call(m, "IsShardCutoffFn")
-	ret0, _ := ret[0].(ShardValidationFn)
+	ret0, _ := ret[0].(ShardValidateFn)
 	return ret0
 }
 
@@ -1549,7 +1549,7 @@ func (mr *MockOptionsMockRecorder) IsShardCutoffFn() *gomock.Call {
 }
 
 // SetIsShardCutoffFn mocks base method
-func (m *MockOptions) SetIsShardCutoffFn(fn ShardValidationFn) Options {
+func (m *MockOptions) SetIsShardCutoffFn(fn ShardValidateFn) Options {
 	ret := m.ctrl.Call(m, "SetIsShardCutoffFn", fn)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1558,6 +1558,30 @@ func (m *MockOptions) SetIsShardCutoffFn(fn ShardValidationFn) Options {
 // SetIsShardCutoffFn indicates an expected call of SetIsShardCutoffFn
 func (mr *MockOptionsMockRecorder) SetIsShardCutoffFn(fn interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIsShardCutoffFn", reflect.TypeOf((*MockOptions)(nil).SetIsShardCutoffFn), fn)
+}
+
+// ValidateFnBeforeUpdate mocks base method
+func (m *MockOptions) ValidateFnBeforeUpdate() ValidateFn {
+	ret := m.ctrl.Call(m, "ValidateFnBeforeUpdate")
+	ret0, _ := ret[0].(ValidateFn)
+	return ret0
+}
+
+// ValidateFnBeforeUpdate indicates an expected call of ValidateFnBeforeUpdate
+func (mr *MockOptionsMockRecorder) ValidateFnBeforeUpdate() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidateFnBeforeUpdate", reflect.TypeOf((*MockOptions)(nil).ValidateFnBeforeUpdate))
+}
+
+// SetValidateFnBeforeUpdate mocks base method
+func (m *MockOptions) SetValidateFnBeforeUpdate(fn ValidateFn) Options {
+	ret := m.ctrl.Call(m, "SetValidateFnBeforeUpdate", fn)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetValidateFnBeforeUpdate indicates an expected call of SetValidateFnBeforeUpdate
+func (mr *MockOptionsMockRecorder) SetValidateFnBeforeUpdate(fn interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetValidateFnBeforeUpdate", reflect.TypeOf((*MockOptions)(nil).SetValidateFnBeforeUpdate), fn)
 }
 
 // NowFn mocks base method
