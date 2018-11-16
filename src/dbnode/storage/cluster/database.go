@@ -309,7 +309,7 @@ func (d *clusterDB) analyzeAndReportShardStates() {
 
 		// Mark this shard as available
 		if markAvailable == nil {
-			// Defer allocation until needed, alloc as much as could be required
+			// Defer allocation until needed, alloc as much as could be required.
 			markAvailable = make([]uint32, 0, len(d.initializing))
 		}
 		markAvailable = append(markAvailable, id)
