@@ -35,8 +35,7 @@ import (
 )
 
 var (
-	errReadFromClosedBlock       = errors.New("attempt to read from a closed block")
-	errTriedToMergeBlockFromDisk = errors.New("[invariant violated] tried to merge a block that was retrieved from disk")
+	errReadFromClosedBlock = errors.New("attempt to read from a closed block")
 
 	timeZero = time.Time{}
 )
@@ -67,8 +66,7 @@ type dbBlock struct {
 
 	checksum uint32
 
-	wasRetrievedFromDisk bool
-	closed               bool
+	closed bool
 }
 
 type listState struct {
@@ -224,22 +222,8 @@ func (b *dbBlock) HasMergeTarget() bool {
 	return hasMergeTarget
 }
 
-func (b *dbBlock) WasRetrievedFromDisk() bool {
-	b.RLock()
-	wasRetrieved := b.wasRetrievedFromDisk
-	b.RUnlock()
-	return wasRetrieved
-}
-
 func (b *dbBlock) Merge(other DatabaseBlock) error {
 	b.Lock()
-	if b.wasRetrievedFromDisk || other.WasRetrievedFromDisk() {
-		// We use Merge to lazily merge blocks that eventually need to be flushed to disk
-		// If we try to perform a merge on blocks that were retrieved from disk then we've
-		// violated an invariant and probably have a bug that is causing data loss.
-		b.Unlock()
-		return errTriedToMergeBlockFromDisk
-	}
 
 	if b.mergeTarget == nil {
 		b.mergeTarget = other
@@ -265,7 +249,6 @@ func (b *dbBlock) ResetFromDisk(start time.Time, blockSize time.Duration, segmen
 	// resetSegmentWithLock sets seriesID to nil
 	b.resetSegmentWithLock(segment)
 	b.seriesID = id
-	b.wasRetrievedFromDisk = true
 }
 
 func (b *dbBlock) streamWithRLock(ctx context.Context) (xio.BlockReader, error) {
@@ -327,41 +310,23 @@ func (b *dbBlock) resetSegmentWithLock(seg ts.Segment) {
 	b.length = seg.Len()
 	b.checksum = digest.SegmentChecksum(seg)
 	b.seriesID = nil
-	b.wasRetrievedFromDisk = false
 }
 
 func (b *dbBlock) Discard() ts.Segment {
-	seg, _ := b.closeAndDiscardConditionally(nil)
-	return seg
+	return b.closeAndDiscard()
 }
 
 func (b *dbBlock) Close() {
-	segment, _ := b.closeAndDiscardConditionally(nil)
+	segment := b.closeAndDiscard()
 	segment.Finalize()
 }
 
-func (b *dbBlock) CloseIfFromDisk() bool {
-	segment, ok := b.closeAndDiscardConditionally(func(b *dbBlock) bool {
-		return b.wasRetrievedFromDisk
-	})
-	if !ok {
-		return false
-	}
-	segment.Finalize()
-	return true
-}
-
-func (b *dbBlock) closeAndDiscardConditionally(condition func(b *dbBlock) bool) (ts.Segment, bool) {
+func (b *dbBlock) closeAndDiscard() ts.Segment {
 	b.Lock()
-
-	if condition != nil && !condition(b) {
-		b.Unlock()
-		return ts.Segment{}, false
-	}
 
 	if b.closed {
 		b.Unlock()
-		return ts.Segment{}, true
+		return ts.Segment{}
 	}
 
 	segment := b.segment
@@ -374,7 +339,7 @@ func (b *dbBlock) closeAndDiscardConditionally(condition func(b *dbBlock) bool) 
 		pool.Put(b)
 	}
 
-	return segment, true
+	return segment
 }
 
 func (b *dbBlock) resetMergeTargetWithLock() {
@@ -417,10 +382,9 @@ func (b *dbBlock) setEnteredListAtUnixNano(value int64) {
 // wiredListEntry is a snapshot of a subset of the block's state that the WiredList
 // uses to determine if a block is eligible for inclusion in the WiredList.
 type wiredListEntry struct {
-	seriesID             ident.ID
-	startTime            time.Time
-	closed               bool
-	wasRetrievedFromDisk bool
+	seriesID  ident.ID
+	startTime time.Time
+	closed    bool
 }
 
 // wiredListEntry generates a wiredListEntry for the block, and should only
@@ -428,10 +392,9 @@ type wiredListEntry struct {
 func (b *dbBlock) wiredListEntry() wiredListEntry {
 	b.RLock()
 	result := wiredListEntry{
-		closed:               b.closed,
-		seriesID:             b.seriesID,
-		wasRetrievedFromDisk: b.wasRetrievedFromDisk,
-		startTime:            b.startWithRLock(),
+		closed:    b.closed,
+		seriesID:  b.seriesID,
+		startTime: b.startWithRLock(),
 	}
 	b.RUnlock()
 	return result

@@ -352,6 +352,12 @@ func (s *dbShard) IsBlockRetrievable(blockStart time.Time) bool {
 		flushState.Status))
 }
 
+// BlockLastSuccess implements series.QueryableBlockRetriever
+func (s *dbShard) BlockLastSuccess(blockStart time.Time) time.Time {
+	flushState := s.FlushState(blockStart)
+	return flushState.LastSuccess
+}
+
 func (s *dbShard) OnRetrieveBlock(
 	id ident.ID,
 	tags ident.TagIterator,
@@ -666,7 +672,6 @@ func (s *dbShard) tickAndExpire(
 				}
 			}
 			r.activeBlocks += result.ActiveBlocks
-			r.openBlocks += result.OpenBlocks
 			r.wiredBlocks += result.WiredBlocks
 			r.unwiredBlocks += result.UnwiredBlocks
 			r.pendingMergeBlocks += result.PendingMergeBlocks
@@ -1955,7 +1960,11 @@ func (s *dbShard) markFlushStateSuccessOrError(blockStart time.Time, err error) 
 
 func (s *dbShard) markFlushStateSuccess(blockStart time.Time) {
 	s.flushState.Lock()
-	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = fileOpState{Status: fileOpSuccess}
+	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] =
+		fileOpState{
+			Status:      fileOpSuccess,
+			LastSuccess: s.nowFn(),
+		}
 	s.flushState.Unlock()
 }
 

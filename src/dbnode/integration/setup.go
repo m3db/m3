@@ -453,13 +453,6 @@ func (ts *testSetup) waitUntilServerIsBootstrapped() error {
 	return errServerStartTimedOut
 }
 
-func (ts *testSetup) waitUntilServerIsUp() error {
-	if waitUntil(ts.serverIsUp, ts.opts.ServerStateChangeTimeout()) {
-		return nil
-	}
-	return errServerStopTimedOut
-}
-
 func (ts *testSetup) waitUntilServerIsDown() error {
 	if waitUntil(ts.serverIsDown, ts.opts.ServerStateChangeTimeout()) {
 		return nil
@@ -590,16 +583,6 @@ func (ts *testSetup) close() {
 	}
 	if ts.filePathPrefix != "" {
 		os.RemoveAll(ts.filePathPrefix)
-	}
-}
-
-func (ts *testSetup) mustSetTickMinimumInterval(tickMinInterval time.Duration) {
-	runtimeMgr := ts.storageOpts.RuntimeOptionsManager()
-	existingOptions := runtimeMgr.Get()
-	newOptions := existingOptions.SetTickMinimumInterval(tickMinInterval)
-	err := runtimeMgr.Update(newOptions)
-	if err != nil {
-		panic(fmt.Sprintf("err setting tick minimum interval: %v", err))
 	}
 }
 
