@@ -228,7 +228,7 @@ func TestConvertInstancesProto(t *testing.T) {
 	})
 }
 
-func newPlacement(state shard.State) placement.Placement {
+func newValidPlacement(state shard.State) placement.Placement {
 	shards := shard.NewShards([]shard.Shard{
 		shard.NewShard(0).SetState(state),
 	})
@@ -240,6 +240,24 @@ func newPlacement(state shard.State) placement.Placement {
 		SetIsSharded(true).
 		SetShards([]uint32{0}).
 		SetReplicaFactor(2)
+}
+
+func newValidInitPlacement() placement.Placement {
+	return newValidPlacement(shard.Initializing)
+}
+
+func newValidAvailPlacement() placement.Placement {
+	return newValidPlacement(shard.Available)
+}
+
+func newPlacement(state shard.State) placement.Placement {
+	shards := shard.NewShards([]shard.Shard{
+		shard.NewShard(1).SetState(state),
+	})
+
+	instA := placement.NewInstance().SetShards(shards).SetID("A")
+	instB := placement.NewInstance().SetShards(shards).SetID("B")
+	return placement.NewPlacement().SetInstances([]placement.Instance{instA, instB})
 }
 
 func newInitPlacement() placement.Placement {

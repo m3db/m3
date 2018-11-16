@@ -96,7 +96,7 @@ func TestPlacementAddHandler_SafeErr_NoNewInstance(t *testing.T) {
 		defer ctrl.Finish()
 
 		var (
-			mockClient  = setupPlacementTest(t, ctrl, newAvailPlacement())
+			mockClient  = setupPlacementTest(t, ctrl, newValidAvailPlacement())
 			handlerOpts = NewHandlerOptions(
 				mockClient, config.Configuration{}, nil)
 			handler = NewAddHandler(handlerOpts)
@@ -129,7 +129,7 @@ func TestPlacementAddHandler_SafeErr_NotAllAvailable(t *testing.T) {
 		defer ctrl.Finish()
 
 		var (
-			mockClient  = setupPlacementTest(t, ctrl, newInitPlacement())
+			mockClient  = setupPlacementTest(t, ctrl, newValidInitPlacement())
 			handlerOpts = NewHandlerOptions(
 				mockClient, config.Configuration{}, nil)
 			handler = NewAddHandler(handlerOpts)
