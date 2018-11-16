@@ -207,7 +207,7 @@ db:
             lowWatermark: 0.01
             highWatermark: 0.02
         writeBatchPool:
-            initialBatchSize: 1024
+            initialBatchSize: 128
             maxBatchSize: 100000
             pool:
               size: 8192
@@ -531,7 +531,7 @@ db:
       lowWatermark: 0.01
       highWatermark: 0.02
     writeBatchPool:
-      initialBatchSize: 1024
+      initialBatchSize: 128
       maxBatchSize: 100000
       pool:
         size: 8192

@@ -828,8 +828,7 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 	ctx.RegisterFinalizer(pooledReq)
 
 	var (
-		nsID = s.newPooledID(ctx, req.NameSpace, pooledReq)
-
+		nsID               = s.newPooledID(ctx, req.NameSpace, pooledReq)
 		retryableErrors    int
 		nonRetryableErrors int
 	)
@@ -902,8 +901,7 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 	ctx.RegisterFinalizer(pooledReq)
 
 	var (
-		nsID = s.newPooledID(ctx, req.NameSpace, pooledReq)
-
+		nsID               = s.newPooledID(ctx, req.NameSpace, pooledReq)
 		retryableErrors    int
 		nonRetryableErrors int
 	)
@@ -1300,7 +1298,7 @@ func (r *writeBatchPooledReq) Finalize() {
 	if cap(r.errs) <= writeBatchPooledReqPoolMaxErrorsSliceSize {
 		r.errs = r.errs[:0]
 	} else {
-		// Slice grew too large, throw it away and let a knew one be
+		// Slice grew too large, throw it away and let a new one be
 		// allocated on the next append call.
 		r.errs = nil
 	}

@@ -158,18 +158,17 @@ func NewDatabase(
 	logger := iopts.Logger()
 
 	d := &db{
-		opts:         opts,
-		nowFn:        opts.ClockOptions().NowFn(),
-		shardSet:     shardSet,
-		namespaces:   newDatabaseNamespacesMap(databaseNamespacesMapOptions{}),
-		commitLog:    commitLog,
-		scope:        scope,
-		metrics:      newDatabaseMetrics(scope),
-		log:          logger,
-		errors:       xcounter.NewFrequencyCounter(opts.ErrorCounterOptions()),
-		errWindow:    opts.ErrorWindowForLoad(),
-		errThreshold: opts.ErrorThresholdForLoad(),
-
+		opts:           opts,
+		nowFn:          opts.ClockOptions().NowFn(),
+		shardSet:       shardSet,
+		namespaces:     newDatabaseNamespacesMap(databaseNamespacesMapOptions{}),
+		commitLog:      commitLog,
+		scope:          scope,
+		metrics:        newDatabaseMetrics(scope),
+		log:            logger,
+		errors:         xcounter.NewFrequencyCounter(opts.ErrorCounterOptions()),
+		errWindow:      opts.ErrorWindowForLoad(),
+		errThreshold:   opts.ErrorThresholdForLoad(),
 		writeBatchPool: opts.WriteBatchPool(),
 	}
 
