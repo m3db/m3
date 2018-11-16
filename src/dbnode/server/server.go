@@ -82,9 +82,10 @@ import (
 )
 
 const (
-	bgProcessLimitInterval     = 10 * time.Second
-	bootstrapConfigInitTimeout = 10 * time.Second
-	serverGracefulCloseTimeout = 10 * time.Second
+	bootstrapConfigInitTimeout       = 10 * time.Second
+	serverGracefulCloseTimeout       = 10 * time.Second
+	bgProcessLimitInterval           = 10 * time.Second
+	maxBgProcessLimitMonitorDuration = 5 * time.Minute
 )
 
 // RunOptions provides options for running the server
@@ -636,16 +637,24 @@ func interrupt() <-chan os.Signal {
 }
 
 func bgValidateProcessLimits(logger xlog.Logger) {
+	start := time.Now()
 	t := time.NewTicker(bgProcessLimitInterval)
 	defer t.Stop()
 	for {
+		// only monitor for first `maxBgProcessLimitMonitorDuration` of process lifetime
+		if time.Since(start) > maxBgProcessLimitMonitorDuration {
+			return
+		}
+
 		err := validateProcessLimits()
 		if err == nil {
 			return
 		}
+
 		logger.WithFields(
 			xlog.NewField("url", xdocs.Path("operational_guide/kernel_configuration")),
 		).Warnf(`invalid configuration found [%v], refer to linked documentation for more information`, err)
+
 		<-t.C
 	}
 }
