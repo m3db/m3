@@ -895,13 +895,13 @@ func TestDatabaseIsBootstrappedAndDurable(t *testing.T) {
 	now := time.Now()
 	d.shardSetAssignedAt = now
 	mediator.EXPECT().IsBootstrapped().Return(true)
-	mediator.EXPECT().LastSuccessfulSnapshotStartTime().Return(now, false)
+	mediator.EXPECT().LastSuccessfulSnapshotStartTime().Return(now, true)
 	assert.False(t, d.IsBootstrappedAndDurable())
 
 	// BootstrappedAndDurable because its bootstrapped and one complete snapshot has
 	// finished that also started AFTER the last shardset was assigned.
 	d.shardSetAssignedAt = now
 	mediator.EXPECT().IsBootstrapped().Return(true)
-	mediator.EXPECT().LastSuccessfulSnapshotStartTime().Return(now.Add(time.Second), false)
-	assert.False(t, d.IsBootstrappedAndDurable())
+	mediator.EXPECT().LastSuccessfulSnapshotStartTime().Return(now.Add(time.Second), true)
+	assert.True(t, d.IsBootstrappedAndDurable())
 }

@@ -348,8 +348,14 @@ func TestFlushManagerFlushSnapshot(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	fm, ns1, ns2 := newMultipleFlushManagerNeedsFlush(t, ctrl)
-	now := time.Now()
+	var (
+		fm, ns1, ns2 = newMultipleFlushManagerNeedsFlush(t, ctrl)
+		now          = time.Now()
+	)
+
+	// Haven't snapshotted yet.
+	lastSuccessfulSnapshot, ok := fm.LastSuccessfulSnapshotStartTime()
+	require.False(t, ok)
 
 	for _, ns := range []*MockdatabaseNamespace{ns1, ns2} {
 		rOpts := ns.Options().RetentionOptions()
@@ -381,6 +387,10 @@ func TestFlushManagerFlushSnapshot(t *testing.T) {
 		},
 	}
 	require.NoError(t, fm.Flush(now, bootstrapStates))
+
+	lastSuccessfulSnapshot, ok = fm.LastSuccessfulSnapshotStartTime()
+	require.True(t, ok)
+	require.Equal(t, now, lastSuccessfulSnapshot)
 }
 
 type timesInOrder []time.Time
