@@ -27,22 +27,22 @@ import (
 )
 
 const (
-	// Namespace requires bootstrapping by default
+	// Namespace requires bootstrapping by default.
 	defaultBootstrapEnabled = true
 
-	// Namespace requires flushing by default
+	// Namespace requires flushing by default.
 	defaultFlushEnabled = true
 
-	// Namespace requires snapshotting disabled by default
+	// Namespace requires snapshotting disabled by default.
 	defaultSnapshotEnabled = true
 
-	// Namespace writes go to commit logs by default
+	// Namespace writes go to commit logs by default.
 	defaultWritesToCommitLog = true
 
-	// Namespace requires fileset/snapshot cleanup by default
+	// Namespace requires fileset/snapshot cleanup by default.
 	defaultCleanupEnabled = true
 
-	// Namespace requires repair disabled by default
+	// Namespace requires repair disabled by default.
 	defaultRepairEnabled = false
 )
 
