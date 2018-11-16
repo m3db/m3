@@ -133,6 +133,11 @@ func (m *flushManager) Flush(
 		multiErr = multiErr.Add(m.flushNamespaceWithTimes(ns, shardBootstrapTimes, flushTimes, flush))
 	}
 
+	// NB(rartoul): We need to make decisions about whether to snapshot or not as an
+	// all-or-nothing decision, we can't decide on a namespace-by-namespace or
+	// shard-by-shard basis because the model we're moving towards is that once a snapshot
+	// has completed, then all data that had been received by the dbnode up until the
+	// snapshot "start time" has been persisted durably.
 	shouldSnapshot := tickStart.Sub(m.lastSuccessfulSnapshotStartTime) > m.opts.MinimumSnapshotInterval()
 	if shouldSnapshot {
 		m.setState(flushManagerSnapshotInProgress)
