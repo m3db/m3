@@ -322,6 +322,22 @@ func Run(runOpts RunOptions) {
 			cfg.CommitLog.Queue.CalculationType)
 	}
 
+	var commitLogQueueChannelSize int
+	if cfg.CommitLog.QueueChannel != nil {
+		specified := cfg.CommitLog.QueueChannel.Size
+		switch cfg.CommitLog.Queue.CalculationType {
+		case config.CalculationTypeFixed:
+			commitLogQueueChannelSize = specified
+		case config.CalculationTypePerCPU:
+			commitLogQueueChannelSize = specified * runtime.NumCPU()
+		default:
+			logger.Fatalf("unknown commit log queue channel size type: %v",
+				cfg.CommitLog.Queue.CalculationType)
+		}
+	} else {
+		commitLogQueueChannelSize = int(float64(commitLogQueueSize) / commitlog.MaximumQueueSizeQueueChannelSizeRatio)
+	}
+
 	opts = opts.SetCommitLogOptions(opts.CommitLogOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetFilesystemOptions(fsopts).
@@ -329,6 +345,7 @@ func Run(runOpts RunOptions) {
 		SetFlushSize(cfg.CommitLog.FlushMaxBytes).
 		SetFlushInterval(cfg.CommitLog.FlushEvery).
 		SetBacklogQueueSize(commitLogQueueSize).
+		SetBacklogQueueChannelSize(commitLogQueueChannelSize).
 		SetBlockSize(cfg.CommitLog.BlockSize))
 
 	// Set the series cache policy
@@ -938,6 +955,19 @@ func withEncodingAndPoolingOptions(
 	multiIteratorPool := encoding.NewMultiReaderIteratorPool(
 		poolOptions(policy.IteratorPool, scope.SubScope("multi-iterator-pool")))
 
+	var writeBatchPoolInitialBatchSize *int
+	if policy.WriteBatchPool.InitialBatchSize != nil {
+		writeBatchPoolInitialBatchSize = policy.WriteBatchPool.InitialBatchSize
+	}
+	var writeBatchPoolMaxBatchSize *int
+	if policy.WriteBatchPool.MaxBatchSize != nil {
+		writeBatchPoolMaxBatchSize = policy.WriteBatchPool.MaxBatchSize
+	}
+	writeBatchPool := ts.NewWriteBatchPool(
+		poolOptions(policy.WriteBatchPool.Pool, scope.SubScope("write-batch-pool")),
+		writeBatchPoolInitialBatchSize,
+		writeBatchPoolMaxBatchSize)
+
 	identifierPool := ident.NewPool(bytesPool, ident.PoolOptions{
 		IDPoolOptions:           poolOptions(policy.IdentifierPool, scope.SubScope("identifier-pool")),
 		TagsPoolOptions:         maxCapacityPoolOptions(policy.TagsPool, scope.SubScope("tags-pool")),
@@ -976,6 +1006,8 @@ func withEncodingAndPoolingOptions(
 		return iter
 	})
 
+	writeBatchPool.Init()
+
 	opts = opts.
 		SetBytesPool(bytesPool).
 		SetContextPool(contextPool).
@@ -984,7 +1016,8 @@ func withEncodingAndPoolingOptions(
 		SetMultiReaderIteratorPool(multiIteratorPool).
 		SetIdentifierPool(identifierPool).
 		SetFetchBlockMetadataResultsPool(fetchBlockMetadataResultsPool).
-		SetFetchBlocksMetadataResultsPool(fetchBlocksMetadataResultsPool)
+		SetFetchBlocksMetadataResultsPool(fetchBlocksMetadataResultsPool).
+		SetWriteBatchPool(writeBatchPool)
 
 	blockOpts := opts.DatabaseBlockOptions().
 		SetDatabaseBlockAllocSize(policy.BlockAllocSize).

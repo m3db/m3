@@ -931,7 +931,7 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 func (s *commitLogSource) shouldEncodeForData(
 	unmerged []shardData,
 	dataBlockSize time.Duration,
-	series commitlog.Series,
+	series ts.Series,
 	timestamp time.Time,
 ) bool {
 	// Check if the shard number is higher the amount of space we pre-allocated.
@@ -1642,7 +1642,7 @@ type metadataAndEncodersByTime struct {
 // encoderArg contains all the information a worker go-routine needs to encode
 // a data point as M3TSZ
 type encoderArg struct {
-	series     commitlog.Series
+	series     ts.Series
 	dp         ts.Datapoint
 	unit       xtime.Unit
 	annotation ts.Annotation

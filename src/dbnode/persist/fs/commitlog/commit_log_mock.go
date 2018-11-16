@@ -76,7 +76,7 @@ func (mr *MockCommitLogMockRecorder) Open() *gomock.Call {
 }
 
 // Write mocks base method
-func (m *MockCommitLog) Write(ctx context.Context, series Series, datapoint ts.Datapoint, unit time0.Unit, annotation ts.Annotation) error {
+func (m *MockCommitLog) Write(ctx context.Context, series ts.Series, datapoint ts.Datapoint, unit time0.Unit, annotation ts.Annotation) error {
 	ret := m.ctrl.Call(m, "Write", ctx, series, datapoint, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -85,6 +85,18 @@ func (m *MockCommitLog) Write(ctx context.Context, series Series, datapoint ts.D
 // Write indicates an expected call of Write
 func (mr *MockCommitLogMockRecorder) Write(ctx, series, datapoint, unit, annotation interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MockCommitLog)(nil).Write), ctx, series, datapoint, unit, annotation)
+}
+
+// WriteBatch mocks base method
+func (m *MockCommitLog) WriteBatch(ctx context.Context, writes ts.WriteBatch) error {
+	ret := m.ctrl.Call(m, "WriteBatch", ctx, writes)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WriteBatch indicates an expected call of WriteBatch
+func (mr *MockCommitLogMockRecorder) WriteBatch(ctx, writes interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatch", reflect.TypeOf((*MockCommitLog)(nil).WriteBatch), ctx, writes)
 }
 
 // Close mocks base method
@@ -161,9 +173,9 @@ func (mr *MockIteratorMockRecorder) Next() *gomock.Call {
 }
 
 // Current mocks base method
-func (m *MockIterator) Current() (Series, ts.Datapoint, time0.Unit, ts.Annotation) {
+func (m *MockIterator) Current() (ts.Series, ts.Datapoint, time0.Unit, ts.Annotation) {
 	ret := m.ctrl.Call(m, "Current")
-	ret0, _ := ret[0].(Series)
+	ret0, _ := ret[0].(ts.Series)
 	ret1, _ := ret[1].(ts.Datapoint)
 	ret2, _ := ret[2].(time0.Unit)
 	ret3, _ := ret[3].(ts.Annotation)
@@ -422,6 +434,30 @@ func (m *MockOptions) BacklogQueueSize() int {
 // BacklogQueueSize indicates an expected call of BacklogQueueSize
 func (mr *MockOptionsMockRecorder) BacklogQueueSize() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BacklogQueueSize", reflect.TypeOf((*MockOptions)(nil).BacklogQueueSize))
+}
+
+// SetBacklogQueueChannelSize mocks base method
+func (m *MockOptions) SetBacklogQueueChannelSize(value int) Options {
+	ret := m.ctrl.Call(m, "SetBacklogQueueChannelSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBacklogQueueChannelSize indicates an expected call of SetBacklogQueueChannelSize
+func (mr *MockOptionsMockRecorder) SetBacklogQueueChannelSize(value interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBacklogQueueChannelSize", reflect.TypeOf((*MockOptions)(nil).SetBacklogQueueChannelSize), value)
+}
+
+// BacklogQueueChannelSize mocks base method
+func (m *MockOptions) BacklogQueueChannelSize() int {
+	ret := m.ctrl.Call(m, "BacklogQueueChannelSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// BacklogQueueChannelSize indicates an expected call of BacklogQueueChannelSize
+func (mr *MockOptionsMockRecorder) BacklogQueueChannelSize() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BacklogQueueChannelSize", reflect.TypeOf((*MockOptions)(nil).BacklogQueueChannelSize))
 }
 
 // SetBytesPool mocks base method

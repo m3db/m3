@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"sync"
@@ -38,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/dbnode/ts"
 	xmetrics "github.com/m3db/m3/src/dbnode/x/metrics"
 	xclock "github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/context"
@@ -610,16 +612,26 @@ func TestDatabaseNamespaceIndexFunctions(t *testing.T) {
 	ns.EXPECT().BootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
 	require.NoError(t, d.Open())
 
-	ctx := context.NewContext()
+	var (
+		namespace = ident.StringID("testns")
+		ctx       = context.NewContext()
+		id        = ident.StringID("foo")
+		tagsIter  = ident.EmptyTagIterator
+		series    = ts.Series{
+			ID:        id,
+			Tags:      ident.Tags{},
+			Namespace: namespace,
+		}
+	)
 	ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("foo"), gomock.Any(),
-		time.Time{}, 1.0, xtime.Second, nil).Return(nil)
-	require.NoError(t, d.WriteTagged(ctx, ident.StringID("testns"),
-		ident.StringID("foo"), ident.EmptyTagIterator, time.Time{},
+		time.Time{}, 1.0, xtime.Second, nil).Return(series, nil)
+	require.NoError(t, d.WriteTagged(ctx, namespace,
+		id, tagsIter, time.Time{},
 		1.0, xtime.Second, nil))
 
 	ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("foo"), gomock.Any(),
-		time.Time{}, 1.0, xtime.Second, nil).Return(fmt.Errorf("random err"))
-	require.Error(t, d.WriteTagged(ctx, ident.StringID("testns"),
+		time.Time{}, 1.0, xtime.Second, nil).Return(series, fmt.Errorf("random err"))
+	require.Error(t, d.WriteTagged(ctx, namespace,
 		ident.StringID("foo"), ident.EmptyTagIterator, time.Time{},
 		1.0, xtime.Second, nil))
 
@@ -639,6 +651,172 @@ func TestDatabaseNamespaceIndexFunctions(t *testing.T) {
 	require.Error(t, err)
 
 	ns.EXPECT().Close().Return(nil)
+	require.NoError(t, d.Close())
+}
+
+func TestDatabaseWriteBatchNoNamespace(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := newTestDatabase(t, ctrl, BootstrapNotStarted)
+	defer func() {
+		close(mapCh)
+	}()
+	require.NoError(t, d.Open())
+
+	var (
+		notExistNamespace = ident.StringID("not-exist-namespace")
+		batchSize         = 100
+	)
+	_, err := d.BatchWriter(notExistNamespace, batchSize)
+	require.Error(t, err)
+
+	err = d.WriteBatch(nil, notExistNamespace, nil, nil)
+	require.Error(t, err)
+
+	require.NoError(t, d.Close())
+}
+
+func TestDatabaseWriteTaggedBatchNoNamespace(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := newTestDatabase(t, ctrl, BootstrapNotStarted)
+	defer func() {
+		close(mapCh)
+	}()
+	require.NoError(t, d.Open())
+
+	var (
+		notExistNamespace = ident.StringID("not-exist-namespace")
+		batchSize         = 100
+	)
+	_, err := d.BatchWriter(notExistNamespace, batchSize)
+	require.Error(t, err)
+
+	err = d.WriteTaggedBatch(nil, notExistNamespace, nil, nil)
+	require.Error(t, err)
+
+	require.NoError(t, d.Close())
+}
+
+func TestDatabaseWriteBatch(t *testing.T) {
+	testDatabaseWriteBatch(t, false)
+}
+
+func TestDatabaseWriteTaggedBatch(t *testing.T) {
+	testDatabaseWriteBatch(t, true)
+}
+
+type fakeIndexedErrorHandler struct {
+	errs []indexedErr
+}
+
+func (f *fakeIndexedErrorHandler) HandleError(index int, err error) {
+	f.errs = append(f.errs, indexedErr{index, err})
+}
+
+type indexedErr struct {
+	index int
+	err   error
+}
+
+func testDatabaseWriteBatch(t *testing.T, tagged bool) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := newTestDatabase(t, ctrl, BootstrapNotStarted)
+	defer func() {
+		close(mapCh)
+	}()
+
+	ns := dbAddNewMockNamespace(ctrl, d, "testns")
+	ns.EXPECT().GetOwnedShards().Return([]databaseShard{}).AnyTimes()
+	ns.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	ns.EXPECT().BootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
+	ns.EXPECT().Close().Return(nil).Times(1)
+	require.NoError(t, d.Open())
+
+	var (
+		namespace = ident.StringID("testns")
+		ctx       = context.NewContext()
+		tagsIter  = ident.EmptyTagIterator
+	)
+
+	writes := []struct {
+		series string
+		t      time.Time
+		v      float64
+		err    error
+	}{
+		{
+			series: "foo",
+			t:      time.Time{}.Add(10 * time.Second),
+			v:      1.0,
+		},
+		{
+			series: "foo",
+			t:      time.Time{}.Add(20 * time.Second),
+			v:      2.0,
+		},
+		{
+			series: "bar",
+			t:      time.Time{}.Add(20 * time.Second),
+			v:      3.0,
+		},
+		{
+			series: "bar",
+			t:      time.Time{}.Add(30 * time.Second),
+			v:      4.0,
+		},
+		{
+			series: "error-series",
+			err:    errors.New("some-error"),
+		},
+	}
+
+	batchWriter, err := d.BatchWriter(namespace, 10)
+	require.NoError(t, err)
+
+	var i int
+	for _, write := range writes {
+		// Write with the provided index as i*2 so we can assert later that the
+		// ErrorHandler is called with the provided index, not the actual position
+		// in the WriteBatch slice.
+		if tagged {
+			batchWriter.AddTagged(i*2, ident.StringID(write.series), tagsIter, write.t, write.v, xtime.Second, nil)
+			ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher(write.series), gomock.Any(),
+				write.t, write.v, xtime.Second, nil).Return(
+				ts.Series{
+					ID:        ident.StringID(write.series + "-updated"),
+					Namespace: namespace,
+					Tags:      ident.Tags{},
+				}, write.err)
+		} else {
+			batchWriter.Add(i*2, ident.StringID(write.series), write.t, write.v, xtime.Second, nil)
+			ns.EXPECT().Write(ctx, ident.NewIDMatcher(write.series),
+				write.t, write.v, xtime.Second, nil).Return(
+				ts.Series{
+					ID:        ident.StringID(write.series + "-updated"),
+					Namespace: namespace,
+					Tags:      ident.Tags{},
+				}, write.err)
+		}
+		i++
+	}
+
+	errHandler := &fakeIndexedErrorHandler{}
+	if tagged {
+		err = d.WriteTaggedBatch(ctx, namespace, batchWriter.(ts.WriteBatch), errHandler)
+	} else {
+		err = d.WriteBatch(ctx, namespace, batchWriter.(ts.WriteBatch), errHandler)
+	}
+
+	require.NoError(t, err)
+	require.Len(t, errHandler.errs, 1)
+	// Make sure it calls the error handler with the "original" provided index, not the position
+	// of the write in the WriteBatch slice.
+	require.Equal(t, (i-1)*2, errHandler.errs[0].index)
 	require.NoError(t, d.Close())
 }
 

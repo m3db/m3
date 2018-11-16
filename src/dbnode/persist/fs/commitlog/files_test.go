@@ -103,7 +103,7 @@ func createTestCommitLogFiles(
 	commitLog, err := NewCommitLog(opts)
 	require.NoError(t, err)
 	require.NoError(t, commitLog.Open())
-	series := Series{
+	series := ts.Series{
 		UniqueIndex: 0,
 		Namespace:   ident.StringID("some-namespace"),
 		ID:          ident.StringID("some-id"),

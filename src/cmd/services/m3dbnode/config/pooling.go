@@ -34,120 +34,123 @@ const (
 
 // PoolingPolicy specifies the pooling policy.
 type PoolingPolicy struct {
-	// The initial alloc size for a block
+	// The initial alloc size for a block.
 	BlockAllocSize int `yaml:"blockAllocSize"`
 
 	// The general pool type (currently only supported: simple).
 	Type PoolingType `yaml:"type"`
 
-	// The Bytes pool buckets to use
+	// The Bytes pool buckets to use.
 	BytesPool BucketPoolPolicy `yaml:"bytesPool"`
 
-	// The policy for the Closers pool
+	// The policy for the Closers pool.
 	ClosersPool PoolPolicy `yaml:"closersPool"`
 
-	// The policy for the Context pool
+	// The policy for the Context pool.
 	ContextPool ContextPoolPolicy `yaml:"contextPool"`
 
-	// The policy for the DatabaseSeries pool
+	// The policy for the DatabaseSeries pool.
 	SeriesPool PoolPolicy `yaml:"seriesPool"`
 
-	// The policy for the DatabaseBlock pool
+	// The policy for the DatabaseBlock pool.
 	BlockPool PoolPolicy `yaml:"blockPool"`
 
-	// The policy for the Encoder pool
+	// The policy for the Encoder pool.
 	EncoderPool PoolPolicy `yaml:"encoderPool"`
 
-	// The policy for the Iterator pool
+	// The policy for the Iterator pool.
 	IteratorPool PoolPolicy `yaml:"iteratorPool"`
 
-	// The policy for the Segment Reader pool
+	// The policy for the Segment Reader pool.
 	SegmentReaderPool PoolPolicy `yaml:"segmentReaderPool"`
 
-	// The policy for the Identifier pool
+	// The policy for the Identifier pool.
 	IdentifierPool PoolPolicy `yaml:"identifierPool"`
 
-	// The policy for the FetchBlockMetadataResult pool
+	// The policy for the FetchBlockMetadataResult pool.
 	FetchBlockMetadataResultsPool CapacityPoolPolicy `yaml:"fetchBlockMetadataResultsPool"`
 
-	// The policy for the FetchBlocksMetadataResults pool
+	// The policy for the FetchBlocksMetadataResults pool.
 	FetchBlocksMetadataResultsPool CapacityPoolPolicy `yaml:"fetchBlocksMetadataResultsPool"`
 
-	// The policy for the HostBlockMetadataSlice pool
+	// The policy for the HostBlockMetadataSlice pool.
 	HostBlockMetadataSlicePool CapacityPoolPolicy `yaml:"hostBlockMetadataSlicePool"`
 
-	// The policy for the BlockMetadat pool
+	// The policy for the BlockMetadat pool.
 	BlockMetadataPool PoolPolicy `yaml:"blockMetadataPool"`
 
-	// The policy for the BlockMetadataSlice pool
+	// The policy for the BlockMetadataSlice pool.
 	BlockMetadataSlicePool CapacityPoolPolicy `yaml:"blockMetadataSlicePool"`
 
-	// The policy for the BlocksMetadata pool
+	// The policy for the BlocksMetadata pool.
 	BlocksMetadataPool PoolPolicy `yaml:"blocksMetadataPool"`
 
-	// The policy for the BlocksMetadataSlice pool
+	// The policy for the BlocksMetadataSlice pool.
 	BlocksMetadataSlicePool CapacityPoolPolicy `yaml:"blocksMetadataSlicePool"`
 
-	// The policy for the tags pool
+	// The policy for the tags pool.
 	TagsPool MaxCapacityPoolPolicy `yaml:"tagsPool"`
 
-	// The policy for the tags iterator pool
+	// The policy for the tags iterator pool.
 	TagsIteratorPool PoolPolicy `yaml:"tagIteratorPool"`
 
-	// The policy for the index.ResultsPool
+	// The policy for the index.ResultsPool.
 	IndexResultsPool PoolPolicy `yaml:"indexResultsPool"`
 
-	// The policy for the TagEncoderPool
+	// The policy for the TagEncoderPool.
 	TagEncoderPool PoolPolicy `yaml:"tagEncoderPool"`
 
-	// The policy for the TagDecoderPool
+	// The policy for the TagDecoderPool.
 	TagDecoderPool PoolPolicy `yaml:"tagDecoderPool"`
+
+	// The policy for the WriteBatchPool.
+	WriteBatchPool WriteBatchPoolPolicy `yaml:"writeBatchPool"`
 }
 
 // PoolPolicy specifies a single pool policy.
 type PoolPolicy struct {
-	// The size of the pool
+	// The size of the pool.
 	Size int `yaml:"size"`
 
-	// The low watermark to start refilling the pool, if zero none
+	// The low watermark to start refilling the pool, if zero none.
 	RefillLowWaterMark float64 `yaml:"lowWatermark" validate:"min=0.0,max=1.0"`
 
-	// The high watermark to stop refilling the pool, if zero none
+	// The high watermark to stop refilling the pool, if zero none.
 	RefillHighWaterMark float64 `yaml:"highWatermark" validate:"min=0.0,max=1.0"`
 }
 
 // CapacityPoolPolicy specifies a single pool policy that has a
 // per element capacity.
 type CapacityPoolPolicy struct {
-	// The size of the pool
+	// The size of the pool.
 	Size int `yaml:"size"`
 
-	// The capacity of items in the pool
+	// The capacity of items in the pool.
 	Capacity int `yaml:"capacity"`
 
-	// The low watermark to start refilling the pool, if zero none
+	// The low watermark to start refilling the pool, if zero none.
 	RefillLowWaterMark float64 `yaml:"lowWatermark" validate:"min=0.0,max=1.0"`
 
-	// The high watermark to stop refilling the pool, if zero none
+	// The high watermark to stop refilling the pool, if zero none.
 	RefillHighWaterMark float64 `yaml:"highWatermark" validate:"min=0.0,max=1.0"`
 }
 
 // MaxCapacityPoolPolicy specifies a single pool policy that has a
 // per element capacity, and a maximum allowed capacity as well.
 type MaxCapacityPoolPolicy struct {
-	// The size of the pool
+	// The size of the pool.
 	Size int `yaml:"size"`
 
-	// The capacity of items in the pool
+	// The capacity of items in the pool.
 	Capacity int `yaml:"capacity"`
 
-	// The max capacity of items in the pool
+	// The max capacity of items in the pool.
 	MaxCapacity int `yaml:"maxCapacity"`
 
-	// The low watermark to start refilling the pool, if zero none
+	// The low watermark to start refilling the pool, if zero none.
 	RefillLowWaterMark float64 `yaml:"lowWatermark" validate:"min=0.0,max=1.0"`
 
-	// The high watermark to stop refilling the pool, if zero none
+	// The high watermark to stop refilling the pool, if zero none.
 	RefillHighWaterMark float64 `yaml:"highWatermark" validate:"min=0.0,max=1.0"`
 }
 
@@ -157,15 +160,15 @@ type BucketPoolPolicy struct {
 	Buckets []CapacityPoolPolicy `yaml:"buckets"`
 }
 
-// ContextPoolPolicy specifies the policy for the context pool
+// ContextPoolPolicy specifies the policy for the context pool.
 type ContextPoolPolicy struct {
 	// The size of the pool
 	Size int `yaml:"size"`
 
-	// The low watermark to start refilling the pool, if zero none
+	// The low watermark to start refilling the pool, if zero none.
 	RefillLowWaterMark float64 `yaml:"lowWatermark" validate:"min=0.0,max=1.0"`
 
-	// The high watermark to stop refilling the pool, if zero none
+	// The high watermark to stop refilling the pool, if zero none.
 	RefillHighWaterMark float64 `yaml:"highWatermark" validate:"min=0.0,max=1.0"`
 
 	// The maximum allowable size for a slice of finalizers that the
@@ -175,7 +178,21 @@ type ContextPoolPolicy struct {
 	MaxFinalizerCapacity int `yaml:"maxFinalizerCapacity" validate:"min=0"`
 }
 
-// PoolPolicy returns the PoolPolicy that is represented by the ContextPoolPolicy
+// WriteBatchPoolPolicy specifies the pooling policy for the WriteBatch pool.
+type WriteBatchPoolPolicy struct {
+	// InitialBatchSize controls the initial batch size for each WriteBatch when
+	// the pool is being constructed / refilled.
+	InitialBatchSize *int `yaml:"initialBatchSize"`
+
+	// MaxBatchSize controls the maximum size that a pooled WriteBatch can grow to
+	// and still remain in the pool.
+	MaxBatchSize *int `yaml:"maxBatchSize"`
+
+	// Pool is the Pooling Policy for the WriteBatch pool.
+	Pool PoolPolicy `yaml:"pool"`
+}
+
+// PoolPolicy returns the PoolPolicy that is represented by the ContextPoolPolicy.
 func (c ContextPoolPolicy) PoolPolicy() PoolPolicy {
 	return PoolPolicy{
 		Size:                c.Size,
@@ -185,7 +202,7 @@ func (c ContextPoolPolicy) PoolPolicy() PoolPolicy {
 }
 
 // MaxFinalizerCapacityWithDefault returns the maximum finalizer capacity and
-// fallsback to the default value if its not set
+// fallsback to the default value if its not set.
 func (c ContextPoolPolicy) MaxFinalizerCapacityWithDefault() int {
 	if c.MaxFinalizerCapacity == 0 {
 		return defaultMaxFinalizerCapacity
