@@ -850,3 +850,40 @@ func TestDatabaseBootstrapState(t *testing.T) {
 		},
 	}, dbBootstrapState)
 }
+
+func TestDatabaseIsBootstrapped(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
+
+	mediator := NewMockdatabaseMediator(ctrl)
+	mediator.EXPECT().IsBootstrapped().Return(true)
+	mediator.EXPECT().IsBootstrapped().Return(false)
+	d.mediator = mediator
+
+	assert.True(t, d.IsBootstrapped())
+	assert.False(t, d.IsBootstrapped())
+}
+
+func TestDatabaseIsBootstrappedAndDurable(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
+
+	mediator := NewMockdatabaseMediator(ctrl)
+	d.mediator = mediator
+
+	mediator.EXPECT().IsBootstrapped().Return(false)
+	assert.False(t, d.IsBootstrappedAndDurable())
+
+	mediator.EXPECT().LastSuccessfulSnapshotStartTime().Return(false)
+	// assert.False(t, d.IsBootstrapped())
+}
