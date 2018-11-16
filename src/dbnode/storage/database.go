@@ -93,8 +93,9 @@ type db struct {
 	created    uint64
 	bootstraps int
 
-	shardSet           sharding.ShardSet
-	shardSetAssignedAt time.Time
+	shardSet             sharding.ShardSet
+	shardSetAssignedAt   time.Time
+	bootstrapCompletedAt time.Time
 
 	scope   tally.Scope
 	metrics databaseMetrics
@@ -752,14 +753,18 @@ func (d *db) IsBootstrappedAndDurable() bool {
 		return false
 	}
 
+	lastBootstrapCompletionTime, ok := d.mediator.LastBootstrapCompletionTime()
+	if !ok {
+		return false
+	}
+
 	lastSnapshotStartTime, ok := d.mediator.LastSuccessfulSnapshotStartTime()
 	if !ok {
 		return false
 	}
 
-	fmt.Println("lastSnapshotStartTime: ", lastSnapshotStartTime)
-	fmt.Println("shardSetAssignedAt: ", d.shardSetAssignedAt)
-	return lastSnapshotStartTime.After(d.shardSetAssignedAt)
+	return lastSnapshotStartTime.After(lastBootstrapCompletionTime) &&
+		lastBootstrapCompletionTime.After(d.shardSetAssignedAt)
 }
 
 func (d *db) Repair() error {

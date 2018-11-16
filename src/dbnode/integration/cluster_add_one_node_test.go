@@ -70,7 +70,11 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 				SetBufferFuture(2*time.Minute)))
 	require.NoError(t, err)
 	opts := newTestOptions(t).
-		SetNamespaces([]namespace.Metadata{namesp})
+		SetNamespaces([]namespace.Metadata{namesp}).
+		// Prevent snapshotting from happening too frequently to allow for the
+		// possibility of a snapshot occurring after the shard set is assigned,
+		// but not after the node finishes bootstrapping.
+		SetMinimumSnapshotInterval(5 * time.Second)
 
 	minShard := uint32(0)
 	maxShard := uint32(opts.NumShards()) - uint32(1)
@@ -228,13 +232,6 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 			}
 		}
 	}()
-	// for _, setup := range setups {
-	// 	now = now.Add(time.Second)
-	// 	// Move time forward slightly so the database can determine that a snapshot
-	// 	// has started and completed since the topology change. See
-	// 	// Database.IsBootstrappedAndDurable method for more information.
-	// 	setup.setNowFn(now)
-	// }
 
 	// Generate some new data that will be written to the node while peer streaming is taking place
 	// to make sure that the data that is streamed in and the data that is received while streaming
@@ -277,18 +274,9 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 	}()
 
 	waitUntilHasBootstrappedShardsExactly(setups[1].db, testutil.Uint32Range(midShard+1, maxShard))
-	fmt.Println("done bootstrapping")
 	<-doneWritingWhilePeerStreaming
-	fmt.Println("done writing")
-
 	log.Debug("waiting for shards to be marked initialized")
-	// for _, setup := range setups {
-	// 	now = now.Add(time.Second)
-	// 	// Move time forward slightly so the database can determine that a snapshot
-	// 	// has started and completed since the topology change. See
-	// 	// Database.IsBootstrappedAndDurable method for more information.
-	// 	setup.setNowFn(now)
-	// }
+
 	allMarkedAvailable := func(
 		fakePlacementService fake.M3ClusterPlacementService,
 		instanceID string,
@@ -331,10 +319,7 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 
 	// Verify in-memory data match what we expect
 	for i := range setups {
-		ok := verifySeriesMaps(t, setups[i], namesp.ID(), expectedSeriesMaps[i])
-		if !ok {
-			fmt.Println("unexpected for: ", i)
-		}
+		verifySeriesMaps(t, setups[i], namesp.ID(), expectedSeriesMaps[i])
 	}
 
 	if verifyCommitlogCanBootstrapAfterNodeJoin {

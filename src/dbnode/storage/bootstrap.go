@@ -23,6 +23,7 @@ package storage
 import (
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
@@ -58,15 +59,16 @@ var (
 type bootstrapManager struct {
 	sync.RWMutex
 
-	database        database
-	mediator        databaseMediator
-	opts            Options
-	log             xlog.Logger
-	nowFn           clock.NowFn
-	processProvider bootstrap.ProcessProvider
-	state           BootstrapState
-	hasPending      bool
-	status          tally.Gauge
+	database                    database
+	mediator                    databaseMediator
+	opts                        Options
+	log                         xlog.Logger
+	nowFn                       clock.NowFn
+	processProvider             bootstrap.ProcessProvider
+	state                       BootstrapState
+	hasPending                  bool
+	status                      tally.Gauge
+	lastBootstrapCompletionTime time.Time
 }
 
 func newBootstrapManager(
@@ -91,6 +93,10 @@ func (m *bootstrapManager) IsBootstrapped() bool {
 	state := m.state
 	m.RUnlock()
 	return state == Bootstrapped
+}
+
+func (m *bootstrapManager) LastBootstrapCompletionTime() (time.Time, bool) {
+	return m.lastBootstrapCompletionTime, !m.lastBootstrapCompletionTime.IsZero()
 }
 
 func (m *bootstrapManager) Bootstrap() error {
@@ -148,6 +154,7 @@ func (m *bootstrapManager) Bootstrap() error {
 	// on its own course so that the load of ticking and flushing is more spread out
 	// across the cluster.
 
+	m.lastBootstrapCompletionTime = m.nowFn()
 	return multiErr.FinalError()
 }
 

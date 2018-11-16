@@ -527,6 +527,10 @@ type databaseBootstrapManager interface {
 	// IsBootstrapped returns whether the database is already bootstrapped.
 	IsBootstrapped() bool
 
+	// LastBootstrapCompletionTime returns the last bootstrap compeltion time,
+	// if any.
+	LastBootstrapCompletionTime() (time.Time, bool)
+
 	// Bootstrap performs bootstrapping for all namespaces and shards owned.
 	Bootstrap() error
 
@@ -630,31 +634,35 @@ type databaseTickManager interface {
 
 // databaseMediator mediates actions among various database managers
 type databaseMediator interface {
-	// Open opens the mediator
+	// Open opens the mediator.
 	Open() error
 
-	// IsBootstrapped returns whether the database is bootstrapped
+	// IsBootstrapped returns whether the database is bootstrapped.
 	IsBootstrapped() bool
 
-	// Bootstrap bootstraps the database with file operations performed at the end
+	// LastBootstrapCompletionTime returns the last bootstrap compeltion time,
+	// if any.
+	LastBootstrapCompletionTime() (time.Time, bool)
+
+	// Bootstrap bootstraps the database with file operations performed at the end.
 	Bootstrap() error
 
-	// DisableFileOps disables file operations
+	// DisableFileOps disables file operations.
 	DisableFileOps()
 
-	// EnableFileOps enables file operations
+	// EnableFileOps enables file operations.
 	EnableFileOps()
 
-	// Tick performs a tick
+	// Tick performs a tick.
 	Tick(runType runType, forceType forceType) error
 
-	// Repair repairs the database
+	// Repair repairs the database.
 	Repair() error
 
-	// Close closes the mediator
+	// Close closes the mediator.
 	Close() error
 
-	// Report reports runtime information
+	// Report reports runtime information.
 	Report()
 
 	// LastSuccessfulSnapshotStartTime returns the start time of the last successful snapshot,

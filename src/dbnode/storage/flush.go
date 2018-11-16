@@ -133,43 +133,47 @@ func (m *flushManager) Flush(
 		multiErr = multiErr.Add(m.flushNamespaceWithTimes(ns, shardBootstrapTimes, flushTimes, flush))
 	}
 
-	m.setState(flushManagerSnapshotInProgress)
-	maxBlocksSnapshottedByNamespace := 0
-	for _, ns := range namespaces {
-		var (
-			snapshotBlockStarts     = m.namespaceSnapshotTimes(ns, tickStart)
-			shardBootstrapTimes, ok = dbBootstrapStateAtTickStart.NamespaceBootstrapStates[ns.ID().String()]
-		)
+	shouldSnapshot := tickStart.Sub(m.lastSuccessfulSnapshotStartTime) > m.opts.MinimumSnapshotInterval()
+	if shouldSnapshot {
+		m.setState(flushManagerSnapshotInProgress)
+		maxBlocksSnapshottedByNamespace := 0
+		for _, ns := range namespaces {
+			var (
+				snapshotBlockStarts     = m.namespaceSnapshotTimes(ns, tickStart)
+				shardBootstrapTimes, ok = dbBootstrapStateAtTickStart.NamespaceBootstrapStates[ns.ID().String()]
+			)
 
-		if !ok {
-			// Could happen if namespaces are added / removed.
-			multiErr = multiErr.Add(fmt.Errorf(
-				"tried to flush ns: %s, but did not have shard bootstrap times", ns.ID().String()))
-			continue
-		}
+			if !ok {
+				// Could happen if namespaces are added / removed.
+				multiErr = multiErr.Add(fmt.Errorf(
+					"tried to flush ns: %s, but did not have shard bootstrap times", ns.ID().String()))
+				continue
+			}
 
-		if len(snapshotBlockStarts) > maxBlocksSnapshottedByNamespace {
-			maxBlocksSnapshottedByNamespace = len(snapshotBlockStarts)
-		}
-		for _, snapshotBlockStart := range snapshotBlockStarts {
-			err := ns.Snapshot(
-				snapshotBlockStart, tickStart, shardBootstrapTimes, flush)
+			if len(snapshotBlockStarts) > maxBlocksSnapshottedByNamespace {
+				maxBlocksSnapshottedByNamespace = len(snapshotBlockStarts)
+			}
+			for _, snapshotBlockStart := range snapshotBlockStarts {
+				err := ns.Snapshot(
+					snapshotBlockStart, tickStart, shardBootstrapTimes, flush)
 
-			if err != nil {
-				detailedErr := fmt.Errorf("namespace %s failed to snapshot data: %v",
-					ns.ID().String(), err)
-				multiErr = multiErr.Add(detailedErr)
+				if err != nil {
+					detailedErr := fmt.Errorf("namespace %s failed to snapshot data: %v",
+						ns.ID().String(), err)
+					multiErr = multiErr.Add(detailedErr)
+				}
 			}
 		}
+		m.maxBlocksSnapshottedByNamespace.Update(float64(maxBlocksSnapshottedByNamespace))
 	}
-	m.maxBlocksSnapshottedByNamespace.Update(float64(maxBlocksSnapshottedByNamespace))
 
 	// mark data flush finished
 	multiErr = multiErr.Add(flush.DoneData())
 
-	if multiErr.NumErrors() == 0 {
-		fmt.Println("done snapshotting!")
-		m.lastSuccessfulSnapshotStartTime = tickStart
+	if shouldSnapshot {
+		if multiErr.NumErrors() == 0 {
+			m.lastSuccessfulSnapshotStartTime = tickStart
+		}
 	}
 
 	// flush index data
