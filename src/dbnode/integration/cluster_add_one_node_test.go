@@ -23,12 +23,14 @@
 package integration
 
 import (
+	"fmt"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/cluster/services"
 	"github.com/m3db/m3/src/cluster/shard"
+	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/integration/fake"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/retention"
@@ -202,20 +204,38 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 	require.NoError(t, setups[1].startServer())
 	log.Debug("servers are now up")
 
-	// Stop the servers at test completion
-	defer func() {
-		log.Debug("servers closing")
-		setups.parallel(func(s *testSetup) {
-			require.NoError(t, s.stopServer())
-		})
-		log.Debug("servers are now down")
-	}()
-
 	// Bootstrap the new shards
 	log.Debug("resharding to initialize shards on second node")
 	svc.SetInstances(instances.add)
 	svcs.NotifyServiceUpdate("m3db")
+
+	doneWritingWhilePeerStreaming := make(chan struct{})
+	seriesAfterBootstrapSeriesMaps := generate.BlocksByStart([]generate.BlockConfig{
+		{IDs: []string{"series_after_bootstrap1", "series_after_bootstrap2"}, NumPoints: 90, Start: now},
+	})
+	for blockStart, series := range seriesAfterBootstrapSeriesMaps {
+		_, ok := expectedSeriesMaps[1][blockStart]
+		if !ok {
+			expectedSeriesMaps[1][blockStart] = generate.SeriesBlock(series)
+			continue
+		}
+		expectedSeriesMaps[1][blockStart] = append(expectedSeriesMaps[1][blockStart], series...)
+	}
+	go func() {
+		// Write some data wile peer streaming is happening.
+		// seriesAfterBootstrapSeriesMaps := generate.BlocksByStart([]generate.BlockConfig{
+		// 	{IDs: []string{"series_after_bootstrap1", "series_after_bootstrap2"}, NumPoints: 90, Start: now},
+		// })
+		for _, testData := range seriesAfterBootstrapSeriesMaps {
+			err := setups[1].writeBatch(namesp.ID(), testData)
+			if !client.IsConsistencyResultError(err) {
+				panic(err)
+			}
+		}
+		doneWritingWhilePeerStreaming <- struct{}{}
+	}()
 	waitUntilHasBootstrappedShardsExactly(setups[1].db, testutil.Uint32Range(midShard+1, maxShard))
+	<-doneWritingWhilePeerStreaming
 
 	log.Debug("waiting for shards to be marked initialized")
 	for _, setup := range setups {
@@ -266,15 +286,40 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 
 	// Verify in-memory data match what we expect
 	for i := range setups {
-		verifySeriesMaps(t, setups[i], namesp.ID(), expectedSeriesMaps[i])
+		ok := verifySeriesMaps(t, setups[i], namesp.ID(), expectedSeriesMaps[i])
+		if !ok {
+			fmt.Println("bad for: ", i)
+		}
 	}
 
 	if verifyCommitlogCanBootstrapAfterNodeJoin {
 		// Verify that the node that joined the cluster can immediately bootstrap
 		// the data it streamed from its peers from the commit log as soon as
 		// the bootstrapping process completes.
+		//
+		// In addition, verify that any data that was received during the same block
+		// as the streamed data (I.E while peer streaming)
+		// now = now.Add(blockSize)
+		// setups[1].setNowFn(now)
+		// seriesAfterBootstrapSeriesMaps := generate.BlocksByStart([]generate.BlockConfig{
+		// 	{IDs: []string{"series_after_bootstrap1", "series_after_bootstrap2"}, NumPoints: 90, Start: now},
+		// })
+		// for _, testData := range seriesAfterBootstrapSeriesMaps {
+		// 	require.NoError(t, setups[1].writeBatch(namesp.ID(), testData))
+		// }
+
+		// Verify that the node that joined the cluster can immediately bootstrap
+		// the data it streamed from its peers from the commit log as soon as
+		// the bootstrapping process completes.
 		require.NoError(t, setups[1].stopServer())
+		topoOpts := topology.NewDynamicOptions().
+			SetConfigServiceClient(fake.NewM3ClusterClient(svcs, nil))
+		topoInit := topology.NewDynamicInitializer(topoOpts)
+		setups[1].topoInit = topoInit
 		startServerWithNewInspection(t, opts, setups[1])
+		fmt.Println(3)
 		verifySeriesMaps(t, setups[1], namesp.ID(), expectedSeriesMaps[1])
+		// verifySeriesMaps(t, setups[1], namesp.ID(), seriesAfterBootstrapSeriesMaps)
+		fmt.Println(4)
 	}
 }
