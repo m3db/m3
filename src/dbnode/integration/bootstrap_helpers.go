@@ -37,61 +37,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newTestBootstrapperSource(
-	opts testBootstrapperSourceOptions,
-	resultOpts result.Options,
-	next bootstrap.Bootstrapper,
-) bootstrap.BootstrapperProvider {
-	src := testBootstrapperSource{}
-	if opts.can != nil {
-		src.can = opts.can
-	} else {
-		src.can = func(bootstrap.Strategy) bool { return true }
-	}
-
-	if opts.availableData != nil {
-		src.availableData = opts.availableData
-	} else {
-		src.availableData = func(_ namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, _ bootstrap.RunOptions) (result.ShardTimeRanges, error) {
-			return shardsTimeRanges, nil
-		}
-	}
-
-	if opts.readData != nil {
-		src.readData = opts.readData
-	} else {
-		src.readData = func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.DataBootstrapResult, error) {
-			return result.NewDataBootstrapResult(), nil
-		}
-	}
-
-	if opts.availableIndex != nil {
-		src.availableIndex = opts.availableIndex
-	} else {
-		src.availableIndex = func(_ namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, _ bootstrap.RunOptions) (result.ShardTimeRanges, error) {
-			return shardsTimeRanges, nil
-		}
-	}
-
-	if opts.readIndex != nil {
-		src.readIndex = opts.readIndex
-	} else {
-		src.readIndex = func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.IndexBootstrapResult, error) {
-			return result.NewIndexBootstrapResult(), nil
-		}
-	}
-
-	var (
-		b   = &testBootstrapper{}
-		err error
-	)
-	b.Bootstrapper, err = bootstrapper.NewBaseBootstrapper(src.String(), src, resultOpts, next)
-	if err != nil {
-		panic(err)
-	}
-	return testBootstrapperProvider{Bootstrapper: b}
-}
-
 var _ bootstrap.BootstrapperProvider = &testBootstrapperProvider{}
 
 type testBootstrapperProvider struct {
@@ -104,18 +49,6 @@ func (p testBootstrapperProvider) String() string {
 
 func (p testBootstrapperProvider) Provide() (bootstrap.Bootstrapper, error) {
 	return p.Bootstrapper, nil
-}
-
-type testBootstrapper struct {
-	bootstrap.Bootstrapper
-}
-
-type testBootstrapperSourceOptions struct {
-	can            func(bootstrap.Strategy) bool
-	availableData  func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.ShardTimeRanges, error)
-	readData       func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.DataBootstrapResult, error)
-	availableIndex func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.ShardTimeRanges, error)
-	readIndex      func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.IndexBootstrapResult, error)
 }
 
 var _ bootstrap.Source = &testBootstrapperSource{}

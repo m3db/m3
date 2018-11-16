@@ -24,7 +24,6 @@ type tickResult struct {
 	activeSeries           int
 	expiredSeries          int
 	activeBlocks           int
-	openBlocks             int
 	wiredBlocks            int
 	unwiredBlocks          int
 	pendingMergeBlocks     int
@@ -39,7 +38,6 @@ func (r tickResult) merge(other tickResult) tickResult {
 		activeSeries:           r.activeSeries + other.activeSeries,
 		expiredSeries:          r.expiredSeries + other.expiredSeries,
 		activeBlocks:           r.activeBlocks + other.activeBlocks,
-		openBlocks:             r.openBlocks + other.openBlocks,
 		wiredBlocks:            r.wiredBlocks + other.wiredBlocks,
 		pendingMergeBlocks:     r.pendingMergeBlocks + other.pendingMergeBlocks,
 		unwiredBlocks:          r.unwiredBlocks + other.unwiredBlocks,

@@ -22,7 +22,6 @@ package series
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -32,10 +31,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/context"
-	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/instrument"
-	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -52,7 +48,6 @@ var (
 
 	errSeriesAlreadyBootstrapped = errors.New("series is already bootstrapped")
 	errSeriesNotBootstrapped     = errors.New("series is not yet bootstrapped")
-	errStreamDidNotExistForBlock = errors.New("stream did not exist for block")
 )
 
 type dbSeries struct {
@@ -96,7 +91,7 @@ func newDatabaseSeries() *dbSeries {
 		blocks: block.NewDatabaseSeriesBlocks(0),
 		bs:     bootstrapNotStarted,
 	}
-	series.buffer = newDatabaseBuffer(series.bufferDrained)
+	series.buffer = newDatabaseBuffer()
 	return series
 }
 
@@ -126,6 +121,20 @@ func (s *dbSeries) Tick() (TickResult, error) {
 
 	bufferResult := s.buffer.Tick()
 	r.MergedOutOfOrderBlocks = bufferResult.mergedOutOfOrderBlocks
+
+	for _, blockStart := range bufferResult.bucketsRemoved {
+		// A bucket being removed from the buffer means that there is new data
+		// that got persisted to disk for that blockStart. As such, the cached
+		// block is no longer up to date, so we remove it to be retrieved from
+		// disk next time this is queried for.
+		block, exists := s.blocks.BlockAt(blockStart)
+		if exists {
+			s.blocks.RemoveBlockAt(blockStart)
+			if s.opts.CachePolicy() != CacheLRU {
+				block.Close()
+			}
+		}
+	}
 
 	update, err := s.updateBlocksWithLock()
 	if err != nil {
@@ -185,7 +194,7 @@ func (s *dbSeries) updateBlocksWithLock() (updateBlocksResult, error) {
 			// 		4) WiredList tries to close the block, not knowing that it has
 			// 		   already been closed, and re-opened / re-used leading to
 			// 		   unexpected behavior or data loss.
-			if cachePolicy == CacheLRU && currBlock.WasRetrievedFromDisk() {
+			if cachePolicy == CacheLRU {
 				// Do nothing
 			} else {
 				currBlock.Close()
@@ -218,7 +227,7 @@ func (s *dbSeries) updateBlocksWithLock() (updateBlocksResult, error) {
 				// The tick is responsible for managing the lifecycle of blocks that were not
 				// read from disk (not retrieved), and the WiredList will manage those that were
 				// retrieved from disk.
-				shouldUnwire = !currBlock.WasRetrievedFromDisk()
+				shouldUnwire = false
 			default:
 				s.opts.InstrumentOptions().Logger().Fatalf(
 					"unhandled cache policy in series tick: %s", cachePolicy)
@@ -246,7 +255,6 @@ func (s *dbSeries) updateBlocksWithLock() (updateBlocksResult, error) {
 	bufferStats := s.buffer.Stats()
 	result.ActiveBlocks += bufferStats.wiredBlocks
 	result.WiredBlocks += bufferStats.wiredBlocks
-	result.OpenBlocks += bufferStats.openBlocks
 
 	return result, nil
 }
@@ -333,7 +341,7 @@ func (s *dbSeries) FetchBlocksMetadata(
 		if !start.Before(t.Add(blockSize)) || !t.Before(end) {
 			continue
 		}
-		if !opts.IncludeCachedBlocks && b.WasRetrievedFromDisk() {
+		if !opts.IncludeCachedBlocks {
 			// Do not include cached blocks if not specified to, this is
 			// to avoid high amounts of duplication if a significant number of
 			// blocks are cached in memory when returning blocks metadata
@@ -384,50 +392,11 @@ func (s *dbSeries) FetchBlocksMetadata(
 	return block.NewFetchBlocksMetadataResult(s.id, tagsIter, res), nil
 }
 
-func (s *dbSeries) bufferDrained(newBlock block.DatabaseBlock) {
-	// NB(r): by the very nature of this method executing we have the
-	// lock already. Executing the drain method occurs during a write if the
-	// buffer needs to drain or if tick is called and series explicitly asks
-	// the buffer to drain ready buckets.
-	iOpts := s.opts.InstrumentOptions()
-	err := s.mergeBlockWithLock(newBlock)
-	if err != nil {
-		iOpts.Logger().WithFields(
-			xlog.NewField("id", s.id.String()),
-			xlog.NewField("blockStart", newBlock.StartTime()),
-			xlog.NewField("err", err.Error()),
-		).Errorf("error trying to drain series buffer")
-		// Allocating metric here is ok because this code-path should never
-		// happen anyways.
-		iOpts.MetricsScope().SubScope("series-buffer-drain").Counter("error").Inc(1)
-	}
-}
-
-func (s *dbSeries) mergeBlockWithLock(newBlock block.DatabaseBlock) error {
-	blockStart := newBlock.StartTime()
-
-	// If we don't have an existing block just insert the new block.
-	existingBlock, ok := s.blocks.BlockAt(blockStart)
-	if !ok {
-		// No existing block, we're safe to just add it.
-		s.addBlockWithLock(newBlock)
-		return nil
-	}
-
-	// There is already an existing block, perform a (lazy) merge.
-	return existingBlock.Merge(newBlock)
-}
-
 func (s *dbSeries) addBlockWithLock(b block.DatabaseBlock) {
 	b.SetOnEvictedFromWiredList(s.blockOnEvictedFromWiredList)
 	s.blocks.AddBlock(b)
 }
 
-// NB(xichen): we are holding a big lock here to drain the in-memory buffer.
-// This could potentially be expensive in that we might accumulate a lot of
-// data in memory during bootstrapping. If that becomes a problem, we could
-// bootstrap in batches, e.g., drain and reset the buffer, drain the streams,
-// then repeat, until len(s.pendingBootstrap) is below a given threshold.
 func (s *dbSeries) Bootstrap(bootstrappedBlocks block.DatabaseSeriesBlocks) (BootstrapResult, error) {
 	s.Lock()
 	defer func() {
@@ -444,44 +413,13 @@ func (s *dbSeries) Bootstrap(bootstrappedBlocks block.DatabaseSeriesBlocks) (Boo
 		return result, nil
 	}
 
-	// Request the in-memory buffer to drain and reset so that the start times
-	// of the blocks in the buckets are set to the latest valid times
-	s.buffer.DrainAndReset()
-	min, _, err := s.buffer.MinMax()
-	if err != nil {
-		return result, err
-	}
-
-	var (
-		multiErr = xerrors.NewMultiError()
-	)
-	for tNano, block := range bootstrappedBlocks.AllBlocks() {
-		t := tNano.ToTime()
-		// If there is a writable, undrained series buffer bucket then store the block
-		// there and it will be merged / drained as part of the usual lifecycle.
-		if !t.Before(min) {
-			if err := s.buffer.Bootstrap(block); err != nil {
-				multiErr = multiErr.Add(s.newBootstrapBlockError(block, err))
-			}
-			result.NumBlocksMovedToBuffer++
-			continue
-		}
-
-		// If we're unable to put the blocks in an active series buffer bucket, then store them
-		// in the series block, merging with any existing blocks if necessary. There could be an
-		// existing block in the situation that currentTime > blockStart.Add(blockSize).Add(bufferPast),
-		// in which case the series buffer buckets may have been drained and rotated into a block, but
-		// still exist in memory because a flush hasn't occurred yet (we guarantee this by not allowing flushes
-		// until we're bootstrapped.)
-		err := s.mergeBlockWithLock(block)
-		if err != nil {
-			multiErr = multiErr.Add(s.newBootstrapBlockError(block, err))
-		}
-		result.NumBlocksMerged++
+	for _, block := range bootstrappedBlocks.AllBlocks() {
+		s.buffer.Bootstrap(block)
+		result.NumBlocksMovedToBuffer++
 	}
 
 	s.bs = bootstrapped
-	return result, multiErr.FinalError()
+	return result, nil
 }
 
 func (s *dbSeries) OnRetrieveBlock(
@@ -537,20 +475,16 @@ func (s *dbSeries) OnRetrieveBlock(
 // whether the data originated from disk or buffer rotation.
 func (s *dbSeries) OnReadBlock(b block.DatabaseBlock) {
 	if list := s.opts.DatabaseBlockOptions().WiredList(); list != nil {
-		// The WiredList is only responsible for managing the lifecycle of blocks
-		// retrieved from disk.
-		if b.WasRetrievedFromDisk() {
-			// 1) Need to update the WiredList so it knows which blocks have been
-			// most recently read.
-			// 2) We do a non-blocking update here to prevent deadlock with the
-			// WiredList calling OnEvictedFromWiredList on the same series since
-			// OnReadBlock is usually called within the context of a read lock
-			// on this series.
-			// 3) Its safe to do a non-blocking update because the wired list has
-			// already been exposed to this block, so even if the wired list drops
-			// this update, it will still manage this blocks lifecycle.
-			list.NonBlockingUpdate(b)
-		}
+		// 1) Need to update the WiredList so it knows which blocks have been
+		// most recently read.
+		// 2) We do a non-blocking update here to prevent deadlock with the
+		// WiredList calling OnEvictedFromWiredList on the same series since
+		// OnReadBlock is usually called within the context of a read lock
+		// on this series.
+		// 3) Its safe to do a non-blocking update because the wired list has
+		// already been exposed to this block, so even if the wired list drops
+		// this update, it will still manage this blocks lifecycle.
+		list.NonBlockingUpdate(b)
 	}
 }
 
@@ -563,31 +497,7 @@ func (s *dbSeries) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 		return
 	}
 
-	block, ok := s.blocks.BlockAt(blockStart)
-	if ok {
-		if !block.WasRetrievedFromDisk() {
-			// Should never happen - invalid application state could cause data loss
-			instrument.EmitAndLogInvariantViolation(
-				s.opts.InstrumentOptions(), func(l xlog.Logger) {
-					l.WithFields(
-						xlog.NewField("id", id.String()),
-						xlog.NewField("blockStart", blockStart),
-					).Errorf("tried to evict block that was not retrieved from disk")
-				})
-			return
-		}
-
-		s.blocks.RemoveBlockAt(blockStart)
-	}
-}
-
-func (s *dbSeries) newBootstrapBlockError(
-	b block.DatabaseBlock,
-	err error,
-) error {
-	msgFmt := "bootstrap series error occurred for %s block at %s: %v"
-	renamed := fmt.Errorf(msgFmt, s.id.String(), b.StartTime().String(), err)
-	return xerrors.NewRenamedError(err, renamed)
+	s.blocks.RemoveBlockAt(blockStart)
 }
 
 func (s *dbSeries) Flush(
@@ -595,40 +505,14 @@ func (s *dbSeries) Flush(
 	blockStart time.Time,
 	persistFn persist.DataFn,
 ) (FlushOutcome, error) {
-	s.RLock()
-	defer s.RUnlock()
+	s.Lock()
+	defer s.Unlock()
 
 	if s.bs != bootstrapped {
 		return FlushOutcomeErr, errSeriesNotBootstrapped
 	}
 
-	b, exists := s.blocks.BlockAt(blockStart)
-	if !exists {
-		return FlushOutcomeBlockDoesNotExist, nil
-	}
-
-	br, err := b.Stream(ctx)
-	if err != nil {
-		return FlushOutcomeErr, err
-	}
-	if br.IsEmpty() {
-		return FlushOutcomeErr, errStreamDidNotExistForBlock
-	}
-	segment, err := br.Segment()
-	if err != nil {
-		return FlushOutcomeErr, err
-	}
-
-	checksum, err := b.Checksum()
-	if err != nil {
-		return FlushOutcomeErr, err
-	}
-	err = persistFn(s.id, s.tags, segment, checksum)
-	if err != nil {
-		return FlushOutcomeErr, err
-	}
-
-	return FlushOutcomeFlushedToDisk, nil
+	return s.buffer.Flush(ctx, blockStart, s.id, s.tags, persistFn)
 }
 
 func (s *dbSeries) Snapshot(
@@ -649,17 +533,8 @@ func (s *dbSeries) Snapshot(
 		stream xio.SegmentReader
 		err    error
 	)
-	block, ok := s.blocks.BlockAt(blockStart)
-	if ok {
-		// First check if the data has already been rotated out of the buffer
-		// into an immutable block. If it has, there is no need to check the
-		// series buffer as the data can't be in both locations.
-		stream, err = block.Stream(ctx)
-	} else {
-		// If the data hasn't been rotated into an immutable block yet,
-		// then it may be in the series buffer (because its still mutable).
-		stream, err = s.buffer.Snapshot(ctx, blockStart)
-	}
+
+	stream, err = s.buffer.Snapshot(ctx, realtimeType, blockStart)
 
 	if err != nil {
 		return err
@@ -688,20 +563,15 @@ func (s *dbSeries) Close() {
 	case CacheLRU:
 		// In the CacheLRU case, blocks that were retrieved from disk are owned
 		// by the WiredList and should not be closed here. They will eventually
-		// be evicted and closed by  the WiredList when it needs to make room
+		// be evicted and closed by the WiredList when it needs to make room
 		// for new blocks.
-		for _, block := range s.blocks.AllBlocks() {
-			if !block.WasRetrievedFromDisk() {
-				block.Close()
-			}
-		}
 	default:
 		s.blocks.RemoveAll()
 	}
 
 	// Reset (not close) underlying resources because the series will go
 	// back into the pool and be re-used.
-	s.buffer.Reset(s.opts)
+	s.buffer.Reset(s.blockRetriever, s.opts)
 	s.blocks.Reset()
 
 	if s.pool != nil {
@@ -739,7 +609,7 @@ func (s *dbSeries) Reset(
 	s.tags = tags
 
 	s.blocks.Reset()
-	s.buffer.Reset(opts)
+	s.buffer.Reset(blockRetriever, opts)
 	s.opts = opts
 	s.bs = bootstrapNotStarted
 	s.blockRetriever = blockRetriever

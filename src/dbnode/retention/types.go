@@ -69,4 +69,10 @@ type Options interface {
 	// BlockDataExpiryAfterNotAccessedPeriod returns the period that blocks data should
 	// be expired after not being accessed for a given duration
 	BlockDataExpiryAfterNotAccessedPeriod() time.Duration
+
+	// SetOutOfOrderWritesEnabled sets whether writes to any time is enabled
+	SetOutOfOrderWritesEnabled(value bool) Options
+
+	// OutOfOrderWritesEnabled returns whether writes to any time is enabled
+	OutOfOrderWritesEnabled() bool
 }

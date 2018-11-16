@@ -256,8 +256,13 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	defer ctrl.Finish()
 
 	blockStart := time.Unix(21600, 0)
-
-	s := testDatabaseShard(t, testDatabaseOptions())
+	now := time.Now()
+	nowFn := func() time.Time {
+		return now
+	}
+	opts := testDatabaseOptions()
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
+	s := testDatabaseShard(t, opts)
 	defer s.Close()
 	s.bootstrapState = Bootstrapped
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = fileOpState{
@@ -308,6 +313,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	flushState := s.FlushState(blockStart)
 	require.Equal(t, fileOpState{
 		Status:      fileOpSuccess,
+		LastSuccess: now,
 		NumFailures: 0,
 	}, flushState)
 }

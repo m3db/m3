@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	m3dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/series"
@@ -170,7 +171,6 @@ type databaseNamespaceTickMetrics struct {
 	activeSeries           tally.Gauge
 	expiredSeries          tally.Counter
 	activeBlocks           tally.Gauge
-	openBlocks             tally.Gauge
 	wiredBlocks            tally.Gauge
 	unwiredBlocks          tally.Gauge
 	pendingMergeBlocks     tally.Gauge
@@ -242,7 +242,6 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 			activeSeries:           tickScope.Gauge("active-series"),
 			expiredSeries:          tickScope.Counter("expired-series"),
 			activeBlocks:           tickScope.Gauge("active-blocks"),
-			openBlocks:             tickScope.Gauge("open-blocks"),
 			wiredBlocks:            tickScope.Gauge("wired-blocks"),
 			unwiredBlocks:          tickScope.Gauge("unwired-blocks"),
 			pendingMergeBlocks:     tickScope.Gauge("pending-merge-blocks"),
@@ -534,7 +533,6 @@ func (n *dbNamespace) Tick(c context.Cancellable, tickStart time.Time) error {
 	n.metrics.tick.activeSeries.Update(float64(r.activeSeries))
 	n.metrics.tick.expiredSeries.Inc(int64(r.expiredSeries))
 	n.metrics.tick.activeBlocks.Update(float64(r.activeBlocks))
-	n.metrics.tick.openBlocks.Update(float64(r.openBlocks))
 	n.metrics.tick.wiredBlocks.Update(float64(r.wiredBlocks))
 	n.metrics.tick.unwiredBlocks.Update(float64(r.unwiredBlocks))
 	n.metrics.tick.pendingMergeBlocks.Update(float64(r.pendingMergeBlocks))
@@ -560,6 +558,12 @@ func (n *dbNamespace) Write(
 	annotation []byte,
 ) (ts.Series, bool, error) {
 	callStart := n.nowFn()
+	if !n.Options().RetentionOptions().OutOfOrderWritesEnabled() &&
+		!n.isRealtime(callStart, timestamp) {
+		n.metrics.write.ReportError(n.nowFn().Sub(callStart))
+		return m3dberrors.ErrOutOfOrderWriteTimeNotEnabled
+	}
+
 	shard, err := n.shardFor(id)
 	if err != nil {
 		n.metrics.write.ReportError(n.nowFn().Sub(callStart))
@@ -569,6 +573,13 @@ func (n *dbNamespace) Write(
 		value, unit, annotation)
 	n.metrics.write.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return series, wasWritten, err
+}
+
+func (n *dbNamespace) isRealtime(now time.Time, timestamp time.Time) bool {
+	ropts := n.Options().RetentionOptions()
+	futureLimit := now.Add(1 * ropts.BufferFuture())
+	pastLimit := now.Add(-1 * ropts.BufferPast())
+	return pastLimit.Before(timestamp) && futureLimit.After(timestamp)
 }
 
 func (n *dbNamespace) WriteTagged(
@@ -856,7 +867,7 @@ func (n *dbNamespace) Flush(
 	for _, shard := range shards {
 		// This is different than calling shard.IsBootstrapped() because it was determined
 		// before the start of the tick that preceded this flush, meaning it can be reliably
-		// used to determine if all of the bootstrapped blocks have been merged / drained (ticked)
+		// used to determine if all of the bootstrapped blocks have been merged (ticked)
 		// and are ready to be flushed.
 		shardBootstrapStateBeforeTick, ok := shardBootstrapStatesAtTickStart[shard.ID()]
 		if !ok || shardBootstrapStateBeforeTick != Bootstrapped {
