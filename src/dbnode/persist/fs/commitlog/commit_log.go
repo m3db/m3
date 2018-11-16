@@ -399,8 +399,12 @@ func (l *commitLog) flushEvery(interval time.Duration) {
 }
 
 func (l *commitLog) write() {
+	// We use these to make the batch and non-batched write paths the same
+	// by turning non-batched writes into a batch of size one while avoiding
+	// any allocations.
 	var singleBatch = make([]ts.BatchWrite, 1)
 	var batch []ts.BatchWrite
+
 	for write := range l.writes {
 		if write.eventType == flushEventType {
 			l.writerState.writer.Flush(false)
