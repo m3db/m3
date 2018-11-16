@@ -399,6 +399,8 @@ func (l *commitLog) flushEvery(interval time.Duration) {
 }
 
 func (l *commitLog) write() {
+	var singleBatch = make([]ts.BatchWrite, 1)
+	var batch []ts.BatchWrite
 	for write := range l.writes {
 		if write.eventType == flushEventType {
 			l.writerState.writer.Flush(false)
@@ -461,9 +463,25 @@ func (l *commitLog) write() {
 		)
 
 		if write.write.writeBatch == nil {
-			// Handle individual write case
-			numDequeued = 1
-			write := write.write.write
+			singleBatch[0].Write = write.write.write
+			batch = singleBatch
+		} else {
+			batch = write.write.writeBatch.Iter()
+		}
+		numDequeued = len(batch)
+
+		for _, writeBatch := range batch {
+			if writeBatch.Err != nil {
+				// This entry was not written successfully to the in-memory datastructures so
+				// we should not persist it to the commitlog. This is important to maintain
+				// consistency and the integrity of M3DB's business logic, but also because if
+				// the write does not succeed to the in-memory datastructures then we don't have
+				// access to long-lived identifiers like the seriesID (which is pooled) so
+				// attempting to write would cause pooling / lifecycle issues as well.
+				continue
+			}
+
+			write := writeBatch.Write
 			err := l.writerState.writer.Write(write.Series,
 				write.Datapoint, write.Unit, write.Annotation)
 			if err != nil {
@@ -471,33 +489,10 @@ func (l *commitLog) write() {
 				continue
 			}
 			numWritesSuccess++
-		} else {
-			// Handle write batch case
-			iter := write.write.writeBatch.Iter()
-			numDequeued = len(iter)
+		}
 
-			for _, writeBatch := range iter {
-				if writeBatch.Err != nil {
-					// This entry was not written successfully to the in-memory datastructures so
-					// we should not persist it to the commitlog. This is important to maintain
-					// consistency and the integrity of M3DB's business logic, but also because if
-					// the write does not succeed to the in-memory datastructures then we don't have
-					// access to long-lived identifiers like the seriesID (which is pooled) so
-					// attempting to write would cause pooling / lifecycle issues as well.
-					continue
-				}
-
-				write := writeBatch.Write
-				err := l.writerState.writer.Write(write.Series,
-					write.Datapoint, write.Unit, write.Annotation)
-				if err != nil {
-					l.handleWriteErr(err)
-					continue
-				}
-				numWritesSuccess++
-			}
-
-			// Return the write batch to the pool.
+		// Return the write batch to the pool.
+		if write.write.writeBatch != nil {
 			write.write.writeBatch.Finalize()
 		}
 
