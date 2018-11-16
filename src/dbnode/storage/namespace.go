@@ -885,7 +885,6 @@ func (n *dbNamespace) Snapshot(
 	// NB(rartoul): This value can be used for emitting metrics, but should not be used
 	// for business logic.
 	callStart := n.nowFn()
-	panic("yolo")
 
 	n.RLock()
 	if n.bootstrapState != Bootstrapped {
@@ -931,7 +930,6 @@ func (n *dbNamespace) Snapshot(
 			continue
 		}
 
-		fmt.Println("SNAPSHOTTING")
 		err := shard.Snapshot(blockStart, snapshotTime, flush)
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to snapshot: %v", shard.ID(), err)
