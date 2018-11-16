@@ -93,7 +93,7 @@ func (h *ReplaceHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r 
 
 	resp := &admin.PlacementGetResponse{
 		Placement: placementProto,
-		Version:   int32(placement.GetVersion()),
+		Version:   int32(placement.Version()),
 	}
 
 	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
@@ -122,7 +122,7 @@ func (h *ReplaceHandler) Replace(
 	}
 
 	serviceOpts := NewServiceOptions(serviceName, httpReq.Header, h.M3AggServiceOptions)
-	service, algo, err := ServiceWithAlgo(h.ClusterClient, serviceOpts, h.nowFn())
+	service, algo, err := ServiceWithAlgo(h.ClusterClient, serviceOpts, h.nowFn(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -153,5 +153,5 @@ func (h *ReplaceHandler) Replace(
 
 	// Ensure the placement we're updating is still the one on which we validated
 	// all shards are available.
-	return service.CheckAndSet(newPlacement, curPlacement.GetVersion())
+	return service.CheckAndSet(newPlacement, curPlacement.Version())
 }

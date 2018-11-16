@@ -193,7 +193,7 @@ func (p *placement) SetCutoverNanos(cutoverNanos int64) Placement {
 	return p
 }
 
-func (p *placement) GetVersion() int {
+func (p *placement) Version() int {
 	return p.version
 }
 
@@ -239,7 +239,7 @@ func (p *placement) Clone() Placement {
 		SetIsMirrored(p.IsMirrored()).
 		SetCutoverNanos(p.CutoverNanos()).
 		SetMaxShardSetID(p.MaxShardSetID()).
-		SetVersion(p.GetVersion())
+		SetVersion(p.Version())
 }
 
 // Placements represents a list of placements.
@@ -290,7 +290,12 @@ func (placements Placements) ActiveIndex(timeNanos int64) int {
 	return idx
 }
 
-// Validate validates a placement
+// Validate validates a placement to ensure:
+// - The shards on each instance are in valid state.
+// - The total number of shards match rf * num_shards_per_replica.
+// - Each shard shows up rf times.
+// - There is one Initializing shard for each Leaving shard.
+// - The instances with same shard_set_id owns the same shards.
 func Validate(p Placement) error {
 	if p.IsMirrored() && !p.IsSharded() {
 		return errMirrorNotSharded

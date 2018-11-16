@@ -91,7 +91,7 @@ func (h *DeleteHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *
 			serviceName, r.Header, h.M3AggServiceOptions)
 	)
 
-	service, algo, err := ServiceWithAlgo(h.ClusterClient, opts, h.nowFn())
+	service, algo, err := ServiceWithAlgo(h.ClusterClient, opts, h.nowFn(), nil)
 	if err != nil {
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
@@ -141,7 +141,7 @@ func (h *DeleteHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *
 			return
 		}
 
-		newPlacement, err = service.CheckAndSet(newPlacement, curPlacement.GetVersion())
+		newPlacement, err = service.CheckAndSet(newPlacement, curPlacement.Version())
 		if err != nil {
 			logger.Info("unable to remove instance from placement", zap.String("instance", id), zap.Error(err))
 			xhttp.Error(w, err, http.StatusBadRequest)
@@ -158,7 +158,7 @@ func (h *DeleteHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *
 
 	resp := &admin.PlacementGetResponse{
 		Placement: placementProto,
-		Version:   int32(newPlacement.GetVersion()),
+		Version:   int32(newPlacement.Version()),
 	}
 
 	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)

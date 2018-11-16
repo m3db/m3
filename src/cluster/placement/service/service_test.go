@@ -21,6 +21,7 @@
 package service
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/m3db/m3/src/cluster/kv/mem"
@@ -909,6 +910,21 @@ func TestReplaceInstances(t *testing.T) {
 			require.True(t, compareInstances(test.expectAdded, added))
 		})
 	}
+}
+
+func TestValidateFnBeforeUpdate(t *testing.T) {
+	p := NewPlacementService(newMockStorage(), placement.NewOptions().SetValidZone("z1")).(*placementService)
+
+	_, err := p.BuildInitialPlacement(
+		[]placement.Instance{placement.NewEmptyInstance("i1", "r1", "z1", "endpoint1", 1)},
+		10, 1)
+	assert.NoError(t, err)
+
+	expectErr := errors.New("err")
+	p.opts = p.opts.SetValidateFnBeforeUpdate(func(placement.Placement) error { return expectErr })
+	_, _, err = p.AddInstances([]placement.Instance{placement.NewEmptyInstance("i2", "r2", "z1", "endpoint2", 1)})
+	assert.Error(t, err)
+	assert.Equal(t, expectErr, err)
 }
 
 func newMockStorage() placement.Storage {

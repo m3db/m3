@@ -199,8 +199,9 @@ func Service(
 	clusterClient clusterclient.Client,
 	opts ServiceOptions,
 	now time.Time,
+	validationFn placement.ValidateFn,
 ) (placement.Service, error) {
-	ps, _, err := ServiceWithAlgo(clusterClient, opts, now)
+	ps, _, err := ServiceWithAlgo(clusterClient, opts, now, validationFn)
 	return ps, err
 }
 
@@ -211,6 +212,7 @@ func ServiceWithAlgo(
 	clusterClient clusterclient.Client,
 	opts ServiceOptions,
 	now time.Time,
+	validationFn placement.ValidateFn,
 ) (placement.Service, placement.Algorithm, error) {
 	overrides := services.NewOverrideOptions()
 	switch opts.ServiceName {
@@ -288,6 +290,9 @@ func ServiceWithAlgo(
 			SetIsShardCutoffFn(newShardCutOffValidationFn(now, maxAggregationWindowSize))
 	}
 
+	if validationFn != nil {
+		pOpts = pOpts.SetValidateFnBeforeUpdate(validationFn)
+	}
 	ps, err := cs.PlacementService(sid, pOpts)
 	if err != nil {
 		return nil, nil, err
@@ -434,7 +439,7 @@ func newShardCutoverNanosFn(
 	}
 }
 
-func newShardCutOverValidationFn(now time.Time) placement.ShardValidationFn {
+func newShardCutOverValidationFn(now time.Time) placement.ShardValidateFn {
 	return func(s shard.Shard) error {
 		switch s.State() {
 		case shard.Initializing:
@@ -448,7 +453,7 @@ func newShardCutOverValidationFn(now time.Time) placement.ShardValidationFn {
 	}
 }
 
-func newShardCutOffValidationFn(now time.Time, maxAggregationWindowSize time.Duration) placement.ShardValidationFn {
+func newShardCutOffValidationFn(now time.Time, maxAggregationWindowSize time.Duration) placement.ShardValidateFn {
 	return func(s shard.Shard) error {
 		switch s.State() {
 		case shard.Leaving:

@@ -96,7 +96,7 @@ func (h *AddHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *htt
 
 	resp := &admin.PlacementGetResponse{
 		Placement: placementProto,
-		Version:   int32(placement.GetVersion()),
+		Version:   int32(placement.Version()),
 	}
 
 	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)
@@ -125,35 +125,18 @@ func (h *AddHandler) Add(
 
 	serviceOpts := NewServiceOptions(
 		serviceName, httpReq.Header, h.M3AggServiceOptions)
-	service, algo, err := ServiceWithAlgo(h.ClusterClient, serviceOpts, h.nowFn())
+	var validateFn placement.ValidateFn
+	if !req.Force {
+		validateFn = validateAllAvailable
+	}
+	service, _, err := ServiceWithAlgo(h.ClusterClient, serviceOpts, h.nowFn(), validateFn)
+	if err != nil {
+		return nil, err
+	}
+	newPlacement, _, err := service.AddInstances(instances)
 	if err != nil {
 		return nil, err
 	}
 
-	if req.Force {
-		newPlacement, _, err := service.AddInstances(instances)
-		if err != nil {
-			return nil, err
-		}
-
-		return newPlacement, nil
-	}
-
-	curPlacement, err := service.Placement()
-	if err != nil {
-		return nil, err
-	}
-
-	if err := validateAllAvailable(curPlacement); err != nil {
-		return nil, err
-	}
-
-	newPlacement, err := algo.AddInstances(curPlacement, instances)
-	if err != nil {
-		return nil, err
-	}
-
-	// Ensure the placement we're updating is still the one on which we validated
-	// all shards are available.
-	return service.CheckAndSet(newPlacement, curPlacement.GetVersion())
+	return newPlacement, nil
 }

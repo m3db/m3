@@ -94,6 +94,10 @@ func (ps *placementService) AddReplica() (placement.Placement, error) {
 		return nil, err
 	}
 
+	if err := ps.opts.ValidateFnBeforeUpdate()(curPlacement); err != nil {
+		return nil, err
+	}
+
 	tempPlacement, err := ps.algo.AddReplica(curPlacement)
 	if err != nil {
 		return nil, err
@@ -103,7 +107,7 @@ func (ps *placementService) AddReplica() (placement.Placement, error) {
 		return nil, err
 	}
 
-	return ps.CheckAndSet(tempPlacement, curPlacement.GetVersion())
+	return ps.CheckAndSet(tempPlacement, curPlacement.Version())
 }
 
 func (ps *placementService) AddInstances(
@@ -111,6 +115,10 @@ func (ps *placementService) AddInstances(
 ) (placement.Placement, []placement.Instance, error) {
 	curPlacement, err := ps.Placement()
 	if err != nil {
+		return nil, nil, err
+	}
+
+	if err := ps.opts.ValidateFnBeforeUpdate()(curPlacement); err != nil {
 		return nil, nil, err
 	}
 
@@ -136,7 +144,7 @@ func (ps *placementService) AddInstances(
 		addingInstances[i] = addingInstance
 	}
 
-	newPlacement, err := ps.CheckAndSet(tempPlacement, curPlacement.GetVersion())
+	newPlacement, err := ps.CheckAndSet(tempPlacement, curPlacement.Version())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -149,6 +157,10 @@ func (ps *placementService) RemoveInstances(instanceIDs []string) (placement.Pla
 		return nil, err
 	}
 
+	if err := ps.opts.ValidateFnBeforeUpdate()(curPlacement); err != nil {
+		return nil, err
+	}
+
 	tempPlacement, err := ps.algo.RemoveInstances(curPlacement, instanceIDs)
 	if err != nil {
 		return nil, err
@@ -158,7 +170,7 @@ func (ps *placementService) RemoveInstances(instanceIDs []string) (placement.Pla
 		return nil, err
 	}
 
-	return ps.CheckAndSet(tempPlacement, curPlacement.GetVersion())
+	return ps.CheckAndSet(tempPlacement, curPlacement.Version())
 }
 
 func (ps *placementService) ReplaceInstances(
@@ -167,6 +179,10 @@ func (ps *placementService) ReplaceInstances(
 ) (placement.Placement, []placement.Instance, error) {
 	curPlacement, err := ps.Placement()
 	if err != nil {
+		return nil, nil, err
+	}
+
+	if err := ps.opts.ValidateFnBeforeUpdate()(curPlacement); err != nil {
 		return nil, nil, err
 	}
 
@@ -193,7 +209,7 @@ func (ps *placementService) ReplaceInstances(
 		addedInstances = append(addedInstances, addedInstance)
 	}
 
-	newPlacement, err := ps.CheckAndSet(tempPlacement, curPlacement.GetVersion())
+	newPlacement, err := ps.CheckAndSet(tempPlacement, curPlacement.Version())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -206,6 +222,10 @@ func (ps *placementService) MarkShardsAvailable(instanceID string, shardIDs ...u
 		return nil, err
 	}
 
+	if err := ps.opts.ValidateFnBeforeUpdate()(curPlacement); err != nil {
+		return nil, err
+	}
+
 	tempPlacement, err := ps.algo.MarkShardsAvailable(curPlacement, instanceID, shardIDs...)
 	if err != nil {
 		return nil, err
@@ -215,12 +235,16 @@ func (ps *placementService) MarkShardsAvailable(instanceID string, shardIDs ...u
 		return nil, err
 	}
 
-	return ps.CheckAndSet(tempPlacement, curPlacement.GetVersion())
+	return ps.CheckAndSet(tempPlacement, curPlacement.Version())
 }
 
 func (ps *placementService) MarkInstanceAvailable(instanceID string) (placement.Placement, error) {
 	curPlacement, err := ps.Placement()
 	if err != nil {
+		return nil, err
+	}
+
+	if err := ps.opts.ValidateFnBeforeUpdate()(curPlacement); err != nil {
 		return nil, err
 	}
 
@@ -244,12 +268,16 @@ func (ps *placementService) MarkInstanceAvailable(instanceID string) (placement.
 		return nil, err
 	}
 
-	return ps.CheckAndSet(tempPlacement, curPlacement.GetVersion())
+	return ps.CheckAndSet(tempPlacement, curPlacement.Version())
 }
 
 func (ps *placementService) MarkAllShardsAvailable() (placement.Placement, error) {
 	curPlacement, err := ps.Placement()
 	if err != nil {
+		return nil, err
+	}
+
+	if err := ps.opts.ValidateFnBeforeUpdate()(curPlacement); err != nil {
 		return nil, err
 	}
 
@@ -265,5 +293,5 @@ func (ps *placementService) MarkAllShardsAvailable() (placement.Placement, error
 		return nil, err
 	}
 
-	return ps.CheckAndSet(tempPlacement, curPlacement.GetVersion())
+	return ps.CheckAndSet(tempPlacement, curPlacement.Version())
 }
