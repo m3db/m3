@@ -187,7 +187,7 @@ func TestDatabaseMarksShardAsAvailableOnReshard(t *testing.T) {
 	// Allow the process to proceed by simulating the situation where the
 	// database has had sufficient time to make itself completely bootstrapped
 	// as well as durable.
-	mockStorageDB.EXPECT().IsBootstrappedAndDurable().Return(true).AnyTimes()
+	mockStorageDB.EXPECT().IsBootstrappedAndDurable().Return(true)
 
 	// Enqueue the update.
 	viewsCh <- testutil.NewTopologyView(1, updatedView)
