@@ -225,6 +225,7 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		}
 	}
 
+	fmt.Println(filePathPrefix)
 	if fsOpts == nil {
 		fsOpts = fs.NewOptions().
 			SetFilePathPrefix(filePathPrefix)

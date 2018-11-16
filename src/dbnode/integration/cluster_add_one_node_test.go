@@ -57,7 +57,7 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 		t.SkipNow()
 	}
 
-	// Test setups
+	// Test setups.
 	log := xlog.SimpleLogger
 
 	namesp, err := namespace.NewMetadata(testNamespaces[0],
@@ -121,7 +121,7 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
 
-	// Write test data for first node
+	// Write test data for first node.
 	topo, err := topoInit.Init()
 	require.NoError(t, err)
 	ids := []idShard{}
@@ -150,7 +150,7 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 	}
 
 	for _, id := range ids {
-		// Verify IDs will map to halves of the shard space
+		// Verify IDs will map to halves of the shard space.
 		require.Equal(t, id.shard, shardSet.Lookup(ident.StringID(id.str)))
 	}
 
@@ -163,7 +163,7 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 	err = writeTestDataToDisk(namesp, setups[0], seriesMaps)
 	require.NoError(t, err)
 
-	// Prepare verification of data on nodes
+	// Prepare verification of data on nodes.
 	expectedSeriesMaps := make([]map[xtime.UnixNano]generate.SeriesBlock, 2)
 	expectedSeriesIDs := make([]map[string]struct{}, 2)
 	for i := range expectedSeriesMaps {
@@ -195,15 +195,23 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 	require.Equal(t, 2, len(expectedSeriesIDs[0]))
 	require.Equal(t, 1, len(expectedSeriesIDs[1]))
 
-	// Start the first server with filesystem bootstrapper
+	// Start the first server with filesystem bootstrapper.
 	require.NoError(t, setups[0].startServer())
 
 	// Start the last server with peers and filesystem bootstrappers, no shards
-	// are assigned at first
+	// are assigned at first.
 	require.NoError(t, setups[1].startServer())
 	log.Debug("servers are now up")
 
-	// Bootstrap the new shards
+	// Stop the servers on test completion.
+	defer func() {
+		setups.parallel(func(s *testSetup) {
+			require.NoError(t, s.stopServer())
+		})
+		log.Debug("servers are now down")
+	}()
+
+	// Bootstrap the new shards.
 	log.Debug("resharding to initialize shards on second node")
 	svc.SetInstances(instances.add)
 	svcs.NotifyServiceUpdate("m3db")
