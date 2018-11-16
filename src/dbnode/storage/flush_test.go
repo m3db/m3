@@ -172,6 +172,7 @@ func TestFlushManagerSkipNamespaceIndexingDisabled(t *testing.T) {
 	ns.EXPECT().ID().Return(defaultTestNs1ID).AnyTimes()
 	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(true).AnyTimes()
 	ns.EXPECT().Flush(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	ns.EXPECT().Snapshot(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	mockFlusher := persist.NewMockDataFlush(ctrl)
 	mockFlusher.EXPECT().DoneData().Return(nil)
@@ -209,6 +210,7 @@ func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
 	ns.EXPECT().ID().Return(defaultTestNs1ID).AnyTimes()
 	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(true).AnyTimes()
 	ns.EXPECT().Flush(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	ns.EXPECT().Snapshot(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	ns.EXPECT().FlushIndex(gomock.Any()).Return(nil)
 
 	mockFlusher := persist.NewMockDataFlush(ctrl)
@@ -352,21 +354,24 @@ func TestFlushManagerFlushSnapshot(t *testing.T) {
 	for _, ns := range []*MockdatabaseNamespace{ns1, ns2} {
 		rOpts := ns.Options().RetentionOptions()
 		blockSize := rOpts.BlockSize()
-		bufferPast := rOpts.BufferPast()
+		bufferFuture := rOpts.BufferFuture()
 
 		start := retention.FlushTimeStart(ns.Options().RetentionOptions(), now)
-		end := retention.FlushTimeEnd(ns.Options().RetentionOptions(), now)
-		num := numIntervals(start, end, blockSize)
+		flushEnd := retention.FlushTimeEnd(ns.Options().RetentionOptions(), now)
+		num := numIntervals(start, flushEnd, blockSize)
 
 		for i := 0; i < num; i++ {
 			st := start.Add(time.Duration(i) * blockSize)
 			ns.EXPECT().NeedsFlush(st, st).Return(false)
 		}
 
-		currBlockStart := now.Add(-bufferPast).Truncate(blockSize)
-		prevBlockStart := currBlockStart.Add(-blockSize)
-		ns.EXPECT().NeedsFlush(prevBlockStart, prevBlockStart).Return(false)
-		ns.EXPECT().Snapshot(currBlockStart, now, gomock.Any())
+		snapshotEnd := now.Add(bufferFuture).Truncate(blockSize)
+		num = numIntervals(start, snapshotEnd, blockSize)
+		for i := 0; i < num; i++ {
+			st := start.Add(time.Duration(i) * blockSize)
+			ns.EXPECT().NeedsFlush(st, st).Return(true)
+			ns.EXPECT().Snapshot(st, now, gomock.Any(), gomock.Any())
+		}
 	}
 
 	bootstrapStates := DatabaseBootstrapState{
@@ -376,85 +381,6 @@ func TestFlushManagerFlushSnapshot(t *testing.T) {
 		},
 	}
 	require.NoError(t, fm.Flush(now, bootstrapStates))
-}
-
-func TestFlushManagerFlushNoSnapshotWhileFlushPending(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	fm, ns1, ns2 := newMultipleFlushManagerNeedsFlush(t, ctrl)
-	now := time.Now()
-
-	for _, ns := range []*MockdatabaseNamespace{ns1, ns2} {
-		rOpts := ns.Options().RetentionOptions()
-		blockSize := rOpts.BlockSize()
-		bufferPast := rOpts.BufferPast()
-
-		start := retention.FlushTimeStart(ns.Options().RetentionOptions(), now)
-		end := retention.FlushTimeEnd(ns.Options().RetentionOptions(), now)
-		num := numIntervals(start, end, blockSize)
-
-		for i := 0; i < num; i++ {
-			st := start.Add(time.Duration(i) * blockSize)
-			ns.EXPECT().NeedsFlush(st, st).Return(false)
-		}
-
-		currBlockStart := now.Add(-bufferPast).Truncate(blockSize)
-		prevBlockStart := currBlockStart.Add(-blockSize)
-		ns.EXPECT().NeedsFlush(prevBlockStart, prevBlockStart).Return(true)
-	}
-
-	bootstrapStates := DatabaseBootstrapState{
-		NamespaceBootstrapStates: map[string]ShardBootstrapStates{
-			ns1.ID().String(): ShardBootstrapStates{},
-			ns2.ID().String(): ShardBootstrapStates{},
-		},
-	}
-	require.NoError(t, fm.Flush(now, bootstrapStates))
-}
-
-func TestFlushManagerSnapshotBlockStart(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	fm, _, _ := newMultipleFlushManagerNeedsFlush(t, ctrl)
-	now := time.Now()
-
-	nsOpts := namespace.NewOptions()
-	rOpts := nsOpts.RetentionOptions().
-		SetBlockSize(2 * time.Hour).
-		SetBufferPast(10 * time.Minute)
-	blockSize := rOpts.BlockSize()
-	nsOpts = nsOpts.SetRetentionOptions(rOpts)
-	ns := NewMockdatabaseNamespace(ctrl)
-	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
-
-	testCases := []struct {
-		currTime           time.Time
-		expectedBlockStart time.Time
-	}{
-		// Set comment in snapshotBlockStart for explanation of these test cases
-		{
-			currTime:           now.Truncate(blockSize).Add(30 * time.Minute),
-			expectedBlockStart: now.Truncate(blockSize),
-		},
-		{
-			currTime:           now.Truncate(blockSize).Add(119 * time.Minute),
-			expectedBlockStart: now.Truncate(blockSize),
-		},
-		{
-			currTime:           now.Truncate(blockSize).Add(129 * time.Minute),
-			expectedBlockStart: now.Truncate(blockSize),
-		},
-		{
-			currTime:           now.Truncate(blockSize).Add(130 * time.Minute),
-			expectedBlockStart: now.Truncate(blockSize).Add(blockSize),
-		},
-	}
-
-	for _, tc := range testCases {
-		require.Equal(t, tc.expectedBlockStart, fm.snapshotBlockStart(ns, tc.currTime))
-	}
 }
 
 type timesInOrder []time.Time

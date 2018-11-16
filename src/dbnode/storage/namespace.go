@@ -830,6 +830,11 @@ func (n *dbNamespace) Flush(
 			// before the previous tick which means that we have no guarantee that all
 			// bootstrapped blocks have been rotated out of the series buffer buckets,
 			// so we wait until the next opportunity.
+			n.log.
+				WithFields(xlog.NewField("shard", shard.ID())).
+				WithFields(xlog.NewField("bootstrapStateBeforeTick", shardBootstrapStateBeforeTick)).
+				WithFields(xlog.NewField("bootstrapStateExists", ok)).
+				Debug("skipping snapshot due to shard bootstrap state before tick")
 			continue
 		}
 
@@ -873,7 +878,11 @@ func (n *dbNamespace) FlushIndex(
 	return err
 }
 
-func (n *dbNamespace) Snapshot(blockStart, snapshotTime time.Time, flush persist.DataFlush) error {
+func (n *dbNamespace) Snapshot(
+	blockStart,
+	snapshotTime time.Time,
+	shardBootstrapStatesAtTickStart ShardBootstrapStates,
+	flush persist.DataFlush) error {
 	// NB(rartoul): This value can be used for emitting metrics, but should not be used
 	// for business logic.
 	callStart := n.nowFn()
@@ -906,6 +915,19 @@ func (n *dbNamespace) Snapshot(blockStart, snapshotTime time.Time, flush persist
 
 		if snapshotTime.Sub(lastSuccessfulSnapshot) < n.opts.MinimumSnapshotInterval() {
 			// Skip if not enough time has elapsed since the previous snapshot
+			continue
+		}
+
+		// We don't need to perform this check for correctness, but we apply the same logic
+		// here as we do in the Flush() method so that we don't end up snapshotting a bunch
+		// of shards/blocks that would have been flushed after the next tick.
+		shardBootstrapStateBeforeTick, ok := shardBootstrapStatesAtTickStart[shard.ID()]
+		if !ok || shardBootstrapStateBeforeTick != Bootstrapped {
+			n.log.
+				WithFields(xlog.NewField("shard", shard.ID())).
+				WithFields(xlog.NewField("bootstrapStateBeforeTick", shardBootstrapStateBeforeTick)).
+				WithFields(xlog.NewField("bootstrapStateExists", ok)).
+				Debug("skipping snapshot due to shard bootstrap state before tick")
 			continue
 		}
 
