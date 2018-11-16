@@ -354,7 +354,7 @@ func TestFlushManagerFlushSnapshot(t *testing.T) {
 	)
 
 	// Haven't snapshotted yet.
-	lastSuccessfulSnapshot, ok := fm.LastSuccessfulSnapshotStartTime()
+	_, ok := fm.LastSuccessfulSnapshotStartTime()
 	require.False(t, ok)
 
 	for _, ns := range []*MockdatabaseNamespace{ns1, ns2} {
