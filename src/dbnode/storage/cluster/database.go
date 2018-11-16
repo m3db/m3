@@ -272,7 +272,7 @@ func (d *clusterDB) analyzeAndReportShardStates() {
 	// To mark any initializing shards as available we need a
 	// dynamic topology, check if we have one and if not we will report
 	// that shards are initialzing and that we do not have a dynamic
-	// topology to mark them as available
+	// topology to mark them as available.
 	topo, ok := d.topo.(topology.DynamicTopology)
 	if !ok {
 		err := fmt.Errorf("topology constructed is not a dynamic topology")
