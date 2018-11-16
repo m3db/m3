@@ -190,7 +190,6 @@ func (d *clusterDB) activeTopologyWatch() {
 		for {
 			select {
 			case <-ticker.C:
-				fmt.Println("ticking")
 				d.analyzeAndReportShardStates()
 			case <-reportClosingCh:
 				ticker.Stop()
