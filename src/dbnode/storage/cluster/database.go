@@ -296,6 +296,7 @@ func (d *clusterDB) analyzeAndReportShardStates() {
 		}
 	}
 
+	fmt.Println("checkign durability")
 	if !d.IsBootstrappedAndDurable() {
 		return
 	}

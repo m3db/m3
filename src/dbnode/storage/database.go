@@ -757,6 +757,8 @@ func (d *db) IsBootstrappedAndDurable() bool {
 		return false
 	}
 
+	fmt.Println("lastSnapshotStartTime: ", lastSnapshotStartTime)
+	fmt.Println("shardSetAssignedAt: ", d.shardSetAssignedAt)
 	return lastSnapshotStartTime.After(d.shardSetAssignedAt)
 }
 

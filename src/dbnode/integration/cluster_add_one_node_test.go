@@ -23,6 +23,7 @@
 package integration
 
 import (
+	"fmt"
 	"strconv"
 	"testing"
 	"time"
@@ -154,12 +155,15 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 		require.Equal(t, id.shard, shardSet.Lookup(ident.StringID(id.str)))
 	}
 
-	now := setups[0].getNowFn()
-	blockSize := namesp.Options().RetentionOptions().BlockSize()
-	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
-		{IDs: []string{ids[0].str, ids[1].str}, NumPoints: 180, Start: now.Add(-blockSize)},
-		{IDs: []string{ids[0].str, ids[2].str}, NumPoints: 90, Start: now},
-	})
+	var (
+		now        = setups[0].getNowFn()
+		blockStart = now
+		blockSize  = namesp.Options().RetentionOptions().BlockSize()
+		seriesMaps = generate.BlocksByStart([]generate.BlockConfig{
+			{IDs: []string{ids[0].str, ids[1].str}, NumPoints: 180, Start: blockStart.Add(-blockSize)},
+			{IDs: []string{ids[0].str, ids[2].str}, NumPoints: 90, Start: blockStart},
+		})
+	)
 	err = writeTestDataToDisk(namesp, setups[0], seriesMaps)
 	require.NoError(t, err)
 
@@ -215,6 +219,22 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 	log.Debug("resharding to initialize shards on second node")
 	svc.SetInstances(instances.add)
 	svcs.NotifyServiceUpdate("m3db")
+	go func() {
+		for {
+			time.Sleep(time.Second)
+			for _, setup := range setups {
+				now = now.Add(time.Second)
+				setup.setNowFn(now)
+			}
+		}
+	}()
+	// for _, setup := range setups {
+	// 	now = now.Add(time.Second)
+	// 	// Move time forward slightly so the database can determine that a snapshot
+	// 	// has started and completed since the topology change. See
+	// 	// Database.IsBootstrappedAndDurable method for more information.
+	// 	setup.setNowFn(now)
+	// }
 
 	// Generate some new data that will be written to the node while peer streaming is taking place
 	// to make sure that the data that is streamed in and the data that is received while streaming
@@ -229,10 +249,11 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 	// streaming data.
 	for _, seriesName := range seriesToWriteDuringPeerStreaming {
 		shard := shardSet.Lookup(ident.StringID(seriesName))
-		require.True(t, shard > midShard)
+		require.True(t, shard > midShard,
+			fmt.Sprintf("series: %s does not shard to second host", seriesName))
 	}
 	seriesReceivedDuringPeerStreaming := generate.BlocksByStart([]generate.BlockConfig{
-		{IDs: seriesToWriteDuringPeerStreaming, NumPoints: 90, Start: now},
+		{IDs: seriesToWriteDuringPeerStreaming, NumPoints: 90, Start: blockStart},
 	})
 	// Merge the newly generated series into the expected series map.
 	for blockStart, series := range seriesReceivedDuringPeerStreaming {
@@ -256,15 +277,18 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 	}()
 
 	waitUntilHasBootstrappedShardsExactly(setups[1].db, testutil.Uint32Range(midShard+1, maxShard))
+	fmt.Println("done bootstrapping")
 	<-doneWritingWhilePeerStreaming
+	fmt.Println("done writing")
 
 	log.Debug("waiting for shards to be marked initialized")
-	for _, setup := range setups {
-		// Move time forward slightly so the database can determine that a snapshot
-		// has started and completed since the topology change. See
-		// Database.IsBootstrappedAndDurable method for more information.
-		setup.setNowFn(now.Add(time.Second))
-	}
+	// for _, setup := range setups {
+	// 	now = now.Add(time.Second)
+	// 	// Move time forward slightly so the database can determine that a snapshot
+	// 	// has started and completed since the topology change. See
+	// 	// Database.IsBootstrappedAndDurable method for more information.
+	// 	setup.setNowFn(now)
+	// }
 	allMarkedAvailable := func(
 		fakePlacementService fake.M3ClusterPlacementService,
 		instanceID string,
@@ -307,7 +331,10 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 
 	// Verify in-memory data match what we expect
 	for i := range setups {
-		verifySeriesMaps(t, setups[i], namesp.ID(), expectedSeriesMaps[i])
+		ok := verifySeriesMaps(t, setups[i], namesp.ID(), expectedSeriesMaps[i])
+		if !ok {
+			fmt.Println("unexpected for: ", i)
+		}
 	}
 
 	if verifyCommitlogCanBootstrapAfterNodeJoin {

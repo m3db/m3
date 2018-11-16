@@ -168,6 +168,7 @@ func (m *flushManager) Flush(
 	multiErr = multiErr.Add(flush.DoneData())
 
 	if multiErr.NumErrors() == 0 {
+		fmt.Println("done snapshotting!")
 		m.lastSuccessfulSnapshotStartTime = tickStart
 	}
 
