@@ -48,7 +48,7 @@ type DatabaseSeries interface {
 	// Tags return the tags of the series
 	Tags() ident.Tags
 
-	// Tick executes any updates to ensure buffer drains, blocks are flushed, etc
+	// Tick executes async updates
 	Tick() (TickResult, error)
 
 	// Write writes a new value
@@ -130,14 +130,15 @@ type QueryableBlockRetriever interface {
 	// IsBlockRetrievable returns whether a block is retrievable
 	// for a given block start time
 	IsBlockRetrievable(blockStart time.Time) bool
+
+	// BlockLastSuccess returns the last time a block was marked success
+	BlockLastSuccess(blockStart time.Time) time.Time
 }
 
 // TickStatus is the status of a series for a given tick
 type TickStatus struct {
 	// ActiveBlocks is the number of total active blocks
 	ActiveBlocks int
-	// OpenBlocks is the number of blocks actively mutable can be written to
-	OpenBlocks int
 	// WiredBlocks is the number of blocks wired in memory (all data kept)
 	WiredBlocks int
 	// UnwiredBlocks is the number of blocks unwired (data kept on disk)

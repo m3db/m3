@@ -373,7 +373,7 @@ type databaseShard interface {
 	// Close will release the shard resources and close the shard
 	Close() error
 
-	// Tick performs any updates to ensure series drain their buffers and blocks are flushed, etc
+	// Tick performs all async updates
 	Tick(c context.Cancellable, tickStart time.Time) (tickResult, error)
 
 	Write(

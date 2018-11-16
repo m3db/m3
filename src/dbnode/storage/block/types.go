@@ -166,9 +166,6 @@ type DatabaseBlock interface {
 	// merged during Stream().
 	HasMergeTarget() bool
 
-	// WasRetrievedFromDisk returns whether the block was retrieved from storage.
-	WasRetrievedFromDisk() bool
-
 	// Reset resets the block start time, duration, and the segment.
 	Reset(startTime time.Time, blockSize time.Duration, segment ts.Segment)
 
@@ -185,11 +182,6 @@ type DatabaseBlock interface {
 
 	// Close closes the block.
 	Close()
-
-	// CloseIfFromDisk atomically checks if the disk was retrieved from disk, and
-	// if so, closes it. It is meant as a layered protection for the WiredList
-	// which should only close blocks that were retrieved from disk.
-	CloseIfFromDisk() bool
 
 	// SetOnEvictedFromWiredList sets the owner of the block
 	SetOnEvictedFromWiredList(OnEvictedFromWiredList)
