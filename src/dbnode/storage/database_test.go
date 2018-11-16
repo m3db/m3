@@ -881,9 +881,27 @@ func TestDatabaseIsBootstrappedAndDurable(t *testing.T) {
 	mediator := NewMockdatabaseMediator(ctrl)
 	d.mediator = mediator
 
+	// Not BootstrappedAndDurable if not bootstrapped.
 	mediator.EXPECT().IsBootstrapped().Return(false)
 	assert.False(t, d.IsBootstrappedAndDurable())
 
-	mediator.EXPECT().LastSuccessfulSnapshotStartTime().Return(false)
-	// assert.False(t, d.IsBootstrapped())
+	// Not BootstrappedAndDurable if no last successful snapshot start time.
+	mediator.EXPECT().IsBootstrapped().Return(true)
+	mediator.EXPECT().LastSuccessfulSnapshotStartTime().Return(time.Time{}, false)
+	assert.False(t, d.IsBootstrappedAndDurable())
+
+	// Not BootstrappedAndDurable if last successful snapshot start time
+	// is not after last time shardset was assigned.
+	now := time.Now()
+	d.shardSetAssignedAt = now
+	mediator.EXPECT().IsBootstrapped().Return(true)
+	mediator.EXPECT().LastSuccessfulSnapshotStartTime().Return(now, false)
+	assert.False(t, d.IsBootstrappedAndDurable())
+
+	// BootstrappedAndDurable because its bootstrapped and one complete snapshot has
+	// finished that also started AFTER the last shardset was assigned.
+	d.shardSetAssignedAt = now
+	mediator.EXPECT().IsBootstrapped().Return(true)
+	mediator.EXPECT().LastSuccessfulSnapshotStartTime().Return(now.Add(time.Second), false)
+	assert.False(t, d.IsBootstrappedAndDurable())
 }
