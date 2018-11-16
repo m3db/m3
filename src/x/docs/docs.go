@@ -24,7 +24,7 @@ import (
 	"fmt"
 )
 
-// Path returns the url to the
+// Path returns the url to the given section of documentation.
 func Path(section string) string {
 	return fmt.Sprintf("https://m3db.github.io/m3/%s", section)
 }
