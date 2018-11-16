@@ -23,7 +23,6 @@
 package integration
 
 import (
-	"fmt"
 	"strconv"
 	"testing"
 	"time"
@@ -300,10 +299,7 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 
 	// Verify in-memory data match what we expect
 	for i := range setups {
-		ok := verifySeriesMaps(t, setups[i], namesp.ID(), expectedSeriesMaps[i])
-		if !ok {
-			fmt.Println("bad for: ", i)
-		}
+		verifySeriesMaps(t, setups[i], namesp.ID(), expectedSeriesMaps[i])
 	}
 
 	if verifyCommitlogCanBootstrapAfterNodeJoin {
