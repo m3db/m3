@@ -453,7 +453,7 @@ func (s *peersSource) flush(
 			}
 
 			// Now that we've persisted the data to disk, we can finalize the block,
-			// as there is no need to keep it in memory. We do this here becasue it
+			// as there is no need to keep it in memory. We do this here because it
 			// is better to do this as we loop to make blocks return to the pool earlier
 			// than all at once the end of this flush cycle.
 			s.Blocks.RemoveBlockAt(start)
