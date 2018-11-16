@@ -55,17 +55,17 @@ func validateProcessLimits() error {
 		))
 	}
 
-	if limits.VmMaxMapCount < minVMMapCount {
+	if limits.VMMaxMapCount < minVMMapCount {
 		multiErr = multiErr.Add(fmt.Errorf(
 			"current value for vm.max_map_count(%d) is below recommended threshold(%d)",
-			limits.VmMaxMapCount, minVMMapCount,
+			limits.VMMaxMapCount, minVMMapCount,
 		))
 	}
 
-	if limits.VmSwappiness > maxSwappiness {
+	if limits.VMSwappiness > maxSwappiness {
 		multiErr = multiErr.Add(fmt.Errorf(
 			"current value for vm.swappiness(%d) is above recommended threshold(%d)",
-			limits.VmSwappiness, maxSwappiness,
+			limits.VMSwappiness, maxSwappiness,
 		))
 	}
 

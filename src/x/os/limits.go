@@ -24,6 +24,6 @@ package xos
 type ProcessLimits struct {
 	NoFileCurr    uint64 // RLIMIT_NOFILE Current
 	NoFileMax     uint64 // RLIMIT_NOFILE Max
-	VmMaxMapCount int64  // corresponds to /proc/sys/vm/max_map_count
-	VmSwappiness  int64  // corresponds to /proc/sys/vm/swappiness
+	VMMaxMapCount int64  // corresponds to /proc/sys/vm/max_map_count
+	VMSwappiness  int64  // corresponds to /proc/sys/vm/swappiness
 }

@@ -55,8 +55,8 @@ func GetProcessLimits() (ProcessLimits, error) {
 	return ProcessLimits{
 		NoFileCurr:    noFile.Cur,
 		NoFileMax:     noFile.Max,
-		VmMaxMapCount: maxMap,
-		VmSwappiness:  swap,
+		VMMaxMapCount: maxMap,
+		VMSwappiness:  swap,
 	}, nil
 }
 
