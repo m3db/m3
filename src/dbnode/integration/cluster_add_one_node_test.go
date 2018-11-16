@@ -209,31 +209,45 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 	svc.SetInstances(instances.add)
 	svcs.NotifyServiceUpdate("m3db")
 
-	doneWritingWhilePeerStreaming := make(chan struct{})
-	seriesAfterBootstrapSeriesMaps := generate.BlocksByStart([]generate.BlockConfig{
-		{IDs: []string{"series_after_bootstrap1", "series_after_bootstrap2"}, NumPoints: 90, Start: now},
+	// Generate some new data that will be written to the node while peer streaming is taking place
+	// to make sure that the data that is streamed in and the data that is received while streaming
+	// is going on are both handled correctly. In addition, this will ensure that we hold onto both
+	// sets of data durably after topology changes and that the node can be properly bootstrapped
+	// from just the filesystem and commitlog in a later portion of the test.
+	seriesToWriteDuringPeerStreaming := []string{
+		"series_after_bootstrap1",
+		"series_after_bootstrap2",
+	}
+	// Ensure that the new series belong that we're going to write belong to the host that is peer
+	// streaming data.
+	for _, seriesName := range seriesToWriteDuringPeerStreaming {
+		shard := shardSet.Lookup(ident.StringID(seriesName))
+		require.True(t, shard > midShard)
+	}
+	seriesReceivedDuringPeerStreaming := generate.BlocksByStart([]generate.BlockConfig{
+		{IDs: seriesToWriteDuringPeerStreaming, NumPoints: 90, Start: now},
 	})
-	for blockStart, series := range seriesAfterBootstrapSeriesMaps {
-		_, ok := expectedSeriesMaps[1][blockStart]
-		if !ok {
-			expectedSeriesMaps[1][blockStart] = generate.SeriesBlock(series)
-			continue
-		}
+	// Merge the newly generated series into the expected series map.
+	for blockStart, series := range seriesReceivedDuringPeerStreaming {
 		expectedSeriesMaps[1][blockStart] = append(expectedSeriesMaps[1][blockStart], series...)
 	}
+
+	// Spin up a background goroutine to issue the writes to the node while its streaming data
+	// from its peer.
+	doneWritingWhilePeerStreaming := make(chan struct{})
 	go func() {
-		// Write some data wile peer streaming is happening.
-		// seriesAfterBootstrapSeriesMaps := generate.BlocksByStart([]generate.BlockConfig{
-		// 	{IDs: []string{"series_after_bootstrap1", "series_after_bootstrap2"}, NumPoints: 90, Start: now},
-		// })
-		for _, testData := range seriesAfterBootstrapSeriesMaps {
+		for _, testData := range seriesReceivedDuringPeerStreaming {
 			err := setups[1].writeBatch(namesp.ID(), testData)
+			// We expect consistency errors because we're only running with
+			// R.F = 2 and one node is leaving and one node is joining for
+			// each of the shards that is changing hands.
 			if !client.IsConsistencyResultError(err) {
 				panic(err)
 			}
 		}
 		doneWritingWhilePeerStreaming <- struct{}{}
 	}()
+
 	waitUntilHasBootstrappedShardsExactly(setups[1].db, testutil.Uint32Range(midShard+1, maxShard))
 	<-doneWritingWhilePeerStreaming
 
@@ -294,32 +308,24 @@ func testClusterAddOneNode(t *testing.T, verifyCommitlogCanBootstrapAfterNodeJoi
 
 	if verifyCommitlogCanBootstrapAfterNodeJoin {
 		// Verify that the node that joined the cluster can immediately bootstrap
-		// the data it streamed from its peers from the commit log as soon as
-		// the bootstrapping process completes.
+		// the data it streamed from its peers from the commitlog / snapshots as
+		// soon as all the shards have been marked as available (I.E as soon as
+		// when the placement change is considered "complete".)
 		//
 		// In addition, verify that any data that was received during the same block
-		// as the streamed data (I.E while peer streaming)
-		// now = now.Add(blockSize)
-		// setups[1].setNowFn(now)
-		// seriesAfterBootstrapSeriesMaps := generate.BlocksByStart([]generate.BlockConfig{
-		// 	{IDs: []string{"series_after_bootstrap1", "series_after_bootstrap2"}, NumPoints: 90, Start: now},
-		// })
-		// for _, testData := range seriesAfterBootstrapSeriesMaps {
-		// 	require.NoError(t, setups[1].writeBatch(namesp.ID(), testData))
-		// }
+		// as the streamed data (I.E while peer streaming) is also present and
+		// bootstrappable from the commitlog bootstrapper.
 
-		// Verify that the node that joined the cluster can immediately bootstrap
-		// the data it streamed from its peers from the commit log as soon as
-		// the bootstrapping process completes.
+		// Reset the topology initializer as the M3DB session will have closed it.
 		require.NoError(t, setups[1].stopServer())
 		topoOpts := topology.NewDynamicOptions().
 			SetConfigServiceClient(fake.NewM3ClusterClient(svcs, nil))
 		topoInit := topology.NewDynamicInitializer(topoOpts)
 		setups[1].topoInit = topoInit
+
+		// Start the server that performed peer streaming with only the filesystem and
+		// commitlog bootstrapper and make sure it has all the expected data.
 		startServerWithNewInspection(t, opts, setups[1])
-		fmt.Println(3)
 		verifySeriesMaps(t, setups[1], namesp.ID(), expectedSeriesMaps[1])
-		// verifySeriesMaps(t, setups[1], namesp.ID(), seriesAfterBootstrapSeriesMaps)
-		fmt.Println(4)
 	}
 }
