@@ -69,9 +69,5 @@ func validateProcessLimits() error {
 		))
 	}
 
-	if multiErr.Empty() {
-		return nil
-	}
-
-	return fmt.Errorf(`invalid configuration found [%v]. refer to https://m3db.github.io/m3/operational_guide/kernel_tuning/ for more information`, multiErr.FinalError())
+	return multiErr.FinalError()
 }

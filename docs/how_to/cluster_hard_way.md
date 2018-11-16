@@ -50,7 +50,7 @@ M3DB_HOST_ID=m3db001 m3dbnode -f config.yml
 ```
 
 ### Kernel
-[Recommended kernel configuration](../operational_guide/kernel_tuning.md).
+Ensure you review our [recommended kernel configuration](../operational_guide/kernel_configuration.md) before running M3DB in production as M3DB may exceed the default limits for some default kernel values.
 
 ## Config files
 We wouldn’t feel right to call this guide, “The Hard Way” and not require you to change some configs by hand.

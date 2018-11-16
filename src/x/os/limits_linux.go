@@ -71,11 +71,11 @@ func sysctlInt64(key string) (int64, error) {
 		return 0, err
 	}
 
-	return int64(num), 0
+	return int64(num), nil
 }
 
 func sysctl(key string) (string, error) {
-	path := sysctlDir + strings.Replace(name, ".", "/", -1)
+	path := sysctlDir + strings.Replace(key, ".", "/", -1)
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
 		return "", fmt.Errorf("could not find the given sysctl file: %v, err: %v", path, err)
