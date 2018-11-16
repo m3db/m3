@@ -38,10 +38,19 @@ type Write struct {
 // BatchWrite represents a write that was added to the
 // BatchWriter.
 type BatchWrite struct {
-	Write         Write
-	TagIter       ident.TagIterator
+	// Used by the commitlog (series needed to be updated by the shard
+	// object first, cannot use the Series provided by the caller as it
+	// is missing important fields like Tags.)
+	Write Write
+	// Not used by the commitlog, provided by the caller (since the request
+	// is usually coming from over the wire) and is superseded by the Tags
+	// in Write.Series which will get set by the Shard object.
+	TagIter ident.TagIterator
+	// Used to help the caller tie errors back to an index in their
+	// own collection.
 	OriginalIndex int
-	Err           error
+	// Used by the commitlog.
+	Err error
 }
 
 // Series describes a series.
