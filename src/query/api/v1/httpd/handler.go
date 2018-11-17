@@ -124,12 +124,11 @@ func (h *Handler) RegisterRoutes() error {
 		return err
 	}
 
-	h.Router.HandleFunc(
-		remote.PromReadURL,
+	h.Router.HandleFunc(remote.PromReadURL,
 		logged(promRemoteReadHandler).ServeHTTP,
 	).Methods(remote.PromReadHTTPMethod)
 	h.Router.HandleFunc(remote.PromWriteURL,
-		logged(promRemoteWriteHandler).ServeHTTP,
+		promRemoteWriteHandler.ServeHTTP,
 	).Methods(remote.PromWriteHTTPMethod)
 	h.Router.HandleFunc(native.PromReadURL,
 		logged(native.NewPromReadHandler(h.engine, h.tagOptions, &h.config.Limits)).ServeHTTP,
