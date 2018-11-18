@@ -21,7 +21,7 @@
       "Commit": "c6ded3f348785aa05a95e4a023fcec169828cba5"
     },
     {
-      "Repository": "github.com/fossa/fossa-cli/cmd/fossa",
+      "Repository": "github.com/fossas/fossa-cli/cmd/fossa",
       "Commit": "623f658a3882ec0d4e64c43fa973c8088bee54fa"
     }
   ],
