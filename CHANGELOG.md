@@ -1,8 +1,15 @@
 Changelog
 =========
-# 0.4.7 (unreleased)
+# (unreleased)
+
+# 0.4.7
+
+- **Aggregator, Collector**:  Add m3aggregator and m3collector for clustered downsampling (440b41657, df3999d58, #1030, #1038, #1050, #1061)
+- **Coordinator**: Add m3msg server and placement and topic APIs in m3coordinator to enable use as backend with m3aggregator (#1028, #1055, #1060)
+- DOCS **DB**: Add doc links to placement and namespace config operational guides (#1029)
 
 # 0.4.6 (2018-10-05)
+
 - **Coordinator**: Add cluster namespace fanout heuristics supporting queries greater than retention (#908)
 - **Coordinator**: Add ability for query storage to provide unconsolidated blocks (#929)
 - FIX **Coordinator**: Multi-fetch fixes (#989)
