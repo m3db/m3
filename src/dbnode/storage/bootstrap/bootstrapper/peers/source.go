@@ -112,7 +112,7 @@ func (s *peersSource) ReadData(
 		persistConfig     = opts.PersistConfig()
 	)
 	if persistConfig.Enabled &&
-		(seriesCachePolicy == series.CacheAll || seriesCachePolicy == series.CacheLRU) &&
+		(seriesCachePolicy == series.CacheRecentlyRead || seriesCachePolicy == series.CacheLRU) &&
 		persistConfig.FileSetType == persist.FileSetFlushType {
 		retrieverMgr := s.opts.DatabaseBlockRetrieverManager()
 		persistManager := s.opts.PersistManager()

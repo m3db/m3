@@ -233,6 +233,7 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 func TestPeersSourceRunWithPersist(t *testing.T) {
 	for _, cachePolicy := range []series.CachePolicy{
 		series.CacheRecentlyRead,
+		series.CacheLRU,
 	} {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
