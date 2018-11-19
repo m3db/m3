@@ -984,39 +984,4 @@ func TestDatabaseIsBootstrappedAndDurable(t *testing.T) {
 			assert.Equal(t, tc.expectedResult, d.IsBootstrappedAndDurable())
 		})
 	}
-
-	// // Not BootstrappedAndDurable if not bootstrapped.
-	// mediator.EXPECT().IsBootstrapped().Return(false)
-	// assert.False(t, d.IsBootstrappedAndDurable())
-
-	// // Not BootstrappedAndDurable if no last bootstrap completion time.
-	// mediator.EXPECT().IsBootstrapped().Return(true)
-	// mediator.EXPECT().LastBootstrapCompletionTime().Return(time.Time{}, false)
-	// assert.False(t, d.IsBootstrappedAndDurable())
-
-	// var (
-	// 	now                     = time.Now()
-	// 	bootstrapCompletionTime = now.Add(time.Second)
-	// )
-	// d.shardSetAssignedAt = now
-
-	// // Not BootstrappedAndDurable if no last successful snapshot start time.
-	// mediator.EXPECT().IsBootstrapped().Return(true)
-	// mediator.EXPECT().LastBootstrapCompletionTime().Return(bootstrapCompletionTime, true)
-	// mediator.EXPECT().LastSuccessfulSnapshotStartTime().Return(time.Time{}, false)
-	// assert.False(t, d.IsBootstrappedAndDurable())
-
-	// // Not BootstrappedAndDurable if last successful snapshot start time
-	// // is not after bootstrap completion time.
-	// mediator.EXPECT().IsBootstrapped().Return(true)
-	// mediator.EXPECT().LastBootstrapCompletionTime().Return(bootstrapCompletionTime, true)
-	// mediator.EXPECT().LastSuccessfulSnapshotStartTime().Return(bootstrapCompletionTime, true)
-	// assert.False(t, d.IsBootstrappedAndDurable())
-
-	// // BootstrappedAndDurable because its bootstrapped and one complete snapshot has
-	// // finished that also started AFTER the last shardset was assigned.
-	// d.shardSetAssignedAt = now
-	// mediator.EXPECT().IsBootstrapped().Return(true)
-	// mediator.EXPECT().LastSuccessfulSnapshotStartTime().Return(now.Add(time.Second), true)
-	// assert.True(t, d.IsBootstrappedAndDurable())
 }
