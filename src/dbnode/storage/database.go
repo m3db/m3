@@ -156,23 +156,26 @@ func NewDatabase(
 		return nil, err
 	}
 
-	iopts := opts.InstrumentOptions()
-	scope := iopts.MetricsScope().SubScope("database")
-	logger := iopts.Logger()
+	var (
+		iopts  = opts.InstrumentOptions()
+		scope  = iopts.MetricsScope().SubScope("database")
+		logger = iopts.Logger()
+		nowFn  = opts.ClockOptions().NowFn()
+	)
 
 	d := &db{
-		opts:           opts,
-		nowFn:          opts.ClockOptions().NowFn(),
-		shardSet:       shardSet,
-		namespaces:     newDatabaseNamespacesMap(databaseNamespacesMapOptions{}),
-		commitLog:      commitLog,
-		scope:          scope,
-		metrics:        newDatabaseMetrics(scope),
-		log:            logger,
-		errors:         xcounter.NewFrequencyCounter(opts.ErrorCounterOptions()),
-		errWindow:      opts.ErrorWindowForLoad(),
-		errThreshold:   opts.ErrorThresholdForLoad(),
-		writeBatchPool: opts.WriteBatchPool(),
+		opts:               opts,
+		nowFn:              nowFn,
+		shardSet:           shardSet,
+		shardSetAssignedAt: nowFn(),
+		namespaces:         newDatabaseNamespacesMap(databaseNamespacesMapOptions{}),
+		commitLog:          commitLog,
+		scope:              scope,
+		metrics:            newDatabaseMetrics(scope),
+		log:                logger,
+		errors:             xcounter.NewFrequencyCounter(opts.ErrorCounterOptions()),
+		errWindow:          opts.ErrorWindowForLoad(),
+		errThreshold:       opts.ErrorThresholdForLoad(),
 	}
 
 	databaseIOpts := iopts.SetMetricsScope(scope)
