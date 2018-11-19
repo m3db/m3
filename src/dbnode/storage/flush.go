@@ -138,7 +138,7 @@ func (m *flushManager) Flush(
 	// shard-by-shard basis because the model we're moving towards is that once a snapshot
 	// has completed, then all data that had been received by the dbnode up until the
 	// snapshot "start time" has been persisted durably.
-	shouldSnapshot := tickStart.Sub(m.lastSuccessfulSnapshotStartTime) > m.opts.MinimumSnapshotInterval()
+	shouldSnapshot := tickStart.Sub(m.lastSuccessfulSnapshotStartTime) >= m.opts.MinimumSnapshotInterval()
 	if shouldSnapshot {
 		m.setState(flushManagerSnapshotInProgress)
 		maxBlocksSnapshottedByNamespace := 0
