@@ -753,7 +753,7 @@ func (d *db) IsBootstrapped() bool {
 //    1. The database is bootstrapped.
 //    2. The last successful snapshot began AFTER the last bootstrap completed.
 //
-// Those two conditions should be sufficient to ensure that after a placement change, the
+// Those two conditions should be sufficient to ensure that after a placement change the
 // node will be able to bootstrap any and all data from its local disk, however, for posterity
 // we also perform the following check:
 //     3. The last bootstrap completed AFTER the shardset was last assigned.
