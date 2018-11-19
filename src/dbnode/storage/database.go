@@ -386,7 +386,7 @@ func (d *db) queueBootstrapWithLock() {
 	// database when it receives an initial topology (as well as topology changes) without
 	// triggering a bootstrap until an external call initiates a bootstrap with an initial
 	// call to Bootstrap(). After that initial bootstrap, the clustered database will keep
-	// the non-clustered database bootstrapped by assign it shardsets which will trigger new
+	// the non-clustered database bootstrapped by assigning it shardsets which will trigger new
 	// bootstraps since d.bootstraps > 0 will be true.
 	if d.bootstraps > 0 {
 		// NB(r): Trigger another bootstrap, if already bootstrapping this will
