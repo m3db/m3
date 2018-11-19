@@ -153,15 +153,18 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	initPlacement, err := h.placementInitHandler.Init(placement.M3DBServiceName, r, placementRequest)
 	if err != nil {
-		// Attempt to delete the namespace that was just created to maintain idempotency
-		err = h.namespaceDeleteHandler.Delete(namespaceRequest.Name)
-		if err != nil {
-			logger.Error("unable to delete namespace we just added", zap.Any("error", err))
+		// Attempt to delete the namespace that was just created to maintain idempotency.
+		nsDeleteErr := h.namespaceDeleteHandler.Delete(namespaceRequest.Name)
+		if nsDeleteErr != nil {
+			logger.Error(
+				"unable to delete namespace we just added",
+				zap.Any("originalError", err),
+				zap.Any("namespaceDeleteError", nsDeleteErr))
 			xhttp.Error(w, err, http.StatusInternalServerError)
 			return
 		}
 
-		logger.Error("unable to add namespace", zap.Any("error", err))
+		logger.Error("unable to initialize placement", zap.Any("error", err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
