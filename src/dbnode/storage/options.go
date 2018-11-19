@@ -71,7 +71,7 @@ const (
 	defaultIndexingEnabled = false
 
 	// defaultMinSnapshotInterval is the default minimum interval that must elapse between snapshots
-	defaultMinSnapshotInterval = 5 * time.Second
+	defaultMinSnapshotInterval = 10 * time.Second
 )
 
 var (
