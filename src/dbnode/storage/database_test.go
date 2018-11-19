@@ -954,7 +954,7 @@ func TestDatabaseIsBootstrappedAndDurable(t *testing.T) {
 
 			mediator := NewMockdatabaseMediator(ctrl)
 			d.mediator = mediator
-			d.shardSetAssignedAt = tc.shardSetAssignedAt
+			d.lastReceivedNewShards = tc.shardSetAssignedAt
 
 			mediator.EXPECT().IsBootstrapped().Return(tc.isBootstrapped)
 			if !tc.isBootstrapped {

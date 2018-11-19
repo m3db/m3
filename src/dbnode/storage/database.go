@@ -93,8 +93,8 @@ type db struct {
 	created    uint64
 	bootstraps int
 
-	shardSet           sharding.ShardSet
-	shardSetAssignedAt time.Time
+	shardSet              sharding.ShardSet
+	lastReceivedNewShards time.Time
 
 	scope   tally.Scope
 	metrics databaseMetrics
@@ -164,19 +164,19 @@ func NewDatabase(
 	)
 
 	d := &db{
-		opts:               opts,
-		nowFn:              nowFn,
-		shardSet:           shardSet,
-		shardSetAssignedAt: nowFn(),
-		namespaces:         newDatabaseNamespacesMap(databaseNamespacesMapOptions{}),
-		commitLog:          commitLog,
-		scope:              scope,
-		metrics:            newDatabaseMetrics(scope),
-		log:                logger,
-		errors:             xcounter.NewFrequencyCounter(opts.ErrorCounterOptions()),
-		errWindow:          opts.ErrorWindowForLoad(),
-		errThreshold:       opts.ErrorThresholdForLoad(),
-		writeBatchPool:     opts.WriteBatchPool(),
+		opts:                  opts,
+		nowFn:                 nowFn,
+		shardSet:              shardSet,
+		lastReceivedNewShards: nowFn(),
+		namespaces:            newDatabaseNamespacesMap(databaseNamespacesMapOptions{}),
+		commitLog:             commitLog,
+		scope:                 scope,
+		metrics:               newDatabaseMetrics(scope),
+		log:                   logger,
+		errors:                xcounter.NewFrequencyCounter(opts.ErrorCounterOptions()),
+		errWindow:             opts.ErrorWindowForLoad(),
+		errThreshold:          opts.ErrorThresholdForLoad(),
+		writeBatchPool:        opts.WriteBatchPool(),
 	}
 
 	databaseIOpts := iopts.SetMetricsScope(scope)
@@ -363,8 +363,13 @@ func (d *db) Options() Options {
 func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 	d.Lock()
 	defer d.Unlock()
+
+	receivedNewShards := d.hasReceivedNewShards(shardSet)
+
 	d.shardSet = shardSet
-	d.shardSetAssignedAt = d.nowFn()
+	if receivedNewShards {
+		d.lastReceivedNewShards = d.nowFn()
+	}
 
 	for _, elem := range d.namespaces.Iter() {
 		ns := elem.Value()
@@ -372,6 +377,28 @@ func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 	}
 
 	d.queueBootstrapWithLock()
+}
+
+func (d *db) hasReceivedNewShards(incoming sharding.ShardSet) bool {
+	var (
+		existing    = d.shardSet
+		existingSet = map[uint32]struct{}{}
+	)
+
+	for _, shard := range existing.AllIDs() {
+		existingSet[shard] = struct{}{}
+	}
+
+	receivedNewShards := false
+	for _, shard := range incoming.AllIDs() {
+		_, ok := existingSet[shard]
+		if !ok {
+			receivedNewShards = true
+			break
+		}
+	}
+
+	return receivedNewShards
 }
 
 func (d *db) ShardSet() sharding.ShardSet {
@@ -775,7 +802,7 @@ func (d *db) IsBootstrappedAndDurable() bool {
 	}
 
 	return lastSnapshotStartTime.After(lastBootstrapCompletionTime) &&
-		lastBootstrapCompletionTime.After(d.shardSetAssignedAt)
+		lastBootstrapCompletionTime.After(d.lastReceivedNewShards)
 }
 
 func (d *db) Repair() error {
