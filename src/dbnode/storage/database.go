@@ -801,8 +801,13 @@ func (d *db) IsBootstrappedAndDurable() bool {
 		return false
 	}
 
-	return lastSnapshotStartTime.After(lastBootstrapCompletionTime) &&
-		lastBootstrapCompletionTime.After(d.lastReceivedNewShards)
+	var (
+		hasSnapshottedPostBootstrap            = lastSnapshotStartTime.After(lastBootstrapCompletionTime)
+		hasBootstrappedSinceReceivingNewShards = lastBootstrapCompletionTime.After(d.lastReceivedNewShards) ||
+			lastBootstrapCompletionTime.Equal(d.lastReceivedNewShards)
+	)
+	return hasSnapshottedPostBootstrap &&
+		hasBootstrappedSinceReceivingNewShards
 }
 
 func (d *db) Repair() error {
