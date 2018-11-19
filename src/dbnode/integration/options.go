@@ -267,7 +267,7 @@ type testOptions interface {
 	// SetMinimumSnapshotInterval sets the minimum interval between snapshots.
 	SetMinimumSnapshotInterval(value time.Duration) testOptions
 
-	// MinimumSnapshotInterval returns the minimum interval between snapshots
+	// MinimumSnapshotInterval returns the minimum interval between snapshots.
 	MinimumSnapshotInterval() time.Duration
 }
 
