@@ -749,7 +749,7 @@ func (d *db) IsBootstrapped() bool {
 	return d.mediator.IsBootstrapped()
 }
 
-// IsBootstrappedAndDurable should only return true if the following conditonsa are met:
+// IsBootstrappedAndDurable should only return true if the following conditions are met:
 //    1. The database is bootstrapped.
 //    2. The last successful snapshot began AFTER the last bootstrap completed.
 //
