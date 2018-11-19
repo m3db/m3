@@ -388,7 +388,7 @@ func TestFlushManagerFlushSnapshot(t *testing.T) {
 	}
 	require.NoError(t, fm.Flush(now, bootstrapStates))
 
-	lastSuccessfulSnapshot, ok = fm.LastSuccessfulSnapshotStartTime()
+	lastSuccessfulSnapshot, ok := fm.LastSuccessfulSnapshotStartTime()
 	require.True(t, ok)
 	require.Equal(t, now, lastSuccessfulSnapshot)
 }
