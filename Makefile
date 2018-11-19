@@ -165,9 +165,11 @@ install-goreleaser: install-stringer
 		@goreleaser -version 2> /dev/null || (echo "goreleaser install failed" && exit 1)
 
 .PHONY: release
-release: install-goreleaser
+release:
 	@echo Releasing new version
-	@source $(GO_BUILD_LDFLAGS_CMD) > /dev/null && goreleaser
+	docker run -v $(PWD):/. goreleaser/goreleaser release
+	# @source $(GO_BUILD_LDFLAGS_CMD) > /dev/null && goreleaser
+	# docker run -v $(PWD):. goreleaser/goreleaser release
 
 .PHONY: release-snapshot
 release-snapshot: install-goreleaser
