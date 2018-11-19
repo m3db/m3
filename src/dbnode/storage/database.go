@@ -93,9 +93,8 @@ type db struct {
 	created    uint64
 	bootstraps int
 
-	shardSet             sharding.ShardSet
-	shardSetAssignedAt   time.Time
-	bootstrapCompletedAt time.Time
+	shardSet           sharding.ShardSet
+	shardSetAssignedAt time.Time
 
 	scope   tally.Scope
 	metrics databaseMetrics
