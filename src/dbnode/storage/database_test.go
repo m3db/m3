@@ -425,20 +425,16 @@ func TestDatabaseAssignShardSetDoesNotUpdateLastReceivedNewShardsIfNoNewShards(t
 	ns = append(ns, dbAddNewMockNamespace(ctrl, d, "testns1"))
 	ns = append(ns, dbAddNewMockNamespace(ctrl, d, "testns2"))
 
-	shards := append(sharding.NewShards([]uint32{0, 1}, shard.Available))
-	shardSet, err := sharding.NewShardSet(shards, nil)
-	require.NoError(t, err)
-
 	var wg sync.WaitGroup
 	wg.Add(len(ns))
 	for _, n := range ns {
-		n.EXPECT().AssignShardSet(shardSet).Do(func(_ sharding.ShardSet) {
+		n.EXPECT().AssignShardSet(d.shardSet).Do(func(_ sharding.ShardSet) {
 			wg.Done()
 		})
 	}
 
 	t1 := d.lastReceivedNewShards
-	d.AssignShardSet(shardSet)
+	d.AssignShardSet(d.shardSet)
 	require.True(t, d.lastReceivedNewShards.Equal(t1))
 
 	wg.Wait()
