@@ -112,7 +112,7 @@ func (s *peersSource) ReadData(
 		persistConfig     = opts.PersistConfig()
 	)
 	if persistConfig.Enabled &&
-		seriesCachePolicy != series.CacheAll &&
+		(seriesCachePolicy == series.CacheAll || seriesCachePolicy == series.CacheLRU) &&
 		persistConfig.FileSetType == persist.FileSetFlushType {
 		retrieverMgr := s.opts.DatabaseBlockRetrieverManager()
 		persistManager := s.opts.PersistManager()
@@ -372,17 +372,18 @@ func (s *peersSource) flush(
 	}
 
 	seriesCachePolicy := s.opts.ResultOptions().SeriesCachePolicy()
-	if seriesCachePolicy == series.CacheAll {
+	if seriesCachePolicy != series.CacheRecentlyRead &&
+		seriesCachePolicy != series.CacheLRU {
 		// Should never happen.
 		iOpts := s.opts.ResultOptions().InstrumentOptions()
 		instrument.EmitAndLogInvariantViolation(iOpts, func(l xlog.Logger) {
 			l.WithFields(
 				xlog.NewField("namespace", nsMetadata.ID().String()),
-				xlog.NewField("cachePolicy", series.CacheAll),
+				xlog.NewField("cachePolicy", seriesCachePolicy),
 			).Error("error tried to persist data in peers bootstrapper with invalid cache policy")
 		})
 		return instrument.InvariantErrorf(
-			"tried to persist data in peers bootstrapper with invalid cache policy: %v", series.CacheAll)
+			"tried to persist data in peers bootstrapper with invalid cache policy: %v", seriesCachePolicy)
 	}
 
 	var (
