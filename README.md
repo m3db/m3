@@ -1,4 +1,4 @@
-# M3 [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![Coverage Status](https://codecov.io/gh/m3db/m3/branch/master/graph/badge.svg)](https://codecov.io/gh/m3db/m3) [![Gitter chat][gitter-img]](https://gitter.im/m3db/Lobby)
+# M3 [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![FOSSA Status][fossa-img]][fossa]  [![Coverage Status][cov-img]][cov] [![Gitter chat][gitter-img]][gitter]
 
 <p align="center"><img src="docs/theme/assets/images/M3-logo.png" alt="M3 Logo" width="256" height="270"></p>
 
@@ -117,6 +117,11 @@ This project is released under the [Apache License, Version 2.0](LICENSE).
 
 [doc-img]: https://godoc.org/github.com/m3db/m3?status.svg
 [doc]: https://godoc.org/github.com/m3db/m3
-[ci-img]: https://badge.buildkite.com/6a2d61d43ebff20a6adf5de5dc3946f0d484c04200b62e0bee.svg
+[ci-img]: https://badge.buildkite.com/6a2d61d43ebff20a6adf5de5dc3946f0d484c04200b62e0bee.svg?branch=master
 [ci]: https://buildkite.com/m3/m3-monorepo-ci
+[fossa-img]: https://app.fossa.io/api/projects/custom%2B4529%2Fgithub.com%2Fm3db%2Fm3.svg?type=shield
+[fossa]: https://app.fossa.io/projects/custom%2B4529%2Fgithub.com%2Fm3db%2Fm3?ref=badge_shield
+[cov-img]: https://codecov.io/gh/m3db/m3/branch/master/graph/badge.svg
+[cov]: https://codecov.io/gh/m3db/m3
 [gitter-img]: https://badges.gitter.im/m3db.png
+[gitter]: https://gitter.im/m3db/Lobby
