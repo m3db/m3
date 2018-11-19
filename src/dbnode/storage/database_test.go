@@ -962,7 +962,7 @@ func TestDatabaseIsBootstrappedAndDurable(t *testing.T) {
 			isBootstrapped:                  validIsBootstrapped,
 			lastBootstrapCompletionTime:     validLastBootstrapCompletionTime,
 			lastSuccessfulSnapshotStartTime: validLastSuccessfulSnapshotStartTime,
-			shardSetAssignedAt:              validLastBootstrapCompletionTime,
+			shardSetAssignedAt:              validLastBootstrapCompletionTime.Add(-time.Second),
 			expectedResult:                  false,
 		},
 		{
