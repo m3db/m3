@@ -527,7 +527,7 @@ type databaseBootstrapManager interface {
 	// IsBootstrapped returns whether the database is already bootstrapped.
 	IsBootstrapped() bool
 
-	// LastBootstrapCompletionTime returns the last bootstrap compeltion time,
+	// LastBootstrapCompletionTime returns the last bootstrap completion time,
 	// if any.
 	LastBootstrapCompletionTime() (time.Time, bool)
 
@@ -640,7 +640,7 @@ type databaseMediator interface {
 	// IsBootstrapped returns whether the database is bootstrapped.
 	IsBootstrapped() bool
 
-	// LastBootstrapCompletionTime returns the last bootstrap compeltion time,
+	// LastBootstrapCompletionTime returns the last bootstrap completion time,
 	// if any.
 	LastBootstrapCompletionTime() (time.Time, bool)
 
