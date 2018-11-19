@@ -176,6 +176,7 @@ func NewDatabase(
 		errors:             xcounter.NewFrequencyCounter(opts.ErrorCounterOptions()),
 		errWindow:          opts.ErrorWindowForLoad(),
 		errThreshold:       opts.ErrorThresholdForLoad(),
+		writeBatchPool:     opts.WriteBatchPool(),
 	}
 
 	databaseIOpts := iopts.SetMetricsScope(scope)
