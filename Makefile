@@ -164,12 +164,12 @@ build-goreleaser-image: check-for-goreleaser-github-token
 .PHONY: release
 release: build-goreleaser-image
 	@echo Releasing new version
-	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" m3/goreleaser release
+	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" -v $(PWD):/m3 m3/goreleaser release
 
 .PHONY: release-snapshot
 release-snapshot: build-goreleaser-image
 	@echo Creating snapshot release
-	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" m3/goreleaser --snapshot --rm-dist
+	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" -v $(PWD):/m3 m3/goreleaser --snapshot --rm-dist
 
 .PHONY: docs-container
 docs-container:
