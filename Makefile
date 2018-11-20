@@ -37,6 +37,7 @@ GO_BUILD_LDFLAGS          := $(shell $(GO_BUILD_LDFLAGS_CMD))
 GO_BUILD_COMMON_ENV       := CGO_ENABLED=0
 LINUX_AMD64_ENV           := GOOS=linux GOARCH=amd64 $(GO_BUILD_COMMON_ENV)
 GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.93
+GO_RELEASER_WORKING_DIR   := /m3
 GOMETALINT_VERSION        := v2.0.5
 
 SERVICES :=     \
@@ -159,12 +160,12 @@ check-for-goreleaser-github-token:
 .PHONY: release
 release: check-for-goreleaser-github-token
 	@echo Releasing new version
-	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" -v $(PWD):/m3 $(GO_RELEASER_DOCKER_IMAGE) release
+	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" -v $(PWD):$(GO_RELEASER_WORKING_DIR) -w $(GO_RELEASER_WORKING_DIR) $(GO_RELEASER_DOCKER_IMAGE) release
 
 .PHONY: release-snapshot
 release-snapshot: check-for-goreleaser-github-token
 	@echo Creating snapshot release
-	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" -v $(PWD):/m3 $(GO_RELEASER_DOCKER_IMAGE) --snapshot --rm-dist
+	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" -v $(PWD):$(GO_RELEASER_WORKING_DIR) -w $(GO_RELEASER_WORKING_DIR) $(GO_RELEASER_DOCKER_IMAGE) --snapshot --rm-dist
 
 .PHONY: docs-container
 docs-container:
