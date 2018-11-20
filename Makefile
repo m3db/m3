@@ -166,10 +166,16 @@ install-goreleaser: install-stringer
 
 .PHONY: release
 release:
+  ifndef GITHUB_TOKEN
+	  echo "Usage: make GITHUB_TOKEN=\"<TOKEN>\" release"
+		exit 1
+  endif
+
 	@echo Releasing new version
-	docker run -v $(PWD):/. goreleaser/goreleaser release
-	# @source $(GO_BUILD_LDFLAGS_CMD) > /dev/null && goreleaser
-	# docker run -v $(PWD):. goreleaser/goreleaser release
+	# Build custom gorelaser docker image using m3 directory root as context.
+	docker build -t test/goreleaser -f ./docker/goreleaser/Dockerfile .
+	# Run the image.
+	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" test/goreleaser release
 
 .PHONY: release-snapshot
 release-snapshot: install-goreleaser
