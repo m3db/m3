@@ -125,14 +125,14 @@ func matcherFromString(s string) (Matcher, error) {
 
 	if l == 1 {
 		return Matcher{
-			Type:  MatchEqual,
+			Type:  MatchRegexp,
 			Name:  []byte(ss[0]),
 			Value: []byte{},
 		}, nil
 	}
 
 	return Matcher{
-		Type:  MatchEqual,
+		Type:  MatchRegexp,
 		Name:  []byte(ss[0]),
 		Value: []byte(ss[1]),
 	}, nil
@@ -148,7 +148,6 @@ func MatchersFromString(s string) (Matchers, error) {
 		if err != nil {
 			return nil, err
 		}
-		fmt.Println(matcher)
 
 		matchers[i] = matcher
 	}

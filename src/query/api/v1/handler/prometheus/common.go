@@ -168,7 +168,7 @@ func ParseTagValuesToQuery(
 		FilterNameTags:   [][]byte{nameBytes},
 		TagMatchers: models.Matchers{
 			models.Matcher{
-				Type:  models.MatchEqual,
+				Type:  models.MatchRegexp,
 				Name:  nameBytes,
 				Value: matchValues,
 			},

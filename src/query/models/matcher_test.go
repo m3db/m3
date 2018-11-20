@@ -129,7 +129,7 @@ func TestValidMatchersFromString(t *testing.T) {
 	expected := Matchers{{
 		Name:  []byte("a"),
 		Value: []byte{},
-		Type:  MatchEqual,
+		Type:  MatchRegexp,
 	}}
 
 	assert.Equal(t, expected, m)
@@ -143,7 +143,7 @@ func TestValidMatchersFromString(t *testing.T) {
 	expected = append(expected, Matcher{
 		Name:  []byte("b"),
 		Value: []byte("c"),
-		Type:  MatchEqual,
+		Type:  MatchRegexp,
 	})
 
 	assert.NoError(t, err)
