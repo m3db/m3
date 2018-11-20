@@ -118,7 +118,6 @@ func matcherFromString(s string) (Matcher, error) {
 	if len(ss) > 2 {
 		return Matcher{}, errors.New("invalid arg length for matcher")
 	}
-	fmt.Println(l)
 
 	if l == 0 || len(ss[0]) == 0 {
 		return Matcher{}, errors.New("empty matcher")
