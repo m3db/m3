@@ -159,15 +159,17 @@ type shardMetricsKey struct {
 
 type sessionMetrics struct {
 	sync.RWMutex
-	writeSuccess               tally.Counter
-	writeErrors                tally.Counter
-	writeNodesRespondingErrors []tally.Counter
-	fetchSuccess               tally.Counter
-	fetchErrors                tally.Counter
-	fetchNodesRespondingErrors []tally.Counter
-	topologyUpdatedSuccess     tally.Counter
-	topologyUpdatedError       tally.Counter
-	streamFromPeersMetrics     map[shardMetricsKey]streamFromPeersMetrics
+	writeSuccess                         tally.Counter
+	writeErrors                          tally.Counter
+	writeNodesRespondingErrors           []tally.Counter
+	writeNodesRespondingBadRequestErrors []tally.Counter
+	fetchSuccess                         tally.Counter
+	fetchErrors                          tally.Counter
+	fetchNodesRespondingErrors           []tally.Counter
+	fetchNodesRespondingBadRequestErrors []tally.Counter
+	topologyUpdatedSuccess               tally.Counter
+	topologyUpdatedError                 tally.Counter
+	streamFromPeersMetrics               map[shardMetricsKey]streamFromPeersMetrics
 }
 
 func newSessionMetrics(scope tally.Scope) sessionMetrics {
@@ -390,7 +392,11 @@ func (s *session) newPeerMetadataStreamingProgressMetrics(
 
 func (s *session) incWriteMetrics(consistencyResultErr error, respErrs int32) {
 	if idx := s.nodesRespondingErrorsMetricIndex(respErrs); idx >= 0 {
-		s.metrics.writeNodesRespondingErrors[idx].Inc(1)
+		if IsBadRequestError(consistencyResultErr) {
+			s.metrics.writeNodesRespondingBadRequestErrors[idx].Inc(1)
+		} else {
+			s.metrics.writeNodesRespondingErrors[idx].Inc(1)
+		}
 	}
 	if consistencyResultErr == nil {
 		s.metrics.writeSuccess.Inc(1)
@@ -401,7 +407,11 @@ func (s *session) incWriteMetrics(consistencyResultErr error, respErrs int32) {
 
 func (s *session) incFetchMetrics(consistencyResultErr error, respErrs int32) {
 	if idx := s.nodesRespondingErrorsMetricIndex(respErrs); idx >= 0 {
-		s.metrics.fetchNodesRespondingErrors[idx].Inc(1)
+		if IsBadRequestError(consistencyResultErr) {
+			s.metrics.fetchNodesRespondingBadRequestErrors[idx].Inc(1)
+		} else {
+			s.metrics.fetchNodesRespondingErrors[idx].Inc(1)
+		}
 	}
 	if consistencyResultErr == nil {
 		s.metrics.fetchSuccess.Inc(1)
@@ -744,18 +754,34 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 		curr := len(s.metrics.writeNodesRespondingErrors)
 		for i := curr; i < replicas; i++ {
 			tags := map[string]string{"nodes": fmt.Sprintf("%d", i+1)}
-			counter := s.scope.Tagged(tags).Counter("write.nodes-responding-error")
+			name := "write.nodes-responding-error"
+			serverErrsSubScope := s.scope.Tagged(tags).Tagged(map[string]string{
+				"error_type": "server_error",
+			})
+			badRequestErrsSubScope := s.scope.Tagged(tags).Tagged(map[string]string{
+				"error_type": "bad_request_error",
+			})
 			s.metrics.writeNodesRespondingErrors =
-				append(s.metrics.writeNodesRespondingErrors, counter)
+				append(s.metrics.writeNodesRespondingErrors, serverErrsSubScope.Counter(name))
+			s.metrics.writeNodesRespondingBadRequestErrors =
+				append(s.metrics.writeNodesRespondingBadRequestErrors, badRequestErrsSubScope.Counter(name))
 		}
 	}
 	if replicas > len(s.metrics.fetchNodesRespondingErrors) {
 		curr := len(s.metrics.fetchNodesRespondingErrors)
 		for i := curr; i < replicas; i++ {
 			tags := map[string]string{"nodes": fmt.Sprintf("%d", i+1)}
-			counter := s.scope.Tagged(tags).Counter("fetch.nodes-responding-error")
+			name := "fetch.nodes-responding-error"
+			serverErrsSubScope := s.scope.Tagged(tags).Tagged(map[string]string{
+				"error_type": "server_error",
+			})
+			badRequestErrsSubScope := s.scope.Tagged(tags).Tagged(map[string]string{
+				"error_type": "bad_request_error",
+			})
 			s.metrics.fetchNodesRespondingErrors =
-				append(s.metrics.fetchNodesRespondingErrors, counter)
+				append(s.metrics.fetchNodesRespondingErrors, serverErrsSubScope.Counter(name))
+			s.metrics.fetchNodesRespondingBadRequestErrors =
+				append(s.metrics.fetchNodesRespondingBadRequestErrors, badRequestErrsSubScope.Counter(name))
 		}
 	}
 

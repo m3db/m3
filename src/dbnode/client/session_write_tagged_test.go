@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/instrument"
 	xtest "github.com/m3db/m3x/test"
 	xtime "github.com/m3db/m3x/time"
 
@@ -287,7 +288,10 @@ func TestSessionWriteTaggedBadRequestErrorIsNonRetryable(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	session := newDefaultTestSession(t).(*session)
+	scope := tally.NewTestScope("", nil)
+	opts := newSessionTestOptions().
+		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope))
+	session := newTestSession(t, opts).(*session)
 
 	w := struct {
 		ns         ident.ID
@@ -331,6 +335,12 @@ func TestSessionWriteTaggedBadRequestErrorIsNonRetryable(t *testing.T) {
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsNonRetryableError(err))
 
+	// Assert counting bad request errors by number of nodes
+	counters := scope.Snapshot().Counters()
+	nodesBadRequestErrors, ok := counters["write.nodes-responding-error+error_type=bad_request_error,nodes=3"]
+	require.True(t, ok)
+	assert.Equal(t, int64(1), nodesBadRequestErrors.Value())
+
 	assert.NoError(t, session.Close())
 }
 
@@ -338,7 +348,10 @@ func TestSessionWriteTaggedRetry(t *testing.T) {
 	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
-	session := newRetryEnabledTestSession(t).(*session)
+	scope := tally.NewTestScope("", nil)
+	opts := newSessionTestOptions().
+		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope))
+	session := newRetryEnabledTestSession(t, opts).(*session)
 	w := newWriteTaggedStub()
 
 	mockEncoder := serialize.NewMockTagEncoder(ctrl)
@@ -405,6 +418,12 @@ func TestSessionWriteTaggedRetry(t *testing.T) {
 	// Wait for write to complete
 	writeWg.Wait()
 	assert.Nil(t, resultErr)
+
+	// Assert counting bad request errors by number of nodes
+	counters := scope.Snapshot().Counters()
+	nodesBadRequestErrors, ok := counters["write.nodes-responding-error+error_type=server_error,nodes=3"]
+	require.True(t, ok)
+	assert.Equal(t, int64(1), nodesBadRequestErrors.Value())
 
 	assert.NoError(t, session.Close())
 }
