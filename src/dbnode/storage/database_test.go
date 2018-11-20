@@ -958,11 +958,11 @@ func TestDatabaseIsBootstrappedAndDurable(t *testing.T) {
 			expectedResult:                  false,
 		},
 		{
-			title:                           "False if last bootstrap completion time is not after shardset assigned at time",
+			title:                           "False if last bootstrap completion time is not after/equal shardset assigned at time",
 			isBootstrapped:                  validIsBootstrapped,
 			lastBootstrapCompletionTime:     validLastBootstrapCompletionTime,
 			lastSuccessfulSnapshotStartTime: validLastSuccessfulSnapshotStartTime,
-			shardSetAssignedAt:              validLastBootstrapCompletionTime.Add(-time.Second),
+			shardSetAssignedAt:              validLastBootstrapCompletionTime.Add(time.Second),
 			expectedResult:                  false,
 		},
 		{
