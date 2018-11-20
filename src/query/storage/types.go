@@ -110,6 +110,13 @@ type Querier interface {
 		query *FetchQuery,
 		options *FetchOptions,
 	) (*SearchResults, error)
+
+	// CompleteTags returns autocompleted tag results
+	CompleteTags(
+		ctx context.Context,
+		query *CompleteTagsQuery,
+		options *FetchOptions,
+	) (*CompleteTagsResult, error)
 }
 
 // WriteQuery represents the input timeseries that is written to the db
@@ -128,9 +135,9 @@ func (q *WriteQuery) String() string {
 // CompleteTagsQuery represents a query that returns an autocompleted
 // set of tags that exist in the db
 type CompleteTagsQuery struct {
-	TagMatchers      models.Matchers
-	FilterNameTags   [][]byte
 	CompleteNameOnly bool
+	FilterNameTags   [][]byte
+	TagMatchers      models.Matchers
 }
 
 func (q *CompleteTagsQuery) String() string {

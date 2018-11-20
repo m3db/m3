@@ -22,7 +22,7 @@ package filter
 
 import "github.com/m3db/m3/src/query/storage"
 
-// Storage determines whether storage can fulfil the read query
+// Storage determines whether storage can fulfil the query
 type Storage func(query storage.Query, store storage.Storage) bool
 
 // LocalOnly filters out all remote storages
@@ -38,4 +38,12 @@ func AllowAll(_ storage.Query, _ storage.Storage) bool {
 // AllowNone filters all storages
 func AllowNone(_ storage.Query, _ storage.Storage) bool {
 	return false
+}
+
+// StorageCompleteTags determines whether storage can fulfil the complete tag query
+type StorageCompleteTags func(query storage.CompleteTagsQuery, store storage.Storage) bool
+
+// RemoteOnly filters out any non-remote storages
+func RemoteOnly(_ storage.CompleteTagsQuery, store storage.Storage) bool {
+	return store.Type() == storage.TypeRemoteDC
 }

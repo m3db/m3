@@ -22,19 +22,35 @@ package prometheus
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"time"
 
+	"github.com/m3db/m3/src/query/errors"
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/util/json"
 	"github.com/m3db/m3/src/x/net/http"
 
 	"github.com/golang/snappy"
+	"github.com/gorilla/mux"
 )
 
 const (
+	// NameReplace is the parameter that gets replaced
+	NameReplace         = "name"
+	queryParam          = "query"
+	filterNameTagsParam = "tag"
+	errFormatStr        = "error parsing param: %s, error: %v"
+
 	// TODO: get timeouts from configs
 	maxTimeout     = time.Minute
 	defaultTimeout = time.Second * 15
+)
+
+var (
+	matchValues = []byte("*")
 )
 
 // ParsePromCompressedRequest parses a snappy compressed request from Prometheus
@@ -80,4 +96,146 @@ func ParseRequestTimeout(r *http.Request) (time.Duration, error) {
 	}
 
 	return duration, nil
+}
+
+// ParseTagCompletionParamsToQuery parses all params from the GET request
+func ParseTagCompletionParamsToQuery(
+	r *http.Request,
+) (*storage.CompleteTagsQuery, *xhttp.ParseError) {
+	tagQuery := storage.CompleteTagsQuery{}
+
+	query, err := parseTagCompletionQuery(r)
+	if err != nil {
+		return nil, xhttp.NewParseError(fmt.Errorf(errFormatStr, queryParam, err), http.StatusBadRequest)
+	}
+
+	matchers, err := models.MatchersFromString(query)
+	if err != nil {
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+	}
+
+	tagQuery.TagMatchers = matchers
+	// If there is a result type field present, parse it and set
+	// complete name only parameter appropriately. Otherwise, default
+	// to returning both completed tag names and values
+	if result := r.FormValue("result"); result != "" {
+		switch result {
+		case "default":
+			tagQuery.CompleteNameOnly = false
+		case "tagNamesOnly":
+			tagQuery.CompleteNameOnly = true
+		default:
+			return nil, xhttp.NewParseError(errors.ErrInvalidResultParamError, http.StatusBadRequest)
+		}
+	}
+
+	filterNameTags := r.Form[filterNameTagsParam]
+	tagQuery.FilterNameTags = make([][]byte, len(filterNameTags))
+	for i, f := range filterNameTags {
+		tagQuery.FilterNameTags[i] = []byte(f)
+	}
+
+	return &tagQuery, nil
+}
+
+func parseTagCompletionQuery(r *http.Request) (string, error) {
+	queries, ok := r.URL.Query()[queryParam]
+	if !ok || len(queries) == 0 || queries[0] == "" {
+		return "", errors.ErrNoQueryFound
+	}
+
+	// TODO: currently, we only support one target at a time
+	if len(queries) > 1 {
+		return "", errors.ErrBatchQuery
+	}
+
+	return queries[0], nil
+}
+
+// ParseTagValuesToQuery parses a tag values request to a complete tags query
+func ParseTagValuesToQuery(
+	r *http.Request,
+) (*storage.CompleteTagsQuery, error) {
+	vars := mux.Vars(r)
+	name, ok := vars[NameReplace]
+	if !ok || len(name) == 0 {
+		return nil, errors.ErrNoName
+	}
+
+	nameBytes := []byte(name)
+	return &storage.CompleteTagsQuery{
+		CompleteNameOnly: false,
+		FilterNameTags:   [][]byte{nameBytes},
+		TagMatchers: models.Matchers{
+			models.Matcher{
+				Type:  models.MatchRegexp,
+				Name:  nameBytes,
+				Value: matchValues,
+			},
+		},
+	}, nil
+}
+
+func renderNameOnlyTagCompletionResultsJSON(
+	w io.Writer,
+	results []storage.CompletedTag,
+) error {
+	jw := json.NewWriter(w)
+	jw.BeginArray()
+
+	for _, tag := range results {
+		jw.WriteString(string(tag.Name))
+	}
+
+	jw.EndArray()
+
+	return jw.Close()
+}
+
+func renderDefaultTagCompletionResultsJSON(
+	w io.Writer,
+	results []storage.CompletedTag,
+) error {
+	jw := json.NewWriter(w)
+	jw.BeginObject()
+
+	jw.BeginObjectField("hits")
+	jw.WriteInt(len(results))
+
+	jw.BeginObjectField("tags")
+	jw.BeginArray()
+
+	for _, tag := range results {
+		jw.BeginObject()
+
+		jw.BeginObjectField("key")
+		jw.WriteString(string(tag.Name))
+
+		jw.BeginObjectField("values")
+		jw.BeginArray()
+		for _, value := range tag.Values {
+			jw.WriteString(string(value))
+		}
+		jw.EndArray()
+
+		jw.EndObject()
+	}
+	jw.EndArray()
+
+	jw.EndObject()
+
+	return jw.Close()
+}
+
+// RenderTagCompletionResultsJSON renders search results to json format
+func RenderTagCompletionResultsJSON(
+	w io.Writer,
+	result *storage.CompleteTagsResult,
+) error {
+	results := result.CompletedTags
+	if result.CompleteNameOnly {
+		return renderNameOnlyTagCompletionResultsJSON(w, results)
+	}
+
+	return renderDefaultTagCompletionResultsJSON(w, results)
 }

@@ -142,6 +142,14 @@ func (h *Handler) RegisterRoutes() error {
 		logged(m3json.NewWriteJSONHandler(h.storage)).ServeHTTP,
 	).Methods(m3json.JSONWriteHTTPMethod)
 
+	// Tag completion endpoints
+	h.Router.HandleFunc(native.CompleteTagsURL,
+		logged(native.NewCompleteTagsHandler(h.storage)).ServeHTTP,
+	).Methods(native.CompleteTagsHTTPMethod)
+	h.Router.HandleFunc(remote.TagValuesURL,
+		logged(remote.NewTagValuesHandler(h.storage)).ServeHTTP,
+	).Methods(remote.TagValuesHTTPMethod)
+
 	if h.clusterClient != nil {
 		placementOpts := placement.HandlerOptions{
 			ClusterClient:       h.clusterClient,
