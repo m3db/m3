@@ -807,7 +807,7 @@ func (d *db) IsBootstrappedAndDurable() bool {
 			xlog.NewField("lastBootstrapCompletionTime", lastBootstrapCompletionTime),
 			xlog.NewField("lastSnapshotStartTime", lastSnapshotStartTime),
 		).Debugf(
-			"not bootstrapped and durable because: no last bootstrap completion time")
+			"not bootstrapped and durable because: no last snapshot start time")
 		return false
 	}
 
@@ -825,7 +825,7 @@ func (d *db) IsBootstrappedAndDurable() bool {
 			xlog.NewField("lastSnapshotStartTime", lastSnapshotStartTime),
 			xlog.NewField("lastReceivedNewShards", d.lastReceivedNewShards),
 		).Debugf(
-			"not bootstrapped and durable because: no last bootstrap completion time")
+			"not bootstrapped and durable because: has not snapshotted post bootstrap and/or has not bootstrapped since receiving new shards")
 	}
 
 	return isBootstrappedAndDurable
