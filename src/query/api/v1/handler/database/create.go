@@ -384,6 +384,11 @@ func defaultedPlacementInitRequest(
 		return nil, errInvalidDBType
 	}
 
+	numShardsInput := r.GetNumShards()
+	if numShardsInput > 0 {
+		numShards = numShardsInput
+	}
+
 	return &admin.PlacementInitRequest{
 		NumShards:         numShards,
 		ReplicationFactor: replicationFactor,
