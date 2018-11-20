@@ -114,16 +114,16 @@ func (m Matchers) String() string {
 // TODO: make this more robust, handle types other than MatchEqual
 func matcherFromString(s string) (Matcher, error) {
 	ss := strings.Split(s, ":")
-	l := len(ss)
-	if len(ss) > 2 {
+	length := len(ss)
+	if length > 2 {
 		return Matcher{}, errors.New("invalid arg length for matcher")
 	}
 
-	if l == 0 || len(ss[0]) == 0 {
+	if length == 0 || len(ss[0]) == 0 {
 		return Matcher{}, errors.New("empty matcher")
 	}
 
-	if l == 1 {
+	if length == 1 {
 		return Matcher{
 			Type:  MatchRegexp,
 			Name:  []byte(ss[0]),
