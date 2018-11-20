@@ -30,14 +30,15 @@ thrift_rules_dir     := generated/thrift
 vendor_prefix        := vendor
 cache_policy         ?= recently_read
 
-BUILD                := $(abspath ./bin)
-VENDOR               := $(m3db_package_path)/$(vendor_prefix)
-GO_BUILD_LDFLAGS_CMD := $(abspath ./.ci/go-build-ldflags.sh) $(m3db_package)
-GO_BUILD_LDFLAGS     := $(shell $(GO_BUILD_LDFLAGS_CMD))
-GO_BUILD_COMMON_ENV  := CGO_ENABLED=0
-LINUX_AMD64_ENV      := GOOS=linux GOARCH=amd64 $(GO_BUILD_COMMON_ENV)
-GO_RELEASER_VERSION  := v0.76.1
-GOMETALINT_VERSION   := v2.0.5
+BUILD                     := $(abspath ./bin)
+VENDOR                    := $(m3db_package_path)/$(vendor_prefix)
+GO_BUILD_LDFLAGS_CMD      := $(abspath ./.ci/go-build-ldflags.sh) $(m3db_package)
+GO_BUILD_LDFLAGS          := $(shell $(GO_BUILD_LDFLAGS_CMD))
+GO_BUILD_COMMON_ENV       := CGO_ENABLED=0
+LINUX_AMD64_ENV           := GOOS=linux GOARCH=amd64 $(GO_BUILD_COMMON_ENV)
+GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.93
+GO_RELEASER_WORKING_DIR   := /m3
+GOMETALINT_VERSION        := v2.0.5
 
 SERVICES :=     \
 	m3dbnode      \
@@ -149,30 +150,22 @@ install-gometalinter:
 	@mkdir -p $(retool_bin_path)
 	./scripts/install-gometalinter.sh -b $(retool_bin_path) -d $(GOMETALINT_VERSION)
 
-.PHONY: install-stringer
-install-stringer:
-		@which stringer > /dev/null || go get golang.org/x/tools/cmd/stringer
-		@which stringer > /dev/null || (echo "stringer install failed" && exit 1)
-
-.PHONY: install-goreleaser
-install-goreleaser: install-stringer
-		@which goreleaser > /dev/null || (go get -d github.com/goreleaser/goreleaser && \
-		  cd $(GOPATH)/src/github.com/goreleaser/goreleaser && \
-			git checkout $(GO_RELEASER_VERSION) && \
-			dep ensure -vendor-only && \
-			make build && \
-			mv goreleaser $(GOPATH)/bin/)
-		@goreleaser -version 2> /dev/null || (echo "goreleaser install failed" && exit 1)
+.PHONY: check-for-goreleaser-github-token
+check-for-goreleaser-github-token:
+  ifndef GITHUB_TOKEN
+		echo "Usage: make GITHUB_TOKEN=\"<TOKEN>\" release"
+		exit 1
+  endif
 
 .PHONY: release
-release: install-goreleaser
+release: check-for-goreleaser-github-token
 	@echo Releasing new version
-	@source $(GO_BUILD_LDFLAGS_CMD) > /dev/null && goreleaser
+	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" -v $(PWD):$(GO_RELEASER_WORKING_DIR) -w $(GO_RELEASER_WORKING_DIR) $(GO_RELEASER_DOCKER_IMAGE) release
 
 .PHONY: release-snapshot
-release-snapshot: install-goreleaser
+release-snapshot: check-for-goreleaser-github-token
 	@echo Creating snapshot release
-	@source $(GO_BUILD_LDFLAGS_CMD) > /dev/null && goreleaser --snapshot --rm-dist
+	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" -v $(PWD):$(GO_RELEASER_WORKING_DIR) -w $(GO_RELEASER_WORKING_DIR) $(GO_RELEASER_DOCKER_IMAGE) --snapshot --rm-dist
 
 .PHONY: docs-container
 docs-container:
