@@ -30,14 +30,14 @@ thrift_rules_dir     := generated/thrift
 vendor_prefix        := vendor
 cache_policy         ?= recently_read
 
-BUILD                := $(abspath ./bin)
-VENDOR               := $(m3db_package_path)/$(vendor_prefix)
-GO_BUILD_LDFLAGS_CMD := $(abspath ./.ci/go-build-ldflags.sh) $(m3db_package)
-GO_BUILD_LDFLAGS     := $(shell $(GO_BUILD_LDFLAGS_CMD))
-GO_BUILD_COMMON_ENV  := CGO_ENABLED=0
-LINUX_AMD64_ENV      := GOOS=linux GOARCH=amd64 $(GO_BUILD_COMMON_ENV)
-GO_RELEASER_VERSION  := v0.76.1
-GOMETALINT_VERSION   := v2.0.5
+BUILD                     := $(abspath ./bin)
+VENDOR                    := $(m3db_package_path)/$(vendor_prefix)
+GO_BUILD_LDFLAGS_CMD      := $(abspath ./.ci/go-build-ldflags.sh) $(m3db_package)
+GO_BUILD_LDFLAGS          := $(shell $(GO_BUILD_LDFLAGS_CMD))
+GO_BUILD_COMMON_ENV       := CGO_ENABLED=0
+LINUX_AMD64_ENV           := GOOS=linux GOARCH=amd64 $(GO_BUILD_COMMON_ENV)
+GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.93
+GOMETALINT_VERSION        := v2.0.5
 
 SERVICES :=     \
 	m3dbnode      \
@@ -156,20 +156,15 @@ check-for-goreleaser-github-token:
 		exit 1
   endif
 
-.PHONY: build-goreleaser-image
-build-goreleaser-image: check-for-goreleaser-github-token
-	# Build custom goreleaser docker image using m3 directory root as context.
-	docker build -t m3/goreleaser -f ./docker/goreleaser/Dockerfile .
-
 .PHONY: release
-release: build-goreleaser-image
+release: check-for-goreleaser-github-token
 	@echo Releasing new version
-	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" -v $(PWD):/m3 m3/goreleaser release
+	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" -v $(PWD):/m3 $(GO_RELEASER_DOCKER_IMAGE) release
 
 .PHONY: release-snapshot
-release-snapshot: build-goreleaser-image
+release-snapshot: check-for-goreleaser-github-token
 	@echo Creating snapshot release
-	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" -v $(PWD):/m3 m3/goreleaser --snapshot --rm-dist
+	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" -v $(PWD):/m3 $(GO_RELEASER_DOCKER_IMAGE) --snapshot --rm-dist
 
 .PHONY: docs-container
 docs-container:
