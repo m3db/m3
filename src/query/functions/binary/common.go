@@ -80,10 +80,23 @@ var (
 	errNoMatching              = errors.New("vector matching parameters must be provided for binary operations between series")
 )
 
-func tagMap(t models.Tags) map[string]models.Tag {
-	m := make(map[string]models.Tag, t.Len())
+type tags models.Tag
+
+func toTagMap(t models.Tags) *tagMap {
+	m := newTagMap(tagMapOptions{
+		InitialSize: t.Len(),
+	})
 	for _, tag := range t.Tags {
-		m[string(tag.Name)] = tag
+		// Set unsafe since the id put into this map is much shorter
+		// lived than the ids in the object added to it;
+		// Copying or finalizing would use unnecessary memory
+		m.SetUnsafe(
+			tag.Name,
+			tags(tag),
+			tagMapSetUnsafeOptions{
+				NoCopyKey:     true,
+				NoFinalizeKey: true,
+			})
 	}
 
 	return m
@@ -102,26 +115,26 @@ func combineMetaAndSeriesMeta(
 
 	// NB (arnikola): mutating tags in `meta` to avoid allocations
 	leftTags := meta.Tags
-	otherTags := tagMap(otherMeta.Tags)
+	otherTags := toTagMap(otherMeta.Tags)
 
 	metaTagsToAdd := models.NewTags(leftTags.Len(), leftTags.Opts)
-	otherMetaTagsToAdd := models.NewTags(len(otherTags), leftTags.Opts)
+	otherMetaTagsToAdd := models.NewTags(otherTags.Len(), leftTags.Opts)
 	tags := models.NewTags(leftTags.Len(), leftTags.Opts)
 
 	for _, t := range leftTags.Tags {
-		if otherTag, ok := otherTags[string(t.Name)]; ok {
+		if otherTag, ok := otherTags.Get(t.Name); ok {
 			if bytes.Equal(t.Value, otherTag.Value) {
 				tags = tags.AddTag(t)
 			} else {
 				// If both metas have the same common tag  with different
 				// values explicitly add it to each seriesMeta.
 				metaTagsToAdd = metaTagsToAdd.AddTag(t)
-				otherMetaTagsToAdd = otherMetaTagsToAdd.AddTag(otherTag)
+				otherMetaTagsToAdd = otherMetaTagsToAdd.AddTag(models.Tag(otherTag))
 			}
 
 			// NB(arnikola): delete common tag from otherTags as it
 			// has already been handled
-			delete(otherTags, string(t.Name))
+			otherTags.Delete(t.Name)
 		} else {
 			// Tag does not exist on otherMeta explicitly add it to each seriesMeta
 			metaTagsToAdd = metaTagsToAdd.AddTag(t)
@@ -130,8 +143,9 @@ func combineMetaAndSeriesMeta(
 
 	// Iterate over otherMeta common tags and explicitly add
 	// remaining tags to otherSeriesMeta
-	for _, otherTag := range otherTags {
-		otherMetaTagsToAdd = otherMetaTagsToAdd.AddTag(otherTag)
+	for _, otherTag := range otherTags.Iter() {
+		t := models.Tag(otherTag.Value())
+		otherMetaTagsToAdd = otherMetaTagsToAdd.AddTag(t)
 	}
 
 	// Set common tags

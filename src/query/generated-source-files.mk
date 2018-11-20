@@ -33,7 +33,8 @@ genny-map-all: \
 	genny-map-multi-complete-tags \
 	genny-map-multi-complete-tag-values \
 	genny-map-multi-result-series \
-	genny-map-multi-search-result
+	genny-map-multi-search-result \
+	genny-map-tag
 
 # Map generation rule for query/multiCompleteTags
 .PHONY: genny-map-multi-complete-tags
@@ -100,3 +101,19 @@ genny-map-multi-search-result: install-m3x-repo
 	mv -f $(multiresult_package_path)/new_map_gen.go \
 		$(multiresult_package_path)/multi_search_result_new_map_gen.go
 
+
+# Map generation rule for query/tag
+.PHONY: genny-map-tag
+genny-map-tag: install-m3x-repo
+	cd $(m3x_package_path) && make byteshashmap-gen \
+		pkg=binary \
+		value_type=tags \
+		target_package=$(query_package)/functions/binary \
+		rename_type_prefix=tag \
+		rename_constructor=newTagMap \
+		rename_constructor_options=tagMapOptions
+	# Rename both generated map and constructor files
+	mv -f $(query_package_path)/functions/binary/map_gen.go \
+		$(query_package_path)/functions/binary/tag_map_gen.go
+	mv -f $(query_package_path)/functions/binary/new_map_gen.go \
+		$(query_package_path)/functions/binary/tag_new_map_gen.go
