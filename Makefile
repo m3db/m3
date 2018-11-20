@@ -149,38 +149,27 @@ install-gometalinter:
 	@mkdir -p $(retool_bin_path)
 	./scripts/install-gometalinter.sh -b $(retool_bin_path) -d $(GOMETALINT_VERSION)
 
-.PHONY: install-stringer
-install-stringer:
-		@which stringer > /dev/null || go get golang.org/x/tools/cmd/stringer
-		@which stringer > /dev/null || (echo "stringer install failed" && exit 1)
-
-.PHONY: install-goreleaser
-install-goreleaser: install-stringer
-		@which goreleaser > /dev/null || (go get -d github.com/goreleaser/goreleaser && \
-		  cd $(GOPATH)/src/github.com/goreleaser/goreleaser && \
-			git checkout $(GO_RELEASER_VERSION) && \
-			dep ensure -vendor-only && \
-			make build && \
-			mv goreleaser $(GOPATH)/bin/)
-		@goreleaser -version 2> /dev/null || (echo "goreleaser install failed" && exit 1)
-
-.PHONY: release
-release:
+.PHONY: check-for-goreleaser-github-token
+check-for-goreleaser-github-token:
   ifndef GITHUB_TOKEN
-	  echo "Usage: make GITHUB_TOKEN=\"<TOKEN>\" release"
+		echo "Usage: make GITHUB_TOKEN=\"<TOKEN>\" release"
 		exit 1
   endif
 
+.PHONY: build-goreleaser-image
+build-goreleaser-image: check-for-goreleaser-github-token
+	# Build custom goreleaser docker image using m3 directory root as context.
+	docker build -t m3/goreleaser -f ./docker/goreleaser/Dockerfile .
+
+.PHONY: release
+release: build-goreleaser-image
 	@echo Releasing new version
-	# Build custom gorelaser docker image using m3 directory root as context.
-	docker build -t test/goreleaser -f ./docker/goreleaser/Dockerfile .
-	# Run the image.
-	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" test/goreleaser release
+	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" m3/goreleaser release
 
 .PHONY: release-snapshot
-release-snapshot: install-goreleaser
+release-snapshot: build-goreleaser-image
 	@echo Creating snapshot release
-	@source $(GO_BUILD_LDFLAGS_CMD) > /dev/null && goreleaser --snapshot --rm-dist
+	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" m3/goreleaser --snapshot --rm-dist
 
 .PHONY: docs-container
 docs-container:
