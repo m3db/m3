@@ -55,7 +55,19 @@ func (b *completeTagsResultBuilder) Add(tagResult *CompleteTagsResult) error {
 
 	if nameOnly {
 		for _, tag := range completedTags {
-			b.tagBuilders.Set(tag.Name, completedTagBuilder{})
+			// Set unsafe since the id put into this map is much shorter
+			// lived than the ids in the object added to it;
+			// Copying or finalizing would use unnecessary memory
+			opts := multiCompleteTagsMapSetUnsafeOptions{
+				NoCopyKey:     true,
+				NoFinalizeKey: true,
+			}
+
+			b.tagBuilders.SetUnsafe(
+				tag.Name,
+				completedTagBuilder{},
+				opts,
+			)
 		}
 
 		return nil
@@ -63,13 +75,29 @@ func (b *completeTagsResultBuilder) Add(tagResult *CompleteTagsResult) error {
 
 	for _, tag := range completedTags {
 		name := tag.Name
+		// Set unsafe since the id put into this map is much shorter
+		// lived than the ids in the object added to it;
+		// Copying or finalizing would use unnecessary memory
+		opts := multiCompleteTagsMapSetUnsafeOptions{
+			NoCopyKey:     true,
+			NoFinalizeKey: true,
+		}
+
 		if builder, exists := b.tagBuilders.Get(name); exists {
 			builder.add(tag.Values)
-			b.tagBuilders.Set(name, builder)
+			b.tagBuilders.SetUnsafe(
+				name,
+				builder,
+				opts,
+			)
 		} else {
 			builder := completedTagBuilder{}
 			builder.add(tag.Values)
-			b.tagBuilders.Set(name, builder)
+			b.tagBuilders.SetUnsafe(
+				name,
+				builder,
+				opts,
+			)
 		}
 	}
 
@@ -135,7 +163,16 @@ func (b *completedTagBuilder) add(values [][]byte) {
 	}
 
 	for _, val := range values {
-		b.seenMap.Set(val, seen{})
+		// Set unsafe since the id put into this map is much shorter
+		// lived than the ids in the object added to it;
+		// Copying or finalizing would use unnecessary memory
+		b.seenMap.SetUnsafe(
+			val,
+			seen{},
+			multiCompleteTagValuesMapSetUnsafeOptions{
+				NoCopyKey:     true,
+				NoFinalizeKey: true,
+			})
 	}
 }
 

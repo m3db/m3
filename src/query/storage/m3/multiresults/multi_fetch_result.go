@@ -169,15 +169,24 @@ func (r *multiResult) addOrUpdateDedupeMap(
 	newIterators encoding.SeriesIterators,
 ) {
 	for _, iter := range newIterators.Iters() {
-		id := iter.ID().Bytes()
-
+		id := iter.ID()
 		existing, exists := r.dedupeMap.Get(id)
 		if !exists {
-			// Does not exist, new addition
-			r.dedupeMap.Set(id, multiResultSeries{
-				attrs: attrs,
-				iter:  iter,
-			})
+			// Does not exist, new addition.
+			// Set unsafe since the id put into this map is much shorter
+			// lived than the ids in the object added to it;
+			// Copying or finalizing would use unnecessary memory
+			r.dedupeMap.SetUnsafe(
+				id,
+				multiResultSeries{
+					attrs: attrs,
+					iter:  iter,
+				},
+				multiResultSeriesMapSetUnsafeOptions{
+					NoCopyKey:     true,
+					NoFinalizeKey: true,
+				},
+			)
 			continue
 		}
 
@@ -204,10 +213,20 @@ func (r *multiResult) addOrUpdateDedupeMap(
 			continue
 		}
 
-		// Override
-		r.dedupeMap.Set(id, multiResultSeries{
-			attrs: attrs,
-			iter:  iter,
-		})
+		// Override existing id
+		// Set unsafe since the id put into this map is much shorter
+		// lived than the ids in the object added to it;
+		// Copying or finalizing would use unnecessary memory
+		r.dedupeMap.SetUnsafe(
+			id,
+			multiResultSeries{
+				attrs: attrs,
+				iter:  iter,
+			},
+			multiResultSeriesMapSetUnsafeOptions{
+				NoCopyKey:     true,
+				NoFinalizeKey: true,
+			},
+		)
 	}
 }

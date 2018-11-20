@@ -25,8 +25,7 @@
 package multiresults
 
 import (
-	"bytes"
-
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 
 	"github.com/cespare/xxhash"
@@ -65,25 +64,30 @@ func newMultiResultSeriesMap(opts multiResultSeriesMapOptions) *multiResultSerie
 		finalizeFn multiResultSeriesMapFinalizeFn
 	)
 	if pool := opts.KeyCopyPool; pool == nil {
-		copyFn = func(k []byte) []byte {
-			return append([]byte(nil), k...)
+		copyFn = func(k ident.ID) ident.ID {
+			return ident.BytesID(append([]byte(nil), k.Bytes()...))
 		}
 	} else {
-		copyFn = func(k []byte) []byte {
-			keyLen := len(k)
+		copyFn = func(k ident.ID) ident.ID {
+			bytes := k.Bytes()
+			keyLen := len(bytes)
 			pooled := pool.Get(keyLen)[:keyLen]
-			copy(pooled, k)
-			return pooled
+			copy(pooled, bytes)
+			return ident.BytesID(pooled)
 		}
-		finalizeFn = func(k []byte) {
-			pool.Put(k)
+		finalizeFn = func(k ident.ID) {
+			if slice, ok := k.(ident.BytesID); ok {
+				pool.Put(slice)
+			}
 		}
 	}
 	return _multiResultSeriesMapAlloc(_multiResultSeriesMapOptions{
-		hash: func(k []byte) multiResultSeriesMapHash {
-			return multiResultSeriesMapHash(xxhash.Sum64(k))
+		hash: func(id ident.ID) multiResultSeriesMapHash {
+			return multiResultSeriesMapHash(xxhash.Sum64(id.Bytes()))
 		},
-		equals:      bytes.Equal,
+		equals: func(x, y ident.ID) bool {
+			return x.Equal(y)
+		},
 		copy:        copyFn,
 		finalize:    finalizeFn,
 		initialSize: opts.InitialSize,

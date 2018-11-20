@@ -70,7 +70,7 @@ genny-map-multi-complete-tag-values: install-m3x-repo
 # Map generation rule for query/multiResultSeries
 .PHONY: genny-map-multi-result-series
 genny-map-multi-result-series: install-m3x-repo
-	cd $(m3x_package_path) && make byteshashmap-gen \
+	cd $(m3x_package_path) && make idhashmap-gen \
 		pkg=multiresults \
 		value_type=multiResultSeries \
 		target_package=$(multiresult_package) \
@@ -87,7 +87,7 @@ genny-map-multi-result-series: install-m3x-repo
 # Map generation rule for query/multiSearchResult
 .PHONY: genny-map-multi-search-result
 genny-map-multi-search-result: install-m3x-repo
-	cd $(m3x_package_path) && make byteshashmap-gen \
+	cd $(m3x_package_path) && make idhashmap-gen \
 		pkg=multiresults \
 		value_type=MultiTagResult \
 		target_package=$(multiresult_package) \

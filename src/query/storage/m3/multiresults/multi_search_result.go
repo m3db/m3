@@ -99,13 +99,22 @@ func (r *multiSearchResult) Add(
 
 	for newIterator.Next() {
 		_, ident, tagIter := newIterator.Current()
-		id := ident.Bytes()
-		_, exists := r.dedupeMap.Get(id)
+		_, exists := r.dedupeMap.Get(ident)
 		if !exists {
-			r.dedupeMap.Set(id, MultiTagResult{
-				ID:   ident,
-				Iter: tagIter,
-			})
+			// Set unsafe since the id put into this map is much shorter
+			// lived than the ids in the object added to it;
+			// Copying or finalizing would use unnecessary memory
+			r.dedupeMap.SetUnsafe(
+				ident,
+				MultiTagResult{
+					ID:   ident,
+					Iter: tagIter,
+				},
+				multiSearchResultMapSetUnsafeOptions{
+					NoCopyKey:     true,
+					NoFinalizeKey: true,
+				},
+			)
 		}
 	}
 
