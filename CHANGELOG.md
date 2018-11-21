@@ -4,18 +4,17 @@ Changelog
 
 # 0.4.8 (2018-10-20)
 
-- **Coordinator**: Fix bugs in database creation API (error not displayed in logs and provided number of shards not honored)
-- **Coordinator**: Reduce log spam for high latency requests
-- **DB**: Emit logs when process limits are misconfigured
-- **DB**: Massive improvement in write throughput (2-3 in some cases) by improving the speed of the commitlog msgpack encoder and removing contention on the commitlog queue via batching
-- **DB**: Change the implement of the snapshotting process to snapshot all unflushed blocks
-- **Coordinator**: Add suport for replace API for db nodes
-- **Collector**: Fix bug in M3Aggregator client that coudl result in deadlock during placement changes
-- **DB**: Various changes that improve M3DBs resiliency to corrupt commitlog files during bootstrap and cleanup as well as its resiliency to corrupt fileset files
-- **DB**: Remove CacheAllMetadata policy
-- **Coordinator**: Add sort and sort_desc and linear regression promql functions
-- **DB**: Sample M3DB write method timers to improve performance for high write throughput workloads
-- **Coordinator**: Fix OpenAPI yml (was previously broken and would not render)
+- FIX **Coordinator**: Fixed bug in database creation API: error not displayed in logs (#1089)
+- **Coordinator**: Reduce log spam for high latency requests (#1164)
+- **DB**: Emit logs when process limits are misconfigured (#1118)
+- PERF **DB**: Massive improvement in write throughput (2-3 in some cases) by improving the speed of the commitlog msgpack encoder and removing contention on the commitlog queue via batching (#1160, #1157)
+- **DB**: Change the implementation of the snapshotting process to snapshot all unflushed blocks (#1017)
+- **Coordinator**: Add support for replace API for db nodes (#1162)
+- FIX **DB**: Various changes that improve M3DBs resiliency to corrupt commitlog files during bootstrap and cleanup as well as its resiliency to corrupt fileset files (#1065, #1066, #1086)
+- **DB**: Remove CacheAllMetadata policy (#1110)
+- **Coordinator**: Add sort and sort_desc and linear regression promql functions (#1104, #1063)
+- PERF **DB**: Sample M3DB write method timers to improve performance for high write throughput workloads (#1057)
+- FIX **Coordinator**: Fix OpenAPI yml, was previously broken and would not render (#1062)
 
 
 # 0.4.7 (2018-10-10)
