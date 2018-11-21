@@ -2,7 +2,7 @@ Changelog
 =========
 # (unreleased)
 
-# 0.4.8
+# 0.4.8 (2018-10-20)
 
 - **Coordinator**: Fix bugs in database creation API (error not displayed in logs and provided number of shards not honored)
 - **Coordinator**: Reduce log spam for high latency requests
