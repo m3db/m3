@@ -266,6 +266,9 @@ func (b *block) Query(
 	// we only retrieve the results lock when we add a batch of documents
 	// to the results set.
 	batch := b.docsPool.Get()
+	// Use documentArrayPoolCapacity to as max batch to avoid growing outside
+	// the allowed pooled capacity
+	maxBatch := documentArrayPoolCapacity
 
 	defer func() {
 		iterCloser.Close()
@@ -273,7 +276,8 @@ func (b *block) Query(
 		b.docsPool.Put(batch)
 	}()
 
-	// NB(r): This is only called once per batch so is relatively cheap.
+	// NB(r): This query method only called once per block so is relatively
+	// cheap to declared as a lambda.
 	flushBatch := func() error {
 		if len(batch) == 0 {
 			return nil
@@ -302,7 +306,7 @@ func (b *block) Query(
 	for iter.Next() && !reachedLimit {
 		d := iter.Current()
 		batch = append(batch, d)
-		if len(batch) < documentArrayPoolCapacity {
+		if len(batch) < maxBatch {
 			continue
 		}
 		if err := flushBatch(); err != nil {
