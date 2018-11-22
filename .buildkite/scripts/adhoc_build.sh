@@ -24,7 +24,7 @@ function build() {
   fi
 
   if [[ "$action" == "list" ]]; then
-    curl -H "$auth" "${url}/builds"
+    curl -sSf -H "$auth" "${url}/builds"
     return
   fi
 
