@@ -15,6 +15,11 @@ function usage() {
 }
 
 function build() {
+  if [[ -z "$BUILDKITE_CLI_TOKEN" ]]; then
+    echo "BUILDKITE_CLI_TOKEN must be set"
+    exit 1
+  fi
+
   local action=$1
   local url="https://api.buildkite.com/v2/organizations/m3/pipelines/m3-monorepo-ci"
   local auth="Authorization: Bearer $BUILDKITE_CLI_TOKEN"
