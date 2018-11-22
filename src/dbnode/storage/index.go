@@ -710,6 +710,16 @@ func (i *nsIndex) flushBlockSegment(
 	return preparedPersist.Persist(seg)
 }
 
+func (i *nsIndex) newConcurrentResults(ctx context.Context) *index.ConcurrentResults {
+	results := i.opts.IndexOptions().ResultsPool().Get()
+	results.Reset(i.nsMetadata.ID())
+
+	// Ensure to return results to pool after serving this query
+	ctx.RegisterFinalizer(results)
+
+	return index.NewConcurrentResults(results)
+}
+
 func (i *nsIndex) Query(
 	ctx context.Context,
 	query index.Query,
@@ -731,11 +741,10 @@ func (i *nsIndex) Query(
 
 	var (
 		exhaustive = true
-		results    = i.opts.IndexOptions().ResultsPool().Get()
-		err        error
+		results    = i.newConcurrentResults(ctx)
+		multiErr   = xerrors.NewMultiError()
+		wg         sync.WaitGroup
 	)
-	results.Reset(i.nsMetadata.ID())
-	ctx.RegisterFinalizer(results)
 
 	// Chunk the query request into bounds based on applicable blocks and
 	// execute the requests to each of them; and merge results.
@@ -745,6 +754,15 @@ func (i *nsIndex) Query(
 	// iterate known blocks in a defined order of time (newest first) to enforce
 	// some determinism about the results returned.
 	for _, start := range i.state.blockStartsDescOrder {
+		results.RLock()
+		queryRangeIsEmpty := queryRange.IsEmpty()
+		alreadyExhaustive := exhaustive
+		results.RUnlock()
+		if queryRangeIsEmpty || !alreadyExhaustive {
+			// Terminate if queryRange doesn't need any more data or already not exhaustive
+			break
+		}
+
 		block, ok := i.state.blocksByTime[start]
 		if !ok { // should never happen
 			return index.QueryResults{}, i.missingBlockInvariantError(start)
@@ -758,34 +776,51 @@ func (i *nsIndex) Query(
 
 		// terminate early if we know we don't need any more results
 		if opts.Limit > 0 && results.Size() >= opts.Limit {
+			results.Lock()
 			exhaustive = false
+			results.Unlock()
 			break
 		}
 
-		exhaustive, err = block.Query(query, opts, results)
-		if err != nil {
-			return index.QueryResults{}, err
-		}
+		wg.Add(1)
+		i.opts.QueryIDsWorkerPool().Go(func() {
+			defer wg.Done()
 
-		if !exhaustive {
-			// i.e. block had more data but we stopped early, we know
-			// we have hit the limit and don't need to query any more.
-			break
-		}
+			currExhaustive, err := block.Query(query, opts, results)
 
-		// terminate if queryRange doesn't need any more data
-		queryRange = queryRange.RemoveRange(blockRange)
-		if queryRange.IsEmpty() {
-			break
-		}
+			results.Lock()
+			defer results.Unlock()
+
+			if err != nil {
+				multiErr = multiErr.Add(err)
+				return
+			}
+
+			if !currExhaustive {
+				// i.e. block had more data but we stopped early, we know
+				// we have hit the limit and don't need to query any more.
+				exhaustive = false
+				return
+			}
+
+			// Remove this range from the query range
+			queryRange = queryRange.RemoveRange(blockRange)
+		})
 	}
 
-	// FOLLOWUP(prateek): do the above operation with controllable parallelism to optimize
-	// for latency at the cost of higher mem-usage.
+	// Wait for queries to finish
+	wg.Wait()
+
+	results.Lock()
+	defer results.Unlock()
+
+	if err := multiErr.FinalError(); err != nil {
+		return index.QueryResults{}, err
+	}
 
 	return index.QueryResults{
 		Exhaustive: exhaustive,
-		Results:    results,
+		Results:    results.Results(),
 	}, nil
 }
 

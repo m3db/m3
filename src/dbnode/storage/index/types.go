@@ -23,6 +23,7 @@ package index
 import (
 	"fmt"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
@@ -96,6 +97,38 @@ type Results interface {
 	Add(d doc.Document) (added bool, size int, err error)
 }
 
+// ConcurrentResults is a container for results
+// that helps concurrently read/write results.
+type ConcurrentResults struct {
+	sync.RWMutex
+	results Results
+}
+
+// NewConcurrentResults returns a new concurrent
+// container for results.
+func NewConcurrentResults(
+	results Results,
+) *ConcurrentResults {
+	return &ConcurrentResults{results: results}
+}
+
+// Results returns the current results contained
+// by the container and should only be modified
+// when holding the write lock and read when
+// holding the read lock.
+func (r *ConcurrentResults) Results() Results {
+	return r.results
+}
+
+// Size returns the current size of the results
+// with the read lock.
+func (r *ConcurrentResults) Size() int {
+	r.RLock()
+	value := r.results.Size()
+	r.RUnlock()
+	return value
+}
+
 // ResultsAllocator allocates Results types.
 type ResultsAllocator func() Results
 
@@ -142,7 +175,7 @@ type Block interface {
 	Query(
 		query Query,
 		opts QueryOptions,
-		results Results,
+		results *ConcurrentResults,
 	) (exhaustive bool, err error)
 
 	// AddResults adds bootstrap results to the block, if c.
@@ -552,4 +585,10 @@ type Options interface {
 
 	// ResultsPool returns the results pool.
 	ResultsPool() ResultsPool
+
+	// SetDocumentArrayPool sets the document array pool.
+	SetDocumentArrayPool(value doc.DocumentArrayPool) Options
+
+	// DocumentArrayPool returns the document array pool.
+	DocumentArrayPool() doc.DocumentArrayPool
 }

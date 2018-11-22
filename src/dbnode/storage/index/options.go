@@ -24,6 +24,7 @@ import (
 	"errors"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -33,6 +34,14 @@ import (
 const (
 	// defaultIndexInsertMode sets the default indexing mode to synchronous.
 	defaultIndexInsertMode = InsertSync
+
+	// documentArrayPool size in general: 256*1024*sizeof(doc.Document)
+	// = 256 * 256 * 16
+	// = 1mb (but with Go's heap probably 2mb)
+	// TODO(r): Make this configurable in a followup change.
+	documentArrayPoolSize        = 256
+	documentArrayPoolCapacity    = 256
+	documentArrayPoolMaxCapacity = 256 // Do not allow grows, since we know the size
 )
 
 var (
@@ -50,6 +59,7 @@ type opts struct {
 	idPool         ident.Pool
 	bytesPool      pool.CheckedBytesPool
 	resultsPool    ResultsPool
+	docArrayPool   doc.DocumentArrayPool
 }
 
 var undefinedUUIDFn = func() ([]byte, error) { return nil, errIDGenerationDisabled }
@@ -57,11 +67,22 @@ var undefinedUUIDFn = func() ([]byte, error) { return nil, errIDGenerationDisabl
 // NewOptions returns a new index.Options object with default properties.
 func NewOptions() Options {
 	resultsPool := NewResultsPool(pool.NewObjectPoolOptions())
+
 	bytesPool := pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
 		return pool.NewBytesPool(s, nil)
 	})
 	bytesPool.Init()
+
 	idPool := ident.NewPool(bytesPool, ident.PoolOptions{})
+
+	docArrayPool := doc.NewDocumentArrayPool(doc.DocumentArrayPoolOpts{
+		Options: pool.NewObjectPoolOptions().
+			SetSize(documentArrayPoolSize),
+		Capacity:    documentArrayPoolCapacity,
+		MaxCapacity: documentArrayPoolMaxCapacity,
+	})
+	docArrayPool.Init()
+
 	opts := &opts{
 		insertMode:     defaultIndexInsertMode,
 		clockOpts:      clock.NewOptions(),
@@ -70,6 +91,7 @@ func NewOptions() Options {
 		bytesPool:      bytesPool,
 		idPool:         idPool,
 		resultsPool:    resultsPool,
+		docArrayPool:   docArrayPool,
 	}
 	resultsPool.Init(func() Results { return NewResults(opts) })
 	return opts
@@ -158,4 +180,14 @@ func (o *opts) SetResultsPool(value ResultsPool) Options {
 
 func (o *opts) ResultsPool() ResultsPool {
 	return o.resultsPool
+}
+
+func (o *opts) SetDocumentArrayPool(value doc.DocumentArrayPool) Options {
+	opts := *o
+	opts.docArrayPool = value
+	return &opts
+}
+
+func (o *opts) DocumentArrayPool() doc.DocumentArrayPool {
+	return o.docArrayPool
 }

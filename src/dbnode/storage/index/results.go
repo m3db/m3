@@ -84,23 +84,12 @@ func (r *results) Add(d doc.Document) (added bool, size int, err error) {
 func (r *results) tags(fields doc.Fields) ident.Tags {
 	tags := r.idPool.Tags()
 	for _, f := range fields {
-		tags.Append(ident.Tag{
-			Name:  r.copyBytes(f.Name),
-			Value: r.copyBytes(f.Value),
-		})
+		tags.Append(r.idPool.CloneTag(ident.Tag{
+			Name:  ident.BytesID(f.Name),
+			Value: ident.BytesID(f.Value),
+		}))
 	}
 	return tags
-}
-
-// copyBytes copies the provided bytes into an ident.ID backed by pooled types.
-func (r *results) copyBytes(b []byte) ident.ID {
-	cb := r.bytesPool.Get(len(b))
-	cb.IncRef()
-	cb.AppendAll(b)
-	id := r.idPool.BinaryID(cb)
-	// release held reference so now the only reference to the bytes is owned by `id`
-	cb.DecRef()
-	return id
 }
 
 func (r *results) Namespace() ident.ID {
