@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
@@ -77,6 +78,7 @@ type block struct {
 	blockSize     time.Duration
 	opts          Options
 	nsMD          namespace.Metadata
+	docsPool      doc.DocumentArrayPool
 }
 
 // blockShardsSegments is a collection of segments that has a mapping of what shards
@@ -114,6 +116,7 @@ func NewBlock(
 		blockSize: blockSize,
 		opts:      opts,
 		nsMD:      md,
+		docsPool:  opts.DocumentArrayPool(),
 	}
 	b.newExecutorFn = b.executorWithRLock
 
@@ -233,7 +236,7 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 func (b *block) Query(
 	query Query,
 	opts QueryOptions,
-	results Results,
+	results *ConcurrentResults,
 ) (bool, error) {
 	b.RLock()
 	defer b.RUnlock()
@@ -260,9 +263,16 @@ func (b *block) Query(
 	iterCloser := safeCloser{closable: iter}
 	execCloser := safeCloser{closable: exec}
 
+	// NB(r): iter.Next() when moving between segments will actually
+	// execute the search phase which can take a long time, hence
+	// we only retrieve the results lock when we add a batch of documents
+	// to the results set.
+	batch := b.docsPool.Get()
+
 	defer func() {
 		iterCloser.Close()
 		execCloser.Close()
+		b.docsPool.Put(batch)
 	}()
 
 	for iter.Next() {
@@ -276,6 +286,11 @@ func (b *block) Query(
 		if err != nil {
 			return false, err
 		}
+	}
+
+	// Ensure last batch is flushed to the results
+	if err := flushBatch(); err != nil {
+		return false, err
 	}
 
 	if err := iter.Err(); err != nil {

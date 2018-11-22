@@ -560,7 +560,8 @@ func TestBlockMockQueryExecutorExecIterErr(t *testing.T) {
 		dIter.EXPECT().Close(),
 		exec.EXPECT().Close(),
 	)
-	_, err = b.Query(Query{}, QueryOptions{}, NewResults(testOpts))
+	_, err = b.Query(Query{}, QueryOptions{},
+		NewConcurrentResults(NewResults(testOpts)))
 	require.Error(t, err)
 }
 
@@ -592,7 +593,8 @@ func TestBlockMockQueryExecutorExecLimit(t *testing.T) {
 		exec.EXPECT().Close().Return(nil),
 	)
 	results := NewResults(testOpts)
-	exhaustive, err := b.Query(Query{}, QueryOptions{Limit: 1}, results)
+	exhaustive, err := b.Query(Query{}, QueryOptions{Limit: 1},
+		NewConcurrentResults(results))
 	require.NoError(t, err)
 	require.False(t, exhaustive)
 
@@ -631,7 +633,8 @@ func TestBlockMockQueryExecutorExecIterCloseErr(t *testing.T) {
 		exec.EXPECT().Close().Return(nil),
 	)
 	results := NewResults(testOpts)
-	_, err = b.Query(Query{}, QueryOptions{}, results)
+	_, err = b.Query(Query{}, QueryOptions{},
+		NewConcurrentResults(results))
 	require.Error(t, err)
 }
 
@@ -661,7 +664,8 @@ func TestBlockMockQueryExecutorExecIterExecCloseErr(t *testing.T) {
 		exec.EXPECT().Close().Return(fmt.Errorf("randomerr")),
 	)
 	results := NewResults(testOpts)
-	_, err = b.Query(Query{}, QueryOptions{}, results)
+	_, err = b.Query(Query{}, QueryOptions{},
+		NewConcurrentResults(results))
 	require.Error(t, err)
 }
 
@@ -693,7 +697,8 @@ func TestBlockMockQueryLimit(t *testing.T) {
 		exec.EXPECT().Close().Return(nil),
 	)
 	results := NewResults(testOpts)
-	exhaustive, err := b.Query(Query{}, QueryOptions{Limit: 1}, results)
+	exhaustive, err := b.Query(Query{}, QueryOptions{Limit: 1},
+		NewConcurrentResults(results))
 	require.NoError(t, err)
 	require.False(t, exhaustive)
 
@@ -734,7 +739,8 @@ func TestBlockMockQueryLimitExhaustive(t *testing.T) {
 		exec.EXPECT().Close().Return(nil),
 	)
 	results := NewResults(testOpts)
-	exhaustive, err := b.Query(Query{}, QueryOptions{Limit: 1}, results)
+	exhaustive, err := b.Query(Query{}, QueryOptions{Limit: 1},
+		NewConcurrentResults(results))
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 
@@ -777,7 +783,8 @@ func TestBlockMockQueryMergeResultsMapLimit(t *testing.T) {
 		dIter.EXPECT().Close().Return(nil),
 		exec.EXPECT().Close().Return(nil),
 	)
-	exhaustive, err := b.Query(Query{}, QueryOptions{Limit: 1}, results)
+	exhaustive, err := b.Query(Query{}, QueryOptions{Limit: 1},
+		NewConcurrentResults(results))
 	require.NoError(t, err)
 	require.False(t, exhaustive)
 
@@ -823,7 +830,8 @@ func TestBlockMockQueryMergeResultsDupeID(t *testing.T) {
 		dIter.EXPECT().Close().Return(nil),
 		exec.EXPECT().Close().Return(nil),
 	)
-	exhaustive, err := b.Query(Query{}, QueryOptions{}, results)
+	exhaustive, err := b.Query(Query{}, QueryOptions{},
+		NewConcurrentResults(results))
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 
@@ -1231,7 +1239,8 @@ func TestBlockE2EInsertQuery(t *testing.T) {
 	q, err := idx.NewRegexpQuery([]byte("bar"), []byte("b.*"))
 	require.NoError(t, err)
 	results := NewResults(testOpts)
-	exhaustive, err := b.Query(Query{q}, QueryOptions{}, results)
+	exhaustive, err := b.Query(Query{q}, QueryOptions{},
+		NewConcurrentResults(results))
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 	require.Equal(t, 2, results.Size())
@@ -1297,7 +1306,8 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 	q, err := idx.NewRegexpQuery([]byte("bar"), []byte("b.*"))
 	require.NoError(t, err)
 	results := NewResults(testOpts)
-	exhaustive, err := b.Query(Query{q}, QueryOptions{Limit: 1}, results)
+	exhaustive, err := b.Query(Query{q}, QueryOptions{Limit: 1},
+		NewConcurrentResults(results))
 	require.NoError(t, err)
 	require.False(t, exhaustive)
 	require.Equal(t, 1, results.Size())
@@ -1375,7 +1385,8 @@ func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 	q, err := idx.NewRegexpQuery([]byte("bar"), []byte("b.*"))
 	require.NoError(t, err)
 	results := NewResults(testOpts)
-	exhaustive, err := b.Query(Query{q}, QueryOptions{}, results)
+	exhaustive, err := b.Query(Query{q}, QueryOptions{},
+		NewConcurrentResults(results))
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 	require.Equal(t, 2, results.Size())
@@ -1438,7 +1449,8 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 	q, err := idx.NewRegexpQuery([]byte("bar"), []byte("b.*"))
 	require.NoError(t, err)
 	results := NewResults(testOpts)
-	exhaustive, err := b.Query(Query{q}, QueryOptions{}, results)
+	exhaustive, err := b.Query(Query{q}, QueryOptions{},
+		NewConcurrentResults(results))
 	require.NoError(t, err)
 	require.True(t, exhaustive)
 	require.Equal(t, 2, results.Size())
