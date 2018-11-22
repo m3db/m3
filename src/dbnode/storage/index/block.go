@@ -268,6 +268,9 @@ func (b *block) Query(
 	// we only retrieve the results lock when we add a batch of documents
 	// to the results set.
 	batch := b.docsPool.Get()
+	// Use documentArrayPoolCapacity to as max batch to avoid growing outside
+	// the allowed pooled capacity
+	maxBatch := documentArrayPoolCapacity
 
 	defer func() {
 		iterCloser.Close()
