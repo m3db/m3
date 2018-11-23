@@ -51,13 +51,17 @@ func (e *Encoder) Reset() {
 func (e *Encoder) Encode(pl postings.List) ([]byte, error) {
 	e.scratchBuffer.Reset()
 
-	pilosaBitmap, err := toPilosa(pl)
-	if err != nil {
-		return nil, err
+	// Optimistically try to see if we can extract from the postings list itself
+	bitmap, ok := idxroaring.BitmapFromPostingsList(pl)
+	if !ok {
+		var err error
+		bitmap, err = toPilosa(pl)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	_, err = pilosaBitmap.WriteTo(&e.scratchBuffer)
-	if err != nil {
+	if _, err := bitmap.WriteTo(&e.scratchBuffer); err != nil {
 		return nil, err
 	}
 

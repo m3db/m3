@@ -37,9 +37,9 @@ func TestRoaringPostingsListEmpty(t *testing.T) {
 
 func TestRoaringPostingsListMax(t *testing.T) {
 	d := NewPostingsList()
-	d.Insert(42)
-	d.Insert(78)
-	d.Insert(103)
+	require.NoError(t, d.Insert(42))
+	require.NoError(t, d.Insert(78))
+	require.NoError(t, d.Insert(103))
 
 	max, err := d.Max()
 	require.NoError(t, err)
@@ -52,18 +52,18 @@ func TestRoaringPostingsListMax(t *testing.T) {
 
 func TestRoaringPostingsListInsert(t *testing.T) {
 	d := NewPostingsList()
-	d.Insert(1)
+	require.NoError(t, d.Insert(1))
 	require.True(t, d.Contains(1))
 	require.Equal(t, 1, d.Len())
 	// Idempotency of inserts.
-	d.Insert(1)
+	require.NoError(t, d.Insert(1))
 	require.Equal(t, 1, d.Len())
 	require.True(t, d.Contains(1))
 }
 
 func TestRoaringPostingsListClone(t *testing.T) {
 	d := NewPostingsList()
-	d.Insert(1)
+	require.NoError(t, d.Insert(1))
 	require.True(t, d.Contains(1))
 	require.Equal(t, 1, d.Len())
 
@@ -72,7 +72,7 @@ func TestRoaringPostingsListClone(t *testing.T) {
 	require.Equal(t, 1, c.Len())
 
 	// Ensure only clone is uniquely backed.
-	c.Insert(2)
+	require.NoError(t, c.Insert(2))
 	require.True(t, c.Contains(2))
 	require.Equal(t, 2, c.Len())
 	require.True(t, d.Contains(1))
@@ -81,15 +81,15 @@ func TestRoaringPostingsListClone(t *testing.T) {
 
 func TestRoaringPostingsListIntersect(t *testing.T) {
 	d := NewPostingsList()
-	d.Insert(1)
+	require.NoError(t, d.Insert(1))
 	require.True(t, d.Contains(1))
 	require.Equal(t, 1, d.Len())
 
 	c := d.Clone()
 	require.True(t, c.Contains(1))
 
-	d.Insert(2)
-	c.Insert(3)
+	require.NoError(t, d.Insert(2))
+	require.NoError(t, c.Insert(3))
 
 	require.NoError(t, d.Intersect(c))
 	require.True(t, d.Contains(1))
@@ -101,15 +101,15 @@ func TestRoaringPostingsListIntersect(t *testing.T) {
 
 func TestRoaringPostingsListDifference(t *testing.T) {
 	d := NewPostingsList()
-	d.Insert(1)
+	require.NoError(t, d.Insert(1))
 	require.True(t, d.Contains(1))
 	require.Equal(t, 1, d.Len())
 
 	c := d.Clone()
 	require.True(t, c.Contains(1))
 
-	d.Insert(2)
-	d.Insert(3)
+	require.NoError(t, d.Insert(2))
+	require.NoError(t, d.Insert(3))
 	require.NoError(t, d.Difference(c))
 
 	require.False(t, d.Contains(1))
@@ -122,14 +122,14 @@ func TestRoaringPostingsListDifference(t *testing.T) {
 
 func TestRoaringPostingsListUnion(t *testing.T) {
 	d := NewPostingsList()
-	d.Insert(1)
+	require.NoError(t, d.Insert(1))
 	require.True(t, d.Contains(1))
 	require.Equal(t, 1, d.Len())
 
 	c := d.Clone()
 	require.True(t, c.Contains(1))
-	d.Insert(2)
-	c.Insert(3)
+	require.NoError(t, d.Insert(2))
+	require.NoError(t, c.Insert(3))
 
 	require.NoError(t, d.Union(c))
 	require.True(t, d.Contains(1))
@@ -143,9 +143,9 @@ func TestRoaringPostingsListUnion(t *testing.T) {
 
 func TestRoaringPostingsListAddRange(t *testing.T) {
 	d := NewPostingsList()
-	d.Insert(1)
-	d.Insert(9)
-	d.AddRange(3, 5)
+	require.NoError(t, d.Insert(1))
+	require.NoError(t, d.Insert(9))
+	require.NoError(t, d.AddRange(3, 5))
 
 	require.Equal(t, 4, d.Len())
 	require.True(t, d.Contains(1))
@@ -158,13 +158,13 @@ func TestRoaringPostingsListAddRange(t *testing.T) {
 
 func TestRoaringPostingsListRemoveRange(t *testing.T) {
 	d := NewPostingsList()
-	d.Insert(1)
-	d.Insert(2)
-	d.Insert(7)
-	d.Insert(8)
-	d.Insert(9)
+	require.NoError(t, d.Insert(1))
+	require.NoError(t, d.Insert(2))
+	require.NoError(t, d.Insert(7))
+	require.NoError(t, d.Insert(8))
+	require.NoError(t, d.Insert(9))
 
-	d.RemoveRange(2, 8)
+	require.NoError(t, d.RemoveRange(2, 8))
 	require.Equal(t, 3, d.Len())
 	require.True(t, d.Contains(1))
 	require.False(t, d.Contains(2))
@@ -175,7 +175,7 @@ func TestRoaringPostingsListRemoveRange(t *testing.T) {
 
 func TestRoaringPostingsListReset(t *testing.T) {
 	d := NewPostingsList()
-	d.Insert(1)
+	require.NoError(t, d.Insert(1))
 	require.True(t, d.Contains(1))
 	require.Equal(t, 1, d.Len())
 	d.Reset()
@@ -185,8 +185,8 @@ func TestRoaringPostingsListReset(t *testing.T) {
 
 func TestRoaringPostingsListIter(t *testing.T) {
 	d := NewPostingsList()
-	d.Insert(1)
-	d.Insert(2)
+	require.NoError(t, d.Insert(1))
+	require.NoError(t, d.Insert(2))
 	require.Equal(t, 2, d.Len())
 
 	it := d.Iterator()
@@ -202,59 +202,33 @@ func TestRoaringPostingsListIter(t *testing.T) {
 	for id, ok := range found {
 		require.True(t, ok, id)
 	}
-}
-
-func TestRoaringPostingsListIterInsertAfter(t *testing.T) {
-	d := NewPostingsList()
-	d.Insert(1)
-	d.Insert(2)
-	require.Equal(t, 2, d.Len())
-
-	it := d.Iterator()
-	defer it.Close()
-	numElems := 0
-	d.Insert(3)
-	require.Equal(t, 3, d.Len())
-	found := map[postings.ID]bool{
-		1: false,
-		2: false,
-	}
-	for it.Next() {
-		found[it.Current()] = true
-		numElems++
-	}
-
-	for id, ok := range found {
-		require.True(t, ok, id)
-	}
-	require.Equal(t, 2, numElems)
 }
 
 func TestRoaringPostingsListEqualWithOtherRoaring(t *testing.T) {
 	first := NewPostingsList()
-	first.Insert(42)
-	first.Insert(44)
-	first.Insert(51)
+	require.NoError(t, first.Insert(42))
+	require.NoError(t, first.Insert(44))
+	require.NoError(t, first.Insert(51))
 
 	second := NewPostingsList()
-	second.Insert(42)
-	second.Insert(44)
-	second.Insert(51)
+	require.NoError(t, second.Insert(42))
+	require.NoError(t, second.Insert(44))
+	require.NoError(t, second.Insert(51))
 
 	require.True(t, first.Equal(second))
 }
 
 func TestRoaringPostingsListNotEqualWithOtherRoaring(t *testing.T) {
 	first := NewPostingsList()
-	first.Insert(42)
-	first.Insert(44)
-	first.Insert(51)
+	require.NoError(t, first.Insert(42))
+	require.NoError(t, first.Insert(44))
+	require.NoError(t, first.Insert(51))
 
 	second := NewPostingsList()
-	second.Insert(42)
-	second.Insert(44)
-	second.Insert(51)
-	second.Insert(53)
+	require.NoError(t, second.Insert(42))
+	require.NoError(t, second.Insert(44))
+	require.NoError(t, second.Insert(51))
+	require.NoError(t, second.Insert(53))
 
 	require.False(t, first.Equal(second))
 }
@@ -264,9 +238,9 @@ func TestRoaringPostingsListEqualWithOtherNonRoaring(t *testing.T) {
 	defer mockCtrl.Finish()
 
 	first := NewPostingsList()
-	first.Insert(42)
-	first.Insert(44)
-	first.Insert(51)
+	require.NoError(t, first.Insert(42))
+	require.NoError(t, first.Insert(44))
+	require.NoError(t, first.Insert(51))
 
 	postingsIter := postings.NewMockIterator(mockCtrl)
 	gomock.InOrder(
@@ -292,9 +266,9 @@ func TestRoaringPostingsListNotEqualWithOtherNonRoaring(t *testing.T) {
 	defer mockCtrl.Finish()
 
 	first := NewPostingsList()
-	first.Insert(42)
-	first.Insert(44)
-	first.Insert(51)
+	require.NoError(t, first.Insert(42))
+	require.NoError(t, first.Insert(44))
+	require.NoError(t, first.Insert(51))
 
 	postingsIter := postings.NewMockIterator(mockCtrl)
 	gomock.InOrder(

@@ -31,7 +31,7 @@ import (
 // termsDictionary is an internal interface for a mutable terms dictionary.
 type termsDictionary interface {
 	// Insert inserts the field with the given ID into the terms dictionary.
-	Insert(field doc.Field, id postings.ID)
+	Insert(field doc.Field, id postings.ID) error
 
 	// ContainsTerm returns a bool indicating whether the terms dictionary contains
 	// the given term.
