@@ -24,6 +24,7 @@ import (
 	"bytes"
 
 	"github.com/m3db/m3/src/m3ninx/postings"
+	idxroaring "github.com/m3db/m3/src/m3ninx/postings/roaring"
 
 	"github.com/pilosa/pilosa/roaring"
 )
@@ -82,12 +83,11 @@ func toPilosa(pl postings.List) (*roaring.Bitmap, error) {
 }
 
 // Unmarshal unmarshals the provided bytes into a postings.List.
-func Unmarshal(data []byte, allocFn postings.PoolAllocateFn) (postings.List, error) {
-	b := roaring.NewBitmap()
-	if err := b.UnmarshalBinary(data); err != nil {
+func Unmarshal(data []byte) (postings.List, error) {
+	bitmap := roaring.NewBitmap()
+	err := bitmap.UnmarshalBinary(data)
+	if err != nil {
 		return nil, err
 	}
-	pl := allocFn()
-	iter := NewIterator(b.Iterator())
-	return pl, pl.AddIterator(iter)
+	return idxroaring.NewPostingsListFromBitmap(bitmap), nil
 }
