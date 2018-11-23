@@ -58,6 +58,16 @@ func Union(inputs []postings.List) (postings.MutableList, error) {
 	return NewPostingsListFromBitmap(result), nil
 }
 
+// BitmapFromPostingsList returns a bitmap from a postings list if it
+// is a roaring bitmap postings list.
+func BitmapFromPostingsList(pl postings.List) (*roaring.Bitmap, bool) {
+	result, ok := pl.(*postingsList)
+	if !ok {
+		return nil, false
+	}
+	return result.bitmap, true
+}
+
 // postingsList abstracts a Roaring Bitmap.
 type postingsList struct {
 	bitmap *roaring.Bitmap
@@ -72,12 +82,13 @@ func NewPostingsList() postings.MutableList {
 
 // NewPostingsListFromBitmap returns a new mutable postings list using an
 // existing roaring bitmap.
-func NewPostingsListFromBitmap(bitmap *roaring.Bitmap) postings.MutableList {
+func NewPostingsListFromBitmap(bitmap *roaring.Bitmap) postings.List {
 	return &postingsList{bitmap: bitmap}
 }
 
-func (d *postingsList) Insert(i postings.ID) {
-	d.bitmap.Add(uint64(i))
+func (d *postingsList) Insert(i postings.ID) error {
+	_, err := d.bitmap.Add(uint64(i))
+	return err
 }
 
 func (d *postingsList) Intersect(other postings.List) error {
@@ -110,10 +121,14 @@ func (d *postingsList) Union(other postings.List) error {
 	return nil
 }
 
-func (d *postingsList) AddRange(min, max postings.ID) {
+func (d *postingsList) AddRange(min, max postings.ID) error {
 	for i := min; i < max; i++ {
-		d.bitmap.Add(uint64(i))
+		_, err := d.bitmap.Add(uint64(i))
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func (d *postingsList) AddIterator(iter postings.Iterator) error {
@@ -121,7 +136,9 @@ func (d *postingsList) AddIterator(iter postings.Iterator) error {
 	defer safeIter.Close()
 
 	for iter.Next() {
-		d.bitmap.Add(uint64(iter.Current()))
+		if _, err := d.bitmap.Add(uint64(iter.Current())); err != nil {
+			return err
+		}
 	}
 
 	if err := iter.Err(); err != nil {
@@ -131,10 +148,14 @@ func (d *postingsList) AddIterator(iter postings.Iterator) error {
 	return safeIter.Close()
 }
 
-func (d *postingsList) RemoveRange(min, max postings.ID) {
+func (d *postingsList) RemoveRange(min, max postings.ID) error {
 	for i := min; i < max; i++ {
-		d.bitmap.Remove(uint64(i))
+		_, err := d.bitmap.Remove(uint64(i))
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func (d *postingsList) Reset() {
@@ -212,7 +233,7 @@ func (it *roaringIterator) Next() bool {
 		return false
 	}
 	v, ok := it.iter.Next()
-	if !ok {
+	if ok {
 		return false
 	}
 	it.current = postings.ID(v)

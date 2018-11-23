@@ -394,7 +394,10 @@ func (r *fsSegment) MatchAll() (postings.MutableList, error) {
 	}
 
 	pl := r.opts.PostingsListPool().Get()
-	pl.AddRange(r.startInclusive, r.endExclusive)
+	err := pl.AddRange(r.startInclusive, r.endExclusive)
+	if err != nil {
+		return nil, err
+	}
 
 	return pl, nil
 }
@@ -445,7 +448,7 @@ func (r *fsSegment) retrievePostingsListWithRLock(postingsOffset uint64) (postin
 		return nil, fmt.Errorf("unable to retrieve postings data: %v", err)
 	}
 
-	return pilosa.Unmarshal(postingsBytes, roaring.NewPostingsList)
+	return pilosa.Unmarshal(postingsBytes)
 }
 
 func (r *fsSegment) retrieveTermsFSTWithRLock(field []byte) (*vellum.FST, bool, error) {

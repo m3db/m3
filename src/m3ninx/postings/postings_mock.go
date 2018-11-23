@@ -77,19 +77,6 @@ func (mr *MockListMockRecorder) IsEmpty() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsEmpty", reflect.TypeOf((*MockList)(nil).IsEmpty))
 }
 
-// Min mocks base method
-func (m *MockList) Min() (ID, error) {
-	ret := m.ctrl.Call(m, "Min")
-	ret0, _ := ret[0].(ID)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Min indicates an expected call of Min
-func (mr *MockListMockRecorder) Min() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Min", reflect.TypeOf((*MockList)(nil).Min))
-}
-
 // Max mocks base method
 func (m *MockList) Max() (ID, error) {
 	ret := m.ctrl.Call(m, "Max")
@@ -198,19 +185,6 @@ func (mr *MockMutableListMockRecorder) IsEmpty() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsEmpty", reflect.TypeOf((*MockMutableList)(nil).IsEmpty))
 }
 
-// Min mocks base method
-func (m *MockMutableList) Min() (ID, error) {
-	ret := m.ctrl.Call(m, "Min")
-	ret0, _ := ret[0].(ID)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Min indicates an expected call of Min
-func (mr *MockMutableListMockRecorder) Min() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Min", reflect.TypeOf((*MockMutableList)(nil).Min))
-}
-
 // Max mocks base method
 func (m *MockMutableList) Max() (ID, error) {
 	ret := m.ctrl.Call(m, "Max")
@@ -273,8 +247,10 @@ func (mr *MockMutableListMockRecorder) Equal(other interface{}) *gomock.Call {
 }
 
 // Insert mocks base method
-func (m *MockMutableList) Insert(i ID) {
-	m.ctrl.Call(m, "Insert", i)
+func (m *MockMutableList) Insert(i ID) error {
+	ret := m.ctrl.Call(m, "Insert", i)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // Insert indicates an expected call of Insert
@@ -331,8 +307,10 @@ func (mr *MockMutableListMockRecorder) AddIterator(iter interface{}) *gomock.Cal
 }
 
 // AddRange mocks base method
-func (m *MockMutableList) AddRange(min, max ID) {
-	m.ctrl.Call(m, "AddRange", min, max)
+func (m *MockMutableList) AddRange(min, max ID) error {
+	ret := m.ctrl.Call(m, "AddRange", min, max)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // AddRange indicates an expected call of AddRange
@@ -341,8 +319,10 @@ func (mr *MockMutableListMockRecorder) AddRange(min, max interface{}) *gomock.Ca
 }
 
 // RemoveRange mocks base method
-func (m *MockMutableList) RemoveRange(min, max ID) {
-	m.ctrl.Call(m, "RemoveRange", min, max)
+func (m *MockMutableList) RemoveRange(min, max ID) error {
+	ret := m.ctrl.Call(m, "RemoveRange", min, max)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // RemoveRange indicates an expected call of RemoveRange

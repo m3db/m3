@@ -50,9 +50,9 @@ func newTermsDict(opts Options) termsDictionary {
 	return dict
 }
 
-func (d *termsDict) Insert(field doc.Field, id postings.ID) {
+func (d *termsDict) Insert(field doc.Field, id postings.ID) error {
 	postingsMap := d.getOrAddName(field.Name)
-	postingsMap.Add(field.Value, id)
+	return postingsMap.Add(field.Value, id)
 }
 
 func (d *termsDict) ContainsTerm(field, term []byte) bool {
