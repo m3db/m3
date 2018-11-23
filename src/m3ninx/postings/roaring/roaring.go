@@ -27,7 +27,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/x"
 
-	"github.com/RoaringBitmap/roaring"
+	"github.com/pilosa/pilosa/roaring"
 )
 
 var (
@@ -39,17 +39,23 @@ var (
 
 // Union retrieves a new postings list which is the union of the provided lists.
 func Union(inputs []postings.List) (postings.MutableList, error) {
-	bitmaps := make([]*roaring.Bitmap, 0, len(inputs))
+	if len(inputs) == 0 {
+		return NewPostingsList(), nil
+	}
+
+	var result *roaring.Bitmap
 	for _, in := range inputs {
 		pl, ok := in.(*postingsList)
 		if !ok {
 			return nil, fmt.Errorf("unable to convert inputs into roaring postings lists")
 		}
-		bitmaps = append(bitmaps, pl.bitmap)
+		if result == nil {
+			result = pl.bitmap
+			continue
+		}
+		result = result.Union(pl.bitmap)
 	}
-	return &postingsList{
-		bitmap: roaring.FastOr(bitmaps...),
-	}, nil
+	return NewPostingsListFromBitmap(result), nil
 }
 
 // postingsList abstracts a Roaring Bitmap.
@@ -64,8 +70,14 @@ func NewPostingsList() postings.MutableList {
 	}
 }
 
+// NewPostingsListFromBitmap returns a new mutable postings list using an
+// existing roaring bitmap.
+func NewPostingsListFromBitmap(bitmap *roaring.Bitmap) postings.MutableList {
+	return &postingsList{bitmap: bitmap}
+}
+
 func (d *postingsList) Insert(i postings.ID) {
-	d.bitmap.Add(uint32(i))
+	d.bitmap.Add(uint64(i))
 }
 
 func (d *postingsList) Intersect(other postings.List) error {
@@ -74,7 +86,7 @@ func (d *postingsList) Intersect(other postings.List) error {
 		return errIntersectRoaringOnly
 	}
 
-	d.bitmap.And(o.bitmap)
+	d.bitmap = d.bitmap.Intersect(o.bitmap)
 	return nil
 }
 
@@ -84,7 +96,7 @@ func (d *postingsList) Difference(other postings.List) error {
 		return errDifferenceRoaringOnly
 	}
 
-	d.bitmap.AndNot(o.bitmap)
+	d.bitmap = d.bitmap.Difference(o.bitmap)
 	return nil
 }
 
@@ -94,12 +106,14 @@ func (d *postingsList) Union(other postings.List) error {
 		return errUnionRoaringOnly
 	}
 
-	d.bitmap.Or(o.bitmap)
+	d.bitmap = d.bitmap.Union(o.bitmap)
 	return nil
 }
 
 func (d *postingsList) AddRange(min, max postings.ID) {
-	d.bitmap.AddRange(uint64(min), uint64(max))
+	for i := min; i < max; i++ {
+		d.bitmap.Add(uint64(i))
+	}
 }
 
 func (d *postingsList) AddIterator(iter postings.Iterator) error {
@@ -107,7 +121,7 @@ func (d *postingsList) AddIterator(iter postings.Iterator) error {
 	defer safeIter.Close()
 
 	for iter.Next() {
-		d.bitmap.Add(uint32(iter.Current()))
+		d.bitmap.Add(uint64(iter.Current()))
 	}
 
 	if err := iter.Err(); err != nil {
@@ -118,39 +132,33 @@ func (d *postingsList) AddIterator(iter postings.Iterator) error {
 }
 
 func (d *postingsList) RemoveRange(min, max postings.ID) {
-	d.bitmap.RemoveRange(uint64(min), uint64(max))
+	for i := min; i < max; i++ {
+		d.bitmap.Remove(uint64(i))
+	}
 }
 
 func (d *postingsList) Reset() {
-	d.bitmap.Clear()
+	d.bitmap = roaring.NewBitmap()
 }
 
 func (d *postingsList) Contains(i postings.ID) bool {
-	return d.bitmap.Contains(uint32(i))
+	return d.bitmap.Contains(uint64(i))
 }
 
 func (d *postingsList) IsEmpty() bool {
-	return d.bitmap.IsEmpty()
+	return d.bitmap.Count() == 0
 }
 
 func (d *postingsList) Max() (postings.ID, error) {
-	if d.bitmap.IsEmpty() {
+	if d.IsEmpty() {
 		return 0, postings.ErrEmptyList
 	}
-	max := d.bitmap.Maximum()
+	max := d.bitmap.Max()
 	return postings.ID(max), nil
 }
 
-func (d *postingsList) Min() (postings.ID, error) {
-	if d.bitmap.IsEmpty() {
-		return 0, postings.ErrEmptyList
-	}
-	min := d.bitmap.Minimum()
-	return postings.ID(min), nil
-}
-
 func (d *postingsList) Len() int {
-	return int(d.bitmap.GetCardinality())
+	return int(d.bitmap.Count())
 }
 
 func (d *postingsList) Iterator() postings.Iterator {
@@ -174,11 +182,6 @@ func (d *postingsList) Equal(other postings.List) bool {
 		return false
 	}
 
-	o, ok := other.(*postingsList)
-	if ok {
-		return d.bitmap.Equals(o.bitmap)
-	}
-
 	iter := d.Iterator()
 	otherIter := other.Iterator()
 
@@ -195,7 +198,7 @@ func (d *postingsList) Equal(other postings.List) bool {
 }
 
 type roaringIterator struct {
-	iter    roaring.IntIterable
+	iter    *roaring.Iterator
 	current postings.ID
 	closed  bool
 }
@@ -205,10 +208,14 @@ func (it *roaringIterator) Current() postings.ID {
 }
 
 func (it *roaringIterator) Next() bool {
-	if it.closed || !it.iter.HasNext() {
+	if it.closed {
 		return false
 	}
-	it.current = postings.ID(it.iter.Next())
+	v, ok := it.iter.Next()
+	if !ok {
+		return false
+	}
+	it.current = postings.ID(v)
 	return true
 }
 

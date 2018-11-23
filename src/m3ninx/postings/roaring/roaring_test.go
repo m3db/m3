@@ -50,21 +50,6 @@ func TestRoaringPostingsListMax(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestRoaringPostingsListMin(t *testing.T) {
-	d := NewPostingsList()
-	d.Insert(42)
-	d.Insert(78)
-	d.Insert(103)
-
-	min, err := d.Min()
-	require.NoError(t, err)
-	require.Equal(t, postings.ID(42), min)
-
-	d = NewPostingsList()
-	_, err = d.Min()
-	require.Error(t, err)
-}
-
 func TestRoaringPostingsListInsert(t *testing.T) {
 	d := NewPostingsList()
 	d.Insert(1)
