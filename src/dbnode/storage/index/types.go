@@ -65,6 +65,12 @@ type QueryOptions struct {
 	Limit          int
 }
 
+// LimitExceeded returns whether a given size exceeds the limit
+// the query options imposes, if it is enabled.
+func (o QueryOptions) LimitExceeded(size int) bool {
+	return o.Limit > 0 && size >= o.Limit
+}
+
 // QueryResults is the collection of results for a query.
 type QueryResults struct {
 	Results    Results

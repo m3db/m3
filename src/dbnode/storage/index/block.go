@@ -256,8 +256,8 @@ func (b *block) Query(
 		return false, err
 	}
 
-	reachedLimit := false
 	size := results.Size()
+	limitedResults := false
 	execCloser := safeCloser{closable: exec}
 	iterCloser := safeCloser{closable: iter}
 
@@ -288,8 +288,8 @@ func (b *block) Query(
 
 		r := results.Results()
 		for i := range batch {
-			if opts.Limit > 0 && size >= opts.Limit {
-				reachedLimit = true
+			if opts.LimitExceeded(size) {
+				limitedResults = true
 				return nil
 			}
 			_, size, err = r.Add(batch[i])
@@ -303,7 +303,12 @@ func (b *block) Query(
 		return nil
 	}
 
-	for iter.Next() && !reachedLimit {
+	for iter.Next() {
+		if opts.LimitExceeded(size) {
+			limitedResults = true
+			break
+		}
+
 		d := iter.Current()
 		batch = append(batch, d)
 		if len(batch) < maxBatch {
@@ -331,7 +336,7 @@ func (b *block) Query(
 		return false, err
 	}
 
-	exhaustive := !reachedLimit
+	exhaustive := !limitedResults
 	return exhaustive, nil
 }
 

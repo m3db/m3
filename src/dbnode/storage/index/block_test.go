@@ -588,6 +588,8 @@ func TestBlockMockQueryExecutorExecLimit(t *testing.T) {
 		dIter.EXPECT().Next().Return(true),
 		dIter.EXPECT().Current().Return(testDoc1()),
 		dIter.EXPECT().Next().Return(true),
+		dIter.EXPECT().Current().Return(testDoc2()),
+		dIter.EXPECT().Next().Return(false),
 		dIter.EXPECT().Err().Return(nil),
 		dIter.EXPECT().Close().Return(nil),
 		exec.EXPECT().Close().Return(nil),
@@ -599,6 +601,7 @@ func TestBlockMockQueryExecutorExecLimit(t *testing.T) {
 	require.False(t, exhaustive)
 
 	rMap := results.Map()
+	require.Equal(t, 1, rMap.Len())
 	t1, ok := rMap.Get(ident.StringID(string(testDoc1().ID)))
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
@@ -691,6 +694,8 @@ func TestBlockMockQueryLimit(t *testing.T) {
 		dIter.EXPECT().Next().Return(true),
 		dIter.EXPECT().Current().Return(testDoc1()),
 		dIter.EXPECT().Next().Return(true),
+		dIter.EXPECT().Current().Return(testDoc2()),
+		dIter.EXPECT().Next().Return(false),
 		dIter.EXPECT().Err().Return(nil),
 		dIter.EXPECT().Close().Return(nil),
 		exec.EXPECT().Close().Return(nil),

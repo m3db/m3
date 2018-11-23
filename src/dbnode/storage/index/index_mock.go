@@ -227,7 +227,7 @@ func (mr *MockBlockMockRecorder) NeedsMutableSegmentsEvicted() *gomock.Call {
 }
 
 // Query mocks base method
-func (m *MockBlock) Query(arg0 Query, arg1 QueryOptions, arg2 Results) (bool, error) {
+func (m *MockBlock) Query(arg0 Query, arg1 QueryOptions, arg2 *ConcurrentResults) (bool, error) {
 	ret := m.ctrl.Call(m, "Query", arg0, arg1, arg2)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
