@@ -725,16 +725,6 @@ func (i *nsIndex) flushBlockSegment(
 	return preparedPersist.Persist(seg)
 }
 
-func (i *nsIndex) newConcurrentResults(ctx context.Context) *index.ConcurrentResults {
-	results := i.opts.IndexOptions().ResultsPool().Get()
-	results.Reset(i.nsMetadata.ID())
-
-	// Ensure to return results to pool after serving this query
-	ctx.RegisterFinalizer(results)
-
-	return index.NewConcurrentResults(results)
-}
-
 func (i *nsIndex) Query(
 	ctx context.Context,
 	query index.Query,
