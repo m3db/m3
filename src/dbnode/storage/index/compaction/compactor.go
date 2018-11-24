@@ -136,9 +136,7 @@ func (c *Compactor) compact(
 ) (segment.Segment, error) {
 	// Need to seal first if not already sealed
 	if !seg.IsSealed() {
-		var err error
-		seg, err = seg.Seal()
-		if err != nil {
+		if _, err := seg.Seal(); err != nil {
 			return nil, err
 		}
 	}
