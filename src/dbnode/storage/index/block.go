@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/segments"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/m3ninx/doc"
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
@@ -57,27 +58,34 @@ var (
 	errUnableToWriteBlockUnknownStateFmtString = "unable to write, unknown index block state: %v"
 )
 
-type blockState byte
+type blockState uint
 
 const (
 	blockStateOpen blockState = iota
 	blockStateSealed
-	blockStateMutableEvicted
 	blockStateClosed
 )
 
-var (
-	blockStatesCloseCompactedBlocks = map[blockState]struct{}{
-		blockStateMutableEvicted: struct{}{},
-		blockStateClosed:         struct{}{},
+func (s blockState) String() string {
+	switch s {
+	case blockStateOpen:
+		return "open"
+	case blockStateSealed:
+		return "sealed"
+	case blockStateClosed:
+		return "closed"
 	}
-)
+	return "unknown"
+}
 
 type newExecutorFn func() (search.Executor, error)
 
 type block struct {
 	sync.RWMutex
-	state               blockState
+
+	state                             blockState
+	hasEvictedMutableSegmentsAnyTimes bool
+
 	activeSegment       *mutableReadableSeg
 	frozenSegments      []*readableSeg
 	shardRangesSegments []blockShardRangesSegments
@@ -90,8 +98,9 @@ type block struct {
 	nsMD          namespace.Metadata
 	docsPool      doc.DocumentArrayPool
 
-	compacting bool
-	compactor  *compaction.Compactor
+	compacting         bool
+	compactionPlanOpts compaction.PlannerOptions
+	compactor          *compaction.Compactor
 
 	logger xlog.Logger
 }
@@ -129,12 +138,12 @@ func NewBlock(
 		blockSize: blockSize,
 		opts:      opts,
 		nsMD:      md,
-<<<<<<< HEAD
-=======
 		docsPool:  docsPool,
 		compactor: compactor,
-		logger:    opts.InstrumentOptions().Logger(),
->>>>>>> Add compaction of mutable segments for index blocks
+		compactionPlanOpts: compaction.PlannerOptions{
+			Levels: compaction.DefaultLevels,
+		},
+		logger: opts.InstrumentOptions().Logger(),
 	}
 	b.newExecutorFn = b.executorWithRLock
 
@@ -158,6 +167,12 @@ func (b *block) newMutableSegment() (segment.MutableSegment, error) {
 func (b *block) rotateActiveSegment() (*mutableReadableSeg, error) {
 	// NB(r): This may be nil on the first call on initialization
 	prev := b.activeSegment
+	if prev != nil {
+		_, err := prev.Segment().Seal()
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	seg, err := b.newMutableSegment()
 	if err != nil {
@@ -202,7 +217,7 @@ func (b *block) maybeCompactWithLock() {
 		})
 	}
 
-	plan, err := compaction.NewPlan(segs, compaction.PlannerOptions{})
+	plan, err := compaction.NewPlan(segs, b.compactionPlanOpts)
 	if err != nil {
 		b.logger.Errorf("could not create index compaction plan: %v", err)
 		return
@@ -264,9 +279,13 @@ func (b *block) cleanupCompactWithLock() {
 		return
 	}
 
-	// Check if need to close all the frozen segments
-	_, closeSegments := blockStatesCloseCompactedBlocks[b.state]
-	if !closeSegments {
+	// Check if need to close all the frozen segments due to
+	// having evicted mutable segments
+	// NB(r): The frozen/compacted segments are derived segments of the
+	// active mutable segment, if we ever evict that segment then
+	// we don't need the frozen/compacted segments either and should
+	// shed them from memory.
+	if !b.hasEvictedMutableSegmentsAnyTimes {
 		return
 	}
 
@@ -609,17 +628,14 @@ func (b *block) Seal() error {
 	}
 	b.state = blockStateSealed
 
-	var multiErr xerrors.MultiError
-
 	// seal active mutable segment.
 	_, err := b.activeSegment.Segment().Seal()
-	multiErr = multiErr.Add(err)
 
 	// all frozen segments and added mutable segments can't actually be
 	// written to and they don't need to be sealed since we don't
 	// flush these segments
 
-	return multiErr.FinalError()
+	return err
 }
 
 func (b *block) IsSealedWithRLock() bool {
@@ -648,6 +664,15 @@ func (b *block) NeedsMutableSegmentsEvicted() bool {
 		anyMutableSegmentNeedsEviction = anyMutableSegmentNeedsEviction || seg.Segment().Size() > 0
 	}
 
+	// check boostrapped segments and to see if any of them need an eviction
+	for _, shardRangeSegments := range b.shardRangesSegments {
+		for _, seg := range shardRangeSegments.segments {
+			if mutableSeg, ok := seg.(segment.MutableSegment); ok {
+				anyMutableSegmentNeedsEviction = anyMutableSegmentNeedsEviction || mutableSeg.Size() > 0
+			}
+		}
+	}
+
 	return anyMutableSegmentNeedsEviction
 }
 
@@ -658,7 +683,9 @@ func (b *block) EvictMutableSegments() (EvictMutableSegmentResults, error) {
 	if b.state != blockStateSealed {
 		return results, fmt.Errorf("unable to evict mutable segments, block must be sealed, found: %v", b.state)
 	}
-	b.state = blockStateMutableEvicted
+
+	b.hasEvictedMutableSegmentsAnyTimes = true
+
 	var multiErr xerrors.MultiError
 
 	// close active segment.
