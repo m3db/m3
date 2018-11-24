@@ -1098,6 +1098,8 @@ func withEncodingAndPoolingOptions(
 		SetInstrumentOptions(iopts).
 		SetMemSegmentOptions(
 			opts.IndexOptions().MemSegmentOptions().SetInstrumentOptions(iopts)).
+		SetFSTSegmentOptions(
+			opts.IndexOptions().FSTSegmentOptions().SetInstrumentOptions(iopts)).
 		SetIdentifierPool(identifierPool).
 		SetCheckedBytesPool(bytesPool).
 		SetResultsPool(resultsPool)

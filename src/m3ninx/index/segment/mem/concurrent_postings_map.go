@@ -124,3 +124,9 @@ func (m *concurrentPostingsMap) GetRegex(re *regexp.Regexp) (postings.List, bool
 	}
 	return pl, true
 }
+
+func (m *concurrentPostingsMap) Reset() {
+	m.Lock()
+	m.postingsMap.Reset()
+	m.Unlock()
+}

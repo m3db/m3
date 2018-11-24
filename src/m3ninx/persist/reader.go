@@ -21,11 +21,14 @@
 package persist
 
 import (
+	"bytes"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/x"
+	"github.com/m3db/m3/src/x/mmap"
 )
 
 // NewSegment returns a new fst.Segment backed by the provided fileset.
@@ -115,4 +118,59 @@ func newSafeIndexSegmentFileSetCloser(fileset IndexSegmentFileSet) io.Closer {
 		closers = append(closers, f)
 	}
 	return x.NewSafeMultiCloser(closers...)
+}
+
+// NewMmapedIndexSegmentFile returns an IndexSegmentFile backed by the provided bytes and FD.
+// The returned object assumes ownership of the input fd, and mmap-ed bytes.
+func NewMmapedIndexSegmentFile(
+	fileType IndexSegmentFileType,
+	fd *os.File,
+	bytesMmap []byte,
+) IndexSegmentFile {
+	r := &readableIndexSegmentFileMmap{
+		fileType:  fileType,
+		fd:        fd,
+		bytesMmap: bytesMmap,
+	}
+	r.reader.Reset(r.bytesMmap)
+	return r
+}
+
+type readableIndexSegmentFileMmap struct {
+	fileType  IndexSegmentFileType
+	fd        *os.File
+	bytesMmap []byte
+	reader    bytes.Reader
+}
+
+var _ IndexSegmentFile = &readableIndexSegmentFileMmap{}
+
+func (f *readableIndexSegmentFileMmap) SegmentFileType() IndexSegmentFileType {
+	return f.fileType
+}
+
+func (f *readableIndexSegmentFileMmap) Bytes() ([]byte, error) {
+	return f.bytesMmap, nil
+}
+
+func (f *readableIndexSegmentFileMmap) Read(b []byte) (int, error) {
+	return f.reader.Read(b)
+}
+
+func (f *readableIndexSegmentFileMmap) Close() error {
+	// Be sure to close the mmap before the file
+	if f.bytesMmap != nil {
+		if err := mmap.Munmap(f.bytesMmap); err != nil {
+			return err
+		}
+		f.bytesMmap = nil
+	}
+	if f.fd != nil {
+		if err := f.fd.Close(); err != nil {
+			return err
+		}
+		f.fd = nil
+	}
+	f.reader.Reset(nil)
+	return nil
 }

@@ -50,6 +50,9 @@ type termsDictionary interface {
 
 	// Terms returns the known terms values for the given field.
 	Terms(field []byte) sgmt.TermsIterator
+
+	// Reset resets the terms dictionary for reuse.
+	Reset()
 }
 
 // ReadableSegment is an internal interface for reading from a segment.
