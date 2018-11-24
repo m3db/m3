@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
@@ -550,6 +551,12 @@ type Options interface {
 
 	// MemSegmentOptions returns the mem segment options.
 	MemSegmentOptions() mem.Options
+
+	// SetFSTSegmentOptions sets the fst segment options.
+	SetFSTSegmentOptions(value fst.Options) Options
+
+	// FSTSegmentOptions returns the fst segment options.
+	FSTSegmentOptions() fst.Options
 
 	// SetIdentifierPool sets the identifier pool.
 	SetIdentifierPool(value ident.Pool) Options

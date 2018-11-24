@@ -84,6 +84,23 @@ func NewSegment(offset postings.ID, opts Options) (sgmt.MutableSegment, error) {
 	return s, nil
 }
 
+func (s *segment) Reset(offset postings.ID) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.termsDict.Reset()
+	s.readerID = postings.NewAtomicID(offset)
+
+	var empty doc.Document
+	for i := range s.docs.data {
+		s.docs.data[i] = empty
+	}
+	s.docs.data = s.docs.data[:0]
+
+	s.writer.idSet.Reset()
+	s.writer.nextID = offset
+}
+
 func (s *segment) Size() int64 {
 	s.state.RLock()
 	closed := s.state.closed

@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/storage/index/segments"
 )
@@ -61,8 +60,8 @@ var (
 
 	// DefaultOptions are the default compaction PlannerOptions.
 	DefaultOptions = PlannerOptions{
-		MutableSegmentSizeThreshold:   1 << 16,          // 64K
-		MutableCompactionAgeThreshold: 15 * time.Second, // any mutable segment 15s or older is eligible for compactions
+		MutableSegmentSizeThreshold:   0, // any mutable segment is eligible for compactions
+		MutableCompactionAgeThreshold: 0, // any mutable segment is eligible for compactions
 		Levels:  DefaultLevels,                      // sizes defined above
 		OrderBy: TasksOrderedByOldestMutableAndSize, // compact mutable segments first
 	}

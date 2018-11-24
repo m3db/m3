@@ -24,6 +24,7 @@ import (
 	"errors"
 
 	"github.com/m3db/m3/src/m3ninx/index"
+	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
 var (
@@ -87,6 +88,9 @@ type TermsIterator interface {
 type MutableSegment interface {
 	Segment
 	index.Writer
+
+	// Reset resets the mutable segment for reuse.
+	Reset(offset postings.ID)
 
 	// Seal marks the Mutable Segment immutable.
 	Seal() (Segment, error)

@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -56,6 +57,7 @@ type opts struct {
 	clockOpts      clock.Options
 	instrumentOpts instrument.Options
 	memOpts        mem.Options
+	fstOpts        fst.Options
 	idPool         ident.Pool
 	bytesPool      pool.CheckedBytesPool
 	resultsPool    ResultsPool
@@ -83,11 +85,13 @@ func NewOptions() Options {
 	})
 	docArrayPool.Init()
 
+	instrumentOpts := instrument.NewOptions()
 	opts := &opts{
 		insertMode:     defaultIndexInsertMode,
 		clockOpts:      clock.NewOptions(),
-		instrumentOpts: instrument.NewOptions(),
+		instrumentOpts: instrumentOpts,
 		memOpts:        mem.NewOptions().SetNewUUIDFn(undefinedUUIDFn),
+		fstOpts:        fst.NewOptions().SetInstrumentOptions(instrumentOpts),
 		bytesPool:      bytesPool,
 		idPool:         idPool,
 		resultsPool:    resultsPool,
@@ -150,6 +154,16 @@ func (o *opts) SetMemSegmentOptions(value mem.Options) Options {
 
 func (o *opts) MemSegmentOptions() mem.Options {
 	return o.memOpts
+}
+
+func (o *opts) SetFSTSegmentOptions(value fst.Options) Options {
+	opts := *o
+	opts.fstOpts = value
+	return &opts
+}
+
+func (o *opts) FSTSegmentOptions() fst.Options {
+	return o.fstOpts
 }
 
 func (o *opts) SetIdentifierPool(value ident.Pool) Options {

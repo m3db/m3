@@ -27,6 +27,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
+	"github.com/m3db/m3/src/dbnode/storage/index/segments"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
@@ -58,9 +60,17 @@ var (
 type blockState byte
 
 const (
-	blockStateClosed blockState = iota
-	blockStateOpen
+	blockStateOpen blockState = iota
 	blockStateSealed
+	blockStateMutableEvicted
+	blockStateClosed
+)
+
+var (
+	blockStatesCloseCompactedBlocks = map[blockState]struct{}{
+		blockStateMutableEvicted: struct{}{},
+		blockStateClosed:         struct{}{},
+	}
 )
 
 type newExecutorFn func() (search.Executor, error)
@@ -68,7 +78,8 @@ type newExecutorFn func() (search.Executor, error)
 type block struct {
 	sync.RWMutex
 	state               blockState
-	activeSegment       segment.MutableSegment
+	activeSegment       *mutableReadableSeg
+	frozenSegments      []*readableSeg
 	shardRangesSegments []blockShardRangesSegments
 
 	newExecutorFn newExecutorFn
@@ -77,6 +88,12 @@ type block struct {
 	blockSize     time.Duration
 	opts          Options
 	nsMD          namespace.Metadata
+	docsPool      doc.DocumentArrayPool
+
+	compacting bool
+	compactor  *compaction.Compactor
+
+	logger xlog.Logger
 }
 
 // blockShardsSegments is a collection of segments that has a mapping of what shards
@@ -94,30 +111,62 @@ func NewBlock(
 	md namespace.Metadata,
 	opts Options,
 ) (Block, error) {
-	var (
-		blockSize = md.Options().IndexOptions().BlockSize()
-	)
+	docsPool := opts.DocumentArrayPool()
 
-	// FOLLOWUP(prateek): use this to track segments when we have multiple segments in a Block.
-	postingsOffset := postings.ID(0)
-	seg, err := mem.NewSegment(postingsOffset, opts.MemSegmentOptions())
+	compactor, err := compaction.NewCompactor(docsPool,
+		documentArrayPoolCapacity,
+		opts.MemSegmentOptions(),
+		opts.FSTSegmentOptions())
 	if err != nil {
 		return nil, err
 	}
 
+	blockSize := md.Options().IndexOptions().BlockSize()
 	b := &block{
-		state:         blockStateOpen,
-		activeSegment: seg,
-
+		state:     blockStateOpen,
 		startTime: startTime,
 		endTime:   startTime.Add(blockSize),
 		blockSize: blockSize,
 		opts:      opts,
 		nsMD:      md,
+<<<<<<< HEAD
+=======
+		docsPool:  docsPool,
+		compactor: compactor,
+		logger:    opts.InstrumentOptions().Logger(),
+>>>>>>> Add compaction of mutable segments for index blocks
 	}
 	b.newExecutorFn = b.executorWithRLock
 
+	if _, err := b.rotateActiveSegment(); err != nil {
+		return nil, err
+	}
+
 	return b, nil
+}
+
+func (b *block) newMutableSegment() (segment.MutableSegment, error) {
+	postingsOffset := postings.ID(0)
+	seg, err := mem.NewSegment(postingsOffset, b.opts.MemSegmentOptions())
+	if err != nil {
+		return nil, err
+	}
+
+	return seg, nil
+}
+
+func (b *block) rotateActiveSegment() (*mutableReadableSeg, error) {
+	// NB(r): This may be nil on the first call on initialization
+	prev := b.activeSegment
+
+	seg, err := b.newMutableSegment()
+	if err != nil {
+		return nil, err
+	}
+
+	b.activeSegment = newMutableReadableSeg(seg)
+
+	return prev, nil
 }
 
 func (b *block) StartTime() time.Time {
@@ -128,9 +177,166 @@ func (b *block) EndTime() time.Time {
 	return b.endTime
 }
 
-func (b *block) WriteBatch(inserts *WriteBatch) (WriteBatchResult, error) {
+func (b *block) maybeCompactWithLock() {
+	if b.compacting || b.state != blockStateOpen {
+		return
+	}
+
+	// Create a logical plan
+	segs := make([]compaction.Segment, 0, 1+len(b.frozenSegments))
+	if b.activeSegment != nil && b.activeSegment.Segment().Size() > 0 {
+		segs = append(segs, compaction.Segment{
+			Age:     b.activeSegment.Age(),
+			Size:    b.activeSegment.Segment().Size(),
+			Type:    segments.MutableType,
+			Segment: b.activeSegment.Segment(),
+		})
+	}
+
+	for _, seg := range b.frozenSegments {
+		segs = append(segs, compaction.Segment{
+			Age:     seg.Age(),
+			Size:    seg.Segment().Size(),
+			Type:    segments.FSTType,
+			Segment: seg.Segment(),
+		})
+	}
+
+	plan, err := compaction.NewPlan(segs, compaction.PlannerOptions{})
+	if err != nil {
+		b.logger.Errorf("could not create index compaction plan: %v", err)
+		return
+	}
+
+	if len(plan.Tasks) == 0 {
+		return
+	}
+
+	var compactingActiveSegment bool
+	if b.activeSegment != nil {
+		for _, task := range plan.Tasks {
+			for _, seg := range task.Segments {
+				if seg.Segment == b.activeSegment.Segment() {
+					compactingActiveSegment = true
+					break
+				}
+			}
+			if compactingActiveSegment {
+				break
+			}
+		}
+	}
+
+	if compactingActiveSegment {
+		// Rotate the current active segment so it's not written to while
+		// we're compacting it
+		prev, err := b.rotateActiveSegment()
+		if err != nil {
+			b.logger.Errorf("could not rotate active segment for compaction: %v", err)
+			return
+		}
+
+		b.frozenSegments = append(b.frozenSegments, newReadableSeg(prev.Segment()))
+	}
+
+	// Kick off compaction
+	b.startCompactWithLock(plan)
+}
+
+func (b *block) startCompactWithLock(plan *compaction.Plan) {
+	b.compacting = true
+	go func() {
+		b.compactWithPlan(plan)
+
+		b.Lock()
+		defer b.Unlock()
+
+		b.cleanupCompactWithLock()
+	}()
+}
+
+func (b *block) cleanupCompactWithLock() {
+	b.compacting = false
+
+	if b.state == blockStateOpen {
+		// See if we need to trigger another compaction
+		b.maybeCompactWithLock()
+		return
+	}
+
+	// Check if need to close all the frozen segments
+	_, closeSegments := blockStatesCloseCompactedBlocks[b.state]
+	if !closeSegments {
+		return
+	}
+
+	for _, seg := range b.frozenSegments {
+		err := seg.Segment().Close()
+		if err != nil {
+			b.logger.Errorf("could not close frozen segment: %v", err)
+		}
+	}
+	b.frozenSegments = nil
+}
+
+func (b *block) compactWithPlan(plan *compaction.Plan) {
+	for _, task := range plan.Tasks {
+		if err := b.compactWithTask(task); err != nil {
+			b.logger.Errorf("error compacting segments: %v", err)
+			return
+		}
+	}
+}
+
+func (b *block) compactWithTask(task compaction.Task) error {
+	segments := make([]segment.Segment, 0, len(task.Segments))
+	for _, seg := range task.Segments {
+		segments = append(segments, seg.Segment)
+	}
+
+	compacted, err := b.compactor.Compact(segments)
+	if err != nil {
+		return err
+	}
+
+	// Rotate out the replaced frozen segments and add the compacted one
 	b.Lock()
 	defer b.Unlock()
+
+	newFrozenSegments := make([]*readableSeg, 0, len(b.frozenSegments))
+	for _, frozen := range b.frozenSegments {
+		keepCurr := true
+		for _, seg := range segments {
+			if frozen.Segment() == seg {
+				// Do not keep this one, it was compacted just then
+				keepCurr = false
+				break
+			}
+		}
+
+		if keepCurr {
+			newFrozenSegments = append(newFrozenSegments, frozen)
+			continue
+		}
+
+		if err := frozen.Segment().Close(); err != nil {
+			// Already compacted, not much we can do about not closing it
+			b.logger.Errorf("unable to close compacted block: %v", err)
+		}
+	}
+
+	newFrozenSegments = append(newFrozenSegments, newReadableSeg(compacted))
+	b.frozenSegments = newFrozenSegments
+
+	return nil
+}
+
+func (b *block) WriteBatch(inserts *WriteBatch) (WriteBatchResult, error) {
+	b.Lock()
+	defer func() {
+		b.maybeCompactWithLock()
+		b.Unlock()
+	}()
 
 	if b.state != blockStateOpen {
 		err := b.writeBatchErrorInvalidState(b.state)
@@ -150,7 +356,7 @@ func (b *block) WriteBatch(inserts *WriteBatch) (WriteBatchResult, error) {
 		}, err
 	}
 
-	err := b.activeSegment.InsertBatch(m3ninxindex.Batch{
+	err := b.activeSegment.Segment().InsertBatch(m3ninxindex.Batch{
 		Docs:                inserts.PendingDocs(),
 		AllowPartialUpdates: true,
 	})
@@ -208,7 +414,16 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 
 	// start with the segment that's being actively written to (if we have one)
 	if b.activeSegment != nil {
-		reader, err := b.activeSegment.Reader()
+		reader, err := b.activeSegment.Segment().Reader()
+		if err != nil {
+			return nil, err
+		}
+		readers = append(readers, reader)
+	}
+
+	// loop over frozen segments
+	for _, seg := range b.frozenSegments {
+		reader, err := seg.Segment().Reader()
 		if err != nil {
 			return nil, err
 		}
@@ -317,25 +532,6 @@ func (b *block) AddResults(
 			results.Fulfilled().SummaryString(), blockRange.String())
 	}
 
-	// NB: need to check if the current block has been marked 'Sealed' and if so,
-	// mark all incoming mutable segments the same.
-	isSealed := b.IsSealedWithRLock()
-
-	var multiErr xerrors.MultiError
-	for _, seg := range results.Segments() {
-		if x, ok := seg.(segment.MutableSegment); ok {
-			if isSealed {
-				_, err := x.Seal()
-				if err != nil {
-					// if this happens it means a Mutable segment was marked sealed
-					// in the bootstrappers, this should never happen.
-					err := b.bootstrappingSealedMutableSegmentInvariant(err)
-					multiErr = multiErr.Add(err)
-				}
-			}
-		}
-	}
-
 	entry := blockShardRangesSegments{
 		shardTimeRanges: results.Fulfilled(),
 		segments:        results.Segments(),
@@ -354,11 +550,12 @@ func (b *block) AddResults(
 		// This is the case where it cannot wholly replace the current set of blocks
 		// so simply append the segments in this case
 		b.shardRangesSegments = append(b.shardRangesSegments, entry)
-		return multiErr.FinalError()
+		return nil
 	}
 
 	// This is the case where the new segments can wholly replace the
 	// current set of blocks since unfullfilled by the new segments is zero
+	multiErr := xerrors.NewMultiError()
 	for i, group := range b.shardRangesSegments {
 		for _, seg := range group.segments {
 			// Make sure to close the existing segments
@@ -382,7 +579,13 @@ func (b *block) Tick(c context.Cancellable, tickStart time.Time) (BlockTickResul
 	// active segment, can be nil incase we've evicted it already.
 	if b.activeSegment != nil {
 		result.NumSegments++
-		result.NumDocs += b.activeSegment.Size()
+		result.NumDocs += b.activeSegment.Segment().Size()
+	}
+
+	// add frozen segments
+	for _, seg := range b.frozenSegments {
+		result.NumSegments++
+		result.NumDocs += seg.Segment().Size()
 	}
 
 	// any other segments
@@ -409,18 +612,12 @@ func (b *block) Seal() error {
 	var multiErr xerrors.MultiError
 
 	// seal active mutable segment.
-	_, err := b.activeSegment.Seal()
+	_, err := b.activeSegment.Segment().Seal()
 	multiErr = multiErr.Add(err)
 
-	// loop over any added mutable segments and seal them too.
-	for _, group := range b.shardRangesSegments {
-		for _, seg := range group.segments {
-			if unsealed, ok := seg.(segment.MutableSegment); ok {
-				_, err := unsealed.Seal()
-				multiErr = multiErr.Add(err)
-			}
-		}
-	}
+	// all frozen segments and added mutable segments can't actually be
+	// written to and they don't need to be sealed since we don't
+	// flush these segments
 
 	return multiErr.FinalError()
 }
@@ -438,21 +635,17 @@ func (b *block) IsSealed() bool {
 func (b *block) NeedsMutableSegmentsEvicted() bool {
 	b.RLock()
 	defer b.RUnlock()
-	anyMutableSegmentNeedsEviction := b.activeSegment != nil && b.activeSegment.Size() > 0
+	anyMutableSegmentNeedsEviction := b.activeSegment != nil &&
+		b.activeSegment.Segment().Size() > 0
 
 	// can early terminate if we already know we need to flush.
 	if anyMutableSegmentNeedsEviction {
 		return true
 	}
 
-	// otherwise we check all the boostrapped segments and to see if any of them
-	// need a flush
-	for _, shardRangeSegments := range b.shardRangesSegments {
-		for _, seg := range shardRangeSegments.segments {
-			if mutableSeg, ok := seg.(segment.MutableSegment); ok {
-				anyMutableSegmentNeedsEviction = anyMutableSegmentNeedsEviction || mutableSeg.Size() > 0
-			}
-		}
+	// check any frozen segments need to be flushed.
+	for _, seg := range b.frozenSegments {
+		anyMutableSegmentNeedsEviction = anyMutableSegmentNeedsEviction || seg.Segment().Size() > 0
 	}
 
 	return anyMutableSegmentNeedsEviction
@@ -465,17 +658,25 @@ func (b *block) EvictMutableSegments() (EvictMutableSegmentResults, error) {
 	if b.state != blockStateSealed {
 		return results, fmt.Errorf("unable to evict mutable segments, block must be sealed, found: %v", b.state)
 	}
+	b.state = blockStateMutableEvicted
 	var multiErr xerrors.MultiError
 
 	// close active segment.
 	if b.activeSegment != nil {
 		results.NumMutableSegments++
-		results.NumDocs += b.activeSegment.Size()
-		multiErr = multiErr.Add(b.activeSegment.Close())
+		results.NumDocs += b.activeSegment.Segment().Size()
+		multiErr = multiErr.Add(b.activeSegment.Segment().Close())
 		b.activeSegment = nil
 	}
 
-	// close any other mutable segments too.
+	// if not compacting, trigger a cleanup so that all frozen segments get
+	// closed, otherwise after the current running compaction the frozen
+	// segments will get closed
+	if !b.compacting {
+		b.cleanupCompactWithLock()
+	}
+
+	// close any other mutable segments that was added.
 	for idx := range b.shardRangesSegments {
 		segments := make([]segment.Segment, 0, len(b.shardRangesSegments[idx].segments))
 		for _, seg := range b.shardRangesSegments[idx].segments {
@@ -506,8 +707,15 @@ func (b *block) Close() error {
 
 	// close active segment.
 	if b.activeSegment != nil {
-		multiErr = multiErr.Add(b.activeSegment.Close())
+		multiErr = multiErr.Add(b.activeSegment.Segment().Close())
 		b.activeSegment = nil
+	}
+
+	// if not compacting, trigger a cleanup so that all frozen segments get
+	// closed, otherwise after the current running compaction the frozen
+	// segments will get closed
+	if !b.compacting {
+		b.cleanupCompactWithLock()
 	}
 
 	// close any other added segments too.

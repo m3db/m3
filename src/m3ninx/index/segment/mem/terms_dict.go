@@ -116,6 +116,19 @@ func (d *termsDict) MatchRegexp(
 	return pl
 }
 
+func (d *termsDict) Reset() {
+	d.fields.Lock()
+	defer d.fields.Unlock()
+
+	// NB(r): We actually want to keep the terms maps around so that they
+	// can be reused and avoid reallocation, so instead of deleting them
+	// we just reset each one
+	for _, entry := range d.fields.Iter() {
+		postingsMap := entry.Value()
+		postingsMap.Reset()
+	}
+}
+
 func (d *termsDict) getOrAddName(name []byte) *concurrentPostingsMap {
 	// Cheap read lock to see if it already exists.
 	d.fields.RLock()
