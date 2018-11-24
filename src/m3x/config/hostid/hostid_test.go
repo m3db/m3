@@ -21,8 +21,10 @@
 package hostid
 
 import (
+	"io/ioutil"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -105,6 +107,19 @@ func TestEnvironmentResolverErrorWhenValueMissing(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestFileResolver(t *testing.T) {
+	cfg := Configuration{
+		Resolver: "file",
+		File: &FileConfig{
+			Path: "foobarbaz",
+		},
+	}
+
+	_, err := cfg.Resolve()
+	assert.Error(t, err)
+	assert.True(t, strings.Contains(err.Error(), "no such file"), "expected error to be due to file not found")
+}
+
 func TestUnknownResolverError(t *testing.T) {
 	cfg := Configuration{
 		Resolver: "some-unknown-type",
@@ -112,4 +127,82 @@ func TestUnknownResolverError(t *testing.T) {
 
 	_, err := cfg.Resolve()
 	require.Error(t, err)
+}
+
+func TestFileConfig(t *testing.T) {
+	c := &file{
+		path: "foobarpath",
+	}
+
+	_, err := c.ID()
+	assert.Error(t, err)
+
+	f, err := ioutil.TempFile("", "hostid-test")
+	require.NoError(t, err)
+
+	defer os.Remove(f.Name())
+
+	_, err = f.WriteString("testidentity")
+	require.NoError(t, err)
+
+	c = &file{
+		path: f.Name(),
+	}
+
+	v, err := c.ID()
+	assert.NoError(t, err)
+	assert.Equal(t, "testidentity", v)
+}
+
+func TestFileConfig_Timeout(t *testing.T) {
+	f, err := ioutil.TempFile("", "hostid-test")
+	require.NoError(t, err)
+
+	defer os.Remove(f.Name())
+
+	timeout := time.Minute
+	c := &file{
+		path:     f.Name(),
+		interval: 10 * time.Millisecond,
+		timeout:  &timeout,
+	}
+
+	valC := make(chan string)
+
+	go func() {
+		v, err := c.ID()
+		if err == nil {
+			valC <- v
+			close(valC)
+		}
+	}()
+
+	time.Sleep(time.Second)
+	_, err = f.WriteString("testidentity")
+	require.NoError(t, err)
+
+	select {
+	case v := <-valC:
+		assert.Equal(t, "testidentity", v)
+	case <-time.After(5 * time.Second):
+		t.Fatal("expected to see value within 5s")
+	}
+}
+
+func TestFileConfig_TimeoutErr(t *testing.T) {
+	f, err := ioutil.TempFile("", "hostid-test")
+	require.NoError(t, err)
+
+	defer os.Remove(f.Name())
+
+	timeout := time.Second
+	c := &file{
+		path:     f.Name(),
+		interval: 10 * time.Millisecond,
+		timeout:  &timeout,
+	}
+
+	_, err = c.ID()
+	assert.Error(t, err)
+	assert.True(t, strings.Contains(err.Error(), "within 1s"))
 }
