@@ -754,15 +754,6 @@ func (i *nsIndex) Query(
 	// iterate known blocks in a defined order of time (newest first) to enforce
 	// some determinism about the results returned.
 	for _, start := range i.state.blockStartsDescOrder {
-		results.RLock()
-		queryRangeIsEmpty := queryRange.IsEmpty()
-		alreadyExhaustive := exhaustive
-		results.RUnlock()
-		if queryRangeIsEmpty || !alreadyExhaustive {
-			// Terminate if queryRange doesn't need any more data or already not exhaustive
-			break
-		}
-
 		block, ok := i.state.blocksByTime[start]
 		if !ok { // should never happen
 			return index.QueryResults{}, i.missingBlockInvariantError(start)
@@ -770,7 +761,19 @@ func (i *nsIndex) Query(
 
 		// ensure the block has data requested by the query
 		blockRange := xtime.Range{Start: block.StartTime(), End: block.EndTime()}
-		if !queryRange.Overlaps(blockRange) {
+
+		results.RLock()
+		queryRangeIsEmpty := queryRange.IsEmpty()
+		queryRangeOverlapsBlock := queryRange.Overlaps(blockRange)
+		alreadyExhaustive := exhaustive
+		results.RUnlock()
+		if queryRangeIsEmpty || !alreadyExhaustive {
+			// Terminate if queryRange doesn't need any more data or already not exhaustive
+			break
+		}
+
+		if !queryRangeOverlapsBlock {
+			// Now check the range overlaps
 			continue
 		}
 
