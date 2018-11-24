@@ -67,6 +67,11 @@ func NewCompactor(
 	}, nil
 }
 
+// Compact will take a set of segments and compact them into an immutable
+// FST segment, if there is a single mutable segment it can directly be
+// converted into an FST segment, otherwise an intermediary mutable segment
+// (reused by the compactor between runs) is used to combine all the segments
+// together first before compacting into an FST segment.
 func (c *Compactor) Compact(segs []segment.Segment) (segment.Segment, error) {
 	if len(segs) == 1 {
 		if seg, ok := segs[0].(segment.MutableSegment); ok {
