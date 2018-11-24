@@ -167,12 +167,6 @@ func (b *block) newMutableSegment() (segment.MutableSegment, error) {
 func (b *block) rotateActiveSegment() (*mutableReadableSeg, error) {
 	// NB(r): This may be nil on the first call on initialization
 	prev := b.activeSegment
-	if prev != nil {
-		_, err := prev.Segment().Seal()
-		if err != nil {
-			return nil, err
-		}
-	}
 
 	seg, err := b.newMutableSegment()
 	if err != nil {

@@ -120,13 +120,11 @@ func (d *termsDict) Reset() {
 	d.fields.Lock()
 	defer d.fields.Unlock()
 
-	// NB(r): We actually want to keep the terms maps around so that they
+	// TODO(r): We actually want to keep the terms maps around so that they
 	// can be reused and avoid reallocation, so instead of deleting them
-	// we just reset each one
-	for _, entry := range d.fields.Iter() {
-		postingsMap := entry.Value()
-		postingsMap.Reset()
-	}
+	// we should just reset each one - however we were seeing some racey
+	// issues so now just deleting all entries for now
+	d.fields.Reset()
 }
 
 func (d *termsDict) getOrAddName(name []byte) *concurrentPostingsMap {

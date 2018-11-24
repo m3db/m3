@@ -859,8 +859,22 @@ func (s *fileSystemSource) persistBootstrapIndexSegment(
 		}
 	}()
 
-	if _, err := mutableSegment.Seal(); err != nil {
-		return err
+	if !mutableSegment.IsSealed() {
+		// TODO: Understand why sometimes the segment is already sealed?
+		// Have seen:
+		// persist fs index bootstrap failed [
+		//  {violation invariant_violated}
+		//  {namespace metrics}
+		//  {requestedRanges {
+		//    472: [(2018-11-24 18:00:00 +0000 UTC,2018-11-24 19:00:00 +0000 UTC)],
+		//    498: [(2018-11-24 18:00:00 +0000 UTC,2018-11-24 19:00:00 +0000 UTC)],
+		//    ...
+		//  }}
+		//  {error unable to seal, segment has already been sealed}]
+		// ]
+		if _, err := mutableSegment.Seal(); err != nil {
+			return err
+		}
 	}
 
 	if err := preparedPersist.Persist(mutableSegment); err != nil {
