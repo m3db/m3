@@ -123,6 +123,12 @@ func (c *Compactor) Compact(segs []segment.Segment) (segment.Segment, error) {
 		}
 	}
 
+	// Seal before writing out the FST
+	_, err := c.mutableSeg.Seal()
+	if err != nil {
+		return nil, err
+	}
+
 	return c.compact(c.mutableSeg)
 }
 

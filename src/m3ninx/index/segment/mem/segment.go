@@ -88,6 +88,8 @@ func (s *segment) Reset(offset postings.ID) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	s.state.sealed = false
+
 	s.termsDict.Reset()
 	s.readerID = postings.NewAtomicID(offset)
 

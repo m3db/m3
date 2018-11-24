@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
+	"github.com/m3db/m3/src/m3ninx/postings"
 
 	"github.com/golang/mock/gomock"
 )
@@ -241,6 +242,16 @@ func (m *MockMutableSegment) Reader() (index.Reader, error) {
 // Reader indicates an expected call of Reader
 func (mr *MockMutableSegmentMockRecorder) Reader() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reader", reflect.TypeOf((*MockMutableSegment)(nil).Reader))
+}
+
+// Reset mocks base method
+func (m *MockMutableSegment) Reset(arg0 postings.ID) {
+	m.ctrl.Call(m, "Reset", arg0)
+}
+
+// Reset indicates an expected call of Reset
+func (mr *MockMutableSegmentMockRecorder) Reset(arg0 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockMutableSegment)(nil).Reset), arg0)
 }
 
 // Seal mocks base method
