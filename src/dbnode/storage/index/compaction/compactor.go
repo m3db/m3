@@ -128,18 +128,21 @@ func (c *Compactor) Compact(segs []segment.Segment) (segment.Segment, error) {
 		}
 	}
 
-	// Seal before writing out the FST
-	_, err := c.mutableSeg.Seal()
-	if err != nil {
-		return nil, err
-	}
-
 	return c.compact(c.mutableSeg)
 }
 
 func (c *Compactor) compact(
 	seg segment.MutableSegment,
 ) (segment.Segment, error) {
+	// Need to seal first if not already sealed
+	if !seg.IsSealed() {
+		var err error
+		seg, err = seg.Seal()
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	writer, err := persist.NewMutableSegmentFileSetWriter()
 	if err != nil {
 		return nil, err
