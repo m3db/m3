@@ -124,7 +124,7 @@ func (d *termsDict) Reset() {
 	// can be reused and avoid reallocation, so instead of deleting them
 	// we should just reset each one - however we were seeing some racey
 	// issues so now just deleting all entries for now
-	d.fields.Reset()
+	d.fields.Reallocate()
 }
 
 func (d *termsDict) getOrAddName(name []byte) *concurrentPostingsMap {
