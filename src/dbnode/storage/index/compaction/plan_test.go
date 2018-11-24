@@ -35,13 +35,42 @@ func TestDefaultOptsValidate(t *testing.T) {
 	require.NoError(t, DefaultOptions.Validate())
 }
 func TestBrandNewMutableSegment(t *testing.T) {
-	opts := DefaultOptions
-	s1 := Segment{
+	opts := PlannerOptions{
+		MutableCompactionAgeThreshold: 10 * time.Second,
+		MutableSegmentSizeThreshold:   10,
+	}
+	seg := Segment{
 		Age:  (opts.MutableCompactionAgeThreshold - time.Second),
-		Size: 10,
+		Size: opts.MutableSegmentSizeThreshold - 1,
 		Type: segments.MutableType,
 	}
-	require.False(t, s1.Compactable(opts))
+	require.False(t, seg.Compactable(opts))
+}
+
+func TestJustOldEnoughMutableSegment(t *testing.T) {
+	opts := PlannerOptions{
+		MutableCompactionAgeThreshold: 10 * time.Second,
+		MutableSegmentSizeThreshold:   10,
+	}
+	seg := Segment{
+		Age:  (opts.MutableCompactionAgeThreshold + time.Second),
+		Size: opts.MutableSegmentSizeThreshold - 1,
+		Type: segments.MutableType,
+	}
+	require.True(t, seg.Compactable(opts))
+}
+
+func TestJustLargeEnoughMutableSegment(t *testing.T) {
+	opts := PlannerOptions{
+		MutableCompactionAgeThreshold: 10 * time.Second,
+		MutableSegmentSizeThreshold:   10,
+	}
+	seg := Segment{
+		Age:  (opts.MutableCompactionAgeThreshold - time.Second),
+		Size: opts.MutableSegmentSizeThreshold + 1,
+		Type: segments.MutableType,
+	}
+	require.True(t, seg.Compactable(opts))
 }
 
 func TestSingleMutableCompaction(t *testing.T) {
