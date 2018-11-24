@@ -334,6 +334,7 @@ db:
     resolver: config
     value: host1
     envVarName: null
+    file: null
   client:
     config:
       service: null
