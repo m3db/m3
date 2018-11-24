@@ -82,7 +82,7 @@ func NewPostingsList() postings.MutableList {
 
 // NewPostingsListFromBitmap returns a new mutable postings list using an
 // existing roaring bitmap.
-func NewPostingsListFromBitmap(bitmap *roaring.Bitmap) postings.List {
+func NewPostingsListFromBitmap(bitmap *roaring.Bitmap) postings.MutableList {
 	return &postingsList{bitmap: bitmap}
 }
 
