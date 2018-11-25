@@ -203,9 +203,11 @@ func (b *block) rotateActiveSegment() (*mutableReadableSeg, error) {
 
 	b.activeSegment = newMutableReadableSeg(seg)
 
-	b.metrics.rotateActiveSegment.Inc(1)
-	b.metrics.rotateActiveSegmentAge.Record(prev.Age())
-	b.metrics.rotateActiveSegmentSize.RecordValue(float64(prev.Segment().Size()))
+	if prev != nil {
+		b.metrics.rotateActiveSegment.Inc(1)
+		b.metrics.rotateActiveSegmentAge.Record(prev.Age())
+		b.metrics.rotateActiveSegmentSize.RecordValue(float64(prev.Segment().Size()))
+	}
 
 	return prev, nil
 }
