@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
@@ -168,6 +169,9 @@ type Block interface {
 	// Tick does internal house keeping operations.
 	Tick(c context.Cancellable, tickStart time.Time) (BlockTickResult, error)
 
+	// Stats returns block stats.
+	Stats(reporter BlockStatsReporter) error
+
 	// Seal prevents the block from taking any more writes, but, it still permits
 	// addition of segments via Bootstrap().
 	Seal() error
@@ -202,6 +206,44 @@ func (e *EvictMutableSegmentResults) Add(o EvictMutableSegmentResults) {
 	e.NumDocs += o.NumDocs
 	e.NumMutableSegments += o.NumMutableSegments
 }
+
+// BlockStatsReporter is a block stats reporter that collects
+// block stats on a per block basis (without needing to query each
+// block and get an immutable list of segments back).
+type BlockStatsReporter interface {
+	ReportSegmentStats(stats BlockSegmentStats)
+}
+
+// BlockStatsReporterFn implements the block stats reporter using
+// a callback function.
+type BlockStatsReporterFn func(stats BlockSegmentStats)
+
+// ReportSegmentStats implements the BlockStatsReporter interface.
+func (f BlockStatsReporterFn) ReportSegmentStats(stats BlockSegmentStats) {
+	f(stats)
+}
+
+// BlockSegmentStats has segment stats.
+type BlockSegmentStats struct {
+	Type    BlockSegmentType
+	Mutable bool
+	Age     time.Duration
+	Size    int64
+}
+
+// BlockSegmentType is a block segment type
+type BlockSegmentType uint
+
+const (
+	// ActiveOpenSegment is an active segment that is being written to.
+	ActiveOpenSegment BlockSegmentType = iota
+	// ActiveFrozenSegment is an active frozen segment that is either
+	// being compacted or waiting for another compaction if/when
+	// it should be considered for further compaction.
+	ActiveFrozenSegment
+	// FlushedSegment is an immutable segment that can't change any longer.
+	FlushedSegment
+)
 
 // WriteBatchResult returns statistics about the WriteBatch execution.
 type WriteBatchResult struct {
@@ -581,4 +623,10 @@ type Options interface {
 
 	// DocumentArrayPool returns the document array pool.
 	DocumentArrayPool() doc.DocumentArrayPool
+
+	// SetCompactionPlannerOptions sets the compaction planner options.
+	SetCompactionPlannerOptions(v compaction.PlannerOptions) Options
+
+	// CompactionPlannerOptions returns the compaction planner options.
+	CompactionPlannerOptions() compaction.PlannerOptions
 }
