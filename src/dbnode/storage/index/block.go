@@ -49,13 +49,14 @@ import (
 var (
 	// ErrUnableToQueryBlockClosed is returned when querying closed block.
 	ErrUnableToQueryBlockClosed = errors.New("unable to query, index block is closed")
+	// ErrUnableReportStatsBlockClosed is returned from Stats when the block is closed.
+	ErrUnableReportStatsBlockClosed = errors.New("unable to report stats, block is closed")
 
 	errUnableToWriteBlockClosed     = errors.New("unable to write, index block is closed")
 	errUnableToWriteBlockSealed     = errors.New("unable to write, index block is sealed")
 	errUnableToBootstrapBlockClosed = errors.New("unable to bootstrap, block is closed")
 	errUnableToTickBlockClosed      = errors.New("unable to tick, block is closed")
 	errBlockAlreadyClosed           = errors.New("unable to close, block already closed")
-	errUnableReportStatsBlockClosed = errors.New("unable to report stats, block is closed")
 
 	errUnableToSealBlockIllegalStateFmtString  = "unable to seal, index block state: %v"
 	errUnableToWriteBlockUnknownStateFmtString = "unable to write, unknown index block state: %v"
@@ -348,7 +349,10 @@ func (b *block) compactWithPlan(plan *compaction.Plan) {
 	n := b.compactions
 	b.compactions++
 
-	logger := b.logger.WithFields(xlog.NewField("compaction", n))
+	logger := b.logger.WithFields(
+		xlog.NewField("block", b.startTime.String()),
+		xlog.NewField("compaction", n),
+	)
 	log := n%compactDebugLogEvery == 0
 	if log {
 		for i, task := range plan.Tasks {
@@ -725,7 +729,7 @@ func (b *block) Stats(reporter BlockStatsReporter) error {
 	defer b.RUnlock()
 
 	if b.state != blockStateOpen {
-		return errUnableReportStatsBlockClosed
+		return ErrUnableReportStatsBlockClosed
 	}
 
 	if b.activeSegment != nil {
