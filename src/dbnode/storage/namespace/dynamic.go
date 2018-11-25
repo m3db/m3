@@ -107,8 +107,8 @@ func newDynamicRegistry(opts DynamicOptions) (Registry, error) {
 	}
 
 	logger := opts.InstrumentOptions().Logger()
-	logger.Info(`waiting for dynamic namespace registry initialization.
-		If this takes a long time, make sure that a namespace is configured`)
+	logger.Info("waiting for dynamic namespace registry initialization, " +
+		"if this takes a long time, make sure that a namespace is configured")
 	<-watch.C()
 	logger.Info("initial namespace value received")
 

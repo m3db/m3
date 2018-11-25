@@ -90,8 +90,8 @@ func newDynamicTopology(opts DynamicOptions) (DynamicTopology, error) {
 	}
 
 	logger := opts.InstrumentOptions().Logger()
-	logger.Info(`waiting for dynamic topology initialization.
-		If this takes a long time, make sure that a topology / placement is configured`)
+	logger.Info("waiting for dynamic topology initialization, " +
+		"if this takes a long time, make sure that a topology/placement is configured")
 	watch, err := services.Watch(opts.ServiceID(), opts.QueryOptions())
 	if err != nil {
 		return nil, err
