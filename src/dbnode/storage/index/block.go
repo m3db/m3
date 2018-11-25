@@ -42,6 +42,8 @@ import (
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
+
+	"github.com/uber-go/tally"
 )
 
 var (
@@ -53,6 +55,7 @@ var (
 	errUnableToBootstrapBlockClosed = errors.New("unable to bootstrap, block is closed")
 	errUnableToTickBlockClosed      = errors.New("unable to tick, block is closed")
 	errBlockAlreadyClosed           = errors.New("unable to close, block already closed")
+	errUnableReportStatsBlockClosed = errors.New("unable to report stats, block is closed")
 
 	errUnableToSealBlockIllegalStateFmtString  = "unable to seal, index block state: %v"
 	errUnableToWriteBlockUnknownStateFmtString = "unable to write, unknown index block state: %v"
@@ -64,6 +67,8 @@ const (
 	blockStateOpen blockState = iota
 	blockStateSealed
 	blockStateClosed
+
+	compactDebugLogEvery = 1 // Emit debug log for every compaction
 )
 
 func (s blockState) String() string {
@@ -95,14 +100,37 @@ type block struct {
 	endTime       time.Time
 	blockSize     time.Duration
 	opts          Options
+	iopts         instrument.Options
 	nsMD          namespace.Metadata
 	docsPool      doc.DocumentArrayPool
 
 	compacting         bool
+	compactions        int
 	compactionPlanOpts compaction.PlannerOptions
 	compactor          *compaction.Compactor
 
-	logger xlog.Logger
+	metrics blockMetrics
+	logger  xlog.Logger
+}
+
+type blockMetrics struct {
+	rotateActiveSegment      tally.Counter
+	rotateActiveSegmentAge   tally.Timer
+	rotateActiveSegmentSize  tally.Histogram
+	compactionPlanRunLatency tally.Timer
+	compactionTaskRunLatency tally.Timer
+}
+
+func newBlockMetrics(s tally.Scope) blockMetrics {
+	s = s.SubScope("index").SubScope("block")
+	return blockMetrics{
+		rotateActiveSegment:    s.Counter("rotate-active-segment"),
+		rotateActiveSegmentAge: s.Timer("rotate-active-segment-age"),
+		rotateActiveSegmentSize: s.Histogram("rotate-active-segment-size",
+			append(tally.ValueBuckets{0}, tally.MustMakeExponentialValueBuckets(100, 2, 16)...)),
+		compactionPlanRunLatency: s.Timer("compaction-plan-run-latency"),
+		compactionTaskRunLatency: s.Timer("compaction-task-run-latency"),
+	}
 }
 
 // blockShardsSegments is a collection of segments that has a mapping of what shards
@@ -131,19 +159,19 @@ func NewBlock(
 	}
 
 	blockSize := md.Options().IndexOptions().BlockSize()
+	iopts := opts.InstrumentOptions()
 	b := &block{
 		state:     blockStateOpen,
 		startTime: startTime,
 		endTime:   startTime.Add(blockSize),
 		blockSize: blockSize,
 		opts:      opts,
+		iopts:     iopts,
 		nsMD:      md,
 		docsPool:  docsPool,
 		compactor: compactor,
-		compactionPlanOpts: compaction.PlannerOptions{
-			Levels: compaction.DefaultLevels,
-		},
-		logger: opts.InstrumentOptions().Logger(),
+		metrics:   newBlockMetrics(iopts.MetricsScope()),
+		logger:    iopts.Logger(),
 	}
 	b.newExecutorFn = b.executorWithRLock
 
@@ -174,6 +202,10 @@ func (b *block) rotateActiveSegment() (*mutableReadableSeg, error) {
 	}
 
 	b.activeSegment = newMutableReadableSeg(seg)
+
+	b.metrics.rotateActiveSegment.Inc(1)
+	b.metrics.rotateActiveSegmentAge.Record(prev.Age())
+	b.metrics.rotateActiveSegmentSize.RecordValue(float64(prev.Segment().Size()))
 
 	return prev, nil
 }
@@ -211,9 +243,11 @@ func (b *block) maybeCompactWithLock() {
 		})
 	}
 
-	plan, err := compaction.NewPlan(segs, b.compactionPlanOpts)
+	plan, err := compaction.NewPlan(segs, b.opts.CompactionPlannerOptions())
 	if err != nil {
-		b.logger.Errorf("could not create index compaction plan: %v", err)
+		instrument.EmitAndLogInvariantViolation(b.iopts, func(l xlog.Logger) {
+			l.Errorf("could not create index compaction plan: %v", err)
+		})
 		return
 	}
 
@@ -241,7 +275,9 @@ func (b *block) maybeCompactWithLock() {
 		// we're compacting it
 		prev, err := b.rotateActiveSegment()
 		if err != nil {
-			b.logger.Errorf("could not rotate active segment for compaction: %v", err)
+			instrument.EmitAndLogInvariantViolation(b.iopts, func(l xlog.Logger) {
+				l.Errorf("could not rotate active segment for compaction: %v", err)
+			})
 			return
 		}
 
@@ -258,9 +294,8 @@ func (b *block) startCompactWithLock(plan *compaction.Plan) {
 		b.compactWithPlan(plan)
 
 		b.Lock()
-		defer b.Unlock()
-
 		b.cleanupCompactWithLock()
+		b.Unlock()
 	}()
 }
 
@@ -274,28 +309,74 @@ func (b *block) cleanupCompactWithLock() {
 	}
 
 	// Check if need to close all the frozen segments due to
-	// having evicted mutable segments
+	// having evicted mutable segments or the block being closed.
 	// NB(r): The frozen/compacted segments are derived segments of the
 	// active mutable segment, if we ever evict that segment then
 	// we don't need the frozen/compacted segments either and should
 	// shed them from memory.
-	if !b.hasEvictedMutableSegmentsAnyTimes {
+	shouldEvictCompactedSegments := b.state == blockStateClosed ||
+		b.hasEvictedMutableSegmentsAnyTimes
+	if !shouldEvictCompactedSegments {
 		return
 	}
 
 	for _, seg := range b.frozenSegments {
 		err := seg.Segment().Close()
 		if err != nil {
-			b.logger.Errorf("could not close frozen segment: %v", err)
+			instrument.EmitAndLogInvariantViolation(b.iopts, func(l xlog.Logger) {
+				l.Errorf("could not close frozen segment: %v", err)
+			})
 		}
 	}
 	b.frozenSegments = nil
+
+	// Free compactor resources
+	err := b.compactor.Close()
+	if err != nil {
+		instrument.EmitAndLogInvariantViolation(b.iopts, func(l xlog.Logger) {
+			l.Errorf("error closing index block compactor: %v", err)
+		})
+	}
 }
 
 func (b *block) compactWithPlan(plan *compaction.Plan) {
-	for _, task := range plan.Tasks {
-		if err := b.compactWithTask(task); err != nil {
-			b.logger.Errorf("error compacting segments: %v", err)
+	sw := b.metrics.compactionPlanRunLatency.Start()
+	defer sw.Stop()
+
+	n := b.compactions
+	b.compactions++
+
+	logger := b.logger.WithFields(xlog.NewField("compaction", n))
+	log := n%compactDebugLogEvery == 0
+	if log {
+		for i, task := range plan.Tasks {
+			summary := task.Summary()
+			logger.WithFields(
+				xlog.NewField("task", i),
+				xlog.NewField("numMutable", summary.NumMutable),
+				xlog.NewField("numFST", summary.NumFST),
+				xlog.NewField("cumulativeMutableAge", summary.CumulativeMutableAge.String()),
+				xlog.NewField("cumulativeSize", summary.CumulativeSize),
+			).Debug("planned compaction task")
+		}
+	}
+
+	for i, task := range plan.Tasks {
+		taskLogger := logger.WithFields(xlog.NewField("task", i))
+		if log {
+			taskLogger.Debug("start compaction task")
+		}
+
+		err := b.compactWithTask(task)
+
+		if log {
+			taskLogger.Debug("done compaction task")
+		}
+
+		if err != nil {
+			instrument.EmitAndLogInvariantViolation(b.iopts, func(l xlog.Logger) {
+				l.Errorf("error compacting segments: %v", err)
+			})
 			return
 		}
 	}
@@ -307,7 +388,10 @@ func (b *block) compactWithTask(task compaction.Task) error {
 		segments = append(segments, seg.Segment)
 	}
 
+	sw := b.metrics.compactionTaskRunLatency.Start()
 	compacted, err := b.compactor.Compact(segments)
+	sw.Stop()
+
 	if err != nil {
 		return err
 	}
@@ -332,14 +416,16 @@ func (b *block) compactWithTask(task compaction.Task) error {
 			continue
 		}
 
-		if err := frozen.Segment().Close(); err != nil {
+		err := frozen.Segment().Close()
+		if err != nil {
 			// Already compacted, not much we can do about not closing it
-			b.logger.Errorf("unable to close compacted block: %v", err)
+			instrument.EmitAndLogInvariantViolation(b.iopts, func(l xlog.Logger) {
+				l.Errorf("unable to close compacted block: %v", err)
+			})
 		}
 	}
 
-	newFrozenSegments = append(newFrozenSegments, newReadableSeg(compacted))
-	b.frozenSegments = newFrozenSegments
+	b.frozenSegments = append(newFrozenSegments, newReadableSeg(compacted))
 
 	return nil
 }
@@ -630,6 +716,47 @@ func (b *block) Seal() error {
 	// flush these segments
 
 	return err
+}
+
+func (b *block) Stats(reporter BlockStatsReporter) error {
+	b.RLock()
+	defer b.RUnlock()
+
+	if b.state != blockStateOpen {
+		return errUnableReportStatsBlockClosed
+	}
+
+	if b.activeSegment != nil {
+		reporter.ReportSegmentStats(BlockSegmentStats{
+			Type:    ActiveOpenSegment,
+			Mutable: true,
+			Age:     b.activeSegment.Age(),
+			Size:    b.activeSegment.Segment().Size(),
+		})
+	}
+
+	for _, frozen := range b.frozenSegments {
+		_, mutable := frozen.Segment().(segment.MutableSegment)
+		reporter.ReportSegmentStats(BlockSegmentStats{
+			Type:    ActiveFrozenSegment,
+			Mutable: mutable,
+			Age:     frozen.Age(),
+			Size:    frozen.Segment().Size(),
+		})
+	}
+
+	for _, shardRangeSegments := range b.shardRangesSegments {
+		for _, seg := range shardRangeSegments.segments {
+			_, mutable := seg.(segment.MutableSegment)
+			reporter.ReportSegmentStats(BlockSegmentStats{
+				Type:    FlushedSegment,
+				Mutable: mutable,
+				Size:    seg.Size(),
+			})
+		}
+	}
+
+	return nil
 }
 
 func (b *block) IsSealedWithRLock() bool {

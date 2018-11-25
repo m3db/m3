@@ -22,6 +22,7 @@ package compaction
 
 import (
 	"bytes"
+	"errors"
 	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
@@ -33,16 +34,21 @@ import (
 	"github.com/m3db/m3/src/x/mmap"
 )
 
+var (
+	errCompactorClosed = errors.New("compactor is closed")
+)
+
 // Compactor is a compactor.
 type Compactor struct {
 	sync.RWMutex
 
+	writer       persist.MutableSegmentFileSetWriter
 	docsPool     doc.DocumentArrayPool
 	docsMaxBatch int
 	fstOpts      fst.Options
 	mutableSeg   segment.MutableSegment
 	buff         *bytes.Buffer
-	reader       *bytes.Reader
+	closed       bool
 }
 
 // NewCompactor returns a new compactor which reuses buffers
@@ -53,12 +59,18 @@ func NewCompactor(
 	memOpts mem.Options,
 	fstOpts fst.Options,
 ) (*Compactor, error) {
+	writer, err := persist.NewMutableSegmentFileSetWriter()
+	if err != nil {
+		return nil, err
+	}
+
 	mutableSeg, err := mem.NewSegment(0, memOpts)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Compactor{
+		writer:       writer,
 		docsPool:     docsPool,
 		docsMaxBatch: docsMaxBatch,
 		mutableSeg:   mutableSeg,
@@ -72,11 +84,21 @@ func NewCompactor(
 // converted into an FST segment, otherwise an intermediary mutable segment
 // (reused by the compactor between runs) is used to combine all the segments
 // together first before compacting into an FST segment.
+// Note: This is thread safe and only a single compaction may happen at a time.
 func (c *Compactor) Compact(segs []segment.Segment) (segment.Segment, error) {
+	// NB(r): Ensure only single compaction happens at a time since the buffers are
+	// reused between runs.
+	c.Lock()
+	defer c.Unlock()
+
+	if c.closed {
+		return nil, errCompactorClosed
+	}
+
 	if len(segs) == 1 {
 		if seg, ok := segs[0].(segment.MutableSegment); ok {
 			// If just a single mutable segment, can compact it directly
-			return c.compact(seg)
+			return c.compactMutableSegmentWithLock(seg)
 		}
 	}
 
@@ -118,6 +140,9 @@ func (c *Compactor) Compact(segs []segment.Segment) (segment.Segment, error) {
 		if err := iter.Close(); err != nil {
 			return nil, err
 		}
+		if err := reader.Close(); err != nil {
+			return nil, err
+		}
 	}
 
 	if len(batch) != 0 {
@@ -128,10 +153,10 @@ func (c *Compactor) Compact(segs []segment.Segment) (segment.Segment, error) {
 		}
 	}
 
-	return c.compact(c.mutableSeg)
+	return c.compactMutableSegmentWithLock(c.mutableSeg)
 }
 
-func (c *Compactor) compact(
+func (c *Compactor) compactMutableSegmentWithLock(
 	seg segment.MutableSegment,
 ) (segment.Segment, error) {
 	// Need to seal first if not already sealed
@@ -141,21 +166,16 @@ func (c *Compactor) compact(
 		}
 	}
 
-	writer, err := persist.NewMutableSegmentFileSetWriter()
-	if err != nil {
-		return nil, err
-	}
-
-	if err := writer.Reset(seg); err != nil {
+	if err := c.writer.Reset(seg); err != nil {
 		return nil, err
 	}
 
 	success := false
 	fstData := &fstSegmentMetadata{
-		major:    writer.MajorVersion(),
-		minor:    writer.MinorVersion(),
-		metadata: append([]byte(nil), writer.SegmentMetadata()...),
-		files:    make([]persist.IndexSegmentFile, 0, len(writer.Files())),
+		major:    c.writer.MajorVersion(),
+		minor:    c.writer.MinorVersion(),
+		metadata: append([]byte(nil), c.writer.SegmentMetadata()...),
+		files:    make([]persist.IndexSegmentFile, 0, len(c.writer.Files())),
 	}
 	// Cleanup incase we run into issues
 	defer func() {
@@ -166,9 +186,9 @@ func (c *Compactor) compact(
 		}
 	}()
 
-	for _, f := range writer.Files() {
+	for _, f := range c.writer.Files() {
 		c.buff.Reset()
-		if err := writer.WriteFile(f, c.buff); err != nil {
+		if err := c.writer.WriteFile(f, c.buff); err != nil {
 			return nil, err
 		}
 
@@ -193,6 +213,27 @@ func (c *Compactor) compact(
 	success = true
 
 	return persist.NewSegment(fstData, c.fstOpts)
+}
+
+// Close closes the compactor and frees buffered resources.
+func (c *Compactor) Close() error {
+	c.Lock()
+	defer c.Unlock()
+
+	if c.closed {
+		return errCompactorClosed
+	}
+
+	c.closed = true
+
+	c.writer = nil
+	c.docsPool = nil
+	c.fstOpts = nil
+	mutableSeg := c.mutableSeg
+	c.mutableSeg = nil
+	c.buff = nil
+
+	return mutableSeg.Close()
 }
 
 type fstSegmentMetadata struct {

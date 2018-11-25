@@ -24,6 +24,7 @@ import (
 	"errors"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
@@ -53,15 +54,16 @@ var (
 )
 
 type opts struct {
-	insertMode     InsertMode
-	clockOpts      clock.Options
-	instrumentOpts instrument.Options
-	memOpts        mem.Options
-	fstOpts        fst.Options
-	idPool         ident.Pool
-	bytesPool      pool.CheckedBytesPool
-	resultsPool    ResultsPool
-	docArrayPool   doc.DocumentArrayPool
+	insertMode            InsertMode
+	clockOpts             clock.Options
+	instrumentOpts        instrument.Options
+	memOpts               mem.Options
+	fstOpts               fst.Options
+	idPool                ident.Pool
+	bytesPool             pool.CheckedBytesPool
+	resultsPool           ResultsPool
+	docArrayPool          doc.DocumentArrayPool
+	compactionPlannerOpts compaction.PlannerOptions
 }
 
 var undefinedUUIDFn = func() ([]byte, error) { return nil, errIDGenerationDisabled }
@@ -87,15 +89,16 @@ func NewOptions() Options {
 
 	instrumentOpts := instrument.NewOptions()
 	opts := &opts{
-		insertMode:     defaultIndexInsertMode,
-		clockOpts:      clock.NewOptions(),
-		instrumentOpts: instrumentOpts,
-		memOpts:        mem.NewOptions().SetNewUUIDFn(undefinedUUIDFn),
-		fstOpts:        fst.NewOptions().SetInstrumentOptions(instrumentOpts),
-		bytesPool:      bytesPool,
-		idPool:         idPool,
-		resultsPool:    resultsPool,
-		docArrayPool:   docArrayPool,
+		insertMode:            defaultIndexInsertMode,
+		clockOpts:             clock.NewOptions(),
+		instrumentOpts:        instrumentOpts,
+		memOpts:               mem.NewOptions().SetNewUUIDFn(undefinedUUIDFn),
+		fstOpts:               fst.NewOptions().SetInstrumentOptions(instrumentOpts),
+		bytesPool:             bytesPool,
+		idPool:                idPool,
+		resultsPool:           resultsPool,
+		docArrayPool:          docArrayPool,
+		compactionPlannerOpts: compaction.DefaultOptions,
 	}
 	resultsPool.Init(func() Results { return NewResults(opts) })
 	return opts
@@ -204,4 +207,14 @@ func (o *opts) SetDocumentArrayPool(value doc.DocumentArrayPool) Options {
 
 func (o *opts) DocumentArrayPool() doc.DocumentArrayPool {
 	return o.docArrayPool
+}
+
+func (o *opts) SetCompactionPlannerOptions(value compaction.PlannerOptions) Options {
+	opts := *o
+	opts.compactionPlannerOpts = value
+	return &opts
+}
+
+func (o *opts) CompactionPlannerOptions() compaction.PlannerOptions {
+	return o.compactionPlannerOpts
 }
