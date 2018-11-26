@@ -524,6 +524,7 @@ func (i *nsIndex) Bootstrap(
 		i.state.RUnlock()
 		i.state.Lock()
 		i.state.bootstrapState = Bootstrapped
+		i.state.bootstrapsDone++
 		i.state.Unlock()
 	}()
 
