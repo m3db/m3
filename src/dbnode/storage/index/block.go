@@ -43,9 +43,10 @@ import (
 )
 
 var (
+	ErrUnableToQueryBlockClosed = errors.New("unable to query, index block is closed")
+
 	errUnableToWriteBlockClosed     = errors.New("unable to write, index block is closed")
 	errUnableToWriteBlockSealed     = errors.New("unable to write, index block is sealed")
-	errUnableToQueryBlockClosed     = errors.New("unable to query, index block is closed")
 	errUnableToBootstrapBlockClosed = errors.New("unable to bootstrap, block is closed")
 	errUnableToTickBlockClosed      = errors.New("unable to tick, block is closed")
 	errBlockAlreadyClosed           = errors.New("unable to close, block already closed")
@@ -239,7 +240,7 @@ func (b *block) Query(
 	b.RLock()
 	defer b.RUnlock()
 	if b.state == blockStateClosed {
-		return false, errUnableToQueryBlockClosed
+		return false, ErrUnableToQueryBlockClosed
 	}
 
 	exec, err := b.newExecutorFn()

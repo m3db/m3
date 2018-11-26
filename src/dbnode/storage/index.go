@@ -122,6 +122,7 @@ type nsIndexRuntimeOptions struct {
 	insertMode            index.InsertMode
 	maxQueryLimit         int64
 	flushBlockNumSegments uint
+	defaultQueryTimeout   time.Duration
 }
 
 type newBlockFn func(time.Time, namespace.Metadata, index.Options) (index.Block, error)
@@ -255,6 +256,7 @@ func newNamespaceIndexWithOptions(
 
 func (i *nsIndex) SetRuntimeOptions(value runtime.Options) {
 	i.state.Lock()
+	i.state.runtimeOpts.defaultQueryTimeout = value.IndexDefaultQueryTimeout()
 	i.state.runtimeOpts.flushBlockNumSegments = value.FlushIndexBlockNumSegments()
 	i.state.Unlock()
 }
@@ -710,72 +712,48 @@ func (i *nsIndex) flushBlockSegment(
 	return preparedPersist.Persist(seg)
 }
 
-func (i *nsIndex) newConcurrentResults(ctx context.Context) *index.ConcurrentResults {
-	results := i.opts.IndexOptions().ResultsPool().Get()
-	results.Reset(i.nsMetadata.ID())
-
-	// Ensure to return results to pool after serving this query
-	ctx.RegisterFinalizer(results)
-
-	return index.NewConcurrentResults(results)
-}
-
 func (i *nsIndex) Query(
 	ctx context.Context,
 	query index.Query,
 	opts index.QueryOptions,
 ) (index.QueryResults, error) {
 	i.state.RLock()
-	defer i.state.RUnlock()
 	if !i.isOpenWithRLock() {
+		i.state.RUnlock()
 		return index.QueryResults{}, errDbIndexUnableToQueryClosed
 	}
 
-	// override query response limit if needed.
-	if i.state.runtimeOpts.maxQueryLimit > 0 && (opts.Limit == 0 ||
-		int64(opts.Limit) > i.state.runtimeOpts.maxQueryLimit) {
-		i.logger.Debugf("overriding query response limit, requested: %d, max-allowed: %d",
-			opts.Limit, i.state.runtimeOpts.maxQueryLimit) // FOLLOWUP(prateek): log query too once it's serializable.
-		opts.Limit = int(i.state.runtimeOpts.maxQueryLimit)
+	// Enact overrides for query options
+	opts = i.overriddenOptsForQueryWithLock(opts)
+	timeout := i.timeoutForQueryWithLock(ctx)
+
+	// Retrieve blocks to query, then we can release lock
+	// NB(r): Important not to block ticking, and other tasks by
+	// holding the RLock during a query
+	blocks, err := i.blocksForQueryWithLock(xtime.NewRanges(xtime.Range{
+		Start: opts.StartInclusive,
+		End:   opts.EndExclusive,
+	}))
+
+	// Can now release the lock and execute the query without holding the lock
+	i.state.RUnlock()
+
+	if err != nil {
+		return index.QueryResults{}, err
 	}
 
 	var (
+		start      = i.nowFn()
+		deadline   = start.Add(timeout)
 		exhaustive = true
 		results    = i.newConcurrentResults(ctx)
 		multiErr   = xerrors.NewMultiError()
+		workers    = i.opts.QueryIDsWorkerPool()
 		wg         sync.WaitGroup
 	)
-
-	// Chunk the query request into bounds based on applicable blocks and
-	// execute the requests to each of them; and merge results.
-	queryRange := xtime.NewRanges(xtime.Range{
-		Start: opts.StartInclusive, End: opts.EndExclusive})
-
-	// iterate known blocks in a defined order of time (newest first) to enforce
-	// some determinism about the results returned.
-	for _, start := range i.state.blockStartsDescOrder {
-		block, ok := i.state.blocksByTime[start]
-		if !ok { // should never happen
-			return index.QueryResults{}, i.missingBlockInvariantError(start)
-		}
-
-		// ensure the block has data requested by the query
-		blockRange := xtime.Range{Start: block.StartTime(), End: block.EndTime()}
-
-		results.RLock()
-		queryRangeIsEmpty := queryRange.IsEmpty()
-		queryRangeOverlapsBlock := queryRange.Overlaps(blockRange)
-		alreadyExhaustive := exhaustive
-		results.RUnlock()
-		if queryRangeIsEmpty || !alreadyExhaustive {
-			// Terminate if queryRange doesn't need any more data or already not exhaustive
-			break
-		}
-
-		if !queryRangeOverlapsBlock {
-			// Now check the range overlaps
-			continue
-		}
+	for _, block := range blocks {
+		// Capture block for async query execution below
+		block := block
 
 		// terminate early if we know we don't need any more results
 		if opts.Limit > 0 && results.Size() >= opts.Limit {
@@ -785,11 +763,15 @@ func (i *nsIndex) Query(
 			break
 		}
 
-		wg.Add(1)
-		i.opts.QueryIDsWorkerPool().Go(func() {
-			defer wg.Done()
-
+		execBlockQuery := func() {
 			currExhaustive, err := block.Query(query, opts, results)
+			if err != index.ErrUnableToQueryBlockClosed {
+				// NB(r): Because we query this block outside of the lock, it's possible this
+				// block may get closed if it slides out of retention, in that case
+				// those results are no longer considered valid and outside of retention
+				// regardless, so this is a non-issue
+				err = nil
+			}
 
 			results.Lock()
 			defer results.Unlock()
@@ -805,18 +787,50 @@ func (i *nsIndex) Query(
 				exhaustive = false
 				return
 			}
+		}
 
-			// Remove this range from the query range
-			queryRange = queryRange.RemoveRange(blockRange)
-		})
+		if timeoutApplied := timeout > 0; !timeoutApplied {
+			// No timeout, just wait blockingly for a worker
+			wg.Add(1)
+			workers.Go(func() {
+				execBlockQuery()
+				wg.Done()
+			})
+			continue
+		}
+
+		// Need to apply timeout
+		timedOut := false
+		now := i.nowFn()
+		if timeLeft := deadline.Sub(now); timeLeft > 0 {
+			wg.Add(1)
+			running := workers.GoWithTimeout(func() {
+				execBlockQuery()
+				wg.Done()
+			}, timeLeft)
+			timedOut = !running
+		} else {
+			timedOut = true
+		}
+
+		if timedOut {
+			// Exceeded our deadline waiting for this block's query to start
+			return index.QueryResults{},
+				fmt.Errorf("index query exceeded timeout: %s", timeout.String())
+		}
 	}
 
 	// Wait for queries to finish
 	wg.Wait()
 
-	results.Lock()
-	defer results.Unlock()
-
+	// NB(r): Dont' need to hold lock for concurrent results since
+	// at this point all block queries must have finished.
+	// If we ever to early aborts we'll have to make sure that the results
+	// aren't modified by aborted goroutines we launched that still have
+	// access to the concurrent results set (which is difficult because
+	// the reader of the results will also need to hold lock instead of just
+	// being returned unsynchronized results from this method like we
+	// currently do).
 	if err := multiErr.FinalError(); err != nil {
 		return index.QueryResults{}, err
 	}
@@ -825,6 +839,70 @@ func (i *nsIndex) Query(
 		Exhaustive: exhaustive,
 		Results:    results.Results(),
 	}, nil
+}
+
+func (i *nsIndex) timeoutForQueryWithLock(
+	ctx context.Context,
+) time.Duration {
+	// TODO(r): Allow individual queries to specify timeouts using
+	// deadlines passed by the context
+	return i.state.runtimeOpts.defaultQueryTimeout
+}
+
+func (i *nsIndex) overriddenOptsForQueryWithLock(
+	opts index.QueryOptions,
+) index.QueryOptions {
+	// Override query response limit if needed
+	if i.state.runtimeOpts.maxQueryLimit > 0 && (opts.Limit == 0 ||
+		int64(opts.Limit) > i.state.runtimeOpts.maxQueryLimit) {
+		i.logger.Debugf("overriding query response limit, requested: %d, max-allowed: %d",
+			opts.Limit, i.state.runtimeOpts.maxQueryLimit) // FOLLOWUP(prateek): log query too once it's serializable.
+		opts.Limit = int(i.state.runtimeOpts.maxQueryLimit)
+	}
+	return opts
+}
+
+func (i *nsIndex) blocksForQueryWithLock(queryRange xtime.Ranges) ([]index.Block, error) {
+	// Chunk the query request into bounds based on applicable blocks and
+	// execute the requests to each of them; and merge results.
+	blocks := make([]index.Block, 0, len(i.state.blockStartsDescOrder))
+
+	// iterate known blocks in a defined order of time (newest first) to enforce
+	// some determinism about the results returned.
+	for _, start := range i.state.blockStartsDescOrder {
+		block, ok := i.state.blocksByTime[start]
+		if !ok { // should never happen
+			return nil, i.missingBlockInvariantError(start)
+		}
+
+		if queryRange.IsEmpty() {
+			// Terminate if queryRange doesn't need any more data
+			break
+		}
+
+		// Ensure the block has data requested by the query
+		blockRange := xtime.Range{Start: block.StartTime(), End: block.EndTime()}
+		if !queryRange.Overlaps(blockRange) {
+			continue
+		}
+
+		// Remove this range from the query range
+		queryRange = queryRange.RemoveRange(blockRange)
+
+		blocks = append(blocks, block)
+	}
+
+	return blocks, nil
+}
+
+func (i *nsIndex) newConcurrentResults(ctx context.Context) *index.ConcurrentResults {
+	results := i.opts.IndexOptions().ResultsPool().Get()
+	results.Reset(i.nsMetadata.ID())
+
+	// Ensure to return results to pool after serving this query
+	ctx.RegisterFinalizer(results)
+
+	return index.NewConcurrentResults(results)
 }
 
 // ensureBlockPresentWithRLock guarantees an index.Block exists for the specified
