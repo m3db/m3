@@ -51,6 +51,9 @@ var (
 	// errShardNotBootstrappedToRead raised when trying to read data for a shard that's not yet bootstrapped.
 	errShardNotBootstrappedToRead = errors.New("shard is not yet bootstrapped to read")
 
+	// errIndexNotBootstrappedToRead raised when trying to read the index before being bootstrapped.
+	errIndexNotBootstrappedToRead = errors.New("index is not yet bootstrapped to read")
+
 	// errBootstrapEnqueued raised when trying to bootstrap and bootstrap becomes enqueued.
 	errBootstrapEnqueued = errors.New("database bootstrapping enqueued bootstrap")
 )
