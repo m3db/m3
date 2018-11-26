@@ -541,9 +541,10 @@ func TestSnapshotFiles(t *testing.T) {
 	snapshotFiles, err := SnapshotFiles(filePathPrefix, testNs1ID, shard)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(snapshotFiles))
-	snapshotTime, err := snapshotFiles[0].SnapshotTime()
+	snapshotTime, snapshotID, err := snapshotFiles[0].SnapshotTimeAndID()
 	require.NoError(t, err)
 	require.True(t, testWriterStart.Equal(snapshotTime))
+	require.Equal(t, testSnapshotID, snapshotID)
 	require.False(t, testWriterStart.IsZero())
 }
 
@@ -1006,7 +1007,7 @@ func TestIndexFileSetsBefore(t *testing.T) {
 	}
 }
 
-func TestSnapshotFileSnapshotTime(t *testing.T) {
+func TestSnapshotFileSnapshotTimeAndID(t *testing.T) {
 	var (
 		dir            = createTempDir(t)
 		filePathPrefix = filepath.Join(dir, "")
@@ -1022,9 +1023,10 @@ func TestSnapshotFileSnapshotTime(t *testing.T) {
 	require.Equal(t, 1, len(snapshotFiles))
 
 	// Verify SnapshotTime() returns the expected time
-	snapshotTime, err := SnapshotTime(filePathPrefix, snapshotFiles[0].ID)
+	snapshotTime, snapshotID, err := SnapshotTimeAndID(filePathPrefix, snapshotFiles[0].ID)
 	require.NoError(t, err)
 	require.Equal(t, true, testWriterStart.Equal(snapshotTime))
+	require.Equal(t, testSnapshotID, snapshotID)
 }
 
 func createTempFile(t *testing.T) *os.File {

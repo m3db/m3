@@ -983,7 +983,7 @@ func (n *dbNamespace) IsCapturedBySnapshot(
 				return false, nil
 			}
 
-			snapshotTime, err := snapshot.SnapshotTime()
+			snapshotTime, _, err := snapshot.SnapshotTime()
 			if err != nil {
 				return false, err
 			}
