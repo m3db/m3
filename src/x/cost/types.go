@@ -40,6 +40,12 @@ type Costable interface {
 	Cost() (Cost, error)
 }
 
+type CostableFloat64 float64
+
+func (ci CostableFloat64) Cost() (Cost, error) {
+	return Cost(ci), nil
+}
+
 // Tracker tracks the cost of operations seen so far.
 type Tracker interface {
 	// Add adds c to the tracker's current cost total and returns the new total.

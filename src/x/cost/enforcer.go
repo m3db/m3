@@ -42,12 +42,12 @@ type Enforcer struct {
 }
 
 // NewEnforcer returns a new enforcer for cost limits.
-func NewEnforcer(m LimitManager, t Tracker, opts EnforcerOptions) Enforcer {
+func NewEnforcer(m LimitManager, t Tracker, opts EnforcerOptions) *Enforcer {
 	if opts == nil {
 		opts = NewEnforcerOptions()
 	}
 
-	return Enforcer{
+	return &Enforcer{
 		LimitManager: m,
 		tracker:      t,
 		costMsg:      opts.CostExceededMessage(),
@@ -135,7 +135,7 @@ func costExceededError(customMessage string, cost Cost, limit Limit) error {
 
 // NoopEnforcer returns a new Enforcer that always returns a current cost of 0 and
 //  is always disabled.
-func NoopEnforcer() Enforcer {
+func NoopEnforcer() *Enforcer {
 	return noopEnforcer
 }
 
