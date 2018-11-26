@@ -472,6 +472,9 @@ type namespaceIndex interface {
 		bootstrapResults result.IndexResults,
 	) error
 
+	// BootstrapsDone returns the number of completed bootstraps.
+	BootstrapsDone() uint
+
 	// CleanupExpiredFileSets removes expired fileset files. Expiration is calcuated
 	// using the provided `t` as the frame of reference.
 	CleanupExpiredFileSets(t time.Time) error

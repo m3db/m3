@@ -54,29 +54,29 @@ var (
 
 // SegmentData represent the collection of required parameters to construct a Segment.
 type SegmentData struct {
-	MajorVersion  int
-	MinorVersion  int
-	Metadata      []byte
+	MajorVersion int
+	MinorVersion int
+	Metadata     []byte
+
 	DocsData      []byte
 	DocsIdxData   []byte
 	PostingsData  []byte
 	FSTTermsData  []byte
 	FSTFieldsData []byte
-	Closer        io.Closer
+
+	// DocsReader is an alternative to specifying
+	// the docs data and docs idx data if the documents
+	// already reside in memory and we want to use the
+	// in memory references instead.
+	DocsReader *docs.SliceReader
+
+	Closer io.Closer
 }
 
 // Validate validates the provided segment data, returning an error if it's not.
 func (sd SegmentData) Validate() error {
 	if sd.MajorVersion != MajorVersion {
 		return errUnsupportedMajorVersion
-	}
-
-	if sd.DocsData == nil {
-		return errDocumentsDataUnset
-	}
-
-	if sd.DocsIdxData == nil {
-		return errDocumentsIdxUnset
 	}
 
 	if sd.PostingsData == nil {
@@ -89,6 +89,16 @@ func (sd SegmentData) Validate() error {
 
 	if sd.FSTFieldsData == nil {
 		return errFSTFieldsDataUnset
+	}
+
+	if sd.DocsReader == nil {
+		if sd.DocsData == nil {
+			return errDocumentsDataUnset
+		}
+
+		if sd.DocsIdxData == nil {
+			return errDocumentsIdxUnset
+		}
 	}
 
 	return nil
@@ -116,21 +126,33 @@ func NewSegment(data SegmentData, opts Options) (Segment, error) {
 		return nil, fmt.Errorf("unable to load fields fst: %v", err)
 	}
 
-	docsIndexReader, err := docs.NewIndexReader(data.DocsIdxData)
-	if err != nil {
-		return nil, fmt.Errorf("unable to load documents index: %v", err)
+	var (
+		docsSliceReader = data.DocsReader
+		docsDataReader  *docs.DataReader
+		docsIndexReader *docs.IndexReader
+		startInclusive  postings.ID
+		endExclusive    postings.ID
+	)
+	if docsSliceReader != nil {
+		startInclusive = docsSliceReader.Base()
+		endExclusive = startInclusive + postings.ID(docsSliceReader.Len())
+	} else {
+		docsDataReader = docs.NewDataReader(data.DocsData)
+		docsIndexReader, err = docs.NewIndexReader(data.DocsIdxData)
+		if err != nil {
+			return nil, fmt.Errorf("unable to load documents index: %v", err)
+		}
+
+		// NB(jeromefroe): Currently we assume the postings IDs are contiguous.
+		startInclusive = docsIndexReader.Base()
+		endExclusive = startInclusive + postings.ID(docsIndexReader.Len())
 	}
-
-	// NB(jeromefroe): Currently we assume the postings IDs are contiguous.
-	startInclusive := docsIndexReader.Base()
-	endExclusive := startInclusive + postings.ID(docsIndexReader.Len())
-
-	docsDataReader := docs.NewDataReader(data.DocsData)
 
 	return &fsSegment{
 		fieldsFST:       fieldsFST,
 		docsDataReader:  docsDataReader,
 		docsIndexReader: docsIndexReader,
+		docsSliceReader: docsSliceReader,
 
 		data:           data,
 		opts:           opts,
@@ -146,6 +168,7 @@ type fsSegment struct {
 	fieldsFST       *vellum.FST
 	docsDataReader  *docs.DataReader
 	docsIndexReader *docs.IndexReader
+	docsSliceReader *docs.SliceReader
 	data            SegmentData
 	opts            Options
 
@@ -381,6 +404,11 @@ func (r *fsSegment) Doc(id postings.ID) (doc.Document, error) {
 	defer r.RUnlock()
 	if r.closed {
 		return doc.Document{}, errReaderClosed
+	}
+
+	// If using docs slice reader, return from the in memory slice reader
+	if r.docsSliceReader != nil {
+		return r.docsSliceReader.Read(id)
 	}
 
 	offset, err := r.docsIndexReader.Read(id)

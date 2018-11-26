@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	defaultInitialCapacity        = 1024
+	defaultInitialCapacity        = 128
 	defaultBytesArrayPoolCapacity = 1024
 )
 

@@ -90,6 +90,7 @@ func (s *segment) Reset(offset postings.ID) {
 
 	s.state.sealed = false
 
+	s.offset = int(offset)
 	s.termsDict.Reset()
 	s.readerID = postings.NewAtomicID(offset)
 
@@ -103,6 +104,13 @@ func (s *segment) Reset(offset postings.ID) {
 	s.writer.nextID = offset
 }
 
+func (s *segment) Offset() postings.ID {
+	s.state.RLock()
+	offset := postings.ID(s.offset)
+	s.state.RUnlock()
+	return offset
+}
+
 func (s *segment) Size() int64 {
 	s.state.RLock()
 	closed := s.state.closed
@@ -112,6 +120,16 @@ func (s *segment) Size() int64 {
 		return 0
 	}
 	return size
+}
+
+func (s *segment) Docs() []doc.Document {
+	s.state.RLock()
+	defer s.state.RUnlock()
+
+	s.docs.RLock()
+	defer s.docs.RUnlock()
+
+	return s.docs.data[:s.readerID.Load()]
 }
 
 func (s *segment) ContainsID(id []byte) (bool, error) {

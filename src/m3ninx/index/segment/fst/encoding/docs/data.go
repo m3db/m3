@@ -81,12 +81,14 @@ func (w *DataWriter) Reset(wr io.Writer) {
 // DataReader is a reader for the data file for documents.
 type DataReader struct {
 	data []byte
+	dec  *encoding.Decoder
 }
 
 // NewDataReader returns a new DataReader.
 func NewDataReader(data []byte) *DataReader {
 	return &DataReader{
 		data: data,
+		dec:  encoding.NewDecoder(nil),
 	}
 }
 
@@ -94,13 +96,13 @@ func (r *DataReader) Read(offset uint64) (doc.Document, error) {
 	if offset >= uint64(len(r.data)) {
 		return doc.Document{}, fmt.Errorf("invalid offset: %v is past the end of the data file", offset)
 	}
-	dec := encoding.NewDecoder(r.data[int(offset):])
-	id, err := dec.Bytes()
+	r.dec.Reset(r.data[int(offset):])
+	id, err := r.dec.Bytes()
 	if err != nil {
 		return doc.Document{}, err
 	}
 
-	x, err := dec.Uvarint()
+	x, err := r.dec.Uvarint()
 	if err != nil {
 		return doc.Document{}, err
 	}
@@ -112,11 +114,11 @@ func (r *DataReader) Read(offset uint64) (doc.Document, error) {
 	}
 
 	for i := 0; i < n; i++ {
-		name, err := dec.Bytes()
+		name, err := r.dec.Bytes()
 		if err != nil {
 			return doc.Document{}, err
 		}
-		val, err := dec.Bytes()
+		val, err := r.dec.Bytes()
 		if err != nil {
 			return doc.Document{}, err
 		}

@@ -23,15 +23,18 @@ package compaction
 import (
 	"bytes"
 	"errors"
+	"io"
 	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
-	"github.com/m3db/m3/src/m3ninx/persist"
 	"github.com/m3db/m3/src/x/mmap"
+
+	xerrors "github.com/m3db/m3x/errors"
 )
 
 var (
@@ -42,7 +45,7 @@ var (
 type Compactor struct {
 	sync.RWMutex
 
-	writer       persist.MutableSegmentFileSetWriter
+	writer       fst.Writer
 	docsPool     doc.DocumentArrayPool
 	docsMaxBatch int
 	fstOpts      fst.Options
@@ -59,18 +62,13 @@ func NewCompactor(
 	memOpts mem.Options,
 	fstOpts fst.Options,
 ) (*Compactor, error) {
-	writer, err := persist.NewMutableSegmentFileSetWriter()
-	if err != nil {
-		return nil, err
-	}
-
 	mutableSeg, err := mem.NewSegment(0, memOpts)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Compactor{
-		writer:       writer,
+		writer:       fst.NewWriter(),
 		docsPool:     docsPool,
 		docsMaxBatch: docsMaxBatch,
 		mutableSeg:   mutableSeg,
@@ -96,9 +94,18 @@ func (c *Compactor) Compact(segs []segment.Segment) (segment.Segment, error) {
 	}
 
 	if len(segs) == 1 {
+		// If just a single mutable segment, can compact it directly
 		if seg, ok := segs[0].(segment.MutableSegment); ok {
-			// If just a single mutable segment, can compact it directly
-			return c.compactMutableSegmentWithLock(seg)
+			// If not sealed, ensure to seal it
+			if !seg.IsSealed() {
+				if _, err := seg.Seal(); err != nil {
+					return nil, err
+				}
+			}
+
+			// Since this segment will be discarded and not reused, can directly
+			// take a ref to the documents
+			return c.compactMutableSegmentWithLock(seg, seg.Docs())
 		}
 	}
 
@@ -153,66 +160,104 @@ func (c *Compactor) Compact(segs []segment.Segment) (segment.Segment, error) {
 		}
 	}
 
-	return c.compactMutableSegmentWithLock(c.mutableSeg)
-}
-
-func (c *Compactor) compactMutableSegmentWithLock(
-	seg segment.MutableSegment,
-) (segment.Segment, error) {
-	// Need to seal first if not already sealed
-	if !seg.IsSealed() {
-		if _, err := seg.Seal(); err != nil {
-			return nil, err
-		}
+	// Seal before compacting
+	if _, err := c.mutableSeg.Seal(); err != nil {
+		return nil, err
 	}
 
-	if err := c.writer.Reset(seg); err != nil {
+	// Since this segment is reused, we need to copy the docs slice
+	docs := c.mutableSeg.Docs()
+	docsCopy := make([]doc.Document, len(docs))
+	copy(docsCopy, docs)
+
+	return c.compactSealedMutableSegmentWithLock(c.mutableSeg, docsCopy)
+}
+
+func (c *Compactor) compactSealedMutableSegmentWithLock(
+	seg segment.MutableSegment,
+	documents []doc.Document,
+) (segment.Segment, error) {
+	err := c.writer.Reset(seg)
+	if err != nil {
 		return nil, err
 	}
 
 	success := false
-	fstData := &fstSegmentMetadata{
-		major:    c.writer.MajorVersion(),
-		minor:    c.writer.MinorVersion(),
-		metadata: append([]byte(nil), c.writer.SegmentMetadata()...),
-		files:    make([]persist.IndexSegmentFile, 0, len(c.writer.Files())),
+	closers := new(closers)
+	fstData := fst.SegmentData{
+		MajorVersion: c.writer.MajorVersion(),
+		MinorVersion: c.writer.MinorVersion(),
+		Metadata:     append([]byte(nil), c.writer.Metadata()...),
+		DocsReader:   docs.NewSliceReader(0, documents),
+		Closer:       closers,
 	}
+
 	// Cleanup incase we run into issues
 	defer func() {
 		if !success {
-			for _, f := range fstData.files {
-				f.Close()
-			}
+			closers.Close()
 		}
 	}()
 
-	for _, f := range c.writer.Files() {
-		c.buff.Reset()
-		if err := c.writer.WriteFile(f, c.buff); err != nil {
-			return nil, err
-		}
-
-		fileBytes := c.buff.Bytes()
-
-		// Copy bytes to new mmap region to hide from the GC
-		mmapedResult, err := mmap.Bytes(int64(len(fileBytes)), mmap.Options{
-			Read:  true,
-			Write: true,
-		})
-		if err != nil {
-			return nil, err
-		}
-		copy(mmapedResult.Result, fileBytes)
-
-		segmentFile := persist.NewMmapedIndexSegmentFile(f, nil, mmapedResult.Result)
-		fstData.files = append(fstData.files, segmentFile)
+	c.buff.Reset()
+	if err := c.writer.WritePostingsOffsets(c.buff); err != nil {
+		return nil, err
 	}
 
-	// NB: need to mark success here as the NewSegment call assumes ownership of
-	// the provided bytes regardless of success/failure.
+	fstData.PostingsData, err = c.mmapAndAppendCloser(c.buff.Bytes(), closers)
+	if err != nil {
+		return nil, err
+	}
+
+	c.buff.Reset()
+	if err := c.writer.WriteFSTTerms(c.buff); err != nil {
+		return nil, err
+	}
+
+	fstData.FSTTermsData, err = c.mmapAndAppendCloser(c.buff.Bytes(), closers)
+	if err != nil {
+		return nil, err
+	}
+
+	c.buff.Reset()
+	if err := c.writer.WriteFSTFields(c.buff); err != nil {
+		return nil, err
+	}
+
+	fstData.FSTFieldsData, err = c.mmapAndAppendCloser(c.buff.Bytes(), closers)
+	if err != nil {
+		return nil, err
+	}
+
+	compacted, err := fst.NewSegment(fstData, c.fstOpts)
+	if err != nil {
+		return nil, err
+	}
+
 	success = true
 
-	return persist.NewSegment(fstData, c.fstOpts)
+	return compacted, nil
+}
+
+func (c *Compactor) mmapAndAppendCloser(
+	fromBytes []byte,
+	closers *closers,
+) ([]byte, error) {
+	// Copy bytes to new mmap region to hide from the GC
+	mmapedResult, err := mmap.Bytes(int64(len(fromBytes)), mmap.Options{
+		Read:  true,
+		Write: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	copy(mmapedResult.Result, fromBytes)
+
+	closers.Append(closer(func() error {
+		return mmap.Munmap(mmapedResult.Result)
+	}))
+
+	return mmapedResult.Result, nil
 }
 
 // Close closes the compactor and frees buffered resources.
@@ -236,21 +281,28 @@ func (c *Compactor) Close() error {
 	return mutableSeg.Close()
 }
 
-type fstSegmentMetadata struct {
-	major    int
-	minor    int
-	metadata []byte
-	files    []persist.IndexSegmentFile
+var _ io.Closer = closer(nil)
+
+type closer func() error
+
+func (c closer) Close() error {
+	return c()
 }
 
-var _ persist.IndexSegmentFileSet = &fstSegmentMetadata{}
+var _ io.Closer = &closers{}
 
-func (f *fstSegmentMetadata) SegmentType() persist.IndexSegmentType {
-	return persist.FSTIndexSegmentType
+type closers struct {
+	closers []io.Closer
 }
-func (f *fstSegmentMetadata) MajorVersion() int       { return f.major }
-func (f *fstSegmentMetadata) MinorVersion() int       { return f.minor }
-func (f *fstSegmentMetadata) SegmentMetadata() []byte { return f.metadata }
-func (f *fstSegmentMetadata) Files() []persist.IndexSegmentFile {
-	return f.files
+
+func (c *closers) Append(elem io.Closer) {
+	c.closers = append(c.closers, elem)
+}
+
+func (c *closers) Close() error {
+	multiErr := xerrors.NewMultiError()
+	for _, elem := range c.closers {
+		multiErr = multiErr.Add(elem.Close())
+	}
+	return multiErr.FinalError()
 }

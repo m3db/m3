@@ -23,6 +23,7 @@ package segment
 import (
 	"errors"
 
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/postings"
 )
@@ -91,6 +92,13 @@ type MutableSegment interface {
 
 	// Reset resets the mutable segment for reuse.
 	Reset(offset postings.ID)
+
+	// Offset returns the postings offset.
+	Offset() postings.ID
+
+	// Docs returns the current docs slice, this is not safe to modify
+	// and is invalidated on a call to reset.
+	Docs() []doc.Document
 
 	// Seal marks the Mutable Segment immutable.
 	Seal() (Segment, error)

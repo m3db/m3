@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	defaultBytesArrayPoolCapacity = 1024
+	defaultBytesArrayPoolCapacity = 128
 )
 
 // Options is a collection of knobs for a fs segment.

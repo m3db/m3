@@ -111,7 +111,9 @@ type nsIndexState struct {
 	closed         bool
 	closeCh        chan struct{}
 	bootstrapState BootstrapState
-	runtimeOpts    nsIndexRuntimeOptions
+	bootstrapsDone uint
+
+	runtimeOpts nsIndexRuntimeOptions
 
 	insertQueue namespaceIndexInsertQueue
 
@@ -538,6 +540,13 @@ func (i *nsIndex) Bootstrap(
 	}
 
 	return multiErr.FinalError()
+}
+
+func (i *nsIndex) BootstrapsDone() uint {
+	i.state.RLock()
+	result := i.state.bootstrapsDone
+	i.state.RUnlock()
+	return result
 }
 
 func (i *nsIndex) Tick(c context.Cancellable, tickStart time.Time) (namespaceIndexTickResult, error) {
