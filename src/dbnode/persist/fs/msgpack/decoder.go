@@ -230,6 +230,11 @@ func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 		opts.override = true
 		opts.numExpectedMinFields = 6
 		opts.numExpectedCurrFields = 6
+	} else if dec.legacy.decodeLegacyV2IndexInfo {
+		// v2 had 8 fields
+		opts.override = true
+		opts.numExpectedMinFields = 8
+		opts.numExpectedCurrFields = 8
 	}
 	numFieldsToSkip, actual, ok := dec.checkNumFieldsFor(indexInfoType, opts)
 	if !ok {
@@ -244,13 +249,24 @@ func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 	indexInfo.Summaries = dec.decodeIndexSummariesInfo()
 	indexInfo.BloomFilter = dec.decodeIndexBloomFilterInfo()
 
+	// At this point if its a V1 file we've decoded all the available fields.
 	if dec.legacy.decodeLegacyV1IndexInfo || actual < 8 {
 		dec.skip(numFieldsToSkip)
 		return indexInfo
 	}
 
+	// Decode fields added in V2.
 	indexInfo.SnapshotTime = dec.decodeVarint()
 	indexInfo.FileType = persist.FileSetType(dec.decodeVarint())
+
+	// At this point if its a V2 file we've decoded all the available fields.
+	if dec.legacy.decodeLegacyV2IndexInfo || actual < 9 {
+		dec.skip(numFieldsToSkip)
+		return indexInfo
+	}
+
+	// Decode fields added in V3.
+	indexInfo.SnapshotID, _, _ = dec.decodeBytes()
 
 	dec.skip(numFieldsToSkip)
 	return indexInfo

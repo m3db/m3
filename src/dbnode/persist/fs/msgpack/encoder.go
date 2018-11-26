@@ -54,10 +54,14 @@ type Encoder struct {
 }
 
 type legacyEncodingOptions struct {
-	encodeLegacyV1IndexInfo  bool
+	encodeLegacyV1IndexInfo bool
+	decodeLegacyV1IndexInfo bool
+
 	encodeLegacyV1IndexEntry bool
-	decodeLegacyV1IndexInfo  bool
 	decodeLegacyV1IndexEntry bool
+
+	encodeLegacyV2IndexInfo bool
+	decodeLegacyV2IndexInfo bool
 }
 
 var defaultlegacyEncodingOptions = legacyEncodingOptions{
@@ -110,8 +114,10 @@ func (enc *Encoder) EncodeIndexInfo(info schema.IndexInfo) error {
 	enc.encodeRootObject(indexInfoVersion, indexInfoType)
 	if enc.legacy.encodeLegacyV1IndexInfo {
 		enc.encodeIndexInfoV1(info)
-	} else {
+	} else if enc.legacy.encodeLegacyV2IndexInfo {
 		enc.encodeIndexInfoV2(info)
+	} else {
+		enc.encodeIndexInfoV3(info)
 	}
 	return enc.err
 }
@@ -193,6 +199,19 @@ func (enc *Encoder) encodeIndexInfoV2(info schema.IndexInfo) {
 	enc.encodeIndexBloomFilterInfo(info.BloomFilter)
 	enc.encodeVarintFn(info.SnapshotTime)
 	enc.encodeVarintFn(int64(info.FileType))
+}
+
+func (enc *Encoder) encodeIndexInfoV3(info schema.IndexInfo) {
+	enc.encodeNumObjectFieldsForFn(indexInfoType)
+	enc.encodeVarintFn(info.BlockStart)
+	enc.encodeVarintFn(info.BlockSize)
+	enc.encodeVarintFn(info.Entries)
+	enc.encodeVarintFn(info.MajorVersion)
+	enc.encodeIndexSummariesInfo(info.Summaries)
+	enc.encodeIndexBloomFilterInfo(info.BloomFilter)
+	enc.encodeVarintFn(info.SnapshotTime)
+	enc.encodeVarintFn(int64(info.FileType))
+	enc.encodeBytesFn(info.SnapshotID)
 }
 
 func (enc *Encoder) encodeIndexSummariesInfo(info schema.IndexSummariesInfo) {
