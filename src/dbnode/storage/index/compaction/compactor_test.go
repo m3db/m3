@@ -124,6 +124,34 @@ func TestCompactorManySegments(t *testing.T) {
 	require.NoError(t, compactor.Close())
 }
 
+func TestCompactorCompactDuplicateIDsNoError(t *testing.T) {
+	seg1, err := mem.NewSegment(0, testMemSegmentOptions)
+	require.NoError(t, err)
+
+	_, err = seg1.Insert(testDocuments[0])
+	require.NoError(t, err)
+
+	seg2, err := mem.NewSegment(0, testMemSegmentOptions)
+	require.NoError(t, err)
+
+	_, err = seg2.Insert(testDocuments[0])
+	require.NoError(t, err)
+
+	_, err = seg2.Insert(testDocuments[1])
+	require.NoError(t, err)
+
+	compactor, err := NewCompactor(testDocsPool, testDocsMaxBatch,
+		testMemSegmentOptions, testFSTSegmentOptions)
+	require.NoError(t, err)
+
+	compacted, err := compactor.Compact([]segment.Segment{seg1, seg2})
+	require.NoError(t, err)
+
+	assertContents(t, compacted, testDocuments)
+
+	require.NoError(t, compactor.Close())
+}
+
 func assertContents(t *testing.T, seg segment.Segment, docs []doc.Document) {
 	// Ensure has contents
 	require.Equal(t, int64(len(docs)), seg.Size())
