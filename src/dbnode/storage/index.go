@@ -89,6 +89,11 @@ type nsIndex struct {
 	nsMetadata          namespace.Metadata
 	runtimeOptsListener xclose.SimpleCloser
 
+	// queriesWg tracks outstanding queries to ensure
+	// we wait for all queries to complete before actually closing
+	// blocks and other cleanup tasks on index close
+	queriesWg sync.WaitGroup
+
 	metrics nsIndexMetrics
 }
 
@@ -723,6 +728,11 @@ func (i *nsIndex) Query(
 		return index.QueryResults{}, errDbIndexUnableToQueryClosed
 	}
 
+	// Track this as an inflight query that needs to finish
+	// when the index is closed
+	i.queriesWg.Add(1)
+	defer i.queriesWg.Done()
+
 	// Enact overrides for query options
 	opts = i.overriddenOptsForQueryWithLock(opts)
 	timeout := i.timeoutForQueryWithLock(ctx)
@@ -1025,10 +1035,14 @@ func (i *nsIndex) Close() error {
 	if !i.isOpenWithRLock() {
 		return errDbIndexAlreadyClosed
 	}
+
 	i.state.closed = true
 
 	var multiErr xerrors.MultiError
 	multiErr = multiErr.Add(i.state.insertQueue.Stop())
+
+	// Wait for inflight queries to finish before closing blocks
+	i.queriesWg.Wait()
 
 	for t := range i.state.blocksByTime {
 		blk := i.state.blocksByTime[t]
