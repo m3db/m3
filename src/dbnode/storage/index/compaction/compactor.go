@@ -105,7 +105,7 @@ func (c *Compactor) Compact(segs []segment.Segment) (segment.Segment, error) {
 
 			// Since this segment will be discarded and not reused, can directly
 			// take a ref to the documents
-			return c.compactMutableSegmentWithLock(seg, seg.Docs())
+			return c.compactSealedMutableSegmentWithLock(seg, seg.Docs())
 		}
 	}
 
