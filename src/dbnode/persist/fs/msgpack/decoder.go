@@ -226,12 +226,12 @@ func (dec *Decoder) DecodeLogMetadata() (schema.LogMetadata, error) {
 func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 	var opts checkNumFieldsOptions
 	if dec.legacy.decodeLegacyV1IndexInfo {
-		// v1 had 6 fields
+		// V1 had 6 fields.
 		opts.override = true
 		opts.numExpectedMinFields = 6
 		opts.numExpectedCurrFields = 6
 	} else if dec.legacy.decodeLegacyV2IndexInfo {
-		// v2 had 8 fields
+		// V2 had 8 fields.
 		opts.override = true
 		opts.numExpectedMinFields = 8
 		opts.numExpectedCurrFields = 8
