@@ -43,6 +43,7 @@ import (
 )
 
 var (
+	// ErrUnableToQueryBlockClosed is returned when querying closed block.
 	ErrUnableToQueryBlockClosed = errors.New("unable to query, index block is closed")
 
 	errUnableToWriteBlockClosed     = errors.New("unable to write, index block is closed")

@@ -810,9 +810,8 @@ func (i *nsIndex) Query(
 		}
 
 		// Need to apply timeout
-		timedOut := false
-		now := i.nowFn()
-		if timeLeft := deadline.Sub(now); timeLeft > 0 {
+		var timedOut bool
+		if timeLeft := deadline.Sub(i.nowFn()); timeLeft > 0 {
 			wg.Add(1)
 			running := workers.GoWithTimeout(func() {
 				execBlockQuery()
