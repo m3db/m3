@@ -1022,7 +1022,7 @@ func TestSnapshotFileSnapshotTimeAndID(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, len(snapshotFiles))
 
-	// Verify SnapshotTime() returns the expected time
+	// Verify SnapshotTimeAndID() returns the expected time
 	snapshotTime, snapshotID, err := SnapshotTimeAndID(filePathPrefix, snapshotFiles[0].ID)
 	require.NoError(t, err)
 	require.Equal(t, true, testWriterStart.Equal(snapshotTime))
