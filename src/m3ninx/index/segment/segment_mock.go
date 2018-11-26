@@ -181,6 +181,18 @@ func (mr *MockMutableSegmentMockRecorder) ContainsID(arg0 interface{}) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainsID", reflect.TypeOf((*MockMutableSegment)(nil).ContainsID), arg0)
 }
 
+// Docs mocks base method
+func (m *MockMutableSegment) Docs() []doc.Document {
+	ret := m.ctrl.Call(m, "Docs")
+	ret0, _ := ret[0].([]doc.Document)
+	return ret0
+}
+
+// Docs indicates an expected call of Docs
+func (mr *MockMutableSegmentMockRecorder) Docs() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Docs", reflect.TypeOf((*MockMutableSegment)(nil).Docs))
+}
+
 // Fields mocks base method
 func (m *MockMutableSegment) Fields() (FieldsIterator, error) {
 	ret := m.ctrl.Call(m, "Fields")
@@ -229,6 +241,18 @@ func (m *MockMutableSegment) IsSealed() bool {
 // IsSealed indicates an expected call of IsSealed
 func (mr *MockMutableSegmentMockRecorder) IsSealed() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsSealed", reflect.TypeOf((*MockMutableSegment)(nil).IsSealed))
+}
+
+// Offset mocks base method
+func (m *MockMutableSegment) Offset() postings.ID {
+	ret := m.ctrl.Call(m, "Offset")
+	ret0, _ := ret[0].(postings.ID)
+	return ret0
+}
+
+// Offset indicates an expected call of Offset
+func (mr *MockMutableSegmentMockRecorder) Offset() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Offset", reflect.TypeOf((*MockMutableSegment)(nil).Offset))
 }
 
 // Reader mocks base method
