@@ -180,7 +180,7 @@ func TestIndexInfoRoundTripBackwardsCompatibilityV2(t *testing.T) {
 	// Set the default values on the fields that did not exist in V2,
 	// and then restore them at the end of the test - This is required
 	// because the new decoder won't try and read the new fields from
-	// the old file format
+	// the old file format.
 	var (
 		currSnapshotTime = testIndexInfo.SnapshotTime
 		currFileType     = testIndexInfo.FileType
@@ -212,13 +212,13 @@ func TestIndexInfoRoundTripForwardsCompatibilityV3(t *testing.T) {
 
 	// Set the default values on the fields that did not exist in V2
 	// and then restore them at the end of the test - This is required
-	// because the old decoder won't read the new fields
+	// because the old decoder won't read the new fields.
 	currSnapshotID := testIndexInfo.SnapshotID
 
 	enc.EncodeIndexInfo(testIndexInfo)
 
 	// Make sure to zero them before we compare, but after we have
-	// encoded the data
+	// encoded the data.
 	testIndexInfo.SnapshotID = nil
 	defer func() {
 		testIndexInfo.SnapshotID = currSnapshotID
@@ -242,7 +242,7 @@ func TestIndexEntryRoundtrip(t *testing.T) {
 	require.Equal(t, testIndexEntry, res)
 }
 
-// Make sure the new decoding code can handle the old file format
+// Make sure the V2 decoding code can handle the V1 file format.
 func TestIndexEntryRoundTripBackwardsCompatibilityV1(t *testing.T) {
 	var (
 		opts = legacyEncodingOptions{encodeLegacyV1IndexEntry: true}
@@ -253,7 +253,7 @@ func TestIndexEntryRoundTripBackwardsCompatibilityV1(t *testing.T) {
 	// Set the default values on the fields that did not exist in V1
 	// and then restore them at the end of the test - This is required
 	// because the new decoder won't try and read the new fields from
-	// the old file format
+	// the old file format.
 	currEncodedTags := testIndexEntry.EncodedTags
 	testIndexEntry.EncodedTags = nil
 	defer func() {
@@ -267,7 +267,7 @@ func TestIndexEntryRoundTripBackwardsCompatibilityV1(t *testing.T) {
 	require.Equal(t, testIndexEntry, res)
 }
 
-// Make sure the old decoder code can handle the new file format
+// Make sure the V1 decoder code can handle the V2 file format.
 func TestIndexEntryRoundTripForwardsCompatibilityV2(t *testing.T) {
 	var (
 		opts = legacyEncodingOptions{decodeLegacyV1IndexEntry: true}
@@ -277,13 +277,13 @@ func TestIndexEntryRoundTripForwardsCompatibilityV2(t *testing.T) {
 
 	// Set the default values on the fields that did not exist in V1
 	// and then restore them at the end of the test - This is required
-	// because the old decoder won't read the new fields
+	// because the old decoder won't read the new fields.
 	currEncodedTags := testIndexEntry.EncodedTags
 
 	enc.EncodeIndexEntry(testIndexEntry)
 
 	// Make sure to zero them before we compare, but after we have
-	// encoded the data
+	// encoded the data.
 	testIndexEntry.EncodedTags = nil
 	defer func() {
 		testIndexEntry.EncodedTags = currEncodedTags
