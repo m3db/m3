@@ -1334,8 +1334,8 @@ func newNamespaceIndexBlocksMetrics(
 	levels := make([]nsIndexBlocksSegmentLevelMetrics, 0, len(compactionLevels))
 	for _, level := range compactionLevels {
 		subScope := segmentLevelsScope.Tagged(map[string]string{
-			"level_min_size": strconv.Itoa(int(level.MinSizeInclusive)),
-			"level_max_size": strconv.Itoa(int(level.MaxSizeExclusive)),
+			"level-min-size": strconv.Itoa(int(level.MinSizeInclusive)),
+			"level-max-size": strconv.Itoa(int(level.MaxSizeExclusive)),
 		})
 		levels = append(levels, nsIndexBlocksSegmentLevelMetrics{
 			MinSizeInclusive: level.MinSizeInclusive,
