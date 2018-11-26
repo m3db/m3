@@ -99,10 +99,10 @@ func TestIndexInfoRoundtrip(t *testing.T) {
 	require.Equal(t, testIndexInfo, res)
 }
 
-// Make sure the V2 decoding code can handle the V1 file format.
+// Make sure the V3 decoding code can handle the V1 file format.
 func TestIndexInfoRoundTripBackwardsCompatibilityV1(t *testing.T) {
 	var (
-		opts = legacyEncodingOptions{encodeLegacyV1IndexInfo: true}
+		opts = legacyEncodingOptions{encodeLegacyIndexInfoVersion: legacyEncodingIndexVersionV1}
 		enc  = newEncoder(opts)
 		dec  = newDecoder(opts, nil)
 	)
@@ -133,10 +133,10 @@ func TestIndexInfoRoundTripBackwardsCompatibilityV1(t *testing.T) {
 	require.Equal(t, testIndexInfo, res)
 }
 
-// Make sure the V1 decoder code can handle the V2 file format.
+// Make sure the V1 decoder code can handle the V3 file format.
 func TestIndexInfoRoundTripForwardsCompatibilityV2(t *testing.T) {
 	var (
-		opts = legacyEncodingOptions{decodeLegacyV1IndexInfo: true}
+		opts = legacyEncodingOptions{decodeLegacyIndexInfoVersion: legacyEncodingIndexVersionV1}
 		enc  = newEncoder(opts)
 		dec  = newDecoder(opts, nil)
 	)
@@ -172,7 +172,7 @@ func TestIndexInfoRoundTripForwardsCompatibilityV2(t *testing.T) {
 // Make sure the V3 decoding code can handle the V2 file format.
 func TestIndexInfoRoundTripBackwardsCompatibilityV2(t *testing.T) {
 	var (
-		opts = legacyEncodingOptions{encodeLegacyV2IndexInfo: true}
+		opts = legacyEncodingOptions{encodeLegacyIndexInfoVersion: legacyEncodingIndexVersionV2}
 		enc  = newEncoder(opts)
 		dec  = newDecoder(opts, nil)
 	)
@@ -205,7 +205,7 @@ func TestIndexInfoRoundTripBackwardsCompatibilityV2(t *testing.T) {
 // Make sure the V2 decoder code can handle the V3 file format.
 func TestIndexInfoRoundTripForwardsCompatibilityV3(t *testing.T) {
 	var (
-		opts = legacyEncodingOptions{decodeLegacyV2IndexInfo: true}
+		opts = legacyEncodingOptions{decodeLegacyIndexInfoVersion: legacyEncodingIndexVersionV2}
 		enc  = newEncoder(opts)
 		dec  = newDecoder(opts, nil)
 	)

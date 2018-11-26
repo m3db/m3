@@ -53,21 +53,28 @@ type Encoder struct {
 	legacy legacyEncodingOptions
 }
 
+type legacyEncodingIndexInfoVersion int
+
+const (
+	// List in reverse order to ensure default value is current version.
+	legacyEncodingIndexVersionCurrent legacyEncodingIndexInfoVersion = iota
+	legacyEncodingIndexVersionV2
+	legacyEncodingIndexVersionV1
+)
+
 type legacyEncodingOptions struct {
-	encodeLegacyV1IndexInfo bool
-	decodeLegacyV1IndexInfo bool
+	encodeLegacyIndexInfoVersion legacyEncodingIndexInfoVersion
+	decodeLegacyIndexInfoVersion legacyEncodingIndexInfoVersion
 
 	encodeLegacyV1IndexEntry bool
 	decodeLegacyV1IndexEntry bool
-
-	encodeLegacyV2IndexInfo bool
-	decodeLegacyV2IndexInfo bool
 }
 
 var defaultlegacyEncodingOptions = legacyEncodingOptions{
-	encodeLegacyV1IndexInfo:  false,
+	encodeLegacyIndexInfoVersion: legacyEncodingIndexVersionCurrent,
+	decodeLegacyIndexInfoVersion: legacyEncodingIndexVersionCurrent,
+
 	encodeLegacyV1IndexEntry: false,
-	decodeLegacyV1IndexInfo:  false,
 	decodeLegacyV1IndexEntry: false,
 }
 
@@ -112,9 +119,9 @@ func (enc *Encoder) EncodeIndexInfo(info schema.IndexInfo) error {
 		return enc.err
 	}
 	enc.encodeRootObject(indexInfoVersion, indexInfoType)
-	if enc.legacy.encodeLegacyV1IndexInfo {
+	if enc.legacy.encodeLegacyIndexInfoVersion == legacyEncodingIndexVersionV1 {
 		enc.encodeIndexInfoV1(info)
-	} else if enc.legacy.encodeLegacyV2IndexInfo {
+	} else if enc.legacy.encodeLegacyIndexInfoVersion == legacyEncodingIndexVersionV2 {
 		enc.encodeIndexInfoV2(info)
 	} else {
 		enc.encodeIndexInfoV3(info)

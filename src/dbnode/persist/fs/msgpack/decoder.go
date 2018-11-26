@@ -226,12 +226,12 @@ func (dec *Decoder) DecodeLogMetadata() (schema.LogMetadata, error) {
 func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 	var opts checkNumFieldsOptions
 
-	if dec.legacy.decodeLegacyV1IndexInfo {
+	if dec.legacy.decodeLegacyIndexInfoVersion == legacyEncodingIndexVersionV1 {
 		// V1 had 6 fields.
 		opts.override = true
 		opts.numExpectedMinFields = 6
 		opts.numExpectedCurrFields = 6
-	} else if dec.legacy.decodeLegacyV2IndexInfo {
+	} else if dec.legacy.decodeLegacyIndexInfoVersion == legacyEncodingIndexVersionV2 {
 		// V2 had 8 fields.
 		opts.override = true
 		opts.numExpectedMinFields = 8
@@ -252,7 +252,7 @@ func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 	indexInfo.BloomFilter = dec.decodeIndexBloomFilterInfo()
 
 	// At this point if its a V1 file we've decoded all the available fields.
-	if dec.legacy.decodeLegacyV1IndexInfo || actual < 8 {
+	if dec.legacy.decodeLegacyIndexInfoVersion == legacyEncodingIndexVersionV1 || actual < 8 {
 		dec.skip(numFieldsToSkip)
 		return indexInfo
 	}
@@ -262,7 +262,7 @@ func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 	indexInfo.FileType = persist.FileSetType(dec.decodeVarint())
 
 	// At this point if its a V2 file we've decoded all the available fields.
-	if dec.legacy.decodeLegacyV2IndexInfo || actual < 9 {
+	if dec.legacy.decodeLegacyIndexInfoVersion == legacyEncodingIndexVersionV2 || actual < 9 {
 		dec.skip(numFieldsToSkip)
 		return indexInfo
 	}
@@ -305,8 +305,8 @@ func (dec *Decoder) decodeIndexBloomFilterInfo() schema.IndexBloomFilterInfo {
 
 func (dec *Decoder) decodeIndexEntry() schema.IndexEntry {
 	var opts checkNumFieldsOptions
-	if dec.legacy.decodeLegacyV1IndexInfo {
-		// v1 had 5 fields
+	if dec.legacy.decodeLegacyV1IndexEntry {
+		// V1 had 5 fields.
 		opts.override = true
 		opts.numExpectedMinFields = 5
 		opts.numExpectedCurrFields = 5
