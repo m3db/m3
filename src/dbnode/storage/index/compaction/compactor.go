@@ -117,6 +117,37 @@ func (c *Compactor) Compact(segs []segment.Segment) (segment.Segment, error) {
 		c.docsPool.Put(batch)
 	}()
 
+	// flushBatch is declared to reuse the same code from the
+	// inner loop and the completion of the loop
+	flushBatch := func() error {
+		if len(batch) == 0 {
+			// Last flush might not have any docs enqueued
+			return nil
+		}
+
+		err := c.mutableSeg.InsertBatch(index.Batch{
+			Docs:                batch,
+			AllowPartialUpdates: true,
+		})
+		if err != nil && index.IsBatchPartialError(err) {
+			// If after filtering out duplicate ID errors
+			// there are no errors, then this was a successful
+			// insertion.
+			batchErr := err.(*index.BatchPartialError)
+			// NB(r): FilterDuplicateIDErrors returns nil
+			// if no errors remain after filtering duplicate ID
+			// errors, this case is covered in unit tests.
+			err = batchErr.FilterDuplicateIDErrors()
+		}
+		if err != nil {
+			return err
+		}
+
+		// Reset docs batch for reuse
+		batch = batch[:0]
+		return nil
+	}
+
 	for _, seg := range segs {
 		reader, err := seg.Reader()
 		if err != nil {
@@ -133,12 +164,9 @@ func (c *Compactor) Compact(segs []segment.Segment) (segment.Segment, error) {
 			if len(batch) < c.docsMaxBatch {
 				continue
 			}
-
-			err := c.mutableSeg.InsertBatch(index.Batch{Docs: batch})
-			if err != nil {
+			if err := flushBatch(); err != nil {
 				return nil, err
 			}
-			batch = batch[:0]
 		}
 
 		if err := iter.Err(); err != nil {
@@ -152,12 +180,10 @@ func (c *Compactor) Compact(segs []segment.Segment) (segment.Segment, error) {
 		}
 	}
 
-	if len(batch) != 0 {
-		// Flush last batch
-		err := c.mutableSeg.InsertBatch(index.Batch{Docs: batch})
-		if err != nil {
-			return nil, err
-		}
+	// Last flush in case some remaining docs that
+	// weren't written to the mutable segment
+	if err := flushBatch(); err != nil {
+		return nil, err
 	}
 
 	// Seal before compacting
@@ -165,7 +191,8 @@ func (c *Compactor) Compact(segs []segment.Segment) (segment.Segment, error) {
 		return nil, err
 	}
 
-	// Since this segment is reused, we need to copy the docs slice
+	// Since this segment is reused between compaction
+	// runs, we need to copy the docs slice
 	docs := c.mutableSeg.Docs()
 	docsCopy := make([]doc.Document, len(docs))
 	copy(docsCopy, docs)
