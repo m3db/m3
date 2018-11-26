@@ -140,6 +140,14 @@ type CompleteTagsQuery struct {
 	TagMatchers      models.Matchers
 }
 
+// SeriesMatchQuery represents a query that returns a set of series
+// that match the query
+type SeriesMatchQuery struct {
+	TagMatchers []models.Matchers
+	Start       time.Time
+	End         time.Time
+}
+
 func (q *CompleteTagsQuery) String() string {
 	if q.CompleteNameOnly {
 		return fmt.Sprintf("completing tag name for query %s", q.TagMatchers)

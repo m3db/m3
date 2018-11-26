@@ -29,12 +29,15 @@ import (
 
 	"github.com/m3db/m3/src/query/errors"
 	"github.com/m3db/m3/src/query/models"
+	xpromql "github.com/m3db/m3/src/query/parser/promql"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/util"
 	"github.com/m3db/m3/src/query/util/json"
 	"github.com/m3db/m3/src/x/net/http"
 
 	"github.com/golang/snappy"
 	"github.com/gorilla/mux"
+	"github.com/prometheus/prometheus/promql"
 )
 
 const (
@@ -51,6 +54,7 @@ const (
 
 var (
 	matchValues = []byte("*")
+	maxTime     = time.Unix(1<<63-62135596801, 999999999)
 )
 
 // ParsePromCompressedRequest parses a snappy compressed request from Prometheus
@@ -152,6 +156,61 @@ func parseTagCompletionQuery(r *http.Request) (string, error) {
 	return queries[0], nil
 }
 
+func parseTimeWithDefault(
+	r *http.Request,
+	key string,
+	defaultTime time.Time,
+) (time.Time, error) {
+	if t := r.FormValue(key); t != "" {
+		return util.ParseTimeString(t)
+	}
+
+	return defaultTime, nil
+}
+
+// ParseSeriesMatchQuery parses all params from the GET request
+func ParseSeriesMatchQuery(
+	r *http.Request,
+	tagOptions models.TagOptions,
+) (*storage.SeriesMatchQuery, *xhttp.ParseError) {
+	r.ParseForm()
+	matcherValues := r.Form["match[]"]
+	if len(matcherValues) == 0 {
+		return nil, xhttp.NewParseError(errors.ErrInvalidMatchers, http.StatusBadRequest)
+	}
+
+	start, err := parseTimeWithDefault(r, "start", time.Time{})
+	if err != nil {
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+	}
+
+	end, err := parseTimeWithDefault(r, "end", maxTime)
+	if err != nil {
+		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+	}
+
+	tagMatchers := make([]models.Matchers, len(matcherValues))
+	for i, s := range matcherValues {
+		promMatchers, err := promql.ParseMetricSelector(s)
+		if err != nil {
+			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		}
+
+		matchers, err := xpromql.LabelMatchersToModelMatcher(promMatchers, tagOptions)
+		if err != nil {
+			return nil, xhttp.NewParseError(err, http.StatusBadRequest)
+		}
+
+		tagMatchers[i] = matchers
+	}
+
+	return &storage.SeriesMatchQuery{
+		TagMatchers: tagMatchers,
+		Start:       start,
+		End:         end,
+	}, nil
+}
+
 // ParseTagValuesToQuery parses a tag values request to a complete tags query
 func ParseTagValuesToQuery(
 	r *http.Request,
@@ -227,7 +286,7 @@ func renderDefaultTagCompletionResultsJSON(
 	return jw.Close()
 }
 
-// RenderTagCompletionResultsJSON renders search results to json format
+// RenderTagCompletionResultsJSON renders tag completion results to json format
 func RenderTagCompletionResultsJSON(
 	w io.Writer,
 	result *storage.CompleteTagsResult,
@@ -238,4 +297,65 @@ func RenderTagCompletionResultsJSON(
 	}
 
 	return renderDefaultTagCompletionResultsJSON(w, results)
+}
+
+type tag struct {
+	name  string
+	value string
+}
+
+func writeTagsHelper(
+	jw *json.Writer,
+	completedTags []storage.CompletedTag,
+	tags []tag,
+) {
+	if len(completedTags) == 0 {
+		jw.BeginObject()
+
+		for _, tag := range tags {
+			jw.BeginObjectField(tag.name)
+			jw.WriteString(tag.value)
+		}
+
+		jw.EndObject()
+		return
+	}
+
+	firstResult := completedTags[0]
+	name := string(firstResult.Name)
+
+	for _, value := range firstResult.Values {
+		copiedTags := make([]tag, len(tags)+1)
+		copiedTags[len(tags)] = tag{name: name, value: string(value)}
+		writeTagsHelper(jw, completedTags[1:], copiedTags)
+	}
+}
+
+func writeTags(
+	jw *json.Writer,
+	results []*storage.CompleteTagsResult,
+) {
+	for _, result := range results {
+		jw.BeginArray()
+		writeTagsHelper(jw, result.CompletedTags, []tag{})
+		jw.EndArray()
+	}
+}
+
+// RenderSeriesMatchResultsJSON renders series match results to json format
+func RenderSeriesMatchResultsJSON(
+	w io.Writer,
+	results []*storage.CompleteTagsResult,
+) error {
+	jw := json.NewWriter(w)
+	jw.BeginObject()
+
+	jw.BeginObjectField("status")
+	jw.WriteString("success")
+
+	jw.BeginObjectField("data")
+	writeTags(jw, results)
+	jw.EndObject()
+
+	return jw.Close()
 }

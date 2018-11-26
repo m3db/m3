@@ -36,4 +36,6 @@ var (
 	ErrInvalidResultParamError = errors.New("invalid 'result' type for complete tag request")
 	// ErrNoName is returned when no name param is provided in the resource path
 	ErrNoName = errors.New("invalid path with no name present")
+	// ErrInvalidMatchers is returned when invalid matchers are provided
+	ErrInvalidMatchers = errors.New("invalid matchers")
 )
