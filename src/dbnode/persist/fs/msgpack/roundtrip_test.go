@@ -99,7 +99,7 @@ func TestIndexInfoRoundtrip(t *testing.T) {
 	require.Equal(t, testIndexInfo, res)
 }
 
-// Make sure the new decoding code can handle the V1 file format.
+// Make sure the V2 decoding code can handle the V1 file format.
 func TestIndexInfoRoundTripBackwardsCompatibilityV1(t *testing.T) {
 	var (
 		opts = legacyEncodingOptions{encodeLegacyV1IndexInfo: true}
@@ -160,6 +160,67 @@ func TestIndexInfoRoundTripForwardsCompatibilityV2(t *testing.T) {
 	defer func() {
 		testIndexInfo.SnapshotTime = currSnapshotTime
 		testIndexInfo.FileType = currFileType
+		testIndexInfo.SnapshotID = currSnapshotID
+	}()
+
+	dec.Reset(NewDecoderStream(enc.Bytes()))
+	res, err := dec.DecodeIndexInfo()
+	require.NoError(t, err)
+	require.Equal(t, testIndexInfo, res)
+}
+
+// Make sure the V3 decoding code can handle the V2 file format.
+func TestIndexInfoRoundTripBackwardsCompatibilityV2(t *testing.T) {
+	var (
+		opts = legacyEncodingOptions{encodeLegacyV2IndexInfo: true}
+		enc  = newEncoder(opts)
+		dec  = newDecoder(opts, nil)
+	)
+
+	// Set the default values on the fields that did not exist in V2,
+	// and then restore them at the end of the test - This is required
+	// because the new decoder won't try and read the new fields from
+	// the old file format
+	var (
+		currSnapshotTime = testIndexInfo.SnapshotTime
+		currFileType     = testIndexInfo.FileType
+		currSnapshotID   = testIndexInfo.SnapshotID
+	)
+	testIndexInfo.SnapshotTime = 0
+	testIndexInfo.FileType = 0
+	testIndexInfo.SnapshotID = nil
+	defer func() {
+		testIndexInfo.SnapshotTime = currSnapshotTime
+		testIndexInfo.FileType = currFileType
+		testIndexInfo.SnapshotID = currSnapshotID
+	}()
+
+	enc.EncodeIndexInfo(testIndexInfo)
+	dec.Reset(NewDecoderStream(enc.Bytes()))
+	res, err := dec.DecodeIndexInfo()
+	require.NoError(t, err)
+	require.Equal(t, testIndexInfo, res)
+}
+
+// Make sure the V2 decoder code can handle the V3 file format.
+func TestIndexInfoRoundTripForwardsCompatibilityV3(t *testing.T) {
+	var (
+		opts = legacyEncodingOptions{decodeLegacyV2IndexInfo: true}
+		enc  = newEncoder(opts)
+		dec  = newDecoder(opts, nil)
+	)
+
+	// Set the default values on the fields that did not exist in V2
+	// and then restore them at the end of the test - This is required
+	// because the old decoder won't read the new fields
+	currSnapshotID := testIndexInfo.SnapshotID
+
+	enc.EncodeIndexInfo(testIndexInfo)
+
+	// Make sure to zero them before we compare, but after we have
+	// encoded the data
+	testIndexInfo.SnapshotID = nil
+	defer func() {
 		testIndexInfo.SnapshotID = currSnapshotID
 	}()
 
