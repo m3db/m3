@@ -25,12 +25,15 @@ import (
 	"sync"
 
 	"github.com/m3db/m3/src/m3ninx/postings"
+
+	"github.com/m3db/fast-skiplist"
 )
 
 // concurrentPostingsMap is a thread-safe map from []byte -> postings.List.
 type concurrentPostingsMap struct {
 	sync.RWMutex
 	*postingsMap
+	sorted *skiplist.SkipList
 
 	opts Options
 }
@@ -39,6 +42,7 @@ type concurrentPostingsMap struct {
 func newConcurrentPostingsMap(opts Options) *concurrentPostingsMap {
 	return &concurrentPostingsMap{
 		postingsMap: newPostingsMap(opts.InitialCapacity()),
+		sorted:      skiplist.New(),
 		opts:        opts,
 	}
 }
@@ -73,19 +77,15 @@ func (m *concurrentPostingsMap) Add(key []byte, id postings.ID) {
 		NoCopyKey:     true,
 		NoFinalizeKey: true,
 	})
+	m.sorted.Set(key, p)
 	m.Unlock()
 	p.Insert(id)
 }
 
 // Keys returns the keys known to the map.
-func (m *concurrentPostingsMap) Keys() *bytesSliceIter {
-	m.RLock()
-	keys := m.opts.BytesSliceArrayPool().Get()
-	for _, entry := range m.Iter() {
-		keys = append(keys, entry.Key())
-	}
-	m.RUnlock()
-	return newBytesSliceIter(keys, m.opts)
+func (m *concurrentPostingsMap) Keys() *skipListIter {
+	// NB(r): Skip list is thread safe, no need to grab any locks
+	return newSkipListIter(m.sorted)
 }
 
 // Get returns the postings.List backing `key`.
@@ -104,20 +104,23 @@ func (m *concurrentPostingsMap) Get(key []byte) (postings.List, bool) {
 func (m *concurrentPostingsMap) GetRegex(re *regexp.Regexp) (postings.List, bool) {
 	var pl postings.MutableList
 
-	m.RLock()
-	for _, mapEntry := range m.postingsMap.Iter() {
-		// TODO: Evaluate lock contention caused by holding on to the read lock while
-		// evaluating this predicate.
+	// NB(r): Skip list is thread safe, no need to grab any locks
+	front := m.sorted.Front()
+	if front == nil {
+		return nil, false
+	}
+
+	for elem := front; elem != nil; elem = elem.Next() {
 		// TODO: Evaluate if performing a prefix match would speed up the common case.
-		if re.Match(mapEntry.Key()) {
+		if re.Match(elem.Key()) {
+			value := elem.Value().(postings.List)
 			if pl == nil {
-				pl = mapEntry.Value().Clone()
+				pl = value.Clone()
 			} else {
-				pl.Union(mapEntry.Value())
+				pl.Union(value)
 			}
 		}
 	}
-	m.RUnlock()
 
 	if pl == nil {
 		return nil, false

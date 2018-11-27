@@ -21,67 +21,57 @@
 package mem
 
 import (
-	"bytes"
-	"sort"
-
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
+
+	"github.com/m3db/fast-skiplist"
 )
 
-type bytesSliceIter struct {
-	err  error
-	done bool
-
-	currentIdx   int
-	current      []byte
-	backingSlice [][]byte
-	opts         Options
+type skipListIter struct {
+	sorted *skiplist.SkipList
+	curr   *skiplist.Element
+	done   bool
 }
 
-var _ sgmt.FieldsIterator = &bytesSliceIter{}
-var _ sgmt.TermsIterator = &bytesSliceIter{}
+var _ sgmt.FieldsIterator = &skipListIter{}
+var _ sgmt.TermsIterator = &skipListIter{}
 
-func newBytesSliceIter(slice [][]byte, opts Options) *bytesSliceIter {
-	sortSliceOfByteSlices(slice)
-	return &bytesSliceIter{
-		currentIdx:   -1,
-		backingSlice: slice,
-		opts:         opts,
+func newSkipListIter(sorted *skiplist.SkipList) *skipListIter {
+	return &skipListIter{
+		sorted: sorted,
 	}
 }
 
-func (b *bytesSliceIter) Next() bool {
-	if b.done || b.err != nil {
+func (b *skipListIter) Next() bool {
+	if b.done {
 		return false
 	}
-	b.currentIdx++
-	if b.currentIdx >= len(b.backingSlice) {
+
+	var next *skiplist.Element
+	if b.curr == nil {
+		next = b.sorted.Front()
+	} else {
+		next = b.curr.Next()
+	}
+
+	if next == nil {
 		b.done = true
 		return false
 	}
-	b.current = b.backingSlice[b.currentIdx]
+
+	b.curr = next
 	return true
 }
 
-func (b *bytesSliceIter) Current() []byte {
-	return b.current
+func (b *skipListIter) Current() []byte {
+	return b.curr.Key()
 }
 
-func (b *bytesSliceIter) Err() error {
+func (b *skipListIter) Err() error {
 	return nil
 }
 
-func (b *bytesSliceIter) Len() int {
-	return len(b.backingSlice)
-}
-
-func (b *bytesSliceIter) Close() error {
-	b.current = nil
-	b.opts.BytesSliceArrayPool().Put(b.backingSlice)
+func (b *skipListIter) Close() error {
+	b.done = true
+	b.sorted = nil
 	return nil
-}
-
-func sortSliceOfByteSlices(b [][]byte) {
-	sort.Slice(b, func(i, j int) bool {
-		return bytes.Compare(b[i], b[j]) < 0
-	})
 }
