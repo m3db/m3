@@ -189,8 +189,14 @@ docker-integration-test:
 	@echo "--- Running Docker integration test"
 	@./scripts/docker-integration-tests/setup.sh
 	@./scripts/docker-integration-tests/simple/test.sh
+	docker ps
+	docker network ls
 	@./scripts/docker-integration-tests/prometheus/test.sh
+	docker ps
+	docker network ls
 	@./scripts/docker-integration-tests/prometheus-colo/test.sh
+	docker ps
+	docker network ls
 
 .PHONY: site-build
 site-build:
