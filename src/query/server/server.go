@@ -23,7 +23,6 @@ package server
 import (
 	"context"
 	"fmt"
-	"log"
 	"math/rand"
 	"net/http"
 	"os"
@@ -182,7 +181,7 @@ func Run(runOpts RunOptions) {
 	} else {
 		m3dbClusters, m3dbPoolWrapper, err = initClusters(cfg, runOpts.DBClient, logger)
 		if err != nil {
-			log.Fatalf("unable to init clusters: %v", err)
+			logger.Fatal("unable to init clusters", zap.Error(err))
 		}
 
 		var cleanup cleanupFn

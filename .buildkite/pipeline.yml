@@ -28,12 +28,14 @@ steps:
     plugins:
       docker-compose#v2.5.1:
         run: app
+        workdir: /go/src/github.com/m3db/m3
     <<: *common
   - name: "Big Unit"
     command: make clean install-vendor test-ci-big-unit
     plugins:
       docker-compose#v2.5.1:
         run: app
+        workdir: /go/src/github.com/m3db/m3
     <<: *common
   - name: "Integration (:docker:), Services, Tools, Metalint"
     command: make install-vendor metalint docker-integration-test tools services
@@ -50,6 +52,7 @@ steps:
     plugins:
       docker-compose#v2.5.1:
         run: app
+        workdir: /go/src/github.com/m3db/m3
     <<: *common
   - name: "Integration (dbnode LRU) %n"
     parallelism: 2
@@ -57,6 +60,7 @@ steps:
     plugins:
       docker-compose#v2.5.1:
         run: app
+        workdir: /go/src/github.com/m3db/m3
     <<: *common
   - label: "Integration (collector, aggregator, m3em, cluster, msg, metrics) %n"
     parallelism: 2
@@ -64,11 +68,13 @@ steps:
     plugins:
       docker-compose#v2.5.1:
         run: app
+        workdir: /go/src/github.com/m3db/m3
     <<: *common
   - label: "FOSSA license scan"
     command: make clean install-vendor fossa
     plugins:
       docker-compose#v2.5.1:
         run: app
+        workdir: /go/src/github.com/m3db/m3
         env:
           - FOSSA_API_KEY
