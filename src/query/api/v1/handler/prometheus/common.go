@@ -311,7 +311,6 @@ func writeTagsHelper(
 ) {
 	if len(completedTags) == 0 {
 		jw.BeginObject()
-
 		for _, tag := range tags {
 			jw.BeginObjectField(tag.name)
 			jw.WriteString(tag.value)
@@ -326,6 +325,7 @@ func writeTagsHelper(
 
 	for _, value := range firstResult.Values {
 		copiedTags := make([]tag, len(tags)+1)
+		copy(copiedTags, tags)
 		copiedTags[len(tags)] = tag{name: name, value: string(value)}
 		writeTagsHelper(jw, completedTags[1:], copiedTags)
 	}
