@@ -1,0 +1,30 @@
+version: "3.5"
+services:
+  dbnode-colo01:
+    expose:
+      - "9000-9004"
+      - "2379-2380"
+      - "7201"
+      - "7203"
+    ports:
+      - "0.0.0.0:9000-9004:9000-9004"
+      - "0.0.0.0:2379-2380:2379-2380"
+      - "0.0.0.0:7201:7201"
+      - "0.0.0.0:7203:7203"
+    networks:
+      - backend-colo
+    image: "m3dbnode_integration:${REVISION}"
+    volumes:
+      - ".:/etc/m3dbnode"
+  prometheus-colo01:
+    expose:
+      - "9090"
+    ports:
+      - "0.0.0.0:9090:9090"
+    networks:
+      - backend-colo
+    image: prom/prometheus:latest
+    volumes:
+      - "./:/etc/prometheus/"
+networks:
+  backend-colo:
