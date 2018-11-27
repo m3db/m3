@@ -47,10 +47,12 @@ import (
 	"google.golang.org/grpc"
 )
 
+var queryPort = 25123
+
 var configYAML = `
 listenAddress:
   type: "config"
-  value: "127.0.0.1:7201"
+  value: "127.0.0.1:25123"
 
 metrics:
   scope:
@@ -142,13 +144,13 @@ func TestRun(t *testing.T) {
 	}()
 
 	// Wait for server to come up
-	waitForServerHealthy(t, 7201)
+	waitForServerHealthy(t, queryPort)
 
 	// Send Prometheus write request
 	promReq := test.GeneratePromWriteRequest()
 	promReqBody := test.GeneratePromWriteRequestBody(t, promReq)
 	req, err := http.NewRequest(http.MethodPost,
-		"http://127.0.0.1:7201"+remote.PromWriteURL, promReqBody)
+		fmt.Sprintf("http://127.0.0.1:%d", queryPort)+remote.PromWriteURL, promReqBody)
 	require.NoError(t, err)
 
 	res, err := http.DefaultClient.Do(req)
