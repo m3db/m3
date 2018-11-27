@@ -764,8 +764,14 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 	}
 
 	if err = s.db.Write(
-		ctx, s.pools.id.GetStringID(ctx, req.NameSpace), s.pools.id.GetStringID(ctx, req.ID),
-		xtime.FromNormalizedTime(dp.Timestamp, d), dp.Value, unit, dp.Annotation,
+		ctx,
+		s.pools.id.GetStringID(ctx, req.NameSpace),
+		s.pools.id.GetStringID(ctx, req.ID),
+		xtime.FromNormalizedTime(dp.Timestamp, d),
+		callStart,
+		dp.Value,
+		unit,
+		dp.Annotation,
 	); err != nil {
 		s.metrics.write.ReportError(s.nowFn().Sub(callStart))
 		return convert.ToRPCError(err)
@@ -814,7 +820,7 @@ func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) 
 		s.pools.id.GetStringID(ctx, req.NameSpace),
 		s.pools.id.GetStringID(ctx, req.ID),
 		iter, xtime.FromNormalizedTime(dp.Timestamp, d),
-		dp.Value, unit, dp.Annotation); err != nil {
+		callStart, dp.Value, unit, dp.Annotation); err != nil {
 		s.metrics.writeTagged.ReportError(s.nowFn().Sub(callStart))
 		return convert.ToRPCError(err)
 	}
@@ -873,7 +879,7 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 		)
 	}
 
-	err = s.db.WriteBatch(ctx, nsID, batchWriter.(ts.WriteBatch), pooledReq)
+	err = s.db.WriteBatch(ctx, nsID, batchWriter.(ts.WriteBatch), callStart, pooledReq)
 	if err != nil {
 		return err
 	}
@@ -953,7 +959,7 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 			elem.Datapoint.Annotation)
 	}
 
-	err = s.db.WriteTaggedBatch(ctx, nsID, batchWriter, pooledReq)
+	err = s.db.WriteTaggedBatch(ctx, nsID, batchWriter, callStart, pooledReq)
 	if err != nil {
 		return err
 	}

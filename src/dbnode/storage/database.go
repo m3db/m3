@@ -538,6 +538,7 @@ func (d *db) Write(
 	namespace ident.ID,
 	id ident.ID,
 	timestamp time.Time,
+	writeTime time.Time,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
@@ -548,7 +549,7 @@ func (d *db) Write(
 		return err
 	}
 
-	series, err := n.Write(ctx, id, timestamp, value, unit, annotation)
+	series, err := n.Write(ctx, id, timestamp, writeTime, value, unit, annotation)
 	if err != nil {
 		return err
 	}
@@ -575,6 +576,7 @@ func (d *db) WriteTagged(
 	id ident.ID,
 	tags ident.TagIterator,
 	timestamp time.Time,
+	writeTime time.Time,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
@@ -585,7 +587,7 @@ func (d *db) WriteTagged(
 		return err
 	}
 
-	series, err := n.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
+	series, err := n.WriteTagged(ctx, id, tags, timestamp, writeTime, value, unit, annotation)
 	if err != nil {
 		return err
 	}
@@ -625,24 +627,27 @@ func (d *db) WriteBatch(
 	ctx context.Context,
 	namespace ident.ID,
 	writer ts.BatchWriter,
+	writeTime time.Time,
 	errHandler IndexedErrorHandler,
 ) error {
-	return d.writeBatch(ctx, namespace, writer, errHandler, false)
+	return d.writeBatch(ctx, namespace, writer, writeTime, errHandler, false)
 }
 
 func (d *db) WriteTaggedBatch(
 	ctx context.Context,
 	namespace ident.ID,
 	writer ts.BatchWriter,
+	writeTime time.Time,
 	errHandler IndexedErrorHandler,
 ) error {
-	return d.writeBatch(ctx, namespace, writer, errHandler, true)
+	return d.writeBatch(ctx, namespace, writer, writeTime, errHandler, true)
 }
 
 func (d *db) writeBatch(
 	ctx context.Context,
 	namespace ident.ID,
 	writer ts.BatchWriter,
+	writeTime time.Time,
 	errHandler IndexedErrorHandler,
 	tagged bool,
 ) error {
@@ -674,6 +679,7 @@ func (d *db) writeBatch(
 				write.Write.Series.ID,
 				write.TagIter,
 				write.Write.Datapoint.Timestamp,
+				writeTime,
 				write.Write.Datapoint.Value,
 				write.Write.Unit,
 				write.Write.Annotation,
@@ -683,6 +689,7 @@ func (d *db) writeBatch(
 				ctx,
 				write.Write.Series.ID,
 				write.Write.Datapoint.Timestamp,
+				writeTime,
 				write.Write.Datapoint.Value,
 				write.Write.Unit,
 				write.Write.Annotation,

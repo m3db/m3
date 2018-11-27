@@ -224,7 +224,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 		curr.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
 		curr.EXPECT().IsEmpty().Return(false).AnyTimes()
 		curr.EXPECT().
-			Flush(gomock.Any(), blockStart, gomock.Any()).
+			Flush(gomock.Any(), blockStart, gomock.Any(), 1).
 			Do(func(context.Context, time.Time, persist.DataFn) {
 				flushed[i] = struct{}{}
 			}).
@@ -291,7 +291,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 		curr.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
 		curr.EXPECT().IsEmpty().Return(false).AnyTimes()
 		curr.EXPECT().
-			Flush(gomock.Any(), blockStart, gomock.Any()).
+			Flush(gomock.Any(), blockStart, gomock.Any(), 1).
 			Do(func(context.Context, time.Time, persist.DataFn) {
 				flushed[i] = struct{}{}
 			}).
@@ -313,7 +313,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	flushState := s.FlushState(blockStart)
 	require.Equal(t, fileOpState{
 		Status:      fileOpSuccess,
-		LastSuccess: now,
+		Version:     1,
 		NumFailures: 0,
 	}, flushState)
 }
@@ -461,9 +461,9 @@ func TestShardTick(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	shard.Write(ctx, ident.StringID("foo"), nowFn(), 1.0, xtime.Second, nil)
-	shard.Write(ctx, ident.StringID("bar"), nowFn(), 2.0, xtime.Second, nil)
-	shard.Write(ctx, ident.StringID("baz"), nowFn(), 3.0, xtime.Second, nil)
+	shard.Write(ctx, ident.StringID("foo"), nowFn(), series.WarmWrite, 1.0, xtime.Second, nil)
+	shard.Write(ctx, ident.StringID("bar"), nowFn(), series.WarmWrite, 2.0, xtime.Second, nil)
+	shard.Write(ctx, ident.StringID("baz"), nowFn(), series.WarmWrite, 3.0, xtime.Second, nil)
 
 	r, err := shard.Tick(context.NewNoOpCanncellable(), nowFn())
 	require.NoError(t, err)
@@ -537,9 +537,9 @@ func TestShardWriteAsync(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	shard.Write(ctx, ident.StringID("foo"), nowFn(), 1.0, xtime.Second, nil)
-	shard.Write(ctx, ident.StringID("bar"), nowFn(), 2.0, xtime.Second, nil)
-	shard.Write(ctx, ident.StringID("baz"), nowFn(), 3.0, xtime.Second, nil)
+	shard.Write(ctx, ident.StringID("foo"), nowFn(), series.WarmWrite, 1.0, xtime.Second, nil)
+	shard.Write(ctx, ident.StringID("bar"), nowFn(), series.WarmWrite, 2.0, xtime.Second, nil)
+	shard.Write(ctx, ident.StringID("baz"), nowFn(), series.WarmWrite, 3.0, xtime.Second, nil)
 
 	for {
 		counter, ok := testReporter.Counters()["dbshard.insert-queue.inserts"]
@@ -733,7 +733,7 @@ func TestPurgeExpiredSeriesNonEmptySeries(t *testing.T) {
 	defer shard.Close()
 	ctx := opts.ContextPool().Get()
 	nowFn := opts.ClockOptions().NowFn()
-	shard.Write(ctx, ident.StringID("foo"), nowFn(), 1.0, xtime.Second, nil)
+	shard.Write(ctx, ident.StringID("foo"), nowFn(), series.WarmWrite, 1.0, xtime.Second, nil)
 	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), tickPolicyRegular)
 	require.NoError(t, err)
 	require.Equal(t, 1, r.activeSeries)
@@ -754,11 +754,11 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 	s := addMockSeries(ctrl, shard, id, ident.Tags{}, 0)
 	s.EXPECT().Tick().Do(func() {
 		// Emulate a write taking place just after tick for this series
-		s.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+		s.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 
 		ctx := opts.ContextPool().Get()
 		nowFn := opts.ClockOptions().NowFn()
-		shard.Write(ctx, id, nowFn(), 1.0, xtime.Second, nil)
+		shard.Write(ctx, id, nowFn(), series.WarmWrite, 1.0, xtime.Second, nil)
 	}).Return(series.TickResult{}, series.ErrSeriesAllDatapointsExpired)
 
 	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), tickPolicyRegular)
@@ -895,7 +895,7 @@ func TestShardCleanupSnapshot(t *testing.T) {
 		notFlushedYet       = earliestToRetain.Add(blockSize)
 	)
 
-	shard.markFlushStateSuccess(earliestToRetain)
+	shard.markFlushStateSuccess(earliestToRetain, 1)
 	defer shard.Close()
 
 	shard.snapshotFilesFn = func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error) {
@@ -1015,8 +1015,8 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 	ropts := shard.seriesOpts.RetentionOptions()
 	end := opts.ClockOptions().NowFn()().Truncate(ropts.BlockSize())
 	start := end.Add(-2 * ropts.BlockSize())
-	shard.markFlushStateSuccess(start)
-	shard.markFlushStateSuccess(start.Add(ropts.BlockSize()))
+	shard.markFlushStateSuccess(start, 1)
+	shard.markFlushStateSuccess(start.Add(ropts.BlockSize()), 1)
 
 	retriever := block.NewMockDatabaseBlockRetriever(ctrl)
 	shard.setBlockRetriever(retriever)

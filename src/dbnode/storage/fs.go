@@ -39,7 +39,7 @@ const (
 
 type fileOpState struct {
 	Status      fileOpStatus
-	LastSuccess time.Time
+	Version     int
 	NumFailures int
 }
 

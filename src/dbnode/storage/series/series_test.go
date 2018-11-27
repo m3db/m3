@@ -102,17 +102,18 @@ func TestSeriesWriteFlush(t *testing.T) {
 	for _, v := range data {
 		curr = v.timestamp
 		ctx := context.NewContext()
-		assert.NoError(t, series.Write(ctx, v.timestamp, v.value, xtime.Second, v.annotation))
+		assert.NoError(t, series.Write(ctx, v.timestamp, WarmWrite, v.value, xtime.Second, v.annotation))
 		ctx.Close()
 	}
 
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	bucket, exists := series.buffer.(*dbBuffer).bucketAt(start)
+	buckets, exists := series.buffer.(*dbBuffer).bucketsAt(start)
 	require.True(t, exists)
-
-	stream, err := bucket.stream(ctx, realtimeType)
+	block, err := buckets.discardMerged(WarmWrite)
+	require.NoError(t, err)
+	stream, err := block.Stream(ctx)
 	require.NoError(t, err)
 	assertValuesEqual(t, data[:2], [][]xio.BlockReader{[]xio.BlockReader{
 		stream,
@@ -141,7 +142,7 @@ func TestSeriesWriteFlushRead(t *testing.T) {
 	for _, v := range data {
 		curr = v.timestamp
 		ctx := context.NewContext()
-		assert.NoError(t, series.Write(ctx, v.timestamp, v.value, xtime.Second, v.annotation))
+		assert.NoError(t, series.Write(ctx, v.timestamp, WarmWrite, v.value, xtime.Second, v.annotation))
 		ctx.Close()
 	}
 
@@ -182,7 +183,7 @@ func TestSeriesFlushNoBlock(t *testing.T) {
 	_, err := series.Bootstrap(nil)
 	assert.NoError(t, err)
 	flushTime := time.Unix(7200, 0)
-	outcome, err := series.Flush(nil, flushTime, nil)
+	outcome, err := series.Flush(nil, flushTime, nil, 1)
 	require.Nil(t, err)
 	require.Equal(t, FlushOutcomeBlockDoesNotExist, outcome)
 }
@@ -202,7 +203,7 @@ func TestSeriesFlush(t *testing.T) {
 	assert.NoError(t, err)
 
 	ctx := context.NewContext()
-	series.buffer.Write(ctx, curr, 1234, xtime.Second, nil)
+	series.buffer.Write(ctx, curr, WarmWrite, 1234, xtime.Second, nil)
 	ctx.BlockingClose()
 
 	inputs := []error{errors.New("some error"), nil}
@@ -211,7 +212,7 @@ func TestSeriesFlush(t *testing.T) {
 			return input
 		}
 		ctx := context.NewContext()
-		outcome, err := series.Flush(ctx, curr, persistFn)
+		outcome, err := series.Flush(ctx, curr, persistFn, 1)
 		ctx.BlockingClose()
 		require.Equal(t, input, err)
 		if input == nil {
@@ -611,7 +612,7 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		value := startValue
 
 		for i := 0; i < numPoints; i++ {
-			require.NoError(t, series.Write(ctx, start, value, xtime.Second, nil))
+			require.NoError(t, series.Write(ctx, start, WarmWrite, value, xtime.Second, nil))
 			expected = append(expected, ts.Datapoint{Timestamp: start, Value: value})
 			start = start.Add(10 * time.Second)
 			value = value + 1.0
@@ -621,7 +622,7 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		start = now
 		value = startValue
 		for i := 0; i < numPoints/2; i++ {
-			require.NoError(t, series.Write(ctx, start, value, xtime.Second, nil))
+			require.NoError(t, series.Write(ctx, start, WarmWrite, value, xtime.Second, nil))
 			start = start.Add(10 * time.Second)
 			value = value + 1.0
 		}
@@ -679,9 +680,9 @@ func TestSeriesWriteReadFromTheSameBucket(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	assert.NoError(t, series.Write(ctx, curr.Add(-3*time.Minute), 1, xtime.Second, nil))
-	assert.NoError(t, series.Write(ctx, curr.Add(-2*time.Minute), 2, xtime.Second, nil))
-	assert.NoError(t, series.Write(ctx, curr.Add(-1*time.Minute), 3, xtime.Second, nil))
+	assert.NoError(t, series.Write(ctx, curr.Add(-3*time.Minute), WarmWrite, 1, xtime.Second, nil))
+	assert.NoError(t, series.Write(ctx, curr.Add(-2*time.Minute), WarmWrite, 2, xtime.Second, nil))
+	assert.NoError(t, series.Write(ctx, curr.Add(-1*time.Minute), WarmWrite, 3, xtime.Second, nil))
 
 	results, err := series.ReadEncoded(ctx, curr.Add(-5*time.Minute), curr.Add(time.Minute))
 	require.NoError(t, err)

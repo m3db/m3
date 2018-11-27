@@ -111,7 +111,7 @@ func testMixedModeReadWrite(t *testing.T, snapshotEnabled bool) {
 	for _, dp := range datapoints {
 		ts := dp.time
 		setup.setNowFn(ts)
-		require.NoError(t, db.Write(ctx, nsID, dp.series, ts, dp.value, xtime.Second, nil))
+		require.NoError(t, db.Write(ctx, nsID, dp.series, ts, ts, dp.value, xtime.Second, nil))
 	}
 	log.Infof("wrote datapoints")
 

@@ -55,6 +55,7 @@ type DatabaseSeries interface {
 	Write(
 		ctx context.Context,
 		timestamp time.Time,
+		wType WriteType,
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
@@ -92,11 +93,20 @@ type DatabaseSeries interface {
 	Bootstrap(blocks block.DatabaseSeriesBlocks) (BootstrapResult, error)
 
 	// Flush flushes the data blocks of this series for a given start time
-	Flush(ctx context.Context, blockStart time.Time, persistFn persist.DataFn) (FlushOutcome, error)
+	Flush(
+		ctx context.Context,
+		blockStart time.Time,
+		persistFn persist.DataFn,
+		version int,
+	) (FlushOutcome, error)
 
 	// Snapshot snapshots the buffer buckets of this series for any data that has
 	// not been rotated into a block yet
-	Snapshot(ctx context.Context, blockStart time.Time, persistFn persist.DataFn) error
+	Snapshot(
+		ctx context.Context,
+		blockStart time.Time,
+		persistFn persist.DataFn,
+	) error
 
 	// Close will close the series and if pooled returned to the pool
 	Close()
@@ -131,8 +141,8 @@ type QueryableBlockRetriever interface {
 	// for a given block start time
 	IsBlockRetrievable(blockStart time.Time) bool
 
-	// BlockLastSuccess returns the last time a block was marked success
-	BlockLastSuccess(blockStart time.Time) time.Time
+	// RetrievableBlockVersion returns the last time a block was marked success
+	RetrievableBlockVersion(blockStart time.Time) int
 }
 
 // TickStatus is the status of a series for a given tick
@@ -281,3 +291,14 @@ func NewStats(scope tally.Scope) Stats {
 func (s Stats) IncCreatedEncoders() {
 	s.encoderCreated.Inc(1)
 }
+
+// WriteType is an enum for warm/cold write types
+type WriteType int
+
+const (
+	// WarmWrite represents warm writes (within the buffer past/future window)
+	WarmWrite WriteType = iota
+
+	// ColdWrite represents cold writes (outside the buffer past/future window)
+	ColdWrite
+)

@@ -39,31 +39,27 @@ import (
 )
 
 var (
-	errInvalidMetricType = errors.New("invalid metric type for context")
-
-	timeZero time.Time
+	errMoreThanOneStreamAfterMerge = errors.New("buffer has more than one stream after merge")
+	errNoAvailableBuckets          = errors.New("[invariant violated] buffer has no available buckets")
+	timeZero                       time.Time
 )
 
 const (
-	cacheSize = 2
+	bucketsCacheSize       = 2
+	defaultBucketsPoolSize = 2
+	// In the most common case, there would only be one bucket in a
+	// buckets slice, i.e. it gets written to, flushed, and then the buckets
+	// get evicted from the map
+	defaultBucketPoolSize = defaultBucketsPoolSize
 
-	defaultBucketContainerPoolSize = 2
-
-	numMetricTypes = 2
-)
-
-type metricType int
-
-const (
-	realtimeType metricType = iota
-	outOfOrderType
-	allMetricTypes
+	writableBucketVer = 0
 )
 
 type databaseBuffer interface {
 	Write(
 		ctx context.Context,
 		timestamp time.Time,
+		wType WriteType,
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
@@ -71,9 +67,17 @@ type databaseBuffer interface {
 
 	Snapshot(
 		ctx context.Context,
-		mType metricType,
 		blockStart time.Time,
 	) (xio.SegmentReader, error)
+
+	Flush(
+		ctx context.Context,
+		blockStart time.Time,
+		id ident.ID,
+		tags ident.Tags,
+		persistFn persist.DataFn,
+		version int,
+	) (FlushOutcome, error)
 
 	ReadEncoded(
 		ctx context.Context,
@@ -95,17 +99,14 @@ type databaseBuffer interface {
 
 	Stats() bufferStats
 
+	// MinMax returns the minimum and maximum blockstarts for the buckets
+	// that are contained within the buffer. These ranges exclude buckets
+	// that have already been drained (as those buckets are no longer in use.)
+	MinMax() (time.Time, time.Time, error)
+
 	Tick() bufferTickResult
 
 	Bootstrap(bl block.DatabaseBlock)
-
-	Flush(
-		ctx context.Context,
-		blockStart time.Time,
-		id ident.ID,
-		tags ident.Tags,
-		persistFn persist.DataFn,
-	) (FlushOutcome, error)
 
 	Reset(blockRetriever QueryableBlockRetriever, opts Options)
 }
@@ -116,7 +117,6 @@ type bufferStats struct {
 
 type bufferTickResult struct {
 	mergedOutOfOrderBlocks int
-	bucketsRemoved         []time.Time
 }
 
 type dbBuffer struct {
@@ -124,9 +124,11 @@ type dbBuffer struct {
 	nowFn          clock.NowFn
 	blockRetriever QueryableBlockRetriever
 
-	buckets     map[xtime.UnixNano]*dbBufferBucket
-	bucketCache [cacheSize]*dbBufferBucket
-	bucketPool  *dbBufferBucketPool
+	bucketsMap map[xtime.UnixNano]*dbBufferBuckets
+	// Cache of buckets to avoid map lookup of above
+	bucketsCache [bucketsCacheSize]*dbBufferBuckets
+	bucketsPool  *dbBufferBucketsPool
+	bucketPool   *dbBufferBucketPool
 
 	blockSize    time.Duration
 	bufferPast   time.Duration
@@ -136,138 +138,205 @@ type dbBuffer struct {
 // NB(prateek): databaseBuffer.Reset(...) must be called upon the returned
 // object prior to use.
 func newDatabaseBuffer() databaseBuffer {
-	b := &dbBuffer{
-		buckets: make(map[xtime.UnixNano]*dbBufferBucket),
-	}
+	b := &dbBuffer{}
 	return b
 }
 
 func (b *dbBuffer) Reset(blockRetriever QueryableBlockRetriever, opts Options) {
 	b.opts = opts
 	b.nowFn = opts.ClockOptions().NowFn()
-	b.blockRetriever = blockRetriever
-	bucketPoolOpts := pool.NewObjectPoolOptions().SetSize(defaultBucketContainerPoolSize)
-	b.bucketPool = newDBBufferBucketPool(bucketPoolOpts)
 	ropts := opts.RetentionOptions()
+	b.blockRetriever = blockRetriever
+	bucketsPoolOpts := pool.NewObjectPoolOptions().SetSize(defaultBucketsPoolSize)
+	b.bucketsPool = newDBBufferBucketsPool(bucketsPoolOpts)
+	bucketPoolOpts := pool.NewObjectPoolOptions().SetSize(defaultBucketPoolSize)
+	b.bucketPool = newDBBufferBucketPool(bucketPoolOpts)
 	b.blockSize = ropts.BlockSize()
 	b.bufferPast = ropts.BufferPast()
 	b.bufferFuture = ropts.BufferFuture()
 }
 
+func (b *dbBuffer) MinMax() (time.Time, time.Time, error) {
+	var min, max time.Time
+	for blockStart := range b.bucketsMap {
+		startTime := blockStart.ToTime()
+		if min.IsZero() || startTime.Before(min) {
+			min = startTime
+		}
+		if max.IsZero() || startTime.After(max) {
+			max = startTime
+		}
+	}
+
+	if min.IsZero() || max.IsZero() {
+		// Should never happen
+		return time.Time{}, time.Time{}, errNoAvailableBuckets
+	}
+	return min, max, nil
+}
+
 func (b *dbBuffer) Write(
 	ctx context.Context,
 	timestamp time.Time,
+	wType WriteType,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	mType := b.isRealtime(b.nowFn(), timestamp)
-
 	blockStart := timestamp.Truncate(b.blockSize)
-	bucket, ok := b.bucketAt(blockStart)
-	if !ok {
-		bucket = b.newBucketAt(blockStart)
-	}
-	b.putBucketInCache(bucket)
-	return bucket.write(mType, timestamp, value, unit, annotation)
+	buckets := b.bucketsAtCreate(blockStart)
+	b.putBucketInCache(buckets)
+	return buckets.write(timestamp, wType, value, unit, annotation)
 }
 
 func (b *dbBuffer) IsEmpty() bool {
-	for _, bucket := range b.buckets {
-		if !bucket.isEmpty() {
-			return false
-		}
+	canReadAny := false
+	for i := range b.bucketsMap {
+		canReadAny = canReadAny || !b.bucketsMap[i].isEmpty()
 	}
-	return true
+	return !canReadAny
 }
 
 func (b *dbBuffer) Stats() bufferStats {
 	var stats bufferStats
-	for _, bucket := range b.buckets {
-		if bucket.isEmpty() {
+	for i := range b.bucketsMap {
+		if b.bucketsMap[i].isEmpty() {
 			continue
 		}
-
 		stats.wiredBlocks++
 	}
 	return stats
 }
 
 func (b *dbBuffer) Tick() bufferTickResult {
-	var (
-		res       bufferTickResult
-		retriever = b.blockRetriever
-	)
+	mergedOutOfOrder := 0
+	retriever := b.blockRetriever
+	for tNano, buckets := range b.bucketsMap {
+		if blockStart := tNano.ToTime(); retriever.IsBlockRetrievable(blockStart) {
+			// Avoid allocating a new backing array
+			newBuckets := buckets.buckets[:0]
+			version := retriever.RetrievableBlockVersion(blockStart)
+			for _, bucket := range buckets.buckets {
+				bVersion := bucket.version
+				// TODO(juchan): deal with ColdWrite too
+				if bucket.wType == WarmWrite && bVersion != writableBucketVer &&
+					bVersion <= version {
+					// We no longer need to keep any version which is equal to
+					// or less than the retrievable version, since that means
+					// that the version has successfully persisted to disk
+					bucket.finalize()
+					b.bucketPool.Put(bucket)
+					continue
+				}
 
-	for startNano, bucket := range b.buckets {
-		start := startNano.ToTime()
-		// We can only remove the bucket from the map if:
-		// 1) This bucket is empty
-		// 2) The blockStart is retrievable
-		// 3) the last success is after the last persist. This is necessary
-		//    because there may have been an existing file on disk from a previous
-		//    flush.
-		if bucket.isEmpty() && retriever.IsBlockRetrievable(start) &&
-			retriever.BlockLastSuccess(start).After(bucket.lastPersist()) {
-			b.removeBucketAt(start)
-			res.bucketsRemoved = append(res.bucketsRemoved, start)
-			continue
+				newBuckets = append(newBuckets, bucket)
+			}
+
+			// We just removed all the underlying buckets, so we can just remove
+			// the buckets from the bucketsMap
+			if len(newBuckets) == 0 {
+				b.removeBucketsAt(blockStart)
+				continue
+			}
+
+			// Set the new buckets with the buckets that have been recently
+			// flushed filtered out
+			buckets.buckets = newBuckets
 		}
 
-		for mType := 0; mType < numMetricTypes; mType++ {
-			r, err := bucket.merge(metricType(mType))
-			if err != nil {
-				log := b.opts.InstrumentOptions().Logger()
-				log.Errorf("buffer merge encode error: %v", err)
-			}
-			if r.merges > 0 {
-				res.mergedOutOfOrderBlocks++
-			}
+		// Try to merge any out of order encoders to amortize the cost of a drain
+		r, err := buckets.merge(WarmWrite)
+		if err != nil {
+			log := b.opts.InstrumentOptions().Logger()
+			log.Errorf("buffer merge encode error: %v", err)
+		}
+		if r.merges > 0 {
+			mergedOutOfOrder++
 		}
 	}
-
-	return res
+	return bufferTickResult{
+		mergedOutOfOrderBlocks: mergedOutOfOrder,
+	}
 }
 
 func (b *dbBuffer) Bootstrap(bl block.DatabaseBlock) {
 	blockStart := bl.StartTime()
-	bucket, ok := b.bucketAt(blockStart)
-	if !ok {
-		bucket = b.newBucketAt(blockStart)
-	}
-
-	// TODO(juchan): what is a "realtime" bootstrap vs "out of order" bootstrap?
-	bucket.bootstrap(bl, realtimeType)
-	// min, max := b.minMaxRealtimeBlockStarts(b.nowFn())
-	// isRealtime := !blockStart.Before(min) && !blockStart.After(max)
-	// if isRealtime {
-	// 	bucket.bootstrap(bl, realtimeType)
-	// } else {
-	// 	bucket.bootstrap(bl, outOfOrderType)
-	// }
+	buckets := b.bucketsAtCreate(blockStart)
+	buckets.bootstrap(bl)
 }
-
-// func (b *dbBuffer) minMaxRealtimeBlockStarts(now time.Time) (time.Time, time.Time) {
-// 	min := now.Add(-b.bufferPast).Truncate(b.blockSize)
-// 	max := now.Add(b.bufferFuture).Truncate(b.blockSize)
-// 	return min, max
-// }
 
 func (b *dbBuffer) Snapshot(
 	ctx context.Context,
-	mType metricType,
 	blockStart time.Time,
 ) (xio.SegmentReader, error) {
-	if mType == allMetricTypes {
-		return nil, errInvalidMetricType
+	buckets, exists := b.bucketsAt(blockStart)
+	if !exists || buckets.isEmpty() {
+		// TODO(juchan): is this right?
+		return nil, nil
 	}
 
-	if bucket, ok := b.bucketAt(blockStart); ok {
-		return bucket.stream(ctx, mType)
+	// A call to snapshot can only be for warm writes
+	_, err := buckets.merge(WarmWrite)
+	if err != nil {
+		return nil, err
 	}
 
-	// Not having data for a bucket is not an error
-	return nil, nil
+	streams := buckets.streams(ctx, WarmWrite)
+	if len(streams) != 1 {
+		// Should never happen as the call to merge above should result in only a single
+		// stream being present.
+		return nil, errMoreThanOneStreamAfterMerge
+	}
+
+	return streams[0], nil
+}
+
+func (b *dbBuffer) Flush(
+	ctx context.Context,
+	blockStart time.Time,
+	id ident.ID,
+	tags ident.Tags,
+	persistFn persist.DataFn,
+	version int,
+) (FlushOutcome, error) {
+	buckets, exists := b.bucketsAt(blockStart)
+	if !exists {
+		return FlushOutcomeBlockDoesNotExist, nil
+	}
+
+	// A call to flush can only be for warm writes
+	block, err := buckets.discardMerged(WarmWrite)
+	if err != nil {
+		return FlushOutcomeErr, err
+	}
+	if block == nil {
+		return FlushOutcomeBlockDoesNotExist, nil
+	}
+
+	stream, err := block.Stream(ctx)
+	if err != nil {
+		return FlushOutcomeErr, err
+	}
+
+	segment, err := stream.Segment()
+	if err != nil {
+		return FlushOutcomeErr, err
+	}
+
+	checksum, err := block.Checksum()
+	if err != nil {
+		return FlushOutcomeErr, err
+	}
+
+	err = persistFn(id, tags, segment, checksum)
+	if err != nil {
+		return FlushOutcomeErr, err
+	}
+
+	bucket, _ := buckets.writableBucket(WarmWrite)
+	bucket.version = version
+
+	return FlushOutcomeFlushedToDisk, nil
 }
 
 func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xio.BlockReader {
@@ -276,13 +345,15 @@ func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xi
 
 	keys := b.sortedBucketKeys(true)
 	for _, key := range keys {
-		bucket := b.buckets[key]
-		if bucket.isEmpty() || !start.Before(bucket.start.Add(b.blockSize)) ||
-			!bucket.start.Before(end) {
+		// TODO(juchan): avoid converting twice?
+		buckets, exists := b.bucketsAt(key.ToTime())
+		if !exists || buckets.isEmpty() || !buckets.start.Before(end) ||
+			!start.Before(buckets.start.Add(b.blockSize)) {
 			continue
 		}
 
-		res = append(res, bucket.streams(ctx, allMetricTypes))
+		res = append(res, buckets.streams(ctx, WarmWrite))
+		res = append(res, buckets.streams(ctx, ColdWrite))
 
 		// NB(r): Store the last read time, should not set this when
 		// calling FetchBlocks as a read is differentiated from
@@ -290,23 +361,46 @@ func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xi
 		// entity and the other is used for streaming blocks between
 		// the storage nodes. This distinction is important as this
 		// data is important for use with understanding access patterns, etc.
-		bucket.setLastRead(b.nowFn())
+		buckets.setLastRead(b.nowFn())
 	}
 
 	return res
+}
+
+func (b *dbBuffer) sortedBucketKeys(ascending bool) []xtime.UnixNano {
+	buckets := b.bucketsMap
+	keys := make([]xtime.UnixNano, len(buckets))
+	i := 0
+	for k := range buckets {
+		keys[i] = k
+		i++
+	}
+	if ascending {
+		sort.Slice(keys, func(i, j int) bool {
+			return keys[i].Before(keys[j])
+		})
+	} else {
+		sort.Slice(keys, func(i, j int) bool {
+			return keys[i].After(keys[j])
+		})
+	}
+	return keys
 }
 
 func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time) []block.FetchBlockResult {
 	var res []block.FetchBlockResult
 
 	for _, start := range starts {
-		bucket, ok := b.bucketAt(start)
+		buckets, ok := b.bucketsAt(start)
 		if !ok {
 			continue
 		}
 
-		streams := bucket.streams(ctx, allMetricTypes)
-		res = append(res, block.NewFetchBlockResult(bucket.start, streams, nil))
+		streams := buckets.streams(ctx, WarmWrite)
+		res = append(res, block.NewFetchBlockResult(buckets.start, streams, nil))
+
+		streams = buckets.streams(ctx, ColdWrite)
+		res = append(res, block.NewFetchBlockResult(buckets.start, streams, nil))
 	}
 
 	return res
@@ -319,16 +413,17 @@ func (b *dbBuffer) FetchBlocksMetadata(
 ) block.FetchBlockMetadataResults {
 	blockSize := b.opts.RetentionOptions().BlockSize()
 	res := b.opts.FetchBlockMetadataResultsPool().Get()
-
 	keys := b.sortedBucketKeys(true)
 	for _, key := range keys {
-		bucket := b.buckets[key]
-		if bucket.isEmpty() || !start.Before(bucket.start.Add(blockSize)) ||
-			!bucket.start.Before(end) {
+		// TODO(juchan): avoid converting twice here?
+		bucket, exists := b.bucketsAt(key.ToTime())
+		if !exists || bucket.isEmpty() || !bucket.start.Before(end) ||
+			!start.Before(bucket.start.Add(blockSize)) {
 			continue
 		}
+
 		size := int64(bucket.streamsLen())
-		// If we have no data in this bucket, return early without appending it to the result.
+		// If we have no data in this bucket, skip early without appending it to the result.
 		if size == 0 {
 			continue
 		}
@@ -352,155 +447,207 @@ func (b *dbBuffer) FetchBlocksMetadata(
 	return res
 }
 
-func (b *dbBuffer) newBucketAt(t time.Time) *dbBufferBucket {
-	bucket := b.bucketPool.Get()
-	bucket.resetTo(t, b.opts)
-	b.buckets[xtime.ToUnixNano(t)] = bucket
-	return bucket
+func (b *dbBuffer) newBucketsAt(
+	t time.Time,
+) *dbBufferBuckets {
+	buckets := b.bucketsPool.Get()
+	buckets.resetTo(t, b.opts, b.bucketPool)
+	b.bucketsMap[xtime.ToUnixNano(t)] = buckets
+	return buckets
 }
 
-func (b *dbBuffer) bucketAt(t time.Time) (*dbBufferBucket, bool) {
+func (b *dbBuffer) bucketsAt(
+	t time.Time,
+) (*dbBufferBuckets, bool) {
 	// First check LRU cache
-	for _, bucket := range b.buckets {
-		if bucket == nil {
+	for _, buckets := range b.bucketsCache {
+		if buckets == nil {
 			continue
 		}
-
-		if bucket.start.Equal(t) {
-			return bucket, true
+		if buckets.start.Equal(t) {
+			return buckets, true
 		}
 	}
 
 	// Then check the map
-	if bg, ok := b.buckets[xtime.ToUnixNano(t)]; ok {
-		return bg, true
+	if buckets, exists := b.bucketsMap[xtime.ToUnixNano(t)]; exists {
+		return buckets, true
 	}
 
 	return nil, false
 }
 
-func (b *dbBuffer) putBucketInCache(bg *dbBufferBucket) {
-	b.bucketCache[b.lruBucketIdxInCache()] = bg
+func (b *dbBuffer) bucketsAtCreate(
+	t time.Time,
+) *dbBufferBuckets {
+	if buckets, exists := b.bucketsAt(t); exists {
+		return buckets
+	}
+
+	return b.newBucketsAt(t)
 }
 
-func (b *dbBuffer) lruBucketIdxInCache() int {
-	idx := -1
-	var lastReadTime time.Time
-
-	for i, bucket := range b.bucketCache {
-		if bucket == nil {
-			// An empty slot in the cache is older than any existing bucket
-			return i
-		}
-
-		curLastRead := bucket.lastRead()
-		if idx == -1 || curLastRead.Before(lastReadTime) {
-			lastReadTime = curLastRead
-			idx = i
+func (b *dbBuffer) putBucketInCache(newBuckets *dbBufferBuckets) {
+	replaceIdx := bucketsCacheSize - 1
+	for i, buckets := range b.bucketsCache {
+		// Check if we have the same pointer in cache
+		if buckets == newBuckets {
+			replaceIdx = i
 		}
 	}
 
-	return idx
+	for i := replaceIdx; i > 0; i-- {
+		b.bucketsCache[i] = b.bucketsCache[i-1]
+	}
+
+	b.bucketsCache[0] = newBuckets
 }
 
-func (b *dbBuffer) removeBucketAt(blockStart time.Time) {
-	tNano := xtime.ToUnixNano(blockStart)
-	bucket, exists := b.bucketAt(blockStart)
+func (b *dbBuffer) removeBucketsAt(blockStart time.Time) {
+	buckets, exists := b.bucketsAt(blockStart)
 	if !exists {
 		return
 	}
 
-	bucket.resetEncoders(allMetricTypes)
-	bucket.resetBootstrapped(allMetricTypes)
-
-	b.bucketPool.Put(bucket)
-	delete(b.buckets, tNano)
+	b.bucketsPool.Put(buckets)
+	delete(b.bucketsMap, xtime.ToUnixNano(blockStart))
 }
 
-func (b *dbBuffer) isRealtime(now time.Time, timestamp time.Time) metricType {
-	futureLimit := now.Add(1 * b.bufferFuture)
-	pastLimit := now.Add(-1 * b.bufferPast)
-	isRealtime := pastLimit.Before(timestamp) && futureLimit.After(timestamp)
+type dbBufferBuckets struct {
+	buckets           []*dbBufferBucket
+	start             time.Time
+	opts              Options
+	lastReadUnixNanos int64
+	bucketPool        *dbBufferBucketPool
+}
 
-	if isRealtime {
-		return realtimeType
+func (b *dbBufferBuckets) resetTo(
+	start time.Time,
+	opts Options,
+	bucketPool *dbBufferBucketPool,
+) {
+	b.buckets = b.buckets[:0]
+	b.start = start
+	b.opts = opts
+	atomic.StoreInt64(&b.lastReadUnixNanos, 0)
+	b.bucketPool = bucketPool
+}
+
+func (b *dbBufferBuckets) streams(ctx context.Context, wType WriteType) []xio.BlockReader {
+	var res []xio.BlockReader
+	for _, bucket := range b.buckets {
+		if bucket.wType == wType {
+			res = append(res, bucket.streams(ctx)...)
+		}
 	}
 
-	return outOfOrderType
+	return res
 }
 
-func (b *dbBuffer) Flush(
-	ctx context.Context,
-	blockStart time.Time,
-	id ident.ID,
-	tags ident.Tags,
-	persistFn persist.DataFn,
-) (FlushOutcome, error) {
-	bucket, exists := b.bucketAt(blockStart)
+func (b *dbBufferBuckets) streamsLen() int {
+	res := 0
+	for _, bucket := range b.buckets {
+		res += bucket.streamsLen()
+	}
+	return res
+}
+
+func (b *dbBufferBuckets) write(
+	timestamp time.Time,
+	wType WriteType,
+	value float64,
+	unit xtime.Unit,
+	annotation []byte,
+) error {
+	return b.writableBucketCreate(wType).write(timestamp, value, unit, annotation)
+}
+
+func (b *dbBufferBuckets) isEmpty() bool {
+	for _, bucket := range b.buckets {
+		if !bucket.isEmpty() {
+			return false
+		}
+	}
+	return true
+}
+
+func (b *dbBufferBuckets) merge(wType WriteType) (mergeResult, error) {
+	var res mergeResult
+	for _, bucket := range b.buckets {
+		// Only makes sense to merge buckets that are writable
+		if bucket.version == writableBucketVer && wType == bucket.wType {
+			mergeRes, err := bucket.merge()
+			if err != nil {
+				return res, nil
+			}
+			res.merges += mergeRes.merges
+		}
+	}
+
+	return res, nil
+}
+
+func (b *dbBufferBuckets) setLastRead(value time.Time) {
+	atomic.StoreInt64(&b.lastReadUnixNanos, value.UnixNano())
+}
+
+func (b *dbBufferBuckets) lastRead() time.Time {
+	return time.Unix(0, atomic.LoadInt64(&b.lastReadUnixNanos))
+}
+
+func (b *dbBufferBuckets) bootstrap(bl block.DatabaseBlock) {
+	// TODO(juchan): what is a "cold" bootstrap?
+	b.writableBucketCreate(WarmWrite).addBlock(bl)
+}
+
+func (b *dbBufferBuckets) writableBucket(wType WriteType) (*dbBufferBucket, bool) {
+	for _, bucket := range b.buckets {
+		// TODO(juchan): optimize by reordering?
+		if bucket.version == writableBucketVer && bucket.wType == wType {
+			return bucket, true
+		}
+	}
+
+	return nil, false
+}
+
+func (b *dbBufferBuckets) writableBucketCreate(wType WriteType) *dbBufferBucket {
+	bucket, exists := b.writableBucket(wType)
+
+	if exists {
+		return bucket
+	}
+
+	return b.newBucketAt(b.start, wType)
+}
+
+func (b *dbBufferBuckets) newBucketAt(
+	t time.Time,
+	wType WriteType,
+) *dbBufferBucket {
+	bucket := b.bucketPool.Get()
+	bucket.resetTo(t, wType, b.opts)
+	// TODO(juchan): reorder?
+	b.buckets = append(b.buckets, bucket)
+	return bucket
+}
+
+func (b *dbBufferBuckets) discardMerged(wType WriteType) (block.DatabaseBlock, error) {
+	bucket, exists := b.writableBucket(wType)
 	if !exists {
-		return FlushOutcomeBlockDoesNotExist, nil
-	}
-	// By virtue of calling this function, we know we are only interested in
-	// realtime writes. Out of order writes are merged and written directly
-	// by the compactor.
-	block, err := bucket.discardMerged(realtimeType)
-	if err != nil {
-		return FlushOutcomeErr, err
+		return nil, nil
 	}
 
-	stream, err := block.Stream(ctx)
-	if err != nil {
-		return FlushOutcomeErr, err
-	}
-
-	segment, err := stream.Segment()
-	if err != nil {
-		return FlushOutcomeErr, err
-	}
-
-	checksum, err := block.Checksum()
-	if err != nil {
-		return FlushOutcomeErr, err
-	}
-
-	err = persistFn(id, tags, segment, checksum)
-	if err != nil {
-		return FlushOutcomeErr, err
-	}
-
-	bucket.setLastPersist(b.nowFn())
-
-	return FlushOutcomeFlushedToDisk, nil
-}
-
-func (b *dbBuffer) sortedBucketKeys(ascending bool) []xtime.UnixNano {
-	buckets := b.buckets
-	keys := make([]xtime.UnixNano, len(buckets))
-	i := 0
-	for k := range buckets {
-		keys[i] = k
-		i++
-	}
-	if ascending {
-		sort.Slice(keys, func(i, j int) bool {
-			return keys[i].Before(keys[j])
-		})
-	} else {
-		sort.Slice(keys, func(i, j int) bool {
-			return keys[i].After(keys[j])
-		})
-	}
-
-	return keys
+	return bucket.toBlock()
 }
 
 type dbBufferBucket struct {
-	opts                 Options
-	start                time.Time
-	encoders             [numMetricTypes][]inOrderEncoder
-	bootstrapped         [numMetricTypes][]block.DatabaseBlock
-	lastReadUnixNanos    int64
-	lastPersistUnixNanos int64
+	opts     Options
+	start    time.Time
+	encoders []inOrderEncoder
+	blocks   []block.DatabaseBlock
+	version  int
+	wType    WriteType
 }
 
 type inOrderEncoder struct {
@@ -510,67 +657,55 @@ type inOrderEncoder struct {
 
 func (b *dbBufferBucket) resetTo(
 	start time.Time,
+	wType WriteType,
 	opts Options,
 ) {
 	// Close the old context if we're resetting for use
 	b.finalize()
-
+	b.wType = wType
 	b.opts = opts
 	bopts := b.opts.DatabaseBlockOptions()
+	encoder := bopts.EncoderPool().Get()
+	encoder.Reset(start, bopts.DatabaseBlockAllocSize())
+
 	b.start = start
-
-	for i := 0; i < numMetricTypes; i++ {
-		encoder := bopts.EncoderPool().Get()
-		encoder.Reset(start, bopts.DatabaseBlockAllocSize())
-
-		b.encoders[i] = append(b.encoders[i], inOrderEncoder{
-			encoder: encoder,
-		})
-		b.bootstrapped[i] = nil
-	}
-
-	atomic.StoreInt64(&b.lastReadUnixNanos, 0)
+	b.encoders = append(b.encoders, inOrderEncoder{
+		encoder: encoder,
+	})
+	b.blocks = nil
 }
 
 func (b *dbBufferBucket) finalize() {
-	b.resetEncoders(allMetricTypes)
-	b.resetBootstrapped(allMetricTypes)
+	b.resetEncoders()
+	b.resetBlocks()
 }
 
 func (b *dbBufferBucket) isEmpty() bool {
-	for i := 0; i < numMetricTypes; i++ {
-		for _, block := range b.bootstrapped[i] {
-			if block.Len() > 0 {
-				return false
-			}
+	for _, block := range b.blocks {
+		if block.Len() > 0 {
+			return false
 		}
-		for _, elem := range b.encoders[i] {
-			if elem.encoder != nil && elem.encoder.NumEncoded() > 0 {
-				return false
-			}
+	}
+	for _, elem := range b.encoders {
+		if elem.encoder != nil && elem.encoder.NumEncoded() > 0 {
+			return false
 		}
 	}
 	return true
 }
 
-func (b *dbBufferBucket) bootstrap(
+func (b *dbBufferBucket) addBlock(
 	bl block.DatabaseBlock,
-	mType metricType,
 ) {
-	b.bootstrapped[mType] = append(b.bootstrapped[mType], bl)
+	b.blocks = append(b.blocks, bl)
 }
 
 func (b *dbBufferBucket) write(
-	mType metricType,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	if mType == allMetricTypes {
-		return errInvalidMetricType
-	}
-
 	datapoint := ts.Datapoint{
 		Timestamp: timestamp,
 		Value:     value,
@@ -578,11 +713,10 @@ func (b *dbBufferBucket) write(
 
 	// Find the correct encoder to write to
 	idx := -1
-
-	for i := range b.encoders[mType] {
-		lastWriteAt := b.encoders[mType][i].lastWriteAt
+	for i := range b.encoders {
+		lastWriteAt := b.encoders[i].lastWriteAt
 		if timestamp.Equal(lastWriteAt) {
-			last, err := b.encoders[mType][i].encoder.LastEncoded()
+			last, err := b.encoders[i].encoder.LastEncoded()
 			if err != nil {
 				return err
 			}
@@ -612,7 +746,7 @@ func (b *dbBufferBucket) write(
 	// since an encoder is immutable.
 	// The encoders pushed later will surface their values first.
 	if idx != -1 {
-		return b.writeToEncoderIndex(mType, idx, datapoint, unit, annotation)
+		return b.writeToEncoderIndex(idx, datapoint, unit, annotation)
 	}
 
 	// Need a new encoder, we didn't find an encoder to write to
@@ -624,78 +758,58 @@ func (b *dbBufferBucket) write(
 	encoder := bopts.EncoderPool().Get()
 	encoder.Reset(timestamp.Truncate(blockSize), blockAllocSize)
 
-	b.encoders[mType] = append(b.encoders[mType], inOrderEncoder{
+	b.encoders = append(b.encoders, inOrderEncoder{
 		encoder:     encoder,
 		lastWriteAt: timestamp,
 	})
-	idx = len(b.encoders[mType]) - 1
-	err := b.writeToEncoderIndex(mType, idx, datapoint, unit, annotation)
+
+	idx = len(b.encoders) - 1
+	err := b.writeToEncoderIndex(idx, datapoint, unit, annotation)
 	if err != nil {
 		encoder.Close()
-		b.encoders[mType] = b.encoders[mType][:idx]
+		b.encoders = b.encoders[:idx]
 		return err
 	}
 	return nil
 }
 
 func (b *dbBufferBucket) writeToEncoderIndex(
-	mType metricType,
 	idx int,
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	if mType == allMetricTypes {
-		return errInvalidMetricType
-	}
-
-	err := b.encoders[mType][idx].encoder.Encode(datapoint, unit, annotation)
+	err := b.encoders[idx].encoder.Encode(datapoint, unit, annotation)
 	if err != nil {
 		return err
 	}
 
-	b.encoders[mType][idx].lastWriteAt = datapoint.Timestamp
+	b.encoders[idx].lastWriteAt = datapoint.Timestamp
 	return nil
 }
 
-func (b *dbBufferBucket) streams(ctx context.Context, mType metricType) []xio.BlockReader {
-	streamsCap := 0
-	for mt := 0; mt < numMetricTypes; mt++ {
-		if mType != metricType(mt) && mType != allMetricTypes {
+func (b *dbBufferBucket) streams(ctx context.Context) []xio.BlockReader {
+	streams := make([]xio.BlockReader, 0, len(b.blocks)+len(b.encoders))
+
+	for i := range b.blocks {
+		if b.blocks[i].Len() == 0 {
 			continue
 		}
-
-		streamsCap += len(b.bootstrapped[mt])
-		streamsCap += len(b.encoders[mt])
+		if s, err := b.blocks[i].Stream(ctx); err == nil && s.IsNotEmpty() {
+			// NB(r): block stream method will register the stream closer already
+			streams = append(streams, s)
+		}
 	}
-
-	streams := make([]xio.BlockReader, 0, streamsCap)
-
-	for mt := 0; mt < numMetricTypes; mt++ {
-		if mType != metricType(mt) && mType != allMetricTypes {
-			continue
-		}
-
-		for i := range b.bootstrapped[mt] {
-			if b.bootstrapped[mt][i].Len() == 0 {
-				continue
+	for i := range b.encoders {
+		start := b.start
+		if s := b.encoders[i].encoder.Stream(); s != nil {
+			br := xio.BlockReader{
+				SegmentReader: s,
+				Start:         start,
+				BlockSize:     b.opts.RetentionOptions().BlockSize(),
 			}
-			if s, err := b.bootstrapped[mt][i].Stream(ctx); err == nil && s.IsNotEmpty() {
-				// NB(r): block stream method will register the stream closer already
-				streams = append(streams, s)
-			}
-		}
-		for i := range b.encoders[mt] {
-			start := b.start
-			if s := b.encoders[mt][i].encoder.Stream(); s != nil {
-				br := xio.BlockReader{
-					SegmentReader: s,
-					Start:         start,
-					BlockSize:     b.opts.RetentionOptions().BlockSize(),
-				}
-				ctx.RegisterFinalizer(s)
-				streams = append(streams, br)
-			}
+			ctx.RegisterFinalizer(s)
+			streams = append(streams, br)
 		}
 	}
 
@@ -704,87 +818,70 @@ func (b *dbBufferBucket) streams(ctx context.Context, mType metricType) []xio.Bl
 
 func (b *dbBufferBucket) streamsLen() int {
 	length := 0
-
-	for mt := 0; mt < numMetricTypes; mt++ {
-		for i := range b.bootstrapped[mt] {
-			length += b.bootstrapped[mt][i].Len()
-		}
-		for i := range b.encoders[mt] {
-			length += b.encoders[mt][i].encoder.Len()
-		}
+	for i := range b.blocks {
+		length += b.blocks[i].Len()
+	}
+	for i := range b.encoders {
+		length += b.encoders[i].encoder.Len()
 	}
 	return length
 }
 
-func (b *dbBufferBucket) setLastRead(value time.Time) {
-	atomic.StoreInt64(&b.lastReadUnixNanos, value.UnixNano())
-}
-
-func (b *dbBufferBucket) lastRead() time.Time {
-	return time.Unix(0, atomic.LoadInt64(&b.lastReadUnixNanos))
-}
-
-func (b *dbBufferBucket) setLastPersist(value time.Time) {
-	atomic.StoreInt64(&b.lastPersistUnixNanos, value.UnixNano())
-}
-
-func (b *dbBufferBucket) lastPersist() time.Time {
-	return time.Unix(0, atomic.LoadInt64(&b.lastPersistUnixNanos))
-}
-
-func (b *dbBufferBucket) resetEncoders(mt metricType) {
+func (b *dbBufferBucket) resetEncoders() {
 	var zeroed inOrderEncoder
-	for mType := 0; mType < numMetricTypes; mType++ {
-		if mt != metricType(mType) && mt != allMetricTypes {
-			continue
-		}
-
-		for i := range b.encoders[mType] {
-			// Register when this bucket resets we close the encoder
-			encoder := b.encoders[mType][i].encoder
-			encoder.Close()
-			b.encoders[mType][i] = zeroed
-		}
-		b.encoders[mType] = b.encoders[mType][:0]
+	for i := range b.encoders {
+		// Register when this bucket resets we close the encoder
+		encoder := b.encoders[i].encoder
+		encoder.Close()
+		b.encoders[i] = zeroed
 	}
+	b.encoders = b.encoders[:0]
 }
 
-func (b *dbBufferBucket) resetBootstrapped(mt metricType) {
-	for mType := 0; mType < numMetricTypes; mType++ {
-		if mt != metricType(mType) && mt != allMetricTypes {
-			continue
-		}
-
-		for i := range b.bootstrapped[mType] {
-			bl := b.bootstrapped[mType][i]
-			bl.Close()
-		}
-		b.bootstrapped[mType] = nil
+func (b *dbBufferBucket) resetBlocks() {
+	for i := range b.blocks {
+		bl := b.blocks[i]
+		bl.Close()
 	}
+	b.blocks = nil
+}
+
+func (b *dbBufferBucket) needsMerge() bool {
+	return !b.isEmpty() && !(b.hasJustSingleEncoder() || b.hasJustSingleBootstrappedBlock())
+}
+
+func (b *dbBufferBucket) hasJustSingleEncoder() bool {
+	return len(b.encoders) == 1 && len(b.blocks) == 0
+}
+
+func (b *dbBufferBucket) hasJustSingleBootstrappedBlock() bool {
+	encodersEmpty := len(b.encoders) == 0 ||
+		(len(b.encoders) == 1 && b.encoders[0].encoder.Len() == 0)
+	return encodersEmpty && len(b.blocks) == 1
 }
 
 type mergeResult struct {
 	merges int
 }
 
-func (b *dbBufferBucket) merge(mType metricType) (mergeResult, error) {
-	if !b.needsMerge(mType) {
+func (b *dbBufferBucket) merge() (mergeResult, error) {
+	if !b.needsMerge() {
 		// Save unnecessary work
 		return mergeResult{}, nil
 	}
 
 	merges := 0
-	start := b.start
 	bopts := b.opts.DatabaseBlockOptions()
+	encoder := bopts.EncoderPool().Get()
+	encoder.Reset(b.start, bopts.DatabaseBlockAllocSize())
 
 	var (
-		readers = make([]xio.SegmentReader, 0, len(b.encoders[mType])+len(b.bootstrapped[mType]))
-		streams = make([]xio.SegmentReader, 0, len(b.encoders[mType]))
+		start   = b.start
+		readers = make([]xio.SegmentReader, 0, len(b.encoders)+len(b.blocks))
+		streams = make([]xio.SegmentReader, 0, len(b.encoders))
 		iter    = b.opts.MultiReaderIteratorPool().Get()
 		ctx     = b.opts.ContextPool().Get()
-		encoder = bopts.EncoderPool().Get()
 	)
-	encoder.Reset(start, bopts.DatabaseBlockAllocSize())
 	defer func() {
 		iter.Close()
 		ctx.Close()
@@ -798,16 +895,16 @@ func (b *dbBufferBucket) merge(mType metricType) (mergeResult, error) {
 
 	// Rank bootstrapped blocks as data that has appeared before data that
 	// arrived locally in the buffer
-	for i := range b.bootstrapped[mType] {
-		block, err := b.bootstrapped[mType][i].Stream(ctx)
+	for i := range b.blocks {
+		block, err := b.blocks[i].Stream(ctx)
 		if err == nil && block.SegmentReader != nil {
 			merges++
 			readers = append(readers, block.SegmentReader)
 		}
 	}
 
-	for i := range b.encoders[mType] {
-		if s := b.encoders[mType][i].encoder.Stream(); s != nil {
+	for i := range b.encoders {
+		if s := b.encoders[i].encoder.Stream(); s != nil {
 			merges++
 			readers = append(readers, s)
 			streams = append(streams, s)
@@ -827,10 +924,10 @@ func (b *dbBufferBucket) merge(mType metricType) (mergeResult, error) {
 		return mergeResult{}, err
 	}
 
-	b.resetEncoders(metricType(mType))
-	b.resetBootstrapped(metricType(mType))
+	b.resetEncoders()
+	b.resetBlocks()
 
-	b.encoders[mType] = append(b.encoders[mType], inOrderEncoder{
+	b.encoders = append(b.encoders, inOrderEncoder{
 		encoder:     encoder,
 		lastWriteAt: lastWriteAt,
 	})
@@ -838,102 +935,77 @@ func (b *dbBufferBucket) merge(mType metricType) (mergeResult, error) {
 	return mergeResult{merges: merges}, nil
 }
 
-func (b *dbBufferBucket) needsMerge(mType metricType) bool {
-	return !(b.hasJustSingleEncoder(mType) || b.hasJustSingleBootstrappedBlock(mType))
-}
-
-func (b *dbBufferBucket) hasJustSingleEncoder(mType metricType) bool {
-	return len(b.encoders[mType]) == 1 && len(b.bootstrapped[mType]) == 0
-}
-
-func (b *dbBufferBucket) encodersEmpty(mType metricType) bool {
-	return len(b.encoders[mType]) == 0 ||
-		(len(b.encoders[mType]) == 1 &&
-			b.encoders[mType][0].encoder.Len() == 0)
-}
-
-func (b *dbBufferBucket) hasJustSingleBootstrappedBlock(mType metricType) bool {
-	return b.encodersEmpty(mType) && len(b.bootstrapped[mType]) == 1
-}
-
-func (b *dbBufferBucket) discardMerged(mType metricType) (block.DatabaseBlock, error) {
-	if b.hasJustSingleEncoder(mType) {
+func (b *dbBufferBucket) toBlock() (block.DatabaseBlock, error) {
+	if b.hasJustSingleEncoder() {
 		// Already merged as a single encoder
-		encoder := b.encoders[mType][0].encoder
+		encoder := b.encoders[0].encoder
 		newBlock := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 		blockSize := b.opts.RetentionOptions().BlockSize()
 		newBlock.Reset(b.start, blockSize, encoder.Discard())
 
 		// The single encoder is already discarded, no need to call resetEncoders
 		// just remove it from the list of encoders
-		b.encoders[mType] = b.encoders[mType][:0]
-		b.resetBootstrapped(mType)
-
+		b.encoders = b.encoders[:0]
+		b.resetBlocks()
+		// We need to retain this block otherwise the data contained cannot be
+		// read, since it won't be in the buffer and we don't know when the
+		// flush will fully complete. Blocks are also quicker to stream from
+		// compared to from encoders, so keep the block.
+		b.addBlock(newBlock)
 		return newBlock, nil
 	}
 
-	if b.hasJustSingleBootstrappedBlock(mType) {
-		// Already merged just a single bootstrapped block
-		existingBlock := b.bootstrapped[mType][0]
-
+	if b.hasJustSingleBootstrappedBlock() {
 		// Need to reset encoders but do not want to finalize the block as we
 		// are passing ownership of it to the caller
-		b.resetEncoders(mType)
-		b.bootstrapped[mType] = nil
-
-		return existingBlock, nil
+		b.resetEncoders()
+		return b.blocks[0], nil
 	}
 
-	_, err := b.merge(mType)
+	_, err := b.merge()
 	if err != nil {
-		b.resetEncoders(allMetricTypes)
-		b.resetBootstrapped(allMetricTypes)
+		b.resetEncoders()
+		b.resetBlocks()
 		return nil, err
 	}
 
-	mergedEncoder := b.encoders[mType][0].encoder
+	merged := b.encoders[0].encoder
+
 	newBlock := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 	blockSize := b.opts.RetentionOptions().BlockSize()
-	newBlock.Reset(b.start, blockSize, mergedEncoder.Discard())
-	if lastRead := b.lastRead(); !lastRead.IsZero() {
-		newBlock.SetLastReadTime(lastRead)
-	}
+	newBlock.Reset(b.start, blockSize, merged.Discard())
 
 	// The merged encoder is already discarded, no need to call resetEncoders
 	// just remove it from the list of encoders
-	b.encoders[mType] = b.encoders[mType][:0]
-	b.resetBootstrapped(mType)
-
+	b.encoders = b.encoders[:0]
+	b.resetBlocks()
+	// We need to retain this block otherwise the data contained cannot be
+	// read, since it won't be in the buffer and we don't know when the
+	// flush will fully complete. Blocks are also quicker to stream from
+	// compared to from encoders, so keep the block.
+	b.addBlock(newBlock)
 	return newBlock, nil
 }
 
-func (b *dbBufferBucket) stream(ctx context.Context, mType metricType) (xio.BlockReader, error) {
-	if mType == allMetricTypes {
-		return xio.EmptyBlockReader, errInvalidMetricType
-	}
+type dbBufferBucketsPool struct {
+	pool pool.ObjectPool
+}
 
-	if b.isEmpty() {
-		return xio.EmptyBlockReader, nil
-	}
+// newDBBufferBucketsPool creates a new dbBufferBucketsPool
+func newDBBufferBucketsPool(opts pool.ObjectPoolOptions) *dbBufferBucketsPool {
+	p := &dbBufferBucketsPool{pool: pool.NewObjectPool(opts)}
+	p.pool.Init(func() interface{} {
+		return &dbBufferBuckets{}
+	})
+	return p
+}
 
-	// We need to merge all the bootstrapped blocks / encoders into a single stream for
-	// the sake of being able to persist it to disk as a single encoded stream.
-	_, err := b.merge(mType)
-	if err != nil {
-		return xio.EmptyBlockReader, err
-	}
+func (p *dbBufferBucketsPool) Get() *dbBufferBuckets {
+	return p.pool.Get().(*dbBufferBuckets)
+}
 
-	if s := b.encoders[mType][0].encoder.Stream(); s != nil {
-		br := xio.BlockReader{
-			SegmentReader: s,
-			Start:         b.start,
-			BlockSize:     b.opts.RetentionOptions().BlockSize(),
-		}
-		ctx.RegisterFinalizer(s)
-		return br, nil
-	}
-
-	return xio.EmptyBlockReader, nil
+func (p *dbBufferBucketsPool) Put(buckets *dbBufferBuckets) {
+	p.pool.Put(buckets)
 }
 
 type dbBufferBucketPool struct {

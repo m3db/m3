@@ -93,7 +93,8 @@ type Database interface {
 		ctx context.Context,
 		namespace ident.ID,
 		id ident.ID,
-		timestamp time.Time,
+		timestamp time.Time, // Time of metric
+		writeTime time.Time, // Time the write got initiated
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
@@ -105,7 +106,8 @@ type Database interface {
 		namespace ident.ID,
 		id ident.ID,
 		tags ident.TagIterator,
-		timestamp time.Time,
+		timestamp time.Time, // Time of metric
+		writeTime time.Time, // Time the write got initiated
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
@@ -120,6 +122,7 @@ type Database interface {
 		ctx context.Context,
 		namespace ident.ID,
 		writes ts.BatchWriter,
+		writeTime time.Time, // Time the write got initiated
 		errHandler IndexedErrorHandler,
 	) error
 
@@ -128,6 +131,7 @@ type Database interface {
 		ctx context.Context,
 		namespace ident.ID,
 		writes ts.BatchWriter,
+		writeTime time.Time, // Time the write got initiated
 		errHandler IndexedErrorHandler,
 	) error
 
@@ -250,7 +254,8 @@ type databaseNamespace interface {
 	Write(
 		ctx context.Context,
 		id ident.ID,
-		timestamp time.Time,
+		timestamp time.Time, // Time of metric
+		writeTime time.Time, // Time the write got initiated
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
@@ -261,7 +266,8 @@ type databaseNamespace interface {
 		ctx context.Context,
 		id ident.ID,
 		tags ident.TagIterator,
-		timestamp time.Time,
+		timestamp time.Time, // Time of metric
+		writeTime time.Time, // Time the write got initiated
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
@@ -380,6 +386,7 @@ type databaseShard interface {
 		ctx context.Context,
 		id ident.ID,
 		timestamp time.Time,
+		wType series.WriteType,
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
@@ -391,6 +398,7 @@ type databaseShard interface {
 		id ident.ID,
 		tags ident.TagIterator,
 		timestamp time.Time,
+		wType series.WriteType,
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,

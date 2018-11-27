@@ -122,20 +122,6 @@ func (s *dbSeries) Tick() (TickResult, error) {
 	bufferResult := s.buffer.Tick()
 	r.MergedOutOfOrderBlocks = bufferResult.mergedOutOfOrderBlocks
 
-	for _, blockStart := range bufferResult.bucketsRemoved {
-		// A bucket being removed from the buffer means that there is new data
-		// that got persisted to disk for that blockStart. As such, the cached
-		// block is no longer up to date, so we remove it to be retrieved from
-		// disk next time this is queried for.
-		block, exists := s.blocks.BlockAt(blockStart)
-		if exists {
-			s.blocks.RemoveBlockAt(blockStart)
-			if s.opts.CachePolicy() != CacheLRU {
-				block.Close()
-			}
-		}
-	}
-
 	update, err := s.updateBlocksWithLock()
 	if err != nil {
 		s.Unlock()
@@ -287,12 +273,13 @@ func (s *dbSeries) IsBootstrapped() bool {
 func (s *dbSeries) Write(
 	ctx context.Context,
 	timestamp time.Time,
+	wType WriteType,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
 	s.Lock()
-	err := s.buffer.Write(ctx, timestamp, value, unit, annotation)
+	err := s.buffer.Write(ctx, timestamp, wType, value, unit, annotation)
 	s.Unlock()
 	return err
 }
@@ -504,6 +491,7 @@ func (s *dbSeries) Flush(
 	ctx context.Context,
 	blockStart time.Time,
 	persistFn persist.DataFn,
+	version int,
 ) (FlushOutcome, error) {
 	s.Lock()
 	defer s.Unlock()
@@ -512,7 +500,7 @@ func (s *dbSeries) Flush(
 		return FlushOutcomeErr, errSeriesNotBootstrapped
 	}
 
-	return s.buffer.Flush(ctx, blockStart, s.id, s.tags, persistFn)
+	return s.buffer.Flush(ctx, blockStart, s.id, s.tags, persistFn, version)
 }
 
 func (s *dbSeries) Snapshot(
@@ -534,7 +522,7 @@ func (s *dbSeries) Snapshot(
 		err    error
 	)
 
-	stream, err = s.buffer.Snapshot(ctx, realtimeType, blockStart)
+	stream, err = s.buffer.Snapshot(ctx, blockStart)
 
 	if err != nil {
 		return err

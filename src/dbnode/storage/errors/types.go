@@ -33,7 +33,7 @@ var (
 	// ErrTooPast is returned for a write which is too far in the past.
 	ErrTooPast = xerrors.NewInvalidParamsError(errors.New("datapoint is too far in the past"))
 
-	// ErrOutOfOrderWriteTimeNotEnabled is returned for when non-realtime metrics are disabled
+	// ErrColdWriteNotEnabled is returned for when non-realtime metrics are disabled
 	// and a write is too far in the past or future
-	ErrOutOfOrderWriteTimeNotEnabled = xerrors.NewInvalidParamsError(errors.New("datapoint too far in the past or future. Adjust the values of bufferPast and bufferFuture or enable non-realtime metrics for this namespace"))
+	ErrColdWriteNotEnabled = xerrors.NewInvalidParamsError(errors.New("datapoint too far in the past or future. Adjust the values of bufferPast and bufferFuture or enable non-realtime metrics for this namespace"))
 )

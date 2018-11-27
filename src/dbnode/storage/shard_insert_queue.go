@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/runtime"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3x/ident"
@@ -122,6 +123,7 @@ var dbShardInsertZeroed = dbShardInsert{}
 
 type dbShardPendingWrite struct {
 	timestamp  time.Time
+	wType      series.WriteType
 	value      float64
 	unit       xtime.Unit
 	annotation []byte
