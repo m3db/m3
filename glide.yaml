@@ -28,7 +28,7 @@ import:
     version: bfebcd73ef6ffe0ee30489227f0330c39064b674
 
   - package: github.com/m3db/fast-skiplist
-    version: 5c9ed96601864793fad65da1f3e3f03e69ae8080
+    version: c6ebc6ea8c6585b5a3a41d46bb97b8b65cb880be
 
   - package: github.com/willf/bitset
     version: e553b05586428962bf7058d1044519d87ca72d74
