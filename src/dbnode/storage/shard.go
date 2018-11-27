@@ -353,9 +353,9 @@ func (s *dbShard) IsBlockRetrievable(blockStart time.Time) bool {
 }
 
 // BlockLastSuccess implements series.QueryableBlockRetriever
-func (s *dbShard) BlockLastSuccess(blockStart time.Time) time.Time {
+func (s *dbShard) RetrievableBlockVersion(blockStart time.Time) int {
 	flushState := s.FlushState(blockStart)
-	return flushState.LastSuccess
+	return flushState.Version
 }
 
 func (s *dbShard) OnRetrieveBlock(
@@ -750,11 +750,12 @@ func (s *dbShard) WriteTagged(
 	id ident.ID,
 	tags ident.TagIterator,
 	timestamp time.Time,
+	wType series.WriteType,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
 ) (ts.Series, bool, error) {
-	return s.writeAndIndex(ctx, id, tags, timestamp,
+	return s.writeAndIndex(ctx, id, tags, timestamp, wType,
 		value, unit, annotation, true)
 }
 
@@ -762,11 +763,12 @@ func (s *dbShard) Write(
 	ctx context.Context,
 	id ident.ID,
 	timestamp time.Time,
+	wType series.WriteType,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
 ) (ts.Series, bool, error) {
-	return s.writeAndIndex(ctx, id, ident.EmptyTagIterator, timestamp,
+	return s.writeAndIndex(ctx, id, ident.EmptyTagIterator, timestamp, wType,
 		value, unit, annotation, false)
 }
 
@@ -775,6 +777,7 @@ func (s *dbShard) writeAndIndex(
 	id ident.ID,
 	tags ident.TagIterator,
 	timestamp time.Time,
+	wType series.WriteType,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
@@ -829,7 +832,7 @@ func (s *dbShard) writeAndIndex(
 		// Perform write. No need to copy the annotation here because we're using it
 		// synchronously and all downstream code will copy anthing they need to maintain
 		// a reference to.
-		wasWritten, err = entry.Series.Write(ctx, timestamp, value, unit, annotation)
+		wasWritten, err = entry.Series.Write(ctx, timestamp, wType, value, unit, annotation)
 		// Load series metadata before decrementing the writer count
 		// to ensure this metadata is snapshotted at a consistent state
 		// NB(r): We explicitly do not place the series ID back into a
@@ -1311,7 +1314,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			// operation and there is nothing further to do with this value.
 			// TODO: Consider propagating the `wasWritten` argument back to the caller
 			// using waitgroup (or otherwise) in the future.
-			_, err := entry.Series.Write(ctx, write.timestamp, write.value,
+			_, err := entry.Series.Write(ctx, write.timestamp, write.wType, write.value,
 				write.unit, annotationBytes)
 			if err != nil {
 				s.metrics.insertAsyncWriteErrors.Inc(1)
@@ -1800,7 +1803,8 @@ func (s *dbShard) Bootstrap(
 		if fs.Status != fileOpNotStarted {
 			continue // Already recorded progress
 		}
-		s.markFlushStateSuccess(at)
+		// TODO(juchan): verify that version 0 is correct here
+		s.markFlushStateSuccess(at, 0)
 	}
 
 	s.Lock()
@@ -1834,19 +1838,20 @@ func (s *dbShard) Flush(
 	}
 	prepared, err := flushPreparer.PrepareData(prepareOpts)
 	if err != nil {
-		return s.markFlushStateSuccessOrError(blockStart, err)
+		return s.markFlushStateSuccessOrError(blockStart, 0, err)
 	}
 
 	var multiErr xerrors.MultiError
 	tmpCtx := context.NewContext()
 
 	flushResult := dbShardFlushResult{}
+	version := s.RetrievableBlockVersion(blockStart) + 1
 	s.forEachShardEntry(func(entry *lookup.Entry) bool {
 		curr := entry.Series
 		// Use a temporary context here so the stream readers can be returned to
 		// the pool after we finish fetching flushing the series.
 		tmpCtx.Reset()
-		flushOutcome, err := curr.Flush(tmpCtx, blockStart, prepared.Persist)
+		flushOutcome, err := curr.Flush(tmpCtx, blockStart, prepared.Persist, version)
 		tmpCtx.BlockingClose()
 
 		if err != nil {
@@ -1867,7 +1872,7 @@ func (s *dbShard) Flush(
 		multiErr = multiErr.Add(err)
 	}
 
-	return s.markFlushStateSuccessOrError(blockStart, multiErr.FinalError())
+	return s.markFlushStateSuccessOrError(blockStart, version, multiErr.FinalError())
 }
 
 func (s *dbShard) Snapshot(
@@ -1948,22 +1953,22 @@ func (s *dbShard) FlushState(blockStart time.Time) fileOpState {
 	return state
 }
 
-func (s *dbShard) markFlushStateSuccessOrError(blockStart time.Time, err error) error {
+func (s *dbShard) markFlushStateSuccessOrError(blockStart time.Time, version int, err error) error {
 	// Track flush state for block state
 	if err == nil {
-		s.markFlushStateSuccess(blockStart)
+		s.markFlushStateSuccess(blockStart, version)
 	} else {
 		s.markFlushStateFail(blockStart)
 	}
 	return err
 }
 
-func (s *dbShard) markFlushStateSuccess(blockStart time.Time) {
+func (s *dbShard) markFlushStateSuccess(blockStart time.Time, version int) {
 	s.flushState.Lock()
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] =
 		fileOpState{
-			Status:      fileOpSuccess,
-			LastSuccess: s.nowFn(),
+			Status:  fileOpSuccess,
+			Version: version,
 		}
 	s.flushState.Unlock()
 }
