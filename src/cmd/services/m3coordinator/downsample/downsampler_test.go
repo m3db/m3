@@ -151,7 +151,8 @@ func testDownsamplerAggregation(
 	}
 
 	logger.Infof("write test metrics")
-	appender := downsampler.NewMetricsAppender()
+	appender, err := downsampler.NewMetricsAppender()
+	require.NoError(t, err)
 	defer appender.Finalize()
 
 	for _, metric := range testCounterMetrics {

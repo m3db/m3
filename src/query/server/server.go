@@ -296,13 +296,18 @@ func newM3DBStorage(
 	readWorkerPool xsync.PooledWorkerPool,
 	writeWorkerPool xsync.PooledWorkerPool,
 ) (storage.Storage, clusterclient.Client, downsample.Downsampler, cleanupFn, error) {
-	var clusterClient clusterclient.Client
+	var (
+		clusterClient       clusterclient.Client
+		clusterClientWaitCh <-chan struct{}
+	)
 	if clusterClientCh := runOpts.ClusterClient; clusterClientCh != nil {
 		// Only use a cluster client if we are going to receive one, that
 		// way passing nil to httpd NewHandler disables the endpoints entirely
+		clusterClientDoneCh := make(chan struct{}, 1)
+		clusterClientWaitCh = clusterClientDoneCh
 		clusterClient = m3dbcluster.NewAsyncClient(func() (clusterclient.Client, error) {
 			return <-clusterClientCh, nil
-		}, nil)
+		}, clusterClientDoneCh)
 	} else {
 		var etcdCfg *etcdclient.Configuration
 		switch {
@@ -352,10 +357,25 @@ func newM3DBStorage(
 			return nil, nil, nil, nil, err
 		}
 
-		downsampler, err = newDownsampler(cfg.Downsample, clusterClient,
-			fanoutStorage, autoMappingRules, tagOptions, instrumentOptions)
-		if err != nil {
-			return nil, nil, nil, nil, err
+		newDownsamplerFn := func() (downsample.Downsampler, error) {
+			return newDownsampler(cfg.Downsample, clusterClient,
+				fanoutStorage, autoMappingRules, tagOptions, instrumentOptions)
+		}
+
+		if clusterClientWaitCh != nil {
+			// Need to wait before constructing and instead return an async downsampler
+			// since the cluster client will return errors until it's initialized itself
+			// and will fail constructing the downsampler consequently
+			downsampler = downsample.NewAsyncDownsampler(func() (downsample.Downsampler, error) {
+				<-clusterClientWaitCh
+				return newDownsamplerFn()
+			}, nil)
+		} else {
+			// Otherwise we already have a client and can immediately construct the downsampler
+			downsampler, err = newDownsamplerFn()
+			if err != nil {
+				return nil, nil, nil, nil, err
+			}
 		}
 	}
 
