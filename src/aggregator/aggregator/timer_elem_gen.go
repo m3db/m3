@@ -43,9 +43,25 @@ import (
 type lockedTimerAggregation struct {
 	sync.Mutex
 
-	closed      bool
+	closed bool
+
+	// aggregated indicates whether the aggregated value of the metric has already been calculated.
+	// If true, the aggregated values are stored in the 'values' field below.
+	aggregated bool
+	values     map[maggregation.Type]float64
+
 	sourcesSeen *bitset.BitSet
 	aggregation timerAggregation
+}
+
+func (a *lockedTimerAggregation) getAggregatedValueWithLock(aggType maggregation.Type) float64 {
+	if a.aggregated {
+		// TimerElem must only request the values for aggregation types which have been
+		// stored already.
+		return a.values[aggType]
+	}
+
+	return a.aggregation.ValueOf(aggType)
 }
 
 type timedTimer struct {
@@ -171,6 +187,29 @@ func (e *TimerElem) AddValue(timestamp time.Time, value float64) error {
 		return errAggregationClosed
 	}
 	lockedAgg.aggregation.Add(value)
+	lockedAgg.Unlock()
+	return nil
+}
+
+// AddAggregatedValue adds a metric value which has already been aggregated.
+func (e *TimerElem) AddAggregatedValue(
+	timestamp time.Time, value float64, aggType maggregation.Type,
+) error {
+	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
+	lockedAgg, err := e.findOrCreate(alignedStart, createAggregationOptions{})
+	if err != nil {
+		return err
+	}
+	lockedAgg.Lock()
+	if lockedAgg.closed {
+		lockedAgg.Unlock()
+		return errAggregationClosed
+	}
+	lockedAgg.aggregated = true
+	if lockedAgg.values == nil {
+		lockedAgg.values = make(map[maggregation.Type]float64)
+	}
+	lockedAgg.values[aggType] = value
 	lockedAgg.Unlock()
 	return nil
 }
@@ -411,7 +450,7 @@ func (e *TimerElem) processValueWithAggregationLock(
 		discardNaNValues = e.opts.DiscardNaNAggregatedValues()
 	)
 	for aggTypeIdx, aggType := range e.aggTypes {
-		value := lockedAgg.aggregation.ValueOf(aggType)
+		value := lockedAgg.getAggregatedValueWithLock(aggType)
 		for i := 0; i < transformations.Len(); i++ {
 			transformType := transformations.At(i).Transformation.Type
 			if transformType.IsUnaryTransform() {
