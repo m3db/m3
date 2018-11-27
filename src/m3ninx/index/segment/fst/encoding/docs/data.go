@@ -88,7 +88,6 @@ type DataReader struct {
 func NewDataReader(data []byte) *DataReader {
 	return &DataReader{
 		data: data,
-		dec:  encoding.NewDecoder(nil),
 	}
 }
 
@@ -96,13 +95,13 @@ func (r *DataReader) Read(offset uint64) (doc.Document, error) {
 	if offset >= uint64(len(r.data)) {
 		return doc.Document{}, fmt.Errorf("invalid offset: %v is past the end of the data file", offset)
 	}
-	r.dec.Reset(r.data[int(offset):])
-	id, err := r.dec.Bytes()
+	dec := encoding.NewDecoder(r.data[int(offset):])
+	id, err := dec.Bytes()
 	if err != nil {
 		return doc.Document{}, err
 	}
 
-	x, err := r.dec.Uvarint()
+	x, err := dec.Uvarint()
 	if err != nil {
 		return doc.Document{}, err
 	}
@@ -114,11 +113,11 @@ func (r *DataReader) Read(offset uint64) (doc.Document, error) {
 	}
 
 	for i := 0; i < n; i++ {
-		name, err := r.dec.Bytes()
+		name, err := dec.Bytes()
 		if err != nil {
 			return doc.Document{}, err
 		}
-		val, err := r.dec.Bytes()
+		val, err := dec.Bytes()
 		if err != nil {
 			return doc.Document{}, err
 		}
