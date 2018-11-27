@@ -297,16 +297,14 @@ func newM3DBStorage(
 	readWorkerPool xsync.PooledWorkerPool,
 	writeWorkerPool xsync.PooledWorkerPool,
 ) (storage.Storage, clusterclient.Client, downsample.Downsampler, cleanupFn, error) {
-	var clusterClientCh <-chan clusterclient.Client
-	if runOpts.ClusterClient != nil {
-		clusterClientCh = runOpts.ClusterClient
-	}
-
-	var (
-		clusterManagementClient clusterclient.Client
-		err                     error
-	)
-	if clusterClientCh == nil {
+	var clusterClient clusterclient.Client
+	if clusterClientCh := runOpts.ClusterClient; clusterClientCh != nil {
+		// Only use a cluster client if we are going to receive one, that
+		// way passing nil to httpd NewHandler disables the endpoints entirely
+		clusterClient = m3dbcluster.NewAsyncClient(func() (clusterclient.Client, error) {
+			return <-clusterClientCh, nil
+		}, nil)
+	} else {
 		var etcdCfg *etcdclient.Configuration
 		switch {
 		case cfg.ClusterManagement != nil:
@@ -319,15 +317,14 @@ func newM3DBStorage(
 
 		if etcdCfg != nil {
 			// We resolved an etcd configuration for cluster management endpoints
-			clusterSvcClientOpts := etcdCfg.NewOptions()
-			clusterManagementClient, err = etcdclient.NewConfigServiceClient(clusterSvcClientOpts)
+			var (
+				clusterSvcClientOpts = etcdCfg.NewOptions()
+				err                  error
+			)
+			clusterClient, err = etcdclient.NewConfigServiceClient(clusterSvcClientOpts)
 			if err != nil {
 				return nil, nil, nil, nil, errors.Wrap(err, "unable to create cluster management etcd client")
 			}
-
-			clusterClientSendableCh := make(chan clusterclient.Client, 1)
-			clusterClientSendableCh <- clusterManagementClient
-			clusterClientCh = clusterClientSendableCh
 		}
 	}
 
@@ -344,15 +341,6 @@ func newM3DBStorage(
 		return nil, nil, nil, nil, errors.Wrap(err, "unable to set up storages")
 	}
 
-	var clusterClient clusterclient.Client
-	if clusterClientCh != nil {
-		// Only use a cluster client if we are going to receive one, that
-		// way passing nil to httpd NewHandler disables the endpoints entirely
-		clusterClient = m3dbcluster.NewAsyncClient(func() (clusterclient.Client, error) {
-			return <-clusterClientCh, nil
-		}, nil)
-	}
-
 	var (
 		namespaces  = clusters.ClusterNamespaces()
 		downsampler downsample.Downsampler
@@ -365,7 +353,7 @@ func newM3DBStorage(
 			return nil, nil, nil, nil, err
 		}
 
-		downsampler, err = newDownsampler(cfg.Downsample, clusterManagementClient,
+		downsampler, err = newDownsampler(cfg.Downsample, clusterClient,
 			fanoutStorage, autoMappingRules, tagOptions, instrumentOptions)
 		if err != nil {
 			return nil, nil, nil, nil, err
