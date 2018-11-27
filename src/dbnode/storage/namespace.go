@@ -553,33 +553,40 @@ func (n *dbNamespace) Write(
 	ctx context.Context,
 	id ident.ID,
 	timestamp time.Time,
+	writeTime time.Time,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
 ) (ts.Series, bool, error) {
-	callStart := n.nowFn()
-	if !n.Options().RetentionOptions().OutOfOrderWritesEnabled() &&
-		!n.isRealtime(callStart, timestamp) {
-		n.metrics.write.ReportError(n.nowFn().Sub(callStart))
-		return m3dberrors.ErrOutOfOrderWriteTimeNotEnabled
+	wType := n.writeType(timestamp, writeTime)
+	if !n.Options().RetentionOptions().ColdWritesEnabled() &&
+		wType == series.ColdWrite {
+		n.metrics.write.ReportError(n.nowFn().Sub(writeTime))
+		return ts.Series{}, false, m3dberrors.ErrColdWriteNotEnabled
 	}
+
+	callStart := n.nowFn()
 
 	shard, err := n.shardFor(id)
 	if err != nil {
 		n.metrics.write.ReportError(n.nowFn().Sub(callStart))
 		return ts.Series{}, false, err
 	}
-	series, wasWritten, err := shard.Write(ctx, id, timestamp,
-		value, unit, annotation)
+	series, wasWritten, err := shard.Write(ctx, id, timestamp, wType, value, unit, annotation)
 	n.metrics.write.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return series, wasWritten, err
 }
 
-func (n *dbNamespace) isRealtime(now time.Time, timestamp time.Time) bool {
+func (n *dbNamespace) writeType(timestamp time.Time, writeTime time.Time) series.WriteType {
 	ropts := n.Options().RetentionOptions()
-	futureLimit := now.Add(1 * ropts.BufferFuture())
-	pastLimit := now.Add(-1 * ropts.BufferPast())
-	return pastLimit.Before(timestamp) && futureLimit.After(timestamp)
+	futureLimit := writeTime.Add(1 * ropts.BufferFuture())
+	pastLimit := writeTime.Add(-1 * ropts.BufferPast())
+
+	if pastLimit.Before(timestamp) && futureLimit.After(timestamp) {
+		return series.WarmWrite
+	}
+
+	return series.ColdWrite
 }
 
 func (n *dbNamespace) WriteTagged(
@@ -587,10 +594,18 @@ func (n *dbNamespace) WriteTagged(
 	id ident.ID,
 	tags ident.TagIterator,
 	timestamp time.Time,
+	writeTime time.Time,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
 ) (ts.Series, bool, error) {
+	wType := n.writeType(timestamp, writeTime)
+	if !n.Options().RetentionOptions().ColdWritesEnabled() &&
+		wType == series.ColdWrite {
+		n.metrics.write.ReportError(n.nowFn().Sub(writeTime))
+		return ts.Series{}, false, m3dberrors.ErrColdWriteNotEnabled
+	}
+
 	callStart := n.nowFn()
 	if n.reverseIndex == nil { // only happens if indexing is enabled.
 		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
@@ -601,8 +616,7 @@ func (n *dbNamespace) WriteTagged(
 		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
 		return ts.Series{}, false, err
 	}
-	series, wasWritten, err := shard.WriteTagged(ctx, id, tags, timestamp,
-		value, unit, annotation)
+	series, wasWritten, err := shard.WriteTagged(ctx, id, tags, timestamp, wType, value, unit, annotation)
 	n.metrics.writeTagged.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return series, wasWritten, err
 }

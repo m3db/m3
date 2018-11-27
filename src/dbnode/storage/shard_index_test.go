@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/runtime"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	xclock "github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/context"
@@ -80,18 +81,18 @@ func TestShardInsertNamespaceIndex(t *testing.T) {
 
 	_, wasWritten, err := shard.WriteTagged(ctx, ident.StringID("foo"),
 		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
-		now, 1.0, xtime.Second, nil)
+		now, series.WarmWrite, 1.0, xtime.Second, nil)
 	require.NoError(t, err)
 	require.True(t, wasWritten)
 
 	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("foo"),
 		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
-		now, 2.0, xtime.Second, nil)
+		now, series.WarmWrite, 2.0, xtime.Second, nil)
 	require.NoError(t, err)
 	require.True(t, wasWritten)
 
 	_, wasWritten, err = shard.Write(
-		ctx, ident.StringID("baz"), now, 1.0, xtime.Second, nil)
+		ctx, ident.StringID("baz"), now, series.WarmWrite, 1.0, xtime.Second, nil)
 	require.NoError(t, err)
 	require.True(t, wasWritten)
 
@@ -130,11 +131,11 @@ func TestShardAsyncInsertNamespaceIndex(t *testing.T) {
 
 	_, wasWritten, err := shard.WriteTagged(ctx, ident.StringID("foo"),
 		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
-		time.Now(), 1.0, xtime.Second, nil)
+		time.Now(), series.WarmWrite, 1.0, xtime.Second, nil)
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
-	_, wasWritten, err = shard.Write(ctx, ident.StringID("bar"), time.Now(), 1.0, xtime.Second, nil)
+	_, wasWritten, err = shard.Write(ctx, ident.StringID("bar"), time.Now(), series.WarmWrite, 1.0, xtime.Second, nil)
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
@@ -143,7 +144,7 @@ func TestShardAsyncInsertNamespaceIndex(t *testing.T) {
 			ident.StringTag("all", "tags"),
 			ident.StringTag("should", "be-present"),
 		)),
-		time.Now(), 1.0, xtime.Second, nil)
+		time.Now(), series.WarmWrite, 1.0, xtime.Second, nil)
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
@@ -216,7 +217,7 @@ func TestShardAsyncIndexOnlyWhenNotIndexed(t *testing.T) {
 
 	_, wasWritten, err := shard.WriteTagged(ctx, ident.StringID("foo"),
 		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
-		now, 1.0, xtime.Second, nil)
+		now, series.WarmWrite, 1.0, xtime.Second, nil)
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
@@ -230,7 +231,7 @@ func TestShardAsyncIndexOnlyWhenNotIndexed(t *testing.T) {
 	// ensure we don't index once we have already indexed
 	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("foo"),
 		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
-		now.Add(time.Second), 2.0, xtime.Second, nil)
+		now.Add(time.Second), series.WarmWrite, 2.0, xtime.Second, nil)
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
@@ -288,7 +289,7 @@ func TestShardAsyncIndexIfExpired(t *testing.T) {
 
 	_, wasWritten, err := shard.WriteTagged(ctx, ident.StringID("foo"),
 		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
-		now, 1.0, xtime.Second, nil)
+		now, series.WarmWrite, 1.0, xtime.Second, nil)
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 
@@ -302,7 +303,7 @@ func TestShardAsyncIndexIfExpired(t *testing.T) {
 	nextWriteTime := now.Add(blockSize)
 	_, wasWritten, err = shard.WriteTagged(ctx, ident.StringID("foo"),
 		ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
-		nextWriteTime, 2.0, xtime.Second, nil)
+		nextWriteTime, series.WarmWrite, 2.0, xtime.Second, nil)
 	assert.NoError(t, err)
 	assert.True(t, wasWritten)
 

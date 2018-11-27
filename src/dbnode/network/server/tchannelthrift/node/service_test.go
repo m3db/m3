@@ -1416,7 +1416,7 @@ func TestServiceWrite(t *testing.T) {
 	value := 42.42
 
 	mockDB.EXPECT().
-		Write(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), at, value, xtime.Second, nil).
+		Write(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), at, at, value, xtime.Second, nil).
 		Return(nil)
 
 	mockDB.EXPECT().IsOverloaded().Return(false)
@@ -1484,7 +1484,7 @@ func TestServiceWriteTagged(t *testing.T) {
 		ident.NewIDMatcher(nsID),
 		ident.NewIDMatcher(id),
 		gomock.Any(),
-		at, value, xtime.Second, nil,
+		at, at, value, xtime.Second, nil,
 	).Return(nil)
 
 	request := &rpc.WriteTaggedRequest{
@@ -1565,7 +1565,7 @@ func TestServiceWriteBatchRaw(t *testing.T) {
 		Return(writeBatch, nil)
 
 	mockDB.EXPECT().
-		WriteBatch(ctx, ident.NewIDMatcher(nsID), writeBatch, gomock.Any()).
+		WriteBatch(ctx, ident.NewIDMatcher(nsID), writeBatch, gomock.Any(), gomock.Any()).
 		Return(nil)
 
 	var elements []*rpc.WriteBatchRawRequestElement
@@ -1650,7 +1650,7 @@ func TestServiceWriteTaggedBatchRaw(t *testing.T) {
 		Return(writeBatch, nil)
 
 	mockDB.EXPECT().
-		WriteTaggedBatch(ctx, ident.NewIDMatcher(nsID), writeBatch, gomock.Any()).
+		WriteTaggedBatch(ctx, ident.NewIDMatcher(nsID), writeBatch, gomock.Any(), gomock.Any()).
 		Return(nil)
 
 	var elements []*rpc.WriteTaggedBatchRawRequestElement
