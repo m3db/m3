@@ -3,9 +3,6 @@ package cost
 import (
 	"fmt"
 
-	"golang.org/x/text/language"
-	"golang.org/x/text/message"
-
 	"github.com/uber-go/tally"
 )
 
@@ -114,22 +111,18 @@ func (e *Enforcer) checkLimit(cost Cost, limit Limit) error {
 }
 
 func defaultCostExceededError(cost Cost, limit Limit) error {
-	p := message.NewPrinter(language.Make("en"))
-
 	return fmt.Errorf(
 		defaultCostExceededErrorFmt,
-		p.Sprintf("%v", float64(cost)),
-		p.Sprintf("%v", float64(limit.Threshold)),
+		fmt.Sprintf("%v", float64(cost)),
+		fmt.Sprintf("%v", float64(limit.Threshold)),
 	)
 }
 
 func costExceededError(customMessage string, cost Cost, limit Limit) error {
-	p := message.NewPrinter(language.Make("en"))
-
 	return fmt.Errorf(
 		customCostExceededErrorFmt,
-		p.Sprintf("%v", float64(cost)),
-		p.Sprintf("%v", float64(limit.Threshold)),
+		fmt.Sprintf("%v", float64(cost)),
+		fmt.Sprintf("%v", float64(limit.Threshold)),
 		customMessage,
 	)
 }
