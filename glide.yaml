@@ -27,6 +27,9 @@ import:
   - package: github.com/m3db/stackadler32
     version: bfebcd73ef6ffe0ee30489227f0330c39064b674
 
+  - package: github.com/m3db/fast-skiplist
+    version: 5c9ed96601864793fad65da1f3e3f03e69ae8080
+
   - package: github.com/willf/bitset
     version: e553b05586428962bf7058d1044519d87ca72d74
 

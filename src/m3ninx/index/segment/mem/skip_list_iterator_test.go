@@ -23,16 +23,23 @@ package mem
 import (
 	"testing"
 
+	"github.com/m3db/fast-skiplist"
 	"github.com/stretchr/testify/require"
 )
 
-func TestBytesSliceIteratorSortedOrder(t *testing.T) {
+func TestSkipListIteratorSortedOrder(t *testing.T) {
 	input := [][]byte{
 		[]byte("def"),
 		[]byte("abc"),
 		[]byte("ghi"),
 	}
-	iter := newBytesSliceIter(input, testOptions)
+
+	list := skiplist.New()
+	for _, elem := range input {
+		list.Set(elem, nil)
+	}
+
+	iter := newSkipListIter(list)
 	require.True(t, iter.Next())
 	require.Equal(t, []byte("abc"), iter.Current())
 	require.True(t, iter.Next())

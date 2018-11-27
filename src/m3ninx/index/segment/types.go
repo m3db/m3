@@ -70,9 +70,6 @@ type OrderedBytesIterator interface {
 
 	// Close releases any resources held by the iterator.
 	Close() error
-
-	// Len returns the total number of elements the iterator contained at the start of iteration.
-	Len() int
 }
 
 // FieldsIterator iterates over all known fields.
