@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/m3db/fast-skiplist"
+
 	"github.com/stretchr/testify/require"
 )
 

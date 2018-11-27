@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
 	"github.com/m3db/m3/src/x/mmap"
-
 	xerrors "github.com/m3db/m3x/errors"
 )
 

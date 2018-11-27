@@ -24,11 +24,10 @@ import (
 	re "regexp"
 	"sync"
 
+	"github.com/m3db/fast-skiplist"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
-
-	"github.com/m3db/fast-skiplist"
 )
 
 // termsDict is an in-memory terms dictionary. It maps fields to postings lists.
