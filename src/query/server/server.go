@@ -347,9 +347,15 @@ func newM3DBStorage(
 	if clusterClientCh != nil {
 		// Only use a cluster client if we are going to receive one, that
 		// way passing nil to httpd NewHandler disables the endpoints entirely
+		asyncDoneCh := make(chan struct{})
 		clusterClient = m3dbcluster.NewAsyncClient(func() (clusterclient.Client, error) {
 			return <-clusterClientCh, nil
-		}, nil)
+		}, asyncDoneCh)
+
+		if clusterManagementClient == nil {
+			<-asyncDoneCh
+			clusterManagementClient = clusterClient
+		}
 	}
 
 	var (
