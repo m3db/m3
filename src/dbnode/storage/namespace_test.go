@@ -1097,6 +1097,8 @@ func TestNamespaceIndexQuery(t *testing.T) {
 	defer ctrl.Finish()
 
 	idx := NewMocknamespaceIndex(ctrl)
+	idx.EXPECT().BootstrapsDone().Return(uint(1))
+
 	ns, closer := newTestNamespaceWithIndex(t, idx)
 	defer closer()
 
