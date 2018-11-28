@@ -225,7 +225,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 		curr.EXPECT().IsEmpty().Return(false).AnyTimes()
 		curr.EXPECT().
 			Flush(gomock.Any(), blockStart, gomock.Any(), 1).
-			Do(func(context.Context, time.Time, persist.DataFn) {
+			Do(func(context.Context, time.Time, persist.DataFn, int) {
 				flushed[i] = struct{}{}
 			}).
 			Return(series.FlushOutcomeErr, expectedErr)
@@ -292,7 +292,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 		curr.EXPECT().IsEmpty().Return(false).AnyTimes()
 		curr.EXPECT().
 			Flush(gomock.Any(), blockStart, gomock.Any(), 1).
-			Do(func(context.Context, time.Time, persist.DataFn) {
+			Do(func(context.Context, time.Time, persist.DataFn, int) {
 				flushed[i] = struct{}{}
 			}).
 			Return(series.FlushOutcomeFlushedToDisk, nil)
@@ -435,6 +435,9 @@ func writeShardAndVerify(
 }
 
 func TestShardTick(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	now := time.Now()
 	nowLock := sync.RWMutex{}
 	nowFn := func() time.Time {
@@ -461,6 +464,9 @@ func TestShardTick(t *testing.T) {
 	shard.SetRuntimeOptions(runtime.NewOptions().
 		SetTickPerSeriesSleepDuration(sleepPerSeries).
 		SetTickSeriesBatchSize(1))
+	retriever := series.NewMockQueryableBlockRetriever(ctrl)
+	retriever.EXPECT().IsBlockRetrievable(gomock.Any()).Return(false).AnyTimes()
+	shard.seriesBlockRetriever = retriever
 	defer shard.Close()
 
 	// Also check that it expires flush states by time
@@ -619,6 +625,9 @@ func testShardWriteAsync(t *testing.T, writes []testWrite) {
 		SetWriteNewSeriesAsync(true).
 		SetTickPerSeriesSleepDuration(sleepPerSeries).
 		SetTickSeriesBatchSize(1))
+	retriever := series.NewMockQueryableBlockRetriever(ctrl)
+	retriever.EXPECT().IsBlockRetrievable(gomock.Any()).Return(false).AnyTimes()
+	shard.seriesBlockRetriever = retriever
 	defer shard.Close()
 
 	// Also check that it expires flush states by time
@@ -830,8 +839,14 @@ func TestPurgeExpiredSeriesEmptySeries(t *testing.T) {
 
 // This tests the scenario where a non-empty series is not expired.
 func TestPurgeExpiredSeriesNonEmptySeries(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	opts := testDatabaseOptions()
 	shard := testDatabaseShard(t, opts)
+	retriever := series.NewMockQueryableBlockRetriever(ctrl)
+	retriever.EXPECT().IsBlockRetrievable(gomock.Any()).Return(false).AnyTimes()
+	shard.seriesBlockRetriever = retriever
 	defer shard.Close()
 	ctx := opts.ContextPool().Get()
 	nowFn := opts.ClockOptions().NowFn()
