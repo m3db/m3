@@ -219,7 +219,7 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("unable to get listen address", zap.Error(err))
 	}
 
-	srv := &http.Server{Addr: listenAddress, Handler: handler.Router}
+	srv := &http.Server{Addr: listenAddress, Handler: handler.Router()}
 	defer func() {
 		logger.Info("closing server")
 		if err := srv.Shutdown(ctx); err != nil {
