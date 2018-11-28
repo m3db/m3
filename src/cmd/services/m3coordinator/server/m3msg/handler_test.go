@@ -61,7 +61,8 @@ func TestM3msgServerHandlerWithMultipleMetricsPerMessage(t *testing.T) {
 				SetConnectionWriteBufferSize(1),
 		).
 		SetConsumeFn(handler.Handle)
-	s := consumer.NewServer("a", sOpts)
+	s, err := consumer.NewServer("a", sOpts)
+	require.NoError(t, err)
 	s.Serve(l)
 
 	encoder := msgpack.NewAggregatedEncoder(msgpack.NewPooledBufferedEncoder(nil))
