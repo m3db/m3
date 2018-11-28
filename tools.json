@@ -23,6 +23,10 @@
     {
       "Repository": "github.com/fossas/fossa-cli/cmd/fossa",
       "Commit": "623f658a3882ec0d4e64c43fa973c8088bee54fa"
+    },
+    {
+      "Repository": "github.com/pointlander/peg",
+      "Commit": "eb55cbbebc6d419fa4fcf4baa100aa0a9ee95ec0"
     }
   ],
   "RetoolVersion": "1.3.7"
