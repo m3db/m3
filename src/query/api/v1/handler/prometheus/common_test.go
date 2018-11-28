@@ -146,3 +146,25 @@ func TestRenderSeriesMatchResults(t *testing.T) {
 
 	assert.Equal(t, expected, w.value)
 }
+
+func TestRenderSeriesMatchResultsNoTags(t *testing.T) {
+	w := &writer{value: ""}
+	seriesMatchResult := []*storage.CompleteTagsResult{
+		&storage.CompleteTagsResult{},
+	}
+
+	expectedWhitespace := `{
+		"status":"success",
+		"data":[]
+	}`
+
+	err := RenderSeriesMatchResultsJSON(w, seriesMatchResult)
+	assert.NoError(t, err)
+	fields := strings.Fields(expectedWhitespace)
+	expected := ""
+	for _, field := range fields {
+		expected = expected + field
+	}
+
+	assert.Equal(t, expected, w.value)
+}

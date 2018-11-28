@@ -54,7 +54,6 @@ const (
 
 var (
 	matchValues = []byte("*")
-	maxTime     = time.Unix(1<<63-62135596801, 999999999)
 )
 
 // ParsePromCompressedRequest parses a snappy compressed request from Prometheus
@@ -179,12 +178,12 @@ func ParseSeriesMatchQuery(
 		return nil, xhttp.NewParseError(errors.ErrInvalidMatchers, http.StatusBadRequest)
 	}
 
-	start, err := parseTimeWithDefault(r, "start", time.Time{})
+	start, err := parseTimeWithDefault(r, "start", time.Now().Add(time.Hour*24*-40))
 	if err != nil {
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
 
-	end, err := parseTimeWithDefault(r, "end", maxTime)
+	end, err := parseTimeWithDefault(r, "end", time.Now())
 	if err != nil {
 		return nil, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
@@ -323,9 +322,9 @@ func writeTagsHelper(
 	firstResult := completedTags[0]
 	name := string(firstResult.Name)
 
+	copiedTags := make([]tag, len(tags)+1)
+	copy(copiedTags, tags)
 	for _, value := range firstResult.Values {
-		copiedTags := make([]tag, len(tags)+1)
-		copy(copiedTags, tags)
 		copiedTags[len(tags)] = tag{name: name, value: string(value)}
 		writeTagsHelper(jw, completedTags[1:], copiedTags)
 	}
@@ -337,7 +336,10 @@ func writeTags(
 ) {
 	for _, result := range results {
 		jw.BeginArray()
-		writeTagsHelper(jw, result.CompletedTags, []tag{})
+		tags := result.CompletedTags
+		if len(tags) > 0 {
+			writeTagsHelper(jw, result.CompletedTags, nil)
+		}
 		jw.EndArray()
 	}
 }
