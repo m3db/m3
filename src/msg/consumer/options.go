@@ -21,6 +21,7 @@
 package consumer
 
 import (
+	"errors"
 	"time"
 
 	"github.com/m3db/m3/src/msg/protocol/proto"
@@ -142,6 +143,7 @@ func (opts *options) SetInstrumentOptions(value instrument.Options) Options {
 
 type serverOptions struct {
 	consumeFn ConsumeFn
+	messageFn MessageFn
 	sOpts     server.Options
 	cOpts     Options
 }
@@ -164,6 +166,16 @@ func (opts *serverOptions) SetConsumeFn(value ConsumeFn) ServerOptions {
 	return &o
 }
 
+func (opts *serverOptions) MessageFn() MessageFn {
+	return opts.messageFn
+}
+
+func (opts *serverOptions) SetMessageFn(value MessageFn) ServerOptions {
+	o := *opts
+	o.messageFn = value
+	return &o
+}
+
 func (opts *serverOptions) ServerOptions() server.Options {
 	return opts.sOpts
 }
@@ -182,4 +194,14 @@ func (opts *serverOptions) SetConsumerOptions(value Options) ServerOptions {
 	o := *opts
 	o.cOpts = value
 	return &o
+}
+
+func (opts *serverOptions) Validate() error {
+	if opts.consumeFn == nil && opts.messageFn == nil {
+		return errors.New("no consumeFn nor messageFn defined")
+	}
+	if opts.consumeFn != nil && opts.messageFn != nil {
+		return errors.New("both consumeFn and messageFn defined")
+	}
+	return nil
 }

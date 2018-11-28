@@ -52,8 +52,6 @@ var (
 		},
 		Value: []byte("barrrrrrr"),
 	}
-
-	testEncoder = proto.NewEncoder(nil)
 )
 
 func TestConsumerWithMessagePool(t *testing.T) {
@@ -421,10 +419,11 @@ func testOptions() Options {
 }
 
 func produce(w io.Writer, m proto.Marshaler) error {
-	err := testEncoder.Encode(m)
+	encoder := proto.NewEncoder(nil)
+	err := encoder.Encode(m)
 	if err != nil {
 		return err
 	}
-	_, err = w.Write(testEncoder.Bytes())
+	_, err = w.Write(encoder.Bytes())
 	return err
 }

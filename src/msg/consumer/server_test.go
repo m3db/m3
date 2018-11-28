@@ -32,7 +32,57 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestConsumerServer(t *testing.T) {
+func TestServerWithMessageFn(t *testing.T) {
+	defer leaktest.Check(t)()
+
+	var (
+		count = 0
+		data  []string
+		wg    sync.WaitGroup
+	)
+	messageFn := func(m Message) {
+		count++
+		data = append(data, string(m.Bytes()))
+		m.Ack()
+		wg.Done()
+	}
+
+	// Set a large ack buffer size to make sure the background go routine
+	// can flush it.
+	opts := NewServerOptions().SetConsumerOptions(testOptions().SetAckBufferSize(100)).SetMessageFn(messageFn)
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	s, err := NewServer("a", opts)
+	require.NoError(t, err)
+	s.Serve(l)
+
+	conn, err := net.Dial("tcp", l.Addr().String())
+	require.NoError(t, err)
+
+	wg.Add(1)
+	err = produce(conn, &testMsg1)
+	require.NoError(t, err)
+	wg.Add(1)
+	err = produce(conn, &testMsg2)
+	require.NoError(t, err)
+
+	wg.Wait()
+	require.Equal(t, string(testMsg1.Value), data[0])
+	require.Equal(t, string(testMsg2.Value), data[1])
+
+	var ack msgpb.Ack
+	testDecoder := proto.NewDecoder(conn, opts.ConsumerOptions().DecoderOptions())
+	err = testDecoder.Decode(&ack)
+	require.NoError(t, err)
+	require.Equal(t, 2, len(ack.Metadata))
+	require.Equal(t, testMsg1.Metadata, ack.Metadata[0])
+	require.Equal(t, testMsg2.Metadata, ack.Metadata[1])
+
+	s.Close()
+}
+
+func TestServerWithConsumeFn(t *testing.T) {
 	defer leaktest.Check(t)()
 
 	var (
@@ -62,7 +112,8 @@ func TestConsumerServer(t *testing.T) {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
-	s := NewServer("a", opts)
+	s, err := NewServer("a", opts)
+	require.NoError(t, err)
 	s.Serve(l)
 
 	conn, err := net.Dial("tcp", l.Addr().String())

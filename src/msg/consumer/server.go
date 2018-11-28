@@ -21,18 +21,25 @@
 package consumer
 
 import (
+	"io"
 	"net"
 
+	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/server"
 )
 
 // NewServer creates a new server.
-func NewServer(addr string, opts ServerOptions) server.Server {
-	return server.NewServer(
-		addr,
-		NewHandler(opts.ConsumeFn(), opts.ConsumerOptions()),
-		opts.ServerOptions(),
-	)
+func NewServer(addr string, opts ServerOptions) (server.Server, error) {
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+	var handler server.Handler
+	if opts.ConsumeFn() != nil {
+		handler = NewHandler(opts.ConsumeFn(), opts.ConsumerOptions())
+	} else {
+		handler = newMessageHandler(opts.MessageFn(), opts.ConsumerOptions())
+	}
+	return server.NewServer(addr, handler, opts.ServerOptions()), nil
 }
 
 type handler struct {
@@ -62,3 +69,43 @@ func (h *handler) Handle(conn net.Conn) {
 }
 
 func (h *handler) Close() {}
+
+type messageHandler struct {
+	opts      Options
+	mPool     *messagePool
+	messageFn MessageFn
+	m         metrics
+}
+
+func newMessageHandler(messageFn MessageFn, opts Options) server.Handler {
+	mPool := newMessagePool(opts.MessagePoolOptions())
+	mPool.Init()
+	return &messageHandler{
+		messageFn: messageFn,
+		opts:      opts,
+		mPool:     mPool,
+		m:         newConsumerMetrics(opts.InstrumentOptions().MetricsScope()),
+	}
+}
+
+func (h *messageHandler) Handle(conn net.Conn) {
+	c := newConsumer(conn, h.mPool, h.opts, h.m)
+	c.Init()
+	var (
+		msgErr error
+		msg    Message
+	)
+	for {
+		msg, msgErr = c.Message()
+		if msgErr != nil {
+			break
+		}
+		h.messageFn(msg)
+	}
+	if msgErr != nil && msgErr != io.EOF {
+		h.opts.InstrumentOptions().Logger().WithFields(log.NewErrField(msgErr)).Errorf("could not read message from consumer")
+	}
+	c.Close()
+}
+
+func (h *messageHandler) Close() {}
