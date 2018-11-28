@@ -1098,8 +1098,8 @@ func (i *nsIndex) CleanupExpiredFileSets(t time.Time) error {
 
 func (i *nsIndex) Close() error {
 	i.state.Lock()
-	defer i.state.Unlock()
 	if !i.isOpenWithRLock() {
+		i.state.Unlock()
 		return errDbIndexAlreadyClosed
 	}
 
@@ -1108,12 +1108,9 @@ func (i *nsIndex) Close() error {
 	var multiErr xerrors.MultiError
 	multiErr = multiErr.Add(i.state.insertQueue.Stop())
 
-	// Wait for inflight queries to finish before closing blocks
-	i.queriesWg.Wait()
-
-	for t := range i.state.blocksByTime {
-		blk := i.state.blocksByTime[t]
-		multiErr = multiErr.Add(blk.Close())
+	blocks := make([]index.Block, 0, len(i.state.blocksByTime))
+	for _, block := range i.state.blocksByTime {
+		blocks = append(blocks, block)
 	}
 
 	i.state.latestBlock = nil
@@ -1123,6 +1120,19 @@ func (i *nsIndex) Close() error {
 	if i.runtimeOptsListener != nil {
 		i.runtimeOptsListener.Close()
 		i.runtimeOptsListener = nil
+	}
+
+	// Can now unlock after collecting blocks to close and setting closed state.
+	i.state.Unlock()
+
+	// Wait for inflight queries to finish before closing blocks, do this
+	// outside of lock in case an inflight query needs to acquire a read lock
+	// to finish but can't acquire it because close was holding the lock waiting
+	// for queries to drain first.
+	i.queriesWg.Wait()
+
+	for _, block := range blocks {
+		multiErr = multiErr.Add(block.Close())
 	}
 
 	return multiErr.FinalError()
