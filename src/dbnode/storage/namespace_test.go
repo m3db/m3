@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/metrics"
 	"github.com/m3db/m3x/context"
@@ -178,18 +179,18 @@ func TestNamespaceWriteShardOwned(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
 	shard := NewMockdatabaseShard(ctrl)
-	shard.EXPECT().Write(ctx, id, now,now, val, unit, ant).
+	shard.EXPECT().Write(ctx, id, now, series.WarmWrite, val, unit, ant).
 		Return(ts.Series{}, true, nil).Times(1)
-	shard.EXPECT().Write(ctx, id, now,now, val, unit, ant).
+	shard.EXPECT().Write(ctx, id, now, series.WarmWrite, val, unit, ant).
 		Return(ts.Series{}, false, nil).Times(1)
 
 	ns.shards[testShardIDs[0].ID()] = shard
 
-	_, wasWritten, err := ns.Write(ctx, id, now, now,val, unit, ant)
+	_, wasWritten, err := ns.Write(ctx, id, now, now, val, unit, ant)
 	require.NoError(t, err)
 	require.True(t, wasWritten)
 
-	_, wasWritten, err = ns.Write(ctx, id, now, now,val, unit, ant)
+	_, wasWritten, err = ns.Write(ctx, id, now, now, val, unit, ant)
 	require.NoError(t, err)
 	require.False(t, wasWritten)
 }
@@ -1068,19 +1069,19 @@ func TestNamespaceIndexInsert(t *testing.T) {
 
 	shard := NewMockdatabaseShard(ctrl)
 	shard.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
-		now,now, 1.0, xtime.Second, nil).Return(ts.Series{}, true, nil)
+		now, series.WarmWrite, 1.0, xtime.Second, nil).Return(ts.Series{}, true, nil)
 	shard.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
-		now, now,1.0, xtime.Second, nil).Return(ts.Series{}, false, nil)
+		now, series.WarmWrite, 1.0, xtime.Second, nil).Return(ts.Series{}, false, nil)
 
 	ns.shards[testShardIDs[0].ID()] = shard
 
 	_, wasWritten, err := ns.WriteTagged(ctx, ident.StringID("a"),
-		ident.EmptyTagIterator, now, now,1.0, xtime.Second, nil)
+		ident.EmptyTagIterator, now, now, 1.0, xtime.Second, nil)
 	require.NoError(t, err)
 	require.True(t, wasWritten)
 
 	_, wasWritten, err = ns.WriteTagged(ctx, ident.StringID("a"),
-		ident.EmptyTagIterator, now, now,1.0, xtime.Second, nil)
+		ident.EmptyTagIterator, now, now, 1.0, xtime.Second, nil)
 	require.NoError(t, err)
 	require.False(t, wasWritten)
 

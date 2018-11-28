@@ -864,7 +864,7 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 		s.pools.id.GetStringID(ctx, req.NameSpace),
 		s.pools.id.GetStringID(ctx, req.ID),
 		xtime.FromNormalizedTime(dp.Timestamp, d),
-		callStart,
+		xtime.FromNormalizedTime(callStart.Unix(), time.Second),
 		dp.Value,
 		unit,
 		dp.Annotation,
@@ -921,7 +921,8 @@ func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) 
 		s.pools.id.GetStringID(ctx, req.NameSpace),
 		s.pools.id.GetStringID(ctx, req.ID),
 		iter, xtime.FromNormalizedTime(dp.Timestamp, d),
-		callStart, dp.Value, unit, dp.Annotation); err != nil {
+		xtime.FromNormalizedTime(callStart.Unix(), time.Second),
+		dp.Value, unit, dp.Annotation); err != nil {
 		s.metrics.writeTagged.ReportError(s.nowFn().Sub(callStart))
 		return convert.ToRPCError(err)
 	}
@@ -989,7 +990,9 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 		)
 	}
 
-	err = s.db.WriteBatch(ctx, nsID, batchWriter.(ts.WriteBatch), callStart, pooledReq)
+	err = s.db.WriteBatch(ctx, nsID, batchWriter.(ts.WriteBatch),
+		xtime.FromNormalizedTime(callStart.Unix(), time.Second),
+		pooledReq)
 	if err != nil {
 		return convert.ToRPCError(err)
 	}
