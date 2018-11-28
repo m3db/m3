@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/cluster/kv/util"
+
 	"github.com/uber-go/tally"
 	"go.uber.org/atomic"
 )

@@ -50,6 +50,7 @@ type Report struct {
 	Error error
 }
 
+// EnforcerIF instances enforce cost limits for operations.
 type EnforcerIF interface {
 	Add(op Cost) Report
 	State() (Report, Limit)
