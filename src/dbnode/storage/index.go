@@ -760,9 +760,11 @@ func (i *nsIndex) Query(
 
 	// Check no blocks to query
 	if len(blocks) == 0 {
+		results := i.resultsPool.Get()
+		results.Reset(i.nsMetadata.ID())
 		return index.QueryResults{
 			Exhaustive: true,
-			Results:    i.newIndexResults(),
+			Results:    results,
 		}, nil
 	}
 
