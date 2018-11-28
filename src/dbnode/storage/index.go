@@ -763,8 +763,10 @@ func (i *nsIndex) Query(
 	var (
 		start    = i.nowFn()
 		deadline = start.Add(timeout)
-		workers  = i.opts.QueryIDsWorkerPool()
-		wg       sync.WaitGroup
+		// NB(r): Use a pooled goroutine worker once pooled goroutine workers
+		// support timeouts.
+		workers = i.opts.QueryIDsWorkerPool()
+		wg      sync.WaitGroup
 
 		// results contains all concurrent mutalbe state below
 		results = struct {
@@ -779,6 +781,70 @@ func (i *nsIndex) Query(
 			returned:   false,
 		}
 	)
+	execBlockQuery := func(block index.Block) {
+		blockResults := i.newIndexResults()
+		blockExhaustive, err := block.Query(query, opts, blockResults)
+		if err != index.ErrUnableToQueryBlockClosed {
+			// NB(r): Because we query this block outside of the lock, it's possible this
+			// block may get closed if it slides out of retention, in that case
+			// those results are no longer considered valid and outside of retention
+			// regardless, so this is a non-issue
+			err = nil
+		}
+
+		var mergedResult bool
+		results.Lock()
+		defer func() {
+			results.Unlock()
+			if mergedResult {
+				// Only finalize this result if we merged it into another
+				blockResults.Finalize()
+			}
+		}()
+
+		if results.returned {
+			// If already returned then we early cancelled, don't add any
+			// further results or errors since caller already has a result.
+			return
+		}
+
+		if err != nil {
+			results.multiErr = results.multiErr.Add(err)
+			return
+		}
+
+		if results.merged == nil {
+			// Return results to pool at end of request
+			ctx.RegisterFinalizer(blockResults)
+			results.merged = blockResults
+		} else {
+			// Append the block results.
+			mergedResult = true
+			size := results.merged.Size()
+			for _, entry := range blockResults.Map().Iter() {
+				// Break early if reached limit
+				if opts.Limit > 0 && size >= opts.Limit {
+					blockExhaustive = false
+					break
+				}
+
+				// Append to merged results
+				id, tags := entry.Key(), entry.Value()
+				_, size, err = results.merged.AddIDAndTags(id, tags)
+				if err != nil {
+					results.multiErr = results.multiErr.Add(err)
+					return
+				}
+			}
+		}
+
+		// If block had more data but we stopped early, need to notify caller.
+		if blockExhaustive {
+			return
+		}
+		results.exhaustive = false
+	}
+
 	for _, block := range blocks {
 		// Capture block for async query execution below
 		block := block
@@ -789,84 +855,22 @@ func (i *nsIndex) Query(
 		if results.merged != nil {
 			mergedSize = results.merged.Size()
 		}
-		results.Unlock()
-		if opts.Limit > 0 && mergedSize >= opts.Limit {
-			results.Lock()
+		alreadyNotExhaustive := opts.Limit > 0 && mergedSize >= opts.Limit
+		if alreadyNotExhaustive {
 			results.exhaustive = false
-			results.Unlock()
-			break
 		}
+		results.Unlock()
 
-		execBlockQuery := func() {
-			blockResults := i.newIndexResults()
-
-			blockExhaustive, err := block.Query(query, opts, blockResults)
-			if err != index.ErrUnableToQueryBlockClosed {
-				// NB(r): Because we query this block outside of the lock, it's possible this
-				// block may get closed if it slides out of retention, in that case
-				// those results are no longer considered valid and outside of retention
-				// regardless, so this is a non-issue
-				err = nil
-			}
-
-			var mergedResult bool
-			results.Lock()
-			defer func() {
-				results.Unlock()
-				if mergedResult {
-					// Only finalize this result if we merged it into another
-					blockResults.Finalize()
-				}
-			}()
-
-			if results.returned {
-				// If already returned then we early cancelled, don't add any
-				// further results or errors since caller already has a result.
-				return
-			}
-
-			if err != nil {
-				results.multiErr = results.multiErr.Add(err)
-				return
-			}
-
-			if results.merged == nil {
-				// Return results to pool at end of request
-				ctx.RegisterFinalizer(blockResults)
-				results.merged = blockResults
-			} else {
-				// Append the block results.
-				mergedResult = true
-				size := results.merged.Size()
-				for _, entry := range blockResults.Map().Iter() {
-					// Break early if reached limit
-					if opts.Limit > 0 && size >= opts.Limit {
-						blockExhaustive = false
-						break
-					}
-
-					// Append to merged results
-					id, tags := entry.Key(), entry.Value()
-					_, size, err = results.merged.AddIDAndTags(id, tags)
-					if err != nil {
-						results.multiErr = results.multiErr.Add(err)
-						return
-					}
-				}
-			}
-
-			// If block had more data but we stopped early, need to notify caller.
-			if blockExhaustive {
-				return
-			}
-			results.exhaustive = false
+		if alreadyNotExhaustive {
+			// Break out if already exhaustive
+			break
 		}
 
 		if timeoutApplied := timeout > 0; !timeoutApplied {
 			// No timeout, just wait blockingly for a worker
 			wg.Add(1)
 			workers.Go(func() {
-				execBlockQuery()
+				execBlockQuery(block)
 				wg.Done()
 			})
 			continue
@@ -877,7 +881,7 @@ func (i *nsIndex) Query(
 		if timeLeft := deadline.Sub(i.nowFn()); timeLeft > 0 {
 			wg.Add(1)
 			running := workers.GoWithTimeout(func() {
-				execBlockQuery()
+				execBlockQuery(block)
 				wg.Done()
 			}, timeLeft)
 
