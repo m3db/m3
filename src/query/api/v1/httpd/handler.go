@@ -150,6 +150,11 @@ func (h *Handler) RegisterRoutes() error {
 		logged(remote.NewTagValuesHandler(h.storage)).ServeHTTP,
 	).Methods(remote.TagValuesHTTPMethod)
 
+	// Series match endpoints
+	h.Router.HandleFunc(remote.PromSeriesMatchURL,
+		logged(remote.NewPromSeriesMatchHandler(h.storage, h.tagOptions)).ServeHTTP,
+	).Methods(remote.PromSeriesMatchHTTPMethod)
+
 	if h.clusterClient != nil {
 		placementOpts := placement.HandlerOptions{
 			ClusterClient:       h.clusterClient,
