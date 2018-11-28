@@ -28,7 +28,6 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	"github.com/m3db/m3/src/m3ninx/doc"
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
@@ -78,7 +77,6 @@ type block struct {
 	blockSize     time.Duration
 	opts          Options
 	nsMD          namespace.Metadata
-	docsPool      doc.DocumentArrayPool
 }
 
 // blockShardsSegments is a collection of segments that has a mapping of what shards
@@ -116,7 +114,6 @@ func NewBlock(
 		blockSize: blockSize,
 		opts:      opts,
 		nsMD:      md,
-		docsPool:  opts.DocumentArrayPool(),
 	}
 	b.newExecutorFn = b.executorWithRLock
 
@@ -236,7 +233,7 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 func (b *block) Query(
 	query Query,
 	opts QueryOptions,
-	results *ConcurrentResults,
+	results Results,
 ) (bool, error) {
 	b.RLock()
 	defer b.RUnlock()
@@ -260,50 +257,13 @@ func (b *block) Query(
 
 	size := results.Size()
 	limitedResults := false
-	execCloser := safeCloser{closable: exec}
 	iterCloser := safeCloser{closable: iter}
-
-	// NB(r): iter.Next() when moving between segments will actually
-	// execute the search phase which can take a long time, hence
-	// we only retrieve the results lock when we add a batch of documents
-	// to the results set.
-	batch := b.docsPool.Get()
-	// Use documentArrayPoolCapacity to as max batch to avoid growing outside
-	// the allowed pooled capacity
-	maxBatch := documentArrayPoolCapacity
+	execCloser := safeCloser{closable: exec}
 
 	defer func() {
 		iterCloser.Close()
 		execCloser.Close()
-		b.docsPool.Put(batch)
 	}()
-
-	// NB(r): This query method only called once per block so is relatively
-	// cheap to declared as a lambda.
-	flushBatch := func() error {
-		if len(batch) == 0 {
-			return nil
-		}
-
-		results.Lock()
-		defer results.Unlock()
-
-		r := results.Results()
-		for i := range batch {
-			if opts.LimitExceeded(size) {
-				limitedResults = true
-				return nil
-			}
-			_, size, err = r.Add(batch[i])
-			if err != nil {
-				return err
-			}
-		}
-
-		// Reset batch
-		batch = batch[:0]
-		return nil
-	}
 
 	for iter.Next() {
 		if opts.LimitExceeded(size) {
@@ -312,18 +272,10 @@ func (b *block) Query(
 		}
 
 		d := iter.Current()
-		batch = append(batch, d)
-		if len(batch) < maxBatch {
-			continue
-		}
-		if err := flushBatch(); err != nil {
+		_, size, err = results.AddDocument(d)
+		if err != nil {
 			return false, err
 		}
-	}
-
-	// Ensure last batch is flushed to the results
-	if err := flushBatch(); err != nil {
-		return false, err
 	}
 
 	if err := iter.Err(); err != nil {

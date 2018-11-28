@@ -23,7 +23,6 @@ package index
 import (
 	"fmt"
 	"sort"
-	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
@@ -100,39 +99,17 @@ type Results interface {
 	// may be modified after this function returns without affecting the results map.
 	// NB: it returns a bool to indicate if the doc was added (it won't be added
 	// if it already existed in the ResultsMap).
-	Add(d doc.Document) (added bool, size int, err error)
-}
+	AddDocument(
+		document doc.Document,
+	) (added bool, size int, err error)
 
-// ConcurrentResults is a container for results
-// that helps concurrently read/write results.
-type ConcurrentResults struct {
-	sync.RWMutex
-	results Results
-}
-
-// NewConcurrentResults returns a new concurrent
-// container for results.
-func NewConcurrentResults(
-	results Results,
-) *ConcurrentResults {
-	return &ConcurrentResults{results: results}
-}
-
-// Results returns the current results contained
-// by the container and should only be modified
-// when holding the write lock and read when
-// holding the read lock.
-func (r *ConcurrentResults) Results() Results {
-	return r.results
-}
-
-// Size returns the current size of the results
-// with the read lock.
-func (r *ConcurrentResults) Size() int {
-	r.RLock()
-	value := r.results.Size()
-	r.RUnlock()
-	return value
+	// AddIDAndTagsOrFinalize adds ID and tags to the results and takes ownership
+	// if it does not exist, otherwise if it's already contained it returns added
+	// false.
+	AddIDAndTags(
+		id ident.ID,
+		tags ident.Tags,
+	) (added bool, size int, err error)
 }
 
 // ResultsAllocator allocates Results types.
@@ -181,7 +158,7 @@ type Block interface {
 	Query(
 		query Query,
 		opts QueryOptions,
-		results *ConcurrentResults,
+		results Results,
 	) (exhaustive bool, err error)
 
 	// AddResults adds bootstrap results to the block, if c.
