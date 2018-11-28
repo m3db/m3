@@ -32,7 +32,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/context"
-	xerrors "github.com/m3db/m3x/errors"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -65,42 +64,6 @@ func newBufferTestOptions() Options {
 			SetContextPool(opts.ContextPool()).
 			SetEncoderPool(opts.EncoderPool()))
 	return opts
-}
-
-func TestBufferWriteTooFuture(t *testing.T) {
-	opts := newBufferTestOptions()
-	rops := opts.RetentionOptions()
-	curr := time.Now().Truncate(rops.BlockSize())
-	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
-	}))
-	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(nil, opts)
-
-	ctx := context.NewContext()
-	defer ctx.Close()
-
-	err := buffer.Write(ctx, curr.Add(rops.BufferFuture()), WarmWrite, 1, xtime.Second, nil)
-	assert.Error(t, err)
-	assert.True(t, xerrors.IsInvalidParams(err))
-}
-
-func TestBufferWriteTooPast(t *testing.T) {
-	opts := newBufferTestOptions()
-	rops := opts.RetentionOptions()
-	curr := time.Now().Truncate(rops.BlockSize())
-	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-		return curr
-	}))
-	buffer := newDatabaseBuffer().(*dbBuffer)
-	buffer.Reset(nil, opts)
-
-	ctx := context.NewContext()
-	defer ctx.Close()
-
-	err := buffer.Write(ctx, curr.Add(-1*rops.BufferPast()), WarmWrite, 1, xtime.Second, nil)
-	assert.Error(t, err)
-	assert.True(t, xerrors.IsInvalidParams(err))
 }
 
 func TestBufferWriteRead(t *testing.T) {
@@ -285,8 +248,8 @@ func TestBufferBucketMerge(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, 0, len(b.encoders))
-	assert.Equal(t, 0, len(b.blocks))
-	assert.True(t, b.isEmpty())
+	assert.Equal(t, 1, len(b.blocks))
+	assert.False(t, b.isEmpty())
 
 	ctx := context.NewContext()
 	defer ctx.Close()
@@ -407,14 +370,13 @@ func TestBufferBucketWriteDuplicateUpserts(t *testing.T) {
 }
 
 func TestBufferFetchBlocks(t *testing.T) {
-	b, opts, expected := newTestBufferBucketWithData(t)
+	b, opts, expected := newTestBufferBucketsWithData(t)
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
 	buffer := newDatabaseBuffer().(*dbBuffer)
 	buffer.Reset(nil, opts)
-	buckets := &dbBufferBuckets{buckets: []*dbBufferBucket{b}}
-	buffer.bucketsMap[xtime.ToUnixNano(b.start)] = buckets
+	buffer.bucketsMap[xtime.ToUnixNano(b.start)] = b
 
 	res := buffer.FetchBlocks(ctx, []time.Time{b.start, b.start.Add(time.Second)})
 	require.Equal(t, 1, len(res))
@@ -467,6 +429,8 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 		return curr
 	}))
 	blockRetriever := NewMockQueryableBlockRetriever(ctrl)
+	blockRetriever.EXPECT().IsBlockRetrievable(start).Return(true)
+	blockRetriever.EXPECT().RetrievableBlockVersion(start).Return(1)
 	buffer := newDatabaseBuffer().(*dbBuffer)
 	buffer.Reset(blockRetriever, opts)
 

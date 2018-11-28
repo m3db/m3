@@ -138,7 +138,9 @@ type dbBuffer struct {
 // NB(prateek): databaseBuffer.Reset(...) must be called upon the returned
 // object prior to use.
 func newDatabaseBuffer() databaseBuffer {
-	b := &dbBuffer{}
+	b := &dbBuffer{
+		bucketsMap: make(map[xtime.UnixNano]*dbBufferBuckets),
+	}
 	return b
 }
 
@@ -232,8 +234,8 @@ func (b *dbBuffer) Tick() bufferTickResult {
 				newBuckets = append(newBuckets, bucket)
 			}
 
-			// We just removed all the underlying buckets, so we can just remove
-			// the buckets from the bucketsMap
+			// All underlying buckets have been flushed successfully, so we can
+			// just remove the buckets from the bucketsMap
 			if len(newBuckets) == 0 {
 				b.removeBucketsAt(blockStart)
 				continue
@@ -396,11 +398,13 @@ func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time) []block.
 			continue
 		}
 
-		streams := buckets.streams(ctx, WarmWrite)
-		res = append(res, block.NewFetchBlockResult(buckets.start, streams, nil))
+		if streams := buckets.streams(ctx, WarmWrite); len(streams) > 0 {
+			res = append(res, block.NewFetchBlockResult(buckets.start, streams, nil))
+		}
 
-		streams = buckets.streams(ctx, ColdWrite)
-		res = append(res, block.NewFetchBlockResult(buckets.start, streams, nil))
+		if streams := buckets.streams(ctx, ColdWrite); len(streams) > 0 {
+			res = append(res, block.NewFetchBlockResult(buckets.start, streams, nil))
+		}
 	}
 
 	return res
@@ -981,8 +985,8 @@ func (b *dbBufferBucket) toBlock() (block.DatabaseBlock, error) {
 	b.resetBlocks()
 	// We need to retain this block otherwise the data contained cannot be
 	// read, since it won't be in the buffer and we don't know when the
-	// flush will fully complete. Blocks are also quicker to stream from
-	// compared to from encoders, so keep the block.
+	// flush will fully complete. It's also quicker to stream from blocks
+	// compared to from encoders, so keep the block instead.
 	b.addBlock(newBlock)
 	return newBlock, nil
 }
