@@ -115,11 +115,14 @@ type Options interface {
 	SetInstrumentOptions(value instrument.Options) Options
 }
 
-// ConsumeFn processes the consumer.
-type ConsumeFn func(c Consumer)
-
-// MessageFn processes the message.
+// MessageFn processes the message. When a MessageFn was set in the
+// server, it will be called on every message received.
 type MessageFn func(m Message)
+
+// ConsumeFn processes the consumer. This is useful when user want to reuse
+// resource across messages received on the same consumer or have finer level
+// control on how to read messages from consumer.
+type ConsumeFn func(c Consumer)
 
 // ServerOptions configs the consumer server.
 type ServerOptions interface {
