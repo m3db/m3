@@ -111,7 +111,7 @@ func TestSeriesWriteFlush(t *testing.T) {
 
 	buckets, exists := series.buffer.(*dbBuffer).bucketsAt(start)
 	require.True(t, exists)
-	block, err := buckets.discardMerged(WarmWrite)
+	block, err := buckets.toBlock(WarmWrite)
 	require.NoError(t, err)
 	stream, err := block.Stream(ctx)
 	require.NoError(t, err)
