@@ -273,7 +273,6 @@ func (b *dbBuffer) Snapshot(
 ) (xio.SegmentReader, error) {
 	buckets, exists := b.bucketsAt(blockStart)
 	if !exists || buckets.isEmpty() {
-		// TODO(juchan): is this right?
 		return nil, nil
 	}
 
@@ -307,7 +306,7 @@ func (b *dbBuffer) Flush(
 	}
 
 	// A call to flush can only be for warm writes
-	block, err := buckets.discardMerged(WarmWrite)
+	block, err := buckets.toBlock(WarmWrite)
 	if err != nil {
 		return FlushOutcomeErr, err
 	}
@@ -335,6 +334,8 @@ func (b *dbBuffer) Flush(
 		return FlushOutcomeErr, err
 	}
 
+	// Don't need to check error here because a non-nil block means that a
+	// writable bucket exists
 	bucket, _ := buckets.writableBucket(WarmWrite)
 	bucket.version = version
 
@@ -345,9 +346,8 @@ func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xi
 	// TODO(r): pool these results arrays
 	var res [][]xio.BlockReader
 
-	keys := b.sortedBucketKeys(true)
+	keys := b.sortedBucketsKeys(true)
 	for _, key := range keys {
-		// TODO(juchan): avoid converting twice?
 		buckets, exists := b.bucketsAt(key.ToTime())
 		if !exists || buckets.isEmpty() || !buckets.start.Before(end) ||
 			!start.Before(buckets.start.Add(b.blockSize)) {
@@ -369,7 +369,7 @@ func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xi
 	return res
 }
 
-func (b *dbBuffer) sortedBucketKeys(ascending bool) []xtime.UnixNano {
+func (b *dbBuffer) sortedBucketsKeys(ascending bool) []xtime.UnixNano {
 	buckets := b.bucketsMap
 	keys := make([]xtime.UnixNano, len(buckets))
 	i := 0
@@ -417,9 +417,8 @@ func (b *dbBuffer) FetchBlocksMetadata(
 ) block.FetchBlockMetadataResults {
 	blockSize := b.opts.RetentionOptions().BlockSize()
 	res := b.opts.FetchBlockMetadataResultsPool().Get()
-	keys := b.sortedBucketKeys(true)
+	keys := b.sortedBucketsKeys(true)
 	for _, key := range keys {
-		// TODO(juchan): avoid converting twice here?
 		bucket, exists := b.bucketsAt(key.ToTime())
 		if !exists || bucket.isEmpty() || !bucket.start.Before(end) ||
 			!start.Before(bucket.start.Add(blockSize)) {
@@ -636,7 +635,7 @@ func (b *dbBufferBuckets) newBucketAt(
 	return bucket
 }
 
-func (b *dbBufferBuckets) discardMerged(wType WriteType) (block.DatabaseBlock, error) {
+func (b *dbBufferBuckets) toBlock(wType WriteType) (block.DatabaseBlock, error) {
 	bucket, exists := b.writableBucket(wType)
 	if !exists {
 		return nil, nil

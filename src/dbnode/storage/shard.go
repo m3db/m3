@@ -1803,7 +1803,7 @@ func (s *dbShard) Bootstrap(
 		if fs.Status != fileOpNotStarted {
 			continue // Already recorded progress
 		}
-		// TODO(juchan): verify that version 0 is correct here
+
 		s.markFlushStateSuccess(at, 0)
 	}
 
@@ -1952,9 +1952,6 @@ func (s *dbShard) FlushState(blockStart time.Time) fileOpState {
 	s.flushState.RUnlock()
 	return state
 }
-
-//HERE make this maybe?
-// func (s *dbShard) FlushStateWithLock(blockStart time.Time) fileOpState {
 
 func (s *dbShard) markFlushStateSuccessOrError(blockStart time.Time, version int, err error) error {
 	// Track flush state for block state
