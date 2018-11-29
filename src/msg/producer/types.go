@@ -129,7 +129,7 @@ type Writer interface {
 	UnregisterFilter(sid services.ServiceID)
 
 	// NumShards returns the total number of shards of the topic the writer is
-	// writting to.
+	// writing to.
 	NumShards() uint32
 
 	// Init initializes a writer.
