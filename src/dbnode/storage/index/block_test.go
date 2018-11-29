@@ -597,6 +597,7 @@ func TestBlockMockQueryExecutorExecLimit(t *testing.T) {
 	require.False(t, exhaustive)
 
 	rMap := results.Map()
+	require.Equal(t, 1, rMap.Len())
 	t1, ok := rMap.Get(ident.StringID(string(testDoc1().ID)))
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
@@ -765,7 +766,7 @@ func TestBlockMockQueryMergeResultsMapLimit(t *testing.T) {
 	}
 
 	results := NewResults(testOpts)
-	_, _, err = results.Add(testDoc1())
+	_, _, err = results.AddDocument(testDoc1())
 	require.NoError(t, err)
 
 	dIter := doc.NewMockIterator(ctrl)
@@ -807,7 +808,7 @@ func TestBlockMockQueryMergeResultsDupeID(t *testing.T) {
 	}
 
 	results := NewResults(testOpts)
-	_, _, err = results.Add(testDoc1())
+	_, _, err = results.AddDocument(testDoc1())
 	require.NoError(t, err)
 
 	dIter := doc.NewMockIterator(ctrl)

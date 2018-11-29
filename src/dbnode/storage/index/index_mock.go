@@ -60,18 +60,32 @@ func (m *MockResults) EXPECT() *MockResultsMockRecorder {
 	return m.recorder
 }
 
-// Add mocks base method
-func (m *MockResults) Add(arg0 doc.Document) (bool, int, error) {
-	ret := m.ctrl.Call(m, "Add", arg0)
+// AddDocument mocks base method
+func (m *MockResults) AddDocument(arg0 doc.Document) (bool, int, error) {
+	ret := m.ctrl.Call(m, "AddDocument", arg0)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(int)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
 
-// Add indicates an expected call of Add
-func (mr *MockResultsMockRecorder) Add(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Add", reflect.TypeOf((*MockResults)(nil).Add), arg0)
+// AddDocument indicates an expected call of AddDocument
+func (mr *MockResultsMockRecorder) AddDocument(arg0 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddDocument", reflect.TypeOf((*MockResults)(nil).AddDocument), arg0)
+}
+
+// AddIDAndTags mocks base method
+func (m *MockResults) AddIDAndTags(arg0 ident.ID, arg1 ident.Tags) (bool, int, error) {
+	ret := m.ctrl.Call(m, "AddIDAndTags", arg0, arg1)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(int)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// AddIDAndTags indicates an expected call of AddIDAndTags
+func (mr *MockResultsMockRecorder) AddIDAndTags(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddIDAndTags", reflect.TypeOf((*MockResults)(nil).AddIDAndTags), arg0, arg1)
 }
 
 // Finalize mocks base method

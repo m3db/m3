@@ -312,7 +312,7 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 		StartInclusive: now.Add(-1 * time.Minute),
 		EndExclusive:   now.Add(1 * time.Minute),
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	assert.True(t, res.Exhaustive)
 	results := res.Results

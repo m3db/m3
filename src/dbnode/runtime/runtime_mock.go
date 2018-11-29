@@ -334,6 +334,30 @@ func (mr *MockOptionsMockRecorder) ClientWriteConsistencyLevel() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClientWriteConsistencyLevel", reflect.TypeOf((*MockOptions)(nil).ClientWriteConsistencyLevel))
 }
 
+// SetIndexDefaultQueryTimeout mocks base method
+func (m *MockOptions) SetIndexDefaultQueryTimeout(value time.Duration) Options {
+	ret := m.ctrl.Call(m, "SetIndexDefaultQueryTimeout", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetIndexDefaultQueryTimeout indicates an expected call of SetIndexDefaultQueryTimeout
+func (mr *MockOptionsMockRecorder) SetIndexDefaultQueryTimeout(value interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIndexDefaultQueryTimeout", reflect.TypeOf((*MockOptions)(nil).SetIndexDefaultQueryTimeout), value)
+}
+
+// IndexDefaultQueryTimeout mocks base method
+func (m *MockOptions) IndexDefaultQueryTimeout() time.Duration {
+	ret := m.ctrl.Call(m, "IndexDefaultQueryTimeout")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// IndexDefaultQueryTimeout indicates an expected call of IndexDefaultQueryTimeout
+func (mr *MockOptionsMockRecorder) IndexDefaultQueryTimeout() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexDefaultQueryTimeout", reflect.TypeOf((*MockOptions)(nil).IndexDefaultQueryTimeout))
+}
+
 // SetFlushIndexBlockNumSegments mocks base method
 func (m *MockOptions) SetFlushIndexBlockNumSegments(value uint) Options {
 	ret := m.ctrl.Call(m, "SetFlushIndexBlockNumSegments", value)
