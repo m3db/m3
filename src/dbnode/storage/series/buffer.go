@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/storage/block"
+	m3dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/context"
@@ -59,10 +60,10 @@ type databaseBuffer interface {
 	Write(
 		ctx context.Context,
 		timestamp time.Time,
-		wType WriteType,
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
+		wopts WriteOptions,
 	) error
 
 	Snapshot(
@@ -130,9 +131,10 @@ type dbBuffer struct {
 	bucketsPool  *dbBufferBucketsPool
 	bucketPool   *dbBufferBucketPool
 
-	blockSize    time.Duration
-	bufferPast   time.Duration
-	bufferFuture time.Duration
+	blockSize         time.Duration
+	bufferPast        time.Duration
+	bufferFuture      time.Duration
+	coldWritesEnabled bool
 }
 
 // NB(prateek): databaseBuffer.Reset(...) must be called upon the returned
@@ -156,6 +158,7 @@ func (b *dbBuffer) Reset(blockRetriever QueryableBlockRetriever, opts Options) {
 	b.blockSize = ropts.BlockSize()
 	b.bufferPast = ropts.BufferPast()
 	b.bufferFuture = ropts.BufferFuture()
+	b.coldWritesEnabled = ropts.ColdWritesEnabled()
 }
 
 func (b *dbBuffer) MinMax() (time.Time, time.Time, error) {
@@ -180,15 +183,32 @@ func (b *dbBuffer) MinMax() (time.Time, time.Time, error) {
 func (b *dbBuffer) Write(
 	ctx context.Context,
 	timestamp time.Time,
-	wType WriteType,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
+	wopts WriteOptions,
 ) error {
+	wType := b.writeType(timestamp, wopts.WriteTime)
+	if wType == ColdWrite && b.coldWritesEnabled {
+		return m3dberrors.ErrColdWriteNotEnabled
+	}
+
 	blockStart := timestamp.Truncate(b.blockSize)
 	buckets := b.bucketsAtCreate(blockStart)
 	b.putBucketInCache(buckets)
-	return buckets.write(timestamp, wType, value, unit, annotation)
+	return buckets.write(timestamp, value, unit, annotation, wType)
+}
+
+func (b *dbBuffer) writeType(timestamp time.Time, writeTime time.Time) WriteType {
+	ropts := b.opts.RetentionOptions()
+	futureLimit := writeTime.Add(1 * ropts.BufferFuture())
+	pastLimit := writeTime.Add(-1 * ropts.BufferPast())
+
+	if pastLimit.Before(timestamp) && futureLimit.After(timestamp) {
+		return WarmWrite
+	}
+
+	return ColdWrite
 }
 
 func (b *dbBuffer) IsEmpty() bool {
@@ -557,10 +577,10 @@ func (b *dbBufferBuckets) streamsLen() int {
 
 func (b *dbBufferBuckets) write(
 	timestamp time.Time,
-	wType WriteType,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
+	wType WriteType,
 ) error {
 	return b.writableBucketCreate(wType).write(timestamp, value, unit, annotation)
 }
@@ -605,7 +625,6 @@ func (b *dbBufferBuckets) bootstrap(bl block.DatabaseBlock) {
 
 func (b *dbBufferBuckets) writableBucket(wType WriteType) (*dbBufferBucket, bool) {
 	for _, bucket := range b.buckets {
-		// TODO(juchan): optimize by reordering?
 		if bucket.version == writableBucketVer && bucket.wType == wType {
 			return bucket, true
 		}
@@ -630,8 +649,7 @@ func (b *dbBufferBuckets) newBucketAt(
 ) *dbBufferBucket {
 	bucket := b.bucketPool.Get()
 	bucket.resetTo(t, wType, b.opts)
-	// TODO(juchan): reorder?
-	b.buckets = append(b.buckets, bucket)
+	b.buckets = append([]*dbBufferBucket{bucket}, b.buckets...)
 	return bucket
 }
 

@@ -93,11 +93,11 @@ type Database interface {
 		ctx context.Context,
 		namespace ident.ID,
 		id ident.ID,
-		timestamp time.Time, // Time of metric
-		writeTime time.Time, // Time the write got initiated
+		timestamp time.Time,
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
+		wopts series.WriteOptions,
 	) error
 
 	// WriteTagged values to the database for an ID
@@ -106,11 +106,11 @@ type Database interface {
 		namespace ident.ID,
 		id ident.ID,
 		tags ident.TagIterator,
-		timestamp time.Time, // Time of metric
-		writeTime time.Time, // Time the write got initiated
+		timestamp time.Time,
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
+		wopts series.WriteOptions,
 	) error
 
 	// BatchWriter returns a batch writer for the provided namespace that can
@@ -122,8 +122,8 @@ type Database interface {
 		ctx context.Context,
 		namespace ident.ID,
 		writes ts.BatchWriter,
-		writeTime time.Time, // Time the write got initiated
 		errHandler IndexedErrorHandler,
+		wopts series.WriteOptions,
 	) error
 
 	// WriteTaggedBatch is the same as WriteTagged, but in batch.
@@ -131,8 +131,8 @@ type Database interface {
 		ctx context.Context,
 		namespace ident.ID,
 		writes ts.BatchWriter,
-		writeTime time.Time, // Time the write got initiated
 		errHandler IndexedErrorHandler,
+		wopts series.WriteOptions,
 	) error
 
 	// QueryIDs resolves the given query into known IDs.
@@ -254,11 +254,11 @@ type databaseNamespace interface {
 	Write(
 		ctx context.Context,
 		id ident.ID,
-		timestamp time.Time, // Time of metric
-		writeTime time.Time, // Time the write got initiated
+		timestamp time.Time,
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
+		wopts series.WriteOptions,
 	) (ts.Series, error)
 
 	// WriteTagged values to the namespace for an ID
@@ -266,11 +266,11 @@ type databaseNamespace interface {
 		ctx context.Context,
 		id ident.ID,
 		tags ident.TagIterator,
-		timestamp time.Time, // Time of metric
-		writeTime time.Time, // Time the write got initiated
+		timestamp time.Time,
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
+		wopts series.WriteOptions,
 	) (ts.Series, error)
 
 	// QueryIDs resolves the given query into known IDs.
@@ -386,10 +386,10 @@ type databaseShard interface {
 		ctx context.Context,
 		id ident.ID,
 		timestamp time.Time,
-		wType series.WriteType,
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
+		wopts series.WriteOptions,
 	) (ts.Series, error)
 
 	// WriteTagged values to the shard for an ID
@@ -398,10 +398,10 @@ type databaseShard interface {
 		id ident.ID,
 		tags ident.TagIterator,
 		timestamp time.Time,
-		wType series.WriteType,
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
+		wopts series.WriteOptions,
 	) (ts.Series, error)
 
 	ReadEncoded(

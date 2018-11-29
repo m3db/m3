@@ -273,13 +273,13 @@ func (s *dbSeries) IsBootstrapped() bool {
 func (s *dbSeries) Write(
 	ctx context.Context,
 	timestamp time.Time,
-	wType WriteType,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
+	wopts WriteOptions,
 ) error {
 	s.Lock()
-	err := s.buffer.Write(ctx, timestamp, wType, value, unit, annotation)
+	err := s.buffer.Write(ctx, timestamp, value, unit, annotation, wopts)
 	s.Unlock()
 	return err
 }

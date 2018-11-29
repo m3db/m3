@@ -123,10 +123,10 @@ var dbShardInsertZeroed = dbShardInsert{}
 
 type dbShardPendingWrite struct {
 	timestamp  time.Time
-	wType      series.WriteType
 	value      float64
 	unit       xtime.Unit
 	annotation []byte
+	wopts      series.WriteOptions
 }
 
 type dbShardPendingIndex struct {

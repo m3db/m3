@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
@@ -768,10 +769,10 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 		s.pools.id.GetStringID(ctx, req.NameSpace),
 		s.pools.id.GetStringID(ctx, req.ID),
 		xtime.FromNormalizedTime(dp.Timestamp, d),
-		xtime.FromNormalizedTime(callStart.Unix(), time.Second),
 		dp.Value,
 		unit,
 		dp.Annotation,
+		writeOptsFromTime(callStart),
 	); err != nil {
 		s.metrics.write.ReportError(s.nowFn().Sub(callStart))
 		return convert.ToRPCError(err)
@@ -820,8 +821,8 @@ func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) 
 		s.pools.id.GetStringID(ctx, req.NameSpace),
 		s.pools.id.GetStringID(ctx, req.ID),
 		iter, xtime.FromNormalizedTime(dp.Timestamp, d),
-		xtime.FromNormalizedTime(callStart.Unix(), time.Second),
-		dp.Value, unit, dp.Annotation); err != nil {
+		dp.Value, unit, dp.Annotation,
+		writeOptsFromTime(callStart)); err != nil {
 		s.metrics.writeTagged.ReportError(s.nowFn().Sub(callStart))
 		return convert.ToRPCError(err)
 	}
@@ -829,6 +830,12 @@ func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) 
 	s.metrics.writeTagged.ReportSuccess(s.nowFn().Sub(callStart))
 
 	return nil
+}
+
+func writeOptsFromTime(t time.Time) series.WriteOptions {
+	return series.WriteOptions{
+		WriteTime: xtime.FromNormalizedTime(t.Unix(), time.Second),
+	}
 }
 
 func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawRequest) error {
@@ -881,8 +888,7 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 	}
 
 	err = s.db.WriteBatch(ctx, nsID, batchWriter.(ts.WriteBatch),
-		xtime.FromNormalizedTime(callStart.Unix(), time.Second),
-		pooledReq)
+		pooledReq, writeOptsFromTime(callStart))
 	if err != nil {
 		return err
 	}
@@ -962,7 +968,7 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 			elem.Datapoint.Annotation)
 	}
 
-	err = s.db.WriteTaggedBatch(ctx, nsID, batchWriter, callStart, pooledReq)
+	err = s.db.WriteTaggedBatch(ctx, nsID, batchWriter, pooledReq, writeOptsFromTime(callStart))
 	if err != nil {
 		return err
 	}
