@@ -20,16 +20,6 @@
 
 package roaring
 
-import (
-	"fmt"
-	"math/rand"
-	"testing"
-
-	"github.com/RoaringBitmap/roaring"
-	"github.com/pilosa/pilosa"
-	pilRoaring "github.com/pilosa/pilosa/roaring"
-)
-
 // ❯ go test -bench=BenchmarkUnion ./src/m3ninx/postings/roaring
 // goos: darwin
 // goarch: amd64
@@ -52,130 +42,130 @@ const (
 	seed          int64 = 123456789
 )
 
-func newRandPostingsLists(numPostingsLists, numElemsPer int) []*roaring.Bitmap {
-	rng := rand.New(rand.NewSource(seed))
-	elems := make([]uint32, 0, numElemsPer)
-	pls := make([]*roaring.Bitmap, 0, numPostingsLists)
-	for j := 0; j < numPostingsLists; j++ {
-		elems = elems[:0]
-		for i := 0; i < numElemsPer; i++ {
-			elems = append(elems, rng.Uint32())
-		}
-		pls = append(pls, roaring.BitmapOf(elems...))
-	}
-	return pls
-}
+// func newRandPostingsLists(numPostingsLists, numElemsPer int) []*roaring.Bitmap {
+// 	rng := rand.New(rand.NewSource(seed))
+// 	elems := make([]uint32, 0, numElemsPer)
+// 	pls := make([]*roaring.Bitmap, 0, numPostingsLists)
+// 	for j := 0; j < numPostingsLists; j++ {
+// 		elems = elems[:0]
+// 		for i := 0; i < numElemsPer; i++ {
+// 			elems = append(elems, rng.Uint32())
+// 		}
+// 		pls = append(pls, roaring.BitmapOf(elems...))
+// 	}
+// 	return pls
+// }
 
-func newSampledPostingsLists(numPostingsLists, numTotalElements int) []*roaring.Bitmap {
-	elems := make([][]uint32, numPostingsLists)
-	for i := 0; i < numTotalElements; i++ {
-		idx := i % numPostingsLists
-		elems[idx] = append(elems[idx], uint32(i))
-	}
-	pls := make([]*roaring.Bitmap, 0, numPostingsLists)
-	for _, elem := range elems {
-		pls = append(pls, roaring.BitmapOf(elem...))
-	}
-	return pls
-}
+// func newSampledPostingsLists(numPostingsLists, numTotalElements int) []*roaring.Bitmap {
+// 	elems := make([][]uint32, numPostingsLists)
+// 	for i := 0; i < numTotalElements; i++ {
+// 		idx := i % numPostingsLists
+// 		elems[idx] = append(elems[idx], uint32(i))
+// 	}
+// 	pls := make([]*roaring.Bitmap, 0, numPostingsLists)
+// 	for _, elem := range elems {
+// 		pls = append(pls, roaring.BitmapOf(elem...))
+// 	}
+// 	return pls
+// }
 
-func newSampledPostingsListsPilosa(numPostingsLists, numTotalElements int) []*pilosa.Bitmap {
-	elems := make([][]uint64, numPostingsLists)
-	for i := 0; i < numTotalElements; i++ {
-		idx := i % numPostingsLists
-		elems[idx] = append(elems[idx], uint64(i))
-	}
-	pls := make([]*pilosa.Bitmap, 0, numPostingsLists)
-	for _, elem := range elems {
-		pls = append(pls, pilosa.NewBitmap(elem...))
-	}
-	return pls
-}
+// func newSampledPostingsListsPilosa(numPostingsLists, numTotalElements int) []*pilosa.Bitmap {
+// 	elems := make([][]uint64, numPostingsLists)
+// 	for i := 0; i < numTotalElements; i++ {
+// 		idx := i % numPostingsLists
+// 		elems[idx] = append(elems[idx], uint64(i))
+// 	}
+// 	pls := make([]*pilosa.Bitmap, 0, numPostingsLists)
+// 	for _, elem := range elems {
+// 		pls = append(pls, pilosa.NewBitmap(elem...))
+// 	}
+// 	return pls
+// }
 
-func BenchmarkUnionRandPlsFastOr(b *testing.B) {
-	pls := newRandPostingsLists(numPls, numElemsPer)
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		roaring.FastOr(pls...)
-	}
-}
+// func BenchmarkUnionRandPlsFastOr(b *testing.B) {
+// 	pls := newRandPostingsLists(numPls, numElemsPer)
+// 	b.ReportAllocs()
+// 	b.ResetTimer()
+// 	for i := 0; i < b.N; i++ {
+// 		roaring.FastOr(pls...)
+// 	}
+// }
 
-func BenchmarkUnionRandPlsHeapOr(b *testing.B) {
-	pls := newRandPostingsLists(numPls, numElemsPer)
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		roaring.HeapOr(pls...)
-	}
-}
+// func BenchmarkUnionRandPlsHeapOr(b *testing.B) {
+// 	pls := newRandPostingsLists(numPls, numElemsPer)
+// 	b.ReportAllocs()
+// 	b.ResetTimer()
+// 	for i := 0; i < b.N; i++ {
+// 		roaring.HeapOr(pls...)
+// 	}
+// }
 
-func BenchmarkUnionRandPlsParOr(b *testing.B) {
-	pls := newRandPostingsLists(numPls, numElemsPer)
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		roaring.ParOr(0, pls...)
-	}
-}
+// func BenchmarkUnionRandPlsParOr(b *testing.B) {
+// 	pls := newRandPostingsLists(numPls, numElemsPer)
+// 	b.ReportAllocs()
+// 	b.ResetTimer()
+// 	for i := 0; i < b.N; i++ {
+// 		roaring.ParOr(0, pls...)
+// 	}
+// }
 
-func BenchmarkUnionRandPlsParHeapOr(b *testing.B) {
-	pls := newRandPostingsLists(numPls, numElemsPer)
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		roaring.ParHeapOr(0, pls...)
-	}
-}
+// func BenchmarkUnionRandPlsParHeapOr(b *testing.B) {
+// 	pls := newRandPostingsLists(numPls, numElemsPer)
+// 	b.ReportAllocs()
+// 	b.ResetTimer()
+// 	for i := 0; i < b.N; i++ {
+// 		roaring.ParHeapOr(0, pls...)
+// 	}
+// }
 
-func BenchmarkUnionSampledPlsFastOr(b *testing.B) {
-	pls := newSampledPostingsLists(numPls, numTotalElems)
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		roaring.FastOr(pls...)
-	}
-}
+// func BenchmarkUnionSampledPlsFastOr(b *testing.B) {
+// 	pls := newSampledPostingsLists(numPls, numTotalElems)
+// 	b.ReportAllocs()
+// 	b.ResetTimer()
+// 	for i := 0; i < b.N; i++ {
+// 		roaring.FastOr(pls...)
+// 	}
+// }
 
-func BenchmarkUnionSampledPlsFastOrPilosa(b *testing.B) {
-	pls := newSampledPostingsListsPilosa(numPls, numTotalElems)
-	b.ReportAllocs()
-	b.ResetTimer()
-	segments := []*pilRoaring.Bitmap{}
-	for _, pl := range pls {
-		segments = append(segments, pl.Segments()...)
-	}
+// func BenchmarkUnionSampledPlsFastOrPilosa(b *testing.B) {
+// 	pls := newSampledPostingsListsPilosa(numPls, numTotalElems)
+// 	b.ReportAllocs()
+// 	b.ResetTimer()
+// 	segments := []*pilRoaring.Bitmap{}
+// 	for _, pl := range pls {
+// 		segments = append(segments, pl.Segments()...)
+// 	}
 
-	for i := 0; i < b.N; i++ {
-		thing := pilRoaring.NewBitmap()
-		thing.UnionInPlace(segments...)
-		fmt.Println(thing.Containers.Count())
-	}
-}
+// 	for i := 0; i < b.N; i++ {
+// 		thing := pilRoaring.NewBitmap()
+// 		thing.UnionInPlace(segments...)
+// 		fmt.Println(thing.Containers.Count())
+// 	}
+// }
 
-func BenchmarkUnionSampledPlsHeapOr(b *testing.B) {
-	pls := newSampledPostingsLists(numPls, numTotalElems)
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		roaring.HeapOr(pls...)
-	}
-}
+// func BenchmarkUnionSampledPlsHeapOr(b *testing.B) {
+// 	pls := newSampledPostingsLists(numPls, numTotalElems)
+// 	b.ReportAllocs()
+// 	b.ResetTimer()
+// 	for i := 0; i < b.N; i++ {
+// 		roaring.HeapOr(pls...)
+// 	}
+// }
 
-func BenchmarkUnionSampledPlsParOr(b *testing.B) {
-	pls := newSampledPostingsLists(numPls, numTotalElems)
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		roaring.ParOr(0, pls...)
-	}
-}
+// func BenchmarkUnionSampledPlsParOr(b *testing.B) {
+// 	pls := newSampledPostingsLists(numPls, numTotalElems)
+// 	b.ReportAllocs()
+// 	b.ResetTimer()
+// 	for i := 0; i < b.N; i++ {
+// 		roaring.ParOr(0, pls...)
+// 	}
+// }
 
-func BenchmarkUnionSampledPlsParHeapOr(b *testing.B) {
-	pls := newSampledPostingsLists(numPls, numTotalElems)
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		roaring.ParHeapOr(0, pls...)
-	}
-}
+// func BenchmarkUnionSampledPlsParHeapOr(b *testing.B) {
+// 	pls := newSampledPostingsLists(numPls, numTotalElems)
+// 	b.ReportAllocs()
+// 	b.ResetTimer()
+// 	for i := 0; i < b.N; i++ {
+// 		roaring.ParHeapOr(0, pls...)
+// 	}
+// }

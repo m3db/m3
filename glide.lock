@@ -352,7 +352,7 @@ imports:
   - index
   - labels
 - name: github.com/richardartoul/pilosa
-  version: 613ad094682baf6438888ada4077a892136b95eb
+  version: 2eaf546c4abba8296cea99f0d683242079df585f
   subpackages:
   - roaring
 - name: github.com/RoaringBitmap/roaring
