@@ -43,6 +43,7 @@ type options struct {
 	fetchBlockMetadataResultsPool block.FetchBlockMetadataResultsPool
 	identifierPool                ident.Pool
 	stats                         Stats
+	coldWritesEnabled             bool
 }
 
 // NewOptions creates new database series options
@@ -184,4 +185,14 @@ func (o *options) SetStats(value Stats) Options {
 
 func (o *options) Stats() Stats {
 	return o.stats
+}
+
+func (o *options) SetColdWritesEnabled(value bool) Options {
+	opts := *o
+	opts.coldWritesEnabled = value
+	return &opts
+}
+
+func (o *options) ColdWritesEnabled() bool {
+	return o.coldWritesEnabled
 }
