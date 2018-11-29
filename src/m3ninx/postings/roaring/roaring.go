@@ -43,19 +43,18 @@ func Union(inputs []postings.List) (postings.MutableList, error) {
 		return NewPostingsList(), nil
 	}
 
-	var result *roaring.Bitmap
+	bitmaps := make([]*roaring.Bitmap, 0, len(inputs))
 	for _, in := range inputs {
 		pl, ok := in.(*postingsList)
 		if !ok {
 			return nil, fmt.Errorf("unable to convert inputs into roaring postings lists")
 		}
-		if result == nil {
-			result = pl.bitmap
-			continue
-		}
-		result = result.Union(pl.bitmap)
+		bitmaps = append(bitmaps, pl.bitmap)
 	}
-	return NewPostingsListFromBitmap(result), nil
+
+	unionedBitmap := roaring.NewBitmap()
+	unionedBitmap.UnionInPlace(bitmaps...)
+	return NewPostingsListFromBitmap(unionedBitmap), nil
 }
 
 // BitmapFromPostingsList returns a bitmap from a postings list if it
