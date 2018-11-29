@@ -21,33 +21,25 @@
 package consumer
 
 import (
+	"io"
 	"net"
 
+	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/server"
 )
 
-// NewServer creates a new server.
-func NewServer(addr string, opts ServerOptions) server.Server {
-	return server.NewServer(
-		addr,
-		NewHandler(opts.ConsumeFn(), opts.ConsumerOptions()),
-		opts.ServerOptions(),
-	)
-}
-
-type handler struct {
+type consumerHandler struct {
 	opts      Options
 	mPool     *messagePool
 	consumeFn ConsumeFn
-
-	m metrics
+	m         metrics
 }
 
-// NewHandler creates a new handler.
-func NewHandler(consumeFn ConsumeFn, opts Options) server.Handler {
+// NewConsumerHandler creates a new server handler with consumerFn.
+func NewConsumerHandler(consumeFn ConsumeFn, opts Options) server.Handler {
 	mPool := newMessagePool(opts.MessagePoolOptions())
 	mPool.Init()
-	return &handler{
+	return &consumerHandler{
 		consumeFn: consumeFn,
 		opts:      opts,
 		mPool:     mPool,
@@ -55,10 +47,51 @@ func NewHandler(consumeFn ConsumeFn, opts Options) server.Handler {
 	}
 }
 
-func (h *handler) Handle(conn net.Conn) {
+func (h *consumerHandler) Handle(conn net.Conn) {
 	c := newConsumer(conn, h.mPool, h.opts, h.m)
 	c.Init()
 	h.consumeFn(c)
 }
 
-func (h *handler) Close() {}
+func (h *consumerHandler) Close() {}
+
+type messageHandler struct {
+	opts      Options
+	mPool     *messagePool
+	messageFn MessageFn
+	m         metrics
+}
+
+// NewMessageHandler creates a new server handler with messageFn.
+func NewMessageHandler(messageFn MessageFn, opts Options) server.Handler {
+	mPool := newMessagePool(opts.MessagePoolOptions())
+	mPool.Init()
+	return &messageHandler{
+		messageFn: messageFn,
+		opts:      opts,
+		mPool:     mPool,
+		m:         newConsumerMetrics(opts.InstrumentOptions().MetricsScope()),
+	}
+}
+
+func (h *messageHandler) Handle(conn net.Conn) {
+	c := newConsumer(conn, h.mPool, h.opts, h.m)
+	c.Init()
+	var (
+		msgErr error
+		msg    Message
+	)
+	for {
+		msg, msgErr = c.Message()
+		if msgErr != nil {
+			break
+		}
+		h.messageFn(msg)
+	}
+	if msgErr != nil && msgErr != io.EOF {
+		h.opts.InstrumentOptions().Logger().WithFields(log.NewErrField(msgErr)).Errorf("could not read message from consumer")
+	}
+	c.Close()
+}
+
+func (h *messageHandler) Close() {}
