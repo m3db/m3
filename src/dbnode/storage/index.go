@@ -763,16 +763,6 @@ func (i *nsIndex) Query(
 		return index.QueryResults{}, err
 	}
 
-	// Check no blocks to query.
-	if len(blocks) == 0 {
-		results := i.resultsPool.Get()
-		results.Reset(i.nsMetadata.ID())
-		return index.QueryResults{
-			Exhaustive: true,
-			Results:    results,
-		}, nil
-	}
-
 	var (
 		deadline = start.Add(timeout)
 		wg       sync.WaitGroup
@@ -928,16 +918,15 @@ func (i *nsIndex) Query(
 			return index.QueryResults{}, fmt.Errorf("index query timed out: %s", timeout.String())
 		}
 
-		doneCh := make(chan struct{}, 1)
-		go func() {
-			wg.Wait()
-			doneCh <- struct{}{}
-		}()
-
 		var (
 			ticker  = time.NewTicker(timeLeft)
+			doneCh  = make(chan struct{})
 			aborted bool
 		)
+		go func() {
+			wg.Wait()
+			close(doneCh)
+		}()
 		select {
 		case <-ticker.C:
 			aborted = true
@@ -964,6 +953,12 @@ func (i *nsIndex) Query(
 
 	if errResults != nil {
 		return index.QueryResults{}, err
+	}
+
+	// If no blocks queried, return an empty result
+	if mergedResults == nil {
+		mergedResults = i.resultsPool.Get()
+		mergedResults.Reset(i.nsMetadata.ID())
 	}
 
 	return index.QueryResults{
