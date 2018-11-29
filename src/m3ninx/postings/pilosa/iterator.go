@@ -23,7 +23,7 @@ package pilosa
 import (
 	"github.com/m3db/m3/src/m3ninx/postings"
 
-	"github.com/pilosa/pilosa/roaring"
+	"github.com/richardartoul/pilosa/roaring"
 )
 
 // NB: need to do this to find a path into our postings list which doesn't require every

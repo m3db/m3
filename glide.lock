@@ -1,5 +1,5 @@
-hash: f35a9c3b2c5ca4d115f442c628aff332f7ea80ad4be80d5146883797809226e0
-updated: 2018-11-27T02:49:39.338768-05:00
+hash: 32698b718801712268562e7040e330f6604532cdfcf1f2e6362be691d5c56472
+updated: 2018-11-28T22:05:58.051498-05:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -125,8 +125,6 @@ imports:
   version: c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9
 - name: github.com/ghodss/yaml
   version: 0ca9ea5df5451ffdf184b4428c902747c2c11cd7
-- name: github.com/glycerine/go-unsnap-stream
-  version: 9f0cb55181dd3a0a4c168d3dbc72d4aca4853126
 - name: github.com/go-kit/kit
   version: 04dd4f741c6e76cc170a4d7913f4c625952e6f58
   subpackages:
@@ -283,8 +281,6 @@ imports:
   version: df440c6ed7ed8897ac98a408365e5e89c7becf1a
 - name: github.com/mitchellh/mapstructure
   version: 53818660ed4955e899c0bcafa97299a388bd7c8e
-- name: github.com/mschoch/smat
-  version: 90eadee771aeab36e8bf796039b8c261bebebe4f
 - name: github.com/nightlyone/lockfile
   version: 1d49c987357a327b5b03aa84cbddd582c328615d
 - name: github.com/oklog/ulid
@@ -301,11 +297,12 @@ imports:
   version: e2f66f8164ca709d4c21e815860afd2024e9b894
 - name: github.com/pelletier/go-toml
   version: 3b00596b2e9ee541bbd72dc50cc0c60e2b46c69c
-- name: github.com/philhofer/fwd
-  version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
 - name: github.com/pilosa/pilosa
   version: a112b2d46af94e3ecfa74b8158381e3595b24e4b
   subpackages:
+  - internal
+  - lru
+  - pql
   - roaring
 - name: github.com/pkg/errors
   version: 645ef00459ed84a119197bfb8d8205042c6df63d
@@ -354,6 +351,10 @@ imports:
   - fileutil
   - index
   - labels
+- name: github.com/richardartoul/pilosa
+  version: 613ad094682baf6438888ada4077a892136b95eb
+  subpackages:
+  - roaring
 - name: github.com/RoaringBitmap/roaring
   version: 3d677d3262197ee558b85029301eb69b8239f91a
 - name: github.com/satori/go.uuid
@@ -386,10 +387,6 @@ imports:
   - assert
   - require
   - suite
-- name: github.com/tinylib/msgp
-  version: 53e4ad1e134ee9b42a7add28ca77177ab17983b3
-  subpackages:
-  - msgp
 - name: github.com/uber-go/atomic
   version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
 - name: github.com/uber-go/tally
@@ -536,3 +533,13 @@ testImports:
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/fortytw2/leaktest
   version: b433bbd6d743c1854040b39062a3916ed5f78fe8
+- name: github.com/glycerine/go-unsnap-stream
+  version: 9f0cb55181dd3a0a4c168d3dbc72d4aca4853126
+- name: github.com/mschoch/smat
+  version: 90eadee771aeab36e8bf796039b8c261bebebe4f
+- name: github.com/philhofer/fwd
+  version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
+- name: github.com/tinylib/msgp
+  version: 53e4ad1e134ee9b42a7add28ca77177ab17983b3
+  subpackages:
+  - msgp

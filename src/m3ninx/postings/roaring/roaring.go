@@ -27,7 +27,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/x"
 
-	"github.com/pilosa/pilosa/roaring"
+	"github.com/richardartoul/pilosa/roaring"
 )
 
 var (

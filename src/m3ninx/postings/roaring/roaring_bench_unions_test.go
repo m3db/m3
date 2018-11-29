@@ -21,11 +21,13 @@
 package roaring
 
 import (
+	"fmt"
 	"math/rand"
 	"testing"
 
 	"github.com/RoaringBitmap/roaring"
 	"github.com/pilosa/pilosa"
+	pilRoaring "github.com/pilosa/pilosa/roaring"
 )
 
 // ❯ go test -bench=BenchmarkUnion ./src/m3ninx/postings/roaring
@@ -139,12 +141,15 @@ func BenchmarkUnionSampledPlsFastOrPilosa(b *testing.B) {
 	pls := newSampledPostingsListsPilosa(numPls, numTotalElems)
 	b.ReportAllocs()
 	b.ResetTimer()
+	segments := []*pilRoaring.Bitmap{}
+	for _, pl := range pls {
+		segments = append(segments, pl.Segments()...)
+	}
+
 	for i := 0; i < b.N; i++ {
-		pilosa.NewBitmap().UnionInPlace()
-		unioned := pls[0]
-		for _, pl := range pls[1:] {
-			unioned = unioned.Union(pl)
-		}
+		thing := pilRoaring.NewBitmap()
+		thing.UnionInPlace(segments...)
+		fmt.Println(thing.Containers.Count())
 	}
 }
 

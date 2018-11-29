@@ -123,8 +123,11 @@ import:
   - package: github.com/edsrzf/mmap-go # un-used but required for a compile time dep from vellum
     version: 0bce6a6887123b67a60366d2c9fe2dfb74289d2e
 
-  - package: github.com/pilosa/pilosa/roaring
+  - package: github.com/richardartoul/pilosa/roaring
     version: ^0.9 # FOLLOWUP: should move to 1.0 once that's released
+
+  - package: github.com/richardartoul/pilosa/roaring
+    version: 613ad094682baf6438888ada4077a892136b95eb
 
   # NB(prateek): ideally, the following dependencies would be under testImport, but
   # Glide doesn't like that. https://github.com/Masterminds/glide/issues/564
