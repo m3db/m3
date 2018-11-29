@@ -409,7 +409,7 @@ func testNamespaceIndexHighConcurrentQueries(
 					},
 					{
 						Name:  []byte("qux"),
-						Value: []byte(fmt.Sprintf("qaz.%d", i)),
+						Value: []byte("qaz"),
 					},
 				},
 			}
@@ -454,23 +454,23 @@ func testNamespaceIndexHighConcurrentQueries(
 				AnyTimes()
 			mockBlock.EXPECT().
 				Close().
-				Return(nil)
+				DoAndReturn(func() error {
+					return block.Close()
+				})
 			nsIdx.state.blocksByTime[start] = mockBlock
 		}
 		nsIdx.state.Unlock()
 	}
 
 	var (
+		query               = idx.NewTermQuery([]byte("qux"), []byte("qaz"))
 		queryConcurrency    = 16
-		workerLoops         = 16
 		startWg, readyWg    sync.WaitGroup
 		timeoutContextsLock sync.Mutex
 		timeoutContexts     []context.Context
 	)
 
 	var enqueueWg sync.WaitGroup
-	query, err := idx.NewRegexpQuery([]byte("bar"), []byte("baz.*"))
-	require.NoError(t, err)
 	startWg.Add(1)
 	for i := 0; i < queryConcurrency; i++ {
 		readyWg.Add(1)
@@ -480,66 +480,64 @@ func testNamespaceIndexHighConcurrentQueries(
 			readyWg.Done()
 			startWg.Wait()
 
-			for j := 0; j < workerLoops; j++ {
-				rangeStart := min
-				for k := 0; k < len(blockStarts); k++ {
-					rangeEnd := blockStarts[k].Add(test.indexBlockSize)
+			rangeStart := min
+			for k := 0; k < len(blockStarts); k++ {
+				rangeEnd := blockStarts[k].Add(test.indexBlockSize)
 
-					ctx := context.NewContext()
-					if opts.forceTimeouts {
-						// For the force timeout tests we just want to spin up the
-						// contexts for timeouts.
-						timeoutContextsLock.Lock()
-						timeoutContexts = append(timeoutContexts, ctx)
-						timeoutContextsLock.Unlock()
-						timedOutQueriesWg.Add(1)
-						go func() {
-							_, err := test.index.Query(ctx, index.Query{
-								Query: query,
-							}, index.QueryOptions{
-								StartInclusive: rangeStart,
-								EndExclusive:   rangeEnd,
-							})
-							assert.Error(t, err)
-							timedOutQueriesWg.Done()
-						}()
-						continue
-					}
-
-					results, err := test.index.Query(ctx, index.Query{
-						Query: query,
-					}, index.QueryOptions{
-						StartInclusive: rangeStart,
-						EndExclusive:   rangeEnd,
-					})
-					assert.NoError(t, err)
-
-					// Read the results concurrently too
-					hits := make(map[string]struct{}, results.Results.Size())
-					for _, entry := range results.Results.Map().Iter() {
-						id := entry.Key().String()
-
-						doc, err := convert.FromMetricNoClone(entry.Key(), entry.Value())
-						assert.NoError(t, err)
-						if err != nil {
-							continue // this will fail the test anyway, but don't want to panic
-						}
-
-						expectedDoc, ok := expectedResults[id]
-						assert.True(t, ok)
-						if !ok {
-							continue // this will fail the test anyway, but don't want to panic
-						}
-
-						assert.Equal(t, expectedDoc, doc)
-						hits[id] = struct{}{}
-					}
-					expectedHits := idsPerBlock * (k + 1)
-					assert.Equal(t, len(hits), expectedHits)
-
-					// Now safe to close the context after reading results
-					ctx.Close()
+				ctx := context.NewContext()
+				if opts.forceTimeouts {
+					// For the force timeout tests we just want to spin up the
+					// contexts for timeouts.
+					timeoutContextsLock.Lock()
+					timeoutContexts = append(timeoutContexts, ctx)
+					timeoutContextsLock.Unlock()
+					timedOutQueriesWg.Add(1)
+					go func() {
+						_, err := test.index.Query(ctx, index.Query{
+							Query: query,
+						}, index.QueryOptions{
+							StartInclusive: rangeStart,
+							EndExclusive:   rangeEnd,
+						})
+						assert.Error(t, err)
+						timedOutQueriesWg.Done()
+					}()
+					continue
 				}
+
+				results, err := test.index.Query(ctx, index.Query{
+					Query: query,
+				}, index.QueryOptions{
+					StartInclusive: rangeStart,
+					EndExclusive:   rangeEnd,
+				})
+				assert.NoError(t, err)
+
+				// Read the results concurrently too
+				hits := make(map[string]struct{}, results.Results.Size())
+				for _, entry := range results.Results.Map().Iter() {
+					id := entry.Key().String()
+
+					doc, err := convert.FromMetricNoClone(entry.Key(), entry.Value())
+					assert.NoError(t, err)
+					if err != nil {
+						continue // this will fail the test anyway, but don't want to panic
+					}
+
+					expectedDoc, ok := expectedResults[id]
+					assert.True(t, ok)
+					if !ok {
+						continue // this will fail the test anyway, but don't want to panic
+					}
+
+					assert.Equal(t, expectedDoc, doc)
+					hits[id] = struct{}{}
+				}
+				expectedHits := idsPerBlock * (k + 1)
+				assert.Equal(t, expectedHits, len(hits))
+
+				// Now safe to close the context after reading results
+				ctx.Close()
 			}
 		}()
 	}
