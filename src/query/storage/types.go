@@ -41,6 +41,8 @@ const (
 	TypeRemoteDC
 	// TypeMultiDC is for storages that will aggregate multiple datacenters
 	TypeMultiDC
+	// TypeDebug is for storages that are used for debugging purposes
+	TypeDebug
 )
 
 // Storage provides an interface for reading and writing to the tsdb

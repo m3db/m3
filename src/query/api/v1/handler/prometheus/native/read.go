@@ -51,6 +51,7 @@ const (
 
 var (
 	emptySeriesList = []*ts.Series{}
+	emptyReqParams  = models.RequestParams{}
 )
 
 // PromReadHandler represents a handler for prometheus read endpoint.
@@ -84,13 +85,25 @@ func NewPromReadHandler(
 }
 
 func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	result, params, err := h.ServeHTTPWithEngine(w, r, h.engine)
+	if err != nil {
+		return
+	}
+
+	// TODO: Support multiple result types
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	renderResultsJSON(w, result, params)
+}
+
+func (h *PromReadHandler) ServeHTTPWithEngine(w http.ResponseWriter, r *http.Request, engine *executor.Engine) ([]*ts.Series, models.RequestParams, error) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	logger := logging.WithContext(ctx)
 
 	params, rErr := parseParams(r)
 	if rErr != nil {
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
-		return
+		return nil, emptyReqParams, rErr
 	}
 
 	if params.Debug {
@@ -99,19 +112,17 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.validateRequest(&params); err != nil {
 		xhttp.Error(w, err, http.StatusBadRequest)
-		return
+		return nil, emptyReqParams, err
 	}
 
-	result, err := read(ctx, h.engine, h.tagOpts, w, params)
+	result, err := read(ctx, engine, h.tagOpts, w, params)
 	if err != nil {
 		logger.Error("unable to fetch data", zap.Error(err))
 		xhttp.Error(w, err, http.StatusBadRequest)
-		return
+		return nil, emptyReqParams, err
 	}
 
-	// TODO: Support multiple result types
-	w.Header().Set("Content-Type", "application/json")
-	renderResultsJSON(w, result, params)
+	return result, params, nil
 }
 
 func (h *PromReadHandler) validateRequest(params *models.RequestParams) error {
