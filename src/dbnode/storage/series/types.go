@@ -55,10 +55,10 @@ type DatabaseSeries interface {
 	Write(
 		ctx context.Context,
 		timestamp time.Time,
-		wType WriteType,
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
+		wopts WriteOptions,
 	) (bool, error)
 
 	// ReadEncoded reads encoded blocks.
@@ -275,6 +275,12 @@ type Options interface {
 
 	// Stats returns the configured Stats.
 	Stats() Stats
+
+	// SetColdWritesEnabled sets whether writes to any time is enabled
+	SetColdWritesEnabled(value bool) Options
+
+	// ColdWritesEnabled returns whether writes to any time is enabled
+	ColdWritesEnabled() bool
 }
 
 // Stats is passed down from namespace/shard to avoid allocations per series.
@@ -305,3 +311,8 @@ const (
 	// ColdWrite represents cold writes (outside the buffer past/future window)
 	ColdWrite
 )
+
+// WriteOptions define different options for a write
+type WriteOptions struct {
+	WriteTime time.Time
+}
