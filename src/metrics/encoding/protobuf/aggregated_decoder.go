@@ -26,68 +26,52 @@ import (
 )
 
 // AggregatedDecoder is a decoder for decoding aggregated metrics.
-type AggregatedDecoder interface {
-	// Decode decodes the aggregated metric from the given bytes.
-	Decode(b []byte) error
-
-	// ID returns the decoded id.
-	ID() []byte
-
-	// TimeNanos returns the decoded timestamp.
-	TimeNanos() int64
-
-	// Value returns the decoded value.
-	Value() float64
-
-	// StoragePolicy returns the decoded storage policy.
-	StoragePolicy() (policy.StoragePolicy, error)
-
-	// EncodeNanos returns the decoded encodeNanos.
-	EncodeNanos() int64
-
-	// Close closes the decoder.
-	Close()
-}
-
-type aggregatedDecoder struct {
+type AggregatedDecoder struct {
 	pool AggregatedDecoderPool
 	pb   metricpb.AggregatedMetric
 }
 
 // NewAggregatedDecoder creates an aggregated decoder.
-func NewAggregatedDecoder(p AggregatedDecoderPool) AggregatedDecoder {
-	return &aggregatedDecoder{
+func NewAggregatedDecoder(p AggregatedDecoderPool) *AggregatedDecoder {
+	return &AggregatedDecoder{
 		pool: p,
 	}
 }
 
-func (d *aggregatedDecoder) Decode(b []byte) error {
+// Decode decodes the aggregated metric from the given bytes.
+func (d *AggregatedDecoder) Decode(b []byte) error {
 	return d.pb.Unmarshal(b)
 }
 
-func (d *aggregatedDecoder) Close() {
+// ID returns the decoded id.
+func (d AggregatedDecoder) ID() []byte {
+	return d.pb.Metric.TimedMetric.Id
+}
+
+// TimeNanos returns the decoded timestamp.
+func (d AggregatedDecoder) TimeNanos() int64 {
+	return d.pb.Metric.TimedMetric.TimeNanos
+}
+
+// Value returns the decoded value.
+func (d AggregatedDecoder) Value() float64 {
+	return d.pb.Metric.TimedMetric.Value
+}
+
+// StoragePolicy returns the decoded storage policy.
+func (d AggregatedDecoder) StoragePolicy() (policy.StoragePolicy, error) {
+	return policy.NewStoragePolicyFromProto(&d.pb.Metric.StoragePolicy)
+}
+
+// EncodeNanos returns the decoded encodeNanos.
+func (d AggregatedDecoder) EncodeNanos() int64 {
+	return d.pb.EncodeNanos
+}
+
+// Close closes the decoder.
+func (d *AggregatedDecoder) Close() {
 	resetAggregatedMetricProto(&d.pb)
 	if d.pool != nil {
 		d.pool.Put(d)
 	}
-}
-
-func (d aggregatedDecoder) ID() []byte {
-	return d.pb.Metric.TimedMetric.Id
-}
-
-func (d aggregatedDecoder) TimeNanos() int64 {
-	return d.pb.Metric.TimedMetric.TimeNanos
-}
-
-func (d aggregatedDecoder) Value() float64 {
-	return d.pb.Metric.TimedMetric.Value
-}
-
-func (d aggregatedDecoder) StoragePolicy() (policy.StoragePolicy, error) {
-	return policy.NewStoragePolicyFromProto(&d.pb.Metric.StoragePolicy)
-}
-
-func (d aggregatedDecoder) EncodeNanos() int64 {
-	return d.pb.EncodeNanos
 }

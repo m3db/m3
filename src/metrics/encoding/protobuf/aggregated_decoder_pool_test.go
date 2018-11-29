@@ -35,7 +35,7 @@ func TestAggregatedDecoderPool(t *testing.T) {
 	pool.Init()
 
 	// Getting a decoder from pool.
-	d := pool.Get().(*aggregatedDecoder)
+	d := pool.Get()
 	require.Empty(t, d.pb.Metric.TimedMetric.Id)
 	require.Empty(t, cap(d.pb.Metric.TimedMetric.Id))
 	d.pb.Metric.TimedMetric.Id = []byte("foo")
@@ -46,7 +46,7 @@ func TestAggregatedDecoderPool(t *testing.T) {
 	require.NotEmpty(t, cap(d.pb.Metric.TimedMetric.Id))
 
 	// Get will return the previously used decoder.
-	newDecoder := pool.Get().(*aggregatedDecoder)
+	newDecoder := pool.Get()
 	require.Empty(t, len(newDecoder.pb.Metric.TimedMetric.Id))
 	require.NotEmpty(t, cap(newDecoder.pb.Metric.TimedMetric.Id))
 }

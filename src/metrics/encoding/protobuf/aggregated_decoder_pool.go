@@ -27,8 +27,8 @@ import (
 // AggregatedDecoderPool is a pool of aggregated decoders.
 type AggregatedDecoderPool interface {
 	Init()
-	Get() AggregatedDecoder
-	Put(d AggregatedDecoder)
+	Get() *AggregatedDecoder
+	Put(d *AggregatedDecoder)
 }
 
 type aggregatedDecoderPool struct {
@@ -46,10 +46,10 @@ func (p *aggregatedDecoderPool) Init() {
 	})
 }
 
-func (p *aggregatedDecoderPool) Get() AggregatedDecoder {
-	return p.pool.Get().(AggregatedDecoder)
+func (p *aggregatedDecoderPool) Get() *AggregatedDecoder {
+	return p.pool.Get().(*AggregatedDecoder)
 }
 
-func (p *aggregatedDecoderPool) Put(it AggregatedDecoder) {
+func (p *aggregatedDecoderPool) Put(it *AggregatedDecoder) {
 	p.pool.Put(it)
 }
