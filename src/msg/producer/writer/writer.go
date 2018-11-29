@@ -146,7 +146,10 @@ func (w *writer) Init() error {
 }
 
 func (w *writer) NumShards() uint32 {
-	return w.numShards
+	w.RLock()
+	n := w.numShards
+	w.RUnlock()
+	return n
 }
 
 func (w *writer) process(update interface{}) error {
