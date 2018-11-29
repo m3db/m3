@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
 	"github.com/m3db/m3/src/msg/protocol/proto"
+	"github.com/m3db/m3x/server"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/stretchr/testify/require"
@@ -49,12 +50,11 @@ func TestServerWithMessageFn(t *testing.T) {
 
 	// Set a large ack buffer size to make sure the background go routine
 	// can flush it.
-	opts := NewServerOptions().SetConsumerOptions(testOptions().SetAckBufferSize(100)).SetMessageFn(messageFn)
+	opts := testOptions().SetAckBufferSize(100)
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
-	s, err := NewServer("a", opts)
-	require.NoError(t, err)
+	s := server.NewServer("a", NewMessageHandler(messageFn, opts), server.NewOptions())
 	s.Serve(l)
 
 	conn, err := net.Dial("tcp", l.Addr().String())
@@ -72,7 +72,7 @@ func TestServerWithMessageFn(t *testing.T) {
 	require.Equal(t, string(testMsg2.Value), data[1])
 
 	var ack msgpb.Ack
-	testDecoder := proto.NewDecoder(conn, opts.ConsumerOptions().DecoderOptions())
+	testDecoder := proto.NewDecoder(conn, opts.DecoderOptions())
 	err = testDecoder.Decode(&ack)
 	require.NoError(t, err)
 	require.Equal(t, 2, len(ack.Metadata))
@@ -106,13 +106,13 @@ func TestServerWithConsumeFn(t *testing.T) {
 		closed = true
 	}
 
-	// Set a large ack buffer size to make sure the background go routine
-	// can flush it.
-	opts := NewServerOptions().SetConsumerOptions(testOptions().SetAckBufferSize(100)).SetConsumeFn(consumeFn)
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
-	s, err := NewServer("a", opts)
+	// Set a large ack buffer size to make sure the background go routine
+	// can flush it.
+	opts := testOptions().SetAckBufferSize(100)
+	s := server.NewServer("a", NewConsumerHandler(consumeFn, opts), server.NewOptions())
 	require.NoError(t, err)
 	s.Serve(l)
 
@@ -127,7 +127,7 @@ func TestServerWithConsumeFn(t *testing.T) {
 	require.Equal(t, testMsg1.Value, bytes)
 
 	var ack msgpb.Ack
-	testDecoder := proto.NewDecoder(conn, opts.ConsumerOptions().DecoderOptions())
+	testDecoder := proto.NewDecoder(conn, opts.DecoderOptions())
 	err = testDecoder.Decode(&ack)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(ack.Metadata))

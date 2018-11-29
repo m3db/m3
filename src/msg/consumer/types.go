@@ -27,7 +27,6 @@ import (
 	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
-	"github.com/m3db/m3x/server"
 )
 
 // Message carries the data that needs to be processed.
@@ -123,33 +122,3 @@ type MessageFn func(m Message)
 // resource across messages received on the same consumer or have finer level
 // control on how to read messages from consumer.
 type ConsumeFn func(c Consumer)
-
-// ServerOptions configs the consumer server.
-type ServerOptions interface {
-	// ConsumeFn returns the ConsumeFn.
-	ConsumeFn() ConsumeFn
-
-	// SetConsumeFn sets the ConsumeFn.
-	SetConsumeFn(value ConsumeFn) ServerOptions
-
-	// MessageFn returns the MessageFn.
-	MessageFn() MessageFn
-
-	// SetMessageFn sets the MessageFn.
-	SetMessageFn(value MessageFn) ServerOptions
-
-	// RetryOptions returns the options for connection retrier.
-	ServerOptions() server.Options
-
-	// SetRetryOptions sets the options for connection retrier.
-	SetServerOptions(value server.Options) ServerOptions
-
-	// InstrumentOptions returns the instrument options.
-	ConsumerOptions() Options
-
-	// SetInstrumentOptions sets the instrument options.
-	SetConsumerOptions(value Options) ServerOptions
-
-	// Validate validates the server options.
-	Validate() error
-}

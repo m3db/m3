@@ -21,13 +21,11 @@
 package consumer
 
 import (
-	"errors"
 	"time"
 
 	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
-	"github.com/m3db/m3x/server"
 )
 
 var (
@@ -139,69 +137,4 @@ func (opts *options) SetInstrumentOptions(value instrument.Options) Options {
 	o := *opts
 	o.iOpts = value
 	return &o
-}
-
-type serverOptions struct {
-	consumeFn ConsumeFn
-	messageFn MessageFn
-	sOpts     server.Options
-	cOpts     Options
-}
-
-// NewServerOptions creates ServerOptions.
-func NewServerOptions() ServerOptions {
-	return &serverOptions{
-		sOpts: server.NewOptions(),
-		cOpts: NewOptions(),
-	}
-}
-
-func (opts *serverOptions) ConsumeFn() ConsumeFn {
-	return opts.consumeFn
-}
-
-func (opts *serverOptions) SetConsumeFn(value ConsumeFn) ServerOptions {
-	o := *opts
-	o.consumeFn = value
-	return &o
-}
-
-func (opts *serverOptions) MessageFn() MessageFn {
-	return opts.messageFn
-}
-
-func (opts *serverOptions) SetMessageFn(value MessageFn) ServerOptions {
-	o := *opts
-	o.messageFn = value
-	return &o
-}
-
-func (opts *serverOptions) ServerOptions() server.Options {
-	return opts.sOpts
-}
-
-func (opts *serverOptions) SetServerOptions(value server.Options) ServerOptions {
-	o := *opts
-	o.sOpts = value
-	return &o
-}
-
-func (opts *serverOptions) ConsumerOptions() Options {
-	return opts.cOpts
-}
-
-func (opts *serverOptions) SetConsumerOptions(value Options) ServerOptions {
-	o := *opts
-	o.cOpts = value
-	return &o
-}
-
-func (opts *serverOptions) Validate() error {
-	if opts.consumeFn == nil && opts.messageFn == nil {
-		return errors.New("no consumeFn nor messageFn defined")
-	}
-	if opts.consumeFn != nil && opts.messageFn != nil {
-		return errors.New("both consumeFn and messageFn defined")
-	}
-	return nil
 }

@@ -28,33 +28,18 @@ import (
 	"github.com/m3db/m3x/server"
 )
 
-// NewServer creates a new server.
-func NewServer(addr string, opts ServerOptions) (server.Server, error) {
-	if err := opts.Validate(); err != nil {
-		return nil, err
-	}
-	var handler server.Handler
-	if opts.ConsumeFn() != nil {
-		handler = NewHandler(opts.ConsumeFn(), opts.ConsumerOptions())
-	} else {
-		handler = newMessageHandler(opts.MessageFn(), opts.ConsumerOptions())
-	}
-	return server.NewServer(addr, handler, opts.ServerOptions()), nil
-}
-
-type handler struct {
+type consumerHandler struct {
 	opts      Options
 	mPool     *messagePool
 	consumeFn ConsumeFn
-
-	m metrics
+	m         metrics
 }
 
-// NewHandler creates a new handler.
-func NewHandler(consumeFn ConsumeFn, opts Options) server.Handler {
+// NewConsumerHandler creates a new server handler with consumerFn.
+func NewConsumerHandler(consumeFn ConsumeFn, opts Options) server.Handler {
 	mPool := newMessagePool(opts.MessagePoolOptions())
 	mPool.Init()
-	return &handler{
+	return &consumerHandler{
 		consumeFn: consumeFn,
 		opts:      opts,
 		mPool:     mPool,
@@ -62,13 +47,13 @@ func NewHandler(consumeFn ConsumeFn, opts Options) server.Handler {
 	}
 }
 
-func (h *handler) Handle(conn net.Conn) {
+func (h *consumerHandler) Handle(conn net.Conn) {
 	c := newConsumer(conn, h.mPool, h.opts, h.m)
 	c.Init()
 	h.consumeFn(c)
 }
 
-func (h *handler) Close() {}
+func (h *consumerHandler) Close() {}
 
 type messageHandler struct {
 	opts      Options
@@ -77,7 +62,8 @@ type messageHandler struct {
 	m         metrics
 }
 
-func newMessageHandler(messageFn MessageFn, opts Options) server.Handler {
+// NewMessageHandler creates a new server handler with messageFn.
+func NewMessageHandler(messageFn MessageFn, opts Options) server.Handler {
 	mPool := newMessagePool(opts.MessagePoolOptions())
 	mPool.Init()
 	return &messageHandler{
