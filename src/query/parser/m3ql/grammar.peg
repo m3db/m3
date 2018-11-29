@@ -1,0 +1,81 @@
+# PE Grammar for M3QL
+#
+# Best viewed using 140 columns monospaced with tabs every 8.
+
+package m3ql
+
+# Parser declaration
+
+type m3ql Peg {
+    scriptBuilder
+}
+
+# Hierarchical syntax
+
+Grammar				<- Spacing (MacroDef Semicolon)* Pipeline EOF
+
+MacroDef			<- Identifier { p.newMacro(text) } Equals Pipeline
+
+Pipeline			<- { p.newPipeline() }
+                       Expression (Pipe Expression)*
+                       { p.endPipeline() }
+
+Expression			<- FunctionCall / Nesting
+
+FunctionCall		<- (Identifier / Operator) { p.newExpression(text) }
+                       Argument*
+                       { p.endExpression() }
+
+Argument			<- KeywordSpecifier?
+                       ( Boolean       { p.newBooleanArgument(text)        }
+                       / Number        { p.newNumericArgument(text)        }
+                       / Pattern       { p.newPatternArgument(text)        }
+                       / StringLiteral { p.newStringLiteralArgument(text)  }
+                       / Nesting
+                       )
+
+KeywordSpecifier 	<- Identifier { p.newKeywordArgument(text) }
+                       Colon
+
+Nesting				<- LParenthesis Pipeline RParenthesis
+
+# Lexical syntax details
+
+Spacing				<- (Space / EOL / Comment)*
+Space				<- " " / "\t"
+EOL					<- "\r\n" / "\n" / "\r"
+
+Comment				<- CommentStart (!EOL .)*
+CommentStart		<- "#"
+
+Identifier			<- <IdentifierStart IdentifierChars*> Spacing
+IdentifierStart		<- [[a-z_]]
+IdentifierChars		<- IdentifierStart / [0-9] / "." / "-" / "/" / "\\"
+
+Operator			<- <OperatorSymbols> Spacing
+OperatorSymbols		<- "<=" / "<" / "==" / "!=" / ">=" / ">"
+
+Boolean				<- <(True / False)> !PatternChars Spacing
+True				<- "true"
+False				<- "false"
+
+Number				<- <Minus? (FloatingNumber / IntegralNumber)> !PatternChars Spacing
+IntegralNumber		<- [0-9]+
+FloatingNumber		<- IntegralNumber? "." IntegralNumber
+Minus				<- "-"
+
+StringLiteral 		<- QuoteChar <[^"]*> QuoteChar Spacing
+QuoteChar			<- "\""
+
+Pattern 			<- <PatternChars+> Spacing
+PatternChars		<- IdentifierChars / GlobSymbols
+GlobSymbols			<- "{" / "}" / "[" / "]" / "*" / "?" / "," / "^" / "$"
+
+Semicolon			<- ";" Spacing
+Equals				<- "=" Spacing
+Pipe				<- "|" Spacing
+LParenthesis		<- "(" Spacing
+RParenthesis		<- ")" Spacing
+Colon				<- ":" Spacing
+
+EOF					<- !.
