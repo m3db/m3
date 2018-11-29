@@ -25,7 +25,6 @@
 //go:generate sh -c "mockgen -package=digest -destination=$GOPATH/src/$PACKAGE/src/dbnode/digest/digest_mock.go $PACKAGE/src/dbnode/digest ReaderWithDigest"
 //go:generate sh -c "mockgen -package=series $PACKAGE/src/dbnode/storage/series DatabaseSeries,QueryableBlockRetriever | genclean -pkg $PACKAGE/src/dbnode/storage/series -out $GOPATH/src/$PACKAGE/src/dbnode/storage/series/series_mock.go"
 //go:generate sh -c "mockgen -package=index $PACKAGE/src/dbnode/storage/index Results,Block,OnIndexSeries | genclean -pkg $PACKAGE/src/dbnode/storage/index -out $GOPATH/src/$PACKAGE/src/dbnode/storage/index/index_mock.go"
-//go:generate sh -c "mockgen -package=block -destination=$GOPATH/src/$PACKAGE/src/query/block/block_mock.go $PACKAGE/src/query/block Block,StepIter,SeriesIter,Builder,Step"
 
 // mockgen rules for generating mocks for unexported interfaces (file mode)
 //go:generate sh -c "mockgen -package=encoding -destination=$GOPATH/src/$PACKAGE/src/dbnode/encoding/encoding_mock.go -source=$GOPATH/src/$PACKAGE/src/dbnode/encoding/types.go"
