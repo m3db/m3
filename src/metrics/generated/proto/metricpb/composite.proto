@@ -27,6 +27,7 @@ package metricpb;
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "github.com/m3db/m3/src/metrics/generated/proto/metricpb/metric.proto";
 import "github.com/m3db/m3/src/metrics/generated/proto/metricpb/metadata.proto";
+import "github.com/m3db/m3/src/metrics/generated/proto/policypb/policy.proto";
 
 message CounterWithMetadatas {
   Counter counter = 1 [(gogoproto.nullable) = false];
@@ -51,6 +52,16 @@ message ForwardedMetricWithMetadata {
 message TimedMetricWithMetadata {
   TimedMetric metric = 1 [(gogoproto.nullable) = false];
   TimedMetadata metadata = 2 [(gogoproto.nullable) = false];
+}
+
+message TimedMetricWithStoragePolicy {
+  TimedMetric timed_metric = 1 [(gogoproto.nullable) = false];
+  policypb.StoragePolicy storage_policy = 2 [(gogoproto.nullable) = false];
+}
+
+message AggregatedMetric {
+  TimedMetricWithStoragePolicy metric = 1 [(gogoproto.nullable) = false];
+  int64 encode_nanos = 2;
 }
 
 // NB: we intentionally choose to explicitly define the message type as well
