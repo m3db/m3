@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
+	xsync "github.com/m3db/m3x/sync"
 	xtest "github.com/m3db/m3x/test"
 	xtime "github.com/m3db/m3x/time"
 
@@ -282,17 +283,36 @@ func TestNamespaceIndexQueryNoMatchingBlocks(t *testing.T) {
 	assert.Equal(t, 0, result.Results.Size())
 }
 
-func TestNamespaceIndexHighConcurrentQueriesWithTimeouts(t *testing.T) {
-	testNamespaceIndexHighConcurrentQueries(t, true)
+func TestNamespaceIndexHighConcurrentQueriesWithoutTimeouts(t *testing.T) {
+	testNamespaceIndexHighConcurrentQueries(t,
+		testNamespaceIndexHighConcurrentQueriesOptions{
+			withTimeouts: false,
+		})
 }
 
-func TestNamespaceIndexHighConcurrentQueriesWithoutTimeouts(t *testing.T) {
-	testNamespaceIndexHighConcurrentQueries(t, false)
+func TestNamespaceIndexHighConcurrentQueriesWithTimeouts(t *testing.T) {
+	testNamespaceIndexHighConcurrentQueries(t,
+		testNamespaceIndexHighConcurrentQueriesOptions{
+			withTimeouts: true,
+		})
+}
+
+func TestNamespaceIndexHighConcurrentQueriesWithTimeoutsAndForceTimeout(t *testing.T) {
+	testNamespaceIndexHighConcurrentQueries(t,
+		testNamespaceIndexHighConcurrentQueriesOptions{
+			withTimeouts:  true,
+			forceTimeouts: true,
+		})
+}
+
+type testNamespaceIndexHighConcurrentQueriesOptions struct {
+	withTimeouts  bool
+	forceTimeouts bool
 }
 
 func testNamespaceIndexHighConcurrentQueries(
 	t *testing.T,
-	withTimeout bool,
+	opts testNamespaceIndexHighConcurrentQueriesOptions,
 ) {
 	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
@@ -309,10 +329,21 @@ func testNamespaceIndexHighConcurrentQueries(
 
 	min, max := now.Add(-6*test.indexBlockSize), now.Add(-test.indexBlockSize)
 
+	var timeoutValue time.Duration
+	if opts.withTimeouts {
+		timeoutValue = time.Minute
+	}
+	if opts.forceTimeouts {
+		timeoutValue = time.Second
+	}
+
 	nsIdx := test.index.(*nsIndex)
 	nsIdx.state.Lock()
-	if withTimeout {
-		nsIdx.state.runtimeOpts.defaultQueryTimeout = time.Minute
+	// Make the query pool really high to improve concurrency likelihood
+	nsIdx.queryWorkersPool = xsync.NewWorkerPool(1000)
+	nsIdx.queryWorkersPool.Init()
+	if opts.withTimeouts {
+		nsIdx.state.runtimeOpts.defaultQueryTimeout = timeoutValue
 	} else {
 		nsIdx.state.runtimeOpts.defaultQueryTimeout = 0
 	}
@@ -330,6 +361,12 @@ func testNamespaceIndexHighConcurrentQueries(
 		currNow = t
 	}
 	nsIdx.state.Unlock()
+
+	restoreNow := func() {
+		nsIdx.state.Lock()
+		nsIdx.nowFn = time.Now
+		nsIdx.state.Unlock()
+	}
 
 	var (
 		idsPerBlock     = 16
@@ -388,10 +425,47 @@ func testNamespaceIndexHighConcurrentQueries(
 		onIndexWg.Wait()
 	}
 
+	// If force timeout, replace one of the blocks with a mock
+	// block that times out.
+	var timeoutWg, timedOutQueriesWg sync.WaitGroup
+	if opts.forceTimeouts {
+		// Need to restore now as timeouts are measured by looking at time.Now
+		restoreNow()
+
+		timeoutWg.Add(1)
+		nsIdx.state.Lock()
+		for start, block := range nsIdx.state.blocksByTime {
+			block := block // Capture for lambda
+			mockBlock := index.NewMockBlock(ctrl)
+			mockBlock.EXPECT().
+				StartTime().
+				DoAndReturn(func() time.Time { return block.StartTime() }).
+				AnyTimes()
+			mockBlock.EXPECT().
+				EndTime().
+				DoAndReturn(func() time.Time { return block.EndTime() }).
+				AnyTimes()
+			mockBlock.EXPECT().
+				Query(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(q index.Query, opts index.QueryOptions, r index.Results) (bool, error) {
+					timeoutWg.Wait()
+					return block.Query(q, opts, r)
+				}).
+				AnyTimes()
+			mockBlock.EXPECT().
+				Close().
+				Return(nil)
+			nsIdx.state.blocksByTime[start] = mockBlock
+		}
+		nsIdx.state.Unlock()
+	}
+
 	var (
-		startWg, readyWg sync.WaitGroup
-		queryConcurrency = 16
-		workerLoops      = 16
+		queryConcurrency    = 16
+		workerLoops         = 16
+		startWg, readyWg    sync.WaitGroup
+		timeoutContextsLock sync.Mutex
+		timeoutContexts     []context.Context
 	)
 
 	var enqueueWg sync.WaitGroup
@@ -412,13 +486,32 @@ func testNamespaceIndexHighConcurrentQueries(
 					rangeEnd := blockStarts[k].Add(test.indexBlockSize)
 
 					ctx := context.NewContext()
+					if opts.forceTimeouts {
+						// For the force timeout tests we just want to spin up the
+						// contexts for timeouts.
+						timeoutContextsLock.Lock()
+						timeoutContexts = append(timeoutContexts, ctx)
+						timeoutContextsLock.Unlock()
+						timedOutQueriesWg.Add(1)
+						go func() {
+							_, err := test.index.Query(ctx, index.Query{
+								Query: query,
+							}, index.QueryOptions{
+								StartInclusive: rangeStart,
+								EndExclusive:   rangeEnd,
+							})
+							assert.Error(t, err)
+							timedOutQueriesWg.Done()
+						}()
+						continue
+					}
+
 					results, err := test.index.Query(ctx, index.Query{
 						Query: query,
 					}, index.QueryOptions{
 						StartInclusive: rangeStart,
 						EndExclusive:   rangeEnd,
 					})
-
 					assert.NoError(t, err)
 
 					// Read the results concurrently too
@@ -457,6 +550,30 @@ func testNamespaceIndexHighConcurrentQueries(
 
 	// Wait until done
 	enqueueWg.Wait()
+
+	// If forcing timeouts then fire off all the async request to finish
+	// while we close the contexts so any races with finalization and
+	// potentially aborted requests will race against each other.
+	if opts.forceTimeouts {
+		// First wait for timeouts
+		timedOutQueriesWg.Wait()
+
+		var ctxCloseWg sync.WaitGroup
+		ctxCloseWg.Add(len(timeoutContexts))
+		go func() {
+			// Start allowing timedout queries to complete
+			timeoutWg.Done()
+			// Race closing all contexts at once
+			for _, ctx := range timeoutContexts {
+				ctx := ctx
+				go func() {
+					ctx.BlockingClose()
+					ctxCloseWg.Done()
+				}()
+			}
+		}()
+		ctxCloseWg.Wait()
+	}
 }
 
 type testIndex struct {

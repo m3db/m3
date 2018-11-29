@@ -49,6 +49,7 @@ import (
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
+	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
@@ -90,6 +91,9 @@ type nsIndex struct {
 	runtimeOptsListener xclose.SimpleCloser
 
 	resultsPool index.ResultsPool
+	// NB(r): Use a pooled goroutine worker once pooled goroutine workers
+	// support timeouts for query workers pool.
+	queryWorkersPool xsync.WorkerPool
 
 	// queriesWg tracks outstanding queries to ensure
 	// we wait for all queries to complete before actually closing
@@ -232,11 +236,12 @@ func newNamespaceIndexWithOptions(
 		indexFilesetsBeforeFn: fs.IndexFileSetsBefore,
 		deleteFilesFn:         fs.DeleteFiles,
 
-		newBlockFn:  newBlockFn,
-		opts:        newIndexOpts.opts,
-		logger:      indexOpts.InstrumentOptions().Logger(),
-		nsMetadata:  nsMD,
-		resultsPool: indexOpts.ResultsPool(),
+		newBlockFn:       newBlockFn,
+		opts:             newIndexOpts.opts,
+		logger:           indexOpts.InstrumentOptions().Logger(),
+		nsMetadata:       nsMD,
+		resultsPool:      indexOpts.ResultsPool(),
+		queryWorkersPool: newIndexOpts.opts.QueryIDsWorkerPool(),
 
 		metrics: newNamespaceIndexMetrics(instrumentOpts),
 	}
@@ -758,7 +763,7 @@ func (i *nsIndex) Query(
 		return index.QueryResults{}, err
 	}
 
-	// Check no blocks to query
+	// Check no blocks to query.
 	if len(blocks) == 0 {
 		results := i.resultsPool.Get()
 		results.Reset(i.nsMetadata.ID())
@@ -770,10 +775,7 @@ func (i *nsIndex) Query(
 
 	var (
 		deadline = start.Add(timeout)
-		// NB(r): Use a pooled goroutine worker once pooled goroutine workers
-		// support timeouts.
-		workers = i.opts.QueryIDsWorkerPool()
-		wg      sync.WaitGroup
+		wg       sync.WaitGroup
 
 		// Results contains all concurrent mutable state below.
 		results = struct {
@@ -788,6 +790,12 @@ func (i *nsIndex) Query(
 			returned:   false,
 		}
 	)
+	defer func() {
+		// Ensure that during early error returns we let any aborted
+		// goroutines know not to try to modify/edit the result any longer.
+		results.returned = true
+	}()
+
 	execBlockQuery := func(block index.Block) {
 		blockResults := i.resultsPool.Get()
 		blockResults.Reset(i.nsMetadata.ID())
@@ -879,18 +887,18 @@ func (i *nsIndex) Query(
 		if applyTimeout := timeout > 0; !applyTimeout {
 			// No timeout, just wait blockingly for a worker.
 			wg.Add(1)
-			workers.Go(func() {
+			i.queryWorkersPool.Go(func() {
 				execBlockQuery(block)
 				wg.Done()
 			})
 			continue
 		}
 
-		// Need to apply timeout.
+		// Need to apply timeout to the blocking wait call for a worker.
 		var timedOut bool
 		if timeLeft := deadline.Sub(i.nowFn()); timeLeft > 0 {
 			wg.Add(1)
-			timedOut := !workers.GoWithTimeout(func() {
+			timedOut := !i.queryWorkersPool.GoWithTimeout(func() {
 				execBlockQuery(block)
 				wg.Done()
 			}, timeLeft)
@@ -905,27 +913,62 @@ func (i *nsIndex) Query(
 
 		if timedOut {
 			// Exceeded our deadline waiting for this block's query to start.
-			return index.QueryResults{},
-				fmt.Errorf("index query exceeded timeout: %s", timeout.String())
+			return index.QueryResults{}, fmt.Errorf("index query timed out: %s", timeout.String())
 		}
 	}
 
 	// Wait for queries to finish.
-	wg.Wait()
+	if !(timeout > 0) {
+		// No timeout, just blockingly wait.
+		wg.Wait()
+	} else {
+		// Need to abort early if timeout hit.
+		timeLeft := deadline.Sub(i.nowFn())
+		if timeLeft <= 0 {
+			return index.QueryResults{}, fmt.Errorf("index query timed out: %s", timeout.String())
+		}
+
+		doneCh := make(chan struct{}, 1)
+		go func() {
+			wg.Wait()
+			doneCh <- struct{}{}
+		}()
+
+		var (
+			ticker  = time.NewTicker(timeLeft)
+			aborted bool
+		)
+		select {
+		case <-ticker.C:
+			aborted = true
+		case <-doneCh:
+		}
+
+		// Make sure to always free the timer/ticker so they don't sit around.
+		ticker.Stop()
+
+		if aborted {
+			return index.QueryResults{}, fmt.Errorf("index query timed out: %s", timeout.String())
+		}
+	}
 
 	results.Lock()
-	defer results.Unlock()
-
 	// Signal not to add any further results since we've returned already.
 	results.returned = true
+	// Take reference to vars to return while locked, need to allow defer
+	// lock/unlock cleanup to not deadlock with this locked code block.
+	exhaustive := results.exhaustive
+	mergedResults := results.merged
+	errResults := results.multiErr.FinalError()
+	results.Unlock()
 
-	if err := results.multiErr.FinalError(); err != nil {
+	if errResults != nil {
 		return index.QueryResults{}, err
 	}
 
 	return index.QueryResults{
-		Exhaustive: results.exhaustive,
-		Results:    results.merged,
+		Exhaustive: exhaustive,
+		Results:    mergedResults,
 	}, nil
 }
 
