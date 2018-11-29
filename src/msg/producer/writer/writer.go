@@ -145,6 +145,10 @@ func (w *writer) Init() error {
 	return nil
 }
 
+func (w *writer) NumShards() uint32 {
+	return w.numShards
+}
+
 func (w *writer) process(update interface{}) error {
 	t := update.(topic.Topic)
 	if err := t.Validate(); err != nil {

@@ -72,6 +72,10 @@ type Producer interface {
 	// UnregisterFilter unregisters the filter of a consumer service.
 	UnregisterFilter(sid services.ServiceID)
 
+	// NumShards returns the total number of shards of the topic the producer is
+	// producing to.
+	NumShards() uint32
+
 	// Init initializes a producer.
 	Init() error
 
@@ -123,6 +127,10 @@ type Writer interface {
 
 	// UnregisterFilter unregisters the filter of a consumer service.
 	UnregisterFilter(sid services.ServiceID)
+
+	// NumShards returns the total number of shards of the topic the writer is
+	// writting to.
+	NumShards() uint32
 
 	// Init initializes a writer.
 	Init() error
