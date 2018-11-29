@@ -116,7 +116,7 @@ func (d *postingsList) Union(other postings.List) error {
 		return errUnionRoaringOnly
 	}
 
-	d.bitmap = d.bitmap.Union(o.bitmap)
+	d.bitmap.UnionInPlace(o.bitmap)
 	return nil
 }
 
