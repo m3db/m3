@@ -31,6 +31,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3x/context"
 	xtime "github.com/m3db/m3x/time"
 
@@ -185,7 +186,7 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 
 						setup.setNowFn(ts)
 
-						err := setup.db.Write(ctx, nsID, dp.series, ts, ts, dp.value, xtime.Second, nil)
+						err := setup.db.Write(ctx, nsID, dp.series, ts, dp.value, xtime.Second, nil, series.WriteOptions{WriteTime: ts})
 						if err != nil {
 							log.Warnf("error writing series datapoint: %v", err)
 							return false, err

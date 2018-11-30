@@ -667,23 +667,23 @@ func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 		ctx       = context.NewContext()
 		id        = ident.StringID("foo")
 		tagsIter  = ident.EmptyTagIterator
-		series    = ts.Series{
+		s         = ts.Series{
 			ID:        id,
 			Tags:      ident.Tags{},
 			Namespace: namespace,
 		}
 	)
 	ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("foo"), gomock.Any(),
-		time.Time{}, time.Time{}, 1.0, xtime.Second, nil).Return(series, nil)
+		time.Time{}, 1.0, xtime.Second, nil, series.WriteOptions{}).Return(s, nil)
 	require.NoError(t, d.WriteTagged(ctx, namespace,
-		id, tagsIter, time.Time{}, time.Time{},
-		1.0, xtime.Second, nil))
+		id, tagsIter, time.Time{},
+		1.0, xtime.Second, nil, series.WriteOptions{}))
 
 	ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("foo"), gomock.Any(),
-		time.Time{}, time.Time{}, 1.0, xtime.Second, nil).Return(series, fmt.Errorf("random err"))
+		time.Time{}, 1.0, xtime.Second, nil, series.WriteOptions{}).Return(s, fmt.Errorf("random err"))
 	require.Error(t, d.WriteTagged(ctx, namespace,
-		ident.StringID("foo"), ident.EmptyTagIterator, time.Time{}, time.Time{},
-		1.0, xtime.Second, nil))
+		ident.StringID("foo"), ident.EmptyTagIterator, time.Time{},
+		1.0, xtime.Second, nil, series.WriteOptions{}))
 
 	var (
 		q    = index.Query{}
@@ -724,7 +724,7 @@ func TestDatabaseWriteBatchNoNamespace(t *testing.T) {
 	_, err := d.BatchWriter(notExistNamespace, batchSize)
 	require.Error(t, err)
 
-	err = d.WriteBatch(nil, notExistNamespace, nil, time.Time{}, nil)
+	err = d.WriteBatch(nil, notExistNamespace, nil, nil, series.WriteOptions{})
 	require.Error(t, err)
 
 	require.NoError(t, d.Close())
@@ -747,7 +747,7 @@ func TestDatabaseWriteTaggedBatchNoNamespace(t *testing.T) {
 	_, err := d.BatchWriter(notExistNamespace, batchSize)
 	require.Error(t, err)
 
-	err = d.WriteTaggedBatch(nil, notExistNamespace, nil, time.Time{}, nil)
+	err = d.WriteTaggedBatch(nil, notExistNamespace, nil, nil, series.WriteOptions{})
 	require.Error(t, err)
 
 	require.NoError(t, d.Close())
@@ -860,7 +860,7 @@ func testDatabaseWriteBatch(t *testing.T, tagged bool, commitlogEnabled bool) {
 		if tagged {
 			batchWriter.AddTagged(i*2, ident.StringID(write.series), tagsIter, write.t, write.v, xtime.Second, nil)
 			ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher(write.series), gomock.Any(),
-				write.t, writeTime, write.v, xtime.Second, nil).Return(
+				write.t, write.v, xtime.Second, nil, series.WriteOptions{WriteTime: writeTime}).Return(
 				ts.Series{
 					ID:        ident.StringID(write.series + "-updated"),
 					Namespace: namespace,
@@ -869,7 +869,7 @@ func testDatabaseWriteBatch(t *testing.T, tagged bool, commitlogEnabled bool) {
 		} else {
 			batchWriter.Add(i*2, ident.StringID(write.series), write.t, write.v, xtime.Second, nil)
 			ns.EXPECT().Write(ctx, ident.NewIDMatcher(write.series),
-				write.t, writeTime, write.v, xtime.Second, nil).Return(
+				write.t, write.v, xtime.Second, nil, series.WriteOptions{WriteTime: writeTime}).Return(
 				ts.Series{
 					ID:        ident.StringID(write.series + "-updated"),
 					Namespace: namespace,
@@ -881,9 +881,11 @@ func testDatabaseWriteBatch(t *testing.T, tagged bool, commitlogEnabled bool) {
 
 	errHandler := &fakeIndexedErrorHandler{}
 	if tagged {
-		err = d.WriteTaggedBatch(ctx, namespace, batchWriter.(ts.WriteBatch), writeTime, errHandler)
+		err = d.WriteTaggedBatch(ctx, namespace, batchWriter.(ts.WriteBatch),
+			errHandler, series.WriteOptions{WriteTime: writeTime})
 	} else {
-		err = d.WriteBatch(ctx, namespace, batchWriter.(ts.WriteBatch), writeTime, errHandler)
+		err = d.WriteBatch(ctx, namespace, batchWriter.(ts.WriteBatch),
+			errHandler, series.WriteOptions{WriteTime: writeTime})
 	}
 
 	require.NoError(t, err)

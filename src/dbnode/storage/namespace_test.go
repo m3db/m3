@@ -156,7 +156,8 @@ func TestNamespaceWriteShardNotOwned(t *testing.T) {
 		ns.shards[i] = nil
 	}
 	now := time.Now()
-	_, err := ns.Write(ctx, ident.StringID("foo"), now, now, 0.0, xtime.Second, nil)
+	_, err := ns.Write(ctx, ident.StringID("foo"), now, 0.0, xtime.Second, nil,
+		series.WriteOptions{WriteTime: now})
 	require.Error(t, err)
 	require.True(t, xerrors.IsRetryableError(err))
 	require.Equal(t, "not responsible for shard 0", err.Error())
@@ -178,10 +179,10 @@ func TestNamespaceWriteShardOwned(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
 	shard := NewMockdatabaseShard(ctrl)
-	shard.EXPECT().Write(ctx, id, now, series.WarmWrite, val, unit, ant).Return(ts.Series{}, nil)
+	shard.EXPECT().Write(ctx, id, now, val, unit, ant, series.WriteOptions{WriteTime: now}).Return(ts.Series{}, nil)
 	ns.shards[testShardIDs[0].ID()] = shard
 
-	_, err := ns.Write(ctx, id, now, now, val, unit, ant)
+	_, err := ns.Write(ctx, id, now, val, unit, ant, series.WriteOptions{WriteTime: now})
 	require.NoError(t, err)
 }
 
@@ -1071,11 +1072,12 @@ func TestNamespaceIndexInsert(t *testing.T) {
 
 	shard := NewMockdatabaseShard(ctrl)
 	shard.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
-		now, series.WarmWrite, 1.0, xtime.Second, nil).Return(ts.Series{}, nil)
+		now, 1.0, xtime.Second, nil, series.WriteOptions{WriteTime: now}).Return(ts.Series{}, nil)
 	ns.shards[testShardIDs[0].ID()] = shard
 
 	_, err := ns.WriteTagged(ctx, ident.StringID("a"),
-		ident.EmptyTagIterator, now, now, 1.0, xtime.Second, nil)
+		ident.EmptyTagIterator, now, 1.0, xtime.Second, nil,
+		series.WriteOptions{WriteTime: now})
 	require.NoError(t, err)
 
 	shard.EXPECT().Close()
