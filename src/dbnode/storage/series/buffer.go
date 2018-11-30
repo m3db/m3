@@ -419,13 +419,16 @@ func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time) []block.
 		}
 
 		if streams := buckets.streams(ctx, WarmWrite); len(streams) > 0 {
-			res = append(res, block.NewFetchBlockResult(buckets.start, streams, nil))
+			res = append(res, block.NewFetchBlockResult(start, streams, nil))
 		}
 
 		if streams := buckets.streams(ctx, ColdWrite); len(streams) > 0 {
-			res = append(res, block.NewFetchBlockResult(buckets.start, streams, nil))
+			res = append(res, block.NewFetchBlockResult(start, streams, nil))
 		}
 	}
+
+	// Result should be sorted in ascending order
+	sort.Slice(res, func(i, j int) bool { return res[i].Start.Before(res[j].Start) })
 
 	return res
 }
