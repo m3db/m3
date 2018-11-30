@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
 	"github.com/m3db/m3/src/m3ninx/idx"
 	"github.com/m3db/m3x/context"
@@ -311,6 +312,6 @@ func writeTagged(
 	for _, n := range nodes {
 		require.NoError(t, n.db.WriteTagged(ctx, testNamespaces[0], ident.StringID("quorumTest"),
 			ident.NewTagsIterator(ident.NewTags(ident.StringTag("foo", "bar"), ident.StringTag("boo", "baz"))),
-			n.getNowFn(), n.getNowFn(), 42, xtime.Second, nil))
+			n.getNowFn(), 42, xtime.Second, nil, series.WriteOptions{WriteTime: n.getNowFn()}))
 	}
 }

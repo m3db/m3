@@ -36,6 +36,7 @@ import (
 	bcl "github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
@@ -104,7 +105,7 @@ func TestFsCommitLogMixedModeReadWrite(t *testing.T) {
 	for _, dp := range datapoints {
 		ts := dp.time
 		setup.setNowFn(ts)
-		require.NoError(t, db.Write(ctx, nsID, dp.series, ts, ts, dp.value, xtime.Second, nil))
+		require.NoError(t, db.Write(ctx, nsID, dp.series, ts, dp.value, xtime.Second, nil, series.WriteOptions{WriteTime: ts}))
 	}
 	log.Infof("wrote datapoints")
 
