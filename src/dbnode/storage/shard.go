@@ -872,6 +872,7 @@ func (s *dbShard) writeAndIndex(
 				value:      value,
 				unit:       unit,
 				annotation: annotationClone,
+				wopts:      wopts,
 			},
 			hasPendingIndexing: shouldReverseIndex,
 			pendingIndex: dbShardPendingIndex{
