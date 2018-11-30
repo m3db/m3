@@ -272,12 +272,6 @@ type Options interface {
 
 	// Stats returns the configured Stats.
 	Stats() Stats
-
-	// SetColdWritesEnabled sets whether writes to any time is enabled
-	SetColdWritesEnabled(value bool) Options
-
-	// ColdWritesEnabled returns whether writes to any time is enabled
-	ColdWritesEnabled() bool
 }
 
 // Stats is passed down from namespace/shard to avoid allocations per series.

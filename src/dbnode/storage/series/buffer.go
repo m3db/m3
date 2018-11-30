@@ -100,11 +100,6 @@ type databaseBuffer interface {
 
 	Stats() bufferStats
 
-	// MinMax returns the minimum and maximum blockstarts for the buckets
-	// that are contained within the buffer. These ranges exclude buckets
-	// that have already been drained (as those buckets are no longer in use.)
-	MinMax() (time.Time, time.Time, error)
-
 	Tick() bufferTickResult
 
 	Bootstrap(bl block.DatabaseBlock)
@@ -161,25 +156,6 @@ func (b *dbBuffer) Reset(blockRetriever QueryableBlockRetriever, opts Options) {
 	b.coldWritesEnabled = ropts.ColdWritesEnabled()
 }
 
-func (b *dbBuffer) MinMax() (time.Time, time.Time, error) {
-	var min, max time.Time
-	for blockStart := range b.bucketsMap {
-		startTime := blockStart.ToTime()
-		if min.IsZero() || startTime.Before(min) {
-			min = startTime
-		}
-		if max.IsZero() || startTime.After(max) {
-			max = startTime
-		}
-	}
-
-	if min.IsZero() || max.IsZero() {
-		// Should never happen
-		return time.Time{}, time.Time{}, errNoAvailableBuckets
-	}
-	return min, max, nil
-}
-
 func (b *dbBuffer) Write(
 	ctx context.Context,
 	timestamp time.Time,
@@ -190,7 +166,7 @@ func (b *dbBuffer) Write(
 ) error {
 	wType := b.writeType(timestamp, wopts.WriteTime)
 	if wType == ColdWrite && b.coldWritesEnabled {
-		return m3dberrors.ErrColdWriteNotEnabled
+		return m3dberrors.ErrColdWritesNotEnabled
 	}
 
 	blockStart := timestamp.Truncate(b.blockSize)
@@ -552,6 +528,10 @@ func (b *dbBufferBuckets) resetTo(
 	opts Options,
 	bucketPool *dbBufferBucketPool,
 ) {
+	// nil all elements so that they get GC'd
+	for i := range b.buckets {
+		b.buckets[i] = nil
+	}
 	b.buckets = b.buckets[:0]
 	b.start = start
 	b.opts = opts
