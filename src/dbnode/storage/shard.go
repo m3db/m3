@@ -753,6 +753,7 @@ func (s *dbShard) WriteTagged(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
+	wopts series.WriteOptions,
 ) (ts.Series, bool, error) {
 	return s.writeAndIndex(ctx, id, tags, timestamp,
 		value, unit, annotation, true, wopts)
@@ -765,6 +766,7 @@ func (s *dbShard) Write(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
+	wopts series.WriteOptions,
 ) (ts.Series, bool, error) {
 	return s.writeAndIndex(ctx, id, ident.EmptyTagIterator, timestamp,
 		value, unit, annotation, false, wopts)
