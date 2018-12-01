@@ -46,6 +46,22 @@ func BenchmarkLogEntryDecoder(b *testing.B) {
 	}
 }
 
+func BenchmarkLogEntryDecoderFast(b *testing.B) {
+	var (
+		enc = NewEncoder()
+		err error
+	)
+
+	require.NoError(b, enc.EncodeLogEntry(testLogEntry))
+	buf := enc.Bytes()
+	for n := 0; n < b.N; n++ {
+		_, err = DecodeLogEntryFast(buf)
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
 var benchmarkBuf []byte
 
 func BenchmarkLogEntryEncoderFast(b *testing.B) {
