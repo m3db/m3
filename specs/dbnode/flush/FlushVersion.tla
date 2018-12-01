@@ -1,6 +1,8 @@
 ---------------------------- MODULE FlushVersion ----------------------------
 EXTENDS Integers, TLC
 
+\* Constants used to limit the potential search space when
+\* running the TLC model checker.
 CONSTANT maxNumWrites
 CONSTANT maxNumFlushes
 CONSTANT maxNumTicks
@@ -65,8 +67,9 @@ process Flush = 0
         \* Whether a flush is currently ongoing.
         FlushInProgress = FALSE;
 
-\* Simulate background flushes which either succeed and increment the flush
-\* version, or fail and leave it as is.
+\* Simulate background flushes which either succeed, copy buckets to the
+\* PersistedBuckets set and then increment the flush version, or fail and
+\* leave everything as is.
 begin
     flush_loop: while CurrentIndex < maxNumFlushes do
         either
@@ -76,15 +79,15 @@ begin
                 \* Flush success
                 \*
                 \* Move all BucketsInMemory that have been flushed (according to
-                \* their flush version) to the set of "persisted" BucketsInMemory,
-                \* but keep them around in memory for now.
+                \* their flush version) to the PersistedBuckets set but keep them,
+                \* around in memory for now.
                 PersistedBuckets := PersistedBuckets \union {
                     x \in BucketsInMemory:
                         x.FlushVersion <= LastSuccessfulFlushVersion + 1 /\
                         x.FlushVersion > 0};
                 LastSuccessfulFlushVersion := LastSuccessfulFlushVersion + 1;
             or
-                \* Flush failure - NOOP
+                \* Flush failure - No-op
                 LastSuccessfulFlushVersion := LastSuccessfulFlushVersion;
             end either;
 
@@ -105,15 +108,14 @@ begin
     end while
 end process
 
-\* Simulate a process that is writing either by putting new buckets into
-\* BucketsInMemory.
+\* Simulate a process that is writing by putting new buckets into BucketsInMemory.
 process Write = 1
     variable
         CurrentIndex = 0;
         NextBucketID = 1;
 begin
     write_loop: while CurrentIndex < maxNumWrites do
-        \* Write a new block
+        \* Write a new bucket. Note that the FlushVersion is always zero for a new bucket.
         BucketsInMemory := BucketsInMemory \union {[ID |-> NextBucketID, FlushVersion |-> 0]};
         WrittenBuckets := WrittenBuckets \union {[ID |-> NextBucketID, FlushVersion |-> 0]};
         NextBucketID := NextBucketID + 1;
@@ -140,8 +142,8 @@ end algorithm
 
  ***************************************************************************)
 \* BEGIN TRANSLATION
-\* Process variable CurrentIndex of process Flush at line 64 col 9 changed to CurrentIndex_
-\* Process variable CurrentIndex of process Write at line 112 col 9 changed to CurrentIndex_W
+\* Process variable CurrentIndex of process Flush at line 66 col 9 changed to CurrentIndex_
+\* Process variable CurrentIndex of process Write at line 114 col 9 changed to CurrentIndex_W
 VARIABLES BucketsInMemory, WrittenBuckets, PersistedBuckets,
           LastSuccessfulFlushVersion, pc, CurrentIndex_, FlushInProgress,
           CurrentIndex_W, NextBucketID, CurrentIndex
@@ -247,5 +249,5 @@ DoesNotLoseData ==  WrittenIDs \subseteq ReadableIDs
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Nov 30 19:05:30 EST 2018 by richardartoul
+\* Last modified Fri Nov 30 19:08:55 EST 2018 by richardartoul
 \* Created Fri Nov 30 15:08:04 EST 2018 by richardartoul
