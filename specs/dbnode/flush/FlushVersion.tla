@@ -11,13 +11,14 @@ CONSTANT maxNumTicks
 \* specification models the system by running three different processes:
 \*
 \*    1. One process responsible for beginning and ending the flush process.
-\*       This process will begin a flush by looping through all the BucketsInMemory in
-\*       in memory and setting their LastSuccessfulFlushVersion to whatever the
-\*       CurrentLastSuccessfulFlushVersion is. It also models both flush successes and flush
-\*       failures.
-\*          Flush Success: Copy all the BucketsInMemory whose LastSuccessfulFlushVersion is smaller than
-\*                         or equal to the CurrentLastSuccessfulFlushVersion (I.E those we could
-\*                         have conceivably known about at flush start time) into
+\*       This process will begin a flush by looping through all the BucketsInMemory
+\*       and setting their LastSuccessfulFlushVersion to whatever the
+\*       CurrentLastSuccessfulFlushVersion is. It also models both flush
+\*       successes and flush failures.
+\*          Flush Success: Copy all the BucketsInMemory whose
+|*                         LastSuccessfulFlushVersion is smaller than
+\*                         or equal to the CurrentLastSuccessfulFlushVersion (I.E those
+\*                         we could have conceivably known about at flush start time) into
 \*                         the set of PersistedBuckets, and then increment the
 \*                         CurrentLastSuccessfulFlushVersion.
 \*
@@ -26,7 +27,7 @@ CONSTANT maxNumTicks
 \*
 \*    2. One process responsible for creating new buckets by issuing "writes". It does
 \*       this by storing them in the BucketsInMemory set, as well as in the
-\*       WrittenBuckets set (so we can keep track of them independent of the eviction
+\*       WrittenBuckets set (so we can keep track of them independentLY of the eviction
 \*       from memory process).
 \*
 \*
@@ -43,23 +44,26 @@ CONSTANT maxNumTicks
 --algorithm FlushVersion
 
 variable
-    \* Set of BucketsInMemory where every value corresponds to a record, where the record
-    \* has two fields:
+    \* BucketsInMemory, WrittenBuckets, and Persisted buckets are all sets that
+    \* store records in the form:
     \*    1. ID (int)
     \*    2. LastSuccessfulFlushVersion (int)
-    BucketsInMemory = {[ID |-> 0, FlushVersion |-> 0]};
     \*
+    \* BucketsInMemory stores all the buckets that are currently in the M3DB
+    \* process's memory, WrittenBuckets stores all the buckets that the client
+    \* ever issued (to serve as a source of truth for checking invariants), and
+    \* PersistedBuckets stores all the buckets that have been flushed successfully.
+    BucketsInMemory = {[ID |-> 0, FlushVersion |-> 0]};
     WrittenBuckets = {[ID |-> 0, FlushVersion |-> 0]};
     PersistedBuckets = {};
-    NextBlockID = 1;
     \* The last version that was successfully flushed to disk.
     LastSuccessfulFlushVersion = 0;
-    \* Whether a flush is currently ongoing.
-    FlushInProgress = FALSE;
 
 process Flush = 0
     variable
         CurrentIndex = 0;
+        \* Whether a flush is currently ongoing.
+        FlushInProgress = FALSE;
 
 \* Simulate background flushes which either succeed and increment the flush
 \* version, or fail and leave it as is.
@@ -106,12 +110,13 @@ end process
 process Write = 1
     variable
         CurrentIndex = 0;
+        NextBucketID = 1;
 begin
     write_loop: while CurrentIndex < maxNumWrites do
         \* Write a new block
-        BucketsInMemory := BucketsInMemory \union {[ID |-> NextBlockID, FlushVersion |-> 0]};
-        WrittenBuckets := WrittenBuckets \union {[ID |-> NextBlockID, FlushVersion |-> 0]};
-        NextBlockID := NextBlockID + 1;
+        BucketsInMemory := BucketsInMemory \union {[ID |-> NextBucketID, FlushVersion |-> 0]};
+        WrittenBuckets := WrittenBuckets \union {[ID |-> NextBucketID, FlushVersion |-> 0]};
+        NextBucketID := NextBucketID + 1;
         CurrentIndex := CurrentIndex+1;
     end while
 end process
@@ -135,15 +140,15 @@ end algorithm
 
  ***************************************************************************)
 \* BEGIN TRANSLATION
-\* Process variable CurrentIndex of process Flush at line 62 col 9 changed to CurrentIndex_
-\* Process variable CurrentIndex of process Write at line 108 col 9 changed to CurrentIndex_W
-VARIABLES BucketsInMemory, WrittenBuckets, PersistedBuckets, NextBlockID,
-          LastSuccessfulFlushVersion, FlushInProgress, pc, CurrentIndex_,
-          CurrentIndex_W, CurrentIndex
+\* Process variable CurrentIndex of process Flush at line 64 col 9 changed to CurrentIndex_
+\* Process variable CurrentIndex of process Write at line 112 col 9 changed to CurrentIndex_W
+VARIABLES BucketsInMemory, WrittenBuckets, PersistedBuckets,
+          LastSuccessfulFlushVersion, pc, CurrentIndex_, FlushInProgress,
+          CurrentIndex_W, NextBucketID, CurrentIndex
 
-vars == << BucketsInMemory, WrittenBuckets, PersistedBuckets, NextBlockID,
-           LastSuccessfulFlushVersion, FlushInProgress, pc, CurrentIndex_,
-           CurrentIndex_W, CurrentIndex >>
+vars == << BucketsInMemory, WrittenBuckets, PersistedBuckets,
+           LastSuccessfulFlushVersion, pc, CurrentIndex_, FlushInProgress,
+           CurrentIndex_W, NextBucketID, CurrentIndex >>
 
 ProcSet == {0} \cup {1} \cup {2}
 
@@ -151,13 +156,13 @@ Init == (* Global variables *)
         /\ BucketsInMemory = {[ID |-> 0, FlushVersion |-> 0]}
         /\ WrittenBuckets = {[ID |-> 0, FlushVersion |-> 0]}
         /\ PersistedBuckets = {}
-        /\ NextBlockID = 1
         /\ LastSuccessfulFlushVersion = 0
-        /\ FlushInProgress = FALSE
         (* Process Flush *)
         /\ CurrentIndex_ = 0
+        /\ FlushInProgress = FALSE
         (* Process Write *)
         /\ CurrentIndex_W = 0
+        /\ NextBucketID = 1
         (* Process Tick *)
         /\ CurrentIndex = 0
         /\ pc = [self \in ProcSet |-> CASE self = 0 -> "flush_loop"
@@ -187,24 +192,24 @@ flush_loop == /\ pc[0] = "flush_loop"
                     ELSE /\ pc' = [pc EXCEPT ![0] = "Done"]
                          /\ UNCHANGED << BucketsInMemory, PersistedBuckets,
                                          LastSuccessfulFlushVersion,
-                                         FlushInProgress, CurrentIndex_ >>
-              /\ UNCHANGED << WrittenBuckets, NextBlockID, CurrentIndex_W,
+                                         CurrentIndex_, FlushInProgress >>
+              /\ UNCHANGED << WrittenBuckets, CurrentIndex_W, NextBucketID,
                               CurrentIndex >>
 
 Flush == flush_loop
 
 write_loop == /\ pc[1] = "write_loop"
               /\ IF CurrentIndex_W < maxNumWrites
-                    THEN /\ BucketsInMemory' = (BucketsInMemory \union {[ID |-> NextBlockID, FlushVersion |-> 0]})
-                         /\ WrittenBuckets' = (WrittenBuckets \union {[ID |-> NextBlockID, FlushVersion |-> 0]})
-                         /\ NextBlockID' = NextBlockID + 1
+                    THEN /\ BucketsInMemory' = (BucketsInMemory \union {[ID |-> NextBucketID, FlushVersion |-> 0]})
+                         /\ WrittenBuckets' = (WrittenBuckets \union {[ID |-> NextBucketID, FlushVersion |-> 0]})
+                         /\ NextBucketID' = NextBucketID + 1
                          /\ CurrentIndex_W' = CurrentIndex_W+1
                          /\ pc' = [pc EXCEPT ![1] = "write_loop"]
                     ELSE /\ pc' = [pc EXCEPT ![1] = "Done"]
                          /\ UNCHANGED << BucketsInMemory, WrittenBuckets,
-                                         NextBlockID, CurrentIndex_W >>
+                                         CurrentIndex_W, NextBucketID >>
               /\ UNCHANGED << PersistedBuckets, LastSuccessfulFlushVersion,
-                              FlushInProgress, CurrentIndex_, CurrentIndex >>
+                              CurrentIndex_, FlushInProgress, CurrentIndex >>
 
 Write == write_loop
 
@@ -217,9 +222,10 @@ tick_loop == /\ pc[2] = "tick_loop"
                         /\ pc' = [pc EXCEPT ![2] = "tick_loop"]
                    ELSE /\ pc' = [pc EXCEPT ![2] = "Done"]
                         /\ UNCHANGED BucketsInMemory
-             /\ UNCHANGED << WrittenBuckets, PersistedBuckets, NextBlockID,
-                             LastSuccessfulFlushVersion, FlushInProgress,
-                             CurrentIndex_, CurrentIndex_W, CurrentIndex >>
+             /\ UNCHANGED << WrittenBuckets, PersistedBuckets,
+                             LastSuccessfulFlushVersion, CurrentIndex_,
+                             FlushInProgress, CurrentIndex_W, NextBucketID,
+                             CurrentIndex >>
 
 Tick == tick_loop
 
@@ -241,5 +247,5 @@ DoesNotLoseData ==  WrittenIDs \subseteq ReadableIDs
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Nov 30 18:35:19 EST 2018 by richardartoul
+\* Last modified Fri Nov 30 19:05:30 EST 2018 by richardartoul
 \* Created Fri Nov 30 15:08:04 EST 2018 by richardartoul
