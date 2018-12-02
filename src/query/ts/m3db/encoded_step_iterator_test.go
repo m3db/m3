@@ -111,12 +111,13 @@ var consolidatedStepIteratorTests = []struct {
 
 func TestConsolidatedStepIterator(t *testing.T) {
 	for _, tt := range consolidatedStepIteratorTests {
-		blocks := generateMultipurposeBlocks(tt.stepSize, t)
+		blocks, bounds := generateMultipurposeBlocks(t, tt.stepSize)
 		j := 0
-		for _, block := range blocks {
+		for i, block := range blocks {
 			iters, err := block.StepIter()
 			require.NoError(t, err)
 
+			verifyMetas(t, i, bounds, iters.Meta(), iters.SeriesMeta())
 			for iters.Next() {
 				step, err := iters.Current()
 				require.NoError(t, err)

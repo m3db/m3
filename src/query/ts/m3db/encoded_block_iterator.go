@@ -137,7 +137,8 @@ func (b *encodedBlock) buildMeta() {
 	tags, metas := utils.DedupeMetadata(b.seriesMetas)
 	b.seriesMetas = metas
 	b.meta = block.Metadata{
-		Tags: tags,
+		Tags:   tags,
+		Bounds: *b.consolidation.bounds,
 	}
 }
 

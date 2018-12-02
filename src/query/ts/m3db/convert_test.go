@@ -21,6 +21,7 @@
 package m3db
 
 import (
+	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -30,6 +31,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/test"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -40,8 +42,8 @@ var (
 )
 
 func generateIterators(
-	stepSize time.Duration,
 	t *testing.T,
+	stepSize time.Duration,
 ) (
 	encoding.SeriesIterators,
 	*models.Bounds,
@@ -104,7 +106,7 @@ func generateIterators(
 		start  = Start
 	)
 	for i, dps := range datapoints {
-		iter, bounds = buildCustomIterator(start, stepSize, dps, t)
+		iter, bounds = buildCustomIterator(t, i, start, stepSize, dps)
 		iters[i] = iter
 	}
 
@@ -112,18 +114,19 @@ func generateIterators(
 }
 
 func buildCustomIterator(
+	t *testing.T,
+	i int,
 	start time.Time,
 	stepSize time.Duration,
 	dps [][]test.Datapoint,
-	t *testing.T,
 ) (
 	encoding.SeriesIterator,
 	*models.Bounds,
 ) {
 	iter, bounds, err := test.BuildCustomIterator(
 		dps,
-		map[string]string{"a": "b", "c": "garbage"},
-		"id", "namespace",
+		map[string]string{"a": "b", "c": fmt.Sprint(i)},
+		fmt.Sprintf("abc%d", i), "namespace",
 		start,
 		blockSize, stepSize,
 	)
@@ -131,16 +134,38 @@ func buildCustomIterator(
 	return iter, bounds
 }
 
-func generateMultipurposeBlocks(
-	stepSize time.Duration,
+func verifyMetas(
 	t *testing.T,
-) []block.MultipurposeBlock {
-	iterators, bounds := generateIterators(stepSize, t)
+	i int,
+	bounds models.Bounds,
+	meta block.Metadata,
+	metas []block.SeriesMeta,
+) {
+	assert.True(t, meta.Bounds.Equals(bounds))
+	require.Equal(t, 1, meta.Tags.Len())
+	val, found := meta.Tags.Get([]byte("a"))
+	assert.True(t, found)
+	assert.Equal(t, []byte("b"), val)
+
+	for i, m := range metas {
+		assert.Equal(t, fmt.Sprintf("abc%d", i), m.Name)
+		require.Equal(t, 1, m.Tags.Len())
+		val, found := m.Tags.Get([]byte("c"))
+		assert.True(t, found)
+		assert.Equal(t, []byte(fmt.Sprint(i)), val)
+	}
+}
+
+func generateMultipurposeBlocks(
+	t *testing.T,
+	stepSize time.Duration,
+) ([]block.MultipurposeBlock, models.Bounds) {
+	iterators, bounds := generateIterators(t, stepSize)
 	blocks := ConvertM3DBSeriesIterators(
 		iterators,
 		models.NewTagOptions(),
 		bounds,
 	)
 
-	return blocks
+	return blocks, *bounds
 }

@@ -98,12 +98,13 @@ var consolidatedSeriesIteratorTests = []struct {
 
 func TestConsolidatedSeriesIterator(t *testing.T) {
 	for _, tt := range consolidatedSeriesIteratorTests {
-		blocks := generateMultipurposeBlocks(tt.stepSize, t)
+		blocks, bounds := generateMultipurposeBlocks(t, tt.stepSize)
 		j := 0
-		for _, block := range blocks {
+		for i, block := range blocks {
 			iters, err := block.SeriesIter()
 			require.NoError(t, err)
 
+			verifyMetas(t, i, bounds, iters.Meta(), iters.SeriesMeta())
 			for iters.Next() {
 				series, err := iters.Current()
 				require.NoError(t, err)

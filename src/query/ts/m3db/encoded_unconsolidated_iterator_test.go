@@ -59,14 +59,15 @@ func TestUnconsolidatedStepIterator(t *testing.T) {
 	}
 
 	j := 0
-	blocks := generateMultipurposeBlocks(time.Minute, t)
-	for _, block := range blocks {
+	blocks, bounds := generateMultipurposeBlocks(t, time.Minute)
+	for i, block := range blocks {
 		unconsolidated, err := block.Unconsolidated()
 		require.NoError(t, err)
 
 		iters, err := unconsolidated.StepIterUnconsolidated()
 		require.NoError(t, err)
 
+		verifyMetas(t, i, bounds, iters.Meta(), iters.SeriesMeta())
 		for iters.Next() {
 			step, err := iters.CurrentUnconsolidated()
 			require.NoError(t, err)
@@ -86,14 +87,15 @@ func TestUnconsolidatedSeriesIterator(t *testing.T) {
 	}
 
 	j := 0
-	blocks := generateMultipurposeBlocks(time.Minute, t)
-	for _, block := range blocks {
+	blocks, bounds := generateMultipurposeBlocks(t, time.Minute)
+	for i, block := range blocks {
 		unconsolidated, err := block.Unconsolidated()
 		require.NoError(t, err)
 
 		iters, err := unconsolidated.SeriesIterUnconsolidated()
 		require.NoError(t, err)
 
+		verifyMetas(t, i, bounds, iters.Meta(), iters.SeriesMeta())
 		for iters.Next() {
 			series, err := iters.CurrentUnconsolidated()
 			require.NoError(t, err)
