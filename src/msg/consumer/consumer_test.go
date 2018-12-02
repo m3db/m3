@@ -414,7 +414,9 @@ func testOptions() Options {
 	return opts.
 		SetAckBufferSize(1).
 		SetAckFlushInterval(50 * time.Millisecond).
-		SetMessagePoolOptions(pool.NewObjectPoolOptions().SetSize(1)).
+		SetMessagePoolOptions(MessagePoolOptions{
+			PoolOptions: pool.NewObjectPoolOptions().SetSize(1),
+		}).
 		SetConnectionWriteBufferSize(1)
 }
 
