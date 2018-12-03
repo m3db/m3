@@ -107,7 +107,6 @@ func TestParseDurationError(t *testing.T) {
 
 func TestRenderResultsJSON(t *testing.T) {
 	start := time.Unix(1535948880, 0)
-
 	buffer := bytes.NewBuffer(nil)
 	params := models.RequestParams{}
 	series := []*ts.Series{
@@ -163,6 +162,57 @@ func TestRenderResultsJSON(t *testing.T) {
 					],
 					"step_size_ms": 10000
 				}
+			]
+		}
+	}
+	`)
+	actual := mustPrettyJSON(t, buffer.String())
+	assert.Equal(t, expected, actual, xtest.Diff(expected, actual))
+}
+
+func TestRenderInstantaneousResultsJSON(t *testing.T) {
+	start := time.Unix(1535948880, 0)
+	buffer := bytes.NewBuffer(nil)
+	params := models.RequestParams{}
+	series := []*ts.Series{
+		ts.NewSeries("foo", ts.NewFixedStepValues(10*time.Second, 1, 1, start), test.TagSliceToTags([]models.Tag{
+			models.Tag{Name: []byte("bar"), Value: []byte("baz")},
+			models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
+		})),
+		ts.NewSeries("bar", ts.NewFixedStepValues(10*time.Second, 1, 2, start), test.TagSliceToTags([]models.Tag{
+			models.Tag{Name: []byte("baz"), Value: []byte("bar")},
+			models.Tag{Name: []byte("qaz"), Value: []byte("qux")},
+		})),
+	}
+
+	renderResultsInstantaneousJSON(buffer, series, params)
+
+	expected := mustPrettyJSON(t, `
+	{
+		"status": "success",
+		"data": {
+			"resultType": "vector",
+			"result": [
+				{
+					"metric": {
+						"bar": "baz",
+						"qux": "qaz"
+					},
+					"value": [
+						1535948880,
+						"1"
+					]
+				},
+				{
+					"metric": {
+						"baz": "bar",
+						"qaz": "qux"
+					},
+					"value": [
+						1535948880,
+						"2"
+					]
+ 				}
 			]
 		}
 	}

@@ -22,15 +22,12 @@ package native
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
-	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/logging"
 	"github.com/m3db/m3/src/x/net/http"
 
@@ -38,40 +35,24 @@ import (
 )
 
 const (
-	// PromReadURL is the url for native prom read handler, this matches the
-	// default URL for the query range endpoint found on a Prometheus server
-	PromReadURL = handler.RoutePrefixV1 + "/query_range"
+	// PromReadInstantURL is the url for native instantaneous prom read
+	// handler, this matches the  default URL for the query endpoint
+	// found on a Prometheus server
+	PromReadInstantURL = handler.RoutePrefixV1 + "/query"
 
-	// PromReadHTTPMethod is the HTTP method used with this resource.
-	PromReadHTTPMethod = http.MethodGet
-
-	// TODO: Move to config
-	initialBlockAlloc = 10
+	// PromReadInstantHTTPMethod is the HTTP method used with this resource.
+	PromReadInstantHTTPMethod = http.MethodGet
 )
 
-var (
-	emptySeriesList = []*ts.Series{}
-)
-
-// PromReadHandler represents a handler for prometheus read endpoint.
-type PromReadHandler struct {
+// PromReadInstantHandler represents a handler for prometheus instantaneous read endpoint.
+type PromReadInstantHandler struct {
 	engine    *executor.Engine
 	tagOpts   models.TagOptions
 	limitsCfg *config.LimitsConfiguration
 }
 
-// ReadResponse is the response that gets returned to the user
-type ReadResponse struct {
-	Results []ts.Series `json:"results,omitempty"`
-}
-
-type blockWithMeta struct {
-	block block.Block
-	meta  block.Metadata
-}
-
-// NewPromReadHandler returns a new instance of handler.
-func NewPromReadHandler(
+// NewPromReadInstantHandler returns a new instance of handler.
+func NewPromReadInstantHandler(
 	engine *executor.Engine,
 	tagOpts models.TagOptions,
 	limitsCfg *config.LimitsConfiguration,
@@ -83,11 +64,11 @@ func NewPromReadHandler(
 	}
 }
 
-func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *PromReadInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	logger := logging.WithContext(ctx)
 
-	params, rErr := parseParams(r)
+	params, rErr := parseInstantaneousParams(r)
 	if rErr != nil {
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
 		return
@@ -95,11 +76,6 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if params.Debug {
 		logger.Info("Request params", zap.Any("params", params))
-	}
-
-	if err := h.validateRequest(&params); err != nil {
-		xhttp.Error(w, err, http.StatusBadRequest)
-		return
 	}
 
 	result, err := read(ctx, h.engine, h.tagOpts, w, params)
@@ -111,22 +87,5 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// TODO: Support multiple result types
 	w.Header().Set("Content-Type", "application/json")
-	renderResultsJSON(w, result, params)
-}
-
-func (h *PromReadHandler) validateRequest(params *models.RequestParams) error {
-	// Impose a rough limit on the number of returned time series. This is intended to prevent things like
-	// querying from the beginning of time with a 1s step size.
-	// Approach taken directly from prom.
-	numSteps := int64(params.End.Sub(params.Start) / params.Step)
-	if h.limitsCfg.MaxComputedDatapoints > 0 && numSteps > h.limitsCfg.MaxComputedDatapoints {
-		return fmt.Errorf(
-			"querying from %v to %v with step size %v would result in too many datapoints "+
-				"(end - start / step > %d). Either decrease the query resolution (?step=XX), decrease the time window, "+
-				"or increase the limit (`limits.maxComputedDatapoints`)",
-			params.Start, params.End, params.Step, h.limitsCfg.MaxComputedDatapoints,
-		)
-	}
-
-	return nil
+	renderResultsInstantaneousJSON(w, result, params)
 }
