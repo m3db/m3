@@ -65,6 +65,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/tchannel"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	xdocs "github.com/m3db/m3/src/x/docs"
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/serialize"
 	xconfig "github.com/m3db/m3x/config"
@@ -81,8 +82,10 @@ import (
 )
 
 const (
-	bootstrapConfigInitTimeout = 10 * time.Second
-	serverGracefulCloseTimeout = 10 * time.Second
+	bootstrapConfigInitTimeout       = 10 * time.Second
+	serverGracefulCloseTimeout       = 10 * time.Second
+	bgProcessLimitInterval           = 10 * time.Second
+	maxBgProcessLimitMonitorDuration = 5 * time.Minute
 )
 
 // RunOptions provides options for running the server
@@ -134,6 +137,7 @@ func Run(runOpts RunOptions) {
 		os.Exit(1)
 	}
 
+	go bgValidateProcessLimits(logger)
 	debug.SetGCPercent(cfg.GCPercentage)
 
 	scope, _, err := cfg.Metrics.NewRootScope()
@@ -322,6 +326,22 @@ func Run(runOpts RunOptions) {
 			cfg.CommitLog.Queue.CalculationType)
 	}
 
+	var commitLogQueueChannelSize int
+	if cfg.CommitLog.QueueChannel != nil {
+		specified := cfg.CommitLog.QueueChannel.Size
+		switch cfg.CommitLog.Queue.CalculationType {
+		case config.CalculationTypeFixed:
+			commitLogQueueChannelSize = specified
+		case config.CalculationTypePerCPU:
+			commitLogQueueChannelSize = specified * runtime.NumCPU()
+		default:
+			logger.Fatalf("unknown commit log queue channel size type: %v",
+				cfg.CommitLog.Queue.CalculationType)
+		}
+	} else {
+		commitLogQueueChannelSize = int(float64(commitLogQueueSize) / commitlog.MaximumQueueSizeQueueChannelSizeRatio)
+	}
+
 	opts = opts.SetCommitLogOptions(opts.CommitLogOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetFilesystemOptions(fsopts).
@@ -329,6 +349,7 @@ func Run(runOpts RunOptions) {
 		SetFlushSize(cfg.CommitLog.FlushMaxBytes).
 		SetFlushInterval(cfg.CommitLog.FlushEvery).
 		SetBacklogQueueSize(commitLogQueueSize).
+		SetBacklogQueueChannelSize(commitLogQueueChannelSize).
 		SetBlockSize(cfg.CommitLog.BlockSize))
 
 	// Set the series cache policy
@@ -613,6 +634,29 @@ func interrupt() <-chan os.Signal {
 	c := make(chan os.Signal)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
 	return c
+}
+
+func bgValidateProcessLimits(logger xlog.Logger) {
+	start := time.Now()
+	t := time.NewTicker(bgProcessLimitInterval)
+	defer t.Stop()
+	for {
+		// only monitor for first `maxBgProcessLimitMonitorDuration` of process lifetime
+		if time.Since(start) > maxBgProcessLimitMonitorDuration {
+			return
+		}
+
+		err := validateProcessLimits()
+		if err == nil {
+			return
+		}
+
+		logger.WithFields(
+			xlog.NewField("url", xdocs.Path("operational_guide/kernel_configuration")),
+		).Warnf(`invalid configuration found [%v], refer to linked documentation for more information`, err)
+
+		<-t.C
+	}
 }
 
 func kvWatchNewSeriesLimitPerShard(
@@ -938,6 +982,19 @@ func withEncodingAndPoolingOptions(
 	multiIteratorPool := encoding.NewMultiReaderIteratorPool(
 		poolOptions(policy.IteratorPool, scope.SubScope("multi-iterator-pool")))
 
+	var writeBatchPoolInitialBatchSize *int
+	if policy.WriteBatchPool.InitialBatchSize != nil {
+		writeBatchPoolInitialBatchSize = policy.WriteBatchPool.InitialBatchSize
+	}
+	var writeBatchPoolMaxBatchSize *int
+	if policy.WriteBatchPool.MaxBatchSize != nil {
+		writeBatchPoolMaxBatchSize = policy.WriteBatchPool.MaxBatchSize
+	}
+	writeBatchPool := ts.NewWriteBatchPool(
+		poolOptions(policy.WriteBatchPool.Pool, scope.SubScope("write-batch-pool")),
+		writeBatchPoolInitialBatchSize,
+		writeBatchPoolMaxBatchSize)
+
 	identifierPool := ident.NewPool(bytesPool, ident.PoolOptions{
 		IDPoolOptions:           poolOptions(policy.IdentifierPool, scope.SubScope("identifier-pool")),
 		TagsPoolOptions:         maxCapacityPoolOptions(policy.TagsPool, scope.SubScope("tags-pool")),
@@ -976,6 +1033,8 @@ func withEncodingAndPoolingOptions(
 		return iter
 	})
 
+	writeBatchPool.Init()
+
 	opts = opts.
 		SetBytesPool(bytesPool).
 		SetContextPool(contextPool).
@@ -984,7 +1043,8 @@ func withEncodingAndPoolingOptions(
 		SetMultiReaderIteratorPool(multiIteratorPool).
 		SetIdentifierPool(identifierPool).
 		SetFetchBlockMetadataResultsPool(fetchBlockMetadataResultsPool).
-		SetFetchBlocksMetadataResultsPool(fetchBlocksMetadataResultsPool)
+		SetFetchBlocksMetadataResultsPool(fetchBlocksMetadataResultsPool).
+		SetWriteBatchPool(writeBatchPool)
 
 	blockOpts := opts.DatabaseBlockOptions().
 		SetDatabaseBlockAllocSize(policy.BlockAllocSize).

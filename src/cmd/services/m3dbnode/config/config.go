@@ -176,7 +176,22 @@ type CommitLogPolicy struct {
 	FlushEvery time.Duration `yaml:"flushEvery" validate:"nonzero"`
 
 	// The queue the commit log will keep in front of the current commit log segment.
+	// Modifying values in this policy will control how many pending writes can be
+	// in the commitlog queue before M3DB will begin rejecting writes.
 	Queue CommitLogQueuePolicy `yaml:"queue" validate:"nonzero"`
+
+	// The actual Golang channel that implements the commit log queue. We separate this
+	// from the Queue field for historical / legacy reasons. Generally speaking, the
+	// values in this config should not need to be modified, but we leave it in for
+	// tuning purposes. Unlike the Queue field, values in this policy control the size
+	// of the channel that backs the queue. Since writes to the commitlog are batched,
+	// setting the size of this policy will control how many batches can be queued, and
+	// indrectly how many writes can be queued, but that is dependent on the batch size
+	// of the client. As a result, we recommend that users avoid tuning this field and
+	// modify the Queue size instead which maps directly to the number of writes. This
+	// works in most cases because the default size of the QueueChannel should be large
+	// enough for almost all workloads assuming a reasonable batch size is used.
+	QueueChannel *CommitLogQueuePolicy `yaml:"queueChannel"`
 
 	// The commit log block size.
 	BlockSize time.Duration `yaml:"blockSize" validate:"nonzero"`

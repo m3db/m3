@@ -57,6 +57,10 @@ var (
 	testBadMetric = Metric{
 		Type: metric.UnknownType,
 	}
+	testMetricWithStoragePolicy = MetricWithStoragePolicy{
+		Metric:        testMetric1,
+		StoragePolicy: policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour),
+	}
 	testForwardedMetric1 = ForwardedMetric{
 		Type:      metric.CounterType,
 		ID:        []byte("testForwardedMetric1"),
@@ -122,6 +126,18 @@ var (
 		Id:        []byte("testMetric2"),
 		TimeNanos: 67890,
 		Value:     21.99,
+	}
+	testMetricWithStoragePolicyProto = metricpb.TimedMetricWithStoragePolicy{
+		TimedMetric: testMetric1Proto,
+		StoragePolicy: policypb.StoragePolicy{
+			Resolution: &policypb.Resolution{
+				WindowSize: 10 * time.Second.Nanoseconds(),
+				Precision:  time.Second.Nanoseconds(),
+			},
+			Retention: &policypb.Retention{
+				Period: (6 * time.Hour).Nanoseconds(),
+			},
+		},
 	}
 	testForwardedMetric1Proto = metricpb.ForwardedMetric{
 		Type:      metricpb.MetricType_COUNTER,
@@ -240,6 +256,16 @@ func TestCounterRoundTrip(t *testing.T) {
 		require.NoError(t, res.FromProto(pb))
 		require.Equal(t, inputs[i], res)
 	}
+}
+
+func TestMetricWithStoragePolicy(t *testing.T) {
+	var (
+		pb metricpb.TimedMetricWithStoragePolicy
+		m  MetricWithStoragePolicy
+	)
+	require.NoError(t, testMetricWithStoragePolicy.ToProto(&pb))
+	require.NoError(t, m.FromProto(pb))
+	require.Equal(t, testMetricWithStoragePolicy, m)
 }
 
 func TestForwardedMetricWithMetadataToProto(t *testing.T) {

@@ -18,47 +18,37 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package consumer
+package m3ql
 
 import (
-	"net"
+	"testing"
 
-	"github.com/m3db/m3x/server"
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
 )
 
-// NewServer creates a new server.
-func NewServer(addr string, opts ServerOptions) server.Server {
-	return server.NewServer(
-		addr,
-		NewHandler(opts.ConsumeFn(), opts.ConsumerOptions()),
-		opts.ServerOptions(),
-	)
-}
+func TestGrammar(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-type handler struct {
-	opts      Options
-	mPool     *messagePool
-	consumeFn ConsumeFn
+	sBuilder := NewMockscriptBuilder(ctrl)
+	sBuilder.EXPECT().newPipeline()
+	sBuilder.EXPECT().newExpression("fetch")
+	sBuilder.EXPECT().newKeywordArgument("name")
+	sBuilder.EXPECT().newPatternArgument("foo.bar")
+	sBuilder.EXPECT().endExpression()
+	sBuilder.EXPECT().newExpression(">=")
+	sBuilder.EXPECT().newNumericArgument("5")
+	sBuilder.EXPECT().endExpression()
+	sBuilder.EXPECT().endPipeline()
 
-	m metrics
-}
-
-// NewHandler creates a new handler.
-func NewHandler(consumeFn ConsumeFn, opts Options) server.Handler {
-	mPool := newMessagePool(opts.MessagePoolOptions())
-	mPool.Init()
-	return &handler{
-		consumeFn: consumeFn,
-		opts:      opts,
-		mPool:     mPool,
-		m:         newConsumerMetrics(opts.InstrumentOptions().MetricsScope()),
+	m := m3ql{
+		Buffer:        "fetch name:foo.bar | >= 5",
+		scriptBuilder: sBuilder,
 	}
-}
 
-func (h *handler) Handle(conn net.Conn) {
-	c := newConsumer(conn, h.mPool, h.opts, h.m)
-	c.Init()
-	h.consumeFn(c)
+	m.Init()
+	err := m.Parse()
+	require.NoError(t, err)
+	m.Execute()
 }
-
-func (h *handler) Close() {}

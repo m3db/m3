@@ -22,7 +22,7 @@ package downsample
 
 // Downsampler is a downsampler.
 type Downsampler interface {
-	NewMetricsAppender() MetricsAppender
+	NewMetricsAppender() (MetricsAppender, error)
 }
 
 // MetricsAppender is a metrics appender that can build a samples
@@ -46,21 +46,21 @@ type downsampler struct {
 	agg  agg
 }
 
-func (d *downsampler) NewMetricsAppender() MetricsAppender {
+func (d *downsampler) NewMetricsAppender() (MetricsAppender, error) {
 	return newMetricsAppender(metricsAppenderOptions{
-		agg:                    d.agg.aggregator,
+		agg: d.agg.aggregator,
 		defaultStagedMetadatas: d.agg.defaultStagedMetadatas,
 		clockOpts:              d.agg.clockOpts,
 		tagEncoder:             d.agg.pools.tagEncoderPool.Get(),
 		matcher:                d.agg.matcher,
 		metricTagsIteratorPool: d.agg.pools.metricTagsIteratorPool,
-	})
+	}), nil
 }
 
 func newMetricsAppender(opts metricsAppenderOptions) *metricsAppender {
 	return &metricsAppender{
 		metricsAppenderOptions: opts,
-		tags:                   newTags(),
-		multiSamplesAppender:   newMultiSamplesAppender(),
+		tags:                 newTags(),
+		multiSamplesAppender: newMultiSamplesAppender(),
 	}
 }

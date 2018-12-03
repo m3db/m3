@@ -146,6 +146,18 @@ func (mr *MockProducerMockRecorder) Init() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Init", reflect.TypeOf((*MockProducer)(nil).Init))
 }
 
+// NumShards mocks base method
+func (m *MockProducer) NumShards() uint32 {
+	ret := m.ctrl.Call(m, "NumShards")
+	ret0, _ := ret[0].(uint32)
+	return ret0
+}
+
+// NumShards indicates an expected call of NumShards
+func (mr *MockProducerMockRecorder) NumShards() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NumShards", reflect.TypeOf((*MockProducer)(nil).NumShards))
+}
+
 // Produce mocks base method
 func (m *MockProducer) Produce(arg0 Message) error {
 	ret := m.ctrl.Call(m, "Produce", arg0)

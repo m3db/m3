@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
 	"github.com/m3db/m3/src/x/serialize"
@@ -63,6 +64,8 @@ var (
 const (
 	initSegmentArrayPoolLength  = 4
 	maxSegmentArrayPooledLength = 32
+	// Any pooled error slices that grow beyond this capcity will be thrown away.
+	writeBatchPooledReqPoolMaxErrorsSliceSize = 4096
 )
 
 var (
@@ -824,50 +827,58 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 	pooledReq.writeReq = req
 	ctx.RegisterFinalizer(pooledReq)
 
-	nsID := s.newPooledID(ctx, req.NameSpace, pooledReq)
-
 	var (
-		errs               []*rpc.WriteBatchRawError
-		success            int
+		nsID               = s.newPooledID(ctx, req.NameSpace, pooledReq)
 		retryableErrors    int
 		nonRetryableErrors int
 	)
+
+	batchWriter, err := s.db.BatchWriter(nsID, len(req.Elements))
+	if err != nil {
+		return err
+	}
+
 	for i, elem := range req.Elements {
 		unit, unitErr := convert.ToUnit(elem.Datapoint.TimestampTimeType)
 		if unitErr != nil {
 			nonRetryableErrors++
-			errs = append(errs, tterrors.NewBadRequestWriteBatchRawError(i, unitErr))
+			pooledReq.addError(tterrors.NewBadRequestWriteBatchRawError(i, unitErr))
 			continue
 		}
 
 		d, err := unit.Value()
 		if err != nil {
 			nonRetryableErrors++
-			errs = append(errs, tterrors.NewBadRequestWriteBatchRawError(i, err))
+			pooledReq.addError(tterrors.NewBadRequestWriteBatchRawError(i, err))
 			continue
 		}
 
 		seriesID := s.newPooledID(ctx, elem.ID, pooledReq)
-		if err = s.db.Write(
-			ctx, nsID, seriesID,
+		batchWriter.Add(
+			i,
+			seriesID,
 			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
-			elem.Datapoint.Value, unit, elem.Datapoint.Annotation,
-		); err != nil && xerrors.IsInvalidParams(err) {
-			nonRetryableErrors++
-			errs = append(errs, tterrors.NewBadRequestWriteBatchRawError(i, err))
-		} else if err != nil {
-			retryableErrors++
-			errs = append(errs, tterrors.NewWriteBatchRawError(i, err))
-		} else {
-			success++
-		}
+			elem.Datapoint.Value,
+			unit,
+			elem.Datapoint.Annotation,
+		)
 	}
 
-	s.metrics.writeBatchRaw.ReportSuccess(success)
+	err = s.db.WriteBatch(ctx, nsID, batchWriter.(ts.WriteBatch), pooledReq)
+	if err != nil {
+		return err
+	}
+
+	nonRetryableErrors += pooledReq.numNonRetryableErrors()
+	retryableErrors += pooledReq.numRetryableErrors()
+	totalErrors := nonRetryableErrors + retryableErrors
+
+	s.metrics.writeBatchRaw.ReportSuccess(len(req.Elements) - totalErrors)
 	s.metrics.writeBatchRaw.ReportRetryableErrors(retryableErrors)
 	s.metrics.writeBatchRaw.ReportNonRetryableErrors(nonRetryableErrors)
 	s.metrics.writeBatchRaw.ReportLatency(s.nowFn().Sub(callStart))
 
+	errs := pooledReq.writeBatchRawErrors()
 	if len(errs) > 0 {
 		batchErrs := rpc.NewWriteBatchRawErrors()
 		batchErrs.Errors = errs
@@ -889,57 +900,65 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 	pooledReq.writeTaggedReq = req
 	ctx.RegisterFinalizer(pooledReq)
 
-	nsID := s.newPooledID(ctx, req.NameSpace, pooledReq)
-
 	var (
-		errs               []*rpc.WriteBatchRawError
-		success            int
+		nsID               = s.newPooledID(ctx, req.NameSpace, pooledReq)
 		retryableErrors    int
 		nonRetryableErrors int
 	)
+
+	batchWriter, err := s.db.BatchWriter(nsID, len(req.Elements))
+	if err != nil {
+		return err
+	}
+
 	for i, elem := range req.Elements {
 		unit, unitErr := convert.ToUnit(elem.Datapoint.TimestampTimeType)
 		if unitErr != nil {
 			nonRetryableErrors++
-			errs = append(errs, tterrors.NewBadRequestWriteBatchRawError(i, unitErr))
+			pooledReq.addError(tterrors.NewBadRequestWriteBatchRawError(i, unitErr))
 			continue
 		}
 
 		d, err := unit.Value()
 		if err != nil {
 			nonRetryableErrors++
-			errs = append(errs, tterrors.NewBadRequestWriteBatchRawError(i, err))
+			pooledReq.addError(tterrors.NewBadRequestWriteBatchRawError(i, err))
 			continue
 		}
 
 		dec, err := s.newPooledTagsDecoder(ctx, elem.EncodedTags, pooledReq)
 		if err != nil {
 			nonRetryableErrors++
-			errs = append(errs, tterrors.NewBadRequestWriteBatchRawError(i, err))
+			pooledReq.addError(tterrors.NewBadRequestWriteBatchRawError(i, err))
 			continue
 		}
 
 		seriesID := s.newPooledID(ctx, elem.ID, pooledReq)
-		if err = s.db.WriteTagged(
-			ctx, nsID, seriesID, dec,
+		batchWriter.AddTagged(
+			i,
+			seriesID,
+			dec,
 			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
-			elem.Datapoint.Value, unit, elem.Datapoint.Annotation,
-		); err != nil && xerrors.IsInvalidParams(err) {
-			nonRetryableErrors++
-			errs = append(errs, tterrors.NewBadRequestWriteBatchRawError(i, err))
-		} else if err != nil {
-			retryableErrors++
-			errs = append(errs, tterrors.NewWriteBatchRawError(i, err))
-		} else {
-			success++
-		}
+			elem.Datapoint.Value,
+			unit,
+			elem.Datapoint.Annotation)
 	}
 
-	s.metrics.writeTaggedBatchRaw.ReportSuccess(success)
+	err = s.db.WriteTaggedBatch(ctx, nsID, batchWriter, pooledReq)
+	if err != nil {
+		return err
+	}
+
+	nonRetryableErrors += pooledReq.numNonRetryableErrors()
+	retryableErrors += pooledReq.numRetryableErrors()
+	totalErrors := nonRetryableErrors + retryableErrors
+
+	s.metrics.writeTaggedBatchRaw.ReportSuccess(len(req.Elements) - totalErrors)
 	s.metrics.writeTaggedBatchRaw.ReportRetryableErrors(retryableErrors)
 	s.metrics.writeTaggedBatchRaw.ReportNonRetryableErrors(nonRetryableErrors)
 	s.metrics.writeTaggedBatchRaw.ReportLatency(s.nowFn().Sub(callStart))
 
+	errs := pooledReq.writeBatchRawErrors()
 	if len(errs) > 0 {
 		batchErrs := rpc.NewWriteBatchRawErrors()
 		batchErrs.Errors = errs
@@ -1206,6 +1225,17 @@ type writeBatchPooledReq struct {
 	writeReq       *rpc.WriteBatchRawRequest
 	writeTaggedReq *rpc.WriteTaggedBatchRawRequest
 
+	// We want to avoid allocating an intermediary slice of []error so we
+	// just include all the error handling in this struct for performance
+	// reasons since its pooled on a per-request basis anyways. This allows
+	// us to use this object as a storage.IndexedErrorHandler and avoid allocating
+	// []error in the storage package, as well as pool the []*rpc.WriteBatchRawError,
+	// although the individual *rpc.WriteBatchRawError still need to be allocated
+	// each time.
+	nonRetryableErrors int
+	retryableErrors    int
+	errs               []*rpc.WriteBatchRawError
+
 	pool *writeBatchPooledReqPool
 }
 
@@ -1263,8 +1293,53 @@ func (r *writeBatchPooledReq) Finalize() {
 		r.writeTaggedReq = nil
 	}
 
+	r.nonRetryableErrors = 0
+	r.retryableErrors = 0
+	if cap(r.errs) <= writeBatchPooledReqPoolMaxErrorsSliceSize {
+		r.errs = r.errs[:0]
+	} else {
+		// Slice grew too large, throw it away and let a new one be
+		// allocated on the next append call.
+		r.errs = nil
+	}
+
 	// Return to pool
 	r.pool.Put(r)
+}
+
+func (r *writeBatchPooledReq) HandleError(index int, err error) {
+	if err == nil {
+		return
+	}
+
+	if xerrors.IsInvalidParams(err) {
+		r.nonRetryableErrors++
+		r.errs = append(
+			r.errs,
+			tterrors.NewBadRequestWriteBatchRawError(index, err))
+		return
+	}
+
+	r.retryableErrors++
+	r.errs = append(
+		r.errs,
+		tterrors.NewWriteBatchRawError(index, err))
+}
+
+func (r *writeBatchPooledReq) addError(err *rpc.WriteBatchRawError) {
+	r.errs = append(r.errs, err)
+}
+
+func (r *writeBatchPooledReq) writeBatchRawErrors() []*rpc.WriteBatchRawError {
+	return r.errs
+}
+
+func (r *writeBatchPooledReq) numRetryableErrors() int {
+	return r.retryableErrors
+}
+
+func (r *writeBatchPooledReq) numNonRetryableErrors() int {
+	return r.nonRetryableErrors
 }
 
 type writeBatchPooledReqID struct {

@@ -56,7 +56,7 @@ func (c Configuration) NewServer(
 		return nil, err
 	}
 	return c.Server.NewServer(
-		consumer.NewHandler(
+		consumer.NewConsumerHandler(
 			msgpackHandler.Handle,
 			c.Consumer.NewOptions(
 				iOpts.SetMetricsScope(scope.Tagged(map[string]string{

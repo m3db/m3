@@ -90,14 +90,14 @@ func TestPlacementAddHandler_Force(t *testing.T) {
 	})
 }
 
-func TestPlacementAddHandler_SafeErr(t *testing.T) {
+func TestPlacementAddHandler_SafeErr_NoNewInstance(t *testing.T) {
 	runForAllAllowedServices(func(serviceName string) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
 		var (
-			mockClient, mockPlacementService = SetupPlacementTest(t, ctrl)
-			handlerOpts                      = NewHandlerOptions(
+			mockClient  = setupPlacementTest(t, ctrl, newValidAvailPlacement())
+			handlerOpts = NewHandlerOptions(
 				mockClient, config.Configuration{}, nil)
 			handler = NewAddHandler(handlerOpts)
 		)
@@ -114,16 +114,32 @@ func TestPlacementAddHandler_SafeErr(t *testing.T) {
 		}
 		require.NotNil(t, req)
 
-		mockPlacementService.EXPECT().Placement().Return(placement.NewPlacement(), errors.New("no new instances found in the valid zone"))
 		handler.ServeHTTP(serviceName, w, req)
 
 		resp := w.Result()
 		body, _ := ioutil.ReadAll(resp.Body)
 		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 		assert.Equal(t, "{\"error\":\"no new instances found in the valid zone\"}\n", string(body))
+	})
+}
 
-		// Current placement has initializing shards
-		w = httptest.NewRecorder()
+func TestPlacementAddHandler_SafeErr_NotAllAvailable(t *testing.T) {
+	runForAllAllowedServices(func(serviceName string) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		var (
+			mockClient  = setupPlacementTest(t, ctrl, newValidInitPlacement())
+			handlerOpts = NewHandlerOptions(
+				mockClient, config.Configuration{}, nil)
+			handler = NewAddHandler(handlerOpts)
+		)
+
+		// Test add failure
+		var (
+			w   = httptest.NewRecorder()
+			req *http.Request
+		)
 		if serviceName == M3AggregatorServiceName {
 			req = httptest.NewRequest(AddHTTPMethod, M3AggAddURL, strings.NewReader(`{"instances":[{"id": "host1","isolation_group": "rack1","zone": "test","weight": 1,"endpoint": "http://host1:1234","hostname": "host1","port": 1234}]}`))
 		} else {
@@ -131,11 +147,10 @@ func TestPlacementAddHandler_SafeErr(t *testing.T) {
 		}
 		require.NotNil(t, req)
 
-		mockPlacementService.EXPECT().Placement().Return(newInitPlacement(), nil)
 		handler.ServeHTTP(serviceName, w, req)
 
-		resp = w.Result()
-		body, _ = ioutil.ReadAll(resp.Body)
+		resp := w.Result()
+		body, _ := ioutil.ReadAll(resp.Body)
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 		assert.Equal(t, `{"error":"instances [A,B] do not have all shards available"}`+"\n", string(body))
 	})
@@ -191,8 +206,7 @@ func TestPlacementAddHandler_SafeOK(t *testing.T) {
 				SetReplicaFactor(1)
 		}
 
-		mockPlacementService.EXPECT().Placement().Return(existingPlacement, nil)
-		mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0).Return(nil, errors.New("test err"))
+		mockPlacementService.EXPECT().AddInstances(gomock.Any()).Return(nil, nil, errors.New("test err"))
 		handler.ServeHTTP(serviceName, w, req)
 
 		resp := w.Result()
@@ -221,12 +235,10 @@ func TestPlacementAddHandler_SafeOK(t *testing.T) {
 			newInst,
 		})
 
-		mockPlacementService.EXPECT().Placement().Return(existingPlacement, nil)
-
 		if serviceName == M3CoordinatorServiceName {
-			mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0).Return(returnPlacement.SetVersion(1), nil)
+			mockPlacementService.EXPECT().AddInstances(gomock.Any()).Return(returnPlacement.SetVersion(1), nil, nil)
 		} else {
-			mockPlacementService.EXPECT().CheckAndSet(gomock.Any(), 0).Return(existingPlacement.Clone().SetVersion(1), nil)
+			mockPlacementService.EXPECT().AddInstances(gomock.Any()).Return(existingPlacement.Clone().SetVersion(1), nil, nil)
 		}
 		handler.ServeHTTP(serviceName, w, req)
 

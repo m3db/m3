@@ -50,20 +50,7 @@ M3DB_HOST_ID=m3db001 m3dbnode -f config.yml
 ```
 
 ### Kernel
-`m3dbnode` uses a lot of mmap-ed files for performance, as a result, you might need to bump `vm.max_map_count`. We suggest setting this value to 262,144 when provisioning your VM, so you don’t have to come back and debug issues later.
-
-### OS
-`m3dbnode` also can use a high number of files and we suggest setting a high max open number of files due to per partition fileset volumes.
-
-On linux you can set a high limit for number of max open files in `/etc/security/limits.conf`:
-```
-your_m3db_user        hard nofile 500000
-your_m3db_user        soft nofile 500000
-```
-
-Alternatively, if you wish to have `m3dbnode` run under `systemd` you can use our [service example](https://github.com/m3db/m3/tree/master/integrations/systemd/m3dbnode.service) which will set sane defaults.
-
-Before running the process make sure the limits are set, if running manually you can raise the limit for the current user with `ulimit -n 500000`.
+Ensure you review our [recommended kernel configuration](../operational_guide/kernel_configuration.md) before running M3DB in production as M3DB may exceed the default limits for some default kernel values.
 
 ## Config files
 We wouldn’t feel right to call this guide, “The Hard Way” and not require you to change some configs by hand.

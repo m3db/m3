@@ -81,10 +81,13 @@ func (s completedTagsByName) Less(i, j int) bool {
 }
 
 func (b *completeTagsResultBuilder) Build() CompleteTagsResult {
-	result := make([]CompletedTag, len(b.tagBuilders))
+	result := make([]CompletedTag, 0, len(b.tagBuilders))
 	if b.nameOnly {
 		for name := range b.tagBuilders {
-			result = append(result, CompletedTag{Name: []byte(name)})
+			result = append(result, CompletedTag{
+				Name:   []byte(name),
+				Values: [][]byte{},
+			})
 		}
 
 		sort.Sort(completedTagsByName(result))

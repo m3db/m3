@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/integration/generate"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
@@ -152,18 +153,18 @@ func writeCommitLogDataBase(
 	)
 
 	// Write out commit log data
-	for ts, blk := range data {
+	for currTs, blk := range data {
 		if specifiedTS != nil {
 			s.setNowFn(*specifiedTS)
 		} else {
-			s.setNowFn(ts.ToTime())
+			s.setNowFn(currTs.ToTime())
 		}
 
 		ctx := context.NewContext()
 		defer ctx.Close()
 
 		m := map[xtime.UnixNano]generate.SeriesBlock{
-			ts: blk,
+			currTs: blk,
 		}
 
 		points := generate.
@@ -179,7 +180,7 @@ func writeCommitLogDataBase(
 		for _, point := range points {
 			series, ok := seriesLookup[point.ID.String()]
 			require.True(t, ok)
-			cId := commitlog.Series{
+			cId := ts.Series{
 				Namespace:   namespace.ID(),
 				Shard:       shardSet.Lookup(point.ID),
 				ID:          point.ID,

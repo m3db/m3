@@ -38,6 +38,10 @@ const (
 	// DefaultBootstrapConsistencyLevel is the default bootstrap consistency level
 	DefaultBootstrapConsistencyLevel = topology.ReadConsistencyLevelMajority
 
+	// DefaultIndexDefaultQueryTimeout is the hard timeout value to use if none is
+	// specified for a specific query, zero specifies no timeout.
+	DefaultIndexDefaultQueryTimeout = time.Minute
+
 	// DefaultFlushIndexBlockNumSegments is the default number of segments to
 	// attempt to divide a mutable index block into when flushing the index
 	// block.
@@ -75,6 +79,7 @@ type options struct {
 	clientBootstrapConsistencyLevel      topology.ReadConsistencyLevel
 	clientReadConsistencyLevel           topology.ReadConsistencyLevel
 	clientWriteConsistencyLevel          topology.ConsistencyLevel
+	indexDefaultQueryTimeout             time.Duration
 	flushIndexBlockNumSegments           uint
 }
 
@@ -92,6 +97,7 @@ func NewOptions() Options {
 		clientBootstrapConsistencyLevel:      DefaultBootstrapConsistencyLevel,
 		clientReadConsistencyLevel:           DefaultReadConsistencyLevel,
 		clientWriteConsistencyLevel:          DefaultWriteConsistencyLevel,
+		indexDefaultQueryTimeout:             DefaultIndexDefaultQueryTimeout,
 		flushIndexBlockNumSegments:           DefaultFlushIndexBlockNumSegments,
 	}
 }
@@ -229,6 +235,16 @@ func (o *options) SetClientWriteConsistencyLevel(value topology.ConsistencyLevel
 
 func (o *options) ClientWriteConsistencyLevel() topology.ConsistencyLevel {
 	return o.clientWriteConsistencyLevel
+}
+
+func (o *options) SetIndexDefaultQueryTimeout(value time.Duration) Options {
+	opts := *o
+	opts.indexDefaultQueryTimeout = value
+	return &opts
+}
+
+func (o *options) IndexDefaultQueryTimeout() time.Duration {
+	return o.indexDefaultQueryTimeout
 }
 
 func (o *options) SetFlushIndexBlockNumSegments(value uint) Options {

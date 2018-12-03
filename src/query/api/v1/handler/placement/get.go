@@ -74,7 +74,7 @@ func (h *GetHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *htt
 			serviceName, r.Header, h.M3AggServiceOptions)
 	)
 
-	service, err := Service(h.ClusterClient, opts, h.nowFn())
+	service, err := Service(h.ClusterClient, opts, h.nowFn(), nil)
 	if err != nil {
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
@@ -108,7 +108,7 @@ func (h *GetHandler) ServeHTTP(serviceName string, w http.ResponseWriter, r *htt
 
 	resp := &admin.PlacementGetResponse{
 		Placement: placementProto,
-		Version:   int32(placement.GetVersion()),
+		Version:   int32(placement.Version()),
 	}
 
 	xhttp.WriteProtoMsgJSONResponse(w, resp, logger)

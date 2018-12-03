@@ -64,6 +64,12 @@ type QueryOptions struct {
 	Limit          int
 }
 
+// LimitExceeded returns whether a given size exceeds the limit
+// the query options imposes, if it is enabled.
+func (o QueryOptions) LimitExceeded(size int) bool {
+	return o.Limit > 0 && size >= o.Limit
+}
+
 // QueryResults is the collection of results for a query.
 type QueryResults struct {
 	Results    Results
@@ -93,7 +99,17 @@ type Results interface {
 	// may be modified after this function returns without affecting the results map.
 	// NB: it returns a bool to indicate if the doc was added (it won't be added
 	// if it already existed in the ResultsMap).
-	Add(d doc.Document) (added bool, size int, err error)
+	AddDocument(
+		document doc.Document,
+	) (added bool, size int, err error)
+
+	// AddIDAndTagsOrFinalize adds ID and tags to the results and takes ownership
+	// if it does not exist, otherwise if it's already contained it returns added
+	// false.
+	AddIDAndTags(
+		id ident.ID,
+		tags ident.Tags,
+	) (added bool, size int, err error)
 }
 
 // ResultsAllocator allocates Results types.
@@ -552,4 +568,10 @@ type Options interface {
 
 	// ResultsPool returns the results pool.
 	ResultsPool() ResultsPool
+
+	// SetDocumentArrayPool sets the document array pool.
+	SetDocumentArrayPool(value doc.DocumentArrayPool) Options
+
+	// DocumentArrayPool returns the document array pool.
+	DocumentArrayPool() doc.DocumentArrayPool
 }

@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/msg/generated/proto/msgpb"
 	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/server"
 
 	"github.com/stretchr/testify/require"
 )
@@ -54,14 +55,16 @@ func TestM3msgServerHandlerWithMultipleMetricsPerMessage(t *testing.T) {
 	}
 	handler, err := newHandler(hOpts)
 	require.NoError(t, err)
-	sOpts := consumer.NewServerOptions().
-		SetConsumerOptions(
-			consumer.NewOptions().
-				SetAckBufferSize(1).
-				SetConnectionWriteBufferSize(1),
-		).
-		SetConsumeFn(handler.Handle)
-	s := consumer.NewServer("a", sOpts)
+
+	opts := consumer.NewOptions().
+		SetAckBufferSize(1).
+		SetConnectionWriteBufferSize(1)
+
+	s := server.NewServer(
+		"a",
+		consumer.NewConsumerHandler(handler.Handle, opts),
+		server.NewOptions(),
+	)
 	s.Serve(l)
 
 	encoder := msgpack.NewAggregatedEncoder(msgpack.NewPooledBufferedEncoder(nil))
@@ -80,8 +83,8 @@ func TestM3msgServerHandlerWithMultipleMetricsPerMessage(t *testing.T) {
 
 	conn, err := net.Dial("tcp", l.Addr().String())
 	require.NoError(t, err)
-	enc := proto.NewEncoder(sOpts.ConsumerOptions().EncoderOptions())
-	dec := proto.NewDecoder(conn, sOpts.ConsumerOptions().DecoderOptions())
+	enc := proto.NewEncoder(opts.EncoderOptions())
+	dec := proto.NewDecoder(conn, opts.DecoderOptions())
 	require.NoError(t, enc.Encode(&msgpb.Message{
 		Value: encoder.Encoder().Bytes(),
 	}))

@@ -470,7 +470,7 @@ type generatedWrite struct {
 	// arrivedAt is used to simulate out-of-order writes which arrive somewhere
 	// between time.Now().Add(-bufferFuture) and time.Now().Add(bufferPast).
 	arrivedAt  time.Time
-	series     commitlog.Series
+	series     ts.Series
 	datapoint  ts.Datapoint
 	unit       xtime.Unit
 	annotation ts.Annotation
@@ -591,7 +591,7 @@ func genWrite(start time.Time, bufferPast, bufferFuture time.Duration, ns string
 
 		return generatedWrite{
 			arrivedAt: a,
-			series: commitlog.Series{
+			series: ts.Series{
 				ID:          ident.StringID(id),
 				Tags:        seriesUniqueTags(id, tagKey, tagVal, includeTags),
 				Namespace:   ident.StringID(ns),

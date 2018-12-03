@@ -42,6 +42,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xcounter"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/context"
@@ -53,6 +54,39 @@ import (
 
 	"github.com/golang/mock/gomock"
 )
+
+// MockIndexedErrorHandler is a mock of IndexedErrorHandler interface
+type MockIndexedErrorHandler struct {
+	ctrl     *gomock.Controller
+	recorder *MockIndexedErrorHandlerMockRecorder
+}
+
+// MockIndexedErrorHandlerMockRecorder is the mock recorder for MockIndexedErrorHandler
+type MockIndexedErrorHandlerMockRecorder struct {
+	mock *MockIndexedErrorHandler
+}
+
+// NewMockIndexedErrorHandler creates a new mock instance
+func NewMockIndexedErrorHandler(ctrl *gomock.Controller) *MockIndexedErrorHandler {
+	mock := &MockIndexedErrorHandler{ctrl: ctrl}
+	mock.recorder = &MockIndexedErrorHandlerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockIndexedErrorHandler) EXPECT() *MockIndexedErrorHandlerMockRecorder {
+	return m.recorder
+}
+
+// HandleError mocks base method
+func (m *MockIndexedErrorHandler) HandleError(index int, err error) {
+	m.ctrl.Call(m, "HandleError", index, err)
+}
+
+// HandleError indicates an expected call of HandleError
+func (mr *MockIndexedErrorHandlerMockRecorder) HandleError(index, err interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HandleError", reflect.TypeOf((*MockIndexedErrorHandler)(nil).HandleError), index, err)
+}
 
 // MockDatabase is a mock of Database interface
 type MockDatabase struct {
@@ -194,6 +228,43 @@ func (m *MockDatabase) WriteTagged(ctx context.Context, namespace, id ident.ID, 
 // WriteTagged indicates an expected call of WriteTagged
 func (mr *MockDatabaseMockRecorder) WriteTagged(ctx, namespace, id, tags, timestamp, value, unit, annotation interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*MockDatabase)(nil).WriteTagged), ctx, namespace, id, tags, timestamp, value, unit, annotation)
+}
+
+// BatchWriter mocks base method
+func (m *MockDatabase) BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error) {
+	ret := m.ctrl.Call(m, "BatchWriter", namespace, batchSize)
+	ret0, _ := ret[0].(ts.BatchWriter)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// BatchWriter indicates an expected call of BatchWriter
+func (mr *MockDatabaseMockRecorder) BatchWriter(namespace, batchSize interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchWriter", reflect.TypeOf((*MockDatabase)(nil).BatchWriter), namespace, batchSize)
+}
+
+// WriteBatch mocks base method
+func (m *MockDatabase) WriteBatch(ctx context.Context, namespace ident.ID, writes ts.BatchWriter, errHandler IndexedErrorHandler) error {
+	ret := m.ctrl.Call(m, "WriteBatch", ctx, namespace, writes, errHandler)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WriteBatch indicates an expected call of WriteBatch
+func (mr *MockDatabaseMockRecorder) WriteBatch(ctx, namespace, writes, errHandler interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatch", reflect.TypeOf((*MockDatabase)(nil).WriteBatch), ctx, namespace, writes, errHandler)
+}
+
+// WriteTaggedBatch mocks base method
+func (m *MockDatabase) WriteTaggedBatch(ctx context.Context, namespace ident.ID, writes ts.BatchWriter, errHandler IndexedErrorHandler) error {
+	ret := m.ctrl.Call(m, "WriteTaggedBatch", ctx, namespace, writes, errHandler)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WriteTaggedBatch indicates an expected call of WriteTaggedBatch
+func (mr *MockDatabaseMockRecorder) WriteTaggedBatch(ctx, namespace, writes, errHandler interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTaggedBatch", reflect.TypeOf((*MockDatabase)(nil).WriteTaggedBatch), ctx, namespace, writes, errHandler)
 }
 
 // QueryIDs mocks base method
@@ -462,6 +533,43 @@ func (m *Mockdatabase) WriteTagged(ctx context.Context, namespace, id ident.ID, 
 // WriteTagged indicates an expected call of WriteTagged
 func (mr *MockdatabaseMockRecorder) WriteTagged(ctx, namespace, id, tags, timestamp, value, unit, annotation interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*Mockdatabase)(nil).WriteTagged), ctx, namespace, id, tags, timestamp, value, unit, annotation)
+}
+
+// BatchWriter mocks base method
+func (m *Mockdatabase) BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error) {
+	ret := m.ctrl.Call(m, "BatchWriter", namespace, batchSize)
+	ret0, _ := ret[0].(ts.BatchWriter)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// BatchWriter indicates an expected call of BatchWriter
+func (mr *MockdatabaseMockRecorder) BatchWriter(namespace, batchSize interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchWriter", reflect.TypeOf((*Mockdatabase)(nil).BatchWriter), namespace, batchSize)
+}
+
+// WriteBatch mocks base method
+func (m *Mockdatabase) WriteBatch(ctx context.Context, namespace ident.ID, writes ts.BatchWriter, errHandler IndexedErrorHandler) error {
+	ret := m.ctrl.Call(m, "WriteBatch", ctx, namespace, writes, errHandler)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WriteBatch indicates an expected call of WriteBatch
+func (mr *MockdatabaseMockRecorder) WriteBatch(ctx, namespace, writes, errHandler interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatch", reflect.TypeOf((*Mockdatabase)(nil).WriteBatch), ctx, namespace, writes, errHandler)
+}
+
+// WriteTaggedBatch mocks base method
+func (m *Mockdatabase) WriteTaggedBatch(ctx context.Context, namespace ident.ID, writes ts.BatchWriter, errHandler IndexedErrorHandler) error {
+	ret := m.ctrl.Call(m, "WriteTaggedBatch", ctx, namespace, writes, errHandler)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WriteTaggedBatch indicates an expected call of WriteTaggedBatch
+func (mr *MockdatabaseMockRecorder) WriteTaggedBatch(ctx, namespace, writes, errHandler interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTaggedBatch", reflect.TypeOf((*Mockdatabase)(nil).WriteTaggedBatch), ctx, namespace, writes, errHandler)
 }
 
 // QueryIDs mocks base method
@@ -817,10 +925,11 @@ func (mr *MockdatabaseNamespaceMockRecorder) Tick(c, tickStart interface{}) *gom
 }
 
 // Write mocks base method
-func (m *MockdatabaseNamespace) Write(ctx context.Context, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+func (m *MockdatabaseNamespace) Write(ctx context.Context, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) (ts.Series, error) {
 	ret := m.ctrl.Call(m, "Write", ctx, id, timestamp, value, unit, annotation)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(ts.Series)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Write indicates an expected call of Write
@@ -829,10 +938,11 @@ func (mr *MockdatabaseNamespaceMockRecorder) Write(ctx, id, timestamp, value, un
 }
 
 // WriteTagged mocks base method
-func (m *MockdatabaseNamespace) WriteTagged(ctx context.Context, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+func (m *MockdatabaseNamespace) WriteTagged(ctx context.Context, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) (ts.Series, error) {
 	ret := m.ctrl.Call(m, "WriteTagged", ctx, id, tags, timestamp, value, unit, annotation)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(ts.Series)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // WriteTagged indicates an expected call of WriteTagged
@@ -930,15 +1040,15 @@ func (mr *MockdatabaseNamespaceMockRecorder) FlushIndex(flush interface{}) *gomo
 }
 
 // Snapshot mocks base method
-func (m *MockdatabaseNamespace) Snapshot(blockStart, snapshotTime time.Time, flush persist.DataFlush) error {
-	ret := m.ctrl.Call(m, "Snapshot", blockStart, snapshotTime, flush)
+func (m *MockdatabaseNamespace) Snapshot(blockStart, snapshotTime time.Time, shardBootstrapStatesAtTickStart ShardBootstrapStates, flush persist.DataFlush) error {
+	ret := m.ctrl.Call(m, "Snapshot", blockStart, snapshotTime, shardBootstrapStatesAtTickStart, flush)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Snapshot indicates an expected call of Snapshot
-func (mr *MockdatabaseNamespaceMockRecorder) Snapshot(blockStart, snapshotTime, flush interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockdatabaseNamespace)(nil).Snapshot), blockStart, snapshotTime, flush)
+func (mr *MockdatabaseNamespaceMockRecorder) Snapshot(blockStart, snapshotTime, shardBootstrapStatesAtTickStart, flush interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockdatabaseNamespace)(nil).Snapshot), blockStart, snapshotTime, shardBootstrapStatesAtTickStart, flush)
 }
 
 // NeedsFlush mocks base method
@@ -1181,10 +1291,11 @@ func (mr *MockdatabaseShardMockRecorder) Tick(c, tickStart interface{}) *gomock.
 }
 
 // Write mocks base method
-func (m *MockdatabaseShard) Write(ctx context.Context, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+func (m *MockdatabaseShard) Write(ctx context.Context, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) (ts.Series, error) {
 	ret := m.ctrl.Call(m, "Write", ctx, id, timestamp, value, unit, annotation)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(ts.Series)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Write indicates an expected call of Write
@@ -1193,10 +1304,11 @@ func (mr *MockdatabaseShardMockRecorder) Write(ctx, id, timestamp, value, unit, 
 }
 
 // WriteTagged mocks base method
-func (m *MockdatabaseShard) WriteTagged(ctx context.Context, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+func (m *MockdatabaseShard) WriteTagged(ctx context.Context, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) (ts.Series, error) {
 	ret := m.ctrl.Call(m, "WriteTagged", ctx, id, tags, timestamp, value, unit, annotation)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(ts.Series)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // WriteTagged indicates an expected call of WriteTagged
@@ -2848,4 +2960,28 @@ func (m *MockOptions) QueryIDsWorkerPool() sync0.WorkerPool {
 // QueryIDsWorkerPool indicates an expected call of QueryIDsWorkerPool
 func (mr *MockOptionsMockRecorder) QueryIDsWorkerPool() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryIDsWorkerPool", reflect.TypeOf((*MockOptions)(nil).QueryIDsWorkerPool))
+}
+
+// SetWriteBatchPool mocks base method
+func (m *MockOptions) SetWriteBatchPool(value *ts.WriteBatchPool) Options {
+	ret := m.ctrl.Call(m, "SetWriteBatchPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWriteBatchPool indicates an expected call of SetWriteBatchPool
+func (mr *MockOptionsMockRecorder) SetWriteBatchPool(value interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWriteBatchPool", reflect.TypeOf((*MockOptions)(nil).SetWriteBatchPool), value)
+}
+
+// WriteBatchPool mocks base method
+func (m *MockOptions) WriteBatchPool() *ts.WriteBatchPool {
+	ret := m.ctrl.Call(m, "WriteBatchPool")
+	ret0, _ := ret[0].(*ts.WriteBatchPool)
+	return ret0
+}
+
+// WriteBatchPool indicates an expected call of WriteBatchPool
+func (mr *MockOptionsMockRecorder) WriteBatchPool() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatchPool", reflect.TypeOf((*MockOptions)(nil).WriteBatchPool))
 }

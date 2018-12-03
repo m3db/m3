@@ -236,6 +236,14 @@ func (s *m3storage) FetchTags(
 	}, nil
 }
 
+func (s *m3storage) CompleteTags(
+	_ context.Context,
+	_ *storage.CompleteTagsQuery,
+	_ *storage.FetchOptions,
+) (*storage.CompleteTagsResult, error) {
+	return nil, errors.ErrNotImplemented
+}
+
 func (s *m3storage) SearchCompressed(
 	ctx context.Context,
 	query *storage.FetchQuery,

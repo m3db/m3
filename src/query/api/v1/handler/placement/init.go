@@ -120,7 +120,7 @@ func (h *InitHandler) Init(
 	serviceOpts := NewServiceOptions(
 		serviceName, httpReq.Header, h.M3AggServiceOptions)
 
-	service, err := Service(h.ClusterClient, serviceOpts, h.nowFn())
+	service, err := Service(h.ClusterClient, serviceOpts, h.nowFn(), nil)
 	if err != nil {
 		return nil, err
 	}

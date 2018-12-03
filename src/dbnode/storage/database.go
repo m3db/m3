@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xcounter"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/context"
@@ -46,17 +47,21 @@ import (
 )
 
 var (
-	// errDatabaseAlreadyOpen raised when trying to open a database that is already open
+	// errDatabaseAlreadyOpen raised when trying to open a database that is already open.
 	errDatabaseAlreadyOpen = errors.New("database is already open")
 
-	// errDatabaseNotOpen raised when trying to close a database that is not open
+	// errDatabaseNotOpen raised when trying to close a database that is not open.
 	errDatabaseNotOpen = errors.New("database is not open")
 
-	// errDatabaseAlreadyClosed raised when trying to open a database that is already closed
+	// errDatabaseAlreadyClosed raised when trying to open a database that is already closed.
 	errDatabaseAlreadyClosed = errors.New("database is already closed")
 
-	// errDatabaseIsClosed raised when trying to perform an action that requires an open database
+	// errDatabaseIsClosed raised when trying to perform an action that requires an open database.
 	errDatabaseIsClosed = errors.New("database is closed")
+
+	// errWriterDoesNotImplementWriteBatch is raised when the provided ts.BatchWriter does not implement
+	// ts.WriteBatch.
+	errWriterDoesNotImplementWriteBatch = errors.New("provided writer does not implement ts.WriteBatch")
 )
 
 type databaseState int
@@ -95,12 +100,17 @@ type db struct {
 	errors       xcounter.FrequencyCounter
 	errWindow    time.Duration
 	errThreshold int64
+
+	writeBatchPool *ts.WriteBatchPool
 }
 
 type databaseMetrics struct {
 	unknownNamespaceRead                tally.Counter
 	unknownNamespaceWrite               tally.Counter
 	unknownNamespaceWriteTagged         tally.Counter
+	unknownNamespaceBatchWriter         tally.Counter
+	unknownNamespaceWriteBatch          tally.Counter
+	unknownNamespaceWriteTaggedBatch    tally.Counter
 	unknownNamespaceFetchBlocks         tally.Counter
 	unknownNamespaceFetchBlocksMetadata tally.Counter
 	unknownNamespaceQueryIDs            tally.Counter
@@ -115,6 +125,9 @@ func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
 		unknownNamespaceRead:                unknownNamespaceScope.Counter("read"),
 		unknownNamespaceWrite:               unknownNamespaceScope.Counter("write"),
 		unknownNamespaceWriteTagged:         unknownNamespaceScope.Counter("write-tagged"),
+		unknownNamespaceBatchWriter:         unknownNamespaceScope.Counter("batch-writer"),
+		unknownNamespaceWriteBatch:          unknownNamespaceScope.Counter("write-batch"),
+		unknownNamespaceWriteTaggedBatch:    unknownNamespaceScope.Counter("write-tagged-batch"),
 		unknownNamespaceFetchBlocks:         unknownNamespaceScope.Counter("fetch-blocks"),
 		unknownNamespaceFetchBlocksMetadata: unknownNamespaceScope.Counter("fetch-blocks-metadata"),
 		unknownNamespaceQueryIDs:            unknownNamespaceScope.Counter("query-ids"),
@@ -123,7 +136,7 @@ func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
 	}
 }
 
-// NewDatabase creates a new time series database
+// NewDatabase creates a new time series database.
 func NewDatabase(
 	shardSet sharding.ShardSet,
 	opts Options,
@@ -145,17 +158,18 @@ func NewDatabase(
 	logger := iopts.Logger()
 
 	d := &db{
-		opts:         opts,
-		nowFn:        opts.ClockOptions().NowFn(),
-		shardSet:     shardSet,
-		namespaces:   newDatabaseNamespacesMap(databaseNamespacesMapOptions{}),
-		commitLog:    commitLog,
-		scope:        scope,
-		metrics:      newDatabaseMetrics(scope),
-		log:          logger,
-		errors:       xcounter.NewFrequencyCounter(opts.ErrorCounterOptions()),
-		errWindow:    opts.ErrorWindowForLoad(),
-		errThreshold: opts.ErrorThresholdForLoad(),
+		opts:           opts,
+		nowFn:          opts.ClockOptions().NowFn(),
+		shardSet:       shardSet,
+		namespaces:     newDatabaseNamespacesMap(databaseNamespacesMapOptions{}),
+		commitLog:      commitLog,
+		scope:          scope,
+		metrics:        newDatabaseMetrics(scope),
+		log:            logger,
+		errors:         xcounter.NewFrequencyCounter(opts.ErrorCounterOptions()),
+		errWindow:      opts.ErrorWindowForLoad(),
+		errThreshold:   opts.ErrorThresholdForLoad(),
+		writeBatchPool: opts.WriteBatchPool(),
 	}
 
 	databaseIOpts := iopts.SetMetricsScope(scope)
@@ -490,11 +504,16 @@ func (d *db) Write(
 		return err
 	}
 
-	err = n.Write(ctx, id, timestamp, value, unit, annotation)
+	series, err := n.Write(ctx, id, timestamp, value, unit, annotation)
 	if err == commitlog.ErrCommitLogQueueFull {
 		d.errors.Record(1)
 	}
-	return err
+	if err != nil {
+		return err
+	}
+
+	dp := ts.Datapoint{Timestamp: timestamp, Value: value}
+	return d.commitLog.Write(ctx, series, dp, unit, annotation)
 }
 
 func (d *db) WriteTagged(
@@ -513,11 +532,119 @@ func (d *db) WriteTagged(
 		return err
 	}
 
-	err = n.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
+	series, err := n.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
 	if err == commitlog.ErrCommitLogQueueFull {
 		d.errors.Record(1)
 	}
-	return err
+	if err != nil {
+		return err
+	}
+
+	dp := ts.Datapoint{Timestamp: timestamp, Value: value}
+	return d.commitLog.Write(ctx, series, dp, unit, annotation)
+}
+
+func (d *db) BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error) {
+	n, err := d.namespaceFor(namespace)
+	if err != nil {
+		d.metrics.unknownNamespaceBatchWriter.Inc(1)
+		return nil, err
+	}
+
+	var (
+		nsID        = n.ID()
+		batchWriter = d.writeBatchPool.Get()
+	)
+	batchWriter.Reset(batchSize, nsID)
+	return batchWriter, nil
+}
+
+func (d *db) WriteBatch(
+	ctx context.Context,
+	namespace ident.ID,
+	writer ts.BatchWriter,
+	errHandler IndexedErrorHandler,
+) error {
+	return d.writeBatch(ctx, namespace, writer, errHandler, false)
+}
+
+func (d *db) WriteTaggedBatch(
+	ctx context.Context,
+	namespace ident.ID,
+	writer ts.BatchWriter,
+	errHandler IndexedErrorHandler,
+) error {
+	return d.writeBatch(ctx, namespace, writer, errHandler, true)
+}
+
+func (d *db) writeBatch(
+	ctx context.Context,
+	namespace ident.ID,
+	writer ts.BatchWriter,
+	errHandler IndexedErrorHandler,
+	tagged bool,
+) error {
+	writes, ok := writer.(ts.WriteBatch)
+	if !ok {
+		return errWriterDoesNotImplementWriteBatch
+	}
+
+	n, err := d.namespaceFor(namespace)
+	if err != nil {
+		if tagged {
+			d.metrics.unknownNamespaceWriteTaggedBatch.Inc(1)
+		} else {
+			d.metrics.unknownNamespaceWriteBatch.Inc(1)
+		}
+		return err
+	}
+
+	iter := writes.Iter()
+	for i, write := range iter {
+		var (
+			series ts.Series
+			err    error
+		)
+
+		if tagged {
+			series, err = n.WriteTagged(
+				ctx,
+				write.Write.Series.ID,
+				write.TagIter,
+				write.Write.Datapoint.Timestamp,
+				write.Write.Datapoint.Value,
+				write.Write.Unit,
+				write.Write.Annotation,
+			)
+		} else {
+			series, err = n.Write(
+				ctx,
+				write.Write.Series.ID,
+				write.Write.Datapoint.Timestamp,
+				write.Write.Datapoint.Value,
+				write.Write.Unit,
+				write.Write.Annotation,
+			)
+		}
+
+		if err == commitlog.ErrCommitLogQueueFull {
+			d.errors.Record(1)
+		}
+		if err != nil {
+			// Return errors with the original index provided by the caller so they
+			// can associate the error with the write that caused it.
+			errHandler.HandleError(write.OriginalIndex, err)
+		}
+
+		// Need to set the outcome in the success case so the commitlog gets the updated
+		// series object which contains identifiers (like the series ID) whose lifecycle
+		// live longer than the span of this request, making them safe for use by the async
+		// commitlog. Need to set the outcome in the error case so that the commitlog knows
+		// to skip this entry.
+		writes.SetOutcome(i, series, err)
+	}
+
+	return d.commitLog.WriteBatch(ctx, writes)
 }
 
 func (d *db) QueryIDs(
@@ -532,17 +659,7 @@ func (d *db) QueryIDs(
 		return index.QueryResults{}, err
 	}
 
-	var (
-		wg           = sync.WaitGroup{}
-		queryResults index.QueryResults
-	)
-	wg.Add(1)
-	d.opts.QueryIDsWorkerPool().Go(func() {
-		queryResults, err = n.QueryIDs(ctx, query, opts)
-		wg.Done()
-	})
-	wg.Wait()
-	return queryResults, err
+	return n.QueryIDs(ctx, query, opts)
 }
 
 func (d *db) ReadEncoded(
