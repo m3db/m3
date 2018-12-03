@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/context"
+	xerrors "github.com/m3db/m3x/errors"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -64,6 +65,40 @@ func newBufferTestOptions() Options {
 			SetContextPool(opts.ContextPool()).
 			SetEncoderPool(opts.EncoderPool()))
 	return opts
+}
+
+func TestBufferWriteTooFuture(t *testing.T) {
+	opts := newBufferTestOptions()
+	rops := opts.RetentionOptions()
+	curr := time.Now().Truncate(rops.BlockSize())
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+	buffer := newDatabaseBuffer().(*dbBuffer)
+	buffer.Reset(nil, opts)
+	ctx := context.NewContext()
+	defer ctx.Close()
+	err := buffer.Write(ctx, curr.Add(rops.BufferFuture()), 1, xtime.Second,
+		nil, WriteOptions{WriteTime: curr})
+	assert.Error(t, err)
+	assert.True(t, xerrors.IsInvalidParams(err))
+}
+
+func TestBufferWriteTooPast(t *testing.T) {
+	opts := newBufferTestOptions()
+	rops := opts.RetentionOptions()
+	curr := time.Now().Truncate(rops.BlockSize())
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+	buffer := newDatabaseBuffer().(*dbBuffer)
+	buffer.Reset(nil, opts)
+	ctx := context.NewContext()
+	defer ctx.Close()
+	err := buffer.Write(ctx, curr.Add(-1*rops.BufferPast()), 1, xtime.Second,
+		nil, WriteOptions{WriteTime: curr})
+	assert.Error(t, err)
+	assert.True(t, xerrors.IsInvalidParams(err))
 }
 
 func TestBufferWriteRead(t *testing.T) {
@@ -168,7 +203,6 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 	bucket, ok := buckets.writableBucket(WarmWrite)
 	require.True(t, ok)
 	assert.Equal(t, 2, len(bucket.encoders))
-	assert.False(t, bucket.isEmpty())
 	assert.Equal(t, data[1].timestamp, mustGetLastEncoded(t, bucket.encoders[0]).Timestamp)
 	assert.Equal(t, data[2].timestamp, mustGetLastEncoded(t, bucket.encoders[1]).Timestamp)
 
@@ -249,7 +283,6 @@ func TestBufferBucketMerge(t *testing.T) {
 
 	assert.Equal(t, 0, len(b.encoders))
 	assert.Equal(t, 1, len(b.blocks))
-	assert.False(t, b.isEmpty())
 
 	ctx := context.NewContext()
 	defer ctx.Close()
@@ -497,6 +530,78 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 
 	// Ensure single encoder again
 	assert.Equal(t, 1, len(encoders))
+}
+
+func TestBufferRemoveBucket(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newBufferTestOptions()
+	rops := opts.RetentionOptions()
+	curr := time.Now().Truncate(rops.BlockSize())
+	start := curr
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+	blockRetriever := NewMockQueryableBlockRetriever(ctrl)
+	buffer := newDatabaseBuffer().(*dbBuffer)
+	buffer.Reset(blockRetriever, opts)
+
+	// Perform out of order writes that will create two in order encoders
+	data := []value{
+		{curr, 1, xtime.Second, nil},
+		{curr.Add(mins(0.5)), 2, xtime.Second, nil},
+		{curr.Add(mins(0.5)).Add(-5 * time.Second), 3, xtime.Second, nil},
+		{curr.Add(mins(1.0)), 4, xtime.Second, nil},
+		{curr.Add(mins(1.5)), 5, xtime.Second, nil},
+		{curr.Add(mins(1.5)).Add(-5 * time.Second), 6, xtime.Second, nil},
+	}
+
+	for _, v := range data {
+		curr = v.timestamp
+		ctx := context.NewContext()
+		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation, WriteOptions{WriteTime: v.timestamp}))
+		ctx.Close()
+	}
+
+	buckets, exists := buffer.bucketsAt(start)
+	require.True(t, exists)
+	bucket, exists := buckets.writableBucket(WarmWrite)
+	require.True(t, exists)
+
+	// Simulate that a flush has fully completed on this bucket so that it will
+	// get removed from the bucket.
+	blockRetriever.EXPECT().IsBlockRetrievable(start).Return(true)
+	blockRetriever.EXPECT().RetrievableBlockVersion(start).Return(1)
+	bucket.version = 1
+
+	// False because we just wrote to it
+	assert.False(t, buffer.IsEmpty())
+	// Perform a tick to remove the bucket which has been flushed
+	buffer.Tick()
+	// True because we just removed the bucket
+	assert.True(t, buffer.IsEmpty())
+}
+
+func TestBufferToBlock(t *testing.T) {
+	b, opts, expected := newTestBufferBucketsWithData(t)
+	ctx := opts.ContextPool().Get()
+	defer ctx.Close()
+
+	bucket, exists := b.writableBucket(WarmWrite)
+	require.True(t, exists)
+	assert.Len(t, bucket.encoders, 4)
+	assert.Len(t, bucket.blocks, 0)
+
+	block, err := b.toBlock(WarmWrite)
+	require.NoError(t, err)
+	// Verify that encoders get reset and the resultant block gets put in blocks
+	assert.Len(t, bucket.encoders, 0)
+	assert.Len(t, bucket.blocks, 1)
+
+	stream, err := block.Stream(ctx)
+	require.NoError(t, err)
+	assertValuesEqual(t, expected, [][]xio.BlockReader{[]xio.BlockReader{stream}}, opts)
 }
 
 func TestBufferSnapshot(t *testing.T) {

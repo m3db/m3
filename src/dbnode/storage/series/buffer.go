@@ -165,7 +165,7 @@ func (b *dbBuffer) Write(
 	wopts WriteOptions,
 ) error {
 	wType := b.writeType(timestamp, wopts.WriteTime)
-	if wType == ColdWrite && b.coldWritesEnabled {
+	if wType == ColdWrite && !b.coldWritesEnabled {
 		return m3dberrors.ErrColdWritesNotEnabled
 	}
 
@@ -188,22 +188,16 @@ func (b *dbBuffer) writeType(timestamp time.Time, writeTime time.Time) WriteType
 }
 
 func (b *dbBuffer) IsEmpty() bool {
-	canReadAny := false
-	for i := range b.bucketsMap {
-		canReadAny = canReadAny || !b.bucketsMap[i].isEmpty()
-	}
-	return !canReadAny
+	// A buffer can only be empty if there are no buckets in its map, since
+	// buckets are only created when a write for a new block start is done, and
+	// buckets are removed from the map when they are evicted from memory.
+	return len(b.bucketsMap) == 0
 }
 
 func (b *dbBuffer) Stats() bufferStats {
-	var stats bufferStats
-	for i := range b.bucketsMap {
-		if b.bucketsMap[i].isEmpty() {
-			continue
-		}
-		stats.wiredBlocks++
+	return bufferStats{
+		wiredBlocks: len(b.bucketsMap),
 	}
-	return stats
 }
 
 func (b *dbBuffer) Tick() bufferTickResult {
@@ -233,6 +227,14 @@ func (b *dbBuffer) Tick() bufferTickResult {
 			// All underlying buckets have been flushed successfully, so we can
 			// just remove the buckets from the bucketsMap
 			if len(newBuckets) == 0 {
+				// TODO(juchan): need to tell the series that these buckets were
+				// evicted from the buffer so that the cached block in the
+				// series can either:
+				//   1) be evicted, or
+				//   2) be merged with the new data.
+				// This needs to happen because the buffer just flushed new data
+				// to disk, which the cached block does not have, and is
+				// therefore invalid.
 				b.removeBucketsAt(blockStart)
 				continue
 			}
@@ -268,7 +270,7 @@ func (b *dbBuffer) Snapshot(
 	blockStart time.Time,
 ) (xio.SegmentReader, error) {
 	buckets, exists := b.bucketsAt(blockStart)
-	if !exists || buckets.isEmpty() {
+	if !exists {
 		return nil, nil
 	}
 
@@ -345,7 +347,7 @@ func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xi
 	keys := b.sortedBucketsKeys(true)
 	for _, key := range keys {
 		buckets, exists := b.bucketsAt(key.ToTime())
-		if !exists || buckets.isEmpty() || !buckets.start.Before(end) ||
+		if !exists || !buckets.start.Before(end) ||
 			!start.Before(buckets.start.Add(b.blockSize)) {
 			continue
 		}
@@ -419,7 +421,7 @@ func (b *dbBuffer) FetchBlocksMetadata(
 	keys := b.sortedBucketsKeys(true)
 	for _, key := range keys {
 		bucket, exists := b.bucketsAt(key.ToTime())
-		if !exists || bucket.isEmpty() || !bucket.start.Before(end) ||
+		if !exists || !bucket.start.Before(end) ||
 			!start.Before(bucket.start.Add(blockSize)) {
 			continue
 		}
@@ -568,15 +570,6 @@ func (b *dbBufferBuckets) write(
 	return b.writableBucketCreate(wType).write(timestamp, value, unit, annotation)
 }
 
-func (b *dbBufferBuckets) isEmpty() bool {
-	for _, bucket := range b.buckets {
-		if !bucket.isEmpty() {
-			return false
-		}
-	}
-	return true
-}
-
 func (b *dbBufferBuckets) merge(wType WriteType) (mergeResult, error) {
 	var res mergeResult
 	for _, bucket := range b.buckets {
@@ -682,20 +675,6 @@ func (b *dbBufferBucket) resetTo(
 func (b *dbBufferBucket) finalize() {
 	b.resetEncoders()
 	b.resetBlocks()
-}
-
-func (b *dbBufferBucket) isEmpty() bool {
-	for _, block := range b.blocks {
-		if block.Len() > 0 {
-			return false
-		}
-	}
-	for _, elem := range b.encoders {
-		if elem.encoder != nil && elem.encoder.NumEncoded() > 0 {
-			return false
-		}
-	}
-	return true
 }
 
 func (b *dbBufferBucket) addBlock(
@@ -851,7 +830,7 @@ func (b *dbBufferBucket) resetBlocks() {
 }
 
 func (b *dbBufferBucket) needsMerge() bool {
-	return !b.isEmpty() && !(b.hasJustSingleEncoder() || b.hasJustSingleBootstrappedBlock())
+	return !(b.hasJustSingleEncoder() || b.hasJustSingleBootstrappedBlock())
 }
 
 func (b *dbBufferBucket) hasJustSingleEncoder() bool {
