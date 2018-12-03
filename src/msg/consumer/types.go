@@ -26,7 +26,6 @@ import (
 
 	"github.com/m3db/m3/src/msg/protocol/proto"
 	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
 )
 
 // Message carries the data that needs to be processed.
@@ -78,10 +77,10 @@ type Options interface {
 	SetDecoderOptions(value proto.Options) Options
 
 	// MessagePoolOptions returns the options for message pool.
-	MessagePoolOptions() pool.ObjectPoolOptions
+	MessagePoolOptions() MessagePoolOptions
 
 	// SetMessagePoolOptions sets the options for message pool.
-	SetMessagePoolOptions(value pool.ObjectPoolOptions) Options
+	SetMessagePoolOptions(value MessagePoolOptions) Options
 
 	// AckFlushInterval returns the ack flush interval.
 	AckFlushInterval() time.Duration

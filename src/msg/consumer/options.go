@@ -37,7 +37,7 @@ var (
 type options struct {
 	encOptions       proto.Options
 	decOptions       proto.Options
-	messagePoolOpts  pool.ObjectPoolOptions
+	messagePoolOpts  MessagePoolOptions
 	ackFlushInterval time.Duration
 	ackBufferSize    int
 	writeBufferSize  int
@@ -50,7 +50,7 @@ func NewOptions() Options {
 	return &options{
 		encOptions:       proto.NewOptions(),
 		decOptions:       proto.NewOptions(),
-		messagePoolOpts:  pool.NewObjectPoolOptions(),
+		messagePoolOpts:  MessagePoolOptions{PoolOptions: pool.NewObjectPoolOptions()},
 		ackFlushInterval: defaultAckFlushInterval,
 		ackBufferSize:    defaultAckBufferSize,
 		writeBufferSize:  defaultConnectionBufferSize,
@@ -79,11 +79,11 @@ func (opts *options) SetDecoderOptions(value proto.Options) Options {
 	return &o
 }
 
-func (opts *options) MessagePoolOptions() pool.ObjectPoolOptions {
+func (opts *options) MessagePoolOptions() MessagePoolOptions {
 	return opts.messagePoolOpts
 }
 
-func (opts *options) SetMessagePoolOptions(value pool.ObjectPoolOptions) Options {
+func (opts *options) SetMessagePoolOptions(value MessagePoolOptions) Options {
 	o := *opts
 	o.messagePoolOpts = value
 	return &o
