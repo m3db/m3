@@ -24,7 +24,6 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
@@ -46,21 +45,18 @@ const (
 
 // PromReadInstantHandler represents a handler for prometheus instantaneous read endpoint.
 type PromReadInstantHandler struct {
-	engine    *executor.Engine
-	tagOpts   models.TagOptions
-	limitsCfg *config.LimitsConfiguration
+	engine  *executor.Engine
+	tagOpts models.TagOptions
 }
 
 // NewPromReadInstantHandler returns a new instance of handler.
 func NewPromReadInstantHandler(
 	engine *executor.Engine,
 	tagOpts models.TagOptions,
-	limitsCfg *config.LimitsConfiguration,
 ) *PromReadHandler {
 	return &PromReadHandler{
-		engine:    engine,
-		tagOpts:   tagOpts,
-		limitsCfg: limitsCfg,
+		engine:  engine,
+		tagOpts: tagOpts,
 	}
 }
 
