@@ -40,9 +40,8 @@ import (
 )
 
 var (
-	errMoreThanOneStreamAfterMerge = errors.New("buffer has more than one stream after merge")
-	errNoAvailableBuckets          = errors.New("[invariant violated] buffer has no available buckets")
-	timeZero                       time.Time
+	errNoAvailableBuckets = errors.New("[invariant violated] buffer has no available buckets")
+	timeZero              time.Time
 )
 
 const (
@@ -281,13 +280,39 @@ func (b *dbBuffer) Snapshot(
 	}
 
 	streams := buckets.streams(ctx, WarmWrite)
-	if len(streams) != 1 {
-		// Should never happen as the call to merge above should result in only a single
-		// stream being present.
-		return nil, errMoreThanOneStreamAfterMerge
+	// We may need to merge again here because the regular merge method does
+	// not merge buckets that have different versions.
+	numStreams := len(streams)
+	if numStreams == 1 {
+		return streams[0], nil
 	}
 
-	return streams[0], nil
+	sr := make([]xio.SegmentReader, 0, numStreams)
+	for _, stream := range streams {
+		sr = append(sr, stream.SegmentReader)
+	}
+
+	bopts := b.opts.DatabaseBlockOptions()
+	encoder := bopts.EncoderPool().Get()
+	encoder.Reset(blockStart, bopts.DatabaseBlockAllocSize())
+	iter := b.opts.MultiReaderIteratorPool().Get()
+	defer func() {
+		encoder.Close()
+		iter.Close()
+	}()
+	iter.Reset(sr, blockStart, b.opts.RetentionOptions().BlockSize())
+
+	for iter.Next() {
+		dp, unit, annotation := iter.Current()
+		if err := encoder.Encode(dp, unit, annotation); err != nil {
+			return nil, err
+		}
+	}
+	if err := iter.Err(); err != nil {
+		return nil, err
+	}
+
+	return encoder.Stream(), nil
 }
 
 func (b *dbBuffer) Flush(
