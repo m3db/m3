@@ -60,6 +60,19 @@ func TestParamParsing(t *testing.T) {
 	require.Equal(t, promQuery, r.Query)
 }
 
+func TestInstantaneousParamParsing(t *testing.T) {
+	req, _ := http.NewRequest("GET", PromReadURL, nil)
+	params := url.Values{}
+	now := time.Now()
+	params.Add(queryParam, promQuery)
+	params.Add(timeParam, now.Format(time.RFC3339))
+	req.URL.RawQuery = params.Encode()
+
+	r, err := parseInstantaneousParams(req)
+	require.Nil(t, err, "unable to parse request")
+	require.Equal(t, promQuery, r.Query)
+}
+
 func TestInvalidStart(t *testing.T) {
 	req, _ := http.NewRequest("GET", PromReadURL, nil)
 	vals := defaultParams()
