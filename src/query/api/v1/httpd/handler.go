@@ -150,6 +150,9 @@ func (h *Handler) RegisterRoutes() error {
 	h.router.HandleFunc(native.PromReadURL,
 		logged(native.NewPromReadHandler(h.engine, h.tagOptions, &h.config.Limits)).ServeHTTP,
 	).Methods(native.PromReadHTTPMethod)
+	h.router.HandleFunc(native.PromReadInstantURL,
+		logged(native.NewPromReadInstantHandler(h.engine, h.tagOptions)).ServeHTTP,
+	).Methods(native.PromReadInstantHTTPMethod)
 
 	// Native M3 search and write endpoints
 	h.router.HandleFunc(handler.SearchURL,
