@@ -88,7 +88,7 @@ func (s *m3storage) Fetch(
 	return storage.SeriesIteratorsToFetchResult(raw, s.readWorkerPool, false, s.tagOptions)
 }
 
-func (s *m3storage) fetchSeriesBlocks(
+func (s *m3storage) FetchBlocks(
 	ctx context.Context,
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
@@ -98,43 +98,21 @@ func (s *m3storage) fetchSeriesBlocks(
 		return block.Result{}, err
 	}
 
-	bounds := &models.Bounds{
+	bounds := models.Bounds{
 		Start:    query.Start,
 		Duration: query.End.Sub(query.Start),
 		StepSize: query.Interval,
 	}
 
-	multiPurposeBlocks := m3db.ConvertM3DBSeriesIterators(
+	blocks := m3db.ConvertM3DBSeriesIterators(
 		raw,
 		s.tagOptions,
 		bounds,
 	)
 
-	blocks := make([]block.Block, len(multiPurposeBlocks))
-	for i, b := range multiPurposeBlocks {
-		blocks[i] = b
-	}
-
 	return block.Result{
 		Blocks: blocks,
 	}, nil
-}
-
-func (s *m3storage) FetchBlocks(
-	ctx context.Context,
-	query *storage.FetchQuery,
-	options *storage.FetchOptions,
-) (block.Result, error) {
-	if !options.UseDecodedBlocks {
-		return s.fetchSeriesBlocks(ctx, query, options)
-	}
-
-	fetchResult, err := s.Fetch(ctx, query, options)
-	if err != nil {
-		return block.Result{}, err
-	}
-
-	return storage.FetchResultToBlockResult(fetchResult, query)
 }
 
 func (s *m3storage) FetchCompressed(

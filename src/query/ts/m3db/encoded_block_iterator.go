@@ -33,38 +33,32 @@ import (
 type consolidationSettings struct {
 	consolidationFn ConsolidationFunc
 	currentTime     time.Time
-	bounds          *models.Bounds
+	bounds          models.Bounds
 }
 
 type encodedBlock struct {
 	lastBlock            bool
 	meta                 block.Metadata
 	tagOptions           models.TagOptions
-	consolidation        *consolidationSettings
+	consolidation        consolidationSettings
 	seriesMetas          []block.SeriesMeta
 	seriesBlockIterators []encoding.SeriesIterator
 }
 
-// verify encodedSeriesIter satisfies both block and unconsolidated block
-var (
-	_ block.Block               = (*encodedBlock)(nil)
-	_ block.UnconsolidatedBlock = (*encodedBlock)(nil)
-)
-
-// MakeEncodedBlock builds an encoded block
-func MakeEncodedBlock(
+// NewEncodedBlock builds an encoded block
+func NewEncodedBlock(
 	seriesBlockIterators []encoding.SeriesIterator,
-	bounds *models.Bounds,
+	bounds models.Bounds,
 	tagOptions models.TagOptions,
 	lastBlock bool,
-) block.MultipurposeBlock {
-	consolidation := &consolidationSettings{
+) block.Block {
+	consolidation := consolidationSettings{
 		consolidationFn: TakeLast,
 		currentTime:     bounds.Start,
 		bounds:          bounds,
 	}
 
-	bl := makeEncodedBlock(
+	bl := newEncodedBlock(
 		seriesBlockIterators,
 		tagOptions,
 		consolidation,
@@ -74,10 +68,10 @@ func MakeEncodedBlock(
 	return &bl
 }
 
-func makeEncodedBlock(
+func newEncodedBlock(
 	seriesBlockIterators []encoding.SeriesIterator,
 	tagOptions models.TagOptions,
-	consolidation *consolidationSettings,
+	consolidation consolidationSettings,
 	lastBlock bool,
 	generateMetas bool,
 ) encodedBlock {
@@ -97,15 +91,14 @@ func makeEncodedBlock(
 }
 
 func (b *encodedBlock) Unconsolidated() (block.UnconsolidatedBlock, error) {
-	// NB: the encodedBlock should satisfy both consolidated and unconsolidated
-	// block interfaces
-	return b, nil
-}
-
-func (b *encodedBlock) Consolidate() (block.Block, error) {
-	// NB: the encodedBlock should satisfy both consolidated and unconsolidated
-	// block interfaces
-	return b, nil
+	return &encodedBlockUnconsolidated{
+		lastBlock:            b.lastBlock,
+		meta:                 b.meta,
+		tagOptions:           b.tagOptions,
+		consolidation:        b.consolidation,
+		seriesMetas:          b.seriesMetas,
+		seriesBlockIterators: b.seriesBlockIterators,
+	}, nil
 }
 
 func (b *encodedBlock) Close() error {
@@ -138,7 +131,7 @@ func (b *encodedBlock) buildMeta() {
 	b.seriesMetas = metas
 	b.meta = block.Metadata{
 		Tags:   tags,
-		Bounds: *b.consolidation.bounds,
+		Bounds: b.consolidation.bounds,
 	}
 }
 
@@ -152,11 +145,11 @@ func (b *encodedBlock) generateMetas() error {
 	return nil
 }
 
-func (b *encodedBlock) withMetadata(
+func (b *encodedBlock) WithMetadata(
 	meta block.Metadata,
 	seriesMetas []block.SeriesMeta,
-) (*encodedBlock, error) {
-	bl := makeEncodedBlock(
+) (block.Block, error) {
+	bl := newEncodedBlock(
 		b.seriesBlockIterators,
 		b.tagOptions,
 		b.consolidation,
@@ -169,38 +162,10 @@ func (b *encodedBlock) withMetadata(
 	return &bl, nil
 }
 
-func (b *encodedBlock) WithMetadata(
-	meta block.Metadata,
-	seriesMetas []block.SeriesMeta,
-) (block.Block, error) {
-	return b.withMetadata(meta, seriesMetas)
-}
-
-func (b *encodedBlock) WithMetadataUnconsolidated(
-	meta block.Metadata,
-	seriesMetas []block.SeriesMeta,
-) (block.UnconsolidatedBlock, error) {
-	return b.withMetadata(meta, seriesMetas)
-}
-
 func (b *encodedBlock) StepIter() (block.StepIter, error) {
 	return b.stepIter(), nil
 }
 
-func (b *encodedBlock) StepIterUnconsolidated() (
-	block.UnconsolidatedStepIter,
-	error,
-) {
-	return b.stepIterUnconsolidated(), nil
-}
-
 func (b *encodedBlock) SeriesIter() (block.SeriesIter, error) {
 	return b.seriesIter(), nil
-}
-
-func (b *encodedBlock) SeriesIterUnconsolidated() (
-	block.UnconsolidatedSeriesIter,
-	error,
-) {
-	return b.seriesIterUnconsolidated(), nil
 }

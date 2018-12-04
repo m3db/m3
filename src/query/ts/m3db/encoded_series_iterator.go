@@ -35,7 +35,7 @@ type encodedSeriesIter struct {
 	mu           sync.RWMutex
 	idx          int
 	meta         block.Metadata
-	bounds       *models.Bounds
+	bounds       models.Bounds
 	seriesMeta   []block.SeriesMeta
 	seriesIters  []encoding.SeriesIterator
 	consolidator singleConsolidator
@@ -70,10 +70,16 @@ func (it *encodedSeriesIter) Current() (block.Series, error) {
 	for iter.Next() {
 		dp, _, _ := iter.Current()
 		ts := dp.Timestamp
+
+		if err := iter.Err(); err != nil {
+			return block.Series{}, err
+		}
+
 		if !ts.After(currentTime) {
 			it.consolidator.addPoint(dp)
 			continue
 		}
+
 		for {
 			values[i] = it.consolidator.consolidate()
 			i++

@@ -196,7 +196,7 @@ func BuildCustomIterator(
 	seriesID, seriesNamespace string,
 	start time.Time,
 	blockSize, stepSize time.Duration,
-) (encoding.SeriesIterator, *models.Bounds, error) {
+) (encoding.SeriesIterator, models.Bounds, error) {
 	// Build a merged BlockReader
 	readers := make([][]xio.BlockReader, 0, len(dps))
 	currentStart := start
@@ -207,11 +207,13 @@ func BuildCustomIterator(
 			for _, dp := range datapoints {
 				offset := dp.Offset
 				if offset > blockSize {
-					return nil, nil, fmt.Errorf("custom series iterator offset is larger than blockSize")
+					return nil, models.Bounds{},
+						fmt.Errorf("custom series iterator offset is larger than blockSize")
 				}
 
 				if offset < 0 {
-					return nil, nil, fmt.Errorf("custom series iterator offset is negative")
+					return nil, models.Bounds{},
+						fmt.Errorf("custom series iterator offset is negative")
 				}
 
 				tsDp := ts.Datapoint{
@@ -221,7 +223,7 @@ func BuildCustomIterator(
 
 				err := encoder.Encode(tsDp, xtime.Second, nil)
 				if err != nil {
-					return nil, nil, err
+					return nil, models.Bounds{}, err
 				}
 			}
 
@@ -256,7 +258,7 @@ func BuildCustomIterator(
 					multiReader,
 				},
 			}, nil),
-		&models.Bounds{
+		models.Bounds{
 			Start:    start,
 			Duration: blockSize * time.Duration(len(dps)),
 			StepSize: stepSize,

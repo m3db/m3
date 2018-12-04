@@ -30,12 +30,6 @@ import (
 	"github.com/m3db/m3/src/query/ts"
 )
 
-// MultipurposeBlock is a block that satisfies consolidated and unconsolidated blocks
-type MultipurposeBlock interface {
-	Block
-	unconsolidatedBlock
-}
-
 // Block represents a group of series across a time bound
 type Block interface {
 	io.Closer
@@ -52,18 +46,14 @@ type Block interface {
 // UnconsolidatedBlock represents a group of unconsolidated series across a time bound
 type UnconsolidatedBlock interface {
 	io.Closer
-	unconsolidatedBlock
-}
-
-type unconsolidatedBlock interface {
-	// StepIterUnconsolidated returns an UnconsolidatedStepIter
-	StepIterUnconsolidated() (UnconsolidatedStepIter, error)
-	// SeriesIterUnconsolidated returns an UnconsolidatedSeriesIter
-	SeriesIterUnconsolidated() (UnconsolidatedSeriesIter, error)
+	// StepIter returns an UnconsolidatedStepIter
+	StepIter() (UnconsolidatedStepIter, error)
+	// SeriesIter returns an UnconsolidatedSeriesIter
+	SeriesIter() (UnconsolidatedSeriesIter, error)
 	// Consolidate an unconsolidated block
 	Consolidate() (Block, error)
-	// WithMetadataUnconsolidated returns a block with updated meta and series metadata.
-	WithMetadataUnconsolidated(Metadata, []SeriesMeta) (UnconsolidatedBlock, error)
+	// WithMetadata returns a block with updated meta and series metadata.
+	WithMetadata(Metadata, []SeriesMeta) (UnconsolidatedBlock, error)
 }
 
 // SeriesMeta is metadata data for the series
@@ -105,8 +95,8 @@ type SeriesIter interface {
 type UnconsolidatedSeriesIter interface {
 	Iterator
 	SeriesMetaIter
-	// CurrentUnconsolidated returns the current series for the block
-	CurrentUnconsolidated() (UnconsolidatedSeries, error)
+	// Current returns the current series for the block
+	Current() (UnconsolidatedSeries, error)
 }
 
 // StepMetaIter is implemented by step iterators which provide meta information
@@ -128,8 +118,8 @@ type StepIter interface {
 type UnconsolidatedStepIter interface {
 	Iterator
 	StepMetaIter
-	// CurrentUnconsolidated returns the current step for the block
-	CurrentUnconsolidated() (UnconsolidatedStep, error)
+	// Current returns the current step for the block
+	Current() (UnconsolidatedStep, error)
 }
 
 // Step is a single time step within a block

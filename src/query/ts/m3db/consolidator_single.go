@@ -72,8 +72,8 @@ func (c *singleLookbackConsolidator) addPoint(
 }
 
 func (c *singleLookbackConsolidator) consolidate() float64 {
-	c.earliestLookback = c.earliestLookback.Add(c.stepSize)
 	c.consolidated = c.fn(c.datapoints)
+	c.earliestLookback = c.earliestLookback.Add(c.stepSize)
 	c.datapoints = removeStale(c.earliestLookback, c.datapoints)
 	return c.consolidated
 }

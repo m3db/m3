@@ -89,7 +89,7 @@ func (n *timestampNode) Process(ID parser.NodeID, b block.Block) error {
 		return err
 	}
 
-	iter, err := unconsolidatedBlock.StepIterUnconsolidated()
+	iter, err := unconsolidatedBlock.StepIter()
 	if err != nil {
 		return err
 	}
@@ -104,7 +104,7 @@ func (n *timestampNode) Process(ID parser.NodeID, b block.Block) error {
 	}
 
 	for index := 0; iter.Next(); index++ {
-		step, err := iter.CurrentUnconsolidated()
+		step, err := iter.Current()
 		if err != nil {
 			return err
 		}

@@ -36,16 +36,7 @@ type encodedSeriesIterUnconsolidated struct {
 	seriesIters []encoding.SeriesIterator
 }
 
-func (b *encodedBlock) seriesIterUnconsolidated() block.UnconsolidatedSeriesIter {
-	return &encodedSeriesIterUnconsolidated{
-		idx:         -1,
-		meta:        b.meta,
-		seriesMeta:  b.seriesMetas,
-		seriesIters: b.seriesBlockIterators,
-	}
-}
-
-func (it *encodedSeriesIterUnconsolidated) CurrentUnconsolidated() (
+func (it *encodedSeriesIterUnconsolidated) Current() (
 	block.UnconsolidatedSeries,
 	error,
 ) {
@@ -55,29 +46,16 @@ func (it *encodedSeriesIterUnconsolidated) CurrentUnconsolidated() (
 	values := make([]xts.Datapoints, 0, initBlockReplicaLength)
 	for iter.Next() {
 		dp, _, _ := iter.Current()
-		// FIXME:
 		values = append(values,
 			[]xts.Datapoint{{
 				Timestamp: dp.Timestamp,
 				Value:     dp.Value,
 			}})
+
+		if err := iter.Err(); err != nil {
+			return block.UnconsolidatedSeries{}, err
+		}
 	}
-
-	// s := m.block.seriesList[m.index]
-	// seriesValues := s.Values().AlignToBounds(m.block.meta.Bounds)
-	// seriesLen := len(seriesValues)
-	// for i := 0; i < m.block.StepCount(); i++ {
-	// 	if i < seriesLen {
-	// 		values[i] = seriesValues[i]
-	// 	} else {
-	// 		values[i] = nil
-	// 	}
-	// }
-
-	// return block.NewUnconsolidatedSeries(values, block.SeriesMeta{
-	// 	Tags: s.Tags,
-	// 	Name: s.Name(),
-	// }), nil
 
 	series := block.NewUnconsolidatedSeries(values, it.seriesMeta[it.idx])
 	it.mu.RUnlock()

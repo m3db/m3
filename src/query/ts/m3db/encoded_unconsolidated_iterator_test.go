@@ -59,17 +59,17 @@ func TestUnconsolidatedStepIterator(t *testing.T) {
 	}
 
 	j := 0
-	blocks, bounds := generateMultipurposeBlocks(t, time.Minute)
+	blocks, bounds := generateBlocks(t, time.Minute)
 	for i, block := range blocks {
 		unconsolidated, err := block.Unconsolidated()
 		require.NoError(t, err)
 
-		iters, err := unconsolidated.StepIterUnconsolidated()
+		iters, err := unconsolidated.StepIter()
 		require.NoError(t, err)
 
 		verifyMetas(t, i, bounds, iters.Meta(), iters.SeriesMeta())
 		for iters.Next() {
-			step, err := iters.CurrentUnconsolidated()
+			step, err := iters.Current()
 			require.NoError(t, err)
 			vals := step.Values()
 			actual := datapointsToFloats(t, vals)
@@ -87,17 +87,17 @@ func TestUnconsolidatedSeriesIterator(t *testing.T) {
 	}
 
 	j := 0
-	blocks, bounds := generateMultipurposeBlocks(t, time.Minute)
+	blocks, bounds := generateBlocks(t, time.Minute)
 	for i, block := range blocks {
 		unconsolidated, err := block.Unconsolidated()
 		require.NoError(t, err)
 
-		iters, err := unconsolidated.SeriesIterUnconsolidated()
+		iters, err := unconsolidated.SeriesIter()
 		require.NoError(t, err)
 
 		verifyMetas(t, i, bounds, iters.Meta(), iters.SeriesMeta())
 		for iters.Next() {
-			series, err := iters.CurrentUnconsolidated()
+			series, err := iters.Current()
 			require.NoError(t, err)
 			vals := series.Datapoints()
 			actual := datapointsToFloats(t, vals)

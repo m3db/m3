@@ -44,12 +44,12 @@ func newEncodedBlockBuilder(
 }
 
 func (b *encodedBlockBuilder) add(
-	bounds *models.Bounds,
+	bounds models.Bounds,
 	iter encoding.SeriesIterator,
 	lastBlock bool,
 ) {
 	start := bounds.Start
-	consolidation := &consolidationSettings{
+	consolidation := consolidationSettings{
 		consolidationFn: TakeLast,
 		currentTime:     start,
 		bounds:          bounds,
@@ -58,7 +58,7 @@ func (b *encodedBlockBuilder) add(
 	str := start.String()
 	if _, found := b.blocksAtTime[str]; !found {
 		// Add a new encoded block
-		b.blocksAtTime[str] = makeEncodedBlock(
+		b.blocksAtTime[str] = newEncodedBlock(
 			[]encoding.SeriesIterator{},
 			b.tagOptions,
 			consolidation,
@@ -72,14 +72,14 @@ func (b *encodedBlockBuilder) add(
 	b.blocksAtTime[str] = block
 }
 
-func (b *encodedBlockBuilder) build() []block.MultipurposeBlock {
+func (b *encodedBlockBuilder) build() []block.Block {
 	blocks := make([]encodedBlock, 0, len(b.blocksAtTime))
 	for _, block := range b.blocksAtTime {
 		block.buildMeta()
 		blocks = append(blocks, block)
 	}
 
-	bps := make([]block.MultipurposeBlock, len(blocks))
+	bps := make([]block.Block, len(blocks))
 	for i := range blocks {
 		bps[i] = &blocks[i]
 	}

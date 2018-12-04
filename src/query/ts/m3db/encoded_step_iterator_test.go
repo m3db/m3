@@ -111,7 +111,7 @@ var consolidatedStepIteratorTests = []struct {
 
 func TestConsolidatedStepIterator(t *testing.T) {
 	for _, tt := range consolidatedStepIteratorTests {
-		blocks, bounds := generateMultipurposeBlocks(t, tt.stepSize)
+		blocks, bounds := generateBlocks(t, tt.stepSize)
 		j := 0
 		for i, block := range blocks {
 			iters, err := block.StepIter()

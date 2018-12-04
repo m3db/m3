@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/storage"
 	xts "github.com/m3db/m3/src/query/ts"
 )
 
@@ -34,30 +35,14 @@ type encodedStepIterUnconsolidated struct {
 	lastBlock   bool
 	exhausted   bool
 	started     bool
+	err         error
 	meta        block.Metadata
 	validIters  []bool
 	seriesMeta  []block.SeriesMeta
 	seriesIters []encoding.SeriesIterator
 }
 
-func (b *encodedBlock) stepIterUnconsolidated() block.UnconsolidatedStepIter {
-	return &encodedStepIterUnconsolidated{
-		meta:        b.meta,
-		seriesMeta:  b.seriesMetas,
-		seriesIters: b.seriesBlockIterators,
-		lastBlock:   b.lastBlock,
-	}
-}
-
-type encodedUnconsolidatedStep struct {
-	time   time.Time
-	values []xts.Datapoints
-}
-
-func (s *encodedUnconsolidatedStep) Time() time.Time          { return s.time }
-func (s *encodedUnconsolidatedStep) Values() []xts.Datapoints { return s.values }
-
-func (it *encodedStepIterUnconsolidated) CurrentUnconsolidated() (
+func (it *encodedStepIterUnconsolidated) Current() (
 	block.UnconsolidatedStep,
 	error,
 ) {
@@ -65,6 +50,11 @@ func (it *encodedStepIterUnconsolidated) CurrentUnconsolidated() (
 	if !it.started || it.exhausted {
 		it.mu.RUnlock()
 		panic("out of bounds")
+	}
+
+	if it.err != nil {
+		it.mu.RUnlock()
+		return nil, it.err
 	}
 
 	var t time.Time
@@ -86,11 +76,7 @@ func (it *encodedStepIterUnconsolidated) CurrentUnconsolidated() (
 		}}
 	}
 
-	step := &encodedUnconsolidatedStep{
-		time:   t,
-		values: values,
-	}
-
+	step := storage.NewUnconsolidatedStep(t, values)
 	it.mu.RUnlock()
 	return step, nil
 }
@@ -115,6 +101,10 @@ func (it *encodedStepIterUnconsolidated) Next() bool {
 		} else {
 			it.validIters[i] = false
 		}
+
+		if err := iter.Err(); err != nil {
+			it.err = err
+		}
 	}
 
 	if !anyNext {
@@ -122,11 +112,11 @@ func (it *encodedStepIterUnconsolidated) Next() bool {
 	}
 
 	return anyNext
-
 }
 
 func (it *encodedStepIterUnconsolidated) StepCount() int {
-	panic("cannot request step count from unconsolidated step iterator")
+	// Returns the projected step count, post-consolidation
+	return it.meta.Bounds.Steps()
 }
 
 func (it *encodedStepIterUnconsolidated) SeriesMeta() []block.SeriesMeta {

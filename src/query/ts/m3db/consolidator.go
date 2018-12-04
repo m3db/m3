@@ -34,20 +34,13 @@ func removeStale(
 	earliestLookback time.Time,
 	dps []ts.Datapoint,
 ) []ts.Datapoint {
-	var (
-		i  int
-		dp ts.Datapoint
-	)
-	for _, dp = range dps {
-		// Timestamp is within lookback period
+	for i, dp := range dps {
 		if !dp.Timestamp.Before(earliestLookback) {
-			break
+			return dps[i:]
 		}
-
-		i++
 	}
 
-	return dps[i:]
+	return dps[:0]
 }
 
 type lookbackConsolidator struct {
@@ -92,7 +85,7 @@ func (c *lookbackConsolidator) addPointForIterator(
 	i int,
 ) {
 	if dp.Timestamp.Before(c.earliestLookback) {
-		// this datapoint is too far in the past, it can be dropped
+		// this datapoint is too far in the past, it can be dropped.
 		return
 	}
 
@@ -100,6 +93,8 @@ func (c *lookbackConsolidator) addPointForIterator(
 }
 
 func (c *lookbackConsolidator) consolidate() []float64 {
+	// Update earliest lookback then remove stale values for the next
+	// iteration of the datapoint set.
 	c.earliestLookback = c.earliestLookback.Add(c.stepSize)
 	for i, dps := range c.datapoints {
 		c.consolidated[i] = c.fn(dps)

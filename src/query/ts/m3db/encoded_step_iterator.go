@@ -42,7 +42,8 @@ type encodedStepIter struct {
 	exhausted    bool
 	started      bool
 	currentTime  time.Time
-	bounds       *models.Bounds
+	err          error
+	bounds       models.Bounds
 	meta         block.Metadata
 	seriesMeta   []block.SeriesMeta
 	seriesIters  []encoding.SeriesIterator
@@ -84,6 +85,11 @@ func (it *encodedStepIter) Current() (block.Step, error) {
 	if !it.started || currentTime.After(it.bounds.End()) {
 		it.mu.RUnlock()
 		panic("out of bounds")
+	}
+
+	if it.err != nil {
+		it.mu.RUnlock()
+		return nil, it.err
 	}
 
 	step := &encodedStep{
@@ -144,6 +150,10 @@ func (it *encodedStepIter) nextConsolidatedForStep(i int) bool {
 			it.seriesPeek[i].started = true
 			return true
 		}
+
+		if err := iter.Err(); err != nil {
+			it.err = err
+		}
 	}
 
 	// Consolidate here if there is a point expected after this one.
@@ -193,6 +203,10 @@ func (it *encodedStepIter) initialStep() {
 					},
 					started: true,
 				}
+			}
+
+			if err := iter.Err(); err != nil {
+				it.err = err
 			}
 
 			anyNext = true

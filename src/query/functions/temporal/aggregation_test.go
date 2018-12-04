@@ -257,7 +257,7 @@ func testAggregation(t *testing.T, testCases []testCase, vals [][]float64) {
 			assert.Len(t, sink.Values, 0, "nothing processed yet")
 			b, exists := bNode.cache.get(boundStart)
 			assert.True(t, exists, "block cached for future")
-			_, err = b.StepIterUnconsolidated()
+			_, err = b.StepIter()
 			assert.NoError(t, err)
 
 			original := values[0][0]

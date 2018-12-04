@@ -80,8 +80,6 @@ func (q *FetchQuery) String() string {
 type FetchOptions struct {
 	// Limit is the maximum number of series to return.
 	Limit int
-	// UseDecodedBlocks determines if decoded blocks should be used.
-	UseDecodedBlocks bool
 }
 
 // NewFetchOptions creates a new fetch options.

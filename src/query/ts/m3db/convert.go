@@ -37,23 +37,23 @@ const (
 )
 
 // blockReplica contains the replicas for a single m3db block
-type blockReplica struct {
+type seriesBlock struct {
 	start     time.Time
 	blockSize time.Duration
 	replicas  []encoding.MultiReaderIterator
 }
 
-type blockReplicas []blockReplica
+type seriesBlocks []seriesBlock
 
-func (b blockReplicas) Len() int {
+func (b seriesBlocks) Len() int {
 	return len(b)
 }
 
-func (b blockReplicas) Swap(i, j int) {
+func (b seriesBlocks) Swap(i, j int) {
 	b[i], b[j] = b[j], b[i]
 }
 
-func (b blockReplicas) Less(i, j int) bool {
+func (b seriesBlocks) Less(i, j int) bool {
 	return b[i].start.Before(b[j].start)
 }
 
@@ -61,10 +61,10 @@ func (b blockReplicas) Less(i, j int) bool {
 func ConvertM3DBSeriesIterators(
 	iterators encoding.SeriesIterators,
 	tagOptions models.TagOptions,
-	bounds *models.Bounds,
-) []block.MultipurposeBlock {
-	return []block.MultipurposeBlock{
-		MakeEncodedBlock(
+	bounds models.Bounds,
+) []block.Block {
+	return []block.Block{
+		NewEncodedBlock(
 			iterators.Iters(),
 			bounds,
 			tagOptions,
@@ -80,7 +80,7 @@ func ConvertM3DBSegmentedBlockIterators(
 	tagOptions models.TagOptions,
 	bounds *models.Bounds,
 	pools encoding.IteratorPools,
-) ([]block.MultipurposeBlock, error) {
+) ([]block.Block, error) {
 	return nil, fmt.Errorf("WIP: splitting blocks will require lookback propagation")
 	defer iterators.Close()
 	// TODO bounds here should be bounds for this block only not for everything!
@@ -105,8 +105,8 @@ func blockReplicasFromSeriesIterator(
 	iterAlloc encoding.ReaderIteratorAllocate,
 	bounds *models.Bounds,
 	pools encoding.IteratorPools,
-) ([]blockReplica, error) {
-	replicas := make(blockReplicas, 0, bounds.Steps())
+) (seriesBlocks, error) {
+	blocks := make(seriesBlocks, 0, bounds.Steps())
 	for _, replica := range seriesIterator.Replicas() {
 		perBlockSliceReaders := replica.Readers()
 		for next := true; next; next = perBlockSliceReaders.Next() {
@@ -127,16 +127,16 @@ func blockReplicasFromSeriesIterator(
 			iter := encoding.NewMultiReaderIterator(iterAlloc, nil)
 			iter.Reset(readers, start, bs)
 			inserted := false
-			for i := range replicas {
-				if replicas[i].start.Equal(start) {
+			for _, bl := range blocks {
+				if bl.start.Equal(start) {
 					inserted = true
-					replicas[i].replicas = append(replicas[i].replicas, iter)
+					bl.replicas = append(bl.replicas, iter)
 					break
 				}
 			}
 
 			if !inserted {
-				replicas = append(replicas, blockReplica{
+				blocks = append(blocks, seriesBlock{
 					start:     start,
 					blockSize: bs,
 					replicas:  []encoding.MultiReaderIterator{iter},
@@ -145,14 +145,14 @@ func blockReplicasFromSeriesIterator(
 		}
 	}
 
-	// sort block replicas by start time
-	sort.Sort(replicas)
-	return replicas, nil
+	// sort series blocks by start time
+	sort.Sort(blocks)
+	return blocks, nil
 }
 
 func seriesBlocksFromBlockReplicas(
 	blockBuilder *encodedBlockBuilder,
-	blockReplicas []blockReplica,
+	blockReplicas seriesBlocks,
 	stepSize time.Duration,
 	seriesIterator encoding.SeriesIterator,
 	pools encoding.IteratorPools,
@@ -194,14 +194,15 @@ func seriesBlocksFromBlockReplicas(
 
 		// NB(braskin): we should be careful when directly accessing the series iterators.
 		// Instead, we should access them through the SeriesBlock.
+		isLastBlock := i == replicaLength
 		blockBuilder.add(
-			&models.Bounds{
+			models.Bounds{
 				Start:    filterValuesStart,
 				Duration: block.blockSize,
 				StepSize: stepSize,
 			},
 			iter,
-			i == replicaLength,
+			isLastBlock,
 		)
 	}
 

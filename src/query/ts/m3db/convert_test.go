@@ -46,7 +46,7 @@ func generateIterators(
 	stepSize time.Duration,
 ) (
 	encoding.SeriesIterators,
-	*models.Bounds,
+	models.Bounds,
 ) {
 	datapoints := [][][]test.Datapoint{
 		{
@@ -102,7 +102,7 @@ func generateIterators(
 	iters := make([]encoding.SeriesIterator, len(datapoints))
 	var (
 		iter   encoding.SeriesIterator
-		bounds *models.Bounds
+		bounds models.Bounds
 		start  = Start
 	)
 	for i, dps := range datapoints {
@@ -121,7 +121,7 @@ func buildCustomIterator(
 	dps [][]test.Datapoint,
 ) (
 	encoding.SeriesIterator,
-	*models.Bounds,
+	models.Bounds,
 ) {
 	iter, bounds, err := test.BuildCustomIterator(
 		dps,
@@ -156,10 +156,10 @@ func verifyMetas(
 	}
 }
 
-func generateMultipurposeBlocks(
+func generateBlocks(
 	t *testing.T,
 	stepSize time.Duration,
-) ([]block.MultipurposeBlock, models.Bounds) {
+) ([]block.Block, models.Bounds) {
 	iterators, bounds := generateIterators(t, stepSize)
 	blocks := ConvertM3DBSeriesIterators(
 		iterators,
@@ -167,5 +167,5 @@ func generateMultipurposeBlocks(
 		bounds,
 	)
 
-	return blocks, *bounds
+	return blocks, bounds
 }
