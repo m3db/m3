@@ -153,13 +153,13 @@ func parseInstantaneousParams(r *http.Request) (models.RequestParams, *xhttp.Par
 	if err != nil {
 		return params, xhttp.NewParseError(err, http.StatusBadRequest)
 	}
-	params.Timeout = t
 
+	params.Timeout = t
 	instant := time.Now()
 	if t := r.FormValue(timeParam); t != "" {
 		instant, err = util.ParseTimeString(t)
 		if err != nil {
-			return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, startParam, err), http.StatusBadRequest)
+			return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, timeParam, err), http.StatusBadRequest)
 		}
 	}
 

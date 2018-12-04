@@ -53,8 +53,8 @@ type PromReadInstantHandler struct {
 func NewPromReadInstantHandler(
 	engine *executor.Engine,
 	tagOpts models.TagOptions,
-) *PromReadHandler {
-	return &PromReadHandler{
+) *PromReadInstantHandler {
+	return &PromReadInstantHandler{
 		engine:  engine,
 		tagOpts: tagOpts,
 	}
@@ -63,7 +63,6 @@ func NewPromReadInstantHandler(
 func (h *PromReadInstantHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	logger := logging.WithContext(ctx)
-
 	params, rErr := parseInstantaneousParams(r)
 	if rErr != nil {
 		xhttp.Error(w, rErr.Inner(), rErr.Code())
