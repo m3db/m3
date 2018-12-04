@@ -3,6 +3,8 @@ package lockfile
 import (
 	"os"
 	"syscall"
+
+	"github.com/pkg/errors"
 )
 
 type Lockfile struct {
@@ -15,7 +17,7 @@ type Lockfile struct {
 func Create(path string) (*Lockfile, error) {
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0666)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed opening lock path")
 	}
 
 	ft := &syscall.Flock_t{
@@ -24,7 +26,7 @@ func Create(path string) (*Lockfile, error) {
 	}
 
 	if err = syscall.FcntlFlock(file.Fd(), syscall.F_SETLK, ft); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed obtaining lock")
 	}
 
 	lf := Lockfile{*file}
@@ -40,15 +42,15 @@ func (lf Lockfile) Remove() error {
 	}
 
 	if err := syscall.FcntlFlock(lf.file.Fd(), syscall.F_SETLK, ft); err != nil {
-		return err
+		return errors.Wrap(err, "failed releasing lock")
 	}
 
 	if err := os.Remove(lf.file.Name()); err != nil {
-		return err
+		return errors.Wrap(err, "failed removing lock file")
 	}
 
 	if err := lf.file.Close(); err != nil {
-		return err
+		return errors.Wrap(err, "failed closing lock file descriptor")
 	}
 
 	return nil
