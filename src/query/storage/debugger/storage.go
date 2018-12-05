@@ -75,7 +75,6 @@ func (s *debugStorage) FetchBlocks(
 // PromResultToSeriesList converts a prom result to a series list
 func PromResultToSeriesList(promReadResp prometheus.PromResp, tagOptions models.TagOptions) ([]*ts.Series, error) {
 	results := promReadResp.Data.Result
-	// seriesList := make(map[string]*ts.Series, len(results))
 	seriesList := make([]*ts.Series, len(results))
 
 	for i, result := range results {
