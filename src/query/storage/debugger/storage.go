@@ -23,6 +23,7 @@ package debug
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -74,6 +75,10 @@ func (s *debugStorage) FetchBlocks(
 
 // PromResultToSeriesList converts a prom result to a series list
 func PromResultToSeriesList(promReadResp prometheus.PromResp, tagOptions models.TagOptions) ([]*ts.Series, error) {
+	if promReadResp.Data.ResultType != "matrix" {
+		return nil, fmt.Errorf("unsupported result type found: %s", promReadResp.Data.ResultType)
+	}
+
 	results := promReadResp.Data.Result
 	seriesList := make([]*ts.Series, len(results))
 
