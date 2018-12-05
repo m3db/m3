@@ -76,6 +76,8 @@ func (h *PromDebugHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	logger := logging.WithContext(ctx)
 
+	defer r.Body.Close()
+
 	data, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		logger.Error("unable to read data", zap.Error(err))
@@ -120,7 +122,6 @@ func (h *PromDebugHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	if err := renderDebugMismatchResultsJSON(w, mismatches); err != nil {
 		logger.Error("unable to write back mismatch data", zap.Error(err))
@@ -149,7 +150,7 @@ type mismatch struct {
 
 func validate(prom, m3 map[string]*ts.Series) ([][]mismatch, error) {
 	if len(prom) != len(m3) {
-		return [][]mismatch{}, errors.New("number of Prom series not equal to number of M3 series")
+		return nil, errors.New("number of Prom series not equal to number of M3 series")
 	}
 
 	var mismatches [][]mismatch
@@ -161,7 +162,7 @@ func validate(prom, m3 map[string]*ts.Series) ([][]mismatch, error) {
 		)
 
 		if m3Series, exists = m3[id]; !exists {
-			return [][]mismatch{}, fmt.Errorf("series with id %s does not exist in M3 results", id)
+			return nil, fmt.Errorf("series with id %s does not exist in M3 results", id)
 		}
 
 		promdps := promSeries.Values().Datapoints()

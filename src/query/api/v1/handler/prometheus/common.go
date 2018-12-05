@@ -362,15 +362,6 @@ func RenderSeriesMatchResultsJSON(
 	return jw.Close()
 }
 
-// nolint: structcheck, megacheck, unused
-type Datapoint struct {
-	Timestamp float64
-	Value     string
-}
-
-// nolint: structcheck, megacheck, unused
-type Datapoints []Datapoint
-
 // PromResp represents Prometheus's query response
 type PromResp struct {
 	Status string `json:"status"`
@@ -378,7 +369,7 @@ type PromResp struct {
 		ResultType string `json:"resultType"`
 		Result     []struct {
 			Metric map[string]string `json:"metric"`
-			// todo(braskin): use `Datapoint` instead of interface{} in values
+			// todo(braskin): use `Datapoints` instead of interface{} in values
 			Values [][]interface{} `json:"values"`
 		} `json:"result"`
 	} `json:"data"`

@@ -85,31 +85,31 @@ func PromResultToSeriesList(promReadResp prometheus.PromResp, tagOptions models.
 	for i, result := range results {
 		dps := make(ts.Datapoints, len(result.Values))
 		for i, dp := range result.Values {
+			if len(dp) != 2 {
+				continue
+			}
+
 			dps[i].Timestamp = time.Unix(0, int64(dp[0].(float64))*int64(time.Second))
 			s, err := strconv.ParseFloat(dp[1].(string), 64)
 			if err != nil {
 				return nil, err
 			}
+
 			dps[i].Value = s
 		}
 
-		tagSlice := make([]models.Tag, len(result.Metric))
-		tagsIdx := 0
+		tags := models.NewTags(len(result.Metric), tagOptions)
 		for name, val := range result.Metric {
-			tagSlice[tagsIdx] = models.Tag{
+			tags = tags.AddTag(models.Tag{
 				Name:  []byte(name),
 				Value: []byte(val),
-			}
-
-			tagsIdx++
+			})
 		}
 
-		tags := models.Tags{
-			Opts: tagOptions,
-			Tags: tagSlice,
+		name, exists := tags.Name()
+		if !exists {
+			return nil, errors.New("metric name does not exist")
 		}
-
-		name, _ := tags.Name()
 
 		seriesList[i] = ts.NewSeries(
 			string(name),
