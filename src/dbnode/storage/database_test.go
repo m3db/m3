@@ -598,6 +598,14 @@ func TestDatabaseUpdateNamespace(t *testing.T) {
 }
 
 func TestDatabaseNamespaceIndexFunctions(t *testing.T) {
+	testDatabaseNamespaceIndexFunctions(t, true)
+}
+
+func TestDatabaseNamespaceIndexFunctionsNoCommitlog(t *testing.T) {
+	testDatabaseNamespaceIndexFunctions(t, false)
+}
+
+func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -606,10 +614,22 @@ func TestDatabaseNamespaceIndexFunctions(t *testing.T) {
 		close(mapCh)
 	}()
 
+	commitlog := d.commitLog
+	if !commitlogEnabled {
+		// We don't mock the commitlog so set this to nil to ensure its
+		// not being used as the test will panic if any methods are called
+		// on it.
+		d.commitLog = nil
+	}
+
 	ns := dbAddNewMockNamespace(ctrl, d, "testns")
+	nsOptions := namespace.NewOptions().
+		SetWritesToCommitLog(commitlogEnabled)
+
 	ns.EXPECT().GetOwnedShards().Return([]databaseShard{}).AnyTimes()
 	ns.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	ns.EXPECT().BootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
+	ns.EXPECT().Options().Return(nsOptions).AnyTimes()
 	require.NoError(t, d.Open())
 
 	var (
@@ -651,6 +671,9 @@ func TestDatabaseNamespaceIndexFunctions(t *testing.T) {
 	require.Error(t, err)
 
 	ns.EXPECT().Close().Return(nil)
+
+	// Ensure commitlog is set before closing because this will call commitlog.Close()
+	d.commitLog = commitlog
 	require.NoError(t, d.Close())
 }
 
@@ -701,11 +724,19 @@ func TestDatabaseWriteTaggedBatchNoNamespace(t *testing.T) {
 }
 
 func TestDatabaseWriteBatch(t *testing.T) {
-	testDatabaseWriteBatch(t, false)
+	testDatabaseWriteBatch(t, false, true)
 }
 
 func TestDatabaseWriteTaggedBatch(t *testing.T) {
-	testDatabaseWriteBatch(t, true)
+	testDatabaseWriteBatch(t, true, true)
+}
+
+func TestDatabaseWriteBatchNoCommitlog(t *testing.T) {
+	testDatabaseWriteBatch(t, false, false)
+}
+
+func TestDatabaseWriteTaggedBatchNoCommitlog(t *testing.T) {
+	testDatabaseWriteBatch(t, true, false)
 }
 
 type fakeIndexedErrorHandler struct {
@@ -721,7 +752,7 @@ type indexedErr struct {
 	err   error
 }
 
-func testDatabaseWriteBatch(t *testing.T, tagged bool) {
+func testDatabaseWriteBatch(t *testing.T, tagged bool, commitlogEnabled bool) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -730,10 +761,22 @@ func testDatabaseWriteBatch(t *testing.T, tagged bool) {
 		close(mapCh)
 	}()
 
+	commitlog := d.commitLog
+	if !commitlogEnabled {
+		// We don't mock the commitlog so set this to nil to ensure its
+		// not being used as the test will panic if any methods are called
+		// on it.
+		d.commitLog = nil
+	}
+
 	ns := dbAddNewMockNamespace(ctrl, d, "testns")
+	nsOptions := namespace.NewOptions().
+		SetWritesToCommitLog(commitlogEnabled)
+
 	ns.EXPECT().GetOwnedShards().Return([]databaseShard{}).AnyTimes()
 	ns.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	ns.EXPECT().BootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
+	ns.EXPECT().Options().Return(nsOptions).AnyTimes()
 	ns.EXPECT().Close().Return(nil).Times(1)
 	require.NoError(t, d.Open())
 
@@ -817,6 +860,9 @@ func testDatabaseWriteBatch(t *testing.T, tagged bool) {
 	// Make sure it calls the error handler with the "original" provided index, not the position
 	// of the write in the WriteBatch slice.
 	require.Equal(t, (i-1)*2, errHandler.errs[0].index)
+
+	// Ensure commitlog is set before closing because this will call commitlog.Close()
+	d.commitLog = commitlog
 	require.NoError(t, d.Close())
 }
 
