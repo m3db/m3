@@ -52,6 +52,8 @@ const (
 
 	// PromDebugHTTPMethod is the HTTP method used with this resource.
 	PromDebugHTTPMethod = http.MethodPost
+
+	mismatchCapacity = 10
 )
 
 // PromDebugHandler represents a handler for prometheus debug endpoint.
@@ -153,7 +155,7 @@ func validate(prom, m3 map[string]*ts.Series) ([][]mismatch, error) {
 		return nil, errors.New("number of Prom series not equal to number of M3 series")
 	}
 
-	var mismatches [][]mismatch
+	mismatches := make([][]mismatch, 0, mismatchCapacity)
 
 	for id, promSeries := range prom {
 		var (
@@ -168,7 +170,7 @@ func validate(prom, m3 map[string]*ts.Series) ([][]mismatch, error) {
 		promdps := promSeries.Values().Datapoints()
 		m3dps := m3Series.Values().Datapoints()
 
-		var mismatchList []mismatch
+		mismatchList := make([]mismatch, 0, mismatchCapacity)
 
 		m3idx := 0
 		m3dp := m3dps[m3idx]

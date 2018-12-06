@@ -147,11 +147,9 @@ func TestValidateEndpoint(t *testing.T) {
 
 	var mismatches MismatchesJSON
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &mismatches))
-
 	assert.Len(t, mismatches.MismatchesList, 1)
 
 	mismatchesList := mismatches.MismatchesList[0]
-
 	assert.Len(t, mismatchesList.Mismatches, 1)
 	assert.Equal(t, "__name__=go_gc_duration_seconds,instance=localhost:9090,job=prometheus,quantile=1,", mismatchesList.Mismatches[0].Name)
 	assert.Equal(t, 0.012203, mismatchesList.Mismatches[0].M3Val)

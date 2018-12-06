@@ -86,7 +86,7 @@ func PromResultToSeriesList(promReadResp prometheus.PromResp, tagOptions models.
 		dps := make(ts.Datapoints, len(result.Values))
 		for i, dp := range result.Values {
 			if len(dp) != 2 {
-				continue
+				return nil, errors.New("misformatted datapoint found")
 			}
 
 			dps[i].Timestamp = time.Unix(0, int64(dp[0].(float64))*int64(time.Second))
