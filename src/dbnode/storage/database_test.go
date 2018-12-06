@@ -701,11 +701,19 @@ func TestDatabaseWriteTaggedBatchNoNamespace(t *testing.T) {
 }
 
 func TestDatabaseWriteBatch(t *testing.T) {
-	testDatabaseWriteBatch(t, false)
+	testDatabaseWriteBatch(t, false, true)
 }
 
 func TestDatabaseWriteTaggedBatch(t *testing.T) {
-	testDatabaseWriteBatch(t, true)
+	testDatabaseWriteBatch(t, true, true)
+}
+
+func TestDatabaseWriteBatchNoCommitlog(t *testing.T) {
+	testDatabaseWriteBatch(t, false, false)
+}
+
+func TestDatabaseWriteTaggedBatchNoCommitlog(t *testing.T) {
+	testDatabaseWriteBatch(t, true, false)
 }
 
 type fakeIndexedErrorHandler struct {
@@ -721,7 +729,7 @@ type indexedErr struct {
 	err   error
 }
 
-func testDatabaseWriteBatch(t *testing.T, tagged bool) {
+func testDatabaseWriteBatch(t *testing.T, tagged bool, commitlogEnabled bool) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -730,10 +738,23 @@ func testDatabaseWriteBatch(t *testing.T, tagged bool) {
 		close(mapCh)
 	}()
 
+	commitlog := d.commitLog
+	if !commitlogEnabled {
+		// We don't mock the commitlog so set this to nil to ensure its
+		// not being used as the test will panic if any methods are called
+		// on it.
+		d.commitLog = nil
+	}
+
 	ns := dbAddNewMockNamespace(ctrl, d, "testns")
 	ns.EXPECT().GetOwnedShards().Return([]databaseShard{}).AnyTimes()
 	ns.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	ns.EXPECT().BootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
+	if !commitlogEnabled {
+		nsOptions := namespace.NewOptions().
+			SetWritesToCommitLog(false)
+		ns.EXPECT().Options().Return(nsOptions).AnyTimes()
+	}
 	ns.EXPECT().Close().Return(nil).Times(1)
 	require.NoError(t, d.Open())
 
@@ -817,6 +838,9 @@ func testDatabaseWriteBatch(t *testing.T, tagged bool) {
 	// Make sure it calls the error handler with the "original" provided index, not the position
 	// of the write in the WriteBatch slice.
 	require.Equal(t, (i-1)*2, errHandler.errs[0].index)
+
+	// Ensure commitlog is set before closing because this will call commitlog.Close()
+	d.commitLog = commitlog
 	require.NoError(t, d.Close())
 }
 

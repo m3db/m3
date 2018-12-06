@@ -512,6 +512,10 @@ func (d *db) Write(
 		return err
 	}
 
+	if !n.Options().WritesToCommitLog() {
+		return nil
+	}
+
 	dp := ts.Datapoint{Timestamp: timestamp, Value: value}
 	return d.commitLog.Write(ctx, series, dp, unit, annotation)
 }
@@ -538,6 +542,10 @@ func (d *db) WriteTagged(
 	}
 	if err != nil {
 		return err
+	}
+
+	if !n.Options().WritesToCommitLog() {
+		return nil
 	}
 
 	dp := ts.Datapoint{Timestamp: timestamp, Value: value}
@@ -642,6 +650,10 @@ func (d *db) writeBatch(
 		// commitlog. Need to set the outcome in the error case so that the commitlog knows
 		// to skip this entry.
 		writes.SetOutcome(i, series, err)
+	}
+
+	if !n.Options().WritesToCommitLog() {
+		return nil
 	}
 
 	return d.commitLog.WriteBatch(ctx, writes)
