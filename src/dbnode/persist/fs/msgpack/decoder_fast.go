@@ -48,6 +48,11 @@ import (
 // degradation in this functions performance can have a substantial impact on M3DB.
 func DecodeLogEntryFast(b []byte) (schema.LogEntry, error) {
 	schema := schema.LogEntry{}
+
+	if len(b) < len(logEntryHeader) {
+		return schema, notEnoughBytesError(
+			"decodeLogMetadataFast", len(logEntryHeader), len(b))
+	}
 	b = b[len(logEntryHeader):]
 
 	var err error
@@ -95,6 +100,10 @@ func DecodeLogEntryFast(b []byte) (schema.LogEntry, error) {
 func DecodeLogMetadataFast(b []byte) (schema.LogMetadata, error) {
 	metadata := schema.LogMetadata{}
 
+	if len(b) < len(logMetadataHeader) {
+		return metadata, notEnoughBytesError(
+			"decodeLogMetadataFast", len(logMetadataHeader), len(b))
+	}
 	b = b[len(logMetadataHeader):]
 
 	id, b, err := decodeBytes(b)
@@ -123,11 +132,18 @@ func DecodeLogMetadataFast(b []byte) (schema.LogMetadata, error) {
 }
 
 func decodeArrayLen(b []byte) (int, []byte, error) {
+	if len(b) < 1 {
+		return 0, nil, notEnoughBytesError("decodeArrayLen", 1, len(b))
+	}
+
 	c := b[0]
 	if c == codes.Nil {
 		return -1, b[1:], nil
 	}
 
+	if len(b) < 2 {
+		return 0, nil, notEnoughBytesError("decodeArrayLen", 1, len(b))
+	}
 	if c >= codes.FixedArrayLow && c <= codes.FixedArrayHigh {
 		return int(c & codes.FixedArrayMask), b[1:], nil
 	}
@@ -137,6 +153,10 @@ func decodeArrayLen(b []byte) (int, []byte, error) {
 }
 
 func decodeInt(b []byte) (int64, []byte, error) {
+	if len(b) < 1 {
+		return 0, nil, notEnoughBytesError("decodeInt", 1, len(b))
+	}
+
 	c := b[0]
 	b = b[1:]
 
@@ -150,24 +170,52 @@ func decodeInt(b []byte) (int64, []byte, error) {
 
 	switch c {
 	case codes.Uint8:
+		if len(b) < 1 {
+			return 0, nil, notEnoughBytesError("decodeInt", 1, len(b))
+		}
+
 		return int64(b[0]), b[1:], nil
 	case codes.Int8:
+		if len(b) < 1 {
+			return 0, nil, notEnoughBytesError("decodeInt", 1, len(b))
+		}
+
 		return int64(int8(b[0])), b[1:], nil
 	case codes.Uint16:
+		if len(b) < 2 {
+			return 0, nil, notEnoughBytesError("decodeInt", 2, len(b))
+		}
+
 		return int64((uint16(b[0]) << 8) | uint16(b[1])), b[2:], nil
 	case codes.Int16:
+		if len(b) < 2 {
+			return 0, nil, notEnoughBytesError("decodeInt", 2, len(b))
+		}
+
 		return int64(int16((uint16(b[0]) << 8) | uint16(b[1]))), b[2:], nil
 	case codes.Uint32:
+		if len(b) < 4 {
+			return 0, nil, notEnoughBytesError("decodeInt", 4, len(b))
+		}
+
 		return int64((uint32(b[0]) << 24) |
 			(uint32(b[1]) << 16) |
 			(uint32(b[2]) << 8) |
 			uint32(b[3])), b[4:], nil
 	case codes.Int32:
+		if len(b) < 4 {
+			return 0, nil, notEnoughBytesError("decodeInt", 4, len(b))
+		}
+
 		return int64(int32((uint32(b[0]) << 24) |
 			(uint32(b[1]) << 16) |
 			(uint32(b[2]) << 8) |
 			uint32(b[3]))), b[4:], nil
 	case codes.Uint64, codes.Int64:
+		if len(b) < 8 {
+			return 0, nil, notEnoughBytesError("decodeInt", 8, len(b))
+		}
+
 		return int64((uint64(b[0]) << 56) |
 			(uint64(b[1]) << 48) |
 			(uint64(b[2]) << 40) |
@@ -182,6 +230,10 @@ func decodeInt(b []byte) (int64, []byte, error) {
 }
 
 func decodeUint(b []byte) (uint64, []byte, error) {
+	if len(b) < 1 {
+		return 0, nil, notEnoughBytesError("decodeUInt", 1, len(b))
+	}
+
 	c := b[0]
 	b = b[1:]
 
@@ -195,24 +247,52 @@ func decodeUint(b []byte) (uint64, []byte, error) {
 
 	switch c {
 	case codes.Uint8:
+		if len(b) < 1 {
+			return 0, nil, notEnoughBytesError("decodeUInt", 1, len(b))
+		}
+
 		return uint64(b[0]), b[1:], nil
 	case codes.Int8:
+		if len(b) < 1 {
+			return 0, nil, notEnoughBytesError("decodeUInt", 1, len(b))
+		}
+
 		return uint64(int8(b[0])), b[1:], nil
 	case codes.Uint16:
+		if len(b) < 2 {
+			return 0, nil, notEnoughBytesError("decodeUInt", 2, len(b))
+		}
+
 		return uint64((uint16(b[0]) << 8) | uint16(b[1])), b[2:], nil
 	case codes.Int16:
+		if len(b) < 2 {
+			return 0, nil, notEnoughBytesError("decodeUInt", 2, len(b))
+		}
+
 		return uint64(int16((uint16(b[0]) << 8) | uint16(b[1]))), b[2:], nil
 	case codes.Uint32:
+		if len(b) < 4 {
+			return 0, nil, notEnoughBytesError("decodeUInt", 4, len(b))
+		}
+
 		return uint64((uint32(b[0]) << 24) |
 			(uint32(b[1]) << 16) |
 			(uint32(b[2]) << 8) |
 			uint32(b[3])), b[4:], nil
 	case codes.Int32:
+		if len(b) < 4 {
+			return 0, nil, notEnoughBytesError("decodeUInt", 8, len(b))
+		}
+
 		return uint64(int32((uint32(b[0]) << 24) |
 			(uint32(b[1]) << 16) |
 			(uint32(b[2]) << 8) |
 			uint32(b[3]))), b[4:], nil
 	case codes.Uint64, codes.Int64:
+		if len(b) < 8 {
+			return 0, nil, notEnoughBytesError("decodeUInt", 8, len(b))
+		}
+
 		return uint64((uint64(b[0]) << 56) |
 			(uint64(b[1]) << 48) |
 			(uint64(b[2]) << 40) |
@@ -227,6 +307,10 @@ func decodeUint(b []byte) (uint64, []byte, error) {
 }
 
 func decodeFloat64(b []byte) (float64, []byte, error) {
+	if len(b) < 5 {
+		return 0, nil, notEnoughBytesError("decodeFloat64", 5, len(b))
+	}
+
 	c := b[0]
 	b = b[1:]
 
@@ -236,6 +320,10 @@ func decodeFloat64(b []byte) (float64, []byte, error) {
 			(uint32(b[2]) << 8) |
 			uint32(b[3])
 		return float64(math.Float32frombits(i)), b[4:], nil
+	}
+
+	if len(b) < 8 {
+		return 0, nil, notEnoughBytesError("decodeFloat64", 8, len(b))
 	}
 
 	if c == codes.Double {
@@ -254,6 +342,10 @@ func decodeFloat64(b []byte) (float64, []byte, error) {
 }
 
 func decodeBytesLen(b []byte) (int, []byte, error) {
+	if len(b) < 1 {
+		return 0, nil, notEnoughBytesError("decodeBytesLen", 1, len(b))
+	}
+
 	c := b[0]
 	b = b[1:]
 
@@ -262,12 +354,25 @@ func decodeBytesLen(b []byte) (int, []byte, error) {
 	} else if codes.IsFixedString(c) {
 		return int(c & codes.FixedStrMask), b, nil
 	}
+
 	switch c {
 	case codes.Str8, codes.Bin8:
+		if len(b) < 1 {
+			return 0, nil, notEnoughBytesError("decodeBytesLen", 1, len(b))
+		}
+
 		return int(b[0]), b[1:], nil
 	case codes.Str16, codes.Bin16:
+		if len(b) < 2 {
+			return 0, nil, notEnoughBytesError("decodeBytesLen", 2, len(b))
+		}
+
 		return int((uint16(b[0]) << 8) | uint16(b[1])), b[2:], nil
 	case codes.Str32, codes.Bin32:
+		if len(b) < 4 {
+			return 0, nil, notEnoughBytesError("decodeBytesLen", 4, len(b))
+		}
+
 		return int(int32((uint32(b[0]) << 24) |
 			(uint32(b[1]) << 16) |
 			(uint32(b[2]) << 8) |
@@ -286,5 +391,16 @@ func decodeBytes(b []byte) ([]byte, []byte, error) {
 		return nil, b, nil
 	}
 
+	// Smaller than zero check to handle corrupt data
+	if len(b) < bytesLen || bytesLen < 0 {
+		return nil, nil, notEnoughBytesError("decodeBytes", bytesLen, len(b))
+	}
+
 	return b[:bytesLen], b[bytesLen:], nil
+}
+
+func notEnoughBytesError(funcName string, expected, actual int) error {
+	return fmt.Errorf(
+		"not enough bytes for msgpack decode in %s, expected %d but had %d",
+		funcName, expected, actual)
 }
