@@ -610,6 +610,7 @@ func TestDatabaseNamespaceIndexFunctions(t *testing.T) {
 	ns.EXPECT().GetOwnedShards().Return([]databaseShard{}).AnyTimes()
 	ns.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	ns.EXPECT().BootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
+	ns.EXPECT().Options().Return(namespace.NewOptions()).AnyTimes()
 	require.NoError(t, d.Open())
 
 	var (
