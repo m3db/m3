@@ -747,14 +747,16 @@ func testDatabaseWriteBatch(t *testing.T, tagged bool, commitlogEnabled bool) {
 	}
 
 	ns := dbAddNewMockNamespace(ctrl, d, "testns")
+	nsOptions := namespace.NewOptions()
+	if !commitlogEnabled {
+		nsOptions = nsOptions.
+			SetWritesToCommitLog(false)
+	}
+
 	ns.EXPECT().GetOwnedShards().Return([]databaseShard{}).AnyTimes()
 	ns.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	ns.EXPECT().BootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
-	if !commitlogEnabled {
-		nsOptions := namespace.NewOptions().
-			SetWritesToCommitLog(false)
-		ns.EXPECT().Options().Return(nsOptions).AnyTimes()
-	}
+	ns.EXPECT().Options().Return(nsOptions).AnyTimes()
 	ns.EXPECT().Close().Return(nil).Times(1)
 	require.NoError(t, d.Open())
 
