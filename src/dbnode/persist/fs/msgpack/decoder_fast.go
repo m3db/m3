@@ -60,6 +60,7 @@ func DecodeLogEntryFast(b []byte) (schema.LogEntry, error) {
 	if err != nil {
 		return schema, err
 	}
+
 	schema.Metadata, b, err = decodeBytes(b)
 	if err != nil {
 		return schema, err
@@ -149,7 +150,6 @@ func decodeInt(b []byte) (int64, []byte, error) {
 
 	switch c {
 	case codes.Uint8:
-		// Zero?
 		return int64(b[0]), b[1:], nil
 	case codes.Int8:
 		return int64(int8(b[0])), b[1:], nil
@@ -283,7 +283,7 @@ func decodeBytes(b []byte) ([]byte, []byte, error) {
 	}
 
 	if bytesLen == -1 {
-		return nil, nil, nil
+		return nil, b, nil
 	}
 
 	return b[:bytesLen], b[bytesLen:], nil
