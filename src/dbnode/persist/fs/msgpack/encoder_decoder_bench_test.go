@@ -117,3 +117,39 @@ func BenchmarkLogMetadataEncoderFast(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkLogMetadataDecoder(b *testing.B) {
+	var (
+		enc    = NewEncoder()
+		dec    = NewDecoder(nil)
+		stream = NewDecoderStream(nil)
+		err    error
+	)
+
+	require.NoError(b, enc.EncodeLogMetadata(testLogMetadata))
+	buf := enc.Bytes()
+	for n := 0; n < b.N; n++ {
+		stream.Reset(buf)
+		dec.Reset(stream)
+		_, err = dec.DecodeLogMetadata()
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+func BenchmarkLogMetadataDecoderFast(b *testing.B) {
+	var (
+		enc = NewEncoder()
+		err error
+	)
+
+	require.NoError(b, enc.EncodeLogMetadata(testLogMetadata))
+	buf := enc.Bytes()
+	for n := 0; n < b.N; n++ {
+		_, err = DecodeLogMetadataFast(buf)
+		if err != nil {
+			panic(err)
+		}
+	}
+}
