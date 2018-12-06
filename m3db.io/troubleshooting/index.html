@@ -281,6 +281,18 @@
   </li>
 
         
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../introduction/media/media/" title="Media" class="md-nav__link">
+      Media
+    </a>
+  </li>
+
+        
       </ul>
     </nav>
   </li>
@@ -635,8 +647,32 @@
 
 
   <li class="md-nav__item">
-    <a href="../operational_guide/placement/" title="Placement / Topology" class="md-nav__link">
-      Placement / Topology
+    <a href="../operational_guide/placement/" title="Placement/Topology" class="md-nav__link">
+      Placement/Topology
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../operational_guide/placement_configuration/" title="Placement/Topology Configuration" class="md-nav__link">
+      Placement/Topology Configuration
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../operational_guide/namespace_configuration/" title="Namespace Configuration" class="md-nav__link">
+      Namespace Configuration
     </a>
   </li>
 
@@ -649,6 +685,18 @@
   <li class="md-nav__item">
     <a href="../operational_guide/bootstrapping/" title="Bootstrapping" class="md-nav__link">
       Bootstrapping
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../operational_guide/kernel_configuration/" title="Kernel Configuration" class="md-nav__link">
+      Kernel Configuration
     </a>
   </li>
 
@@ -708,9 +756,52 @@
       
     
     
+      <label class="md-nav__link md-nav__link--active" for="toc">
+        Troubleshooting
+      </label>
+    
     <a href="./" title="Troubleshooting" class="md-nav__link md-nav__link--active">
       Troubleshooting
     </a>
+    
+      
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#ports-9001-9004-arent-open-after-starting-m3db" title="Ports 9001-9004 aren't open after starting m3db." class="md-nav__link">
+    Ports 9001-9004 aren't open after starting m3db.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bootstrapping-is-slow" title="Bootstrapping is slow" class="md-nav__link">
+    Bootstrapping is slow
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#nodes-a-crashing-with-memory-allocation-errors-but-theres-plenty-of-available-memory" title="Nodes a crashing with memory allocation errors, but there's plenty of available memory" class="md-nav__link">
+    Nodes a crashing with memory allocation errors, but there's plenty of available memory
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
     
   </li>
 
@@ -744,6 +835,36 @@
     
   
   
+    <label class="md-nav__title" for="toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#ports-9001-9004-arent-open-after-starting-m3db" title="Ports 9001-9004 aren't open after starting m3db." class="md-nav__link">
+    Ports 9001-9004 aren't open after starting m3db.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bootstrapping-is-slow" title="Bootstrapping is slow" class="md-nav__link">
+    Bootstrapping is slow
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#nodes-a-crashing-with-memory-allocation-errors-but-theres-plenty-of-available-memory" title="Nodes a crashing with memory allocation errors, but there's plenty of available memory" class="md-nav__link">
+    Nodes a crashing with memory allocation errors, but there's plenty of available memory
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -758,6 +879,15 @@
                 
                 
                 <h1 id="troubleshooting">Troubleshooting</h1>
+<p>Some common problems and resolutions</p>
+<h2 id="ports-9001-9004-arent-open-after-starting-m3db">Ports 9001-9004 aren't open after starting m3db.</h2>
+<p>These ports will not open until a namespace and placement have been created and the nodes have bootstrapped.</p>
+<h2 id="bootstrapping-is-slow">Bootstrapping is slow</h2>
+<p>Double check your configuration against the <a href="../operational_guide/bootstrapping/">bootstrapping guide</a>. The nodes will log what bootstrapper they are using and what time range they are using it for.</p>
+<p>If you're using the commitlog bootstrapper, and it seems to be slow, ensure that snapshotting is enabled for your namespace. Enabling snapshotting will require a node restart to take effect.</p>
+<p>If an m3db node hasn't been able to snapshot for awhile, or is stuck in the commitlog bootstrapping phase for a long time due to accumulating a large number of commitlogs, consider using the peers bootstrapper. In situations where a large number of commitlogs need to be read, the peers bootstrapper will outperform the commitlog bootstrapper (faster and less memory usage) due to the fact that it will receive already-compressed data from its peers. Keep in mind that this will only work with a replication factor of 3 or larger and if the nodes peers are healthy and bootstrapped. Review the <a href="../operational_guide/bootstrapping/">bootstrapping guide</a> for more information.</p>
+<h2 id="nodes-a-crashing-with-memory-allocation-errors-but-theres-plenty-of-available-memory">Nodes a crashing with memory allocation errors, but there's plenty of available memory</h2>
+<p>Ensure you've set <code>vm.max_map_count</code> to something like 262,144 using sysctl. Find out more in the <a href="../how_to/cluster_hard_way/#kernel">Clustering the Hard Way</a> document.</p>
                 
                   
                 

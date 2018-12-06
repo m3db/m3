@@ -36,7 +36,7 @@
     
     
       
-        <title>Roadmap - M3 Documentation</title>
+        <title>Placement/Topology Configuration - M3 Documentation</title>
       
     
     
@@ -89,7 +89,7 @@
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="search" autocomplete="off">
     <label class="md-overlay" data-md-component="overlay" for="drawer"></label>
     
-      <a href="#roadmap" tabindex="1" class="md-skip">
+      <a href="#placement-configuration" tabindex="1" class="md-skip">
         Skip to content
       </a>
     
@@ -115,7 +115,7 @@
                 M3 Documentation
               </span>
               <span class="md-header-nav__topic">
-                Roadmap
+                Placement/Topology Configuration
               </span>
             
           
@@ -458,12 +458,10 @@
       
       
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+  <li class="md-nav__item md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4" checked>
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-4" type="checkbox" id="nav-4">
     
     <label class="md-nav__link" for="nav-4">
       Query Engine and Coordinator
@@ -481,7 +479,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../" title="Introduction" class="md-nav__link">
+    <a href="../../query_engine/" title="Introduction" class="md-nav__link">
       Introduction
     </a>
   </li>
@@ -491,83 +489,11 @@
           
           
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active">
-    
-    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="toc">
-    
-      
-    
-    
-      <label class="md-nav__link md-nav__link--active" for="toc">
-        Roadmap
-      </label>
-    
-    <a href="./" title="Roadmap" class="md-nav__link md-nav__link--active">
+  <li class="md-nav__item">
+    <a href="../../query_engine/roadmap/" title="Roadmap" class="md-nav__link">
       Roadmap
     </a>
-    
-      
-<nav class="md-nav md-nav--secondary">
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="toc">Table of contents</label>
-    <ul class="md-nav__list" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#launch-m3-coordinator-as-a-bridge-for-the-readwrite-path-of-m3db-into-open-source-q1-2018" title="Launch M3 Coordinator as a bridge for the Read/Write path of M3DB into open source (Q1 2018)" class="md-nav__link">
-    Launch M3 Coordinator as a bridge for the Read/Write path of M3DB into open source (Q1 2018)
-  </a>
-  
-    <nav class="md-nav">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#v1-late-q4-2017-early-q1-2018" title="V1 (late Q4 2017 - early Q1 2018)" class="md-nav__link">
-    V1 (late Q4 2017 - early Q1 2018)
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#v2-late-q1-2018" title="V2 (late Q1 2018)" class="md-nav__link">
-    V2 (late Q1 2018)
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#m3-query-and-optimizations-for-m3-coordinator-q2-2018" title="M3 Query and optimizations for M3 Coordinator (Q2 2018)" class="md-nav__link">
-    M3 Query and optimizations for M3 Coordinator (Q2 2018)
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#dashboards-can-directly-interact-with-m3-query-or-m3-coordinator-to-get-data-from-m3db-q3-q4-2018" title="Dashboards can directly interact with M3 Query or M3 Coordinator to get data from M3DB (Q3-Q4 2018)" class="md-nav__link">
-    Dashboards can directly interact with M3 Query or M3 Coordinator to get data from M3DB (Q3-Q4 2018)
-  </a>
-  
-</li>
-      
-      
-      
-      
-      
-    </ul>
-  
-</nav>
-    
   </li>
 
         
@@ -596,7 +522,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../architecture/" title="Overview" class="md-nav__link">
+    <a href="../../query_engine/architecture/" title="Overview" class="md-nav__link">
       Overview
     </a>
   </li>
@@ -608,7 +534,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../architecture/blocks/" title="Blocks" class="md-nav__link">
+    <a href="../../query_engine/architecture/blocks/" title="Blocks" class="md-nav__link">
       Blocks
     </a>
   </li>
@@ -620,7 +546,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../architecture/functions/" title="Function Processing" class="md-nav__link">
+    <a href="../../query_engine/architecture/functions/" title="Function Processing" class="md-nav__link">
       Function Processing
     </a>
   </li>
@@ -700,10 +626,12 @@
       
       
 
+  
 
-  <li class="md-nav__item md-nav__item--nested">
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-6" type="checkbox" id="nav-6">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-6" type="checkbox" id="nav-6" checked>
     
     <label class="md-nav__link" for="nav-6">
       Operational Guides
@@ -721,7 +649,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../operational_guide/placement/" title="Placement/Topology" class="md-nav__link">
+    <a href="../placement/" title="Placement/Topology" class="md-nav__link">
       Placement/Topology
     </a>
   </li>
@@ -731,11 +659,158 @@
           
           
 
+  
 
-  <li class="md-nav__item">
-    <a href="../../operational_guide/placement_configuration/" title="Placement/Topology Configuration" class="md-nav__link">
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="toc">
+    
+      
+    
+    
+      <label class="md-nav__link md-nav__link--active" for="toc">
+        Placement/Topology Configuration
+      </label>
+    
+    <a href="./" title="Placement/Topology Configuration" class="md-nav__link md-nav__link--active">
       Placement/Topology Configuration
     </a>
+    
+      
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" title="Overview" class="md-nav__link">
+    Overview
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#understanding-the-placement-configuration" title="Understanding the Placement Configuration" class="md-nav__link">
+    Understanding the Placement Configuration
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#id" title="ID" class="md-nav__link">
+    ID
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#isolation-group" title="Isolation Group" class="md-nav__link">
+    Isolation Group
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#zone" title="Zone" class="md-nav__link">
+    Zone
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#weight" title="Weight" class="md-nav__link">
+    Weight
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#endpoint" title="Endpoint" class="md-nav__link">
+    Endpoint
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hostname" title="Hostname" class="md-nav__link">
+    Hostname
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#port" title="Port" class="md-nav__link">
+    Port
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#placement-operations" title="Placement Operations" class="md-nav__link">
+    Placement Operations
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#placement-initialization" title="Placement Initialization" class="md-nav__link">
+    Placement Initialization
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#adding-a-node" title="Adding a Node" class="md-nav__link">
+    Adding a Node
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#removing-a-node" title="Removing a Node" class="md-nav__link">
+    Removing a Node
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#replacing-a-node" title="Replacing a Node" class="md-nav__link">
+    Replacing a Node
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+    
   </li>
 
         
@@ -745,7 +820,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../operational_guide/namespace_configuration/" title="Namespace Configuration" class="md-nav__link">
+    <a href="../namespace_configuration/" title="Namespace Configuration" class="md-nav__link">
       Namespace Configuration
     </a>
   </li>
@@ -757,7 +832,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../operational_guide/bootstrapping/" title="Bootstrapping" class="md-nav__link">
+    <a href="../bootstrapping/" title="Bootstrapping" class="md-nav__link">
       Bootstrapping
     </a>
   </li>
@@ -769,7 +844,7 @@
 
 
   <li class="md-nav__item">
-    <a href="../../operational_guide/kernel_configuration/" title="Kernel Configuration" class="md-nav__link">
+    <a href="../kernel_configuration/" title="Kernel Configuration" class="md-nav__link">
       Kernel Configuration
     </a>
   </li>
@@ -861,23 +936,66 @@
     <ul class="md-nav__list" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#launch-m3-coordinator-as-a-bridge-for-the-readwrite-path-of-m3db-into-open-source-q1-2018" title="Launch M3 Coordinator as a bridge for the Read/Write path of M3DB into open source (Q1 2018)" class="md-nav__link">
-    Launch M3 Coordinator as a bridge for the Read/Write path of M3DB into open source (Q1 2018)
+  <a href="#overview" title="Overview" class="md-nav__link">
+    Overview
   </a>
   
     <nav class="md-nav">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#v1-late-q4-2017-early-q1-2018" title="V1 (late Q4 2017 - early Q1 2018)" class="md-nav__link">
-    V1 (late Q4 2017 - early Q1 2018)
+  <a href="#understanding-the-placement-configuration" title="Understanding the Placement Configuration" class="md-nav__link">
+    Understanding the Placement Configuration
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#id" title="ID" class="md-nav__link">
+    ID
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#v2-late-q1-2018" title="V2 (late Q1 2018)" class="md-nav__link">
-    V2 (late Q1 2018)
+  <a href="#isolation-group" title="Isolation Group" class="md-nav__link">
+    Isolation Group
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#zone" title="Zone" class="md-nav__link">
+    Zone
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#weight" title="Weight" class="md-nav__link">
+    Weight
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#endpoint" title="Endpoint" class="md-nav__link">
+    Endpoint
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hostname" title="Hostname" class="md-nav__link">
+    Hostname
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#port" title="Port" class="md-nav__link">
+    Port
   </a>
   
 </li>
@@ -886,18 +1004,50 @@
     </nav>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#m3-query-and-optimizations-for-m3-coordinator-q2-2018" title="M3 Query and optimizations for M3 Coordinator (Q2 2018)" class="md-nav__link">
-    M3 Query and optimizations for M3 Coordinator (Q2 2018)
+        
+          <li class="md-nav__item">
+  <a href="#placement-operations" title="Placement Operations" class="md-nav__link">
+    Placement Operations
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#placement-initialization" title="Placement Initialization" class="md-nav__link">
+    Placement Initialization
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#dashboards-can-directly-interact-with-m3-query-or-m3-coordinator-to-get-data-from-m3db-q3-q4-2018" title="Dashboards can directly interact with M3 Query or M3 Coordinator to get data from M3DB (Q3-Q4 2018)" class="md-nav__link">
-    Dashboards can directly interact with M3 Query or M3 Coordinator to get data from M3DB (Q3-Q4 2018)
+        
+          <li class="md-nav__item">
+  <a href="#adding-a-node" title="Adding a Node" class="md-nav__link">
+    Adding a Node
   </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#removing-a-node" title="Removing a Node" class="md-nav__link">
+    Removing a Node
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#replacing-a-node" title="Replacing a Node" class="md-nav__link">
+    Replacing a Node
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -917,40 +1067,122 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/m3db/m3/edit/master/docs/query_engine/roadmap.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                  <a href="https://github.com/m3db/m3/edit/master/docs/operational_guide/placement_configuration.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
                 
                 
-                <h1 id="roadmap">Roadmap</h1>
-<h2 id="launch-m3-coordinator-as-a-bridge-for-the-readwrite-path-of-m3db-into-open-source-q1-2018">Launch M3 Coordinator as a bridge for the Read/Write path of M3DB into open source (Q1 2018)</h2>
-<h3 id="v1-late-q4-2017-early-q1-2018">V1 (late Q4 2017 - early Q1 2018)</h3>
+                <h1 id="placement-configuration">Placement Configuration</h1>
+<h2 id="overview">Overview</h2>
+<p>M3DB was designed from the ground up to be a distributed (clustered) database that is availability zone or rack aware (by using isolation groups). Clusters will seamlessly scale with your data, and you can start with a small number of nodes and grow it to a size of several hundred nodes with no downtime or expensive migrations.</p>
+<p>Before reading the rest of this document, we recommend familiarizing yourself with the <a href="../placement/">M3DB placement documentation</a></p>
+<p><strong>Note</strong>: The primary limiting factor for the maximum size of an M3DB cluster is the number of shards. Picking an appropriate number of shards is more of an art than a science, but our recommendation is as follows:</p>
 <ul>
-<li>Create a gRPC/Protobuf service.</li>
-<li>Handlers for Prometheus remote read/write endpoints.</li>
-<li>Perform fanout to M3DB nodes.</li>
-<li>Tooling to set up M3 Coordinator alongside Prometheus.</li>
+<li>Resource Constrained / Development clusters: <code>64 shards</code></li>
+<li>Production clusters: <code>1024 shards</code></li>
+<li>Production clusters with high-resource nodes (Over 128GiB of ram, etc) and an expected cluster size of several hundred nodes: <code>4096 shards</code></li>
 </ul>
-<h3 id="v2-late-q1-2018">V2 (late Q1 2018)</h3>
-<ul>
-<li>Support cross datacenter calls with remote aggregations.</li>
-<li>Benchmark the performance of the coordinator and M3DB using popular datasets.</li>
-<li>Support for multiple M3DB clusters.</li>
-</ul>
-<h2 id="m3-query-and-optimizations-for-m3-coordinator-q2-2018">M3 Query and optimizations for M3 Coordinator (Q2 2018)</h2>
-<ul>
-<li>Dedicated query engine service, M3 Query.</li>
-<li>Support authentication and rate limiting.</li>
-<li>Cost accounting per query and memory management to prevent M3 Query and M3 Coordinator from going OOM.</li>
-<li>Push computation to storage nodes whenever possible.</li>
-<li>Execution state manager to keep track of running queries.</li>
-<li>Port the distributed computation to M3 Query service.</li>
-</ul>
-<h2 id="dashboards-can-directly-interact-with-m3-query-or-m3-coordinator-to-get-data-from-m3db-q3-q4-2018">Dashboards can directly interact with M3 Query or M3 Coordinator to get data from M3DB (Q3-Q4 2018)</h2>
-<ul>
-<li>Write a PromQL parser.</li>
-<li>Write the current M3QL interfaces to conform to the common DAG structure.</li>
-<li>Suggest auto aggregation rules.</li>
-<li>Provide advanced query tracking to figure out bottlenecks.</li>
-</ul>
+<p>After performing any of the instructions documented below a new placement will automatically be generated to distribute the shards among the M3DB nodes such that the isolation group and replication factor constraints are met.</p>
+<p>If the constraints cannot be met, because there are not enough nodes to calculate a new placement such that each shard is replicated on the desired number of nodes with none of the nodes owning the same shard existing in the same isolation group, then the operation will fail.</p>
+<p>In other words, all you have to do is issue the desired instruction and the M3 stack will take care of making sure that your data is distributed with appropriate replication and isolation.</p>
+<p>In the case of the M3DB nodes, nodes that have received new shards will immediately begin receiving writes (but not serving reads) for the new shards that they are responsible for. They will also begin streaming in all the data for their newly acquired shards from the peers that already have data for those shards. Once the nodes have finished streaming in the data for the shards that they have acquired, they will mark their status for those shards as <code>Available</code> in the placement and begin accepting writes. Simultaneously, the nodes that are losing ownership of any shards will mark their status for those shards as <code>Leaving</code>. Once all the nodes accepting ownership of the new shards have finished streaming data from them, they will relinquish ownership of those shards and remove all the data associated with the shards they lost from memory and from disk.</p>
+<p>M3Coordinator nodes will also pickup the new placement from etcd and alter which M3DB nodes they issue writes and reads to appropriately.</p>
+<h3 id="understanding-the-placement-configuration">Understanding the Placement Configuration</h3>
+<p>The placement configuration contains a few core values that control how the placement behaves.</p>
+<h4 id="id">ID</h4>
+<p>This is the identifier for a node in the placement and can be any value that uniquely identifies an M3DB node.</p>
+<h4 id="isolation-group">Isolation Group</h4>
+<p>This value controls how nodes that own the same M3DB shards are isolated from each other. For example, in a single datacenter configuration this value could be set to the rack that the M3DB node lives on. As a result, the placement will guarantee that nodes that exist on the same rack do not share any shards, allowing the cluster to survive the failure of an entire rack. Alternatively, if M3DB was deployed in an AWS region, the isolation group could be set to the region's availability zone and that would ensure that the cluster would survive the loss of an entire availability zone.</p>
+<h4 id="zone">Zone</h4>
+<p>This value controls what etcd zone the M3DB node belongs to.</p>
+<h4 id="weight">Weight</h4>
+<p>This value should be an integer and controls how the cluster will weigh the number of shards that an individual node will own. If you're running the M3DB cluster on homogenous hardware, then you probably want to assign all M3DB nodes the same weight so that shards are distributed evenly. On the otherhand, if you're running the cluster on heterogenous hardware, then this value should be higher for nodes with higher resources for whatever the limiting factor is in your cluster setup. For example, if disk space (as opposed to memory or CPU) is the limiting factor in how many shards any given node in your cluster can tolerate, then you could assign a higher value to nodes in your cluster that have larger disks and the placement calculations would assign them a higher number of shards.</p>
+<h4 id="endpoint">Endpoint</h4>
+<p>This value should be in the form of <M3DB_HOST_NAME>:<M3DB_NODE_LISTEN_PORT> and identifies how network requests should be routed to this particular node in the placement.</p>
+<h4 id="hostname">Hostname</h4>
+<p>This value should be in the form of <M3DB_HOST_NAME> and identifies the address / host name of the M3DB node.</p>
+<h4 id="port">Port</h4>
+<p>This value should be in the form of <M3DB_NODE_LISTEN_PORT> and identifies the port over which this M3DB node expects to receive traffic (defaults to 9000).</p>
+<h3 id="placement-operations">Placement Operations</h3>
+<p>The instructions below all contain sample curl commands, but you can always review the API documentation by navigating to</p>
+<p><code>http://&lt;M3_COORDINATOR_HOST_NAME&gt;:&lt;CONFIGURED_PORT(default 7201)&gt;/api/v1/openapi</code> or our <a href="https://m3db.io/openapi/">online API documentation</a>.</p>
+<p><strong>Note</strong>: The <a href="../bootstrapping/">peers bootstrapper</a> must be configured on all nodes in the M3DB cluster for placement changes to work. The <code>peers</code> bootstrapper is enabled by default, so you only need to worry about this if you modified the default bootstrapping configuration</p>
+<h4 id="placement-initialization">Placement Initialization</h4>
+<p>Send a POST request to the <code>/api/v1/services/m3db/placement/init</code> endpoint</p>
+<pre><code class="bash">curl -X POST localhost:7201/api/v1/services/m3db/placement/init -d '{
+    &quot;num_shards&quot;: &lt;DESIRED_NUMBER_OF_SHARDS&gt;,
+    &quot;replication_factor&quot;: &lt;DESIRED_REPLICATION_FACTOR&gt;(recommended 3),
+    &quot;instances&quot;: [
+        {
+            &quot;id&quot;: &quot;&lt;NODE_1_ID&gt;&quot;,
+            &quot;isolation_group&quot;: &quot;&lt;NODE_1_ISOLATION_GROUP&gt;&quot;,
+            &quot;zone&quot;: &quot;&lt;ETCD_ZONE&gt;&quot;,
+            &quot;weight&quot;: &lt;NODE_WEIGHT&gt;,
+            &quot;endpoint&quot;: &quot;&lt;NODE_1_HOST_NAME&gt;:&lt;NODE_1_PORT&gt;&quot;,
+            &quot;hostname&quot;: &quot;&lt;NODE_1_HOST_NAME&gt;&quot;,
+            &quot;port&quot;: &lt;NODE_1_PORT&gt;
+        },
+        {
+            &quot;id&quot;: &quot;&lt;NODE_2_ID&gt;&quot;,
+            &quot;isolation_group&quot;: &quot;&lt;NODE_2_ISOLATION_GROUP&gt;&quot;,
+            &quot;zone&quot;: &quot;&lt;ETCD_ZONE&gt;&quot;,
+            &quot;weight&quot;: &lt;NODE_WEIGHT&gt;,
+            &quot;endpoint&quot;: &quot;&lt;NODE_2_HOST_NAME&gt;:&lt;NODE_2_PORT&gt;&quot;,
+            &quot;hostname&quot;: &quot;&lt;NODE_2_HOST_NAME&gt;&quot;,
+            &quot;port&quot;: &lt;NODE_2_PORT&gt;
+        },
+        {
+            &quot;id&quot;: &quot;&lt;NODE_3_ID&gt;&quot;,
+            &quot;isolation_group&quot;: &quot;&lt;NODE_3_ISOLATION_GROUP&gt;&quot;,
+            &quot;zone&quot;: &quot;&lt;ETCD_ZONE&gt;&quot;,
+            &quot;weight&quot;: &lt;NODE_WEIGHT&gt;,
+            &quot;endpoint&quot;: &quot;&lt;NODE_3_HOST_NAME&gt;:&lt;NODE_3_PORT&gt;&quot;,
+            &quot;hostname&quot;: &quot;&lt;NODE_3_HOST_NAME&gt;&quot;,
+            &quot;port&quot;: &lt;NODE_3_PORT&gt;
+        },
+    ]
+}'
+</code></pre>
+
+<h4 id="adding-a-node">Adding a Node</h4>
+<p>Send a POST request to the <code>/api/v1/services/m3db/placement</code> endpoint</p>
+<pre><code class="bash">curl -X POST &lt;M3_COORDINATOR_HOST_NAME&gt;:&lt;M3_COORDINATOR_PORT(default 7201)&gt;/api/v1/services/m3db/placement -d '{
+  &quot;instances&quot;: [
+    {
+      &quot;id&quot;: &quot;&lt;NEW_NODE_ID&gt;&quot;,
+      &quot;isolationGroup&quot;: &quot;&lt;NEW_NODE_ISOLATION_GROUP&gt;&quot;,
+      &quot;zone&quot;: &quot;&lt;ETCD_ZONE&gt;&quot;,
+      &quot;weight&quot;: &lt;NODE_WEIGHT&gt;,
+      &quot;endpoint&quot;: &quot;&lt;NEW_NODE_HOST_NAME&gt;:&lt;NEW_NODE_PORT&gt;(default 9000)&quot;,
+      &quot;hostname&quot;: &quot;&lt;NEW_NODE_HOST_NAME&gt;&quot;,
+      &quot;port&quot;: &lt;NEW_NODE_PORT&gt;
+    }
+  ]
+}'
+</code></pre>
+
+<p>After sending the add command you will need to wait for the M3DB cluster to reach the new desired state. You'll know that this has been achieved when the placement shows that all shards for all hosts are in the <code>Available</code> state.</p>
+<h4 id="removing-a-node">Removing a Node</h4>
+<p>Send a DELETE request to the <code>/api/v1/services/m3db/placement/&lt;NODE_ID&gt;</code> endpoint.</p>
+<pre><code class="bash">curl -X DELETE &lt;M3_COORDINATOR_HOST_NAME&gt;:&lt;M3_COORDINATOR_PORT(default 7201)&gt;/api/v1/services/m3db/placement/&lt;NODE_ID&gt;
+</code></pre>
+
+<p>After sending the delete command you will need to wait for the M3DB cluster to reach the new desired state. You'll know that this has been achieved when the placement shows that all shards for all hosts are in the <code>Available</code> state.</p>
+<h4 id="replacing-a-node">Replacing a Node</h4>
+<p>Send a POST request to the <code>/api/v1/services/m3db/placement/replace</code> endpoint containing hosts to replace and candidates to replace it with.</p>
+<pre><code class="bash">curl -X POST &lt;M3_COORDINATOR_HOST_NAME&gt;:&lt;M3_COORDINATOR_PORT(default 7201)&gt;/api/v1/services/m3db/placement/replace -d '{
+    &quot;leavingInstanceIDs&quot;: [&quot;&lt;OLD_NODE_ID&gt;&quot;],
+    &quot;candidates&quot;: [
+        {
+          &quot;id&quot;: &quot;&lt;NEW_NODE_ID&gt;&quot;,
+          &quot;isolationGroup&quot;: &quot;&lt;NEW_NODE_ISOLATION_GROUP&gt;&quot;,
+          &quot;zone&quot;: &quot;&lt;ETCD_ZONE&gt;&quot;,
+          &quot;weight&quot;: &lt;NODE_WEIGHT&gt;,
+          &quot;endpoint&quot;: &quot;&lt;NEW_NODE_HOST_NAME&gt;:&lt;NEW_NODE_PORT&gt;(default 9000)&quot;,
+          &quot;hostname&quot;: &quot;&lt;NEW_NODE_HOST_NAME&gt;&quot;,
+          &quot;port&quot;: &lt;NEW_NODE_PORT&gt;
+        }
+    ]
+}'
+</code></pre>
                 
                   
                 
@@ -971,7 +1203,7 @@
     <div class="md-footer-nav">
       <nav class="md-footer-nav__inner md-grid">
         
-          <a href="../" title="Introduction" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+          <a href="../placement/" title="Placement/Topology" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
             <div class="md-flex__cell md-flex__cell--shrink">
               <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
             </div>
@@ -980,19 +1212,19 @@
                 <span class="md-footer-nav__direction">
                   Previous
                 </span>
-                Introduction
+                Placement/Topology
               </span>
             </div>
           </a>
         
         
-          <a href="../architecture/" title="Overview" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+          <a href="../namespace_configuration/" title="Namespace Configuration" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
             <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
               <span class="md-flex__ellipsis">
                 <span class="md-footer-nav__direction">
                   Next
                 </span>
-                Overview
+                Namespace Configuration
               </span>
             </div>
             <div class="md-flex__cell md-flex__cell--shrink">

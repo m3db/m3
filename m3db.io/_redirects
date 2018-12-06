@@ -1,3 +1,0 @@
-https://m3metrics.io/*      https://m3db.io/:splat 301!
-https://m3db.netlify.com/*  https://m3db.io/:splat 301!
-/talks                      https://m3db.github.io/m3/introduction/media/media/ 301!

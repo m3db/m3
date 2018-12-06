@@ -281,6 +281,18 @@
   </li>
 
         
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../introduction/media/media/" title="Media" class="md-nav__link">
+      Media
+    </a>
+  </li>
+
+        
       </ul>
     </nav>
   </li>
@@ -664,13 +676,6 @@
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#os" title="OS" class="md-nav__link">
-    OS
-  </a>
-  
-</li>
-        
       </ul>
     </nav>
   
@@ -771,8 +776,32 @@
 
 
   <li class="md-nav__item">
-    <a href="../../operational_guide/placement/" title="Placement / Topology" class="md-nav__link">
-      Placement / Topology
+    <a href="../../operational_guide/placement/" title="Placement/Topology" class="md-nav__link">
+      Placement/Topology
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../operational_guide/placement_configuration/" title="Placement/Topology Configuration" class="md-nav__link">
+      Placement/Topology Configuration
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../operational_guide/namespace_configuration/" title="Namespace Configuration" class="md-nav__link">
+      Namespace Configuration
     </a>
   </li>
 
@@ -785,6 +814,18 @@
   <li class="md-nav__item">
     <a href="../../operational_guide/bootstrapping/" title="Bootstrapping" class="md-nav__link">
       Bootstrapping
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../operational_guide/kernel_configuration/" title="Kernel Configuration" class="md-nav__link">
+      Kernel Configuration
     </a>
   </li>
 
@@ -923,13 +964,6 @@
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#os" title="OS" class="md-nav__link">
-    OS
-  </a>
-  
-</li>
-        
       </ul>
     </nav>
   
@@ -1036,16 +1070,7 @@
 </code></pre>
 
 <h3 id="kernel">Kernel</h3>
-<p><code>m3dbnode</code> uses a lot of mmap-ed files for performance, as a result, you might need to bump <code>vm.max_map_count</code>. We suggest setting this value to 262,144 when provisioning your VM, so you don’t have to come back and debug issues later.</p>
-<h3 id="os">OS</h3>
-<p><code>m3dbnode</code> also can use a high number of files and we suggest setting a high max open number of files due to per partition fileset volumes.</p>
-<p>On linux you can set a high limit for number of max open files in <code>/etc/security/limits.conf</code>:</p>
-<pre><code>your_m3db_user        hard nofile 500000
-your_m3db_user        soft nofile 500000
-</code></pre>
-
-<p>Alternatively, if you wish to have <code>m3dbnode</code> run under <code>systemd</code> you can use our <a href="https://github.com/m3db/m3/tree/master/integrations/systemd/m3dbnode.service">service example</a> which will set sane defaults.</p>
-<p>Before running the process make sure the limits are set, if running manually you can raise the limit for the current user with <code>ulimit -n 500000</code>.</p>
+<p>Ensure you review our <a href="../../operational_guide/kernel_configuration/">recommended kernel configuration</a> before running M3DB in production as M3DB may exceed the default limits for some default kernel values.</p>
 <h2 id="config-files">Config files</h2>
 <p>We wouldn’t feel right to call this guide, “The Hard Way” and not require you to change some configs by hand.</p>
 <p>Note: the steps that follow assume you have the following 3 seed nodes - make necessary adjustment if you have more or are using a dedicated ETCD cluster. Example seed nodes:</p>

@@ -281,6 +281,18 @@
   </li>
 
         
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../introduction/media/media/" title="Media" class="md-nav__link">
+      Media
+    </a>
+  </li>
+
+        
       </ul>
     </nav>
   </li>
@@ -772,8 +784,32 @@
 
 
   <li class="md-nav__item">
-    <a href="../../../operational_guide/placement/" title="Placement / Topology" class="md-nav__link">
-      Placement / Topology
+    <a href="../../../operational_guide/placement/" title="Placement/Topology" class="md-nav__link">
+      Placement/Topology
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../operational_guide/placement_configuration/" title="Placement/Topology Configuration" class="md-nav__link">
+      Placement/Topology Configuration
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../operational_guide/namespace_configuration/" title="Namespace Configuration" class="md-nav__link">
+      Namespace Configuration
     </a>
   </li>
 
@@ -786,6 +822,18 @@
   <li class="md-nav__item">
     <a href="../../../operational_guide/bootstrapping/" title="Bootstrapping" class="md-nav__link">
       Bootstrapping
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../../../operational_guide/kernel_configuration/" title="Kernel Configuration" class="md-nav__link">
+      Kernel Configuration
     </a>
   </li>
 
@@ -1150,7 +1198,7 @@ series_object       =&gt; map<block_start_time, active_buffers(encoders)> (This 
 <li>Cleanup of expired data (fileset/commit log) from the filesystem</li>
 </ol>
 <h4 id="merging-all-encoders">Merging all encoders</h4>
-<p>M3TSZ is designed for compressing time series data in which each datapoint has a timestamp that is larger than the last encoded datapoint. For monitoring workloads this works very well because every subsequent datapoint is almost always larger than the previous one. However, real world systems are messy and occassionally out of order writes will be received. When this happens, M3DB will allocate a new encoder for the out of order datapoints. The multiple encoders need to be merged before flushing the data to disk, but to prevent huge memory spikes during the flushing process we continuously merge out of order encoders in the background.</p>
+<p>M3TSZ is designed for compressing time series data in which each datapoint has a timestamp that is larger than the last encoded datapoint. For monitoring workloads this works very well because every subsequent datapoint is almost always chronologically after the previous one. However, real world systems are messy and occasionally out of order writes will be received. When this happens, M3DB will allocate a new encoder for the out of order datapoints. The multiple encoders need to be merged before flushing the data to disk, but to prevent huge memory spikes during the flushing process we continuously merge out of order encoders in the background.</p>
 <h4 id="removing-expired-flushed-series-and-blocks-from-memory">Removing expired / flushed series and blocks from memory</h4>
 <p>Depending on the configured <a href="../caching/">caching policy</a>, the <a href="./#in-memory-object-layout">in-memory object layout</a> can end up with references to series or data blocks that are expired (have fallen out of the retention period) or no longer need to be in memory (due to the data being flushed to disk or no longer needing to be cached). The background tick will identify these structures and release them from memory.</p>
 <h3 id="flushing">Flushing</h3>
