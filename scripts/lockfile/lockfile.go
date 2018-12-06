@@ -1,5 +1,7 @@
 package main
 
+// This .go file is used to test the lockfile package (m3/src/x/lockfile)
+
 import (
 	"fmt"
 	"os"
