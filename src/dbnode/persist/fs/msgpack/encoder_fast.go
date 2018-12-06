@@ -44,6 +44,10 @@ import (
 //
 // Before modifying this function, please run the BenchmarkLogEntryEncoderFast benchmark as a small
 // degradation in this functions performance can have a substantial impact on M3DB.
+//
+//
+// Also note that there are extensive prop tests for this function in the encoder_decoder_prop_test.go
+// file which verify its correctness.
 func EncodeLogEntryFast(b []byte, entry schema.LogEntry) ([]byte, error) {
 	if logEntryHeaderErr != nil {
 		return nil, logEntryHeaderErr

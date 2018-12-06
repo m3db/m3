@@ -30,22 +30,24 @@ import (
 	"gopkg.in/vmihailenco/msgpack.v2/codes"
 )
 
-// DecodeLogEntryFast encodes a commit log entry with no buffering and using optimized helper
-// functions that bypass the msgpack encoding library by manually inlining the equivalent code.
+// DecodeLogEntryFast deocders a commit log entry with no buffering and using optimized helper
+// functions that bypass the msgpack decoding library by manually inlining the equivalent code.
 //
-// The reason we had to bypass the msgpack encoding library is that during perf testing we found that
+// The reason we had to bypass the msgpack decoding library is that during perf testing we found that
 // this function was spending most of its time setting up stack frames for function calls. While
 // the overhead of a function call in Golang is small, when every helper function does nothing more
-// than write a few bytes to an in-memory array the function call overhead begins to dominate,
+// than read a few bytes from an in-memory array the function call overhead begins to dominate,
 // especially when each call to this function results in dozens of such helper function calls.
 //
-// Manually inlining the msgpack encoding results in a lot of code duplication for this one path, but
-// we pay the price because this is the most frequently called function in M3DB and it indirectly
-// applies back-pressure on every other part of the system via the commitlog queue. As a result, almost
-// any performance gains that can be had in this function are worth it.
+// Manually inlining the msgpack decoding results in a lot of code duplication for this one path, but
+// we pay the price because this codepath is one of the priamry bottlenecks influencing how fast we
+// can bootstrap M3DB from the commitlog. As a result, almost any performance gains that can be had in
+// this function are worth it.
 //
-// Before modifying this function, please run the BenchmarkLogEntryEncoderFast benchmark as a small
-// degradation in this functions performance can have a substantial impact on M3DB.
+// Before modifying this function, please run the BenchmarkLogEntryDecodeFast benchmark.
+//
+// Also note that there are extensive prop tests for this function in the encoder_decoder_prop_test.go
+// file which verify its correctness, as well as its resilience to arbitrary data corruption and truncation.
 func DecodeLogEntryFast(b []byte) (schema.LogEntry, error) {
 	schema := schema.LogEntry{}
 
@@ -95,7 +97,7 @@ func DecodeLogEntryFast(b []byte) (schema.LogEntry, error) {
 	return schema, nil
 }
 
-// DecodeLogMetadataFast is the same as EncodeLogEntryFast except for the metadata
+// DecodeLogMetadataFast is the same as DecodeLogEntryFast except for the metadata
 // entries instead of the data entries.
 func DecodeLogMetadataFast(b []byte) (schema.LogMetadata, error) {
 	metadata := schema.LogMetadata{}
