@@ -598,6 +598,14 @@ func TestDatabaseUpdateNamespace(t *testing.T) {
 }
 
 func TestDatabaseNamespaceIndexFunctions(t *testing.T) {
+	testDatabaseNamespaceIndexFunctions(t, true)
+}
+
+func TestDatabaseNamespaceIndexFunctionsNoCommitlog(t *testing.T) {
+	testDatabaseNamespaceIndexFunctions(t, false)
+}
+
+func testDatabaseNamespaceIndexFunctions(t *testing.T, commitlogEnabled bool) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -606,11 +614,22 @@ func TestDatabaseNamespaceIndexFunctions(t *testing.T) {
 		close(mapCh)
 	}()
 
+	commitlog := d.commitLog
+	if !commitlogEnabled {
+		// We don't mock the commitlog so set this to nil to ensure its
+		// not being used as the test will panic if any methods are called
+		// on it.
+		d.commitLog = nil
+	}
+
 	ns := dbAddNewMockNamespace(ctrl, d, "testns")
+	nsOptions := namespace.NewOptions().
+		SetWritesToCommitLog(commitlogEnabled)
+
 	ns.EXPECT().GetOwnedShards().Return([]databaseShard{}).AnyTimes()
 	ns.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	ns.EXPECT().BootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
-	ns.EXPECT().Options().Return(namespace.NewOptions()).AnyTimes()
+	ns.EXPECT().Options().Return(nsOptions).AnyTimes()
 	require.NoError(t, d.Open())
 
 	var (
@@ -652,6 +671,9 @@ func TestDatabaseNamespaceIndexFunctions(t *testing.T) {
 	require.Error(t, err)
 
 	ns.EXPECT().Close().Return(nil)
+
+	// Ensure commitlog is set before closing because this will call commitlog.Close()
+	d.commitLog = commitlog
 	require.NoError(t, d.Close())
 }
 
@@ -748,11 +770,8 @@ func testDatabaseWriteBatch(t *testing.T, tagged bool, commitlogEnabled bool) {
 	}
 
 	ns := dbAddNewMockNamespace(ctrl, d, "testns")
-	nsOptions := namespace.NewOptions()
-	if !commitlogEnabled {
-		nsOptions = nsOptions.
-			SetWritesToCommitLog(false)
-	}
+	nsOptions := namespace.NewOptions().
+		SetWritesToCommitLog(commitlogEnabled)
 
 	ns.EXPECT().GetOwnedShards().Return([]databaseShard{}).AnyTimes()
 	ns.EXPECT().Tick(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
