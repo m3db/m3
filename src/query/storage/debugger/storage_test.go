@@ -41,12 +41,19 @@ func TestConverter(t *testing.T) {
 		{1543434995.200, "14"},
 	}
 
+	metrics := map[string]string{
+		"__name__": "test_name",
+		"tag_one":  "val_one",
+	}
+
+	promResult.Data.ResultType = "matrix"
 	promResult.Data.Result = append(promResult.Data.Result,
 		struct {
 			Metric map[string]string `json:"metric"`
 			Values [][]interface{}   `json:"values"`
 		}{
 			Values: vals,
+			Metric: metrics,
 		},
 	)
 
@@ -55,4 +62,5 @@ func TestConverter(t *testing.T) {
 
 	assert.Equal(t, 3, tsList[0].Len())
 	assert.Equal(t, 10.0, tsList[0].Values().Datapoints()[0].Value)
+	assert.Equal(t, "test_name", tsList[0].Name())
 }
