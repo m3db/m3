@@ -40,7 +40,7 @@ import:
     version: ^0.8
 
   - package: github.com/apache/thrift
-    version: 631b3f77e45317d2e8f2def055c64dcb5fd440f9
+    version: r/thrift-pool
     subpackages:
       - lib/go/thrift
     repo: https://github.com/m3db/thrift
