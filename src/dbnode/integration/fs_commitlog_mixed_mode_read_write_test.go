@@ -105,7 +105,7 @@ func TestFsCommitLogMixedModeReadWrite(t *testing.T) {
 	for _, dp := range datapoints {
 		ts := dp.time
 		setup.setNowFn(ts)
-		require.NoError(t, db.Write(ctx, nsID, dp.series, ts, dp.value, xtime.Second, nil, series.WriteOptions{WriteTime: ts}))
+		require.NoError(t, db.Write(ctx, nsID, dp.series, ts, dp.value, xtime.Second, nil, series.WriteOptions{}))
 	}
 	log.Infof("wrote datapoints")
 

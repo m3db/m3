@@ -487,20 +487,20 @@ func TestShardTick(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	writeShardAndVerify(ctx, t, shard, "foo", nowFn(), 1.0, series.WriteOptions{WriteTime: nowFn()}, true, 0)
+	writeShardAndVerify(ctx, t, shard, "foo", nowFn(), 1.0, series.WriteOptions{}, true, 0)
 	// same time, different value should write
-	writeShardAndVerify(ctx, t, shard, "foo", nowFn(), 2.0, series.WriteOptions{WriteTime: nowFn()}, true, 0)
+	writeShardAndVerify(ctx, t, shard, "foo", nowFn(), 2.0, series.WriteOptions{}, true, 0)
 
-	writeShardAndVerify(ctx, t, shard, "bar", nowFn(), 2.0, series.WriteOptions{WriteTime: nowFn()}, true, 1)
+	writeShardAndVerify(ctx, t, shard, "bar", nowFn(), 2.0, series.WriteOptions{}, true, 1)
 	// same tme, same value should not write
-	writeShardAndVerify(ctx, t, shard, "bar", nowFn(), 2.0, series.WriteOptions{WriteTime: nowFn()}, false, 1)
+	writeShardAndVerify(ctx, t, shard, "bar", nowFn(), 2.0, series.WriteOptions{}, false, 1)
 
-	writeShardAndVerify(ctx, t, shard, "baz", nowFn(), 3.0, series.WriteOptions{WriteTime: nowFn()}, true, 2)
+	writeShardAndVerify(ctx, t, shard, "baz", nowFn(), 3.0, series.WriteOptions{}, true, 2)
 	// different time, same value should write
-	writeShardAndVerify(ctx, t, shard, "baz", nowFn().Add(1), 3.0, series.WriteOptions{WriteTime: nowFn()}, true, 2)
+	writeShardAndVerify(ctx, t, shard, "baz", nowFn().Add(1), 3.0, series.WriteOptions{}, true, 2)
 
 	// same time, same value should not write, regardless of being out of order
-	writeShardAndVerify(ctx, t, shard, "foo", nowFn(), 2.0, series.WriteOptions{WriteTime: nowFn()}, false, 0)
+	writeShardAndVerify(ctx, t, shard, "foo", nowFn(), 2.0, series.WriteOptions{}, false, 0)
 
 	r, err := shard.Tick(context.NewNoOpCanncellable(), nowFn())
 	require.NoError(t, err)
@@ -649,7 +649,7 @@ func testShardWriteAsync(t *testing.T, writes []testWrite) {
 	defer ctx.Close()
 
 	for _, write := range writes {
-		shard.Write(ctx, ident.StringID(write.id), nowFn(), write.value, write.unit, write.annotation, series.WriteOptions{WriteTime: nowFn()})
+		shard.Write(ctx, ident.StringID(write.id), nowFn(), write.value, write.unit, write.annotation, series.WriteOptions{})
 	}
 
 	for {
@@ -850,7 +850,7 @@ func TestPurgeExpiredSeriesNonEmptySeries(t *testing.T) {
 	defer shard.Close()
 	ctx := opts.ContextPool().Get()
 	nowFn := opts.ClockOptions().NowFn()
-	shard.Write(ctx, ident.StringID("foo"), nowFn(), 1.0, xtime.Second, nil, series.WriteOptions{WriteTime: nowFn()})
+	shard.Write(ctx, ident.StringID("foo"), nowFn(), 1.0, xtime.Second, nil, series.WriteOptions{})
 	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), tickPolicyRegular)
 	require.NoError(t, err)
 	require.Equal(t, 1, r.activeSeries)
@@ -876,7 +876,7 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 
 		ctx := opts.ContextPool().Get()
 		nowFn := opts.ClockOptions().NowFn()
-		shard.Write(ctx, id, nowFn(), 1.0, xtime.Second, nil, series.WriteOptions{WriteTime: nowFn()})
+		shard.Write(ctx, id, nowFn(), 1.0, xtime.Second, nil, series.WriteOptions{})
 	}).Return(series.TickResult{}, series.ErrSeriesAllDatapointsExpired)
 
 	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), tickPolicyRegular)
