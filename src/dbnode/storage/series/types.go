@@ -296,8 +296,11 @@ func (s Stats) IncCreatedEncoders() {
 type WriteType int
 
 const (
+	// UndefinedWriteType is an undefined write type
+	UndefinedWriteType WriteType = iota
+
 	// WarmWrite represents warm writes (within the buffer past/future window)
-	WarmWrite WriteType = iota
+	WarmWrite
 
 	// ColdWrite represents cold writes (outside the buffer past/future window)
 	ColdWrite
@@ -305,5 +308,5 @@ const (
 
 // WriteOptions define different options for a write
 type WriteOptions struct {
-	WriteTime time.Time
+	WriteType WriteType
 }

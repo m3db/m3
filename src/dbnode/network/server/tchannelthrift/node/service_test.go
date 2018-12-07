@@ -1195,7 +1195,7 @@ func TestServiceWrite(t *testing.T) {
 
 	mockDB.EXPECT().
 		Write(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), at, value,
-			xtime.Second, nil, series.WriteOptions{WriteTime: at}).
+			xtime.Second, nil, series.WriteOptions{}).
 		Return(nil)
 
 	err := service.Write(tctx, &rpc.WriteRequest{
@@ -1237,7 +1237,7 @@ func TestServiceWriteTagged(t *testing.T) {
 		ident.NewIDMatcher(id),
 		gomock.Any(),
 		at, value, xtime.Second, nil,
-		series.WriteOptions{WriteTime: at},
+		series.WriteOptions{},
 	).Return(nil)
 
 	request := &rpc.WriteTaggedRequest{

@@ -79,7 +79,7 @@ func TestBufferWriteTooFuture(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 	err := buffer.Write(ctx, curr.Add(rops.BufferFuture()), 1, xtime.Second,
-		nil, WriteOptions{WriteTime: curr})
+		nil, WriteOptions{})
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsInvalidParams(err))
 }
@@ -96,7 +96,7 @@ func TestBufferWriteTooPast(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 	err := buffer.Write(ctx, curr.Add(-1*rops.BufferPast()), 1, xtime.Second,
-		nil, WriteOptions{WriteTime: curr})
+		nil, WriteOptions{})
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsInvalidParams(err))
 }
@@ -119,7 +119,7 @@ func TestBufferWriteRead(t *testing.T) {
 
 	for _, v := range data {
 		ctx := context.NewContext()
-		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation, WriteOptions{WriteTime: v.timestamp}))
+		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation, WriteOptions{}))
 		ctx.Close()
 	}
 
@@ -151,7 +151,7 @@ func TestBufferReadOnlyMatchingBuckets(t *testing.T) {
 	for _, v := range data {
 		curr = v.timestamp
 		ctx := context.NewContext()
-		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation, WriteOptions{WriteTime: v.timestamp}))
+		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation, WriteOptions{}))
 		ctx.Close()
 	}
 
@@ -194,7 +194,7 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 			curr = v.timestamp
 		}
 		ctx := context.NewContext()
-		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation, WriteOptions{WriteTime: v.timestamp}))
+		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation, WriteOptions{}))
 		ctx.Close()
 	}
 
@@ -481,7 +481,7 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 	for _, v := range data {
 		curr = v.timestamp
 		ctx := context.NewContext()
-		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation, WriteOptions{WriteTime: v.timestamp}))
+		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation, WriteOptions{}))
 		ctx.Close()
 	}
 
@@ -560,7 +560,7 @@ func TestBufferRemoveBucket(t *testing.T) {
 	for _, v := range data {
 		curr = v.timestamp
 		ctx := context.NewContext()
-		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation, WriteOptions{WriteTime: v.timestamp}))
+		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation, WriteOptions{}))
 		ctx.Close()
 	}
 
@@ -638,7 +638,7 @@ func TestBufferSnapshot(t *testing.T) {
 	for _, v := range data {
 		curr = v.timestamp
 		ctx := context.NewContext()
-		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation, WriteOptions{WriteTime: v.timestamp}))
+		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation, WriteOptions{}))
 		ctx.Close()
 	}
 

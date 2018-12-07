@@ -163,7 +163,11 @@ func (b *dbBuffer) Write(
 	annotation []byte,
 	wopts WriteOptions,
 ) error {
-	wType := b.writeType(timestamp, wopts.WriteTime)
+	wType := wopts.WriteType
+	if wType == UndefinedWriteType {
+		wType = b.writeType(timestamp, b.nowFn())
+	}
+
 	if wType == ColdWrite && !b.coldWritesEnabled {
 		return m3dberrors.ErrColdWritesNotEnabled
 	}
