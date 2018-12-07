@@ -1418,7 +1418,7 @@ func TestServiceWrite(t *testing.T) {
 
 	mockDB.EXPECT().
 		Write(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), at, value,
-			xtime.Second, nil, series.WriteOptions{WriteTime: at}).
+			xtime.Second, nil, series.WriteOptions{}).
 		Return(nil)
 
 	mockDB.EXPECT().IsOverloaded().Return(false)
@@ -1487,7 +1487,7 @@ func TestServiceWriteTagged(t *testing.T) {
 		ident.NewIDMatcher(id),
 		gomock.Any(),
 		at, value, xtime.Second, nil,
-		series.WriteOptions{WriteTime: at},
+		series.WriteOptions{},
 	).Return(nil)
 
 	request := &rpc.WriteTaggedRequest{
