@@ -148,6 +148,7 @@ type mismatch struct {
 	promTime, m3Time time.Time
 }
 
+// validate compares prom results to m3 results less NaNs
 func validate(prom, m3 map[string]*ts.Series) ([][]mismatch, error) {
 	if len(prom) != len(m3) {
 		return nil, errors.New("number of Prom series not equal to number of M3 series")
@@ -170,7 +171,7 @@ func validate(prom, m3 map[string]*ts.Series) ([][]mismatch, error) {
 
 		for _, promdp := range promdps {
 			if math.IsNaN(promdp.Value) && !math.IsNaN(m3dp.Value) {
-				mismatchList = append(mismatchList, createMismatch(id, promdp.Value, m3dp.Value, promdp.Timestamp, m3dp.Timestamp))
+				mismatchList = append(mismatchList, newMismatch(id, promdp.Value, m3dp.Value, promdp.Timestamp, m3dp.Timestamp))
 			}
 
 			// skip over any NaN datapoints in the m3 results
@@ -183,7 +184,7 @@ func validate(prom, m3 map[string]*ts.Series) ([][]mismatch, error) {
 
 			m3dp = m3dps[m3idx]
 			if (promdp.Value != m3dp.Value && !math.IsNaN(promdp.Value)) || !promdp.Timestamp.Equal(m3dp.Timestamp) {
-				mismatchList = append(mismatchList, createMismatch(id, promdp.Value, m3dp.Value, promdp.Timestamp, m3dp.Timestamp))
+				mismatchList = append(mismatchList, newMismatch(id, promdp.Value, m3dp.Value, promdp.Timestamp, m3dp.Timestamp))
 			}
 
 			m3idx++
@@ -197,7 +198,7 @@ func validate(prom, m3 map[string]*ts.Series) ([][]mismatch, error) {
 	return mismatches, nil
 }
 
-func createMismatch(name string, promVal, m3Val float64, promTime, m3Time time.Time) mismatch {
+func newMismatch(name string, promVal, m3Val float64, promTime, m3Time time.Time) mismatch {
 	return mismatch{
 		seriesName: name,
 		promVal:    promVal,
