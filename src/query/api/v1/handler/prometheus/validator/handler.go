@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package debug
+package validator
 
 import (
 	"context"
@@ -36,7 +36,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/storage/debugger"
+	"github.com/m3db/m3/src/query/storage/validator"
 	"github.com/m3db/m3/src/query/ts"
 	qjson "github.com/m3db/m3/src/query/util/json"
 	"github.com/m3db/m3/src/query/util/logging"
@@ -56,7 +56,8 @@ const (
 	mismatchCapacity = 10
 )
 
-// PromDebugHandler represents a handler for prometheus debug endpoint.
+// PromDebugHandler represents a handler for prometheus debug endpoint, which allows users
+// to compare Prometheus results vs m3 query results.
 type PromDebugHandler struct {
 	engine      *executor.Engine
 	scope       tally.Scope
@@ -79,7 +80,6 @@ func (h *PromDebugHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	logger := logging.WithContext(ctx)
 
 	defer r.Body.Close()
-
 	data, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		logger.Error("unable to read data", zap.Error(err))
@@ -94,7 +94,7 @@ func (h *PromDebugHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s, err := debug.NewStorage(promDebug.Input)
+	s, err := validator.NewStorage(promDebug.Input)
 	if err != nil {
 		logger.Error("unable to create storage", zap.Error(err))
 		xhttp.Error(w, err, http.StatusBadRequest)
@@ -105,11 +105,11 @@ func (h *PromDebugHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	results, _, err := h.readHandler.ServeHTTPWithEngine(w, r, h.engine)
 	if err != nil {
 		logger.Error("unable to read data", zap.Error(err))
-		xhttp.Error(w, err, http.StatusBadRequest)
+		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
-	promResults, err := debug.PromResultToSeriesList(promDebug.Results, models.NewTagOptions())
+	promResults, err := validator.PromResultToSeriesList(promDebug.Results, models.NewTagOptions())
 	if err != nil {
 		logger.Error("unable to convert prom results data", zap.Error(err))
 		xhttp.Error(w, err, http.StatusBadRequest)
@@ -124,17 +124,15 @@ func (h *PromDebugHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-
 	if err := renderDebugMismatchResultsJSON(w, mismatches); err != nil {
 		logger.Error("unable to write back mismatch data", zap.Error(err))
-		xhttp.Error(w, err, http.StatusBadRequest)
+		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 }
 
 func tsListToMap(tsList []*ts.Series) map[string]*ts.Series {
 	tsMap := make(map[string]*ts.Series, len(tsList))
-
 	for _, series := range tsList {
 		series.Tags = series.Tags.Normalize()
 		id := series.Tags.ID()
@@ -156,14 +154,9 @@ func validate(prom, m3 map[string]*ts.Series) ([][]mismatch, error) {
 	}
 
 	mismatches := make([][]mismatch, 0, mismatchCapacity)
-
 	for id, promSeries := range prom {
-		var (
-			m3Series *ts.Series
-			exists   bool
-		)
-
-		if m3Series, exists = m3[id]; !exists {
+		m3Series, exists := m3[id]
+		if !exists {
 			return nil, fmt.Errorf("series with id %s does not exist in M3 results", id)
 		}
 
@@ -180,16 +173,8 @@ func validate(prom, m3 map[string]*ts.Series) ([][]mismatch, error) {
 				mismatchList = append(mismatchList, createMismatch(id, promdp.Value, m3dp.Value, promdp.Timestamp, m3dp.Timestamp))
 			}
 
-			for {
-				if m3idx > len(m3dps)-1 {
-					break
-				}
-
-				if !math.IsNaN(m3dps[m3idx].Value) {
-					break
-				}
-
-				m3idx++
+			// skip over any NaN datapoints in the m3 results
+			for ; m3idx < len(m3dps) && math.IsNaN(m3dps[m3idx].Value); m3idx++ {
 			}
 
 			if m3idx > len(m3dps)-1 {
@@ -228,6 +213,13 @@ func renderDebugMismatchResultsJSON(
 ) error {
 	jw := qjson.NewWriter(w)
 	jw.BeginObject()
+
+	if len(mismatches) == 0 {
+		jw.BeginObjectField("correct")
+		jw.WriteBool(true)
+		jw.EndObject()
+		return jw.Close()
+	}
 
 	jw.BeginObjectField("mismatches_list")
 	jw.BeginArray()
