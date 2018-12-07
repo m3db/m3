@@ -202,7 +202,7 @@ func TestExecutorRun_Exited_Success_Signals(t *testing.T) {
 }
 
 func TestExecutorRun_Start_Error(t *testing.T) {
-	args := []string{"non_existend_command_"}
+	args := []string{"non_existent_command_"}
 
 	proc := &mockProcessHandler{}
 	proc.On("ProcessStarted", ProcessStartEvent{Args: args}).Return()
