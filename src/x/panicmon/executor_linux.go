@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package panicmon provides a method of spwaning processes and monitoring
+// Package panicmon provides a method of spawning processes and monitoring
 // its behavior via generic pluggable handlers.
 //
 // On linux we want to signal to the child process that when its parent dies

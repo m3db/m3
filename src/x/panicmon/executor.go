@@ -56,6 +56,7 @@ type executor struct {
 	handler Handler
 	stdout  io.Writer
 	stderr  io.Writer
+	env     []string
 }
 
 // ExecutorOptions specifies options for creating a new executor.
@@ -76,6 +77,12 @@ type ExecutorOptions struct {
 	// to ioutil.Discard.
 	Stdout io.Writer
 	Stderr io.Writer
+
+	// By default panicmon uses the existing processes environment variables
+	// when launching child processes. Set Env if you'd like to specify you're
+	// own environment variables to spawn with, on how to use this option see
+	// os/exec.Cmd.
+	Env []string
 }
 
 // Validate ensures that an ExecutorOpts type is valid. Specifically, it will
@@ -114,6 +121,7 @@ func NewExecutor(opts ExecutorOptions) Executor {
 		handler: opts.Handler,
 		stdout:  opts.Stdout,
 		stderr:  opts.Stderr,
+		env:     opts.Env,
 	}
 
 	signal.Notify(ex.sigC, opts.Signals...)
@@ -168,6 +176,10 @@ func (ex *executor) execCmd(args []string) (execResult, error) {
 		cmd.Stderr = os.Stderr
 	} else {
 		cmd.Stderr = ex.stderr
+	}
+
+	if ex.env != nil {
+		cmd.Env = ex.env
 	}
 
 	cmd.SysProcAttr = execSyscallAttr
