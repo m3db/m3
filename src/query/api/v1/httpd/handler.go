@@ -36,9 +36,9 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/namespace"
 	"github.com/m3db/m3/src/query/api/v1/handler/openapi"
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
-	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/validator"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/validator"
 	"github.com/m3db/m3/src/query/api/v1/handler/topic"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
@@ -179,9 +179,9 @@ func (h *Handler) RegisterRoutes() error {
 	).Methods(remote.PromSeriesMatchHTTPMethod)
 
 	// Debug endpoints
-	h.router.HandleFunc(debug.PromDebugURL,
-		logged(debug.NewPromDebugHandler(nativePromReadHandler, h.scope)).ServeHTTP,
-	).Methods(debug.PromDebugHTTPMethod)
+	h.router.HandleFunc(validator.PromDebugURL,
+		logged(validator.NewPromDebugHandler(nativePromReadHandler, h.scope)).ServeHTTP,
+	).Methods(validator.PromDebugHTTPMethod)
 
 	if h.clusterClient != nil {
 		placementOpts := placement.HandlerOptions{
