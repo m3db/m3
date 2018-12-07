@@ -62,15 +62,19 @@ func ConvertM3DBSeriesIterators(
 	iterators encoding.SeriesIterators,
 	tagOptions models.TagOptions,
 	bounds models.Bounds,
-) []block.Block {
-	return []block.Block{
-		NewEncodedBlock(
-			iterators.Iters(),
-			bounds,
-			tagOptions,
-			true,
-		),
+) ([]block.Block, error) {
+	bl, err := NewEncodedBlock(
+		iterators.Iters(),
+		bounds,
+		tagOptions,
+		true,
+	)
+
+	if err != nil {
+		return nil, err
 	}
+
+	return []block.Block{bl}, nil
 }
 
 // ConvertM3DBSegmentedBlockIterators converts series iterators to a list of blocks

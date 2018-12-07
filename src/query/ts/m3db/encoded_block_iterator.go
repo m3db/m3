@@ -51,7 +51,7 @@ func NewEncodedBlock(
 	bounds models.Bounds,
 	tagOptions models.TagOptions,
 	lastBlock bool,
-) block.Block {
+) (block.Block, error) {
 	consolidation := consolidationSettings{
 		consolidationFn: TakeLast,
 		currentTime:     bounds.Start,
@@ -63,9 +63,13 @@ func NewEncodedBlock(
 		tagOptions,
 		consolidation,
 		lastBlock,
-		true,
 	)
-	return &bl
+	err := bl.generateMetas()
+	if err != nil {
+		return nil, err
+	}
+
+	return &bl, nil
 }
 
 func newEncodedBlock(
@@ -73,21 +77,13 @@ func newEncodedBlock(
 	tagOptions models.TagOptions,
 	consolidation consolidationSettings,
 	lastBlock bool,
-	generateMetas bool,
 ) encodedBlock {
-	b := encodedBlock{
+	return encodedBlock{
 		seriesBlockIterators: seriesBlockIterators,
 		tagOptions:           tagOptions,
 		consolidation:        consolidation,
 		lastBlock:            lastBlock,
 	}
-
-	if generateMetas {
-		// generate metadata and series metadatas
-		b.generateMetas()
-	}
-
-	return b
 }
 
 func (b *encodedBlock) Unconsolidated() (block.UnconsolidatedBlock, error) {
@@ -154,7 +150,6 @@ func (b *encodedBlock) WithMetadata(
 		b.tagOptions,
 		b.consolidation,
 		b.lastBlock,
-		false,
 	)
 	bl.meta = meta
 	bl.seriesMetas = seriesMetas

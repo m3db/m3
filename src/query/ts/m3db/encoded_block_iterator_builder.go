@@ -63,7 +63,6 @@ func (b *encodedBlockBuilder) add(
 			b.tagOptions,
 			consolidation,
 			lastBlock,
-			false,
 		)
 	}
 
@@ -75,7 +74,7 @@ func (b *encodedBlockBuilder) add(
 func (b *encodedBlockBuilder) build() []block.Block {
 	blocks := make([]encodedBlock, 0, len(b.blocksAtTime))
 	for _, block := range b.blocksAtTime {
-		block.buildMeta()
+		block.generateMetas()
 		blocks = append(blocks, block)
 	}
 

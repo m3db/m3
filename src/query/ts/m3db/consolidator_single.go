@@ -28,7 +28,7 @@ import (
 )
 
 type singleLookbackConsolidator struct {
-	lookback         time.Duration
+	lookbackDuration time.Duration
 	stepSize         time.Duration
 	earliestLookback time.Time
 	consolidated     float64
@@ -44,16 +44,16 @@ type singleConsolidator interface {
 }
 
 func buildSingleConsolidator(
-	lookback, stepSize time.Duration,
+	lookbackDuration, stepSize time.Duration,
 	startTime time.Time,
 	fn ConsolidationFunc,
 ) singleConsolidator {
 	datapoints := make([]ts.Datapoint, 0, initLength)
 
 	return &singleLookbackConsolidator{
-		lookback:         lookback,
+		lookbackDuration: lookbackDuration,
 		stepSize:         stepSize,
-		earliestLookback: startTime.Add(-1 * lookback),
+		earliestLookback: startTime.Add(-1 * lookbackDuration),
 		consolidated:     math.NaN(),
 		datapoints:       datapoints,
 		fn:               fn,
@@ -72,8 +72,8 @@ func (c *singleLookbackConsolidator) addPoint(
 }
 
 func (c *singleLookbackConsolidator) consolidate() float64 {
-	c.consolidated = c.fn(c.datapoints)
 	c.earliestLookback = c.earliestLookback.Add(c.stepSize)
+	c.consolidated = c.fn(c.datapoints)
 	c.datapoints = removeStale(c.earliestLookback, c.datapoints)
 	return c.consolidated
 }
@@ -85,6 +85,6 @@ func (c *singleLookbackConsolidator) empty() bool {
 func (c *singleLookbackConsolidator) reset(
 	startTime time.Time,
 ) {
-	c.earliestLookback = startTime.Add(-1 * c.lookback)
+	c.earliestLookback = startTime.Add(-1 * c.lookbackDuration)
 	c.datapoints = c.datapoints[:0]
 }

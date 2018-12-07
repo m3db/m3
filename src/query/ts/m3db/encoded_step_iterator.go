@@ -39,7 +39,6 @@ type peekValue struct {
 type encodedStepIter struct {
 	mu           sync.RWMutex
 	lastBlock    bool
-	exhausted    bool
 	started      bool
 	currentTime  time.Time
 	err          error
@@ -101,20 +100,19 @@ func (it *encodedStepIter) Current() (block.Step, error) {
 	return step, nil
 }
 
-func (it *encodedStepIter) nextConsolidatedForStep(i int) bool {
+func (it *encodedStepIter) nextConsolidatedForStep(i int) {
 	peek := it.seriesPeek[i]
 	if peek.finished {
 		// No next value in this iterator
-		return false
+		return
 	}
 
-	nextTime := it.currentTime.Add(it.bounds.StepSize)
 	if peek.started {
 		point := peek.point
 		if point.Timestamp.After(it.currentTime) {
 			// This point exists further than the current step
 			// There are next values, but this point should be NaN
-			return true
+			return
 		}
 
 		// Currently at a potentially viable data point.
@@ -126,7 +124,7 @@ func (it *encodedStepIter) nextConsolidatedForStep(i int) bool {
 		it.seriesPeek[i].started = false
 		// If at boundary, add the point as the current value.
 		if point.Timestamp.Equal(it.currentTime) {
-			return true
+			return
 		}
 	}
 
@@ -148,47 +146,30 @@ func (it *encodedStepIter) nextConsolidatedForStep(i int) bool {
 			// series.
 			it.seriesPeek[i].point = dp
 			it.seriesPeek[i].started = true
-			return true
+			return
 		}
 
 		if err := iter.Err(); err != nil {
 			it.err = err
 		}
 	}
-
-	// Consolidate here if there is a point expected after this one.
-	if it.lastBlock && it.bounds.End().Equal(nextTime) ||
-		nextTime.After(it.bounds.End()) {
-		return false
-	}
-
-	return true
 }
 
 func (it *encodedStepIter) nextConsolidated() {
 	end := it.bounds.End()
 	// Check that current time is not before end since end is exclusive
-	if !it.currentTime.Before(end) {
-		it.exhausted = true
+	if it.currentTime.After(end) {
 		return
 	}
 
-	var anyNext bool
 	for i := range it.seriesIters {
-		if it.nextConsolidatedForStep(i) {
-			anyNext = true
-		}
-	}
-
-	if !anyNext {
-		it.exhausted = true
+		it.nextConsolidatedForStep(i)
 	}
 }
 
 // Need to run an initial step; if there are any values
 // that appear at exactly the start, they must be added.
 func (it *encodedStepIter) initialStep() {
-	anyNext := false
 	it.seriesPeek = make([]peekValue, len(it.seriesIters))
 	for i, iter := range it.seriesIters {
 		if iter.Next() {
@@ -208,22 +189,13 @@ func (it *encodedStepIter) initialStep() {
 			if err := iter.Err(); err != nil {
 				it.err = err
 			}
-
-			anyNext = true
 		}
-	}
-
-	if !anyNext {
-		it.exhausted = true
 	}
 }
 
 func (it *encodedStepIter) Next() bool {
 	it.mu.Lock()
 	defer it.mu.Unlock()
-	if it.exhausted {
-		return false
-	}
 
 	if !it.started {
 		it.initialStep()

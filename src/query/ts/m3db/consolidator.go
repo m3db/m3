@@ -44,7 +44,7 @@ func removeStale(
 }
 
 type lookbackConsolidator struct {
-	lookback         time.Duration
+	lookbackDuration time.Duration
 	stepSize         time.Duration
 	earliestLookback time.Time
 	consolidated     []float64
@@ -58,7 +58,7 @@ type consolidator interface {
 }
 
 func buildConsolidator(
-	lookback, stepSize time.Duration,
+	lookbackDuration, stepSize time.Duration,
 	startTime time.Time,
 	resultSize int,
 	fn ConsolidationFunc,
@@ -71,9 +71,9 @@ func buildConsolidator(
 	}
 
 	return &lookbackConsolidator{
-		lookback:         lookback,
+		lookbackDuration: lookbackDuration,
 		stepSize:         stepSize,
-		earliestLookback: startTime.Add(-1 * lookback),
+		earliestLookback: startTime.Add(-1 * lookbackDuration),
 		consolidated:     consolidated,
 		datapoints:       datapoints,
 		fn:               fn,

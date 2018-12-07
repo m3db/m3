@@ -104,11 +104,15 @@ func (s *m3storage) FetchBlocks(
 		StepSize: query.Interval,
 	}
 
-	blocks := m3db.ConvertM3DBSeriesIterators(
+	blocks, err := m3db.ConvertM3DBSeriesIterators(
 		raw,
 		s.tagOptions,
 		bounds,
 	)
+
+	if err != nil {
+		return block.Result{}, err
+	}
 
 	return block.Result{
 		Blocks: blocks,
