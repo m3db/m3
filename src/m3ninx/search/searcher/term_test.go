@@ -39,13 +39,13 @@ func TestTermSearcher(t *testing.T) {
 
 	// First reader.
 	firstPL := roaring.NewPostingsList()
-	firstPL.Insert(postings.ID(42))
-	firstPL.Insert(postings.ID(50))
+	require.NoError(t, firstPL.Insert(postings.ID(42)))
+	require.NoError(t, firstPL.Insert(postings.ID(50)))
 	firstReader := index.NewMockReader(mockCtrl)
 
 	// Second reader.
 	secondPL := roaring.NewPostingsList()
-	secondPL.Insert(postings.ID(57))
+	require.NoError(t, secondPL.Insert(postings.ID(57)))
 	secondReader := index.NewMockReader(mockCtrl)
 
 	gomock.InOrder(
