@@ -984,14 +984,32 @@ func withEncodingAndPoolingOptions(
 
 	var writeBatchPoolInitialBatchSize *int
 	if policy.WriteBatchPool.InitialBatchSize != nil {
+		// Use config value if available.
 		writeBatchPoolInitialBatchSize = policy.WriteBatchPool.InitialBatchSize
+	} else {
+		// Otherwise use the default batch size that the client will use.
+		clientDefaultSize := client.DefaultWriteBatchSize
+		writeBatchPoolInitialBatchSize = &clientDefaultSize
 	}
+
 	var writeBatchPoolMaxBatchSize *int
 	if policy.WriteBatchPool.MaxBatchSize != nil {
 		writeBatchPoolMaxBatchSize = policy.WriteBatchPool.MaxBatchSize
 	}
+
+	writeBatchPoolPolicy := policy.WriteBatchPool.Pool
+	if writeBatchPoolPolicy.Size == 0 {
+		// If no value set, calculate a reasonabble value based on the commit log
+		// queue size. We base it off the commitlog queue size because we will
+		// want to be able to buffer at least one full commitlog queues worth of
+		// writes without allocating because these objects are very expensive to
+		// allocate.
+		commitlogQueueSize := opts.CommitLogOptions().BacklogQueueSize()
+		expectedBatchSize := *writeBatchPoolInitialBatchSize
+		writeBatchPoolPolicy.Size = commitlogQueueSize / expectedBatchSize
+	}
 	writeBatchPool := ts.NewWriteBatchPool(
-		poolOptions(policy.WriteBatchPool.Pool, scope.SubScope("write-batch-pool")),
+		poolOptions(writeBatchPoolPolicy, scope.SubScope("write-batch-pool")),
 		writeBatchPoolInitialBatchSize,
 		writeBatchPoolMaxBatchSize)
 

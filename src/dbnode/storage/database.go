@@ -634,10 +634,6 @@ func (d *db) writeBatch(
 				write.Write.Annotation,
 			)
 		}
-
-		if err == commitlog.ErrCommitLogQueueFull {
-			d.errors.Record(1)
-		}
 		if err != nil {
 			// Return errors with the original index provided by the caller so they
 			// can associate the error with the write that caused it.
@@ -653,10 +649,21 @@ func (d *db) writeBatch(
 	}
 
 	if !n.Options().WritesToCommitLog() {
+		// Finalize here because we can't rely on the commitlog to do it since we're not
+		// using it.
+		writes.Finalize()
 		return nil
 	}
 
-	return d.commitLog.WriteBatch(ctx, writes)
+	err = d.commitLog.WriteBatch(ctx, writes)
+	if err == commitlog.ErrCommitLogQueueFull {
+		d.errors.Record(1)
+	}
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (d *db) QueryIDs(
