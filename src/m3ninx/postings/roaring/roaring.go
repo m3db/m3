@@ -158,6 +158,8 @@ func (d *postingsList) RemoveRange(min, max postings.ID) error {
 }
 
 func (d *postingsList) Reset() {
+	// TODO(rartoul): Call Reset() or equivalent here once we add it to the underlying
+	// library.
 	d.bitmap = roaring.NewBitmap()
 }
 
