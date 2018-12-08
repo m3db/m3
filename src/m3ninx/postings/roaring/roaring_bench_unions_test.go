@@ -27,21 +27,6 @@ import (
 	"github.com/pilosa/pilosa/roaring"
 )
 
-// ❯ go test -bench=BenchmarkUnion ./src/m3ninx/postings/roaring
-// goos: darwin
-// goarch: amd64
-// pkg: github.com/m3db/m3/src/m3ninx/postings/roaring
-// BenchmarkUnionRandPlsFastOr-4         	       2	 599631022 ns/op	246896384 B/op	  213828 allocs/op
-// BenchmarkUnionRandPlsHeapOr-4         	      20	  57474700 ns/op	31526924 B/op	  474318 allocs/op
-// BenchmarkUnionRandPlsParOr-4          	      10	 200720468 ns/op	244939915 B/op	  146408 allocs/op
-// BenchmarkUnionRandPlsParHeapOr-4      	       5	 265391848 ns/op	467047537 B/op	  269679 allocs/op
-// BenchmarkUnionSampledPlsFastOr-4      	   20000	     73632 ns/op	   24904 B/op	      13 allocs/op
-// BenchmarkUnionSampledPlsHeapOr-4      	   10000	    132481 ns/op	  150088 B/op	     104 allocs/op
-// BenchmarkUnionSampledPlsParOr-4       	   20000	     80480 ns/op	   25489 B/op	      25 allocs/op
-// BenchmarkUnionSampledPlsParHeapOr-4   	   20000	     86494 ns/op	   33488 B/op	      48 allocs/op
-// PASS
-// ok  	github.com/m3db/m3/src/m3ninx/postings/roaring	19.043s
-
 const (
 	numPls              = 10
 	numElemsPer         = 10000
