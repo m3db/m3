@@ -21,6 +21,7 @@
 package m3db
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -49,7 +50,7 @@ func (it *encodedStepIterUnconsolidated) Current() (
 	it.mu.RLock()
 	if !it.started || it.exhausted {
 		it.mu.RUnlock()
-		panic("out of bounds")
+		return nil, fmt.Errorf("out of bounds")
 	}
 
 	if it.err != nil {

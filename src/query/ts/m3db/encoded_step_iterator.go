@@ -21,6 +21,7 @@
 package m3db
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -83,7 +84,7 @@ func (it *encodedStepIter) Current() (block.Step, error) {
 	currentTime := it.currentTime
 	if !it.started || currentTime.After(it.bounds.End()) {
 		it.mu.RUnlock()
-		panic("out of bounds")
+		return nil, fmt.Errorf("out of bounds")
 	}
 
 	if it.err != nil {
@@ -148,10 +149,10 @@ func (it *encodedStepIter) nextConsolidatedForStep(i int) {
 			it.seriesPeek[i].started = true
 			return
 		}
+	}
 
-		if err := iter.Err(); err != nil {
-			it.err = err
-		}
+	if err := iter.Err(); err != nil {
+		it.err = err
 	}
 }
 
@@ -185,10 +186,11 @@ func (it *encodedStepIter) initialStep() {
 					started: true,
 				}
 			}
+		}
 
-			if err := iter.Err(); err != nil {
-				it.err = err
-			}
+		if err := iter.Err(); err != nil {
+			it.err = err
+			return
 		}
 	}
 }

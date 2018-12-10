@@ -71,10 +71,6 @@ func (it *encodedSeriesIter) Current() (block.Series, error) {
 		dp, _, _ := iter.Current()
 		ts := dp.Timestamp
 
-		if err := iter.Err(); err != nil {
-			return block.Series{}, err
-		}
-
 		if !ts.After(currentTime) {
 			it.consolidator.addPoint(dp)
 			continue
@@ -90,6 +86,10 @@ func (it *encodedSeriesIter) Current() (block.Series, error) {
 				break
 			}
 		}
+	}
+
+	if err := iter.Err(); err != nil {
+		return block.Series{}, err
 	}
 
 	// Consolidate any remaining points iff has not been finished

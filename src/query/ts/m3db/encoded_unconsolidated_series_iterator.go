@@ -51,10 +51,10 @@ func (it *encodedSeriesIterUnconsolidated) Current() (
 				Timestamp: dp.Timestamp,
 				Value:     dp.Value,
 			}})
+	}
 
-		if err := iter.Err(); err != nil {
-			return block.UnconsolidatedSeries{}, err
-		}
+	if err := iter.Err(); err != nil {
+		return block.UnconsolidatedSeries{}, err
 	}
 
 	series := block.NewUnconsolidatedSeries(values, it.seriesMeta[it.idx])

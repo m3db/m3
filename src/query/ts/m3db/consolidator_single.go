@@ -36,6 +36,10 @@ type singleLookbackConsolidator struct {
 	fn               ConsolidationFunc
 }
 
+// singleConsolidator is a helper for consolidating a full single series.
+// It has some differences with the step consolidator in that it collects
+// points for a single series, and is reset when the next series needs
+// to be consolidated.
 type singleConsolidator interface {
 	addPoint(ts.Datapoint)
 	consolidate() float64

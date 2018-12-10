@@ -52,6 +52,10 @@ type lookbackConsolidator struct {
 	fn               ConsolidationFunc
 }
 
+// consolidator is a helper for consolidating series in a step-wise
+// fashion. It takes a 'step' of values, which represents a vertical
+// slice of time across a list of series, and consolidates when a
+// valid step has been reached.
 type consolidator interface {
 	addPointForIterator(ts.Datapoint, int)
 	consolidate() []float64
