@@ -37,6 +37,7 @@ type consolidationSettings struct {
 }
 
 type encodedBlock struct {
+	// There is slightly different execution for the last block in the series
 	lastBlock            bool
 	meta                 block.Metadata
 	tagOptions           models.TagOptions

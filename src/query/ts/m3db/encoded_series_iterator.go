@@ -77,7 +77,7 @@ func (it *encodedSeriesIter) Current() (block.Series, error) {
 		}
 
 		for {
-			values[i] = it.consolidator.consolidate()
+			values[i] = it.consolidator.consolidateAndMoveToNext()
 			i++
 			currentTime = currentTime.Add(it.bounds.StepSize)
 
@@ -89,13 +89,14 @@ func (it *encodedSeriesIter) Current() (block.Series, error) {
 	}
 
 	if err := iter.Err(); err != nil {
+		it.mu.RUnlock()
 		return block.Series{}, err
 	}
 
 	// Consolidate any remaining points iff has not been finished
 	// Fill up any missing values with NaNs
 	for ; !it.consolidator.empty(); i++ {
-		values[i] = it.consolidator.consolidate()
+		values[i] = it.consolidator.consolidateAndMoveToNext()
 	}
 
 	series := block.NewSeries(values, it.seriesMeta[it.idx])

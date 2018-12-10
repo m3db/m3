@@ -72,16 +72,11 @@ func (b *encodedBlockBuilder) add(
 }
 
 func (b *encodedBlockBuilder) build() []block.Block {
-	blocks := make([]encodedBlock, 0, len(b.blocksAtTime))
+	blocks := make([]block.Block, 0, len(b.blocksAtTime))
 	for _, block := range b.blocksAtTime {
 		block.generateMetas()
-		blocks = append(blocks, block)
+		blocks = append(blocks, &block)
 	}
 
-	bps := make([]block.Block, len(blocks))
-	for i := range blocks {
-		bps[i] = &blocks[i]
-	}
-
-	return bps
+	return blocks
 }

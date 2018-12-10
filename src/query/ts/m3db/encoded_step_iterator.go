@@ -94,7 +94,7 @@ func (it *encodedStepIter) Current() (block.Step, error) {
 
 	step := &encodedStep{
 		time:   currentTime,
-		values: it.consolidator.consolidate(),
+		values: it.consolidator.consolidateAndMoveToNext(),
 	}
 
 	it.mu.RUnlock()

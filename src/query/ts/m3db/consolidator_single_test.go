@@ -43,26 +43,26 @@ func TestSingleConsolidator(t *testing.T) {
 	)
 
 	// NB: lookback limit: start-1
-	actual := consolidator.consolidate()
+	actual := consolidator.consolidateAndMoveToNext()
 	assert.True(t, math.IsNaN(actual))
 
 	consolidator.addPoint(ts.Datapoint{Timestamp: start, Value: 1})
 	// NB: lookback limit: start
-	actual = consolidator.consolidate()
+	actual = consolidator.consolidateAndMoveToNext()
 	assert.Equal(t, float64(1), actual)
 
 	// NB: lookback limit: start+1
-	actual = consolidator.consolidate()
+	actual = consolidator.consolidateAndMoveToNext()
 	assert.True(t, math.IsNaN(actual))
 
 	// NB: lookback limit: start+2
-	actual = consolidator.consolidate()
+	actual = consolidator.consolidateAndMoveToNext()
 	assert.True(t, math.IsNaN(actual))
 
 	consolidator.addPoint(ts.Datapoint{Timestamp: start.Add(2*time.Minute + time.Second*30), Value: 2})
 	consolidator.addPoint(ts.Datapoint{Timestamp: start.Add(3*time.Minute + time.Second), Value: 3})
 
 	// NB: lookback limit: start+3
-	actual = consolidator.consolidate()
+	actual = consolidator.consolidateAndMoveToNext()
 	assert.Equal(t, float64(3), actual)
 }

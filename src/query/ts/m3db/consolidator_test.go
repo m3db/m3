@@ -43,28 +43,28 @@ func TestConsolidator(t *testing.T) {
 	)
 
 	// NB: lookback limit: start-1
-	actual := consolidator.consolidate()
+	actual := consolidator.consolidateAndMoveToNext()
 	test.EqualsWithNans(t, []float64{nan, nan}, actual)
 
 	consolidator.addPointForIterator(ts.Datapoint{Timestamp: start, Value: 1}, 0)
 	consolidator.addPointForIterator(ts.Datapoint{Timestamp: start.Add(time.Minute), Value: 10}, 1)
 
 	// NB: lookback limit: start
-	actual = consolidator.consolidate()
+	actual = consolidator.consolidateAndMoveToNext()
 	test.EqualsWithNans(t, []float64{1, 10}, actual)
 
 	// NB: lookback limit: start+1, point 1 is outside of the lookback period
-	actual = consolidator.consolidate()
+	actual = consolidator.consolidateAndMoveToNext()
 	test.EqualsWithNans(t, []float64{nan, 10}, actual)
 
 	// NB: lookback limit: start+2 both points outside of the lookback period
-	actual = consolidator.consolidate()
+	actual = consolidator.consolidateAndMoveToNext()
 	test.EqualsWithNans(t, []float64{nan, nan}, actual)
 
 	consolidator.addPointForIterator(ts.Datapoint{Timestamp: start.Add(2*time.Minute + time.Second*30), Value: 2}, 0)
 	consolidator.addPointForIterator(ts.Datapoint{Timestamp: start.Add(3*time.Minute + time.Second), Value: 3}, 0)
 
 	// NB: lookback limit: start+3, both points in lookback period
-	actual = consolidator.consolidate()
+	actual = consolidator.consolidateAndMoveToNext()
 	test.EqualsWithNans(t, []float64{3, nan}, actual)
 }

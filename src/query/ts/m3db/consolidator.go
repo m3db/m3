@@ -58,7 +58,7 @@ type lookbackConsolidator struct {
 // valid step has been reached.
 type consolidator interface {
 	addPointForIterator(ts.Datapoint, int)
-	consolidate() []float64
+	consolidateAndMoveToNext() []float64
 }
 
 func buildConsolidator(
@@ -96,7 +96,7 @@ func (c *lookbackConsolidator) addPointForIterator(
 	c.datapoints[i] = append(c.datapoints[i], dp)
 }
 
-func (c *lookbackConsolidator) consolidate() []float64 {
+func (c *lookbackConsolidator) consolidateAndMoveToNext() []float64 {
 	// Update earliest lookback then remove stale values for the next
 	// iteration of the datapoint set.
 	c.earliestLookback = c.earliestLookback.Add(c.stepSize)

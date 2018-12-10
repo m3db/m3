@@ -42,7 +42,7 @@ type singleLookbackConsolidator struct {
 // to be consolidated.
 type singleConsolidator interface {
 	addPoint(ts.Datapoint)
-	consolidate() float64
+	consolidateAndMoveToNext() float64
 	empty() bool
 	reset(time.Time)
 }
@@ -75,7 +75,7 @@ func (c *singleLookbackConsolidator) addPoint(
 	c.datapoints = append(c.datapoints, dp)
 }
 
-func (c *singleLookbackConsolidator) consolidate() float64 {
+func (c *singleLookbackConsolidator) consolidateAndMoveToNext() float64 {
 	c.earliestLookback = c.earliestLookback.Add(c.stepSize)
 	c.consolidated = c.fn(c.datapoints)
 	c.datapoints = removeStale(c.earliestLookback, c.datapoints)
