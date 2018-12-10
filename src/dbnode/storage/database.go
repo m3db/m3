@@ -505,9 +505,6 @@ func (d *db) Write(
 	}
 
 	series, err := n.Write(ctx, id, timestamp, value, unit, annotation)
-	if err == commitlog.ErrCommitLogQueueFull {
-		d.errors.Record(1)
-	}
 	if err != nil {
 		return err
 	}
@@ -517,7 +514,15 @@ func (d *db) Write(
 	}
 
 	dp := ts.Datapoint{Timestamp: timestamp, Value: value}
-	return d.commitLog.Write(ctx, series, dp, unit, annotation)
+	err = d.commitLog.Write(ctx, series, dp, unit, annotation)
+	if err == commitlog.ErrCommitLogQueueFull {
+		d.errors.Record(1)
+	}
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (d *db) WriteTagged(
@@ -537,9 +542,6 @@ func (d *db) WriteTagged(
 	}
 
 	series, err := n.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
-	if err == commitlog.ErrCommitLogQueueFull {
-		d.errors.Record(1)
-	}
 	if err != nil {
 		return err
 	}
@@ -549,7 +551,15 @@ func (d *db) WriteTagged(
 	}
 
 	dp := ts.Datapoint{Timestamp: timestamp, Value: value}
-	return d.commitLog.Write(ctx, series, dp, unit, annotation)
+	err = d.commitLog.Write(ctx, series, dp, unit, annotation)
+	if err == commitlog.ErrCommitLogQueueFull {
+		d.errors.Record(1)
+	}
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (d *db) BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error) {
@@ -634,10 +644,6 @@ func (d *db) writeBatch(
 				write.Write.Annotation,
 			)
 		}
-
-		if err == commitlog.ErrCommitLogQueueFull {
-			d.errors.Record(1)
-		}
 		if err != nil {
 			// Return errors with the original index provided by the caller so they
 			// can associate the error with the write that caused it.
@@ -653,10 +659,22 @@ func (d *db) writeBatch(
 	}
 
 	if !n.Options().WritesToCommitLog() {
+		// Finalize here because we can't rely on the commitlog to do it since we're not
+		// using it.
+		writes.Finalize()
 		return nil
 	}
 
-	return d.commitLog.WriteBatch(ctx, writes)
+	err = d.commitLog.WriteBatch(ctx, writes)
+	if err == commitlog.ErrCommitLogQueueFull {
+		numFailedWrites := int64(len(writes.Iter()))
+		d.errors.Record(numFailedWrites)
+	}
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (d *db) QueryIDs(
