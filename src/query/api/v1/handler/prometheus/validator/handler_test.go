@@ -33,13 +33,14 @@ import (
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage/mock"
+	"github.com/m3db/m3/src/query/util/logging"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
 
-func newBody() io.Reader {
+func newBodyWithMismatch() io.Reader {
 	return strings.NewReader(
 		`
 		{
@@ -116,7 +117,81 @@ func newBody() io.Reader {
 	)
 }
 
+func newBodyWithNumDPMismatch() io.Reader {
+	return strings.NewReader(
+		`
+		{
+			"input": {
+				"status": "success",
+				"data": {
+					"resultType": "matrix",
+					"result": [
+						{
+							"metric": {
+								"__name__": "go_gc_duration_seconds",
+								"instance": "localhost:9090",
+								"job": "prometheus",
+								"quantile": "1"
+							},
+							"values": [
+								[
+									1543434961.200,
+									"0.0032431"
+								],
+								[
+									1543434975.200,
+									"0.0032431"
+								],
+								[
+									1543434989.200,
+									"0.0122029"
+								],
+								[
+									1543435003.200,
+									"0.0122029"
+								]
+							]
+						}
+					]
+				}
+			},
+			"results": {
+				"status": "success",
+				"data": {
+					"resultType": "matrix",
+					"result": [
+						{
+							"metric": {
+								"__name__": "go_gc_duration_seconds",
+								"instance": "localhost:9090",
+								"job": "prometheus",
+								"quantile": "1"
+							},
+							"values": [
+								[
+									1543434961.200,
+									"0.0032431"
+								],
+								[
+									1543434975.200,
+									"0.0032431"
+								],
+								[
+									1543434989.200,
+									"0.0122029"
+								]
+							]
+						}
+					]
+				}
+			}
+		}
+		`,
+	)
+}
+
 type MismatchesJSON struct {
+	Correct        bool `json:"correct"`
 	MismatchesList []struct {
 		Mismatches []struct {
 			Name     string  `json:"name"`
@@ -124,11 +199,14 @@ type MismatchesJSON struct {
 			PromTime string  `json:"promTime"`
 			M3Val    float64 `json:"m3Val"`
 			M3Time   string  `json:"m3Time"`
+			Err      string  `json:"error"`
 		} `json:"mismatches"`
 	} `json:"mismatches_list"`
 }
 
-func TestValidateEndpoint(t *testing.T) {
+func newServer() (*httptest.Server, *PromDebugHandler) {
+	logging.InitWithCores(nil)
+
 	mockStorage := mock.NewMockStorage()
 	debugHandler := NewPromDebugHandler(
 		native.NewPromReadHandler(
@@ -138,19 +216,43 @@ func TestValidateEndpoint(t *testing.T) {
 		), tally.NewTestScope("test", nil),
 	)
 
-	server := httptest.NewServer(debugHandler)
+	return httptest.NewServer(debugHandler), debugHandler
+}
+
+func TestValidateEndpoint(t *testing.T) {
+	server, debugHandler := newServer()
 	defer server.Close()
 
-	req, _ := http.NewRequest("POST", PromDebugURL+"?start=1543431465&end=1543435005&step=14&query=go_gc_duration_seconds", newBody())
+	req, _ := http.NewRequest("POST", PromDebugURL+"?start=1543431465&end=1543435005&step=14&query=go_gc_duration_seconds", newBodyWithMismatch())
 	recorder := httptest.NewRecorder()
 	debugHandler.ServeHTTP(recorder, req)
 
 	var mismatches MismatchesJSON
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &mismatches))
+	assert.False(t, mismatches.Correct)
 	assert.Len(t, mismatches.MismatchesList, 1)
 
 	mismatchesList := mismatches.MismatchesList[0]
 	assert.Len(t, mismatchesList.Mismatches, 1)
 	assert.Equal(t, "__name__=go_gc_duration_seconds,instance=localhost:9090,job=prometheus,quantile=1,", mismatchesList.Mismatches[0].Name)
+	assert.Equal(t, 0.012203, mismatchesList.Mismatches[0].M3Val)
+}
+
+func TestValidateEndpointWithNumDPMismatch(t *testing.T) {
+	server, debugHandler := newServer()
+	defer server.Close()
+
+	req, _ := http.NewRequest("POST", PromDebugURL+"?start=1543431465&end=1543435005&step=14&query=go_gc_duration_seconds", newBodyWithNumDPMismatch())
+	recorder := httptest.NewRecorder()
+	debugHandler.ServeHTTP(recorder, req)
+
+	var mismatches MismatchesJSON
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &mismatches))
+	assert.False(t, mismatches.Correct)
+	assert.Len(t, mismatches.MismatchesList, 1)
+
+	mismatchesList := mismatches.MismatchesList[0]
+	assert.Len(t, mismatchesList.Mismatches, 1)
+	assert.Equal(t, "series has extra m3 datapoints", mismatchesList.Mismatches[0].Err)
 	assert.Equal(t, 0.012203, mismatchesList.Mismatches[0].M3Val)
 }

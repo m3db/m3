@@ -71,6 +71,12 @@ type blockWithMeta struct {
 	meta  block.Metadata
 }
 
+// RespError wraps error and status code
+type RespError struct {
+	Err  error
+	Code int
+}
+
 // NewPromReadHandler returns a new instance of handler.
 func NewPromReadHandler(
 	engine *executor.Engine,
@@ -85,8 +91,9 @@ func NewPromReadHandler(
 }
 
 func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	result, params, err := h.ServeHTTPWithEngine(w, r, h.engine)
-	if err != nil {
+	result, params, respErr := h.ServeHTTPWithEngine(w, r, h.engine)
+	if respErr != nil {
+		xhttp.Error(w, respErr.Err, respErr.Code)
 		return
 	}
 
@@ -97,14 +104,13 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // ServeHTTPWithEngine returns query results from the storage
-func (h *PromReadHandler) ServeHTTPWithEngine(w http.ResponseWriter, r *http.Request, engine *executor.Engine) ([]*ts.Series, models.RequestParams, error) {
+func (h *PromReadHandler) ServeHTTPWithEngine(w http.ResponseWriter, r *http.Request, engine *executor.Engine) ([]*ts.Series, models.RequestParams, *RespError) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	logger := logging.WithContext(ctx)
 
 	params, rErr := parseParams(r)
 	if rErr != nil {
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
-		return nil, emptyReqParams, rErr
+		return nil, emptyReqParams, &RespError{Err: rErr.Inner(), Code: rErr.Code()}
 	}
 
 	if params.Debug {
@@ -112,15 +118,13 @@ func (h *PromReadHandler) ServeHTTPWithEngine(w http.ResponseWriter, r *http.Req
 	}
 
 	if err := h.validateRequest(&params); err != nil {
-		xhttp.Error(w, err, http.StatusBadRequest)
-		return nil, emptyReqParams, err
+		return nil, emptyReqParams, &RespError{Err: err, Code: http.StatusBadRequest}
 	}
 
 	result, err := read(ctx, engine, h.tagOpts, w, params)
 	if err != nil {
 		logger.Error("unable to fetch data", zap.Error(err))
-		xhttp.Error(w, err, http.StatusBadRequest)
-		return nil, emptyReqParams, err
+		return nil, emptyReqParams, &RespError{Err: err, Code: http.StatusInternalServerError}
 	}
 
 	return result, params, nil

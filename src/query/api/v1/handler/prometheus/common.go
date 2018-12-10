@@ -370,6 +370,7 @@ type PromResp struct {
 		Result     []struct {
 			Metric map[string]string `json:"metric"`
 			// todo(braskin): use `Datapoints` instead of interface{} in values
+			// Values is [float, string]
 			Values [][]interface{} `json:"values"`
 		} `json:"result"`
 	} `json:"data"`

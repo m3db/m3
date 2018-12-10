@@ -75,6 +75,12 @@ func NewPromDebugHandler(
 	}
 }
 
+type mismatchResp struct {
+	mismatches [][]mismatch
+	corrrect   bool
+	err        error
+}
+
 func (h *PromDebugHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	logger := logging.WithContext(ctx)
@@ -102,10 +108,10 @@ func (h *PromDebugHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.engine = executor.NewEngine(s, h.scope.SubScope("debug_engine"))
-	results, _, err := h.readHandler.ServeHTTPWithEngine(w, r, h.engine)
-	if err != nil {
-		logger.Error("unable to read data", zap.Error(err))
-		xhttp.Error(w, err, http.StatusInternalServerError)
+	results, _, respErr := h.readHandler.ServeHTTPWithEngine(w, r, h.engine)
+	if respErr != nil {
+		logger.Error("unable to read data", zap.Error(respErr.Err))
+		xhttp.Error(w, respErr.Err, respErr.Code)
 		return
 	}
 
@@ -117,14 +123,25 @@ func (h *PromDebugHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	mismatches, err := validate(tsListToMap(promResults), tsListToMap(results))
-	if err != nil {
+	if err != nil && len(mismatches) == 0 {
 		logger.Error("error validating results", zap.Error(err))
 		xhttp.Error(w, err, http.StatusBadRequest)
 		return
 	}
 
+	var correct bool
+	if len(mismatches) == 0 {
+		correct = true
+	}
+
+	mismatchResp := mismatchResp{
+		corrrect:   correct,
+		mismatches: mismatches,
+		err:        err,
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	if err := renderDebugMismatchResultsJSON(w, mismatches); err != nil {
+	if err := renderDebugMismatchResultsJSON(w, mismatchResp); err != nil {
 		logger.Error("unable to write back mismatch data", zap.Error(err))
 		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
@@ -146,6 +163,7 @@ type mismatch struct {
 	seriesName       string
 	promVal, m3Val   float64
 	promTime, m3Time time.Time
+	err              error
 }
 
 // validate compares prom results to m3 results less NaNs
@@ -171,7 +189,8 @@ func validate(prom, m3 map[string]*ts.Series) ([][]mismatch, error) {
 
 		for _, promdp := range promdps {
 			if math.IsNaN(promdp.Value) && !math.IsNaN(m3dp.Value) {
-				mismatchList = append(mismatchList, newMismatch(id, promdp.Value, m3dp.Value, promdp.Timestamp, m3dp.Timestamp))
+				mismatchList = append(mismatchList, newMismatch(id, promdp.Value, m3dp.Value, promdp.Timestamp, m3dp.Timestamp, nil))
+				continue
 			}
 
 			// skip over any NaN datapoints in the m3 results
@@ -184,10 +203,18 @@ func validate(prom, m3 map[string]*ts.Series) ([][]mismatch, error) {
 
 			m3dp = m3dps[m3idx]
 			if (promdp.Value != m3dp.Value && !math.IsNaN(promdp.Value)) || !promdp.Timestamp.Equal(m3dp.Timestamp) {
-				mismatchList = append(mismatchList, newMismatch(id, promdp.Value, m3dp.Value, promdp.Timestamp, m3dp.Timestamp))
+				mismatchList = append(mismatchList, newMismatch(id, promdp.Value, m3dp.Value, promdp.Timestamp, m3dp.Timestamp, nil))
 			}
 
 			m3idx++
+		}
+
+		// check remaining m3dps to make sure there are no more non-NaN Values
+		for _, dp := range m3dps[m3idx:] {
+			if !math.IsNaN(dp.Value) {
+				err := errors.New("series has extra m3 datapoints")
+				mismatchList = append(mismatchList, newMismatch(id, math.NaN(), dp.Value, time.Time{}, dp.Timestamp, err))
+			}
 		}
 
 		if len(mismatchList) > 0 {
@@ -198,34 +225,36 @@ func validate(prom, m3 map[string]*ts.Series) ([][]mismatch, error) {
 	return mismatches, nil
 }
 
-func newMismatch(name string, promVal, m3Val float64, promTime, m3Time time.Time) mismatch {
+func newMismatch(name string, promVal, m3Val float64, promTime, m3Time time.Time, err error) mismatch {
 	return mismatch{
 		seriesName: name,
 		promVal:    promVal,
 		promTime:   promTime,
 		m3Val:      m3Val,
 		m3Time:     m3Time,
+		err:        err,
 	}
 }
 
 func renderDebugMismatchResultsJSON(
 	w io.Writer,
-	mismatches [][]mismatch,
+	mismatchResp mismatchResp,
 ) error {
 	jw := qjson.NewWriter(w)
-	jw.BeginObject()
 
-	if len(mismatches) == 0 {
-		jw.BeginObjectField("correct")
-		jw.WriteBool(true)
-		jw.EndObject()
-		return jw.Close()
+	jw.BeginObject()
+	jw.BeginObjectField("correct")
+	jw.WriteBool(mismatchResp.corrrect)
+
+	if mismatchResp.err != nil {
+		jw.BeginObjectField("error")
+		jw.WriteString(mismatchResp.err.Error())
 	}
 
 	jw.BeginObjectField("mismatches_list")
 	jw.BeginArray()
 
-	for _, mismatchList := range mismatches {
+	for _, mismatchList := range mismatchResp.mismatches {
 		jw.BeginObject()
 
 		jw.BeginObjectField("mismatches")
@@ -234,14 +263,21 @@ func renderDebugMismatchResultsJSON(
 		for _, mismatch := range mismatchList {
 			jw.BeginObject()
 
+			if mismatch.err != nil {
+				jw.BeginObjectField("error")
+				jw.WriteString(mismatch.err.Error())
+			}
+
 			jw.BeginObjectField("name")
 			jw.WriteString(mismatch.seriesName)
 
-			jw.BeginObjectField("promVal")
-			jw.WriteFloat64(mismatch.promVal)
+			if !mismatch.promTime.IsZero() {
+				jw.BeginObjectField("promVal")
+				jw.WriteFloat64(mismatch.promVal)
 
-			jw.BeginObjectField("promTime")
-			jw.WriteString(mismatch.promTime.String())
+				jw.BeginObjectField("promTime")
+				jw.WriteString(mismatch.promTime.String())
+			}
 
 			jw.BeginObjectField("m3Val")
 			jw.WriteFloat64(mismatch.m3Val)

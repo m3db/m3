@@ -24,6 +24,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -89,13 +90,27 @@ func PromResultToSeriesList(promReadResp prometheus.PromResp, tagOptions models.
 				return nil, errors.New("misformatted datapoint found")
 			}
 
-			dps[i].Timestamp = time.Unix(0, int64(dp[0].(float64))*int64(time.Second))
-			s, err := strconv.ParseFloat(dp[1].(string), 64)
-			if err != nil {
-				return nil, err
+			dpTimeFloat, ok := dp[0].(float64)
+			if !ok {
+				return nil, fmt.Errorf("unable to cast to float: %v", dp[0])
+			}
+			dps[i].Timestamp = time.Unix(0, int64(dpTimeFloat)*int64(time.Second))
+
+			dpValStr, ok := dp[1].(string)
+			if !ok {
+				return nil, fmt.Errorf("unable to cast to string: %v", dp[1])
 			}
 
-			dps[i].Value = s
+			if dpValStr == "NaN" {
+				dps[i].Value = math.NaN()
+			} else {
+				s, err := strconv.ParseFloat(dpValStr, 64)
+				if err != nil {
+					return nil, err
+				}
+
+				dps[i].Value = s
+			}
 		}
 
 		tags := models.NewTags(len(result.Metric), tagOptions)
