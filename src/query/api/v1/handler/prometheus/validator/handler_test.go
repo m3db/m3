@@ -117,7 +117,7 @@ func newBodyWithMismatch() io.Reader {
 	)
 }
 
-func newBodyWithNumDPMismatch() io.Reader {
+func newBodyWithNumM3dpMismatch() io.Reader {
 	return strings.NewReader(
 		`
 		{
@@ -190,6 +190,87 @@ func newBodyWithNumDPMismatch() io.Reader {
 	)
 }
 
+func newBodyWithNumPromdpMismatch() io.Reader {
+	return strings.NewReader(
+		`
+		{
+			"input": {
+				"status": "success",
+				"data": {
+					"resultType": "matrix",
+					"result": [
+						{
+							"metric": {
+								"__name__": "go_gc_duration_seconds",
+								"instance": "localhost:9090",
+								"job": "prometheus",
+								"quantile": "1"
+							},
+							"values": [
+								[
+									1543434961.200,
+									"0.0032431"
+								],
+								[
+									1543434975.200,
+									"0.0032431"
+								],
+								[
+									1543434989.200,
+									"0.0122029"
+								],
+								[
+									1543435003.200,
+									"0.0122029"
+								]
+							]
+						}
+					]
+				}
+			},
+			"results": {
+				"status": "success",
+				"data": {
+					"resultType": "matrix",
+					"result": [
+						{
+							"metric": {
+								"__name__": "go_gc_duration_seconds",
+								"instance": "localhost:9090",
+								"job": "prometheus",
+								"quantile": "1"
+							},
+							"values": [
+								[
+									1543434961.200,
+									"0.0032431"
+								],
+								[
+									1543434975.200,
+									"0.0032431"
+								],
+								[
+									1543434989.200,
+									"0.0122029"
+								],
+								[
+									1543435003.200,
+									"0.0122029"
+								],
+								[
+									1543435017.200,
+									"0.05555"
+								]
+							]
+						}
+					]
+				}
+			}
+		}
+		`,
+	)
+}
+
 type MismatchesJSON struct {
 	Correct        bool `json:"correct"`
 	MismatchesList []struct {
@@ -238,11 +319,11 @@ func TestValidateEndpoint(t *testing.T) {
 	assert.Equal(t, 0.012203, mismatchesList.Mismatches[0].M3Val)
 }
 
-func TestValidateEndpointWithNumDPMismatch(t *testing.T) {
+func TestValidateEndpointWithNumM3dpMismatch(t *testing.T) {
 	server, debugHandler := newServer()
 	defer server.Close()
 
-	req, _ := http.NewRequest("POST", PromDebugURL+"?start=1543431465&end=1543435005&step=14&query=go_gc_duration_seconds", newBodyWithNumDPMismatch())
+	req, _ := http.NewRequest("POST", PromDebugURL+"?start=1543431465&end=1543435005&step=14&query=go_gc_duration_seconds", newBodyWithNumM3dpMismatch())
 	recorder := httptest.NewRecorder()
 	debugHandler.ServeHTTP(recorder, req)
 
@@ -255,4 +336,23 @@ func TestValidateEndpointWithNumDPMismatch(t *testing.T) {
 	assert.Len(t, mismatchesList.Mismatches, 1)
 	assert.Equal(t, "series has extra m3 datapoints", mismatchesList.Mismatches[0].Err)
 	assert.Equal(t, 0.012203, mismatchesList.Mismatches[0].M3Val)
+}
+
+func TestValidateEndpointWithNumPromdpMismatch(t *testing.T) {
+	server, debugHandler := newServer()
+	defer server.Close()
+
+	req, _ := http.NewRequest("POST", PromDebugURL+"?start=1543431465&end=1543435005&step=14&query=go_gc_duration_seconds", newBodyWithNumPromdpMismatch())
+	recorder := httptest.NewRecorder()
+	debugHandler.ServeHTTP(recorder, req)
+
+	var mismatches MismatchesJSON
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &mismatches))
+	assert.False(t, mismatches.Correct)
+	assert.Len(t, mismatches.MismatchesList, 1)
+
+	mismatchesList := mismatches.MismatchesList[0]
+	assert.Len(t, mismatchesList.Mismatches, 1)
+	assert.Equal(t, "series has extra prom datapoints", mismatchesList.Mismatches[0].Err)
+	assert.Equal(t, 0.05555, mismatchesList.Mismatches[0].PromVal)
 }

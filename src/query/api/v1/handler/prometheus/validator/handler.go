@@ -198,7 +198,9 @@ func validate(prom, m3 map[string]*ts.Series) ([][]mismatch, error) {
 			}
 
 			if m3idx > len(m3dps)-1 {
-				break
+				err := errors.New("series has extra prom datapoints")
+				mismatchList = append(mismatchList, newMismatch(id, promdp.Value, math.NaN(), promdp.Timestamp, time.Time{}, err))
+				continue
 			}
 
 			m3dp = m3dps[m3idx]
@@ -279,11 +281,13 @@ func renderDebugMismatchResultsJSON(
 				jw.WriteString(mismatch.promTime.String())
 			}
 
-			jw.BeginObjectField("m3Val")
-			jw.WriteFloat64(mismatch.m3Val)
+			if !mismatch.m3Time.IsZero() {
+				jw.BeginObjectField("m3Val")
+				jw.WriteFloat64(mismatch.m3Val)
 
-			jw.BeginObjectField("m3Time")
-			jw.WriteString(mismatch.m3Time.String())
+				jw.BeginObjectField("m3Time")
+				jw.WriteString(mismatch.m3Time.String())
+			}
 
 			jw.EndObject()
 		}
