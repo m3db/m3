@@ -31,10 +31,10 @@ type Lockfile struct {
 	file os.File
 }
 
-// Create creates the given file path if it doesn't exist and
+// Acquire creates the given file path if it doesn't exist and
 // obtains an exclusive lock on it. An error is returned if the lock
 // has been obtained by another process.
-func Create(path string) (*Lockfile, error) {
+func Acquire(path string) (*Lockfile, error) {
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0666)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed opening lock path")
@@ -54,8 +54,8 @@ func Create(path string) (*Lockfile, error) {
 	return &lf, nil
 }
 
-// Remove releases the lock on the file and removes the file.
-func (lf Lockfile) Remove() error {
+// Release releases the lock on the file and removes the file.
+func (lf Lockfile) Release() error {
 	ft := &unix.Flock_t{
 		Pid:  int32(os.Getpid()),
 		Type: unix.F_UNLCK,

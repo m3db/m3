@@ -28,7 +28,7 @@ func main() {
 		exitWithUsage()
 	}
 
-	lock, err := lockfile.Create(path)
+	lock, err := lockfile.Acquire(path)
 	if err != nil {
 		os.Exit(1)
 	}
@@ -38,6 +38,6 @@ func main() {
 	}
 
 	if rmLock != "0" {
-		lock.Remove()
+		lock.Release()
 	}
 }
