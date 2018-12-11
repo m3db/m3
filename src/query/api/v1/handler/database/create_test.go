@@ -53,11 +53,11 @@ var (
 	}
 )
 
-func SetupDatabaseTest(t *testing.T) (*client.MockClient, *kv.MockStore, *placement.MockService) {
+func SetupDatabaseTest(
+	t *testing.T,
+	ctrl *gomock.Controller,
+) (*client.MockClient, *kv.MockStore, *placement.MockService) {
 	logging.InitWithCores(nil)
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 
 	mockClient := client.NewMockClient(ctrl)
 	require.NotNil(t, mockClient)
@@ -76,7 +76,10 @@ func SetupDatabaseTest(t *testing.T) (*client.MockClient, *kv.MockStore, *placem
 }
 
 func TestLocalType(t *testing.T) {
-	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
@@ -176,7 +179,10 @@ func TestLocalType(t *testing.T) {
 }
 
 func TestLocalTypeWithNumShards(t *testing.T) {
-	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
@@ -276,7 +282,10 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 		xtest.Diff(mustPrettyJSON(t, expectedResponse), mustPrettyJSON(t, string(body))))
 }
 func TestLocalWithBlockSizeNanos(t *testing.T) {
-	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
@@ -377,7 +386,10 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 }
 
 func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
-	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
@@ -482,7 +494,10 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 }
 
 func TestClusterTypeHosts(t *testing.T) {
-	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
@@ -603,7 +618,10 @@ func TestClusterTypeHosts(t *testing.T) {
 }
 
 func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
-	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
@@ -723,7 +741,10 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 		xtest.Diff(mustPrettyJSON(t, expectedResponse), mustPrettyJSON(t, string(body))))
 }
 func TestClusterTypeMissingHostnames(t *testing.T) {
-	mockClient, _, _ := SetupDatabaseTest(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, _, _ := SetupDatabaseTest(t, ctrl)
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
@@ -747,7 +768,10 @@ func TestClusterTypeMissingHostnames(t *testing.T) {
 }
 
 func TestBadType(t *testing.T) {
-	mockClient, _, _ := SetupDatabaseTest(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, _, _ := SetupDatabaseTest(t, ctrl)
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, nil)
 	w := httptest.NewRecorder()
 

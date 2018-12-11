@@ -24,8 +24,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/m3db/m3/src/cluster/kv"
-
+	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
 	dbconfig "github.com/m3db/m3/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3/src/dbnode/kvconfig"
@@ -38,27 +37,27 @@ import (
 )
 
 const (
-	// ConfigBootstrappersURL is the url for the database create handler.
-	ConfigBootstrappersURL = handler.RoutePrefixV1 + "/database/config/bootstrappers"
+	// ConfigSetBootstrappersURL is the url for the database create handler.
+	ConfigSetBootstrappersURL = handler.RoutePrefixV1 + "/database/config/bootstrappers"
 
-	// ConfigBootstrappersHTTPMethod is the HTTP method used with this resource.
-	ConfigBootstrappersHTTPMethod = http.MethodPost
+	// ConfigSetBootstrappersHTTPMethod is the HTTP method used with this resource.
+	ConfigSetBootstrappersHTTPMethod = http.MethodPost
 )
 
-type configBootstrappersHandler struct {
-	store kv.Store
+type configSetBootstrappersHandler struct {
+	client clusterclient.Client
 }
 
-// NewConfigBootstrappersHandler returns a new instance of a database create handler.
-func NewConfigBootstrappersHandler(
-	store kv.Store,
+// NewConfigSetBootstrappersHandler returns a new instance of a database create handler.
+func NewConfigSetBootstrappersHandler(
+	client clusterclient.Client,
 ) http.Handler {
-	return &configBootstrappersHandler{
-		store: store,
+	return &configSetBootstrappersHandler{
+		client: client,
 	}
 }
 
-func (h *configBootstrappersHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *configSetBootstrappersHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 
@@ -69,15 +68,23 @@ func (h *configBootstrappersHandler) ServeHTTP(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	_, err := h.store.Set(kvconfig.BootstrapperKey, value)
+	store, err := h.client.KV()
 	if err != nil {
+		logger.Error("unable to get kv store", zap.Any("error", err))
+		xhttp.Error(w, err, http.StatusInternalServerError)
+		return
+	}
+
+	if _, err := store.Set(kvconfig.BootstrapperKey, value); err != nil {
+		logger.Error("unable to set kv key", zap.Any("error", err))
+		xhttp.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
 	xhttp.WriteProtoMsgJSONResponse(w, value, logger)
 }
 
-func (h *configBootstrappersHandler) parseRequest(
+func (h *configSetBootstrappersHandler) parseRequest(
 	r *http.Request,
 ) (*commonpb.StringArrayProto, *xhttp.ParseError) {
 	array := new(commonpb.StringArrayProto)

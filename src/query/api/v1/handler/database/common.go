@@ -46,4 +46,8 @@ func RegisterRoutes(
 	logged := logging.WithResponseTimeLogging
 
 	r.HandleFunc(CreateURL, logged(NewCreateHandler(client, cfg, embeddedDbCfg)).ServeHTTP).Methods(CreateHTTPMethod)
+
+	r.HandleFunc(ConfigGetBootstrappersURL, logged(NewConfigGetBootstrappersHandler(client)).ServeHTTP).Methods(ConfigGetBootstrappersHTTPMethod)
+	r.HandleFunc(ConfigSetBootstrappersURL, logged(NewConfigSetBootstrappersHandler(client)).ServeHTTP).Methods(ConfigSetBootstrappersHTTPMethod)
+
 }
