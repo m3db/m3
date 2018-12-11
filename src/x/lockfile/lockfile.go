@@ -65,12 +65,12 @@ func (lf Lockfile) Release() error {
 		return errors.Wrap(err, "failed releasing lock")
 	}
 
-	if err := os.Remove(lf.file.Name()); err != nil {
-		return errors.Wrap(err, "failed removing lock file")
-	}
-
 	if err := lf.file.Close(); err != nil {
 		return errors.Wrap(err, "failed closing lock file descriptor")
+	}
+
+	if err := os.Remove(lf.file.Name()); err != nil {
+		return errors.Wrap(err, "failed removing lock file")
 	}
 
 	return nil
