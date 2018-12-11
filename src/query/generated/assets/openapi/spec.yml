@@ -600,6 +600,62 @@ paths:
           description: ""
           schema:
             $ref: "#/definitions/GenericError"
+  /services/m3db/database/config/bootstrappers:
+    post:
+      tags:
+      - "M3DB Database"
+      - "M3DB"
+      summary: "Dynamically override the bootstrappers configured in M3DBs node-level configuration"
+      operationId: "databaseConfigSetBootstrappers"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "body"
+        in: "body"
+        schema:
+          $ref: "#/definitions/DatabaseConfigBootstrappers"
+      responses:
+        200:
+          description: ""
+          schema:
+            $ref: "#/definitions/DatabaseConfigBootstrappers"
+        400:
+          description: ""
+          schema:
+            $ref: "#/definitions/GenericError"
+        500:
+          description: ""
+          schema:
+            $ref: "#/definitions/GenericError"
+    get:
+      tags:
+      - "M3DB Database"
+      - "M3DB"
+      summary: "Retrieve the dynamically configured bootstrappers override, if any"
+      operationId: "databaseConfigGetBootstrappers"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      responses:
+        200:
+          description: ""
+          schema:
+            $ref: "#/definitions/DatabaseConfigBootstrappers"
+        400:
+          description: ""
+          schema:
+            $ref: "#/definitions/GenericError"
+        404:
+          description: "not found if not set"
+          schema:
+            $ref: "#/definitions/GenericError"
+        500:
+          description: ""
+          schema:
+            $ref: "#/definitions/GenericError"
 definitions:
   NamespaceAddRequest:
     type: "object"
@@ -878,3 +934,10 @@ definitions:
         $ref: "#/definitions/NamespaceGetResponse"
       placement:
         $ref: "#/definitions/PlacementGetResponse"
+  DatabaseConfigBootstrappers:
+    type: "object"
+    properties:
+      values:
+        type: "array"
+        items:
+          type: "string"
