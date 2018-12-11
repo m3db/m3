@@ -18,58 +18,70 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package mem
+package builder
 
 import (
-	"github.com/m3db/fast-skiplist"
-	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
+	"bytes"
+	"sort"
+
+	"github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/postings"
 )
 
-type skipListIter struct {
-	sorted *skiplist.SkipList
-	curr   *skiplist.Element
-	done   bool
+type termsIter struct {
+	err  error
+	done bool
+
+	currentIdx int
+	current    termElem
+	terms      []termElem
 }
 
-var _ sgmt.FieldsIterator = &skipListIter{}
+var _ segment.TermsIterator = &termsIter{}
 
-func newSkipListIter(sorted *skiplist.SkipList) *skipListIter {
-	return &skipListIter{
-		sorted: sorted,
+func newTermsIter(
+	maybeUnorderedTerms []termElem,
+) *termsIter {
+	sortTerms(maybeUnorderedTerms)
+	return &termsIter{
+		currentIdx: -1,
+		terms:      maybeUnorderedTerms,
 	}
 }
 
-func (b *skipListIter) Next() bool {
-	if b.done {
+func (b *termsIter) Next() bool {
+	if b.done || b.err != nil {
 		return false
 	}
-
-	var next *skiplist.Element
-	if b.curr == nil {
-		next = b.sorted.Front()
-	} else {
-		next = b.curr.Next()
-	}
-
-	if next == nil {
+	b.currentIdx++
+	if b.currentIdx >= len(b.terms) {
 		b.done = true
 		return false
 	}
-
-	b.curr = next
+	b.current = b.terms[b.currentIdx]
 	return true
 }
 
-func (b *skipListIter) Current() []byte {
-	return b.curr.Key()
+func (b *termsIter) Current() ([]byte, postings.List) {
+	return b.current.term, b.current.postings
 }
 
-func (b *skipListIter) Err() error {
+func (b *termsIter) Err() error {
 	return nil
 }
 
-func (b *skipListIter) Close() error {
-	b.done = true
-	b.sorted = nil
+func (b *termsIter) Len() int {
+	return len(b.terms)
+}
+
+func (b *termsIter) Close() error {
+	b.current = termElem{}
+	b.terms = nil
 	return nil
+}
+
+func sortTerms(terms []termElem) {
+	sort.Slice(terms, func(i, j int) bool {
+		return bytes.Compare(terms[i].term, terms[j].term) < 0
+	})
 }

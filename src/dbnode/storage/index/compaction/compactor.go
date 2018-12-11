@@ -26,18 +26,20 @@ import (
 	"io"
 	"sync"
 
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
+
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
-	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
-	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
 	"github.com/m3db/m3/src/x/mmap"
 	xerrors "github.com/m3db/m3x/errors"
 )
 
 var (
-	errCompactorClosed = errors.New("compactor is closed")
+	errCompactorBuilderEmpty = errors.New("builder has no documents")
+	errCompactorClosed       = errors.New("compactor is closed")
 )
 
 // Compactor is a compactor.
@@ -48,7 +50,7 @@ type Compactor struct {
 	docsPool     doc.DocumentArrayPool
 	docsMaxBatch int
 	fstOpts      fst.Options
-	mutableSeg   segment.MutableSegment
+	builder      segment.Builder
 	buff         *bytes.Buffer
 	closed       bool
 }
@@ -58,19 +60,18 @@ type Compactor struct {
 func NewCompactor(
 	docsPool doc.DocumentArrayPool,
 	docsMaxBatch int,
-	memOpts mem.Options,
+	builderOpts builder.Options,
 	fstOpts fst.Options,
 ) (*Compactor, error) {
-	mutableSeg, err := mem.NewSegment(0, memOpts)
+	builder, err := builder.NewBuilder(builderOpts)
 	if err != nil {
 		return nil, err
 	}
-
 	return &Compactor{
 		writer:       fst.NewWriter(),
 		docsPool:     docsPool,
 		docsMaxBatch: docsMaxBatch,
-		mutableSeg:   mutableSeg,
+		builder:      builder,
 		fstOpts:      fstOpts,
 		buff:         bytes.NewBuffer(nil),
 	}, nil
@@ -83,6 +84,15 @@ func NewCompactor(
 // together first before compacting into an FST segment.
 // Note: This is thread safe and only a single compaction may happen at a time.
 func (c *Compactor) Compact(segs []segment.Segment) (segment.Segment, error) {
+	c.builder.Reset(0)
+	return c.CompactUsingBuilder(c.builder, segs)
+}
+
+// CompactUsingBuilder compacts segments together using a provided segment builder.
+func (c *Compactor) CompactUsingBuilder(
+	builder segment.Builder,
+	segs []segment.Segment,
+) (segment.Segment, error) {
 	// NB(r): Ensure only single compaction happens at a time since the buffers are
 	// reused between runs.
 	c.Lock()
@@ -92,25 +102,16 @@ func (c *Compactor) Compact(segs []segment.Segment) (segment.Segment, error) {
 		return nil, errCompactorClosed
 	}
 
-	if len(segs) == 1 {
-		// If just a single mutable segment, can compact it directly
-		if seg, ok := segs[0].(segment.MutableSegment); ok {
-			// If not sealed, ensure to seal it
-			if !seg.IsSealed() {
-				if _, err := seg.Seal(); err != nil {
-					return nil, err
-				}
-			}
+	if builder == nil {
+		return nil, errCompactorBuilderEmpty
+	}
 
-			// Since this segment will be discarded and not reused, can directly
-			// take a ref to the documents
-			return c.compactSealedMutableSegmentWithLock(seg, seg.Docs())
-		}
+	if len(segs) == 0 {
+		// No segments to compact, just compact from the builder
+		return c.compactFromBuilderWithLock(builder)
 	}
 
 	// Need to combine segments first
-	c.mutableSeg.Reset(0)
-
 	batch := c.docsPool.Get()
 	defer func() {
 		c.docsPool.Put(batch)
@@ -124,7 +125,7 @@ func (c *Compactor) Compact(segs []segment.Segment) (segment.Segment, error) {
 			return nil
 		}
 
-		err := c.mutableSeg.InsertBatch(index.Batch{
+		err := builder.InsertBatch(index.Batch{
 			Docs:                batch,
 			AllowPartialUpdates: true,
 		})
@@ -185,25 +186,23 @@ func (c *Compactor) Compact(segs []segment.Segment) (segment.Segment, error) {
 		return nil, err
 	}
 
-	// Seal before compacting
-	if _, err := c.mutableSeg.Seal(); err != nil {
-		return nil, err
-	}
-
-	// Since this segment is reused between compaction
-	// runs, we need to copy the docs slice
-	docs := c.mutableSeg.Docs()
-	docsCopy := make([]doc.Document, len(docs))
-	copy(docsCopy, docs)
-
-	return c.compactSealedMutableSegmentWithLock(c.mutableSeg, docsCopy)
+	return c.compactFromBuilderWithLock(builder)
 }
 
-func (c *Compactor) compactSealedMutableSegmentWithLock(
-	seg segment.MutableSegment,
-	documents []doc.Document,
+func (c *Compactor) compactFromBuilderWithLock(
+	builder segment.Builder,
 ) (segment.Segment, error) {
-	err := c.writer.Reset(seg)
+	// Since this builder is likely reused between compaction
+	// runs, we need to copy the docs slice
+	allDocs := builder.Docs()
+	if len(allDocs) == 0 {
+		return nil, errCompactorBuilderEmpty
+	}
+
+	allDocsCopy := make([]doc.Document, len(allDocs))
+	copy(allDocsCopy, allDocs)
+
+	err := c.writer.Reset(builder)
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +213,7 @@ func (c *Compactor) compactSealedMutableSegmentWithLock(
 		MajorVersion: c.writer.MajorVersion(),
 		MinorVersion: c.writer.MinorVersion(),
 		Metadata:     append([]byte(nil), c.writer.Metadata()...),
-		DocsReader:   docs.NewSliceReader(0, documents),
+		DocsReader:   docs.NewSliceReader(0, allDocsCopy),
 		Closer:       closers,
 	}
 
@@ -300,11 +299,10 @@ func (c *Compactor) Close() error {
 	c.writer = nil
 	c.docsPool = nil
 	c.fstOpts = nil
-	mutableSeg := c.mutableSeg
-	c.mutableSeg = nil
+	c.builder = nil
 	c.buff = nil
 
-	return mutableSeg.Close()
+	return nil
 }
 
 var _ io.Closer = closer(nil)

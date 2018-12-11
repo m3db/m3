@@ -92,8 +92,9 @@ type block struct {
 	state                             blockState
 	hasEvictedMutableSegmentsAnyTimes bool
 
-	activeSegment       *mutableReadableSeg
-	frozenSegments      []*readableSeg
+	segmentBuilder      segment.Builder
+	foregroundSegments  []*readableSeg
+	backgroundSegments  []*readableSeg
 	shardRangesSegments []blockShardRangesSegments
 
 	newExecutorFn newExecutorFn
@@ -105,10 +106,12 @@ type block struct {
 	nsMD          namespace.Metadata
 	docsPool      doc.DocumentArrayPool
 
-	compacting         bool
-	compactions        int
-	compactionPlanOpts compaction.PlannerOptions
-	compactor          *compaction.Compactor
+	compacting            bool
+	compactions           int
+	activeCompactor       *compaction.Compactor
+	activeCompactOpts     compaction.PlannerOptions
+	backgroundCompactor   *compaction.Compactor
+	backgroundCompactOpts compaction.PlannerOptions
 
 	metrics blockMetrics
 	logger  xlog.Logger
@@ -151,9 +154,17 @@ func NewBlock(
 ) (Block, error) {
 	docsPool := opts.DocumentArrayPool()
 
-	compactor, err := compaction.NewCompactor(docsPool,
+	activeCompactor, err := compaction.NewCompactor(docsPool,
 		documentArrayPoolCapacity,
-		opts.MemSegmentOptions(),
+		opts.SegmentBuilderOptions(),
+		opts.FSTSegmentOptions())
+	if err != nil {
+		return nil, err
+	}
+
+	backgroundCompactor, err := compaction.NewCompactor(docsPool,
+		documentArrayPoolCapacity,
+		opts.SegmentBuilderOptions(),
 		opts.FSTSegmentOptions())
 	if err != nil {
 		return nil, err
@@ -162,23 +173,24 @@ func NewBlock(
 	blockSize := md.Options().IndexOptions().BlockSize()
 	iopts := opts.InstrumentOptions()
 	b := &block{
-		state:     blockStateOpen,
-		startTime: startTime,
-		endTime:   startTime.Add(blockSize),
-		blockSize: blockSize,
-		opts:      opts,
-		iopts:     iopts,
-		nsMD:      md,
-		docsPool:  docsPool,
-		compactor: compactor,
-		metrics:   newBlockMetrics(iopts.MetricsScope()),
-		logger:    iopts.Logger(),
+		state:               blockStateOpen,
+		startTime:           startTime,
+		endTime:             startTime.Add(blockSize),
+		blockSize:           blockSize,
+		opts:                opts,
+		iopts:               iopts,
+		nsMD:                md,
+		docsPool:            docsPool,
+		activeCompactor:     activeCompactor,
+		backgroundCompactor: backgroundCompactor,
+		metrics:             newBlockMetrics(iopts.MetricsScope()),
+		logger:              iopts.Logger(),
 	}
 	b.newExecutorFn = b.executorWithRLock
 
-	if _, err := b.rotateActiveSegment(); err != nil {
-		return nil, err
-	}
+	// if _, err := b.rotateActiveSegment(); err != nil {
+	// 	return nil, err
+	// }
 
 	return b, nil
 }
@@ -193,25 +205,25 @@ func (b *block) newMutableSegment() (segment.MutableSegment, error) {
 	return seg, nil
 }
 
-func (b *block) rotateActiveSegment() (*mutableReadableSeg, error) {
-	// NB(r): This may be nil on the first call on initialization
-	prev := b.activeSegment
+// func (b *block) rotateActiveSegment() (*mutableReadableSeg, error) {
+// 	// NB(r): This may be nil on the first call on initialization
+// 	prev := b.activeSegment
 
-	seg, err := b.newMutableSegment()
-	if err != nil {
-		return nil, err
-	}
+// 	seg, err := b.newMutableSegment()
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	b.activeSegment = newMutableReadableSeg(seg)
+// 	b.activeSegment = newMutableReadableSeg(seg)
 
-	if prev != nil {
-		b.metrics.rotateActiveSegment.Inc(1)
-		b.metrics.rotateActiveSegmentAge.Record(prev.Age())
-		b.metrics.rotateActiveSegmentSize.RecordValue(float64(prev.Segment().Size()))
-	}
+// 	if prev != nil {
+// 		b.metrics.rotateActiveSegment.Inc(1)
+// 		b.metrics.rotateActiveSegmentAge.Record(prev.Age())
+// 		b.metrics.rotateActiveSegmentSize.RecordValue(float64(prev.Segment().Size()))
+// 	}
 
-	return prev, nil
-}
+// 	return prev, nil
+// }
 
 func (b *block) StartTime() time.Time {
 	return b.startTime
@@ -221,23 +233,14 @@ func (b *block) EndTime() time.Time {
 	return b.endTime
 }
 
-func (b *block) maybeCompactWithLock() {
+func (b *block) maybeBackgroundCompactWithLock() {
 	if b.compacting || b.state != blockStateOpen {
 		return
 	}
 
 	// Create a logical plan
-	segs := make([]compaction.Segment, 0, 1+len(b.frozenSegments))
-	if b.activeSegment != nil && b.activeSegment.Segment().Size() > 0 {
-		segs = append(segs, compaction.Segment{
-			Age:     b.activeSegment.Age(),
-			Size:    b.activeSegment.Segment().Size(),
-			Type:    segments.MutableType,
-			Segment: b.activeSegment.Segment(),
-		})
-	}
-
-	for _, seg := range b.frozenSegments {
+	segs := make([]compaction.Segment, 0, len(b.backgroundSegments))
+	for _, seg := range b.backgroundSegments {
 		segs = append(segs, compaction.Segment{
 			Age:     seg.Age(),
 			Size:    seg.Segment().Size(),
@@ -246,7 +249,7 @@ func (b *block) maybeCompactWithLock() {
 		})
 	}
 
-	plan, err := compaction.NewPlan(segs, b.opts.CompactionPlannerOptions())
+	plan, err := compaction.NewPlan(segs, b.opts.BackgroundCompactionPlannerOptions())
 	if err != nil {
 		instrument.EmitAndLogInvariantViolation(b.iopts, func(l xlog.Logger) {
 			l.Errorf("could not create index compaction plan: %v", err)
@@ -258,35 +261,6 @@ func (b *block) maybeCompactWithLock() {
 		return
 	}
 
-	var compactingActiveSegment bool
-	if b.activeSegment != nil {
-		for _, task := range plan.Tasks {
-			for _, seg := range task.Segments {
-				if seg.Segment == b.activeSegment.Segment() {
-					compactingActiveSegment = true
-					break
-				}
-			}
-			if compactingActiveSegment {
-				break
-			}
-		}
-	}
-
-	if compactingActiveSegment {
-		// Rotate the current active segment so it's not written to while
-		// we're compacting it
-		prev, err := b.rotateActiveSegment()
-		if err != nil {
-			instrument.EmitAndLogInvariantViolation(b.iopts, func(l xlog.Logger) {
-				l.Errorf("could not rotate active segment for compaction: %v", err)
-			})
-			return
-		}
-
-		b.frozenSegments = append(b.frozenSegments, newReadableSeg(prev.Segment()))
-	}
-
 	// Kick off compaction
 	b.startCompactWithLock(plan)
 }
@@ -294,20 +268,20 @@ func (b *block) maybeCompactWithLock() {
 func (b *block) startCompactWithLock(plan *compaction.Plan) {
 	b.compacting = true
 	go func() {
-		b.compactWithPlan(plan)
+		b.backgroundCompactWithPlan(plan)
 
 		b.Lock()
-		b.cleanupCompactWithLock()
+		b.cleanupBackgroundCompactWithLock()
 		b.Unlock()
 	}()
 }
 
-func (b *block) cleanupCompactWithLock() {
+func (b *block) cleanupBackgroundCompactWithLock() {
 	b.compacting = false
 
 	if b.state == blockStateOpen {
 		// See if we need to trigger another compaction
-		b.maybeCompactWithLock()
+		b.maybeBackgroundCompactWithLock()
 		return
 	}
 
@@ -323,7 +297,7 @@ func (b *block) cleanupCompactWithLock() {
 		return
 	}
 
-	for _, seg := range b.frozenSegments {
+	for _, seg := range b.backgroundSegments {
 		err := seg.Segment().Close()
 		if err != nil {
 			instrument.EmitAndLogInvariantViolation(b.iopts, func(l xlog.Logger) {
@@ -331,10 +305,10 @@ func (b *block) cleanupCompactWithLock() {
 			})
 		}
 	}
-	b.frozenSegments = nil
+	b.backgroundSegments = nil
 
 	// Free compactor resources
-	err := b.compactor.Close()
+	err := b.backgroundCompactor.Close()
 	if err != nil {
 		instrument.EmitAndLogInvariantViolation(b.iopts, func(l xlog.Logger) {
 			l.Errorf("error closing index block compactor: %v", err)
@@ -342,7 +316,7 @@ func (b *block) cleanupCompactWithLock() {
 	}
 }
 
-func (b *block) compactWithPlan(plan *compaction.Plan) {
+func (b *block) backgroundCompactWithPlan(plan *compaction.Plan) {
 	sw := b.metrics.compactionPlanRunLatency.Start()
 	defer sw.Stop()
 
@@ -373,7 +347,7 @@ func (b *block) compactWithPlan(plan *compaction.Plan) {
 			taskLogger.Debug("start compaction task")
 		}
 
-		err := b.compactWithTask(task)
+		err := b.backgroundCompactWithTask(task)
 
 		if log {
 			taskLogger.Debug("done compaction task")
@@ -388,14 +362,14 @@ func (b *block) compactWithPlan(plan *compaction.Plan) {
 	}
 }
 
-func (b *block) compactWithTask(task compaction.Task) error {
+func (b *block) backgroundCompactWithTask(task compaction.Task) error {
 	segments := make([]segment.Segment, 0, len(task.Segments))
 	for _, seg := range task.Segments {
 		segments = append(segments, seg.Segment)
 	}
 
 	sw := b.metrics.compactionTaskRunLatency.Start()
-	compacted, err := b.compactor.Compact(segments)
+	compacted, err := b.backgroundCompactor.Compact(segments)
 	sw.Stop()
 
 	if err != nil {
@@ -406,8 +380,8 @@ func (b *block) compactWithTask(task compaction.Task) error {
 	b.Lock()
 	defer b.Unlock()
 
-	newFrozenSegments := make([]*readableSeg, 0, len(b.frozenSegments))
-	for _, frozen := range b.frozenSegments {
+	newBackgroundSegments := make([]*readableSeg, 0, len(b.backgroundSegments))
+	for _, frozen := range b.backgroundSegments {
 		keepCurr := true
 		for _, seg := range segments {
 			if frozen.Segment() == seg {
@@ -418,7 +392,7 @@ func (b *block) compactWithTask(task compaction.Task) error {
 		}
 
 		if keepCurr {
-			newFrozenSegments = append(newFrozenSegments, frozen)
+			newBackgroundSegments = append(newBackgroundSegments, frozen)
 			continue
 		}
 
@@ -431,7 +405,7 @@ func (b *block) compactWithTask(task compaction.Task) error {
 		}
 	}
 
-	b.frozenSegments = append(newFrozenSegments, newReadableSeg(compacted))
+	b.backgroundSegments = append(newBackgroundSegments, newReadableSeg(compacted))
 
 	return nil
 }
@@ -439,7 +413,7 @@ func (b *block) compactWithTask(task compaction.Task) error {
 func (b *block) WriteBatch(inserts *WriteBatch) (WriteBatchResult, error) {
 	b.Lock()
 	defer func() {
-		b.maybeCompactWithLock()
+		b.maybeBackgroundCompactWithLock()
 		b.Unlock()
 	}()
 
@@ -453,7 +427,7 @@ func (b *block) WriteBatch(inserts *WriteBatch) (WriteBatchResult, error) {
 
 	// NB: we're guaranteed the block (i.e. has a valid activeSegment) because
 	// of the state check above. the if check below is additional paranoia.
-	if b.activeSegment == nil { // should never happen
+	if b.segmentBuilder == nil { // should never happen
 		err := b.openBlockHasNilActiveSegmentInvariantErrorWithRLock()
 		inserts.MarkUnmarkedEntriesError(err)
 		return WriteBatchResult{
@@ -461,11 +435,18 @@ func (b *block) WriteBatch(inserts *WriteBatch) (WriteBatchResult, error) {
 		}, err
 	}
 
-	err := b.activeSegment.Segment().InsertBatch(m3ninxindex.Batch{
+	b.segmentBuilder.Reset(0)
+	err := b.segmentBuilder.InsertBatch(m3ninxindex.Batch{
 		Docs:                inserts.PendingDocs(),
 		AllowPartialUpdates: true,
 	})
-	if err == nil {
+	if len(b.segmentBuilder.Docs()) > 0 {
+		// We inserted some documents, need to compact immediately into a
+		// foreground segment
+
+	}
+
+	if err != nil {
 		inserts.MarkUnmarkedEntriesSuccess()
 		return WriteBatchResult{
 			NumSuccess: int64(inserts.Len()),
@@ -492,6 +473,12 @@ func (b *block) WriteBatch(inserts *WriteBatch) (WriteBatchResult, error) {
 		NumSuccess: int64(inserts.Len() - numErr),
 		NumError:   int64(numErr),
 	}, partialErr
+}
+
+func (b *block) compactForegroundFromWriteBatchWithLock(
+	builder segment.Builder,
+) error {
+
 }
 
 func (b *block) executorWithRLock() (search.Executor, error) {

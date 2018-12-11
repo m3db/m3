@@ -82,9 +82,9 @@ func (m *concurrentPostingsMap) Add(key []byte, id postings.ID) {
 }
 
 // Keys returns the keys known to the map.
-func (m *concurrentPostingsMap) Keys() *skipListIter {
+func (m *concurrentPostingsMap) Keys() *skipListTermsIter {
 	// NB(r): Skip list is thread safe, no need to grab any locks
-	return newSkipListIter(m.sorted)
+	return newSkipListTermsIter(m.sorted)
 }
 
 // Get returns the postings.List backing `key`.

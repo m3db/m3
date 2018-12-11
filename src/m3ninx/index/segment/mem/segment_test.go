@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
+	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
 
 	"github.com/stretchr/testify/require"
 )
@@ -660,7 +661,7 @@ func TestSegmentReaderMatchExact(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	_, err = segment.Seal()
+	err = segment.Seal()
 	require.NoError(t, err)
 
 	r, err := segment.Reader()
@@ -694,10 +695,10 @@ func TestSegmentSealLifecycle(t *testing.T) {
 	segment, err := NewSegment(0, testOptions)
 	require.NoError(t, err)
 
-	_, err = segment.Seal()
+	err = segment.Seal()
 	require.NoError(t, err)
 
-	_, err = segment.Seal()
+	err = segment.Seal()
 	require.Error(t, err)
 }
 
@@ -706,7 +707,7 @@ func TestSegmentSealCloseLifecycle(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, segment.Close())
-	_, err = segment.Seal()
+	err = segment.Seal()
 	require.Error(t, err)
 }
 
@@ -716,7 +717,7 @@ func TestSegmentIsSealed(t *testing.T) {
 
 	require.False(t, segment.IsSealed())
 
-	_, err = segment.Seal()
+	err = segment.Seal()
 	require.NoError(t, err)
 	require.True(t, segment.IsSealed())
 
@@ -740,10 +741,10 @@ func TestSegmentFields(t *testing.T) {
 	_, err = segment.Fields()
 	require.Error(t, err)
 
-	seg, err := segment.Seal()
+	err = segment.Seal()
 	require.NoError(t, err)
 
-	fieldsIter, err := seg.Fields()
+	fieldsIter, err := segment.Fields()
 	require.NoError(t, err)
 
 	fields := toSlice(t, fieldsIter)
@@ -771,15 +772,15 @@ func TestSegmentTerms(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	_, err = segment.Seal()
+	err = segment.Seal()
 	require.NoError(t, err)
 
 	for field, expectedTerms := range knownsFields {
 		termsIter, err := segment.Terms([]byte(field))
 		require.NoError(t, err)
-		terms := toSlice(t, termsIter)
-		for _, term := range terms {
-			delete(expectedTerms, string(term))
+		terms := toTermPostings(t, termsIter)
+		for term := range terms {
+			delete(expectedTerms, term)
 		}
 		require.Empty(t, expectedTerms)
 	}
@@ -856,4 +857,14 @@ func compareDocs(expected, actual doc.Document) bool {
 		actual.ID = nil
 	}
 	return expected.Equal(actual)
+}
+
+func toSlice(t *testing.T, iter sgmt.OrderedBytesIterator) [][]byte {
+	elems := [][]byte{}
+	for iter.Next() {
+		elems = append(elems, iter.Current())
+	}
+	require.NoError(t, iter.Err())
+	require.NoError(t, iter.Close())
+	return elems
 }

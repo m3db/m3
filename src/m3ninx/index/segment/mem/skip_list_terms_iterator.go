@@ -21,26 +21,36 @@
 package mem
 
 import (
-	"github.com/m3db/fast-skiplist"
+	"errors"
+
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/postings"
+
+	"github.com/m3db/fast-skiplist"
 )
 
-type skipListIter struct {
-	sorted *skiplist.SkipList
-	curr   *skiplist.Element
-	done   bool
+var (
+	errSkipListValueNotPostingsList = errors.New("skip list element value is not a postings list")
+)
+
+type skipListTermsIter struct {
+	sorted   *skiplist.SkipList
+	curr     *skiplist.Element
+	postings postings.List
+	done     bool
+	err      error
 }
 
-var _ sgmt.FieldsIterator = &skipListIter{}
+var _ sgmt.TermsIterator = &skipListTermsIter{}
 
-func newSkipListIter(sorted *skiplist.SkipList) *skipListIter {
-	return &skipListIter{
+func newSkipListTermsIter(sorted *skiplist.SkipList) *skipListTermsIter {
+	return &skipListTermsIter{
 		sorted: sorted,
 	}
 }
 
-func (b *skipListIter) Next() bool {
-	if b.done {
+func (b *skipListTermsIter) Next() bool {
+	if b.done || b.err != nil {
 		return false
 	}
 
@@ -57,18 +67,26 @@ func (b *skipListIter) Next() bool {
 	}
 
 	b.curr = next
+
+	var ok bool
+	b.postings, ok = b.curr.Value().(postings.List)
+	if !ok {
+		b.err = errSkipListValueNotPostingsList
+		return false
+	}
+
 	return true
 }
 
-func (b *skipListIter) Current() []byte {
-	return b.curr.Key()
+func (b *skipListTermsIter) Current() ([]byte, postings.List) {
+	return b.curr.Key(), b.postings
 }
 
-func (b *skipListIter) Err() error {
-	return nil
+func (b *skipListTermsIter) Err() error {
+	return b.err
 }
 
-func (b *skipListIter) Close() error {
+func (b *skipListTermsIter) Close() error {
 	b.done = true
 	b.sorted = nil
 	return nil

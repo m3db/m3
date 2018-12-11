@@ -350,6 +350,14 @@ func (s *segment) Reader() (index.Reader, error) {
 	return newReader(s, limits, s.plPool), nil
 }
 
+func (s *segment) AllDocs() (index.IDDocIterator, error) {
+	r, err := s.Reader()
+	if err != nil {
+		return nil, err
+	}
+	return r.AllDocs()
+}
+
 func (s *segment) matchTerm(field, term []byte) (postings.List, error) {
 	s.state.RLock()
 	defer s.state.RUnlock()
@@ -410,19 +418,19 @@ func (s *segment) IsSealed() bool {
 	return s.state.sealed
 }
 
-func (s *segment) Seal() (sgmt.Segment, error) {
+func (s *segment) Seal() error {
 	s.state.Lock()
 	defer s.state.Unlock()
 	if s.state.closed {
-		return nil, sgmt.ErrClosed
+		return sgmt.ErrClosed
 	}
 
 	if s.state.sealed {
-		return nil, errSegmentSealed
+		return errSegmentSealed
 	}
 
 	s.state.sealed = true
-	return s, nil
+	return nil
 }
 
 func (s *segment) Fields() (sgmt.FieldsIterator, error) {
@@ -441,6 +449,14 @@ func (s *segment) Terms(name []byte) (sgmt.TermsIterator, error) {
 		return nil, err
 	}
 	return s.termsDict.Terms(name), nil
+}
+
+func (s *segment) FieldsIterable() sgmt.FieldsIterable {
+	return s
+}
+
+func (s *segment) TermsIterable() sgmt.TermsIterable {
+	return s
 }
 
 func (s *segment) checkIsSealedWithRLock() error {

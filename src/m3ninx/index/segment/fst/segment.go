@@ -266,14 +266,23 @@ func (r *fsSegment) Terms(field []byte) (sgmt.TermsIterator, error) {
 	}
 
 	if !exists {
-		return sgmt.EmptyOrderedBytesIterator, nil
+		return sgmt.EmptyTermsIterator, nil
 	}
 
-	return newFSTTermsIter(newFSTTermsIterOpts{
+	return newFSTTermsPostingsIter(r, newFSTTermsIter(newFSTTermsIterOpts{
 		opts:        r.opts,
 		fst:         termsFST,
 		finalizeFST: true,
-	}), nil
+	})), nil
+}
+
+func (r *fsSegment) PostingsListAtOffset(postingsOffset uint64) (postings.List, error) {
+	r.RLock()
+	defer r.RUnlock()
+	if r.closed {
+		return nil, errReaderClosed
+	}
+	return r.retrievePostingsListWithRLock(postingsOffset)
 }
 
 func (r *fsSegment) MatchTerm(field []byte, term []byte) (postings.List, error) {

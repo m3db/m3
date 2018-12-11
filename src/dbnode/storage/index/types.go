@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
+	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
 	"github.com/m3db/m3x/context"
@@ -588,6 +589,12 @@ type Options interface {
 	// InstrumentOptions returns the instrument options.
 	InstrumentOptions() instrument.Options
 
+	// SetSegmentBuilderOptions sets the mem segment options.
+	SetSegmentBuilderOptions(value builder.Options) Options
+
+	// SegmentBuilderOptions returns the mem segment options.
+	SegmentBuilderOptions() builder.Options
+
 	// SetMemSegmentOptions sets the mem segment options.
 	SetMemSegmentOptions(value mem.Options) Options
 
@@ -624,9 +631,15 @@ type Options interface {
 	// DocumentArrayPool returns the document array pool.
 	DocumentArrayPool() doc.DocumentArrayPool
 
-	// SetCompactionPlannerOptions sets the compaction planner options.
-	SetCompactionPlannerOptions(v compaction.PlannerOptions) Options
+	// SetForegroundCompactionPlannerOptions sets the compaction planner options.
+	SetForegroundCompactionPlannerOptions(v compaction.PlannerOptions) Options
 
-	// CompactionPlannerOptions returns the compaction planner options.
-	CompactionPlannerOptions() compaction.PlannerOptions
+	// ForegroundCompactionPlannerOptions returns the compaction planner options.
+	ForegroundCompactionPlannerOptions() compaction.PlannerOptions
+
+	// SetBackgroundCompactionPlannerOptions sets the compaction planner options.
+	SetBackgroundCompactionPlannerOptions(v compaction.PlannerOptions) Options
+
+	// BackgroundCompactionPlannerOptions returns the compaction planner options.
+	BackgroundCompactionPlannerOptions() compaction.PlannerOptions
 }

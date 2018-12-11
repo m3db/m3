@@ -45,7 +45,9 @@ func newTermsDict(opts Options) termsDictionary {
 	dict := &termsDict{
 		opts: opts,
 	}
-	dict.fields.fieldsMap = newFieldsMap(opts.InitialCapacity())
+	dict.fields.fieldsMap = newFieldsMap(fieldsMapOptions{
+		InitialSize: opts.InitialCapacity(),
+	})
 	dict.fields.sorted = skiplist.New()
 	return dict
 }
@@ -78,7 +80,7 @@ func (d *termsDict) Terms(field []byte) sgmt.TermsIterator {
 	defer d.fields.RUnlock()
 	values, ok := d.fields.Get(field)
 	if !ok {
-		return sgmt.EmptyOrderedBytesIterator
+		return newSkipListTermsIter(skiplist.New())
 	}
 	return values.Keys()
 }

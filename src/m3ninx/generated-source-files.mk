@@ -28,9 +28,10 @@ genny-all: genny-map-all genny-arraypool-all
 # Map generation rule for all generated maps
 .PHONY: genny-map-all
 genny-map-all:                          \
-	genny-map-segment-mem-postingsmap     \
+	genny-map-segment-builder-postingsmap \
+	genny-map-segment-builder-fieldsmap   \
+	genny-map-segment-builder-idsmap      \
 	genny-map-segment-mem-fieldsmap       \
-	genny-map-segment-mem-idsmap          \
 	genny-map-segment-fst-postings-offset \
 	genny-map-segment-fst-terms-offset
 
@@ -46,47 +47,70 @@ genny-map-all:                          \
 #
 # [1]: https://github.com/cheekybits/genny
 
-# Map generation rule for index/segment/mem.postingsMap
-.PHONY: genny-map-segment-mem-postingsmap
-genny-map-segment-mem-postingsmap: install-m3x-repo
-	cd $(m3x_package_path) && make hashmap-gen           \
-		pkg=mem                                            \
-		key_type=[]byte                                    \
-		value_type=postings.MutableList                    \
-		target_package=$(m3ninx_package)/index/segment/mem \
-		rename_nogen_key=true                              \
-		rename_nogen_value=true                            \
-		rename_type_prefix=postings
+# Map generation rule for index/segment/builder.PostingsMap
+.PHONY: genny-map-segment-builder-postingsmap
+genny-map-segment-builder-postingsmap: install-m3x-repo
+	cd $(m3x_package_path) && make byteshashmap-gen          \
+		pkg=builder                                            \
+		value_type=postings.MutableList                        \
+		target_package=$(m3ninx_package)/index/segment/builder \
+		rename_nogen_key=true                                  \
+		rename_nogen_value=true                                \
+		rename_type_prefix=Postings                            \
+		rename_constructor=NewPostingsMap                      \
+		rename_constructor_options=PostingsMapOptions
 	# Rename generated map file
-	mv -f $(m3ninx_package_path)/index/segment/mem/map_gen.go $(m3ninx_package_path)/index/segment/mem/postings_map_gen.go
+	mv -f $(m3ninx_package_path)/index/segment/builder/map_gen.go $(m3ninx_package_path)/index/segment/builder/postings_map_gen.go
+	mv -f $(m3ninx_package_path)/index/segment/builder/new_map_gen.go $(m3ninx_package_path)/index/segment/builder/postings_map_new.go
+
+	# Map generation rule for index/segment/builder.IDsMap
+.PHONY: genny-map-segment-builder-idsmap
+genny-map-segment-builder-idsmap: install-m3x-repo
+	cd $(m3x_package_path) && make byteshashmap-gen          \
+		pkg=builder                                            \
+		value_type=struct{}                                    \
+		target_package=$(m3ninx_package)/index/segment/builder \
+	  rename_nogen_key=true                                  \
+	  rename_nogen_value=true                                \
+		rename_type_prefix=IDs                                 \
+		rename_constructor=NewIDsMap                           \
+		rename_constructor_options=IDsMapOptions
+	# Rename generated map file
+	mv -f $(m3ninx_package_path)/index/segment/builder/map_gen.go $(m3ninx_package_path)/index/segment/builder/ids_map_gen.go
+	mv -f $(m3ninx_package_path)/index/segment/builder/new_map_gen.go $(m3ninx_package_path)/index/segment/builder/ids_map_new.go
+
+
+# Map generation rule for index/segment/builder.fieldsMap
+.PHONY: genny-map-segment-builder-fieldsmap
+genny-map-segment-builder-fieldsmap: install-m3x-repo
+	cd $(m3x_package_path) && make byteshashmap-gen          \
+		pkg=builder                                            \
+		value_type=*terms                                      \
+		value_type_alias=terms                                 \
+		target_package=$(m3ninx_package)/index/segment/builder \
+	  rename_nogen_key=true                                  \
+		rename_type_prefix=fields                              \
+		rename_constructor=newFieldsMap                        \
+		rename_constructor_options=fieldsMapOptions
+	# Rename generated map file
+	mv -f $(m3ninx_package_path)/index/segment/builder/map_gen.go $(m3ninx_package_path)/index/segment/builder/fields_map_gen.go
+	mv -f $(m3ninx_package_path)/index/segment/builder/new_map_gen.go $(m3ninx_package_path)/index/segment/builder/fields_map_new.go
 
 # Map generation rule for index/segment/mem.fieldsMap
 .PHONY: genny-map-segment-mem-fieldsmap
 genny-map-segment-mem-fieldsmap: install-m3x-repo
-	cd $(m3x_package_path) && make hashmap-gen           \
+	cd $(m3x_package_path) && make byteshashmap-gen      \
 		pkg=mem                                            \
-		key_type=[]byte                                    \
 		value_type=*concurrentPostingsMap                  \
 		value_type_alias=concurrentPostingsMap             \
 		target_package=$(m3ninx_package)/index/segment/mem \
 	  rename_nogen_key=true                              \
-		rename_type_prefix=fields
+		rename_type_prefix=fields                          \
+		rename_constructor=newFieldsMap                    \
+		rename_constructor_options=fieldsMapOptions
 	# Rename generated map file
 	mv -f $(m3ninx_package_path)/index/segment/mem/map_gen.go $(m3ninx_package_path)/index/segment/mem/fields_map_gen.go
-
-# Map generation rule for index/segment/mem.idsMap
-.PHONY: genny-map-segment-mem-idsmap
-genny-map-segment-mem-idsmap: install-m3x-repo
-	cd $(m3x_package_path) && make hashmap-gen           \
-		pkg=mem                                            \
-		key_type=[]byte                                    \
-		value_type=struct{}                                \
-		target_package=$(m3ninx_package)/index/segment/mem \
-	  rename_nogen_key=true                              \
-	  rename_nogen_value=true                            \
-		rename_type_prefix=ids
-	# Rename generated map file
-	mv -f $(m3ninx_package_path)/index/segment/mem/map_gen.go $(m3ninx_package_path)/index/segment/mem/ids_map_gen.go
+	mv -f $(m3ninx_package_path)/index/segment/mem/new_map_gen.go $(m3ninx_package_path)/index/segment/mem/fields_map_new.go
 
 # Map generation rule for index/segment/fst/postingsOffsetsMap
 .PHONY: genny-map-segment-fst-postings-offset

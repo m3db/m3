@@ -18,58 +18,68 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package mem
+package fst
 
 import (
-	"github.com/m3db/fast-skiplist"
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/postings"
+	xerrors "github.com/m3db/m3x/errors"
 )
 
-type skipListIter struct {
-	sorted *skiplist.SkipList
-	curr   *skiplist.Element
-	done   bool
+type postingsListRetriever interface {
+	PostingsListAtOffset(postingsOffset uint64) (postings.List, error)
 }
 
-var _ sgmt.FieldsIterator = &skipListIter{}
+type fstTermsPostingsIter struct {
+	retriever    postingsListRetriever
+	termsIter    *fstTermsIter
+	currTerm     []byte
+	currPostings postings.List
+	err          error
+}
 
-func newSkipListIter(sorted *skiplist.SkipList) *skipListIter {
-	return &skipListIter{
-		sorted: sorted,
+func newFSTTermsPostingsIter(
+	retriever postingsListRetriever,
+	termsIter *fstTermsIter,
+) *fstTermsPostingsIter {
+	return &fstTermsPostingsIter{
+		retriever: retriever,
+		termsIter: termsIter,
 	}
 }
 
-func (b *skipListIter) Next() bool {
-	if b.done {
+var _ sgmt.TermsIterator = &fstTermsPostingsIter{}
+
+func (f *fstTermsPostingsIter) Next() bool {
+	if f.err != nil {
 		return false
 	}
 
-	var next *skiplist.Element
-	if b.curr == nil {
-		next = b.sorted.Front()
-	} else {
-		next = b.curr.Next()
-	}
-
-	if next == nil {
-		b.done = true
+	next := f.termsIter.Next()
+	if !next {
 		return false
 	}
 
-	b.curr = next
+	var offset uint64
+	f.currTerm, offset = f.termsIter.CurrentExtended()
+	f.currPostings, f.err = f.retriever.PostingsListAtOffset(offset)
+	if f.err != nil {
+		return false
+	}
+
 	return true
 }
 
-func (b *skipListIter) Current() []byte {
-	return b.curr.Key()
+func (f *fstTermsPostingsIter) Current() ([]byte, postings.List) {
+	return f.currTerm, f.currPostings
 }
 
-func (b *skipListIter) Err() error {
-	return nil
+func (f *fstTermsPostingsIter) Err() error {
+	return f.err
 }
 
-func (b *skipListIter) Close() error {
-	b.done = true
-	b.sorted = nil
-	return nil
+func (f *fstTermsPostingsIter) Close() error {
+	var multiErr xerrors.MultiError
+	multiErr = multiErr.Add(f.termsIter.Close())
+	return multiErr.FinalError()
 }

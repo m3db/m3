@@ -1313,10 +1313,33 @@ func newNamespaceIndexMetrics(
 }
 
 type nsIndexBlocksMetrics struct {
-	ActiveSegmentLevelsMetrics []nsIndexBlocksSegmentLevelMetrics
+	ForegroundSegments nsIndexBlocksSegmentsMetrics
+	BackgroundSegments nsIndexBlocksSegmentsMetrics
 }
 
-type nsIndexBlocksSegmentLevelMetrics struct {
+func newNamespaceIndexBlocksMetrics(
+	opts index.Options,
+	scope tally.Scope,
+) nsIndexBlocksMetrics {
+	return nsIndexBlocksMetrics{
+		ForegroundSegments: newNamespaceIndexBlocksSegmentsMetrics(
+			opts.ForegroundCompactionPlannerOptions().Levels,
+			scope.Tagged(map[string]string{
+				"segment-type": "foreground",
+			})),
+			BackgroundSegments: newNamespaceIndexBlocksSegmentsMetrics(
+				opts.BackgroundCompactionPlannerOptions().Levels,
+				scope.Tagged(map[string]string{
+					"segment-type": "background",
+				})),
+	}
+}
+
+type nsIndexBlocksSegmentsMetrics struct {
+	Levels []nsIndexBlocksSegmentsLevelMetrics
+}
+
+type nsIndexBlocksSegmentsLevelMetrics struct {
 	MinSizeInclusive int64
 	MaxSizeExclusive int64
 	NumSegments      tally.Gauge
@@ -1324,13 +1347,11 @@ type nsIndexBlocksSegmentLevelMetrics struct {
 	SegmentsAge      tally.Timer
 }
 
-func newNamespaceIndexBlocksMetrics(
-	opts index.Options,
+func newNamespaceIndexBlocksSegmentsMetrics(
+	compactionLevels []compaction.PlannerOptions,
 	scope tally.Scope,
-) nsIndexBlocksMetrics {
+) nsIndexBlocksSegmentsMetrics {
 	segmentLevelsScope := scope.SubScope("segment-levels")
-
-	compactionLevels := opts.CompactionPlannerOptions().Levels
 	levels := make([]nsIndexBlocksSegmentLevelMetrics, 0, len(compactionLevels))
 	for _, level := range compactionLevels {
 		subScope := segmentLevelsScope.Tagged(map[string]string{
@@ -1346,8 +1367,8 @@ func newNamespaceIndexBlocksMetrics(
 		})
 	}
 
-	return nsIndexBlocksMetrics{
-		ActiveSegmentLevelsMetrics: levels,
+	return nsIndexBlocksSegmentsMetrics{
+		Levels: levels,
 	}
 }
 

@@ -27,7 +27,6 @@ import (
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/generated/proto/fswriter"
-	"github.com/m3db/m3/src/m3ninx/index"
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
@@ -47,8 +46,8 @@ var (
 )
 
 type writer struct {
-	seg       sgmt.Segment
-	segReader index.Reader
+	builder sgmt.Builder
+	size    int64
 
 	intEncoder      *encoding.Encoder
 	postingsEncoder *pilosa.Encoder
@@ -80,8 +79,7 @@ func NewWriter() Writer {
 }
 
 func (w *writer) clear() {
-	w.seg = nil
-	w.segReader = nil
+	w.builder = nil
 
 	w.fstWriter = newFSTWriter()
 	w.intEncoder.Reset()
@@ -98,29 +96,24 @@ func (w *writer) clear() {
 	w.docOffsets = w.docOffsets[:0]
 }
 
-func (w *writer) Reset(s sgmt.MutableSegment) error {
+func (w *writer) Reset(b sgmt.Builder) error {
 	w.clear()
 
-	if s == nil {
+	if b == nil {
 		return nil
 	}
 
-	numDocs := s.Size()
+	numDocs := len(b.Docs())
 	metadata := defaultV1Metadata()
-	metadata.NumDocs = numDocs
+	metadata.NumDocs = int64(numDocs)
 	metadataBytes, err := metadata.Marshal()
 	if err != nil {
 		return err
 	}
 
-	reader, err := s.Reader()
-	if err != nil {
-		return err
-	}
-
 	w.metadata = metadataBytes
-	w.seg = s
-	w.segReader = reader
+	w.builder = b
+	w.size = int64(numDocs)
 	return nil
 }
 
@@ -139,7 +132,7 @@ func (w *writer) Metadata() []byte {
 func (w *writer) WriteDocumentsData(iow io.Writer) error {
 	w.docDataWriter.Reset(iow)
 
-	iter, err := w.segReader.AllDocs()
+	iter, err := w.builder.AllDocs()
 	closer := x.NewSafeCloser(iter)
 	defer closer.Close()
 	if err != nil {
@@ -147,8 +140,8 @@ func (w *writer) WriteDocumentsData(iow io.Writer) error {
 	}
 
 	var currOffset uint64
-	if int64(cap(w.docOffsets)) < w.seg.Size() {
-		w.docOffsets = make([]docOffset, 0, w.seg.Size())
+	if int64(cap(w.docOffsets)) < w.size {
+		w.docOffsets = make([]docOffset, 0, w.size)
 	}
 	for iter.Next() {
 		id, doc := iter.PostingsID(), iter.Current()
@@ -184,7 +177,7 @@ func (w *writer) WritePostingsOffsets(iow io.Writer) error {
 	currentOffset := uint64(0)
 
 	// retrieve known fields
-	fields, err := w.seg.Fields()
+	fields, err := w.builder.FieldsIterable().Fields()
 	if err != nil {
 		return err
 	}
@@ -193,19 +186,14 @@ func (w *writer) WritePostingsOffsets(iow io.Writer) error {
 	for fields.Next() {
 		f := fields.Current()
 		// retrieve known terms for current field
-		terms, err := w.seg.Terms(f)
+		terms, err := w.builder.TermsIterable().Terms(f)
 		if err != nil {
 			return err
 		}
 
 		// for each term corresponding to the current field
 		for terms.Next() {
-			t := terms.Current()
-			// retrieve the postings list for this (field, term) combination
-			pl, err := w.segReader.MatchTerm(f, t)
-			if err != nil {
-				return err
-			}
+			t, pl := terms.Current()
 
 			// serialize the postings list
 			w.postingsEncoder.Reset()
@@ -256,7 +244,7 @@ func (w *writer) WriteFSTTerms(iow io.Writer) error {
 	currentOffset := uint64(0)
 
 	// retrieve all known fields
-	fields, err := w.seg.Fields()
+	fields, err := w.builder.FieldsIterable().Fields()
 	if err != nil {
 		return err
 	}
@@ -270,14 +258,14 @@ func (w *writer) WriteFSTTerms(iow io.Writer) error {
 		}
 
 		// retrieve all terms for this field
-		terms, err := w.seg.Terms(f)
+		terms, err := w.builder.TermsIterable().Terms(f)
 		if err != nil {
 			return err
 		}
 
 		// for each term corresponding to this field
 		for terms.Next() {
-			t := terms.Current()
+			t, _ := terms.Current()
 
 			// retieve postsings offset for the current field,term
 			po, err := w.getPostingsOffset(f, t)
@@ -341,7 +329,7 @@ func (w *writer) WriteFSTFields(iow io.Writer) error {
 	}
 
 	// retrieve all known fields
-	fields, err := w.seg.Fields()
+	fields, err := w.builder.FieldsIterable().Fields()
 	if err != nil {
 		return err
 	}

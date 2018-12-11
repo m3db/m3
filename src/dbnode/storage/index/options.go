@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/m3ninx/doc"
+	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
 	"github.com/m3db/m3x/ident"
@@ -54,16 +55,18 @@ var (
 )
 
 type opts struct {
-	insertMode            InsertMode
-	clockOpts             clock.Options
-	instrumentOpts        instrument.Options
-	memOpts               mem.Options
-	fstOpts               fst.Options
-	idPool                ident.Pool
-	bytesPool             pool.CheckedBytesPool
-	resultsPool           ResultsPool
-	docArrayPool          doc.DocumentArrayPool
-	compactionPlannerOpts compaction.PlannerOptions
+	insertMode                      InsertMode
+	clockOpts                       clock.Options
+	instrumentOpts                  instrument.Options
+	builderOpts                     builder.Options
+	memOpts                         mem.Options
+	fstOpts                         fst.Options
+	idPool                          ident.Pool
+	bytesPool                       pool.CheckedBytesPool
+	resultsPool                     ResultsPool
+	docArrayPool                    doc.DocumentArrayPool
+	foregroundCompactionPlannerOpts compaction.PlannerOptions
+	backgroundCompactionPlannerOpts compaction.PlannerOptions
 }
 
 var undefinedUUIDFn = func() ([]byte, error) { return nil, errIDGenerationDisabled }
@@ -89,16 +92,18 @@ func NewOptions() Options {
 
 	instrumentOpts := instrument.NewOptions()
 	opts := &opts{
-		insertMode:            defaultIndexInsertMode,
-		clockOpts:             clock.NewOptions(),
-		instrumentOpts:        instrumentOpts,
-		memOpts:               mem.NewOptions().SetNewUUIDFn(undefinedUUIDFn),
-		fstOpts:               fst.NewOptions().SetInstrumentOptions(instrumentOpts),
-		bytesPool:             bytesPool,
-		idPool:                idPool,
-		resultsPool:           resultsPool,
-		docArrayPool:          docArrayPool,
-		compactionPlannerOpts: compaction.DefaultOptions,
+		insertMode:                      defaultIndexInsertMode,
+		clockOpts:                       clock.NewOptions(),
+		instrumentOpts:                  instrumentOpts,
+		builderOpts:                     builder.NewOptions().SetNewUUIDFn(undefinedUUIDFn),
+		memOpts:                         mem.NewOptions().SetNewUUIDFn(undefinedUUIDFn),
+		fstOpts:                         fst.NewOptions().SetInstrumentOptions(instrumentOpts),
+		bytesPool:                       bytesPool,
+		idPool:                          idPool,
+		resultsPool:                     resultsPool,
+		docArrayPool:                    docArrayPool,
+		foregroundCompactionPlannerOpts: compaction.DefaultOptions,
+		backgroundCompactionPlannerOpts: compaction.DefaultOptions,
 	}
 	resultsPool.Init(func() Results { return NewResults(opts) })
 	return opts
@@ -140,13 +145,25 @@ func (o *opts) ClockOptions() clock.Options {
 func (o *opts) SetInstrumentOptions(value instrument.Options) Options {
 	opts := *o
 	memOpts := opts.MemSegmentOptions().SetInstrumentOptions(value)
+	fstOpts := opts.FSTSegmentOptions().SetInstrumentOptions(value)
 	opts.instrumentOpts = value
 	opts.memOpts = memOpts
+	opts.fstOpts = fstOpts
 	return &opts
 }
 
 func (o *opts) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
+}
+
+func (o *opts) SetSegmentBuilderOptions(value builder.Options) Options {
+	opts := *o
+	opts.builderOpts = value
+	return &opts
+}
+
+func (o *opts) SegmentBuilderOptions() builder.Options {
+	return o.builderOpts
 }
 
 func (o *opts) SetMemSegmentOptions(value mem.Options) Options {
@@ -209,12 +226,22 @@ func (o *opts) DocumentArrayPool() doc.DocumentArrayPool {
 	return o.docArrayPool
 }
 
-func (o *opts) SetCompactionPlannerOptions(value compaction.PlannerOptions) Options {
+func (o *opts) SetForegroundCompactionPlannerOptions(value compaction.PlannerOptions) Options {
 	opts := *o
-	opts.compactionPlannerOpts = value
+	opts.foregroundCompactionPlannerOpts = value
 	return &opts
 }
 
-func (o *opts) CompactionPlannerOptions() compaction.PlannerOptions {
-	return o.compactionPlannerOpts
+func (o *opts) ForegroundCompactionPlannerOptions() compaction.PlannerOptions {
+	return o.foregroundCompactionPlannerOpts
+}
+
+func (o *opts) SetBackgroundCompactionPlannerOptions(value compaction.PlannerOptions) Options {
+	opts := *o
+	opts.backgroundCompactionPlannerOpts = value
+	return &opts
+}
+
+func (o *opts) BackgroundCompactionPlannerOptions() compaction.PlannerOptions {
+	return o.backgroundCompactionPlannerOpts
 }

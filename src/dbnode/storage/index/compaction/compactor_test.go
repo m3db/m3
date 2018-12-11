@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
 	"github.com/m3db/m3x/pool"
@@ -34,8 +35,9 @@ import (
 )
 
 var (
-	testFSTSegmentOptions = fst.NewOptions()
-	testMemSegmentOptions = mem.NewOptions()
+	testFSTSegmentOptions     = fst.NewOptions()
+	testMemSegmentOptions     = mem.NewOptions()
+	testBuilderSegmentOptions = builder.NewOptions()
 
 	testDocuments = []doc.Document{
 		doc.Document{
@@ -88,7 +90,7 @@ func TestCompactorSingleMutableSegment(t *testing.T) {
 	require.NoError(t, err)
 
 	compactor, err := NewCompactor(testDocsPool, testDocsMaxBatch,
-		testMemSegmentOptions, testFSTSegmentOptions)
+		testBuilderSegmentOptions, testFSTSegmentOptions)
 	require.NoError(t, err)
 
 	compacted, err := compactor.Compact([]segment.Segment{seg})
@@ -113,7 +115,7 @@ func TestCompactorManySegments(t *testing.T) {
 	require.NoError(t, err)
 
 	compactor, err := NewCompactor(testDocsPool, testDocsMaxBatch,
-		testMemSegmentOptions, testFSTSegmentOptions)
+		testBuilderSegmentOptions, testFSTSegmentOptions)
 	require.NoError(t, err)
 
 	compacted, err := compactor.Compact([]segment.Segment{seg1, seg2})
@@ -141,7 +143,7 @@ func TestCompactorCompactDuplicateIDsNoError(t *testing.T) {
 	require.NoError(t, err)
 
 	compactor, err := NewCompactor(testDocsPool, testDocsMaxBatch,
-		testMemSegmentOptions, testFSTSegmentOptions)
+		testBuilderSegmentOptions, testFSTSegmentOptions)
 	require.NoError(t, err)
 
 	compacted, err := compactor.Compact([]segment.Segment{seg1, seg2})
