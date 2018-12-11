@@ -40,7 +40,7 @@ const (
 	decodeBytesFuncName       = "decodeBytes"
 )
 
-// DecodeLogEntryFast deocders a commit log entry with no buffering and using optimized helper
+// DecodeLogEntryFast decodes a commit log entry with no buffering and using optimized helper
 // functions that bypass the msgpack decoding library by manually inlining the equivalent code.
 //
 // The reason we had to bypass the msgpack decoding library is that during perf testing we found that
@@ -50,7 +50,7 @@ const (
 // especially when each call to this function results in dozens of such helper function calls.
 //
 // Manually inlining the msgpack decoding results in a lot of code duplication for this one path, but
-// we pay the price because this codepath is one of the priamry bottlenecks influencing how fast we
+// we pay the price because this codepath is one of the primary bottlenecks influencing how fast we
 // can bootstrap M3DB from the commitlog. As a result, almost any performance gains that can be had in
 // this function are worth it.
 //
