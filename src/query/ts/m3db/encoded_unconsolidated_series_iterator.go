@@ -54,6 +54,7 @@ func (it *encodedSeriesIterUnconsolidated) Current() (
 	}
 
 	if err := iter.Err(); err != nil {
+		it.mu.RUnlock()
 		return block.UnconsolidatedSeries{}, err
 	}
 

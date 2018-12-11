@@ -27,11 +27,11 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 )
 
-// SingleLookbackConsolidator is a helper for consolidating a full single
+// SeriesLookbackConsolidator is a helper for consolidating a full single
 // series. It has some differences with the step consolidator in that it
 // collects points for a single series, and is reset when the next series
 // needs to be consolidated.
-type SingleLookbackConsolidator struct {
+type SeriesLookbackConsolidator struct {
 	lookbackDuration time.Duration
 	stepSize         time.Duration
 	earliestLookback time.Time
@@ -40,28 +40,26 @@ type SingleLookbackConsolidator struct {
 	fn               ConsolidationFunc
 }
 
-// NewSingleConsolidator creates a single value consolidator used for
+// NewSeriesLookbackConsolidator creates a single value consolidator used for
 // series iteration with a given lookback.
-func NewSingleConsolidator(
+func NewSeriesLookbackConsolidator(
 	lookbackDuration, stepSize time.Duration,
 	startTime time.Time,
 	fn ConsolidationFunc,
-) *SingleLookbackConsolidator {
-	datapoints := make([]ts.Datapoint, 0, initLength)
-
-	return &SingleLookbackConsolidator{
+) *SeriesLookbackConsolidator {
+	return &SeriesLookbackConsolidator{
 		lookbackDuration: lookbackDuration,
 		stepSize:         stepSize,
 		earliestLookback: startTime.Add(-1 * lookbackDuration),
 		consolidated:     math.NaN(),
-		datapoints:       datapoints,
+		datapoints:       make([]ts.Datapoint, 0, initLength),
 		fn:               fn,
 	}
 }
 
 // AddPoint adds a datapoint if it's within the valid time period;
 // otherwise drops it silently, which is fine for consolidation.
-func (c *SingleLookbackConsolidator) AddPoint(
+func (c *SeriesLookbackConsolidator) AddPoint(
 	dp ts.Datapoint,
 ) {
 	if dp.Timestamp.Before(c.earliestLookback) {
@@ -74,7 +72,7 @@ func (c *SingleLookbackConsolidator) AddPoint(
 
 // ConsolidateAndMoveToNext consolidates the current values and moves the
 // consolidator to the next given value, purging stale values.
-func (c *SingleLookbackConsolidator) ConsolidateAndMoveToNext() float64 {
+func (c *SeriesLookbackConsolidator) ConsolidateAndMoveToNext() float64 {
 	c.earliestLookback = c.earliestLookback.Add(c.stepSize)
 	c.consolidated = c.fn(c.datapoints)
 	c.datapoints = removeStale(c.earliestLookback, c.datapoints)
@@ -83,13 +81,13 @@ func (c *SingleLookbackConsolidator) ConsolidateAndMoveToNext() float64 {
 
 // Empty returns true if there are no datapoints in the consolidator. It
 // is used to let consumers of the consolidators shortcircuit logic.
-func (c *SingleLookbackConsolidator) Empty() bool {
+func (c *SeriesLookbackConsolidator) Empty() bool {
 	return len(c.datapoints) == 0
 }
 
 // Reset purges all points from the consolidator. This should be called
 // when moving to the next series to consolidate.
-func (c *SingleLookbackConsolidator) Reset(
+func (c *SeriesLookbackConsolidator) Reset(
 	startTime time.Time,
 ) {
 	c.earliestLookback = startTime.Add(-1 * c.lookbackDuration)

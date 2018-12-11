@@ -21,48 +21,50 @@
 package consolidators
 
 import (
-	"math"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/ts"
-
-	"github.com/stretchr/testify/assert"
+	"github.com/m3db/m3/src/query/test"
 )
 
-func TestSingleConsolidator(t *testing.T) {
+func TestConsolidator(t *testing.T) {
 	lookback := time.Minute
 	start := time.Now().Truncate(time.Hour)
+	iterCount := 2
 	fn := TakeLast
 
-	consolidator := NewSingleConsolidator(
+	consolidator := NewStepLookbackConsolidator(
 		lookback,
 		lookback,
 		start,
+		iterCount,
 		fn,
 	)
 
 	// NB: lookback limit: start-1
 	actual := consolidator.ConsolidateAndMoveToNext()
-	assert.True(t, math.IsNaN(actual))
+	test.EqualsWithNans(t, []float64{nan, nan}, actual)
 
-	consolidator.AddPoint(ts.Datapoint{Timestamp: start, Value: 1})
+	consolidator.AddPointForIterator(ts.Datapoint{Timestamp: start, Value: 1}, 0)
+	consolidator.AddPointForIterator(ts.Datapoint{Timestamp: start.Add(time.Minute), Value: 10}, 1)
+
 	// NB: lookback limit: start
 	actual = consolidator.ConsolidateAndMoveToNext()
-	assert.Equal(t, float64(1), actual)
+	test.EqualsWithNans(t, []float64{1, 10}, actual)
 
-	// NB: lookback limit: start+1
+	// NB: lookback limit: start+1, point 1 is outside of the lookback period
 	actual = consolidator.ConsolidateAndMoveToNext()
-	assert.True(t, math.IsNaN(actual))
+	test.EqualsWithNans(t, []float64{nan, 10}, actual)
 
-	// NB: lookback limit: start+2
+	// NB: lookback limit: start+2 both points outside of the lookback period
 	actual = consolidator.ConsolidateAndMoveToNext()
-	assert.True(t, math.IsNaN(actual))
+	test.EqualsWithNans(t, []float64{nan, nan}, actual)
 
-	consolidator.AddPoint(ts.Datapoint{Timestamp: start.Add(2*time.Minute + time.Second*30), Value: 2})
-	consolidator.AddPoint(ts.Datapoint{Timestamp: start.Add(3*time.Minute + time.Second), Value: 3})
+	consolidator.AddPointForIterator(ts.Datapoint{Timestamp: start.Add(2*time.Minute + time.Second*30), Value: 2}, 0)
+	consolidator.AddPointForIterator(ts.Datapoint{Timestamp: start.Add(3*time.Minute + time.Second), Value: 3}, 0)
 
-	// NB: lookback limit: start+3
+	// NB: lookback limit: start+3, both points in lookback period
 	actual = consolidator.ConsolidateAndMoveToNext()
-	assert.Equal(t, float64(3), actual)
+	test.EqualsWithNans(t, []float64{3, nan}, actual)
 }

@@ -39,13 +39,13 @@ type encodedSeriesIter struct {
 	bounds       models.Bounds
 	seriesMeta   []block.SeriesMeta
 	seriesIters  []encoding.SeriesIterator
-	consolidator *consolidators.SingleLookbackConsolidator
+	consolidator *consolidators.SeriesLookbackConsolidator
 }
 
 func (b *encodedBlock) seriesIter() block.SeriesIter {
 	cs := b.consolidation
 	bounds := cs.bounds
-	consolidator := consolidators.NewSingleConsolidator(
+	consolidator := consolidators.NewSeriesLookbackConsolidator(
 		time.Minute,
 		bounds.StepSize,
 		cs.currentTime,

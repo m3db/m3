@@ -41,11 +41,11 @@ func removeStale(
 	return dps[:0]
 }
 
-// LookbackConsolidator is a helper for consolidating series in a step-wise
+// StepLookbackConsolidator is a helper for consolidating series in a step-wise
 // fashion. It takes a 'step' of values, which represents a vertical
 // slice of time across a list of series, and consolidates when a
 // valid step has been reached.
-type LookbackConsolidator struct {
+type StepLookbackConsolidator struct {
 	lookbackDuration time.Duration
 	stepSize         time.Duration
 	earliestLookback time.Time
@@ -54,14 +54,14 @@ type LookbackConsolidator struct {
 	fn               ConsolidationFunc
 }
 
-// NewLookbackConsolidator creates a multivalue consolidator used for
+// NewStepLookbackConsolidator creates a multivalue consolidator used for
 // step iteration across a series list with a given lookback.
-func NewLookbackConsolidator(
+func NewStepLookbackConsolidator(
 	lookbackDuration, stepSize time.Duration,
 	startTime time.Time,
 	resultSize int,
 	fn ConsolidationFunc,
-) *LookbackConsolidator {
+) *StepLookbackConsolidator {
 	consolidated := make([]float64, resultSize)
 	xts.Memset(consolidated, math.NaN())
 	datapoints := make([][]ts.Datapoint, resultSize)
@@ -69,7 +69,7 @@ func NewLookbackConsolidator(
 		datapoints[i] = make([]ts.Datapoint, 0, initLength)
 	}
 
-	return &LookbackConsolidator{
+	return &StepLookbackConsolidator{
 		lookbackDuration: lookbackDuration,
 		stepSize:         stepSize,
 		earliestLookback: startTime.Add(-1 * lookbackDuration),
@@ -81,7 +81,7 @@ func NewLookbackConsolidator(
 
 // AddPointForIterator adds a datapoint to a given step if it's within the valid
 // time period; otherwise drops it silently, which is fine for consolidation.
-func (c *LookbackConsolidator) AddPointForIterator(
+func (c *StepLookbackConsolidator) AddPointForIterator(
 	dp ts.Datapoint,
 	i int,
 ) {
@@ -95,7 +95,7 @@ func (c *LookbackConsolidator) AddPointForIterator(
 
 // ConsolidateAndMoveToNext consolidates the current values and moves the
 // consolidator to the next given value, purging stale values.
-func (c *LookbackConsolidator) ConsolidateAndMoveToNext() []float64 {
+func (c *StepLookbackConsolidator) ConsolidateAndMoveToNext() []float64 {
 	// Update earliest lookback then remove stale values for the next
 	// iteration of the datapoint set.
 	c.earliestLookback = c.earliestLookback.Add(c.stepSize)

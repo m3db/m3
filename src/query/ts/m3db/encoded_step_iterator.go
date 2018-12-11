@@ -49,12 +49,12 @@ type encodedStepIter struct {
 	seriesMeta   []block.SeriesMeta
 	seriesIters  []encoding.SeriesIterator
 	seriesPeek   []peekValue
-	consolidator *consolidators.LookbackConsolidator
+	consolidator *consolidators.StepLookbackConsolidator
 }
 
 func (b *encodedBlock) stepIter() block.StepIter {
 	cs := b.consolidation
-	consolidator := consolidators.NewLookbackConsolidator(
+	consolidator := consolidators.NewStepLookbackConsolidator(
 		time.Minute,
 		cs.bounds.StepSize,
 		cs.currentTime,
