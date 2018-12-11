@@ -13,7 +13,9 @@ import (
 )
 
 func exitWithUsage() {
-	fmt.Printf("Usage: %s PATH SLEEP_SECONDS SHOULD_REMOVE_LOCK\n", path.Base(os.Args[0]))
+	fmt.Printf(
+		`Usage: %[1]s <LOCK_FILE_PATH> <NUM_SECONDS_TO_SLEEP> <SHOULD_CLEANUP_LOCK>\nExample: %[1]s /var/run/lockfile 1 1`,
+		path.Base(os.Args[0]))
 	os.Exit(1)
 }
 
