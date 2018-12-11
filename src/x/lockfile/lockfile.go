@@ -22,9 +22,9 @@ package lockfile
 
 import (
 	"os"
-	"syscall"
 
 	"github.com/pkg/errors"
+	"golang.org/x/sys/unix"
 )
 
 type Lockfile struct {
@@ -40,12 +40,12 @@ func Create(path string) (*Lockfile, error) {
 		return nil, errors.Wrap(err, "failed opening lock path")
 	}
 
-	ft := &syscall.Flock_t{
+	ft := &unix.Flock_t{
 		Pid:  int32(os.Getpid()),
-		Type: syscall.F_WRLCK,
+		Type: unix.F_WRLCK,
 	}
 
-	if err = syscall.FcntlFlock(file.Fd(), syscall.F_SETLK, ft); err != nil {
+	if err = unix.FcntlFlock(file.Fd(), unix.F_SETLK, ft); err != nil {
 		return nil, errors.Wrap(err, "failed obtaining lock")
 	}
 
@@ -56,12 +56,12 @@ func Create(path string) (*Lockfile, error) {
 
 // Remove releases the lock on the file and removes the file.
 func (lf Lockfile) Remove() error {
-	ft := &syscall.Flock_t{
+	ft := &unix.Flock_t{
 		Pid:  int32(os.Getpid()),
-		Type: syscall.F_UNLCK,
+		Type: unix.F_UNLCK,
 	}
 
-	if err := syscall.FcntlFlock(lf.file.Fd(), syscall.F_SETLK, ft); err != nil {
+	if err := unix.FcntlFlock(lf.file.Fd(), unix.F_SETLK, ft); err != nil {
 		return errors.Wrap(err, "failed releasing lock")
 	}
 
