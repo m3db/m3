@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package m3db
+package consolidators
 
 import (
 	"math"
@@ -40,3 +40,8 @@ func TakeLast(values []ts.Datapoint) float64 {
 
 	return math.NaN()
 }
+
+const initLength = 10
+
+// Set NaN to a variable makes tests easier.
+var nan = math.NaN()

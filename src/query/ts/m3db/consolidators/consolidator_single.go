@@ -18,92 +18,80 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package m3db
+package consolidators
 
 import (
 	"math"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/ts"
-	xts "github.com/m3db/m3/src/query/ts"
 )
 
-const initLength = 10
-
-func removeStale(
-	earliestLookback time.Time,
-	dps []ts.Datapoint,
-) []ts.Datapoint {
-	for i, dp := range dps {
-		if !dp.Timestamp.Before(earliestLookback) {
-			return dps[i:]
-		}
-	}
-
-	return dps[:0]
-}
-
-type lookbackConsolidator struct {
+// SingleLookbackConsolidator is a helper for consolidating a full single
+// series. It has some differences with the step consolidator in that it
+// collects points for a single series, and is reset when the next series
+// needs to be consolidated.
+type SingleLookbackConsolidator struct {
 	lookbackDuration time.Duration
 	stepSize         time.Duration
 	earliestLookback time.Time
-	consolidated     []float64
-	datapoints       [][]ts.Datapoint
+	consolidated     float64
+	datapoints       []ts.Datapoint
 	fn               ConsolidationFunc
 }
 
-// consolidator is a helper for consolidating series in a step-wise
-// fashion. It takes a 'step' of values, which represents a vertical
-// slice of time across a list of series, and consolidates when a
-// valid step has been reached.
-type consolidator interface {
-	addPointForIterator(ts.Datapoint, int)
-	consolidateAndMoveToNext() []float64
-}
-
-func buildConsolidator(
+// NewSingleConsolidator creates a single value consolidator used for
+// series iteration with a given lookback.
+func NewSingleConsolidator(
 	lookbackDuration, stepSize time.Duration,
 	startTime time.Time,
-	resultSize int,
 	fn ConsolidationFunc,
-) consolidator {
-	consolidated := make([]float64, resultSize)
-	xts.Memset(consolidated, math.NaN())
-	datapoints := make([][]ts.Datapoint, resultSize)
-	for i := range datapoints {
-		datapoints[i] = make([]ts.Datapoint, 0, initLength)
-	}
+) *SingleLookbackConsolidator {
+	datapoints := make([]ts.Datapoint, 0, initLength)
 
-	return &lookbackConsolidator{
+	return &SingleLookbackConsolidator{
 		lookbackDuration: lookbackDuration,
 		stepSize:         stepSize,
 		earliestLookback: startTime.Add(-1 * lookbackDuration),
-		consolidated:     consolidated,
+		consolidated:     math.NaN(),
 		datapoints:       datapoints,
 		fn:               fn,
 	}
 }
 
-func (c *lookbackConsolidator) addPointForIterator(
+// AddPoint adds a datapoint if it's within the valid time period;
+// otherwise drops it silently, which is fine for consolidation.
+func (c *SingleLookbackConsolidator) AddPoint(
 	dp ts.Datapoint,
-	i int,
 ) {
 	if dp.Timestamp.Before(c.earliestLookback) {
 		// this datapoint is too far in the past, it can be dropped.
 		return
 	}
 
-	c.datapoints[i] = append(c.datapoints[i], dp)
+	c.datapoints = append(c.datapoints, dp)
 }
 
-func (c *lookbackConsolidator) consolidateAndMoveToNext() []float64 {
-	// Update earliest lookback then remove stale values for the next
-	// iteration of the datapoint set.
+// ConsolidateAndMoveToNext consolidates the current values and moves the
+// consolidator to the next given value, purging stale values.
+func (c *SingleLookbackConsolidator) ConsolidateAndMoveToNext() float64 {
 	c.earliestLookback = c.earliestLookback.Add(c.stepSize)
-	for i, dps := range c.datapoints {
-		c.consolidated[i] = c.fn(dps)
-		c.datapoints[i] = removeStale(c.earliestLookback, dps)
-	}
-
+	c.consolidated = c.fn(c.datapoints)
+	c.datapoints = removeStale(c.earliestLookback, c.datapoints)
 	return c.consolidated
+}
+
+// Empty returns true if there are no datapoints in the consolidator. It
+// is used to let consumers of the consolidators shortcircuit logic.
+func (c *SingleLookbackConsolidator) Empty() bool {
+	return len(c.datapoints) == 0
+}
+
+// Reset purges all points from the consolidator. This should be called
+// when moving to the next series to consolidate.
+func (c *SingleLookbackConsolidator) Reset(
+	startTime time.Time,
+) {
+	c.earliestLookback = startTime.Add(-1 * c.lookbackDuration)
+	c.datapoints = c.datapoints[:0]
 }

@@ -35,7 +35,6 @@ type encodedStepIterUnconsolidated struct {
 	mu          sync.RWMutex
 	lastBlock   bool
 	exhausted   bool
-	started     bool
 	err         error
 	meta        block.Metadata
 	validIters  []bool
@@ -48,7 +47,7 @@ func (it *encodedStepIterUnconsolidated) Current() (
 	error,
 ) {
 	it.mu.RLock()
-	if !it.started || it.exhausted {
+	if it.exhausted {
 		it.mu.RUnlock()
 		return nil, fmt.Errorf("out of bounds")
 	}
@@ -87,11 +86,6 @@ func (it *encodedStepIterUnconsolidated) Next() bool {
 	defer it.mu.Unlock()
 	if it.exhausted {
 		return false
-	}
-
-	if !it.started {
-		it.validIters = make([]bool, len(it.seriesIters))
-		it.started = true
 	}
 
 	var anyNext bool

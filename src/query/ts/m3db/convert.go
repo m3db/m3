@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	"github.com/m3db/m3x/ident"
 )
 
@@ -88,7 +89,7 @@ func ConvertM3DBSegmentedBlockIterators(
 	return nil, fmt.Errorf("WIP: splitting blocks will require lookback propagation")
 	defer iterators.Close()
 	// TODO bounds here should be bounds for this block only not for everything!
-	blockBuilder := newEncodedBlockBuilder(tagOptions, TakeLast)
+	blockBuilder := newEncodedBlockBuilder(tagOptions, consolidators.TakeLast)
 	for _, seriesIterator := range iterators.Iters() {
 		blockReplicas, err := blockReplicasFromSeriesIterator(seriesIterator, iterAlloc, bounds, pools)
 		if err != nil {

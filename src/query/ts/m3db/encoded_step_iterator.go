@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 )
 
 type peekValue struct {
@@ -48,12 +49,12 @@ type encodedStepIter struct {
 	seriesMeta   []block.SeriesMeta
 	seriesIters  []encoding.SeriesIterator
 	seriesPeek   []peekValue
-	consolidator consolidator
+	consolidator *consolidators.LookbackConsolidator
 }
 
 func (b *encodedBlock) stepIter() block.StepIter {
 	cs := b.consolidation
-	consolidator := buildConsolidator(
+	consolidator := consolidators.NewLookbackConsolidator(
 		time.Minute,
 		cs.bounds.StepSize,
 		cs.currentTime,
@@ -94,7 +95,7 @@ func (it *encodedStepIter) Current() (block.Step, error) {
 
 	step := &encodedStep{
 		time:   currentTime,
-		values: it.consolidator.consolidateAndMoveToNext(),
+		values: it.consolidator.ConsolidateAndMoveToNext(),
 	}
 
 	it.mu.RUnlock()
@@ -120,7 +121,7 @@ func (it *encodedStepIter) nextConsolidatedForStep(i int) {
 		// Record previously peeked value, and all potentially valid
 		// values, then apply consolidation function to them to get the
 		// consolidated point.
-		it.consolidator.addPointForIterator(point, i)
+		it.consolidator.AddPointForIterator(point, i)
 		// clear peeked point.
 		it.seriesPeek[i].started = false
 		// If at boundary, add the point as the current value.
@@ -140,7 +141,7 @@ func (it *encodedStepIter) nextConsolidatedForStep(i int) {
 		// consolidation candidate.
 		if !dp.Timestamp.After(it.currentTime) {
 			it.seriesPeek[i].started = false
-			it.consolidator.addPointForIterator(dp, i)
+			it.consolidator.AddPointForIterator(dp, i)
 		} else {
 			// This point exists further than the current step.
 			// Set peeked value to this point, then consolidate the retrieved
@@ -176,7 +177,7 @@ func (it *encodedStepIter) initialStep() {
 		if iter.Next() {
 			dp, _, _ := iter.Current()
 			if dp.Timestamp.Equal(it.bounds.Start) {
-				it.consolidator.addPointForIterator(dp, i)
+				it.consolidator.AddPointForIterator(dp, i)
 			} else {
 				it.seriesPeek[i] = peekValue{
 					point: ts.Datapoint{

@@ -78,6 +78,7 @@ func (b *encodedBlockUnconsolidated) StepIter() (
 		seriesMeta:  b.seriesMetas,
 		seriesIters: b.seriesBlockIterators,
 		lastBlock:   b.lastBlock,
+		validIters:  make([]bool, len(b.seriesBlockIterators)),
 	}, nil
 }
 

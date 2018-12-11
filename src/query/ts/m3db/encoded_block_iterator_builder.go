@@ -24,17 +24,18 @@ import (
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 )
 
 type encodedBlockBuilder struct {
 	blocksAtTime    map[string]encodedBlock
 	tagOptions      models.TagOptions
-	consolidationFn ConsolidationFunc
+	consolidationFn consolidators.ConsolidationFunc
 }
 
 func newEncodedBlockBuilder(
 	tagOptions models.TagOptions,
-	consolidationFn ConsolidationFunc,
+	consolidationFn consolidators.ConsolidationFunc,
 ) *encodedBlockBuilder {
 	return &encodedBlockBuilder{
 		blocksAtTime:    make(map[string]encodedBlock, 10),
@@ -50,7 +51,7 @@ func (b *encodedBlockBuilder) add(
 ) {
 	start := bounds.Start
 	consolidation := consolidationSettings{
-		consolidationFn: TakeLast,
+		consolidationFn: consolidators.TakeLast,
 		currentTime:     start,
 		bounds:          bounds,
 	}

@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
 	xts "github.com/m3db/m3/src/query/ts"
+	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 )
 
 type encodedSeriesIter struct {
@@ -38,13 +39,13 @@ type encodedSeriesIter struct {
 	bounds       models.Bounds
 	seriesMeta   []block.SeriesMeta
 	seriesIters  []encoding.SeriesIterator
-	consolidator singleConsolidator
+	consolidator *consolidators.SingleLookbackConsolidator
 }
 
 func (b *encodedBlock) seriesIter() block.SeriesIter {
 	cs := b.consolidation
 	bounds := cs.bounds
-	consolidator := buildSingleConsolidator(
+	consolidator := consolidators.NewSingleConsolidator(
 		time.Minute,
 		bounds.StepSize,
 		cs.currentTime,
@@ -72,17 +73,17 @@ func (it *encodedSeriesIter) Current() (block.Series, error) {
 		ts := dp.Timestamp
 
 		if !ts.After(currentTime) {
-			it.consolidator.addPoint(dp)
+			it.consolidator.AddPoint(dp)
 			continue
 		}
 
 		for {
-			values[i] = it.consolidator.consolidateAndMoveToNext()
+			values[i] = it.consolidator.ConsolidateAndMoveToNext()
 			i++
 			currentTime = currentTime.Add(it.bounds.StepSize)
 
 			if !ts.After(currentTime) {
-				it.consolidator.addPoint(dp)
+				it.consolidator.AddPoint(dp)
 				break
 			}
 		}
@@ -95,8 +96,8 @@ func (it *encodedSeriesIter) Current() (block.Series, error) {
 
 	// Consolidate any remaining points iff has not been finished
 	// Fill up any missing values with NaNs
-	for ; !it.consolidator.empty(); i++ {
-		values[i] = it.consolidator.consolidateAndMoveToNext()
+	for ; !it.consolidator.Empty(); i++ {
+		values[i] = it.consolidator.ConsolidateAndMoveToNext()
 	}
 
 	series := block.NewSeries(values, it.seriesMeta[it.idx])
@@ -108,7 +109,7 @@ func (it *encodedSeriesIter) Next() bool {
 	it.mu.Lock()
 	it.idx++
 	next := it.idx < len(it.seriesIters)
-	it.consolidator.reset(it.bounds.Start)
+	it.consolidator.Reset(it.bounds.Start)
 	it.mu.Unlock()
 	return next
 }

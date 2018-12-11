@@ -28,10 +28,11 @@ import (
 	"github.com/m3db/m3/src/query/functions/utils"
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 )
 
 type consolidationSettings struct {
-	consolidationFn ConsolidationFunc
+	consolidationFn consolidators.ConsolidationFunc
 	currentTime     time.Time
 	bounds          models.Bounds
 }
@@ -54,7 +55,7 @@ func NewEncodedBlock(
 	lastBlock bool,
 ) (block.Block, error) {
 	consolidation := consolidationSettings{
-		consolidationFn: TakeLast,
+		consolidationFn: consolidators.TakeLast,
 		currentTime:     bounds.Start,
 		bounds:          bounds,
 	}
