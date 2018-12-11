@@ -57,6 +57,7 @@ type reportHandler struct {
 	reporter       reporter.Reporter
 	encoderPool    serialize.TagEncoderPool
 	decoderPool    serialize.TagDecoderPool
+	tagOpts        models.TagOptions
 	instrumentOpts instrument.Options
 }
 
@@ -65,12 +66,14 @@ func NewReportHandler(
 	reporter reporter.Reporter,
 	encoderPool serialize.TagEncoderPool,
 	decoderPool serialize.TagDecoderPool,
+	tagOpts models.TagOptions,
 	instrumentOpts instrument.Options,
 ) http.Handler {
 	return &reportHandler{
 		reporter:       reporter,
 		encoderPool:    encoderPool,
 		decoderPool:    decoderPool,
+		tagOpts:        tagOpts,
 		instrumentOpts: instrumentOpts,
 	}
 }
@@ -133,7 +136,7 @@ func (h *reportHandler) parseRequest(r *http.Request) (*reportRequest, *xhttp.Pa
 }
 
 func (h *reportHandler) newMetricID(metric metricValue) (id.ID, *xhttp.ParseError) {
-	tags := models.NewTags(len(metric.Tags), models.NewTagOptions())
+	tags := models.NewTags(len(metric.Tags), h.tagOpts)
 	for n, v := range metric.Tags {
 		tags = tags.AddTag(models.Tag{Name: []byte(n), Value: []byte(v)})
 	}
