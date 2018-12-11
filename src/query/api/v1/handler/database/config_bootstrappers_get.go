@@ -25,6 +25,7 @@ import (
 
 	clusterclient "github.com/m3db/m3/src/cluster/client"
 	"github.com/m3db/m3/src/cluster/generated/proto/commonpb"
+	"github.com/m3db/m3/src/cluster/kv"
 	"github.com/m3db/m3/src/dbnode/kvconfig"
 	"github.com/m3db/m3/src/query/api/v1/handler"
 	"github.com/m3db/m3/src/query/util/logging"
@@ -66,6 +67,10 @@ func (h *configGetBootstrappersHandler) ServeHTTP(w http.ResponseWriter, r *http
 	}
 
 	value, err := store.Get(kvconfig.BootstrapperKey)
+	if err != nil && err == kv.ErrNotFound {
+		xhttp.Error(w, err, http.StatusNotFound)
+		return
+	}
 	if err != nil {
 		logger.Error("unable to get kv key", zap.Any("error", err))
 		xhttp.Error(w, err, http.StatusInternalServerError)

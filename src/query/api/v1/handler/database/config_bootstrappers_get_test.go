@@ -77,3 +77,24 @@ func TestConfigGetBootstrappersHandler(t *testing.T) {
 	assert.Equal(t, stripAllWhitespace(expectedResponse), string(body),
 		xtest.Diff(mustPrettyJSON(t, expectedResponse), mustPrettyJSON(t, string(body))))
 }
+
+func TestConfigGetBootstrappersHandlerNotFound(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, mockStore, _ := SetupDatabaseTest(t, ctrl)
+	handler := NewConfigGetBootstrappersHandler(mockClient)
+	w := httptest.NewRecorder()
+
+	mockStore.EXPECT().
+		Get(kvconfig.BootstrapperKey).
+		Return(nil, kv.ErrNotFound)
+
+	req := httptest.NewRequest("GET", "/database/config/bootstrappers", nil)
+	require.NotNil(t, req)
+
+	handler.ServeHTTP(w, req)
+
+	resp := w.Result()
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+}

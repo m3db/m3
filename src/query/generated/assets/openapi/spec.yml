@@ -605,7 +605,7 @@ paths:
       tags:
       - "M3DB Database"
       - "M3DB"
-      summary: "Configure M3DB set bootstrappers dynamically, which override config"
+      summary: "Dynamically override the bootstrappers configured in M3DBs node-level configuration"
       operationId: "databaseConfigSetBootstrappers"
       consumes:
       - "application/json"
@@ -633,7 +633,7 @@ paths:
       tags:
       - "M3DB Database"
       - "M3DB"
-      summary: "Configure M3DB get bootstrappers dynamically, which override config"
+      summary: "Retrieve the dynamically configured bootstrappers override, if any"
       operationId: "databaseConfigGetBootstrappers"
       consumes:
       - "application/json"
@@ -646,6 +646,10 @@ paths:
             $ref: "#/definitions/DatabaseConfigBootstrappers"
         400:
           description: ""
+          schema:
+            $ref: "#/definitions/GenericError"
+        404:
+          description: "not found if not set"
           schema:
             $ref: "#/definitions/GenericError"
         500:
