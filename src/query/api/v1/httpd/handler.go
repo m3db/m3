@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/query/api/v1/handler/placement"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/remote"
+	"github.com/m3db/m3/src/query/api/v1/handler/prometheus/validator"
 	"github.com/m3db/m3/src/query/api/v1/handler/topic"
 	"github.com/m3db/m3/src/query/executor"
 	"github.com/m3db/m3/src/query/models"
@@ -141,6 +142,8 @@ func (h *Handler) RegisterRoutes() error {
 		return err
 	}
 
+	nativePromReadHandler := native.NewPromReadHandler(h.engine, h.tagOptions, &h.config.Limits)
+
 	h.router.HandleFunc(remote.PromReadURL,
 		logged(promRemoteReadHandler).ServeHTTP,
 	).Methods(remote.PromReadHTTPMethod)
@@ -148,7 +151,7 @@ func (h *Handler) RegisterRoutes() error {
 		promRemoteWriteHandler.ServeHTTP,
 	).Methods(remote.PromWriteHTTPMethod)
 	h.router.HandleFunc(native.PromReadURL,
-		logged(native.NewPromReadHandler(h.engine, h.tagOptions, &h.config.Limits)).ServeHTTP,
+		logged(nativePromReadHandler).ServeHTTP,
 	).Methods(native.PromReadHTTPMethod)
 	h.router.HandleFunc(native.PromReadInstantURL,
 		logged(native.NewPromReadInstantHandler(h.engine, h.tagOptions)).ServeHTTP,
@@ -174,6 +177,11 @@ func (h *Handler) RegisterRoutes() error {
 	h.router.HandleFunc(remote.PromSeriesMatchURL,
 		logged(remote.NewPromSeriesMatchHandler(h.storage, h.tagOptions)).ServeHTTP,
 	).Methods(remote.PromSeriesMatchHTTPMethod)
+
+	// Debug endpoints
+	h.router.HandleFunc(validator.PromDebugURL,
+		logged(validator.NewPromDebugHandler(nativePromReadHandler, h.scope)).ServeHTTP,
+	).Methods(validator.PromDebugHTTPMethod)
 
 	if h.clusterClient != nil {
 		placementOpts := placement.HandlerOptions{

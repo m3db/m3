@@ -51,6 +51,7 @@ const (
 
 var (
 	emptySeriesList = []*ts.Series{}
+	emptyReqParams  = models.RequestParams{}
 )
 
 // PromReadHandler represents a handler for prometheus read endpoint.
@@ -70,6 +71,12 @@ type blockWithMeta struct {
 	meta  block.Metadata
 }
 
+// RespError wraps error and status code
+type RespError struct {
+	Err  error
+	Code int
+}
+
 // NewPromReadHandler returns a new instance of handler.
 func NewPromReadHandler(
 	engine *executor.Engine,
@@ -84,13 +91,26 @@ func NewPromReadHandler(
 }
 
 func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	result, params, respErr := h.ServeHTTPWithEngine(w, r, h.engine)
+	if respErr != nil {
+		xhttp.Error(w, respErr.Err, respErr.Code)
+		return
+	}
+
+	// TODO: Support multiple result types
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	renderResultsJSON(w, result, params)
+}
+
+// ServeHTTPWithEngine returns query results from the storage
+func (h *PromReadHandler) ServeHTTPWithEngine(w http.ResponseWriter, r *http.Request, engine *executor.Engine) ([]*ts.Series, models.RequestParams, *RespError) {
 	ctx := context.WithValue(r.Context(), handler.HeaderKey, r.Header)
 	logger := logging.WithContext(ctx)
 
 	params, rErr := parseParams(r)
 	if rErr != nil {
-		xhttp.Error(w, rErr.Inner(), rErr.Code())
-		return
+		return nil, emptyReqParams, &RespError{Err: rErr.Inner(), Code: rErr.Code()}
 	}
 
 	if params.Debug {
@@ -98,20 +118,16 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.validateRequest(&params); err != nil {
-		xhttp.Error(w, err, http.StatusBadRequest)
-		return
+		return nil, emptyReqParams, &RespError{Err: err, Code: http.StatusBadRequest}
 	}
 
-	result, err := read(ctx, h.engine, h.tagOpts, w, params)
+	result, err := read(ctx, engine, h.tagOpts, w, params)
 	if err != nil {
 		logger.Error("unable to fetch data", zap.Error(err))
-		xhttp.Error(w, err, http.StatusBadRequest)
-		return
+		return nil, emptyReqParams, &RespError{Err: err, Code: http.StatusInternalServerError}
 	}
 
-	// TODO: Support multiple result types
-	w.Header().Set("Content-Type", "application/json")
-	renderResultsJSON(w, result, params)
+	return result, params, nil
 }
 
 func (h *PromReadHandler) validateRequest(params *models.RequestParams) error {
