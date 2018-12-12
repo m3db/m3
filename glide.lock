@@ -297,7 +297,7 @@ imports:
 - name: github.com/pelletier/go-toml
   version: 3b00596b2e9ee541bbd72dc50cc0c60e2b46c69c
 - name: github.com/pilosa/pilosa
-  version: fef0b26c899763b6ad846eaadeb54cf67997675d
+  version: 8fe32d764fd7e29ec4c24aa0ca02c4174e4a6aed
   subpackages:
   - logger
   - roaring
@@ -376,10 +376,15 @@ imports:
 - name: github.com/spf13/viper
   version: 6d33b5a963d922d182c91e8a1c88d81fd150cfd4
 <<<<<<< HEAD
+<<<<<<< HEAD
 - name: github.com/stretchr/objx
   version: cbeaeb16a013161a98496fad62933b1d21786672
 =======
 >>>>>>> Upgrade to new pilosa and use optimized API and dont use upstream roaring at all
+=======
+- name: github.com/stretchr/objx
+  version: cbeaeb16a013161a98496fad62933b1d21786672
+>>>>>>> Upgrade to version of pilosa without union bug
 - name: github.com/stretchr/testify
   version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
   subpackages:
