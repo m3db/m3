@@ -102,6 +102,11 @@ func (it *encodedStepIter) Current() (block.Step, error) {
 	return step, nil
 }
 
+// Moves to the next consolidated step for the i-th series in the block,
+// populating the consolidator for that step. Will keep reading values
+// until either hitting the next step boundary and returning, or until
+// encountering a value beyond the boundary, at which point it adds it
+// to a stored peeked value that is consumed on the next pass.
 func (it *encodedStepIter) nextConsolidatedForStep(i int) {
 	peek := it.seriesPeek[i]
 	if peek.finished {
