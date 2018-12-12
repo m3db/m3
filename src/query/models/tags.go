@@ -254,7 +254,7 @@ func (t Tags) Less(i, j int) bool {
 }
 
 // Normalize normalizes the tags by sorting them in place.
-// In future, it might also ensure other things like uniqueness.
+// In the future, it might also ensure other things like uniqueness.
 func (t Tags) Normalize() Tags {
 	sort.Sort(t)
 	return t
