@@ -18,7 +18,7 @@ steps:
     command: make clean install-vendor test-all-gen
     env:
       CGO_ENABLED: 0
-      GIMME_GO_VERSION: 1.10.x
+      GIMME_GO_VERSION: 1.11.x
     plugins:
         gopath-checkout#v1.0.1:
           import: github.com/m3db/m3
@@ -41,7 +41,7 @@ steps:
     command: make install-vendor metalint docker-integration-test tools services
     env:
       CGO_ENABLED: 0
-      GIMME_GO_VERSION: 1.10.x
+      GIMME_GO_VERSION: 1.11.x
     plugins:
         gopath-checkout#v1.0.1:
           import: github.com/m3db/m3
