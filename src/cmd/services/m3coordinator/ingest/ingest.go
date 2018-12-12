@@ -22,7 +22,6 @@ package ingest
 
 import (
 	"context"
-	"math/rand"
 	"time"
 
 	"github.com/m3db/m3/src/cmd/services/m3coordinator/server/m3msg"
@@ -38,6 +37,7 @@ import (
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/retry"
+	"github.com/m3db/m3x/sampler"
 	xsync "github.com/m3db/m3x/sync"
 
 	"github.com/uber-go/tally"
@@ -51,7 +51,7 @@ type Options struct {
 	TagDecoderPool    serialize.TagDecoderPool
 	RetryOptions      retry.Options
 	InstrumentOptions instrument.Options
-	LogSampleRate     float32
+	LogSampleRate     float64
 }
 
 type ingestMetrics struct {
@@ -85,13 +85,13 @@ func NewIngester(
 			// pooled, but currently this is the only way to get tag decoder.
 			tagDecoder := opts.TagDecoderPool.Get()
 			op := ingestOp{
-				s:             opts.Appender,
-				r:             retrier,
-				it:            serialize.NewMetricTagsIterator(tagDecoder, nil),
-				p:             p,
-				m:             m,
-				logger:        opts.InstrumentOptions.Logger(),
-				logSampleRate: opts.LogSampleRate,
+				s:       opts.Appender,
+				r:       retrier,
+				it:      serialize.NewMetricTagsIterator(tagDecoder, nil),
+				p:       p,
+				m:       m,
+				logger:  opts.InstrumentOptions.Logger(),
+				sampler: sampler.NewSampler(opts.LogSampleRate),
 			}
 			op.attemptFn = op.attempt
 			op.ingestFn = op.ingest
@@ -124,15 +124,15 @@ func (i *Ingester) Ingest(
 }
 
 type ingestOp struct {
-	s             storage.Appender
-	r             retry.Retrier
-	it            id.SortedTagIterator
-	p             pool.ObjectPool
-	m             ingestMetrics
-	logger        log.Logger
-	logSampleRate float32
-	attemptFn     retry.Fn
-	ingestFn      func()
+	s         storage.Appender
+	r         retry.Retrier
+	it        id.SortedTagIterator
+	p         pool.ObjectPool
+	m         ingestMetrics
+	logger    log.Logger
+	sampler   *sampler.Sampler
+	attemptFn retry.Fn
+	ingestFn  func()
 
 	c          context.Context
 	id         []byte
@@ -143,17 +143,13 @@ type ingestOp struct {
 	q          storage.WriteQuery
 }
 
-func (op *ingestOp) shouldLog() bool {
-	return rand.Float32() < op.logSampleRate
-}
-
 func (op *ingestOp) ingest() {
 	if err := op.resetWriteQuery(); err != nil {
 		op.m.ingestError.Inc(1)
 		op.callback.Callback(m3msg.OnRetriableError)
 		op.p.Put(op)
-		if op.shouldLog() {
-			op.logger.Infof("could not reset ingest op, %v", err)
+		if op.sampler.Sample() {
+			op.logger.Errorf("could not reset ingest op: %v", err)
 		}
 		return
 	}
@@ -165,8 +161,8 @@ func (op *ingestOp) ingest() {
 		}
 		op.m.ingestError.Inc(1)
 		op.p.Put(op)
-		if op.shouldLog() {
-			op.logger.Infof("could not write ingest op, %v", err)
+		if op.sampler.Sample() {
+			op.logger.Errorf("could not write ingest op: %v", err)
 		}
 		return
 	}
