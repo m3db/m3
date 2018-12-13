@@ -55,6 +55,7 @@ func (m *MockService) EXPECT() *MockServiceMockRecorder {
 
 // CheckAndSet mocks base method
 func (m *MockService) CheckAndSet(arg0 Topic, arg1 int) (Topic, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CheckAndSet", arg0, arg1)
 	ret0, _ := ret[0].(Topic)
 	ret1, _ := ret[1].(error)
@@ -63,11 +64,13 @@ func (m *MockService) CheckAndSet(arg0 Topic, arg1 int) (Topic, error) {
 
 // CheckAndSet indicates an expected call of CheckAndSet
 func (mr *MockServiceMockRecorder) CheckAndSet(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckAndSet", reflect.TypeOf((*MockService)(nil).CheckAndSet), arg0, arg1)
 }
 
 // Delete mocks base method
 func (m *MockService) Delete(arg0 string) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Delete", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -75,11 +78,13 @@ func (m *MockService) Delete(arg0 string) error {
 
 // Delete indicates an expected call of Delete
 func (mr *MockServiceMockRecorder) Delete(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockService)(nil).Delete), arg0)
 }
 
 // Get mocks base method
 func (m *MockService) Get(arg0 string) (Topic, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get", arg0)
 	ret0, _ := ret[0].(Topic)
 	ret1, _ := ret[1].(error)
@@ -88,11 +93,13 @@ func (m *MockService) Get(arg0 string) (Topic, error) {
 
 // Get indicates an expected call of Get
 func (mr *MockServiceMockRecorder) Get(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockService)(nil).Get), arg0)
 }
 
 // Watch mocks base method
 func (m *MockService) Watch(arg0 string) (Watch, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Watch", arg0)
 	ret0, _ := ret[0].(Watch)
 	ret1, _ := ret[1].(error)
@@ -101,5 +108,6 @@ func (m *MockService) Watch(arg0 string) (Watch, error) {
 
 // Watch indicates an expected call of Watch
 func (mr *MockServiceMockRecorder) Watch(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Watch", reflect.TypeOf((*MockService)(nil).Watch), arg0)
 }

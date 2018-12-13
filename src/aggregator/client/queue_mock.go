@@ -57,6 +57,7 @@ func (m *MockinstanceQueue) EXPECT() *MockinstanceQueueMockRecorder {
 
 // Enqueue mocks base method
 func (m *MockinstanceQueue) Enqueue(buf protobuf.Buffer) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Enqueue", buf)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -64,11 +65,13 @@ func (m *MockinstanceQueue) Enqueue(buf protobuf.Buffer) error {
 
 // Enqueue indicates an expected call of Enqueue
 func (mr *MockinstanceQueueMockRecorder) Enqueue(buf interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Enqueue", reflect.TypeOf((*MockinstanceQueue)(nil).Enqueue), buf)
 }
 
 // Close mocks base method
 func (m *MockinstanceQueue) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -76,5 +79,6 @@ func (m *MockinstanceQueue) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockinstanceQueueMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockinstanceQueue)(nil).Close))
 }

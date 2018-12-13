@@ -57,6 +57,7 @@ func (m *MockaggregatorClient) EXPECT() *MockaggregatorClientMockRecorder {
 
 // IsHealthy mocks base method
 func (m *MockaggregatorClient) IsHealthy(instance string) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsHealthy", instance)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -64,11 +65,13 @@ func (m *MockaggregatorClient) IsHealthy(instance string) error {
 
 // IsHealthy indicates an expected call of IsHealthy
 func (mr *MockaggregatorClientMockRecorder) IsHealthy(instance interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsHealthy", reflect.TypeOf((*MockaggregatorClient)(nil).IsHealthy), instance)
 }
 
 // Status mocks base method
 func (m *MockaggregatorClient) Status(instance string) (aggregator.RuntimeStatus, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Status", instance)
 	ret0, _ := ret[0].(aggregator.RuntimeStatus)
 	ret1, _ := ret[1].(error)
@@ -77,11 +80,13 @@ func (m *MockaggregatorClient) Status(instance string) (aggregator.RuntimeStatus
 
 // Status indicates an expected call of Status
 func (mr *MockaggregatorClientMockRecorder) Status(instance interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Status", reflect.TypeOf((*MockaggregatorClient)(nil).Status), instance)
 }
 
 // Resign mocks base method
 func (m *MockaggregatorClient) Resign(instance string) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Resign", instance)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -89,5 +94,6 @@ func (m *MockaggregatorClient) Resign(instance string) error {
 
 // Resign indicates an expected call of Resign
 func (mr *MockaggregatorClientMockRecorder) Resign(instance interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Resign", reflect.TypeOf((*MockaggregatorClient)(nil).Resign), instance)
 }

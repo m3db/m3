@@ -56,6 +56,7 @@ func (m *MockEncoder) EXPECT() *MockEncoderMockRecorder {
 
 // Bytes mocks base method
 func (m *MockEncoder) Bytes() []byte {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Bytes")
 	ret0, _ := ret[0].([]byte)
 	return ret0
@@ -63,11 +64,13 @@ func (m *MockEncoder) Bytes() []byte {
 
 // Bytes indicates an expected call of Bytes
 func (mr *MockEncoderMockRecorder) Bytes() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bytes", reflect.TypeOf((*MockEncoder)(nil).Bytes))
 }
 
 // Encode mocks base method
 func (m *MockEncoder) Encode(arg0 Marshaler) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Encode", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -75,6 +78,7 @@ func (m *MockEncoder) Encode(arg0 Marshaler) error {
 
 // Encode indicates an expected call of Encode
 func (mr *MockEncoderMockRecorder) Encode(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Encode", reflect.TypeOf((*MockEncoder)(nil).Encode), arg0)
 }
 
@@ -103,6 +107,7 @@ func (m *MockDecoder) EXPECT() *MockDecoderMockRecorder {
 
 // Decode mocks base method
 func (m *MockDecoder) Decode(arg0 Unmarshaler) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Decode", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -110,15 +115,18 @@ func (m *MockDecoder) Decode(arg0 Unmarshaler) error {
 
 // Decode indicates an expected call of Decode
 func (mr *MockDecoderMockRecorder) Decode(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Decode", reflect.TypeOf((*MockDecoder)(nil).Decode), arg0)
 }
 
 // ResetReader mocks base method
 func (m *MockDecoder) ResetReader(arg0 io.Reader) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "ResetReader", arg0)
 }
 
 // ResetReader indicates an expected call of ResetReader
 func (mr *MockDecoderMockRecorder) ResetReader(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetReader", reflect.TypeOf((*MockDecoder)(nil).ResetReader), arg0)
 }

@@ -57,16 +57,19 @@ func (m *MockRouter) EXPECT() *MockRouterMockRecorder {
 
 // Close mocks base method
 func (m *MockRouter) Close() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Close")
 }
 
 // Close indicates an expected call of Close
 func (mr *MockRouterMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockRouter)(nil).Close))
 }
 
 // Route mocks base method
 func (m *MockRouter) Route(arg0 uint32, arg1 *common.RefCountedBuffer) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Route", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -74,5 +77,6 @@ func (m *MockRouter) Route(arg0 uint32, arg1 *common.RefCountedBuffer) error {
 
 // Route indicates an expected call of Route
 func (mr *MockRouterMockRecorder) Route(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Route", reflect.TypeOf((*MockRouter)(nil).Route), arg0, arg1)
 }

@@ -1,5 +1,5 @@
-hash: 16b9764e7c124944e907b257cab695638033134e4ad3010be481e2aa5a8ba932
-updated: 2018-11-24T15:19:58.805911-05:00
+hash: 6265a2a82c9e668882f38d5123193663ab9ab409be0c0dd3772183717d7dd89a
+updated: 2018-12-11T16:34:04.044416-08:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -137,7 +137,7 @@ imports:
 - name: github.com/go-stack/stack
   version: 54be5f394ed2c3e19dac9134a40a95ba5a017f7b
 - name: github.com/gogo/protobuf
-  version: 636bf0302bc95575d69441b25a2603156ffdddf1
+  version: 4cbf7e384e768b4e01799441fdf2a706a5635ae7
   subpackages:
   - gogoproto
   - jsonpb
@@ -150,7 +150,7 @@ imports:
   subpackages:
   - lru
 - name: github.com/golang/mock
-  version: c34cdb4725f4c3844d095133c6e40e448b86589b
+  version: 51421b967af1f557f93a59e0057aaf15ca02e29c
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
@@ -219,7 +219,7 @@ imports:
 - name: github.com/m3db/bloom
   version: 47fe1193cdb900de7193d1f3d26ea9b2cbf6fb31
 - name: github.com/m3db/m3x
-  version: 05f4139118af43282373b5de26a693be4c910148
+  version: 7db32a2842f2bc83a68066e26f1db58c80a5ab06
   vcs: git
   subpackages:
   - checked
@@ -377,11 +377,14 @@ imports:
 - name: github.com/spf13/pflag
   version: 4f9190456aed1c2113ca51ea9b89219747458dc1
 - name: github.com/spf13/viper
-  version: 2c12c60302a5a0e62ee102ca9bc996277c2f64f5
+  version: 6d33b5a963d922d182c91e8a1c88d81fd150cfd4
+- name: github.com/stretchr/objx
+  version: cbeaeb16a013161a98496fad62933b1d21786672
 - name: github.com/stretchr/testify
   version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
   subpackages:
   - assert
+  - mock
   - require
   - suite
 - name: github.com/tinylib/msgp

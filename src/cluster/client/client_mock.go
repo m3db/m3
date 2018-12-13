@@ -58,6 +58,7 @@ func (m *MockClient) EXPECT() *MockClientMockRecorder {
 
 // KV mocks base method
 func (m *MockClient) KV() (kv.Store, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "KV")
 	ret0, _ := ret[0].(kv.Store)
 	ret1, _ := ret[1].(error)
@@ -66,11 +67,13 @@ func (m *MockClient) KV() (kv.Store, error) {
 
 // KV indicates an expected call of KV
 func (mr *MockClientMockRecorder) KV() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "KV", reflect.TypeOf((*MockClient)(nil).KV))
 }
 
 // Services mocks base method
 func (m *MockClient) Services(arg0 services.OverrideOptions) (services.Services, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Services", arg0)
 	ret0, _ := ret[0].(services.Services)
 	ret1, _ := ret[1].(error)
@@ -79,11 +82,13 @@ func (m *MockClient) Services(arg0 services.OverrideOptions) (services.Services,
 
 // Services indicates an expected call of Services
 func (mr *MockClientMockRecorder) Services(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Services", reflect.TypeOf((*MockClient)(nil).Services), arg0)
 }
 
 // Store mocks base method
 func (m *MockClient) Store(arg0 kv.OverrideOptions) (kv.Store, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Store", arg0)
 	ret0, _ := ret[0].(kv.Store)
 	ret1, _ := ret[1].(error)
@@ -92,11 +97,13 @@ func (m *MockClient) Store(arg0 kv.OverrideOptions) (kv.Store, error) {
 
 // Store indicates an expected call of Store
 func (mr *MockClientMockRecorder) Store(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Store", reflect.TypeOf((*MockClient)(nil).Store), arg0)
 }
 
 // Txn mocks base method
 func (m *MockClient) Txn() (kv.TxnStore, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Txn")
 	ret0, _ := ret[0].(kv.TxnStore)
 	ret1, _ := ret[1].(error)
@@ -105,11 +112,13 @@ func (m *MockClient) Txn() (kv.TxnStore, error) {
 
 // Txn indicates an expected call of Txn
 func (mr *MockClientMockRecorder) Txn() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Txn", reflect.TypeOf((*MockClient)(nil).Txn))
 }
 
 // TxnStore mocks base method
 func (m *MockClient) TxnStore(arg0 kv.OverrideOptions) (kv.TxnStore, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "TxnStore", arg0)
 	ret0, _ := ret[0].(kv.TxnStore)
 	ret1, _ := ret[1].(error)
@@ -118,5 +127,6 @@ func (m *MockClient) TxnStore(arg0 kv.OverrideOptions) (kv.TxnStore, error) {
 
 // TxnStore indicates an expected call of TxnStore
 func (mr *MockClientMockRecorder) TxnStore(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TxnStore", reflect.TypeOf((*MockClient)(nil).TxnStore), arg0)
 }

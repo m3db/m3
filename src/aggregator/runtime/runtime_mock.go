@@ -55,10 +55,12 @@ func (m *MockOptionsWatcher) EXPECT() *MockOptionsWatcherMockRecorder {
 
 // SetRuntimeOptions mocks base method
 func (m *MockOptionsWatcher) SetRuntimeOptions(arg0 Options) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "SetRuntimeOptions", arg0)
 }
 
 // SetRuntimeOptions indicates an expected call of SetRuntimeOptions
 func (mr *MockOptionsWatcherMockRecorder) SetRuntimeOptions(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRuntimeOptions", reflect.TypeOf((*MockOptionsWatcher)(nil).SetRuntimeOptions), arg0)
 }

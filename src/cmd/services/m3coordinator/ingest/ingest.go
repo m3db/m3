@@ -34,8 +34,10 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/retry"
+	"github.com/m3db/m3x/sampler"
 	xsync "github.com/m3db/m3x/sync"
 
 	"github.com/uber-go/tally"
@@ -49,6 +51,7 @@ type Options struct {
 	TagDecoderPool    serialize.TagDecoderPool
 	RetryOptions      retry.Options
 	InstrumentOptions instrument.Options
+	LogSampleRate     float64
 }
 
 type ingestMetrics struct {
@@ -82,11 +85,13 @@ func NewIngester(
 			// pooled, but currently this is the only way to get tag decoder.
 			tagDecoder := opts.TagDecoderPool.Get()
 			op := ingestOp{
-				s:  opts.Appender,
-				r:  retrier,
-				it: serialize.NewMetricTagsIterator(tagDecoder, nil),
-				p:  p,
-				m:  m,
+				s:       opts.Appender,
+				r:       retrier,
+				it:      serialize.NewMetricTagsIterator(tagDecoder, nil),
+				p:       p,
+				m:       m,
+				logger:  opts.InstrumentOptions.Logger(),
+				sampler: sampler.NewSampler(opts.LogSampleRate),
 			}
 			op.attemptFn = op.attempt
 			op.ingestFn = op.ingest
@@ -124,6 +129,8 @@ type ingestOp struct {
 	it        id.SortedTagIterator
 	p         pool.ObjectPool
 	m         ingestMetrics
+	logger    log.Logger
+	sampler   *sampler.Sampler
 	attemptFn retry.Fn
 	ingestFn  func()
 
@@ -141,6 +148,9 @@ func (op *ingestOp) ingest() {
 		op.m.ingestError.Inc(1)
 		op.callback.Callback(m3msg.OnRetriableError)
 		op.p.Put(op)
+		if op.sampler.Sample() {
+			op.logger.Errorf("could not reset ingest op: %v", err)
+		}
 		return
 	}
 	if err := op.r.Attempt(op.attemptFn); err != nil {
@@ -151,6 +161,9 @@ func (op *ingestOp) ingest() {
 		}
 		op.m.ingestError.Inc(1)
 		op.p.Put(op)
+		if op.sampler.Sample() {
+			op.logger.Errorf("could not write ingest op: %v", err)
+		}
 		return
 	}
 	op.m.ingestSuccess.Inc(1)

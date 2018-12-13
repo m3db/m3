@@ -62,6 +62,7 @@ func (m *MockResults) EXPECT() *MockResultsMockRecorder {
 
 // AddDocument mocks base method
 func (m *MockResults) AddDocument(arg0 doc.Document) (bool, int, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddDocument", arg0)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(int)
@@ -71,11 +72,13 @@ func (m *MockResults) AddDocument(arg0 doc.Document) (bool, int, error) {
 
 // AddDocument indicates an expected call of AddDocument
 func (mr *MockResultsMockRecorder) AddDocument(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddDocument", reflect.TypeOf((*MockResults)(nil).AddDocument), arg0)
 }
 
 // AddIDAndTags mocks base method
 func (m *MockResults) AddIDAndTags(arg0 ident.ID, arg1 ident.Tags) (bool, int, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddIDAndTags", arg0, arg1)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(int)
@@ -85,21 +88,25 @@ func (m *MockResults) AddIDAndTags(arg0 ident.ID, arg1 ident.Tags) (bool, int, e
 
 // AddIDAndTags indicates an expected call of AddIDAndTags
 func (mr *MockResultsMockRecorder) AddIDAndTags(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddIDAndTags", reflect.TypeOf((*MockResults)(nil).AddIDAndTags), arg0, arg1)
 }
 
 // Finalize mocks base method
 func (m *MockResults) Finalize() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Finalize")
 }
 
 // Finalize indicates an expected call of Finalize
 func (mr *MockResultsMockRecorder) Finalize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Finalize", reflect.TypeOf((*MockResults)(nil).Finalize))
 }
 
 // Map mocks base method
 func (m *MockResults) Map() *ResultsMap {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Map")
 	ret0, _ := ret[0].(*ResultsMap)
 	return ret0
@@ -107,11 +114,13 @@ func (m *MockResults) Map() *ResultsMap {
 
 // Map indicates an expected call of Map
 func (mr *MockResultsMockRecorder) Map() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Map", reflect.TypeOf((*MockResults)(nil).Map))
 }
 
 // Namespace mocks base method
 func (m *MockResults) Namespace() ident.ID {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Namespace")
 	ret0, _ := ret[0].(ident.ID)
 	return ret0
@@ -119,21 +128,25 @@ func (m *MockResults) Namespace() ident.ID {
 
 // Namespace indicates an expected call of Namespace
 func (mr *MockResultsMockRecorder) Namespace() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Namespace", reflect.TypeOf((*MockResults)(nil).Namespace))
 }
 
 // Reset mocks base method
 func (m *MockResults) Reset(arg0 ident.ID) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Reset", arg0)
 }
 
 // Reset indicates an expected call of Reset
 func (mr *MockResultsMockRecorder) Reset(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockResults)(nil).Reset), arg0)
 }
 
 // Size mocks base method
 func (m *MockResults) Size() int {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Size")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -141,6 +154,7 @@ func (m *MockResults) Size() int {
 
 // Size indicates an expected call of Size
 func (mr *MockResultsMockRecorder) Size() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockResults)(nil).Size))
 }
 
@@ -169,6 +183,7 @@ func (m *MockBlock) EXPECT() *MockBlockMockRecorder {
 
 // AddResults mocks base method
 func (m *MockBlock) AddResults(arg0 result.IndexBlock) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddResults", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -176,11 +191,13 @@ func (m *MockBlock) AddResults(arg0 result.IndexBlock) error {
 
 // AddResults indicates an expected call of AddResults
 func (mr *MockBlockMockRecorder) AddResults(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddResults", reflect.TypeOf((*MockBlock)(nil).AddResults), arg0)
 }
 
 // Close mocks base method
 func (m *MockBlock) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -188,11 +205,13 @@ func (m *MockBlock) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockBlockMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockBlock)(nil).Close))
 }
 
 // EndTime mocks base method
 func (m *MockBlock) EndTime() time.Time {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "EndTime")
 	ret0, _ := ret[0].(time.Time)
 	return ret0
@@ -200,11 +219,13 @@ func (m *MockBlock) EndTime() time.Time {
 
 // EndTime indicates an expected call of EndTime
 func (mr *MockBlockMockRecorder) EndTime() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EndTime", reflect.TypeOf((*MockBlock)(nil).EndTime))
 }
 
 // EvictMutableSegments mocks base method
 func (m *MockBlock) EvictMutableSegments() (EvictMutableSegmentResults, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "EvictMutableSegments")
 	ret0, _ := ret[0].(EvictMutableSegmentResults)
 	ret1, _ := ret[1].(error)
@@ -213,11 +234,13 @@ func (m *MockBlock) EvictMutableSegments() (EvictMutableSegmentResults, error) {
 
 // EvictMutableSegments indicates an expected call of EvictMutableSegments
 func (mr *MockBlockMockRecorder) EvictMutableSegments() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EvictMutableSegments", reflect.TypeOf((*MockBlock)(nil).EvictMutableSegments))
 }
 
 // IsSealed mocks base method
 func (m *MockBlock) IsSealed() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsSealed")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -225,11 +248,13 @@ func (m *MockBlock) IsSealed() bool {
 
 // IsSealed indicates an expected call of IsSealed
 func (mr *MockBlockMockRecorder) IsSealed() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsSealed", reflect.TypeOf((*MockBlock)(nil).IsSealed))
 }
 
 // NeedsMutableSegmentsEvicted mocks base method
 func (m *MockBlock) NeedsMutableSegmentsEvicted() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NeedsMutableSegmentsEvicted")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -237,11 +262,13 @@ func (m *MockBlock) NeedsMutableSegmentsEvicted() bool {
 
 // NeedsMutableSegmentsEvicted indicates an expected call of NeedsMutableSegmentsEvicted
 func (mr *MockBlockMockRecorder) NeedsMutableSegmentsEvicted() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NeedsMutableSegmentsEvicted", reflect.TypeOf((*MockBlock)(nil).NeedsMutableSegmentsEvicted))
 }
 
 // Query mocks base method
 func (m *MockBlock) Query(arg0 Query, arg1 QueryOptions, arg2 Results) (bool, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Query", arg0, arg1, arg2)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
@@ -250,11 +277,13 @@ func (m *MockBlock) Query(arg0 Query, arg1 QueryOptions, arg2 Results) (bool, er
 
 // Query indicates an expected call of Query
 func (mr *MockBlockMockRecorder) Query(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Query", reflect.TypeOf((*MockBlock)(nil).Query), arg0, arg1, arg2)
 }
 
 // Seal mocks base method
 func (m *MockBlock) Seal() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Seal")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -262,11 +291,13 @@ func (m *MockBlock) Seal() error {
 
 // Seal indicates an expected call of Seal
 func (mr *MockBlockMockRecorder) Seal() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Seal", reflect.TypeOf((*MockBlock)(nil).Seal))
 }
 
 // StartTime mocks base method
 func (m *MockBlock) StartTime() time.Time {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StartTime")
 	ret0, _ := ret[0].(time.Time)
 	return ret0
@@ -274,11 +305,13 @@ func (m *MockBlock) StartTime() time.Time {
 
 // StartTime indicates an expected call of StartTime
 func (mr *MockBlockMockRecorder) StartTime() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartTime", reflect.TypeOf((*MockBlock)(nil).StartTime))
 }
 
 // Tick mocks base method
 func (m *MockBlock) Tick(arg0 context.Cancellable, arg1 time.Time) (BlockTickResult, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Tick", arg0, arg1)
 	ret0, _ := ret[0].(BlockTickResult)
 	ret1, _ := ret[1].(error)
@@ -287,11 +320,13 @@ func (m *MockBlock) Tick(arg0 context.Cancellable, arg1 time.Time) (BlockTickRes
 
 // Tick indicates an expected call of Tick
 func (mr *MockBlockMockRecorder) Tick(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockBlock)(nil).Tick), arg0, arg1)
 }
 
 // WriteBatch mocks base method
 func (m *MockBlock) WriteBatch(arg0 *WriteBatch) (WriteBatchResult, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteBatch", arg0)
 	ret0, _ := ret[0].(WriteBatchResult)
 	ret1, _ := ret[1].(error)
@@ -300,6 +335,7 @@ func (m *MockBlock) WriteBatch(arg0 *WriteBatch) (WriteBatchResult, error) {
 
 // WriteBatch indicates an expected call of WriteBatch
 func (mr *MockBlockMockRecorder) WriteBatch(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatch", reflect.TypeOf((*MockBlock)(nil).WriteBatch), arg0)
 }
 
@@ -328,20 +364,24 @@ func (m *MockOnIndexSeries) EXPECT() *MockOnIndexSeriesMockRecorder {
 
 // OnIndexFinalize mocks base method
 func (m *MockOnIndexSeries) OnIndexFinalize(arg0 time0.UnixNano) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "OnIndexFinalize", arg0)
 }
 
 // OnIndexFinalize indicates an expected call of OnIndexFinalize
 func (mr *MockOnIndexSeriesMockRecorder) OnIndexFinalize(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnIndexFinalize", reflect.TypeOf((*MockOnIndexSeries)(nil).OnIndexFinalize), arg0)
 }
 
 // OnIndexSuccess mocks base method
 func (m *MockOnIndexSeries) OnIndexSuccess(arg0 time0.UnixNano) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "OnIndexSuccess", arg0)
 }
 
 // OnIndexSuccess indicates an expected call of OnIndexSuccess
 func (mr *MockOnIndexSeriesMockRecorder) OnIndexSuccess(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnIndexSuccess", reflect.TypeOf((*MockOnIndexSeries)(nil).OnIndexSuccess), arg0)
 }
