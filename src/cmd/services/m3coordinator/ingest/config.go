@@ -26,8 +26,11 @@ import (
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/retry"
+	"github.com/m3db/m3x/sampler"
 	xsync "github.com/m3db/m3x/sync"
 )
+
+const defaultLogSampleRate = 0.01
 
 // Configuration configs the ingester.
 type Configuration struct {
@@ -75,13 +78,21 @@ func (cfg Configuration) newOptions(
 	)
 	tagDecoderPool.Init()
 
+	var logSampleRate = defaultLogSampleRate
+	if cfg.LogSampleRate != nil {
+		logSampleRate = *cfg.LogSampleRate
+	}
+	sampler, err := sampler.NewSampler(logSampleRate)
+	if err != nil {
+		return Options{}, err
+	}
 	return Options{
 		Appender:          appender,
 		Workers:           workers,
 		PoolOptions:       cfg.OpPool.NewObjectPoolOptions(instrumentOptions),
 		TagDecoderPool:    tagDecoderPool,
 		RetryOptions:      cfg.Retry.NewOptions(scope),
+		Sampler:           sampler,
 		InstrumentOptions: instrumentOptions,
-		LogSampleRate:     *cfg.LogSampleRate,
 	}, nil
 }

@@ -50,8 +50,8 @@ type Options struct {
 	PoolOptions       pool.ObjectPoolOptions
 	TagDecoderPool    serialize.TagDecoderPool
 	RetryOptions      retry.Options
+	Sampler           *sampler.Sampler
 	InstrumentOptions instrument.Options
-	LogSampleRate     float64
 }
 
 type ingestMetrics struct {
@@ -91,7 +91,7 @@ func NewIngester(
 				p:       p,
 				m:       m,
 				logger:  opts.InstrumentOptions.Logger(),
-				sampler: sampler.NewSampler(opts.LogSampleRate),
+				sampler: opts.Sampler,
 			}
 			op.attemptFn = op.attempt
 			op.ingestFn = op.ingest
