@@ -563,7 +563,7 @@ as possible (namely persistent storage). See below for instructions on creating 
 <p>Create an etcd cluster in the same namespace your M3DB cluster will be created in. If you don't have persistent storage
 available, this will create a cluster that will not use persistent storage and will likely become unavailable if any of
 the pods die:</p>
-<pre><code>kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/v0.1.0/example/etcd/etcd-basic.yaml
+<pre><code>kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/v0.1.1/example/etcd/etcd-basic.yaml
 
 # Verify etcd health once pods available
 kubectl exec etcd-0 -- env ETCDCTL_API=3 etcdctl endpoint health
@@ -572,7 +572,7 @@ kubectl exec etcd-0 -- env ETCDCTL_API=3 etcdctl endpoint health
 
 <p>If you have remote storage available and would like to jump straight to using it, apply the following manifest for etcd
 instead:</p>
-<pre><code>kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/v0.1.0/example/etcd/etcd-pd.yaml
+<pre><code>kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/v0.1.1/example/etcd/etcd-pd.yaml
 </code></pre>
 
 <h3 id="m3db">M3DB</h3>
@@ -627,7 +627,7 @@ simple-cluster-rep2-0   1/1     Running   0          37s
 for performance reasons, and since M3DB already replicates your data.</p>
 <h3 id="etcd_1">Etcd</h3>
 <p>Create an etcd cluster with persistent volumes:</p>
-<pre><code>kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/v0.1.0/example/etcd/etcd-pd.yaml
+<pre><code>kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/v0.1.1/example/etcd/etcd-pd.yaml
 </code></pre>
 
 <p>We recommend modifying the <code>storageClassName</code> in the manifest to one that matches your cloud provider's fastest remote
