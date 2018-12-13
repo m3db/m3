@@ -57,7 +57,6 @@ func (m *MockReaderWithDigest) EXPECT() *MockReaderWithDigestMockRecorder {
 
 // Digest mocks base method
 func (m *MockReaderWithDigest) Digest() hash.Hash32 {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Digest")
 	ret0, _ := ret[0].(hash.Hash32)
 	return ret0
@@ -65,13 +64,11 @@ func (m *MockReaderWithDigest) Digest() hash.Hash32 {
 
 // Digest indicates an expected call of Digest
 func (mr *MockReaderWithDigestMockRecorder) Digest() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Digest", reflect.TypeOf((*MockReaderWithDigest)(nil).Digest))
 }
 
 // Read mocks base method
 func (m *MockReaderWithDigest) Read(arg0 []byte) (int, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Read", arg0)
 	ret0, _ := ret[0].(int)
 	ret1, _ := ret[1].(error)
@@ -80,25 +77,21 @@ func (m *MockReaderWithDigest) Read(arg0 []byte) (int, error) {
 
 // Read indicates an expected call of Read
 func (mr *MockReaderWithDigestMockRecorder) Read(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Read", reflect.TypeOf((*MockReaderWithDigest)(nil).Read), arg0)
 }
 
 // Reset mocks base method
 func (m *MockReaderWithDigest) Reset(arg0 io.Reader) {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Reset", arg0)
 }
 
 // Reset indicates an expected call of Reset
 func (mr *MockReaderWithDigestMockRecorder) Reset(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockReaderWithDigest)(nil).Reset), arg0)
 }
 
 // Validate mocks base method
 func (m *MockReaderWithDigest) Validate(arg0 uint32) error {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Validate", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -106,6 +99,5 @@ func (m *MockReaderWithDigest) Validate(arg0 uint32) error {
 
 // Validate indicates an expected call of Validate
 func (mr *MockReaderWithDigestMockRecorder) Validate(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Validate", reflect.TypeOf((*MockReaderWithDigest)(nil).Validate), arg0)
 }

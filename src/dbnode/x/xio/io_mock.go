@@ -57,7 +57,6 @@ func (m *MockSegmentReader) EXPECT() *MockSegmentReaderMockRecorder {
 
 // Clone mocks base method
 func (m *MockSegmentReader) Clone() (SegmentReader, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Clone")
 	ret0, _ := ret[0].(SegmentReader)
 	ret1, _ := ret[1].(error)
@@ -66,25 +65,21 @@ func (m *MockSegmentReader) Clone() (SegmentReader, error) {
 
 // Clone indicates an expected call of Clone
 func (mr *MockSegmentReaderMockRecorder) Clone() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Clone", reflect.TypeOf((*MockSegmentReader)(nil).Clone))
 }
 
 // Finalize mocks base method
 func (m *MockSegmentReader) Finalize() {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Finalize")
 }
 
 // Finalize indicates an expected call of Finalize
 func (mr *MockSegmentReaderMockRecorder) Finalize() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Finalize", reflect.TypeOf((*MockSegmentReader)(nil).Finalize))
 }
 
 // Read mocks base method
 func (m *MockSegmentReader) Read(arg0 []byte) (int, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Read", arg0)
 	ret0, _ := ret[0].(int)
 	ret1, _ := ret[1].(error)
@@ -93,25 +88,21 @@ func (m *MockSegmentReader) Read(arg0 []byte) (int, error) {
 
 // Read indicates an expected call of Read
 func (mr *MockSegmentReaderMockRecorder) Read(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Read", reflect.TypeOf((*MockSegmentReader)(nil).Read), arg0)
 }
 
 // Reset mocks base method
 func (m *MockSegmentReader) Reset(arg0 ts.Segment) {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Reset", arg0)
 }
 
 // Reset indicates an expected call of Reset
 func (mr *MockSegmentReaderMockRecorder) Reset(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockSegmentReader)(nil).Reset), arg0)
 }
 
 // Segment mocks base method
 func (m *MockSegmentReader) Segment() (ts.Segment, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Segment")
 	ret0, _ := ret[0].(ts.Segment)
 	ret1, _ := ret[1].(error)
@@ -120,7 +111,6 @@ func (m *MockSegmentReader) Segment() (ts.Segment, error) {
 
 // Segment indicates an expected call of Segment
 func (mr *MockSegmentReaderMockRecorder) Segment() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Segment", reflect.TypeOf((*MockSegmentReader)(nil).Segment))
 }
 
@@ -149,7 +139,6 @@ func (m *MockSegmentReaderPool) EXPECT() *MockSegmentReaderPoolMockRecorder {
 
 // Get mocks base method
 func (m *MockSegmentReaderPool) Get() SegmentReader {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get")
 	ret0, _ := ret[0].(SegmentReader)
 	return ret0
@@ -157,30 +146,25 @@ func (m *MockSegmentReaderPool) Get() SegmentReader {
 
 // Get indicates an expected call of Get
 func (mr *MockSegmentReaderPoolMockRecorder) Get() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockSegmentReaderPool)(nil).Get))
 }
 
 // Init mocks base method
 func (m *MockSegmentReaderPool) Init() {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Init")
 }
 
 // Init indicates an expected call of Init
 func (mr *MockSegmentReaderPoolMockRecorder) Init() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Init", reflect.TypeOf((*MockSegmentReaderPool)(nil).Init))
 }
 
 // Put mocks base method
 func (m *MockSegmentReaderPool) Put(arg0 SegmentReader) {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Put", arg0)
 }
 
 // Put indicates an expected call of Put
 func (mr *MockSegmentReaderPoolMockRecorder) Put(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Put", reflect.TypeOf((*MockSegmentReaderPool)(nil).Put), arg0)
 }

@@ -66,7 +66,6 @@ func (m *MockEncoder) EXPECT() *MockEncoderMockRecorder {
 
 // Encode mocks base method
 func (m *MockEncoder) Encode(dp ts.Datapoint, unit time0.Unit, annotation ts.Annotation) error {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Encode", dp, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -74,13 +73,11 @@ func (m *MockEncoder) Encode(dp ts.Datapoint, unit time0.Unit, annotation ts.Ann
 
 // Encode indicates an expected call of Encode
 func (mr *MockEncoderMockRecorder) Encode(dp, unit, annotation interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Encode", reflect.TypeOf((*MockEncoder)(nil).Encode), dp, unit, annotation)
 }
 
 // Stream mocks base method
 func (m *MockEncoder) Stream() xio.SegmentReader {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Stream")
 	ret0, _ := ret[0].(xio.SegmentReader)
 	return ret0
@@ -88,13 +85,11 @@ func (m *MockEncoder) Stream() xio.SegmentReader {
 
 // Stream indicates an expected call of Stream
 func (mr *MockEncoderMockRecorder) Stream() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stream", reflect.TypeOf((*MockEncoder)(nil).Stream))
 }
 
 // NumEncoded mocks base method
 func (m *MockEncoder) NumEncoded() int {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NumEncoded")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -102,13 +97,11 @@ func (m *MockEncoder) NumEncoded() int {
 
 // NumEncoded indicates an expected call of NumEncoded
 func (mr *MockEncoderMockRecorder) NumEncoded() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NumEncoded", reflect.TypeOf((*MockEncoder)(nil).NumEncoded))
 }
 
 // LastEncoded mocks base method
 func (m *MockEncoder) LastEncoded() (ts.Datapoint, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LastEncoded")
 	ret0, _ := ret[0].(ts.Datapoint)
 	ret1, _ := ret[1].(error)
@@ -117,13 +110,11 @@ func (m *MockEncoder) LastEncoded() (ts.Datapoint, error) {
 
 // LastEncoded indicates an expected call of LastEncoded
 func (mr *MockEncoderMockRecorder) LastEncoded() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LastEncoded", reflect.TypeOf((*MockEncoder)(nil).LastEncoded))
 }
 
 // Len mocks base method
 func (m *MockEncoder) Len() int {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Len")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -131,37 +122,31 @@ func (m *MockEncoder) Len() int {
 
 // Len indicates an expected call of Len
 func (mr *MockEncoderMockRecorder) Len() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Len", reflect.TypeOf((*MockEncoder)(nil).Len))
 }
 
 // Reset mocks base method
 func (m *MockEncoder) Reset(t time.Time, capacity int) {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Reset", t, capacity)
 }
 
 // Reset indicates an expected call of Reset
 func (mr *MockEncoderMockRecorder) Reset(t, capacity interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockEncoder)(nil).Reset), t, capacity)
 }
 
 // Close mocks base method
 func (m *MockEncoder) Close() {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Close")
 }
 
 // Close indicates an expected call of Close
 func (mr *MockEncoderMockRecorder) Close() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockEncoder)(nil).Close))
 }
 
 // Discard mocks base method
 func (m *MockEncoder) Discard() ts.Segment {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Discard")
 	ret0, _ := ret[0].(ts.Segment)
 	return ret0
@@ -169,13 +154,11 @@ func (m *MockEncoder) Discard() ts.Segment {
 
 // Discard indicates an expected call of Discard
 func (mr *MockEncoderMockRecorder) Discard() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Discard", reflect.TypeOf((*MockEncoder)(nil).Discard))
 }
 
 // DiscardReset mocks base method
 func (m *MockEncoder) DiscardReset(t time.Time, capacity int) ts.Segment {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DiscardReset", t, capacity)
 	ret0, _ := ret[0].(ts.Segment)
 	return ret0
@@ -183,7 +166,6 @@ func (m *MockEncoder) DiscardReset(t time.Time, capacity int) ts.Segment {
 
 // DiscardReset indicates an expected call of DiscardReset
 func (mr *MockEncoderMockRecorder) DiscardReset(t, capacity interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DiscardReset", reflect.TypeOf((*MockEncoder)(nil).DiscardReset), t, capacity)
 }
 
@@ -212,7 +194,6 @@ func (m *MockOptions) EXPECT() *MockOptionsMockRecorder {
 
 // SetDefaultTimeUnit mocks base method
 func (m *MockOptions) SetDefaultTimeUnit(tu time0.Unit) Options {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetDefaultTimeUnit", tu)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -220,13 +201,11 @@ func (m *MockOptions) SetDefaultTimeUnit(tu time0.Unit) Options {
 
 // SetDefaultTimeUnit indicates an expected call of SetDefaultTimeUnit
 func (mr *MockOptionsMockRecorder) SetDefaultTimeUnit(tu interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetDefaultTimeUnit", reflect.TypeOf((*MockOptions)(nil).SetDefaultTimeUnit), tu)
 }
 
 // DefaultTimeUnit mocks base method
 func (m *MockOptions) DefaultTimeUnit() time0.Unit {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DefaultTimeUnit")
 	ret0, _ := ret[0].(time0.Unit)
 	return ret0
@@ -234,13 +213,11 @@ func (m *MockOptions) DefaultTimeUnit() time0.Unit {
 
 // DefaultTimeUnit indicates an expected call of DefaultTimeUnit
 func (mr *MockOptionsMockRecorder) DefaultTimeUnit() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DefaultTimeUnit", reflect.TypeOf((*MockOptions)(nil).DefaultTimeUnit))
 }
 
 // SetTimeEncodingSchemes mocks base method
 func (m *MockOptions) SetTimeEncodingSchemes(value TimeEncodingSchemes) Options {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetTimeEncodingSchemes", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -248,13 +225,11 @@ func (m *MockOptions) SetTimeEncodingSchemes(value TimeEncodingSchemes) Options 
 
 // SetTimeEncodingSchemes indicates an expected call of SetTimeEncodingSchemes
 func (mr *MockOptionsMockRecorder) SetTimeEncodingSchemes(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTimeEncodingSchemes", reflect.TypeOf((*MockOptions)(nil).SetTimeEncodingSchemes), value)
 }
 
 // TimeEncodingSchemes mocks base method
 func (m *MockOptions) TimeEncodingSchemes() TimeEncodingSchemes {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "TimeEncodingSchemes")
 	ret0, _ := ret[0].(TimeEncodingSchemes)
 	return ret0
@@ -262,13 +237,11 @@ func (m *MockOptions) TimeEncodingSchemes() TimeEncodingSchemes {
 
 // TimeEncodingSchemes indicates an expected call of TimeEncodingSchemes
 func (mr *MockOptionsMockRecorder) TimeEncodingSchemes() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TimeEncodingSchemes", reflect.TypeOf((*MockOptions)(nil).TimeEncodingSchemes))
 }
 
 // SetMarkerEncodingScheme mocks base method
 func (m *MockOptions) SetMarkerEncodingScheme(value MarkerEncodingScheme) Options {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetMarkerEncodingScheme", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -276,13 +249,11 @@ func (m *MockOptions) SetMarkerEncodingScheme(value MarkerEncodingScheme) Option
 
 // SetMarkerEncodingScheme indicates an expected call of SetMarkerEncodingScheme
 func (mr *MockOptionsMockRecorder) SetMarkerEncodingScheme(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMarkerEncodingScheme", reflect.TypeOf((*MockOptions)(nil).SetMarkerEncodingScheme), value)
 }
 
 // MarkerEncodingScheme mocks base method
 func (m *MockOptions) MarkerEncodingScheme() MarkerEncodingScheme {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MarkerEncodingScheme")
 	ret0, _ := ret[0].(MarkerEncodingScheme)
 	return ret0
@@ -290,13 +261,11 @@ func (m *MockOptions) MarkerEncodingScheme() MarkerEncodingScheme {
 
 // MarkerEncodingScheme indicates an expected call of MarkerEncodingScheme
 func (mr *MockOptionsMockRecorder) MarkerEncodingScheme() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkerEncodingScheme", reflect.TypeOf((*MockOptions)(nil).MarkerEncodingScheme))
 }
 
 // SetEncoderPool mocks base method
 func (m *MockOptions) SetEncoderPool(value EncoderPool) Options {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetEncoderPool", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -304,13 +273,11 @@ func (m *MockOptions) SetEncoderPool(value EncoderPool) Options {
 
 // SetEncoderPool indicates an expected call of SetEncoderPool
 func (mr *MockOptionsMockRecorder) SetEncoderPool(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEncoderPool", reflect.TypeOf((*MockOptions)(nil).SetEncoderPool), value)
 }
 
 // EncoderPool mocks base method
 func (m *MockOptions) EncoderPool() EncoderPool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "EncoderPool")
 	ret0, _ := ret[0].(EncoderPool)
 	return ret0
@@ -318,13 +285,11 @@ func (m *MockOptions) EncoderPool() EncoderPool {
 
 // EncoderPool indicates an expected call of EncoderPool
 func (mr *MockOptionsMockRecorder) EncoderPool() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EncoderPool", reflect.TypeOf((*MockOptions)(nil).EncoderPool))
 }
 
 // SetReaderIteratorPool mocks base method
 func (m *MockOptions) SetReaderIteratorPool(value ReaderIteratorPool) Options {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetReaderIteratorPool", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -332,13 +297,11 @@ func (m *MockOptions) SetReaderIteratorPool(value ReaderIteratorPool) Options {
 
 // SetReaderIteratorPool indicates an expected call of SetReaderIteratorPool
 func (mr *MockOptionsMockRecorder) SetReaderIteratorPool(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetReaderIteratorPool", reflect.TypeOf((*MockOptions)(nil).SetReaderIteratorPool), value)
 }
 
 // ReaderIteratorPool mocks base method
 func (m *MockOptions) ReaderIteratorPool() ReaderIteratorPool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReaderIteratorPool")
 	ret0, _ := ret[0].(ReaderIteratorPool)
 	return ret0
@@ -346,13 +309,11 @@ func (m *MockOptions) ReaderIteratorPool() ReaderIteratorPool {
 
 // ReaderIteratorPool indicates an expected call of ReaderIteratorPool
 func (mr *MockOptionsMockRecorder) ReaderIteratorPool() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReaderIteratorPool", reflect.TypeOf((*MockOptions)(nil).ReaderIteratorPool))
 }
 
 // SetBytesPool mocks base method
 func (m *MockOptions) SetBytesPool(value pool.CheckedBytesPool) Options {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetBytesPool", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -360,13 +321,11 @@ func (m *MockOptions) SetBytesPool(value pool.CheckedBytesPool) Options {
 
 // SetBytesPool indicates an expected call of SetBytesPool
 func (mr *MockOptionsMockRecorder) SetBytesPool(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBytesPool", reflect.TypeOf((*MockOptions)(nil).SetBytesPool), value)
 }
 
 // BytesPool mocks base method
 func (m *MockOptions) BytesPool() pool.CheckedBytesPool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BytesPool")
 	ret0, _ := ret[0].(pool.CheckedBytesPool)
 	return ret0
@@ -374,13 +333,11 @@ func (m *MockOptions) BytesPool() pool.CheckedBytesPool {
 
 // BytesPool indicates an expected call of BytesPool
 func (mr *MockOptionsMockRecorder) BytesPool() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BytesPool", reflect.TypeOf((*MockOptions)(nil).BytesPool))
 }
 
 // SetSegmentReaderPool mocks base method
 func (m *MockOptions) SetSegmentReaderPool(value xio.SegmentReaderPool) Options {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetSegmentReaderPool", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -388,13 +345,11 @@ func (m *MockOptions) SetSegmentReaderPool(value xio.SegmentReaderPool) Options 
 
 // SetSegmentReaderPool indicates an expected call of SetSegmentReaderPool
 func (mr *MockOptionsMockRecorder) SetSegmentReaderPool(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSegmentReaderPool", reflect.TypeOf((*MockOptions)(nil).SetSegmentReaderPool), value)
 }
 
 // SegmentReaderPool mocks base method
 func (m *MockOptions) SegmentReaderPool() xio.SegmentReaderPool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SegmentReaderPool")
 	ret0, _ := ret[0].(xio.SegmentReaderPool)
 	return ret0
@@ -402,7 +357,6 @@ func (m *MockOptions) SegmentReaderPool() xio.SegmentReaderPool {
 
 // SegmentReaderPool indicates an expected call of SegmentReaderPool
 func (mr *MockOptionsMockRecorder) SegmentReaderPool() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentReaderPool", reflect.TypeOf((*MockOptions)(nil).SegmentReaderPool))
 }
 
@@ -431,7 +385,6 @@ func (m *MockIterator) EXPECT() *MockIteratorMockRecorder {
 
 // Next mocks base method
 func (m *MockIterator) Next() bool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Next")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -439,13 +392,11 @@ func (m *MockIterator) Next() bool {
 
 // Next indicates an expected call of Next
 func (mr *MockIteratorMockRecorder) Next() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockIterator)(nil).Next))
 }
 
 // Current mocks base method
 func (m *MockIterator) Current() (ts.Datapoint, time0.Unit, ts.Annotation) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Current")
 	ret0, _ := ret[0].(ts.Datapoint)
 	ret1, _ := ret[1].(time0.Unit)
@@ -455,13 +406,11 @@ func (m *MockIterator) Current() (ts.Datapoint, time0.Unit, ts.Annotation) {
 
 // Current indicates an expected call of Current
 func (mr *MockIteratorMockRecorder) Current() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockIterator)(nil).Current))
 }
 
 // Err mocks base method
 func (m *MockIterator) Err() error {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Err")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -469,19 +418,16 @@ func (m *MockIterator) Err() error {
 
 // Err indicates an expected call of Err
 func (mr *MockIteratorMockRecorder) Err() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockIterator)(nil).Err))
 }
 
 // Close mocks base method
 func (m *MockIterator) Close() {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Close")
 }
 
 // Close indicates an expected call of Close
 func (mr *MockIteratorMockRecorder) Close() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockIterator)(nil).Close))
 }
 
@@ -510,7 +456,6 @@ func (m *MockReaderIterator) EXPECT() *MockReaderIteratorMockRecorder {
 
 // Next mocks base method
 func (m *MockReaderIterator) Next() bool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Next")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -518,13 +463,11 @@ func (m *MockReaderIterator) Next() bool {
 
 // Next indicates an expected call of Next
 func (mr *MockReaderIteratorMockRecorder) Next() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockReaderIterator)(nil).Next))
 }
 
 // Current mocks base method
 func (m *MockReaderIterator) Current() (ts.Datapoint, time0.Unit, ts.Annotation) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Current")
 	ret0, _ := ret[0].(ts.Datapoint)
 	ret1, _ := ret[1].(time0.Unit)
@@ -534,13 +477,11 @@ func (m *MockReaderIterator) Current() (ts.Datapoint, time0.Unit, ts.Annotation)
 
 // Current indicates an expected call of Current
 func (mr *MockReaderIteratorMockRecorder) Current() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockReaderIterator)(nil).Current))
 }
 
 // Err mocks base method
 func (m *MockReaderIterator) Err() error {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Err")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -548,31 +489,26 @@ func (m *MockReaderIterator) Err() error {
 
 // Err indicates an expected call of Err
 func (mr *MockReaderIteratorMockRecorder) Err() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockReaderIterator)(nil).Err))
 }
 
 // Close mocks base method
 func (m *MockReaderIterator) Close() {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Close")
 }
 
 // Close indicates an expected call of Close
 func (mr *MockReaderIteratorMockRecorder) Close() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockReaderIterator)(nil).Close))
 }
 
 // Reset mocks base method
 func (m *MockReaderIterator) Reset(reader io.Reader) {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Reset", reader)
 }
 
 // Reset indicates an expected call of Reset
 func (mr *MockReaderIteratorMockRecorder) Reset(reader interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockReaderIterator)(nil).Reset), reader)
 }
 
@@ -601,7 +537,6 @@ func (m *MockMultiReaderIterator) EXPECT() *MockMultiReaderIteratorMockRecorder 
 
 // Next mocks base method
 func (m *MockMultiReaderIterator) Next() bool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Next")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -609,13 +544,11 @@ func (m *MockMultiReaderIterator) Next() bool {
 
 // Next indicates an expected call of Next
 func (mr *MockMultiReaderIteratorMockRecorder) Next() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockMultiReaderIterator)(nil).Next))
 }
 
 // Current mocks base method
 func (m *MockMultiReaderIterator) Current() (ts.Datapoint, time0.Unit, ts.Annotation) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Current")
 	ret0, _ := ret[0].(ts.Datapoint)
 	ret1, _ := ret[1].(time0.Unit)
@@ -625,13 +558,11 @@ func (m *MockMultiReaderIterator) Current() (ts.Datapoint, time0.Unit, ts.Annota
 
 // Current indicates an expected call of Current
 func (mr *MockMultiReaderIteratorMockRecorder) Current() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockMultiReaderIterator)(nil).Current))
 }
 
 // Err mocks base method
 func (m *MockMultiReaderIterator) Err() error {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Err")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -639,49 +570,41 @@ func (m *MockMultiReaderIterator) Err() error {
 
 // Err indicates an expected call of Err
 func (mr *MockMultiReaderIteratorMockRecorder) Err() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockMultiReaderIterator)(nil).Err))
 }
 
 // Close mocks base method
 func (m *MockMultiReaderIterator) Close() {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Close")
 }
 
 // Close indicates an expected call of Close
 func (mr *MockMultiReaderIteratorMockRecorder) Close() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockMultiReaderIterator)(nil).Close))
 }
 
 // Reset mocks base method
 func (m *MockMultiReaderIterator) Reset(readers []xio.SegmentReader, start time.Time, blockSize time.Duration) {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Reset", readers, start, blockSize)
 }
 
 // Reset indicates an expected call of Reset
 func (mr *MockMultiReaderIteratorMockRecorder) Reset(readers, start, blockSize interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockMultiReaderIterator)(nil).Reset), readers, start, blockSize)
 }
 
 // ResetSliceOfSlices mocks base method
 func (m *MockMultiReaderIterator) ResetSliceOfSlices(readers xio.ReaderSliceOfSlicesIterator) {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "ResetSliceOfSlices", readers)
 }
 
 // ResetSliceOfSlices indicates an expected call of ResetSliceOfSlices
 func (mr *MockMultiReaderIteratorMockRecorder) ResetSliceOfSlices(readers interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetSliceOfSlices", reflect.TypeOf((*MockMultiReaderIterator)(nil).ResetSliceOfSlices), readers)
 }
 
 // Readers mocks base method
 func (m *MockMultiReaderIterator) Readers() xio.ReaderSliceOfSlicesIterator {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Readers")
 	ret0, _ := ret[0].(xio.ReaderSliceOfSlicesIterator)
 	return ret0
@@ -689,7 +612,6 @@ func (m *MockMultiReaderIterator) Readers() xio.ReaderSliceOfSlicesIterator {
 
 // Readers indicates an expected call of Readers
 func (mr *MockMultiReaderIteratorMockRecorder) Readers() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Readers", reflect.TypeOf((*MockMultiReaderIterator)(nil).Readers))
 }
 
@@ -718,7 +640,6 @@ func (m *MockSeriesIterator) EXPECT() *MockSeriesIteratorMockRecorder {
 
 // Next mocks base method
 func (m *MockSeriesIterator) Next() bool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Next")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -726,13 +647,11 @@ func (m *MockSeriesIterator) Next() bool {
 
 // Next indicates an expected call of Next
 func (mr *MockSeriesIteratorMockRecorder) Next() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockSeriesIterator)(nil).Next))
 }
 
 // Current mocks base method
 func (m *MockSeriesIterator) Current() (ts.Datapoint, time0.Unit, ts.Annotation) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Current")
 	ret0, _ := ret[0].(ts.Datapoint)
 	ret1, _ := ret[1].(time0.Unit)
@@ -742,13 +661,11 @@ func (m *MockSeriesIterator) Current() (ts.Datapoint, time0.Unit, ts.Annotation)
 
 // Current indicates an expected call of Current
 func (mr *MockSeriesIteratorMockRecorder) Current() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockSeriesIterator)(nil).Current))
 }
 
 // Err mocks base method
 func (m *MockSeriesIterator) Err() error {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Err")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -756,25 +673,21 @@ func (m *MockSeriesIterator) Err() error {
 
 // Err indicates an expected call of Err
 func (mr *MockSeriesIteratorMockRecorder) Err() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockSeriesIterator)(nil).Err))
 }
 
 // Close mocks base method
 func (m *MockSeriesIterator) Close() {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Close")
 }
 
 // Close indicates an expected call of Close
 func (mr *MockSeriesIteratorMockRecorder) Close() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockSeriesIterator)(nil).Close))
 }
 
 // ID mocks base method
 func (m *MockSeriesIterator) ID() ident.ID {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ID")
 	ret0, _ := ret[0].(ident.ID)
 	return ret0
@@ -782,13 +695,11 @@ func (m *MockSeriesIterator) ID() ident.ID {
 
 // ID indicates an expected call of ID
 func (mr *MockSeriesIteratorMockRecorder) ID() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockSeriesIterator)(nil).ID))
 }
 
 // Namespace mocks base method
 func (m *MockSeriesIterator) Namespace() ident.ID {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Namespace")
 	ret0, _ := ret[0].(ident.ID)
 	return ret0
@@ -796,13 +707,11 @@ func (m *MockSeriesIterator) Namespace() ident.ID {
 
 // Namespace indicates an expected call of Namespace
 func (mr *MockSeriesIteratorMockRecorder) Namespace() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Namespace", reflect.TypeOf((*MockSeriesIterator)(nil).Namespace))
 }
 
 // Tags mocks base method
 func (m *MockSeriesIterator) Tags() ident.TagIterator {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Tags")
 	ret0, _ := ret[0].(ident.TagIterator)
 	return ret0
@@ -810,13 +719,11 @@ func (m *MockSeriesIterator) Tags() ident.TagIterator {
 
 // Tags indicates an expected call of Tags
 func (mr *MockSeriesIteratorMockRecorder) Tags() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tags", reflect.TypeOf((*MockSeriesIterator)(nil).Tags))
 }
 
 // Start mocks base method
 func (m *MockSeriesIterator) Start() time.Time {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Start")
 	ret0, _ := ret[0].(time.Time)
 	return ret0
@@ -824,13 +731,11 @@ func (m *MockSeriesIterator) Start() time.Time {
 
 // Start indicates an expected call of Start
 func (mr *MockSeriesIteratorMockRecorder) Start() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockSeriesIterator)(nil).Start))
 }
 
 // End mocks base method
 func (m *MockSeriesIterator) End() time.Time {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "End")
 	ret0, _ := ret[0].(time.Time)
 	return ret0
@@ -838,37 +743,31 @@ func (m *MockSeriesIterator) End() time.Time {
 
 // End indicates an expected call of End
 func (mr *MockSeriesIteratorMockRecorder) End() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "End", reflect.TypeOf((*MockSeriesIterator)(nil).End))
 }
 
 // Reset mocks base method
 func (m *MockSeriesIterator) Reset(opts SeriesIteratorOptions) {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Reset", opts)
 }
 
 // Reset indicates an expected call of Reset
 func (mr *MockSeriesIteratorMockRecorder) Reset(opts interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockSeriesIterator)(nil).Reset), opts)
 }
 
 // SetIterateEqualTimestampStrategy mocks base method
 func (m *MockSeriesIterator) SetIterateEqualTimestampStrategy(strategy IterateEqualTimestampStrategy) {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "SetIterateEqualTimestampStrategy", strategy)
 }
 
 // SetIterateEqualTimestampStrategy indicates an expected call of SetIterateEqualTimestampStrategy
 func (mr *MockSeriesIteratorMockRecorder) SetIterateEqualTimestampStrategy(strategy interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIterateEqualTimestampStrategy", reflect.TypeOf((*MockSeriesIterator)(nil).SetIterateEqualTimestampStrategy), strategy)
 }
 
 // Replicas mocks base method
 func (m *MockSeriesIterator) Replicas() []MultiReaderIterator {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Replicas")
 	ret0, _ := ret[0].([]MultiReaderIterator)
 	return ret0
@@ -876,7 +775,6 @@ func (m *MockSeriesIterator) Replicas() []MultiReaderIterator {
 
 // Replicas indicates an expected call of Replicas
 func (mr *MockSeriesIteratorMockRecorder) Replicas() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Replicas", reflect.TypeOf((*MockSeriesIterator)(nil).Replicas))
 }
 
@@ -905,7 +803,6 @@ func (m *MockSeriesIterators) EXPECT() *MockSeriesIteratorsMockRecorder {
 
 // Iters mocks base method
 func (m *MockSeriesIterators) Iters() []SeriesIterator {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Iters")
 	ret0, _ := ret[0].([]SeriesIterator)
 	return ret0
@@ -913,13 +810,11 @@ func (m *MockSeriesIterators) Iters() []SeriesIterator {
 
 // Iters indicates an expected call of Iters
 func (mr *MockSeriesIteratorsMockRecorder) Iters() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Iters", reflect.TypeOf((*MockSeriesIterators)(nil).Iters))
 }
 
 // Len mocks base method
 func (m *MockSeriesIterators) Len() int {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Len")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -927,19 +822,16 @@ func (m *MockSeriesIterators) Len() int {
 
 // Len indicates an expected call of Len
 func (mr *MockSeriesIteratorsMockRecorder) Len() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Len", reflect.TypeOf((*MockSeriesIterators)(nil).Len))
 }
 
 // Close mocks base method
 func (m *MockSeriesIterators) Close() {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Close")
 }
 
 // Close indicates an expected call of Close
 func (mr *MockSeriesIteratorsMockRecorder) Close() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockSeriesIterators)(nil).Close))
 }
 
@@ -968,7 +860,6 @@ func (m *MockMutableSeriesIterators) EXPECT() *MockMutableSeriesIteratorsMockRec
 
 // Iters mocks base method
 func (m *MockMutableSeriesIterators) Iters() []SeriesIterator {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Iters")
 	ret0, _ := ret[0].([]SeriesIterator)
 	return ret0
@@ -976,13 +867,11 @@ func (m *MockMutableSeriesIterators) Iters() []SeriesIterator {
 
 // Iters indicates an expected call of Iters
 func (mr *MockMutableSeriesIteratorsMockRecorder) Iters() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Iters", reflect.TypeOf((*MockMutableSeriesIterators)(nil).Iters))
 }
 
 // Len mocks base method
 func (m *MockMutableSeriesIterators) Len() int {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Len")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -990,37 +879,31 @@ func (m *MockMutableSeriesIterators) Len() int {
 
 // Len indicates an expected call of Len
 func (mr *MockMutableSeriesIteratorsMockRecorder) Len() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Len", reflect.TypeOf((*MockMutableSeriesIterators)(nil).Len))
 }
 
 // Close mocks base method
 func (m *MockMutableSeriesIterators) Close() {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Close")
 }
 
 // Close indicates an expected call of Close
 func (mr *MockMutableSeriesIteratorsMockRecorder) Close() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockMutableSeriesIterators)(nil).Close))
 }
 
 // Reset mocks base method
 func (m *MockMutableSeriesIterators) Reset(size int) {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Reset", size)
 }
 
 // Reset indicates an expected call of Reset
 func (mr *MockMutableSeriesIteratorsMockRecorder) Reset(size interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockMutableSeriesIterators)(nil).Reset), size)
 }
 
 // Cap mocks base method
 func (m *MockMutableSeriesIterators) Cap() int {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Cap")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -1028,19 +911,16 @@ func (m *MockMutableSeriesIterators) Cap() int {
 
 // Cap indicates an expected call of Cap
 func (mr *MockMutableSeriesIteratorsMockRecorder) Cap() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cap", reflect.TypeOf((*MockMutableSeriesIterators)(nil).Cap))
 }
 
 // SetAt mocks base method
 func (m *MockMutableSeriesIterators) SetAt(idx int, iter SeriesIterator) {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "SetAt", idx, iter)
 }
 
 // SetAt indicates an expected call of SetAt
 func (mr *MockMutableSeriesIteratorsMockRecorder) SetAt(idx, iter interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAt", reflect.TypeOf((*MockMutableSeriesIterators)(nil).SetAt), idx, iter)
 }
 
@@ -1069,7 +949,6 @@ func (m *MockDecoder) EXPECT() *MockDecoderMockRecorder {
 
 // Decode mocks base method
 func (m *MockDecoder) Decode(reader io.Reader) ReaderIterator {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Decode", reader)
 	ret0, _ := ret[0].(ReaderIterator)
 	return ret0
@@ -1077,7 +956,6 @@ func (m *MockDecoder) Decode(reader io.Reader) ReaderIterator {
 
 // Decode indicates an expected call of Decode
 func (mr *MockDecoderMockRecorder) Decode(reader interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Decode", reflect.TypeOf((*MockDecoder)(nil).Decode), reader)
 }
 
@@ -1106,7 +984,6 @@ func (m *MockIStream) EXPECT() *MockIStreamMockRecorder {
 
 // ReadBit mocks base method
 func (m *MockIStream) ReadBit() (Bit, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadBit")
 	ret0, _ := ret[0].(Bit)
 	ret1, _ := ret[1].(error)
@@ -1115,13 +992,11 @@ func (m *MockIStream) ReadBit() (Bit, error) {
 
 // ReadBit indicates an expected call of ReadBit
 func (mr *MockIStreamMockRecorder) ReadBit() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadBit", reflect.TypeOf((*MockIStream)(nil).ReadBit))
 }
 
 // ReadByte mocks base method
 func (m *MockIStream) ReadByte() (byte, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadByte")
 	ret0, _ := ret[0].(byte)
 	ret1, _ := ret[1].(error)
@@ -1130,13 +1005,11 @@ func (m *MockIStream) ReadByte() (byte, error) {
 
 // ReadByte indicates an expected call of ReadByte
 func (mr *MockIStreamMockRecorder) ReadByte() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadByte", reflect.TypeOf((*MockIStream)(nil).ReadByte))
 }
 
 // ReadBits mocks base method
 func (m *MockIStream) ReadBits(numBits int) (uint64, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadBits", numBits)
 	ret0, _ := ret[0].(uint64)
 	ret1, _ := ret[1].(error)
@@ -1145,13 +1018,11 @@ func (m *MockIStream) ReadBits(numBits int) (uint64, error) {
 
 // ReadBits indicates an expected call of ReadBits
 func (mr *MockIStreamMockRecorder) ReadBits(numBits interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadBits", reflect.TypeOf((*MockIStream)(nil).ReadBits), numBits)
 }
 
 // PeekBits mocks base method
 func (m *MockIStream) PeekBits(numBits int) (uint64, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PeekBits", numBits)
 	ret0, _ := ret[0].(uint64)
 	ret1, _ := ret[1].(error)
@@ -1160,19 +1031,16 @@ func (m *MockIStream) PeekBits(numBits int) (uint64, error) {
 
 // PeekBits indicates an expected call of PeekBits
 func (mr *MockIStreamMockRecorder) PeekBits(numBits interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PeekBits", reflect.TypeOf((*MockIStream)(nil).PeekBits), numBits)
 }
 
 // Reset mocks base method
 func (m *MockIStream) Reset(r io.Reader) {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Reset", r)
 }
 
 // Reset indicates an expected call of Reset
 func (mr *MockIStreamMockRecorder) Reset(r interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockIStream)(nil).Reset), r)
 }
 
@@ -1201,7 +1069,6 @@ func (m *MockOStream) EXPECT() *MockOStreamMockRecorder {
 
 // Len mocks base method
 func (m *MockOStream) Len() int {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Len")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -1209,13 +1076,11 @@ func (m *MockOStream) Len() int {
 
 // Len indicates an expected call of Len
 func (mr *MockOStreamMockRecorder) Len() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Len", reflect.TypeOf((*MockOStream)(nil).Len))
 }
 
 // Empty mocks base method
 func (m *MockOStream) Empty() bool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Empty")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -1223,73 +1088,61 @@ func (m *MockOStream) Empty() bool {
 
 // Empty indicates an expected call of Empty
 func (mr *MockOStreamMockRecorder) Empty() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Empty", reflect.TypeOf((*MockOStream)(nil).Empty))
 }
 
 // WriteBit mocks base method
 func (m *MockOStream) WriteBit(v Bit) {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "WriteBit", v)
 }
 
 // WriteBit indicates an expected call of WriteBit
 func (mr *MockOStreamMockRecorder) WriteBit(v interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBit", reflect.TypeOf((*MockOStream)(nil).WriteBit), v)
 }
 
 // WriteBits mocks base method
 func (m *MockOStream) WriteBits(v uint64, numBits int) {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "WriteBits", v, numBits)
 }
 
 // WriteBits indicates an expected call of WriteBits
 func (mr *MockOStreamMockRecorder) WriteBits(v, numBits interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBits", reflect.TypeOf((*MockOStream)(nil).WriteBits), v, numBits)
 }
 
 // WriteByte mocks base method
 func (m *MockOStream) WriteByte(v byte) {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "WriteByte", v)
 }
 
 // WriteByte indicates an expected call of WriteByte
 func (mr *MockOStreamMockRecorder) WriteByte(v interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteByte", reflect.TypeOf((*MockOStream)(nil).WriteByte), v)
 }
 
 // WriteBytes mocks base method
 func (m *MockOStream) WriteBytes(bytes []byte) {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "WriteBytes", bytes)
 }
 
 // WriteBytes indicates an expected call of WriteBytes
 func (mr *MockOStreamMockRecorder) WriteBytes(bytes interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBytes", reflect.TypeOf((*MockOStream)(nil).WriteBytes), bytes)
 }
 
 // Reset mocks base method
 func (m *MockOStream) Reset(buffer checked.Bytes) {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Reset", buffer)
 }
 
 // Reset indicates an expected call of Reset
 func (mr *MockOStreamMockRecorder) Reset(buffer interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockOStream)(nil).Reset), buffer)
 }
 
 // Discard mocks base method
 func (m *MockOStream) Discard() checked.Bytes {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Discard")
 	ret0, _ := ret[0].(checked.Bytes)
 	return ret0
@@ -1297,13 +1150,11 @@ func (m *MockOStream) Discard() checked.Bytes {
 
 // Discard indicates an expected call of Discard
 func (mr *MockOStreamMockRecorder) Discard() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Discard", reflect.TypeOf((*MockOStream)(nil).Discard))
 }
 
 // Rawbytes mocks base method
 func (m *MockOStream) Rawbytes() (checked.Bytes, int) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Rawbytes")
 	ret0, _ := ret[0].(checked.Bytes)
 	ret1, _ := ret[1].(int)
@@ -1312,7 +1163,6 @@ func (m *MockOStream) Rawbytes() (checked.Bytes, int) {
 
 // Rawbytes indicates an expected call of Rawbytes
 func (mr *MockOStreamMockRecorder) Rawbytes() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Rawbytes", reflect.TypeOf((*MockOStream)(nil).Rawbytes))
 }
 
@@ -1341,19 +1191,16 @@ func (m *MockEncoderPool) EXPECT() *MockEncoderPoolMockRecorder {
 
 // Init mocks base method
 func (m *MockEncoderPool) Init(alloc EncoderAllocate) {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Init", alloc)
 }
 
 // Init indicates an expected call of Init
 func (mr *MockEncoderPoolMockRecorder) Init(alloc interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Init", reflect.TypeOf((*MockEncoderPool)(nil).Init), alloc)
 }
 
 // Get mocks base method
 func (m *MockEncoderPool) Get() Encoder {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get")
 	ret0, _ := ret[0].(Encoder)
 	return ret0
@@ -1361,19 +1208,16 @@ func (m *MockEncoderPool) Get() Encoder {
 
 // Get indicates an expected call of Get
 func (mr *MockEncoderPoolMockRecorder) Get() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockEncoderPool)(nil).Get))
 }
 
 // Put mocks base method
 func (m *MockEncoderPool) Put(e Encoder) {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Put", e)
 }
 
 // Put indicates an expected call of Put
 func (mr *MockEncoderPoolMockRecorder) Put(e interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Put", reflect.TypeOf((*MockEncoderPool)(nil).Put), e)
 }
 
@@ -1402,19 +1246,16 @@ func (m *MockReaderIteratorPool) EXPECT() *MockReaderIteratorPoolMockRecorder {
 
 // Init mocks base method
 func (m *MockReaderIteratorPool) Init(alloc ReaderIteratorAllocate) {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Init", alloc)
 }
 
 // Init indicates an expected call of Init
 func (mr *MockReaderIteratorPoolMockRecorder) Init(alloc interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Init", reflect.TypeOf((*MockReaderIteratorPool)(nil).Init), alloc)
 }
 
 // Get mocks base method
 func (m *MockReaderIteratorPool) Get() ReaderIterator {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get")
 	ret0, _ := ret[0].(ReaderIterator)
 	return ret0
@@ -1422,19 +1263,16 @@ func (m *MockReaderIteratorPool) Get() ReaderIterator {
 
 // Get indicates an expected call of Get
 func (mr *MockReaderIteratorPoolMockRecorder) Get() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockReaderIteratorPool)(nil).Get))
 }
 
 // Put mocks base method
 func (m *MockReaderIteratorPool) Put(iter ReaderIterator) {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Put", iter)
 }
 
 // Put indicates an expected call of Put
 func (mr *MockReaderIteratorPoolMockRecorder) Put(iter interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Put", reflect.TypeOf((*MockReaderIteratorPool)(nil).Put), iter)
 }
 
@@ -1463,19 +1301,16 @@ func (m *MockMultiReaderIteratorPool) EXPECT() *MockMultiReaderIteratorPoolMockR
 
 // Init mocks base method
 func (m *MockMultiReaderIteratorPool) Init(alloc ReaderIteratorAllocate) {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Init", alloc)
 }
 
 // Init indicates an expected call of Init
 func (mr *MockMultiReaderIteratorPoolMockRecorder) Init(alloc interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Init", reflect.TypeOf((*MockMultiReaderIteratorPool)(nil).Init), alloc)
 }
 
 // Get mocks base method
 func (m *MockMultiReaderIteratorPool) Get() MultiReaderIterator {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get")
 	ret0, _ := ret[0].(MultiReaderIterator)
 	return ret0
@@ -1483,19 +1318,16 @@ func (m *MockMultiReaderIteratorPool) Get() MultiReaderIterator {
 
 // Get indicates an expected call of Get
 func (mr *MockMultiReaderIteratorPoolMockRecorder) Get() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockMultiReaderIteratorPool)(nil).Get))
 }
 
 // Put mocks base method
 func (m *MockMultiReaderIteratorPool) Put(iter MultiReaderIterator) {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Put", iter)
 }
 
 // Put indicates an expected call of Put
 func (mr *MockMultiReaderIteratorPoolMockRecorder) Put(iter interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Put", reflect.TypeOf((*MockMultiReaderIteratorPool)(nil).Put), iter)
 }
 
@@ -1524,19 +1356,16 @@ func (m *MockSeriesIteratorPool) EXPECT() *MockSeriesIteratorPoolMockRecorder {
 
 // Init mocks base method
 func (m *MockSeriesIteratorPool) Init() {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Init")
 }
 
 // Init indicates an expected call of Init
 func (mr *MockSeriesIteratorPoolMockRecorder) Init() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Init", reflect.TypeOf((*MockSeriesIteratorPool)(nil).Init))
 }
 
 // Get mocks base method
 func (m *MockSeriesIteratorPool) Get() SeriesIterator {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get")
 	ret0, _ := ret[0].(SeriesIterator)
 	return ret0
@@ -1544,19 +1373,16 @@ func (m *MockSeriesIteratorPool) Get() SeriesIterator {
 
 // Get indicates an expected call of Get
 func (mr *MockSeriesIteratorPoolMockRecorder) Get() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockSeriesIteratorPool)(nil).Get))
 }
 
 // Put mocks base method
 func (m *MockSeriesIteratorPool) Put(iter SeriesIterator) {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Put", iter)
 }
 
 // Put indicates an expected call of Put
 func (mr *MockSeriesIteratorPoolMockRecorder) Put(iter interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Put", reflect.TypeOf((*MockSeriesIteratorPool)(nil).Put), iter)
 }
 
@@ -1585,19 +1411,16 @@ func (m *MockMutableSeriesIteratorsPool) EXPECT() *MockMutableSeriesIteratorsPoo
 
 // Init mocks base method
 func (m *MockMutableSeriesIteratorsPool) Init() {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Init")
 }
 
 // Init indicates an expected call of Init
 func (mr *MockMutableSeriesIteratorsPoolMockRecorder) Init() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Init", reflect.TypeOf((*MockMutableSeriesIteratorsPool)(nil).Init))
 }
 
 // Get mocks base method
 func (m *MockMutableSeriesIteratorsPool) Get(size int) MutableSeriesIterators {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get", size)
 	ret0, _ := ret[0].(MutableSeriesIterators)
 	return ret0
@@ -1605,19 +1428,16 @@ func (m *MockMutableSeriesIteratorsPool) Get(size int) MutableSeriesIterators {
 
 // Get indicates an expected call of Get
 func (mr *MockMutableSeriesIteratorsPoolMockRecorder) Get(size interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockMutableSeriesIteratorsPool)(nil).Get), size)
 }
 
 // Put mocks base method
 func (m *MockMutableSeriesIteratorsPool) Put(iters MutableSeriesIterators) {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Put", iters)
 }
 
 // Put indicates an expected call of Put
 func (mr *MockMutableSeriesIteratorsPoolMockRecorder) Put(iters interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Put", reflect.TypeOf((*MockMutableSeriesIteratorsPool)(nil).Put), iters)
 }
 
@@ -1646,19 +1466,16 @@ func (m *MockMultiReaderIteratorArrayPool) EXPECT() *MockMultiReaderIteratorArra
 
 // Init mocks base method
 func (m *MockMultiReaderIteratorArrayPool) Init() {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Init")
 }
 
 // Init indicates an expected call of Init
 func (mr *MockMultiReaderIteratorArrayPoolMockRecorder) Init() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Init", reflect.TypeOf((*MockMultiReaderIteratorArrayPool)(nil).Init))
 }
 
 // Get mocks base method
 func (m *MockMultiReaderIteratorArrayPool) Get(size int) []MultiReaderIterator {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get", size)
 	ret0, _ := ret[0].([]MultiReaderIterator)
 	return ret0
@@ -1666,19 +1483,16 @@ func (m *MockMultiReaderIteratorArrayPool) Get(size int) []MultiReaderIterator {
 
 // Get indicates an expected call of Get
 func (mr *MockMultiReaderIteratorArrayPoolMockRecorder) Get(size interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockMultiReaderIteratorArrayPool)(nil).Get), size)
 }
 
 // Put mocks base method
 func (m *MockMultiReaderIteratorArrayPool) Put(iters []MultiReaderIterator) {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Put", iters)
 }
 
 // Put indicates an expected call of Put
 func (mr *MockMultiReaderIteratorArrayPoolMockRecorder) Put(iters interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Put", reflect.TypeOf((*MockMultiReaderIteratorArrayPool)(nil).Put), iters)
 }
 
@@ -1707,7 +1521,6 @@ func (m *MockIteratorPools) EXPECT() *MockIteratorPoolsMockRecorder {
 
 // MultiReaderIteratorArray mocks base method
 func (m *MockIteratorPools) MultiReaderIteratorArray() MultiReaderIteratorArrayPool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MultiReaderIteratorArray")
 	ret0, _ := ret[0].(MultiReaderIteratorArrayPool)
 	return ret0
@@ -1715,13 +1528,11 @@ func (m *MockIteratorPools) MultiReaderIteratorArray() MultiReaderIteratorArrayP
 
 // MultiReaderIteratorArray indicates an expected call of MultiReaderIteratorArray
 func (mr *MockIteratorPoolsMockRecorder) MultiReaderIteratorArray() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MultiReaderIteratorArray", reflect.TypeOf((*MockIteratorPools)(nil).MultiReaderIteratorArray))
 }
 
 // MultiReaderIterator mocks base method
 func (m *MockIteratorPools) MultiReaderIterator() MultiReaderIteratorPool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MultiReaderIterator")
 	ret0, _ := ret[0].(MultiReaderIteratorPool)
 	return ret0
@@ -1729,13 +1540,11 @@ func (m *MockIteratorPools) MultiReaderIterator() MultiReaderIteratorPool {
 
 // MultiReaderIterator indicates an expected call of MultiReaderIterator
 func (mr *MockIteratorPoolsMockRecorder) MultiReaderIterator() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MultiReaderIterator", reflect.TypeOf((*MockIteratorPools)(nil).MultiReaderIterator))
 }
 
 // MutableSeriesIterators mocks base method
 func (m *MockIteratorPools) MutableSeriesIterators() MutableSeriesIteratorsPool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MutableSeriesIterators")
 	ret0, _ := ret[0].(MutableSeriesIteratorsPool)
 	return ret0
@@ -1743,13 +1552,11 @@ func (m *MockIteratorPools) MutableSeriesIterators() MutableSeriesIteratorsPool 
 
 // MutableSeriesIterators indicates an expected call of MutableSeriesIterators
 func (mr *MockIteratorPoolsMockRecorder) MutableSeriesIterators() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MutableSeriesIterators", reflect.TypeOf((*MockIteratorPools)(nil).MutableSeriesIterators))
 }
 
 // SeriesIterator mocks base method
 func (m *MockIteratorPools) SeriesIterator() SeriesIteratorPool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SeriesIterator")
 	ret0, _ := ret[0].(SeriesIteratorPool)
 	return ret0
@@ -1757,13 +1564,11 @@ func (m *MockIteratorPools) SeriesIterator() SeriesIteratorPool {
 
 // SeriesIterator indicates an expected call of SeriesIterator
 func (mr *MockIteratorPoolsMockRecorder) SeriesIterator() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesIterator", reflect.TypeOf((*MockIteratorPools)(nil).SeriesIterator))
 }
 
 // CheckedBytesWrapper mocks base method
 func (m *MockIteratorPools) CheckedBytesWrapper() xpool.CheckedBytesWrapperPool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CheckedBytesWrapper")
 	ret0, _ := ret[0].(xpool.CheckedBytesWrapperPool)
 	return ret0
@@ -1771,13 +1576,11 @@ func (m *MockIteratorPools) CheckedBytesWrapper() xpool.CheckedBytesWrapperPool 
 
 // CheckedBytesWrapper indicates an expected call of CheckedBytesWrapper
 func (mr *MockIteratorPoolsMockRecorder) CheckedBytesWrapper() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckedBytesWrapper", reflect.TypeOf((*MockIteratorPools)(nil).CheckedBytesWrapper))
 }
 
 // ID mocks base method
 func (m *MockIteratorPools) ID() ident.Pool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ID")
 	ret0, _ := ret[0].(ident.Pool)
 	return ret0
@@ -1785,13 +1588,11 @@ func (m *MockIteratorPools) ID() ident.Pool {
 
 // ID indicates an expected call of ID
 func (mr *MockIteratorPoolsMockRecorder) ID() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockIteratorPools)(nil).ID))
 }
 
 // TagEncoder mocks base method
 func (m *MockIteratorPools) TagEncoder() serialize.TagEncoderPool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "TagEncoder")
 	ret0, _ := ret[0].(serialize.TagEncoderPool)
 	return ret0
@@ -1799,13 +1600,11 @@ func (m *MockIteratorPools) TagEncoder() serialize.TagEncoderPool {
 
 // TagEncoder indicates an expected call of TagEncoder
 func (mr *MockIteratorPoolsMockRecorder) TagEncoder() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TagEncoder", reflect.TypeOf((*MockIteratorPools)(nil).TagEncoder))
 }
 
 // TagDecoder mocks base method
 func (m *MockIteratorPools) TagDecoder() serialize.TagDecoderPool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "TagDecoder")
 	ret0, _ := ret[0].(serialize.TagDecoderPool)
 	return ret0
@@ -1813,6 +1612,5 @@ func (m *MockIteratorPools) TagDecoder() serialize.TagDecoderPool {
 
 // TagDecoder indicates an expected call of TagDecoder
 func (mr *MockIteratorPoolsMockRecorder) TagDecoder() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TagDecoder", reflect.TypeOf((*MockIteratorPools)(nil).TagDecoder))
 }

@@ -61,7 +61,6 @@ func (m *MockOptions) EXPECT() *MockOptionsMockRecorder {
 
 // Validate mocks base method
 func (m *MockOptions) Validate() error {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Validate")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -69,13 +68,11 @@ func (m *MockOptions) Validate() error {
 
 // Validate indicates an expected call of Validate
 func (mr *MockOptionsMockRecorder) Validate() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Validate", reflect.TypeOf((*MockOptions)(nil).Validate))
 }
 
 // Equal mocks base method
 func (m *MockOptions) Equal(value Options) bool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Equal", value)
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -83,13 +80,11 @@ func (m *MockOptions) Equal(value Options) bool {
 
 // Equal indicates an expected call of Equal
 func (mr *MockOptionsMockRecorder) Equal(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Equal", reflect.TypeOf((*MockOptions)(nil).Equal), value)
 }
 
 // SetBootstrapEnabled mocks base method
 func (m *MockOptions) SetBootstrapEnabled(value bool) Options {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetBootstrapEnabled", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -97,13 +92,11 @@ func (m *MockOptions) SetBootstrapEnabled(value bool) Options {
 
 // SetBootstrapEnabled indicates an expected call of SetBootstrapEnabled
 func (mr *MockOptionsMockRecorder) SetBootstrapEnabled(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBootstrapEnabled", reflect.TypeOf((*MockOptions)(nil).SetBootstrapEnabled), value)
 }
 
 // BootstrapEnabled mocks base method
 func (m *MockOptions) BootstrapEnabled() bool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BootstrapEnabled")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -111,13 +104,11 @@ func (m *MockOptions) BootstrapEnabled() bool {
 
 // BootstrapEnabled indicates an expected call of BootstrapEnabled
 func (mr *MockOptionsMockRecorder) BootstrapEnabled() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapEnabled", reflect.TypeOf((*MockOptions)(nil).BootstrapEnabled))
 }
 
 // SetFlushEnabled mocks base method
 func (m *MockOptions) SetFlushEnabled(value bool) Options {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetFlushEnabled", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -125,13 +116,11 @@ func (m *MockOptions) SetFlushEnabled(value bool) Options {
 
 // SetFlushEnabled indicates an expected call of SetFlushEnabled
 func (mr *MockOptionsMockRecorder) SetFlushEnabled(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFlushEnabled", reflect.TypeOf((*MockOptions)(nil).SetFlushEnabled), value)
 }
 
 // FlushEnabled mocks base method
 func (m *MockOptions) FlushEnabled() bool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FlushEnabled")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -139,13 +128,11 @@ func (m *MockOptions) FlushEnabled() bool {
 
 // FlushEnabled indicates an expected call of FlushEnabled
 func (mr *MockOptionsMockRecorder) FlushEnabled() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FlushEnabled", reflect.TypeOf((*MockOptions)(nil).FlushEnabled))
 }
 
 // SetSnapshotEnabled mocks base method
 func (m *MockOptions) SetSnapshotEnabled(value bool) Options {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetSnapshotEnabled", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -153,13 +140,11 @@ func (m *MockOptions) SetSnapshotEnabled(value bool) Options {
 
 // SetSnapshotEnabled indicates an expected call of SetSnapshotEnabled
 func (mr *MockOptionsMockRecorder) SetSnapshotEnabled(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSnapshotEnabled", reflect.TypeOf((*MockOptions)(nil).SetSnapshotEnabled), value)
 }
 
 // SnapshotEnabled mocks base method
 func (m *MockOptions) SnapshotEnabled() bool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SnapshotEnabled")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -167,13 +152,11 @@ func (m *MockOptions) SnapshotEnabled() bool {
 
 // SnapshotEnabled indicates an expected call of SnapshotEnabled
 func (mr *MockOptionsMockRecorder) SnapshotEnabled() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SnapshotEnabled", reflect.TypeOf((*MockOptions)(nil).SnapshotEnabled))
 }
 
 // SetWritesToCommitLog mocks base method
 func (m *MockOptions) SetWritesToCommitLog(value bool) Options {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetWritesToCommitLog", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -181,13 +164,11 @@ func (m *MockOptions) SetWritesToCommitLog(value bool) Options {
 
 // SetWritesToCommitLog indicates an expected call of SetWritesToCommitLog
 func (mr *MockOptionsMockRecorder) SetWritesToCommitLog(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWritesToCommitLog", reflect.TypeOf((*MockOptions)(nil).SetWritesToCommitLog), value)
 }
 
 // WritesToCommitLog mocks base method
 func (m *MockOptions) WritesToCommitLog() bool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WritesToCommitLog")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -195,13 +176,11 @@ func (m *MockOptions) WritesToCommitLog() bool {
 
 // WritesToCommitLog indicates an expected call of WritesToCommitLog
 func (mr *MockOptionsMockRecorder) WritesToCommitLog() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WritesToCommitLog", reflect.TypeOf((*MockOptions)(nil).WritesToCommitLog))
 }
 
 // SetCleanupEnabled mocks base method
 func (m *MockOptions) SetCleanupEnabled(value bool) Options {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetCleanupEnabled", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -209,13 +188,11 @@ func (m *MockOptions) SetCleanupEnabled(value bool) Options {
 
 // SetCleanupEnabled indicates an expected call of SetCleanupEnabled
 func (mr *MockOptionsMockRecorder) SetCleanupEnabled(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCleanupEnabled", reflect.TypeOf((*MockOptions)(nil).SetCleanupEnabled), value)
 }
 
 // CleanupEnabled mocks base method
 func (m *MockOptions) CleanupEnabled() bool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CleanupEnabled")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -223,13 +200,11 @@ func (m *MockOptions) CleanupEnabled() bool {
 
 // CleanupEnabled indicates an expected call of CleanupEnabled
 func (mr *MockOptionsMockRecorder) CleanupEnabled() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupEnabled", reflect.TypeOf((*MockOptions)(nil).CleanupEnabled))
 }
 
 // SetRepairEnabled mocks base method
 func (m *MockOptions) SetRepairEnabled(value bool) Options {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetRepairEnabled", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -237,13 +212,11 @@ func (m *MockOptions) SetRepairEnabled(value bool) Options {
 
 // SetRepairEnabled indicates an expected call of SetRepairEnabled
 func (mr *MockOptionsMockRecorder) SetRepairEnabled(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRepairEnabled", reflect.TypeOf((*MockOptions)(nil).SetRepairEnabled), value)
 }
 
 // RepairEnabled mocks base method
 func (m *MockOptions) RepairEnabled() bool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RepairEnabled")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -251,13 +224,11 @@ func (m *MockOptions) RepairEnabled() bool {
 
 // RepairEnabled indicates an expected call of RepairEnabled
 func (mr *MockOptionsMockRecorder) RepairEnabled() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RepairEnabled", reflect.TypeOf((*MockOptions)(nil).RepairEnabled))
 }
 
 // SetRetentionOptions mocks base method
 func (m *MockOptions) SetRetentionOptions(value retention.Options) Options {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetRetentionOptions", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -265,13 +236,11 @@ func (m *MockOptions) SetRetentionOptions(value retention.Options) Options {
 
 // SetRetentionOptions indicates an expected call of SetRetentionOptions
 func (mr *MockOptionsMockRecorder) SetRetentionOptions(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRetentionOptions", reflect.TypeOf((*MockOptions)(nil).SetRetentionOptions), value)
 }
 
 // RetentionOptions mocks base method
 func (m *MockOptions) RetentionOptions() retention.Options {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RetentionOptions")
 	ret0, _ := ret[0].(retention.Options)
 	return ret0
@@ -279,13 +248,11 @@ func (m *MockOptions) RetentionOptions() retention.Options {
 
 // RetentionOptions indicates an expected call of RetentionOptions
 func (mr *MockOptionsMockRecorder) RetentionOptions() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetentionOptions", reflect.TypeOf((*MockOptions)(nil).RetentionOptions))
 }
 
 // SetIndexOptions mocks base method
 func (m *MockOptions) SetIndexOptions(value IndexOptions) Options {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetIndexOptions", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -293,13 +260,11 @@ func (m *MockOptions) SetIndexOptions(value IndexOptions) Options {
 
 // SetIndexOptions indicates an expected call of SetIndexOptions
 func (mr *MockOptionsMockRecorder) SetIndexOptions(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIndexOptions", reflect.TypeOf((*MockOptions)(nil).SetIndexOptions), value)
 }
 
 // IndexOptions mocks base method
 func (m *MockOptions) IndexOptions() IndexOptions {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IndexOptions")
 	ret0, _ := ret[0].(IndexOptions)
 	return ret0
@@ -307,7 +272,6 @@ func (m *MockOptions) IndexOptions() IndexOptions {
 
 // IndexOptions indicates an expected call of IndexOptions
 func (mr *MockOptionsMockRecorder) IndexOptions() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexOptions", reflect.TypeOf((*MockOptions)(nil).IndexOptions))
 }
 
@@ -336,7 +300,6 @@ func (m *MockIndexOptions) EXPECT() *MockIndexOptionsMockRecorder {
 
 // Equal mocks base method
 func (m *MockIndexOptions) Equal(value IndexOptions) bool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Equal", value)
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -344,13 +307,11 @@ func (m *MockIndexOptions) Equal(value IndexOptions) bool {
 
 // Equal indicates an expected call of Equal
 func (mr *MockIndexOptionsMockRecorder) Equal(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Equal", reflect.TypeOf((*MockIndexOptions)(nil).Equal), value)
 }
 
 // SetEnabled mocks base method
 func (m *MockIndexOptions) SetEnabled(value bool) IndexOptions {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetEnabled", value)
 	ret0, _ := ret[0].(IndexOptions)
 	return ret0
@@ -358,13 +319,11 @@ func (m *MockIndexOptions) SetEnabled(value bool) IndexOptions {
 
 // SetEnabled indicates an expected call of SetEnabled
 func (mr *MockIndexOptionsMockRecorder) SetEnabled(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEnabled", reflect.TypeOf((*MockIndexOptions)(nil).SetEnabled), value)
 }
 
 // Enabled mocks base method
 func (m *MockIndexOptions) Enabled() bool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Enabled")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -372,13 +331,11 @@ func (m *MockIndexOptions) Enabled() bool {
 
 // Enabled indicates an expected call of Enabled
 func (mr *MockIndexOptionsMockRecorder) Enabled() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Enabled", reflect.TypeOf((*MockIndexOptions)(nil).Enabled))
 }
 
 // SetBlockSize mocks base method
 func (m *MockIndexOptions) SetBlockSize(value time.Duration) IndexOptions {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetBlockSize", value)
 	ret0, _ := ret[0].(IndexOptions)
 	return ret0
@@ -386,13 +343,11 @@ func (m *MockIndexOptions) SetBlockSize(value time.Duration) IndexOptions {
 
 // SetBlockSize indicates an expected call of SetBlockSize
 func (mr *MockIndexOptionsMockRecorder) SetBlockSize(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBlockSize", reflect.TypeOf((*MockIndexOptions)(nil).SetBlockSize), value)
 }
 
 // BlockSize mocks base method
 func (m *MockIndexOptions) BlockSize() time.Duration {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BlockSize")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
@@ -400,7 +355,6 @@ func (m *MockIndexOptions) BlockSize() time.Duration {
 
 // BlockSize indicates an expected call of BlockSize
 func (mr *MockIndexOptionsMockRecorder) BlockSize() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlockSize", reflect.TypeOf((*MockIndexOptions)(nil).BlockSize))
 }
 
@@ -429,7 +383,6 @@ func (m *MockMetadata) EXPECT() *MockMetadataMockRecorder {
 
 // Equal mocks base method
 func (m *MockMetadata) Equal(value Metadata) bool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Equal", value)
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -437,13 +390,11 @@ func (m *MockMetadata) Equal(value Metadata) bool {
 
 // Equal indicates an expected call of Equal
 func (mr *MockMetadataMockRecorder) Equal(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Equal", reflect.TypeOf((*MockMetadata)(nil).Equal), value)
 }
 
 // ID mocks base method
 func (m *MockMetadata) ID() ident.ID {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ID")
 	ret0, _ := ret[0].(ident.ID)
 	return ret0
@@ -451,13 +402,11 @@ func (m *MockMetadata) ID() ident.ID {
 
 // ID indicates an expected call of ID
 func (mr *MockMetadataMockRecorder) ID() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockMetadata)(nil).ID))
 }
 
 // Options mocks base method
 func (m *MockMetadata) Options() Options {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Options")
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -465,7 +414,6 @@ func (m *MockMetadata) Options() Options {
 
 // Options indicates an expected call of Options
 func (mr *MockMetadataMockRecorder) Options() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Options", reflect.TypeOf((*MockMetadata)(nil).Options))
 }
 
@@ -494,7 +442,6 @@ func (m *MockMap) EXPECT() *MockMapMockRecorder {
 
 // Equal mocks base method
 func (m *MockMap) Equal(value Map) bool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Equal", value)
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -502,13 +449,11 @@ func (m *MockMap) Equal(value Map) bool {
 
 // Equal indicates an expected call of Equal
 func (mr *MockMapMockRecorder) Equal(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Equal", reflect.TypeOf((*MockMap)(nil).Equal), value)
 }
 
 // Get mocks base method
 func (m *MockMap) Get(arg0 ident.ID) (Metadata, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get", arg0)
 	ret0, _ := ret[0].(Metadata)
 	ret1, _ := ret[1].(error)
@@ -517,13 +462,11 @@ func (m *MockMap) Get(arg0 ident.ID) (Metadata, error) {
 
 // Get indicates an expected call of Get
 func (mr *MockMapMockRecorder) Get(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockMap)(nil).Get), arg0)
 }
 
 // IDs mocks base method
 func (m *MockMap) IDs() []ident.ID {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IDs")
 	ret0, _ := ret[0].([]ident.ID)
 	return ret0
@@ -531,13 +474,11 @@ func (m *MockMap) IDs() []ident.ID {
 
 // IDs indicates an expected call of IDs
 func (mr *MockMapMockRecorder) IDs() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IDs", reflect.TypeOf((*MockMap)(nil).IDs))
 }
 
 // Metadatas mocks base method
 func (m *MockMap) Metadatas() []Metadata {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Metadatas")
 	ret0, _ := ret[0].([]Metadata)
 	return ret0
@@ -545,7 +486,6 @@ func (m *MockMap) Metadatas() []Metadata {
 
 // Metadatas indicates an expected call of Metadatas
 func (mr *MockMapMockRecorder) Metadatas() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Metadatas", reflect.TypeOf((*MockMap)(nil).Metadatas))
 }
 
@@ -574,7 +514,6 @@ func (m *MockWatch) EXPECT() *MockWatchMockRecorder {
 
 // C mocks base method
 func (m *MockWatch) C() <-chan struct{} {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "C")
 	ret0, _ := ret[0].(<-chan struct{})
 	return ret0
@@ -582,13 +521,11 @@ func (m *MockWatch) C() <-chan struct{} {
 
 // C indicates an expected call of C
 func (mr *MockWatchMockRecorder) C() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "C", reflect.TypeOf((*MockWatch)(nil).C))
 }
 
 // Get mocks base method
 func (m *MockWatch) Get() Map {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get")
 	ret0, _ := ret[0].(Map)
 	return ret0
@@ -596,13 +533,11 @@ func (m *MockWatch) Get() Map {
 
 // Get indicates an expected call of Get
 func (mr *MockWatchMockRecorder) Get() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockWatch)(nil).Get))
 }
 
 // Close mocks base method
 func (m *MockWatch) Close() error {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -610,7 +545,6 @@ func (m *MockWatch) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockWatchMockRecorder) Close() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockWatch)(nil).Close))
 }
 
@@ -639,7 +573,6 @@ func (m *MockRegistry) EXPECT() *MockRegistryMockRecorder {
 
 // Watch mocks base method
 func (m *MockRegistry) Watch() (Watch, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Watch")
 	ret0, _ := ret[0].(Watch)
 	ret1, _ := ret[1].(error)
@@ -648,13 +581,11 @@ func (m *MockRegistry) Watch() (Watch, error) {
 
 // Watch indicates an expected call of Watch
 func (mr *MockRegistryMockRecorder) Watch() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Watch", reflect.TypeOf((*MockRegistry)(nil).Watch))
 }
 
 // Close mocks base method
 func (m *MockRegistry) Close() error {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -662,7 +593,6 @@ func (m *MockRegistry) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockRegistryMockRecorder) Close() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockRegistry)(nil).Close))
 }
 
@@ -691,7 +621,6 @@ func (m *MockInitializer) EXPECT() *MockInitializerMockRecorder {
 
 // Init mocks base method
 func (m *MockInitializer) Init() (Registry, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Init")
 	ret0, _ := ret[0].(Registry)
 	ret1, _ := ret[1].(error)
@@ -700,7 +629,6 @@ func (m *MockInitializer) Init() (Registry, error) {
 
 // Init indicates an expected call of Init
 func (mr *MockInitializerMockRecorder) Init() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Init", reflect.TypeOf((*MockInitializer)(nil).Init))
 }
 
@@ -729,7 +657,6 @@ func (m *MockDynamicOptions) EXPECT() *MockDynamicOptionsMockRecorder {
 
 // Validate mocks base method
 func (m *MockDynamicOptions) Validate() error {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Validate")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -737,13 +664,11 @@ func (m *MockDynamicOptions) Validate() error {
 
 // Validate indicates an expected call of Validate
 func (mr *MockDynamicOptionsMockRecorder) Validate() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Validate", reflect.TypeOf((*MockDynamicOptions)(nil).Validate))
 }
 
 // SetInstrumentOptions mocks base method
 func (m *MockDynamicOptions) SetInstrumentOptions(value instrument.Options) DynamicOptions {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetInstrumentOptions", value)
 	ret0, _ := ret[0].(DynamicOptions)
 	return ret0
@@ -751,13 +676,11 @@ func (m *MockDynamicOptions) SetInstrumentOptions(value instrument.Options) Dyna
 
 // SetInstrumentOptions indicates an expected call of SetInstrumentOptions
 func (mr *MockDynamicOptionsMockRecorder) SetInstrumentOptions(value interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInstrumentOptions", reflect.TypeOf((*MockDynamicOptions)(nil).SetInstrumentOptions), value)
 }
 
 // InstrumentOptions mocks base method
 func (m *MockDynamicOptions) InstrumentOptions() instrument.Options {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InstrumentOptions")
 	ret0, _ := ret[0].(instrument.Options)
 	return ret0
@@ -765,13 +688,11 @@ func (m *MockDynamicOptions) InstrumentOptions() instrument.Options {
 
 // InstrumentOptions indicates an expected call of InstrumentOptions
 func (mr *MockDynamicOptionsMockRecorder) InstrumentOptions() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstrumentOptions", reflect.TypeOf((*MockDynamicOptions)(nil).InstrumentOptions))
 }
 
 // SetConfigServiceClient mocks base method
 func (m *MockDynamicOptions) SetConfigServiceClient(c client.Client) DynamicOptions {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetConfigServiceClient", c)
 	ret0, _ := ret[0].(DynamicOptions)
 	return ret0
@@ -779,13 +700,11 @@ func (m *MockDynamicOptions) SetConfigServiceClient(c client.Client) DynamicOpti
 
 // SetConfigServiceClient indicates an expected call of SetConfigServiceClient
 func (mr *MockDynamicOptionsMockRecorder) SetConfigServiceClient(c interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetConfigServiceClient", reflect.TypeOf((*MockDynamicOptions)(nil).SetConfigServiceClient), c)
 }
 
 // ConfigServiceClient mocks base method
 func (m *MockDynamicOptions) ConfigServiceClient() client.Client {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ConfigServiceClient")
 	ret0, _ := ret[0].(client.Client)
 	return ret0
@@ -793,13 +712,11 @@ func (m *MockDynamicOptions) ConfigServiceClient() client.Client {
 
 // ConfigServiceClient indicates an expected call of ConfigServiceClient
 func (mr *MockDynamicOptionsMockRecorder) ConfigServiceClient() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConfigServiceClient", reflect.TypeOf((*MockDynamicOptions)(nil).ConfigServiceClient))
 }
 
 // SetNamespaceRegistryKey mocks base method
 func (m *MockDynamicOptions) SetNamespaceRegistryKey(k string) DynamicOptions {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetNamespaceRegistryKey", k)
 	ret0, _ := ret[0].(DynamicOptions)
 	return ret0
@@ -807,13 +724,11 @@ func (m *MockDynamicOptions) SetNamespaceRegistryKey(k string) DynamicOptions {
 
 // SetNamespaceRegistryKey indicates an expected call of SetNamespaceRegistryKey
 func (mr *MockDynamicOptionsMockRecorder) SetNamespaceRegistryKey(k interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNamespaceRegistryKey", reflect.TypeOf((*MockDynamicOptions)(nil).SetNamespaceRegistryKey), k)
 }
 
 // NamespaceRegistryKey mocks base method
 func (m *MockDynamicOptions) NamespaceRegistryKey() string {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NamespaceRegistryKey")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -821,6 +736,5 @@ func (m *MockDynamicOptions) NamespaceRegistryKey() string {
 
 // NamespaceRegistryKey indicates an expected call of NamespaceRegistryKey
 func (mr *MockDynamicOptionsMockRecorder) NamespaceRegistryKey() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NamespaceRegistryKey", reflect.TypeOf((*MockDynamicOptions)(nil).NamespaceRegistryKey))
 }
