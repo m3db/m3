@@ -364,7 +364,7 @@ func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 	d.Lock()
 	defer d.Unlock()
 
-	receivedNewShards := d.hasReceivedNewShards(shardSet)
+	receivedNewShards := d.hasReceivedNewShardsWithLock(shardSet)
 
 	d.shardSet = shardSet
 	if receivedNewShards {
@@ -379,10 +379,10 @@ func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 	d.queueBootstrapWithLock()
 }
 
-func (d *db) hasReceivedNewShards(incoming sharding.ShardSet) bool {
+func (d *db) hasReceivedNewShardsWithLock(incoming sharding.ShardSet) bool {
 	var (
 		existing    = d.shardSet
-		existingSet = map[uint32]struct{}{}
+		existingSet = make(map[uint32]struct{}, len(existing.AllIDs()))
 	)
 
 	for _, shard := range existing.AllIDs() {
