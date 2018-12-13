@@ -57,6 +57,7 @@ func (m *MockMessage) EXPECT() *MockMessageMockRecorder {
 
 // Bytes mocks base method
 func (m *MockMessage) Bytes() []byte {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Bytes")
 	ret0, _ := ret[0].([]byte)
 	return ret0
@@ -64,21 +65,25 @@ func (m *MockMessage) Bytes() []byte {
 
 // Bytes indicates an expected call of Bytes
 func (mr *MockMessageMockRecorder) Bytes() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bytes", reflect.TypeOf((*MockMessage)(nil).Bytes))
 }
 
 // Finalize mocks base method
 func (m *MockMessage) Finalize(arg0 FinalizeReason) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Finalize", arg0)
 }
 
 // Finalize indicates an expected call of Finalize
 func (mr *MockMessageMockRecorder) Finalize(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Finalize", reflect.TypeOf((*MockMessage)(nil).Finalize), arg0)
 }
 
 // Shard mocks base method
 func (m *MockMessage) Shard() uint32 {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Shard")
 	ret0, _ := ret[0].(uint32)
 	return ret0
@@ -86,11 +91,13 @@ func (m *MockMessage) Shard() uint32 {
 
 // Shard indicates an expected call of Shard
 func (mr *MockMessageMockRecorder) Shard() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shard", reflect.TypeOf((*MockMessage)(nil).Shard))
 }
 
 // Size mocks base method
 func (m *MockMessage) Size() int {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Size")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -98,6 +105,7 @@ func (m *MockMessage) Size() int {
 
 // Size indicates an expected call of Size
 func (mr *MockMessageMockRecorder) Size() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockMessage)(nil).Size))
 }
 
@@ -126,16 +134,19 @@ func (m *MockProducer) EXPECT() *MockProducerMockRecorder {
 
 // Close mocks base method
 func (m *MockProducer) Close(arg0 CloseType) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Close", arg0)
 }
 
 // Close indicates an expected call of Close
 func (mr *MockProducerMockRecorder) Close(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockProducer)(nil).Close), arg0)
 }
 
 // Init mocks base method
 func (m *MockProducer) Init() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Init")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -143,11 +154,13 @@ func (m *MockProducer) Init() error {
 
 // Init indicates an expected call of Init
 func (mr *MockProducerMockRecorder) Init() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Init", reflect.TypeOf((*MockProducer)(nil).Init))
 }
 
 // NumShards mocks base method
 func (m *MockProducer) NumShards() uint32 {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NumShards")
 	ret0, _ := ret[0].(uint32)
 	return ret0
@@ -155,11 +168,13 @@ func (m *MockProducer) NumShards() uint32 {
 
 // NumShards indicates an expected call of NumShards
 func (mr *MockProducerMockRecorder) NumShards() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NumShards", reflect.TypeOf((*MockProducer)(nil).NumShards))
 }
 
 // Produce mocks base method
 func (m *MockProducer) Produce(arg0 Message) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Produce", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -167,25 +182,30 @@ func (m *MockProducer) Produce(arg0 Message) error {
 
 // Produce indicates an expected call of Produce
 func (mr *MockProducerMockRecorder) Produce(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Produce", reflect.TypeOf((*MockProducer)(nil).Produce), arg0)
 }
 
 // RegisterFilter mocks base method
 func (m *MockProducer) RegisterFilter(arg0 services.ServiceID, arg1 FilterFunc) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "RegisterFilter", arg0, arg1)
 }
 
 // RegisterFilter indicates an expected call of RegisterFilter
 func (mr *MockProducerMockRecorder) RegisterFilter(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterFilter", reflect.TypeOf((*MockProducer)(nil).RegisterFilter), arg0, arg1)
 }
 
 // UnregisterFilter mocks base method
 func (m *MockProducer) UnregisterFilter(arg0 services.ServiceID) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "UnregisterFilter", arg0)
 }
 
 // UnregisterFilter indicates an expected call of UnregisterFilter
 func (mr *MockProducerMockRecorder) UnregisterFilter(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnregisterFilter", reflect.TypeOf((*MockProducer)(nil).UnregisterFilter), arg0)
 }

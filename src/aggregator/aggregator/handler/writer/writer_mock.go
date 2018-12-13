@@ -57,6 +57,7 @@ func (m *MockWriter) EXPECT() *MockWriterMockRecorder {
 
 // Close mocks base method
 func (m *MockWriter) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -64,11 +65,13 @@ func (m *MockWriter) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockWriterMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockWriter)(nil).Close))
 }
 
 // Flush mocks base method
 func (m *MockWriter) Flush() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Flush")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -76,11 +79,13 @@ func (m *MockWriter) Flush() error {
 
 // Flush indicates an expected call of Flush
 func (mr *MockWriterMockRecorder) Flush() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockWriter)(nil).Flush))
 }
 
 // Write mocks base method
 func (m *MockWriter) Write(arg0 aggregated.ChunkedMetricWithStoragePolicy) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Write", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -88,5 +93,6 @@ func (m *MockWriter) Write(arg0 aggregated.ChunkedMetricWithStoragePolicy) error
 
 // Write indicates an expected call of Write
 func (mr *MockWriterMockRecorder) Write(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MockWriter)(nil).Write), arg0)
 }

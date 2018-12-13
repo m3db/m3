@@ -56,6 +56,7 @@ func (m *MockBlock) EXPECT() *MockBlockMockRecorder {
 
 // Close mocks base method
 func (m *MockBlock) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -63,11 +64,13 @@ func (m *MockBlock) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockBlockMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockBlock)(nil).Close))
 }
 
 // SeriesIter mocks base method
 func (m *MockBlock) SeriesIter() (SeriesIter, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SeriesIter")
 	ret0, _ := ret[0].(SeriesIter)
 	ret1, _ := ret[1].(error)
@@ -76,11 +79,13 @@ func (m *MockBlock) SeriesIter() (SeriesIter, error) {
 
 // SeriesIter indicates an expected call of SeriesIter
 func (mr *MockBlockMockRecorder) SeriesIter() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesIter", reflect.TypeOf((*MockBlock)(nil).SeriesIter))
 }
 
 // StepIter mocks base method
 func (m *MockBlock) StepIter() (StepIter, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StepIter")
 	ret0, _ := ret[0].(StepIter)
 	ret1, _ := ret[1].(error)
@@ -89,11 +94,13 @@ func (m *MockBlock) StepIter() (StepIter, error) {
 
 // StepIter indicates an expected call of StepIter
 func (mr *MockBlockMockRecorder) StepIter() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StepIter", reflect.TypeOf((*MockBlock)(nil).StepIter))
 }
 
 // Unconsolidated mocks base method
 func (m *MockBlock) Unconsolidated() (UnconsolidatedBlock, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Unconsolidated")
 	ret0, _ := ret[0].(UnconsolidatedBlock)
 	ret1, _ := ret[1].(error)
@@ -102,11 +109,13 @@ func (m *MockBlock) Unconsolidated() (UnconsolidatedBlock, error) {
 
 // Unconsolidated indicates an expected call of Unconsolidated
 func (mr *MockBlockMockRecorder) Unconsolidated() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Unconsolidated", reflect.TypeOf((*MockBlock)(nil).Unconsolidated))
 }
 
 // WithMetadata mocks base method
 func (m *MockBlock) WithMetadata(arg0 Metadata, arg1 []SeriesMeta) (Block, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WithMetadata", arg0, arg1)
 	ret0, _ := ret[0].(Block)
 	ret1, _ := ret[1].(error)
@@ -115,6 +124,7 @@ func (m *MockBlock) WithMetadata(arg0 Metadata, arg1 []SeriesMeta) (Block, error
 
 // WithMetadata indicates an expected call of WithMetadata
 func (mr *MockBlockMockRecorder) WithMetadata(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WithMetadata", reflect.TypeOf((*MockBlock)(nil).WithMetadata), arg0, arg1)
 }
 
@@ -143,16 +153,19 @@ func (m *MockStepIter) EXPECT() *MockStepIterMockRecorder {
 
 // Close mocks base method
 func (m *MockStepIter) Close() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Close")
 }
 
 // Close indicates an expected call of Close
 func (mr *MockStepIterMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockStepIter)(nil).Close))
 }
 
 // Current mocks base method
 func (m *MockStepIter) Current() (Step, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Current")
 	ret0, _ := ret[0].(Step)
 	ret1, _ := ret[1].(error)
@@ -161,11 +174,13 @@ func (m *MockStepIter) Current() (Step, error) {
 
 // Current indicates an expected call of Current
 func (mr *MockStepIterMockRecorder) Current() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockStepIter)(nil).Current))
 }
 
 // Meta mocks base method
 func (m *MockStepIter) Meta() Metadata {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Meta")
 	ret0, _ := ret[0].(Metadata)
 	return ret0
@@ -173,11 +188,13 @@ func (m *MockStepIter) Meta() Metadata {
 
 // Meta indicates an expected call of Meta
 func (mr *MockStepIterMockRecorder) Meta() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Meta", reflect.TypeOf((*MockStepIter)(nil).Meta))
 }
 
 // Next mocks base method
 func (m *MockStepIter) Next() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Next")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -185,11 +202,13 @@ func (m *MockStepIter) Next() bool {
 
 // Next indicates an expected call of Next
 func (mr *MockStepIterMockRecorder) Next() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockStepIter)(nil).Next))
 }
 
 // SeriesMeta mocks base method
 func (m *MockStepIter) SeriesMeta() []SeriesMeta {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SeriesMeta")
 	ret0, _ := ret[0].([]SeriesMeta)
 	return ret0
@@ -197,11 +216,13 @@ func (m *MockStepIter) SeriesMeta() []SeriesMeta {
 
 // SeriesMeta indicates an expected call of SeriesMeta
 func (mr *MockStepIterMockRecorder) SeriesMeta() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesMeta", reflect.TypeOf((*MockStepIter)(nil).SeriesMeta))
 }
 
 // StepCount mocks base method
 func (m *MockStepIter) StepCount() int {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StepCount")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -209,6 +230,7 @@ func (m *MockStepIter) StepCount() int {
 
 // StepCount indicates an expected call of StepCount
 func (mr *MockStepIterMockRecorder) StepCount() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StepCount", reflect.TypeOf((*MockStepIter)(nil).StepCount))
 }
 
@@ -237,16 +259,19 @@ func (m *MockSeriesIter) EXPECT() *MockSeriesIterMockRecorder {
 
 // Close mocks base method
 func (m *MockSeriesIter) Close() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Close")
 }
 
 // Close indicates an expected call of Close
 func (mr *MockSeriesIterMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockSeriesIter)(nil).Close))
 }
 
 // Current mocks base method
 func (m *MockSeriesIter) Current() (Series, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Current")
 	ret0, _ := ret[0].(Series)
 	ret1, _ := ret[1].(error)
@@ -255,11 +280,13 @@ func (m *MockSeriesIter) Current() (Series, error) {
 
 // Current indicates an expected call of Current
 func (mr *MockSeriesIterMockRecorder) Current() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockSeriesIter)(nil).Current))
 }
 
 // Meta mocks base method
 func (m *MockSeriesIter) Meta() Metadata {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Meta")
 	ret0, _ := ret[0].(Metadata)
 	return ret0
@@ -267,11 +294,13 @@ func (m *MockSeriesIter) Meta() Metadata {
 
 // Meta indicates an expected call of Meta
 func (mr *MockSeriesIterMockRecorder) Meta() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Meta", reflect.TypeOf((*MockSeriesIter)(nil).Meta))
 }
 
 // Next mocks base method
 func (m *MockSeriesIter) Next() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Next")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -279,11 +308,13 @@ func (m *MockSeriesIter) Next() bool {
 
 // Next indicates an expected call of Next
 func (mr *MockSeriesIterMockRecorder) Next() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockSeriesIter)(nil).Next))
 }
 
 // SeriesCount mocks base method
 func (m *MockSeriesIter) SeriesCount() int {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SeriesCount")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -291,11 +322,13 @@ func (m *MockSeriesIter) SeriesCount() int {
 
 // SeriesCount indicates an expected call of SeriesCount
 func (mr *MockSeriesIterMockRecorder) SeriesCount() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesCount", reflect.TypeOf((*MockSeriesIter)(nil).SeriesCount))
 }
 
 // SeriesMeta mocks base method
 func (m *MockSeriesIter) SeriesMeta() []SeriesMeta {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SeriesMeta")
 	ret0, _ := ret[0].([]SeriesMeta)
 	return ret0
@@ -303,6 +336,7 @@ func (m *MockSeriesIter) SeriesMeta() []SeriesMeta {
 
 // SeriesMeta indicates an expected call of SeriesMeta
 func (mr *MockSeriesIterMockRecorder) SeriesMeta() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesMeta", reflect.TypeOf((*MockSeriesIter)(nil).SeriesMeta))
 }
 
@@ -331,6 +365,7 @@ func (m *MockBuilder) EXPECT() *MockBuilderMockRecorder {
 
 // AddCols mocks base method
 func (m *MockBuilder) AddCols(arg0 int) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddCols", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -338,11 +373,13 @@ func (m *MockBuilder) AddCols(arg0 int) error {
 
 // AddCols indicates an expected call of AddCols
 func (mr *MockBuilderMockRecorder) AddCols(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddCols", reflect.TypeOf((*MockBuilder)(nil).AddCols), arg0)
 }
 
 // AppendValue mocks base method
 func (m *MockBuilder) AppendValue(arg0 int, arg1 float64) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AppendValue", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -350,11 +387,13 @@ func (m *MockBuilder) AppendValue(arg0 int, arg1 float64) error {
 
 // AppendValue indicates an expected call of AppendValue
 func (mr *MockBuilderMockRecorder) AppendValue(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendValue", reflect.TypeOf((*MockBuilder)(nil).AppendValue), arg0, arg1)
 }
 
 // AppendValues mocks base method
 func (m *MockBuilder) AppendValues(arg0 int, arg1 []float64) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AppendValues", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -362,11 +401,13 @@ func (m *MockBuilder) AppendValues(arg0 int, arg1 []float64) error {
 
 // AppendValues indicates an expected call of AppendValues
 func (mr *MockBuilderMockRecorder) AppendValues(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendValues", reflect.TypeOf((*MockBuilder)(nil).AppendValues), arg0, arg1)
 }
 
 // Build mocks base method
 func (m *MockBuilder) Build() Block {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Build")
 	ret0, _ := ret[0].(Block)
 	return ret0
@@ -374,6 +415,7 @@ func (m *MockBuilder) Build() Block {
 
 // Build indicates an expected call of Build
 func (mr *MockBuilderMockRecorder) Build() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Build", reflect.TypeOf((*MockBuilder)(nil).Build))
 }
 
@@ -402,6 +444,7 @@ func (m *MockStep) EXPECT() *MockStepMockRecorder {
 
 // Time mocks base method
 func (m *MockStep) Time() time.Time {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Time")
 	ret0, _ := ret[0].(time.Time)
 	return ret0
@@ -409,11 +452,13 @@ func (m *MockStep) Time() time.Time {
 
 // Time indicates an expected call of Time
 func (mr *MockStepMockRecorder) Time() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Time", reflect.TypeOf((*MockStep)(nil).Time))
 }
 
 // Values mocks base method
 func (m *MockStep) Values() []float64 {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Values")
 	ret0, _ := ret[0].([]float64)
 	return ret0
@@ -421,5 +466,6 @@ func (m *MockStep) Values() []float64 {
 
 // Values indicates an expected call of Values
 func (mr *MockStepMockRecorder) Values() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Values", reflect.TypeOf((*MockStep)(nil).Values))
 }

@@ -55,6 +55,7 @@ func (m *MockDownsampler) EXPECT() *MockDownsamplerMockRecorder {
 
 // NewMetricsAppender mocks base method
 func (m *MockDownsampler) NewMetricsAppender() (MetricsAppender, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NewMetricsAppender")
 	ret0, _ := ret[0].(MetricsAppender)
 	ret1, _ := ret[1].(error)
@@ -63,6 +64,7 @@ func (m *MockDownsampler) NewMetricsAppender() (MetricsAppender, error) {
 
 // NewMetricsAppender indicates an expected call of NewMetricsAppender
 func (mr *MockDownsamplerMockRecorder) NewMetricsAppender() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewMetricsAppender", reflect.TypeOf((*MockDownsampler)(nil).NewMetricsAppender))
 }
 
@@ -91,36 +93,43 @@ func (m *MockMetricsAppender) EXPECT() *MockMetricsAppenderMockRecorder {
 
 // AddTag mocks base method
 func (m *MockMetricsAppender) AddTag(arg0, arg1 []byte) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "AddTag", arg0, arg1)
 }
 
 // AddTag indicates an expected call of AddTag
 func (mr *MockMetricsAppenderMockRecorder) AddTag(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddTag", reflect.TypeOf((*MockMetricsAppender)(nil).AddTag), arg0, arg1)
 }
 
 // Finalize mocks base method
 func (m *MockMetricsAppender) Finalize() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Finalize")
 }
 
 // Finalize indicates an expected call of Finalize
 func (mr *MockMetricsAppenderMockRecorder) Finalize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Finalize", reflect.TypeOf((*MockMetricsAppender)(nil).Finalize))
 }
 
 // Reset mocks base method
 func (m *MockMetricsAppender) Reset() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Reset")
 }
 
 // Reset indicates an expected call of Reset
 func (mr *MockMetricsAppenderMockRecorder) Reset() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockMetricsAppender)(nil).Reset))
 }
 
 // SamplesAppender mocks base method
 func (m *MockMetricsAppender) SamplesAppender() (SamplesAppender, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SamplesAppender")
 	ret0, _ := ret[0].(SamplesAppender)
 	ret1, _ := ret[1].(error)
@@ -129,6 +138,7 @@ func (m *MockMetricsAppender) SamplesAppender() (SamplesAppender, error) {
 
 // SamplesAppender indicates an expected call of SamplesAppender
 func (mr *MockMetricsAppenderMockRecorder) SamplesAppender() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SamplesAppender", reflect.TypeOf((*MockMetricsAppender)(nil).SamplesAppender))
 }
 
@@ -157,6 +167,7 @@ func (m *MockSamplesAppender) EXPECT() *MockSamplesAppenderMockRecorder {
 
 // AppendCounterSample mocks base method
 func (m *MockSamplesAppender) AppendCounterSample(arg0 int64) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AppendCounterSample", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -164,11 +175,13 @@ func (m *MockSamplesAppender) AppendCounterSample(arg0 int64) error {
 
 // AppendCounterSample indicates an expected call of AppendCounterSample
 func (mr *MockSamplesAppenderMockRecorder) AppendCounterSample(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendCounterSample", reflect.TypeOf((*MockSamplesAppender)(nil).AppendCounterSample), arg0)
 }
 
 // AppendGaugeSample mocks base method
 func (m *MockSamplesAppender) AppendGaugeSample(arg0 float64) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AppendGaugeSample", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -176,5 +189,6 @@ func (m *MockSamplesAppender) AppendGaugeSample(arg0 float64) error {
 
 // AppendGaugeSample indicates an expected call of AppendGaugeSample
 func (mr *MockSamplesAppenderMockRecorder) AppendGaugeSample(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppendGaugeSample", reflect.TypeOf((*MockSamplesAppender)(nil).AppendGaugeSample), arg0)
 }

@@ -55,16 +55,19 @@ func (m *MockMessage) EXPECT() *MockMessageMockRecorder {
 
 // Ack mocks base method
 func (m *MockMessage) Ack() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Ack")
 }
 
 // Ack indicates an expected call of Ack
 func (mr *MockMessageMockRecorder) Ack() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ack", reflect.TypeOf((*MockMessage)(nil).Ack))
 }
 
 // Bytes mocks base method
 func (m *MockMessage) Bytes() []byte {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Bytes")
 	ret0, _ := ret[0].([]byte)
 	return ret0
@@ -72,5 +75,6 @@ func (m *MockMessage) Bytes() []byte {
 
 // Bytes indicates an expected call of Bytes
 func (mr *MockMessageMockRecorder) Bytes() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bytes", reflect.TypeOf((*MockMessage)(nil).Bytes))
 }

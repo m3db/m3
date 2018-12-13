@@ -55,100 +55,120 @@ func (m *MockscriptBuilder) EXPECT() *MockscriptBuilderMockRecorder {
 
 // newMacro mocks base method
 func (m *MockscriptBuilder) newMacro(arg0 string) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "newMacro", arg0)
 }
 
 // newMacro indicates an expected call of newMacro
 func (mr *MockscriptBuilderMockRecorder) newMacro(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "newMacro", reflect.TypeOf((*MockscriptBuilder)(nil).newMacro), arg0)
 }
 
 // newPipeline mocks base method
 func (m *MockscriptBuilder) newPipeline() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "newPipeline")
 }
 
 // newPipeline indicates an expected call of newPipeline
 func (mr *MockscriptBuilderMockRecorder) newPipeline() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "newPipeline", reflect.TypeOf((*MockscriptBuilder)(nil).newPipeline))
 }
 
 // endPipeline mocks base method
 func (m *MockscriptBuilder) endPipeline() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "endPipeline")
 }
 
 // endPipeline indicates an expected call of endPipeline
 func (mr *MockscriptBuilderMockRecorder) endPipeline() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "endPipeline", reflect.TypeOf((*MockscriptBuilder)(nil).endPipeline))
 }
 
 // newExpression mocks base method
 func (m *MockscriptBuilder) newExpression(arg0 string) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "newExpression", arg0)
 }
 
 // newExpression indicates an expected call of newExpression
 func (mr *MockscriptBuilderMockRecorder) newExpression(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "newExpression", reflect.TypeOf((*MockscriptBuilder)(nil).newExpression), arg0)
 }
 
 // endExpression mocks base method
 func (m *MockscriptBuilder) endExpression() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "endExpression")
 }
 
 // endExpression indicates an expected call of endExpression
 func (mr *MockscriptBuilderMockRecorder) endExpression() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "endExpression", reflect.TypeOf((*MockscriptBuilder)(nil).endExpression))
 }
 
 // newBooleanArgument mocks base method
 func (m *MockscriptBuilder) newBooleanArgument(arg0 string) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "newBooleanArgument", arg0)
 }
 
 // newBooleanArgument indicates an expected call of newBooleanArgument
 func (mr *MockscriptBuilderMockRecorder) newBooleanArgument(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "newBooleanArgument", reflect.TypeOf((*MockscriptBuilder)(nil).newBooleanArgument), arg0)
 }
 
 // newNumericArgument mocks base method
 func (m *MockscriptBuilder) newNumericArgument(arg0 string) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "newNumericArgument", arg0)
 }
 
 // newNumericArgument indicates an expected call of newNumericArgument
 func (mr *MockscriptBuilderMockRecorder) newNumericArgument(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "newNumericArgument", reflect.TypeOf((*MockscriptBuilder)(nil).newNumericArgument), arg0)
 }
 
 // newPatternArgument mocks base method
 func (m *MockscriptBuilder) newPatternArgument(arg0 string) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "newPatternArgument", arg0)
 }
 
 // newPatternArgument indicates an expected call of newPatternArgument
 func (mr *MockscriptBuilderMockRecorder) newPatternArgument(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "newPatternArgument", reflect.TypeOf((*MockscriptBuilder)(nil).newPatternArgument), arg0)
 }
 
 // newStringLiteralArgument mocks base method
 func (m *MockscriptBuilder) newStringLiteralArgument(arg0 string) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "newStringLiteralArgument", arg0)
 }
 
 // newStringLiteralArgument indicates an expected call of newStringLiteralArgument
 func (mr *MockscriptBuilderMockRecorder) newStringLiteralArgument(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "newStringLiteralArgument", reflect.TypeOf((*MockscriptBuilder)(nil).newStringLiteralArgument), arg0)
 }
 
 // newKeywordArgument mocks base method
 func (m *MockscriptBuilder) newKeywordArgument(arg0 string) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "newKeywordArgument", arg0)
 }
 
 // newKeywordArgument indicates an expected call of newKeywordArgument
 func (mr *MockscriptBuilderMockRecorder) newKeywordArgument(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "newKeywordArgument", reflect.TypeOf((*MockscriptBuilder)(nil).newKeywordArgument), arg0)
 }

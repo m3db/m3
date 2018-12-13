@@ -55,6 +55,7 @@ func (m *MockManager) EXPECT() *MockManagerMockRecorder {
 
 // StartDataPersist mocks base method
 func (m *MockManager) StartDataPersist() (DataFlush, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StartDataPersist")
 	ret0, _ := ret[0].(DataFlush)
 	ret1, _ := ret[1].(error)
@@ -63,11 +64,13 @@ func (m *MockManager) StartDataPersist() (DataFlush, error) {
 
 // StartDataPersist indicates an expected call of StartDataPersist
 func (mr *MockManagerMockRecorder) StartDataPersist() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartDataPersist", reflect.TypeOf((*MockManager)(nil).StartDataPersist))
 }
 
 // StartIndexPersist mocks base method
 func (m *MockManager) StartIndexPersist() (IndexFlush, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StartIndexPersist")
 	ret0, _ := ret[0].(IndexFlush)
 	ret1, _ := ret[1].(error)
@@ -76,6 +79,7 @@ func (m *MockManager) StartIndexPersist() (IndexFlush, error) {
 
 // StartIndexPersist indicates an expected call of StartIndexPersist
 func (mr *MockManagerMockRecorder) StartIndexPersist() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartIndexPersist", reflect.TypeOf((*MockManager)(nil).StartIndexPersist))
 }
 
@@ -104,6 +108,7 @@ func (m *MockDataFlush) EXPECT() *MockDataFlushMockRecorder {
 
 // PrepareData mocks base method
 func (m *MockDataFlush) PrepareData(opts DataPrepareOptions) (PreparedDataPersist, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PrepareData", opts)
 	ret0, _ := ret[0].(PreparedDataPersist)
 	ret1, _ := ret[1].(error)
@@ -112,11 +117,13 @@ func (m *MockDataFlush) PrepareData(opts DataPrepareOptions) (PreparedDataPersis
 
 // PrepareData indicates an expected call of PrepareData
 func (mr *MockDataFlushMockRecorder) PrepareData(opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrepareData", reflect.TypeOf((*MockDataFlush)(nil).PrepareData), opts)
 }
 
 // DoneData mocks base method
 func (m *MockDataFlush) DoneData() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DoneData")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -124,6 +131,7 @@ func (m *MockDataFlush) DoneData() error {
 
 // DoneData indicates an expected call of DoneData
 func (mr *MockDataFlushMockRecorder) DoneData() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DoneData", reflect.TypeOf((*MockDataFlush)(nil).DoneData))
 }
 
@@ -152,6 +160,7 @@ func (m *MockIndexFlush) EXPECT() *MockIndexFlushMockRecorder {
 
 // PrepareIndex mocks base method
 func (m *MockIndexFlush) PrepareIndex(opts IndexPrepareOptions) (PreparedIndexPersist, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PrepareIndex", opts)
 	ret0, _ := ret[0].(PreparedIndexPersist)
 	ret1, _ := ret[1].(error)
@@ -160,11 +169,13 @@ func (m *MockIndexFlush) PrepareIndex(opts IndexPrepareOptions) (PreparedIndexPe
 
 // PrepareIndex indicates an expected call of PrepareIndex
 func (mr *MockIndexFlushMockRecorder) PrepareIndex(opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrepareIndex", reflect.TypeOf((*MockIndexFlush)(nil).PrepareIndex), opts)
 }
 
 // DoneIndex mocks base method
 func (m *MockIndexFlush) DoneIndex() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DoneIndex")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -172,5 +183,6 @@ func (m *MockIndexFlush) DoneIndex() error {
 
 // DoneIndex indicates an expected call of DoneIndex
 func (mr *MockIndexFlushMockRecorder) DoneIndex() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DoneIndex", reflect.TypeOf((*MockIndexFlush)(nil).DoneIndex))
 }
