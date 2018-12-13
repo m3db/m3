@@ -115,7 +115,10 @@ func (m *multiBlockWrapper) WithMetadata(
 	}
 
 	if m.unconsolidated != nil {
-		unconsolidated, err = m.unconsolidated.WithMetadata(meta, seriesMetas)
+		unconsolidated, err = m.unconsolidated.WithMetadata(
+			meta,
+			seriesMetas,
+		)
 	}
 
 	if err != nil {
@@ -209,7 +212,10 @@ func (c *consolidatedBlock) WithMetadata(
 	meta block.Metadata,
 	seriesMeta []block.SeriesMeta,
 ) (block.Block, error) {
-	unconsolidated, err := c.unconsolidated.WithMetadata(meta, seriesMeta)
+	unconsolidated, err := c.unconsolidated.WithMetadata(
+		meta,
+		seriesMeta,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -262,11 +268,13 @@ func (m *multiSeriesBlockStepIter) Next() bool {
 	return m.index < len(m.values[0])
 }
 
-func (m *multiSeriesBlockStepIter) Current() (block.UnconsolidatedStep, error) {
+func (m *multiSeriesBlockStepIter) Current() (
+	block.UnconsolidatedStep,
+	error,
+) {
 	values := make([]ts.Datapoints, len(m.values))
 	for i, series := range m.values {
 		values[i] = series[m.index]
-
 	}
 
 	bounds := m.block.meta.Bounds
@@ -296,7 +304,9 @@ func (m *multiSeriesBlockSeriesIter) SeriesMeta() []block.SeriesMeta {
 	return m.block.SeriesMeta()
 }
 
-func newMultiSeriesBlockSeriesIter(block multiSeriesBlock) block.UnconsolidatedSeriesIter {
+func newMultiSeriesBlockSeriesIter(
+	block multiSeriesBlock,
+) block.UnconsolidatedSeriesIter {
 	return &multiSeriesBlockSeriesIter{block: block, index: -1}
 }
 
@@ -309,7 +319,10 @@ func (m *multiSeriesBlockSeriesIter) Next() bool {
 	return m.index < m.SeriesCount()
 }
 
-func (m *multiSeriesBlockSeriesIter) Current() (block.UnconsolidatedSeries, error) {
+func (m *multiSeriesBlockSeriesIter) Current() (
+	block.UnconsolidatedSeries,
+	error,
+) {
 	s := m.block.seriesList[m.index]
 	values := make([]ts.Datapoints, m.block.StepCount())
 	seriesValues := s.Values().AlignToBounds(m.block.meta.Bounds)
@@ -336,12 +349,23 @@ type unconsolidatedStep struct {
 	values []ts.Datapoints
 }
 
-// Time for the step
+// Time for the step.
 func (s unconsolidatedStep) Time() time.Time {
 	return s.time
 }
 
-// Values for the column
+// Values for the column.
 func (s unconsolidatedStep) Values() []ts.Datapoints {
 	return s.values
+}
+
+// NewUnconsolidatedStep returns an unconsolidated step with given values.
+func NewUnconsolidatedStep(
+	time time.Time,
+	values []ts.Datapoints,
+) block.UnconsolidatedStep {
+	return unconsolidatedStep{
+		time:   time,
+		values: values,
+	}
 }

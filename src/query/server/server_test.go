@@ -59,7 +59,7 @@ metrics:
     prefix: "coordinator"
   prometheus:
     handlerPath: /metrics
-    listenAddress: "127.0.0.1:7202"
+    listenAddress: "127.0.0.1:18202"
   sanitization: prometheus
   samplingRate: 1.0
 
