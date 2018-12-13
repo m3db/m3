@@ -463,7 +463,7 @@ func (s *commitLogSource) mostRecentCompleteSnapshotByBlockShard(
 
 				// Make sure we're able to read the snapshot time. This will also set the
 				// CachedSnapshotTime field so that we can rely upon it from here on out.
-				_, err := mostRecentSnapshotVolume.SnapshotTime()
+				_, _, err := mostRecentSnapshotVolume.SnapshotTimeAndID()
 				if err != nil {
 					s.log.
 						WithFields(
