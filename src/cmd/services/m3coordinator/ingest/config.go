@@ -34,7 +34,7 @@ type Configuration struct {
 	WorkerPoolSize int                          `yaml:"workerPoolSize"`
 	OpPool         pool.ObjectPoolConfiguration `yaml:"opPool"`
 	Retry          retry.Configuration          `yaml:"retry"`
-	LogSampleRate  float64                      `yaml:"logSampleRate" validate:"min=0.0,max=1.0"`
+	LogSampleRate  *float64                     `yaml:"logSampleRate" validate:"min=0.0,max=1.0"`
 }
 
 // NewIngester creates an ingester with an appender.
@@ -82,6 +82,6 @@ func (cfg Configuration) newOptions(
 		TagDecoderPool:    tagDecoderPool,
 		RetryOptions:      cfg.Retry.NewOptions(scope),
 		InstrumentOptions: instrumentOptions,
-		LogSampleRate:     cfg.LogSampleRate,
+		LogSampleRate:     *cfg.LogSampleRate,
 	}, nil
 }
