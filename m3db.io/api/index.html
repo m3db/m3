@@ -1,0 +1,1194 @@
+
+
+
+
+<!DOCTYPE html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <meta http-equiv="x-ua-compatible" content="ie=edge">
+      
+      
+      
+      
+        <meta name="lang:clipboard.copy" content="Copy to clipboard">
+      
+        <meta name="lang:clipboard.copied" content="Copied to clipboard">
+      
+        <meta name="lang:search.language" content="en">
+      
+        <meta name="lang:search.pipeline.stopwords" content="True">
+      
+        <meta name="lang:search.pipeline.trimmer" content="True">
+      
+        <meta name="lang:search.result.none" content="No matching documents">
+      
+        <meta name="lang:search.result.one" content="1 matching document">
+      
+        <meta name="lang:search.result.other" content="# matching documents">
+      
+        <meta name="lang:search.tokenizer" content="[\s\-]+">
+      
+      <link rel="shortcut icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-0.17.3, mkdocs-material-2.7.3">
+    
+    
+      
+        <title>API - M3DB Operator Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/application.8d40d89b.css">
+      
+    
+    
+      <script src="../assets/javascripts/modernizr.1aa3b519.js"></script>
+    
+    
+      <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
+      
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700|Roboto+Mono">
+        <style>body,input{font-family:"Roboto","Helvetica Neue",Helvetica,Arial,sans-serif}code,kbd,pre{font-family:"Roboto Mono","Courier New",Courier,monospace}</style>
+      
+      <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    
+    
+    
+  </head>
+  
+    <body dir="ltr">
+  
+    <svg class="md-svg">
+      <defs>
+        
+        
+          <svg xmlns="http://www.w3.org/2000/svg" width="416" height="448"
+    viewBox="0 0 416 448" id="github">
+  <path fill="currentColor" d="M160 304q0 10-3.125 20.5t-10.75 19-18.125
+        8.5-18.125-8.5-10.75-19-3.125-20.5 3.125-20.5 10.75-19 18.125-8.5
+        18.125 8.5 10.75 19 3.125 20.5zM320 304q0 10-3.125 20.5t-10.75
+        19-18.125 8.5-18.125-8.5-10.75-19-3.125-20.5 3.125-20.5 10.75-19
+        18.125-8.5 18.125 8.5 10.75 19 3.125 20.5zM360
+        304q0-30-17.25-51t-46.75-21q-10.25 0-48.75 5.25-17.75 2.75-39.25
+        2.75t-39.25-2.75q-38-5.25-48.75-5.25-29.5 0-46.75 21t-17.25 51q0 22 8
+        38.375t20.25 25.75 30.5 15 35 7.375 37.25 1.75h42q20.5 0
+        37.25-1.75t35-7.375 30.5-15 20.25-25.75 8-38.375zM416 260q0 51.75-15.25
+        82.75-9.5 19.25-26.375 33.25t-35.25 21.5-42.5 11.875-42.875 5.5-41.75
+        1.125q-19.5 0-35.5-0.75t-36.875-3.125-38.125-7.5-34.25-12.875-30.25-20.25-21.5-28.75q-15.5-30.75-15.5-82.75
+        0-59.25 34-99-6.75-20.5-6.75-42.5 0-29 12.75-54.5 27 0 47.5 9.875t47.25
+        30.875q36.75-8.75 77.25-8.75 37 0 70 8 26.25-20.5
+        46.75-30.25t47.25-9.75q12.75 25.5 12.75 54.5 0 21.75-6.75 42 34 40 34
+        99.5z" />
+</svg>
+        
+      </defs>
+    </svg>
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="search" autocomplete="off">
+    <label class="md-overlay" data-md-component="overlay" for="drawer"></label>
+    
+      <a href="#api-docs" tabindex="1" class="md-skip">
+        Skip to content
+      </a>
+    
+    
+      <header class="md-header" data-md-component="header">
+  <nav class="md-header-nav md-grid">
+    <div class="md-flex">
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <a href=".." title="M3DB Operator Documentation" class="md-header-nav__button md-logo">
+          
+            <i class="md-icon"></i>
+          
+        </a>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <label class="md-icon md-icon--menu md-header-nav__button" for="drawer"></label>
+      </div>
+      <div class="md-flex__cell md-flex__cell--stretch">
+        <div class="md-flex__ellipsis md-header-nav__title" data-md-component="title">
+          
+            
+              <span class="md-header-nav__topic">
+                M3DB Operator Documentation
+              </span>
+              <span class="md-header-nav__topic">
+                API
+              </span>
+            
+          
+        </div>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        
+          
+            <label class="md-icon md-icon--search md-header-nav__button" for="search"></label>
+            
+<div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="query" data-md-state="active">
+      <label class="md-icon md-search__icon" for="search"></label>
+      <button type="reset" class="md-icon md-search__icon" data-md-component="reset" tabindex="-1">
+        &#xE5CD;
+      </button>
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="result">
+          <div class="md-search-result__meta">
+            Type to start searching
+          </div>
+          <ol class="md-search-result__list"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+          
+        
+      </div>
+      
+        <div class="md-flex__cell md-flex__cell--shrink">
+          <div class="md-header-nav__source">
+            
+
+
+  
+
+
+  <a href="https://github.com/m3db/m3db-operator/" title="Go to repository" class="md-source" data-md-source="github">
+    
+      <div class="md-source__icon">
+        <svg viewBox="0 0 24 24" width="24" height="24">
+          <use xlink:href="#github" width="24" height="24"></use>
+        </svg>
+      </div>
+    
+    <div class="md-source__repository">
+      m3db/m3db-operator
+    </div>
+  </a>
+
+          </div>
+        </div>
+      
+    </div>
+  </nav>
+</header>
+    
+    <div class="md-container">
+      
+        
+      
+      
+      <main class="md-main">
+        <div class="md-main__inner md-grid" data-md-component="container">
+          
+            
+              <div class="md-sidebar md-sidebar--primary" data-md-component="navigation">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    <nav class="md-nav md-nav--primary" data-md-level="0">
+  <label class="md-nav__title md-nav__title--site" for="drawer">
+    <span class="md-nav__button md-logo">
+      
+        <i class="md-icon"></i>
+      
+    </span>
+    M3DB Operator Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      
+
+
+  
+
+
+  <a href="https://github.com/m3db/m3db-operator/" title="Go to repository" class="md-source" data-md-source="github">
+    
+      <div class="md-source__icon">
+        <svg viewBox="0 0 24 24" width="24" height="24">
+          <use xlink:href="#github" width="24" height="24"></use>
+        </svg>
+      </div>
+    
+    <div class="md-source__repository">
+      m3db/m3db-operator
+    </div>
+  </a>
+
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href=".." title="Introduction" class="md-nav__link">
+      Introduction
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2" type="checkbox" id="nav-2">
+    
+    <label class="md-nav__link" for="nav-2">
+      Getting Started
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-2">
+        Getting Started
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../getting_started/requirements/" title="Requirements" class="md-nav__link">
+      Requirements
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../getting_started/installation/" title="Installation" class="md-nav__link">
+      Installation
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../getting_started/create_cluster/" title="Creating a Cluster" class="md-nav__link">
+      Creating a Cluster
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item md-nav__item--nested">
+    
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-3" type="checkbox" id="nav-3">
+    
+    <label class="md-nav__link" for="nav-3">
+      Configuration
+    </label>
+    <nav class="md-nav" data-md-component="collapsible" data-md-level="1">
+      <label class="md-nav__title" for="nav-3">
+        Configuration
+      </label>
+      <ul class="md-nav__list" data-md-scrollfix>
+        
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../configuration/pod_identity/" title="Pod Identity" class="md-nav__link">
+      Pod Identity
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../configuration/namespaces/" title="Namespaces" class="md-nav__link">
+      Namespaces
+    </a>
+  </li>
+
+        
+      </ul>
+    </nav>
+  </li>
+
+    
+      
+      
+      
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="toc">
+    
+      
+    
+    
+      <label class="md-nav__link md-nav__link--active" for="toc">
+        API
+      </label>
+    
+    <a href="./" title="API" class="md-nav__link md-nav__link--active">
+      API
+    </a>
+    
+      
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#table-of-contents" title="Table of Contents" class="md-nav__link">
+    Table of Contents
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#clustercondition" title="ClusterCondition" class="md-nav__link">
+    ClusterCondition
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#clusterspec" title="ClusterSpec" class="md-nav__link">
+    ClusterSpec
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#isolationgroup" title="IsolationGroup" class="md-nav__link">
+    IsolationGroup
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#m3dbcluster" title="M3DBCluster" class="md-nav__link">
+    M3DBCluster
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#m3dbclusterlist" title="M3DBClusterList" class="md-nav__link">
+    M3DBClusterList
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#m3dbstatus" title="M3DBStatus" class="md-nav__link">
+    M3DBStatus
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#indexoptions" title="IndexOptions" class="md-nav__link">
+    IndexOptions
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#namespace" title="Namespace" class="md-nav__link">
+    Namespace
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#namespaceoptions" title="NamespaceOptions" class="md-nav__link">
+    NamespaceOptions
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#retentionoptions" title="RetentionOptions" class="md-nav__link">
+    RetentionOptions
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#podidentity" title="PodIdentity" class="md-nav__link">
+    PodIdentity
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#podidentityconfig" title="PodIdentityConfig" class="md-nav__link">
+    PodIdentityConfig
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+    
+  </li>
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="toc">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#table-of-contents" title="Table of Contents" class="md-nav__link">
+    Table of Contents
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#clustercondition" title="ClusterCondition" class="md-nav__link">
+    ClusterCondition
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#clusterspec" title="ClusterSpec" class="md-nav__link">
+    ClusterSpec
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#isolationgroup" title="IsolationGroup" class="md-nav__link">
+    IsolationGroup
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#m3dbcluster" title="M3DBCluster" class="md-nav__link">
+    M3DBCluster
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#m3dbclusterlist" title="M3DBClusterList" class="md-nav__link">
+    M3DBClusterList
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#m3dbstatus" title="M3DBStatus" class="md-nav__link">
+    M3DBStatus
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#indexoptions" title="IndexOptions" class="md-nav__link">
+    IndexOptions
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#namespace" title="Namespace" class="md-nav__link">
+    Namespace
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#namespaceoptions" title="NamespaceOptions" class="md-nav__link">
+    NamespaceOptions
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#retentionoptions" title="RetentionOptions" class="md-nav__link">
+    RetentionOptions
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#podidentity" title="PodIdentity" class="md-nav__link">
+    PodIdentity
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#podidentityconfig" title="PodIdentityConfig" class="md-nav__link">
+    PodIdentityConfig
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          <div class="md-content">
+            <article class="md-content__inner md-typeset">
+              
+                
+                  <a href="https://github.com/m3db/m3db-operator/edit/master/docs/api.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                
+                
+                <h1 id="api-docs">API Docs</h1>
+<p>This document enumerates the Custom Resource Definitions used by the M3DB Operator. It is auto-generated from code comments.</p>
+<h2 id="table-of-contents">Table of Contents</h2>
+<ul>
+<li><a href="#clustercondition">ClusterCondition</a></li>
+<li><a href="#clusterspec">ClusterSpec</a></li>
+<li><a href="#isolationgroup">IsolationGroup</a></li>
+<li><a href="#m3dbcluster">M3DBCluster</a></li>
+<li><a href="#m3dbclusterlist">M3DBClusterList</a></li>
+<li><a href="#m3dbstatus">M3DBStatus</a></li>
+<li><a href="#indexoptions">IndexOptions</a></li>
+<li><a href="#namespace">Namespace</a></li>
+<li><a href="#namespaceoptions">NamespaceOptions</a></li>
+<li><a href="#retentionoptions">RetentionOptions</a></li>
+<li><a href="#podidentity">PodIdentity</a></li>
+<li><a href="#podidentityconfig">PodIdentityConfig</a></li>
+</ul>
+<h2 id="clustercondition">ClusterCondition</h2>
+<p>ClusterCondition represents various conditions the cluster can be in.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Scheme</th>
+<th>Required</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>type</td>
+<td>Type of cluster condition.</td>
+<td>ClusterConditionType</td>
+<td>false</td>
+</tr>
+<tr>
+<td>status</td>
+<td>Status of the condition (True, False, Unknown).</td>
+<td>corev1.ConditionStatus</td>
+<td>false</td>
+</tr>
+<tr>
+<td>lastUpdateTime</td>
+<td>Last time this condition was updated.</td>
+<td>string</td>
+<td>false</td>
+</tr>
+<tr>
+<td>lastTransitionTime</td>
+<td>Last time this condition transitioned from one status to another.</td>
+<td>string</td>
+<td>false</td>
+</tr>
+<tr>
+<td>reason</td>
+<td>Reason this condition last changed.</td>
+<td>string</td>
+<td>false</td>
+</tr>
+<tr>
+<td>message</td>
+<td>Human-friendly message about this condition.</td>
+<td>string</td>
+<td>false</td>
+</tr>
+</tbody>
+</table>
+<p><a href="#table-of-contents">Back to TOC</a></p>
+<h2 id="clusterspec">ClusterSpec</h2>
+<p>ClusterSpec defines the desired state for a M3 cluster to be converge to.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Scheme</th>
+<th>Required</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>image</td>
+<td>Image specifies which docker image to use with the cluster</td>
+<td>string</td>
+<td>false</td>
+</tr>
+<tr>
+<td>replicationFactor</td>
+<td>ReplicationFactor defines how many replicas</td>
+<td>int32</td>
+<td>false</td>
+</tr>
+<tr>
+<td>numberOfShards</td>
+<td>NumberOfShards defines how many shards in total</td>
+<td>int32</td>
+<td>false</td>
+</tr>
+<tr>
+<td>isolationGroups</td>
+<td>IsolationGroups specifies a map of key-value pairs. Defines which isolation groups to deploy persistent volumes for data nodes</td>
+<td>[]<a href="#isolationgroup">IsolationGroup</a></td>
+<td>false</td>
+</tr>
+<tr>
+<td>namespaces</td>
+<td>Namespaces specifies the namespaces this cluster will hold.</td>
+<td>[]<a href="#namespace">Namespace</a></td>
+<td>false</td>
+</tr>
+<tr>
+<td>configMapName</td>
+<td>ConfigMapName specifies the ConfigMap to use for this cluster. If unset a sane default will be used.</td>
+<td>*string</td>
+<td>false</td>
+</tr>
+<tr>
+<td>podIdentityConfig</td>
+<td>PodIdentityConfig sets the configuration for pod identity. If unset only pod name and UID will be used.</td>
+<td>*PodIdentityConfig</td>
+<td>false</td>
+</tr>
+<tr>
+<td>containerResources</td>
+<td>Resources defines memory / cpu constraints for each container in the cluster.</td>
+<td><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.10/#resourcerequirements-v1-core">corev1.ResourceRequirements</a></td>
+<td>false</td>
+</tr>
+<tr>
+<td>dataDirVolumeClaimTemplate</td>
+<td>DataDirVolumeClaimTemplate is the volume claim template for an M3DB instance's data. It claims PersistentVolumes for cluster storage, volumes are dynamically provisioned by when the StorageClass is defined.</td>
+<td>*<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.10/#persistentvolumeclaim-v1-core">corev1.PersistentVolumeClaim</a></td>
+<td>false</td>
+</tr>
+<tr>
+<td>labels</td>
+<td>Labels sets the base labels that will be applied to resources created by the cluster. // TODO(schallert): design doc on labeling scheme.</td>
+<td>map[string]string</td>
+<td>false</td>
+</tr>
+</tbody>
+</table>
+<p><a href="#table-of-contents">Back to TOC</a></p>
+<h2 id="isolationgroup">IsolationGroup</h2>
+<p>IsolationGroup defines the name of zone as well attributes for the zone configuration</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Scheme</th>
+<th>Required</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>name</td>
+<td>Name</td>
+<td>string</td>
+<td>false</td>
+</tr>
+<tr>
+<td>numInstances</td>
+<td>NumInstances defines the number of instances</td>
+<td>int32</td>
+<td>false</td>
+</tr>
+</tbody>
+</table>
+<p><a href="#table-of-contents">Back to TOC</a></p>
+<h2 id="m3dbcluster">M3DBCluster</h2>
+<p>M3DBCluster defines the cluster</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Scheme</th>
+<th>Required</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>metadata</td>
+<td></td>
+<td><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.10/#objectmeta-v1-meta">metav1.ObjectMeta</a></td>
+<td>false</td>
+</tr>
+<tr>
+<td>type</td>
+<td></td>
+<td>string</td>
+<td>true</td>
+</tr>
+<tr>
+<td>spec</td>
+<td></td>
+<td><a href="#clusterspec">ClusterSpec</a></td>
+<td>true</td>
+</tr>
+<tr>
+<td>status</td>
+<td></td>
+<td><a href="#m3dbstatus">M3DBStatus</a></td>
+<td>false</td>
+</tr>
+</tbody>
+</table>
+<p><a href="#table-of-contents">Back to TOC</a></p>
+<h2 id="m3dbclusterlist">M3DBClusterList</h2>
+<p>M3DBClusterList represents a list of M3DB Clusters</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Scheme</th>
+<th>Required</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>metadata</td>
+<td></td>
+<td><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.10/#listmeta-v1-meta">metav1.ListMeta</a></td>
+<td>false</td>
+</tr>
+<tr>
+<td>items</td>
+<td></td>
+<td>[]<a href="#m3dbcluster">M3DBCluster</a></td>
+<td>true</td>
+</tr>
+</tbody>
+</table>
+<p><a href="#table-of-contents">Back to TOC</a></p>
+<h2 id="m3dbstatus">M3DBStatus</h2>
+<p>M3DBStatus contains the current state the M3DB cluster along with a human readable message</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Scheme</th>
+<th>Required</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>state</td>
+<td>State is a enum of green, yellow, and red denoting the health of the cluster</td>
+<td>M3DBState</td>
+<td>false</td>
+</tr>
+<tr>
+<td>conditions</td>
+<td>Various conditions about the cluster.</td>
+<td>[]<a href="#clustercondition">ClusterCondition</a></td>
+<td>false</td>
+</tr>
+<tr>
+<td>message</td>
+<td>Message is a human readable message indicating why the cluster is in it's current state</td>
+<td>string</td>
+<td>false</td>
+</tr>
+<tr>
+<td>observedGeneration</td>
+<td>ObservedGeneration is the last generation of the cluster the controller observed. Kubernetes will automatically increment metadata.Generation every time the cluster spec is changed.</td>
+<td>int64</td>
+<td>false</td>
+</tr>
+</tbody>
+</table>
+<p><a href="#table-of-contents">Back to TOC</a></p>
+<h2 id="indexoptions">IndexOptions</h2>
+<p>IndexOptions defines parameters for indexing.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Scheme</th>
+<th>Required</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>enabled</td>
+<td>Enabled controls whether metric indexing is enabled.</td>
+<td>bool</td>
+<td>false</td>
+</tr>
+<tr>
+<td>blockSize</td>
+<td>BlockSize controls the index block size.</td>
+<td>time.Duration</td>
+<td>false</td>
+</tr>
+</tbody>
+</table>
+<p><a href="#table-of-contents">Back to TOC</a></p>
+<h2 id="namespace">Namespace</h2>
+<p>Namespace defines an M3DB namespace or points to a preset M3DB namespace.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Scheme</th>
+<th>Required</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>name</td>
+<td>Name is the namespace name.</td>
+<td>string</td>
+<td>false</td>
+</tr>
+<tr>
+<td>preset</td>
+<td>Preset indicates preset namespace options.</td>
+<td>string</td>
+<td>false</td>
+</tr>
+<tr>
+<td>options</td>
+<td>Options points to optional custom namespace configuration.</td>
+<td>*<a href="#namespaceoptions">NamespaceOptions</a></td>
+<td>false</td>
+</tr>
+</tbody>
+</table>
+<p><a href="#table-of-contents">Back to TOC</a></p>
+<h2 id="namespaceoptions">NamespaceOptions</h2>
+<p>NamespaceOptions defines parameters for an M3DB namespace. See https://m3db.github.io/m3/operational_guide/namespace_configuration/ for more details.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Scheme</th>
+<th>Required</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>bootstrapEnabled</td>
+<td>BootstrapEnabled control if bootstrapping is enabled.</td>
+<td>bool</td>
+<td>false</td>
+</tr>
+<tr>
+<td>flushEnabled</td>
+<td>FlushEnabled controls whether flushing is enabled.</td>
+<td>bool</td>
+<td>false</td>
+</tr>
+<tr>
+<td>writesToCommitLog</td>
+<td>WritesToCommitLog controls whether commit log writes are enabled.</td>
+<td>bool</td>
+<td>false</td>
+</tr>
+<tr>
+<td>cleanupEnabled</td>
+<td>CleanupEnabled controls whether cleanups are enabled.</td>
+<td>bool</td>
+<td>false</td>
+</tr>
+<tr>
+<td>repairEnabled</td>
+<td>RepairEnabled controls whether repairs are enabled.</td>
+<td>bool</td>
+<td>false</td>
+</tr>
+<tr>
+<td>snapshotEnabled</td>
+<td>SnapshotEnabled controls whether snapshotting is enabled.</td>
+<td>bool</td>
+<td>false</td>
+</tr>
+<tr>
+<td>retentionOptions</td>
+<td>RetentionOptions sets the retention parameters.</td>
+<td><a href="#retentionoptions">RetentionOptions</a></td>
+<td>false</td>
+</tr>
+<tr>
+<td>indexOptions</td>
+<td>IndexOptions sets the indexing parameters.</td>
+<td><a href="#indexoptions">IndexOptions</a></td>
+<td>false</td>
+</tr>
+</tbody>
+</table>
+<p><a href="#table-of-contents">Back to TOC</a></p>
+<h2 id="retentionoptions">RetentionOptions</h2>
+<p>RetentionOptions defines parameters for data retention.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Scheme</th>
+<th>Required</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>retentionPeriod</td>
+<td>RetentionPeriod controls how long data for the namespace is retained.</td>
+<td>time.Duration</td>
+<td>false</td>
+</tr>
+<tr>
+<td>blockSize</td>
+<td>BlockSize controls the block size for the namespace.</td>
+<td>time.Duration</td>
+<td>false</td>
+</tr>
+<tr>
+<td>bufferFuture</td>
+<td>BufferFuture controls how far in the future metrics can be written.</td>
+<td>time.Duration</td>
+<td>false</td>
+</tr>
+<tr>
+<td>bufferPast</td>
+<td>BufferPast controls how far in the past metrics can be written.</td>
+<td>time.Duration</td>
+<td>false</td>
+</tr>
+<tr>
+<td>blockDataExpiry</td>
+<td>BlockDataExpiry controls the block expiry.</td>
+<td>bool</td>
+<td>false</td>
+</tr>
+<tr>
+<td>blockDataExpiryAfterNotAccessPeriod</td>
+<td>BlockDataExpiry controls the not after access period for expiration.</td>
+<td>time.Duration</td>
+<td>false</td>
+</tr>
+</tbody>
+</table>
+<p><a href="#table-of-contents">Back to TOC</a></p>
+<h2 id="podidentity">PodIdentity</h2>
+<p>PodIdentity contains all the fields that may be used to identify a pod's identity in the M3DB placement. Any non-empty fields will be used to identity uniqueness of a pod for the purpose of M3DB replace operations.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Scheme</th>
+<th>Required</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>name</td>
+<td></td>
+<td>string</td>
+<td>false</td>
+</tr>
+<tr>
+<td>uid</td>
+<td></td>
+<td>string</td>
+<td>false</td>
+</tr>
+<tr>
+<td>nodeName</td>
+<td></td>
+<td>string</td>
+<td>false</td>
+</tr>
+<tr>
+<td>nodeExternalID</td>
+<td></td>
+<td>string</td>
+<td>false</td>
+</tr>
+<tr>
+<td>nodeProviderID</td>
+<td></td>
+<td>string</td>
+<td>false</td>
+</tr>
+</tbody>
+</table>
+<p><a href="#table-of-contents">Back to TOC</a></p>
+<h2 id="podidentityconfig">PodIdentityConfig</h2>
+<p>PodIdentityConfig contains cluster-level configuration for deriving pod identity.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Scheme</th>
+<th>Required</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>sources</td>
+<td>Sources enumerates the sources from which to derive pod identity. Note that a pod's name will always be used. If empty, defaults to pod name and UID.</td>
+<td>[]PodIdentitySource</td>
+<td>true</td>
+</tr>
+</tbody>
+</table>
+<p><a href="#table-of-contents">Back to TOC</a></p>
+                
+                  
+                
+              
+              
+                
+
+
+              
+            </article>
+          </div>
+        </div>
+      </main>
+      
+        
+<footer class="md-footer">
+  
+    <div class="md-footer-nav">
+      <nav class="md-footer-nav__inner md-grid">
+        
+          <a href="../configuration/namespaces/" title="Namespaces" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+            <div class="md-flex__cell md-flex__cell--shrink">
+              <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
+            </div>
+            <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
+              <span class="md-flex__ellipsis">
+                <span class="md-footer-nav__direction">
+                  Previous
+                </span>
+                Namespaces
+              </span>
+            </div>
+          </a>
+        
+        
+      </nav>
+    </div>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright">
+        
+        powered by
+        <a href="http://www.mkdocs.org">MkDocs</a>
+        and
+        <a href="https://squidfunk.github.io/mkdocs-material/">
+          Material for MkDocs</a>
+      </div>
+      
+        
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    
+      <script src="../assets/javascripts/application.b438e6c5.js"></script>
+      
+      <script>app.initialize({version:"0.17.3",url:{base:".."}})</script>
+      
+    
+    
+      
+    
+  </body>
+</html>

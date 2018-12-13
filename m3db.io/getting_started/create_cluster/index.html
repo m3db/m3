@@ -31,20 +31,20 @@
       
         <meta name="lang:search.tokenizer" content="[\s\-]+">
       
-      <link rel="shortcut icon" href="./assets/images/favicon.png">
+      <link rel="shortcut icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-0.17.3, mkdocs-material-2.7.3">
     
     
       
-        <title>M3DB Operator Documentation</title>
+        <title>Creating a Cluster - M3DB Operator Documentation</title>
       
     
     
-      <link rel="stylesheet" href="./assets/stylesheets/application.8d40d89b.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/application.8d40d89b.css">
       
     
     
-      <script src="./assets/javascripts/modernizr.1aa3b519.js"></script>
+      <script src="../../assets/javascripts/modernizr.1aa3b519.js"></script>
     
     
       <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
@@ -89,7 +89,7 @@
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="search" autocomplete="off">
     <label class="md-overlay" data-md-component="overlay" for="drawer"></label>
     
-      <a href="#m3db-operator" tabindex="1" class="md-skip">
+      <a href="#creating-a-cluster" tabindex="1" class="md-skip">
         Skip to content
       </a>
     
@@ -98,7 +98,7 @@
   <nav class="md-header-nav md-grid">
     <div class="md-flex">
       <div class="md-flex__cell md-flex__cell--shrink">
-        <a href="." title="M3DB Operator Documentation" class="md-header-nav__button md-logo">
+        <a href="../.." title="M3DB Operator Documentation" class="md-header-nav__button md-logo">
           
             <i class="md-icon"></i>
           
@@ -115,7 +115,7 @@
                 M3DB Operator Documentation
               </span>
               <span class="md-header-nav__topic">
-                Introduction
+                Creating a Cluster
               </span>
             
           
@@ -230,56 +230,11 @@
       
       
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active">
-    
-    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="toc">
-    
-      
-    
-    
-      <label class="md-nav__link md-nav__link--active" for="toc">
-        Introduction
-      </label>
-    
-    <a href="." title="Introduction" class="md-nav__link md-nav__link--active">
+  <li class="md-nav__item">
+    <a href="../.." title="Introduction" class="md-nav__link">
       Introduction
     </a>
-    
-      
-<nav class="md-nav md-nav--secondary">
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="toc">Table of contents</label>
-    <ul class="md-nav__list" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#introduction" title="Introduction" class="md-nav__link">
-    Introduction
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#philosophy" title="Philosophy" class="md-nav__link">
-    Philosophy
-  </a>
-  
-</li>
-      
-      
-      
-      
-      
-    </ul>
-  
-</nav>
-    
   </li>
 
     
@@ -287,10 +242,12 @@
       
       
 
+  
 
-  <li class="md-nav__item md-nav__item--nested">
+
+  <li class="md-nav__item md-nav__item--active md-nav__item--nested">
     
-      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2" type="checkbox" id="nav-2">
+      <input class="md-toggle md-nav__toggle" data-md-toggle="nav-2" type="checkbox" id="nav-2" checked>
     
     <label class="md-nav__link" for="nav-2">
       Getting Started
@@ -308,7 +265,7 @@
 
 
   <li class="md-nav__item">
-    <a href="getting_started/requirements/" title="Requirements" class="md-nav__link">
+    <a href="../requirements/" title="Requirements" class="md-nav__link">
       Requirements
     </a>
   </li>
@@ -320,7 +277,7 @@
 
 
   <li class="md-nav__item">
-    <a href="getting_started/installation/" title="Installation" class="md-nav__link">
+    <a href="../installation/" title="Installation" class="md-nav__link">
       Installation
     </a>
   </li>
@@ -330,11 +287,103 @@
           
           
 
+  
 
-  <li class="md-nav__item">
-    <a href="getting_started/create_cluster/" title="Creating a Cluster" class="md-nav__link">
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="toc">
+    
+      
+    
+    
+      <label class="md-nav__link md-nav__link--active" for="toc">
+        Creating a Cluster
+      </label>
+    
+    <a href="./" title="Creating a Cluster" class="md-nav__link md-nav__link--active">
       Creating a Cluster
     </a>
+    
+      
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#basic-cluster" title="Basic Cluster" class="md-nav__link">
+    Basic Cluster
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#etcd" title="Etcd" class="md-nav__link">
+    Etcd
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#m3db" title="M3DB" class="md-nav__link">
+    M3DB
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#durable-cluster" title="Durable Cluster" class="md-nav__link">
+    Durable Cluster
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#etcd_1" title="Etcd" class="md-nav__link">
+    Etcd
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#m3db_1" title="M3DB" class="md-nav__link">
+    M3DB
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deleting-a-cluster" title="Deleting a Cluster" class="md-nav__link">
+    Deleting a Cluster
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+    
   </li>
 
         
@@ -368,7 +417,7 @@
 
 
   <li class="md-nav__item">
-    <a href="configuration/pod_identity/" title="Pod Identity" class="md-nav__link">
+    <a href="../../configuration/pod_identity/" title="Pod Identity" class="md-nav__link">
       Pod Identity
     </a>
   </li>
@@ -380,7 +429,7 @@
 
 
   <li class="md-nav__item">
-    <a href="configuration/namespaces/" title="Namespaces" class="md-nav__link">
+    <a href="../../configuration/namespaces/" title="Namespaces" class="md-nav__link">
       Namespaces
     </a>
   </li>
@@ -397,7 +446,7 @@
 
 
   <li class="md-nav__item">
-    <a href="api/" title="API" class="md-nav__link">
+    <a href="../../api/" title="API" class="md-nav__link">
       API
     </a>
   </li>
@@ -424,15 +473,62 @@
     <ul class="md-nav__list" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#introduction" title="Introduction" class="md-nav__link">
-    Introduction
+  <a href="#basic-cluster" title="Basic Cluster" class="md-nav__link">
+    Basic Cluster
   </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#etcd" title="Etcd" class="md-nav__link">
+    Etcd
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#m3db" title="M3DB" class="md-nav__link">
+    M3DB
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#philosophy" title="Philosophy" class="md-nav__link">
-    Philosophy
+  <a href="#durable-cluster" title="Durable Cluster" class="md-nav__link">
+    Durable Cluster
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#etcd_1" title="Etcd" class="md-nav__link">
+    Etcd
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#m3db_1" title="M3DB" class="md-nav__link">
+    M3DB
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deleting-a-cluster" title="Deleting a Cluster" class="md-nav__link">
+    Deleting a Cluster
   </a>
   
 </li>
@@ -453,30 +549,139 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/m3db/m3db-operator/edit/master/docs/index.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                  <a href="https://github.com/m3db/m3db-operator/edit/master/docs/getting_started/create_cluster.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
                 
                 
-                <h1 id="m3db-operator">M3DB Operator</h1>
-<h2 id="introduction">Introduction</h2>
-<p>Welcome to the documentation for the M3DB operator, a <a href="https://coreos.com/operators/">Kubernetes operator</a> for running the open-source
-timeseries database <a href="https://m3db.github.io/m3/m3db/">M3DB</a> on Kubernetes.</p>
-<p>Please note that this is <strong>alpha software</strong>, and as such its APIs and behavior are subject to breaking changes. While we
-aim to produce thoroughly tested reliable software there may be undiscovered bugs.</p>
-<p>For more background on the M3DB operator, see our <a href="https://kccna18.sched.com/event/Gsxn/keynote-smooth-operator-large-scale-automated-storage-with-kubernetes-celina-ward-software-engineer-matt-schallert-site-reliability-engineer-uber">KubeCon keynote</a> on its origins and usage at Uber.</p>
-<h2 id="philosophy">Philosophy</h2>
-<p>The M3DB operator aims to automate everyday tasks around managing M3DB. Specifically, it aims to automate:</p>
-<ul>
-<li>Creating M3DB clusters</li>
-<li>Destroying M3DB clusters</li>
-<li>Expanding clusters (adding instances)</li>
-<li>Shrinking clusters (removing instances)</li>
-<li>Replacing failed instances</li>
-</ul>
-<p>It explicitly does not try to automate every single edge case a user may ever run into. For example, it does not aim to
-automate disaster recovery if an entire cluster is taken down. Such use cases may still require human intervention, but
-the operator will aim to not conflict with such operations a human may have to take on a cluster.</p>
-<p>Generally speaking, the operator's philosophy is if <strong>it would be unclear to a human what action to take, we will not
-try to guess.</strong></p>
+                <h1 id="creating-a-cluster">Creating a Cluster</h1>
+<p>Once you've <a href="../installation">installed</a> the M3DB operator and read over the <a href="../requirements">requirements</a>, you can start
+creating some M3DB clusters!</p>
+<h2 id="basic-cluster">Basic Cluster</h2>
+<p><strong>WARNING:</strong> This setup is not intended for production-grade clusters, but rather for "kicking the tires" with the
+operator and M3DB. It is intended to work across almost any Kubernetes environment, and as such has as few dependencies
+as possible (namely persistent storage). See below for instructions on creating a more durable cluster.</p>
+<h3 id="etcd">Etcd</h3>
+<p>Create an etcd cluster in the same namespace your M3DB cluster will be created in. If you don't have persistent storage
+available, this will create a cluster that will not use persistent storage and will likely become unavailable if any of
+the pods die:</p>
+<pre><code>kubectl apply -f https://github.com/m3db/m3db-operator/tree/master/example/etcd/etcd-basic.yaml
+
+# Verify etcd health once pods available
+kubectl exec etcd-0 -- env ETCDCTL_API=3 etcdctl endpoint health
+# 127.0.0.1:2379 is healthy: successfully committed proposal: took = 2.94668ms
+</code></pre>
+
+<p>If you have remote storage available and would like to jump straight to using it, apply the following manifest for etcd
+instead:</p>
+<pre><code>kubectl apply -f https://github.com/m3db/m3db-operator/tree/master/example/etcd/etcd-pd.yaml
+</code></pre>
+
+<h3 id="m3db">M3DB</h3>
+<p>Once etcd is available, you can create an M3DB cluster. An example of a very basic M3DB cluster definition is as
+follows:</p>
+<pre><code>apiVersion: operator.m3db.io/v1alpha1
+kind: M3DBCluster
+metadata:
+  name: simple-cluster
+spec:
+  image: quay.io/m3db/m3dbnode:latest
+  replicationFactor: 3
+  numberOfShards: 256
+  isolationGroups:
+    - name: us-east1-b
+      numInstances: 1
+    - name: us-east1-c
+      numInstances: 1
+    - name: us-east1-d
+      numInstances: 1
+  podIdentityConfig:
+    sources:
+      - PodUID
+  namespaces:
+    - name: metrics-10s:2d
+      preset: 10s:2d
+</code></pre>
+
+<p>This will create a highly available cluster with RF=3 spread evenly across the three given zones within a region. A
+pod's UID will be used for its <a href="../../configuration/pod_identity">identity</a>. The cluster will have 1 <a href="../namespace">namespace</a> that stores
+metrics for 2 days at 10s resolution.</p>
+<p>Next, apply your manifest:</p>
+<pre><code>$ kubectl apply -f example/simple-cluster.yaml
+m3dbcluster.operator.m3db.io/simple-cluster created
+</code></pre>
+
+<p>Shortly after all pods are created you should see the cluster ready!</p>
+<pre><code>$ kubectl get po -l operator.m3db.io/app=m3db
+NAME                    READY   STATUS    RESTARTS   AGE
+simple-cluster-rep0-0   1/1     Running   0          1m
+simple-cluster-rep1-0   1/1     Running   0          56s
+simple-cluster-rep2-0   1/1     Running   0          37s
+</code></pre>
+
+<p>We can verify that the cluster has finished streaming data by peers by checking that an instance has bootstrapped:</p>
+<pre><code>$ kubectl exec simple-cluster-rep2-0 -- curl -sSf localhost:9002/health
+{&quot;ok&quot;:true,&quot;status&quot;:&quot;up&quot;,&quot;bootstrapped&quot;:true}
+</code></pre>
+
+<h2 id="durable-cluster">Durable Cluster</h2>
+<p>This is similar to the cluster above, but using persistent volumes. We recommend using <a href="https://kubernetes.io/blog/2018/04/13/local-persistent-volumes-beta/">local volumes</a>
+for performance reasons, and since M3DB already replicates your data.</p>
+<h3 id="etcd_1">Etcd</h3>
+<p>Create an etcd cluster with persistent volumes:</p>
+<pre><code>kubectl apply -f https://github.com/m3db/m3db-operator/tree/master/example/etcd/etcd-pd.yaml
+</code></pre>
+
+<p>We recommend modifying the <code>storageClassName</code> in the manifest to one that matches your cloud provider's fastest remote
+storage option, such as <code>pd-ssd</code> on GCP.</p>
+<h3 id="m3db_1">M3DB</h3>
+<pre><code>apiVersion: operator.m3db.io/v1alpha1
+kind: M3DBCluster
+metadata:
+  name: persistent-cluster
+spec:
+  image: quay.io/m3db/m3dbnode:latest
+  replicationFactor: 3
+  numberOfShards: 256
+  isolationGroups:
+    - name: us-east1-b
+      numInstances: 1
+    - name: us-east1-c
+      numInstances: 1
+    - name: us-east1-d
+      numInstances: 1
+  podIdentityConfig:
+    sources:
+      # - NodeName
+  namespaces:
+    - name: metrics-10s:2d
+      preset: 10s:2d
+  dataDirVolumeClaimTemplate:
+    metadata:
+      name: m3db-data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      # storageClassName: local-scsi
+      resources:
+        requests:
+          storage: 350Gi
+        limits:
+          storage: 350Gi
+</code></pre>
+
+<p>Here we are creating a cluster spread across 3 zones, with each M3DB instance being able to store up to 350gb of data
+using your cluster's default storage class.</p>
+<p>If you have local disks available, uncomment the two lines to ensure M3DB replaces instances when a pod moves between
+hosts, and that the local storage class is used.</p>
+<h2 id="deleting-a-cluster">Deleting a Cluster</h2>
+<p>Delete your M3DB cluster with <code>kubectl</code>:</p>
+<pre><code>kubectl delete m3dbcluster simple-cluster
+</code></pre>
+
+<p>After deleting a cluster you'll have to delete the metadata in etcd if you want to reuse the same etcd cluster for a new
+M3DB cluster. On our roadmap is to add a finalizer to <code>m3dbcluster</code> API objects to allow the operator to clean up their
+data in etcd. Until then, you'll have to do so manually:</p>
+<pre><code>kubectl exec etcd-0 -- env ETCDCTL_API=3 etcdctl del --keys-only --prefix &quot;&quot;
+</code></pre>
                 
                   
                 
@@ -497,14 +702,28 @@ try to guess.</strong></p>
     <div class="md-footer-nav">
       <nav class="md-footer-nav__inner md-grid">
         
+          <a href="../installation/" title="Installation" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+            <div class="md-flex__cell md-flex__cell--shrink">
+              <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
+            </div>
+            <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
+              <span class="md-flex__ellipsis">
+                <span class="md-footer-nav__direction">
+                  Previous
+                </span>
+                Installation
+              </span>
+            </div>
+          </a>
         
-          <a href="getting_started/requirements/" title="Requirements" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+        
+          <a href="../../configuration/pod_identity/" title="Pod Identity" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
             <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
               <span class="md-flex__ellipsis">
                 <span class="md-footer-nav__direction">
                   Next
                 </span>
-                Requirements
+                Pod Identity
               </span>
             </div>
             <div class="md-flex__cell md-flex__cell--shrink">
@@ -534,9 +753,9 @@ try to guess.</strong></p>
       
     </div>
     
-      <script src="./assets/javascripts/application.b438e6c5.js"></script>
+      <script src="../../assets/javascripts/application.b438e6c5.js"></script>
       
-      <script>app.initialize({version:"0.17.3",url:{base:"."}})</script>
+      <script>app.initialize({version:"0.17.3",url:{base:"../.."}})</script>
       
     
     

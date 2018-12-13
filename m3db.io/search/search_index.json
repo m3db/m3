@@ -1,0 +1,264 @@
+{
+    "docs": [
+        {
+            "location": "/",
+            "text": "M3DB Operator\n\n\nIntroduction\n\n\nWelcome to the documentation for the M3DB operator, a \nKubernetes operator\n for running the open-source\ntimeseries database \nM3DB\n on Kubernetes.\n\n\nPlease note that this is \nalpha software\n, and as such its APIs and behavior are subject to breaking changes. While we\naim to produce thoroughly tested reliable software there may be undiscovered bugs.\n\n\nFor more background on the M3DB operator, see our \nKubeCon keynote\n on its origins and usage at Uber.\n\n\nPhilosophy\n\n\nThe M3DB operator aims to automate everyday tasks around managing M3DB. Specifically, it aims to automate:\n\n\n\n\nCreating M3DB clusters\n\n\nDestroying M3DB clusters\n\n\nExpanding clusters (adding instances)\n\n\nShrinking clusters (removing instances)\n\n\nReplacing failed instances\n\n\n\n\nIt explicitly does not try to automate every single edge case a user may ever run into. For example, it does not aim to\nautomate disaster recovery if an entire cluster is taken down. Such use cases may still require human intervention, but\nthe operator will aim to not conflict with such operations a human may have to take on a cluster.\n\n\nGenerally speaking, the operator's philosophy is if \nit would be unclear to a human what action to take, we will not\ntry to guess.",
+            "title": "Introduction"
+        },
+        {
+            "location": "/#m3db-operator",
+            "text": "",
+            "title": "M3DB Operator"
+        },
+        {
+            "location": "/#introduction",
+            "text": "Welcome to the documentation for the M3DB operator, a  Kubernetes operator  for running the open-source\ntimeseries database  M3DB  on Kubernetes.  Please note that this is  alpha software , and as such its APIs and behavior are subject to breaking changes. While we\naim to produce thoroughly tested reliable software there may be undiscovered bugs.  For more background on the M3DB operator, see our  KubeCon keynote  on its origins and usage at Uber.",
+            "title": "Introduction"
+        },
+        {
+            "location": "/#philosophy",
+            "text": "The M3DB operator aims to automate everyday tasks around managing M3DB. Specifically, it aims to automate:   Creating M3DB clusters  Destroying M3DB clusters  Expanding clusters (adding instances)  Shrinking clusters (removing instances)  Replacing failed instances   It explicitly does not try to automate every single edge case a user may ever run into. For example, it does not aim to\nautomate disaster recovery if an entire cluster is taken down. Such use cases may still require human intervention, but\nthe operator will aim to not conflict with such operations a human may have to take on a cluster.  Generally speaking, the operator's philosophy is if  it would be unclear to a human what action to take, we will not\ntry to guess.",
+            "title": "Philosophy"
+        },
+        {
+            "location": "/getting_started/requirements/",
+            "text": "Requirements\n\n\nKubernetes Versions\n\n\nThe M3DB operator current targets Kubernetes 1.10, with intentions to target 1.11 in the near future. Given the\noperator's current production use cases at Uber, we typically target the two most recent minor Kubernetes versions\nsupported by GKE. We welcome community contributions to support more recent versions while meeting the aforementioned\nGKE targets!\n\n\nMulti-Zone Kubernetes Cluster\n\n\nThe M3DB operator is intended to be used with Kubernetes clusters that span at least 3 zones within a region to create\nhighly available clusters and maintain quorum in the event of region failures. Instructions for creating regional\nclusters on GKE can be found \nhere\n.\n\n\nEtcd\n\n\nM3DB stores its cluster topology and all other runtime metadata in \netcd\n.\n\n\nFor \ntesting / non-production use cases\n, we provide simple manifests for running etcd on Kubernetes in our \nexample\nmanifests\n: one for running ephemeral etcd containers and one for running etcd using basic persistent\nvolumes. If using the \netcd-pd\n yaml manifest, we recommend a modification to use a \nStorageClass\n equivalent to your\ncloud provider's fastest remote disk (such as \npd-ssd\n on GCP).\n\n\nFor production use cases, we recommend running etcd (in order of preference):\n\n\n\n\nExternal to your Kubernetes cluster to avoid circular dependencies.\n\n\nUsing the \netcd operator\n.",
+            "title": "Requirements"
+        },
+        {
+            "location": "/getting_started/requirements/#requirements",
+            "text": "",
+            "title": "Requirements"
+        },
+        {
+            "location": "/getting_started/requirements/#kubernetes-versions",
+            "text": "The M3DB operator current targets Kubernetes 1.10, with intentions to target 1.11 in the near future. Given the\noperator's current production use cases at Uber, we typically target the two most recent minor Kubernetes versions\nsupported by GKE. We welcome community contributions to support more recent versions while meeting the aforementioned\nGKE targets!",
+            "title": "Kubernetes Versions"
+        },
+        {
+            "location": "/getting_started/requirements/#multi-zone-kubernetes-cluster",
+            "text": "The M3DB operator is intended to be used with Kubernetes clusters that span at least 3 zones within a region to create\nhighly available clusters and maintain quorum in the event of region failures. Instructions for creating regional\nclusters on GKE can be found  here .",
+            "title": "Multi-Zone Kubernetes Cluster"
+        },
+        {
+            "location": "/getting_started/requirements/#etcd",
+            "text": "M3DB stores its cluster topology and all other runtime metadata in  etcd .  For  testing / non-production use cases , we provide simple manifests for running etcd on Kubernetes in our  example\nmanifests : one for running ephemeral etcd containers and one for running etcd using basic persistent\nvolumes. If using the  etcd-pd  yaml manifest, we recommend a modification to use a  StorageClass  equivalent to your\ncloud provider's fastest remote disk (such as  pd-ssd  on GCP).  For production use cases, we recommend running etcd (in order of preference):   External to your Kubernetes cluster to avoid circular dependencies.  Using the  etcd operator .",
+            "title": "Etcd"
+        },
+        {
+            "location": "/getting_started/installation/",
+            "text": "Installation\n\n\nBe sure to take a look at the \nrequirements\n before installing the operator.\n\n\nHelm\n\n\n\n\nAdd the \nm3db-operator\n repo:\n\n\n\n\nhelm repo add m3db https://s3.amazonaws.com/m3-helm-charts-repository/stable\n\n\n\n\n\n\nInstall the \nm3db-operator\n chart:\n\n\n\n\nhelm install m3db/m3db-operator --namespace m3db-operator\n\n\n\n\nNote\n: If uninstalling an instance of the operator that was installed with Helm, some resources such as the\nClusterRole, ClusterRoleBinding, and ServiceAccount may need to be deleted manually.\n\n\nManually\n\n\nInstall the bundled operator manifests in the current namespace:\n\n\nkubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/master/bundle.yaml",
+            "title": "Installation"
+        },
+        {
+            "location": "/getting_started/installation/#installation",
+            "text": "Be sure to take a look at the  requirements  before installing the operator.",
+            "title": "Installation"
+        },
+        {
+            "location": "/getting_started/installation/#helm",
+            "text": "Add the  m3db-operator  repo:   helm repo add m3db https://s3.amazonaws.com/m3-helm-charts-repository/stable   Install the  m3db-operator  chart:   helm install m3db/m3db-operator --namespace m3db-operator  Note : If uninstalling an instance of the operator that was installed with Helm, some resources such as the\nClusterRole, ClusterRoleBinding, and ServiceAccount may need to be deleted manually.",
+            "title": "Helm"
+        },
+        {
+            "location": "/getting_started/installation/#manually",
+            "text": "Install the bundled operator manifests in the current namespace:  kubectl apply -f https://raw.githubusercontent.com/m3db/m3db-operator/master/bundle.yaml",
+            "title": "Manually"
+        },
+        {
+            "location": "/getting_started/create_cluster/",
+            "text": "Creating a Cluster\n\n\nOnce you've \ninstalled\n the M3DB operator and read over the \nrequirements\n, you can start\ncreating some M3DB clusters!\n\n\nBasic Cluster\n\n\nWARNING:\n This setup is not intended for production-grade clusters, but rather for \"kicking the tires\" with the\noperator and M3DB. It is intended to work across almost any Kubernetes environment, and as such has as few dependencies\nas possible (namely persistent storage). See below for instructions on creating a more durable cluster.\n\n\nEtcd\n\n\nCreate an etcd cluster in the same namespace your M3DB cluster will be created in. If you don't have persistent storage\navailable, this will create a cluster that will not use persistent storage and will likely become unavailable if any of\nthe pods die:\n\n\nkubectl apply -f https://github.com/m3db/m3db-operator/tree/master/example/etcd/etcd-basic.yaml\n\n# Verify etcd health once pods available\nkubectl exec etcd-0 -- env ETCDCTL_API=3 etcdctl endpoint health\n# 127.0.0.1:2379 is healthy: successfully committed proposal: took = 2.94668ms\n\n\n\n\nIf you have remote storage available and would like to jump straight to using it, apply the following manifest for etcd\ninstead:\n\n\nkubectl apply -f https://github.com/m3db/m3db-operator/tree/master/example/etcd/etcd-pd.yaml\n\n\n\n\nM3DB\n\n\nOnce etcd is available, you can create an M3DB cluster. An example of a very basic M3DB cluster definition is as\nfollows:\n\n\napiVersion: operator.m3db.io/v1alpha1\nkind: M3DBCluster\nmetadata:\n  name: simple-cluster\nspec:\n  image: quay.io/m3db/m3dbnode:latest\n  replicationFactor: 3\n  numberOfShards: 256\n  isolationGroups:\n    - name: us-east1-b\n      numInstances: 1\n    - name: us-east1-c\n      numInstances: 1\n    - name: us-east1-d\n      numInstances: 1\n  podIdentityConfig:\n    sources:\n      - PodUID\n  namespaces:\n    - name: metrics-10s:2d\n      preset: 10s:2d\n\n\n\n\nThis will create a highly available cluster with RF=3 spread evenly across the three given zones within a region. A\npod's UID will be used for its \nidentity\n. The cluster will have 1 \nnamespace\n that stores\nmetrics for 2 days at 10s resolution.\n\n\nNext, apply your manifest:\n\n\n$ kubectl apply -f example/simple-cluster.yaml\nm3dbcluster.operator.m3db.io/simple-cluster created\n\n\n\n\nShortly after all pods are created you should see the cluster ready!\n\n\n$ kubectl get po -l operator.m3db.io/app=m3db\nNAME                    READY   STATUS    RESTARTS   AGE\nsimple-cluster-rep0-0   1/1     Running   0          1m\nsimple-cluster-rep1-0   1/1     Running   0          56s\nsimple-cluster-rep2-0   1/1     Running   0          37s\n\n\n\n\nWe can verify that the cluster has finished streaming data by peers by checking that an instance has bootstrapped:\n\n\n$ kubectl exec simple-cluster-rep2-0 -- curl -sSf localhost:9002/health\n{\"ok\":true,\"status\":\"up\",\"bootstrapped\":true}\n\n\n\n\nDurable Cluster\n\n\nThis is similar to the cluster above, but using persistent volumes. We recommend using \nlocal volumes\n\nfor performance reasons, and since M3DB already replicates your data.\n\n\nEtcd\n\n\nCreate an etcd cluster with persistent volumes:\n\n\nkubectl apply -f https://github.com/m3db/m3db-operator/tree/master/example/etcd/etcd-pd.yaml\n\n\n\n\nWe recommend modifying the \nstorageClassName\n in the manifest to one that matches your cloud provider's fastest remote\nstorage option, such as \npd-ssd\n on GCP.\n\n\nM3DB\n\n\napiVersion: operator.m3db.io/v1alpha1\nkind: M3DBCluster\nmetadata:\n  name: persistent-cluster\nspec:\n  image: quay.io/m3db/m3dbnode:latest\n  replicationFactor: 3\n  numberOfShards: 256\n  isolationGroups:\n    - name: us-east1-b\n      numInstances: 1\n    - name: us-east1-c\n      numInstances: 1\n    - name: us-east1-d\n      numInstances: 1\n  podIdentityConfig:\n    sources:\n      # - NodeName\n  namespaces:\n    - name: metrics-10s:2d\n      preset: 10s:2d\n  dataDirVolumeClaimTemplate:\n    metadata:\n      name: m3db-data\n    spec:\n      accessModes:\n      - ReadWriteOnce\n      # storageClassName: local-scsi\n      resources:\n        requests:\n          storage: 350Gi\n        limits:\n          storage: 350Gi\n\n\n\n\nHere we are creating a cluster spread across 3 zones, with each M3DB instance being able to store up to 350gb of data\nusing your cluster's default storage class.\n\n\nIf you have local disks available, uncomment the two lines to ensure M3DB replaces instances when a pod moves between\nhosts, and that the local storage class is used.\n\n\nDeleting a Cluster\n\n\nDelete your M3DB cluster with \nkubectl\n:\n\n\nkubectl delete m3dbcluster simple-cluster\n\n\n\n\nAfter deleting a cluster you'll have to delete the metadata in etcd if you want to reuse the same etcd cluster for a new\nM3DB cluster. On our roadmap is to add a finalizer to \nm3dbcluster\n API objects to allow the operator to clean up their\ndata in etcd. Until then, you'll have to do so manually:\n\n\nkubectl exec etcd-0 -- env ETCDCTL_API=3 etcdctl del --keys-only --prefix \"\"",
+            "title": "Creating a Cluster"
+        },
+        {
+            "location": "/getting_started/create_cluster/#creating-a-cluster",
+            "text": "Once you've  installed  the M3DB operator and read over the  requirements , you can start\ncreating some M3DB clusters!",
+            "title": "Creating a Cluster"
+        },
+        {
+            "location": "/getting_started/create_cluster/#basic-cluster",
+            "text": "WARNING:  This setup is not intended for production-grade clusters, but rather for \"kicking the tires\" with the\noperator and M3DB. It is intended to work across almost any Kubernetes environment, and as such has as few dependencies\nas possible (namely persistent storage). See below for instructions on creating a more durable cluster.",
+            "title": "Basic Cluster"
+        },
+        {
+            "location": "/getting_started/create_cluster/#etcd",
+            "text": "Create an etcd cluster in the same namespace your M3DB cluster will be created in. If you don't have persistent storage\navailable, this will create a cluster that will not use persistent storage and will likely become unavailable if any of\nthe pods die:  kubectl apply -f https://github.com/m3db/m3db-operator/tree/master/example/etcd/etcd-basic.yaml\n\n# Verify etcd health once pods available\nkubectl exec etcd-0 -- env ETCDCTL_API=3 etcdctl endpoint health\n# 127.0.0.1:2379 is healthy: successfully committed proposal: took = 2.94668ms  If you have remote storage available and would like to jump straight to using it, apply the following manifest for etcd\ninstead:  kubectl apply -f https://github.com/m3db/m3db-operator/tree/master/example/etcd/etcd-pd.yaml",
+            "title": "Etcd"
+        },
+        {
+            "location": "/getting_started/create_cluster/#m3db",
+            "text": "Once etcd is available, you can create an M3DB cluster. An example of a very basic M3DB cluster definition is as\nfollows:  apiVersion: operator.m3db.io/v1alpha1\nkind: M3DBCluster\nmetadata:\n  name: simple-cluster\nspec:\n  image: quay.io/m3db/m3dbnode:latest\n  replicationFactor: 3\n  numberOfShards: 256\n  isolationGroups:\n    - name: us-east1-b\n      numInstances: 1\n    - name: us-east1-c\n      numInstances: 1\n    - name: us-east1-d\n      numInstances: 1\n  podIdentityConfig:\n    sources:\n      - PodUID\n  namespaces:\n    - name: metrics-10s:2d\n      preset: 10s:2d  This will create a highly available cluster with RF=3 spread evenly across the three given zones within a region. A\npod's UID will be used for its  identity . The cluster will have 1  namespace  that stores\nmetrics for 2 days at 10s resolution.  Next, apply your manifest:  $ kubectl apply -f example/simple-cluster.yaml\nm3dbcluster.operator.m3db.io/simple-cluster created  Shortly after all pods are created you should see the cluster ready!  $ kubectl get po -l operator.m3db.io/app=m3db\nNAME                    READY   STATUS    RESTARTS   AGE\nsimple-cluster-rep0-0   1/1     Running   0          1m\nsimple-cluster-rep1-0   1/1     Running   0          56s\nsimple-cluster-rep2-0   1/1     Running   0          37s  We can verify that the cluster has finished streaming data by peers by checking that an instance has bootstrapped:  $ kubectl exec simple-cluster-rep2-0 -- curl -sSf localhost:9002/health\n{\"ok\":true,\"status\":\"up\",\"bootstrapped\":true}",
+            "title": "M3DB"
+        },
+        {
+            "location": "/getting_started/create_cluster/#durable-cluster",
+            "text": "This is similar to the cluster above, but using persistent volumes. We recommend using  local volumes \nfor performance reasons, and since M3DB already replicates your data.",
+            "title": "Durable Cluster"
+        },
+        {
+            "location": "/getting_started/create_cluster/#etcd_1",
+            "text": "Create an etcd cluster with persistent volumes:  kubectl apply -f https://github.com/m3db/m3db-operator/tree/master/example/etcd/etcd-pd.yaml  We recommend modifying the  storageClassName  in the manifest to one that matches your cloud provider's fastest remote\nstorage option, such as  pd-ssd  on GCP.",
+            "title": "Etcd"
+        },
+        {
+            "location": "/getting_started/create_cluster/#m3db_1",
+            "text": "apiVersion: operator.m3db.io/v1alpha1\nkind: M3DBCluster\nmetadata:\n  name: persistent-cluster\nspec:\n  image: quay.io/m3db/m3dbnode:latest\n  replicationFactor: 3\n  numberOfShards: 256\n  isolationGroups:\n    - name: us-east1-b\n      numInstances: 1\n    - name: us-east1-c\n      numInstances: 1\n    - name: us-east1-d\n      numInstances: 1\n  podIdentityConfig:\n    sources:\n      # - NodeName\n  namespaces:\n    - name: metrics-10s:2d\n      preset: 10s:2d\n  dataDirVolumeClaimTemplate:\n    metadata:\n      name: m3db-data\n    spec:\n      accessModes:\n      - ReadWriteOnce\n      # storageClassName: local-scsi\n      resources:\n        requests:\n          storage: 350Gi\n        limits:\n          storage: 350Gi  Here we are creating a cluster spread across 3 zones, with each M3DB instance being able to store up to 350gb of data\nusing your cluster's default storage class.  If you have local disks available, uncomment the two lines to ensure M3DB replaces instances when a pod moves between\nhosts, and that the local storage class is used.",
+            "title": "M3DB"
+        },
+        {
+            "location": "/getting_started/create_cluster/#deleting-a-cluster",
+            "text": "Delete your M3DB cluster with  kubectl :  kubectl delete m3dbcluster simple-cluster  After deleting a cluster you'll have to delete the metadata in etcd if you want to reuse the same etcd cluster for a new\nM3DB cluster. On our roadmap is to add a finalizer to  m3dbcluster  API objects to allow the operator to clean up their\ndata in etcd. Until then, you'll have to do so manually:  kubectl exec etcd-0 -- env ETCDCTL_API=3 etcdctl del --keys-only --prefix \"\"",
+            "title": "Deleting a Cluster"
+        },
+        {
+            "location": "/configuration/pod_identity/",
+            "text": "Pod Identity\n\n\nMotivation\n\n\nM3DB assumes that if a process is started and owns sealed shards marked as \nAvailable\n that its data for those shards is\nvalid and does not have to be fetched from peers. Consequentially this means it will begin serving reads for that data.\nFor more background on M3DB topology, see the \nM3DB topology docs\n.\n\n\nIn most environments in which M3DB has been deployed in production, it has been on a set of hosts predetermined by\nwhomever is managing the cluster. This means that an M3DB instance is identified in a toplogy by its hostname, and that\nwhen an M3DB process comes up and finds its hostname in the cluster with \nAvailable\n shards that it can serve reads for\nthose shards.\n\n\nThis does not work on Kubernetes, particularly when working with StatefulSets, as a pod may be rescheduled on a new node\nor with new storage attached but its name may stay the same. If we were to naively use an instance's hostname (pod\nname), and it were to get rescheduled on a new node with no data, it could assume that absence of data is valid and\nbegin returning empty results for read requests.\n\n\nTo account for this, the M3DB Operator determines an M3DB instance's identity in the topology based on a configurable\nset of metadata about the pod.\n\n\nConfiguration\n\n\nThe M3DB operator uses a configurable set of metadata about a pod to determine its identity in the M3DB placement. This\nis encapsulated in the \nPodIdentityConfig\n field of a cluster's spec. In addition to the configures sources,\na pod's name will always be included.\n\n\nEvery pod in an M3DB cluster is annotated with its identity and is passed to the M3DB instance via a downward API\nvolume.\n\n\nSources\n\n\nThis section will be filled out as a number of pending PRs land.\n\n\nRecommendations\n\n\nNo Persistent Storage\n\n\nIf not using PVs, you should set \nsources\n to \nPodUID\n:\n\n\npodIdentityConfig:\n  sources:\n  - PodUID\n\n\n\n\nThis way whenever a container is rescheduled, the operator will initiate a replace and it will stream data from its\npeers before serving reads. Note that not having persistent storage is not a recommended way to run M3DB.\n\n\nRemote Persistent Storage\n\n\nIf using remote storage you do not need to set sources, as it will default to just the pods name. The data for an M3DB\ninstance will move around with its container.\n\n\nLocal Persistent Storage\n\n\nIf using persistent local volumes, you should set sources to \nNodeName\n. In this configuration M3DB will consider a pod\nto be the same so long as it's on the same node. Replaces will only be triggered if a pod with the same name is moved to\na new host.\n\n\nNote that if using local SSDs on GKE, node names may stay the same even though a VM has been recreated. We also support\n\nProviderID\n, which will use the underlying VM's unique ID number in GCE to identity host uniqueness.",
+            "title": "Pod Identity"
+        },
+        {
+            "location": "/configuration/pod_identity/#pod-identity",
+            "text": "",
+            "title": "Pod Identity"
+        },
+        {
+            "location": "/configuration/pod_identity/#motivation",
+            "text": "M3DB assumes that if a process is started and owns sealed shards marked as  Available  that its data for those shards is\nvalid and does not have to be fetched from peers. Consequentially this means it will begin serving reads for that data.\nFor more background on M3DB topology, see the  M3DB topology docs .  In most environments in which M3DB has been deployed in production, it has been on a set of hosts predetermined by\nwhomever is managing the cluster. This means that an M3DB instance is identified in a toplogy by its hostname, and that\nwhen an M3DB process comes up and finds its hostname in the cluster with  Available  shards that it can serve reads for\nthose shards.  This does not work on Kubernetes, particularly when working with StatefulSets, as a pod may be rescheduled on a new node\nor with new storage attached but its name may stay the same. If we were to naively use an instance's hostname (pod\nname), and it were to get rescheduled on a new node with no data, it could assume that absence of data is valid and\nbegin returning empty results for read requests.  To account for this, the M3DB Operator determines an M3DB instance's identity in the topology based on a configurable\nset of metadata about the pod.",
+            "title": "Motivation"
+        },
+        {
+            "location": "/configuration/pod_identity/#configuration",
+            "text": "The M3DB operator uses a configurable set of metadata about a pod to determine its identity in the M3DB placement. This\nis encapsulated in the  PodIdentityConfig  field of a cluster's spec. In addition to the configures sources,\na pod's name will always be included.  Every pod in an M3DB cluster is annotated with its identity and is passed to the M3DB instance via a downward API\nvolume.",
+            "title": "Configuration"
+        },
+        {
+            "location": "/configuration/pod_identity/#sources",
+            "text": "This section will be filled out as a number of pending PRs land.",
+            "title": "Sources"
+        },
+        {
+            "location": "/configuration/pod_identity/#recommendations",
+            "text": "",
+            "title": "Recommendations"
+        },
+        {
+            "location": "/configuration/pod_identity/#no-persistent-storage",
+            "text": "If not using PVs, you should set  sources  to  PodUID :  podIdentityConfig:\n  sources:\n  - PodUID  This way whenever a container is rescheduled, the operator will initiate a replace and it will stream data from its\npeers before serving reads. Note that not having persistent storage is not a recommended way to run M3DB.",
+            "title": "No Persistent Storage"
+        },
+        {
+            "location": "/configuration/pod_identity/#remote-persistent-storage",
+            "text": "If using remote storage you do not need to set sources, as it will default to just the pods name. The data for an M3DB\ninstance will move around with its container.",
+            "title": "Remote Persistent Storage"
+        },
+        {
+            "location": "/configuration/pod_identity/#local-persistent-storage",
+            "text": "If using persistent local volumes, you should set sources to  NodeName . In this configuration M3DB will consider a pod\nto be the same so long as it's on the same node. Replaces will only be triggered if a pod with the same name is moved to\na new host.  Note that if using local SSDs on GKE, node names may stay the same even though a VM has been recreated. We also support ProviderID , which will use the underlying VM's unique ID number in GCE to identity host uniqueness.",
+            "title": "Local Persistent Storage"
+        },
+        {
+            "location": "/configuration/namespaces/",
+            "text": "Namespaces\n\n\nM3DB uses the concept of \nnamespaces\n to determine how metrics are stored and retained. The M3DB\noperator allows a user to define their own namespaces, or to use a set of presets we consider to be suitable for\nproduction use cases.\n\n\nNamespaces are configured as part of an \nm3dbcluster\n \nspec\n.\n\n\nPresets\n\n\n10s:2d\n\n\nThis preset will store metrics at 10 second resolution for 2 days. For example, in your cluster spec:\n\n\nspec:\n...\n  namespaces:\n  - name: metrics-short-term\n    preset: 10s:2d\n\n\n\n\n1m:40d\n\n\nThis preset will store metrics at 1 minute resolution for 40 days.\n\n\nspec:\n...\n  namespaces:\n  - name: metrics-long-term\n    preset: 1m:40d\n\n\n\n\nCustom Namespaces\n\n\nYou can also define your own custom namespaces by setting the \nNamespaceOptions\n within a cluster spec. See the\n\nAPI\n for all the available fields.",
+            "title": "Namespaces"
+        },
+        {
+            "location": "/configuration/namespaces/#namespaces",
+            "text": "M3DB uses the concept of  namespaces  to determine how metrics are stored and retained. The M3DB\noperator allows a user to define their own namespaces, or to use a set of presets we consider to be suitable for\nproduction use cases.  Namespaces are configured as part of an  m3dbcluster   spec .",
+            "title": "Namespaces"
+        },
+        {
+            "location": "/configuration/namespaces/#presets",
+            "text": "",
+            "title": "Presets"
+        },
+        {
+            "location": "/configuration/namespaces/#10s2d",
+            "text": "This preset will store metrics at 10 second resolution for 2 days. For example, in your cluster spec:  spec:\n...\n  namespaces:\n  - name: metrics-short-term\n    preset: 10s:2d",
+            "title": "10s:2d"
+        },
+        {
+            "location": "/configuration/namespaces/#1m40d",
+            "text": "This preset will store metrics at 1 minute resolution for 40 days.  spec:\n...\n  namespaces:\n  - name: metrics-long-term\n    preset: 1m:40d",
+            "title": "1m:40d"
+        },
+        {
+            "location": "/configuration/namespaces/#custom-namespaces",
+            "text": "You can also define your own custom namespaces by setting the  NamespaceOptions  within a cluster spec. See the API  for all the available fields.",
+            "title": "Custom Namespaces"
+        },
+        {
+            "location": "/api/",
+            "text": "API Docs\n\n\nThis document enumerates the Custom Resource Definitions used by the M3DB Operator. It is auto-generated from code comments.\n\n\nTable of Contents\n\n\n\n\nClusterCondition\n\n\nClusterSpec\n\n\nIsolationGroup\n\n\nM3DBCluster\n\n\nM3DBClusterList\n\n\nM3DBStatus\n\n\nIndexOptions\n\n\nNamespace\n\n\nNamespaceOptions\n\n\nRetentionOptions\n\n\nPodIdentity\n\n\nPodIdentityConfig\n\n\n\n\nClusterCondition\n\n\nClusterCondition represents various conditions the cluster can be in.\n\n\n\n\n\n\n\n\nField\n\n\nDescription\n\n\nScheme\n\n\nRequired\n\n\n\n\n\n\n\n\n\n\ntype\n\n\nType of cluster condition.\n\n\nClusterConditionType\n\n\nfalse\n\n\n\n\n\n\nstatus\n\n\nStatus of the condition (True, False, Unknown).\n\n\ncorev1.ConditionStatus\n\n\nfalse\n\n\n\n\n\n\nlastUpdateTime\n\n\nLast time this condition was updated.\n\n\nstring\n\n\nfalse\n\n\n\n\n\n\nlastTransitionTime\n\n\nLast time this condition transitioned from one status to another.\n\n\nstring\n\n\nfalse\n\n\n\n\n\n\nreason\n\n\nReason this condition last changed.\n\n\nstring\n\n\nfalse\n\n\n\n\n\n\nmessage\n\n\nHuman-friendly message about this condition.\n\n\nstring\n\n\nfalse\n\n\n\n\n\n\n\n\nBack to TOC\n\n\nClusterSpec\n\n\nClusterSpec defines the desired state for a M3 cluster to be converge to.\n\n\n\n\n\n\n\n\nField\n\n\nDescription\n\n\nScheme\n\n\nRequired\n\n\n\n\n\n\n\n\n\n\nimage\n\n\nImage specifies which docker image to use with the cluster\n\n\nstring\n\n\nfalse\n\n\n\n\n\n\nreplicationFactor\n\n\nReplicationFactor defines how many replicas\n\n\nint32\n\n\nfalse\n\n\n\n\n\n\nnumberOfShards\n\n\nNumberOfShards defines how many shards in total\n\n\nint32\n\n\nfalse\n\n\n\n\n\n\nisolationGroups\n\n\nIsolationGroups specifies a map of key-value pairs. Defines which isolation groups to deploy persistent volumes for data nodes\n\n\n[]\nIsolationGroup\n\n\nfalse\n\n\n\n\n\n\nnamespaces\n\n\nNamespaces specifies the namespaces this cluster will hold.\n\n\n[]\nNamespace\n\n\nfalse\n\n\n\n\n\n\nconfigMapName\n\n\nConfigMapName specifies the ConfigMap to use for this cluster. If unset a sane default will be used.\n\n\n*string\n\n\nfalse\n\n\n\n\n\n\npodIdentityConfig\n\n\nPodIdentityConfig sets the configuration for pod identity. If unset only pod name and UID will be used.\n\n\n*PodIdentityConfig\n\n\nfalse\n\n\n\n\n\n\ncontainerResources\n\n\nResources defines memory / cpu constraints for each container in the cluster.\n\n\ncorev1.ResourceRequirements\n\n\nfalse\n\n\n\n\n\n\ndataDirVolumeClaimTemplate\n\n\nDataDirVolumeClaimTemplate is the volume claim template for an M3DB instance's data. It claims PersistentVolumes for cluster storage, volumes are dynamically provisioned by when the StorageClass is defined.\n\n\n*\ncorev1.PersistentVolumeClaim\n\n\nfalse\n\n\n\n\n\n\nlabels\n\n\nLabels sets the base labels that will be applied to resources created by the cluster. // TODO(schallert): design doc on labeling scheme.\n\n\nmap[string]string\n\n\nfalse\n\n\n\n\n\n\n\n\nBack to TOC\n\n\nIsolationGroup\n\n\nIsolationGroup defines the name of zone as well attributes for the zone configuration\n\n\n\n\n\n\n\n\nField\n\n\nDescription\n\n\nScheme\n\n\nRequired\n\n\n\n\n\n\n\n\n\n\nname\n\n\nName\n\n\nstring\n\n\nfalse\n\n\n\n\n\n\nnumInstances\n\n\nNumInstances defines the number of instances\n\n\nint32\n\n\nfalse\n\n\n\n\n\n\n\n\nBack to TOC\n\n\nM3DBCluster\n\n\nM3DBCluster defines the cluster\n\n\n\n\n\n\n\n\nField\n\n\nDescription\n\n\nScheme\n\n\nRequired\n\n\n\n\n\n\n\n\n\n\nmetadata\n\n\n\n\nmetav1.ObjectMeta\n\n\nfalse\n\n\n\n\n\n\ntype\n\n\n\n\nstring\n\n\ntrue\n\n\n\n\n\n\nspec\n\n\n\n\nClusterSpec\n\n\ntrue\n\n\n\n\n\n\nstatus\n\n\n\n\nM3DBStatus\n\n\nfalse\n\n\n\n\n\n\n\n\nBack to TOC\n\n\nM3DBClusterList\n\n\nM3DBClusterList represents a list of M3DB Clusters\n\n\n\n\n\n\n\n\nField\n\n\nDescription\n\n\nScheme\n\n\nRequired\n\n\n\n\n\n\n\n\n\n\nmetadata\n\n\n\n\nmetav1.ListMeta\n\n\nfalse\n\n\n\n\n\n\nitems\n\n\n\n\n[]\nM3DBCluster\n\n\ntrue\n\n\n\n\n\n\n\n\nBack to TOC\n\n\nM3DBStatus\n\n\nM3DBStatus contains the current state the M3DB cluster along with a human readable message\n\n\n\n\n\n\n\n\nField\n\n\nDescription\n\n\nScheme\n\n\nRequired\n\n\n\n\n\n\n\n\n\n\nstate\n\n\nState is a enum of green, yellow, and red denoting the health of the cluster\n\n\nM3DBState\n\n\nfalse\n\n\n\n\n\n\nconditions\n\n\nVarious conditions about the cluster.\n\n\n[]\nClusterCondition\n\n\nfalse\n\n\n\n\n\n\nmessage\n\n\nMessage is a human readable message indicating why the cluster is in it's current state\n\n\nstring\n\n\nfalse\n\n\n\n\n\n\nobservedGeneration\n\n\nObservedGeneration is the last generation of the cluster the controller observed. Kubernetes will automatically increment metadata.Generation every time the cluster spec is changed.\n\n\nint64\n\n\nfalse\n\n\n\n\n\n\n\n\nBack to TOC\n\n\nIndexOptions\n\n\nIndexOptions defines parameters for indexing.\n\n\n\n\n\n\n\n\nField\n\n\nDescription\n\n\nScheme\n\n\nRequired\n\n\n\n\n\n\n\n\n\n\nenabled\n\n\nEnabled controls whether metric indexing is enabled.\n\n\nbool\n\n\nfalse\n\n\n\n\n\n\nblockSize\n\n\nBlockSize controls the index block size.\n\n\ntime.Duration\n\n\nfalse\n\n\n\n\n\n\n\n\nBack to TOC\n\n\nNamespace\n\n\nNamespace defines an M3DB namespace or points to a preset M3DB namespace.\n\n\n\n\n\n\n\n\nField\n\n\nDescription\n\n\nScheme\n\n\nRequired\n\n\n\n\n\n\n\n\n\n\nname\n\n\nName is the namespace name.\n\n\nstring\n\n\nfalse\n\n\n\n\n\n\npreset\n\n\nPreset indicates preset namespace options.\n\n\nstring\n\n\nfalse\n\n\n\n\n\n\noptions\n\n\nOptions points to optional custom namespace configuration.\n\n\n*\nNamespaceOptions\n\n\nfalse\n\n\n\n\n\n\n\n\nBack to TOC\n\n\nNamespaceOptions\n\n\nNamespaceOptions defines parameters for an M3DB namespace. See https://m3db.github.io/m3/operational_guide/namespace_configuration/ for more details.\n\n\n\n\n\n\n\n\nField\n\n\nDescription\n\n\nScheme\n\n\nRequired\n\n\n\n\n\n\n\n\n\n\nbootstrapEnabled\n\n\nBootstrapEnabled control if bootstrapping is enabled.\n\n\nbool\n\n\nfalse\n\n\n\n\n\n\nflushEnabled\n\n\nFlushEnabled controls whether flushing is enabled.\n\n\nbool\n\n\nfalse\n\n\n\n\n\n\nwritesToCommitLog\n\n\nWritesToCommitLog controls whether commit log writes are enabled.\n\n\nbool\n\n\nfalse\n\n\n\n\n\n\ncleanupEnabled\n\n\nCleanupEnabled controls whether cleanups are enabled.\n\n\nbool\n\n\nfalse\n\n\n\n\n\n\nrepairEnabled\n\n\nRepairEnabled controls whether repairs are enabled.\n\n\nbool\n\n\nfalse\n\n\n\n\n\n\nsnapshotEnabled\n\n\nSnapshotEnabled controls whether snapshotting is enabled.\n\n\nbool\n\n\nfalse\n\n\n\n\n\n\nretentionOptions\n\n\nRetentionOptions sets the retention parameters.\n\n\nRetentionOptions\n\n\nfalse\n\n\n\n\n\n\nindexOptions\n\n\nIndexOptions sets the indexing parameters.\n\n\nIndexOptions\n\n\nfalse\n\n\n\n\n\n\n\n\nBack to TOC\n\n\nRetentionOptions\n\n\nRetentionOptions defines parameters for data retention.\n\n\n\n\n\n\n\n\nField\n\n\nDescription\n\n\nScheme\n\n\nRequired\n\n\n\n\n\n\n\n\n\n\nretentionPeriod\n\n\nRetentionPeriod controls how long data for the namespace is retained.\n\n\ntime.Duration\n\n\nfalse\n\n\n\n\n\n\nblockSize\n\n\nBlockSize controls the block size for the namespace.\n\n\ntime.Duration\n\n\nfalse\n\n\n\n\n\n\nbufferFuture\n\n\nBufferFuture controls how far in the future metrics can be written.\n\n\ntime.Duration\n\n\nfalse\n\n\n\n\n\n\nbufferPast\n\n\nBufferPast controls how far in the past metrics can be written.\n\n\ntime.Duration\n\n\nfalse\n\n\n\n\n\n\nblockDataExpiry\n\n\nBlockDataExpiry controls the block expiry.\n\n\nbool\n\n\nfalse\n\n\n\n\n\n\nblockDataExpiryAfterNotAccessPeriod\n\n\nBlockDataExpiry controls the not after access period for expiration.\n\n\ntime.Duration\n\n\nfalse\n\n\n\n\n\n\n\n\nBack to TOC\n\n\nPodIdentity\n\n\nPodIdentity contains all the fields that may be used to identify a pod's identity in the M3DB placement. Any non-empty fields will be used to identity uniqueness of a pod for the purpose of M3DB replace operations.\n\n\n\n\n\n\n\n\nField\n\n\nDescription\n\n\nScheme\n\n\nRequired\n\n\n\n\n\n\n\n\n\n\nname\n\n\n\n\nstring\n\n\nfalse\n\n\n\n\n\n\nuid\n\n\n\n\nstring\n\n\nfalse\n\n\n\n\n\n\nnodeName\n\n\n\n\nstring\n\n\nfalse\n\n\n\n\n\n\nnodeExternalID\n\n\n\n\nstring\n\n\nfalse\n\n\n\n\n\n\nnodeProviderID\n\n\n\n\nstring\n\n\nfalse\n\n\n\n\n\n\n\n\nBack to TOC\n\n\nPodIdentityConfig\n\n\nPodIdentityConfig contains cluster-level configuration for deriving pod identity.\n\n\n\n\n\n\n\n\nField\n\n\nDescription\n\n\nScheme\n\n\nRequired\n\n\n\n\n\n\n\n\n\n\nsources\n\n\nSources enumerates the sources from which to derive pod identity. Note that a pod's name will always be used. If empty, defaults to pod name and UID.\n\n\n[]PodIdentitySource\n\n\ntrue\n\n\n\n\n\n\n\n\nBack to TOC",
+            "title": "API"
+        },
+        {
+            "location": "/api/#api-docs",
+            "text": "This document enumerates the Custom Resource Definitions used by the M3DB Operator. It is auto-generated from code comments.",
+            "title": "API Docs"
+        },
+        {
+            "location": "/api/#table-of-contents",
+            "text": "ClusterCondition  ClusterSpec  IsolationGroup  M3DBCluster  M3DBClusterList  M3DBStatus  IndexOptions  Namespace  NamespaceOptions  RetentionOptions  PodIdentity  PodIdentityConfig",
+            "title": "Table of Contents"
+        },
+        {
+            "location": "/api/#clustercondition",
+            "text": "ClusterCondition represents various conditions the cluster can be in.     Field  Description  Scheme  Required      type  Type of cluster condition.  ClusterConditionType  false    status  Status of the condition (True, False, Unknown).  corev1.ConditionStatus  false    lastUpdateTime  Last time this condition was updated.  string  false    lastTransitionTime  Last time this condition transitioned from one status to another.  string  false    reason  Reason this condition last changed.  string  false    message  Human-friendly message about this condition.  string  false     Back to TOC",
+            "title": "ClusterCondition"
+        },
+        {
+            "location": "/api/#clusterspec",
+            "text": "ClusterSpec defines the desired state for a M3 cluster to be converge to.     Field  Description  Scheme  Required      image  Image specifies which docker image to use with the cluster  string  false    replicationFactor  ReplicationFactor defines how many replicas  int32  false    numberOfShards  NumberOfShards defines how many shards in total  int32  false    isolationGroups  IsolationGroups specifies a map of key-value pairs. Defines which isolation groups to deploy persistent volumes for data nodes  [] IsolationGroup  false    namespaces  Namespaces specifies the namespaces this cluster will hold.  [] Namespace  false    configMapName  ConfigMapName specifies the ConfigMap to use for this cluster. If unset a sane default will be used.  *string  false    podIdentityConfig  PodIdentityConfig sets the configuration for pod identity. If unset only pod name and UID will be used.  *PodIdentityConfig  false    containerResources  Resources defines memory / cpu constraints for each container in the cluster.  corev1.ResourceRequirements  false    dataDirVolumeClaimTemplate  DataDirVolumeClaimTemplate is the volume claim template for an M3DB instance's data. It claims PersistentVolumes for cluster storage, volumes are dynamically provisioned by when the StorageClass is defined.  * corev1.PersistentVolumeClaim  false    labels  Labels sets the base labels that will be applied to resources created by the cluster. // TODO(schallert): design doc on labeling scheme.  map[string]string  false     Back to TOC",
+            "title": "ClusterSpec"
+        },
+        {
+            "location": "/api/#isolationgroup",
+            "text": "IsolationGroup defines the name of zone as well attributes for the zone configuration     Field  Description  Scheme  Required      name  Name  string  false    numInstances  NumInstances defines the number of instances  int32  false     Back to TOC",
+            "title": "IsolationGroup"
+        },
+        {
+            "location": "/api/#m3dbcluster",
+            "text": "M3DBCluster defines the cluster     Field  Description  Scheme  Required      metadata   metav1.ObjectMeta  false    type   string  true    spec   ClusterSpec  true    status   M3DBStatus  false     Back to TOC",
+            "title": "M3DBCluster"
+        },
+        {
+            "location": "/api/#m3dbclusterlist",
+            "text": "M3DBClusterList represents a list of M3DB Clusters     Field  Description  Scheme  Required      metadata   metav1.ListMeta  false    items   [] M3DBCluster  true     Back to TOC",
+            "title": "M3DBClusterList"
+        },
+        {
+            "location": "/api/#m3dbstatus",
+            "text": "M3DBStatus contains the current state the M3DB cluster along with a human readable message     Field  Description  Scheme  Required      state  State is a enum of green, yellow, and red denoting the health of the cluster  M3DBState  false    conditions  Various conditions about the cluster.  [] ClusterCondition  false    message  Message is a human readable message indicating why the cluster is in it's current state  string  false    observedGeneration  ObservedGeneration is the last generation of the cluster the controller observed. Kubernetes will automatically increment metadata.Generation every time the cluster spec is changed.  int64  false     Back to TOC",
+            "title": "M3DBStatus"
+        },
+        {
+            "location": "/api/#indexoptions",
+            "text": "IndexOptions defines parameters for indexing.     Field  Description  Scheme  Required      enabled  Enabled controls whether metric indexing is enabled.  bool  false    blockSize  BlockSize controls the index block size.  time.Duration  false     Back to TOC",
+            "title": "IndexOptions"
+        },
+        {
+            "location": "/api/#namespace",
+            "text": "Namespace defines an M3DB namespace or points to a preset M3DB namespace.     Field  Description  Scheme  Required      name  Name is the namespace name.  string  false    preset  Preset indicates preset namespace options.  string  false    options  Options points to optional custom namespace configuration.  * NamespaceOptions  false     Back to TOC",
+            "title": "Namespace"
+        },
+        {
+            "location": "/api/#namespaceoptions",
+            "text": "NamespaceOptions defines parameters for an M3DB namespace. See https://m3db.github.io/m3/operational_guide/namespace_configuration/ for more details.     Field  Description  Scheme  Required      bootstrapEnabled  BootstrapEnabled control if bootstrapping is enabled.  bool  false    flushEnabled  FlushEnabled controls whether flushing is enabled.  bool  false    writesToCommitLog  WritesToCommitLog controls whether commit log writes are enabled.  bool  false    cleanupEnabled  CleanupEnabled controls whether cleanups are enabled.  bool  false    repairEnabled  RepairEnabled controls whether repairs are enabled.  bool  false    snapshotEnabled  SnapshotEnabled controls whether snapshotting is enabled.  bool  false    retentionOptions  RetentionOptions sets the retention parameters.  RetentionOptions  false    indexOptions  IndexOptions sets the indexing parameters.  IndexOptions  false     Back to TOC",
+            "title": "NamespaceOptions"
+        },
+        {
+            "location": "/api/#retentionoptions",
+            "text": "RetentionOptions defines parameters for data retention.     Field  Description  Scheme  Required      retentionPeriod  RetentionPeriod controls how long data for the namespace is retained.  time.Duration  false    blockSize  BlockSize controls the block size for the namespace.  time.Duration  false    bufferFuture  BufferFuture controls how far in the future metrics can be written.  time.Duration  false    bufferPast  BufferPast controls how far in the past metrics can be written.  time.Duration  false    blockDataExpiry  BlockDataExpiry controls the block expiry.  bool  false    blockDataExpiryAfterNotAccessPeriod  BlockDataExpiry controls the not after access period for expiration.  time.Duration  false     Back to TOC",
+            "title": "RetentionOptions"
+        },
+        {
+            "location": "/api/#podidentity",
+            "text": "PodIdentity contains all the fields that may be used to identify a pod's identity in the M3DB placement. Any non-empty fields will be used to identity uniqueness of a pod for the purpose of M3DB replace operations.     Field  Description  Scheme  Required      name   string  false    uid   string  false    nodeName   string  false    nodeExternalID   string  false    nodeProviderID   string  false     Back to TOC",
+            "title": "PodIdentity"
+        },
+        {
+            "location": "/api/#podidentityconfig",
+            "text": "PodIdentityConfig contains cluster-level configuration for deriving pod identity.     Field  Description  Scheme  Required      sources  Sources enumerates the sources from which to derive pod identity. Note that a pod's name will always be used. If empty, defaults to pod name and UID.  []PodIdentitySource  true     Back to TOC",
+            "title": "PodIdentityConfig"
+        }
+    ]
+}
