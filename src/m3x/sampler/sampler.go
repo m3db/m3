@@ -20,7 +20,11 @@
 
 package sampler
 
-import "go.uber.org/atomic"
+import (
+	"fmt"
+
+	"go.uber.org/atomic"
+)
 
 // Sampler samples the requests, out of 100 sample calls,
 // 100*sampleRate calls will be sampled.
@@ -30,8 +34,11 @@ type Sampler struct {
 }
 
 // NewSampler creates a new sampler with a sample rate.
-func NewSampler(sampleRate float64) *Sampler {
-	return &Sampler{numTried: atomic.NewInt32(0), sampleEvery: int32(1.0 / sampleRate)}
+func NewSampler(sampleRate float64) (*Sampler, error) {
+	if sampleRate <= 0.0 || sampleRate >= 1.0 {
+		return nil, fmt.Errorf("invalid sample rate %f", sampleRate)
+	}
+	return &Sampler{numTried: atomic.NewInt32(0), sampleEvery: int32(1.0 / sampleRate)}, nil
 }
 
 // Sample returns true when the call is sampled.
