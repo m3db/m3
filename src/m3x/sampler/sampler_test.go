@@ -26,15 +26,31 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestInvalidSampleRate(t *testing.T) {
+	_, err := NewSampler(-1.0)
+	require.Error(t, err)
+
+	_, err = NewSampler(0.0)
+	require.Error(t, err)
+
+	_, err = NewSampler(1.0)
+	require.Error(t, err)
+
+	_, err = NewSampler(2.0)
+	require.Error(t, err)
+}
+
 func TestSampler(t *testing.T) {
-	s := NewSampler(0.5)
+	s, err := NewSampler(0.5)
+	require.NoError(t, err)
 	require.True(t, s.Sample())
 	require.False(t, s.Sample())
 	require.True(t, s.Sample())
 	require.False(t, s.Sample())
 	require.True(t, s.Sample())
 
-	s = NewSampler(0.25)
+	s, err = NewSampler(0.25)
+	require.NoError(t, err)
 	require.True(t, s.Sample())
 	require.False(t, s.Sample())
 	require.False(t, s.Sample())
