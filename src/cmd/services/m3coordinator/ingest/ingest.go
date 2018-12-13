@@ -143,12 +143,19 @@ type ingestOp struct {
 	q          storage.WriteQuery
 }
 
+func (op *ingestOp) sample() bool {
+	if op.sampler == nil {
+		return false
+	}
+	return op.sampler.Sample()
+}
+
 func (op *ingestOp) ingest() {
 	if err := op.resetWriteQuery(); err != nil {
 		op.m.ingestError.Inc(1)
 		op.callback.Callback(m3msg.OnRetriableError)
 		op.p.Put(op)
-		if op.sampler.Sample() {
+		if op.sample() {
 			op.logger.Errorf("could not reset ingest op: %v", err)
 		}
 		return
@@ -161,7 +168,7 @@ func (op *ingestOp) ingest() {
 		}
 		op.m.ingestError.Inc(1)
 		op.p.Put(op)
-		if op.sampler.Sample() {
+		if op.sample() {
 			op.logger.Errorf("could not write ingest op: %v", err)
 		}
 		return
