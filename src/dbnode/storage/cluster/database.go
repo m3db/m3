@@ -289,7 +289,7 @@ func (d *clusterDB) analyzeAndReportShardStates() {
 
 	// Count if initializing shards have bootstrapped in all namespaces. This
 	// check is redundant with the database check above, but we do it for
-	// posterity just to make sure everthing is in the correct state.
+	// posterity just to make sure everything is in the correct state.
 	namespaces := d.Database.Namespaces()
 	for _, n := range namespaces {
 		for _, s := range n.Shards() {
