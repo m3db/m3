@@ -61,7 +61,6 @@ func (m *MockWriter) EXPECT() *MockWriterMockRecorder {
 
 // MajorVersion mocks base method
 func (m *MockWriter) MajorVersion() int {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MajorVersion")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -69,13 +68,11 @@ func (m *MockWriter) MajorVersion() int {
 
 // MajorVersion indicates an expected call of MajorVersion
 func (mr *MockWriterMockRecorder) MajorVersion() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MajorVersion", reflect.TypeOf((*MockWriter)(nil).MajorVersion))
 }
 
 // Metadata mocks base method
 func (m *MockWriter) Metadata() []byte {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Metadata")
 	ret0, _ := ret[0].([]byte)
 	return ret0
@@ -83,13 +80,11 @@ func (m *MockWriter) Metadata() []byte {
 
 // Metadata indicates an expected call of Metadata
 func (mr *MockWriterMockRecorder) Metadata() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Metadata", reflect.TypeOf((*MockWriter)(nil).Metadata))
 }
 
 // MinorVersion mocks base method
 func (m *MockWriter) MinorVersion() int {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MinorVersion")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -97,13 +92,11 @@ func (m *MockWriter) MinorVersion() int {
 
 // MinorVersion indicates an expected call of MinorVersion
 func (mr *MockWriterMockRecorder) MinorVersion() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MinorVersion", reflect.TypeOf((*MockWriter)(nil).MinorVersion))
 }
 
 // Reset mocks base method
 func (m *MockWriter) Reset(arg0 segment.MutableSegment) error {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Reset", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -111,13 +104,11 @@ func (m *MockWriter) Reset(arg0 segment.MutableSegment) error {
 
 // Reset indicates an expected call of Reset
 func (mr *MockWriterMockRecorder) Reset(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockWriter)(nil).Reset), arg0)
 }
 
 // WriteDocumentsData mocks base method
 func (m *MockWriter) WriteDocumentsData(arg0 io.Writer) error {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteDocumentsData", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -125,13 +116,11 @@ func (m *MockWriter) WriteDocumentsData(arg0 io.Writer) error {
 
 // WriteDocumentsData indicates an expected call of WriteDocumentsData
 func (mr *MockWriterMockRecorder) WriteDocumentsData(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteDocumentsData", reflect.TypeOf((*MockWriter)(nil).WriteDocumentsData), arg0)
 }
 
 // WriteDocumentsIndex mocks base method
 func (m *MockWriter) WriteDocumentsIndex(arg0 io.Writer) error {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteDocumentsIndex", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -139,13 +128,11 @@ func (m *MockWriter) WriteDocumentsIndex(arg0 io.Writer) error {
 
 // WriteDocumentsIndex indicates an expected call of WriteDocumentsIndex
 func (mr *MockWriterMockRecorder) WriteDocumentsIndex(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteDocumentsIndex", reflect.TypeOf((*MockWriter)(nil).WriteDocumentsIndex), arg0)
 }
 
 // WriteFSTFields mocks base method
 func (m *MockWriter) WriteFSTFields(arg0 io.Writer) error {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteFSTFields", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -153,13 +140,11 @@ func (m *MockWriter) WriteFSTFields(arg0 io.Writer) error {
 
 // WriteFSTFields indicates an expected call of WriteFSTFields
 func (mr *MockWriterMockRecorder) WriteFSTFields(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteFSTFields", reflect.TypeOf((*MockWriter)(nil).WriteFSTFields), arg0)
 }
 
 // WriteFSTTerms mocks base method
 func (m *MockWriter) WriteFSTTerms(arg0 io.Writer) error {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteFSTTerms", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -167,13 +152,11 @@ func (m *MockWriter) WriteFSTTerms(arg0 io.Writer) error {
 
 // WriteFSTTerms indicates an expected call of WriteFSTTerms
 func (mr *MockWriterMockRecorder) WriteFSTTerms(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteFSTTerms", reflect.TypeOf((*MockWriter)(nil).WriteFSTTerms), arg0)
 }
 
 // WritePostingsOffsets mocks base method
 func (m *MockWriter) WritePostingsOffsets(arg0 io.Writer) error {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WritePostingsOffsets", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -181,7 +164,6 @@ func (m *MockWriter) WritePostingsOffsets(arg0 io.Writer) error {
 
 // WritePostingsOffsets indicates an expected call of WritePostingsOffsets
 func (mr *MockWriterMockRecorder) WritePostingsOffsets(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WritePostingsOffsets", reflect.TypeOf((*MockWriter)(nil).WritePostingsOffsets), arg0)
 }
 
@@ -210,7 +192,6 @@ func (m *MockSegment) EXPECT() *MockSegmentMockRecorder {
 
 // AllDocs mocks base method
 func (m *MockSegment) AllDocs() (index.IDDocIterator, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AllDocs")
 	ret0, _ := ret[0].(index.IDDocIterator)
 	ret1, _ := ret[1].(error)
@@ -219,13 +200,11 @@ func (m *MockSegment) AllDocs() (index.IDDocIterator, error) {
 
 // AllDocs indicates an expected call of AllDocs
 func (mr *MockSegmentMockRecorder) AllDocs() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AllDocs", reflect.TypeOf((*MockSegment)(nil).AllDocs))
 }
 
 // Close mocks base method
 func (m *MockSegment) Close() error {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -233,13 +212,11 @@ func (m *MockSegment) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockSegmentMockRecorder) Close() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockSegment)(nil).Close))
 }
 
 // ContainsID mocks base method
 func (m *MockSegment) ContainsID(arg0 []byte) (bool, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ContainsID", arg0)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
@@ -248,13 +225,11 @@ func (m *MockSegment) ContainsID(arg0 []byte) (bool, error) {
 
 // ContainsID indicates an expected call of ContainsID
 func (mr *MockSegmentMockRecorder) ContainsID(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainsID", reflect.TypeOf((*MockSegment)(nil).ContainsID), arg0)
 }
 
 // Doc mocks base method
 func (m *MockSegment) Doc(arg0 postings.ID) (doc.Document, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Doc", arg0)
 	ret0, _ := ret[0].(doc.Document)
 	ret1, _ := ret[1].(error)
@@ -263,13 +238,11 @@ func (m *MockSegment) Doc(arg0 postings.ID) (doc.Document, error) {
 
 // Doc indicates an expected call of Doc
 func (mr *MockSegmentMockRecorder) Doc(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Doc", reflect.TypeOf((*MockSegment)(nil).Doc), arg0)
 }
 
 // Docs mocks base method
 func (m *MockSegment) Docs(arg0 postings.List) (doc.Iterator, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Docs", arg0)
 	ret0, _ := ret[0].(doc.Iterator)
 	ret1, _ := ret[1].(error)
@@ -278,13 +251,11 @@ func (m *MockSegment) Docs(arg0 postings.List) (doc.Iterator, error) {
 
 // Docs indicates an expected call of Docs
 func (mr *MockSegmentMockRecorder) Docs(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Docs", reflect.TypeOf((*MockSegment)(nil).Docs), arg0)
 }
 
 // Fields mocks base method
 func (m *MockSegment) Fields() (segment.FieldsIterator, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Fields")
 	ret0, _ := ret[0].(segment.FieldsIterator)
 	ret1, _ := ret[1].(error)
@@ -293,13 +264,11 @@ func (m *MockSegment) Fields() (segment.FieldsIterator, error) {
 
 // Fields indicates an expected call of Fields
 func (mr *MockSegmentMockRecorder) Fields() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Fields", reflect.TypeOf((*MockSegment)(nil).Fields))
 }
 
 // MatchAll mocks base method
 func (m *MockSegment) MatchAll() (postings.MutableList, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MatchAll")
 	ret0, _ := ret[0].(postings.MutableList)
 	ret1, _ := ret[1].(error)
@@ -308,13 +277,11 @@ func (m *MockSegment) MatchAll() (postings.MutableList, error) {
 
 // MatchAll indicates an expected call of MatchAll
 func (mr *MockSegmentMockRecorder) MatchAll() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchAll", reflect.TypeOf((*MockSegment)(nil).MatchAll))
 }
 
 // MatchRegexp mocks base method
 func (m *MockSegment) MatchRegexp(arg0 []byte, arg1 index.CompiledRegex) (postings.List, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MatchRegexp", arg0, arg1)
 	ret0, _ := ret[0].(postings.List)
 	ret1, _ := ret[1].(error)
@@ -323,13 +290,11 @@ func (m *MockSegment) MatchRegexp(arg0 []byte, arg1 index.CompiledRegex) (postin
 
 // MatchRegexp indicates an expected call of MatchRegexp
 func (mr *MockSegmentMockRecorder) MatchRegexp(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchRegexp", reflect.TypeOf((*MockSegment)(nil).MatchRegexp), arg0, arg1)
 }
 
 // MatchTerm mocks base method
 func (m *MockSegment) MatchTerm(arg0, arg1 []byte) (postings.List, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MatchTerm", arg0, arg1)
 	ret0, _ := ret[0].(postings.List)
 	ret1, _ := ret[1].(error)
@@ -338,13 +303,11 @@ func (m *MockSegment) MatchTerm(arg0, arg1 []byte) (postings.List, error) {
 
 // MatchTerm indicates an expected call of MatchTerm
 func (mr *MockSegmentMockRecorder) MatchTerm(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchTerm", reflect.TypeOf((*MockSegment)(nil).MatchTerm), arg0, arg1)
 }
 
 // Reader mocks base method
 func (m *MockSegment) Reader() (index.Reader, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Reader")
 	ret0, _ := ret[0].(index.Reader)
 	ret1, _ := ret[1].(error)
@@ -353,13 +316,11 @@ func (m *MockSegment) Reader() (index.Reader, error) {
 
 // Reader indicates an expected call of Reader
 func (mr *MockSegmentMockRecorder) Reader() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reader", reflect.TypeOf((*MockSegment)(nil).Reader))
 }
 
 // Size mocks base method
 func (m *MockSegment) Size() int64 {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Size")
 	ret0, _ := ret[0].(int64)
 	return ret0
@@ -367,13 +328,11 @@ func (m *MockSegment) Size() int64 {
 
 // Size indicates an expected call of Size
 func (mr *MockSegmentMockRecorder) Size() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockSegment)(nil).Size))
 }
 
 // Terms mocks base method
 func (m *MockSegment) Terms(arg0 []byte) (segment.TermsIterator, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Terms", arg0)
 	ret0, _ := ret[0].(segment.TermsIterator)
 	ret1, _ := ret[1].(error)
@@ -382,6 +341,5 @@ func (m *MockSegment) Terms(arg0 []byte) (segment.TermsIterator, error) {
 
 // Terms indicates an expected call of Terms
 func (mr *MockSegmentMockRecorder) Terms(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Terms", reflect.TypeOf((*MockSegment)(nil).Terms), arg0)
 }

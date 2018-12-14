@@ -55,7 +55,6 @@ func (m *MockList) EXPECT() *MockListMockRecorder {
 
 // Contains mocks base method
 func (m *MockList) Contains(id ID) bool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Contains", id)
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -63,13 +62,11 @@ func (m *MockList) Contains(id ID) bool {
 
 // Contains indicates an expected call of Contains
 func (mr *MockListMockRecorder) Contains(id interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Contains", reflect.TypeOf((*MockList)(nil).Contains), id)
 }
 
 // IsEmpty mocks base method
 func (m *MockList) IsEmpty() bool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsEmpty")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -77,28 +74,11 @@ func (m *MockList) IsEmpty() bool {
 
 // IsEmpty indicates an expected call of IsEmpty
 func (mr *MockListMockRecorder) IsEmpty() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsEmpty", reflect.TypeOf((*MockList)(nil).IsEmpty))
-}
-
-// Min mocks base method
-func (m *MockList) Min() (ID, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Min")
-	ret0, _ := ret[0].(ID)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Min indicates an expected call of Min
-func (mr *MockListMockRecorder) Min() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Min", reflect.TypeOf((*MockList)(nil).Min))
 }
 
 // Max mocks base method
 func (m *MockList) Max() (ID, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Max")
 	ret0, _ := ret[0].(ID)
 	ret1, _ := ret[1].(error)
@@ -107,13 +87,11 @@ func (m *MockList) Max() (ID, error) {
 
 // Max indicates an expected call of Max
 func (mr *MockListMockRecorder) Max() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Max", reflect.TypeOf((*MockList)(nil).Max))
 }
 
 // Len mocks base method
 func (m *MockList) Len() int {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Len")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -121,13 +99,11 @@ func (m *MockList) Len() int {
 
 // Len indicates an expected call of Len
 func (mr *MockListMockRecorder) Len() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Len", reflect.TypeOf((*MockList)(nil).Len))
 }
 
 // Iterator mocks base method
 func (m *MockList) Iterator() Iterator {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Iterator")
 	ret0, _ := ret[0].(Iterator)
 	return ret0
@@ -135,13 +111,11 @@ func (m *MockList) Iterator() Iterator {
 
 // Iterator indicates an expected call of Iterator
 func (mr *MockListMockRecorder) Iterator() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Iterator", reflect.TypeOf((*MockList)(nil).Iterator))
 }
 
 // Clone mocks base method
 func (m *MockList) Clone() MutableList {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Clone")
 	ret0, _ := ret[0].(MutableList)
 	return ret0
@@ -149,13 +123,11 @@ func (m *MockList) Clone() MutableList {
 
 // Clone indicates an expected call of Clone
 func (mr *MockListMockRecorder) Clone() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Clone", reflect.TypeOf((*MockList)(nil).Clone))
 }
 
 // Equal mocks base method
 func (m *MockList) Equal(other List) bool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Equal", other)
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -163,7 +135,6 @@ func (m *MockList) Equal(other List) bool {
 
 // Equal indicates an expected call of Equal
 func (mr *MockListMockRecorder) Equal(other interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Equal", reflect.TypeOf((*MockList)(nil).Equal), other)
 }
 
@@ -192,7 +163,6 @@ func (m *MockMutableList) EXPECT() *MockMutableListMockRecorder {
 
 // Contains mocks base method
 func (m *MockMutableList) Contains(id ID) bool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Contains", id)
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -200,13 +170,11 @@ func (m *MockMutableList) Contains(id ID) bool {
 
 // Contains indicates an expected call of Contains
 func (mr *MockMutableListMockRecorder) Contains(id interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Contains", reflect.TypeOf((*MockMutableList)(nil).Contains), id)
 }
 
 // IsEmpty mocks base method
 func (m *MockMutableList) IsEmpty() bool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsEmpty")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -214,28 +182,11 @@ func (m *MockMutableList) IsEmpty() bool {
 
 // IsEmpty indicates an expected call of IsEmpty
 func (mr *MockMutableListMockRecorder) IsEmpty() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsEmpty", reflect.TypeOf((*MockMutableList)(nil).IsEmpty))
-}
-
-// Min mocks base method
-func (m *MockMutableList) Min() (ID, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Min")
-	ret0, _ := ret[0].(ID)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Min indicates an expected call of Min
-func (mr *MockMutableListMockRecorder) Min() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Min", reflect.TypeOf((*MockMutableList)(nil).Min))
 }
 
 // Max mocks base method
 func (m *MockMutableList) Max() (ID, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Max")
 	ret0, _ := ret[0].(ID)
 	ret1, _ := ret[1].(error)
@@ -244,13 +195,11 @@ func (m *MockMutableList) Max() (ID, error) {
 
 // Max indicates an expected call of Max
 func (mr *MockMutableListMockRecorder) Max() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Max", reflect.TypeOf((*MockMutableList)(nil).Max))
 }
 
 // Len mocks base method
 func (m *MockMutableList) Len() int {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Len")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -258,13 +207,11 @@ func (m *MockMutableList) Len() int {
 
 // Len indicates an expected call of Len
 func (mr *MockMutableListMockRecorder) Len() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Len", reflect.TypeOf((*MockMutableList)(nil).Len))
 }
 
 // Iterator mocks base method
 func (m *MockMutableList) Iterator() Iterator {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Iterator")
 	ret0, _ := ret[0].(Iterator)
 	return ret0
@@ -272,13 +219,11 @@ func (m *MockMutableList) Iterator() Iterator {
 
 // Iterator indicates an expected call of Iterator
 func (mr *MockMutableListMockRecorder) Iterator() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Iterator", reflect.TypeOf((*MockMutableList)(nil).Iterator))
 }
 
 // Clone mocks base method
 func (m *MockMutableList) Clone() MutableList {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Clone")
 	ret0, _ := ret[0].(MutableList)
 	return ret0
@@ -286,13 +231,11 @@ func (m *MockMutableList) Clone() MutableList {
 
 // Clone indicates an expected call of Clone
 func (mr *MockMutableListMockRecorder) Clone() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Clone", reflect.TypeOf((*MockMutableList)(nil).Clone))
 }
 
 // Equal mocks base method
 func (m *MockMutableList) Equal(other List) bool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Equal", other)
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -300,25 +243,23 @@ func (m *MockMutableList) Equal(other List) bool {
 
 // Equal indicates an expected call of Equal
 func (mr *MockMutableListMockRecorder) Equal(other interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Equal", reflect.TypeOf((*MockMutableList)(nil).Equal), other)
 }
 
 // Insert mocks base method
-func (m *MockMutableList) Insert(i ID) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Insert", i)
+func (m *MockMutableList) Insert(i ID) error {
+	ret := m.ctrl.Call(m, "Insert", i)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // Insert indicates an expected call of Insert
 func (mr *MockMutableListMockRecorder) Insert(i interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Insert", reflect.TypeOf((*MockMutableList)(nil).Insert), i)
 }
 
 // Intersect mocks base method
 func (m *MockMutableList) Intersect(other List) error {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Intersect", other)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -326,13 +267,11 @@ func (m *MockMutableList) Intersect(other List) error {
 
 // Intersect indicates an expected call of Intersect
 func (mr *MockMutableListMockRecorder) Intersect(other interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Intersect", reflect.TypeOf((*MockMutableList)(nil).Intersect), other)
 }
 
 // Difference mocks base method
 func (m *MockMutableList) Difference(other List) error {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Difference", other)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -340,13 +279,11 @@ func (m *MockMutableList) Difference(other List) error {
 
 // Difference indicates an expected call of Difference
 func (mr *MockMutableListMockRecorder) Difference(other interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Difference", reflect.TypeOf((*MockMutableList)(nil).Difference), other)
 }
 
 // Union mocks base method
 func (m *MockMutableList) Union(other List) error {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Union", other)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -354,13 +291,11 @@ func (m *MockMutableList) Union(other List) error {
 
 // Union indicates an expected call of Union
 func (mr *MockMutableListMockRecorder) Union(other interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Union", reflect.TypeOf((*MockMutableList)(nil).Union), other)
 }
 
 // AddIterator mocks base method
 func (m *MockMutableList) AddIterator(iter Iterator) error {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddIterator", iter)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -368,43 +303,40 @@ func (m *MockMutableList) AddIterator(iter Iterator) error {
 
 // AddIterator indicates an expected call of AddIterator
 func (mr *MockMutableListMockRecorder) AddIterator(iter interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddIterator", reflect.TypeOf((*MockMutableList)(nil).AddIterator), iter)
 }
 
 // AddRange mocks base method
-func (m *MockMutableList) AddRange(min, max ID) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "AddRange", min, max)
+func (m *MockMutableList) AddRange(min, max ID) error {
+	ret := m.ctrl.Call(m, "AddRange", min, max)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // AddRange indicates an expected call of AddRange
 func (mr *MockMutableListMockRecorder) AddRange(min, max interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddRange", reflect.TypeOf((*MockMutableList)(nil).AddRange), min, max)
 }
 
 // RemoveRange mocks base method
-func (m *MockMutableList) RemoveRange(min, max ID) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "RemoveRange", min, max)
+func (m *MockMutableList) RemoveRange(min, max ID) error {
+	ret := m.ctrl.Call(m, "RemoveRange", min, max)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // RemoveRange indicates an expected call of RemoveRange
 func (mr *MockMutableListMockRecorder) RemoveRange(min, max interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveRange", reflect.TypeOf((*MockMutableList)(nil).RemoveRange), min, max)
 }
 
 // Reset mocks base method
 func (m *MockMutableList) Reset() {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Reset")
 }
 
 // Reset indicates an expected call of Reset
 func (mr *MockMutableListMockRecorder) Reset() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockMutableList)(nil).Reset))
 }
 
@@ -433,7 +365,6 @@ func (m *MockIterator) EXPECT() *MockIteratorMockRecorder {
 
 // Next mocks base method
 func (m *MockIterator) Next() bool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Next")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -441,13 +372,11 @@ func (m *MockIterator) Next() bool {
 
 // Next indicates an expected call of Next
 func (mr *MockIteratorMockRecorder) Next() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockIterator)(nil).Next))
 }
 
 // Current mocks base method
 func (m *MockIterator) Current() ID {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Current")
 	ret0, _ := ret[0].(ID)
 	return ret0
@@ -455,13 +384,11 @@ func (m *MockIterator) Current() ID {
 
 // Current indicates an expected call of Current
 func (mr *MockIteratorMockRecorder) Current() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockIterator)(nil).Current))
 }
 
 // Err mocks base method
 func (m *MockIterator) Err() error {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Err")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -469,13 +396,11 @@ func (m *MockIterator) Err() error {
 
 // Err indicates an expected call of Err
 func (mr *MockIteratorMockRecorder) Err() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockIterator)(nil).Err))
 }
 
 // Close mocks base method
 func (m *MockIterator) Close() error {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -483,7 +408,6 @@ func (m *MockIterator) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockIteratorMockRecorder) Close() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockIterator)(nil).Close))
 }
 
@@ -512,7 +436,6 @@ func (m *MockPool) EXPECT() *MockPoolMockRecorder {
 
 // Get mocks base method
 func (m *MockPool) Get() MutableList {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get")
 	ret0, _ := ret[0].(MutableList)
 	return ret0
@@ -520,18 +443,15 @@ func (m *MockPool) Get() MutableList {
 
 // Get indicates an expected call of Get
 func (mr *MockPoolMockRecorder) Get() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockPool)(nil).Get))
 }
 
 // Put mocks base method
 func (m *MockPool) Put(pl MutableList) {
-	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Put", pl)
 }
 
 // Put indicates an expected call of Put
 func (mr *MockPoolMockRecorder) Put(pl interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Put", reflect.TypeOf((*MockPool)(nil).Put), pl)
 }

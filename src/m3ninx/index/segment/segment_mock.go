@@ -58,7 +58,6 @@ func (m *MockSegment) EXPECT() *MockSegmentMockRecorder {
 
 // Close mocks base method
 func (m *MockSegment) Close() error {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -66,13 +65,11 @@ func (m *MockSegment) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockSegmentMockRecorder) Close() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockSegment)(nil).Close))
 }
 
 // ContainsID mocks base method
 func (m *MockSegment) ContainsID(arg0 []byte) (bool, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ContainsID", arg0)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
@@ -81,13 +78,11 @@ func (m *MockSegment) ContainsID(arg0 []byte) (bool, error) {
 
 // ContainsID indicates an expected call of ContainsID
 func (mr *MockSegmentMockRecorder) ContainsID(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainsID", reflect.TypeOf((*MockSegment)(nil).ContainsID), arg0)
 }
 
 // Fields mocks base method
 func (m *MockSegment) Fields() (FieldsIterator, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Fields")
 	ret0, _ := ret[0].(FieldsIterator)
 	ret1, _ := ret[1].(error)
@@ -96,13 +91,11 @@ func (m *MockSegment) Fields() (FieldsIterator, error) {
 
 // Fields indicates an expected call of Fields
 func (mr *MockSegmentMockRecorder) Fields() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Fields", reflect.TypeOf((*MockSegment)(nil).Fields))
 }
 
 // Reader mocks base method
 func (m *MockSegment) Reader() (index.Reader, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Reader")
 	ret0, _ := ret[0].(index.Reader)
 	ret1, _ := ret[1].(error)
@@ -111,13 +104,11 @@ func (m *MockSegment) Reader() (index.Reader, error) {
 
 // Reader indicates an expected call of Reader
 func (mr *MockSegmentMockRecorder) Reader() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reader", reflect.TypeOf((*MockSegment)(nil).Reader))
 }
 
 // Size mocks base method
 func (m *MockSegment) Size() int64 {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Size")
 	ret0, _ := ret[0].(int64)
 	return ret0
@@ -125,13 +116,11 @@ func (m *MockSegment) Size() int64 {
 
 // Size indicates an expected call of Size
 func (mr *MockSegmentMockRecorder) Size() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockSegment)(nil).Size))
 }
 
 // Terms mocks base method
 func (m *MockSegment) Terms(arg0 []byte) (TermsIterator, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Terms", arg0)
 	ret0, _ := ret[0].(TermsIterator)
 	ret1, _ := ret[1].(error)
@@ -140,7 +129,6 @@ func (m *MockSegment) Terms(arg0 []byte) (TermsIterator, error) {
 
 // Terms indicates an expected call of Terms
 func (mr *MockSegmentMockRecorder) Terms(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Terms", reflect.TypeOf((*MockSegment)(nil).Terms), arg0)
 }
 
@@ -169,7 +157,6 @@ func (m *MockMutableSegment) EXPECT() *MockMutableSegmentMockRecorder {
 
 // Close mocks base method
 func (m *MockMutableSegment) Close() error {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -177,13 +164,11 @@ func (m *MockMutableSegment) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockMutableSegmentMockRecorder) Close() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockMutableSegment)(nil).Close))
 }
 
 // ContainsID mocks base method
 func (m *MockMutableSegment) ContainsID(arg0 []byte) (bool, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ContainsID", arg0)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
@@ -192,13 +177,11 @@ func (m *MockMutableSegment) ContainsID(arg0 []byte) (bool, error) {
 
 // ContainsID indicates an expected call of ContainsID
 func (mr *MockMutableSegmentMockRecorder) ContainsID(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainsID", reflect.TypeOf((*MockMutableSegment)(nil).ContainsID), arg0)
 }
 
 // Fields mocks base method
 func (m *MockMutableSegment) Fields() (FieldsIterator, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Fields")
 	ret0, _ := ret[0].(FieldsIterator)
 	ret1, _ := ret[1].(error)
@@ -207,13 +190,11 @@ func (m *MockMutableSegment) Fields() (FieldsIterator, error) {
 
 // Fields indicates an expected call of Fields
 func (mr *MockMutableSegmentMockRecorder) Fields() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Fields", reflect.TypeOf((*MockMutableSegment)(nil).Fields))
 }
 
 // Insert mocks base method
 func (m *MockMutableSegment) Insert(arg0 doc.Document) ([]byte, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Insert", arg0)
 	ret0, _ := ret[0].([]byte)
 	ret1, _ := ret[1].(error)
@@ -222,13 +203,11 @@ func (m *MockMutableSegment) Insert(arg0 doc.Document) ([]byte, error) {
 
 // Insert indicates an expected call of Insert
 func (mr *MockMutableSegmentMockRecorder) Insert(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Insert", reflect.TypeOf((*MockMutableSegment)(nil).Insert), arg0)
 }
 
 // InsertBatch mocks base method
 func (m *MockMutableSegment) InsertBatch(arg0 index.Batch) error {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertBatch", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -236,13 +215,11 @@ func (m *MockMutableSegment) InsertBatch(arg0 index.Batch) error {
 
 // InsertBatch indicates an expected call of InsertBatch
 func (mr *MockMutableSegmentMockRecorder) InsertBatch(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertBatch", reflect.TypeOf((*MockMutableSegment)(nil).InsertBatch), arg0)
 }
 
 // IsSealed mocks base method
 func (m *MockMutableSegment) IsSealed() bool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsSealed")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -250,13 +227,11 @@ func (m *MockMutableSegment) IsSealed() bool {
 
 // IsSealed indicates an expected call of IsSealed
 func (mr *MockMutableSegmentMockRecorder) IsSealed() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsSealed", reflect.TypeOf((*MockMutableSegment)(nil).IsSealed))
 }
 
 // Reader mocks base method
 func (m *MockMutableSegment) Reader() (index.Reader, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Reader")
 	ret0, _ := ret[0].(index.Reader)
 	ret1, _ := ret[1].(error)
@@ -265,13 +240,11 @@ func (m *MockMutableSegment) Reader() (index.Reader, error) {
 
 // Reader indicates an expected call of Reader
 func (mr *MockMutableSegmentMockRecorder) Reader() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reader", reflect.TypeOf((*MockMutableSegment)(nil).Reader))
 }
 
 // Seal mocks base method
 func (m *MockMutableSegment) Seal() (Segment, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Seal")
 	ret0, _ := ret[0].(Segment)
 	ret1, _ := ret[1].(error)
@@ -280,13 +253,11 @@ func (m *MockMutableSegment) Seal() (Segment, error) {
 
 // Seal indicates an expected call of Seal
 func (mr *MockMutableSegmentMockRecorder) Seal() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Seal", reflect.TypeOf((*MockMutableSegment)(nil).Seal))
 }
 
 // Size mocks base method
 func (m *MockMutableSegment) Size() int64 {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Size")
 	ret0, _ := ret[0].(int64)
 	return ret0
@@ -294,13 +265,11 @@ func (m *MockMutableSegment) Size() int64 {
 
 // Size indicates an expected call of Size
 func (mr *MockMutableSegmentMockRecorder) Size() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockMutableSegment)(nil).Size))
 }
 
 // Terms mocks base method
 func (m *MockMutableSegment) Terms(arg0 []byte) (TermsIterator, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Terms", arg0)
 	ret0, _ := ret[0].(TermsIterator)
 	ret1, _ := ret[1].(error)
@@ -309,6 +278,5 @@ func (m *MockMutableSegment) Terms(arg0 []byte) (TermsIterator, error) {
 
 // Terms indicates an expected call of Terms
 func (mr *MockMutableSegmentMockRecorder) Terms(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Terms", reflect.TypeOf((*MockMutableSegment)(nil).Terms), arg0)
 }

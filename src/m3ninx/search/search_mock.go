@@ -60,7 +60,6 @@ func (m *MockExecutor) EXPECT() *MockExecutorMockRecorder {
 
 // Execute mocks base method
 func (m *MockExecutor) Execute(q Query) (doc.Iterator, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Execute", q)
 	ret0, _ := ret[0].(doc.Iterator)
 	ret1, _ := ret[1].(error)
@@ -69,13 +68,11 @@ func (m *MockExecutor) Execute(q Query) (doc.Iterator, error) {
 
 // Execute indicates an expected call of Execute
 func (mr *MockExecutorMockRecorder) Execute(q interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockExecutor)(nil).Execute), q)
 }
 
 // Close mocks base method
 func (m *MockExecutor) Close() error {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -83,7 +80,6 @@ func (m *MockExecutor) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockExecutorMockRecorder) Close() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockExecutor)(nil).Close))
 }
 
@@ -112,7 +108,6 @@ func (m *MockQuery) EXPECT() *MockQueryMockRecorder {
 
 // String mocks base method
 func (m *MockQuery) String() string {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "String")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -120,13 +115,11 @@ func (m *MockQuery) String() string {
 
 // String indicates an expected call of String
 func (mr *MockQueryMockRecorder) String() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "String", reflect.TypeOf((*MockQuery)(nil).String))
 }
 
 // Searcher mocks base method
 func (m *MockQuery) Searcher() (Searcher, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Searcher")
 	ret0, _ := ret[0].(Searcher)
 	ret1, _ := ret[1].(error)
@@ -135,13 +128,11 @@ func (m *MockQuery) Searcher() (Searcher, error) {
 
 // Searcher indicates an expected call of Searcher
 func (mr *MockQueryMockRecorder) Searcher() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Searcher", reflect.TypeOf((*MockQuery)(nil).Searcher))
 }
 
 // Equal mocks base method
 func (m *MockQuery) Equal(q Query) bool {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Equal", q)
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -149,13 +140,11 @@ func (m *MockQuery) Equal(q Query) bool {
 
 // Equal indicates an expected call of Equal
 func (mr *MockQueryMockRecorder) Equal(q interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Equal", reflect.TypeOf((*MockQuery)(nil).Equal), q)
 }
 
 // ToProto mocks base method
 func (m *MockQuery) ToProto() *querypb.Query {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ToProto")
 	ret0, _ := ret[0].(*querypb.Query)
 	return ret0
@@ -163,7 +152,6 @@ func (m *MockQuery) ToProto() *querypb.Query {
 
 // ToProto indicates an expected call of ToProto
 func (mr *MockQueryMockRecorder) ToProto() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ToProto", reflect.TypeOf((*MockQuery)(nil).ToProto))
 }
 
@@ -192,7 +180,6 @@ func (m *MockSearcher) EXPECT() *MockSearcherMockRecorder {
 
 // Search mocks base method
 func (m *MockSearcher) Search(arg0 index.Reader) (postings.List, error) {
-	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Search", arg0)
 	ret0, _ := ret[0].(postings.List)
 	ret1, _ := ret[1].(error)
@@ -201,6 +188,5 @@ func (m *MockSearcher) Search(arg0 index.Reader) (postings.List, error) {
 
 // Search indicates an expected call of Search
 func (mr *MockSearcherMockRecorder) Search(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Search", reflect.TypeOf((*MockSearcher)(nil).Search), arg0)
 }
