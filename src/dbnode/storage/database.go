@@ -826,9 +826,10 @@ func (d *db) IsBootstrappedAndDurable() bool {
 			xlog.NewField("lastReceivedNewShards", d.lastReceivedNewShards),
 		).Debugf(
 			"not bootstrapped and durable because: has not snapshotted post bootstrap and/or has not bootstrapped since receiving new shards")
+		return false
 	}
 
-	return isBootstrappedAndDurable
+	return true
 }
 
 func (d *db) Repair() error {

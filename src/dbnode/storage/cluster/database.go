@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 
 	"github.com/uber-go/tally"
@@ -66,6 +67,7 @@ func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
 type clusterDB struct {
 	storage.Database
 
+	opts    storage.Options
 	log     xlog.Logger
 	metrics databaseMetrics
 	hostID  string
@@ -100,6 +102,7 @@ func NewDatabase(
 	log.Info("cluster database resolved topology")
 
 	d := &clusterDB{
+		opts:           opts,
 		log:            log,
 		metrics:        m,
 		hostID:         hostID,
@@ -280,9 +283,13 @@ func (d *clusterDB) analyzeAndReportShardStates() {
 		return
 	}
 
+	if !d.IsBootstrappedAndDurable() {
+		return
+	}
+
 	// Count if initializing shards have bootstrapped in all namespaces. This
-	// check is redundant with the database check below, but we do it for
-	// posterity.
+	// check is redundant with the database check above, but we do it for
+	// posterity just to make sure everthing is in the correct state.
 	namespaces := d.Database.Namespaces()
 	for _, n := range namespaces {
 		for _, s := range n.Shards() {
@@ -296,14 +303,18 @@ func (d *clusterDB) analyzeAndReportShardStates() {
 		}
 	}
 
-	if !d.IsBootstrappedAndDurable() {
-		return
-	}
-
 	var markAvailable []uint32
 	for id := range d.initializing {
 		count := d.bootstrapCount[id]
 		if count != len(namespaces) {
+			// Should never happen if bootstrapped and durable.
+			instrument.EmitAndLogInvariantViolation(d.opts.InstrumentOptions(), func(l xlog.Logger) {
+				l.WithFields(
+					xlog.NewField("shard", id),
+					xlog.NewField("count", count),
+					xlog.NewField("numNamespaces", len(namespaces)),
+				).Error("database indicated that it was bootstrapped and durable, but number of bootstrapped shards did not match number of namespaces")
+			})
 			continue
 		}
 
