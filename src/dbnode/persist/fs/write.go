@@ -532,11 +532,7 @@ func (w *writer) writeInfoFileContents(
 	info := schema.IndexInfo{
 		BlockStart:   xtime.ToNanoseconds(w.start),
 		SnapshotTime: xtime.ToNanoseconds(w.snapshotTime),
-<<<<<<< HEAD
-		SnapshotID:   w.snapshotID,
-=======
 		SnapshotID:   snapshotBytes,
->>>>>>> squash
 		BlockSize:    int64(w.blockSize),
 		Entries:      w.currIdx,
 		MajorVersion: schema.MajorVersion,

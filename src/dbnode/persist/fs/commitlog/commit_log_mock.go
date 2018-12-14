@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3x/context"
@@ -120,10 +121,10 @@ func (mr *MockCommitLogMockRecorder) Close() *gomock.Call {
 }
 
 // ActiveLogs mocks base method
-func (m *MockCommitLog) ActiveLogs() ([]File, error) {
+func (m *MockCommitLog) ActiveLogs() ([]persist.CommitlogFile, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ActiveLogs")
-	ret0, _ := ret[0].([]File)
+	ret0, _ := ret[0].([]persist.CommitlogFile)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -135,10 +136,10 @@ func (mr *MockCommitLogMockRecorder) ActiveLogs() *gomock.Call {
 }
 
 // RotateLogs mocks base method
-func (m *MockCommitLog) RotateLogs() (File, error) {
+func (m *MockCommitLog) RotateLogs() (persist.CommitlogFile, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RotateLogs")
-	ret0, _ := ret[0].(File)
+	ret0, _ := ret[0].(persist.CommitlogFile)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
