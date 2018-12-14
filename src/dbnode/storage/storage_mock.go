@@ -80,11 +80,13 @@ func (m *MockIndexedErrorHandler) EXPECT() *MockIndexedErrorHandlerMockRecorder 
 
 // HandleError mocks base method
 func (m *MockIndexedErrorHandler) HandleError(index int, err error) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "HandleError", index, err)
 }
 
 // HandleError indicates an expected call of HandleError
 func (mr *MockIndexedErrorHandlerMockRecorder) HandleError(index, err interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HandleError", reflect.TypeOf((*MockIndexedErrorHandler)(nil).HandleError), index, err)
 }
 
@@ -113,6 +115,7 @@ func (m *MockDatabase) EXPECT() *MockDatabaseMockRecorder {
 
 // Options mocks base method
 func (m *MockDatabase) Options() Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Options")
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -120,21 +123,25 @@ func (m *MockDatabase) Options() Options {
 
 // Options indicates an expected call of Options
 func (mr *MockDatabaseMockRecorder) Options() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Options", reflect.TypeOf((*MockDatabase)(nil).Options))
 }
 
 // AssignShardSet mocks base method
 func (m *MockDatabase) AssignShardSet(shardSet sharding.ShardSet) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "AssignShardSet", shardSet)
 }
 
 // AssignShardSet indicates an expected call of AssignShardSet
 func (mr *MockDatabaseMockRecorder) AssignShardSet(shardSet interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignShardSet", reflect.TypeOf((*MockDatabase)(nil).AssignShardSet), shardSet)
 }
 
 // Namespaces mocks base method
 func (m *MockDatabase) Namespaces() []Namespace {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Namespaces")
 	ret0, _ := ret[0].([]Namespace)
 	return ret0
@@ -142,11 +149,13 @@ func (m *MockDatabase) Namespaces() []Namespace {
 
 // Namespaces indicates an expected call of Namespaces
 func (mr *MockDatabaseMockRecorder) Namespaces() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Namespaces", reflect.TypeOf((*MockDatabase)(nil).Namespaces))
 }
 
 // Namespace mocks base method
 func (m *MockDatabase) Namespace(ns ident.ID) (Namespace, bool) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Namespace", ns)
 	ret0, _ := ret[0].(Namespace)
 	ret1, _ := ret[1].(bool)
@@ -155,11 +164,13 @@ func (m *MockDatabase) Namespace(ns ident.ID) (Namespace, bool) {
 
 // Namespace indicates an expected call of Namespace
 func (mr *MockDatabaseMockRecorder) Namespace(ns interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Namespace", reflect.TypeOf((*MockDatabase)(nil).Namespace), ns)
 }
 
 // Open mocks base method
 func (m *MockDatabase) Open() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Open")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -167,11 +178,13 @@ func (m *MockDatabase) Open() error {
 
 // Open indicates an expected call of Open
 func (mr *MockDatabaseMockRecorder) Open() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockDatabase)(nil).Open))
 }
 
 // Close mocks base method
 func (m *MockDatabase) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -179,11 +192,13 @@ func (m *MockDatabase) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockDatabaseMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDatabase)(nil).Close))
 }
 
 // ShardSet mocks base method
 func (m *MockDatabase) ShardSet() sharding.ShardSet {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ShardSet")
 	ret0, _ := ret[0].(sharding.ShardSet)
 	return ret0
@@ -191,11 +206,13 @@ func (m *MockDatabase) ShardSet() sharding.ShardSet {
 
 // ShardSet indicates an expected call of ShardSet
 func (mr *MockDatabaseMockRecorder) ShardSet() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShardSet", reflect.TypeOf((*MockDatabase)(nil).ShardSet))
 }
 
 // Terminate mocks base method
 func (m *MockDatabase) Terminate() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Terminate")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -203,11 +220,13 @@ func (m *MockDatabase) Terminate() error {
 
 // Terminate indicates an expected call of Terminate
 func (mr *MockDatabaseMockRecorder) Terminate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Terminate", reflect.TypeOf((*MockDatabase)(nil).Terminate))
 }
 
 // Write mocks base method
 func (m *MockDatabase) Write(ctx context.Context, namespace, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Write", ctx, namespace, id, timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -215,11 +234,13 @@ func (m *MockDatabase) Write(ctx context.Context, namespace, id ident.ID, timest
 
 // Write indicates an expected call of Write
 func (mr *MockDatabaseMockRecorder) Write(ctx, namespace, id, timestamp, value, unit, annotation interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MockDatabase)(nil).Write), ctx, namespace, id, timestamp, value, unit, annotation)
 }
 
 // WriteTagged mocks base method
 func (m *MockDatabase) WriteTagged(ctx context.Context, namespace, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteTagged", ctx, namespace, id, tags, timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -227,11 +248,13 @@ func (m *MockDatabase) WriteTagged(ctx context.Context, namespace, id ident.ID, 
 
 // WriteTagged indicates an expected call of WriteTagged
 func (mr *MockDatabaseMockRecorder) WriteTagged(ctx, namespace, id, tags, timestamp, value, unit, annotation interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*MockDatabase)(nil).WriteTagged), ctx, namespace, id, tags, timestamp, value, unit, annotation)
 }
 
 // BatchWriter mocks base method
 func (m *MockDatabase) BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BatchWriter", namespace, batchSize)
 	ret0, _ := ret[0].(ts.BatchWriter)
 	ret1, _ := ret[1].(error)
@@ -240,11 +263,13 @@ func (m *MockDatabase) BatchWriter(namespace ident.ID, batchSize int) (ts.BatchW
 
 // BatchWriter indicates an expected call of BatchWriter
 func (mr *MockDatabaseMockRecorder) BatchWriter(namespace, batchSize interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchWriter", reflect.TypeOf((*MockDatabase)(nil).BatchWriter), namespace, batchSize)
 }
 
 // WriteBatch mocks base method
 func (m *MockDatabase) WriteBatch(ctx context.Context, namespace ident.ID, writes ts.BatchWriter, errHandler IndexedErrorHandler) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteBatch", ctx, namespace, writes, errHandler)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -252,11 +277,13 @@ func (m *MockDatabase) WriteBatch(ctx context.Context, namespace ident.ID, write
 
 // WriteBatch indicates an expected call of WriteBatch
 func (mr *MockDatabaseMockRecorder) WriteBatch(ctx, namespace, writes, errHandler interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatch", reflect.TypeOf((*MockDatabase)(nil).WriteBatch), ctx, namespace, writes, errHandler)
 }
 
 // WriteTaggedBatch mocks base method
 func (m *MockDatabase) WriteTaggedBatch(ctx context.Context, namespace ident.ID, writes ts.BatchWriter, errHandler IndexedErrorHandler) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteTaggedBatch", ctx, namespace, writes, errHandler)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -264,11 +291,13 @@ func (m *MockDatabase) WriteTaggedBatch(ctx context.Context, namespace ident.ID,
 
 // WriteTaggedBatch indicates an expected call of WriteTaggedBatch
 func (mr *MockDatabaseMockRecorder) WriteTaggedBatch(ctx, namespace, writes, errHandler interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTaggedBatch", reflect.TypeOf((*MockDatabase)(nil).WriteTaggedBatch), ctx, namespace, writes, errHandler)
 }
 
 // QueryIDs mocks base method
 func (m *MockDatabase) QueryIDs(ctx context.Context, namespace ident.ID, query index.Query, opts index.QueryOptions) (index.QueryResults, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "QueryIDs", ctx, namespace, query, opts)
 	ret0, _ := ret[0].(index.QueryResults)
 	ret1, _ := ret[1].(error)
@@ -277,11 +306,13 @@ func (m *MockDatabase) QueryIDs(ctx context.Context, namespace ident.ID, query i
 
 // QueryIDs indicates an expected call of QueryIDs
 func (mr *MockDatabaseMockRecorder) QueryIDs(ctx, namespace, query, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryIDs", reflect.TypeOf((*MockDatabase)(nil).QueryIDs), ctx, namespace, query, opts)
 }
 
 // ReadEncoded mocks base method
 func (m *MockDatabase) ReadEncoded(ctx context.Context, namespace, id ident.ID, start, end time.Time) ([][]xio.BlockReader, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadEncoded", ctx, namespace, id, start, end)
 	ret0, _ := ret[0].([][]xio.BlockReader)
 	ret1, _ := ret[1].(error)
@@ -290,11 +321,13 @@ func (m *MockDatabase) ReadEncoded(ctx context.Context, namespace, id ident.ID, 
 
 // ReadEncoded indicates an expected call of ReadEncoded
 func (mr *MockDatabaseMockRecorder) ReadEncoded(ctx, namespace, id, start, end interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*MockDatabase)(nil).ReadEncoded), ctx, namespace, id, start, end)
 }
 
 // FetchBlocks mocks base method
 func (m *MockDatabase) FetchBlocks(ctx context.Context, namespace ident.ID, shard uint32, id ident.ID, starts []time.Time) ([]block.FetchBlockResult, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocks", ctx, namespace, shard, id, starts)
 	ret0, _ := ret[0].([]block.FetchBlockResult)
 	ret1, _ := ret[1].(error)
@@ -303,11 +336,13 @@ func (m *MockDatabase) FetchBlocks(ctx context.Context, namespace ident.ID, shar
 
 // FetchBlocks indicates an expected call of FetchBlocks
 func (mr *MockDatabaseMockRecorder) FetchBlocks(ctx, namespace, shard, id, starts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocks", reflect.TypeOf((*MockDatabase)(nil).FetchBlocks), ctx, namespace, shard, id, starts)
 }
 
 // FetchBlocksMetadataV2 mocks base method
 func (m *MockDatabase) FetchBlocksMetadataV2(ctx context.Context, namespace ident.ID, shard uint32, start, end time.Time, limit int64, pageToken PageToken, opts block.FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResults, PageToken, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocksMetadataV2", ctx, namespace, shard, start, end, limit, pageToken, opts)
 	ret0, _ := ret[0].(block.FetchBlocksMetadataResults)
 	ret1, _ := ret[1].(PageToken)
@@ -317,11 +352,13 @@ func (m *MockDatabase) FetchBlocksMetadataV2(ctx context.Context, namespace iden
 
 // FetchBlocksMetadataV2 indicates an expected call of FetchBlocksMetadataV2
 func (mr *MockDatabaseMockRecorder) FetchBlocksMetadataV2(ctx, namespace, shard, start, end, limit, pageToken, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksMetadataV2", reflect.TypeOf((*MockDatabase)(nil).FetchBlocksMetadataV2), ctx, namespace, shard, start, end, limit, pageToken, opts)
 }
 
 // Bootstrap mocks base method
 func (m *MockDatabase) Bootstrap() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Bootstrap")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -329,11 +366,13 @@ func (m *MockDatabase) Bootstrap() error {
 
 // Bootstrap indicates an expected call of Bootstrap
 func (mr *MockDatabaseMockRecorder) Bootstrap() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockDatabase)(nil).Bootstrap))
 }
 
 // IsBootstrapped mocks base method
 func (m *MockDatabase) IsBootstrapped() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsBootstrapped")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -341,11 +380,13 @@ func (m *MockDatabase) IsBootstrapped() bool {
 
 // IsBootstrapped indicates an expected call of IsBootstrapped
 func (mr *MockDatabaseMockRecorder) IsBootstrapped() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBootstrapped", reflect.TypeOf((*MockDatabase)(nil).IsBootstrapped))
 }
 
 // IsOverloaded mocks base method
 func (m *MockDatabase) IsOverloaded() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsOverloaded")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -353,11 +394,13 @@ func (m *MockDatabase) IsOverloaded() bool {
 
 // IsOverloaded indicates an expected call of IsOverloaded
 func (mr *MockDatabaseMockRecorder) IsOverloaded() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsOverloaded", reflect.TypeOf((*MockDatabase)(nil).IsOverloaded))
 }
 
 // Repair mocks base method
 func (m *MockDatabase) Repair() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Repair")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -365,11 +408,13 @@ func (m *MockDatabase) Repair() error {
 
 // Repair indicates an expected call of Repair
 func (mr *MockDatabaseMockRecorder) Repair() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Repair", reflect.TypeOf((*MockDatabase)(nil).Repair))
 }
 
 // Truncate mocks base method
 func (m *MockDatabase) Truncate(namespace ident.ID) (int64, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Truncate", namespace)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
@@ -378,11 +423,13 @@ func (m *MockDatabase) Truncate(namespace ident.ID) (int64, error) {
 
 // Truncate indicates an expected call of Truncate
 func (mr *MockDatabaseMockRecorder) Truncate(namespace interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Truncate", reflect.TypeOf((*MockDatabase)(nil).Truncate), namespace)
 }
 
 // BootstrapState mocks base method
 func (m *MockDatabase) BootstrapState() DatabaseBootstrapState {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BootstrapState")
 	ret0, _ := ret[0].(DatabaseBootstrapState)
 	return ret0
@@ -390,6 +437,7 @@ func (m *MockDatabase) BootstrapState() DatabaseBootstrapState {
 
 // BootstrapState indicates an expected call of BootstrapState
 func (mr *MockDatabaseMockRecorder) BootstrapState() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapState", reflect.TypeOf((*MockDatabase)(nil).BootstrapState))
 }
 
@@ -418,6 +466,7 @@ func (m *Mockdatabase) EXPECT() *MockdatabaseMockRecorder {
 
 // Options mocks base method
 func (m *Mockdatabase) Options() Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Options")
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -425,21 +474,25 @@ func (m *Mockdatabase) Options() Options {
 
 // Options indicates an expected call of Options
 func (mr *MockdatabaseMockRecorder) Options() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Options", reflect.TypeOf((*Mockdatabase)(nil).Options))
 }
 
 // AssignShardSet mocks base method
 func (m *Mockdatabase) AssignShardSet(shardSet sharding.ShardSet) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "AssignShardSet", shardSet)
 }
 
 // AssignShardSet indicates an expected call of AssignShardSet
 func (mr *MockdatabaseMockRecorder) AssignShardSet(shardSet interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignShardSet", reflect.TypeOf((*Mockdatabase)(nil).AssignShardSet), shardSet)
 }
 
 // Namespaces mocks base method
 func (m *Mockdatabase) Namespaces() []Namespace {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Namespaces")
 	ret0, _ := ret[0].([]Namespace)
 	return ret0
@@ -447,11 +500,13 @@ func (m *Mockdatabase) Namespaces() []Namespace {
 
 // Namespaces indicates an expected call of Namespaces
 func (mr *MockdatabaseMockRecorder) Namespaces() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Namespaces", reflect.TypeOf((*Mockdatabase)(nil).Namespaces))
 }
 
 // Namespace mocks base method
 func (m *Mockdatabase) Namespace(ns ident.ID) (Namespace, bool) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Namespace", ns)
 	ret0, _ := ret[0].(Namespace)
 	ret1, _ := ret[1].(bool)
@@ -460,11 +515,13 @@ func (m *Mockdatabase) Namespace(ns ident.ID) (Namespace, bool) {
 
 // Namespace indicates an expected call of Namespace
 func (mr *MockdatabaseMockRecorder) Namespace(ns interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Namespace", reflect.TypeOf((*Mockdatabase)(nil).Namespace), ns)
 }
 
 // Open mocks base method
 func (m *Mockdatabase) Open() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Open")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -472,11 +529,13 @@ func (m *Mockdatabase) Open() error {
 
 // Open indicates an expected call of Open
 func (mr *MockdatabaseMockRecorder) Open() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*Mockdatabase)(nil).Open))
 }
 
 // Close mocks base method
 func (m *Mockdatabase) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -484,11 +543,13 @@ func (m *Mockdatabase) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockdatabaseMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*Mockdatabase)(nil).Close))
 }
 
 // ShardSet mocks base method
 func (m *Mockdatabase) ShardSet() sharding.ShardSet {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ShardSet")
 	ret0, _ := ret[0].(sharding.ShardSet)
 	return ret0
@@ -496,11 +557,13 @@ func (m *Mockdatabase) ShardSet() sharding.ShardSet {
 
 // ShardSet indicates an expected call of ShardSet
 func (mr *MockdatabaseMockRecorder) ShardSet() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShardSet", reflect.TypeOf((*Mockdatabase)(nil).ShardSet))
 }
 
 // Terminate mocks base method
 func (m *Mockdatabase) Terminate() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Terminate")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -508,11 +571,13 @@ func (m *Mockdatabase) Terminate() error {
 
 // Terminate indicates an expected call of Terminate
 func (mr *MockdatabaseMockRecorder) Terminate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Terminate", reflect.TypeOf((*Mockdatabase)(nil).Terminate))
 }
 
 // Write mocks base method
 func (m *Mockdatabase) Write(ctx context.Context, namespace, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Write", ctx, namespace, id, timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -520,11 +585,13 @@ func (m *Mockdatabase) Write(ctx context.Context, namespace, id ident.ID, timest
 
 // Write indicates an expected call of Write
 func (mr *MockdatabaseMockRecorder) Write(ctx, namespace, id, timestamp, value, unit, annotation interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*Mockdatabase)(nil).Write), ctx, namespace, id, timestamp, value, unit, annotation)
 }
 
 // WriteTagged mocks base method
 func (m *Mockdatabase) WriteTagged(ctx context.Context, namespace, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteTagged", ctx, namespace, id, tags, timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -532,11 +599,13 @@ func (m *Mockdatabase) WriteTagged(ctx context.Context, namespace, id ident.ID, 
 
 // WriteTagged indicates an expected call of WriteTagged
 func (mr *MockdatabaseMockRecorder) WriteTagged(ctx, namespace, id, tags, timestamp, value, unit, annotation interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*Mockdatabase)(nil).WriteTagged), ctx, namespace, id, tags, timestamp, value, unit, annotation)
 }
 
 // BatchWriter mocks base method
 func (m *Mockdatabase) BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BatchWriter", namespace, batchSize)
 	ret0, _ := ret[0].(ts.BatchWriter)
 	ret1, _ := ret[1].(error)
@@ -545,11 +614,13 @@ func (m *Mockdatabase) BatchWriter(namespace ident.ID, batchSize int) (ts.BatchW
 
 // BatchWriter indicates an expected call of BatchWriter
 func (mr *MockdatabaseMockRecorder) BatchWriter(namespace, batchSize interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchWriter", reflect.TypeOf((*Mockdatabase)(nil).BatchWriter), namespace, batchSize)
 }
 
 // WriteBatch mocks base method
 func (m *Mockdatabase) WriteBatch(ctx context.Context, namespace ident.ID, writes ts.BatchWriter, errHandler IndexedErrorHandler) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteBatch", ctx, namespace, writes, errHandler)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -557,11 +628,13 @@ func (m *Mockdatabase) WriteBatch(ctx context.Context, namespace ident.ID, write
 
 // WriteBatch indicates an expected call of WriteBatch
 func (mr *MockdatabaseMockRecorder) WriteBatch(ctx, namespace, writes, errHandler interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatch", reflect.TypeOf((*Mockdatabase)(nil).WriteBatch), ctx, namespace, writes, errHandler)
 }
 
 // WriteTaggedBatch mocks base method
 func (m *Mockdatabase) WriteTaggedBatch(ctx context.Context, namespace ident.ID, writes ts.BatchWriter, errHandler IndexedErrorHandler) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteTaggedBatch", ctx, namespace, writes, errHandler)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -569,11 +642,13 @@ func (m *Mockdatabase) WriteTaggedBatch(ctx context.Context, namespace ident.ID,
 
 // WriteTaggedBatch indicates an expected call of WriteTaggedBatch
 func (mr *MockdatabaseMockRecorder) WriteTaggedBatch(ctx, namespace, writes, errHandler interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTaggedBatch", reflect.TypeOf((*Mockdatabase)(nil).WriteTaggedBatch), ctx, namespace, writes, errHandler)
 }
 
 // QueryIDs mocks base method
 func (m *Mockdatabase) QueryIDs(ctx context.Context, namespace ident.ID, query index.Query, opts index.QueryOptions) (index.QueryResults, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "QueryIDs", ctx, namespace, query, opts)
 	ret0, _ := ret[0].(index.QueryResults)
 	ret1, _ := ret[1].(error)
@@ -582,11 +657,13 @@ func (m *Mockdatabase) QueryIDs(ctx context.Context, namespace ident.ID, query i
 
 // QueryIDs indicates an expected call of QueryIDs
 func (mr *MockdatabaseMockRecorder) QueryIDs(ctx, namespace, query, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryIDs", reflect.TypeOf((*Mockdatabase)(nil).QueryIDs), ctx, namespace, query, opts)
 }
 
 // ReadEncoded mocks base method
 func (m *Mockdatabase) ReadEncoded(ctx context.Context, namespace, id ident.ID, start, end time.Time) ([][]xio.BlockReader, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadEncoded", ctx, namespace, id, start, end)
 	ret0, _ := ret[0].([][]xio.BlockReader)
 	ret1, _ := ret[1].(error)
@@ -595,11 +672,13 @@ func (m *Mockdatabase) ReadEncoded(ctx context.Context, namespace, id ident.ID, 
 
 // ReadEncoded indicates an expected call of ReadEncoded
 func (mr *MockdatabaseMockRecorder) ReadEncoded(ctx, namespace, id, start, end interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*Mockdatabase)(nil).ReadEncoded), ctx, namespace, id, start, end)
 }
 
 // FetchBlocks mocks base method
 func (m *Mockdatabase) FetchBlocks(ctx context.Context, namespace ident.ID, shard uint32, id ident.ID, starts []time.Time) ([]block.FetchBlockResult, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocks", ctx, namespace, shard, id, starts)
 	ret0, _ := ret[0].([]block.FetchBlockResult)
 	ret1, _ := ret[1].(error)
@@ -608,11 +687,13 @@ func (m *Mockdatabase) FetchBlocks(ctx context.Context, namespace ident.ID, shar
 
 // FetchBlocks indicates an expected call of FetchBlocks
 func (mr *MockdatabaseMockRecorder) FetchBlocks(ctx, namespace, shard, id, starts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocks", reflect.TypeOf((*Mockdatabase)(nil).FetchBlocks), ctx, namespace, shard, id, starts)
 }
 
 // FetchBlocksMetadataV2 mocks base method
 func (m *Mockdatabase) FetchBlocksMetadataV2(ctx context.Context, namespace ident.ID, shard uint32, start, end time.Time, limit int64, pageToken PageToken, opts block.FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResults, PageToken, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocksMetadataV2", ctx, namespace, shard, start, end, limit, pageToken, opts)
 	ret0, _ := ret[0].(block.FetchBlocksMetadataResults)
 	ret1, _ := ret[1].(PageToken)
@@ -622,11 +703,13 @@ func (m *Mockdatabase) FetchBlocksMetadataV2(ctx context.Context, namespace iden
 
 // FetchBlocksMetadataV2 indicates an expected call of FetchBlocksMetadataV2
 func (mr *MockdatabaseMockRecorder) FetchBlocksMetadataV2(ctx, namespace, shard, start, end, limit, pageToken, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksMetadataV2", reflect.TypeOf((*Mockdatabase)(nil).FetchBlocksMetadataV2), ctx, namespace, shard, start, end, limit, pageToken, opts)
 }
 
 // Bootstrap mocks base method
 func (m *Mockdatabase) Bootstrap() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Bootstrap")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -634,11 +717,13 @@ func (m *Mockdatabase) Bootstrap() error {
 
 // Bootstrap indicates an expected call of Bootstrap
 func (mr *MockdatabaseMockRecorder) Bootstrap() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*Mockdatabase)(nil).Bootstrap))
 }
 
 // IsBootstrapped mocks base method
 func (m *Mockdatabase) IsBootstrapped() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsBootstrapped")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -646,11 +731,13 @@ func (m *Mockdatabase) IsBootstrapped() bool {
 
 // IsBootstrapped indicates an expected call of IsBootstrapped
 func (mr *MockdatabaseMockRecorder) IsBootstrapped() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBootstrapped", reflect.TypeOf((*Mockdatabase)(nil).IsBootstrapped))
 }
 
 // IsOverloaded mocks base method
 func (m *Mockdatabase) IsOverloaded() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsOverloaded")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -658,11 +745,13 @@ func (m *Mockdatabase) IsOverloaded() bool {
 
 // IsOverloaded indicates an expected call of IsOverloaded
 func (mr *MockdatabaseMockRecorder) IsOverloaded() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsOverloaded", reflect.TypeOf((*Mockdatabase)(nil).IsOverloaded))
 }
 
 // Repair mocks base method
 func (m *Mockdatabase) Repair() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Repair")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -670,11 +759,13 @@ func (m *Mockdatabase) Repair() error {
 
 // Repair indicates an expected call of Repair
 func (mr *MockdatabaseMockRecorder) Repair() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Repair", reflect.TypeOf((*Mockdatabase)(nil).Repair))
 }
 
 // Truncate mocks base method
 func (m *Mockdatabase) Truncate(namespace ident.ID) (int64, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Truncate", namespace)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
@@ -683,11 +774,13 @@ func (m *Mockdatabase) Truncate(namespace ident.ID) (int64, error) {
 
 // Truncate indicates an expected call of Truncate
 func (mr *MockdatabaseMockRecorder) Truncate(namespace interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Truncate", reflect.TypeOf((*Mockdatabase)(nil).Truncate), namespace)
 }
 
 // BootstrapState mocks base method
 func (m *Mockdatabase) BootstrapState() DatabaseBootstrapState {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BootstrapState")
 	ret0, _ := ret[0].(DatabaseBootstrapState)
 	return ret0
@@ -695,11 +788,13 @@ func (m *Mockdatabase) BootstrapState() DatabaseBootstrapState {
 
 // BootstrapState indicates an expected call of BootstrapState
 func (mr *MockdatabaseMockRecorder) BootstrapState() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapState", reflect.TypeOf((*Mockdatabase)(nil).BootstrapState))
 }
 
 // GetOwnedNamespaces mocks base method
 func (m *Mockdatabase) GetOwnedNamespaces() ([]databaseNamespace, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetOwnedNamespaces")
 	ret0, _ := ret[0].([]databaseNamespace)
 	ret1, _ := ret[1].(error)
@@ -708,11 +803,13 @@ func (m *Mockdatabase) GetOwnedNamespaces() ([]databaseNamespace, error) {
 
 // GetOwnedNamespaces indicates an expected call of GetOwnedNamespaces
 func (mr *MockdatabaseMockRecorder) GetOwnedNamespaces() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOwnedNamespaces", reflect.TypeOf((*Mockdatabase)(nil).GetOwnedNamespaces))
 }
 
 // UpdateOwnedNamespaces mocks base method
 func (m *Mockdatabase) UpdateOwnedNamespaces(namespaces namespace.Map) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateOwnedNamespaces", namespaces)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -720,6 +817,7 @@ func (m *Mockdatabase) UpdateOwnedNamespaces(namespaces namespace.Map) error {
 
 // UpdateOwnedNamespaces indicates an expected call of UpdateOwnedNamespaces
 func (mr *MockdatabaseMockRecorder) UpdateOwnedNamespaces(namespaces interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOwnedNamespaces", reflect.TypeOf((*Mockdatabase)(nil).UpdateOwnedNamespaces), namespaces)
 }
 
@@ -748,6 +846,7 @@ func (m *MockNamespace) EXPECT() *MockNamespaceMockRecorder {
 
 // Options mocks base method
 func (m *MockNamespace) Options() namespace.Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Options")
 	ret0, _ := ret[0].(namespace.Options)
 	return ret0
@@ -755,11 +854,13 @@ func (m *MockNamespace) Options() namespace.Options {
 
 // Options indicates an expected call of Options
 func (mr *MockNamespaceMockRecorder) Options() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Options", reflect.TypeOf((*MockNamespace)(nil).Options))
 }
 
 // ID mocks base method
 func (m *MockNamespace) ID() ident.ID {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ID")
 	ret0, _ := ret[0].(ident.ID)
 	return ret0
@@ -767,11 +868,13 @@ func (m *MockNamespace) ID() ident.ID {
 
 // ID indicates an expected call of ID
 func (mr *MockNamespaceMockRecorder) ID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockNamespace)(nil).ID))
 }
 
 // NumSeries mocks base method
 func (m *MockNamespace) NumSeries() int64 {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NumSeries")
 	ret0, _ := ret[0].(int64)
 	return ret0
@@ -779,11 +882,13 @@ func (m *MockNamespace) NumSeries() int64 {
 
 // NumSeries indicates an expected call of NumSeries
 func (mr *MockNamespaceMockRecorder) NumSeries() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NumSeries", reflect.TypeOf((*MockNamespace)(nil).NumSeries))
 }
 
 // Shards mocks base method
 func (m *MockNamespace) Shards() []Shard {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Shards")
 	ret0, _ := ret[0].([]Shard)
 	return ret0
@@ -791,6 +896,7 @@ func (m *MockNamespace) Shards() []Shard {
 
 // Shards indicates an expected call of Shards
 func (mr *MockNamespaceMockRecorder) Shards() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shards", reflect.TypeOf((*MockNamespace)(nil).Shards))
 }
 
@@ -819,6 +925,7 @@ func (m *MockdatabaseNamespace) EXPECT() *MockdatabaseNamespaceMockRecorder {
 
 // Options mocks base method
 func (m *MockdatabaseNamespace) Options() namespace.Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Options")
 	ret0, _ := ret[0].(namespace.Options)
 	return ret0
@@ -826,11 +933,13 @@ func (m *MockdatabaseNamespace) Options() namespace.Options {
 
 // Options indicates an expected call of Options
 func (mr *MockdatabaseNamespaceMockRecorder) Options() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Options", reflect.TypeOf((*MockdatabaseNamespace)(nil).Options))
 }
 
 // ID mocks base method
 func (m *MockdatabaseNamespace) ID() ident.ID {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ID")
 	ret0, _ := ret[0].(ident.ID)
 	return ret0
@@ -838,11 +947,13 @@ func (m *MockdatabaseNamespace) ID() ident.ID {
 
 // ID indicates an expected call of ID
 func (mr *MockdatabaseNamespaceMockRecorder) ID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockdatabaseNamespace)(nil).ID))
 }
 
 // NumSeries mocks base method
 func (m *MockdatabaseNamespace) NumSeries() int64 {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NumSeries")
 	ret0, _ := ret[0].(int64)
 	return ret0
@@ -850,11 +961,13 @@ func (m *MockdatabaseNamespace) NumSeries() int64 {
 
 // NumSeries indicates an expected call of NumSeries
 func (mr *MockdatabaseNamespaceMockRecorder) NumSeries() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NumSeries", reflect.TypeOf((*MockdatabaseNamespace)(nil).NumSeries))
 }
 
 // Shards mocks base method
 func (m *MockdatabaseNamespace) Shards() []Shard {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Shards")
 	ret0, _ := ret[0].([]Shard)
 	return ret0
@@ -862,11 +975,13 @@ func (m *MockdatabaseNamespace) Shards() []Shard {
 
 // Shards indicates an expected call of Shards
 func (mr *MockdatabaseNamespaceMockRecorder) Shards() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shards", reflect.TypeOf((*MockdatabaseNamespace)(nil).Shards))
 }
 
 // Close mocks base method
 func (m *MockdatabaseNamespace) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -874,21 +989,25 @@ func (m *MockdatabaseNamespace) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockdatabaseNamespaceMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockdatabaseNamespace)(nil).Close))
 }
 
 // AssignShardSet mocks base method
 func (m *MockdatabaseNamespace) AssignShardSet(shardSet sharding.ShardSet) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "AssignShardSet", shardSet)
 }
 
 // AssignShardSet indicates an expected call of AssignShardSet
 func (mr *MockdatabaseNamespaceMockRecorder) AssignShardSet(shardSet interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignShardSet", reflect.TypeOf((*MockdatabaseNamespace)(nil).AssignShardSet), shardSet)
 }
 
 // GetOwnedShards mocks base method
 func (m *MockdatabaseNamespace) GetOwnedShards() []databaseShard {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetOwnedShards")
 	ret0, _ := ret[0].([]databaseShard)
 	return ret0
@@ -896,11 +1015,13 @@ func (m *MockdatabaseNamespace) GetOwnedShards() []databaseShard {
 
 // GetOwnedShards indicates an expected call of GetOwnedShards
 func (mr *MockdatabaseNamespaceMockRecorder) GetOwnedShards() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOwnedShards", reflect.TypeOf((*MockdatabaseNamespace)(nil).GetOwnedShards))
 }
 
 // GetIndex mocks base method
 func (m *MockdatabaseNamespace) GetIndex() (namespaceIndex, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetIndex")
 	ret0, _ := ret[0].(namespaceIndex)
 	ret1, _ := ret[1].(error)
@@ -909,11 +1030,13 @@ func (m *MockdatabaseNamespace) GetIndex() (namespaceIndex, error) {
 
 // GetIndex indicates an expected call of GetIndex
 func (mr *MockdatabaseNamespaceMockRecorder) GetIndex() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIndex", reflect.TypeOf((*MockdatabaseNamespace)(nil).GetIndex))
 }
 
 // Tick mocks base method
 func (m *MockdatabaseNamespace) Tick(c context.Cancellable, tickStart time.Time) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Tick", c, tickStart)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -921,11 +1044,13 @@ func (m *MockdatabaseNamespace) Tick(c context.Cancellable, tickStart time.Time)
 
 // Tick indicates an expected call of Tick
 func (mr *MockdatabaseNamespaceMockRecorder) Tick(c, tickStart interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseNamespace)(nil).Tick), c, tickStart)
 }
 
 // Write mocks base method
 func (m *MockdatabaseNamespace) Write(ctx context.Context, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) (ts.Series, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Write", ctx, id, timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(ts.Series)
 	ret1, _ := ret[1].(error)
@@ -934,11 +1059,13 @@ func (m *MockdatabaseNamespace) Write(ctx context.Context, id ident.ID, timestam
 
 // Write indicates an expected call of Write
 func (mr *MockdatabaseNamespaceMockRecorder) Write(ctx, id, timestamp, value, unit, annotation interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MockdatabaseNamespace)(nil).Write), ctx, id, timestamp, value, unit, annotation)
 }
 
 // WriteTagged mocks base method
 func (m *MockdatabaseNamespace) WriteTagged(ctx context.Context, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) (ts.Series, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteTagged", ctx, id, tags, timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(ts.Series)
 	ret1, _ := ret[1].(error)
@@ -947,11 +1074,13 @@ func (m *MockdatabaseNamespace) WriteTagged(ctx context.Context, id ident.ID, ta
 
 // WriteTagged indicates an expected call of WriteTagged
 func (mr *MockdatabaseNamespaceMockRecorder) WriteTagged(ctx, id, tags, timestamp, value, unit, annotation interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*MockdatabaseNamespace)(nil).WriteTagged), ctx, id, tags, timestamp, value, unit, annotation)
 }
 
 // QueryIDs mocks base method
 func (m *MockdatabaseNamespace) QueryIDs(ctx context.Context, query index.Query, opts index.QueryOptions) (index.QueryResults, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "QueryIDs", ctx, query, opts)
 	ret0, _ := ret[0].(index.QueryResults)
 	ret1, _ := ret[1].(error)
@@ -960,11 +1089,13 @@ func (m *MockdatabaseNamespace) QueryIDs(ctx context.Context, query index.Query,
 
 // QueryIDs indicates an expected call of QueryIDs
 func (mr *MockdatabaseNamespaceMockRecorder) QueryIDs(ctx, query, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryIDs", reflect.TypeOf((*MockdatabaseNamespace)(nil).QueryIDs), ctx, query, opts)
 }
 
 // ReadEncoded mocks base method
 func (m *MockdatabaseNamespace) ReadEncoded(ctx context.Context, id ident.ID, start, end time.Time) ([][]xio.BlockReader, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadEncoded", ctx, id, start, end)
 	ret0, _ := ret[0].([][]xio.BlockReader)
 	ret1, _ := ret[1].(error)
@@ -973,11 +1104,13 @@ func (m *MockdatabaseNamespace) ReadEncoded(ctx context.Context, id ident.ID, st
 
 // ReadEncoded indicates an expected call of ReadEncoded
 func (mr *MockdatabaseNamespaceMockRecorder) ReadEncoded(ctx, id, start, end interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*MockdatabaseNamespace)(nil).ReadEncoded), ctx, id, start, end)
 }
 
 // FetchBlocks mocks base method
 func (m *MockdatabaseNamespace) FetchBlocks(ctx context.Context, shardID uint32, id ident.ID, starts []time.Time) ([]block.FetchBlockResult, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocks", ctx, shardID, id, starts)
 	ret0, _ := ret[0].([]block.FetchBlockResult)
 	ret1, _ := ret[1].(error)
@@ -986,11 +1119,13 @@ func (m *MockdatabaseNamespace) FetchBlocks(ctx context.Context, shardID uint32,
 
 // FetchBlocks indicates an expected call of FetchBlocks
 func (mr *MockdatabaseNamespaceMockRecorder) FetchBlocks(ctx, shardID, id, starts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocks", reflect.TypeOf((*MockdatabaseNamespace)(nil).FetchBlocks), ctx, shardID, id, starts)
 }
 
 // FetchBlocksMetadataV2 mocks base method
 func (m *MockdatabaseNamespace) FetchBlocksMetadataV2(ctx context.Context, shardID uint32, start, end time.Time, limit int64, pageToken PageToken, opts block.FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResults, PageToken, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocksMetadataV2", ctx, shardID, start, end, limit, pageToken, opts)
 	ret0, _ := ret[0].(block.FetchBlocksMetadataResults)
 	ret1, _ := ret[1].(PageToken)
@@ -1000,11 +1135,13 @@ func (m *MockdatabaseNamespace) FetchBlocksMetadataV2(ctx context.Context, shard
 
 // FetchBlocksMetadataV2 indicates an expected call of FetchBlocksMetadataV2
 func (mr *MockdatabaseNamespaceMockRecorder) FetchBlocksMetadataV2(ctx, shardID, start, end, limit, pageToken, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksMetadataV2", reflect.TypeOf((*MockdatabaseNamespace)(nil).FetchBlocksMetadataV2), ctx, shardID, start, end, limit, pageToken, opts)
 }
 
 // Bootstrap mocks base method
 func (m *MockdatabaseNamespace) Bootstrap(start time.Time, process bootstrap.Process) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Bootstrap", start, process)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1012,11 +1149,13 @@ func (m *MockdatabaseNamespace) Bootstrap(start time.Time, process bootstrap.Pro
 
 // Bootstrap indicates an expected call of Bootstrap
 func (mr *MockdatabaseNamespaceMockRecorder) Bootstrap(start, process interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseNamespace)(nil).Bootstrap), start, process)
 }
 
 // Flush mocks base method
 func (m *MockdatabaseNamespace) Flush(blockStart time.Time, ShardBootstrapStates ShardBootstrapStates, flush persist.DataFlush) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Flush", blockStart, ShardBootstrapStates, flush)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1024,11 +1163,13 @@ func (m *MockdatabaseNamespace) Flush(blockStart time.Time, ShardBootstrapStates
 
 // Flush indicates an expected call of Flush
 func (mr *MockdatabaseNamespaceMockRecorder) Flush(blockStart, ShardBootstrapStates, flush interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockdatabaseNamespace)(nil).Flush), blockStart, ShardBootstrapStates, flush)
 }
 
 // FlushIndex mocks base method
 func (m *MockdatabaseNamespace) FlushIndex(flush persist.IndexFlush) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FlushIndex", flush)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1036,11 +1177,13 @@ func (m *MockdatabaseNamespace) FlushIndex(flush persist.IndexFlush) error {
 
 // FlushIndex indicates an expected call of FlushIndex
 func (mr *MockdatabaseNamespaceMockRecorder) FlushIndex(flush interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FlushIndex", reflect.TypeOf((*MockdatabaseNamespace)(nil).FlushIndex), flush)
 }
 
 // Snapshot mocks base method
 func (m *MockdatabaseNamespace) Snapshot(blockStart, snapshotTime time.Time, shardBootstrapStatesAtTickStart ShardBootstrapStates, flush persist.DataFlush) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Snapshot", blockStart, snapshotTime, shardBootstrapStatesAtTickStart, flush)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1048,11 +1191,13 @@ func (m *MockdatabaseNamespace) Snapshot(blockStart, snapshotTime time.Time, sha
 
 // Snapshot indicates an expected call of Snapshot
 func (mr *MockdatabaseNamespaceMockRecorder) Snapshot(blockStart, snapshotTime, shardBootstrapStatesAtTickStart, flush interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockdatabaseNamespace)(nil).Snapshot), blockStart, snapshotTime, shardBootstrapStatesAtTickStart, flush)
 }
 
 // NeedsFlush mocks base method
 func (m *MockdatabaseNamespace) NeedsFlush(alignedInclusiveStart, alignedInclusiveEnd time.Time) bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NeedsFlush", alignedInclusiveStart, alignedInclusiveEnd)
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -1060,11 +1205,13 @@ func (m *MockdatabaseNamespace) NeedsFlush(alignedInclusiveStart, alignedInclusi
 
 // NeedsFlush indicates an expected call of NeedsFlush
 func (mr *MockdatabaseNamespaceMockRecorder) NeedsFlush(alignedInclusiveStart, alignedInclusiveEnd interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NeedsFlush", reflect.TypeOf((*MockdatabaseNamespace)(nil).NeedsFlush), alignedInclusiveStart, alignedInclusiveEnd)
 }
 
 // IsCapturedBySnapshot mocks base method
 func (m *MockdatabaseNamespace) IsCapturedBySnapshot(alignedInclusiveStart, alignedInclusiveEnd, t time.Time) (bool, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsCapturedBySnapshot", alignedInclusiveStart, alignedInclusiveEnd, t)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
@@ -1073,11 +1220,13 @@ func (m *MockdatabaseNamespace) IsCapturedBySnapshot(alignedInclusiveStart, alig
 
 // IsCapturedBySnapshot indicates an expected call of IsCapturedBySnapshot
 func (mr *MockdatabaseNamespaceMockRecorder) IsCapturedBySnapshot(alignedInclusiveStart, alignedInclusiveEnd, t interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsCapturedBySnapshot", reflect.TypeOf((*MockdatabaseNamespace)(nil).IsCapturedBySnapshot), alignedInclusiveStart, alignedInclusiveEnd, t)
 }
 
 // Truncate mocks base method
 func (m *MockdatabaseNamespace) Truncate() (int64, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Truncate")
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
@@ -1086,11 +1235,13 @@ func (m *MockdatabaseNamespace) Truncate() (int64, error) {
 
 // Truncate indicates an expected call of Truncate
 func (mr *MockdatabaseNamespaceMockRecorder) Truncate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Truncate", reflect.TypeOf((*MockdatabaseNamespace)(nil).Truncate))
 }
 
 // Repair mocks base method
 func (m *MockdatabaseNamespace) Repair(repairer databaseShardRepairer, tr time0.Range) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Repair", repairer, tr)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1098,11 +1249,13 @@ func (m *MockdatabaseNamespace) Repair(repairer databaseShardRepairer, tr time0.
 
 // Repair indicates an expected call of Repair
 func (mr *MockdatabaseNamespaceMockRecorder) Repair(repairer, tr interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Repair", reflect.TypeOf((*MockdatabaseNamespace)(nil).Repair), repairer, tr)
 }
 
 // BootstrapState mocks base method
 func (m *MockdatabaseNamespace) BootstrapState() ShardBootstrapStates {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BootstrapState")
 	ret0, _ := ret[0].(ShardBootstrapStates)
 	return ret0
@@ -1110,6 +1263,7 @@ func (m *MockdatabaseNamespace) BootstrapState() ShardBootstrapStates {
 
 // BootstrapState indicates an expected call of BootstrapState
 func (mr *MockdatabaseNamespaceMockRecorder) BootstrapState() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapState", reflect.TypeOf((*MockdatabaseNamespace)(nil).BootstrapState))
 }
 
@@ -1138,6 +1292,7 @@ func (m *MockShard) EXPECT() *MockShardMockRecorder {
 
 // ID mocks base method
 func (m *MockShard) ID() uint32 {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ID")
 	ret0, _ := ret[0].(uint32)
 	return ret0
@@ -1145,11 +1300,13 @@ func (m *MockShard) ID() uint32 {
 
 // ID indicates an expected call of ID
 func (mr *MockShardMockRecorder) ID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockShard)(nil).ID))
 }
 
 // NumSeries mocks base method
 func (m *MockShard) NumSeries() int64 {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NumSeries")
 	ret0, _ := ret[0].(int64)
 	return ret0
@@ -1157,11 +1314,13 @@ func (m *MockShard) NumSeries() int64 {
 
 // NumSeries indicates an expected call of NumSeries
 func (mr *MockShardMockRecorder) NumSeries() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NumSeries", reflect.TypeOf((*MockShard)(nil).NumSeries))
 }
 
 // IsBootstrapped mocks base method
 func (m *MockShard) IsBootstrapped() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsBootstrapped")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -1169,11 +1328,13 @@ func (m *MockShard) IsBootstrapped() bool {
 
 // IsBootstrapped indicates an expected call of IsBootstrapped
 func (mr *MockShardMockRecorder) IsBootstrapped() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBootstrapped", reflect.TypeOf((*MockShard)(nil).IsBootstrapped))
 }
 
 // BootstrapState mocks base method
 func (m *MockShard) BootstrapState() BootstrapState {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BootstrapState")
 	ret0, _ := ret[0].(BootstrapState)
 	return ret0
@@ -1181,6 +1342,7 @@ func (m *MockShard) BootstrapState() BootstrapState {
 
 // BootstrapState indicates an expected call of BootstrapState
 func (mr *MockShardMockRecorder) BootstrapState() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapState", reflect.TypeOf((*MockShard)(nil).BootstrapState))
 }
 
@@ -1209,6 +1371,7 @@ func (m *MockdatabaseShard) EXPECT() *MockdatabaseShardMockRecorder {
 
 // ID mocks base method
 func (m *MockdatabaseShard) ID() uint32 {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ID")
 	ret0, _ := ret[0].(uint32)
 	return ret0
@@ -1216,11 +1379,13 @@ func (m *MockdatabaseShard) ID() uint32 {
 
 // ID indicates an expected call of ID
 func (mr *MockdatabaseShardMockRecorder) ID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockdatabaseShard)(nil).ID))
 }
 
 // NumSeries mocks base method
 func (m *MockdatabaseShard) NumSeries() int64 {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NumSeries")
 	ret0, _ := ret[0].(int64)
 	return ret0
@@ -1228,11 +1393,13 @@ func (m *MockdatabaseShard) NumSeries() int64 {
 
 // NumSeries indicates an expected call of NumSeries
 func (mr *MockdatabaseShardMockRecorder) NumSeries() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NumSeries", reflect.TypeOf((*MockdatabaseShard)(nil).NumSeries))
 }
 
 // IsBootstrapped mocks base method
 func (m *MockdatabaseShard) IsBootstrapped() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsBootstrapped")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -1240,11 +1407,13 @@ func (m *MockdatabaseShard) IsBootstrapped() bool {
 
 // IsBootstrapped indicates an expected call of IsBootstrapped
 func (mr *MockdatabaseShardMockRecorder) IsBootstrapped() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBootstrapped", reflect.TypeOf((*MockdatabaseShard)(nil).IsBootstrapped))
 }
 
 // BootstrapState mocks base method
 func (m *MockdatabaseShard) BootstrapState() BootstrapState {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BootstrapState")
 	ret0, _ := ret[0].(BootstrapState)
 	return ret0
@@ -1252,21 +1421,25 @@ func (m *MockdatabaseShard) BootstrapState() BootstrapState {
 
 // BootstrapState indicates an expected call of BootstrapState
 func (mr *MockdatabaseShardMockRecorder) BootstrapState() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapState", reflect.TypeOf((*MockdatabaseShard)(nil).BootstrapState))
 }
 
 // OnEvictedFromWiredList mocks base method
 func (m *MockdatabaseShard) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "OnEvictedFromWiredList", id, blockStart)
 }
 
 // OnEvictedFromWiredList indicates an expected call of OnEvictedFromWiredList
 func (mr *MockdatabaseShardMockRecorder) OnEvictedFromWiredList(id, blockStart interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnEvictedFromWiredList", reflect.TypeOf((*MockdatabaseShard)(nil).OnEvictedFromWiredList), id, blockStart)
 }
 
 // Close mocks base method
 func (m *MockdatabaseShard) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1274,11 +1447,13 @@ func (m *MockdatabaseShard) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockdatabaseShardMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockdatabaseShard)(nil).Close))
 }
 
 // Tick mocks base method
 func (m *MockdatabaseShard) Tick(c context.Cancellable, tickStart time.Time) (tickResult, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Tick", c, tickStart)
 	ret0, _ := ret[0].(tickResult)
 	ret1, _ := ret[1].(error)
@@ -1287,11 +1462,13 @@ func (m *MockdatabaseShard) Tick(c context.Cancellable, tickStart time.Time) (ti
 
 // Tick indicates an expected call of Tick
 func (mr *MockdatabaseShardMockRecorder) Tick(c, tickStart interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseShard)(nil).Tick), c, tickStart)
 }
 
 // Write mocks base method
 func (m *MockdatabaseShard) Write(ctx context.Context, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) (ts.Series, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Write", ctx, id, timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(ts.Series)
 	ret1, _ := ret[1].(error)
@@ -1300,11 +1477,13 @@ func (m *MockdatabaseShard) Write(ctx context.Context, id ident.ID, timestamp ti
 
 // Write indicates an expected call of Write
 func (mr *MockdatabaseShardMockRecorder) Write(ctx, id, timestamp, value, unit, annotation interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MockdatabaseShard)(nil).Write), ctx, id, timestamp, value, unit, annotation)
 }
 
 // WriteTagged mocks base method
 func (m *MockdatabaseShard) WriteTagged(ctx context.Context, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) (ts.Series, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteTagged", ctx, id, tags, timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(ts.Series)
 	ret1, _ := ret[1].(error)
@@ -1313,11 +1492,13 @@ func (m *MockdatabaseShard) WriteTagged(ctx context.Context, id ident.ID, tags i
 
 // WriteTagged indicates an expected call of WriteTagged
 func (mr *MockdatabaseShardMockRecorder) WriteTagged(ctx, id, tags, timestamp, value, unit, annotation interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteTagged", reflect.TypeOf((*MockdatabaseShard)(nil).WriteTagged), ctx, id, tags, timestamp, value, unit, annotation)
 }
 
 // ReadEncoded mocks base method
 func (m *MockdatabaseShard) ReadEncoded(ctx context.Context, id ident.ID, start, end time.Time) ([][]xio.BlockReader, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadEncoded", ctx, id, start, end)
 	ret0, _ := ret[0].([][]xio.BlockReader)
 	ret1, _ := ret[1].(error)
@@ -1326,11 +1507,13 @@ func (m *MockdatabaseShard) ReadEncoded(ctx context.Context, id ident.ID, start,
 
 // ReadEncoded indicates an expected call of ReadEncoded
 func (mr *MockdatabaseShardMockRecorder) ReadEncoded(ctx, id, start, end interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadEncoded", reflect.TypeOf((*MockdatabaseShard)(nil).ReadEncoded), ctx, id, start, end)
 }
 
 // FetchBlocks mocks base method
 func (m *MockdatabaseShard) FetchBlocks(ctx context.Context, id ident.ID, starts []time.Time) ([]block.FetchBlockResult, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocks", ctx, id, starts)
 	ret0, _ := ret[0].([]block.FetchBlockResult)
 	ret1, _ := ret[1].(error)
@@ -1339,11 +1522,13 @@ func (m *MockdatabaseShard) FetchBlocks(ctx context.Context, id ident.ID, starts
 
 // FetchBlocks indicates an expected call of FetchBlocks
 func (mr *MockdatabaseShardMockRecorder) FetchBlocks(ctx, id, starts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocks", reflect.TypeOf((*MockdatabaseShard)(nil).FetchBlocks), ctx, id, starts)
 }
 
 // FetchBlocksMetadataV2 mocks base method
 func (m *MockdatabaseShard) FetchBlocksMetadataV2(ctx context.Context, start, end time.Time, limit int64, pageToken PageToken, opts block.FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResults, PageToken, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocksMetadataV2", ctx, start, end, limit, pageToken, opts)
 	ret0, _ := ret[0].(block.FetchBlocksMetadataResults)
 	ret1, _ := ret[1].(PageToken)
@@ -1353,11 +1538,13 @@ func (m *MockdatabaseShard) FetchBlocksMetadataV2(ctx context.Context, start, en
 
 // FetchBlocksMetadataV2 indicates an expected call of FetchBlocksMetadataV2
 func (mr *MockdatabaseShardMockRecorder) FetchBlocksMetadataV2(ctx, start, end, limit, pageToken, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksMetadataV2", reflect.TypeOf((*MockdatabaseShard)(nil).FetchBlocksMetadataV2), ctx, start, end, limit, pageToken, opts)
 }
 
 // Bootstrap mocks base method
 func (m *MockdatabaseShard) Bootstrap(bootstrappedSeries *result.Map) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Bootstrap", bootstrappedSeries)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1365,11 +1552,13 @@ func (m *MockdatabaseShard) Bootstrap(bootstrappedSeries *result.Map) error {
 
 // Bootstrap indicates an expected call of Bootstrap
 func (mr *MockdatabaseShardMockRecorder) Bootstrap(bootstrappedSeries interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseShard)(nil).Bootstrap), bootstrappedSeries)
 }
 
 // Flush mocks base method
 func (m *MockdatabaseShard) Flush(blockStart time.Time, flush persist.DataFlush) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Flush", blockStart, flush)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1377,11 +1566,13 @@ func (m *MockdatabaseShard) Flush(blockStart time.Time, flush persist.DataFlush)
 
 // Flush indicates an expected call of Flush
 func (mr *MockdatabaseShardMockRecorder) Flush(blockStart, flush interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockdatabaseShard)(nil).Flush), blockStart, flush)
 }
 
 // Snapshot mocks base method
 func (m *MockdatabaseShard) Snapshot(blockStart, snapshotStart time.Time, flush persist.DataFlush) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Snapshot", blockStart, snapshotStart, flush)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1389,11 +1580,13 @@ func (m *MockdatabaseShard) Snapshot(blockStart, snapshotStart time.Time, flush 
 
 // Snapshot indicates an expected call of Snapshot
 func (mr *MockdatabaseShardMockRecorder) Snapshot(blockStart, snapshotStart, flush interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Snapshot", reflect.TypeOf((*MockdatabaseShard)(nil).Snapshot), blockStart, snapshotStart, flush)
 }
 
 // FlushState mocks base method
 func (m *MockdatabaseShard) FlushState(blockStart time.Time) fileOpState {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FlushState", blockStart)
 	ret0, _ := ret[0].(fileOpState)
 	return ret0
@@ -1401,11 +1594,13 @@ func (m *MockdatabaseShard) FlushState(blockStart time.Time) fileOpState {
 
 // FlushState indicates an expected call of FlushState
 func (mr *MockdatabaseShardMockRecorder) FlushState(blockStart interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FlushState", reflect.TypeOf((*MockdatabaseShard)(nil).FlushState), blockStart)
 }
 
 // SnapshotState mocks base method
 func (m *MockdatabaseShard) SnapshotState() (bool, time.Time) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SnapshotState")
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(time.Time)
@@ -1414,11 +1609,13 @@ func (m *MockdatabaseShard) SnapshotState() (bool, time.Time) {
 
 // SnapshotState indicates an expected call of SnapshotState
 func (mr *MockdatabaseShardMockRecorder) SnapshotState() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SnapshotState", reflect.TypeOf((*MockdatabaseShard)(nil).SnapshotState))
 }
 
 // CleanupSnapshots mocks base method
 func (m *MockdatabaseShard) CleanupSnapshots(earliestToRetain time.Time) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CleanupSnapshots", earliestToRetain)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1426,11 +1623,13 @@ func (m *MockdatabaseShard) CleanupSnapshots(earliestToRetain time.Time) error {
 
 // CleanupSnapshots indicates an expected call of CleanupSnapshots
 func (mr *MockdatabaseShardMockRecorder) CleanupSnapshots(earliestToRetain interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupSnapshots", reflect.TypeOf((*MockdatabaseShard)(nil).CleanupSnapshots), earliestToRetain)
 }
 
 // CleanupExpiredFileSets mocks base method
 func (m *MockdatabaseShard) CleanupExpiredFileSets(earliestToRetain time.Time) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CleanupExpiredFileSets", earliestToRetain)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1438,11 +1637,13 @@ func (m *MockdatabaseShard) CleanupExpiredFileSets(earliestToRetain time.Time) e
 
 // CleanupExpiredFileSets indicates an expected call of CleanupExpiredFileSets
 func (mr *MockdatabaseShardMockRecorder) CleanupExpiredFileSets(earliestToRetain interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupExpiredFileSets", reflect.TypeOf((*MockdatabaseShard)(nil).CleanupExpiredFileSets), earliestToRetain)
 }
 
 // Repair mocks base method
 func (m *MockdatabaseShard) Repair(ctx context.Context, tr time0.Range, repairer databaseShardRepairer) (repair.MetadataComparisonResult, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Repair", ctx, tr, repairer)
 	ret0, _ := ret[0].(repair.MetadataComparisonResult)
 	ret1, _ := ret[1].(error)
@@ -1451,6 +1652,7 @@ func (m *MockdatabaseShard) Repair(ctx context.Context, tr time0.Range, repairer
 
 // Repair indicates an expected call of Repair
 func (mr *MockdatabaseShardMockRecorder) Repair(ctx, tr, repairer interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Repair", reflect.TypeOf((*MockdatabaseShard)(nil).Repair), ctx, tr, repairer)
 }
 
@@ -1479,6 +1681,7 @@ func (m *MocknamespaceIndex) EXPECT() *MocknamespaceIndexMockRecorder {
 
 // BlockStartForWriteTime mocks base method
 func (m *MocknamespaceIndex) BlockStartForWriteTime(writeTime time.Time) time0.UnixNano {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BlockStartForWriteTime", writeTime)
 	ret0, _ := ret[0].(time0.UnixNano)
 	return ret0
@@ -1486,11 +1689,13 @@ func (m *MocknamespaceIndex) BlockStartForWriteTime(writeTime time.Time) time0.U
 
 // BlockStartForWriteTime indicates an expected call of BlockStartForWriteTime
 func (mr *MocknamespaceIndexMockRecorder) BlockStartForWriteTime(writeTime interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlockStartForWriteTime", reflect.TypeOf((*MocknamespaceIndex)(nil).BlockStartForWriteTime), writeTime)
 }
 
 // WriteBatch mocks base method
 func (m *MocknamespaceIndex) WriteBatch(batch *index.WriteBatch) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteBatch", batch)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1498,11 +1703,13 @@ func (m *MocknamespaceIndex) WriteBatch(batch *index.WriteBatch) error {
 
 // WriteBatch indicates an expected call of WriteBatch
 func (mr *MocknamespaceIndexMockRecorder) WriteBatch(batch interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatch", reflect.TypeOf((*MocknamespaceIndex)(nil).WriteBatch), batch)
 }
 
 // Query mocks base method
 func (m *MocknamespaceIndex) Query(ctx context.Context, query index.Query, opts index.QueryOptions) (index.QueryResults, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Query", ctx, query, opts)
 	ret0, _ := ret[0].(index.QueryResults)
 	ret1, _ := ret[1].(error)
@@ -1511,11 +1718,13 @@ func (m *MocknamespaceIndex) Query(ctx context.Context, query index.Query, opts 
 
 // Query indicates an expected call of Query
 func (mr *MocknamespaceIndexMockRecorder) Query(ctx, query, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Query", reflect.TypeOf((*MocknamespaceIndex)(nil).Query), ctx, query, opts)
 }
 
 // Bootstrap mocks base method
 func (m *MocknamespaceIndex) Bootstrap(bootstrapResults result.IndexResults) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Bootstrap", bootstrapResults)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1523,11 +1732,13 @@ func (m *MocknamespaceIndex) Bootstrap(bootstrapResults result.IndexResults) err
 
 // Bootstrap indicates an expected call of Bootstrap
 func (mr *MocknamespaceIndexMockRecorder) Bootstrap(bootstrapResults interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MocknamespaceIndex)(nil).Bootstrap), bootstrapResults)
 }
 
 // CleanupExpiredFileSets mocks base method
 func (m *MocknamespaceIndex) CleanupExpiredFileSets(t time.Time) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CleanupExpiredFileSets", t)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1535,11 +1746,13 @@ func (m *MocknamespaceIndex) CleanupExpiredFileSets(t time.Time) error {
 
 // CleanupExpiredFileSets indicates an expected call of CleanupExpiredFileSets
 func (mr *MocknamespaceIndexMockRecorder) CleanupExpiredFileSets(t interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupExpiredFileSets", reflect.TypeOf((*MocknamespaceIndex)(nil).CleanupExpiredFileSets), t)
 }
 
 // Tick mocks base method
 func (m *MocknamespaceIndex) Tick(c context.Cancellable, tickStart time.Time) (namespaceIndexTickResult, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Tick", c, tickStart)
 	ret0, _ := ret[0].(namespaceIndexTickResult)
 	ret1, _ := ret[1].(error)
@@ -1548,11 +1761,13 @@ func (m *MocknamespaceIndex) Tick(c context.Cancellable, tickStart time.Time) (n
 
 // Tick indicates an expected call of Tick
 func (mr *MocknamespaceIndexMockRecorder) Tick(c, tickStart interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MocknamespaceIndex)(nil).Tick), c, tickStart)
 }
 
 // Flush mocks base method
 func (m *MocknamespaceIndex) Flush(flush persist.IndexFlush, shards []databaseShard) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Flush", flush, shards)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1560,11 +1775,13 @@ func (m *MocknamespaceIndex) Flush(flush persist.IndexFlush, shards []databaseSh
 
 // Flush indicates an expected call of Flush
 func (mr *MocknamespaceIndexMockRecorder) Flush(flush, shards interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MocknamespaceIndex)(nil).Flush), flush, shards)
 }
 
 // Close mocks base method
 func (m *MocknamespaceIndex) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1572,6 +1789,7 @@ func (m *MocknamespaceIndex) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MocknamespaceIndexMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MocknamespaceIndex)(nil).Close))
 }
 
@@ -1600,6 +1818,7 @@ func (m *MocknamespaceIndexInsertQueue) EXPECT() *MocknamespaceIndexInsertQueueM
 
 // Start mocks base method
 func (m *MocknamespaceIndexInsertQueue) Start() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Start")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1607,11 +1826,13 @@ func (m *MocknamespaceIndexInsertQueue) Start() error {
 
 // Start indicates an expected call of Start
 func (mr *MocknamespaceIndexInsertQueueMockRecorder) Start() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MocknamespaceIndexInsertQueue)(nil).Start))
 }
 
 // Stop mocks base method
 func (m *MocknamespaceIndexInsertQueue) Stop() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Stop")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1619,11 +1840,13 @@ func (m *MocknamespaceIndexInsertQueue) Stop() error {
 
 // Stop indicates an expected call of Stop
 func (mr *MocknamespaceIndexInsertQueueMockRecorder) Stop() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MocknamespaceIndexInsertQueue)(nil).Stop))
 }
 
 // InsertBatch mocks base method
 func (m *MocknamespaceIndexInsertQueue) InsertBatch(batch *index.WriteBatch) (*sync.WaitGroup, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertBatch", batch)
 	ret0, _ := ret[0].(*sync.WaitGroup)
 	ret1, _ := ret[1].(error)
@@ -1632,6 +1855,7 @@ func (m *MocknamespaceIndexInsertQueue) InsertBatch(batch *index.WriteBatch) (*s
 
 // InsertBatch indicates an expected call of InsertBatch
 func (mr *MocknamespaceIndexInsertQueueMockRecorder) InsertBatch(batch interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertBatch", reflect.TypeOf((*MocknamespaceIndexInsertQueue)(nil).InsertBatch), batch)
 }
 
@@ -1660,6 +1884,7 @@ func (m *MockdatabaseBootstrapManager) EXPECT() *MockdatabaseBootstrapManagerMoc
 
 // IsBootstrapped mocks base method
 func (m *MockdatabaseBootstrapManager) IsBootstrapped() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsBootstrapped")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -1667,11 +1892,13 @@ func (m *MockdatabaseBootstrapManager) IsBootstrapped() bool {
 
 // IsBootstrapped indicates an expected call of IsBootstrapped
 func (mr *MockdatabaseBootstrapManagerMockRecorder) IsBootstrapped() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBootstrapped", reflect.TypeOf((*MockdatabaseBootstrapManager)(nil).IsBootstrapped))
 }
 
 // Bootstrap mocks base method
 func (m *MockdatabaseBootstrapManager) Bootstrap() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Bootstrap")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1679,16 +1906,19 @@ func (m *MockdatabaseBootstrapManager) Bootstrap() error {
 
 // Bootstrap indicates an expected call of Bootstrap
 func (mr *MockdatabaseBootstrapManagerMockRecorder) Bootstrap() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseBootstrapManager)(nil).Bootstrap))
 }
 
 // Report mocks base method
 func (m *MockdatabaseBootstrapManager) Report() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Report")
 }
 
 // Report indicates an expected call of Report
 func (mr *MockdatabaseBootstrapManagerMockRecorder) Report() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Report", reflect.TypeOf((*MockdatabaseBootstrapManager)(nil).Report))
 }
 
@@ -1717,6 +1947,7 @@ func (m *MockdatabaseFlushManager) EXPECT() *MockdatabaseFlushManagerMockRecorde
 
 // Flush mocks base method
 func (m *MockdatabaseFlushManager) Flush(tickStart time.Time, dbBootstrapStateAtTickStart DatabaseBootstrapState) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Flush", tickStart, dbBootstrapStateAtTickStart)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1724,16 +1955,19 @@ func (m *MockdatabaseFlushManager) Flush(tickStart time.Time, dbBootstrapStateAt
 
 // Flush indicates an expected call of Flush
 func (mr *MockdatabaseFlushManagerMockRecorder) Flush(tickStart, dbBootstrapStateAtTickStart interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockdatabaseFlushManager)(nil).Flush), tickStart, dbBootstrapStateAtTickStart)
 }
 
 // Report mocks base method
 func (m *MockdatabaseFlushManager) Report() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Report")
 }
 
 // Report indicates an expected call of Report
 func (mr *MockdatabaseFlushManagerMockRecorder) Report() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Report", reflect.TypeOf((*MockdatabaseFlushManager)(nil).Report))
 }
 
@@ -1762,6 +1996,7 @@ func (m *MockdatabaseCleanupManager) EXPECT() *MockdatabaseCleanupManagerMockRec
 
 // Cleanup mocks base method
 func (m *MockdatabaseCleanupManager) Cleanup(t time.Time) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Cleanup", t)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1769,16 +2004,19 @@ func (m *MockdatabaseCleanupManager) Cleanup(t time.Time) error {
 
 // Cleanup indicates an expected call of Cleanup
 func (mr *MockdatabaseCleanupManagerMockRecorder) Cleanup(t interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cleanup", reflect.TypeOf((*MockdatabaseCleanupManager)(nil).Cleanup), t)
 }
 
 // Report mocks base method
 func (m *MockdatabaseCleanupManager) Report() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Report")
 }
 
 // Report indicates an expected call of Report
 func (mr *MockdatabaseCleanupManagerMockRecorder) Report() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Report", reflect.TypeOf((*MockdatabaseCleanupManager)(nil).Report))
 }
 
@@ -1807,6 +2045,7 @@ func (m *MockdatabaseFileSystemManager) EXPECT() *MockdatabaseFileSystemManagerM
 
 // Cleanup mocks base method
 func (m *MockdatabaseFileSystemManager) Cleanup(t time.Time) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Cleanup", t)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1814,11 +2053,13 @@ func (m *MockdatabaseFileSystemManager) Cleanup(t time.Time) error {
 
 // Cleanup indicates an expected call of Cleanup
 func (mr *MockdatabaseFileSystemManagerMockRecorder) Cleanup(t interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cleanup", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).Cleanup), t)
 }
 
 // Flush mocks base method
 func (m *MockdatabaseFileSystemManager) Flush(t time.Time, dbBootstrapStateAtTickStart DatabaseBootstrapState) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Flush", t, dbBootstrapStateAtTickStart)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1826,11 +2067,13 @@ func (m *MockdatabaseFileSystemManager) Flush(t time.Time, dbBootstrapStateAtTic
 
 // Flush indicates an expected call of Flush
 func (mr *MockdatabaseFileSystemManagerMockRecorder) Flush(t, dbBootstrapStateAtTickStart interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Flush", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).Flush), t, dbBootstrapStateAtTickStart)
 }
 
 // Disable mocks base method
 func (m *MockdatabaseFileSystemManager) Disable() fileOpStatus {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Disable")
 	ret0, _ := ret[0].(fileOpStatus)
 	return ret0
@@ -1838,11 +2081,13 @@ func (m *MockdatabaseFileSystemManager) Disable() fileOpStatus {
 
 // Disable indicates an expected call of Disable
 func (mr *MockdatabaseFileSystemManagerMockRecorder) Disable() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Disable", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).Disable))
 }
 
 // Enable mocks base method
 func (m *MockdatabaseFileSystemManager) Enable() fileOpStatus {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Enable")
 	ret0, _ := ret[0].(fileOpStatus)
 	return ret0
@@ -1850,11 +2095,13 @@ func (m *MockdatabaseFileSystemManager) Enable() fileOpStatus {
 
 // Enable indicates an expected call of Enable
 func (mr *MockdatabaseFileSystemManagerMockRecorder) Enable() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Enable", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).Enable))
 }
 
 // Status mocks base method
 func (m *MockdatabaseFileSystemManager) Status() fileOpStatus {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Status")
 	ret0, _ := ret[0].(fileOpStatus)
 	return ret0
@@ -1862,11 +2109,13 @@ func (m *MockdatabaseFileSystemManager) Status() fileOpStatus {
 
 // Status indicates an expected call of Status
 func (mr *MockdatabaseFileSystemManagerMockRecorder) Status() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Status", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).Status))
 }
 
 // Run mocks base method
 func (m *MockdatabaseFileSystemManager) Run(t time.Time, dbBootstrapStateAtTickStart DatabaseBootstrapState, runType runType, forceType forceType) bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Run", t, dbBootstrapStateAtTickStart, runType, forceType)
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -1874,16 +2123,19 @@ func (m *MockdatabaseFileSystemManager) Run(t time.Time, dbBootstrapStateAtTickS
 
 // Run indicates an expected call of Run
 func (mr *MockdatabaseFileSystemManagerMockRecorder) Run(t, dbBootstrapStateAtTickStart, runType, forceType interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).Run), t, dbBootstrapStateAtTickStart, runType, forceType)
 }
 
 // Report mocks base method
 func (m *MockdatabaseFileSystemManager) Report() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Report")
 }
 
 // Report indicates an expected call of Report
 func (mr *MockdatabaseFileSystemManagerMockRecorder) Report() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Report", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).Report))
 }
 
@@ -1912,6 +2164,7 @@ func (m *MockdatabaseShardRepairer) EXPECT() *MockdatabaseShardRepairerMockRecor
 
 // Options mocks base method
 func (m *MockdatabaseShardRepairer) Options() repair.Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Options")
 	ret0, _ := ret[0].(repair.Options)
 	return ret0
@@ -1919,11 +2172,13 @@ func (m *MockdatabaseShardRepairer) Options() repair.Options {
 
 // Options indicates an expected call of Options
 func (mr *MockdatabaseShardRepairerMockRecorder) Options() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Options", reflect.TypeOf((*MockdatabaseShardRepairer)(nil).Options))
 }
 
 // Repair mocks base method
 func (m *MockdatabaseShardRepairer) Repair(ctx context.Context, namespace ident.ID, tr time0.Range, shard databaseShard) (repair.MetadataComparisonResult, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Repair", ctx, namespace, tr, shard)
 	ret0, _ := ret[0].(repair.MetadataComparisonResult)
 	ret1, _ := ret[1].(error)
@@ -1932,6 +2187,7 @@ func (m *MockdatabaseShardRepairer) Repair(ctx context.Context, namespace ident.
 
 // Repair indicates an expected call of Repair
 func (mr *MockdatabaseShardRepairerMockRecorder) Repair(ctx, namespace, tr, shard interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Repair", reflect.TypeOf((*MockdatabaseShardRepairer)(nil).Repair), ctx, namespace, tr, shard)
 }
 
@@ -1960,26 +2216,31 @@ func (m *MockdatabaseRepairer) EXPECT() *MockdatabaseRepairerMockRecorder {
 
 // Start mocks base method
 func (m *MockdatabaseRepairer) Start() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Start")
 }
 
 // Start indicates an expected call of Start
 func (mr *MockdatabaseRepairerMockRecorder) Start() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockdatabaseRepairer)(nil).Start))
 }
 
 // Stop mocks base method
 func (m *MockdatabaseRepairer) Stop() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Stop")
 }
 
 // Stop indicates an expected call of Stop
 func (mr *MockdatabaseRepairerMockRecorder) Stop() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockdatabaseRepairer)(nil).Stop))
 }
 
 // Repair mocks base method
 func (m *MockdatabaseRepairer) Repair() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Repair")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1987,16 +2248,19 @@ func (m *MockdatabaseRepairer) Repair() error {
 
 // Repair indicates an expected call of Repair
 func (mr *MockdatabaseRepairerMockRecorder) Repair() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Repair", reflect.TypeOf((*MockdatabaseRepairer)(nil).Repair))
 }
 
 // Report mocks base method
 func (m *MockdatabaseRepairer) Report() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Report")
 }
 
 // Report indicates an expected call of Report
 func (mr *MockdatabaseRepairerMockRecorder) Report() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Report", reflect.TypeOf((*MockdatabaseRepairer)(nil).Report))
 }
 
@@ -2025,6 +2289,7 @@ func (m *MockdatabaseTickManager) EXPECT() *MockdatabaseTickManagerMockRecorder 
 
 // Tick mocks base method
 func (m *MockdatabaseTickManager) Tick(forceType forceType, tickStart time.Time) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Tick", forceType, tickStart)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -2032,6 +2297,7 @@ func (m *MockdatabaseTickManager) Tick(forceType forceType, tickStart time.Time)
 
 // Tick indicates an expected call of Tick
 func (mr *MockdatabaseTickManagerMockRecorder) Tick(forceType, tickStart interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseTickManager)(nil).Tick), forceType, tickStart)
 }
 
@@ -2060,6 +2326,7 @@ func (m *MockdatabaseMediator) EXPECT() *MockdatabaseMediatorMockRecorder {
 
 // Open mocks base method
 func (m *MockdatabaseMediator) Open() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Open")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -2067,11 +2334,13 @@ func (m *MockdatabaseMediator) Open() error {
 
 // Open indicates an expected call of Open
 func (mr *MockdatabaseMediatorMockRecorder) Open() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockdatabaseMediator)(nil).Open))
 }
 
 // IsBootstrapped mocks base method
 func (m *MockdatabaseMediator) IsBootstrapped() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsBootstrapped")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -2079,11 +2348,13 @@ func (m *MockdatabaseMediator) IsBootstrapped() bool {
 
 // IsBootstrapped indicates an expected call of IsBootstrapped
 func (mr *MockdatabaseMediatorMockRecorder) IsBootstrapped() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBootstrapped", reflect.TypeOf((*MockdatabaseMediator)(nil).IsBootstrapped))
 }
 
 // Bootstrap mocks base method
 func (m *MockdatabaseMediator) Bootstrap() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Bootstrap")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -2091,31 +2362,37 @@ func (m *MockdatabaseMediator) Bootstrap() error {
 
 // Bootstrap indicates an expected call of Bootstrap
 func (mr *MockdatabaseMediatorMockRecorder) Bootstrap() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseMediator)(nil).Bootstrap))
 }
 
 // DisableFileOps mocks base method
 func (m *MockdatabaseMediator) DisableFileOps() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "DisableFileOps")
 }
 
 // DisableFileOps indicates an expected call of DisableFileOps
 func (mr *MockdatabaseMediatorMockRecorder) DisableFileOps() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DisableFileOps", reflect.TypeOf((*MockdatabaseMediator)(nil).DisableFileOps))
 }
 
 // EnableFileOps mocks base method
 func (m *MockdatabaseMediator) EnableFileOps() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "EnableFileOps")
 }
 
 // EnableFileOps indicates an expected call of EnableFileOps
 func (mr *MockdatabaseMediatorMockRecorder) EnableFileOps() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnableFileOps", reflect.TypeOf((*MockdatabaseMediator)(nil).EnableFileOps))
 }
 
 // Tick mocks base method
 func (m *MockdatabaseMediator) Tick(runType runType, forceType forceType) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Tick", runType, forceType)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -2123,11 +2400,13 @@ func (m *MockdatabaseMediator) Tick(runType runType, forceType forceType) error 
 
 // Tick indicates an expected call of Tick
 func (mr *MockdatabaseMediatorMockRecorder) Tick(runType, forceType interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseMediator)(nil).Tick), runType, forceType)
 }
 
 // Repair mocks base method
 func (m *MockdatabaseMediator) Repair() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Repair")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -2135,11 +2414,13 @@ func (m *MockdatabaseMediator) Repair() error {
 
 // Repair indicates an expected call of Repair
 func (mr *MockdatabaseMediatorMockRecorder) Repair() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Repair", reflect.TypeOf((*MockdatabaseMediator)(nil).Repair))
 }
 
 // Close mocks base method
 func (m *MockdatabaseMediator) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -2147,16 +2428,19 @@ func (m *MockdatabaseMediator) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockdatabaseMediatorMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockdatabaseMediator)(nil).Close))
 }
 
 // Report mocks base method
 func (m *MockdatabaseMediator) Report() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Report")
 }
 
 // Report indicates an expected call of Report
 func (mr *MockdatabaseMediatorMockRecorder) Report() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Report", reflect.TypeOf((*MockdatabaseMediator)(nil).Report))
 }
 
@@ -2185,6 +2469,7 @@ func (m *MockdatabaseNamespaceWatch) EXPECT() *MockdatabaseNamespaceWatchMockRec
 
 // Start mocks base method
 func (m *MockdatabaseNamespaceWatch) Start() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Start")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -2192,11 +2477,13 @@ func (m *MockdatabaseNamespaceWatch) Start() error {
 
 // Start indicates an expected call of Start
 func (mr *MockdatabaseNamespaceWatchMockRecorder) Start() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockdatabaseNamespaceWatch)(nil).Start))
 }
 
 // Stop mocks base method
 func (m *MockdatabaseNamespaceWatch) Stop() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Stop")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -2204,11 +2491,13 @@ func (m *MockdatabaseNamespaceWatch) Stop() error {
 
 // Stop indicates an expected call of Stop
 func (mr *MockdatabaseNamespaceWatchMockRecorder) Stop() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockdatabaseNamespaceWatch)(nil).Stop))
 }
 
 // Close mocks base method
 func (m *MockdatabaseNamespaceWatch) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -2216,6 +2505,7 @@ func (m *MockdatabaseNamespaceWatch) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockdatabaseNamespaceWatchMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockdatabaseNamespaceWatch)(nil).Close))
 }
 
@@ -2244,6 +2534,7 @@ func (m *MockOptions) EXPECT() *MockOptionsMockRecorder {
 
 // Validate mocks base method
 func (m *MockOptions) Validate() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Validate")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -2251,11 +2542,13 @@ func (m *MockOptions) Validate() error {
 
 // Validate indicates an expected call of Validate
 func (mr *MockOptionsMockRecorder) Validate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Validate", reflect.TypeOf((*MockOptions)(nil).Validate))
 }
 
 // SetEncodingM3TSZPooled mocks base method
 func (m *MockOptions) SetEncodingM3TSZPooled() Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetEncodingM3TSZPooled")
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2263,11 +2556,13 @@ func (m *MockOptions) SetEncodingM3TSZPooled() Options {
 
 // SetEncodingM3TSZPooled indicates an expected call of SetEncodingM3TSZPooled
 func (mr *MockOptionsMockRecorder) SetEncodingM3TSZPooled() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEncodingM3TSZPooled", reflect.TypeOf((*MockOptions)(nil).SetEncodingM3TSZPooled))
 }
 
 // SetClockOptions mocks base method
 func (m *MockOptions) SetClockOptions(value clock.Options) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetClockOptions", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2275,11 +2570,13 @@ func (m *MockOptions) SetClockOptions(value clock.Options) Options {
 
 // SetClockOptions indicates an expected call of SetClockOptions
 func (mr *MockOptionsMockRecorder) SetClockOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetClockOptions", reflect.TypeOf((*MockOptions)(nil).SetClockOptions), value)
 }
 
 // ClockOptions mocks base method
 func (m *MockOptions) ClockOptions() clock.Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ClockOptions")
 	ret0, _ := ret[0].(clock.Options)
 	return ret0
@@ -2287,11 +2584,13 @@ func (m *MockOptions) ClockOptions() clock.Options {
 
 // ClockOptions indicates an expected call of ClockOptions
 func (mr *MockOptionsMockRecorder) ClockOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClockOptions", reflect.TypeOf((*MockOptions)(nil).ClockOptions))
 }
 
 // SetInstrumentOptions mocks base method
 func (m *MockOptions) SetInstrumentOptions(value instrument.Options) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetInstrumentOptions", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2299,11 +2598,13 @@ func (m *MockOptions) SetInstrumentOptions(value instrument.Options) Options {
 
 // SetInstrumentOptions indicates an expected call of SetInstrumentOptions
 func (mr *MockOptionsMockRecorder) SetInstrumentOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInstrumentOptions", reflect.TypeOf((*MockOptions)(nil).SetInstrumentOptions), value)
 }
 
 // InstrumentOptions mocks base method
 func (m *MockOptions) InstrumentOptions() instrument.Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InstrumentOptions")
 	ret0, _ := ret[0].(instrument.Options)
 	return ret0
@@ -2311,11 +2612,13 @@ func (m *MockOptions) InstrumentOptions() instrument.Options {
 
 // InstrumentOptions indicates an expected call of InstrumentOptions
 func (mr *MockOptionsMockRecorder) InstrumentOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstrumentOptions", reflect.TypeOf((*MockOptions)(nil).InstrumentOptions))
 }
 
 // SetNamespaceInitializer mocks base method
 func (m *MockOptions) SetNamespaceInitializer(value namespace.Initializer) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetNamespaceInitializer", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2323,11 +2626,13 @@ func (m *MockOptions) SetNamespaceInitializer(value namespace.Initializer) Optio
 
 // SetNamespaceInitializer indicates an expected call of SetNamespaceInitializer
 func (mr *MockOptionsMockRecorder) SetNamespaceInitializer(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNamespaceInitializer", reflect.TypeOf((*MockOptions)(nil).SetNamespaceInitializer), value)
 }
 
 // NamespaceInitializer mocks base method
 func (m *MockOptions) NamespaceInitializer() namespace.Initializer {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NamespaceInitializer")
 	ret0, _ := ret[0].(namespace.Initializer)
 	return ret0
@@ -2335,11 +2640,13 @@ func (m *MockOptions) NamespaceInitializer() namespace.Initializer {
 
 // NamespaceInitializer indicates an expected call of NamespaceInitializer
 func (mr *MockOptionsMockRecorder) NamespaceInitializer() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NamespaceInitializer", reflect.TypeOf((*MockOptions)(nil).NamespaceInitializer))
 }
 
 // SetDatabaseBlockOptions mocks base method
 func (m *MockOptions) SetDatabaseBlockOptions(value block.Options) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetDatabaseBlockOptions", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2347,11 +2654,13 @@ func (m *MockOptions) SetDatabaseBlockOptions(value block.Options) Options {
 
 // SetDatabaseBlockOptions indicates an expected call of SetDatabaseBlockOptions
 func (mr *MockOptionsMockRecorder) SetDatabaseBlockOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetDatabaseBlockOptions", reflect.TypeOf((*MockOptions)(nil).SetDatabaseBlockOptions), value)
 }
 
 // DatabaseBlockOptions mocks base method
 func (m *MockOptions) DatabaseBlockOptions() block.Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DatabaseBlockOptions")
 	ret0, _ := ret[0].(block.Options)
 	return ret0
@@ -2359,11 +2668,13 @@ func (m *MockOptions) DatabaseBlockOptions() block.Options {
 
 // DatabaseBlockOptions indicates an expected call of DatabaseBlockOptions
 func (mr *MockOptionsMockRecorder) DatabaseBlockOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DatabaseBlockOptions", reflect.TypeOf((*MockOptions)(nil).DatabaseBlockOptions))
 }
 
 // SetCommitLogOptions mocks base method
 func (m *MockOptions) SetCommitLogOptions(value commitlog.Options) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetCommitLogOptions", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2371,11 +2682,13 @@ func (m *MockOptions) SetCommitLogOptions(value commitlog.Options) Options {
 
 // SetCommitLogOptions indicates an expected call of SetCommitLogOptions
 func (mr *MockOptionsMockRecorder) SetCommitLogOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCommitLogOptions", reflect.TypeOf((*MockOptions)(nil).SetCommitLogOptions), value)
 }
 
 // CommitLogOptions mocks base method
 func (m *MockOptions) CommitLogOptions() commitlog.Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CommitLogOptions")
 	ret0, _ := ret[0].(commitlog.Options)
 	return ret0
@@ -2383,11 +2696,13 @@ func (m *MockOptions) CommitLogOptions() commitlog.Options {
 
 // CommitLogOptions indicates an expected call of CommitLogOptions
 func (mr *MockOptionsMockRecorder) CommitLogOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CommitLogOptions", reflect.TypeOf((*MockOptions)(nil).CommitLogOptions))
 }
 
 // SetRuntimeOptionsManager mocks base method
 func (m *MockOptions) SetRuntimeOptionsManager(value runtime.OptionsManager) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetRuntimeOptionsManager", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2395,11 +2710,13 @@ func (m *MockOptions) SetRuntimeOptionsManager(value runtime.OptionsManager) Opt
 
 // SetRuntimeOptionsManager indicates an expected call of SetRuntimeOptionsManager
 func (mr *MockOptionsMockRecorder) SetRuntimeOptionsManager(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRuntimeOptionsManager", reflect.TypeOf((*MockOptions)(nil).SetRuntimeOptionsManager), value)
 }
 
 // RuntimeOptionsManager mocks base method
 func (m *MockOptions) RuntimeOptionsManager() runtime.OptionsManager {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RuntimeOptionsManager")
 	ret0, _ := ret[0].(runtime.OptionsManager)
 	return ret0
@@ -2407,11 +2724,13 @@ func (m *MockOptions) RuntimeOptionsManager() runtime.OptionsManager {
 
 // RuntimeOptionsManager indicates an expected call of RuntimeOptionsManager
 func (mr *MockOptionsMockRecorder) RuntimeOptionsManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RuntimeOptionsManager", reflect.TypeOf((*MockOptions)(nil).RuntimeOptionsManager))
 }
 
 // SetErrorCounterOptions mocks base method
 func (m *MockOptions) SetErrorCounterOptions(value xcounter.Options) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetErrorCounterOptions", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2419,11 +2738,13 @@ func (m *MockOptions) SetErrorCounterOptions(value xcounter.Options) Options {
 
 // SetErrorCounterOptions indicates an expected call of SetErrorCounterOptions
 func (mr *MockOptionsMockRecorder) SetErrorCounterOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetErrorCounterOptions", reflect.TypeOf((*MockOptions)(nil).SetErrorCounterOptions), value)
 }
 
 // ErrorCounterOptions mocks base method
 func (m *MockOptions) ErrorCounterOptions() xcounter.Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ErrorCounterOptions")
 	ret0, _ := ret[0].(xcounter.Options)
 	return ret0
@@ -2431,11 +2752,13 @@ func (m *MockOptions) ErrorCounterOptions() xcounter.Options {
 
 // ErrorCounterOptions indicates an expected call of ErrorCounterOptions
 func (mr *MockOptionsMockRecorder) ErrorCounterOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ErrorCounterOptions", reflect.TypeOf((*MockOptions)(nil).ErrorCounterOptions))
 }
 
 // SetErrorWindowForLoad mocks base method
 func (m *MockOptions) SetErrorWindowForLoad(value time.Duration) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetErrorWindowForLoad", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2443,11 +2766,13 @@ func (m *MockOptions) SetErrorWindowForLoad(value time.Duration) Options {
 
 // SetErrorWindowForLoad indicates an expected call of SetErrorWindowForLoad
 func (mr *MockOptionsMockRecorder) SetErrorWindowForLoad(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetErrorWindowForLoad", reflect.TypeOf((*MockOptions)(nil).SetErrorWindowForLoad), value)
 }
 
 // ErrorWindowForLoad mocks base method
 func (m *MockOptions) ErrorWindowForLoad() time.Duration {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ErrorWindowForLoad")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
@@ -2455,11 +2780,13 @@ func (m *MockOptions) ErrorWindowForLoad() time.Duration {
 
 // ErrorWindowForLoad indicates an expected call of ErrorWindowForLoad
 func (mr *MockOptionsMockRecorder) ErrorWindowForLoad() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ErrorWindowForLoad", reflect.TypeOf((*MockOptions)(nil).ErrorWindowForLoad))
 }
 
 // SetErrorThresholdForLoad mocks base method
 func (m *MockOptions) SetErrorThresholdForLoad(value int64) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetErrorThresholdForLoad", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2467,11 +2794,13 @@ func (m *MockOptions) SetErrorThresholdForLoad(value int64) Options {
 
 // SetErrorThresholdForLoad indicates an expected call of SetErrorThresholdForLoad
 func (mr *MockOptionsMockRecorder) SetErrorThresholdForLoad(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetErrorThresholdForLoad", reflect.TypeOf((*MockOptions)(nil).SetErrorThresholdForLoad), value)
 }
 
 // ErrorThresholdForLoad mocks base method
 func (m *MockOptions) ErrorThresholdForLoad() int64 {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ErrorThresholdForLoad")
 	ret0, _ := ret[0].(int64)
 	return ret0
@@ -2479,11 +2808,13 @@ func (m *MockOptions) ErrorThresholdForLoad() int64 {
 
 // ErrorThresholdForLoad indicates an expected call of ErrorThresholdForLoad
 func (mr *MockOptionsMockRecorder) ErrorThresholdForLoad() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ErrorThresholdForLoad", reflect.TypeOf((*MockOptions)(nil).ErrorThresholdForLoad))
 }
 
 // SetIndexOptions mocks base method
 func (m *MockOptions) SetIndexOptions(value index.Options) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetIndexOptions", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2491,11 +2822,13 @@ func (m *MockOptions) SetIndexOptions(value index.Options) Options {
 
 // SetIndexOptions indicates an expected call of SetIndexOptions
 func (mr *MockOptionsMockRecorder) SetIndexOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIndexOptions", reflect.TypeOf((*MockOptions)(nil).SetIndexOptions), value)
 }
 
 // IndexOptions mocks base method
 func (m *MockOptions) IndexOptions() index.Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IndexOptions")
 	ret0, _ := ret[0].(index.Options)
 	return ret0
@@ -2503,11 +2836,13 @@ func (m *MockOptions) IndexOptions() index.Options {
 
 // IndexOptions indicates an expected call of IndexOptions
 func (mr *MockOptionsMockRecorder) IndexOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexOptions", reflect.TypeOf((*MockOptions)(nil).IndexOptions))
 }
 
 // SetRepairEnabled mocks base method
 func (m *MockOptions) SetRepairEnabled(b bool) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetRepairEnabled", b)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2515,11 +2850,13 @@ func (m *MockOptions) SetRepairEnabled(b bool) Options {
 
 // SetRepairEnabled indicates an expected call of SetRepairEnabled
 func (mr *MockOptionsMockRecorder) SetRepairEnabled(b interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRepairEnabled", reflect.TypeOf((*MockOptions)(nil).SetRepairEnabled), b)
 }
 
 // RepairEnabled mocks base method
 func (m *MockOptions) RepairEnabled() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RepairEnabled")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -2527,11 +2864,13 @@ func (m *MockOptions) RepairEnabled() bool {
 
 // RepairEnabled indicates an expected call of RepairEnabled
 func (mr *MockOptionsMockRecorder) RepairEnabled() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RepairEnabled", reflect.TypeOf((*MockOptions)(nil).RepairEnabled))
 }
 
 // SetRepairOptions mocks base method
 func (m *MockOptions) SetRepairOptions(value repair.Options) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetRepairOptions", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2539,11 +2878,13 @@ func (m *MockOptions) SetRepairOptions(value repair.Options) Options {
 
 // SetRepairOptions indicates an expected call of SetRepairOptions
 func (mr *MockOptionsMockRecorder) SetRepairOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRepairOptions", reflect.TypeOf((*MockOptions)(nil).SetRepairOptions), value)
 }
 
 // RepairOptions mocks base method
 func (m *MockOptions) RepairOptions() repair.Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RepairOptions")
 	ret0, _ := ret[0].(repair.Options)
 	return ret0
@@ -2551,11 +2892,13 @@ func (m *MockOptions) RepairOptions() repair.Options {
 
 // RepairOptions indicates an expected call of RepairOptions
 func (mr *MockOptionsMockRecorder) RepairOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RepairOptions", reflect.TypeOf((*MockOptions)(nil).RepairOptions))
 }
 
 // SetBootstrapProcessProvider mocks base method
 func (m *MockOptions) SetBootstrapProcessProvider(value bootstrap.ProcessProvider) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetBootstrapProcessProvider", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2563,11 +2906,13 @@ func (m *MockOptions) SetBootstrapProcessProvider(value bootstrap.ProcessProvide
 
 // SetBootstrapProcessProvider indicates an expected call of SetBootstrapProcessProvider
 func (mr *MockOptionsMockRecorder) SetBootstrapProcessProvider(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBootstrapProcessProvider", reflect.TypeOf((*MockOptions)(nil).SetBootstrapProcessProvider), value)
 }
 
 // BootstrapProcessProvider mocks base method
 func (m *MockOptions) BootstrapProcessProvider() bootstrap.ProcessProvider {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BootstrapProcessProvider")
 	ret0, _ := ret[0].(bootstrap.ProcessProvider)
 	return ret0
@@ -2575,11 +2920,13 @@ func (m *MockOptions) BootstrapProcessProvider() bootstrap.ProcessProvider {
 
 // BootstrapProcessProvider indicates an expected call of BootstrapProcessProvider
 func (mr *MockOptionsMockRecorder) BootstrapProcessProvider() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapProcessProvider", reflect.TypeOf((*MockOptions)(nil).BootstrapProcessProvider))
 }
 
 // SetPersistManager mocks base method
 func (m *MockOptions) SetPersistManager(value persist.Manager) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetPersistManager", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2587,11 +2934,13 @@ func (m *MockOptions) SetPersistManager(value persist.Manager) Options {
 
 // SetPersistManager indicates an expected call of SetPersistManager
 func (mr *MockOptionsMockRecorder) SetPersistManager(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPersistManager", reflect.TypeOf((*MockOptions)(nil).SetPersistManager), value)
 }
 
 // PersistManager mocks base method
 func (m *MockOptions) PersistManager() persist.Manager {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PersistManager")
 	ret0, _ := ret[0].(persist.Manager)
 	return ret0
@@ -2599,11 +2948,13 @@ func (m *MockOptions) PersistManager() persist.Manager {
 
 // PersistManager indicates an expected call of PersistManager
 func (mr *MockOptionsMockRecorder) PersistManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PersistManager", reflect.TypeOf((*MockOptions)(nil).PersistManager))
 }
 
 // SetMinimumSnapshotInterval mocks base method
 func (m *MockOptions) SetMinimumSnapshotInterval(value time.Duration) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetMinimumSnapshotInterval", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2611,11 +2962,13 @@ func (m *MockOptions) SetMinimumSnapshotInterval(value time.Duration) Options {
 
 // SetMinimumSnapshotInterval indicates an expected call of SetMinimumSnapshotInterval
 func (mr *MockOptionsMockRecorder) SetMinimumSnapshotInterval(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMinimumSnapshotInterval", reflect.TypeOf((*MockOptions)(nil).SetMinimumSnapshotInterval), value)
 }
 
 // MinimumSnapshotInterval mocks base method
 func (m *MockOptions) MinimumSnapshotInterval() time.Duration {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MinimumSnapshotInterval")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
@@ -2623,11 +2976,13 @@ func (m *MockOptions) MinimumSnapshotInterval() time.Duration {
 
 // MinimumSnapshotInterval indicates an expected call of MinimumSnapshotInterval
 func (mr *MockOptionsMockRecorder) MinimumSnapshotInterval() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MinimumSnapshotInterval", reflect.TypeOf((*MockOptions)(nil).MinimumSnapshotInterval))
 }
 
 // SetDatabaseBlockRetrieverManager mocks base method
 func (m *MockOptions) SetDatabaseBlockRetrieverManager(value block.DatabaseBlockRetrieverManager) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetDatabaseBlockRetrieverManager", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2635,11 +2990,13 @@ func (m *MockOptions) SetDatabaseBlockRetrieverManager(value block.DatabaseBlock
 
 // SetDatabaseBlockRetrieverManager indicates an expected call of SetDatabaseBlockRetrieverManager
 func (mr *MockOptionsMockRecorder) SetDatabaseBlockRetrieverManager(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetDatabaseBlockRetrieverManager", reflect.TypeOf((*MockOptions)(nil).SetDatabaseBlockRetrieverManager), value)
 }
 
 // DatabaseBlockRetrieverManager mocks base method
 func (m *MockOptions) DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DatabaseBlockRetrieverManager")
 	ret0, _ := ret[0].(block.DatabaseBlockRetrieverManager)
 	return ret0
@@ -2647,11 +3004,13 @@ func (m *MockOptions) DatabaseBlockRetrieverManager() block.DatabaseBlockRetriev
 
 // DatabaseBlockRetrieverManager indicates an expected call of DatabaseBlockRetrieverManager
 func (mr *MockOptionsMockRecorder) DatabaseBlockRetrieverManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DatabaseBlockRetrieverManager", reflect.TypeOf((*MockOptions)(nil).DatabaseBlockRetrieverManager))
 }
 
 // SetContextPool mocks base method
 func (m *MockOptions) SetContextPool(value context.Pool) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetContextPool", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2659,11 +3018,13 @@ func (m *MockOptions) SetContextPool(value context.Pool) Options {
 
 // SetContextPool indicates an expected call of SetContextPool
 func (mr *MockOptionsMockRecorder) SetContextPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetContextPool", reflect.TypeOf((*MockOptions)(nil).SetContextPool), value)
 }
 
 // ContextPool mocks base method
 func (m *MockOptions) ContextPool() context.Pool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ContextPool")
 	ret0, _ := ret[0].(context.Pool)
 	return ret0
@@ -2671,11 +3032,13 @@ func (m *MockOptions) ContextPool() context.Pool {
 
 // ContextPool indicates an expected call of ContextPool
 func (mr *MockOptionsMockRecorder) ContextPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContextPool", reflect.TypeOf((*MockOptions)(nil).ContextPool))
 }
 
 // SetSeriesCachePolicy mocks base method
 func (m *MockOptions) SetSeriesCachePolicy(value series.CachePolicy) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetSeriesCachePolicy", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2683,11 +3046,13 @@ func (m *MockOptions) SetSeriesCachePolicy(value series.CachePolicy) Options {
 
 // SetSeriesCachePolicy indicates an expected call of SetSeriesCachePolicy
 func (mr *MockOptionsMockRecorder) SetSeriesCachePolicy(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSeriesCachePolicy", reflect.TypeOf((*MockOptions)(nil).SetSeriesCachePolicy), value)
 }
 
 // SeriesCachePolicy mocks base method
 func (m *MockOptions) SeriesCachePolicy() series.CachePolicy {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SeriesCachePolicy")
 	ret0, _ := ret[0].(series.CachePolicy)
 	return ret0
@@ -2695,11 +3060,13 @@ func (m *MockOptions) SeriesCachePolicy() series.CachePolicy {
 
 // SeriesCachePolicy indicates an expected call of SeriesCachePolicy
 func (mr *MockOptionsMockRecorder) SeriesCachePolicy() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesCachePolicy", reflect.TypeOf((*MockOptions)(nil).SeriesCachePolicy))
 }
 
 // SetSeriesOptions mocks base method
 func (m *MockOptions) SetSeriesOptions(value series.Options) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetSeriesOptions", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2707,11 +3074,13 @@ func (m *MockOptions) SetSeriesOptions(value series.Options) Options {
 
 // SetSeriesOptions indicates an expected call of SetSeriesOptions
 func (mr *MockOptionsMockRecorder) SetSeriesOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSeriesOptions", reflect.TypeOf((*MockOptions)(nil).SetSeriesOptions), value)
 }
 
 // SeriesOptions mocks base method
 func (m *MockOptions) SeriesOptions() series.Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SeriesOptions")
 	ret0, _ := ret[0].(series.Options)
 	return ret0
@@ -2719,11 +3088,13 @@ func (m *MockOptions) SeriesOptions() series.Options {
 
 // SeriesOptions indicates an expected call of SeriesOptions
 func (mr *MockOptionsMockRecorder) SeriesOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesOptions", reflect.TypeOf((*MockOptions)(nil).SeriesOptions))
 }
 
 // SetDatabaseSeriesPool mocks base method
 func (m *MockOptions) SetDatabaseSeriesPool(value series.DatabaseSeriesPool) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetDatabaseSeriesPool", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2731,11 +3102,13 @@ func (m *MockOptions) SetDatabaseSeriesPool(value series.DatabaseSeriesPool) Opt
 
 // SetDatabaseSeriesPool indicates an expected call of SetDatabaseSeriesPool
 func (mr *MockOptionsMockRecorder) SetDatabaseSeriesPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetDatabaseSeriesPool", reflect.TypeOf((*MockOptions)(nil).SetDatabaseSeriesPool), value)
 }
 
 // DatabaseSeriesPool mocks base method
 func (m *MockOptions) DatabaseSeriesPool() series.DatabaseSeriesPool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DatabaseSeriesPool")
 	ret0, _ := ret[0].(series.DatabaseSeriesPool)
 	return ret0
@@ -2743,11 +3116,13 @@ func (m *MockOptions) DatabaseSeriesPool() series.DatabaseSeriesPool {
 
 // DatabaseSeriesPool indicates an expected call of DatabaseSeriesPool
 func (mr *MockOptionsMockRecorder) DatabaseSeriesPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DatabaseSeriesPool", reflect.TypeOf((*MockOptions)(nil).DatabaseSeriesPool))
 }
 
 // SetBytesPool mocks base method
 func (m *MockOptions) SetBytesPool(value pool.CheckedBytesPool) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetBytesPool", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2755,11 +3130,13 @@ func (m *MockOptions) SetBytesPool(value pool.CheckedBytesPool) Options {
 
 // SetBytesPool indicates an expected call of SetBytesPool
 func (mr *MockOptionsMockRecorder) SetBytesPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBytesPool", reflect.TypeOf((*MockOptions)(nil).SetBytesPool), value)
 }
 
 // BytesPool mocks base method
 func (m *MockOptions) BytesPool() pool.CheckedBytesPool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BytesPool")
 	ret0, _ := ret[0].(pool.CheckedBytesPool)
 	return ret0
@@ -2767,11 +3144,13 @@ func (m *MockOptions) BytesPool() pool.CheckedBytesPool {
 
 // BytesPool indicates an expected call of BytesPool
 func (mr *MockOptionsMockRecorder) BytesPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BytesPool", reflect.TypeOf((*MockOptions)(nil).BytesPool))
 }
 
 // SetEncoderPool mocks base method
 func (m *MockOptions) SetEncoderPool(value encoding.EncoderPool) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetEncoderPool", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2779,11 +3158,13 @@ func (m *MockOptions) SetEncoderPool(value encoding.EncoderPool) Options {
 
 // SetEncoderPool indicates an expected call of SetEncoderPool
 func (mr *MockOptionsMockRecorder) SetEncoderPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEncoderPool", reflect.TypeOf((*MockOptions)(nil).SetEncoderPool), value)
 }
 
 // EncoderPool mocks base method
 func (m *MockOptions) EncoderPool() encoding.EncoderPool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "EncoderPool")
 	ret0, _ := ret[0].(encoding.EncoderPool)
 	return ret0
@@ -2791,11 +3172,13 @@ func (m *MockOptions) EncoderPool() encoding.EncoderPool {
 
 // EncoderPool indicates an expected call of EncoderPool
 func (mr *MockOptionsMockRecorder) EncoderPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EncoderPool", reflect.TypeOf((*MockOptions)(nil).EncoderPool))
 }
 
 // SetSegmentReaderPool mocks base method
 func (m *MockOptions) SetSegmentReaderPool(value xio.SegmentReaderPool) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetSegmentReaderPool", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2803,11 +3186,13 @@ func (m *MockOptions) SetSegmentReaderPool(value xio.SegmentReaderPool) Options 
 
 // SetSegmentReaderPool indicates an expected call of SetSegmentReaderPool
 func (mr *MockOptionsMockRecorder) SetSegmentReaderPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSegmentReaderPool", reflect.TypeOf((*MockOptions)(nil).SetSegmentReaderPool), value)
 }
 
 // SegmentReaderPool mocks base method
 func (m *MockOptions) SegmentReaderPool() xio.SegmentReaderPool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SegmentReaderPool")
 	ret0, _ := ret[0].(xio.SegmentReaderPool)
 	return ret0
@@ -2815,11 +3200,13 @@ func (m *MockOptions) SegmentReaderPool() xio.SegmentReaderPool {
 
 // SegmentReaderPool indicates an expected call of SegmentReaderPool
 func (mr *MockOptionsMockRecorder) SegmentReaderPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentReaderPool", reflect.TypeOf((*MockOptions)(nil).SegmentReaderPool))
 }
 
 // SetReaderIteratorPool mocks base method
 func (m *MockOptions) SetReaderIteratorPool(value encoding.ReaderIteratorPool) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetReaderIteratorPool", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2827,11 +3214,13 @@ func (m *MockOptions) SetReaderIteratorPool(value encoding.ReaderIteratorPool) O
 
 // SetReaderIteratorPool indicates an expected call of SetReaderIteratorPool
 func (mr *MockOptionsMockRecorder) SetReaderIteratorPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetReaderIteratorPool", reflect.TypeOf((*MockOptions)(nil).SetReaderIteratorPool), value)
 }
 
 // ReaderIteratorPool mocks base method
 func (m *MockOptions) ReaderIteratorPool() encoding.ReaderIteratorPool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReaderIteratorPool")
 	ret0, _ := ret[0].(encoding.ReaderIteratorPool)
 	return ret0
@@ -2839,11 +3228,13 @@ func (m *MockOptions) ReaderIteratorPool() encoding.ReaderIteratorPool {
 
 // ReaderIteratorPool indicates an expected call of ReaderIteratorPool
 func (mr *MockOptionsMockRecorder) ReaderIteratorPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReaderIteratorPool", reflect.TypeOf((*MockOptions)(nil).ReaderIteratorPool))
 }
 
 // SetMultiReaderIteratorPool mocks base method
 func (m *MockOptions) SetMultiReaderIteratorPool(value encoding.MultiReaderIteratorPool) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetMultiReaderIteratorPool", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2851,11 +3242,13 @@ func (m *MockOptions) SetMultiReaderIteratorPool(value encoding.MultiReaderItera
 
 // SetMultiReaderIteratorPool indicates an expected call of SetMultiReaderIteratorPool
 func (mr *MockOptionsMockRecorder) SetMultiReaderIteratorPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMultiReaderIteratorPool", reflect.TypeOf((*MockOptions)(nil).SetMultiReaderIteratorPool), value)
 }
 
 // MultiReaderIteratorPool mocks base method
 func (m *MockOptions) MultiReaderIteratorPool() encoding.MultiReaderIteratorPool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MultiReaderIteratorPool")
 	ret0, _ := ret[0].(encoding.MultiReaderIteratorPool)
 	return ret0
@@ -2863,11 +3256,13 @@ func (m *MockOptions) MultiReaderIteratorPool() encoding.MultiReaderIteratorPool
 
 // MultiReaderIteratorPool indicates an expected call of MultiReaderIteratorPool
 func (mr *MockOptionsMockRecorder) MultiReaderIteratorPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MultiReaderIteratorPool", reflect.TypeOf((*MockOptions)(nil).MultiReaderIteratorPool))
 }
 
 // SetIdentifierPool mocks base method
 func (m *MockOptions) SetIdentifierPool(value ident.Pool) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetIdentifierPool", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2875,11 +3270,13 @@ func (m *MockOptions) SetIdentifierPool(value ident.Pool) Options {
 
 // SetIdentifierPool indicates an expected call of SetIdentifierPool
 func (mr *MockOptionsMockRecorder) SetIdentifierPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIdentifierPool", reflect.TypeOf((*MockOptions)(nil).SetIdentifierPool), value)
 }
 
 // IdentifierPool mocks base method
 func (m *MockOptions) IdentifierPool() ident.Pool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IdentifierPool")
 	ret0, _ := ret[0].(ident.Pool)
 	return ret0
@@ -2887,11 +3284,13 @@ func (m *MockOptions) IdentifierPool() ident.Pool {
 
 // IdentifierPool indicates an expected call of IdentifierPool
 func (mr *MockOptionsMockRecorder) IdentifierPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IdentifierPool", reflect.TypeOf((*MockOptions)(nil).IdentifierPool))
 }
 
 // SetFetchBlockMetadataResultsPool mocks base method
 func (m *MockOptions) SetFetchBlockMetadataResultsPool(value block.FetchBlockMetadataResultsPool) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetFetchBlockMetadataResultsPool", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2899,11 +3298,13 @@ func (m *MockOptions) SetFetchBlockMetadataResultsPool(value block.FetchBlockMet
 
 // SetFetchBlockMetadataResultsPool indicates an expected call of SetFetchBlockMetadataResultsPool
 func (mr *MockOptionsMockRecorder) SetFetchBlockMetadataResultsPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFetchBlockMetadataResultsPool", reflect.TypeOf((*MockOptions)(nil).SetFetchBlockMetadataResultsPool), value)
 }
 
 // FetchBlockMetadataResultsPool mocks base method
 func (m *MockOptions) FetchBlockMetadataResultsPool() block.FetchBlockMetadataResultsPool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlockMetadataResultsPool")
 	ret0, _ := ret[0].(block.FetchBlockMetadataResultsPool)
 	return ret0
@@ -2911,11 +3312,13 @@ func (m *MockOptions) FetchBlockMetadataResultsPool() block.FetchBlockMetadataRe
 
 // FetchBlockMetadataResultsPool indicates an expected call of FetchBlockMetadataResultsPool
 func (mr *MockOptionsMockRecorder) FetchBlockMetadataResultsPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlockMetadataResultsPool", reflect.TypeOf((*MockOptions)(nil).FetchBlockMetadataResultsPool))
 }
 
 // SetFetchBlocksMetadataResultsPool mocks base method
 func (m *MockOptions) SetFetchBlocksMetadataResultsPool(value block.FetchBlocksMetadataResultsPool) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetFetchBlocksMetadataResultsPool", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2923,11 +3326,13 @@ func (m *MockOptions) SetFetchBlocksMetadataResultsPool(value block.FetchBlocksM
 
 // SetFetchBlocksMetadataResultsPool indicates an expected call of SetFetchBlocksMetadataResultsPool
 func (mr *MockOptionsMockRecorder) SetFetchBlocksMetadataResultsPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFetchBlocksMetadataResultsPool", reflect.TypeOf((*MockOptions)(nil).SetFetchBlocksMetadataResultsPool), value)
 }
 
 // FetchBlocksMetadataResultsPool mocks base method
 func (m *MockOptions) FetchBlocksMetadataResultsPool() block.FetchBlocksMetadataResultsPool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchBlocksMetadataResultsPool")
 	ret0, _ := ret[0].(block.FetchBlocksMetadataResultsPool)
 	return ret0
@@ -2935,11 +3340,13 @@ func (m *MockOptions) FetchBlocksMetadataResultsPool() block.FetchBlocksMetadata
 
 // FetchBlocksMetadataResultsPool indicates an expected call of FetchBlocksMetadataResultsPool
 func (mr *MockOptionsMockRecorder) FetchBlocksMetadataResultsPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksMetadataResultsPool", reflect.TypeOf((*MockOptions)(nil).FetchBlocksMetadataResultsPool))
 }
 
 // SetQueryIDsWorkerPool mocks base method
 func (m *MockOptions) SetQueryIDsWorkerPool(value sync0.WorkerPool) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetQueryIDsWorkerPool", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2947,11 +3354,13 @@ func (m *MockOptions) SetQueryIDsWorkerPool(value sync0.WorkerPool) Options {
 
 // SetQueryIDsWorkerPool indicates an expected call of SetQueryIDsWorkerPool
 func (mr *MockOptionsMockRecorder) SetQueryIDsWorkerPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetQueryIDsWorkerPool", reflect.TypeOf((*MockOptions)(nil).SetQueryIDsWorkerPool), value)
 }
 
 // QueryIDsWorkerPool mocks base method
 func (m *MockOptions) QueryIDsWorkerPool() sync0.WorkerPool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "QueryIDsWorkerPool")
 	ret0, _ := ret[0].(sync0.WorkerPool)
 	return ret0
@@ -2959,11 +3368,13 @@ func (m *MockOptions) QueryIDsWorkerPool() sync0.WorkerPool {
 
 // QueryIDsWorkerPool indicates an expected call of QueryIDsWorkerPool
 func (mr *MockOptionsMockRecorder) QueryIDsWorkerPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryIDsWorkerPool", reflect.TypeOf((*MockOptions)(nil).QueryIDsWorkerPool))
 }
 
 // SetWriteBatchPool mocks base method
 func (m *MockOptions) SetWriteBatchPool(value *ts.WriteBatchPool) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetWriteBatchPool", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2971,11 +3382,13 @@ func (m *MockOptions) SetWriteBatchPool(value *ts.WriteBatchPool) Options {
 
 // SetWriteBatchPool indicates an expected call of SetWriteBatchPool
 func (mr *MockOptionsMockRecorder) SetWriteBatchPool(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWriteBatchPool", reflect.TypeOf((*MockOptions)(nil).SetWriteBatchPool), value)
 }
 
 // WriteBatchPool mocks base method
 func (m *MockOptions) WriteBatchPool() *ts.WriteBatchPool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteBatchPool")
 	ret0, _ := ret[0].(*ts.WriteBatchPool)
 	return ret0
@@ -2983,5 +3396,6 @@ func (m *MockOptions) WriteBatchPool() *ts.WriteBatchPool {
 
 // WriteBatchPool indicates an expected call of WriteBatchPool
 func (mr *MockOptionsMockRecorder) WriteBatchPool() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatchPool", reflect.TypeOf((*MockOptions)(nil).WriteBatchPool))
 }
