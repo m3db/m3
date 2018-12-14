@@ -35,13 +35,14 @@ import (
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
+	"github.com/pborman/uuid"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	testSnapshotID = []byte("test_snapshot_id")
+	testSnapshotID = uuid.Parse("bbc85a98-bd0c-47fe-8b9a-89cde1b4540f")
 )
 
 type testEntry struct {

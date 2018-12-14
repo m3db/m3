@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"sort"
 	"sync"
 	"time"
 
@@ -79,8 +78,6 @@ type filesetBeforeFn func(
 	shardID uint32,
 	t time.Time,
 ) ([]string, error)
-
-type snapshotFilesFn func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error)
 
 type tickPolicy int
 
@@ -1773,7 +1770,7 @@ func (s *dbShard) Bootstrap(
 
 func (s *dbShard) Flush(
 	blockStart time.Time,
-	flush persist.DataFlush,
+	flushPreparer persist.FlushPreparer,
 ) error {
 	// We don't flush data when the shard is still bootstrapping
 	s.RLock()
@@ -1793,7 +1790,7 @@ func (s *dbShard) Flush(
 		// racing competing processes.
 		DeleteIfExists: false,
 	}
-	prepared, err := flush.PrepareData(prepareOpts)
+	prepared, err := flushPreparer.PrepareData(prepareOpts)
 	if err != nil {
 		return s.markFlushStateSuccessOrError(blockStart, err)
 	}
@@ -1834,7 +1831,7 @@ func (s *dbShard) Flush(
 func (s *dbShard) Snapshot(
 	blockStart time.Time,
 	snapshotTime time.Time,
-	flush persist.DataFlush,
+	snapshotPreparer persist.SnapshotPreparer,
 ) error {
 	// We don't snapshot data when the shard is still bootstrapping
 	s.RLock()
@@ -1865,7 +1862,7 @@ func (s *dbShard) Snapshot(
 			SnapshotTime: snapshotTime,
 		},
 	}
-	prepared, err := flush.PrepareData(prepareOpts)
+	prepared, err := snapshotPreparer.PrepareData(prepareOpts)
 	// Add the err so the defer will capture it
 	multiErr = multiErr.Add(err)
 	if err != nil {
@@ -1964,65 +1961,6 @@ func (s *dbShard) markDoneSnapshotting(success bool, completionTime time.Time) {
 		s.snapshotState.lastSuccessfulSnapshot = completionTime
 	}
 	s.snapshotState.Unlock()
-}
-
-// CleanupSnapshots examines the snapshot files for the shard that are on disk and
-// determines which can be safely deleted. A snapshot file is safe to delete if it
-// meets one of the following criteria:
-// 		1) It contains data for a block start that is out of retention (as determined
-// 		   by the earliestToRetain argument.)
-// 		2) It contains data for a block start that has already been successfully flushed.
-// 		3) It contains data for a block start that hasn't been flushed yet, but a more
-// 		   recent set of snapshot files (higher index) exists for the same block start.
-// 		   This is because snapshot files are cumulative, so once a new one has been
-//         written out it's safe to delete any previous ones for that block start.
-func (s *dbShard) CleanupSnapshots(earliestToRetain time.Time) error {
-	filePathPrefix := s.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
-	snapshotFiles, err := s.snapshotFilesFn(filePathPrefix, s.namespace.ID(), s.ID())
-	if err != nil {
-		return err
-	}
-
-	sort.Slice(snapshotFiles, func(i, j int) bool {
-		// Make sure they're sorted by blockStart/Index in ascending order.
-		if snapshotFiles[i].ID.BlockStart.Equal(snapshotFiles[j].ID.BlockStart) {
-			return snapshotFiles[i].ID.VolumeIndex < snapshotFiles[j].ID.VolumeIndex
-		}
-		return snapshotFiles[i].ID.BlockStart.Before(snapshotFiles[j].ID.BlockStart)
-	})
-
-	filesToDelete := []string{}
-
-	for i := 0; i < len(snapshotFiles); i++ {
-		curr := snapshotFiles[i]
-
-		if curr.ID.BlockStart.Before(earliestToRetain) {
-			// Delete snapshot files for blocks that have fallen out
-			// of retention.
-			filesToDelete = append(filesToDelete, curr.AbsoluteFilepaths...)
-			continue
-		}
-
-		if s.FlushState(curr.ID.BlockStart).Status == fileOpSuccess {
-			// Delete snapshot files for any block starts that have been
-			// successfully flushed.
-			filesToDelete = append(filesToDelete, curr.AbsoluteFilepaths...)
-			continue
-		}
-
-		if i+1 < len(snapshotFiles) &&
-			snapshotFiles[i+1].ID.BlockStart == curr.ID.BlockStart &&
-			snapshotFiles[i+1].ID.VolumeIndex > curr.ID.VolumeIndex &&
-			snapshotFiles[i+1].HasCheckpointFile() {
-			// Delete any snapshot files which are not the most recent
-			// for that block start, but only of the set of snapshot files
-			// with the higher index is complete (checkpoint file exists)
-			filesToDelete = append(filesToDelete, curr.AbsoluteFilepaths...)
-			continue
-		}
-	}
-
-	return s.deleteFilesFn(filesToDelete)
 }
 
 func (s *dbShard) CleanupExpiredFileSets(earliestToRetain time.Time) error {

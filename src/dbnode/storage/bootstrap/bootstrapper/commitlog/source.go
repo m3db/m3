@@ -820,7 +820,7 @@ func (s *commitLogSource) newReadCommitLogPred(
 	// we need to read, but we can still skip datapoints from the commitlog itself that belong to a shard
 	// that has a snapshot more recent than the global minimum. If we use an array for fast-access this could
 	// be a small win in terms of memory utilization.
-	return func(f commitlog.File) bool {
+	return func(f persist.CommitlogFile) bool {
 		_, ok := commitlogFilesPresentBeforeStart[f.FilePath]
 		if !ok {
 			// If the file wasn't on disk before the node started then it only contains

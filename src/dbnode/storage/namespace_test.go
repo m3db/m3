@@ -438,7 +438,7 @@ func TestNamespaceSnapshotNotBootstrapped(t *testing.T) {
 
 	blockSize := ns.Options().RetentionOptions().BlockSize()
 	blockStart := time.Now().Truncate(blockSize)
-	require.Equal(t, errNamespaceNotBootstrapped, ns.Snapshot(blockStart, blockStart, nil, nil))
+	require.Equal(t, errNamespaceNotBootstrapped, ns.Snapshot(blockStart, blockStart, nil))
 }
 
 func TestNamespaceSnapshotShardIsSnapshotting(t *testing.T) {
@@ -495,18 +495,6 @@ func TestNamespaceSnapshotShardError(t *testing.T) {
 	require.Error(t, testSnapshotWithShardSnapshotErrs(t, shardMethodResults))
 }
 
-func TestNamespaceSnapshotShardNotBootstrappedBeforeTick(t *testing.T) {
-	shardMethodResults := []snapshotTestCase{
-		snapshotTestCase{
-			isSnapshotting:                false,
-			expectSnapshot:                false,
-			shardBootstrapStateBeforeTick: Bootstrapping,
-			shardSnapshotErr:              nil,
-		},
-	}
-	require.NoError(t, testSnapshotWithShardSnapshotErrs(t, shardMethodResults))
-}
-
 func testSnapshotWithShardSnapshotErrs(t *testing.T, shardMethodResults []snapshotTestCase) error {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -547,7 +535,7 @@ func testSnapshotWithShardSnapshotErrs(t *testing.T, shardMethodResults []snapsh
 		shardBootstrapStates[shardID] = tc.shardBootstrapStateBeforeTick
 	}
 
-	return ns.Snapshot(blockStart, now, shardBootstrapStates, nil)
+	return ns.Snapshot(blockStart, now, nil)
 }
 
 func TestNamespaceTruncate(t *testing.T) {
@@ -1202,7 +1190,7 @@ func TestNamespaceIsCapturedBySnapshot(t *testing.T) {
 								BlockStart: testTime.Truncate(blockSize),
 							},
 							// Must contain checkpoint file to be "valid".
-							AbsoluteFilepaths:  []string{"checkpoint"},
+							AbsoluteFilepaths:  []string{"snapshots-checkpoint"},
 							CachedSnapshotTime: testTime.Add(-1 * time.Second),
 						},
 					},
@@ -1222,7 +1210,7 @@ func TestNamespaceIsCapturedBySnapshot(t *testing.T) {
 								BlockStart: blockStart,
 							},
 							// Must contain checkpoint file to be "valid".
-							AbsoluteFilepaths:  []string{"checkpoint"},
+							AbsoluteFilepaths:  []string{"snapshots-checkpoint"},
 							CachedSnapshotTime: testTime.Add(1 * time.Second),
 						},
 					},
@@ -1244,7 +1232,7 @@ func TestNamespaceIsCapturedBySnapshot(t *testing.T) {
 								BlockStart: blockStart,
 							},
 							// Must contain checkpoint file to be "valid".
-							AbsoluteFilepaths:  []string{"checkpoint"},
+							AbsoluteFilepaths:  []string{"snapshots-checkpoint"},
 							CachedSnapshotTime: testTime.Add(1 * time.Second),
 						},
 					},
@@ -1265,7 +1253,7 @@ func TestNamespaceIsCapturedBySnapshot(t *testing.T) {
 								BlockStart: blockStart,
 							},
 							// Must contain checkpoint file to be "valid".
-							AbsoluteFilepaths:  []string{"checkpoint"},
+							AbsoluteFilepaths:  []string{"snapshots-checkpoint"},
 							CachedSnapshotTime: testTime.Add(1 * time.Second),
 						},
 						fs.FileSetFile{
@@ -1273,7 +1261,7 @@ func TestNamespaceIsCapturedBySnapshot(t *testing.T) {
 								BlockStart: blockStart.Add(blockSize),
 							},
 							// Must contain checkpoint file to be "valid".
-							AbsoluteFilepaths:  []string{"checkpoint"},
+							AbsoluteFilepaths:  []string{"snapshots-checkpoint"},
 							CachedSnapshotTime: testTime.Add(1 * time.Second),
 						},
 					},

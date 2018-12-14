@@ -576,6 +576,11 @@ func TestNextSnapshotFileSetVolumeIndex(t *testing.T) {
 	require.NoError(t, os.MkdirAll(shardDir, 0755))
 	defer os.RemoveAll(shardDir)
 
+	index, err := NextSnapshotFileSetVolumeIndex(
+		dir, testNs1ID, shard, blockStart)
+	require.NoError(t, err)
+	require.Equal(t, 0, index)
+
 	// Check increments properly
 	curr := -1
 	for i := 0; i <= 10; i++ {
@@ -599,8 +604,13 @@ func TestSortedSnapshotMetadataFiles(t *testing.T) {
 		filePathPrefix = filepath.Join(dir, "")
 		opts           = testDefaultOpts.
 				SetFilePathPrefix(filePathPrefix)
-		commitlogIdentifier = []byte("commitlog_id")
-		numMetadataFiles    = 10
+		commitlogIdentifier = persist.CommitlogFile{
+			FilePath: "some_path",
+			Start:    time.Time{},
+			Duration: 10 * time.Minute,
+			Index:    0,
+		}
+		numMetadataFiles = 10
 	)
 	defer func() {
 		os.RemoveAll(dir)
@@ -669,8 +679,13 @@ func TestNextSnapshotMetadataFileIndex(t *testing.T) {
 		filePathPrefix = filepath.Join(dir, "")
 		opts           = testDefaultOpts.
 				SetFilePathPrefix(filePathPrefix)
-		commitlogIdentifier = []byte("commitlog_id")
-		numMetadataFiles    = 10
+		commitlogIdentifier = persist.CommitlogFile{
+			FilePath: "some_path",
+			Start:    time.Time{},
+			Duration: 10 * time.Minute,
+			Index:    0,
+		}
+		numMetadataFiles = 10
 	)
 	defer func() {
 		os.RemoveAll(dir)
@@ -1027,6 +1042,19 @@ func TestSnapshotFileSnapshotTimeAndID(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, true, testWriterStart.Equal(snapshotTime))
 	require.Equal(t, testSnapshotID, snapshotID)
+}
+
+func TestSnapshotFileSnapshotTimeAndIDZeroValue(t *testing.T) {
+	f := FileSetFile{}
+	_, _, err := f.SnapshotTimeAndID()
+	require.Equal(t, errSnapshotTimeAndIDZero, err)
+}
+
+func TestSnapshotFileSnapshotTimeAndIDNotSnapshot(t *testing.T) {
+	f := FileSetFile{}
+	f.AbsoluteFilepaths = []string{"/var/lib/m3db/data/fileset-data.db"}
+	_, _, err := f.SnapshotTimeAndID()
+	require.Error(t, err)
 }
 
 func createTempFile(t *testing.T) *os.File {

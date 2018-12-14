@@ -21,11 +21,13 @@
 package fs
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
 	"github.com/m3db/m3/src/dbnode/digest"
 	"github.com/m3db/m3/src/dbnode/generated/proto/snapshot"
+	"github.com/m3db/m3/src/dbnode/persist"
 	xerrors "github.com/m3db/m3x/errors"
 
 	"github.com/gogo/protobuf/proto"
@@ -54,7 +56,7 @@ type SnapshotMetadataWriter struct {
 // SnapshotMetadataWriteArgs are the arguments for SnapshotMetadataWriter.Write.
 type SnapshotMetadataWriteArgs struct {
 	ID                  SnapshotMetadataIdentifier
-	CommitlogIdentifier []byte
+	CommitlogIdentifier persist.CommitlogFile
 }
 
 func (w *SnapshotMetadataWriter) Write(args SnapshotMetadataWriteArgs) (finalErr error) {
@@ -103,10 +105,15 @@ func (w *SnapshotMetadataWriter) Write(args SnapshotMetadataWriteArgs) (finalErr
 	w.metadataFdWithDigest.Reset(metadataFile)
 	deferCleanup(w.metadataFdWithDigest.Close)
 
+	// TODO(rartoul): Fix this
+	commitlogIDBytes, err := json.Marshal(args.CommitlogIdentifier)
+	if err != nil {
+		return err
+	}
 	metadataBytes, err := proto.Marshal(&snapshot.Metadata{
 		SnapshotIndex: args.ID.Index,
 		SnapshotUUID:  []byte(args.ID.UUID.String()),
-		CommitlogID:   args.CommitlogIdentifier,
+		CommitlogID:   commitlogIDBytes,
 	})
 	if err != nil {
 		return err

@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/bitset"
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/digest"
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3/src/dbnode/persist/schema"
@@ -67,7 +68,7 @@ var (
 
 type commitLogWriter interface {
 	// Open opens the commit log for writing data
-	Open(start time.Time, duration time.Duration) (File, error)
+	Open(start time.Time, duration time.Duration) (persist.CommitlogFile, error)
 
 	// Write will write an entry in the commit log for a given series
 	Write(
@@ -139,9 +140,9 @@ func newCommitLogWriter(
 	}
 }
 
-func (w *writer) Open(start time.Time, duration time.Duration) (File, error) {
+func (w *writer) Open(start time.Time, duration time.Duration) (persist.CommitlogFile, error) {
 	if w.isOpen() {
-		return File{}, errCommitLogWriterAlreadyOpen
+		return persist.CommitlogFile{}, errCommitLogWriterAlreadyOpen
 	}
 
 	// Reset buffers since they will grow 2x on demand so we want to make sure that
@@ -155,12 +156,12 @@ func (w *writer) Open(start time.Time, duration time.Duration) (File, error) {
 
 	commitLogsDir := fs.CommitLogsDirPath(w.filePathPrefix)
 	if err := os.MkdirAll(commitLogsDir, w.newDirectoryMode); err != nil {
-		return File{}, err
+		return persist.CommitlogFile{}, err
 	}
 
 	filePath, index, err := fs.NextCommitLogsFile(w.filePathPrefix, start)
 	if err != nil {
-		return File{}, err
+		return persist.CommitlogFile{}, err
 	}
 	logInfo := schema.LogInfo{
 		Start:    start.UnixNano(),
@@ -169,23 +170,23 @@ func (w *writer) Open(start time.Time, duration time.Duration) (File, error) {
 	}
 	w.logEncoder.Reset()
 	if err := w.logEncoder.EncodeLogInfo(logInfo); err != nil {
-		return File{}, err
+		return persist.CommitlogFile{}, err
 	}
 	fd, err := fs.OpenWritable(filePath, w.newFileMode)
 	if err != nil {
-		return File{}, err
+		return persist.CommitlogFile{}, err
 	}
 
 	w.chunkWriter.reset(fd)
 	w.buffer.Reset(w.chunkWriter)
 	if err := w.write(w.logEncoder.Bytes()); err != nil {
 		w.Close()
-		return File{}, err
+		return persist.CommitlogFile{}, err
 	}
 
 	w.start = start
 	w.duration = duration
-	return File{
+	return persist.CommitlogFile{
 		FilePath: filePath,
 		Start:    start,
 		Duration: duration,

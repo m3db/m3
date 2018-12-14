@@ -27,17 +27,10 @@ import (
 	"sort"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 )
-
-// File represents a commit log file and its associated metadata.
-type File struct {
-	FilePath string
-	Start    time.Time
-	Duration time.Duration
-	Index    int64
-}
 
 // ReadLogInfo reads the commit log info out of a commitlog file
 func ReadLogInfo(filePath string, opts Options) (time.Time, time.Duration, int64, error) {
@@ -81,7 +74,7 @@ func ReadLogInfo(filePath string, opts Options) (time.Time, time.Duration, int64
 
 // Files returns a slice of all available commit log files on disk along with
 // their associated metadata.
-func Files(opts Options) ([]File, []ErrorWithPath, error) {
+func Files(opts Options) ([]persist.CommitlogFile, []ErrorWithPath, error) {
 	commitLogsDir := fs.CommitLogsDirPath(
 		opts.FilesystemOptions().FilePathPrefix())
 	filePaths, err := fs.SortedCommitLogFiles(commitLogsDir)
@@ -89,10 +82,10 @@ func Files(opts Options) ([]File, []ErrorWithPath, error) {
 		return nil, nil, err
 	}
 
-	commitLogFiles := make([]File, 0, len(filePaths))
+	commitLogFiles := make([]persist.CommitlogFile, 0, len(filePaths))
 	errorsWithPath := make([]ErrorWithPath, 0)
 	for _, filePath := range filePaths {
-		file := File{
+		file := persist.CommitlogFile{
 			FilePath: filePath,
 		}
 
@@ -113,7 +106,7 @@ func Files(opts Options) ([]File, []ErrorWithPath, error) {
 			file.Index = index
 		}
 
-		commitLogFiles = append(commitLogFiles, File{
+		commitLogFiles = append(commitLogFiles, persist.CommitlogFile{
 			FilePath: filePath,
 			Start:    start,
 			Duration: duration,

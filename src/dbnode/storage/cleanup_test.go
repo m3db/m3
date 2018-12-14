@@ -27,11 +27,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3x/ident"
 	xtest "github.com/m3db/m3x/test"
+	"github.com/pborman/uuid"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -47,45 +50,262 @@ var (
 	commitLogBlockSize = 10 * time.Second
 )
 
-func TestCleanupManagerCleanup(t *testing.T) {
+func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ts := timeFor(36000)
-	rOpts := retention.NewOptions().
-		SetRetentionPeriod(21600 * time.Second).
-		SetBlockSize(7200 * time.Second)
-	nsOpts := namespace.NewOptions().SetRetentionOptions(rOpts)
+	testBlockStart := time.Now().Truncate(2 * time.Hour)
+	testSnapshotUUID0 := uuid.Parse("a6367b49-9c83-4706-bd5c-400a4a9ec77c")
+	require.NotNil(t, testSnapshotUUID0)
 
-	namespaces := make([]databaseNamespace, 0, 3)
-	for i := 0; i < 3; i++ {
-		ns := NewMockdatabaseNamespace(ctrl)
-		ns.EXPECT().ID().Return(ident.StringID(fmt.Sprintf("ns%d", i))).AnyTimes()
-		ns.EXPECT().Options().Return(nsOpts).AnyTimes()
-		ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false).AnyTimes()
-		ns.EXPECT().GetOwnedShards().Return(nil).AnyTimes()
-		namespaces = append(namespaces, ns)
-	}
-	db := newMockdatabase(ctrl, namespaces...)
-	db.EXPECT().GetOwnedNamespaces().Return(namespaces, nil).AnyTimes()
-	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
-	mgr.opts = mgr.opts.SetCommitLogOptions(
-		mgr.opts.CommitLogOptions().
-			SetBlockSize(rOpts.BlockSize()))
+	testSnapshotUUID1 := uuid.Parse("bed2156f-182a-47ea-83ff-0a55d34c8a82")
+	require.NotNil(t, testSnapshotUUID1)
 
-	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, []commitlog.ErrorWithPath, error) {
-		return []commitlog.File{
-			{FilePath: "foo", Start: timeFor(14400)},
-		}, nil, nil
+	testCommitlogFileIdentifier := persist.CommitlogFile{
+		FilePath: "commitlog-filepath-1",
+		Start:    time.Now().Truncate(10 * time.Minute),
+		Duration: 10 * time.Minute,
+		Index:    1,
 	}
-	var deletedFiles []string
-	mgr.deleteFilesFn = func(files []string) error {
-		deletedFiles = append(deletedFiles, files...)
-		return nil
+	testSnapshotMetadataIdentifier1 := fs.SnapshotMetadataIdentifier{
+		Index: 0,
+		UUID:  testSnapshotUUID0,
+	}
+	testSnapshotMetadataIdentifier2 := fs.SnapshotMetadataIdentifier{
+		Index: 0,
+		UUID:  testSnapshotUUID1,
+	}
+	testSnapshotMetadata0 := fs.SnapshotMetadata{
+		ID:                  testSnapshotMetadataIdentifier1,
+		CommitlogIdentifier: testCommitlogFileIdentifier,
+		MetadataFilePath:    "metadata-filepath-0",
+		CheckpointFilePath:  "checkpoint-filepath-0",
+	}
+	testSnapshotMetadata1 := fs.SnapshotMetadata{
+		ID:                  testSnapshotMetadataIdentifier2,
+		CommitlogIdentifier: testCommitlogFileIdentifier,
+		MetadataFilePath:    "metadata-filepath-1",
+		CheckpointFilePath:  "checkpoint-filepath-1",
 	}
 
-	require.NoError(t, mgr.Cleanup(ts))
-	require.Equal(t, []string{"foo"}, deletedFiles)
+	testCases := []struct {
+		title                string
+		snapshotMetadata     sortedSnapshotMetadataFilesFn
+		commitlogs           commitLogFilesFn
+		snapshots            snapshotFilesFn
+		expectedDeletedFiles []string
+	}{
+		{
+			title: "Does nothing if no snapshot metadata files",
+			snapshotMetadata: func(fs.Options) ([]fs.SnapshotMetadata, []fs.SnapshotMetadataErrorWithPaths, error) {
+				return nil, nil, nil
+			},
+		},
+		{
+			title: "Does not delete snapshots associated with the most recent snapshot metadata file",
+			snapshotMetadata: func(fs.Options) ([]fs.SnapshotMetadata, []fs.SnapshotMetadataErrorWithPaths, error) {
+				return []fs.SnapshotMetadata{testSnapshotMetadata0}, nil, nil
+			},
+			snapshots: func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error) {
+				return fs.FileSetFilesSlice{
+					{
+						ID: fs.FileSetFileIdentifier{
+							Namespace:   namespace,
+							BlockStart:  testBlockStart,
+							Shard:       shard,
+							VolumeIndex: 0,
+						},
+						AbsoluteFilepaths:  []string{fmt.Sprintf("/snapshots/%s/snapshot-filepath-%d", namespace, shard)},
+						CachedSnapshotTime: testBlockStart,
+						CachedSnapshotID:   testSnapshotUUID0,
+					},
+				}, nil
+			},
+			commitlogs: func(commitlog.Options) ([]persist.CommitlogFile, []commitlog.ErrorWithPath, error) {
+				return nil, nil, nil
+			},
+		},
+		{
+			title: "Deletes snapshots and metadata not associated with the most recent snapshot metadata file",
+			snapshotMetadata: func(fs.Options) ([]fs.SnapshotMetadata, []fs.SnapshotMetadataErrorWithPaths, error) {
+				return []fs.SnapshotMetadata{testSnapshotMetadata0, testSnapshotMetadata1}, nil, nil
+			},
+			snapshots: func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error) {
+				return fs.FileSetFilesSlice{
+					{
+						ID: fs.FileSetFileIdentifier{
+							Namespace:   namespace,
+							BlockStart:  testBlockStart,
+							Shard:       shard,
+							VolumeIndex: 0,
+						},
+						AbsoluteFilepaths:  []string{fmt.Sprintf("/snapshots/%s/snapshot-filepath-%d", namespace, shard)},
+						CachedSnapshotTime: testBlockStart,
+						CachedSnapshotID:   testSnapshotUUID0,
+					},
+				}, nil
+			},
+			commitlogs: func(commitlog.Options) ([]persist.CommitlogFile, []commitlog.ErrorWithPath, error) {
+				return nil, nil, nil
+			},
+			expectedDeletedFiles: []string{
+				"/snapshots/ns0/snapshot-filepath-0",
+				"/snapshots/ns0/snapshot-filepath-1",
+				"/snapshots/ns0/snapshot-filepath-2",
+				"/snapshots/ns1/snapshot-filepath-0",
+				"/snapshots/ns1/snapshot-filepath-1",
+				"/snapshots/ns1/snapshot-filepath-2",
+				"/snapshots/ns2/snapshot-filepath-0",
+				"/snapshots/ns2/snapshot-filepath-1",
+				"/snapshots/ns2/snapshot-filepath-2",
+				"metadata-filepath-0",
+				"checkpoint-filepath-0",
+			},
+		},
+		{
+			title: "Deletes corrupt snapshot metadata",
+			snapshotMetadata: func(fs.Options) ([]fs.SnapshotMetadata, []fs.SnapshotMetadataErrorWithPaths, error) {
+				return []fs.SnapshotMetadata{testSnapshotMetadata1}, []fs.SnapshotMetadataErrorWithPaths{
+					{
+						Error:              errors.New("some-error"),
+						MetadataFilePath:   "metadata-filepath-0",
+						CheckpointFilePath: "checkpoint-filepath-0",
+					},
+				}, nil
+			},
+			snapshots: func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error) {
+				return nil, nil
+			},
+			commitlogs: func(commitlog.Options) ([]persist.CommitlogFile, []commitlog.ErrorWithPath, error) {
+				return nil, nil, nil
+			},
+			expectedDeletedFiles: []string{
+				"metadata-filepath-0",
+				"checkpoint-filepath-0",
+			},
+		},
+		{
+			title: "Deletes corrupt snapshot files",
+			snapshotMetadata: func(fs.Options) ([]fs.SnapshotMetadata, []fs.SnapshotMetadataErrorWithPaths, error) {
+				return []fs.SnapshotMetadata{testSnapshotMetadata0}, nil, nil
+			},
+			snapshots: func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error) {
+				return fs.FileSetFilesSlice{
+					{
+						ID: fs.FileSetFileIdentifier{
+							Namespace:   namespace,
+							BlockStart:  testBlockStart,
+							Shard:       shard,
+							VolumeIndex: 0,
+						},
+						AbsoluteFilepaths: []string{fmt.Sprintf("/snapshots/%s/snapshot-filepath-%d", namespace, shard)},
+						// Zero these out so it will try to look them up and return an error, indicating the files
+						// are corrupt.
+						CachedSnapshotTime: time.Time{},
+						CachedSnapshotID:   nil,
+					},
+				}, nil
+			},
+			commitlogs: func(commitlog.Options) ([]persist.CommitlogFile, []commitlog.ErrorWithPath, error) {
+				return nil, nil, nil
+			},
+			expectedDeletedFiles: []string{
+				"/snapshots/ns0/snapshot-filepath-0",
+				"/snapshots/ns0/snapshot-filepath-1",
+				"/snapshots/ns0/snapshot-filepath-2",
+				"/snapshots/ns1/snapshot-filepath-0",
+				"/snapshots/ns1/snapshot-filepath-1",
+				"/snapshots/ns1/snapshot-filepath-2",
+				"/snapshots/ns2/snapshot-filepath-0",
+				"/snapshots/ns2/snapshot-filepath-1",
+				"/snapshots/ns2/snapshot-filepath-2",
+			},
+		},
+		{
+			title: "Does not delete the commitlog identified in the most recent snapshot metadata file, or any with a higher index",
+			snapshotMetadata: func(fs.Options) ([]fs.SnapshotMetadata, []fs.SnapshotMetadataErrorWithPaths, error) {
+				return []fs.SnapshotMetadata{testSnapshotMetadata0}, nil, nil
+			},
+			snapshots: func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error) {
+				return nil, nil
+			},
+			commitlogs: func(commitlog.Options) ([]persist.CommitlogFile, []commitlog.ErrorWithPath, error) {
+				return []persist.CommitlogFile{
+					{FilePath: "commitlog-file-0", Index: 0},
+					// Index 1, the one pointed to bby testSnapshotMetdata1
+					testCommitlogFileIdentifier,
+					{FilePath: "commitlog-file-2", Index: 2},
+				}, nil, nil
+			},
+			// Should only delete anything with an index lower than 1.
+			expectedDeletedFiles: []string{"commitlog-file-0"},
+		},
+		{
+			title: "Deletes all corrupt commitlog files",
+			snapshotMetadata: func(fs.Options) ([]fs.SnapshotMetadata, []fs.SnapshotMetadataErrorWithPaths, error) {
+				return []fs.SnapshotMetadata{testSnapshotMetadata0}, nil, nil
+			},
+			snapshots: func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error) {
+				return nil, nil
+			},
+			commitlogs: func(commitlog.Options) ([]persist.CommitlogFile, []commitlog.ErrorWithPath, error) {
+				return nil, []commitlog.ErrorWithPath{
+					commitlog.NewErrorWithPath(errors.New("some-error-0"), "corrupt-commitlog-file-0"),
+					commitlog.NewErrorWithPath(errors.New("some-error-1"), "corrupt-commitlog-file-1"),
+				}, nil
+			},
+			// Should only delete anything with an index lower than 1.
+			expectedDeletedFiles: []string{"corrupt-commitlog-file-0", "corrupt-commitlog-file-1"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.title, func(t *testing.T) {
+			ts := timeFor(36000)
+			rOpts := retention.NewOptions().
+				SetRetentionPeriod(21600 * time.Second).
+				SetBlockSize(7200 * time.Second)
+			nsOpts := namespace.NewOptions().SetRetentionOptions(rOpts)
+
+			namespaces := make([]databaseNamespace, 0, 3)
+			shards := make([]databaseShard, 0, 3)
+			for i := 0; i < 3; i++ {
+				shard := NewMockdatabaseShard(ctrl)
+				shard.EXPECT().ID().Return(uint32(i)).AnyTimes()
+				shard.EXPECT().CleanupExpiredFileSets(gomock.Any()).Return(nil).AnyTimes()
+				shards = append(shards, shard)
+			}
+
+			for i := 0; i < 3; i++ {
+				ns := NewMockdatabaseNamespace(ctrl)
+				ns.EXPECT().ID().Return(ident.StringID(fmt.Sprintf("ns%d", i))).AnyTimes()
+				ns.EXPECT().Options().Return(nsOpts).AnyTimes()
+				ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false).AnyTimes()
+				ns.EXPECT().GetOwnedShards().Return(shards).AnyTimes()
+				namespaces = append(namespaces, ns)
+			}
+
+			db := newMockdatabase(ctrl, namespaces...)
+			db.EXPECT().GetOwnedNamespaces().Return(namespaces, nil).AnyTimes()
+			mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
+			mgr.opts = mgr.opts.SetCommitLogOptions(
+				mgr.opts.CommitLogOptions().
+					SetBlockSize(rOpts.BlockSize()))
+
+			mgr.sortedSnapshotMetadataFilesFn = tc.snapshotMetadata
+			mgr.commitLogFilesFn = tc.commitlogs
+			mgr.snapshotFilesFn = tc.snapshots
+
+			var deletedFiles []string
+			mgr.deleteFilesFn = func(files []string) error {
+				deletedFiles = append(deletedFiles, files...)
+				return nil
+			}
+
+			require.NoError(t, mgr.Cleanup(ts))
+			require.Equal(t, tc.expectedDeletedFiles, deletedFiles)
+		})
+	}
 }
 
 func TestCleanupManagerNamespaceCleanup(t *testing.T) {
@@ -166,7 +386,6 @@ func TestCleanupDataAndSnapshotFileSetFiles(t *testing.T) {
 	shard := NewMockdatabaseShard(ctrl)
 	expectedEarliestToRetain := retention.FlushTimeStart(ns.Options().RetentionOptions(), ts)
 	shard.EXPECT().CleanupExpiredFileSets(expectedEarliestToRetain).Return(nil)
-	shard.EXPECT().CleanupSnapshots(expectedEarliestToRetain)
 	shard.EXPECT().ID().Return(uint32(0)).AnyTimes()
 	ns.EXPECT().GetOwnedShards().Return([]databaseShard{shard}).AnyTimes()
 	ns.EXPECT().ID().Return(ident.StringID("nsID")).AnyTimes()
@@ -288,487 +507,16 @@ func (t *testRetentionOptions) newRetentionOptions() retention.Options {
 		SetBlockSize(time.Duration(t.blockSizeSecs) * time.Second)
 }
 
-func TestCleanupManagerCommitLogNamespaceBlocks(t *testing.T) {
-	tcs := []testCaseCleanupMgrNsBlocks{
-		{
-			id: "test-case-0",
-			nsRetention: testRetentionOptions{
-				blockSizeSecs:    30,
-				bufferPastSecs:   0,
-				bufferFutureSecs: 0,
-			},
-			commitlogBlockSizeSecs: 15,
-			blockStartSecs:         15,
-			expectedStartSecs:      0,
-			expectedEndSecs:        30,
-		},
-		{
-			id: "test-case-1",
-			nsRetention: testRetentionOptions{
-				blockSizeSecs:    30,
-				bufferPastSecs:   0,
-				bufferFutureSecs: 0,
-			},
-			commitlogBlockSizeSecs: 15,
-			blockStartSecs:         30,
-			expectedStartSecs:      30,
-			expectedEndSecs:        30,
-		},
-		{
-			id: "test-case-2",
-			nsRetention: testRetentionOptions{
-				blockSizeSecs:    10,
-				bufferPastSecs:   0,
-				bufferFutureSecs: 0,
-			},
-			commitlogBlockSizeSecs: 15,
-			blockStartSecs:         15,
-			expectedStartSecs:      10,
-			expectedEndSecs:        30,
-		},
-		{
-			id: "test-case-3",
-			nsRetention: testRetentionOptions{
-				blockSizeSecs:    15,
-				bufferPastSecs:   0,
-				bufferFutureSecs: 0,
-			},
-			commitlogBlockSizeSecs: 12,
-			blockStartSecs:         24,
-			expectedStartSecs:      15,
-			expectedEndSecs:        30,
-		},
-		{
-			id: "test-case-4",
-			nsRetention: testRetentionOptions{
-				blockSizeSecs:    20,
-				bufferPastSecs:   5,
-				bufferFutureSecs: 0,
-			},
-			commitlogBlockSizeSecs: 10,
-			blockStartSecs:         30,
-			expectedStartSecs:      20,
-			expectedEndSecs:        40,
-		},
-		{
-			id: "test-case-5",
-			nsRetention: testRetentionOptions{
-				blockSizeSecs:    20,
-				bufferPastSecs:   0,
-				bufferFutureSecs: 15,
-			},
-			commitlogBlockSizeSecs: 10,
-			blockStartSecs:         40,
-			expectedStartSecs:      40,
-			expectedEndSecs:        60,
-		},
-		{
-			id: "test-case-6",
-			nsRetention: testRetentionOptions{
-				blockSizeSecs:    25,
-				bufferPastSecs:   20,
-				bufferFutureSecs: 15,
-			},
-			commitlogBlockSizeSecs: 20,
-			blockStartSecs:         40,
-			expectedStartSecs:      0,
-			expectedEndSecs:        75,
-		},
-		{
-			id: "test-case-7",
-			nsRetention: testRetentionOptions{
-				blockSizeSecs:    720,
-				bufferPastSecs:   720,
-				bufferFutureSecs: 60,
-			},
-			commitlogBlockSizeSecs: 15,
-			blockStartSecs:         1410,
-			expectedStartSecs:      0,
-			expectedEndSecs:        1440,
-		},
-	}
-	for _, tc := range tcs {
-		var (
-			blockStart         = time.Unix(tc.blockStartSecs, 0)
-			commitLogBlockSize = time.Duration(tc.commitlogBlockSizeSecs) * time.Second
-			nsRetention        = tc.nsRetention.newRetentionOptions()
-			expectedStart      = time.Unix(tc.expectedStartSecs, 0)
-			expectedEnd        = time.Unix(tc.expectedEndSecs, 0)
-		)
-		// blockStart needs to be commitlogBlockSize aligned
-		require.Equal(t, blockStart, blockStart.Truncate(commitLogBlockSize), tc.id)
-		start, end := commitLogNamespaceBlockTimes(blockStart, commitLogBlockSize, nsRetention)
-		require.Equal(t, expectedStart.Unix(), start.Unix(), tc.id)
-		require.Equal(t, expectedEnd.Unix(), end.Unix(), tc.id)
-	}
-}
-
-// The following tests exercise commitLogTimes(). Consider the following situation:
-//
-// Commit Log Retention Options:
-// - Retention Period: 30 seconds
-// - BlockSize: 10 seconds
-// - BufferPast: 0 seconds
-//
-// - Current Time: 50 seconds
-//
-// name:    a    b    c    d    e
-//       |    |xxxx|xxxx|xxxx|    |
-//    t: 0    10   20   30   40   50
-//
-// we can potentially flush blocks starting [10, 30], i.e. b, c, d
-// so for each, we check the surround two blocks in the fs manager to see
-// if any namespace still requires to be flushed for that period. If so,
-// we cannot remove the data for it. We should get back all the times
-// we can delete data for.
-func newCleanupManagerCommitLogTimesTest(t *testing.T, ctrl *gomock.Controller) (*MockdatabaseNamespace, *cleanupManager) {
-	var (
-		rOpts = retention.NewOptions().
-			SetRetentionPeriod(30 * time.Second).
-			SetBufferPast(0 * time.Second).
-			SetBufferFuture(0 * time.Second).
-			SetBlockSize(10 * time.Second)
-	)
-	no := namespace.NewMockOptions(ctrl)
-	no.EXPECT().RetentionOptions().Return(rOpts).AnyTimes()
-
-	ns := NewMockdatabaseNamespace(ctrl)
-	ns.EXPECT().Options().Return(no).AnyTimes()
-
-	db := newMockdatabase(ctrl, ns)
-	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
-
-	mgr.opts = mgr.opts.SetCommitLogOptions(
-		mgr.opts.CommitLogOptions().
-			SetBlockSize(rOpts.BlockSize()))
-	return ns, mgr
-}
-
-func newCleanupManagerCommitLogTimesTestMultiNS(
-	t *testing.T,
-	ctrl *gomock.Controller,
-) (*MockdatabaseNamespace, *MockdatabaseNamespace, *cleanupManager) {
-	var (
-		rOpts = retention.NewOptions().
-			SetRetentionPeriod(30 * time.Second).
-			SetBufferPast(0 * time.Second).
-			SetBufferFuture(0 * time.Second).
-			SetBlockSize(10 * time.Second)
-	)
-	no := namespace.NewMockOptions(ctrl)
-	no.EXPECT().RetentionOptions().Return(rOpts).AnyTimes()
-
-	ns1 := NewMockdatabaseNamespace(ctrl)
-	ns1.EXPECT().Options().Return(no).AnyTimes()
-
-	ns2 := NewMockdatabaseNamespace(ctrl)
-	ns2.EXPECT().Options().Return(no).AnyTimes()
-
-	db := newMockdatabase(ctrl, ns1, ns2)
-	mgr := newCleanupManager(db, newNoopFakeActiveLogs(), tally.NoopScope).(*cleanupManager)
-
-	mgr.opts = mgr.opts.SetCommitLogOptions(
-		mgr.opts.CommitLogOptions().
-			SetBlockSize(rOpts.BlockSize()))
-	return ns1, ns2, mgr
-}
-
-func TestCleanupManagerCommitLogTimesAllFlushed(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
-	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, []commitlog.ErrorWithPath, error) {
-		return []commitlog.File{
-			commitlog.File{Start: time10, Duration: commitLogBlockSize},
-			commitlog.File{Start: time20, Duration: commitLogBlockSize},
-			commitlog.File{Start: time30, Duration: commitLogBlockSize},
-		}, nil, nil
-	}
-
-	gomock.InOrder(
-		ns.EXPECT().NeedsFlush(time10, time20).Return(false),
-		ns.EXPECT().NeedsFlush(time20, time30).Return(false),
-		ns.EXPECT().NeedsFlush(time30, time40).Return(false),
-	)
-
-	filesToCleanup, err := mgr.commitLogTimes(currentTime)
-	require.NoError(t, err)
-	require.Equal(t, 3, len(filesToCleanup))
-	require.True(t, contains(filesToCleanup, time10))
-	require.True(t, contains(filesToCleanup, time20))
-	require.True(t, contains(filesToCleanup, time30))
-}
-
-func TestCleanupManagerCommitLogTimesMiddlePendingFlush(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
-	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, []commitlog.ErrorWithPath, error) {
-		return []commitlog.File{
-			commitlog.File{Start: time10, Duration: commitLogBlockSize},
-			commitlog.File{Start: time20, Duration: commitLogBlockSize},
-			commitlog.File{Start: time30, Duration: commitLogBlockSize},
-		}, nil, nil
-	}
-
-	ns.EXPECT().IsCapturedBySnapshot(
-		gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
-	gomock.InOrder(
-		ns.EXPECT().NeedsFlush(time10, time20).Return(false),
-		ns.EXPECT().NeedsFlush(time20, time30).Return(true),
-		ns.EXPECT().NeedsFlush(time30, time40).Return(false),
-	)
-
-	filesToCleanup, err := mgr.commitLogTimes(currentTime)
-	require.NoError(t, err)
-	require.Equal(t, 2, len(filesToCleanup))
-	require.True(t, contains(filesToCleanup, time10))
-	require.True(t, contains(filesToCleanup, time30))
-}
-
-func TestCleanupManagerCommitLogTimesStartPendingFlush(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
-	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, []commitlog.ErrorWithPath, error) {
-		return []commitlog.File{
-			commitlog.File{Start: time10, Duration: commitLogBlockSize},
-			commitlog.File{Start: time20, Duration: commitLogBlockSize},
-			commitlog.File{Start: time30, Duration: commitLogBlockSize},
-		}, nil, nil
-	}
-
-	ns.EXPECT().IsCapturedBySnapshot(
-		gomock.Any(), gomock.Any(), gomock.Any(),
-	).Return(false, nil).AnyTimes()
-	gomock.InOrder(
-		ns.EXPECT().NeedsFlush(time10, time20).Return(false),
-		ns.EXPECT().NeedsFlush(time20, time30).Return(false),
-		ns.EXPECT().NeedsFlush(time30, time40).Return(true),
-	)
-
-	filesToCleanup, err := mgr.commitLogTimes(currentTime)
-	require.NoError(t, err)
-	require.Equal(t, 2, len(filesToCleanup))
-	require.True(t, contains(filesToCleanup, time20))
-	require.True(t, contains(filesToCleanup, time10))
-}
-
-func TestCleanupManagerCommitLogTimesAllPendingFlush(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
-	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, []commitlog.ErrorWithPath, error) {
-		return []commitlog.File{
-			commitlog.File{Start: time10, Duration: commitLogBlockSize},
-			commitlog.File{Start: time20, Duration: commitLogBlockSize},
-			commitlog.File{Start: time30, Duration: commitLogBlockSize},
-		}, nil, nil
-	}
-
-	ns.EXPECT().IsCapturedBySnapshot(
-		gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
-	gomock.InOrder(
-		ns.EXPECT().NeedsFlush(time10, time20).Return(true),
-		ns.EXPECT().NeedsFlush(time20, time30).Return(true),
-		ns.EXPECT().NeedsFlush(time30, time40).Return(true),
-	)
-
-	filesToCleanup, err := mgr.commitLogTimes(currentTime)
-	require.NoError(t, err)
-	require.Equal(t, 0, len(filesToCleanup))
-}
-
 func timeFor(s int64) time.Time {
 	return time.Unix(s, 0)
 }
 
-func contains(arr []commitLogFileWithErrorAndPath, t time.Time) bool {
-	for _, at := range arr {
-		if at.f.Start.Equal(t) {
-			return true
-		}
-	}
-	return false
-}
-
-func containsCorrupt(arr []commitLogFileWithErrorAndPath, path string) bool {
-	for _, f := range arr {
-		if f.path == path {
-			return true
-		}
-	}
-
-	return false
-}
-
-func TestCleanupManagerCommitLogTimesAllPendingFlushButHaveSnapshot(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	var (
-		ns, mgr            = newCleanupManagerCommitLogTimesTest(t, ctrl)
-		currentTime        = timeFor(50)
-		commitLogBlockSize = 10 * time.Second
-	)
-	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, []commitlog.ErrorWithPath, error) {
-		return []commitlog.File{
-			commitlog.File{Start: time10, Duration: commitLogBlockSize},
-			commitlog.File{Start: time20, Duration: commitLogBlockSize},
-			commitlog.File{Start: time30, Duration: commitLogBlockSize},
-		}, nil, nil
-	}
-
-	gomock.InOrder(
-		// Commit log with start time10 captured by snapshot,
-		// should be able to delete.
-		ns.EXPECT().NeedsFlush(time10, time20).Return(true),
-		ns.EXPECT().IsCapturedBySnapshot(
-			gomock.Any(), gomock.Any(), time20).Return(true, nil),
-		// Commit log with start time20 captured by snapshot,
-		// should be able to delete.
-		ns.EXPECT().NeedsFlush(time20, time30).Return(true),
-		ns.EXPECT().IsCapturedBySnapshot(
-			gomock.Any(), gomock.Any(), time30).Return(true, nil),
-		// Commit log with start time30 not captured by snapshot,
-		// will need to retain.
-		ns.EXPECT().NeedsFlush(time30, time40).Return(true),
-		ns.EXPECT().IsCapturedBySnapshot(
-			gomock.Any(), gomock.Any(), time40).Return(false, nil),
-	)
-
-	filesToCleanup, err := mgr.commitLogTimes(currentTime)
-	require.NoError(t, err)
-
-	// Only commit log files with starts time10 and time20 were
-	// captured by snapshot files, so those are the only ones
-	// we can delete.
-	require.True(t, contains(filesToCleanup, time10))
-	require.True(t, contains(filesToCleanup, time20))
-}
-
-func TestCleanupManagerCommitLogTimesHandlesIsCapturedBySnapshotError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
-	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, []commitlog.ErrorWithPath, error) {
-		return []commitlog.File{
-			commitlog.File{Start: time30, Duration: commitLogBlockSize},
-		}, nil, nil
-	}
-
-	gomock.InOrder(
-		ns.EXPECT().NeedsFlush(time30, time40).Return(true),
-		ns.EXPECT().IsCapturedBySnapshot(
-			gomock.Any(), gomock.Any(), time40).Return(false, errors.New("err")),
-	)
-
-	_, err := mgr.commitLogTimes(currentTime)
-	require.Error(t, err)
-}
-
-func TestCleanupManagerCommitLogTimesMultiNS(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	ns1, ns2, mgr := newCleanupManagerCommitLogTimesTestMultiNS(t, ctrl)
-	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, []commitlog.ErrorWithPath, error) {
-		return []commitlog.File{
-			commitlog.File{Start: time10, Duration: commitLogBlockSize},
-			commitlog.File{Start: time20, Duration: commitLogBlockSize},
-			commitlog.File{Start: time30, Duration: commitLogBlockSize},
-		}, nil, nil
-	}
-
-	// ns1 is flushed for time10->time20 and time20->time30.
-	// It is not flushed for time30->time40, but it doe have
-	// a snapshot that covers that range.
-	//
-	// ns2 is flushed for time10->time20. It is not flushed for
-	// time20->time30 but it does have a snapshot that covers
-	// that range. It does not have a flush or snapshot for
-	// time30->time40.
-	gomock.InOrder(
-		ns1.EXPECT().NeedsFlush(time10, time20).Return(false),
-		ns2.EXPECT().NeedsFlush(time10, time20).Return(false),
-
-		ns1.EXPECT().NeedsFlush(time20, time30).Return(false),
-		ns2.EXPECT().NeedsFlush(time20, time30).Return(true),
-		ns2.EXPECT().IsCapturedBySnapshot(
-			gomock.Any(), gomock.Any(), time30).Return(true, nil),
-
-		ns1.EXPECT().NeedsFlush(time30, time40).Return(true),
-		ns1.EXPECT().IsCapturedBySnapshot(
-			gomock.Any(), gomock.Any(), time40).Return(true, nil),
-		ns2.EXPECT().NeedsFlush(time30, time40).Return(true),
-		ns2.EXPECT().IsCapturedBySnapshot(
-			gomock.Any(), gomock.Any(), time40).Return(false, nil),
-	)
-
-	filesToCleanup, err := mgr.commitLogTimes(currentTime)
-	require.NoError(t, err)
-
-	// time10 and time20 were covered by either a flush or snapshot
-	// for both namespaces, but time30 was only covered for ns1 by
-	// a snapshot, and ns2 didn't have a snapshot or flush for that
-	// time so the file needs to be retained.
-	require.True(t, contains(filesToCleanup, time10))
-	require.True(t, contains(filesToCleanup, time20))
-}
-
-func TestCleanupManagerDeletesCorruptCommitLogFiles(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	var (
-		_, mgr = newCleanupManagerCommitLogTimesTest(t, ctrl)
-		err    = errors.New("some_error")
-		path   = "path"
-	)
-	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, []commitlog.ErrorWithPath, error) {
-		return []commitlog.File{}, []commitlog.ErrorWithPath{
-			commitlog.NewErrorWithPath(err, path),
-		}, nil
-	}
-
-	filesToCleanup, err := mgr.commitLogTimes(currentTime)
-	require.NoError(t, err)
-	require.True(t, containsCorrupt(filesToCleanup, path))
-}
-
-func TestCleanupManagerIgnoresActiveCommitLogFiles(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	var (
-		_, mgr = newCleanupManagerCommitLogTimesTest(t, ctrl)
-		err    = errors.New("some_error")
-		path   = "path"
-	)
-	mgr.commitLogFilesFn = func(_ commitlog.Options) ([]commitlog.File, []commitlog.ErrorWithPath, error) {
-		return []commitlog.File{}, []commitlog.ErrorWithPath{
-			commitlog.NewErrorWithPath(err, path),
-		}, nil
-	}
-	mgr.activeCommitlogs = newFakeActiveLogs([]commitlog.File{
-		{FilePath: path},
-	})
-
-	filesToCleanup, err := mgr.commitLogTimes(currentTime)
-	require.NoError(t, err)
-	require.Empty(t, filesToCleanup, path)
-}
-
+// TODO: Delete if unused
 type fakeActiveLogs struct {
-	activeLogs []commitlog.File
+	activeLogs []persist.CommitlogFile
 }
 
-func (f fakeActiveLogs) ActiveLogs() ([]commitlog.File, error) {
+func (f fakeActiveLogs) ActiveLogs() ([]persist.CommitlogFile, error) {
 	return f.activeLogs, nil
 }
 
@@ -776,7 +524,7 @@ func newNoopFakeActiveLogs() fakeActiveLogs {
 	return newFakeActiveLogs(nil)
 }
 
-func newFakeActiveLogs(activeLogs []commitlog.File) fakeActiveLogs {
+func newFakeActiveLogs(activeLogs []persist.CommitlogFile) fakeActiveLogs {
 	return fakeActiveLogs{
 		activeLogs: activeLogs,
 	}

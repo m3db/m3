@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3x/context"
@@ -72,11 +73,11 @@ type CommitLog interface {
 	Close() error
 
 	// ActiveLogs returns a slice of the active commitlogs.
-	ActiveLogs() ([]File, error)
+	ActiveLogs() ([]persist.CommitlogFile, error)
 
 	// RotateLogs rotates the commitlog and returns the File that represents
 	// the new commitlog file.
-	RotateLogs() (File, error)
+	RotateLogs() (persist.CommitlogFile, error)
 }
 
 // Iterator provides an iterator for commit logs
@@ -183,7 +184,7 @@ type Options interface {
 
 // FileFilterPredicate is a predicate that allows the caller to determine
 // which commitlogs the iterator should read from.
-type FileFilterPredicate func(f File) bool
+type FileFilterPredicate func(f persist.CommitlogFile) bool
 
 // SeriesFilterPredicate is a predicate that determines whether datapoints for a given series
 // should be returned from the Commit log reader. The predicate is pushed down to the

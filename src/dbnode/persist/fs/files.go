@@ -22,6 +22,7 @@ package fs
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -45,7 +46,11 @@ import (
 	"github.com/pborman/uuid"
 )
 
-var timeZero time.Time
+var (
+	timeZero time.Time
+
+	errSnapshotTimeAndIDZero = errors.New("tried to read snapshot time and ID of zero value")
+)
 
 const (
 	dataDirName       = "data"
@@ -74,13 +79,21 @@ type FileSetFile struct {
 	AbsoluteFilepaths []string
 
 	CachedSnapshotTime time.Time
-	CachedSnapshotID   []byte
+	CachedSnapshotID   uuid.UUID
 	filePathPrefix     string
 }
 
 // SnapshotTimeAndID returns the snapshot time and id for the given FileSetFile.
 // Value is meaningless if the the FileSetFile is a flush instead of a snapshot.
-func (f *FileSetFile) SnapshotTimeAndID() (time.Time, []byte, error) {
+func (f *FileSetFile) SnapshotTimeAndID() (time.Time, uuid.UUID, error) {
+	if f.IsZero() {
+		return time.Time{}, nil, errSnapshotTimeAndIDZero
+	}
+	if len(f.AbsoluteFilepaths) > 0 && !strings.Contains(f.AbsoluteFilepaths[0], snapshotDirName) {
+		return time.Time{}, nil, fmt.Errorf(
+			"tried to determine snapshot time and id of non-snapshot: %s", f.AbsoluteFilepaths[0])
+	}
+
 	if !f.CachedSnapshotTime.IsZero() || f.CachedSnapshotID != nil {
 		// Return immediately if we've already cached it.
 		return f.CachedSnapshotTime, f.CachedSnapshotID, nil
@@ -185,9 +198,15 @@ func (f FileSetFilesSlice) sortByTimeAndVolumeIndexAscending() {
 // physical files on disk.
 type SnapshotMetadata struct {
 	ID                  SnapshotMetadataIdentifier
-	CommitlogIdentifier []byte
+	CommitlogIdentifier persist.CommitlogFile
 	MetadataFilePath    string
 	CheckpointFilePath  string
+}
+
+// AbsoluteFilepaths returns a slice of all the absolute filepaths associated
+// with a snapshot metadata.
+func (s SnapshotMetadata) AbsoluteFilepaths() []string {
+	return []string{s.MetadataFilePath, s.CheckpointFilePath}
 }
 
 // SnapshotMetadataErrorWithPaths contains an error that occurred while trying to
@@ -371,7 +390,7 @@ func timeAndIndexFromFileName(fname string, componentPosition int) (time.Time, i
 
 // SnapshotTimeAndID returns the metadata for the snapshot.
 func SnapshotTimeAndID(
-	filePathPrefix string, id FileSetFileIdentifier) (time.Time, []byte, error) {
+	filePathPrefix string, id FileSetFileIdentifier) (time.Time, uuid.UUID, error) {
 	decoder := msgpack.NewDecoder(nil)
 	return snapshotTimeAndID(filePathPrefix, id, decoder)
 }
@@ -380,7 +399,7 @@ func snapshotTimeAndID(
 	filePathPrefix string,
 	id FileSetFileIdentifier,
 	decoder *msgpack.Decoder,
-) (time.Time, []byte, error) {
+) (time.Time, uuid.UUID, error) {
 	infoBytes, err := readSnapshotInfoFile(filePathPrefix, id, defaultBufioReaderSize)
 	if err != nil {
 		return time.Time{}, nil, fmt.Errorf("error reading snapshot info file: %v", err)
@@ -391,7 +410,14 @@ func snapshotTimeAndID(
 	if err != nil {
 		return time.Time{}, nil, fmt.Errorf("error decoding snapshot info file: %v", err)
 	}
-	return time.Unix(0, info.SnapshotTime), info.SnapshotID, nil
+
+	var parsedSnapshotID uuid.UUID
+	err = parsedSnapshotID.UnmarshalBinary(info.SnapshotID)
+	if err != nil {
+		return time.Time{}, nil, fmt.Errorf("error parsing snapshot ID from snapshot info file: %v", err)
+	}
+
+	return time.Unix(0, info.SnapshotTime), parsedSnapshotID, nil
 }
 
 func readSnapshotInfoFile(filePathPrefix string, id FileSetFileIdentifier, readerBufferSize int) ([]byte, error) {
@@ -1200,6 +1226,10 @@ func NextSnapshotMetadataFileIndex(opts Options) (int64, error) {
 	snapshotMetadataFiles, _, err := SortedSnapshotMetadataFiles(opts)
 	if err != nil {
 		return 0, err
+	}
+
+	if len(snapshotMetadataFiles) == 0 {
+		return 0, nil
 	}
 
 	lastSnapshotMetadataFile := snapshotMetadataFiles[len(snapshotMetadataFiles)-1]

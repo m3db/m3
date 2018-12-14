@@ -75,7 +75,7 @@ func newFileSystemManager(
 ) databaseFileSystemManager {
 	instrumentOpts := opts.InstrumentOptions()
 	scope := instrumentOpts.MetricsScope().SubScope("fs")
-	fm := newFlushManager(database, scope)
+	fm := newFlushManager(database, commitLog, scope)
 	cm := newCleanupManager(database, commitLog, scope)
 
 	return &fileSystemManager{

@@ -27,8 +27,10 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
 	xerrors "github.com/m3db/m3x/errors"
+	"github.com/pborman/uuid"
 
 	"github.com/uber-go/tally"
 )
@@ -52,12 +54,12 @@ const (
 type flushManager struct {
 	sync.RWMutex
 
-	database database
-	opts     Options
-	pm       persist.Manager
-
-	// state is used to protect the flush manager against concurrent use,
-	// while isFlushing, isSnapshotting, and isIndexFlushing are more
+	database  database
+	commitlog commitlog.CommitLog
+	opts      Options
+	pm        persist.Manager
+	// isFlushingOrSnapshotting is used to protect the flush manager against
+	// concurrent use, while flushInProgress and snapshotInProgress are more
 	// granular and are used for emitting granular gauges.
 	state           flushManagerState
 	isFlushing      tally.Gauge
@@ -70,10 +72,12 @@ type flushManager struct {
 	lastSuccessfulSnapshotStartTime time.Time
 }
 
-func newFlushManager(database database, scope tally.Scope) databaseFlushManager {
+func newFlushManager(
+	database database, commitlog commitlog.CommitLog, scope tally.Scope) databaseFlushManager {
 	opts := database.Options()
 	return &flushManager{
 		database:                        database,
+		commitlog:                       commitlog,
 		opts:                            opts,
 		pm:                              opts.PersistManager(),
 		isFlushing:                      scope.Gauge("flush"),
@@ -99,7 +103,7 @@ func (m *flushManager) Flush(
 	defer m.setState(flushManagerIdle)
 
 	// create flush-er
-	flush, err := m.pm.StartDataPersist()
+	flushPersist, err := m.pm.StartFlushPersist()
 	if err != nil {
 		return err
 	}
@@ -130,50 +134,28 @@ func (m *flushManager) Flush(
 				"tried to flush ns: %s, but did not have shard bootstrap times", ns.ID().String()))
 			continue
 		}
-		multiErr = multiErr.Add(m.flushNamespaceWithTimes(ns, shardBootstrapTimes, flushTimes, flush))
-	}
 
-	// NB(rartoul): We need to make decisions about whether to snapshot or not as an
-	// all-or-nothing decision, we can't decide on a namespace-by-namespace or
-	// shard-by-shard basis because the model we're moving towards is that once a snapshot
-	// has completed, then all data that had been received by the dbnode up until the
-	// snapshot "start time" has been persisted durably.
-	shouldSnapshot := tickStart.Sub(m.lastSuccessfulSnapshotStartTime) >= m.opts.MinimumSnapshotInterval()
-	if shouldSnapshot {
-		m.setState(flushManagerSnapshotInProgress)
-		maxBlocksSnapshottedByNamespace := 0
-		for _, ns := range namespaces {
-			var (
-				snapshotBlockStarts     = m.namespaceSnapshotTimes(ns, tickStart)
-				shardBootstrapTimes, ok = dbBootstrapStateAtTickStart.NamespaceBootstrapStates[ns.ID().String()]
-			)
-
-			if !ok {
-				// Could happen if namespaces are added / removed.
-				multiErr = multiErr.Add(fmt.Errorf(
-					"tried to flush ns: %s, but did not have shard bootstrap times", ns.ID().String()))
-				continue
-			}
-
-			if len(snapshotBlockStarts) > maxBlocksSnapshottedByNamespace {
-				maxBlocksSnapshottedByNamespace = len(snapshotBlockStarts)
-			}
-			for _, snapshotBlockStart := range snapshotBlockStarts {
-				err := ns.Snapshot(
-					snapshotBlockStart, tickStart, shardBootstrapTimes, flush)
-
-				if err != nil {
-					detailedErr := fmt.Errorf("namespace %s failed to snapshot data: %v",
-						ns.ID().String(), err)
-					multiErr = multiErr.Add(detailedErr)
-				}
-			}
+		err = m.flushNamespaceWithTimes(
+			ns, shardBootstrapTimes, flushTimes, flushPersist)
+		if err != nil {
+			multiErr = multiErr.Add(err)
 		}
-		m.maxBlocksSnapshottedByNamespace.Update(float64(maxBlocksSnapshottedByNamespace))
 	}
 
-	// mark data flush finished
-	multiErr = multiErr.Add(flush.DoneData())
+	err = flushPersist.DoneFlush()
+	if err != nil {
+		multiErr = multiErr.Add(err)
+	}
+
+	// TODO: is this missing minimum time between snapshots?
+	rotatedCommitlogID, err := m.commitlog.RotateLogs()
+	if err != nil {
+		return fmt.Errorf("error rotating commitlog in mediator tick: %v", err)
+	}
+	err = m.snapshot(namespaces, tickStart, rotatedCommitlogID)
+	if err != nil {
+		multiErr = multiErr.Add(err)
+	}
 
 	if shouldSnapshot {
 		if multiErr.NumErrors() == 0 {
@@ -204,6 +186,49 @@ func (m *flushManager) Flush(
 	multiErr = multiErr.Add(indexFlush.DoneIndex())
 
 	return multiErr.FinalError()
+}
+
+func (m *flushManager) snapshot(
+	namespaces []databaseNamespace,
+	tickStart time.Time,
+	rotatedCommitlogID persist.CommitlogFile,
+) error {
+	snapshotPersist, err := m.pm.StartSnapshotPersist()
+	if err != nil {
+		return err
+	}
+
+	m.setState(flushManagerSnapshotInProgress)
+	maxBlocksSnapshottedByNamespace := 0
+	multiErr := xerrors.NewMultiError()
+	for _, ns := range namespaces {
+		var (
+			snapshotBlockStarts = m.namespaceSnapshotTimes(ns, tickStart)
+		)
+
+		if len(snapshotBlockStarts) > maxBlocksSnapshottedByNamespace {
+			maxBlocksSnapshottedByNamespace = len(snapshotBlockStarts)
+		}
+		for _, snapshotBlockStart := range snapshotBlockStarts {
+			err := ns.Snapshot(
+				snapshotBlockStart, tickStart, snapshotPersist)
+
+			if err != nil {
+				detailedErr := fmt.Errorf("namespace %s failed to snapshot data: %v",
+					ns.ID().String(), err)
+				multiErr = multiErr.Add(detailedErr)
+			}
+		}
+	}
+	m.maxBlocksSnapshottedByNamespace.Update(float64(maxBlocksSnapshottedByNamespace))
+
+	snapshotUUID := uuid.NewUUID()
+	err = snapshotPersist.DoneSnapshot(snapshotUUID, rotatedCommitlogID)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (m *flushManager) Report() {
@@ -281,13 +306,13 @@ func (m *flushManager) flushNamespaceWithTimes(
 	ns databaseNamespace,
 	ShardBootstrapStates ShardBootstrapStates,
 	times []time.Time,
-	flush persist.DataFlush,
+	flushPreparer persist.FlushPreparer,
 ) error {
 	multiErr := xerrors.NewMultiError()
 	for _, t := range times {
 		// NB(xichen): we still want to proceed if a namespace fails to flush its data.
 		// Probably want to emit a counter here, but for now just log it.
-		if err := ns.Flush(t, ShardBootstrapStates, flush); err != nil {
+		if err := ns.Flush(t, ShardBootstrapStates, flushPreparer); err != nil {
 			detailedErr := fmt.Errorf("namespace %s failed to flush data: %v",
 				ns.ID().String(), err)
 			multiErr = multiErr.Add(detailedErr)

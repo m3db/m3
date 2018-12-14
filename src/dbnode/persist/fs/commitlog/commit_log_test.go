@@ -33,6 +33,7 @@ import (
 
 	"github.com/m3db/bitset"
 	"github.com/m3db/m3/src/dbnode/clock"
+	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3x/context"
@@ -153,7 +154,7 @@ func snapshotCounterValue(
 }
 
 type mockCommitLogWriter struct {
-	openFn  func(start time.Time, duration time.Duration) (File, error)
+	openFn  func(start time.Time, duration time.Duration) (persist.CommitlogFile, error)
 	writeFn func(ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation) error
 	flushFn func(sync bool) error
 	closeFn func() error
@@ -161,8 +162,8 @@ type mockCommitLogWriter struct {
 
 func newMockCommitLogWriter() *mockCommitLogWriter {
 	return &mockCommitLogWriter{
-		openFn: func(start time.Time, duration time.Duration) (File, error) {
-			return File{}, nil
+		openFn: func(start time.Time, duration time.Duration) (persist.CommitlogFile, error) {
+			return persist.CommitlogFile{}, nil
 		},
 		writeFn: func(ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation) error {
 			return nil
@@ -176,7 +177,7 @@ func newMockCommitLogWriter() *mockCommitLogWriter {
 	}
 }
 
-func (w *mockCommitLogWriter) Open(start time.Time, duration time.Duration) (File, error) {
+func (w *mockCommitLogWriter) Open(start time.Time, duration time.Duration) (persist.CommitlogFile, error) {
 	return w.openFn(start, duration)
 }
 
@@ -518,7 +519,7 @@ func TestCommitLogIteratorUsesPredicateFilter(t *testing.T) {
 	require.True(t, len(files) == 3)
 
 	// This predicate should eliminate the first commitlog file
-	commitLogPredicate := func(f File) bool {
+	commitLogPredicate := func(f persist.CommitlogFile) bool {
 		return f.Start.After(alignedStart)
 	}
 
@@ -681,11 +682,11 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 	}
 
 	var opens int64
-	writer.openFn = func(start time.Time, duration time.Duration) (File, error) {
+	writer.openFn = func(start time.Time, duration time.Duration) (persist.CommitlogFile, error) {
 		if atomic.AddInt64(&opens, 1) >= 2 {
-			return File{}, fmt.Errorf("an error")
+			return persist.CommitlogFile{}, fmt.Errorf("an error")
 		}
-		return File{}, nil
+		return persist.CommitlogFile{}, nil
 	}
 
 	writer.flushFn = func(bool) error {
@@ -730,11 +731,11 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 	writer := newMockCommitLogWriter()
 
 	var opens int64
-	writer.openFn = func(start time.Time, duration time.Duration) (File, error) {
+	writer.openFn = func(start time.Time, duration time.Duration) (persist.CommitlogFile, error) {
 		if atomic.AddInt64(&opens, 1) >= 2 {
-			return File{}, fmt.Errorf("an error")
+			return persist.CommitlogFile{}, fmt.Errorf("an error")
 		}
-		return File{}, nil
+		return persist.CommitlogFile{}, nil
 	}
 
 	writer.flushFn = func(bool) error {
