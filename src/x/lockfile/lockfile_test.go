@@ -21,9 +21,11 @@
 package lockfile
 
 import (
+	"io/ioutil"
 	"math/rand"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strconv"
 	"testing"
@@ -31,7 +33,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestLock(t *testing.T) {
+func TestAcquire(t *testing.T) {
 	t.Run("process B can obtain the lock after A exits", func(t *testing.T) {
 		path := tempPath()
 		assert.NoError(t, newLockfileCommand(path, 0, true).Run())
@@ -68,6 +70,23 @@ func TestLock(t *testing.T) {
 			assert.Error(t, errB)
 		}
 	})
+}
+
+func TestCreateAndAcquire(t *testing.T) {
+	tempDir, err := ioutil.TempDir("", "TestCreateAndAcquire")
+	assert.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	tempSubDir := path.Join(tempDir, "testDir")
+
+	lock, err := CreateAndAcquire(path.Join(tempSubDir, "testLockfile"), os.ModePerm)
+	assert.NoError(t, err)
+	err = lock.Release()
+	assert.NoError(t, err)
+
+	// check CreateAndAcquire() created the missing directory
+	_, err = os.Stat(tempSubDir)
+	assert.False(t, os.IsNotExist(err))
 }
 
 func tempPath() string {
