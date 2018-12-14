@@ -194,7 +194,9 @@ func (m *flushManager) snapshot(
 	tickStart time.Time,
 	rotatedCommitlogID persist.CommitlogFile,
 ) error {
-	snapshotPersist, err := m.pm.StartSnapshotPersist()
+	snapshotID := uuid.NewUUID()
+
+	snapshotPersist, err := m.pm.StartSnapshotPersist(snapshotID)
 	if err != nil {
 		return err
 	}
@@ -223,8 +225,7 @@ func (m *flushManager) snapshot(
 	}
 	m.maxBlocksSnapshottedByNamespace.Update(float64(maxBlocksSnapshottedByNamespace))
 
-	snapshotUUID := uuid.NewUUID()
-	err = snapshotPersist.DoneSnapshot(snapshotUUID, rotatedCommitlogID)
+	err = snapshotPersist.DoneSnapshot(snapshotID, rotatedCommitlogID)
 	if err != nil {
 		return err
 	}

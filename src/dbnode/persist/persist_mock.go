@@ -70,18 +70,18 @@ func (mr *MockManagerMockRecorder) StartFlushPersist() *gomock.Call {
 }
 
 // StartSnapshotPersist mocks base method
-func (m *MockManager) StartSnapshotPersist() (SnapshotPreparer, error) {
+func (m *MockManager) StartSnapshotPersist(snapshotID uuid.UUID) (SnapshotPreparer, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "StartSnapshotPersist")
+	ret := m.ctrl.Call(m, "StartSnapshotPersist", snapshotID)
 	ret0, _ := ret[0].(SnapshotPreparer)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // StartSnapshotPersist indicates an expected call of StartSnapshotPersist
-func (mr *MockManagerMockRecorder) StartSnapshotPersist() *gomock.Call {
+func (mr *MockManagerMockRecorder) StartSnapshotPersist(snapshotID interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartSnapshotPersist", reflect.TypeOf((*MockManager)(nil).StartSnapshotPersist))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartSnapshotPersist", reflect.TypeOf((*MockManager)(nil).StartSnapshotPersist), snapshotID)
 }
 
 // StartIndexPersist mocks base method

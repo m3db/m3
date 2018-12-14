@@ -265,7 +265,7 @@ func TestPersistenceManagerPrepareSnapshotSuccess(t *testing.T) {
 	writer.EXPECT().WriteAll(id, tags, gomock.Any(), checksum).Return(nil)
 	writer.EXPECT().Close()
 
-	flush, err := pm.StartSnapshotPersist()
+	flush, err := pm.StartSnapshotPersist(testSnapshotID)
 	require.NoError(t, err)
 
 	defer func() {

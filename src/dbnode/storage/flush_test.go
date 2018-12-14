@@ -95,7 +95,7 @@ func TestFlushManagerFlushAlreadyInProgress(t *testing.T) {
 	}).Return(mockFlushPerist, nil).AnyTimes()
 
 	mockSnapshotPersist.EXPECT().DoneSnapshot(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	mockPersistManager.EXPECT().StartSnapshotPersist().Do(func() {
+	mockPersistManager.EXPECT().StartSnapshotPersist(gomock.Any()).Do(func() {
 		startCh <- struct{}{}
 		<-doneCh
 	}).Return(mockSnapshotPersist, nil).AnyTimes()
@@ -163,7 +163,7 @@ func TestFlushManagerFlushDoneFlushError(t *testing.T) {
 	mockPersistManager.EXPECT().StartFlushPersist().Return(mockFlushPersist, nil)
 
 	mockSnapshotPersist.EXPECT().DoneSnapshot(gomock.Any(), persist.CommitlogFile{}).Return(nil)
-	mockPersistManager.EXPECT().StartSnapshotPersist().Return(mockSnapshotPersist, nil)
+	mockPersistManager.EXPECT().StartSnapshotPersist(gomock.Any()).Return(mockSnapshotPersist, nil)
 
 	mockIndexFlusher := persist.NewMockIndexFlush(ctrl)
 	mockIndexFlusher.EXPECT().DoneIndex().Return(nil)
@@ -201,7 +201,7 @@ func TestFlushManagerFlushDoneSnapshotError(t *testing.T) {
 	mockPersistManager.EXPECT().StartFlushPersist().Return(mockFlushPersist, nil)
 
 	mockSnapshotPersist.EXPECT().DoneSnapshot(gomock.Any(), persist.CommitlogFile{}).Return(fakeErr)
-	mockPersistManager.EXPECT().StartSnapshotPersist().Return(mockSnapshotPersist, nil)
+	mockPersistManager.EXPECT().StartSnapshotPersist(gomock.Any()).Return(mockSnapshotPersist, nil)
 
 	mockIndexFlusher := persist.NewMockIndexFlush(ctrl)
 	mockIndexFlusher.EXPECT().DoneIndex().Return(nil)
@@ -236,7 +236,7 @@ func TestFlushManagerFlushDoneIndexError(t *testing.T) {
 	mockPersistManager.EXPECT().StartFlushPersist().Return(mockFlushPersist, nil)
 
 	mockSnapshotPersist.EXPECT().DoneSnapshot(gomock.Any(), persist.CommitlogFile{}).Return(nil)
-	mockPersistManager.EXPECT().StartSnapshotPersist().Return(mockSnapshotPersist, nil)
+	mockPersistManager.EXPECT().StartSnapshotPersist(gomock.Any()).Return(mockSnapshotPersist, nil)
 
 	fakeErr := errors.New("fake error while marking flush done")
 	mockIndexFlusher := persist.NewMockIndexFlush(ctrl)
@@ -280,7 +280,7 @@ func TestFlushManagerSkipNamespaceIndexingDisabled(t *testing.T) {
 	mockPersistManager.EXPECT().StartFlushPersist().Return(mockFlushPersist, nil)
 
 	mockSnapshotPersist.EXPECT().DoneSnapshot(gomock.Any(), persist.CommitlogFile{}).Return(nil)
-	mockPersistManager.EXPECT().StartSnapshotPersist().Return(mockSnapshotPersist, nil)
+	mockPersistManager.EXPECT().StartSnapshotPersist(gomock.Any()).Return(mockSnapshotPersist, nil)
 
 	mockIndexFlusher := persist.NewMockIndexFlush(ctrl)
 	mockIndexFlusher.EXPECT().DoneIndex().Return(nil)
@@ -329,7 +329,7 @@ func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
 	mockPersistManager.EXPECT().StartFlushPersist().Return(mockFlushPersist, nil)
 
 	mockSnapshotPersist.EXPECT().DoneSnapshot(gomock.Any(), persist.CommitlogFile{}).Return(nil)
-	mockPersistManager.EXPECT().StartSnapshotPersist().Return(mockSnapshotPersist, nil)
+	mockPersistManager.EXPECT().StartSnapshotPersist(gomock.Any()).Return(mockSnapshotPersist, nil)
 
 	mockIndexFlusher := persist.NewMockIndexFlush(ctrl)
 	mockIndexFlusher.EXPECT().DoneIndex().Return(nil)

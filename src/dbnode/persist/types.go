@@ -73,7 +73,7 @@ type Manager interface {
 	StartFlushPersist() (FlushPreparer, error)
 
 	// StartSnapshotPersist begins a snapshot for a set of shards.
-	StartSnapshotPersist() (SnapshotPreparer, error)
+	StartSnapshotPersist(snapshotID uuid.UUID) (SnapshotPreparer, error)
 
 	// StartIndexPersist begins a flush for index data.
 	StartIndexPersist() (IndexFlush, error)
@@ -150,6 +150,7 @@ type IndexPrepareOptions struct {
 // information specific to read/writing snapshot files.
 type DataPrepareSnapshotOptions struct {
 	SnapshotTime time.Time
+	SnapshotID   uuid.UUID
 }
 
 // FileSetType is an enum that indicates what type of files a fileset contains

@@ -108,6 +108,9 @@ type dataPersistManager struct {
 	// The type of files that are being persisted. Assists with decision making
 	// in the "done" phase.
 	fileSetType persist.FileSetType
+
+	// The ID of the snapshot being prepared. Only used when writing out snapshots.
+	snapshotID uuid.UUID
 }
 
 type indexPersistManager struct {
@@ -201,6 +204,7 @@ func (pm *persistManager) reset() {
 	pm.indexPM.segmentWriter.Reset(nil)
 	pm.indexPM.writeErr = nil
 	pm.indexPM.initialized = false
+	pm.dataPM.snapshotID = nil
 }
 
 // StartIndexPersist is called by the databaseFlushManager to begin the persist process for
@@ -377,7 +381,7 @@ func (pm *persistManager) StartFlushPersist() (persist.FlushPreparer, error) {
 }
 
 // StartSnapshotPersist is called by the databaseFlushManager to begin the snapshot process.
-func (pm *persistManager) StartSnapshotPersist() (persist.SnapshotPreparer, error) {
+func (pm *persistManager) StartSnapshotPersist(snapshotID uuid.UUID) (persist.SnapshotPreparer, error) {
 	pm.Lock()
 	defer pm.Unlock()
 
@@ -386,6 +390,7 @@ func (pm *persistManager) StartSnapshotPersist() (persist.SnapshotPreparer, erro
 	}
 	pm.status = persistManagerPersistingData
 	pm.dataPM.fileSetType = persist.FileSetSnapshotType
+	pm.dataPM.snapshotID = snapshotID
 
 	return pm, nil
 }
@@ -397,6 +402,7 @@ func (pm *persistManager) PrepareData(opts persist.DataPrepareOptions) (persist.
 		shard        = opts.Shard
 		blockStart   = opts.BlockStart
 		snapshotTime = opts.Snapshot.SnapshotTime
+		snapshotID   = pm.dataPM.snapshotID
 		nsID         = opts.NamespaceMetadata.ID()
 		prepared     persist.PreparedDataPersist
 	)
@@ -458,6 +464,7 @@ func (pm *persistManager) PrepareData(opts persist.DataPrepareOptions) (persist.
 		BlockSize: blockSize,
 		Snapshot: DataWriterSnapshotOptions{
 			SnapshotTime: snapshotTime,
+			SnapshotID:   snapshotID,
 		},
 		FileSetType: opts.FileSetType,
 		Identifier: FileSetFileIdentifier{
