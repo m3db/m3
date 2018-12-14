@@ -22,6 +22,7 @@ package lockfile
 
 import (
 	"os"
+	paths "path"
 
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
@@ -52,6 +53,16 @@ func Acquire(path string) (*Lockfile, error) {
 	lf := Lockfile{*file}
 
 	return &lf, nil
+}
+
+// CreateAndAcquire creates any non-existing directories needed to
+// create the lock file, then acquires a lock on it
+func CreateAndAcquire(path string, newDirMode os.FileMode) (*Lockfile, error) {
+	if err := os.MkdirAll(paths.Dir(path), newDirMode); err != nil {
+		return nil, err
+	}
+
+	return Acquire(path)
 }
 
 // Release releases the lock on the file and removes the file.
