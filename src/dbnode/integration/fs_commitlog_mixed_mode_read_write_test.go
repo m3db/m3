@@ -45,10 +45,6 @@ import (
 )
 
 func TestFsCommitLogMixedModeReadWrite(t *testing.T) {
-	testMixedModeReadWrite(t, false)
-}
-
-func testMixedModeReadWrite(t *testing.T, snapshotEnabled bool) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
@@ -61,8 +57,7 @@ func testMixedModeReadWrite(t *testing.T, snapshotEnabled bool) {
 	)
 
 	ns1Opts := namespace.NewOptions().
-		SetRetentionOptions(ns1ROpts).
-		SetSnapshotEnabled(snapshotEnabled)
+		SetRetentionOptions(ns1ROpts)
 	ns1, err := namespace.NewMetadata(nsID, ns1Opts)
 	require.NoError(t, err)
 	opts := newTestOptions(t).
