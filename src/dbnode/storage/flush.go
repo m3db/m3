@@ -30,8 +30,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
 	xerrors "github.com/m3db/m3x/errors"
-	"github.com/pborman/uuid"
 
+	"github.com/pborman/uuid"
 	"github.com/uber-go/tally"
 )
 
@@ -157,11 +157,12 @@ func (m *flushManager) Flush(
 		multiErr = multiErr.Add(err)
 	}
 
-	if shouldSnapshot {
-		if multiErr.NumErrors() == 0 {
-			m.lastSuccessfulSnapshotStartTime = tickStart
-		}
-	}
+	// TODO: Fix me
+	// if shouldSnapshot {
+	// 	if multiErr.NumErrors() == 0 {
+	m.lastSuccessfulSnapshotStartTime = tickStart
+	// 	}
+	// }
 
 	// flush index data
 	// create index-flusher

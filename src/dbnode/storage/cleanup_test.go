@@ -34,9 +34,9 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3x/ident"
 	xtest "github.com/m3db/m3x/test"
-	"github.com/pborman/uuid"
 
 	"github.com/golang/mock/gomock"
+	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )

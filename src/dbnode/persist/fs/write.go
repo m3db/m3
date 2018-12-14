@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
+
 	"github.com/pborman/uuid"
 )
 

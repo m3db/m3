@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3x/ident"
+
 	"github.com/pborman/uuid"
 )
 

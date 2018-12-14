@@ -38,8 +38,8 @@ import (
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
-	"github.com/pborman/uuid"
 
+	"github.com/pborman/uuid"
 	"github.com/uber-go/tally"
 )
 

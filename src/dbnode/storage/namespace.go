@@ -912,11 +912,6 @@ func (n *dbNamespace) Snapshot(
 			continue
 		}
 
-		if snapshotTime.Sub(lastSuccessfulSnapshot) < n.opts.MinimumSnapshotInterval() {
-			// Skip if not enough time has elapsed since the previous snapshot
-			continue
-		}
-
 		err := shard.Snapshot(blockStart, snapshotTime, snapshotPersist)
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to snapshot: %v", shard.ID(), err)

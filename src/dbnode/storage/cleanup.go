@@ -33,8 +33,8 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
-	"github.com/pborman/uuid"
 
+	"github.com/pborman/uuid"
 	"github.com/uber-go/tally"
 )
 
@@ -309,7 +309,7 @@ func (m *cleanupManager) cleanupSnapshotsAndCommitlogs() error {
 				_, snapshotID, err := snapshot.SnapshotTimeAndID()
 				if err != nil {
 					// TODO: Comment
-					// TODO: Need to distingush between FS error and corrupt errors
+					// TODO: Need to distinguish between FS error and corrupt errors
 					m.opts.InstrumentOptions().Logger().WithFields(
 						xlog.NewField("err", err),
 						xlog.NewField("files", snapshot.AbsoluteFilepaths),

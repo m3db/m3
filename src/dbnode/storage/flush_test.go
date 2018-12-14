@@ -508,8 +508,8 @@ func TestFlushManagerFlushSnapshotHonorsMinimumInterval(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		fm, ns1, ns2 = newMultipleFlushManagerNeedsFlush(t, ctrl)
-		now          = time.Now()
+		fm, ns1, ns2, _ = newMultipleFlushManagerNeedsFlush(t, ctrl)
+		now             = time.Now()
 	)
 	fm.lastSuccessfulSnapshotStartTime = now
 

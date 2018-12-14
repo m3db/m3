@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/persist"
+
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 )
