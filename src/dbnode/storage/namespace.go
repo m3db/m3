@@ -895,6 +895,10 @@ func (n *dbNamespace) Snapshot(
 	n.RUnlock()
 
 	if !n.nopts.SnapshotEnabled() {
+		// Note that we keep the abbility to disable snapshots at the namespace level around for
+		// debugging / performance / flexibility reasons, but disabling it can / will cause data
+		// loss due to the commitlog cleanup logic assuming that a valid snapshot checkpoint file
+		// means that all namespaces were successfully snapshotted.
 		n.metrics.snapshot.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
 	}
