@@ -491,7 +491,7 @@ func TestCommitLogIteratorUsesPredicateFilter(t *testing.T) {
 	blockSize := opts.BlockSize()
 	alignedStart := clock.Now().Truncate(blockSize)
 
-	// Writes spaced apart by block size
+	// Writes spaced apart by block size.
 	writes := []testWrite{
 		{testSeries(0, "foo.bar", testTags1, 127), alignedStart, 123.456, xtime.Millisecond, nil, nil},
 		{testSeries(1, "foo.baz", testTags2, 150), alignedStart.Add(1 * blockSize), 456.789, xtime.Millisecond, nil, nil},
@@ -501,11 +501,16 @@ func TestCommitLogIteratorUsesPredicateFilter(t *testing.T) {
 
 	commitLog := newTestCommitLog(t, opts)
 
-	// Write, making sure that the clock is set properly for each write
+	// Write, making sure that the clock is set properly for each write.
 	for _, write := range writes {
+		// Modify the time to make sure we're generating commitlog files with different
+		// start times.
 		clock.Add(write.t.Sub(clock.Now()))
+		// Rotate frequently to ensure we're generating multiple files.
+		_, err := commitLog.RotateLogs()
+		require.NoError(t, err)
 		wg := writeCommitLogs(t, scope, commitLog, []testWrite{write})
-		// Flush until finished, this is required as timed flusher not active when clock is mocked
+		// Flush until finished, this is required as timed flusher not active when clock is mocked.
 		flushUntilDone(commitLog, wg)
 	}
 
@@ -516,7 +521,7 @@ func TestCommitLogIteratorUsesPredicateFilter(t *testing.T) {
 	fsopts := opts.FilesystemOptions()
 	files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
 	require.NoError(t, err)
-	require.True(t, len(files) == 3)
+	require.Equal(t, 4, len(files))
 
 	// This predicate should eliminate the first commitlog file
 	commitLogPredicate := func(f persist.CommitlogFile) bool {
@@ -614,50 +619,6 @@ func TestCommitLogWriteErrorOnFull(t *testing.T) {
 		dp.Timestamp = dp.Timestamp.Add(time.Second)
 		dp.Value += 1.0
 	}
-
-	// Close and consequently flush
-	require.NoError(t, commitLog.Close())
-
-	// Assert write flushed by reading the commit log
-	assertCommitLogWritesByIterating(t, commitLog, writes)
-}
-
-func TestCommitLogExpiresWriter(t *testing.T) {
-	clock := mclock.NewMock()
-	opts, scope := newTestOptions(t, overrides{
-		clock:    clock,
-		strategy: StrategyWriteWait,
-	})
-	defer cleanup(t, opts)
-
-	commitLog := newTestCommitLog(t, opts)
-
-	blockSize := opts.BlockSize()
-	alignedStart := clock.Now().Truncate(blockSize)
-
-	// Writes spaced apart by block size
-	writes := []testWrite{
-		{testSeries(0, "foo.bar", testTags1, 127), alignedStart, 123.456, xtime.Millisecond, nil, nil},
-		{testSeries(1, "foo.baz", testTags2, 150), alignedStart.Add(1 * blockSize), 456.789, xtime.Millisecond, nil, nil},
-		{testSeries(2, "foo.qux", testTags3, 291), alignedStart.Add(2 * blockSize), 789.123, xtime.Millisecond, nil, nil},
-	}
-
-	for _, write := range writes {
-		// Set clock to align with the write
-		clock.Add(write.t.Sub(clock.Now()))
-
-		// Write entry
-		wg := writeCommitLogs(t, scope, commitLog, []testWrite{write})
-
-		// Flush until finished, this is required as timed flusher not active when clock is mocked
-		flushUntilDone(commitLog, wg)
-	}
-
-	// Ensure files present for each block size time window
-	fsopts := opts.FilesystemOptions()
-	files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
-	require.NoError(t, err)
-	require.True(t, len(files) == len(writes))
 
 	// Close and consequently flush
 	require.NoError(t, commitLog.Close())

@@ -428,14 +428,9 @@ func (l *commitLog) write() {
 			l.pendingFlushFns = append(l.pendingFlushFns, write.callbackFn)
 		}
 
-		var (
-			now                         = l.nowFn()
-			isWriteForNextCommitLogFile = !now.Before(l.writerState.writerExpireAt)
-			isRotateLogsEvent           = write.eventType == rotateLogsEventType
-			shouldRotate                = isRotateLogsEvent || isWriteForNextCommitLogFile
-		)
-
-		if shouldRotate {
+		isRotateLogsEvent := write.eventType == rotateLogsEventType
+		if isRotateLogsEvent {
+			now := l.nowFn()
 			file, err := l.openWriter(now)
 			if err != nil {
 				l.metrics.errors.Inc(1)
