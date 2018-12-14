@@ -103,6 +103,10 @@ echo "Sleep until bootstrapped"
 ATTEMPTS=6 TIMEOUT=2 retry_with_backoff  \
   '[ "$(curl -sSf 0.0.0.0:9002/health | jq .bootstrapped)" == true ]'
 
+echo "Waiting until shards are marked as available"
+ATTEMPTS=10 TIMEOUT=1 retry_with_backoff  \
+  '[ "$(curl -sSf 0.0.0.0:7201/api/v1/placement | grep -c INITIALIZING)" -eq 0 ]'
+
 echo "Start Prometheus containers"
 docker-compose -f ${COMPOSE_FILE} up -d prometheus01
 

@@ -83,15 +83,18 @@ type db struct {
 	nowFn clock.NowFn
 
 	nsWatch    databaseNamespaceWatch
-	shardSet   sharding.ShardSet
 	namespaces *databaseNamespacesMap
-	commitLog  commitlog.CommitLog
+
+	commitLog commitlog.CommitLog
 
 	state    databaseState
 	mediator databaseMediator
 
 	created    uint64
 	bootstraps int
+
+	shardSet              sharding.ShardSet
+	lastReceivedNewShards time.Time
 
 	scope   tally.Scope
 	metrics databaseMetrics
@@ -153,23 +156,27 @@ func NewDatabase(
 		return nil, err
 	}
 
-	iopts := opts.InstrumentOptions()
-	scope := iopts.MetricsScope().SubScope("database")
-	logger := iopts.Logger()
+	var (
+		iopts  = opts.InstrumentOptions()
+		scope  = iopts.MetricsScope().SubScope("database")
+		logger = iopts.Logger()
+		nowFn  = opts.ClockOptions().NowFn()
+	)
 
 	d := &db{
-		opts:           opts,
-		nowFn:          opts.ClockOptions().NowFn(),
-		shardSet:       shardSet,
-		namespaces:     newDatabaseNamespacesMap(databaseNamespacesMapOptions{}),
-		commitLog:      commitLog,
-		scope:          scope,
-		metrics:        newDatabaseMetrics(scope),
-		log:            logger,
-		errors:         xcounter.NewFrequencyCounter(opts.ErrorCounterOptions()),
-		errWindow:      opts.ErrorWindowForLoad(),
-		errThreshold:   opts.ErrorThresholdForLoad(),
-		writeBatchPool: opts.WriteBatchPool(),
+		opts:                  opts,
+		nowFn:                 nowFn,
+		shardSet:              shardSet,
+		lastReceivedNewShards: nowFn(),
+		namespaces:            newDatabaseNamespacesMap(databaseNamespacesMapOptions{}),
+		commitLog:             commitLog,
+		scope:                 scope,
+		metrics:               newDatabaseMetrics(scope),
+		log:                   logger,
+		errors:                xcounter.NewFrequencyCounter(opts.ErrorCounterOptions()),
+		errWindow:             opts.ErrorWindowForLoad(),
+		errThreshold:          opts.ErrorThresholdForLoad(),
+		writeBatchPool:        opts.WriteBatchPool(),
 	}
 
 	databaseIOpts := iopts.SetMetricsScope(scope)
@@ -356,12 +363,42 @@ func (d *db) Options() Options {
 func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 	d.Lock()
 	defer d.Unlock()
+
+	receivedNewShards := d.hasReceivedNewShardsWithLock(shardSet)
+
 	d.shardSet = shardSet
+	if receivedNewShards {
+		d.lastReceivedNewShards = d.nowFn()
+	}
+
 	for _, elem := range d.namespaces.Iter() {
 		ns := elem.Value()
 		ns.AssignShardSet(shardSet)
 	}
+
 	d.queueBootstrapWithLock()
+}
+
+func (d *db) hasReceivedNewShardsWithLock(incoming sharding.ShardSet) bool {
+	var (
+		existing    = d.shardSet
+		existingSet = make(map[uint32]struct{}, len(existing.AllIDs()))
+	)
+
+	for _, shard := range existing.AllIDs() {
+		existingSet[shard] = struct{}{}
+	}
+
+	receivedNewShards := false
+	for _, shard := range incoming.AllIDs() {
+		_, ok := existingSet[shard]
+		if !ok {
+			receivedNewShards = true
+			break
+		}
+	}
+
+	return receivedNewShards
 }
 
 func (d *db) ShardSet() sharding.ShardSet {
@@ -372,10 +409,17 @@ func (d *db) ShardSet() sharding.ShardSet {
 }
 
 func (d *db) queueBootstrapWithLock() {
-	// NB(r): Trigger another bootstrap, if already bootstrapping this will
-	// enqueue a new bootstrap to execute before the current bootstrap
-	// completes
+	// Only perform a bootstrap if at least one bootstrap has already occurred. This enables
+	// the ability to open the clustered database and assign shardsets to the non-clustered
+	// database when it receives an initial topology (as well as topology changes) without
+	// triggering a bootstrap until an external call initiates a bootstrap with an initial
+	// call to Bootstrap(). After that initial bootstrap, the clustered database will keep
+	// the non-clustered database bootstrapped by assigning it shardsets which will trigger new
+	// bootstraps since d.bootstraps > 0 will be true.
 	if d.bootstraps > 0 {
+		// NB(r): Trigger another bootstrap, if already bootstrapping this will
+		// enqueue a new bootstrap to execute before the current bootstrap
+		// completes.
 		go func() {
 			if err := d.mediator.Bootstrap(); err != nil {
 				d.log.Errorf("error while bootstrapping: %v", err)
@@ -751,6 +795,61 @@ func (d *db) Bootstrap() error {
 
 func (d *db) IsBootstrapped() bool {
 	return d.mediator.IsBootstrapped()
+}
+
+// IsBootstrappedAndDurable should only return true if the following conditions are met:
+//    1. The database is bootstrapped.
+//    2. The last successful snapshot began AFTER the last bootstrap completed.
+//
+// Those two conditions should be sufficient to ensure that after a placement change the
+// node will be able to bootstrap any and all data from its local disk, however, for posterity
+// we also perform the following check:
+//     3. The last bootstrap completed AFTER the shardset was last assigned.
+func (d *db) IsBootstrappedAndDurable() bool {
+	isBootstrapped := d.mediator.IsBootstrapped()
+	if !isBootstrapped {
+		d.log.Debugf("not bootstrapped and durable because: not bootstrapped")
+		return false
+	}
+
+	lastBootstrapCompletionTime, ok := d.mediator.LastBootstrapCompletionTime()
+	if !ok {
+		d.log.WithFields(
+			xlog.NewField("lastBootstrapCompletionTime", lastBootstrapCompletionTime),
+		).Debugf(
+			"not bootstrapped and durable because: no last bootstrap completion time")
+		return false
+	}
+
+	lastSnapshotStartTime, ok := d.mediator.LastSuccessfulSnapshotStartTime()
+	if !ok {
+		d.log.WithFields(
+			xlog.NewField("lastBootstrapCompletionTime", lastBootstrapCompletionTime),
+			xlog.NewField("lastSnapshotStartTime", lastSnapshotStartTime),
+		).Debugf(
+			"not bootstrapped and durable because: no last snapshot start time")
+		return false
+	}
+
+	var (
+		hasSnapshottedPostBootstrap            = lastSnapshotStartTime.After(lastBootstrapCompletionTime)
+		hasBootstrappedSinceReceivingNewShards = lastBootstrapCompletionTime.After(d.lastReceivedNewShards) ||
+			lastBootstrapCompletionTime.Equal(d.lastReceivedNewShards)
+		isBootstrappedAndDurable = hasSnapshottedPostBootstrap &&
+			hasBootstrappedSinceReceivingNewShards
+	)
+
+	if !isBootstrappedAndDurable {
+		d.log.WithFields(
+			xlog.NewField("lastBootstrapCompletionTime", lastBootstrapCompletionTime),
+			xlog.NewField("lastSnapshotStartTime", lastSnapshotStartTime),
+			xlog.NewField("lastReceivedNewShards", d.lastReceivedNewShards),
+		).Debugf(
+			"not bootstrapped and durable because: has not snapshotted post bootstrap and/or has not bootstrapped since receiving new shards")
+		return false
+	}
+
+	return true
 }
 
 func (d *db) Repair() error {

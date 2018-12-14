@@ -2,6 +2,8 @@
 
 set -xe
 
+source $GOPATH/src/github.com/m3db/m3/scripts/docker-integration-tests/common.sh
+
 DOCKER_ARGS="-d --renew-anon-volumes"
 if [[ "$FORCE_BUILD" = true ]] ; then
     DOCKER_ARGS="--build -d --renew-anon-volumes"
@@ -145,6 +147,10 @@ fi
 echo "Validating topology"
 [ "$(curl -sSf localhost:7201/api/v1/placement | jq .placement.instances.m3db_seed.id)" == '"m3db_seed"' ]
 echo "Done validating topology"
+
+echo "Waiting until shards are marked as available"
+ATTEMPTS=10 TIMEOUT=1 retry_with_backoff  \
+  '[ "$(curl -sSf 0.0.0.0:7201/api/v1/placement | grep -c INITIALIZING)" -eq 0 ]'
 
 if [[ "$AGGREGATOR_PIPELINE" = true ]]; then
     curl -vvvsSf -X POST localhost:7201/api/v1/services/m3aggregator/placement/init -d '{

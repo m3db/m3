@@ -441,30 +441,6 @@ func TestNamespaceSnapshotNotBootstrapped(t *testing.T) {
 	require.Equal(t, errNamespaceNotBootstrapped, ns.Snapshot(blockStart, blockStart, nil, nil))
 }
 
-func TestNamespaceSnapshotNotEnoughTimeSinceLastSnapshot(t *testing.T) {
-	shardMethodResults := []snapshotTestCase{
-		snapshotTestCase{
-			isSnapshotting:                false,
-			expectSnapshot:                false,
-			shardBootstrapStateBeforeTick: Bootstrapped,
-			lastSnapshotTime: func(curr time.Time, blockSize time.Duration) time.Time {
-				return curr
-			},
-			shardSnapshotErr: nil,
-		},
-		snapshotTestCase{
-			isSnapshotting:                false,
-			expectSnapshot:                true,
-			shardBootstrapStateBeforeTick: Bootstrapped,
-			lastSnapshotTime: func(curr time.Time, blockSize time.Duration) time.Time {
-				return curr.Add(-2 * defaultMinSnapshotInterval)
-			},
-			shardSnapshotErr: nil,
-		},
-	}
-	require.NoError(t, testSnapshotWithShardSnapshotErrs(t, shardMethodResults))
-}
-
 func TestNamespaceSnapshotShardIsSnapshotting(t *testing.T) {
 	shardMethodResults := []snapshotTestCase{
 		snapshotTestCase{

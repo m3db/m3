@@ -405,7 +405,37 @@ func TestDatabaseAssignShardSet(t *testing.T) {
 		})
 	}
 
+	t1 := d.lastReceivedNewShards
 	d.AssignShardSet(shardSet)
+	require.True(t, d.lastReceivedNewShards.After(t1))
+
+	wg.Wait()
+}
+
+func TestDatabaseAssignShardSetDoesNotUpdateLastReceivedNewShardsIfNoNewShards(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
+
+	var ns []*MockdatabaseNamespace
+	ns = append(ns, dbAddNewMockNamespace(ctrl, d, "testns1"))
+	ns = append(ns, dbAddNewMockNamespace(ctrl, d, "testns2"))
+
+	var wg sync.WaitGroup
+	wg.Add(len(ns))
+	for _, n := range ns {
+		n.EXPECT().AssignShardSet(d.shardSet).Do(func(_ sharding.ShardSet) {
+			wg.Done()
+		})
+	}
+
+	t1 := d.lastReceivedNewShards
+	d.AssignShardSet(d.shardSet)
+	require.True(t, d.lastReceivedNewShards.Equal(t1))
 
 	wg.Wait()
 }
@@ -895,4 +925,139 @@ func TestDatabaseBootstrapState(t *testing.T) {
 			},
 		},
 	}, dbBootstrapState)
+}
+
+func TestDatabaseIsBootstrapped(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
+
+	mediator := NewMockdatabaseMediator(ctrl)
+	mediator.EXPECT().IsBootstrapped().Return(true)
+	mediator.EXPECT().IsBootstrapped().Return(false)
+	d.mediator = mediator
+
+	assert.True(t, d.IsBootstrapped())
+	assert.False(t, d.IsBootstrapped())
+}
+
+func TestDatabaseIsBootstrappedAndDurable(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		validIsBootstrapped                  = true
+		validShardSetAssignedAt              = time.Now()
+		validLastBootstrapCompletionTime     = validShardSetAssignedAt.Add(time.Second)
+		validLastSuccessfulSnapshotStartTime = validLastBootstrapCompletionTime.Add(time.Second)
+	)
+	testCases := []struct {
+		title                           string
+		isBootstrapped                  bool
+		lastBootstrapCompletionTime     time.Time
+		lastSuccessfulSnapshotStartTime time.Time
+		shardSetAssignedAt              time.Time
+		expectedResult                  bool
+	}{
+		{
+			title:                           "False is not bootstrapped",
+			isBootstrapped:                  false,
+			lastBootstrapCompletionTime:     validLastBootstrapCompletionTime,
+			lastSuccessfulSnapshotStartTime: validLastSuccessfulSnapshotStartTime,
+			shardSetAssignedAt:              validShardSetAssignedAt,
+			expectedResult:                  false,
+		},
+		{
+			title:                           "False if no last bootstrap completion time",
+			isBootstrapped:                  validIsBootstrapped,
+			lastBootstrapCompletionTime:     time.Time{},
+			lastSuccessfulSnapshotStartTime: validLastSuccessfulSnapshotStartTime,
+			shardSetAssignedAt:              validShardSetAssignedAt,
+			expectedResult:                  false,
+		},
+		{
+			title:                           "False if no last successful snapshot start time",
+			isBootstrapped:                  validIsBootstrapped,
+			lastBootstrapCompletionTime:     validLastBootstrapCompletionTime,
+			lastSuccessfulSnapshotStartTime: time.Time{},
+			shardSetAssignedAt:              validShardSetAssignedAt,
+			expectedResult:                  false,
+		},
+		{
+			title:                           "False if last snapshot start is not after last bootstrap completion time",
+			isBootstrapped:                  validIsBootstrapped,
+			lastBootstrapCompletionTime:     validLastBootstrapCompletionTime,
+			lastSuccessfulSnapshotStartTime: validLastBootstrapCompletionTime,
+			shardSetAssignedAt:              validShardSetAssignedAt,
+			expectedResult:                  false,
+		},
+		{
+			title:                           "False if last bootstrap completion time is not after shardset assigned at time",
+			isBootstrapped:                  validIsBootstrapped,
+			lastBootstrapCompletionTime:     validLastBootstrapCompletionTime,
+			lastSuccessfulSnapshotStartTime: validLastBootstrapCompletionTime,
+			shardSetAssignedAt:              validLastBootstrapCompletionTime,
+			expectedResult:                  false,
+		},
+		{
+			title:                           "False if last bootstrap completion time is not after/equal shardset assigned at time",
+			isBootstrapped:                  validIsBootstrapped,
+			lastBootstrapCompletionTime:     validLastBootstrapCompletionTime,
+			lastSuccessfulSnapshotStartTime: validLastSuccessfulSnapshotStartTime,
+			shardSetAssignedAt:              validLastBootstrapCompletionTime.Add(time.Second),
+			expectedResult:                  false,
+		},
+		{
+			title:                           "True if all conditions are met",
+			isBootstrapped:                  validIsBootstrapped,
+			lastBootstrapCompletionTime:     validLastBootstrapCompletionTime,
+			lastSuccessfulSnapshotStartTime: validLastSuccessfulSnapshotStartTime,
+			shardSetAssignedAt:              validShardSetAssignedAt,
+			expectedResult:                  true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.title, func(t *testing.T) {
+			d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
+			defer func() {
+				close(mapCh)
+			}()
+
+			mediator := NewMockdatabaseMediator(ctrl)
+			d.mediator = mediator
+			d.lastReceivedNewShards = tc.shardSetAssignedAt
+
+			mediator.EXPECT().IsBootstrapped().Return(tc.isBootstrapped)
+			if !tc.isBootstrapped {
+				assert.Equal(t, tc.expectedResult, d.IsBootstrappedAndDurable())
+				// Early return because other mock calls will not get called.
+				return
+			}
+
+			if tc.lastBootstrapCompletionTime.IsZero() {
+				mediator.EXPECT().LastBootstrapCompletionTime().Return(time.Time{}, false)
+				assert.Equal(t, tc.expectedResult, d.IsBootstrappedAndDurable())
+				// Early return because other mock calls will not get called.
+				return
+			}
+
+			mediator.EXPECT().LastBootstrapCompletionTime().Return(tc.lastBootstrapCompletionTime, true)
+
+			if tc.lastSuccessfulSnapshotStartTime.IsZero() {
+				mediator.EXPECT().LastSuccessfulSnapshotStartTime().Return(time.Time{}, false)
+				assert.Equal(t, tc.expectedResult, d.IsBootstrappedAndDurable())
+				// Early return because other mock calls will not get called.
+				return
+			}
+
+			mediator.EXPECT().LastSuccessfulSnapshotStartTime().Return(tc.lastSuccessfulSnapshotStartTime, true)
+
+			assert.Equal(t, tc.expectedResult, d.IsBootstrappedAndDurable())
+		})
+	}
 }
