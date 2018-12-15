@@ -186,7 +186,7 @@ func TestRenderResultsJSON(t *testing.T) {
 func TestRenderInstantaneousResultsJSON(t *testing.T) {
 	start := time.Unix(1535948880, 0)
 	buffer := bytes.NewBuffer(nil)
-	params := models.RequestParams{}
+	// params := models.RequestParams{}
 	series := []*ts.Series{
 		ts.NewSeries("foo", ts.NewFixedStepValues(10*time.Second, 1, 1, start), test.TagSliceToTags([]models.Tag{
 			models.Tag{Name: []byte("bar"), Value: []byte("baz")},
@@ -198,7 +198,7 @@ func TestRenderInstantaneousResultsJSON(t *testing.T) {
 		})),
 	}
 
-	renderResultsInstantaneousJSON(buffer, series, params)
+	renderResultsInstantaneousJSON(buffer, series)
 
 	expected := mustPrettyJSON(t, `
 	{

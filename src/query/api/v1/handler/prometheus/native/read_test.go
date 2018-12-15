@@ -23,6 +23,7 @@ package native
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -68,6 +69,41 @@ func TestPromReadHandler_Read(t *testing.T) {
 	for i := 0; i < s.Values().Len(); i++ {
 		assert.Equal(t, float64(i), s.Values().ValueAt(i))
 	}
+}
+
+type M3QLResp []struct {
+	Target string `json:"target"`
+	Tags   struct {
+		Name   string `json:"__name__"`
+		Dummy0 string `json:"dummy0"`
+	} `json:"tags"`
+	Datapoints [][]int `json:"datapoints"`
+	StepSizeMs int     `json:"step_size_ms"`
+}
+
+func TestPromReadHandler_ReadM3QL(t *testing.T) {
+	logging.InitWithCores(nil)
+
+	values, bounds := test.GenerateValuesAndBounds(nil, nil)
+
+	setup := newTestSetup()
+	promRead := setup.Handler
+
+	b := test.NewBlockFromValues(bounds, values)
+	setup.Storage.SetFetchBlocksResult(block.Result{Blocks: []block.Block{b}}, nil)
+
+	req, _ := http.NewRequest("GET", PromReadURL, nil)
+	req.Header.Add("X-M3-Render-Format", "m3ql")
+	req.URL.RawQuery = defaultParams().Encode()
+
+	recorder := httptest.NewRecorder()
+	promRead.ServeHTTP(recorder, req)
+
+	fmt.Println(string(recorder.Body.Bytes()))
+	var m3qlResp M3QLResp
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &m3qlResp))
+
+	assert.Len(t, m3qlResp, 2)
 }
 
 func newReadRequest(t *testing.T, params url.Values) *http.Request {

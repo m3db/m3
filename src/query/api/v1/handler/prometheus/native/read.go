@@ -24,6 +24,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/m3db/m3/src/cmd/services/m3query/config"
 	"github.com/m3db/m3/src/query/api/v1/handler"
@@ -97,9 +98,14 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if strings.ToLower(r.Header.Get("X-M3-Render-Format")) == "m3ql" {
+		w.Header().Set("Content-Type", "application/json")
+		renderM3QLResultsJSON(w, result, params)
+		return
+	}
+
 	// TODO: Support multiple result types
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 	renderResultsJSON(w, result, params)
 }
 

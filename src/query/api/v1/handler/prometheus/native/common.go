@@ -269,7 +269,6 @@ func renderResultsJSON(
 func renderResultsInstantaneousJSON(
 	w io.Writer,
 	series []*ts.Series,
-	params models.RequestParams,
 ) {
 	jw := json.NewWriter(w)
 	jw.BeginObject()
@@ -310,5 +309,49 @@ func renderResultsInstantaneousJSON(
 	jw.EndObject()
 
 	jw.EndObject()
+	jw.Close()
+}
+
+func renderM3QLResultsJSON(
+	w io.Writer,
+	series []*ts.Series,
+	params models.RequestParams,
+) {
+	jw := json.NewWriter(w)
+	jw.BeginArray()
+
+	for _, s := range series {
+		jw.BeginObject()
+		jw.BeginObjectField("target")
+		jw.WriteString(s.Name())
+
+		jw.BeginObjectField("tags")
+		jw.BeginObject()
+
+		for _, tag := range s.Tags.Tags {
+			jw.BeginObjectField(string(tag.Name))
+			jw.WriteString(string(tag.Value))
+		}
+
+		jw.EndObject()
+
+		jw.BeginObjectField("datapoints")
+		jw.BeginArray()
+		for i := 0; i < s.Len(); i++ {
+			dp := s.Values().DatapointAt(i)
+			jw.BeginArray()
+			jw.WriteFloat64(dp.Value)
+			jw.WriteInt(int(dp.Timestamp.Unix()))
+			jw.EndArray()
+		}
+		jw.EndArray()
+
+		jw.BeginObjectField("step_size_ms")
+		jw.WriteInt(int(params.Step.Seconds() * 1000))
+
+		jw.EndObject()
+	}
+
+	jw.EndArray()
 	jw.Close()
 }
