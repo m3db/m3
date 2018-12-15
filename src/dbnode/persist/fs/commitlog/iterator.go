@@ -167,22 +167,13 @@ func (i *iterator) nextReader() bool {
 	file := i.files[0]
 	i.files = i.files[1:]
 
-	t, idx := file.Start, file.Index
 	reader := newCommitLogReader(i.opts, i.seriesPred)
-	start, duration, index, err := reader.Open(file.FilePath)
+	index, err := reader.Open(file.FilePath)
 	if err != nil {
 		i.err = err
 		return false
 	}
-	if !t.Equal(start) {
-		i.err = errStartDoesNotMatch
-		return false
-	}
-	if duration != i.opts.BlockSize() {
-		i.err = errDurationDoesNotMatch
-		return false
-	}
-	if index != idx {
+	if index != file.Index {
 		i.err = errIndexDoesNotMatch
 		return false
 	}

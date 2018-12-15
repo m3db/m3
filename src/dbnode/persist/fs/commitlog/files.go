@@ -111,7 +111,7 @@ func Files(opts Options) ([]persist.CommitlogFile, []ErrorWithPath, error) {
 
 	sort.Slice(commitLogFiles, func(i, j int) bool {
 		// Sorting is best effort here since we may not know the start.
-		return commitLogFiles[i].Start.Before(commitLogFiles[j].Start)
+		return commitLogFiles[i].Index < commitLogFiles[j].Index
 	})
 
 	return commitLogFiles, errorsWithPath, nil

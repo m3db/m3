@@ -558,7 +558,7 @@ func (l *commitLog) openWriter(now time.Time) (persist.CommitlogFile, error) {
 	blockSize := l.opts.BlockSize()
 	start := now.Truncate(blockSize)
 
-	file, err := l.writerState.writer.Open(start, blockSize)
+	file, err := l.writerState.writer.Open(start)
 	if err != nil {
 		return persist.CommitlogFile{}, err
 	}

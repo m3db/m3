@@ -68,7 +68,7 @@ var (
 
 type commitLogWriter interface {
 	// Open opens the commit log for writing data
-	Open(start time.Time, duration time.Duration) (persist.CommitlogFile, error)
+	Open(start time.Time) (persist.CommitlogFile, error)
 
 	// Write will write an entry in the commit log for a given series
 	Write(
@@ -102,8 +102,6 @@ type writer struct {
 	newFileMode         os.FileMode
 	newDirectoryMode    os.FileMode
 	nowFn               clock.NowFn
-	start               time.Time
-	duration            time.Duration
 	chunkWriter         chunkWriter
 	chunkReserveHeader  []byte
 	buffer              *bufio.Writer
@@ -140,7 +138,7 @@ func newCommitLogWriter(
 	}
 }
 
-func (w *writer) Open(start time.Time, duration time.Duration) (persist.CommitlogFile, error) {
+func (w *writer) Open(start time.Time) (persist.CommitlogFile, error) {
 	if w.isOpen() {
 		return persist.CommitlogFile{}, errCommitLogWriterAlreadyOpen
 	}
@@ -164,9 +162,7 @@ func (w *writer) Open(start time.Time, duration time.Duration) (persist.Commitlo
 		return persist.CommitlogFile{}, err
 	}
 	logInfo := schema.LogInfo{
-		Start:    start.UnixNano(),
-		Duration: int64(duration),
-		Index:    int64(index),
+		Index: int64(index),
 	}
 	w.logEncoder.Reset()
 	if err := w.logEncoder.EncodeLogInfo(logInfo); err != nil {
@@ -184,12 +180,8 @@ func (w *writer) Open(start time.Time, duration time.Duration) (persist.Commitlo
 		return persist.CommitlogFile{}, err
 	}
 
-	w.start = start
-	w.duration = duration
 	return persist.CommitlogFile{
 		FilePath: filePath,
-		Start:    start,
-		Duration: duration,
 		Index:    int64(index),
 	}, nil
 }
@@ -302,8 +294,6 @@ func (w *writer) Close() error {
 		return err
 	}
 
-	w.start = timeZero
-	w.duration = 0
 	w.seen.ClearAll()
 	return nil
 }
