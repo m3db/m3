@@ -368,8 +368,11 @@ func (dec *Decoder) decodeLogInfo() schema.LogInfo {
 		return emptyLogInfo
 	}
 	var logInfo schema.LogInfo
-	logInfo.Start = dec.decodeVarint()
-	logInfo.Duration = dec.decodeVarint()
+
+	// Deprecated, have to decode anyways for backwards compatibility, but we ignore the values.
+	logInfo.DeprecatedDoNotUseStart = dec.decodeVarint()
+	logInfo.DeprecatedDoNotUseDuration = dec.decodeVarint()
+
 	logInfo.Index = dec.decodeVarint()
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {

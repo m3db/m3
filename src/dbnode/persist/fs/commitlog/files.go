@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"os"
 	"sort"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -33,7 +32,7 @@ import (
 )
 
 // ReadLogInfo reads the commit log info out of a commitlog file
-func ReadLogInfo(filePath string, opts Options) (time.Time, time.Duration, int64, error) {
+func ReadLogInfo(filePath string, opts Options) (int64, error) {
 	var fd *os.File
 	var err error
 	defer func() {
@@ -44,20 +43,20 @@ func ReadLogInfo(filePath string, opts Options) (time.Time, time.Duration, int64
 
 	fd, err = os.Open(filePath)
 	if err != nil {
-		return time.Time{}, 0, 0, fsError{err}
+		return 0, fsError{err}
 	}
 
 	chunkReader := newChunkReader(opts.FlushSize())
 	chunkReader.reset(fd)
 	size, err := binary.ReadUvarint(chunkReader)
 	if err != nil {
-		return time.Time{}, 0, 0, err
+		return 0, err
 	}
 
 	bytes := make([]byte, size)
 	_, err = chunkReader.Read(bytes)
 	if err != nil {
-		return time.Time{}, 0, 0, err
+		return 0, err
 	}
 	logDecoder := msgpack.NewDecoder(nil)
 	logDecoder.Reset(msgpack.NewDecoderStream(bytes))
@@ -66,10 +65,10 @@ func ReadLogInfo(filePath string, opts Options) (time.Time, time.Duration, int64
 	err = fd.Close()
 	fd = nil
 	if err != nil {
-		return time.Time{}, 0, 0, fsError{err}
+		return 0, fsError{err}
 	}
 
-	return time.Unix(0, logInfo.Start), time.Duration(logInfo.Duration), logInfo.Index, decoderErr
+	return logInfo.Index, decoderErr
 }
 
 // Files returns a slice of all available commit log files on disk along with
@@ -89,7 +88,7 @@ func Files(opts Options) ([]persist.CommitlogFile, []ErrorWithPath, error) {
 			FilePath: filePath,
 		}
 
-		start, duration, index, err := ReadLogInfo(filePath, opts)
+		index, err := ReadLogInfo(filePath, opts)
 		if _, ok := err.(fsError); ok {
 			return nil, nil, err
 		}
@@ -101,15 +100,11 @@ func Files(opts Options) ([]persist.CommitlogFile, []ErrorWithPath, error) {
 		}
 
 		if err == nil {
-			file.Start = start
-			file.Duration = duration
 			file.Index = index
 		}
 
 		commitLogFiles = append(commitLogFiles, persist.CommitlogFile{
 			FilePath: filePath,
-			Start:    start,
-			Duration: duration,
 			Index:    index,
 		})
 	}

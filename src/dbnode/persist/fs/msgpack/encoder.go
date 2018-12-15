@@ -266,8 +266,11 @@ func (enc *Encoder) encodeIndexSummary(summary schema.IndexSummary) {
 
 func (enc *Encoder) encodeLogInfo(info schema.LogInfo) {
 	enc.encodeNumObjectFieldsForFn(logInfoType)
-	enc.encodeVarintFn(info.Start)
-	enc.encodeVarintFn(info.Duration)
+
+	// Deprecated, have to encode anyways for backwards compatibility, but we ignore the values.
+	enc.encodeVarintFn(info.DeprecatedDoNotUseStart)
+	enc.encodeVarintFn(info.DeprecatedDoNotUseDuration)
+
 	enc.encodeVarintFn(info.Index)
 }
 

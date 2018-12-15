@@ -48,8 +48,6 @@ type PreparedDataPersist struct {
 // CommitlogFile represents a commit log file and its associated metadata.
 type CommitlogFile struct {
 	FilePath string
-	Start    time.Time
-	Duration time.Duration
 	Index    int64
 }
 

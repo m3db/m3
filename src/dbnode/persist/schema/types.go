@@ -72,9 +72,12 @@ type IndexSummary struct {
 
 // LogInfo stores summary information about a commit log
 type LogInfo struct {
-	Start    int64
-	Duration int64
-	Index    int64
+	// Deprecated fields, left intact as documentation for the actual
+	// format on disk.
+	DeprecatedDoNotUseStart    int64
+	DeprecatedDoNotUseDuration int64
+
+	Index int64
 }
 
 // LogEntry stores per-entry data in a commit log
