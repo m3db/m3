@@ -57,18 +57,17 @@ func TestFiles(t *testing.T) {
 	require.True(t, len(corruptFiles) == 0)
 	require.True(t, len(files) >= minNumBlocks)
 
-	// Make sure its sorted
-	var lastFileStart time.Time
+	// Make sure its sorted.
+	var lastFileIndex = -1
 	for _, file := range files {
-		require.Equal(t, 10*time.Minute, file.Duration)
 		require.Equal(t, int64(0), file.Index)
 		require.True(t, strings.Contains(file.FilePath, dir))
-		if lastFileStart.IsZero() {
-			lastFileStart = file.Start
+		if lastFileIndex == -1 {
+			lastFileIndex = int(file.Index)
 			continue
 		}
 
-		require.True(t, file.Start.After(lastFileStart))
+		require.True(t, int(file.Index) > lastFileIndex)
 	}
 }
 

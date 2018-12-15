@@ -154,7 +154,7 @@ func snapshotCounterValue(
 }
 
 type mockCommitLogWriter struct {
-	openFn  func(start time.Time, duration time.Duration) (persist.CommitlogFile, error)
+	openFn  func(start time.Time) (persist.CommitlogFile, error)
 	writeFn func(ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation) error
 	flushFn func(sync bool) error
 	closeFn func() error
@@ -162,7 +162,7 @@ type mockCommitLogWriter struct {
 
 func newMockCommitLogWriter() *mockCommitLogWriter {
 	return &mockCommitLogWriter{
-		openFn: func(start time.Time, duration time.Duration) (persist.CommitlogFile, error) {
+		openFn: func(start time.Time) (persist.CommitlogFile, error) {
 			return persist.CommitlogFile{}, nil
 		},
 		writeFn: func(ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation) error {
@@ -177,8 +177,8 @@ func newMockCommitLogWriter() *mockCommitLogWriter {
 	}
 }
 
-func (w *mockCommitLogWriter) Open(start time.Time, duration time.Duration) (persist.CommitlogFile, error) {
-	return w.openFn(start, duration)
+func (w *mockCommitLogWriter) Open(start time.Time) (persist.CommitlogFile, error) {
+	return w.openFn(start)
 }
 
 func (w *mockCommitLogWriter) Write(
@@ -474,10 +474,10 @@ func TestCommitLogReaderIsNotReusable(t *testing.T) {
 
 	// Assert commitlog cannot be opened more than once
 	reader := newCommitLogReader(opts, ReadAllSeriesPredicate())
-	_, _, _, err = reader.Open(files[0])
+	_, err = reader.Open(files[0])
 	require.NoError(t, err)
 	reader.Close()
-	_, _, _, err = reader.Open(files[0])
+	_, err = reader.Open(files[0])
 	require.Equal(t, errCommitLogReaderIsNotReusable, err)
 }
 
@@ -525,7 +525,7 @@ func TestCommitLogIteratorUsesPredicateFilter(t *testing.T) {
 
 	// This predicate should eliminate the first commitlog file
 	commitLogPredicate := func(f persist.CommitlogFile) bool {
-		return f.Start.After(alignedStart)
+		return f.Index > 0
 	}
 
 	// Assert that the commitlog iterator honors the predicate and only uses
@@ -643,7 +643,7 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 	}
 
 	var opens int64
-	writer.openFn = func(start time.Time, duration time.Duration) (persist.CommitlogFile, error) {
+	writer.openFn = func(start time.Time) (persist.CommitlogFile, error) {
 		if atomic.AddInt64(&opens, 1) >= 2 {
 			return persist.CommitlogFile{}, fmt.Errorf("an error")
 		}
@@ -692,7 +692,7 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 	writer := newMockCommitLogWriter()
 
 	var opens int64
-	writer.openFn = func(start time.Time, duration time.Duration) (persist.CommitlogFile, error) {
+	writer.openFn = func(start time.Time) (persist.CommitlogFile, error) {
 		if atomic.AddInt64(&opens, 1) >= 2 {
 			return persist.CommitlogFile{}, fmt.Errorf("an error")
 		}
@@ -850,8 +850,6 @@ func TestCommitLogRotateLogs(t *testing.T) {
 
 		file, err := commitLog.RotateLogs()
 		require.NoError(t, err)
-		require.Equal(t, file.Start, alignedStart)
-		require.Equal(t, file.Duration, opts.BlockSize())
 		require.Equal(t, file.Index, int64(i+1))
 		require.Contains(t, file.FilePath, "commitlog-0")
 
