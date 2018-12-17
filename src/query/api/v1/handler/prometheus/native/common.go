@@ -25,6 +25,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
@@ -136,6 +137,10 @@ func parseParams(r *http.Request) (models.RequestParams, *xhttp.ParseError) {
 		}
 
 		params.IncludeEnd = !excludeEnd
+	}
+
+	if strings.ToLower(r.Header.Get("X-M3-Render-Format")) == "m3ql" {
+		params.Format = models.M3QL
 	}
 
 	return params, nil
