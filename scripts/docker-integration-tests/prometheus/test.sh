@@ -110,10 +110,25 @@ ATTEMPTS=10 TIMEOUT=1 retry_with_backoff  \
 echo "Start Prometheus containers"
 docker-compose -f ${COMPOSE_FILE} up -d prometheus01
 
-# Ensure Prometheus can proxy a Prometheus query
-echo "Wait until the remote write endpoint generates and allows for data to be queried"
-ATTEMPTS=6 TIMEOUT=2 retry_with_backoff  \
-  '[[ $(curl -sSf 0.0.0.0:9090/api/v1/query?query=prometheus_remote_storage_succeeded_samples_total | jq -r .data.result[].value[1]) -gt 100 ]]'
+curl -sSf 0.0.0.0:9090/api/v1/query?query=prometheus_remote_storage_succeeded_samples_total | jq -r .data.result[].value[1] || true
+docker-compose -f ${COMPOSE_FILE} logs prometheus01
+sleep 5
+
+curl -sSf 0.0.0.0:9090/api/v1/query?query=prometheus_remote_storage_succeeded_samples_total | jq -r .data.result[].value[1] || true
+docker-compose -f ${COMPOSE_FILE} logs prometheus01
+sleep 5
+
+curl -sSf 0.0.0.0:9090/api/v1/query?query=prometheus_remote_storage_succeeded_samples_total | jq -r .data.result[].value[1] || true
+docker-compose -f ${COMPOSE_FILE} logs prometheus01
+sleep 5
+
+curl -sSf 0.0.0.0:9090/api/v1/query?query=prometheus_remote_storage_succeeded_samples_total | jq -r .data.result[].value[1] || true
+docker-compose -f ${COMPOSE_FILE} logs prometheus01
+sleep 5
+
+curl -sSf 0.0.0.0:9090/api/v1/query?query=prometheus_remote_storage_succeeded_samples_total | jq -r .data.result[].value[1] || true
+docker-compose -f ${COMPOSE_FILE} logs prometheus01
+sleep 5
 
 # Make sure we're proxying writes to the unaggregated namespace
 echo "Wait until data begins being written to remote storage for the unaggregated namespace"
