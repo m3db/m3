@@ -13,7 +13,7 @@ services:
       - "0.0.0.0:9090:9090"
     networks:
       - backend
-    image: prom/prometheus:latest
+    image: prom/prometheus:2.5.0
     volumes:
       - "/tmp/prometheus.yml:/etc/prometheus/prometheus.yml"
   grafana01:
