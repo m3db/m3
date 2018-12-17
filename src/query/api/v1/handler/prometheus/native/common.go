@@ -140,7 +140,7 @@ func parseParams(r *http.Request) (models.RequestParams, *xhttp.ParseError) {
 	}
 
 	if strings.ToLower(r.Header.Get("X-M3-Render-Format")) == "m3ql" {
-		params.Format = models.M3QL
+		params.FormatType = models.FormatM3QL
 	}
 
 	return params, nil

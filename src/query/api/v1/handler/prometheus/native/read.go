@@ -98,7 +98,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	if params.Format == models.M3QL {
+	if params.FormatType == models.FormatM3QL {
 		renderM3QLResultsJSON(w, result, params)
 		return
 	}

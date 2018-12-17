@@ -24,12 +24,12 @@ import (
 	"time"
 )
 
-// Format describes what format to return the data in
-type Format int
+// FormatType describes what format to return the data in
+type FormatType int
 
 const (
-	// M3QL returns results in M3QL format
-	M3QL Format = iota
+	// FormatM3QL returns results in M3QL format
+	FormatM3QL FormatType = iota
 )
 
 // LookbackDelta determines the time since the last sample after which a time
@@ -48,7 +48,7 @@ type RequestParams struct {
 	Query      string
 	Debug      bool
 	IncludeEnd bool
-	Format     Format
+	FormatType FormatType
 }
 
 // ExclusiveEnd returns the end exclusive
