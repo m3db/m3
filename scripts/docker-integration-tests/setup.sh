@@ -19,10 +19,7 @@ cp ./src/dbnode/config/m3dbnode-local-etcd.yml ./bin
 echo "building docker images"
 
 for svc in ${SERVICES[@]}; do
-  # only build if image doesn't exist
-  if [[ "$(docker images -q ${svc}_integration:${REVISION} 2> /dev/null)" == "" ]]; then
-    echo "creating image for $svc"
-    make ${svc}-linux-amd64
-    docker build -t "${svc}_integration:${REVISION}" -f ./scripts/docker-integration-tests/${svc}.Dockerfile ./bin
-  fi
+  echo "creating image for $svc"
+  make ${svc}-linux-amd64
+  docker build -t "${svc}_integration:${REVISION}" -f ./scripts/docker-integration-tests/${svc}.Dockerfile ./bin
 done
