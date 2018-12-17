@@ -46,18 +46,12 @@ type AsyncBlock interface {
 	AsyncStepIter() (AsyncStepIter, error)
 }
 
-// StepCh is a channel that returns a step for asynchronously accessing steps.
-// type StepCh <-chan (Step)
-
 // IndexedStep combines a step with that step's intended index in the
 // created block.
 type IndexedStep struct {
 	Idx int
 	Step
 }
-
-// IndexedStepCh is a channel for asynchronously serving indexed steps.
-// type IndexedStepCh <-chan (IndexedStep)
 
 // AsyncStepIter iterates through a block vertically asynchronously.
 type AsyncStepIter interface {

@@ -52,21 +52,23 @@ func buildNode(
 	return asyncOp.AsyncNode(c, workerPool), sink
 }
 
-func applyToNode(t *testing.T) (
-	transform.OpNodeAsync,
-	block.AsyncBlock,
-	*executor.SinkNode,
-) {
+func buildWorkerPools(t *testing.T) xsync.PooledWorkerPool {
 	poolSize := 16
 	poolOpts := xsync.NewPooledWorkerPoolOptions().
 		SetGrowOnDemand(true).
 		SetNumShards(int64(poolSize))
 	workerPool, err := xsync.NewPooledWorkerPool(poolSize, poolOpts)
-	workerPool.Init()
-
 	require.NoError(t, err)
+	workerPool.Init()
+	return workerPool
+}
 
-	node, sink := buildNode(t, workerPool)
+func applyToNode(t *testing.T) (
+	transform.OpNodeAsync,
+	block.AsyncBlock,
+	*executor.SinkNode,
+) {
+	node, sink := buildNode(t, buildWorkerPools(t))
 	it, err := test.BuildTestSeriesIterator()
 	require.NoError(t, err)
 
@@ -80,7 +82,7 @@ func applyToNode(t *testing.T) (
 		[]encoding.SeriesIterator{it},
 		bounds,
 		models.NewTagOptions(),
-		workerPool,
+		buildWorkerPools(t),
 		true,
 	)
 	require.NoError(t, err)

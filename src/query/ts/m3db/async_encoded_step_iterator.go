@@ -81,9 +81,9 @@ func (it *encodedStepIterAsync) Current() <-chan (block.Step) {
 		panic("out of bounds")
 	}
 
-	// if it.err != nil {
-	// 	return nil
-	// }
+	if it.err != nil {
+		return nil
+	}
 
 	step := &encodedStep{
 		time:   currentTime,
@@ -92,9 +92,7 @@ func (it *encodedStepIterAsync) Current() <-chan (block.Step) {
 
 	ch := make(chan (block.Step))
 	it.workerPools.Go(func() {
-		// go func() {
 		ch <- step
-		// }()
 	})
 	return ch
 }
