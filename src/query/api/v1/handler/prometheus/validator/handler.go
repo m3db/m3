@@ -59,7 +59,6 @@ const (
 // PromDebugHandler represents a handler for prometheus debug endpoint, which allows users
 // to compare Prometheus results vs m3 query results.
 type PromDebugHandler struct {
-	engine      *executor.Engine
 	scope       tally.Scope
 	readHandler *native.PromReadHandler
 }
@@ -107,8 +106,8 @@ func (h *PromDebugHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.engine = executor.NewEngine(s, h.scope.SubScope("debug_engine"))
-	results, _, respErr := h.readHandler.ServeHTTPWithEngine(w, r, h.engine)
+	engine := executor.NewEngine(s, h.scope.SubScope("debug_engine"))
+	results, _, respErr := h.readHandler.ServeHTTPWithEngine(w, r, engine)
 	if respErr != nil {
 		logger.Error("unable to read data", zap.Error(respErr.Err))
 		xhttp.Error(w, respErr.Err, respErr.Code)
