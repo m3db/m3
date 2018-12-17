@@ -386,6 +386,7 @@ func (mr *MockDatabaseMockRecorder) IsBootstrapped() *gomock.Call {
 
 // IsBootstrappedAndDurable mocks base method
 func (m *MockDatabase) IsBootstrappedAndDurable() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsBootstrappedAndDurable")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -393,6 +394,7 @@ func (m *MockDatabase) IsBootstrappedAndDurable() bool {
 
 // IsBootstrappedAndDurable indicates an expected call of IsBootstrappedAndDurable
 func (mr *MockDatabaseMockRecorder) IsBootstrappedAndDurable() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBootstrappedAndDurable", reflect.TypeOf((*MockDatabase)(nil).IsBootstrappedAndDurable))
 }
 
@@ -749,6 +751,7 @@ func (mr *MockdatabaseMockRecorder) IsBootstrapped() *gomock.Call {
 
 // IsBootstrappedAndDurable mocks base method
 func (m *Mockdatabase) IsBootstrappedAndDurable() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsBootstrappedAndDurable")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -756,6 +759,7 @@ func (m *Mockdatabase) IsBootstrappedAndDurable() bool {
 
 // IsBootstrappedAndDurable indicates an expected call of IsBootstrappedAndDurable
 func (mr *MockdatabaseMockRecorder) IsBootstrappedAndDurable() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBootstrappedAndDurable", reflect.TypeOf((*Mockdatabase)(nil).IsBootstrappedAndDurable))
 }
 
@@ -1922,6 +1926,7 @@ func (mr *MockdatabaseBootstrapManagerMockRecorder) IsBootstrapped() *gomock.Cal
 
 // LastBootstrapCompletionTime mocks base method
 func (m *MockdatabaseBootstrapManager) LastBootstrapCompletionTime() (time.Time, bool) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LastBootstrapCompletionTime")
 	ret0, _ := ret[0].(time.Time)
 	ret1, _ := ret[1].(bool)
@@ -1930,6 +1935,7 @@ func (m *MockdatabaseBootstrapManager) LastBootstrapCompletionTime() (time.Time,
 
 // LastBootstrapCompletionTime indicates an expected call of LastBootstrapCompletionTime
 func (mr *MockdatabaseBootstrapManagerMockRecorder) LastBootstrapCompletionTime() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LastBootstrapCompletionTime", reflect.TypeOf((*MockdatabaseBootstrapManager)(nil).LastBootstrapCompletionTime))
 }
 
@@ -1998,6 +2004,7 @@ func (mr *MockdatabaseFlushManagerMockRecorder) Flush(tickStart, dbBootstrapStat
 
 // LastSuccessfulSnapshotStartTime mocks base method
 func (m *MockdatabaseFlushManager) LastSuccessfulSnapshotStartTime() (time.Time, bool) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LastSuccessfulSnapshotStartTime")
 	ret0, _ := ret[0].(time.Time)
 	ret1, _ := ret[1].(bool)
@@ -2006,6 +2013,7 @@ func (m *MockdatabaseFlushManager) LastSuccessfulSnapshotStartTime() (time.Time,
 
 // LastSuccessfulSnapshotStartTime indicates an expected call of LastSuccessfulSnapshotStartTime
 func (mr *MockdatabaseFlushManagerMockRecorder) LastSuccessfulSnapshotStartTime() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LastSuccessfulSnapshotStartTime", reflect.TypeOf((*MockdatabaseFlushManager)(nil).LastSuccessfulSnapshotStartTime))
 }
 
@@ -2191,6 +2199,7 @@ func (mr *MockdatabaseFileSystemManagerMockRecorder) Report() *gomock.Call {
 
 // LastSuccessfulSnapshotStartTime mocks base method
 func (m *MockdatabaseFileSystemManager) LastSuccessfulSnapshotStartTime() (time.Time, bool) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LastSuccessfulSnapshotStartTime")
 	ret0, _ := ret[0].(time.Time)
 	ret1, _ := ret[1].(bool)
@@ -2199,6 +2208,7 @@ func (m *MockdatabaseFileSystemManager) LastSuccessfulSnapshotStartTime() (time.
 
 // LastSuccessfulSnapshotStartTime indicates an expected call of LastSuccessfulSnapshotStartTime
 func (mr *MockdatabaseFileSystemManagerMockRecorder) LastSuccessfulSnapshotStartTime() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LastSuccessfulSnapshotStartTime", reflect.TypeOf((*MockdatabaseFileSystemManager)(nil).LastSuccessfulSnapshotStartTime))
 }
 
@@ -2417,6 +2427,7 @@ func (mr *MockdatabaseMediatorMockRecorder) IsBootstrapped() *gomock.Call {
 
 // LastBootstrapCompletionTime mocks base method
 func (m *MockdatabaseMediator) LastBootstrapCompletionTime() (time.Time, bool) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LastBootstrapCompletionTime")
 	ret0, _ := ret[0].(time.Time)
 	ret1, _ := ret[1].(bool)
@@ -2425,6 +2436,7 @@ func (m *MockdatabaseMediator) LastBootstrapCompletionTime() (time.Time, bool) {
 
 // LastBootstrapCompletionTime indicates an expected call of LastBootstrapCompletionTime
 func (mr *MockdatabaseMediatorMockRecorder) LastBootstrapCompletionTime() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LastBootstrapCompletionTime", reflect.TypeOf((*MockdatabaseMediator)(nil).LastBootstrapCompletionTime))
 }
 
@@ -2522,6 +2534,7 @@ func (mr *MockdatabaseMediatorMockRecorder) Report() *gomock.Call {
 
 // LastSuccessfulSnapshotStartTime mocks base method
 func (m *MockdatabaseMediator) LastSuccessfulSnapshotStartTime() (time.Time, bool) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LastSuccessfulSnapshotStartTime")
 	ret0, _ := ret[0].(time.Time)
 	ret1, _ := ret[1].(bool)
@@ -2530,6 +2543,7 @@ func (m *MockdatabaseMediator) LastSuccessfulSnapshotStartTime() (time.Time, boo
 
 // LastSuccessfulSnapshotStartTime indicates an expected call of LastSuccessfulSnapshotStartTime
 func (mr *MockdatabaseMediatorMockRecorder) LastSuccessfulSnapshotStartTime() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LastSuccessfulSnapshotStartTime", reflect.TypeOf((*MockdatabaseMediator)(nil).LastSuccessfulSnapshotStartTime))
 }
 
