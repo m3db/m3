@@ -30,22 +30,24 @@ import (
 	"github.com/m3db/m3/src/msg/consumer"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3x/pool"
 
 	"github.com/uber-go/tally"
 )
 
 // Options for the ingest handler.
 type Options struct {
-	InstrumentOptions         instrument.Options
-	WriteFn                   WriteFn
-	AggregatedIteratorOptions msgpack.AggregatedIteratorOptions
+	InstrumentOptions          instrument.Options
+	WriteFn                    WriteFn
+	AggregatedIteratorOptions  msgpack.AggregatedIteratorOptions
+	ProtobufDecoderPoolOptions pool.ObjectPoolOptions
 }
 
 type handlerMetrics struct {
-	messageReadError                tally.Counter
-	metricAccepted                  tally.Counter
-	droppedMetricMsgpackDecodeError tally.Counter
-	droppedMetricDecodeMalformed    tally.Counter
+	messageReadError             tally.Counter
+	metricAccepted               tally.Counter
+	droppedMetricDecodeError     tally.Counter
+	droppedMetricDecodeMalformed tally.Counter
 }
 
 func newHandlerMetrics(scope tally.Scope) handlerMetrics {
@@ -53,8 +55,8 @@ func newHandlerMetrics(scope tally.Scope) handlerMetrics {
 	return handlerMetrics{
 		messageReadError: scope.Counter("message-read-error"),
 		metricAccepted:   messageScope.Counter("accepted"),
-		droppedMetricMsgpackDecodeError: messageScope.Tagged(map[string]string{
-			"reason": "msgpack-decode-error",
+		droppedMetricDecodeError: messageScope.Tagged(map[string]string{
+			"reason": "decode-error",
 		}).Counter("dropped"),
 		droppedMetricDecodeMalformed: messageScope.Tagged(map[string]string{
 			"reason": "decode-malformed",
@@ -154,6 +156,6 @@ func (h *perConsumerHandler) processMessage(
 	r.decRef()
 	if err := h.it.Err(); err != nil && err != io.EOF {
 		h.logger.WithFields(log.NewErrField(h.it.Err())).Errorf("could not decode msg %s", msg.Bytes())
-		h.m.droppedMetricMsgpackDecodeError.Inc(1)
+		h.m.droppedMetricDecodeError.Inc(1)
 	}
 }

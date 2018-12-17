@@ -36,7 +36,7 @@ type WriteFn func(
 	metricTime time.Time,
 	value float64,
 	sp policy.StoragePolicy,
-	callback *RefCountedCallback,
+	callback Callbackable,
 )
 
 // CallbackType defines the type for the callback.
@@ -51,6 +51,11 @@ const (
 	// OnRetriableError will mark the call as errored and should be retried.
 	OnRetriableError
 )
+
+// Callbackable can be called back.
+type Callbackable interface {
+	Callback(t CallbackType)
+}
 
 // RefCountedCallback wraps a message with a reference count, the message will
 // be acked once the reference count decrements to zero.
