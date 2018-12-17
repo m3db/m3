@@ -48,7 +48,24 @@ func (t *Controller) Process(block block.Block) error {
 	return nil
 }
 
-// BlockBuilder returns a BlockBuilder instance with associated metadata
-func (t *Controller) BlockBuilder(blockMeta block.Metadata, seriesMeta []block.SeriesMeta) (block.Builder, error) {
+// BlockBuilder returns a BlockBuilder instance with associated metadata.
+func (t *Controller) BlockBuilder(
+	blockMeta block.Metadata,
+	seriesMeta []block.SeriesMeta,
+) (block.Builder, error) {
 	return block.NewColumnBlockBuilder(blockMeta, seriesMeta), nil
+}
+
+// AsyncBlockBuilder returns an asynchronous BlockBuilder instance with
+// associated metadata.
+func (t *Controller) AsyncBlockBuilder(
+	blockMeta block.Metadata,
+	seriesMeta []block.SeriesMeta,
+) (block.AsyncBuilder, error) {
+	builder, err := t.BlockBuilder(blockMeta, seriesMeta)
+	if err != nil {
+		return nil, err
+	}
+
+	return block.NewAsyncColumnBlockBuilder(builder), nil
 }

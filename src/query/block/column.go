@@ -25,8 +25,8 @@ import (
 	"time"
 )
 
-// ColumnBlockBuilder builds a block optimized for column iteration
-type ColumnBlockBuilder struct {
+// columnBlockBuilder builds a block optimized for column iteration
+type columnBlockBuilder struct {
 	block *columnBlock
 }
 
@@ -161,7 +161,7 @@ func NewColStep(t time.Time, values []float64) Step {
 
 // NewColumnBlockBuilder creates a new column block builder
 func NewColumnBlockBuilder(meta Metadata, seriesMeta []SeriesMeta) Builder {
-	return ColumnBlockBuilder{
+	return columnBlockBuilder{
 		block: &columnBlock{
 			meta:       meta,
 			seriesMeta: seriesMeta,
@@ -169,8 +169,8 @@ func NewColumnBlockBuilder(meta Metadata, seriesMeta []SeriesMeta) Builder {
 	}
 }
 
-// AppendValue adds a value to a column at index
-func (cb ColumnBlockBuilder) AppendValue(idx int, value float64) error {
+// AppendValue adds a value to a column at index.
+func (cb columnBlockBuilder) AppendValue(idx int, value float64) error {
 	columns := cb.block.columns
 	if len(columns) <= idx {
 		return fmt.Errorf("idx out of range for append: %d", idx)
@@ -180,8 +180,8 @@ func (cb ColumnBlockBuilder) AppendValue(idx int, value float64) error {
 	return nil
 }
 
-// AppendValues adds a slice of values to a column at index
-func (cb ColumnBlockBuilder) AppendValues(idx int, values []float64) error {
+// AppendValues adds a slice of values to a column at index.
+func (cb columnBlockBuilder) AppendValues(idx int, values []float64) error {
 	columns := cb.block.columns
 	if len(columns) <= idx {
 		return fmt.Errorf("idx out of range for append: %d", idx)
@@ -191,8 +191,8 @@ func (cb ColumnBlockBuilder) AppendValues(idx int, values []float64) error {
 	return nil
 }
 
-// AddCols adds new columns
-func (cb ColumnBlockBuilder) AddCols(num int) error {
+// AddCols adds new columns.
+func (cb columnBlockBuilder) AddCols(num int) error {
 	newCols := make([]column, num)
 	cb.block.columns = append(cb.block.columns, newCols...)
 	return nil
@@ -200,7 +200,7 @@ func (cb ColumnBlockBuilder) AddCols(num int) error {
 
 // Build extracts the block
 // TODO: Return an immutable copy
-func (cb ColumnBlockBuilder) Build() Block {
+func (cb columnBlockBuilder) Build() Block {
 	return cb.block
 }
 

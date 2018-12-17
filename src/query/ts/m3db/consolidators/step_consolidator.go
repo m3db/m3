@@ -21,11 +21,9 @@
 package consolidators
 
 import (
-	"math"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/ts"
-	xts "github.com/m3db/m3/src/query/ts"
 )
 
 func removeStale(
@@ -49,7 +47,6 @@ type StepLookbackConsolidator struct {
 	lookbackDuration time.Duration
 	stepSize         time.Duration
 	earliestLookback time.Time
-	consolidated     []float64
 	datapoints       [][]ts.Datapoint
 	fn               ConsolidationFunc
 }
@@ -62,8 +59,6 @@ func NewStepLookbackConsolidator(
 	resultSize int,
 	fn ConsolidationFunc,
 ) *StepLookbackConsolidator {
-	consolidated := make([]float64, resultSize)
-	xts.Memset(consolidated, math.NaN())
 	datapoints := make([][]ts.Datapoint, resultSize)
 	for i := range datapoints {
 		datapoints[i] = make([]ts.Datapoint, 0, initLength)
@@ -73,7 +68,6 @@ func NewStepLookbackConsolidator(
 		lookbackDuration: lookbackDuration,
 		stepSize:         stepSize,
 		earliestLookback: startTime.Add(-1 * lookbackDuration),
-		consolidated:     consolidated,
 		datapoints:       datapoints,
 		fn:               fn,
 	}
@@ -99,10 +93,11 @@ func (c *StepLookbackConsolidator) ConsolidateAndMoveToNext() []float64 {
 	// Update earliest lookback then remove stale values for the next
 	// iteration of the datapoint set.
 	c.earliestLookback = c.earliestLookback.Add(c.stepSize)
+	consolidated := make([]float64, len(c.datapoints))
 	for i, dps := range c.datapoints {
-		c.consolidated[i] = c.fn(dps)
+		consolidated[i] = c.fn(dps)
 		c.datapoints[i] = removeStale(c.earliestLookback, dps)
 	}
 
-	return c.consolidated
+	return consolidated
 }

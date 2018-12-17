@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
+	xsync "github.com/m3db/m3x/sync"
 )
 
 type consolidationSettings struct {
@@ -45,6 +46,7 @@ type encodedBlock struct {
 	consolidation        consolidationSettings
 	seriesMetas          []block.SeriesMeta
 	seriesBlockIterators []encoding.SeriesIterator
+	workerPools          xsync.PooledWorkerPool
 }
 
 // NewEncodedBlock builds an encoded block
@@ -66,6 +68,35 @@ func NewEncodedBlock(
 		consolidation,
 		lastBlock,
 	)
+	err := bl.generateMetas()
+	if err != nil {
+		return nil, err
+	}
+
+	return &bl, nil
+}
+
+// NewEncodedAsyncBlock builds an encoded async block
+func NewEncodedAsyncBlock(
+	seriesBlockIterators []encoding.SeriesIterator,
+	bounds models.Bounds,
+	tagOptions models.TagOptions,
+	workerPools xsync.PooledWorkerPool,
+	lastBlock bool,
+) (block.AsyncBlock, error) {
+	consolidation := consolidationSettings{
+		consolidationFn: consolidators.TakeLast,
+		currentTime:     bounds.Start,
+		bounds:          bounds,
+	}
+
+	bl := newEncodedBlock(
+		seriesBlockIterators,
+		tagOptions,
+		consolidation,
+		lastBlock,
+	)
+	bl.workerPools = workerPools
 	err := bl.generateMetas()
 	if err != nil {
 		return nil, err
@@ -165,4 +196,8 @@ func (b *encodedBlock) StepIter() (block.StepIter, error) {
 
 func (b *encodedBlock) SeriesIter() (block.SeriesIter, error) {
 	return b.seriesIter(), nil
+}
+
+func (b *encodedBlock) AsyncStepIter() (block.AsyncStepIter, error) {
+	return b.asyncStepIter(), nil
 }

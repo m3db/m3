@@ -39,6 +39,12 @@ type OpNode interface {
 	Process(ID parser.NodeID, block block.Block) error
 }
 
+// OpNodeAsync represents an asynchronous execution node.
+type OpNodeAsync interface {
+	ProcessSteps(ID parser.NodeID, block block.AsyncBlock) error
+	ProcessValueChannel(ID parser.NodeID, block block.AsyncBlock) error
+}
+
 // TimeSpec defines the time bounds for the query execution. End is exclusive
 type TimeSpec struct {
 	Start time.Time
