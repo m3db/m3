@@ -23,7 +23,6 @@ package native
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -72,13 +71,10 @@ func TestPromReadHandler_Read(t *testing.T) {
 }
 
 type M3QLResp []struct {
-	Target string `json:"target"`
-	Tags   struct {
-		Name   string `json:"__name__"`
-		Dummy0 string `json:"dummy0"`
-	} `json:"tags"`
-	Datapoints [][]int `json:"datapoints"`
-	StepSizeMs int     `json:"step_size_ms"`
+	Target     string            `json:"target"`
+	Tags       map[string]string `json:"tags"`
+	Datapoints [][]float64       `json:"datapoints"`
+	StepSizeMs int               `json:"step_size_ms"`
 }
 
 func TestPromReadHandler_ReadM3QL(t *testing.T) {
@@ -99,11 +95,16 @@ func TestPromReadHandler_ReadM3QL(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	promRead.ServeHTTP(recorder, req)
 
-	fmt.Println(string(recorder.Body.Bytes()))
 	var m3qlResp M3QLResp
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &m3qlResp))
 
 	assert.Len(t, m3qlResp, 2)
+	assert.Equal(t, "dummy0", m3qlResp[0].Target)
+	assert.Equal(t, map[string]string{"__name__": "dummy0", "dummy0": "dummy0"}, m3qlResp[0].Tags)
+	assert.Equal(t, 10000, m3qlResp[0].StepSizeMs)
+	assert.Equal(t, "dummy1", m3qlResp[1].Target)
+	assert.Equal(t, map[string]string{"__name__": "dummy1", "dummy1": "dummy1"}, m3qlResp[1].Tags)
+	assert.Equal(t, 10000, m3qlResp[1].StepSizeMs)
 }
 
 func newReadRequest(t *testing.T, params url.Values) *http.Request {
