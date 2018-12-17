@@ -25,11 +25,41 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"time"
 
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/persist/fs/msgpack"
 )
+
+// NextFile returns the next commitlog file.
+func NextFile(opts Options, start time.Time) (string, int, error) {
+	files, _, err := Files(opts)
+	if err != nil {
+		return "", -1, err
+	}
+
+	newIndex := 0
+	if len(files) > 0 {
+		lastFile := files[len(files)-1]
+		newIndex = int(lastFile.Index + 1)
+	}
+
+	for ; ; newIndex++ {
+		var (
+			prefix   = opts.FilesystemOptions().FilePathPrefix()
+			filePath = fs.CommitlogFilePath(prefix, start, newIndex)
+		)
+		exists, err := fs.FileExists(filePath)
+		if err != nil {
+			return "", -1, err
+		}
+
+		if !exists {
+			return filePath, newIndex, nil
+		}
+	}
+}
 
 // ReadLogInfo reads the commit log info out of a commitlog file
 func ReadLogInfo(filePath string, opts Options) (int64, error) {

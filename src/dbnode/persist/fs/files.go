@@ -1201,22 +1201,6 @@ func SnapshotFileSetExistsAt(prefix string, namespace ident.ID, shard uint32, bl
 	return latest.HasCheckpointFile(), nil
 }
 
-// NextCommitLogsFile returns the next commit logs file.
-func NextCommitLogsFile(prefix string, start time.Time) (string, int, error) {
-	for i := 0; ; i++ {
-		entry := fmt.Sprintf("%d%s%d", start.UnixNano(), separator, i)
-		fileName := fmt.Sprintf("%s%s%s%s", commitLogFilePrefix, separator, entry, fileSuffix)
-		filePath := path.Join(CommitLogsDirPath(prefix), fileName)
-		exists, err := FileExists(filePath)
-		if err != nil {
-			return "", -1, err
-		}
-		if !exists {
-			return filePath, i, nil
-		}
-	}
-}
-
 // NextSnapshotMetadataFileIndex returns the next snapshot metadata file index.
 func NextSnapshotMetadataFileIndex(opts Options) (int64, error) {
 	// We can ignore any SnapshotMetadataErrorsWithpaths that are returned because even if a corrupt
@@ -1343,6 +1327,17 @@ func FileExists(filePath string) (bool, error) {
 // OpenWritable opens a file for writing and truncating as necessary.
 func OpenWritable(filePath string, perm os.FileMode) (*os.File, error) {
 	return os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+}
+
+// TODO(rartoul): Unit test for this
+// CommitlogFilePath returns the path for a commitlog file.
+func CommitlogFilePath(prefix string, start time.Time, index int) string {
+	var (
+		entry    = fmt.Sprintf("%d%s%d", start.UnixNano(), separator, index)
+		fileName = fmt.Sprintf("%s%s%s%s", commitLogFilePrefix, separator, entry, fileSuffix)
+		filePath = path.Join(CommitLogsDirPath(prefix), fileName)
+	)
+	return filePath
 }
 
 func filesetFileForTime(t time.Time, suffix string) string {

@@ -340,9 +340,17 @@ func setupCloseOnFail(t *testing.T, l *commitLog) *sync.WaitGroup {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	l.commitLogFailFn = func(err error) {
-		go func() { l.closeErr <- nil }()
-		require.NoError(t, l.Close())
-		wg.Done()
+		fmt.Println("in fail fn")
+		go func() {
+			l.closeErr <- nil
+			l.Close()
+			wg.Done()
+		}()
+		// fmt.Println("waiting for close")
+		// if err := l.Close(); err != nil {
+		// 	panic(err)
+		// }
+		fmt.Println("done fail fn")
 	}
 	return &wg
 }
@@ -540,7 +548,7 @@ func TestCommitLogIteratorUsesPredicateFilter(t *testing.T) {
 	require.Equal(t, 0, len(corruptFiles))
 
 	iterStruct := iter.(*iterator)
-	require.True(t, len(iterStruct.files) == 2)
+	require.Equal(t, 3, len(iterStruct.files))
 }
 
 func TestCommitLogWriteBehind(t *testing.T) {
@@ -715,16 +723,14 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 
 	wg := setupCloseOnFail(t, commitLog)
 
-	func() {
-		// Expire the writer so it requires a new open
-		commitLog.writerState.writerExpireAt = timeZero
-	}()
-
 	writes := []testWrite{
 		{testSeries(0, "foo.bar", testTags1, 127), time.Now(), 123.456, xtime.Millisecond, nil, nil},
 	}
 
 	writeCommitLogs(t, scope, commitLog, writes)
+
+	// Rotate the commitlog so that it requires a new open.
+	commitLog.RotateLogs()
 
 	wg.Wait()
 

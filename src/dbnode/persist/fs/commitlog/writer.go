@@ -112,6 +112,7 @@ type writer struct {
 	metadataEncoderBuff []byte
 	tagEncoder          serialize.TagEncoder
 	tagSliceIter        ident.TagsIterator
+	opts                Options
 }
 
 func newCommitLogWriter(
@@ -135,6 +136,7 @@ func newCommitLogWriter(
 		metadataEncoderBuff: make([]byte, 0, defaultEncoderBuffSize),
 		tagEncoder:          opts.FilesystemOptions().TagEncoderPool().Get(),
 		tagSliceIter:        ident.NewTagsIterator(ident.Tags{}),
+		opts:                opts,
 	}
 }
 
@@ -157,7 +159,7 @@ func (w *writer) Open(start time.Time) (persist.CommitlogFile, error) {
 		return persist.CommitlogFile{}, err
 	}
 
-	filePath, index, err := fs.NextCommitLogsFile(w.filePathPrefix, start)
+	filePath, index, err := NextFile(w.opts, start)
 	if err != nil {
 		return persist.CommitlogFile{}, err
 	}

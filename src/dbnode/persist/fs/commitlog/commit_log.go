@@ -342,6 +342,7 @@ func (l *commitLog) RotateLogs() (persist.CommitlogFile, error) {
 	l.writes <- commitLogWrite{
 		eventType: rotateLogsEventType,
 		callbackFn: func(r callbackResult) {
+			fmt.Println("hmm")
 			defer wg.Done()
 
 			result, e := r.rotateLogsResult()
@@ -355,6 +356,7 @@ func (l *commitLog) RotateLogs() (persist.CommitlogFile, error) {
 		return persist.CommitlogFile{}, err
 	}
 
+	fmt.Println("returning")
 	return file, nil
 }
 
@@ -430,6 +432,7 @@ func (l *commitLog) write() {
 
 		isRotateLogsEvent := write.eventType == rotateLogsEventType
 		if isRotateLogsEvent {
+			fmt.Println("wtf rotating")
 			now := l.nowFn()
 			file, err := l.openWriter(now)
 			if err != nil {
@@ -438,11 +441,13 @@ func (l *commitLog) write() {
 				l.log.Errorf("failed to open commit log: %v", err)
 
 				if l.commitLogFailFn != nil {
+					fmt.Println("calling fail fn")
 					l.commitLogFailFn(err)
 				}
 			}
 
 			if isRotateLogsEvent {
+				fmt.Println("calling back!")
 				write.callbackFn(callbackResult{
 					eventType: write.eventType,
 					err:       err,
@@ -710,6 +715,7 @@ func (l *commitLog) Close() error {
 	close(l.writes)
 	l.closedState.Unlock()
 
+	fmt.Println("waiting for close of writer")
 	// Receive the result of closing the writer from asynchronous writer
 	return <-l.closeErr
 }
