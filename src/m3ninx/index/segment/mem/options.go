@@ -30,8 +30,12 @@ import (
 )
 
 const (
-	defaultInitialCapacity        = 1024
-	defaultBytesArrayPoolCapacity = 1024
+	defaultInitialCapacity = 1024
+	// This pool is used in a single-threaded manner.
+	defaultBytesArrayPoolCapacity = 1
+	// 2^24 * 16 bytes (byte slice pointer) * 2 (Golang G.C) ~=
+	// 0.5 GiB max memory usage.
+	defaultBytesArrayPoolMaxArrayCapacity = 2 ^ 24
 )
 
 // Options is a collection of knobs for an in-memory segment.
@@ -78,8 +82,9 @@ type opts struct {
 // NewOptions returns new options.
 func NewOptions() Options {
 	arrPool := bytes.NewSliceArrayPool(bytes.SliceArrayPoolOpts{
-		Capacity: defaultBytesArrayPoolCapacity,
-		Options:  pool.NewObjectPoolOptions(),
+		Capacity:    defaultBytesArrayPoolCapacity,
+		MaxCapacity: defaultBytesArrayPoolMaxArrayCapacity,
+		Options:     pool.NewObjectPoolOptions(),
 	})
 	arrPool.Init()
 	return &opts{
