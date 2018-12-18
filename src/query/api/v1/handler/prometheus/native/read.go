@@ -97,9 +97,13 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: Support multiple result types
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	if params.FormatType == models.FormatM3QL {
+		renderM3QLResultsJSON(w, result, params)
+		return
+	}
+
+	// TODO: Support multiple result types
 	renderResultsJSON(w, result, params)
 }
 
