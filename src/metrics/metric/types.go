@@ -61,8 +61,6 @@ func (t Type) String() string {
 // ToProto converts the metric type to a protobuf message in place.
 func (t Type) ToProto(pb *metricpb.MetricType) error {
 	switch t {
-	case UnknownType:
-		*pb = metricpb.MetricType_UNKNOWN
 	case CounterType:
 		*pb = metricpb.MetricType_COUNTER
 	case TimerType:
@@ -78,8 +76,6 @@ func (t Type) ToProto(pb *metricpb.MetricType) error {
 // FromProto converts the protobuf message to a metric type.
 func (t *Type) FromProto(pb metricpb.MetricType) error {
 	switch pb {
-	case metricpb.MetricType_UNKNOWN:
-		*t = UnknownType
 	case metricpb.MetricType_COUNTER:
 		*t = CounterType
 	case metricpb.MetricType_TIMER:
