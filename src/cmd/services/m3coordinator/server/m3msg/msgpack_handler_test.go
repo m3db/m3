@@ -109,7 +109,7 @@ func (m *mockWriter) write(
 	metricTime time.Time,
 	value float64,
 	sp policy.StoragePolicy,
-	callbackable *RefCountedCallback,
+	callbackable Callbackable,
 ) {
 	m.Lock()
 	m.n++

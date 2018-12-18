@@ -111,7 +111,7 @@ func (i *Ingester) Ingest(
 	metricTime time.Time,
 	value float64,
 	sp policy.StoragePolicy,
-	callback *m3msg.RefCountedCallback,
+	callback m3msg.Callbackable,
 ) {
 	op := i.p.Get().(*ingestOp)
 	op.c = ctx
@@ -139,7 +139,7 @@ type ingestOp struct {
 	metricTime time.Time
 	value      float64
 	sp         policy.StoragePolicy
-	callback   *m3msg.RefCountedCallback
+	callback   m3msg.Callbackable
 	q          storage.WriteQuery
 }
 

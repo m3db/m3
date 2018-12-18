@@ -55,7 +55,7 @@ var (
 		Value:     21.99,
 	}
 	testBadMetric = Metric{
-		Type: metric.UnknownType,
+		Type: 999,
 	}
 	testMetricWithStoragePolicy = MetricWithStoragePolicy{
 		Metric:        testMetric1,
@@ -74,7 +74,7 @@ var (
 		Values:    []float64{1.34, -26.57},
 	}
 	testBadForwardedMetric = ForwardedMetric{
-		Type: metric.UnknownType,
+		Type: 999,
 	}
 	testForwardMetadata1 = metadata.ForwardMetadata{
 		AggregationID: aggregation.DefaultID,
@@ -208,10 +208,10 @@ var (
 		NumForwardedTimes: 2,
 	}
 	testBadMetricProto = metricpb.TimedMetric{
-		Type: metricpb.MetricType_UNKNOWN,
+		Type: 999,
 	}
 	testBadForwardedMetricProto = metricpb.ForwardedMetric{
-		Type: metricpb.MetricType_UNKNOWN,
+		Type: 999,
 	}
 )
 
