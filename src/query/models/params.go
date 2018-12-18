@@ -28,8 +28,10 @@ import (
 type FormatType int
 
 const (
+	// FormatPromQL returns results in Prom format
+	FormatPromQL FormatType = iota
 	// FormatM3QL returns results in M3QL format
-	FormatM3QL FormatType = iota
+	FormatM3QL
 )
 
 // LookbackDelta determines the time since the last sample after which a time
