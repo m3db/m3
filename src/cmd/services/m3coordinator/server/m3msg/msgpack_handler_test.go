@@ -53,7 +53,7 @@ func TestM3msgServerHandlerWithMultipleMetricsPerMessage(t *testing.T) {
 		WriteFn:           m.write,
 		InstrumentOptions: instrument.NewOptions(),
 	}
-	handler, err := newHandler(hOpts)
+	handler, err := newMsgpackHandler(hOpts)
 	require.NoError(t, err)
 
 	opts := consumer.NewOptions().

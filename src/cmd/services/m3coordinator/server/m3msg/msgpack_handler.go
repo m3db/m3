@@ -64,15 +64,15 @@ func newHandlerMetrics(scope tally.Scope) handlerMetrics {
 	}
 }
 
-type handler struct {
+type msgpackHandler struct {
 	writeFn      WriteFn
 	iteratorOpts msgpack.AggregatedIteratorOptions
 	logger       log.Logger
 	m            handlerMetrics
 }
 
-func newHandler(opts Options) (*handler, error) {
-	return &handler{
+func newMsgpackHandler(opts Options) (*msgpackHandler, error) {
+	return &msgpackHandler{
 		writeFn:      opts.WriteFn,
 		iteratorOpts: opts.AggregatedIteratorOptions,
 		logger:       opts.InstrumentOptions.Logger(),
@@ -80,11 +80,11 @@ func newHandler(opts Options) (*handler, error) {
 	}, nil
 }
 
-func (h *handler) Handle(c consumer.Consumer) {
+func (h *msgpackHandler) Handle(c consumer.Consumer) {
 	h.newPerConsumerHandler().handle(c)
 }
 
-func (h *handler) newPerConsumerHandler() *perConsumerHandler {
+func (h *msgpackHandler) newPerConsumerHandler() *perConsumerHandler {
 	return &perConsumerHandler{
 		ctx:     context.Background(),
 		writeFn: h.writeFn,

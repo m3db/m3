@@ -24,6 +24,7 @@ import (
 	"github.com/m3db/m3/src/metrics/encoding/msgpack"
 	"github.com/m3db/m3/src/msg/consumer"
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/server"
 )
 
@@ -45,25 +46,17 @@ func (c Configuration) NewServer(
 	iOpts instrument.Options,
 ) (server.Server, error) {
 	scope := iOpts.MetricsScope().Tagged(map[string]string{"server": "m3msg"})
-	hOpts := c.Handler.NewOptions(
-		writeFn,
+	cOpts := c.Consumer.NewOptions(
 		iOpts.SetMetricsScope(scope.Tagged(map[string]string{
-			"handler": "msgpack",
+			"component": "consumer",
 		})),
 	)
-	msgpackHandler, err := newHandler(hOpts)
+	h, err := c.Handler.newHandler(writeFn, cOpts, iOpts.SetMetricsScope(scope))
 	if err != nil {
 		return nil, err
 	}
 	return c.Server.NewServer(
-		consumer.NewConsumerHandler(
-			msgpackHandler.Handle,
-			c.Consumer.NewOptions(
-				iOpts.SetMetricsScope(scope.Tagged(map[string]string{
-					"component": "consumer",
-				})),
-			),
-		),
+		h,
 		iOpts.SetMetricsScope(scope),
 	), nil
 }
@@ -71,6 +64,49 @@ func (c Configuration) NewServer(
 type handlerConfiguration struct {
 	// Msgpack configs the msgpack iterator.
 	Msgpack MsgpackIteratorConfiguration `yaml:"msgpack"`
+
+	// ProtobufDecoderPool configs the protobuf decoder pool.
+	ProtobufDecoderPool pool.ObjectPoolConfiguration `yaml:"protobufDecoderPool"`
+
+	// ProtobufEnabled configs whether protobuf decoding is enabled, if not,
+	// msgpack decoding will be applied by default.
+	ProtobufEnabled bool `yaml:"protobufEnabled"`
+}
+
+func (c handlerConfiguration) newHandler(
+	writeFn WriteFn,
+	cOpts consumer.Options,
+	iOpts instrument.Options,
+) (server.Handler, error) {
+	if c.ProtobufEnabled {
+		h := newProtobufHandler(Options{
+			WriteFn: writeFn,
+			InstrumentOptions: iOpts.SetMetricsScope(
+				iOpts.MetricsScope().Tagged(map[string]string{
+					"handler": "protobuf",
+				}),
+			),
+			ProtobufDecoderPoolOptions: c.ProtobufDecoderPool.NewObjectPoolOptions(iOpts),
+		})
+		return consumer.NewMessageHandler(h.message, cOpts), nil
+	}
+
+	h, err := newMsgpackHandler(Options{
+		WriteFn: writeFn,
+		InstrumentOptions: iOpts.SetMetricsScope(
+			iOpts.MetricsScope().Tagged(map[string]string{
+				"handler": "msgpack",
+			}),
+		),
+		AggregatedIteratorOptions: c.Msgpack.NewOptions(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return consumer.NewConsumerHandler(
+		h.Handle,
+		cOpts,
+	), nil
 }
 
 // NewOptions creates handler options.
@@ -79,9 +115,10 @@ func (c handlerConfiguration) NewOptions(
 	iOpts instrument.Options,
 ) Options {
 	return Options{
-		WriteFn:                   writeFn,
-		InstrumentOptions:         iOpts,
-		AggregatedIteratorOptions: c.Msgpack.NewOptions(),
+		WriteFn:                    writeFn,
+		InstrumentOptions:          iOpts,
+		AggregatedIteratorOptions:  c.Msgpack.NewOptions(),
+		ProtobufDecoderPoolOptions: c.ProtobufDecoderPool.NewObjectPoolOptions(iOpts),
 	}
 }
 
