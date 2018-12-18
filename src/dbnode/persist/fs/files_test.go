@@ -606,8 +606,6 @@ func TestSortedSnapshotMetadataFiles(t *testing.T) {
 				SetFilePathPrefix(filePathPrefix)
 		commitlogIdentifier = persist.CommitlogFile{
 			FilePath: "some_path",
-			Start:    time.Time{},
-			Duration: 10 * time.Minute,
 			Index:    0,
 		}
 		numMetadataFiles = 10
@@ -681,8 +679,6 @@ func TestNextSnapshotMetadataFileIndex(t *testing.T) {
 				SetFilePathPrefix(filePathPrefix)
 		commitlogIdentifier = persist.CommitlogFile{
 			FilePath: "some_path",
-			Start:    time.Time{},
-			Duration: 10 * time.Minute,
 			Index:    0,
 		}
 		numMetadataFiles = 10
@@ -828,24 +824,25 @@ func TestSnapshotFileSetExistsAt(t *testing.T) {
 
 func TestSortedCommitLogFiles(t *testing.T) {
 	iter := 20
-	perSlot := 3
-	dir := createCommitLogFiles(t, iter, perSlot)
+	dir := createCommitLogFiles(t, iter)
 	defer os.RemoveAll(dir)
 
-	createFile(t, path.Join(dir, "abcd"), nil)
-	createFile(t, path.Join(dir, strconv.Itoa(perSlot+1)+fileSuffix), nil)
-	createFile(t, path.Join(dir, strconv.Itoa(iter+1)+separator+strconv.Itoa(perSlot+1)+fileSuffix), nil)
-	createFile(t, path.Join(dir, separator+strconv.Itoa(iter+1)+separator+strconv.Itoa(perSlot+1)+fileSuffix), nil)
+	// createFile(t, path.Join(dir, "abcd"), nil)
+	// createFile(t, path.Join(dir, strconv.Itoa(perSlot+1)+fileSuffix), nil)
+	// createFile(t, path.Join(dir, strconv.Itoa(iter+1)+separator+strconv.Itoa(perSlot+1)+fileSuffix), nil)
+	// createFile(t, path.Join(dir, separator+strconv.Itoa(iter+1)+separator+strconv.Itoa(perSlot+1)+fileSuffix), nil)
 
 	files, err := SortedCommitLogFiles(CommitLogsDirPath(dir))
 	require.NoError(t, err)
-	require.Equal(t, iter*perSlot, len(files))
+	require.Equal(t, iter, len(files))
 
 	for i := 0; i < iter; i++ {
-		for j := 0; j < perSlot; j++ {
-			validateCommitLogFiles(t, i, j, perSlot, i, dir, files)
-		}
+		require.Equal(
+			t,
+			path.Join(dir, commitLogsDir,
+				fmt.Sprintf("commitlog-00000000-%d.db", i)))
 	}
+	panic("yolo")
 }
 
 func TestIndexFileSetAt(t *testing.T) {
@@ -1179,28 +1176,18 @@ func createDataFile(t *testing.T, shardDir string, blockStart time.Time, suffix 
 	createFile(t, filePath, b)
 }
 
-func createCommitLogFiles(t *testing.T, iter, perSlot int) string {
+func createCommitLogFiles(t *testing.T, iter int) string {
 	dir := createTempDir(t)
 	commitLogsDir := path.Join(dir, commitLogsDirName)
 	assert.NoError(t, os.Mkdir(commitLogsDir, 0755))
 	for i := 0; i < iter; i++ {
-		for j := 0; j < perSlot; j++ {
-			filePath, _, err := NextCommitLogsFile(dir, time.Unix(0, int64(i)))
-			require.NoError(t, err)
-			fd, err := os.Create(filePath)
-			assert.NoError(t, err)
-			assert.NoError(t, fd.Close())
-		}
+		filePath := CommitlogFilePath(dir, time.Unix(0, 0), i)
+		fd, err := os.Create(filePath)
+		fmt.Println(filePath)
+		assert.NoError(t, err)
+		assert.NoError(t, fd.Close())
 	}
 	return dir
-}
-
-func validateCommitLogFiles(t *testing.T, slot, index, perSlot, resIdx int, dir string, files []string) {
-	entry := fmt.Sprintf("%d%s%d", slot, separator, index)
-	fileName := fmt.Sprintf("%s%s%s%s", commitLogFilePrefix, separator, entry, fileSuffix)
-
-	x := (resIdx * perSlot) + index
-	require.Equal(t, path.Join(dir, commitLogsDirName, fileName), files[x])
 }
 
 func writeOutTestSnapshot(

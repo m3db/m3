@@ -24,7 +24,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/persist"
 
@@ -40,8 +39,6 @@ func TestSnapshotMetadataWriteAndRead(t *testing.T) {
 				SetFilePathPrefix(filePathPrefix)
 		commitlogIdentifier = persist.CommitlogFile{
 			FilePath: "some_path",
-			Start:    time.Now().Truncate(time.Second),
-			Duration: 10 * time.Minute,
 			Index:    1,
 		}
 		numMetadataFiles = 10
