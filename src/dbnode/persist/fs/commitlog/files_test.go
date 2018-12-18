@@ -24,15 +24,10 @@ import (
 	"io/ioutil"
 	"os"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/persist/fs"
-	"github.com/m3db/m3/src/dbnode/ts"
-	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -59,8 +54,8 @@ func TestFiles(t *testing.T) {
 
 	// Make sure its sorted.
 	var lastFileIndex = -1
-	for _, file := range files {
-		require.Equal(t, int64(0), file.Index)
+	for i, file := range files {
+		require.Equal(t, int64(i), file.Index)
 		require.True(t, strings.Contains(file.FilePath, dir))
 		if lastFileIndex == -1 {
 			lastFileIndex = int(file.Index)
@@ -79,22 +74,9 @@ func createTestCommitLogFiles(
 	require.True(t, minNumBlocks >= 2)
 
 	var (
-		nowLock = sync.RWMutex{}
-		now     = time.Now().Truncate(blockSize)
-		nowFn   = func() time.Time {
-			nowLock.RLock()
-			n := now
-			nowLock.RUnlock()
-			return n
-		}
-		setNowFn = func(t time.Time) {
-			nowLock.Lock()
-			now = t
-			nowLock.Unlock()
-		}
 		opts = NewOptions().
 			SetBlockSize(blockSize).
-			SetClockOptions(NewOptions().ClockOptions().SetNowFn(nowFn)).
+			SetClockOptions(NewOptions().ClockOptions()).
 			SetFilesystemOptions(fs.NewOptions().SetFilePathPrefix(filePathPrefix))
 		commitLogsDir = fs.CommitLogsDirPath(filePathPrefix)
 	)
@@ -102,24 +84,16 @@ func createTestCommitLogFiles(
 	commitLog, err := NewCommitLog(opts)
 	require.NoError(t, err)
 	require.NoError(t, commitLog.Open())
-	series := ts.Series{
-		UniqueIndex: 0,
-		Namespace:   ident.StringID("some-namespace"),
-		ID:          ident.StringID("some-id"),
-	}
-	// Commit log writer is asynchronous and performs batching so getting the exact number
-	// of files that we want is tricky. The implementation below loops infinitely, writing
-	// a single datapoint and increasing the time after each iteration until minNumBlocks
-	// files are on disk.
+
+	// Loop until we have enough commit log files.
 	for {
 		files, err := fs.SortedCommitLogFiles(commitLogsDir)
 		require.NoError(t, err)
 		if len(files) >= minNumBlocks {
 			break
 		}
-		err = commitLog.Write(context.NewContext(), series, ts.Datapoint{}, xtime.Second, nil)
+		_, err = commitLog.RotateLogs()
 		require.NoError(t, err)
-		setNowFn(nowFn().Add(blockSize))
 	}
 
 	require.NoError(t, commitLog.Close())

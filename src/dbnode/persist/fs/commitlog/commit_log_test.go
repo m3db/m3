@@ -342,7 +342,7 @@ func setupCloseOnFail(t *testing.T, l *commitLog) *sync.WaitGroup {
 	l.commitLogFailFn = func(err error) {
 		fmt.Println("in fail fn")
 		go func() {
-			l.closeErr <- nil
+			// l.closeErr <- nil
 			l.Close()
 			wg.Done()
 		}()
@@ -650,11 +650,7 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 		return fmt.Errorf("an error")
 	}
 
-	var opens int64
 	writer.openFn = func(start time.Time) (persist.CommitlogFile, error) {
-		if atomic.AddInt64(&opens, 1) >= 2 {
-			return persist.CommitlogFile{}, fmt.Errorf("an error")
-		}
 		return persist.CommitlogFile{}, nil
 	}
 
