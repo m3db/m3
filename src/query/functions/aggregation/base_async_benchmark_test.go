@@ -63,6 +63,20 @@ Chan:  2.8 runs, 499723487 ns/op,  823376332.7 allocs/op
 func benchNode(
 	b *testing.B,
 	workerPool xsync.PooledWorkerPool,
+) (transform.OpNode, *executor.SinkNode) {
+	op, err := NewAggregationOp(SumType, NodeParams{})
+	require.NoError(b, err)
+	c, sink := executor.NewControllerWithSink(parser.NodeID(1))
+	require.NoError(b, err)
+
+	asyncOp, valid := op.(baseOp)
+	require.True(b, valid)
+	return asyncOp.Node(c, transform.Options{}), sink
+}
+
+func benchAsyncNode(
+	b *testing.B,
+	workerPool xsync.PooledWorkerPool,
 ) (transform.OpNodeAsync, *executor.SinkNode) {
 	op, err := NewAggregationOp(SumType, NodeParams{})
 	require.NoError(b, err)
@@ -75,7 +89,7 @@ func benchNode(
 }
 
 func benchWorkerPools(b *testing.B) xsync.PooledWorkerPool {
-	poolSize := 16
+	poolSize := 1024
 	poolOpts := xsync.NewPooledWorkerPoolOptions().
 		SetGrowOnDemand(true).
 		SetNumShards(int64(poolSize))
@@ -90,8 +104,89 @@ type mockBlock struct {
 	stepCount   int
 }
 
+func (b *mockBlock) Unconsolidated() (block.UnconsolidatedBlock, error) { return nil, nil }
+func (b *mockBlock) SeriesIter() (block.SeriesIter, error)              { return nil, nil }
+func (b *mockBlock) WithMetadata(
+	_ block.Metadata,
+	_ []block.SeriesMeta,
+) (block.Block, error) {
+	return nil, nil
+}
 func (b *mockBlock) Close() error { return nil }
 func (b *mockBlock) AsyncStepIter() (block.AsyncStepIter, error) {
+	metas := make([]block.SeriesMeta, b.seriesCount)
+	for i := 0; i < b.seriesCount; i++ {
+		b := []byte(fmt.Sprint(i))
+		metas[i] = block.SeriesMeta{
+			Name: "a",
+			Tags: models.NewTags(1, models.NewTagOptions()).AddTag(
+				models.Tag{
+					Name:  b,
+					Value: b,
+				},
+			),
+		}
+	}
+
+	return &mockAsyncIter{
+		stepCount:   b.stepCount,
+		seriesCount: b.seriesCount,
+		metas:       metas,
+	}, nil
+}
+
+type mockAsyncIter struct {
+	seriesCount int
+	stepCount   int
+	step        int
+	metas       []block.SeriesMeta
+}
+
+func (it *mockAsyncIter) SeriesMeta() []block.SeriesMeta {
+	return it.metas
+}
+
+func (it *mockAsyncIter) Meta() block.Metadata {
+	return block.Metadata{}
+}
+
+func (it *mockAsyncIter) StepCount() int {
+	return it.stepCount
+}
+
+func (it *mockAsyncIter) Next() bool {
+	it.step = it.step + 1
+	return it.step < it.stepCount+1
+}
+
+func (it *mockAsyncIter) Current() <-chan block.Step {
+	ch := make(chan block.Step)
+	go func() {
+		ch <- &mockStep{
+			seriesCount: it.seriesCount,
+		}
+	}()
+	return ch
+}
+
+func (it *mockAsyncIter) ValuesChannel() <-chan block.IndexedStep {
+	ch := make(chan block.IndexedStep, it.stepCount)
+	for i := 0; i < it.stepCount; i++ {
+		ch <- block.IndexedStep{
+			Idx: i,
+			Step: &mockStep{
+				seriesCount: it.seriesCount,
+			},
+		}
+	}
+	close(ch)
+	return ch
+}
+
+func (it *mockAsyncIter) Err() error { return nil }
+func (it *mockAsyncIter) Close()     {}
+
+func (b *mockBlock) StepIter() (block.StepIter, error) {
 	metas := make([]block.SeriesMeta, b.seriesCount)
 	for i := 0; i < b.seriesCount; i++ {
 		b := []byte(fmt.Sprint(i))
@@ -137,32 +232,13 @@ func (it *mockIter) Next() bool {
 	return it.step < it.stepCount+1
 }
 
-func (it *mockIter) Current() <-chan block.Step {
-	ch := make(chan block.Step)
-	go func() {
-		ch <- &mockStep{
-			seriesCount: it.seriesCount,
-		}
-	}()
-	return ch
+func (it *mockIter) Current() (block.Step, error) {
+	return &mockStep{
+		seriesCount: it.seriesCount,
+	}, nil
 }
 
-func (it *mockIter) ValuesChannel() <-chan block.IndexedStep {
-	ch := make(chan block.IndexedStep, it.stepCount)
-	for i := 0; i < it.stepCount; i++ {
-		ch <- block.IndexedStep{
-			Idx: i,
-			Step: &mockStep{
-				seriesCount: it.seriesCount,
-			},
-		}
-	}
-	close(ch)
-	return ch
-}
-
-func (it *mockIter) Err() error { return nil }
-func (it *mockIter) Close()     {}
+func (it *mockIter) Close() {}
 
 type mockStep struct {
 	seriesCount int
@@ -178,47 +254,56 @@ func (s *mockStep) Values() []float64 {
 	return values
 }
 
-func BenchmarkSteps1Series100Step(b *testing.B) {
-	benchmarkSteps(b, 1, 100)
+var tests = []struct {
+	name        string
+	stepCount   int
+	seriesCount int
+}{
+	{"1   series 100 steps", 1, 100},
+	{"100 series 1 steps", 100, 1},
+	{"100 series 100 steps", 100, 100},
+	{"10k series 100 steps", 10000, 100},
+	{"100 series 10k steps", 100, 10000},
 }
 
-func BenchmarkValueChannel1Series100Step(b *testing.B) {
-	benchmarkValueChannel(b, 1, 100)
+func BenchmarkSteps(b *testing.B) {
+	for _, t := range tests {
+		b.Run(fmt.Sprint("Sync steps ", t.name), func(b *testing.B) {
+			benchmarkSync(b, t.stepCount, t.seriesCount)
+		})
+	}
 }
 
-func BenchmarkSteps100Series100Step(b *testing.B) {
-	benchmarkSteps(b, 100, 100)
+func BenchmarkAsyncSteps(b *testing.B) {
+	for _, t := range tests {
+		b.Run(fmt.Sprint("Async steps", t.name), func(b *testing.B) {
+			benchmarkSteps(b, t.stepCount, t.seriesCount)
+		})
+	}
 }
 
-func BenchmarkValueChannel100Series100Step(b *testing.B) {
-	benchmarkValueChannel(b, 100, 100)
+func BenchmarkAsyncChans(b *testing.B) {
+	for _, t := range tests {
+		b.Run(fmt.Sprint("Async chans", t.name), func(b *testing.B) {
+			benchmarkValueChannel(b, t.stepCount, t.seriesCount)
+		})
+	}
 }
 
-func BenchmarkSteps10kSeries100Step(b *testing.B) {
-	benchmarkSteps(b, 10000, 100)
-}
+func benchmarkSync(b *testing.B, seriesCount, stepCount int) {
+	node, _ := benchNode(b, benchWorkerPools(b))
+	bl := &mockBlock{
+		seriesCount: seriesCount,
+		stepCount:   stepCount,
+	}
 
-func BenchmarkValueChannel10kSeries100Step(b *testing.B) {
-	benchmarkValueChannel(b, 10000, 100)
-}
-
-func BenchmarkSteps100Series10kStep(b *testing.B) {
-	benchmarkSteps(b, 100, 10000)
-}
-func BenchmarkValueChannel100Series10kStep(b *testing.B) {
-	benchmarkValueChannel(b, 100, 10000)
-}
-
-func BenchmarkSteps10kSeries10kStep(b *testing.B) {
-	benchmarkSteps(b, 10000, 10000)
-}
-
-func BenchmarkValueChannel10kSeries10kStep(b *testing.B) {
-	benchmarkValueChannel(b, 10000, 10000)
+	for i := 0; i < b.N; i++ {
+		node.Process(parser.NodeID(1), bl)
+	}
 }
 
 func benchmarkValueChannel(b *testing.B, seriesCount, stepCount int) {
-	node, _ := benchNode(b, benchWorkerPools(b))
+	node, _ := benchAsyncNode(b, benchWorkerPools(b))
 	bl := &mockBlock{
 		seriesCount: seriesCount,
 		stepCount:   stepCount,
@@ -230,7 +315,7 @@ func benchmarkValueChannel(b *testing.B, seriesCount, stepCount int) {
 }
 
 func benchmarkSteps(b *testing.B, seriesCount, stepCount int) {
-	node, _ := benchNode(b, benchWorkerPools(b))
+	node, _ := benchAsyncNode(b, benchWorkerPools(b))
 	bl := &mockBlock{
 		seriesCount: seriesCount,
 		stepCount:   stepCount,

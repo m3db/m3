@@ -38,7 +38,7 @@ type AsyncBuilder interface {
 	Error() error
 }
 
-// AsyncBlock represents a group of series accross a time bound with async
+// AsyncBlock represents a group of series across a time bound with async
 // iterators.
 type AsyncBlock interface {
 	io.Closer
