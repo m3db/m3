@@ -340,17 +340,10 @@ func setupCloseOnFail(t *testing.T, l *commitLog) *sync.WaitGroup {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	l.commitLogFailFn = func(err error) {
-		fmt.Println("in fail fn")
 		go func() {
-			// l.closeErr <- nil
 			l.Close()
 			wg.Done()
 		}()
-		// fmt.Println("waiting for close")
-		// if err := l.Close(); err != nil {
-		// 	panic(err)
-		// }
-		fmt.Println("done fail fn")
 	}
 	return &wg
 }
