@@ -18,37 +18,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package m3ql
+package errors
 
-import "reflect"
+import (
+	"fmt"
 
-type scriptBuilder interface {
-	newMacro(string)
-	newPipeline()
-	endPipeline()
-	newExpression(string)
-	endExpression()
-	newBooleanArgument(string)
-	newNumericArgument(string)
-	newPatternArgument(string)
-	newStringLiteralArgument(string)
-	newKeywordArgument(string)
-}
-
-// functionArgument is an argument to a function that gets resolved at compile-time.
-type functionArgument interface {
-	Compile() (reflect.Value, error)
-	CompatibleWith(reflectType reflect.Type) bool
-	String() string
-	NormalizedString() string
-	TypeName() string
-	Raw() string
-}
-
-type keywordArgType int
-
-const (
-	_ keywordArgType = iota // ignore default value
-	genericArg
-	strArg
+	"github.com/pkg/errors"
 )
+
+func NewParseError(inner error, query string) error {
+	return errors.Wrap(inner, fmt.Sprintf("error while parsing query: %s", query))
+}
