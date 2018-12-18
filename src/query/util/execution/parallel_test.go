@@ -42,7 +42,7 @@ func (f *request) Process(ctx context.Context) error {
 	}
 
 	if f.order == 0 {
-		time.Sleep(2 * time.Millisecond)
+		time.Sleep(20 * time.Millisecond)
 	}
 
 	select {
