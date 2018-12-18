@@ -63,8 +63,6 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 
 	testCommitlogFileIdentifier := persist.CommitlogFile{
 		FilePath: "commitlog-filepath-1",
-		Start:    time.Now().Truncate(10 * time.Minute),
-		Duration: 10 * time.Minute,
 		Index:    1,
 	}
 	testSnapshotMetadataIdentifier1 := fs.SnapshotMetadataIdentifier{

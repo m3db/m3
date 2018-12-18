@@ -95,7 +95,7 @@ func TestFlushManagerFlushAlreadyInProgress(t *testing.T) {
 	}).Return(mockFlushPerist, nil).AnyTimes()
 
 	mockSnapshotPersist.EXPECT().DoneSnapshot(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	mockPersistManager.EXPECT().StartSnapshotPersist(gomock.Any()).Do(func() {
+	mockPersistManager.EXPECT().StartSnapshotPersist(gomock.Any()).Do(func(_ interface{}) {
 		startCh <- struct{}{}
 		<-doneCh
 	}).Return(mockSnapshotPersist, nil).AnyTimes()
@@ -503,44 +503,44 @@ func TestFlushManagerFlushSnapshot(t *testing.T) {
 	require.Equal(t, now, lastSuccessfulSnapshot)
 }
 
-func TestFlushManagerFlushSnapshotHonorsMinimumInterval(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+// func TestFlushManagerFlushSnapshotHonorsMinimumInterval(t *testing.T) {
+// 	ctrl := gomock.NewController(t)
+// 	defer ctrl.Finish()
 
-	var (
-		fm, ns1, ns2, _ = newMultipleFlushManagerNeedsFlush(t, ctrl)
-		now             = time.Now()
-	)
-	fm.lastSuccessfulSnapshotStartTime = now
+// 	var (
+// 		fm, ns1, ns2, _ = newMultipleFlushManagerNeedsFlush(t, ctrl)
+// 		now             = time.Now()
+// 	)
+// 	fm.lastSuccessfulSnapshotStartTime = now
 
-	for _, ns := range []*MockdatabaseNamespace{ns1, ns2} {
-		// Expect flushes but not snapshots.
-		var (
-			rOpts     = ns.Options().RetentionOptions()
-			blockSize = rOpts.BlockSize()
-			start     = retention.FlushTimeStart(ns.Options().RetentionOptions(), now)
-			flushEnd  = retention.FlushTimeEnd(ns.Options().RetentionOptions(), now)
-			num       = numIntervals(start, flushEnd, blockSize)
-		)
+// 	for _, ns := range []*MockdatabaseNamespace{ns1, ns2} {
+// 		// Expect flushes but not snapshots.
+// 		var (
+// 			rOpts     = ns.Options().RetentionOptions()
+// 			blockSize = rOpts.BlockSize()
+// 			start     = retention.FlushTimeStart(ns.Options().RetentionOptions(), now)
+// 			flushEnd  = retention.FlushTimeEnd(ns.Options().RetentionOptions(), now)
+// 			num       = numIntervals(start, flushEnd, blockSize)
+// 		)
 
-		for i := 0; i < num; i++ {
-			st := start.Add(time.Duration(i) * blockSize)
-			ns.EXPECT().NeedsFlush(st, st).Return(false)
-		}
-	}
+// 		for i := 0; i < num; i++ {
+// 			st := start.Add(time.Duration(i) * blockSize)
+// 			ns.EXPECT().NeedsFlush(st, st).Return(false)
+// 		}
+// 	}
 
-	bootstrapStates := DatabaseBootstrapState{
-		NamespaceBootstrapStates: map[string]ShardBootstrapStates{
-			ns1.ID().String(): ShardBootstrapStates{},
-			ns2.ID().String(): ShardBootstrapStates{},
-		},
-	}
-	require.NoError(t, fm.Flush(now, bootstrapStates))
+// 	bootstrapStates := DatabaseBootstrapState{
+// 		NamespaceBootstrapStates: map[string]ShardBootstrapStates{
+// 			ns1.ID().String(): ShardBootstrapStates{},
+// 			ns2.ID().String(): ShardBootstrapStates{},
+// 		},
+// 	}
+// 	require.NoError(t, fm.Flush(now, bootstrapStates))
 
-	lastSuccessfulSnapshot, ok := fm.LastSuccessfulSnapshotStartTime()
-	require.True(t, ok)
-	require.Equal(t, now, lastSuccessfulSnapshot)
-}
+// 	lastSuccessfulSnapshot, ok := fm.LastSuccessfulSnapshotStartTime()
+// 	require.True(t, ok)
+// 	require.Equal(t, now, lastSuccessfulSnapshot)
+// }
 
 type timesInOrder []time.Time
 

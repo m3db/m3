@@ -27,14 +27,10 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/persist"
-	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 
-	"github.com/golang/mock/gomock"
 	"github.com/leanovate/gopter"
-	"github.com/uber-go/tally"
 )
 
 const (
@@ -42,43 +38,43 @@ const (
 	commitLogTestMinSuccessfulTests       = 10000
 )
 
-func newPropTestCleanupMgr(
-	ctrl *gomock.Controller, ropts retention.Options, t time.Time, ns ...databaseNamespace) *cleanupManager {
-	var (
-		blockSize          = ropts.BlockSize()
-		commitLogBlockSize = blockSize
-		db                 = NewMockdatabase(ctrl)
-		opts               = testDatabaseOptions()
-	)
-	opts = opts.SetCommitLogOptions(
-		opts.CommitLogOptions().
-			SetBlockSize(commitLogBlockSize))
+// func newPropTestCleanupMgr(
+// 	ctrl *gomock.Controller, ropts retention.Options, t time.Time, ns ...databaseNamespace) *cleanupManager {
+// 	var (
+// 		blockSize          = ropts.BlockSize()
+// 		commitLogBlockSize = blockSize
+// 		db                 = NewMockdatabase(ctrl)
+// 		opts               = testDatabaseOptions()
+// 	)
+// 	opts = opts.SetCommitLogOptions(
+// 		opts.CommitLogOptions().
+// 			SetBlockSize(commitLogBlockSize))
 
-	db.EXPECT().Options().Return(opts).AnyTimes()
-	db.EXPECT().GetOwnedNamespaces().Return(ns, nil).AnyTimes()
-	scope := tally.NoopScope
-	cmIface := newCleanupManager(db, newNoopFakeActiveLogs(), scope)
-	cm := cmIface.(*cleanupManager)
+// 	db.EXPECT().Options().Return(opts).AnyTimes()
+// 	db.EXPECT().GetOwnedNamespaces().Return(ns, nil).AnyTimes()
+// 	scope := tally.NoopScope
+// 	cmIface := newCleanupManager(db, newNoopFakeActiveLogs(), scope)
+// 	cm := cmIface.(*cleanupManager)
 
-	var (
-		oldest    = retention.FlushTimeStart(ropts, t)
-		newest    = retention.FlushTimeEnd(ropts, t)
-		n         = numIntervals(oldest, newest, blockSize)
-		currStart = oldest
-	)
-	cm.commitLogFilesFn = func(_ commitlog.Options) ([]persist.CommitlogFile, []commitlog.ErrorWithPath, error) {
-		files := make([]persist.CommitlogFile, 0, n)
-		for i := 0; i < n; i++ {
-			files = append(files, persist.CommitlogFile{
-				Start:    currStart,
-				Duration: blockSize,
-			})
-		}
-		return files, nil, nil
-	}
+// 	var (
+// 		oldest    = retention.FlushTimeStart(ropts, t)
+// 		newest    = retention.FlushTimeEnd(ropts, t)
+// 		n         = numIntervals(oldest, newest, blockSize)
+// 		currStart = oldest
+// 	)
+// 	cm.commitLogFilesFn = func(_ commitlog.Options) ([]persist.CommitlogFile, []commitlog.ErrorWithPath, error) {
+// 		files := make([]persist.CommitlogFile, 0, n)
+// 		for i := 0; i < n; i++ {
+// 			files = append(files, persist.CommitlogFile{
+// 				Start:    currStart,
+// 				Duration: blockSize,
+// 			})
+// 		}
+// 		return files, nil, nil
+// 	}
 
-	return cm
-}
+// 	return cm
+// }
 
 func newCleanupMgrTestProperties() *gopter.Properties {
 	parameters := gopter.DefaultTestParameters()
