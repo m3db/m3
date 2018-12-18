@@ -31,6 +31,6 @@ services:
       - backend
     image: prom/prometheus:latest
     volumes:
-      - "./:/etc/prometheus/"
+      - "./prometheus.yml:/etc/prometheus/prometheus.yml"
 networks:
   backend:
