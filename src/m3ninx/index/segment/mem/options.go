@@ -86,7 +86,9 @@ func NewOptions() Options {
 		Capacity:    defaultBytesArrayPoolCapacity,
 		MaxCapacity: defaultBytesArrayPoolMaxArrayCapacity,
 		Options: pool.NewObjectPoolOptions().
-			SetSize(defaultBytesArrayPoolSize),
+			SetSize(defaultBytesArrayPoolSize).
+			SetRefillLowWatermark(0).
+			SetRefillHighWatermark(0),
 	})
 	arrPool.Init()
 	return &opts{
