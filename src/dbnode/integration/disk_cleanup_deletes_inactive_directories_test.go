@@ -95,8 +95,9 @@ func TestDiskCleansupInactiveDirectories(t *testing.T) {
 	}()
 	require.NoError(t, <-nsResetErr)
 
+	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	go func() {
-		nsCleanupErr <- waitUntilNamespacesCleanedUp(clOpts, nsToDelete, nsWaitTimeout)
+		nsCleanupErr <- waitUntilNamespacesCleanedUp(filePathPrefix, nsToDelete, nsWaitTimeout)
 	}()
 	log.Info("blocking until the namespace cleanup is received")
 	require.NoError(t, <-nsCleanupErr)
