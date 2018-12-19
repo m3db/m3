@@ -85,18 +85,24 @@ func writeIndexFileSetFiles(t *testing.T, storageOpts storage.Options, md namesp
 
 // TODO: Fix this, should be based on indexes.
 type cleanupTimesCommitLog struct {
-	clOpts commitlog.Options
-	times  []time.Time
+	clOpts  commitlog.Options
+	indices []int64
 }
 
 func (c *cleanupTimesCommitLog) anyExist() bool {
-	_, index, err := commitlog.NextFile(c.clOpts)
+	commitlogs, _, err := commitlog.Files(c.clOpts)
 	if err != nil {
 		panic(err)
 	}
-	if index != 0 {
-		return true
+
+	for _, cl := range commitlogs {
+		for _, index := range c.indices {
+			if cl.Index == index {
+				return true
+			}
+		}
 	}
+
 	return false
 }
 
@@ -238,7 +244,8 @@ func waitUntilDataCleanedUp(clOpts commitlog.Options, namespace ident.ID, shard 
 		},
 		cleanupTimesCommitLog{
 			clOpts: clOpts,
-			times:  []time.Time{toDelete},
+			// TODO: Indices
+			indices: []int64{},
 		},
 		timeout)
 }
