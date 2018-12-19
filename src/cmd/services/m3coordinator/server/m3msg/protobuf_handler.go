@@ -23,7 +23,6 @@ package m3msg
 import (
 	"context"
 	"sync"
-	"time"
 
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/msg/consumer"
@@ -67,13 +66,9 @@ func (h *pbHandler) Process(msg consumer.Message) {
 	}
 	h.m.metricAccepted.Inc(1)
 
-	var encodeTime time.Time
-	if encodeNanos := dec.EncodeNanos(); encodeNanos > 0 {
-		encodeTime = time.Unix(0, encodeNanos)
-	}
 	h.wg.Add(1)
 	r := newProtobufCallback(msg, dec, h.wg)
-	h.writeFn(h.ctx, dec.ID(), time.Unix(0, dec.TimeNanos()), encodeTime, dec.Value(), sp, r)
+	h.writeFn(h.ctx, dec.ID(), dec.TimeNanos(), dec.EncodeNanos(), dec.Value(), sp, r)
 }
 
 func (h *pbHandler) Close() { h.wg.Wait() }

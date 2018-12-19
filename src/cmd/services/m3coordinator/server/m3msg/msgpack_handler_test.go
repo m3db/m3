@@ -22,10 +22,10 @@ package m3msg
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/m3db/m3/src/metrics/encoding/msgpack"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
@@ -106,7 +106,7 @@ type mockWriter struct {
 func (m *mockWriter) write(
 	ctx context.Context,
 	name []byte,
-	metricTime, encodeTime time.Time,
+	metricNanos, encodeNanos int64,
 	value float64,
 	sp policy.StoragePolicy,
 	callbackable Callbackable,
@@ -114,13 +114,13 @@ func (m *mockWriter) write(
 	m.Lock()
 	m.n++
 	payload := payload{
-		id:         string(name),
-		metricTime: metricTime,
-		encodeTime: encodeTime,
-		value:      value,
-		sp:         sp,
+		id:          string(name),
+		metricNanos: metricNanos,
+		encodeNanos: encodeNanos,
+		value:       value,
+		sp:          sp,
 	}
-	m.m[key(payload.id, encodeTime)] = payload
+	m.m[key(payload.id, encodeNanos)] = payload
 	m.Unlock()
 	callbackable.Callback(OnSuccess)
 }
@@ -132,14 +132,14 @@ func (m *mockWriter) ingested() int {
 	return m.n
 }
 
-func key(id string, encodeTime time.Time) string {
-	return id + encodeTime.String()
+func key(id string, encodeTime int64) string {
+	return fmt.Sprintf("%s%d", id, encodeTime)
 }
 
 type payload struct {
-	id         string
-	metricTime time.Time
-	encodeTime time.Time
-	value      float64
-	sp         policy.StoragePolicy
+	id          string
+	metricNanos int64
+	encodeNanos int64
+	value       float64
+	sp          policy.StoragePolicy
 }

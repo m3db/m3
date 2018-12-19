@@ -23,7 +23,6 @@ package m3msg
 import (
 	"net"
 	"testing"
-	"time"
 
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/metric"
@@ -104,19 +103,19 @@ func TestM3msgServerWithProtobufHandler(t *testing.T) {
 	require.NoError(t, dec.Decode(&a))
 	require.Equal(t, 2, w.ingested())
 
-	payload, ok := w.m[key(string(m1.ID), time.Unix(0, 2000))]
+	payload, ok := w.m[key(string(m1.ID), 2000)]
 	require.True(t, ok)
 	require.Equal(t, string(m1.ID), payload.id)
-	require.Equal(t, m1.TimeNanos, payload.metricTime.UnixNano())
-	require.Equal(t, 2000, int(payload.encodeTime.UnixNano()))
+	require.Equal(t, m1.TimeNanos, payload.metricNanos)
+	require.Equal(t, 2000, int(payload.encodeNanos))
 	require.Equal(t, m1.Value, payload.value)
 	require.Equal(t, m1.StoragePolicy, payload.sp)
 
-	payload, ok = w.m[key(string(m2.ID), time.Unix(0, 3000))]
+	payload, ok = w.m[key(string(m2.ID), 3000)]
 	require.True(t, ok)
 	require.Equal(t, string(m2.ID), payload.id)
-	require.Equal(t, m2.TimeNanos, payload.metricTime.UnixNano())
-	require.Equal(t, 3000, int(payload.encodeTime.UnixNano()))
+	require.Equal(t, m2.TimeNanos, payload.metricNanos)
+	require.Equal(t, 3000, int(payload.encodeNanos))
 	require.Equal(t, m2.Value, payload.value)
 	require.Equal(t, m2.StoragePolicy, payload.sp)
 }

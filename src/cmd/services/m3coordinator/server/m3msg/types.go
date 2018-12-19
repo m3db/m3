@@ -23,7 +23,6 @@ package m3msg
 import (
 	"context"
 	"sync/atomic"
-	"time"
 
 	"github.com/m3db/m3/src/metrics/policy"
 	"github.com/m3db/m3/src/msg/consumer"
@@ -33,7 +32,7 @@ import (
 type WriteFn func(
 	ctx context.Context,
 	id []byte,
-	metricTime, encodeTime time.Time,
+	metricNanos, encodeNanos int64,
 	value float64,
 	sp policy.StoragePolicy,
 	callback Callbackable,
