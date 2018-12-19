@@ -108,7 +108,7 @@ func NewIngester(
 func (i *Ingester) Ingest(
 	ctx context.Context,
 	id []byte,
-	metricTime time.Time,
+	metricTime, encodeTime time.Time,
 	value float64,
 	sp policy.StoragePolicy,
 	callback m3msg.Callbackable,

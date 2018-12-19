@@ -138,7 +138,7 @@ func (h *perConsumerHandler) processMessage(
 	h.r.Reset(msg.Bytes())
 	h.it.Reset(h.r)
 	for h.it.Next() {
-		raw, sp, _ := h.it.Value()
+		raw, sp, encodeNanos := h.it.Value()
 		m, err := raw.Metric()
 		if err != nil {
 			h.logger.WithFields(log.NewErrField(err)).Error("invalid raw metric")
@@ -148,10 +148,14 @@ func (h *perConsumerHandler) processMessage(
 
 		h.m.metricAccepted.Inc(1)
 
+		var encodeTime time.Time
+		if encodeNanos > 0 {
+			encodeTime = time.Unix(0, encodeNanos)
+		}
 		// TODO: Consider incrementing a wait group for each write and wait on
 		// shut down to reduce the number of messages being retried by m3msg.
 		r.IncRef()
-		h.writeFn(h.ctx, m.ID, time.Unix(0, m.TimeNanos), m.Value, sp, r)
+		h.writeFn(h.ctx, m.ID, time.Unix(0, m.TimeNanos), encodeTime, m.Value, sp, r)
 	}
 	r.decRef()
 	if err := h.it.Err(); err != nil && err != io.EOF {

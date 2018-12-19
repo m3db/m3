@@ -71,7 +71,7 @@ func TestM3msgServerHandlerWithMultipleMetricsPerMessage(t *testing.T) {
 	chunkedMetricWithPolicy := aggregated.ChunkedMetricWithStoragePolicy{
 		ChunkedMetric: aggregated.ChunkedMetric{
 			ChunkedID: id.ChunkedID{
-				Data: []byte("stats.sjc1.gauges.m3+some-name+dc=sjc1,env=production,service=foo,type=gauge"),
+				Data: []byte(testID),
 			},
 			TimeNanos: 1000,
 			Value:     1,
@@ -106,7 +106,7 @@ type mockWriter struct {
 func (m *mockWriter) write(
 	ctx context.Context,
 	name []byte,
-	metricTime time.Time,
+	metricTime, encodeTime time.Time,
 	value float64,
 	sp policy.StoragePolicy,
 	callbackable Callbackable,
@@ -116,10 +116,11 @@ func (m *mockWriter) write(
 	payload := payload{
 		id:         string(name),
 		metricTime: metricTime,
+		encodeTime: encodeTime,
 		value:      value,
 		sp:         sp,
 	}
-	m.m[payload.id] = payload
+	m.m[key(payload.id, encodeTime)] = payload
 	m.Unlock()
 	callbackable.Callback(OnSuccess)
 }
@@ -131,9 +132,14 @@ func (m *mockWriter) ingested() int {
 	return m.n
 }
 
+func key(id string, encodeTime time.Time) string {
+	return id + encodeTime.String()
+}
+
 type payload struct {
 	id         string
 	metricTime time.Time
+	encodeTime time.Time
 	value      float64
 	sp         policy.StoragePolicy
 }

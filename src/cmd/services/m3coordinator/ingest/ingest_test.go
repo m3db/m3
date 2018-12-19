@@ -65,7 +65,7 @@ func TestIngest(t *testing.T) {
 	callback.IncRef()
 
 	m.EXPECT().Ack()
-	ingester.Ingest(context.TODO(), id, metricTime, val, sp, callback)
+	ingester.Ingest(context.TODO(), id, metricTime, time.Time{}, val, sp, callback)
 
 	for appender.cnt() != 1 {
 		time.Sleep(100 * time.Millisecond)

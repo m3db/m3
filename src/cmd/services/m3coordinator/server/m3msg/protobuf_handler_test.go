@@ -23,6 +23,7 @@ package m3msg
 import (
 	"net"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/metrics/metric"
@@ -47,23 +48,20 @@ func TestM3msgServerWithProtobufHandler(t *testing.T) {
 		WriteFn:           w.write,
 		InstrumentOptions: instrument.NewOptions(),
 	}
-	handler := newProtobufHandler(hOpts)
-	require.NoError(t, err)
-
 	opts := consumer.NewOptions().
 		SetAckBufferSize(1).
 		SetConnectionWriteBufferSize(1)
 
 	s := server.NewServer(
 		"a",
-		consumer.NewMessageHandler(handler.message, opts),
+		consumer.NewMessageHandler(newProtobufProcessor(hOpts), opts),
 		server.NewOptions(),
 	)
 	s.Serve(l)
 
 	conn, err := net.Dial("tcp", l.Addr().String())
 	require.NoError(t, err)
-	m := aggregated.MetricWithStoragePolicy{
+	m1 := aggregated.MetricWithStoragePolicy{
 		Metric: aggregated.Metric{
 			ID:        []byte(testID),
 			TimeNanos: 1000,
@@ -74,7 +72,7 @@ func TestM3msgServerWithProtobufHandler(t *testing.T) {
 	}
 
 	encoder := protobuf.NewAggregatedEncoder(nil)
-	require.NoError(t, encoder.Encode(m, 2000))
+	require.NoError(t, encoder.Encode(m1, 2000))
 	enc := proto.NewEncoder(opts.EncoderOptions())
 	require.NoError(t, enc.Encode(&msgpb.Message{
 		Value: encoder.Buffer().Bytes(),
@@ -87,10 +85,38 @@ func TestM3msgServerWithProtobufHandler(t *testing.T) {
 	require.NoError(t, dec.Decode(&a))
 	require.Equal(t, 1, w.ingested())
 
-	payload, ok := w.m[string(m.ID)]
+	m2 := aggregated.MetricWithStoragePolicy{
+		Metric: aggregated.Metric{
+			ID:        []byte{},
+			TimeNanos: 0,
+			Value:     0,
+			Type:      metric.UnknownType,
+		},
+		StoragePolicy: validStoragePolicy,
+	}
+	require.NoError(t, encoder.Encode(m2, 3000))
+	enc = proto.NewEncoder(opts.EncoderOptions())
+	require.NoError(t, enc.Encode(&msgpb.Message{
+		Value: encoder.Buffer().Bytes(),
+	}))
+	_, err = conn.Write(enc.Bytes())
+	require.NoError(t, err)
+	require.NoError(t, dec.Decode(&a))
+	require.Equal(t, 2, w.ingested())
+
+	payload, ok := w.m[key(string(m1.ID), time.Unix(0, 2000))]
 	require.True(t, ok)
-	require.Equal(t, string(m.ID), payload.id)
-	require.Equal(t, m.TimeNanos, payload.metricTime.UnixNano())
-	require.Equal(t, m.Value, payload.value)
-	require.Equal(t, m.StoragePolicy, payload.sp)
+	require.Equal(t, string(m1.ID), payload.id)
+	require.Equal(t, m1.TimeNanos, payload.metricTime.UnixNano())
+	require.Equal(t, 2000, int(payload.encodeTime.UnixNano()))
+	require.Equal(t, m1.Value, payload.value)
+	require.Equal(t, m1.StoragePolicy, payload.sp)
+
+	payload, ok = w.m[key(string(m2.ID), time.Unix(0, 3000))]
+	require.True(t, ok)
+	require.Equal(t, string(m2.ID), payload.id)
+	require.Equal(t, m2.TimeNanos, payload.metricTime.UnixNano())
+	require.Equal(t, 3000, int(payload.encodeTime.UnixNano()))
+	require.Equal(t, m2.Value, payload.value)
+	require.Equal(t, m2.StoragePolicy, payload.sp)
 }

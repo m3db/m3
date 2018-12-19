@@ -33,7 +33,7 @@ import (
 type WriteFn func(
 	ctx context.Context,
 	id []byte,
-	metricTime time.Time,
+	metricTime, encodeTime time.Time,
 	value float64,
 	sp policy.StoragePolicy,
 	callback Callbackable,

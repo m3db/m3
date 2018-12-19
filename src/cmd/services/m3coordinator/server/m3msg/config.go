@@ -79,7 +79,7 @@ func (c handlerConfiguration) newHandler(
 	iOpts instrument.Options,
 ) (server.Handler, error) {
 	if c.ProtobufEnabled {
-		h := newProtobufHandler(Options{
+		p := newProtobufProcessor(Options{
 			WriteFn: writeFn,
 			InstrumentOptions: iOpts.SetMetricsScope(
 				iOpts.MetricsScope().Tagged(map[string]string{
@@ -88,7 +88,7 @@ func (c handlerConfiguration) newHandler(
 			),
 			ProtobufDecoderPoolOptions: c.ProtobufDecoderPool.NewObjectPoolOptions(iOpts),
 		})
-		return consumer.NewMessageHandler(h.message, cOpts), nil
+		return consumer.NewMessageHandler(p, cOpts), nil
 	}
 
 	h, err := newMsgpackHandler(Options{
