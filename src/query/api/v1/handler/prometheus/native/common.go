@@ -116,28 +116,9 @@ func parseParams(r *http.Request) (models.RequestParams, *xhttp.ParseError) {
 	if err != nil {
 		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, queryParam, err), http.StatusBadRequest)
 	}
+
 	params.Query = query
-
-	// Skip debug if unable to parse debug param
-	debugVal := r.FormValue(debugParam)
-	if debugVal != "" {
-		debug, err := strconv.ParseBool(r.FormValue(debugParam))
-		if err != nil {
-			logging.WithContext(r.Context()).Warn("unable to parse debug flag", zap.Any("error", err))
-		}
-		params.Debug = debug
-	}
-
-	// Skip useIterators if unable to parse useIterators param
-	useIterVal := r.FormValue(useIterParam)
-	if useIterVal != "" {
-		useIter, err := strconv.ParseBool(r.FormValue(useIterParam))
-		if err != nil {
-			logging.WithContext(r.Context()).Warn("unable to parse useIter flag", zap.Any("error", err))
-		}
-		params.UseIterators = useIter
-	}
-
+	params.Debug, params.UseIterators = parseDebugAndIterFlags(r)
 	// Default to including end if unable to parse the flag
 	endExclusiveVal := r.FormValue(endExclusiveParam)
 	params.IncludeEnd = true
@@ -155,6 +136,32 @@ func parseParams(r *http.Request) (models.RequestParams, *xhttp.ParseError) {
 	}
 
 	return params, nil
+}
+
+func parseDebugAndIterFlags(r *http.Request) (bool, bool) {
+	var (
+		debug, useIter bool
+		err            error
+	)
+	// Skip debug if unable to parse debug param
+	debugVal := r.FormValue(debugParam)
+	if debugVal != "" {
+		debug, err = strconv.ParseBool(r.FormValue(debugParam))
+		if err != nil {
+			logging.WithContext(r.Context()).Warn("unable to parse debug flag", zap.Error(err))
+		}
+	}
+
+	// Skip useIterators if unable to parse useIterators param
+	useIterVal := r.FormValue(useIterParam)
+	if useIterVal != "" {
+		useIter, err = strconv.ParseBool(r.FormValue(useIterParam))
+		if err != nil {
+			logging.WithContext(r.Context()).Warn("unable to parse useIter flag", zap.Error(err))
+		}
+	}
+
+	return debug, useIter
 }
 
 // parseInstantaneousParams parses all params from the GET request
@@ -187,28 +194,7 @@ func parseInstantaneousParams(r *http.Request) (models.RequestParams, *xhttp.Par
 		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, queryParam, err), http.StatusBadRequest)
 	}
 	params.Query = query
-
-	// Skip debug if unable to parse debug param
-	debugVal := r.FormValue(debugParam)
-	if debugVal != "" {
-		debug, err := strconv.ParseBool(r.FormValue(debugParam))
-		if err != nil {
-			logging.WithContext(r.Context()).Warn("unable to parse debug flag", zap.Any("error", err))
-		}
-
-		params.Debug = debug
-	}
-
-	// Skip useIterators if unable to parse useIterators param
-	useIterVal := r.FormValue(useIterParam)
-	if useIterVal != "" {
-		useIter, err := strconv.ParseBool(r.FormValue(useIterParam))
-		if err != nil {
-			logging.WithContext(r.Context()).Warn("unable to parse useIter flag", zap.Any("error", err))
-		}
-		params.UseIterators = useIter
-	}
-
+	params.Debug, params.UseIterators = parseDebugAndIterFlags(r)
 	return params, nil
 }
 
