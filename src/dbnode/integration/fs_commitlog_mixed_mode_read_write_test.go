@@ -186,7 +186,9 @@ func waitUntilFileSetFilesCleanedUp(
 	var (
 		shardSet       = setup.shardSet
 		filesetFiles   = []cleanupTimesFileSet{}
-		commitLogFiles = cleanupTimesCommitLog{}
+		commitLogFiles = cleanupTimesCommitLog{
+			clOpts: setup.storageOpts.CommitLogOptions(),
+		}
 	)
 	for _, id := range shardSet.AllIDs() {
 		filesetFiles = append(filesetFiles, cleanupTimesFileSet{

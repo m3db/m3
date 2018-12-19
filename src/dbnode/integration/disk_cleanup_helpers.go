@@ -85,12 +85,12 @@ func writeIndexFileSetFiles(t *testing.T, storageOpts storage.Options, md namesp
 
 // TODO: Fix this, should be based on indexes.
 type cleanupTimesCommitLog struct {
-	filePathPrefix string
-	times          []time.Time
+	clOpts commitlog.Options
+	times  []time.Time
 }
 
 func (c *cleanupTimesCommitLog) anyExist() bool {
-	_, index, err := commitlog.NextFile(c.filePathPrefix)
+	_, index, err := commitlog.NextFile(c.clOpts)
 	if err != nil {
 		panic(err)
 	}
@@ -102,7 +102,7 @@ func (c *cleanupTimesCommitLog) anyExist() bool {
 
 func (c *cleanupTimesCommitLog) allExist() bool {
 	for _, t := range c.times {
-		_, index, err := commitlog.NextFile(c.filePathPrefix)
+		_, index, err := commitlog.NextFile(c.clOpts.FilesystemOptions().FilePathPrefix())
 		if err != nil {
 			panic(err)
 		}
