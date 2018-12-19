@@ -22,10 +22,10 @@ package m3msg
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/m3db/m3/src/metrics/encoding/msgpack"
 	"github.com/m3db/m3/src/metrics/metric/aggregated"
@@ -53,7 +53,7 @@ func TestM3msgServerHandlerWithMultipleMetricsPerMessage(t *testing.T) {
 		WriteFn:           m.write,
 		InstrumentOptions: instrument.NewOptions(),
 	}
-	handler, err := newHandler(hOpts)
+	handler, err := newMsgpackHandler(hOpts)
 	require.NoError(t, err)
 
 	opts := consumer.NewOptions().
@@ -71,7 +71,7 @@ func TestM3msgServerHandlerWithMultipleMetricsPerMessage(t *testing.T) {
 	chunkedMetricWithPolicy := aggregated.ChunkedMetricWithStoragePolicy{
 		ChunkedMetric: aggregated.ChunkedMetric{
 			ChunkedID: id.ChunkedID{
-				Data: []byte("stats.sjc1.gauges.m3+some-name+dc=sjc1,env=production,service=foo,type=gauge"),
+				Data: []byte(testID),
 			},
 			TimeNanos: 1000,
 			Value:     1,
@@ -106,7 +106,7 @@ type mockWriter struct {
 func (m *mockWriter) write(
 	ctx context.Context,
 	name []byte,
-	metricTime time.Time,
+	metricNanos, encodeNanos int64,
 	value float64,
 	sp policy.StoragePolicy,
 	callbackable Callbackable,
@@ -114,12 +114,13 @@ func (m *mockWriter) write(
 	m.Lock()
 	m.n++
 	payload := payload{
-		id:         string(name),
-		metricTime: metricTime,
-		value:      value,
-		sp:         sp,
+		id:          string(name),
+		metricNanos: metricNanos,
+		encodeNanos: encodeNanos,
+		value:       value,
+		sp:          sp,
 	}
-	m.m[payload.id] = payload
+	m.m[key(payload.id, encodeNanos)] = payload
 	m.Unlock()
 	callbackable.Callback(OnSuccess)
 }
@@ -131,9 +132,14 @@ func (m *mockWriter) ingested() int {
 	return m.n
 }
 
+func key(id string, encodeTime int64) string {
+	return fmt.Sprintf("%s%d", id, encodeTime)
+}
+
 type payload struct {
-	id         string
-	metricTime time.Time
-	value      float64
-	sp         policy.StoragePolicy
+	id          string
+	metricNanos int64
+	encodeNanos int64
+	value       float64
+	sp          policy.StoragePolicy
 }

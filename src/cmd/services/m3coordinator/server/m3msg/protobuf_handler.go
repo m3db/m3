@@ -22,7 +22,7 @@ package m3msg
 
 import (
 	"context"
-	"time"
+	"sync"
 
 	"github.com/m3db/m3/src/metrics/encoding/protobuf"
 	"github.com/m3db/m3/src/msg/consumer"
@@ -33,23 +33,25 @@ type pbHandler struct {
 	ctx     context.Context
 	writeFn WriteFn
 	pool    protobuf.AggregatedDecoderPool
+	wg      *sync.WaitGroup
 	logger  log.Logger
 	m       handlerMetrics
 }
 
-func newProtobufHandler(opts Options) *pbHandler {
+func newProtobufProcessor(opts Options) consumer.MessageProcessor {
 	p := protobuf.NewAggregatedDecoderPool(opts.ProtobufDecoderPoolOptions)
 	p.Init()
 	return &pbHandler{
 		ctx:     context.Background(),
 		writeFn: opts.WriteFn,
 		pool:    p,
+		wg:      &sync.WaitGroup{},
 		logger:  opts.InstrumentOptions.Logger(),
 		m:       newHandlerMetrics(opts.InstrumentOptions.MetricsScope()),
 	}
 }
 
-func (h *pbHandler) message(msg consumer.Message) {
+func (h *pbHandler) Process(msg consumer.Message) {
 	dec := h.pool.Get()
 	if err := dec.Decode(msg.Bytes()); err != nil {
 		h.logger.WithFields(log.NewErrField(err)).Error("invalid raw metric")
@@ -64,22 +66,28 @@ func (h *pbHandler) message(msg consumer.Message) {
 	}
 	h.m.metricAccepted.Inc(1)
 
-	r := newProtobufCallback(msg, dec)
-	h.writeFn(h.ctx, dec.ID(), time.Unix(0, dec.TimeNanos()), dec.Value(), sp, r)
+	h.wg.Add(1)
+	r := newProtobufCallback(msg, dec, h.wg)
+	h.writeFn(h.ctx, dec.ID(), dec.TimeNanos(), dec.EncodeNanos(), dec.Value(), sp, r)
 }
+
+func (h *pbHandler) Close() { h.wg.Wait() }
 
 type protobufCallback struct {
 	msg consumer.Message
 	dec *protobuf.AggregatedDecoder
+	wg  *sync.WaitGroup
 }
 
 func newProtobufCallback(
 	msg consumer.Message,
 	dec *protobuf.AggregatedDecoder,
+	wg *sync.WaitGroup,
 ) *protobufCallback {
 	return &protobufCallback{
 		msg: msg,
 		dec: dec,
+		wg:  wg,
 	}
 }
 
@@ -88,5 +96,7 @@ func (c *protobufCallback) Callback(t CallbackType) {
 	case OnSuccess, OnNonRetriableError:
 		c.msg.Ack()
 	}
+	c.wg.Done()
+	// Close the decoder, returns the underlying bytes to the pool.
 	c.dec.Close()
 }

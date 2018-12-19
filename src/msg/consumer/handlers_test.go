@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3x/server"
 
 	"github.com/fortytw2/leaktest"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,24 +38,28 @@ func TestServerWithMessageFn(t *testing.T) {
 	defer leaktest.Check(t)()
 
 	var (
-		count = 0
-		data  []string
-		wg    sync.WaitGroup
+		data []string
+		wg   sync.WaitGroup
 	)
-	messageFn := func(m Message) {
-		count++
-		data = append(data, string(m.Bytes()))
-		m.Ack()
-		wg.Done()
-	}
 
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	p := NewMockMessageProcessor(ctrl)
+	p.EXPECT().Process(gomock.Any()).Do(
+		func(m Message) {
+			data = append(data, string(m.Bytes()))
+			m.Ack()
+			wg.Done()
+		},
+	).Times(2)
 	// Set a large ack buffer size to make sure the background go routine
 	// can flush it.
 	opts := testOptions().SetAckBufferSize(100)
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
-	s := server.NewServer("a", NewMessageHandler(messageFn, opts), server.NewOptions())
+	s := server.NewServer("a", NewMessageHandler(p, opts), server.NewOptions())
 	s.Serve(l)
 
 	conn, err := net.Dial("tcp", l.Addr().String())
@@ -79,6 +84,7 @@ func TestServerWithMessageFn(t *testing.T) {
 	require.Equal(t, testMsg1.Metadata, ack.Metadata[0])
 	require.Equal(t, testMsg2.Metadata, ack.Metadata[1])
 
+	p.EXPECT().Close()
 	s.Close()
 }
 

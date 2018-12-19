@@ -25,6 +25,27 @@ fi
 
 if [[ "$AGGREGATOR_PIPELINE" = true ]]; then
     echo "Running aggregator pipeline"
+    curl -vvvsSf -X POST localhost:7201/api/v1/services/m3aggregator/placement/init -d '{
+        "num_shards": 64,
+        "replication_factor": 1,
+        "instances": [
+            {
+                "id": "m3aggregator01:6000",
+                "isolation_group": "rack-a",
+                "zone": "embedded",
+                "weight": 1024,
+                "endpoint": "m3aggregator01:6000",
+                "hostname": "m3aggregator01",
+                "port": 6000
+            }
+        ]
+    }'
+
+    echo "Initializing m3msg topic for ingestion"
+    curl -vvvsSf -X POST localhost:7201/api/v1/topic/init -d '{
+        "numberOfShards": 64
+    }'
+
     docker-compose -f docker-compose.yml up $DOCKER_ARGS m3aggregator01
     docker-compose -f docker-compose.yml up $DOCKER_ARGS m3collector01
 else
@@ -153,22 +174,6 @@ ATTEMPTS=10 TIMEOUT=1 retry_with_backoff  \
   '[ "$(curl -sSf 0.0.0.0:7201/api/v1/placement | grep -c INITIALIZING)" -eq 0 ]'
 
 if [[ "$AGGREGATOR_PIPELINE" = true ]]; then
-    curl -vvvsSf -X POST localhost:7201/api/v1/services/m3aggregator/placement/init -d '{
-        "num_shards": 64,
-        "replication_factor": 1,
-        "instances": [
-            {
-                "id": "m3aggregator01:6000",
-                "isolation_group": "rack-a",
-                "zone": "embedded",
-                "weight": 1024,
-                "endpoint": "m3aggregator01:6000",
-                "hostname": "m3aggregator01",
-                "port": 6000
-            }
-        ]
-    }'
-
     echo "Initializing M3Coordinator topology"
     curl -vvvsSf -X POST localhost:7201/api/v1/services/m3coordinator/placement/init -d '{
         "instances": [
@@ -188,11 +193,6 @@ if [[ "$AGGREGATOR_PIPELINE" = true ]]; then
     echo "Done validating topology"
 
     # Do this after placement for m3coordinator is created.
-    echo "Initializing m3msg topic for ingestion"
-    curl -vvvsSf -X POST localhost:7201/api/v1/topic/init -d '{
-        "numberOfShards": 64
-    }'
-
     echo "Adding m3coordinator as a consumer to the topic"
     curl -vvvsSf -X POST localhost:7201/api/v1/topic -d '{
         "consumerService": {
