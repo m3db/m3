@@ -48,6 +48,7 @@ const (
 	queryParam        = "query"
 	stepParam         = "step"
 	debugParam        = "debug"
+	useIterParam      = "iters"
 	endExclusiveParam = "end-exclusive"
 
 	formatErrStr = "error parsing param: %s, error: %v"
@@ -127,6 +128,16 @@ func parseParams(r *http.Request) (models.RequestParams, *xhttp.ParseError) {
 		params.Debug = debug
 	}
 
+	// Skip useIterators if unable to parse useIterators param
+	useIterVal := r.FormValue(useIterParam)
+	if useIterVal != "" {
+		useIter, err := strconv.ParseBool(r.FormValue(useIterParam))
+		if err != nil {
+			logging.WithContext(r.Context()).Warn("unable to parse useIter flag", zap.Any("error", err))
+		}
+		params.UseIterators = useIter
+	}
+
 	// Default to including end if unable to parse the flag
 	endExclusiveVal := r.FormValue(endExclusiveParam)
 	params.IncludeEnd = true
@@ -186,6 +197,16 @@ func parseInstantaneousParams(r *http.Request) (models.RequestParams, *xhttp.Par
 		}
 
 		params.Debug = debug
+	}
+
+	// Skip useIterators if unable to parse useIterators param
+	useIterVal := r.FormValue(useIterParam)
+	if useIterVal != "" {
+		useIter, err := strconv.ParseBool(r.FormValue(useIterParam))
+		if err != nil {
+			logging.WithContext(r.Context()).Warn("unable to parse useIter flag", zap.Any("error", err))
+		}
+		params.UseIterators = useIter
 	}
 
 	return params, nil

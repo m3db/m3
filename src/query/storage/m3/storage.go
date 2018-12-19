@@ -93,30 +93,40 @@ func (s *m3storage) FetchBlocks(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (block.Result, error) {
-	raw, _, err := s.FetchCompressed(ctx, query, options)
-	if err != nil {
-		return block.Result{}, err
+	if !options.UseIterators {
+		fetchResult, err := s.Fetch(ctx, query, options)
+		if err != nil {
+			return block.Result{}, err
+		}
+
+		return storage.FetchResultToBlockResult(fetchResult, query)
+	} else {
+		raw, _, err := s.FetchCompressed(ctx, query, options)
+		fmt.Println("GETCH RAW", raw, err)
+		if err != nil {
+			return block.Result{}, err
+		}
+
+		bounds := models.Bounds{
+			Start:    query.Start,
+			Duration: query.End.Sub(query.Start),
+			StepSize: query.Interval,
+		}
+		fmt.Println("BOUNDS", bounds)
+		blocks, err := m3db.ConvertM3DBSeriesIterators(
+			raw,
+			s.tagOptions,
+			bounds,
+		)
+		fmt.Println("converted, blocks", blocks, err)
+		if err != nil {
+			return block.Result{}, err
+		}
+
+		return block.Result{
+			Blocks: blocks,
+		}, nil
 	}
-
-	bounds := models.Bounds{
-		Start:    query.Start,
-		Duration: query.End.Sub(query.Start),
-		StepSize: query.Interval,
-	}
-
-	blocks, err := m3db.ConvertM3DBSeriesIterators(
-		raw,
-		s.tagOptions,
-		bounds,
-	)
-
-	if err != nil {
-		return block.Result{}, err
-	}
-
-	return block.Result{
-		Blocks: blocks,
-	}, nil
 }
 
 func (s *m3storage) FetchCompressed(

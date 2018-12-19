@@ -49,11 +49,12 @@ type FetchOp struct {
 // FetchNode is the execution node
 // TODO: Make FetchNode private
 type FetchNode struct {
-	op         FetchOp
-	controller *transform.Controller
-	storage    storage.Storage
-	timespec   transform.TimeSpec
-	debug      bool
+	op           FetchOp
+	controller   *transform.Controller
+	storage      storage.Storage
+	timespec     transform.TimeSpec
+	debug        bool
+	useIterators bool
 }
 
 // OpType for the operator
@@ -76,7 +77,14 @@ func (o FetchOp) String() string {
 
 // Node creates an execution node
 func (o FetchOp) Node(controller *transform.Controller, storage storage.Storage, options transform.Options) parser.Source {
-	return &FetchNode{op: o, controller: controller, storage: storage, timespec: options.TimeSpec, debug: options.Debug}
+	return &FetchNode{
+		op:           o,
+		controller:   controller,
+		storage:      storage,
+		timespec:     options.TimeSpec,
+		debug:        options.Debug,
+		useIterators: options.UseIterators,
+	}
 }
 
 // Execute runs the fetch node operation
@@ -90,7 +98,9 @@ func (n *FetchNode) Execute(ctx context.Context) error {
 		End:         endTime,
 		TagMatchers: n.op.Matchers,
 		Interval:    timeSpec.Step,
-	}, &storage.FetchOptions{})
+	}, &storage.FetchOptions{
+		UseIterators: n.useIterators,
+	})
 	if err != nil {
 		return err
 	}
