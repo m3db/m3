@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/persist/fs"
+	"github.com/m3db/m3/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
@@ -82,6 +83,7 @@ func writeIndexFileSetFiles(t *testing.T, storageOpts storage.Options, md namesp
 	}
 }
 
+// TODO: Fix this, should be based on indexes.
 type cleanupTimesCommitLog struct {
 	filePathPrefix string
 	times          []time.Time
@@ -89,7 +91,7 @@ type cleanupTimesCommitLog struct {
 
 func (c *cleanupTimesCommitLog) anyExist() bool {
 	for _, t := range c.times {
-		_, index, err := fs.NextCommitLogsFile(c.filePathPrefix, t)
+		_, index, err := commitlog.NextFile(c.filePathPrefix)
 		if err != nil {
 			panic(err)
 		}
@@ -102,7 +104,7 @@ func (c *cleanupTimesCommitLog) anyExist() bool {
 
 func (c *cleanupTimesCommitLog) allExist() bool {
 	for _, t := range c.times {
-		_, index, err := fs.NextCommitLogsFile(c.filePathPrefix, t)
+		_, index, err := commitlog.NextFile(c.filePathPrefix)
 		if err != nil {
 			panic(err)
 		}

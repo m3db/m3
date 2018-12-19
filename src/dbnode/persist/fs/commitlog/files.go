@@ -33,7 +33,7 @@ import (
 )
 
 // NextFile returns the next commitlog file.
-func NextFile(opts Options, start time.Time) (string, int, error) {
+func NextFile(opts Options) (string, int, error) {
 	files, _, err := Files(opts)
 	if err != nil {
 		return "", -1, err
@@ -48,7 +48,7 @@ func NextFile(opts Options, start time.Time) (string, int, error) {
 	for ; ; newIndex++ {
 		var (
 			prefix   = opts.FilesystemOptions().FilePathPrefix()
-			filePath = fs.CommitlogFilePath(prefix, start, newIndex)
+			filePath = fs.CommitlogFilePath(prefix, time.Unix(0, 0), newIndex)
 		)
 		exists, err := fs.FileExists(filePath)
 		if err != nil {

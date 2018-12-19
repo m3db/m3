@@ -301,8 +301,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 							return false, err
 						}
 
-						nextCommitLogFile, _, err := fs.NextCommitLogsFile(
-							fsOpts.FilePathPrefix(), lastCommitLogFile.Start)
+						nextCommitLogFile, _, err := commitlog.NextFile(fsOpts.FilePathPrefix())
 						if err != nil {
 							return false, err
 						}

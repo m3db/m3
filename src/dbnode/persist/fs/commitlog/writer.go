@@ -159,7 +159,7 @@ func (w *writer) Open(start time.Time) (persist.CommitlogFile, error) {
 		return persist.CommitlogFile{}, err
 	}
 
-	filePath, index, err := NextFile(w.opts, start)
+	filePath, index, err := NextFile(w.opts)
 	if err != nil {
 		return persist.CommitlogFile{}, err
 	}
