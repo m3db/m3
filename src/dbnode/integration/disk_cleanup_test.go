@@ -99,5 +99,5 @@ func TestDiskCleanup(t *testing.T) {
 
 	// Check if files have been deleted
 	waitTimeout := 30 * time.Second
-	require.NoError(t, waitUntilDataCleanedUp(filePathPrefix, testNamespaces[0], shard, now, waitTimeout))
+	require.NoError(t, waitUntilDataCleanedUp(commitLogOpts, testNamespaces[0], shard, now, waitTimeout))
 }

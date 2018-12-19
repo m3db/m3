@@ -100,19 +100,6 @@ func (c *cleanupTimesCommitLog) anyExist() bool {
 	return false
 }
 
-func (c *cleanupTimesCommitLog) allExist() bool {
-	for _, t := range c.times {
-		_, index, err := commitlog.NextFile(c.clOpts.FilesystemOptions().FilePathPrefix())
-		if err != nil {
-			panic(err)
-		}
-		if index == 0 {
-			return false
-		}
-	}
-	return true
-}
-
 type cleanupTimesFileSet struct {
 	filePathPrefix string
 	namespace      ident.ID
@@ -216,7 +203,8 @@ func waitUntilNamespacesHaveReset(testSetup *testSetup, newNamespaces []namespac
 }
 
 // nolint: unused
-func waitUntilDataFileSetsCleanedUp(filePathPrefix string, namespaces []storage.Namespace, extraShard uint32, waitTimeout time.Duration) error {
+func waitUntilDataFileSetsCleanedUp(clOpts commitlog.Options, namespaces []storage.Namespace, extraShard uint32, waitTimeout time.Duration) error {
+	filePathPrefix := clOpts.FilesystemOptions().FilePathPrefix()
 	dataCleanedUp := func() bool {
 		for _, n := range namespaces {
 			shardDir := fs.ShardDataDirPath(filePathPrefix, n.ID(), extraShard)
@@ -237,7 +225,8 @@ func waitUntilDataFileSetsCleanedUp(filePathPrefix string, namespaces []storage.
 	return errDataCleanupTimedOut
 }
 
-func waitUntilDataCleanedUp(filePathPrefix string, namespace ident.ID, shard uint32, toDelete time.Time, timeout time.Duration) error {
+func waitUntilDataCleanedUp(clOpts commitlog.Options, namespace ident.ID, shard uint32, toDelete time.Time, timeout time.Duration) error {
+	filePathPrefix := clOpts.FilesystemOptions().FilePathPrefix()
 	return waitUntilDataCleanedUpExtended(
 		[]cleanupTimesFileSet{
 			cleanupTimesFileSet{
@@ -248,8 +237,8 @@ func waitUntilDataCleanedUp(filePathPrefix string, namespace ident.ID, shard uin
 			},
 		},
 		cleanupTimesCommitLog{
-			filePathPrefix: filePathPrefix,
-			times:          []time.Time{toDelete},
+			clOpts: clOpts,
+			times:  []time.Time{toDelete},
 		},
 		timeout)
 }
