@@ -162,6 +162,7 @@ func (h *perConsumerHandler) processMessage(
 
 // RefCountedCallback wraps a message with a reference count, the message will
 // be acked once the reference count decrements to zero.
+// The implementation is thread safe.
 type RefCountedCallback struct {
 	ref int32
 	msg consumer.Message
@@ -175,13 +176,13 @@ func NewRefCountedCallback(msg consumer.Message) *RefCountedCallback {
 	}
 }
 
-// IncRef increments the ref count.
+// IncRef increments the ref count atomically.
 func (r *RefCountedCallback) IncRef() {
 	atomic.AddInt32(&r.ref, 1)
 }
 
-// decRef decrements the ref count. If the reference count became zero after
-// the call, the message will be acked.
+// decRef decrements the ref count atomically. If the decrement causes the
+// reference count to reach zero, then the message will be acked.
 func (r *RefCountedCallback) decRef() {
 	ref := atomic.AddInt32(&r.ref, -1)
 	if ref == 0 {
