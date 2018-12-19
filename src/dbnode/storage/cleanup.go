@@ -38,7 +38,7 @@ import (
 	"github.com/uber-go/tally"
 )
 
-type commitLogFilesFn func(commitlog.Options) ([]persist.CommitlogFile, []commitlog.ErrorWithPath, error)
+type commitLogFilesFn func(commitlog.Options) (persist.CommitlogFiles, []commitlog.ErrorWithPath, error)
 type sortedSnapshotMetadataFilesFn func(fs.Options) ([]fs.SnapshotMetadata, []fs.SnapshotMetadataErrorWithPaths, error)
 
 type snapshotFilesFn func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error)
@@ -50,7 +50,7 @@ type deleteInactiveDirectoriesFn func(parentDirPath string, activeDirNames []str
 // Narrow interface so as not to expose all the functionality of the commitlog
 // to the cleanup manager.
 type activeCommitlogs interface {
-	ActiveLogs() ([]persist.CommitlogFile, error)
+	ActiveLogs() (persist.CommitlogFiles, error)
 }
 
 type cleanupManager struct {
@@ -333,9 +333,17 @@ func (m *cleanupManager) cleanupSnapshotsAndCommitlogs() error {
 	if err != nil {
 		return err
 	}
+	activeCommitlogs, err := m.activeCommitlogs.ActiveLogs()
+	if err != nil {
+		return err
+	}
 
 	// Delete all commitlog files prior to the one captured by the most recent snapshot.
 	for _, file := range files {
+		if activeCommitlogs.Contains(file.FilePath) {
+			// Skip over any commitlog files that are being actively written to.
+			continue
+		}
 		if file.Index < mostRecentSnapshot.CommitlogIdentifier.Index {
 			m.metrics.deletedCommitlogFile.Inc(1)
 			filesToDelete = append(filesToDelete, file.FilePath)
@@ -364,6 +372,11 @@ func (m *cleanupManager) cleanupSnapshotsAndCommitlogs() error {
 
 	// Delete corrupt commitlog files.
 	for _, errorWithPath := range commitlogErrorsWithPaths {
+		if activeCommitlogs.Contains(errorWithPath.Path()) {
+			// Skip over any commitlog files that are being actively written to.
+			continue
+		}
+
 		m.metrics.corruptCommitlogFile.Inc(1)
 		// If we were unable to read the commit log files info header, then we're forced to assume
 		// that the file is corrupt and remove it. This can happen in situations where M3DB experiences

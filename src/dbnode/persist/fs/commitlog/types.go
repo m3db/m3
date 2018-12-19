@@ -73,7 +73,7 @@ type CommitLog interface {
 	Close() error
 
 	// ActiveLogs returns a slice of the active commitlogs.
-	ActiveLogs() ([]persist.CommitlogFile, error)
+	ActiveLogs() (persist.CommitlogFiles, error)
 
 	// RotateLogs rotates the commitlog and returns the File that represents
 	// the new commitlog file.

@@ -119,7 +119,7 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 					},
 				}, nil
 			},
-			commitlogs: func(commitlog.Options) ([]persist.CommitlogFile, []commitlog.ErrorWithPath, error) {
+			commitlogs: func(commitlog.Options) (persist.CommitlogFiles, []commitlog.ErrorWithPath, error) {
 				return nil, nil, nil
 			},
 		},
@@ -143,7 +143,7 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 					},
 				}, nil
 			},
-			commitlogs: func(commitlog.Options) ([]persist.CommitlogFile, []commitlog.ErrorWithPath, error) {
+			commitlogs: func(commitlog.Options) (persist.CommitlogFiles, []commitlog.ErrorWithPath, error) {
 				return nil, nil, nil
 			},
 			expectedDeletedFiles: []string{
@@ -174,7 +174,7 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 			snapshots: func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error) {
 				return nil, nil
 			},
-			commitlogs: func(commitlog.Options) ([]persist.CommitlogFile, []commitlog.ErrorWithPath, error) {
+			commitlogs: func(commitlog.Options) (persist.CommitlogFiles, []commitlog.ErrorWithPath, error) {
 				return nil, nil, nil
 			},
 			expectedDeletedFiles: []string{
@@ -204,7 +204,7 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 					},
 				}, nil
 			},
-			commitlogs: func(commitlog.Options) ([]persist.CommitlogFile, []commitlog.ErrorWithPath, error) {
+			commitlogs: func(commitlog.Options) (persist.CommitlogFiles, []commitlog.ErrorWithPath, error) {
 				return nil, nil, nil
 			},
 			expectedDeletedFiles: []string{
@@ -227,8 +227,8 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 			snapshots: func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error) {
 				return nil, nil
 			},
-			commitlogs: func(commitlog.Options) ([]persist.CommitlogFile, []commitlog.ErrorWithPath, error) {
-				return []persist.CommitlogFile{
+			commitlogs: func(commitlog.Options) (persist.CommitlogFiles, []commitlog.ErrorWithPath, error) {
+				return persist.CommitlogFiles{
 					{FilePath: "commitlog-file-0", Index: 0},
 					// Index 1, the one pointed to bby testSnapshotMetdata1
 					testCommitlogFileIdentifier,
@@ -246,7 +246,7 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 			snapshots: func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error) {
 				return nil, nil
 			},
-			commitlogs: func(commitlog.Options) ([]persist.CommitlogFile, []commitlog.ErrorWithPath, error) {
+			commitlogs: func(commitlog.Options) (persist.CommitlogFiles, []commitlog.ErrorWithPath, error) {
 				return nil, []commitlog.ErrorWithPath{
 					commitlog.NewErrorWithPath(errors.New("some-error-0"), "corrupt-commitlog-file-0"),
 					commitlog.NewErrorWithPath(errors.New("some-error-1"), "corrupt-commitlog-file-1"),
@@ -511,10 +511,10 @@ func timeFor(s int64) time.Time {
 
 // TODO: Delete if unused
 type fakeActiveLogs struct {
-	activeLogs []persist.CommitlogFile
+	activeLogs persist.CommitlogFiles
 }
 
-func (f fakeActiveLogs) ActiveLogs() ([]persist.CommitlogFile, error) {
+func (f fakeActiveLogs) ActiveLogs() (persist.CommitlogFiles, error) {
 	return f.activeLogs, nil
 }
 
@@ -522,7 +522,7 @@ func newNoopFakeActiveLogs() fakeActiveLogs {
 	return newFakeActiveLogs(nil)
 }
 
-func newFakeActiveLogs(activeLogs []persist.CommitlogFile) fakeActiveLogs {
+func newFakeActiveLogs(activeLogs persist.CommitlogFiles) fakeActiveLogs {
 	return fakeActiveLogs{
 		activeLogs: activeLogs,
 	}

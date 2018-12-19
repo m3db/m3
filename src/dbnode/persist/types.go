@@ -45,6 +45,20 @@ type PreparedDataPersist struct {
 	Close   DataCloser
 }
 
+// CommitlogFiles represents a slice of commitlog files.
+type CommitlogFiles []CommitlogFile
+
+// Contains returns a boolean indicating whether the CommitlogFiles slice
+// contains the provided CommitlogFile based on its path.
+func (c CommitlogFiles) Contains(path string) bool {
+	for _, f := range c {
+		if f.FilePath == path {
+			return true
+		}
+	}
+	return false
+}
+
 // CommitlogFile represents a commit log file and its associated metadata.
 type CommitlogFile struct {
 	FilePath string

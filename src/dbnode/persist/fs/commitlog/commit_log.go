@@ -283,7 +283,7 @@ func (l *commitLog) Open() error {
 	return nil
 }
 
-func (l *commitLog) ActiveLogs() ([]persist.CommitlogFile, error) {
+func (l *commitLog) ActiveLogs() (persist.CommitlogFiles, error) {
 	l.closedState.RLock()
 	defer l.closedState.RUnlock()
 
