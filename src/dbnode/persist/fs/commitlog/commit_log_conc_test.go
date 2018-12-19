@@ -44,7 +44,6 @@ func TestCommitLogActiveLogsConcurrency(t *testing.T) {
 		numFilesRequired = 10
 	)
 
-	opts = opts.SetBlockSize(1 * time.Millisecond)
 	defer cleanup(t, opts)
 
 	var (
@@ -71,6 +70,25 @@ func TestCommitLogActiveLogsConcurrency(t *testing.T) {
 				}
 				if err == ErrCommitLogQueueFull {
 					continue
+				}
+				if err != nil {
+					panic(err)
+				}
+			}
+		}
+	}()
+
+	// One goroutine continuously rotating the logs.
+	go func() {
+		for {
+			select {
+			case <-doneCh:
+				return
+			default:
+				time.Sleep(time.Millisecond)
+				_, err := commitLog.RotateLogs()
+				if err == errCommitLogClosed {
+					return
 				}
 				if err != nil {
 					panic(err)
