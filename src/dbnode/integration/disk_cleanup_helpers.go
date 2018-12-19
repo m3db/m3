@@ -90,14 +90,12 @@ type cleanupTimesCommitLog struct {
 }
 
 func (c *cleanupTimesCommitLog) anyExist() bool {
-	for _, t := range c.times {
-		_, index, err := commitlog.NextFile(c.filePathPrefix)
-		if err != nil {
-			panic(err)
-		}
-		if index != 0 {
-			return true
-		}
+	_, index, err := commitlog.NextFile(c.filePathPrefix)
+	if err != nil {
+		panic(err)
+	}
+	if index != 0 {
+		return true
 	}
 	return false
 }
