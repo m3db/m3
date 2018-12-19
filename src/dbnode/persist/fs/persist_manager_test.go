@@ -243,6 +243,9 @@ func TestPersistenceManagerPrepareSnapshotSuccess(t *testing.T) {
 			BlockStart: blockStart,
 		},
 		BlockSize: testBlockSize,
+		Snapshot: DataWriterSnapshotOptions{
+			SnapshotID: testSnapshotID,
+		},
 	}, m3test.IdentTransformer)
 	writer.EXPECT().Open(writerOpts).Return(nil)
 

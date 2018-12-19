@@ -827,11 +827,6 @@ func TestSortedCommitLogFiles(t *testing.T) {
 	dir := createCommitLogFiles(t, iter)
 	defer os.RemoveAll(dir)
 
-	// createFile(t, path.Join(dir, "abcd"), nil)
-	// createFile(t, path.Join(dir, strconv.Itoa(perSlot+1)+fileSuffix), nil)
-	// createFile(t, path.Join(dir, strconv.Itoa(iter+1)+separator+strconv.Itoa(perSlot+1)+fileSuffix), nil)
-	// createFile(t, path.Join(dir, separator+strconv.Itoa(iter+1)+separator+strconv.Itoa(perSlot+1)+fileSuffix), nil)
-
 	files, err := SortedCommitLogFiles(CommitLogsDirPath(dir))
 	require.NoError(t, err)
 	require.Equal(t, iter, len(files))
@@ -839,10 +834,9 @@ func TestSortedCommitLogFiles(t *testing.T) {
 	for i := 0; i < iter; i++ {
 		require.Equal(
 			t,
-			path.Join(dir, commitLogsDir,
-				fmt.Sprintf("commitlog-00000000-%d.db", i)))
+			path.Join(dir, "commitlogs", fmt.Sprintf("commitlog-0-%d.db", i)),
+			files[i])
 	}
-	panic("yolo")
 }
 
 func TestIndexFileSetAt(t *testing.T) {
@@ -1183,7 +1177,6 @@ func createCommitLogFiles(t *testing.T, iter int) string {
 	for i := 0; i < iter; i++ {
 		filePath := CommitlogFilePath(dir, time.Unix(0, 0), i)
 		fd, err := os.Create(filePath)
-		fmt.Println(filePath)
 		assert.NoError(t, err)
 		assert.NoError(t, fd.Close())
 	}
