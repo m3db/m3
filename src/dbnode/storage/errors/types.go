@@ -27,13 +27,8 @@ import (
 )
 
 var (
-	// ErrTooFuture is returned for a write which is too far in the future.
-	ErrTooFuture = xerrors.NewInvalidParamsError(errors.New("datapoint is too far in the future"))
-
-	// ErrTooPast is returned for a write which is too far in the past.
-	ErrTooPast = xerrors.NewInvalidParamsError(errors.New("datapoint is too far in the past"))
-
-	// ErrColdWritesNotEnabled is returned for when non-realtime metrics are disabled
+	// ErrColdWritesNotEnabled is returned for when cold writes are disabled
 	// and a write is too far in the past or future
-	ErrColdWritesNotEnabled = xerrors.NewInvalidParamsError(errors.New("datapoint too far in the past or future. Adjust the values of bufferPast and bufferFuture or enable non-realtime metrics for this namespace"))
+	ErrColdWritesNotEnabled = xerrors.NewInvalidParamsError(errors.New(
+		"cold writes not enabled and datapoint is too far in the past or future"))
 )

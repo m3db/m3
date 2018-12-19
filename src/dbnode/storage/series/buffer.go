@@ -207,47 +207,47 @@ func (b *dbBuffer) Tick() bufferTickResult {
 	mergedOutOfOrder := 0
 	retriever := b.blockRetriever
 	for tNano, buckets := range b.bucketsMap {
-		if blockStart := tNano.ToTime(); retriever.IsBlockRetrievable(blockStart) {
-			// Avoid allocating a new backing array
-			newBuckets := buckets.buckets[:0]
-			version := retriever.RetrievableBlockVersion(blockStart)
-			for _, bucket := range buckets.buckets {
-				bVersion := bucket.version
-				// TODO(juchan): deal with ColdWrite too
-				if bucket.wType == WarmWrite && bVersion != writableBucketVer &&
-					bVersion <= version {
-					// We no longer need to keep any version which is equal to
-					// or less than the retrievable version, since that means
-					// that the version has successfully persisted to disk
-					bucket.finalize()
-					b.bucketPool.Put(bucket)
-					continue
-				}
+		blockStart := tNano.ToTime()
+		if !retriever.IsBlockRetrievable(blockStart) {
+			continue
+		}
 
-				newBuckets = append(newBuckets, bucket)
-			}
-
-			// All underlying buckets have been flushed successfully, so we can
-			// just remove the buckets from the bucketsMap
-			if len(newBuckets) == 0 {
-				// TODO(juchan): need to tell the series that these buckets were
-				// evicted from the buffer so that the cached block in the
-				// series can either:
-				//   1) be evicted, or
-				//   2) be merged with the new data.
-				// This needs to happen because the buffer just flushed new data
-				// to disk, which the cached block does not have, and is
-				// therefore invalid.
-				b.removeBucketsAt(blockStart)
+		// Avoid allocating a new backing array
+		nonEvictedBuckets := buckets.buckets[:0]
+		version := retriever.RetrievableBlockVersion(blockStart)
+		for _, bucket := range buckets.buckets {
+			bVersion := bucket.version
+			// TODO(juchan): deal with ColdWrite too
+			if bucket.wType == WarmWrite && bVersion != writableBucketVer &&
+				bVersion <= version {
+				// We no longer need to keep any version which is equal to
+				// or less than the retrievable version, since that means
+				// that the version has successfully persisted to disk
+				bucket.finalize()
+				b.bucketPool.Put(bucket)
 				continue
 			}
 
-			// Set the new buckets with the buckets that have been recently
-			// flushed filtered out
-			buckets.buckets = newBuckets
+			nonEvictedBuckets = append(nonEvictedBuckets, bucket)
 		}
 
-		// Try to merge any out of order encoders to amortize the cost of a drain
+		// All underlying buckets have been flushed successfully, so we can
+		// just remove the buckets from the bucketsMap
+		if len(nonEvictedBuckets) == 0 {
+			// TODO(juchan): in order to support cold writes, the buffer needs
+			// to tell the series that these buckets were evicted from the
+			// buffer so that the cached block in the series can either:
+			//   1) be evicted, or
+			//   2) be merged with the new data.
+			// This needs to happen because the buffer just flushed new data
+			// to disk, which the cached block does not have, and is
+			// therefore invalid.
+			b.removeBucketsAt(blockStart)
+			continue
+		}
+
+		buckets.buckets = nonEvictedBuckets
+
 		r, err := buckets.merge(WarmWrite)
 		if err != nil {
 			log := b.opts.InstrumentOptions().Logger()
@@ -332,7 +332,7 @@ func (b *dbBuffer) Flush(
 		return FlushOutcomeBlockDoesNotExist, nil
 	}
 
-	// A call to flush can only be for warm writes
+	// A call to flush can only be for warm writes.
 	block, err := buckets.toBlock(WarmWrite)
 	if err != nil {
 		return FlushOutcomeErr, err
