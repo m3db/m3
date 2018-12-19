@@ -161,13 +161,13 @@ func generateBlocks(
 	stepSize time.Duration,
 ) ([]block.Block, models.Bounds) {
 	iterators, bounds := generateIterators(t, stepSize)
+	blockOptions := NewOptions().SetLookbackDuration(time.Minute)
 	blocks, err := ConvertM3DBSeriesIterators(
 		iterators,
-		models.NewTagOptions(),
 		bounds,
+		blockOptions,
 	)
 
 	require.NoError(t, err)
-
 	return blocks, bounds
 }
