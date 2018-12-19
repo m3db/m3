@@ -46,7 +46,6 @@ func TestDiskCleanup(t *testing.T) {
 	md := testSetup.namespaceMetadataOrFail(testNamespaces[0])
 	blockSize := md.Options().RetentionOptions().BlockSize()
 	retentionPeriod := md.Options().RetentionOptions().RetentionPeriod()
-	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 
 	// Create some fileset files and commit logs
 	var (

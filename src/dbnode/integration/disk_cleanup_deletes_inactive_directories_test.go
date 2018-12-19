@@ -43,7 +43,6 @@ func TestDiskCleansupInactiveDirectories(t *testing.T) {
 	require.NoError(t, err)
 
 	md := testSetup.namespaceMetadataOrFail(testNamespaces[0])
-	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 
 	// Start tte server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()
@@ -71,9 +70,10 @@ func TestDiskCleansupInactiveDirectories(t *testing.T) {
 	require.NoError(t, err)
 	testSetup.db.AssignShardSet(shardSet)
 
+	clOpts := testSetup.storageOpts.CommitLogOptions()
 	// Check filesets are good to go
 	go func() {
-		fsCleanupErr <- waitUntilDataFileSetsCleanedUp(filePathPrefix,
+		fsCleanupErr <- waitUntilDataFileSetsCleanedUp(clOpts,
 			testSetup.db.Namespaces(), extraShard.ID(), fsWaitTimeout)
 	}()
 	log.Info("blocking until file cleanup is received")
@@ -96,7 +96,7 @@ func TestDiskCleansupInactiveDirectories(t *testing.T) {
 	require.NoError(t, <-nsResetErr)
 
 	go func() {
-		nsCleanupErr <- waitUntilNamespacesCleanedUp(filePathPrefix, nsToDelete, nsWaitTimeout)
+		nsCleanupErr <- waitUntilNamespacesCleanedUp(clOpts, nsToDelete, nsWaitTimeout)
 	}()
 	log.Info("blocking until the namespace cleanup is received")
 	require.NoError(t, <-nsCleanupErr)
