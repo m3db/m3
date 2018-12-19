@@ -69,10 +69,4 @@ type Options interface {
 	// BlockDataExpiryAfterNotAccessedPeriod returns the period that blocks data should
 	// be expired after not being accessed for a given duration
 	BlockDataExpiryAfterNotAccessedPeriod() time.Duration
-
-	// SetColdWritesEnabled sets whether writes to any time is enabled
-	SetColdWritesEnabled(value bool) Options
-
-	// ColdWritesEnabled returns whether writes to any time is enabled
-	ColdWritesEnabled() bool
 }
