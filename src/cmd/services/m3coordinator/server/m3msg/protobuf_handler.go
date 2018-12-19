@@ -97,5 +97,6 @@ func (c *protobufCallback) Callback(t CallbackType) {
 		c.msg.Ack()
 	}
 	c.wg.Done()
+	// Close the decoder, return the underlying bytes to the pool.
 	c.dec.Close()
 }
