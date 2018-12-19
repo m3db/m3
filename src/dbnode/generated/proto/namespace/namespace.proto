@@ -27,6 +27,7 @@ message NamespaceOptions {
     bool snapshotEnabled              = 7;
     IndexOptions indexOptions         = 8;
     SchemaOptions schemaOptions       = 9;
+    bool coldWritesEnabled            = 10;
 }
 
 message Registry {

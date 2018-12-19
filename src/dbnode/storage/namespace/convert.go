@@ -111,7 +111,8 @@ func ToMetadata(
 		SetSnapshotEnabled(opts.SnapshotEnabled).
 		SetSchemaRegistry(sr).
 		SetRetentionOptions(ropts).
-		SetIndexOptions(iopts)
+		SetIndexOptions(iopts).
+		SetColdWritesEnabled(opts.ColdWritesEnabled)
 
 	return NewMetadata(ident.StringID(id), mopts)
 }
@@ -167,5 +168,6 @@ func OptionsToProto(opts Options) *nsproto.NamespaceOptions {
 			Enabled:        iopts.Enabled(),
 			BlockSizeNanos: iopts.BlockSize().Nanoseconds(),
 		},
+		ColdWritesEnabled: opts.ColdWritesEnabled(),
 	}
 }

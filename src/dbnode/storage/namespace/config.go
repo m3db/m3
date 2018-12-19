@@ -54,6 +54,7 @@ type MetadataConfiguration struct {
 	WritesToCommitLog *bool                   `yaml:"writesToCommitLog"`
 	CleanupEnabled    *bool                   `yaml:"cleanupEnabled"`
 	RepairEnabled     *bool                   `yaml:"repairEnabled"`
+	ColdWritesEnabled *bool                   `yaml:"coldWritesEnabled"`
 	Retention         retention.Configuration `yaml:"retention" validate:"nonzero"`
 	Index             IndexConfiguration      `yaml:"index"`
 }
@@ -79,6 +80,9 @@ func (mc *MetadataConfiguration) Metadata() (Metadata, error) {
 	}
 	if v := mc.RepairEnabled; v != nil {
 		opts = opts.SetRepairEnabled(*v)
+	}
+	if v := mc.ColdWritesEnabled; v != nil {
+		opts = opts.SetColdWritesEnabled(*v)
 	}
 	return NewMetadata(ident.StringID(mc.ID), opts)
 }
