@@ -24,6 +24,7 @@ message NamespaceOptions {
     RetentionOptions retentionOptions = 6;
     bool snapshotEnabled              = 7;
     IndexOptions indexOptions         = 8;
+    bool coldWritesEnabled            = 9;
 }
 
 message Registry {

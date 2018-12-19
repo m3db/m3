@@ -44,6 +44,9 @@ const (
 
 	// Namespace requires repair disabled by default.
 	defaultRepairEnabled = false
+
+	// Namespace with cold writes disabled by default
+	defaultColdWritesEnabled = false
 )
 
 var (
@@ -59,6 +62,7 @@ type options struct {
 	writesToCommitLog bool
 	cleanupEnabled    bool
 	repairEnabled     bool
+	coldWritesEnabled bool
 	retentionOpts     retention.Options
 	indexOpts         IndexOptions
 }
@@ -72,6 +76,7 @@ func NewOptions() Options {
 		writesToCommitLog: defaultWritesToCommitLog,
 		cleanupEnabled:    defaultCleanupEnabled,
 		repairEnabled:     defaultRepairEnabled,
+		coldWritesEnabled: defaultColdWritesEnabled,
 		retentionOpts:     retention.NewOptions(),
 		indexOpts:         NewIndexOptions(),
 	}
@@ -108,6 +113,7 @@ func (o *options) Equal(value Options) bool {
 		o.snapshotEnabled == value.SnapshotEnabled() &&
 		o.cleanupEnabled == value.CleanupEnabled() &&
 		o.repairEnabled == value.RepairEnabled() &&
+		o.coldWritesEnabled == value.ColdWritesEnabled() &&
 		o.retentionOpts.Equal(value.RetentionOptions()) &&
 		o.indexOpts.Equal(value.IndexOptions())
 }
@@ -170,6 +176,16 @@ func (o *options) SetRepairEnabled(value bool) Options {
 
 func (o *options) RepairEnabled() bool {
 	return o.repairEnabled
+}
+
+func (o *options) SetColdWritesEnabled(value bool) Options {
+	opts := *o
+	opts.coldWritesEnabled = value
+	return &opts
+}
+
+func (o *options) ColdWritesEnabled() bool {
+	return o.coldWritesEnabled
 }
 
 func (o *options) SetRetentionOptions(value retention.Options) Options {

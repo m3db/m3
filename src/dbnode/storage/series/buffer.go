@@ -152,7 +152,7 @@ func (b *dbBuffer) Reset(blockRetriever QueryableBlockRetriever, opts Options) {
 	b.blockSize = ropts.BlockSize()
 	b.bufferPast = ropts.BufferPast()
 	b.bufferFuture = ropts.BufferFuture()
-	b.coldWritesEnabled = ropts.ColdWritesEnabled()
+	b.coldWritesEnabled = opts.ColdWritesEnabled()
 }
 
 func (b *dbBuffer) Write(

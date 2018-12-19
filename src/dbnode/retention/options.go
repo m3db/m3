@@ -43,9 +43,6 @@ const (
 
 	// defaultDataExpiryAfterNotAccessedPeriod is the default data expiry after not accessed period
 	defaultDataExpiryAfterNotAccessedPeriod = 5 * time.Minute
-
-	// defaultColdWritesEnabled is the default setting on whether to accept writes to any time
-	defaultColdWritesEnabled = false
 )
 
 var (
@@ -64,7 +61,6 @@ type options struct {
 	bufferPast                       time.Duration
 	dataExpiryAfterNotAccessedPeriod time.Duration
 	dataExpiry                       bool
-	coldWritesEnabled                bool
 }
 
 // NewOptions creates new retention options
@@ -76,7 +72,6 @@ func NewOptions() Options {
 		bufferPast:                       defaultBufferPast,
 		dataExpiry:                       defaultDataExpiry,
 		dataExpiryAfterNotAccessedPeriod: defaultDataExpiryAfterNotAccessedPeriod,
-		coldWritesEnabled:                defaultColdWritesEnabled,
 	}
 }
 
@@ -108,8 +103,7 @@ func (o *options) Equal(value Options) bool {
 		o.bufferFuture == value.BufferFuture() &&
 		o.bufferPast == value.BufferPast() &&
 		o.dataExpiry == value.BlockDataExpiry() &&
-		o.dataExpiryAfterNotAccessedPeriod == value.BlockDataExpiryAfterNotAccessedPeriod() &&
-		o.coldWritesEnabled == value.ColdWritesEnabled()
+		o.dataExpiryAfterNotAccessedPeriod == value.BlockDataExpiryAfterNotAccessedPeriod()
 }
 
 func (o *options) SetRetentionPeriod(value time.Duration) Options {
@@ -170,14 +164,4 @@ func (o *options) SetBlockDataExpiryAfterNotAccessedPeriod(value time.Duration) 
 
 func (o *options) BlockDataExpiryAfterNotAccessedPeriod() time.Duration {
 	return o.dataExpiryAfterNotAccessedPeriod
-}
-
-func (o *options) SetColdWritesEnabled(value bool) Options {
-	opts := *o
-	opts.coldWritesEnabled = value
-	return &opts
-}
-
-func (o *options) ColdWritesEnabled() bool {
-	return o.coldWritesEnabled
 }

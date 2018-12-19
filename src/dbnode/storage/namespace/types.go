@@ -73,6 +73,12 @@ type Options interface {
 	// RepairEnabled returns whether the data for this namespace needs to be repaired
 	RepairEnabled() bool
 
+	// SetColdWritesEnabled sets whether cold writes are enabled for this namespace
+	SetColdWritesEnabled(value bool) Options
+
+	// ColdWritesEnabled returns whether cold writes are enabled for this namespace
+	ColdWritesEnabled() bool
+
 	// SetRetentionOptions sets the retention options for this namespace
 	SetRetentionOptions(value retention.Options) Options
 
