@@ -53,7 +53,7 @@ const (
 )
 
 var (
-	matchValues = []byte("*")
+	matchValues = []byte(".*")
 )
 
 // ParsePromCompressedRequest parses a snappy compressed request from Prometheus
