@@ -586,11 +586,49 @@ func newStorages(
 	}
 
 	readFilter := filter.LocalOnly
+	writeFilter := filter.LocalOnly
+	completeTagsFilter := filter.CompleteTagsLocalOnly
 	if remoteEnabled {
+		// If remote enabled, allow all for read and complete tags
+		// but continue to only send writes locally
 		readFilter = filter.AllowAll
+		completeTagsFilter = filter.CompleteTagsAllowAll
 	}
 
-	fanoutStorage := fanout.NewStorage(stores, readFilter, filter.LocalOnly, filter.RemoteOnly)
+	switch cfg.Filter.Read {
+	case config.FilterLocalOnly:
+		readFilter = filter.LocalOnly
+	case config.FilterRemoteOnly:
+		readFilter = filter.RemoteOnly
+	case config.FilterAllowAll:
+		readFilter = filter.AllowAll
+	case config.FilterAllowNone:
+		readFilter = filter.AllowNone
+	}
+
+	switch cfg.Filter.Write {
+	case config.FilterLocalOnly:
+		writeFilter = filter.LocalOnly
+	case config.FilterRemoteOnly:
+		writeFilter = filter.RemoteOnly
+	case config.FilterAllowAll:
+		writeFilter = filter.AllowAll
+	case config.FilterAllowNone:
+		writeFilter = filter.AllowNone
+	}
+
+	switch cfg.Filter.CompleteTags {
+	case config.FilterLocalOnly:
+		completeTagsFilter = filter.CompleteTagsLocalOnly
+	case config.FilterRemoteOnly:
+		completeTagsFilter = filter.CompleteTagsRemoteOnly
+	case config.FilterAllowAll:
+		completeTagsFilter = filter.CompleteTagsAllowAll
+	case config.FilterAllowNone:
+		completeTagsFilter = filter.CompleteTagsAllowNone
+	}
+
+	fanoutStorage := fanout.NewStorage(stores, readFilter, writeFilter, completeTagsFilter)
 	return fanoutStorage, cleanup, nil
 }
 
