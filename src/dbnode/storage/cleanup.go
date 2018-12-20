@@ -269,6 +269,7 @@ func (m *cleanupManager) cleanupExpiredNamespaceDataFiles(earliestToRetain time.
 	return multiErr.FinalError()
 }
 
+// TODO(rartoul): Better comment
 // List all the metadata files on disk
 // Identify the most recent one
 // Delete all snapshot files whose snapshot ID does not match the most recent id from the most recent metadata file
