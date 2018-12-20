@@ -138,7 +138,7 @@ install-tools: install-retool
 	@# NB(r): to ensure correct version of mock-gen is present we match the version
 	@# of the retool installed mockgen, and if not a match in binary contents, then
 	@# we explicitly install at the version we desire.
-	@# We cannot solely use the retool binary as mock-gen requires it's full source
+	@# We cannot solely use the retool binary as mock-gen requires its full source
 	@# code to be present in the GOPATH at runtime.
 	@echo "Installing mockgen"
 	$(eval curr_mockgen_md5=`which mockgen | xargs -I{} cat {} | md5`)
