@@ -28,6 +28,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// Lockfile represents an acquired lockfile.
 type Lockfile struct {
 	file os.File
 }
