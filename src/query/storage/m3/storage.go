@@ -232,6 +232,13 @@ func (s *m3storage) CompleteTags(
 	query *storage.CompleteTagsQuery,
 	options *storage.FetchOptions,
 ) (*storage.CompleteTagsResult, error) {
+	// Check if the query was interrupted.
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
 	// TODO: instead of aggregating locally, have the DB aggregate it before
 	// sending results back
 	fetchQuery := &storage.FetchQuery{
