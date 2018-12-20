@@ -228,11 +228,70 @@ func (s *m3storage) FetchTags(
 }
 
 func (s *m3storage) CompleteTags(
-	_ context.Context,
-	_ *storage.CompleteTagsQuery,
-	_ *storage.FetchOptions,
+	ctx context.Context,
+	query *storage.CompleteTagsQuery,
+	options *storage.FetchOptions,
 ) (*storage.CompleteTagsResult, error) {
-	return nil, errors.ErrNotImplemented
+	// TODO: instead of aggregating locally, have the DB aggregate it before
+	// sending results back
+	fetchQuery := &storage.FetchQuery{
+		TagMatchers: query.TagMatchers,
+	}
+	results, cleanup, err := s.SearchCompressed(ctx, fetchQuery, options)
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() { _ = cleanup() }()
+
+	tagsToTagValues := make(map[string]map[string]struct{})
+	for _, elem := range results {
+		for elem.Iter.Next() {
+			tag := elem.Iter.Current()
+			tagName := tag.Name.String()
+
+			values, ok := tagsToTagValues[tagName]
+			if !ok {
+				values = make(map[string]struct{})
+				tagsToTagValues[tagName] = values
+			}
+
+			values[tag.Value.String()] = struct{}{}
+		}
+		if err := elem.Iter.Err(); err != nil {
+			return nil, err
+		}
+	}
+
+	if query.CompleteNameOnly {
+		// If just returning name only, return directly just that tag
+		completed := storage.CompletedTag{
+			Name: s.tagOptions.MetricName(),
+		}
+		if values, ok := tagsToTagValues[string(completed.Name)]; ok {
+			for value := range values {
+				completed.Values = append(completed.Values, []byte(value))
+			}
+		}
+		return &storage.CompleteTagsResult{
+			CompleteNameOnly: true,
+			CompletedTags:    []storage.CompletedTag{completed},
+		}, nil
+	}
+
+	result := &storage.CompleteTagsResult{}
+	for name, values := range tagsToTagValues {
+		elems := make([][]byte, 0, len(values))
+		for value := range values {
+			elems = append(elems, []byte(value))
+		}
+		result.CompletedTags = append(result.CompletedTags, storage.CompletedTag{
+			Name:   []byte(name),
+			Values: elems,
+		})
+	}
+
+	return result, nil
 }
 
 func (s *m3storage) SearchCompressed(
