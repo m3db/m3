@@ -122,71 +122,10 @@ func (s *commitLogSource) AvailableData(
 	return s.availability(ns, shardsTimeRanges, runOpts)
 }
 
-// ReadData will read a combination of the available snapshot files and commit log files to
-// restore as much unflushed data from disk as possible. The logic for performing this
-// correctly is as follows:
-//
-//    1.  For every shard/blockStart combination, find the most recently written and complete
-//        (has a checkpoint file) snapshot.
-//    2.  For every shard/blockStart combination, determine the most recent complete SnapshotTime.
-//        This value corresponds to the (local) moment in time right before the snapshotting process
-//        began.
-//    3.  Find the minimum SnapshotTime for all of the shards and block starts (call it t0), and
-//        replay (M3TSZ encode) all commit log entries whose system timestamps overlap the range
-//        [minimumSnapshotTimeAcrossShards, blockStart.Add(blockSize).Add(bufferPast)]. This logic
-//        has one exception which is in the case where there is no minimimum snapshot time across
-//        shards (the code treats this case as minimum snapshot time across shards == blockStart).
-//        In that case, we replay all commit log entries whose system timestamps overlap the range
-//        [blockStart.Add(-bufferFuture), blockStart.Add(blockSize).Add(bufferPast)].
-//    4.  For each shard/blockStart combination, merge all of the M3TSZ encoders that we created from
-//        reading the commit log along with the data available in the corresponding snapshot file.
-//
-// Example #1:
-//
-//    BlockSize: 2hr
-//    BufferPast: 10m
-//    BufferFuture: 5m
-//    CommitLogBlockSize: 10m
-//    BlockToBootstrap: 12PM->2PM
-//    SnapshotTime: 12:30PM
-//
-//    W1 comes in at 11:57AM
-//    W2 comes in at 12:29PM
-//    W3 comes in at 12:31PM
-//    W4 comes in at 2:04PM
-//
-//    1) W1 captured by snapshot (hence why we don't need to worry about buffer future
-//       with regards to commit logs when a snapshot file is present.)
-//    2) W2 captured by snapshot file
-//    3) W3 not captured by snapshot file (present in commit log with start time 12:30PM)
-//    4) W4 not captured by snapshot file (present in commit log with start time 2:00PM)
-//
-//    Need to read all commit logs that contain writes with system times spanning from
-//    12:30PM -> 2:10PM which will bootstrap all of the data points above. I.E:
-//    [minimumMostRecentSnapshotTimeAcrossShards, blockStart.Add(blockSize).Add(bufferPast)]
-//
-// Example #2:
-//
-//    BlockSize: 2hr
-//    BufferPast: 10m
-//    BufferFuture: 5m
-//    CommitLogBlockSize: 10m
-//    BlockToBootstrap: 12PM->2PM
-//    SnapshotTime: 12:00PM (snapshot does not exist)
-//
-//    W1 comes in at 11:57AM
-//    W2 comes in at 12:29PM
-//    W3 comes in at 12:31PM
-//    W4 comes in at 2:04PM
-//
-//    1) W1 only present in commit log with start time 11:50PM
-//    2) W2 only present in commit log with start time 12:20PM
-//    3) W3 only present in commit log with start time 12:30PM
-//    4) W4 only present in commit log with start time 2:00PM
-//
-//    Need to read all commit logs that contain writes with system times spanning from
-//    11:55AM -> 2:10PM which will bootstrap all of the data points above. I.E:
-//    [blockStart.Add(-bufferFuture), blockStart.Add(blockSize).Add(bufferPast)]
+// ReadData will read all commitlog files on disk, as well as as the latest snapshot for
+// each shard/block combination (if it exists) and merge them.
+// TODO(rartoul): Make this take the SnapshotMetadata files into account to reduce the
+// number of commitlogs / snapshots that we need to read.
 func (s *commitLogSource) ReadData(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
@@ -218,9 +157,7 @@ func (s *commitLogSource) ReadData(
 		blockSize = ns.Options().RetentionOptions().BlockSize()
 	)
 
-	// Determine the minimum number of commit logs files that we
-	// must read based on the available snapshot files.
-	readCommitLogPred, mostRecentCompleteSnapshotByBlockShard, err := s.newReadCommitLogPredBasedOnAvailableSnapshotFiles(
+	readCommitLogPred, mostRecentCompleteSnapshotByBlockShard, err := s.newReadCommitlogPredAndMostRecentSnapshotByBlockShard(
 		ns, shardsTimeRanges, snapshotFilesByShard)
 	if err != nil {
 		return nil, err
@@ -472,6 +409,7 @@ func (s *commitLogSource) mostRecentCompleteSnapshotByBlockShard(
 							xlog.NewField("shard", mostRecentSnapshot.ID.Shard),
 							xlog.NewField("index", mostRecentSnapshot.ID.VolumeIndex),
 							xlog.NewField("filepaths", mostRecentSnapshot.AbsoluteFilepaths),
+							xlog.NewField("error", err.Error()),
 						).
 						Error("error resolving snapshot time for snapshot file")
 
@@ -486,41 +424,6 @@ func (s *commitLogSource) mostRecentCompleteSnapshotByBlockShard(
 	}
 
 	return mostRecentSnapshotsByBlockShard
-}
-
-func (s *commitLogSource) minimumMostRecentSnapshotTimeByBlock(
-	shardsTimeRanges result.ShardTimeRanges,
-	blockSize time.Duration,
-	mostRecentSnapshotByBlockShard map[xtime.UnixNano]map[uint32]fs.FileSetFile,
-) map[xtime.UnixNano]time.Time {
-	minimumMostRecentSnapshotTimeByBlock := map[xtime.UnixNano]time.Time{}
-	for blockStart, mostRecentSnapshotsByShard := range mostRecentSnapshotByBlockShard {
-
-		var minMostRecentSnapshot time.Time
-		for shard, mostRecentSnapshotForShard := range mostRecentSnapshotsByShard {
-			blockRange := xtime.Range{Start: blockStart.ToTime(), End: blockStart.ToTime().Add(blockSize)}
-			if !shardsTimeRanges[shard].Overlaps(blockRange) {
-				// In order for a minimum most recent snapshot to be valid, it needs to be for a block that
-				// we actually need to bootstrap for that shard. This check ensures that our algorithm doesn't
-				// do any extra work, even if we're bootstrapping different blocks for various shards.
-				continue
-			}
-
-			if mostRecentSnapshotForShard.CachedSnapshotTime.Before(minMostRecentSnapshot) || minMostRecentSnapshot.IsZero() {
-				minMostRecentSnapshot = mostRecentSnapshotForShard.CachedSnapshotTime
-			}
-		}
-
-		if minMostRecentSnapshot.IsZero() {
-			// If we didn't find a minimum most recent snapshot time for this blockStart, just use the
-			// blockStart as the minimum since we'll need to read the entire commit log in this case.
-			minMostRecentSnapshot = blockStart.ToTime()
-		}
-
-		minimumMostRecentSnapshotTimeByBlock[blockStart] = minMostRecentSnapshot
-	}
-
-	return minimumMostRecentSnapshotTimeByBlock
 }
 
 func (s *commitLogSource) bootstrapShardSnapshots(
@@ -716,7 +619,7 @@ func (s *commitLogSource) bootstrapShardBlockSnapshot(
 	return shardResult, nil
 }
 
-func (s *commitLogSource) newReadCommitLogPredBasedOnAvailableSnapshotFiles(
+func (s *commitLogSource) newReadCommitlogPredAndMostRecentSnapshotByBlockShard(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	snapshotFilesByShard map[uint32]fs.FileSetFilesSlice,
@@ -727,14 +630,6 @@ func (s *commitLogSource) newReadCommitLogPredBasedOnAvailableSnapshotFiles(
 ) {
 	blockSize := ns.Options().RetentionOptions().BlockSize()
 
-	// At this point we've bootstrapped all the snapshot files that we can, and we need to
-	// decide which commit logs to read. In order to do that, we'll need to figure out the
-	// minimum most recent snapshot time for each block, then we can use that information to
-	// decide how much of the commit log we need to read for each block that we're bootstrapping.
-	// To start, for each block that we're bootstrapping, we need to figure out the most recent
-	// snapshot that was taken for each shard. I.E we want to create a datastructure that looks
-	// like this:
-	// 		map[blockStart]map[shard]mostRecentSnapshotTime
 	mostRecentCompleteSnapshotByBlockShard := s.mostRecentCompleteSnapshotByBlockShard(
 		shardsTimeRanges, blockSize, snapshotFilesByShard, s.opts.CommitLogOptions().FilesystemOptions())
 	for block, mostRecentByShard := range mostRecentCompleteSnapshotByBlockShard {
@@ -753,107 +648,13 @@ func (s *commitLogSource) newReadCommitLogPredBasedOnAvailableSnapshotFiles(
 		}
 	}
 
-	// Once we have the desired data structure, we next need to figure out the minimum most recent
-	// snapshot for that block across all shards. This will help us determine how much of the commit
-	// log we need to read. The new data structure we're trying to generate looks like:
-	// 		map[blockStart]minimumMostRecentSnapshotTime (across all shards)
-	// This structure is important because it tells us how much of the commit log we need to read for
-	// each block that we're trying to bootstrap (because the commit log is shared across all shards.)
-	minimumMostRecentSnapshotTimeByBlock := s.minimumMostRecentSnapshotTimeByBlock(
-		shardsTimeRanges, blockSize, mostRecentCompleteSnapshotByBlockShard)
-	for block, minSnapshotTime := range minimumMostRecentSnapshotTimeByBlock {
-		s.log.Debugf(
-			"min snapshot time for block: %s is: %s",
-			block.ToTime().String(), minSnapshotTime.String())
-	}
-
-	// Now that we have the minimum most recent snapshot time for each block, we can use that data to
-	// decide how much of the commit log we need to read for each block that we're bootstrapping. We'll
-	// construct a new predicate based on the data structure we constructed earlier where the new
-	// predicate will check if there is any overlap between a commit log file and a temporary range
-	// we construct that begins with the minimum snapshot time and ends with the end of that block + bufferPast.
+	// Read all the commitlog files that are available on disk.
+	// TODO(rartoul): Refactor this to take the SnapshotMetadata files into account to reduce
+	// the number of commitlog files that need to be read.
 	return func(persist.CommitlogFile) bool {
 		return true
 	}, mostRecentCompleteSnapshotByBlockShard, nil
-	// return s.newReadCommitLogPred(ns, minimumMostRecentSnapshotTimeByBlock), mostRecentCompleteSnapshotByBlockShard, nil
 }
-
-// func (s *commitLogSource) newReadCommitLogPred(
-// 	ns namespace.Metadata,
-// 	minimumMostRecentSnapshotTimeByBlock map[xtime.UnixNano]time.Time,
-// ) commitlog.FileFilterPredicate {
-// 	var (
-// 		rOpts                            = ns.Options().RetentionOptions()
-// 		blockSize                        = rOpts.BlockSize()
-// 		bufferPast                       = rOpts.BufferPast()
-// 		bufferFuture                     = rOpts.BufferFuture()
-// 		rangesToCheck                    = []xtime.Range{}
-// 		commitlogFilesPresentBeforeStart = s.inspection.CommitLogFilesSet()
-// 	)
-
-// 	for blockStart, minimumMostRecentSnapshotTime := range minimumMostRecentSnapshotTimeByBlock {
-// 		// blockStart.Add(blockSize) represents the logical range that we're trying to bootstrap, but
-// 		// commitlog and snapshot timestamps are system timestamps so we need to create a system
-// 		// time range against which we can compare our commit log ranges.
-// 		//
-// 		// In this case, the snapshot will contain all datapoints for a given block that were received/written
-// 		// (system time) before the snapshot time, so we use that as the start of our range.
-// 		//
-// 		// The end of our range is the end of the block + the bufferPast window. This is because its
-// 		// still possible for writes for the block that we're trying to bootstrap to arrive up until
-// 		// blockStart.Add(blockSize).Add(bufferPast).
-// 		//
-// 		// Note that in the general case (snapshot files are present) we don't need to check bufferFuture
-// 		// at all, because the snapshot is guaranteed to have all writes that were written before the
-// 		// snapshot time, which includes any datapoints written during the bufferFuture range, by definition.
-// 		// However, if there is no snapshot (minimumMostRecentSnapshotTime.Equal(blockStart)), then we DO
-// 		// have to take bufferFuture into account because commit logs with system timestamps in the previous
-// 		// block may contain writes for the block that we're trying to bootstrap, and we can't rely upon the
-// 		// fact that they are already included in our (non-existent) snapshot.
-// 		if minimumMostRecentSnapshotTime.Equal(blockStart.ToTime()) {
-// 			minimumMostRecentSnapshotTime = minimumMostRecentSnapshotTime.Add(-bufferFuture)
-// 		}
-// 		rangesToCheck = append(rangesToCheck, xtime.Range{
-// 			Start: minimumMostRecentSnapshotTime,
-// 			End:   blockStart.ToTime().Add(blockSize).Add(bufferPast),
-// 		})
-// 	}
-
-// 	// TODO: We have to rely on the global minimum across shards to determine which commit log files
-// 	// we need to read, but we can still skip datapoints from the commitlog itself that belong to a shard
-// 	// that has a snapshot more recent than the global minimum. If we use an array for fast-access this could
-// 	// be a small win in terms of memory utilization.
-// 	return func(f persist.CommitlogFile) bool {
-// 		_, ok := commitlogFilesPresentBeforeStart[f.FilePath]
-// 		if !ok {
-// 			// If the file wasn't on disk before the node started then it only contains
-// 			// writes that are already in memory (and in-fact the file may be actively
-// 			// being written to.)
-// 			return false
-// 		}
-
-// 		for _, rangeToCheck := range rangesToCheck {
-// 			commitLogEntryRange := xtime.Range{
-// 				Start: f.Start,
-// 				End:   f.Start.Add(f.Duration),
-// 			}
-
-// 			if commitLogEntryRange.Overlaps(rangeToCheck) {
-// 				s.log.
-// 					Infof(
-// 						"opting to read commit log: %s with start: %s and duration: %s",
-// 						f.FilePath, f.Start.String(), f.Duration.String())
-// 				return true
-// 			}
-// 		}
-
-// 		s.log.
-// 			Infof(
-// 				"opting to skip commit log: %s with start: %s and duration: %s",
-// 				f.FilePath, f.Start.String(), f.Duration.String())
-// 		return false
-// 	}
-// }
 
 func (s *commitLogSource) startM3TSZEncodingWorker(
 	ns namespace.Metadata,
@@ -1350,7 +1151,7 @@ func (s *commitLogSource) ReadIndex(
 
 	// Determine which commit log files we need to read based on which snapshot
 	// snapshot files are available.
-	readCommitLogPredicate, mostRecentCompleteSnapshotByBlockShard, err := s.newReadCommitLogPredBasedOnAvailableSnapshotFiles(
+	readCommitLogPredicate, mostRecentCompleteSnapshotByBlockShard, err := s.newReadCommitlogPredAndMostRecentSnapshotByBlockShard(
 		ns, shardsTimeRanges, snapshotFilesByShard)
 	if err != nil {
 		return nil, err
