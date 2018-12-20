@@ -141,7 +141,7 @@ install-tools: install-retool
 	@# We cannot solely use the retool binary as mock-gen requires its full source
 	@# code to be present in the GOPATH at runtime.
 	@echo "Installing mockgen"
-	$(eval curr_mockgen_md5=`which mockgen | xargs -I{} cat {} | md5`)
+	$(eval curr_mockgen_md5=`cat $(gopath_bin_path)/mockgen | md5`)
 	$(eval retool_mockgen_md5=`cat $(retool_bin_path)/mockgen | md5`)
 	@test "$(curr_mockgen_md5)" = "$(retool_mockgen_md5)" && echo "Mockgen already up to date" || ( \
 		echo "Installing mockgen from Retool directory"                                            && \
