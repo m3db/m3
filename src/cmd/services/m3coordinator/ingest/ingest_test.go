@@ -57,7 +57,7 @@ func TestIngest(t *testing.T) {
 	require.NoError(t, err)
 
 	id := newTestID(t, "__name__", "foo", "app", "bar")
-	metricTime := time.Unix(0, 1234)
+	metricNanos := int64(1234)
 	val := float64(1)
 	sp := policy.MustParseStoragePolicy("1m:40d")
 	m := consumer.NewMockMessage(ctrl)
@@ -65,7 +65,7 @@ func TestIngest(t *testing.T) {
 	callback.IncRef()
 
 	m.EXPECT().Ack()
-	ingester.Ingest(context.TODO(), id, metricTime, val, sp, callback)
+	ingester.Ingest(context.TODO(), id, metricNanos, 0, val, sp, callback)
 
 	for appender.cnt() != 1 {
 		time.Sleep(100 * time.Millisecond)
@@ -81,7 +81,7 @@ func TestIngest(t *testing.T) {
 			},
 			Datapoints: ts.Datapoints{
 				ts.Datapoint{
-					Timestamp: metricTime,
+					Timestamp: time.Unix(0, metricNanos),
 					Value:     val,
 				},
 			},

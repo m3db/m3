@@ -20,7 +20,7 @@
 
 // mockgen rules for generating mocks for exported interfaces (reflection mode).
 //go:generate sh -c "mockgen -package=producer github.com/m3db/m3/src/msg/producer Message,Producer | genclean -pkg github.com/m3db/m3/src/msg/producer -out $GOPATH/src/github.com/m3db/m3/src/msg/producer/producer_mock.go"
-//go:generate sh -c "mockgen -package=consumer github.com/m3db/m3/src/msg/consumer Message | genclean -pkg github.com/m3db/m3/src/msg/consumer -out $GOPATH/src/github.com/m3db/m3/src/msg/consumer/consumer_mock.go"
+//go:generate sh -c "mockgen -package=consumer github.com/m3db/m3/src/msg/consumer Message,MessageProcessor | genclean -pkg github.com/m3db/m3/src/msg/consumer -out $GOPATH/src/github.com/m3db/m3/src/msg/consumer/consumer_mock.go"
 //go:generate sh -c "mockgen -package=proto github.com/m3db/m3/src/msg/protocol/proto Encoder,Decoder | genclean -pkg github.com/m3db/m3/src/msg/protocol/proto -out $GOPATH/src/github.com/m3db/m3/src/msg/protocol/proto/proto_mock.go"
 //go:generate sh -c "mockgen -package=topic github.com/m3db/m3/src/msg/topic Service | genclean -pkg github.com/m3db/m3/src/msg/topic -out $GOPATH/src/github.com/m3db/m3/src/msg/topic/topic_mock.go"
 

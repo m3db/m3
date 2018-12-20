@@ -24,6 +24,16 @@ import (
 	"time"
 )
 
+// FormatType describes what format to return the data in
+type FormatType int
+
+const (
+	// FormatPromQL returns results in Prom format
+	FormatPromQL FormatType = iota
+	// FormatM3QL returns results in M3QL format
+	FormatM3QL
+)
+
 // LookbackDelta determines the time since the last sample after which a time
 // series is considered stale (inclusive).
 // TODO: Make this configurable
@@ -34,12 +44,14 @@ type RequestParams struct {
 	Start time.Time
 	End   time.Time
 	// Now captures the current time and fixes it throughout the request, we may let people override it in the future
-	Now        time.Time
-	Timeout    time.Duration
-	Step       time.Duration
-	Query      string
-	Debug      bool
-	IncludeEnd bool
+	Now          time.Time
+	Timeout      time.Duration
+	Step         time.Duration
+	Query        string
+	Debug        bool
+	UseIterators bool
+	IncludeEnd   bool
+	FormatType   FormatType
 }
 
 // ExclusiveEnd returns the end exclusive

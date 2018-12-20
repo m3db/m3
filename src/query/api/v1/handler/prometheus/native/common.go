@@ -25,6 +25,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/m3db/m3/src/query/api/v1/handler/prometheus"
@@ -47,6 +48,7 @@ const (
 	queryParam        = "query"
 	stepParam         = "step"
 	debugParam        = "debug"
+	useIterParam      = "iters"
 	endExclusiveParam = "end-exclusive"
 
 	formatErrStr = "error parsing param: %s, error: %v"
@@ -114,18 +116,9 @@ func parseParams(r *http.Request) (models.RequestParams, *xhttp.ParseError) {
 	if err != nil {
 		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, queryParam, err), http.StatusBadRequest)
 	}
+
 	params.Query = query
-
-	// Skip debug if unable to parse debug param
-	debugVal := r.FormValue(debugParam)
-	if debugVal != "" {
-		debug, err := strconv.ParseBool(r.FormValue(debugParam))
-		if err != nil {
-			logging.WithContext(r.Context()).Warn("unable to parse debug flag", zap.Any("error", err))
-		}
-		params.Debug = debug
-	}
-
+	params.Debug, params.UseIterators = parseDebugAndIterFlags(r)
 	// Default to including end if unable to parse the flag
 	endExclusiveVal := r.FormValue(endExclusiveParam)
 	params.IncludeEnd = true
@@ -138,7 +131,37 @@ func parseParams(r *http.Request) (models.RequestParams, *xhttp.ParseError) {
 		params.IncludeEnd = !excludeEnd
 	}
 
+	if strings.ToLower(r.Header.Get("X-M3-Render-Format")) == "m3ql" {
+		params.FormatType = models.FormatM3QL
+	}
+
 	return params, nil
+}
+
+func parseDebugAndIterFlags(r *http.Request) (bool, bool) {
+	var (
+		debug, useIter bool
+		err            error
+	)
+	// Skip debug if unable to parse debug param
+	debugVal := r.FormValue(debugParam)
+	if debugVal != "" {
+		debug, err = strconv.ParseBool(r.FormValue(debugParam))
+		if err != nil {
+			logging.WithContext(r.Context()).Warn("unable to parse debug flag", zap.Error(err))
+		}
+	}
+
+	// Skip useIterators if unable to parse useIterators param
+	useIterVal := r.FormValue(useIterParam)
+	if useIterVal != "" {
+		useIter, err = strconv.ParseBool(r.FormValue(useIterParam))
+		if err != nil {
+			logging.WithContext(r.Context()).Warn("unable to parse useIter flag", zap.Error(err))
+		}
+	}
+
+	return debug, useIter
 }
 
 // parseInstantaneousParams parses all params from the GET request
@@ -171,18 +194,7 @@ func parseInstantaneousParams(r *http.Request) (models.RequestParams, *xhttp.Par
 		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, queryParam, err), http.StatusBadRequest)
 	}
 	params.Query = query
-
-	// Skip debug if unable to parse debug param
-	debugVal := r.FormValue(debugParam)
-	if debugVal != "" {
-		debug, err := strconv.ParseBool(r.FormValue(debugParam))
-		if err != nil {
-			logging.WithContext(r.Context()).Warn("unable to parse debug flag", zap.Any("error", err))
-		}
-
-		params.Debug = debug
-	}
-
+	params.Debug, params.UseIterators = parseDebugAndIterFlags(r)
 	return params, nil
 }
 
@@ -269,7 +281,6 @@ func renderResultsJSON(
 func renderResultsInstantaneousJSON(
 	w io.Writer,
 	series []*ts.Series,
-	params models.RequestParams,
 ) {
 	jw := json.NewWriter(w)
 	jw.BeginObject()
@@ -310,5 +321,49 @@ func renderResultsInstantaneousJSON(
 	jw.EndObject()
 
 	jw.EndObject()
+	jw.Close()
+}
+
+func renderM3QLResultsJSON(
+	w io.Writer,
+	series []*ts.Series,
+	params models.RequestParams,
+) {
+	jw := json.NewWriter(w)
+	jw.BeginArray()
+
+	for _, s := range series {
+		jw.BeginObject()
+		jw.BeginObjectField("target")
+		jw.WriteString(s.Name())
+
+		jw.BeginObjectField("tags")
+		jw.BeginObject()
+
+		for _, tag := range s.Tags.Tags {
+			jw.BeginObjectField(string(tag.Name))
+			jw.WriteString(string(tag.Value))
+		}
+
+		jw.EndObject()
+
+		jw.BeginObjectField("datapoints")
+		jw.BeginArray()
+		for i := 0; i < s.Len(); i++ {
+			dp := s.Values().DatapointAt(i)
+			jw.BeginArray()
+			jw.WriteFloat64(dp.Value)
+			jw.WriteInt(int(dp.Timestamp.Unix()))
+			jw.EndArray()
+		}
+		jw.EndArray()
+
+		jw.BeginObjectField("step_size_ms")
+		jw.WriteInt(int(params.Step.Seconds() * 1000))
+
+		jw.EndObject()
+	}
+
+	jw.EndArray()
 	jw.Close()
 }

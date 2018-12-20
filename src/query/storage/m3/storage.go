@@ -93,6 +93,15 @@ func (s *m3storage) FetchBlocks(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (block.Result, error) {
+	if !options.UseIterators {
+		fetchResult, err := s.Fetch(ctx, query, options)
+		if err != nil {
+			return block.Result{}, err
+		}
+
+		return storage.FetchResultToBlockResult(fetchResult, query)
+	}
+
 	raw, _, err := s.FetchCompressed(ctx, query, options)
 	if err != nil {
 		return block.Result{}, err

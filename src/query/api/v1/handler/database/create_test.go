@@ -243,7 +243,7 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 							"blockDataExpiry": true,
 							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
 						},
-						"snapshotEnabled": false,
+						"snapshotEnabled": true,
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"

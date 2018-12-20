@@ -32,11 +32,12 @@ import (
 
 // PhysicalPlan represents the physical plan
 type PhysicalPlan struct {
-	steps      map[parser.NodeID]LogicalStep
-	pipeline   []parser.NodeID // Ordered list of steps to be performed
-	ResultStep ResultOp
-	TimeSpec   transform.TimeSpec
-	Debug      bool
+	steps        map[parser.NodeID]LogicalStep
+	pipeline     []parser.NodeID // Ordered list of steps to be performed
+	ResultStep   ResultOp
+	TimeSpec     transform.TimeSpec
+	Debug        bool
+	UseIterators bool
 }
 
 // ResultOp is resonsible for delivering results to the clients
@@ -59,7 +60,8 @@ func NewPhysicalPlan(lp LogicalPlan, storage storage.Storage, params models.Requ
 			Now:   params.Now,
 			Step:  params.Step,
 		},
-		Debug: params.Debug,
+		Debug:        params.Debug,
+		UseIterators: params.UseIterators,
 	}
 
 	pl, err := p.createResultNode()

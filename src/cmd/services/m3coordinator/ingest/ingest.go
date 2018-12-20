@@ -108,15 +108,15 @@ func NewIngester(
 func (i *Ingester) Ingest(
 	ctx context.Context,
 	id []byte,
-	metricTime time.Time,
+	metricNanos, encodeNanos int64,
 	value float64,
 	sp policy.StoragePolicy,
-	callback *m3msg.RefCountedCallback,
+	callback m3msg.Callbackable,
 ) {
 	op := i.p.Get().(*ingestOp)
 	op.c = ctx
 	op.id = id
-	op.metricTime = metricTime
+	op.metricNanos = metricNanos
 	op.value = value
 	op.sp = sp
 	op.callback = callback
@@ -134,13 +134,13 @@ type ingestOp struct {
 	attemptFn retry.Fn
 	ingestFn  func()
 
-	c          context.Context
-	id         []byte
-	metricTime time.Time
-	value      float64
-	sp         policy.StoragePolicy
-	callback   *m3msg.RefCountedCallback
-	q          storage.WriteQuery
+	c           context.Context
+	id          []byte
+	metricNanos int64
+	value       float64
+	sp          policy.StoragePolicy
+	callback    m3msg.Callbackable
+	q           storage.WriteQuery
 }
 
 func (op *ingestOp) sample() bool {
@@ -211,6 +211,6 @@ func (op *ingestOp) resetDataPoints() {
 	if len(op.q.Datapoints) != 1 {
 		op.q.Datapoints = make(ts.Datapoints, 1)
 	}
-	op.q.Datapoints[0].Timestamp = op.metricTime
+	op.q.Datapoints[0].Timestamp = time.Unix(0, op.metricNanos)
 	op.q.Datapoints[0].Value = op.value
 }

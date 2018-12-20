@@ -113,9 +113,12 @@ type Options interface {
 	SetInstrumentOptions(value instrument.Options) Options
 }
 
-// MessageFn processes the message. When a MessageFn was set in the
-// server, it will be called on every message received.
-type MessageFn func(m Message)
+// MessageProcessor processes the message. When a MessageProcessor was set in the
+// server, it will be called to process every message received.
+type MessageProcessor interface {
+	Process(m Message)
+	Close()
+}
 
 // ConsumeFn processes the consumer. This is useful when user want to reuse
 // resource across messages received on the same consumer or have finer level

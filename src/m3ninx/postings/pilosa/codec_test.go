@@ -31,13 +31,13 @@ import (
 
 func TestEncodeDecode(t *testing.T) {
 	b := roaring.NewPostingsList()
-	b.AddRange(postings.ID(1), postings.ID(1000))
+	require.NoError(t, b.AddRange(postings.ID(1), postings.ID(1000)))
 
 	e := NewEncoder()
 	bytes, err := e.Encode(b)
 	require.NoError(t, err)
 
-	unmarshaled, err := Unmarshal(bytes, roaring.NewPostingsList)
+	unmarshaled, err := Unmarshal(bytes)
 	require.NoError(t, err)
 
 	require.True(t, b.Equal(unmarshaled))
