@@ -27,6 +27,10 @@
     {
       "Repository": "github.com/pointlander/peg",
       "Commit": "eb55cbbebc6d419fa4fcf4baa100aa0a9ee95ec0"
+    },
+    {
+      "Repository": "github.com/golang/mock/mockgen",
+      "Commit": "51421b967af1f557f93a59e0057aaf15ca02e29c"
     }
   ],
   "RetoolVersion": "1.3.7"
