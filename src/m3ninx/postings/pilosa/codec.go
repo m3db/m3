@@ -24,6 +24,7 @@ import (
 	"bytes"
 
 	"github.com/m3db/m3/src/m3ninx/postings"
+	idxroaring "github.com/m3db/m3/src/m3ninx/postings/roaring"
 
 	"github.com/pilosa/pilosa/roaring"
 )
@@ -50,13 +51,17 @@ func (e *Encoder) Reset() {
 func (e *Encoder) Encode(pl postings.List) ([]byte, error) {
 	e.scratchBuffer.Reset()
 
-	pilosaBitmap, err := toPilosa(pl)
-	if err != nil {
-		return nil, err
+	// Optimistically try to see if we can extract from the postings list itself
+	bitmap, ok := idxroaring.BitmapFromPostingsList(pl)
+	if !ok {
+		var err error
+		bitmap, err = toPilosa(pl)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	_, err = pilosaBitmap.WriteTo(&e.scratchBuffer)
-	if err != nil {
+	if _, err := bitmap.WriteTo(&e.scratchBuffer); err != nil {
 		return nil, err
 	}
 
@@ -82,12 +87,11 @@ func toPilosa(pl postings.List) (*roaring.Bitmap, error) {
 }
 
 // Unmarshal unmarshals the provided bytes into a postings.List.
-func Unmarshal(data []byte, allocFn postings.PoolAllocateFn) (postings.List, error) {
-	b := roaring.NewBitmap()
-	if err := b.UnmarshalBinary(data); err != nil {
+func Unmarshal(data []byte) (postings.List, error) {
+	bitmap := roaring.NewBitmap()
+	err := bitmap.UnmarshalBinary(data)
+	if err != nil {
 		return nil, err
 	}
-	pl := allocFn()
-	iter := NewIterator(b.Iterator())
-	return pl, pl.AddIterator(iter)
+	return idxroaring.NewPostingsListFromBitmap(bitmap), nil
 }

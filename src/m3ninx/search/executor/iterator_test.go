@@ -38,10 +38,10 @@ func TestIterator(t *testing.T) {
 
 	// Set up Searcher.
 	firstPL := roaring.NewPostingsList()
-	firstPL.Insert(42)
-	firstPL.Insert(47)
+	require.NoError(t, firstPL.Insert(42))
+	require.NoError(t, firstPL.Insert(47))
 	secondPL := roaring.NewPostingsList()
-	firstPL.Insert(67)
+	require.NoError(t, secondPL.Insert(67))
 
 	// Set up Readers.
 	docs := []doc.Document{

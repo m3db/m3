@@ -56,7 +56,9 @@ func (s *conjunctionSearcher) Search(r index.Reader) (postings.List, error) {
 		if pl == nil {
 			pl = curr.Clone()
 		} else {
-			pl.Intersect(curr)
+			if err := pl.Intersect(curr); err != nil {
+				return nil, err
+			}
 		}
 
 		// We can break early if the interescted postings list is ever empty.
@@ -72,7 +74,9 @@ func (s *conjunctionSearcher) Search(r index.Reader) (postings.List, error) {
 		}
 
 		// TODO: Sort the iterators so that we take the set differences in order of decreasing size.
-		pl.Difference(curr)
+		if err := pl.Difference(curr); err != nil {
+			return nil, err
+		}
 
 		// We can break early if the interescted postings list is ever empty.
 		if pl.IsEmpty() {
