@@ -3,3 +3,7 @@ datasources:
     type: prometheus
     access: proxy
     url: http://prometheus01:9090
+  - name: M3Query
+    type: prometheus
+    access: proxy
+    url: http://m3coordinator01:7201
