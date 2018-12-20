@@ -393,14 +393,3 @@ func (m *cleanupManager) cleanupSnapshotsAndCommitlogs() error {
 
 	return m.deleteFilesFn(filesToDelete)
 }
-
-// TODO: Delete if unused
-func commitlogsContainPath(commitlogs []persist.CommitlogFile, path string) bool {
-	for _, f := range commitlogs {
-		if path == f.FilePath {
-			return true
-		}
-	}
-
-	return false
-}
