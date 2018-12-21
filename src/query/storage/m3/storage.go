@@ -21,6 +21,7 @@
 package m3
 
 import (
+	"bytes"
 	"context"
 	goerrors "errors"
 	"fmt"
@@ -243,24 +244,40 @@ func (s *m3storage) CompleteTags(
 	// sending results back.
 	fetchQuery := &storage.FetchQuery{
 		TagMatchers: query.TagMatchers,
+		// NB: complete tags matches every tag from the start of time until now
+		Start: time.Time{},
+		End:   time.Now(),
 	}
 
 	results, cleanup, err := s.SearchCompressed(ctx, fetchQuery, options)
 	defer cleanup()
-
 	if err != nil {
 		return nil, err
 	}
 
 	accumulatedTags := storage.NewCompleteTagsResultBuilder(query.CompleteNameOnly)
 	for _, elem := range results {
-		tags := make([]storage.CompletedTag, 0, elem.Iter.Len())
-		for i := 0; elem.Iter.Next(); i++ {
-			tag := elem.Iter.Current()
-			tags[i] = storage.CompletedTag{
-				Name:   tag.Name.Bytes(),
-				Values: [][]byte{tag.Value.Bytes()},
+		it := elem.Iter
+		tags := make([]storage.CompletedTag, 0, it.Len())
+		for i := 0; it.Next(); i++ {
+			tag := it.Current()
+			name := tag.Name.Bytes()
+			found := false
+			for _, filterName := range query.FilterNameTags {
+				if bytes.Equal(filterName, name) {
+					found = true
+					break
+				}
 			}
+
+			if !found {
+				continue
+			}
+
+			tags = append(tags, storage.CompletedTag{
+				Name:   name,
+				Values: [][]byte{tag.Value.Bytes()},
+			})
 		}
 
 		if err := elem.Iter.Err(); err != nil {
