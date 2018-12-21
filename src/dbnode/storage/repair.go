@@ -330,7 +330,7 @@ func (r *dbRepairer) namespaceRepairTimeRanges(ns databaseNamespace) xtime.Range
 		rtopts    = ns.Options().RetentionOptions()
 		blockSize = rtopts.BlockSize()
 		start     = now.Add(-rtopts.RetentionPeriod()).Truncate(blockSize)
-		end       = now.Add(-rtopts.BufferPast()).Truncate(blockSize)
+		end       = now.Add(rtopts.FutureRetentionPeriod()).Add(-rtopts.BufferPast()).Truncate(blockSize)
 	)
 
 	targetRanges := xtime.NewRanges(xtime.Range{Start: start, End: end})

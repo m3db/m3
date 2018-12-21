@@ -78,12 +78,13 @@ type nsIndex struct {
 
 	// all the vars below this line are not modified past the ctor
 	// and don't require a lock when being accessed.
-	nowFn             clock.NowFn
-	blockSize         time.Duration
-	retentionPeriod   time.Duration
-	bufferPast        time.Duration
-	bufferFuture      time.Duration
-	coldWritesEnabled bool
+	nowFn                 clock.NowFn
+	blockSize             time.Duration
+	retentionPeriod       time.Duration
+	futureRetentionPeriod time.Duration
+	bufferPast            time.Duration
+	bufferFuture          time.Duration
+	coldWritesEnabled     bool
 
 	indexFilesetsBeforeFn indexFilesetsBeforeFn
 	deleteFilesFn         deleteFilesFn
@@ -242,12 +243,13 @@ func newNamespaceIndexWithOptions(
 			blocksByTime: make(map[xtime.UnixNano]index.Block),
 		},
 
-		nowFn:             nowFn,
-		blockSize:         nsMD.Options().IndexOptions().BlockSize(),
-		retentionPeriod:   nsMD.Options().RetentionOptions().RetentionPeriod(),
-		bufferPast:        nsMD.Options().RetentionOptions().BufferPast(),
-		bufferFuture:      nsMD.Options().RetentionOptions().BufferFuture(),
-		coldWritesEnabled: nsMD.Options().ColdWritesEnabled(),
+		nowFn:                 nowFn,
+		blockSize:             nsMD.Options().IndexOptions().BlockSize(),
+		retentionPeriod:       nsMD.Options().RetentionOptions().RetentionPeriod(),
+		futureRetentionPeriod: nsMD.Options().RetentionOptions().FutureRetentionPeriod(),
+		bufferPast:            nsMD.Options().RetentionOptions().BufferPast(),
+		bufferFuture:          nsMD.Options().RetentionOptions().BufferFuture(),
+		coldWritesEnabled:     nsMD.Options().ColdWritesEnabled(),
 
 		indexFilesetsBeforeFn: fs.IndexFileSetsBefore,
 		deleteFilesFn:         fs.DeleteFiles,
