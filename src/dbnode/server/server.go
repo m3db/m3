@@ -637,6 +637,13 @@ func interrupt() <-chan os.Signal {
 }
 
 func bgValidateProcessLimits(logger xlog.Logger) {
+	// If unable to validate process limits on the current configuration,
+	// do not run background validator task.
+	if canValidate, message := canValidateProcessLimits(); !canValidate {
+		logger.Warnf(`cannot validate process limits: invalid configuration found [%v]`, message)
+		return
+	}
+
 	start := time.Now()
 	t := time.NewTicker(bgProcessLimitInterval)
 	defer t.Stop()
