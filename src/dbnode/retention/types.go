@@ -38,6 +38,14 @@ type Options interface {
 	// RetentionPeriod returns how long we intend to keep data in memory
 	RetentionPeriod() time.Duration
 
+	// SetFutureRetentionPeriod sets how long we intend to keep data in memory
+	// in the future if cold writes are enabled
+	SetFutureRetentionPeriod(value time.Duration) Options
+
+	// FutureRetentionPeriod returns how long we intend to keep data in memory
+	// in the future if cold writes are enabled
+	FutureRetentionPeriod() time.Duration
+
 	// SetBlockSize sets the blockSize
 	SetBlockSize(value time.Duration) Options
 
