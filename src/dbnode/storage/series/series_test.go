@@ -330,12 +330,12 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	b := block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(blockStart)
 	b.EXPECT().Close()
-	series.blocks.AddBlock(b)
+	series.cachedBlocks.AddBlock(b)
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
-	series.blocks.AddBlock(b)
-	require.Equal(t, blockStart, series.blocks.MinTime())
-	require.Equal(t, 2, series.blocks.Len())
+	series.cachedBlocks.AddBlock(b)
+	require.Equal(t, blockStart, series.cachedBlocks.MinTime())
+	require.Equal(t, 2, series.cachedBlocks.Len())
 	buffer := NewMockdatabaseBuffer(ctrl)
 	series.buffer = buffer
 	buffer.EXPECT().Tick().Return(bufferTickResult{})
@@ -345,9 +345,9 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	require.Equal(t, 2, r.ActiveBlocks)
 	require.Equal(t, 2, r.WiredBlocks)
 	require.Equal(t, 1, r.MadeExpiredBlocks)
-	require.Equal(t, 1, series.blocks.Len())
-	require.Equal(t, curr, series.blocks.MinTime())
-	_, exists := series.blocks.AllBlocks()[xtime.ToUnixNano(curr)]
+	require.Equal(t, 1, series.cachedBlocks.Len())
+	require.Equal(t, curr, series.cachedBlocks.MinTime())
+	_, exists := series.cachedBlocks.AllBlocks()[xtime.ToUnixNano(curr)]
 	require.True(t, exists)
 }
 
@@ -376,7 +376,7 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	b.EXPECT().LastReadTime().Return(
 		curr.Add(-opts.RetentionOptions().BlockDataExpiryAfterNotAccessedPeriod() / 2))
 	b.EXPECT().HasMergeTarget().Return(true)
-	series.blocks.AddBlock(b)
+	series.cachedBlocks.AddBlock(b)
 
 	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(true)
 
@@ -391,7 +391,7 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	b.EXPECT().LastReadTime().Return(
 		curr.Add(-opts.RetentionOptions().BlockDataExpiryAfterNotAccessedPeriod() * 2))
 	b.EXPECT().Close().Return()
-	series.blocks.AddBlock(b)
+	series.cachedBlocks.AddBlock(b)
 
 	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(true)
 
@@ -404,7 +404,7 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
 	b.EXPECT().HasMergeTarget().Return(true)
-	series.blocks.AddBlock(b)
+	series.cachedBlocks.AddBlock(b)
 	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(false)
 
 	tickResult, err = series.Tick()
@@ -437,7 +437,7 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	b := block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
 	b.EXPECT().HasMergeTarget().Return(true)
-	series.blocks.AddBlock(b)
+	series.cachedBlocks.AddBlock(b)
 
 	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(true)
 
@@ -450,21 +450,21 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
 	b.EXPECT().HasMergeTarget().Return(true)
-	series.blocks.AddBlock(b)
+	series.cachedBlocks.AddBlock(b)
 	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(false)
 
 	// Test case where block was retrieved from disk and is out of retention. Will be removed, but not closed.
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr.Add(-2 * retentionPeriod))
-	series.blocks.AddBlock(b)
-	_, expiredBlockExists := series.blocks.BlockAt(curr.Add(-2 * retentionPeriod))
+	series.cachedBlocks.AddBlock(b)
+	_, expiredBlockExists := series.cachedBlocks.BlockAt(curr.Add(-2 * retentionPeriod))
 	require.Equal(t, true, expiredBlockExists)
 
 	tickResult, err = series.Tick()
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
 	require.Equal(t, 1, tickResult.PendingMergeBlocks)
-	_, expiredBlockExists = series.blocks.BlockAt(curr.Add(-2 * retentionPeriod))
+	_, expiredBlockExists = series.cachedBlocks.BlockAt(curr.Add(-2 * retentionPeriod))
 	require.Equal(t, false, expiredBlockExists)
 }
 
@@ -491,7 +491,7 @@ func TestSeriesTickCacheNone(t *testing.T) {
 	b := block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
 	b.EXPECT().Close().Return()
-	series.blocks.AddBlock(b)
+	series.cachedBlocks.AddBlock(b)
 	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(true)
 
 	tickResult, err := series.Tick()
@@ -503,7 +503,7 @@ func TestSeriesTickCacheNone(t *testing.T) {
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
 	b.EXPECT().HasMergeTarget().Return(true)
-	series.blocks.AddBlock(b)
+	series.cachedBlocks.AddBlock(b)
 	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(false)
 
 	tickResult, err = series.Tick()
@@ -546,7 +546,7 @@ func TestSeriesFetchBlocks(t *testing.T) {
 	_, err := series.Bootstrap(nil)
 	assert.NoError(t, err)
 
-	series.blocks = blocks
+	series.cachedBlocks = blocks
 	series.buffer = buffer
 	res, err := series.FetchBlocks(ctx, starts)
 	require.NoError(t, err)
@@ -608,7 +608,7 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 	assert.NoError(t, err)
 	mockBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
 	mockBlocks.EXPECT().AllBlocks().Return(blocks)
-	series.blocks = mockBlocks
+	series.cachedBlocks = mockBlocks
 	series.buffer = buffer
 
 	res, err := series.FetchBlocksMetadata(ctx, start, end, fetchOpts)
@@ -779,7 +779,7 @@ func TestSeriesCloseNonCacheLRUPolicy(t *testing.T) {
 	diskBlock.EXPECT().Close()
 	blocks.AddBlock(diskBlock)
 
-	series.blocks = blocks
+	series.cachedBlocks = blocks
 	series.Close()
 }
 
@@ -803,6 +803,6 @@ func TestSeriesCloseCacheLRUPolicy(t *testing.T) {
 	nonDiskBlock.EXPECT().StartTime().Return(start.Add(opts.RetentionOptions().BlockSize())).AnyTimes()
 	blocks.AddBlock(nonDiskBlock)
 
-	series.blocks = blocks
+	series.cachedBlocks = blocks
 	series.Close()
 }
