@@ -62,7 +62,7 @@ type dbSeries struct {
 	tags ident.Tags
 
 	buffer                      databaseBuffer
-	blocks                      block.DatabaseSeriesBlocks
+	cachedBlocks                block.DatabaseSeriesBlocks
 	bs                          bootstrapState
 	blockRetriever              QueryableBlockRetriever
 	onRetrieveBlock             block.OnRetrieveBlock
@@ -88,8 +88,8 @@ func newPooledDatabaseSeries(pool DatabaseSeriesPool) DatabaseSeries {
 // object prior to use.
 func newDatabaseSeries() *dbSeries {
 	series := &dbSeries{
-		blocks: block.NewDatabaseSeriesBlocks(0),
-		bs:     bootstrapNotStarted,
+		cachedBlocks: block.NewDatabaseSeriesBlocks(0),
+		bs:           bootstrapNotStarted,
 	}
 	series.buffer = newDatabaseBuffer()
 	return series
@@ -155,10 +155,10 @@ func (s *dbSeries) updateBlocksWithLock() (updateBlocksResult, error) {
 		expireCutoff = now.Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
 		wiredTimeout = ropts.BlockDataExpiryAfterNotAccessedPeriod()
 	)
-	for startNano, currBlock := range s.blocks.AllBlocks() {
+	for startNano, currBlock := range s.cachedBlocks.AllBlocks() {
 		start := startNano.ToTime()
 		if start.Before(expireCutoff) {
-			s.blocks.RemoveBlockAt(start)
+			s.cachedBlocks.RemoveBlockAt(start)
 			// If we're using the LRU policy and the block was retrieved from disk,
 			// then don't close the block because that is the WiredList's
 			// responsibility. The block will hang around the WiredList until
@@ -222,7 +222,7 @@ func (s *dbSeries) updateBlocksWithLock() (updateBlocksResult, error) {
 
 		if shouldUnwire {
 			// Remove the block and it will be looked up later
-			s.blocks.RemoveBlockAt(start)
+			s.cachedBlocks.RemoveBlockAt(start)
 			currBlock.Close()
 			unwired = true
 			result.madeUnwiredBlocks++
@@ -247,7 +247,7 @@ func (s *dbSeries) updateBlocksWithLock() (updateBlocksResult, error) {
 
 func (s *dbSeries) IsEmpty() bool {
 	s.RLock()
-	blocksLen := s.blocks.Len()
+	blocksLen := s.cachedBlocks.Len()
 	bufferEmpty := s.buffer.IsEmpty()
 	s.RUnlock()
 	if blocksLen == 0 && bufferEmpty {
@@ -258,7 +258,7 @@ func (s *dbSeries) IsEmpty() bool {
 
 func (s *dbSeries) NumActiveBlocks() int {
 	s.RLock()
-	value := s.blocks.Len() + s.buffer.Stats().wiredBlocks
+	value := s.cachedBlocks.Len() + s.buffer.Stats().wiredBlocks
 	s.RUnlock()
 	return value
 }
@@ -290,7 +290,7 @@ func (s *dbSeries) ReadEncoded(
 ) ([][]xio.BlockReader, error) {
 	s.RLock()
 	reader := NewReaderUsingRetriever(s.id, s.blockRetriever, s.onRetrieveBlock, s, s.opts)
-	r, err := reader.readersWithBlocksMapAndBuffer(ctx, start, end, s.blocks, s.buffer)
+	r, err := reader.readersWithBlocksMapAndBuffer(ctx, start, end, s.cachedBlocks, s.buffer)
 	s.RUnlock()
 	return r, err
 }
@@ -305,7 +305,7 @@ func (s *dbSeries) FetchBlocks(
 		id:         s.id,
 		retriever:  s.blockRetriever,
 		onRetrieve: s.onRetrieveBlock,
-	}.fetchBlocksWithBlocksMapAndBuffer(ctx, starts, s.blocks, s.buffer)
+	}.fetchBlocksWithBlocksMapAndBuffer(ctx, starts, s.cachedBlocks, s.buffer)
 	s.RUnlock()
 	return r, err
 }
@@ -321,7 +321,7 @@ func (s *dbSeries) FetchBlocksMetadata(
 	s.RLock()
 	defer s.RUnlock()
 
-	blocks := s.blocks.AllBlocks()
+	blocks := s.cachedBlocks.AllBlocks()
 
 	for tNano, b := range blocks {
 		t := tNano.ToTime()
@@ -381,7 +381,7 @@ func (s *dbSeries) FetchBlocksMetadata(
 
 func (s *dbSeries) addBlockWithLock(b block.DatabaseBlock) {
 	b.SetOnEvictedFromWiredList(s.blockOnEvictedFromWiredList)
-	s.blocks.AddBlock(b)
+	s.cachedBlocks.AddBlock(b)
 }
 
 func (s *dbSeries) Bootstrap(bootstrappedBlocks block.DatabaseSeriesBlocks) (BootstrapResult, error) {
@@ -484,7 +484,7 @@ func (s *dbSeries) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 		return
 	}
 
-	s.blocks.RemoveBlockAt(blockStart)
+	s.cachedBlocks.RemoveBlockAt(blockStart)
 }
 
 func (s *dbSeries) Flush(
@@ -554,13 +554,13 @@ func (s *dbSeries) Close() {
 		// be evicted and closed by the WiredList when it needs to make room
 		// for new blocks.
 	default:
-		s.blocks.RemoveAll()
+		s.cachedBlocks.RemoveAll()
 	}
 
 	// Reset (not close) underlying resources because the series will go
 	// back into the pool and be re-used.
 	s.buffer.Reset(s.blockRetriever, s.opts)
-	s.blocks.Reset()
+	s.cachedBlocks.Reset()
 
 	if s.pool != nil {
 		s.pool.Put(s)
@@ -596,7 +596,7 @@ func (s *dbSeries) Reset(
 	s.id = id
 	s.tags = tags
 
-	s.blocks.Reset()
+	s.cachedBlocks.Reset()
 	s.buffer.Reset(blockRetriever, opts)
 	s.opts = opts
 	s.bs = bootstrapNotStarted
