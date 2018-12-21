@@ -34,6 +34,10 @@ const (
 	maxSwappiness = 1
 )
 
+func canValidateProcessLimits() (bool, string) {
+	return xos.CanGetProcessLimits()
+}
+
 func validateProcessLimits() error {
 	limits, err := xos.GetProcessLimits()
 	if err != nil {
