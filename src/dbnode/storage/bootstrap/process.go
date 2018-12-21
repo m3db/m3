@@ -287,10 +287,11 @@ func (b bootstrapProcess) targetRangesForData(
 	ropts retention.Options,
 ) []TargetRange {
 	return b.targetRanges(at, targetRangesOptions{
-		retentionPeriod: ropts.RetentionPeriod(),
-		blockSize:       ropts.BlockSize(),
-		bufferPast:      ropts.BufferPast(),
-		bufferFuture:    ropts.BufferFuture(),
+		retentionPeriod:       ropts.RetentionPeriod(),
+		futureRetentionPeriod: ropts.FutureRetentionPeriod(),
+		blockSize:             ropts.BlockSize(),
+		bufferPast:            ropts.BufferPast(),
+		bufferFuture:          ropts.BufferFuture(),
 	})
 }
 
@@ -300,18 +301,20 @@ func (b bootstrapProcess) targetRangesForIndex(
 	idxopts namespace.IndexOptions,
 ) []TargetRange {
 	return b.targetRanges(at, targetRangesOptions{
-		retentionPeriod: ropts.RetentionPeriod(),
-		blockSize:       idxopts.BlockSize(),
-		bufferPast:      ropts.BufferPast(),
-		bufferFuture:    ropts.BufferFuture(),
+		retentionPeriod:       ropts.RetentionPeriod(),
+		futureRetentionPeriod: ropts.FutureRetentionPeriod(),
+		blockSize:             idxopts.BlockSize(),
+		bufferPast:            ropts.BufferPast(),
+		bufferFuture:          ropts.BufferFuture(),
 	})
 }
 
 type targetRangesOptions struct {
-	retentionPeriod time.Duration
-	blockSize       time.Duration
-	bufferPast      time.Duration
-	bufferFuture    time.Duration
+	retentionPeriod       time.Duration
+	futureRetentionPeriod time.Duration
+	blockSize             time.Duration
+	bufferPast            time.Duration
+	bufferFuture          time.Duration
 }
 
 func (b bootstrapProcess) targetRanges(

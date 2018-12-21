@@ -90,14 +90,15 @@ func (o *options) Validate() error {
 		return nil
 	}
 	var (
-		retention      = o.retentionOpts.RetentionPeriod()
-		dataBlockSize  = o.retentionOpts.BlockSize()
-		indexBlockSize = o.indexOpts.BlockSize()
+		retention       = o.retentionOpts.RetentionPeriod()
+		futureRetention = o.retentionOpts.FutureRetentionPeriod()
+		dataBlockSize   = o.retentionOpts.BlockSize()
+		indexBlockSize  = o.indexOpts.BlockSize()
 	)
 	if indexBlockSize <= 0 {
 		return errIndexBlockSizePositive
 	}
-	if retention < indexBlockSize {
+	if retention+futureRetention < indexBlockSize {
 		return errIndexBlockSizeTooLarge
 	}
 	if indexBlockSize%dataBlockSize != 0 {

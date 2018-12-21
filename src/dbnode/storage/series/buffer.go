@@ -125,10 +125,11 @@ type dbBuffer struct {
 	bucketsPool  *bucketVersionsPool
 	bucketPool   *dbBufferBucketPool
 
-	blockSize         time.Duration
-	bufferPast        time.Duration
-	bufferFuture      time.Duration
-	coldWritesEnabled bool
+	blockSize             time.Duration
+	bufferPast            time.Duration
+	bufferFuture          time.Duration
+	coldWritesEnabled     bool
+	futureRetentionPeriod time.Duration
 }
 
 // NB(prateek): databaseBuffer.Reset(...) must be called upon the returned
@@ -153,6 +154,7 @@ func (b *dbBuffer) Reset(blockRetriever QueryableBlockRetriever, opts Options) {
 	b.bufferPast = ropts.BufferPast()
 	b.bufferFuture = ropts.BufferFuture()
 	b.coldWritesEnabled = opts.ColdWritesEnabled()
+	b.futureRetentionPeriod = ropts.FutureRetentionPeriod()
 }
 
 func (b *dbBuffer) Write(
@@ -163,13 +165,20 @@ func (b *dbBuffer) Write(
 	annotation []byte,
 	wopts WriteOptions,
 ) error {
+	now := b.nowFn()
 	wType := wopts.WriteType
 	if wType == UndefinedWriteType {
-		wType = b.writeType(timestamp, b.nowFn())
+		wType = b.writeType(timestamp, now)
 	}
 
-	if wType == ColdWrite && !b.coldWritesEnabled {
-		return m3dberrors.ErrColdWritesNotEnabled
+	if wType == ColdWrite {
+		if !b.coldWritesEnabled {
+			return m3dberrors.ErrColdWritesNotEnabled
+		}
+
+		if now.Add(b.futureRetentionPeriod).Before(timestamp) {
+			return m3dberrors.ErrWriteTooFuture
+		}
 	}
 
 	blockStart := timestamp.Truncate(b.blockSize)

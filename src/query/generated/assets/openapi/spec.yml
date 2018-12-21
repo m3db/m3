@@ -683,10 +683,15 @@ definitions:
         type: "boolean"
       indexOptions:
         $ref: "#/definitions/IndexOptions"
+      coldWritesEnabled:
+        type: "boolean"
   RetentionOptions:
     type: "object"
     properties:
       retentionPeriodNanos:
+        type: "integer"
+        format: "int64"
+      futureRetentionPeriodNanos:
         type: "integer"
         format: "int64"
       blockSizeNanos:

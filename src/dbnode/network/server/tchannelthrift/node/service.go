@@ -555,7 +555,8 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 	// Preallocate starts to maximum size since at least one element will likely
 	// be fetching most blocks for peer bootstrapping
 	ropts := nsMetadata.Options().RetentionOptions()
-	blockStarts := make([]time.Time, 0, ropts.RetentionPeriod()/ropts.BlockSize())
+	blockStarts := make([]time.Time, 0,
+		(ropts.RetentionPeriod()+ropts.FutureRetentionPeriod())/ropts.BlockSize())
 
 	for i, request := range req.Elements {
 		blockStarts = blockStarts[:0]

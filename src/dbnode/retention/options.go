@@ -29,6 +29,10 @@ const (
 	// defaultRetentionPeriod is how long we keep data in memory by default.
 	defaultRetentionPeriod = 2 * 24 * time.Hour
 
+	// defaultFutureRetentionPeriod is how long we keep data in memory in the
+	// future (if cold writes are enabled) by default.
+	defaultFutureRetentionPeriod = defaultRetentionPeriod
+
 	// defaultBlockSize is the default block size
 	defaultBlockSize = 2 * time.Hour
 
@@ -56,6 +60,7 @@ var (
 
 type options struct {
 	retentionPeriod                  time.Duration
+	futureRetentionPeriod            time.Duration
 	blockSize                        time.Duration
 	bufferFuture                     time.Duration
 	bufferPast                       time.Duration
@@ -67,6 +72,7 @@ type options struct {
 func NewOptions() Options {
 	return &options{
 		retentionPeriod:                  defaultRetentionPeriod,
+		futureRetentionPeriod:            defaultFutureRetentionPeriod,
 		blockSize:                        defaultBlockSize,
 		bufferFuture:                     defaultBufferFuture,
 		bufferPast:                       defaultBufferPast,
@@ -99,6 +105,7 @@ func (o *options) Validate() error {
 
 func (o *options) Equal(value Options) bool {
 	return o.retentionPeriod == value.RetentionPeriod() &&
+		o.futureRetentionPeriod == value.FutureRetentionPeriod() &&
 		o.blockSize == value.BlockSize() &&
 		o.bufferFuture == value.BufferFuture() &&
 		o.bufferPast == value.BufferPast() &&
@@ -114,6 +121,16 @@ func (o *options) SetRetentionPeriod(value time.Duration) Options {
 
 func (o *options) RetentionPeriod() time.Duration {
 	return o.retentionPeriod
+}
+
+func (o *options) SetFutureRetentionPeriod(value time.Duration) Options {
+	opts := *o
+	opts.futureRetentionPeriod = value
+	return &opts
+}
+
+func (o *options) FutureRetentionPeriod() time.Duration {
+	return o.futureRetentionPeriod
 }
 
 func (o *options) SetBlockSize(value time.Duration) Options {
