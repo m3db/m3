@@ -253,7 +253,7 @@ func (l *commitLog) Open() error {
 	defer l.closedState.Unlock()
 
 	// Open the buffered commit log writer
-	if _, err := l.openWriter(l.nowFn()); err != nil {
+	if _, err := l.openWriter(); err != nil {
 		return err
 	}
 
@@ -429,8 +429,7 @@ func (l *commitLog) write() {
 
 		isRotateLogsEvent := write.eventType == rotateLogsEventType
 		if isRotateLogsEvent {
-			now := l.nowFn()
-			file, err := l.openWriter(now)
+			file, err := l.openWriter()
 			if err != nil {
 				l.metrics.errors.Inc(1)
 				l.metrics.openErrors.Inc(1)
@@ -539,7 +538,7 @@ func (l *commitLog) onFlush(err error) {
 }
 
 // writerState lock must be held for the duration of this function call.
-func (l *commitLog) openWriter(now time.Time) (persist.CommitlogFile, error) {
+func (l *commitLog) openWriter() (persist.CommitlogFile, error) {
 	if l.writerState.writer != nil {
 		if err := l.writerState.writer.Close(); err != nil {
 			l.metrics.closeErrors.Inc(1)
