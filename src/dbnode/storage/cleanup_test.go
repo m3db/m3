@@ -42,12 +42,11 @@ import (
 )
 
 var (
-	currentTime        = timeFor(50)
-	time10             = timeFor(10)
-	time20             = timeFor(20)
-	time30             = timeFor(30)
-	time40             = timeFor(40)
-	commitLogBlockSize = 10 * time.Second
+	currentTime = timeFor(50)
+	time10      = timeFor(10)
+	time20      = timeFor(20)
+	time30      = timeFor(30)
+	time40      = timeFor(40)
 )
 
 func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
@@ -483,10 +482,9 @@ func TestCleanupManagerPropagatesGetOwnedNamespacesError(t *testing.T) {
 
 type testCaseCleanupMgrNsBlocks struct {
 	// input
-	id                     string
-	nsRetention            testRetentionOptions
-	commitlogBlockSizeSecs int64
-	blockStartSecs         int64
+	id             string
+	nsRetention    testRetentionOptions
+	blockStartSecs int64
 	// output
 	expectedStartSecs int64
 	expectedEndSecs   int64

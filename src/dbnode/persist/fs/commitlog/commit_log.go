@@ -126,9 +126,8 @@ func (f *flushState) getLastFlushAt() time.Time {
 }
 
 type writerState struct {
-	writer         commitLogWriter
-	writerExpireAt time.Time
-	activeFile     *persist.CommitlogFile
+	writer     commitLogWriter
+	activeFile *persist.CommitlogFile
 }
 
 type closedState struct {
@@ -555,16 +554,12 @@ func (l *commitLog) openWriter(now time.Time) (persist.CommitlogFile, error) {
 		l.writerState.writer = l.newCommitLogWriterFn(l.onFlush, l.opts)
 	}
 
-	blockSize := l.opts.BlockSize()
-	start := now.Truncate(blockSize)
-
-	file, err := l.writerState.writer.Open(start)
+	file, err := l.writerState.writer.Open()
 	if err != nil {
 		return persist.CommitlogFile{}, err
 	}
 
 	l.writerState.activeFile = &file
-	l.writerState.writerExpireAt = start.Add(blockSize)
 
 	return file, nil
 }

@@ -101,12 +101,6 @@ type testOptions interface {
 	// NamespaceInitializer returns the namespace initializer
 	NamespaceInitializer() namespace.Initializer
 
-	// SetCommitLogBlockSize sets the commit log block size
-	SetCommitLogBlockSize(value time.Duration) testOptions
-
-	// CommitLogBlockSize returns the commit log block size
-	CommitLogBlockSize() time.Duration
-
 	// SetID sets the node ID.
 	SetID(value string) testOptions
 
@@ -274,7 +268,6 @@ type testOptions interface {
 type options struct {
 	namespaces                         []namespace.Metadata
 	nsInitializer                      namespace.Initializer
-	commitlogBlockSize                 time.Duration
 	id                                 string
 	tickMinimumInterval                time.Duration
 	httpClusterAddr                    string
@@ -316,7 +309,6 @@ func newTestOptions(t *testing.T) testOptions {
 
 	return &options{
 		namespaces:                     namespaces,
-		commitlogBlockSize:             defaultIntegrationTestRetentionOpts.BlockSize(),
 		id:                             defaultID,
 		tickMinimumInterval:            defaultTickMinimumInterval,
 		serverStateChangeTimeout:       defaultServerStateChangeTimeout,
@@ -355,16 +347,6 @@ func (o *options) SetNamespaceInitializer(value namespace.Initializer) testOptio
 
 func (o *options) NamespaceInitializer() namespace.Initializer {
 	return o.nsInitializer
-}
-
-func (o *options) SetCommitLogBlockSize(value time.Duration) testOptions {
-	opts := *o
-	opts.commitlogBlockSize = value
-	return &opts
-}
-
-func (o *options) CommitLogBlockSize() time.Duration {
-	return o.commitlogBlockSize
 }
 
 func (o *options) SetID(value string) testOptions {

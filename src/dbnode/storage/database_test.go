@@ -63,10 +63,9 @@ var (
 					SetBlockSize(2 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
 	defaultTestNs2RetentionOpts = retention.NewOptions().SetBufferFuture(10 * time.Minute).SetBufferPast(10 * time.Minute).
 					SetBlockSize(4 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
-	defaultTestCommitlogBlockSize = 2 * time.Hour
-	defaultTestNs1Opts            = namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts)
-	defaultTestNs2Opts            = namespace.NewOptions().SetRetentionOptions(defaultTestNs2RetentionOpts)
-	defaultTestDatabaseOptions    Options
+	defaultTestNs1Opts         = namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts)
+	defaultTestNs2Opts         = namespace.NewOptions().SetRetentionOptions(defaultTestNs2RetentionOpts)
+	defaultTestDatabaseOptions Options
 )
 
 func init() {
@@ -89,8 +88,7 @@ func init() {
 		SetSeriesCachePolicy(series.CacheAll).
 		SetPersistManager(pm).
 		SetRepairEnabled(false).
-		SetCommitLogOptions(opts.CommitLogOptions().
-			SetBlockSize(defaultTestCommitlogBlockSize))
+		SetCommitLogOptions(opts.CommitLogOptions())
 }
 
 type nsMapCh chan namespace.Map

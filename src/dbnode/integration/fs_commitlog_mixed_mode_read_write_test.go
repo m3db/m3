@@ -50,10 +50,9 @@ func TestFsCommitLogMixedModeReadWrite(t *testing.T) {
 	}
 	// Test setup
 	var (
-		commitLogBlockSize = 15 * time.Minute
-		ns1BlockSize       = 1 * time.Hour
-		ns1ROpts           = retention.NewOptions().SetRetentionPeriod(3 * time.Hour).SetBlockSize(ns1BlockSize)
-		nsID               = testNamespaces[0]
+		ns1BlockSize = 1 * time.Hour
+		ns1ROpts     = retention.NewOptions().SetRetentionPeriod(3 * time.Hour).SetBlockSize(ns1BlockSize)
+		nsID         = testNamespaces[0]
 	)
 
 	ns1Opts := namespace.NewOptions().
@@ -61,7 +60,6 @@ func TestFsCommitLogMixedModeReadWrite(t *testing.T) {
 	ns1, err := namespace.NewMetadata(nsID, ns1Opts)
 	require.NoError(t, err)
 	opts := newTestOptions(t).
-		SetCommitLogBlockSize(commitLogBlockSize).
 		SetNamespaces([]namespace.Metadata{ns1})
 
 	// Test setup

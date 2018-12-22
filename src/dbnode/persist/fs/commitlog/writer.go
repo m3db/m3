@@ -26,7 +26,6 @@ import (
 	"errors"
 	"io"
 	"os"
-	"time"
 
 	"github.com/m3db/bitset"
 	"github.com/m3db/m3/src/dbnode/clock"
@@ -68,7 +67,7 @@ var (
 
 type commitLogWriter interface {
 	// Open opens the commit log for writing data
-	Open(start time.Time) (persist.CommitlogFile, error)
+	Open() (persist.CommitlogFile, error)
 
 	// Write will write an entry in the commit log for a given series
 	Write(
@@ -140,7 +139,7 @@ func newCommitLogWriter(
 	}
 }
 
-func (w *writer) Open(start time.Time) (persist.CommitlogFile, error) {
+func (w *writer) Open() (persist.CommitlogFile, error) {
 	if w.isOpen() {
 		return persist.CommitlogFile{}, errCommitLogWriterAlreadyOpen
 	}

@@ -119,16 +119,12 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 				}
 			)
 
-			commitLogBlockSize := 1 * time.Minute
-			require.True(t, commitLogBlockSize < blockSize)
-
 			var (
 				fsOpts = fs.NewOptions().
 					SetFilePathPrefix(dir)
 				commitLogOpts = commitlog.NewOptions().
 						SetBlockSize(blockSize).
 						SetFilesystemOptions(fsOpts).
-						SetBlockSize(commitLogBlockSize).
 						SetStrategy(commitlog.StrategyWriteBehind).
 						SetFlushInterval(time.Millisecond).
 						SetClockOptions(commitlog.NewOptions().ClockOptions().SetNowFn(nowFn))

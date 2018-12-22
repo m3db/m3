@@ -77,7 +77,6 @@ func newTestOptions(
 		SetClockOptions(clock.NewOptions().SetNowFn(c.Now)).
 		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope)).
 		SetFilesystemOptions(fs.NewOptions().SetFilePathPrefix(dir)).
-		SetBlockSize(2 * time.Hour).
 		SetFlushSize(4096).
 		SetFlushInterval(100 * time.Millisecond).
 		SetBacklogQueueSize(1024)
@@ -154,7 +153,7 @@ func snapshotCounterValue(
 }
 
 type mockCommitLogWriter struct {
-	openFn  func(start time.Time) (persist.CommitlogFile, error)
+	openFn  func() (persist.CommitlogFile, error)
 	writeFn func(ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation) error
 	flushFn func(sync bool) error
 	closeFn func() error
@@ -162,7 +161,7 @@ type mockCommitLogWriter struct {
 
 func newMockCommitLogWriter() *mockCommitLogWriter {
 	return &mockCommitLogWriter{
-		openFn: func(start time.Time) (persist.CommitlogFile, error) {
+		openFn: func() (persist.CommitlogFile, error) {
 			return persist.CommitlogFile{}, nil
 		},
 		writeFn: func(ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation) error {
@@ -177,8 +176,8 @@ func newMockCommitLogWriter() *mockCommitLogWriter {
 	}
 }
 
-func (w *mockCommitLogWriter) Open(start time.Time) (persist.CommitlogFile, error) {
-	return w.openFn(start)
+func (w *mockCommitLogWriter) Open() (persist.CommitlogFile, error) {
+	return w.openFn()
 }
 
 func (w *mockCommitLogWriter) Write(
@@ -489,14 +488,13 @@ func TestCommitLogIteratorUsesPredicateFilter(t *testing.T) {
 		strategy: StrategyWriteWait,
 	})
 
-	blockSize := opts.BlockSize()
-	alignedStart := clock.Now().Truncate(blockSize)
+	start := clock.Now()
 
 	// Writes spaced apart by block size.
 	writes := []testWrite{
-		{testSeries(0, "foo.bar", testTags1, 127), alignedStart, 123.456, xtime.Millisecond, nil, nil},
-		{testSeries(1, "foo.baz", testTags2, 150), alignedStart.Add(1 * blockSize), 456.789, xtime.Millisecond, nil, nil},
-		{testSeries(2, "foo.qux", testTags3, 291), alignedStart.Add(2 * blockSize), 789.123, xtime.Millisecond, nil, nil},
+		{testSeries(0, "foo.bar", testTags1, 127), start, 123.456, xtime.Millisecond, nil, nil},
+		{testSeries(1, "foo.baz", testTags2, 150), start.Add(1 * time.Second), 456.789, xtime.Millisecond, nil, nil},
+		{testSeries(2, "foo.qux", testTags3, 291), start.Add(2 * time.Second), 789.123, xtime.Millisecond, nil, nil},
 	}
 	defer cleanup(t, opts)
 
@@ -643,7 +641,7 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 		return fmt.Errorf("an error")
 	}
 
-	writer.openFn = func(start time.Time) (persist.CommitlogFile, error) {
+	writer.openFn = func() (persist.CommitlogFile, error) {
 		return persist.CommitlogFile{}, nil
 	}
 
@@ -689,7 +687,7 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 	writer := newMockCommitLogWriter()
 
 	var opens int64
-	writer.openFn = func(start time.Time) (persist.CommitlogFile, error) {
+	writer.openFn = func() (persist.CommitlogFile, error) {
 		if atomic.AddInt64(&opens, 1) >= 2 {
 			return persist.CommitlogFile{}, fmt.Errorf("an error")
 		}
@@ -823,17 +821,15 @@ func TestCommitLogRotateLogs(t *testing.T) {
 	defer cleanup(t, opts)
 
 	var (
-		commitLog    = newTestCommitLog(t, opts)
-		blockSize    = opts.BlockSize()
-		alignedStart = clock.Now().Truncate(blockSize)
+		commitLog = newTestCommitLog(t, opts)
+		start     = clock.Now()
 	)
-	require.True(t, time.Second < blockSize)
 
 	// Writes spaced such that they should appear within the same commitlog block.
 	writes := []testWrite{
-		{testSeries(0, "foo.bar", testTags1, 127), alignedStart, 123.456, xtime.Millisecond, nil, nil},
-		{testSeries(1, "foo.baz", testTags2, 150), alignedStart.Add(1 * time.Second), 456.789, xtime.Millisecond, nil, nil},
-		{testSeries(2, "foo.qux", testTags3, 291), alignedStart.Add(2 * time.Second), 789.123, xtime.Millisecond, nil, nil},
+		{testSeries(0, "foo.bar", testTags1, 127), start, 123.456, xtime.Millisecond, nil, nil},
+		{testSeries(1, "foo.baz", testTags2, 150), start.Add(1 * time.Second), 456.789, xtime.Millisecond, nil, nil},
+		{testSeries(2, "foo.qux", testTags3, 291), start.Add(2 * time.Second), 789.123, xtime.Millisecond, nil, nil},
 	}
 
 	for i, write := range writes {

@@ -69,7 +69,6 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 	ns1, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ropts))
 	require.NoError(t, err)
 	opts := newTestOptions(t).
-		SetCommitLogBlockSize(blockSize).
 		SetNamespaces([]namespace.Metadata{ns1})
 
 	setup, err := newTestSetup(t, opts, nil)

@@ -89,8 +89,7 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 				var (
 					// Round to a second to prevent interactions between the RPC client
 					// and the node itself when blocksize is not rounded down to a second.
-					ns1BlockSize       = input.blockSize.Round(time.Second)
-					commitLogBlockSize = 15 * time.Minute
+					ns1BlockSize = input.blockSize.Round(time.Second)
 					// Make sure randomly generated data never falls out of retention
 					// during the course of a test.
 					retentionPeriod = maxBlockSize * 5
@@ -126,7 +125,6 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 					return false, err
 				}
 				opts := newTestOptions(t).
-					SetCommitLogBlockSize(commitLogBlockSize).
 					SetNamespaces([]namespace.Metadata{ns1}).
 					// Make sure that we're never waiting for a snapshot that doesn't occur
 					// because we haven't updated the clock.

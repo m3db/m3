@@ -351,8 +351,7 @@ func Run(runOpts RunOptions) {
 		SetFlushSize(cfg.CommitLog.FlushMaxBytes).
 		SetFlushInterval(cfg.CommitLog.FlushEvery).
 		SetBacklogQueueSize(commitLogQueueSize).
-		SetBacklogQueueChannelSize(commitLogQueueChannelSize).
-		SetBlockSize(cfg.CommitLog.BlockSize))
+		SetBacklogQueueChannelSize(commitLogQueueChannelSize))
 
 	// Set the series cache policy
 	seriesCachePolicy := cfg.Cache.SeriesConfiguration().Policy
