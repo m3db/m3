@@ -76,19 +76,24 @@ type cleanupManager struct {
 type cleanupManagerMetrics struct {
 	status                      tally.Gauge
 	corruptCommitlogFile        tally.Counter
+	corruptSnapshotFile         tally.Counter
 	corruptSnapshotMetadataFile tally.Counter
 	deletedCommitlogFile        tally.Counter
+	deletedSnapshotFile         tally.Counter
 	deletedSnapshotMetadataFile tally.Counter
 }
 
 func newCleanupManagerMetrics(scope tally.Scope) cleanupManagerMetrics {
 	clScope := scope.SubScope("commitlog")
+	sScope := scope.SubScope("snapshot")
 	smScope := scope.SubScope("snapshot-metadata")
 	return cleanupManagerMetrics{
 		status:                      scope.Gauge("cleanup"),
 		corruptCommitlogFile:        clScope.Counter("corrupt"),
+		corruptSnapshotFile:         sScope.Counter("corrupt"),
 		corruptSnapshotMetadataFile: smScope.Counter("corrupt"),
 		deletedCommitlogFile:        clScope.Counter("deleted"),
+		deletedSnapshotFile:         sScope.Counter("deleted"),
 		deletedSnapshotMetadataFile: smScope.Counter("deleted"),
 	}
 }
@@ -355,6 +360,7 @@ func (m *cleanupManager) cleanupSnapshotsAndCommitlogs() (finalErr error) {
 					// by a variety of situations, like a node crashing while writing out a set of snapshot files and should
 					// have no impact on correctness as the snapshot files from previous (successful) snapshot will still be
 					// retained.
+					m.metrics.corruptSnapshotFile.Inc(1)
 					m.opts.InstrumentOptions().Logger().WithFields(
 						xlog.NewField("err", err),
 						xlog.NewField("files", snapshot.AbsoluteFilepaths),
@@ -367,6 +373,7 @@ func (m *cleanupManager) cleanupSnapshotsAndCommitlogs() (finalErr error) {
 				if !uuid.Equal(snapshotID, mostRecentSnapshot.ID.UUID) {
 					// If the UUID of the snapshot files doesn't match the most recent snapshot
 					// then its safe to delete because it means we have a more recently complete set.
+					m.metrics.deletedSnapshotFile.Inc(1)
 					filesToDelete = append(filesToDelete, snapshot.AbsoluteFilepaths...)
 				}
 			}
