@@ -32,6 +32,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/instrument"
+	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -180,7 +182,7 @@ func (s *dbSeries) updateBlocksWithLock() (updateBlocksResult, error) {
 			// 		4) WiredList tries to close the block, not knowing that it has
 			// 		   already been closed, and re-opened / re-used leading to
 			// 		   unexpected behavior or data loss.
-			if cachePolicy == CacheLRU {
+			if cachePolicy == CacheLRU && currBlock.WasRetrievedFromDisk() {
 				// Do nothing
 			} else {
 				currBlock.Close()
@@ -213,7 +215,7 @@ func (s *dbSeries) updateBlocksWithLock() (updateBlocksResult, error) {
 				// The tick is responsible for managing the lifecycle of blocks that were not
 				// read from disk (not retrieved), and the WiredList will manage those that were
 				// retrieved from disk.
-				shouldUnwire = false
+				shouldUnwire = !currBlock.WasRetrievedFromDisk()
 			default:
 				s.opts.InstrumentOptions().Logger().Fatalf(
 					"unhandled cache policy in series tick: %s", cachePolicy)
@@ -328,7 +330,7 @@ func (s *dbSeries) FetchBlocksMetadata(
 		if !start.Before(t.Add(blockSize)) || !t.Before(end) {
 			continue
 		}
-		if !opts.IncludeCachedBlocks {
+		if !opts.IncludeCachedBlocks && b.WasRetrievedFromDisk() {
 			// Do not include cached blocks if not specified to, this is
 			// to avoid high amounts of duplication if a significant number of
 			// blocks are cached in memory when returning blocks metadata
@@ -462,16 +464,20 @@ func (s *dbSeries) OnRetrieveBlock(
 // whether the data originated from disk or buffer rotation.
 func (s *dbSeries) OnReadBlock(b block.DatabaseBlock) {
 	if list := s.opts.DatabaseBlockOptions().WiredList(); list != nil {
-		// 1) Need to update the WiredList so it knows which blocks have been
-		// most recently read.
-		// 2) We do a non-blocking update here to prevent deadlock with the
-		// WiredList calling OnEvictedFromWiredList on the same series since
-		// OnReadBlock is usually called within the context of a read lock
-		// on this series.
-		// 3) Its safe to do a non-blocking update because the wired list has
-		// already been exposed to this block, so even if the wired list drops
-		// this update, it will still manage this blocks lifecycle.
-		list.NonBlockingUpdate(b)
+		// The WiredList is only responsible for managing the lifecycle of blocks
+		// retrieved from disk.
+		if b.WasRetrievedFromDisk() {
+			// 1) Need to update the WiredList so it knows which blocks have been
+			// most recently read.
+			// 2) We do a non-blocking update here to prevent deadlock with the
+			// WiredList calling OnEvictedFromWiredList on the same series since
+			// OnReadBlock is usually called within the context of a read lock
+			// on this series.
+			// 3) Its safe to do a non-blocking update because the wired list has
+			// already been exposed to this block, so even if the wired list drops
+			// this update, it will still manage this blocks lifecycle.
+			list.NonBlockingUpdate(b)
+		}
 	}
 }
 
@@ -484,7 +490,22 @@ func (s *dbSeries) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 		return
 	}
 
-	s.cachedBlocks.RemoveBlockAt(blockStart)
+	block, ok := s.cachedBlocks.BlockAt(blockStart)
+	if ok {
+		if !block.WasRetrievedFromDisk() {
+			// Should never happen - invalid application state could cause data loss
+			instrument.EmitAndLogInvariantViolation(
+				s.opts.InstrumentOptions(), func(l xlog.Logger) {
+					l.WithFields(
+						xlog.NewField("id", id.String()),
+						xlog.NewField("blockStart", blockStart),
+					).Errorf("tried to evict block that was not retrieved from disk")
+				})
+			return
+		}
+
+		s.cachedBlocks.RemoveBlockAt(blockStart)
+	}
 }
 
 func (s *dbSeries) Flush(
@@ -551,8 +572,13 @@ func (s *dbSeries) Close() {
 	case CacheLRU:
 		// In the CacheLRU case, blocks that were retrieved from disk are owned
 		// by the WiredList and should not be closed here. They will eventually
-		// be evicted and closed by the WiredList when it needs to make room
+		// be evicted and closed by  the WiredList when it needs to make room
 		// for new blocks.
+		for _, block := range s.cachedBlocks.AllBlocks() {
+			if !block.WasRetrievedFromDisk() {
+				block.Close()
+			}
+		}
 	default:
 		s.cachedBlocks.RemoveAll()
 	}
