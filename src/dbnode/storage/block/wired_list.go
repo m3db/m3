@@ -231,7 +231,7 @@ func (l *WiredList) processUpdateBlock(v DatabaseBlock) {
 	// the updateCh even though its an update for a closed block. For the same reason, the wired list
 	// can receive blocks that were not retrieved from disk because the closed block was returned to
 	// a pool and then re-used.
-	unwireable := !entry.closed
+	unwireable := !entry.closed && entry.wasRetrievedFromDisk
 
 	// If a block is still unwireable then its worth keeping track of in the wired list
 	// so we push it back.
@@ -267,6 +267,19 @@ func (l *WiredList) insertAfter(v, at DatabaseBlock) {
 	bl := l.root.next()
 	for l.length > maxWired && bl != &l.root {
 		entry := bl.wiredListEntry()
+		if !entry.wasRetrievedFromDisk {
+			// This should never happen because processUpdateBlock performs the same
+			// check, and a block should never be pooled in-between those steps because
+			// the wired list is supposed to have sole ownership over that lifecycle and
+			// is single-threaded.
+			instrument.EmitAndLogInvariantViolation(l.iOpts, func(l xlog.Logger) {
+				l.WithFields(
+					xlog.NewField("blockStart", entry.startTime),
+					xlog.NewField("closed", entry.closed),
+					xlog.NewField("wasRetrievedFromDisk", entry.wasRetrievedFromDisk),
+				).Errorf("wired list tried to process a block that was not retrieved from disk")
+			})
+		}
 
 		// Evict the block before closing it so that callers of series.ReadEncoded()
 		// don't get errors about trying to read from a closed block.
@@ -277,6 +290,7 @@ func (l *WiredList) insertAfter(v, at DatabaseBlock) {
 					l.WithFields(
 						xlog.NewField("blockStart", entry.startTime),
 						xlog.NewField("closed", entry.closed),
+						xlog.NewField("wasRetrievedFromDisk", entry.wasRetrievedFromDisk),
 					).Errorf("wired list entry does not have seriesID set")
 				})
 			} else {
@@ -289,6 +303,16 @@ func (l *WiredList) insertAfter(v, at DatabaseBlock) {
 		// remove the block from the wired list before we close it.
 		nextBl := bl.next()
 		l.remove(bl)
+		if wasFromDisk := bl.CloseIfFromDisk(); !wasFromDisk {
+			// Should never happen
+			instrument.EmitAndLogInvariantViolation(l.iOpts, func(l xlog.Logger) {
+				l.WithFields(
+					xlog.NewField("blockStart", entry.startTime),
+					xlog.NewField("closed", entry.closed),
+					xlog.NewField("wasRetrievedFromDisk", entry.wasRetrievedFromDisk),
+				).Errorf("wired list tried to close a block that was not from disk")
+			})
+		}
 		bl.Close()
 
 		l.metrics.evicted.Inc(1)

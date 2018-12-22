@@ -76,6 +76,7 @@ func newTestUnwireableBlock(
 	bl := NewDatabaseBlock(time.Time{}, 0, segment, opts).(*dbBlock)
 	bl.Lock()
 	bl.seriesID = ident.StringID(name)
+	bl.wasRetrievedFromDisk = true
 	bl.Unlock()
 
 	return bl
