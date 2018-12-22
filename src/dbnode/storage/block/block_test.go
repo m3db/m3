@@ -394,6 +394,30 @@ func TestDatabaseBlockMergeChained(t *testing.T) {
 	}
 }
 
+func TestDatabaseBlockMergeErrorFromDisk(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Setup
+	var (
+		curr      = time.Now()
+		blockOpts = NewOptions()
+	)
+
+	// Create the two blocks we plan to merge
+	block1 := NewDatabaseBlock(curr, 0, ts.Segment{}, blockOpts).(*dbBlock)
+	block2 := NewDatabaseBlock(curr, 0, ts.Segment{}, blockOpts).(*dbBlock)
+
+	// Mark only block 2 as retrieved from disk so we can make sure it checks
+	// the block that is being merged, as well as the one that is being merged
+	// into.
+	block2.wasRetrievedFromDisk = true
+
+	require.Equal(t, false, block1.wasRetrievedFromDisk)
+	require.Equal(t, errTriedToMergeBlockFromDisk, block1.Merge(block2))
+	require.Equal(t, errTriedToMergeBlockFromDisk, block2.Merge(block1))
+}
+
 // TestDatabaseBlockChecksumMergesAndRecalculates makes sure that the Checksum method
 // will check if a lazy-merge is pending, and if so perform it and recalculate the checksum.
 func TestDatabaseBlockChecksumMergesAndRecalculates(t *testing.T) {
@@ -528,6 +552,18 @@ func TestDatabaseBlockStreamMergePerformsCopy(t *testing.T) {
 	require.NoError(t, iter.Err())
 }
 
+func TestDatabaseBlockCloseIfFromDisk(t *testing.T) {
+	var (
+		blockOpts        = NewOptions()
+		blockNotFromDisk = NewDatabaseBlock(time.Time{}, time.Hour, ts.Segment{}, blockOpts).(*dbBlock)
+		blockFromDisk    = NewDatabaseBlock(time.Time{}, time.Hour, ts.Segment{}, blockOpts).(*dbBlock)
+	)
+	blockFromDisk.wasRetrievedFromDisk = true
+
+	require.False(t, blockNotFromDisk.CloseIfFromDisk())
+	require.True(t, blockFromDisk.CloseIfFromDisk())
+}
+
 func TestDatabaseSeriesBlocksAddBlock(t *testing.T) {
 	now := time.Now()
 	blockTimes := []time.Time{now, now.Add(time.Second), now.Add(time.Minute), now.Add(-time.Second), now.Add(-time.Hour)}
@@ -659,4 +695,5 @@ func TestBlockResetFromDisk(t *testing.T) {
 	assert.Equal(t, blockSize, bl.BlockSize())
 	assert.Equal(t, segment, bl.segment)
 	assert.Equal(t, id, bl.seriesID)
+	assert.True(t, bl.WasRetrievedFromDisk())
 }
