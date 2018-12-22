@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3/src/dbnode/integration/generate"
+	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
@@ -43,6 +44,8 @@ func TestTruncateNamespace(t *testing.T) {
 	testSetup, err := newTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 	defer testSetup.close()
+
+	blockSize := namespace.NewOptions().RetentionOptions().BlockSize()
 
 	// Start the server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()
