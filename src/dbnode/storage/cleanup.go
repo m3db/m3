@@ -269,13 +269,35 @@ func (m *cleanupManager) cleanupExpiredNamespaceDataFiles(earliestToRetain time.
 	return multiErr.FinalError()
 }
 
-// TODO(rartoul): Better comment
-// List all the metadata files on disk
-// Identify the most recent one
-// Delete all snapshot files whose snapshot ID does not match the most recent id from the most recent metadata file
-// Delete all the metadata files before the most recent one
-// Delete all commitlogs before the one whose commilog we identified
-func (m *cleanupManager) cleanupSnapshotsAndCommitlogs() error {
+// The goal of the cleanupSnapshotsAndCommitlogs function is to delete all snapshots files, snapshot metadata
+// files, and commitlog files except for those that are currently required for recovery from a node failure.
+// According to the snapshotting / commitlog rotation logic, the files that are required for a complete
+// recovery are:
+//
+//     1. The most recent (highest index) snapshot metadata files.
+//     2. All snapshot files whose associated snapshot ID matches the snapshot ID of the most recent snapshot
+//        metadata file.
+//     3. All commitlog files whose index is larger than or equal to the index of the commitlog identifier stored
+//        in the most recent snapshot metadata file. This is because the snapshotting and commitlog rotation process
+//        guarantees that the most recent snapshot contains all data stored in commitlogs that were created before
+//        the rotation / snapshot process began.
+//
+// cleanupSnapshotsAndCommitlogs accomplishes this goal by performing the following steps:
+//
+//     1. List all the snapshot metadata files on disk.
+//     2. Identify the most recent one (highest index).
+//     3. For every namespace/shard/block combination, delete all snapshot files that match one of the following criteria:
+//         1. Snapshot files whose associated snapshot ID does not match the snapshot ID of the most recent
+//            snapshot metadata file.
+//         2. Snapshot files that are corrupt.
+//     4. Delete all snapshot metadata files prior to the most recent once.
+//     5. Delete corrupt snapshot metadata files.
+//     6. List all the commitlog files on disk.
+//     7. List all the commitlog files that are being actively written to.
+//     8. Delete all commitlog files whose index is lower than the index of the commitlog file referenced in the
+//        most recent snapshot metadata file (ignoring any commitlog files being actively written to.)
+//     9. Delete all corrupt commitlog files (ignoring any commitlog files being actively written to.)
+func (m *cleanupManager) cleanupSnapshotsAndCommitlogs() (finalErr error) {
 	namespaces, err := m.database.GetOwnedNamespaces()
 	if err != nil {
 		return err
@@ -287,30 +309,52 @@ func (m *cleanupManager) cleanupSnapshotsAndCommitlogs() error {
 		return err
 	}
 
+	// Assert that the snapshot metadata files are indeed sorted.
+	lastMetadataIndex := int64(-1)
+	for _, snapshotMetadata := range sortedSnapshotMetadatas {
+		currIndex := snapshotMetadata.ID.Index
+		if !(currIndex > lastMetadataIndex) {
+			// Should never happen.
+			return fmt.Errorf(
+				"snapshot metadata files are not sorted, previous index: %d, current index: %d",
+				lastMetadataIndex, currIndex)
+		}
+		lastMetadataIndex = currIndex
+	}
+
 	if len(sortedSnapshotMetadatas) == 0 {
 		// No cleanup can be performed until we have at least one complete snapshot.
 		return nil
 	}
 
 	var (
+		multiErr           = xerrors.NewMultiError()
 		filesToDelete      = []string{}
 		mostRecentSnapshot = sortedSnapshotMetadatas[len(sortedSnapshotMetadatas)-1]
 	)
+	defer func() {
+		// Use a defer to perform the final file deletion so that we can attempt to cleanup *some* files
+		// when we encounter partial errors on a best effort basis.
+		multiErr = multiErr.Add(finalErr)
+		multiErr = multiErr.Add(m.deleteFilesFn(filesToDelete))
+		finalErr = multiErr.FinalError()
+	}()
 
 	for _, ns := range namespaces {
 		for _, s := range ns.GetOwnedShards() {
-			// TODO: Need to make sure we can handle corrupt files.
 			shardSnapshots, err := m.snapshotFilesFn(fsOpts.FilePathPrefix(), ns.ID(), s.ID())
 			if err != nil {
-				// TODO: Multierr?
-				return err
+				multiErr = multiErr.Add(fmt.Errorf("err reading snapshot files for ns: %s and shard: %d, err: %v", ns.ID(), s.ID(), err))
+				continue
 			}
 
 			for _, snapshot := range shardSnapshots {
 				_, snapshotID, err := snapshot.SnapshotTimeAndID()
 				if err != nil {
-					// TODO: Comment
-					// TODO: Need to distinguish between FS error and corrupt errors
+					// If we can't parse the snapshotID, assume the snapshot is corrupt and delete it. This could be caused
+					// by a variety of situations, like a node crashing while writing out a set of snapshot files and should
+					// have no impact on correctness as the snapshot files from previous (successful) snapshot will still be
+					// retained.
 					m.opts.InstrumentOptions().Logger().WithFields(
 						xlog.NewField("err", err),
 						xlog.NewField("files", snapshot.AbsoluteFilepaths),
@@ -329,28 +373,6 @@ func (m *cleanupManager) cleanupSnapshotsAndCommitlogs() error {
 		}
 	}
 
-	// TODO: Handle active logs files (actually might not need this)
-	files, commitlogErrorsWithPaths, err := m.commitLogFilesFn(m.opts.CommitLogOptions())
-	if err != nil {
-		return err
-	}
-	activeCommitlogs, err := m.activeCommitlogs.ActiveLogs()
-	if err != nil {
-		return err
-	}
-
-	// Delete all commitlog files prior to the one captured by the most recent snapshot.
-	for _, file := range files {
-		if activeCommitlogs.Contains(file.FilePath) {
-			// Skip over any commitlog files that are being actively written to.
-			continue
-		}
-		if file.Index < mostRecentSnapshot.CommitlogIdentifier.Index {
-			m.metrics.deletedCommitlogFile.Inc(1)
-			filesToDelete = append(filesToDelete, file.FilePath)
-		}
-	}
-
 	// Delete all snapshot metadatas prior to the most recent one.
 	for _, snapshot := range sortedSnapshotMetadatas[:len(sortedSnapshotMetadatas)-1] {
 		m.metrics.deletedSnapshotMetadataFile.Inc(1)
@@ -360,7 +382,6 @@ func (m *cleanupManager) cleanupSnapshotsAndCommitlogs() error {
 	// Delete corrupt snapshot metadata files.
 	for _, errorWithPath := range snapshotMetadataErrorsWithPaths {
 		m.metrics.corruptSnapshotMetadataFile.Inc(1)
-		// TODO: Comment.
 		m.opts.InstrumentOptions().Logger().WithFields(
 			xlog.NewField("err", errorWithPath.Error),
 			xlog.NewField("metadataFilePath", errorWithPath.MetadataFilePath),
@@ -371,10 +392,41 @@ func (m *cleanupManager) cleanupSnapshotsAndCommitlogs() error {
 		filesToDelete = append(filesToDelete, errorWithPath.CheckpointFilePath)
 	}
 
+	// Figure out which commitlog files exist on disk.
+	files, commitlogErrorsWithPaths, err := m.commitLogFilesFn(m.opts.CommitLogOptions())
+	if err != nil {
+		// Hard failure here because the remaining cleanup logic relies on this data
+		// being available.
+		return err
+	}
+
+	// Figure out which commitlog files are being actively written to.
+	activeCommitlogs, err := m.activeCommitlogs.ActiveLogs()
+	if err != nil {
+		// Hard failure here because the remaining cleanup logic relies on this data
+		// being available.
+		return err
+	}
+
+	// Delete all commitlog files prior to the one captured by the most recent snapshot.
+	for _, file := range files {
+		if activeCommitlogs.Contains(file.FilePath) {
+			// Skip over any commitlog files that are being actively written to.
+			continue
+		}
+
+		if file.Index < mostRecentSnapshot.CommitlogIdentifier.Index {
+			m.metrics.deletedCommitlogFile.Inc(1)
+			filesToDelete = append(filesToDelete, file.FilePath)
+		}
+	}
+
 	// Delete corrupt commitlog files.
 	for _, errorWithPath := range commitlogErrorsWithPaths {
 		if activeCommitlogs.Contains(errorWithPath.Path()) {
-			// Skip over any commitlog files that are being actively written to.
+			// Skip over any commitlog files that are being actively written to. Note that is
+			// is common for an active commitlog to appear corrupt because the info header has
+			// not been flushed yet.
 			continue
 		}
 
@@ -391,5 +443,5 @@ func (m *cleanupManager) cleanupSnapshotsAndCommitlogs() error {
 		filesToDelete = append(filesToDelete, errorWithPath.Path())
 	}
 
-	return m.deleteFilesFn(filesToDelete)
+	return nil
 }

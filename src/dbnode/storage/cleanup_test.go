@@ -70,7 +70,7 @@ func TestCleanupManagerCleanupCommitlogsAndSnapshots(t *testing.T) {
 		UUID:  testSnapshotUUID0,
 	}
 	testSnapshotMetadataIdentifier2 := fs.SnapshotMetadataIdentifier{
-		Index: 0,
+		Index: 1,
 		UUID:  testSnapshotUUID1,
 	}
 	testSnapshotMetadata0 := fs.SnapshotMetadata{
