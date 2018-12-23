@@ -28,8 +28,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
-
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -39,13 +37,13 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	m3dberrors "github.com/m3db/m3/src/dbnode/storage/errors"
 	"github.com/m3db/m3/src/dbnode/storage/index"
+	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
-	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
-	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	xclose "github.com/m3db/m3x/close"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
@@ -635,9 +633,15 @@ func (i *nsIndex) Flush(
 		return err
 	}
 
+	builderOpts := i.opts.IndexOptions().SegmentBuilderOptions()
+	builder, err := builder.NewBuilder(builderOpts)
+	if err != nil {
+		return err
+	}
+
 	var evicted int
 	for _, block := range flushable {
-		immutableSegments, err := i.flushBlock(flush, block, shards)
+		immutableSegments, err := i.flushBlock(flush, block, shards, builder)
 		if err != nil {
 			return err
 		}
@@ -715,6 +719,7 @@ func (i *nsIndex) flushBlock(
 	flush persist.IndexFlush,
 	indexBlock index.Block,
 	shards []databaseShard,
+	builder segment.Builder,
 ) ([]segment.Segment, error) {
 	i.state.RLock()
 	numSegments := i.state.runtimeOpts.flushBlockNumSegments
@@ -759,7 +764,7 @@ func (i *nsIndex) flushBlock(
 		}
 
 		// Flush a single block segment
-		err := i.flushBlockSegment(preparedPersist, indexBlock, shards)
+		err := i.flushBlockSegment(preparedPersist, indexBlock, shards, builder)
 		if err != nil {
 			return nil, err
 		}
@@ -775,16 +780,25 @@ func (i *nsIndex) flushBlockSegment(
 	preparedPersist persist.PreparedIndexPersist,
 	indexBlock index.Block,
 	shards []databaseShard,
+	builder segment.Builder,
 ) error {
-	// FOLLOWUP(prateek): use this to track segments when we have multiple segments in a Block.
-	postingsOffset := postings.ID(0)
-	seg, err := mem.NewSegment(postingsOffset, i.opts.IndexOptions().MemSegmentOptions())
-	if err != nil {
-		return err
-	}
-	defer seg.Close()
+	// Reset the builder
+	builder.Reset(0)
 
+	var (
+		allResults []block.FetchBlocksMetadataResults
+	)
 	ctx := context.NewContext()
+	defer func() {
+		// At completion, asynchronously finalize/return resources to pools
+		go func() {
+			ctx.Close()
+			for _, result := range allResults {
+				result.Close()
+			}
+		}()
+	}()
+
 	for _, shard := range shards {
 		var (
 			first     = true
@@ -797,8 +811,8 @@ func (i *nsIndex) flushBlockSegment(
 				opts    = block.FetchBlocksMetadataOptions{}
 				limit   = defaultFlushReadDataBlocksBatchSize
 				results block.FetchBlocksMetadataResults
+				err     error
 			)
-			ctx.Reset()
 			results, pageToken, err = shard.FetchBlocksMetadataV2(ctx,
 				indexBlock.StartTime(), indexBlock.EndTime(),
 				limit, pageToken, opts)
@@ -806,37 +820,28 @@ func (i *nsIndex) flushBlockSegment(
 				return err
 			}
 
+			allResults = append(allResults, results)
+
 			for _, result := range results.Results() {
-				id := result.ID.Bytes()
-				exists, err := seg.ContainsID(id)
+				doc, err := convert.FromMetricIterNoClone(result.ID, result.Tags)
 				if err != nil {
 					return err
 				}
-				if exists {
+
+				_, err = builder.Insert(doc)
+				if err == m3ninxindex.ErrDuplicateID {
+					// Continue if duplicate ID was attempted to be indexed
 					continue
 				}
-
-				doc, err := convert.FromMetricIter(result.ID, result.Tags)
 				if err != nil {
-					return err
-				}
-
-				if _, err := seg.Insert(doc); err != nil {
 					return err
 				}
 			}
-
-			results.Close()
-			ctx.BlockingClose()
 		}
 	}
 
-	if err := seg.Seal(); err != nil {
-		return err
-	}
-
 	// Finally flush this segment
-	return preparedPersist.Persist(seg)
+	return preparedPersist.Persist(builder)
 }
 
 func (i *nsIndex) Query(

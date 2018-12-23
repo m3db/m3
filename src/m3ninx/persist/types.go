@@ -59,7 +59,7 @@ type MutableSegmentFileSetWriter interface {
 	IndexSegmentFileSetWriter
 
 	// Reset resets the writer to write the provided mutable segment.
-	Reset(segment.MutableSegment) error
+	Reset(segment.Builder) error
 }
 
 // IndexFileSetReader is an index file set reader, it can read many segments.

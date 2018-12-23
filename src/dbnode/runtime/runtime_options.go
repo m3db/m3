@@ -44,8 +44,9 @@ const (
 
 	// DefaultFlushIndexBlockNumSegments is the default number of segments to
 	// attempt to divide a mutable index block into when flushing the index
-	// block.
-	DefaultFlushIndexBlockNumSegments = 4
+	// block. The fewer the blocks the better for searches, but the more memory
+	// intensive it is to build at runtime.
+	DefaultFlushIndexBlockNumSegments = 2
 
 	defaultWriteNewSeriesAsync                  = false
 	defaultWriteNewSeriesBackoffDuration        = time.Duration(0)

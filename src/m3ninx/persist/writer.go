@@ -44,8 +44,8 @@ type writer struct {
 	fsWriter fst.Writer
 }
 
-func (w *writer) Reset(s segment.MutableSegment) error {
-	return w.fsWriter.Reset(s)
+func (w *writer) Reset(builder segment.Builder) error {
+	return w.fsWriter.Reset(builder)
 }
 
 func (w *writer) SegmentType() IndexSegmentType {

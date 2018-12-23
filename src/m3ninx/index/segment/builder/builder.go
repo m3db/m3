@@ -42,6 +42,7 @@ type builder struct {
 
 	offset postings.ID
 
+	batchSizeOne index.Batch
 	docs         []doc.Document
 	idSet        *IDsMap
 	fields       *fieldsMap
@@ -53,8 +54,9 @@ type builder struct {
 // when documents are indexed.
 func NewBuilder(opts Options) (segment.Builder, error) {
 	return &builder{
-		opts:      opts,
-		newUUIDFn: opts.NewUUIDFn(),
+		opts:         opts,
+		newUUIDFn:    opts.NewUUIDFn(),
+		batchSizeOne: index.Batch{Docs: make([]doc.Document, 1)},
 		idSet: NewIDsMap(IDsMapOptions{
 			InitialSize: opts.InitialCapacity(),
 		}),
@@ -91,7 +93,10 @@ func (b *builder) Reset(offset postings.ID) {
 }
 
 func (b *builder) Insert(d doc.Document) ([]byte, error) {
-	err := b.InsertBatch(index.Batch{Docs: []doc.Document{d}})
+	// Use a preallocated slice to make insert able to avoid alloc
+	// a slice to call insert batch with.
+	b.batchSizeOne.Docs[0] = d
+	err := b.InsertBatch(b.batchSizeOne)
 	if err != nil {
 		return nil, err
 	}

@@ -285,7 +285,7 @@ func (mr *MockMutableSegmentFileSetWriterMockRecorder) WriteFile(fileType, write
 }
 
 // Reset mocks base method
-func (m *MockMutableSegmentFileSetWriter) Reset(arg0 segment.MutableSegment) error {
+func (m *MockMutableSegmentFileSetWriter) Reset(arg0 segment.Builder) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Reset", arg0)
 	ret0, _ := ret[0].(error)
