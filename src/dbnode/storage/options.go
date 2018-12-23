@@ -52,33 +52,33 @@ import (
 )
 
 const (
-	// defaultBytesPoolBucketCapacity is the default bytes buffer capacity for the default bytes pool bucket
+	// defaultBytesPoolBucketCapacity is the default bytes buffer capacity for the default bytes pool bucket.
 	defaultBytesPoolBucketCapacity = 256
 
-	// defaultBytesPoolBucketCount is the default count of elements for the default bytes pool bucket
+	// defaultBytesPoolBucketCount is the default count of elements for the default bytes pool bucket.
 	defaultBytesPoolBucketCount = 4096
 
-	// defaultRepairEnabled enables repair by default
+	// defaultRepairEnabled enables repair by default.
 	defaultRepairEnabled = true
 
-	// defaultErrorWindowForLoad is the default error window for evaluating server load
+	// defaultErrorWindowForLoad is the default error window for evaluating server load.
 	defaultErrorWindowForLoad = 10 * time.Second
 
-	// defaultErrorThresholdForLoad is the default error threshold for considering server overloaded
+	// defaultErrorThresholdForLoad is the default error threshold for considering server overloaded.
 	defaultErrorThresholdForLoad = 1000
 
-	// defaultIndexingEnabled disables indexing by default
+	// defaultIndexingEnabled disables indexing by default.
 	defaultIndexingEnabled = false
 
-	// defaultMinSnapshotInterval is the default minimum interval that must elapse between snapshots
-	defaultMinSnapshotInterval = time.Minute
+	// defaultMinSnapshotInterval is the default minimum interval that must elapse between snapshots.
+	defaultMinSnapshotInterval = 10 * time.Second
 )
 
 var (
-	// defaultBootstrapProcessProvider is the default bootstrap provider for the database
+	// defaultBootstrapProcessProvider is the default bootstrap provider for the database.
 	defaultBootstrapProcessProvider = bootstrap.NewNoOpProcessProvider()
 
-	// defaultPoolOptions are the pool options used by default
+	// defaultPoolOptions are the pool options used by default.
 	defaultPoolOptions pool.ObjectPoolOptions
 
 	timeZero time.Time

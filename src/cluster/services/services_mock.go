@@ -63,6 +63,7 @@ func (m *MockServices) EXPECT() *MockServicesMockRecorder {
 
 // Advertise mocks base method
 func (m *MockServices) Advertise(ad Advertisement) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Advertise", ad)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -70,11 +71,13 @@ func (m *MockServices) Advertise(ad Advertisement) error {
 
 // Advertise indicates an expected call of Advertise
 func (mr *MockServicesMockRecorder) Advertise(ad interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Advertise", reflect.TypeOf((*MockServices)(nil).Advertise), ad)
 }
 
 // Unadvertise mocks base method
 func (m *MockServices) Unadvertise(service ServiceID, id string) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Unadvertise", service, id)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -82,11 +85,13 @@ func (m *MockServices) Unadvertise(service ServiceID, id string) error {
 
 // Unadvertise indicates an expected call of Unadvertise
 func (mr *MockServicesMockRecorder) Unadvertise(service, id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Unadvertise", reflect.TypeOf((*MockServices)(nil).Unadvertise), service, id)
 }
 
 // Query mocks base method
 func (m *MockServices) Query(service ServiceID, opts QueryOptions) (Service, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Query", service, opts)
 	ret0, _ := ret[0].(Service)
 	ret1, _ := ret[1].(error)
@@ -95,11 +100,13 @@ func (m *MockServices) Query(service ServiceID, opts QueryOptions) (Service, err
 
 // Query indicates an expected call of Query
 func (mr *MockServicesMockRecorder) Query(service, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Query", reflect.TypeOf((*MockServices)(nil).Query), service, opts)
 }
 
 // Watch mocks base method
 func (m *MockServices) Watch(service ServiceID, opts QueryOptions) (Watch, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Watch", service, opts)
 	ret0, _ := ret[0].(Watch)
 	ret1, _ := ret[1].(error)
@@ -108,11 +115,13 @@ func (m *MockServices) Watch(service ServiceID, opts QueryOptions) (Watch, error
 
 // Watch indicates an expected call of Watch
 func (mr *MockServicesMockRecorder) Watch(service, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Watch", reflect.TypeOf((*MockServices)(nil).Watch), service, opts)
 }
 
 // Metadata mocks base method
 func (m *MockServices) Metadata(sid ServiceID) (Metadata, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Metadata", sid)
 	ret0, _ := ret[0].(Metadata)
 	ret1, _ := ret[1].(error)
@@ -121,11 +130,13 @@ func (m *MockServices) Metadata(sid ServiceID) (Metadata, error) {
 
 // Metadata indicates an expected call of Metadata
 func (mr *MockServicesMockRecorder) Metadata(sid interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Metadata", reflect.TypeOf((*MockServices)(nil).Metadata), sid)
 }
 
 // SetMetadata mocks base method
 func (m_2 *MockServices) SetMetadata(sid ServiceID, m Metadata) error {
+	m_2.ctrl.T.Helper()
 	ret := m_2.ctrl.Call(m_2, "SetMetadata", sid, m)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -133,11 +144,13 @@ func (m_2 *MockServices) SetMetadata(sid ServiceID, m Metadata) error {
 
 // SetMetadata indicates an expected call of SetMetadata
 func (mr *MockServicesMockRecorder) SetMetadata(sid, m interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMetadata", reflect.TypeOf((*MockServices)(nil).SetMetadata), sid, m)
 }
 
 // PlacementService mocks base method
 func (m *MockServices) PlacementService(sid ServiceID, popts placement.Options) (placement.Service, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PlacementService", sid, popts)
 	ret0, _ := ret[0].(placement.Service)
 	ret1, _ := ret[1].(error)
@@ -146,11 +159,13 @@ func (m *MockServices) PlacementService(sid ServiceID, popts placement.Options) 
 
 // PlacementService indicates an expected call of PlacementService
 func (mr *MockServicesMockRecorder) PlacementService(sid, popts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PlacementService", reflect.TypeOf((*MockServices)(nil).PlacementService), sid, popts)
 }
 
 // HeartbeatService mocks base method
 func (m *MockServices) HeartbeatService(service ServiceID) (HeartbeatService, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "HeartbeatService", service)
 	ret0, _ := ret[0].(HeartbeatService)
 	ret1, _ := ret[1].(error)
@@ -159,11 +174,13 @@ func (m *MockServices) HeartbeatService(service ServiceID) (HeartbeatService, er
 
 // HeartbeatService indicates an expected call of HeartbeatService
 func (mr *MockServicesMockRecorder) HeartbeatService(service interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HeartbeatService", reflect.TypeOf((*MockServices)(nil).HeartbeatService), service)
 }
 
 // LeaderService mocks base method
 func (m *MockServices) LeaderService(service ServiceID, opts ElectionOptions) (LeaderService, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LeaderService", service, opts)
 	ret0, _ := ret[0].(LeaderService)
 	ret1, _ := ret[1].(error)
@@ -172,6 +189,7 @@ func (m *MockServices) LeaderService(service ServiceID, opts ElectionOptions) (L
 
 // LeaderService indicates an expected call of LeaderService
 func (mr *MockServicesMockRecorder) LeaderService(service, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LeaderService", reflect.TypeOf((*MockServices)(nil).LeaderService), service, opts)
 }
 
@@ -200,6 +218,7 @@ func (m *MockOptions) EXPECT() *MockOptionsMockRecorder {
 
 // InitTimeout mocks base method
 func (m *MockOptions) InitTimeout() time.Duration {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InitTimeout")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
@@ -207,11 +226,13 @@ func (m *MockOptions) InitTimeout() time.Duration {
 
 // InitTimeout indicates an expected call of InitTimeout
 func (mr *MockOptionsMockRecorder) InitTimeout() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InitTimeout", reflect.TypeOf((*MockOptions)(nil).InitTimeout))
 }
 
 // SetInitTimeout mocks base method
 func (m *MockOptions) SetInitTimeout(t time.Duration) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetInitTimeout", t)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -219,11 +240,13 @@ func (m *MockOptions) SetInitTimeout(t time.Duration) Options {
 
 // SetInitTimeout indicates an expected call of SetInitTimeout
 func (mr *MockOptionsMockRecorder) SetInitTimeout(t interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInitTimeout", reflect.TypeOf((*MockOptions)(nil).SetInitTimeout), t)
 }
 
 // KVGen mocks base method
 func (m *MockOptions) KVGen() KVGen {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "KVGen")
 	ret0, _ := ret[0].(KVGen)
 	return ret0
@@ -231,11 +254,13 @@ func (m *MockOptions) KVGen() KVGen {
 
 // KVGen indicates an expected call of KVGen
 func (mr *MockOptionsMockRecorder) KVGen() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "KVGen", reflect.TypeOf((*MockOptions)(nil).KVGen))
 }
 
 // SetKVGen mocks base method
 func (m *MockOptions) SetKVGen(gen KVGen) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetKVGen", gen)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -243,11 +268,13 @@ func (m *MockOptions) SetKVGen(gen KVGen) Options {
 
 // SetKVGen indicates an expected call of SetKVGen
 func (mr *MockOptionsMockRecorder) SetKVGen(gen interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetKVGen", reflect.TypeOf((*MockOptions)(nil).SetKVGen), gen)
 }
 
 // HeartbeatGen mocks base method
 func (m *MockOptions) HeartbeatGen() HeartbeatGen {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "HeartbeatGen")
 	ret0, _ := ret[0].(HeartbeatGen)
 	return ret0
@@ -255,11 +282,13 @@ func (m *MockOptions) HeartbeatGen() HeartbeatGen {
 
 // HeartbeatGen indicates an expected call of HeartbeatGen
 func (mr *MockOptionsMockRecorder) HeartbeatGen() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HeartbeatGen", reflect.TypeOf((*MockOptions)(nil).HeartbeatGen))
 }
 
 // SetHeartbeatGen mocks base method
 func (m *MockOptions) SetHeartbeatGen(gen HeartbeatGen) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetHeartbeatGen", gen)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -267,11 +296,13 @@ func (m *MockOptions) SetHeartbeatGen(gen HeartbeatGen) Options {
 
 // SetHeartbeatGen indicates an expected call of SetHeartbeatGen
 func (mr *MockOptionsMockRecorder) SetHeartbeatGen(gen interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHeartbeatGen", reflect.TypeOf((*MockOptions)(nil).SetHeartbeatGen), gen)
 }
 
 // LeaderGen mocks base method
 func (m *MockOptions) LeaderGen() LeaderGen {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LeaderGen")
 	ret0, _ := ret[0].(LeaderGen)
 	return ret0
@@ -279,11 +310,13 @@ func (m *MockOptions) LeaderGen() LeaderGen {
 
 // LeaderGen indicates an expected call of LeaderGen
 func (mr *MockOptionsMockRecorder) LeaderGen() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LeaderGen", reflect.TypeOf((*MockOptions)(nil).LeaderGen))
 }
 
 // SetLeaderGen mocks base method
 func (m *MockOptions) SetLeaderGen(gen LeaderGen) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetLeaderGen", gen)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -291,11 +324,13 @@ func (m *MockOptions) SetLeaderGen(gen LeaderGen) Options {
 
 // SetLeaderGen indicates an expected call of SetLeaderGen
 func (mr *MockOptionsMockRecorder) SetLeaderGen(gen interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLeaderGen", reflect.TypeOf((*MockOptions)(nil).SetLeaderGen), gen)
 }
 
 // InstrumentsOptions mocks base method
 func (m *MockOptions) InstrumentsOptions() instrument.Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InstrumentsOptions")
 	ret0, _ := ret[0].(instrument.Options)
 	return ret0
@@ -303,11 +338,13 @@ func (m *MockOptions) InstrumentsOptions() instrument.Options {
 
 // InstrumentsOptions indicates an expected call of InstrumentsOptions
 func (mr *MockOptionsMockRecorder) InstrumentsOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstrumentsOptions", reflect.TypeOf((*MockOptions)(nil).InstrumentsOptions))
 }
 
 // SetInstrumentsOptions mocks base method
 func (m *MockOptions) SetInstrumentsOptions(iopts instrument.Options) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetInstrumentsOptions", iopts)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -315,11 +352,13 @@ func (m *MockOptions) SetInstrumentsOptions(iopts instrument.Options) Options {
 
 // SetInstrumentsOptions indicates an expected call of SetInstrumentsOptions
 func (mr *MockOptionsMockRecorder) SetInstrumentsOptions(iopts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInstrumentsOptions", reflect.TypeOf((*MockOptions)(nil).SetInstrumentsOptions), iopts)
 }
 
 // NamespaceOptions mocks base method
 func (m *MockOptions) NamespaceOptions() NamespaceOptions {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NamespaceOptions")
 	ret0, _ := ret[0].(NamespaceOptions)
 	return ret0
@@ -327,11 +366,13 @@ func (m *MockOptions) NamespaceOptions() NamespaceOptions {
 
 // NamespaceOptions indicates an expected call of NamespaceOptions
 func (mr *MockOptionsMockRecorder) NamespaceOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NamespaceOptions", reflect.TypeOf((*MockOptions)(nil).NamespaceOptions))
 }
 
 // SetNamespaceOptions mocks base method
 func (m *MockOptions) SetNamespaceOptions(opts NamespaceOptions) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetNamespaceOptions", opts)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -339,11 +380,13 @@ func (m *MockOptions) SetNamespaceOptions(opts NamespaceOptions) Options {
 
 // SetNamespaceOptions indicates an expected call of SetNamespaceOptions
 func (mr *MockOptionsMockRecorder) SetNamespaceOptions(opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNamespaceOptions", reflect.TypeOf((*MockOptions)(nil).SetNamespaceOptions), opts)
 }
 
 // Validate mocks base method
 func (m *MockOptions) Validate() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Validate")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -351,6 +394,7 @@ func (m *MockOptions) Validate() error {
 
 // Validate indicates an expected call of Validate
 func (mr *MockOptionsMockRecorder) Validate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Validate", reflect.TypeOf((*MockOptions)(nil).Validate))
 }
 
@@ -379,6 +423,7 @@ func (m *MockNamespaceOptions) EXPECT() *MockNamespaceOptionsMockRecorder {
 
 // PlacementNamespace mocks base method
 func (m *MockNamespaceOptions) PlacementNamespace() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PlacementNamespace")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -386,11 +431,13 @@ func (m *MockNamespaceOptions) PlacementNamespace() string {
 
 // PlacementNamespace indicates an expected call of PlacementNamespace
 func (mr *MockNamespaceOptionsMockRecorder) PlacementNamespace() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PlacementNamespace", reflect.TypeOf((*MockNamespaceOptions)(nil).PlacementNamespace))
 }
 
 // SetPlacementNamespace mocks base method
 func (m *MockNamespaceOptions) SetPlacementNamespace(v string) NamespaceOptions {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetPlacementNamespace", v)
 	ret0, _ := ret[0].(NamespaceOptions)
 	return ret0
@@ -398,11 +445,13 @@ func (m *MockNamespaceOptions) SetPlacementNamespace(v string) NamespaceOptions 
 
 // SetPlacementNamespace indicates an expected call of SetPlacementNamespace
 func (mr *MockNamespaceOptionsMockRecorder) SetPlacementNamespace(v interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPlacementNamespace", reflect.TypeOf((*MockNamespaceOptions)(nil).SetPlacementNamespace), v)
 }
 
 // MetadataNamespace mocks base method
 func (m *MockNamespaceOptions) MetadataNamespace() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MetadataNamespace")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -410,11 +459,13 @@ func (m *MockNamespaceOptions) MetadataNamespace() string {
 
 // MetadataNamespace indicates an expected call of MetadataNamespace
 func (mr *MockNamespaceOptionsMockRecorder) MetadataNamespace() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MetadataNamespace", reflect.TypeOf((*MockNamespaceOptions)(nil).MetadataNamespace))
 }
 
 // SetMetadataNamespace mocks base method
 func (m *MockNamespaceOptions) SetMetadataNamespace(v string) NamespaceOptions {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetMetadataNamespace", v)
 	ret0, _ := ret[0].(NamespaceOptions)
 	return ret0
@@ -422,6 +473,7 @@ func (m *MockNamespaceOptions) SetMetadataNamespace(v string) NamespaceOptions {
 
 // SetMetadataNamespace indicates an expected call of SetMetadataNamespace
 func (mr *MockNamespaceOptionsMockRecorder) SetMetadataNamespace(v interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMetadataNamespace", reflect.TypeOf((*MockNamespaceOptions)(nil).SetMetadataNamespace), v)
 }
 
@@ -450,6 +502,7 @@ func (m *MockOverrideOptions) EXPECT() *MockOverrideOptionsMockRecorder {
 
 // NamespaceOptions mocks base method
 func (m *MockOverrideOptions) NamespaceOptions() NamespaceOptions {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NamespaceOptions")
 	ret0, _ := ret[0].(NamespaceOptions)
 	return ret0
@@ -457,11 +510,13 @@ func (m *MockOverrideOptions) NamespaceOptions() NamespaceOptions {
 
 // NamespaceOptions indicates an expected call of NamespaceOptions
 func (mr *MockOverrideOptionsMockRecorder) NamespaceOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NamespaceOptions", reflect.TypeOf((*MockOverrideOptions)(nil).NamespaceOptions))
 }
 
 // SetNamespaceOptions mocks base method
 func (m *MockOverrideOptions) SetNamespaceOptions(opts NamespaceOptions) OverrideOptions {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetNamespaceOptions", opts)
 	ret0, _ := ret[0].(OverrideOptions)
 	return ret0
@@ -469,6 +524,7 @@ func (m *MockOverrideOptions) SetNamespaceOptions(opts NamespaceOptions) Overrid
 
 // SetNamespaceOptions indicates an expected call of SetNamespaceOptions
 func (mr *MockOverrideOptionsMockRecorder) SetNamespaceOptions(opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNamespaceOptions", reflect.TypeOf((*MockOverrideOptions)(nil).SetNamespaceOptions), opts)
 }
 
@@ -497,16 +553,19 @@ func (m *MockWatch) EXPECT() *MockWatchMockRecorder {
 
 // Close mocks base method
 func (m *MockWatch) Close() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Close")
 }
 
 // Close indicates an expected call of Close
 func (mr *MockWatchMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockWatch)(nil).Close))
 }
 
 // C mocks base method
 func (m *MockWatch) C() <-chan struct{} {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "C")
 	ret0, _ := ret[0].(<-chan struct{})
 	return ret0
@@ -514,11 +573,13 @@ func (m *MockWatch) C() <-chan struct{} {
 
 // C indicates an expected call of C
 func (mr *MockWatchMockRecorder) C() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "C", reflect.TypeOf((*MockWatch)(nil).C))
 }
 
 // Get mocks base method
 func (m *MockWatch) Get() Service {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get")
 	ret0, _ := ret[0].(Service)
 	return ret0
@@ -526,6 +587,7 @@ func (m *MockWatch) Get() Service {
 
 // Get indicates an expected call of Get
 func (mr *MockWatchMockRecorder) Get() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockWatch)(nil).Get))
 }
 
@@ -554,6 +616,7 @@ func (m *MockService) EXPECT() *MockServiceMockRecorder {
 
 // Instance mocks base method
 func (m *MockService) Instance(instanceID string) (ServiceInstance, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Instance", instanceID)
 	ret0, _ := ret[0].(ServiceInstance)
 	ret1, _ := ret[1].(error)
@@ -562,11 +625,13 @@ func (m *MockService) Instance(instanceID string) (ServiceInstance, error) {
 
 // Instance indicates an expected call of Instance
 func (mr *MockServiceMockRecorder) Instance(instanceID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Instance", reflect.TypeOf((*MockService)(nil).Instance), instanceID)
 }
 
 // Instances mocks base method
 func (m *MockService) Instances() []ServiceInstance {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Instances")
 	ret0, _ := ret[0].([]ServiceInstance)
 	return ret0
@@ -574,11 +639,13 @@ func (m *MockService) Instances() []ServiceInstance {
 
 // Instances indicates an expected call of Instances
 func (mr *MockServiceMockRecorder) Instances() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Instances", reflect.TypeOf((*MockService)(nil).Instances))
 }
 
 // SetInstances mocks base method
 func (m *MockService) SetInstances(insts []ServiceInstance) Service {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetInstances", insts)
 	ret0, _ := ret[0].(Service)
 	return ret0
@@ -586,11 +653,13 @@ func (m *MockService) SetInstances(insts []ServiceInstance) Service {
 
 // SetInstances indicates an expected call of SetInstances
 func (mr *MockServiceMockRecorder) SetInstances(insts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInstances", reflect.TypeOf((*MockService)(nil).SetInstances), insts)
 }
 
 // Replication mocks base method
 func (m *MockService) Replication() ServiceReplication {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Replication")
 	ret0, _ := ret[0].(ServiceReplication)
 	return ret0
@@ -598,11 +667,13 @@ func (m *MockService) Replication() ServiceReplication {
 
 // Replication indicates an expected call of Replication
 func (mr *MockServiceMockRecorder) Replication() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Replication", reflect.TypeOf((*MockService)(nil).Replication))
 }
 
 // SetReplication mocks base method
 func (m *MockService) SetReplication(r ServiceReplication) Service {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetReplication", r)
 	ret0, _ := ret[0].(Service)
 	return ret0
@@ -610,11 +681,13 @@ func (m *MockService) SetReplication(r ServiceReplication) Service {
 
 // SetReplication indicates an expected call of SetReplication
 func (mr *MockServiceMockRecorder) SetReplication(r interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetReplication", reflect.TypeOf((*MockService)(nil).SetReplication), r)
 }
 
 // Sharding mocks base method
 func (m *MockService) Sharding() ServiceSharding {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Sharding")
 	ret0, _ := ret[0].(ServiceSharding)
 	return ret0
@@ -622,11 +695,13 @@ func (m *MockService) Sharding() ServiceSharding {
 
 // Sharding indicates an expected call of Sharding
 func (mr *MockServiceMockRecorder) Sharding() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Sharding", reflect.TypeOf((*MockService)(nil).Sharding))
 }
 
 // SetSharding mocks base method
 func (m *MockService) SetSharding(s ServiceSharding) Service {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetSharding", s)
 	ret0, _ := ret[0].(Service)
 	return ret0
@@ -634,6 +709,7 @@ func (m *MockService) SetSharding(s ServiceSharding) Service {
 
 // SetSharding indicates an expected call of SetSharding
 func (mr *MockServiceMockRecorder) SetSharding(s interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSharding", reflect.TypeOf((*MockService)(nil).SetSharding), s)
 }
 
@@ -662,6 +738,7 @@ func (m *MockServiceReplication) EXPECT() *MockServiceReplicationMockRecorder {
 
 // Replicas mocks base method
 func (m *MockServiceReplication) Replicas() int {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Replicas")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -669,11 +746,13 @@ func (m *MockServiceReplication) Replicas() int {
 
 // Replicas indicates an expected call of Replicas
 func (mr *MockServiceReplicationMockRecorder) Replicas() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Replicas", reflect.TypeOf((*MockServiceReplication)(nil).Replicas))
 }
 
 // SetReplicas mocks base method
 func (m *MockServiceReplication) SetReplicas(r int) ServiceReplication {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetReplicas", r)
 	ret0, _ := ret[0].(ServiceReplication)
 	return ret0
@@ -681,6 +760,7 @@ func (m *MockServiceReplication) SetReplicas(r int) ServiceReplication {
 
 // SetReplicas indicates an expected call of SetReplicas
 func (mr *MockServiceReplicationMockRecorder) SetReplicas(r interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetReplicas", reflect.TypeOf((*MockServiceReplication)(nil).SetReplicas), r)
 }
 
@@ -709,6 +789,7 @@ func (m *MockServiceSharding) EXPECT() *MockServiceShardingMockRecorder {
 
 // NumShards mocks base method
 func (m *MockServiceSharding) NumShards() int {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NumShards")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -716,11 +797,13 @@ func (m *MockServiceSharding) NumShards() int {
 
 // NumShards indicates an expected call of NumShards
 func (mr *MockServiceShardingMockRecorder) NumShards() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NumShards", reflect.TypeOf((*MockServiceSharding)(nil).NumShards))
 }
 
 // SetNumShards mocks base method
 func (m *MockServiceSharding) SetNumShards(n int) ServiceSharding {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetNumShards", n)
 	ret0, _ := ret[0].(ServiceSharding)
 	return ret0
@@ -728,11 +811,13 @@ func (m *MockServiceSharding) SetNumShards(n int) ServiceSharding {
 
 // SetNumShards indicates an expected call of SetNumShards
 func (mr *MockServiceShardingMockRecorder) SetNumShards(n interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNumShards", reflect.TypeOf((*MockServiceSharding)(nil).SetNumShards), n)
 }
 
 // IsSharded mocks base method
 func (m *MockServiceSharding) IsSharded() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsSharded")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -740,11 +825,13 @@ func (m *MockServiceSharding) IsSharded() bool {
 
 // IsSharded indicates an expected call of IsSharded
 func (mr *MockServiceShardingMockRecorder) IsSharded() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsSharded", reflect.TypeOf((*MockServiceSharding)(nil).IsSharded))
 }
 
 // SetIsSharded mocks base method
 func (m *MockServiceSharding) SetIsSharded(s bool) ServiceSharding {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetIsSharded", s)
 	ret0, _ := ret[0].(ServiceSharding)
 	return ret0
@@ -752,6 +839,7 @@ func (m *MockServiceSharding) SetIsSharded(s bool) ServiceSharding {
 
 // SetIsSharded indicates an expected call of SetIsSharded
 func (mr *MockServiceShardingMockRecorder) SetIsSharded(s interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIsSharded", reflect.TypeOf((*MockServiceSharding)(nil).SetIsSharded), s)
 }
 
@@ -780,6 +868,7 @@ func (m *MockServiceInstance) EXPECT() *MockServiceInstanceMockRecorder {
 
 // ServiceID mocks base method
 func (m *MockServiceInstance) ServiceID() ServiceID {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ServiceID")
 	ret0, _ := ret[0].(ServiceID)
 	return ret0
@@ -787,11 +876,13 @@ func (m *MockServiceInstance) ServiceID() ServiceID {
 
 // ServiceID indicates an expected call of ServiceID
 func (mr *MockServiceInstanceMockRecorder) ServiceID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ServiceID", reflect.TypeOf((*MockServiceInstance)(nil).ServiceID))
 }
 
 // SetServiceID mocks base method
 func (m *MockServiceInstance) SetServiceID(service ServiceID) ServiceInstance {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetServiceID", service)
 	ret0, _ := ret[0].(ServiceInstance)
 	return ret0
@@ -799,11 +890,13 @@ func (m *MockServiceInstance) SetServiceID(service ServiceID) ServiceInstance {
 
 // SetServiceID indicates an expected call of SetServiceID
 func (mr *MockServiceInstanceMockRecorder) SetServiceID(service interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetServiceID", reflect.TypeOf((*MockServiceInstance)(nil).SetServiceID), service)
 }
 
 // InstanceID mocks base method
 func (m *MockServiceInstance) InstanceID() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InstanceID")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -811,11 +904,13 @@ func (m *MockServiceInstance) InstanceID() string {
 
 // InstanceID indicates an expected call of InstanceID
 func (mr *MockServiceInstanceMockRecorder) InstanceID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstanceID", reflect.TypeOf((*MockServiceInstance)(nil).InstanceID))
 }
 
 // SetInstanceID mocks base method
 func (m *MockServiceInstance) SetInstanceID(id string) ServiceInstance {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetInstanceID", id)
 	ret0, _ := ret[0].(ServiceInstance)
 	return ret0
@@ -823,11 +918,13 @@ func (m *MockServiceInstance) SetInstanceID(id string) ServiceInstance {
 
 // SetInstanceID indicates an expected call of SetInstanceID
 func (mr *MockServiceInstanceMockRecorder) SetInstanceID(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInstanceID", reflect.TypeOf((*MockServiceInstance)(nil).SetInstanceID), id)
 }
 
 // Endpoint mocks base method
 func (m *MockServiceInstance) Endpoint() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Endpoint")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -835,11 +932,13 @@ func (m *MockServiceInstance) Endpoint() string {
 
 // Endpoint indicates an expected call of Endpoint
 func (mr *MockServiceInstanceMockRecorder) Endpoint() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Endpoint", reflect.TypeOf((*MockServiceInstance)(nil).Endpoint))
 }
 
 // SetEndpoint mocks base method
 func (m *MockServiceInstance) SetEndpoint(e string) ServiceInstance {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetEndpoint", e)
 	ret0, _ := ret[0].(ServiceInstance)
 	return ret0
@@ -847,11 +946,13 @@ func (m *MockServiceInstance) SetEndpoint(e string) ServiceInstance {
 
 // SetEndpoint indicates an expected call of SetEndpoint
 func (mr *MockServiceInstanceMockRecorder) SetEndpoint(e interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEndpoint", reflect.TypeOf((*MockServiceInstance)(nil).SetEndpoint), e)
 }
 
 // Shards mocks base method
 func (m *MockServiceInstance) Shards() shard.Shards {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Shards")
 	ret0, _ := ret[0].(shard.Shards)
 	return ret0
@@ -859,11 +960,13 @@ func (m *MockServiceInstance) Shards() shard.Shards {
 
 // Shards indicates an expected call of Shards
 func (mr *MockServiceInstanceMockRecorder) Shards() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shards", reflect.TypeOf((*MockServiceInstance)(nil).Shards))
 }
 
 // SetShards mocks base method
 func (m *MockServiceInstance) SetShards(s shard.Shards) ServiceInstance {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetShards", s)
 	ret0, _ := ret[0].(ServiceInstance)
 	return ret0
@@ -871,6 +974,7 @@ func (m *MockServiceInstance) SetShards(s shard.Shards) ServiceInstance {
 
 // SetShards indicates an expected call of SetShards
 func (mr *MockServiceInstanceMockRecorder) SetShards(s interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetShards", reflect.TypeOf((*MockServiceInstance)(nil).SetShards), s)
 }
 
@@ -899,6 +1003,7 @@ func (m *MockAdvertisement) EXPECT() *MockAdvertisementMockRecorder {
 
 // ServiceID mocks base method
 func (m *MockAdvertisement) ServiceID() ServiceID {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ServiceID")
 	ret0, _ := ret[0].(ServiceID)
 	return ret0
@@ -906,11 +1011,13 @@ func (m *MockAdvertisement) ServiceID() ServiceID {
 
 // ServiceID indicates an expected call of ServiceID
 func (mr *MockAdvertisementMockRecorder) ServiceID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ServiceID", reflect.TypeOf((*MockAdvertisement)(nil).ServiceID))
 }
 
 // SetServiceID mocks base method
 func (m *MockAdvertisement) SetServiceID(service ServiceID) Advertisement {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetServiceID", service)
 	ret0, _ := ret[0].(Advertisement)
 	return ret0
@@ -918,11 +1025,13 @@ func (m *MockAdvertisement) SetServiceID(service ServiceID) Advertisement {
 
 // SetServiceID indicates an expected call of SetServiceID
 func (mr *MockAdvertisementMockRecorder) SetServiceID(service interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetServiceID", reflect.TypeOf((*MockAdvertisement)(nil).SetServiceID), service)
 }
 
 // Health mocks base method
 func (m *MockAdvertisement) Health() func() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Health")
 	ret0, _ := ret[0].(func() error)
 	return ret0
@@ -930,11 +1039,13 @@ func (m *MockAdvertisement) Health() func() error {
 
 // Health indicates an expected call of Health
 func (mr *MockAdvertisementMockRecorder) Health() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Health", reflect.TypeOf((*MockAdvertisement)(nil).Health))
 }
 
 // SetHealth mocks base method
 func (m *MockAdvertisement) SetHealth(health func() error) Advertisement {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetHealth", health)
 	ret0, _ := ret[0].(Advertisement)
 	return ret0
@@ -942,11 +1053,13 @@ func (m *MockAdvertisement) SetHealth(health func() error) Advertisement {
 
 // SetHealth indicates an expected call of SetHealth
 func (mr *MockAdvertisementMockRecorder) SetHealth(health interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHealth", reflect.TypeOf((*MockAdvertisement)(nil).SetHealth), health)
 }
 
 // PlacementInstance mocks base method
 func (m *MockAdvertisement) PlacementInstance() placement.Instance {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PlacementInstance")
 	ret0, _ := ret[0].(placement.Instance)
 	return ret0
@@ -954,11 +1067,13 @@ func (m *MockAdvertisement) PlacementInstance() placement.Instance {
 
 // PlacementInstance indicates an expected call of PlacementInstance
 func (mr *MockAdvertisementMockRecorder) PlacementInstance() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PlacementInstance", reflect.TypeOf((*MockAdvertisement)(nil).PlacementInstance))
 }
 
 // SetPlacementInstance mocks base method
 func (m *MockAdvertisement) SetPlacementInstance(p placement.Instance) Advertisement {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetPlacementInstance", p)
 	ret0, _ := ret[0].(Advertisement)
 	return ret0
@@ -966,6 +1081,7 @@ func (m *MockAdvertisement) SetPlacementInstance(p placement.Instance) Advertise
 
 // SetPlacementInstance indicates an expected call of SetPlacementInstance
 func (mr *MockAdvertisementMockRecorder) SetPlacementInstance(p interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPlacementInstance", reflect.TypeOf((*MockAdvertisement)(nil).SetPlacementInstance), p)
 }
 
@@ -994,6 +1110,7 @@ func (m *MockServiceID) EXPECT() *MockServiceIDMockRecorder {
 
 // Name mocks base method
 func (m *MockServiceID) Name() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Name")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -1001,11 +1118,13 @@ func (m *MockServiceID) Name() string {
 
 // Name indicates an expected call of Name
 func (mr *MockServiceIDMockRecorder) Name() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Name", reflect.TypeOf((*MockServiceID)(nil).Name))
 }
 
 // SetName mocks base method
 func (m *MockServiceID) SetName(s string) ServiceID {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetName", s)
 	ret0, _ := ret[0].(ServiceID)
 	return ret0
@@ -1013,11 +1132,13 @@ func (m *MockServiceID) SetName(s string) ServiceID {
 
 // SetName indicates an expected call of SetName
 func (mr *MockServiceIDMockRecorder) SetName(s interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetName", reflect.TypeOf((*MockServiceID)(nil).SetName), s)
 }
 
 // Environment mocks base method
 func (m *MockServiceID) Environment() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Environment")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -1025,11 +1146,13 @@ func (m *MockServiceID) Environment() string {
 
 // Environment indicates an expected call of Environment
 func (mr *MockServiceIDMockRecorder) Environment() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Environment", reflect.TypeOf((*MockServiceID)(nil).Environment))
 }
 
 // SetEnvironment mocks base method
 func (m *MockServiceID) SetEnvironment(env string) ServiceID {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetEnvironment", env)
 	ret0, _ := ret[0].(ServiceID)
 	return ret0
@@ -1037,11 +1160,13 @@ func (m *MockServiceID) SetEnvironment(env string) ServiceID {
 
 // SetEnvironment indicates an expected call of SetEnvironment
 func (mr *MockServiceIDMockRecorder) SetEnvironment(env interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEnvironment", reflect.TypeOf((*MockServiceID)(nil).SetEnvironment), env)
 }
 
 // Zone mocks base method
 func (m *MockServiceID) Zone() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Zone")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -1049,11 +1174,13 @@ func (m *MockServiceID) Zone() string {
 
 // Zone indicates an expected call of Zone
 func (mr *MockServiceIDMockRecorder) Zone() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Zone", reflect.TypeOf((*MockServiceID)(nil).Zone))
 }
 
 // SetZone mocks base method
 func (m *MockServiceID) SetZone(zone string) ServiceID {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetZone", zone)
 	ret0, _ := ret[0].(ServiceID)
 	return ret0
@@ -1061,11 +1188,13 @@ func (m *MockServiceID) SetZone(zone string) ServiceID {
 
 // SetZone indicates an expected call of SetZone
 func (mr *MockServiceIDMockRecorder) SetZone(zone interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetZone", reflect.TypeOf((*MockServiceID)(nil).SetZone), zone)
 }
 
 // Equal mocks base method
 func (m *MockServiceID) Equal(value ServiceID) bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Equal", value)
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -1073,11 +1202,13 @@ func (m *MockServiceID) Equal(value ServiceID) bool {
 
 // Equal indicates an expected call of Equal
 func (mr *MockServiceIDMockRecorder) Equal(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Equal", reflect.TypeOf((*MockServiceID)(nil).Equal), value)
 }
 
 // String mocks base method
 func (m *MockServiceID) String() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "String")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -1085,6 +1216,7 @@ func (m *MockServiceID) String() string {
 
 // String indicates an expected call of String
 func (mr *MockServiceIDMockRecorder) String() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "String", reflect.TypeOf((*MockServiceID)(nil).String))
 }
 
@@ -1113,6 +1245,7 @@ func (m *MockQueryOptions) EXPECT() *MockQueryOptionsMockRecorder {
 
 // IncludeUnhealthy mocks base method
 func (m *MockQueryOptions) IncludeUnhealthy() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IncludeUnhealthy")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -1120,11 +1253,13 @@ func (m *MockQueryOptions) IncludeUnhealthy() bool {
 
 // IncludeUnhealthy indicates an expected call of IncludeUnhealthy
 func (mr *MockQueryOptionsMockRecorder) IncludeUnhealthy() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncludeUnhealthy", reflect.TypeOf((*MockQueryOptions)(nil).IncludeUnhealthy))
 }
 
 // SetIncludeUnhealthy mocks base method
 func (m *MockQueryOptions) SetIncludeUnhealthy(h bool) QueryOptions {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetIncludeUnhealthy", h)
 	ret0, _ := ret[0].(QueryOptions)
 	return ret0
@@ -1132,6 +1267,7 @@ func (m *MockQueryOptions) SetIncludeUnhealthy(h bool) QueryOptions {
 
 // SetIncludeUnhealthy indicates an expected call of SetIncludeUnhealthy
 func (mr *MockQueryOptionsMockRecorder) SetIncludeUnhealthy(h interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIncludeUnhealthy", reflect.TypeOf((*MockQueryOptions)(nil).SetIncludeUnhealthy), h)
 }
 
@@ -1160,6 +1296,7 @@ func (m *MockMetadata) EXPECT() *MockMetadataMockRecorder {
 
 // String mocks base method
 func (m *MockMetadata) String() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "String")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -1167,11 +1304,13 @@ func (m *MockMetadata) String() string {
 
 // String indicates an expected call of String
 func (mr *MockMetadataMockRecorder) String() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "String", reflect.TypeOf((*MockMetadata)(nil).String))
 }
 
 // Port mocks base method
 func (m *MockMetadata) Port() uint32 {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Port")
 	ret0, _ := ret[0].(uint32)
 	return ret0
@@ -1179,11 +1318,13 @@ func (m *MockMetadata) Port() uint32 {
 
 // Port indicates an expected call of Port
 func (mr *MockMetadataMockRecorder) Port() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Port", reflect.TypeOf((*MockMetadata)(nil).Port))
 }
 
 // SetPort mocks base method
 func (m *MockMetadata) SetPort(p uint32) Metadata {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetPort", p)
 	ret0, _ := ret[0].(Metadata)
 	return ret0
@@ -1191,11 +1332,13 @@ func (m *MockMetadata) SetPort(p uint32) Metadata {
 
 // SetPort indicates an expected call of SetPort
 func (mr *MockMetadataMockRecorder) SetPort(p interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPort", reflect.TypeOf((*MockMetadata)(nil).SetPort), p)
 }
 
 // LivenessInterval mocks base method
 func (m *MockMetadata) LivenessInterval() time.Duration {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LivenessInterval")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
@@ -1203,11 +1346,13 @@ func (m *MockMetadata) LivenessInterval() time.Duration {
 
 // LivenessInterval indicates an expected call of LivenessInterval
 func (mr *MockMetadataMockRecorder) LivenessInterval() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LivenessInterval", reflect.TypeOf((*MockMetadata)(nil).LivenessInterval))
 }
 
 // SetLivenessInterval mocks base method
 func (m *MockMetadata) SetLivenessInterval(l time.Duration) Metadata {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetLivenessInterval", l)
 	ret0, _ := ret[0].(Metadata)
 	return ret0
@@ -1215,11 +1360,13 @@ func (m *MockMetadata) SetLivenessInterval(l time.Duration) Metadata {
 
 // SetLivenessInterval indicates an expected call of SetLivenessInterval
 func (mr *MockMetadataMockRecorder) SetLivenessInterval(l interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLivenessInterval", reflect.TypeOf((*MockMetadata)(nil).SetLivenessInterval), l)
 }
 
 // HeartbeatInterval mocks base method
 func (m *MockMetadata) HeartbeatInterval() time.Duration {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "HeartbeatInterval")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
@@ -1227,11 +1374,13 @@ func (m *MockMetadata) HeartbeatInterval() time.Duration {
 
 // HeartbeatInterval indicates an expected call of HeartbeatInterval
 func (mr *MockMetadataMockRecorder) HeartbeatInterval() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HeartbeatInterval", reflect.TypeOf((*MockMetadata)(nil).HeartbeatInterval))
 }
 
 // SetHeartbeatInterval mocks base method
 func (m *MockMetadata) SetHeartbeatInterval(h time.Duration) Metadata {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetHeartbeatInterval", h)
 	ret0, _ := ret[0].(Metadata)
 	return ret0
@@ -1239,11 +1388,13 @@ func (m *MockMetadata) SetHeartbeatInterval(h time.Duration) Metadata {
 
 // SetHeartbeatInterval indicates an expected call of SetHeartbeatInterval
 func (mr *MockMetadataMockRecorder) SetHeartbeatInterval(h interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHeartbeatInterval", reflect.TypeOf((*MockMetadata)(nil).SetHeartbeatInterval), h)
 }
 
 // Proto mocks base method
 func (m *MockMetadata) Proto() (*metadatapb.Metadata, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Proto")
 	ret0, _ := ret[0].(*metadatapb.Metadata)
 	ret1, _ := ret[1].(error)
@@ -1252,6 +1403,7 @@ func (m *MockMetadata) Proto() (*metadatapb.Metadata, error) {
 
 // Proto indicates an expected call of Proto
 func (mr *MockMetadataMockRecorder) Proto() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Proto", reflect.TypeOf((*MockMetadata)(nil).Proto))
 }
 
@@ -1280,6 +1432,7 @@ func (m *MockHeartbeatService) EXPECT() *MockHeartbeatServiceMockRecorder {
 
 // Heartbeat mocks base method
 func (m *MockHeartbeatService) Heartbeat(instance placement.Instance, ttl time.Duration) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Heartbeat", instance, ttl)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1287,11 +1440,13 @@ func (m *MockHeartbeatService) Heartbeat(instance placement.Instance, ttl time.D
 
 // Heartbeat indicates an expected call of Heartbeat
 func (mr *MockHeartbeatServiceMockRecorder) Heartbeat(instance, ttl interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Heartbeat", reflect.TypeOf((*MockHeartbeatService)(nil).Heartbeat), instance, ttl)
 }
 
 // Get mocks base method
 func (m *MockHeartbeatService) Get() ([]string, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get")
 	ret0, _ := ret[0].([]string)
 	ret1, _ := ret[1].(error)
@@ -1300,11 +1455,13 @@ func (m *MockHeartbeatService) Get() ([]string, error) {
 
 // Get indicates an expected call of Get
 func (mr *MockHeartbeatServiceMockRecorder) Get() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockHeartbeatService)(nil).Get))
 }
 
 // GetInstances mocks base method
 func (m *MockHeartbeatService) GetInstances() ([]placement.Instance, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetInstances")
 	ret0, _ := ret[0].([]placement.Instance)
 	ret1, _ := ret[1].(error)
@@ -1313,11 +1470,13 @@ func (m *MockHeartbeatService) GetInstances() ([]placement.Instance, error) {
 
 // GetInstances indicates an expected call of GetInstances
 func (mr *MockHeartbeatServiceMockRecorder) GetInstances() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInstances", reflect.TypeOf((*MockHeartbeatService)(nil).GetInstances))
 }
 
 // Delete mocks base method
 func (m *MockHeartbeatService) Delete(instance string) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Delete", instance)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1325,11 +1484,13 @@ func (m *MockHeartbeatService) Delete(instance string) error {
 
 // Delete indicates an expected call of Delete
 func (mr *MockHeartbeatServiceMockRecorder) Delete(instance interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockHeartbeatService)(nil).Delete), instance)
 }
 
 // Watch mocks base method
 func (m *MockHeartbeatService) Watch() (watch.Watch, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Watch")
 	ret0, _ := ret[0].(watch.Watch)
 	ret1, _ := ret[1].(error)
@@ -1338,6 +1499,7 @@ func (m *MockHeartbeatService) Watch() (watch.Watch, error) {
 
 // Watch indicates an expected call of Watch
 func (mr *MockHeartbeatServiceMockRecorder) Watch() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Watch", reflect.TypeOf((*MockHeartbeatService)(nil).Watch))
 }
 
@@ -1366,6 +1528,7 @@ func (m *MockElectionOptions) EXPECT() *MockElectionOptionsMockRecorder {
 
 // LeaderTimeout mocks base method
 func (m *MockElectionOptions) LeaderTimeout() time.Duration {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LeaderTimeout")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
@@ -1373,11 +1536,13 @@ func (m *MockElectionOptions) LeaderTimeout() time.Duration {
 
 // LeaderTimeout indicates an expected call of LeaderTimeout
 func (mr *MockElectionOptionsMockRecorder) LeaderTimeout() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LeaderTimeout", reflect.TypeOf((*MockElectionOptions)(nil).LeaderTimeout))
 }
 
 // SetLeaderTimeout mocks base method
 func (m *MockElectionOptions) SetLeaderTimeout(t time.Duration) ElectionOptions {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetLeaderTimeout", t)
 	ret0, _ := ret[0].(ElectionOptions)
 	return ret0
@@ -1385,11 +1550,13 @@ func (m *MockElectionOptions) SetLeaderTimeout(t time.Duration) ElectionOptions 
 
 // SetLeaderTimeout indicates an expected call of SetLeaderTimeout
 func (mr *MockElectionOptionsMockRecorder) SetLeaderTimeout(t interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLeaderTimeout", reflect.TypeOf((*MockElectionOptions)(nil).SetLeaderTimeout), t)
 }
 
 // ResignTimeout mocks base method
 func (m *MockElectionOptions) ResignTimeout() time.Duration {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ResignTimeout")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
@@ -1397,11 +1564,13 @@ func (m *MockElectionOptions) ResignTimeout() time.Duration {
 
 // ResignTimeout indicates an expected call of ResignTimeout
 func (mr *MockElectionOptionsMockRecorder) ResignTimeout() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResignTimeout", reflect.TypeOf((*MockElectionOptions)(nil).ResignTimeout))
 }
 
 // SetResignTimeout mocks base method
 func (m *MockElectionOptions) SetResignTimeout(t time.Duration) ElectionOptions {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetResignTimeout", t)
 	ret0, _ := ret[0].(ElectionOptions)
 	return ret0
@@ -1409,11 +1578,13 @@ func (m *MockElectionOptions) SetResignTimeout(t time.Duration) ElectionOptions 
 
 // SetResignTimeout indicates an expected call of SetResignTimeout
 func (mr *MockElectionOptionsMockRecorder) SetResignTimeout(t interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetResignTimeout", reflect.TypeOf((*MockElectionOptions)(nil).SetResignTimeout), t)
 }
 
 // TTLSecs mocks base method
 func (m *MockElectionOptions) TTLSecs() int {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "TTLSecs")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -1421,11 +1592,13 @@ func (m *MockElectionOptions) TTLSecs() int {
 
 // TTLSecs indicates an expected call of TTLSecs
 func (mr *MockElectionOptionsMockRecorder) TTLSecs() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TTLSecs", reflect.TypeOf((*MockElectionOptions)(nil).TTLSecs))
 }
 
 // SetTTLSecs mocks base method
 func (m *MockElectionOptions) SetTTLSecs(ttl int) ElectionOptions {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetTTLSecs", ttl)
 	ret0, _ := ret[0].(ElectionOptions)
 	return ret0
@@ -1433,6 +1606,7 @@ func (m *MockElectionOptions) SetTTLSecs(ttl int) ElectionOptions {
 
 // SetTTLSecs indicates an expected call of SetTTLSecs
 func (mr *MockElectionOptionsMockRecorder) SetTTLSecs(ttl interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTTLSecs", reflect.TypeOf((*MockElectionOptions)(nil).SetTTLSecs), ttl)
 }
 
@@ -1461,6 +1635,7 @@ func (m *MockCampaignOptions) EXPECT() *MockCampaignOptionsMockRecorder {
 
 // LeaderValue mocks base method
 func (m *MockCampaignOptions) LeaderValue() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LeaderValue")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -1468,11 +1643,13 @@ func (m *MockCampaignOptions) LeaderValue() string {
 
 // LeaderValue indicates an expected call of LeaderValue
 func (mr *MockCampaignOptionsMockRecorder) LeaderValue() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LeaderValue", reflect.TypeOf((*MockCampaignOptions)(nil).LeaderValue))
 }
 
 // SetLeaderValue mocks base method
 func (m *MockCampaignOptions) SetLeaderValue(v string) CampaignOptions {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetLeaderValue", v)
 	ret0, _ := ret[0].(CampaignOptions)
 	return ret0
@@ -1480,6 +1657,7 @@ func (m *MockCampaignOptions) SetLeaderValue(v string) CampaignOptions {
 
 // SetLeaderValue indicates an expected call of SetLeaderValue
 func (mr *MockCampaignOptionsMockRecorder) SetLeaderValue(v interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLeaderValue", reflect.TypeOf((*MockCampaignOptions)(nil).SetLeaderValue), v)
 }
 
@@ -1508,6 +1686,7 @@ func (m *MockLeaderService) EXPECT() *MockLeaderServiceMockRecorder {
 
 // Close mocks base method
 func (m *MockLeaderService) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1515,11 +1694,13 @@ func (m *MockLeaderService) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockLeaderServiceMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockLeaderService)(nil).Close))
 }
 
 // Campaign mocks base method
 func (m *MockLeaderService) Campaign(electionID string, opts CampaignOptions) (<-chan campaign.Status, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Campaign", electionID, opts)
 	ret0, _ := ret[0].(<-chan campaign.Status)
 	ret1, _ := ret[1].(error)
@@ -1528,11 +1709,13 @@ func (m *MockLeaderService) Campaign(electionID string, opts CampaignOptions) (<
 
 // Campaign indicates an expected call of Campaign
 func (mr *MockLeaderServiceMockRecorder) Campaign(electionID, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Campaign", reflect.TypeOf((*MockLeaderService)(nil).Campaign), electionID, opts)
 }
 
 // Resign mocks base method
 func (m *MockLeaderService) Resign(electionID string) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Resign", electionID)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1540,11 +1723,13 @@ func (m *MockLeaderService) Resign(electionID string) error {
 
 // Resign indicates an expected call of Resign
 func (mr *MockLeaderServiceMockRecorder) Resign(electionID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Resign", reflect.TypeOf((*MockLeaderService)(nil).Resign), electionID)
 }
 
 // Leader mocks base method
 func (m *MockLeaderService) Leader(electionID string) (string, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Leader", electionID)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
@@ -1553,11 +1738,13 @@ func (m *MockLeaderService) Leader(electionID string) (string, error) {
 
 // Leader indicates an expected call of Leader
 func (mr *MockLeaderServiceMockRecorder) Leader(electionID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Leader", reflect.TypeOf((*MockLeaderService)(nil).Leader), electionID)
 }
 
 // Observe mocks base method
 func (m *MockLeaderService) Observe(electionID string) (<-chan string, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Observe", electionID)
 	ret0, _ := ret[0].(<-chan string)
 	ret1, _ := ret[1].(error)
@@ -1566,5 +1753,6 @@ func (m *MockLeaderService) Observe(electionID string) (<-chan string, error) {
 
 // Observe indicates an expected call of Observe
 func (mr *MockLeaderServiceMockRecorder) Observe(electionID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Observe", reflect.TypeOf((*MockLeaderService)(nil).Observe), electionID)
 }

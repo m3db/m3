@@ -29,7 +29,7 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 )
 
-// IsInternalServerError determines if the error is an internal server error
+// IsInternalServerError determines if the error is an internal server error.
 func IsInternalServerError(err error) bool {
 	for err != nil {
 		if e, ok := err.(*rpc.Error); ok && tterrors.IsInternalError(e) {
@@ -40,7 +40,7 @@ func IsInternalServerError(err error) bool {
 	return false
 }
 
-// IsBadRequestError determines if the error is a bad request error
+// IsBadRequestError determines if the error is a bad request error.
 func IsBadRequestError(err error) bool {
 	for err != nil {
 		if e, ok := err.(*rpc.Error); ok && tterrors.IsBadRequestError(e) {
@@ -52,6 +52,12 @@ func IsBadRequestError(err error) bool {
 		err = xerrors.InnerError(err)
 	}
 	return false
+}
+
+// IsConsistencyResultError determines if the error is a consistency result error.
+func IsConsistencyResultError(err error) bool {
+	_, ok := err.(consistencyResultErr)
+	return ok
 }
 
 // NumResponded returns how many nodes responded for a given error

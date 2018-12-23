@@ -11,10 +11,12 @@ SHELL=/bin/bash -o pipefail
 auto_gen             := scripts/auto-gen.sh
 process_coverfile    := scripts/process-cover.sh
 gopath_prefix        := $(GOPATH)/src
+gopath_bin_path      := $(GOPATH)/bin
 m3db_package         := github.com/m3db/m3
 m3db_package_path    := $(gopath_prefix)/$(m3db_package)
 mockgen_package      := github.com/golang/mock/mockgen
 retool_bin_path      := $(m3db_package_path)/_tools/bin
+retool_src_prefix    := $(m3db_package_path)/_tools/src
 retool_package       := github.com/twitchtv/retool
 metalint_check       := .ci/metalint.sh
 metalint_config      := .metalinter.json
@@ -123,18 +125,6 @@ tools-linux-amd64:
 all: metalint test-ci-unit test-ci-integration services tools
 	@echo Made all successfully
 
-# NB(prateek): cannot use retool for mock-gen, as mock-gen reflection mode requires
-# it's full source code be present in the GOPATH at runtime.
-.PHONY: install-mockgen
-install-mockgen:
-	@echo Installing mockgen
-	@which mockgen >/dev/null || (                                                     \
-		rm -rf $(gopath_prefix)/$(mockgen_package)                                    && \
-		mkdir -p $(shell dirname $(gopath_prefix)/$(mockgen_package))                 && \
- 		cp -r $(vendor_prefix)/$(mockgen_package) $(gopath_prefix)/$(mockgen_package) && \
-		go install $(mockgen_package)                                                    \
-	)
-
 .PHONY: install-retool
 install-retool:
 	@which retool >/dev/null || go get $(retool_package)
@@ -142,8 +132,26 @@ install-retool:
 .PHONY: install-tools
 install-tools: install-retool
 	@echo "Installing retool dependencies"
-	@retool sync >/dev/null 2>/dev/null
-	@retool build >/dev/null 2>/dev/null
+	retool sync
+	retool build
+
+	@# NB(r): to ensure correct version of mock-gen is present we match the version
+	@# of the retool installed mockgen, and if not a match in binary contents, then
+	@# we explicitly install at the version we desire.
+	@# We cannot solely use the retool binary as mock-gen requires its full source
+	@# code to be present in the GOPATH at runtime.
+	@echo "Installing mockgen"
+	$(eval curr_mockgen_md5=`cat $(gopath_bin_path)/mockgen | md5`)
+	$(eval retool_mockgen_md5=`cat $(retool_bin_path)/mockgen | md5`)
+	@test "$(curr_mockgen_md5)" = "$(retool_mockgen_md5)" && echo "Mockgen already up to date" || ( \
+		echo "Installing mockgen from Retool directory"                                            && \
+		rm -rf $(gopath_prefix)/$(mockgen_package)                                                 && \
+		mkdir -p $(shell dirname $(gopath_prefix)/$(mockgen_package))                              && \
+ 		cp -r $(retool_src_prefix)/$(mockgen_package) $(gopath_prefix)/$(mockgen_package)          && \
+		(rm $(gopath_bin_path)/mockgen || echo "No installed mockgen" > /dev/null)                 && \
+		cp $(retool_bin_path)/mockgen $(gopath_bin_path)/mockgen                                   && \
+		echo "Installed mockgen from Retool directory"                                                \
+	)
 
 .PHONY: install-gometalinter
 install-gometalinter:
@@ -222,7 +230,7 @@ test-ci-integration:
 define SUBDIR_RULES
 
 .PHONY: mock-gen-$(SUBDIR)
-mock-gen-$(SUBDIR): install-tools install-mockgen
+mock-gen-$(SUBDIR): install-tools
 	@echo "--- Generating mocks $(SUBDIR)"
 	@[ ! -d src/$(SUBDIR)/$(mocks_rules_dir) ] || \
 		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(mocks_output_dir) src/$(SUBDIR)/$(mocks_rules_dir)
@@ -341,7 +349,7 @@ metalint: install-gometalinter install-linter-badtime install-linter-importorder
 # Tests that all currently generated types match their contents if they were regenerated
 .PHONY: test-all-gen
 test-all-gen: all-gen
-	@test "$(shell git diff --exit-code --shortstat 2>/dev/null)" = "" || (git diff --exit-code && echo "Check git status, there are dirty files" && exit 1)
+	@test "$(shell git diff --exit-code --shortstat 2>/dev/null)" = "" || (git diff --text --exit-code && echo "Check git status, there are dirty files" && exit 1)
 	@test "$(shell git status --exit-code --porcelain 2>/dev/null | grep "^??")" = "" || (git status --exit-code --porcelain && echo "Check git status, there are untracked files" && exit 1)
 
 # Runs a fossa license report

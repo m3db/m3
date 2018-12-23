@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/sharding"
 	"github.com/m3db/m3/src/dbnode/storage"
 	"github.com/m3db/m3/src/dbnode/topology"
+	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 
 	"github.com/uber-go/tally"
@@ -66,6 +67,7 @@ func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
 type clusterDB struct {
 	storage.Database
 
+	opts    storage.Options
 	log     xlog.Logger
 	metrics databaseMetrics
 	hostID  string
@@ -100,6 +102,7 @@ func NewDatabase(
 	log.Info("cluster database resolved topology")
 
 	d := &clusterDB{
+		opts:           opts,
 		log:            log,
 		metrics:        m,
 		hostID:         hostID,
@@ -272,7 +275,7 @@ func (d *clusterDB) analyzeAndReportShardStates() {
 	// To mark any initializing shards as available we need a
 	// dynamic topology, check if we have one and if not we will report
 	// that shards are initialzing and that we do not have a dynamic
-	// topology to mark them as available
+	// topology to mark them as available.
 	topo, ok := d.topo.(topology.DynamicTopology)
 	if !ok {
 		err := fmt.Errorf("topology constructed is not a dynamic topology")
@@ -280,7 +283,13 @@ func (d *clusterDB) analyzeAndReportShardStates() {
 		return
 	}
 
-	// Count if initializing shards have bootstrapped in all namespaces
+	if !d.IsBootstrappedAndDurable() {
+		return
+	}
+
+	// Count if initializing shards have bootstrapped in all namespaces. This
+	// check is redundant with the database check above, but we do it for
+	// posterity just to make sure everything is in the correct state.
 	namespaces := d.Database.Namespaces()
 	for _, n := range namespaces {
 		for _, s := range n.Shards() {
@@ -298,12 +307,20 @@ func (d *clusterDB) analyzeAndReportShardStates() {
 	for id := range d.initializing {
 		count := d.bootstrapCount[id]
 		if count != len(namespaces) {
+			// Should never happen if bootstrapped and durable.
+			instrument.EmitAndLogInvariantViolation(d.opts.InstrumentOptions(), func(l xlog.Logger) {
+				l.WithFields(
+					xlog.NewField("shard", id),
+					xlog.NewField("count", count),
+					xlog.NewField("numNamespaces", len(namespaces)),
+				).Error("database indicated that it was bootstrapped and durable, but number of bootstrapped shards did not match number of namespaces")
+			})
 			continue
 		}
 
 		// Mark this shard as available
 		if markAvailable == nil {
-			// Defer allocation until needed, alloc as much as could be required
+			// Defer allocation until needed, alloc as much as could be required.
 			markAvailable = make([]uint32, 0, len(d.initializing))
 		}
 		markAvailable = append(markAvailable, id)

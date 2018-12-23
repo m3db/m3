@@ -638,6 +638,13 @@ func (l *commitLog) writeWait(
 	if numEnqueued > l.maxQueueSize {
 		atomic.AddInt64(&l.numWritesInQueue, int64(-numToEnqueue))
 		l.closedState.RUnlock()
+
+		if write.writeBatch != nil {
+			// Make sure to finalize the write batch even though we didn't accept the writes
+			// so it can be returned to the pool.
+			write.writeBatch.Finalize()
+		}
+
 		return ErrCommitLogQueueFull
 	}
 
@@ -676,6 +683,13 @@ func (l *commitLog) writeBehind(
 	if numEnqueued > l.maxQueueSize {
 		atomic.AddInt64(&l.numWritesInQueue, int64(-numToEnqueue))
 		l.closedState.RUnlock()
+
+		if write.writeBatch != nil {
+			// Make sure to finalize the write batch even though we didn't accept the writes
+			// so it can be returned to the pool.
+			write.writeBatch.Finalize()
+		}
+
 		return ErrCommitLogQueueFull
 	}
 

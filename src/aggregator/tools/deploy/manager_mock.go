@@ -55,6 +55,7 @@ func (m *MockInstance) EXPECT() *MockInstanceMockRecorder {
 
 // ID mocks base method
 func (m *MockInstance) ID() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ID")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -62,11 +63,13 @@ func (m *MockInstance) ID() string {
 
 // ID indicates an expected call of ID
 func (mr *MockInstanceMockRecorder) ID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockInstance)(nil).ID))
 }
 
 // Revision mocks base method
 func (m *MockInstance) Revision() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Revision")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -74,11 +77,13 @@ func (m *MockInstance) Revision() string {
 
 // Revision indicates an expected call of Revision
 func (mr *MockInstanceMockRecorder) Revision() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Revision", reflect.TypeOf((*MockInstance)(nil).Revision))
 }
 
 // IsHealthy mocks base method
 func (m *MockInstance) IsHealthy() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsHealthy")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -86,11 +91,13 @@ func (m *MockInstance) IsHealthy() bool {
 
 // IsHealthy indicates an expected call of IsHealthy
 func (mr *MockInstanceMockRecorder) IsHealthy() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsHealthy", reflect.TypeOf((*MockInstance)(nil).IsHealthy))
 }
 
 // IsDeploying mocks base method
 func (m *MockInstance) IsDeploying() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsDeploying")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -98,6 +105,7 @@ func (m *MockInstance) IsDeploying() bool {
 
 // IsDeploying indicates an expected call of IsDeploying
 func (mr *MockInstanceMockRecorder) IsDeploying() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsDeploying", reflect.TypeOf((*MockInstance)(nil).IsDeploying))
 }
 
@@ -126,6 +134,7 @@ func (m *MockManager) EXPECT() *MockManagerMockRecorder {
 
 // QueryAll mocks base method
 func (m *MockManager) QueryAll() ([]Instance, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "QueryAll")
 	ret0, _ := ret[0].([]Instance)
 	ret1, _ := ret[1].(error)
@@ -134,11 +143,13 @@ func (m *MockManager) QueryAll() ([]Instance, error) {
 
 // QueryAll indicates an expected call of QueryAll
 func (mr *MockManagerMockRecorder) QueryAll() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryAll", reflect.TypeOf((*MockManager)(nil).QueryAll))
 }
 
 // Query mocks base method
 func (m *MockManager) Query(instanceIDs []string) ([]Instance, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Query", instanceIDs)
 	ret0, _ := ret[0].([]Instance)
 	ret1, _ := ret[1].(error)
@@ -147,11 +158,13 @@ func (m *MockManager) Query(instanceIDs []string) ([]Instance, error) {
 
 // Query indicates an expected call of Query
 func (mr *MockManagerMockRecorder) Query(instanceIDs interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Query", reflect.TypeOf((*MockManager)(nil).Query), instanceIDs)
 }
 
 // Deploy mocks base method
 func (m *MockManager) Deploy(instanceIDs []string, revision string) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Deploy", instanceIDs, revision)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -159,5 +172,6 @@ func (m *MockManager) Deploy(instanceIDs []string, revision string) error {
 
 // Deploy indicates an expected call of Deploy
 func (mr *MockManagerMockRecorder) Deploy(instanceIDs, revision interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Deploy", reflect.TypeOf((*MockManager)(nil).Deploy), instanceIDs, revision)
 }

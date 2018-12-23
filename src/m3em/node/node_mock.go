@@ -63,6 +63,7 @@ func (m *MockServiceNode) EXPECT() *MockServiceNodeMockRecorder {
 
 // Clone mocks base method
 func (m *MockServiceNode) Clone() placement.Instance {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Clone")
 	ret0, _ := ret[0].(placement.Instance)
 	return ret0
@@ -70,11 +71,13 @@ func (m *MockServiceNode) Clone() placement.Instance {
 
 // Clone indicates an expected call of Clone
 func (mr *MockServiceNodeMockRecorder) Clone() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Clone", reflect.TypeOf((*MockServiceNode)(nil).Clone))
 }
 
 // Close mocks base method
 func (m *MockServiceNode) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -82,21 +85,25 @@ func (m *MockServiceNode) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockServiceNodeMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockServiceNode)(nil).Close))
 }
 
 // DeregisterListener mocks base method
 func (m *MockServiceNode) DeregisterListener(arg0 ListenerID) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "DeregisterListener", arg0)
 }
 
 // DeregisterListener indicates an expected call of DeregisterListener
 func (mr *MockServiceNodeMockRecorder) DeregisterListener(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeregisterListener", reflect.TypeOf((*MockServiceNode)(nil).DeregisterListener), arg0)
 }
 
 // Endpoint mocks base method
 func (m *MockServiceNode) Endpoint() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Endpoint")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -104,11 +111,13 @@ func (m *MockServiceNode) Endpoint() string {
 
 // Endpoint indicates an expected call of Endpoint
 func (mr *MockServiceNodeMockRecorder) Endpoint() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Endpoint", reflect.TypeOf((*MockServiceNode)(nil).Endpoint))
 }
 
 // GetRemoteOutput mocks base method
 func (m *MockServiceNode) GetRemoteOutput(arg0 RemoteOutputType, arg1 string) (bool, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetRemoteOutput", arg0, arg1)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
@@ -117,11 +126,13 @@ func (m *MockServiceNode) GetRemoteOutput(arg0 RemoteOutputType, arg1 string) (b
 
 // GetRemoteOutput indicates an expected call of GetRemoteOutput
 func (mr *MockServiceNodeMockRecorder) GetRemoteOutput(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRemoteOutput", reflect.TypeOf((*MockServiceNode)(nil).GetRemoteOutput), arg0, arg1)
 }
 
 // Hostname mocks base method
 func (m *MockServiceNode) Hostname() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Hostname")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -129,11 +140,13 @@ func (m *MockServiceNode) Hostname() string {
 
 // Hostname indicates an expected call of Hostname
 func (mr *MockServiceNodeMockRecorder) Hostname() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Hostname", reflect.TypeOf((*MockServiceNode)(nil).Hostname))
 }
 
 // ID mocks base method
 func (m *MockServiceNode) ID() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ID")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -141,11 +154,13 @@ func (m *MockServiceNode) ID() string {
 
 // ID indicates an expected call of ID
 func (mr *MockServiceNodeMockRecorder) ID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockServiceNode)(nil).ID))
 }
 
 // IsAvailable mocks base method
 func (m *MockServiceNode) IsAvailable() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsAvailable")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -153,11 +168,13 @@ func (m *MockServiceNode) IsAvailable() bool {
 
 // IsAvailable indicates an expected call of IsAvailable
 func (mr *MockServiceNodeMockRecorder) IsAvailable() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsAvailable", reflect.TypeOf((*MockServiceNode)(nil).IsAvailable))
 }
 
 // IsInitializing mocks base method
 func (m *MockServiceNode) IsInitializing() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsInitializing")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -165,11 +182,13 @@ func (m *MockServiceNode) IsInitializing() bool {
 
 // IsInitializing indicates an expected call of IsInitializing
 func (mr *MockServiceNodeMockRecorder) IsInitializing() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsInitializing", reflect.TypeOf((*MockServiceNode)(nil).IsInitializing))
 }
 
 // IsLeaving mocks base method
 func (m *MockServiceNode) IsLeaving() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsLeaving")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -177,11 +196,13 @@ func (m *MockServiceNode) IsLeaving() bool {
 
 // IsLeaving indicates an expected call of IsLeaving
 func (mr *MockServiceNodeMockRecorder) IsLeaving() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsLeaving", reflect.TypeOf((*MockServiceNode)(nil).IsLeaving))
 }
 
 // IsolationGroup mocks base method
 func (m *MockServiceNode) IsolationGroup() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsolationGroup")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -189,11 +210,13 @@ func (m *MockServiceNode) IsolationGroup() string {
 
 // IsolationGroup indicates an expected call of IsolationGroup
 func (mr *MockServiceNodeMockRecorder) IsolationGroup() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsolationGroup", reflect.TypeOf((*MockServiceNode)(nil).IsolationGroup))
 }
 
 // Port mocks base method
 func (m *MockServiceNode) Port() uint32 {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Port")
 	ret0, _ := ret[0].(uint32)
 	return ret0
@@ -201,11 +224,13 @@ func (m *MockServiceNode) Port() uint32 {
 
 // Port indicates an expected call of Port
 func (mr *MockServiceNodeMockRecorder) Port() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Port", reflect.TypeOf((*MockServiceNode)(nil).Port))
 }
 
 // Proto mocks base method
 func (m *MockServiceNode) Proto() (*placementpb.Instance, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Proto")
 	ret0, _ := ret[0].(*placementpb.Instance)
 	ret1, _ := ret[1].(error)
@@ -214,11 +239,13 @@ func (m *MockServiceNode) Proto() (*placementpb.Instance, error) {
 
 // Proto indicates an expected call of Proto
 func (mr *MockServiceNodeMockRecorder) Proto() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Proto", reflect.TypeOf((*MockServiceNode)(nil).Proto))
 }
 
 // RegisterListener mocks base method
 func (m *MockServiceNode) RegisterListener(arg0 Listener) ListenerID {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RegisterListener", arg0)
 	ret0, _ := ret[0].(ListenerID)
 	return ret0
@@ -226,11 +253,13 @@ func (m *MockServiceNode) RegisterListener(arg0 Listener) ListenerID {
 
 // RegisterListener indicates an expected call of RegisterListener
 func (mr *MockServiceNodeMockRecorder) RegisterListener(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterListener", reflect.TypeOf((*MockServiceNode)(nil).RegisterListener), arg0)
 }
 
 // SetEndpoint mocks base method
 func (m *MockServiceNode) SetEndpoint(arg0 string) placement.Instance {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetEndpoint", arg0)
 	ret0, _ := ret[0].(placement.Instance)
 	return ret0
@@ -238,11 +267,13 @@ func (m *MockServiceNode) SetEndpoint(arg0 string) placement.Instance {
 
 // SetEndpoint indicates an expected call of SetEndpoint
 func (mr *MockServiceNodeMockRecorder) SetEndpoint(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEndpoint", reflect.TypeOf((*MockServiceNode)(nil).SetEndpoint), arg0)
 }
 
 // SetHostname mocks base method
 func (m *MockServiceNode) SetHostname(arg0 string) placement.Instance {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetHostname", arg0)
 	ret0, _ := ret[0].(placement.Instance)
 	return ret0
@@ -250,11 +281,13 @@ func (m *MockServiceNode) SetHostname(arg0 string) placement.Instance {
 
 // SetHostname indicates an expected call of SetHostname
 func (mr *MockServiceNodeMockRecorder) SetHostname(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHostname", reflect.TypeOf((*MockServiceNode)(nil).SetHostname), arg0)
 }
 
 // SetID mocks base method
 func (m *MockServiceNode) SetID(arg0 string) placement.Instance {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetID", arg0)
 	ret0, _ := ret[0].(placement.Instance)
 	return ret0
@@ -262,11 +295,13 @@ func (m *MockServiceNode) SetID(arg0 string) placement.Instance {
 
 // SetID indicates an expected call of SetID
 func (mr *MockServiceNodeMockRecorder) SetID(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetID", reflect.TypeOf((*MockServiceNode)(nil).SetID), arg0)
 }
 
 // SetIsolationGroup mocks base method
 func (m *MockServiceNode) SetIsolationGroup(arg0 string) placement.Instance {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetIsolationGroup", arg0)
 	ret0, _ := ret[0].(placement.Instance)
 	return ret0
@@ -274,11 +309,13 @@ func (m *MockServiceNode) SetIsolationGroup(arg0 string) placement.Instance {
 
 // SetIsolationGroup indicates an expected call of SetIsolationGroup
 func (mr *MockServiceNodeMockRecorder) SetIsolationGroup(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIsolationGroup", reflect.TypeOf((*MockServiceNode)(nil).SetIsolationGroup), arg0)
 }
 
 // SetPort mocks base method
 func (m *MockServiceNode) SetPort(arg0 uint32) placement.Instance {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetPort", arg0)
 	ret0, _ := ret[0].(placement.Instance)
 	return ret0
@@ -286,11 +323,13 @@ func (m *MockServiceNode) SetPort(arg0 uint32) placement.Instance {
 
 // SetPort indicates an expected call of SetPort
 func (mr *MockServiceNodeMockRecorder) SetPort(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPort", reflect.TypeOf((*MockServiceNode)(nil).SetPort), arg0)
 }
 
 // SetShardSetID mocks base method
 func (m *MockServiceNode) SetShardSetID(arg0 uint32) placement.Instance {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetShardSetID", arg0)
 	ret0, _ := ret[0].(placement.Instance)
 	return ret0
@@ -298,11 +337,13 @@ func (m *MockServiceNode) SetShardSetID(arg0 uint32) placement.Instance {
 
 // SetShardSetID indicates an expected call of SetShardSetID
 func (mr *MockServiceNodeMockRecorder) SetShardSetID(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetShardSetID", reflect.TypeOf((*MockServiceNode)(nil).SetShardSetID), arg0)
 }
 
 // SetShards mocks base method
 func (m *MockServiceNode) SetShards(arg0 shard.Shards) placement.Instance {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetShards", arg0)
 	ret0, _ := ret[0].(placement.Instance)
 	return ret0
@@ -310,11 +351,13 @@ func (m *MockServiceNode) SetShards(arg0 shard.Shards) placement.Instance {
 
 // SetShards indicates an expected call of SetShards
 func (mr *MockServiceNodeMockRecorder) SetShards(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetShards", reflect.TypeOf((*MockServiceNode)(nil).SetShards), arg0)
 }
 
 // SetWeight mocks base method
 func (m *MockServiceNode) SetWeight(arg0 uint32) placement.Instance {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetWeight", arg0)
 	ret0, _ := ret[0].(placement.Instance)
 	return ret0
@@ -322,11 +365,13 @@ func (m *MockServiceNode) SetWeight(arg0 uint32) placement.Instance {
 
 // SetWeight indicates an expected call of SetWeight
 func (mr *MockServiceNodeMockRecorder) SetWeight(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWeight", reflect.TypeOf((*MockServiceNode)(nil).SetWeight), arg0)
 }
 
 // SetZone mocks base method
 func (m *MockServiceNode) SetZone(arg0 string) placement.Instance {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetZone", arg0)
 	ret0, _ := ret[0].(placement.Instance)
 	return ret0
@@ -334,11 +379,13 @@ func (m *MockServiceNode) SetZone(arg0 string) placement.Instance {
 
 // SetZone indicates an expected call of SetZone
 func (mr *MockServiceNodeMockRecorder) SetZone(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetZone", reflect.TypeOf((*MockServiceNode)(nil).SetZone), arg0)
 }
 
 // Setup mocks base method
 func (m *MockServiceNode) Setup(arg0 build.ServiceBuild, arg1 build.ServiceConfiguration, arg2 string, arg3 bool) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Setup", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -346,11 +393,13 @@ func (m *MockServiceNode) Setup(arg0 build.ServiceBuild, arg1 build.ServiceConfi
 
 // Setup indicates an expected call of Setup
 func (mr *MockServiceNodeMockRecorder) Setup(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Setup", reflect.TypeOf((*MockServiceNode)(nil).Setup), arg0, arg1, arg2, arg3)
 }
 
 // ShardSetID mocks base method
 func (m *MockServiceNode) ShardSetID() uint32 {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ShardSetID")
 	ret0, _ := ret[0].(uint32)
 	return ret0
@@ -358,11 +407,13 @@ func (m *MockServiceNode) ShardSetID() uint32 {
 
 // ShardSetID indicates an expected call of ShardSetID
 func (mr *MockServiceNodeMockRecorder) ShardSetID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShardSetID", reflect.TypeOf((*MockServiceNode)(nil).ShardSetID))
 }
 
 // Shards mocks base method
 func (m *MockServiceNode) Shards() shard.Shards {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Shards")
 	ret0, _ := ret[0].(shard.Shards)
 	return ret0
@@ -370,11 +421,13 @@ func (m *MockServiceNode) Shards() shard.Shards {
 
 // Shards indicates an expected call of Shards
 func (mr *MockServiceNodeMockRecorder) Shards() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shards", reflect.TypeOf((*MockServiceNode)(nil).Shards))
 }
 
 // Start mocks base method
 func (m *MockServiceNode) Start() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Start")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -382,11 +435,13 @@ func (m *MockServiceNode) Start() error {
 
 // Start indicates an expected call of Start
 func (mr *MockServiceNodeMockRecorder) Start() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockServiceNode)(nil).Start))
 }
 
 // Status mocks base method
 func (m *MockServiceNode) Status() Status {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Status")
 	ret0, _ := ret[0].(Status)
 	return ret0
@@ -394,11 +449,13 @@ func (m *MockServiceNode) Status() Status {
 
 // Status indicates an expected call of Status
 func (mr *MockServiceNodeMockRecorder) Status() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Status", reflect.TypeOf((*MockServiceNode)(nil).Status))
 }
 
 // Stop mocks base method
 func (m *MockServiceNode) Stop() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Stop")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -406,11 +463,13 @@ func (m *MockServiceNode) Stop() error {
 
 // Stop indicates an expected call of Stop
 func (mr *MockServiceNodeMockRecorder) Stop() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockServiceNode)(nil).Stop))
 }
 
 // String mocks base method
 func (m *MockServiceNode) String() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "String")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -418,11 +477,13 @@ func (m *MockServiceNode) String() string {
 
 // String indicates an expected call of String
 func (mr *MockServiceNodeMockRecorder) String() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "String", reflect.TypeOf((*MockServiceNode)(nil).String))
 }
 
 // Teardown mocks base method
 func (m *MockServiceNode) Teardown() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Teardown")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -430,11 +491,13 @@ func (m *MockServiceNode) Teardown() error {
 
 // Teardown indicates an expected call of Teardown
 func (mr *MockServiceNodeMockRecorder) Teardown() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Teardown", reflect.TypeOf((*MockServiceNode)(nil).Teardown))
 }
 
 // TransferLocalFile mocks base method
 func (m *MockServiceNode) TransferLocalFile(arg0 string, arg1 []string, arg2 bool) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "TransferLocalFile", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -442,11 +505,13 @@ func (m *MockServiceNode) TransferLocalFile(arg0 string, arg1 []string, arg2 boo
 
 // TransferLocalFile indicates an expected call of TransferLocalFile
 func (mr *MockServiceNodeMockRecorder) TransferLocalFile(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TransferLocalFile", reflect.TypeOf((*MockServiceNode)(nil).TransferLocalFile), arg0, arg1, arg2)
 }
 
 // Weight mocks base method
 func (m *MockServiceNode) Weight() uint32 {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Weight")
 	ret0, _ := ret[0].(uint32)
 	return ret0
@@ -454,11 +519,13 @@ func (m *MockServiceNode) Weight() uint32 {
 
 // Weight indicates an expected call of Weight
 func (mr *MockServiceNodeMockRecorder) Weight() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Weight", reflect.TypeOf((*MockServiceNode)(nil).Weight))
 }
 
 // Zone mocks base method
 func (m *MockServiceNode) Zone() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Zone")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -466,6 +533,7 @@ func (m *MockServiceNode) Zone() string {
 
 // Zone indicates an expected call of Zone
 func (mr *MockServiceNodeMockRecorder) Zone() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Zone", reflect.TypeOf((*MockServiceNode)(nil).Zone))
 }
 
@@ -494,6 +562,7 @@ func (m *MockOptions) EXPECT() *MockOptionsMockRecorder {
 
 // HeartbeatOptions mocks base method
 func (m *MockOptions) HeartbeatOptions() HeartbeatOptions {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "HeartbeatOptions")
 	ret0, _ := ret[0].(HeartbeatOptions)
 	return ret0
@@ -501,11 +570,13 @@ func (m *MockOptions) HeartbeatOptions() HeartbeatOptions {
 
 // HeartbeatOptions indicates an expected call of HeartbeatOptions
 func (mr *MockOptionsMockRecorder) HeartbeatOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HeartbeatOptions", reflect.TypeOf((*MockOptions)(nil).HeartbeatOptions))
 }
 
 // InstrumentOptions mocks base method
 func (m *MockOptions) InstrumentOptions() instrument.Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InstrumentOptions")
 	ret0, _ := ret[0].(instrument.Options)
 	return ret0
@@ -513,11 +584,13 @@ func (m *MockOptions) InstrumentOptions() instrument.Options {
 
 // InstrumentOptions indicates an expected call of InstrumentOptions
 func (mr *MockOptionsMockRecorder) InstrumentOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstrumentOptions", reflect.TypeOf((*MockOptions)(nil).InstrumentOptions))
 }
 
 // MaxPullSize mocks base method
 func (m *MockOptions) MaxPullSize() int64 {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MaxPullSize")
 	ret0, _ := ret[0].(int64)
 	return ret0
@@ -525,11 +598,13 @@ func (m *MockOptions) MaxPullSize() int64 {
 
 // MaxPullSize indicates an expected call of MaxPullSize
 func (mr *MockOptionsMockRecorder) MaxPullSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MaxPullSize", reflect.TypeOf((*MockOptions)(nil).MaxPullSize))
 }
 
 // OperationTimeout mocks base method
 func (m *MockOptions) OperationTimeout() time.Duration {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "OperationTimeout")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
@@ -537,11 +612,13 @@ func (m *MockOptions) OperationTimeout() time.Duration {
 
 // OperationTimeout indicates an expected call of OperationTimeout
 func (mr *MockOptionsMockRecorder) OperationTimeout() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OperationTimeout", reflect.TypeOf((*MockOptions)(nil).OperationTimeout))
 }
 
 // OperatorClientFn mocks base method
 func (m *MockOptions) OperatorClientFn() OperatorClientFn {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "OperatorClientFn")
 	ret0, _ := ret[0].(OperatorClientFn)
 	return ret0
@@ -549,11 +626,13 @@ func (m *MockOptions) OperatorClientFn() OperatorClientFn {
 
 // OperatorClientFn indicates an expected call of OperatorClientFn
 func (mr *MockOptionsMockRecorder) OperatorClientFn() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OperatorClientFn", reflect.TypeOf((*MockOptions)(nil).OperatorClientFn))
 }
 
 // Retrier mocks base method
 func (m *MockOptions) Retrier() retry.Retrier {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Retrier")
 	ret0, _ := ret[0].(retry.Retrier)
 	return ret0
@@ -561,11 +640,13 @@ func (m *MockOptions) Retrier() retry.Retrier {
 
 // Retrier indicates an expected call of Retrier
 func (mr *MockOptionsMockRecorder) Retrier() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Retrier", reflect.TypeOf((*MockOptions)(nil).Retrier))
 }
 
 // SetHeartbeatOptions mocks base method
 func (m *MockOptions) SetHeartbeatOptions(arg0 HeartbeatOptions) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetHeartbeatOptions", arg0)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -573,11 +654,13 @@ func (m *MockOptions) SetHeartbeatOptions(arg0 HeartbeatOptions) Options {
 
 // SetHeartbeatOptions indicates an expected call of SetHeartbeatOptions
 func (mr *MockOptionsMockRecorder) SetHeartbeatOptions(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHeartbeatOptions", reflect.TypeOf((*MockOptions)(nil).SetHeartbeatOptions), arg0)
 }
 
 // SetInstrumentOptions mocks base method
 func (m *MockOptions) SetInstrumentOptions(arg0 instrument.Options) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetInstrumentOptions", arg0)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -585,11 +668,13 @@ func (m *MockOptions) SetInstrumentOptions(arg0 instrument.Options) Options {
 
 // SetInstrumentOptions indicates an expected call of SetInstrumentOptions
 func (mr *MockOptionsMockRecorder) SetInstrumentOptions(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInstrumentOptions", reflect.TypeOf((*MockOptions)(nil).SetInstrumentOptions), arg0)
 }
 
 // SetMaxPullSize mocks base method
 func (m *MockOptions) SetMaxPullSize(arg0 int64) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetMaxPullSize", arg0)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -597,11 +682,13 @@ func (m *MockOptions) SetMaxPullSize(arg0 int64) Options {
 
 // SetMaxPullSize indicates an expected call of SetMaxPullSize
 func (mr *MockOptionsMockRecorder) SetMaxPullSize(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMaxPullSize", reflect.TypeOf((*MockOptions)(nil).SetMaxPullSize), arg0)
 }
 
 // SetOperationTimeout mocks base method
 func (m *MockOptions) SetOperationTimeout(arg0 time.Duration) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetOperationTimeout", arg0)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -609,11 +696,13 @@ func (m *MockOptions) SetOperationTimeout(arg0 time.Duration) Options {
 
 // SetOperationTimeout indicates an expected call of SetOperationTimeout
 func (mr *MockOptionsMockRecorder) SetOperationTimeout(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetOperationTimeout", reflect.TypeOf((*MockOptions)(nil).SetOperationTimeout), arg0)
 }
 
 // SetOperatorClientFn mocks base method
 func (m *MockOptions) SetOperatorClientFn(arg0 OperatorClientFn) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetOperatorClientFn", arg0)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -621,11 +710,13 @@ func (m *MockOptions) SetOperatorClientFn(arg0 OperatorClientFn) Options {
 
 // SetOperatorClientFn indicates an expected call of SetOperatorClientFn
 func (mr *MockOptionsMockRecorder) SetOperatorClientFn(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetOperatorClientFn", reflect.TypeOf((*MockOptions)(nil).SetOperatorClientFn), arg0)
 }
 
 // SetRetrier mocks base method
 func (m *MockOptions) SetRetrier(arg0 retry.Retrier) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetRetrier", arg0)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -633,11 +724,13 @@ func (m *MockOptions) SetRetrier(arg0 retry.Retrier) Options {
 
 // SetRetrier indicates an expected call of SetRetrier
 func (mr *MockOptionsMockRecorder) SetRetrier(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRetrier", reflect.TypeOf((*MockOptions)(nil).SetRetrier), arg0)
 }
 
 // SetTransferBufferSize mocks base method
 func (m *MockOptions) SetTransferBufferSize(arg0 int) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetTransferBufferSize", arg0)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -645,11 +738,13 @@ func (m *MockOptions) SetTransferBufferSize(arg0 int) Options {
 
 // SetTransferBufferSize indicates an expected call of SetTransferBufferSize
 func (mr *MockOptionsMockRecorder) SetTransferBufferSize(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTransferBufferSize", reflect.TypeOf((*MockOptions)(nil).SetTransferBufferSize), arg0)
 }
 
 // TransferBufferSize mocks base method
 func (m *MockOptions) TransferBufferSize() int {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "TransferBufferSize")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -657,11 +752,13 @@ func (m *MockOptions) TransferBufferSize() int {
 
 // TransferBufferSize indicates an expected call of TransferBufferSize
 func (mr *MockOptionsMockRecorder) TransferBufferSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TransferBufferSize", reflect.TypeOf((*MockOptions)(nil).TransferBufferSize))
 }
 
 // Validate mocks base method
 func (m *MockOptions) Validate() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Validate")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -669,5 +766,6 @@ func (m *MockOptions) Validate() error {
 
 // Validate indicates an expected call of Validate
 func (mr *MockOptionsMockRecorder) Validate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Validate", reflect.TypeOf((*MockOptions)(nil).Validate))
 }

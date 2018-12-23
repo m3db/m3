@@ -36,7 +36,7 @@ type encodeFloat64Fn func(value float64)
 type encodeBytesFn func(value []byte)
 type encodeArrayLenFn func(value int)
 
-// Encoder encodes data in msgpack format for persistence
+// Encoder encodes data in msgpack format for persistence.
 type Encoder struct {
 	buf *bytes.Buffer
 	enc *msgpack.Encoder
@@ -53,21 +53,32 @@ type Encoder struct {
 	legacy legacyEncodingOptions
 }
 
+type legacyEncodingIndexInfoVersion int
+
+const (
+	// List in reverse order to ensure default value is current version.
+	legacyEncodingIndexVersionCurrent legacyEncodingIndexInfoVersion = iota
+	legacyEncodingIndexVersionV2
+	legacyEncodingIndexVersionV1
+)
+
 type legacyEncodingOptions struct {
-	encodeLegacyV1IndexInfo  bool
+	encodeLegacyIndexInfoVersion legacyEncodingIndexInfoVersion
+	decodeLegacyIndexInfoVersion legacyEncodingIndexInfoVersion
+
 	encodeLegacyV1IndexEntry bool
-	decodeLegacyV1IndexInfo  bool
 	decodeLegacyV1IndexEntry bool
 }
 
 var defaultlegacyEncodingOptions = legacyEncodingOptions{
-	encodeLegacyV1IndexInfo:  false,
+	encodeLegacyIndexInfoVersion: legacyEncodingIndexVersionCurrent,
+	decodeLegacyIndexInfoVersion: legacyEncodingIndexVersionCurrent,
+
 	encodeLegacyV1IndexEntry: false,
-	decodeLegacyV1IndexInfo:  false,
 	decodeLegacyV1IndexEntry: false,
 }
 
-// NewEncoder creates a new encoder
+// NewEncoder creates a new encoder.
 func NewEncoder() *Encoder {
 	return newEncoder(defaultlegacyEncodingOptions)
 }
@@ -87,36 +98,38 @@ func newEncoder(legacy legacyEncodingOptions) *Encoder {
 	enc.encodeBytesFn = enc.encodeBytes
 	enc.encodeArrayLenFn = enc.encodeArrayLen
 
-	// Used primarily for testing
+	// Used primarily for testing.
 	enc.legacy = legacy
 
 	return enc
 }
 
-// Reset resets the buffer
+// Reset resets the buffer.
 func (enc *Encoder) Reset() {
 	enc.buf.Truncate(0)
 	enc.err = nil
 }
 
-// Bytes returns the encoded bytes
+// Bytes returns the encoded bytes.
 func (enc *Encoder) Bytes() []byte { return enc.buf.Bytes() }
 
-// EncodeIndexInfo encodes index info
+// EncodeIndexInfo encodes index info.
 func (enc *Encoder) EncodeIndexInfo(info schema.IndexInfo) error {
 	if enc.err != nil {
 		return enc.err
 	}
 	enc.encodeRootObject(indexInfoVersion, indexInfoType)
-	if enc.legacy.encodeLegacyV1IndexInfo {
+	if enc.legacy.encodeLegacyIndexInfoVersion == legacyEncodingIndexVersionV1 {
 		enc.encodeIndexInfoV1(info)
-	} else {
+	} else if enc.legacy.encodeLegacyIndexInfoVersion == legacyEncodingIndexVersionV2 {
 		enc.encodeIndexInfoV2(info)
+	} else {
+		enc.encodeIndexInfoV3(info)
 	}
 	return enc.err
 }
 
-// EncodeIndexEntry encodes index entry
+// EncodeIndexEntry encodes index entry.
 func (enc *Encoder) EncodeIndexEntry(entry schema.IndexEntry) error {
 	if enc.err != nil {
 		return enc.err
@@ -130,7 +143,7 @@ func (enc *Encoder) EncodeIndexEntry(entry schema.IndexEntry) error {
 	return enc.err
 }
 
-// EncodeIndexSummary encodes index summary
+// EncodeIndexSummary encodes index summary.
 func (enc *Encoder) EncodeIndexSummary(summary schema.IndexSummary) error {
 	if enc.err != nil {
 		return enc.err
@@ -140,7 +153,7 @@ func (enc *Encoder) EncodeIndexSummary(summary schema.IndexSummary) error {
 	return enc.err
 }
 
-// EncodeLogInfo encodes commit log info
+// EncodeLogInfo encodes commit log info.
 func (enc *Encoder) EncodeLogInfo(info schema.LogInfo) error {
 	if enc.err != nil {
 		return enc.err
@@ -150,7 +163,7 @@ func (enc *Encoder) EncodeLogInfo(info schema.LogInfo) error {
 	return enc.err
 }
 
-// EncodeLogEntry encodes commit log entry
+// EncodeLogEntry encodes commit log entry.
 func (enc *Encoder) EncodeLogEntry(entry schema.LogEntry) error {
 	if enc.err != nil {
 		return enc.err
@@ -171,10 +184,10 @@ func (enc *Encoder) EncodeLogMetadata(entry schema.LogMetadata) error {
 }
 
 // We only keep this method around for the sake of testing
-// backwards-compatbility
+// backwards-compatbility.
 func (enc *Encoder) encodeIndexInfoV1(info schema.IndexInfo) {
-	// Manually encode num fields for testing purposes
-	enc.encodeArrayLenFn(6) // v1 had 6 fields
+	// Manually encode num fields for testing purposes.
+	enc.encodeArrayLenFn(6) // V1 had 6 fields.
 	enc.encodeVarintFn(info.BlockStart)
 	enc.encodeVarintFn(info.BlockSize)
 	enc.encodeVarintFn(info.Entries)
@@ -183,7 +196,22 @@ func (enc *Encoder) encodeIndexInfoV1(info schema.IndexInfo) {
 	enc.encodeIndexBloomFilterInfo(info.BloomFilter)
 }
 
+// We only keep this method around for the sake of testing
+// backwards-compatbility.
 func (enc *Encoder) encodeIndexInfoV2(info schema.IndexInfo) {
+	// Manually encode num fields for testing purposes.
+	enc.encodeNumObjectFieldsForFn(8) // V2 had 8 fields.
+	enc.encodeVarintFn(info.BlockStart)
+	enc.encodeVarintFn(info.BlockSize)
+	enc.encodeVarintFn(info.Entries)
+	enc.encodeVarintFn(info.MajorVersion)
+	enc.encodeIndexSummariesInfo(info.Summaries)
+	enc.encodeIndexBloomFilterInfo(info.BloomFilter)
+	enc.encodeVarintFn(info.SnapshotTime)
+	enc.encodeVarintFn(int64(info.FileType))
+}
+
+func (enc *Encoder) encodeIndexInfoV3(info schema.IndexInfo) {
 	enc.encodeNumObjectFieldsForFn(indexInfoType)
 	enc.encodeVarintFn(info.BlockStart)
 	enc.encodeVarintFn(info.BlockSize)
@@ -193,6 +221,7 @@ func (enc *Encoder) encodeIndexInfoV2(info schema.IndexInfo) {
 	enc.encodeIndexBloomFilterInfo(info.BloomFilter)
 	enc.encodeVarintFn(info.SnapshotTime)
 	enc.encodeVarintFn(int64(info.FileType))
+	enc.encodeBytesFn(info.SnapshotID)
 }
 
 func (enc *Encoder) encodeIndexSummariesInfo(info schema.IndexSummariesInfo) {
@@ -207,10 +236,10 @@ func (enc *Encoder) encodeIndexBloomFilterInfo(info schema.IndexBloomFilterInfo)
 }
 
 // We only keep this method around for the sake of testing
-// backwards-compatbility
+// backwards-compatbility.
 func (enc *Encoder) encodeIndexEntryV1(entry schema.IndexEntry) {
-	// Manually encode num fields for testing purposes
-	enc.encodeArrayLenFn(5) // v1 had 5 fields
+	// Manually encode num fields for testing purposes.
+	enc.encodeArrayLenFn(5) // V1 had 5 fields.
 	enc.encodeVarintFn(entry.Index)
 	enc.encodeBytesFn(entry.ID)
 	enc.encodeVarintFn(entry.Size)

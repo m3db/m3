@@ -20,7 +20,17 @@
 
 package protobuf
 
-import "github.com/m3db/m3/src/metrics/generated/proto/metricpb"
+import (
+	"github.com/m3db/m3/src/metrics/generated/proto/metricpb"
+)
+
+func resetAggregatedMetricProto(pb *metricpb.AggregatedMetric) {
+	if pb == nil {
+		return
+	}
+	resetTimedMetricWithStoragePolicyProto(&pb.Metric)
+	pb.EncodeNanos = 0
+}
 
 // resetMetricWithMetadatasProto resets the metric with metadatas proto, and
 // in particular message fields that are slices because the `Unmarshal` generated
@@ -78,6 +88,14 @@ func resetTimedMetricWithMetadataProto(pb *metricpb.TimedMetricWithMetadata) {
 	}
 	resetTimedMetric(&pb.Metric)
 	resetTimedMetadata(&pb.Metadata)
+}
+
+func resetTimedMetricWithStoragePolicyProto(pb *metricpb.TimedMetricWithStoragePolicy) {
+	if pb == nil {
+		return
+	}
+	resetTimedMetric(&pb.TimedMetric)
+	pb.StoragePolicy.Reset()
 }
 
 func resetCounter(pb *metricpb.Counter) {

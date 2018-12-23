@@ -34,6 +34,12 @@ const (
 	vmSwappinessKey  = "vm.swappiness"
 )
 
+// CanGetProcessLimits returns a boolean to signify if it can return limits,
+// and a warning message if it cannot.
+func CanGetProcessLimits() (bool, string) {
+	return true, ""
+}
+
 // GetProcessLimits returns the known process limits.
 func GetProcessLimits() (ProcessLimits, error) {
 	var noFile syscall.Rlimit

@@ -59,7 +59,8 @@ func TestPromReadHandler_Read(t *testing.T) {
 
 	r, parseErr := parseParams(req)
 	require.Nil(t, parseErr)
-	seriesList, err := promRead.read(context.TODO(), httptest.NewRecorder(), r)
+	assert.Equal(t, models.FormatPromQL, r.FormatType)
+	seriesList, err := read(context.TODO(), promRead.engine, promRead.tagOpts, httptest.NewRecorder(), r)
 	require.NoError(t, err)
 	require.Len(t, seriesList, 2)
 	s := seriesList[0]
@@ -68,6 +69,43 @@ func TestPromReadHandler_Read(t *testing.T) {
 	for i := 0; i < s.Values().Len(); i++ {
 		assert.Equal(t, float64(i), s.Values().ValueAt(i))
 	}
+}
+
+type M3QLResp []struct {
+	Target     string            `json:"target"`
+	Tags       map[string]string `json:"tags"`
+	Datapoints [][]float64       `json:"datapoints"`
+	StepSizeMs int               `json:"step_size_ms"`
+}
+
+func TestPromReadHandler_ReadM3QL(t *testing.T) {
+	logging.InitWithCores(nil)
+
+	values, bounds := test.GenerateValuesAndBounds(nil, nil)
+
+	setup := newTestSetup()
+	promRead := setup.Handler
+
+	b := test.NewBlockFromValues(bounds, values)
+	setup.Storage.SetFetchBlocksResult(block.Result{Blocks: []block.Block{b}}, nil)
+
+	req, _ := http.NewRequest("GET", PromReadURL, nil)
+	req.Header.Add("X-M3-Render-Format", "m3ql")
+	req.URL.RawQuery = defaultParams().Encode()
+
+	recorder := httptest.NewRecorder()
+	promRead.ServeHTTP(recorder, req)
+
+	var m3qlResp M3QLResp
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &m3qlResp))
+
+	assert.Len(t, m3qlResp, 2)
+	assert.Equal(t, "dummy0", m3qlResp[0].Target)
+	assert.Equal(t, map[string]string{"__name__": "dummy0", "dummy0": "dummy0"}, m3qlResp[0].Tags)
+	assert.Equal(t, 10000, m3qlResp[0].StepSizeMs)
+	assert.Equal(t, "dummy1", m3qlResp[1].Target)
+	assert.Equal(t, map[string]string{"__name__": "dummy1", "dummy1": "dummy1"}, m3qlResp[1].Tags)
+	assert.Equal(t, 10000, m3qlResp[1].StepSizeMs)
 }
 
 func newReadRequest(t *testing.T, params url.Values) *http.Request {

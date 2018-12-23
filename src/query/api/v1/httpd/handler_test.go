@@ -64,7 +64,7 @@ func TestPromRemoteReadGet(t *testing.T) {
 	require.NoError(t, err, "unable to setup handler")
 	err = h.RegisterRoutes()
 	require.NoError(t, err, "unable to register routes")
-	h.Router.ServeHTTP(res, req)
+	h.Router().ServeHTTP(res, req)
 	require.Equal(t, res.Code, http.StatusMethodNotAllowed, "GET method not defined")
 }
 
@@ -80,7 +80,7 @@ func TestPromRemoteReadPost(t *testing.T) {
 	require.NoError(t, err, "unable to setup handler")
 	err = h.RegisterRoutes()
 	require.NoError(t, err, "unable to register routes")
-	h.Router.ServeHTTP(res, req)
+	h.Router().ServeHTTP(res, req)
 	require.Equal(t, res.Code, http.StatusBadRequest, "Empty request")
 }
 
@@ -95,7 +95,7 @@ func TestPromNativeReadGet(t *testing.T) {
 	h, err := setupHandler(storage)
 	require.NoError(t, err, "unable to setup handler")
 	h.RegisterRoutes()
-	h.Router.ServeHTTP(res, req)
+	h.Router().ServeHTTP(res, req)
 	require.Equal(t, res.Code, http.StatusBadRequest, "Empty request")
 }
 
@@ -110,7 +110,7 @@ func TestPromNativeReadPost(t *testing.T) {
 	h, err := setupHandler(storage)
 	require.NoError(t, err, "unable to setup handler")
 	h.RegisterRoutes()
-	h.Router.ServeHTTP(res, req)
+	h.Router().ServeHTTP(res, req)
 	require.Equal(t, res.Code, http.StatusMethodNotAllowed, "POST method not defined")
 }
 
@@ -125,7 +125,7 @@ func TestJSONWritePost(t *testing.T) {
 	h, err := setupHandler(storage)
 	require.NoError(t, err, "unable to setup handler")
 	h.RegisterRoutes()
-	h.Router.ServeHTTP(res, req)
+	h.Router().ServeHTTP(res, req)
 	require.Equal(t, res.Code, http.StatusBadRequest, "Empty request")
 }
 
@@ -140,7 +140,7 @@ func TestRoutesGet(t *testing.T) {
 	h, err := setupHandler(storage)
 	require.NoError(t, err, "unable to setup handler")
 	h.RegisterRoutes()
-	h.Router.ServeHTTP(res, req)
+	h.Router().ServeHTTP(res, req)
 
 	require.Equal(t, res.Code, http.StatusOK)
 
@@ -173,7 +173,7 @@ func TestHealthGet(t *testing.T) {
 	require.NoError(t, err, "unable to setup handler")
 	h.RegisterRoutes()
 
-	h.Router.ServeHTTP(res, req)
+	h.Router().ServeHTTP(res, req)
 
 	require.Equal(t, res.Code, http.StatusOK)
 
@@ -188,4 +188,26 @@ func TestHealthGet(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.True(t, result > 0)
+}
+
+func TestCORSMiddleware(t *testing.T) {
+	logging.InitWithCores(nil)
+
+	ctrl := gomock.NewController(t)
+	s, _ := m3.NewStorageAndSession(t, ctrl)
+	h, err := setupHandler(s)
+	require.NoError(t, err, "unable to setup handler")
+
+	testRoute := "/foobar"
+	h.router.HandleFunc(testRoute, func(writer http.ResponseWriter, r *http.Request) {
+		writer.WriteHeader(http.StatusOK)
+		writer.Write([]byte("hello!"))
+	})
+
+	req, _ := http.NewRequest("GET", testRoute, nil)
+	res := httptest.NewRecorder()
+	h.Router().ServeHTTP(res, req)
+
+	assert.Equal(t, "hello!", res.Body.String())
+	assert.Equal(t, "*", res.Header().Get("Access-Control-Allow-Origin"))
 }

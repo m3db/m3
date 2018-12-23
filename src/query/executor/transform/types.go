@@ -30,8 +30,9 @@ import (
 
 // Options to create transform nodes
 type Options struct {
-	TimeSpec TimeSpec
-	Debug    bool
+	TimeSpec     TimeSpec
+	Debug        bool
+	UseIterators bool
 }
 
 // OpNode represents the execution node

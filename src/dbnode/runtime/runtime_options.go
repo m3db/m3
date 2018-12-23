@@ -53,7 +53,7 @@ const (
 	defaultWriteNewSeriesLimitPerShardPerSecond = 0
 	defaultTickSeriesBatchSize                  = 512
 	defaultTickPerSeriesSleepDuration           = 100 * time.Microsecond
-	defaultTickMinimumInterval                  = time.Minute
+	defaultTickMinimumInterval                  = 10 * time.Second
 	defaultMaxWiredBlocks                       = uint(1 << 18) // 262,144
 )
 

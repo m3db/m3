@@ -57,6 +57,9 @@ const (
 	// defaultTickMinimumInterval is the default minimum tick interval.
 	defaultTickMinimumInterval = 1 * time.Second
 
+	// defaultMinimimumSnapshotInterval is the default minimum snapshot interval.
+	defaultMinimimumSnapshotInterval = 1 * time.Second
+
 	// defaultUseTChannelClientForReading determines whether we use the tchannel client for reading by default.
 	defaultUseTChannelClientForReading = true
 
@@ -264,7 +267,7 @@ type testOptions interface {
 	// SetMinimumSnapshotInterval sets the minimum interval between snapshots.
 	SetMinimumSnapshotInterval(value time.Duration) testOptions
 
-	// MinimumSnapshotInterval returns the minimum interval between snapshots
+	// MinimumSnapshotInterval returns the minimum interval between snapshots.
 	MinimumSnapshotInterval() time.Duration
 }
 
@@ -325,6 +328,7 @@ func newTestOptions(t *testing.T) testOptions {
 		writeConsistencyLevel:          defaultWriteConsistencyLevel,
 		numShards:                      defaultNumShards,
 		maxWiredBlocks:                 defaultMaxWiredBlocks,
+		minimumSnapshotInterval:        defaultMinimimumSnapshotInterval,
 		useTChannelClientForReading:    defaultUseTChannelClientForReading,
 		useTChannelClientForWriting:    defaultUseTChannelClientForWriting,
 		useTChannelClientForTruncation: defaultUseTChannelClientForTruncation,

@@ -909,18 +909,13 @@ func (n *dbNamespace) Snapshot(
 	multiErr := xerrors.NewMultiError()
 	shards := n.GetOwnedShards()
 	for _, shard := range shards {
-		isSnapshotting, lastSuccessfulSnapshot := shard.SnapshotState()
+		isSnapshotting, _ := shard.SnapshotState()
 		if isSnapshotting {
 			// Should never happen because snapshots should never overlap
 			// each other (controlled by loop in flush manager)
 			n.log.
 				WithFields(xlog.NewField("shard", shard.ID())).
 				Errorf("[invariant violated] tried to snapshot shard that is already snapshotting")
-			continue
-		}
-
-		if snapshotTime.Sub(lastSuccessfulSnapshot) < n.opts.MinimumSnapshotInterval() {
-			// Skip if not enough time has elapsed since the previous snapshot
 			continue
 		}
 
@@ -990,7 +985,7 @@ func (n *dbNamespace) IsCapturedBySnapshot(
 				return false, nil
 			}
 
-			snapshotTime, err := snapshot.SnapshotTime()
+			snapshotTime, _, err := snapshot.SnapshotTimeAndID()
 			if err != nil {
 				return false, err
 			}

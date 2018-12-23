@@ -45,7 +45,7 @@ func NewSelectorFromVector(
 	n *promql.VectorSelector,
 	tagOpts models.TagOptions,
 ) (parser.Params, error) {
-	matchers, err := labelMatchersToModelMatcher(n.LabelMatchers, tagOpts)
+	matchers, err := LabelMatchersToModelMatcher(n.LabelMatchers, tagOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func NewSelectorFromMatrix(
 	n *promql.MatrixSelector,
 	tagOpts models.TagOptions,
 ) (parser.Params, error) {
-	matchers, err := labelMatchersToModelMatcher(n.LabelMatchers, tagOpts)
+	matchers, err := LabelMatchersToModelMatcher(n.LabelMatchers, tagOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -284,7 +284,8 @@ func getBinaryOpType(opType promql.ItemType) string {
 
 const promDefaultName = "__name__"
 
-func labelMatchersToModelMatcher(
+// LabelMatchersToModelMatcher parses promql matchers to model matchers
+func LabelMatchersToModelMatcher(
 	lMatchers []*labels.Matcher,
 	tagOpts models.TagOptions,
 ) (models.Matchers, error) {

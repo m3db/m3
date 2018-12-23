@@ -198,10 +198,12 @@ func (h *PromWriteHandler) writeAggregated(
 	_ context.Context,
 	r *prompb.WriteRequest,
 ) error {
-	var (
-		metricsAppender = h.downsampler.NewMetricsAppender()
-		multiErr        xerrors.MultiError
-	)
+	metricsAppender, err := h.downsampler.NewMetricsAppender()
+	if err != nil {
+		return err
+	}
+
+	multiErr := xerrors.NewMultiError()
 	for _, ts := range r.Timeseries {
 		metricsAppender.Reset()
 		for _, label := range ts.Labels {

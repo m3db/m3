@@ -56,6 +56,7 @@ func (m *MockFlushManager) EXPECT() *MockFlushManagerMockRecorder {
 
 // Reset mocks base method
 func (m *MockFlushManager) Reset() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Reset")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -63,11 +64,13 @@ func (m *MockFlushManager) Reset() error {
 
 // Reset indicates an expected call of Reset
 func (mr *MockFlushManagerMockRecorder) Reset() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockFlushManager)(nil).Reset))
 }
 
 // Open mocks base method
 func (m *MockFlushManager) Open() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Open")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -75,11 +78,13 @@ func (m *MockFlushManager) Open() error {
 
 // Open indicates an expected call of Open
 func (mr *MockFlushManagerMockRecorder) Open() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockFlushManager)(nil).Open))
 }
 
 // Status mocks base method
 func (m *MockFlushManager) Status() FlushStatus {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Status")
 	ret0, _ := ret[0].(FlushStatus)
 	return ret0
@@ -87,11 +92,13 @@ func (m *MockFlushManager) Status() FlushStatus {
 
 // Status indicates an expected call of Status
 func (mr *MockFlushManagerMockRecorder) Status() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Status", reflect.TypeOf((*MockFlushManager)(nil).Status))
 }
 
 // Register mocks base method
 func (m *MockFlushManager) Register(flusher flushingMetricList) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Register", flusher)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -99,11 +106,13 @@ func (m *MockFlushManager) Register(flusher flushingMetricList) error {
 
 // Register indicates an expected call of Register
 func (mr *MockFlushManagerMockRecorder) Register(flusher interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Register", reflect.TypeOf((*MockFlushManager)(nil).Register), flusher)
 }
 
 // Unregister mocks base method
 func (m *MockFlushManager) Unregister(flusher flushingMetricList) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Unregister", flusher)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -111,11 +120,13 @@ func (m *MockFlushManager) Unregister(flusher flushingMetricList) error {
 
 // Unregister indicates an expected call of Unregister
 func (mr *MockFlushManagerMockRecorder) Unregister(flusher interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Unregister", reflect.TypeOf((*MockFlushManager)(nil).Unregister), flusher)
 }
 
 // Close mocks base method
 func (m *MockFlushManager) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -123,6 +134,7 @@ func (m *MockFlushManager) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockFlushManagerMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockFlushManager)(nil).Close))
 }
 
@@ -151,11 +163,13 @@ func (m *MockflushTask) EXPECT() *MockflushTaskMockRecorder {
 
 // Run mocks base method
 func (m *MockflushTask) Run() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Run")
 }
 
 // Run indicates an expected call of Run
 func (mr *MockflushTaskMockRecorder) Run() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockflushTask)(nil).Run))
 }
 
@@ -184,26 +198,31 @@ func (m *MockroleBasedFlushManager) EXPECT() *MockroleBasedFlushManagerMockRecor
 
 // Open mocks base method
 func (m *MockroleBasedFlushManager) Open() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Open")
 }
 
 // Open indicates an expected call of Open
 func (mr *MockroleBasedFlushManagerMockRecorder) Open() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockroleBasedFlushManager)(nil).Open))
 }
 
 // Init mocks base method
 func (m *MockroleBasedFlushManager) Init(buckets []*flushBucket) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Init", buckets)
 }
 
 // Init indicates an expected call of Init
 func (mr *MockroleBasedFlushManagerMockRecorder) Init(buckets interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Init", reflect.TypeOf((*MockroleBasedFlushManager)(nil).Init), buckets)
 }
 
 // Prepare mocks base method
 func (m *MockroleBasedFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.Duration) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Prepare", buckets)
 	ret0, _ := ret[0].(flushTask)
 	ret1, _ := ret[1].(time.Duration)
@@ -212,31 +231,37 @@ func (m *MockroleBasedFlushManager) Prepare(buckets []*flushBucket) (flushTask, 
 
 // Prepare indicates an expected call of Prepare
 func (mr *MockroleBasedFlushManagerMockRecorder) Prepare(buckets interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Prepare", reflect.TypeOf((*MockroleBasedFlushManager)(nil).Prepare), buckets)
 }
 
 // OnBucketAdded mocks base method
 func (m *MockroleBasedFlushManager) OnBucketAdded(bucketIdx int, bucket *flushBucket) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "OnBucketAdded", bucketIdx, bucket)
 }
 
 // OnBucketAdded indicates an expected call of OnBucketAdded
 func (mr *MockroleBasedFlushManagerMockRecorder) OnBucketAdded(bucketIdx, bucket interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnBucketAdded", reflect.TypeOf((*MockroleBasedFlushManager)(nil).OnBucketAdded), bucketIdx, bucket)
 }
 
 // OnFlusherAdded mocks base method
 func (m *MockroleBasedFlushManager) OnFlusherAdded(bucketIdx int, bucket *flushBucket, flusher flushingMetricList) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "OnFlusherAdded", bucketIdx, bucket, flusher)
 }
 
 // OnFlusherAdded indicates an expected call of OnFlusherAdded
 func (mr *MockroleBasedFlushManagerMockRecorder) OnFlusherAdded(bucketIdx, bucket, flusher interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnFlusherAdded", reflect.TypeOf((*MockroleBasedFlushManager)(nil).OnFlusherAdded), bucketIdx, bucket, flusher)
 }
 
 // CanLead mocks base method
 func (m *MockroleBasedFlushManager) CanLead() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CanLead")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -244,15 +269,18 @@ func (m *MockroleBasedFlushManager) CanLead() bool {
 
 // CanLead indicates an expected call of CanLead
 func (mr *MockroleBasedFlushManagerMockRecorder) CanLead() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CanLead", reflect.TypeOf((*MockroleBasedFlushManager)(nil).CanLead))
 }
 
 // Close mocks base method
 func (m *MockroleBasedFlushManager) Close() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Close")
 }
 
 // Close indicates an expected call of Close
 func (mr *MockroleBasedFlushManagerMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockroleBasedFlushManager)(nil).Close))
 }

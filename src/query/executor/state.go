@@ -118,9 +118,11 @@ func GenerateExecutionState(
 	}
 
 	options := transform.Options{
-		TimeSpec: pplan.TimeSpec,
-		Debug:    pplan.Debug,
+		TimeSpec:     pplan.TimeSpec,
+		Debug:        pplan.Debug,
+		UseIterators: pplan.UseIterators,
 	}
+
 	controller, err := state.createNode(step, options)
 	if err != nil {
 		return nil, err

@@ -41,26 +41,26 @@ func TestDisjunctionSearcher(t *testing.T) {
 
 	// First searcher.
 	firstPL1 := roaring.NewPostingsList()
-	firstPL1.Insert(postings.ID(42))
-	firstPL1.Insert(postings.ID(50))
+	require.NoError(t, firstPL1.Insert(postings.ID(42)))
+	require.NoError(t, firstPL1.Insert(postings.ID(50)))
 	firstPL2 := roaring.NewPostingsList()
-	firstPL2.Insert(postings.ID(64))
+	require.NoError(t, firstPL2.Insert(postings.ID(64)))
 	firstSearcher := search.NewMockSearcher(mockCtrl)
 
 	// Second searcher.
 	secondPL1 := roaring.NewPostingsList()
-	secondPL1.Insert(postings.ID(53))
+	require.NoError(t, secondPL1.Insert(postings.ID(53)))
 	secondPL2 := roaring.NewPostingsList()
-	secondPL2.Insert(postings.ID(64))
-	secondPL2.Insert(postings.ID(72))
+	require.NoError(t, secondPL2.Insert(postings.ID(64)))
+	require.NoError(t, secondPL2.Insert(postings.ID(72)))
 	secondSearcher := search.NewMockSearcher(mockCtrl)
 
 	// Third searcher.
 	thirdPL1 := roaring.NewPostingsList()
-	thirdPL1.Insert(postings.ID(53))
+	require.NoError(t, thirdPL1.Insert(postings.ID(53)))
 	thirdPL2 := roaring.NewPostingsList()
-	thirdPL2.Insert(postings.ID(72))
-	thirdPL2.Insert(postings.ID(89))
+	require.NoError(t, thirdPL2.Insert(postings.ID(72)))
+	require.NoError(t, thirdPL2.Insert(postings.ID(89)))
 	thirdSearcher := search.NewMockSearcher(mockCtrl)
 
 	gomock.InOrder(

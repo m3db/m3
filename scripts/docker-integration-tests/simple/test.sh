@@ -35,7 +35,7 @@ curl -vvvsSf -X POST 0.0.0.0:7201/api/v1/namespace -d '{
     "flushEnabled": true,
     "writesToCommitLog": true,
     "cleanupEnabled": true,
-    "snapshotEnabled": false,
+    "snapshotEnabled": true,
     "repairEnabled": false,
     "retentionOptions": {
       "retentionPeriodNanos": 172800000000000,
@@ -80,6 +80,10 @@ ATTEMPTS=4 TIMEOUT=1 retry_with_backoff  \
 echo "Sleep until bootstrapped"
 ATTEMPTS=6 TIMEOUT=2 retry_with_backoff  \
   '[ "$(curl -sSf 0.0.0.0:9002/health | jq .bootstrapped)" == true ]'
+
+echo "Waiting until shards are marked as available"
+ATTEMPTS=10 TIMEOUT=1 retry_with_backoff  \
+  '[ "$(curl -sSf 0.0.0.0:7201/api/v1/placement | grep -c INITIALIZING)" -eq 0 ]'
 
 echo "Write data"
 curl -vvvsS -X POST 0.0.0.0:9003/writetagged -d '{

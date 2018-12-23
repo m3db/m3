@@ -23,7 +23,6 @@ package server
 import (
 	"context"
 	"fmt"
-	"log"
 	"math/rand"
 	"net/http"
 	"os"
@@ -182,7 +181,7 @@ func Run(runOpts RunOptions) {
 	} else {
 		m3dbClusters, m3dbPoolWrapper, err = initClusters(cfg, runOpts.DBClient, logger)
 		if err != nil {
-			log.Fatalf("unable to init clusters: %v", err)
+			logger.Fatal("unable to init clusters", zap.Error(err))
 		}
 
 		var cleanup cleanupFn
@@ -220,7 +219,7 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("unable to get listen address", zap.Error(err))
 	}
 
-	srv := &http.Server{Addr: listenAddress, Handler: handler.Router}
+	srv := &http.Server{Addr: listenAddress, Handler: handler.Router()}
 	defer func() {
 		logger.Info("closing server")
 		if err := srv.Shutdown(ctx); err != nil {
@@ -297,16 +296,19 @@ func newM3DBStorage(
 	readWorkerPool xsync.PooledWorkerPool,
 	writeWorkerPool xsync.PooledWorkerPool,
 ) (storage.Storage, clusterclient.Client, downsample.Downsampler, cleanupFn, error) {
-	var clusterClientCh <-chan clusterclient.Client
-	if runOpts.ClusterClient != nil {
-		clusterClientCh = runOpts.ClusterClient
-	}
-
 	var (
-		clusterManagementClient clusterclient.Client
-		err                     error
+		clusterClient       clusterclient.Client
+		clusterClientWaitCh <-chan struct{}
 	)
-	if clusterClientCh == nil {
+	if clusterClientCh := runOpts.ClusterClient; clusterClientCh != nil {
+		// Only use a cluster client if we are going to receive one, that
+		// way passing nil to httpd NewHandler disables the endpoints entirely
+		clusterClientDoneCh := make(chan struct{}, 1)
+		clusterClientWaitCh = clusterClientDoneCh
+		clusterClient = m3dbcluster.NewAsyncClient(func() (clusterclient.Client, error) {
+			return <-clusterClientCh, nil
+		}, clusterClientDoneCh)
+	} else {
 		var etcdCfg *etcdclient.Configuration
 		switch {
 		case cfg.ClusterManagement != nil:
@@ -319,15 +321,14 @@ func newM3DBStorage(
 
 		if etcdCfg != nil {
 			// We resolved an etcd configuration for cluster management endpoints
-			clusterSvcClientOpts := etcdCfg.NewOptions()
-			clusterManagementClient, err = etcdclient.NewConfigServiceClient(clusterSvcClientOpts)
+			var (
+				clusterSvcClientOpts = etcdCfg.NewOptions()
+				err                  error
+			)
+			clusterClient, err = etcdclient.NewConfigServiceClient(clusterSvcClientOpts)
 			if err != nil {
 				return nil, nil, nil, nil, errors.Wrap(err, "unable to create cluster management etcd client")
 			}
-
-			clusterClientSendableCh := make(chan clusterclient.Client, 1)
-			clusterClientSendableCh <- clusterManagementClient
-			clusterClientCh = clusterClientSendableCh
 		}
 	}
 
@@ -344,15 +345,6 @@ func newM3DBStorage(
 		return nil, nil, nil, nil, errors.Wrap(err, "unable to set up storages")
 	}
 
-	var clusterClient clusterclient.Client
-	if clusterClientCh != nil {
-		// Only use a cluster client if we are going to receive one, that
-		// way passing nil to httpd NewHandler disables the endpoints entirely
-		clusterClient = m3dbcluster.NewAsyncClient(func() (clusterclient.Client, error) {
-			return <-clusterClientCh, nil
-		}, nil)
-	}
-
 	var (
 		namespaces  = clusters.ClusterNamespaces()
 		downsampler downsample.Downsampler
@@ -365,10 +357,25 @@ func newM3DBStorage(
 			return nil, nil, nil, nil, err
 		}
 
-		downsampler, err = newDownsampler(cfg.Downsample, clusterManagementClient,
-			fanoutStorage, autoMappingRules, tagOptions, instrumentOptions)
-		if err != nil {
-			return nil, nil, nil, nil, err
+		newDownsamplerFn := func() (downsample.Downsampler, error) {
+			return newDownsampler(cfg.Downsample, clusterClient,
+				fanoutStorage, autoMappingRules, tagOptions, instrumentOptions)
+		}
+
+		if clusterClientWaitCh != nil {
+			// Need to wait before constructing and instead return an async downsampler
+			// since the cluster client will return errors until it's initialized itself
+			// and will fail constructing the downsampler consequently
+			downsampler = downsample.NewAsyncDownsampler(func() (downsample.Downsampler, error) {
+				<-clusterClientWaitCh
+				return newDownsamplerFn()
+			}, nil)
+		} else {
+			// Otherwise we already have a client and can immediately construct the downsampler
+			downsampler, err = newDownsamplerFn()
+			if err != nil {
+				return nil, nil, nil, nil, err
+			}
 		}
 	}
 

@@ -58,6 +58,7 @@ ingest:
     retry:
       maxRetries: 3
       jitter: true
+    logSampleRate: 0.01
   m3msg:
     server:
       listenAddress: 0.0.0.0:7507

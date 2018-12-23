@@ -2,7 +2,21 @@ Changelog
 =========
 # (unreleased)
 
-# 0.4.7
+# 0.4.8 (2018-10-20)
+
+- **Coordinator**: Reduce log spam for high latency requests (#1164)
+- **Coordinator**: Add support for replace API for db nodes (#1162)
+- **Coordinator**: Add sort and sort_desc and linear regression promql functions (#1104, #1063)
+- **DB**: Emit logs when process limits are misconfigured (#1118)
+- **DB**: Change the implementation of the snapshotting process to snapshot all unflushed blocks (#1017)
+- **DB**: Remove CacheAllMetadata policy (#1110)
+- FIX **Coordinator**: Fixed bug in database creation API: error not displayed in logs (#1089)
+- FIX **DB**: Various changes that improve M3DBs resiliency to corrupt commitlog files during bootstrap and cleanup as well as its resiliency to corrupt fileset files (#1065, #1066, #1086)
+- FIX **Coordinator**: Fix OpenAPI yml, was previously broken and would not render (#1062)
+- PERF **DB**: Sample M3DB write method timers to improve performance for high write throughput workloads (#1057)
+- PERF **DB**: Massive improvement in write throughput (2-3 in some cases) by improving the speed of the commitlog msgpack encoder and removing contention on the commitlog queue via batching (#1160, #1157)
+
+# 0.4.7 (2018-10-10)
 
 - **Aggregator, Collector**:  Add m3aggregator and m3collector for clustered downsampling (440b41657, df3999d58, #1030, #1038, #1050, #1061)
 - **Coordinator**: Add m3msg server and placement and topic APIs in m3coordinator to enable use as backend with m3aggregator (#1028, #1055, #1060)

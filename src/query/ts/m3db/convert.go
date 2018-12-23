@@ -21,11 +21,15 @@
 package m3db
 
 import (
+	"fmt"
 	"sort"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	"github.com/m3db/m3x/ident"
 )
 
@@ -34,51 +38,80 @@ const (
 )
 
 // blockReplica contains the replicas for a single m3db block
-type blockReplica struct {
+type seriesBlock struct {
 	start     time.Time
 	blockSize time.Duration
 	replicas  []encoding.MultiReaderIterator
 }
 
-type blockReplicas []blockReplica
+type seriesBlocks []seriesBlock
 
-func (b blockReplicas) Len() int {
+func (b seriesBlocks) Len() int {
 	return len(b)
 }
 
-func (b blockReplicas) Swap(i, j int) {
+func (b seriesBlocks) Swap(i, j int) {
 	b[i], b[j] = b[j], b[i]
 }
 
-func (b blockReplicas) Less(i, j int) bool {
+func (b seriesBlocks) Less(i, j int) bool {
 	return b[i].start.Before(b[j].start)
 }
 
-// ConvertM3DBSeriesIterators converts m3db SeriesIterators to SeriesBlocks
-// which are used to construct Blocks for query processing.
-func ConvertM3DBSeriesIterators(iterators encoding.SeriesIterators, iterAlloc encoding.ReaderIteratorAllocate) ([]SeriesBlocks, error) {
-	defer iterators.Close()
-	multiSeriesBlocks := make([]SeriesBlocks, iterators.Len())
+// ConvertM3DBSeriesIterators converts series iterators to iterator blocks
+func ConvertM3DBSeriesIterators(
+	iterators encoding.SeriesIterators,
+	tagOptions models.TagOptions,
+	bounds models.Bounds,
+) ([]block.Block, error) {
+	bl, err := NewEncodedBlock(
+		iterators.Iters(),
+		bounds,
+		tagOptions,
+		true,
+	)
 
-	for i, seriesIterator := range iterators.Iters() {
-		blockReplicas, err := blockReplicasFromSeriesIterator(seriesIterator, iterAlloc)
-		if err != nil {
-			return nil, err
-		}
-
-		series, err := seriesBlocksFromBlockReplicas(blockReplicas, seriesIterator)
-		if err != nil {
-			return nil, err
-		}
-
-		multiSeriesBlocks[i] = series
+	if err != nil {
+		return nil, err
 	}
 
-	return multiSeriesBlocks, nil
+	return []block.Block{bl}, nil
 }
 
-func blockReplicasFromSeriesIterator(seriesIterator encoding.SeriesIterator, iterAlloc encoding.ReaderIteratorAllocate) ([]blockReplica, error) {
-	blockReplicas := make(blockReplicas, 0, initBlockReplicaLength)
+// ConvertM3DBSegmentedBlockIterators converts series iterators to a list of blocks
+func ConvertM3DBSegmentedBlockIterators(
+	iterators encoding.SeriesIterators,
+	iterAlloc encoding.ReaderIteratorAllocate,
+	tagOptions models.TagOptions,
+	bounds *models.Bounds,
+	pools encoding.IteratorPools,
+) ([]block.Block, error) {
+	return nil, fmt.Errorf("WIP: splitting blocks will require lookback propagation")
+	defer iterators.Close()
+	// TODO bounds here should be bounds for this block only not for everything!
+	blockBuilder := newEncodedBlockBuilder(tagOptions, consolidators.TakeLast)
+	for _, seriesIterator := range iterators.Iters() {
+		blockReplicas, err := blockReplicasFromSeriesIterator(seriesIterator, iterAlloc, bounds, pools)
+		if err != nil {
+			return nil, err
+		}
+
+		err = seriesBlocksFromBlockReplicas(blockBuilder, blockReplicas, bounds.StepSize, seriesIterator, pools)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return blockBuilder.build(), nil
+}
+
+func blockReplicasFromSeriesIterator(
+	seriesIterator encoding.SeriesIterator,
+	iterAlloc encoding.ReaderIteratorAllocate,
+	bounds *models.Bounds,
+	pools encoding.IteratorPools,
+) (seriesBlocks, error) {
+	blocks := make(seriesBlocks, 0, bounds.Steps())
 	for _, replica := range seriesIterator.Replicas() {
 		perBlockSliceReaders := replica.Readers()
 		for next := true; next; next = perBlockSliceReaders.Next() {
@@ -92,22 +125,23 @@ func blockReplicasFromSeriesIterator(seriesIterator encoding.SeriesIterator, ite
 				if err != nil {
 					return nil, err
 				}
+
 				readers[i] = clonedReader
 			}
-			// todo(braskin): pooling
+
 			iter := encoding.NewMultiReaderIterator(iterAlloc, nil)
 			iter.Reset(readers, start, bs)
-
 			inserted := false
-			for i := range blockReplicas {
-				if blockReplicas[i].start.Equal(start) {
+			for _, bl := range blocks {
+				if bl.start.Equal(start) {
 					inserted = true
-					blockReplicas[i].replicas = append(blockReplicas[i].replicas, iter)
+					bl.replicas = append(bl.replicas, iter)
 					break
 				}
 			}
+
 			if !inserted {
-				blockReplicas = append(blockReplicas, blockReplica{
+				blocks = append(blocks, seriesBlock{
 					start:     start,
 					blockSize: bs,
 					replicas:  []encoding.MultiReaderIterator{iter},
@@ -116,13 +150,18 @@ func blockReplicasFromSeriesIterator(seriesIterator encoding.SeriesIterator, ite
 		}
 	}
 
-	// sort block replicas by start time
-	sort.Sort(blockReplicas)
-
-	return blockReplicas, nil
+	// sort series blocks by start time
+	sort.Sort(blocks)
+	return blocks, nil
 }
 
-func seriesBlocksFromBlockReplicas(blockReplicas []blockReplica, seriesIterator encoding.SeriesIterator) (SeriesBlocks, error) {
+func seriesBlocksFromBlockReplicas(
+	blockBuilder *encodedBlockBuilder,
+	blockReplicas seriesBlocks,
+	stepSize time.Duration,
+	seriesIterator encoding.SeriesIterator,
+	pools encoding.IteratorPools,
+) error {
 	// NB(braskin): we need to clone the ID, namespace, and tags since we close the series iterator
 	var (
 		// todo(braskin): use ident pool
@@ -132,16 +171,11 @@ func seriesBlocksFromBlockReplicas(blockReplicas []blockReplica, seriesIterator 
 
 	clonedTags, err := cloneTagIterator(seriesIterator.Tags())
 	if err != nil {
-		return SeriesBlocks{}, err
+		return err
 	}
 
-	series := SeriesBlocks{
-		ID:        clonedID,
-		Namespace: clonedNamespace,
-		Tags:      clonedTags,
-		Blocks:    make([]SeriesBlock, len(blockReplicas)),
-	}
-
+	replicaLength := len(blockReplicas) - 1
+	// TODO: use pooling
 	for i, block := range blockReplicas {
 		filterValuesStart := seriesIterator.Start()
 		if block.start.After(filterValuesStart) {
@@ -154,10 +188,7 @@ func seriesBlocksFromBlockReplicas(blockReplicas []blockReplica, seriesIterator 
 			filterValuesEnd = end
 		}
 
-		// todo(braskin): pooling
-		// NB(braskin): we should be careful when directly accessing the series iterators.
-		// Instead, we should access them through the SeriesBlock.
-		valuesIter := encoding.NewSeriesIterator(encoding.SeriesIteratorOptions{
+		iter := encoding.NewSeriesIterator(encoding.SeriesIteratorOptions{
 			ID:             clonedID,
 			Namespace:      clonedNamespace,
 			Tags:           clonedTags.Duplicate(),
@@ -166,14 +197,21 @@ func seriesBlocksFromBlockReplicas(blockReplicas []blockReplica, seriesIterator 
 			Replicas:       block.replicas,
 		}, nil)
 
-		series.Blocks[i] = SeriesBlock{
-			start:          filterValuesStart,
-			end:            filterValuesEnd,
-			seriesIterator: valuesIter,
-		}
+		// NB(braskin): we should be careful when directly accessing the series iterators.
+		// Instead, we should access them through the SeriesBlock.
+		isLastBlock := i == replicaLength
+		blockBuilder.add(
+			models.Bounds{
+				Start:    filterValuesStart,
+				Duration: block.blockSize,
+				StepSize: stepSize,
+			},
+			iter,
+			isLastBlock,
+		)
 	}
 
-	return series, nil
+	return nil
 }
 
 func cloneTagIterator(tagIter ident.TagIterator) (ident.TagIterator, error) {
@@ -186,9 +224,11 @@ func cloneTagIterator(tagIter ident.TagIterator) (ident.TagIterator, error) {
 			Value: ident.BytesID(tag.Value.Bytes()),
 		})
 	}
+
 	err := dupeIter.Err()
 	if err != nil {
 		return nil, err
 	}
+
 	return ident.NewTagsIterator(tags), nil
 }

@@ -24,9 +24,19 @@ package xos
 
 import "errors"
 
-var (
-	errUnableToDetermineProcessLimits = errors.New("unable to determine process limits on non-linux os")
+const (
+	nonLinuxWarning = "unable to determine process limits on non-linux os"
 )
+
+var (
+	errUnableToDetermineProcessLimits = errors.New(nonLinuxWarning)
+)
+
+// CanGetProcessLimits returns a boolean to signify if it can return limits,
+// and a warning message if it cannot.
+func CanGetProcessLimits() (bool, string) {
+	return false, nonLinuxWarning
+}
 
 // GetProcessLimits returns the known process limits.
 func GetProcessLimits() (ProcessLimits, error) {

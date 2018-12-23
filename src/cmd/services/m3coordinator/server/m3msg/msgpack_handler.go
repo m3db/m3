@@ -24,28 +24,30 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"time"
+	"sync/atomic"
 
 	"github.com/m3db/m3/src/metrics/encoding/msgpack"
 	"github.com/m3db/m3/src/msg/consumer"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3x/pool"
 
 	"github.com/uber-go/tally"
 )
 
 // Options for the ingest handler.
 type Options struct {
-	InstrumentOptions         instrument.Options
-	WriteFn                   WriteFn
-	AggregatedIteratorOptions msgpack.AggregatedIteratorOptions
+	InstrumentOptions          instrument.Options
+	WriteFn                    WriteFn
+	AggregatedIteratorOptions  msgpack.AggregatedIteratorOptions
+	ProtobufDecoderPoolOptions pool.ObjectPoolOptions
 }
 
 type handlerMetrics struct {
-	messageReadError                tally.Counter
-	metricAccepted                  tally.Counter
-	droppedMetricMsgpackDecodeError tally.Counter
-	droppedMetricDecodeMalformed    tally.Counter
+	messageReadError             tally.Counter
+	metricAccepted               tally.Counter
+	droppedMetricDecodeError     tally.Counter
+	droppedMetricDecodeMalformed tally.Counter
 }
 
 func newHandlerMetrics(scope tally.Scope) handlerMetrics {
@@ -53,8 +55,8 @@ func newHandlerMetrics(scope tally.Scope) handlerMetrics {
 	return handlerMetrics{
 		messageReadError: scope.Counter("message-read-error"),
 		metricAccepted:   messageScope.Counter("accepted"),
-		droppedMetricMsgpackDecodeError: messageScope.Tagged(map[string]string{
-			"reason": "msgpack-decode-error",
+		droppedMetricDecodeError: messageScope.Tagged(map[string]string{
+			"reason": "decode-error",
 		}).Counter("dropped"),
 		droppedMetricDecodeMalformed: messageScope.Tagged(map[string]string{
 			"reason": "decode-malformed",
@@ -62,15 +64,15 @@ func newHandlerMetrics(scope tally.Scope) handlerMetrics {
 	}
 }
 
-type handler struct {
+type msgpackHandler struct {
 	writeFn      WriteFn
 	iteratorOpts msgpack.AggregatedIteratorOptions
 	logger       log.Logger
 	m            handlerMetrics
 }
 
-func newHandler(opts Options) (*handler, error) {
-	return &handler{
+func newMsgpackHandler(opts Options) (*msgpackHandler, error) {
+	return &msgpackHandler{
 		writeFn:      opts.WriteFn,
 		iteratorOpts: opts.AggregatedIteratorOptions,
 		logger:       opts.InstrumentOptions.Logger(),
@@ -78,11 +80,11 @@ func newHandler(opts Options) (*handler, error) {
 	}, nil
 }
 
-func (h *handler) Handle(c consumer.Consumer) {
+func (h *msgpackHandler) Handle(c consumer.Consumer) {
 	h.newPerConsumerHandler().handle(c)
 }
 
-func (h *handler) newPerConsumerHandler() *perConsumerHandler {
+func (h *msgpackHandler) newPerConsumerHandler() *perConsumerHandler {
 	return &perConsumerHandler{
 		ctx:     context.Background(),
 		writeFn: h.writeFn,
@@ -136,7 +138,7 @@ func (h *perConsumerHandler) processMessage(
 	h.r.Reset(msg.Bytes())
 	h.it.Reset(h.r)
 	for h.it.Next() {
-		raw, sp, _ := h.it.Value()
+		raw, sp, encodeNanos := h.it.Value()
 		m, err := raw.Metric()
 		if err != nil {
 			h.logger.WithFields(log.NewErrField(err)).Error("invalid raw metric")
@@ -149,11 +151,53 @@ func (h *perConsumerHandler) processMessage(
 		// TODO: Consider incrementing a wait group for each write and wait on
 		// shut down to reduce the number of messages being retried by m3msg.
 		r.IncRef()
-		h.writeFn(h.ctx, m.ID, time.Unix(0, m.TimeNanos), m.Value, sp, r)
+		h.writeFn(h.ctx, m.ID, m.TimeNanos, encodeNanos, m.Value, sp, r)
 	}
 	r.decRef()
 	if err := h.it.Err(); err != nil && err != io.EOF {
 		h.logger.WithFields(log.NewErrField(h.it.Err())).Errorf("could not decode msg %s", msg.Bytes())
-		h.m.droppedMetricMsgpackDecodeError.Inc(1)
+		h.m.droppedMetricDecodeError.Inc(1)
+	}
+}
+
+// RefCountedCallback wraps a message with a reference count, the message will
+// be acked once the reference count decrements to zero.
+// The implementation is thread safe.
+type RefCountedCallback struct {
+	ref int32
+	msg consumer.Message
+}
+
+// NewRefCountedCallback creates a RefCountedCallback.
+func NewRefCountedCallback(msg consumer.Message) *RefCountedCallback {
+	return &RefCountedCallback{
+		ref: 0,
+		msg: msg,
+	}
+}
+
+// IncRef increments the ref count atomically.
+func (r *RefCountedCallback) IncRef() {
+	atomic.AddInt32(&r.ref, 1)
+}
+
+// decRef decrements the ref count atomically. If the decrement causes the
+// reference count to reach zero, then the message will be acked.
+func (r *RefCountedCallback) decRef() {
+	ref := atomic.AddInt32(&r.ref, -1)
+	if ref == 0 {
+		r.msg.Ack()
+		return
+	}
+	if ref < 0 {
+		panic("invalid ref count")
+	}
+}
+
+// Callback performs the callback.
+func (r *RefCountedCallback) Callback(t CallbackType) {
+	switch t {
+	case OnSuccess, OnNonRetriableError:
+		r.decRef()
 	}
 }

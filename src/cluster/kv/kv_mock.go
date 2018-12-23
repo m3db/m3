@@ -56,6 +56,7 @@ func (m *MockValue) EXPECT() *MockValueMockRecorder {
 
 // Unmarshal mocks base method
 func (m *MockValue) Unmarshal(v proto.Message) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Unmarshal", v)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -63,11 +64,13 @@ func (m *MockValue) Unmarshal(v proto.Message) error {
 
 // Unmarshal indicates an expected call of Unmarshal
 func (mr *MockValueMockRecorder) Unmarshal(v interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Unmarshal", reflect.TypeOf((*MockValue)(nil).Unmarshal), v)
 }
 
 // Version mocks base method
 func (m *MockValue) Version() int {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Version")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -75,11 +78,13 @@ func (m *MockValue) Version() int {
 
 // Version indicates an expected call of Version
 func (mr *MockValueMockRecorder) Version() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Version", reflect.TypeOf((*MockValue)(nil).Version))
 }
 
 // IsNewer mocks base method
 func (m *MockValue) IsNewer(other Value) bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsNewer", other)
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -87,6 +92,7 @@ func (m *MockValue) IsNewer(other Value) bool {
 
 // IsNewer indicates an expected call of IsNewer
 func (mr *MockValueMockRecorder) IsNewer(other interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsNewer", reflect.TypeOf((*MockValue)(nil).IsNewer), other)
 }
 
@@ -115,6 +121,7 @@ func (m *MockValueWatch) EXPECT() *MockValueWatchMockRecorder {
 
 // C mocks base method
 func (m *MockValueWatch) C() <-chan struct{} {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "C")
 	ret0, _ := ret[0].(<-chan struct{})
 	return ret0
@@ -122,11 +129,13 @@ func (m *MockValueWatch) C() <-chan struct{} {
 
 // C indicates an expected call of C
 func (mr *MockValueWatchMockRecorder) C() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "C", reflect.TypeOf((*MockValueWatch)(nil).C))
 }
 
 // Get mocks base method
 func (m *MockValueWatch) Get() Value {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get")
 	ret0, _ := ret[0].(Value)
 	return ret0
@@ -134,16 +143,19 @@ func (m *MockValueWatch) Get() Value {
 
 // Get indicates an expected call of Get
 func (mr *MockValueWatchMockRecorder) Get() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockValueWatch)(nil).Get))
 }
 
 // Close mocks base method
 func (m *MockValueWatch) Close() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Close")
 }
 
 // Close indicates an expected call of Close
 func (mr *MockValueWatchMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockValueWatch)(nil).Close))
 }
 
@@ -172,6 +184,7 @@ func (m *MockValueWatchable) EXPECT() *MockValueWatchableMockRecorder {
 
 // Get mocks base method
 func (m *MockValueWatchable) Get() Value {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get")
 	ret0, _ := ret[0].(Value)
 	return ret0
@@ -179,11 +192,13 @@ func (m *MockValueWatchable) Get() Value {
 
 // Get indicates an expected call of Get
 func (mr *MockValueWatchableMockRecorder) Get() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockValueWatchable)(nil).Get))
 }
 
 // Watch mocks base method
 func (m *MockValueWatchable) Watch() (Value, ValueWatch, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Watch")
 	ret0, _ := ret[0].(Value)
 	ret1, _ := ret[1].(ValueWatch)
@@ -193,11 +208,13 @@ func (m *MockValueWatchable) Watch() (Value, ValueWatch, error) {
 
 // Watch indicates an expected call of Watch
 func (mr *MockValueWatchableMockRecorder) Watch() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Watch", reflect.TypeOf((*MockValueWatchable)(nil).Watch))
 }
 
 // NumWatches mocks base method
 func (m *MockValueWatchable) NumWatches() int {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NumWatches")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -205,11 +222,13 @@ func (m *MockValueWatchable) NumWatches() int {
 
 // NumWatches indicates an expected call of NumWatches
 func (mr *MockValueWatchableMockRecorder) NumWatches() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NumWatches", reflect.TypeOf((*MockValueWatchable)(nil).NumWatches))
 }
 
 // Update mocks base method
 func (m *MockValueWatchable) Update(arg0 Value) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Update", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -217,11 +236,13 @@ func (m *MockValueWatchable) Update(arg0 Value) error {
 
 // Update indicates an expected call of Update
 func (mr *MockValueWatchableMockRecorder) Update(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockValueWatchable)(nil).Update), arg0)
 }
 
 // IsClosed mocks base method
 func (m *MockValueWatchable) IsClosed() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsClosed")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -229,16 +250,19 @@ func (m *MockValueWatchable) IsClosed() bool {
 
 // IsClosed indicates an expected call of IsClosed
 func (mr *MockValueWatchableMockRecorder) IsClosed() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsClosed", reflect.TypeOf((*MockValueWatchable)(nil).IsClosed))
 }
 
 // Close mocks base method
 func (m *MockValueWatchable) Close() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Close")
 }
 
 // Close indicates an expected call of Close
 func (mr *MockValueWatchableMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockValueWatchable)(nil).Close))
 }
 
@@ -267,6 +291,7 @@ func (m *MockOverrideOptions) EXPECT() *MockOverrideOptionsMockRecorder {
 
 // Zone mocks base method
 func (m *MockOverrideOptions) Zone() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Zone")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -274,11 +299,13 @@ func (m *MockOverrideOptions) Zone() string {
 
 // Zone indicates an expected call of Zone
 func (mr *MockOverrideOptionsMockRecorder) Zone() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Zone", reflect.TypeOf((*MockOverrideOptions)(nil).Zone))
 }
 
 // SetZone mocks base method
 func (m *MockOverrideOptions) SetZone(value string) OverrideOptions {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetZone", value)
 	ret0, _ := ret[0].(OverrideOptions)
 	return ret0
@@ -286,11 +313,13 @@ func (m *MockOverrideOptions) SetZone(value string) OverrideOptions {
 
 // SetZone indicates an expected call of SetZone
 func (mr *MockOverrideOptionsMockRecorder) SetZone(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetZone", reflect.TypeOf((*MockOverrideOptions)(nil).SetZone), value)
 }
 
 // Namespace mocks base method
 func (m *MockOverrideOptions) Namespace() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Namespace")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -298,11 +327,13 @@ func (m *MockOverrideOptions) Namespace() string {
 
 // Namespace indicates an expected call of Namespace
 func (mr *MockOverrideOptionsMockRecorder) Namespace() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Namespace", reflect.TypeOf((*MockOverrideOptions)(nil).Namespace))
 }
 
 // SetNamespace mocks base method
 func (m *MockOverrideOptions) SetNamespace(namespace string) OverrideOptions {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetNamespace", namespace)
 	ret0, _ := ret[0].(OverrideOptions)
 	return ret0
@@ -310,11 +341,13 @@ func (m *MockOverrideOptions) SetNamespace(namespace string) OverrideOptions {
 
 // SetNamespace indicates an expected call of SetNamespace
 func (mr *MockOverrideOptionsMockRecorder) SetNamespace(namespace interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNamespace", reflect.TypeOf((*MockOverrideOptions)(nil).SetNamespace), namespace)
 }
 
 // Environment mocks base method
 func (m *MockOverrideOptions) Environment() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Environment")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -322,11 +355,13 @@ func (m *MockOverrideOptions) Environment() string {
 
 // Environment indicates an expected call of Environment
 func (mr *MockOverrideOptionsMockRecorder) Environment() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Environment", reflect.TypeOf((*MockOverrideOptions)(nil).Environment))
 }
 
 // SetEnvironment mocks base method
 func (m *MockOverrideOptions) SetEnvironment(env string) OverrideOptions {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetEnvironment", env)
 	ret0, _ := ret[0].(OverrideOptions)
 	return ret0
@@ -334,11 +369,13 @@ func (m *MockOverrideOptions) SetEnvironment(env string) OverrideOptions {
 
 // SetEnvironment indicates an expected call of SetEnvironment
 func (mr *MockOverrideOptionsMockRecorder) SetEnvironment(env interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEnvironment", reflect.TypeOf((*MockOverrideOptions)(nil).SetEnvironment), env)
 }
 
 // Validate mocks base method
 func (m *MockOverrideOptions) Validate() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Validate")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -346,6 +383,7 @@ func (m *MockOverrideOptions) Validate() error {
 
 // Validate indicates an expected call of Validate
 func (mr *MockOverrideOptionsMockRecorder) Validate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Validate", reflect.TypeOf((*MockOverrideOptions)(nil).Validate))
 }
 
@@ -374,6 +412,7 @@ func (m *MockStore) EXPECT() *MockStoreMockRecorder {
 
 // Get mocks base method
 func (m *MockStore) Get(key string) (Value, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get", key)
 	ret0, _ := ret[0].(Value)
 	ret1, _ := ret[1].(error)
@@ -382,11 +421,13 @@ func (m *MockStore) Get(key string) (Value, error) {
 
 // Get indicates an expected call of Get
 func (mr *MockStoreMockRecorder) Get(key interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockStore)(nil).Get), key)
 }
 
 // Watch mocks base method
 func (m *MockStore) Watch(key string) (ValueWatch, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Watch", key)
 	ret0, _ := ret[0].(ValueWatch)
 	ret1, _ := ret[1].(error)
@@ -395,11 +436,13 @@ func (m *MockStore) Watch(key string) (ValueWatch, error) {
 
 // Watch indicates an expected call of Watch
 func (mr *MockStoreMockRecorder) Watch(key interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Watch", reflect.TypeOf((*MockStore)(nil).Watch), key)
 }
 
 // Set mocks base method
 func (m *MockStore) Set(key string, v proto.Message) (int, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Set", key, v)
 	ret0, _ := ret[0].(int)
 	ret1, _ := ret[1].(error)
@@ -408,11 +451,13 @@ func (m *MockStore) Set(key string, v proto.Message) (int, error) {
 
 // Set indicates an expected call of Set
 func (mr *MockStoreMockRecorder) Set(key, v interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Set", reflect.TypeOf((*MockStore)(nil).Set), key, v)
 }
 
 // SetIfNotExists mocks base method
 func (m *MockStore) SetIfNotExists(key string, v proto.Message) (int, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetIfNotExists", key, v)
 	ret0, _ := ret[0].(int)
 	ret1, _ := ret[1].(error)
@@ -421,11 +466,13 @@ func (m *MockStore) SetIfNotExists(key string, v proto.Message) (int, error) {
 
 // SetIfNotExists indicates an expected call of SetIfNotExists
 func (mr *MockStoreMockRecorder) SetIfNotExists(key, v interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIfNotExists", reflect.TypeOf((*MockStore)(nil).SetIfNotExists), key, v)
 }
 
 // CheckAndSet mocks base method
 func (m *MockStore) CheckAndSet(key string, version int, v proto.Message) (int, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CheckAndSet", key, version, v)
 	ret0, _ := ret[0].(int)
 	ret1, _ := ret[1].(error)
@@ -434,11 +481,13 @@ func (m *MockStore) CheckAndSet(key string, version int, v proto.Message) (int, 
 
 // CheckAndSet indicates an expected call of CheckAndSet
 func (mr *MockStoreMockRecorder) CheckAndSet(key, version, v interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckAndSet", reflect.TypeOf((*MockStore)(nil).CheckAndSet), key, version, v)
 }
 
 // Delete mocks base method
 func (m *MockStore) Delete(key string) (Value, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Delete", key)
 	ret0, _ := ret[0].(Value)
 	ret1, _ := ret[1].(error)
@@ -447,11 +496,13 @@ func (m *MockStore) Delete(key string) (Value, error) {
 
 // Delete indicates an expected call of Delete
 func (mr *MockStoreMockRecorder) Delete(key interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockStore)(nil).Delete), key)
 }
 
 // History mocks base method
 func (m *MockStore) History(key string, from, to int) ([]Value, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "History", key, from, to)
 	ret0, _ := ret[0].([]Value)
 	ret1, _ := ret[1].(error)
@@ -460,6 +511,7 @@ func (m *MockStore) History(key string, from, to int) ([]Value, error) {
 
 // History indicates an expected call of History
 func (mr *MockStoreMockRecorder) History(key, from, to interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "History", reflect.TypeOf((*MockStore)(nil).History), key, from, to)
 }
 
@@ -488,6 +540,7 @@ func (m *MockCondition) EXPECT() *MockConditionMockRecorder {
 
 // TargetType mocks base method
 func (m *MockCondition) TargetType() TargetType {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "TargetType")
 	ret0, _ := ret[0].(TargetType)
 	return ret0
@@ -495,11 +548,13 @@ func (m *MockCondition) TargetType() TargetType {
 
 // TargetType indicates an expected call of TargetType
 func (mr *MockConditionMockRecorder) TargetType() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TargetType", reflect.TypeOf((*MockCondition)(nil).TargetType))
 }
 
 // SetTargetType mocks base method
 func (m *MockCondition) SetTargetType(t TargetType) Condition {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetTargetType", t)
 	ret0, _ := ret[0].(Condition)
 	return ret0
@@ -507,11 +562,13 @@ func (m *MockCondition) SetTargetType(t TargetType) Condition {
 
 // SetTargetType indicates an expected call of SetTargetType
 func (mr *MockConditionMockRecorder) SetTargetType(t interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTargetType", reflect.TypeOf((*MockCondition)(nil).SetTargetType), t)
 }
 
 // CompareType mocks base method
 func (m *MockCondition) CompareType() CompareType {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CompareType")
 	ret0, _ := ret[0].(CompareType)
 	return ret0
@@ -519,11 +576,13 @@ func (m *MockCondition) CompareType() CompareType {
 
 // CompareType indicates an expected call of CompareType
 func (mr *MockConditionMockRecorder) CompareType() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompareType", reflect.TypeOf((*MockCondition)(nil).CompareType))
 }
 
 // SetCompareType mocks base method
 func (m *MockCondition) SetCompareType(t CompareType) Condition {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetCompareType", t)
 	ret0, _ := ret[0].(Condition)
 	return ret0
@@ -531,11 +590,13 @@ func (m *MockCondition) SetCompareType(t CompareType) Condition {
 
 // SetCompareType indicates an expected call of SetCompareType
 func (mr *MockConditionMockRecorder) SetCompareType(t interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCompareType", reflect.TypeOf((*MockCondition)(nil).SetCompareType), t)
 }
 
 // Key mocks base method
 func (m *MockCondition) Key() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Key")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -543,11 +604,13 @@ func (m *MockCondition) Key() string {
 
 // Key indicates an expected call of Key
 func (mr *MockConditionMockRecorder) Key() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Key", reflect.TypeOf((*MockCondition)(nil).Key))
 }
 
 // SetKey mocks base method
 func (m *MockCondition) SetKey(key string) Condition {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetKey", key)
 	ret0, _ := ret[0].(Condition)
 	return ret0
@@ -555,11 +618,13 @@ func (m *MockCondition) SetKey(key string) Condition {
 
 // SetKey indicates an expected call of SetKey
 func (mr *MockConditionMockRecorder) SetKey(key interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetKey", reflect.TypeOf((*MockCondition)(nil).SetKey), key)
 }
 
 // Value mocks base method
 func (m *MockCondition) Value() interface{} {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Value")
 	ret0, _ := ret[0].(interface{})
 	return ret0
@@ -567,11 +632,13 @@ func (m *MockCondition) Value() interface{} {
 
 // Value indicates an expected call of Value
 func (mr *MockConditionMockRecorder) Value() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Value", reflect.TypeOf((*MockCondition)(nil).Value))
 }
 
 // SetValue mocks base method
 func (m *MockCondition) SetValue(value interface{}) Condition {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetValue", value)
 	ret0, _ := ret[0].(Condition)
 	return ret0
@@ -579,6 +646,7 @@ func (m *MockCondition) SetValue(value interface{}) Condition {
 
 // SetValue indicates an expected call of SetValue
 func (mr *MockConditionMockRecorder) SetValue(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetValue", reflect.TypeOf((*MockCondition)(nil).SetValue), value)
 }
 
@@ -607,6 +675,7 @@ func (m *MockOp) EXPECT() *MockOpMockRecorder {
 
 // Type mocks base method
 func (m *MockOp) Type() OpType {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Type")
 	ret0, _ := ret[0].(OpType)
 	return ret0
@@ -614,11 +683,13 @@ func (m *MockOp) Type() OpType {
 
 // Type indicates an expected call of Type
 func (mr *MockOpMockRecorder) Type() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Type", reflect.TypeOf((*MockOp)(nil).Type))
 }
 
 // SetType mocks base method
 func (m *MockOp) SetType(ot OpType) Op {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetType", ot)
 	ret0, _ := ret[0].(Op)
 	return ret0
@@ -626,11 +697,13 @@ func (m *MockOp) SetType(ot OpType) Op {
 
 // SetType indicates an expected call of SetType
 func (mr *MockOpMockRecorder) SetType(ot interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetType", reflect.TypeOf((*MockOp)(nil).SetType), ot)
 }
 
 // Key mocks base method
 func (m *MockOp) Key() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Key")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -638,11 +711,13 @@ func (m *MockOp) Key() string {
 
 // Key indicates an expected call of Key
 func (mr *MockOpMockRecorder) Key() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Key", reflect.TypeOf((*MockOp)(nil).Key))
 }
 
 // SetKey mocks base method
 func (m *MockOp) SetKey(key string) Op {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetKey", key)
 	ret0, _ := ret[0].(Op)
 	return ret0
@@ -650,6 +725,7 @@ func (m *MockOp) SetKey(key string) Op {
 
 // SetKey indicates an expected call of SetKey
 func (mr *MockOpMockRecorder) SetKey(key interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetKey", reflect.TypeOf((*MockOp)(nil).SetKey), key)
 }
 
@@ -678,6 +754,7 @@ func (m *MockOpResponse) EXPECT() *MockOpResponseMockRecorder {
 
 // Type mocks base method
 func (m *MockOpResponse) Type() OpType {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Type")
 	ret0, _ := ret[0].(OpType)
 	return ret0
@@ -685,11 +762,13 @@ func (m *MockOpResponse) Type() OpType {
 
 // Type indicates an expected call of Type
 func (mr *MockOpResponseMockRecorder) Type() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Type", reflect.TypeOf((*MockOpResponse)(nil).Type))
 }
 
 // SetType mocks base method
 func (m *MockOpResponse) SetType(ot OpType) Op {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetType", ot)
 	ret0, _ := ret[0].(Op)
 	return ret0
@@ -697,11 +776,13 @@ func (m *MockOpResponse) SetType(ot OpType) Op {
 
 // SetType indicates an expected call of SetType
 func (mr *MockOpResponseMockRecorder) SetType(ot interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetType", reflect.TypeOf((*MockOpResponse)(nil).SetType), ot)
 }
 
 // Key mocks base method
 func (m *MockOpResponse) Key() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Key")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -709,11 +790,13 @@ func (m *MockOpResponse) Key() string {
 
 // Key indicates an expected call of Key
 func (mr *MockOpResponseMockRecorder) Key() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Key", reflect.TypeOf((*MockOpResponse)(nil).Key))
 }
 
 // SetKey mocks base method
 func (m *MockOpResponse) SetKey(key string) Op {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetKey", key)
 	ret0, _ := ret[0].(Op)
 	return ret0
@@ -721,11 +804,13 @@ func (m *MockOpResponse) SetKey(key string) Op {
 
 // SetKey indicates an expected call of SetKey
 func (mr *MockOpResponseMockRecorder) SetKey(key interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetKey", reflect.TypeOf((*MockOpResponse)(nil).SetKey), key)
 }
 
 // Value mocks base method
 func (m *MockOpResponse) Value() interface{} {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Value")
 	ret0, _ := ret[0].(interface{})
 	return ret0
@@ -733,11 +818,13 @@ func (m *MockOpResponse) Value() interface{} {
 
 // Value indicates an expected call of Value
 func (mr *MockOpResponseMockRecorder) Value() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Value", reflect.TypeOf((*MockOpResponse)(nil).Value))
 }
 
 // SetValue mocks base method
 func (m *MockOpResponse) SetValue(v interface{}) OpResponse {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetValue", v)
 	ret0, _ := ret[0].(OpResponse)
 	return ret0
@@ -745,6 +832,7 @@ func (m *MockOpResponse) SetValue(v interface{}) OpResponse {
 
 // SetValue indicates an expected call of SetValue
 func (mr *MockOpResponseMockRecorder) SetValue(v interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetValue", reflect.TypeOf((*MockOpResponse)(nil).SetValue), v)
 }
 
@@ -773,6 +861,7 @@ func (m *MockResponse) EXPECT() *MockResponseMockRecorder {
 
 // Responses mocks base method
 func (m *MockResponse) Responses() []OpResponse {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Responses")
 	ret0, _ := ret[0].([]OpResponse)
 	return ret0
@@ -780,11 +869,13 @@ func (m *MockResponse) Responses() []OpResponse {
 
 // Responses indicates an expected call of Responses
 func (mr *MockResponseMockRecorder) Responses() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Responses", reflect.TypeOf((*MockResponse)(nil).Responses))
 }
 
 // SetResponses mocks base method
 func (m *MockResponse) SetResponses(oprs []OpResponse) Response {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetResponses", oprs)
 	ret0, _ := ret[0].(Response)
 	return ret0
@@ -792,6 +883,7 @@ func (m *MockResponse) SetResponses(oprs []OpResponse) Response {
 
 // SetResponses indicates an expected call of SetResponses
 func (mr *MockResponseMockRecorder) SetResponses(oprs interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetResponses", reflect.TypeOf((*MockResponse)(nil).SetResponses), oprs)
 }
 
@@ -820,6 +912,7 @@ func (m *MockTxnStore) EXPECT() *MockTxnStoreMockRecorder {
 
 // Get mocks base method
 func (m *MockTxnStore) Get(key string) (Value, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get", key)
 	ret0, _ := ret[0].(Value)
 	ret1, _ := ret[1].(error)
@@ -828,11 +921,13 @@ func (m *MockTxnStore) Get(key string) (Value, error) {
 
 // Get indicates an expected call of Get
 func (mr *MockTxnStoreMockRecorder) Get(key interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockTxnStore)(nil).Get), key)
 }
 
 // Watch mocks base method
 func (m *MockTxnStore) Watch(key string) (ValueWatch, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Watch", key)
 	ret0, _ := ret[0].(ValueWatch)
 	ret1, _ := ret[1].(error)
@@ -841,11 +936,13 @@ func (m *MockTxnStore) Watch(key string) (ValueWatch, error) {
 
 // Watch indicates an expected call of Watch
 func (mr *MockTxnStoreMockRecorder) Watch(key interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Watch", reflect.TypeOf((*MockTxnStore)(nil).Watch), key)
 }
 
 // Set mocks base method
 func (m *MockTxnStore) Set(key string, v proto.Message) (int, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Set", key, v)
 	ret0, _ := ret[0].(int)
 	ret1, _ := ret[1].(error)
@@ -854,11 +951,13 @@ func (m *MockTxnStore) Set(key string, v proto.Message) (int, error) {
 
 // Set indicates an expected call of Set
 func (mr *MockTxnStoreMockRecorder) Set(key, v interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Set", reflect.TypeOf((*MockTxnStore)(nil).Set), key, v)
 }
 
 // SetIfNotExists mocks base method
 func (m *MockTxnStore) SetIfNotExists(key string, v proto.Message) (int, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetIfNotExists", key, v)
 	ret0, _ := ret[0].(int)
 	ret1, _ := ret[1].(error)
@@ -867,11 +966,13 @@ func (m *MockTxnStore) SetIfNotExists(key string, v proto.Message) (int, error) 
 
 // SetIfNotExists indicates an expected call of SetIfNotExists
 func (mr *MockTxnStoreMockRecorder) SetIfNotExists(key, v interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIfNotExists", reflect.TypeOf((*MockTxnStore)(nil).SetIfNotExists), key, v)
 }
 
 // CheckAndSet mocks base method
 func (m *MockTxnStore) CheckAndSet(key string, version int, v proto.Message) (int, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CheckAndSet", key, version, v)
 	ret0, _ := ret[0].(int)
 	ret1, _ := ret[1].(error)
@@ -880,11 +981,13 @@ func (m *MockTxnStore) CheckAndSet(key string, version int, v proto.Message) (in
 
 // CheckAndSet indicates an expected call of CheckAndSet
 func (mr *MockTxnStoreMockRecorder) CheckAndSet(key, version, v interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckAndSet", reflect.TypeOf((*MockTxnStore)(nil).CheckAndSet), key, version, v)
 }
 
 // Delete mocks base method
 func (m *MockTxnStore) Delete(key string) (Value, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Delete", key)
 	ret0, _ := ret[0].(Value)
 	ret1, _ := ret[1].(error)
@@ -893,11 +996,13 @@ func (m *MockTxnStore) Delete(key string) (Value, error) {
 
 // Delete indicates an expected call of Delete
 func (mr *MockTxnStoreMockRecorder) Delete(key interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockTxnStore)(nil).Delete), key)
 }
 
 // History mocks base method
 func (m *MockTxnStore) History(key string, from, to int) ([]Value, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "History", key, from, to)
 	ret0, _ := ret[0].([]Value)
 	ret1, _ := ret[1].(error)
@@ -906,11 +1011,13 @@ func (m *MockTxnStore) History(key string, from, to int) ([]Value, error) {
 
 // History indicates an expected call of History
 func (mr *MockTxnStoreMockRecorder) History(key, from, to interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "History", reflect.TypeOf((*MockTxnStore)(nil).History), key, from, to)
 }
 
 // Commit mocks base method
 func (m *MockTxnStore) Commit(arg0 []Condition, arg1 []Op) (Response, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Commit", arg0, arg1)
 	ret0, _ := ret[0].(Response)
 	ret1, _ := ret[1].(error)
@@ -919,5 +1026,6 @@ func (m *MockTxnStore) Commit(arg0 []Condition, arg1 []Op) (Response, error) {
 
 // Commit indicates an expected call of Commit
 func (mr *MockTxnStoreMockRecorder) Commit(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Commit", reflect.TypeOf((*MockTxnStore)(nil).Commit), arg0, arg1)
 }

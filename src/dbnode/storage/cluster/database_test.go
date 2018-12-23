@@ -89,6 +89,7 @@ func TestDatabaseMarksShardAsAvailableOnReshard(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockStorageDB, restore := mockNewStorageDatabase(ctrl)
+	mockStorageDB.EXPECT().Open().Return(nil)
 	defer restore()
 
 	viewsCh := make(chan testutil.TopologyView, 64)
@@ -104,29 +105,28 @@ func TestDatabaseMarksShardAsAvailableOnReshard(t *testing.T) {
 	db, err := newTestDatabase(t, "testhost0", topoInit)
 	require.NoError(t, err)
 
-	// Now open the cluster database
-	mockStorageDB.EXPECT().Open().Return(nil)
+	// Now open the cluster database.
 	err = db.Open()
 	require.NoError(t, err)
 
-	// Reshard by taking a leaving host's shards
+	// Reshard by taking a leaving host's shards.
 	updatedView := map[string][]shard.Shard{
 		"testhost0": append(sharding.NewShards([]uint32{0, 1}, shard.Available),
 			sharding.NewShards([]uint32{2, 3}, shard.Initializing)...),
 		"testhost1": sharding.NewShards([]uint32{2, 3}, shard.Leaving),
 	}
 
-	// Expect the assign shards call
+	// Expect the assign shards call.
 	mockStorageDB.EXPECT().AssignShardSet(gomock.Any()).Do(
 		func(shardSet sharding.ShardSet) {
-			// Ensure updated shard set is as expected
+			// Ensure updated shard set is as expected.
 			assert.Equal(t, 4, len(shardSet.AllIDs()))
 			values := updatedView["testhost0"]
 			hostShardSet, _ := sharding.NewShardSet(values, shardSet.HashFn())
 			assert.Equal(t, hostShardSet.AllIDs(), shardSet.AllIDs())
 		})
 
-	// Expect the namespaces query from report shard state background query
+	// Expect the namespaces query from report shard state background query.
 	mockShards := []*storage.MockShard{
 		storage.NewMockShard(ctrl),
 		storage.NewMockShard(ctrl),
@@ -136,8 +136,8 @@ func TestDatabaseMarksShardAsAvailableOnReshard(t *testing.T) {
 	for i, s := range mockShards {
 		s.EXPECT().ID().Return(uint32(i)).AnyTimes()
 	}
-	mockShards[2].EXPECT().IsBootstrapped().Return(true)
-	mockShards[3].EXPECT().IsBootstrapped().Return(true)
+	mockShards[2].EXPECT().IsBootstrapped().Return(true).AnyTimes()
+	mockShards[3].EXPECT().IsBootstrapped().Return(true).AnyTimes()
 
 	var expectShards []storage.Shard
 	for _, s := range mockShards {
@@ -145,10 +145,10 @@ func TestDatabaseMarksShardAsAvailableOnReshard(t *testing.T) {
 	}
 
 	mockNamespace := storage.NewMockNamespace(ctrl)
-	mockNamespace.EXPECT().Shards().Return(expectShards)
+	mockNamespace.EXPECT().Shards().Return(expectShards).AnyTimes()
 
 	expectNamespaces := []storage.Namespace{mockNamespace}
-	mockStorageDB.EXPECT().Namespaces().Return(expectNamespaces)
+	mockStorageDB.EXPECT().Namespaces().Return(expectNamespaces).AnyTimes()
 
 	needsMarkAvailable := struct {
 		sync.Mutex
@@ -174,13 +174,22 @@ func TestDatabaseMarksShardAsAvailableOnReshard(t *testing.T) {
 		}
 	}
 
-	// Could be batched together, or could be called one by one
+	// Could be batched together, or could be called one by one.
 	props.topology.EXPECT().
 		MarkShardsAvailable("testhost0", gomock.Any()).
 		Do(onMarkShardsAvailable).
 		AnyTimes()
 
-	// Enqueue the update
+	// Simulate the case where the database isn't bootstrapped and durable
+	// yet (due to a snapshot not having run yet.)
+	mockStorageDB.EXPECT().IsBootstrappedAndDurable().Return(false)
+
+	// Allow the process to proceed by simulating the situation where the
+	// database has had sufficient time to make itself completely bootstrapped
+	// as well as durable.
+	mockStorageDB.EXPECT().IsBootstrappedAndDurable().Return(true)
+
+	// Enqueue the update.
 	viewsCh <- testutil.NewTopologyView(1, updatedView)
 
 	// Wait for the update to propagate, consume the first notification
@@ -190,7 +199,7 @@ func TestDatabaseMarksShardAsAvailableOnReshard(t *testing.T) {
 		<-props.propogateViewsCh
 	}
 
-	// Wait for shards to be marked available
+	// Wait for shards to be marked available.
 	wg.Wait()
 
 	mockStorageDB.EXPECT().Close().Return(nil)

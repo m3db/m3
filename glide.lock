@@ -1,5 +1,5 @@
-hash: f35a9c3b2c5ca4d115f442c628aff332f7ea80ad4be80d5146883797809226e0
-updated: 2018-11-27T02:49:39.338768-05:00
+hash: dbc8ad7212f59a1a4dd80405aaedb0482730630df847aa2fa97be78a061f40d9
+updated: 2018-12-13T15:36:49.311775-08:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -125,8 +125,6 @@ imports:
   version: c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9
 - name: github.com/ghodss/yaml
   version: 0ca9ea5df5451ffdf184b4428c902747c2c11cd7
-- name: github.com/glycerine/go-unsnap-stream
-  version: 9f0cb55181dd3a0a4c168d3dbc72d4aca4853126
 - name: github.com/go-kit/kit
   version: 04dd4f741c6e76cc170a4d7913f4c625952e6f58
   subpackages:
@@ -137,7 +135,7 @@ imports:
 - name: github.com/go-stack/stack
   version: 54be5f394ed2c3e19dac9134a40a95ba5a017f7b
 - name: github.com/gogo/protobuf
-  version: 636bf0302bc95575d69441b25a2603156ffdddf1
+  version: 4cbf7e384e768b4e01799441fdf2a706a5635ae7
   subpackages:
   - gogoproto
   - jsonpb
@@ -150,7 +148,7 @@ imports:
   subpackages:
   - lru
 - name: github.com/golang/mock
-  version: c34cdb4725f4c3844d095133c6e40e448b86589b
+  version: 51421b967af1f557f93a59e0057aaf15ca02e29c
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
@@ -221,7 +219,7 @@ imports:
 - name: github.com/m3db/fast-skiplist
   version: c6ebc6ea8c6585b5a3a41d46bb97b8b65cb880be
 - name: github.com/m3db/m3x
-  version: 4f657299af578e9aa28c557075c7307d4b756378
+  version: 912d1db087722c924d50a7bfac7ca55cf56a600e
   vcs: git
   subpackages:
   - checked
@@ -242,6 +240,7 @@ imports:
   - process
   - resource
   - retry
+  - sampler
   - server
   - sync
   - tcp
@@ -283,8 +282,6 @@ imports:
   version: df440c6ed7ed8897ac98a408365e5e89c7becf1a
 - name: github.com/mitchellh/mapstructure
   version: 53818660ed4955e899c0bcafa97299a388bd7c8e
-- name: github.com/mschoch/smat
-  version: 90eadee771aeab36e8bf796039b8c261bebebe4f
 - name: github.com/nightlyone/lockfile
   version: 1d49c987357a327b5b03aa84cbddd582c328615d
 - name: github.com/oklog/ulid
@@ -301,12 +298,12 @@ imports:
   version: e2f66f8164ca709d4c21e815860afd2024e9b894
 - name: github.com/pelletier/go-toml
   version: 3b00596b2e9ee541bbd72dc50cc0c60e2b46c69c
-- name: github.com/philhofer/fwd
-  version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
 - name: github.com/pilosa/pilosa
-  version: a112b2d46af94e3ecfa74b8158381e3595b24e4b
+  version: 8fe32d764fd7e29ec4c24aa0ca02c4174e4a6aed
   subpackages:
+  - logger
   - roaring
+  - stats
 - name: github.com/pkg/errors
   version: 645ef00459ed84a119197bfb8d8205042c6df63d
 - name: github.com/pkg/profile
@@ -379,17 +376,16 @@ imports:
 - name: github.com/spf13/pflag
   version: 4f9190456aed1c2113ca51ea9b89219747458dc1
 - name: github.com/spf13/viper
-  version: 2c12c60302a5a0e62ee102ca9bc996277c2f64f5
+  version: 6d33b5a963d922d182c91e8a1c88d81fd150cfd4
+- name: github.com/stretchr/objx
+  version: cbeaeb16a013161a98496fad62933b1d21786672
 - name: github.com/stretchr/testify
   version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
   subpackages:
   - assert
+  - mock
   - require
   - suite
-- name: github.com/tinylib/msgp
-  version: 53e4ad1e134ee9b42a7add28ca77177ab17983b3
-  subpackages:
-  - msgp
 - name: github.com/uber-go/atomic
   version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
 - name: github.com/uber-go/tally
@@ -536,3 +532,13 @@ testImports:
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/fortytw2/leaktest
   version: b433bbd6d743c1854040b39062a3916ed5f78fe8
+- name: github.com/glycerine/go-unsnap-stream
+  version: 9f0cb55181dd3a0a4c168d3dbc72d4aca4853126
+- name: github.com/mschoch/smat
+  version: 90eadee771aeab36e8bf796039b8c261bebebe4f
+- name: github.com/philhofer/fwd
+  version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
+- name: github.com/tinylib/msgp
+  version: 53e4ad1e134ee9b42a7add28ca77177ab17983b3
+  subpackages:
+  - msgp
