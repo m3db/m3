@@ -35,35 +35,27 @@ var (
 
 var (
 	// DefaultLevels are the default Level(s) used for compaction options.
-	DefaultLevels = []Level{ // i.e. tiers for compaction [0, 262K), [262K, 524K), [524K, 1M), [1M, 2M), [2M, 8M)
+	DefaultLevels = []Level{ // i.e. tiers for compaction [0, 262K), [262K, 1M), [1M, 4M)
 		Level{
 			MinSizeInclusive: 0,
 			MaxSizeExclusive: 1 << 18,
 		},
 		Level{
 			MinSizeInclusive: 1 << 18,
-			MaxSizeExclusive: 1 << 19,
-		},
-		Level{
-			MinSizeInclusive: 1 << 19,
 			MaxSizeExclusive: 1 << 20,
 		},
 		Level{
 			MinSizeInclusive: 1 << 20,
-			MaxSizeExclusive: 1 << 21,
-		},
-		Level{
-			MinSizeInclusive: 1 << 21,
-			MaxSizeExclusive: 1 << 23,
+			MaxSizeExclusive: 1 << 22,
 		},
 	}
 
 	// DefaultOptions are the default compaction PlannerOptions.
 	DefaultOptions = PlannerOptions{
-		MutableSegmentSizeThreshold:   0, // any mutable segment is eligible for compactions
-		MutableCompactionAgeThreshold: 0, // any mutable segment is eligible for compactions
-		Levels:  DefaultLevels,                      // sizes defined above
-		OrderBy: TasksOrderedByOldestMutableAndSize, // compact mutable segments first
+		MutableSegmentSizeThreshold:   0,                                  // any mutable segment is eligible for compactions
+		MutableCompactionAgeThreshold: 0,                                  // any mutable segment is eligible for compactions
+		Levels:                        DefaultLevels,                      // sizes defined above
+		OrderBy:                       TasksOrderedByOldestMutableAndSize, // compact mutable segments first
 	}
 )
 

@@ -58,6 +58,7 @@ func (m *MockReader) EXPECT() *MockReaderMockRecorder {
 
 // AllDocs mocks base method
 func (m *MockReader) AllDocs() (IDDocIterator, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AllDocs")
 	ret0, _ := ret[0].(IDDocIterator)
 	ret1, _ := ret[1].(error)
@@ -66,11 +67,13 @@ func (m *MockReader) AllDocs() (IDDocIterator, error) {
 
 // AllDocs indicates an expected call of AllDocs
 func (mr *MockReaderMockRecorder) AllDocs() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AllDocs", reflect.TypeOf((*MockReader)(nil).AllDocs))
 }
 
 // Close mocks base method
 func (m *MockReader) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -78,11 +81,13 @@ func (m *MockReader) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockReaderMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockReader)(nil).Close))
 }
 
 // Doc mocks base method
 func (m *MockReader) Doc(arg0 postings.ID) (doc.Document, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Doc", arg0)
 	ret0, _ := ret[0].(doc.Document)
 	ret1, _ := ret[1].(error)
@@ -91,11 +96,13 @@ func (m *MockReader) Doc(arg0 postings.ID) (doc.Document, error) {
 
 // Doc indicates an expected call of Doc
 func (mr *MockReaderMockRecorder) Doc(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Doc", reflect.TypeOf((*MockReader)(nil).Doc), arg0)
 }
 
 // Docs mocks base method
 func (m *MockReader) Docs(arg0 postings.List) (doc.Iterator, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Docs", arg0)
 	ret0, _ := ret[0].(doc.Iterator)
 	ret1, _ := ret[1].(error)
@@ -104,11 +111,13 @@ func (m *MockReader) Docs(arg0 postings.List) (doc.Iterator, error) {
 
 // Docs indicates an expected call of Docs
 func (mr *MockReaderMockRecorder) Docs(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Docs", reflect.TypeOf((*MockReader)(nil).Docs), arg0)
 }
 
 // MatchAll mocks base method
 func (m *MockReader) MatchAll() (postings.MutableList, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MatchAll")
 	ret0, _ := ret[0].(postings.MutableList)
 	ret1, _ := ret[1].(error)
@@ -117,11 +126,13 @@ func (m *MockReader) MatchAll() (postings.MutableList, error) {
 
 // MatchAll indicates an expected call of MatchAll
 func (mr *MockReaderMockRecorder) MatchAll() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchAll", reflect.TypeOf((*MockReader)(nil).MatchAll))
 }
 
 // MatchRegexp mocks base method
 func (m *MockReader) MatchRegexp(arg0 []byte, arg1 CompiledRegex) (postings.List, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MatchRegexp", arg0, arg1)
 	ret0, _ := ret[0].(postings.List)
 	ret1, _ := ret[1].(error)
@@ -130,11 +141,13 @@ func (m *MockReader) MatchRegexp(arg0 []byte, arg1 CompiledRegex) (postings.List
 
 // MatchRegexp indicates an expected call of MatchRegexp
 func (mr *MockReaderMockRecorder) MatchRegexp(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchRegexp", reflect.TypeOf((*MockReader)(nil).MatchRegexp), arg0, arg1)
 }
 
 // MatchTerm mocks base method
 func (m *MockReader) MatchTerm(arg0, arg1 []byte) (postings.List, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MatchTerm", arg0, arg1)
 	ret0, _ := ret[0].(postings.List)
 	ret1, _ := ret[1].(error)
@@ -143,6 +156,7 @@ func (m *MockReader) MatchTerm(arg0, arg1 []byte) (postings.List, error) {
 
 // MatchTerm indicates an expected call of MatchTerm
 func (mr *MockReaderMockRecorder) MatchTerm(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchTerm", reflect.TypeOf((*MockReader)(nil).MatchTerm), arg0, arg1)
 }
 
@@ -171,6 +185,7 @@ func (m *MockDocRetriever) EXPECT() *MockDocRetrieverMockRecorder {
 
 // Doc mocks base method
 func (m *MockDocRetriever) Doc(arg0 postings.ID) (doc.Document, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Doc", arg0)
 	ret0, _ := ret[0].(doc.Document)
 	ret1, _ := ret[1].(error)
@@ -179,5 +194,6 @@ func (m *MockDocRetriever) Doc(arg0 postings.ID) (doc.Document, error) {
 
 // Doc indicates an expected call of Doc
 func (mr *MockDocRetrieverMockRecorder) Doc(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Doc", reflect.TypeOf((*MockDocRetriever)(nil).Doc), arg0)
 }

@@ -52,7 +52,39 @@ var (
 	errOptionsBytesPoolUnspecified      = errors.New("checkedbytes pool is unset")
 	errOptionsResultsPoolUnspecified    = errors.New("results pool is unset")
 	errIDGenerationDisabled             = errors.New("id generation is disabled")
+
+	defaultForegroundCompactionOpts compaction.PlannerOptions
+	defaultBackgroundCompactionOpts compaction.PlannerOptions
 )
+
+func init() {
+	// Foreground compaction opts are the same as background compaction
+	// but with only a single level, 1/4 the size of the first level of
+	// the background compaction.
+	defaultForegroundCompactionOpts = compaction.DefaultOptions
+	defaultForegroundCompactionOpts.Levels = []compaction.Level{
+		{
+			MinSizeInclusive: 0,
+			MaxSizeExclusive: 1 << 16,
+		},
+	}
+
+	defaultBackgroundCompactionOpts = compaction.DefaultOptions
+	defaultBackgroundCompactionOpts.Levels = []compaction.Level{
+		{
+			MinSizeInclusive: 0,
+			MaxSizeExclusive: 1 << 18,
+		},
+		{
+			MinSizeInclusive: 1 << 18,
+			MaxSizeExclusive: 1 << 20,
+		},
+		{
+			MinSizeInclusive: 1 << 20,
+			MaxSizeExclusive: 1 << 22,
+		},
+	}
+}
 
 type opts struct {
 	insertMode                      InsertMode
@@ -102,8 +134,8 @@ func NewOptions() Options {
 		idPool:                          idPool,
 		resultsPool:                     resultsPool,
 		docArrayPool:                    docArrayPool,
-		foregroundCompactionPlannerOpts: compaction.DefaultOptions,
-		backgroundCompactionPlannerOpts: compaction.DefaultOptions,
+		foregroundCompactionPlannerOpts: defaultForegroundCompactionOpts,
+		backgroundCompactionPlannerOpts: defaultBackgroundCompactionOpts,
 	}
 	resultsPool.Init(func() Results { return NewResults(opts) })
 	return opts

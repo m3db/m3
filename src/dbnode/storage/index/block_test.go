@@ -22,7 +22,6 @@ package index
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -40,7 +39,6 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 )
 
 func newTestNSMetadata(t *testing.T) namespace.Metadata {
@@ -164,7 +162,7 @@ func TestBlockWriteAfterSeal(t *testing.T) {
 	require.Equal(t, 1, verified)
 }
 
-func TestBlockWriteMockSegment(t *testing.T) {
+func TestBlockWrite(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -195,28 +193,6 @@ func TestBlockWriteMockSegment(t *testing.T) {
 	h2.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
 	h2.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
 
-	seg := segment.NewMockMutableSegment(ctrl)
-	size := atomic.NewUint64(0)
-	seg.EXPECT().
-		InsertBatch(index.NewBatchMatcher(
-			index.Batch{
-				Docs:                []doc.Document{testDoc1(), testDoc1DupeID()},
-				AllowPartialUpdates: true,
-			},
-		)).
-		Return(nil).
-		Do(func(batch index.Batch) {
-			size.Add(uint64(len(batch.Docs)))
-		})
-	seg.EXPECT().
-		Size().
-		DoAndReturn(func() int {
-			return int(size.Load())
-		}).
-		AnyTimes()
-	seg.EXPECT().Close().Return(nil)
-	b.activeSegment = newMutableReadableSeg(seg)
-
 	batch := NewWriteBatch(WriteBatchOptions{
 		IndexBlockSize: blockSize,
 	})
@@ -227,7 +203,7 @@ func TestBlockWriteMockSegment(t *testing.T) {
 	batch.Append(WriteBatchEntry{
 		Timestamp:     nowNotBlockStartAligned,
 		OnIndexSeries: h2,
-	}, testDoc1DupeID())
+	}, testDoc2())
 
 	res, err := b.WriteBatch(batch)
 	require.NoError(t, err)
@@ -295,7 +271,7 @@ func TestBlockWriteActualSegmentPartialFailure(t *testing.T) {
 	require.Equal(t, 2, verified)
 }
 
-func TestBlockWriteMockSegmentPartialFailure(t *testing.T) {
+func TestBlockWritePartialFailure(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -314,39 +290,12 @@ func TestBlockWriteMockSegmentPartialFailure(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	seg := segment.NewMockMutableSegment(ctrl)
-	b.activeSegment = newMutableReadableSeg(seg)
-
 	h1 := NewMockOnIndexSeries(ctrl)
 	h1.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
 	h1.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
 
 	h2 := NewMockOnIndexSeries(ctrl)
 	h2.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
-
-	testErr := fmt.Errorf("random-err")
-
-	berr := index.NewBatchPartialError()
-	berr.Add(index.BatchError{testErr, 1})
-
-	size := atomic.NewUint64(0)
-	seg.EXPECT().
-		InsertBatch(index.NewBatchMatcher(
-			index.Batch{
-				Docs:                []doc.Document{testDoc1(), testDoc1DupeID()},
-				AllowPartialUpdates: true,
-			},
-		)).
-		Return(berr).
-		Do(func(batch index.Batch) {
-			size.Add(uint64(len(batch.Docs)) - 1)
-		})
-	seg.EXPECT().
-		Size().
-		DoAndReturn(func() int {
-			return int(size.Load())
-		}).
-		AnyTimes()
 
 	batch := NewWriteBatch(WriteBatchOptions{
 		IndexBlockSize: blockSize,
@@ -377,78 +326,7 @@ func TestBlockWriteMockSegmentPartialFailure(t *testing.T) {
 			require.NoError(t, result.Err)
 		} else {
 			require.Error(t, result.Err)
-			require.Equal(t, testErr, result.Err)
 		}
-	})
-	require.Equal(t, 2, verified)
-}
-
-func TestBlockWriteMockSegmentUnexpectedErrorType(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	md := newTestNSMetadata(t)
-	blockSize := time.Hour
-
-	now := time.Now()
-	blockStart := now.Truncate(blockSize)
-
-	nowNotBlockStartAligned := now.
-		Truncate(blockSize).
-		Add(time.Minute)
-
-	blk, err := NewBlock(blockStart, md, testOpts)
-	require.NoError(t, err)
-	b, ok := blk.(*block)
-	require.True(t, ok)
-
-	seg := segment.NewMockMutableSegment(ctrl)
-	b.activeSegment = newMutableReadableSeg(seg)
-
-	h1 := NewMockOnIndexSeries(ctrl)
-	h1.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
-
-	h2 := NewMockOnIndexSeries(ctrl)
-	h2.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
-
-	testErr := fmt.Errorf("random-err")
-
-	seg.EXPECT().
-		InsertBatch(index.NewBatchMatcher(
-			index.Batch{
-				Docs:                []doc.Document{testDoc1(), testDoc1DupeID()},
-				AllowPartialUpdates: true,
-			},
-		)).
-		Return(testErr)
-	seg.EXPECT().Size().Return(int64(0)).AnyTimes()
-
-	batch := NewWriteBatch(WriteBatchOptions{
-		IndexBlockSize: blockSize,
-	})
-	batch.Append(WriteBatchEntry{
-		Timestamp:     nowNotBlockStartAligned,
-		OnIndexSeries: h1,
-	}, testDoc1())
-	batch.Append(WriteBatchEntry{
-		Timestamp:     nowNotBlockStartAligned,
-		OnIndexSeries: h2,
-	}, testDoc1DupeID())
-
-	res, err := b.WriteBatch(batch)
-	require.Error(t, err)
-	require.Equal(t, int64(2), res.NumError)
-
-	verified := 0
-	batch.ForEach(func(
-		idx int,
-		entry WriteBatchEntry,
-		doc doc.Document,
-		result WriteBatchEntryResult,
-	) {
-		verified++
-		require.Error(t, result.Err)
-		require.True(t, strings.Contains(result.Err.Error(), "unexpected non-BatchPartialError"))
 	})
 	require.Equal(t, 2, verified)
 }
@@ -498,8 +376,8 @@ func TestBlockQuerySegmentReaderError(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	seg := segment.NewMockMutableSegment(ctrl)
-	b.activeSegment = newMutableReadableSeg(seg)
+	seg := segment.NewMockSegment(ctrl)
+	b.foregroundSegments = []*readableSeg{newReadableSeg(seg)}
 	randErr := fmt.Errorf("random-err")
 	seg.EXPECT().Reader().Return(nil, randErr)
 
@@ -523,7 +401,7 @@ func TestBlockQueryAddResultsSegmentsError(t *testing.T) {
 	seg2 := segment.NewMockMutableSegment(ctrl)
 	seg3 := segment.NewMockMutableSegment(ctrl)
 
-	b.activeSegment = newMutableReadableSeg(seg1)
+	b.foregroundSegments = []*readableSeg{newReadableSeg(seg1)}
 	b.shardRangesSegments = []blockShardRangesSegments{
 		blockShardRangesSegments{segments: []segment.Segment{seg2, seg3}}}
 
@@ -945,8 +823,8 @@ func TestBlockTickSingleSegment(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	seg1 := segment.NewMockMutableSegment(ctrl)
-	b.activeSegment = newMutableReadableSeg(seg1)
+	seg1 := segment.NewMockSegment(ctrl)
+	b.foregroundSegments = []*readableSeg{newReadableSeg(seg1)}
 	seg1.EXPECT().Size().Return(int64(10))
 
 	result, err := blk.Tick(nil, start)
@@ -967,8 +845,8 @@ func TestBlockTickMultipleSegment(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	seg1 := segment.NewMockMutableSegment(ctrl)
-	b.activeSegment = newMutableReadableSeg(seg1)
+	seg1 := segment.NewMockSegment(ctrl)
+	b.foregroundSegments = []*readableSeg{newReadableSeg(seg1)}
 	seg1.EXPECT().Size().Return(int64(10))
 
 	seg2 := segment.NewMockMutableSegment(ctrl)
@@ -996,8 +874,8 @@ func TestBlockTickAfterSeal(t *testing.T) {
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	seg1 := segment.NewMockMutableSegment(ctrl)
-	b.activeSegment = newMutableReadableSeg(seg1)
+	seg1 := segment.NewMockSegment(ctrl)
+	b.foregroundSegments = []*readableSeg{newReadableSeg(seg1)}
 	seg1.EXPECT().Size().Return(int64(10))
 
 	result, err := blk.Tick(nil, start)
@@ -1170,13 +1048,12 @@ func TestBlockEvictMutableSegmentsSimple(t *testing.T) {
 	start := time.Now().Truncate(time.Hour)
 	blk, err := NewBlock(start, testMD, testOpts)
 	require.NoError(t, err)
-	res, err := blk.EvictMutableSegments()
+	err = blk.EvictMutableSegments()
 	require.Error(t, err)
 
 	require.NoError(t, blk.Seal())
-	res, err = blk.EvictMutableSegments()
+	err = blk.EvictMutableSegments()
 	require.NoError(t, err)
-	require.Equal(t, int64(1), res.NumMutableSegments)
 }
 
 func TestBlockEvictMutableSegmentsAddResults(t *testing.T) {
@@ -1196,9 +1073,8 @@ func TestBlockEvictMutableSegmentsAddResults(t *testing.T) {
 	require.NoError(t, b.AddResults(
 		result.NewIndexBlock(start, []segment.Segment{seg1},
 			result.NewShardTimeRanges(start, start.Add(time.Hour), 1, 2, 3))))
-	seg1.EXPECT().Size().Return(int64(0))
 	seg1.EXPECT().Close().Return(nil)
-	_, err = b.EvictMutableSegments()
+	err = b.EvictMutableSegments()
 	require.NoError(t, err)
 
 	seg2 := segment.NewMockMutableSegment(ctrl)
@@ -1206,9 +1082,8 @@ func TestBlockEvictMutableSegmentsAddResults(t *testing.T) {
 	require.NoError(t, b.AddResults(
 		result.NewIndexBlock(start, []segment.Segment{seg2, seg3},
 			result.NewShardTimeRanges(start, start.Add(time.Hour), 1, 2, 4))))
-	seg2.EXPECT().Size().Return(int64(0))
 	seg2.EXPECT().Close().Return(nil)
-	_, err = b.EvictMutableSegments()
+	err = b.EvictMutableSegments()
 	require.NoError(t, err)
 }
 

@@ -76,7 +76,6 @@ import (
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
 
-	apachethrift "github.com/apache/thrift/lib/go/thrift"
 	"github.com/coreos/etcd/embed"
 	"github.com/coreos/pkg/capnslog"
 	"github.com/uber-go/tally"
@@ -966,9 +965,6 @@ func withEncodingAndPoolingOptions(
 
 	logger.Infof("bytes pool %s init", policy.Type)
 	bytesPool.Init()
-
-	// Set the apache thrift bytes pool to same as servers
-	apachethrift.SetBytesPool(bytesPool)
 
 	segmentReaderPool := xio.NewSegmentReaderPool(
 		poolOptions(policy.SegmentReaderPool, scope.SubScope("segment-reader-pool")))

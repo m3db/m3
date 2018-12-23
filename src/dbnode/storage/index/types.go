@@ -190,7 +190,7 @@ type Block interface {
 	// valid to be called once the block and hence mutable segments are sealed.
 	// It is expected that results have been added to the block that covers any
 	// data the mutable segments should have held at this time.
-	EvictMutableSegments() (EvictMutableSegmentResults, error)
+	EvictMutableSegments() error
 
 	// Close will release any held resources and close the Block.
 	Close() error
@@ -236,12 +236,10 @@ type BlockSegmentStats struct {
 type BlockSegmentType uint
 
 const (
-	// ActiveOpenSegment is an active segment that is being written to.
-	ActiveOpenSegment BlockSegmentType = iota
-	// ActiveFrozenSegment is an active frozen segment that is either
-	// being compacted or waiting for another compaction if/when
-	// it should be considered for further compaction.
-	ActiveFrozenSegment
+	// ActiveForegroundSegment is an active foreground compacted segment.
+	ActiveForegroundSegment BlockSegmentType = iota
+	// ActiveBackgroundSegment is an active background compacted segment.
+	ActiveBackgroundSegment
 	// FlushedSegment is an immutable segment that can't change any longer.
 	FlushedSegment
 )

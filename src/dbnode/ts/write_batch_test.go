@@ -26,18 +26,12 @@ import (
 	"fmt"
 	"testing"
 	"time"
-	"unsafe"
 
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 )
-
-func TestSizeof(t *testing.T) {
-	sz := unsafe.Sizeof(BatchWrite{})
-	fmt.Printf("sz: %d\n", sz)
-}
 
 const (
 	batchSize    = 2

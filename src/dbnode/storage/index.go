@@ -28,6 +28,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
+
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/persist"
 	"github.com/m3db/m3/src/dbnode/persist/fs"
@@ -301,15 +303,20 @@ func (i *nsIndex) reportStatsUntilClosed() {
 	}
 }
 
+type nsIndexCompactionLevelStats struct {
+	numSegments  int64
+	numTotalDocs int64
+}
+
 func (i *nsIndex) reportStats() error {
 	i.state.RLock()
 	defer i.state.RUnlock()
 
-	levels := i.metrics.BlockMetrics.ActiveSegmentLevelsMetrics
-	levelValues := make([]struct {
-		numSegments  int64
-		numTotalDocs int64
-	}, len(levels))
+	foregroundLevels := i.metrics.BlockMetrics.ForegroundSegments.Levels
+	foregroundLevelStats := make([]nsIndexCompactionLevelStats, len(foregroundLevels))
+
+	backgroundLevels := i.metrics.BlockMetrics.BackgroundSegments.Levels
+	backgroundLevelStats := make([]nsIndexCompactionLevelStats, len(backgroundLevels))
 
 	// iterate known blocks in a defined order of time (newest first)
 	// for debug log ordering
@@ -321,15 +328,29 @@ func (i *nsIndex) reportStats() error {
 
 		err := block.Stats(
 			index.BlockStatsReporterFn(func(s index.BlockSegmentStats) {
+				var (
+					levels     []nsIndexBlocksSegmentsLevelMetrics
+					levelStats []nsIndexCompactionLevelStats
+				)
+				switch s.Type {
+				case index.ActiveForegroundSegment:
+					levels = foregroundLevels
+					levelStats = foregroundLevelStats
+				case index.ActiveBackgroundSegment:
+					levels = backgroundLevels
+					levelStats = backgroundLevelStats
+				}
+
 				for i, l := range levels {
 					contained := s.Size >= l.MinSizeInclusive && s.Size < l.MaxSizeExclusive
 					if !contained {
 						continue
 					}
 
-					levelValues[i].numSegments++
-					levelValues[i].numTotalDocs += s.Size
 					l.SegmentsAge.Record(s.Age)
+					levelStats[i].numSegments++
+					levelStats[i].numTotalDocs += s.Size
+
 					break
 				}
 			}))
@@ -342,9 +363,17 @@ func (i *nsIndex) reportStats() error {
 		}
 	}
 
-	for i, v := range levelValues {
-		levels[i].NumSegments.Update(float64(v.numSegments))
-		levels[i].NumTotalDocs.Update(float64(v.numTotalDocs))
+	for _, elem := range []struct {
+		levels     []nsIndexBlocksSegmentsLevelMetrics
+		levelStats []nsIndexCompactionLevelStats
+	}{
+		{foregroundLevels, foregroundLevelStats},
+		{backgroundLevels, backgroundLevelStats},
+	} {
+		for i, v := range elem.levelStats {
+			elem.levels[i].NumSegments.Update(float64(v.numSegments))
+			elem.levels[i].NumTotalDocs.Update(float64(v.numTotalDocs))
+		}
 	}
 
 	return nil
@@ -606,7 +635,7 @@ func (i *nsIndex) Flush(
 		return err
 	}
 
-	var evictResults index.EvictMutableSegmentResults
+	var evicted int
 	for _, block := range flushable {
 		immutableSegments, err := i.flushBlock(flush, block, shards)
 		if err != nil {
@@ -622,11 +651,12 @@ func (i *nsIndex) Flush(
 		if err := block.AddResults(results); err != nil {
 			return err
 		}
+
+		evicted++
+
 		// It's now safe to remove the mutable segments as anything the block
 		// held is covered by the owned shards we just read
-		evictResult, err := block.EvictMutableSegments()
-		evictResults.Add(evictResult)
-		if err != nil {
+		if err := block.EvictMutableSegments(); err != nil {
 			// deliberately choosing to not mark this as an error as we have successfully
 			// flushed any mutable data.
 			i.logger.WithFields(
@@ -635,7 +665,7 @@ func (i *nsIndex) Flush(
 			).Warnf("encountered error while evicting mutable segments for index block")
 		}
 	}
-	i.metrics.FlushEvictedMutableSegments.Inc(evictResults.NumMutableSegments)
+	i.metrics.BlocksEvictedMutableSegments.Inc(int64(evicted))
 	return nil
 }
 
@@ -801,7 +831,7 @@ func (i *nsIndex) flushBlockSegment(
 		}
 	}
 
-	if _, err := seg.Seal(); err != nil {
+	if err := seg.Seal(); err != nil {
 		return err
 	}
 
@@ -1280,12 +1310,12 @@ func (i *nsIndex) unableToAllocBlockInvariantError(err error) error {
 }
 
 type nsIndexMetrics struct {
-	AsyncInsertErrors           tally.Counter
-	InsertAfterClose            tally.Counter
-	QueryAfterClose             tally.Counter
-	InsertEndToEndLatency       tally.Timer
-	FlushEvictedMutableSegments tally.Counter
-	BlockMetrics                nsIndexBlocksMetrics
+	AsyncInsertErrors            tally.Counter
+	InsertAfterClose             tally.Counter
+	QueryAfterClose              tally.Counter
+	InsertEndToEndLatency        tally.Timer
+	BlocksEvictedMutableSegments tally.Counter
+	BlockMetrics                 nsIndexBlocksMetrics
 }
 
 func newNamespaceIndexMetrics(
@@ -1307,8 +1337,8 @@ func newNamespaceIndexMetrics(
 		InsertEndToEndLatency: instrument.MustCreateSampledTimer(
 			scope.Timer("insert-end-to-end-latency"),
 			iopts.MetricsSamplingRate()),
-		FlushEvictedMutableSegments: scope.Counter("mutable-segment-evicted"),
-		BlockMetrics:                newNamespaceIndexBlocksMetrics(opts, blocksScope),
+		BlocksEvictedMutableSegments: scope.Counter("blocks-mutable-segment-evicted"),
+		BlockMetrics:                 newNamespaceIndexBlocksMetrics(opts, blocksScope),
 	}
 }
 
@@ -1323,15 +1353,15 @@ func newNamespaceIndexBlocksMetrics(
 ) nsIndexBlocksMetrics {
 	return nsIndexBlocksMetrics{
 		ForegroundSegments: newNamespaceIndexBlocksSegmentsMetrics(
-			opts.ForegroundCompactionPlannerOptions().Levels,
+			opts.ForegroundCompactionPlannerOptions(),
 			scope.Tagged(map[string]string{
 				"segment-type": "foreground",
 			})),
-			BackgroundSegments: newNamespaceIndexBlocksSegmentsMetrics(
-				opts.BackgroundCompactionPlannerOptions().Levels,
-				scope.Tagged(map[string]string{
-					"segment-type": "background",
-				})),
+		BackgroundSegments: newNamespaceIndexBlocksSegmentsMetrics(
+			opts.BackgroundCompactionPlannerOptions(),
+			scope.Tagged(map[string]string{
+				"segment-type": "background",
+			})),
 	}
 }
 
@@ -1348,17 +1378,17 @@ type nsIndexBlocksSegmentsLevelMetrics struct {
 }
 
 func newNamespaceIndexBlocksSegmentsMetrics(
-	compactionLevels []compaction.PlannerOptions,
+	compactionOpts compaction.PlannerOptions,
 	scope tally.Scope,
 ) nsIndexBlocksSegmentsMetrics {
 	segmentLevelsScope := scope.SubScope("segment-levels")
-	levels := make([]nsIndexBlocksSegmentLevelMetrics, 0, len(compactionLevels))
-	for _, level := range compactionLevels {
+	levels := make([]nsIndexBlocksSegmentsLevelMetrics, 0, len(compactionOpts.Levels))
+	for _, level := range compactionOpts.Levels {
 		subScope := segmentLevelsScope.Tagged(map[string]string{
 			"level-min-size": strconv.Itoa(int(level.MinSizeInclusive)),
 			"level-max-size": strconv.Itoa(int(level.MaxSizeExclusive)),
 		})
-		levels = append(levels, nsIndexBlocksSegmentLevelMetrics{
+		levels = append(levels, nsIndexBlocksSegmentsLevelMetrics{
 			MinSizeInclusive: level.MinSizeInclusive,
 			MaxSizeExclusive: level.MaxSizeExclusive,
 			NumSegments:      subScope.Gauge("num-segments"),
