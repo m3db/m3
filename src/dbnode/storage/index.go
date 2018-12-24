@@ -1340,7 +1340,7 @@ func newNamespaceIndexMetrics(
 		InsertEndToEndLatency: instrument.MustCreateSampledTimer(
 			scope.Timer("insert-end-to-end-latency"),
 			iopts.MetricsSamplingRate()),
-		BlocksEvictedMutableSegments: scope.Counter("blocks-mutable-segment-evicted"),
+		BlocksEvictedMutableSegments: scope.Counter("blocks-evicted-mutable-segments"),
 		BlockMetrics:                 newNamespaceIndexBlocksMetrics(opts, blocksScope),
 	}
 }
