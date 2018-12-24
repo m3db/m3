@@ -191,7 +191,7 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 			}
 		}
 
-		tags := seriesMeta[i].Tags.AddTags(commonTags).WithoutName()
+		tags := seriesMeta[i].Tags.AddTags(commonTags)
 		seriesList[i] = ts.NewSeries(seriesMeta[i].Name, values, tags)
 	}
 
