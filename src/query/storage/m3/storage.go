@@ -93,7 +93,7 @@ func (s *m3storage) FetchBlocks(
 	query *storage.FetchQuery,
 	options *storage.FetchOptions,
 ) (block.Result, error) {
-	if !options.UseIterators {
+	if options.UseLegacy {
 		fetchResult, err := s.Fetch(ctx, query, options)
 		if err != nil {
 			return block.Result{}, err

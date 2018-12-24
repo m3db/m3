@@ -257,7 +257,6 @@ func (c *baseNode) processSingleRequest(request processRequest) error {
 	resultSeriesMeta := make([]block.SeriesMeta, len(seriesMeta))
 	for i, m := range seriesMeta {
 		tags := m.Tags.WithoutName()
-		resultSeriesMeta[i].Tags = tags
 		resultSeriesMeta[i].Name = tags.ID()
 	}
 

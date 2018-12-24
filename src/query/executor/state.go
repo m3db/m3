@@ -118,9 +118,9 @@ func GenerateExecutionState(
 	}
 
 	options := transform.Options{
-		TimeSpec:     pplan.TimeSpec,
-		Debug:        pplan.Debug,
-		UseIterators: pplan.UseIterators,
+		TimeSpec:  pplan.TimeSpec,
+		Debug:     pplan.Debug,
+		UseLegacy: pplan.UseLegacy,
 	}
 
 	controller, err := state.createNode(step, options)

@@ -49,12 +49,12 @@ type FetchOp struct {
 // FetchNode is the execution node
 // TODO: Make FetchNode private
 type FetchNode struct {
-	op           FetchOp
-	controller   *transform.Controller
-	storage      storage.Storage
-	timespec     transform.TimeSpec
-	debug        bool
-	useIterators bool
+	op         FetchOp
+	controller *transform.Controller
+	storage    storage.Storage
+	timespec   transform.TimeSpec
+	debug      bool
+	useLegacy  bool
 }
 
 // OpType for the operator
@@ -78,12 +78,12 @@ func (o FetchOp) String() string {
 // Node creates an execution node
 func (o FetchOp) Node(controller *transform.Controller, storage storage.Storage, options transform.Options) parser.Source {
 	return &FetchNode{
-		op:           o,
-		controller:   controller,
-		storage:      storage,
-		timespec:     options.TimeSpec,
-		debug:        options.Debug,
-		useIterators: options.UseIterators,
+		op:         o,
+		controller: controller,
+		storage:    storage,
+		timespec:   options.TimeSpec,
+		debug:      options.Debug,
+		useLegacy:  options.UseLegacy,
 	}
 }
 
@@ -99,7 +99,7 @@ func (n *FetchNode) Execute(ctx context.Context) error {
 		TagMatchers: n.op.Matchers,
 		Interval:    timeSpec.Step,
 	}, &storage.FetchOptions{
-		UseIterators: n.useIterators,
+		UseLegacy: n.useLegacy,
 	})
 	if err != nil {
 		return err
@@ -120,7 +120,17 @@ func (n *FetchNode) Execute(ctx context.Context) error {
 			return err
 		}
 
-		block.Close()
+		// TODO: Revisit how and when we close blocks. At the each function step
+		// defers Close(), which means that we have half blocks hanging around for
+		// a long time. Ideally we should be able to transform blocks in place.
+		//
+		// NB: Until block closing is implemented correctly, this handles closing
+		// encoded iterators when there are additional processing steps, as these
+		// steps will not properly close the block. If there are no additional steps
+		// beyond the fetch, the read handler will close blocks.
+		if n.controller.HasMultipleOperations() {
+			block.Close()
+		}
 	}
 
 	return nil
