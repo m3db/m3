@@ -81,8 +81,8 @@ func (q *FetchQuery) String() string {
 // FetchOptions represents the options for fetch query.
 type FetchOptions struct {
 	// Limit is the maximum number of series to return.
-	Limit        int
-	UseIterators bool
+	Limit     int
+	UseLegacy bool
 }
 
 // NewFetchOptions creates a new fetch options.
