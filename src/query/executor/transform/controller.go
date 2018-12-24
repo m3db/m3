@@ -31,12 +31,12 @@ type Controller struct {
 	transforms []OpNode
 }
 
-// AddTransform adds a dependent transformation to the controller
+// AddTransform adds a dependent transformation to the controller.
 func (t *Controller) AddTransform(node OpNode) {
 	t.transforms = append(t.transforms, node)
 }
 
-// Process performs processing on the underlying transforms
+// Process performs processing on the underlying transforms.
 func (t *Controller) Process(block block.Block) error {
 	for _, ts := range t.transforms {
 		err := ts.Process(t.ID, block)
@@ -48,7 +48,15 @@ func (t *Controller) Process(block block.Block) error {
 	return nil
 }
 
-// BlockBuilder returns a BlockBuilder instance with associated metadata
-func (t *Controller) BlockBuilder(blockMeta block.Metadata, seriesMeta []block.SeriesMeta) (block.Builder, error) {
+// BlockBuilder returns a BlockBuilder instance with associated metadata.
+func (t *Controller) BlockBuilder(
+	blockMeta block.Metadata,
+	seriesMeta []block.SeriesMeta,
+) (block.Builder, error) {
 	return block.NewColumnBlockBuilder(blockMeta, seriesMeta), nil
+}
+
+// HasMultipleOperations returns true if there are multiple operations.
+func (t *Controller) HasMultipleOperations() bool {
+	return len(t.transforms) > 1
 }

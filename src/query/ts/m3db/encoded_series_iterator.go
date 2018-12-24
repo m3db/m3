@@ -96,7 +96,7 @@ func (it *encodedSeriesIter) Current() (block.Series, error) {
 
 	// Consolidate any remaining points iff has not been finished
 	// Fill up any missing values with NaNs
-	for ; !it.consolidator.Empty(); i++ {
+	for ; i < len(values) && !it.consolidator.Empty(); i++ {
 		values[i] = it.consolidator.ConsolidateAndMoveToNext()
 	}
 

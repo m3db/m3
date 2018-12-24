@@ -48,8 +48,12 @@ const (
 	queryParam        = "query"
 	stepParam         = "step"
 	debugParam        = "debug"
-	useIterParam      = "iters"
 	endExclusiveParam = "end-exclusive"
+
+	// NB: this will force series decompression on fetch. Will be left for a few
+	// releases to help debug any issues that may arise with compressed series
+	// block fetch
+	useLegacyParam = "legacy"
 
 	formatErrStr = "error parsing param: %s, error: %v"
 )
@@ -118,7 +122,7 @@ func parseParams(r *http.Request) (models.RequestParams, *xhttp.ParseError) {
 	}
 
 	params.Query = query
-	params.Debug, params.UseIterators = parseDebugAndIterFlags(r)
+	params.Debug, params.UseLegacy = parseDebugAndLegacyFlags(r)
 	// Default to including end if unable to parse the flag
 	endExclusiveVal := r.FormValue(endExclusiveParam)
 	params.IncludeEnd = true
@@ -138,11 +142,12 @@ func parseParams(r *http.Request) (models.RequestParams, *xhttp.ParseError) {
 	return params, nil
 }
 
-func parseDebugAndIterFlags(r *http.Request) (bool, bool) {
+func parseDebugAndLegacyFlags(r *http.Request) (bool, bool) {
 	var (
-		debug, useIter bool
-		err            error
+		debug, useLegacy bool
+		err              error
 	)
+
 	// Skip debug if unable to parse debug param
 	debugVal := r.FormValue(debugParam)
 	if debugVal != "" {
@@ -152,16 +157,16 @@ func parseDebugAndIterFlags(r *http.Request) (bool, bool) {
 		}
 	}
 
-	// Skip useIterators if unable to parse useIterators param
-	useIterVal := r.FormValue(useIterParam)
-	if useIterVal != "" {
-		useIter, err = strconv.ParseBool(r.FormValue(useIterParam))
+	// Skip useLegacy if unable to parse useLegacy param
+	useLegacyVal := r.FormValue(useLegacyParam)
+	if useLegacyVal != "" {
+		useLegacy, err = strconv.ParseBool(r.FormValue(useLegacyParam))
 		if err != nil {
-			logging.WithContext(r.Context()).Warn("unable to parse useIter flag", zap.Error(err))
+			logging.WithContext(r.Context()).Warn("unable to parse useLegacy flag", zap.Error(err))
 		}
 	}
 
-	return debug, useIter
+	return debug, useLegacy
 }
 
 // parseInstantaneousParams parses all params from the GET request
@@ -194,7 +199,7 @@ func parseInstantaneousParams(r *http.Request) (models.RequestParams, *xhttp.Par
 		return params, xhttp.NewParseError(fmt.Errorf(formatErrStr, queryParam, err), http.StatusBadRequest)
 	}
 	params.Query = query
-	params.Debug, params.UseIterators = parseDebugAndIterFlags(r)
+	params.Debug, params.UseLegacy = parseDebugAndLegacyFlags(r)
 	return params, nil
 }
 
