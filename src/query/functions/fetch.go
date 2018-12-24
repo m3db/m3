@@ -120,7 +120,17 @@ func (n *FetchNode) Execute(ctx context.Context) error {
 			return err
 		}
 
-		block.Close()
+		// TODO: Revisit how and when we close blocks. At the each function step
+		// defers Close(), which means that we have half blocks hanging around for
+		// a long time. Ideally we should be able to transform blocks in place.
+		//
+		// NB: Until block closing is implemented correctly, this handles closing
+		// encoded iterators when there are additional processing steps, as these
+		// steps will not properly close the block. If there are no additional steps
+		// beyond the fetch, the read handler will close blocks.
+		if n.controller.HasMultipleOperations() {
+			block.Close()
+		}
 	}
 
 	return nil

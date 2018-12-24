@@ -42,15 +42,14 @@ func (it *encodedSeriesIterUnconsolidated) Current() (
 ) {
 	it.mu.RLock()
 	iter := it.seriesIters[it.idx]
-
-	values := make([]xts.Datapoints, 0, initBlockReplicaLength)
+	values := make(xts.Datapoints, 0, initBlockReplicaLength)
 	for iter.Next() {
 		dp, _, _ := iter.Current()
 		values = append(values,
-			[]xts.Datapoint{{
+			xts.Datapoint{
 				Timestamp: dp.Timestamp,
 				Value:     dp.Value,
-			}})
+			})
 	}
 
 	if err := iter.Err(); err != nil {
@@ -58,7 +57,8 @@ func (it *encodedSeriesIterUnconsolidated) Current() (
 		return block.UnconsolidatedSeries{}, err
 	}
 
-	series := block.NewUnconsolidatedSeries(values, it.seriesMeta[it.idx])
+	alignedValues := values.AlignToBounds(it.meta.Bounds)
+	series := block.NewUnconsolidatedSeries(alignedValues, it.seriesMeta[it.idx])
 	it.mu.RUnlock()
 	return series, nil
 }

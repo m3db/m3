@@ -110,6 +110,7 @@ func read(
 	// Ensure that the blocks are closed. Can't do this above since sortedBlockList might change
 	defer func() {
 		for _, b := range sortedBlockList {
+			// FIXME: this will double close blocks that have gone through the function pipeline
 			b.block.Close()
 		}
 	}()
@@ -155,6 +156,7 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 	numSeries := firstSeriesIter.SeriesCount()
 	seriesMeta := firstSeriesIter.SeriesMeta()
 	bounds := firstSeriesIter.Meta().Bounds
+	commonTags := firstSeriesIter.Meta().Tags.Tags
 
 	seriesList := make([]*ts.Series, numSeries)
 	seriesIters := make([]block.SeriesIter, len(blockList))
@@ -189,7 +191,8 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 			}
 		}
 
-		seriesList[i] = ts.NewSeries(seriesMeta[i].Name, values, seriesMeta[i].Tags)
+		tags := seriesMeta[i].Tags.AddTags(commonTags).WithoutName()
+		seriesList[i] = ts.NewSeries(seriesMeta[i].Name, values, tags)
 	}
 
 	return seriesList, nil
