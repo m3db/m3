@@ -738,9 +738,6 @@ func TestSegmentFields(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	_, err = segment.Fields()
-	require.Error(t, err)
-
 	err = segment.Seal()
 	require.NoError(t, err)
 

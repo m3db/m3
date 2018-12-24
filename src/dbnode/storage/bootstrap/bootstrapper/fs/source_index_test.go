@@ -148,7 +148,7 @@ func writeTSDBPersistedIndexBlock(
 		require.NoError(t, err)
 	}
 
-	_, err = seg.Seal()
+	err = seg.Seal()
 	require.NoError(t, err)
 
 	pm := newTestOptionsWithPersistManager(t, dir).PersistManager()

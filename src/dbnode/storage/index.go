@@ -497,7 +497,7 @@ func (i *nsIndex) writeBatchForBlockStartWithRLock(
 			xlog.NewField("blockStart", blockStart),
 			xlog.NewField("numWrites", batch.Len()),
 			xlog.NewField("err", err.Error()),
-		).Error("unable to write to index, dropping inserts.")
+		).Error("unable to write to index, dropping inserts")
 		i.metrics.AsyncInsertErrors.Inc(int64(batch.Len()))
 		return
 	}
@@ -790,13 +790,11 @@ func (i *nsIndex) flushBlockSegment(
 	)
 	ctx := context.NewContext()
 	defer func() {
-		// At completion, asynchronously finalize/return resources to pools
-		go func() {
-			ctx.Close()
-			for _, result := range allResults {
-				result.Close()
-			}
-		}()
+		// At completion finalize/return resources to pools
+		for _, result := range allResults {
+			result.Close()
+		}
+		ctx.BlockingClose()
 	}()
 
 	for _, shard := range shards {

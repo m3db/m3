@@ -118,7 +118,7 @@ func TestNamespaceIndexFlushSuccess(t *testing.T) {
 		persistClosed = true
 		return nil, nil
 	}
-	persistFn := func(segment.MutableSegment) error {
+	persistFn := func(segment.Builder) error {
 		persistCalled = true
 		return nil
 	}
@@ -214,7 +214,7 @@ func TestNamespaceIndexFlushSuccessMultipleShards(t *testing.T) {
 		persistClosed = true
 		return nil, nil
 	}
-	persistFn := func(segment.MutableSegment) error {
+	persistFn := func(segment.Builder) error {
 		numPersistCalls++
 		return nil
 	}
