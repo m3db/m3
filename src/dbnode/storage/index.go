@@ -517,8 +517,11 @@ func (i *nsIndex) writeBatchForBlockStartWithRLock(
 
 	// NB: we don't need to do anything to the OnIndexSeries refs in `inserts` at this point,
 	// the index.Block WriteBatch assumes responsibility for calling the appropriate methods.
-	if numErr := result.NumError; numErr != 0 {
-		i.metrics.AsyncInsertErrors.Inc(numErr)
+	if n := result.NumSuccess; n > 0 {
+		i.metrics.AsyncInsertSuccess.Inc(n)
+	}
+	if n := result.NumError; n > 0 {
+		i.metrics.AsyncInsertErrors.Inc(n)
 	}
 
 	if err != nil {
@@ -1313,6 +1316,7 @@ func (i *nsIndex) unableToAllocBlockInvariantError(err error) error {
 }
 
 type nsIndexMetrics struct {
+	AsyncInsertSuccess           tally.Counter
 	AsyncInsertErrors            tally.Counter
 	InsertAfterClose             tally.Counter
 	QueryAfterClose              tally.Counter
@@ -1328,6 +1332,7 @@ func newNamespaceIndexMetrics(
 	scope := iopts.MetricsScope()
 	blocksScope := scope.SubScope("blocks")
 	return nsIndexMetrics{
+		AsyncInsertSuccess: scope.Counter("index-success"),
 		AsyncInsertErrors: scope.Tagged(map[string]string{
 			"error_type": "async-insert",
 		}).Counter("index-error"),

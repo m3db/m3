@@ -111,11 +111,12 @@ type block struct {
 	nsMD          namespace.Metadata
 	docsPool      doc.DocumentArrayPool
 
-	compactingForeground bool
-	compactingBackground bool
-	compactions          int
-	foregroundCompactor  *compaction.Compactor
-	backgroundCompactor  *compaction.Compactor
+	compactingForeground  bool
+	compactingBackground  bool
+	compactionsForeground int
+	compactionsBackground int
+	foregroundCompactor   *compaction.Compactor
+	backgroundCompactor   *compaction.Compactor
 
 	metrics blockMetrics
 	logger  xlog.Logger
@@ -315,12 +316,12 @@ func (b *block) backgroundCompactWithPlan(plan *compaction.Plan) {
 	sw := b.metrics.backgroundCompactionPlanRunLatency.Start()
 	defer sw.Stop()
 
-	n := b.compactions
-	b.compactions++
+	n := b.compactionsBackground
+	b.compactionsBackground++
 
 	logger := b.logger.WithFields(
 		xlog.NewField("block", b.startTime.String()),
-		xlog.NewField("compaction", n),
+		xlog.NewField("numBackgroundCompaction", n),
 	)
 	log := n%compactDebugLogEvery == 0
 	if log {
@@ -332,7 +333,7 @@ func (b *block) backgroundCompactWithPlan(plan *compaction.Plan) {
 				xlog.NewField("numFST", summary.NumFST),
 				xlog.NewField("cumulativeMutableAge", summary.CumulativeMutableAge.String()),
 				xlog.NewField("cumulativeSize", summary.CumulativeSize),
-			).Debug("planned compaction task")
+			).Debug("planned background compaction task")
 		}
 	}
 
@@ -537,38 +538,41 @@ func (b *block) foregroundCompactWithBuilder(builder segment.Builder) error {
 		return planErr
 	}
 
+	// Move any unused segments to the background
 	b.Lock()
-	if b.backgroundCompactor != nil && len(plan.UnusedSegments) > 0 {
-		// If background compaction is still active, then we move any unused
-		// foreground segments into the background so that they might be
-		// compacted by the background compactor at some point.
-		keepForegroundSegments := make([]*readableSeg, 0, len(b.foregroundSegments))
-		for _, foreground := range b.foregroundSegments {
-			movedToBackground := false
-			for _, unused := range plan.UnusedSegments {
-				if foreground.Segment() == unused.Segment {
-					b.backgroundSegments = append(b.backgroundSegments, foreground)
-					movedToBackground = true
-					break
-				}
-			}
-			if movedToBackground {
-				continue // No need to keep this segment, we moved it.
-			}
-
-			keepForegroundSegments = append(keepForegroundSegments, foreground)
-		}
-
-		b.foregroundSegments = keepForegroundSegments
-	}
+	b.maybeMoveForegroundSegmentsToBackgroundWithLock(plan.UnusedSegments)
 	b.Unlock()
+
+	n := b.compactionsForeground
+	b.compactionsForeground++
+
+	logger := b.logger.WithFields(
+		xlog.NewField("block", b.startTime.String()),
+		xlog.NewField("numForegroundCompaction", n),
+	)
+	log := n%compactDebugLogEvery == 0
+	if log {
+		for i, task := range plan.Tasks {
+			summary := task.Summary()
+			logger.WithFields(
+				xlog.NewField("task", i),
+				xlog.NewField("numMutable", summary.NumMutable),
+				xlog.NewField("numFST", summary.NumFST),
+				xlog.NewField("cumulativeMutableAge", summary.CumulativeMutableAge.String()),
+				xlog.NewField("cumulativeSize", summary.CumulativeSize),
+			).Debug("planned foreground compaction task")
+		}
+	}
 
 	// Run the plan
 	sw := b.metrics.foregroundCompactionPlanRunLatency.Start()
 	defer sw.Stop()
 
 	// Run the first task, without resetting the builder
-	if err := b.foregroundCompactWithTask(builder, plan.Tasks[0]); err != nil {
+	if err := b.foregroundCompactWithTask(
+		builder, plan.Tasks[0],
+		log, logger.WithFields(xlog.NewField("task", 0)),
+	); err != nil {
 		return err
 	}
 
@@ -582,7 +586,10 @@ func (b *block) foregroundCompactWithBuilder(builder segment.Builder) error {
 		}
 		// Now use the builder after resetting it
 		builder.Reset(0)
-		if err := b.foregroundCompactWithTask(builder, task); err != nil {
+		if err := b.foregroundCompactWithTask(
+			builder, task,
+			log, logger.WithFields(xlog.NewField("task", i)),
+		); err != nil {
 			return err
 		}
 	}
@@ -590,10 +597,54 @@ func (b *block) foregroundCompactWithBuilder(builder segment.Builder) error {
 	return nil
 }
 
+func (b *block) maybeMoveForegroundSegmentsToBackgroundWithLock(
+	segments []compaction.Segment,
+) {
+	if len(segments) == 0 {
+		return
+	}
+	if b.backgroundCompactor == nil {
+		// No longer performing background compaction due to evict/close
+		return
+	}
+
+	b.logger.Debugf("moving %d segments from foreground to background",
+		len(segments))
+
+	// If background compaction is still active, then we move any unused
+	// foreground segments into the background so that they might be
+	// compacted by the background compactor at some point.
+	i := 0
+	for _, currForeground := range b.foregroundSegments {
+		movedToBackground := false
+		for _, seg := range segments {
+			if currForeground.Segment() == seg.Segment {
+				b.backgroundSegments = append(b.backgroundSegments, currForeground)
+				movedToBackground = true
+				break
+			}
+		}
+		if movedToBackground {
+			continue // No need to keep this segment, we moved it.
+		}
+
+		b.foregroundSegments[i] = currForeground
+		i++
+	}
+
+	b.foregroundSegments = b.foregroundSegments[:i]
+}
+
 func (b *block) foregroundCompactWithTask(
 	builder segment.Builder,
 	task compaction.Task,
+	log bool,
+	logger xlog.Logger,
 ) error {
+	if log {
+		logger.Debug("start compaction task")
+	}
+
 	segments := make([]segment.Segment, 0, len(task.Segments))
 	for _, seg := range task.Segments {
 		if seg.Segment == nil {
@@ -605,6 +656,10 @@ func (b *block) foregroundCompactWithTask(
 	sw := b.metrics.foregroundCompactionTaskRunLatency.Start()
 	compacted, err := b.foregroundCompactor.CompactUsingBuilder(builder, segments)
 	sw.Stop()
+
+	if log {
+		logger.Debug("done compaction task")
+	}
 
 	if err != nil {
 		return err
