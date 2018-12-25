@@ -1,6 +1,6 @@
 ## WARNING: This is Alpha software and not intended for use until a stable release.
 
-# M3Coordinator [![GoDoc][doc-img]][doc] 
+# M3Coordinator [![GoDoc][doc-img]][doc]
 
 M3Coordinator is a service which provides APIs for reading/writing to [M3DB](https://github.com/m3db/m3) at a global and placement specific level.
 It also acts as a bridge between [Prometheus](https://github.com/prometheus/prometheus) and [M3DB](https://github.com/m3db/m3). Using this bridge, [M3DB](https://github.com/m3db/m3) acts as a long term storage for [Prometheus](https://github.com/prometheus/prometheus) using the [remote read/write endpoints](https://github.com/prometheus/prometheus/blob/master/prompb/remote.proto).
@@ -81,6 +81,70 @@ Setup and run Prometheus:
             ```
     3. Run Prometheus
         $ sudo docker run -p 9090:9090 -v $GOPATH/src/github.com/m3db/m3/src/query/docker/prometheus.yml:/etc/prometheus/prometheus.yml quay.io/prometheus/prometheus
+
+### Prom Validation Endpoint
+
+Users can validate m3query's Prometheus results for a given query against input JSON through our debug endpoint. The input JSON consists of raw datapoints (i.e. Prom results without any functions applied) and expected results. Along with this input and the given query, this endpoint will compare m3query's results that are calculated using the raw datapoints provided to the expected results. Below is an example:
+
+Query: `go_gc_duration_seconds{quantile="1"} * 2`
+Input JSON:
+```
+{
+  "input": {
+    "status": "success",
+    "data": {
+      "resultType": "matrix",
+      "result": [
+        {
+          "metric": {
+            "__name__": "go_gc_duration_seconds",
+            "instance": "localhost:9090",
+            "job": "prometheus",
+            "quantile": "1"
+          },
+          "values": [
+            [
+              1543434961.200,
+              "0.0032431"
+            ],
+            [
+              1543434975.200,
+              "0.0032431"
+            ],
+          ]
+        }
+      ]
+    }
+  },
+  "results": {
+    "status": "success",
+    "data": {
+      "resultType": "matrix",
+      "result": [
+        {
+          "metric": {
+            "__name__": "go_gc_duration_seconds",
+            "instance": "localhost:9090",
+            "job": "prometheus",
+            "quantile": "1"
+          },
+          "values": [
+            [
+              1543434961.200,
+              "0.0064862"
+            ],
+            [
+              1543434975.200,
+              "0.0064862"
+            ],
+          ]
+        }
+      ]
+    }
+  }
+}
+```
+Full request: `curl -X POST 'localhost:7201/api/v1/debug/validate_query?start=1543431465&end=1543435045&step=14s&query=go_gc_duration_seconds%7Bquantile%3D%221%22%7D*2' -d @<input_json_file> --header "Content-Type: application/json"`
 
 [doc-img]: https://godoc.org/github.com/m3db/m3/src/query?status.svg
 [doc]: https://godoc.org/github.com/m3db/m3/src/query
