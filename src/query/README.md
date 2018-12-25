@@ -87,6 +87,7 @@ Setup and run Prometheus:
 Users can validate m3query's Prometheus results for a given query against input JSON through our debug endpoint. The input JSON consists of raw datapoints (i.e. Prom results without any functions applied) and expected results. Along with this input and the given query, this endpoint will compare m3query's results that are calculated using the raw datapoints provided to the expected results. Below is an example:
 
 Query: `go_gc_duration_seconds{quantile="1"} * 2`
+
 Input JSON:
 ```
 {
