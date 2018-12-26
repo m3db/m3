@@ -144,7 +144,7 @@ func main() {
 
 				if isNameField && idsWriter != nil {
 					// ids output
-					t := terms.Current()
+					t, _ := terms.Current()
 					idsWriter.Write(t)
 					idsWriter.WriteByte('\n')
 				}

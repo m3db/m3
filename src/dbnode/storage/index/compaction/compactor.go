@@ -26,13 +26,12 @@ import (
 	"io"
 	"sync"
 
-	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
-
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/index/segment/fst"
+	"github.com/m3db/m3/src/m3ninx/index/segment/fst/encoding/docs"
 	"github.com/m3db/m3/src/x/mmap"
 	xerrors "github.com/m3db/m3x/errors"
 )

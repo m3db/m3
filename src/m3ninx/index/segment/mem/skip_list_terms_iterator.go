@@ -23,10 +23,9 @@ package mem
 import (
 	"errors"
 
+	"github.com/m3db/fast-skiplist"
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
-
-	"github.com/m3db/fast-skiplist"
 )
 
 var (

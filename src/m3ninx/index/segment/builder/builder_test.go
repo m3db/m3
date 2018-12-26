@@ -26,9 +26,9 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 
-	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/stretchr/testify/require"
 )
 

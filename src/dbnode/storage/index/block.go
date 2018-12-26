@@ -26,8 +26,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
-
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/index/segments"
@@ -35,6 +33,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/doc"
 	m3ninxindex "github.com/m3db/m3/src/m3ninx/index"
 	"github.com/m3db/m3/src/m3ninx/index/segment"
+	"github.com/m3db/m3/src/m3ninx/index/segment/builder"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3/src/m3ninx/search/executor"
 	"github.com/m3db/m3x/context"

@@ -112,6 +112,8 @@ func TestNamespaceIndexNewBlockFn(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	mockBlock := index.NewMockBlock(ctrl)
+	mockBlock.EXPECT().Stats(gomock.Any()).Return(nil).AnyTimes()
+	mockBlock.EXPECT().Close().Return(nil)
 	newBlockFn := func(ts time.Time, md namespace.Metadata, io index.Options) (index.Block, error) {
 		require.Equal(t, now.Truncate(blockSize), ts)
 		return mockBlock, nil
@@ -119,6 +121,10 @@ func TestNamespaceIndexNewBlockFn(t *testing.T) {
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
 	index, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
 	require.NoError(t, err)
+
+	defer func() {
+		require.NoError(t, index.Close())
+	}()
 
 	indexState := index.(*nsIndex).state
 	blocksSlice := indexState.blockStartsDescOrder
