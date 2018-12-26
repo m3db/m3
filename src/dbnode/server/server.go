@@ -65,6 +65,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/tchannel"
 	"github.com/m3db/m3/src/dbnode/x/xio"
+	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	xdocs "github.com/m3db/m3/src/x/docs"
 	"github.com/m3db/m3/src/x/mmap"
 	"github.com/m3db/m3/src/x/serialize"
@@ -1119,12 +1121,22 @@ func withEncodingAndPoolingOptions(
 
 	resultsPool := index.NewResultsPool(poolOptions(policy.IndexResultsPool,
 		scope.SubScope("index-results-pool")))
+	postingsListOpts := poolOptions(policy.PostingsListPoolPolicyWithDefaults(),
+		scope.SubScope("postingslist-pool"))
+	postingsList := postings.NewPool(postingsListOpts, roaring.NewPostingsList)
 	indexOpts := opts.IndexOptions().
 		SetInstrumentOptions(iopts).
 		SetMemSegmentOptions(
-			opts.IndexOptions().MemSegmentOptions().SetInstrumentOptions(iopts)).
+			opts.IndexOptions().MemSegmentOptions().
+				SetPostingsListPool(postingsList).
+				SetInstrumentOptions(iopts)).
 		SetFSTSegmentOptions(
-			opts.IndexOptions().FSTSegmentOptions().SetInstrumentOptions(iopts)).
+			opts.IndexOptions().FSTSegmentOptions().
+				SetPostingsListPool(postingsList).
+				SetInstrumentOptions(iopts)).
+		SetSegmentBuilderOptions(
+			opts.IndexOptions().SegmentBuilderOptions().
+				SetPostingsListPool(postingsList)).
 		SetIdentifierPool(identifierPool).
 		SetCheckedBytesPool(bytesPool).
 		SetResultsPool(resultsPool)

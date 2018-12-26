@@ -30,6 +30,9 @@ const (
 
 const (
 	defaultMaxFinalizerCapacity = 4
+	// defaultPostingsListPoolSize has a small default pool size since postings
+	// lists can reach the size of 1-2mb each in practice.
+	defaultPostingsListPoolSize = 8
 )
 
 // PoolingPolicy specifies the pooling policy.
@@ -105,6 +108,21 @@ type PoolingPolicy struct {
 
 	// The policy for the WriteBatchPool.
 	WriteBatchPool WriteBatchPoolPolicy `yaml:"writeBatchPool"`
+
+	// The policy for the PostingsListPool.
+	PostingsListPool PoolPolicy `yaml:"postingsListPool"`
+}
+
+// PostingsListPoolPolicyWithDefaults returns the postings list pool policy
+// and will set a sensible default size if not specified in the YAML
+// configuration.
+func (c PoolingPolicy) PostingsListPoolPolicyWithDefaults() PoolPolicy {
+	if c.PostingsListPool.Size > 0 {
+		return c.PostingsListPool
+	}
+	policy := c.PostingsListPool
+	policy.Size = defaultPostingsListPoolSize
+	return policy
 }
 
 // PoolPolicy specifies a single pool policy.

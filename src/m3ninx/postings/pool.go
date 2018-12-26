@@ -24,6 +24,10 @@ import (
 	xpool "github.com/m3db/m3x/pool"
 )
 
+const (
+	defaultPoolSize = 8
+)
+
 type pool struct {
 	pool xpool.ObjectPool
 }
@@ -36,6 +40,14 @@ func NewPool(
 	opts xpool.ObjectPoolOptions,
 	allocator PoolAllocateFn,
 ) Pool {
+	if opts == nil {
+		// Use a small pool by default, postings lists can become
+		// very large and can be dangerous to pool in any significant
+		// quantity (have observed individual postings lists of size 1-2mb
+		// frequently).
+		opts = xpool.NewObjectPoolOptions().SetSize(defaultPoolSize)
+	}
+
 	p := &pool{
 		pool: xpool.NewObjectPool(opts),
 	}

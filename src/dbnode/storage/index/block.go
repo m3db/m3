@@ -96,7 +96,7 @@ type block struct {
 	state                             blockState
 	hasEvictedMutableSegmentsAnyTimes bool
 
-	segmentBuilder      blockSegmentBuilder
+	segmentBuilder      segment.Builder
 	foregroundSegments  []*readableSeg
 	backgroundSegments  []*readableSeg
 	shardRangesSegments []blockShardRangesSegments
@@ -119,11 +119,6 @@ type block struct {
 
 	metrics blockMetrics
 	logger  xlog.Logger
-}
-
-type blockSegmentBuilder struct {
-	building bool
-	builder  segment.Builder
 }
 
 type blockMetrics struct {
@@ -193,10 +188,8 @@ func NewBlock(
 	blockSize := md.Options().IndexOptions().BlockSize()
 	iopts := opts.InstrumentOptions()
 	b := &block{
-		state: blockStateOpen,
-		segmentBuilder: blockSegmentBuilder{
-			builder: segmentBuilder,
-		},
+		state:               blockStateOpen,
+		segmentBuilder:      segmentBuilder,
 		startTime:           startTime,
 		endTime:             startTime.Add(blockSize),
 		blockSize:           blockSize,
@@ -251,10 +244,6 @@ func (b *block) maybeBackgroundCompactWithLock() {
 	}
 
 	// Kick off compaction
-	b.startBackgroundCompactWithLock(plan)
-}
-
-func (b *block) startBackgroundCompactWithLock(plan *compaction.Plan) {
 	b.compactingBackground = true
 	go func() {
 		b.backgroundCompactWithPlan(plan)
@@ -288,14 +277,8 @@ func (b *block) cleanupBackgroundCompactWithLock() {
 		return
 	}
 
-	for _, seg := range b.backgroundSegments {
-		err := seg.Segment().Close()
-		if err != nil {
-			instrument.EmitAndLogInvariantViolation(b.iopts, func(l xlog.Logger) {
-				l.Errorf("could not close frozen segment: %v", err)
-			})
-		}
-	}
+	// Evict compacted segments
+	b.closeCompactedSegments(b.backgroundSegments)
 	b.backgroundSegments = nil
 
 	// Free compactor resources
@@ -309,6 +292,17 @@ func (b *block) cleanupBackgroundCompactWithLock() {
 		})
 	}
 	b.backgroundCompactor = nil
+}
+
+func (b *block) closeCompactedSegments(segments []*readableSeg) {
+	for _, seg := range segments {
+		err := seg.Segment().Close()
+		if err != nil {
+			instrument.EmitAndLogInvariantViolation(b.iopts, func(l xlog.Logger) {
+				l.Errorf("could not close compacted segment: %v", err)
+			})
+		}
+	}
 }
 
 func (b *block) backgroundCompactWithPlan(plan *compaction.Plan) {
@@ -427,18 +421,18 @@ func (b *block) WriteBatch(inserts *WriteBatch) (WriteBatchResult, error) {
 		b.Unlock()
 		return b.writeBatchResult(inserts, b.writeBatchErrorInvalidState(b.state))
 	}
-	if b.segmentBuilder.building {
+	if b.compactingForeground {
 		b.Unlock()
 		return b.writeBatchResult(inserts, errUnableToWriteBlockConcurrent)
 	}
 
-	b.segmentBuilder.building = true
-	builder := b.segmentBuilder.builder
+	b.compactingForeground = true
+	builder := b.segmentBuilder
 	b.Unlock()
 
 	defer func() {
 		b.Lock()
-		b.segmentBuilder.building = false
+		b.compactingForeground = false
 		b.cleanupForegroundCompactWithLock()
 		b.Unlock()
 	}()
@@ -692,8 +686,11 @@ func (b *block) cleanupForegroundCompactWithLock() {
 		return
 	}
 
+	// Evict compacted segments
+	b.closeCompactedSegments(b.foregroundSegments)
+	b.foregroundSegments = nil
+
 	// Free compactor resources
-	b.segmentBuilder.builder = nil
 	if b.foregroundCompactor == nil {
 		return
 	}
@@ -705,6 +702,7 @@ func (b *block) cleanupForegroundCompactWithLock() {
 	}
 
 	b.foregroundCompactor = nil
+	b.segmentBuilder = nil
 }
 
 func (b *block) executorWithRLock() (search.Executor, error) {
