@@ -213,6 +213,10 @@ db:
               size: 8192
               lowWatermark: 0.01
               highWatermark: 0.02
+        postingsListPool:
+            size: 8
+            lowWatermark: 0
+            highWatermark: 0
         identifierPool:
             size: 9437184
             lowWatermark: 0.01
@@ -538,6 +542,10 @@ db:
         size: 8192
         lowWatermark: 0.01
         highWatermark: 0.02
+    postingsListPool:
+      size: 8
+      lowWatermark: 0
+      highWatermark: 0
   config:
     service:
       zone: embedded
