@@ -49,7 +49,7 @@ func testNamespaceIndexOptions() index.Options {
 
 func newTestNamespaceIndex(t *testing.T, ctrl *gomock.Controller) (namespaceIndex, *MocknamespaceIndexInsertQueue) {
 	q := NewMocknamespaceIndexInsertQueue(ctrl)
-	newFn := func(fn nsIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
+	newFn := func(fn nsIndexInsertBatchFn, md namespace.Metadata, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
 		return q
 	}
 	q.EXPECT().Start().Return(nil)
@@ -65,7 +65,7 @@ func TestNamespaceIndexHappyPath(t *testing.T) {
 	defer ctrl.Finish()
 
 	q := NewMocknamespaceIndexInsertQueue(ctrl)
-	newFn := func(fn nsIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
+	newFn := func(fn nsIndexInsertBatchFn, md namespace.Metadata, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
 		return q
 	}
 	q.EXPECT().Start().Return(nil)
@@ -85,7 +85,7 @@ func TestNamespaceIndexStartErr(t *testing.T) {
 	defer ctrl.Finish()
 
 	q := NewMocknamespaceIndexInsertQueue(ctrl)
-	newFn := func(fn nsIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
+	newFn := func(fn nsIndexInsertBatchFn, md namespace.Metadata, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
 		return q
 	}
 	q.EXPECT().Start().Return(fmt.Errorf("random err"))
@@ -101,7 +101,7 @@ func TestNamespaceIndexStopErr(t *testing.T) {
 	defer ctrl.Finish()
 
 	q := NewMocknamespaceIndexInsertQueue(ctrl)
-	newFn := func(fn nsIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
+	newFn := func(fn nsIndexInsertBatchFn, md namespace.Metadata, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
 		return q
 	}
 	q.EXPECT().Start().Return(nil)
@@ -274,8 +274,8 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 	defer ctrl.Finish()
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
-	newFn := func(fn nsIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
-		q := newNamespaceIndexInsertQueue(fn, nowFn, s)
+	newFn := func(fn nsIndexInsertBatchFn, md namespace.Metadata, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
+		q := newNamespaceIndexInsertQueue(fn, md, nowFn, s)
 		q.(*nsIndexInsertQueue).indexBatchBackoff = 10 * time.Millisecond
 		return q
 	}

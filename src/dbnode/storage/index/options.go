@@ -65,10 +65,9 @@ func init() {
 	defaultForegroundCompactionOpts.Levels = []compaction.Level{
 		{
 			MinSizeInclusive: 0,
-			MaxSizeExclusive: 1 << 16,
+			MaxSizeExclusive: 1 << 12,
 		},
 	}
-
 	defaultBackgroundCompactionOpts = compaction.DefaultOptions
 	defaultBackgroundCompactionOpts.Levels = []compaction.Level{
 		{

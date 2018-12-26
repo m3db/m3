@@ -338,17 +338,8 @@ func (b *block) backgroundCompactWithPlan(plan *compaction.Plan) {
 	}
 
 	for i, task := range plan.Tasks {
-		taskLogger := logger.WithFields(xlog.NewField("task", i))
-		if log {
-			taskLogger.Debug("start compaction task")
-		}
-
-		err := b.backgroundCompactWithTask(task)
-
-		if log {
-			taskLogger.Debug("done compaction task")
-		}
-
+		err := b.backgroundCompactWithTask(task, log,
+			logger.WithFields(xlog.NewField("task", i)))
 		if err != nil {
 			instrument.EmitAndLogInvariantViolation(b.iopts, func(l xlog.Logger) {
 				l.Errorf("error compacting segments: %v", err)
@@ -358,15 +349,29 @@ func (b *block) backgroundCompactWithPlan(plan *compaction.Plan) {
 	}
 }
 
-func (b *block) backgroundCompactWithTask(task compaction.Task) error {
+func (b *block) backgroundCompactWithTask(
+	task compaction.Task,
+	log bool,
+	logger xlog.Logger,
+) error {
+	if log {
+		logger.Debug("start compaction task")
+	}
+
 	segments := make([]segment.Segment, 0, len(task.Segments))
 	for _, seg := range task.Segments {
 		segments = append(segments, seg.Segment)
 	}
 
-	sw := b.metrics.backgroundCompactionTaskRunLatency.Start()
+	start := time.Now()
 	compacted, err := b.backgroundCompactor.Compact(segments)
-	sw.Stop()
+	took := time.Since(start)
+	b.metrics.backgroundCompactionTaskRunLatency.Record(took)
+
+	if log {
+		logger.WithFields(xlog.NewField("took", took.String())).
+			Debug("done compaction task")
+	}
 
 	if err != nil {
 		return err
@@ -653,12 +658,14 @@ func (b *block) foregroundCompactWithTask(
 		segments = append(segments, seg.Segment)
 	}
 
-	sw := b.metrics.foregroundCompactionTaskRunLatency.Start()
+	start := time.Now()
 	compacted, err := b.foregroundCompactor.CompactUsingBuilder(builder, segments)
-	sw.Stop()
+	took := time.Since(start)
+	b.metrics.foregroundCompactionTaskRunLatency.Record(took)
 
 	if log {
-		logger.Debug("done compaction task")
+		logger.WithFields(xlog.NewField("took", took.String())).
+			Debug("done compaction task")
 	}
 
 	if err != nil {
@@ -718,11 +725,12 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 	}()
 
 	// Add foreground and background segments.
-	readers, firstErr := addReadersFromReadableSegments(readers,
+	var foregroundErr, backgroundErr error
+	readers, foregroundErr = addReadersFromReadableSegments(readers,
 		b.foregroundSegments)
-	readers, secondErr := addReadersFromReadableSegments(readers,
+	readers, backgroundErr = addReadersFromReadableSegments(readers,
 		b.backgroundSegments)
-	if err := xerrors.FirstError(firstErr, secondErr); err != nil {
+	if err := xerrors.FirstError(foregroundErr, backgroundErr); err != nil {
 		return nil, err
 	}
 

@@ -256,7 +256,7 @@ func newNamespaceIndexWithOptions(
 	}
 
 	// allocate indexing queue and start it up.
-	queue := newIndexQueueFn(idx.writeBatches, nowFn, scope)
+	queue := newIndexQueueFn(idx.writeBatches, nsMD, nowFn, scope)
 	if err := queue.Start(); err != nil {
 		return nil, err
 	}
@@ -446,7 +446,7 @@ func (i *nsIndex) WriteBatch(
 
 // WriteBatches is called by the indexInsertQueue.
 func (i *nsIndex) writeBatches(
-	batches []*index.WriteBatch,
+	batch *index.WriteBatch,
 ) {
 	// NB(prateek): we use a read lock to guard against mutation of the
 	// indexBlocks, mutations within the underlying blocks are guarded
@@ -462,28 +462,27 @@ func (i *nsIndex) writeBatches(
 	now := i.nowFn()
 	futureLimit := now.Add(1 * i.bufferFuture)
 	pastLimit := now.Add(-1 * i.bufferPast)
-	writeBatchFn := i.writeBatchForBlockStartWithRLock
-	for _, batch := range batches {
-		// Ensure timestamp is not too old/new based on retention policies and that
-		// doc is valid.
-		batch.ForEach(func(idx int, entry index.WriteBatchEntry,
-			d doc.Document, _ index.WriteBatchEntryResult) {
-			if !futureLimit.After(entry.Timestamp) {
-				batch.MarkUnmarkedEntryError(m3dberrors.ErrTooFuture, idx)
-				return
-			}
 
-			if !entry.Timestamp.After(pastLimit) {
-				batch.MarkUnmarkedEntryError(m3dberrors.ErrTooPast, idx)
-				return
-			}
-		})
+	// Ensure timestamp is not too old/new based on retention policies and that
+	// doc is valid.
+	batch.ForEach(func(idx int, entry index.WriteBatchEntry,
+		d doc.Document, _ index.WriteBatchEntryResult) {
 
-		// Sort the inserts by which block they're applicable for, and do the inserts
-		// for each block, making sure to not try to insert any entries already marked
-		// with a result.
-		batch.ForEachUnmarkedBatchByBlockStart(writeBatchFn)
-	}
+		if !futureLimit.After(entry.Timestamp) {
+			batch.MarkUnmarkedEntryError(m3dberrors.ErrTooFuture, idx)
+			return
+		}
+
+		if !entry.Timestamp.After(pastLimit) {
+			batch.MarkUnmarkedEntryError(m3dberrors.ErrTooPast, idx)
+			return
+		}
+	})
+
+	// Sort the inserts by which block they're applicable for, and do the inserts
+	// for each block, making sure to not try to insert any entries already marked
+	// with a result.
+	batch.ForEachUnmarkedBatchByBlockStart(i.writeBatchForBlockStartWithRLock)
 }
 
 func (i *nsIndex) writeBatchForBlockStartWithRLock(
