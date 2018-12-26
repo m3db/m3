@@ -157,19 +157,21 @@ func (s *segment) Insert(d doc.Document) ([]byte, error) {
 
 	{
 		s.writer.Lock()
+		defer s.writer.Unlock()
 
 		b := index.NewBatch([]doc.Document{d})
-		if err := s.prepareDocsWithLocks(b); err != nil {
+		b.AllowPartialUpdates = false
+		if err := s.prepareDocsWithLocks(b, nil); err != nil {
 			return nil, err
 		}
 
 		// Update the document in case we generated a UUID for it.
 		d = b.Docs[0]
 
-		s.insertDocWithLocks(d)
+		if err := s.insertDocWithLocks(d); err != nil {
+			return nil, err
+		}
 		s.readerID.Inc()
-
-		s.writer.Unlock()
 	}
 
 	return d.ID, nil
@@ -182,42 +184,49 @@ func (s *segment) InsertBatch(b index.Batch) error {
 		return sgmt.ErrClosed
 	}
 
-	var err error
+	batchErr := index.NewBatchPartialError()
 	{
 		s.writer.Lock()
+		defer s.writer.Unlock()
 
-		err = s.prepareDocsWithLocks(b)
-		if err != nil && !index.IsBatchPartialError(err) {
+		if err := s.prepareDocsWithLocks(b, batchErr); err != nil {
 			return err
 		}
 
 		numInserts := uint32(0)
-		for _, d := range b.Docs {
+		for i, d := range b.Docs {
 			// NB(prateek): we override a document to have no ID when
 			// it doesn't need to be inserted.
 			if !d.HasID() {
 				continue
 			}
+			if err := s.insertDocWithLocks(d); err != nil {
+				if !b.AllowPartialUpdates {
+					return err
+				}
+				batchErr.Add(index.BatchError{Err: err, Idx: i})
+				continue
+			}
 			numInserts++
-			s.insertDocWithLocks(d)
 		}
 		s.readerID.Add(numInserts)
-
-		s.writer.Unlock()
 	}
 
-	return err
+	if !batchErr.IsEmpty() {
+		return batchErr
+	}
+	return nil
 }
 
 // prepareDocsWithLocks ensures the given documents can be inserted into the index. It
 // must be called with the state and writer locks.
-func (s *segment) prepareDocsWithLocks(b index.Batch) error {
+func (s *segment) prepareDocsWithLocks(
+	b index.Batch,
+	batchErr *index.BatchPartialError,
+) error {
 	s.writer.idSet.Reset()
-	var (
-		batchErr = index.NewBatchPartialError()
-		emptyDoc doc.Document
-	)
 
+	var emptyDoc doc.Document
 	for i := 0; i < len(b.Docs); i++ {
 		d := b.Docs[i]
 		if err := d.Validate(); err != nil {
@@ -268,32 +277,30 @@ func (s *segment) prepareDocsWithLocks(b index.Batch) error {
 		})
 	}
 
-	if batchErr.IsEmpty() {
-		return nil
-	}
-	return batchErr
+	return nil
 }
 
 // insertDocWithLocks inserts a document into the index. It must be called with the
 // state and writer locks.
-func (s *segment) insertDocWithLocks(d doc.Document) {
+func (s *segment) insertDocWithLocks(d doc.Document) error {
 	nextID := s.writer.nextID
-	s.indexDocWithStateLock(nextID, d)
 	s.storeDocWithStateLock(nextID, d)
 	s.writer.nextID++
+	return s.indexDocWithStateLock(nextID, d)
 }
 
 // indexDocWithStateLock indexes the fields of a document in the segment's terms
 // dictionary. It must be called with the segment's state lock.
 func (s *segment) indexDocWithStateLock(id postings.ID, d doc.Document) error {
 	for _, f := range d.Fields {
-		s.termsDict.Insert(f, id)
+		if err := s.termsDict.Insert(f, id); err != nil {
+			return err
+		}
 	}
-	s.termsDict.Insert(doc.Field{
+	return s.termsDict.Insert(doc.Field{
 		Name:  doc.IDReservedFieldName,
 		Value: d.ID,
 	}, id)
-	return nil
 }
 
 // storeDocWithStateLock stores a documents into the segment's mapping of postings

@@ -48,7 +48,7 @@ func (t *terms) size() int {
 	return len(t.uniqueTerms)
 }
 
-func (t *terms) post(term []byte, id postings.ID) {
+func (t *terms) post(term []byte, id postings.ID) error {
 	postingsList, ok := t.postings.Get(term)
 	if !ok {
 		postingsList = t.pool.Get()
@@ -60,14 +60,17 @@ func (t *terms) post(term []byte, id postings.ID) {
 
 	// If empty posting list, track insertion of this key into the terms
 	// collection for correct response when retrieving all terms
-	if postingsList.Len() == 0 {
+	newTerm := postingsList.Len() == 0
+	if err := postingsList.Insert(id); err != nil {
+		return err
+	}
+	if newTerm {
 		t.uniqueTerms = append(t.uniqueTerms, termElem{
 			term:     term,
 			postings: postingsList,
 		})
 	}
-
-	postingsList.Insert(id)
+	return nil
 }
 
 func (t *terms) get(term []byte) (postings.List, bool) {

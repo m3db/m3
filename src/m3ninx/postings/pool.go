@@ -43,8 +43,8 @@ func NewPool(
 	if opts == nil {
 		// Use a small pool by default, postings lists can become
 		// very large and can be dangerous to pool in any significant
-		// quantity (have observed individual postings lists of size 1-2mb
-		// frequently).
+		// quantity (have observed individual postings lists of size 4mb
+		// frequently even when reset).
 		opts = xpool.NewObjectPoolOptions().SetSize(defaultPoolSize)
 	}
 

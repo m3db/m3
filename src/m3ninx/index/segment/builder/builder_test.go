@@ -122,8 +122,6 @@ func TestBuilderTerms(t *testing.T) {
 			}
 			_, err = builder.Insert(d)
 			require.NoError(t, err)
-			fmt.Printf("i: %d\n", i)
-			printBuilder(t, builder)
 		}
 
 		for field, expectedTerms := range knownsFields {

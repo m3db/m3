@@ -22,6 +22,7 @@ package builder
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/index"
@@ -31,9 +32,7 @@ import (
 )
 
 var (
-	errDocNotFound   = errors.New("doc not found")
-	errFieldNotFound = errors.New("field not found")
-	errTermNotFound  = errors.New("term not found")
+	errDocNotFound = errors.New("doc not found")
 )
 
 type builder struct {
@@ -155,21 +154,31 @@ func (b *builder) InsertBatch(batch index.Batch) error {
 
 		// Index the terms
 		for _, f := range d.Fields {
-			b.index(postings.ID(idx), f)
+			if err := b.index(postings.ID(idx), f); err != nil {
+				if !batch.AllowPartialUpdates {
+					return err
+				}
+				batchErr.Add(index.BatchError{Err: err, Idx: i})
+			}
 		}
-		b.index(postings.ID(idx), doc.Field{
+		if err := b.index(postings.ID(idx), doc.Field{
 			Name:  doc.IDReservedFieldName,
 			Value: d.ID,
-		})
+		}); err != nil {
+			if !batch.AllowPartialUpdates {
+				return err
+			}
+			batchErr.Add(index.BatchError{Err: err, Idx: i})
+		}
 	}
 
-	if batchErr.IsEmpty() {
-		return nil
+	if !batchErr.IsEmpty() {
+		return batchErr
 	}
-	return batchErr
+	return nil
 }
 
-func (b *builder) index(id postings.ID, f doc.Field) {
+func (b *builder) index(id postings.ID, f doc.Field) error {
 	terms, ok := b.fields.Get(f.Name)
 	if !ok {
 		terms = newTerms(b.opts)
@@ -181,11 +190,14 @@ func (b *builder) index(id postings.ID, f doc.Field) {
 
 	// If empty field, track insertion of this key into the fields
 	// collection for correct response when retrieving all fields
-	if terms.size() == 0 {
+	newField := terms.size() == 0
+	if err := terms.post(f.Value, id); err != nil {
+		return err
+	}
+	if newField {
 		b.uniqueFields = append(b.uniqueFields, f.Name)
 	}
-
-	terms.post(f.Value, id)
+	return nil
 }
 
 func (b *builder) AllDocs() (index.IDDocIterator, error) {
@@ -221,8 +233,8 @@ func (b *builder) Fields() (segment.FieldsIterator, error) {
 
 func (b *builder) Terms(field []byte) (segment.TermsIterator, error) {
 	terms, ok := b.fields.Get(field)
-	if !ok || terms.size() == 0 {
-		return nil, errFieldNotFound
+	if !ok {
+		return nil, fmt.Errorf("field not found: %s", string(field))
 	}
 	return newTermsIter(terms.uniqueTerms), nil
 }
