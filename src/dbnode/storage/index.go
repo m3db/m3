@@ -435,7 +435,7 @@ func (i *nsIndex) WriteBatch(
 
 		// Re-sort the batch by initial enqueue order
 		if numErrs := batch.NumErrs(); numErrs > 0 {
-			// Restore the sort order from whene enqueued for the caller
+			// Restore the sort order from when enqueued for the caller
 			batch.SortByEnqueued()
 			return fmt.Errorf("check batch: %d insert errors", numErrs)
 		}
@@ -452,44 +452,52 @@ func (i *nsIndex) writeBatches(
 	// indexBlocks, mutations within the underlying blocks are guarded
 	// by primitives internal to it.
 	i.state.RLock()
-	defer i.state.RUnlock()
 	if !i.isOpenWithRLock() {
+		i.state.RUnlock()
 		// NB(prateek): deliberately skip calling any of the `OnIndexFinalize` methods
 		// on the provided inserts to terminate quicker during shutdown.
 		return
 	}
-
 	now := i.nowFn()
 	futureLimit := now.Add(1 * i.bufferFuture)
 	pastLimit := now.Add(-1 * i.bufferPast)
+	// NB(r): Release lock early to avoid writing batches impacting ticking
+	// speed, etc.
+	// Sometimes foreground compaction can take a long time during heavy inserts.
+	// Each lookup to ensureBlockPresent checks that index is still open, etc.
+	i.state.RUnlock()
 
 	// Ensure timestamp is not too old/new based on retention policies and that
 	// doc is valid.
-	batch.ForEach(func(idx int, entry index.WriteBatchEntry,
-		d doc.Document, _ index.WriteBatchEntryResult) {
+	batch.ForEach(
+		func(idx int, entry index.WriteBatchEntry,
+			d doc.Document, _ index.WriteBatchEntryResult) {
 
-		if !futureLimit.After(entry.Timestamp) {
-			batch.MarkUnmarkedEntryError(m3dberrors.ErrTooFuture, idx)
-			return
-		}
+			if !futureLimit.After(entry.Timestamp) {
+				batch.MarkUnmarkedEntryError(m3dberrors.ErrTooFuture, idx)
+				return
+			}
 
-		if !entry.Timestamp.After(pastLimit) {
-			batch.MarkUnmarkedEntryError(m3dberrors.ErrTooPast, idx)
-			return
-		}
-	})
+			if !entry.Timestamp.After(pastLimit) {
+				batch.MarkUnmarkedEntryError(m3dberrors.ErrTooPast, idx)
+				return
+			}
+		})
 
 	// Sort the inserts by which block they're applicable for, and do the inserts
 	// for each block, making sure to not try to insert any entries already marked
 	// with a result.
-	batch.ForEachUnmarkedBatchByBlockStart(i.writeBatchForBlockStartWithRLock)
+	batch.ForEachUnmarkedBatchByBlockStart(i.writeBatchForBlockStart)
 }
 
-func (i *nsIndex) writeBatchForBlockStartWithRLock(
+func (i *nsIndex) writeBatchForBlockStart(
 	blockStart time.Time, batch *index.WriteBatch,
 ) {
-	// ensure we have an index block for the specified blockStart.
-	block, err := i.ensureBlockPresentWithRLock(blockStart)
+	// NB(r): Notice we acquire each lock only to take a reference to the
+	// block we release it so we don't block the tick, etc when we insert
+	// batches since writing batches can take significant time when foreground
+	// compaction occurs.
+	block, err := i.ensureBlockPresent(blockStart)
 	if err != nil {
 		batch.MarkUnmarkedEntriesError(err)
 		i.logger.WithFields(
@@ -1139,6 +1147,15 @@ func (i *nsIndex) blocksForQueryWithRLock(queryRange xtime.Ranges) ([]index.Bloc
 	}
 
 	return blocks, nil
+}
+
+func (i *nsIndex) ensureBlockPresent(blockStart time.Time) (index.Block, error) {
+	i.state.RLock()
+	defer i.state.RUnlock()
+	if !i.isOpenWithRLock() {
+		return nil, errDbIndexUnableToWriteClosed
+	}
+	return i.ensureBlockPresentWithRLock(blockStart)
 }
 
 // ensureBlockPresentWithRLock guarantees an index.Block exists for the specified

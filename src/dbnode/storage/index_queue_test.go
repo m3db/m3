@@ -167,7 +167,7 @@ func TestNamespaceIndexWriteQueueError(t *testing.T) {
 		testWriteBatchBlockSizeOption(idx.blockSize))))
 }
 
-func TestNamespaceIndexInsertRetentionPeriod(t *testing.T) {
+func TestNamespaceIndexInsertOlderThanRetentionPeriod(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 

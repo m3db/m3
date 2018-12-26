@@ -295,9 +295,27 @@ func (b *WriteBatch) Append(
 	entry WriteBatchEntry,
 	doc doc.Document,
 ) {
+	// Append just using the result from the current entry
+	b.appendWithResult(entry, doc, &entry.resultVal)
+}
+
+// AppendAll appends all entries from another batch to this batch
+// and ensures they share the same result struct.
+func (b *WriteBatch) AppendAll(from *WriteBatch) {
+	numEntries, numDocs := len(from.entries), len(from.docs)
+	for i := 0; i < numEntries && i < numDocs; i++ {
+		b.appendWithResult(from.entries[i], from.docs[i], from.entries[i].result)
+	}
+}
+
+func (b *WriteBatch) appendWithResult(
+	entry WriteBatchEntry,
+	doc doc.Document,
+	result *WriteBatchEntryResult,
+) {
 	// Set private WriteBatchEntry fields
 	entry.enqueuedIdx = len(b.entries)
-	entry.result = WriteBatchEntryResult{}
+	entry.result = result
 
 	// Append
 	b.entries = append(b.entries, entry)
@@ -358,7 +376,7 @@ func (b *WriteBatch) ForEachUnmarkedBatchByBlockStart(
 		lastBlockStart xtime.UnixNano
 	)
 	for i := range allEntries {
-		if allEntries[i].OnIndexSeries == nil {
+		if allEntries[i].result.Done {
 			// Hit a marked done entry
 			b.entries = allEntries[startIdx:i]
 			b.docs = allDocs[startIdx:i]
@@ -398,7 +416,7 @@ func (b *WriteBatch) ForEachUnmarkedBatchByBlockStart(
 func (b *WriteBatch) numPending() int {
 	numUnmarked := 0
 	for i := range b.entries {
-		if b.entries[i].OnIndexSeries == nil {
+		if b.entries[i].result.Done {
 			break
 		}
 		numUnmarked++
@@ -461,12 +479,12 @@ func (b *WriteBatch) SortByEnqueued() {
 // MarkUnmarkedEntriesSuccess marks all unmarked entries as success.
 func (b *WriteBatch) MarkUnmarkedEntriesSuccess() {
 	for idx := range b.entries {
-		if b.entries[idx].OnIndexSeries != nil {
+		if !b.entries[idx].result.Done {
 			blockStart := b.entries[idx].indexBlockStart(b.opts.IndexBlockSize)
 			b.entries[idx].OnIndexSeries.OnIndexSuccess(blockStart)
 			b.entries[idx].OnIndexSeries.OnIndexFinalize(blockStart)
-			b.entries[idx].OnIndexSeries = nil
-			b.entries[idx].result = WriteBatchEntryResult{Err: nil}
+			b.entries[idx].result.Done = true
+			b.entries[idx].result.Err = nil
 		}
 	}
 }
@@ -486,8 +504,8 @@ func (b *WriteBatch) MarkUnmarkedEntryError(
 	if b.entries[idx].OnIndexSeries != nil {
 		blockStart := b.entries[idx].indexBlockStart(b.opts.IndexBlockSize)
 		b.entries[idx].OnIndexSeries.OnIndexFinalize(blockStart)
-		b.entries[idx].OnIndexSeries = nil
-		b.entries[idx].result = WriteBatchEntryResult{Err: err}
+		b.entries[idx].result.Done = true
+		b.entries[idx].result.Err = err
 	}
 }
 
@@ -544,13 +562,20 @@ type WriteBatchEntry struct {
 	// enqueuedIdx is the idx of the entry when originally enqueued by the call
 	// to append on the write batch
 	enqueuedIdx int
-	// result is the result for this entry which is updated when marked done
-	result WriteBatchEntryResult
+	// result is the result for this entry which is updated when marked done,
+	// if it is nil then it is not needed, it is a pointer type so many can be
+	// shared when write batches are derived from one and another when
+	// combining (for instance across from shards into a single write batch).
+	result *WriteBatchEntryResult
+	// resultVal is used to set the result initially from so it doesn't have to
+	// be separately allocated.
+	resultVal WriteBatchEntryResult
 }
 
 // WriteBatchEntryResult represents a result.
 type WriteBatchEntryResult struct {
-	Err error
+	Done bool
+	Err  error
 }
 
 func (e WriteBatchEntry) indexBlockStart(
@@ -561,7 +586,7 @@ func (e WriteBatchEntry) indexBlockStart(
 
 // Result returns the result for this entry.
 func (e WriteBatchEntry) Result() WriteBatchEntryResult {
-	return e.result
+	return *e.result
 }
 
 // Options control the Indexing knobs.

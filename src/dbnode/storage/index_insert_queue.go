@@ -28,7 +28,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
-	"github.com/m3db/m3/src/m3ninx/doc"
 
 	"github.com/uber-go/tally"
 )
@@ -241,10 +240,9 @@ func (q *nsIndexInsertQueue) Stop() error {
 type nsIndexInsertBatchFn func(inserts *index.WriteBatch)
 
 type nsIndexInsertBatch struct {
-	wg                   *sync.WaitGroup
-	shardInserts         []*index.WriteBatch
-	shardInsertsAppendFn index.ForEachWriteBatchEntryFn
-	allInserts           *index.WriteBatch
+	wg           *sync.WaitGroup
+	shardInserts []*index.WriteBatch
+	allInserts   *index.WriteBatch
 }
 
 func newNsIndexInsertBatch(
@@ -255,26 +253,16 @@ func newNsIndexInsertBatch(
 			IndexBlockSize: namespace.Options().IndexOptions().BlockSize(),
 		}),
 	}
-	b.shardInsertsAppendFn = b.shardInsertsAppend
 	b.Reset()
 	return b
 }
 
 func (b *nsIndexInsertBatch) AllInserts() *index.WriteBatch {
 	b.allInserts.Reset()
-	for _, shardInsertsBatch := range b.shardInserts {
-		shardInsertsBatch.ForEach(b.shardInsertsAppendFn)
+	for _, shardInserts := range b.shardInserts {
+		b.allInserts.AppendAll(shardInserts)
 	}
 	return b.allInserts
-}
-
-func (b *nsIndexInsertBatch) shardInsertsAppend(
-	idx int,
-	entry index.WriteBatchEntry,
-	doc doc.Document,
-	result index.WriteBatchEntryResult,
-) {
-	b.allInserts.Append(entry, doc)
 }
 
 func (b *nsIndexInsertBatch) Reset() {

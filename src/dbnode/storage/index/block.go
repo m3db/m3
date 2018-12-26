@@ -638,6 +638,9 @@ func (b *block) maybeMoveForegroundSegmentsToBackgroundWithLock(
 	}
 
 	b.foregroundSegments = b.foregroundSegments[:i]
+
+	// Potentially kick off a background compaction
+	b.maybeBackgroundCompactWithLock()
 }
 
 func (b *block) foregroundCompactWithTask(
