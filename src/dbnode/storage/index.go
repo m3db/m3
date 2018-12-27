@@ -492,9 +492,13 @@ func (i *nsIndex) writeBatches(
 	batch.ForEach(
 		func(idx int, entry index.WriteBatchEntry,
 			d doc.Document, _ index.WriteBatchEntryResult) {
-			if !i.coldWritesEnabled && (!futureLimit.After(entry.Timestamp) ||
-				!entry.Timestamp.After(pastLimit)) {
-				batch.MarkUnmarkedEntryError(m3dberrors.ErrColdWritesNotEnabled, idx)
+			if !futureLimit.After(entry.Timestamp) {
+				batch.MarkUnmarkedEntryError(m3dberrors.ErrTooFuture, idx)
+				return
+			}
+
+			if !entry.Timestamp.After(pastLimit) {
+				batch.MarkUnmarkedEntryError(m3dberrors.ErrTooPast, idx)
 				return
 			}
 		})
