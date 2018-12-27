@@ -61,6 +61,7 @@ service Node {
 
 	// Management endpoints
 	NodeHealthResult health() throws (1: Error err)
+	NodeDebugResult debug() throws (1: Error err)
 	NodeBootstrappedResult bootstrapped() throws (1: Error err)
 	NodePersistRateLimitResult getPersistRateLimit() throws (1: Error err)
 	NodePersistRateLimitResult setPersistRateLimit(1: NodeSetPersistRateLimitRequest req) throws (1: Error err)
@@ -255,6 +256,10 @@ struct NodeHealthResult {
 	1: required bool ok
 	2: required string status
 	3: required bool bootstrapped
+}
+
+struct NodeDebugResult {
+	1: required binary dump
 }
 
 struct NodeBootstrappedResult {}

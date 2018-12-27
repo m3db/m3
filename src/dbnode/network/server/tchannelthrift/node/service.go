@@ -21,10 +21,13 @@
 package node
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/m3db/m3/src/x/debugdump"
 
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/clock"
@@ -118,13 +121,14 @@ func newServiceMetrics(scope tally.Scope, samplingRate float64) serviceMetrics {
 type service struct {
 	sync.RWMutex
 
-	db      storage.Database
-	logger  log.Logger
-	opts    tchannelthrift.Options
-	nowFn   clock.NowFn
-	pools   pools
-	metrics serviceMetrics
-	health  *rpc.NodeHealthResult_
+	db              storage.Database
+	logger          log.Logger
+	opts            tchannelthrift.Options
+	nowFn           clock.NowFn
+	pools           pools
+	metrics         serviceMetrics
+	health          *rpc.NodeHealthResult_
+	debugDataDumper debugdump.DataDumper
 }
 
 type pools struct {
@@ -181,6 +185,10 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 	writeBatchPooledReqPool := newWriteBatchPooledReqPool(iopts)
 	writeBatchPooledReqPool.Init(opts.TagDecoderPool())
 
+	debugDataDumper := debugdump.NewDataDumper()
+	debugDataDumper.RegisterProvider("heapdump", debugdump.NewHeapDumpProvider())
+	debugDataDumper.RegisterProvider("host.json", debugdump.NewHostDataProvider())
+
 	s := &service{
 		db:      db,
 		logger:  iopts.Logger(),
@@ -202,6 +210,7 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 			Status:       "up",
 			Bootstrapped: false,
 		},
+		debugDataDumper: debugDataDumper,
 	}
 
 	return s
@@ -241,6 +250,17 @@ func (s *service) Bootstrapped(ctx thrift.Context) (*rpc.NodeBootstrappedResult_
 	}
 
 	return &rpc.NodeBootstrappedResult_{}, nil
+}
+
+func (s *service) Debug(ctx thrift.Context) (*rpc.NodeDebugResult_, error) {
+	res := bytes.NewBuffer([]byte{})
+	err := s.debugDataDumper.Dump(res)
+	if err != nil {
+		return nil, convert.ToRPCError(err)
+	}
+	return &rpc.NodeDebugResult_{
+		Dump: res.Bytes(),
+	}, nil
 }
 
 func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryResult_, error) {
