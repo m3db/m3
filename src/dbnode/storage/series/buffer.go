@@ -382,16 +382,13 @@ func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xi
 	// TODO(r): pool these results arrays
 	var res [][]xio.BlockReader
 
-	keys := b.sortedBucketsKeys(true)
-	for _, key := range keys {
-		buckets, exists := b.bucketsAt(key.ToTime())
-		if !exists || !buckets.start.Before(end) ||
-			!start.Before(buckets.start.Add(b.blockSize)) {
-			continue
+	b.forEachBucketAsc(func(bv *dbBufferBucketVersions) {
+		if !bv.start.Before(end) || !start.Before(bv.start.Add(b.blockSize)) {
+			return
 		}
 
-		res = append(res, buckets.streams(ctx, WarmWrite))
-		res = append(res, buckets.streams(ctx, ColdWrite))
+		res = append(res, bv.streams(ctx, WarmWrite))
+		res = append(res, bv.streams(ctx, ColdWrite))
 
 		// NB(r): Store the last read time, should not set this when
 		// calling FetchBlocks as a read is differentiated from
@@ -399,13 +396,13 @@ func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xi
 		// entity and the other is used for streaming blocks between
 		// the storage nodes. This distinction is important as this
 		// data is important for use with understanding access patterns, etc.
-		buckets.setLastRead(b.nowFn())
-	}
+		bv.setLastRead(b.nowFn())
+	})
 
 	return res
 }
 
-func (b *dbBuffer) sortedBucketsKeys(ascending bool) []xtime.UnixNano {
+func (b *dbBuffer) forEachBucketAsc(fn func(*dbBufferBucketVersions)) {
 	buckets := b.bucketsMap
 	keys := make([]xtime.UnixNano, len(buckets))
 	i := 0
@@ -413,16 +410,15 @@ func (b *dbBuffer) sortedBucketsKeys(ascending bool) []xtime.UnixNano {
 		keys[i] = k
 		i++
 	}
-	if ascending {
-		sort.Slice(keys, func(i, j int) bool {
-			return keys[i].Before(keys[j])
-		})
-	} else {
-		sort.Slice(keys, func(i, j int) bool {
-			return keys[i].After(keys[j])
-		})
+	sort.Slice(keys, func(i, j int) bool {
+		return keys[i].Before(keys[j])
+	})
+
+	for _, key := range keys {
+		// No need to check for existence since we just got the list of keys
+		bucket, _ := b.bucketsAt(key.ToTime())
+		fn(bucket)
 	}
-	return keys
 }
 
 func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time) []block.FetchBlockResult {
@@ -456,18 +452,16 @@ func (b *dbBuffer) FetchBlocksMetadata(
 ) block.FetchBlockMetadataResults {
 	blockSize := b.opts.RetentionOptions().BlockSize()
 	res := b.opts.FetchBlockMetadataResultsPool().Get()
-	keys := b.sortedBucketsKeys(true)
-	for _, key := range keys {
-		bucket, exists := b.bucketsAt(key.ToTime())
-		if !exists || !bucket.start.Before(end) ||
-			!start.Before(bucket.start.Add(blockSize)) {
-			continue
+
+	b.forEachBucketAsc(func(bv *dbBufferBucketVersions) {
+		if !bv.start.Before(end) || !start.Before(bv.start.Add(blockSize)) {
+			return
 		}
 
-		size := int64(bucket.streamsLen())
+		size := int64(bv.streamsLen())
 		// If we have no data in this bucket, skip early without appending it to the result.
 		if size == 0 {
-			continue
+			return
 		}
 		var resultSize int64
 		if opts.IncludeSizes {
@@ -475,16 +469,16 @@ func (b *dbBuffer) FetchBlocksMetadata(
 		}
 		var resultLastRead time.Time
 		if opts.IncludeLastRead {
-			resultLastRead = bucket.lastRead()
+			resultLastRead = bv.lastRead()
 		}
 		// NB(r): Ignore if opts.IncludeChecksum because we avoid
 		// calculating checksum since block is open and is being mutated
 		res.Add(block.FetchBlockMetadataResult{
-			Start:    bucket.start,
+			Start:    bv.start,
 			Size:     resultSize,
 			LastRead: resultLastRead,
 		})
-	}
+	})
 
 	return res
 }
