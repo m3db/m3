@@ -21,7 +21,6 @@
 package writer
 
 import (
-	"errors"
 	"math/rand"
 
 	"github.com/m3db/m3/src/aggregator/aggregator/handler/common"
@@ -34,10 +33,6 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 
 	"github.com/uber-go/tally"
-)
-
-var (
-	errWriterClosed = errors.New("writer is closed")
 )
 
 type shardedWriterMetrics struct {

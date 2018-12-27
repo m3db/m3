@@ -24,6 +24,7 @@ import (
 	"github.com/m3db/m3/src/metrics/encoding/msgpack"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/pool"
 )
 
 const (
@@ -57,6 +58,12 @@ type Options interface {
 	// BufferedEncoderPool returns the buffered encoder pool.
 	BufferedEncoderPool() msgpack.BufferedEncoderPool
 
+	// SetBytesPool sets the bytes pool.
+	SetBytesPool(value pool.BytesPool) Options
+
+	// BytesPool returns the bytes pool.
+	BytesPool() pool.BytesPool
+
 	// SetEncodingTimeSampleRate sets the sampling rate at which the encoding time is
 	// included in the encoded data. A value of 0 means the encoding time is never included,
 	// and a value of 1 means the encoding time is always included.
@@ -73,6 +80,7 @@ type options struct {
 	instrumentOpts           instrument.Options
 	maxBufferSize            int
 	bufferedEncoderPool      msgpack.BufferedEncoderPool
+	bytesPool                pool.BytesPool
 	encodingTimeSamplingRate float64
 }
 
@@ -129,6 +137,16 @@ func (o *options) SetBufferedEncoderPool(value msgpack.BufferedEncoderPool) Opti
 
 func (o *options) BufferedEncoderPool() msgpack.BufferedEncoderPool {
 	return o.bufferedEncoderPool
+}
+
+func (o *options) SetBytesPool(value pool.BytesPool) Options {
+	opts := *o
+	opts.bytesPool = value
+	return &opts
+}
+
+func (o *options) BytesPool() pool.BytesPool {
+	return o.bytesPool
 }
 
 func (o *options) SetEncodingTimeSamplingRate(value float64) Options {

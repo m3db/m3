@@ -48,11 +48,13 @@ var (
 		Data:   []byte("testData"),
 		Suffix: []byte(".testSuffix"),
 	}
+	testRawID      = []byte("testPrefix.testData.testSuffix")
 	testChunkedID2 = id.ChunkedID{
 		Prefix: []byte("testPrefix2."),
 		Data:   []byte("testData2"),
 		Suffix: []byte(".testSuffix2"),
 	}
+	testRawID2                         = []byte("testPrefix2.testData2.testSuffix2")
 	testChunkedMetricWithStoragePolicy = aggregated.ChunkedMetricWithStoragePolicy{
 		ChunkedMetric: aggregated.ChunkedMetric{
 			ChunkedID: testChunkedID,
@@ -61,9 +63,25 @@ var (
 		},
 		StoragePolicy: policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour),
 	}
+	testMetricWithStoragePolicy = aggregated.MetricWithStoragePolicy{
+		Metric: aggregated.Metric{
+			ID:        testRawID,
+			TimeNanos: 123456,
+			Value:     3.14,
+		},
+		StoragePolicy: policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour),
+	}
 	testChunkedMetricWithStoragePolicy2 = aggregated.ChunkedMetricWithStoragePolicy{
 		ChunkedMetric: aggregated.ChunkedMetric{
 			ChunkedID: testChunkedID2,
+			TimeNanos: 1000,
+			Value:     987,
+		},
+		StoragePolicy: policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+	}
+	testMetricWithStoragePolicy2 = aggregated.MetricWithStoragePolicy{
+		Metric: aggregated.Metric{
+			ID:        testRawID2,
 			TimeNanos: 1000,
 			Value:     987,
 		},
