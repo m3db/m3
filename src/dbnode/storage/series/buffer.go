@@ -177,7 +177,7 @@ func (b *dbBuffer) Write(
 		}
 
 		if now.Add(b.futureRetentionPeriod).Before(timestamp) {
-			return m3dberrors.ErrWriteTooFuture
+			return m3dberrors.ErrTooFuture
 		}
 	}
 
@@ -232,7 +232,7 @@ func (b *dbBuffer) Tick() bufferTickResult {
 				// We no longer need to keep any version which is equal to
 				// or less than the retrievable version, since that means
 				// that the version has successfully persisted to disk
-				bucket.finalize()
+				bucket.reset()
 				b.bucketPool.Put(bucket)
 				continue
 			}
@@ -342,38 +342,42 @@ func (b *dbBuffer) Flush(
 	}
 
 	// A call to flush can only be for warm writes.
-	block, err := buckets.toBlock(WarmWrite)
-	if err != nil {
-		return FlushOutcomeErr, err
-	}
-	if block == nil {
-		return FlushOutcomeBlockDoesNotExist, nil
-	}
-
-	stream, err := block.Stream(ctx)
+	blocks, err := buckets.toBlocks(WarmWrite)
 	if err != nil {
 		return FlushOutcomeErr, err
 	}
 
-	segment, err := stream.Segment()
-	if err != nil {
-		return FlushOutcomeErr, err
+	// In the majority of cases, there will only be one block to persist here.
+	// Only when a flush fails
+	for _, block := range blocks {
+		if block == nil {
+			return FlushOutcomeBlockDoesNotExist, nil
+		}
+
+		stream, err := block.Stream(ctx)
+		if err != nil {
+			return FlushOutcomeErr, err
+		}
+
+		segment, err := stream.Segment()
+		if err != nil {
+			return FlushOutcomeErr, err
+		}
+
+		checksum, err := block.Checksum()
+		if err != nil {
+			return FlushOutcomeErr, err
+		}
+
+		err = persistFn(id, tags, segment, checksum)
+		if err != nil {
+			return FlushOutcomeErr, err
+		}
 	}
 
-	checksum, err := block.Checksum()
-	if err != nil {
-		return FlushOutcomeErr, err
+	if bucket, exists := buckets.writableBucket(WarmWrite); exists {
+		bucket.version = version
 	}
-
-	err = persistFn(id, tags, segment, checksum)
-	if err != nil {
-		return FlushOutcomeErr, err
-	}
-
-	// Don't need to check error here because a non-nil block means that a
-	// writable bucket exists
-	bucket, _ := buckets.writableBucket(WarmWrite)
-	bucket.version = version
 
 	return FlushOutcomeFlushedToDisk, nil
 }
@@ -544,7 +548,8 @@ func (b *dbBuffer) removeBucketsAt(blockStart time.Time) {
 	if !exists {
 		return
 	}
-
+	// nil out pointers
+	buckets.resetTo(timeZero, nil, nil)
 	b.bucketsPool.Put(buckets)
 	delete(b.bucketsMap, xtime.ToUnixNano(blockStart))
 }
@@ -661,13 +666,19 @@ func (b *dbBufferBucketVersions) newBucketAt(
 	return newBucket
 }
 
-func (b *dbBufferBucketVersions) toBlock(wType WriteType) (block.DatabaseBlock, error) {
-	bucket, exists := b.writableBucket(wType)
-	if !exists {
-		return nil, nil
+func (b *dbBufferBucketVersions) toBlocks(wType WriteType) ([]block.DatabaseBlock, error) {
+	buckets := b.buckets
+	res := make([]block.DatabaseBlock, 0, len(buckets))
+
+	for _, bucket := range buckets {
+		block, err := bucket.toBlock()
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, block)
 	}
 
-	return bucket.toBlock()
+	return res, nil
 }
 
 type dbBufferBucket struct {
@@ -690,7 +701,7 @@ func (b *dbBufferBucket) resetTo(
 	opts Options,
 ) {
 	// Close the old context if we're resetting for use
-	b.finalize()
+	b.reset()
 	b.wType = wType
 	b.opts = opts
 	bopts := b.opts.DatabaseBlockOptions()
@@ -704,7 +715,7 @@ func (b *dbBufferBucket) resetTo(
 	b.blocks = nil
 }
 
-func (b *dbBufferBucket) finalize() {
+func (b *dbBufferBucket) reset() {
 	b.resetEncoders()
 	b.resetBlocks()
 }

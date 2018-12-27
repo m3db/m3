@@ -593,13 +593,14 @@ func TestBufferToBlock(t *testing.T) {
 	assert.Len(t, bucket.encoders, 4)
 	assert.Len(t, bucket.blocks, 0)
 
-	block, err := b.toBlock(WarmWrite)
+	blocks, err := b.toBlocks(WarmWrite)
 	require.NoError(t, err)
+	require.Len(t, blocks, 1)
 	// Verify that encoders get reset and the resultant block gets put in blocks
 	assert.Len(t, bucket.encoders, 0)
 	assert.Len(t, bucket.blocks, 1)
 
-	stream, err := block.Stream(ctx)
+	stream, err := blocks[0].Stream(ctx)
 	require.NoError(t, err)
 	assertValuesEqual(t, expected, [][]xio.BlockReader{[]xio.BlockReader{stream}}, opts)
 }

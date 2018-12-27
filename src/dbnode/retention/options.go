@@ -31,7 +31,7 @@ const (
 
 	// defaultFutureRetentionPeriod is how long we keep data in memory in the
 	// future (if cold writes are enabled) by default.
-	defaultFutureRetentionPeriod = defaultRetentionPeriod
+	defaultFutureRetentionPeriod = time.Duration(0)
 
 	// defaultBlockSize is the default block size
 	defaultBlockSize = 2 * time.Hour

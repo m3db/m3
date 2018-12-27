@@ -113,9 +113,10 @@ func TestSeriesWriteFlush(t *testing.T) {
 
 	buckets, exists := series.buffer.(*dbBuffer).bucketsAt(start)
 	require.True(t, exists)
-	block, err := buckets.toBlock(WarmWrite)
+	blocks, err := buckets.toBlocks(WarmWrite)
 	require.NoError(t, err)
-	stream, err := block.Stream(ctx)
+	require.Len(t, blocks, 1)
+	stream, err := blocks[0].Stream(ctx)
 	require.NoError(t, err)
 	assertValuesEqual(t, data[:2], [][]xio.BlockReader{[]xio.BlockReader{
 		stream,
