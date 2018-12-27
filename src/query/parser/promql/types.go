@@ -228,6 +228,9 @@ func NewFunctionExpr(
 	case linear.SortType, linear.SortDescType:
 		return nil, false, err
 
+	case scalar.ScalarType:
+		return nil, false, err
+
 	case unconsolidated.TimestampType:
 		p, err = unconsolidated.NewTimestampOp(name)
 		return p, true, err

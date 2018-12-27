@@ -175,6 +175,17 @@ func TestSort(t *testing.T) {
 	}
 }
 
+func TestScalar(t *testing.T) {
+	p, err := Parse("scalar(up)", models.NewTagOptions())
+	require.NoError(t, err)
+	transforms, edges, err := p.DAG()
+	require.NoError(t, err)
+	assert.Len(t, transforms, 1)
+	assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
+	assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
+	assert.Len(t, edges, 0)
+}
+
 func TestTimeTypeParse(t *testing.T) {
 	q := "time()"
 	p, err := Parse(q, models.NewTagOptions())
