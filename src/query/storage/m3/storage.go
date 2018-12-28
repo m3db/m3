@@ -21,6 +21,7 @@
 package m3
 
 import (
+	"bytes"
 	"context"
 	goerrors "errors"
 	"fmt"
@@ -247,65 +248,57 @@ func (s *m3storage) CompleteTags(
 	}
 
 	// TODO: instead of aggregating locally, have the DB aggregate it before
-	// sending results back
+	// sending results back.
 	fetchQuery := &storage.FetchQuery{
 		TagMatchers: query.TagMatchers,
+		// NB: complete tags matches every tag from the start of time until now
+		Start: time.Time{},
+		End:   time.Now(),
 	}
+
 	results, cleanup, err := s.SearchCompressed(ctx, fetchQuery, options)
+	defer cleanup()
 	if err != nil {
 		return nil, err
 	}
 
-	defer func() { _ = cleanup() }()
-
-	tagsToTagValues := make(map[string]map[string]struct{})
+	accumulatedTags := storage.NewCompleteTagsResultBuilder(query.CompleteNameOnly)
 	for _, elem := range results {
-		for elem.Iter.Next() {
-			tag := elem.Iter.Current()
-			tagName := tag.Name.String()
-
-			values, ok := tagsToTagValues[tagName]
-			if !ok {
-				values = make(map[string]struct{})
-				tagsToTagValues[tagName] = values
+		it := elem.Iter
+		tags := make([]storage.CompletedTag, 0, it.Len())
+		for i := 0; it.Next(); i++ {
+			tag := it.Current()
+			name := tag.Name.Bytes()
+			found := false
+			for _, filterName := range query.FilterNameTags {
+				if bytes.Equal(filterName, name) {
+					found = true
+					break
+				}
 			}
 
-			values[tag.Value.String()] = struct{}{}
+			if !found {
+				continue
+			}
+
+			tags = append(tags, storage.CompletedTag{
+				Name:   name,
+				Values: [][]byte{tag.Value.Bytes()},
+			})
 		}
+
 		if err := elem.Iter.Err(); err != nil {
 			return nil, err
 		}
-	}
 
-	if query.CompleteNameOnly {
-		// If just returning name only, return directly just that tag
-		completed := storage.CompletedTag{
-			Name: s.tagOptions.MetricName(),
-		}
-		if values, ok := tagsToTagValues[string(completed.Name)]; ok {
-			for value := range values {
-				completed.Values = append(completed.Values, []byte(value))
-			}
-		}
-		return &storage.CompleteTagsResult{
-			CompleteNameOnly: true,
-			CompletedTags:    []storage.CompletedTag{completed},
-		}, nil
-	}
-
-	result := &storage.CompleteTagsResult{}
-	for name, values := range tagsToTagValues {
-		elems := make([][]byte, 0, len(values))
-		for value := range values {
-			elems = append(elems, []byte(value))
-		}
-		result.CompletedTags = append(result.CompletedTags, storage.CompletedTag{
-			Name:   []byte(name),
-			Values: elems,
+		accumulatedTags.Add(&storage.CompleteTagsResult{
+			CompleteNameOnly: query.CompleteNameOnly,
+			CompletedTags:    tags,
 		})
 	}
 
-	return result, nil
+	built := accumulatedTags.Build()
+	return &built, nil
 }
 
 func (s *m3storage) SearchCompressed(
@@ -339,7 +332,6 @@ func (s *m3storage) SearchCompressed(
 	wg.Add(len(namespaces))
 	for _, namespace := range namespaces {
 		namespace := namespace // Capture var
-
 		go func() {
 			session := namespace.Session()
 			namespaceID := namespace.NamespaceID()
