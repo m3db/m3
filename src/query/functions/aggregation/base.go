@@ -131,23 +131,23 @@ func (n *baseNode) Process(ID parser.NodeID, b block.Block) error {
 		return err
 	}
 
-	if err := builder.AddCols(stepIter.StepCount()); err != nil {
+	if err = builder.AddCols(stepIter.StepCount()); err != nil {
 		return err
 	}
 
 	aggregatedValues := make([]float64, len(buckets))
 	for index := 0; stepIter.Next(); index++ {
-		step, err := stepIter.Current()
-		if err != nil {
-			return err
-		}
-
+		step := stepIter.Current()
 		values := step.Values()
 		for i, bucket := range buckets {
 			aggregatedValues[i] = n.op.aggFn(values, bucket)
 		}
 
 		builder.AppendValues(index, aggregatedValues)
+	}
+
+	if err = stepIter.Err(); err != nil {
+		return err
 	}
 
 	nextBlock := builder.Build()

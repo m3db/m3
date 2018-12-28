@@ -105,9 +105,11 @@ func (b *Scalar) Value(t time.Time) float64 {
 }
 
 type scalarStepIter struct {
-	s            ScalarFunc
-	meta         Metadata
 	numVals, idx int
+	stepTime     time.Time
+	err          error
+	meta         Metadata
+	s            ScalarFunc
 }
 
 // build an empty SeriesMeta
@@ -118,29 +120,31 @@ func buildSeriesMeta() SeriesMeta {
 }
 
 func (it *scalarStepIter) Close()                   { /* No-op*/ }
+func (it *scalarStepIter) Err() error               { return it.err }
 func (it *scalarStepIter) StepCount() int           { return it.numVals }
 func (it *scalarStepIter) SeriesMeta() []SeriesMeta { return []SeriesMeta{buildSeriesMeta()} }
 func (it *scalarStepIter) Meta() Metadata           { return it.meta }
 
 func (it *scalarStepIter) Next() bool {
+	if it.err != nil {
+		return false
+	}
+
 	it.idx++
+	it.stepTime, it.err = it.Meta().Bounds.TimeForIndex(it.idx)
+	if it.err != nil {
+		return false
+	}
+
 	return it.idx < it.numVals
 }
 
-func (it *scalarStepIter) Current() (Step, error) {
-	if it.idx >= it.numVals || it.idx < 0 {
-		return nil, fmt.Errorf("invalid scalar index: %d, numVals: %d", it.idx, it.numVals)
-	}
-
-	t, err := it.Meta().Bounds.TimeForIndex(it.idx)
-	if err != nil {
-		return nil, err
-	}
-
+func (it *scalarStepIter) Current() Step {
+	t := it.stepTime
 	return &scalarStep{
 		vals: []float64{it.s(t)},
 		time: t,
-	}, nil
+	}
 }
 
 type scalarStep struct {
@@ -158,6 +162,7 @@ type scalarSeriesIter struct {
 }
 
 func (it *scalarSeriesIter) Close()                   { /* No-op*/ }
+func (it *scalarSeriesIter) Err() error               { return nil }
 func (it *scalarSeriesIter) SeriesCount() int         { return 1 }
 func (it *scalarSeriesIter) SeriesMeta() []SeriesMeta { return []SeriesMeta{buildSeriesMeta()} }
 func (it *scalarSeriesIter) Meta() Metadata           { return it.meta }
@@ -166,12 +171,15 @@ func (it *scalarSeriesIter) Next() bool {
 	return it.idx == 0
 }
 
-func (it *scalarSeriesIter) Current() (Series, error) {
+func (it *scalarSeriesIter) Current() Series {
 	if it.idx != 0 {
-		return Series{}, fmt.Errorf("invalid scalar index: %d, numVals: 1", it.idx)
+		// Indicates an error with the caller, having either not called Next() or attempted
+		// to get Current after Next() is false
+		panic("scalar iterator out of bounds")
 	}
+
 	return Series{
 		Meta:   buildSeriesMeta(),
 		values: it.vals,
-	}, nil
+	}
 }

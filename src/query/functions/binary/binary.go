@@ -134,20 +134,20 @@ func processSingleBlock(
 		return nil, err
 	}
 
-	if err := builder.AddCols(it.StepCount()); err != nil {
+	if err = builder.AddCols(it.StepCount()); err != nil {
 		return nil, err
 	}
 
 	for index := 0; it.Next(); index++ {
-		step, err := it.Current()
-		if err != nil {
-			return nil, err
-		}
-
+		step := it.Current()
 		values := step.Values()
 		for _, value := range values {
 			builder.AppendValue(index, fn(value))
 		}
+	}
+
+	if err = it.Err(); err != nil {
+		return nil, err
 	}
 
 	return builder.Build(), nil
@@ -183,17 +183,9 @@ func processBothSeries(
 	}
 
 	for index := 0; lIter.Next() && rIter.Next(); index++ {
-		lStep, err := lIter.Current()
-		if err != nil {
-			return nil, err
-		}
-
-		rStep, err := rIter.Current()
-		if err != nil {
-			return nil, err
-		}
-
+		lStep := lIter.Current()
 		lValues := lStep.Values()
+		rStep := rIter.Current()
 		rValues := rStep.Values()
 
 		for seriesIdx, lIdx := range takeLeft {
@@ -203,6 +195,14 @@ func processBothSeries(
 
 			builder.AppendValue(index, fn(lVal, rVal))
 		}
+	}
+
+	if err = lIter.Err(); err != nil {
+		return nil, err
+	}
+
+	if err = rIter.Err(); err != nil {
+		return nil, err
 	}
 
 	return builder.Build(), nil

@@ -280,19 +280,11 @@ func (c *baseNode) processSingleRequest(request processRequest) error {
 				return fmt.Errorf("incorrect number of series for block: %d", i)
 			}
 
-			s, err := iter.Current()
-			if err != nil {
-				return err
-			}
-
+			s := iter.Current()
 			values = append(values, s.Datapoints()...)
 		}
 
-		series, err := seriesIter.Current()
-		if err != nil {
-			return err
-		}
-
+		series := seriesIter.Current()
 		for i := 0; i < series.Len(); i++ {
 			val := series.DatapointsAtStep(i)
 			values = append(values, val)
@@ -324,6 +316,10 @@ func (c *baseNode) processSingleRequest(request processRequest) error {
 
 			builder.AppendValue(i, newVal)
 		}
+	}
+
+	if err = seriesIter.Err(); err != nil {
+		return err
 	}
 
 	nextBlock := builder.Build()

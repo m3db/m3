@@ -22,7 +22,6 @@ package m3db
 
 import (
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -32,7 +31,6 @@ import (
 )
 
 type encodedStepIterUnconsolidated struct {
-	mu          sync.RWMutex
 	lastBlock   bool
 	exhausted   bool
 	err         error
@@ -42,18 +40,12 @@ type encodedStepIterUnconsolidated struct {
 	seriesIters []encoding.SeriesIterator
 }
 
-func (it *encodedStepIterUnconsolidated) Current() (
-	block.UnconsolidatedStep,
-	error,
-) {
-	it.mu.RLock()
+func (it *encodedStepIterUnconsolidated) Current() block.UnconsolidatedStep {
 	if it.exhausted {
-		it.mu.RUnlock()
 		return nil, fmt.Errorf("out of bounds")
 	}
 
 	if it.err != nil {
-		it.mu.RUnlock()
 		return nil, it.err
 	}
 
@@ -77,13 +69,10 @@ func (it *encodedStepIterUnconsolidated) Current() (
 	}
 
 	step := storage.NewUnconsolidatedStep(t, values)
-	it.mu.RUnlock()
-	return step, nil
+	return step
 }
 
 func (it *encodedStepIterUnconsolidated) Next() bool {
-	it.mu.Lock()
-	defer it.mu.Unlock()
 	if it.exhausted {
 		return false
 	}
@@ -112,6 +101,10 @@ func (it *encodedStepIterUnconsolidated) Next() bool {
 func (it *encodedStepIterUnconsolidated) StepCount() int {
 	// Returns the projected step count, post-consolidation
 	return it.meta.Bounds.Steps()
+}
+
+func (it *encodedStepIterUnconsolidated) Err() error {
+	return it.err
 }
 
 func (it *encodedStepIterUnconsolidated) SeriesMeta() []block.SeriesMeta {

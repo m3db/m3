@@ -69,7 +69,9 @@ func (f *lazyNode) Process(ID parser.NodeID, block block.Block) error {
 }
 
 type stepIter struct {
+	err  error
 	node StepNode
+	step block.Step
 	iter block.StepIter
 }
 
@@ -86,25 +88,42 @@ func (s *stepIter) StepCount() int {
 }
 
 func (s *stepIter) Next() bool {
-	return s.iter.Next()
+	if s.err != nil {
+		return false
+	}
+
+	next := s.iter.Next()
+	step := s.iter.Current()
+	s.step, s.err = s.node.ProcessStep(step)
+	if s.err != nil {
+		return false
+	}
+
+	if err := s.iter.Err(); err != nil {
+		s.err = err
+		return false
+	}
+
+	return next
 }
 
 func (s *stepIter) Close() {
 	s.iter.Close()
 }
 
-func (s *stepIter) Current() (block.Step, error) {
-	bStep, err := s.iter.Current()
-	if err != nil {
-		return nil, err
-	}
+func (s *stepIter) Err() error {
+	return s.err
+}
 
-	return s.node.ProcessStep(bStep)
+func (s *stepIter) Current() block.Step {
+	return s.step
 }
 
 type seriesIter struct {
-	node SeriesNode
-	iter block.SeriesIter
+	err    error
+	series block.Series
+	node   SeriesNode
+	iter   block.SeriesIter
 }
 
 func (s *seriesIter) Meta() block.Metadata {
@@ -123,17 +142,32 @@ func (s *seriesIter) Close() {
 	s.iter.Close()
 }
 
-func (s *seriesIter) Current() (block.Series, error) {
-	bSeries, err := s.iter.Current()
-	if err != nil {
-		return block.Series{}, err
-	}
+func (s *seriesIter) Err() error {
+	return s.err
+}
 
-	return s.node.ProcessSeries(bSeries)
+func (s *seriesIter) Current() block.Series {
+	return s.series
 }
 
 func (s *seriesIter) Next() bool {
-	return s.iter.Next()
+	if s.err != nil {
+		return false
+	}
+
+	next := s.iter.Next()
+	step := s.iter.Current()
+	s.series, s.err = s.node.ProcessSeries(step)
+	if s.err != nil {
+		return false
+	}
+
+	if err := s.iter.Err(); err != nil {
+		s.err = err
+		return false
+	}
+
+	return next
 }
 
 type lazyBlock struct {
