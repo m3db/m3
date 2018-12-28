@@ -155,13 +155,15 @@ func testLocalType(t *testing.T, providedType string, placementExists bool) {
 							"bufferFutureNanos": "120000000000",
 							"bufferPastNanos": "600000000000",
 							"blockDataExpiry": true,
-							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
+							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000",
+							"futureRetentionPeriodNanos": "0"
 						},
 						"snapshotEnabled": true,
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
-						}
+						},
+						"coldWritesEnabled": false
 					}
 				}
 			}
@@ -304,13 +306,15 @@ func TestLocalTypeWithNumShards(t *testing.T) {
 							"bufferFutureNanos": "120000000000",
 							"bufferPastNanos": "600000000000",
 							"blockDataExpiry": true,
-							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
+							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000",
+							"futureRetentionPeriodNanos": "0"
 						},
 						"snapshotEnabled": true,
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
-						}
+						},
+						"coldWritesEnabled": false
 					}
 				}
 			}
@@ -408,13 +412,15 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 							"bufferFutureNanos": "120000000000",
 							"bufferPastNanos": "600000000000",
 							"blockDataExpiry": true,
-							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
+							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000",
+							"futureRetentionPeriodNanos": "0"
 						},
 						"snapshotEnabled": true,
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "10800000000000"
-						}
+						},
+						"coldWritesEnabled": false
 					}
 				}
 			}
@@ -516,13 +522,15 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 							"bufferFutureNanos": "120000000000",
 							"bufferPastNanos": "600000000000",
 							"blockDataExpiry": true,
-							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
+							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000",
+							"futureRetentionPeriodNanos": "0"
 						},
 						"snapshotEnabled": true,
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "%d"
-						}
+						},
+						"coldWritesEnabled": false
 					}
 				}
 			}
@@ -753,13 +761,15 @@ func testClusterTypeHosts(t *testing.T, placementExists bool) {
 							"bufferFutureNanos": "120000000000",
 							"bufferPastNanos": "600000000000",
 							"blockDataExpiry": true,
-							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
+							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000",
+							"futureRetentionPeriodNanos": "0"
 						},
 						"snapshotEnabled": true,
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
-						}
+						},
+						"coldWritesEnabled": false
 					}
 				}
 			}
@@ -878,13 +888,15 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 							"bufferFutureNanos": "120000000000",
 							"bufferPastNanos": "600000000000",
 							"blockDataExpiry": true,
-							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
+							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000",
+							"futureRetentionPeriodNanos": "0"
 						},
 						"snapshotEnabled": true,
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
-						}
+						},
+						"coldWritesEnabled": false
 					}
 				}
 			}
