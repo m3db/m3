@@ -32,6 +32,8 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/x/context"
 	"github.com/m3db/m3/src/x/ident"
+	"github.com/m3db/m3/src/x/instrument"
+	xlog "github.com/m3db/m3/src/x/log"
 	xtime "github.com/m3db/m3/src/x/time"
 )
 
