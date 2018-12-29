@@ -131,9 +131,12 @@ func (it *scalarStepIter) Next() bool {
 	}
 
 	it.idx++
-	it.stepTime, it.err = it.Meta().Bounds.TimeForIndex(it.idx)
-	if it.err != nil {
-		return false
+	next := it.idx < it.numVals
+	if next {
+		it.stepTime, it.err = it.Meta().Bounds.TimeForIndex(it.idx)
+		if it.err != nil {
+			return false
+		}
 	}
 
 	return it.idx < it.numVals

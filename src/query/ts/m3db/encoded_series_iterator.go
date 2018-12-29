@@ -75,8 +75,11 @@ func (it *encodedSeriesIter) Next() bool {
 
 	it.idx++
 	next := it.idx < len(it.seriesIters)
-	it.consolidator.Reset(it.bounds.Start)
+	if !next {
+		return false
+	}
 
+	it.consolidator.Reset(it.bounds.Start)
 	iter := it.seriesIters[it.idx]
 	values := make([]float64, it.bounds.Steps())
 	xts.Memset(values, math.NaN())

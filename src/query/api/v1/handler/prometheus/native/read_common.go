@@ -180,13 +180,13 @@ func sortedBlocksToSeriesList(blockList []blockWithMeta) ([]*ts.Series, error) {
 				return nil, fmt.Errorf("invalid number of datapoints for series: %d, block: %d", i, idx)
 			}
 
-			blockSeries, err := iter.Current()
-			if err != nil {
+			if err = iter.Err(); err != nil {
 				return nil, err
 			}
 
-			for i := 0; i < blockSeries.Len(); i++ {
-				values.SetValueAt(valIdx, blockSeries.ValueAtStep(i))
+			blockSeries := iter.Current()
+			for j := 0; j < blockSeries.Len(); j++ {
+				values.SetValueAt(valIdx, blockSeries.ValueAtStep(j))
 				valIdx++
 			}
 		}

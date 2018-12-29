@@ -106,11 +106,12 @@ func TestConsolidatedSeriesIterator(t *testing.T) {
 
 			verifyMetas(t, i, bounds, iters.Meta(), iters.SeriesMeta())
 			for iters.Next() {
-				series, err := iters.Current()
-				require.NoError(t, err)
+				series := iters.Current()
 				test.EqualsWithNans(t, tt.expected[j], series.Values())
 				j++
 			}
+
+			require.NoError(t, iters.Err())
 		}
 	}
 }

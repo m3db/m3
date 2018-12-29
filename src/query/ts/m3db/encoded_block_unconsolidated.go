@@ -69,19 +69,6 @@ func (b *encodedBlockUnconsolidated) WithMetadata(
 	}, nil
 }
 
-func (b *encodedBlockUnconsolidated) StepIter() (
-	block.UnconsolidatedStepIter,
-	error,
-) {
-	return &encodedStepIterUnconsolidated{
-		meta:        b.meta,
-		seriesMeta:  b.seriesMetas,
-		seriesIters: b.seriesBlockIterators,
-		lastBlock:   b.lastBlock,
-		validIters:  make([]bool, len(b.seriesBlockIterators)),
-	}, nil
-}
-
 func (b *encodedBlockUnconsolidated) SeriesIter() (
 	block.UnconsolidatedSeriesIter,
 	error,

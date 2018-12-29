@@ -119,12 +119,13 @@ func TestConsolidatedStepIterator(t *testing.T) {
 
 			verifyMetas(t, i, bounds, iters.Meta(), iters.SeriesMeta())
 			for iters.Next() {
-				step, err := iters.Current()
-				require.NoError(t, err)
+				step := iters.Current()
 				vals := step.Values()
 				test.EqualsWithNans(t, tt.expected[j], vals)
 				j++
 			}
+
+			require.NoError(t, iters.Err())
 		}
 	}
 }

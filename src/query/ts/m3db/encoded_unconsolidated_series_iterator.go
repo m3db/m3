@@ -21,53 +21,55 @@
 package m3db
 
 import (
-	"sync"
-
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	xts "github.com/m3db/m3/src/query/ts"
 )
 
 type encodedSeriesIterUnconsolidated struct {
-	mu          sync.RWMutex
 	idx         int
+	err         error
 	meta        block.Metadata
+	series      block.UnconsolidatedSeries
 	seriesMeta  []block.SeriesMeta
 	seriesIters []encoding.SeriesIterator
 }
 
-func (it *encodedSeriesIterUnconsolidated) Current() (
-	block.UnconsolidatedSeries,
-	error,
-) {
-	it.mu.RLock()
-	iter := it.seriesIters[it.idx]
-	values := make(xts.Datapoints, 0, initBlockReplicaLength)
-	for iter.Next() {
-		dp, _, _ := iter.Current()
-		values = append(values,
-			xts.Datapoint{
-				Timestamp: dp.Timestamp,
-				Value:     dp.Value,
-			})
-	}
+func (it *encodedSeriesIterUnconsolidated) Current() block.UnconsolidatedSeries {
+	return it.series
+}
 
-	if err := iter.Err(); err != nil {
-		it.mu.RUnlock()
-		return block.UnconsolidatedSeries{}, err
-	}
-
-	alignedValues := values.AlignToBounds(it.meta.Bounds)
-	series := block.NewUnconsolidatedSeries(alignedValues, it.seriesMeta[it.idx])
-	it.mu.RUnlock()
-	return series, nil
+func (it *encodedSeriesIterUnconsolidated) Err() error {
+	return it.err
 }
 
 func (it *encodedSeriesIterUnconsolidated) Next() bool {
-	it.mu.Lock()
+	if it.err != nil {
+		return false
+	}
+
 	it.idx++
 	next := it.idx < len(it.seriesIters)
-	it.mu.Unlock()
+	if next {
+		iter := it.seriesIters[it.idx]
+		values := make(xts.Datapoints, 0, initBlockReplicaLength)
+		for iter.Next() {
+			dp, _, _ := iter.Current()
+			values = append(values,
+				xts.Datapoint{
+					Timestamp: dp.Timestamp,
+					Value:     dp.Value,
+				})
+		}
+
+		if it.err = iter.Err(); it.err != nil {
+			return false
+		}
+
+		alignedValues := values.AlignToBounds(it.meta.Bounds)
+		it.series = block.NewUnconsolidatedSeries(alignedValues, it.seriesMeta[it.idx])
+	}
+
 	return next
 }
 

@@ -21,9 +21,6 @@
 package m3db
 
 import (
-	"fmt"
-	"time"
-
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/storage"
@@ -31,71 +28,77 @@ import (
 )
 
 type encodedStepIterUnconsolidated struct {
-	lastBlock   bool
-	exhausted   bool
-	err         error
-	meta        block.Metadata
-	validIters  []bool
-	seriesMeta  []block.SeriesMeta
-	seriesIters []encoding.SeriesIterator
+	lastBlock      bool
+	idx            int
+	err            error
+	meta           block.Metadata
+	seriesMeta     []block.SeriesMeta
+	seriesIters    []encoding.SeriesIterator
+	expandedSeries [][]xts.Datapoints
+}
+
+func (b *encodedBlockUnconsolidated) StepIter() (
+	block.UnconsolidatedStepIter,
+	error,
+) {
+	return &encodedStepIterUnconsolidated{
+		idx:            -1,
+		meta:           b.meta,
+		seriesMeta:     b.seriesMetas,
+		seriesIters:    b.seriesBlockIterators,
+		lastBlock:      b.lastBlock,
+		expandedSeries: make([][]xts.Datapoints, len(b.seriesBlockIterators)),
+	}, nil
 }
 
 func (it *encodedStepIterUnconsolidated) Current() block.UnconsolidatedStep {
-	if it.exhausted {
-		return nil, fmt.Errorf("out of bounds")
+	stepTime, _ := it.meta.Bounds.TimeForIndex(it.idx)
+	stepValues := make([]xts.Datapoints, len(it.expandedSeries))
+	for j, series := range it.expandedSeries {
+		stepValues[j] = series[it.idx]
 	}
 
-	if it.err != nil {
-		return nil, it.err
-	}
-
-	var t time.Time
-	values := make([]xts.Datapoints, len(it.seriesIters))
-	for i, iter := range it.seriesIters {
-		// Skip this iterator if it's not valid
-		if !it.validIters[i] {
-			continue
-		}
-
-		dp, _, _ := iter.Current()
-		if i == 0 {
-			t = dp.Timestamp
-		}
-
-		values[i] = []xts.Datapoint{{
-			Timestamp: dp.Timestamp,
-			Value:     dp.Value,
-		}}
-	}
-
-	step := storage.NewUnconsolidatedStep(t, values)
+	step := storage.NewUnconsolidatedStep(stepTime, stepValues)
 	return step
 }
 
+func (it *encodedStepIterUnconsolidated) decodeSeries() bool {
+	values := make(xts.Datapoints, 0, initBlockReplicaLength)
+	for i, iter := range it.seriesIters {
+		values = values[:0]
+		for iter.Next() {
+			dp, _, _ := iter.Current()
+			values = append(values,
+				xts.Datapoint{
+					Timestamp: dp.Timestamp,
+					Value:     dp.Value,
+				})
+		}
+
+		if it.err = iter.Err(); it.err != nil {
+			return false
+		}
+
+		it.expandedSeries[i] = values.AlignToBounds(it.meta.Bounds)
+	}
+
+	return true
+}
+
 func (it *encodedStepIterUnconsolidated) Next() bool {
-	if it.exhausted {
+	if it.err != nil {
 		return false
 	}
 
-	var anyNext bool
-	for i, iter := range it.seriesIters {
-		if iter.Next() {
-			anyNext = true
-			it.validIters[i] = true
-		} else {
-			it.validIters[i] = false
-		}
-
-		if err := iter.Err(); err != nil {
-			it.err = err
+	it.idx++
+	if it.idx == 0 {
+		// decode the series on initial Next() call
+		if success := it.decodeSeries(); !success {
+			return success
 		}
 	}
 
-	if !anyNext {
-		it.exhausted = true
-	}
-
-	return anyNext
+	return it.idx < it.meta.Bounds.Steps()
 }
 
 func (it *encodedStepIterUnconsolidated) StepCount() int {

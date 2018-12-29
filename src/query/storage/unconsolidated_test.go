@@ -18,17 +18,50 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package m3db
+package storage
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
-	"github.com/m3db/m3/src/query/test"
+	"github.com/m3db/m3/src/query/block"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/ts"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func buildUnconsolidatedBlock(t *testing.T) block.UnconsolidatedBlock {
+	start := time.Now().Truncate(time.Hour)
+	datapoints := makeDatapoints(start)
+
+	seriesList := make(ts.SeriesList, len(datapoints))
+	for i, dp := range datapoints {
+		seriesList[i] = ts.NewSeries(
+			fmt.Sprintf("name_%d", i),
+			dp,
+			models.Tags{
+				Opts: models.NewTagOptions(),
+				Tags: []models.Tag{{
+					Name:  []byte("a"),
+					Value: []byte(fmt.Sprintf("b_%d", i)),
+				}},
+			},
+		)
+	}
+
+	fetchQuery := &FetchQuery{
+		Start:    start,
+		End:      start.Add(time.Minute * 30),
+		Interval: time.Minute,
+	}
+
+	unconsolidated, err := NewMultiSeriesBlock(seriesList, fetchQuery)
+	require.NoError(t, err)
+	return unconsolidated
+}
 
 func datapointsToFloatSlices(t *testing.T, dps []ts.Datapoints) [][]float64 {
 	vals := make([][]float64, len(dps))
@@ -39,7 +72,7 @@ func datapointsToFloatSlices(t *testing.T, dps []ts.Datapoints) [][]float64 {
 	return vals
 }
 
-func TestUnconsolidatedStepIterator(t *testing.T) {
+func TestUnconsolidatedStep(t *testing.T) {
 	expected := [][][]float64{
 		{{}, {}, {}},
 		{{}, {}, {}},
@@ -73,31 +106,23 @@ func TestUnconsolidatedStepIterator(t *testing.T) {
 		{{}, {}, {}},
 	}
 
-	j := 0
-	blocks, bounds := generateBlocks(t, time.Minute)
-	for i, block := range blocks {
-		unconsolidated, err := block.Unconsolidated()
-		require.NoError(t, err)
+	unconsolidated := buildUnconsolidatedBlock(t)
+	iter, err := unconsolidated.StepIter()
+	assert.NoError(t, err)
 
-		iters, err := unconsolidated.StepIter()
-		require.NoError(t, err)
-
-		verifyMetas(t, i, bounds, iters.Meta(), iters.SeriesMeta())
-		for iters.Next() {
-			step := iters.Current()
-			vals := step.Values()
-			actual := datapointsToFloatSlices(t, vals)
-
-			test.EqualsWithNans(t, expected[j], actual)
-			j++
-		}
-
-		require.Equal(t, len(expected), j)
-		require.NoError(t, iters.Err())
+	i := 0
+	for iter.Next() {
+		step := iter.Current()
+		dps := datapointsToFloatSlices(t, step.Values())
+		assert.Equal(t, expected[i], dps)
+		i++
 	}
+
+	assert.Equal(t, len(expected), i)
+	assert.NoError(t, iter.Err())
 }
 
-func TestUnconsolidatedSeriesIterator(t *testing.T) {
+func TestUnconsolidatedSeries(t *testing.T) {
 	expected := [][][]float64{
 		{
 			{}, {}, {}, {}, {}, {}, {1}, {1}, {2, 3}, {4}, {5}, {6}, {7}, {7},
@@ -113,25 +138,18 @@ func TestUnconsolidatedSeriesIterator(t *testing.T) {
 		},
 	}
 
-	j := 0
-	blocks, bounds := generateBlocks(t, time.Minute)
-	for i, block := range blocks {
-		unconsolidated, err := block.Unconsolidated()
-		require.NoError(t, err)
+	unconsolidated := buildUnconsolidatedBlock(t)
+	iter, err := unconsolidated.SeriesIter()
+	assert.NoError(t, err)
 
-		iters, err := unconsolidated.SeriesIter()
-		require.NoError(t, err)
-
-		verifyMetas(t, i, bounds, iters.Meta(), iters.SeriesMeta())
-		for iters.Next() {
-			series := iters.Current()
-			vals := series.Datapoints()
-			actual := datapointsToFloatSlices(t, vals)
-			test.EqualsWithNans(t, expected[j], actual)
-			j++
-		}
-
-		require.Equal(t, len(expected), j)
-		require.NoError(t, iters.Err())
+	i := 0
+	for iter.Next() {
+		series := iter.Current()
+		dps := datapointsToFloatSlices(t, series.Datapoints())
+		assert.Equal(t, expected[i], dps)
+		i++
 	}
+
+	assert.Equal(t, len(expected), i)
+	assert.NoError(t, iter.Err())
 }

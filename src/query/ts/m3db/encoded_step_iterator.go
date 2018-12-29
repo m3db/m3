@@ -21,8 +21,6 @@
 package m3db
 
 import (
-	"fmt"
-	"sync"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
@@ -39,7 +37,6 @@ type peekValue struct {
 }
 
 type encodedStepIter struct {
-	mu           sync.RWMutex
 	lastBlock    bool
 	started      bool
 	currentTime  time.Time
@@ -80,26 +77,11 @@ type encodedStep struct {
 func (s *encodedStep) Time() time.Time   { return s.time }
 func (s *encodedStep) Values() []float64 { return s.values }
 
-func (it *encodedStepIter) Current() (block.Step, error) {
-	it.mu.RLock()
-	currentTime := it.currentTime
-	if !it.started || currentTime.After(it.bounds.End()) {
-		it.mu.RUnlock()
-		return nil, fmt.Errorf("out of bounds")
-	}
-
-	if it.err != nil {
-		it.mu.RUnlock()
-		return nil, it.err
-	}
-
-	step := &encodedStep{
-		time:   currentTime,
+func (it *encodedStepIter) Current() block.Step {
+	return &encodedStep{
+		time:   it.currentTime,
 		values: it.consolidator.ConsolidateAndMoveToNext(),
 	}
-
-	it.mu.RUnlock()
-	return step, nil
 }
 
 // Moves to the next consolidated step for the i-th series in the block,
@@ -202,8 +184,9 @@ func (it *encodedStepIter) initialStep() {
 }
 
 func (it *encodedStepIter) Next() bool {
-	it.mu.Lock()
-	defer it.mu.Unlock()
+	if it.err != nil {
+		return false
+	}
 
 	if !it.started {
 		it.initialStep()
@@ -228,6 +211,10 @@ func (it *encodedStepIter) SeriesMeta() []block.SeriesMeta {
 
 func (it *encodedStepIter) Meta() block.Metadata {
 	return it.meta
+}
+
+func (it *encodedStepIter) Err() error {
+	return it.err
 }
 
 func (it *encodedStepIter) Close() {

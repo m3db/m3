@@ -52,13 +52,9 @@ func TestScalarBlock(t *testing.T) {
 	verifyMetas(t, stepIter.Meta(), stepIter.SeriesMeta())
 
 	assert.Equal(t, 6, stepIter.StepCount())
-	v := stepIter.Current()
-	require.Error(t, stepIter.Err())
-	require.Nil(t, v)
-
 	valCounts := 0
 	for stepIter.Next() {
-		v = stepIter.Current()
+		v := stepIter.Current()
 		require.NotNil(t, v)
 
 		expectedTime := start.Add(time.Duration(valCounts) * 10 * time.Second)
@@ -73,9 +69,6 @@ func TestScalarBlock(t *testing.T) {
 
 	require.NoError(t, stepIter.Err())
 	assert.Equal(t, 6, valCounts)
-	v = stepIter.Current()
-	require.Error(t, stepIter.Err())
-	require.Nil(t, v)
 
 	seriesIter, err := block.SeriesIter()
 	require.NoError(t, err)
@@ -84,11 +77,8 @@ func TestScalarBlock(t *testing.T) {
 	verifyMetas(t, seriesIter.Meta(), seriesIter.SeriesMeta())
 	require.Equal(t, 1, seriesIter.SeriesCount())
 
-	series := seriesIter.Current()
-	require.Error(t, seriesIter.Err())
-
 	require.True(t, seriesIter.Next())
-	series = seriesIter.Current()
+	series := seriesIter.Current()
 	require.NoError(t, seriesIter.Err())
 
 	assert.Equal(t, 6, series.Len())
@@ -102,11 +92,9 @@ func TestScalarBlock(t *testing.T) {
 	assert.Equal(t, "", series.Meta.Name)
 
 	require.False(t, seriesIter.Next())
-	require.Error(t, seriesIter.Err())
+	require.NoError(t, seriesIter.Err())
 
-	series = seriesIter.Current()
-	err = block.Close()
-	require.NoError(t, err)
+	require.NoError(t, block.Close())
 }
 
 func verifyMetas(t *testing.T, meta Metadata, seriesMeta []SeriesMeta) {

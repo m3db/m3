@@ -57,11 +57,11 @@ func makeUnlessBlock(
 		return nil, err
 	}
 
-	if err := builder.AddCols(lIter.StepCount()); err != nil {
+	if err = builder.AddCols(lIter.StepCount()); err != nil {
 		return nil, err
 	}
 
-	if err := appendValuesAtIndices(lIds, lIter, builder); err != nil {
+	if err = appendValuesAtIndices(lIds, lIter, builder); err != nil {
 		return nil, err
 	}
 

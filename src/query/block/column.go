@@ -122,12 +122,15 @@ func (c *colBlockIter) Next() bool {
 	}
 
 	c.idx++
-	c.timeForStep, c.err = c.meta.Bounds.TimeForIndex(c.idx)
-	if c.err != nil {
-		return false
+	next := c.idx < len(c.columns)
+	if next {
+		c.timeForStep, c.err = c.meta.Bounds.TimeForIndex(c.idx)
+		if c.err != nil {
+			return false
+		}
 	}
 
-	return c.idx < len(c.columns)
+	return next
 }
 
 // Next returns true if iterator has more values remaining
@@ -264,12 +267,15 @@ func (m *columnBlockSeriesIter) Err() error {
 
 func (m *columnBlockSeriesIter) Next() bool {
 	m.idx++
-	cols := m.columns
-	for i := 0; i < len(cols); i++ {
-		m.values[i] = cols[i].Values[m.idx]
+	next := m.idx < m.SeriesCount()
+	if next {
+		cols := m.columns
+		for i := 0; i < len(cols); i++ {
+			m.values[i] = cols[i].Values[m.idx]
+		}
 	}
 
-	return m.idx < m.SeriesCount()
+	return next
 }
 
 func (m *columnBlockSeriesIter) Current() Series {
