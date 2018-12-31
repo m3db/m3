@@ -1184,8 +1184,16 @@ func withEncodingAndPoolingOptions(
 
 	// NB(prateek): retention opts are overridden per namespace during series creation
 	retentionOpts := retention.NewOptions()
+
+	bucketPool := series.NewBufferBucketPool(
+		poolOptions(policy.BufferBucketPool, scope.SubScope("buffer-bucket-pool")))
+	bucketVersionsPool := series.NewBufferBucketVersionsPool(
+		poolOptions(policy.BufferBucketVersionsPool, scope.SubScope("buffer-bucket-versions-pool")))
 	seriesOpts := storage.NewSeriesOptionsFromOptions(opts, retentionOpts).
-		SetFetchBlockMetadataResultsPool(opts.FetchBlockMetadataResultsPool())
+		SetFetchBlockMetadataResultsPool(opts.FetchBlockMetadataResultsPool()).
+		SetBufferBucketPool(bucketPool).
+		SetBufferBucketVersionsPool(bucketVersionsPool)
+
 	seriesPool := series.NewDatabaseSeriesPool(
 		poolOptions(
 			policy.SeriesPool,
