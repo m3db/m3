@@ -44,6 +44,8 @@ type options struct {
 	identifierPool                ident.Pool
 	stats                         Stats
 	coldWritesEnabled             bool
+	bufferBucketPool              BufferBucketPool
+	bufferBucketVersionsPool      BufferBucketVersionsPool
 }
 
 // NewOptions creates new database series options
@@ -195,4 +197,14 @@ func (o *options) SetColdWritesEnabled(value bool) Options {
 
 func (o *options) ColdWritesEnabled() bool {
 	return o.coldWritesEnabled
+}
+
+func (o *options) SetBufferBucketVersionsPool(value BufferBucketVersionsPool) Options {
+	opts := *o
+	opts.bufferBucketVersionsPool = value
+	return &opts
+}
+
+func (o *options) BufferBucketVersionsPool() BufferBucketVersionsPool {
+	return o.bufferBucketVersionsPool
 }
