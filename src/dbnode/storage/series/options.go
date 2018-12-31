@@ -208,3 +208,13 @@ func (o *options) SetBufferBucketVersionsPool(value BufferBucketVersionsPool) Op
 func (o *options) BufferBucketVersionsPool() BufferBucketVersionsPool {
 	return o.bufferBucketVersionsPool
 }
+
+func (o *options) SetBufferBucketPool(value BufferBucketPool) Options {
+	opts := *o
+	opts.bufferBucketPool = value
+	return &opts
+}
+
+func (o *options) BufferBucketPool() BufferBucketPool {
+	return o.bufferBucketPool
+}
