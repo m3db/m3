@@ -123,7 +123,7 @@ type dbBuffer struct {
 	// Cache of buckets to avoid map lookup of above
 	bucketsCache       [bucketsCacheSize]BufferBucketVersions
 	bucketVersionsPool BufferBucketVersionsPool
-	bucketPool         *dbBufferBucketPool
+	bucketPool         BufferBucketPool
 
 	blockSize             time.Duration
 	bufferPast            time.Duration
@@ -147,8 +147,7 @@ func (b *dbBuffer) Reset(blockRetriever QueryableBlockRetriever, opts Options) {
 	ropts := opts.RetentionOptions()
 	b.blockRetriever = blockRetriever
 	b.bucketVersionsPool = opts.BufferBucketVersionsPool()
-	bucketPoolOpts := pool.NewObjectPoolOptions().SetSize(defaultBucketPoolSize)
-	b.bucketPool = newDBBufferBucketPool(bucketPoolOpts)
+	b.bucketPool = opts.BufferBucketPool()
 	b.blockSize = ropts.BlockSize()
 	b.bufferPast = ropts.BufferPast()
 	b.bufferFuture = ropts.BufferFuture()
@@ -537,11 +536,10 @@ func (b *dbBuffer) removeBucketsAt(blockStart time.Time) {
 }
 
 type dbBufferBucketVersions struct {
-	buckets           []*dbBufferBucket
+	buckets           []BufferBucket
 	start             time.Time
 	opts              Options
 	lastReadUnixNanos int64
-	bucketPool        *dbBufferBucketPool
 }
 
 func (b *dbBufferBucketVersions) ResetTo(
@@ -556,15 +554,13 @@ func (b *dbBufferBucketVersions) ResetTo(
 	b.start = start
 	b.opts = opts
 	atomic.StoreInt64(&b.lastReadUnixNanos, 0)
-	//HERE
-	// b.bucketPool = bucketPool
 }
 
 func (b *dbBufferBucketVersions) Streams(ctx context.Context, wType WriteType) []xio.BlockReader {
 	var res []xio.BlockReader
 	for _, bucket := range b.buckets {
-		if bucket.wType == wType {
-			res = append(res, bucket.streams(ctx)...)
+		if bucket.WriteType() == wType {
+			res = append(res, bucket.Streams(ctx)...)
 		}
 	}
 
@@ -574,7 +570,7 @@ func (b *dbBufferBucketVersions) Streams(ctx context.Context, wType WriteType) [
 func (b *dbBufferBucketVersions) StreamsLen() int {
 	res := 0
 	for _, bucket := range b.buckets {
-		res += bucket.streamsLen()
+		res += bucket.StreamsLen()
 	}
 	return res
 }
@@ -590,15 +586,15 @@ func (b *dbBufferBucketVersions) Write(
 	annotation []byte,
 	wType WriteType,
 ) error {
-	return b.writableBucketCreate(wType).write(timestamp, value, unit, annotation)
+	return b.writableBucketCreate(wType).Write(timestamp, value, unit, annotation)
 }
 
 func (b *dbBufferBucketVersions) merge(wType WriteType) (int, error) {
 	res := 0
 	for _, bucket := range b.buckets {
 		// Only makes sense to merge buckets that are writable
-		if bucket.version == writableBucketVer && wType == bucket.wType {
-			merges, err := bucket.merge()
+		if bucket.Version() == writableBucketVer && wType == bucket.WriteType() {
+			merges, err := bucket.Merge()
 			if err != nil {
 				return res, nil
 			}
@@ -614,15 +610,15 @@ func (b *dbBufferBucketVersions) RemoveBucketsUpToVersion(version int) {
 	nonEvictedBuckets := b.buckets[:0]
 
 	for _, bucket := range b.buckets {
-		bVersion := bucket.version
+		bVersion := bucket.Version()
 		// TODO(juchan): deal with ColdWrite too
-		if bucket.wType == WarmWrite && bVersion != writableBucketVer &&
+		if bucket.WriteType() == WarmWrite && bVersion != writableBucketVer &&
 			bVersion <= version {
 			// We no longer need to keep any version which is equal to
 			// or less than the retrievable version, since that means
 			// that the version has successfully persisted to disk
-			bucket.reset()
-			b.bucketPool.Put(bucket)
+			bucket.Reset()
+			b.opts.BufferBucketPool().Put(bucket)
 			continue
 		}
 
@@ -642,12 +638,12 @@ func (b *dbBufferBucketVersions) LastRead() time.Time {
 
 func (b *dbBufferBucketVersions) Bootstrap(bl block.DatabaseBlock) {
 	// TODO(juchan): what is a "cold" bootstrap?
-	b.writableBucketCreate(WarmWrite).addBlock(bl)
+	b.writableBucketCreate(WarmWrite).AddBlock(bl)
 }
 
-func (b *dbBufferBucketVersions) writableBucket(wType WriteType) (*dbBufferBucket, bool) {
+func (b *dbBufferBucketVersions) writableBucket(wType WriteType) (BufferBucket, bool) {
 	for _, bucket := range b.buckets {
-		if bucket.version == writableBucketVer && bucket.wType == wType {
+		if bucket.Version() == writableBucketVer && bucket.WriteType() == wType {
 			return bucket, true
 		}
 	}
@@ -655,7 +651,7 @@ func (b *dbBufferBucketVersions) writableBucket(wType WriteType) (*dbBufferBucke
 	return nil, false
 }
 
-func (b *dbBufferBucketVersions) writableBucketCreate(wType WriteType) *dbBufferBucket {
+func (b *dbBufferBucketVersions) writableBucketCreate(wType WriteType) BufferBucket {
 	bucket, exists := b.writableBucket(wType)
 
 	if exists {
@@ -668,10 +664,10 @@ func (b *dbBufferBucketVersions) writableBucketCreate(wType WriteType) *dbBuffer
 func (b *dbBufferBucketVersions) newBucketAt(
 	t time.Time,
 	wType WriteType,
-) *dbBufferBucket {
-	newBucket := b.bucketPool.Get()
-	newBucket.resetTo(t, wType, b.opts)
-	b.buckets = append([]*dbBufferBucket{newBucket}, b.buckets...)
+) BufferBucket {
+	newBucket := b.opts.BufferBucketPool().Get()
+	newBucket.ResetTo(t, wType, b.opts)
+	b.buckets = append([]BufferBucket{newBucket}, b.buckets...)
 	return newBucket
 }
 
@@ -680,7 +676,7 @@ func (b *dbBufferBucketVersions) ToBlocks(wType WriteType) ([]block.DatabaseBloc
 	res := make([]block.DatabaseBlock, 0, len(buckets))
 
 	for _, bucket := range buckets {
-		block, err := bucket.toBlock()
+		block, err := bucket.ToBlock()
 		if err != nil {
 			return nil, err
 		}
@@ -735,7 +731,7 @@ func (b *dbBufferBucket) addBlock(
 	b.blocks = append(b.blocks, bl)
 }
 
-func (b *dbBufferBucket) write(
+func (b *dbBufferBucket) Write(
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
@@ -823,7 +819,7 @@ func (b *dbBufferBucket) writeToEncoderIndex(
 	return nil
 }
 
-func (b *dbBufferBucket) streams(ctx context.Context) []xio.BlockReader {
+func (b *dbBufferBucket) Streams(ctx context.Context) []xio.BlockReader {
 	streams := make([]xio.BlockReader, 0, len(b.blocks)+len(b.encoders))
 
 	for i := range b.blocks {
@@ -966,7 +962,7 @@ func (b *dbBufferBucket) merge() (int, error) {
 	return merges, nil
 }
 
-func (b *dbBufferBucket) toBlock() (block.DatabaseBlock, error) {
+func (b *dbBufferBucket) ToBlock() (block.DatabaseBlock, error) {
 	if b.hasJustSingleEncoder() {
 		// Already merged as a single encoder
 		encoder := b.encoders[0].encoder
@@ -1022,8 +1018,8 @@ type bufferBucketVersionsPool struct {
 	pool pool.ObjectPool
 }
 
-// newBucketVersionsPool creates a new bufferBucketVersionsPool
-func newBucketVersionsPool(opts pool.ObjectPoolOptions) *bufferBucketVersionsPool {
+// NewBufferBucketVersionsPool creates a new BufferBucketVersionsPool
+func NewBufferBucketVersionsPool(opts pool.ObjectPoolOptions) BufferBucketVersionsPool {
 	p := &bufferBucketVersionsPool{pool: pool.NewObjectPool(opts)}
 	p.pool.Init(func() interface{} {
 		return &dbBufferBucketVersions{}
@@ -1031,11 +1027,11 @@ func newBucketVersionsPool(opts pool.ObjectPoolOptions) *bufferBucketVersionsPoo
 	return p
 }
 
-func (p *bufferBucketVersionsPool) Get() *dbBufferBucketVersions {
-	return p.pool.Get().(*dbBufferBucketVersions)
+func (p *bufferBucketVersionsPool) Get() BufferBucketVersions {
+	return p.pool.Get().(BufferBucketVersions)
 }
 
-func (p *bufferBucketVersionsPool) Put(buckets *dbBufferBucketVersions) {
+func (p *bufferBucketVersionsPool) Put(buckets BufferBucketVersions) {
 	p.pool.Put(buckets)
 }
 
@@ -1043,8 +1039,8 @@ type dbBufferBucketPool struct {
 	pool pool.ObjectPool
 }
 
-// newDBBufferBucketPool creates a new dbBufferBucketPool
-func newDBBufferBucketPool(opts pool.ObjectPoolOptions) *dbBufferBucketPool {
+// NewBufferBucketPool creates a new BufferBucketPool
+func NewBufferBucketPool(opts pool.ObjectPoolOptions) BufferBucketPool {
 	p := &dbBufferBucketPool{pool: pool.NewObjectPool(opts)}
 	p.pool.Init(func() interface{} {
 		return &dbBufferBucket{}
@@ -1052,10 +1048,10 @@ func newDBBufferBucketPool(opts pool.ObjectPoolOptions) *dbBufferBucketPool {
 	return p
 }
 
-func (p *dbBufferBucketPool) Get() *dbBufferBucket {
-	return p.pool.Get().(*dbBufferBucket)
+func (p *dbBufferBucketPool) Get() BufferBucket {
+	return p.pool.Get().(BufferBucket)
 }
 
-func (p *dbBufferBucketPool) Put(bucket *dbBufferBucket) {
+func (p *dbBufferBucketPool) Put(bucket BufferBucket) {
 	p.pool.Put(bucket)
 }

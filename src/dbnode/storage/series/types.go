@@ -284,6 +284,12 @@ type Options interface {
 
 	// BufferBucketVersionsPool returns the BufferBucketVersionsPool.
 	BufferBucketVersionsPool() BufferBucketVersionsPool
+
+	// SetBufferBucketPool sets the BufferBucketPool.
+	SetBufferBucketPool(value BufferBucketPool) Options
+
+	// BufferBucketPool returns the BufferBucketPool.
+	BufferBucketPool() BufferBucketPool
 }
 
 // Stats is passed down from namespace/shard to avoid allocations per series.
@@ -325,13 +331,34 @@ type WriteOptions struct {
 
 // BufferBucket is a bucket in the buffer.
 type BufferBucket interface {
+	ResetTo(t time.Time, wType WriteType, opts Options)
+
+	Reset()
+
+	WriteType() WriteType
+
+	StreamsLen() int
+
+	Streams(ctx context.Context) []xio.BlockReader
+
+	Merge() (int, error)
+
+	Version() int
+
+	AddBlock(block.DatabaseBlock)
+
+	Write(
+		timestamp time.Time,
+		value float64,
+		unit xtime.Unit,
+		annotation []byte,
+	) error
+
+	ToBlock() (block.DatabaseBlock, error)
 }
 
 // BufferBucketPool provides a pool for BufferBucket.
 type BufferBucketPool interface {
-	// Init initializes the pool.
-	Init()
-
 	// Get provides a BufferBucket from the pool.
 	Get() BufferBucket
 
@@ -375,9 +402,6 @@ type BufferBucketVersions interface {
 
 // BufferBucketVersionsPool provides a pool for BufferBucketVersions.
 type BufferBucketVersionsPool interface {
-	// Init initializes the pool.
-	Init()
-
 	// Get provides a BufferBucketVersions from the pool.
 	Get() BufferBucketVersions
 
