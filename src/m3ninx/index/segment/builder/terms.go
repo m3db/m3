@@ -79,10 +79,11 @@ func (t *terms) get(term []byte) (postings.List, bool) {
 }
 
 func (t *terms) reset() {
-	// Keep postings around, just reset the list for each term
+	// Keep postings map lookup, return postings lists to pool
 	for _, entry := range t.postings.Iter() {
-		entry.Value().Reset()
+		t.pool.Put(entry.Value())
 	}
+	t.postings.Reallocate()
 
 	// Reset the unique terms slice
 	var emptyTerm termElem

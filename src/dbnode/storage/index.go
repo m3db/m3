@@ -796,9 +796,9 @@ func (i *nsIndex) flushBlockSegment(
 	builder.Reset(0)
 
 	var (
+		ctx        = context.NewContext()
 		allResults []block.FetchBlocksMetadataResults
 	)
-	ctx := context.NewContext()
 	defer func() {
 		// At completion finalize/return resources to pools
 		for _, result := range allResults {

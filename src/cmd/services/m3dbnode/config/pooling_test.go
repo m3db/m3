@@ -51,3 +51,22 @@ func TestContextPoolMaxFinalizerCapacityWithDefault(t *testing.T) {
 	cpp.MaxFinalizerCapacity = 10
 	require.Equal(t, 10, cpp.MaxFinalizerCapacityWithDefault())
 }
+
+func TestPostingsPoolPolicyDefaultSize(t *testing.T) {
+	policy := PoolingPolicy{
+		PostingsListPool: PoolPolicy{},
+	}
+
+	parsed := policy.PostingsListPoolPolicyWithDefaults()
+	require.Equal(t, defaultPostingsListPoolSize, parsed.Size)
+}
+
+func TestPostingsPoolPolicyWithSize(t *testing.T) {
+	defaultPlus1 := defaultPostingsListPoolSize + 1
+	policy := PoolingPolicy{
+		PostingsListPool: PoolPolicy{Size: defaultPlus1},
+	}
+
+	parsed := policy.PostingsListPoolPolicyWithDefaults()
+	require.Equal(t, defaultPlus1, parsed.Size)
+}

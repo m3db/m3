@@ -91,8 +91,8 @@ func (w *writer) clear() {
 	w.docsDataFileWritten = false
 	w.postingsFileWritten = false
 	w.fstTermsFileWritten = false
-	w.postingsOffsets.Reset()
-	w.fstTermsOffsets.Reset()
+	w.postingsOffsets.Reallocate()
+	w.fstTermsOffsets.Reallocate()
 	w.docOffsets = w.docOffsets[:0]
 }
 

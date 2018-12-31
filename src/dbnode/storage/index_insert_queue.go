@@ -44,12 +44,12 @@ const (
 	nsIndexInsertQueueStateNotOpen nsIndexInsertQueueState = iota
 	nsIndexInsertQueueStateOpen
 	nsIndexInsertQueueStateClosed
-)
 
-var (
 	// TODO(prateek): runtime options for this stuff
 	defaultIndexBatchBackoff   = time.Millisecond
 	defaultIndexPerSecondLimit = 1000000
+
+	indexResetAllInsertsEvery = 30 * time.Second
 )
 
 type nsIndexInsertQueue struct {
@@ -88,9 +88,8 @@ func newNamespaceIndexInsertQueue(
 	scope tally.Scope,
 ) namespaceIndexInsertQueue {
 	subscope := scope.SubScope("insert-queue")
-	return &nsIndexInsertQueue{
+	q := &nsIndexInsertQueue{
 		namespaceMetadata:   namespaceMetadata,
-		currBatch:           newNsIndexInsertBatch(namespaceMetadata),
 		indexBatchBackoff:   defaultIndexBatchBackoff,
 		indexPerSecondLimit: defaultIndexPerSecondLimit,
 		indexBatchFn:        indexBatchFn,
@@ -100,10 +99,12 @@ func newNamespaceIndexInsertQueue(
 		closeCh:             make(chan struct{}, 1),
 		metrics:             newNamespaceIndexInsertQueueMetrics(subscope),
 	}
+	q.currBatch = q.newBatch()
+	return q
 }
 
 func (q *nsIndexInsertQueue) newBatch() *nsIndexInsertBatch {
-	return newNsIndexInsertBatch(q.namespaceMetadata)
+	return newNsIndexInsertBatch(q.namespaceMetadata, q.nowFn)
 }
 
 func (q *nsIndexInsertQueue) insertLoop() {
@@ -112,7 +113,7 @@ func (q *nsIndexInsertQueue) insertLoop() {
 	}()
 
 	var lastInsert time.Time
-	freeBatch := newNsIndexInsertBatch(q.namespaceMetadata)
+	freeBatch := q.newBatch()
 	for range q.notifyInsert {
 		// Check if inserting too fast
 		elapsedSinceLastInsert := q.nowFn().Sub(lastInsert)
@@ -240,21 +241,32 @@ func (q *nsIndexInsertQueue) Stop() error {
 type nsIndexInsertBatchFn func(inserts *index.WriteBatch)
 
 type nsIndexInsertBatch struct {
-	wg           *sync.WaitGroup
-	shardInserts []*index.WriteBatch
-	allInserts   *index.WriteBatch
+	namespace           namespace.Metadata
+	nowFn               clock.NowFn
+	wg                  *sync.WaitGroup
+	shardInserts        []*index.WriteBatch
+	allInserts          *index.WriteBatch
+	allInsertsLastReset time.Time
 }
 
 func newNsIndexInsertBatch(
 	namespace namespace.Metadata,
+	nowFn clock.NowFn,
 ) *nsIndexInsertBatch {
 	b := &nsIndexInsertBatch{
-		allInserts: index.NewWriteBatch(index.WriteBatchOptions{
-			IndexBlockSize: namespace.Options().IndexOptions().BlockSize(),
-		}),
+		namespace: namespace,
+		nowFn:     nowFn,
 	}
+	b.allocateAllInserts()
 	b.Reset()
 	return b
+}
+
+func (b *nsIndexInsertBatch) allocateAllInserts() {
+	b.allInserts = index.NewWriteBatch(index.WriteBatchOptions{
+		IndexBlockSize: b.namespace.Options().IndexOptions().BlockSize(),
+	})
+	b.allInsertsLastReset = b.nowFn()
 }
 
 func (b *nsIndexInsertBatch) AllInserts() *index.WriteBatch {
@@ -274,6 +286,10 @@ func (b *nsIndexInsertBatch) Reset() {
 		b.shardInserts[i] = nil
 	}
 	b.shardInserts = b.shardInserts[:0]
+	if b.nowFn().Sub(b.allInsertsLastReset) > indexResetAllInsertsEvery {
+		// NB(r): Sometimes this can grow very high, so we reset it relatively frequently
+		b.allocateAllInserts()
+	}
 }
 
 type nsIndexInsertQueueMetrics struct {

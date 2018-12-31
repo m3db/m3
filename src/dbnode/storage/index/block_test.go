@@ -41,7 +41,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newTestNSMetadata(t *testing.T) namespace.Metadata {
+func newTestNSMetadata(t require.TestingT) namespace.Metadata {
 	ropts := retention.NewOptions().
 		SetBlockSize(time.Hour).
 		SetRetentionPeriod(24 * time.Hour)
