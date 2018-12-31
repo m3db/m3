@@ -278,6 +278,12 @@ type Options interface {
 
 	// ColdWritesEnabled returns whether cold writes are enabled.
 	ColdWritesEnabled() bool
+
+	// SetBufferBucketVersionsPool sets the BufferBucketVersionsPool.
+	SetBufferBucketVersionsPool(value BufferBucketVersionsPool) Options
+
+	// BufferBucketVersionsPool returns the BufferBucketVersionsPool.
+	BufferBucketVersionsPool() BufferBucketVersionsPool
 }
 
 // Stats is passed down from namespace/shard to avoid allocations per series.
@@ -315,4 +321,66 @@ const (
 // WriteOptions define different options for a write
 type WriteOptions struct {
 	WriteType WriteType
+}
+
+// BufferBucket is a bucket in the buffer.
+type BufferBucket interface {
+}
+
+// BufferBucketPool provides a pool for BufferBucket.
+type BufferBucketPool interface {
+	// Init initializes the pool.
+	Init()
+
+	// Get provides a BufferBucket from the pool.
+	Get() BufferBucket
+
+	// Put returns a BufferBucket to the pool.
+	Put(b BufferBucket)
+}
+
+// BufferBucketVersions is a container for different versions (from
+// different flushes to disk) of buffer buckets in the database.
+type BufferBucketVersions interface {
+	Write(
+		timestamp time.Time,
+		value float64,
+		unit xtime.Unit,
+		annotation []byte,
+		wType WriteType,
+	) error
+
+	ResetTo(start time.Time, opts Options)
+
+	Merge(wType WriteType) (int, error)
+
+	Streams(ctx context.Context, wType WriteType) []xio.BlockReader
+
+	ToBlocks(wType WriteType) ([]block.DatabaseBlock, error)
+
+	WritableBucket(wType WriteType) (dbBufferBucket, bool)
+
+	StreamsLen() int
+
+	SetLastRead(t time.Time)
+
+	LastRead() time.Time
+
+	StartTime() time.Time
+
+	Bootstrap(bl block.DatabaseBlock)
+
+	RemoveBucketsUpToVersion(version int)
+}
+
+// BufferBucketVersionsPool provides a pool for BufferBucketVersions.
+type BufferBucketVersionsPool interface {
+	// Init initializes the pool.
+	Init()
+
+	// Get provides a BufferBucketVersions from the pool.
+	Get() BufferBucketVersions
+
+	// Put returns a BufferBucketVersions to the pool.
+	Put(bv BufferBucketVersions)
 }
