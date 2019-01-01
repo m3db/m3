@@ -343,6 +343,8 @@ type BufferBucket interface {
 
 	Merge() (int, error)
 
+	SetVersion(version int)
+
 	Version() int
 
 	AddBlock(block.DatabaseBlock)
@@ -385,7 +387,7 @@ type BufferBucketVersions interface {
 
 	ToBlocks(wType WriteType) ([]block.DatabaseBlock, error)
 
-	WritableBucket(wType WriteType) (dbBufferBucket, bool)
+	WritableBucket(wType WriteType) (BufferBucket, bool)
 
 	StreamsLen() int
 

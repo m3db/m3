@@ -58,9 +58,14 @@ func newSeriesTestOptions() Options {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 
+	bufferBucketPool := NewBufferBucketPool(nil)
+	bufferBucketVersionsPool := NewBufferBucketVersionsPool(nil)
+
 	opts := NewOptions().
 		SetEncoderPool(encoderPool).
-		SetMultiReaderIteratorPool(multiReaderIteratorPool)
+		SetMultiReaderIteratorPool(multiReaderIteratorPool).
+		SetBufferBucketPool(bufferBucketPool).
+		SetBufferBucketVersionsPool(bufferBucketVersionsPool)
 	opts = opts.
 		SetRetentionOptions(opts.
 			RetentionOptions().
@@ -113,7 +118,7 @@ func TestSeriesWriteFlush(t *testing.T) {
 
 	buckets, exists := series.buffer.(*dbBuffer).bucketsAt(start)
 	require.True(t, exists)
-	blocks, err := buckets.toBlocks(WarmWrite)
+	blocks, err := buckets.ToBlocks(WarmWrite)
 	require.NoError(t, err)
 	require.Len(t, blocks, 1)
 	stream, err := blocks[0].Stream(ctx)
