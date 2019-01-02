@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/m3ninx/doc"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/pkg/profile"
@@ -51,10 +52,7 @@ func BenchmarkBlockWrite(b *testing.B) {
 		require.NoError(b, bl.Close())
 	}()
 
-	onIndexSeries := NewMockOnIndexSeries(ctrl)
-	onIndexSeries.EXPECT().OnIndexFinalize(gomock.Any()).AnyTimes()
-	onIndexSeries.EXPECT().OnIndexSuccess(gomock.Any()).AnyTimes()
-
+	var onIndexSeries mockOnIndexSeries
 	batch := NewWriteBatch(WriteBatchOptions{
 		IndexBlockSize: blockSize,
 	})
@@ -108,4 +106,19 @@ func BenchmarkBlockWrite(b *testing.B) {
 		bl.(*block).Unlock()
 	}
 	b.StopTimer()
+}
+
+// mockOnIndexSeries is a by hand generated struct since using the
+// gomock generated ones is really slow so makes them almost
+// useless to use in benchmarks
+type mockOnIndexSeries struct {
+}
+
+var _ OnIndexSeries = mockOnIndexSeries{}
+
+func (m mockOnIndexSeries) OnIndexSuccess(blockStart xtime.UnixNano) {
+
+}
+func (m mockOnIndexSeries) OnIndexFinalize(blockStart xtime.UnixNano) {
+
 }

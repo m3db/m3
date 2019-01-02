@@ -80,10 +80,9 @@ func NewWriter() Writer {
 }
 
 func (w *writer) clear() {
-	fmt.Printf("fst writer clear\n")
 	w.builder = nil
 
-	w.fstWriter = newFSTWriter()
+	w.fstWriter.Reset(nil)
 	w.intEncoder.Reset()
 	w.postingsEncoder.Reset()
 	w.docDataWriter.Reset(nil)
