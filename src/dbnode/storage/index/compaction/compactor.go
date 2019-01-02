@@ -49,7 +49,7 @@ type Compactor struct {
 	docsPool     doc.DocumentArrayPool
 	docsMaxBatch int
 	fstOpts      fst.Options
-	builder      segment.Builder
+	builder      segment.SegmentsBuilder
 	buff         *bytes.Buffer
 	closed       bool
 }
@@ -62,7 +62,7 @@ func NewCompactor(
 	builderOpts builder.Options,
 	fstOpts fst.Options,
 ) (*Compactor, error) {
-	builder, err := builder.NewBuilder(builderOpts)
+	builder, err := builder.NewBuilderFromSegments(builderOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -83,13 +83,24 @@ func NewCompactor(
 // together first before compacting into an FST segment.
 // Note: This is thread safe and only a single compaction may happen at a time.
 func (c *Compactor) Compact(segs []segment.Segment) (segment.Segment, error) {
+	c.Lock()
+	defer c.Unlock()
+
+	if c.closed {
+		return nil, errCompactorClosed
+	}
+
 	c.builder.Reset(0)
-	return c.CompactUsingBuilder(c.builder, segs)
+	if err := c.builder.AddSegments(segs); err != nil {
+		return nil, err
+	}
+
+	return c.compactFromBuilderWithLock(c.builder)
 }
 
 // CompactUsingBuilder compacts segments together using a provided segment builder.
 func (c *Compactor) CompactUsingBuilder(
-	builder segment.Builder,
+	builder segment.DocumentsBuilder,
 	segs []segment.Segment,
 ) (segment.Segment, error) {
 	// NB(r): Ensure only single compaction happens at a time since the buffers are
@@ -191,6 +202,13 @@ func (c *Compactor) CompactUsingBuilder(
 func (c *Compactor) compactFromBuilderWithLock(
 	builder segment.Builder,
 ) (segment.Segment, error) {
+	defer func() {
+		// Release resources regardless of result,
+		// otherwise old compacted segments are held onto
+		// strongly
+		builder.Reset(0)
+	}()
+
 	// Since this builder is likely reused between compaction
 	// runs, we need to copy the docs slice
 	allDocs := builder.Docs()

@@ -160,7 +160,7 @@ func (d *postingsList) RemoveRange(min, max postings.ID) error {
 func (d *postingsList) Reset() {
 	// TODO(rartoul): Call Reset() or equivalent here once we add it to the underlying
 	// library.
-	d.bitmap.Containers.Reset()
+	d.bitmap = roaring.NewBitmap()
 }
 
 func (d *postingsList) Contains(i postings.ID) bool {
@@ -233,8 +233,8 @@ func (it *roaringIterator) Next() bool {
 	if it.closed {
 		return false
 	}
-	v, ok := it.iter.Next()
-	if ok {
+	v, eof := it.iter.Next()
+	if eof {
 		return false
 	}
 	it.current = postings.ID(v)

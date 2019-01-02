@@ -120,7 +120,7 @@ type TermsIterator interface {
 // MutableSegment is a segment which can be updated.
 type MutableSegment interface {
 	Segment
-	Builder
+	DocumentsBuilder
 
 	// Offset returns the postings offset.
 	Offset() postings.ID
@@ -134,8 +134,6 @@ type MutableSegment interface {
 
 // Builder is a builder that can be used to construct segments.
 type Builder interface {
-	index.Writer
-
 	// Reset resets the builder for reuse.
 	Reset(offset postings.ID)
 
@@ -151,4 +149,18 @@ type Builder interface {
 
 	// TermsIterable returns an iterable terms.
 	TermsIterable() TermsIterable
+}
+
+// DocumentsBuilder is a builder is written documents to.
+type DocumentsBuilder interface {
+	Builder
+	index.Writer
+}
+
+// SegmentsBuilder is a builder that is built from segments.
+type SegmentsBuilder interface {
+	Builder
+
+	// AddSegments adds segments to build from.
+	AddSegments(segments []Segment) error
 }

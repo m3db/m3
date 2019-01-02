@@ -93,7 +93,9 @@ func TestCompactorSingleMutableSegment(t *testing.T) {
 		testBuilderSegmentOptions, testFSTSegmentOptions)
 	require.NoError(t, err)
 
-	compacted, err := compactor.Compact([]segment.Segment{seg})
+	compacted, err := compactor.Compact([]segment.Segment{
+		mustSeal(t, seg),
+	})
 	require.NoError(t, err)
 
 	assertContents(t, compacted, testDocuments)
@@ -118,7 +120,10 @@ func TestCompactorManySegments(t *testing.T) {
 		testBuilderSegmentOptions, testFSTSegmentOptions)
 	require.NoError(t, err)
 
-	compacted, err := compactor.Compact([]segment.Segment{seg1, seg2})
+	compacted, err := compactor.Compact([]segment.Segment{
+		mustSeal(t, seg1),
+		mustSeal(t, seg2),
+	})
 	require.NoError(t, err)
 
 	assertContents(t, compacted, testDocuments)
@@ -146,7 +151,10 @@ func TestCompactorCompactDuplicateIDsNoError(t *testing.T) {
 		testBuilderSegmentOptions, testFSTSegmentOptions)
 	require.NoError(t, err)
 
-	compacted, err := compactor.Compact([]segment.Segment{seg1, seg2})
+	compacted, err := compactor.Compact([]segment.Segment{
+		mustSeal(t, seg1),
+		mustSeal(t, seg2),
+	})
 	require.NoError(t, err)
 
 	assertContents(t, compacted, testDocuments)
@@ -185,4 +193,9 @@ func assertContents(t *testing.T, seg segment.Segment, docs []doc.Document) {
 
 	require.NoError(t, iter.Err())
 	require.NoError(t, iter.Close())
+}
+
+func mustSeal(t *testing.T, seg segment.MutableSegment) segment.MutableSegment {
+	require.NoError(t, seg.Seal())
+	return seg
 }

@@ -80,7 +80,7 @@ func (d *termsDict) Terms(field []byte) sgmt.TermsIterator {
 	defer d.fields.RUnlock()
 	values, ok := d.fields.Get(field)
 	if !ok {
-		return newSkipListTermsIter(skiplist.New())
+		return sgmt.EmptyTermsIterator
 	}
 	return values.Keys()
 }

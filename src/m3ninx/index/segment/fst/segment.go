@@ -202,15 +202,13 @@ func (r *fsSegment) ContainsID(docID []byte) (bool, error) {
 		return false, fmt.Errorf("internal error while retrieving id FST: %v", err)
 	}
 
-	fstCloser := x.NewSafeCloser(termsFST)
-	defer fstCloser.Close()
-
 	_, exists, err = termsFST.Get(docID)
+	closeErr := termsFST.Close()
 	if err != nil {
 		return false, err
 	}
 
-	return exists, fstCloser.Close()
+	return exists, closeErr
 }
 
 func (r *fsSegment) Reader() (index.Reader, error) {

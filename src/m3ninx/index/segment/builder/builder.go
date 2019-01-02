@@ -48,10 +48,10 @@ type builder struct {
 	uniqueFields [][]byte
 }
 
-// NewBuilder returns a segment builder, it is not thread safe
-// and is optimized for insertion speed and a final build step
-// when documents are indexed.
-func NewBuilder(opts Options) (segment.Builder, error) {
+// NewBuilderFromDocuments returns a builder from documents, it is
+// not thread safe and is optimized for insertion speed and a
+// final build step when documents are indexed.
+func NewBuilderFromDocuments(opts Options) (segment.DocumentsBuilder, error) {
 	return &builder{
 		opts:         opts,
 		newUUIDFn:    opts.NewUUIDFn(),
