@@ -348,7 +348,7 @@ func (i *multiPostingsListIterator) moveToValidNext(idx int) bool {
 			newPostingsIter.dupesMatched++
 			i.curr[idx] = newPostingsIter
 		}
-		for len(i.curr[idx].dupesNotSeen) > 0 && raw == i.curr[idx].dupesNotSeen[0] {
+		if len(i.curr[idx].dupesNotSeen) > 0 && raw == i.curr[idx].dupesNotSeen[0] {
 			// Record duplicate seen
 			newPostingsIter := i.curr[idx]
 			newPostingsIter.dupesNotSeen = newPostingsIter.dupesNotSeen[1:]
@@ -394,8 +394,9 @@ func (i *multiPostingsListIterator) Next() bool {
 		return false
 	}
 
-	// Try again
-	return i.Next()
+	// Need to re-evaluate from remaining before returning
+	i.currEvaluate()
+	return true
 }
 
 func (i *multiPostingsListIterator) currEvaluate() {
