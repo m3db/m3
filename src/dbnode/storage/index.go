@@ -644,7 +644,7 @@ func (i *nsIndex) Flush(
 	}
 
 	builderOpts := i.opts.IndexOptions().SegmentBuilderOptions()
-	builder, err := builder.NewBuilder(builderOpts)
+	builder, err := builder.NewBuilderFromDocuments(builderOpts)
 	if err != nil {
 		return err
 	}
@@ -729,7 +729,7 @@ func (i *nsIndex) flushBlock(
 	flush persist.IndexFlush,
 	indexBlock index.Block,
 	shards []databaseShard,
-	builder segment.Builder,
+	builder segment.DocumentsBuilder,
 ) ([]segment.Segment, error) {
 	i.state.RLock()
 	numSegments := i.state.runtimeOpts.flushBlockNumSegments
@@ -790,7 +790,7 @@ func (i *nsIndex) flushBlockSegment(
 	preparedPersist persist.PreparedIndexPersist,
 	indexBlock index.Block,
 	shards []databaseShard,
-	builder segment.Builder,
+	builder segment.DocumentsBuilder,
 ) error {
 	// Reset the builder
 	builder.Reset(0)

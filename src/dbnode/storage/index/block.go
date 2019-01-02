@@ -96,7 +96,7 @@ type block struct {
 	state                             blockState
 	hasEvictedMutableSegmentsAnyTimes bool
 
-	segmentBuilder      segment.Builder
+	segmentBuilder      segment.DocumentsBuilder
 	foregroundSegments  []*readableSeg
 	backgroundSegments  []*readableSeg
 	shardRangesSegments []blockShardRangesSegments
@@ -180,7 +180,7 @@ func NewBlock(
 		return nil, err
 	}
 
-	segmentBuilder, err := builder.NewBuilder(opts.SegmentBuilderOptions())
+	segmentBuilder, err := builder.NewBuilderFromDocuments(opts.SegmentBuilderOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -491,7 +491,7 @@ func (b *block) writeBatchResult(
 	}, partialErr
 }
 
-func (b *block) foregroundCompactWithBuilder(builder segment.Builder) error {
+func (b *block) foregroundCompactWithBuilder(builder segment.DocumentsBuilder) error {
 	// We inserted some documents, need to compact immediately into a
 	// foreground segment
 	b.Lock()
@@ -637,7 +637,7 @@ func (b *block) maybeMoveForegroundSegmentsToBackgroundWithLock(
 }
 
 func (b *block) foregroundCompactWithTask(
-	builder segment.Builder,
+	builder segment.DocumentsBuilder,
 	task compaction.Task,
 	log bool,
 	logger xlog.Logger,
