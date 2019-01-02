@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3/src/dbnode/storage/index/compaction"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/m3ninx/doc"
 	"github.com/m3db/m3/src/m3ninx/idx"
@@ -35,6 +36,7 @@ import (
 	"github.com/m3db/m3/src/m3ninx/index/segment/mem"
 	"github.com/m3db/m3/src/m3ninx/search"
 	"github.com/m3db/m3x/ident"
+	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -1360,6 +1362,111 @@ func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 		ident.NewTagsIterator(t2)))
 }
 
+func TestBlockWriteBackgroundCompact(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	testMD := newTestNSMetadata(t)
+	blockSize := time.Hour
+
+	now := time.Now()
+	blockStart := now.Truncate(blockSize)
+
+	nowNotBlockStartAligned := now.
+		Truncate(blockSize).
+		Add(time.Minute)
+
+	testOpts = testOpts.SetInstrumentOptions(
+		testOpts.InstrumentOptions().
+			SetLogger(xlog.NewLevelLogger(xlog.SimpleLogger, xlog.LevelDebug)))
+
+	blk, err := NewBlock(blockStart, testMD, testOpts)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, blk.Close())
+	}()
+
+	b, ok := blk.(*block)
+	require.True(t, ok)
+
+	// First write
+	h1 := NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
+	h1.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
+
+	h2 := NewMockOnIndexSeries(ctrl)
+	h2.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
+	h2.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
+
+	batch := NewWriteBatch(WriteBatchOptions{
+		IndexBlockSize: blockSize,
+	})
+	batch.Append(WriteBatchEntry{
+		Timestamp:     nowNotBlockStartAligned,
+		OnIndexSeries: h1,
+	}, testDoc1())
+	batch.Append(WriteBatchEntry{
+		Timestamp:     nowNotBlockStartAligned,
+		OnIndexSeries: h2,
+	}, testDoc2())
+
+	res, err := b.WriteBatch(batch)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), res.NumSuccess)
+	require.Equal(t, int64(0), res.NumError)
+
+	// Move the segment to background
+	b.Lock()
+	b.maybeMoveForegroundSegmentsToBackgroundWithLock([]compaction.Segment{
+		{Segment: b.foregroundSegments[0].Segment()},
+	})
+	b.Unlock()
+
+	// Second write
+	h1 = NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
+	h1.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
+
+	batch = NewWriteBatch(WriteBatchOptions{
+		IndexBlockSize: blockSize,
+	})
+	batch.Append(WriteBatchEntry{
+		Timestamp:     nowNotBlockStartAligned,
+		OnIndexSeries: h1,
+	}, testDoc3())
+
+	res, err = b.WriteBatch(batch)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), res.NumSuccess)
+	require.Equal(t, int64(0), res.NumError)
+
+	// Move last segment to background, this should kick off a background compaction
+	b.Lock()
+	b.maybeMoveForegroundSegmentsToBackgroundWithLock([]compaction.Segment{
+		{Segment: b.foregroundSegments[0].Segment()},
+	})
+	require.Equal(t, 2, len(b.backgroundSegments))
+	require.True(t, b.compactingBackground)
+	b.Unlock()
+
+	// Wait for compaction to finish
+	for {
+		b.RLock()
+		compacting := b.compactingBackground
+		b.RUnlock()
+		if !compacting {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// Make sure compacted into a single segment
+	b.RLock()
+	require.Equal(t, 1, len(b.backgroundSegments))
+	require.Equal(t, 3, int(b.backgroundSegments[0].Segment().Size()))
+	b.RUnlock()
+}
+
 func testSegment(t *testing.T, docs ...doc.Document) segment.Segment {
 	seg, err := mem.NewSegment(0, testOpts.MemSegmentOptions())
 	require.NoError(t, err)
@@ -1411,6 +1518,22 @@ func testDoc2() doc.Document {
 			doc.Field{
 				Name:  []byte("some"),
 				Value: []byte("more"),
+			},
+		},
+	}
+}
+
+func testDoc3() doc.Document {
+	return doc.Document{
+		ID: []byte("bar"),
+		Fields: []doc.Field{
+			doc.Field{
+				Name:  []byte("bar"),
+				Value: []byte("qux"),
+			},
+			doc.Field{
+				Name:  []byte("some"),
+				Value: []byte("other"),
 			},
 		},
 	}

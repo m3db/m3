@@ -63,11 +63,6 @@ func (f *fstTermsIter) Next() bool {
 		return false
 	}
 
-	if f.current != nil {
-		f.iterOpts.opts.BytesPool().Put(f.current)
-		f.current = nil
-	}
-
 	var err error
 
 	if !f.initialized {
@@ -85,19 +80,8 @@ func (f *fstTermsIter) Next() bool {
 		return false
 	}
 
-	nextBytes, nextValue := f.iter.Current()
-	f.current = f.copyBytes(nextBytes)
-	f.currentValue = nextValue
+	f.current, f.currentValue = f.iter.Current()
 	return true
-}
-
-func (f *fstTermsIter) copyBytes(b []byte) []byte {
-	// NB: taking a copy of the bytes to avoid referring to mmap'd memory
-	l := len(b)
-	bytes := f.iterOpts.opts.BytesPool().Get(l)
-	bytes = bytes[:l]
-	copy(bytes, b)
-	return bytes
 }
 
 func (f *fstTermsIter) CurrentExtended() ([]byte, uint64) {
