@@ -135,7 +135,7 @@ func (d *postingsList) AddIterator(iter postings.Iterator) error {
 	defer safeIter.Close()
 
 	for iter.Next() {
-		if _, err := d.bitmap.Add(uint64(iter.Current())); err != nil {
+		if err := d.Insert(iter.Current()); err != nil {
 			return err
 		}
 	}
@@ -158,9 +158,9 @@ func (d *postingsList) RemoveRange(min, max postings.ID) error {
 }
 
 func (d *postingsList) Reset() {
-	// TODO(rartoul): Call Reset() or equivalent here once we add it to the underlying
-	// library.
-	d.bitmap = roaring.NewBitmap()
+	// TODO(r): Check that Containers.Reset() does not leak things
+	// improperly holding onto old pointer values when it doesn't mean to
+	d.bitmap.Containers.Reset()
 }
 
 func (d *postingsList) Contains(i postings.ID) bool {

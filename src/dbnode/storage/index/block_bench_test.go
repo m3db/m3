@@ -28,11 +28,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pkg/profile"
-
 	"github.com/m3db/m3/src/m3ninx/doc"
 
 	"github.com/golang/mock/gomock"
+	"github.com/pkg/profile"
 	"github.com/stretchr/testify/require"
 )
 
@@ -62,7 +61,7 @@ func BenchmarkBlockWrite(b *testing.B) {
 
 	fieldValues := map[string][]string{
 		"fruit":     []string{"apple", "banana", "orange", "watermelon"},
-		"vegetable": []string{"brocolli", "carrot", "celery", "cucumber"},
+		"vegetable": []string{"broccoli", "carrot", "celery", "cucumber"},
 		"meat":      []string{"beef", "chicken", "pork", "steak"},
 		"cheese":    []string{"cheddar", "swiss", "brie", "bleu"},
 	}

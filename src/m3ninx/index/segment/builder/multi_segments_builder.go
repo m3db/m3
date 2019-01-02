@@ -56,7 +56,7 @@ func NewBuilderFromSegments(opts Options) (segment.SegmentsBuilder, error) {
 		idSet: NewIDsMap(IDsMapOptions{
 			InitialSize: opts.InitialCapacity(),
 		}),
-		termsIter: newTermsIterFromSegments(),
+		termsIter: newTermsIterFromSegments(opts),
 	}, nil
 }
 
