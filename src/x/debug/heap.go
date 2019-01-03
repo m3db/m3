@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,42 +18,21 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package debugdump
+package debug
 
 import (
-	"encoding/json"
 	"io"
-	"os"
+	"runtime/pprof"
 )
 
-// hostDataProvider is an InfoProvider implementation returning data about the underlying host:
-// PID, working directory, etc.
-type hostDataProvider struct{}
+type heapDumpSource struct{}
 
-type hostInformation struct {
-	PID int    `json:"pid"`
-	CWD string `json:"cwd"`
+// NewHeapDumpSource returns a Source for heapdump.
+func NewHeapDumpSource() Source {
+	return &heapDumpSource{}
 }
 
-// NewHostDataProvider returns a DataProvider for host information
-func NewHostDataProvider() DataProvider {
-	return &hostDataProvider{}
-}
-
-// ProvideData provides data about the host and writes it in the given writer
-func (h *hostDataProvider) ProvideData(w io.Writer) error {
-	wd, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-	hostInfo := &hostInformation{
-		PID: os.Getpid(),
-		CWD: wd,
-	}
-	jsonData, err := json.Marshal(hostInfo)
-	if err != nil {
-		return err
-	}
-	w.Write(jsonData)
-	return nil
+// Write writes the heapdump in the provided writer.
+func (h *heapDumpSource) Write(w io.Writer) error {
+	return pprof.WriteHeapProfile(w)
 }

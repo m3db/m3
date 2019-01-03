@@ -27,8 +27,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3/src/x/debugdump"
-
 	"github.com/m3db/m3/src/dbnode/client"
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/generated/thrift/rpc"
@@ -41,6 +39,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/dbnode/x/xpool"
+	"github.com/m3db/m3/src/x/debug"
 	"github.com/m3db/m3/src/x/serialize"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/context"
@@ -121,14 +120,14 @@ func newServiceMetrics(scope tally.Scope, samplingRate float64) serviceMetrics {
 type service struct {
 	sync.RWMutex
 
-	db              storage.Database
-	logger          log.Logger
-	opts            tchannelthrift.Options
-	nowFn           clock.NowFn
-	pools           pools
-	metrics         serviceMetrics
-	health          *rpc.NodeHealthResult_
-	debugDataDumper debugdump.DataDumper
+	db             storage.Database
+	logger         log.Logger
+	opts           tchannelthrift.Options
+	nowFn          clock.NowFn
+	pools          pools
+	metrics        serviceMetrics
+	health         *rpc.NodeHealthResult_
+	debugZipWriter debug.ZipWriter
 }
 
 type pools struct {
@@ -185,9 +184,9 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 	writeBatchPooledReqPool := newWriteBatchPooledReqPool(iopts)
 	writeBatchPooledReqPool.Init(opts.TagDecoderPool())
 
-	debugDataDumper := debugdump.NewDataDumper()
-	debugDataDumper.RegisterProvider("heapdump", debugdump.NewHeapDumpProvider())
-	debugDataDumper.RegisterProvider("host.json", debugdump.NewHostDataProvider())
+	debugZipWriter := debug.NewZipWriter()
+	debugZipWriter.RegisterSource("heapdump", debug.NewHeapDumpSource())
+	debugZipWriter.RegisterSource("host.json", debug.NewHostInfoSource())
 
 	s := &service{
 		db:      db,
@@ -210,7 +209,7 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 			Status:       "up",
 			Bootstrapped: false,
 		},
-		debugDataDumper: debugDataDumper,
+		debugZipWriter: debugZipWriter,
 	}
 
 	return s
@@ -254,7 +253,7 @@ func (s *service) Bootstrapped(ctx thrift.Context) (*rpc.NodeBootstrappedResult_
 
 func (s *service) Debug(ctx thrift.Context) (*rpc.NodeDebugResult_, error) {
 	res := bytes.NewBuffer([]byte{})
-	err := s.debugDataDumper.Dump(res)
+	err := s.debugZipWriter.WriteZip(res)
 	if err != nil {
 		return nil, convert.ToRPCError(err)
 	}

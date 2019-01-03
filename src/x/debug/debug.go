@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package debugdump
+package debug
 
 import (
 	"archive/zip"
@@ -26,50 +26,54 @@ import (
 	"io"
 )
 
-// DataProvider returns an instance of a provider for debug information
-type DataProvider interface {
-	// ProvideData writes it's debug information into the provided writer
-	ProvideData(w io.Writer) error
+// Source provides functions for fething debug information from a single debug source.
+type Source interface {
+	// Write writes it's debug information into the provided writer
+	Write(w io.Writer) error
 }
 
-// DataDumper represents a collection of InfoProviders
-type DataDumper interface {
-	// Dump writes a ZIP file in the provided writer
-	// the archive contains the dumps of all the providers in separate files
-	DumpData(io.Writer) error
-	// RegisterProvider adds a new provider the aggregator
-	RegisterProvider(string, DataProvider) error
+// ZipWriter aggregates sources and writes them in a zip file.
+type ZipWriter interface {
+	// WriteZip writes a ZIP file in the provided writer.
+	// The archive contains the dumps of all sources in separate files.
+	WriteZip(io.Writer) error
+	// RegisterSource adds a new source to the produced archive.
+	RegisterSource(string, Source) error
 }
 
-type dataDumper struct {
-	providers map[string]DataProvider
+type zipWriter struct {
+	sources map[string]Source
 }
 
-// NewDataDumper returns an instance of an DataDumper
-func NewDataDumper() DataDumper {
-	return &dataDumper{
-		providers: make(map[string]DataProvider),
+// NewZipWriter returns an instance of an ZipWriter.
+func NewZipWriter() ZipWriter {
+	return &zipWriter{
+		sources: make(map[string]Source),
 	}
 }
 
-func (i *dataDumper) RegisterProvider(dumpFileName string, p DataProvider) error {
-	if _, ok := i.providers[dumpFileName]; ok {
+// RegisterSource adds a new source in the ZipWriter instance.
+// It will return an error if a source with the same filename exists.
+func (i *zipWriter) RegisterSource(dumpFileName string, p Source) error {
+	if _, ok := i.sources[dumpFileName]; ok {
 		return fmt.Errorf("dumpfile already registered %s", dumpFileName)
 	}
-	i.providers[dumpFileName] = p
+	i.sources[dumpFileName] = p
 	return nil
 }
 
-func (i *dataDumper) DumpData(w io.Writer) error {
+// WriteZip writes a ZIP file with the data from all sources in the given writer.
+// It will return an error if any of the sources fail to write their data.
+func (i *zipWriter) WriteZip(w io.Writer) error {
 	zw := zip.NewWriter(w)
 	defer zw.Close()
 
-	for filename, p := range i.providers {
+	for filename, p := range i.sources {
 		fw, err := zw.Create(filename)
 		if err != nil {
 			return err
 		}
-		err = p.ProvideData(fw)
+		err = p.Write(fw)
 		if err != nil {
 			return err
 		}

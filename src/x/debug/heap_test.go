@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package debugdump
+package debug
 
 import (
 	"bytes"
@@ -27,9 +27,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestHostDataProvider(t *testing.T) {
-	prov := NewHostDataProvider()
+func TestHeapDumpSource(t *testing.T) {
+	heapDumpSource := NewHeapDumpSource()
 	buff := bytes.NewBuffer([]byte{})
-	prov.ProvideData(buff)
+	heapDumpSource.Write(buff)
 	require.NotZero(t, buff.Len())
 }

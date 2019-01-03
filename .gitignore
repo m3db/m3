@@ -29,6 +29,9 @@ _tools/
 debug
 debug.test
 
+# debug package
+!src/x/debug
+
 # Test data
 test-data
 

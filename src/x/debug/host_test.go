@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,22 +18,21 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package debugdump
+package debug
 
 import (
-	"io"
-	"runtime/pprof"
+	"bytes"
+	"encoding/json"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
-// heapDumpProvider provides a heap dump of the process
-type heapDumpProvider struct{}
-
-// NewHeapDumpProvider returns a DataProvider for heapdump
-func NewHeapDumpProvider() DataProvider {
-	return &heapDumpProvider{}
-}
-
-// ProvideData writes the heapdump in the provided writer
-func (h *heapDumpProvider) ProvideData(w io.Writer) error {
-	return pprof.WriteHeapProfile(w)
+func TestHostInfoSource(t *testing.T) {
+	source := NewHostInfoSource()
+	buff := bytes.NewBuffer([]byte{})
+	err := source.Write(buff)
+	require.NoError(t, err)
+	err = json.Unmarshal(buff.Bytes(), &hostInfoSource{})
+	require.NoError(t, err)
 }
