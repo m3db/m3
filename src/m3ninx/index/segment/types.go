@@ -36,8 +36,15 @@ var (
 
 // Segment is a sub-collection of documents within an index.
 type Segment interface {
-	FieldsIterable
-	TermsIterable
+	// FieldsIterable returns an iterable fields, for which is not
+	// safe for concurrent use. For concurrent use call FieldsIterable
+	// multiple times.
+	FieldsIterable() FieldsIterable
+
+	// TermsIterable returns an iterable terms, for which is not
+	// safe for concurrent use. For concurrent use call TermsIterable
+	// multiple times.
+	TermsIterable() TermsIterable
 
 	// Size returns the number of documents within the Segment. It returns
 	// 0 if the Segment has been closed.
@@ -53,7 +60,8 @@ type Segment interface {
 	Close() error
 }
 
-// FieldsIterable can iterate over segment fields.
+// FieldsIterable can iterate over segment fields, it is not by default
+// concurrency safe.
 type FieldsIterable interface {
 	// Fields returns an iterator over the list of known fields, in order
 	// by name, it is not valid for reading after mutating the
@@ -61,7 +69,8 @@ type FieldsIterable interface {
 	Fields() (FieldsIterator, error)
 }
 
-// TermsIterable can iterate over segment terms.
+// TermsIterable can iterate over segment terms, it is not by default
+// concurrency safe.
 type TermsIterable interface {
 	// Terms returns an iterator over the known terms values for the given
 	// field, in order by name, it is not valid for reading after mutating the
@@ -134,6 +143,9 @@ type MutableSegment interface {
 
 // Builder is a builder that can be used to construct segments.
 type Builder interface {
+	FieldsIterable
+	TermsIterable
+
 	// Reset resets the builder for reuse.
 	Reset(offset postings.ID)
 
@@ -143,12 +155,6 @@ type Builder interface {
 
 	// AllDocs returns an iterator over the documents known to the Reader.
 	AllDocs() (index.IDDocIterator, error)
-
-	// FieldsIterable returns an iterable fields.
-	FieldsIterable() FieldsIterable
-
-	// TermsIterable returns an iterable terms.
-	TermsIterable() TermsIterable
 }
 
 // DocumentsBuilder is a builder is written documents to.

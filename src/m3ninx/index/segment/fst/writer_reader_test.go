@@ -125,7 +125,7 @@ func TestFieldDoesNotExist(t *testing.T) {
 			require.NoError(t, terms.Err())
 			require.NoError(t, terms.Close())
 
-			terms, err = fstSeg.Terms(elaborateFieldName)
+			terms, err = fstSeg.TermsIterable().Terms(elaborateFieldName)
 			require.NoError(t, err)
 			require.False(t, terms.Next())
 			require.NoError(t, terms.Err())
@@ -160,11 +160,11 @@ func TestFieldsEquals(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			memSeg, fstSeg := newTestSegments(t, test.docs)
 
-			memFieldsIter, err := memSeg.Fields()
+			memFieldsIter, err := memSeg.FieldsIterable().Fields()
 			require.NoError(t, err)
 			memFields := toSlice(t, memFieldsIter)
 
-			fstFieldsIter, err := fstSeg.Fields()
+			fstFieldsIter, err := fstSeg.FieldsIterable().Fields()
 			require.NoError(t, err)
 			fstFields := toSlice(t, fstFieldsIter)
 
@@ -181,11 +181,11 @@ func TestFieldsEqualsParallel(t *testing.T) {
 			var wg sync.WaitGroup
 			wg.Add(2)
 			go func() {
-				fstSeg.Fields()
+				fstSeg.FieldsIterable().Fields()
 				wg.Done()
 			}()
 			go func() {
-				fstSeg.Fields()
+				fstSeg.FieldsIterable().Fields()
 				wg.Done()
 			}()
 			wg.Wait()
@@ -198,21 +198,21 @@ func TestTermEquals(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			memSeg, fstSeg := newTestSegments(t, test.docs)
 
-			memFieldsIter, err := memSeg.Fields()
+			memFieldsIter, err := memSeg.FieldsIterable().Fields()
 			require.NoError(t, err)
 			memFields := toSlice(t, memFieldsIter)
 
-			fstFieldsIter, err := fstSeg.Fields()
+			fstFieldsIter, err := fstSeg.FieldsIterable().Fields()
 			require.NoError(t, err)
 			fstFields := toSlice(t, fstFieldsIter)
 
 			assertTermEquals := func(fields [][]byte) {
 				for _, f := range fields {
-					memTermsIter, err := memSeg.Terms(f)
+					memTermsIter, err := memSeg.TermsIterable().Terms(f)
 					require.NoError(t, err)
 					memTerms := toTermPostings(t, memTermsIter)
 
-					fstTermsIter, err := fstSeg.Terms(f)
+					fstTermsIter, err := fstSeg.TermsIterable().Terms(f)
 					require.NoError(t, err)
 					fstTerms := toTermPostings(t, fstTermsIter)
 					require.Equal(t, memTerms, fstTerms)
@@ -359,10 +359,10 @@ func TestPostingsListLifecycleSimple(t *testing.T) {
 
 	require.NoError(t, fstSeg.Close())
 
-	_, err := fstSeg.Fields()
+	_, err := fstSeg.FieldsIterable().Fields()
 	require.Error(t, err)
 
-	_, err = fstSeg.Terms(nil)
+	_, err = fstSeg.TermsIterable().Terms(nil)
 	require.Error(t, err)
 
 	_, err = fstSeg.Reader()

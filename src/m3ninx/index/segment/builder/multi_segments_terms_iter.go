@@ -40,9 +40,13 @@ type termsIterFromSegments struct {
 	keyIter          *multiKeyIterator
 	currPostingsList postings.MutableList
 
-	field      []byte
-	segments   []segmentMetadata
+	segments   []segmentTermsMetadata
 	termsIters []*termsKeyIter
+}
+
+type segmentTermsMetadata struct {
+	segment       segmentMetadata
+	termsIterable segment.TermsIterable
 }
 
 func newTermsIterFromSegments() *termsIterFromSegments {
@@ -54,35 +58,43 @@ func newTermsIterFromSegments() *termsIterFromSegments {
 }
 
 func (i *termsIterFromSegments) clear() {
+	i.segments = nil
+	i.clearTermIters()
+}
+
+func (i *termsIterFromSegments) clearTermIters() {
 	i.keyIter.reset()
 	i.currPostingsList.Reset()
-	i.field = nil
-	i.segments = nil
 	for _, termIter := range i.termsIters {
 		termIter.iter = nil
 		termIter.segment = segmentMetadata{}
 	}
 }
 
-func (i *termsIterFromSegments) reset(
-	field []byte,
-	segments []segmentMetadata,
-) error {
+func (i *termsIterFromSegments) reset(segments []segmentMetadata) {
 	i.clear()
 
-	i.field = field
-	i.segments = segments
+	for _, seg := range segments {
+		i.segments = append(i.segments, segmentTermsMetadata{
+			segment:       seg,
+			termsIterable: seg.segment.TermsIterable(),
+		})
+	}
+}
+
+func (i *termsIterFromSegments) setField(field []byte) error {
+	i.clearTermIters()
 
 	// Alloc any required terms iter containers
-	numTermsIterAlloc := len(segments) - len(i.termsIters)
+	numTermsIterAlloc := len(i.segments) - len(i.termsIters)
 	for j := 0; j < numTermsIterAlloc; j++ {
 		i.termsIters = append(i.termsIters, &termsKeyIter{})
 	}
 
 	// Add our de-duping multi key value iterator
 	i.keyIter.reset()
-	for j, seg := range segments {
-		iter, err := seg.segment.Terms(field)
+	for j, seg := range i.segments {
+		iter, err := seg.termsIterable.Terms(field)
 		if err != nil {
 			return err
 		}
@@ -96,7 +108,7 @@ func (i *termsIterFromSegments) reset(
 
 		tersmKeyIter := i.termsIters[j]
 		tersmKeyIter.iter = iter
-		tersmKeyIter.segment = seg
+		tersmKeyIter.segment = seg.segment
 		i.keyIter.add(tersmKeyIter)
 	}
 

@@ -141,6 +141,9 @@ func (b *builderFromSegments) AddSegments(segments []segment.Segment) error {
 		b.segmentsOffset += postings.ID(added)
 	}
 
+	// Make sure the terms iter has all the segments to combine data from
+	b.termsIter.reset(b.segments)
+
 	return nil
 }
 
@@ -176,8 +179,7 @@ func (b *builderFromSegments) Fields() (segment.FieldsIterator, error) {
 }
 
 func (b *builderFromSegments) Terms(field []byte) (segment.TermsIterator, error) {
-	err := b.termsIter.reset(field, b.segments)
-	if err != nil {
+	if err := b.termsIter.setField(field); err != nil {
 		return nil, err
 	}
 	return b.termsIter, nil

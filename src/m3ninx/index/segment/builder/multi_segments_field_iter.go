@@ -34,7 +34,7 @@ func newFieldIterFromSegments(
 ) (segment.FieldsIterator, error) {
 	multiIter := newMultiKeyIterator()
 	for _, seg := range segments {
-		iter, err := seg.segment.Fields()
+		iter, err := seg.segment.FieldsIterable().Fields()
 		if err != nil {
 			return nil, err
 		}

@@ -27,57 +27,73 @@ import (
 	"github.com/couchbase/vellum"
 )
 
-type newFSTTermsIterOpts struct {
-	opts        Options
+type fstTermsIterOpts struct {
 	fst         *vellum.FST
 	finalizeFST bool
 }
 
-func (o *newFSTTermsIterOpts) Close() error {
+func (o fstTermsIterOpts) Close() error {
 	if o.finalizeFST {
 		return o.fst.Close()
 	}
 	return nil
 }
 
-func newFSTTermsIter(opts newFSTTermsIterOpts) *fstTermsIter {
-	return &fstTermsIter{iterOpts: opts}
+func newFSTTermsIter() *fstTermsIter {
+	return &fstTermsIter{}
 }
 
 type fstTermsIter struct {
-	iterOpts newFSTTermsIterOpts
-
-	iter        *vellum.FSTIterator
-	err         error
-	done        bool
-	initialized bool
-
+	iter         vellum.FSTIterator
+	opts         fstTermsIterOpts
+	err          error
+	done         bool
+	firstNext    bool
 	current      []byte
 	currentValue uint64
 }
 
 var _ sgmt.OrderedBytesIterator = &fstTermsIter{}
 
+func (f *fstTermsIter) reset(opts fstTermsIterOpts) {
+	f.clear()
+	f.opts = opts
+
+	if err := f.iter.Reset(opts.fst, nil, nil, nil); err != nil {
+		f.handleIterErr(err)
+	}
+}
+
+func (f *fstTermsIter) handleIterErr(err error) {
+	if err == vellum.ErrIteratorDone {
+		f.done = true
+	} else {
+		f.err = err
+	}
+}
+
+func (f *fstTermsIter) clear() {
+	f.iter = vellum.FSTIterator{}
+	f.opts = fstTermsIterOpts{}
+	f.err = nil
+	f.done = false
+	f.firstNext = true
+	f.current = nil
+	f.currentValue = 0
+}
+
 func (f *fstTermsIter) Next() bool {
 	if f.done || f.err != nil {
 		return false
 	}
 
-	var err error
-
-	if !f.initialized {
-		f.initialized = true
-		f.iter = &vellum.FSTIterator{}
-		err = f.iter.Reset(f.iterOpts.fst, nil, nil, nil)
+	if f.firstNext {
+		f.firstNext = false
 	} else {
-		err = f.iter.Next()
-	}
-
-	if err != nil {
-		if err != vellum.ErrIteratorDone {
-			f.err = err
+		if err := f.iter.Next(); err != nil {
+			f.handleIterErr(err)
+			return false
 		}
-		return false
 	}
 
 	f.current, f.currentValue = f.iter.Current()
@@ -97,18 +113,14 @@ func (f *fstTermsIter) Err() error {
 }
 
 func (f *fstTermsIter) Len() int {
-	return f.iterOpts.fst.Len()
+	return f.opts.fst.Len()
 }
 
 func (f *fstTermsIter) Close() error {
-	f.current = nil
 	var multiErr xerrors.MultiError
-	if f.iter != nil {
-		multiErr = multiErr.Add(f.iter.Close())
-	}
-	f.iter = nil
+	multiErr = multiErr.Add(f.iter.Close())
+	multiErr = multiErr.Add(f.opts.Close())
 
-	multiErr = multiErr.Add(f.iterOpts.Close())
-	f.iterOpts = newFSTTermsIterOpts{}
+	f.clear()
 	return multiErr.FinalError()
 }

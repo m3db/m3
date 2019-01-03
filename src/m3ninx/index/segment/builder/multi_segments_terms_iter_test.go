@@ -83,7 +83,7 @@ func TestTermsIterFromSegmentsDeduplicates(t *testing.T) {
 	require.NoError(t, err)
 	builder.Reset(0)
 	require.NoError(t, builder.AddSegments(segments))
-	iter, err := builder.TermsIterable().Terms([]byte("fruit"))
+	iter, err := builder.Terms([]byte("fruit"))
 	require.NoError(t, err)
 
 	assertTermsPostings(t, builder.Docs(), iter, termPostings{

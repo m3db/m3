@@ -92,7 +92,7 @@ func TestBuilderFields(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		fieldsIter, err := builder.FieldsIterable().Fields()
+		fieldsIter, err := builder.Fields()
 		require.NoError(t, err)
 
 		fields := toSlice(t, fieldsIter)
@@ -125,7 +125,7 @@ func TestBuilderTerms(t *testing.T) {
 		}
 
 		for field, expectedTerms := range knownsFields {
-			termsIter, err := builder.TermsIterable().Terms([]byte(field))
+			termsIter, err := builder.Terms([]byte(field))
 			require.NoError(t, err)
 			terms := toTermPostings(t, termsIter)
 			for term := range terms {
@@ -174,12 +174,12 @@ func toTermPostings(t *testing.T, iter segment.TermsIterator) termPostings {
 
 func printBuilder(t *testing.T, b segment.Builder) {
 	fmt.Printf("print builder %x\n", unsafe.Pointer(b.(*builder)))
-	fieldsIter, err := b.FieldsIterable().Fields()
+	fieldsIter, err := b.Fields()
 	require.NoError(t, err)
 	for fieldsIter.Next() {
 		curr := fieldsIter.Current()
 		fmt.Printf("builder field: %v\n", string(curr))
-		termsIter, err := b.TermsIterable().Terms(curr)
+		termsIter, err := b.Terms(curr)
 		require.NoError(t, err)
 		for termsIter.Next() {
 			term, postings := termsIter.Current()

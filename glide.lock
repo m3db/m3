@@ -1,5 +1,5 @@
-hash: 1801ec95e1a41a433a7354aff1f44f78a89661d07017265344c37a05c802c602
-updated: 2019-01-03T11:20:41.592649-05:00
+hash: 9f8622d0ae068e099d882c42477ffd6cbb4dc9a10460a4b52a862a1a818a7794
+updated: 2019-01-03T15:09:54.544976-05:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -299,7 +299,7 @@ imports:
 - name: github.com/pelletier/go-toml
   version: 3b00596b2e9ee541bbd72dc50cc0c60e2b46c69c
 - name: github.com/pilosa/pilosa
-  version: cd1f63a34b32cfa8f48d982e4428122efecb82a3
+  version: 9fc1371ae50fd09de86b8d88eef1e15596d545b6
   repo: https://github.com/richardartoul/pilosa
   subpackages:
   - logger

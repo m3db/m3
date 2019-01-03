@@ -23,32 +23,53 @@ package fst
 import (
 	sgmt "github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
-	xerrors "github.com/m3db/m3x/errors"
+	postingsroaring "github.com/m3db/m3/src/m3ninx/postings/roaring"
+	"github.com/pilosa/pilosa/roaring"
 )
 
+var postingsIterRoaringPoolingConfig = roaring.ContainerPoolingConfiguration{
+	AllocateArray:                   false,
+	AllocateRuns:                    false,
+	AllocateBitmap:                  false,
+	MaxCapacity:                     128,
+	MaxKeysAndContainersSliceLength: 128 * 10,
+}
+
 type postingsListRetriever interface {
-	PostingsListAtOffset(postingsOffset uint64) (postings.List, error)
+	UnmarshalPostingsListBitmap(b *roaring.Bitmap, offset uint64) error
 }
 
 type fstTermsPostingsIter struct {
-	retriever    postingsListRetriever
-	termsIter    *fstTermsIter
-	currTerm     []byte
-	currPostings postings.List
-	err          error
+	bitmap   *roaring.Bitmap
+	postings postings.List
+
+	retriever postingsListRetriever
+	termsIter *fstTermsIter
+	currTerm  []byte
+	err       error
 }
 
-func newFSTTermsPostingsIter(
-	retriever postingsListRetriever,
-	termsIter *fstTermsIter,
-) *fstTermsPostingsIter {
+func newFSTTermsPostingsIter() *fstTermsPostingsIter {
+	bitmap := roaring.NewBitmapWithPooling(postingsIterRoaringPoolingConfig)
 	return &fstTermsPostingsIter{
-		retriever: retriever,
-		termsIter: termsIter,
+		bitmap:   bitmap,
+		postings: postingsroaring.NewPostingsListFromBitmap(bitmap),
 	}
 }
 
 var _ sgmt.TermsIterator = &fstTermsPostingsIter{}
+
+func (f *fstTermsPostingsIter) reset(
+	retriever postingsListRetriever,
+	termsIter *fstTermsIter,
+) {
+	f.bitmap.Reset()
+
+	f.retriever = retriever
+	f.termsIter = termsIter
+	f.currTerm = nil
+	f.err = nil
+}
 
 func (f *fstTermsPostingsIter) Next() bool {
 	if f.err != nil {
@@ -62,7 +83,7 @@ func (f *fstTermsPostingsIter) Next() bool {
 
 	var offset uint64
 	f.currTerm, offset = f.termsIter.CurrentExtended()
-	f.currPostings, f.err = f.retriever.PostingsListAtOffset(offset)
+	f.err = f.retriever.UnmarshalPostingsListBitmap(f.bitmap, offset)
 	if f.err != nil {
 		return false
 	}
@@ -71,7 +92,7 @@ func (f *fstTermsPostingsIter) Next() bool {
 }
 
 func (f *fstTermsPostingsIter) Current() ([]byte, postings.List) {
-	return f.currTerm, f.currPostings
+	return f.currTerm, f.postings
 }
 
 func (f *fstTermsPostingsIter) Err() error {
@@ -79,7 +100,7 @@ func (f *fstTermsPostingsIter) Err() error {
 }
 
 func (f *fstTermsPostingsIter) Close() error {
-	var multiErr xerrors.MultiError
-	multiErr = multiErr.Add(f.termsIter.Close())
-	return multiErr.FinalError()
+	err := f.termsIter.Close()
+	f.reset(nil, nil)
+	return err
 }

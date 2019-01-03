@@ -39,6 +39,7 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 
 	"github.com/couchbase/vellum"
+	pilosaroaring "github.com/pilosa/pilosa/roaring"
 )
 
 var (
@@ -237,6 +238,10 @@ func (r *fsSegment) Close() error {
 	return multiErr.FinalError()
 }
 
+func (r *fsSegment) FieldsIterable() sgmt.FieldsIterable {
+	return r
+}
+
 func (r *fsSegment) Fields() (sgmt.FieldsIterator, error) {
 	r.RLock()
 	defer r.RUnlock()
@@ -244,21 +249,38 @@ func (r *fsSegment) Fields() (sgmt.FieldsIterator, error) {
 		return nil, errReaderClosed
 	}
 
-	return newFSTTermsIter(newFSTTermsIterOpts{
-		opts:        r.opts,
+	iter := newFSTTermsIter()
+	iter.reset(fstTermsIterOpts{
 		fst:         r.fieldsFST,
 		finalizeFST: false,
-	}), nil
+	})
+	return iter, nil
 }
 
-func (r *fsSegment) Terms(field []byte) (sgmt.TermsIterator, error) {
-	r.RLock()
-	defer r.RUnlock()
-	if r.closed {
+func (r *fsSegment) TermsIterable() sgmt.TermsIterable {
+	return &termsIterable{
+		r:            r,
+		fieldsIter:   newFSTTermsIter(),
+		postingsIter: newFSTTermsPostingsIter(),
+	}
+}
+
+// termsIterable allows multiple term lookups to share the same roaring
+// bitmap being unpacked for use when iterating over an entire segment
+type termsIterable struct {
+	r            *fsSegment
+	fieldsIter   *fstTermsIter
+	postingsIter *fstTermsPostingsIter
+}
+
+func (i *termsIterable) Terms(field []byte) (sgmt.TermsIterator, error) {
+	i.r.RLock()
+	defer i.r.RUnlock()
+	if i.r.closed {
 		return nil, errReaderClosed
 	}
 
-	termsFST, exists, err := r.retrieveTermsFSTWithRLock(field)
+	termsFST, exists, err := i.r.retrieveTermsFSTWithRLock(field)
 	if err != nil {
 		return nil, err
 	}
@@ -267,20 +289,28 @@ func (r *fsSegment) Terms(field []byte) (sgmt.TermsIterator, error) {
 		return sgmt.EmptyTermsIterator, nil
 	}
 
-	return newFSTTermsPostingsIter(r, newFSTTermsIter(newFSTTermsIterOpts{
-		opts:        r.opts,
+	i.fieldsIter.reset(fstTermsIterOpts{
 		fst:         termsFST,
 		finalizeFST: true,
-	})), nil
+	})
+	i.postingsIter.reset(i.r, i.fieldsIter)
+	return i.postingsIter, nil
 }
 
-func (r *fsSegment) PostingsListAtOffset(postingsOffset uint64) (postings.List, error) {
+func (r *fsSegment) UnmarshalPostingsListBitmap(b *pilosaroaring.Bitmap, offset uint64) error {
 	r.RLock()
 	defer r.RUnlock()
 	if r.closed {
-		return nil, errReaderClosed
+		return errReaderClosed
 	}
-	return r.retrievePostingsListWithRLock(postingsOffset)
+
+	postingsBytes, err := r.retrieveBytesWithRLock(r.data.PostingsData, offset)
+	if err != nil {
+		return fmt.Errorf("unable to retrieve postings data: %v", err)
+	}
+
+	b.Reset()
+	return b.UnmarshalBinary(postingsBytes)
 }
 
 func (r *fsSegment) MatchTerm(field []byte, term []byte) (postings.List, error) {

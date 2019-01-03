@@ -178,7 +178,7 @@ func (w *writer) WritePostingsOffsets(iow io.Writer) error {
 	currentOffset := uint64(0)
 
 	// retrieve known fields
-	fields, err := w.builder.FieldsIterable().Fields()
+	fields, err := w.builder.Fields()
 	if err != nil {
 		return err
 	}
@@ -187,7 +187,7 @@ func (w *writer) WritePostingsOffsets(iow io.Writer) error {
 	for fields.Next() {
 		f := fields.Current()
 		// retrieve known terms for current field
-		terms, err := w.builder.TermsIterable().Terms(f)
+		terms, err := w.builder.Terms(f)
 		if err != nil {
 			return err
 		}
@@ -245,7 +245,7 @@ func (w *writer) WriteFSTTerms(iow io.Writer) error {
 	currentOffset := uint64(0)
 
 	// retrieve all known fields
-	fields, err := w.builder.FieldsIterable().Fields()
+	fields, err := w.builder.Fields()
 	if err != nil {
 		return err
 	}
@@ -262,7 +262,7 @@ func (w *writer) WriteFSTTerms(iow io.Writer) error {
 		}
 
 		// retrieve all terms for this field
-		terms, err := w.builder.TermsIterable().Terms(f)
+		terms, err := w.builder.Terms(f)
 		if err != nil {
 			return err
 		}
@@ -344,7 +344,7 @@ func (w *writer) WriteFSTFields(iow io.Writer) error {
 	offsets := w.fstTermsOffsets
 
 	// retrieve all known fields
-	fields, err := w.builder.FieldsIterable().Fields()
+	fields, err := w.builder.Fields()
 	if err != nil {
 		return err
 	}
