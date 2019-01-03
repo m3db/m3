@@ -1137,6 +1137,11 @@ func withEncodingAndPoolingOptions(
 
 	writeBatchPool.Init()
 
+	bucketPool := series.NewBufferBucketPool(
+		poolOptions(policy.BufferBucketPool, scope.SubScope("buffer-bucket-pool")))
+	bucketVersionsPool := series.NewBufferBucketVersionsPool(
+		poolOptions(policy.BufferBucketVersionsPool, scope.SubScope("buffer-bucket-versions-pool")))
+
 	opts = opts.
 		SetBytesPool(bytesPool).
 		SetContextPool(contextPool).
@@ -1146,7 +1151,9 @@ func withEncodingAndPoolingOptions(
 		SetIdentifierPool(identifierPool).
 		SetFetchBlockMetadataResultsPool(fetchBlockMetadataResultsPool).
 		SetFetchBlocksMetadataResultsPool(fetchBlocksMetadataResultsPool).
-		SetWriteBatchPool(writeBatchPool)
+		SetWriteBatchPool(writeBatchPool).
+		SetBufferBucketPool(bucketPool).
+		SetBufferBucketVersionsPool(bucketVersionsPool)
 
 	blockOpts := opts.DatabaseBlockOptions().
 		SetDatabaseBlockAllocSize(policy.BlockAllocSizeOrDefault()).
@@ -1185,14 +1192,8 @@ func withEncodingAndPoolingOptions(
 	// NB(prateek): retention opts are overridden per namespace during series creation
 	retentionOpts := retention.NewOptions()
 
-	bucketPool := series.NewBufferBucketPool(
-		poolOptions(policy.BufferBucketPool, scope.SubScope("buffer-bucket-pool")))
-	bucketVersionsPool := series.NewBufferBucketVersionsPool(
-		poolOptions(policy.BufferBucketVersionsPool, scope.SubScope("buffer-bucket-versions-pool")))
 	seriesOpts := storage.NewSeriesOptionsFromOptions(opts, retentionOpts).
-		SetFetchBlockMetadataResultsPool(opts.FetchBlockMetadataResultsPool()).
-		SetBufferBucketPool(bucketPool).
-		SetBufferBucketVersionsPool(bucketVersionsPool)
+		SetFetchBlockMetadataResultsPool(opts.FetchBlockMetadataResultsPool())
 
 	seriesPool := series.NewDatabaseSeriesPool(
 		poolOptions(
