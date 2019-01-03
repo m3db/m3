@@ -32,15 +32,13 @@ import (
 	"github.com/m3db/m3/src/m3ninx/postings"
 	"github.com/m3db/m3/src/m3ninx/postings/pilosa"
 	"github.com/m3db/m3/src/m3ninx/x"
-
-	"github.com/pilosa/pilosa/roaring"
 )
 
 var (
-	defaultInitialPostingsOffsetsMapSize = 1024
-	defaultInitialFSTTermsOffsetsMapSize = 1024
-	defaultInitialDocOffsetsSize         = 1024
-	defaultInitialIntEncoderSize         = 128
+	defaultInitialPostingsOffsetsSize = 1024
+	defaultInitialFSTTermsOffsetsSize = 1024
+	defaultInitialDocOffsetsSize      = 1024
+	defaultInitialIntEncoderSize      = 128
 
 	errUnableToFindPostingsOffset = errors.New("internal error: unable to find postings offset")
 	errUnableToFindFSTTermsOffset = errors.New("internal error: unable to find fst terms offset")
@@ -60,8 +58,8 @@ type writer struct {
 	docsDataFileWritten bool
 	postingsFileWritten bool
 	fstTermsFileWritten bool
-	postingsOffsets     *roaring.Bitmap
-	fstTermsOffsets     *roaring.Bitmap
+	postingsOffsets     []uint64
+	fstTermsOffsets     []uint64
 	docOffsets          []docOffset
 }
 
@@ -73,8 +71,8 @@ func NewWriter() Writer {
 		fstWriter:       newFSTWriter(),
 		docDataWriter:   docs.NewDataWriter(nil),
 		docIndexWriter:  docs.NewIndexWriter(nil),
-		postingsOffsets: roaring.NewBitmap(),
-		fstTermsOffsets: roaring.NewBitmap(),
+		postingsOffsets: make([]uint64, 0, defaultInitialPostingsOffsetsSize),
+		fstTermsOffsets: make([]uint64, 0, defaultInitialFSTTermsOffsetsSize),
 		docOffsets:      make([]docOffset, 0, defaultInitialDocOffsetsSize),
 	}
 }
@@ -94,8 +92,8 @@ func (w *writer) clear() {
 	w.fstTermsFileWritten = false
 	// NB(r): Use a call to reset here instead of creating a new bitmaps
 	// when roaring supports a call to reset.
-	w.postingsOffsets = roaring.NewBitmap()
-	w.fstTermsOffsets = roaring.NewBitmap()
+	w.postingsOffsets = w.postingsOffsets[:0]
+	w.fstTermsOffsets = w.fstTermsOffsets[:0]
 	w.docOffsets = w.docOffsets[:0]
 }
 
@@ -214,9 +212,7 @@ func (w *writer) WritePostingsOffsets(iow io.Writer) error {
 			currentOffset += n
 
 			// track current offset as the offset for the current field/term
-			if err := w.addPostingsOffset(currentOffset); err != nil {
-				return err
-			}
+			w.postingsOffsets = append(w.postingsOffsets, currentOffset)
 		}
 
 		if err := terms.Err(); err != nil {
@@ -255,7 +251,7 @@ func (w *writer) WriteFSTTerms(iow io.Writer) error {
 	}
 
 	// iterate postings offsets
-	offsets := w.postingsOffsets.Iterator()
+	offsets := w.postingsOffsets
 
 	// build a fst for each field's terms
 	for fields.Next() {
@@ -276,10 +272,12 @@ func (w *writer) WriteFSTTerms(iow io.Writer) error {
 			t, _ := terms.Current()
 
 			// retieve postsings offset for the current field,term
-			po, eof := offsets.Next()
-			if eof {
+			if len(offsets) == 0 {
 				return fmt.Errorf("postings offset not found for: field=%s, term=%s", f, t)
 			}
+
+			po := offsets[0]
+			offsets = offsets[1:]
 
 			// add the term -> posting offset into the term's fst
 			if err := w.fstWriter.Add(t, po); err != nil {
@@ -310,9 +308,7 @@ func (w *writer) WriteFSTTerms(iow io.Writer) error {
 		currentOffset += numBytesFST + n
 
 		// track current offset as the offset for the current field's fst
-		if err := w.addFSTTermsOffset(currentOffset); err != nil {
-			return err
-		}
+		w.fstTermsOffsets = append(w.fstTermsOffsets, currentOffset)
 	}
 
 	if err := fields.Err(); err != nil {
@@ -324,14 +320,9 @@ func (w *writer) WriteFSTTerms(iow io.Writer) error {
 	}
 
 	// make sure we consumed all the postings offsets
-	if _, eof := offsets.Next(); !eof {
-		numUnexpected := 0
-		for eof {
-			numUnexpected++
-			_, eof = offsets.Next()
-		}
+	if len(offsets) != 0 {
 		return fmt.Errorf("postings offsets remain at end of terms: remaining=%d",
-			numUnexpected)
+			len(offsets))
 	}
 
 	// all good!
@@ -350,7 +341,7 @@ func (w *writer) WriteFSTFields(iow io.Writer) error {
 	}
 
 	// iterate field offsets
-	offsets := w.fstTermsOffsets.Iterator()
+	offsets := w.fstTermsOffsets
 
 	// retrieve all known fields
 	fields, err := w.builder.FieldsIterable().Fields()
@@ -363,10 +354,12 @@ func (w *writer) WriteFSTFields(iow io.Writer) error {
 		f := fields.Current()
 
 		// get offset for this field's term fst
-		offset, eof := offsets.Next()
-		if eof {
+		if len(offsets) == 0 {
 			return fmt.Errorf("fst field offset not found for: field=%s", f)
 		}
+
+		offset := offsets[0]
+		offsets = offsets[1:]
 
 		// add field, offset into fst
 		if err := w.fstWriter.Add(f, offset); err != nil {
@@ -386,14 +379,9 @@ func (w *writer) WriteFSTFields(iow io.Writer) error {
 	_, err = w.fstWriter.Close()
 
 	// make sure we consumed all the postings offsets
-	if _, eof := offsets.Next(); !eof {
-		numUnexpected := 0
-		for eof {
-			numUnexpected++
-			_, eof = offsets.Next()
-		}
+	if len(offsets) != 0 {
 		return fmt.Errorf("field offsets remain at end of fields: remaining=%d",
-			numUnexpected)
+			len(offsets))
 	}
 
 	return err
@@ -429,20 +417,6 @@ func (w *writer) writeSizeAndMagicNumber(iow io.Writer, size uint64) (uint64, er
 		return 0, err
 	}
 	return uint64(n), nil
-}
-
-func (w *writer) addFSTTermsOffset(offset uint64) error {
-	if !w.fstTermsOffsets.DirectAdd(offset) {
-		return fmt.Errorf("fst terms offset already exists: %d", offset)
-	}
-	return nil
-}
-
-func (w *writer) addPostingsOffset(offset uint64) error {
-	if !w.postingsOffsets.DirectAdd(offset) {
-		return fmt.Errorf("postings offset already exists: %d", offset)
-	}
-	return nil
 }
 
 func defaultV1Metadata() fswriter.Metadata {

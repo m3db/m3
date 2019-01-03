@@ -112,34 +112,6 @@ genny-map-segment-mem-fieldsmap: install-m3x-repo
 	mv -f $(m3ninx_package_path)/index/segment/mem/map_gen.go $(m3ninx_package_path)/index/segment/mem/fields_map_gen.go
 	mv -f $(m3ninx_package_path)/index/segment/mem/new_map_gen.go $(m3ninx_package_path)/index/segment/mem/fields_map_new.go
 
-# Map generation rule for index/segment/fst/postingsOffsetsMap
-.PHONY: genny-map-segment-fst-postings-offset
-genny-map-segment-fst-postings-offset: install-m3x-repo
-	cd $(m3x_package_path) && make hashmap-gen           \
-		pkg=fst                                            \
-		key_type=doc.Field                                 \
-		value_type=uint64                                  \
-		target_package=$(m3ninx_package)/index/segment/fst \
-		rename_nogen_key=true                              \
-		rename_nogen_value=true                            \
-		rename_type_prefix=postingsOffsets
-	# Rename generated map file
-	mv -f $(m3ninx_package_path)/index/segment/fst/map_gen.go $(m3ninx_package_path)/index/segment/fst/postings_offsets_map_gen.go
-
-# Map generation rule for index/segment/fst/fstTermsOffsetsMap
-.PHONY: genny-map-segment-fst-terms-offset
-genny-map-segment-fst-terms-offset: install-m3x-repo
-	cd $(m3x_package_path) && make hashmap-gen           \
-		pkg=fst                                            \
-		key_type=[]byte                                    \
-		value_type=uint64                                  \
-		target_package=$(m3ninx_package)/index/segment/fst \
-		rename_nogen_key=true                              \
-		rename_nogen_value=true                            \
-		rename_type_prefix=fstTermsOffsets
-	# Rename generated map file
-	mv -f $(m3ninx_package_path)/index/segment/fst/map_gen.go $(m3ninx_package_path)/index/segment/fst/fst_terms_offsets_map_gen.go
-
 # generation rule for all generated arraypools
 .PHONY: genny-arraypool-all
 genny-arraypool-all:                     \

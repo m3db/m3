@@ -158,9 +158,7 @@ func (d *postingsList) RemoveRange(min, max postings.ID) error {
 }
 
 func (d *postingsList) Reset() {
-	// TODO(r): Check that Containers.Reset() does not leak things
-	// improperly holding onto old pointer values when it doesn't mean to
-	d.bitmap.Containers.Reset()
+	d.bitmap.Reset()
 }
 
 func (d *postingsList) Contains(i postings.ID) bool {

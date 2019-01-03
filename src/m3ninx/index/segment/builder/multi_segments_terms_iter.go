@@ -23,7 +23,13 @@ package builder
 import (
 	"github.com/m3db/m3/src/m3ninx/index/segment"
 	"github.com/m3db/m3/src/m3ninx/postings"
+	"github.com/m3db/m3/src/m3ninx/postings/roaring"
 	xerrors "github.com/m3db/m3x/errors"
+	bitmap "github.com/pilosa/pilosa/roaring"
+)
+
+const (
+	defaultBitmapContainerPooling = 128
 )
 
 // Ensure for our use case that the terms iter from segments we return
@@ -39,10 +45,11 @@ type termsIterFromSegments struct {
 	termsIters []*termsKeyIter
 }
 
-func newTermsIterFromSegments(opts Options) *termsIterFromSegments {
+func newTermsIterFromSegments() *termsIterFromSegments {
+	b := bitmap.NewBitmapWithDefaultPooling(defaultBitmapContainerPooling)
 	return &termsIterFromSegments{
 		keyIter:          newMultiKeyIterator(),
-		currPostingsList: opts.PostingsListPool().Get(),
+		currPostingsList: roaring.NewPostingsListFromBitmap(b),
 	}
 }
 
