@@ -224,6 +224,14 @@ db:
           size: 9437184
           lowWatermark: 0.01
           highWatermark: 0.02
+      bufferBucketPool:
+          size: 2
+          lowWatermark: 0.01
+          highWatermark: 0.02
+      bufferBucketVersionsPool:
+          size: 2
+          lowWatermark: 0.01
+          highWatermark: 0.02
       bytesPool:
           buckets:
               - capacity: 16
@@ -547,6 +555,14 @@ func TestConfiguration(t *testing.T) {
       size: 8192
       initialBatchSize: 128
       maxBatchSize: 100000
+    bufferBucketPool:
+      size: 2
+      lowWatermark: 0.01
+      highWatermark: 0.02
+    bufferBucketVersionsPool:
+      size: 2
+      lowWatermark: 0.01
+      highWatermark: 0.02
     postingsListPool:
       size: 8
       lowWatermark: 0
