@@ -23,7 +23,6 @@ package m3db
 import (
 	"math"
 	"sync"
-	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/block"
@@ -46,7 +45,7 @@ func (b *encodedBlock) seriesIter() block.SeriesIter {
 	cs := b.consolidation
 	bounds := cs.bounds
 	consolidator := consolidators.NewSeriesLookbackConsolidator(
-		time.Minute,
+		b.lookback,
 		bounds.StepSize,
 		cs.currentTime,
 		cs.consolidationFn,

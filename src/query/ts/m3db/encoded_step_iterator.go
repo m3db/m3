@@ -55,7 +55,7 @@ type encodedStepIter struct {
 func (b *encodedBlock) stepIter() block.StepIter {
 	cs := b.consolidation
 	consolidator := consolidators.NewStepLookbackConsolidator(
-		time.Minute,
+		b.lookback,
 		cs.bounds.StepSize,
 		cs.currentTime,
 		len(b.seriesBlockIterators),

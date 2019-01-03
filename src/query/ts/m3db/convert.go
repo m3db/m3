@@ -21,7 +21,6 @@
 package m3db
 
 import (
-	"fmt"
 	"sort"
 	"time"
 
@@ -29,7 +28,6 @@ import (
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	"github.com/m3db/m3x/ident"
 )
 
@@ -58,19 +56,12 @@ func (b seriesBlocks) Less(i, j int) bool {
 	return b[i].start.Before(b[j].start)
 }
 
-// ConvertM3DBSeriesIterators converts series iterators to iterator blocks
-func ConvertM3DBSeriesIterators(
+func seriesIteratorsToEncodedBlockIterators(
 	iterators encoding.SeriesIterators,
-	tagOptions models.TagOptions,
 	bounds models.Bounds,
+	opts Options,
 ) ([]block.Block, error) {
-	bl, err := NewEncodedBlock(
-		iterators.Iters(),
-		bounds,
-		tagOptions,
-		true,
-	)
-
+	bl, err := NewEncodedBlock(iterators.Iters(), bounds, true, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -78,18 +69,39 @@ func ConvertM3DBSeriesIterators(
 	return []block.Block{bl}, nil
 }
 
-// ConvertM3DBSegmentedBlockIterators converts series iterators to a list of blocks
-func ConvertM3DBSegmentedBlockIterators(
+// ConvertM3DBSeriesIterators converts series iterators to iterator blocks. If
+// lookback is greater than 0, converts the entire series into a single block,
+// otherwise, splits the series into blocks.
+func ConvertM3DBSeriesIterators(
 	iterators encoding.SeriesIterators,
-	iterAlloc encoding.ReaderIteratorAllocate,
-	tagOptions models.TagOptions,
-	bounds *models.Bounds,
-	pools encoding.IteratorPools,
+	bounds models.Bounds,
+	opts Options,
 ) ([]block.Block, error) {
-	return nil, fmt.Errorf("WIP: splitting blocks will require lookback propagation")
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+
+	if opts.SplittingSeriesByBlock() {
+		return convertM3DBSegmentedBlockIterators(iterators, bounds, opts)
+	}
+
+	return seriesIteratorsToEncodedBlockIterators(iterators, bounds, opts)
+}
+
+// convertM3DBSegmentedBlockIterators converts series iterators to a list of blocks
+func convertM3DBSegmentedBlockIterators(
+	iterators encoding.SeriesIterators,
+	bounds models.Bounds,
+	opts Options,
+) ([]block.Block, error) {
 	defer iterators.Close()
 	// TODO bounds here should be bounds for this block only not for everything!
-	blockBuilder := newEncodedBlockBuilder(tagOptions, consolidators.TakeLast)
+	blockBuilder := newEncodedBlockBuilder(opts.TagOptions(), opts.ConsolidationFunc())
+	var (
+		iterAlloc = opts.IterAlloc()
+		pools     = opts.IteratorPools()
+	)
+
 	for _, seriesIterator := range iterators.Iters() {
 		blockReplicas, err := blockReplicasFromSeriesIterator(seriesIterator, iterAlloc, bounds, pools)
 		if err != nil {
@@ -108,7 +120,7 @@ func ConvertM3DBSegmentedBlockIterators(
 func blockReplicasFromSeriesIterator(
 	seriesIterator encoding.SeriesIterator,
 	iterAlloc encoding.ReaderIteratorAllocate,
-	bounds *models.Bounds,
+	bounds models.Bounds,
 	pools encoding.IteratorPools,
 ) (seriesBlocks, error) {
 	blocks := make(seriesBlocks, 0, bounds.Steps())

@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/ts/m3db"
+	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 	"github.com/m3db/m3x/ident"
 	xsync "github.com/m3db/m3x/sync"
 )
@@ -51,25 +52,31 @@ const (
 )
 
 type m3storage struct {
-	tagOptions      models.TagOptions
 	clusters        Clusters
 	readWorkerPool  xsync.PooledWorkerPool
 	writeWorkerPool xsync.PooledWorkerPool
+	opts            m3db.Options
 	nowFn           func() time.Time
 }
 
 // NewStorage creates a new local m3storage instance.
+// TODO: consider taking in an iterator pools here.
 func NewStorage(
 	clusters Clusters,
 	readWorkerPool xsync.PooledWorkerPool,
 	writeWorkerPool xsync.PooledWorkerPool,
 	tagOptions models.TagOptions,
 ) Storage {
+	opts := m3db.NewOptions().
+		SetTagOptions(tagOptions).
+		SetLookbackDuration(time.Minute).
+		SetConsolidationFunc(consolidators.TakeLast)
+
 	return &m3storage{
-		tagOptions:      tagOptions,
 		clusters:        clusters,
 		readWorkerPool:  readWorkerPool,
 		writeWorkerPool: writeWorkerPool,
+		opts:            opts,
 		nowFn:           time.Now,
 	}
 }
@@ -85,7 +92,12 @@ func (s *m3storage) Fetch(
 		return nil, err
 	}
 
-	return storage.SeriesIteratorsToFetchResult(raw, s.readWorkerPool, false, s.tagOptions)
+	return storage.SeriesIteratorsToFetchResult(
+		raw,
+		s.readWorkerPool,
+		false,
+		s.opts.TagOptions(),
+	)
 }
 
 func (s *m3storage) FetchBlocks(
@@ -113,12 +125,7 @@ func (s *m3storage) FetchBlocks(
 		StepSize: query.Interval,
 	}
 
-	blocks, err := m3db.ConvertM3DBSeriesIterators(
-		raw,
-		s.tagOptions,
-		bounds,
-	)
-
+	blocks, err := m3db.ConvertM3DBSeriesIterators(raw, bounds, s.opts)
 	if err != nil {
 		return block.Result{}, err
 	}
@@ -214,7 +221,7 @@ func (s *m3storage) FetchTags(
 
 	metrics := make(models.Metrics, len(tagResult))
 	for i, result := range tagResult {
-		m, err := storage.FromM3IdentToMetric(result.ID, result.Iter, s.tagOptions)
+		m, err := storage.FromM3IdentToMetric(result.ID, result.Iter, s.opts.TagOptions())
 		if err != nil {
 			return nil, err
 		}
