@@ -35,6 +35,7 @@ revert_copyright_only_change() {
         git checkout -- "$FILE" 2> /dev/null # Remove changes, since the only change was the copyright year.
     fi
 }
+
 export -f revert_copyright_only_change
 
 autogen_cleanup() {
@@ -65,6 +66,7 @@ gen_cleanup_helper() {
     gofmt -w $FILE
     revert_copyright_only_change $FILE
 }
+
 export -f gen_cleanup_helper
 
 gen_cleanup_dir() {
@@ -72,11 +74,7 @@ gen_cleanup_dir() {
     local DIRS=$2
     for DIR in $DIRS;
     do
-        # First, try BSD regex find
-        if ! find -E $DIR -regex "$PATTERN" -type f -exec /bin/bash -c 'gen_cleanup_helper $0' {} \; 2> /dev/null; then
-            # Didn't work, so try GNU regex find
-            find $DIR -regextype posix-extended -regex "$PATTERN" -type f -exec /bin/bash -c 'gen_cleanup_helper $0' {} \;
-        fi
+        find $DIR -name "$PATTERN" -type f -exec /bin/bash -c 'gen_cleanup_helper $0' {} \;
     done
 }
 
