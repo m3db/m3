@@ -45,12 +45,12 @@ var (
 )
 
 const (
-	bucketsCacheSize       = 2
-	defaultBucketsPoolSize = 2
+	bucketsCacheSize = 2
 	// In the most common case, there would only be one bucket in a
 	// buckets slice, i.e. it gets written to, flushed, and then the buckets
 	// get evicted from the map
-	defaultBucketPoolSize = defaultBucketsPoolSize
+	defaultBufferBucketPoolSize         = 2
+	defaultBufferBucketVersionsPoolSize = defaultBufferBucketPoolSize
 
 	writableBucketVer = 0
 )
@@ -146,8 +146,16 @@ func (b *dbBuffer) Reset(blockRetriever QueryableBlockRetriever, opts Options) {
 	b.nowFn = opts.ClockOptions().NowFn()
 	ropts := opts.RetentionOptions()
 	b.blockRetriever = blockRetriever
-	b.bucketVersionsPool = opts.BufferBucketVersionsPool()
 	b.bucketPool = opts.BufferBucketPool()
+	if b.bucketPool == nil {
+		b.bucketPool = NewBufferBucketPool(
+			pool.NewObjectPoolOptions().SetSize(defaultBufferBucketPoolSize))
+	}
+	b.bucketVersionsPool = opts.BufferBucketVersionsPool()
+	if b.bucketVersionsPool == nil {
+		b.bucketVersionsPool = NewBufferBucketVersionsPool(
+			pool.NewObjectPoolOptions().SetSize(defaultBufferBucketVersionsPoolSize))
+	}
 	b.blockSize = ropts.BlockSize()
 	b.bufferPast = ropts.BufferPast()
 	b.bufferFuture = ropts.BufferFuture()
@@ -472,7 +480,7 @@ func (b *dbBuffer) newBucketsAt(
 	t time.Time,
 ) BufferBucketVersions {
 	buckets := b.bucketVersionsPool.Get()
-	buckets.ResetTo(t, b.opts)
+	buckets.ResetTo(t, b.opts, b.bucketPool)
 	b.bucketsMap[xtime.ToUnixNano(t)] = buckets
 	return buckets
 }
@@ -530,7 +538,7 @@ func (b *dbBuffer) removeBucketsAt(blockStart time.Time) {
 		return
 	}
 	// nil out pointers
-	buckets.ResetTo(timeZero, nil)
+	buckets.ResetTo(timeZero, nil, nil)
 	b.bucketVersionsPool.Put(buckets)
 	delete(b.bucketsMap, xtime.ToUnixNano(blockStart))
 }
@@ -540,11 +548,13 @@ type dbBufferBucketVersions struct {
 	start             time.Time
 	opts              Options
 	lastReadUnixNanos int64
+	bucketPool        BufferBucketPool
 }
 
 func (b *dbBufferBucketVersions) ResetTo(
 	start time.Time,
 	opts Options,
+	bucketPool BufferBucketPool,
 ) {
 	// nil all elements so that they get GC'd
 	for i := range b.buckets {
@@ -554,6 +564,7 @@ func (b *dbBufferBucketVersions) ResetTo(
 	b.start = start
 	b.opts = opts
 	atomic.StoreInt64(&b.lastReadUnixNanos, 0)
+	b.bucketPool = bucketPool
 }
 
 func (b *dbBufferBucketVersions) Streams(ctx context.Context, wType WriteType) []xio.BlockReader {
@@ -618,7 +629,7 @@ func (b *dbBufferBucketVersions) RemoveBucketsUpToVersion(version int) {
 			// or less than the retrievable version, since that means
 			// that the version has successfully persisted to disk
 			bucket.Reset()
-			b.opts.BufferBucketPool().Put(bucket)
+			b.bucketPool.Put(bucket)
 			continue
 		}
 
@@ -665,7 +676,7 @@ func (b *dbBufferBucketVersions) newBucketAt(
 	t time.Time,
 	wType WriteType,
 ) BufferBucket {
-	newBucket := b.opts.BufferBucketPool().Get()
+	newBucket := b.bucketPool.Get()
 	newBucket.ResetTo(t, wType, b.opts)
 	b.buckets = append([]BufferBucket{newBucket}, b.buckets...)
 	return newBucket

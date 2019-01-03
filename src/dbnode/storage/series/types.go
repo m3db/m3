@@ -379,7 +379,7 @@ type BufferBucketVersions interface {
 		wType WriteType,
 	) error
 
-	ResetTo(start time.Time, opts Options)
+	ResetTo(start time.Time, opts Options, bucketPool BufferBucketPool)
 
 	Merge(wType WriteType) (int, error)
 
