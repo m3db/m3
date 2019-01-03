@@ -53,6 +53,8 @@ pages:
       - "Caching": "m3db/architecture/caching.md"
   - "Query Engine and Coordinator":
     - "Introduction": "query_engine/index.md"
+    - "API":
+      - "Query": "query_engine/api/index.md"
     - "Roadmap": "query_engine/roadmap.md"
     - "Architecture":
       - "Overview": "query_engine/architecture/index.md"
