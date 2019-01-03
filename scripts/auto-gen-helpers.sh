@@ -39,7 +39,7 @@ export -f revert_copyright_only_change
 
 autogen_cleanup() {
     local DIR="$1"
-    find $DIR -type f -name "*.go" -exec /bin/bash -c 'add_license $0 && revert_copyright_only_change $0' {} \;
+    find $DIR -type f -name "*.go" -exec /bin/bash -c 'add_license $0; revert_copyright_only_change $0' {} \;
 }
 
 gen_cleanup_helper() {
@@ -72,7 +72,11 @@ gen_cleanup_dir() {
     local DIRS=$2
     for DIR in $DIRS;
     do
-        find $DIR -name "$PATTERN" -type f -exec /bin/bash -c 'gen_cleanup_helper $0' {} \;
+        # First, try BSD regex find
+        if ! find -E $DIR -regex "$PATTERN" -type f -exec /bin/bash -c 'gen_cleanup_helper $0' {} \; 2> /dev/null; then
+            # Didn't work, so try GNU regex find
+            find $DIR -regextype posix-extended -regex "$PATTERN" -type f -exec /bin/bash -c 'gen_cleanup_helper $0' {} \;
+        fi
     done
 }
 
