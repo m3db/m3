@@ -29,7 +29,7 @@ import (
 )
 
 // Options describes the options for encoded block converters.
-// These options are generally config-backed and don't usually change accross
+// These options are generally config-backed and don't usually change across
 // queries, unless certain query string parameters are present.
 type Options interface {
 	// SetSplitSeriesByBlock determines if the converter will split the series
