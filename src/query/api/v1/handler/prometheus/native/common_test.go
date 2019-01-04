@@ -123,14 +123,16 @@ func TestRenderResultsJSON(t *testing.T) {
 	buffer := bytes.NewBuffer(nil)
 	params := models.RequestParams{}
 	series := []*ts.Series{
-		ts.NewSeries("foo", ts.NewFixedStepValues(10*time.Second, 2, 1, start), test.TagSliceToTags([]models.Tag{
-			models.Tag{Name: []byte("bar"), Value: []byte("baz")},
-			models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
-		})),
-		ts.NewSeries("bar", ts.NewFixedStepValues(10*time.Second, 2, 2, start), test.TagSliceToTags([]models.Tag{
-			models.Tag{Name: []byte("baz"), Value: []byte("bar")},
-			models.Tag{Name: []byte("qaz"), Value: []byte("qux")},
-		})),
+		ts.NewSeries([]byte("foo"),
+			ts.NewFixedStepValues(10*time.Second, 2, 1, start), test.TagSliceToTags([]models.Tag{
+				models.Tag{Name: []byte("bar"), Value: []byte("baz")},
+				models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
+			})),
+		ts.NewSeries([]byte("bar"),
+			ts.NewFixedStepValues(10*time.Second, 2, 2, start), test.TagSliceToTags([]models.Tag{
+				models.Tag{Name: []byte("baz"), Value: []byte("bar")},
+				models.Tag{Name: []byte("qaz"), Value: []byte("qux")},
+			})),
 	}
 
 	renderResultsJSON(buffer, series, params)
@@ -187,14 +189,16 @@ func TestRenderInstantaneousResultsJSON(t *testing.T) {
 	start := time.Unix(1535948880, 0)
 	buffer := bytes.NewBuffer(nil)
 	series := []*ts.Series{
-		ts.NewSeries("foo", ts.NewFixedStepValues(10*time.Second, 1, 1, start), test.TagSliceToTags([]models.Tag{
-			models.Tag{Name: []byte("bar"), Value: []byte("baz")},
-			models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
-		})),
-		ts.NewSeries("bar", ts.NewFixedStepValues(10*time.Second, 1, 2, start), test.TagSliceToTags([]models.Tag{
-			models.Tag{Name: []byte("baz"), Value: []byte("bar")},
-			models.Tag{Name: []byte("qaz"), Value: []byte("qux")},
-		})),
+		ts.NewSeries([]byte("foo"),
+			ts.NewFixedStepValues(10*time.Second, 1, 1, start), test.TagSliceToTags([]models.Tag{
+				models.Tag{Name: []byte("bar"), Value: []byte("baz")},
+				models.Tag{Name: []byte("qux"), Value: []byte("qaz")},
+			})),
+		ts.NewSeries([]byte("bar"),
+			ts.NewFixedStepValues(10*time.Second, 1, 2, start), test.TagSliceToTags([]models.Tag{
+				models.Tag{Name: []byte("baz"), Value: []byte("bar")},
+				models.Tag{Name: []byte("qaz"), Value: []byte("qux")},
+			})),
 	}
 
 	renderResultsInstantaneousJSON(buffer, series)

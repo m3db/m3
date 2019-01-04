@@ -21,6 +21,7 @@
 package test
 
 import (
+	"bytes"
 	"fmt"
 	"math"
 	"sort"
@@ -104,7 +105,7 @@ func equalsWithDelta(t *testing.T, expected, actual, delta float64, debugMsg str
 type match struct {
 	indices    []int
 	seriesTags []models.Tag
-	name       string
+	name       []byte
 	values     []float64
 }
 
@@ -113,7 +114,10 @@ type matches []match
 func (m matches) Len() int      { return len(m) }
 func (m matches) Swap(i, j int) { m[i], m[j] = m[j], m[i] }
 func (m matches) Less(i, j int) bool {
-	return models.Tags{Tags: m[i].seriesTags}.ID() > models.Tags{Tags: m[j].seriesTags}.ID()
+	return bytes.Compare(
+		models.Tags{Tags: m[i].seriesTags}.ID(),
+		models.Tags{Tags: m[j].seriesTags}.ID(),
+	) == -1
 }
 
 // CompareLists compares series meta / index pairs

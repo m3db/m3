@@ -62,5 +62,5 @@ func TestConverter(t *testing.T) {
 
 	assert.Equal(t, 3, tsList[0].Len())
 	assert.Equal(t, 10.0, tsList[0].Values().Datapoints()[0].Value)
-	assert.Equal(t, "test_name", tsList[0].Name())
+	assert.Equal(t, []byte("test_name"), tsList[0].Name())
 }

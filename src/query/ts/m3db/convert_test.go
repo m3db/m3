@@ -148,7 +148,7 @@ func verifyMetas(
 	assert.Equal(t, []byte("b"), val)
 
 	for i, m := range metas {
-		assert.Equal(t, fmt.Sprintf("abc%d", i), m.Name)
+		assert.Equal(t, []byte(fmt.Sprintf("abc%d", i)), m.Name)
 		require.Equal(t, 1, m.Tags.Len())
 		val, found := m.Tags.Get([]byte("c"))
 		assert.True(t, found)

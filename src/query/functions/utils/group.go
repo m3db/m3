@@ -52,7 +52,7 @@ func excludeKeysTags(tags models.Tags, matchingTags [][]byte) models.Tags {
 func GroupSeries(
 	matchingTags [][]byte,
 	without bool,
-	opName string,
+	opName []byte,
 	metas []block.SeriesMeta,
 ) ([][]int, []block.SeriesMeta) {
 	var idFunc withKeysID

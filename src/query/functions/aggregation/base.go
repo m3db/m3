@@ -72,9 +72,10 @@ func NewAggregationOp(
 
 // baseOp stores required properties for the baseOp
 type baseOp struct {
-	params NodeParams
-	opType string
-	aggFn  aggregationFn
+	params      NodeParams
+	opType      string
+	opTypeBytes []byte
+	aggFn       aggregationFn
 }
 
 // OpType for the operator
@@ -97,9 +98,10 @@ func (o baseOp) Node(controller *transform.Controller, _ transform.Options) tran
 
 func newBaseOp(params NodeParams, opType string, aggFn aggregationFn) baseOp {
 	return baseOp{
-		params: params,
-		opType: opType,
-		aggFn:  aggFn,
+		params:      params,
+		opType:      opType,
+		opTypeBytes: []byte(opType),
+		aggFn:       aggFn,
 	}
 }
 
@@ -121,7 +123,7 @@ func (n *baseNode) Process(ID parser.NodeID, b block.Block) error {
 	buckets, metas := utils.GroupSeries(
 		params.MatchingTags,
 		params.Without,
-		n.op.opType,
+		n.op.opTypeBytes,
 		seriesMetas,
 	)
 	meta.Tags, metas = utils.DedupeMetadata(metas)

@@ -80,7 +80,7 @@ type Matchers []Matcher
 
 // Metric is the individual metric that gets returned from the search endpoint.
 type Metric struct {
-	ID   string
+	ID   []byte
 	Tags Tags
 }
 

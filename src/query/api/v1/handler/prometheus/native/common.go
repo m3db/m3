@@ -340,7 +340,7 @@ func renderM3QLResultsJSON(
 	for _, s := range series {
 		jw.BeginObject()
 		jw.BeginObjectField("target")
-		jw.WriteString(s.Name())
+		jw.WriteString(string(s.Name()))
 
 		jw.BeginObjectField("tags")
 		jw.BeginObject()
