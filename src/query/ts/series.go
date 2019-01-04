@@ -27,13 +27,13 @@ import (
 // Series is the public interface to a block of timeseries values.  Each block has a start time,
 // a logical number of steps, and a step size indicating the number of milliseconds represented by each point.
 type Series struct {
-	name string
+	name []byte
 	vals Values
 	Tags models.Tags
 }
 
 // NewSeries creates a new Series at a given start time, backed by the provided values
-func NewSeries(name string, vals Values, tags models.Tags) *Series {
+func NewSeries(name []byte, vals Values, tags models.Tags) *Series {
 	return &Series{
 		name: name,
 		vals: vals,
@@ -42,7 +42,7 @@ func NewSeries(name string, vals Values, tags models.Tags) *Series {
 }
 
 // Name returns the name of the timeseries block
-func (s *Series) Name() string { return s.name }
+func (s *Series) Name() []byte { return s.name }
 
 // Len returns the number of values in the time series. Used for aggregation
 func (s *Series) Len() int { return s.vals.Len() }

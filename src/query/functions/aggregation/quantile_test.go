@@ -32,6 +32,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	typeBytesQuantile = []byte(QuantileType)
+)
+
 func TestQuantileFn(t *testing.T) {
 	values := []float64{3.1, 100, 200, 300, 2.1, 800, 1.1, 4.1, 5.1}
 	// NB Taken values by bucket: [3.1, 2.1, 1.1, 4.1]
@@ -147,9 +151,9 @@ func TestQuantileFunctionFilteringWithoutA(t *testing.T) {
 	}
 
 	expectedMetas := []block.SeriesMeta{
-		{Name: QuantileType, Tags: models.EmptyTags()},
-		{Name: QuantileType, Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("b"), Value: []byte("2")}})},
-		{Name: QuantileType, Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("c"), Value: []byte("3")}})},
+		{Name: typeBytesQuantile, Tags: models.EmptyTags()},
+		{Name: typeBytesQuantile, Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("b"), Value: []byte("2")}})},
+		{Name: typeBytesQuantile, Tags: test.TagSliceToTags([]models.Tag{{Name: []byte("c"), Value: []byte("3")}})},
 	}
 	expectedMetaTags := test.TagSliceToTags([]models.Tag{{Name: []byte("d"), Value: []byte("4")}})
 

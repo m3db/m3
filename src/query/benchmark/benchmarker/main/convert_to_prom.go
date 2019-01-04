@@ -62,7 +62,7 @@ func calculateCardinality(fromFile string, logger *zap.Logger) (int, error) {
 		ts, _ := marshalTSDBToProm(tsdb)
 		tags := storage.PromLabelsToM3Tags(ts.GetLabels(), models.NewTagOptions())
 		id := tags.ID()
-		tagsSeen[id]++
+		tagsSeen[string(id)]++
 
 		read++
 		if read%marker == 0 {

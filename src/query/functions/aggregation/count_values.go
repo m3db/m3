@@ -51,8 +51,9 @@ func NewCountValuesOp(
 
 // countValuesOp stores required properties for count values ops
 type countValuesOp struct {
-	params NodeParams
-	opType string
+	params      NodeParams
+	opType      string
+	opTypeBytes []byte
 }
 
 // OpType for the operator
@@ -78,8 +79,9 @@ func (o countValuesOp) Node(
 
 func newCountValuesOp(params NodeParams, opType string) countValuesOp {
 	return countValuesOp{
-		params: params,
-		opType: opType,
+		params:      params,
+		opType:      opType,
+		opTypeBytes: []byte(opType),
 	}
 }
 
@@ -152,7 +154,7 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 	buckets, metas := utils.GroupSeries(
 		params.MatchingTags,
 		params.Without,
-		n.op.opType,
+		n.op.opTypeBytes,
 		seriesMetas,
 	)
 
@@ -192,7 +194,7 @@ func (n *countValuesNode) Process(ID parser.NodeID, b block.Block) error {
 		for k, v := range bucketBlock.indexMapping {
 			// Add the metas of this bucketBlock right after the previous block
 			blockMetas[v+previousBucketBlockIndex] = block.SeriesMeta{
-				Name: n.op.OpType(),
+				Name: n.op.opTypeBytes,
 				Tags: metas[bucketIndex].Tags.Clone().AddTag(models.Tag{
 					Name:  []byte(n.op.params.StringParameter),
 					Value: utils.FormatFloatToBytes(k),

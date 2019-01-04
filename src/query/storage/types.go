@@ -133,7 +133,7 @@ type WriteQuery struct {
 }
 
 func (q *WriteQuery) String() string {
-	return q.Tags.ID()
+	return string(q.Tags.ID())
 }
 
 // CompleteTagsQuery represents a query that returns an autocompleted
