@@ -221,3 +221,15 @@ type Attributes struct {
 	Retention   time.Duration
 	Resolution  time.Duration
 }
+
+// CompletedTag is an autocompleted tag with a name and a list of possible values
+type CompletedTag struct {
+	Name   []byte
+	Values [][]byte
+}
+
+// CompleteTagsResult represents a set of autocompleted tag names and values
+type CompleteTagsResult struct {
+	CompleteNameOnly bool
+	CompletedTags    []CompletedTag
+}

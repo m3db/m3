@@ -24,6 +24,8 @@ import (
 	"bytes"
 	"errors"
 	"sort"
+
+	"github.com/m3db/m3/src/query/storage"
 )
 
 type completeTagsResultBuilder struct {
@@ -40,7 +42,7 @@ func NewCompleteTagsResultBuilder(
 	}
 }
 
-func (b *completeTagsResultBuilder) Add(tagResult *CompleteTagsResult) error {
+func (b *completeTagsResultBuilder) Add(tagResult *storage.CompleteTagsResult) error {
 	nameOnly := b.nameOnly
 	if nameOnly != tagResult.CompleteNameOnly {
 		return errors.New("incoming tag result has mismatched type")
@@ -104,7 +106,7 @@ func (b *completeTagsResultBuilder) Add(tagResult *CompleteTagsResult) error {
 	return nil
 }
 
-type completedTagsByName []CompletedTag
+type completedTagsByName []storage.CompletedTag
 
 func (s completedTagsByName) Len() int      { return len(s) }
 func (s completedTagsByName) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
@@ -112,25 +114,25 @@ func (s completedTagsByName) Less(i, j int) bool {
 	return bytes.Compare(s[i].Name, s[j].Name) == -1
 }
 
-func (b *completeTagsResultBuilder) Build() CompleteTagsResult {
+func (b *completeTagsResultBuilder) Build() storage.CompleteTagsResult {
 	if b.tagBuilders == nil {
-		return CompleteTagsResult{
+		return storage.CompleteTagsResult{
 			CompleteNameOnly: b.nameOnly,
-			CompletedTags:    []CompletedTag(nil),
+			CompletedTags:    []storage.CompletedTag(nil),
 		}
 	}
 
-	result := make([]CompletedTag, 0, b.tagBuilders.Len())
+	result := make([]storage.CompletedTag, 0, b.tagBuilders.Len())
 	if b.nameOnly {
 		for _, entry := range b.tagBuilders.Iter() {
-			result = append(result, CompletedTag{
+			result = append(result, storage.CompletedTag{
 				Name:   entry.Key(),
 				Values: [][]byte{},
 			})
 		}
 
 		sort.Sort(completedTagsByName(result))
-		return CompleteTagsResult{
+		return storage.CompleteTagsResult{
 			CompleteNameOnly: true,
 			CompletedTags:    result,
 		}
@@ -138,14 +140,14 @@ func (b *completeTagsResultBuilder) Build() CompleteTagsResult {
 
 	for _, entry := range b.tagBuilders.Iter() {
 		builder := entry.Value()
-		result = append(result, CompletedTag{
+		result = append(result, storage.CompletedTag{
 			Name:   entry.Key(),
 			Values: builder.build(),
 		})
 	}
 
 	sort.Sort(completedTagsByName(result))
-	return CompleteTagsResult{
+	return storage.CompleteTagsResult{
 		CompleteNameOnly: false,
 		CompletedTags:    result,
 	}

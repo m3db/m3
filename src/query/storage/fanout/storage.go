@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/policy/filter"
 	"github.com/m3db/m3/src/query/storage"
+	"github.com/m3db/m3/src/query/storage/m3/multiresults"
 	"github.com/m3db/m3/src/query/ts"
 	"github.com/m3db/m3/src/query/util/execution"
 	"github.com/m3db/m3/src/query/util/logging"
@@ -144,7 +145,7 @@ func (s *fanoutStorage) CompleteTags(
 	query *storage.CompleteTagsQuery,
 	options *storage.FetchOptions,
 ) (*storage.CompleteTagsResult, error) {
-	accumulatedTags := storage.NewCompleteTagsResultBuilder(query.CompleteNameOnly)
+	accumulatedTags := multiresults.NewCompleteTagsResultBuilder(query.CompleteNameOnly)
 	stores := filterCompleteTagsStores(s.stores, s.completeTagsFilter, *query)
 	for _, store := range stores {
 		result, err := store.CompleteTags(ctx, query, options)

@@ -24,19 +24,18 @@ import (
 	"github.com/m3db/m3/src/query/errors"
 	rpc "github.com/m3db/m3/src/query/generated/proto/rpcpb"
 	"github.com/m3db/m3/src/query/storage"
-	"github.com/m3db/m3/src/query/storage/m3/multiresults"
 )
 
 func decodeTagNamesOnly(
 	response *rpc.TagNames,
-) *multiresults.CompleteTagsResult {
+) *storage.CompleteTagsResult {
 	names := response.GetNames()
-	tags := make([]multiresults.CompletedTag, len(names))
+	tags := make([]storage.CompletedTag, len(names))
 	for i, name := range names {
-		tags[i] = multiresults.CompletedTag{Name: name}
+		tags[i] = storage.CompletedTag{Name: name}
 	}
 
-	return &multiresults.CompleteTagsResult{
+	return &storage.CompleteTagsResult{
 		CompleteNameOnly: true,
 		CompletedTags:    tags,
 	}
@@ -44,17 +43,17 @@ func decodeTagNamesOnly(
 
 func decodeTagProperties(
 	response *rpc.TagValues,
-) *multiresults.CompleteTagsResult {
+) *storage.CompleteTagsResult {
 	values := response.GetValues()
-	tags := make([]multiresults.CompletedTag, len(values))
+	tags := make([]storage.CompletedTag, len(values))
 	for i, value := range values {
-		tags[i] = multiresults.CompletedTag{
+		tags[i] = storage.CompletedTag{
 			Name:   value.GetKey(),
 			Values: value.GetValues(),
 		}
 	}
 
-	return &multiresults.CompleteTagsResult{
+	return &storage.CompleteTagsResult{
 		CompleteNameOnly: false,
 		CompletedTags:    tags,
 	}
@@ -62,7 +61,7 @@ func decodeTagProperties(
 
 func decodeCompleteTagsResponse(
 	response *rpc.CompleteTagsResponse,
-) (*multiresults.CompleteTagsResult, error) {
+) (*storage.CompleteTagsResult, error) {
 	if names := response.GetNamesOnly(); names != nil {
 		return decodeTagNamesOnly(names), nil
 	}

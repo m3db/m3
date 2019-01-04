@@ -25,6 +25,8 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/m3db/m3/src/query/storage"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -37,24 +39,24 @@ func strsToBytes(str []string) [][]byte {
 	return b
 }
 
-func mapToCompletedTag(nameOnly bool, m map[string][]string) CompleteTagsResult {
+func mapToCompletedTag(nameOnly bool, m map[string][]string) storage.CompleteTagsResult {
 	if len(m) == 0 {
-		return CompleteTagsResult{
+		return storage.CompleteTagsResult{
 			CompleteNameOnly: nameOnly,
-			CompletedTags:    []CompletedTag(nil),
+			CompletedTags:    []storage.CompletedTag(nil),
 		}
 	}
 
-	tags := make([]CompletedTag, 0, len(m))
+	tags := make([]storage.CompletedTag, 0, len(m))
 	for k, v := range m {
-		tags = append(tags, CompletedTag{
+		tags = append(tags, storage.CompletedTag{
 			Name:   []byte(k),
 			Values: strsToBytes(v),
 		})
 	}
 
 	sort.Sort(completedTagsByName(tags))
-	return CompleteTagsResult{
+	return storage.CompleteTagsResult{
 		CompleteNameOnly: nameOnly,
 		CompletedTags:    tags,
 	}
@@ -90,7 +92,7 @@ func TestMergeCompletedTagResultDifferentNameTypes(t *testing.T) {
 	nameOnlyVals := []bool{true, false}
 	for _, nameOnly := range nameOnlyVals {
 		builder := NewCompleteTagsResultBuilder(nameOnly)
-		err := builder.Add(&CompleteTagsResult{
+		err := builder.Add(&storage.CompleteTagsResult{
 			CompleteNameOnly: !nameOnly,
 		})
 
@@ -103,9 +105,9 @@ func TestMergeEmptyCompletedTagResult(t *testing.T) {
 	for _, nameOnly := range nameOnlyVals {
 		builder := NewCompleteTagsResultBuilder(nameOnly)
 		actual := builder.Build()
-		expected := CompleteTagsResult{
+		expected := storage.CompleteTagsResult{
 			CompleteNameOnly: nameOnly,
-			CompletedTags:    []CompletedTag(nil),
+			CompletedTags:    []storage.CompletedTag(nil),
 		}
 
 		assert.Equal(t, expected, actual)

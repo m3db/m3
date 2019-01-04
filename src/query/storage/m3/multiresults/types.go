@@ -76,21 +76,9 @@ type MultiTagResult struct {
 	Iter ident.TagIterator
 }
 
-// CompletedTag is an autocompleted tag with a name and a list of possible values
-type CompletedTag struct {
-	Name   []byte
-	Values [][]byte
-}
-
-// CompleteTagsResult represents a set of autocompleted tag names and values
-type CompleteTagsResult struct {
-	CompleteNameOnly bool
-	CompletedTags    []CompletedTag
-}
-
 // CompleteTagsResultBuilder is a builder that accumulates and deduplicates
 // incoming CompleteTagsResult values
 type CompleteTagsResultBuilder interface {
-	Add(*CompleteTagsResult) error
-	Build() CompleteTagsResult
+	Add(*storage.CompleteTagsResult) error
+	Build() storage.CompleteTagsResult
 }
