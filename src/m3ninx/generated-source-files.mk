@@ -120,6 +120,7 @@ genny-map-segment-fst-terms-offset: install-m3x-repo
 .PHONY: genny-arraypool-all
 genny-arraypool-all:                     \
 	genny-arraypool-bytes-slice-array-pool \
+	genny-arraypool-document-array-pool    \
 
 # arraypool generation rule for ./x/bytes.SliceArrayPool
 .PHONY: genny-arraypool-bytes-slice-array-pool
@@ -131,5 +132,19 @@ genny-arraypool-bytes-slice-array-pool: install-m3x-repo
 	out_file=slice_arraypool_gen.go                \
 	rename_type_prefix=Slice                       \
 	rename_type_middle=Slice                       \
-	rename_constructor=NewSliceArrayPool
+	rename_constructor=NewSliceArrayPool           \
+
+	# arraypool generation rule for ./doc.DocumentArrayPool
+.PHONY: genny-arraypool-document-array-pool
+genny-arraypool-document-array-pool: install-m3x-repo
+	cd $(m3x_package_path) && make genny-arraypool \
+	pkg=doc                                        \
+	elem_type=Document                             \
+	target_package=$(m3ninx_package)/doc           \
+	out_file=doc_arraypool_gen.go                  \
+	rename_type_prefix=Document                    \
+	rename_type_middle=Document                    \
+	rename_constructor=NewDocumentArrayPool        \
+	rename_gen_types=true                          \
+
 

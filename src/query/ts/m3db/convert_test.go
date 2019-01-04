@@ -21,80 +21,153 @@
 package m3db
 
 import (
-	"io"
+	"fmt"
+	"math"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3/src/query/block"
 	"github.com/m3db/m3/src/query/models"
-	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/test"
-	"github.com/m3db/m3x/ident"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	seriesID        = test.SeriesID
-	seriesNamespace = test.SeriesNamespace
-
-	testTags = test.TestTags
-
-	start  = test.Start
-	middle = test.Middle
-	end    = test.End
-
-	testIterAlloc = func(r io.Reader) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
-	}
+	Start     = time.Now().Truncate(time.Hour)
+	blockSize = time.Minute * 6
+	nan       = math.NaN()
 )
 
-func TestConversion(t *testing.T) {
-	iter, err := test.BuildTestSeriesIterator()
+func generateIterators(
+	t *testing.T,
+	stepSize time.Duration,
+) (
+	encoding.SeriesIterators,
+	models.Bounds,
+) {
+	datapoints := [][][]test.Datapoint{
+		{
+			[]test.Datapoint{},
+			[]test.Datapoint{
+				{Value: 1, Offset: 0},
+				{Value: 2, Offset: (time.Minute * 1) + time.Second},
+				{Value: 3, Offset: (time.Minute * 2)},
+				{Value: 4, Offset: (time.Minute * 3)},
+				{Value: 5, Offset: (time.Minute * 4)},
+				{Value: 6, Offset: (time.Minute * 5)},
+			},
+			[]test.Datapoint{
+				{Value: 7, Offset: time.Minute * 0},
+				{Value: 8, Offset: time.Minute * 5},
+			},
+			[]test.Datapoint{
+				{Value: 9, Offset: time.Minute * 4},
+			},
+		},
+		{
+			[]test.Datapoint{
+				{Value: 10, Offset: (time.Minute * 2)},
+				{Value: 20, Offset: (time.Minute * 3)},
+			},
+			[]test.Datapoint{},
+			[]test.Datapoint{
+				{Value: 30, Offset: time.Minute},
+			},
+			[]test.Datapoint{
+				{Value: 40, Offset: time.Second},
+			},
+		},
+		{
+			[]test.Datapoint{
+				{Value: 100, Offset: (time.Minute * 3)},
+			},
+			[]test.Datapoint{
+				{Value: 200, Offset: (time.Minute * 3)},
+			},
+			[]test.Datapoint{
+				{Value: 300, Offset: (time.Minute * 3)},
+			},
+			[]test.Datapoint{
+				{Value: 400, Offset: (time.Minute * 3)},
+			},
+			[]test.Datapoint{
+				{Value: 500, Offset: 0},
+			},
+		},
+	}
+
+	iters := make([]encoding.SeriesIterator, len(datapoints))
+	var (
+		iter   encoding.SeriesIterator
+		bounds models.Bounds
+		start  = Start
+	)
+	for i, dps := range datapoints {
+		iter, bounds = buildCustomIterator(t, i, start, stepSize, dps)
+		iters[i] = iter
+	}
+
+	return encoding.NewSeriesIterators(iters, nil), bounds
+}
+
+func buildCustomIterator(
+	t *testing.T,
+	i int,
+	start time.Time,
+	stepSize time.Duration,
+	dps [][]test.Datapoint,
+) (
+	encoding.SeriesIterator,
+	models.Bounds,
+) {
+	iter, bounds, err := test.BuildCustomIterator(
+		dps,
+		map[string]string{"a": "b", "c": fmt.Sprint(i)},
+		fmt.Sprintf("abc%d", i), "namespace",
+		start,
+		blockSize, stepSize,
+	)
 	require.NoError(t, err)
-	iterators := encoding.NewSeriesIterators([]encoding.SeriesIterator{iter}, nil)
+	return iter, bounds
+}
 
-	blocks, err := ConvertM3DBSeriesIterators(iterators, testIterAlloc)
-	require.NoError(t, err)
+func verifyMetas(
+	t *testing.T,
+	i int,
+	bounds models.Bounds,
+	meta block.Metadata,
+	metas []block.SeriesMeta,
+) {
+	assert.True(t, meta.Bounds.Equals(bounds))
+	require.Equal(t, 1, meta.Tags.Len())
+	val, found := meta.Tags.Get([]byte("a"))
+	assert.True(t, found)
+	assert.Equal(t, []byte("b"), val)
 
-	for _, block := range blocks {
-		assert.Equal(t, seriesID, block.ID.String())
-		assert.Equal(t, seriesNamespace, block.Namespace.String())
-		checkTags(t, block.Tags)
-
-		blockOneSeriesIterator := block.Blocks[0].seriesIterator
-		blockTwoSeriesIterator := block.Blocks[1].seriesIterator
-
-		assert.Equal(t, start.Add(2*time.Minute), blockOneSeriesIterator.Start())
-		assert.Equal(t, middle, blockOneSeriesIterator.End())
-		checkTags(t, blockOneSeriesIterator.Tags())
-
-		for i := 3; blockOneSeriesIterator.Next(); i++ {
-			dp, _, _ := blockOneSeriesIterator.Current()
-			assert.Equal(t, float64(i), dp.Value)
-			assert.Equal(t, start.Add(time.Duration(i-1)*time.Minute), dp.Timestamp)
-		}
-
-		assert.Equal(t, middle, blockTwoSeriesIterator.Start())
-		assert.Equal(t, end, blockTwoSeriesIterator.End())
-		checkTags(t, blockTwoSeriesIterator.Tags())
-
-		for i, j := 101, 1; blockTwoSeriesIterator.Next(); i++ {
-			dp, _, _ := blockTwoSeriesIterator.Current()
-			assert.Equal(t, float64(i), dp.Value)
-			assert.Equal(t, middle.Add(time.Duration(j-1)*time.Minute), dp.Timestamp)
-			j++
-		}
+	for i, m := range metas {
+		assert.Equal(t, fmt.Sprintf("abc%d", i), m.Name)
+		require.Equal(t, 1, m.Tags.Len())
+		val, found := m.Tags.Get([]byte("c"))
+		assert.True(t, found)
+		assert.Equal(t, []byte(fmt.Sprint(i)), val)
 	}
 }
 
-func checkTags(t *testing.T, tags ident.TagIterator) {
-	convertedTags, err := storage.FromIdentTagIteratorToTags(tags, nil)
+func generateBlocks(
+	t *testing.T,
+	stepSize time.Duration,
+) ([]block.Block, models.Bounds) {
+	iterators, bounds := generateIterators(t, stepSize)
+	blockOptions := NewOptions().SetLookbackDuration(time.Minute)
+	blocks, err := ConvertM3DBSeriesIterators(
+		iterators,
+		bounds,
+		blockOptions,
+	)
+
 	require.NoError(t, err)
-	assert.Equal(t, []models.Tag{
-		{Name: []byte("baz"), Value: []byte(testTags["baz"])},
-		{Name: []byte("foo"), Value: []byte(testTags["foo"])},
-	}, convertedTags.Tags)
+	return blocks, bounds
 }

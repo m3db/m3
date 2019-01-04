@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/block"
 	"github.com/m3db/m3/src/dbnode/storage/index"
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xcounter"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/context"
@@ -46,17 +47,21 @@ import (
 )
 
 var (
-	// errDatabaseAlreadyOpen raised when trying to open a database that is already open
+	// errDatabaseAlreadyOpen raised when trying to open a database that is already open.
 	errDatabaseAlreadyOpen = errors.New("database is already open")
 
-	// errDatabaseNotOpen raised when trying to close a database that is not open
+	// errDatabaseNotOpen raised when trying to close a database that is not open.
 	errDatabaseNotOpen = errors.New("database is not open")
 
-	// errDatabaseAlreadyClosed raised when trying to open a database that is already closed
+	// errDatabaseAlreadyClosed raised when trying to open a database that is already closed.
 	errDatabaseAlreadyClosed = errors.New("database is already closed")
 
-	// errDatabaseIsClosed raised when trying to perform an action that requires an open database
+	// errDatabaseIsClosed raised when trying to perform an action that requires an open database.
 	errDatabaseIsClosed = errors.New("database is closed")
+
+	// errWriterDoesNotImplementWriteBatch is raised when the provided ts.BatchWriter does not implement
+	// ts.WriteBatch.
+	errWriterDoesNotImplementWriteBatch = errors.New("provided writer does not implement ts.WriteBatch")
 )
 
 type databaseState int
@@ -78,15 +83,18 @@ type db struct {
 	nowFn clock.NowFn
 
 	nsWatch    databaseNamespaceWatch
-	shardSet   sharding.ShardSet
 	namespaces *databaseNamespacesMap
-	commitLog  commitlog.CommitLog
+
+	commitLog commitlog.CommitLog
 
 	state    databaseState
 	mediator databaseMediator
 
 	created    uint64
 	bootstraps int
+
+	shardSet              sharding.ShardSet
+	lastReceivedNewShards time.Time
 
 	scope   tally.Scope
 	metrics databaseMetrics
@@ -95,12 +103,17 @@ type db struct {
 	errors       xcounter.FrequencyCounter
 	errWindow    time.Duration
 	errThreshold int64
+
+	writeBatchPool *ts.WriteBatchPool
 }
 
 type databaseMetrics struct {
 	unknownNamespaceRead                tally.Counter
 	unknownNamespaceWrite               tally.Counter
 	unknownNamespaceWriteTagged         tally.Counter
+	unknownNamespaceBatchWriter         tally.Counter
+	unknownNamespaceWriteBatch          tally.Counter
+	unknownNamespaceWriteTaggedBatch    tally.Counter
 	unknownNamespaceFetchBlocks         tally.Counter
 	unknownNamespaceFetchBlocksMetadata tally.Counter
 	unknownNamespaceQueryIDs            tally.Counter
@@ -115,6 +128,9 @@ func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
 		unknownNamespaceRead:                unknownNamespaceScope.Counter("read"),
 		unknownNamespaceWrite:               unknownNamespaceScope.Counter("write"),
 		unknownNamespaceWriteTagged:         unknownNamespaceScope.Counter("write-tagged"),
+		unknownNamespaceBatchWriter:         unknownNamespaceScope.Counter("batch-writer"),
+		unknownNamespaceWriteBatch:          unknownNamespaceScope.Counter("write-batch"),
+		unknownNamespaceWriteTaggedBatch:    unknownNamespaceScope.Counter("write-tagged-batch"),
 		unknownNamespaceFetchBlocks:         unknownNamespaceScope.Counter("fetch-blocks"),
 		unknownNamespaceFetchBlocksMetadata: unknownNamespaceScope.Counter("fetch-blocks-metadata"),
 		unknownNamespaceQueryIDs:            unknownNamespaceScope.Counter("query-ids"),
@@ -123,7 +139,7 @@ func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
 	}
 }
 
-// NewDatabase creates a new time series database
+// NewDatabase creates a new time series database.
 func NewDatabase(
 	shardSet sharding.ShardSet,
 	opts Options,
@@ -140,22 +156,27 @@ func NewDatabase(
 		return nil, err
 	}
 
-	iopts := opts.InstrumentOptions()
-	scope := iopts.MetricsScope().SubScope("database")
-	logger := iopts.Logger()
+	var (
+		iopts  = opts.InstrumentOptions()
+		scope  = iopts.MetricsScope().SubScope("database")
+		logger = iopts.Logger()
+		nowFn  = opts.ClockOptions().NowFn()
+	)
 
 	d := &db{
-		opts:         opts,
-		nowFn:        opts.ClockOptions().NowFn(),
-		shardSet:     shardSet,
-		namespaces:   newDatabaseNamespacesMap(databaseNamespacesMapOptions{}),
-		commitLog:    commitLog,
-		scope:        scope,
-		metrics:      newDatabaseMetrics(scope),
-		log:          logger,
-		errors:       xcounter.NewFrequencyCounter(opts.ErrorCounterOptions()),
-		errWindow:    opts.ErrorWindowForLoad(),
-		errThreshold: opts.ErrorThresholdForLoad(),
+		opts:                  opts,
+		nowFn:                 nowFn,
+		shardSet:              shardSet,
+		lastReceivedNewShards: nowFn(),
+		namespaces:            newDatabaseNamespacesMap(databaseNamespacesMapOptions{}),
+		commitLog:             commitLog,
+		scope:                 scope,
+		metrics:               newDatabaseMetrics(scope),
+		log:                   logger,
+		errors:                xcounter.NewFrequencyCounter(opts.ErrorCounterOptions()),
+		errWindow:             opts.ErrorWindowForLoad(),
+		errThreshold:          opts.ErrorThresholdForLoad(),
+		writeBatchPool:        opts.WriteBatchPool(),
 	}
 
 	databaseIOpts := iopts.SetMetricsScope(scope)
@@ -342,12 +363,42 @@ func (d *db) Options() Options {
 func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 	d.Lock()
 	defer d.Unlock()
+
+	receivedNewShards := d.hasReceivedNewShardsWithLock(shardSet)
+
 	d.shardSet = shardSet
+	if receivedNewShards {
+		d.lastReceivedNewShards = d.nowFn()
+	}
+
 	for _, elem := range d.namespaces.Iter() {
 		ns := elem.Value()
 		ns.AssignShardSet(shardSet)
 	}
+
 	d.queueBootstrapWithLock()
+}
+
+func (d *db) hasReceivedNewShardsWithLock(incoming sharding.ShardSet) bool {
+	var (
+		existing    = d.shardSet
+		existingSet = make(map[uint32]struct{}, len(existing.AllIDs()))
+	)
+
+	for _, shard := range existing.AllIDs() {
+		existingSet[shard] = struct{}{}
+	}
+
+	receivedNewShards := false
+	for _, shard := range incoming.AllIDs() {
+		_, ok := existingSet[shard]
+		if !ok {
+			receivedNewShards = true
+			break
+		}
+	}
+
+	return receivedNewShards
 }
 
 func (d *db) ShardSet() sharding.ShardSet {
@@ -358,10 +409,17 @@ func (d *db) ShardSet() sharding.ShardSet {
 }
 
 func (d *db) queueBootstrapWithLock() {
-	// NB(r): Trigger another bootstrap, if already bootstrapping this will
-	// enqueue a new bootstrap to execute before the current bootstrap
-	// completes
+	// Only perform a bootstrap if at least one bootstrap has already occurred. This enables
+	// the ability to open the clustered database and assign shardsets to the non-clustered
+	// database when it receives an initial topology (as well as topology changes) without
+	// triggering a bootstrap until an external call initiates a bootstrap with an initial
+	// call to Bootstrap(). After that initial bootstrap, the clustered database will keep
+	// the non-clustered database bootstrapped by assigning it shardsets which will trigger new
+	// bootstraps since d.bootstraps > 0 will be true.
 	if d.bootstraps > 0 {
+		// NB(r): Trigger another bootstrap, if already bootstrapping this will
+		// enqueue a new bootstrap to execute before the current bootstrap
+		// completes.
 		go func() {
 			if err := d.mediator.Bootstrap(); err != nil {
 				d.log.Errorf("error while bootstrapping: %v", err)
@@ -490,11 +548,25 @@ func (d *db) Write(
 		return err
 	}
 
-	err = n.Write(ctx, id, timestamp, value, unit, annotation)
+	series, err := n.Write(ctx, id, timestamp, value, unit, annotation)
+	if err != nil {
+		return err
+	}
+
+	if !n.Options().WritesToCommitLog() {
+		return nil
+	}
+
+	dp := ts.Datapoint{Timestamp: timestamp, Value: value}
+	err = d.commitLog.Write(ctx, series, dp, unit, annotation)
 	if err == commitlog.ErrCommitLogQueueFull {
 		d.errors.Record(1)
 	}
-	return err
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (d *db) WriteTagged(
@@ -513,11 +585,140 @@ func (d *db) WriteTagged(
 		return err
 	}
 
-	err = n.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
+	series, err := n.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
+	if err != nil {
+		return err
+	}
+
+	if !n.Options().WritesToCommitLog() {
+		return nil
+	}
+
+	dp := ts.Datapoint{Timestamp: timestamp, Value: value}
+	err = d.commitLog.Write(ctx, series, dp, unit, annotation)
 	if err == commitlog.ErrCommitLogQueueFull {
 		d.errors.Record(1)
 	}
-	return err
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (d *db) BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error) {
+	n, err := d.namespaceFor(namespace)
+	if err != nil {
+		d.metrics.unknownNamespaceBatchWriter.Inc(1)
+		return nil, err
+	}
+
+	var (
+		nsID        = n.ID()
+		batchWriter = d.writeBatchPool.Get()
+	)
+	batchWriter.Reset(batchSize, nsID)
+	return batchWriter, nil
+}
+
+func (d *db) WriteBatch(
+	ctx context.Context,
+	namespace ident.ID,
+	writer ts.BatchWriter,
+	errHandler IndexedErrorHandler,
+) error {
+	return d.writeBatch(ctx, namespace, writer, errHandler, false)
+}
+
+func (d *db) WriteTaggedBatch(
+	ctx context.Context,
+	namespace ident.ID,
+	writer ts.BatchWriter,
+	errHandler IndexedErrorHandler,
+) error {
+	return d.writeBatch(ctx, namespace, writer, errHandler, true)
+}
+
+func (d *db) writeBatch(
+	ctx context.Context,
+	namespace ident.ID,
+	writer ts.BatchWriter,
+	errHandler IndexedErrorHandler,
+	tagged bool,
+) error {
+	writes, ok := writer.(ts.WriteBatch)
+	if !ok {
+		return errWriterDoesNotImplementWriteBatch
+	}
+
+	n, err := d.namespaceFor(namespace)
+	if err != nil {
+		if tagged {
+			d.metrics.unknownNamespaceWriteTaggedBatch.Inc(1)
+		} else {
+			d.metrics.unknownNamespaceWriteBatch.Inc(1)
+		}
+		return err
+	}
+
+	iter := writes.Iter()
+	for i, write := range iter {
+		var (
+			series ts.Series
+			err    error
+		)
+
+		if tagged {
+			series, err = n.WriteTagged(
+				ctx,
+				write.Write.Series.ID,
+				write.TagIter,
+				write.Write.Datapoint.Timestamp,
+				write.Write.Datapoint.Value,
+				write.Write.Unit,
+				write.Write.Annotation,
+			)
+		} else {
+			series, err = n.Write(
+				ctx,
+				write.Write.Series.ID,
+				write.Write.Datapoint.Timestamp,
+				write.Write.Datapoint.Value,
+				write.Write.Unit,
+				write.Write.Annotation,
+			)
+		}
+		if err != nil {
+			// Return errors with the original index provided by the caller so they
+			// can associate the error with the write that caused it.
+			errHandler.HandleError(write.OriginalIndex, err)
+		}
+
+		// Need to set the outcome in the success case so the commitlog gets the updated
+		// series object which contains identifiers (like the series ID) whose lifecycle
+		// live longer than the span of this request, making them safe for use by the async
+		// commitlog. Need to set the outcome in the error case so that the commitlog knows
+		// to skip this entry.
+		writes.SetOutcome(i, series, err)
+	}
+
+	if !n.Options().WritesToCommitLog() {
+		// Finalize here because we can't rely on the commitlog to do it since we're not
+		// using it.
+		writes.Finalize()
+		return nil
+	}
+
+	err = d.commitLog.WriteBatch(ctx, writes)
+	if err == commitlog.ErrCommitLogQueueFull {
+		numFailedWrites := int64(len(writes.Iter()))
+		d.errors.Record(numFailedWrites)
+	}
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (d *db) QueryIDs(
@@ -532,17 +733,7 @@ func (d *db) QueryIDs(
 		return index.QueryResults{}, err
 	}
 
-	var (
-		wg           = sync.WaitGroup{}
-		queryResults index.QueryResults
-	)
-	wg.Add(1)
-	d.opts.QueryIDsWorkerPool().Go(func() {
-		queryResults, err = n.QueryIDs(ctx, query, opts)
-		wg.Done()
-	})
-	wg.Wait()
-	return queryResults, err
+	return n.QueryIDs(ctx, query, opts)
 }
 
 func (d *db) ReadEncoded(
@@ -604,6 +795,61 @@ func (d *db) Bootstrap() error {
 
 func (d *db) IsBootstrapped() bool {
 	return d.mediator.IsBootstrapped()
+}
+
+// IsBootstrappedAndDurable should only return true if the following conditions are met:
+//    1. The database is bootstrapped.
+//    2. The last successful snapshot began AFTER the last bootstrap completed.
+//
+// Those two conditions should be sufficient to ensure that after a placement change the
+// node will be able to bootstrap any and all data from its local disk, however, for posterity
+// we also perform the following check:
+//     3. The last bootstrap completed AFTER the shardset was last assigned.
+func (d *db) IsBootstrappedAndDurable() bool {
+	isBootstrapped := d.mediator.IsBootstrapped()
+	if !isBootstrapped {
+		d.log.Debugf("not bootstrapped and durable because: not bootstrapped")
+		return false
+	}
+
+	lastBootstrapCompletionTime, ok := d.mediator.LastBootstrapCompletionTime()
+	if !ok {
+		d.log.WithFields(
+			xlog.NewField("lastBootstrapCompletionTime", lastBootstrapCompletionTime),
+		).Debugf(
+			"not bootstrapped and durable because: no last bootstrap completion time")
+		return false
+	}
+
+	lastSnapshotStartTime, ok := d.mediator.LastSuccessfulSnapshotStartTime()
+	if !ok {
+		d.log.WithFields(
+			xlog.NewField("lastBootstrapCompletionTime", lastBootstrapCompletionTime),
+			xlog.NewField("lastSnapshotStartTime", lastSnapshotStartTime),
+		).Debugf(
+			"not bootstrapped and durable because: no last snapshot start time")
+		return false
+	}
+
+	var (
+		hasSnapshottedPostBootstrap            = lastSnapshotStartTime.After(lastBootstrapCompletionTime)
+		hasBootstrappedSinceReceivingNewShards = lastBootstrapCompletionTime.After(d.lastReceivedNewShards) ||
+			lastBootstrapCompletionTime.Equal(d.lastReceivedNewShards)
+		isBootstrappedAndDurable = hasSnapshottedPostBootstrap &&
+			hasBootstrappedSinceReceivingNewShards
+	)
+
+	if !isBootstrappedAndDurable {
+		d.log.WithFields(
+			xlog.NewField("lastBootstrapCompletionTime", lastBootstrapCompletionTime),
+			xlog.NewField("lastSnapshotStartTime", lastSnapshotStartTime),
+			xlog.NewField("lastReceivedNewShards", d.lastReceivedNewShards),
+		).Debugf(
+			"not bootstrapped and durable because: has not snapshotted post bootstrap and/or has not bootstrapped since receiving new shards")
+		return false
+	}
+
+	return true
 }
 
 func (d *db) Repair() error {

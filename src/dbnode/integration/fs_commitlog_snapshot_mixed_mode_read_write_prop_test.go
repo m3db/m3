@@ -236,7 +236,9 @@ func TestFsCommitLogMixedModeReadWriteProp(t *testing.T) {
 							filePathPrefix,
 							setup.shardSet,
 							nsID,
-							[]time.Time{snapshotBlock}, maxFlushWaitTime)
+							[]snapshotID{{blockStart: snapshotBlock}},
+							maxFlushWaitTime,
+						)
 						if err != nil {
 							return false, fmt.Errorf("error waiting for snapshot files: %s", err.Error())
 						}

@@ -71,7 +71,7 @@ type commitLogWriter interface {
 
 	// Write will write an entry in the commit log for a given series
 	Write(
-		series Series,
+		series ts.Series,
 		datapoint ts.Datapoint,
 		unit xtime.Unit,
 		annotation ts.Annotation,
@@ -198,7 +198,7 @@ func (w *writer) isOpen() bool {
 }
 
 func (w *writer) Write(
-	series Series,
+	series ts.Series,
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
 	annotation ts.Annotation,

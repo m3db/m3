@@ -43,7 +43,7 @@ func init() {
 func TestResultsInsertInvalid(t *testing.T) {
 	res := NewResults(testOpts)
 	dInvalid := doc.Document{ID: nil}
-	added, size, err := res.Add(dInvalid)
+	added, size, err := res.AddDocument(dInvalid)
 	require.Error(t, err)
 	require.False(t, added)
 	require.Equal(t, 0, size)
@@ -52,12 +52,12 @@ func TestResultsInsertInvalid(t *testing.T) {
 func TestResultsInsertIdempotency(t *testing.T) {
 	res := NewResults(testOpts)
 	dValid := doc.Document{ID: []byte("abc")}
-	added, size, err := res.Add(dValid)
+	added, size, err := res.AddDocument(dValid)
 	require.NoError(t, err)
 	require.True(t, added)
 	require.Equal(t, 1, size)
 
-	added, size, err = res.Add(dValid)
+	added, size, err = res.AddDocument(dValid)
 	require.NoError(t, err)
 	require.False(t, added)
 	require.Equal(t, 1, size)
@@ -66,7 +66,7 @@ func TestResultsInsertIdempotency(t *testing.T) {
 func TestResultsFirstInsertWins(t *testing.T) {
 	res := NewResults(testOpts)
 	d1 := doc.Document{ID: []byte("abc")}
-	added, size, err := res.Add(d1)
+	added, size, err := res.AddDocument(d1)
 	require.NoError(t, err)
 	require.True(t, added)
 	require.Equal(t, 1, size)
@@ -79,7 +79,7 @@ func TestResultsFirstInsertWins(t *testing.T) {
 		Fields: doc.Fields{
 			doc.Field{[]byte("foo"), []byte("bar")},
 		}}
-	added, size, err = res.Add(d2)
+	added, size, err = res.AddDocument(d2)
 	require.NoError(t, err)
 	require.False(t, added)
 	require.Equal(t, 1, size)
@@ -92,7 +92,7 @@ func TestResultsFirstInsertWins(t *testing.T) {
 func TestResultsInsertContains(t *testing.T) {
 	res := NewResults(testOpts)
 	dValid := doc.Document{ID: []byte("abc")}
-	added, size, err := res.Add(dValid)
+	added, size, err := res.AddDocument(dValid)
 	require.NoError(t, err)
 	require.True(t, added)
 	require.Equal(t, 1, size)
@@ -107,7 +107,7 @@ func TestResultsInsertCopies(t *testing.T) {
 	dValid := doc.Document{ID: []byte("abc"), Fields: []doc.Field{
 		doc.Field{Name: []byte("name"), Value: []byte("value")},
 	}}
-	added, size, err := res.Add(dValid)
+	added, size, err := res.AddDocument(dValid)
 	require.NoError(t, err)
 	require.True(t, added)
 	require.Equal(t, 1, size)
@@ -145,10 +145,58 @@ func TestResultsInsertCopies(t *testing.T) {
 	require.True(t, found)
 }
 
+func TestResultsInsertIDAndTagsInvalid(t *testing.T) {
+	res := NewResults(testOpts)
+	added, size, err := res.AddIDAndTags(ident.BytesID(nil), ident.Tags{})
+	require.Error(t, err)
+	require.False(t, added)
+	require.Equal(t, 0, size)
+}
+
+func TestResultsInsertIDAndTagsIdempotency(t *testing.T) {
+	res := NewResults(testOpts)
+	dValid := doc.Document{ID: []byte("abc")}
+	added, size, err := res.AddIDAndTags(ident.BytesID(dValid.ID), tagsFromFields(dValid.Fields))
+	require.NoError(t, err)
+	require.True(t, added)
+	require.Equal(t, 1, size)
+
+	added, size, err = res.AddIDAndTags(ident.BytesID(dValid.ID), tagsFromFields(dValid.Fields))
+	require.NoError(t, err)
+	require.False(t, added)
+	require.Equal(t, 1, size)
+}
+
+func TestResultsIDAndTagsFirstInsertWins(t *testing.T) {
+	res := NewResults(testOpts)
+	d1 := doc.Document{ID: []byte("abc")}
+	added, size, err := res.AddIDAndTags(ident.BytesID(d1.ID), tagsFromFields(d1.Fields))
+	require.NoError(t, err)
+	require.True(t, added)
+	require.Equal(t, 1, size)
+
+	tags, ok := res.Map().Get(ident.StringID("abc"))
+	require.True(t, ok)
+	require.Equal(t, 0, len(tags.Values()))
+
+	d2 := doc.Document{ID: []byte("abc"),
+		Fields: doc.Fields{
+			doc.Field{[]byte("foo"), []byte("bar")},
+		}}
+	added, size, err = res.AddIDAndTags(ident.BytesID(d2.ID), tagsFromFields(d2.Fields))
+	require.NoError(t, err)
+	require.False(t, added)
+	require.Equal(t, 1, size)
+
+	tags, ok = res.Map().Get(ident.StringID("abc"))
+	require.True(t, ok)
+	require.Equal(t, 0, len(tags.Values()))
+}
+
 func TestResultsReset(t *testing.T) {
 	res := NewResults(testOpts)
 	d1 := doc.Document{ID: []byte("abc")}
-	added, size, err := res.Add(d1)
+	added, size, err := res.AddDocument(d1)
 	require.NoError(t, err)
 	require.True(t, added)
 	require.Equal(t, 1, size)
@@ -171,4 +219,15 @@ func TestResultsResetNamespaceClones(t *testing.T) {
 	res.Reset(nsID)
 	nsID.Finalize()
 	require.Equal(t, "something", res.Namespace().String())
+}
+
+func tagsFromFields(fields []doc.Field) ident.Tags {
+	tags := ident.NewTags()
+	for _, field := range fields {
+		tags.Append(ident.Tag{
+			Name:  ident.BytesID(field.Name),
+			Value: ident.BytesID(field.Value),
+		})
+	}
+	return tags
 }

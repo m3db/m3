@@ -59,6 +59,7 @@ func (m *MockReadableSegment) EXPECT() *MockReadableSegmentMockRecorder {
 
 // getDoc mocks base method
 func (m *MockReadableSegment) getDoc(arg0 postings.ID) (doc.Document, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "getDoc", arg0)
 	ret0, _ := ret[0].(doc.Document)
 	ret1, _ := ret[1].(error)
@@ -67,11 +68,13 @@ func (m *MockReadableSegment) getDoc(arg0 postings.ID) (doc.Document, error) {
 
 // getDoc indicates an expected call of getDoc
 func (mr *MockReadableSegmentMockRecorder) getDoc(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getDoc", reflect.TypeOf((*MockReadableSegment)(nil).getDoc), arg0)
 }
 
 // matchRegexp mocks base method
 func (m *MockReadableSegment) matchRegexp(arg0 []byte, arg1 *regexp.Regexp) (postings.List, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "matchRegexp", arg0, arg1)
 	ret0, _ := ret[0].(postings.List)
 	ret1, _ := ret[1].(error)
@@ -80,11 +83,13 @@ func (m *MockReadableSegment) matchRegexp(arg0 []byte, arg1 *regexp.Regexp) (pos
 
 // matchRegexp indicates an expected call of matchRegexp
 func (mr *MockReadableSegmentMockRecorder) matchRegexp(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "matchRegexp", reflect.TypeOf((*MockReadableSegment)(nil).matchRegexp), arg0, arg1)
 }
 
 // matchTerm mocks base method
 func (m *MockReadableSegment) matchTerm(arg0, arg1 []byte) (postings.List, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "matchTerm", arg0, arg1)
 	ret0, _ := ret[0].(postings.List)
 	ret1, _ := ret[1].(error)
@@ -93,5 +98,6 @@ func (m *MockReadableSegment) matchTerm(arg0, arg1 []byte) (postings.List, error
 
 // matchTerm indicates an expected call of matchTerm
 func (mr *MockReadableSegmentMockRecorder) matchTerm(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "matchTerm", reflect.TypeOf((*MockReadableSegment)(nil).matchTerm), arg0, arg1)
 }

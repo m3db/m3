@@ -58,6 +58,7 @@ func (m *MockIndexFileSetWriter) EXPECT() *MockIndexFileSetWriterMockRecorder {
 
 // WriteSegmentFileSet mocks base method
 func (m *MockIndexFileSetWriter) WriteSegmentFileSet(segmentFileSet IndexSegmentFileSetWriter) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteSegmentFileSet", segmentFileSet)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -65,6 +66,7 @@ func (m *MockIndexFileSetWriter) WriteSegmentFileSet(segmentFileSet IndexSegment
 
 // WriteSegmentFileSet indicates an expected call of WriteSegmentFileSet
 func (mr *MockIndexFileSetWriterMockRecorder) WriteSegmentFileSet(segmentFileSet interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteSegmentFileSet", reflect.TypeOf((*MockIndexFileSetWriter)(nil).WriteSegmentFileSet), segmentFileSet)
 }
 
@@ -93,6 +95,7 @@ func (m *MockIndexSegmentFileSetWriter) EXPECT() *MockIndexSegmentFileSetWriterM
 
 // SegmentType mocks base method
 func (m *MockIndexSegmentFileSetWriter) SegmentType() IndexSegmentType {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SegmentType")
 	ret0, _ := ret[0].(IndexSegmentType)
 	return ret0
@@ -100,11 +103,13 @@ func (m *MockIndexSegmentFileSetWriter) SegmentType() IndexSegmentType {
 
 // SegmentType indicates an expected call of SegmentType
 func (mr *MockIndexSegmentFileSetWriterMockRecorder) SegmentType() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentType", reflect.TypeOf((*MockIndexSegmentFileSetWriter)(nil).SegmentType))
 }
 
 // MajorVersion mocks base method
 func (m *MockIndexSegmentFileSetWriter) MajorVersion() int {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MajorVersion")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -112,11 +117,13 @@ func (m *MockIndexSegmentFileSetWriter) MajorVersion() int {
 
 // MajorVersion indicates an expected call of MajorVersion
 func (mr *MockIndexSegmentFileSetWriterMockRecorder) MajorVersion() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MajorVersion", reflect.TypeOf((*MockIndexSegmentFileSetWriter)(nil).MajorVersion))
 }
 
 // MinorVersion mocks base method
 func (m *MockIndexSegmentFileSetWriter) MinorVersion() int {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MinorVersion")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -124,11 +131,13 @@ func (m *MockIndexSegmentFileSetWriter) MinorVersion() int {
 
 // MinorVersion indicates an expected call of MinorVersion
 func (mr *MockIndexSegmentFileSetWriterMockRecorder) MinorVersion() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MinorVersion", reflect.TypeOf((*MockIndexSegmentFileSetWriter)(nil).MinorVersion))
 }
 
 // SegmentMetadata mocks base method
 func (m *MockIndexSegmentFileSetWriter) SegmentMetadata() []byte {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SegmentMetadata")
 	ret0, _ := ret[0].([]byte)
 	return ret0
@@ -136,11 +145,13 @@ func (m *MockIndexSegmentFileSetWriter) SegmentMetadata() []byte {
 
 // SegmentMetadata indicates an expected call of SegmentMetadata
 func (mr *MockIndexSegmentFileSetWriterMockRecorder) SegmentMetadata() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentMetadata", reflect.TypeOf((*MockIndexSegmentFileSetWriter)(nil).SegmentMetadata))
 }
 
 // Files mocks base method
 func (m *MockIndexSegmentFileSetWriter) Files() []IndexSegmentFileType {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Files")
 	ret0, _ := ret[0].([]IndexSegmentFileType)
 	return ret0
@@ -148,11 +159,13 @@ func (m *MockIndexSegmentFileSetWriter) Files() []IndexSegmentFileType {
 
 // Files indicates an expected call of Files
 func (mr *MockIndexSegmentFileSetWriterMockRecorder) Files() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Files", reflect.TypeOf((*MockIndexSegmentFileSetWriter)(nil).Files))
 }
 
 // WriteFile mocks base method
 func (m *MockIndexSegmentFileSetWriter) WriteFile(fileType IndexSegmentFileType, writer io.Writer) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteFile", fileType, writer)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -160,6 +173,7 @@ func (m *MockIndexSegmentFileSetWriter) WriteFile(fileType IndexSegmentFileType,
 
 // WriteFile indicates an expected call of WriteFile
 func (mr *MockIndexSegmentFileSetWriterMockRecorder) WriteFile(fileType, writer interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteFile", reflect.TypeOf((*MockIndexSegmentFileSetWriter)(nil).WriteFile), fileType, writer)
 }
 
@@ -188,6 +202,7 @@ func (m *MockMutableSegmentFileSetWriter) EXPECT() *MockMutableSegmentFileSetWri
 
 // SegmentType mocks base method
 func (m *MockMutableSegmentFileSetWriter) SegmentType() IndexSegmentType {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SegmentType")
 	ret0, _ := ret[0].(IndexSegmentType)
 	return ret0
@@ -195,11 +210,13 @@ func (m *MockMutableSegmentFileSetWriter) SegmentType() IndexSegmentType {
 
 // SegmentType indicates an expected call of SegmentType
 func (mr *MockMutableSegmentFileSetWriterMockRecorder) SegmentType() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentType", reflect.TypeOf((*MockMutableSegmentFileSetWriter)(nil).SegmentType))
 }
 
 // MajorVersion mocks base method
 func (m *MockMutableSegmentFileSetWriter) MajorVersion() int {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MajorVersion")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -207,11 +224,13 @@ func (m *MockMutableSegmentFileSetWriter) MajorVersion() int {
 
 // MajorVersion indicates an expected call of MajorVersion
 func (mr *MockMutableSegmentFileSetWriterMockRecorder) MajorVersion() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MajorVersion", reflect.TypeOf((*MockMutableSegmentFileSetWriter)(nil).MajorVersion))
 }
 
 // MinorVersion mocks base method
 func (m *MockMutableSegmentFileSetWriter) MinorVersion() int {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MinorVersion")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -219,11 +238,13 @@ func (m *MockMutableSegmentFileSetWriter) MinorVersion() int {
 
 // MinorVersion indicates an expected call of MinorVersion
 func (mr *MockMutableSegmentFileSetWriterMockRecorder) MinorVersion() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MinorVersion", reflect.TypeOf((*MockMutableSegmentFileSetWriter)(nil).MinorVersion))
 }
 
 // SegmentMetadata mocks base method
 func (m *MockMutableSegmentFileSetWriter) SegmentMetadata() []byte {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SegmentMetadata")
 	ret0, _ := ret[0].([]byte)
 	return ret0
@@ -231,11 +252,13 @@ func (m *MockMutableSegmentFileSetWriter) SegmentMetadata() []byte {
 
 // SegmentMetadata indicates an expected call of SegmentMetadata
 func (mr *MockMutableSegmentFileSetWriterMockRecorder) SegmentMetadata() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentMetadata", reflect.TypeOf((*MockMutableSegmentFileSetWriter)(nil).SegmentMetadata))
 }
 
 // Files mocks base method
 func (m *MockMutableSegmentFileSetWriter) Files() []IndexSegmentFileType {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Files")
 	ret0, _ := ret[0].([]IndexSegmentFileType)
 	return ret0
@@ -243,11 +266,13 @@ func (m *MockMutableSegmentFileSetWriter) Files() []IndexSegmentFileType {
 
 // Files indicates an expected call of Files
 func (mr *MockMutableSegmentFileSetWriterMockRecorder) Files() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Files", reflect.TypeOf((*MockMutableSegmentFileSetWriter)(nil).Files))
 }
 
 // WriteFile mocks base method
 func (m *MockMutableSegmentFileSetWriter) WriteFile(fileType IndexSegmentFileType, writer io.Writer) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteFile", fileType, writer)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -255,11 +280,13 @@ func (m *MockMutableSegmentFileSetWriter) WriteFile(fileType IndexSegmentFileTyp
 
 // WriteFile indicates an expected call of WriteFile
 func (mr *MockMutableSegmentFileSetWriterMockRecorder) WriteFile(fileType, writer interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteFile", reflect.TypeOf((*MockMutableSegmentFileSetWriter)(nil).WriteFile), fileType, writer)
 }
 
 // Reset mocks base method
 func (m *MockMutableSegmentFileSetWriter) Reset(arg0 segment.MutableSegment) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Reset", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -267,6 +294,7 @@ func (m *MockMutableSegmentFileSetWriter) Reset(arg0 segment.MutableSegment) err
 
 // Reset indicates an expected call of Reset
 func (mr *MockMutableSegmentFileSetWriterMockRecorder) Reset(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockMutableSegmentFileSetWriter)(nil).Reset), arg0)
 }
 
@@ -295,6 +323,7 @@ func (m *MockIndexFileSetReader) EXPECT() *MockIndexFileSetReaderMockRecorder {
 
 // SegmentFileSets mocks base method
 func (m *MockIndexFileSetReader) SegmentFileSets() int {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SegmentFileSets")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -302,11 +331,13 @@ func (m *MockIndexFileSetReader) SegmentFileSets() int {
 
 // SegmentFileSets indicates an expected call of SegmentFileSets
 func (mr *MockIndexFileSetReaderMockRecorder) SegmentFileSets() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentFileSets", reflect.TypeOf((*MockIndexFileSetReader)(nil).SegmentFileSets))
 }
 
 // ReadSegmentFileSet mocks base method
 func (m *MockIndexFileSetReader) ReadSegmentFileSet() (IndexSegmentFileSet, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReadSegmentFileSet")
 	ret0, _ := ret[0].(IndexSegmentFileSet)
 	ret1, _ := ret[1].(error)
@@ -315,6 +346,7 @@ func (m *MockIndexFileSetReader) ReadSegmentFileSet() (IndexSegmentFileSet, erro
 
 // ReadSegmentFileSet indicates an expected call of ReadSegmentFileSet
 func (mr *MockIndexFileSetReaderMockRecorder) ReadSegmentFileSet() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadSegmentFileSet", reflect.TypeOf((*MockIndexFileSetReader)(nil).ReadSegmentFileSet))
 }
 
@@ -343,6 +375,7 @@ func (m *MockIndexSegmentFileSet) EXPECT() *MockIndexSegmentFileSetMockRecorder 
 
 // SegmentType mocks base method
 func (m *MockIndexSegmentFileSet) SegmentType() IndexSegmentType {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SegmentType")
 	ret0, _ := ret[0].(IndexSegmentType)
 	return ret0
@@ -350,11 +383,13 @@ func (m *MockIndexSegmentFileSet) SegmentType() IndexSegmentType {
 
 // SegmentType indicates an expected call of SegmentType
 func (mr *MockIndexSegmentFileSetMockRecorder) SegmentType() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentType", reflect.TypeOf((*MockIndexSegmentFileSet)(nil).SegmentType))
 }
 
 // MajorVersion mocks base method
 func (m *MockIndexSegmentFileSet) MajorVersion() int {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MajorVersion")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -362,11 +397,13 @@ func (m *MockIndexSegmentFileSet) MajorVersion() int {
 
 // MajorVersion indicates an expected call of MajorVersion
 func (mr *MockIndexSegmentFileSetMockRecorder) MajorVersion() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MajorVersion", reflect.TypeOf((*MockIndexSegmentFileSet)(nil).MajorVersion))
 }
 
 // MinorVersion mocks base method
 func (m *MockIndexSegmentFileSet) MinorVersion() int {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MinorVersion")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -374,11 +411,13 @@ func (m *MockIndexSegmentFileSet) MinorVersion() int {
 
 // MinorVersion indicates an expected call of MinorVersion
 func (mr *MockIndexSegmentFileSetMockRecorder) MinorVersion() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MinorVersion", reflect.TypeOf((*MockIndexSegmentFileSet)(nil).MinorVersion))
 }
 
 // SegmentMetadata mocks base method
 func (m *MockIndexSegmentFileSet) SegmentMetadata() []byte {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SegmentMetadata")
 	ret0, _ := ret[0].([]byte)
 	return ret0
@@ -386,11 +425,13 @@ func (m *MockIndexSegmentFileSet) SegmentMetadata() []byte {
 
 // SegmentMetadata indicates an expected call of SegmentMetadata
 func (mr *MockIndexSegmentFileSetMockRecorder) SegmentMetadata() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentMetadata", reflect.TypeOf((*MockIndexSegmentFileSet)(nil).SegmentMetadata))
 }
 
 // Files mocks base method
 func (m *MockIndexSegmentFileSet) Files() []IndexSegmentFile {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Files")
 	ret0, _ := ret[0].([]IndexSegmentFile)
 	return ret0
@@ -398,6 +439,7 @@ func (m *MockIndexSegmentFileSet) Files() []IndexSegmentFile {
 
 // Files indicates an expected call of Files
 func (mr *MockIndexSegmentFileSetMockRecorder) Files() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Files", reflect.TypeOf((*MockIndexSegmentFileSet)(nil).Files))
 }
 
@@ -426,6 +468,7 @@ func (m *MockIndexSegmentFile) EXPECT() *MockIndexSegmentFileMockRecorder {
 
 // Read mocks base method
 func (m *MockIndexSegmentFile) Read(p []byte) (int, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Read", p)
 	ret0, _ := ret[0].(int)
 	ret1, _ := ret[1].(error)
@@ -434,11 +477,13 @@ func (m *MockIndexSegmentFile) Read(p []byte) (int, error) {
 
 // Read indicates an expected call of Read
 func (mr *MockIndexSegmentFileMockRecorder) Read(p interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Read", reflect.TypeOf((*MockIndexSegmentFile)(nil).Read), p)
 }
 
 // Close mocks base method
 func (m *MockIndexSegmentFile) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -446,11 +491,13 @@ func (m *MockIndexSegmentFile) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockIndexSegmentFileMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockIndexSegmentFile)(nil).Close))
 }
 
 // SegmentFileType mocks base method
 func (m *MockIndexSegmentFile) SegmentFileType() IndexSegmentFileType {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SegmentFileType")
 	ret0, _ := ret[0].(IndexSegmentFileType)
 	return ret0
@@ -458,11 +505,13 @@ func (m *MockIndexSegmentFile) SegmentFileType() IndexSegmentFileType {
 
 // SegmentFileType indicates an expected call of SegmentFileType
 func (mr *MockIndexSegmentFileMockRecorder) SegmentFileType() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SegmentFileType", reflect.TypeOf((*MockIndexSegmentFile)(nil).SegmentFileType))
 }
 
 // Bytes mocks base method
 func (m *MockIndexSegmentFile) Bytes() ([]byte, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Bytes")
 	ret0, _ := ret[0].([]byte)
 	ret1, _ := ret[1].(error)
@@ -471,5 +520,6 @@ func (m *MockIndexSegmentFile) Bytes() ([]byte, error) {
 
 // Bytes indicates an expected call of Bytes
 func (mr *MockIndexSegmentFileMockRecorder) Bytes() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bytes", reflect.TypeOf((*MockIndexSegmentFile)(nil).Bytes))
 }

@@ -808,3 +808,33 @@ func TestWriterSetMessageTTLNanosDropMetric(t *testing.T) {
 
 	w.Close()
 }
+
+func TestWriterNumShards(t *testing.T) {
+	defer leaktest.Check(t)()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := mem.NewStore()
+	cs := client.NewMockClient(ctrl)
+	cs.EXPECT().Store(gomock.Any()).Return(store, nil)
+
+	ts, err := topic.NewService(topic.NewServiceOptions().SetConfigService(cs))
+	require.NoError(t, err)
+
+	opts := testOptions().SetTopicService(ts)
+
+	testTopic := topic.NewTopic().
+		SetName(opts.TopicName()).
+		SetNumberOfShards(2)
+	_, err = ts.CheckAndSet(testTopic, kv.UninitializedVersion)
+	require.NoError(t, err)
+
+	w := NewWriter(opts).(*writer)
+	defer w.Close()
+
+	require.Equal(t, 0, int(w.NumShards()))
+
+	require.NoError(t, w.Init())
+	require.Equal(t, 2, int(w.NumShards()))
+}

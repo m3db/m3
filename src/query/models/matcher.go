@@ -22,8 +22,10 @@ package models
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 )
 
 func (m MatchType) String() string {
@@ -107,4 +109,48 @@ func (m Matchers) String() string {
 	}
 
 	return buffer.String()
+}
+
+// TODO: make this more robust, handle types other than MatchEqual
+func matcherFromString(s string) (Matcher, error) {
+	ss := strings.Split(s, ":")
+	length := len(ss)
+	if length > 2 {
+		return Matcher{}, errors.New("invalid arg length for matcher")
+	}
+
+	if length == 0 || len(ss[0]) == 0 {
+		return Matcher{}, errors.New("empty matcher")
+	}
+
+	if length == 1 {
+		return Matcher{
+			Type:  MatchRegexp,
+			Name:  []byte(ss[0]),
+			Value: []byte{},
+		}, nil
+	}
+
+	return Matcher{
+		Type:  MatchRegexp,
+		Name:  []byte(ss[0]),
+		Value: []byte(ss[1]),
+	}, nil
+}
+
+// MatchersFromString parses a string into Matchers
+// TODO: make this more robust, handle types other than MatchEqual
+func MatchersFromString(s string) (Matchers, error) {
+	split := strings.Fields(s)
+	matchers := make(Matchers, len(split))
+	for i, ss := range split {
+		matcher, err := matcherFromString(ss)
+		if err != nil {
+			return nil, err
+		}
+
+		matchers[i] = matcher
+	}
+
+	return matchers, nil
 }

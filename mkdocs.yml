@@ -39,6 +39,7 @@ pages:
   - "Overview":
     - "Components": "introduction/components/components.md"
     - "Motivation": "introduction/motivation/motivation.md"
+    - "Media":      "introduction/media/media.md"
   - "M3DB":
     - "Introduction": "m3db/index.md"
     - "Architecture":
@@ -52,6 +53,8 @@ pages:
       - "Caching": "m3db/architecture/caching.md"
   - "Query Engine and Coordinator":
     - "Introduction": "query_engine/index.md"
+    - "API":
+      - "Query": "query_engine/api/index.md"
     - "Roadmap": "query_engine/roadmap.md"
     - "Architecture":
       - "Overview": "query_engine/architecture/index.md"
@@ -66,6 +69,7 @@ pages:
     - "Placement/Topology Configuration": "operational_guide/placement_configuration.md"
     - "Namespace Configuration": "operational_guide/namespace_configuration.md"
     - "Bootstrapping": "operational_guide/bootstrapping.md"
+    - "Kernel Configuration": "operational_guide/kernel_configuration.md"
   - "Integrations":
     - "Prometheus": "integrations/prometheus.md"
   - "Troubleshooting": "troubleshooting/index.md"

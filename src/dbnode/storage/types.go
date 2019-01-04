@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xcounter"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/context"
@@ -50,6 +51,13 @@ import (
 
 // PageToken is an opaque paging token.
 type PageToken []byte
+
+// IndexedErrorHandler can handle individual errors based on their index. It
+// is used primarily in cases where we need to handle errors in batches, but
+// want to avoid an intermediary allocation of []error.
+type IndexedErrorHandler interface {
+	HandleError(index int, err error)
+}
 
 // Database is a time series database
 type Database interface {
@@ -103,6 +111,26 @@ type Database interface {
 		annotation []byte,
 	) error
 
+	// BatchWriter returns a batch writer for the provided namespace that can
+	// be used to issue a batch of writes to either WriteBatch or WriteTaggedBatch.
+	BatchWriter(namespace ident.ID, batchSize int) (ts.BatchWriter, error)
+
+	// WriteBatch is the same as Write, but in batch.
+	WriteBatch(
+		ctx context.Context,
+		namespace ident.ID,
+		writes ts.BatchWriter,
+		errHandler IndexedErrorHandler,
+	) error
+
+	// WriteTaggedBatch is the same as WriteTagged, but in batch.
+	WriteTaggedBatch(
+		ctx context.Context,
+		namespace ident.ID,
+		writes ts.BatchWriter,
+		errHandler IndexedErrorHandler,
+	) error
+
 	// QueryIDs resolves the given query into known IDs.
 	QueryIDs(
 		ctx context.Context,
@@ -146,6 +174,11 @@ type Database interface {
 
 	// IsBootstrapped determines whether the database is bootstrapped.
 	IsBootstrapped() bool
+
+	// IsBootstrappedAndDurable determines whether the database is bootstrapped
+	// and durable, meaning that it could recover all data in memory using only
+	// the local disk.
+	IsBootstrappedAndDurable() bool
 
 	// IsOverloaded determines whether the database is overloaded
 	IsOverloaded() bool
@@ -221,7 +254,7 @@ type databaseNamespace interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
-	) error
+	) (ts.Series, error)
 
 	// WriteTagged values to the namespace for an ID
 	WriteTagged(
@@ -232,7 +265,7 @@ type databaseNamespace interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
-	) error
+	) (ts.Series, error)
 
 	// QueryIDs resolves the given query into known IDs.
 	QueryIDs(
@@ -282,7 +315,12 @@ type databaseNamespace interface {
 	) error
 
 	// Snapshot snapshots unflushed in-memory data
-	Snapshot(blockStart, snapshotTime time.Time, flush persist.DataFlush) error
+	Snapshot(
+		blockStart,
+		snapshotTime time.Time,
+		shardBootstrapStatesAtTickStart ShardBootstrapStates,
+		flush persist.DataFlush,
+	) error
 
 	// NeedsFlush returns true if the namespace needs a flush for the
 	// period: [start, end] (both inclusive).
@@ -345,7 +383,7 @@ type databaseShard interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
-	) error
+	) (ts.Series, error)
 
 	// WriteTagged values to the shard for an ID
 	WriteTagged(
@@ -356,7 +394,7 @@ type databaseShard interface {
 		value float64,
 		unit xtime.Unit,
 		annotation []byte,
-	) error
+	) (ts.Series, error)
 
 	ReadEncoded(
 		ctx context.Context,
@@ -489,6 +527,10 @@ type databaseBootstrapManager interface {
 	// IsBootstrapped returns whether the database is already bootstrapped.
 	IsBootstrapped() bool
 
+	// LastBootstrapCompletionTime returns the last bootstrap completion time,
+	// if any.
+	LastBootstrapCompletionTime() (time.Time, bool)
+
 	// Bootstrap performs bootstrapping for all namespaces and shards owned.
 	Bootstrap() error
 
@@ -500,6 +542,10 @@ type databaseBootstrapManager interface {
 type databaseFlushManager interface {
 	// Flush flushes in-memory data to persistent storage.
 	Flush(tickStart time.Time, dbBootstrapStateAtTickStart DatabaseBootstrapState) error
+
+	// LastSuccessfulSnapshotStartTime returns the start time of the last successful snapshot,
+	// if any.
+	LastSuccessfulSnapshotStartTime() (time.Time, bool)
 
 	// Report reports runtime information
 	Report()
@@ -543,6 +589,10 @@ type databaseFileSystemManager interface {
 
 	// Report reports runtime information
 	Report()
+
+	// LastSuccessfulSnapshotStartTime returns the start time of the last successful snapshot,
+	// if any.
+	LastSuccessfulSnapshotStartTime() (time.Time, bool)
 }
 
 // databaseShardRepairer repairs in-memory data for a shard
@@ -584,32 +634,40 @@ type databaseTickManager interface {
 
 // databaseMediator mediates actions among various database managers
 type databaseMediator interface {
-	// Open opens the mediator
+	// Open opens the mediator.
 	Open() error
 
-	// IsBootstrapped returns whether the database is bootstrapped
+	// IsBootstrapped returns whether the database is bootstrapped.
 	IsBootstrapped() bool
 
-	// Bootstrap bootstraps the database with file operations performed at the end
+	// LastBootstrapCompletionTime returns the last bootstrap completion time,
+	// if any.
+	LastBootstrapCompletionTime() (time.Time, bool)
+
+	// Bootstrap bootstraps the database with file operations performed at the end.
 	Bootstrap() error
 
-	// DisableFileOps disables file operations
+	// DisableFileOps disables file operations.
 	DisableFileOps()
 
-	// EnableFileOps enables file operations
+	// EnableFileOps enables file operations.
 	EnableFileOps()
 
-	// Tick performs a tick
+	// Tick performs a tick.
 	Tick(runType runType, forceType forceType) error
 
-	// Repair repairs the database
+	// Repair repairs the database.
 	Repair() error
 
-	// Close closes the mediator
+	// Close closes the mediator.
 	Close() error
 
-	// Report reports runtime information
+	// Report reports runtime information.
 	Report()
+
+	// LastSuccessfulSnapshotStartTime returns the start time of the last successful snapshot,
+	// if any.
+	LastSuccessfulSnapshotStartTime() (time.Time, bool)
 }
 
 // databaseNamespaceWatch watches for namespace updates.
@@ -816,6 +874,12 @@ type Options interface {
 
 	// QueryIDsWorkerPool returns the QueryIDs worker pool.
 	QueryIDsWorkerPool() xsync.WorkerPool
+
+	// SetWriteBatchPool sets the WriteBatch pool.
+	SetWriteBatchPool(value *ts.WriteBatchPool) Options
+
+	// WriteBatchPool returns the WriteBatch pool.
+	WriteBatchPool() *ts.WriteBatchPool
 }
 
 // DatabaseBootstrapState stores a snapshot of the bootstrap state for all shards across all

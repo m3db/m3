@@ -58,16 +58,19 @@ func (m *MockHandler) EXPECT() *MockHandlerMockRecorder {
 
 // Close mocks base method
 func (m *MockHandler) Close() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Close")
 }
 
 // Close indicates an expected call of Close
 func (mr *MockHandlerMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockHandler)(nil).Close))
 }
 
 // NewWriter mocks base method
 func (m *MockHandler) NewWriter(arg0 tally.Scope) (writer.Writer, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NewWriter", arg0)
 	ret0, _ := ret[0].(writer.Writer)
 	ret1, _ := ret[1].(error)
@@ -76,5 +79,6 @@ func (m *MockHandler) NewWriter(arg0 tally.Scope) (writer.Writer, error) {
 
 // NewWriter indicates an expected call of NewWriter
 func (mr *MockHandlerMockRecorder) NewWriter(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewWriter", reflect.TypeOf((*MockHandler)(nil).NewWriter), arg0)
 }

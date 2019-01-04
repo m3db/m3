@@ -447,12 +447,12 @@ func (ts *testSetup) startServer() error {
 
 	topo, err := ts.topoInit.Init()
 	if err != nil {
-		return err
+		return fmt.Errorf("error initializing topology: %v", err)
 	}
 
 	topoWatch, err := topo.Watch()
 	if err != nil {
-		return err
+		return fmt.Errorf("error watching topology: %v", err)
 	}
 
 	ts.db, err = cluster.NewDatabase(ts.hostID, topo, topoWatch, ts.storageOpts)

@@ -53,11 +53,11 @@ var (
 	}
 )
 
-func SetupDatabaseTest(t *testing.T) (*client.MockClient, *kv.MockStore, *placement.MockService) {
+func SetupDatabaseTest(
+	t *testing.T,
+	ctrl *gomock.Controller,
+) (*client.MockClient, *kv.MockStore, *placement.MockService) {
 	logging.InitWithCores(nil)
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 
 	mockClient := client.NewMockClient(ctrl)
 	require.NotNil(t, mockClient)
@@ -76,7 +76,10 @@ func SetupDatabaseTest(t *testing.T) (*client.MockClient, *kv.MockStore, *placem
 }
 
 func TestLocalType(t *testing.T) {
-	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
@@ -136,7 +139,7 @@ func TestLocalType(t *testing.T) {
 							"blockDataExpiry": true,
 							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
 						},
-						"snapshotEnabled": false,
+						"snapshotEnabled": true,
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
@@ -175,8 +178,114 @@ func TestLocalType(t *testing.T) {
 		xtest.Diff(mustPrettyJSON(t, expectedResponse), mustPrettyJSON(t, string(body))))
 }
 
+func TestLocalTypeWithNumShards(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
+	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
+	w := httptest.NewRecorder()
+
+	jsonInput := `
+		{
+			"namespaceName": "testNamespace",
+			"type": "local",
+			"numShards": 51
+		}
+	`
+
+	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
+	require.NotNil(t, req)
+
+	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
+	mockKV.EXPECT().CheckAndSet(namespace.M3DBNodeNamespacesKey, gomock.Any(), gomock.Not(nil)).Return(1, nil)
+
+	placementProto := &placementpb.Placement{
+		Instances: map[string]*placementpb.Instance{
+			"localhost": &placementpb.Instance{
+				Id:             "m3db_local",
+				IsolationGroup: "local",
+				Zone:           "embedded",
+				Weight:         1,
+				Endpoint:       "http://localhost:9000",
+				Hostname:       "localhost",
+				Port:           9000,
+			},
+		},
+	}
+	newPlacement, err := placement.NewPlacementFromProto(placementProto)
+	require.NoError(t, err)
+	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Any(), 51, 1).Return(newPlacement, nil)
+
+	createHandler.ServeHTTP(w, req)
+
+	resp := w.Result()
+	body, err := ioutil.ReadAll(resp.Body)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	expectedResponse := `
+	{
+		"namespace": {
+			"registry": {
+				"namespaces": {
+					"testNamespace": {
+						"bootstrapEnabled": true,
+						"flushEnabled": true,
+						"writesToCommitLog": true,
+						"cleanupEnabled": true,
+						"repairEnabled": false,
+						"retentionOptions": {
+							"retentionPeriodNanos": "86400000000000",
+							"blockSizeNanos": "3600000000000",
+							"bufferFutureNanos": "120000000000",
+							"bufferPastNanos": "600000000000",
+							"blockDataExpiry": true,
+							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
+						},
+						"snapshotEnabled": true,
+						"indexOptions": {
+							"enabled": true,
+							"blockSizeNanos": "3600000000000"
+						}
+					}
+				}
+			}
+		},
+		"placement": {
+			"placement": {
+				"instances": {
+					"m3db_local": {
+						"id": "m3db_local",
+						"isolationGroup": "local",
+						"zone": "embedded",
+						"weight": 1,
+						"endpoint": "http://localhost:9000",
+						"shards": [],
+						"shardSetId": 0,
+						"hostname": "localhost",
+						"port": 9000
+					}
+				},
+				"replicaFactor": 0,
+				"numShards": 0,
+				"isSharded": false,
+				"cutoverTime": "0",
+				"isMirrored": false,
+				"maxShardSetId": 0
+			},
+			"version": 0
+		}
+	}
+	`
+	assert.Equal(t, stripAllWhitespace(expectedResponse), string(body),
+		xtest.Diff(mustPrettyJSON(t, expectedResponse), mustPrettyJSON(t, string(body))))
+}
 func TestLocalWithBlockSizeNanos(t *testing.T) {
-	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
@@ -237,7 +346,7 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 							"blockDataExpiry": true,
 							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
 						},
-						"snapshotEnabled": false,
+						"snapshotEnabled": true,
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "10800000000000"
@@ -277,7 +386,10 @@ func TestLocalWithBlockSizeNanos(t *testing.T) {
 }
 
 func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
-	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
@@ -341,7 +453,7 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 							"blockDataExpiry": true,
 							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
 						},
-						"snapshotEnabled": false,
+						"snapshotEnabled": true,
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "%d"
@@ -382,7 +494,10 @@ func TestLocalWithBlockSizeExpectedSeriesDatapointsPerHour(t *testing.T) {
 }
 
 func TestClusterTypeHosts(t *testing.T) {
-	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
@@ -452,7 +567,7 @@ func TestClusterTypeHosts(t *testing.T) {
 							"blockDataExpiry": true,
 							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
 						},
-						"snapshotEnabled": false,
+						"snapshotEnabled": true,
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
@@ -503,7 +618,10 @@ func TestClusterTypeHosts(t *testing.T) {
 }
 
 func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
-	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t, ctrl)
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
@@ -573,7 +691,7 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 							"blockDataExpiry": true,
 							"blockDataExpiryAfterNotAccessPeriodNanos": "300000000000"
 						},
-						"snapshotEnabled": false,
+						"snapshotEnabled": true,
 						"indexOptions": {
 							"enabled": true,
 							"blockSizeNanos": "3600000000000"
@@ -623,7 +741,10 @@ func TestClusterTypeHostsWithIsolationGroup(t *testing.T) {
 		xtest.Diff(mustPrettyJSON(t, expectedResponse), mustPrettyJSON(t, string(body))))
 }
 func TestClusterTypeMissingHostnames(t *testing.T) {
-	mockClient, _, _ := SetupDatabaseTest(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, _, _ := SetupDatabaseTest(t, ctrl)
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
@@ -647,7 +768,10 @@ func TestClusterTypeMissingHostnames(t *testing.T) {
 }
 
 func TestBadType(t *testing.T) {
-	mockClient, _, _ := SetupDatabaseTest(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient, _, _ := SetupDatabaseTest(t, ctrl)
 	createHandler := NewCreateHandler(mockClient, config.Configuration{}, nil)
 	w := httptest.NewRecorder()
 

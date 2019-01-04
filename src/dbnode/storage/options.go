@@ -41,6 +41,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/storage/namespace"
 	"github.com/m3db/m3/src/dbnode/storage/repair"
 	"github.com/m3db/m3/src/dbnode/storage/series"
+	"github.com/m3db/m3/src/dbnode/ts"
 	"github.com/m3db/m3/src/dbnode/x/xcounter"
 	"github.com/m3db/m3/src/dbnode/x/xio"
 	"github.com/m3db/m3x/context"
@@ -51,33 +52,33 @@ import (
 )
 
 const (
-	// defaultBytesPoolBucketCapacity is the default bytes buffer capacity for the default bytes pool bucket
+	// defaultBytesPoolBucketCapacity is the default bytes buffer capacity for the default bytes pool bucket.
 	defaultBytesPoolBucketCapacity = 256
 
-	// defaultBytesPoolBucketCount is the default count of elements for the default bytes pool bucket
+	// defaultBytesPoolBucketCount is the default count of elements for the default bytes pool bucket.
 	defaultBytesPoolBucketCount = 4096
 
-	// defaultRepairEnabled enables repair by default
+	// defaultRepairEnabled enables repair by default.
 	defaultRepairEnabled = true
 
-	// defaultErrorWindowForLoad is the default error window for evaluating server load
+	// defaultErrorWindowForLoad is the default error window for evaluating server load.
 	defaultErrorWindowForLoad = 10 * time.Second
 
-	// defaultErrorThresholdForLoad is the default error threshold for considering server overloaded
+	// defaultErrorThresholdForLoad is the default error threshold for considering server overloaded.
 	defaultErrorThresholdForLoad = 1000
 
-	// defaultIndexingEnabled disables indexing by default
+	// defaultIndexingEnabled disables indexing by default.
 	defaultIndexingEnabled = false
 
-	// defaultMinSnapshotInterval is the default minimum interval that must elapse between snapshots
-	defaultMinSnapshotInterval = time.Minute
+	// defaultMinSnapshotInterval is the default minimum interval that must elapse between snapshots.
+	defaultMinSnapshotInterval = 10 * time.Second
 )
 
 var (
-	// defaultBootstrapProcessProvider is the default bootstrap provider for the database
+	// defaultBootstrapProcessProvider is the default bootstrap provider for the database.
 	defaultBootstrapProcessProvider = bootstrap.NewNoOpProcessProvider()
 
-	// defaultPoolOptions are the pool options used by default
+	// defaultPoolOptions are the pool options used by default.
 	defaultPoolOptions pool.ObjectPoolOptions
 
 	timeZero time.Time
@@ -142,6 +143,7 @@ type options struct {
 	fetchBlockMetadataResultsPool  block.FetchBlockMetadataResultsPool
 	fetchBlocksMetadataResultsPool block.FetchBlocksMetadataResultsPool
 	queryIDsWorkerPool             xsync.WorkerPool
+	writeBatchPool                 *ts.WriteBatchPool
 }
 
 // NewOptions creates a new set of storage options with defaults
@@ -159,6 +161,9 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 	// Default to using half of the available cores for querying IDs
 	queryIDsWorkerPool := xsync.NewWorkerPool(int(math.Ceil(float64(runtime.NumCPU()) / 2)))
 	queryIDsWorkerPool.Init()
+
+	writeBatchPool := ts.NewWriteBatchPool(poolOpts, nil, nil)
+	writeBatchPool.Init()
 
 	o := &options{
 		clockOpts:                clock.NewOptions(),
@@ -195,6 +200,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		fetchBlockMetadataResultsPool:  block.NewFetchBlockMetadataResultsPool(poolOpts, 0),
 		fetchBlocksMetadataResultsPool: block.NewFetchBlocksMetadataResultsPool(poolOpts, 0),
 		queryIDsWorkerPool:             queryIDsWorkerPool,
+		writeBatchPool:                 writeBatchPool,
 	}
 	return o.SetEncodingM3TSZPooled()
 }
@@ -621,4 +627,14 @@ func (o *options) SetQueryIDsWorkerPool(value xsync.WorkerPool) Options {
 
 func (o *options) QueryIDsWorkerPool() xsync.WorkerPool {
 	return o.queryIDsWorkerPool
+}
+
+func (o *options) SetWriteBatchPool(value *ts.WriteBatchPool) Options {
+	opts := *o
+	opts.writeBatchPool = value
+	return &opts
+}
+
+func (o *options) WriteBatchPool() *ts.WriteBatchPool {
+	return o.writeBatchPool
 }

@@ -161,6 +161,14 @@ type Options interface {
 	// used when fetching data from peers for coordinated writes
 	ClientWriteConsistencyLevel() topology.ConsistencyLevel
 
+	// SetIndexDefaultQueryTimeout is the hard timeout value to use if none is
+	// specified for a specific query, zero specifies to use no timeout at all.
+	SetIndexDefaultQueryTimeout(value time.Duration) Options
+
+	// IndexDefaultQueryTimeout is the hard timeout value to use if none is
+	// specified for a specific query, zero specifies to use no timeout at all.
+	IndexDefaultQueryTimeout() time.Duration
+
 	// SetFlushIndexBlockNumSegments sets the number of index block segments to
 	// divide into and flush separately to disk, the bigger the number the
 	// greater amount of segments that need to be searched independently but

@@ -29,12 +29,11 @@ import (
 )
 
 var (
-	errUnableToAddDocMissingID = errors.New("corrupt data, unable to extract id")
+	errUnableToAddResultMissingID = errors.New("no id for result")
 )
 
 type results struct {
 	nsID       ident.ID
-	size       int
 	resultsMap *ResultsMap
 
 	idPool    ident.Pool
@@ -53,10 +52,12 @@ func NewResults(opts Options) Results {
 	}
 }
 
-func (r *results) Add(d doc.Document) (added bool, size int, err error) {
+func (r *results) AddDocument(
+	d doc.Document,
+) (added bool, size int, err error) {
 	added = false
 	if len(d.ID) == 0 {
-		return added, r.size, errUnableToAddDocMissingID
+		return added, r.resultsMap.Len(), errUnableToAddResultMissingID
 	}
 
 	// NB: can cast the []byte -> ident.ID to avoid an alloc
@@ -65,42 +66,57 @@ func (r *results) Add(d doc.Document) (added bool, size int, err error) {
 
 	// check if it already exists in the map.
 	if r.resultsMap.Contains(tsID) {
-		return added, r.size, nil
+		return added, r.resultsMap.Len(), nil
 	}
 
 	// i.e. it doesn't exist in the map, so we create the tags wrapping
 	// fields prodided by the document.
-	tags := r.tags(d.Fields)
+	tags := r.cloneTagsFromFields(d.Fields)
 
 	// We use Set() instead of SetUnsafe to ensure we're taking a copy of
 	// the tsID's bytes.
 	r.resultsMap.Set(tsID, tags)
-	r.size++
 
 	added = true
-	return added, r.size, nil
+	return added, r.resultsMap.Len(), nil
 }
 
-func (r *results) tags(fields doc.Fields) ident.Tags {
+func (r *results) AddIDAndTags(
+	id ident.ID,
+	tags ident.Tags,
+) (added bool, size int, err error) {
+	added = false
+	bytesID := ident.BytesID(id.Bytes())
+	if len(bytesID) == 0 {
+		return added, r.resultsMap.Len(), errUnableToAddResultMissingID
+	}
+
+	// check if it already exists in the map.
+	if r.resultsMap.Contains(bytesID) {
+		return added, r.resultsMap.Len(), nil
+	}
+
+	// We use Set() instead of SetUnsafe to ensure we're taking a copy of
+	// the tsID's bytes.
+	r.resultsMap.Set(bytesID, r.cloneTags(tags))
+
+	added = true
+	return added, r.resultsMap.Len(), nil
+}
+
+func (r *results) cloneTags(tags ident.Tags) ident.Tags {
+	return r.idPool.CloneTags(tags)
+}
+
+func (r *results) cloneTagsFromFields(fields doc.Fields) ident.Tags {
 	tags := r.idPool.Tags()
 	for _, f := range fields {
-		tags.Append(ident.Tag{
-			Name:  r.copyBytes(f.Name),
-			Value: r.copyBytes(f.Value),
-		})
+		tags.Append(r.idPool.CloneTag(ident.Tag{
+			Name:  ident.BytesID(f.Name),
+			Value: ident.BytesID(f.Value),
+		}))
 	}
 	return tags
-}
-
-// copyBytes copies the provided bytes into an ident.ID backed by pooled types.
-func (r *results) copyBytes(b []byte) ident.ID {
-	cb := r.bytesPool.Get(len(b))
-	cb.IncRef()
-	cb.AppendAll(b)
-	id := r.idPool.BinaryID(cb)
-	// release held reference so now the only reference to the bytes is owned by `id`
-	cb.DecRef()
-	return id
 }
 
 func (r *results) Namespace() ident.ID {
@@ -112,7 +128,7 @@ func (r *results) Map() *ResultsMap {
 }
 
 func (r *results) Size() int {
-	return r.size
+	return r.resultsMap.Len()
 }
 
 func (r *results) Reset(nsID ident.ID) {
@@ -134,7 +150,6 @@ func (r *results) Reset(nsID ident.ID) {
 
 	// reset all keys in the map next
 	r.resultsMap.Reset()
-	r.size = 0
 
 	// NB: could do keys+value in one step but I'm trying to avoid
 	// using an internal method of a code-gen'd type.

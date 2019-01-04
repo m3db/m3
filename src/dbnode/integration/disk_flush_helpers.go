@@ -46,23 +46,59 @@ var (
 	errDiskFlushTimedOut = errors.New("flushing data to disk took too long")
 )
 
+type snapshotID struct {
+	blockStart time.Time
+	minVolume  int
+}
+
+func getLatestSnapshotVolumeIndex(
+	filePathPrefix string,
+	shardSet sharding.ShardSet,
+	namespace ident.ID,
+	blockStart time.Time,
+) int {
+	latestVolumeIndex := -1
+
+	for _, shard := range shardSet.AllIDs() {
+		snapshotFiles, err := fs.SnapshotFiles(
+			filePathPrefix, namespace, shard)
+		if err != nil {
+			panic(err)
+		}
+		latestSnapshot, ok := snapshotFiles.LatestVolumeForBlock(blockStart)
+		if !ok {
+			continue
+		}
+		if latestSnapshot.ID.VolumeIndex > latestVolumeIndex {
+			latestVolumeIndex = latestSnapshot.ID.VolumeIndex
+		}
+	}
+
+	return latestVolumeIndex
+}
+
 func waitUntilSnapshotFilesFlushed(
 	filePathPrefix string,
 	shardSet sharding.ShardSet,
 	namespace ident.ID,
-	expectedSnapshotTimes []time.Time,
+	expectedSnapshots []snapshotID,
 	timeout time.Duration,
 ) error {
 	dataFlushed := func() bool {
 		for _, shard := range shardSet.AllIDs() {
-			for _, t := range expectedSnapshotTimes {
-				exists, err := fs.SnapshotFileSetExistsAt(
-					filePathPrefix, namespace, shard, t)
+			for _, e := range expectedSnapshots {
+				snapshotFiles, err := fs.SnapshotFiles(
+					filePathPrefix, namespace, shard)
 				if err != nil {
 					panic(err)
 				}
 
-				if !exists {
+				latest, ok := snapshotFiles.LatestVolumeForBlock(e.blockStart)
+				if !ok {
+					return false
+				}
+
+				if !(latest.ID.VolumeIndex >= e.minVolume) {
 					return false
 				}
 			}
@@ -202,18 +238,17 @@ func verifySnapshottedDataFiles(
 	shardSet sharding.ShardSet,
 	storageOpts storage.Options,
 	namespace ident.ID,
-	snapshotTime time.Time,
 	seriesMaps map[xtime.UnixNano]generate.SeriesBlock,
 ) {
 	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
 	reader, err := fs.NewReader(storageOpts.BytesPool(), fsOpts)
 	require.NoError(t, err)
 	iteratorPool := storageOpts.ReaderIteratorPool()
-	for _, ns := range testNamespaces {
-		for _, seriesList := range seriesMaps {
-			verifyForTime(
-				t, storageOpts, reader, shardSet, iteratorPool, snapshotTime,
-				ns, persist.FileSetSnapshotType, seriesList)
-		}
+	for blockStart, seriesList := range seriesMaps {
+
+		verifyForTime(
+			t, storageOpts, reader, shardSet, iteratorPool, blockStart.ToTime(),
+			namespace, persist.FileSetSnapshotType, seriesList)
 	}
+
 }

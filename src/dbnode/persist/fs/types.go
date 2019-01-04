@@ -67,6 +67,7 @@ type DataWriterOpenOptions struct {
 // that contains information specific to writing snapshot files
 type DataWriterSnapshotOptions struct {
 	SnapshotTime time.Time
+	SnapshotID   []byte
 }
 
 // DataFileSetWriter provides an unsynchronized writer for a TSDB file set

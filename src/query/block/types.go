@@ -22,6 +22,7 @@ package block
 
 import (
 	"fmt"
+	"io"
 	"math"
 	"time"
 
@@ -31,6 +32,7 @@ import (
 
 // Block represents a group of series across a time bound
 type Block interface {
+	io.Closer
 	// Unconsolidated returns the unconsolidated version of the block
 	Unconsolidated() (UnconsolidatedBlock, error)
 	// StepIter returns a StepIterator
@@ -39,22 +41,19 @@ type Block interface {
 	SeriesIter() (SeriesIter, error)
 	// WithMetadata returns a block with updated meta and series metadata.
 	WithMetadata(Metadata, []SeriesMeta) (Block, error)
-	// Close frees up any resources
-	Close() error
 }
 
 // UnconsolidatedBlock represents a group of unconsolidated series across a time bound
 type UnconsolidatedBlock interface {
-	// StepIter returns a StepIterator
+	io.Closer
+	// StepIter returns an UnconsolidatedStepIter
 	StepIter() (UnconsolidatedStepIter, error)
-	// SeriesIter returns a SeriesIterator
+	// SeriesIter returns an UnconsolidatedSeriesIter
 	SeriesIter() (UnconsolidatedSeriesIter, error)
 	// Consolidate an unconsolidated block
 	Consolidate() (Block, error)
 	// WithMetadata returns a block with updated meta and series metadata.
 	WithMetadata(Metadata, []SeriesMeta) (UnconsolidatedBlock, error)
-	// Close frees up any resources
-	Close() error
 }
 
 // SeriesMeta is metadata data for the series

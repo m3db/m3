@@ -99,7 +99,6 @@ type helper struct {
 	groupToWeightMap    map[string]uint32
 	totalWeight         uint32
 	rf                  int
-	version             int
 	uniqueShards        []uint32
 	instances           map[string]placement.Instance
 	maxShardSetID       uint32
@@ -199,7 +198,6 @@ func newHelper(p placement.Placement, targetRF int, opts placement.Options) plac
 		instances:     make(map[string]placement.Instance, p.NumInstances()),
 		uniqueShards:  p.Shards(),
 		maxShardSetID: p.MaxShardSetID(),
-		version:       p.GetVersion(),
 		log:           opts.InstrumentOptions().Logger(),
 		opts:          opts,
 	}
@@ -406,8 +404,7 @@ func (ph *helper) generatePlacement() placement.Placement {
 		SetIsSharded(true).
 		SetIsMirrored(ph.opts.IsMirrored()).
 		SetCutoverNanos(ph.opts.PlacementCutoverNanosFn()()).
-		SetMaxShardSetID(maxShardSetID).
-		SetVersion(ph.version)
+		SetMaxShardSetID(maxShardSetID)
 }
 
 func (ph *helper) placeShards(

@@ -60,6 +60,7 @@ func (m *MockOptions) EXPECT() *MockOptionsMockRecorder {
 
 // Validate mocks base method
 func (m *MockOptions) Validate() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Validate")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -67,11 +68,13 @@ func (m *MockOptions) Validate() error {
 
 // Validate indicates an expected call of Validate
 func (mr *MockOptionsMockRecorder) Validate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Validate", reflect.TypeOf((*MockOptions)(nil).Validate))
 }
 
 // SetPersistRateLimitOptions mocks base method
 func (m *MockOptions) SetPersistRateLimitOptions(value ratelimit.Options) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetPersistRateLimitOptions", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -79,11 +82,13 @@ func (m *MockOptions) SetPersistRateLimitOptions(value ratelimit.Options) Option
 
 // SetPersistRateLimitOptions indicates an expected call of SetPersistRateLimitOptions
 func (mr *MockOptionsMockRecorder) SetPersistRateLimitOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPersistRateLimitOptions", reflect.TypeOf((*MockOptions)(nil).SetPersistRateLimitOptions), value)
 }
 
 // PersistRateLimitOptions mocks base method
 func (m *MockOptions) PersistRateLimitOptions() ratelimit.Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PersistRateLimitOptions")
 	ret0, _ := ret[0].(ratelimit.Options)
 	return ret0
@@ -91,11 +96,13 @@ func (m *MockOptions) PersistRateLimitOptions() ratelimit.Options {
 
 // PersistRateLimitOptions indicates an expected call of PersistRateLimitOptions
 func (mr *MockOptionsMockRecorder) PersistRateLimitOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PersistRateLimitOptions", reflect.TypeOf((*MockOptions)(nil).PersistRateLimitOptions))
 }
 
 // SetWriteNewSeriesAsync mocks base method
 func (m *MockOptions) SetWriteNewSeriesAsync(value bool) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetWriteNewSeriesAsync", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -103,11 +110,13 @@ func (m *MockOptions) SetWriteNewSeriesAsync(value bool) Options {
 
 // SetWriteNewSeriesAsync indicates an expected call of SetWriteNewSeriesAsync
 func (mr *MockOptionsMockRecorder) SetWriteNewSeriesAsync(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWriteNewSeriesAsync", reflect.TypeOf((*MockOptions)(nil).SetWriteNewSeriesAsync), value)
 }
 
 // WriteNewSeriesAsync mocks base method
 func (m *MockOptions) WriteNewSeriesAsync() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteNewSeriesAsync")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -115,11 +124,13 @@ func (m *MockOptions) WriteNewSeriesAsync() bool {
 
 // WriteNewSeriesAsync indicates an expected call of WriteNewSeriesAsync
 func (mr *MockOptionsMockRecorder) WriteNewSeriesAsync() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteNewSeriesAsync", reflect.TypeOf((*MockOptions)(nil).WriteNewSeriesAsync))
 }
 
 // SetWriteNewSeriesBackoffDuration mocks base method
 func (m *MockOptions) SetWriteNewSeriesBackoffDuration(value time.Duration) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetWriteNewSeriesBackoffDuration", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -127,11 +138,13 @@ func (m *MockOptions) SetWriteNewSeriesBackoffDuration(value time.Duration) Opti
 
 // SetWriteNewSeriesBackoffDuration indicates an expected call of SetWriteNewSeriesBackoffDuration
 func (mr *MockOptionsMockRecorder) SetWriteNewSeriesBackoffDuration(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWriteNewSeriesBackoffDuration", reflect.TypeOf((*MockOptions)(nil).SetWriteNewSeriesBackoffDuration), value)
 }
 
 // WriteNewSeriesBackoffDuration mocks base method
 func (m *MockOptions) WriteNewSeriesBackoffDuration() time.Duration {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteNewSeriesBackoffDuration")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
@@ -139,11 +152,13 @@ func (m *MockOptions) WriteNewSeriesBackoffDuration() time.Duration {
 
 // WriteNewSeriesBackoffDuration indicates an expected call of WriteNewSeriesBackoffDuration
 func (mr *MockOptionsMockRecorder) WriteNewSeriesBackoffDuration() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteNewSeriesBackoffDuration", reflect.TypeOf((*MockOptions)(nil).WriteNewSeriesBackoffDuration))
 }
 
 // SetWriteNewSeriesLimitPerShardPerSecond mocks base method
 func (m *MockOptions) SetWriteNewSeriesLimitPerShardPerSecond(value int) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetWriteNewSeriesLimitPerShardPerSecond", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -151,11 +166,13 @@ func (m *MockOptions) SetWriteNewSeriesLimitPerShardPerSecond(value int) Options
 
 // SetWriteNewSeriesLimitPerShardPerSecond indicates an expected call of SetWriteNewSeriesLimitPerShardPerSecond
 func (mr *MockOptionsMockRecorder) SetWriteNewSeriesLimitPerShardPerSecond(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWriteNewSeriesLimitPerShardPerSecond", reflect.TypeOf((*MockOptions)(nil).SetWriteNewSeriesLimitPerShardPerSecond), value)
 }
 
 // WriteNewSeriesLimitPerShardPerSecond mocks base method
 func (m *MockOptions) WriteNewSeriesLimitPerShardPerSecond() int {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WriteNewSeriesLimitPerShardPerSecond")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -163,11 +180,13 @@ func (m *MockOptions) WriteNewSeriesLimitPerShardPerSecond() int {
 
 // WriteNewSeriesLimitPerShardPerSecond indicates an expected call of WriteNewSeriesLimitPerShardPerSecond
 func (mr *MockOptionsMockRecorder) WriteNewSeriesLimitPerShardPerSecond() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteNewSeriesLimitPerShardPerSecond", reflect.TypeOf((*MockOptions)(nil).WriteNewSeriesLimitPerShardPerSecond))
 }
 
 // SetTickSeriesBatchSize mocks base method
 func (m *MockOptions) SetTickSeriesBatchSize(value int) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetTickSeriesBatchSize", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -175,11 +194,13 @@ func (m *MockOptions) SetTickSeriesBatchSize(value int) Options {
 
 // SetTickSeriesBatchSize indicates an expected call of SetTickSeriesBatchSize
 func (mr *MockOptionsMockRecorder) SetTickSeriesBatchSize(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTickSeriesBatchSize", reflect.TypeOf((*MockOptions)(nil).SetTickSeriesBatchSize), value)
 }
 
 // TickSeriesBatchSize mocks base method
 func (m *MockOptions) TickSeriesBatchSize() int {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "TickSeriesBatchSize")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -187,11 +208,13 @@ func (m *MockOptions) TickSeriesBatchSize() int {
 
 // TickSeriesBatchSize indicates an expected call of TickSeriesBatchSize
 func (mr *MockOptionsMockRecorder) TickSeriesBatchSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TickSeriesBatchSize", reflect.TypeOf((*MockOptions)(nil).TickSeriesBatchSize))
 }
 
 // SetTickPerSeriesSleepDuration mocks base method
 func (m *MockOptions) SetTickPerSeriesSleepDuration(value time.Duration) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetTickPerSeriesSleepDuration", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -199,11 +222,13 @@ func (m *MockOptions) SetTickPerSeriesSleepDuration(value time.Duration) Options
 
 // SetTickPerSeriesSleepDuration indicates an expected call of SetTickPerSeriesSleepDuration
 func (mr *MockOptionsMockRecorder) SetTickPerSeriesSleepDuration(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTickPerSeriesSleepDuration", reflect.TypeOf((*MockOptions)(nil).SetTickPerSeriesSleepDuration), value)
 }
 
 // TickPerSeriesSleepDuration mocks base method
 func (m *MockOptions) TickPerSeriesSleepDuration() time.Duration {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "TickPerSeriesSleepDuration")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
@@ -211,11 +236,13 @@ func (m *MockOptions) TickPerSeriesSleepDuration() time.Duration {
 
 // TickPerSeriesSleepDuration indicates an expected call of TickPerSeriesSleepDuration
 func (mr *MockOptionsMockRecorder) TickPerSeriesSleepDuration() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TickPerSeriesSleepDuration", reflect.TypeOf((*MockOptions)(nil).TickPerSeriesSleepDuration))
 }
 
 // SetTickMinimumInterval mocks base method
 func (m *MockOptions) SetTickMinimumInterval(value time.Duration) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetTickMinimumInterval", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -223,11 +250,13 @@ func (m *MockOptions) SetTickMinimumInterval(value time.Duration) Options {
 
 // SetTickMinimumInterval indicates an expected call of SetTickMinimumInterval
 func (mr *MockOptionsMockRecorder) SetTickMinimumInterval(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTickMinimumInterval", reflect.TypeOf((*MockOptions)(nil).SetTickMinimumInterval), value)
 }
 
 // TickMinimumInterval mocks base method
 func (m *MockOptions) TickMinimumInterval() time.Duration {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "TickMinimumInterval")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
@@ -235,11 +264,13 @@ func (m *MockOptions) TickMinimumInterval() time.Duration {
 
 // TickMinimumInterval indicates an expected call of TickMinimumInterval
 func (mr *MockOptionsMockRecorder) TickMinimumInterval() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TickMinimumInterval", reflect.TypeOf((*MockOptions)(nil).TickMinimumInterval))
 }
 
 // SetMaxWiredBlocks mocks base method
 func (m *MockOptions) SetMaxWiredBlocks(value uint) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetMaxWiredBlocks", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -247,11 +278,13 @@ func (m *MockOptions) SetMaxWiredBlocks(value uint) Options {
 
 // SetMaxWiredBlocks indicates an expected call of SetMaxWiredBlocks
 func (mr *MockOptionsMockRecorder) SetMaxWiredBlocks(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMaxWiredBlocks", reflect.TypeOf((*MockOptions)(nil).SetMaxWiredBlocks), value)
 }
 
 // MaxWiredBlocks mocks base method
 func (m *MockOptions) MaxWiredBlocks() uint {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MaxWiredBlocks")
 	ret0, _ := ret[0].(uint)
 	return ret0
@@ -259,11 +292,13 @@ func (m *MockOptions) MaxWiredBlocks() uint {
 
 // MaxWiredBlocks indicates an expected call of MaxWiredBlocks
 func (mr *MockOptionsMockRecorder) MaxWiredBlocks() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MaxWiredBlocks", reflect.TypeOf((*MockOptions)(nil).MaxWiredBlocks))
 }
 
 // SetClientBootstrapConsistencyLevel mocks base method
 func (m *MockOptions) SetClientBootstrapConsistencyLevel(value topology.ReadConsistencyLevel) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetClientBootstrapConsistencyLevel", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -271,11 +306,13 @@ func (m *MockOptions) SetClientBootstrapConsistencyLevel(value topology.ReadCons
 
 // SetClientBootstrapConsistencyLevel indicates an expected call of SetClientBootstrapConsistencyLevel
 func (mr *MockOptionsMockRecorder) SetClientBootstrapConsistencyLevel(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetClientBootstrapConsistencyLevel", reflect.TypeOf((*MockOptions)(nil).SetClientBootstrapConsistencyLevel), value)
 }
 
 // ClientBootstrapConsistencyLevel mocks base method
 func (m *MockOptions) ClientBootstrapConsistencyLevel() topology.ReadConsistencyLevel {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ClientBootstrapConsistencyLevel")
 	ret0, _ := ret[0].(topology.ReadConsistencyLevel)
 	return ret0
@@ -283,11 +320,13 @@ func (m *MockOptions) ClientBootstrapConsistencyLevel() topology.ReadConsistency
 
 // ClientBootstrapConsistencyLevel indicates an expected call of ClientBootstrapConsistencyLevel
 func (mr *MockOptionsMockRecorder) ClientBootstrapConsistencyLevel() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClientBootstrapConsistencyLevel", reflect.TypeOf((*MockOptions)(nil).ClientBootstrapConsistencyLevel))
 }
 
 // SetClientReadConsistencyLevel mocks base method
 func (m *MockOptions) SetClientReadConsistencyLevel(value topology.ReadConsistencyLevel) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetClientReadConsistencyLevel", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -295,11 +334,13 @@ func (m *MockOptions) SetClientReadConsistencyLevel(value topology.ReadConsisten
 
 // SetClientReadConsistencyLevel indicates an expected call of SetClientReadConsistencyLevel
 func (mr *MockOptionsMockRecorder) SetClientReadConsistencyLevel(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetClientReadConsistencyLevel", reflect.TypeOf((*MockOptions)(nil).SetClientReadConsistencyLevel), value)
 }
 
 // ClientReadConsistencyLevel mocks base method
 func (m *MockOptions) ClientReadConsistencyLevel() topology.ReadConsistencyLevel {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ClientReadConsistencyLevel")
 	ret0, _ := ret[0].(topology.ReadConsistencyLevel)
 	return ret0
@@ -307,11 +348,13 @@ func (m *MockOptions) ClientReadConsistencyLevel() topology.ReadConsistencyLevel
 
 // ClientReadConsistencyLevel indicates an expected call of ClientReadConsistencyLevel
 func (mr *MockOptionsMockRecorder) ClientReadConsistencyLevel() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClientReadConsistencyLevel", reflect.TypeOf((*MockOptions)(nil).ClientReadConsistencyLevel))
 }
 
 // SetClientWriteConsistencyLevel mocks base method
 func (m *MockOptions) SetClientWriteConsistencyLevel(value topology.ConsistencyLevel) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetClientWriteConsistencyLevel", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -319,11 +362,13 @@ func (m *MockOptions) SetClientWriteConsistencyLevel(value topology.ConsistencyL
 
 // SetClientWriteConsistencyLevel indicates an expected call of SetClientWriteConsistencyLevel
 func (mr *MockOptionsMockRecorder) SetClientWriteConsistencyLevel(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetClientWriteConsistencyLevel", reflect.TypeOf((*MockOptions)(nil).SetClientWriteConsistencyLevel), value)
 }
 
 // ClientWriteConsistencyLevel mocks base method
 func (m *MockOptions) ClientWriteConsistencyLevel() topology.ConsistencyLevel {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ClientWriteConsistencyLevel")
 	ret0, _ := ret[0].(topology.ConsistencyLevel)
 	return ret0
@@ -331,11 +376,41 @@ func (m *MockOptions) ClientWriteConsistencyLevel() topology.ConsistencyLevel {
 
 // ClientWriteConsistencyLevel indicates an expected call of ClientWriteConsistencyLevel
 func (mr *MockOptionsMockRecorder) ClientWriteConsistencyLevel() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClientWriteConsistencyLevel", reflect.TypeOf((*MockOptions)(nil).ClientWriteConsistencyLevel))
+}
+
+// SetIndexDefaultQueryTimeout mocks base method
+func (m *MockOptions) SetIndexDefaultQueryTimeout(value time.Duration) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetIndexDefaultQueryTimeout", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetIndexDefaultQueryTimeout indicates an expected call of SetIndexDefaultQueryTimeout
+func (mr *MockOptionsMockRecorder) SetIndexDefaultQueryTimeout(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIndexDefaultQueryTimeout", reflect.TypeOf((*MockOptions)(nil).SetIndexDefaultQueryTimeout), value)
+}
+
+// IndexDefaultQueryTimeout mocks base method
+func (m *MockOptions) IndexDefaultQueryTimeout() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IndexDefaultQueryTimeout")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// IndexDefaultQueryTimeout indicates an expected call of IndexDefaultQueryTimeout
+func (mr *MockOptionsMockRecorder) IndexDefaultQueryTimeout() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexDefaultQueryTimeout", reflect.TypeOf((*MockOptions)(nil).IndexDefaultQueryTimeout))
 }
 
 // SetFlushIndexBlockNumSegments mocks base method
 func (m *MockOptions) SetFlushIndexBlockNumSegments(value uint) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetFlushIndexBlockNumSegments", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -343,11 +418,13 @@ func (m *MockOptions) SetFlushIndexBlockNumSegments(value uint) Options {
 
 // SetFlushIndexBlockNumSegments indicates an expected call of SetFlushIndexBlockNumSegments
 func (mr *MockOptionsMockRecorder) SetFlushIndexBlockNumSegments(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFlushIndexBlockNumSegments", reflect.TypeOf((*MockOptions)(nil).SetFlushIndexBlockNumSegments), value)
 }
 
 // FlushIndexBlockNumSegments mocks base method
 func (m *MockOptions) FlushIndexBlockNumSegments() uint {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FlushIndexBlockNumSegments")
 	ret0, _ := ret[0].(uint)
 	return ret0
@@ -355,6 +432,7 @@ func (m *MockOptions) FlushIndexBlockNumSegments() uint {
 
 // FlushIndexBlockNumSegments indicates an expected call of FlushIndexBlockNumSegments
 func (mr *MockOptionsMockRecorder) FlushIndexBlockNumSegments() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FlushIndexBlockNumSegments", reflect.TypeOf((*MockOptions)(nil).FlushIndexBlockNumSegments))
 }
 
@@ -383,6 +461,7 @@ func (m *MockOptionsManager) EXPECT() *MockOptionsManagerMockRecorder {
 
 // Update mocks base method
 func (m *MockOptionsManager) Update(value Options) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Update", value)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -390,11 +469,13 @@ func (m *MockOptionsManager) Update(value Options) error {
 
 // Update indicates an expected call of Update
 func (mr *MockOptionsManagerMockRecorder) Update(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockOptionsManager)(nil).Update), value)
 }
 
 // Get mocks base method
 func (m *MockOptionsManager) Get() Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get")
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -402,11 +483,13 @@ func (m *MockOptionsManager) Get() Options {
 
 // Get indicates an expected call of Get
 func (mr *MockOptionsManagerMockRecorder) Get() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockOptionsManager)(nil).Get))
 }
 
 // RegisterListener mocks base method
 func (m *MockOptionsManager) RegisterListener(l OptionsListener) close.SimpleCloser {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RegisterListener", l)
 	ret0, _ := ret[0].(close.SimpleCloser)
 	return ret0
@@ -414,16 +497,19 @@ func (m *MockOptionsManager) RegisterListener(l OptionsListener) close.SimpleClo
 
 // RegisterListener indicates an expected call of RegisterListener
 func (mr *MockOptionsManagerMockRecorder) RegisterListener(l interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterListener", reflect.TypeOf((*MockOptionsManager)(nil).RegisterListener), l)
 }
 
 // Close mocks base method
 func (m *MockOptionsManager) Close() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Close")
 }
 
 // Close indicates an expected call of Close
 func (mr *MockOptionsManagerMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockOptionsManager)(nil).Close))
 }
 
@@ -452,10 +538,12 @@ func (m *MockOptionsListener) EXPECT() *MockOptionsListenerMockRecorder {
 
 // SetRuntimeOptions mocks base method
 func (m *MockOptionsListener) SetRuntimeOptions(value Options) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "SetRuntimeOptions", value)
 }
 
 // SetRuntimeOptions indicates an expected call of SetRuntimeOptions
 func (mr *MockOptionsListenerMockRecorder) SetRuntimeOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRuntimeOptions", reflect.TypeOf((*MockOptionsListener)(nil).SetRuntimeOptions), value)
 }

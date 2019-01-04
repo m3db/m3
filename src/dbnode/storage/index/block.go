@@ -42,9 +42,11 @@ import (
 )
 
 var (
+	// ErrUnableToQueryBlockClosed is returned when querying closed block.
+	ErrUnableToQueryBlockClosed = errors.New("unable to query, index block is closed")
+
 	errUnableToWriteBlockClosed     = errors.New("unable to write, index block is closed")
 	errUnableToWriteBlockSealed     = errors.New("unable to write, index block is sealed")
-	errUnableToQueryBlockClosed     = errors.New("unable to query, index block is closed")
 	errUnableToBootstrapBlockClosed = errors.New("unable to bootstrap, block is closed")
 	errUnableToTickBlockClosed      = errors.New("unable to tick, block is closed")
 	errBlockAlreadyClosed           = errors.New("unable to close, block already closed")
@@ -236,7 +238,7 @@ func (b *block) Query(
 	b.RLock()
 	defer b.RUnlock()
 	if b.state == blockStateClosed {
-		return false, errUnableToQueryBlockClosed
+		return false, ErrUnableToQueryBlockClosed
 	}
 
 	exec, err := b.newExecutorFn()
@@ -253,12 +255,10 @@ func (b *block) Query(
 		return false, err
 	}
 
-	var (
-		size       = results.Size()
-		brokeEarly = false
-	)
-	execCloser := safeCloser{closable: exec}
+	size := results.Size()
+	limitedResults := false
 	iterCloser := safeCloser{closable: iter}
+	execCloser := safeCloser{closable: exec}
 
 	defer func() {
 		iterCloser.Close()
@@ -266,12 +266,13 @@ func (b *block) Query(
 	}()
 
 	for iter.Next() {
-		if opts.Limit > 0 && size >= opts.Limit {
-			brokeEarly = true
+		if opts.LimitExceeded(size) {
+			limitedResults = true
 			break
 		}
+
 		d := iter.Current()
-		_, size, err = results.Add(d)
+		_, size, err = results.AddDocument(d)
 		if err != nil {
 			return false, err
 		}
@@ -289,7 +290,7 @@ func (b *block) Query(
 		return false, err
 	}
 
-	exhaustive := !brokeEarly
+	exhaustive := !limitedResults
 	return exhaustive, nil
 }
 

@@ -63,6 +63,7 @@ func (m *MockInstance) EXPECT() *MockInstanceMockRecorder {
 
 // String mocks base method
 func (m *MockInstance) String() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "String")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -70,11 +71,13 @@ func (m *MockInstance) String() string {
 
 // String indicates an expected call of String
 func (mr *MockInstanceMockRecorder) String() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "String", reflect.TypeOf((*MockInstance)(nil).String))
 }
 
 // ID mocks base method
 func (m *MockInstance) ID() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ID")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -82,11 +85,13 @@ func (m *MockInstance) ID() string {
 
 // ID indicates an expected call of ID
 func (mr *MockInstanceMockRecorder) ID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockInstance)(nil).ID))
 }
 
 // SetID mocks base method
 func (m *MockInstance) SetID(id string) Instance {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetID", id)
 	ret0, _ := ret[0].(Instance)
 	return ret0
@@ -94,11 +99,13 @@ func (m *MockInstance) SetID(id string) Instance {
 
 // SetID indicates an expected call of SetID
 func (mr *MockInstanceMockRecorder) SetID(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetID", reflect.TypeOf((*MockInstance)(nil).SetID), id)
 }
 
 // IsolationGroup mocks base method
 func (m *MockInstance) IsolationGroup() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsolationGroup")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -106,11 +113,13 @@ func (m *MockInstance) IsolationGroup() string {
 
 // IsolationGroup indicates an expected call of IsolationGroup
 func (mr *MockInstanceMockRecorder) IsolationGroup() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsolationGroup", reflect.TypeOf((*MockInstance)(nil).IsolationGroup))
 }
 
 // SetIsolationGroup mocks base method
 func (m *MockInstance) SetIsolationGroup(r string) Instance {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetIsolationGroup", r)
 	ret0, _ := ret[0].(Instance)
 	return ret0
@@ -118,11 +127,13 @@ func (m *MockInstance) SetIsolationGroup(r string) Instance {
 
 // SetIsolationGroup indicates an expected call of SetIsolationGroup
 func (mr *MockInstanceMockRecorder) SetIsolationGroup(r interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIsolationGroup", reflect.TypeOf((*MockInstance)(nil).SetIsolationGroup), r)
 }
 
 // Zone mocks base method
 func (m *MockInstance) Zone() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Zone")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -130,11 +141,13 @@ func (m *MockInstance) Zone() string {
 
 // Zone indicates an expected call of Zone
 func (mr *MockInstanceMockRecorder) Zone() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Zone", reflect.TypeOf((*MockInstance)(nil).Zone))
 }
 
 // SetZone mocks base method
 func (m *MockInstance) SetZone(z string) Instance {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetZone", z)
 	ret0, _ := ret[0].(Instance)
 	return ret0
@@ -142,11 +155,13 @@ func (m *MockInstance) SetZone(z string) Instance {
 
 // SetZone indicates an expected call of SetZone
 func (mr *MockInstanceMockRecorder) SetZone(z interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetZone", reflect.TypeOf((*MockInstance)(nil).SetZone), z)
 }
 
 // Weight mocks base method
 func (m *MockInstance) Weight() uint32 {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Weight")
 	ret0, _ := ret[0].(uint32)
 	return ret0
@@ -154,11 +169,13 @@ func (m *MockInstance) Weight() uint32 {
 
 // Weight indicates an expected call of Weight
 func (mr *MockInstanceMockRecorder) Weight() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Weight", reflect.TypeOf((*MockInstance)(nil).Weight))
 }
 
 // SetWeight mocks base method
 func (m *MockInstance) SetWeight(w uint32) Instance {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetWeight", w)
 	ret0, _ := ret[0].(Instance)
 	return ret0
@@ -166,11 +183,13 @@ func (m *MockInstance) SetWeight(w uint32) Instance {
 
 // SetWeight indicates an expected call of SetWeight
 func (mr *MockInstanceMockRecorder) SetWeight(w interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetWeight", reflect.TypeOf((*MockInstance)(nil).SetWeight), w)
 }
 
 // Endpoint mocks base method
 func (m *MockInstance) Endpoint() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Endpoint")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -178,11 +197,13 @@ func (m *MockInstance) Endpoint() string {
 
 // Endpoint indicates an expected call of Endpoint
 func (mr *MockInstanceMockRecorder) Endpoint() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Endpoint", reflect.TypeOf((*MockInstance)(nil).Endpoint))
 }
 
 // SetEndpoint mocks base method
 func (m *MockInstance) SetEndpoint(ip string) Instance {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetEndpoint", ip)
 	ret0, _ := ret[0].(Instance)
 	return ret0
@@ -190,11 +211,13 @@ func (m *MockInstance) SetEndpoint(ip string) Instance {
 
 // SetEndpoint indicates an expected call of SetEndpoint
 func (mr *MockInstanceMockRecorder) SetEndpoint(ip interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEndpoint", reflect.TypeOf((*MockInstance)(nil).SetEndpoint), ip)
 }
 
 // Shards mocks base method
 func (m *MockInstance) Shards() shard.Shards {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Shards")
 	ret0, _ := ret[0].(shard.Shards)
 	return ret0
@@ -202,11 +225,13 @@ func (m *MockInstance) Shards() shard.Shards {
 
 // Shards indicates an expected call of Shards
 func (mr *MockInstanceMockRecorder) Shards() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shards", reflect.TypeOf((*MockInstance)(nil).Shards))
 }
 
 // SetShards mocks base method
 func (m *MockInstance) SetShards(s shard.Shards) Instance {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetShards", s)
 	ret0, _ := ret[0].(Instance)
 	return ret0
@@ -214,11 +239,13 @@ func (m *MockInstance) SetShards(s shard.Shards) Instance {
 
 // SetShards indicates an expected call of SetShards
 func (mr *MockInstanceMockRecorder) SetShards(s interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetShards", reflect.TypeOf((*MockInstance)(nil).SetShards), s)
 }
 
 // ShardSetID mocks base method
 func (m *MockInstance) ShardSetID() uint32 {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ShardSetID")
 	ret0, _ := ret[0].(uint32)
 	return ret0
@@ -226,11 +253,13 @@ func (m *MockInstance) ShardSetID() uint32 {
 
 // ShardSetID indicates an expected call of ShardSetID
 func (mr *MockInstanceMockRecorder) ShardSetID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShardSetID", reflect.TypeOf((*MockInstance)(nil).ShardSetID))
 }
 
 // SetShardSetID mocks base method
 func (m *MockInstance) SetShardSetID(value uint32) Instance {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetShardSetID", value)
 	ret0, _ := ret[0].(Instance)
 	return ret0
@@ -238,11 +267,13 @@ func (m *MockInstance) SetShardSetID(value uint32) Instance {
 
 // SetShardSetID indicates an expected call of SetShardSetID
 func (mr *MockInstanceMockRecorder) SetShardSetID(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetShardSetID", reflect.TypeOf((*MockInstance)(nil).SetShardSetID), value)
 }
 
 // Hostname mocks base method
 func (m *MockInstance) Hostname() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Hostname")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -250,11 +281,13 @@ func (m *MockInstance) Hostname() string {
 
 // Hostname indicates an expected call of Hostname
 func (mr *MockInstanceMockRecorder) Hostname() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Hostname", reflect.TypeOf((*MockInstance)(nil).Hostname))
 }
 
 // SetHostname mocks base method
 func (m *MockInstance) SetHostname(value string) Instance {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetHostname", value)
 	ret0, _ := ret[0].(Instance)
 	return ret0
@@ -262,11 +295,13 @@ func (m *MockInstance) SetHostname(value string) Instance {
 
 // SetHostname indicates an expected call of SetHostname
 func (mr *MockInstanceMockRecorder) SetHostname(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHostname", reflect.TypeOf((*MockInstance)(nil).SetHostname), value)
 }
 
 // Port mocks base method
 func (m *MockInstance) Port() uint32 {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Port")
 	ret0, _ := ret[0].(uint32)
 	return ret0
@@ -274,11 +309,13 @@ func (m *MockInstance) Port() uint32 {
 
 // Port indicates an expected call of Port
 func (mr *MockInstanceMockRecorder) Port() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Port", reflect.TypeOf((*MockInstance)(nil).Port))
 }
 
 // SetPort mocks base method
 func (m *MockInstance) SetPort(value uint32) Instance {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetPort", value)
 	ret0, _ := ret[0].(Instance)
 	return ret0
@@ -286,11 +323,13 @@ func (m *MockInstance) SetPort(value uint32) Instance {
 
 // SetPort indicates an expected call of SetPort
 func (mr *MockInstanceMockRecorder) SetPort(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPort", reflect.TypeOf((*MockInstance)(nil).SetPort), value)
 }
 
 // Proto mocks base method
 func (m *MockInstance) Proto() (*placementpb.Instance, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Proto")
 	ret0, _ := ret[0].(*placementpb.Instance)
 	ret1, _ := ret[1].(error)
@@ -299,11 +338,13 @@ func (m *MockInstance) Proto() (*placementpb.Instance, error) {
 
 // Proto indicates an expected call of Proto
 func (mr *MockInstanceMockRecorder) Proto() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Proto", reflect.TypeOf((*MockInstance)(nil).Proto))
 }
 
 // IsLeaving mocks base method
 func (m *MockInstance) IsLeaving() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsLeaving")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -311,11 +352,13 @@ func (m *MockInstance) IsLeaving() bool {
 
 // IsLeaving indicates an expected call of IsLeaving
 func (mr *MockInstanceMockRecorder) IsLeaving() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsLeaving", reflect.TypeOf((*MockInstance)(nil).IsLeaving))
 }
 
 // IsInitializing mocks base method
 func (m *MockInstance) IsInitializing() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsInitializing")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -323,11 +366,13 @@ func (m *MockInstance) IsInitializing() bool {
 
 // IsInitializing indicates an expected call of IsInitializing
 func (mr *MockInstanceMockRecorder) IsInitializing() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsInitializing", reflect.TypeOf((*MockInstance)(nil).IsInitializing))
 }
 
 // IsAvailable mocks base method
 func (m *MockInstance) IsAvailable() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsAvailable")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -335,11 +380,13 @@ func (m *MockInstance) IsAvailable() bool {
 
 // IsAvailable indicates an expected call of IsAvailable
 func (mr *MockInstanceMockRecorder) IsAvailable() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsAvailable", reflect.TypeOf((*MockInstance)(nil).IsAvailable))
 }
 
 // Clone mocks base method
 func (m *MockInstance) Clone() Instance {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Clone")
 	ret0, _ := ret[0].(Instance)
 	return ret0
@@ -347,6 +394,7 @@ func (m *MockInstance) Clone() Instance {
 
 // Clone indicates an expected call of Clone
 func (mr *MockInstanceMockRecorder) Clone() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Clone", reflect.TypeOf((*MockInstance)(nil).Clone))
 }
 
@@ -375,6 +423,7 @@ func (m *MockPlacement) EXPECT() *MockPlacementMockRecorder {
 
 // InstancesForShard mocks base method
 func (m *MockPlacement) InstancesForShard(shard uint32) []Instance {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InstancesForShard", shard)
 	ret0, _ := ret[0].([]Instance)
 	return ret0
@@ -382,11 +431,13 @@ func (m *MockPlacement) InstancesForShard(shard uint32) []Instance {
 
 // InstancesForShard indicates an expected call of InstancesForShard
 func (mr *MockPlacementMockRecorder) InstancesForShard(shard interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstancesForShard", reflect.TypeOf((*MockPlacement)(nil).InstancesForShard), shard)
 }
 
 // Instances mocks base method
 func (m *MockPlacement) Instances() []Instance {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Instances")
 	ret0, _ := ret[0].([]Instance)
 	return ret0
@@ -394,11 +445,13 @@ func (m *MockPlacement) Instances() []Instance {
 
 // Instances indicates an expected call of Instances
 func (mr *MockPlacementMockRecorder) Instances() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Instances", reflect.TypeOf((*MockPlacement)(nil).Instances))
 }
 
 // SetInstances mocks base method
 func (m *MockPlacement) SetInstances(instances []Instance) Placement {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetInstances", instances)
 	ret0, _ := ret[0].(Placement)
 	return ret0
@@ -406,11 +459,13 @@ func (m *MockPlacement) SetInstances(instances []Instance) Placement {
 
 // SetInstances indicates an expected call of SetInstances
 func (mr *MockPlacementMockRecorder) SetInstances(instances interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInstances", reflect.TypeOf((*MockPlacement)(nil).SetInstances), instances)
 }
 
 // NumInstances mocks base method
 func (m *MockPlacement) NumInstances() int {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NumInstances")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -418,11 +473,13 @@ func (m *MockPlacement) NumInstances() int {
 
 // NumInstances indicates an expected call of NumInstances
 func (mr *MockPlacementMockRecorder) NumInstances() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NumInstances", reflect.TypeOf((*MockPlacement)(nil).NumInstances))
 }
 
 // Instance mocks base method
 func (m *MockPlacement) Instance(id string) (Instance, bool) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Instance", id)
 	ret0, _ := ret[0].(Instance)
 	ret1, _ := ret[1].(bool)
@@ -431,11 +488,13 @@ func (m *MockPlacement) Instance(id string) (Instance, bool) {
 
 // Instance indicates an expected call of Instance
 func (mr *MockPlacementMockRecorder) Instance(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Instance", reflect.TypeOf((*MockPlacement)(nil).Instance), id)
 }
 
 // ReplicaFactor mocks base method
 func (m *MockPlacement) ReplicaFactor() int {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReplicaFactor")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -443,11 +502,13 @@ func (m *MockPlacement) ReplicaFactor() int {
 
 // ReplicaFactor indicates an expected call of ReplicaFactor
 func (mr *MockPlacementMockRecorder) ReplicaFactor() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplicaFactor", reflect.TypeOf((*MockPlacement)(nil).ReplicaFactor))
 }
 
 // SetReplicaFactor mocks base method
 func (m *MockPlacement) SetReplicaFactor(rf int) Placement {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetReplicaFactor", rf)
 	ret0, _ := ret[0].(Placement)
 	return ret0
@@ -455,11 +516,13 @@ func (m *MockPlacement) SetReplicaFactor(rf int) Placement {
 
 // SetReplicaFactor indicates an expected call of SetReplicaFactor
 func (mr *MockPlacementMockRecorder) SetReplicaFactor(rf interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetReplicaFactor", reflect.TypeOf((*MockPlacement)(nil).SetReplicaFactor), rf)
 }
 
 // Shards mocks base method
 func (m *MockPlacement) Shards() []uint32 {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Shards")
 	ret0, _ := ret[0].([]uint32)
 	return ret0
@@ -467,11 +530,13 @@ func (m *MockPlacement) Shards() []uint32 {
 
 // Shards indicates an expected call of Shards
 func (mr *MockPlacementMockRecorder) Shards() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shards", reflect.TypeOf((*MockPlacement)(nil).Shards))
 }
 
 // SetShards mocks base method
 func (m *MockPlacement) SetShards(s []uint32) Placement {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetShards", s)
 	ret0, _ := ret[0].(Placement)
 	return ret0
@@ -479,11 +544,13 @@ func (m *MockPlacement) SetShards(s []uint32) Placement {
 
 // SetShards indicates an expected call of SetShards
 func (mr *MockPlacementMockRecorder) SetShards(s interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetShards", reflect.TypeOf((*MockPlacement)(nil).SetShards), s)
 }
 
 // NumShards mocks base method
 func (m *MockPlacement) NumShards() int {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NumShards")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -491,11 +558,13 @@ func (m *MockPlacement) NumShards() int {
 
 // NumShards indicates an expected call of NumShards
 func (mr *MockPlacementMockRecorder) NumShards() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NumShards", reflect.TypeOf((*MockPlacement)(nil).NumShards))
 }
 
 // IsSharded mocks base method
 func (m *MockPlacement) IsSharded() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsSharded")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -503,11 +572,13 @@ func (m *MockPlacement) IsSharded() bool {
 
 // IsSharded indicates an expected call of IsSharded
 func (mr *MockPlacementMockRecorder) IsSharded() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsSharded", reflect.TypeOf((*MockPlacement)(nil).IsSharded))
 }
 
 // SetIsSharded mocks base method
 func (m *MockPlacement) SetIsSharded(v bool) Placement {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetIsSharded", v)
 	ret0, _ := ret[0].(Placement)
 	return ret0
@@ -515,11 +586,13 @@ func (m *MockPlacement) SetIsSharded(v bool) Placement {
 
 // SetIsSharded indicates an expected call of SetIsSharded
 func (mr *MockPlacementMockRecorder) SetIsSharded(v interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIsSharded", reflect.TypeOf((*MockPlacement)(nil).SetIsSharded), v)
 }
 
 // CutoverNanos mocks base method
 func (m *MockPlacement) CutoverNanos() int64 {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CutoverNanos")
 	ret0, _ := ret[0].(int64)
 	return ret0
@@ -527,11 +600,13 @@ func (m *MockPlacement) CutoverNanos() int64 {
 
 // CutoverNanos indicates an expected call of CutoverNanos
 func (mr *MockPlacementMockRecorder) CutoverNanos() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CutoverNanos", reflect.TypeOf((*MockPlacement)(nil).CutoverNanos))
 }
 
 // SetCutoverNanos mocks base method
 func (m *MockPlacement) SetCutoverNanos(cutoverNanos int64) Placement {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetCutoverNanos", cutoverNanos)
 	ret0, _ := ret[0].(Placement)
 	return ret0
@@ -539,11 +614,13 @@ func (m *MockPlacement) SetCutoverNanos(cutoverNanos int64) Placement {
 
 // SetCutoverNanos indicates an expected call of SetCutoverNanos
 func (mr *MockPlacementMockRecorder) SetCutoverNanos(cutoverNanos interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCutoverNanos", reflect.TypeOf((*MockPlacement)(nil).SetCutoverNanos), cutoverNanos)
 }
 
 // IsMirrored mocks base method
 func (m *MockPlacement) IsMirrored() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsMirrored")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -551,11 +628,13 @@ func (m *MockPlacement) IsMirrored() bool {
 
 // IsMirrored indicates an expected call of IsMirrored
 func (mr *MockPlacementMockRecorder) IsMirrored() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsMirrored", reflect.TypeOf((*MockPlacement)(nil).IsMirrored))
 }
 
 // SetIsMirrored mocks base method
 func (m *MockPlacement) SetIsMirrored(v bool) Placement {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetIsMirrored", v)
 	ret0, _ := ret[0].(Placement)
 	return ret0
@@ -563,11 +642,13 @@ func (m *MockPlacement) SetIsMirrored(v bool) Placement {
 
 // SetIsMirrored indicates an expected call of SetIsMirrored
 func (mr *MockPlacementMockRecorder) SetIsMirrored(v interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIsMirrored", reflect.TypeOf((*MockPlacement)(nil).SetIsMirrored), v)
 }
 
 // MaxShardSetID mocks base method
 func (m *MockPlacement) MaxShardSetID() uint32 {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MaxShardSetID")
 	ret0, _ := ret[0].(uint32)
 	return ret0
@@ -575,11 +656,13 @@ func (m *MockPlacement) MaxShardSetID() uint32 {
 
 // MaxShardSetID indicates an expected call of MaxShardSetID
 func (mr *MockPlacementMockRecorder) MaxShardSetID() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MaxShardSetID", reflect.TypeOf((*MockPlacement)(nil).MaxShardSetID))
 }
 
 // SetMaxShardSetID mocks base method
 func (m *MockPlacement) SetMaxShardSetID(value uint32) Placement {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetMaxShardSetID", value)
 	ret0, _ := ret[0].(Placement)
 	return ret0
@@ -587,11 +670,13 @@ func (m *MockPlacement) SetMaxShardSetID(value uint32) Placement {
 
 // SetMaxShardSetID indicates an expected call of SetMaxShardSetID
 func (mr *MockPlacementMockRecorder) SetMaxShardSetID(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMaxShardSetID", reflect.TypeOf((*MockPlacement)(nil).SetMaxShardSetID), value)
 }
 
 // String mocks base method
 func (m *MockPlacement) String() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "String")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -599,23 +684,27 @@ func (m *MockPlacement) String() string {
 
 // String indicates an expected call of String
 func (mr *MockPlacementMockRecorder) String() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "String", reflect.TypeOf((*MockPlacement)(nil).String))
 }
 
-// GetVersion mocks base method
-func (m *MockPlacement) GetVersion() int {
-	ret := m.ctrl.Call(m, "GetVersion")
+// Version mocks base method
+func (m *MockPlacement) Version() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Version")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-// GetVersion indicates an expected call of GetVersion
-func (mr *MockPlacementMockRecorder) GetVersion() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVersion", reflect.TypeOf((*MockPlacement)(nil).GetVersion))
+// Version indicates an expected call of Version
+func (mr *MockPlacementMockRecorder) Version() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Version", reflect.TypeOf((*MockPlacement)(nil).Version))
 }
 
 // SetVersion mocks base method
 func (m *MockPlacement) SetVersion(v int) Placement {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetVersion", v)
 	ret0, _ := ret[0].(Placement)
 	return ret0
@@ -623,11 +712,13 @@ func (m *MockPlacement) SetVersion(v int) Placement {
 
 // SetVersion indicates an expected call of SetVersion
 func (mr *MockPlacementMockRecorder) SetVersion(v interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetVersion", reflect.TypeOf((*MockPlacement)(nil).SetVersion), v)
 }
 
 // Proto mocks base method
 func (m *MockPlacement) Proto() (*placementpb.Placement, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Proto")
 	ret0, _ := ret[0].(*placementpb.Placement)
 	ret1, _ := ret[1].(error)
@@ -636,11 +727,13 @@ func (m *MockPlacement) Proto() (*placementpb.Placement, error) {
 
 // Proto indicates an expected call of Proto
 func (mr *MockPlacementMockRecorder) Proto() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Proto", reflect.TypeOf((*MockPlacement)(nil).Proto))
 }
 
 // Clone mocks base method
 func (m *MockPlacement) Clone() Placement {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Clone")
 	ret0, _ := ret[0].(Placement)
 	return ret0
@@ -648,6 +741,7 @@ func (m *MockPlacement) Clone() Placement {
 
 // Clone indicates an expected call of Clone
 func (mr *MockPlacementMockRecorder) Clone() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Clone", reflect.TypeOf((*MockPlacement)(nil).Clone))
 }
 
@@ -676,6 +770,7 @@ func (m *MockWatch) EXPECT() *MockWatchMockRecorder {
 
 // C mocks base method
 func (m *MockWatch) C() <-chan struct{} {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "C")
 	ret0, _ := ret[0].(<-chan struct{})
 	return ret0
@@ -683,11 +778,13 @@ func (m *MockWatch) C() <-chan struct{} {
 
 // C indicates an expected call of C
 func (mr *MockWatchMockRecorder) C() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "C", reflect.TypeOf((*MockWatch)(nil).C))
 }
 
 // Get mocks base method
 func (m *MockWatch) Get() (Placement, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get")
 	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(error)
@@ -696,16 +793,19 @@ func (m *MockWatch) Get() (Placement, error) {
 
 // Get indicates an expected call of Get
 func (mr *MockWatchMockRecorder) Get() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockWatch)(nil).Get))
 }
 
 // Close mocks base method
 func (m *MockWatch) Close() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Close")
 }
 
 // Close indicates an expected call of Close
 func (mr *MockWatchMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockWatch)(nil).Close))
 }
 
@@ -734,6 +834,7 @@ func (m *MockStagedPlacementWatcher) EXPECT() *MockStagedPlacementWatcherMockRec
 
 // Watch mocks base method
 func (m *MockStagedPlacementWatcher) Watch() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Watch")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -741,11 +842,13 @@ func (m *MockStagedPlacementWatcher) Watch() error {
 
 // Watch indicates an expected call of Watch
 func (mr *MockStagedPlacementWatcherMockRecorder) Watch() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Watch", reflect.TypeOf((*MockStagedPlacementWatcher)(nil).Watch))
 }
 
 // ActiveStagedPlacement mocks base method
 func (m *MockStagedPlacementWatcher) ActiveStagedPlacement() (ActiveStagedPlacement, DoneFn, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ActiveStagedPlacement")
 	ret0, _ := ret[0].(ActiveStagedPlacement)
 	ret1, _ := ret[1].(DoneFn)
@@ -755,11 +858,13 @@ func (m *MockStagedPlacementWatcher) ActiveStagedPlacement() (ActiveStagedPlacem
 
 // ActiveStagedPlacement indicates an expected call of ActiveStagedPlacement
 func (mr *MockStagedPlacementWatcherMockRecorder) ActiveStagedPlacement() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ActiveStagedPlacement", reflect.TypeOf((*MockStagedPlacementWatcher)(nil).ActiveStagedPlacement))
 }
 
 // Unwatch mocks base method
 func (m *MockStagedPlacementWatcher) Unwatch() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Unwatch")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -767,6 +872,7 @@ func (m *MockStagedPlacementWatcher) Unwatch() error {
 
 // Unwatch indicates an expected call of Unwatch
 func (mr *MockStagedPlacementWatcherMockRecorder) Unwatch() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Unwatch", reflect.TypeOf((*MockStagedPlacementWatcher)(nil).Unwatch))
 }
 
@@ -795,6 +901,7 @@ func (m *MockStagedPlacementWatcherOptions) EXPECT() *MockStagedPlacementWatcher
 
 // SetClockOptions mocks base method
 func (m *MockStagedPlacementWatcherOptions) SetClockOptions(value clock.Options) StagedPlacementWatcherOptions {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetClockOptions", value)
 	ret0, _ := ret[0].(StagedPlacementWatcherOptions)
 	return ret0
@@ -802,11 +909,13 @@ func (m *MockStagedPlacementWatcherOptions) SetClockOptions(value clock.Options)
 
 // SetClockOptions indicates an expected call of SetClockOptions
 func (mr *MockStagedPlacementWatcherOptionsMockRecorder) SetClockOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetClockOptions", reflect.TypeOf((*MockStagedPlacementWatcherOptions)(nil).SetClockOptions), value)
 }
 
 // ClockOptions mocks base method
 func (m *MockStagedPlacementWatcherOptions) ClockOptions() clock.Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ClockOptions")
 	ret0, _ := ret[0].(clock.Options)
 	return ret0
@@ -814,11 +923,13 @@ func (m *MockStagedPlacementWatcherOptions) ClockOptions() clock.Options {
 
 // ClockOptions indicates an expected call of ClockOptions
 func (mr *MockStagedPlacementWatcherOptionsMockRecorder) ClockOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClockOptions", reflect.TypeOf((*MockStagedPlacementWatcherOptions)(nil).ClockOptions))
 }
 
 // SetInstrumentOptions mocks base method
 func (m *MockStagedPlacementWatcherOptions) SetInstrumentOptions(value instrument.Options) StagedPlacementWatcherOptions {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetInstrumentOptions", value)
 	ret0, _ := ret[0].(StagedPlacementWatcherOptions)
 	return ret0
@@ -826,11 +937,13 @@ func (m *MockStagedPlacementWatcherOptions) SetInstrumentOptions(value instrumen
 
 // SetInstrumentOptions indicates an expected call of SetInstrumentOptions
 func (mr *MockStagedPlacementWatcherOptionsMockRecorder) SetInstrumentOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInstrumentOptions", reflect.TypeOf((*MockStagedPlacementWatcherOptions)(nil).SetInstrumentOptions), value)
 }
 
 // InstrumentOptions mocks base method
 func (m *MockStagedPlacementWatcherOptions) InstrumentOptions() instrument.Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InstrumentOptions")
 	ret0, _ := ret[0].(instrument.Options)
 	return ret0
@@ -838,11 +951,13 @@ func (m *MockStagedPlacementWatcherOptions) InstrumentOptions() instrument.Optio
 
 // InstrumentOptions indicates an expected call of InstrumentOptions
 func (mr *MockStagedPlacementWatcherOptionsMockRecorder) InstrumentOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstrumentOptions", reflect.TypeOf((*MockStagedPlacementWatcherOptions)(nil).InstrumentOptions))
 }
 
 // SetActiveStagedPlacementOptions mocks base method
 func (m *MockStagedPlacementWatcherOptions) SetActiveStagedPlacementOptions(value ActiveStagedPlacementOptions) StagedPlacementWatcherOptions {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetActiveStagedPlacementOptions", value)
 	ret0, _ := ret[0].(StagedPlacementWatcherOptions)
 	return ret0
@@ -850,11 +965,13 @@ func (m *MockStagedPlacementWatcherOptions) SetActiveStagedPlacementOptions(valu
 
 // SetActiveStagedPlacementOptions indicates an expected call of SetActiveStagedPlacementOptions
 func (mr *MockStagedPlacementWatcherOptionsMockRecorder) SetActiveStagedPlacementOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetActiveStagedPlacementOptions", reflect.TypeOf((*MockStagedPlacementWatcherOptions)(nil).SetActiveStagedPlacementOptions), value)
 }
 
 // ActiveStagedPlacementOptions mocks base method
 func (m *MockStagedPlacementWatcherOptions) ActiveStagedPlacementOptions() ActiveStagedPlacementOptions {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ActiveStagedPlacementOptions")
 	ret0, _ := ret[0].(ActiveStagedPlacementOptions)
 	return ret0
@@ -862,11 +979,13 @@ func (m *MockStagedPlacementWatcherOptions) ActiveStagedPlacementOptions() Activ
 
 // ActiveStagedPlacementOptions indicates an expected call of ActiveStagedPlacementOptions
 func (mr *MockStagedPlacementWatcherOptionsMockRecorder) ActiveStagedPlacementOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ActiveStagedPlacementOptions", reflect.TypeOf((*MockStagedPlacementWatcherOptions)(nil).ActiveStagedPlacementOptions))
 }
 
 // SetStagedPlacementKey mocks base method
 func (m *MockStagedPlacementWatcherOptions) SetStagedPlacementKey(value string) StagedPlacementWatcherOptions {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetStagedPlacementKey", value)
 	ret0, _ := ret[0].(StagedPlacementWatcherOptions)
 	return ret0
@@ -874,11 +993,13 @@ func (m *MockStagedPlacementWatcherOptions) SetStagedPlacementKey(value string) 
 
 // SetStagedPlacementKey indicates an expected call of SetStagedPlacementKey
 func (mr *MockStagedPlacementWatcherOptionsMockRecorder) SetStagedPlacementKey(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetStagedPlacementKey", reflect.TypeOf((*MockStagedPlacementWatcherOptions)(nil).SetStagedPlacementKey), value)
 }
 
 // StagedPlacementKey mocks base method
 func (m *MockStagedPlacementWatcherOptions) StagedPlacementKey() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StagedPlacementKey")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -886,11 +1007,13 @@ func (m *MockStagedPlacementWatcherOptions) StagedPlacementKey() string {
 
 // StagedPlacementKey indicates an expected call of StagedPlacementKey
 func (mr *MockStagedPlacementWatcherOptionsMockRecorder) StagedPlacementKey() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StagedPlacementKey", reflect.TypeOf((*MockStagedPlacementWatcherOptions)(nil).StagedPlacementKey))
 }
 
 // SetStagedPlacementStore mocks base method
 func (m *MockStagedPlacementWatcherOptions) SetStagedPlacementStore(store kv.Store) StagedPlacementWatcherOptions {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetStagedPlacementStore", store)
 	ret0, _ := ret[0].(StagedPlacementWatcherOptions)
 	return ret0
@@ -898,11 +1021,13 @@ func (m *MockStagedPlacementWatcherOptions) SetStagedPlacementStore(store kv.Sto
 
 // SetStagedPlacementStore indicates an expected call of SetStagedPlacementStore
 func (mr *MockStagedPlacementWatcherOptionsMockRecorder) SetStagedPlacementStore(store interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetStagedPlacementStore", reflect.TypeOf((*MockStagedPlacementWatcherOptions)(nil).SetStagedPlacementStore), store)
 }
 
 // StagedPlacementStore mocks base method
 func (m *MockStagedPlacementWatcherOptions) StagedPlacementStore() kv.Store {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StagedPlacementStore")
 	ret0, _ := ret[0].(kv.Store)
 	return ret0
@@ -910,11 +1035,13 @@ func (m *MockStagedPlacementWatcherOptions) StagedPlacementStore() kv.Store {
 
 // StagedPlacementStore indicates an expected call of StagedPlacementStore
 func (mr *MockStagedPlacementWatcherOptionsMockRecorder) StagedPlacementStore() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StagedPlacementStore", reflect.TypeOf((*MockStagedPlacementWatcherOptions)(nil).StagedPlacementStore))
 }
 
 // SetInitWatchTimeout mocks base method
 func (m *MockStagedPlacementWatcherOptions) SetInitWatchTimeout(value time.Duration) StagedPlacementWatcherOptions {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetInitWatchTimeout", value)
 	ret0, _ := ret[0].(StagedPlacementWatcherOptions)
 	return ret0
@@ -922,11 +1049,13 @@ func (m *MockStagedPlacementWatcherOptions) SetInitWatchTimeout(value time.Durat
 
 // SetInitWatchTimeout indicates an expected call of SetInitWatchTimeout
 func (mr *MockStagedPlacementWatcherOptionsMockRecorder) SetInitWatchTimeout(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInitWatchTimeout", reflect.TypeOf((*MockStagedPlacementWatcherOptions)(nil).SetInitWatchTimeout), value)
 }
 
 // InitWatchTimeout mocks base method
 func (m *MockStagedPlacementWatcherOptions) InitWatchTimeout() time.Duration {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InitWatchTimeout")
 	ret0, _ := ret[0].(time.Duration)
 	return ret0
@@ -934,6 +1063,7 @@ func (m *MockStagedPlacementWatcherOptions) InitWatchTimeout() time.Duration {
 
 // InitWatchTimeout indicates an expected call of InitWatchTimeout
 func (mr *MockStagedPlacementWatcherOptionsMockRecorder) InitWatchTimeout() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InitWatchTimeout", reflect.TypeOf((*MockStagedPlacementWatcherOptions)(nil).InitWatchTimeout))
 }
 
@@ -962,6 +1092,7 @@ func (m *MockActiveStagedPlacement) EXPECT() *MockActiveStagedPlacementMockRecor
 
 // ActivePlacement mocks base method
 func (m *MockActiveStagedPlacement) ActivePlacement() (Placement, DoneFn, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ActivePlacement")
 	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(DoneFn)
@@ -971,11 +1102,13 @@ func (m *MockActiveStagedPlacement) ActivePlacement() (Placement, DoneFn, error)
 
 // ActivePlacement indicates an expected call of ActivePlacement
 func (mr *MockActiveStagedPlacementMockRecorder) ActivePlacement() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ActivePlacement", reflect.TypeOf((*MockActiveStagedPlacement)(nil).ActivePlacement))
 }
 
 // Close mocks base method
 func (m *MockActiveStagedPlacement) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -983,6 +1116,7 @@ func (m *MockActiveStagedPlacement) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockActiveStagedPlacementMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockActiveStagedPlacement)(nil).Close))
 }
 
@@ -1011,6 +1145,7 @@ func (m *MockActiveStagedPlacementOptions) EXPECT() *MockActiveStagedPlacementOp
 
 // SetClockOptions mocks base method
 func (m *MockActiveStagedPlacementOptions) SetClockOptions(value clock.Options) ActiveStagedPlacementOptions {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetClockOptions", value)
 	ret0, _ := ret[0].(ActiveStagedPlacementOptions)
 	return ret0
@@ -1018,11 +1153,13 @@ func (m *MockActiveStagedPlacementOptions) SetClockOptions(value clock.Options) 
 
 // SetClockOptions indicates an expected call of SetClockOptions
 func (mr *MockActiveStagedPlacementOptionsMockRecorder) SetClockOptions(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetClockOptions", reflect.TypeOf((*MockActiveStagedPlacementOptions)(nil).SetClockOptions), value)
 }
 
 // ClockOptions mocks base method
 func (m *MockActiveStagedPlacementOptions) ClockOptions() clock.Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ClockOptions")
 	ret0, _ := ret[0].(clock.Options)
 	return ret0
@@ -1030,11 +1167,13 @@ func (m *MockActiveStagedPlacementOptions) ClockOptions() clock.Options {
 
 // ClockOptions indicates an expected call of ClockOptions
 func (mr *MockActiveStagedPlacementOptionsMockRecorder) ClockOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClockOptions", reflect.TypeOf((*MockActiveStagedPlacementOptions)(nil).ClockOptions))
 }
 
 // SetOnPlacementsAddedFn mocks base method
 func (m *MockActiveStagedPlacementOptions) SetOnPlacementsAddedFn(value OnPlacementsAddedFn) ActiveStagedPlacementOptions {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetOnPlacementsAddedFn", value)
 	ret0, _ := ret[0].(ActiveStagedPlacementOptions)
 	return ret0
@@ -1042,11 +1181,13 @@ func (m *MockActiveStagedPlacementOptions) SetOnPlacementsAddedFn(value OnPlacem
 
 // SetOnPlacementsAddedFn indicates an expected call of SetOnPlacementsAddedFn
 func (mr *MockActiveStagedPlacementOptionsMockRecorder) SetOnPlacementsAddedFn(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetOnPlacementsAddedFn", reflect.TypeOf((*MockActiveStagedPlacementOptions)(nil).SetOnPlacementsAddedFn), value)
 }
 
 // OnPlacementsAddedFn mocks base method
 func (m *MockActiveStagedPlacementOptions) OnPlacementsAddedFn() OnPlacementsAddedFn {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "OnPlacementsAddedFn")
 	ret0, _ := ret[0].(OnPlacementsAddedFn)
 	return ret0
@@ -1054,11 +1195,13 @@ func (m *MockActiveStagedPlacementOptions) OnPlacementsAddedFn() OnPlacementsAdd
 
 // OnPlacementsAddedFn indicates an expected call of OnPlacementsAddedFn
 func (mr *MockActiveStagedPlacementOptionsMockRecorder) OnPlacementsAddedFn() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnPlacementsAddedFn", reflect.TypeOf((*MockActiveStagedPlacementOptions)(nil).OnPlacementsAddedFn))
 }
 
 // SetOnPlacementsRemovedFn mocks base method
 func (m *MockActiveStagedPlacementOptions) SetOnPlacementsRemovedFn(value OnPlacementsRemovedFn) ActiveStagedPlacementOptions {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetOnPlacementsRemovedFn", value)
 	ret0, _ := ret[0].(ActiveStagedPlacementOptions)
 	return ret0
@@ -1066,11 +1209,13 @@ func (m *MockActiveStagedPlacementOptions) SetOnPlacementsRemovedFn(value OnPlac
 
 // SetOnPlacementsRemovedFn indicates an expected call of SetOnPlacementsRemovedFn
 func (mr *MockActiveStagedPlacementOptionsMockRecorder) SetOnPlacementsRemovedFn(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetOnPlacementsRemovedFn", reflect.TypeOf((*MockActiveStagedPlacementOptions)(nil).SetOnPlacementsRemovedFn), value)
 }
 
 // OnPlacementsRemovedFn mocks base method
 func (m *MockActiveStagedPlacementOptions) OnPlacementsRemovedFn() OnPlacementsRemovedFn {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "OnPlacementsRemovedFn")
 	ret0, _ := ret[0].(OnPlacementsRemovedFn)
 	return ret0
@@ -1078,6 +1223,7 @@ func (m *MockActiveStagedPlacementOptions) OnPlacementsRemovedFn() OnPlacementsR
 
 // OnPlacementsRemovedFn indicates an expected call of OnPlacementsRemovedFn
 func (mr *MockActiveStagedPlacementOptionsMockRecorder) OnPlacementsRemovedFn() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnPlacementsRemovedFn", reflect.TypeOf((*MockActiveStagedPlacementOptions)(nil).OnPlacementsRemovedFn))
 }
 
@@ -1106,6 +1252,7 @@ func (m *MockStagedPlacement) EXPECT() *MockStagedPlacementMockRecorder {
 
 // ActiveStagedPlacement mocks base method
 func (m *MockStagedPlacement) ActiveStagedPlacement(timeNanos int64) ActiveStagedPlacement {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ActiveStagedPlacement", timeNanos)
 	ret0, _ := ret[0].(ActiveStagedPlacement)
 	return ret0
@@ -1113,11 +1260,13 @@ func (m *MockStagedPlacement) ActiveStagedPlacement(timeNanos int64) ActiveStage
 
 // ActiveStagedPlacement indicates an expected call of ActiveStagedPlacement
 func (mr *MockStagedPlacementMockRecorder) ActiveStagedPlacement(timeNanos interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ActiveStagedPlacement", reflect.TypeOf((*MockStagedPlacement)(nil).ActiveStagedPlacement), timeNanos)
 }
 
 // Version mocks base method
 func (m *MockStagedPlacement) Version() int {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Version")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -1125,11 +1274,13 @@ func (m *MockStagedPlacement) Version() int {
 
 // Version indicates an expected call of Version
 func (mr *MockStagedPlacementMockRecorder) Version() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Version", reflect.TypeOf((*MockStagedPlacement)(nil).Version))
 }
 
 // SetVersion mocks base method
 func (m *MockStagedPlacement) SetVersion(version int) StagedPlacement {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetVersion", version)
 	ret0, _ := ret[0].(StagedPlacement)
 	return ret0
@@ -1137,11 +1288,13 @@ func (m *MockStagedPlacement) SetVersion(version int) StagedPlacement {
 
 // SetVersion indicates an expected call of SetVersion
 func (mr *MockStagedPlacementMockRecorder) SetVersion(version interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetVersion", reflect.TypeOf((*MockStagedPlacement)(nil).SetVersion), version)
 }
 
 // Placements mocks base method
 func (m *MockStagedPlacement) Placements() Placements {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Placements")
 	ret0, _ := ret[0].(Placements)
 	return ret0
@@ -1149,11 +1302,13 @@ func (m *MockStagedPlacement) Placements() Placements {
 
 // Placements indicates an expected call of Placements
 func (mr *MockStagedPlacementMockRecorder) Placements() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Placements", reflect.TypeOf((*MockStagedPlacement)(nil).Placements))
 }
 
 // SetPlacements mocks base method
 func (m *MockStagedPlacement) SetPlacements(placements []Placement) StagedPlacement {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetPlacements", placements)
 	ret0, _ := ret[0].(StagedPlacement)
 	return ret0
@@ -1161,11 +1316,13 @@ func (m *MockStagedPlacement) SetPlacements(placements []Placement) StagedPlacem
 
 // SetPlacements indicates an expected call of SetPlacements
 func (mr *MockStagedPlacementMockRecorder) SetPlacements(placements interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPlacements", reflect.TypeOf((*MockStagedPlacement)(nil).SetPlacements), placements)
 }
 
 // ActiveStagedPlacementOptions mocks base method
 func (m *MockStagedPlacement) ActiveStagedPlacementOptions() ActiveStagedPlacementOptions {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ActiveStagedPlacementOptions")
 	ret0, _ := ret[0].(ActiveStagedPlacementOptions)
 	return ret0
@@ -1173,11 +1330,13 @@ func (m *MockStagedPlacement) ActiveStagedPlacementOptions() ActiveStagedPlaceme
 
 // ActiveStagedPlacementOptions indicates an expected call of ActiveStagedPlacementOptions
 func (mr *MockStagedPlacementMockRecorder) ActiveStagedPlacementOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ActiveStagedPlacementOptions", reflect.TypeOf((*MockStagedPlacement)(nil).ActiveStagedPlacementOptions))
 }
 
 // SetActiveStagedPlacementOptions mocks base method
 func (m *MockStagedPlacement) SetActiveStagedPlacementOptions(opts ActiveStagedPlacementOptions) StagedPlacement {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetActiveStagedPlacementOptions", opts)
 	ret0, _ := ret[0].(StagedPlacement)
 	return ret0
@@ -1185,11 +1344,13 @@ func (m *MockStagedPlacement) SetActiveStagedPlacementOptions(opts ActiveStagedP
 
 // SetActiveStagedPlacementOptions indicates an expected call of SetActiveStagedPlacementOptions
 func (mr *MockStagedPlacementMockRecorder) SetActiveStagedPlacementOptions(opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetActiveStagedPlacementOptions", reflect.TypeOf((*MockStagedPlacement)(nil).SetActiveStagedPlacementOptions), opts)
 }
 
 // Proto mocks base method
 func (m *MockStagedPlacement) Proto() (*placementpb.PlacementSnapshots, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Proto")
 	ret0, _ := ret[0].(*placementpb.PlacementSnapshots)
 	ret1, _ := ret[1].(error)
@@ -1198,6 +1359,7 @@ func (m *MockStagedPlacement) Proto() (*placementpb.PlacementSnapshots, error) {
 
 // Proto indicates an expected call of Proto
 func (mr *MockStagedPlacementMockRecorder) Proto() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Proto", reflect.TypeOf((*MockStagedPlacement)(nil).Proto))
 }
 
@@ -1226,6 +1388,7 @@ func (m *MockOptions) EXPECT() *MockOptionsMockRecorder {
 
 // AllowPartialReplace mocks base method
 func (m *MockOptions) AllowPartialReplace() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AllowPartialReplace")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -1233,11 +1396,13 @@ func (m *MockOptions) AllowPartialReplace() bool {
 
 // AllowPartialReplace indicates an expected call of AllowPartialReplace
 func (mr *MockOptionsMockRecorder) AllowPartialReplace() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AllowPartialReplace", reflect.TypeOf((*MockOptions)(nil).AllowPartialReplace))
 }
 
 // SetAllowPartialReplace mocks base method
 func (m *MockOptions) SetAllowPartialReplace(allowPartialReplace bool) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetAllowPartialReplace", allowPartialReplace)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1245,11 +1410,13 @@ func (m *MockOptions) SetAllowPartialReplace(allowPartialReplace bool) Options {
 
 // SetAllowPartialReplace indicates an expected call of SetAllowPartialReplace
 func (mr *MockOptionsMockRecorder) SetAllowPartialReplace(allowPartialReplace interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAllowPartialReplace", reflect.TypeOf((*MockOptions)(nil).SetAllowPartialReplace), allowPartialReplace)
 }
 
 // AddAllCandidates mocks base method
 func (m *MockOptions) AddAllCandidates() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddAllCandidates")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -1257,11 +1424,13 @@ func (m *MockOptions) AddAllCandidates() bool {
 
 // AddAllCandidates indicates an expected call of AddAllCandidates
 func (mr *MockOptionsMockRecorder) AddAllCandidates() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddAllCandidates", reflect.TypeOf((*MockOptions)(nil).AddAllCandidates))
 }
 
 // SetAddAllCandidates mocks base method
 func (m *MockOptions) SetAddAllCandidates(addAllCandidates bool) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetAddAllCandidates", addAllCandidates)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1269,11 +1438,13 @@ func (m *MockOptions) SetAddAllCandidates(addAllCandidates bool) Options {
 
 // SetAddAllCandidates indicates an expected call of SetAddAllCandidates
 func (mr *MockOptionsMockRecorder) SetAddAllCandidates(addAllCandidates interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAddAllCandidates", reflect.TypeOf((*MockOptions)(nil).SetAddAllCandidates), addAllCandidates)
 }
 
 // IsSharded mocks base method
 func (m *MockOptions) IsSharded() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsSharded")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -1281,11 +1452,13 @@ func (m *MockOptions) IsSharded() bool {
 
 // IsSharded indicates an expected call of IsSharded
 func (mr *MockOptionsMockRecorder) IsSharded() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsSharded", reflect.TypeOf((*MockOptions)(nil).IsSharded))
 }
 
 // SetIsSharded mocks base method
 func (m *MockOptions) SetIsSharded(sharded bool) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetIsSharded", sharded)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1293,11 +1466,13 @@ func (m *MockOptions) SetIsSharded(sharded bool) Options {
 
 // SetIsSharded indicates an expected call of SetIsSharded
 func (mr *MockOptionsMockRecorder) SetIsSharded(sharded interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIsSharded", reflect.TypeOf((*MockOptions)(nil).SetIsSharded), sharded)
 }
 
 // ShardStateMode mocks base method
 func (m *MockOptions) ShardStateMode() ShardStateMode {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ShardStateMode")
 	ret0, _ := ret[0].(ShardStateMode)
 	return ret0
@@ -1305,11 +1480,13 @@ func (m *MockOptions) ShardStateMode() ShardStateMode {
 
 // ShardStateMode indicates an expected call of ShardStateMode
 func (mr *MockOptionsMockRecorder) ShardStateMode() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShardStateMode", reflect.TypeOf((*MockOptions)(nil).ShardStateMode))
 }
 
 // SetShardStateMode mocks base method
 func (m *MockOptions) SetShardStateMode(value ShardStateMode) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetShardStateMode", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1317,11 +1494,13 @@ func (m *MockOptions) SetShardStateMode(value ShardStateMode) Options {
 
 // SetShardStateMode indicates an expected call of SetShardStateMode
 func (mr *MockOptionsMockRecorder) SetShardStateMode(value interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetShardStateMode", reflect.TypeOf((*MockOptions)(nil).SetShardStateMode), value)
 }
 
 // Dryrun mocks base method
 func (m *MockOptions) Dryrun() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Dryrun")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -1329,11 +1508,13 @@ func (m *MockOptions) Dryrun() bool {
 
 // Dryrun indicates an expected call of Dryrun
 func (mr *MockOptionsMockRecorder) Dryrun() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Dryrun", reflect.TypeOf((*MockOptions)(nil).Dryrun))
 }
 
 // SetDryrun mocks base method
 func (m *MockOptions) SetDryrun(d bool) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetDryrun", d)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1341,11 +1522,13 @@ func (m *MockOptions) SetDryrun(d bool) Options {
 
 // SetDryrun indicates an expected call of SetDryrun
 func (mr *MockOptionsMockRecorder) SetDryrun(d interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetDryrun", reflect.TypeOf((*MockOptions)(nil).SetDryrun), d)
 }
 
 // IsMirrored mocks base method
 func (m *MockOptions) IsMirrored() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsMirrored")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -1353,11 +1536,13 @@ func (m *MockOptions) IsMirrored() bool {
 
 // IsMirrored indicates an expected call of IsMirrored
 func (mr *MockOptionsMockRecorder) IsMirrored() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsMirrored", reflect.TypeOf((*MockOptions)(nil).IsMirrored))
 }
 
 // SetIsMirrored mocks base method
 func (m_2 *MockOptions) SetIsMirrored(m bool) Options {
+	m_2.ctrl.T.Helper()
 	ret := m_2.ctrl.Call(m_2, "SetIsMirrored", m)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1365,11 +1550,13 @@ func (m_2 *MockOptions) SetIsMirrored(m bool) Options {
 
 // SetIsMirrored indicates an expected call of SetIsMirrored
 func (mr *MockOptionsMockRecorder) SetIsMirrored(m interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIsMirrored", reflect.TypeOf((*MockOptions)(nil).SetIsMirrored), m)
 }
 
 // IsStaged mocks base method
 func (m *MockOptions) IsStaged() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsStaged")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -1377,11 +1564,13 @@ func (m *MockOptions) IsStaged() bool {
 
 // IsStaged indicates an expected call of IsStaged
 func (mr *MockOptionsMockRecorder) IsStaged() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsStaged", reflect.TypeOf((*MockOptions)(nil).IsStaged))
 }
 
 // SetIsStaged mocks base method
 func (m *MockOptions) SetIsStaged(v bool) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetIsStaged", v)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1389,11 +1578,13 @@ func (m *MockOptions) SetIsStaged(v bool) Options {
 
 // SetIsStaged indicates an expected call of SetIsStaged
 func (mr *MockOptionsMockRecorder) SetIsStaged(v interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIsStaged", reflect.TypeOf((*MockOptions)(nil).SetIsStaged), v)
 }
 
 // InstrumentOptions mocks base method
 func (m *MockOptions) InstrumentOptions() instrument.Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InstrumentOptions")
 	ret0, _ := ret[0].(instrument.Options)
 	return ret0
@@ -1401,11 +1592,13 @@ func (m *MockOptions) InstrumentOptions() instrument.Options {
 
 // InstrumentOptions indicates an expected call of InstrumentOptions
 func (mr *MockOptionsMockRecorder) InstrumentOptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstrumentOptions", reflect.TypeOf((*MockOptions)(nil).InstrumentOptions))
 }
 
 // SetInstrumentOptions mocks base method
 func (m *MockOptions) SetInstrumentOptions(iopts instrument.Options) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetInstrumentOptions", iopts)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1413,11 +1606,13 @@ func (m *MockOptions) SetInstrumentOptions(iopts instrument.Options) Options {
 
 // SetInstrumentOptions indicates an expected call of SetInstrumentOptions
 func (mr *MockOptionsMockRecorder) SetInstrumentOptions(iopts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetInstrumentOptions", reflect.TypeOf((*MockOptions)(nil).SetInstrumentOptions), iopts)
 }
 
 // ValidZone mocks base method
 func (m *MockOptions) ValidZone() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ValidZone")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -1425,11 +1620,13 @@ func (m *MockOptions) ValidZone() string {
 
 // ValidZone indicates an expected call of ValidZone
 func (mr *MockOptionsMockRecorder) ValidZone() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidZone", reflect.TypeOf((*MockOptions)(nil).ValidZone))
 }
 
 // SetValidZone mocks base method
 func (m *MockOptions) SetValidZone(z string) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetValidZone", z)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1437,11 +1634,13 @@ func (m *MockOptions) SetValidZone(z string) Options {
 
 // SetValidZone indicates an expected call of SetValidZone
 func (mr *MockOptionsMockRecorder) SetValidZone(z interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetValidZone", reflect.TypeOf((*MockOptions)(nil).SetValidZone), z)
 }
 
 // PlacementCutoverNanosFn mocks base method
 func (m *MockOptions) PlacementCutoverNanosFn() TimeNanosFn {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PlacementCutoverNanosFn")
 	ret0, _ := ret[0].(TimeNanosFn)
 	return ret0
@@ -1449,11 +1648,13 @@ func (m *MockOptions) PlacementCutoverNanosFn() TimeNanosFn {
 
 // PlacementCutoverNanosFn indicates an expected call of PlacementCutoverNanosFn
 func (mr *MockOptionsMockRecorder) PlacementCutoverNanosFn() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PlacementCutoverNanosFn", reflect.TypeOf((*MockOptions)(nil).PlacementCutoverNanosFn))
 }
 
 // SetPlacementCutoverNanosFn mocks base method
 func (m *MockOptions) SetPlacementCutoverNanosFn(fn TimeNanosFn) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetPlacementCutoverNanosFn", fn)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1461,11 +1662,13 @@ func (m *MockOptions) SetPlacementCutoverNanosFn(fn TimeNanosFn) Options {
 
 // SetPlacementCutoverNanosFn indicates an expected call of SetPlacementCutoverNanosFn
 func (mr *MockOptionsMockRecorder) SetPlacementCutoverNanosFn(fn interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPlacementCutoverNanosFn", reflect.TypeOf((*MockOptions)(nil).SetPlacementCutoverNanosFn), fn)
 }
 
 // ShardCutoverNanosFn mocks base method
 func (m *MockOptions) ShardCutoverNanosFn() TimeNanosFn {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ShardCutoverNanosFn")
 	ret0, _ := ret[0].(TimeNanosFn)
 	return ret0
@@ -1473,11 +1676,13 @@ func (m *MockOptions) ShardCutoverNanosFn() TimeNanosFn {
 
 // ShardCutoverNanosFn indicates an expected call of ShardCutoverNanosFn
 func (mr *MockOptionsMockRecorder) ShardCutoverNanosFn() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShardCutoverNanosFn", reflect.TypeOf((*MockOptions)(nil).ShardCutoverNanosFn))
 }
 
 // SetShardCutoverNanosFn mocks base method
 func (m *MockOptions) SetShardCutoverNanosFn(fn TimeNanosFn) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetShardCutoverNanosFn", fn)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1485,11 +1690,13 @@ func (m *MockOptions) SetShardCutoverNanosFn(fn TimeNanosFn) Options {
 
 // SetShardCutoverNanosFn indicates an expected call of SetShardCutoverNanosFn
 func (mr *MockOptionsMockRecorder) SetShardCutoverNanosFn(fn interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetShardCutoverNanosFn", reflect.TypeOf((*MockOptions)(nil).SetShardCutoverNanosFn), fn)
 }
 
 // ShardCutoffNanosFn mocks base method
 func (m *MockOptions) ShardCutoffNanosFn() TimeNanosFn {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ShardCutoffNanosFn")
 	ret0, _ := ret[0].(TimeNanosFn)
 	return ret0
@@ -1497,11 +1704,13 @@ func (m *MockOptions) ShardCutoffNanosFn() TimeNanosFn {
 
 // ShardCutoffNanosFn indicates an expected call of ShardCutoffNanosFn
 func (mr *MockOptionsMockRecorder) ShardCutoffNanosFn() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShardCutoffNanosFn", reflect.TypeOf((*MockOptions)(nil).ShardCutoffNanosFn))
 }
 
 // SetShardCutoffNanosFn mocks base method
 func (m *MockOptions) SetShardCutoffNanosFn(fn TimeNanosFn) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetShardCutoffNanosFn", fn)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1509,23 +1718,27 @@ func (m *MockOptions) SetShardCutoffNanosFn(fn TimeNanosFn) Options {
 
 // SetShardCutoffNanosFn indicates an expected call of SetShardCutoffNanosFn
 func (mr *MockOptionsMockRecorder) SetShardCutoffNanosFn(fn interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetShardCutoffNanosFn", reflect.TypeOf((*MockOptions)(nil).SetShardCutoffNanosFn), fn)
 }
 
 // IsShardCutoverFn mocks base method
-func (m *MockOptions) IsShardCutoverFn() ShardValidationFn {
+func (m *MockOptions) IsShardCutoverFn() ShardValidateFn {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsShardCutoverFn")
-	ret0, _ := ret[0].(ShardValidationFn)
+	ret0, _ := ret[0].(ShardValidateFn)
 	return ret0
 }
 
 // IsShardCutoverFn indicates an expected call of IsShardCutoverFn
 func (mr *MockOptionsMockRecorder) IsShardCutoverFn() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsShardCutoverFn", reflect.TypeOf((*MockOptions)(nil).IsShardCutoverFn))
 }
 
 // SetIsShardCutoverFn mocks base method
-func (m *MockOptions) SetIsShardCutoverFn(fn ShardValidationFn) Options {
+func (m *MockOptions) SetIsShardCutoverFn(fn ShardValidateFn) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetIsShardCutoverFn", fn)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1533,23 +1746,27 @@ func (m *MockOptions) SetIsShardCutoverFn(fn ShardValidationFn) Options {
 
 // SetIsShardCutoverFn indicates an expected call of SetIsShardCutoverFn
 func (mr *MockOptionsMockRecorder) SetIsShardCutoverFn(fn interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIsShardCutoverFn", reflect.TypeOf((*MockOptions)(nil).SetIsShardCutoverFn), fn)
 }
 
 // IsShardCutoffFn mocks base method
-func (m *MockOptions) IsShardCutoffFn() ShardValidationFn {
+func (m *MockOptions) IsShardCutoffFn() ShardValidateFn {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsShardCutoffFn")
-	ret0, _ := ret[0].(ShardValidationFn)
+	ret0, _ := ret[0].(ShardValidateFn)
 	return ret0
 }
 
 // IsShardCutoffFn indicates an expected call of IsShardCutoffFn
 func (mr *MockOptionsMockRecorder) IsShardCutoffFn() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsShardCutoffFn", reflect.TypeOf((*MockOptions)(nil).IsShardCutoffFn))
 }
 
 // SetIsShardCutoffFn mocks base method
-func (m *MockOptions) SetIsShardCutoffFn(fn ShardValidationFn) Options {
+func (m *MockOptions) SetIsShardCutoffFn(fn ShardValidateFn) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetIsShardCutoffFn", fn)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1557,11 +1774,41 @@ func (m *MockOptions) SetIsShardCutoffFn(fn ShardValidationFn) Options {
 
 // SetIsShardCutoffFn indicates an expected call of SetIsShardCutoffFn
 func (mr *MockOptionsMockRecorder) SetIsShardCutoffFn(fn interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIsShardCutoffFn", reflect.TypeOf((*MockOptions)(nil).SetIsShardCutoffFn), fn)
+}
+
+// ValidateFnBeforeUpdate mocks base method
+func (m *MockOptions) ValidateFnBeforeUpdate() ValidateFn {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ValidateFnBeforeUpdate")
+	ret0, _ := ret[0].(ValidateFn)
+	return ret0
+}
+
+// ValidateFnBeforeUpdate indicates an expected call of ValidateFnBeforeUpdate
+func (mr *MockOptionsMockRecorder) ValidateFnBeforeUpdate() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidateFnBeforeUpdate", reflect.TypeOf((*MockOptions)(nil).ValidateFnBeforeUpdate))
+}
+
+// SetValidateFnBeforeUpdate mocks base method
+func (m *MockOptions) SetValidateFnBeforeUpdate(fn ValidateFn) Options {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetValidateFnBeforeUpdate", fn)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetValidateFnBeforeUpdate indicates an expected call of SetValidateFnBeforeUpdate
+func (mr *MockOptionsMockRecorder) SetValidateFnBeforeUpdate(fn interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetValidateFnBeforeUpdate", reflect.TypeOf((*MockOptions)(nil).SetValidateFnBeforeUpdate), fn)
 }
 
 // NowFn mocks base method
 func (m *MockOptions) NowFn() clock.NowFn {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NowFn")
 	ret0, _ := ret[0].(clock.NowFn)
 	return ret0
@@ -1569,11 +1816,13 @@ func (m *MockOptions) NowFn() clock.NowFn {
 
 // NowFn indicates an expected call of NowFn
 func (mr *MockOptionsMockRecorder) NowFn() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NowFn", reflect.TypeOf((*MockOptions)(nil).NowFn))
 }
 
 // SetNowFn mocks base method
 func (m *MockOptions) SetNowFn(fn clock.NowFn) Options {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetNowFn", fn)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1581,6 +1830,7 @@ func (m *MockOptions) SetNowFn(fn clock.NowFn) Options {
 
 // SetNowFn indicates an expected call of SetNowFn
 func (mr *MockOptionsMockRecorder) SetNowFn(fn interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNowFn", reflect.TypeOf((*MockOptions)(nil).SetNowFn), fn)
 }
 
@@ -1609,6 +1859,7 @@ func (m *MockStorage) EXPECT() *MockStorageMockRecorder {
 
 // Set mocks base method
 func (m *MockStorage) Set(p Placement) (Placement, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Set", p)
 	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(error)
@@ -1617,11 +1868,13 @@ func (m *MockStorage) Set(p Placement) (Placement, error) {
 
 // Set indicates an expected call of Set
 func (mr *MockStorageMockRecorder) Set(p interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Set", reflect.TypeOf((*MockStorage)(nil).Set), p)
 }
 
 // CheckAndSet mocks base method
 func (m *MockStorage) CheckAndSet(p Placement, version int) (Placement, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CheckAndSet", p, version)
 	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(error)
@@ -1630,11 +1883,13 @@ func (m *MockStorage) CheckAndSet(p Placement, version int) (Placement, error) {
 
 // CheckAndSet indicates an expected call of CheckAndSet
 func (mr *MockStorageMockRecorder) CheckAndSet(p, version interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckAndSet", reflect.TypeOf((*MockStorage)(nil).CheckAndSet), p, version)
 }
 
 // SetIfNotExist mocks base method
 func (m *MockStorage) SetIfNotExist(p Placement) (Placement, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetIfNotExist", p)
 	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(error)
@@ -1643,11 +1898,13 @@ func (m *MockStorage) SetIfNotExist(p Placement) (Placement, error) {
 
 // SetIfNotExist indicates an expected call of SetIfNotExist
 func (mr *MockStorageMockRecorder) SetIfNotExist(p interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIfNotExist", reflect.TypeOf((*MockStorage)(nil).SetIfNotExist), p)
 }
 
 // Placement mocks base method
 func (m *MockStorage) Placement() (Placement, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Placement")
 	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(error)
@@ -1656,11 +1913,13 @@ func (m *MockStorage) Placement() (Placement, error) {
 
 // Placement indicates an expected call of Placement
 func (mr *MockStorageMockRecorder) Placement() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Placement", reflect.TypeOf((*MockStorage)(nil).Placement))
 }
 
 // Watch mocks base method
 func (m *MockStorage) Watch() (Watch, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Watch")
 	ret0, _ := ret[0].(Watch)
 	ret1, _ := ret[1].(error)
@@ -1669,11 +1928,13 @@ func (m *MockStorage) Watch() (Watch, error) {
 
 // Watch indicates an expected call of Watch
 func (mr *MockStorageMockRecorder) Watch() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Watch", reflect.TypeOf((*MockStorage)(nil).Watch))
 }
 
 // Delete mocks base method
 func (m *MockStorage) Delete() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Delete")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1681,11 +1942,13 @@ func (m *MockStorage) Delete() error {
 
 // Delete indicates an expected call of Delete
 func (mr *MockStorageMockRecorder) Delete() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockStorage)(nil).Delete))
 }
 
 // SetProto mocks base method
 func (m *MockStorage) SetProto(p proto.Message) (int, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetProto", p)
 	ret0, _ := ret[0].(int)
 	ret1, _ := ret[1].(error)
@@ -1694,11 +1957,13 @@ func (m *MockStorage) SetProto(p proto.Message) (int, error) {
 
 // SetProto indicates an expected call of SetProto
 func (mr *MockStorageMockRecorder) SetProto(p interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetProto", reflect.TypeOf((*MockStorage)(nil).SetProto), p)
 }
 
 // CheckAndSetProto mocks base method
 func (m *MockStorage) CheckAndSetProto(p proto.Message, version int) (int, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CheckAndSetProto", p, version)
 	ret0, _ := ret[0].(int)
 	ret1, _ := ret[1].(error)
@@ -1707,11 +1972,13 @@ func (m *MockStorage) CheckAndSetProto(p proto.Message, version int) (int, error
 
 // CheckAndSetProto indicates an expected call of CheckAndSetProto
 func (mr *MockStorageMockRecorder) CheckAndSetProto(p, version interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckAndSetProto", reflect.TypeOf((*MockStorage)(nil).CheckAndSetProto), p, version)
 }
 
 // Proto mocks base method
 func (m *MockStorage) Proto() (proto.Message, int, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Proto")
 	ret0, _ := ret[0].(proto.Message)
 	ret1, _ := ret[1].(int)
@@ -1721,11 +1988,13 @@ func (m *MockStorage) Proto() (proto.Message, int, error) {
 
 // Proto indicates an expected call of Proto
 func (mr *MockStorageMockRecorder) Proto() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Proto", reflect.TypeOf((*MockStorage)(nil).Proto))
 }
 
 // PlacementForVersion mocks base method
 func (m *MockStorage) PlacementForVersion(version int) (Placement, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PlacementForVersion", version)
 	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(error)
@@ -1734,6 +2003,7 @@ func (m *MockStorage) PlacementForVersion(version int) (Placement, error) {
 
 // PlacementForVersion indicates an expected call of PlacementForVersion
 func (mr *MockStorageMockRecorder) PlacementForVersion(version interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PlacementForVersion", reflect.TypeOf((*MockStorage)(nil).PlacementForVersion), version)
 }
 
@@ -1762,6 +2032,7 @@ func (m *MockService) EXPECT() *MockServiceMockRecorder {
 
 // Set mocks base method
 func (m *MockService) Set(p Placement) (Placement, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Set", p)
 	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(error)
@@ -1770,11 +2041,13 @@ func (m *MockService) Set(p Placement) (Placement, error) {
 
 // Set indicates an expected call of Set
 func (mr *MockServiceMockRecorder) Set(p interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Set", reflect.TypeOf((*MockService)(nil).Set), p)
 }
 
 // CheckAndSet mocks base method
 func (m *MockService) CheckAndSet(p Placement, version int) (Placement, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CheckAndSet", p, version)
 	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(error)
@@ -1783,11 +2056,13 @@ func (m *MockService) CheckAndSet(p Placement, version int) (Placement, error) {
 
 // CheckAndSet indicates an expected call of CheckAndSet
 func (mr *MockServiceMockRecorder) CheckAndSet(p, version interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckAndSet", reflect.TypeOf((*MockService)(nil).CheckAndSet), p, version)
 }
 
 // SetIfNotExist mocks base method
 func (m *MockService) SetIfNotExist(p Placement) (Placement, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetIfNotExist", p)
 	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(error)
@@ -1796,11 +2071,13 @@ func (m *MockService) SetIfNotExist(p Placement) (Placement, error) {
 
 // SetIfNotExist indicates an expected call of SetIfNotExist
 func (mr *MockServiceMockRecorder) SetIfNotExist(p interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIfNotExist", reflect.TypeOf((*MockService)(nil).SetIfNotExist), p)
 }
 
 // Placement mocks base method
 func (m *MockService) Placement() (Placement, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Placement")
 	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(error)
@@ -1809,11 +2086,13 @@ func (m *MockService) Placement() (Placement, error) {
 
 // Placement indicates an expected call of Placement
 func (mr *MockServiceMockRecorder) Placement() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Placement", reflect.TypeOf((*MockService)(nil).Placement))
 }
 
 // Watch mocks base method
 func (m *MockService) Watch() (Watch, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Watch")
 	ret0, _ := ret[0].(Watch)
 	ret1, _ := ret[1].(error)
@@ -1822,11 +2101,13 @@ func (m *MockService) Watch() (Watch, error) {
 
 // Watch indicates an expected call of Watch
 func (mr *MockServiceMockRecorder) Watch() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Watch", reflect.TypeOf((*MockService)(nil).Watch))
 }
 
 // Delete mocks base method
 func (m *MockService) Delete() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Delete")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1834,11 +2115,13 @@ func (m *MockService) Delete() error {
 
 // Delete indicates an expected call of Delete
 func (mr *MockServiceMockRecorder) Delete() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockService)(nil).Delete))
 }
 
 // SetProto mocks base method
 func (m *MockService) SetProto(p proto.Message) (int, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetProto", p)
 	ret0, _ := ret[0].(int)
 	ret1, _ := ret[1].(error)
@@ -1847,11 +2130,13 @@ func (m *MockService) SetProto(p proto.Message) (int, error) {
 
 // SetProto indicates an expected call of SetProto
 func (mr *MockServiceMockRecorder) SetProto(p interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetProto", reflect.TypeOf((*MockService)(nil).SetProto), p)
 }
 
 // CheckAndSetProto mocks base method
 func (m *MockService) CheckAndSetProto(p proto.Message, version int) (int, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CheckAndSetProto", p, version)
 	ret0, _ := ret[0].(int)
 	ret1, _ := ret[1].(error)
@@ -1860,11 +2145,13 @@ func (m *MockService) CheckAndSetProto(p proto.Message, version int) (int, error
 
 // CheckAndSetProto indicates an expected call of CheckAndSetProto
 func (mr *MockServiceMockRecorder) CheckAndSetProto(p, version interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckAndSetProto", reflect.TypeOf((*MockService)(nil).CheckAndSetProto), p, version)
 }
 
 // Proto mocks base method
 func (m *MockService) Proto() (proto.Message, int, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Proto")
 	ret0, _ := ret[0].(proto.Message)
 	ret1, _ := ret[1].(int)
@@ -1874,11 +2161,13 @@ func (m *MockService) Proto() (proto.Message, int, error) {
 
 // Proto indicates an expected call of Proto
 func (mr *MockServiceMockRecorder) Proto() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Proto", reflect.TypeOf((*MockService)(nil).Proto))
 }
 
 // PlacementForVersion mocks base method
 func (m *MockService) PlacementForVersion(version int) (Placement, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PlacementForVersion", version)
 	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(error)
@@ -1887,11 +2176,13 @@ func (m *MockService) PlacementForVersion(version int) (Placement, error) {
 
 // PlacementForVersion indicates an expected call of PlacementForVersion
 func (mr *MockServiceMockRecorder) PlacementForVersion(version interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PlacementForVersion", reflect.TypeOf((*MockService)(nil).PlacementForVersion), version)
 }
 
 // BuildInitialPlacement mocks base method
 func (m *MockService) BuildInitialPlacement(instances []Instance, numShards, rf int) (Placement, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BuildInitialPlacement", instances, numShards, rf)
 	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(error)
@@ -1900,11 +2191,13 @@ func (m *MockService) BuildInitialPlacement(instances []Instance, numShards, rf 
 
 // BuildInitialPlacement indicates an expected call of BuildInitialPlacement
 func (mr *MockServiceMockRecorder) BuildInitialPlacement(instances, numShards, rf interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BuildInitialPlacement", reflect.TypeOf((*MockService)(nil).BuildInitialPlacement), instances, numShards, rf)
 }
 
 // AddReplica mocks base method
 func (m *MockService) AddReplica() (Placement, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddReplica")
 	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(error)
@@ -1913,11 +2206,13 @@ func (m *MockService) AddReplica() (Placement, error) {
 
 // AddReplica indicates an expected call of AddReplica
 func (mr *MockServiceMockRecorder) AddReplica() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddReplica", reflect.TypeOf((*MockService)(nil).AddReplica))
 }
 
 // AddInstances mocks base method
 func (m *MockService) AddInstances(candidates []Instance) (Placement, []Instance, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddInstances", candidates)
 	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].([]Instance)
@@ -1927,11 +2222,13 @@ func (m *MockService) AddInstances(candidates []Instance) (Placement, []Instance
 
 // AddInstances indicates an expected call of AddInstances
 func (mr *MockServiceMockRecorder) AddInstances(candidates interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddInstances", reflect.TypeOf((*MockService)(nil).AddInstances), candidates)
 }
 
 // RemoveInstances mocks base method
 func (m *MockService) RemoveInstances(leavingInstanceIDs []string) (Placement, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RemoveInstances", leavingInstanceIDs)
 	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(error)
@@ -1940,11 +2237,13 @@ func (m *MockService) RemoveInstances(leavingInstanceIDs []string) (Placement, e
 
 // RemoveInstances indicates an expected call of RemoveInstances
 func (mr *MockServiceMockRecorder) RemoveInstances(leavingInstanceIDs interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveInstances", reflect.TypeOf((*MockService)(nil).RemoveInstances), leavingInstanceIDs)
 }
 
 // ReplaceInstances mocks base method
 func (m *MockService) ReplaceInstances(leavingInstanceIDs []string, candidates []Instance) (Placement, []Instance, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReplaceInstances", leavingInstanceIDs, candidates)
 	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].([]Instance)
@@ -1954,28 +2253,48 @@ func (m *MockService) ReplaceInstances(leavingInstanceIDs []string, candidates [
 
 // ReplaceInstances indicates an expected call of ReplaceInstances
 func (mr *MockServiceMockRecorder) ReplaceInstances(leavingInstanceIDs, candidates interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplaceInstances", reflect.TypeOf((*MockService)(nil).ReplaceInstances), leavingInstanceIDs, candidates)
 }
 
 // MarkShardsAvailable mocks base method
-func (m *MockService) MarkShardsAvailable(instanceID string, shardIDs ...uint32) error {
+func (m *MockService) MarkShardsAvailable(instanceID string, shardIDs ...uint32) (Placement, error) {
+	m.ctrl.T.Helper()
 	varargs := []interface{}{instanceID}
 	for _, a := range shardIDs {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "MarkShardsAvailable", varargs...)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // MarkShardsAvailable indicates an expected call of MarkShardsAvailable
 func (mr *MockServiceMockRecorder) MarkShardsAvailable(instanceID interface{}, shardIDs ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{instanceID}, shardIDs...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkShardsAvailable", reflect.TypeOf((*MockService)(nil).MarkShardsAvailable), varargs...)
 }
 
+// MarkInstanceAvailable mocks base method
+func (m *MockService) MarkInstanceAvailable(instanceID string) (Placement, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkInstanceAvailable", instanceID)
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MarkInstanceAvailable indicates an expected call of MarkInstanceAvailable
+func (mr *MockServiceMockRecorder) MarkInstanceAvailable(instanceID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkInstanceAvailable", reflect.TypeOf((*MockService)(nil).MarkInstanceAvailable), instanceID)
+}
+
 // MarkAllShardsAvailable mocks base method
 func (m *MockService) MarkAllShardsAvailable() (Placement, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MarkAllShardsAvailable")
 	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(error)
@@ -1984,19 +2303,8 @@ func (m *MockService) MarkAllShardsAvailable() (Placement, error) {
 
 // MarkAllShardsAvailable indicates an expected call of MarkAllShardsAvailable
 func (mr *MockServiceMockRecorder) MarkAllShardsAvailable() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkAllShardsAvailable", reflect.TypeOf((*MockService)(nil).MarkAllShardsAvailable))
-}
-
-// MarkInstanceAvailable mocks base method
-func (m *MockService) MarkInstanceAvailable(instanceID string) error {
-	ret := m.ctrl.Call(m, "MarkInstanceAvailable", instanceID)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// MarkInstanceAvailable indicates an expected call of MarkInstanceAvailable
-func (mr *MockServiceMockRecorder) MarkInstanceAvailable(instanceID interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkInstanceAvailable", reflect.TypeOf((*MockService)(nil).MarkInstanceAvailable), instanceID)
 }
 
 // MockAlgorithm is a mock of Algorithm interface
@@ -2024,6 +2332,7 @@ func (m *MockAlgorithm) EXPECT() *MockAlgorithmMockRecorder {
 
 // InitialPlacement mocks base method
 func (m *MockAlgorithm) InitialPlacement(instances []Instance, shards []uint32, rf int) (Placement, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InitialPlacement", instances, shards, rf)
 	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(error)
@@ -2032,11 +2341,13 @@ func (m *MockAlgorithm) InitialPlacement(instances []Instance, shards []uint32, 
 
 // InitialPlacement indicates an expected call of InitialPlacement
 func (mr *MockAlgorithmMockRecorder) InitialPlacement(instances, shards, rf interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InitialPlacement", reflect.TypeOf((*MockAlgorithm)(nil).InitialPlacement), instances, shards, rf)
 }
 
 // AddReplica mocks base method
 func (m *MockAlgorithm) AddReplica(p Placement) (Placement, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddReplica", p)
 	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(error)
@@ -2045,11 +2356,13 @@ func (m *MockAlgorithm) AddReplica(p Placement) (Placement, error) {
 
 // AddReplica indicates an expected call of AddReplica
 func (mr *MockAlgorithmMockRecorder) AddReplica(p interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddReplica", reflect.TypeOf((*MockAlgorithm)(nil).AddReplica), p)
 }
 
 // AddInstances mocks base method
 func (m *MockAlgorithm) AddInstances(p Placement, instances []Instance) (Placement, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddInstances", p, instances)
 	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(error)
@@ -2058,11 +2371,13 @@ func (m *MockAlgorithm) AddInstances(p Placement, instances []Instance) (Placeme
 
 // AddInstances indicates an expected call of AddInstances
 func (mr *MockAlgorithmMockRecorder) AddInstances(p, instances interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddInstances", reflect.TypeOf((*MockAlgorithm)(nil).AddInstances), p, instances)
 }
 
 // RemoveInstances mocks base method
 func (m *MockAlgorithm) RemoveInstances(p Placement, leavingInstanceIDs []string) (Placement, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RemoveInstances", p, leavingInstanceIDs)
 	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(error)
@@ -2071,11 +2386,13 @@ func (m *MockAlgorithm) RemoveInstances(p Placement, leavingInstanceIDs []string
 
 // RemoveInstances indicates an expected call of RemoveInstances
 func (mr *MockAlgorithmMockRecorder) RemoveInstances(p, leavingInstanceIDs interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveInstances", reflect.TypeOf((*MockAlgorithm)(nil).RemoveInstances), p, leavingInstanceIDs)
 }
 
 // ReplaceInstances mocks base method
 func (m *MockAlgorithm) ReplaceInstances(p Placement, leavingInstanecIDs []string, addingInstances []Instance) (Placement, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReplaceInstances", p, leavingInstanecIDs, addingInstances)
 	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(error)
@@ -2084,11 +2401,13 @@ func (m *MockAlgorithm) ReplaceInstances(p Placement, leavingInstanecIDs []strin
 
 // ReplaceInstances indicates an expected call of ReplaceInstances
 func (mr *MockAlgorithmMockRecorder) ReplaceInstances(p, leavingInstanecIDs, addingInstances interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplaceInstances", reflect.TypeOf((*MockAlgorithm)(nil).ReplaceInstances), p, leavingInstanecIDs, addingInstances)
 }
 
 // IsCompatibleWith mocks base method
 func (m *MockAlgorithm) IsCompatibleWith(p Placement) error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsCompatibleWith", p)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -2096,11 +2415,13 @@ func (m *MockAlgorithm) IsCompatibleWith(p Placement) error {
 
 // IsCompatibleWith indicates an expected call of IsCompatibleWith
 func (mr *MockAlgorithmMockRecorder) IsCompatibleWith(p interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsCompatibleWith", reflect.TypeOf((*MockAlgorithm)(nil).IsCompatibleWith), p)
 }
 
 // MarkShardsAvailable mocks base method
 func (m *MockAlgorithm) MarkShardsAvailable(p Placement, instanceID string, shardIDs ...uint32) (Placement, error) {
+	m.ctrl.T.Helper()
 	varargs := []interface{}{p, instanceID}
 	for _, a := range shardIDs {
 		varargs = append(varargs, a)
@@ -2113,12 +2434,14 @@ func (m *MockAlgorithm) MarkShardsAvailable(p Placement, instanceID string, shar
 
 // MarkShardsAvailable indicates an expected call of MarkShardsAvailable
 func (mr *MockAlgorithmMockRecorder) MarkShardsAvailable(p, instanceID interface{}, shardIDs ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{p, instanceID}, shardIDs...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkShardsAvailable", reflect.TypeOf((*MockAlgorithm)(nil).MarkShardsAvailable), varargs...)
 }
 
 // MarkAllShardsAvailable mocks base method
 func (m *MockAlgorithm) MarkAllShardsAvailable(p Placement) (Placement, bool, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MarkAllShardsAvailable", p)
 	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(bool)
@@ -2128,6 +2451,7 @@ func (m *MockAlgorithm) MarkAllShardsAvailable(p Placement) (Placement, bool, er
 
 // MarkAllShardsAvailable indicates an expected call of MarkAllShardsAvailable
 func (mr *MockAlgorithmMockRecorder) MarkAllShardsAvailable(p interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkAllShardsAvailable", reflect.TypeOf((*MockAlgorithm)(nil).MarkAllShardsAvailable), p)
 }
 
@@ -2156,6 +2480,7 @@ func (m *MockInstanceSelector) EXPECT() *MockInstanceSelectorMockRecorder {
 
 // SelectInitialInstances mocks base method
 func (m *MockInstanceSelector) SelectInitialInstances(candidates []Instance, rf int) ([]Instance, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SelectInitialInstances", candidates, rf)
 	ret0, _ := ret[0].([]Instance)
 	ret1, _ := ret[1].(error)
@@ -2164,11 +2489,13 @@ func (m *MockInstanceSelector) SelectInitialInstances(candidates []Instance, rf 
 
 // SelectInitialInstances indicates an expected call of SelectInitialInstances
 func (mr *MockInstanceSelectorMockRecorder) SelectInitialInstances(candidates, rf interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectInitialInstances", reflect.TypeOf((*MockInstanceSelector)(nil).SelectInitialInstances), candidates, rf)
 }
 
 // SelectAddingInstances mocks base method
 func (m *MockInstanceSelector) SelectAddingInstances(candidates []Instance, p Placement) ([]Instance, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SelectAddingInstances", candidates, p)
 	ret0, _ := ret[0].([]Instance)
 	ret1, _ := ret[1].(error)
@@ -2177,11 +2504,13 @@ func (m *MockInstanceSelector) SelectAddingInstances(candidates []Instance, p Pl
 
 // SelectAddingInstances indicates an expected call of SelectAddingInstances
 func (mr *MockInstanceSelectorMockRecorder) SelectAddingInstances(candidates, p interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectAddingInstances", reflect.TypeOf((*MockInstanceSelector)(nil).SelectAddingInstances), candidates, p)
 }
 
 // SelectReplaceInstances mocks base method
 func (m *MockInstanceSelector) SelectReplaceInstances(candidates []Instance, leavingInstanceIDs []string, p Placement) ([]Instance, error) {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SelectReplaceInstances", candidates, leavingInstanceIDs, p)
 	ret0, _ := ret[0].([]Instance)
 	ret1, _ := ret[1].(error)
@@ -2190,6 +2519,7 @@ func (m *MockInstanceSelector) SelectReplaceInstances(candidates []Instance, lea
 
 // SelectReplaceInstances indicates an expected call of SelectReplaceInstances
 func (mr *MockInstanceSelectorMockRecorder) SelectReplaceInstances(candidates, leavingInstanceIDs, p interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectReplaceInstances", reflect.TypeOf((*MockInstanceSelector)(nil).SelectReplaceInstances), candidates, leavingInstanceIDs, p)
 }
 
@@ -2218,6 +2548,7 @@ func (m *MockDeploymentPlanner) EXPECT() *MockDeploymentPlannerMockRecorder {
 
 // DeploymentSteps mocks base method
 func (m *MockDeploymentPlanner) DeploymentSteps(p Placement) [][]Instance {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeploymentSteps", p)
 	ret0, _ := ret[0].([][]Instance)
 	return ret0
@@ -2225,6 +2556,7 @@ func (m *MockDeploymentPlanner) DeploymentSteps(p Placement) [][]Instance {
 
 // DeploymentSteps indicates an expected call of DeploymentSteps
 func (mr *MockDeploymentPlannerMockRecorder) DeploymentSteps(p interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeploymentSteps", reflect.TypeOf((*MockDeploymentPlanner)(nil).DeploymentSteps), p)
 }
 
@@ -2253,6 +2585,7 @@ func (m *MockDeploymentOptions) EXPECT() *MockDeploymentOptionsMockRecorder {
 
 // MaxStepSize mocks base method
 func (m *MockDeploymentOptions) MaxStepSize() int {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MaxStepSize")
 	ret0, _ := ret[0].(int)
 	return ret0
@@ -2260,11 +2593,13 @@ func (m *MockDeploymentOptions) MaxStepSize() int {
 
 // MaxStepSize indicates an expected call of MaxStepSize
 func (mr *MockDeploymentOptionsMockRecorder) MaxStepSize() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MaxStepSize", reflect.TypeOf((*MockDeploymentOptions)(nil).MaxStepSize))
 }
 
 // SetMaxStepSize mocks base method
 func (m *MockDeploymentOptions) SetMaxStepSize(stepSize int) DeploymentOptions {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetMaxStepSize", stepSize)
 	ret0, _ := ret[0].(DeploymentOptions)
 	return ret0
@@ -2272,5 +2607,6 @@ func (m *MockDeploymentOptions) SetMaxStepSize(stepSize int) DeploymentOptions {
 
 // SetMaxStepSize indicates an expected call of SetMaxStepSize
 func (mr *MockDeploymentOptionsMockRecorder) SetMaxStepSize(stepSize interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMaxStepSize", reflect.TypeOf((*MockDeploymentOptions)(nil).SetMaxStepSize), stepSize)
 }

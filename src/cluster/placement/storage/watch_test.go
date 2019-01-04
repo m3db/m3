@@ -44,7 +44,7 @@ func TestPlacementWatch(t *testing.T) {
 		SetReplicaFactor(0)
 	pGet, err := ps.Set(p)
 	require.NoError(t, err)
-	assert.Equal(t, 1, pGet.GetVersion())
+	assert.Equal(t, 1, pGet.Version())
 	<-w.C()
 	p, err = w.Get()
 	require.NoError(t, err)
@@ -52,7 +52,7 @@ func TestPlacementWatch(t *testing.T) {
 
 	pGet, err = ps.Set(p)
 	require.NoError(t, err)
-	assert.Equal(t, 2, pGet.GetVersion())
+	assert.Equal(t, 2, pGet.Version())
 	<-w.C()
 	p, err = w.Get()
 	require.NoError(t, err)
@@ -65,7 +65,7 @@ func TestPlacementWatch(t *testing.T) {
 	require.Error(t, err)
 
 	pGet, err = ps.SetIfNotExist(p)
-	assert.Equal(t, 1, pGet.GetVersion())
+	assert.Equal(t, 1, pGet.Version())
 	require.NoError(t, err)
 	<-w.C()
 	p, err = w.Get()

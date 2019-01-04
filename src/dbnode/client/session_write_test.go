@@ -35,6 +35,7 @@ import (
 	xtest "github.com/m3db/m3/src/x/test"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/instrument"
 	xretry "github.com/m3db/m3x/retry"
 	xtime "github.com/m3db/m3x/time"
 
@@ -180,7 +181,10 @@ func TestSessionWriteBadRequestErrorIsNonRetryable(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	session := newDefaultTestSession(t).(*session)
+	scope := tally.NewTestScope("", nil)
+	opts := newSessionTestOptions().
+		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope))
+	session := newTestSession(t, opts).(*session)
 
 	w := struct {
 		ns         ident.ID
@@ -221,6 +225,12 @@ func TestSessionWriteBadRequestErrorIsNonRetryable(t *testing.T) {
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsNonRetryableError(err))
 
+	// Assert counting bad request errors by number of nodes
+	counters := scope.Snapshot().Counters()
+	nodesBadRequestErrors, ok := counters["write.nodes-responding-error+error_type=bad_request_error,nodes=3"]
+	require.True(t, ok)
+	assert.Equal(t, int64(1), nodesBadRequestErrors.Value())
+
 	assert.NoError(t, session.Close())
 }
 
@@ -228,7 +238,10 @@ func TestSessionWriteRetry(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	session := newRetryEnabledTestSession(t).(*session)
+	scope := tally.NewTestScope("", nil)
+	opts := newSessionTestOptions().
+		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope))
+	session := newRetryEnabledTestSession(t, opts).(*session)
 
 	w := struct {
 		ns         ident.ID
@@ -293,6 +306,12 @@ func TestSessionWriteRetry(t *testing.T) {
 	// Wait for write to complete
 	writeWg.Wait()
 	assert.Nil(t, resultErr)
+
+	// Assert counting bad request errors by number of nodes
+	counters := scope.Snapshot().Counters()
+	nodesBadRequestErrors, ok := counters["write.nodes-responding-error+error_type=server_error,nodes=3"]
+	require.True(t, ok)
+	assert.Equal(t, int64(1), nodesBadRequestErrors.Value())
 
 	assert.NoError(t, session.Close())
 }
@@ -474,11 +493,15 @@ func newDefaultTestSession(t *testing.T) clientSession {
 	return newTestSession(t, newSessionTestOptions())
 }
 
-func newRetryEnabledTestSession(t *testing.T) clientSession {
-	opts := newSessionTestOptions().
+func newRetryEnabledTestSession(t *testing.T, opts Options) clientSession {
+	opts = opts.
 		SetWriteRetrier(
 			xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(1)))
 	return newTestSession(t, opts)
+}
+
+func newDefaultRetryEnabledTestSession(t *testing.T) clientSession {
+	return newRetryEnabledTestSession(t, newSessionTestOptions())
 }
 
 func newWriteStub() writeStub {

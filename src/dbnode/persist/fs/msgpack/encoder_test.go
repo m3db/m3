@@ -80,6 +80,7 @@ func testExpectedResultForIndexInfo(t *testing.T, indexInfo schema.IndexInfo) []
 		indexInfo.BloomFilter.NumHashesK,
 		indexInfo.SnapshotTime,
 		int64(indexInfo.FileType),
+		indexInfo.SnapshotID,
 	}
 }
 

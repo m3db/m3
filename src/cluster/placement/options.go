@@ -69,8 +69,9 @@ type options struct {
 	placementCutOverFn  TimeNanosFn
 	shardCutOverFn      TimeNanosFn
 	shardCutOffFn       TimeNanosFn
-	isShardCutoverFn    ShardValidationFn
-	isShardCutoffFn     ShardValidationFn
+	isShardCutoverFn    ShardValidateFn
+	isShardCutoffFn     ShardValidateFn
+	validateFn          ValidateFn
 	nowFn               clock.NowFn
 }
 
@@ -86,6 +87,7 @@ func NewOptions() Options {
 		shardCutOffFn:       defaultTimeNanosFn,
 		isShardCutoverFn:    defaultShardValidationFn,
 		isShardCutoffFn:     defaultShardValidationFn,
+		validateFn:          Validate,
 		nowFn:               time.Now,
 	}
 }
@@ -198,20 +200,20 @@ func (o options) SetShardCutoffNanosFn(fn TimeNanosFn) Options {
 	return o
 }
 
-func (o options) IsShardCutoverFn() ShardValidationFn {
+func (o options) IsShardCutoverFn() ShardValidateFn {
 	return o.isShardCutoverFn
 }
 
-func (o options) SetIsShardCutoverFn(fn ShardValidationFn) Options {
+func (o options) SetIsShardCutoverFn(fn ShardValidateFn) Options {
 	o.isShardCutoverFn = fn
 	return o
 }
 
-func (o options) IsShardCutoffFn() ShardValidationFn {
+func (o options) IsShardCutoffFn() ShardValidateFn {
 	return o.isShardCutoffFn
 }
 
-func (o options) SetIsShardCutoffFn(fn ShardValidationFn) Options {
+func (o options) SetIsShardCutoffFn(fn ShardValidateFn) Options {
 	o.isShardCutoffFn = fn
 	return o
 }
@@ -222,5 +224,14 @@ func (o options) NowFn() clock.NowFn {
 
 func (o options) SetNowFn(fn clock.NowFn) Options {
 	o.nowFn = fn
+	return o
+}
+
+func (o options) ValidateFnBeforeUpdate() ValidateFn {
+	return o.validateFn
+}
+
+func (o options) SetValidateFnBeforeUpdate(fn ValidateFn) Options {
+	o.validateFn = fn
 	return o
 }

@@ -23,9 +23,11 @@ package prometheus
 import (
 	"bytes"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/test"
 
 	"github.com/stretchr/testify/assert"
@@ -74,4 +76,95 @@ func TestTimeoutParse(t *testing.T) {
 	req.Header.Add("timeout", "invalid")
 	_, err = ParseRequestTimeout(req)
 	assert.Error(t, err)
+}
+
+type writer struct {
+	value string
+}
+
+func (w *writer) Write(p []byte) (n int, err error) {
+	w.value = string(p)
+	return len(p), nil
+}
+
+func makeResult() []*storage.CompleteTagsResult {
+	return []*storage.CompleteTagsResult{
+		&storage.CompleteTagsResult{
+			CompletedTags: []storage.CompletedTag{
+				storage.CompletedTag{
+					Name:   []byte("a"),
+					Values: [][]byte{[]byte("1"), []byte("2"), []byte("3")},
+				},
+				storage.CompletedTag{
+					Name:   []byte("b"),
+					Values: [][]byte{[]byte("1"), []byte("2")},
+				},
+				storage.CompletedTag{
+					Name:   []byte("c"),
+					Values: [][]byte{[]byte("1"), []byte("2"), []byte("3")},
+				},
+			},
+		},
+	}
+}
+
+func TestRenderSeriesMatchResults(t *testing.T) {
+	w := &writer{value: ""}
+	seriesMatchResult := makeResult()
+
+	expectedWhitespace := `{
+		"status":"success",
+		"data":[
+			{"a":"1","b":"1","c":"1"},
+			{"a":"1","b":"1","c":"2"},
+			{"a":"1","b":"1","c":"3"},
+			{"a":"1","b":"2","c":"1"},
+			{"a":"1","b":"2","c":"2"},
+			{"a":"1","b":"2","c":"3"},
+			{"a":"2","b":"1","c":"1"},
+			{"a":"2","b":"1","c":"2"},
+			{"a":"2","b":"1","c":"3"},
+			{"a":"2","b":"2","c":"1"},
+			{"a":"2","b":"2","c":"2"},
+			{"a":"2","b":"2","c":"3"},
+			{"a":"3","b":"1","c":"1"},
+			{"a":"3","b":"1","c":"2"},
+			{"a":"3","b":"1","c":"3"},
+			{"a":"3","b":"2","c":"1"},
+			{"a":"3","b":"2","c":"2"},
+			{"a":"3","b":"2","c":"3"}
+		]
+	}`
+
+	err := RenderSeriesMatchResultsJSON(w, seriesMatchResult)
+	assert.NoError(t, err)
+	fields := strings.Fields(expectedWhitespace)
+	expected := ""
+	for _, field := range fields {
+		expected = expected + field
+	}
+
+	assert.Equal(t, expected, w.value)
+}
+
+func TestRenderSeriesMatchResultsNoTags(t *testing.T) {
+	w := &writer{value: ""}
+	seriesMatchResult := []*storage.CompleteTagsResult{
+		&storage.CompleteTagsResult{},
+	}
+
+	expectedWhitespace := `{
+		"status":"success",
+		"data":[]
+	}`
+
+	err := RenderSeriesMatchResultsJSON(w, seriesMatchResult)
+	assert.NoError(t, err)
+	fields := strings.Fields(expectedWhitespace)
+	expected := ""
+	for _, field := range fields {
+		expected = expected + field
+	}
+
+	assert.Equal(t, expected, w.value)
 }

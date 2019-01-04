@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/query/errors"
+	"github.com/m3db/m3/src/query/models"
 	"github.com/m3db/m3/src/query/policy/filter"
 	"github.com/m3db/m3/src/query/storage"
 	"github.com/m3db/m3/src/query/test/m3"
@@ -43,6 +44,12 @@ import (
 
 func filterFunc(output bool) filter.Storage {
 	return func(query storage.Query, store storage.Storage) bool {
+		return output
+	}
+}
+
+func filterCompleteTagsFunc(output bool) filter.StorageCompleteTags {
+	return func(query storage.CompleteTagsQuery, store storage.Storage) bool {
 		return output
 	}
 }
@@ -92,7 +99,7 @@ func setupFanoutRead(t *testing.T, output bool, response ...*fetchResponse) stor
 		store1, store2,
 	}
 
-	store := NewStorage(stores, filterFunc(output), filterFunc(output))
+	store := NewStorage(stores, filterFunc(output), filterFunc(output), filterCompleteTagsFunc(output))
 	return store
 }
 
@@ -116,7 +123,7 @@ func setupFanoutWrite(t *testing.T, output bool, errs ...error) storage.Storage 
 	stores := []storage.Storage{
 		store1, store2,
 	}
-	store := NewStorage(stores, filterFunc(output), filterFunc(output))
+	store := NewStorage(stores, filterFunc(output), filterFunc(output), filterCompleteTagsFunc(output))
 	return store
 }
 
@@ -183,4 +190,19 @@ func TestFanoutWriteSuccess(t *testing.T) {
 		Datapoints: datapoints,
 	})
 	assert.NoError(t, err)
+}
+
+func TestCompleteTagsFailure(t *testing.T) {
+	store := setupFanoutWrite(t, true, nil)
+	datapoints := make(ts.Datapoints, 1)
+	datapoints[0] = ts.Datapoint{Timestamp: time.Now(), Value: 1}
+	_, err := store.CompleteTags(
+		context.TODO(),
+		&storage.CompleteTagsQuery{
+			CompleteNameOnly: true,
+			TagMatchers:      models.Matchers{},
+		},
+		storage.NewFetchOptions(),
+	)
+	assert.Error(t, err)
 }

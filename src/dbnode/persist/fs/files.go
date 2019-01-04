@@ -74,25 +74,27 @@ type FileSetFile struct {
 	AbsoluteFilepaths []string
 
 	CachedSnapshotTime time.Time
+	CachedSnapshotID   []byte
 	filePathPrefix     string
 }
 
-// SnapshotTime returns the SnapshotTime for the given FileSetFile. Value is meaningless
-// if the the FileSetFile is a flush instead of a snapshot.
-func (f *FileSetFile) SnapshotTime() (time.Time, error) {
-	if !f.CachedSnapshotTime.IsZero() {
+// SnapshotTimeAndID returns the snapshot time and id for the given FileSetFile.
+// Value is meaningless if the the FileSetFile is a flush instead of a snapshot.
+func (f *FileSetFile) SnapshotTimeAndID() (time.Time, []byte, error) {
+	if !f.CachedSnapshotTime.IsZero() || f.CachedSnapshotID != nil {
 		// Return immediately if we've already cached it.
-		return f.CachedSnapshotTime, nil
+		return f.CachedSnapshotTime, f.CachedSnapshotID, nil
 	}
 
-	snapshotTime, err := SnapshotTime(f.filePathPrefix, f.ID)
+	snapshotTime, snapshotID, err := SnapshotTimeAndID(f.filePathPrefix, f.ID)
 	if err != nil {
-		return time.Time{}, err
+		return time.Time{}, nil, err
 	}
 
 	// Cache for future use and return.
 	f.CachedSnapshotTime = snapshotTime
-	return f.CachedSnapshotTime, nil
+	f.CachedSnapshotID = snapshotID
+	return f.CachedSnapshotTime, f.CachedSnapshotID, nil
 }
 
 // IsZero returns whether the FileSetFile is a zero value.
@@ -367,23 +369,29 @@ func timeAndIndexFromFileName(fname string, componentPosition int) (time.Time, i
 	return t, int(index), nil
 }
 
-// SnapshotTime returns the time at which the snapshot was taken.
-func SnapshotTime(
-	filePathPrefix string, id FileSetFileIdentifier) (time.Time, error) {
+// SnapshotTimeAndID returns the metadata for the snapshot.
+func SnapshotTimeAndID(
+	filePathPrefix string, id FileSetFileIdentifier) (time.Time, []byte, error) {
 	decoder := msgpack.NewDecoder(nil)
-	return snapshotTime(filePathPrefix, id, decoder)
+	return snapshotTimeAndID(filePathPrefix, id, decoder)
 }
 
-func snapshotTime(
-	filePathPrefix string, id FileSetFileIdentifier, decoder *msgpack.Decoder) (time.Time, error) {
+func snapshotTimeAndID(
+	filePathPrefix string,
+	id FileSetFileIdentifier,
+	decoder *msgpack.Decoder,
+) (time.Time, []byte, error) {
 	infoBytes, err := readSnapshotInfoFile(filePathPrefix, id, defaultBufioReaderSize)
 	if err != nil {
-		return time.Time{}, err
+		return time.Time{}, nil, fmt.Errorf("error reading snapshot info file: %v", err)
 	}
 
 	decoder.Reset(msgpack.NewDecoderStream(infoBytes))
 	info, err := decoder.DecodeIndexInfo()
-	return time.Unix(0, info.SnapshotTime), err
+	if err != nil {
+		return time.Time{}, nil, fmt.Errorf("error decoding snapshot info file: %v", err)
+	}
+	return time.Unix(0, info.SnapshotTime), info.SnapshotID, nil
 }
 
 func readSnapshotInfoFile(filePathPrefix string, id FileSetFileIdentifier, readerBufferSize int) ([]byte, error) {

@@ -11,10 +11,12 @@ SHELL=/bin/bash -o pipefail
 auto_gen             := scripts/auto-gen.sh
 process_coverfile    := scripts/process-cover.sh
 gopath_prefix        := $(GOPATH)/src
+gopath_bin_path      := $(GOPATH)/bin
 m3db_package         := github.com/m3db/m3
 m3db_package_path    := $(gopath_prefix)/$(m3db_package)
 mockgen_package      := github.com/golang/mock/mockgen
 retool_bin_path      := $(m3db_package_path)/_tools/bin
+retool_src_prefix    := $(m3db_package_path)/_tools/src
 retool_package       := github.com/twitchtv/retool
 metalint_check       := .ci/metalint.sh
 metalint_config      := .metalinter.json
@@ -30,13 +32,15 @@ thrift_rules_dir     := generated/thrift
 vendor_prefix        := vendor
 cache_policy         ?= recently_read
 
-BUILD                := $(abspath ./bin)
-GO_BUILD_LDFLAGS_CMD := $(abspath ./.ci/go-build-ldflags.sh) $(m3db_package)
-GO_BUILD_LDFLAGS     := $(shell $(GO_BUILD_LDFLAGS_CMD))
-GO_BUILD_COMMON_ENV  := CGO_ENABLED=0
-LINUX_AMD64_ENV      := GOOS=linux GOARCH=amd64 $(GO_BUILD_COMMON_ENV)
-GO_RELEASER_VERSION  := v0.76.1
-GOMETALINT_VERSION   := v2.0.5
+BUILD                     := $(abspath ./bin)
+VENDOR                    := $(m3db_package_path)/$(vendor_prefix)
+GO_BUILD_LDFLAGS_CMD      := $(abspath ./.ci/go-build-ldflags.sh) $(m3db_package)
+GO_BUILD_LDFLAGS          := $(shell $(GO_BUILD_LDFLAGS_CMD))
+GO_BUILD_COMMON_ENV       := CGO_ENABLED=0
+LINUX_AMD64_ENV           := GOOS=linux GOARCH=amd64 $(GO_BUILD_COMMON_ENV)
+GO_RELEASER_DOCKER_IMAGE  := goreleaser/goreleaser:v0.93
+GO_RELEASER_WORKING_DIR   := /m3
+GOMETALINT_VERSION        := v2.0.5
 
 SERVICES :=     \
 	m3dbnode      \
@@ -81,7 +85,7 @@ define SERVICE_RULES
 .PHONY: $(SERVICE)
 $(SERVICE): setup
 	@echo Building $(SERVICE)
-	[ -d $(m3db_package_path)/$(vendor_prefix) ] || make install-vendor
+	[ -d $(VENDOR) ] || make install-vendor
 	$(GO_BUILD_COMMON_ENV) go build -ldflags '$(GO_BUILD_LDFLAGS)' -o $(BUILD)/$(SERVICE) ./src/cmd/services/$(SERVICE)/main/.
 
 .PHONY: $(SERVICE)-linux-amd64
@@ -121,57 +125,55 @@ tools-linux-amd64:
 all: metalint test-ci-unit test-ci-integration services tools
 	@echo Made all successfully
 
-# NB(prateek): cannot use retool for mock-gen, as mock-gen reflection mode requires
-# it's full source code be present in the GOPATH at runtime.
-.PHONY: install-mockgen
-install-mockgen:
-	@echo Installing mockgen
-	@which mockgen >/dev/null || (                                                     \
-		rm -rf $(gopath_prefix)/$(mockgen_package)                                    && \
-		mkdir -p $(shell dirname $(gopath_prefix)/$(mockgen_package))                 && \
- 		cp -r $(vendor_prefix)/$(mockgen_package) $(gopath_prefix)/$(mockgen_package) && \
-		go install $(mockgen_package)                                                    \
-	)
-
 .PHONY: install-retool
 install-retool:
 	@which retool >/dev/null || go get $(retool_package)
 
-.PHONY: install-codegen-tools
-install-codegen-tools: install-retool
+.PHONY: install-tools
+install-tools: install-retool
 	@echo "Installing retool dependencies"
-	@retool sync >/dev/null 2>/dev/null
-	@retool build >/dev/null 2>/dev/null
+	retool sync
+	retool build
+
+	@# NB(r): to ensure correct version of mock-gen is present we match the version
+	@# of the retool installed mockgen, and if not a match in binary contents, then
+	@# we explicitly install at the version we desire.
+	@# We cannot solely use the retool binary as mock-gen requires its full source
+	@# code to be present in the GOPATH at runtime.
+	@echo "Installing mockgen"
+	$(eval curr_mockgen_md5=`cat $(gopath_bin_path)/mockgen | md5`)
+	$(eval retool_mockgen_md5=`cat $(retool_bin_path)/mockgen | md5`)
+	@test "$(curr_mockgen_md5)" = "$(retool_mockgen_md5)" && echo "Mockgen already up to date" || ( \
+		echo "Installing mockgen from Retool directory"                                            && \
+		rm -rf $(gopath_prefix)/$(mockgen_package)                                                 && \
+		mkdir -p $(shell dirname $(gopath_prefix)/$(mockgen_package))                              && \
+ 		cp -r $(retool_src_prefix)/$(mockgen_package) $(gopath_prefix)/$(mockgen_package)          && \
+		(rm $(gopath_bin_path)/mockgen || echo "No installed mockgen" > /dev/null)                 && \
+		cp $(retool_bin_path)/mockgen $(gopath_bin_path)/mockgen                                   && \
+		echo "Installed mockgen from Retool directory"                                                \
+	)
 
 .PHONY: install-gometalinter
 install-gometalinter:
 	@mkdir -p $(retool_bin_path)
 	./scripts/install-gometalinter.sh -b $(retool_bin_path) -d $(GOMETALINT_VERSION)
 
-.PHONY: install-stringer
-install-stringer:
-		@which stringer > /dev/null || go get golang.org/x/tools/cmd/stringer
-		@which stringer > /dev/null || (echo "stringer install failed" && exit 1)
-
-.PHONY: install-goreleaser
-install-goreleaser: install-stringer
-		@which goreleaser > /dev/null || (go get -d github.com/goreleaser/goreleaser && \
-		  cd $(GOPATH)/src/github.com/goreleaser/goreleaser && \
-			git checkout $(GO_RELEASER_VERSION) && \
-			dep ensure -vendor-only && \
-			make build && \
-			mv goreleaser $(GOPATH)/bin/)
-		@goreleaser -version 2> /dev/null || (echo "goreleaser install failed" && exit 1)
+.PHONY: check-for-goreleaser-github-token
+check-for-goreleaser-github-token:
+  ifndef GITHUB_TOKEN
+		echo "Usage: make GITHUB_TOKEN=\"<TOKEN>\" release"
+		exit 1
+  endif
 
 .PHONY: release
-release: install-goreleaser
+release: check-for-goreleaser-github-token
 	@echo Releasing new version
-	@source $(GO_BUILD_LDFLAGS_CMD) > /dev/null && goreleaser
+	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" -v $(PWD):$(GO_RELEASER_WORKING_DIR) -w $(GO_RELEASER_WORKING_DIR) $(GO_RELEASER_DOCKER_IMAGE) release
 
 .PHONY: release-snapshot
-release-snapshot: install-goreleaser
+release-snapshot: check-for-goreleaser-github-token
 	@echo Creating snapshot release
-	@source $(GO_BUILD_LDFLAGS_CMD) > /dev/null && goreleaser --snapshot --rm-dist
+	docker run -e "GITHUB_TOKEN=$(GITHUB_TOKEN)" -v $(PWD):$(GO_RELEASER_WORKING_DIR) -w $(GO_RELEASER_WORKING_DIR) $(GO_RELEASER_DOCKER_IMAGE) --snapshot --rm-dist
 
 .PHONY: docs-container
 docs-container:
@@ -228,38 +230,38 @@ test-ci-integration:
 define SUBDIR_RULES
 
 .PHONY: mock-gen-$(SUBDIR)
-mock-gen-$(SUBDIR): install-codegen-tools install-mockgen
+mock-gen-$(SUBDIR): install-tools
 	@echo "--- Generating mocks $(SUBDIR)"
 	@[ ! -d src/$(SUBDIR)/$(mocks_rules_dir) ] || \
 		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(mocks_output_dir) src/$(SUBDIR)/$(mocks_rules_dir)
 
 .PHONY: thrift-gen-$(SUBDIR)
-thrift-gen-$(SUBDIR): install-codegen-tools
+thrift-gen-$(SUBDIR): install-tools
 	@echo "--- Generating thrift files $(SUBDIR)"
 	@[ ! -d src/$(SUBDIR)/$(thrift_rules_dir) ] || \
 		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(thrift_output_dir) src/$(SUBDIR)/$(thrift_rules_dir)
 
 .PHONY: proto-gen-$(SUBDIR)
-proto-gen-$(SUBDIR): install-codegen-tools
+proto-gen-$(SUBDIR): install-tools
 	@echo "--- Generating protobuf files $(SUBDIR)"
 	@[ ! -d src/$(SUBDIR)/$(proto_rules_dir) ] || \
 		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(proto_output_dir) src/$(SUBDIR)/$(proto_rules_dir)
 
 .PHONY: asset-gen-$(SUBDIR)
-asset-gen-$(SUBDIR): install-codegen-tools
+asset-gen-$(SUBDIR): install-tools
 	@echo "--- Generating asset files $(SUBDIR)"
 	@[ ! -d src/$(SUBDIR)/$(assets_rules_dir) ] || \
 		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(assets_output_dir) src/$(SUBDIR)/$(assets_rules_dir)
 
 .PHONY: genny-gen-$(SUBDIR)
-genny-gen-$(SUBDIR): install-codegen-tools
+genny-gen-$(SUBDIR): install-tools
 	@echo "--- Generating genny files $(SUBDIR)"
 	@[ ! -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk ] || \
 		PATH=$(retool_bin_path):$(PATH) make -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk genny-all
-	@PATH=$(retool_bin_path):$(PATH) bash -c "source ./scripts/auto-gen-helpers.sh && gen_cleanup_dir '*_gen.go' $(SELF_DIR)/src/$(SUBDIR)/"
+	@PATH=$(retool_bin_path):$(PATH) bash -c "source ./scripts/auto-gen-helpers.sh && gen_cleanup_dir '*_gen.go' $(SELF_DIR)/src/$(SUBDIR)/ && gen_cleanup_dir '*_gen_test.go' $(SELF_DIR)/src/$(SUBDIR)/"
 
 .PHONY: license-gen-$(SUBDIR)
-license-gen-$(SUBDIR): install-codegen-tools
+license-gen-$(SUBDIR): install-tools
 	@echo "--- Updating license in files $(SUBDIR)"
 	@find $(SELF_DIR)/src/$(SUBDIR) -name '*.go' | PATH=$(retool_bin_path):$(PATH) xargs -I{} update-license {}
 
@@ -347,12 +349,23 @@ metalint: install-gometalinter install-linter-badtime install-linter-importorder
 # Tests that all currently generated types match their contents if they were regenerated
 .PHONY: test-all-gen
 test-all-gen: all-gen
-	@test "$(shell git diff --exit-code --shortstat 2>/dev/null)" = "" || (git diff --exit-code && echo "Check git status, there are dirty files" && exit 1)
+	@test "$(shell git diff --exit-code --shortstat 2>/dev/null)" = "" || (git diff --text --exit-code && echo "Check git status, there are dirty files" && exit 1)
 	@test "$(shell git status --exit-code --porcelain 2>/dev/null | grep "^??")" = "" || (git status --exit-code --porcelain && echo "Check git status, there are untracked files" && exit 1)
+
+# Runs a fossa license report
+.PHONY: fossa
+fossa: install-tools
+	PATH=$(retool_bin_path):$(PATH) fossa --option allow-nested-vendor:true --option allow-deep-vendor:true
+
+# Waits for the result of a fossa test and exits success if pass or fail if fails
+.PHONY: fossa-test
+fossa-test: fossa
+	PATH=$(retool_bin_path):$(PATH) fossa test
 
 .PHONY: clean
 clean:
 	@rm -f *.html *.xml *.out *.test
 	@rm -rf $(BUILD)
+	@rm -rf $(VENDOR)
 
 .DEFAULT_GOAL := all

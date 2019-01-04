@@ -55,21 +55,25 @@ func (m *MockProcessListener) EXPECT() *MockProcessListenerMockRecorder {
 
 // OnComplete mocks base method
 func (m *MockProcessListener) OnComplete() {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "OnComplete")
 }
 
 // OnComplete indicates an expected call of OnComplete
 func (mr *MockProcessListenerMockRecorder) OnComplete() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnComplete", reflect.TypeOf((*MockProcessListener)(nil).OnComplete))
 }
 
 // OnError mocks base method
 func (m *MockProcessListener) OnError(arg0 error) {
+	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "OnError", arg0)
 }
 
 // OnError indicates an expected call of OnError
 func (mr *MockProcessListenerMockRecorder) OnError(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnError", reflect.TypeOf((*MockProcessListener)(nil).OnError), arg0)
 }
 
@@ -98,6 +102,7 @@ func (m *MockProcessMonitor) EXPECT() *MockProcessMonitorMockRecorder {
 
 // Start mocks base method
 func (m *MockProcessMonitor) Start() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Start")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -105,11 +110,13 @@ func (m *MockProcessMonitor) Start() error {
 
 // Start indicates an expected call of Start
 func (mr *MockProcessMonitorMockRecorder) Start() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockProcessMonitor)(nil).Start))
 }
 
 // Stop mocks base method
 func (m *MockProcessMonitor) Stop() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Stop")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -117,11 +124,13 @@ func (m *MockProcessMonitor) Stop() error {
 
 // Stop indicates an expected call of Stop
 func (mr *MockProcessMonitorMockRecorder) Stop() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockProcessMonitor)(nil).Stop))
 }
 
 // Running mocks base method
 func (m *MockProcessMonitor) Running() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Running")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -129,11 +138,13 @@ func (m *MockProcessMonitor) Running() bool {
 
 // Running indicates an expected call of Running
 func (mr *MockProcessMonitorMockRecorder) Running() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Running", reflect.TypeOf((*MockProcessMonitor)(nil).Running))
 }
 
 // Err mocks base method
 func (m *MockProcessMonitor) Err() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Err")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -141,11 +152,13 @@ func (m *MockProcessMonitor) Err() error {
 
 // Err indicates an expected call of Err
 func (mr *MockProcessMonitorMockRecorder) Err() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockProcessMonitor)(nil).Err))
 }
 
 // Close mocks base method
 func (m *MockProcessMonitor) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -153,11 +166,13 @@ func (m *MockProcessMonitor) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockProcessMonitorMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockProcessMonitor)(nil).Close))
 }
 
 // StdoutPath mocks base method
 func (m *MockProcessMonitor) StdoutPath() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StdoutPath")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -165,11 +180,13 @@ func (m *MockProcessMonitor) StdoutPath() string {
 
 // StdoutPath indicates an expected call of StdoutPath
 func (mr *MockProcessMonitorMockRecorder) StdoutPath() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StdoutPath", reflect.TypeOf((*MockProcessMonitor)(nil).StdoutPath))
 }
 
 // StderrPath mocks base method
 func (m *MockProcessMonitor) StderrPath() string {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StderrPath")
 	ret0, _ := ret[0].(string)
 	return ret0
@@ -177,5 +194,6 @@ func (m *MockProcessMonitor) StderrPath() string {
 
 // StderrPath indicates an expected call of StderrPath
 func (mr *MockProcessMonitorMockRecorder) StderrPath() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StderrPath", reflect.TypeOf((*MockProcessMonitor)(nil).StderrPath))
 }

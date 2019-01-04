@@ -68,8 +68,10 @@ type writer struct {
 	checkpointFilePath         string
 	indexEntries               indexEntries
 
-	start              time.Time
-	snapshotTime       time.Time
+	start        time.Time
+	snapshotTime time.Time
+	snapshotID   []byte
+
 	currIdx            int64
 	currOffset         int64
 	encoder            *msgpack.Encoder
@@ -149,6 +151,7 @@ func (w *writer) Open(opts DataWriterOpenOptions) error {
 	w.blockSize = opts.BlockSize
 	w.start = blockStart
 	w.snapshotTime = opts.Snapshot.SnapshotTime
+	w.snapshotID = opts.Snapshot.SnapshotID
 	w.currIdx = 0
 	w.currOffset = 0
 	w.err = nil
@@ -523,6 +526,7 @@ func (w *writer) writeInfoFileContents(
 	info := schema.IndexInfo{
 		BlockStart:   xtime.ToNanoseconds(w.start),
 		SnapshotTime: xtime.ToNanoseconds(w.snapshotTime),
+		SnapshotID:   w.snapshotID,
 		BlockSize:    int64(w.blockSize),
 		Entries:      w.currIdx,
 		MajorVersion: schema.MajorVersion,

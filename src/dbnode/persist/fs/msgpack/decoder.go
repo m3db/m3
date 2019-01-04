@@ -225,12 +225,19 @@ func (dec *Decoder) DecodeLogMetadata() (schema.LogMetadata, error) {
 
 func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 	var opts checkNumFieldsOptions
-	if dec.legacy.decodeLegacyV1IndexInfo {
-		// v1 had 6 fields
+
+	if dec.legacy.decodeLegacyIndexInfoVersion == legacyEncodingIndexVersionV1 {
+		// V1 had 6 fields.
 		opts.override = true
 		opts.numExpectedMinFields = 6
 		opts.numExpectedCurrFields = 6
+	} else if dec.legacy.decodeLegacyIndexInfoVersion == legacyEncodingIndexVersionV2 {
+		// V2 had 8 fields.
+		opts.override = true
+		opts.numExpectedMinFields = 8
+		opts.numExpectedCurrFields = 8
 	}
+
 	numFieldsToSkip, actual, ok := dec.checkNumFieldsFor(indexInfoType, opts)
 	if !ok {
 		return emptyIndexInfo
@@ -244,13 +251,24 @@ func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 	indexInfo.Summaries = dec.decodeIndexSummariesInfo()
 	indexInfo.BloomFilter = dec.decodeIndexBloomFilterInfo()
 
-	if dec.legacy.decodeLegacyV1IndexInfo || actual < 8 {
+	// At this point if its a V1 file we've decoded all the available fields.
+	if dec.legacy.decodeLegacyIndexInfoVersion == legacyEncodingIndexVersionV1 || actual < 8 {
 		dec.skip(numFieldsToSkip)
 		return indexInfo
 	}
 
+	// Decode fields added in V2.
 	indexInfo.SnapshotTime = dec.decodeVarint()
 	indexInfo.FileType = persist.FileSetType(dec.decodeVarint())
+
+	// At this point if its a V2 file we've decoded all the available fields.
+	if dec.legacy.decodeLegacyIndexInfoVersion == legacyEncodingIndexVersionV2 || actual < 9 {
+		dec.skip(numFieldsToSkip)
+		return indexInfo
+	}
+
+	// Decode fields added in V3.
+	indexInfo.SnapshotID, _, _ = dec.decodeBytes()
 
 	dec.skip(numFieldsToSkip)
 	return indexInfo
@@ -287,8 +305,8 @@ func (dec *Decoder) decodeIndexBloomFilterInfo() schema.IndexBloomFilterInfo {
 
 func (dec *Decoder) decodeIndexEntry() schema.IndexEntry {
 	var opts checkNumFieldsOptions
-	if dec.legacy.decodeLegacyV1IndexInfo {
-		// v1 had 5 fields
+	if dec.legacy.decodeLegacyV1IndexEntry {
+		// V1 had 5 fields.
 		opts.override = true
 		opts.numExpectedMinFields = 5
 		opts.numExpectedCurrFields = 5

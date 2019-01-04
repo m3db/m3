@@ -543,7 +543,7 @@ func (s *clState) writesArePresent(writes ...generatedWrite) error {
 }
 
 type generatedWrite struct {
-	series     Series
+	series     ts.Series
 	datapoint  ts.Datapoint
 	unit       xtime.Unit
 	annotation ts.Annotation
@@ -569,7 +569,7 @@ func genWrite() gopter.Gen {
 		shard := val[4].(uint32)
 
 		return generatedWrite{
-			series: Series{
+			series: ts.Series{
 				ID:          ident.StringID(id),
 				Namespace:   ident.StringID(ns),
 				Shard:       shard,

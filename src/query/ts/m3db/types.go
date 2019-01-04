@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -24,104 +24,44 @@ import (
 	"time"
 
 	"github.com/m3db/m3/src/dbnode/encoding"
-	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3/src/query/models"
+	"github.com/m3db/m3/src/query/ts/m3db/consolidators"
 )
 
-// SeriesBlock contains the individual series iterators
-type SeriesBlock struct {
-	start          time.Time
-	end            time.Time
-	seriesIterator encoding.SeriesIterator
-}
+// Options describes the options for encoded block converters.
+// These options are generally config-backed and don't usually change across
+// queries, unless certain query string parameters are present.
+type Options interface {
+	// SetSplitSeriesByBlock determines if the converter will split the series
+	// by blocks, or if it will instead treat the entire series as a single block.
+	//
+	// NB: if a lookback duration greater than 0 has been set, the series will
+	// always be treated as a single block.
+	SetSplitSeriesByBlock(bool) Options
+	// SplittingSeriesByBlock returns true iff lookback duration is 0, and the
+	// options has not been forced to return a single block.
+	SplittingSeriesByBlock() bool
+	// SetLookbackDuration sets the lookback duration.
+	SetLookbackDuration(time.Duration) Options
+	// LookbackDuration returns the lookback duration.
+	LookbackDuration() time.Duration
+	// SetLookbackDuration sets the consolidation function for the converter.
+	SetConsolidationFunc(consolidators.ConsolidationFunc) Options
+	// LookbackDuration returns the consolidation function.
+	ConsolidationFunc() consolidators.ConsolidationFunc
+	// SetLookbackDuration sets the tag options for the converter.
+	SetTagOptions(models.TagOptions) Options
+	// TagOptions returns the tag options.
+	TagOptions() models.TagOptions
+	// SetIterAlloc sets the iterator allocator.
+	SetIterAlloc(encoding.ReaderIteratorAllocate) Options
+	// IterAlloc returns the reader iterator allocator.
+	IterAlloc() encoding.ReaderIteratorAllocate
+	// SetIteratorPools sets the iterator pools for the converter.
+	SetIteratorPools(encoding.IteratorPools) Options
+	// IteratorPools returns the iterator pools for the converter.
+	IteratorPools() encoding.IteratorPools
 
-// SeriesBlocks contain information about the timeseries that gets returned from m3db.
-// This includes meta data such as the ID, namespace and tags as well as the actual
-// series iterators that contain the datapoints.
-type SeriesBlocks struct {
-	ID        ident.ID
-	Namespace ident.ID
-	Tags      ident.TagIterator
-	Blocks    []SeriesBlock
-}
-
-// MultiNamespaceSeries is a single timeseries for multiple namespaces
-type MultiNamespaceSeries []SeriesBlocks
-
-// ID enforces the same ID across namespaces
-func (n MultiNamespaceSeries) ID() ident.ID { return n[0].ID }
-
-// NamespaceSeriesList represents a single namespace with multiple series
-type NamespaceSeriesList struct {
-	Namespace  string
-	SeriesList []SeriesBlocks
-}
-
-// ConsolidatedNSBlock is a single block for a given timeseries and namespace
-// which contains all of the necessary SeriesIterators so that consolidation can
-// happen across namespaces
-type ConsolidatedNSBlock struct {
-	ID              ident.ID
-	Namespace       ident.ID
-	Start           time.Time
-	End             time.Time
-	SeriesIterators encoding.SeriesIterators
-}
-
-func (c ConsolidatedNSBlock) beyondBounds(consolidatedSeriesBlock ConsolidatedSeriesBlock) bool {
-	if c.Start != consolidatedSeriesBlock.Start || c.End != consolidatedSeriesBlock.End {
-		return false
-	}
-	return true
-}
-
-// ConsolidatedSeriesBlock is a single series consolidated across different namespaces
-// for a single block
-type ConsolidatedSeriesBlock struct {
-	Start                time.Time
-	End                  time.Time
-	ConsolidatedNSBlocks []ConsolidatedNSBlock
-	consolidationFunc    ConsolidationFunc // nolint
-}
-
-func (c ConsolidatedSeriesBlock) beyondBounds(multiSeriesBlock MultiSeriesBlock) bool {
-	if c.Start != multiSeriesBlock.Start || c.End != multiSeriesBlock.End {
-		return false
-	}
-	return true
-}
-
-// ConsolidationFunc determines how to consolidate across namespaces
-type ConsolidationFunc func(existing, toAdd float64, count int) float64
-
-// ConsolidatedSeriesBlocks contain all of the consolidated blocks for
-// a single timeseries across namespaces.
-// Each ConsolidatedBlockIterator will have the same size
-type ConsolidatedSeriesBlocks []ConsolidatedSeriesBlock
-
-// MultiSeriesBlock represents a vertically oriented block
-type MultiSeriesBlock struct {
-	Start  time.Time
-	End    time.Time
-	Blocks ConsolidatedSeriesBlocks
-}
-
-// MultiSeriesBlocks is a slice of MultiSeriesBlock
-// todo(braskin): add close method on this to close each SeriesIterator
-type MultiSeriesBlocks []MultiSeriesBlock
-
-// Close closes the series iterator in a SeriesBlock
-func (s SeriesBlock) Close() {
-	s.seriesIterator.Close()
-}
-
-// Close closes the underlaying series iterator within each SeriesBlock
-// as well as the ID, Namespace, and Tags.
-func (s SeriesBlocks) Close() {
-	for _, seriesBlock := range s.Blocks {
-		seriesBlock.Close()
-	}
-
-	s.Tags.Close()
-	s.Namespace.Finalize()
-	s.ID.Finalize()
+	// Validate ensures that the given block options are valid.
+	Validate() error
 }

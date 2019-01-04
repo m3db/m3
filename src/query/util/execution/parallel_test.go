@@ -24,7 +24,6 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,15 +33,23 @@ type request struct {
 	order     int
 	processed bool
 	err       error
+	wait      <-chan bool
+	ack       chan<- bool
 }
 
 func (f *request) Process(ctx context.Context) error {
+	defer func() {
+		if f.ack != nil {
+			f.ack <- true
+		}
+	}()
+
 	if f.err != nil {
 		return f.err
 	}
 
-	if f.order == 0 {
-		time.Sleep(2 * time.Millisecond)
+	if f.wait != nil {
+		<-f.wait
 	}
 
 	select {
@@ -60,8 +67,9 @@ func (f *request) String() string {
 
 func TestOrderedParallel(t *testing.T) {
 	requests := make([]Request, 3)
-	requests[0] = &request{order: 0}
-	requests[1] = &request{order: 1}
+	signalChan := make(chan bool)
+	requests[0] = &request{order: 0, wait: signalChan}
+	requests[1] = &request{order: 1, ack: signalChan}
 	requests[2] = &request{order: 2}
 
 	err := ExecuteParallel(context.Background(), requests)
@@ -71,8 +79,9 @@ func TestOrderedParallel(t *testing.T) {
 
 func TestSingleError(t *testing.T) {
 	requests := make([]Request, 3)
-	requests[0] = &request{order: 0}
-	requests[1] = &request{order: 1, err: fmt.Errorf("problem executing")}
+	signalChan := make(chan bool)
+	requests[0] = &request{order: 0, wait: signalChan}
+	requests[1] = &request{order: 1, err: fmt.Errorf("problem executing"), ack: signalChan}
 	requests[2] = &request{order: 2}
 
 	err := ExecuteParallel(context.Background(), requests)

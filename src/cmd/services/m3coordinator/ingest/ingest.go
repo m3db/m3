@@ -34,8 +34,10 @@ import (
 	"github.com/m3db/m3/src/x/serialize"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/retry"
+	"github.com/m3db/m3x/sampler"
 	xsync "github.com/m3db/m3x/sync"
 
 	"github.com/uber-go/tally"
@@ -48,6 +50,7 @@ type Options struct {
 	PoolOptions       pool.ObjectPoolOptions
 	TagDecoderPool    serialize.TagDecoderPool
 	RetryOptions      retry.Options
+	Sampler           *sampler.Sampler
 	InstrumentOptions instrument.Options
 }
 
@@ -82,11 +85,13 @@ func NewIngester(
 			// pooled, but currently this is the only way to get tag decoder.
 			tagDecoder := opts.TagDecoderPool.Get()
 			op := ingestOp{
-				s:  opts.Appender,
-				r:  retrier,
-				it: serialize.NewMetricTagsIterator(tagDecoder, nil),
-				p:  p,
-				m:  m,
+				s:       opts.Appender,
+				r:       retrier,
+				it:      serialize.NewMetricTagsIterator(tagDecoder, nil),
+				p:       p,
+				m:       m,
+				logger:  opts.InstrumentOptions.Logger(),
+				sampler: opts.Sampler,
 			}
 			op.attemptFn = op.attempt
 			op.ingestFn = op.ingest
@@ -103,15 +108,15 @@ func NewIngester(
 func (i *Ingester) Ingest(
 	ctx context.Context,
 	id []byte,
-	metricTime time.Time,
+	metricNanos, encodeNanos int64,
 	value float64,
 	sp policy.StoragePolicy,
-	callback *m3msg.RefCountedCallback,
+	callback m3msg.Callbackable,
 ) {
 	op := i.p.Get().(*ingestOp)
 	op.c = ctx
 	op.id = id
-	op.metricTime = metricTime
+	op.metricNanos = metricNanos
 	op.value = value
 	op.sp = sp
 	op.callback = callback
@@ -124,16 +129,25 @@ type ingestOp struct {
 	it        id.SortedTagIterator
 	p         pool.ObjectPool
 	m         ingestMetrics
+	logger    log.Logger
+	sampler   *sampler.Sampler
 	attemptFn retry.Fn
 	ingestFn  func()
 
-	c          context.Context
-	id         []byte
-	metricTime time.Time
-	value      float64
-	sp         policy.StoragePolicy
-	callback   *m3msg.RefCountedCallback
-	q          storage.WriteQuery
+	c           context.Context
+	id          []byte
+	metricNanos int64
+	value       float64
+	sp          policy.StoragePolicy
+	callback    m3msg.Callbackable
+	q           storage.WriteQuery
+}
+
+func (op *ingestOp) sample() bool {
+	if op.sampler == nil {
+		return false
+	}
+	return op.sampler.Sample()
 }
 
 func (op *ingestOp) ingest() {
@@ -141,6 +155,9 @@ func (op *ingestOp) ingest() {
 		op.m.ingestError.Inc(1)
 		op.callback.Callback(m3msg.OnRetriableError)
 		op.p.Put(op)
+		if op.sample() {
+			op.logger.Errorf("could not reset ingest op: %v", err)
+		}
 		return
 	}
 	if err := op.r.Attempt(op.attemptFn); err != nil {
@@ -151,6 +168,9 @@ func (op *ingestOp) ingest() {
 		}
 		op.m.ingestError.Inc(1)
 		op.p.Put(op)
+		if op.sample() {
+			op.logger.Errorf("could not write ingest op: %v", err)
+		}
 		return
 	}
 	op.m.ingestSuccess.Inc(1)
@@ -191,6 +211,6 @@ func (op *ingestOp) resetDataPoints() {
 	if len(op.q.Datapoints) != 1 {
 		op.q.Datapoints = make(ts.Datapoints, 1)
 	}
-	op.q.Datapoints[0].Timestamp = op.metricTime
+	op.q.Datapoints[0].Timestamp = time.Unix(0, op.metricNanos)
 	op.q.Datapoints[0].Value = op.value
 }

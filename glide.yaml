@@ -1,7 +1,7 @@
 package: github.com/m3db/m3
 import:
   - package: github.com/m3db/m3x
-    version: 4f657299af578e9aa28c557075c7307d4b756378
+    version: 912d1db087722c924d50a7bfac7ca55cf56a600e
     vcs: git
     subpackages:
       - checked
@@ -121,7 +121,7 @@ import:
     version: 0bce6a6887123b67a60366d2c9fe2dfb74289d2e
 
   - package: github.com/pilosa/pilosa/roaring
-    version: ^0.9 # FOLLOWUP: should move to 1.0 once that's released
+    version: 8fe32d764fd7e29ec4c24aa0ca02c4174e4a6aed
 
   # NB(prateek): ideally, the following dependencies would be under testImport, but
   # Glide doesn't like that. https://github.com/Masterminds/glide/issues/564

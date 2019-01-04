@@ -151,5 +151,10 @@ func (q *ConjuctionQuery) ToProto() *querypb.Query {
 }
 
 func (q *ConjuctionQuery) String() string {
+	if len(q.negations) > 0 {
+		return fmt.Sprintf("conjunction(%s,%s)",
+			join(q.queries), joinNegation(q.negations))
+	}
+
 	return fmt.Sprintf("conjunction(%s)", join(q.queries))
 }

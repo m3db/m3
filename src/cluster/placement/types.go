@@ -169,9 +169,9 @@ type Placement interface {
 	// String returns a description of the placement
 	String() string
 
-	// GetVersion() returns the version of the placement retreived from the
+	// Version() returns the version of the placement retreived from the
 	// backing MVCC store.
-	GetVersion() int
+	Version() int
 
 	// SetVersion() sets the version of the placement object. Since version
 	// is determined by the backing MVCC store, calling this method has no
@@ -321,8 +321,11 @@ type StagedPlacement interface {
 // TimeNanosFn returns the time in the format of Unix nanoseconds.
 type TimeNanosFn func() int64
 
-// ShardValidationFn validates the shard.
-type ShardValidationFn func(s shard.Shard) error
+// ShardValidateFn validates the shard.
+type ShardValidateFn func(s shard.Shard) error
+
+// ValidateFn validates the placement.
+type ValidateFn func(p Placement) error
 
 // Options is the interface for placement options.
 type Options interface {
@@ -408,16 +411,24 @@ type Options interface {
 	SetShardCutoffNanosFn(fn TimeNanosFn) Options
 
 	// IsShardCutoverFn returns the validation function for shard cutover.
-	IsShardCutoverFn() ShardValidationFn
+	IsShardCutoverFn() ShardValidateFn
 
 	// SetIsShardCutoverFn sets the validation function for shard cutover.
-	SetIsShardCutoverFn(fn ShardValidationFn) Options
+	SetIsShardCutoverFn(fn ShardValidateFn) Options
 
 	// IsShardCutoffFn returns the validation function for shard cutoff.
-	IsShardCutoffFn() ShardValidationFn
+	IsShardCutoffFn() ShardValidateFn
 
 	// SetIsShardCutoffFn sets the validation function for shard cutoff.
-	SetIsShardCutoffFn(fn ShardValidationFn) Options
+	SetIsShardCutoffFn(fn ShardValidateFn) Options
+
+	// ValidateFnBeforeUpdate returns the validate function to be applied before
+	// a placement update.
+	ValidateFnBeforeUpdate() ValidateFn
+
+	// SetValidateFnBeforeUpdate sets the validate function to be applied before
+	// a placement update.
+	SetValidateFnBeforeUpdate(fn ValidateFn) Options
 
 	// NowFn returns the function to get time now.
 	NowFn() clock.NowFn
@@ -500,13 +511,13 @@ type Service interface {
 	)
 
 	// MarkShardsAvailable marks given shards as available.
-	MarkShardsAvailable(instanceID string, shardIDs ...uint32) error
+	MarkShardsAvailable(instanceID string, shardIDs ...uint32) (Placement, error)
+
+	// MarkInstanceAvailable marks all the shards on a given instance as available.
+	MarkInstanceAvailable(instanceID string) (Placement, error)
 
 	// MarkAllShardsAvailable marks shard states as available where applicable.
 	MarkAllShardsAvailable() (Placement, error)
-
-	// MarkInstanceAvailable marks all the shards on a given instance as available.
-	MarkInstanceAvailable(instanceID string) error
 }
 
 // Algorithm places shards on instances.

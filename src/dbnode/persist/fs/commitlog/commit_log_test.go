@@ -100,7 +100,7 @@ func cleanup(t *testing.T, opts Options) {
 }
 
 type testWrite struct {
-	series      Series
+	series      ts.Series
 	t           time.Time
 	v           float64
 	u           xtime.Unit
@@ -113,8 +113,8 @@ func testSeries(
 	id string,
 	tags ident.Tags,
 	shard uint32,
-) Series {
-	return Series{
+) ts.Series {
+	return ts.Series{
 		UniqueIndex: uniqueIndex,
 		Namespace:   ident.StringID("testNS"),
 		ID:          ident.StringID(id),
@@ -125,7 +125,7 @@ func testSeries(
 
 func (w testWrite) assert(
 	t *testing.T,
-	series Series,
+	series ts.Series,
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
 	annotation []byte,
@@ -154,7 +154,7 @@ func snapshotCounterValue(
 
 type mockCommitLogWriter struct {
 	openFn  func(start time.Time, duration time.Duration) (File, error)
-	writeFn func(Series, ts.Datapoint, xtime.Unit, ts.Annotation) error
+	writeFn func(ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation) error
 	flushFn func(sync bool) error
 	closeFn func() error
 }
@@ -164,7 +164,7 @@ func newMockCommitLogWriter() *mockCommitLogWriter {
 		openFn: func(start time.Time, duration time.Duration) (File, error) {
 			return File{}, nil
 		},
-		writeFn: func(Series, ts.Datapoint, xtime.Unit, ts.Annotation) error {
+		writeFn: func(ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation) error {
 			return nil
 		},
 		flushFn: func(sync bool) error {
@@ -181,7 +181,7 @@ func (w *mockCommitLogWriter) Open(start time.Time, duration time.Duration) (Fil
 }
 
 func (w *mockCommitLogWriter) Write(
-	series Series,
+	series ts.Series,
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
 	annotation ts.Annotation,
@@ -391,7 +391,7 @@ func TestReadCommitLogMissingMetadata(t *testing.T) {
 	// Generate fake series, where approximately half will be missing metadata.
 	// This works because the commitlog writer uses the bitset to determine if
 	// the metadata for a particular series had already been written to disk.
-	allSeries := []Series{}
+	allSeries := []ts.Series{}
 	for i := 0; i < 200; i++ {
 		willNotHaveMetadata := !(i%2 == 0)
 		allSeries = append(allSeries, testSeries(
@@ -676,7 +676,7 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 	commitLog := commitLogI.(*commitLog)
 	writer := newMockCommitLogWriter()
 
-	writer.writeFn = func(Series, ts.Datapoint, xtime.Unit, ts.Annotation) error {
+	writer.writeFn = func(ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation) error {
 		return fmt.Errorf("an error")
 	}
 

@@ -56,7 +56,7 @@ type iterator struct {
 }
 
 type iteratorRead struct {
-	series     Series
+	series     ts.Series
 	datapoint  ts.Datapoint
 	unit       xtime.Unit
 	annotation []byte
@@ -127,7 +127,7 @@ func (i *iterator) Next() bool {
 	return true
 }
 
-func (i *iterator) Current() (Series, ts.Datapoint, xtime.Unit, ts.Annotation) {
+func (i *iterator) Current() (ts.Series, ts.Datapoint, xtime.Unit, ts.Annotation) {
 	read := i.read
 	if i.hasError() || i.closed || !i.setRead {
 		read = iteratorRead{}

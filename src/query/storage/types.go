@@ -41,6 +41,8 @@ const (
 	TypeRemoteDC
 	// TypeMultiDC is for storages that will aggregate multiple datacenters
 	TypeMultiDC
+	// TypeDebug is for storages that are used for debugging purposes
+	TypeDebug
 )
 
 // Storage provides an interface for reading and writing to the tsdb
@@ -76,9 +78,11 @@ func (q *FetchQuery) String() string {
 	return q.Raw
 }
 
-// FetchOptions represents the options for fetch query
+// FetchOptions represents the options for fetch query.
 type FetchOptions struct {
-	Limit int
+	// Limit is the maximum number of series to return.
+	Limit     int
+	UseLegacy bool
 }
 
 // NewFetchOptions creates a new fetch options.
@@ -110,6 +114,13 @@ type Querier interface {
 		query *FetchQuery,
 		options *FetchOptions,
 	) (*SearchResults, error)
+
+	// CompleteTags returns autocompleted tag results
+	CompleteTags(
+		ctx context.Context,
+		query *CompleteTagsQuery,
+		options *FetchOptions,
+	) (*CompleteTagsResult, error)
 }
 
 // WriteQuery represents the input timeseries that is written to the db
@@ -128,9 +139,17 @@ func (q *WriteQuery) String() string {
 // CompleteTagsQuery represents a query that returns an autocompleted
 // set of tags that exist in the db
 type CompleteTagsQuery struct {
-	TagMatchers      models.Matchers
-	FilterNameTags   [][]byte
 	CompleteNameOnly bool
+	FilterNameTags   [][]byte
+	TagMatchers      models.Matchers
+}
+
+// SeriesMatchQuery represents a query that returns a set of series
+// that match the query
+type SeriesMatchQuery struct {
+	TagMatchers []models.Matchers
+	Start       time.Time
+	End         time.Time
 }
 
 func (q *CompleteTagsQuery) String() string {

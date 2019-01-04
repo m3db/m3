@@ -310,7 +310,8 @@ func (c *grpcClient) CompleteTags(
 	}
 
 	// Sort tags in the result post-merge.
-	return accumulatedTags.Build(), nil
+	built := accumulatedTags.Build()
+	return &built, nil
 }
 
 // Close closes the underlying connection

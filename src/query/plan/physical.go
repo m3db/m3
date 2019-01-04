@@ -37,6 +37,7 @@ type PhysicalPlan struct {
 	ResultStep ResultOp
 	TimeSpec   transform.TimeSpec
 	Debug      bool
+	UseLegacy  bool
 }
 
 // ResultOp is resonsible for delivering results to the clients
@@ -59,7 +60,8 @@ func NewPhysicalPlan(lp LogicalPlan, storage storage.Storage, params models.Requ
 			Now:   params.Now,
 			Step:  params.Step,
 		},
-		Debug: params.Debug,
+		Debug:     params.Debug,
+		UseLegacy: params.UseLegacy,
 	}
 
 	pl, err := p.createResultNode()

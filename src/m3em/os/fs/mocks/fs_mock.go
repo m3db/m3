@@ -55,6 +55,7 @@ func (m *MockFileReaderIter) EXPECT() *MockFileReaderIterMockRecorder {
 
 // Current mocks base method
 func (m *MockFileReaderIter) Current() []byte {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Current")
 	ret0, _ := ret[0].([]byte)
 	return ret0
@@ -62,11 +63,13 @@ func (m *MockFileReaderIter) Current() []byte {
 
 // Current indicates an expected call of Current
 func (mr *MockFileReaderIterMockRecorder) Current() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockFileReaderIter)(nil).Current))
 }
 
 // Next mocks base method
 func (m *MockFileReaderIter) Next() bool {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Next")
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -74,11 +77,13 @@ func (m *MockFileReaderIter) Next() bool {
 
 // Next indicates an expected call of Next
 func (mr *MockFileReaderIterMockRecorder) Next() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockFileReaderIter)(nil).Next))
 }
 
 // Err mocks base method
 func (m *MockFileReaderIter) Err() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Err")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -86,11 +91,13 @@ func (m *MockFileReaderIter) Err() error {
 
 // Err indicates an expected call of Err
 func (mr *MockFileReaderIterMockRecorder) Err() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockFileReaderIter)(nil).Err))
 }
 
 // Checksum mocks base method
 func (m *MockFileReaderIter) Checksum() uint32 {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Checksum")
 	ret0, _ := ret[0].(uint32)
 	return ret0
@@ -98,11 +105,13 @@ func (m *MockFileReaderIter) Checksum() uint32 {
 
 // Checksum indicates an expected call of Checksum
 func (mr *MockFileReaderIterMockRecorder) Checksum() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Checksum", reflect.TypeOf((*MockFileReaderIter)(nil).Checksum))
 }
 
 // Close mocks base method
 func (m *MockFileReaderIter) Close() error {
+	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -110,5 +119,6 @@ func (m *MockFileReaderIter) Close() error {
 
 // Close indicates an expected call of Close
 func (mr *MockFileReaderIterMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockFileReaderIter)(nil).Close))
 }

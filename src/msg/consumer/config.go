@@ -30,13 +30,42 @@ import (
 
 // Configuration configs the consumer options.
 type Configuration struct {
-	Encoder                   *proto.Configuration          `yaml:"encoder"`
-	Decoder                   *proto.Configuration          `yaml:"decoder"`
-	MessagePool               *pool.ObjectPoolConfiguration `yaml:"messagePool"`
-	AckFlushInterval          *time.Duration                `yaml:"ackFlushInterval"`
-	AckBufferSize             *int                          `yaml:"ackBufferSize"`
-	ConnectionWriteBufferSize *int                          `yaml:"connectionWriteBufferSize"`
-	ConnectionReadBufferSize  *int                          `yaml:"connectionReadBufferSize"`
+	Encoder                   *proto.Configuration      `yaml:"encoder"`
+	Decoder                   *proto.Configuration      `yaml:"decoder"`
+	MessagePool               *MessagePoolConfiguration `yaml:"messagePool"`
+	AckFlushInterval          *time.Duration            `yaml:"ackFlushInterval"`
+	AckBufferSize             *int                      `yaml:"ackBufferSize"`
+	ConnectionWriteBufferSize *int                      `yaml:"connectionWriteBufferSize"`
+	ConnectionReadBufferSize  *int                      `yaml:"connectionReadBufferSize"`
+}
+
+// MessagePoolConfiguration is the message pool configuration
+// options, which extends the default object pool configuration.
+type MessagePoolConfiguration struct {
+	// Size is the size of the pool.
+	Size int `yaml:"size"`
+
+	// Watermark is the object pool watermark configuration.
+	Watermark pool.WatermarkConfiguration `yaml:"watermark"`
+
+	// MaxBufferReuseSize specifies the maximum buffer which can
+	// be reused and pooled, if a buffer greater than this
+	// is used then it is discarded. Zero specifies no limit.
+	MaxBufferReuseSize int `yaml:"maxBufferReuseSize"`
+}
+
+// NewOptions creates message pool options.
+func (c MessagePoolConfiguration) NewOptions(
+	iopts instrument.Options,
+) MessagePoolOptions {
+	poolCfg := pool.ObjectPoolConfiguration{
+		Size:      c.Size,
+		Watermark: c.Watermark,
+	}
+	return MessagePoolOptions{
+		PoolOptions:        poolCfg.NewObjectPoolOptions(iopts),
+		MaxBufferReuseSize: c.MaxBufferReuseSize,
+	}
 }
 
 // NewOptions creates consumer options.
@@ -49,7 +78,7 @@ func (c *Configuration) NewOptions(iOpts instrument.Options) Options {
 		opts = opts.SetDecoderOptions(c.Decoder.NewOptions(iOpts))
 	}
 	if c.MessagePool != nil {
-		opts = opts.SetMessagePoolOptions(c.MessagePool.NewObjectPoolOptions(iOpts))
+		opts = opts.SetMessagePoolOptions(c.MessagePool.NewOptions(iOpts))
 	}
 	if c.AckFlushInterval != nil {
 		opts = opts.SetAckFlushInterval(*c.AckFlushInterval)
