@@ -121,7 +121,7 @@ func TestConsolidatedStepIteratorMinuteLookback(t *testing.T) {
 			require.NoError(t, err)
 
 			require.True(t, bounds.Equals(iters.Meta().Bounds))
-			verifyMetas(t, i, bounds, iters.Meta(), iters.SeriesMeta())
+			verifyMetas(t, i, iters.Meta(), iters.SeriesMeta())
 			for iters.Next() {
 				step, err := iters.Current()
 				require.NoError(t, err)
@@ -255,7 +255,7 @@ func TestConsolidatedStepIteratorSplitByBlock(t *testing.T) {
 
 			j := 0
 			idx := verifyBoundsAndGetBlockIndex(t, bounds, iters.Meta().Bounds)
-			verifyMetas(t, i, bounds, iters.Meta(), iters.SeriesMeta())
+			verifyMetas(t, i, iters.Meta(), iters.SeriesMeta())
 			for iters.Next() {
 				step, err := iters.Current()
 				require.NoError(t, err)

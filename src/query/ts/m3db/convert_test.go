@@ -147,7 +147,6 @@ func verifyBoundsAndGetBlockIndex(t *testing.T, bounds, sub models.Bounds) int {
 func verifyMetas(
 	t *testing.T,
 	i int,
-	bounds models.Bounds,
 	meta block.Metadata,
 	metas []block.SeriesMeta,
 ) {
